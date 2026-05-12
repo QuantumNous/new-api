@@ -1,3 +1,21 @@
+/*
+Copyright (C) 2023-2026 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
 import { useEffect, useMemo, useState } from 'react'
 import * as z from 'zod'
 import { useForm } from 'react-hook-form'
@@ -39,6 +57,7 @@ import { Input } from '@/components/ui/input'
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
   SelectTrigger,
   SelectValue,
@@ -513,7 +532,23 @@ export function AnnouncementsSection({
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>{t('Type')}</FormLabel>
-                    <Select onValueChange={field.onChange} value={field.value}>
+                    <Select
+                      items={[
+                        ...typeOptions.map((option) => ({
+                          value: option.value,
+                          label: (
+                            <div className='flex items-center gap-2'>
+                              <div
+                                className={`h-3 w-3 rounded-full ${option.color}`}
+                              />
+                              {option.label}
+                            </div>
+                          ),
+                        })),
+                      ]}
+                      onValueChange={field.onChange}
+                      value={field.value}
+                    >
                       <FormControl>
                         <SelectTrigger>
                           <SelectValue
@@ -521,17 +556,19 @@ export function AnnouncementsSection({
                           />
                         </SelectTrigger>
                       </FormControl>
-                      <SelectContent>
-                        {typeOptions.map((option) => (
-                          <SelectItem key={option.value} value={option.value}>
-                            <div className='flex items-center gap-2'>
-                              <div
-                                className={`h-3 w-3 rounded-full ${option.color}`}
-                              />
-                              {option.label}
-                            </div>
-                          </SelectItem>
-                        ))}
+                      <SelectContent alignItemWithTrigger={false}>
+                        <SelectGroup>
+                          {typeOptions.map((option) => (
+                            <SelectItem key={option.value} value={option.value}>
+                              <div className='flex items-center gap-2'>
+                                <div
+                                  className={`h-3 w-3 rounded-full ${option.color}`}
+                                />
+                                {option.label}
+                              </div>
+                            </SelectItem>
+                          ))}
+                        </SelectGroup>
                       </SelectContent>
                     </Select>
                     <FormMessage />

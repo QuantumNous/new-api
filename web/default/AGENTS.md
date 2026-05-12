@@ -17,7 +17,7 @@
 | 表格与列表 | @tanstack/react-table、@tanstack/react-virtual |
 | 国际化   | i18next、react-i18next、i18next-browser-languagedetector |
 | 日期     | Day.js |
-| UI 与样式 | Radix UI、Lucide React、Tailwind CSS、clsx / class-variance-authority |
+| UI 与样式 | Base UI、Hugeicons、Tailwind CSS、clsx / class-variance-authority |
 | 表单     | React Hook Form、Zod |
 | 图表     | @visactor/vchart、@visactor/react-vchart |
 | 工具     | qrcode.react、prettier、eslint、vitest（可选）|

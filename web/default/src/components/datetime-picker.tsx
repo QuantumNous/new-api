@@ -1,3 +1,21 @@
+/*
+Copyright (C) 2023-2026 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
 import * as React from 'react'
 import { ChevronDownIcon } from 'lucide-react'
 import { enUS, fr, ja, ru, vi, zhCN } from 'react-day-picker/locale'
@@ -93,17 +111,19 @@ export function DateTimePicker({
   return (
     <div className={cn('flex gap-2', className)}>
       <Popover open={open} onOpenChange={setOpen}>
-        <PopoverTrigger asChild>
-          <Button
-            variant='outline'
-            className={cn(
-              'flex-1 justify-between font-normal',
-              !date && 'text-muted-foreground'
-            )}
-          >
-            {date ? dayjs(date).format('YYYY-MM-DD') : placeholderText}
-            <ChevronDownIcon className='h-4 w-4 opacity-50' />
-          </Button>
+        <PopoverTrigger
+          render={
+            <Button
+              variant='outline'
+              className={cn(
+                'flex-1 justify-between font-normal',
+                !date && 'text-muted-foreground'
+              )}
+            />
+          }
+        >
+          {date ? dayjs(date).format('YYYY-MM-DD') : placeholderText}
+          <ChevronDownIcon className='h-4 w-4 opacity-50' />
         </PopoverTrigger>
         <PopoverContent className='w-auto overflow-hidden p-0' align='start'>
           <Calendar

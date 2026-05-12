@@ -1,3 +1,21 @@
+/*
+Copyright (C) 2023-2026 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
 import { useCallback, useEffect, useState } from 'react'
 import { LayoutDashboard } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
@@ -182,23 +200,23 @@ export function SidebarModulesCard() {
   }
 
   return (
-    <Card className='overflow-hidden'>
-      <CardHeader className='border-b'>
+    <Card className='gap-0 overflow-hidden py-0'>
+      <CardHeader className='border-b p-3 !pb-3 sm:p-5 sm:!pb-5'>
         <div className='flex items-center gap-3'>
-          <div className='bg-muted flex h-9 w-9 shrink-0 items-center justify-center rounded-lg'>
+          <div className='bg-muted flex h-8 w-8 shrink-0 items-center justify-center rounded-lg sm:h-9 sm:w-9'>
             <LayoutDashboard className='h-4 w-4' />
           </div>
           <div className='min-w-0'>
-            <CardTitle className='text-xl tracking-tight'>
+            <CardTitle className='text-lg tracking-tight sm:text-xl'>
               {t('Sidebar Personal Settings')}
             </CardTitle>
-            <CardDescription>
+            <CardDescription className='text-xs sm:text-sm'>
               {t('Customize sidebar display content')}
             </CardDescription>
           </div>
         </div>
       </CardHeader>
-      <CardContent className='space-y-5 pt-6'>
+      <CardContent className='space-y-4 p-3 sm:space-y-5 sm:p-5'>
         {sectionDefs.map((section) => {
           const sectionEnabled = config[section.key]?.enabled !== false
           return (

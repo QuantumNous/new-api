@@ -1,3 +1,21 @@
+/*
+Copyright (C) 2023-2026 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
 import { useState } from 'react'
 import { Search, Copy, Check, ChevronLeft, ChevronRight } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
@@ -28,6 +46,7 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
   SelectTrigger,
   SelectValue,
@@ -83,7 +102,7 @@ export function BillingHistoryDialog({
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className='max-w-4xl'>
+        <DialogContent className='flex max-h-[calc(100dvh-2rem)] flex-col max-sm:h-dvh max-sm:w-screen max-sm:max-w-none max-sm:rounded-none max-sm:p-4 sm:max-w-4xl'>
           <DialogHeader>
             <DialogTitle>{t('Billing History')}</DialogTitle>
             <DialogDescription>
@@ -91,7 +110,7 @@ export function BillingHistoryDialog({
             </DialogDescription>
           </DialogHeader>
 
-          <div className='space-y-4'>
+          <div className='min-h-0 flex-1 space-y-3 sm:space-y-4'>
             {/* Search and Filter Bar */}
             <div className='flex items-center gap-2'>
               <div className='relative flex-1'>
@@ -100,31 +119,41 @@ export function BillingHistoryDialog({
                   placeholder={t('Search by order number...')}
                   value={keyword}
                   onChange={(e) => handleSearch(e.target.value)}
-                  className='pl-10'
+                  className='h-9 pl-10'
                 />
               </div>
               <Select
+                items={[
+                  { value: '10', label: t('10 / page') },
+                  { value: '20', label: t('20 / page') },
+                  { value: '50', label: t('50 / page') },
+                  { value: '100', label: t('100 / page') },
+                ]}
                 value={pageSize.toString()}
-                onValueChange={(value) => handlePageSizeChange(parseInt(value))}
+                onValueChange={(value) =>
+                  value !== null && handlePageSizeChange(parseInt(value))
+                }
               >
-                <SelectTrigger className='w-32'>
+                <SelectTrigger className='h-9 w-[92px] sm:w-32'>
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value='10'>{t('10 / page')}</SelectItem>
-                  <SelectItem value='20'>{t('20 / page')}</SelectItem>
-                  <SelectItem value='50'>{t('50 / page')}</SelectItem>
-                  <SelectItem value='100'>{t('100 / page')}</SelectItem>
+                <SelectContent alignItemWithTrigger={false}>
+                  <SelectGroup>
+                    <SelectItem value='10'>{t('10 / page')}</SelectItem>
+                    <SelectItem value='20'>{t('20 / page')}</SelectItem>
+                    <SelectItem value='50'>{t('50 / page')}</SelectItem>
+                    <SelectItem value='100'>{t('100 / page')}</SelectItem>
+                  </SelectGroup>
                 </SelectContent>
               </Select>
             </div>
 
             {/* Records List */}
-            <ScrollArea className='h-[500px] pr-4'>
+            <ScrollArea className='h-[calc(100dvh-15rem)] pr-3 sm:h-[500px] sm:pr-4'>
               {loading ? (
                 <div className='space-y-3'>
                   {Array.from({ length: 5 }).map((_, i) => (
-                    <div key={i} className='rounded-lg border p-4'>
+                    <div key={i} className='rounded-lg border p-3 sm:p-4'>
                       <div className='flex items-start justify-between'>
                         <div className='flex-1 space-y-2'>
                           <Skeleton className='h-4 w-48' />
@@ -132,7 +161,7 @@ export function BillingHistoryDialog({
                         </div>
                         <Skeleton className='h-5 w-16' />
                       </div>
-                      <div className='mt-3 grid grid-cols-3 gap-4'>
+                      <div className='mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4'>
                         <Skeleton className='h-3 w-full' />
                         <Skeleton className='h-3 w-full' />
                         <Skeleton className='h-3 w-full' />
@@ -141,14 +170,14 @@ export function BillingHistoryDialog({
                   ))}
                 </div>
               ) : records.length === 0 ? (
-                <div className='text-muted-foreground flex h-[400px] flex-col items-center justify-center text-center'>
+                <div className='text-muted-foreground flex h-[320px] flex-col items-center justify-center text-center sm:h-[400px]'>
                   <p className='text-sm font-medium'>
                     {t('No billing records found')}
                   </p>
                   <p className='mt-1 text-xs'>
                     {keyword
-                      ? 'Try adjusting your search'
-                      : 'Your transaction history will appear here'}
+                      ? t('Try adjusting your search')
+                      : t('Your transaction history will appear here')}
                   </p>
                 </div>
               ) : (
@@ -158,13 +187,13 @@ export function BillingHistoryDialog({
                     return (
                       <div
                         key={record.id}
-                        className='hover:bg-muted/50 rounded-lg border p-4 transition-colors'
+                        className='hover:bg-muted/50 rounded-lg border p-3 transition-colors sm:p-4'
                       >
                         {/* Header Row */}
-                        <div className='flex items-start justify-between'>
+                        <div className='flex items-start justify-between gap-2'>
                           <div className='flex-1 space-y-1'>
-                            <div className='flex items-center gap-2'>
-                              <code className='text-foreground font-mono text-sm'>
+                            <div className='flex min-w-0 items-center gap-2'>
+                              <code className='text-foreground truncate font-mono text-sm'>
                                 {record.trade_no}
                               </code>
                               <Button
@@ -201,18 +230,18 @@ export function BillingHistoryDialog({
                         </div>
 
                         {/* Details Grid */}
-                        <div className='mt-4 grid grid-cols-3 gap-4'>
+                        <div className='mt-3 grid grid-cols-2 gap-3 sm:mt-4 sm:grid-cols-3 sm:gap-4'>
                           <div className='space-y-1'>
                             <Label className='text-muted-foreground text-xs'>
-                              Payment Method
+                              {t('Payment Method')}
                             </Label>
                             <div className='text-sm font-medium'>
-                              {getPaymentMethodName(record.payment_method)}
+                              {getPaymentMethodName(record.payment_method, t)}
                             </div>
                           </div>
                           <div className='space-y-1'>
                             <Label className='text-muted-foreground text-xs'>
-                              Amount
+                              {t('Amount')}
                             </Label>
                             <div className='text-sm font-semibold'>
                               {formatCurrencyFromUSD(record.amount, {
@@ -224,7 +253,7 @@ export function BillingHistoryDialog({
                           </div>
                           <div className='space-y-1'>
                             <Label className='text-muted-foreground text-xs'>
-                              Payment
+                              {t('Payment')}
                             </Label>
                             <div className='text-sm font-semibold text-red-600'>
                               {formatNumber(record.money)}
@@ -241,7 +270,7 @@ export function BillingHistoryDialog({
                               onClick={() => setConfirmTradeNo(record.trade_no)}
                               disabled={completing}
                             >
-                              Complete Order
+                              {t('Complete Order')}
                             </Button>
                           </div>
                         )}
@@ -312,7 +341,7 @@ export function BillingHistoryDialog({
               onClick={handleConfirmComplete}
               disabled={completing}
             >
-              {completing ? 'Processing...' : 'Confirm'}
+              {completing ? t('Processing...') : t('Confirm')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

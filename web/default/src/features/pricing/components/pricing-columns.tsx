@@ -1,3 +1,21 @@
+/*
+Copyright (C) 2023-2026 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
 import { type ColumnDef } from '@tanstack/react-table'
 import { useTranslation } from 'react-i18next'
 import { getLobeIcon } from '@/lib/lobe-icon'
@@ -10,12 +28,12 @@ import {
 import { DataTableColumnHeader } from '@/components/data-table/column-header'
 import { GroupBadge } from '@/components/group-badge'
 import { DEFAULT_TOKEN_UNIT, QUOTA_TYPE_VALUES } from '../constants'
-import { parseTags } from '../lib/filters'
-import { isTokenBasedModel } from '../lib/model-helpers'
 import {
   getDynamicDisplayGroupRatio,
   getDynamicPricingSummary,
 } from '../lib/dynamic-price'
+import { parseTags } from '../lib/filters'
+import { isTokenBasedModel } from '../lib/model-helpers'
 import {
   formatPrice,
   formatRequestPrice,
@@ -152,14 +170,14 @@ export function usePricingColumns(
         if (dynamicSummary) {
           if (dynamicSummary.isSpecialExpression) {
             return (
-              <div className='min-w-[200px] max-w-[320px]'>
-                <div className='text-amber-700 text-xs font-medium dark:text-amber-300'>
+              <div className='max-w-[320px] min-w-[200px]'>
+                <div className='text-xs font-medium text-amber-700 dark:text-amber-300'>
                   {t('Special billing expression')}
                 </div>
                 <div className='text-muted-foreground text-[11px]'>
                   {t('Unable to parse structured pricing')}
                 </div>
-                <code className='text-muted-foreground/70 mt-1 line-clamp-2 block break-all font-mono text-[10px] leading-relaxed'>
+                <code className='text-muted-foreground/70 mt-1 line-clamp-2 block font-mono text-[10px] leading-relaxed break-all'>
                   {dynamicSummary.rawExpression}
                 </code>
               </div>
@@ -371,8 +389,8 @@ export function usePricingColumns(
         return (
           <TooltipProvider>
             <Tooltip>
-              <TooltipTrigger asChild>
-                <div>{renderLimitedTags(tags, 2)}</div>
+              <TooltipTrigger render={<div />}>
+                {renderLimitedTags(tags, 2)}
               </TooltipTrigger>
               {tags.length > 2 && (
                 <TooltipContent side='top' className='max-w-[280px] p-2'>
@@ -401,8 +419,8 @@ export function usePricingColumns(
         return (
           <TooltipProvider>
             <Tooltip>
-              <TooltipTrigger asChild>
-                <div>{renderLimitedTags(endpoints, 2)}</div>
+              <TooltipTrigger render={<div />}>
+                {renderLimitedTags(endpoints, 2)}
               </TooltipTrigger>
               {endpoints.length > 2 && (
                 <TooltipContent side='top' className='max-w-[280px] p-2'>
@@ -431,8 +449,8 @@ export function usePricingColumns(
         return (
           <TooltipProvider>
             <Tooltip>
-              <TooltipTrigger asChild>
-                <div>{renderLimitedGroupBadges(groups, 2)}</div>
+              <TooltipTrigger render={<div />}>
+                {renderLimitedGroupBadges(groups, 2)}
               </TooltipTrigger>
               {groups.length > 2 && (
                 <TooltipContent side='top' className='max-w-[280px] p-2'>

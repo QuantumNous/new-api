@@ -1,3 +1,21 @@
+/*
+Copyright (C) 2023-2026 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
 import { useQuery } from '@tanstack/react-query'
 import { FileWarning } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
@@ -66,7 +84,7 @@ export function LegalDocument({
         <div className='mx-auto max-w-2xl py-12'>
           <Card className='border-dashed'>
             <CardHeader className='flex flex-row items-center gap-4'>
-              <div className='bg-muted rounded-full p-2'>
+              <div className='bg-muted rounded-lg p-2'>
                 <FileWarning className='text-muted-foreground h-5 w-5' />
               </div>
               <div className='space-y-1'>
@@ -96,10 +114,16 @@ export function LegalDocument({
                   'The administrator configured an external link for this document.'
                 )}
               </p>
-              <Button asChild>
-                <a href={rawContent} target='_blank' rel='noopener noreferrer'>
-                  {t('View document')}
-                </a>
+              <Button
+                render={
+                  <a
+                    href={rawContent}
+                    target='_blank'
+                    rel='noopener noreferrer'
+                  />
+                }
+              >
+                {t('View document')}
               </Button>
             </CardContent>
           </Card>

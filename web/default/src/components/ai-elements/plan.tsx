@@ -1,3 +1,21 @@
+/*
+Copyright (C) 2023-2026 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
 'use client'
 
 import { type ComponentProps, createContext, useContext } from 'react'
@@ -46,8 +64,12 @@ export const Plan = ({
   ...props
 }: PlanProps) => (
   <PlanContext.Provider value={{ isStreaming }}>
-    <Collapsible asChild data-slot='plan' {...props}>
-      <Card className={cn('shadow-none', className)}>{children}</Card>
+    <Collapsible
+      data-slot='plan'
+      {...props}
+      render={<Card className={cn('shadow-none', className)} />}
+    >
+      {children}
     </Collapsible>
   </PlanContext.Provider>
 )
@@ -113,9 +135,9 @@ export const PlanAction = (props: PlanActionProps) => (
 export type PlanContentProps = ComponentProps<typeof CardContent>
 
 export const PlanContent = (props: PlanContentProps) => (
-  <CollapsibleContent asChild>
-    <CardContent data-slot='plan-content' {...props} />
-  </CollapsibleContent>
+  <CollapsibleContent
+    render={<CardContent data-slot='plan-content' {...props} />}
+  ></CollapsibleContent>
 )
 
 export type PlanFooterProps = ComponentProps<'div'>
@@ -129,17 +151,19 @@ export type PlanTriggerProps = ComponentProps<typeof CollapsibleTrigger>
 export const PlanTrigger = ({ className, ...props }: PlanTriggerProps) => {
   const { t } = useTranslation()
   return (
-    <CollapsibleTrigger asChild>
-      <Button
-        className={cn('size-8', className)}
-        data-slot='plan-trigger'
-        size='icon'
-        variant='ghost'
-        {...props}
-      >
-        <ChevronsUpDownIcon className='size-4' />
-        <span className='sr-only'>{t('Toggle plan')}</span>
-      </Button>
+    <CollapsibleTrigger
+      render={
+        <Button
+          className={cn('size-8', className)}
+          data-slot='plan-trigger'
+          size='icon'
+          variant='ghost'
+        />
+      }
+      {...props}
+    >
+      <ChevronsUpDownIcon className='size-4' />
+      <span className='sr-only'>{t('Toggle plan')}</span>
     </CollapsibleTrigger>
   )
 }

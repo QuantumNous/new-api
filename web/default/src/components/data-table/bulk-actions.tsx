@@ -1,3 +1,21 @@
+/*
+Copyright (C) 2023-2026 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
 import { useState, useEffect, useRef } from 'react'
 import { type Table } from '@tanstack/react-table'
 import { X } from 'lucide-react'
@@ -88,7 +106,7 @@ export function DataTableBulkActions<TData>({
         break
       case 'Escape': {
         // Check if the Escape key came from a dropdown trigger or content
-        // We can't check dropdown state because Radix UI closes it before our handler runs
+        // We can't check dropdown state because the menu closes before our handler runs.
         const target = event.target as HTMLElement
         const activeElement = document.activeElement as HTMLElement
 
@@ -156,18 +174,20 @@ export function DataTableBulkActions<TData>({
           )}
         >
           <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                variant='outline'
-                size='icon'
-                onClick={handleClearSelection}
-                className='size-6 rounded-full'
-                aria-label={t('Clear selection')}
-                title={t('Clear selection (Escape)')}
-              >
-                <X />
-                <span className='sr-only'>{t('Clear selection')}</span>
-              </Button>
+            <TooltipTrigger
+              render={
+                <Button
+                  variant='outline'
+                  size='icon'
+                  onClick={handleClearSelection}
+                  className='size-6'
+                  aria-label={t('Clear selection')}
+                  title={t('Clear selection (Escape)')}
+                />
+              }
+            >
+              <X />
+              <span className='sr-only'>{t('Clear selection')}</span>
             </TooltipTrigger>
             <TooltipContent>
               <p>{t('Clear selection (Escape)')}</p>

@@ -1,3 +1,21 @@
+/*
+Copyright (C) 2023-2026 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
 import * as z from 'zod'
 import type { Resolver } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -17,6 +35,7 @@ import { Input } from '@/components/ui/input'
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
   SelectTrigger,
   SelectValue,
@@ -32,7 +51,6 @@ const _systemInfoSchema = z.object({
   theme: z.object({
     frontend: z.enum(['default', 'classic']),
   }),
-  Notice: z.string().optional(),
   SystemName: z.string().min(1),
   ServerAddress: z.string().optional(),
   Logo: z.string().url().optional().or(z.literal('')),
@@ -65,7 +83,6 @@ export function SystemInfoSection({ defaultValues }: SystemInfoSectionProps) {
       frontend:
         defaultValues.theme?.frontend === 'classic' ? 'classic' : 'default',
     },
-    Notice: normalizeValue(defaultValues.Notice),
     SystemName: normalizeValue(defaultValues.SystemName),
     ServerAddress: normalizeValue(defaultValues.ServerAddress),
     Logo: normalizeValue(defaultValues.Logo),
@@ -82,7 +99,6 @@ export function SystemInfoSection({ defaultValues }: SystemInfoSectionProps) {
     theme: z.object({
       frontend: z.enum(['default', 'classic']),
     }),
-    Notice: z.string().optional(),
     SystemName: z.string().min(1, {
       error: () => t('System name is required'),
     }),
@@ -136,49 +152,36 @@ export function SystemInfoSection({ defaultValues }: SystemInfoSectionProps) {
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>{t('Frontend Theme')}</FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value}>
+                  <Select
+                    items={[
+                      { value: 'default', label: t('Default (New Frontend)') },
+                      {
+                        value: 'classic',
+                        label: t('Classic (Legacy Frontend)'),
+                      },
+                    ]}
+                    onValueChange={field.onChange}
+                    value={field.value}
+                  >
                     <FormControl>
                       <SelectTrigger className='w-full'>
                         <SelectValue />
                       </SelectTrigger>
                     </FormControl>
-                    <SelectContent>
-                      <SelectItem value='default'>
-                        {t('Default (New Frontend)')}
-                      </SelectItem>
-                      <SelectItem value='classic'>
-                        {t('Classic (Legacy Frontend)')}
-                      </SelectItem>
+                    <SelectContent alignItemWithTrigger={false}>
+                      <SelectGroup>
+                        <SelectItem value='default'>
+                          {t('Default (New Frontend)')}
+                        </SelectItem>
+                        <SelectItem value='classic'>
+                          {t('Classic (Legacy Frontend)')}
+                        </SelectItem>
+                      </SelectGroup>
                     </SelectContent>
                   </Select>
                   <FormDescription>
                     {t(
                       'Switch between the new frontend and the classic frontend. Changes take effect after page reload.'
-                    )}
-                  </FormDescription>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name='Notice'
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>{t('Notice')}</FormLabel>
-                  <FormControl>
-                    <Textarea
-                      placeholder={t(
-                        'Enter announcement content (supports Markdown & HTML)'
-                      )}
-                      rows={6}
-                      {...field}
-                    />
-                  </FormControl>
-                  <FormDescription>
-                    {t(
-                      'Announcement displayed to users (supports Markdown & HTML)'
                     )}
                   </FormDescription>
                   <FormMessage />

@@ -1,3 +1,21 @@
+/*
+Copyright (C) 2023-2026 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
 import { useEffect, useMemo, useState, useCallback } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import {
@@ -36,6 +54,7 @@ import {
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
   SelectTrigger,
   SelectValue,
@@ -230,15 +249,17 @@ export function UpstreamConflictDialog({
       enableHiding: false,
       cell: ({ row }) => (
         <Popover>
-          <PopoverTrigger asChild>
-            <Button
-              variant='ghost'
-              size='sm'
-              className={isMobile ? 'h-7 w-7 p-0' : 'h-7 gap-2 px-2 text-xs'}
-            >
-              <MousePointerClick className='h-3.5 w-3.5' />
-              {!isMobile && 'View diff'}
-            </Button>
+          <PopoverTrigger
+            render={
+              <Button
+                variant='ghost'
+                size='sm'
+                className={isMobile ? 'h-7 w-7 p-0' : 'h-7 gap-2 px-2 text-xs'}
+              />
+            }
+          >
+            <MousePointerClick className='h-3.5 w-3.5' />
+            {!isMobile && 'View diff'}
           </PopoverTrigger>
           <PopoverContent className='w-[min(90vw,24rem)] space-y-4 text-sm'>
             <div>
@@ -279,10 +300,8 @@ export function UpstreamConflictDialog({
       id: 'select',
       header: ({ table }) => (
         <Checkbox
-          checked={
-            table.getIsAllPageRowsSelected() ||
-            (table.getIsSomePageRowsSelected() && 'indeterminate')
-          }
+          checked={table.getIsAllPageRowsSelected()}
+          indeterminate={table.getIsSomePageRowsSelected()}
           onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
           aria-label='Select all'
         />
@@ -437,11 +456,7 @@ export function UpstreamConflictDialog({
     >
       <DialogContent
         className='flex max-h-[90vh] w-full flex-col gap-4 p-4 sm:max-w-5xl sm:p-6'
-        onOpenAutoFocus={(event) => {
-          if (isMobile) {
-            event.preventDefault()
-          }
-        }}
+        initialFocus={!isMobile}
       >
         <div className='flex min-h-0 flex-1 flex-col gap-4 overflow-hidden'>
           <DialogHeader className='flex-shrink-0 text-start'>
@@ -554,6 +569,12 @@ export function UpstreamConflictDialog({
                           {t('Rows per page')}
                         </span>
                         <Select
+                          items={[
+                            ...[5, 10, 20, 50].map((size) => ({
+                              value: String(size),
+                              label: size,
+                            })),
+                          ]}
                           value={String(pageSize)}
                           onValueChange={(value) => {
                             setPageSize(Number(value))
@@ -563,12 +584,14 @@ export function UpstreamConflictDialog({
                           <SelectTrigger className='h-8 w-[70px] text-xs sm:h-8 sm:w-[72px]'>
                             <SelectValue />
                           </SelectTrigger>
-                          <SelectContent>
-                            {[5, 10, 20, 50].map((size) => (
-                              <SelectItem key={size} value={String(size)}>
-                                {size}
-                              </SelectItem>
-                            ))}
+                          <SelectContent alignItemWithTrigger={false}>
+                            <SelectGroup>
+                              {[5, 10, 20, 50].map((size) => (
+                                <SelectItem key={size} value={String(size)}>
+                                  {size}
+                                </SelectItem>
+                              ))}
+                            </SelectGroup>
                           </SelectContent>
                         </Select>
                       </div>

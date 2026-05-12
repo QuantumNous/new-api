@@ -1,3 +1,21 @@
+/*
+Copyright (C) 2023-2026 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
 import {
   flexRender,
   type Cell,
@@ -6,6 +24,7 @@ import {
 } from '@tanstack/react-table'
 import { Database } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import { cn } from '@/lib/utils'
 import {
   Empty,
   EmptyDescription,
@@ -14,7 +33,6 @@ import {
   EmptyTitle,
 } from '@/components/ui/empty'
 import { Skeleton } from '@/components/ui/skeleton'
-import { cn } from '@/lib/utils'
 
 interface MobileCardListProps<TData> {
   table: Table<TData>
@@ -60,9 +78,9 @@ function ListSkeleton() {
         <div key={i} className='px-3 py-2.5'>
           <div className='flex items-center justify-between'>
             <Skeleton className='h-4 w-32' />
-            <Skeleton className='h-5 w-16 rounded-full' />
+            <Skeleton className='h-5 w-16 rounded-md' />
           </div>
-          <div className='mt-1.5 flex items-start gap-4'>
+          <div className='mt-1.5 grid grid-cols-2 gap-2'>
             <div className='flex-1'>
               <Skeleton className='mb-1 h-2 w-8' />
               <Skeleton className='h-4 w-full' />
@@ -136,9 +154,9 @@ function CompactRow<TData>({ row }: { row: Row<TData> }) {
         )}
       </div>
 
-      {/* Row 2: Key fields side by side */}
+      {/* Row 2: Key fields wrap into compact columns instead of squeezing */}
       {fieldCells.length > 0 && (
-        <div className='mt-1.5 flex items-start gap-4'>
+        <div className='mt-1.5 grid grid-cols-2 gap-x-3 gap-y-1.5'>
           {fieldCells.map((cell) => {
             const label = getCellLabel(cell)
             return (
@@ -260,7 +278,7 @@ export function MobileCardList<TData>(props: MobileCardListProps<TData>) {
 
   if (!rows || rows.length === 0) {
     return (
-      <div className='rounded-lg border p-8'>
+      <div className='rounded-lg border p-6'>
         <Empty className='border-none p-0'>
           <EmptyHeader>
             <EmptyMedia variant='icon'>

@@ -1,3 +1,21 @@
+/*
+Copyright (C) 2023-2026 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
 import { useEffect, useState, type ReactNode } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -79,18 +97,18 @@ function ApiKeyFormSection(props: ApiKeyFormSectionProps) {
 
   return (
     <section className='bg-card rounded-lg border'>
-      <div className='flex items-center gap-3 border-b px-4 py-3'>
-        <div className='bg-muted text-muted-foreground flex size-10 shrink-0 items-center justify-center rounded-lg border'>
-          <Icon className='size-5' />
+      <div className='flex items-center gap-2.5 border-b px-3 py-2.5 sm:gap-3 sm:px-4 sm:py-3'>
+        <div className='bg-muted text-muted-foreground flex size-8 shrink-0 items-center justify-center rounded-lg border sm:size-10'>
+          <Icon className='size-4 sm:size-5' />
         </div>
         <div className='min-w-0'>
-          <h3 className='text-sm font-medium leading-none'>{props.title}</h3>
-          <p className='text-muted-foreground mt-1 text-xs'>
+          <h3 className='text-sm leading-none font-medium'>{props.title}</h3>
+          <p className='text-muted-foreground mt-0.5 text-xs sm:mt-1'>
             {props.description}
           </p>
         </div>
       </div>
-      <div className='space-y-4 p-4'>{props.children}</div>
+      <div className='space-y-3 p-3 sm:space-y-4 sm:p-4'>{props.children}</div>
     </section>
   )
 }
@@ -254,13 +272,13 @@ export function ApiKeysMutateDrawer({
     >
       <SheetContent
         side={side}
-        className='bg-background flex w-full gap-0 overflow-hidden p-0 sm:max-w-[620px]'
+        className='bg-background flex !h-dvh !w-screen max-w-none gap-0 overflow-hidden p-0 sm:!w-full sm:!max-w-[620px]'
       >
-        <SheetHeader className='bg-background border-b px-5 py-4 text-start'>
-          <SheetTitle className='text-lg'>
+        <SheetHeader className='bg-background border-b px-4 py-3 text-start sm:px-5 sm:py-4'>
+          <SheetTitle className='text-base sm:text-lg'>
             {isUpdate ? t('Update API Key') : t('Create API Key')}
           </SheetTitle>
-          <SheetDescription>
+          <SheetDescription className='pr-6 text-xs sm:text-sm'>
             {isUpdate
               ? t('Update the API key by providing necessary info.')
               : t('Add a new API key by providing necessary info.')}{' '}
@@ -271,7 +289,7 @@ export function ApiKeysMutateDrawer({
           <form
             id='api-key-form'
             onSubmit={form.handleSubmit(onSubmit)}
-            className='flex-1 space-y-4 overflow-y-auto px-4 py-4'
+            className='min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain px-3 py-3 sm:space-y-4 sm:px-4 sm:py-4'
           >
             <ApiKeyFormSection
               title={t('Basic Information')}
@@ -285,10 +303,7 @@ export function ApiKeysMutateDrawer({
                   <FormItem>
                     <FormLabel>{t('Name')}</FormLabel>
                     <FormControl>
-                      <Input
-                        {...field}
-                        placeholder={t('Enter a name')}
-                      />
+                      <Input {...field} placeholder={t('Enter a name')} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -319,12 +334,12 @@ export function ApiKeysMutateDrawer({
                   control={form.control}
                   name='cross_group_retry'
                   render={({ field }) => (
-                    <FormItem className='flex min-h-20 flex-row items-center justify-between gap-4 rounded-lg border px-4 py-3'>
+                    <FormItem className='flex min-h-16 flex-row items-center justify-between gap-3 rounded-lg border px-3 py-2.5 sm:min-h-20 sm:gap-4 sm:px-4 sm:py-3'>
                       <div className='space-y-0.5'>
                         <FormLabel className='text-sm'>
                           {t('Cross-group retry')}
                         </FormLabel>
-                        <FormDescription className='text-xs'>
+                        <FormDescription className='line-clamp-2 text-xs sm:line-clamp-none'>
                           {t(
                             'When enabled, if channels in the current group fail, it will try channels in the next group in order.'
                           )}
@@ -353,7 +368,7 @@ export function ApiKeysMutateDrawer({
                           value={field.value}
                           onChange={field.onChange}
                           placeholder={t('Never expires')}
-                          className='min-w-0'
+                          className='min-w-0 [&_input[type=time]]:w-24 sm:[&_input[type=time]]:w-32'
                         />
                       </FormControl>
                       <div className='grid grid-cols-4 gap-2 sm:flex'>
@@ -361,7 +376,7 @@ export function ApiKeysMutateDrawer({
                           type='button'
                           variant='outline'
                           size='sm'
-                          className='px-3'
+                          className='px-2 text-xs sm:px-3 sm:text-sm'
                           onClick={() => handleSetExpiry(0, 0, 0)}
                         >
                           {t('Never')}
@@ -370,7 +385,7 @@ export function ApiKeysMutateDrawer({
                           type='button'
                           variant='outline'
                           size='sm'
-                          className='px-3'
+                          className='px-2 text-xs sm:px-3 sm:text-sm'
                           onClick={() => handleSetExpiry(1, 0, 0)}
                         >
                           {t('1 Month')}
@@ -379,7 +394,7 @@ export function ApiKeysMutateDrawer({
                           type='button'
                           variant='outline'
                           size='sm'
-                          className='px-3'
+                          className='px-2 text-xs sm:px-3 sm:text-sm'
                           onClick={() => handleSetExpiry(0, 1, 0)}
                         >
                           {t('1 Day')}
@@ -388,7 +403,7 @@ export function ApiKeysMutateDrawer({
                           type='button'
                           variant='outline'
                           size='sm'
-                          className='px-3'
+                          className='px-2 text-xs sm:px-3 sm:text-sm'
                           onClick={() => handleSetExpiry(0, 0, 1)}
                         >
                           {t('1 Hour')}
@@ -470,7 +485,7 @@ export function ApiKeysMutateDrawer({
                 control={form.control}
                 name='unlimited_quota'
                 render={({ field }) => (
-                  <FormItem className='flex min-h-20 flex-row items-center justify-between gap-4 rounded-lg border px-4 py-3'>
+                  <FormItem className='flex min-h-16 flex-row items-center justify-between gap-3 rounded-lg border px-3 py-2.5 sm:min-h-20 sm:gap-4 sm:px-4 sm:py-3'>
                     <div className='space-y-0.5'>
                       <FormLabel className='text-sm'>
                         {t('Unlimited Quota')}
@@ -492,32 +507,34 @@ export function ApiKeysMutateDrawer({
 
             <Collapsible open={advancedOpen} onOpenChange={setAdvancedOpen}>
               <section className='bg-card rounded-lg border'>
-                <CollapsibleTrigger asChild>
-                  <button
-                    type='button'
-                    className='hover:bg-muted/50 flex w-full items-center gap-3 px-4 py-3 text-left transition-colors'
-                  >
-                    <div className='bg-muted text-muted-foreground flex size-10 shrink-0 items-center justify-center rounded-lg border'>
-                      <Settings2 className='size-5' />
-                    </div>
-                    <div className='min-w-0 flex-1'>
-                      <h3 className='text-sm font-medium leading-none'>
-                        {t('Advanced Settings')}
-                      </h3>
-                      <p className='text-muted-foreground mt-1 text-xs'>
-                        {t('Set API key access restrictions')}
-                      </p>
-                    </div>
-                    <ChevronDown
-                      className={cn(
-                        'text-muted-foreground size-4 shrink-0 transition-transform',
-                        advancedOpen && 'rotate-180'
-                      )}
+                <CollapsibleTrigger
+                  render={
+                    <button
+                      type='button'
+                      className='hover:bg-muted/50 flex w-full items-center gap-2.5 px-3 py-2.5 text-left transition-colors sm:gap-3 sm:px-4 sm:py-3'
                     />
-                  </button>
+                  }
+                >
+                  <div className='bg-muted text-muted-foreground flex size-8 shrink-0 items-center justify-center rounded-lg border sm:size-10'>
+                    <Settings2 className='size-4 sm:size-5' />
+                  </div>
+                  <div className='min-w-0 flex-1'>
+                    <h3 className='text-sm leading-none font-medium'>
+                      {t('Advanced Settings')}
+                    </h3>
+                    <p className='text-muted-foreground mt-1 text-xs'>
+                      {t('Set API key access restrictions')}
+                    </p>
+                  </div>
+                  <ChevronDown
+                    className={cn(
+                      'text-muted-foreground size-4 shrink-0 transition-transform',
+                      advancedOpen && 'rotate-180'
+                    )}
+                  />
                 </CollapsibleTrigger>
                 <CollapsibleContent>
-                  <div className='space-y-4 border-t p-4'>
+                  <div className='space-y-3 border-t p-3 sm:space-y-4 sm:p-4'>
                     <FormField
                       control={form.control}
                       name='model_limits'
@@ -578,11 +595,18 @@ export function ApiKeysMutateDrawer({
             </Collapsible>
           </form>
         </Form>
-        <SheetFooter className='bg-background gap-2 border-t px-5 py-4 sm:flex-row sm:justify-end'>
-          <SheetClose asChild>
-            <Button variant='outline'>{t('Close')}</Button>
+        <SheetFooter className='bg-background grid grid-cols-2 gap-2 border-t px-3 py-3 sm:flex sm:flex-row sm:justify-end sm:px-5 sm:py-4'>
+          <SheetClose
+            render={<Button variant='outline' className='w-full sm:w-auto' />}
+          >
+            {t('Close')}
           </SheetClose>
-          <Button form='api-key-form' type='submit' disabled={isSubmitting}>
+          <Button
+            form='api-key-form'
+            type='submit'
+            disabled={isSubmitting}
+            className='w-full sm:w-auto'
+          >
             {isSubmitting ? t('Saving...') : t('Save changes')}
           </Button>
         </SheetFooter>

@@ -26,7 +26,7 @@ Read every changed file in `web/classic`. Identify the **logical changes** (new 
 For each logical change found in Step 1, locate the equivalent file(s) in `web/default/src/`. Use Glob/Grep/SemanticSearch as needed. Consider that:
 
 - `web/classic` uses **React 18 + Vite + Semi Design**
-- `web/default` uses **React 19 + Rsbuild + Radix UI + Tailwind CSS**
+- `web/default` uses **React 19 + Rsbuild + Base UI + Tailwind CSS**
 - Component names, file paths, and API shapes may differ; match by **functionality**, not filename.
 
 ### Step 3 — Triage each change
@@ -46,7 +46,7 @@ For each **⚠️** or **❌** item:
 1. **Read the target file(s) in `web/default`** before editing (required by project conventions).
 2. Implement using `web/default` conventions:
    - React 19 patterns (hooks, Suspense, etc.)
-   - Radix UI primitives where applicable
+   - Base UI primitives where applicable
    - Tailwind CSS for styling (no inline styles or Semi Design imports)
    - `useTranslation()` + `t('English key')` for all user-visible strings
    - TypeScript — explicit types, no `any`

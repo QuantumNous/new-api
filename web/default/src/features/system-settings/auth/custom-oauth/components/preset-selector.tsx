@@ -1,3 +1,21 @@
+/*
+Copyright (C) 2023-2026 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
 import { useState } from 'react'
 import type { UseFormReturn } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
@@ -6,6 +24,7 @@ import { Label } from '@/components/ui/label'
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
   SelectTrigger,
   SelectValue,
@@ -88,16 +107,27 @@ export function PresetSelector(props: PresetSelectorProps) {
       <div className='grid grid-cols-1 gap-3 sm:grid-cols-2'>
         <div className='space-y-1.5'>
           <Label>{t('Preset Template')}</Label>
-          <Select value={selectedPreset} onValueChange={handlePresetChange}>
+          <Select
+            items={[
+              ...OAUTH_PRESETS.map((preset) => ({
+                value: preset.key,
+                label: preset.name,
+              })),
+            ]}
+            value={selectedPreset}
+            onValueChange={(v) => v !== null && handlePresetChange(v)}
+          >
             <SelectTrigger className='w-full'>
               <SelectValue placeholder={t('Select a preset...')} />
             </SelectTrigger>
-            <SelectContent>
-              {OAUTH_PRESETS.map((preset) => (
-                <SelectItem key={preset.key} value={preset.key}>
-                  {preset.name}
-                </SelectItem>
-              ))}
+            <SelectContent alignItemWithTrigger={false}>
+              <SelectGroup>
+                {OAUTH_PRESETS.map((preset) => (
+                  <SelectItem key={preset.key} value={preset.key}>
+                    {preset.name}
+                  </SelectItem>
+                ))}
+              </SelectGroup>
             </SelectContent>
           </Select>
         </div>
