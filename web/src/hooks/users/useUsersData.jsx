@@ -47,6 +47,7 @@ export const useUsersData = () => {
   const formInitValues = {
     searchKeyword: '',
     searchGroup: '',
+    searchIP: '',
   };
 
   // Form API reference
@@ -58,6 +59,7 @@ export const useUsersData = () => {
     return {
       searchKeyword: formValues.searchKeyword || '',
       searchGroup: formValues.searchGroup || '',
+      searchIP: formValues.searchIP || '',
     };
   };
 
@@ -85,31 +87,30 @@ export const useUsersData = () => {
     setLoading(false);
   };
 
-  // Search users with keyword and group
+  // Search users with keyword, group, and IP
   const searchUsers = async (
     startIdx,
     pageSize,
     searchKeyword = null,
     searchGroup = null,
+    searchIP = null,
   ) => {
     // If no parameters passed, get values from form
-    if (searchKeyword === null || searchGroup === null) {
+    if (searchKeyword === null || searchGroup === null || searchIP === null) {
       const formValues = getFormValues();
       searchKeyword = formValues.searchKeyword;
       searchGroup = formValues.searchGroup;
+      searchIP = formValues.searchIP;
     }
 
-    if (searchKeyword === '' && searchGroup === '') {
-      // If keyword is blank, load files instead
+    if (searchKeyword === '' && searchGroup === '' && searchIP === '') {
+      // If all fields are blank, load all users instead
       await loadUsers(startIdx, pageSize);
       return;
     }
     setSearching(true);
-    const isIpLike = /^[\d.:%a-fA-F]+$/.test(searchKeyword) && searchKeyword.includes('.');
-    const keyword = isIpLike ? '' : searchKeyword;
-    const ip = isIpLike ? searchKeyword : '';
     const res = await API.get(
-      `/api/user/search?keyword=${keyword}&group=${searchGroup}&ip=${ip}&p=${startIdx}&page_size=${pageSize}`,
+      `/api/user/search?keyword=${searchKeyword}&group=${searchGroup}&ip=${searchIP}&p=${startIdx}&page_size=${pageSize}`,
     );
     const { success, message, data } = res.data;
     if (success) {
@@ -194,11 +195,11 @@ export const useUsersData = () => {
   // Handle page change
   const handlePageChange = (page) => {
     setActivePage(page);
-    const { searchKeyword, searchGroup } = getFormValues();
-    if (searchKeyword === '' && searchGroup === '') {
+    const { searchKeyword, searchGroup, searchIP } = getFormValues();
+    if (searchKeyword === '' && searchGroup === '' && searchIP === '') {
       loadUsers(page, pageSize).then();
     } else {
-      searchUsers(page, pageSize, searchKeyword, searchGroup).then();
+      searchUsers(page, pageSize, searchKeyword, searchGroup, searchIP).then();
     }
   };
 
@@ -229,11 +230,11 @@ export const useUsersData = () => {
 
   // Refresh data
   const refresh = async (page = activePage) => {
-    const { searchKeyword, searchGroup } = getFormValues();
-    if (searchKeyword === '' && searchGroup === '') {
+    const { searchKeyword, searchGroup, searchIP } = getFormValues();
+    if (searchKeyword === '' && searchGroup === '' && searchIP === '') {
       await loadUsers(page, pageSize);
     } else {
-      await searchUsers(page, pageSize, searchKeyword, searchGroup);
+      await searchUsers(page, pageSize, searchKeyword, searchGroup, searchIP);
     }
   };
 

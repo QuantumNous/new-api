@@ -77,5 +77,41 @@ func ModelMappedHelper(c *gin.Context, info *common.RelayInfo, request dto.Reque
 	if request != nil {
 		request.SetModelName(info.UpstreamModelName)
 	}
+
+	// 模型重定向后，按实际模型重新计算计费数据
+	if info.IsModelMapped && info.UpstreamModelName != "" {
+		RecalcPriceDataForMappedModel(info)
+	}
+
 	return nil
+}
+
+// RecalcPriceDataForMappedModel 在模型重定向后，用实际上游模型重新计算 PriceData 中的价格/倍率
+func RecalcPriceDataForMappedModel(info *common.RelayInfo) {
+	billingModel := info.UpstreamModelName
+
+	modelPrice, usePrice := ratio_setting.GetModelPrice(billingModel, false)
+	if usePrice {
+		info.PriceData.ModelPrice = modelPrice
+		info.PriceData.UsePrice = true
+		info.PriceData.ModelRatio = 0
+		info.PriceData.CompletionRatio = 0
+		return
+	}
+
+	modelRatio, success, _ := ratio_setting.GetModelRatio(billingModel)
+	if !success {
+		return
+	}
+
+	info.PriceData.UsePrice = false
+	info.PriceData.ModelRatio = modelRatio
+	info.PriceData.CompletionRatio = ratio_setting.GetCompletionRatio(billingModel)
+	info.PriceData.CacheRatio, _ = ratio_setting.GetCacheRatio(billingModel)
+	info.PriceData.CacheCreationRatio, _ = ratio_setting.GetCreateCacheRatio(billingModel)
+	info.PriceData.CacheCreation5mRatio = info.PriceData.CacheCreationRatio
+	info.PriceData.CacheCreation1hRatio = info.PriceData.CacheCreationRatio * (6.0 / 3.75)
+	info.PriceData.ImageRatio, _ = ratio_setting.GetImageRatio(billingModel)
+	info.PriceData.AudioRatio = ratio_setting.GetAudioRatio(billingModel)
+	info.PriceData.AudioCompletionRatio = ratio_setting.GetAudioCompletionRatio(billingModel)
 }

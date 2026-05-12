@@ -291,7 +291,7 @@ function renderModelName(record, copyText, t) {
                 <Space vertical align={'start'}>
                   <div className='flex items-center'>
                     <Typography.Text strong style={{ marginRight: 8 }}>
-                      {t('请求并计费模型')}:
+                      {t('请求模型')}:
                     </Typography.Text>
                     {renderModelTag(record.model_name, {
                       onClick: (event) => {
@@ -301,7 +301,7 @@ function renderModelName(record, copyText, t) {
                   </div>
                   <div className='flex items-center'>
                     <Typography.Text strong style={{ marginRight: 8 }}>
-                      {t('实际模型')}:
+                      {t('实际计费模型')}:
                     </Typography.Text>
                     {renderModelTag(other.upstream_model_name, {
                       onClick: (event) => {

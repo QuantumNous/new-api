@@ -177,7 +177,7 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
         if (data.length === 0) {
           data.push({
             count: 0,
-            model_name: '无数据',
+            model_name: t('无数据'),
             quota: 0,
             created_at: now.getTime() / 1000,
           });

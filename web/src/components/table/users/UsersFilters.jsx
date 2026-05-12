@@ -65,7 +65,17 @@ const UsersFilters = ({
           <Form.Input
             field='searchKeyword'
             prefix={<IconSearch />}
-            placeholder={t('支持搜索用户的 ID、用户名、显示名称、邮箱和 IP')}
+            placeholder={t('支持搜索用户的 ID、用户名、显示名称和邮箱')}
+            showClear
+            pure
+            size='small'
+          />
+        </div>
+        <div className='relative w-full md:w-40'>
+          <Form.Input
+            field='searchIP'
+            prefix={<IconSearch />}
+            placeholder={t('搜索 IP')}
             showClear
             pure
             size='small'

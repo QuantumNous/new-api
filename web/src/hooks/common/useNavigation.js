@@ -85,7 +85,7 @@ export const useNavigation = (t, docsLink, headerNavModules) => {
       modules.customLinks.forEach((link, index) => {
         if (link.name && link.url) {
           filteredLinks.push({
-            text: link.name,
+            text: t(link.name),
             itemKey: `custom-${index}`,
             isExternal: link.url.startsWith('http'),
             externalLink: link.url.startsWith('http') ? link.url : undefined,
