@@ -35,6 +35,7 @@ import {
 import { Coins } from 'lucide-react';
 import { IconSearch } from '@douyinfe/semi-icons';
 import { API, timestamp2string } from '../../../helpers';
+import { renderQuota, renderQuotaWithAmount } from '../../../helpers/render';
 import { isAdmin } from '../../../helpers/utils';
 import { useIsMobile } from '../../../hooks/common/useIsMobile';
 const { Text } = Typography;
@@ -163,13 +164,13 @@ const TopupHistoryModal = ({ visible, onCancel, t }) => {
     const baseColumns = [
       ...(userIsAdmin
         ? [
-            {
-              title: t('用户ID'),
-              dataIndex: 'user_id',
-              key: 'user_id',
-              render: (userId) => <Text>{userId ?? '-'}</Text>,
-            },
-          ]
+          {
+            title: t('用户ID'),
+            dataIndex: 'user_id',
+            key: 'user_id',
+            render: (userId) => <Text>{userId ?? '-'}</Text>,
+          },
+        ]
         : []),
       {
         title: t('订单号'),
@@ -195,10 +196,15 @@ const TopupHistoryModal = ({ visible, onCancel, t }) => {
               </Tag>
             );
           }
+          // Creem 的 amount 存的是 raw quota，其他支付方式存的是 USD 数量
+          const formatted =
+            record.payment_method === 'creem'
+              ? renderQuota(amount)
+              : renderQuotaWithAmount(amount);
           return (
             <span className='flex items-center gap-1'>
               <Coins size={16} />
-              <Text>{amount}</Text>
+              <Text>{formatted}</Text>
             </span>
           );
         },
