@@ -164,7 +164,9 @@ export const useLogsData = () => {
   };
 
   // Column visibility state
-  const [visibleColumns, setVisibleColumns] = useState(getInitialVisibleColumns);
+  const [visibleColumns, setVisibleColumns] = useState(
+    getInitialVisibleColumns,
+  );
   const [showColumnSelector, setShowColumnSelector] = useState(false);
   const [billingDisplayMode, setBillingDisplayMode] = useState(
     getInitialBillingDisplayMode,
@@ -366,6 +368,19 @@ export const useLogsData = () => {
 
   // Format logs data
   const setLogsFormat = (logs) => {
+    const wrapLongText = (text) => (
+      <div
+        style={{
+          maxWidth: 720,
+          whiteSpace: 'pre-line',
+          wordBreak: 'break-word',
+          lineHeight: 1.6,
+        }}
+      >
+        {text}
+      </div>
+    );
+
     const requestConversionDisplayValue = (conversionChain) => {
       const chain = Array.isArray(conversionChain)
         ? conversionChain.filter(Boolean)
@@ -383,7 +398,13 @@ export const useLogsData = () => {
       let other = getLogOther(logs[i].other);
       let expandDataLocal = [];
 
-      if (isAdminUser && (logs[i].type === 0 || logs[i].type === 2 || logs[i].type === 6)) {
+      if (
+        isAdminUser &&
+        (logs[i].type === 0 ||
+          logs[i].type === 2 ||
+          logs[i].type === 5 ||
+          logs[i].type === 6)
+      ) {
         expandDataLocal.push({
           key: t('渠道信息'),
           value: `${logs[i].channel} - ${logs[i].channel_name || '[未知]'}`,
@@ -430,7 +451,10 @@ export const useLogsData = () => {
           expandDataLocal.push({
             key: t('日志详情'),
             value: other?.claude
-              ? renderClaudeLogContent({ ...other, displayMode: billingDisplayMode })
+              ? renderClaudeLogContent({
+                  ...other,
+                  displayMode: billingDisplayMode,
+                })
               : renderLogContent({ ...other, displayMode: billingDisplayMode }),
           });
         }
@@ -520,7 +544,14 @@ export const useLogsData = () => {
           expandDataLocal.push({
             key: t('失败原因'),
             value: (
-              <div style={{ maxWidth: 600, whiteSpace: 'normal', wordBreak: 'break-word', lineHeight: 1.6 }}>
+              <div
+                style={{
+                  maxWidth: 600,
+                  whiteSpace: 'normal',
+                  wordBreak: 'break-word',
+                  lineHeight: 1.6,
+                }}
+              >
                 {other.reason}
               </div>
             ),
@@ -533,11 +564,95 @@ export const useLogsData = () => {
           value: other.request_path,
         });
       }
+      if (logs[i].type === 5) {
+        if (other?.upstream_status_code || other?.status_code) {
+          expandDataLocal.push({
+            key: t('上游状态'),
+            value: other.upstream_status_code || other.status_code,
+          });
+        }
+        if (other?.error_type) {
+          expandDataLocal.push({
+            key: t('错误类型'),
+            value: other.error_type,
+          });
+        }
+        if (other?.error_code) {
+          expandDataLocal.push({
+            key: t('错误码'),
+            value: other.error_code,
+          });
+        }
+        if (other?.error_source) {
+          expandDataLocal.push({
+            key: t('错误来源'),
+            value: other.error_source,
+          });
+        }
+        if (other?.request_method) {
+          expandDataLocal.push({
+            key: t('请求方法'),
+            value: other.request_method,
+          });
+        }
+        if (other?.original_model_name || other?.final_model_name) {
+          const originalModel = other.original_model_name || logs[i].model_name;
+          const finalModel =
+            other.final_model_name ||
+            other.upstream_model_name ||
+            logs[i].model_name;
+          const modelMapping =
+            originalModel && finalModel && originalModel !== finalModel
+              ? `${originalModel} -> ${finalModel}`
+              : finalModel || originalModel;
+          expandDataLocal.push({
+            key: t('模型映射'),
+            value: modelMapping,
+          });
+        }
+        if (other?.relay_mode) {
+          expandDataLocal.push({
+            key: t('Relay Mode'),
+            value: other.relay_mode,
+          });
+        }
+        if (other?.relay_format || other?.final_relay_format) {
+          const relayFormat =
+            other.relay_format && other.final_relay_format
+              ? `${other.relay_format} -> ${other.final_relay_format}`
+              : other.relay_format || other.final_relay_format;
+          expandDataLocal.push({
+            key: t('Relay Format'),
+            value: relayFormat,
+          });
+        }
+        if (other?.retry_count !== undefined) {
+          expandDataLocal.push({
+            key: t('重试次数'),
+            value: other.retry_count,
+          });
+        }
+        if (isAdminUser && Array.isArray(other?.admin_info?.use_channel)) {
+          expandDataLocal.push({
+            key: t('重试通道链'),
+            value: other.admin_info.use_channel.join(' -> '),
+          });
+        }
+        const upstreamSummary =
+          other?.upstream_error?.message || other?.last_error_summary;
+        if (isAdminUser && upstreamSummary) {
+          expandDataLocal.push({
+            key: t('上游错误摘要'),
+            value: wrapLongText(upstreamSummary),
+          });
+        }
+      }
       if (isAdminUser && other?.stream_status) {
         const ss = other.stream_status;
         const isOk = ss.status === 'ok';
         const statusLabel = isOk ? '✓ ' + t('正常') : '✗ ' + t('异常');
-        let streamValue = statusLabel + ' (' + (ss.end_reason || 'unknown') + ')';
+        let streamValue =
+          statusLabel + ' (' + (ss.end_reason || 'unknown') + ')';
         if (ss.error_count > 0) {
           streamValue += ` [${t('软错误')}: ${ss.error_count}]`;
         }
@@ -552,7 +667,14 @@ export const useLogsData = () => {
           expandDataLocal.push({
             key: t('流错误详情'),
             value: (
-              <div style={{ maxWidth: 600, whiteSpace: 'pre-line', wordBreak: 'break-word', lineHeight: 1.6 }}>
+              <div
+                style={{
+                  maxWidth: 600,
+                  whiteSpace: 'pre-line',
+                  wordBreak: 'break-word',
+                  lineHeight: 1.6,
+                }}
+              >
                 {ss.errors.join('\n')}
               </div>
             ),
@@ -623,13 +745,23 @@ export const useLogsData = () => {
           ),
         });
       }
-      if (isAdminUser && logs[i].type !== 6 && logs[i].type !== 1) {
+      if (
+        isAdminUser &&
+        logs[i].type !== 6 &&
+        logs[i].type !== 1 &&
+        logs[i].type !== 5
+      ) {
         expandDataLocal.push({
           key: t('请求转换'),
           value: requestConversionDisplayValue(other?.request_conversion),
         });
       }
-      if (isAdminUser && logs[i].type !== 6 && logs[i].type !== 1) {
+      if (
+        isAdminUser &&
+        logs[i].type !== 6 &&
+        logs[i].type !== 1 &&
+        logs[i].type !== 5
+      ) {
         let localCountMode = '';
         if (other?.admin_info?.local_count_tokens) {
           localCountMode = t('本地计费');

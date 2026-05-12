@@ -3704,6 +3704,17 @@
     "暂无邀请用户": "Aucun utilisateur invité",
     "暂无返利流水": "Aucun historique de remise",
     "加载邀请返现日志失败": "Échec du chargement des journaux de remises de parrainage",
-    "每个用户的返利余额为该被邀请用户贡献的累计返利。": "Le solde de remise de chaque utilisateur correspond à la remise cumulée apportée par cet utilisateur invité."
+    "每个用户的返利余额为该被邀请用户贡献的累计返利。": "Le solde de remise de chaque utilisateur correspond à la remise cumulée apportée par cet utilisateur invité.",
+    "上游状态": "Statut amont",
+    "错误类型": "Type d'erreur",
+    "错误码": "Code d'erreur",
+    "错误来源": "Source de l'erreur",
+    "请求方法": "Méthode de requête",
+    "模型映射": "Mappage du modèle",
+    "Relay Mode": "Mode Relay",
+    "Relay Format": "Format Relay",
+    "重试次数": "Nombre de tentatives",
+    "重试通道链": "Chaîne des canaux retentés",
+    "上游错误摘要": "Résumé de l'erreur amont"
   }
 }

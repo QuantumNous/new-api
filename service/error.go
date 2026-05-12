@@ -88,10 +88,37 @@ func RelayErrorHandler(ctx context.Context, resp *http.Response, showBodyWhenFai
 
 	responseBody, err := io.ReadAll(resp.Body)
 	if err != nil {
+		newApiErr.ErrorLogSummary = map[string]interface{}{
+			"source":      "upstream",
+			"status_code": resp.StatusCode,
+			"type":        string(newApiErr.GetErrorType()),
+			"code":        string(newApiErr.GetErrorCode()),
+			"message":     "read upstream error body failed",
+		}
 		return
 	}
 	CloseResponseBodyGracefully(resp)
 	var errResponse dto.GeneralErrorResponse
+	attachUpstreamSummary := func(apiErr *types.NewAPIError, message string, parsed bool) {
+		if apiErr == nil {
+			return
+		}
+		snippet, truncated := SafeErrorLogSnippet(message, upstreamErrorSummaryMaxRunes)
+		summary := map[string]interface{}{
+			"source":      "upstream",
+			"status_code": resp.StatusCode,
+			"type":        string(apiErr.GetErrorType()),
+			"code":        string(apiErr.GetErrorCode()),
+			"parsed":      parsed,
+		}
+		if snippet != "" {
+			summary["message"] = snippet
+		}
+		if truncated {
+			summary["truncated"] = true
+		}
+		apiErr.ErrorLogSummary = summary
+	}
 	buildErrWithBody := func(message string) error {
 		if message == "" {
 			return fmt.Errorf("bad response status code %d, body: %s", resp.StatusCode, string(responseBody))
@@ -107,6 +134,7 @@ func RelayErrorHandler(ctx context.Context, resp *http.Response, showBodyWhenFai
 			logger.LogError(ctx, fmt.Sprintf("bad response status code %d, body: %s", resp.StatusCode, string(responseBody)))
 			newApiErr.Err = fmt.Errorf("bad response status code %d", resp.StatusCode)
 		}
+		attachUpstreamSummary(newApiErr, string(responseBody), false)
 		return
 	}
 
@@ -118,6 +146,7 @@ func RelayErrorHandler(ctx context.Context, resp *http.Response, showBodyWhenFai
 			if showBodyWhenFail {
 				newApiErr.Err = buildErrWithBody(newApiErr.Error())
 			}
+			attachUpstreamSummary(newApiErr, oaiError.Message, true)
 			return
 		}
 	}
@@ -125,6 +154,7 @@ func RelayErrorHandler(ctx context.Context, resp *http.Response, showBodyWhenFai
 	if showBodyWhenFail {
 		newApiErr.Err = buildErrWithBody(newApiErr.Error())
 	}
+	attachUpstreamSummary(newApiErr, newApiErr.Error(), true)
 	return
 }
 

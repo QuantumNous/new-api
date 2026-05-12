@@ -58,6 +58,16 @@ func formatUserLogs(logs []*Log, startIdx int) {
 		if otherMap != nil {
 			// Remove admin-only debug fields.
 			delete(otherMap, "admin_info")
+			delete(otherMap, "channel_id")
+			delete(otherMap, "channel_name")
+			delete(otherMap, "channel_type")
+			delete(otherMap, "final_model_name")
+			delete(otherMap, "request_conversion")
+			delete(otherMap, "final_relay_format")
+			delete(otherMap, "retry_count")
+			delete(otherMap, "upstream_error")
+			delete(otherMap, "upstream_status_code")
+			delete(otherMap, "last_error_summary")
 			// delete(otherMap, "reject_reason")
 			delete(otherMap, "stream_status")
 		}

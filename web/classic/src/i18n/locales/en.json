@@ -3849,6 +3849,17 @@
     "暂无邀请用户": "No invited users",
     "暂无返利流水": "No rebate records",
     "加载邀请返现日志失败": "Failed to load invitation rebate logs",
-    "每个用户的返利余额为该被邀请用户贡献的累计返利。": "Each user’s rebate balance is the cumulative rebate contributed by that invited user."
+    "每个用户的返利余额为该被邀请用户贡献的累计返利。": "Each user’s rebate balance is the cumulative rebate contributed by that invited user.",
+    "上游状态": "Upstream status",
+    "错误类型": "Error type",
+    "错误码": "Error code",
+    "错误来源": "Error source",
+    "请求方法": "Request method",
+    "模型映射": "Model mapping",
+    "Relay Mode": "Relay Mode",
+    "Relay Format": "Relay Format",
+    "重试次数": "Retry count",
+    "重试通道链": "Retry channel chain",
+    "上游错误摘要": "Upstream error summary"
   }
 }

@@ -1,0 +1,246 @@
+package service
+
+import (
+	"fmt"
+	"regexp"
+	"strings"
+	"unicode/utf8"
+
+	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/types"
+)
+
+const upstreamErrorSummaryMaxRunes = 800
+
+var (
+	secretAssignmentPattern = regexp.MustCompile(`(?i)(["']?\b(?:authorization|api[-_ ]?key|x-api-key|access[-_ ]?token|refresh[-_ ]?token|bearer[-_ ]?token|secret|token)\b["']?\s*[:=]\s*)("[^"]*"|'[^']*'|[^\s,;}\]]+)`)
+	bearerTokenPattern      = regexp.MustCompile(`(?i)\bbearer\s+([a-z0-9._~+/=-]{8,})`)
+	skTokenPattern          = regexp.MustCompile(`(?i)\bsk-[a-z0-9_-]{6,}`)
+	payloadFieldPattern     = regexp.MustCompile(`(?i)(["']?\b(?:prompt|messages|input|content|image[-_ ]?url|image|images|file[-_ ]?data|file|files|audio)\b["']?\s*[:=]\s*)(\[[\s\S]*?\]|\{[\s\S]*?\}|"[^"]*"|'[^']*'|[^\r\n,;}\]]+)`)
+)
+
+type UpstreamErrorLogSummary struct {
+	StatusCode int    `json:"status_code,omitempty"`
+	Type       string `json:"type,omitempty"`
+	Code       string `json:"code,omitempty"`
+	Message    string `json:"message,omitempty"`
+	Source     string `json:"source,omitempty"`
+	Truncated  bool   `json:"truncated,omitempty"`
+}
+
+func BuildErrorLogSummary(err *types.NewAPIError) map[string]interface{} {
+	if err == nil {
+		return nil
+	}
+
+	summary := UpstreamErrorLogSummary{
+		StatusCode: err.StatusCode,
+		Type:       string(err.GetErrorType()),
+		Code:       string(err.GetErrorCode()),
+		Source:     ErrorSourceForLog(err),
+	}
+
+	switch relayErr := err.RelayError.(type) {
+	case types.OpenAIError:
+		if relayErr.Type != "" {
+			summary.Type = relayErr.Type
+		}
+		if relayErr.Code != nil {
+			summary.Code = fmt.Sprintf("%v", relayErr.Code)
+		}
+		summary.Message, summary.Truncated = SafeErrorLogSnippet(relayErr.Message, upstreamErrorSummaryMaxRunes)
+	case types.ClaudeError:
+		if relayErr.Type != "" {
+			summary.Type = relayErr.Type
+		}
+		summary.Code = relayErr.Type
+		summary.Message, summary.Truncated = SafeErrorLogSnippet(relayErr.Message, upstreamErrorSummaryMaxRunes)
+	default:
+		summary.Message, summary.Truncated = SafeErrorLogSnippet(err.MaskSensitiveError(), upstreamErrorSummaryMaxRunes)
+	}
+
+	if summary.Message == "" {
+		summary.Message, summary.Truncated = SafeErrorLogSnippet(err.MaskSensitiveError(), upstreamErrorSummaryMaxRunes)
+	}
+
+	result := make(map[string]interface{})
+	if summary.StatusCode != 0 {
+		result["status_code"] = summary.StatusCode
+	}
+	if summary.Type != "" {
+		result["type"] = summary.Type
+	}
+	if summary.Code != "" {
+		result["code"] = summary.Code
+	}
+	if summary.Message != "" {
+		result["message"] = summary.Message
+	}
+	if summary.Source != "" {
+		result["source"] = summary.Source
+	}
+	if summary.Truncated {
+		result["truncated"] = true
+	}
+	if len(result) == 0 {
+		return nil
+	}
+	return result
+}
+
+func BuildUpstreamErrorLogSummary(err *types.NewAPIError) map[string]interface{} {
+	return BuildErrorLogSummary(err)
+}
+
+func ErrorSourceForLog(err *types.NewAPIError) string {
+	if err == nil {
+		return ""
+	}
+	if types.IsChannelError(err) {
+		return "channel"
+	}
+	switch err.GetErrorType() {
+	case types.ErrorTypeOpenAIError, types.ErrorTypeClaudeError, types.ErrorTypeGeminiError, types.ErrorTypeUpstreamError:
+		return "upstream"
+	case types.ErrorTypeNewAPIError:
+		switch err.GetErrorCode() {
+		case types.ErrorCodeBadResponseStatusCode, types.ErrorCodeBadResponse, types.ErrorCodeBadResponseBody,
+			types.ErrorCodeReadResponseBodyFailed, types.ErrorCodeEmptyResponse, types.ErrorCodeDoRequestFailed,
+			types.ErrorCodeAwsInvokeError, types.ErrorCodePromptBlocked:
+			return "upstream"
+		default:
+			return "new_api"
+		}
+	default:
+		return string(err.GetErrorType())
+	}
+}
+
+func SafeErrorLogSnippet(text string, maxRunes int) (string, bool) {
+	text = strings.TrimSpace(text)
+	if text == "" {
+		return "", false
+	}
+	masked := sanitizeErrorLogText(text)
+	if maxRunes <= 0 {
+		return masked, false
+	}
+	return truncateRunes(masked, maxRunes)
+}
+
+func sanitizeErrorLogText(text string) string {
+	if redacted, ok := redactJSONErrorLogText(text); ok {
+		return redacted
+	}
+	text = common.MaskSensitiveInfo(text)
+	text = maskErrorLogSecrets(text)
+	return maskErrorLogPayloadFields(text)
+}
+
+func redactJSONErrorLogText(text string) (string, bool) {
+	var payload any
+	if err := common.Unmarshal([]byte(text), &payload); err != nil {
+		return "", false
+	}
+	payload = redactErrorLogValue(payload)
+	bytes, err := common.Marshal(payload)
+	if err != nil {
+		return "", false
+	}
+	return string(bytes), true
+}
+
+func redactErrorLogValue(value any) any {
+	switch typed := value.(type) {
+	case map[string]any:
+		for key, item := range typed {
+			switch {
+			case isSecretLogField(key):
+				typed[key] = "***"
+			case isPayloadLogField(key):
+				typed[key] = "[redacted]"
+			default:
+				typed[key] = redactErrorLogValue(item)
+			}
+		}
+		return typed
+	case []any:
+		for i, item := range typed {
+			typed[i] = redactErrorLogValue(item)
+		}
+		return typed
+	case string:
+		return maskErrorLogPayloadFields(maskErrorLogSecrets(common.MaskSensitiveInfo(typed)))
+	default:
+		return typed
+	}
+}
+
+func isSecretLogField(key string) bool {
+	switch normalizeErrorLogField(key) {
+	case "authorization", "apikey", "xapikey", "accesstoken", "refreshtoken", "bearertoken", "secret", "token":
+		return true
+	default:
+		return false
+	}
+}
+
+func isPayloadLogField(key string) bool {
+	switch normalizeErrorLogField(key) {
+	case "prompt", "prompts", "messages", "input", "inputs", "content", "imageurl", "image", "images", "filedata", "file", "files", "audio":
+		return true
+	default:
+		return false
+	}
+}
+
+func normalizeErrorLogField(key string) string {
+	key = strings.ToLower(strings.TrimSpace(key))
+	key = strings.ReplaceAll(key, "-", "")
+	key = strings.ReplaceAll(key, "_", "")
+	key = strings.ReplaceAll(key, " ", "")
+	return key
+}
+
+func maskErrorLogSecrets(text string) string {
+	if text == "" {
+		return ""
+	}
+	text = bearerTokenPattern.ReplaceAllString(text, "Bearer ***")
+	text = skTokenPattern.ReplaceAllString(text, "sk-***")
+	text = secretAssignmentPattern.ReplaceAllStringFunc(text, func(match string) string {
+		idx := strings.IndexAny(match, ":=")
+		if idx < 0 {
+			return "***"
+		}
+		key := strings.TrimSpace(match[:idx])
+		return key + match[idx:idx+1] + "***"
+	})
+	return text
+}
+
+func maskErrorLogPayloadFields(text string) string {
+	if text == "" {
+		return ""
+	}
+	text = payloadFieldPattern.ReplaceAllStringFunc(text, func(match string) string {
+		idx := strings.IndexAny(match, ":=")
+		if idx < 0 {
+			return "[redacted]"
+		}
+		key := strings.TrimSpace(match[:idx])
+		return key + match[idx:idx+1] + "[redacted]"
+	})
+	return text
+}
+
+func truncateRunes(text string, maxRunes int) (string, bool) {
+	if maxRunes <= 0 {
+		return text, false
+	}
+	if utf8.RuneCountInString(text) <= maxRunes {
+		return text, false
+	}
+	runes := []rune(text)
+	return string(runes[:maxRunes]) + "...", true
+}

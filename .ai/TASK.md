@@ -2211,3 +2211,77 @@ status: completed
 ### 下一步建议
 
 - 用户在已启动的旧版前端 `http://localhost:5173/console/topup` 刷新页面后人工确认邀请奖励说明已显示为“好友消费”。
+
+## 旧版请求错误日志细化记录
+
+任务名称：细化旧版前端请求错误日志排障信息
+status: completed
+
+### 本轮目标
+
+- 仅增强请求错误日志 `type=5`，不新增数据库字段、不新增 API。
+- 使用现有 `logs.other` JSON 保存脱敏排障摘要。
+- 只改旧版前端 `web/classic` 的 usage logs 展开行，不接入新版前端 `web/default`。
+- 保持 `ERROR_LOG_ENABLED=false` 时不记录错误日志。
+
+### 修改文件
+
+- `controller/relay.go`
+- `controller/channel-test.go`
+- `controller/error_log_info.go`
+- `controller/error_log_info_test.go`
+- `service/error.go`
+- `service/error_log_summary.go`
+- `service/error_log_summary_test.go`
+- `types/error.go`
+- `model/log.go`
+- `model/log_test.go`
+- `web/classic/src/hooks/usage-logs/useUsageLogsData.jsx`
+- `web/classic/src/i18n/locales/en.json`
+- `web/classic/src/i18n/locales/fr.json`
+- `web/classic/src/i18n/locales/ja.json`
+- `web/classic/src/i18n/locales/ru.json`
+- `web/classic/src/i18n/locales/vi.json`
+- `web/classic/src/i18n/locales/zh.json`
+- `web/classic/src/i18n/locales/zh-CN.json`
+- `web/classic/src/i18n/locales/zh-TW.json`
+- `.ai/TASK.md`
+
+### 实现摘要
+
+- `processChannelError` 增加 `relayInfo` 入参，错误日志 `other` 保留原有请求路径、错误类型、错误码、状态码、通道信息、管理员重试链。
+- `logs.other` 新增请求方法、原始模型、最终模型、模型映射标记、relay mode、relay format、最终 relay format、请求转换链、是否流式、秒级耗时、毫秒级耗时、重试次数、错误来源、上游状态码、上游错误摘要。
+- 新增 `service.SafeErrorLogSnippet` 与错误摘要构建逻辑，摘要最多保留 800 rune；可解析 JSON 时按字段名脱敏/去内容，不可解析文本时用正则兜底。
+- `Authorization`、API key、bearer token、`sk-` token 会被遮罩；`prompt`、`messages`、`input`、`content`、图片、文件、音频字段会被替换为 `[redacted]`。
+- 错误日志表 `content` 与运行时 channel error 日志也改用同一套安全摘要，避免只有 `other.upstream_error` 安全而主内容泄露。
+- `RelayErrorHandler` 在上游非 2xx 响应解析失败时记录脱敏 body snippet；解析成功时记录结构化 message/type/code/status/parsed。
+- `/api/log/self` 格式化时继续保留普通用户安全字段，剔除通道、最终模型、转换链、重试次数、上游摘要等管理员调试字段。
+- 旧版 `useUsageLogsData.jsx` 的 `type=5` 展开行展示上游状态、错误类型、错误码、错误来源、请求方法、模型映射、relay mode/format、重试次数；管理员额外展示重试通道链和上游错误摘要。
+- 补齐旧版 8 个 locale 的新增文案；未修改新版前端 `web/default`。
+
+### 验证命令与结果
+
+- `gofmt -w controller/relay.go controller/channel-test.go controller/error_log_info.go controller/error_log_info_test.go service/error.go service/error_log_summary.go service/error_log_summary_test.go types/error.go model/log.go model/log_test.go`：通过。
+- `go test ./controller/...`：通过。
+- `New-Item -ItemType Directory -Force .gotmp | Out-Null; $env:GOTMPDIR=(Resolve-Path .gotmp).Path; go test ./model/...`：通过。
+- `go test ./service/...`：通过。
+- `C:\Users\Administrator\.bun\bin\bun.exe run build`（目录 `web/classic`）：通过；仅有既有 Browserslist、lottie eval、chunk size warning。
+- `C:\Users\Administrator\.bun\bin\bun.exe x prettier src/hooks/usage-logs/useUsageLogsData.jsx src/i18n/locales/en.json src/i18n/locales/fr.json src/i18n/locales/ja.json src/i18n/locales/ru.json src/i18n/locales/vi.json src/i18n/locales/zh.json src/i18n/locales/zh-CN.json src/i18n/locales/zh-TW.json --check`：通过。
+- `node -e "const fs=require('fs'); for (const f of fs.readdirSync('web/classic/src/i18n/locales').filter(f=>f.endsWith('.json'))) JSON.parse(fs.readFileSync('web/classic/src/i18n/locales/'+f,'utf8')); console.log('classic locale json ok')"`：通过。
+- `git diff --check`：通过。
+
+### 自审查结果
+
+- 已确认本轮只增强错误日志 `type=5`，未修改成功消费日志和计费逻辑。
+- 已确认未新增数据库字段、迁移或 API。
+- 已确认旧版前端只修改 `web/classic`，未修改新版前端 `web/default`。
+- 已确认上游错误摘要和日志主内容均经过脱敏、去 prompt/图片/文件内容、截断处理。
+- 已确认普通用户 `/api/log/self` 不返回管理员调试字段和上游摘要。
+- 已确认 `ERROR_LOG_ENABLED=false` 时仍不记录错误日志。
+- 已确认未提交 `node_modules`、`dist` 或构建产物。
+- 已确认未输出或写入 token / secret / access token / sk- key / bearer token。
+
+### 下一步建议
+
+- 在本地测试实例中用一个会返回 4xx/5xx 的上游通道人工触发错误，管理员查看旧版日志展开行是否显示模型映射、重试链和上游摘要。
+- 使用普通用户账号访问 `/api/log/self` 或旧版日志页，确认只显示安全字段。
