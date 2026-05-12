@@ -1,21 +1,25 @@
 .new-playground-page {
   display: flex;
   height: calc(100vh - 88px - 24px);
-  background:
-    radial-gradient(circle at 18% 0%, rgba(59, 130, 246, 0.11), transparent 26%),
+  background: radial-gradient(
+      circle at 18% 0%,
+      rgba(59, 130, 246, 0.11),
+      transparent 26%
+    ),
     linear-gradient(180deg, #f8fbff 0%, #ffffff 38%, #f7faff 100%);
   color: #242730;
   overflow: hidden;
+  border-radius: 30px;
 }
 
 .new-playground-sidebar {
   position: relative;
   display: flex;
-  width: 320px;
-  min-width: 320px;
+  width: 256px;
+  min-width: 256px;
   height: 100%;
   flex-direction: column;
-  border-right: 1px solid #dbe3f1;
+  /* border-right: 1px solid #dbe3f1; */
   background: rgba(255, 255, 255, 0.94);
   box-shadow: 1px 0 0 rgba(15, 23, 42, 0.03);
   backdrop-filter: blur(18px);
@@ -39,8 +43,8 @@
 
 .new-playground-logo {
   display: flex;
-  width: 48px;
-  height: 48px;
+  width: 40px;
+  height: 40px;
   flex-shrink: 0;
   align-items: center;
   justify-content: center;
@@ -62,15 +66,11 @@
 
 .new-chat-button {
   width: calc(100% - 32px) !important;
-  height: 56px !important;
+  height: 44px !important;
   margin: 14px 16px 16px !important;
   border: 0 !important;
   border-radius: 18px !important;
-  background: linear-gradient(
-    105deg,
-    #1652f0 0%,
-    #2d7cff 100%
-  ) !important;
+  background: linear-gradient(105deg, #1652f0 0%, #2d7cff 100%) !important;
   color: #ffffff !important;
   font-size: 16px !important;
   font-weight: 700 !important;
@@ -148,6 +148,8 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  display: inline-block;
+  width: 120px;
 }
 
 .recent-thread-item:hover,
@@ -240,11 +242,7 @@
 }
 
 .topbar-avatar {
-  background: linear-gradient(
-    135deg,
-    #0f62fe 0%,
-    #2d7cff 100%
-  ) !important;
+  background: linear-gradient(135deg, #0f62fe 0%, #2d7cff 100%) !important;
   color: #ffffff !important;
   font-weight: 700;
 }
@@ -304,7 +302,12 @@
   gap: 8px;
   border: 1px solid rgba(239, 68, 68, 0.16) !important;
   border-radius: 16px !important;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), #f8fbff 100%) !important;
+  /* background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), #f8fbff 100%) !important; */
+  background: linear-gradient(
+    180deg,
+    rgba(254, 242, 242, 0.98),
+    rgba(254, 226, 226, 0.98)
+  ) !important;
   box-shadow: 0 12px 30px rgba(15, 23, 42, 0.06);
   padding: 14px 16px 14px 18px !important;
 }
@@ -334,10 +337,15 @@
 }
 
 .new-playground-chat .playground-error-text {
-  color: #475569 !important;
+  /* color: #475569 !important; */
+  color: #b42318 !important;
   font-size: 13px;
   line-height: 1.65;
   white-space: pre-wrap;
+}
+
+.new-playground-chat .semi-chat-chatBox-content-error .semi-typography {
+  color: #ef4444 !important;
 }
 
 .new-playground-chat .playground-error-card .semi-button {
@@ -559,7 +567,8 @@
 
 @media (max-width: 900px) {
   .new-playground-page {
-    height: calc(100vh - 88px - 24px);
+    height: calc(100vh - 10px);
+    padding-top: 64px;
   }
 
   .new-playground-sidebar {
@@ -595,7 +604,7 @@
 
   .composer-bottom-row {
     align-items: stretch;
-    flex-direction: column;
+    /* flex-direction: column; */
   }
 
   .mode-tabs {

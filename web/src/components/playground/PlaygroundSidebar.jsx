@@ -21,13 +21,12 @@ import React, { useMemo } from 'react';
 import { Button, Input, Typography } from '@douyinfe/semi-ui';
 import {
   Trash2,
-  Image as ImageIcon,
   PlusSquare,
   Search,
-  Zap,
   ArrowLeftToLine,
   ArrowRightToLine,
   MessageCircleMore,
+  MessageCircle,
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
@@ -56,7 +55,7 @@ const PlaygroundSidebar = ({
     >
       <div className='new-playground-brand'>
         <div className='new-playground-logo'>
-          <MessageCircleMore size={22} />
+          <MessageCircle size={22} />
         </div>
         {!collapsed && (
           <Typography.Title heading={4} className='!mb-0 brand-title'>
@@ -94,7 +93,7 @@ const PlaygroundSidebar = ({
                   type='button'
                   onClick={() => onSelectConversation(thread.id)}
                 >
-                  <ImageIcon size={18} />
+                  <MessageCircleMore size={18} />
                   <span>{thread.title || t('新对话')}</span>
                 </button>
                 <button
