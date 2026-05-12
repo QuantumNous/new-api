@@ -43,6 +43,7 @@ import {
 import {
   getDefaultPaymentType,
   getMinTopupAmount,
+  getWalletCurrencyConfig,
   isWaffoPancakePayment,
 } from './lib'
 import type {
@@ -78,12 +79,21 @@ export function Wallet(props: WalletProps) {
   const { currency } = useSystemConfig()
   const { topupInfo, presetAmounts, loading: topupLoading } = useTopupInfo()
 
-  // Calculate effective exchange rate - when display type is USD, use rate of 1
-  const effectiveUsdExchangeRate = useMemo(() => {
-    return currency?.quotaDisplayType === 'USD'
-      ? 1
-      : currency?.usdExchangeRate || 1
-  }, [currency?.quotaDisplayType, currency?.usdExchangeRate])
+  const walletCurrency = useMemo(() => {
+    return getWalletCurrencyConfig(
+      currency?.quotaDisplayType,
+      currency?.usdExchangeRate,
+      currency?.customCurrencySymbol,
+      currency?.customCurrencyExchangeRate
+    )
+  }, [
+    currency?.quotaDisplayType,
+    currency?.usdExchangeRate,
+    currency?.customCurrencySymbol,
+    currency?.customCurrencyExchangeRate,
+  ])
+
+  const effectiveUsdExchangeRate = walletCurrency.rate
   const {
     amount: paymentAmount,
     calculating,
@@ -301,6 +311,8 @@ export function Wallet(props: WalletProps) {
                   topupLink={topupInfo?.topup_link}
                   loading={topupLoading}
                   priceRatio={(status?.price as number) || 1}
+                  topupCurrencySymbol={walletCurrency.symbol}
+                  paymentCurrencySymbol={walletCurrency.paymentSymbol}
                   usdExchangeRate={effectiveUsdExchangeRate}
                   onOpenBilling={() => setBillingDialogOpen(true)}
                   creemProducts={topupInfo?.creem_products}
@@ -335,6 +347,8 @@ export function Wallet(props: WalletProps) {
         calculating={calculating}
         processing={processing || pancakeProcessing}
         discountRate={getDiscountRate()}
+        topupCurrencySymbol={walletCurrency.symbol}
+        paymentCurrencySymbol={walletCurrency.paymentSymbol}
         usdExchangeRate={effectiveUsdExchangeRate}
       />
 

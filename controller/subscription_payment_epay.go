@@ -15,11 +15,16 @@ import (
 	"github.com/QuantumNous/new-api/setting/system_setting"
 	"github.com/gin-gonic/gin"
 	"github.com/samber/lo"
+	"github.com/shopspring/decimal"
 )
 
 type SubscriptionEpayPayRequest struct {
 	PlanId        int    `json:"plan_id"`
 	PaymentMethod string `json:"payment_method"`
+}
+
+func getSubscriptionEpayMoney(priceAmount float64) float64 {
+	return decimal.NewFromFloat(priceAmount).Mul(decimal.NewFromFloat(operation_setting.Price)).InexactFloat64()
 }
 
 func SubscriptionRequestEpay(c *gin.Context) {
@@ -81,10 +86,11 @@ func SubscriptionRequestEpay(c *gin.Context) {
 		return
 	}
 
+	paymentMoney := getSubscriptionEpayMoney(plan.PriceAmount)
 	order := &model.SubscriptionOrder{
 		UserId:          userId,
 		PlanId:          plan.Id,
-		Money:           plan.PriceAmount,
+		Money:           paymentMoney,
 		TradeNo:         tradeNo,
 		PaymentMethod:   req.PaymentMethod,
 		PaymentProvider: model.PaymentProviderEpay,
@@ -99,7 +105,7 @@ func SubscriptionRequestEpay(c *gin.Context) {
 		Type:           req.PaymentMethod,
 		ServiceTradeNo: tradeNo,
 		Name:           fmt.Sprintf("SUB:%s", plan.Title),
-		Money:          strconv.FormatFloat(plan.PriceAmount, 'f', 2, 64),
+		Money:          strconv.FormatFloat(paymentMoney, 'f', 2, 64),
 		Device:         epay.PC,
 		NotifyUrl:      notifyUrl,
 		ReturnUrl:      returnUrl,

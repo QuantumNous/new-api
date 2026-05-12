@@ -17,6 +17,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { formatBillingCurrencyFromUSD } from '@/lib/currency'
+import { getWalletCurrencyConfig } from '@/features/wallet/lib'
+import { useSystemConfigStore } from '@/stores/system-config-store'
 import { TOKEN_UNIT_DIVISORS } from '../constants'
 import type { PricingModel, TokenUnit } from '../types'
 import {
@@ -80,14 +82,22 @@ export function getDynamicDisplayGroupRatio(model: PricingModel): number {
   return minRatio === Number.POSITIVE_INFINITY ? 1 : minRatio
 }
 
-function applyRechargeRate(
-  price: number,
-  showWithRecharge: boolean,
-  priceRate: number,
-  usdExchangeRate: number
-): number {
-  if (!showWithRecharge) return price
-  return (price * priceRate) / usdExchangeRate
+function formatDynamicPaymentCurrency(amount: number): string {
+  if (Number.isNaN(amount)) return '-'
+
+  const currency = useSystemConfigStore.getState().config.currency
+  const walletCurrency = getWalletCurrencyConfig(
+    currency.quotaDisplayType,
+    currency.usdExchangeRate,
+    currency.customCurrencySymbol,
+    currency.customCurrencyExchangeRate
+  )
+  const formatted = new Intl.NumberFormat(undefined, {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: Math.abs(amount) >= 1 ? 4 : 6,
+  }).format(amount)
+
+  return `${walletCurrency.paymentSymbol}${formatted}`
 }
 
 export function formatDynamicUnitPrice(
@@ -96,18 +106,15 @@ export function formatDynamicUnitPrice(
 ): string {
   const groupRatio = options.groupRatioMultiplier ?? 1
   const priceRate = options.priceRate ?? 1
-  const usdExchangeRate = options.usdExchangeRate ?? 1
   const priceUSD =
     (valuePerMillionTokens * groupRatio) /
     TOKEN_UNIT_DIVISORS[options.tokenUnit]
-  const displayPrice = applyRechargeRate(
-    priceUSD,
-    options.showRechargePrice ?? false,
-    priceRate,
-    usdExchangeRate
-  )
 
-  return formatBillingCurrencyFromUSD(displayPrice, {
+  if (options.showRechargePrice) {
+    return formatDynamicPaymentCurrency(priceUSD * priceRate)
+  }
+
+  return formatBillingCurrencyFromUSD(priceUSD, {
     digitsLarge: 4,
     digitsSmall: 6,
     abbreviate: false,

@@ -20,6 +20,16 @@ import { useState, useEffect } from 'react'
 import { Crown, CalendarClock, Package } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+import {
+  formatBillingCurrencyFromUSD,
+  formatQuotaWithCurrency,
+} from '@/lib/currency'
+import { useStatus } from '@/hooks/use-status'
+import { useSystemConfig } from '@/hooks/use-system-config'
+import {
+  formatWalletCurrencyAmount,
+  getWalletCurrencyConfig,
+} from '@/features/wallet/lib'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import {
@@ -43,7 +53,10 @@ import {
   paySubscriptionCreem,
   paySubscriptionEpay,
 } from '../../api'
-import { formatDuration, formatResetPeriod } from '../../lib'
+import {
+  formatDuration,
+  formatResetPeriod,
+} from '../../lib'
 import type { PlanRecord } from '../../types'
 
 interface PaymentMethod {
@@ -65,6 +78,8 @@ interface Props {
 
 export function SubscriptionPurchaseDialog(props: Props) {
   const { t } = useTranslation()
+  const { status } = useStatus()
+  const { currency } = useSystemConfig()
   const [paying, setPaying] = useState(false)
   const [selectedEpayMethod, setSelectedEpayMethod] = useState('')
 
@@ -90,7 +105,17 @@ export function SubscriptionPurchaseDialog(props: Props) {
     selectedEpayMethod ||
     t('Select payment method')
   const totalAmount = Number(plan.total_amount || 0)
-  const price = Number(plan.price_amount || 0).toFixed(2)
+  const price = formatBillingCurrencyFromUSD(plan.price_amount)
+  const walletCurrency = getWalletCurrencyConfig(
+    currency?.quotaDisplayType,
+    currency?.usdExchangeRate,
+    currency?.customCurrencySymbol,
+    currency?.customCurrencyExchangeRate
+  )
+  const localPaymentAmount = formatWalletCurrencyAmount(
+    plan.price_amount * ((status?.price as number) || 1),
+    walletCurrency.paymentSymbol
+  )
   const limitReached =
     (props.purchaseLimit || 0) > 0 &&
     (props.purchaseCount || 0) >= (props.purchaseLimit || 0)
@@ -230,7 +255,7 @@ export function SubscriptionPurchaseDialog(props: Props) {
               </span>
               <span className='flex items-center gap-1 text-sm'>
                 <Package className='h-3.5 w-3.5' />
-                {totalAmount > 0 ? totalAmount : t('Unlimited')}
+                {totalAmount > 0 ? formatQuotaWithCurrency(totalAmount) : t('Unlimited')}
               </span>
             </div>
             {plan.upgrade_group && (
@@ -244,7 +269,12 @@ export function SubscriptionPurchaseDialog(props: Props) {
             <Separator />
             <div className='flex items-center justify-between'>
               <span className='text-sm font-medium'>{t('Amount Due')}</span>
-              <span className='text-primary text-lg font-bold'>${price}</span>
+              <div className='text-right'>
+                <div className='text-primary text-lg font-bold'>{price}</div>
+                <div className='text-muted-foreground text-xs'>
+                  {localPaymentAmount}
+                </div>
+              </div>
             </div>
           </div>
 

@@ -20,6 +20,26 @@ import type { TFunction } from 'i18next'
 import dayjs from '@/lib/dayjs'
 import type { SubscriptionPlan } from '../types'
 
+export function formatSubscriptionPrice(
+  amount: number | string | null | undefined,
+  currency?: string | null
+): string {
+  const numeric = typeof amount === 'number' ? amount : Number(amount || 0)
+  const formatted = new Intl.NumberFormat(undefined, {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(Number.isFinite(numeric) ? numeric : 0)
+  const code = currency?.trim().toUpperCase() || 'USD'
+
+  if (code === 'USD') return `$${formatted}`
+  if (code === 'CNY' || code === 'RMB') return `¥${formatted}`
+  if (code === 'EUR') return `€${formatted}`
+  if (code === 'GBP') return `£${formatted}`
+  if (code === 'JPY') return `¥${formatted}`
+
+  return `${code} ${formatted}`
+}
+
 export function formatDuration(
   plan: Partial<SubscriptionPlan>,
   t: TFunction

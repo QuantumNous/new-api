@@ -18,6 +18,8 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { DEFAULT_DISCOUNT_RATE } from '../constants'
 
+const DEFAULT_PAYMENT_EXCHANGE_RATE = 7
+
 // ============================================================================
 // Wallet-specific Formatting Functions
 // ============================================================================
@@ -59,6 +61,55 @@ export function formatCurrency(amount: number | string): string {
     minimumFractionDigits: 0,
     maximumFractionDigits: Math.abs(numeric) >= 1 ? 2 : 4,
   }).format(numeric)
+}
+
+export function formatWalletCurrencyAmount(
+  amount: number | string,
+  symbol = '¥'
+): string {
+  const formatted = formatCurrency(amount)
+  return formatted === '-' ? formatted : `${symbol}${formatted}`
+}
+
+export function getWalletCurrencyConfig(
+  quotaDisplayType?: string,
+  usdExchangeRate?: number,
+  customCurrencySymbol?: string,
+  customCurrencyExchangeRate?: number
+) {
+  const effectiveUsdExchangeRate =
+    usdExchangeRate && usdExchangeRate > 0
+      ? usdExchangeRate
+      : DEFAULT_PAYMENT_EXCHANGE_RATE
+
+  if (quotaDisplayType === 'USD') {
+    return {
+      symbol: '$',
+      rate: 1,
+      paymentSymbol: effectiveUsdExchangeRate === 1 ? '$' : '¥',
+      paymentRate: effectiveUsdExchangeRate,
+    }
+  }
+
+  if (quotaDisplayType === 'CUSTOM') {
+    const rate =
+      customCurrencyExchangeRate && customCurrencyExchangeRate > 0
+        ? customCurrencyExchangeRate
+        : 1
+    return {
+      symbol: customCurrencySymbol?.trim() || '¤',
+      rate,
+      paymentSymbol: customCurrencySymbol?.trim() || '¤',
+      paymentRate: rate,
+    }
+  }
+
+  return {
+    symbol: '¥',
+    rate: effectiveUsdExchangeRate,
+    paymentSymbol: '¥',
+    paymentRate: effectiveUsdExchangeRate,
+  }
 }
 
 /**
