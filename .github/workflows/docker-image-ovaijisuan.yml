@@ -174,73 +174,13 @@ jobs:
           docker buildx imagetools inspect arronlee/new-api:ovaijisuan >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
 
-  build_binaries:
-    name: Build binaries
-    needs: [prepare]
-    runs-on: ubuntu-latest
-    env:
-      VERSION: ${{ needs.prepare.outputs.version }}
-    steps:
-      - name: Check out
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
-
-      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
-        with:
-          bun-version: latest
-
-      - name: Build Frontend
-        env:
-          CI: ""
-        run: |
-          cd web
-          bun install
-          DISABLE_ESLINT_PLUGIN='true' VITE_REACT_APP_VERSION=$VERSION VITE_UPDATE_REPO=reputationly/new-api bun run build
-          cd ..
-
-      - name: Set up Go
-        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
-        with:
-          go-version: '>=1.25.1'
-
-      - name: Build all platforms
-        env:
-          CGO_ENABLED: '0'
-          LDFLAGS: "-s -w -X 'github.com/QuantumNous/new-api/common.Version=${{ env.VERSION }}'"
-        run: |
-          go mod download
-
-          GOOS=linux  GOARCH=amd64 go build -ldflags "$LDFLAGS" -o new-api-$VERSION
-          GOOS=linux  GOARCH=arm64 go build -ldflags "$LDFLAGS" -o new-api-arm64-$VERSION
-          GOOS=darwin GOARCH=amd64 go build -ldflags "$LDFLAGS" -o new-api-macos-$VERSION
-          GOOS=windows GOARCH=amd64 go build -ldflags "$LDFLAGS" -o new-api-$VERSION.exe
-
-      - name: Generate checksums
-        run: |
-          sha256sum new-api-$VERSION new-api-arm64-$VERSION > checksums-linux.txt
-          sha256sum new-api-macos-$VERSION > checksums-macos.txt
-          sha256sum new-api-$VERSION.exe > checksums-windows.txt
-
-      - name: Upload artifacts
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        with:
-          name: binaries
-          path: |
-            new-api-*
-            checksums-*.txt
-
   create_release:
     name: Create GitHub Release
-    needs: [prepare, create_manifests, build_binaries]
+    needs: [prepare, create_manifests]
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
-      - name: Download binaries
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
-        with:
-          name: binaries
-          path: ./release-assets
-
       - name: Create release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -260,19 +200,9 @@ jobs:
           \`\`\`
 
           > ACR 镜像同步推送，国内服务器建议使用 ACR 地址拉取。
-
-          ## 二进制文件
-
-          | 平台 | 文件 |
-          |------|------|
-          | Linux amd64 | new-api-${VERSION} |
-          | Linux arm64 | new-api-arm64-${VERSION} |
-          | macOS | new-api-macos-${VERSION} |
-          | Windows | new-api-${VERSION}.exe |
           EOF
 
           gh release create "${VERSION}" \
             --repo "${{ github.repository }}" \
             --title "${VERSION}" \
-            --notes-file notes.md \
-            ./release-assets/*
+            --notes-file notes.md
