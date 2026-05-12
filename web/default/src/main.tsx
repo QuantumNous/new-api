@@ -98,7 +98,7 @@ const router = createRouter({
   context: { queryClient },
   defaultPreload: 'intent',
   defaultPreloadStaleTime: 0,
-  basepath: '/console',
+  basepath: '/_panel',
 })
 
 // Register the router instance for type safety

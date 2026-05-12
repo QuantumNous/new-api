@@ -21,6 +21,7 @@ import { createFileRoute } from '@tanstack/react-router'
 function RedirectToLogin() {
   window.location.replace(
     'https://apimaster.ai/api/console-bridge?redirect=/console/dashboard'
+    // Note: redirect goes to Next.js /console/dashboard which wraps /_panel in an iframe
   )
   return null
 }

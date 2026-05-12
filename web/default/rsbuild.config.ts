@@ -68,7 +68,7 @@ export default defineConfig(({ envMode }) => {
       proxy: devProxy,
     },
     output: {
-      assetPrefix: '/console/',
+      assetPrefix: '/_panel/',
       // Production optimizations
       minify: isProd,
       target: 'web',

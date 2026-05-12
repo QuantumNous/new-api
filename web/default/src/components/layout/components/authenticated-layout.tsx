@@ -24,7 +24,6 @@ import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar'
 import { AnimatedOutlet } from '@/components/page-transition'
 import { SkipToMain } from '@/components/skip-to-main'
 import { WorkspaceProvider } from '../context/workspace-context'
-import { AppHeader } from './app-header'
 import { AppSidebar } from './app-sidebar'
 
 type AuthenticatedLayoutProps = {
@@ -40,7 +39,6 @@ export function AuthenticatedLayout(props: AuthenticatedLayoutProps) {
         <WorkspaceProvider>
           <SidebarProvider defaultOpen={defaultOpen} className='flex-col'>
             <SkipToMain />
-            <AppHeader />
             <div className='flex min-h-0 w-full flex-1'>
               <AppSidebar />
               <SidebarInset
