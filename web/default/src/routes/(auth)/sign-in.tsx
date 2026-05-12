@@ -20,8 +20,7 @@ import { createFileRoute } from '@tanstack/react-router'
 
 function RedirectToLogin() {
   window.location.replace(
-    'https://apimaster.ai/api/console-bridge?redirect=' +
-      encodeURIComponent(window.location.pathname || '/console/dashboard')
+    'https://apimaster.ai/api/console-bridge?redirect=/console/dashboard'
   )
   return null
 }
