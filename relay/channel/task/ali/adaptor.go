@@ -213,23 +213,23 @@ func sizeToResolution(size string) (string, error) {
 
 func ProcessAliOtherRatios(aliReq *AliVideoRequest) (map[string]float64, error) {
 	otherRatios := make(map[string]float64)
+	wan27Ratio := map[string]float64{
+		"720P":  1,
+		"1080P": 1 / 0.6,
+	}
+	happyhorseRatio := map[string]float64{
+		"720P":  1,
+		"1080P": 1.6 / 0.9,
+	}
 	aliRatios := map[string]map[string]float64{
-		"wan2.7-t2v": {
-			"720P":  1,
-			"1080P": 1 / 0.6,
-		},
-		"wan2.7-i2v": {
-			"720P":  1,
-			"1080P": 1 / 0.6,
-		},
-		"wan2.7-r2v": {
-			"720P":  1,
-			"1080P": 1 / 0.6,
-		},
-		"wan2.7-videoedit": {
-			"720P":  1,
-			"1080P": 1 / 0.6,
-		},
+		"wan2.7-t2v":                wan27Ratio,
+		"wan2.7-i2v":                wan27Ratio,
+		"wan2.7-r2v":                wan27Ratio,
+		"wan2.7-videoedit":          wan27Ratio,
+		"happyhorse-1.0-t2v":        happyhorseRatio,
+		"happyhorse-1.0-i2v":        happyhorseRatio,
+		"happyhorse-1.0-r2v":        happyhorseRatio,
+		"happyhorse-1.0-video-edit": happyhorseRatio,
 		"wan2.6-i2v": {
 			"720P":  1,
 			"1080P": 1 / 0.6,
@@ -391,7 +391,11 @@ func (a *TaskAdaptor) convertToAliRequest(info *relaycommon.RelayInfo, req relay
 			Watermark:    false,
 		},
 	}
-	if len(req.Images) > 1 {
+	if isWan27I2VModel(aliReq.Model) {
+		// wan2.7-i2v 由 normalizeWan27I2VInput 从 req 构建 input.media（含首尾帧分型与 trim）
+	} else if isNewFormatModel(aliReq.Model) {
+		appendImageURLsAsMedia(aliReq, imageMediaType(aliReq.Model), req.Images)
+	} else if len(req.Images) > 1 {
 		aliReq.Input.FirstFrameURL = req.Images[0]
 		aliReq.Input.LastFrameURL = req.Images[1]
 	} else {
@@ -409,30 +413,28 @@ func (a *TaskAdaptor) convertToAliRequest(info *relaycommon.RelayInfo, req relay
 			}
 			aliReq.Parameters.Resolution = resolution
 		}
-	} else {
-		// 根据模型设置默认分辨率
-		if strings.HasPrefix(req.Model, "wan2.7") {
-			// wan2.7 服务端有默认值（resolution=720P, ratio=16:9），不设则用服务端默认
-		} else if strings.Contains(req.Model, "t2v") { // image to video
-			if strings.HasPrefix(req.Model, "wan2.5") {
-				aliReq.Parameters.Size = "1920*1080"
-			} else if strings.HasPrefix(req.Model, "wan2.2") {
-				aliReq.Parameters.Size = "1920*1080"
-			} else {
-				aliReq.Parameters.Size = "1280*720"
-			}
+	} else if resolution, ok := newFormatDefaultResolution(aliReq.Model); ok {
+		aliReq.Parameters.Resolution = resolution
+	} else if strings.Contains(req.Model, "t2v") { // 旧版 t2v 默认 size
+		if strings.HasPrefix(req.Model, "wan2.5") {
+			aliReq.Parameters.Size = "1920*1080"
+		} else if strings.HasPrefix(req.Model, "wan2.2") {
+			aliReq.Parameters.Size = "1920*1080"
 		} else {
-			if strings.HasPrefix(req.Model, "wan2.6") {
-				aliReq.Parameters.Resolution = "1080P"
-			} else if strings.HasPrefix(req.Model, "wan2.5") {
-				aliReq.Parameters.Resolution = "1080P"
-			} else if strings.HasPrefix(req.Model, "wan2.2-i2v-flash") {
-				aliReq.Parameters.Resolution = "720P"
-			} else if strings.HasPrefix(req.Model, "wan2.2-i2v-plus") {
-				aliReq.Parameters.Resolution = "1080P"
-			} else {
-				aliReq.Parameters.Resolution = "720P"
-			}
+			aliReq.Parameters.Size = "1280*720"
+		}
+	} else {
+		// 旧版 i2v 默认 resolution
+		if strings.HasPrefix(req.Model, "wan2.6") {
+			aliReq.Parameters.Resolution = "1080P"
+		} else if strings.HasPrefix(req.Model, "wan2.5") {
+			aliReq.Parameters.Resolution = "1080P"
+		} else if strings.HasPrefix(req.Model, "wan2.2-i2v-flash") {
+			aliReq.Parameters.Resolution = "720P"
+		} else if strings.HasPrefix(req.Model, "wan2.2-i2v-plus") {
+			aliReq.Parameters.Resolution = "1080P"
+		} else {
+			aliReq.Parameters.Resolution = "720P"
 		}
 	}
 
