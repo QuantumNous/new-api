@@ -18,6 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { Link } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
+import { Zap } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useStatus } from '@/hooks/use-status'
 import { useSystemConfig } from '@/hooks/use-system-config'
@@ -59,19 +60,12 @@ export function SystemBrand(props: SystemBrandProps) {
       <Link
         to='/'
         aria-label={t('Go to home')}
-        className={cn(
-          'text-foreground inline-flex h-7 items-center gap-1.5 rounded-md px-1.5 text-sm font-medium transition-colors outline-none select-none',
-          'hover:bg-accent focus-visible:ring-ring/40 focus-visible:ring-2'
-        )}
+        className='inline-flex h-7 items-center gap-2 rounded-md px-1.5 outline-none select-none'
       >
-        <div className='flex size-5 items-center justify-center overflow-hidden rounded-md'>
-          <img
-            src={logo}
-            alt={t('Logo')}
-            className='size-full rounded-md object-cover'
-          />
-        </div>
-        <span className='max-w-[12rem] truncate'>{name}</span>
+        <Zap className='size-5 text-[#e879f9]' aria-hidden />
+        <span className='font-bold text-sm text-white'>
+          APIMaster<span className='text-[#e879f9]'>.ai</span>
+        </span>
       </Link>
     )
   }
