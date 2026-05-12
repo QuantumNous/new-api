@@ -582,12 +582,13 @@ func ResponseClaude2OpenAI(claudeResponse *dto.ClaudeResponse) *dto.OpenAITextRe
 }
 
 type ClaudeResponseInfo struct {
-	ResponseId   string
-	Created      int64
-	Model        string
-	ResponseText strings.Builder
-	Usage        *dto.Usage
-	Done         bool
+	ResponseId    string
+	Created       int64
+	Model         string
+	ResponseText  strings.Builder
+	Usage         *dto.Usage
+	Done          bool
+	ResponsesState *ClaudeResponsesStreamState
 }
 
 func cacheCreationTokensForOpenAIUsage(usage *dto.Usage) int {
@@ -826,6 +827,18 @@ func HandleStreamResponseData(c *gin.Context, info *relaycommon.RelayInfo, claud
 		if err != nil {
 			logger.LogError(c, "send_stream_response_failed: "+err.Error())
 		}
+	} else if info.RelayFormat == types.RelayFormatOpenAIResponses {
+		FormatClaudeResponseInfo(&claudeResponse, nil, claudeInfo)
+		if claudeInfo.ResponsesState == nil {
+			claudeInfo.ResponsesState = NewClaudeResponsesStreamState(info.UpstreamModelName)
+			claudeInfo.ResponsesState.CreatedAt = claudeInfo.Created
+			claudeInfo.ResponsesState.ResponseID = claudeInfo.ResponseId
+		}
+		for _, evt := range claudeInfo.ResponsesState.HandleClaudeChunk(&claudeResponse) {
+			if sendErr := helper.ObjectData(c, evt); sendErr != nil {
+				logger.LogError(c, "send_responses_stream_failed: "+sendErr.Error())
+			}
+		}
 	}
 	return nil
 }
@@ -865,6 +878,17 @@ func HandleStreamFinalResponse(c *gin.Context, info *relaycommon.RelayInfo, clau
 			}
 		}
 		helper.Done(c)
+	} else if info.RelayFormat == types.RelayFormatOpenAIResponses {
+		if claudeInfo.ResponsesState == nil {
+			claudeInfo.ResponsesState = NewClaudeResponsesStreamState(info.UpstreamModelName)
+			claudeInfo.ResponsesState.CreatedAt = claudeInfo.Created
+			claudeInfo.ResponsesState.ResponseID = claudeInfo.ResponseId
+		}
+		for _, evt := range claudeInfo.ResponsesState.FinalEvents() {
+			if sendErr := helper.ObjectData(c, evt); sendErr != nil {
+				common.SysLog("send final responses event failed: " + sendErr.Error())
+			}
+		}
 	}
 }
 
@@ -925,6 +949,15 @@ func HandleClaudeResponseData(c *gin.Context, info *relaycommon.RelayInfo, claud
 		}
 	case types.RelayFormatClaude:
 		responseData = data
+	case types.RelayFormatOpenAIResponses:
+		responsesResp := ConvertClaudeResponseToResponses(&claudeResponse)
+		if claudeInfo.Created > 0 {
+			responsesResp.CreatedAt = int(claudeInfo.Created)
+		}
+		responseData, err = json.Marshal(responsesResp)
+		if err != nil {
+			return types.NewError(err, types.ErrorCodeBadResponseBody)
+		}
 	}
 
 	if claudeResponse.Usage != nil && claudeResponse.Usage.ServerToolUse != nil && claudeResponse.Usage.ServerToolUse.WebSearchRequests > 0 {

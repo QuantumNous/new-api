@@ -34,6 +34,8 @@ type ClaudeMediaMessage struct {
 	Input     any    `json:"input,omitempty"`
 	Content   any    `json:"content,omitempty"`
 	ToolUseId string `json:"tool_use_id,omitempty"`
+	// redacted_thinking
+	Data string `json:"data,omitempty"`
 }
 
 func (c *ClaudeMediaMessage) SetText(s string) {
