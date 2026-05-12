@@ -134,6 +134,18 @@ export const CHANNEL_TYPE_CONFIGS: Record<number, ChannelTypeConfig> = {
       baseUrl: 'Default: https://api.replicate.com',
     },
   },
+  58: {
+    id: 58,
+    name: CHANNEL_TYPES[58],
+    icon: 'cloudflare',
+    defaultBaseUrl: 'https://gateway.ai.cloudflare.com',
+    hints: {
+      key: 'Cloudflare API Token',
+      models: 'Format: {provider}/{model}, e.g. openai/gpt-4o, anthropic/claude-sonnet-4-5',
+      other: 'Format: {account_id}/{gateway_id}',
+      baseUrl: 'Default: https://gateway.ai.cloudflare.com',
+    },
+  },
 }
 
 /**

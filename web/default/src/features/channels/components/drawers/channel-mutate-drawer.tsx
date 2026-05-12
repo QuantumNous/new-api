@@ -1535,6 +1535,29 @@ export function ChannelMutateDrawer({
                   />
                 )}
 
+                {/* Cloudflare AI Gateway (type 58) */}
+                {currentType === 58 && (
+                  <FormField
+                    control={form.control}
+                    name='other'
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>{t('Account ID / Gateway ID *')}</FormLabel>
+                        <FormControl>
+                          <Input
+                            placeholder={t('e.g., d6b5da8hk1awo8nap34ube6gh/default')}
+                            {...field}
+                          />
+                        </FormControl>
+                        <FormDescription>
+                          {t('Format: {account_id}/{gateway_id}. The default gateway is "default".')}
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                )}
+
                 {/* SiliconFlow (type 40) */}
                 {currentType === 40 && (
                   <Alert>
