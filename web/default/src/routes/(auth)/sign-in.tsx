@@ -19,9 +19,10 @@ For commercial licensing, please contact support@quantumnous.com
 import { createFileRoute } from '@tanstack/react-router'
 
 function RedirectToLogin() {
+  // Redirect to /_panel/dashboard so console-bridge comes back inside the iframe,
+  // not to the outer /console wrapper (which would cause nested iframes).
   window.location.replace(
-    'https://apimaster.ai/api/console-bridge?redirect=/console/dashboard'
-    // Note: redirect goes to Next.js /console/dashboard which wraps /_panel in an iframe
+    'https://apimaster.ai/api/console-bridge?redirect=/_panel/dashboard'
   )
   return null
 }
