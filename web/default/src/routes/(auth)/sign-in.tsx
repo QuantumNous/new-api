@@ -19,7 +19,10 @@ For commercial licensing, please contact support@quantumnous.com
 import { createFileRoute } from '@tanstack/react-router'
 
 function RedirectToLogin() {
-  window.location.replace('https://apimaster.ai/login')
+  window.location.replace(
+    'https://apimaster.ai/api/console-bridge?redirect=' +
+      encodeURIComponent(window.location.pathname || '/console/dashboard')
+  )
   return null
 }
 
