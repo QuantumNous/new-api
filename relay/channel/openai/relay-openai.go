@@ -627,11 +627,19 @@ func OpenaiImageStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp 
 		info.StreamStatus = relaycommon.NewStreamStatus()
 	}
 
-	scanner := bufio.NewScanner(resp.Body)
-	scanner.Buffer(make([]byte, helper.InitialScannerBufferSize), helper.DefaultMaxScannerBufferSize)
+	reader := bufio.NewReader(resp.Body)
 	currentEvent := ""
-	for scanner.Scan() {
-		line := scanner.Text()
+	var readErr error
+	for {
+		line, err := reader.ReadString('\n')
+		if err != nil {
+			readErr = err
+			if len(line) == 0 {
+				break
+			}
+		}
+		line = strings.TrimSuffix(line, "\n")
+		line = strings.TrimSuffix(line, "\r")
 		if strings.HasPrefix(line, "event:") {
 			currentEvent = strings.TrimSpace(strings.TrimPrefix(line, "event:"))
 		} else if strings.HasPrefix(line, "data:") {
@@ -673,10 +681,13 @@ func OpenaiImageStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp 
 			}
 			currentEvent = ""
 		}
+		if readErr != nil {
+			break
+		}
 	}
 	if info != nil && info.StreamStatus != nil {
-		if err := scanner.Err(); err != nil {
-			info.StreamStatus.SetEndReason(relaycommon.StreamEndReasonScannerErr, err)
+		if readErr != nil && readErr != io.EOF {
+			info.StreamStatus.SetEndReason(relaycommon.StreamEndReasonScannerErr, readErr)
 		} else if info.StreamStatus.HasErrors() {
 			info.StreamStatus.SetEndReason(relaycommon.StreamEndReasonHandlerStop, fmt.Errorf("upstream image stream returned error event"))
 		} else if info.StreamStatus.EndReason == relaycommon.StreamEndReasonNone {
@@ -762,6 +773,9 @@ func OpenaiImageJSONAsStreamHandler(c *gin.Context, info *relaycommon.RelayInfo,
 	if created == 0 {
 		created = time.Now().Unix()
 	}
+	if info != nil {
+		info.SetFirstResponseTime()
+	}
 	for _, image := range imageResp.Data {
 		payload := map[string]any{
 			"type":       "image_generation.completed",
@@ -793,7 +807,6 @@ func OpenaiImageJSONAsStreamHandler(c *gin.Context, info *relaycommon.RelayInfo,
 		return &usageResp.Usage, nil
 	}
 	if info != nil {
-		info.SetFirstResponseTime()
 		info.ReceivedResponseCount += len(imageResp.Data)
 		if info.StreamStatus == nil {
 			info.StreamStatus = relaycommon.NewStreamStatus()

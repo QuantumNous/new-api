@@ -10,6 +10,7 @@ import (
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/relay/helper"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 )
@@ -59,6 +60,36 @@ func TestOpenaiImageStreamHandlerForwardsSSEAndUsage(t *testing.T) {
 	require.Contains(t, recorder.Body.String(), `data: {"usage":{"input_tokens":3,"output_tokens":4,"total_tokens":7,"input_tokens_details":{"image_tokens":2,"text_tokens":1}}}`)
 	require.Contains(t, recorder.Body.String(), `data: [DONE]`)
 	require.Equal(t, "text/event-stream", recorder.Header().Get("Content-Type"))
+}
+
+func TestOpenaiImageStreamHandlerForwardsLargeSSELine(t *testing.T) {
+	oldMode := gin.Mode()
+	gin.SetMode(gin.TestMode)
+	t.Cleanup(func() { gin.SetMode(oldMode) })
+
+	payload := strings.Repeat("x", helper.DefaultMaxScannerBufferSize+1)
+	body := "data: " + payload + "\n\n"
+
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/images/generations", nil)
+
+	resp := &http.Response{
+		StatusCode: http.StatusOK,
+		Body:       io.NopCloser(strings.NewReader(body)),
+		Header:     http.Header{"Content-Type": []string{"text/event-stream"}},
+	}
+	info := &relaycommon.RelayInfo{
+		ChannelMeta: &relaycommon.ChannelMeta{},
+		IsStream:    true,
+	}
+
+	usage, err := OpenaiImageStreamHandler(c, info, resp)
+	require.Nil(t, err)
+	require.NotNil(t, usage)
+	require.Contains(t, recorder.Body.String(), payload)
+	require.NotNil(t, info.StreamStatus)
+	require.Equal(t, relaycommon.StreamEndReasonEOF, info.StreamStatus.EndReason)
 }
 
 func TestOpenaiImageStreamHandlerWrapsJSONResponse(t *testing.T) {
