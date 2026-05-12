@@ -1,3 +1,21 @@
+/*
+Copyright (C) 2023-2026 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
 import { useMemo, useState } from 'react'
 import {
   Copy,
@@ -264,7 +282,7 @@ function RateLimitGroupSection(props: RateLimitGroupSectionProps) {
           <div className='text-muted-foreground flex flex-wrap items-center gap-2 text-xs'>
             {props.description && <span>{props.description}</span>}
             {props.meteredFeature && (
-              <span className='bg-muted/60 inline-flex max-w-full items-center gap-2 rounded-full px-2 py-0.5'>
+              <span className='bg-muted/60 inline-flex max-w-full items-center gap-2 rounded-md px-2 py-0.5'>
                 <span className='text-[11px]'>metered_feature</span>
                 <span className='min-w-0 font-mono text-xs break-all'>
                   {props.meteredFeature}

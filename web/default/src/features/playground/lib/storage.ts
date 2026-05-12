@@ -1,3 +1,21 @@
+/*
+Copyright (C) 2023-2026 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
 import { STORAGE_KEYS } from '../constants'
 import type { PlaygroundConfig, ParameterEnabled, Message } from '../types'
 import { sanitizeMessagesOnLoad } from './message-utils'
@@ -70,8 +88,12 @@ export function loadMessages(): Message[] | null {
   try {
     const saved = localStorage.getItem(STORAGE_KEYS.MESSAGES)
     if (saved) {
-      const parsed: Message[] = JSON.parse(saved)
-      const sanitized = sanitizeMessagesOnLoad(parsed)
+      const parsed: unknown = JSON.parse(saved)
+      if (!Array.isArray(parsed)) {
+        localStorage.removeItem(STORAGE_KEYS.MESSAGES)
+        return null
+      }
+      const sanitized = sanitizeMessagesOnLoad(parsed as Message[])
       // Persist sanitized result to avoid re-sanitizing on subsequent loads
       if (sanitized !== parsed) {
         saveMessages(sanitized)
