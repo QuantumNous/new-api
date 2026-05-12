@@ -17,3 +17,19 @@ func ShouldChatCompletionsUseResponsesGlobal(channelID int, channelType int, mod
 		model,
 	)
 }
+
+func ShouldResponsesUseChatCompletionsPolicy(policy model_setting.ResponsesToChatCompletionsPolicy, channelID int, channelType int, model string) bool {
+	if !policy.IsChannelEnabled(channelID, channelType) {
+		return false
+	}
+	return matchAnyRegex(policy.ModelPatterns, model)
+}
+
+func ShouldResponsesUseChatCompletionsGlobal(channelID int, channelType int, model string) bool {
+	return ShouldResponsesUseChatCompletionsPolicy(
+		model_setting.GetGlobalSettings().ResponsesToChatCompletionsPolicy,
+		channelID,
+		channelType,
+		model,
+	)
+}

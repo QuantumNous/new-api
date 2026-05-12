@@ -76,8 +76,25 @@ func PreConsumeBilling(c *gin.Context, preConsumedQuota int, relayInfo *relaycom
 // SettleBilling 执行计费结算。如果 RelayInfo 上有 BillingSession 则通过 session 结算，
 // 否则回退到旧的 PostConsumeQuota 路径（兼容按次计费等场景）。
 func SettleBilling(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, actualQuota int) error {
+	return settleBilling(ctx, relayInfo, actualQuota, false)
+}
+
+// SettleBillingDiscounted settles a quota value that has already had enterprise
+// discount applied by the quota calculator.
+func SettleBillingDiscounted(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, actualQuota int) error {
+	return settleBilling(ctx, relayInfo, actualQuota, true)
+}
+
+type discountedSettler interface {
+	SettleDiscounted(actualQuota int) error
+}
+
+func settleBilling(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, actualQuota int, alreadyDiscounted bool) error {
 	if relayInfo.Billing != nil {
-		normalizedActual := NormalizeRecordedQuota(ctx, relayInfo, actualQuota)
+		normalizedActual := actualQuota
+		if !alreadyDiscounted {
+			normalizedActual = NormalizeRecordedQuota(ctx, relayInfo, actualQuota)
+		}
 		preConsumed := relayInfo.Billing.GetPreConsumedQuota()
 		delta := normalizedActual - preConsumed
 
@@ -99,8 +116,18 @@ func SettleBilling(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, actualQuo
 			))
 		}
 
-		if err := relayInfo.Billing.Settle(actualQuota); err != nil {
-			return err
+		if alreadyDiscounted {
+			settler, ok := relayInfo.Billing.(discountedSettler)
+			if !ok {
+				return fmt.Errorf("billing session does not support discounted settlement")
+			}
+			if err := settler.SettleDiscounted(actualQuota); err != nil {
+				return err
+			}
+		} else {
+			if err := relayInfo.Billing.Settle(actualQuota); err != nil {
+				return err
+			}
 		}
 
 		// 发送额度通知（订阅计费使用订阅剩余额度）

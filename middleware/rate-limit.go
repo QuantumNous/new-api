@@ -18,6 +18,14 @@ var defNext = func(c *gin.Context) {
 	c.Next()
 }
 
+func abortRateLimited(c *gin.Context) {
+	c.JSON(http.StatusTooManyRequests, gin.H{
+		"success": false,
+		"message": "请求过于频繁，请稍后再试",
+	})
+	c.Abort()
+}
+
 func redisRateLimiter(c *gin.Context, maxRequestNum int, duration int64, mark string) {
 	ctx := context.Background()
 	rdb := common.RDB
@@ -53,8 +61,7 @@ func redisRateLimiter(c *gin.Context, maxRequestNum int, duration int64, mark st
 		// See: https://stackoverflow.com/questions/50970900/why-is-time-since-returning-negative-durations-on-windows
 		if int64(nowTime.Sub(oldTime).Seconds()) < duration {
 			rdb.Expire(ctx, key, common.RateLimitKeyExpirationDuration)
-			c.Status(http.StatusTooManyRequests)
-			c.Abort()
+			abortRateLimited(c)
 			return
 		} else {
 			rdb.LPush(ctx, key, time.Now().Format(timeFormat))
@@ -67,8 +74,7 @@ func redisRateLimiter(c *gin.Context, maxRequestNum int, duration int64, mark st
 func memoryRateLimiter(c *gin.Context, maxRequestNum int, duration int64, mark string) {
 	key := mark + c.ClientIP()
 	if !inMemoryRateLimiter.Request(key, maxRequestNum, duration) {
-		c.Status(http.StatusTooManyRequests)
-		c.Abort()
+		abortRateLimited(c)
 		return
 	}
 }
@@ -143,8 +149,7 @@ func userRateLimitFactory(maxRequestNum int, duration int64, mark string) func(c
 		}
 		key := fmt.Sprintf("%s:user:%d", mark, userId)
 		if !inMemoryRateLimiter.Request(key, maxRequestNum, duration) {
-			c.Status(http.StatusTooManyRequests)
-			c.Abort()
+			abortRateLimited(c)
 			return
 		}
 	}
@@ -184,8 +189,7 @@ func userRedisRateLimiter(c *gin.Context, maxRequestNum int, duration int64, key
 		}
 		if int64(nowTime.Sub(oldTime).Seconds()) < duration {
 			rdb.Expire(ctx, key, common.RateLimitKeyExpirationDuration)
-			c.Status(http.StatusTooManyRequests)
-			c.Abort()
+			abortRateLimited(c)
 			return
 		} else {
 			rdb.LPush(ctx, key, time.Now().Format(timeFormat))

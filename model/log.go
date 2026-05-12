@@ -37,7 +37,8 @@ type Log struct {
 	Ip               string `json:"ip" gorm:"index;default:''"`
 	RequestId        string `json:"request_id,omitempty" gorm:"type:varchar(64);index:idx_logs_request_id;default:''"`
 	Other            string `json:"other"`
-	Balance          int    `json:"balance" gorm:"-"`
+	Balance          int    `json:"balance" gorm:"default:0"`
+	BalanceValid     bool   `json:"-" gorm:"default:false"`
 }
 
 // don't use iota, avoid change log type value
@@ -87,7 +88,7 @@ func AttachLogBalances(logs []*Log) {
 	}
 	balances := make(map[int]int)
 	for _, log := range logs {
-		if log == nil || log.UserId == 0 {
+		if log == nil || log.UserId == 0 || log.BalanceValid {
 			continue
 		}
 		if _, ok := balances[log.UserId]; ok {
@@ -105,7 +106,7 @@ func AttachLogBalances(logs []*Log) {
 		balances[log.UserId] = quota - newerDelta
 	}
 	for _, log := range logs {
-		if log == nil || log.UserId == 0 {
+		if log == nil || log.UserId == 0 || log.BalanceValid {
 			continue
 		}
 		balance, ok := balances[log.UserId]
@@ -115,6 +116,20 @@ func AttachLogBalances(logs []*Log) {
 		log.Balance = balance
 		balances[log.UserId] = balance - logBalanceDelta(log)
 	}
+}
+
+func attachCurrentBalanceSnapshot(log *Log) {
+	if log == nil || log.UserId == 0 {
+		return
+	}
+	quota, err := GetUserQuota(log.UserId, true)
+	if err != nil {
+		common.SysLog(fmt.Sprintf("failed to attach log balance snapshot for user %d: %v", log.UserId, err))
+		return
+	}
+	quota += pendingBatchUpdateValue(BatchUpdateTypeUserQuota, log.UserId)
+	log.Balance = quota
+	log.BalanceValid = true
 }
 
 func GetLogByTokenId(tokenId int) (logs []*Log, err error) {
@@ -135,6 +150,7 @@ func RecordLog(userId int, logType int, content string) {
 		Type:      logType,
 		Content:   content,
 	}
+	attachCurrentBalanceSnapshot(log)
 	err := LOG_DB.Create(log).Error
 	if err != nil {
 		common.SysLog("failed to record log: " + err.Error())
@@ -154,6 +170,7 @@ func RecordLogWithAdminInfo(userId int, logType int, content string, adminInfo m
 		Type:      logType,
 		Content:   content,
 	}
+	attachCurrentBalanceSnapshot(log)
 	if len(adminInfo) > 0 {
 		other := map[string]interface{}{
 			"admin_info": adminInfo,
@@ -187,6 +204,7 @@ func RecordTopupLog(userId int, content string, callerIp string, paymentMethod s
 		Ip:        callerIp,
 		Other:     common.MapToJsonStr(other),
 	}
+	attachCurrentBalanceSnapshot(log)
 	err := LOG_DB.Create(log).Error
 	if err != nil {
 		common.SysLog("failed to record topup log: " + err.Error())
@@ -231,6 +249,7 @@ func RecordErrorLog(c *gin.Context, userId int, channelId int, modelName string,
 		RequestId: requestId,
 		Other:     otherStr,
 	}
+	attachCurrentBalanceSnapshot(log)
 	err := LOG_DB.Create(log).Error
 	if err != nil {
 		logger.LogError(c, "failed to record log: "+err.Error())
@@ -292,13 +311,17 @@ func RecordConsumeLog(c *gin.Context, userId int, params RecordConsumeLogParams)
 		RequestId: requestId,
 		Other:     otherStr,
 	}
+	attachCurrentBalanceSnapshot(log)
 	err := LOG_DB.Create(log).Error
 	if err != nil {
 		logger.LogError(c, "failed to record log: "+err.Error())
 	}
 	if common.DataExportEnabled {
 		gopool.Go(func() {
-			LogQuotaData(userId, username, params.ModelName, params.Quota, common.GetTimestamp(), params.PromptTokens+params.CompletionTokens)
+			now := common.GetTimestamp()
+			tokenUsed := params.PromptTokens + params.CompletionTokens
+			LogQuotaData(userId, username, params.ModelName, params.Quota, now, tokenUsed)
+			LogMinuteQuotaData(userId, username, params.ModelName, params.Quota, now, tokenUsed)
 		})
 	}
 }
@@ -340,6 +363,7 @@ func RecordTaskBillingLog(params RecordTaskBillingLogParams) {
 		Group:     params.Group,
 		Other:     common.MapToJsonStr(params.Other),
 	}
+	attachCurrentBalanceSnapshot(log)
 	err := LOG_DB.Create(log).Error
 	if err != nil {
 		common.SysLog("failed to record task billing log: " + err.Error())

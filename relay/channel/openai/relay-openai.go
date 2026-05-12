@@ -181,6 +181,28 @@ func OaiStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Re
 	}
 
 	if !containStreamUsage {
+		// 失败判定（顺序检查）：先看 containStreamUsage != true（上游没给 usage chunk），
+		// 进入此分支后再判 EndReason != done，命中即视为失败：返回错误让 Relay defer
+		// 走 Billing.Refund，不再用估算的 prompt tokens 扣费、也不写 RecordConsumeLog。
+		// 主要拦截上游 TPM/配额限制下中途断流或塞 error chunk 的情形。
+		var endReason relaycommon.StreamEndReason
+		if info.StreamStatus != nil {
+			endReason = info.StreamStatus.EndReason
+		}
+		if endReason != relaycommon.StreamEndReasonDone {
+			logger.LogError(c, fmt.Sprintf(
+				"stream incomplete (channel=%d type=%d model=%s reason=%s sent=%d items=%d), suppressing billing; lastChunk=[%s]",
+				info.ChannelId, info.ChannelType, info.UpstreamModelName,
+				endReason, info.SendResponseCount, len(streamItems), lastStreamData,
+			))
+			errMsg := fmt.Errorf("upstream stream ended without [DONE] or usage; reason=%s", endReason)
+			// 已经向客户端发过 chunk 时，重试会拼接脏数据 → 禁用重试
+			if info.SendResponseCount > 0 {
+				return nil, types.NewOpenAIError(errMsg, types.ErrorCodeBadResponse, http.StatusInternalServerError, types.ErrOptionWithSkipRetry())
+			}
+			return nil, types.NewOpenAIError(errMsg, types.ErrorCodeBadResponse, http.StatusInternalServerError)
+		}
+		// [DONE] 已收到但没有 usage chunk：合法的空响应 / refusal，沿用估算路径。
 		usage = service.ResponseText2Usage(c, responseTextBuilder.String(), info.UpstreamModelName, info.GetEstimatePromptTokens())
 		usage.CompletionTokens += toolCount * 7
 	}
