@@ -160,7 +160,7 @@ func (it *responsesOutputItem) toOutput() dto.ResponsesOutput {
 			Status:    "completed",
 			CallId:    it.toolCallID,
 			Name:      it.toolName,
-			Arguments: []byte(args),
+			Arguments: argumentsAsJSONString(args),
 		}
 	case blockCustomToolCall:
 		return dto.ResponsesOutput{
@@ -706,7 +706,7 @@ func ConvertClaudeResponseToResponses(claudeResp *dto.ClaudeResponse, customTool
 				Status:    "completed",
 				CallId:    block.Id,
 				Name:      block.Name,
-				Arguments: args,
+				Arguments: argumentsAsJSONString(string(args)),
 			})
 		}
 		idx++
@@ -755,4 +755,18 @@ func extractCustomToolInput(rawJSON string) string {
 		return s
 	}
 	return rawJSON
+}
+
+// OpenAI Responses 协议规定 function_call.arguments 在 wire 上是 string（客户端用 JSON.parse 解析），
+// 而我们底层 raw 是 JSON object/array 字面字节。这里把它再 quote 一层，
+// 使 json.RawMessage 序列化时输出 "{\"cmd\":...}" 而不是 {"cmd":...}。
+func argumentsAsJSONString(rawJSON string) json.RawMessage {
+	if rawJSON == "" {
+		rawJSON = "{}"
+	}
+	quoted, err := common.Marshal(rawJSON)
+	if err != nil {
+		return json.RawMessage(`"{}"`)
+	}
+	return json.RawMessage(quoted)
 }

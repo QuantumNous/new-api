@@ -150,8 +150,27 @@ func TestStreamStateThinkingTextToolUse(t *testing.T) {
 	if tc.Type != "function_call" || tc.CallId != "toolu_001" || tc.Name != "get_weather" {
 		t.Errorf("output[2] function_call wrong: %+v", tc)
 	}
-	if string(tc.Arguments) != `{"city":"SF"}` {
-		t.Errorf("tool arguments: got %s want {\"city\":\"SF\"}", string(tc.Arguments))
+	if string(tc.Arguments) != `"{\"city\":\"SF\"}"` {
+		t.Errorf("tool arguments: got %s want quoted JSON string", string(tc.Arguments))
+	}
+	if got := tc.ArgumentsString(); got != `{"city":"SF"}` {
+		t.Errorf("ArgumentsString=%q want {\"city\":\"SF\"}", got)
+	}
+
+	// Stream 路径里 response.output_item.done 的 item.arguments 也必须是字符串字面（与 OpenAI 官方一致），
+	// 否则 Codex 等客户端 JSON.parse(item.arguments) 会抛错。
+	var streamToolDoneItem *dto.ResponsesOutput
+	for _, e := range all {
+		if e.Type == respEventOutputItemDone && e.Item != nil && e.Item.Type == "function_call" {
+			streamToolDoneItem = e.Item
+		}
+	}
+	if streamToolDoneItem == nil {
+		t.Fatalf("expected stream output_item.done for function_call")
+	}
+	rawDoneItem, _ := common.Marshal(streamToolDoneItem)
+	if !strings.Contains(string(rawDoneItem), `"arguments":"{\"city\":\"SF\"}"`) {
+		t.Errorf("stream done item arguments not serialized as JSON string: %s", string(rawDoneItem))
 	}
 }
 
