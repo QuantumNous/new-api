@@ -821,7 +821,8 @@ export default function UpstreamRatioSync(props) {
           currentPage: currentPage,
           pageSize: pageSize,
           total: filteredDataSource.length,
-          showSizeChanger: true,
+          showSizeChanger: filteredDataSource.length > pageSize,
+          hideOnSinglePage: filteredDataSource.length <= pageSize,
           showQuickJumper: true,
           pageSizeOptions: ['5', '10', '20', '50'],
           onChange: (page, size) => {

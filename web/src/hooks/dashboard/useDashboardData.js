@@ -36,7 +36,7 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
   const [loading, setLoading] = useState(false);
   const [greetingVisible, setGreetingVisible] = useState(false);
   const [searchModalVisible, setSearchModalVisible] = useState(false);
-  const showLoading = useMinimumLoadingTime(loading);
+  const showLoading = useMinimumLoadingTime(loading, 200);
 
   // ========== 输入状态 ==========
   const [inputs, setInputs] = useState({
@@ -177,7 +177,7 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
         if (data.length === 0) {
           data.push({
             count: 0,
-            model_name: '无数据',
+            model_name: t('无数据'),
             quota: 0,
             created_at: now.getTime() / 1000,
           });
@@ -245,8 +245,7 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
   }, [userDispatch]);
 
   const refresh = useCallback(async () => {
-    const data = await loadQuotaData();
-    await loadUptimeData();
+    const [data] = await Promise.all([loadQuotaData(), loadUptimeData()]);
     return data;
   }, [loadQuotaData, loadUptimeData]);
 

@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React, { useEffect, useState, useContext, useRef } from 'react';
+import React, { useEffect, useState, useContext } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import {
   API,
@@ -26,17 +26,15 @@ import {
   showSuccess,
   renderQuota,
   renderQuotaWithAmount,
-  copy,
-  getQuotaPerUnit,
 } from '../../helpers';
+import { redirectToPaymentUrl } from '../../helpers/paymentNavigation';
+import { getCurrencyConfig } from '../../helpers/render';
 import { Modal, Toast } from '@douyinfe/semi-ui';
 import { useTranslation } from 'react-i18next';
 import { UserContext } from '../../context/User';
 import { StatusContext } from '../../context/Status';
 
 import RechargeCard from './RechargeCard';
-import InvitationCard from './InvitationCard';
-import TransferModal from './modals/TransferModal';
 import PaymentConfirmModal from './modals/PaymentConfirmModal';
 import TopupHistoryModal from './modals/TopupHistoryModal';
 
@@ -85,13 +83,6 @@ const TopUp = () => {
   const [paymentLoading, setPaymentLoading] = useState(false);
   const [confirmLoading, setConfirmLoading] = useState(false);
   const [payMethods, setPayMethods] = useState([]);
-
-  const affFetchedRef = useRef(false);
-
-  // 邀请相关状态
-  const [affLink, setAffLink] = useState('');
-  const [openTransfer, setOpenTransfer] = useState(false);
-  const [transferAmount, setTransferAmount] = useState(0);
 
   // 账单Modal状态
   const [openHistory, setOpenHistory] = useState(false);
@@ -185,10 +176,10 @@ const TopUp = () => {
 
   const openTopUpLink = () => {
     if (!topUpLink) {
-      showError(t('超级管理员未设置充值链接！'));
+      showError(t('超级管理员未配置充值链接！'));
       return;
     }
-    window.open(topUpLink, '_blank');
+    redirectToPaymentUrl(topUpLink);
   };
 
   const preTopUp = async (payment) => {
@@ -221,7 +212,11 @@ const TopUp = () => {
       await requestAmountByPayment(payment);
 
       if (topUpCount < selectedMinTopUp) {
-        showError(t('充值数量不能小于') + selectedMinTopUp);
+        showError(
+          t('充值数量不能小于 {{min}}', {
+            min: selectedMinTopUp,
+          }),
+        );
         return;
       }
       setOpen(true);
@@ -269,7 +264,7 @@ const TopUp = () => {
     }
 
     if (topUpCount < minTopUp) {
-      showError('充值数量不能小于' + minTopUp);
+      showError(t('充值数量不能小于 {{min}}', { min: minTopUp }));
       return;
     }
     setConfirmLoading(true);
@@ -294,7 +289,7 @@ const TopUp = () => {
         if (message === 'success') {
           if (payWay === 'stripe') {
             // Stripe 支付回调处理
-            window.open(data.pay_link, '_blank');
+            redirectToPaymentUrl(data.pay_link);
           } else {
             // 普通支付表单提交
             let params = data;
@@ -383,7 +378,11 @@ const TopUp = () => {
   const waffoTopUp = async (payMethodIndex) => {
     try {
       if (topUpCount < waffoMinTopUp) {
-        showError(t('充值数量不能小于') + waffoMinTopUp);
+        showError(
+          t('充值数量不能小于 {{min}}', {
+            min: waffoMinTopUp,
+          }),
+        );
         return;
       }
       setPaymentLoading(true);
@@ -397,7 +396,7 @@ const TopUp = () => {
       if (res !== undefined) {
         const { message, data } = res.data;
         if (message === 'success' && data?.payment_url) {
-          window.open(data.payment_url, '_blank');
+          redirectToPaymentUrl(data.payment_url);
         } else {
           showError(data || t('支付请求失败'));
         }
@@ -426,7 +425,7 @@ const TopUp = () => {
           setAmount(parseFloat(data));
         } else {
           setAmount(0);
-          Toast.error({ content: '错误：' + data, id: 'getAmount' });
+          Toast.error({ content: `${t('失败')}: ${data}`, id: 'getAmount' });
         }
       } else {
         showError(res);
@@ -441,7 +440,11 @@ const TopUp = () => {
   const waffoPancakeTopUp = async () => {
     const minTopUpValue = Number(waffoPancakeMinTopUp || 1);
     if (topUpCount < minTopUpValue) {
-      showError(t('充值数量不能小于') + minTopUpValue);
+      showError(
+        t('充值数量不能小于 {{min}}', {
+          min: minTopUpValue,
+        }),
+      );
       return;
     }
 
@@ -455,7 +458,7 @@ const TopUp = () => {
         if (message === 'success') {
           const checkoutUrl = data?.checkout_url || '';
           if (checkoutUrl) {
-            window.open(checkoutUrl, '_blank');
+            redirectToPaymentUrl(checkoutUrl);
           } else {
             showError(t('支付请求失败'));
           }
@@ -489,7 +492,7 @@ const TopUp = () => {
           setAmount(parseFloat(data));
         } else {
           setAmount(0);
-          Toast.error({ content: '错误：' + data, id: 'getAmount' });
+          Toast.error({ content: `${t('失败')}: ${data}`, id: 'getAmount' });
         }
       } else {
         showError(res);
@@ -503,7 +506,7 @@ const TopUp = () => {
 
   const processCreemCallback = (data) => {
     // 与 Stripe 保持一致的实现方式
-    window.open(data.checkout_url, '_blank');
+    redirectToPaymentUrl(data.checkout_url);
   };
 
   const getUserQuota = async () => {
@@ -647,7 +650,7 @@ const TopUp = () => {
                 ? data.waffo_min_topup
                 : enableWaffoPancakeTopUp
                   ? data.waffo_pancake_min_topup
-                : 1;
+                  : 1;
           setEnableOnlineTopUp(enableOnlineTopUp);
           setEnableStripeTopUp(enableStripeTopUp);
           setEnableCreemTopUp(enableCreemTopUp);
@@ -694,43 +697,6 @@ const TopUp = () => {
     }
   };
 
-  // 获取邀请链接
-  const getAffLink = async () => {
-    const res = await API.get('/api/user/aff');
-    const { success, message, data } = res.data;
-    if (success) {
-      let link = `${window.location.origin}/register?aff=${data}`;
-      setAffLink(link);
-    } else {
-      showError(message);
-    }
-  };
-
-  // 划转邀请额度
-  const transfer = async () => {
-    if (transferAmount < getQuotaPerUnit()) {
-      showError(t('划转金额最低为') + ' ' + renderQuota(getQuotaPerUnit()));
-      return;
-    }
-    const res = await API.post(`/api/user/aff_transfer`, {
-      quota: transferAmount,
-    });
-    const { success, message } = res.data;
-    if (success) {
-      showSuccess(message);
-      setOpenTransfer(false);
-      getUserQuota().then();
-    } else {
-      showError(message);
-    }
-  };
-
-  // 复制邀请链接
-  const handleAffLinkClick = async () => {
-    await copy(affLink);
-    showSuccess(t('邀请链接已复制到剪切板'));
-  };
-
   // URL 参数自动打开账单弹窗（支付回跳时触发）
   useEffect(() => {
     if (searchParams.get('show_history') === 'true') {
@@ -743,13 +709,6 @@ const TopUp = () => {
   useEffect(() => {
     // 始终获取最新用户数据，确保余额等统计信息准确
     getUserQuota().then();
-    setTransferAmount(getQuotaPerUnit());
-  }, []);
-
-  useEffect(() => {
-    if (affFetchedRef.current) return;
-    affFetchedRef.current = true;
-    getAffLink().then();
   }, []);
 
   // 在 statusState 可用时获取充值信息
@@ -772,7 +731,8 @@ const TopUp = () => {
   }, [statusState?.status]);
 
   const renderAmount = () => {
-    return amount + ' ' + t('元');
+    const { symbol } = getCurrencyConfig();
+    return `${symbol}${amount}`;
   };
 
   const getAmount = async (value) => {
@@ -790,7 +750,7 @@ const TopUp = () => {
           setAmount(parseFloat(data));
         } else {
           setAmount(0);
-          Toast.error({ content: '错误：' + data, id: 'getAmount' });
+          Toast.error({ content: `${t('失败')}: ${data}`, id: 'getAmount' });
         }
       } else {
         showError(res);
@@ -816,7 +776,7 @@ const TopUp = () => {
           setAmount(parseFloat(data));
         } else {
           setAmount(0);
-          Toast.error({ content: '错误：' + data, id: 'getAmount' });
+          Toast.error({ content: `${t('失败')}: ${data}`, id: 'getAmount' });
         }
       } else {
         showError(res);
@@ -830,10 +790,6 @@ const TopUp = () => {
 
   const handleCancel = () => {
     setOpen(false);
-  };
-
-  const handleTransferCancel = () => {
-    setOpenTransfer(false);
   };
 
   const handleOpenHistory = () => {
@@ -874,20 +830,7 @@ const TopUp = () => {
   };
 
   return (
-    <div className='w-full max-w-7xl mx-auto relative min-h-screen lg:min-h-0 mt-[60px] px-2'>
-      {/* 划转模态框 */}
-      <TransferModal
-        t={t}
-        openTransfer={openTransfer}
-        transfer={transfer}
-        handleTransferCancel={handleTransferCancel}
-        userState={userState}
-        renderQuota={renderQuota}
-        getQuotaPerUnit={getQuotaPerUnit}
-        transferAmount={transferAmount}
-        setTransferAmount={setTransferAmount}
-      />
-
+    <div className='billing-wallet-shell'>
       {/* 充值确认模态框 */}
       <PaymentConfirmModal
         t={t}
@@ -914,7 +857,7 @@ const TopUp = () => {
 
       {/* Creem 充值确认模态框 */}
       <Modal
-        title={t('确定要充值 $')}
+        title={t('充值确认')}
         visible={creemOpen}
         onOk={onlineCreemTopUp}
         onCancel={handleCreemCancel}
@@ -929,7 +872,8 @@ const TopUp = () => {
               {t('产品名称')}：{selectedCreemProduct.name}
             </p>
             <p>
-              {t('价格')}：{selectedCreemProduct.currency === 'EUR' ? '€' : '$'}
+              {t('价格')}：{' '}
+              {selectedCreemProduct.currency === 'EUR' ? '€' : '$'}
               {selectedCreemProduct.price}
             </p>
             <p>
@@ -940,62 +884,51 @@ const TopUp = () => {
         )}
       </Modal>
 
-      {/* 主布局区域 */}
-      <div className='grid grid-cols-1 lg:grid-cols-2 gap-6'>
-        <RechargeCard
-          t={t}
-          enableOnlineTopUp={enableOnlineTopUp}
-          enableStripeTopUp={enableStripeTopUp}
-          enableCreemTopUp={enableCreemTopUp}
-          creemProducts={creemProducts}
-          creemPreTopUp={creemPreTopUp}
-          enableWaffoTopUp={enableWaffoTopUp}
-          enableWaffoPancakeTopUp={enableWaffoPancakeTopUp}
-          presetAmounts={presetAmounts}
-          selectedPreset={selectedPreset}
-          selectPresetAmount={selectPresetAmount}
-          formatLargeNumber={formatLargeNumber}
-          priceRatio={priceRatio}
-          topUpCount={topUpCount}
-          minTopUp={minTopUp}
-          renderQuotaWithAmount={renderQuotaWithAmount}
-          getAmount={getAmount}
-          setTopUpCount={setTopUpCount}
-          setSelectedPreset={setSelectedPreset}
-          renderAmount={renderAmount}
-          amountLoading={amountLoading}
-          payMethods={confirmPayMethods}
-          preTopUp={preTopUp}
-          paymentLoading={paymentLoading}
-          payWay={payWay}
-          redemptionCode={redemptionCode}
-          setRedemptionCode={setRedemptionCode}
-          topUp={topUp}
-          isSubmitting={isSubmitting}
-          topUpLink={topUpLink}
-          openTopUpLink={openTopUpLink}
-          userState={userState}
-          renderQuota={renderQuota}
-          statusLoading={statusLoading}
-          topupInfo={topupInfo}
-          onOpenHistory={handleOpenHistory}
-          subscriptionLoading={subscriptionLoading}
-          subscriptionPlans={subscriptionPlans}
-          billingPreference={billingPreference}
-          onChangeBillingPreference={updateBillingPreference}
-          activeSubscriptions={activeSubscriptions}
-          allSubscriptions={allSubscriptions}
-          reloadSubscriptionSelf={getSubscriptionSelf}
-        />
-        <InvitationCard
-          t={t}
-          userState={userState}
-          renderQuota={renderQuota}
-          setOpenTransfer={setOpenTransfer}
-          affLink={affLink}
-          handleAffLinkClick={handleAffLinkClick}
-        />
-      </div>
+      <RechargeCard
+        t={t}
+        enableOnlineTopUp={enableOnlineTopUp}
+        enableStripeTopUp={enableStripeTopUp}
+        enableCreemTopUp={enableCreemTopUp}
+        creemProducts={creemProducts}
+        creemPreTopUp={creemPreTopUp}
+        enableWaffoTopUp={enableWaffoTopUp}
+        enableWaffoPancakeTopUp={enableWaffoPancakeTopUp}
+        presetAmounts={presetAmounts}
+        selectedPreset={selectedPreset}
+        selectPresetAmount={selectPresetAmount}
+        formatLargeNumber={formatLargeNumber}
+        priceRatio={priceRatio}
+        topUpCount={topUpCount}
+        minTopUp={minTopUp}
+        renderQuotaWithAmount={renderQuotaWithAmount}
+        getAmount={getAmount}
+        setTopUpCount={setTopUpCount}
+        setSelectedPreset={setSelectedPreset}
+        renderAmount={renderAmount}
+        amountLoading={amountLoading}
+        payMethods={confirmPayMethods}
+        preTopUp={preTopUp}
+        paymentLoading={paymentLoading}
+        payWay={payWay}
+        redemptionCode={redemptionCode}
+        setRedemptionCode={setRedemptionCode}
+        topUp={topUp}
+        isSubmitting={isSubmitting}
+        topUpLink={topUpLink}
+        openTopUpLink={openTopUpLink}
+        userState={userState}
+        renderQuota={renderQuota}
+        statusLoading={statusLoading}
+        topupInfo={topupInfo}
+        onOpenHistory={handleOpenHistory}
+        subscriptionLoading={subscriptionLoading}
+        subscriptionPlans={subscriptionPlans}
+        billingPreference={billingPreference}
+        onChangeBillingPreference={updateBillingPreference}
+        activeSubscriptions={activeSubscriptions}
+        allSubscriptions={allSubscriptions}
+        reloadSubscriptionSelf={getSubscriptionSelf}
+      />
     </div>
   );
 };

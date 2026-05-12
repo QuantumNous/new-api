@@ -35,6 +35,7 @@ import Channel from './pages/Channel';
 import Token from './pages/Token';
 import Redemption from './pages/Redemption';
 import TopUp from './pages/TopUp';
+import Referral from './pages/Referral';
 import Log from './pages/Log';
 import Chat from './pages/Chat';
 import Chat2Link from './pages/Chat2Link';
@@ -44,6 +45,7 @@ import Task from './pages/Task';
 import ModelPage from './pages/Model';
 import ModelDeploymentPage from './pages/ModelDeployment';
 import Playground from './pages/Playground';
+import OnlineExperience from './pages/OnlineExperience';
 import Subscription from './pages/Subscription';
 import OAuth2Callback from './components/auth/OAuth2Callback';
 import PersonalSetting from './components/settings/PersonalSetting';
@@ -152,6 +154,14 @@ function App() {
           element={
             <PrivateRoute>
               <Playground />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path='/console/online-experience'
+          element={
+            <PrivateRoute>
+              <OnlineExperience />
             </PrivateRoute>
           }
         />
@@ -273,6 +283,16 @@ function App() {
             <PrivateRoute>
               <Suspense fallback={<Loading></Loading>} key={location.pathname}>
                 <TopUp />
+              </Suspense>
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path='/console/referral'
+          element={
+            <PrivateRoute>
+              <Suspense fallback={<Loading></Loading>} key={location.pathname}>
+                <Referral />
               </Suspense>
             </PrivateRoute>
           }

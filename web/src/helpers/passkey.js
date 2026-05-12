@@ -16,6 +16,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import i18n from '../i18n/i18n';
+
 export function base64UrlToBuffer(base64url) {
   if (!base64url) return new ArrayBuffer(0);
   let padding = '='.repeat((4 - (base64url.length % 4)) % 4);
@@ -50,7 +52,7 @@ export function prepareCredentialCreationOptions(payload) {
     payload?.response ||
     payload?.Response;
   if (!options) {
-    throw new Error('无法从服务端响应中解析 Passkey 注册参数');
+    throw new Error(i18n.t('无法从服务端响应中解析 Passkey 注册参数'));
   }
   const publicKey = {
     ...options,
@@ -85,7 +87,7 @@ export function prepareCredentialRequestOptions(payload) {
     payload?.response ||
     payload?.Response;
   if (!options) {
-    throw new Error('无法从服务端响应中解析 Passkey 登录参数');
+    throw new Error(i18n.t('无法从服务端响应中解析 Passkey 登录参数'));
   }
   const publicKey = {
     ...options,

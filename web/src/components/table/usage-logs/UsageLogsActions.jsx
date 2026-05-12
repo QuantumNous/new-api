@@ -18,10 +18,13 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import { Tag, Space, Skeleton } from '@douyinfe/semi-ui';
+import { Skeleton, Typography } from '@douyinfe/semi-ui';
 import { renderQuota } from '../../../helpers';
 import CompactModeToggle from '../../common/ui/CompactModeToggle';
 import { useMinimumLoadingTime } from '../../../hooks/common/useMinimumLoadingTime';
+import { Activity, Coins, Gauge, ScrollText } from 'lucide-react';
+
+const { Text } = Typography;
 
 const LogsActions = ({
   stat,
@@ -35,59 +38,64 @@ const LogsActions = ({
   const needSkeleton = !showStat || showSkeleton;
 
   const placeholder = (
-    <Space>
+    <div className='log-table-overview-skeleton'>
       <Skeleton.Title style={{ width: 108, height: 21, borderRadius: 6 }} />
       <Skeleton.Title style={{ width: 65, height: 21, borderRadius: 6 }} />
       <Skeleton.Title style={{ width: 64, height: 21, borderRadius: 6 }} />
-    </Space>
+    </div>
   );
 
   return (
-    <div className='flex flex-col md:flex-row justify-between items-start md:items-center gap-2 w-full'>
-      <Skeleton loading={needSkeleton} active placeholder={placeholder}>
-        <Space>
-          <Tag
-            color='blue'
-            style={{
-              fontWeight: 500,
-              boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)',
-              padding: 13,
-            }}
-            className='!rounded-lg'
-          >
-            {t('消耗额度')}: {renderQuota(stat.quota)}
-          </Tag>
-          <Tag
-            color='pink'
-            style={{
-              fontWeight: 500,
-              boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)',
-              padding: 13,
-            }}
-            className='!rounded-lg'
-          >
-            RPM: {stat.rpm}
-          </Tag>
-          <Tag
-            color='white'
-            style={{
-              border: 'none',
-              boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)',
-              fontWeight: 500,
-              padding: 13,
-            }}
-            className='!rounded-lg'
-          >
-            TPM: {stat.tpm}
-          </Tag>
-        </Space>
-      </Skeleton>
+    <div className='log-table-overview'>
+      <div className='log-table-overview-copy'>
+        <div className='log-table-overview-eyebrow'>
+          <ScrollText size={15} strokeWidth={2.1} />
+          <span>{t('日志总览')}</span>
+        </div>
+        <Text className='log-table-overview-title'>
+          {t('查看模型调用、请求耗时与计费细节')}
+        </Text>
+        <p className='log-table-overview-subtitle'>
+          {t(
+            '支持按时间范围、令牌、模型、渠道和请求 ID 交叉筛选，快速定位异常调用',
+          )}
+        </p>
+      </div>
 
-      <CompactModeToggle
-        compactMode={compactMode}
-        setCompactMode={setCompactMode}
-        t={t}
-      />
+      <div className='log-table-overview-side'>
+        <Skeleton loading={needSkeleton} active placeholder={placeholder}>
+          <div className='log-table-metric-group'>
+            <div className='log-table-metric-chip'>
+              <span>
+                <Coins size={14} />
+                {t('消耗额度')}
+              </span>
+              <strong>{renderQuota(stat.quota || 0)}</strong>
+            </div>
+            <div className='log-table-metric-chip log-table-metric-chip-muted'>
+              <span>
+                <Activity size={14} />
+                RPM
+              </span>
+              <strong>{stat.rpm || 0}</strong>
+            </div>
+            <div className='log-table-metric-chip log-table-metric-chip-muted'>
+              <span>
+                <Gauge size={14} />
+                TPM
+              </span>
+              <strong>{stat.tpm || 0}</strong>
+            </div>
+          </div>
+        </Skeleton>
+
+        <CompactModeToggle
+          compactMode={compactMode}
+          setCompactMode={setCompactMode}
+          t={t}
+          className='log-compact-toggle'
+        />
+      </div>
     </div>
   );
 };

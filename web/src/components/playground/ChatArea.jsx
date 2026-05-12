@@ -18,64 +18,87 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import { Chat } from '@douyinfe/semi-ui';
+import { Card, Chat, Typography, Button } from '@douyinfe/semi-ui';
+import { MessageSquare, Eye, EyeOff } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import PlaygroundComposer from './PlaygroundComposer';
+import CustomInputRender from './CustomInputRender';
 
 const ChatArea = ({
   chatRef,
   message,
   inputs,
-  models,
-  imageModels,
-  videoModels,
-  playgroundMode,
-  customRequestMode,
+  styleState,
+  showDebugPanel,
   roleInfo,
-  onInputChange,
-  onModeChange,
   onMessageSend,
   onMessageCopy,
   onMessageReset,
   onMessageDelete,
   onStopGenerator,
   onClearMessages,
+  onToggleDebugPanel,
   renderCustomChatContent,
   renderChatBoxAction,
+  isMobile,
 }) => {
   const { t } = useTranslation();
 
-  const renderInputArea = React.useCallback(
-    (props) => {
-      return (
-        <PlaygroundComposer
-          {...props}
-          inputs={inputs}
-          models={models}
-          imageModels={imageModels}
-          videoModels={videoModels}
-          playgroundMode={playgroundMode}
-          customRequestMode={customRequestMode}
-          onInputChange={onInputChange}
-          onModeChange={onModeChange}
-        />
-      );
-    },
-    [
-      customRequestMode,
-      inputs,
-      models,
-      imageModels,
-      videoModels,
-      onInputChange,
-      onModeChange,
-      playgroundMode,
-    ],
-  );
+  const renderInputArea = React.useCallback((props) => {
+    return <CustomInputRender {...props} />;
+  }, []);
 
   return (
-    <section className='new-playground-chat-area'>
-      <div className='new-playground-chat-scroll'>
+    <Card
+      className='playground-chat-card h-full'
+      bordered={false}
+      bodyStyle={{
+        padding: 0,
+        height: isMobile ? 'calc(100vh - 66px)' : 'calc(100vh - 92px)',
+        display: 'flex',
+        flexDirection: 'column',
+        overflow: 'hidden',
+      }}
+    >
+      {/* 聊天头部 */}
+      {styleState.isMobile ? (
+        <div className='playground-chat-mobile-spacer pt-4'></div>
+      ) : (
+        <div className='playground-chat-header px-6 py-4'>
+          <div className='flex items-center justify-between'>
+            <div className='flex items-center gap-3'>
+              <div className='playground-chat-header-icon w-10 h-10 rounded-full flex items-center justify-center'>
+                <MessageSquare size={20} />
+              </div>
+              <div>
+                <Typography.Title
+                  heading={5}
+                  className='playground-chat-title mb-0'
+                >
+                  {t('AI 对话')}
+                </Typography.Title>
+                <Typography.Text className='playground-chat-subtitle text-sm hidden sm:inline'>
+                  {inputs.model || t('选择模型开始对话')}
+                </Typography.Text>
+              </div>
+            </div>
+            <div className='flex items-center gap-2'>
+              <Button
+                icon={showDebugPanel ? <EyeOff size={14} /> : <Eye size={14} />}
+                onClick={onToggleDebugPanel}
+                theme='borderless'
+                type='primary'
+                size='small'
+                className='playground-chat-debug-toggle !rounded-full'
+              >
+                {showDebugPanel ? t('隐藏调试') : t('显示调试')}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 聊天内容区域 */}
+      <div className='playground-chat-body flex-1 overflow-hidden'>
         <Chat
           ref={chatRef}
           chatBoxRenderConfig={{
@@ -88,7 +111,7 @@ const ChatArea = ({
           style={{
             height: '100%',
             maxWidth: '100%',
-            overflow: 'hidden',
+            // overflow: 'hidden',
           }}
           chats={message}
           onMessageSend={onMessageSend}
@@ -99,11 +122,11 @@ const ChatArea = ({
           showStopGenerate
           onStopGenerator={onStopGenerator}
           onClear={onClearMessages}
-          className='new-playground-chat'
-          placeholder={t('Send a message or type "/" to choose a skill')}
+          className='playground-chat-surface h-full'
+          placeholder={t('请输入您的问题...')}
         />
       </div>
-    </section>
+    </Card>
   );
 };
 

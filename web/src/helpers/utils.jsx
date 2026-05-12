@@ -27,6 +27,7 @@ import {
 } from '../constants/playground.constants';
 import { TABLE_COMPACT_MODES_KEY } from '../constants';
 import { MOBILE_BREAKPOINT } from '../hooks/common/useIsMobile';
+import i18n from '../i18n/i18n';
 
 const HTMLToastContent = ({ htmlContent }) => {
   return <div dangerouslySetInnerHTML={{ __html: htmlContent }} />;
@@ -53,9 +54,10 @@ export function getSystemName() {
 }
 
 export function getLogo() {
-  let logo = localStorage.getItem('logo');
-  if (!logo) return '/logo.png';
-  return logo;
+  // let logo = localStorage.getItem('logo');
+  // if (!logo) return '/logo.png';
+  // return logo;
+  return '/logo.png';
 }
 
 export function getUserIdFromLocalStorage() {
@@ -131,22 +133,22 @@ export function showError(error) {
           window.location.href = '/login?expired=true';
           break;
         case 429:
-          Toast.error('错误：请求次数过多，请稍后再试！');
+          Toast.error(i18n.t('错误：请求次数过多，请稍后再试！'));
           break;
         case 500:
-          Toast.error('错误：服务器内部错误，请联系管理员！');
+          Toast.error(i18n.t('错误：服务器内部错误，请联系管理员！'));
           break;
         case 405:
-          Toast.info('本站仅作演示之用，无服务端！');
+          Toast.info(i18n.t('本站仅作演示之用，无服务端！'));
           break;
         default:
-          Toast.error('错误：' + error.message);
+          Toast.error(i18n.t('错误：') + error.message);
       }
       return;
     }
-    Toast.error('错误：' + error.message);
+    Toast.error(i18n.t('错误：') + error.message);
   } else {
-    Toast.error('错误：' + error);
+    Toast.error(i18n.t('错误：') + error);
   }
 }
 
@@ -292,7 +294,7 @@ export function verifyJSONPromise(value) {
     JSON.parse(value);
     return Promise.resolve();
   } catch (e) {
-    return Promise.reject('不是合法的 JSON 字符串');
+    return Promise.reject(i18n.t('不是合法的 JSON 字符串'));
   }
 }
 
@@ -527,19 +529,19 @@ export const getRelativeTime = (publishDate) => {
 
   // 根据时间差返回相应的描述
   if (diffSeconds < 60) {
-    return '刚刚';
+    return i18n.t('刚刚');
   } else if (diffMinutes < 60) {
-    return `${diffMinutes} 分钟前`;
+    return i18n.t('{{count}} 分钟前', { count: diffMinutes });
   } else if (diffHours < 24) {
-    return `${diffHours} 小时前`;
+    return i18n.t('{{count}} 小时前', { count: diffHours });
   } else if (diffDays < 7) {
-    return `${diffDays} 天前`;
+    return i18n.t('{{count}} 天前', { count: diffDays });
   } else if (diffWeeks < 4) {
-    return `${diffWeeks} 周前`;
+    return i18n.t('{{count}} 周前', { count: diffWeeks });
   } else if (diffMonths < 12) {
-    return `${diffMonths} 个月前`;
+    return i18n.t('{{count}} 个月前', { count: diffMonths });
   } else if (diffYears < 2) {
-    return '1 年前';
+    return i18n.t('1 年前');
   } else {
     // 超过2年显示具体日期
     return formatDateString(pubDate);
@@ -701,6 +703,44 @@ export const calculateModelPrice = ({
       return `${symbol}${numericPrice.toFixed(precision)}`;
     };
 
+    if (
+      quotaDisplayType !== 'TOKENS' &&
+      record.task_condition_price &&
+      typeof record.task_condition_price === 'object'
+    ) {
+      const taskConditionalPrices = {};
+      Object.entries(record.task_condition_price).forEach(
+        ([resolution, conditionPrices]) => {
+          if (!conditionPrices || typeof conditionPrices !== 'object') {
+            return;
+          }
+          taskConditionalPrices[resolution] = {
+            inputTextOnly:
+              conditionPrices.input_text_only !== undefined
+                ? formatTokenPrice(
+                    Number(conditionPrices.input_text_only) * usedGroupRatio,
+                  )
+                : null,
+            inputWithVideo:
+              conditionPrices.input_with_video !== undefined
+                ? formatTokenPrice(
+                    Number(conditionPrices.input_with_video) * usedGroupRatio,
+                  )
+                : null,
+          };
+        },
+      );
+      return {
+        taskConditionalPrices,
+        unitLabel,
+        isPerToken: true,
+        isTokensDisplay: false,
+        isTaskConditionalPricing: true,
+        usedGroup,
+        usedGroupRatio,
+      };
+    }
+
     const inputPrice = formatTokenPrice(inputRatioPriceUSD);
     const audioInputPrice = hasRatioValue(record.audio_ratio)
       ? formatTokenPrice(inputRatioPriceUSD * Number(record.audio_ratio))
@@ -715,7 +755,9 @@ export const calculateModelPrice = ({
         ? formatTokenPrice(inputRatioPriceUSD * Number(record.cache_ratio))
         : null,
       createCachePrice: hasRatioValue(record.create_cache_ratio)
-        ? formatTokenPrice(inputRatioPriceUSD * Number(record.create_cache_ratio))
+        ? formatTokenPrice(
+            inputRatioPriceUSD * Number(record.create_cache_ratio),
+          )
         : null,
       imagePrice: hasRatioValue(record.image_ratio)
         ? formatTokenPrice(inputRatioPriceUSD * Number(record.image_ratio))
@@ -761,12 +803,32 @@ export const calculateModelPrice = ({
   };
 };
 
-export const getModelPriceItems = (
-  priceData,
-  t,
-  quotaDisplayType = 'USD',
-) => {
+export const getModelPriceItems = (priceData, t, quotaDisplayType = 'USD') => {
   if (priceData.isPerToken) {
+    if (priceData.isTaskConditionalPricing) {
+      const unitSuffix = ` / 1${priceData.unitLabel} Tokens`;
+      return Object.entries(priceData.taskConditionalPrices || {}).flatMap(
+        ([resolution, prices]) =>
+          [
+            prices.inputTextOnly
+              ? {
+                  key: `${resolution}-text-only`,
+                  label: `${resolution} ${t('Text Only')}`,
+                  value: prices.inputTextOnly,
+                  suffix: unitSuffix,
+                }
+              : null,
+            prices.inputWithVideo
+              ? {
+                  key: `${resolution}-video-input`,
+                  label: `${resolution} ${t('Video Input')}`,
+                  value: prices.inputWithVideo,
+                  suffix: unitSuffix,
+                }
+              : null,
+          ].filter(Boolean),
+      );
+    }
     if (quotaDisplayType === 'TOKENS' || priceData.isTokensDisplay) {
       return [
         {
@@ -861,7 +923,10 @@ export const getModelPriceItems = (
         value: priceData.audioOutputPrice,
         suffix: unitSuffix,
       },
-    ].filter((item) => item.value !== null && item.value !== undefined && item.value !== '');
+    ].filter(
+      (item) =>
+        item.value !== null && item.value !== undefined && item.value !== '',
+    );
   }
 
   return [
@@ -871,7 +936,10 @@ export const getModelPriceItems = (
       value: priceData.price,
       suffix: ` / ${t('次')}`,
     },
-  ].filter((item) => item.value !== null && item.value !== undefined && item.value !== '');
+  ].filter(
+    (item) =>
+      item.value !== null && item.value !== undefined && item.value !== '',
+  );
 };
 
 // 格式化价格信息（用于卡片视图）
@@ -901,9 +969,11 @@ export const createCardProPagination = ({
   isMobile = false,
   pageSizeOpts = [10, 20, 50, 100],
   showSizeChanger = true,
+  hideOnSinglePage = true,
   t = (key) => key,
 }) => {
   if (!total || total <= 0) return null;
+  if (hideOnSinglePage && total <= pageSize) return null;
 
   const start = (currentPage - 1) * pageSize + 1;
   const end = Math.min(currentPage * pageSize, total);

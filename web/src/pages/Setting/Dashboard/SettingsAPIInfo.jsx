@@ -409,7 +409,8 @@ const SettingsAPIInfo = ({ options, refresh }) => {
             currentPage: currentPage,
             pageSize: pageSize,
             total: apiInfoList.length,
-            showSizeChanger: true,
+            showSizeChanger: apiInfoList.length > pageSize,
+            hideOnSinglePage: apiInfoList.length <= pageSize,
             showQuickJumper: true,
             pageSizeOptions: ['5', '10', '20', '50'],
             onChange: (page, size) => {

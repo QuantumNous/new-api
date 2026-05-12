@@ -302,6 +302,7 @@ const UpstreamConflictModal = ({
                 currentPage: currentPage,
                 pageSize: MODEL_TABLE_PAGE_SIZE,
                 total: filteredDataSource.length,
+                hideOnSinglePage: true,
                 showSizeChanger: false,
                 onPageChange: (page) => setCurrentPage(page),
               }}

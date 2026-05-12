@@ -95,8 +95,12 @@ const PricingTable = ({
 
   const ModelTable = useMemo(
     () => (
-      <Card className='!rounded-xl overflow-hidden' bordered={false}>
+      <Card
+        className='pricing-table-card table-scroll-card !rounded-xl overflow-hidden'
+        bordered={false}
+      >
         <Table
+          className='pricing-model-table'
           columns={processedColumns}
           dataSource={filteredModels}
           loading={loading}
@@ -121,7 +125,8 @@ const PricingTable = ({
           pagination={{
             defaultPageSize: 20,
             pageSize: pageSize,
-            showSizeChanger: true,
+            showSizeChanger: filteredModels.length > pageSize,
+            hideOnSinglePage: filteredModels.length <= pageSize,
             pageSizeOptions: [10, 20, 50, 100],
             onPageSizeChange: (size) => setPageSize(size),
           }}

@@ -62,6 +62,7 @@ const ModelTestModal = ({
     'embeddings',
     'image-generation',
     'jina-rerank',
+    'openai-video',
     'openai-response-compact',
   ].includes(selectedEndpointType);
 
@@ -98,6 +99,7 @@ const ModelTestModal = ({
       label: t('图像生成') + ' (/v1/images/generations)',
     },
     { value: 'embeddings', label: 'Embeddings (/v1/embeddings)' },
+    { value: 'openai-video', label: 'OpenAI Video (/v1/videos)' },
   ];
 
   const handleCopySelected = () => {
@@ -199,7 +201,9 @@ const ModelTestModal = ({
                     theme='light'
                     type='warning'
                     icon={<Settings size={12} />}
-                    onClick={() => window.open('/console/setting?tab=ratio', '_blank')}
+                    onClick={() =>
+                      window.open('/console/setting?tab=ratio', '_blank')
+                    }
                     style={{ width: 'fit-content' }}
                   >
                     {t('前往设置')}
@@ -383,6 +387,7 @@ const ModelTestModal = ({
               currentPage: modelTablePage,
               pageSize: MODEL_TABLE_PAGE_SIZE,
               total: filteredModels.length,
+              hideOnSinglePage: true,
               showSizeChanger: false,
               onPageChange: (page) => setModelTablePage(page),
             }}

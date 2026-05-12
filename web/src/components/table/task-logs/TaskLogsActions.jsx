@@ -19,23 +19,37 @@ For commercial licensing, please contact support@quantumnous.com
 
 import React from 'react';
 import { Typography } from '@douyinfe/semi-ui';
-import { IconEyeOpened } from '@douyinfe/semi-icons';
+import { ListTodo } from 'lucide-react';
 import CompactModeToggle from '../../common/ui/CompactModeToggle';
 
 const { Text } = Typography;
 
 const TaskLogsActions = ({ compactMode, setCompactMode, t }) => {
   return (
-    <div className='flex flex-col md:flex-row justify-between items-start md:items-center gap-2 w-full'>
-      <div className='flex items-center text-orange-500 mb-2 md:mb-0'>
-        <IconEyeOpened className='mr-2' />
-        <Text>{t('任务记录')}</Text>
+    <div className='task-table-overview'>
+      <div className='task-table-overview-copy'>
+        <div className='task-table-overview-eyebrow'>
+          <ListTodo size={15} strokeWidth={2.1} />
+          <span>{t('任务总览')}</span>
+        </div>
+        <Text className='task-table-overview-title'>
+          {t('查看任务队列、执行状态与结果回传细节')}
+        </Text>
+        <p className='task-table-overview-subtitle'>
+          {t(
+            '支持按时间范围、任务 ID 与渠道快速检索，便于排查任务排队、失败与结果异常',
+          )}
+        </p>
       </div>
-      <CompactModeToggle
-        compactMode={compactMode}
-        setCompactMode={setCompactMode}
-        t={t}
-      />
+
+      <div className='task-table-overview-side'>
+        <CompactModeToggle
+          compactMode={compactMode}
+          setCompactMode={setCompactMode}
+          t={t}
+          className='task-compact-toggle'
+        />
+      </div>
     </div>
   );
 };

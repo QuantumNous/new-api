@@ -82,7 +82,11 @@ const AudioClipCard = ({ clip }) => {
             marginBottom: '4px',
           }}
         >
-          <Text strong ellipsis={{ showTooltip: true }} style={{ fontSize: 15 }}>
+          <Text
+            strong
+            ellipsis={{ showTooltip: true }}
+            style={{ fontSize: 15 }}
+          >
             {title}
           </Text>
           {duration > 0 && (

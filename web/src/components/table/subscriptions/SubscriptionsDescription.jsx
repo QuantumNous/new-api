@@ -26,10 +26,15 @@ const { Text } = Typography;
 
 const SubscriptionsDescription = ({ compactMode, setCompactMode, t }) => {
   return (
-    <div className='flex flex-col md:flex-row justify-between items-start md:items-center gap-2 w-full'>
-      <div className='flex items-center text-blue-500'>
-        <CalendarClock size={16} className='mr-2' />
-        <Text>{t('订阅管理')}</Text>
+    <div className='subscription-admin-description flex flex-col md:flex-row justify-between items-start md:items-center gap-2 w-full'>
+      <div className='subscription-admin-description__heading flex items-center'>
+        <CalendarClock
+          size={16}
+          className='subscription-admin-description__icon mr-2'
+        />
+        <Text className='subscription-admin-description__text'>
+          {t('订阅管理')}
+        </Text>
       </div>
 
       <CompactModeToggle

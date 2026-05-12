@@ -31,6 +31,10 @@ const PricingPage = () => {
   const isMobile = useIsMobile();
   const [showRatio, setShowRatio] = React.useState(false);
   const [viewMode, setViewMode] = React.useState('card');
+  const vendorCount = Object.keys(pricingData.vendorsMap || {}).length;
+  const groupCount = Object.keys(pricingData.usableGroup || {}).filter(
+    (key) => key !== '',
+  ).length;
   const allProps = {
     ...pricingData,
     showRatio,
@@ -40,15 +44,44 @@ const PricingPage = () => {
   };
 
   return (
-    <div className='bg-white'>
-      <Layout className='pricing-layout'>
+    <div className='pricing-page-surface'>
+      <div className='pricing-overview'>
+        <div className='pricing-overview-copy'>
+          <div className='pricing-overview-kicker'>{pricingData.t('定价')}</div>
+          <h1 className='pricing-overview-title'>
+            {pricingData.t('模型定价')}
+          </h1>
+          <p className='pricing-overview-description'>
+            {pricingData.t(
+              '按供应商、计费方式、端点能力和分组倍率浏览全部可用模型，快速找到最适合当前业务场景的定价组合。',
+            )}
+          </p>
+        </div>
+
+        <div className='pricing-overview-metrics'>
+          <div className='pricing-overview-metric'>
+            <span>{pricingData.t('当前结果')}</span>
+            <strong>{pricingData.filteredModels.length}</strong>
+          </div>
+          <div className='pricing-overview-metric'>
+            <span>{pricingData.t('供应商')}</span>
+            <strong>{vendorCount}</strong>
+          </div>
+          <div className='pricing-overview-metric'>
+            <span>{pricingData.t('分组')}</span>
+            <strong>{groupCount}</strong>
+          </div>
+        </div>
+      </div>
+
+      <Layout className='pricing-layout pricing-workbench-layout'>
         {!isMobile && (
-          <Sider className='pricing-scroll-hide pricing-sidebar'>
+          <Sider className='pricing-scroll-hide pricing-sidebar pricing-sidebar-column'>
             <PricingSidebar {...allProps} />
           </Sider>
         )}
 
-        <Content className='pricing-scroll-hide pricing-content'>
+        <Content className='pricing-scroll-hide pricing-content pricing-content-column'>
           <PricingContent
             {...allProps}
             isMobile={isMobile}

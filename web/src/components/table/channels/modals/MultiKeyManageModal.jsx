@@ -697,7 +697,8 @@ const MultiKeyManageModal = ({ visible, onCancel, channel, onRefresh }) => {
                   currentPage: currentPage,
                   pageSize: pageSize,
                   total: total,
-                  showSizeChanger: true,
+                  showSizeChanger: total > pageSize,
+                  hideOnSinglePage: total <= pageSize,
                   showQuickJumper: true,
                   pageSizeOpts: [10, 20, 50, 100],
                   onChange: (page, size) => {

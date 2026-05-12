@@ -19,6 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 
 import React, { useRef } from 'react';
 import { Modal, Form } from '@douyinfe/semi-ui';
+import './SearchModal.css';
 
 const SearchModal = ({
   searchModalVisible,
@@ -35,7 +36,7 @@ const SearchModal = ({
   const formRef = useRef();
 
   const FORM_FIELD_PROPS = {
-    className: 'w-full mb-2 !rounded-lg',
+    className: 'dashboard-search-field',
   };
 
   const createFormField = (Component, props) => (
@@ -53,8 +54,13 @@ const SearchModal = ({
       closeOnEsc={true}
       size={isMobile ? 'full-width' : 'small'}
       centered
+      className='dashboard-search-modal'
     >
-      <Form ref={formRef} layout='vertical' className='w-full'>
+      <Form
+        ref={formRef}
+        layout='vertical'
+        className='w-full dashboard-search-form'
+      >
         {createFormField(Form.DatePicker, {
           field: 'start_timestamp',
           label: t('起始时间'),
@@ -62,7 +68,9 @@ const SearchModal = ({
           value: start_timestamp,
           type: 'dateTime',
           name: 'start_timestamp',
+          inputClassName: 'dashboard-search-control',
           onChange: (value) => handleInputChange(value, 'start_timestamp'),
+          style: { width: '100%' },
         })}
 
         {createFormField(Form.DatePicker, {
@@ -72,7 +80,9 @@ const SearchModal = ({
           value: end_timestamp,
           type: 'dateTime',
           name: 'end_timestamp',
+          inputClassName: 'dashboard-search-control',
           onChange: (value) => handleInputChange(value, 'end_timestamp'),
+          style: { width: '100%' },
         })}
 
         {createFormField(Form.Select, {
@@ -81,6 +91,9 @@ const SearchModal = ({
           initValue: dataExportDefaultTime,
           placeholder: t('时间粒度'),
           name: 'data_export_default_time',
+          className: 'dashboard-search-field dashboard-search-select',
+          showClear: true,
+          size: 'default',
           optionList: timeOptions,
           onChange: (value) =>
             handleInputChange(value, 'data_export_default_time'),
@@ -93,7 +106,9 @@ const SearchModal = ({
             value: username,
             placeholder: t('可选值'),
             name: 'username',
+            inputClassName: 'dashboard-search-control',
             onChange: (value) => handleInputChange(value, 'username'),
+            style: { width: '100%' },
           })}
       </Form>
     </Modal>

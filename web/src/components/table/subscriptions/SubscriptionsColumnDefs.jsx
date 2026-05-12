@@ -68,17 +68,23 @@ const renderPlanTitle = (text, record, t) => {
   const subtitle = record?.plan?.subtitle;
   const plan = record?.plan;
   const popoverContent = (
-    <div style={{ width: 260 }}>
-      <Text strong>{text}</Text>
+    <div className='subscription-plan-popover' style={{ width: 260 }}>
+      <Text strong className='subscription-plan-popover__title'>
+        {text}
+      </Text>
       {subtitle && (
-        <Text type='tertiary' style={{ display: 'block', marginTop: 4 }}>
+        <Text
+          type='tertiary'
+          className='subscription-plan-popover__subtitle'
+          style={{ display: 'block', marginTop: 4 }}
+        >
           {subtitle}
         </Text>
       )}
       <Divider margin={12} />
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
         <Text type='tertiary'>{t('价格')}</Text>
-        <Text strong style={{ color: 'var(--semi-color-success)' }}>
+        <Text strong className='subscription-price-text'>
           {convertUSDToCurrency(Number(plan?.price_amount || 0), 2)}
         </Text>
         <Text type='tertiary'>{t('总额度')}</Text>
@@ -107,14 +113,22 @@ const renderPlanTitle = (text, record, t) => {
 
   return (
     <Popover content={popoverContent} position='rightTop' showArrow>
-      <div style={{ cursor: 'pointer', maxWidth: 180 }}>
-        <Text strong ellipsis={{ showTooltip: false }}>
+      <div
+        className='subscription-plan-title'
+        style={{ cursor: 'pointer', maxWidth: 180 }}
+      >
+        <Text
+          strong
+          ellipsis={{ showTooltip: false }}
+          className='subscription-plan-title__text'
+        >
           {text}
         </Text>
         {subtitle && (
           <Text
             type='tertiary'
             ellipsis={{ showTooltip: false }}
+            className='subscription-plan-title__subtitle'
             style={{ display: 'block' }}
           >
             {subtitle}
@@ -127,7 +141,7 @@ const renderPlanTitle = (text, record, t) => {
 
 const renderPrice = (text) => {
   return (
-    <Text strong style={{ color: 'var(--semi-color-success)' }}>
+    <Text strong className='subscription-price-text'>
       {convertUSDToCurrency(Number(text || 0), 2)}
     </Text>
   );
@@ -136,14 +150,22 @@ const renderPrice = (text) => {
 const renderPurchaseLimit = (text, record, t) => {
   const limit = Number(record?.plan?.max_purchase_per_user || 0);
   return (
-    <Text type={limit > 0 ? 'secondary' : 'tertiary'}>
+    <Text
+      className={
+        limit > 0 ? 'subscription-meta-text' : 'subscription-meta-text is-muted'
+      }
+    >
       {limit > 0 ? limit : t('不限')}
     </Text>
   );
 };
 
 const renderDuration = (text, record, t) => {
-  return <Text type='secondary'>{formatDuration(record?.plan, t)}</Text>;
+  return (
+    <Text className='subscription-meta-text'>
+      {formatDuration(record?.plan, t)}
+    </Text>
+  );
 };
 
 const renderEnabled = (text, record, t) => {
@@ -152,6 +174,7 @@ const renderEnabled = (text, record, t) => {
       color='white'
       shape='circle'
       type='light'
+      className='subscription-status-tag is-enabled'
       prefixIcon={<Badge dot type='success' />}
     >
       {t('启用')}
@@ -161,6 +184,7 @@ const renderEnabled = (text, record, t) => {
       color='white'
       shape='circle'
       type='light'
+      className='subscription-status-tag is-disabled'
       prefixIcon={<Badge dot type='danger' />}
     >
       {t('禁用')}
@@ -171,7 +195,11 @@ const renderEnabled = (text, record, t) => {
 const renderTotalAmount = (text, record, t) => {
   const total = Number(record?.plan?.total_amount || 0);
   return (
-    <Text type={total > 0 ? 'secondary' : 'tertiary'}>
+    <Text
+      className={
+        total > 0 ? 'subscription-meta-text' : 'subscription-meta-text is-muted'
+      }
+    >
       {total > 0 ? (
         <Tooltip content={`${t('原生额度')}：${total}`}>
           <span>{renderQuota(total)}</span>
@@ -186,7 +214,11 @@ const renderTotalAmount = (text, record, t) => {
 const renderUpgradeGroup = (text, record, t) => {
   const group = record?.plan?.upgrade_group || '';
   return (
-    <Text type={group ? 'secondary' : 'tertiary'}>
+    <Text
+      className={
+        group ? 'subscription-meta-text' : 'subscription-meta-text is-muted'
+      }
+    >
       {group ? group : t('不升级')}
     </Text>
   );
@@ -196,7 +228,11 @@ const renderResetPeriod = (text, record, t) => {
   const period = record?.plan?.quota_reset_period || 'never';
   const isNever = period === 'never';
   return (
-    <Text type={isNever ? 'tertiary' : 'secondary'}>
+    <Text
+      className={
+        isNever ? 'subscription-meta-text is-muted' : 'subscription-meta-text'
+      }
+    >
       {formatResetPeriod(record?.plan, t)}
     </Text>
   );
@@ -210,17 +246,32 @@ const renderPaymentConfig = (text, record, t, enableEpay) => {
   return (
     <Space spacing={4}>
       {hasStripe && (
-        <Tag color='violet' shape='circle'>
+        <Tag
+          color='white'
+          shape='circle'
+          type='light'
+          className='subscription-channel-tag is-stripe'
+        >
           Stripe
         </Tag>
       )}
       {hasCreem && (
-        <Tag color='cyan' shape='circle'>
+        <Tag
+          color='white'
+          shape='circle'
+          type='light'
+          className='subscription-channel-tag is-creem'
+        >
           Creem
         </Tag>
       )}
       {hasEpay && (
-        <Tag color='light-green' shape='circle'>
+        <Tag
+          color='white'
+          shape='circle'
+          type='light'
+          className='subscription-channel-tag is-epay'
+        >
           {t('易支付')}
         </Tag>
       )}
@@ -255,12 +306,19 @@ const renderOperations = (text, record, { openEdit, setPlanEnabled, t }) => {
         theme='light'
         type='tertiary'
         size='small'
+        className='subscription-action-button'
         onClick={() => openEdit(record)}
       >
         {t('编辑')}
       </Button>
       {isEnabled ? (
-        <Button theme='light' type='danger' size='small' onClick={handleToggle}>
+        <Button
+          theme='light'
+          type='danger'
+          size='small'
+          className='subscription-action-button is-danger'
+          onClick={handleToggle}
+        >
           {t('禁用')}
         </Button>
       ) : (
@@ -268,6 +326,7 @@ const renderOperations = (text, record, { openEdit, setPlanEnabled, t }) => {
           theme='light'
           type='primary'
           size='small'
+          className='subscription-action-button is-primary'
           onClick={handleToggle}
         >
           {t('启用')}
@@ -288,7 +347,7 @@ export const getSubscriptionsColumns = ({
       title: 'ID',
       dataIndex: ['plan', 'id'],
       width: 60,
-      render: (text) => <Text type='tertiary'>#{text}</Text>,
+      render: (text) => <Text className='subscription-id-text'>#{text}</Text>,
     },
     {
       title: t('套餐'),
@@ -311,7 +370,9 @@ export const getSubscriptionsColumns = ({
       title: t('优先级'),
       dataIndex: ['plan', 'sort_order'],
       width: 80,
-      render: (text) => <Text type='tertiary'>{Number(text || 0)}</Text>,
+      render: (text) => (
+        <Text className='subscription-id-text'>{Number(text || 0)}</Text>
+      ),
     },
     {
       title: t('有效期'),

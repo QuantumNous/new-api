@@ -26,6 +26,18 @@ const { vitePluginSemi } = pkg;
 
 // https://vitejs.dev/config/
 export default defineConfig({
+  css: {
+    preprocessorOptions: {
+      scss: {
+        importer(url) {
+          if (url.startsWith('~')) {
+            return { file: url.slice(1) };
+          }
+          return null;
+        },
+      },
+    },
+  },
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
@@ -91,15 +103,15 @@ export default defineConfig({
     host: '0.0.0.0',
     proxy: {
       '/api': {
-        target: 'http://localhost:3000',
+        target: 'https://api.z-up.app',
         changeOrigin: true,
       },
       '/mj': {
-        target: 'http://localhost:3000',
+        target: 'https://api.z-up.app',
         changeOrigin: true,
       },
       '/pg': {
-        target: 'http://localhost:3000',
+        target: 'https://api.z-up.app',
         changeOrigin: true,
       },
     },

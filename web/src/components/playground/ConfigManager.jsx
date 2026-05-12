@@ -209,7 +209,7 @@ const ConfigManager = ({
             theme='borderless'
             type='tertiary'
             size='small'
-            className='!rounded-lg !text-gray-600 hover:!text-blue-600 hover:!bg-blue-50'
+            className='playground-config-menu-button !rounded-full'
           />
         </Dropdown>
 
@@ -226,10 +226,10 @@ const ConfigManager = ({
 
   // 桌面端显示紧凑的按钮组
   return (
-    <div className='space-y-3'>
+    <div className='playground-config-manager space-y-3'>
       {/* 配置状态信息和重置按钮 */}
       <div className='flex items-center justify-between'>
-        <Typography.Text className='text-xs text-gray-500'>
+        <Typography.Text className='playground-config-status text-xs'>
           {getConfigStatus()}
         </Typography.Text>
         <Button
@@ -238,7 +238,7 @@ const ConfigManager = ({
           theme='borderless'
           type='danger'
           onClick={handleReset}
-          className='!rounded-full !text-xs !px-2'
+          className='playground-config-reset !rounded-full !text-xs !px-2'
         />
       </div>
 
@@ -250,7 +250,7 @@ const ConfigManager = ({
           theme='solid'
           type='primary'
           onClick={handleExport}
-          className='!rounded-lg flex-1 !text-xs !h-7'
+          className='playground-config-button playground-config-button-primary !rounded-full flex-1 !text-xs !h-8'
         >
           {t('导出')}
         </Button>
@@ -261,7 +261,7 @@ const ConfigManager = ({
           theme='outline'
           type='primary'
           onClick={handleImportClick}
-          className='!rounded-lg flex-1 !text-xs !h-7'
+          className='playground-config-button !rounded-full flex-1 !text-xs !h-8'
         >
           {t('导入')}
         </Button>

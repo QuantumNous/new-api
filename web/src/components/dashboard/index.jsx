@@ -88,34 +88,44 @@ const Dashboard = () => {
   // ========== 数据处理 ==========
   const loadUserData = async () => {
     if (dashboardData.isAdminUser) {
-      const userData = await dashboardData.loadUserQuotaData();
-      if (userData && userData.length > 0) {
-        dashboardCharts.updateUserChartData(userData);
-      }
+      return dashboardData.loadUserQuotaData();
+    }
+    return [];
+  };
+
+  const applyDashboardChartData = (quotaData, userData = []) => {
+    if (quotaData && quotaData.length > 0) {
+      dashboardCharts.updateChartData(quotaData);
+    }
+    if (userData && userData.length > 0) {
+      dashboardCharts.updateUserChartData(userData);
     }
   };
 
   const initChart = async () => {
-    await dashboardData.loadQuotaData().then((data) => {
-      if (data && data.length > 0) {
-        dashboardCharts.updateChartData(data);
-      }
-    });
-    await loadUserData();
-    await dashboardData.loadUptimeData();
+    const [quotaData, userData] = await Promise.all([
+      dashboardData.loadQuotaData(),
+      loadUserData(),
+      dashboardData.loadUptimeData(),
+    ]);
+    applyDashboardChartData(quotaData, userData);
   };
 
   const handleRefresh = async () => {
-    const data = await dashboardData.refresh();
-    if (data && data.length > 0) {
-      dashboardCharts.updateChartData(data);
-    }
-    await loadUserData();
+    const [quotaData, userData] = await Promise.all([
+      dashboardData.refresh(),
+      loadUserData(),
+    ]);
+    applyDashboardChartData(quotaData, userData);
   };
 
   const handleSearchConfirm = async () => {
-    await dashboardData.handleSearchConfirm(dashboardCharts.updateChartData);
-    await loadUserData();
+    const [quotaData, userData] = await Promise.all([
+      dashboardData.refresh(),
+      loadUserData(),
+    ]);
+    applyDashboardChartData(quotaData, userData);
+    dashboardData.handleCloseModal();
   };
 
   // ========== 数据准备 ==========
@@ -151,7 +161,7 @@ const Dashboard = () => {
   }, []);
 
   return (
-    <div className='h-full'>
+    <div className='dashboard-shell h-full'>
       <DashboardHeader
         getGreeting={dashboardData.getGreeting}
         greetingVisible={dashboardData.greetingVisible}
@@ -183,7 +193,7 @@ const Dashboard = () => {
       />
 
       {/* API信息和图表面板 */}
-      <div className='mb-4'>
+      <div className='dashboard-analytics-row mb-4'>
         <div
           className={`grid grid-cols-1 gap-4 ${dashboardData.hasApiInfoPanel ? 'lg:grid-cols-4' : ''}`}
         >
@@ -220,7 +230,7 @@ const Dashboard = () => {
 
       {/* 系统公告和常见问答卡片 */}
       {dashboardData.hasInfoPanels && (
-        <div className='mb-4'>
+        <div className='dashboard-insights-row mb-4'>
           <div className='grid grid-cols-1 lg:grid-cols-4 gap-4'>
             {/* 公告卡片 */}
             {dashboardData.announcementsEnabled && (

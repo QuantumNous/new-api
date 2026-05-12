@@ -45,25 +45,30 @@ const PageLayout = () => {
   const [userState, userDispatch] = useContext(UserContext);
   const [, statusDispatch] = useContext(StatusContext);
   const isMobile = useIsMobile();
-  const [collapsed, , setCollapsed] = useSidebarCollapsed();
+  const [collapsed, toggleCollapsed, setCollapsed] = useSidebarCollapsed();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const { i18n } = useTranslation();
   const location = useLocation();
 
   const cardProPages = [
-    '/console/channel',
-    '/console/log',
-    '/console/redemption',
-    '/console/user',
-    '/console/token',
-    '/console/midjourney',
-    '/console/task',
-    '/console/models',
-    '/pricing',
-    '/console/playground',
+    '/',
+    // '/console',
+    // '/console/channel',
+    // '/console/log',
+    // '/console/redemption',
+    // '/console/user',
+    // '/console/token',
+    // '/console/midjourney',
+    // '/console/task',
+    // '/console/models',
+    // '/console/topup',
+    // '/console/personal',
+    // '/pricing',
   ];
 
-  const shouldHideFooter = cardProPages.includes(location.pathname);
+  const shouldHideFooter = cardProPages.some(
+    (path) => path === location.pathname,
+  );
 
   const shouldInnerPadding =
     location.pathname.includes('/console') &&
@@ -71,13 +76,35 @@ const PageLayout = () => {
     location.pathname !== '/console/playground';
 
   const isConsoleRoute = location.pathname.startsWith('/console');
+  const isAuthRoute = ['/login', '/register', '/reset', '/user/reset'].some(
+    (path) => location.pathname === path,
+  );
   const showSider = isConsoleRoute && (!isMobile || drawerOpen);
+  const desktopConsoleShell = isConsoleRoute && !isMobile;
+  const contentPadding = shouldInnerPadding ? (isMobile ? '5px' : '24px') : '0';
+  let contentPaddingTop = desktopConsoleShell
+    ? '88px'
+    : shouldInnerPadding
+      ? contentPadding
+      : '0';
+
+  if (location.pathname.includes('/console/playground')) {
+    contentPaddingTop = '64px';
+  }
 
   useEffect(() => {
     if (isMobile && drawerOpen && collapsed) {
       setCollapsed(false);
     }
   }, [isMobile, drawerOpen, collapsed, setCollapsed]);
+
+  useEffect(() => {
+    if (collapsed) {
+      document.body.classList.add('sidebar-collapsed');
+    } else {
+      document.body.classList.remove('sidebar-collapsed');
+    }
+  }, [collapsed]);
 
   const loadUser = () => {
     let user = localStorage.getItem('user');
@@ -154,23 +181,31 @@ const PageLayout = () => {
         overflow: isMobile ? 'visible' : 'hidden',
       }}
     >
-      <Header
-        style={{
-          padding: 0,
-          height: 'auto',
-          lineHeight: 'normal',
-          position: 'fixed',
-          width: '100%',
-          top: 0,
-          zIndex: 100,
-        }}
-      >
-        <HeaderBar
-          onMobileMenuToggle={() => setDrawerOpen((prev) => !prev)}
-          drawerOpen={drawerOpen}
-        />
-      </Header>
+      {!isAuthRoute && (
+        <Header
+          style={{
+            padding: 0,
+            height: 'auto',
+            lineHeight: 'normal',
+            position: 'fixed',
+            width: desktopConsoleShell
+              ? 'calc(100% - var(--sidebar-current-width))'
+              : '100%',
+            left: desktopConsoleShell ? 'var(--sidebar-current-width)' : '0',
+            top: 0,
+            zIndex: 100,
+          }}
+        >
+          <HeaderBar
+            onMobileMenuToggle={() => setDrawerOpen((prev) => !prev)}
+            drawerOpen={drawerOpen}
+            collapsed={collapsed}
+            onDesktopCollapseToggle={toggleCollapsed}
+          />
+        </Header>
+      )}
       <Layout
+        id='app-scroll-shell'
         style={{
           overflow: isMobile ? 'visible' : 'auto',
           display: 'flex',
@@ -183,14 +218,17 @@ const PageLayout = () => {
             style={{
               position: 'fixed',
               left: 0,
-              top: '64px',
+              top: desktopConsoleShell ? '0' : '64px',
               zIndex: 99,
               border: 'none',
               paddingRight: '0',
               width: 'var(--sidebar-current-width)',
+              height: desktopConsoleShell ? '100vh' : 'calc(100vh - 64px)',
             }}
           >
             <SiderBar
+              collapsed={collapsed}
+              onCollapseToggle={toggleCollapsed}
               onNavigate={() => {
                 if (isMobile) setDrawerOpen(false);
               }}
@@ -214,7 +252,10 @@ const PageLayout = () => {
               flex: '1 0 auto',
               overflowY: isMobile ? 'visible' : 'hidden',
               WebkitOverflowScrolling: 'touch',
-              padding: shouldInnerPadding ? (isMobile ? '5px' : '24px') : '0',
+              paddingTop: contentPaddingTop,
+              paddingRight: contentPadding,
+              paddingBottom: contentPadding,
+              paddingLeft: contentPadding,
               position: 'relative',
             }}
           >
@@ -222,7 +263,7 @@ const PageLayout = () => {
               <App />
             </ErrorBoundary>
           </Content>
-          {!shouldHideFooter && (
+          {shouldHideFooter && (
             <Layout.Footer
               style={{
                 flex: '0 0 auto',

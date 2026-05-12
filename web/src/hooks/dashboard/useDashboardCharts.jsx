@@ -19,6 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 
 import { useState, useCallback, useEffect } from 'react';
 import { initVChartSemiTheme } from '@visactor/vchart-semi-theme';
+import { STACK_FIELD_TOTAL_TOP } from '@visactor/vchart/esm/constant';
 import {
   modelColorMap,
   renderNumber,
@@ -38,9 +39,21 @@ import {
 } from '../../helpers/dashboard';
 
 const USER_COLORS = [
-  '#3b82f6', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6',
-  '#ec4899', '#06b6d4', '#f97316', '#6366f1', '#14b8a6',
+  '#3b82f6',
+  '#0ea5e9',
+  '#10b981',
+  '#14b8a6',
+  '#2563eb',
+  '#06b6d4',
+  '#06b6d4',
+  '#38bdf8',
+  '#1d4ed8',
+  '#22c55e',
 ];
+
+const TRANSPARENT_CHART_BACKGROUND = 'transparent';
+const TOP_BAR_RADIUS = [8, 8, 0, 0];
+const NO_BAR_RADIUS = [0, 0, 0, 0];
 
 export const useDashboardCharts = (
   dataExportDefaultTime,
@@ -53,34 +66,48 @@ export const useDashboardCharts = (
   setModelColors,
   t,
 ) => {
+  const sumField = (values, field) =>
+    (values || []).reduce((sum, item) => sum + (Number(item?.[field]) || 0), 0);
+
+  const sumPieValues = (values) =>
+    (values || []).reduce((sum, item) => sum + (Number(item?.value) || 0), 0);
+
   // ========== 图表规格状态 ==========
   const [spec_pie, setSpecPie] = useState({
     type: 'pie',
+    animation: false,
+    background: TRANSPARENT_CHART_BACKGROUND,
     data: [
       {
         id: 'id0',
         values: [{ type: 'null', value: '0' }],
       },
     ],
-    outerRadius: 0.8,
-    innerRadius: 0.5,
-    padAngle: 0.6,
+    outerRadius: 0.78,
+    innerRadius: 0.58,
+    padAngle: 1,
     valueField: 'value',
     categoryField: 'type',
     pie: {
       style: {
-        cornerRadius: 10,
+        cornerRadius: 14,
       },
       state: {
         hover: {
-          outerRadius: 0.85,
-          stroke: '#000',
-          lineWidth: 1,
+          outerRadius: 0.78,
+          lineWidth: 0,
         },
         selected: {
-          outerRadius: 0.85,
-          stroke: '#000',
-          lineWidth: 1,
+          outerRadius: 0.78,
+          lineWidth: 0,
+        },
+        hover_reverse: {
+          fillOpacity: 1,
+          strokeOpacity: 1,
+        },
+        selected_reverse: {
+          fillOpacity: 1,
+          strokeOpacity: 1,
         },
       },
     },
@@ -91,10 +118,13 @@ export const useDashboardCharts = (
     },
     legends: {
       visible: true,
-      orient: 'left',
+      orient: 'bottom',
     },
     label: {
-      visible: true,
+      visible: false,
+    },
+    labelLine: {
+      visible: false,
     },
     tooltip: {
       mark: {
@@ -113,6 +143,8 @@ export const useDashboardCharts = (
 
   const [spec_line, setSpecLine] = useState({
     type: 'bar',
+    animation: false,
+    background: TRANSPARENT_CHART_BACKGROUND,
     data: [
       {
         id: 'barData',
@@ -123,8 +155,23 @@ export const useDashboardCharts = (
     yField: 'Usage',
     seriesField: 'Model',
     stack: true,
+    axes: [
+      {
+        orient: 'bottom',
+        domainLine: {
+          visible: false,
+        },
+        tick: {
+          visible: false,
+        },
+      },
+    ],
+    crosshair: {
+      visible: false,
+    },
     legends: {
       visible: true,
+      orient: 'bottom',
       selectMode: 'single',
     },
     title: {
@@ -133,10 +180,34 @@ export const useDashboardCharts = (
       subtext: `${t('总计')}：${renderQuota(0, 2)}`,
     },
     bar: {
+      style: {
+        cornerRadius: (datum) =>
+          datum?.isTopSegment || datum?.[STACK_FIELD_TOTAL_TOP]
+            ? TOP_BAR_RADIUS
+            : NO_BAR_RADIUS,
+      },
       state: {
         hover: {
-          stroke: '#000',
-          lineWidth: 1,
+          lineWidth: 0,
+        },
+        selected: {
+          lineWidth: 0,
+        },
+        hover_reverse: {
+          fillOpacity: 1,
+          strokeOpacity: 1,
+        },
+        selected_reverse: {
+          fillOpacity: 1,
+          strokeOpacity: 1,
+        },
+        dimension_hover: {
+          fillOpacity: 1,
+          strokeOpacity: 1,
+        },
+        dimension_hover_reverse: {
+          fillOpacity: 1,
+          strokeOpacity: 1,
         },
       },
     },
@@ -160,7 +231,7 @@ export const useDashboardCharts = (
           array.sort((a, b) => b.value - a.value);
           let sum = 0;
           for (let i = 0; i < array.length; i++) {
-            if (array[i].key == '其他') {
+            if (array[i].key == t('其他')) {
               continue;
             }
             let value = parseFloat(array[i].value);
@@ -187,6 +258,8 @@ export const useDashboardCharts = (
 
   const [spec_model_line, setSpecModelLine] = useState({
     type: 'line',
+    animation: false,
+    background: TRANSPARENT_CHART_BACKGROUND,
     data: [
       {
         id: 'lineData',
@@ -196,14 +269,45 @@ export const useDashboardCharts = (
     xField: 'Time',
     yField: 'Count',
     seriesField: 'Model',
+    axes: [
+      {
+        orient: 'bottom',
+        domainLine: {
+          visible: false,
+        },
+        tick: {
+          visible: false,
+        },
+      },
+    ],
+    crosshair: {
+      visible: false,
+    },
     legends: {
       visible: true,
+      orient: 'bottom',
       selectMode: 'single',
     },
     title: {
       visible: true,
       text: t('调用趋势'),
       subtext: '',
+    },
+    line: {
+      style: {
+        lineWidth: 3,
+        curveType: 'monotone',
+        lineCap: 'round',
+        lineJoin: 'round',
+      },
+    },
+    point: {
+      visible: true,
+      style: {
+        size: 5,
+        lineWidth: 2,
+        stroke: '#fff',
+      },
     },
     tooltip: {
       mark: {
@@ -245,6 +349,8 @@ export const useDashboardCharts = (
 
   const [spec_rank_bar, setSpecRankBar] = useState({
     type: 'bar',
+    animation: false,
+    background: TRANSPARENT_CHART_BACKGROUND,
     data: [
       {
         id: 'rankData',
@@ -254,8 +360,23 @@ export const useDashboardCharts = (
     xField: 'Model',
     yField: 'Count',
     seriesField: 'Model',
+    axes: [
+      {
+        orient: 'bottom',
+        domainLine: {
+          visible: false,
+        },
+        tick: {
+          visible: false,
+        },
+      },
+    ],
+    crosshair: {
+      visible: false,
+    },
     legends: {
       visible: true,
+      orient: 'bottom',
       selectMode: 'single',
     },
     title: {
@@ -264,10 +385,31 @@ export const useDashboardCharts = (
       subtext: '',
     },
     bar: {
+      style: {
+        cornerRadius: TOP_BAR_RADIUS,
+      },
       state: {
         hover: {
-          stroke: '#000',
-          lineWidth: 1,
+          lineWidth: 0,
+        },
+        selected: {
+          lineWidth: 0,
+        },
+        hover_reverse: {
+          fillOpacity: 1,
+          strokeOpacity: 1,
+        },
+        selected_reverse: {
+          fillOpacity: 1,
+          strokeOpacity: 1,
+        },
+        dimension_hover: {
+          fillOpacity: 1,
+          strokeOpacity: 1,
+        },
+        dimension_hover_reverse: {
+          fillOpacity: 1,
+          strokeOpacity: 1,
         },
       },
     },
@@ -289,6 +431,8 @@ export const useDashboardCharts = (
   // ========== Admin: 用户消耗排行 ==========
   const [spec_user_rank, setSpecUserRank] = useState({
     type: 'bar',
+    animation: false,
+    background: TRANSPARENT_CHART_BACKGROUND,
     data: [{ id: 'userRankData', values: [] }],
     xField: 'rawQuota',
     yField: 'User',
@@ -301,28 +445,64 @@ export const useDashboardCharts = (
       subtext: '',
     },
     bar: {
-      state: { hover: { stroke: '#000', lineWidth: 1 } },
+      style: {
+        cornerRadius: 999,
+      },
+      state: {
+        hover: {
+          lineWidth: 0,
+        },
+        selected: {
+          lineWidth: 0,
+        },
+        hover_reverse: {
+          fillOpacity: 1,
+          strokeOpacity: 1,
+        },
+        selected_reverse: {
+          fillOpacity: 1,
+          strokeOpacity: 1,
+        },
+        dimension_hover: {
+          fillOpacity: 1,
+          strokeOpacity: 1,
+        },
+        dimension_hover_reverse: {
+          fillOpacity: 1,
+          strokeOpacity: 1,
+        },
+      },
     },
     label: {
       visible: true,
       position: 'outside',
+      style: {
+        fontSize: 12,
+        fontWeight: 700,
+        fill: '#667085',
+      },
       formatMethod: (value, datum) => renderQuota(datum['rawQuota'] || 0, 2),
     },
-    axes: [{
-      orient: 'left',
-      type: 'band',
-      label: { visible: true },
-    }, {
-      orient: 'bottom',
-      type: 'linear',
-      visible: false,
-    }],
+    axes: [
+      {
+        orient: 'left',
+        type: 'band',
+        label: { visible: true },
+      },
+      {
+        orient: 'bottom',
+        type: 'linear',
+        visible: false,
+      },
+    ],
     tooltip: {
       mark: {
-        content: [{
-          key: (datum) => datum['User'],
-          value: (datum) => renderQuota(datum['rawQuota'] || 0, 4),
-        }],
+        content: [
+          {
+            key: (datum) => datum['User'],
+            value: (datum) => renderQuota(datum['rawQuota'] || 0, 4),
+          },
+        ],
       },
     },
     color: { type: 'ordinal', range: USER_COLORS },
@@ -331,38 +511,76 @@ export const useDashboardCharts = (
   // ========== Admin: 用户消耗趋势 ==========
   const [spec_user_trend, setSpecUserTrend] = useState({
     type: 'area',
+    animation: false,
+    background: TRANSPARENT_CHART_BACKGROUND,
     data: [{ id: 'userTrendData', values: [] }],
     xField: 'Time',
     yField: 'rawQuota',
     seriesField: 'User',
     stack: false,
-    legends: { visible: true, selectMode: 'single' },
+    legends: { visible: true, orient: 'bottom', selectMode: 'single' },
     title: {
       visible: true,
       text: t('用户消耗趋势'),
       subtext: '',
     },
-    axes: [{
-      orient: 'left',
-      label: {
-        formatMethod: (value) => renderQuota(value, 2),
+    axes: [
+      {
+        orient: 'bottom',
+        domainLine: {
+          visible: false,
+        },
+        tick: {
+          visible: false,
+        },
       },
-    }],
-    area: { style: { fillOpacity: 0.15 } },
-    line: { style: { lineWidth: 2 } },
-    point: { visible: false },
+      {
+        orient: 'left',
+        label: {
+          formatMethod: (value) => renderQuota(value, 2),
+        },
+      },
+    ],
+    crosshair: {
+      visible: false,
+    },
+    area: {
+      style: {
+        fillOpacity: 0.12,
+      },
+    },
+    line: {
+      style: {
+        lineWidth: 3,
+        curveType: 'monotone',
+        lineCap: 'round',
+        lineJoin: 'round',
+      },
+    },
+    point: {
+      visible: true,
+      style: {
+        size: 4,
+        lineWidth: 2,
+        stroke: '#fff',
+      },
+    },
     tooltip: {
       mark: {
-        content: [{
-          key: (datum) => datum['User'],
-          value: (datum) => renderQuota(datum['rawQuota'] || 0, 4),
-        }],
+        content: [
+          {
+            key: (datum) => datum['User'],
+            value: (datum) => renderQuota(datum['rawQuota'] || 0, 4),
+          },
+        ],
       },
       dimension: {
-        content: [{
-          key: (datum) => datum['User'],
-          value: (datum) => datum['rawQuota'] || 0,
-        }],
+        content: [
+          {
+            key: (datum) => datum['User'],
+            value: (datum) => datum['rawQuota'] || 0,
+          },
+        ],
         updateContent: (array) => {
           array.sort((a, b) => b.value - a.value);
           let sum = 0;
@@ -468,7 +686,11 @@ export const useDashboardCharts = (
 
         const timeSum = timeData.reduce((sum, item) => sum + item.rawQuota, 0);
         timeData.sort((a, b) => b.rawQuota - a.rawQuota);
-        timeData = timeData.map((item) => ({ ...item, TimeSum: timeSum }));
+        timeData = timeData.map((item, index, items) => ({
+          ...item,
+          TimeSum: timeSum,
+          isTopSegment: index === items.length - 1,
+        }));
         newLineData.push(...timeData);
       });
 
@@ -571,11 +793,13 @@ export const useDashboardCharts = (
         10,
       );
 
-      const userRankValues = rankingData.map((item) => ({
-        User: item.User,
-        rawQuota: item.Quota,
-        Quota: getQuotaWithUnit(item.Quota, 4),
-      })).sort((a, b) => b.rawQuota - a.rawQuota);
+      const userRankValues = rankingData
+        .map((item) => ({
+          User: item.User,
+          rawQuota: item.Quota,
+          Quota: getQuotaWithUnit(item.Quota, 4),
+        }))
+        .sort((a, b) => b.rawQuota - a.rawQuota);
 
       const totalUserQuota = rankingData.reduce((s, i) => s + i.Quota, 0);
 
@@ -613,6 +837,80 @@ export const useDashboardCharts = (
       isWatchingThemeSwitch: true,
     });
   }, []);
+
+  useEffect(() => {
+    setSpecPie((prev) => {
+      const values = prev?.data?.[0]?.values || [];
+      return {
+        ...prev,
+        title: {
+          ...prev.title,
+          text: t('模型调用次数占比'),
+          subtext: `${t('总计')}：${renderNumber(sumPieValues(values))}`,
+        },
+      };
+    });
+
+    setSpecLine((prev) => {
+      const values = prev?.data?.[0]?.values || [];
+      return {
+        ...prev,
+        title: {
+          ...prev.title,
+          text: t('模型消耗分布'),
+          subtext: `${t('总计')}：${renderQuota(sumField(values, 'rawQuota'), 2)}`,
+        },
+      };
+    });
+
+    setSpecModelLine((prev) => {
+      const values = prev?.data?.[0]?.values || [];
+      return {
+        ...prev,
+        title: {
+          ...prev.title,
+          text: t('调用趋势'),
+          subtext: `${t('总计')}：${renderNumber(sumField(values, 'Count'))}`,
+        },
+      };
+    });
+
+    setSpecRankBar((prev) => {
+      const values = prev?.data?.[0]?.values || [];
+      return {
+        ...prev,
+        title: {
+          ...prev.title,
+          text: t('模型调用次数排行'),
+          subtext: `${t('总计')}：${renderNumber(sumField(values, 'Count'))}`,
+        },
+      };
+    });
+
+    setSpecUserRank((prev) => {
+      const values = prev?.data?.[0]?.values || [];
+      return {
+        ...prev,
+        title: {
+          ...prev.title,
+          text: t('用户消耗排行'),
+          subtext: `${t('总计')}：${renderQuota(sumField(values, 'rawQuota'), 2)}`,
+        },
+      };
+    });
+
+    setSpecUserTrend((prev) => {
+      const values = prev?.data?.[0]?.values || [];
+      return {
+        ...prev,
+        title: {
+          ...prev.title,
+          text: t('用户消耗趋势'),
+          subtext: `${t('总计')}：${renderQuota(sumField(values, 'rawQuota'), 2)}`,
+        },
+      };
+    });
+  }, [t]);
 
   return {
     spec_pie,

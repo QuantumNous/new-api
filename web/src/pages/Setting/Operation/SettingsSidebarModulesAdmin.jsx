@@ -43,6 +43,7 @@ export default function SettingsSidebarModulesAdmin(props) {
     chat: {
       enabled: true,
       playground: true,
+      onlineExperience: true,
       chat: true,
     },
     console: {
@@ -56,6 +57,7 @@ export default function SettingsSidebarModulesAdmin(props) {
     personal: {
       enabled: true,
       topup: true,
+      referral: true,
       personal: true,
     },
     admin: {
@@ -104,6 +106,7 @@ export default function SettingsSidebarModulesAdmin(props) {
       chat: {
         enabled: true,
         playground: true,
+        onlineExperience: true,
         chat: true,
       },
       console: {
@@ -117,6 +120,7 @@ export default function SettingsSidebarModulesAdmin(props) {
       personal: {
         enabled: true,
         topup: true,
+        referral: true,
         personal: true,
       },
       admin: {
@@ -178,7 +182,12 @@ export default function SettingsSidebarModulesAdmin(props) {
       } catch (error) {
         // 使用默认配置
         const defaultModules = {
-          chat: { enabled: true, playground: true, chat: true },
+          chat: {
+            enabled: true,
+            playground: true,
+            onlineExperience: true,
+            chat: true,
+          },
           console: {
             enabled: true,
             detail: true,
@@ -187,7 +196,12 @@ export default function SettingsSidebarModulesAdmin(props) {
             midjourney: true,
             task: true,
           },
-          personal: { enabled: true, topup: true, personal: true },
+          personal: {
+            enabled: true,
+            topup: true,
+            referral: true,
+            personal: true,
+          },
           admin: {
             enabled: true,
             channel: true,
@@ -216,6 +230,11 @@ export default function SettingsSidebarModulesAdmin(props) {
           title: t('操练场'),
           description: t('AI模型测试环境'),
         },
+        {
+          key: 'onlineExperience',
+          title: t('在线体验'),
+          description: t('在线体验页面'),
+        },
         { key: 'chat', title: t('聊天'), description: t('聊天会话管理') },
       ],
     },
@@ -241,6 +260,7 @@ export default function SettingsSidebarModulesAdmin(props) {
       description: t('用户个人功能'),
       modules: [
         { key: 'topup', title: t('钱包管理'), description: t('余额充值管理') },
+        { key: 'referral', title: t('邀请'), description: t('邀请奖励') },
         {
           key: 'personal',
           title: t('个人设置'),

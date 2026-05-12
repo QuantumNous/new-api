@@ -1,0 +1,241 @@
+.dashboard-search-modal .semi-modal-content {
+  overflow: hidden;
+  border: 1px solid rgba(224, 229, 237, 0.96);
+  border-radius: 28px;
+  background: radial-gradient(
+      circle at top left,
+      rgba(14, 165, 233, 0.08),
+      transparent 30%
+    ),
+    linear-gradient(
+      180deg,
+      rgba(255, 255, 255, 0.98),
+      rgba(248, 250, 252, 0.98)
+    );
+  box-shadow: 0 26px 56px rgba(15, 23, 42, 0.12);
+}
+
+.dashboard-search-modal .semi-modal-header {
+  padding: 24px 24px 14px !important;
+  border-bottom: none !important;
+}
+
+.dashboard-search-modal .semi-modal-title {
+  color: #111827;
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+.dashboard-search-modal .semi-modal-body {
+  padding: 0 24px 8px !important;
+}
+
+.dashboard-search-modal .semi-modal-footer {
+  padding: 14px 24px 24px !important;
+  border-top: none !important;
+  background: linear-gradient(
+    180deg,
+    rgba(250, 250, 252, 0),
+    rgba(248, 250, 252, 0.9)
+  );
+}
+
+.dashboard-search-modal .semi-modal-footer .semi-button {
+  height: 44px;
+  padding: 0 18px;
+  border-radius: 16px !important;
+  font-weight: 700;
+}
+
+.dashboard-search-modal .semi-modal-footer .semi-button-light,
+.dashboard-search-modal .semi-modal-footer .semi-button-tertiary {
+  border-color: rgba(226, 232, 240, 0.96) !important;
+  background: rgba(255, 255, 255, 0.82) !important;
+  color: #111827 !important;
+}
+
+.dashboard-search-modal .semi-modal-footer .semi-button-primary {
+  border-color: transparent !important;
+  background: var(--app-accent-gradient) !important;
+  color: #ffffff !important;
+}
+
+.dashboard-search-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.dashboard-search-field {
+  margin-bottom: 0 !important;
+}
+
+.dashboard-search-field .semi-form-field-label-text {
+  color: #8a94a6;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.dashboard-search-field .semi-input-wrapper,
+.dashboard-search-field .semi-input-wrapper.semi-input-wrapper-default,
+.dashboard-search-field .semi-datepicker .semi-input-wrapper {
+  min-height: 44px;
+  border: 1px solid rgba(226, 232, 240, 0.95) !important;
+  border-radius: 16px !important;
+  background: rgba(248, 250, 252, 0.92) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.72);
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease,
+    background-color 0.2s ease;
+}
+
+.dashboard-search-field .semi-input-wrapper:hover,
+.dashboard-search-field .semi-datepicker .semi-input-wrapper:hover {
+  border-color: rgba(208, 213, 221, 1) !important;
+  background: rgba(248, 250, 252, 0.92) !important;
+}
+
+.dashboard-search-field .semi-input,
+.dashboard-search-select .semi-select-selection-text {
+  color: #0f172a !important;
+  font-weight: 500;
+}
+
+.dashboard-search-field .semi-input::placeholder,
+.dashboard-search-select .semi-select-selection-placeholder {
+  color: #98a2b3 !important;
+}
+
+.dashboard-search-field .semi-input-prefix,
+.dashboard-search-field .semi-input-suffix,
+.dashboard-search-field .semi-datepicker .semi-input-suffix {
+  color: #94a3b8 !important;
+}
+
+.dashboard-search-select {
+  width: 100%;
+  overflow: hidden;
+  min-height: 44px;
+  border: 1px solid rgba(226, 232, 240, 0.95) !important;
+  border-radius: 16px !important;
+  background: rgba(248, 250, 252, 0.92) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.72);
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease,
+    background-color 0.2s ease;
+}
+
+.dashboard-search-select .semi-select-selection {
+  width: 100%;
+  min-height: 44px;
+  border: none !important;
+  background: transparent !important;
+}
+
+.dashboard-search-select:hover,
+.dashboard-search-select .semi-select-selection:hover {
+  border-color: rgba(208, 213, 221, 1) !important;
+  background: rgba(248, 250, 252, 0.92) !important;
+}
+
+.dashboard-search-select .semi-select-selection-icon {
+  color: #94a3b8 !important;
+}
+
+html.dark .dashboard-search-modal .semi-modal-content {
+  border-color: rgba(53, 61, 76, 0.96) !important;
+  background: radial-gradient(
+      circle at top left,
+      rgba(59, 130, 246, 0.16),
+      transparent 32%
+    ),
+    linear-gradient(180deg, rgba(21, 24, 30, 0.98), rgba(16, 18, 24, 0.98)) !important;
+  box-shadow: none !important;
+}
+
+html.dark .dashboard-search-modal .semi-modal-title {
+  color: #f8fafc;
+}
+
+html.dark .dashboard-search-modal .semi-modal-footer {
+  background: linear-gradient(
+    180deg,
+    rgba(17, 19, 24, 0),
+    rgba(16, 19, 24, 0.9)
+  );
+}
+
+html.dark .dashboard-search-modal .semi-modal-footer .semi-button-light,
+html.dark .dashboard-search-modal .semi-modal-footer .semi-button-tertiary {
+  border-color: rgba(58, 66, 82, 0.95) !important;
+  background: rgba(16, 19, 24, 0.92) !important;
+  color: #f8fafc !important;
+}
+
+html.dark .dashboard-search-field .semi-form-field-label-text,
+html.dark .dashboard-search-field .semi-input::placeholder,
+html.dark .dashboard-search-select .semi-select-selection-placeholder {
+  color: #98a2b3 !important;
+}
+
+html.dark .dashboard-search-field .semi-input,
+html.dark .dashboard-search-select .semi-select-selection-text {
+  color: #f8fafc !important;
+}
+
+html.dark .dashboard-search-field .semi-input-wrapper,
+html.dark
+  .dashboard-search-field
+  .semi-input-wrapper.semi-input-wrapper-default,
+html.dark .dashboard-search-field .semi-datepicker .semi-input-wrapper {
+  border-color: rgba(58, 66, 82, 0.95) !important;
+  background: rgba(16, 19, 24, 0.92) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04) !important;
+}
+
+html.dark .dashboard-search-field .semi-input-wrapper:hover,
+html.dark .dashboard-search-field .semi-datepicker .semi-input-wrapper:hover {
+  border-color: rgba(76, 88, 110, 0.96) !important;
+  background: rgba(21, 24, 31, 0.98) !important;
+}
+
+html.dark .dashboard-search-field .semi-input-prefix,
+html.dark .dashboard-search-field .semi-input-suffix,
+html.dark .dashboard-search-field .semi-datepicker .semi-input-suffix {
+  color: #667085 !important;
+}
+
+html.dark .dashboard-search-select {
+  border-color: rgba(58, 66, 82, 0.95) !important;
+  background: rgba(16, 19, 24, 0.92) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04) !important;
+}
+
+html.dark .dashboard-search-select .semi-select-selection {
+  background: transparent !important;
+}
+
+html.dark .dashboard-search-select:hover,
+html.dark .dashboard-search-select .semi-select-selection:hover {
+  border-color: rgba(76, 88, 110, 0.96) !important;
+  background: rgba(21, 24, 31, 0.98) !important;
+}
+
+html.dark .dashboard-search-select .semi-select-selection-icon {
+  color: #667085 !important;
+}
+
+@media (max-width: 767px) {
+  .dashboard-search-modal .semi-modal-header {
+    padding: 20px 20px 12px !important;
+  }
+
+  .dashboard-search-modal .semi-modal-body,
+  .dashboard-search-modal .semi-modal-footer {
+    padding-left: 20px !important;
+    padding-right: 20px !important;
+  }
+}

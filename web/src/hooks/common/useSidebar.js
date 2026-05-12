@@ -29,6 +29,7 @@ export const DEFAULT_ADMIN_CONFIG = {
   chat: {
     enabled: true,
     playground: true,
+    onlineExperience: true,
     chat: true,
   },
   console: {
@@ -42,6 +43,7 @@ export const DEFAULT_ADMIN_CONFIG = {
   personal: {
     enabled: true,
     topup: true,
+    referral: true,
     personal: true,
   },
   admin: {

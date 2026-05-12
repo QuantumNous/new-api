@@ -1,0 +1,352 @@
+.topup-history-modal .semi-modal-content {
+  overflow: hidden;
+  border: 1px solid var(--app-panel-border);
+  border-radius: 24px;
+  background: var(--app-panel-bg);
+  box-shadow: var(--app-panel-shadow);
+  backdrop-filter: blur(var(--app-glass-blur));
+}
+
+.topup-history-modal .semi-modal-header {
+  padding: 22px 22px 12px;
+}
+
+.topup-history-modal .semi-modal-title {
+  color: var(--app-text-primary);
+  font-size: 20px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+.topup-history-modal .semi-modal-body {
+  padding: 0 22px 22px;
+}
+
+.topup-history-toolbar {
+  margin-bottom: 14px;
+}
+
+.topup-history-search .semi-input-wrapper,
+.topup-history-search.semi-input-wrapper {
+  min-height: 42px;
+  border: 1px solid var(--app-panel-border) !important;
+  border-radius: 14px !important;
+  background: var(--app-panel-bg-strong) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.72);
+}
+
+.topup-history-search .semi-input-prefix,
+.topup-history-search .semi-input-suffix {
+  color: #94a3b8 !important;
+}
+
+.topup-history-search .semi-input {
+  color: var(--app-text-primary) !important;
+  font-weight: 500;
+}
+
+.topup-history-search .semi-input::placeholder {
+  color: #98a2b3 !important;
+}
+
+.topup-history-search .semi-input-wrapper:hover {
+  border-color: var(--app-panel-border-strong) !important;
+  background: rgba(255, 255, 255, 0.96) !important;
+}
+
+.topup-history-search .semi-input-wrapper-focus,
+.topup-history-search .semi-input-wrapper:focus-within {
+  border-color: var(--app-accent) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.72) !important;
+}
+
+.topup-history-table {
+  overflow: hidden;
+  border: 1px solid var(--app-panel-border);
+  border-radius: 20px;
+  background: var(--app-panel-bg-soft);
+  margin-bottom: 24px;
+  backdrop-filter: blur(var(--app-glass-blur));
+}
+
+.topup-history-table .semi-table-container {
+  background: transparent !important;
+}
+
+.topup-history-table table {
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+.topup-history-table .semi-table-thead > tr > th,
+.topup-history-table .semi-table-thead > tr > .semi-table-row-head {
+  padding: 12px 14px !important;
+  border-bottom: 1px solid rgba(226, 232, 240, 0.96) !important;
+  background: rgba(248, 250, 252, 0.96) !important;
+  color: #8a94a6 !important;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.topup-history-table .semi-table-tbody > tr > td,
+.topup-history-table .semi-table-tbody > tr > .semi-table-row-cell {
+  padding: 13px 14px !important;
+  border-bottom: 1px solid rgba(238, 242, 247, 0.96) !important;
+  background: rgba(255, 255, 255, 0.8) !important;
+  vertical-align: middle;
+  transition: background-color 0.2s ease;
+}
+
+.topup-history-table .semi-table-tbody > tr:last-child > td,
+.topup-history-table .semi-table-tbody > tr:last-child > .semi-table-row-cell {
+  border-bottom: none !important;
+}
+
+.topup-history-table .semi-table-tbody > tr:hover > td,
+.topup-history-table .semi-table-tbody > tr:hover > .semi-table-row-cell {
+  background: #ffffff !important;
+}
+
+.topup-history-table .semi-table-placeholder {
+  background: transparent !important;
+}
+
+.topup-history-table .semi-pagination {
+  padding: 12px 14px 0;
+}
+
+.topup-history-table .semi-button {
+  border-radius: 12px !important;
+}
+
+.topup-history-order-cell {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.topup-history-order-code.semi-typography {
+  color: var(--app-text-primary) !important;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.topup-history-method-chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 0 10px;
+  border: 1px solid var(--app-pill-border);
+  border-radius: 999px;
+  background: var(--app-pill-bg);
+  color: var(--app-text-secondary);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.topup-history-amount {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--app-text-primary);
+  font-weight: 700;
+}
+
+.topup-history-money.semi-typography {
+  color: #dc2626 !important;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.topup-history-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 28px;
+  padding: 0 10px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: rgba(248, 250, 252, 0.92);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.topup-history-status.is-success {
+  border-color: rgba(134, 239, 172, 0.65);
+  background: rgba(240, 253, 244, 0.95);
+  color: #166534;
+}
+
+.topup-history-status.is-pending {
+  border-color: rgba(253, 224, 71, 0.7);
+  background: rgba(254, 252, 232, 0.98);
+  color: #a16207;
+}
+
+.topup-history-status.is-failed,
+.topup-history-status.is-expired {
+  border-color: rgba(252, 165, 165, 0.68);
+  background: rgba(254, 242, 242, 0.98);
+  color: #b91c1c;
+}
+
+.topup-history-status.is-default {
+  border-color: rgba(203, 213, 225, 0.95);
+  background: rgba(248, 250, 252, 0.92);
+  color: #475467;
+}
+
+.topup-history-subscription-tag.semi-tag {
+  border: 1px solid var(--app-pill-border) !important;
+  background: var(--app-pill-bg) !important;
+  color: var(--app-accent) !important;
+  font-weight: 700;
+}
+
+.topup-history-time {
+  color: #475467;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.topup-history-action-button.semi-button {
+  height: 30px;
+  padding: 0 12px;
+  border-radius: 10px !important;
+  font-weight: 700;
+}
+
+.topup-history-table .semi-table-pagination-outer {
+  margin-top: 12px;
+  border-top: 1px solid var(--semi-color-border);
+  padding: 12px;
+}
+
+html.dark .topup-history-modal .semi-modal-content {
+  border-color: var(--app-panel-border) !important;
+  background: var(--app-panel-bg) !important;
+  box-shadow: none !important;
+}
+
+html.dark .topup-history-modal .semi-modal-title,
+html.dark .topup-history-search .semi-input,
+html.dark .topup-history-table .semi-table-tbody > tr > td,
+html.dark .topup-history-table .semi-table-tbody > tr > .semi-table-row-cell {
+  color: #f8fafc !important;
+}
+
+html.dark .topup-history-search .semi-input::placeholder,
+html.dark .topup-history-table .semi-table-thead > tr > th,
+html.dark .topup-history-table .semi-table-thead > tr > .semi-table-row-head {
+  color: #98a2b3 !important;
+}
+
+html.dark .topup-history-search .semi-input-wrapper,
+html.dark .topup-history-search.semi-input-wrapper,
+html.dark .topup-history-table {
+  border-color: var(--app-panel-border) !important;
+  background: var(--app-panel-bg-strong) !important;
+  box-shadow: unset !important;
+}
+
+html.dark .topup-history-table .semi-table-thead > tr > th,
+html.dark .topup-history-table .semi-table-thead > tr > .semi-table-row-head {
+  border-bottom-color: rgba(43, 48, 59, 0.95) !important;
+  background: rgba(24, 28, 35, 0.98) !important;
+}
+
+html.dark .topup-history-table .semi-table-tbody > tr > td,
+html.dark .topup-history-table .semi-table-tbody > tr > .semi-table-row-cell {
+  border-bottom-color: rgba(43, 48, 59, 0.95) !important;
+  background: rgba(18, 21, 27, 1) !important;
+}
+
+html.dark .topup-history-table .semi-table-tbody > tr:hover > td,
+html.dark
+  .topup-history-table
+  .semi-table-tbody
+  > tr:hover
+  > .semi-table-row-cell {
+  background: rgba(22, 26, 33, 0.98) !important;
+}
+
+html.dark .topup-history-order-code.semi-typography,
+html.dark .topup-history-amount,
+html.dark .topup-history-time {
+  color: #f8fafc !important;
+}
+
+html.dark .topup-history-status {
+  color: #98a2b3 !important;
+}
+
+html.dark .topup-history-status {
+  border-color: rgba(58, 66, 82, 0.95);
+  background: rgba(24, 28, 35, 0.96);
+}
+
+html.dark .topup-history-status.is-success {
+  border-color: rgba(34, 197, 94, 0.36) !important;
+  background: rgba(20, 83, 45, 0.32) !important;
+  color: #86efac !important;
+}
+
+html.dark .topup-history-status.is-pending {
+  border-color: rgba(234, 179, 8, 0.36) !important;
+  background: rgba(113, 63, 18, 0.34) !important;
+  color: #fde68a !important;
+}
+
+html.dark .topup-history-status.is-failed,
+html.dark .topup-history-status.is-expired {
+  border-color: rgba(239, 68, 68, 0.34) !important;
+  background: rgba(127, 29, 29, 0.34) !important;
+  color: #fca5a5 !important;
+}
+
+html.dark .topup-history-status.is-default {
+  color: #cbd5e1 !important;
+}
+
+html.dark .topup-history-method-chip {
+  border-color: var(--app-pill-border) !important;
+  background: var(--app-pill-bg) !important;
+  color: #d0d5dd !important;
+}
+
+html.dark .topup-history-money.semi-typography {
+  color: #f87171 !important;
+}
+
+html.dark .topup-history-subscription-tag.semi-tag {
+  border-color: var(--app-pill-border) !important;
+  background: var(--app-pill-bg) !important;
+  color: #67e8f9 !important;
+}
+
+html.dark .topup-history-search .semi-input-prefix,
+html.dark .topup-history-search .semi-input-suffix {
+  color: #667085 !important;
+}
+
+@media (max-width: 767px) {
+  .topup-history-modal .semi-modal-header {
+    padding: 18px 18px 10px;
+  }
+
+  .topup-history-modal .semi-modal-body {
+    padding: 0 18px 18px;
+  }
+
+  .topup-history-table .semi-table-thead > tr > th,
+  .topup-history-table .semi-table-thead > tr > .semi-table-row-head,
+  .topup-history-table .semi-table-tbody > tr > td,
+  .topup-history-table .semi-table-tbody > tr > .semi-table-row-cell {
+    padding-left: 12px !important;
+    padding-right: 12px !important;
+  }
+}

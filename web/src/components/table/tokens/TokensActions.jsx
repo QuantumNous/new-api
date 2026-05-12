@@ -18,15 +18,14 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { useState } from 'react';
-import { Button, Space } from '@douyinfe/semi-ui';
+import { Button } from '@douyinfe/semi-ui';
+import { Copy, Trash2 } from 'lucide-react';
 import { showError } from '../../../helpers';
 import CopyTokensModal from './modals/CopyTokensModal';
 import DeleteTokensModal from './modals/DeleteTokensModal';
 
 const TokensActions = ({
   selectedKeys,
-  setEditingToken,
-  setShowEdit,
   batchCopyTokens,
   batchDeleteTokens,
   t,
@@ -61,35 +60,27 @@ const TokensActions = ({
 
   return (
     <>
-      <div className='flex flex-wrap gap-2 w-full md:w-auto order-2 md:order-1'>
-        <Button
-          type='primary'
-          className='flex-1 md:flex-initial'
-          onClick={() => {
-            setEditingToken({
-              id: undefined,
-            });
-            setShowEdit(true);
-          }}
-          size='small'
-        >
-          {t('添加令牌')}
-        </Button>
+      <div className='token-toolbar-actions'>
+        <div className='token-selection-indicator'>
+          {t('已选 {{count}} 个令牌', { count: selectedKeys.length || 0 })}
+        </div>
 
         <Button
           type='tertiary'
-          className='flex-1 md:flex-initial'
+          className='token-toolbar-button'
           onClick={handleCopySelectedTokens}
-          size='small'
+          size='default'
+          icon={<Copy size={15} />}
         >
           {t('复制所选令牌')}
         </Button>
 
         <Button
           type='danger'
-          className='w-full md:w-auto'
+          className='token-toolbar-button token-toolbar-danger'
           onClick={handleDeleteSelectedTokens}
-          size='small'
+          size='default'
+          icon={<Trash2 size={15} />}
         >
           {t('删除所选令牌')}
         </Button>

@@ -18,6 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
+import { Typography } from '@douyinfe/semi-ui';
 import CardPro from '../../common/ui/CardPro';
 import LogsTable from './UsageLogsTable';
 import LogsActions from './UsageLogsActions';
@@ -30,21 +31,35 @@ import { useLogsData } from '../../../hooks/usage-logs/useUsageLogsData';
 import { useIsMobile } from '../../../hooks/common/useIsMobile';
 import { createCardProPagination } from '../../../helpers/utils';
 
+const { Title } = Typography;
+
 const LogsPage = () => {
   const logsData = useLogsData();
   const isMobile = useIsMobile();
 
   return (
-    <>
+    <div className='log-console-shell'>
       {/* Modals */}
       <ColumnSelectorModal {...logsData} />
       <UserInfoModal {...logsData} />
       <ChannelAffinityUsageCacheModal {...logsData} />
       <ParamOverrideModal {...logsData} />
 
+      <div className='log-console-header'>
+        <div className='log-console-copy'>
+          <Title heading={2} className='log-console-title'>
+            {logsData.t('使用日志')}
+          </Title>
+          <p className='log-console-subtitle'>
+            {logsData.t('按时间、模型、令牌与渠道维度查看调用明细和消费情况')}
+          </p>
+        </div>
+      </div>
+
       {/* Main Content */}
       <CardPro
         type='type2'
+        className='log-table-card'
         statsArea={<LogsActions {...logsData} />}
         searchArea={<LogsFilters {...logsData} />}
         paginationArea={createCardProPagination({
@@ -60,7 +75,7 @@ const LogsPage = () => {
       >
         <LogsTable {...logsData} />
       </CardPro>
-    </>
+    </div>
   );
 };
 
