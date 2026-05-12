@@ -119,11 +119,23 @@ func RelayErrorHandler(ctx context.Context, resp *http.Response, showBodyWhenFai
 		}
 		apiErr.ErrorLogSummary = summary
 	}
+	safeBodySnippet := func() (string, bool) {
+		return SafeErrorLogSnippet(string(responseBody), upstreamErrorSummaryMaxRunes)
+	}
 	buildErrWithBody := func(message string) error {
-		if message == "" {
-			return fmt.Errorf("bad response status code %d, body: %s", resp.StatusCode, string(responseBody))
+		snippet, truncated := safeBodySnippet()
+		truncatedSuffix := ""
+		if truncated {
+			truncatedSuffix = " (truncated)"
 		}
-		return fmt.Errorf("bad response status code %d, message: %s, body: %s", resp.StatusCode, message, string(responseBody))
+		if message == "" {
+			return fmt.Errorf("bad response status code %d, body_snippet: %s%s", resp.StatusCode, snippet, truncatedSuffix)
+		}
+		safeMessage, messageTruncated := SafeErrorLogSnippet(message, upstreamErrorSummaryMaxRunes)
+		if messageTruncated {
+			safeMessage += " (truncated)"
+		}
+		return fmt.Errorf("bad response status code %d, message: %s, body_snippet: %s%s", resp.StatusCode, safeMessage, snippet, truncatedSuffix)
 	}
 
 	err = common.Unmarshal(responseBody, &errResponse)
@@ -131,7 +143,8 @@ func RelayErrorHandler(ctx context.Context, resp *http.Response, showBodyWhenFai
 		if showBodyWhenFail {
 			newApiErr.Err = buildErrWithBody("")
 		} else {
-			logger.LogError(ctx, fmt.Sprintf("bad response status code %d, body: %s", resp.StatusCode, string(responseBody)))
+			snippet, truncated := safeBodySnippet()
+			logger.LogError(ctx, fmt.Sprintf("bad response status code %d, parsed=false, body_snippet: %s, truncated=%t", resp.StatusCode, snippet, truncated))
 			newApiErr.Err = fmt.Errorf("bad response status code %d", resp.StatusCode)
 		}
 		attachUpstreamSummary(newApiErr, string(responseBody), false)

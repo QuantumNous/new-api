@@ -14,6 +14,8 @@ import (
 	"github.com/QuantumNous/new-api/model"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
+	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/QuantumNous/new-api/types"
 
 	"github.com/gin-gonic/gin"
@@ -34,7 +36,7 @@ func setupErrorLogInfoTestDB(t *testing.T) {
 	model.DB = db
 	model.LOG_DB = db
 	common.RedisEnabled = false
-	require.NoError(t, db.AutoMigrate(&model.User{}, &model.Log{}))
+	require.NoError(t, db.AutoMigrate(&model.User{}, &model.Log{}, &model.Channel{}))
 
 	t.Cleanup(func() {
 		if sqlDB, err := db.DB(); err == nil {
@@ -121,6 +123,28 @@ func TestBuildErrorLogOtherIncludesDiagnosticFields(t *testing.T) {
 	require.Equal(t, 2, adminInfo["multi_key_index"])
 }
 
+func TestErrorLogContentSafeForAutoDisableReason(t *testing.T) {
+	err := types.NewErrorWithStatusCode(
+		errors.New("upstream failed Authorization: Bearer test-secret-key api_key=raw-api-key sk-test-secret prompt=raw prompt messages=[private message]"),
+		types.ErrorCodeBadResponseStatusCode,
+		http.StatusUnauthorized,
+	)
+
+	require.True(t, serviceShouldDisableChannelForTest(t, err))
+
+	reason := errorLogContent(err)
+	require.Contains(t, reason, "status_code=401")
+	require.Contains(t, reason, "Authorization:***")
+	require.Contains(t, reason, "api_key=***")
+	require.Contains(t, reason, "prompt=[redacted]")
+	require.Contains(t, reason, "messages=[redacted]")
+	require.NotContains(t, reason, "test-secret-key")
+	require.NotContains(t, reason, "raw-api-key")
+	require.NotContains(t, reason, "sk-test-secret")
+	require.NotContains(t, reason, "raw prompt")
+	require.NotContains(t, reason, "private message")
+}
+
 func TestProcessChannelErrorWritesDetailedLogWhenEnabled(t *testing.T) {
 	setupErrorLogInfoTestDB(t)
 	require.NoError(t, model.DB.Create(&model.User{Id: 101, Username: "error_user"}).Error)
@@ -157,6 +181,61 @@ func TestProcessChannelErrorWritesDetailedLogWhenEnabled(t *testing.T) {
 	require.NotContains(t, strings.ToLower(log.Other), "secret-key")
 }
 
+func TestProcessChannelErrorAutoDisableStoresSafeReason(t *testing.T) {
+	setupErrorLogInfoTestDB(t)
+	autoBan := 1
+	require.NoError(t, model.DB.Create(&model.Channel{
+		Id:      303,
+		Name:    "test_channel",
+		Type:    1,
+		Key:     "channel-key",
+		Status:  common.ChannelStatusEnabled,
+		AutoBan: &autoBan,
+	}).Error)
+	require.NoError(t, model.DB.Create(&model.User{Id: 1, Username: "root", Role: common.RoleRootUser}).Error)
+
+	oldEnabled := constant.ErrorLogEnabled
+	oldAutomaticDisable := common.AutomaticDisableChannelEnabled
+	oldRanges := operation_setting.AutomaticDisableStatusCodeRanges
+	constant.ErrorLogEnabled = false
+	common.AutomaticDisableChannelEnabled = true
+	operation_setting.AutomaticDisableStatusCodeRanges = []operation_setting.StatusCodeRange{{Start: http.StatusUnauthorized, End: http.StatusUnauthorized}}
+	t.Cleanup(func() {
+		constant.ErrorLogEnabled = oldEnabled
+		common.AutomaticDisableChannelEnabled = oldAutomaticDisable
+		operation_setting.AutomaticDisableStatusCodeRanges = oldRanges
+	})
+
+	ctx := newErrorLogInfoTestContext()
+	err := types.NewErrorWithStatusCode(
+		errors.New("upstream failed Authorization: Bearer test-secret-key api_key=raw-api-key sk-test-secret prompt=raw prompt messages=[private message]"),
+		types.ErrorCodeBadResponseStatusCode,
+		http.StatusUnauthorized,
+	)
+
+	processChannelError(ctx, nil, *types.NewChannelError(303, 1, "test_channel", false, "channel-key", true), err)
+
+	var channel model.Channel
+	require.Eventually(t, func() bool {
+		if queryErr := model.DB.First(&channel, 303).Error; queryErr != nil {
+			return false
+		}
+		return channel.Status == common.ChannelStatusAutoDisabled
+	}, time.Second, 10*time.Millisecond)
+	info := channel.GetOtherInfo()
+	reason, ok := info["status_reason"].(string)
+	require.True(t, ok)
+	require.Contains(t, reason, "status_code=401")
+	require.Contains(t, reason, "Authorization:***")
+	require.Contains(t, reason, "api_key=***")
+	require.Contains(t, reason, "prompt=[redacted]")
+	require.NotContains(t, reason, "test-secret-key")
+	require.NotContains(t, reason, "raw-api-key")
+	require.NotContains(t, reason, "sk-test-secret")
+	require.NotContains(t, reason, "raw prompt")
+	require.NotContains(t, reason, "private message")
+}
+
 func TestProcessChannelErrorSkipsLogWhenDisabled(t *testing.T) {
 	setupErrorLogInfoTestDB(t)
 	require.NoError(t, model.DB.Create(&model.User{Id: 101, Username: "error_user"}).Error)
@@ -175,4 +254,17 @@ func TestProcessChannelErrorSkipsLogWhenDisabled(t *testing.T) {
 	var count int64
 	require.NoError(t, model.LOG_DB.Model(&model.Log{}).Where("type = ?", model.LogTypeError).Count(&count).Error)
 	require.Equal(t, int64(0), count)
+}
+
+func serviceShouldDisableChannelForTest(t *testing.T, err *types.NewAPIError) bool {
+	t.Helper()
+	oldAutomaticDisable := common.AutomaticDisableChannelEnabled
+	oldRanges := operation_setting.AutomaticDisableStatusCodeRanges
+	common.AutomaticDisableChannelEnabled = true
+	operation_setting.AutomaticDisableStatusCodeRanges = []operation_setting.StatusCodeRange{{Start: http.StatusUnauthorized, End: http.StatusUnauthorized}}
+	t.Cleanup(func() {
+		common.AutomaticDisableChannelEnabled = oldAutomaticDisable
+		operation_setting.AutomaticDisableStatusCodeRanges = oldRanges
+	})
+	return service.ShouldDisableChannel(err)
 }

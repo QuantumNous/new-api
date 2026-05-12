@@ -2285,3 +2285,47 @@ status: completed
 
 - 在本地测试实例中用一个会返回 4xx/5xx 的上游通道人工触发错误，管理员查看旧版日志展开行是否显示模型映射、重试链和上游摘要。
 - 使用普通用户账号访问 `/api/log/self` 或旧版日志页，确认只显示安全字段。
+
+## 错误日志脱敏遗漏修复记录
+
+任务名称：修复错误日志脱敏遗漏
+status: completed
+
+### 修改文件
+
+- `service/error.go`
+- `service/error_log_summary.go`
+- `service/error_log_summary_test.go`
+- `controller/relay.go`
+- `controller/error_log_info_test.go`
+- `model/log.go`
+- `model/log_test.go`
+- `.ai/TASK.md`
+
+### 实现摘要
+
+- `RelayErrorHandler` 非 JSON 上游错误体解析失败时，不再把原始 body 写入运行日志；改为记录 `parsed=false`、脱敏 `body_snippet` 和 `truncated`。
+- `showBodyWhenFail=true` 的错误包装改为使用脱敏后的 body snippet，并对拼入的 message 同样做脱敏截断，避免 channel test 等路径再次暴露原始上游 body。
+- 自动禁用通道时，`DisableChannel` 的 reason 改为使用 `errorLogContent(err)`，保持禁用判断仍由原错误对象负责，但系统日志、管理员通知和 `status_reason` 只接收脱敏摘要。
+- 普通用户日志格式化额外删除 `upstream_model_name` 与 `is_model_mapped`，模型映射详情仅管理员可见。
+- 强化自由文本 payload 字段脱敏：当 `prompt`、`messages`、`image_url`、`file_data` 等字段相邻出现时，逐字段替换为 `[redacted]`，避免一个字段吞掉后续字段导致可读性或脱敏边界不清。
+
+### 验证命令与结果
+
+- `gofmt -w service/error.go service/error_log_summary.go service/error_log_summary_test.go controller/relay.go controller/error_log_info_test.go model/log.go model/log_test.go`：通过。
+- `go test ./controller/...`：通过。
+- `New-Item -ItemType Directory -Force .gotmp | Out-Null; $env:GOTMPDIR=(Resolve-Path .gotmp).Path; go test ./model/...`：通过。
+- `go test ./service/...`：通过。
+- `git diff --check`：通过。
+
+### 自审查结果
+
+- 已确认本轮不改数据库结构、不新增 API、不触碰成功消费日志和计费逻辑。
+- 已确认本轮未修改新版前端 `web/default`，也未修改旧版前端展示代码。
+- 已确认非 JSON 上游 body、错误日志摘要、自动禁用 reason 和普通用户 `/api/log/self` 字段过滤均有测试覆盖。
+- 已确认新增测试使用的是伪造敏感样本，仅用于断言脱敏，不依赖真实 token、key 或外部服务。
+- 已确认未提交 `node_modules`、`dist` 或构建产物。
+
+### 下一步最小任务建议
+
+- 在本地测试实例中人工触发一次 4xx/5xx 上游错误，分别用管理员和普通用户账号检查旧版请求日志展开行，确认管理员可排障、普通用户不暴露上游调试字段。

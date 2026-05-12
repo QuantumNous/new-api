@@ -62,6 +62,8 @@ func formatUserLogs(logs []*Log, startIdx int) {
 			delete(otherMap, "channel_name")
 			delete(otherMap, "channel_type")
 			delete(otherMap, "final_model_name")
+			delete(otherMap, "upstream_model_name")
+			delete(otherMap, "is_model_mapped")
 			delete(otherMap, "request_conversion")
 			delete(otherMap, "final_relay_format")
 			delete(otherMap, "retry_count")

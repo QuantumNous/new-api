@@ -23,6 +23,8 @@ func TestFormatUserLogsRemovesErrorDebugFields(t *testing.T) {
 				"channel_name":         "secret-channel",
 				"channel_type":         1,
 				"final_model_name":     "upstream-model",
+				"upstream_model_name":  "provider-model",
+				"is_model_mapped":      true,
 				"request_conversion":   []string{"openai", "claude"},
 				"final_relay_format":   "claude",
 				"retry_count":          1,
@@ -50,6 +52,8 @@ func TestFormatUserLogsRemovesErrorDebugFields(t *testing.T) {
 	require.NotContains(t, other, "channel_name")
 	require.NotContains(t, other, "channel_type")
 	require.NotContains(t, other, "final_model_name")
+	require.NotContains(t, other, "upstream_model_name")
+	require.NotContains(t, other, "is_model_mapped")
 	require.NotContains(t, other, "request_conversion")
 	require.NotContains(t, other, "final_relay_format")
 	require.NotContains(t, other, "retry_count")

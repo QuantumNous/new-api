@@ -1,7 +1,11 @@
 package service
 
 import (
+	"bytes"
+	"context"
 	"errors"
+	"io"
+	"net/http"
 	"strings"
 	"testing"
 
@@ -99,4 +103,54 @@ func TestBuildErrorLogSummaryUsesMaskedFallback(t *testing.T) {
 	require.NotContains(t, summary["message"], "api.example.com")
 	require.NotContains(t, summary["message"], "secret")
 	require.Contains(t, summary["message"], "https://***.com/***")
+}
+
+func TestRelayErrorHandlerNonJSONBodyUsesSafeSummary(t *testing.T) {
+	body := "upstream failed Authorization: Bearer test-secret-key api_key=raw-api-key sk-test-secret prompt=raw prompt messages=[private message] image_url=https://example.com/private.png file_data=base64-file"
+	resp := &http.Response{
+		StatusCode: http.StatusBadGateway,
+		Body:       io.NopCloser(bytes.NewBufferString(body)),
+	}
+
+	err := RelayErrorHandler(context.Background(), resp, false)
+
+	require.Equal(t, "bad response status code 502", err.Error())
+	message, ok := err.ErrorLogSummary["message"].(string)
+	require.True(t, ok)
+	require.Contains(t, message, "Authorization:***")
+	require.Contains(t, message, "api_key=***")
+	require.Contains(t, message, "prompt=[redacted]")
+	require.Contains(t, message, "messages=[redacted]")
+	require.Contains(t, message, "image_url=[redacted]")
+	require.Contains(t, message, "file_data=[redacted]")
+	require.NotContains(t, message, "test-secret-key")
+	require.NotContains(t, message, "raw-api-key")
+	require.NotContains(t, message, "sk-test-secret")
+	require.NotContains(t, message, "raw prompt")
+	require.NotContains(t, message, "private message")
+	require.NotContains(t, message, "private.png")
+	require.NotContains(t, message, "base64-file")
+}
+
+func TestRelayErrorHandlerShowBodyWhenFailUsesSafeSnippet(t *testing.T) {
+	body := "upstream failed Authorization: Bearer test-secret-key api_key=raw-api-key sk-test-secret prompt=raw prompt messages=[private message] image_url=https://example.com/private.png file_data=base64-file"
+	resp := &http.Response{
+		StatusCode: http.StatusBadGateway,
+		Body:       io.NopCloser(bytes.NewBufferString(body)),
+	}
+
+	err := RelayErrorHandler(context.Background(), resp, true)
+
+	errText := err.Error()
+	require.Contains(t, errText, "body_snippet:")
+	require.Contains(t, errText, "Authorization:***")
+	require.Contains(t, errText, "api_key=***")
+	require.Contains(t, errText, "prompt=[redacted]")
+	require.NotContains(t, errText, "test-secret-key")
+	require.NotContains(t, errText, "raw-api-key")
+	require.NotContains(t, errText, "sk-test-secret")
+	require.NotContains(t, errText, "raw prompt")
+	require.NotContains(t, errText, "private message")
+	require.NotContains(t, errText, "private.png")
+	require.NotContains(t, errText, "base64-file")
 }

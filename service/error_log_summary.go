@@ -13,10 +13,10 @@ import (
 const upstreamErrorSummaryMaxRunes = 800
 
 var (
-	secretAssignmentPattern = regexp.MustCompile(`(?i)(["']?\b(?:authorization|api[-_ ]?key|x-api-key|access[-_ ]?token|refresh[-_ ]?token|bearer[-_ ]?token|secret|token)\b["']?\s*[:=]\s*)("[^"]*"|'[^']*'|[^\s,;}\]]+)`)
-	bearerTokenPattern      = regexp.MustCompile(`(?i)\bbearer\s+([a-z0-9._~+/=-]{8,})`)
-	skTokenPattern          = regexp.MustCompile(`(?i)\bsk-[a-z0-9_-]{6,}`)
-	payloadFieldPattern     = regexp.MustCompile(`(?i)(["']?\b(?:prompt|messages|input|content|image[-_ ]?url|image|images|file[-_ ]?data|file|files|audio)\b["']?\s*[:=]\s*)(\[[\s\S]*?\]|\{[\s\S]*?\}|"[^"]*"|'[^']*'|[^\r\n,;}\]]+)`)
+	secretAssignmentPattern   = regexp.MustCompile(`(?i)(["']?\b(?:authorization|api[-_ ]?key|x-api-key|access[-_ ]?token|refresh[-_ ]?token|bearer[-_ ]?token|secret|token)\b["']?\s*[:=]\s*)("[^"]*"|'[^']*'|[^\s,;}\]]+)`)
+	bearerTokenPattern        = regexp.MustCompile(`(?i)\bbearer\s+([a-z0-9._~+/=-]{8,})`)
+	skTokenPattern            = regexp.MustCompile(`(?i)\bsk-[a-z0-9_-]{6,}`)
+	payloadFieldPrefixPattern = regexp.MustCompile(`(?i)(["']?\b(?:prompt|messages|input|content|image[-_ ]?url|image|images|file[-_ ]?data|file|files|audio)\b["']?\s*[:=]\s*)`)
 )
 
 type UpstreamErrorLogSummary struct {
@@ -223,15 +223,98 @@ func maskErrorLogPayloadFields(text string) string {
 	if text == "" {
 		return ""
 	}
-	text = payloadFieldPattern.ReplaceAllStringFunc(text, func(match string) string {
-		idx := strings.IndexAny(match, ":=")
-		if idx < 0 {
-			return "[redacted]"
+	var builder strings.Builder
+	cursor := 0
+	for cursor < len(text) {
+		loc := payloadFieldPrefixPattern.FindStringIndex(text[cursor:])
+		if loc == nil {
+			builder.WriteString(text[cursor:])
+			break
 		}
-		key := strings.TrimSpace(match[:idx])
-		return key + match[idx:idx+1] + "[redacted]"
-	})
-	return text
+		prefixStart := cursor + loc[0]
+		prefixEnd := cursor + loc[1]
+		builder.WriteString(text[cursor:prefixStart])
+		builder.WriteString(formatRedactedErrorLogField(text[prefixStart:prefixEnd], "[redacted]"))
+		cursor = findErrorLogFieldValueEnd(text, prefixEnd)
+	}
+	return builder.String()
+}
+
+func formatRedactedErrorLogField(prefix string, replacement string) string {
+	idx := strings.IndexAny(prefix, ":=")
+	if idx < 0 {
+		return replacement
+	}
+	key := strings.TrimSpace(prefix[:idx])
+	return key + prefix[idx:idx+1] + replacement
+}
+
+func findErrorLogFieldValueEnd(text string, start int) int {
+	if start >= len(text) {
+		return start
+	}
+	switch text[start] {
+	case '"', '\'':
+		return findQuotedErrorLogFieldValueEnd(text, start)
+	case '[', '{':
+		return findBracketedErrorLogFieldValueEnd(text, start)
+	}
+	end := len(text)
+	if loc := payloadFieldPrefixPattern.FindStringIndex(text[start:]); loc != nil && loc[0] > 0 {
+		end = start + loc[0]
+		for end > start && (text[end-1] == ' ' || text[end-1] == '\t') {
+			end--
+		}
+	}
+	for i := start; i < end; i++ {
+		switch text[i] {
+		case '\r', '\n', ',', ';', '}', ']':
+			return i
+		}
+	}
+	return end
+}
+
+func findQuotedErrorLogFieldValueEnd(text string, start int) int {
+	quote := text[start]
+	escaped := false
+	for i := start + 1; i < len(text); i++ {
+		if escaped {
+			escaped = false
+			continue
+		}
+		if text[i] == '\\' {
+			escaped = true
+			continue
+		}
+		if text[i] == quote {
+			return i + 1
+		}
+	}
+	return len(text)
+}
+
+func findBracketedErrorLogFieldValueEnd(text string, start int) int {
+	open := text[start]
+	close := byte(']')
+	if open == '{' {
+		close = '}'
+	}
+	depth := 0
+	for i := start; i < len(text); i++ {
+		switch text[i] {
+		case open:
+			depth++
+		case close:
+			depth--
+			if depth == 0 {
+				return i + 1
+			}
+		case '\r', '\n':
+			return i
+		}
+	}
+	return len(text)
 }
 
 func truncateRunes(text string, maxRunes int) (string, bool) {

@@ -358,7 +358,7 @@ func processChannelError(c *gin.Context, relayInfo *relaycommon.RelayInfo, chann
 	// do not use context to get channel info, there may be inconsistent channel info when processing asynchronously
 	if service.ShouldDisableChannel(err) && channelError.AutoBan {
 		gopool.Go(func() {
-			service.DisableChannel(channelError, err.ErrorWithStatusCode())
+			service.DisableChannel(channelError, errorLogContent(err))
 		})
 	}
 
