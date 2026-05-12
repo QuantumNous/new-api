@@ -131,30 +131,34 @@ const PlaygroundComposer = ({
               disabled={customRequestMode}
               onChange={(value) =>
                 onInputChange(
-                  isVideoMode ? 'videoModel' : isImageMode ? 'imageModel' : 'model',
+                  isVideoMode
+                    ? 'videoModel'
+                    : isImageMode
+                      ? 'imageModel'
+                      : 'model',
                   value,
                 )
               }
-              prefix={<Bot size={16} />}
+              prefix={<Bot size={16} className='mx-2' />}
               className='composer-model-select'
               dropdownStyle={{ maxWidth: 420 }}
             />
             {!isImageMode && (
               <div className='reference-images'>
-              <Typography.Text className='reference-label'>
-                {t('参考图片')}
-              </Typography.Text>
-              <button
-                className={`reference-upload ${inputs.imageEnabled ? 'is-active' : ''}`}
-                onClick={(event) => {
-                  event.stopPropagation();
-                  onInputChange('imageEnabled', !inputs.imageEnabled);
-                }}
-                type='button'
-              >
-                <ImageIcon size={20} />
-              </button>
-              <span>{t('支持 JPEG、PNG、Webp')}</span>
+                <Typography.Text className='reference-label'>
+                  {t('参考图片')}
+                </Typography.Text>
+                <button
+                  className={`reference-upload ${inputs.imageEnabled ? 'is-active' : ''}`}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    onInputChange('imageEnabled', !inputs.imageEnabled);
+                  }}
+                  type='button'
+                >
+                  <ImageIcon size={20} />
+                </button>
+                <span>{t('支持 JPEG、PNG、Webp')}</span>
               </div>
             )}
             {isImageMode && (
@@ -203,6 +207,7 @@ const PlaygroundComposer = ({
                   ]}
                   onChange={(value) => onInputChange('videoRatio', value)}
                   className='video-option-control'
+                  position='top'
                 />
                 <InputNumber
                   min={1}

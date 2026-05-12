@@ -1,22 +1,3 @@
-/*
-Copyright (C) 2025 QuantumNous
-
-This program is free software: you can redistribute it and/or modify
-it under the terms of the GNU Affero General Public License as
-published by the Free Software Foundation, either version 3 of the
-License, or (at your option) any later version.
-
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-GNU Affero General Public License for more details.
-
-You should have received a copy of the GNU Affero General Public License
-along with this program. If not, see <https://www.gnu.org/licenses/>.
-
-For commercial licensing, please contact support@quantumnous.com
-*/
-
 import React, {
   useContext,
   useEffect,
@@ -26,7 +7,8 @@ import React, {
 } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { Modal, Toast } from '@douyinfe/semi-ui';
+import { Toast } from '@douyinfe/semi-ui';
+import './index.css';
 
 // Context
 import { UserContext } from '../../context/User';
@@ -62,14 +44,11 @@ import {
 
 // Components
 import {
-  OptimizedSettingsPanel,
-  OptimizedDebugPanel,
   OptimizedMessageContent,
   OptimizedMessageActions,
 } from '../../components/playground/OptimizedComponents';
 import ChatArea from '../../components/playground/ChatArea';
 import PlaygroundSidebar from '../../components/playground/PlaygroundSidebar';
-import PlaygroundTopBar from '../../components/playground/PlaygroundTopBar';
 import { PlaygroundProvider } from '../../contexts/PlaygroundContext';
 
 // 生成头像
@@ -105,41 +84,29 @@ const Playground = () => {
     customRequestMode,
     customRequestBody,
     playgroundMode,
-    showSettings,
     models,
     imageModels,
     videoModels,
-    groups,
-    status,
     conversations,
     activeConversationId,
     message,
-    debugData,
-    activeDebugTab,
-    previewPayload,
     sseSourceRef,
     chatRef,
     handleInputChange,
-    handleParameterToggle,
     debouncedSaveConfig,
     saveMessagesImmediately,
     startNewConversation,
     switchConversation,
     deleteConversation,
-    handleConfigImport,
-    handleConfigReset,
     setShowSettings,
     setModels,
     setImageModels,
     setVideoModels,
     setGroups,
-    setStatus,
     setMessage,
     setDebugData,
     setActiveDebugTab,
     setPreviewPayload,
-    setShowDebugPanel,
-    setCustomRequestMode,
     setCustomRequestBody,
     setPlaygroundMode,
   } = state;
@@ -583,51 +550,57 @@ const Playground = () => {
     [parseJsonLikeValue],
   );
 
-  const extractVideoUrl = useCallback((data, taskId) => {
-    const taskPayload =
-      parseJsonLikeValue(data?.data?.data) ||
-      parseJsonLikeValue(data?.data?.Data) ||
-      parseJsonLikeValue(data?.data);
+  const extractVideoUrl = useCallback(
+    (data, taskId) => {
+      const taskPayload =
+        parseJsonLikeValue(data?.data?.data) ||
+        parseJsonLikeValue(data?.data?.Data) ||
+        parseJsonLikeValue(data?.data);
 
-    const directCandidates = [
-      taskPayload?.content?.video_url,
-      taskPayload?.content?.videoUrl,
-      taskPayload?.video_url,
-      taskPayload?.videoUrl,
-      taskPayload?.result_url,
-      taskPayload?.data?.content?.video_url,
-      taskPayload?.data?.content?.videoUrl,
-      taskPayload?.data?.result_url,
-      data?.data?.content?.video_url,
-      data?.data?.content?.videoUrl,
-      data?.data?.result_url,
-      data?.data?.metadata?.url,
-      data?.data?.PrivateData?.result_url,
-      data?.metadata?.url,
-      data?.url,
-      data?.result_url,
-      data?.data?.url,
-    ];
+      const directCandidates = [
+        taskPayload?.content?.video_url,
+        taskPayload?.content?.videoUrl,
+        taskPayload?.video_url,
+        taskPayload?.videoUrl,
+        taskPayload?.result_url,
+        taskPayload?.data?.content?.video_url,
+        taskPayload?.data?.content?.videoUrl,
+        taskPayload?.data?.result_url,
+        data?.data?.content?.video_url,
+        data?.data?.content?.videoUrl,
+        data?.data?.result_url,
+        data?.data?.metadata?.url,
+        data?.data?.PrivateData?.result_url,
+        data?.metadata?.url,
+        data?.url,
+        data?.result_url,
+        data?.data?.url,
+      ];
 
-    const recursiveCandidates = collectVideoUrls(data, []);
-    const candidateUrls = [...directCandidates, ...recursiveCandidates].filter(
-      (url, index, array) =>
-        typeof url === 'string' &&
-        url.trim() !== '' &&
-        array.indexOf(url) === index,
-    );
+      const recursiveCandidates = collectVideoUrls(data, []);
+      const candidateUrls = [
+        ...directCandidates,
+        ...recursiveCandidates,
+      ].filter(
+        (url, index, array) =>
+          typeof url === 'string' &&
+          url.trim() !== '' &&
+          array.indexOf(url) === index,
+      );
 
-    const upstreamUrl = candidateUrls.find((url) => !isProxyVideoUrl(url));
-    if (upstreamUrl) {
-      return upstreamUrl;
-    }
+      const upstreamUrl = candidateUrls.find((url) => !isProxyVideoUrl(url));
+      if (upstreamUrl) {
+        return upstreamUrl;
+      }
 
-    if (candidateUrls.length > 0) {
-      return candidateUrls[0];
-    }
+      if (candidateUrls.length > 0) {
+        return candidateUrls[0];
+      }
 
-    return taskId ? `${API_ENDPOINTS.VIDEO_CONTENT}/${taskId}/content` : '';
-  }, [collectVideoUrls, isProxyVideoUrl, parseJsonLikeValue]);
+      return taskId ? `${API_ENDPOINTS.VIDEO_CONTENT}/${taskId}/content` : '';
+    },
+    [collectVideoUrls, isProxyVideoUrl, parseJsonLikeValue],
+  );
 
   const normalizeTaskStatus = useCallback((data) => {
     return (
@@ -641,7 +614,9 @@ const Playground = () => {
   const buildVideoPayload = useCallback(
     (prompt) => {
       const duration = Number(inputs.videoDuration) || 5;
-      const images = (inputs.imageUrls || []).filter((url) => url.trim() !== '');
+      const images = (inputs.imageUrls || []).filter(
+        (url) => url.trim() !== '',
+      );
       const payload = {
         model: inputs.videoModel,
         prompt,
@@ -1213,8 +1188,7 @@ const Playground = () => {
         !msg?.videoUrl ||
         isProxyVideoUrl(msg.videoUrl) ||
         hasRecoverableVideoError ||
-        (typeof msg?.content === 'string' &&
-          isProxyVideoUrl(msg.content));
+        (typeof msg?.content === 'string' && isProxyVideoUrl(msg.content));
 
       if (!needsRefresh) {
         return;
@@ -1317,15 +1291,6 @@ const Playground = () => {
         />
 
         <main className='new-playground-main'>
-          <PlaygroundTopBar
-            username={userState?.user?.username}
-            showDebugPanel={showDebugPanel}
-            sidebarCollapsed={sidebarCollapsed && !isMobile}
-            onOpenSettings={() => setShowSettings(true)}
-            onToggleDebugPanel={() => setShowDebugPanel(!showDebugPanel)}
-            onToggleSidebar={() => setSidebarCollapsed(false)}
-          />
-
           <ChatArea
             chatRef={chatRef}
             message={message}
@@ -1348,51 +1313,6 @@ const Playground = () => {
             renderChatBoxAction={renderChatBoxAction}
           />
         </main>
-
-        {showDebugPanel && (
-          <aside className='new-playground-debug-panel'>
-            <OptimizedDebugPanel
-              debugData={debugData}
-              activeDebugTab={activeDebugTab}
-              onActiveDebugTabChange={setActiveDebugTab}
-              styleState={styleState}
-              showDebugPanel={showDebugPanel}
-              onCloseDebugPanel={() => setShowDebugPanel(false)}
-              customRequestMode={customRequestMode}
-            />
-          </aside>
-        )}
-
-        <Modal
-          title={t('模型配置')}
-          visible={showSettings}
-          onCancel={() => setShowSettings(false)}
-          footer={null}
-          width={isMobile ? '100%' : 520}
-          className='new-playground-settings-modal'
-        >
-          <OptimizedSettingsPanel
-            inputs={inputs}
-            parameterEnabled={parameterEnabled}
-            models={models}
-            videoModels={videoModels}
-            groups={groups}
-            styleState={{ ...styleState, isMobile: false }}
-            showSettings={showSettings}
-            showDebugPanel={showDebugPanel}
-            customRequestMode={customRequestMode}
-            customRequestBody={customRequestBody}
-            onInputChange={handleInputChange}
-            onParameterToggle={handleParameterToggle}
-            onCloseSettings={() => setShowSettings(false)}
-            onConfigImport={handleConfigImport}
-            onConfigReset={handleConfigReset}
-            onCustomRequestModeChange={setCustomRequestMode}
-            onCustomRequestBodyChange={setCustomRequestBody}
-            previewPayload={previewPayload}
-            messages={message}
-          />
-        </Modal>
       </div>
     </PlaygroundProvider>
   );

@@ -91,15 +91,15 @@ export default defineConfig({
     host: '0.0.0.0',
     proxy: {
       '/api': {
-        target: 'https://api.z-up.app',
+        target: 'http://localhost:3000',
         changeOrigin: true,
       },
       '/mj': {
-        target: 'https://api.z-up.app',
+        target: 'http://localhost:3000',
         changeOrigin: true,
       },
       '/pg': {
-        target: 'https://api.z-up.app',
+        target: 'http://localhost:3000',
         changeOrigin: true,
       },
     },
