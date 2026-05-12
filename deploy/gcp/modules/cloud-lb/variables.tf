@@ -23,3 +23,9 @@ variable "domains" {
   type        = list(string)
   description = "FQDNs covered by the Google-managed cert. DNS must point to the LB IP before the cert can provision."
 }
+
+variable "cert_rotation" {
+  type        = number
+  description = "Increment to force the managed SSL cert to be recreated (e.g., after a FAILED_NOT_VISIBLE stuck state)."
+  default     = 1
+}

@@ -42,15 +42,28 @@ resource "google_compute_backend_service" "main" {
   enable_cdn = false
 }
 
+// Random suffix tied to domain list + a manual rotation counter.
+// Bumping `cert_rotation` (a variable, default 1) forces a fresh provisioning
+// attempt — useful when Google probed before DNS was in place and got stuck on
+// FAILED_NOT_VISIBLE. With create_before_destroy, the new cert is attached
+// before the old one is removed, so there is no HTTPS downtime.
+resource "random_id" "cert_suffix" {
+  byte_length = 3
+
+  keepers = {
+    domains  = join(",", var.domains)
+    rotation = tostring(var.cert_rotation)
+  }
+}
+
 resource "google_compute_managed_ssl_certificate" "main" {
   project = var.project_id
-  name    = "${var.name_prefix}-cert"
+  name    = "${var.name_prefix}-cert-${random_id.cert_suffix.hex}"
 
   managed {
     domains = var.domains
   }
 
-  // Cert is recreated if domains change; rotating is destructive so use lifecycle to be explicit.
   lifecycle {
     create_before_destroy = true
   }
