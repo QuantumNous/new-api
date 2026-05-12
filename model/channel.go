@@ -54,6 +54,10 @@ type Channel struct {
 
 	OtherSettings string `json:"settings" gorm:"column:settings"` // 其他设置，存储azure版本等不需要检索的信息，详见dto.ChannelOtherSettings
 
+	// detection fields (populated by apimaster detection sync)
+	LastDetectedAt   *int64 `json:"last_detected_at" gorm:"bigint"`
+	LastDetectResult string `json:"last_detect_result" gorm:"type:varchar(32)"`
+
 	// cache info
 	Keys []string `json:"-" gorm:"-"`
 }

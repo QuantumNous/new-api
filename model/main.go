@@ -65,6 +65,36 @@ var DB *gorm.DB
 
 var LOG_DB *gorm.DB
 
+// APIMASTER_PG_DB is a read-only connection to apimaster's PostgreSQL.
+// Set via APIMASTER_PG_DSN env var. Nil if not configured.
+var APIMASTER_PG_DB *gorm.DB
+
+// InitApimasterPGDB opens a read-only connection to apimaster's PostgreSQL.
+// It is a no-op (returns nil) if APIMASTER_PG_DSN is not set.
+func InitApimasterPGDB() error {
+	dsn := os.Getenv("APIMASTER_PG_DSN")
+	if dsn == "" {
+		return nil
+	}
+	db, err := gorm.Open(postgres.New(postgres.Config{
+		DSN:                  dsn,
+		PreferSimpleProtocol: true,
+	}), &gorm.Config{})
+	if err != nil {
+		return fmt.Errorf("apimaster PG connect failed: %w", err)
+	}
+	sqlDB, err := db.DB()
+	if err != nil {
+		return err
+	}
+	sqlDB.SetMaxIdleConns(2)
+	sqlDB.SetMaxOpenConns(5)
+	sqlDB.SetConnMaxLifetime(60 * time.Second)
+	APIMASTER_PG_DB = db
+	common.SysLog("connected to apimaster PG (detection sync enabled)")
+	return nil
+}
+
 func createRootAccountIfNeed() error {
 	var user User
 	//if user.Status != common.UserStatusEnabled {
@@ -257,6 +287,7 @@ func migrateDB() error {
 
 	err := DB.AutoMigrate(
 		&Channel{},
+		&ChannelDetectLog{},
 		&Token{},
 		&User{},
 		&PasskeyCredential{},
@@ -306,6 +337,7 @@ func migrateDBFast() error {
 		name  string
 	}{
 		{&Channel{}, "Channel"},
+		{&ChannelDetectLog{}, "ChannelDetectLog"},
 		{&Token{}, "Token"},
 		{&User{}, "User"},
 		{&PasskeyCredential{}, "PasskeyCredential"},

@@ -119,6 +119,10 @@ func main() {
 	// Subscription quota reset task (daily/weekly/monthly/custom)
 	service.StartSubscriptionQuotaResetTask()
 
+	// Apimaster detection integration tasks
+	service.StartDetectionSyncTask()
+	service.StartAutoDetectTask()
+
 	// Wire task polling adaptor factory (breaks service -> relay import cycle)
 	service.GetTaskAdaptorFunc = func(platform constant.TaskPlatform) service.TaskPollingAdaptor {
 		a := relay.GetTaskAdaptor(platform)
@@ -299,6 +303,11 @@ func InitResources() error {
 	err = model.InitLogDB()
 	if err != nil {
 		return err
+	}
+
+	// Initialize apimaster PG (optional, for detection sync)
+	if err := model.InitApimasterPGDB(); err != nil {
+		common.SysLog("warning: apimaster PG init failed: " + err.Error())
 	}
 
 	// Initialize Redis
