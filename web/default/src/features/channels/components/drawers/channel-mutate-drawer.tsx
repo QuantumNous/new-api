@@ -316,6 +316,8 @@ export function ChannelMutateDrawer({
     queryKey: channelsQueryKeys.detail(currentRow?.id || 0),
     queryFn: () => getChannel(currentRow!.id),
     enabled: isEditing && Boolean(currentRow?.id),
+    staleTime: Infinity,       // 编辑期间不重新拉取，避免 form.reset() 打断输入
+    refetchOnWindowFocus: false,
   })
 
   // Fetch available groups

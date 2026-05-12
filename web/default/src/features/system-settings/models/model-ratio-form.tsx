@@ -1,6 +1,6 @@
-import { memo, useCallback, useState } from 'react'
+import { memo, useCallback, useState, useRef } from 'react'
 import { type UseFormReturn } from 'react-hook-form'
-import { Code2, Eye, Layers } from 'lucide-react'
+import { Code2, Eye, Layers, Trash2, CheckCircle2, PlusCircle } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
@@ -156,14 +156,20 @@ export const ModelRatioForm = memo(function ModelRatioForm({
 }: ModelRatioFormProps) {
   const { t } = useTranslation()
   const [editMode, setEditMode] = useState<'visual' | 'json' | 'merged'>('visual')
-  const [mergedJson, setMergedJson] = useState('')
+  // textarea 暂存区，不直接绑定表单
+  const [mergedDraft, setMergedDraft] = useState('')
+  const [mergedError, setMergedError] = useState<string | null>(null)
+  // 记录上次成功应用的内容，用于显示"已应用"状态
+  const lastApplied = useRef<string | null>(null)
+
+  const MODEL_FIELD_KEYS = [
+    'ModelPrice', 'ModelRatio', 'CacheRatio', 'CreateCacheRatio',
+    'CompletionRatio', 'ImageRatio', 'AudioRatio', 'AudioCompletionRatio',
+  ] as const
 
   const handleFieldChange = useCallback(
     (field: keyof ModelFormValues, value: string) => {
-      form.setValue(field, value, {
-        shouldValidate: true,
-        shouldDirty: true,
-      })
+      form.setValue(field, value, { shouldValidate: true, shouldDirty: true })
     },
     [form]
   )
@@ -171,36 +177,69 @@ export const ModelRatioForm = memo(function ModelRatioForm({
   const switchMode = useCallback(
     (next: 'visual' | 'json' | 'merged') => {
       if (next === 'merged') {
-        setMergedJson(fieldsToMerged(form.getValues()))
-      }
-      if (editMode === 'merged') {
-        // flush merged → fields before leaving
-        const patches = mergedToFields(mergedJson, form.getValues())
-        for (const [k, v] of Object.entries(patches)) {
-          form.setValue(k as keyof ModelFormValues, v as string, {
-            shouldValidate: true,
-            shouldDirty: true,
-          })
-        }
+        // 进入 Merged JSON 时，从表单字段生成预览
+        setMergedDraft(fieldsToMerged(form.getValues()))
+        setMergedError(null)
+        lastApplied.current = null
       }
       setEditMode(next)
     },
-    [editMode, form, mergedJson]
-  )
-
-  const handleMergedChange = useCallback(
-    (value: string) => {
-      setMergedJson(value)
-      // live-sync into form fields so save works at any time
-      const patches = mergedToFields(value, form.getValues())
-      for (const [k, v] of Object.entries(patches)) {
-        form.setValue(k as keyof ModelFormValues, v as string, {
-          shouldDirty: true,
-        })
-      }
-    },
     [form]
   )
+
+  /** 验证草稿 JSON，返回解析结果或 null（并设置错误信息） */
+  const parseDraft = useCallback((): Record<string, MergedModelEntry> | null => {
+    const trimmed = mergedDraft.trim()
+    if (!trimmed) {
+      setMergedError('请输入 JSON 内容')
+      return null
+    }
+    try {
+      const parsed = JSON.parse(trimmed)
+      if (typeof parsed !== 'object' || Array.isArray(parsed) || parsed === null) {
+        setMergedError('顶层必须是对象 { "模型名": { ... } }')
+        return null
+      }
+      setMergedError(null)
+      return parsed as Record<string, MergedModelEntry>
+    } catch (e) {
+      setMergedError('JSON 格式错误：' + (e instanceof Error ? e.message : String(e)))
+      return null
+    }
+  }, [mergedDraft])
+
+  /** 追加应用：新模型加入，已有模型保留 */
+  const handleApplyMerge = useCallback(() => {
+    if (!parseDraft()) return
+    const patches = mergedToFields(mergedDraft, form.getValues())
+    for (const [k, v] of Object.entries(patches)) {
+      form.setValue(k as keyof ModelFormValues, v as string, { shouldDirty: true })
+    }
+    lastApplied.current = mergedDraft
+    setMergedError(null)
+  }, [mergedDraft, form, parseDraft])
+
+  /** 覆盖应用：清空已有数据，仅保留本次 JSON 的模型 */
+  const handleApplyReplace = useCallback(() => {
+    if (!parseDraft()) return
+    // 先把所有字段清为空对象，再 merge
+    const emptyBase = Object.fromEntries(
+      MODEL_FIELD_KEYS.map((k) => [k, '{}'])
+    ) as unknown as ModelFormValues
+    const patches = mergedToFields(mergedDraft, { ...form.getValues(), ...emptyBase })
+    for (const [k, v] of Object.entries(patches)) {
+      form.setValue(k as keyof ModelFormValues, v as string, { shouldDirty: true })
+    }
+    lastApplied.current = mergedDraft
+    setMergedError(null)
+  }, [mergedDraft, form, parseDraft])
+
+  /** 清空暂存区（不动表单数据） */
+  const handleClearDraft = useCallback(() => {
+    setMergedDraft('')
+    setMergedError(null)
+    lastApplied.current = null
+  }, [])
 
   return (
     <div className='space-y-6'>
@@ -234,6 +273,7 @@ export const ModelRatioForm = memo(function ModelRatioForm({
       <Form {...form}>
         {editMode === 'merged' ? (
           <div className='space-y-4'>
+            {/* 字段说明表 */}
             <div className='rounded-md border text-sm'>
               <table className='w-full text-left'>
                 <thead>
@@ -244,63 +284,102 @@ export const ModelRatioForm = memo(function ModelRatioForm({
                   </tr>
                 </thead>
                 <tbody className='text-muted-foreground divide-y'>
-                  <tr>
-                    <td className='px-3 py-2 font-mono'>ratio</td>
-                    <td className='px-3 py-2'>number</td>
-                    <td className='px-3 py-2'>输入 token 计费比率。1 = ¥0.002/1K tokens = ¥2/1M tokens</td>
-                  </tr>
-                  <tr>
-                    <td className='px-3 py-2 font-mono'>price</td>
-                    <td className='px-3 py-2'>number</td>
-                    <td className='px-3 py-2'>每次请求固定价格（¥/次），优先于 ratio。适用于图像生成等按次计费的模型</td>
-                  </tr>
-                  <tr>
-                    <td className='px-3 py-2 font-mono'>completion_ratio</td>
-                    <td className='px-3 py-2'>number</td>
-                    <td className='px-3 py-2'>输出 token 相对输入的价格倍数。例如填 3.0，表示输出价格 = 输入价格 × 3</td>
-                  </tr>
-                  <tr>
-                    <td className='px-3 py-2 font-mono'>cache_ratio</td>
-                    <td className='px-3 py-2'>number</td>
-                    <td className='px-3 py-2'>缓存读取折扣倍数，上游命中缓存时使用。通常为 0.1～0.5</td>
-                  </tr>
-                  <tr>
-                    <td className='px-3 py-2 font-mono'>create_cache_ratio</td>
-                    <td className='px-3 py-2'>number</td>
-                    <td className='px-3 py-2'>写入 Prompt Cache 时的额外费用倍数。通常为 1.25（如 Claude 系列）</td>
-                  </tr>
-                  <tr>
-                    <td className='px-3 py-2 font-mono'>image_ratio</td>
-                    <td className='px-3 py-2'>number</td>
-                    <td className='px-3 py-2'>图像输入相对于 ratio 的倍数，适用于视觉多模态模型</td>
-                  </tr>
-                  <tr>
-                    <td className='px-3 py-2 font-mono'>audio_ratio</td>
-                    <td className='px-3 py-2'>number</td>
-                    <td className='px-3 py-2'>音频输入相对于 ratio 的倍数，适用于语音识别/音频理解模型</td>
-                  </tr>
-                  <tr>
-                    <td className='px-3 py-2 font-mono'>audio_completion_ratio</td>
-                    <td className='px-3 py-2'>number</td>
-                    <td className='px-3 py-2'>音频输出相对于 audio_ratio 的倍数，适用于语音合成/音频回复模型</td>
-                  </tr>
+                  <tr><td className='px-3 py-2 font-mono'>ratio</td><td className='px-3 py-2'>number</td><td className='px-3 py-2'>输入 token 计费比率。1 = ¥0.002/1K tokens = ¥2/1M tokens</td></tr>
+                  <tr><td className='px-3 py-2 font-mono'>price</td><td className='px-3 py-2'>number</td><td className='px-3 py-2'>每次请求固定价格（¥/次），优先于 ratio。适用于图像生成等按次计费的模型</td></tr>
+                  <tr><td className='px-3 py-2 font-mono'>completion_ratio</td><td className='px-3 py-2'>number</td><td className='px-3 py-2'>输出 token 相对输入的价格倍数。例如填 3.0，表示输出价格 = 输入价格 × 3</td></tr>
+                  <tr><td className='px-3 py-2 font-mono'>cache_ratio</td><td className='px-3 py-2'>number</td><td className='px-3 py-2'>缓存读取折扣倍数，上游命中缓存时使用。通常为 0.1～0.5</td></tr>
+                  <tr><td className='px-3 py-2 font-mono'>create_cache_ratio</td><td className='px-3 py-2'>number</td><td className='px-3 py-2'>写入 Prompt Cache 时的额外费用倍数。通常为 1.25（如 Claude 系列）</td></tr>
+                  <tr><td className='px-3 py-2 font-mono'>image_ratio</td><td className='px-3 py-2'>number</td><td className='px-3 py-2'>图像输入相对于 ratio 的倍数，适用于视觉多模态模型</td></tr>
+                  <tr><td className='px-3 py-2 font-mono'>audio_ratio</td><td className='px-3 py-2'>number</td><td className='px-3 py-2'>音频输入相对于 ratio 的倍数，适用于语音识别/音频理解模型</td></tr>
+                  <tr><td className='px-3 py-2 font-mono'>audio_completion_ratio</td><td className='px-3 py-2'>number</td><td className='px-3 py-2'>音频输出相对于 audio_ratio 的倍数，适用于语音合成/音频回复模型</td></tr>
                 </tbody>
               </table>
             </div>
+
+            {/* 暂存区工具栏 */}
+            <div className='flex items-center justify-between gap-2'>
+              <p className='text-muted-foreground text-xs'>
+                在此编辑 JSON 草稿，点击「追加应用」或「覆盖应用」同步到表单，再点「保存」生效
+              </p>
+              <Button
+                type='button'
+                variant='ghost'
+                size='sm'
+                onClick={handleClearDraft}
+                className='text-muted-foreground hover:text-destructive shrink-0'
+              >
+                <Trash2 className='mr-1 h-3.5 w-3.5' />
+                清空草稿
+              </Button>
+            </div>
+
+            {/* 错误提示 */}
+            {mergedError && (
+              <div className='bg-destructive/10 text-destructive rounded-md border border-red-200 px-3 py-2 text-sm'>
+                {mergedError}
+              </div>
+            )}
+
+            {/* 已应用提示 */}
+            {lastApplied.current === mergedDraft && mergedDraft && !mergedError && (
+              <div className='flex items-center gap-1.5 rounded-md border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-700 dark:border-green-800 dark:bg-green-950 dark:text-green-400'>
+                <CheckCircle2 className='h-4 w-4 shrink-0' />
+                已应用到表单，点击「保存模型价格」生效
+              </div>
+            )}
+
+            {/* JSON 编辑区 */}
             <Textarea
-              rows={20}
+              rows={18}
               className='font-mono text-sm'
-              placeholder={`{\n  "gpt-4o": {\n    "ratio": 0.5,\n    "completion_ratio": 3.0,\n    "cache_ratio": 0.1\n  }\n}`}
-              value={mergedJson}
-              onChange={(e) => handleMergedChange(e.target.value)}
+              placeholder={`{\n  "deepseek-chat": {\n    "ratio": 0.27,\n    "completion_ratio": 2.0\n  },\n  "gpt-4o": {\n    "ratio": 2.5,\n    "completion_ratio": 4.0,\n    "cache_ratio": 0.5\n  }\n}`}
+              value={mergedDraft}
+              onChange={(e) => {
+                setMergedDraft(e.target.value)
+                setMergedError(null)
+                lastApplied.current = null
+              }}
             />
-            <div className='flex flex-wrap gap-4'>
-              <Button onClick={form.handleSubmit(onSave)} disabled={isSaving}>
-                {isSaving ? t('Saving...') : t('Save model prices')}
+
+            {/* 操作按钮行 */}
+            <div className='flex flex-wrap gap-3'>
+              <Button
+                type='button'
+                variant='outline'
+                onClick={handleApplyMerge}
+                disabled={!mergedDraft.trim()}
+              >
+                <PlusCircle className='mr-2 h-4 w-4' />
+                追加应用
               </Button>
-              <Button type='button' variant='destructive' onClick={onReset} disabled={isResetting}>
-                {t('Reset prices')}
+              <Button
+                type='button'
+                variant='outline'
+                onClick={handleApplyReplace}
+                disabled={!mergedDraft.trim()}
+                className='border-orange-300 text-orange-600 hover:bg-orange-50 hover:text-orange-700 dark:border-orange-700 dark:text-orange-400'
+              >
+                <Trash2 className='mr-2 h-4 w-4' />
+                覆盖应用
               </Button>
+              <div className='ml-auto flex gap-3'>
+                <Button onClick={form.handleSubmit(onSave)} disabled={isSaving}>
+                  {isSaving ? t('Saving...') : t('Save model prices')}
+                </Button>
+                <Button type='button' variant='destructive' onClick={onReset} disabled={isResetting}>
+                  {t('Reset prices')}
+                </Button>
+              </div>
+            </div>
+
+            {/* 操作说明 */}
+            <div className='text-muted-foreground grid grid-cols-2 gap-2 text-xs'>
+              <div className='rounded-md border p-2'>
+                <span className='font-medium text-foreground'>追加应用</span>：草稿中的模型合并进现有数据，已有模型不受影响
+              </div>
+              <div className='rounded-md border p-2'>
+                <span className='font-medium text-orange-600'>覆盖应用</span>：清除所有现有模型价格，仅保留草稿中的模型
+              </div>
             </div>
           </div>
         ) : editMode === 'visual' ? (
