@@ -23,9 +23,6 @@ export default defineConfig(({ envMode }) => {
 
   return {
     plugins: [pluginReact()],
-    output: {
-      assetPrefix: '/console/',
-    },
     // Rsbuild 2: replaces deprecated `performance.chunkSplit` (RSPack 2 aligned)
     splitChunks: {
       preset: 'default',
@@ -71,6 +68,7 @@ export default defineConfig(({ envMode }) => {
       proxy: devProxy,
     },
     output: {
+      assetPrefix: '/console/',
       // Production optimizations
       minify: isProd,
       target: 'web',
