@@ -107,6 +107,7 @@ const Playground = () => {
     playgroundMode,
     showSettings,
     models,
+    imageModels,
     videoModels,
     groups,
     status,
@@ -129,6 +130,7 @@ const Playground = () => {
     handleConfigReset,
     setShowSettings,
     setModels,
+    setImageModels,
     setVideoModels,
     setGroups,
     setStatus,
@@ -157,6 +159,7 @@ const Playground = () => {
     inputs,
     handleInputChange,
     setModels,
+    setImageModels,
     setVideoModels,
     setGroups,
   );
@@ -226,6 +229,18 @@ const Playground = () => {
       }
 
       // 默认预览逻辑
+      if (playgroundMode === 'image') {
+        return {
+          model: inputs.imageModel,
+          prompt: getTextContent(message[message.length - 1]) || '',
+          n: Number(inputs.imageCount) || 1,
+          size: inputs.imageSize || '1024x1024',
+          quality: inputs.imageQuality || 'auto',
+          response_format: 'b64_json',
+          ...(inputs.group ? { group: inputs.group } : {}),
+        };
+      }
+
       let messages = [...message];
 
       // 如果存在用户消息
@@ -262,11 +277,23 @@ const Playground = () => {
       console.error('构造预览请求体失败:', error);
       return null;
     }
-  }, [inputs, parameterEnabled, message, customRequestMode, customRequestBody]);
+  }, [
+    inputs,
+    parameterEnabled,
+    message,
+    playgroundMode,
+    customRequestMode,
+    customRequestBody,
+  ]);
 
   // 发送消息
   function onMessageSend(content, attachment) {
     console.log('attachment: ', attachment);
+
+    if (playgroundMode === 'image') {
+      submitImageGeneration(content);
+      return;
+    }
 
     if (playgroundMode === 'video') {
       submitVideoGeneration(content);
@@ -360,12 +387,138 @@ const Playground = () => {
       return null;
     }
     try {
-      const parsed = JSON.parse(value);
-      return parsed ?? null;
+      return JSON.parse(value);
     } catch {
       return null;
     }
   }, []);
+
+  const collectImageUrls = useCallback(
+    (value, collector = []) => {
+      if (value == null) {
+        return collector;
+      }
+
+      if (typeof value === 'string') {
+        const parsed = parseJsonLikeValue(value);
+        if (parsed && parsed !== value) {
+          collectImageUrls(parsed, collector);
+          return collector;
+        }
+        if (
+          value.startsWith('data:image/') ||
+          value.includes('http://') ||
+          value.includes('https://')
+        ) {
+          collector.push(value);
+        }
+        return collector;
+      }
+
+      if (Array.isArray(value)) {
+        value.forEach((item) => collectImageUrls(item, collector));
+        return collector;
+      }
+
+      if (typeof value !== 'object') {
+        return collector;
+      }
+
+      Object.entries(value).forEach(([key, nestedValue]) => {
+        const lowerKey = key.toLowerCase();
+
+        if (
+          lowerKey === 'b64_json' &&
+          typeof nestedValue === 'string' &&
+          nestedValue.trim() !== ''
+        ) {
+          collector.push(`data:image/png;base64,${nestedValue}`);
+          return;
+        }
+
+        if (
+          (lowerKey === 'url' ||
+            lowerKey === 'result_url' ||
+            lowerKey.includes('image_url')) &&
+          typeof nestedValue === 'string' &&
+          nestedValue.trim() !== ''
+        ) {
+          collector.push(nestedValue);
+        }
+
+        collectImageUrls(nestedValue, collector);
+      });
+
+      return collector;
+    },
+    [parseJsonLikeValue],
+  );
+
+  const extractImageUrls = useCallback(
+    (responseData) => {
+      const responsePayload = parseJsonLikeValue(responseData) || responseData;
+      return collectImageUrls(responsePayload, []).filter(
+        (url, index, array) =>
+          typeof url === 'string' &&
+          url.trim() !== '' &&
+          array.indexOf(url) === index,
+      );
+    },
+    [collectImageUrls, parseJsonLikeValue],
+  );
+
+  const buildImagePayload = useCallback(
+    (prompt) => {
+      const payload = {
+        model: inputs.imageModel,
+        prompt,
+        n: Number(inputs.imageCount) || 1,
+        size: inputs.imageSize || '1024x1024',
+        quality: inputs.imageQuality || 'auto',
+        response_format: 'b64_json',
+      };
+
+      if (inputs.group) {
+        payload.group = inputs.group;
+      }
+
+      return payload;
+    },
+    [inputs],
+  );
+
+  const updateImageAssistantMessage = useCallback(
+    (messageId, patch) => {
+      setMessage((prevMessages) => {
+        const nextMessages = prevMessages.map((msg) =>
+          msg.id === messageId ? { ...msg, ...patch } : msg,
+        );
+        setTimeout(() => saveMessagesImmediately(nextMessages), 0);
+        return nextMessages;
+      });
+    },
+    [saveMessagesImmediately, setMessage],
+  );
+
+  const buildImageAssistantContent = useCallback(
+    (prompt, imageUrls) => {
+      const lines = [t('图片生成完成')];
+      if (prompt) {
+        lines.push(prompt);
+      }
+      return [
+        {
+          type: 'text',
+          text: lines.join('\n\n'),
+        },
+        ...imageUrls.map((url) => ({
+          type: 'image_url',
+          image_url: { url },
+        })),
+      ];
+    },
+    [t],
+  );
 
   const isProxyVideoUrl = useCallback((url) => {
     if (typeof url !== 'string' || url.trim() === '') {
@@ -813,6 +966,95 @@ const Playground = () => {
     ],
   );
 
+  const submitImageGeneration = useCallback(
+    async (content) => {
+      const prompt = typeof content === 'string' ? content.trim() : '';
+      if (!prompt) {
+        Toast.warning(t('请输入图片提示词'));
+        return;
+      }
+
+      const userMessage = createMessage(MESSAGE_ROLES.USER, prompt);
+      const assistantMessage = createMessage(
+        MESSAGE_ROLES.ASSISTANT,
+        t('正在生成图片...'),
+        {
+          status: MESSAGE_STATUS.LOADING,
+          reasoningContent: '',
+          isReasoningExpanded: false,
+          isThinkingComplete: false,
+        },
+      );
+      const payload = buildImagePayload(prompt);
+
+      setMessage((prevMessage) => {
+        const nextMessages = [...prevMessage, userMessage, assistantMessage];
+        setTimeout(() => saveMessagesImmediately(nextMessages), 0);
+        return nextMessages;
+      });
+      setDebugData((prev) => ({
+        ...prev,
+        request: payload,
+        response: null,
+        timestamp: new Date().toISOString(),
+      }));
+      setActiveDebugTab(DEBUG_TABS.REQUEST);
+
+      try {
+        const createResponse = await fetch(API_ENDPOINTS.IMAGE_GENERATIONS, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'New-Api-User': getUserIdFromLocalStorage(),
+          },
+          body: JSON.stringify(payload),
+        });
+
+        const createData = await createResponse.json();
+        setDebugData((prev) => ({
+          ...prev,
+          response: JSON.stringify(createData, null, 2),
+        }));
+        setActiveDebugTab(DEBUG_TABS.RESPONSE);
+
+        if (!createResponse.ok) {
+          throw new Error(
+            createData?.error?.message || createData?.message || t('图片生成失败'),
+          );
+        }
+
+        const imageUrls = extractImageUrls(createData);
+        if (imageUrls.length === 0) {
+          throw new Error(t('图片生成完成，但未返回图片地址'));
+        }
+
+        updateImageAssistantMessage(assistantMessage.id, {
+          content: buildImageAssistantContent(prompt, imageUrls),
+          imageUrls,
+          status: MESSAGE_STATUS.COMPLETE,
+          isThinkingComplete: true,
+        });
+      } catch (error) {
+        updateImageAssistantMessage(assistantMessage.id, {
+          content: t('图片请求发生错误: ') + error.message,
+          status: MESSAGE_STATUS.ERROR,
+          errorCode: error.errorCode || null,
+        });
+      }
+    },
+    [
+      buildImageAssistantContent,
+      buildImagePayload,
+      extractImageUrls,
+      saveMessagesImmediately,
+      setActiveDebugTab,
+      setDebugData,
+      setMessage,
+      t,
+      updateImageAssistantMessage,
+    ],
+  );
+
   // 切换推理展开状态
   const toggleReasoningExpansion = useCallback(
     (messageId) => {
@@ -1089,6 +1331,7 @@ const Playground = () => {
             message={message}
             inputs={inputs}
             models={models}
+            imageModels={imageModels}
             videoModels={videoModels}
             playgroundMode={playgroundMode}
             customRequestMode={customRequestMode}

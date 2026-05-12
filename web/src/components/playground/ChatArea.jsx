@@ -27,6 +27,7 @@ const ChatArea = ({
   message,
   inputs,
   models,
+  imageModels,
   videoModels,
   playgroundMode,
   customRequestMode,
@@ -51,6 +52,7 @@ const ChatArea = ({
           {...props}
           inputs={inputs}
           models={models}
+          imageModels={imageModels}
           videoModels={videoModels}
           playgroundMode={playgroundMode}
           customRequestMode={customRequestMode}
@@ -63,6 +65,7 @@ const ChatArea = ({
       customRequestMode,
       inputs,
       models,
+      imageModels,
       videoModels,
       onInputChange,
       onModeChange,

@@ -223,6 +223,7 @@ export const isPlaygroundChatModel = (modelName) => {
     'speech',
     'transcribe',
     'moderation',
+    'gpt-image',
     'dall-e',
     'imagen',
     'veo',

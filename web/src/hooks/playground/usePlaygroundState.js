@@ -95,6 +95,7 @@ export const usePlaygroundState = () => {
   // UI状态
   const [showSettings, setShowSettings] = useState(false);
   const [models, setModels] = useState([]);
+  const [imageModels, setImageModels] = useState([]);
   const [videoModels, setVideoModels] = useState([]);
   const [groups, setGroups] = useState([]);
   const [status, setStatus] = useState({});
@@ -643,6 +644,7 @@ export const usePlaygroundState = () => {
     // UI状态
     showSettings,
     models,
+    imageModels,
     videoModels,
     groups,
     status,
@@ -675,6 +677,7 @@ export const usePlaygroundState = () => {
     setPlaygroundMode,
     setShowSettings,
     setModels,
+    setImageModels,
     setVideoModels,
     setGroups,
     setStatus,

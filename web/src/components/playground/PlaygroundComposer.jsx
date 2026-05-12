@@ -25,13 +25,7 @@ import {
   Toast,
   Typography,
 } from '@douyinfe/semi-ui';
-import {
-  Bot,
-  ChevronDown,
-  Image as ImageIcon,
-  Sparkles,
-  Video,
-} from 'lucide-react';
+import { Bot, Image as ImageIcon, Sparkles, Video } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { usePlayground } from '../../contexts/PlaygroundContext';
 import { selectFilter } from '../../helpers';
@@ -40,6 +34,7 @@ const PlaygroundComposer = ({
   detailProps,
   inputs,
   models,
+  imageModels,
   videoModels,
   playgroundMode,
   customRequestMode,
@@ -110,8 +105,17 @@ const PlaygroundComposer = ({
   });
 
   const isVideoMode = playgroundMode === 'video';
-  const modelOptions = isVideoMode ? videoModels : models;
-  const selectedModel = isVideoMode ? inputs.videoModel : inputs.model;
+  const isImageMode = playgroundMode === 'image';
+  const modelOptions = isVideoMode
+    ? videoModels
+    : isImageMode
+      ? imageModels
+      : models;
+  const selectedModel = isVideoMode
+    ? inputs.videoModel
+    : isImageMode
+      ? inputs.imageModel
+      : inputs.model;
 
   return (
     <div className='new-playground-composer-wrap' ref={containerRef}>
@@ -126,14 +130,17 @@ const PlaygroundComposer = ({
               autoClearSearchValue={false}
               disabled={customRequestMode}
               onChange={(value) =>
-                onInputChange(isVideoMode ? 'videoModel' : 'model', value)
+                onInputChange(
+                  isVideoMode ? 'videoModel' : isImageMode ? 'imageModel' : 'model',
+                  value,
+                )
               }
               prefix={<Bot size={16} />}
-              suffix={<ChevronDown size={15} />}
               className='composer-model-select'
               dropdownStyle={{ maxWidth: 420 }}
             />
-            <div className='reference-images'>
+            {!isImageMode && (
+              <div className='reference-images'>
               <Typography.Text className='reference-label'>
                 {t('参考图片')}
               </Typography.Text>
@@ -148,7 +155,41 @@ const PlaygroundComposer = ({
                 <ImageIcon size={20} />
               </button>
               <span>{t('支持 JPEG、PNG、Webp')}</span>
-            </div>
+              </div>
+            )}
+            {isImageMode && (
+              <div className='video-options'>
+                <Select
+                  value={inputs.imageSize}
+                  optionList={[
+                    { label: '1024x1024', value: '1024x1024' },
+                    { label: '1024x1536', value: '1024x1536' },
+                    { label: '1536x1024', value: '1536x1024' },
+                    { label: 'auto', value: 'auto' },
+                  ]}
+                  onChange={(value) => onInputChange('imageSize', value)}
+                  className='video-option-control'
+                />
+                <Select
+                  value={inputs.imageQuality}
+                  optionList={[
+                    { label: 'auto', value: 'auto' },
+                    { label: 'high', value: 'high' },
+                    { label: 'medium', value: 'medium' },
+                    { label: 'low', value: 'low' },
+                  ]}
+                  onChange={(value) => onInputChange('imageQuality', value)}
+                  className='video-option-control'
+                />
+                <InputNumber
+                  min={1}
+                  max={4}
+                  value={inputs.imageCount}
+                  onChange={(value) => onInputChange('imageCount', value)}
+                  className='video-option-control'
+                />
+              </div>
+            )}
             {isVideoMode && (
               <div className='video-options'>
                 <Select
@@ -189,11 +230,11 @@ const PlaygroundComposer = ({
                 <span>{t('聊天')}</span>
               </button>
               <button
-                className={`mode-tab ${inputs.imageEnabled ? 'active-soft' : ''}`}
+                className={`mode-tab ${playgroundMode === 'image' ? 'active' : ''}`}
                 type='button'
                 onClick={(event) => {
                   event.stopPropagation();
-                  onInputChange('imageEnabled', true);
+                  onModeChange('image');
                 }}
               >
                 <ImageIcon size={18} />

@@ -36,13 +36,31 @@ const PLAYGROUND_CHAT_ENDPOINT_TYPES = new Set([
   'gemini',
 ]);
 
-const PLAYGROUND_VIDEO_ENDPOINT_TYPES = new Set(['openai-video']);
+const PLAYGROUND_IMAGE_MODEL_HINTS = [
+  'gpt-image',
+  'dall-e',
+  'imagen',
+  'flux',
+  'recraft',
+];
+
+const PLAYGROUND_VIDEO_MODEL_HINTS = [
+  'seedance',
+  'kling',
+  'veo',
+  'jimeng',
+  'cogvideo',
+  'luma',
+  'hailuo',
+  'video',
+];
 
 export const useDataLoader = (
   userState,
   inputs,
   handleInputChange,
   setModels,
+  setImageModels,
   setVideoModels,
   setGroups,
 ) => {
@@ -83,17 +101,29 @@ export const useDataLoader = (
             pricingItems
               .filter((item) => {
                 const modelName = item?.model_name;
-                const endpointTypes = Array.isArray(
-                  item?.supported_endpoint_types,
-                )
-                  ? item.supported_endpoint_types
-                  : [];
+                return (
+                  typeof modelName === 'string' &&
+                  modelName.trim() !== '' &&
+                  PLAYGROUND_VIDEO_MODEL_HINTS.some((hint) =>
+                    modelName.toLowerCase().includes(hint),
+                  )
+                );
+              })
+              .map((item) => item.model_name)
+              .filter(Boolean),
+          ),
+        );
+        const filteredImageModels = Array.from(
+          new Set(
+            pricingItems
+              .filter((item) => {
+                const modelName = item?.model_name;
 
                 return (
                   typeof modelName === 'string' &&
                   modelName.trim() !== '' &&
-                  endpointTypes.some((endpointType) =>
-                    PLAYGROUND_VIDEO_ENDPOINT_TYPES.has(endpointType),
+                  PLAYGROUND_IMAGE_MODEL_HINTS.some((hint) =>
+                    modelName.toLowerCase().includes(hint),
                   )
                 );
               })
@@ -106,14 +136,22 @@ export const useDataLoader = (
           filteredModels,
           inputs.model,
         );
+        const {
+          modelOptions: imageModelOptions,
+          selectedModel: selectedImageModel,
+        } = processModelsData(filteredImageModels, inputs.imageModel);
         const { modelOptions: videoModelOptions, selectedModel: selectedVideoModel } =
           processModelsData(filteredVideoModels, inputs.videoModel);
 
         setModels(modelOptions);
+        setImageModels(imageModelOptions);
         setVideoModels(videoModelOptions);
 
         if (selectedModel && selectedModel !== inputs.model) {
           handleInputChange('model', selectedModel);
+        }
+        if (selectedImageModel && selectedImageModel !== inputs.imageModel) {
+          handleInputChange('imageModel', selectedImageModel);
         }
         if (selectedVideoModel && selectedVideoModel !== inputs.videoModel) {
           handleInputChange('videoModel', selectedVideoModel);
@@ -126,9 +164,11 @@ export const useDataLoader = (
     }
   }, [
     inputs.model,
+    inputs.imageModel,
     inputs.videoModel,
     handleInputChange,
     setModels,
+    setImageModels,
     setVideoModels,
     t,
   ]);

@@ -76,6 +76,7 @@ export const DEBUG_TABS = {
 // ========== API 相关常量 ==========
 export const API_ENDPOINTS = {
   CHAT_COMPLETIONS: '/pg/chat/completions',
+  IMAGE_GENERATIONS: '/pg/images/generations',
   VIDEO_GENERATIONS: '/pg/video/generations',
   VIDEO_GENERATION_TASK: '/pg/video/generations',
   VIDEO_CONTENT: '/v1/videos',
@@ -98,6 +99,7 @@ export const SEEDANCE_VIDEO_MODELS = [
 export const DEFAULT_CONFIG = {
   inputs: {
     model: 'gpt-4o',
+    imageModel: 'gpt-image-2',
     videoModel: 'doubao-seedance-1-0-lite-t2v',
     group: '',
     temperature: 0.7,
@@ -109,6 +111,9 @@ export const DEFAULT_CONFIG = {
     stream: true,
     imageEnabled: false,
     imageUrls: [''],
+    imageCount: 1,
+    imageSize: '1024x1024',
+    imageQuality: 'auto',
     videoDuration: 5,
     videoRatio: '16:9',
     videoResolution: '720p',
