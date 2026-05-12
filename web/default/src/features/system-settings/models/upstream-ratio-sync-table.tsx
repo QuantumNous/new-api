@@ -1,3 +1,21 @@
+/*
+Copyright (C) 2023-2026 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
 import { useCallback, useMemo, useState } from 'react'
 import {
   flexRender,
@@ -11,6 +29,7 @@ import { Input } from '@/components/ui/input'
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
   SelectTrigger,
   SelectValue,
@@ -212,20 +231,29 @@ export function UpstreamRatioSyncTable({
           />
         </div>
         <Select
+          items={[
+            { value: '__all__', label: t('All Types') },
+            ...RATIO_TYPE_OPTIONS.map((option) => ({
+              value: option.value,
+              label: t(option.label),
+            })),
+          ]}
           value={ratioTypeFilter}
-          onValueChange={setRatioTypeFilter}
+          onValueChange={(v) => v !== null && setRatioTypeFilter(v)}
           disabled={isDisabled}
         >
           <SelectTrigger className='w-full sm:w-56'>
             <SelectValue placeholder={t('Filter by price field')} />
           </SelectTrigger>
-          <SelectContent>
-            <SelectItem value='__all__'>{t('All Types')}</SelectItem>
-            {RATIO_TYPE_OPTIONS.map((option) => (
-              <SelectItem key={option.value} value={option.value}>
-                {t(option.label)}
-              </SelectItem>
-            ))}
+          <SelectContent alignItemWithTrigger={false}>
+            <SelectGroup>
+              <SelectItem value='__all__'>{t('All Types')}</SelectItem>
+              {RATIO_TYPE_OPTIONS.map((option) => (
+                <SelectItem key={option.value} value={option.value}>
+                  {t(option.label)}
+                </SelectItem>
+              ))}
+            </SelectGroup>
           </SelectContent>
         </Select>
       </div>

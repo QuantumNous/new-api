@@ -63,6 +63,26 @@
         {
           "from": "../web/dist",
           "to": "web/dist"
+        },
+        {
+          "from": "../LICENSE",
+          "to": "licenses/LICENSE"
+        },
+        {
+          "from": "../NOTICE",
+          "to": "licenses/NOTICE"
+        },
+        {
+          "from": "../THIRD-PARTY-LICENSES.md",
+          "to": "licenses/THIRD-PARTY-LICENSES.md"
+        },
+        {
+          "from": "node_modules/electron/dist/LICENSE",
+          "to": "licenses/electron/LICENSE"
+        },
+        {
+          "from": "node_modules/electron/dist/LICENSES.chromium.html",
+          "to": "licenses/electron/LICENSES.chromium.html"
         }
       ]
     },
@@ -76,6 +96,26 @@
         {
           "from": "../new-api.exe",
           "to": "bin/new-api.exe"
+        },
+        {
+          "from": "../LICENSE",
+          "to": "licenses/LICENSE"
+        },
+        {
+          "from": "../NOTICE",
+          "to": "licenses/NOTICE"
+        },
+        {
+          "from": "../THIRD-PARTY-LICENSES.md",
+          "to": "licenses/THIRD-PARTY-LICENSES.md"
+        },
+        {
+          "from": "node_modules/electron/dist/LICENSE",
+          "to": "licenses/electron/LICENSE"
+        },
+        {
+          "from": "node_modules/electron/dist/LICENSES.chromium.html",
+          "to": "licenses/electron/LICENSES.chromium.html"
         }
       ]
     },
@@ -90,6 +130,26 @@
         {
           "from": "../new-api",
           "to": "bin/new-api"
+        },
+        {
+          "from": "../LICENSE",
+          "to": "licenses/LICENSE"
+        },
+        {
+          "from": "../NOTICE",
+          "to": "licenses/NOTICE"
+        },
+        {
+          "from": "../THIRD-PARTY-LICENSES.md",
+          "to": "licenses/THIRD-PARTY-LICENSES.md"
+        },
+        {
+          "from": "node_modules/electron/dist/LICENSE",
+          "to": "licenses/electron/LICENSE"
+        },
+        {
+          "from": "node_modules/electron/dist/LICENSES.chromium.html",
+          "to": "licenses/electron/LICENSES.chromium.html"
         }
       ]
     },

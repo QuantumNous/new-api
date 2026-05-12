@@ -1,3 +1,21 @@
+/*
+Copyright (C) 2023-2026 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
 import { useEffect, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { ChevronLeft, ChevronRight, Loader2, Plus, Search } from 'lucide-react'
@@ -100,11 +118,7 @@ export function MissingModelsDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
         className='flex max-h-[85vh] max-w-2xl flex-col gap-3 p-4'
-        onOpenAutoFocus={(event) => {
-          if (isMobile) {
-            event.preventDefault()
-          }
-        }}
+        initialFocus={!isMobile}
       >
         <DialogHeader className='flex-shrink-0 text-start'>
           <DialogTitle>{t('Missing Models')}</DialogTitle>

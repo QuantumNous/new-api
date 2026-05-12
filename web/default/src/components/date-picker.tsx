@@ -1,3 +1,21 @@
+/*
+Copyright (C) 2023-2026 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
 import { Calendar as CalendarIcon } from 'lucide-react'
 import { enUS, fr, ja, ru, vi, zhCN } from 'react-day-picker/locale'
 import { useTranslation } from 'react-i18next'
@@ -36,19 +54,21 @@ export function DatePicker({
     calendarLocales[i18n.language as keyof typeof calendarLocales] ?? enUS
   return (
     <Popover>
-      <PopoverTrigger asChild>
-        <Button
-          variant='outline'
-          data-empty={!selected}
-          className='data-[empty=true]:text-muted-foreground w-[240px] justify-start text-start font-normal'
-        >
-          {selected ? (
-            dayjs(selected).format('YYYY-MM-DD')
-          ) : (
-            <span>{placeholderText}</span>
-          )}
-          <CalendarIcon className='ms-auto h-4 w-4 opacity-50' />
-        </Button>
+      <PopoverTrigger
+        render={
+          <Button
+            variant='outline'
+            data-empty={!selected}
+            className='data-[empty=true]:text-muted-foreground w-[240px] justify-start text-start font-normal'
+          />
+        }
+      >
+        {selected ? (
+          dayjs(selected).format('YYYY-MM-DD')
+        ) : (
+          <span>{placeholderText}</span>
+        )}
+        <CalendarIcon className='ms-auto h-4 w-4 opacity-50' />
       </PopoverTrigger>
       <PopoverContent className='w-auto p-0'>
         <Calendar

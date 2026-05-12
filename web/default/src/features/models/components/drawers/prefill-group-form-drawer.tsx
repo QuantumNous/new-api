@@ -1,3 +1,21 @@
+/*
+Copyright (C) 2023-2026 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
 import { useEffect, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -19,6 +37,7 @@ import { Input } from '@/components/ui/input'
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
   SelectTrigger,
   SelectValue,
@@ -161,8 +180,8 @@ export function PrefillGroupFormDrawer({
 
   return (
     <Sheet open={open} onOpenChange={handleOpenChange}>
-      <SheetContent className='flex w-full flex-col sm:max-w-2xl'>
-        <SheetHeader className='text-start'>
+      <SheetContent className='flex h-dvh w-full flex-col gap-0 overflow-hidden p-0 sm:max-w-2xl'>
+        <SheetHeader className='border-b px-4 py-3 text-start sm:px-6 sm:py-4'>
           <SheetTitle>
             {isEdit ? t('Edit Prefill Group') : t('Create Prefill Group')}
           </SheetTitle>
@@ -177,7 +196,7 @@ export function PrefillGroupFormDrawer({
           <form
             id='prefill-group-form'
             onSubmit={form.handleSubmit(handleSubmit)}
-            className='flex-1 space-y-6 overflow-y-auto px-4'
+            className='flex-1 space-y-4 overflow-y-auto px-3 py-3 pb-4 sm:space-y-6 sm:px-4'
           >
             <div className='space-y-4'>
               <div className='space-y-1'>
@@ -252,19 +271,10 @@ export function PrefillGroupFormDrawer({
                   <FormItem>
                     <FormLabel>Group Type</FormLabel>
                     <Select
-                      value={field.value}
-                      onValueChange={(value: PrefillGroupType) =>
-                        field.onChange(value)
-                      }
-                    >
-                      <FormControl>
-                        <SelectTrigger className='[&_[data-slot=select-value]_[data-prefill-description]]:hidden'>
-                          <SelectValue placeholder={t('Select a group type')} />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {PREFILL_GROUP_TYPES.map((type) => (
-                          <SelectItem key={type.value} value={type.value}>
+                      items={[
+                        ...PREFILL_GROUP_TYPES.map((type) => ({
+                          value: type.value,
+                          label: (
                             <div className='flex flex-col text-left'>
                               <span className='font-medium'>{type.label}</span>
                               <span
@@ -274,8 +284,38 @@ export function PrefillGroupFormDrawer({
                                 {type.description}
                               </span>
                             </div>
-                          </SelectItem>
-                        ))}
+                          ),
+                        })),
+                      ]}
+                      value={field.value}
+                      onValueChange={(value) =>
+                        value !== null &&
+                        field.onChange(value as PrefillGroupType)
+                      }
+                    >
+                      <FormControl>
+                        <SelectTrigger className='[&_[data-slot=select-value]_[data-prefill-description]]:hidden'>
+                          <SelectValue placeholder={t('Select a group type')} />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent alignItemWithTrigger={false}>
+                        <SelectGroup>
+                          {PREFILL_GROUP_TYPES.map((type) => (
+                            <SelectItem key={type.value} value={type.value}>
+                              <div className='flex flex-col text-left'>
+                                <span className='font-medium'>
+                                  {type.label}
+                                </span>
+                                <span
+                                  data-prefill-description
+                                  className='text-muted-foreground text-xs'
+                                >
+                                  {type.description}
+                                </span>
+                              </div>
+                            </SelectItem>
+                          ))}
+                        </SelectGroup>
                       </SelectContent>
                     </Select>
                     <FormDescription>
@@ -286,7 +326,7 @@ export function PrefillGroupFormDrawer({
                 )}
               />
 
-              <div className='space-y-2 rounded-lg border p-4'>
+              <div className='space-y-2 rounded-lg border p-3 sm:p-4'>
                 <div className='flex items-center gap-2'>
                   <h4 className='text-sm font-medium'>{t('Project')}</h4>
                   <StatusBadge
@@ -343,11 +383,13 @@ export function PrefillGroupFormDrawer({
           </form>
         </Form>
 
-        <SheetFooter className='gap-2'>
-          <SheetClose asChild>
-            <Button type='button' variant='outline' disabled={isSaving}>
-              {t('Cancel')}
-            </Button>
+        <SheetFooter className='grid grid-cols-2 gap-2 border-t px-4 py-3 sm:flex sm:px-6 sm:py-4'>
+          <SheetClose
+            render={
+              <Button type='button' variant='outline' disabled={isSaving} />
+            }
+          >
+            {t('Cancel')}
           </SheetClose>
           <Button type='submit' form='prefill-group-form' disabled={isSaving}>
             {isSaving && <Loader2 className='mr-2 h-4 w-4 animate-spin' />}

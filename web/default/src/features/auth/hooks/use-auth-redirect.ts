@@ -1,9 +1,45 @@
+/*
+Copyright (C) 2023-2026 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
 import { useNavigate } from '@tanstack/react-router'
 import i18n from 'i18next'
 import { useAuthStore } from '@/stores/auth-store'
 import { getSelf } from '@/lib/api'
 import type { User } from '@/features/users/types'
 import { saveUserId } from '../lib/storage'
+
+function getSavedLanguage(user: User): string | undefined {
+  const userData = user as Record<string, unknown>
+  if (typeof userData.language === 'string') {
+    return userData.language
+  }
+
+  if (typeof userData.setting !== 'string') {
+    return undefined
+  }
+
+  try {
+    const setting = JSON.parse(userData.setting) as { language?: unknown }
+    return typeof setting.language === 'string' ? setting.language : undefined
+  } catch {
+    return undefined
+  }
+}
 
 /**
  * Hook for handling authentication redirects and user data management
@@ -39,9 +75,7 @@ export function useAuthRedirect() {
         }
 
         // Restore saved language preference
-        const savedLang = (user as Record<string, unknown>).language as
-          | string
-          | undefined
+        const savedLang = getSavedLanguage(user)
         if (savedLang && savedLang !== i18n.language) {
           i18n.changeLanguage(savedLang)
         }

@@ -1,10 +1,29 @@
+/*
+Copyright (C) 2023-2026 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
 import { useEffect, useMemo, useState, useRef, useCallback } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { VChart } from '@visactor/react-vchart'
 import { Users, Loader2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { getNormalizedDateRange, type TimeGranularity } from '@/lib/time'
+import { getRollingDateRange, type TimeGranularity } from '@/lib/time'
 import { VCHART_OPTION } from '@/lib/vchart'
+import { useThemeCustomization } from '@/context/theme-customization-provider'
 import { useTheme } from '@/context/theme-provider'
 import { Skeleton } from '@/components/ui/skeleton'
 import { getUserQuotaDataByUsers } from '@/features/dashboard/api'
@@ -46,6 +65,7 @@ const TOP_USER_LIMIT_OPTIONS = [5, 10, 20, 50]
 export function UserCharts() {
   const { t } = useTranslation()
   const { resolvedTheme } = useTheme()
+  const { customization } = useThemeCustomization()
   const [themeReady, setThemeReady] = useState(false)
   const themeManagerRef = useRef<
     (typeof import('@visactor/vchart'))['ThemeManager'] | null
@@ -60,7 +80,7 @@ export function UserCharts() {
   const [topUserLimit, setTopUserLimit] = useState(10)
   const [timeRange, setTimeRange] = useState(() => {
     const days = getDefaultDays(timeGranularity)
-    const { start, end } = getNormalizedDateRange(days)
+    const { start, end } = getRollingDateRange(days)
     return {
       start_timestamp: Math.floor(start.getTime() / 1000),
       end_timestamp: Math.floor(end.getTime() / 1000),
@@ -69,7 +89,7 @@ export function UserCharts() {
 
   const handleRangeChange = useCallback((days: number) => {
     setSelectedRange(days)
-    const { start, end } = getNormalizedDateRange(days)
+    const { start, end } = getRollingDateRange(days)
     setTimeRange({
       start_timestamp: Math.floor(start.getTime() / 1000),
       end_timestamp: Math.floor(end.getTime() / 1000),
@@ -117,22 +137,30 @@ export function UserCharts() {
         isLoading ? [] : (userData ?? []),
         timeGranularity,
         t,
-        topUserLimit
+        topUserLimit,
+        customization.preset
       ),
-    [userData, isLoading, timeGranularity, t, topUserLimit]
+    [
+      userData,
+      isLoading,
+      timeGranularity,
+      t,
+      topUserLimit,
+      customization.preset,
+      customization.radius,
+    ]
   )
 
   return (
-    <div className='space-y-4'>
-      {/* Toolbar: time range presets + granularity */}
-      <div className='flex flex-wrap items-center gap-2'>
-        <div className='flex items-center gap-1.5 rounded-md border p-0.5'>
+    <div className='space-y-3'>
+      <div className='flex items-center gap-1.5 overflow-x-auto pb-1 sm:gap-2'>
+        <div className='flex shrink-0 items-center gap-1.5 rounded-lg border p-0.5'>
           {TIME_RANGE_PRESETS.map((preset) => (
             <button
               key={preset.days}
               type='button'
               onClick={() => handleRangeChange(preset.days)}
-              className={`rounded-[5px] px-2.5 py-1 text-xs font-medium transition-colors ${
+              className={`rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${
                 selectedRange === preset.days
                   ? 'bg-primary text-primary-foreground shadow-sm'
                   : 'text-muted-foreground hover:bg-muted hover:text-foreground'
@@ -143,7 +171,7 @@ export function UserCharts() {
           ))}
         </div>
 
-        <div className='flex items-center gap-1.5 rounded-md border p-0.5'>
+        <div className='flex shrink-0 items-center gap-1.5 rounded-lg border p-0.5'>
           {TIME_GRANULARITY_OPTIONS.map((opt) => (
             <button
               key={opt.value}
@@ -151,7 +179,7 @@ export function UserCharts() {
               onClick={() =>
                 handleGranularityChange(opt.value as TimeGranularity)
               }
-              className={`rounded-[5px] px-2.5 py-1 text-xs font-medium transition-colors ${
+              className={`rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${
                 timeGranularity === opt.value
                   ? 'bg-primary text-primary-foreground shadow-sm'
                   : 'text-muted-foreground hover:bg-muted hover:text-foreground'
@@ -162,7 +190,7 @@ export function UserCharts() {
           ))}
         </div>
 
-        <div className='flex items-center gap-1.5 rounded-md border p-0.5'>
+        <div className='flex shrink-0 items-center gap-1.5 rounded-lg border p-0.5'>
           <span className='text-muted-foreground px-2 text-xs font-medium'>
             {t('Top Users')}
           </span>
@@ -171,7 +199,7 @@ export function UserCharts() {
               key={limit}
               type='button'
               onClick={() => setTopUserLimit(limit)}
-              className={`rounded-[5px] px-2.5 py-1 text-xs font-medium transition-colors ${
+              className={`rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${
                 topUserLimit === limit
                   ? 'bg-primary text-primary-foreground shadow-sm'
                   : 'text-muted-foreground hover:bg-muted hover:text-foreground'
@@ -187,7 +215,7 @@ export function UserCharts() {
         )}
       </div>
 
-      <div className='grid gap-4'>
+      <div className='grid gap-3'>
         {USER_CHARTS.map((chart) => {
           const spec = chartData[chart.specKey]
 
@@ -196,19 +224,19 @@ export function UserCharts() {
               key={chart.value}
               className='overflow-hidden rounded-lg border'
             >
-              <div className='flex w-full items-center gap-2 border-b px-4 py-3 sm:px-5'>
+              <div className='flex w-full items-center gap-2 border-b px-3 py-2 sm:px-5 sm:py-3'>
                 <Users className='text-muted-foreground/60 size-4' />
                 <div className='text-sm font-semibold'>{t(chart.labelKey)}</div>
               </div>
 
-              <div className='h-96 p-2'>
+              <div className='h-[300px] p-1.5 sm:h-96 sm:p-2'>
                 {isLoading ? (
                   <Skeleton className='h-full w-full' />
                 ) : (
                   themeReady &&
                   spec && (
                     <VChart
-                      key={`user-${chart.value}-${topUserLimit}-${resolvedTheme}`}
+                      key={`user-${chart.value}-${topUserLimit}-${resolvedTheme}-${customization.preset}`}
                       spec={{
                         ...spec,
                         theme: resolvedTheme === 'dark' ? 'dark' : 'light',

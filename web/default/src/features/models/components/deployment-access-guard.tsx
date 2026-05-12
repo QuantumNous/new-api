@@ -1,3 +1,21 @@
+/*
+Copyright (C) 2023-2026 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
 import type { ReactNode } from 'react'
 import { useNavigate } from '@tanstack/react-router'
 import {
@@ -87,7 +105,10 @@ export function DeploymentAccessGuard({
   const navigate = useNavigate()
 
   const handleGoToSettings = () => {
-    navigate({ to: '/system-settings/integrations' })
+    navigate({
+      to: '/system-settings/models/$section',
+      params: { section: 'model-deployment' },
+    })
   }
 
   // Combined loading state with step indicator
@@ -119,7 +140,7 @@ export function DeploymentAccessGuard({
     return (
       <div className='mx-auto mt-8 max-w-md'>
         <div className='text-center'>
-          <div className='mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-amber-100 dark:bg-amber-900/20'>
+          <div className='mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-amber-100 dark:bg-amber-900/20'>
             <Server className='h-8 w-8 text-amber-600 dark:text-amber-400' />
           </div>
           <h3 className='mb-6 text-xl font-semibold'>
@@ -150,7 +171,7 @@ export function DeploymentAccessGuard({
     return (
       <div className='mx-auto mt-8 max-w-md'>
         <div className='text-center'>
-          <div className='mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-red-100 dark:bg-red-900/20'>
+          <div className='mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-red-100 dark:bg-red-900/20'>
             <WifiOff className='h-8 w-8 text-red-600 dark:text-red-400' />
           </div>
           <h3 className='mb-6 text-xl font-semibold'>

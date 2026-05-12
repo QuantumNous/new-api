@@ -1,3 +1,21 @@
+/*
+Copyright (C) 2023-2026 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
 import { Zap, ExternalLink, Gauge } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { getBgColorClass } from '@/lib/colors'
@@ -23,8 +41,8 @@ export function ApiInfoItemComponent(props: ApiInfoItemProps) {
   const status = props.status
 
   return (
-    <div className='group hover:bg-muted/40 flex items-center justify-between gap-3 px-4 py-3 transition-colors sm:px-5'>
-      <div className='flex min-w-0 flex-1 items-center gap-3'>
+    <div className='group hover:bg-muted/40 flex items-center justify-between gap-2 px-3 py-2.5 transition-colors sm:gap-3 sm:px-5 sm:py-3'>
+      <div className='flex min-w-0 flex-1 items-center gap-2 sm:gap-3'>
         <span
           className={cn(
             'inline-block size-2 shrink-0 rounded-full',
@@ -91,7 +109,7 @@ export function ApiInfoItemComponent(props: ApiInfoItemProps) {
             variant='ghost'
             size='sm'
             onClick={() => openExternalSpeedTest(item.url)}
-            className='size-7 p-0'
+            className='hidden size-7 p-0 sm:inline-flex'
             title={t('External Speed Test')}
           >
             <Gauge className='size-3.5' />
@@ -110,13 +128,11 @@ export function ApiInfoItemComponent(props: ApiInfoItemProps) {
           <Button
             variant='ghost'
             size='sm'
-            asChild
-            className='size-7 p-0'
+            className='hidden size-7 p-0 sm:inline-flex'
             title={t('Open in New Tab')}
+            render={<a href={item.url} target='_blank' rel='noreferrer' />}
           >
-            <a href={item.url} target='_blank' rel='noreferrer'>
-              <ExternalLink className='size-3.5' />
-            </a>
+            <ExternalLink className='size-3.5' />
           </Button>
         </div>
       </div>

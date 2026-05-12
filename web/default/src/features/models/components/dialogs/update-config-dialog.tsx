@@ -1,3 +1,21 @@
+/*
+Copyright (C) 2023-2026 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
 import { useEffect, useMemo } from 'react'
 import { z } from 'zod'
 import { useForm, type Resolver } from 'react-hook-form'
@@ -195,7 +213,7 @@ export function UpdateConfigDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className='max-h-[90vh] overflow-hidden sm:max-w-3xl'>
+      <DialogContent className='max-h-[calc(100dvh-2rem)] overflow-hidden max-sm:w-screen max-sm:max-w-none max-sm:rounded-none max-sm:p-4 sm:max-w-3xl'>
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
         </DialogHeader>
@@ -205,14 +223,14 @@ export function UpdateConfigDialog({
             <Loader2 className='text-muted-foreground h-6 w-6 animate-spin' />
           </div>
         ) : (
-          <div className='max-h-[72vh] overflow-y-auto py-2 pr-1'>
+          <div className='max-h-[calc(100dvh-8.5rem)] overflow-y-auto py-2 pr-1 sm:max-h-[72vh]'>
             <Form {...form}>
               <form
                 onSubmit={form.handleSubmit(onSubmit)}
                 autoComplete='off'
                 className='space-y-4'
               >
-                <div className='grid gap-4 md:grid-cols-2'>
+                <div className='grid gap-3 md:grid-cols-2 md:gap-4'>
                   <FormField
                     control={form.control}
                     name='image_url'
@@ -262,7 +280,7 @@ export function UpdateConfigDialog({
                   />
                 </div>
 
-                <div className='grid gap-4 md:grid-cols-2'>
+                <div className='grid gap-3 md:grid-cols-2 md:gap-4'>
                   <FormField
                     control={form.control}
                     name='entrypoint'
@@ -313,7 +331,7 @@ export function UpdateConfigDialog({
                     {t('Registry (optional)')}
                   </CollapsibleTrigger>
                   <CollapsibleContent>
-                    <div className='mt-3 grid gap-4 md:grid-cols-2'>
+                    <div className='mt-3 grid gap-3 md:grid-cols-2 md:gap-4'>
                       <FormField
                         control={form.control}
                         name='registry_username'
@@ -353,7 +371,7 @@ export function UpdateConfigDialog({
                     {t('Environment variables')}
                   </CollapsibleTrigger>
                   <CollapsibleContent>
-                    <div className='mt-3 grid gap-4 md:grid-cols-2'>
+                    <div className='mt-3 grid gap-3 md:grid-cols-2 md:gap-4'>
                       <FormField
                         control={form.control}
                         name='env_json'
@@ -394,7 +412,7 @@ export function UpdateConfigDialog({
                   </CollapsibleContent>
                 </Collapsible>
 
-                <DialogFooter className='pt-2'>
+                <DialogFooter className='grid grid-cols-2 gap-2 pt-2 sm:flex'>
                   <Button
                     type='button'
                     variant='outline'

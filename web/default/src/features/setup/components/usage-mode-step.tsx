@@ -1,3 +1,21 @@
+/*
+Copyright (C) 2023-2026 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
 import type { ComponentType } from 'react'
 import type { UseFormReturn } from 'react-hook-form'
 import { Building2, Home, Presentation } from 'lucide-react'
@@ -68,16 +86,12 @@ export function UsageModeStep({ form }: UsageModeStepProps) {
             >
               {USAGE_MODE_OPTIONS.map(
                 ({ value, titleKey, descriptionKey, icon: Icon }) => {
-                  const isSelected = field.value === value
                   return (
                     <Label
                       key={value}
                       htmlFor={`usage-mode-${value}`}
                       className={cn(
-                        'hover:border-primary/40 focus-within:border-primary/50 group bg-card flex cursor-pointer flex-col gap-3 rounded-xl border p-4 font-normal transition-all',
-                        isSelected
-                          ? 'border-primary ring-primary/20 ring-2'
-                          : 'border-muted'
+                        'hover:border-primary/40 focus-within:border-primary/50 has-data-[checked]:border-primary has-data-[checked]:ring-primary/20 group bg-card border-muted flex cursor-pointer flex-col gap-3 rounded-xl border p-4 font-normal transition-all has-data-[checked]:ring-2'
                       )}
                     >
                       <div className='flex items-center gap-3'>
@@ -97,7 +111,7 @@ export function UsageModeStep({ form }: UsageModeStepProps) {
                             {t(descriptionKey)}
                           </p>
                         </div>
-                        <Icon className='text-muted-foreground/70 group-hover:text-primary group-focus:text-primary ml-auto size-5 shrink-0 transition' />
+                        <Icon className='text-muted-foreground/70 group-hover:text-primary group-focus-within:text-primary group-has-data-[checked]:text-primary ml-auto size-5 shrink-0 transition' />
                       </div>
                     </Label>
                   )

@@ -1,3 +1,21 @@
+/*
+Copyright (C) 2023-2026 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
 import { useEffect, useMemo, useState, useCallback } from 'react'
 import { Mail, Shield, Send, Link2, Unlink } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
@@ -245,14 +263,14 @@ export function AccountBindingsTab({
 
   return (
     <>
-      <div className='grid grid-cols-1 gap-3 sm:grid-cols-2'>
+      <div className='grid grid-cols-1 gap-2.5 sm:grid-cols-2 sm:gap-3'>
         {bindings.map((binding) => (
           <div
             key={binding.id}
-            className='flex flex-col gap-3 rounded-lg border p-3 sm:flex-row sm:items-center sm:justify-between'
+            className='flex items-center justify-between gap-2.5 rounded-lg border p-2.5 sm:gap-3 sm:p-3'
           >
-            <div className='flex min-w-0 items-center gap-3'>
-              <div className='bg-muted shrink-0 rounded-md p-2'>
+            <div className='flex min-w-0 items-center gap-2.5 sm:gap-3'>
+              <div className='bg-muted shrink-0 rounded-md p-1.5 sm:p-2'>
                 <binding.icon className='h-4 w-4' />
               </div>
               <div className='min-w-0'>
@@ -274,7 +292,7 @@ export function AccountBindingsTab({
             <Button
               variant='outline'
               size='sm'
-              className='h-7 shrink-0 self-start px-2.5 text-xs sm:self-auto'
+              className='h-7 shrink-0 px-2.5 text-xs'
               onClick={binding.onBind}
               disabled={binding.isBound && binding.id !== 'email'}
             >
@@ -295,7 +313,7 @@ export function AccountBindingsTab({
           <p className='text-muted-foreground mb-3 text-sm font-medium'>
             {t('Custom OAuth')}
           </p>
-          <div className='grid grid-cols-1 gap-3 sm:grid-cols-2'>
+          <div className='grid grid-cols-1 gap-2.5 sm:grid-cols-2 sm:gap-3'>
             {customProviders.map((provider) => {
               const binding = customBindings.find(
                 (b) => b.provider_id === provider.id
@@ -304,10 +322,10 @@ export function AccountBindingsTab({
               return (
                 <div
                   key={provider.id}
-                  className='flex flex-col gap-3 rounded-lg border p-3 sm:flex-row sm:items-center sm:justify-between'
+                  className='flex items-center justify-between gap-2.5 rounded-lg border p-2.5 sm:gap-3 sm:p-3'
                 >
-                  <div className='flex min-w-0 items-center gap-3'>
-                    <div className='bg-muted shrink-0 rounded-md p-2'>
+                  <div className='flex min-w-0 items-center gap-2.5 sm:gap-3'>
+                    <div className='bg-muted shrink-0 rounded-md p-1.5 sm:p-2'>
                       <Link2 className='h-4 w-4' />
                     </div>
                     <div className='min-w-0'>
@@ -332,7 +350,7 @@ export function AccountBindingsTab({
                     <Button
                       variant='ghost'
                       size='sm'
-                      className='text-destructive hover:text-destructive h-7 shrink-0 self-start px-2.5 text-xs sm:self-auto'
+                      className='text-destructive hover:text-destructive h-7 shrink-0 px-2.5 text-xs'
                       onClick={() => setUnbindTarget(binding)}
                     >
                       <Unlink className='mr-1 h-3 w-3' />
@@ -342,7 +360,7 @@ export function AccountBindingsTab({
                     <Button
                       variant='outline'
                       size='sm'
-                      className='h-7 shrink-0 self-start px-2.5 text-xs sm:self-auto'
+                      className='h-7 shrink-0 px-2.5 text-xs'
                       onClick={() => handleBindCustomOAuth(provider)}
                     >
                       {t('Bind')}

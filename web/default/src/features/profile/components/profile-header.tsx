@@ -1,3 +1,21 @@
+/*
+Copyright (C) 2023-2026 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
 import { Activity, BarChart3, WalletCards } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { formatCompactNumber, formatQuota } from '@/lib/format'
@@ -82,17 +100,17 @@ export function ProfileHeader({ profile, loading }: ProfileHeaderProps) {
 
   return (
     <div className='bg-card overflow-hidden rounded-lg border'>
-      <div className='p-4 sm:p-5'>
-        <div className='flex flex-col items-center gap-4 text-center sm:flex-row sm:text-left'>
-          <Avatar className='ring-background h-16 w-16 rounded-2xl text-lg ring-4'>
-            <AvatarFallback className='bg-primary/10 text-primary rounded-2xl'>
+      <div className='p-3 sm:p-5'>
+        <div className='flex items-center gap-3 text-left sm:gap-4'>
+          <Avatar className='ring-background h-12 w-12 rounded-xl text-sm ring-2 sm:h-16 sm:w-16 sm:rounded-2xl sm:text-lg sm:ring-4'>
+            <AvatarFallback className='bg-primary/10 text-primary rounded-xl sm:rounded-2xl'>
               {initials}
             </AvatarFallback>
           </Avatar>
 
-          <div className='min-w-0 flex-1 space-y-3'>
-            <div className='flex flex-col items-center gap-2 sm:flex-row sm:justify-start'>
-              <h1 className='text-2xl font-semibold tracking-tight'>
+          <div className='min-w-0 flex-1 space-y-1.5 sm:space-y-3'>
+            <div className='flex min-w-0 items-center gap-2'>
+              <h1 className='truncate text-xl font-semibold tracking-tight sm:text-2xl'>
                 {displayName}
               </h1>
               <StatusBadge
@@ -102,18 +120,18 @@ export function ProfileHeader({ profile, loading }: ProfileHeaderProps) {
               />
             </div>
 
-            <div className='text-muted-foreground flex flex-col gap-1 text-sm sm:flex-row sm:flex-wrap sm:justify-start sm:gap-4'>
-              <span>@{profile.username}</span>
+            <div className='text-muted-foreground flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs sm:gap-x-4 sm:text-sm'>
+              <span className='truncate'>@{profile.username}</span>
               {profile.email && (
                 <>
-                  <span className='hidden sm:inline'>•</span>
-                  <span>{profile.email}</span>
+                  <span>•</span>
+                  <span className='truncate'>{profile.email}</span>
                 </>
               )}
               {profile.group && (
                 <>
-                  <span className='hidden sm:inline'>•</span>
-                  <span>{profile.group}</span>
+                  <span>•</span>
+                  <span className='truncate'>{profile.group}</span>
                 </>
               )}
             </div>
@@ -121,9 +139,9 @@ export function ProfileHeader({ profile, loading }: ProfileHeaderProps) {
         </div>
       </div>
       <div className='border-t'>
-        <div className='divide-border/60 grid grid-cols-1 divide-y sm:grid-cols-3 sm:divide-x sm:divide-y-0'>
+        <div className='divide-border/60 grid grid-cols-3 divide-x'>
           {stats.map((item) => (
-            <div key={item.label} className='px-4 py-3.5 sm:px-5 sm:py-4'>
+            <div key={item.label} className='min-w-0 px-3 py-3 sm:px-5 sm:py-4'>
               <div className='flex items-center gap-2'>
                 <item.icon className='text-muted-foreground/60 size-3.5 shrink-0' />
                 <div className='text-muted-foreground truncate text-xs font-medium tracking-wider uppercase'>
@@ -131,7 +149,7 @@ export function ProfileHeader({ profile, loading }: ProfileHeaderProps) {
                 </div>
               </div>
 
-              <div className='text-foreground mt-2 font-mono text-2xl font-bold tracking-tight break-all tabular-nums'>
+              <div className='text-foreground mt-1.5 truncate font-mono text-lg font-bold tracking-tight tabular-nums sm:mt-2 sm:text-2xl'>
                 {item.value}
               </div>
               <div className='text-muted-foreground/60 mt-1 hidden text-xs md:block'>

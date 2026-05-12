@@ -1,3 +1,21 @@
+/*
+Copyright (C) 2023-2026 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
 'use client'
 
 import type { ComponentProps } from 'react'
@@ -212,18 +230,20 @@ export const QueueSectionTrigger = ({
   className,
   ...props
 }: QueueSectionTriggerProps) => (
-  <CollapsibleTrigger asChild>
-    <Button
-      variant='ghost'
-      className={cn(
-        'group bg-muted/40 text-muted-foreground hover:bg-muted h-auto w-full justify-between px-3 py-2 text-left',
-        className
-      )}
-      type='button'
-      {...props}
-    >
-      {children}
-    </Button>
+  <CollapsibleTrigger
+    render={
+      <Button
+        variant='ghost'
+        className={cn(
+          'group bg-muted/40 text-muted-foreground hover:bg-muted h-auto w-full justify-between px-3 py-2 text-left',
+          className
+        )}
+        type='button'
+        {...props}
+      />
+    }
+  >
+    {children}
   </CollapsibleTrigger>
 )
 
@@ -242,7 +262,7 @@ export const QueueSectionLabel = ({
   ...props
 }: QueueSectionLabelProps) => (
   <span className={cn('flex items-center gap-2', className)} {...props}>
-    <ChevronDownIcon className='size-4 transition-transform group-data-[state=closed]:-rotate-90' />
+    <ChevronDownIcon className='size-4 -rotate-90 transition-transform group-data-[panel-open]:rotate-0' />
     {icon}
     <span>
       {count} {label}

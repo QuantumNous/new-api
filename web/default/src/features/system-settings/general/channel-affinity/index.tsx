@@ -1,3 +1,21 @@
+/*
+Copyright (C) 2023-2026 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
 import { useCallback, useEffect, useState } from 'react'
 import { Edit, FileText, Plus, RefreshCw, Trash2, X } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
@@ -387,11 +405,11 @@ export function ChannelAffinitySection(props: Props) {
             JSON
           </Button>
           <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant='outline' size='sm'>
-                <Plus className='mr-1 h-3 w-3' />
-                {t('Add Rule')}
-              </Button>
+            <DropdownMenuTrigger
+              render={<Button variant='outline' size='sm' />}
+            >
+              <Plus className='mr-1 h-3 w-3' />
+              {t('Add Rule')}
             </DropdownMenuTrigger>
             <DropdownMenuContent>
               <DropdownMenuItem

@@ -1,3 +1,21 @@
+/*
+Copyright (C) 2023-2026 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
 import { useEffect, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -133,8 +151,8 @@ export function RedemptionsMutateDrawer({
         }
       }}
     >
-      <SheetContent className='flex w-full flex-col sm:max-w-[600px]'>
-        <SheetHeader className='text-start'>
+      <SheetContent className='flex h-dvh w-full flex-col gap-0 overflow-hidden p-0 sm:max-w-[600px]'>
+        <SheetHeader className='border-b px-4 py-3 text-start sm:px-6 sm:py-4'>
           <SheetTitle>
             {isUpdate
               ? t('Update Redemption Code')
@@ -153,7 +171,7 @@ export function RedemptionsMutateDrawer({
           <form
             id='redemption-form'
             onSubmit={form.handleSubmit(onSubmit)}
-            className='flex-1 space-y-6 overflow-y-auto px-4'
+            className='flex-1 space-y-4 overflow-y-auto px-3 py-3 pb-4 sm:space-y-6 sm:px-4'
           >
             <FormField
               control={form.control}
@@ -215,7 +233,7 @@ export function RedemptionsMutateDrawer({
                         placeholder={t('Never expires')}
                       />
                     </FormControl>
-                    <div className='flex gap-2'>
+                    <div className='grid grid-cols-4 gap-1.5 sm:flex sm:gap-2'>
                       <Button
                         type='button'
                         variant='outline'
@@ -287,9 +305,9 @@ export function RedemptionsMutateDrawer({
             )}
           </form>
         </Form>
-        <SheetFooter className='gap-2'>
-          <SheetClose asChild>
-            <Button variant='outline'>{t('Close')}</Button>
+        <SheetFooter className='grid grid-cols-2 gap-2 border-t px-4 py-3 sm:flex sm:px-6 sm:py-4'>
+          <SheetClose render={<Button variant='outline' />}>
+            {t('Close')}
           </SheetClose>
           <Button form='redemption-form' type='submit' disabled={isSubmitting}>
             {isSubmitting ? t('Saving...') : t('Save changes')}

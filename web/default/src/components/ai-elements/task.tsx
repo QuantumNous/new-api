@@ -1,3 +1,21 @@
+/*
+Copyright (C) 2023-2026 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
 'use client'
 
 import type { ComponentProps } from 'react'
@@ -55,15 +73,21 @@ export const TaskTrigger = ({
   title,
   ...props
 }: TaskTriggerProps) => (
-  <CollapsibleTrigger asChild className={cn('group', className)} {...props}>
-    {children ?? (
+  <CollapsibleTrigger
+    className={cn('group', className)}
+    {...props}
+    render={
       <div className='text-muted-foreground hover:text-foreground flex w-full cursor-pointer items-center gap-2 text-sm transition-colors'>
-        <SearchIcon className='size-4' />
-        <p className='text-sm'>{title}</p>
-        <ChevronDownIcon className='size-4 transition-transform group-data-[state=open]:rotate-180' />
+        {children ?? (
+          <>
+            <SearchIcon className='size-4' />
+            <p className='text-sm'>{title}</p>
+            <ChevronDownIcon className='size-4 transition-transform group-data-[panel-open]:rotate-180' />
+          </>
+        )}
       </div>
-    )}
-  </CollapsibleTrigger>
+    }
+  />
 )
 
 export type TaskContentProps = ComponentProps<typeof CollapsibleContent>
@@ -75,7 +99,7 @@ export const TaskContent = ({
 }: TaskContentProps) => (
   <CollapsibleContent
     className={cn(
-      'data-[state=closed]:fade-out-0 data-[state=closed]:slide-out-to-top-2 data-[state=open]:slide-in-from-top-2 text-popover-foreground data-[state=closed]:animate-out data-[state=open]:animate-in outline-none',
+      'data-closed:fade-out-0 data-closed:slide-out-to-top-2 data-open:slide-in-from-top-2 text-popover-foreground data-closed:animate-out data-open:animate-in outline-none',
       className
     )}
     {...props}

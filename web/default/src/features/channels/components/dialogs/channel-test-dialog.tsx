@@ -1,3 +1,21 @@
+/*
+Copyright (C) 2023-2026 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   type ColumnDef,
@@ -25,6 +43,7 @@ import { Label } from '@/components/ui/label'
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
   SelectTrigger,
   SelectValue,
@@ -252,10 +271,8 @@ export function ChannelTestDialog({
         id: 'select',
         header: ({ table }) => (
           <Checkbox
-            checked={
-              table.getIsAllPageRowsSelected() ||
-              (table.getIsSomePageRowsSelected() && 'indeterminate')
-            }
+            checked={table.getIsAllPageRowsSelected()}
+            indeterminate={table.getIsSomePageRowsSelected()}
             onCheckedChange={(value) =>
               table.toggleAllPageRowsSelected(!!value)
             }
@@ -432,19 +449,30 @@ export function ChannelTestDialog({
           <div className='grid gap-4 md:grid-cols-2'>
             <div className='grid gap-2'>
               <Label htmlFor='endpoint-type'>{t('Endpoint Type')}</Label>
-              <Select value={endpointType} onValueChange={setEndpointType}>
+              <Select
+                items={[
+                  ...endpointTypeOptions.map((option) => {
+                    const itemValue = option.value
+                    return { value: itemValue, label: t(option.label) }
+                  }),
+                ]}
+                value={endpointType}
+                onValueChange={(v) => v !== null && setEndpointType(v)}
+              >
                 <SelectTrigger id='endpoint-type'>
                   <SelectValue placeholder={t('Auto detect (default)')} />
                 </SelectTrigger>
-                <SelectContent>
-                  {endpointTypeOptions.map((option) => {
-                    const itemValue = option.value
-                    return (
-                      <SelectItem key={itemValue} value={itemValue}>
-                        {t(option.label)}
-                      </SelectItem>
-                    )
-                  })}
+                <SelectContent alignItemWithTrigger={false}>
+                  <SelectGroup>
+                    {endpointTypeOptions.map((option) => {
+                      const itemValue = option.value
+                      return (
+                        <SelectItem key={itemValue} value={itemValue}>
+                          {t(option.label)}
+                        </SelectItem>
+                      )
+                    })}
+                  </SelectGroup>
                 </SelectContent>
               </Select>
               <p className='text-muted-foreground text-xs'>
@@ -586,21 +614,23 @@ function TestModelsBulkActions({
   return (
     <BulkActionsToolbar table={table} entityName='model'>
       <Tooltip>
-        <TooltipTrigger asChild>
-          <Button
-            size='sm'
-            onClick={() => onTestSelected(selectedModels)}
-            disabled={disabled || selectedModels.length === 0}
-          >
-            {disabled ? (
-              <>
-                <Loader2 className='mr-2 h-4 w-4 animate-spin' />
-                {t('Testing...')}
-              </>
-            ) : (
-              buttonLabel
-            )}
-          </Button>
+        <TooltipTrigger
+          render={
+            <Button
+              size='sm'
+              onClick={() => onTestSelected(selectedModels)}
+              disabled={disabled || selectedModels.length === 0}
+            />
+          }
+        >
+          {disabled ? (
+            <>
+              <Loader2 className='mr-2 h-4 w-4 animate-spin' />
+              {t('Testing...')}
+            </>
+          ) : (
+            buttonLabel
+          )}
         </TooltipTrigger>
         <TooltipContent>
           <p>{t('Run tests for the selected models')}</p>

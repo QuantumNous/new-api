@@ -1,4 +1,22 @@
-import { useState, useMemo, memo } from 'react'
+/*
+Copyright (C) 2023-2026 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
+import { useState, useMemo, useEffect, useCallback, memo } from 'react'
 import { Pencil, Plus, Trash2, GripVertical, ChevronDown } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
@@ -9,6 +27,7 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card'
+import { Checkbox } from '@/components/ui/checkbox'
 import {
   Collapsible,
   CollapsibleContent,
@@ -48,14 +67,101 @@ type SimpleGroup = {
   value: string
 }
 
-type UsableGroup = {
+type GroupPricingRow = {
+  _id: string
   name: string
+  ratio: number
+  selectable: boolean
   description: string
 }
 
 type GroupOverride = {
   targetGroup: string
   ratio: number
+}
+
+const sectionCardClassName =
+  'relative shadow-sm ring-0 before:pointer-events-none before:absolute before:inset-0 before:rounded-xl before:border before:border-border/90'
+const sectionHeaderClassName = 'border-b bg-muted/20'
+
+let groupPricingIdCounter = 0
+function createGroupPricingId() {
+  groupPricingIdCounter += 1
+  return `gpr_${groupPricingIdCounter}`
+}
+
+function normalizeRatio(value: unknown): number {
+  const parsed = Number(value)
+  return Number.isFinite(parsed) ? parsed : 1
+}
+
+function buildGroupPricingRows(
+  groupRatio: string,
+  userUsableGroups: string
+): GroupPricingRow[] {
+  const ratioMap = safeJsonParse<Record<string, number>>(groupRatio, {
+    fallback: {},
+    context: 'group ratios',
+  })
+  const usableMap = safeJsonParse<Record<string, string>>(userUsableGroups, {
+    fallback: {},
+    context: 'user usable groups',
+  })
+  const names = new Set([...Object.keys(ratioMap), ...Object.keys(usableMap)])
+
+  return Array.from(names).map((name) => ({
+    _id: createGroupPricingId(),
+    name,
+    ratio: normalizeRatio(ratioMap[name]),
+    selectable: Object.prototype.hasOwnProperty.call(usableMap, name),
+    description: String(usableMap[name] ?? ''),
+  }))
+}
+
+function serializeGroupPricingRows(rows: GroupPricingRow[]) {
+  const groupRatio: Record<string, number> = {}
+  const userUsableGroups: Record<string, string> = {}
+
+  for (const row of rows) {
+    const name = row.name.trim()
+    if (!name) continue
+    groupRatio[name] = normalizeRatio(row.ratio)
+    if (row.selectable) {
+      userUsableGroups[name] = row.description
+    }
+  }
+
+  return {
+    GroupRatio: JSON.stringify(groupRatio, null, 2),
+    UserUsableGroups: JSON.stringify(userUsableGroups, null, 2),
+  }
+}
+
+function groupPricingSignature(rows: GroupPricingRow[]): string {
+  const serialized = serializeGroupPricingRows(rows)
+  return JSON.stringify({
+    groupRatio: safeJsonParse(serialized.GroupRatio, {
+      fallback: {},
+      silent: true,
+    }),
+    userUsableGroups: safeJsonParse(serialized.UserUsableGroups, {
+      fallback: {},
+      silent: true,
+    }),
+  })
+}
+
+function sourceGroupPricingSignature(
+  groupRatio: string,
+  userUsableGroups: string
+): string {
+  return JSON.stringify({
+    groupRatio: safeJsonParse(groupRatio, { fallback: {}, silent: true }),
+    userUsableGroups: safeJsonParse(userUsableGroups, {
+      fallback: {},
+      silent: true,
+    }),
+  })
 }
 
 export const GroupRatioVisualEditor = memo(function GroupRatioVisualEditor({
@@ -73,9 +179,6 @@ export const GroupRatioVisualEditor = memo(function GroupRatioVisualEditor({
   >(null)
   const [simpleEditData, setSimpleEditData] = useState<SimpleGroup | null>(null)
 
-  const [usableDialogOpen, setUsableDialogOpen] = useState(false)
-  const [usableEditData, setUsableEditData] = useState<UsableGroup | null>(null)
-
   const [autoGroupDialogOpen, setAutoGroupDialogOpen] = useState(false)
   const [autoGroupInput, setAutoGroupInput] = useState('')
 
@@ -89,18 +192,6 @@ export const GroupRatioVisualEditor = memo(function GroupRatioVisualEditor({
   const [userGroupDialogOpen, setUserGroupDialogOpen] = useState(false)
   const [userGroupInput, setUserGroupInput] = useState('')
 
-  // Parse group ratios
-  const groupRatioList = useMemo(() => {
-    const map = safeJsonParse<Record<string, number>>(groupRatio, {
-      fallback: {},
-      context: 'group ratios',
-    })
-    return Object.entries(map).map(([name, value]) => ({
-      name,
-      value: String(value),
-    }))
-  }, [groupRatio])
-
   // Parse topup group ratios
   const topupRatioList = useMemo(() => {
     const map = safeJsonParse<Record<string, number>>(topupGroupRatio, {
@@ -112,18 +203,6 @@ export const GroupRatioVisualEditor = memo(function GroupRatioVisualEditor({
       value: String(value),
     }))
   }, [topupGroupRatio])
-
-  // Parse usable groups
-  const usableGroupsList = useMemo(() => {
-    const map = safeJsonParse<Record<string, string>>(userUsableGroups, {
-      fallback: {},
-      context: 'user usable groups',
-    })
-    return Object.entries(map).map(([name, description]) => ({
-      name,
-      description: String(description),
-    }))
-  }, [userUsableGroups])
 
   // Parse auto groups
   const autoGroupsList = useMemo(() => {
@@ -202,42 +281,6 @@ export const GroupRatioVisualEditor = memo(function GroupRatioVisualEditor({
 
     const field = type === 'groupRatio' ? 'GroupRatio' : 'TopupGroupRatio'
     onChange(field, JSON.stringify(map, null, 2))
-  }
-
-  // Usable groups handlers
-  const handleUsableAdd = () => {
-    setUsableEditData(null)
-    setUsableDialogOpen(true)
-  }
-
-  const handleUsableEdit = (group: UsableGroup) => {
-    setUsableEditData(group)
-    setUsableDialogOpen(true)
-  }
-
-  const handleUsableSave = (name: string, description: string) => {
-    const map = safeJsonParse<Record<string, string>>(userUsableGroups, {
-      fallback: {},
-      silent: true,
-    })
-
-    if (usableEditData && usableEditData.name !== name) {
-      delete map[usableEditData.name]
-    }
-
-    map[name] = description
-
-    onChange('UserUsableGroups', JSON.stringify(map, null, 2))
-    setUsableDialogOpen(false)
-  }
-
-  const handleUsableDelete = (name: string) => {
-    const map = safeJsonParse<Record<string, string>>(userUsableGroups, {
-      fallback: {},
-      silent: true,
-    })
-    delete map[name]
-    onChange('UserUsableGroups', JSON.stringify(map, null, 2))
   }
 
   // Auto groups handlers
@@ -366,75 +409,16 @@ export const GroupRatioVisualEditor = memo(function GroupRatioVisualEditor({
   }
 
   return (
-    <div className='space-y-6'>
-      {/* Group Ratios */}
-      <Card>
-        <CardHeader>
-          <CardTitle>{t('Group ratios')}</CardTitle>
-          <CardDescription>
-            {t('Base multipliers applied when users select specific groups.')}
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className='space-y-4'>
-            <Button onClick={() => handleSimpleAdd('groupRatio')} size='sm'>
-              <Plus className='mr-2 h-4 w-4' />
-              {t('Add group')}
-            </Button>
-            {groupRatioList.length > 0 && (
-              <div className='rounded-md border'>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>{t('Group name')}</TableHead>
-                      <TableHead>{t('Ratio')}</TableHead>
-                      <TableHead className='text-right'>
-                        {t('Actions')}
-                      </TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {groupRatioList.map((group) => (
-                      <TableRow key={group.name}>
-                        <TableCell className='font-medium'>
-                          {group.name}
-                        </TableCell>
-                        <TableCell>{group.value}</TableCell>
-                        <TableCell className='text-right'>
-                          <div className='flex justify-end gap-2'>
-                            <Button
-                              variant='ghost'
-                              size='sm'
-                              onClick={() =>
-                                handleSimpleEdit('groupRatio', group)
-                              }
-                            >
-                              <Pencil className='h-4 w-4' />
-                            </Button>
-                            <Button
-                              variant='ghost'
-                              size='sm'
-                              onClick={() =>
-                                handleSimpleDelete('groupRatio', group.name)
-                              }
-                            >
-                              <Trash2 className='h-4 w-4' />
-                            </Button>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
-            )}
-          </div>
-        </CardContent>
-      </Card>
+    <div className='space-y-4'>
+      <GroupPricingTable
+        groupRatio={groupRatio}
+        userUsableGroups={userUsableGroups}
+        onChange={onChange}
+      />
 
       {/* Topup Group Ratios */}
-      <Card>
-        <CardHeader>
+      <Card className={sectionCardClassName}>
+        <CardHeader className={sectionHeaderClassName}>
           <CardTitle>{t('Top-up group ratios')}</CardTitle>
           <CardDescription>
             {t('Multipliers for recharge pricing based on user groups.')}
@@ -504,8 +488,8 @@ export const GroupRatioVisualEditor = memo(function GroupRatioVisualEditor({
       </Card>
 
       {/* Inter-group ratio overrides */}
-      <Card>
-        <CardHeader>
+      <Card className={sectionCardClassName}>
+        <CardHeader className={sectionHeaderClassName}>
           <CardTitle>{t('Inter-group ratio overrides')}</CardTitle>
           <CardDescription>
             {t(
@@ -526,10 +510,10 @@ export const GroupRatioVisualEditor = memo(function GroupRatioVisualEditor({
                     <div className='rounded-lg border'>
                       <div className='flex items-center justify-between p-4'>
                         <div className='flex items-center gap-2'>
-                          <CollapsibleTrigger asChild>
-                            <Button variant='ghost' size='sm'>
-                              <ChevronDown className='h-4 w-4' />
-                            </Button>
+                          <CollapsibleTrigger
+                            render={<Button variant='ghost' size='sm' />}
+                          >
+                            <ChevronDown className='h-4 w-4' />
                           </CollapsibleTrigger>
                           <span className='font-semibold'>
                             {userGroupData.userGroup}
@@ -625,70 +609,9 @@ export const GroupRatioVisualEditor = memo(function GroupRatioVisualEditor({
         </CardContent>
       </Card>
 
-      {/* Usable Groups */}
-      <Card>
-        <CardHeader>
-          <CardTitle>{t('Selectable groups')}</CardTitle>
-          <CardDescription>
-            {t('Groups that users can select when creating API keys.')}
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className='space-y-4'>
-            <Button onClick={handleUsableAdd} size='sm'>
-              <Plus className='mr-2 h-4 w-4' />
-              {t('Add group')}
-            </Button>
-            {usableGroupsList.length > 0 && (
-              <div className='rounded-md border'>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>{t('Group name')}</TableHead>
-                      <TableHead>{t('Description')}</TableHead>
-                      <TableHead className='text-right'>
-                        {t('Actions')}
-                      </TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {usableGroupsList.map((group) => (
-                      <TableRow key={group.name}>
-                        <TableCell className='font-medium'>
-                          {group.name}
-                        </TableCell>
-                        <TableCell>{group.description}</TableCell>
-                        <TableCell className='text-right'>
-                          <div className='flex justify-end gap-2'>
-                            <Button
-                              variant='ghost'
-                              size='sm'
-                              onClick={() => handleUsableEdit(group)}
-                            >
-                              <Pencil className='h-4 w-4' />
-                            </Button>
-                            <Button
-                              variant='ghost'
-                              size='sm'
-                              onClick={() => handleUsableDelete(group.name)}
-                            >
-                              <Trash2 className='h-4 w-4' />
-                            </Button>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
-            )}
-          </div>
-        </CardContent>
-      </Card>
-
       {/* Auto Groups */}
-      <Card>
-        <CardHeader>
+      <Card className={sectionCardClassName}>
+        <CardHeader className={sectionHeaderClassName}>
           <CardTitle>{t('Auto assignment order')}</CardTitle>
           <CardDescription>
             {t(
@@ -751,14 +674,6 @@ export const GroupRatioVisualEditor = memo(function GroupRatioVisualEditor({
         onSave={handleSimpleSave}
         editData={simpleEditData}
         type={simpleDialogType}
-      />
-
-      {/* Usable Group Dialog */}
-      <UsableGroupDialog
-        open={usableDialogOpen}
-        onOpenChange={setUsableDialogOpen}
-        onSave={handleUsableSave}
-        editData={usableEditData}
       />
 
       {/* Auto Group Dialog */}
@@ -835,6 +750,231 @@ export const GroupRatioVisualEditor = memo(function GroupRatioVisualEditor({
   )
 })
 
+type GroupPricingTableProps = {
+  groupRatio: string
+  userUsableGroups: string
+  onChange: (field: string, value: string) => void
+}
+
+function GroupPricingTable({
+  groupRatio,
+  userUsableGroups,
+  onChange,
+}: GroupPricingTableProps) {
+  const { t } = useTranslation()
+  const [rows, setRows] = useState<GroupPricingRow[]>(() =>
+    buildGroupPricingRows(groupRatio, userUsableGroups)
+  )
+
+  useEffect(() => {
+    const incomingSignature = sourceGroupPricingSignature(
+      groupRatio,
+      userUsableGroups
+    )
+    setRows((currentRows) => {
+      if (groupPricingSignature(currentRows) === incomingSignature) {
+        return currentRows
+      }
+      return buildGroupPricingRows(groupRatio, userUsableGroups)
+    })
+  }, [groupRatio, userUsableGroups])
+
+  const emitRows = useCallback(
+    (nextRows: GroupPricingRow[]) => {
+      setRows(nextRows)
+      const serialized = serializeGroupPricingRows(nextRows)
+      onChange('GroupRatio', serialized.GroupRatio)
+      onChange('UserUsableGroups', serialized.UserUsableGroups)
+    },
+    [onChange]
+  )
+
+  const updateRow = useCallback(
+    (
+      id: string,
+      field: Exclude<keyof GroupPricingRow, '_id'>,
+      value: string | number | boolean
+    ) => {
+      emitRows(
+        rows.map((row) => (row._id === id ? { ...row, [field]: value } : row))
+      )
+    },
+    [emitRows, rows]
+  )
+
+  const addRow = useCallback(() => {
+    const existingNames = new Set(rows.map((row) => row.name))
+    let index = 1
+    let name = `group_${index}`
+    while (existingNames.has(name)) {
+      index += 1
+      name = `group_${index}`
+    }
+    emitRows([
+      ...rows,
+      {
+        _id: createGroupPricingId(),
+        name,
+        ratio: 1,
+        selectable: true,
+        description: '',
+      },
+    ])
+  }, [emitRows, rows])
+
+  const removeRow = useCallback(
+    (id: string) => {
+      emitRows(rows.filter((row) => row._id !== id))
+    },
+    [emitRows, rows]
+  )
+
+  const duplicateNames = useMemo(() => {
+    const counts = new Map<string, number>()
+    for (const row of rows) {
+      const name = row.name.trim()
+      if (!name) continue
+      counts.set(name, (counts.get(name) ?? 0) + 1)
+    }
+    return Array.from(counts.entries())
+      .filter(([, count]) => count > 1)
+      .map(([name]) => name)
+  }, [rows])
+
+  return (
+    <Card className={sectionCardClassName}>
+      <CardHeader className={sectionHeaderClassName}>
+        <div className='flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between'>
+          <div>
+            <CardTitle>{t('Pricing groups')}</CardTitle>
+            <CardDescription>
+              {t(
+                'Edit billing ratios and user-selectable groups in one table.'
+              )}
+            </CardDescription>
+          </div>
+          <Button onClick={addRow} size='sm' className='sm:self-start'>
+            <Plus className='mr-2 h-4 w-4' />
+            {t('Add group')}
+          </Button>
+        </div>
+      </CardHeader>
+      <CardContent>
+        <div className='space-y-3'>
+          <div className='overflow-hidden rounded-md border'>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className='min-w-40'>{t('Group name')}</TableHead>
+                  <TableHead className='w-28'>{t('Ratio')}</TableHead>
+                  <TableHead className='w-28 text-center'>
+                    {t('User selectable')}
+                  </TableHead>
+                  <TableHead className='min-w-56'>{t('Description')}</TableHead>
+                  <TableHead className='w-16 text-right'>
+                    {t('Actions')}
+                  </TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {rows.length === 0 ? (
+                  <TableRow>
+                    <TableCell
+                      colSpan={5}
+                      className='text-muted-foreground h-20 text-center text-sm'
+                    >
+                      {t('No groups yet. Add a group to get started.')}
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  rows.map((row) => (
+                    <TableRow key={row._id}>
+                      <TableCell>
+                        <Input
+                          value={row.name}
+                          onChange={(event) =>
+                            updateRow(row._id, 'name', event.target.value)
+                          }
+                          aria-invalid={duplicateNames.includes(
+                            row.name.trim()
+                          )}
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <Input
+                          type='number'
+                          min={0}
+                          step={0.1}
+                          value={String(row.ratio)}
+                          onChange={(event) =>
+                            updateRow(
+                              row._id,
+                              'ratio',
+                              normalizeRatio(event.target.value)
+                            )
+                          }
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <div className='flex justify-center'>
+                          <Checkbox
+                            checked={row.selectable}
+                            onCheckedChange={(checked) =>
+                              updateRow(row._id, 'selectable', checked === true)
+                            }
+                            aria-label={t('User selectable')}
+                          />
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        {row.selectable ? (
+                          <Input
+                            value={row.description}
+                            placeholder={t('Group description')}
+                            onChange={(event) =>
+                              updateRow(
+                                row._id,
+                                'description',
+                                event.target.value
+                              )
+                            }
+                          />
+                        ) : (
+                          <span className='text-muted-foreground px-3 text-sm'>
+                            -
+                          </span>
+                        )}
+                      </TableCell>
+                      <TableCell className='text-right'>
+                        <Button
+                          variant='ghost'
+                          size='sm'
+                          onClick={() => removeRow(row._id)}
+                          aria-label={t('Delete')}
+                        >
+                          <Trash2 className='h-4 w-4' />
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </div>
+
+          {duplicateNames.length > 0 && (
+            <p className='text-destructive text-sm'>
+              {t('Duplicate group names: {{names}}', {
+                names: duplicateNames.join(', '),
+              })}
+            </p>
+          )}
+        </div>
+      </CardContent>
+    </Card>
+  )
+}
+
 // Simple Group Dialog Component
 type SimpleGroupDialogProps = {
   open: boolean
@@ -857,6 +997,17 @@ function SimpleGroupDialog({
 
   const title = type === 'groupRatio' ? t('group ratio') : t('top-up ratio')
 
+  useEffect(() => {
+    if (!open) {
+      setName('')
+      setValue('')
+      return
+    }
+
+    setName(editData?.name ?? '')
+    setValue(editData?.value ?? '')
+  }, [editData, open])
+
   const handleSave = () => {
     if (!name.trim() || !value.trim()) return
     onSave(name.trim(), value.trim())
@@ -865,19 +1016,7 @@ function SimpleGroupDialog({
   }
 
   return (
-    <Dialog
-      open={open}
-      onOpenChange={(open) => {
-        onOpenChange(open)
-        if (open && editData) {
-          setName(editData.name)
-          setValue(editData.value)
-        } else {
-          setName('')
-          setValue('')
-        }
-      }}
-    >
+    <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
           <DialogTitle>
@@ -926,88 +1065,6 @@ function SimpleGroupDialog({
   )
 }
 
-// Usable Group Dialog Component
-type UsableGroupDialogProps = {
-  open: boolean
-  onOpenChange: (open: boolean) => void
-  onSave: (name: string, description: string) => void
-  editData: UsableGroup | null
-}
-
-function UsableGroupDialog({
-  open,
-  onOpenChange,
-  onSave,
-  editData,
-}: UsableGroupDialogProps) {
-  const { t } = useTranslation()
-  const [name, setName] = useState('')
-  const [description, setDescription] = useState('')
-
-  const handleSave = () => {
-    if (!name.trim() || !description.trim()) return
-    onSave(name.trim(), description.trim())
-    setName('')
-    setDescription('')
-  }
-
-  return (
-    <Dialog
-      open={open}
-      onOpenChange={(open) => {
-        onOpenChange(open)
-        if (open && editData) {
-          setName(editData.name)
-          setDescription(editData.description)
-        } else {
-          setName('')
-          setDescription('')
-        }
-      }}
-    >
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>
-            {editData ? t('Edit selectable group') : t('Add selectable group')}
-          </DialogTitle>
-          <DialogDescription>
-            {t(
-              'Configure a group that users can select when creating API keys.'
-            )}
-          </DialogDescription>
-        </DialogHeader>
-        <div className='space-y-4 py-4'>
-          <div className='space-y-2'>
-            <Label>{t('Group name')}</Label>
-            <Input
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder={t('vip')}
-              disabled={!!editData}
-            />
-          </div>
-          <div className='space-y-2'>
-            <Label>{t('Description')}</Label>
-            <Input
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              placeholder={t('VIP users with premium access')}
-            />
-          </div>
-        </div>
-        <DialogFooter>
-          <Button variant='outline' onClick={() => onOpenChange(false)}>
-            {t('Cancel')}
-          </Button>
-          <Button onClick={handleSave}>
-            {editData ? t('Update') : t('Add')}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  )
-}
-
 // Group Override Dialog Component
 type GroupOverrideDialogProps = {
   open: boolean
@@ -1028,6 +1085,17 @@ function GroupOverrideDialog({
   const [targetGroup, setTargetGroup] = useState('')
   const [ratio, setRatio] = useState('')
 
+  useEffect(() => {
+    if (!open) {
+      setTargetGroup('')
+      setRatio('')
+      return
+    }
+
+    setTargetGroup(editData?.targetGroup ?? '')
+    setRatio(editData ? String(editData.ratio) : '')
+  }, [editData, open])
+
   const handleSave = () => {
     if (!targetGroup.trim() || !ratio.trim()) return
     const parsedRatio = parseFloat(ratio)
@@ -1039,19 +1107,7 @@ function GroupOverrideDialog({
   }
 
   return (
-    <Dialog
-      open={open}
-      onOpenChange={(open) => {
-        onOpenChange(open)
-        if (open && editData) {
-          setTargetGroup(editData.targetGroup)
-          setRatio(String(editData.ratio))
-        } else {
-          setTargetGroup('')
-          setRatio('')
-        }
-      }}
-    >
+    <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
           <DialogTitle>
