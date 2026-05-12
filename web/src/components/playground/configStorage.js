@@ -24,6 +24,21 @@ import {
 
 const MESSAGES_STORAGE_KEY = 'playground_messages';
 
+const buildConversationTitle = (messages = []) => {
+  const firstUserMessage = messages.find((message) => message?.role === 'user');
+  const content = firstUserMessage?.content;
+  const text =
+    typeof content === 'string'
+      ? content
+      : Array.isArray(content)
+        ? content
+            .map((item) => item?.text || '')
+            .join(' ')
+            .trim()
+        : '';
+  return text ? text.slice(0, 30) : '新对话';
+};
+
 /**
  * 保存配置到 localStorage
  * @param {Object} config - 要保存的配置对象
@@ -85,6 +100,8 @@ export const loadConfig = () => {
           parsedConfig.customRequestMode || DEFAULT_CONFIG.customRequestMode,
         customRequestBody:
           parsedConfig.customRequestBody || DEFAULT_CONFIG.customRequestBody,
+        playgroundMode:
+          parsedConfig.playgroundMode || DEFAULT_CONFIG.playgroundMode,
       };
 
       return mergedConfig;
@@ -112,6 +129,81 @@ export const loadMessages = () => {
   }
 
   return null;
+};
+
+export const createStoredConversation = (messages = [], id = null) => {
+  const now = Date.now();
+  return {
+    id: id || `pg-${now}`,
+    title: buildConversationTitle(messages),
+    messages,
+    createdAt: now,
+    updatedAt: now,
+  };
+};
+
+export const saveConversationState = (
+  conversations = [],
+  activeConversationId = null,
+) => {
+  try {
+    localStorage.setItem(
+      STORAGE_KEYS.CONVERSATIONS,
+      JSON.stringify({
+        conversations,
+        timestamp: new Date().toISOString(),
+      }),
+    );
+    if (activeConversationId) {
+      localStorage.setItem(
+        STORAGE_KEYS.ACTIVE_CONVERSATION,
+        activeConversationId,
+      );
+    } else {
+      localStorage.removeItem(STORAGE_KEYS.ACTIVE_CONVERSATION);
+    }
+  } catch (error) {
+    console.error('保存会话失败:', error);
+  }
+};
+
+export const loadConversationState = () => {
+  try {
+    const savedConversations = localStorage.getItem(STORAGE_KEYS.CONVERSATIONS);
+    const activeConversationId = localStorage.getItem(
+      STORAGE_KEYS.ACTIVE_CONVERSATION,
+    );
+
+    if (savedConversations) {
+      const parsed = JSON.parse(savedConversations);
+      const conversations = Array.isArray(parsed?.conversations)
+        ? parsed.conversations
+        : [];
+
+      if (conversations.length > 0) {
+        return {
+          conversations,
+          activeConversationId:
+            activeConversationId || conversations[0]?.id || null,
+        };
+      }
+    }
+
+    const messages = loadMessages();
+    const fallbackConversation = createStoredConversation(messages || []);
+    return {
+      conversations: [fallbackConversation],
+      activeConversationId: fallbackConversation.id,
+    };
+  } catch (error) {
+    console.error('加载会话失败:', error);
+  }
+
+  const fallbackConversation = createStoredConversation([]);
+  return {
+    conversations: [fallbackConversation],
+    activeConversationId: fallbackConversation.id,
+  };
 };
 
 /**

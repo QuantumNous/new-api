@@ -114,9 +114,20 @@ const MessageContent = ({
       <div
         className={`playground-message-content playground-message-error ${className || ''}`}
       >
-        <Typography.Text className='playground-error-text'>
-          {errorText}
-        </Typography.Text>
+        <div className='playground-error-card rounded-lg p-3 space-y-2'>
+          <div className='playground-error-heading flex items-center gap-2'>
+            <AlertTriangle size={16} className='playground-error-icon shrink-0' />
+            <Typography.Text strong className='playground-error-title'>
+              {t('请求发生错误')}
+            </Typography.Text>
+          </div>
+          <Typography.Paragraph
+            className='playground-error-text !mb-0'
+            style={{ wordBreak: 'break-word' }}
+          >
+            {errorText}
+          </Typography.Paragraph>
+        </div>
       </div>
     );
   }
