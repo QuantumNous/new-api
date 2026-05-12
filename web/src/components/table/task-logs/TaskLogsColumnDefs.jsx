@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import { Progress, Tag, Tooltip, Typography } from '@douyinfe/semi-ui';
+import { Button, Tag, Tooltip, Typography } from '@douyinfe/semi-ui';
 import {
   Music,
   FileText,
@@ -33,6 +33,7 @@ import {
   Hash,
   Video,
   Sparkles,
+  Info,
 } from 'lucide-react';
 import {
   TASK_ACTION_FIRST_TAIL_GENERATE,
@@ -129,6 +130,164 @@ const extractVideoPreviewUrl = (record) => {
   }
 
   return '';
+};
+
+const stringifyDetail = (value) => {
+  if (value === null || value === undefined || value === '') {
+    return '';
+  }
+  if (typeof value === 'string') {
+    return value;
+  }
+  try {
+    return JSON.stringify(value, null, 2);
+  } catch {
+    return String(value);
+  }
+};
+
+const extractProgressItems = (record) => {
+  const candidates = [
+    record?.progress,
+    record?.progresses,
+    record?.progress_array,
+    record?.progressArray,
+  ];
+  const parsedData = parseJsonLike(record?.data);
+  if (parsedData && typeof parsedData === 'object') {
+    candidates.push(
+      parsedData.progress,
+      parsedData.progresses,
+      parsedData.progress_array,
+      parsedData.progressArray,
+      parsedData.data?.progress,
+      parsedData.data?.progresses,
+    );
+  }
+
+  for (const candidate of candidates) {
+    if (Array.isArray(candidate)) {
+      return candidate;
+    }
+    if (typeof candidate === 'string') {
+      const parsed = parseJsonLike(candidate);
+      if (Array.isArray(parsed)) {
+        return parsed;
+      }
+    }
+  }
+
+  return [];
+};
+
+const getProgressText = (item) => {
+  if (item === null || item === undefined) {
+    return '';
+  }
+  if (typeof item === 'string' || typeof item === 'number') {
+    return String(item);
+  }
+  const value =
+    item.progress ??
+    item.percent ??
+    item.percentage ??
+    item.status ??
+    item.message ??
+    item.desc;
+  return value === undefined || value === null
+    ? stringifyDetail(item)
+    : String(value);
+};
+
+const parseProgressPercent = (value) => {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return Math.max(0, Math.min(100, value));
+  }
+  if (typeof value !== 'string') {
+    return null;
+  }
+
+  const match = value.match(/(\d+(?:\.\d+)?)\s*%?/);
+  if (!match) {
+    return null;
+  }
+
+  const percent = Number(match[1]);
+  if (!Number.isFinite(percent)) {
+    return null;
+  }
+  return Math.max(0, Math.min(100, percent));
+};
+
+const resolveProgressDisplay = (text, record) => {
+  const items = extractProgressItems(record);
+  const progressTextList = items
+    .map(getProgressText)
+    .filter((item) => item !== '');
+  const sourceText =
+    progressTextList.length > 0
+      ? progressTextList[progressTextList.length - 1]
+      : text;
+  const percent = parseProgressPercent(sourceText);
+
+  return {
+    percent,
+    label: sourceText || '-',
+    tooltip:
+      progressTextList.length > 0
+        ? progressTextList.join('\n')
+        : stringifyDetail(sourceText),
+  };
+};
+
+const renderDetailIcon = ({
+  icon,
+  tooltip,
+  ariaLabel,
+  type = 'tertiary',
+  onClick,
+}) => (
+  <Tooltip content={tooltip} position='top' showArrow>
+    <Button
+      theme='borderless'
+      type={type}
+      size='default'
+      className='task-action-icon-button'
+      icon={icon}
+      aria-label={ariaLabel}
+      onClick={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        onClick?.();
+      }}
+    />
+  </Tooltip>
+);
+
+const renderInlineProgress = (progress, record) => {
+  const percent = Math.round(progress.percent);
+  return (
+    <Tooltip
+      content={progress.tooltip || progress.label}
+      position='top'
+      showArrow
+    >
+      <div
+        className={`task-inline-progress ${record.status === 'FAILURE' ? 'is-failure' : ''}`}
+        role='progressbar'
+        aria-label='task progress'
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuenow={percent}
+      >
+        <div
+          className='task-inline-progress-fill'
+          style={{ width: `${percent}%` }}
+        />
+        <span className='task-inline-progress-label'>{percent}%</span>
+      </div>
+    </Tooltip>
+  );
 };
 
 // Render functions
@@ -423,22 +582,21 @@ export const getTaskLogsColumns = ({
       title: t('进度'),
       dataIndex: 'progress',
       render: (text, record, index) => {
+        const progress = resolveProgressDisplay(text, record);
         return (
-          <div>
-            {isNaN(text?.replace('%', '')) ? (
-              text || '-'
+          <div className='task-progress-cell'>
+            {progress.percent === null ? (
+              <Tooltip
+                content={progress.tooltip || progress.label}
+                position='top'
+                showArrow
+              >
+                <Tag className='task-progress-text' shape='circle'>
+                  {progress.label}
+                </Tag>
+              </Tooltip>
             ) : (
-              <Progress
-                stroke={
-                  record.status === 'FAILURE'
-                    ? 'var(--semi-color-warning)'
-                    : null
-                }
-                percent={text ? parseInt(text.replace('%', '')) : 0}
-                showInfo={true}
-                aria-label='task progress'
-                style={{ minWidth: '160px' }}
-              />
+              renderInlineProgress(progress, record)
             )}
           </div>
         );
@@ -457,17 +615,13 @@ export const getTaskLogsColumns = ({
           Array.isArray(record.data) &&
           record.data.some((c) => c.audio_url);
         if (isSunoSuccess) {
-          return (
-            <a
-              href='#'
-              onClick={(e) => {
-                e.preventDefault();
-                openAudioModal(record.data);
-              }}
-            >
-              {t('点击预览音乐')}
-            </a>
-          );
+          return renderDetailIcon({
+            icon: <Music size={15} />,
+            tooltip: t('点击预览音乐'),
+            ariaLabel: t('点击预览音乐'),
+            type: 'primary',
+            onClick: () => openAudioModal(record.data),
+          });
         }
 
         // 视频预览：优先使用 result_url，兼容旧数据 fail_reason 中的 URL
@@ -482,32 +636,27 @@ export const getTaskLogsColumns = ({
         const hasResultUrl =
           typeof resultUrl === 'string' && /^https?:\/\//.test(resultUrl);
         if (isSuccess && isVideoTask && hasResultUrl) {
-          return (
-            <a
-              href='#'
-              onClick={(e) => {
-                e.preventDefault();
-                openVideoModal(resultUrl);
-              }}
-            >
-              {t('点击预览视频')}
-            </a>
-          );
+          return renderDetailIcon({
+            icon: <Video size={15} />,
+            tooltip: t('点击预览视频'),
+            ariaLabel: t('点击预览视频'),
+            type: 'primary',
+            onClick: () => openVideoModal(resultUrl),
+          });
         }
         if (!text) {
-          return t('无');
+          return (
+            <Tag className='task-detail-empty' shape='circle'>
+              {t('无')}
+            </Tag>
+          );
         }
-        return (
-          <Typography.Text
-            ellipsis={{ showTooltip: true }}
-            style={{ width: 100 }}
-            onClick={() => {
-              openContentModal(text);
-            }}
-          >
-            {text}
-          </Typography.Text>
-        );
+        return renderDetailIcon({
+          icon: <Info size={15} />,
+          tooltip: text,
+          ariaLabel: t('查看详情'),
+          onClick: () => openContentModal(text),
+        });
       },
     },
   ];
