@@ -1,0 +1,158 @@
+name: GCP Deploy
+
+# Build runs automatically on every push to main.
+# Deploy is gated by the "production" GitHub Environment — slZhong must Approve.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: "Existing image tag to deploy (skip build). Format: sha-<commit> or v1.2.3"
+        required: false
+        type: string
+
+permissions:
+  contents: read
+  id-token: write   # required for Workload Identity Federation
+
+env:
+  PROJECT_ID:   ${{ vars.GCP_PROJECT_ID }}
+  REGION:       ${{ vars.GCP_REGION }}
+  AR_REPO_URL:  ${{ vars.GCP_AR_REPO_URL }}
+  RUN_SERVICE:  ${{ vars.GCP_RUN_SERVICE }}
+  HEALTH_URL:   ${{ vars.GCP_RUN_HEALTH_URL }}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    outputs:
+      image_uri: ${{ steps.compute_image.outputs.image_uri }}
+      short_sha: ${{ steps.compute_image.outputs.short_sha }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Compute image URI
+        id: compute_image
+        run: |
+          short_sha="${GITHUB_SHA::12}"
+          echo "short_sha=${short_sha}" >> "$GITHUB_OUTPUT"
+          if [[ -n "${{ inputs.image_tag }}" ]]; then
+            echo "image_uri=${AR_REPO_URL}/server:${{ inputs.image_tag }}" >> "$GITHUB_OUTPUT"
+            echo "SKIP_BUILD=true" >> "$GITHUB_ENV"
+          else
+            echo "image_uri=${AR_REPO_URL}/server:sha-${short_sha}" >> "$GITHUB_OUTPUT"
+            echo "SKIP_BUILD=false" >> "$GITHUB_ENV"
+          fi
+
+      - name: Auth to GCP via WIF
+        if: env.SKIP_BUILD != 'true'
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER }}
+          service_account: ${{ vars.GCP_DEPLOYER_SA }}
+
+      - name: Configure docker for Artifact Registry
+        if: env.SKIP_BUILD != 'true'
+        run: gcloud auth configure-docker "${REGION}-docker.pkg.dev" --quiet
+
+      - name: Set up Docker buildx
+        if: env.SKIP_BUILD != 'true'
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build & push
+        if: env.SKIP_BUILD != 'true'
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64
+          push: true
+          tags: |
+            ${{ steps.compute_image.outputs.image_uri }}
+            ${{ env.AR_REPO_URL }}/server:main-latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment: production   # ← manual approval gate happens here
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Auth to GCP via WIF
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER }}
+          service_account: ${{ vars.GCP_DEPLOYER_SA }}
+
+      - name: Set up gcloud
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Deploy new revision with NO traffic
+        id: deploy
+        run: |
+          set -euo pipefail
+          revision_suffix="$(date -u +%Y%m%d-%H%M%S)-${{ needs.build.outputs.short_sha }}"
+          gcloud run services update "${RUN_SERVICE}" \
+            --project="${PROJECT_ID}" \
+            --region="${REGION}" \
+            --image="${{ needs.build.outputs.image_uri }}" \
+            --revision-suffix="${revision_suffix}" \
+            --no-traffic \
+            --quiet
+          new_rev="$(gcloud run services describe "${RUN_SERVICE}" \
+            --project="${PROJECT_ID}" --region="${REGION}" \
+            --format='value(status.latestCreatedRevisionName)')"
+          echo "new_revision=${new_rev}" >> "$GITHUB_OUTPUT"
+          echo "Deployed revision: ${new_rev}"
+
+      - name: Health check the new revision (via Cloud Run revision URL)
+        run: |
+          set -euo pipefail
+          # Tag the new revision so we can hit it via a dedicated URL.
+          gcloud run services update-traffic "${RUN_SERVICE}" \
+            --project="${PROJECT_ID}" --region="${REGION}" \
+            --update-tags=canary="${{ steps.deploy.outputs.new_revision }}" \
+            --quiet
+          tag_url="$(gcloud run services describe "${RUN_SERVICE}" \
+            --project="${PROJECT_ID}" --region="${REGION}" \
+            --format='value(status.traffic[].url)' | tr ';' '\n' | grep canary || true)"
+          if [[ -z "${tag_url}" ]]; then
+            # Fall back: just probe latest URL
+            tag_url="${HEALTH_URL}"
+          fi
+          echo "Probing ${tag_url}/api/status ..."
+          for i in $(seq 1 30); do
+            code=$(curl -s -o /dev/null -w '%{http_code}' "${tag_url}/api/status" || true)
+            echo "attempt $i → $code"
+            if [[ "${code}" == "200" ]]; then exit 0; fi
+            sleep 5
+          done
+          echo "Health check failed" >&2
+          exit 1
+
+      - name: Canary 10% for 3 minutes
+        run: |
+          gcloud run services update-traffic "${RUN_SERVICE}" \
+            --project="${PROJECT_ID}" --region="${REGION}" \
+            --to-revisions="${{ steps.deploy.outputs.new_revision }}=10" \
+            --quiet
+          echo "Sleeping 180s while canary observes traffic..."
+          sleep 180
+
+      - name: Promote to 100%
+        run: |
+          gcloud run services update-traffic "${RUN_SERVICE}" \
+            --project="${PROJECT_ID}" --region="${REGION}" \
+            --to-revisions="${{ steps.deploy.outputs.new_revision }}=100" \
+            --quiet
+
+      - name: Summary
+        run: |
+          echo "### Deployed" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Revision: \`${{ steps.deploy.outputs.new_revision }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Image:    \`${{ needs.build.outputs.image_uri }}\`" >> "$GITHUB_STEP_SUMMARY"

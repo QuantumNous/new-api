@@ -1,0 +1,22 @@
+# Terraform working dir + state
+.terraform/
+.terraform.tfstate.lock.info
+
+# Saved plans and crash logs
+tfplan
+tfplan.*
+*.tfplan
+crash.log
+crash.*.log
+
+# Provider override files local to a developer
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# Local TF state (we use GCS backend; never commit local state)
+*.tfstate
+*.tfstate.*
+*.tfstate.backup
+.omc/

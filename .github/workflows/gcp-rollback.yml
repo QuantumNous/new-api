@@ -1,0 +1,38 @@
+name: GCP Rollback
+
+on:
+  workflow_dispatch:
+    inputs:
+      revision:
+        description: "Revision name to roll back to (gcloud run revisions list)"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  rollback:
+    runs-on: ubuntu-latest
+    environment: production   # same approval gate as deploy
+    steps:
+      - name: Auth to GCP via WIF
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER }}
+          service_account: ${{ vars.GCP_DEPLOYER_SA }}
+
+      - name: Set up gcloud
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Switch 100% traffic to the named revision
+        run: |
+          set -euo pipefail
+          gcloud run services update-traffic "${{ vars.GCP_RUN_SERVICE }}" \
+            --project="${{ vars.GCP_PROJECT_ID }}" \
+            --region="${{ vars.GCP_REGION }}" \
+            --to-revisions="${{ inputs.revision }}=100" \
+            --quiet
+          echo "### Rolled back" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Revision now serving 100%: \`${{ inputs.revision }}\`" >> "$GITHUB_STEP_SUMMARY"
