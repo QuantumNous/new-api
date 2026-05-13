@@ -37,6 +37,8 @@ import PricingCardSkeleton from './PricingCardSkeleton';
 import { useMinimumLoadingTime } from '../../../../../hooks/common/useMinimumLoadingTime';
 import { renderLimitedItems } from '../../../../common/ui/RenderUtils';
 import { useIsMobile } from '../../../../../hooks/common/useIsMobile';
+import { resetPricingFilters } from '../../../../../helpers/utils';
+import { getModelType } from '../../utils/modelType';
 
 const CARD_STYLES = {
   container:
@@ -60,6 +62,19 @@ const PricingCardView = ({
   selectedRowKeys = [],
   setSelectedRowKeys,
   openModelDetail,
+  handleChange,
+  setShowWithRecharge,
+  setCurrency,
+  setShowRatio,
+  setViewMode,
+  setFilterGroup,
+  setFilterQuotaType,
+  setFilterEndpointType,
+  setFilterVendor,
+  setFilterTag,
+  setFilterModelType,
+  setSortBy,
+  setTokenUnit,
 }) => {
   const showSkeleton = useMinimumLoadingTime(loading);
   const startIndex = (currentPage - 1) * pageSize;
@@ -69,6 +84,23 @@ const PricingCardView = ({
   );
   const getModelKey = (model) => model.key ?? model.model_name ?? model.id;
   const isMobile = useIsMobile();
+  const resetFilters = () =>
+    resetPricingFilters({
+      handleChange,
+      setShowWithRecharge,
+      setCurrency,
+      setShowRatio,
+      setViewMode,
+      setFilterGroup,
+      setFilterQuotaType,
+      setFilterEndpointType,
+      setFilterVendor,
+      setFilterTag,
+      setFilterModelType,
+      setSortBy,
+      setCurrentPage,
+      setTokenUnit,
+    });
 
   const handleCheckboxChange = (model, checked) => {
     if (!setSelectedRowKeys) return;
@@ -132,23 +164,11 @@ const PricingCardView = ({
   };
 
   const getModelCapability = (record) => {
-    const searchText = [
-      record?.model_name,
-      record?.vendor_name,
-      record?.tags,
-      ...(Array.isArray(record?.supported_endpoint_types)
-        ? record.supported_endpoint_types
-        : []),
-    ]
-      .filter(Boolean)
-      .join(' ')
-      .toLowerCase();
-
-    if (/(image|vision|paint|midjourney)/.test(searchText)) return t('图像');
-    if (/(video|kling|runway)/.test(searchText)) return t('视频');
-    if (/(audio|music|speech|tts|voice)/.test(searchText)) return t('音频');
-    if (/(code|coder|coding|developer)/.test(searchText)) return t('编码');
-    return t('文本');
+    const type = getModelType(record);
+    return {
+      label: t(type.label),
+      color: type.color,
+    };
   };
 
   const getBillingHint = (record) => {
@@ -241,8 +261,16 @@ const PricingCardView = ({
           darkModeImage={
             <IllustrationNoResultDark style={{ width: 150, height: 150 }} />
           }
-          description={t('搜索无结果')}
-        />
+          title={t('当前筛选条件下暂无模型')}
+          description={t('请调整搜索词或清空筛选')}
+          style={{ padding: 30 }}
+        >
+          {resetFilters && (
+            <Button theme='solid' type='primary' onClick={resetFilters}>
+              {t('清空筛选')}
+            </Button>
+          )}
+        </Empty>
       </div>
     );
   }
@@ -253,6 +281,7 @@ const PricingCardView = ({
         {paginatedModels.map((model, index) => {
           const modelKey = getModelKey(model);
           const isSelected = selectedRowKeys.includes(modelKey);
+          const modelCapability = getModelCapability(model);
 
           return (
             <Card
@@ -268,8 +297,12 @@ const PricingCardView = ({
                     {getModelIcon(model)}
                     <div className='flex-1 min-w-0'>
                       <div className='mb-1 flex min-w-0 flex-wrap items-center gap-1.5'>
-                        <Tag color='blue' shape='circle' size='small'>
-                          {getModelCapability(model)}
+                        <Tag
+                          color={modelCapability.color}
+                          shape='circle'
+                          size='small'
+                        >
+                          {modelCapability.label}
                         </Tag>
                         {model.vendor_name && (
                           <Tag color='white' shape='circle' size='small'>

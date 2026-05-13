@@ -3000,3 +3000,87 @@ status: completed
 ### 提交状态
 
 - 验证通过，允许创建中文 commit：`前端：模型广场改造为公开模型库结构`。
+
+## 旧版前端模型广场 Stage 3.2 筛选与排序增强记录
+
+任务名称：Stage 3.2：模型广场筛选与排序增强
+
+status: completed
+
+### 本轮目标
+
+- 在现有公开 `/pricing` 模型广场中增强前端筛选与排序。
+- 新增模型类型筛选：文本、图像、视频、音频、编码、通用。
+- 新增排序：热门、名称、供应商、类型；默认热门保留既有展示顺序。
+- 新增筛选摘要 chips、一键清空筛选和卡片视图空状态清空入口。
+- 移动端筛选弹窗同步模型类型筛选。
+- 保留 `/api/pricing`、`useModelPricingData`、现有搜索、供应商/分组/endpoint/tag/billing 筛选、分页、详情 SideSheet、卡片/表格视图切换。
+
+### 本轮修改文件
+
+- `web/classic/src/components/table/model-pricing/filter/PricingModelTypes.jsx`
+- `web/classic/src/components/table/model-pricing/utils/modelType.js`
+- `web/classic/src/hooks/model-pricing/useModelPricingData.jsx`
+- `web/classic/src/hooks/model-pricing/usePricingFilterCounts.js`
+- `web/classic/src/components/table/model-pricing/layout/PricingSidebar.jsx`
+- `web/classic/src/components/table/model-pricing/modal/components/FilterModalContent.jsx`
+- `web/classic/src/components/table/model-pricing/layout/header/SearchActions.jsx`
+- `web/classic/src/components/table/model-pricing/layout/header/PricingTopSection.jsx`
+- `web/classic/src/components/table/model-pricing/layout/header/PricingMarketplaceHero.jsx`
+- `web/classic/src/components/table/model-pricing/view/card/PricingCardView.jsx`
+- `web/classic/src/components/table/model-pricing/modal/PricingFilterModal.jsx`
+- `web/classic/src/helpers/utils.jsx`
+- `web/classic/src/index.css`
+- `.ai/TASK.md`
+
+### 实现摘要
+
+- 新增 `modelType.js`，仅提供前端展示与筛选用的保守模型类型推导，不写回后端、不改变 `/api/pricing` 数据结构。
+- `useModelPricingData` 增加 `filterModelType` 与 `sortBy`，在既有筛选之后、分页之前完成模型类型过滤和排序。
+- 新增 `PricingModelTypes`，桌面侧栏与移动端筛选弹窗共用同一筛选状态和计数。
+- `usePricingFilterCounts` 增加模型类型计数，并避免当前类型筛选影响自身计数。
+- `SearchActions` 增加排序下拉，保留搜索、复制、视图切换、倍率和单位切换能力。
+- `PricingTopSection` 增加筛选摘要 chips 与清空筛选入口。
+- `PricingCardView` 复用模型类型 helper 展示能力标签，并在空状态提供清空筛选入口。
+- `PricingMarketplaceHero` 复用同一 helper 计算能力摘要，避免多套推导逻辑漂移。
+- `index.css` 仅追加 `pricing-marketplace-*` 局部样式。
+
+### 验证命令与结果
+
+- `C:\Users\Administrator\.bun\bin\bun.exe run build`（目录 `web/classic`）：通过；仅有既有 Browserslist 过期、`lottie-web` eval、chunk size 警告。
+- `C:\Users\Administrator\.bun\bin\bun.exe run lint`（目录 `web/classic`）：通过。
+- `C:\Users\Administrator\.bun\bin\bun.exe run eslint`（目录 `web/classic`）：通过。
+- `git diff --check`：通过。
+- `C:\Users\Administrator\.bun\bin\bunx.exe prettier --check "src/components/table/model-pricing/**/*.{js,jsx}" "src/pages/Pricing/**/*.{js,jsx}"`（目录 `web/classic`）：通过。
+- `C:\Users\Administrator\.bun\bin\bunx.exe eslint "src/components/table/model-pricing/**/*.{js,jsx}" "src/pages/Pricing/**/*.{js,jsx}"`（目录 `web/classic`）：通过。
+
+### 人工回归结果
+
+- 代码级确认搜索、供应商筛选、group 筛选、endpoint 筛选、tag 筛选、billing/quota 筛选仍在 `useModelPricingData` 中保留并叠加新类型筛选。
+- 代码级确认新增模型类型筛选、排序、筛选摘要 chips、一键清空筛选、卡片空状态清空入口可通过同一筛选状态工作。
+- 代码级确认分页仍由 `filteredModels` 驱动，排序在分页前完成。
+- 代码级确认卡片/表格切换和详情 SideSheet 仍复用原有数据流。
+- 代码级确认移动端筛选弹窗通过 `sidebarProps` 复用同一 `filterModelType` 状态。
+- 暗色模式基本可读性使用 Semi CSS 变量与既有局部样式，未覆盖全局 `.semi-*`。
+
+### 自审查结论
+
+- 当前分支为 `feature/frontend-redesign-gptproto`。
+- 本轮只修改允许范围内的 model-pricing 局部组件、`useModelPricingData`、`usePricingFilterCounts`、`helpers/utils.jsx` 最小扩展、`index.css` 局部样式和 `.ai/TASK.md`。
+- 未新增依赖，未修改 `package.json` / `bun.lock`。
+- 未修改后端 Go 文件，未修改 `/api/pricing` 返回结构。
+- 未新增路由，未修改 HeaderBar、Footer、Home、登录、注册或控制台业务页。
+- 未调用 `/api/models`、`/api/user/models` 或 admin 模型接口。
+- 未重写 `useModelPricingData`，仅在既有筛选结果中最小叠加模型类型与排序。
+- 默认 `popular` 排序保留原有展示顺序。
+- 模型类型推导只用于前端展示/筛选，不代表模型真实能力。
+- 未复制 EvoLink 原文案、品牌、图片或素材，未写未经确认的模型能力承诺。
+
+### 已知风险
+
+- 模型类型来自前端保守推导，可能无法完全覆盖站点自定义模型命名；未识别项会归入“通用”。
+- 本轮以代码级回归和构建校验为主，真实浏览器移动端与暗色模式截图建议在 Stage 3.4 继续复查。
+
+### 提交状态
+
+- 验证通过，允许创建中文 commit：`前端：模型广场新增类型筛选与排序`。

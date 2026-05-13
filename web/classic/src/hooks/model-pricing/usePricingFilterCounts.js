@@ -18,6 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import { useMemo } from 'react';
+import { getModelType } from '../../components/table/model-pricing/utils/modelType';
 
 // 工具函数：将 tags 字符串转为小写去重数组
 const normalizeTags = (tags = '') =>
@@ -37,6 +38,7 @@ export const usePricingFilterCounts = ({
   filterEndpointType = 'all',
   filterVendor = 'all',
   filterTag = 'all',
+  filterModelType = 'all',
   searchValue = '',
 }) => {
   // 均使用同一份模型列表，避免创建新引用
@@ -84,6 +86,11 @@ export const usePricingFilterCounts = ({
       if (!tagsArr.includes(filterTag.toLowerCase())) return false;
     }
 
+    // 前端推导的模型类型
+    if (!ignore.includes('modelType') && filterModelType !== 'all') {
+      if (getModelType(model).value !== filterModelType) return false;
+    }
+
     // 搜索
     if (!ignore.includes('search') && searchValue) {
       const term = searchValue.toLowerCase();
@@ -112,6 +119,7 @@ export const usePricingFilterCounts = ({
       filterEndpointType,
       filterVendor,
       filterTag,
+      filterModelType,
       searchValue,
     ],
   );
@@ -124,6 +132,7 @@ export const usePricingFilterCounts = ({
       filterQuotaType,
       filterVendor,
       filterTag,
+      filterModelType,
       searchValue,
     ],
   );
@@ -136,6 +145,7 @@ export const usePricingFilterCounts = ({
       filterQuotaType,
       filterEndpointType,
       filterTag,
+      filterModelType,
       searchValue,
     ],
   );
@@ -148,6 +158,7 @@ export const usePricingFilterCounts = ({
       filterQuotaType,
       filterEndpointType,
       filterVendor,
+      filterModelType,
       searchValue,
     ],
   );
@@ -160,9 +171,32 @@ export const usePricingFilterCounts = ({
       filterEndpointType,
       filterVendor,
       filterTag,
+      filterModelType,
       searchValue,
     ],
   );
+
+  const modelTypeModels = useMemo(
+    () => allModels.filter((m) => matchesFilters(m, ['modelType'])),
+    [
+      allModels,
+      filterGroup,
+      filterQuotaType,
+      filterEndpointType,
+      filterVendor,
+      filterTag,
+      searchValue,
+    ],
+  );
+
+  const modelTypeCounts = useMemo(() => {
+    const counts = { all: modelTypeModels.length };
+    modelTypeModels.forEach((model) => {
+      const type = getModelType(model).value;
+      counts[type] = (counts[type] || 0) + 1;
+    });
+    return counts;
+  }, [modelTypeModels]);
 
   return {
     quotaTypeModels,
@@ -170,5 +204,7 @@ export const usePricingFilterCounts = ({
     vendorModels,
     groupCountModels,
     tagModels,
+    modelTypeModels,
+    modelTypeCounts,
   };
 };

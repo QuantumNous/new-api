@@ -1070,6 +1070,24 @@ html.dark .with-pastel-balls::before {
   background: var(--semi-color-bg-1);
 }
 
+.pricing-marketplace-filter-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--semi-color-border);
+}
+
+.pricing-marketplace-filter-chips {
+  display: flex;
+  flex: 1;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-width: 0;
+}
+
 .pricing-marketplace-card-view {
   padding: 10px;
 }
@@ -1102,6 +1120,11 @@ html.dark .with-pastel-balls::before {
 
   .pricing-marketplace-search-card {
     overflow-x: hidden;
+  }
+
+  .pricing-marketplace-filter-summary {
+    align-items: flex-start;
+    flex-direction: column;
   }
 
   .pricing-marketplace-card-footer {

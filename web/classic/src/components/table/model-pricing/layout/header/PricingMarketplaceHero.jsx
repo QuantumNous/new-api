@@ -19,63 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 
 import React, { memo, useMemo } from 'react';
 import { Tag } from '@douyinfe/semi-ui';
-
-const CAPABILITY_DEFINITIONS = [
-  {
-    key: 'text',
-    label: '文本',
-    matcher: (model) =>
-      includesAny(model, [
-        'chat',
-        'completion',
-        'responses',
-        'embedding',
-        'text',
-        'llm',
-      ]),
-  },
-  {
-    key: 'image',
-    label: '图像',
-    matcher: (model) =>
-      includesAny(model, ['image', 'vision', 'paint', 'midjourney']),
-  },
-  {
-    key: 'video',
-    label: '视频',
-    matcher: (model) => includesAny(model, ['video', 'kling', 'runway']),
-  },
-  {
-    key: 'audio',
-    label: '音频',
-    matcher: (model) =>
-      includesAny(model, ['audio', 'music', 'speech', 'tts', 'voice']),
-  },
-  {
-    key: 'code',
-    label: '编码',
-    matcher: (model) =>
-      includesAny(model, ['code', 'coder', 'coding', 'developer']),
-  },
-];
-
-const getSearchText = (model) =>
-  [
-    model?.model_name,
-    model?.vendor_name,
-    model?.tags,
-    ...(Array.isArray(model?.supported_endpoint_types)
-      ? model.supported_endpoint_types
-      : []),
-  ]
-    .filter(Boolean)
-    .join(' ')
-    .toLowerCase();
-
-const includesAny = (model, keywords) => {
-  const text = getSearchText(model);
-  return keywords.some((keyword) => text.includes(keyword));
-};
+import { getModelType, MODEL_TYPES } from '../../utils/modelType';
 
 const PricingMarketplaceHero = memo(
   ({
@@ -92,7 +36,9 @@ const PricingMarketplaceHero = memo(
         : 0;
       const vendorNames = new Set();
       const endpointTypes = new Set();
-      const capabilities = CAPABILITY_DEFINITIONS.map((capability) => ({
+      const capabilities = MODEL_TYPES.filter(
+        (type) => type.value !== 'general',
+      ).map((capability) => ({
         ...capability,
         count: 0,
       }));
@@ -106,11 +52,11 @@ const PricingMarketplaceHero = memo(
             if (endpoint) endpointTypes.add(endpoint);
           });
         }
-        capabilities.forEach((capability) => {
-          if (capability.matcher(model)) {
-            capability.count += 1;
-          }
-        });
+        const modelType = getModelType(model);
+        const capability = capabilities.find(
+          (item) => item.value === modelType.value,
+        );
+        if (capability) capability.count += 1;
       });
 
       Object.values(vendorsMap || {}).forEach((vendor) => {
@@ -172,7 +118,7 @@ const PricingMarketplaceHero = memo(
         >
           {summary.capabilities.map((capability) => (
             <Tag
-              key={capability.key}
+              key={capability.value}
               shape='circle'
               color={capability.count > 0 ? 'blue' : 'white'}
             >

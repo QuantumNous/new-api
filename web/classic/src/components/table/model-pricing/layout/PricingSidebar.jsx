@@ -24,6 +24,7 @@ import PricingQuotaTypes from '../filter/PricingQuotaTypes';
 import PricingEndpointTypes from '../filter/PricingEndpointTypes';
 import PricingVendors from '../filter/PricingVendors';
 import PricingTags from '../filter/PricingTags';
+import PricingModelTypes from '../filter/PricingModelTypes';
 
 import { resetPricingFilters } from '../../../../helpers/utils';
 import { usePricingFilterCounts } from '../../../../hooks/model-pricing/usePricingFilterCounts';
@@ -50,7 +51,9 @@ const PricingSidebar = ({
   setFilterVendor,
   filterTag,
   setFilterTag,
-  currentPage,
+  filterModelType,
+  setFilterModelType,
+  setSortBy,
   setCurrentPage,
   tokenUnit,
   setTokenUnit,
@@ -64,6 +67,7 @@ const PricingSidebar = ({
     vendorModels,
     tagModels,
     groupCountModels,
+    modelTypeCounts,
   } = usePricingFilterCounts({
     models: categoryProps.models,
     filterGroup,
@@ -71,6 +75,7 @@ const PricingSidebar = ({
     filterEndpointType,
     filterVendor,
     filterTag,
+    filterModelType,
     searchValue: categoryProps.searchValue,
   });
 
@@ -86,6 +91,8 @@ const PricingSidebar = ({
       setFilterEndpointType,
       setFilterVendor,
       setFilterTag,
+      setFilterModelType,
+      setSortBy,
       setCurrentPage,
       setTokenUnit,
     });
@@ -109,6 +116,14 @@ const PricingSidebar = ({
         setFilterVendor={setFilterVendor}
         models={vendorModels}
         allModels={categoryProps.models}
+        loading={loading}
+        t={t}
+      />
+
+      <PricingModelTypes
+        filterModelType={filterModelType}
+        setFilterModelType={setFilterModelType}
+        modelTypeCounts={modelTypeCounts}
         loading={loading}
         t={t}
       />

@@ -23,6 +23,10 @@ import { API, copy, showError, showInfo, showSuccess } from '../../helpers';
 import { Modal } from '@douyinfe/semi-ui';
 import { UserContext } from '../../context/User';
 import { StatusContext } from '../../context/Status';
+import {
+  getModelType,
+  getModelTypeRank,
+} from '../../components/table/model-pricing/utils/modelType';
 
 export const useModelPricingData = () => {
   const { t } = useTranslation();
@@ -39,6 +43,8 @@ export const useModelPricingData = () => {
   const [filterEndpointType, setFilterEndpointType] = useState('all'); // 端点类型筛选: 'all' | string
   const [filterVendor, setFilterVendor] = useState('all'); // 供应商筛选: 'all' | 'unknown' | string
   const [filterTag, setFilterTag] = useState('all'); // 模型标签筛选: 'all' | string
+  const [filterModelType, setFilterModelType] = useState('all'); // 前端推导的模型类型筛选: 'all' | string
+  const [sortBy, setSortBy] = useState('popular'); // popular 保留接口返回后的既有展示顺序
   const [pageSize, setPageSize] = useState(20);
   const [currentPage, setCurrentPage] = useState(1);
   const [currency, setCurrency] = useState('USD');
@@ -142,6 +148,13 @@ export const useModelPricingData = () => {
       });
     }
 
+    // 模型类型筛选，仅用于前端展示与筛选推导
+    if (filterModelType !== 'all') {
+      result = result.filter(
+        (model) => getModelType(model).value === filterModelType,
+      );
+    }
+
     // 搜索筛选
     if (searchValue.length > 0) {
       const searchTerm = searchValue.toLowerCase();
@@ -157,7 +170,31 @@ export const useModelPricingData = () => {
       );
     }
 
-    return result;
+    if (sortBy === 'popular') {
+      return result;
+    }
+
+    return [...result].sort((a, b) => {
+      if (sortBy === 'name') {
+        return (a.model_name || '').localeCompare(b.model_name || '');
+      }
+      if (sortBy === 'vendor') {
+        const vendorCompare = (a.vendor_name || '').localeCompare(
+          b.vendor_name || '',
+        );
+        return (
+          vendorCompare ||
+          (a.model_name || '').localeCompare(b.model_name || '')
+        );
+      }
+      if (sortBy === 'type') {
+        const typeCompare = getModelTypeRank(a) - getModelTypeRank(b);
+        return (
+          typeCompare || (a.model_name || '').localeCompare(b.model_name || '')
+        );
+      }
+      return 0;
+    });
   }, [
     models,
     searchValue,
@@ -166,6 +203,8 @@ export const useModelPricingData = () => {
     filterEndpointType,
     filterVendor,
     filterTag,
+    filterModelType,
+    sortBy,
   ]);
 
   const rowSelection = useMemo(
@@ -328,6 +367,8 @@ export const useModelPricingData = () => {
     filterEndpointType,
     filterVendor,
     filterTag,
+    filterModelType,
+    sortBy,
     searchValue,
   ]);
 
@@ -357,6 +398,10 @@ export const useModelPricingData = () => {
     setFilterVendor,
     filterTag,
     setFilterTag,
+    filterModelType,
+    setFilterModelType,
+    sortBy,
+    setSortBy,
     pageSize,
     setPageSize,
     currentPage,

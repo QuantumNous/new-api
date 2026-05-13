@@ -42,6 +42,8 @@ const SearchActions = memo(
     setViewMode,
     tokenUnit,
     setTokenUnit,
+    sortBy = 'popular',
+    setSortBy,
     t,
   }) => {
     const supportsCurrencyDisplay = siteDisplayType !== 'TOKENS';
@@ -65,8 +67,8 @@ const SearchActions = memo(
     }, [tokenUnit, setTokenUnit]);
 
     return (
-      <div className='flex items-center gap-2 w-full'>
-        <div className='flex-1'>
+      <div className='flex flex-wrap items-center gap-2 w-full'>
+        <div className='min-w-[180px] flex-1'>
           <Input
             prefix={<IconSearch />}
             placeholder={t('模糊搜索模型名称')}
@@ -88,6 +90,18 @@ const SearchActions = memo(
         >
           {t('复制')}
         </Button>
+
+        <Select
+          value={sortBy}
+          onChange={(value) => setSortBy?.(value)}
+          style={{ width: isMobile ? 96 : 112 }}
+          optionList={[
+            { value: 'popular', label: t('热门') },
+            { value: 'name', label: t('名称') },
+            { value: 'vendor', label: t('供应商') },
+            { value: 'type', label: t('类型') },
+          ]}
+        />
 
         {!isMobile && (
           <>
