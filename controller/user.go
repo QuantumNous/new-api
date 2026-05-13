@@ -135,6 +135,10 @@ func Logout(c *gin.Context) {
 }
 
 func Register(c *gin.Context) {
+	if !common.UserRegistrationEnabled {
+		common.ApiErrorMsg(c, "暂未开放注册")
+		return
+	}
 	if !common.RegisterEnabled {
 		common.ApiErrorI18n(c, i18n.MsgUserRegisterDisabled)
 		return

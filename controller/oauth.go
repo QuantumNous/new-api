@@ -233,6 +233,9 @@ func findOrCreateOAuthUser(c *gin.Context, provider oauth.Provider, oauthUser *o
 	}
 
 	// User doesn't exist, create new user if registration is enabled
+	if !common.UserRegistrationEnabled {
+		return nil, &OAuthRegistrationDisabledError{}
+	}
 	if !common.RegisterEnabled {
 		return nil, &OAuthRegistrationDisabledError{}
 	}
