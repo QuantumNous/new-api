@@ -74,6 +74,7 @@ const Playground = () => {
   const styleState = { isMobile };
   const [searchParams] = useSearchParams();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const videoPollingRef = useRef(new Set());
 
   const state = usePlaygroundState();
@@ -1119,6 +1120,12 @@ const Playground = () => {
     }
   }, [searchParams, t]);
 
+  useEffect(() => {
+    if (!isMobile) {
+      setMobileSidebarOpen(false);
+    }
+  }, [isMobile]);
+
   // Playground 组件无需再监听窗口变化，isMobile 由 useIsMobile Hook 自动更新
 
   // 构建预览payload
@@ -1285,11 +1292,15 @@ const Playground = () => {
           conversations={conversations}
           activeConversationId={activeConversationId}
           collapsed={sidebarCollapsed && !isMobile}
+          isMobile={isMobile}
+          mobileOpen={mobileSidebarOpen}
           onNewChat={handleNewConversation}
           onOpenSettings={() => setShowSettings(true)}
           onSelectConversation={switchConversation}
           onDeleteConversation={deleteConversation}
           onToggleCollapsed={() => setSidebarCollapsed((value) => !value)}
+          onMobileOpen={() => setMobileSidebarOpen(true)}
+          onMobileClose={() => setMobileSidebarOpen(false)}
         />
 
         <main className='new-playground-main'>

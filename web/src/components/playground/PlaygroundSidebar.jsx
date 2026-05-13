@@ -17,16 +17,16 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React, { useMemo } from 'react';
-import { Button, Input, Typography } from '@douyinfe/semi-ui';
+import React, { useMemo, useState } from 'react';
+import { Input, Typography } from '@douyinfe/semi-ui';
 import {
-  Trash2,
-  PlusSquare,
-  Search,
-  ArrowLeftToLine,
-  ArrowRightToLine,
-  MessageCircleMore,
+  ChevronLeft,
   MessageCircle,
+  MessageCircleMore,
+  PanelLeftOpen,
+  PanelRightOpen,
+  Plus,
+  Trash2,
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
@@ -34,96 +34,254 @@ const PlaygroundSidebar = ({
   conversations,
   activeConversationId,
   collapsed,
+  isMobile,
+  mobileOpen,
   onNewChat,
   onSelectConversation,
   onDeleteConversation,
   onToggleCollapsed,
+  onMobileOpen,
+  onMobileClose,
 }) => {
   const { t } = useTranslation();
-  const recentThreads = useMemo(
-    () =>
-      (conversations || [])
-        .slice()
-        .sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0))
-        .slice(0, 8),
-    [conversations],
+  const [searchQuery, setSearchQuery] = useState('');
+
+  const recentThreads = useMemo(() => {
+    return (conversations || [])
+      .slice()
+      .sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+  }, [conversations]);
+
+  const filteredThreads = useMemo(() => {
+    const keyword = searchQuery.trim().toLowerCase();
+    if (!keyword) {
+      return recentThreads;
+    }
+
+    return recentThreads.filter((thread) =>
+      (thread.title || t('新对话')).toLowerCase().includes(keyword),
+    );
+  }, [recentThreads, searchQuery, t]);
+
+  const groupedThreads = useMemo(() => {
+    const now = new Date();
+    const startOfToday = new Date(
+      now.getFullYear(),
+      now.getMonth(),
+      now.getDate(),
+    ).getTime();
+    const groupedMap = new Map();
+
+    filteredThreads.forEach((thread) => {
+      const updatedAt = Number(thread.updatedAt || thread.createdAt || 0);
+      const timestamp = Number.isFinite(updatedAt) ? updatedAt : Date.now();
+      const diffDays = Math.floor(
+        (startOfToday - timestamp) / (24 * 60 * 60 * 1000),
+      );
+      const date = new Date(timestamp);
+      const monthLabel = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+      const label =
+        diffDays < 7 ? t('7天内') : diffDays < 30 ? t('30天内') : monthLabel;
+
+      if (!groupedMap.has(label)) {
+        groupedMap.set(label, []);
+      }
+
+      groupedMap.get(label).push(thread);
+    });
+
+    return Array.from(groupedMap.entries()).map(([label, items]) => ({
+      label,
+      items,
+    }));
+  }, [filteredThreads, t]);
+
+  const handlePrimaryToggle = () => {
+    if (isMobile) {
+      if (mobileOpen) {
+        onMobileClose?.();
+      } else {
+        onMobileOpen?.();
+      }
+      return;
+    }
+
+    onToggleCollapsed?.();
+  };
+
+  const handleNewConversation = () => {
+    onNewChat?.();
+    if (isMobile) {
+      onMobileClose?.();
+    }
+  };
+
+  const handleSelectConversation = (conversationId) => {
+    onSelectConversation?.(conversationId);
+    if (isMobile) {
+      onMobileClose?.();
+    }
+  };
+
+  const renderBrandMark = () => (
+    <div className='new-playground-logo' aria-hidden='true'>
+      <MessageCircle size={20} />
+    </div>
   );
 
-  return (
-    <aside
-      className={`new-playground-sidebar ${collapsed ? 'is-collapsed' : ''}`}
-    >
-      <div className='new-playground-brand'>
-        <div className='new-playground-logo'>
-          <MessageCircle size={22} />
-        </div>
-        {!collapsed && (
-          <Typography.Title heading={4} className='!mb-0 brand-title'>
-            AI生图&AI视频
-          </Typography.Title>
-        )}
+  const renderQuickActions = () => (
+    <div className='new-playground-quick-actions'>
+      <button
+        type='button'
+        className='sidebar-quick-action'
+        aria-label={isMobile ? t('打开侧边栏') : t('展开侧边栏')}
+        onClick={handlePrimaryToggle}
+      >
+        <PanelLeftOpen size={16} />
+      </button>
+      <button
+        type='button'
+        className='sidebar-quick-action'
+        aria-label={t('开始新对话')}
+        onClick={handleNewConversation}
+      >
+        <Plus size={16} />
+      </button>
+    </div>
+  );
+
+  const renderCollapsedEntry = (className) => (
+    <div className={className}>
+      <div className='new-playground-entry-pill'>
+        {renderBrandMark()}
+        {renderQuickActions()}
       </div>
+    </div>
+  );
 
-      {!collapsed && (
-        <>
-          <Button
-            icon={<PlusSquare size={17} />}
-            className='new-chat-button'
-            onClick={onNewChat}
-            block
-          >
-            {t('开始新对话')}
-          </Button>
+  if (collapsed && !isMobile) {
+    return renderCollapsedEntry('new-playground-sidebar-desktop-entry');
+  }
 
-          <Input
-            prefix={<Search size={18} className='mx-2' />}
-            placeholder={t('搜索会话...')}
-            className='conversation-search'
-          />
+  return (
+    <>
+      {isMobile &&
+        renderCollapsedEntry('new-playground-sidebar-desktop-entry is-mobile')}
 
-          <div className='recent-heading'>{t('最近对话')}</div>
-          <div className='recent-thread-list'>
-            {recentThreads.map((thread) => (
-              <div
-                className={`recent-thread-item ${thread.id === activeConversationId ? 'is-active' : ''}`}
-                key={thread.id}
-              >
-                <button
-                  className='recent-thread-main'
-                  type='button'
-                  onClick={() => onSelectConversation(thread.id)}
-                >
-                  <MessageCircleMore size={18} />
-                  <span>{thread.title || t('新对话')}</span>
-                </button>
-                <button
-                  className='recent-thread-delete'
-                  type='button'
-                  aria-label={t('删除会话')}
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    onDeleteConversation?.(thread.id);
-                  }}
-                >
-                  <Trash2 size={15} />
-                </button>
-              </div>
-            ))}
-          </div>
-        </>
+      {isMobile && mobileOpen && (
+        <button
+          type='button'
+          className='new-playground-sidebar-backdrop'
+          aria-label={t('关闭侧边栏')}
+          onClick={onMobileClose}
+        />
       )}
 
-      <div className='sidebar-footer'>
-        <button className='sidebar-settings-button' onClick={onToggleCollapsed}>
-          {collapsed ? (
-            <ArrowRightToLine size={19} />
-          ) : (
-            <ArrowLeftToLine size={19} />
+      <aside
+        className={`new-playground-sidebar ${isMobile ? 'is-mobile' : ''} ${mobileOpen ? 'is-mobile-open' : ''}`}
+      >
+        <>
+          <div className='new-playground-sidebar-header'>
+            <div className='new-playground-brand'>
+              {renderBrandMark()}
+              <div className='new-playground-brand-copy'>
+                <Typography.Title heading={5} className='!mb-0 brand-title'>
+                  AI生图&AI视频
+                </Typography.Title>
+              </div>
+            </div>
+
+            <div className='new-playground-sidebar-header-actions'>
+              <button
+                type='button'
+                className='sidebar-icon-button'
+                aria-label={isMobile ? t('关闭侧边栏') : t('收起侧边栏')}
+                onClick={handlePrimaryToggle}
+              >
+                <PanelRightOpen size={17} />
+              </button>
+            </div>
+          </div>
+
+          <button
+            type='button'
+            className='new-chat-button'
+            onClick={handleNewConversation}
+          >
+            <Plus size={17} />
+            <span>{t('开始新对话')}</span>
+          </button>
+
+          <div className='conversation-search-wrap'>
+            <Input
+              placeholder={t('搜索会话...')}
+              className='conversation-search'
+              showClear
+              value={searchQuery}
+              onChange={setSearchQuery}
+            />
+          </div>
+
+          <div className='recent-thread-list-shell'>
+            {groupedThreads.length > 0 ? (
+              groupedThreads.map((group) => (
+                <section className='recent-thread-group' key={group.label}>
+                  <div className='recent-heading'>{group.label}</div>
+                  <div className='recent-thread-list'>
+                    {group.items.map((thread) => (
+                      <div
+                        className={`recent-thread-item ${thread.id === activeConversationId ? 'is-active' : ''}`}
+                        key={thread.id}
+                      >
+                        <button
+                          className='recent-thread-main'
+                          type='button'
+                          onClick={() => handleSelectConversation(thread.id)}
+                        >
+                          <MessageCircleMore size={17} />
+                          <span>{thread.title || t('新对话')}</span>
+                        </button>
+                        <button
+                          className='recent-thread-delete'
+                          type='button'
+                          aria-label={t('删除会话')}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            onDeleteConversation?.(thread.id);
+                          }}
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </section>
+              ))
+            ) : (
+              <div className='recent-thread-empty'>
+                {searchQuery
+                  ? t('没有匹配的会话')
+                  : t('还没有会话，先开始一轮体验吧')}
+              </div>
+            )}
+          </div>
+
+          {!isMobile && (
+            <div className='sidebar-footer'>
+              <button
+                type='button'
+                className='sidebar-settings-button'
+                aria-label={t('收起侧边栏')}
+                onClick={handlePrimaryToggle}
+              >
+                <PanelRightOpen size={17} />
+                <span>{t('收起侧边栏')}</span>
+              </button>
+            </div>
           )}
-          {!collapsed && <span>{t('收起侧边栏')}</span>}
-        </button>
-      </div>
-    </aside>
+        </>
+      </aside>
+    </>
   );
 };
 
