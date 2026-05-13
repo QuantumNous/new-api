@@ -52,8 +52,12 @@ var upstreamErrorRules = []upstreamErrorRule{
 
 	// Upstream new-api / one-api instance errors (Chinese) - hide upstream group/channel details
 	{
-		keywords:    []string{"可用渠道不存在", "可用渠道失败", "当前分组负载已饱和", "上游负载已饱和"},
+		keywords:    []string{"可用渠道不存在", "可用渠道失败"},
 		replacement: "The requested model is currently unavailable. Please try again later.",
+	},
+	{
+		keywords:    []string{"当前分组负载已饱和", "上游负载已饱和"},
+		replacement: "模型请求压力过大，请稍后重试",
 	},
 	// Server errors - hide upstream provider identity
 	{

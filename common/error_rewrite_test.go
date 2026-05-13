@@ -68,7 +68,7 @@ func TestRewriteUpstreamError_Enabled(t *testing.T) {
 		{
 			name:     "Upstream new-api group overloaded",
 			input:    "当前分组负载已饱和，请稍后再试，或升级账户以提升服务质量。",
-			expected: "The requested model is currently unavailable. Please try again later.",
+			expected: "模型请求压力过大，请稍后重试",
 		},
 		// Context length
 		{
