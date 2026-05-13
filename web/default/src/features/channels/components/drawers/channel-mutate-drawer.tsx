@@ -132,6 +132,7 @@ import {
   collectNewDisallowedStatusCodeRedirects,
 } from '../../lib/status-code-risk-guard'
 import type { Channel } from '../../types'
+import { CHANNEL_DEFAULT_BASE_URLS } from '../../lib/channel-type-config'
 import { useChannels } from '../channels-provider'
 import { CodexOAuthDialog } from '../dialogs/codex-oauth-dialog'
 import { FetchModelsDialog } from '../dialogs/fetch-models-dialog'
@@ -376,6 +377,9 @@ export function ChannelMutateDrawer({
   const keyMode = form.watch('key_mode')
   const currentGroups = form.watch('group')
   const currentType = form.watch('type')
+
+  // Display text for type combobox (shows label, not numeric ID)
+  const [typeDisplayText, setTypeDisplayText] = useState('')
   const currentBaseUrl = form.watch('base_url')
   const currentModels = form.watch('models')
   const currentModelMapping = form.watch('model_mapping')
@@ -607,15 +611,35 @@ export function ChannelMutateDrawer({
     }
   }, [isEditing, channelData, form])
 
-  // Handle type change - set default values for specific types
+  // Sync typeDisplayText label when currentType changes externally (form reset / channel load)
+  useEffect(() => {
+    if (!channelTypeOptions.length) return
+    const found = channelTypeOptions.find((o) => Number(o.value) === currentType)
+    if (found) {
+      setTypeDisplayText((prev) => {
+        // Only sync if the current display is a raw numeric ID or empty,
+        // not while the user is typing a search string
+        const prevAsNum = Number(prev)
+        if (prev === '' || (Number.isInteger(prevAsNum) && prevAsNum === currentType)) {
+          return found.label
+        }
+        return prev
+      })
+    } else if (currentType === 0) {
+      setTypeDisplayText('')
+    }
+  }, [currentType, channelTypeOptions])
+
+  // Handle type change - set default base_url and other type-specific defaults
   useEffect(() => {
     if (isEditing) return // Don't auto-set defaults when editing
 
-    // Type 45 (VolcEngine) - set default base_url
-    if (currentType === 45) {
+    // Auto-fill base_url from backend defaults when type changes
+    const defaultUrl = CHANNEL_DEFAULT_BASE_URLS[currentType]
+    if (defaultUrl) {
       const currentBaseUrlValue = form.getValues('base_url')
       if (!currentBaseUrlValue || currentBaseUrlValue === '') {
-        form.setValue('base_url', 'https://ark.cn-beijing.volces.com')
+        form.setValue('base_url', defaultUrl)
       }
     }
 
@@ -1148,11 +1172,26 @@ export function ChannelMutateDrawer({
                         <FormControl>
                           <Combobox
                             options={channelTypeOptions}
-                            value={String(field.value)}
-                            onValueChange={(value) => {
-                              const nextType = Number(value)
-                              if (Number.isInteger(nextType) && nextType > 0) {
-                                field.onChange(nextType)
+                            value={typeDisplayText}
+                            onValueChange={(text) => {
+                              if (text === null) return
+                              // Try match by option value (numeric string) first, then by label
+                              const matched =
+                                channelTypeOptions.find((o) => o.value === text) ??
+                                channelTypeOptions.find(
+                                  (o) =>
+                                    o.label.toLowerCase() ===
+                                    text.toLowerCase()
+                                )
+                              if (matched) {
+                                const nextType = Number(matched.value)
+                                if (Number.isInteger(nextType) && nextType > 0) {
+                                  field.onChange(nextType)
+                                  setTypeDisplayText(matched.label)
+                                }
+                              } else {
+                                // User is typing to search — update display only
+                                setTypeDisplayText(text)
                               }
                             }}
                             placeholder={t('Select channel type')}
