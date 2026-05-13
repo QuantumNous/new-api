@@ -952,6 +952,164 @@ html.dark .with-pastel-balls::before {
   min-height: 0;
 }
 
+/* ==================== 模型广场公开模型库局部样式 ==================== */
+.pricing-marketplace-page {
+  min-width: 0;
+  background: radial-gradient(
+      circle at 15% 0%,
+      rgba(var(--semi-blue-2), 0.28),
+      transparent 28%
+    ),
+    radial-gradient(
+      circle at 88% 6%,
+      rgba(var(--semi-green-2), 0.22),
+      transparent 24%
+    ),
+    var(--semi-color-bg-0);
+}
+
+.pricing-marketplace-layout {
+  background: transparent;
+}
+
+.pricing-marketplace-sidebar {
+  border-right: 1px solid var(--semi-color-border);
+}
+
+.pricing-marketplace-content {
+  background: transparent;
+}
+
+.pricing-marketplace-search-header {
+  background: linear-gradient(
+    180deg,
+    var(--semi-color-bg-0) 0%,
+    rgba(var(--semi-grey-0), 0.04) 100%
+  );
+}
+
+.pricing-marketplace-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 16px;
+  align-items: end;
+  padding: 18px;
+  border: 1px solid var(--semi-color-border);
+  border-radius: 16px;
+  background: rgba(var(--semi-grey-0), 0.04);
+}
+
+.pricing-marketplace-hero-copy {
+  min-width: 0;
+}
+
+.pricing-marketplace-eyebrow {
+  margin-bottom: 8px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--semi-color-primary);
+}
+
+.pricing-marketplace-hero h1 {
+  margin: 0;
+  color: var(--semi-color-text-0);
+  font-size: clamp(26px, 4vw, 44px);
+  line-height: 1.08;
+  font-weight: 800;
+}
+
+.pricing-marketplace-hero p {
+  max-width: 720px;
+  margin: 12px 0 0;
+  color: var(--semi-color-text-2);
+  font-size: 14px;
+  line-height: 1.75;
+}
+
+.pricing-marketplace-metrics {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(88px, 1fr));
+  gap: 10px;
+  min-width: 220px;
+}
+
+.pricing-marketplace-metric {
+  padding: 12px;
+  border: 1px solid var(--semi-color-border);
+  border-radius: 12px;
+  background: var(--semi-color-bg-1);
+}
+
+.pricing-marketplace-metric strong {
+  display: block;
+  color: var(--semi-color-text-0);
+  font-size: 20px;
+  line-height: 1.1;
+}
+
+.pricing-marketplace-metric span {
+  display: block;
+  margin-top: 4px;
+  color: var(--semi-color-text-2);
+  font-size: 12px;
+}
+
+.pricing-marketplace-capabilities {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-width: 0;
+}
+
+.pricing-marketplace-search-card {
+  margin-top: 12px;
+  padding: 10px;
+  border: 1px solid var(--semi-color-border);
+  border-radius: 14px;
+  background: var(--semi-color-bg-1);
+}
+
+.pricing-marketplace-card-view {
+  padding: 10px;
+}
+
+.pricing-marketplace-model-card {
+  border-radius: 14px !important;
+  background: var(--semi-color-bg-1);
+}
+
+.pricing-marketplace-card-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--semi-color-border);
+}
+
+@media (max-width: 767px) {
+  .pricing-marketplace-hero {
+    grid-template-columns: minmax(0, 1fr);
+    padding: 14px;
+  }
+
+  .pricing-marketplace-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    min-width: 0;
+  }
+
+  .pricing-marketplace-search-card {
+    overflow-x: hidden;
+  }
+
+  .pricing-marketplace-card-footer {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}
+
 /* ==================== semi-ui 组件自定义样式 ==================== */
 .semi-card-header,
 .semi-card-body {

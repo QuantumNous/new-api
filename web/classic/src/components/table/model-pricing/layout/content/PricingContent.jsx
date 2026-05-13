@@ -27,7 +27,7 @@ const PricingContent = ({ isMobile, sidebarProps, ...props }) => {
       className={isMobile ? 'pricing-content-mobile' : 'pricing-scroll-hide'}
     >
       {/* 固定的顶部区域（分类介绍 + 搜索和操作） */}
-      <div className='pricing-search-header'>
+      <div className='pricing-search-header pricing-marketplace-search-header'>
         <PricingTopSection
           {...props}
           isMobile={isMobile}

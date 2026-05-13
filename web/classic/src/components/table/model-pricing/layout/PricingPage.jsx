@@ -40,15 +40,15 @@ const PricingPage = () => {
   };
 
   return (
-    <div className='bg-white'>
-      <Layout className='pricing-layout'>
+    <div className='pricing-marketplace-page'>
+      <Layout className='pricing-layout pricing-marketplace-layout'>
         {!isMobile && (
-          <Sider className='pricing-scroll-hide pricing-sidebar'>
+          <Sider className='pricing-scroll-hide pricing-sidebar pricing-marketplace-sidebar'>
             <PricingSidebar {...allProps} />
           </Sider>
         )}
 
-        <Content className='pricing-scroll-hide pricing-content'>
+        <Content className='pricing-scroll-hide pricing-content pricing-marketplace-content'>
           <PricingContent
             {...allProps}
             isMobile={isMobile}

@@ -2931,3 +2931,72 @@ status: completed
 ### 提交状态
 
 - 验证通过，允许创建中文 commit：`前端：首页整合顶部导航栏`。
+
+## 旧版前端模型广场 Stage 3.1 页面结构改造记录
+
+任务名称：Stage 3.1：EvoLink 风格模型广场页面结构改造
+
+status: completed
+
+### 本轮目标
+
+- 将现有公开 `/pricing` 从偏后台价格工具页调整为公开“模型广场 / 模型库”页面结构。
+- 只抽象 EvoLink 模型页的信息架构、视觉节奏和模块布局，不复制品牌、Logo、图片、原文案、具体价格、折扣数字或受保护素材。
+- 保留现有 `/api/pricing` 数据加载、搜索、筛选、分页、详情抽屉、卡片/表格视图能力。
+- 不新增 `/models` 路由，不修改 `/console/models`，不改后端、全局路由、HeaderBar、Footer、Home、登录/注册/控制台业务页。
+
+### 本轮修改文件
+
+- `web/classic/src/components/table/model-pricing/layout/PricingPage.jsx`
+- `web/classic/src/components/table/model-pricing/layout/content/PricingContent.jsx`
+- `web/classic/src/components/table/model-pricing/layout/header/PricingTopSection.jsx`
+- `web/classic/src/components/table/model-pricing/layout/header/PricingMarketplaceHero.jsx`
+- `web/classic/src/components/table/model-pricing/view/card/PricingCardView.jsx`
+- `web/classic/src/index.css`
+- `.ai/TASK.md`
+
+### 实现摘要
+
+- 新增 `PricingMarketplaceHero`，在 `/pricing` 顶部展示“模型广场”标题区、保守副标题、模型数量、当前结果、供应商数量、能力类型数量和只读能力摘要 chips。
+- `PricingTopSection` 改为“模型库标题区 + 搜索操作卡片 + 移动端筛选弹窗”，保留原有搜索、筛选入口、视图切换、计费显示开关、token 单位切换等能力。
+- `PricingCardView` 调整为更偏公开模型库的卡片结构：能力类型、供应商、模型名、描述、tags、保守计费提示、查看详情入口。
+- 继续保留卡片点击打开详情 SideSheet、复制模型名、选择框、分页、loading skeleton 和空状态。
+- `index.css` 仅追加 `pricing-marketplace-*` 局部样式，使用 Semi CSS 变量适配明暗主题。
+
+### 数据与能力复用
+
+- 继续复用 `/api/pricing`，未修改接口语义。
+- 继续复用 `useModelPricingData`，未新增数据 Hook。
+- 未调用 `/api/models`、`/api/user/models` 或 admin 模型接口。
+- 保留现有 `PricingSidebar`、`PricingFilterModal`、`ModelDetailSideSheet`、`PricingTable` 和分页逻辑。
+
+### 验证命令与结果
+
+- `C:\Users\Administrator\.bun\bin\bun.exe run build`（目录 `web/classic`）：通过；仅有既有 Browserslist 过期、`lottie-web` eval、chunk size 警告。
+- `C:\Users\Administrator\.bun\bin\bun.exe run lint`（目录 `web/classic`）：通过。
+- `C:\Users\Administrator\.bun\bin\bun.exe run eslint`（目录 `web/classic`）：通过。
+- `git diff --check`：通过。
+- `C:\Users\Administrator\.bun\bin\bunx.exe prettier --check "src/components/table/model-pricing/**/*.{js,jsx}" "src/pages/Pricing/**/*.{js,jsx}"`（目录 `web/classic`）：通过。
+- `C:\Users\Administrator\.bun\bin\bunx.exe eslint "src/components/table/model-pricing/**/*.{js,jsx}" "src/pages/Pricing/**/*.{js,jsx}"`（目录 `web/classic`）：通过。
+
+### 自审查结论
+
+- 当前分支为 `feature/frontend-redesign-gptproto`。
+- 本轮只修改允许范围内的 model-pricing 局部组件、`index.css` 局部样式和 `.ai/TASK.md`。
+- 未新增依赖，未修改 `package.json` / `bun.lock`。
+- 未修改后端 Go 文件。
+- 未新增 `/models` 路由，未修改 `App.jsx`、`PageLayout.jsx`、HeaderBar、Footer、Home。
+- 未修改 `/console/models`、登录、注册或控制台业务逻辑。
+- 未破坏 `/pricing` 原有 `/api/pricing` 数据加载、搜索、筛选、分页、详情抽屉、卡片/表格视图切换。
+- 未展示未经确认的价格、折扣、稳定性、用户数量、节省比例或合规承诺。
+- 未复制 EvoLink 品牌、Logo、图片、原文案或受保护素材。
+
+### 已知风险
+
+- 模型能力类型根据模型名、供应商、标签和端点类型做保守推导，只用于摘要展示和卡片标签，不作为强筛选条件。
+- 桌面/移动端视觉已按代码和样式做防溢出处理，但仍建议后续 Stage 3.4 进行真实浏览器截图回归。
+- 表格视图本轮未重做，保持原有价格表能力，后续如需统一公开模型库视觉可单独优化。
+
+### 提交状态
+
+- 验证通过，允许创建中文 commit：`前端：模型广场改造为公开模型库结构`。

@@ -19,7 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 
 import React, { useState, memo } from 'react';
 import PricingFilterModal from '../../modal/PricingFilterModal';
-import PricingVendorIntroWithSkeleton from './PricingVendorIntroWithSkeleton';
+import PricingMarketplaceHero from './PricingMarketplaceHero';
 import SearchActions from './SearchActions';
 
 const PricingTopSection = memo(
@@ -31,7 +31,6 @@ const PricingTopSection = memo(
     handleCompositionEnd,
     isMobile,
     sidebarProps,
-    filterVendor,
     models,
     filteredModels,
     loading,
@@ -53,46 +52,16 @@ const PricingTopSection = memo(
 
     return (
       <>
-        {isMobile ? (
-          <>
-            <div className='w-full'>
-              <SearchActions
-                selectedRowKeys={selectedRowKeys}
-                copyText={copyText}
-                handleChange={handleChange}
-                handleCompositionStart={handleCompositionStart}
-                handleCompositionEnd={handleCompositionEnd}
-                isMobile={isMobile}
-                searchValue={searchValue}
-                setShowFilterModal={setShowFilterModal}
-                showWithRecharge={showWithRecharge}
-                setShowWithRecharge={setShowWithRecharge}
-                currency={currency}
-                setCurrency={setCurrency}
-                siteDisplayType={siteDisplayType}
-                showRatio={showRatio}
-                setShowRatio={setShowRatio}
-                viewMode={viewMode}
-                setViewMode={setViewMode}
-                tokenUnit={tokenUnit}
-                setTokenUnit={setTokenUnit}
-                t={t}
-              />
-            </div>
-            <PricingFilterModal
-              visible={showFilterModal}
-              onClose={() => setShowFilterModal(false)}
-              sidebarProps={sidebarProps}
-              t={t}
-            />
-          </>
-        ) : (
-          <PricingVendorIntroWithSkeleton
-            loading={loading}
-            filterVendor={filterVendor}
-            models={filteredModels}
-            allModels={models}
-            t={t}
+        <PricingMarketplaceHero
+          models={models}
+          filteredModels={filteredModels}
+          vendorsMap={sidebarProps.vendorsMap}
+          loading={loading}
+          t={t}
+        />
+
+        <div className='pricing-marketplace-search-card'>
+          <SearchActions
             selectedRowKeys={selectedRowKeys}
             copyText={copyText}
             handleChange={handleChange}
@@ -112,8 +81,16 @@ const PricingTopSection = memo(
             setViewMode={setViewMode}
             tokenUnit={tokenUnit}
             setTokenUnit={setTokenUnit}
+            t={t}
           />
-        )}
+        </div>
+
+        <PricingFilterModal
+          visible={showFilterModal}
+          onClose={() => setShowFilterModal(false)}
+          sidebarProps={sidebarProps}
+          t={t}
+        />
       </>
     );
   },
