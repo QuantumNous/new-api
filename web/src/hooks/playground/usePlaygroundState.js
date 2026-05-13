@@ -20,7 +20,6 @@ For commercial licensing, please contact support@quantumnous.com
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
-  DEFAULT_MESSAGES,
   getDefaultMessages,
   DEFAULT_CONFIG,
   API_ENDPOINTS,
@@ -31,11 +30,13 @@ import { API } from '../../helpers/api';
 import {
   loadConfig,
   saveConfig,
-  loadMessages,
   saveMessages,
   loadConversationState,
   saveConversationState,
   createStoredConversation,
+  loadConversationStateFromIndexedDB,
+  saveConversationStateToIndexedDB,
+  migrateConversationStateToIndexedDB,
 } from '../../components/playground/configStorage';
 import { processIncompleteThinkTags } from '../../helpers';
 
@@ -99,6 +100,8 @@ export const usePlaygroundState = () => {
   const [videoModels, setVideoModels] = useState([]);
   const [groups, setGroups] = useState([]);
   const [status, setStatus] = useState({});
+  const [conversationStorageReady, setConversationStorageReady] =
+    useState(false);
   const [conversations, setConversations] = useState(
     savedConversationState.conversations,
   );
@@ -138,11 +141,30 @@ export const usePlaygroundState = () => {
   const sseSourceRef = useRef(null);
   const chatRef = useRef(null);
   const saveConfigTimeoutRef = useRef(null);
-  const saveMessagesTimeoutRef = useRef(null);
   const saveRemoteConversationTimeoutRef = useRef(null);
   const deletedConversationIdsRef = useRef(new Set());
   const currentConversationIdRef = useRef(
     savedConversationState.activeConversationId || null,
+  );
+  const localConversationStateRef = useRef(savedConversationState);
+
+  const persistConversationState = useCallback(
+    (nextConversations = [], nextActiveConversationId = null) => {
+      const payload = {
+        conversations: nextConversations,
+        activeConversationId: nextActiveConversationId,
+      };
+
+      localConversationStateRef.current = payload;
+      saveConversationState(nextConversations, nextActiveConversationId);
+      saveConversationStateToIndexedDB(
+        nextConversations,
+        nextActiveConversationId,
+      ).catch((error) => {
+        console.error('保存 IndexedDB 会话状态失败:', error);
+      });
+    },
+    [],
   );
 
   const isConversationEmpty = useCallback((conversation) => {
@@ -337,7 +359,7 @@ export const usePlaygroundState = () => {
             )
           : [nextConversation, ...prevConversations];
 
-        saveConversationState(updatedConversations, currentConversationId);
+        persistConversationState(updatedConversations, currentConversationId);
         scheduleRemoteConversationSave(nextConversation);
         if (!activeConversationId) {
           setActiveConversationId(currentConversationId);
@@ -345,7 +367,12 @@ export const usePlaygroundState = () => {
         return updatedConversations;
       });
     },
-    [activeConversationId, message, scheduleRemoteConversationSave],
+    [
+      activeConversationId,
+      message,
+      persistConversationState,
+      scheduleRemoteConversationSave,
+    ],
   );
 
   const createConversation = useCallback(
@@ -354,7 +381,7 @@ export const usePlaygroundState = () => {
       deletedConversationIdsRef.current.delete(conversation.id);
       setConversations((prevConversations) => {
         const updatedConversations = [conversation, ...prevConversations];
-        saveConversationState(updatedConversations, conversation.id);
+        persistConversationState(updatedConversations, conversation.id);
         scheduleRemoteConversationSave(conversation);
         return updatedConversations;
       });
@@ -363,16 +390,34 @@ export const usePlaygroundState = () => {
       setMessage(messages);
       return conversation.id;
     },
-    [scheduleRemoteConversationSave],
+    [persistConversationState, scheduleRemoteConversationSave],
   );
 
   const startNewConversation = useCallback(() => {
-    currentConversationIdRef.current = null;
-    setActiveConversationId(null);
+    const currentConversation = conversations.find(
+      (conversation) => conversation.id === currentConversationIdRef.current,
+    );
+
+    if (currentConversation && isConversationEmpty(currentConversation)) {
+      currentConversationIdRef.current = currentConversation.id;
+      setActiveConversationId(currentConversation.id);
+      setMessage([]);
+      saveMessages([]);
+      persistConversationState(conversations, currentConversation.id);
+      return currentConversation.id;
+    }
+
+    const nextConversation = createStoredConversation([]);
+    const updatedConversations = [nextConversation, ...conversations];
+    deletedConversationIdsRef.current.delete(nextConversation.id);
+    currentConversationIdRef.current = nextConversation.id;
+    setConversations(updatedConversations);
+    setActiveConversationId(nextConversation.id);
     setMessage([]);
     saveMessages([]);
-    saveConversationState(conversations, null);
-  }, [conversations]);
+    persistConversationState(updatedConversations, nextConversation.id);
+    return nextConversation.id;
+  }, [conversations, isConversationEmpty, persistConversationState]);
 
   const switchConversation = useCallback(
     (conversationId) => {
@@ -386,9 +431,10 @@ export const usePlaygroundState = () => {
       currentConversationIdRef.current = conversationId;
       setActiveConversationId(conversationId);
       setMessage(conversation.messages || []);
-      saveConversationState(conversations, conversationId);
+      saveMessages(conversation.messages || []);
+      persistConversationState(conversations, conversationId);
     },
-    [conversations],
+    [conversations, persistConversationState],
   );
 
   const deleteConversation = useCallback(
@@ -406,7 +452,7 @@ export const usePlaygroundState = () => {
           activeConversationId === conversationId
             ? updatedConversations[0]?.id || null
             : activeConversationId;
-        saveConversationState(updatedConversations, nextActiveId);
+        persistConversationState(updatedConversations, nextActiveId);
         currentConversationIdRef.current = nextActiveId;
         setActiveConversationId(nextActiveId);
         if (activeConversationId === conversationId) {
@@ -423,10 +469,63 @@ export const usePlaygroundState = () => {
         console.error('删除后端会话失败:', error);
       });
     },
-    [activeConversationId],
+    [activeConversationId, persistConversationState],
   );
 
   useEffect(() => {
+    let isCancelled = false;
+
+    const hydrateConversationState = async () => {
+      const migratedState = await migrateConversationStateToIndexedDB();
+      const indexedState =
+        (await loadConversationStateFromIndexedDB()) || migratedState;
+
+      if (isCancelled || !indexedState?.conversations?.length) {
+        if (!isCancelled) {
+          setConversationStorageReady(true);
+        }
+        return;
+      }
+
+      const nextActiveConversationId = resolveActiveConversationId(
+        indexedState.conversations,
+        indexedState.activeConversationId,
+      );
+      const activeConversation = indexedState.conversations.find(
+        (conversation) => conversation.id === nextActiveConversationId,
+      );
+
+      localConversationStateRef.current = {
+        conversations: indexedState.conversations,
+        activeConversationId: nextActiveConversationId,
+      };
+      currentConversationIdRef.current = nextActiveConversationId;
+      setConversations(indexedState.conversations);
+      setActiveConversationId(nextActiveConversationId);
+      setMessage(activeConversation?.messages || []);
+      saveMessages(activeConversation?.messages || []);
+      saveConversationState(
+        indexedState.conversations,
+        nextActiveConversationId,
+      );
+      setConversationStorageReady(true);
+    };
+
+    hydrateConversationState().catch((error) => {
+      console.error('Hydrate IndexedDB 会话失败:', error);
+      setConversationStorageReady(true);
+    });
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [resolveActiveConversationId]);
+
+  useEffect(() => {
+    if (!conversationStorageReady) {
+      return undefined;
+    }
+
     let isCancelled = false;
 
     const hydrateRemoteConversations = async () => {
@@ -460,7 +559,7 @@ export const usePlaygroundState = () => {
         if (normalizedRemoteConversations.length > 0) {
           const nextActiveConversationId = resolveActiveConversationId(
             normalizedRemoteConversations,
-            savedConversationState.activeConversationId,
+            localConversationStateRef.current.activeConversationId,
           );
           const activeConversation = normalizedRemoteConversations.find(
             (conversation) => conversation.id === nextActiveConversationId,
@@ -469,7 +568,7 @@ export const usePlaygroundState = () => {
           currentConversationIdRef.current = nextActiveConversationId;
           setActiveConversationId(nextActiveConversationId);
           setMessage(activeConversation?.messages || []);
-          saveConversationState(
+          persistConversationState(
             normalizedRemoteConversations,
             nextActiveConversationId,
           );
@@ -478,7 +577,7 @@ export const usePlaygroundState = () => {
         }
 
         const { conversations: localConversations } = dedupeConversations(
-          savedConversationState.conversations || [],
+          localConversationStateRef.current.conversations || [],
         );
         for (const conversation of localConversations) {
           if (!conversation?.id) {
@@ -503,10 +602,10 @@ export const usePlaygroundState = () => {
     dedupeConversations,
     isConversationEmpty,
     normalizeConversation,
+    conversationStorageReady,
+    persistConversationState,
     persistConversationToServer,
     resolveActiveConversationId,
-    savedConversationState.activeConversationId,
-    savedConversationState.conversations,
   ]);
 
   useEffect(() => {
@@ -523,6 +622,13 @@ export const usePlaygroundState = () => {
     setMessage((prevMessages) =>
       prevMessages === nextMessages ? prevMessages : nextMessages,
     );
+  }, [activeConversationId, conversations]);
+
+  useEffect(() => {
+    localConversationStateRef.current = {
+      conversations,
+      activeConversationId,
+    };
   }, [activeConversationId, conversations]);
 
   // 配置保存

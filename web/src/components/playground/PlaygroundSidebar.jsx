@@ -46,6 +46,39 @@ const PlaygroundSidebar = ({
   const { t } = useTranslation();
   const [searchQuery, setSearchQuery] = useState('');
 
+  const getConversationSearchText = (conversation) => {
+    const title = conversation?.title || '';
+    const messageText = Array.isArray(conversation?.messages)
+      ? conversation.messages
+          .map((message) => {
+            if (typeof message?.content === 'string') {
+              return message.content;
+            }
+
+            if (Array.isArray(message?.content)) {
+              return message.content
+                .map((item) => {
+                  if (typeof item?.text === 'string') {
+                    return item.text;
+                  }
+
+                  if (typeof item?.image_url?.url === 'string') {
+                    return item.image_url.url;
+                  }
+
+                  return '';
+                })
+                .join(' ');
+            }
+
+            return '';
+          })
+          .join(' ')
+      : '';
+
+    return `${title} ${messageText}`.trim().toLowerCase();
+  };
+
   const recentThreads = useMemo(() => {
     return (conversations || [])
       .slice()
@@ -59,9 +92,9 @@ const PlaygroundSidebar = ({
     }
 
     return recentThreads.filter((thread) =>
-      (thread.title || t('新对话')).toLowerCase().includes(keyword),
+      getConversationSearchText(thread).includes(keyword),
     );
-  }, [recentThreads, searchQuery, t]);
+  }, [recentThreads, searchQuery]);
 
   const groupedThreads = useMemo(() => {
     const now = new Date();
@@ -70,18 +103,25 @@ const PlaygroundSidebar = ({
       now.getMonth(),
       now.getDate(),
     ).getTime();
+    const oldestReasonableTimestamp = new Date(2000, 0, 1).getTime();
     const groupedMap = new Map();
 
     filteredThreads.forEach((thread) => {
       const updatedAt = Number(thread.updatedAt || thread.createdAt || 0);
-      const timestamp = Number.isFinite(updatedAt) ? updatedAt : Date.now();
+      const hasValidTimestamp =
+        Number.isFinite(updatedAt) && updatedAt >= oldestReasonableTimestamp;
+      const timestamp = hasValidTimestamp ? updatedAt : Date.now();
       const diffDays = Math.floor(
         (startOfToday - timestamp) / (24 * 60 * 60 * 1000),
       );
-      const date = new Date(timestamp);
-      const monthLabel = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-      const label =
-        diffDays < 7 ? t('7天内') : diffDays < 30 ? t('30天内') : monthLabel;
+
+      let label = t('更早');
+      if (hasValidTimestamp) {
+        const date = new Date(timestamp);
+        const monthLabel = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+        label =
+          diffDays < 7 ? t('7天内') : diffDays < 30 ? t('30天内') : monthLabel;
+      }
 
       if (!groupedMap.has(label)) {
         groupedMap.set(label, []);

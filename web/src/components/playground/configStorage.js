@@ -22,7 +22,10 @@ import {
   DEFAULT_CONFIG,
 } from '../../constants/playground.constants';
 
-const MESSAGES_STORAGE_KEY = 'playground_messages';
+const PLAYGROUND_DB_NAME = 'new-api-playground';
+const PLAYGROUND_DB_VERSION = 1;
+const PLAYGROUND_META_STORE = 'meta';
+const PLAYGROUND_CONVERSATION_STATE_KEY = 'conversation-state';
 
 const buildConversationTitle = (messages = []) => {
   const firstUserMessage = messages.find((message) => message?.role === 'user');
@@ -140,6 +143,139 @@ export const createStoredConversation = (messages = [], id = null) => {
     createdAt: now,
     updatedAt: now,
   };
+};
+
+const normalizeConversationState = (state) => {
+  const conversations = Array.isArray(state?.conversations)
+    ? state.conversations
+    : [];
+  const activeConversationId =
+    state?.activeConversationId || conversations[0]?.id || null;
+
+  return {
+    conversations,
+    activeConversationId,
+  };
+};
+
+const openPlaygroundDB = () =>
+  new Promise((resolve, reject) => {
+    if (typeof window === 'undefined' || !window.indexedDB) {
+      resolve(null);
+      return;
+    }
+
+    const request = window.indexedDB.open(
+      PLAYGROUND_DB_NAME,
+      PLAYGROUND_DB_VERSION,
+    );
+
+    request.onupgradeneeded = () => {
+      const db = request.result;
+      if (!db.objectStoreNames.contains(PLAYGROUND_META_STORE)) {
+        db.createObjectStore(PLAYGROUND_META_STORE, { keyPath: 'key' });
+      }
+    };
+
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+
+const runMetaTransaction = async (mode, executor) => {
+  const db = await openPlaygroundDB();
+  if (!db) {
+    return null;
+  }
+
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction(PLAYGROUND_META_STORE, mode);
+    const store = transaction.objectStore(PLAYGROUND_META_STORE);
+
+    transaction.oncomplete = () => {
+      db.close();
+    };
+    transaction.onerror = () => {
+      db.close();
+      reject(transaction.error);
+    };
+    transaction.onabort = () => {
+      db.close();
+      reject(transaction.error);
+    };
+
+    executor(store, resolve, reject);
+  });
+};
+
+export const loadConversationStateFromIndexedDB = async () => {
+  try {
+    const payload = await runMetaTransaction('readonly', (store, resolve) => {
+      const request = store.get(PLAYGROUND_CONVERSATION_STATE_KEY);
+      request.onsuccess = () => resolve(request.result?.value || null);
+      request.onerror = () => resolve(null);
+    });
+
+    if (!payload) {
+      return null;
+    }
+
+    return normalizeConversationState(payload);
+  } catch (error) {
+    console.error('从 IndexedDB 加载会话失败:', error);
+    return null;
+  }
+};
+
+export const saveConversationStateToIndexedDB = async (
+  conversations = [],
+  activeConversationId = null,
+) => {
+  try {
+    await runMetaTransaction('readwrite', (store, resolve, reject) => {
+      const request = store.put({
+        key: PLAYGROUND_CONVERSATION_STATE_KEY,
+        value: {
+          conversations,
+          activeConversationId,
+          timestamp: new Date().toISOString(),
+        },
+      });
+      request.onsuccess = () => resolve(true);
+      request.onerror = () => reject(request.error);
+    });
+  } catch (error) {
+    console.error('保存 IndexedDB 会话失败:', error);
+  }
+};
+
+export const clearConversationStateFromIndexedDB = async () => {
+  try {
+    await runMetaTransaction('readwrite', (store, resolve, reject) => {
+      const request = store.delete(PLAYGROUND_CONVERSATION_STATE_KEY);
+      request.onsuccess = () => resolve(true);
+      request.onerror = () => reject(request.error);
+    });
+  } catch (error) {
+    console.error('清理 IndexedDB 会话失败:', error);
+  }
+};
+
+export const migrateConversationStateToIndexedDB = async () => {
+  const indexedState = await loadConversationStateFromIndexedDB();
+  if (indexedState?.conversations?.length) {
+    return indexedState;
+  }
+
+  const localState = loadConversationState();
+  if (localState?.conversations?.length) {
+    await saveConversationStateToIndexedDB(
+      localState.conversations,
+      localState.activeConversationId,
+    );
+    return localState;
+  }
+
+  return null;
 };
 
 export const saveConversationState = (
