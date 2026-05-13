@@ -51,6 +51,8 @@ func LogTaskConsumption(c *gin.Context, info *relaycommon.RelayInfo) {
 		other["is_model_mapped"] = true
 		other["upstream_model_name"] = info.UpstreamModelName
 	}
+	est := info.GetEstimatePromptTokens()
+	PublishBillingSnapshotForOpsLog(c, est, 0, est, info.PriceData.Quota)
 	model.RecordConsumeLog(c, info.UserId, model.RecordConsumeLogParams{
 		ChannelId: info.ChannelId,
 		ModelName: info.OriginModelName,
@@ -148,6 +150,32 @@ func taskModelName(task *model.Task) string {
 	return task.Properties.OriginModelName
 }
 
+func emitAsyncBillingOps(ctx context.Context, task *model.Task, event string, preConsumed, actualQuota, quotaDelta int, reason string, billingTotalTokens int) {
+	if common.EmitAsyncBillingOpsLog == nil {
+		return
+	}
+	kv := map[string]any{
+		"log_type":                     "model_relay",
+		"event":                        event,
+		"billing_snapshot_repo":        "new-api",
+		"task_id":                      task.TaskID,
+		"upstream_task_id":             task.GetUpstreamTaskID(),
+		"user_id":                      task.UserId,
+		"channel_id":                   task.ChannelId,
+		"platform":                     string(task.Platform),
+		"action":                       task.Action,
+		"model_name":                   taskModelName(task),
+		"billing_pre_consumed_quota":   preConsumed,
+		"billing_consume_quota_actual": actualQuota,
+		"billing_quota_delta":          quotaDelta,
+		"settle_reason":                reason,
+	}
+	if billingTotalTokens >= 0 {
+		kv["billing_total_tokens"] = billingTotalTokens
+	}
+	common.EmitAsyncBillingOpsLog(ctx, "task_async_billing", kv)
+}
+
 // RefundTaskQuota 统一的任务失败退款逻辑。
 // 当异步任务失败时，将预扣的 quota 退还给用户（支持钱包和订阅），并退还令牌额度。
 func RefundTaskQuota(ctx context.Context, task *model.Task, reason string) {
@@ -184,12 +212,14 @@ func RefundTaskQuota(ctx context.Context, task *model.Task, reason string) {
 		Group:     task.Group,
 		Other:     other,
 	})
+	emitAsyncBillingOps(ctx, task, "task_async_refund", quota, 0, -quota, reason, -1)
 }
 
 // RecalculateTaskQuota 通用的异步差额结算。
 // actualQuota 是任务完成后的实际应扣额度，与预扣额度 (task.Quota) 做差额结算。
 // reason 用于日志记录（例如 "token重算" 或 "adaptor调整"）。
-func RecalculateTaskQuota(ctx context.Context, task *model.Task, actualQuota int, reason string) {
+// billingTotalTokens 为上游 total_tokens；无则传 -1 表示不在 ops 日志中输出该字段。
+func RecalculateTaskQuota(ctx context.Context, task *model.Task, actualQuota int, reason string, billingTotalTokens int) {
 	if actualQuota <= 0 {
 		return
 	}
@@ -223,6 +253,7 @@ func RecalculateTaskQuota(ctx context.Context, task *model.Task, actualQuota int
 	if quotaDelta == 0 {
 		logger.LogInfo(ctx, fmt.Sprintf("任务 %s 预扣费准确（%s，%s）",
 			task.TaskID, logger.LogQuota(actualQuota), reason))
+		emitAsyncBillingOps(ctx, task, "task_async_billing_precise", preConsumedQuota, actualQuota, 0, reason, billingTotalTokens)
 		return
 	}
 
@@ -276,6 +307,7 @@ func RecalculateTaskQuota(ctx context.Context, task *model.Task, actualQuota int
 		Group:     task.Group,
 		Other:     other,
 	})
+	emitAsyncBillingOps(ctx, task, "task_async_billing_settle", preConsumedQuota, actualQuota, quotaDelta, reason, billingTotalTokens)
 }
 
 // RecalculateTaskQuotaByTokens 根据实际 token 消耗重新计费（异步差额结算）。
@@ -340,7 +372,7 @@ func RecalculateTaskQuotaByTokens(ctx context.Context, task *model.Task, totalTo
 
 	reason := fmt.Sprintf("token重算：tokens=%d, modelRatio=%.2f, groupRatio=%.2f, otherMultiplier=%.4f, orgDiscountRate=%.4f",
 		totalTokens, modelRatio, finalGroupRatio, otherMultiplier, orgDiscountRate)
-	RecalculateTaskQuota(ctx, task, actualQuota, reason)
+	RecalculateTaskQuota(ctx, task, actualQuota, reason, totalTokens)
 }
 
 // BusinessDiscountRule 企业折扣规则模型

@@ -70,4 +70,11 @@ const (
 	/* enterprise discount related keys */
 	ContextKeyOrgID           ContextKey = "org_id"
 	ContextKeyOrgDiscountRate ContextKey = "org_discount_rate"
+
+	// Ops billing snapshot (set by new-api/service before RecordConsumeLog; read by Lynxton relay_request_summary).
+	ContextKeyOpsBillingPromptTokens     ContextKey = "ops_billing_prompt_tokens"
+	ContextKeyOpsBillingCompletionTokens ContextKey = "ops_billing_completion_tokens"
+	ContextKeyOpsBillingTotalTokens      ContextKey = "ops_billing_total_tokens"
+	ContextKeyOpsBillingConsumeQuota     ContextKey = "ops_billing_consume_quota"
+	ContextKeyOpsBillingSnapshotFrom     ContextKey = "ops_billing_snapshot_from"
 )

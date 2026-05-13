@@ -430,6 +430,7 @@ func PostTextConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, us
 		other["input_tokens_total"] = usage.InputTokens
 	}
 
+	PublishBillingSnapshotForOpsLog(ctx, summary.PromptTokens, summary.CompletionTokens, summary.TotalTokens, summary.Quota)
 	model.RecordConsumeLog(ctx, relayInfo.UserId, model.RecordConsumeLogParams{
 		ChannelId:        relayInfo.ChannelId,
 		PromptTokens:     summary.PromptTokens,
