@@ -53,9 +53,6 @@ func extractUserPrompt(request dto.Request) string {
 			
 			// Handle string content
 			if str, ok := content.(string); ok {
-				if len(str) > 500 {
-					return str[:500] + "..."
-				}
 				return str
 			}
 			
@@ -73,9 +70,6 @@ func extractUserPrompt(request dto.Request) string {
 				}
 				if len(textParts) > 0 {
 					result := strings.Join(textParts, " ")
-					if len(result) > 500 {
-						return result[:500] + "..."
-					}
 					return result
 				}
 			}
