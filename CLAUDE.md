@@ -130,3 +130,57 @@ For request structs that are parsed from client JSON and then re-marshaled to up
   - field absent in client JSON => `nil` => omitted on marshal;
   - field explicitly set to zero/false => non-`nil` pointer => must still be sent upstream.
 - Avoid using non-pointer scalars with `omitempty` for optional request parameters, because zero values (`0`, `0.0`, `false`) will be silently dropped during marshal.
+
+---
+
+## 知豆 AI Agent 改造专属规则
+
+### Rule 7: 三条高压线 — Agent 改造期间绝对不能动的文件
+
+在知豆 AI 的 Agent 改造项目中,以下三类文件是"高压线"——改错了会导致安全事故或资金损失。**在 Agent 改造期间(阶段 0~5),这些文件绝对不能修改**。
+
+#### 高压线 1: 用户身份校验 (`middleware/auth.go`)
+
+**文件**: `middleware/auth.go`  
+**关键行**: 95-122  
+**功能**: `New-Api-User` header 校验,防止用户冒充他人
+
+**为什么是高压线**:
+- 如果这段逻辑被破坏,攻击者可以在 header 里随便填别人的 user_id,越权操作
+- 影响:数据泄漏、资金盗窃、账号接管
+
+**允许的改动**: 无。这段代码在 Agent 改造期间**绝对不能动**。
+
+#### 高压线 2: 计费配对 (`controller/relay.go`)
+
+**文件**: `controller/relay.go`  
+**关键行**: 225-236  
+**功能**: `PreConsumeBilling()` 预扣费 + `Refund()` 失败退款的配对逻辑
+
+**为什么是高压线**:
+- 如果 Pre/Refund 不配对,会导致用户被多扣费或平台亏损
+- 影响:资金损失、用户投诉、法律风险
+
+**允许的改动**: 无。这段代码在 Agent 改造期间**绝对不能动**。
+
+#### 高压线 3: 支付回调
+
+**文件**: `controller/topup.go` / `controller/stripe.go` / `controller/creem.go` / `controller/waffo.go`  
+**关键函数**: `StripeWebhook()` / `CreemWebhook()` / `WaffoWebhook()`  
+**功能**: 验证支付签名 + 更新用户余额
+
+**为什么是高压线**:
+- 如果签名验证被绕过,攻击者可以伪造充值请求,白嫖余额
+- 影响:平台直接亏损
+
+**允许的改动**: 无。这些文件在 Agent 改造期间**绝对不能动**。
+
+---
+
+**如果你被要求修改这些文件**:
+1. 立即调用 Skill `zhidou-ironline-guard` 确认
+2. 在团队会议上说明修改原因和影响范围
+3. 由项目负责人人工审批
+4. 审批通过后,在 PR 描述里添加 `[IRONLINE-APPROVED]` 标记
+
+未经审批的高压线修改将被自动驳回。

@@ -1,0 +1,32 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "name": "ironline-guard",
+        "description": "守护三条高压线:auth.go / relay.go / 支付回调,任何改动都阻止",
+        "tool": "Edit",
+        "condition": "file_path.includes('middleware/auth.go') || file_path.includes('controller/relay.go') || file_path.includes('controller/topup.go') || file_path.includes('controller/stripe.go') || file_path.includes('controller/creem.go') || file_path.includes('controller/waffo.go')",
+        "action": "block",
+        "message": "🚨 高压线文件!\n\n你正在尝试修改:\n- middleware/auth.go (用户身份校验)\n- controller/relay.go (计费配对)\n- controller/*pay.go (支付回调)\n\n这些文件在 Agent 改造期间绝对不能动。\n\n如果确实需要修改,请:\n1. 调用 Skill zhidou-ironline-guard 确认\n2. 在团队会议上说明原因\n3. 获得项目负责人审批\n\n未经审批的修改将被驳回。"
+      }
+    ],
+    "PostToolUse": [
+      {
+        "name": "go-vet-check",
+        "description": "Go 文件改完后自动跑 go vet",
+        "tool": "Edit",
+        "condition": "file_path.endsWith('.go')",
+        "action": "run",
+        "command": "cd c:/Users/道初/Desktop/3D/new-api && go vet {{file_path}}"
+      }
+    ],
+    "Stop": [
+      {
+        "name": "regression-reminder",
+        "description": "收工提示:本期验收清单跑了吗?",
+        "action": "message",
+        "message": "📋 收工前检查清单:\n\n1. 本期回归测试跑了吗?(调用 Skill zhidou-regression-gate)\n2. agent.enabled=false 下功能 0 变化?\n3. 所有 PR 都通过沙盒审计了吗?(调用 Skill zhidou-sandbox-audit)\n4. 红队测试通过了吗?(调用 Skill zhidou-prompt-injection-test)\n\n见 §7.4 验收方法。"
+      }
+    ]
+  }
+}

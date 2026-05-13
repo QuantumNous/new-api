@@ -1,0 +1,20 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(ssh *)",
+      "Bash(rsync *)",
+      "Bash(tar czf *)",
+      "Bash(scp *)",
+      "Bash(netstat -ano)",
+      "Bash(tasklist)",
+      "Bash(findstr \"30024\")",
+      "Bash(taskkill *)",
+      "Bash(findstr \"4596\")",
+      "Bash(wmic process *)",
+      "Bash(powershell *)"
+    ]
+  },
+  "disabledMcpjsonServers": [
+    "jianying-mcp"
+  ]
+}
