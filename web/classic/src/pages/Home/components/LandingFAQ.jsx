@@ -23,7 +23,10 @@ import { faqItems } from '../landingData';
 
 const { Title, Text, Paragraph } = Typography;
 
-const LandingFAQ = () => {
+const LandingFAQ = ({ items }) => {
+  const displayItems =
+    Array.isArray(items) && items.length > 0 ? items : faqItems;
+
   return (
     <section id='landing-faq' className='px-4 py-12 sm:px-6 lg:px-8'>
       <div className='mx-auto grid w-full max-w-7xl gap-7 lg:grid-cols-[0.7fr_1fr]'>
@@ -38,7 +41,7 @@ const LandingFAQ = () => {
         </div>
 
         <Collapse accordion>
-          {faqItems.map((item) => (
+          {displayItems.map((item) => (
             <Collapse.Panel
               key={item.question}
               header={item.question}

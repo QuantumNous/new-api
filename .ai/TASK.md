@@ -2751,3 +2751,67 @@ status: completed
 ### 下一步建议
 
 - 后续如需继续首页二开，进入 Stage 2 前先保持本提交作为校验基线；Stage 2 再接入已有公开配置/状态数据，避免与本轮机械治理混在同一提交之外继续扩大范围。
+
+## 旧版前端 EvoLink 风格首页 Stage 2 公开数据最小接入记录
+
+任务名称：Stage 2：公开模型与 FAQ 摘要接入
+
+status: completed
+
+### 本轮目标
+
+- 保留 `home_page_content` 非空时覆盖默认首页的优先级。
+- 保留 `NoticeModal` 与 `/api/notice` 弹窗逻辑。
+- 不重复请求 `/api/status`，只复用 `StatusContext`。
+- 首页默认 landing 分支异步请求 `/api/pricing`，只生成少量模型能力摘要给 `FeaturedModels`。
+- `LandingFAQ` 优先使用 `StatusContext.status.faq`，状态 FAQ 不可用时回退静态 `landingData.faqItems`。
+- 不接入 `/api/models`、`/api/user/models` 或 admin 模型接口。
+- 不展示真实价格数字，不写未经确认的稳定性、节省比例或用户数量承诺。
+
+### 本轮修改文件
+
+- `web/classic/src/pages/Home/index.jsx`
+- `web/classic/src/pages/Home/components/FeaturedModels.jsx`
+- `web/classic/src/pages/Home/components/LandingFAQ.jsx`
+- `.ai/TASK.md`
+
+### 接入数据来源
+
+- `StatusContext.status.faq`：来自既有 `/api/status` 全局状态加载，仅在 FAQ 数组非空且条目包含 `question` / `answer` 时用于首页 FAQ。
+- `/api/pricing`：公开价格接口，首页只在默认 landing 分支展示时异步读取，归一化为模型摘要卡片。
+
+### 兜底策略
+
+- FAQ：`status.faq` 不存在、为空或结构不合法时继续使用 `landingData.faqItems`。
+- 模型摘要：`/api/pricing` 请求失败、返回失败、`data` 不是数组或可用动态卡片少于 3 个时，`FeaturedModels` 继续使用 `landingData.featuredModelCards`。
+- `/api/pricing` 失败路径静默处理，不弹 toast，不阻塞首屏，不影响公告弹窗和自定义首页渲染。
+
+### 验证命令与结果
+
+- `C:\Users\Administrator\.bun\bin\bun.exe run build`（目录 `web/classic`）：通过；仅有既有 Browserslist 过期、`lottie-web` eval 和 chunk size 警告。
+- `C:\Users\Administrator\.bun\bin\bun.exe run lint`（目录 `web/classic`）：通过。
+- `$env:PATH='C:\Users\Administrator\.bun\bin;' + $env:PATH; C:\Users\Administrator\.bun\bin\bun.exe run eslint`（目录 `web/classic`）：通过。
+- `git diff --check`：通过。
+- `C:\Users\Administrator\.bun\bin\bunx.exe prettier --check "src/pages/Home/**/*.{js,jsx}"`（目录 `web/classic`）：通过。
+- `C:\Users\Administrator\.bun\bin\bunx.exe eslint "src/pages/Home/**/*.{js,jsx}"`（目录 `web/classic`）：通过。
+
+### 自审查结论
+
+- 当前分支为 `feature/frontend-redesign-gptproto`。
+- 本轮业务代码只修改允许范围内的 Home 文件。
+- 未新增依赖，未修改 `package.json` / `bun.lock`。
+- 未修改后端 Go 文件。
+- 未修改全局路由、全局布局、HeaderBar、Footer。
+- 已保留 `home_page_content`、`NoticeModal`、`/api/notice`、系统名、Logo、`docs_link`、`server_address` 与 Base URL 复制能力。
+- 未接入 `/api/models`、`/api/user/models` 或 admin 模型接口。
+- `/api/pricing` 摘要失败时有静态兜底，且不展示真实价格数字。
+- 未复制 EvoLink 品牌、Logo、图片、原文案、数字承诺或受保护素材。
+
+### 已知风险
+
+- 首页模型摘要依赖 `/api/pricing` 返回结构；当前已做防御式判断，异常时回退静态卡片。
+- 动态模型名、供应商名、标签可能较长，已限制标签数量并截断描述，但仍建议后续做浏览器端移动端/暗色模式截图回归。
+
+### 提交状态
+
+- 验证通过，允许创建中文 commit。

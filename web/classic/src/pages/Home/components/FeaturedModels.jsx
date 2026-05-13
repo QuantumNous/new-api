@@ -25,7 +25,10 @@ import { featuredModelCards } from '../landingData';
 
 const { Text, Title, Paragraph } = Typography;
 
-const FeaturedModels = () => {
+const FeaturedModels = ({ items }) => {
+  const cards =
+    Array.isArray(items) && items.length > 0 ? items : featuredModelCards;
+
   return (
     <section id='landing-models' className='px-4 py-12 sm:px-6 lg:px-8'>
       <div className='mx-auto w-full max-w-7xl'>
@@ -44,7 +47,7 @@ const FeaturedModels = () => {
         </div>
 
         <div className='grid gap-4 md:grid-cols-2 xl:grid-cols-4'>
-          {featuredModelCards.map((card) => (
+          {cards.map((card) => (
             <Card
               key={card.title}
               bordered
@@ -72,7 +75,7 @@ const FeaturedModels = () => {
                 </Paragraph>
 
                 <div className='mt-auto flex flex-wrap gap-2 pt-5'>
-                  {card.tags.map((tag) => (
+                  {(Array.isArray(card.tags) ? card.tags : []).map((tag) => (
                     <Tag key={tag} color='blue' shape='circle'>
                       {tag}
                     </Tag>

@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React, { useContext, useEffect, useState } from 'react';
+import React, { useContext, useEffect, useMemo, useState } from 'react';
 import {
   API,
   showError,
@@ -46,6 +46,92 @@ import LandingFAQ from './components/LandingFAQ';
 import LandingBottomCTA from './components/LandingBottomCTA';
 import { announcement } from './landingData';
 
+const MAX_PRICING_PREVIEW_CARDS = 6;
+const MIN_PRICING_PREVIEW_CARDS = 3;
+const MAX_PRICING_DESCRIPTION_LENGTH = 96;
+
+const truncateText = (text, maxLength) => {
+  if (typeof text !== 'string') return '';
+  const value = text.trim();
+  if (!value) return '';
+  return value.length > maxLength ? `${value.slice(0, maxLength)}...` : value;
+};
+
+const normalizeTag = (tag) => {
+  if (tag === undefined || tag === null) return '';
+  return String(tag).replace(/[_-]+/g, ' ').trim();
+};
+
+const normalizeTags = (model) => {
+  const tagItems =
+    typeof model.tags === 'string'
+      ? model.tags.split(/[,;|，、]+/)
+      : Array.isArray(model.tags)
+        ? model.tags
+        : [];
+  const endpointItems = Array.isArray(model.supported_endpoint_types)
+    ? model.supported_endpoint_types
+    : [];
+
+  const tags = [...tagItems, ...endpointItems]
+    .map(normalizeTag)
+    .filter(Boolean);
+  const uniqueTags = Array.from(new Set(tags)).slice(0, 3);
+
+  return uniqueTags.length > 0
+    ? uniqueTags
+    : ['OpenAI 兼容', 'API', '站点配置'];
+};
+
+const buildVendorMap = (vendors) => {
+  if (!Array.isArray(vendors)) return {};
+
+  return vendors.reduce((map, vendor) => {
+    if (vendor && vendor.id !== undefined && vendor.name) {
+      map[String(vendor.id)] = vendor.name;
+    }
+    return map;
+  }, {});
+};
+
+const normalizePricingPreviewCards = (payload) => {
+  if (!payload?.success || !Array.isArray(payload.data)) return [];
+
+  const vendorMap = buildVendorMap(payload.vendors);
+  const cards = payload.data
+    .filter(
+      (model) =>
+        model &&
+        typeof model.model_name === 'string' &&
+        model.model_name.trim() !== '',
+    )
+    .slice(0, MAX_PRICING_PREVIEW_CARDS)
+    .map((model) => ({
+      title: model.model_name.trim(),
+      provider: vendorMap[String(model.vendor_id)] || '站点配置',
+      description:
+        truncateText(model.description, MAX_PRICING_DESCRIPTION_LENGTH) ||
+        '该模型来自站点公开配置，具体可用范围、权限与计费方式以控制台和价格页为准。',
+      tags: normalizeTags(model),
+      status: '按站点配置计费',
+    }));
+
+  return cards.length >= MIN_PRICING_PREVIEW_CARDS ? cards : [];
+};
+
+const normalizeFaqItems = (items) => {
+  if (!Array.isArray(items)) return undefined;
+
+  const faqItems = items
+    .map((item) => ({
+      question: typeof item?.question === 'string' ? item.question.trim() : '',
+      answer: typeof item?.answer === 'string' ? item.answer.trim() : '',
+    }))
+    .filter((item) => item.question && item.answer);
+
+  return faqItems.length > 0 ? faqItems : undefined;
+};
+
 const Home = () => {
   const { t, i18n } = useTranslation();
   const [statusState] = useContext(StatusContext);
@@ -54,6 +140,7 @@ const Home = () => {
   const [homePageContentLoaded, setHomePageContentLoaded] = useState(false);
   const [homePageContent, setHomePageContent] = useState('');
   const [noticeVisible, setNoticeVisible] = useState(false);
+  const [pricingPreviewCards, setPricingPreviewCards] = useState([]);
   const isMobile = useIsMobile();
   const isSelfUseMode = statusState?.status?.self_use_mode_enabled || false;
   const docsLink = statusState?.status?.docs_link || '';
@@ -66,6 +153,10 @@ const Home = () => {
   const [endpointIndex, setEndpointIndex] = useState(0);
   const currentEndpoint =
     endpointItems[endpointIndex]?.value || API_ENDPOINTS[0];
+  const faqItems = useMemo(
+    () => normalizeFaqItems(statusState?.status?.faq),
+    [statusState?.status?.faq],
+  );
 
   const displayHomePageContent = async () => {
     setHomePageContent(localStorage.getItem('home_page_content') || '');
@@ -128,6 +219,32 @@ const Home = () => {
   }, []);
 
   useEffect(() => {
+    if (!homePageContentLoaded || homePageContent !== '') return;
+
+    let ignore = false;
+
+    const loadPricingPreview = async () => {
+      try {
+        const res = await API.get('/api/pricing', {
+          skipErrorHandler: true,
+        });
+        const previewCards = normalizePricingPreviewCards(res.data);
+        if (!ignore && previewCards.length > 0) {
+          setPricingPreviewCards(previewCards);
+        }
+      } catch {
+        // Keep the static landing cards when public pricing is unavailable.
+      }
+    };
+
+    loadPricingPreview();
+
+    return () => {
+      ignore = true;
+    };
+  }, [homePageContent, homePageContentLoaded]);
+
+  useEffect(() => {
     const timer = setInterval(() => {
       setEndpointIndex((prev) => (prev + 1) % endpointItems.length);
     }, 3000);
@@ -162,7 +279,7 @@ const Home = () => {
             serverAddress={serverAddress}
             user={userState.user}
           />
-          <FeaturedModels />
+          <FeaturedModels items={pricingPreviewCards} />
           <ModelFamilies />
           <ApiScenarios />
           <WhyChooseSection />
@@ -171,7 +288,7 @@ const Home = () => {
             isSelfUseMode={isSelfUseMode}
             user={userState.user}
           />
-          <LandingFAQ />
+          <LandingFAQ items={faqItems} />
           <LandingBottomCTA
             docsLink={docsLink}
             isSelfUseMode={isSelfUseMode}
