@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/relay/channel"
@@ -91,7 +92,10 @@ func (a *Adaptor) SetupRequestHeader(c *gin.Context, header *http.Header, info *
 	header.Del("x-api-key")
 	header.Del("cf-aig-authorization")
 	header.Del("Authorization")
-	forwarded := make(map[string][]string)
+	var forwarded map[string][]string
+	if common.DebugEnabled {
+		forwarded = make(map[string][]string)
+	}
 	for k, vs := range c.Request.Header {
 		lk := strings.ToLower(k)
 		if !strings.HasPrefix(lk, "cf-aig-") {
@@ -104,7 +108,9 @@ func (a *Adaptor) SetupRequestHeader(c *gin.Context, header *http.Header, info *
 		for _, v := range vs {
 			header.Add(k, v)
 		}
-		forwarded[k] = vs
+		if forwarded != nil {
+			forwarded[k] = vs
+		}
 	}
 
 	if isClaudeNativeRoute(info) {
@@ -123,8 +129,6 @@ func (a *Adaptor) SetupRequestHeader(c *gin.Context, header *http.Header, info *
 
 	if len(forwarded) > 0 {
 		logger.LogInfo(c, fmt.Sprintf("[cloudflare_aig] forwarding cf-aig-* request headers: %v", forwarded))
-	} else {
-		logger.LogInfo(c, "[cloudflare_aig] no cf-aig-* request headers from client (cache will fall back to gateway default TTL)")
 	}
 	return nil
 }
@@ -224,10 +228,8 @@ func (a *Adaptor) passthroughCfAigResponseHeaders(c *gin.Context, resp *http.Res
 			seen[lk] = vs[0]
 		}
 	}
-	if len(seen) > 0 {
+	if common.DebugEnabled && len(seen) > 0 {
 		logger.LogInfo(c, fmt.Sprintf("[cloudflare_aig] upstream cf-aig-* response headers: %v", seen))
-	} else {
-		logger.LogInfo(c, "[cloudflare_aig] upstream returned no cf-aig-* response headers")
 	}
 }
 
