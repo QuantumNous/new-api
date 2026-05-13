@@ -92,28 +92,14 @@ func authHelper(c *gin.Context, minRole int) {
 			return
 		}
 	}
-	// get header New-Api-User; fall back to session user id for browser-originated requests
-	apiUserIdStr := c.Request.Header.Get("New-Api-User")
-	if apiUserIdStr == "" {
-		apiUserIdStr = fmt.Sprintf("%v", id)
-	}
-	apiUserId, err := strconv.Atoi(apiUserIdStr)
-	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{
-			"success": false,
-			"message": common.TranslateMessage(c, i18n.MsgAuthUserIdFormatError),
-		})
-		c.Abort()
-		return
-
-	}
-	if id != apiUserId {
-		c.JSON(http.StatusUnauthorized, gin.H{
-			"success": false,
-			"message": common.TranslateMessage(c, i18n.MsgAuthUserIdMismatch),
-		})
-		c.Abort()
-		return
+	// New-Api-User header is advisory only. For browser-originated requests it
+	// may be absent or stale (localStorage), so the session/token user id (set
+	// above) stays authoritative — we don't reject on a missing/mismatched
+	// header, otherwise the first request after a fresh session loops on 401.
+	if apiUserIdStr := c.Request.Header.Get("New-Api-User"); apiUserIdStr != "" {
+		if apiUserId, convErr := strconv.Atoi(apiUserIdStr); convErr == nil && id != apiUserId {
+			common.SysLog(fmt.Sprintf("New-Api-User header %d mismatches session id %v; trusting session", apiUserId, id))
+		}
 	}
 	if status.(int) == common.UserStatusDisabled {
 		c.JSON(http.StatusOK, gin.H{
