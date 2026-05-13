@@ -383,32 +383,40 @@ const EditTokenModal = (props) => {
                     />
                   </Col>
                   <Col span={24}>
-                    {groups.length > 0 ? (
-                      <Form.Select
-                        field='group'
-                        label={t('令牌分组')}
-                        placeholder={t('令牌分组，默认为用户的分组')}
-                        optionList={groups}
-                        renderOptionItem={renderGroupOption}
-                        filter={(input, option) => {
-                          const q = input.toLowerCase();
-                          return (
-                            option.value?.toLowerCase().includes(q) ||
-                            (typeof option.label === 'string' &&
-                              option.label.toLowerCase().includes(q))
-                          );
-                        }}
-                        showClear
-                        style={{ width: '100%' }}
-                      />
-                    ) : (
-                      <Form.Select
-                        placeholder={t('管理员未设置用户可选分组')}
-                        disabled
-                        label={t('令牌分组')}
-                        style={{ width: '100%' }}
-                      />
-                    )}
+                    <Form.Select
+                      field='group'
+                      label={t('令牌分组')}
+                      placeholder={
+                        groups.length > 0
+                          ? t('令牌分组，默认为用户的分组')
+                          : t('管理员未设置用户可选分组')
+                      }
+                      // Always keep the field bound to the form. Previously
+                      // this branched on groups.length, leaving the field
+                      // unmounted during the brief window between dialog open
+                      // and groups arriving — if loadToken finished first its
+                      // setValues({group}) silently dropped because the
+                      // Select wasn't registered yet.
+                      optionList={groups}
+                      renderOptionItem={
+                        groups.length > 0 ? renderGroupOption : undefined
+                      }
+                      filter={
+                        groups.length > 0
+                          ? (input, option) => {
+                              const q = input.toLowerCase();
+                              return (
+                                option.value?.toLowerCase().includes(q) ||
+                                (typeof option.label === 'string' &&
+                                  option.label.toLowerCase().includes(q))
+                              );
+                            }
+                          : false
+                      }
+                      disabled={groups.length === 0}
+                      showClear
+                      style={{ width: '100%' }}
+                    />
                   </Col>
                   <Col
                     span={24}
