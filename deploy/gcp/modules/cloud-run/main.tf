@@ -174,11 +174,15 @@ resource "google_cloud_run_v2_service" "main" {
 
   lifecycle {
     // CI/CD owns image + revision identity; Terraform owns the service shape.
+    // The top-level service `scaling` block is populated with zero values by
+    // gcloud run services update operations during deploys — that drift is
+    // harmless but pollutes every plan, so ignore it.
     ignore_changes = [
       template[0].containers[0].image,
       template[0].revision,
       client,
       client_version,
+      scaling,
     ]
   }
 }
