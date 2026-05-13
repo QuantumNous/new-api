@@ -26,14 +26,21 @@ type ClaudeMediaMessage struct {
 	Role         string               `json:"role,omitempty"`
 	Thinking     *string              `json:"thinking,omitempty"`
 	Signature    string               `json:"signature,omitempty"`
-	Delta        string               `json:"delta,omitempty"`
-	CacheControl json.RawMessage      `json:"cache_control,omitempty"`
+	// Data carries the opaque encrypted payload of `redacted_thinking` content blocks.
+	// Must round-trip verbatim — Anthropic rejects follow-up requests if the data field
+	// is dropped or modified ("Invalid data in 'redacted_thinking' block").
+	Data         string          `json:"data,omitempty"`
+	Delta        string          `json:"delta,omitempty"`
+	CacheControl json.RawMessage `json:"cache_control,omitempty"`
 	// tool_calls
 	Id        string `json:"id,omitempty"`
 	Name      string `json:"name,omitempty"`
 	Input     any    `json:"input,omitempty"`
 	Content   any    `json:"content,omitempty"`
 	ToolUseId string `json:"tool_use_id,omitempty"`
+	// IsError marks a tool_result block as an error. Round-trip preservation is required
+	// for some upstreams that re-validate the message stream.
+	IsError *bool `json:"is_error,omitempty"`
 }
 
 func (c *ClaudeMediaMessage) SetText(s string) {
