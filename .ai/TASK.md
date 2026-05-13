@@ -2815,3 +2815,64 @@ status: completed
 ### 提交状态
 
 - 验证通过，允许创建中文 commit。
+
+## 旧版前端 EvoLink 风格首页 Stage 2.5 视觉与回归检查记录
+
+任务名称：Stage 2.5：首页视觉、移动端、暗色模式与核心路由回归检查
+
+status: completed
+
+### 本轮目标
+
+- 只做 EvoLink 风格首页 Stage 2 后的视觉、移动端、暗色模式和核心路由回归检查。
+- 默认不开发新功能；发现明显小问题时，仅允许做 Home 局部最小视觉修复。
+- 禁止新增依赖、禁止修改后端、禁止修改全局路由、HeaderBar、Footer、PageLayout、登录/注册/控制台/价格页业务逻辑。
+
+### 本轮修改文件
+
+- `web/classic/src/pages/Home/components/LandingHero.jsx`
+- `.ai/TASK.md`
+
+### 本轮修复内容
+
+- 将 Hero 区移动端标题从默认 `text-4xl` 收敛为 `text-3xl`，并在 `sm` 以上恢复原有节奏，降低 375px 宽度下标题横向溢出风险。
+- 为 Hero 右侧 API 预览卡补充 `w-full`、`max-w-full`、`min-w-0` 和 body `minWidth: 0`，改善窄屏下卡片被内容撑宽的问题。
+- 将代码预览区从未注册的 Tailwind 默认色类改为局部十六进制颜色，修复代码文字对比度偏低问题。
+- 未修改首页业务逻辑，未修改 pricing / FAQ 数据接入逻辑。
+
+### 检查结果
+
+- 首页默认 landing：可正常渲染；公告条、首页内部导航、Hero、Base URL 展示、静态 pricing 兜底模型卡、FAQ 静态兜底、底部 CTA 均保持可用。
+- `home_page_content`：代码级确认仍保持非空内容覆盖默认 landing；iframe / markdown / 自定义首页分支未改；pricing 请求只在默认 landing 分支触发；NoticeModal 逻辑未替换。
+- 动态数据边界：`/api/pricing` 本地 mock 失败时静默回退静态 FeaturedModels；`status.faq` 为空时回退静态 FAQ；未调用 `/api/models`、`/api/user/models` 或 admin 模型接口。
+- 移动端：使用 Edge headless 截图检查 375px / 390px / 430px；Home Hero 局部已修复代码预览低对比度和窄屏布局压力。全局 HeaderBar 在 375px 下仍有既有横向裁切风险，本轮禁止修改 HeaderBar，记录为遗留风险。
+- 暗色模式：Home 主要背景、卡片、文字、按钮使用 Semi CSS 变量；代码预览使用深色背景配亮色文字。headless 截图未成功切换应用暗色状态，暗色模式本轮以代码级检查为主。
+- 核心路由：本地 Vite 下 `/`、`/login`、`/register`、`/console`、`/pricing`、`/console/models`、`/console/token` 均返回 SPA 入口；受登录态保护的控制台路由仍按原路由守卫处理。
+
+### 验证命令与结果
+
+- `C:\Users\Administrator\.bun\bin\bun.exe run build`（目录 `web/classic`）：通过；仅有既有 Browserslist 过期、`lottie-web` eval、chunk size 警告。
+- `C:\Users\Administrator\.bun\bin\bun.exe run lint`（目录 `web/classic`）：通过。
+- `C:\Users\Administrator\.bun\bin\bun.exe run eslint`（目录 `web/classic`）：通过。
+- `git diff --check`：通过。
+- `C:\Users\Administrator\.bun\bin\bunx.exe prettier --check "src/pages/Home/**/*.{js,jsx}"`（目录 `web/classic`）：通过。
+- `C:\Users\Administrator\.bun\bin\bunx.exe eslint "src/pages/Home/**/*.{js,jsx}"`（目录 `web/classic`）：通过。
+
+### 自审查结论
+
+- 当前分支为 `feature/frontend-redesign-gptproto`。
+- 本轮仅修改允许范围内的 Home 局部组件和 `.ai/TASK.md`。
+- 未新增依赖，未修改 `package.json` / `bun.lock`。
+- 未修改后端 Go 文件。
+- 未修改全局路由、全局布局、HeaderBar、Footer、登录、注册、控制台或价格页业务逻辑。
+- 保留 `home_page_content`、NoticeModal、`/api/notice`、系统名、Logo、`docs_link`、`server_address` 和 Base URL 展示/复制能力。
+- 未复制 EvoLink 品牌、Logo、图片、原文案、数字承诺或受保护素材。
+
+### 已知风险
+
+- 375px 下全局 HeaderBar 仍可能出现横向裁切或导航项挤压；该问题属于全局 HeaderBar 既有移动端表现，本轮禁止修改，建议后续单独治理。
+- 暗色模式未完成交互式截图级验证；本轮已做代码级变量与对比度检查，建议后续用真实浏览器手动切换主题复查完整页面。
+
+### 提交状态
+
+- 验证通过，允许创建中文 commit：`前端：首页移动端与暗色模式回归优化`。

@@ -47,14 +47,14 @@ const LandingHero = ({
   return (
     <section className='relative overflow-hidden px-4 py-14 sm:px-6 lg:px-8 lg:py-20'>
       <div className='pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(59,130,246,0.16),transparent_32%),radial-gradient(circle_at_80%_0%,rgba(20,184,166,0.12),transparent_28%)]' />
-      <div className='relative mx-auto grid w-full max-w-7xl items-center gap-10 lg:grid-cols-[1.05fr_0.95fr]'>
+      <div className='relative mx-auto grid w-full max-w-7xl items-stretch gap-10 lg:grid-cols-[1.05fr_0.95fr] lg:items-center'>
         <div className='min-w-0'>
           <Tag color='cyan' size='large' shape='circle'>
             统一接入 · 控制台管理 · OpenAI 兼容
           </Tag>
           <Title
             heading={1}
-            className='!mb-5 !mt-6 max-w-4xl !text-4xl !font-black !leading-tight !text-semi-color-text-0 md:!text-6xl'
+            className='!mb-5 !mt-6 max-w-4xl break-words !text-3xl !font-black !leading-tight !text-semi-color-text-0 sm:!text-4xl md:!text-6xl'
           >
             一个 API 聚合多类 AI 模型能力
           </Title>
@@ -104,8 +104,8 @@ const LandingHero = ({
 
         <Card
           bordered
-          className='!rounded-3xl !border-semi-color-border !bg-semi-color-bg-1 !shadow-xl'
-          bodyStyle={{ padding: 0 }}
+          className='!w-full !max-w-full min-w-0 !rounded-3xl !border-semi-color-border !bg-semi-color-bg-1 !shadow-xl'
+          bodyStyle={{ padding: 0, minWidth: 0 }}
         >
           <div className='border-b border-semi-color-border px-5 py-4'>
             <div className='flex items-center justify-between gap-3'>
@@ -120,7 +120,7 @@ const LandingHero = ({
               <Tag color='green'>Ready</Tag>
             </div>
           </div>
-          <div className='space-y-4 p-5'>
+          <div className='space-y-4 p-4 sm:p-5'>
             <div className='rounded-2xl bg-semi-color-fill-0 p-4'>
               <Text className='block !text-xs !text-semi-color-text-2'>
                 Base URL
@@ -133,14 +133,14 @@ const LandingHero = ({
               </div>
             </div>
 
-            <div className='rounded-2xl bg-[#0b1120] p-4 text-sm text-slate-100'>
-              <div className='mb-3 flex items-center gap-2 text-xs text-slate-400'>
-                <span className='h-2 w-2 rounded-full bg-rose-400' />
-                <span className='h-2 w-2 rounded-full bg-amber-400' />
-                <span className='h-2 w-2 rounded-full bg-emerald-400' />
+            <div className='rounded-2xl bg-[#0b1120] p-4 text-xs text-[#f8fafc] sm:text-sm'>
+              <div className='mb-3 flex items-center gap-2 text-xs text-[#94a3b8]'>
+                <span className='h-2 w-2 rounded-full bg-[#fb7185]' />
+                <span className='h-2 w-2 rounded-full bg-[#fbbf24]' />
+                <span className='h-2 w-2 rounded-full bg-[#34d399]' />
                 <span className='ml-2'>compatible-request.js</span>
               </div>
-              <pre className='m-0 overflow-x-auto whitespace-pre-wrap break-words font-mono leading-6'>
+              <pre className='m-0 overflow-x-auto whitespace-pre-wrap break-words font-mono leading-6 !text-[#f8fafc]'>
                 {`client.chat.completions.create({
   model: "your-model",
   endpoint: "${endpoint}",
