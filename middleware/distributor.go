@@ -39,7 +39,13 @@ func Distribute() func(c *gin.Context) {
 		}
 		// Global model alias: lets legacy clients sending bare model names
 		// (e.g. gpt-4o) hit channels that have been migrated to namespaced
-		// ids (openai/gpt-4o). Single hop; aliases are not chained.
+		// ids (openai/gpt-4o). Single hop; aliases are not chained. The
+		// rewrite happens before the token model-limit check below and the
+		// channel selection that follows — so per-token allow-lists, retry
+		// logic, and `original_model` (set later by
+		// SetupContextForSelectedChannel and consumed by param_override
+		// templates) all see the post-alias name. The pre-alias name is
+		// preserved in ContextKeyModelAliasedFrom for audit.
 		if alias := setting.GetGlobalModelAlias(modelRequest.Model); alias != "" && alias != modelRequest.Model {
 			common.SetContextKey(c, constant.ContextKeyModelAliasedFrom, modelRequest.Model)
 			modelRequest.Model = alias

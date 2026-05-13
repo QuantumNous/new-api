@@ -64,6 +64,36 @@ func TestGlobalModelAlias_DropsEmptyEntries(t *testing.T) {
 	}
 }
 
+func TestGlobalModelAlias_DropsSelfAlias(t *testing.T) {
+	if err := UpdateGlobalModelAliasByJSONString(`{"gpt-4o":"gpt-4o","claude":"anthropic/claude"}`); err != nil {
+		t.Fatalf("update failed: %v", err)
+	}
+	if got := GetGlobalModelAlias("gpt-4o"); got != "" {
+		t.Errorf("self-alias gpt-4o should have been dropped, got %q", got)
+	}
+	if got := GetGlobalModelAlias("claude"); got != "anthropic/claude" {
+		t.Errorf("normal entry: want anthropic/claude, got %q", got)
+	}
+}
+
+func TestGlobalModelAlias_CheckDoesNotMutate(t *testing.T) {
+	if err := UpdateGlobalModelAliasByJSONString(`{"gpt-4o":"openai/gpt-4o"}`); err != nil {
+		t.Fatalf("seed failed: %v", err)
+	}
+	if err := CheckGlobalModelAliasJSON(`{"claude":"anthropic/claude"}`); err != nil {
+		t.Fatalf("check should pass for valid JSON, got: %v", err)
+	}
+	if got := GetGlobalModelAlias("claude"); got != "" {
+		t.Errorf("check must not mutate state — claude should not be aliased, got %q", got)
+	}
+	if got := GetGlobalModelAlias("gpt-4o"); got != "openai/gpt-4o" {
+		t.Errorf("check must not mutate state — gpt-4o should still be aliased, got %q", got)
+	}
+	if err := CheckGlobalModelAliasJSON(`{not-json`); err == nil {
+		t.Errorf("check should reject invalid JSON")
+	}
+}
+
 func TestGlobalModelAlias_RoundTripJSON(t *testing.T) {
 	if err := UpdateGlobalModelAliasByJSONString(`{"a":"x/a"}`); err != nil {
 		t.Fatalf("update failed: %v", err)

@@ -252,7 +252,7 @@ func UpdateOption(c *gin.Context) {
 			return
 		}
 	case "GlobalModelAlias":
-		err = setting.UpdateGlobalModelAliasByJSONString(option.Value.(string))
+		err = setting.CheckGlobalModelAliasJSON(option.Value.(string))
 		if err != nil {
 			c.JSON(http.StatusOK, gin.H{
 				"success": false,
