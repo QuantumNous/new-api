@@ -114,6 +114,15 @@ export function ModelCharts(props: ModelChartsProps) {
   )
 
   const spec = chartData[CHART_SPEC_KEYS[activeTab]]
+  const specType = typeof spec?.type === 'string' ? spec.type : activeTab
+  const chartKey = [
+    activeTab,
+    specType,
+    props.loading ? 'loading' : 'ready',
+    props.data.length,
+    resolvedTheme,
+    customization.preset,
+  ].join('-')
 
   return (
     <div className='overflow-hidden rounded-lg border'>
@@ -149,7 +158,7 @@ export function ModelCharts(props: ModelChartsProps) {
       <div className='h-[300px] p-1.5 sm:h-96 sm:p-2'>
         {themeReady && spec && (
           <VChart
-            key={`${activeTab}-${resolvedTheme}-${customization.preset}`}
+            key={chartKey}
             spec={{
               ...spec,
               theme: resolvedTheme === 'dark' ? 'dark' : 'light',

@@ -67,8 +67,12 @@ export const PAYMENT_METHOD_NAMES: Record<string, string> = {
 /**
  * Get payment method display name
  */
-export function getPaymentMethodName(method: string): string {
-  return PAYMENT_METHOD_NAMES[method] || method
+export function getPaymentMethodName(
+  method: string,
+  t?: (key: string) => string
+): string {
+  const name = PAYMENT_METHOD_NAMES[method] || method
+  return t ? t(name) : name
 }
 
 /**

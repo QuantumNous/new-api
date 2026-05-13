@@ -126,7 +126,7 @@ export function RateLimitSection({ defaultValues }: RateLimitSectionProps) {
                   </FormLabel>
                   <FormDescription>
                     {t(
-                      'Restrict user model request frequency (may impact high concurrency performance)'
+                      'This controls model request rate limiting. Web/API route throttling is configured by environment variables and may still return 429.'
                     )}
                   </FormDescription>
                 </div>
