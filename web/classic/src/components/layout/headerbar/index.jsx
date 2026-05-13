@@ -64,22 +64,12 @@ const HeaderBar = ({ onMobileMenuToggle, drawerOpen }) => {
   } = useNotifications(statusState);
 
   const { mainNavLinks } = useNavigation(t, docsLink, headerNavModules);
-  const isHomeRoute = location.pathname === '/';
-  const headerClassName = isHomeRoute
-    ? 'text-semi-color-text-0 sticky top-0 z-50 border-b border-semi-color-border bg-white/80 dark:bg-zinc-900/80 backdrop-blur-xl transition-colors duration-300'
-    : 'text-semi-color-text-0 sticky top-0 z-50 transition-colors duration-300 bg-white/75 dark:bg-zinc-900/75 backdrop-blur-lg';
-  const containerClassName = isHomeRoute
-    ? 'mx-auto w-full max-w-7xl px-3 sm:px-5 lg:px-8'
-    : 'w-full px-2';
-  const contentClassName = isHomeRoute
-    ? 'flex h-16 min-w-0 items-center justify-between gap-2'
-    : 'flex items-center justify-between h-16';
-  const logoWrapClassName = isHomeRoute
-    ? 'flex min-w-0 shrink-0 items-center'
-    : 'flex items-center';
+  const streamlinedNavLinks = mainNavLinks.filter((link) =>
+    ['console', 'pricing', 'docs'].includes(link.itemKey),
+  );
 
   return (
-    <header className={headerClassName}>
+    <header className='headerbar-surface text-semi-color-text-0 sticky top-0 z-50'>
       <NoticeModal
         visible={noticeVisible}
         onClose={handleNoticeClose}
@@ -88,9 +78,9 @@ const HeaderBar = ({ onMobileMenuToggle, drawerOpen }) => {
         unreadKeys={getUnreadKeys()}
       />
 
-      <div className={containerClassName}>
-        <div className={contentClassName}>
-          <div className={logoWrapClassName}>
+      <div className='headerbar-container'>
+        <div className='headerbar-content'>
+          <div className='headerbar-logo-wrap'>
             <MobileMenuButton
               isConsoleRoute={isConsoleRoute}
               isMobile={isMobile}
@@ -109,14 +99,14 @@ const HeaderBar = ({ onMobileMenuToggle, drawerOpen }) => {
               systemName={systemName}
               isSelfUseMode={isSelfUseMode}
               isDemoSiteMode={isDemoSiteMode}
-              showSubtitle={isHomeRoute && !isMobile}
+              showSubtitle={!isMobile}
               t={t}
             />
           </div>
 
-          <div className={isHomeRoute ? 'min-w-0 flex-1' : 'contents'}>
+          <div className='headerbar-nav-wrap'>
             <Navigation
-              mainNavLinks={mainNavLinks}
+              mainNavLinks={streamlinedNavLinks}
               isMobile={isMobile}
               isLoading={isLoading}
               userState={userState}
@@ -124,7 +114,7 @@ const HeaderBar = ({ onMobileMenuToggle, drawerOpen }) => {
             />
           </div>
 
-          <div className={isHomeRoute ? 'shrink-0' : ''}>
+          <div className='headerbar-actions-wrap'>
             <ActionButtons
               isNewYear={isNewYear}
               unreadCount={unreadCount}

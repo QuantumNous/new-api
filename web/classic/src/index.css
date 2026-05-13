@@ -1210,3 +1210,547 @@ html.dark .with-pastel-balls::before {
 .ec-dbcd0a3c01b55203 {
   forced-color-adjust: auto;
 }
+
+/* ==================== Stage 3.R HeaderBar scoped visual refresh ==================== */
+.headerbar-surface {
+  border-bottom: 1px solid var(--semi-color-border);
+  background: color-mix(in srgb, var(--semi-color-bg-0) 88%, transparent);
+  backdrop-filter: blur(18px);
+  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.04);
+  transition:
+    background-color 160ms ease,
+    box-shadow 160ms ease,
+    border-color 160ms ease;
+}
+
+.headerbar-container {
+  width: 100%;
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 0 12px;
+}
+
+.headerbar-content {
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) auto minmax(168px, 1fr);
+  align-items: center;
+  min-width: 0;
+  height: 64px;
+  gap: 12px;
+}
+
+.headerbar-logo-wrap,
+.headerbar-actions-wrap {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+}
+
+.headerbar-actions-wrap {
+  justify-content: flex-end;
+}
+
+.headerbar-nav-wrap {
+  min-width: 0;
+}
+
+.headerbar-brand {
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+  gap: 10px;
+  padding: 6px 8px;
+  border-radius: 14px;
+  color: var(--semi-color-text-0);
+  transition:
+    background-color 160ms ease,
+    transform 160ms ease;
+}
+
+.headerbar-brand:hover {
+  background: var(--semi-color-fill-0);
+  color: var(--semi-color-text-0);
+}
+
+.headerbar-nav {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  gap: 8px;
+  overflow-x: auto;
+  white-space: nowrap;
+  scrollbar-width: none;
+}
+
+.headerbar-nav::-webkit-scrollbar {
+  display: none;
+}
+
+.headerbar-nav-link {
+  color: var(--semi-color-text-1);
+}
+
+.headerbar-nav-link:hover {
+  background: var(--semi-color-fill-0);
+  color: var(--semi-color-text-0);
+}
+
+.headerbar-nav-link-active {
+  background: var(--semi-color-fill-1);
+  color: var(--semi-color-text-0);
+  box-shadow:
+    0 1px 2px rgba(15, 23, 42, 0.08),
+    0 8px 18px rgba(15, 23, 42, 0.06);
+}
+
+html.dark .headerbar-surface {
+  background: color-mix(in srgb, var(--semi-color-bg-0) 86%, transparent);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.24);
+}
+
+@media (max-width: 767px) {
+  .headerbar-container {
+    padding: 0 8px;
+  }
+
+  .headerbar-content {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    gap: 6px;
+  }
+
+  .headerbar-brand {
+    padding: 4px;
+  }
+
+  .headerbar-nav {
+    justify-content: flex-start;
+    gap: 4px;
+  }
+}
+
+/* ==================== Stage 3.R marketplace scoped visual refresh ==================== */
+.pricing-marketplace-page {
+  min-width: 0;
+  min-height: calc(100vh - 64px);
+  background: var(--semi-color-bg-0);
+}
+
+.pricing-marketplace-shell {
+  min-width: 0;
+  padding-bottom: 48px;
+}
+
+.pricing-marketplace-body {
+  display: grid;
+  grid-template-columns: 256px minmax(0, 1fr);
+  gap: 32px;
+  width: min(100%, 1800px);
+  margin: 0 auto;
+  padding: 24px 48px 0;
+  background: var(--semi-color-bg-0);
+}
+
+.pricing-marketplace-results {
+  min-width: 0;
+}
+
+.pricing-marketplace-sidebar-sticky {
+  position: sticky;
+  top: 88px;
+  align-self: start;
+  max-height: calc(100vh - 112px);
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+
+.pricing-marketplace-hero {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 454px;
+  padding: 72px 20px 80px;
+  border: 0;
+  border-bottom: 1px solid var(--semi-color-border);
+  border-radius: 0;
+  background: var(--semi-color-bg-0);
+  text-align: center;
+}
+
+.pricing-marketplace-hero-copy {
+  width: min(100%, 820px);
+  min-width: 0;
+}
+
+.pricing-marketplace-hero h1 {
+  margin: 0;
+  color: var(--semi-color-text-0);
+  font-size: clamp(44px, 7vw, 72px);
+  line-height: 1;
+  font-weight: 900;
+  letter-spacing: 0;
+}
+
+.pricing-marketplace-hero p {
+  max-width: 760px;
+  margin: 24px auto 0;
+  color: var(--semi-color-text-2);
+  font-size: 17px;
+  line-height: 1.7;
+}
+
+.pricing-marketplace-hero-search {
+  width: min(100%, 672px);
+  margin: 48px auto 0;
+  box-shadow: 0 18px 42px rgba(15, 23, 42, 0.08);
+}
+
+.pricing-marketplace-hero-input {
+  height: 64px;
+  border-radius: 8px;
+  background: var(--semi-color-bg-1);
+}
+
+.pricing-marketplace-results-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  width: min(100%, 1800px);
+  margin: 0 auto;
+  padding: 24px 48px 0 336px;
+  background: var(--semi-color-bg-0);
+}
+
+.pricing-marketplace-result-count {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  color: var(--semi-color-text-1);
+  font-size: 14px;
+}
+
+.pricing-marketplace-result-count span {
+  font-weight: 500;
+}
+
+.pricing-marketplace-result-count small {
+  color: var(--semi-color-text-3);
+}
+
+.pricing-marketplace-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  min-width: 0;
+}
+
+.pricing-marketplace-sidebar-card {
+  padding: 14px;
+  border: 1px solid var(--semi-color-border);
+  border-radius: 8px;
+  background: var(--semi-color-bg-1);
+}
+
+.pricing-marketplace-sidebar-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.pricing-marketplace-sidebar-title {
+  color: var(--semi-color-text-0);
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.pricing-marketplace-sidebar-card .sbg-button {
+  border-radius: 6px;
+}
+
+.pricing-marketplace-filter-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  width: min(100%, 1800px);
+  margin: 12px auto 0;
+  padding: 0 48px 0 336px;
+  border: 0;
+}
+
+.pricing-marketplace-filter-chips {
+  display: flex;
+  flex: 1;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-width: 0;
+}
+
+.pricing-marketplace-card-view {
+  min-width: 0;
+  padding: 0;
+}
+
+.pricing-marketplace-card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 24px 16px;
+  min-width: 0;
+}
+
+.pricing-marketplace-model-card {
+  overflow: hidden;
+  border-radius: 8px !important;
+  background: var(--semi-color-bg-1);
+}
+
+.pricing-marketplace-card-cover {
+  position: relative;
+  height: 212px;
+  overflow: hidden;
+  background: #f3f4f6;
+}
+
+.pricing-marketplace-cover-pattern {
+  position: absolute;
+  inset: 0;
+  opacity: 0.85;
+}
+
+.pricing-marketplace-cover-text .pricing-marketplace-cover-pattern {
+  background: linear-gradient(
+      135deg,
+      rgba(20, 184, 166, 0.22),
+      transparent 42%
+    ),
+    repeating-linear-gradient(
+      90deg,
+      rgba(15, 23, 42, 0.08) 0 1px,
+      transparent 1px 22px
+    ),
+    linear-gradient(135deg, #edfdf8, #e8f1ff);
+}
+
+.pricing-marketplace-cover-image .pricing-marketplace-cover-pattern {
+  background: radial-gradient(
+      circle at 28% 36%,
+      rgba(59, 130, 246, 0.32),
+      transparent 30%
+    ),
+    radial-gradient(
+      circle at 72% 42%,
+      rgba(245, 158, 11, 0.36),
+      transparent 28%
+    ),
+    linear-gradient(135deg, #f8fafc, #dbeafe);
+}
+
+.pricing-marketplace-cover-video .pricing-marketplace-cover-pattern {
+  background: linear-gradient(135deg, rgba(124, 58, 237, 0.2), transparent 36%),
+    repeating-linear-gradient(
+      135deg,
+      rgba(15, 23, 42, 0.12) 0 2px,
+      transparent 2px 18px
+    ),
+    linear-gradient(135deg, #eef2ff, #f5e8ff);
+}
+
+.pricing-marketplace-cover-audio .pricing-marketplace-cover-pattern {
+  background: repeating-radial-gradient(
+      circle at 50% 55%,
+      rgba(16, 185, 129, 0.16) 0 4px,
+      transparent 4px 20px
+    ),
+    linear-gradient(135deg, #ecfdf5, #e0f2fe);
+}
+
+.pricing-marketplace-cover-code .pricing-marketplace-cover-pattern {
+  background: linear-gradient(135deg, rgba(15, 23, 42, 0.08), transparent 44%),
+    repeating-linear-gradient(
+      0deg,
+      rgba(249, 115, 22, 0.16) 0 2px,
+      transparent 2px 18px
+    ),
+    linear-gradient(135deg, #fff7ed, #f8fafc);
+}
+
+.pricing-marketplace-cover-general .pricing-marketplace-cover-pattern {
+  background: radial-gradient(
+      circle at 35% 34%,
+      rgba(148, 163, 184, 0.34),
+      transparent 28%
+    ),
+    linear-gradient(135deg, #f8fafc, #f1f5f9);
+}
+
+.pricing-marketplace-cover-icon {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+}
+
+.pricing-marketplace-cover-icon > div {
+  background: color-mix(in srgb, var(--semi-color-bg-1) 86%, transparent);
+  backdrop-filter: blur(10px);
+}
+
+.pricing-marketplace-cover-badge {
+  position: absolute;
+  bottom: 12px;
+  left: 12px;
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.08);
+}
+
+.pricing-marketplace-cover-actions {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.pricing-marketplace-card-body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+  padding: 18px 20px 20px;
+}
+
+.pricing-marketplace-card-provider {
+  color: var(--semi-color-text-3);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.2;
+  text-transform: uppercase;
+}
+
+.pricing-marketplace-card-title {
+  display: -webkit-box;
+  min-height: 52px;
+  margin: 8px 0 0;
+  overflow: hidden;
+  color: var(--semi-color-text-0);
+  font-size: 20px;
+  font-weight: 800;
+  line-height: 1.28;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  word-break: break-word;
+}
+
+.pricing-marketplace-card-description {
+  display: -webkit-box;
+  min-height: 68px;
+  margin: 12px 0 0;
+  overflow: hidden;
+  color: var(--semi-color-text-2);
+  font-size: 14px;
+  line-height: 1.6;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  word-break: break-word;
+}
+
+.pricing-marketplace-card-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-height: 24px;
+  margin-top: 14px;
+}
+
+.pricing-marketplace-card-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--semi-color-border);
+}
+
+html.dark .pricing-marketplace-card-cover {
+  background: var(--semi-color-bg-2);
+}
+
+html.dark .pricing-marketplace-cover-pattern {
+  filter: saturate(0.9) brightness(0.72);
+}
+
+@media (max-width: 767px) {
+  .pricing-marketplace-shell {
+    padding-bottom: 28px;
+  }
+
+  .pricing-marketplace-hero {
+    min-height: 340px;
+    padding: 48px 16px 56px;
+  }
+
+  .pricing-marketplace-hero h1 {
+    font-size: clamp(38px, 12vw, 52px);
+  }
+
+  .pricing-marketplace-hero p {
+    margin-top: 18px;
+    font-size: 14px;
+  }
+
+  .pricing-marketplace-hero-search {
+    margin-top: 32px;
+  }
+
+  .pricing-marketplace-hero-input {
+    height: 54px;
+  }
+
+  .pricing-marketplace-results-toolbar {
+    align-items: flex-start;
+    flex-direction: column;
+    padding: 18px 16px 0;
+  }
+
+  .pricing-marketplace-actions {
+    justify-content: flex-start;
+    width: 100%;
+  }
+
+  .pricing-marketplace-filter-summary {
+    align-items: flex-start;
+    flex-direction: column;
+    padding: 0 16px;
+  }
+
+  .pricing-marketplace-body {
+    display: block;
+    padding: 18px 16px 0;
+  }
+
+  .pricing-marketplace-card-grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 16px;
+  }
+
+  .pricing-marketplace-card-cover {
+    height: 196px;
+  }
+
+  .pricing-marketplace-card-footer {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}
+
+@media (min-width: 1500px) {
+  .pricing-marketplace-card-grid {
+    grid-template-columns: repeat(auto-fill, minmax(270px, 1fr));
+  }
+}

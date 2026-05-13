@@ -3084,3 +3084,95 @@ status: completed
 ### 提交状态
 
 - 验证通过，允许创建中文 commit：`前端：模型广场新增类型筛选与排序`。
+## Stage 3.R: marketplace and navigation visual rebuild
+
+Task: Stage 3.R marketplace and navigation visual rebuild
+
+status: completed
+
+### Goals
+
+- Rebuild public `/pricing` toward the supplied `.ai/references/` model-page visual structure: centered spacious hero, one main search box, sticky left filters, right-side model card grid.
+- Simplify HeaderBar navigation to Console / Marketplace / Docs, with Logo and system name as the home entry.
+- Keep `/pricing` on `/api/pricing` and `useModelPricingData`; preserve search, filters, sorting, pagination, detail SideSheet, and card/table switching.
+- Do not add `/models`, do not change backend, dependencies, Footer, PageLayout, App.jsx, Home, login/register, or console business pages.
+
+### Changed Files
+
+- `web/classic/src/components/layout/headerbar/index.jsx`
+- `web/classic/src/components/layout/headerbar/HeaderLogo.jsx`
+- `web/classic/src/components/layout/headerbar/Navigation.jsx`
+- `web/classic/src/components/table/model-pricing/layout/PricingPage.jsx`
+- `web/classic/src/components/table/model-pricing/layout/content/PricingContent.jsx`
+- `web/classic/src/components/table/model-pricing/layout/header/PricingMarketplaceHero.jsx`
+- `web/classic/src/components/table/model-pricing/layout/header/PricingTopSection.jsx`
+- `web/classic/src/components/table/model-pricing/layout/header/SearchActions.jsx`
+- `web/classic/src/components/table/model-pricing/layout/PricingSidebar.jsx`
+- `web/classic/src/components/table/model-pricing/modal/components/FilterModalContent.jsx`
+- `web/classic/src/components/table/model-pricing/view/card/PricingCardSkeleton.jsx`
+- `web/classic/src/components/table/model-pricing/view/card/PricingCardView.jsx`
+- `web/classic/src/index.css`
+- `.ai/TASK.md`
+
+### Navigation Result
+
+- HeaderBar center nav now renders only Console, Marketplace, and Docs.
+- Header logo/system name remains clickable to `/`, with desktop subtitle retained.
+- `Navigation.jsx` adds route-aware active pill styling for `/pricing` and `/console/*`.
+- ActionButtons behavior for notice, theme, language, login/register, and user menu was not changed.
+
+### Marketplace Result
+
+- `/pricing` now uses a natural page flow instead of an internal full-height Sider/Layout scroll surface.
+- Hero now has a large centered title, subtitle, and the single primary search input wired to existing search state.
+- Body layout is sticky left filter panel plus right result area; model type and provider filters are first, while group/endpoint/tag/billing filters are retained.
+- Result toolbar shows result count and existing controls, including sorting and view/table controls.
+- Card view now has CSS-generated cover art, capability badge, provider, model name, description, tags, conservative billing copy, and detail entry.
+- No external images were added; no EvoLink brand, logo, image, original copy, price number, or discount number was copied.
+
+### Data And Feature Reuse
+
+- Reused `/api/pricing`.
+- Reused `useModelPricingData`.
+- Did not call `/api/models`, `/api/user/models`, or admin model APIs.
+- Preserved search, model type filter, provider filter, group/endpoint/tag/billing filters, sorting, pagination, detail SideSheet, and card/table switching.
+
+### Verification
+
+- `C:\Users\Administrator\.bun\bin\bun.exe run build` in `web/classic`: passed, with existing Browserslist, lottie eval, and chunk-size warnings only.
+- `C:\Users\Administrator\.bun\bin\bun.exe run lint` in `web/classic`: passed.
+- `bun run eslint` initially failed because this PowerShell PATH lacked `bunx`; after prepending `$env:USERPROFILE\.bun\bin`, `C:\Users\Administrator\.bun\bin\bun.exe run eslint` passed.
+- `git diff --check`: passed.
+- `C:\Users\Administrator\.bun\bin\bunx.exe prettier --check "src/components/table/model-pricing/**/*.{js,jsx}" "src/components/layout/headerbar/**/*.{js,jsx}" "src/pages/Pricing/**/*.{js,jsx}"`: passed.
+- `C:\Users\Administrator\.bun\bin\bunx.exe eslint "src/components/table/model-pricing/**/*.{js,jsx}" "src/components/layout/headerbar/**/*.{js,jsx}" "src/pages/Pricing/**/*.{js,jsx}"`: passed.
+
+### Manual Regression
+
+- Code-level check: Logo/title returns to `/` through `HeaderLogo` `Link to='/'`.
+- Code-level check: `/pricing` activates Marketplace; `/console` and `/console/*` activate Console.
+- Code-level check: Docs still uses existing `docs_link` external-link logic.
+- Code-level check: right-side notice/theme/language/user entry still comes from `ActionButtons`.
+- Code-level check: marketplace Hero has one main search input bound to `searchValue` / `handleChange`.
+- Code-level check: left filters use CSS sticky; model type and provider filters work through existing state; other filters remain mounted.
+- Code-level check: sorting, pagination, detail SideSheet, and card/table switching still use existing state/components.
+- Code-level check: mobile filtering still uses `PricingFilterModal` and shared sidebar props.
+- Code-level check: dark mode uses Semi CSS variables and darkens generated cover patterns.
+
+### Self Review
+
+- Branch confirmed as `feature/frontend-redesign-gptproto`.
+- Modified only allowed HeaderBar, model-pricing local components, scoped `index.css`, and `.ai/TASK.md`.
+- No dependency changes; `package.json` and `bun.lock` untouched.
+- No backend files changed; `/api/pricing` structure and real billing logic untouched.
+- No `/models` route added; `App.jsx`, `PageLayout.jsx`, `Footer.jsx`, Home, login/register, and console business pages untouched.
+- `.ai/references/` was used only as read-only reference material and was not staged.
+
+### Known Risks
+
+- This round used code-level and local build verification, not pixel-level browser screenshot review.
+- Model card covers are CSS-generated placeholders, not real model images.
+- The classic frontend repository already contains historical mojibake in some task/code text; this entry is kept ASCII to avoid adding another encoding issue.
+
+### Commit Status
+
+- Verification passed; allowed commit message: `front-end: rebuild marketplace and navigation visual` equivalent Chinese commit `前端：重构模型广场与导航视觉`.

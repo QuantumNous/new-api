@@ -48,6 +48,15 @@ const CARD_STYLES = {
   default: 'border-semi-color-border hover:border-semi-color-primary',
 };
 
+const COVER_CLASS_BY_TYPE = {
+  text: 'pricing-marketplace-cover-text',
+  image: 'pricing-marketplace-cover-image',
+  video: 'pricing-marketplace-cover-video',
+  audio: 'pricing-marketplace-cover-audio',
+  code: 'pricing-marketplace-cover-code',
+  general: 'pricing-marketplace-cover-general',
+};
+
 const PricingCardView = ({
   filteredModels,
   loading,
@@ -112,7 +121,6 @@ const PricingCardView = ({
     rowSelection?.onChange?.(newKeys, null);
   };
 
-  // 获取模型图标
   const getModelIcon = (model) => {
     if (!model || !model.model_name) {
       return (
@@ -121,7 +129,7 @@ const PricingCardView = ({
         </div>
       );
     }
-    // 1) 优先使用模型自定义图标
+
     if (model.icon) {
       return (
         <div className={CARD_STYLES.container}>
@@ -131,7 +139,7 @@ const PricingCardView = ({
         </div>
       );
     }
-    // 2) 退化为供应商图标
+
     if (model.vendor_icon) {
       return (
         <div className={CARD_STYLES.container}>
@@ -141,8 +149,6 @@ const PricingCardView = ({
         </div>
       );
     }
-
-    // 如果没有供应商图标，使用模型名称生成头像
 
     const avatarText = model.model_name.slice(0, 2).toUpperCase();
     return (
@@ -168,6 +174,7 @@ const PricingCardView = ({
     return {
       label: t(type.label),
       color: type.color,
+      value: type.value,
     };
   };
 
@@ -177,7 +184,6 @@ const PricingCardView = ({
     return t('按站点配置计费');
   };
 
-  // 获取模型描述
   const getModelDescription = (record) => {
     return (
       record.description ||
@@ -185,65 +191,45 @@ const PricingCardView = ({
     );
   };
 
-  // 渲染标签
   const renderTags = (record) => {
-    // 计费类型标签（左边）
-    let billingTag = (
-      <Tag key='billing' shape='circle' color='white' size='small'>
-        -
-      </Tag>
-    );
-    if (record.quota_type === 1) {
-      billingTag = (
-        <Tag key='billing' shape='circle' color='teal' size='small'>
-          {t('按次计费')}
-        </Tag>
-      );
-    } else if (record.quota_type === 0) {
-      billingTag = (
-        <Tag key='billing' shape='circle' color='violet' size='small'>
-          {t('按量计费')}
-        </Tag>
-      );
-    }
-
-    // 自定义标签（右边）
     const customTags = [];
     if (record.tags) {
-      const tagArr = record.tags.split(',').filter(Boolean);
-      tagArr.forEach((tg, idx) => {
+      const tagArr = String(record.tags)
+        .split(/[,;|]+/)
+        .map((tag) => tag.trim())
+        .filter(Boolean);
+      tagArr.forEach((tag, idx) => {
         customTags.push(
           <Tag
             key={`custom-${idx}`}
             shape='circle'
-            color={stringToColor(tg)}
+            color={stringToColor(tag)}
             size='small'
           >
-            {tg}
+            {tag}
           </Tag>,
         );
       });
     }
 
-    return (
-      <div className='flex items-center justify-between gap-3'>
-        <div className='flex items-center gap-2'>{billingTag}</div>
-        <div className='flex min-w-0 flex-wrap items-center justify-end gap-1'>
-          {customTags.length > 0 &&
-            renderLimitedItems({
-              items: customTags.map((tag, idx) => ({
-                key: `custom-${idx}`,
-                element: tag,
-              })),
-              renderItem: (item, idx) => item.element,
-              maxDisplay: 3,
-            })}
-        </div>
-      </div>
-    );
+    if (customTags.length === 0) {
+      return (
+        <Tag shape='circle' color='white' size='small'>
+          {t('站点配置')}
+        </Tag>
+      );
+    }
+
+    return renderLimitedItems({
+      items: customTags.map((tag, idx) => ({
+        key: `custom-${idx}`,
+        element: tag,
+      })),
+      renderItem: (item) => item.element,
+      maxDisplay: 3,
+    });
   };
 
-  // 显示骨架屏
   if (showSkeleton) {
     return (
       <PricingCardSkeleton
@@ -277,88 +263,73 @@ const PricingCardView = ({
 
   return (
     <div className='pricing-marketplace-card-view'>
-      <div className='grid grid-cols-1 xl:grid-cols-2 2xl:grid-cols-3 gap-4'>
+      <div className='pricing-marketplace-card-grid'>
         {paginatedModels.map((model, index) => {
           const modelKey = getModelKey(model);
           const isSelected = selectedRowKeys.includes(modelKey);
           const modelCapability = getModelCapability(model);
+          const coverClass =
+            COVER_CLASS_BY_TYPE[modelCapability.value] ||
+            COVER_CLASS_BY_TYPE.general;
 
           return (
             <Card
               key={modelKey || index}
               className={`pricing-marketplace-model-card transition-all duration-200 hover:shadow-md border cursor-pointer ${isSelected ? CARD_STYLES.selected : CARD_STYLES.default}`}
-              bodyStyle={{ height: '100%' }}
+              bodyStyle={{ height: '100%', padding: 0 }}
               onClick={() => openModelDetail && openModelDetail(model)}
             >
-              <div className='flex flex-col h-full'>
-                {/* 头部：图标 + 模型名称 + 操作按钮 */}
-                <div className='mb-3 flex items-start justify-between gap-3'>
-                  <div className='flex items-start space-x-3 flex-1 min-w-0'>
+              <div className='flex h-full flex-col'>
+                <div className={`pricing-marketplace-card-cover ${coverClass}`}>
+                  <div className='pricing-marketplace-cover-pattern' />
+                  <div className='pricing-marketplace-cover-icon'>
                     {getModelIcon(model)}
-                    <div className='flex-1 min-w-0'>
-                      <div className='mb-1 flex min-w-0 flex-wrap items-center gap-1.5'>
-                        <Tag
-                          color={modelCapability.color}
-                          shape='circle'
-                          size='small'
-                        >
-                          {modelCapability.label}
-                        </Tag>
-                        {model.vendor_name && (
-                          <Tag color='white' shape='circle' size='small'>
-                            {model.vendor_name}
-                          </Tag>
-                        )}
-                      </div>
-                      <h3 className='text-lg font-bold text-semi-color-text-0 break-words leading-snug'>
-                        {model.model_name}
-                      </h3>
-                      <div className='mt-1 text-xs text-semi-color-text-2'>
-                        {t('按站点配置计费')}
-                      </div>
-                    </div>
                   </div>
-
-                  <div className='flex shrink-0 items-center space-x-2'>
-                    {/* 复制按钮 */}
+                  <Tag
+                    className='pricing-marketplace-cover-badge'
+                    color={modelCapability.color}
+                    size='small'
+                  >
+                    {modelCapability.label}
+                  </Tag>
+                  <div className='pricing-marketplace-cover-actions'>
                     <Button
                       size='small'
                       theme='outline'
                       type='tertiary'
                       icon={<Copy size={12} />}
-                      onClick={(e) => {
-                        e.stopPropagation();
+                      onClick={(event) => {
+                        event.stopPropagation();
                         copyText(model.model_name);
                       }}
                     />
 
-                    {/* 选择框 */}
                     {rowSelection && (
                       <Checkbox
                         checked={isSelected}
-                        onChange={(e) => {
-                          e.stopPropagation();
-                          handleCheckboxChange(model, e.target.checked);
+                        onChange={(event) => {
+                          event.stopPropagation();
+                          handleCheckboxChange(model, event.target.checked);
                         }}
                       />
                     )}
                   </div>
                 </div>
 
-                {/* 模型描述 - 占据剩余空间 */}
-                <div className='flex-1 mb-4'>
-                  <p
-                    className='text-sm line-clamp-3 leading-relaxed'
-                    style={{ color: 'var(--semi-color-text-2)' }}
-                  >
+                <div className='pricing-marketplace-card-body'>
+                  <div className='pricing-marketplace-card-provider'>
+                    {model.vendor_name || t('未知供应商')}
+                  </div>
+                  <h3 className='pricing-marketplace-card-title'>
+                    {model.model_name}
+                  </h3>
+                  <p className='pricing-marketplace-card-description'>
                     {getModelDescription(model)}
                   </p>
-                </div>
 
-                {/* 底部区域 */}
-                <div className='mt-auto'>
-                  {/* 标签区域 */}
-                  {renderTags(model)}
+                  <div className='pricing-marketplace-card-tags'>
+                    {renderTags(model)}
+                  </div>
 
                   <div className='pricing-marketplace-card-footer'>
                     <div>
@@ -366,7 +337,7 @@ const PricingCardView = ({
                         {getBillingHint(model)}
                       </div>
                       <div className='text-xs text-semi-color-text-2'>
-                        {t('额度消耗以详情和站点配置为准')}
+                        {t('详情中可查看站点配置摘要')}
                       </div>
                     </div>
                     <Button
@@ -374,8 +345,8 @@ const PricingCardView = ({
                       theme='borderless'
                       type='primary'
                       icon={<ExternalLink size={13} />}
-                      onClick={(e) => {
-                        e.stopPropagation();
+                      onClick={(event) => {
+                        event.stopPropagation();
                         openModelDetail && openModelDetail(model);
                       }}
                     >
@@ -389,7 +360,6 @@ const PricingCardView = ({
         })}
       </div>
 
-      {/* 分页 */}
       {filteredModels.length > 0 && (
         <div className='flex justify-center mt-6 py-4 border-t pricing-pagination-divider'>
           <Pagination

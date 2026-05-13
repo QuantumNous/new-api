@@ -44,6 +44,7 @@ const SearchActions = memo(
     setTokenUnit,
     sortBy = 'popular',
     setSortBy,
+    showSearch = true,
     t,
   }) => {
     const supportsCurrencyDisplay = siteDisplayType !== 'TOKENS';
@@ -67,18 +68,20 @@ const SearchActions = memo(
     }, [tokenUnit, setTokenUnit]);
 
     return (
-      <div className='flex flex-wrap items-center gap-2 w-full'>
-        <div className='min-w-[180px] flex-1'>
-          <Input
-            prefix={<IconSearch />}
-            placeholder={t('模糊搜索模型名称')}
-            value={searchValue}
-            onCompositionStart={handleCompositionStart}
-            onCompositionEnd={handleCompositionEnd}
-            onChange={handleChange}
-            showClear
-          />
-        </div>
+      <div className='pricing-marketplace-actions'>
+        {showSearch && (
+          <div className='min-w-[180px] flex-1'>
+            <Input
+              prefix={<IconSearch />}
+              placeholder={t('模糊搜索模型名称')}
+              value={searchValue}
+              onCompositionStart={handleCompositionStart}
+              onCompositionEnd={handleCompositionEnd}
+              onChange={handleChange}
+              showClear
+            />
+          </div>
+        )}
 
         <Button
           theme='outline'
@@ -94,7 +97,8 @@ const SearchActions = memo(
         <Select
           value={sortBy}
           onChange={(value) => setSortBy?.(value)}
-          style={{ width: isMobile ? 96 : 112 }}
+          prefix={isMobile ? null : t('排序')}
+          style={{ width: isMobile ? 104 : 132 }}
           optionList={[
             { value: 'popular', label: t('热门') },
             { value: 'name', label: t('名称') },
@@ -107,10 +111,9 @@ const SearchActions = memo(
           <>
             <Divider layout='vertical' margin='8px' />
 
-            {/* 充值价格显示开关 */}
             {supportsCurrencyDisplay && (
               <div className='flex items-center gap-2'>
-                <span className='text-sm text-gray-600'>
+                <span className='text-sm text-semi-color-text-2'>
                   {t('充值价格显示')}
                 </span>
                 <Switch
@@ -120,7 +123,6 @@ const SearchActions = memo(
               </div>
             )}
 
-            {/* 货币单位选择 */}
             {supportsCurrencyDisplay && showWithRecharge && (
               <Select
                 value={currency}
@@ -133,13 +135,13 @@ const SearchActions = memo(
               />
             )}
 
-            {/* 显示倍率开关 */}
             <div className='flex items-center gap-2'>
-              <span className='text-sm text-gray-600'>{t('倍率')}</span>
+              <span className='text-sm text-semi-color-text-2'>
+                {t('倍率')}
+              </span>
               <Switch checked={showRatio} onChange={setShowRatio} />
             </div>
 
-            {/* 视图模式切换按钮 */}
             <Button
               theme={viewMode === 'table' ? 'solid' : 'outline'}
               type={viewMode === 'table' ? 'primary' : 'tertiary'}
@@ -148,7 +150,6 @@ const SearchActions = memo(
               {t('表格视图')}
             </Button>
 
-            {/* Token单位切换按钮 */}
             <Button
               theme={tokenUnit === 'K' ? 'solid' : 'outline'}
               type={tokenUnit === 'K' ? 'primary' : 'tertiary'}

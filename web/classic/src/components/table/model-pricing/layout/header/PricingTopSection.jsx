@@ -54,13 +54,15 @@ const buildActiveFilters = ({
 }) => {
   const filters = [];
   if (searchValue) filters.push(`${t('搜索')}: ${searchValue}`);
-  if (filterVendor && filterVendor !== 'all') {
-    filters.push(
-      `${t('供应商')}: ${filterVendor === 'unknown' ? t('未知供应商') : filterVendor}`,
-    );
-  }
   if (filterModelType && filterModelType !== 'all') {
     filters.push(`${t('模型类型')}: ${t(getModelTypeLabel(filterModelType))}`);
+  }
+  if (filterVendor && filterVendor !== 'all') {
+    filters.push(
+      `${t('供应商')}: ${
+        filterVendor === 'unknown' ? t('未知供应商') : filterVendor
+      }`,
+    );
   }
   if (filterEndpointType && filterEndpointType !== 'all') {
     filters.push(`${t('端点')}: ${filterEndpointType}`);
@@ -108,6 +110,13 @@ const PricingTopSection = memo(
   }) => {
     const [showFilterModal, setShowFilterModal] = useState(false);
     const { sortBy, setSortBy } = sidebarProps;
+    const resultCount = loading
+      ? '-'
+      : Array.isArray(filteredModels)
+        ? filteredModels.length
+        : 0;
+    const totalCount = Array.isArray(models) ? models.length : 0;
+
     const resetFilters = () =>
       resetPricingFilters({
         handleChange,
@@ -125,6 +134,7 @@ const PricingTopSection = memo(
         setCurrentPage: sidebarProps.setCurrentPage,
         setTokenUnit,
       });
+
     const activeFilters = buildActiveFilters({
       searchValue,
       filterVendor: sidebarProps.filterVendor,
@@ -140,14 +150,29 @@ const PricingTopSection = memo(
     return (
       <>
         <PricingMarketplaceHero
-          models={models}
-          filteredModels={filteredModels}
-          vendorsMap={sidebarProps.vendorsMap}
-          loading={loading}
+          searchValue={searchValue}
+          handleChange={handleChange}
+          handleCompositionStart={handleCompositionStart}
+          handleCompositionEnd={handleCompositionEnd}
           t={t}
         />
 
-        <div className='pricing-marketplace-search-card'>
+        <div className='pricing-marketplace-results-toolbar'>
+          <div className='pricing-marketplace-result-count'>
+            <span>
+              {t('显示 {{count}} 个结果', {
+                count: resultCount,
+              })}
+            </span>
+            {!loading && totalCount > 0 && (
+              <small>
+                {t('共 {{count}} 个可用模型', {
+                  count: totalCount,
+                })}
+              </small>
+            )}
+          </div>
+
           <SearchActions
             selectedRowKeys={selectedRowKeys}
             copyText={copyText}
@@ -170,29 +195,30 @@ const PricingTopSection = memo(
             setTokenUnit={setTokenUnit}
             sortBy={sortBy}
             setSortBy={setSortBy}
+            showSearch={false}
             t={t}
           />
-
-          {activeFilters.length > 0 && (
-            <div className='pricing-marketplace-filter-summary'>
-              <div className='pricing-marketplace-filter-chips'>
-                {activeFilters.map((filter) => (
-                  <Tag key={filter} shape='circle' color='white'>
-                    {filter}
-                  </Tag>
-                ))}
-              </div>
-              <Button
-                size='small'
-                theme='borderless'
-                type='tertiary'
-                onClick={resetFilters}
-              >
-                {t('清空筛选')}
-              </Button>
-            </div>
-          )}
         </div>
+
+        {activeFilters.length > 0 && (
+          <div className='pricing-marketplace-filter-summary'>
+            <div className='pricing-marketplace-filter-chips'>
+              {activeFilters.map((filter) => (
+                <Tag key={filter} shape='circle' color='white'>
+                  {filter}
+                </Tag>
+              ))}
+            </div>
+            <Button
+              size='small'
+              theme='borderless'
+              type='tertiary'
+              onClick={resetFilters}
+            >
+              {t('清空筛选')}
+            </Button>
+          </div>
+        )}
 
         <PricingFilterModal
           visible={showFilterModal}

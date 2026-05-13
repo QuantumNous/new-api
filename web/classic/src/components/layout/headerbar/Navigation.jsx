@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import SkeletonWrapper from '../components/SkeletonWrapper';
 
 const Navigation = ({
@@ -28,16 +28,29 @@ const Navigation = ({
   userState,
   pricingRequireAuth,
 }) => {
+  const location = useLocation();
+  const isActiveLink = (itemKey) => {
+    if (itemKey === 'pricing') {
+      return location.pathname === '/pricing';
+    }
+    if (itemKey === 'console') {
+      return (
+        location.pathname === '/console' ||
+        location.pathname.startsWith('/console/')
+      );
+    }
+    return false;
+  };
+
   const renderNavLinks = () => {
     const baseClasses =
-      'flex-shrink-0 flex items-center gap-1 font-semibold rounded-md transition-all duration-200 ease-in-out';
-    const hoverClasses = 'hover:text-semi-color-primary';
-    const spacingClasses = isMobile ? 'p-1' : 'p-2';
-
-    const commonLinkClasses = `${baseClasses} ${spacingClasses} ${hoverClasses}`;
+      'headerbar-nav-link flex-shrink-0 flex items-center gap-1 font-semibold rounded-md transition-all duration-200 ease-in-out';
+    const spacingClasses = isMobile ? 'px-2 py-1.5' : 'px-3 py-2';
 
     return mainNavLinks.map((link) => {
       const linkContent = <span>{link.text}</span>;
+      const active = isActiveLink(link.itemKey);
+      const commonLinkClasses = `${baseClasses} ${spacingClasses} ${active ? 'headerbar-nav-link-active' : ''}`;
 
       if (link.isExternal) {
         return (
@@ -47,6 +60,7 @@ const Navigation = ({
             target='_blank'
             rel='noopener noreferrer'
             className={commonLinkClasses}
+            aria-current={active ? 'page' : undefined}
           >
             {linkContent}
           </a>
@@ -62,7 +76,12 @@ const Navigation = ({
       }
 
       return (
-        <Link key={link.itemKey} to={targetPath} className={commonLinkClasses}>
+        <Link
+          key={link.itemKey}
+          to={targetPath}
+          className={commonLinkClasses}
+          aria-current={active ? 'page' : undefined}
+        >
           {linkContent}
         </Link>
       );
@@ -70,7 +89,7 @@ const Navigation = ({
   };
 
   return (
-    <nav className='flex flex-1 items-center gap-1 lg:gap-2 mx-2 md:mx-4 overflow-x-auto whitespace-nowrap scrollbar-hide'>
+    <nav className='headerbar-nav'>
       <SkeletonWrapper
         loading={isLoading}
         type='navigation'

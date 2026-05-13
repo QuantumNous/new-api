@@ -94,19 +94,19 @@ const FilterModalContent = ({ sidebarProps, t }) => {
         t={t}
       />
 
+      <PricingModelTypes
+        filterModelType={filterModelType}
+        setFilterModelType={setFilterModelType}
+        modelTypeCounts={modelTypeCounts}
+        loading={loading}
+        t={t}
+      />
+
       <PricingVendors
         filterVendor={filterVendor}
         setFilterVendor={setFilterVendor}
         models={vendorModels}
         allModels={categoryProps.models}
-        loading={loading}
-        t={t}
-      />
-
-      <PricingModelTypes
-        filterModelType={filterModelType}
-        setFilterModelType={setFilterModelType}
-        modelTypeCounts={modelTypeCounts}
         loading={loading}
         t={t}
       />
