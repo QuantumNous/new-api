@@ -99,15 +99,22 @@ type envelope struct {
 	Data    map[string]any  `json:"data"`
 }
 
-// statusResponseData is the shape we expect inside envelope.Data for /status.
-// Kuaizi's doc lists task_id/status/usage but documents the success download
-// URL only in prose; ExtractVideoURL probes several common keys.
+// statusResponseData is the shape we observe inside envelope.Data for /status.
+// Field names come from a real upstream response, not the doc — the spec is
+// out of date:
+//   - failure text lives in `error`, not `fail_reason`
+//   - token counts are nested under `usage`, not flat
 type statusResponseData struct {
-	TaskID           string `json:"task_id"`
-	Status           string `json:"status"`
-	FailReason       string `json:"fail_reason"`
-	CompletionTokens int    `json:"completion_tokens"`
-	TotalTokens      int    `json:"total_tokens"`
+	TaskID   string `json:"task_id"`
+	Status   string `json:"status"`
+	Error    string `json:"error"`
+	Duration int    `json:"duration"`
+	VideoURL string `json:"video_url"`
+	TosKey   string `json:"tos_key"`
+	Usage    struct {
+		CompletionTokens int `json:"completion_tokens"`
+		TotalTokens      int `json:"total_tokens"`
+	} `json:"usage"`
 }
 
 // ============================
@@ -335,13 +342,16 @@ func (a *TaskAdaptor) ParseTaskResult(respBody []byte) (*relaycommon.TaskInfo, e
 	case "succeeded":
 		info.Status = model.TaskStatusSuccess
 		info.Progress = "100%"
-		info.Url = extractVideoURL(env.Data)
-		info.CompletionTokens = data.CompletionTokens
-		info.TotalTokens = data.TotalTokens
+		info.Url = data.VideoURL
+		if info.Url == "" {
+			info.Url = extractVideoURL(env.Data)
+		}
+		info.CompletionTokens = data.Usage.CompletionTokens
+		info.TotalTokens = data.Usage.TotalTokens
 	case "failed":
 		info.Status = model.TaskStatusFailure
 		info.Progress = "100%"
-		info.Reason = data.FailReason
+		info.Reason = data.Error
 	default:
 		info.Status = model.TaskStatusInProgress
 		info.Progress = "30%"
@@ -349,10 +359,10 @@ func (a *TaskAdaptor) ParseTaskResult(respBody []byte) (*relaycommon.TaskInfo, e
 	return info, nil
 }
 
-// extractVideoURL looks at the documented keys the Kuaizi success payload may
-// use for the 24h download link. The interface doc only describes this in
-// prose, so we probe a small list and otherwise return "" — the raw envelope
-// stays in originTask.Data for operators to inspect.
+// extractVideoURL is a defensive fallback for the success download link.
+// Real Kuaizi responses use `video_url`, which statusResponseData reads
+// directly; this helper handles the case where a future API revision moves
+// the field around without breaking the polling flow.
 func extractVideoURL(data map[string]any) string {
 	candidates := []string{"video_url", "url", "download_url", "output_url", "result_url"}
 	for _, k := range candidates {
