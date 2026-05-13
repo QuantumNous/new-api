@@ -46,6 +46,24 @@ func TestGlobalModelAlias_InvalidJSON(t *testing.T) {
 	}
 }
 
+func TestGlobalModelAlias_DropsEmptyEntries(t *testing.T) {
+	if err := UpdateGlobalModelAliasByJSONString(`{"gpt-4o":"openai/gpt-4o","":"x","empty-target":"","   ":"y","  spaced  ":"  openai/gpt-4o  "}`); err != nil {
+		t.Fatalf("update failed: %v", err)
+	}
+	if got := GetGlobalModelAlias("gpt-4o"); got != "openai/gpt-4o" {
+		t.Errorf("valid entry: want openai/gpt-4o, got %q", got)
+	}
+	if got := GetGlobalModelAlias("empty-target"); got != "" {
+		t.Errorf("empty-target entry should have been dropped, got %q", got)
+	}
+	if got := GetGlobalModelAlias(""); got != "" {
+		t.Errorf("empty key entry should have been dropped, got %q", got)
+	}
+	if got := GetGlobalModelAlias("spaced"); got != "openai/gpt-4o" {
+		t.Errorf("trimmed entry: want openai/gpt-4o, got %q", got)
+	}
+}
+
 func TestGlobalModelAlias_RoundTripJSON(t *testing.T) {
 	if err := UpdateGlobalModelAliasByJSONString(`{"a":"x/a"}`); err != nil {
 		t.Fatalf("update failed: %v", err)

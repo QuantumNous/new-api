@@ -256,7 +256,7 @@ func UpdateOption(c *gin.Context) {
 		if err != nil {
 			c.JSON(http.StatusOK, gin.H{
 				"success": false,
-				"message": "invalid global model alias: " + err.Error(),
+				"message": "全局模型别名设置失败: " + err.Error(),
 			})
 			return
 		}

@@ -1,9 +1,10 @@
 package setting
 
 import (
-	"encoding/json"
 	"strings"
 	"sync"
+
+	"github.com/QuantumNous/new-api/common"
 )
 
 // globalModelAlias maps a client-supplied model name to the canonical model
@@ -19,14 +20,25 @@ var (
 )
 
 // UpdateGlobalModelAliasByJSONString replaces the alias map from a JSON
-// object string. Empty / whitespace input clears the map.
+// object string. Empty / whitespace input clears the map. Entries whose key
+// or value is empty (after trimming) are dropped, so a misconfigured
+// {"gpt-4o": ""} cannot rewrite a request model to an empty string.
 func UpdateGlobalModelAliasByJSONString(jsonStr string) error {
 	trimmed := strings.TrimSpace(jsonStr)
-	next := map[string]string{}
+	raw := map[string]string{}
 	if trimmed != "" && trimmed != "null" {
-		if err := json.Unmarshal([]byte(trimmed), &next); err != nil {
+		if err := common.Unmarshal([]byte(trimmed), &raw); err != nil {
 			return err
 		}
+	}
+	next := make(map[string]string, len(raw))
+	for k, v := range raw {
+		k = strings.TrimSpace(k)
+		v = strings.TrimSpace(v)
+		if k == "" || v == "" {
+			continue
+		}
+		next[k] = v
 	}
 	globalModelAliasMutex.Lock()
 	defer globalModelAliasMutex.Unlock()
@@ -41,7 +53,7 @@ func GlobalModelAlias2JSONString() string {
 	if len(globalModelAlias) == 0 {
 		return "{}"
 	}
-	b, err := json.Marshal(globalModelAlias)
+	b, err := common.Marshal(globalModelAlias)
 	if err != nil {
 		return "{}"
 	}
