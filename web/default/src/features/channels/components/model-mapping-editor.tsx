@@ -233,6 +233,13 @@ export function ModelMappingEditor({
         <Textarea
           value={jsonValue}
           onChange={(e) => handleJsonChange(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Tab') {
+              e.preventDefault()
+              // eslint-disable-next-line deprecation/deprecation
+              document.execCommand('insertText', false, '  ')
+            }
+          }}
           placeholder={t('{"original-model": "replacement-model"}')}
           disabled={disabled}
           rows={8}

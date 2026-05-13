@@ -2874,6 +2874,13 @@ export function ChannelMutateDrawer({
                                 placeholder={t(
                                   'Enter JSON to override request headers'
                                 )}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Tab') {
+                                    e.preventDefault()
+                                    // eslint-disable-next-line deprecation/deprecation
+                                    document.execCommand('insertText', false, '  ')
+                                  }
+                                }}
                               />
                             </FormControl>
                             <FormDescription className='text-xs'>

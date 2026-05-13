@@ -268,6 +268,13 @@ export function JsonEditor({
         <Textarea
           value={jsonValue}
           onChange={(e) => handleJsonChange(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Tab') {
+              e.preventDefault()
+              // eslint-disable-next-line deprecation/deprecation
+              document.execCommand('insertText', false, '  ')
+            }
+          }}
           placeholder={
             template ? JSON.stringify(template, null, 2) : '{"key": "value"}'
           }
