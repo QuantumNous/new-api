@@ -92,15 +92,10 @@ func authHelper(c *gin.Context, minRole int) {
 			return
 		}
 	}
-	// get header New-Api-User
+	// get header New-Api-User; fall back to session user id for browser-originated requests
 	apiUserIdStr := c.Request.Header.Get("New-Api-User")
 	if apiUserIdStr == "" {
-		c.JSON(http.StatusUnauthorized, gin.H{
-			"success": false,
-			"message": common.TranslateMessage(c, i18n.MsgAuthUserIdNotProvided),
-		})
-		c.Abort()
-		return
+		apiUserIdStr = strconv.Itoa(id)
 	}
 	apiUserId, err := strconv.Atoi(apiUserIdStr)
 	if err != nil {
