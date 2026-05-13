@@ -1,26 +1,13 @@
-/*
-Copyright (C) 2025 QuantumNous
-
-This program is free software: you can redistribute it and/or modify
-it under the terms of the GNU Affero General Public License as
-published by the Free Software Foundation, either version 3 of the
-License, or (at your option) any later version.
-
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-GNU Affero General Public License for more details.
-
-You should have received a copy of the GNU Affero General Public License
-along with this program. If not, see <https://www.gnu.org/licenses/>.
-
-For commercial licensing, please contact support@quantumnous.com
-*/
-
-import React, { useContext, useEffect, useCallback, useRef } from 'react';
+import React, {
+  useContext,
+  useEffect,
+  useCallback,
+  useState,
+  useRef,
+} from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { Layout, Toast, Modal } from '@douyinfe/semi-ui';
+import { Toast } from '@douyinfe/semi-ui';
 import './index.css';
 
 // Context
@@ -37,6 +24,9 @@ import { useDataLoader } from '../../hooks/playground/useDataLoader';
 
 // Constants and utils
 import {
+  API_ENDPOINTS,
+  DEBUG_TABS,
+  MESSAGE_STATUS,
   MESSAGE_ROLES,
   ERROR_MESSAGES,
 } from '../../constants/playground.constants';
@@ -49,17 +39,16 @@ import {
   getTextContent,
   buildApiPayload,
   encodeToBase64,
+  getUserIdFromLocalStorage,
 } from '../../helpers';
 
 // Components
 import {
-  OptimizedSettingsPanel,
-  OptimizedDebugPanel,
   OptimizedMessageContent,
   OptimizedMessageActions,
 } from '../../components/playground/OptimizedComponents';
-import ChatArea from '../../components/playground/ChatArea';
-import FloatingButtons from '../../components/playground/FloatingButtons';
+import ChatArea from '../../components/playground/ChatArea2';
+import PlaygroundSidebar from '../../components/playground/PlaygroundSidebar';
 import { PlaygroundProvider } from '../../contexts/PlaygroundContext';
 
 // 生成头像
@@ -84,6 +73,9 @@ const Playground = () => {
   const isMobile = useIsMobile();
   const styleState = { isMobile };
   const [searchParams] = useSearchParams();
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+  const videoPollingRef = useRef(new Set());
 
   const state = usePlaygroundState();
   const {
@@ -92,33 +84,32 @@ const Playground = () => {
     showDebugPanel,
     customRequestMode,
     customRequestBody,
-    showSettings,
+    playgroundMode,
     models,
-    groups,
-    status,
+    imageModels,
+    videoModels,
+    conversations,
+    activeConversationId,
     message,
-    debugData,
-    activeDebugTab,
-    previewPayload,
     sseSourceRef,
     chatRef,
     handleInputChange,
-    handleParameterToggle,
     debouncedSaveConfig,
     saveMessagesImmediately,
-    handleConfigImport,
-    handleConfigReset,
+    startNewConversation,
+    switchConversation,
+    deleteConversation,
     setShowSettings,
     setModels,
+    setImageModels,
+    setVideoModels,
     setGroups,
-    setStatus,
     setMessage,
     setDebugData,
     setActiveDebugTab,
     setPreviewPayload,
-    setShowDebugPanel,
-    setCustomRequestMode,
     setCustomRequestBody,
+    setPlaygroundMode,
   } = state;
 
   // API 请求相关
@@ -131,7 +122,15 @@ const Playground = () => {
   );
 
   // 数据加载
-  useDataLoader(userState, inputs, handleInputChange, setModels, setGroups);
+  useDataLoader(
+    userState,
+    inputs,
+    handleInputChange,
+    setModels,
+    setImageModels,
+    setVideoModels,
+    setGroups,
+  );
 
   // 消息编辑
   const {
@@ -198,6 +197,18 @@ const Playground = () => {
       }
 
       // 默认预览逻辑
+      if (playgroundMode === 'image') {
+        return {
+          model: inputs.imageModel,
+          prompt: getTextContent(message[message.length - 1]) || '',
+          n: Number(inputs.imageCount) || 1,
+          size: inputs.imageSize || '1024x1024',
+          quality: inputs.imageQuality || 'auto',
+          response_format: 'b64_json',
+          ...(inputs.group ? { group: inputs.group } : {}),
+        };
+      }
+
       let messages = [...message];
 
       // 如果存在用户消息
@@ -215,8 +226,7 @@ const Playground = () => {
                 (url) => url.trim() !== '',
               );
               if (validImageUrls.length > 0) {
-                const textContent =
-                  getTextContent(messages[i]) || t('默认用户消息');
+                const textContent = getTextContent(messages[i]) || '示例消息';
                 const content = buildMessageContent(
                   textContent,
                   validImageUrls,
@@ -235,11 +245,28 @@ const Playground = () => {
       console.error('构造预览请求体失败:', error);
       return null;
     }
-  }, [inputs, parameterEnabled, message, customRequestMode, customRequestBody]);
+  }, [
+    inputs,
+    parameterEnabled,
+    message,
+    playgroundMode,
+    customRequestMode,
+    customRequestBody,
+  ]);
 
   // 发送消息
   function onMessageSend(content, attachment) {
     console.log('attachment: ', attachment);
+
+    if (playgroundMode === 'image') {
+      submitImageGeneration(content);
+      return;
+    }
+
+    if (playgroundMode === 'video') {
+      submitVideoGeneration(content);
+      return;
+    }
 
     // 创建用户消息和加载消息
     const userMessage = createMessage(MESSAGE_ROLES.USER, content);
@@ -264,7 +291,7 @@ const Playground = () => {
         return;
       } catch (error) {
         console.error('自定义请求体JSON解析失败:', error);
-        Toast.error(t(ERROR_MESSAGES.JSON_PARSE_ERROR));
+        Toast.error(ERROR_MESSAGES.JSON_PARSE_ERROR);
         return;
       }
     }
@@ -306,6 +333,705 @@ const Playground = () => {
       return messagesWithLoading;
     });
   }
+
+  const extractTaskId = useCallback((data) => {
+    return (
+      data?.id ||
+      data?.task_id ||
+      data?.data?.id ||
+      data?.data?.task_id ||
+      data?.data?.TaskID
+    );
+  }, []);
+
+  const parseJsonLikeValue = useCallback((value) => {
+    if (!value) {
+      return null;
+    }
+    if (typeof value === 'object') {
+      return value;
+    }
+    if (typeof value !== 'string') {
+      return null;
+    }
+    try {
+      return JSON.parse(value);
+    } catch {
+      return null;
+    }
+  }, []);
+
+  const collectImageUrls = useCallback(
+    (value, collector = []) => {
+      if (value == null) {
+        return collector;
+      }
+
+      if (typeof value === 'string') {
+        const parsed = parseJsonLikeValue(value);
+        if (parsed && parsed !== value) {
+          collectImageUrls(parsed, collector);
+          return collector;
+        }
+        if (
+          value.startsWith('data:image/') ||
+          value.includes('http://') ||
+          value.includes('https://')
+        ) {
+          collector.push(value);
+        }
+        return collector;
+      }
+
+      if (Array.isArray(value)) {
+        value.forEach((item) => collectImageUrls(item, collector));
+        return collector;
+      }
+
+      if (typeof value !== 'object') {
+        return collector;
+      }
+
+      Object.entries(value).forEach(([key, nestedValue]) => {
+        const lowerKey = key.toLowerCase();
+
+        if (
+          lowerKey === 'b64_json' &&
+          typeof nestedValue === 'string' &&
+          nestedValue.trim() !== ''
+        ) {
+          collector.push(`data:image/png;base64,${nestedValue}`);
+          return;
+        }
+
+        if (
+          (lowerKey === 'url' ||
+            lowerKey === 'result_url' ||
+            lowerKey.includes('image_url')) &&
+          typeof nestedValue === 'string' &&
+          nestedValue.trim() !== ''
+        ) {
+          collector.push(nestedValue);
+        }
+
+        collectImageUrls(nestedValue, collector);
+      });
+
+      return collector;
+    },
+    [parseJsonLikeValue],
+  );
+
+  const extractImageUrls = useCallback(
+    (responseData) => {
+      const responsePayload = parseJsonLikeValue(responseData) || responseData;
+      return collectImageUrls(responsePayload, []).filter(
+        (url, index, array) =>
+          typeof url === 'string' &&
+          url.trim() !== '' &&
+          array.indexOf(url) === index,
+      );
+    },
+    [collectImageUrls, parseJsonLikeValue],
+  );
+
+  const buildImagePayload = useCallback(
+    (prompt) => {
+      const payload = {
+        model: inputs.imageModel,
+        prompt,
+        n: Number(inputs.imageCount) || 1,
+        size: inputs.imageSize || '1024x1024',
+        quality: inputs.imageQuality || 'auto',
+        response_format: 'b64_json',
+      };
+
+      if (inputs.group) {
+        payload.group = inputs.group;
+      }
+
+      return payload;
+    },
+    [inputs],
+  );
+
+  const updateImageAssistantMessage = useCallback(
+    (messageId, patch) => {
+      setMessage((prevMessages) => {
+        const nextMessages = prevMessages.map((msg) =>
+          msg.id === messageId ? { ...msg, ...patch } : msg,
+        );
+        setTimeout(() => saveMessagesImmediately(nextMessages), 0);
+        return nextMessages;
+      });
+    },
+    [saveMessagesImmediately, setMessage],
+  );
+
+  const buildImageAssistantContent = useCallback(
+    (prompt, imageUrls) => {
+      const lines = [t('图片生成完成')];
+      if (prompt) {
+        lines.push(prompt);
+      }
+      return [
+        {
+          type: 'text',
+          text: lines.join('\n\n'),
+        },
+        ...imageUrls.map((url) => ({
+          type: 'image_url',
+          image_url: { url },
+        })),
+      ];
+    },
+    [t],
+  );
+
+  const isProxyVideoUrl = useCallback((url) => {
+    if (typeof url !== 'string' || url.trim() === '') {
+      return false;
+    }
+
+    return (
+      url.includes('/v1/videos/') ||
+      url.includes('/pg/videos/') ||
+      url.startsWith('http://localhost') ||
+      url.startsWith('https://localhost') ||
+      url.startsWith('http://127.0.0.1') ||
+      url.startsWith('https://127.0.0.1')
+    );
+  }, []);
+
+  const collectVideoUrls = useCallback(
+    (value, collector = []) => {
+      if (!value) {
+        return collector;
+      }
+
+      const parsedValue = parseJsonLikeValue(value);
+      if (parsedValue == null) {
+        return collector;
+      }
+
+      if (typeof parsedValue === 'string') {
+        if (
+          parsedValue.includes('http://') ||
+          parsedValue.includes('https://') ||
+          parsedValue.includes('/v1/videos/') ||
+          parsedValue.includes('/pg/videos/')
+        ) {
+          collector.push(parsedValue);
+        }
+        return collector;
+      }
+
+      if (Array.isArray(parsedValue)) {
+        parsedValue.forEach((item) => collectVideoUrls(item, collector));
+        return collector;
+      }
+
+      if (typeof parsedValue !== 'object') {
+        return collector;
+      }
+
+      Object.entries(parsedValue || {}).forEach(([key, nestedValue]) => {
+        const lowerKey = key.toLowerCase();
+        if (
+          (lowerKey.includes('video') || lowerKey.includes('url')) &&
+          typeof nestedValue === 'string'
+        ) {
+          collector.push(nestedValue);
+        }
+        collectVideoUrls(nestedValue, collector);
+      });
+
+      return collector;
+    },
+    [parseJsonLikeValue],
+  );
+
+  const extractVideoUrl = useCallback(
+    (data, taskId) => {
+      const taskPayload =
+        parseJsonLikeValue(data?.data?.data) ||
+        parseJsonLikeValue(data?.data?.Data) ||
+        parseJsonLikeValue(data?.data);
+
+      const directCandidates = [
+        taskPayload?.content?.video_url,
+        taskPayload?.content?.videoUrl,
+        taskPayload?.video_url,
+        taskPayload?.videoUrl,
+        taskPayload?.result_url,
+        taskPayload?.data?.content?.video_url,
+        taskPayload?.data?.content?.videoUrl,
+        taskPayload?.data?.result_url,
+        data?.data?.content?.video_url,
+        data?.data?.content?.videoUrl,
+        data?.data?.result_url,
+        data?.data?.metadata?.url,
+        data?.data?.PrivateData?.result_url,
+        data?.metadata?.url,
+        data?.url,
+        data?.result_url,
+        data?.data?.url,
+      ];
+
+      const recursiveCandidates = collectVideoUrls(data, []);
+      const candidateUrls = [
+        ...directCandidates,
+        ...recursiveCandidates,
+      ].filter(
+        (url, index, array) =>
+          typeof url === 'string' &&
+          url.trim() !== '' &&
+          array.indexOf(url) === index,
+      );
+
+      const upstreamUrl = candidateUrls.find((url) => !isProxyVideoUrl(url));
+      if (upstreamUrl) {
+        return upstreamUrl;
+      }
+
+      if (candidateUrls.length > 0) {
+        return candidateUrls[0];
+      }
+
+      return taskId ? `${API_ENDPOINTS.VIDEO_CONTENT}/${taskId}/content` : '';
+    },
+    [collectVideoUrls, isProxyVideoUrl, parseJsonLikeValue],
+  );
+
+  const normalizeTaskStatus = useCallback((data) => {
+    return (
+      data?.status ||
+      data?.data?.status ||
+      data?.data?.Status ||
+      'queued'
+    ).toLowerCase();
+  }, []);
+
+  const buildVideoPayload = useCallback(
+    (prompt) => {
+      const duration = Number(inputs.videoDuration) || 5;
+      const images = (inputs.imageUrls || []).filter(
+        (url) => url.trim() !== '',
+      );
+      const payload = {
+        model: inputs.videoModel,
+        prompt,
+        seconds: String(duration),
+        metadata: {
+          ratio: inputs.videoRatio || '16:9',
+          duration,
+        },
+      };
+
+      if (inputs.videoResolution) {
+        payload.metadata.resolution = inputs.videoResolution;
+      }
+      if (inputs.imageEnabled && images.length > 0) {
+        payload.images = images;
+      }
+      if (inputs.group) {
+        payload.group = inputs.group;
+      }
+
+      return payload;
+    },
+    [inputs],
+  );
+
+  const updateVideoAssistantMessage = useCallback(
+    (messageId, patch) => {
+      setMessage((prevMessages) => {
+        const nextMessages = prevMessages.map((msg) =>
+          msg.id === messageId ? { ...msg, ...patch } : msg,
+        );
+        setTimeout(() => saveMessagesImmediately(nextMessages), 0);
+        return nextMessages;
+      });
+    },
+    [saveMessagesImmediately, setMessage],
+  );
+
+  const parseVideoErrorMessage = useCallback(
+    (rawError) => {
+      const fallback = t('视频任务创建失败');
+      if (!rawError) {
+        return fallback;
+      }
+
+      const parseJsonLike = (value) => {
+        if (!value || typeof value !== 'string') {
+          return null;
+        }
+        try {
+          return JSON.parse(value);
+        } catch {
+          return null;
+        }
+      };
+
+      const collectError = (value) => {
+        if (!value) {
+          return null;
+        }
+
+        if (typeof value === 'string') {
+          const parsed = parseJsonLike(value);
+          if (parsed) {
+            return collectError(parsed);
+          }
+          return { message: value };
+        }
+
+        if (typeof value === 'object') {
+          if (value.error) {
+            return collectError(value.error);
+          }
+          if (value.message) {
+            const nested = collectError(value.message);
+            if (nested?.message && nested.message !== value.message) {
+              return {
+                code: nested.code || value.code,
+                type: nested.type || value.type,
+                message: nested.message,
+              };
+            }
+            return {
+              code: value.code,
+              type: value.type,
+              message: value.message,
+            };
+          }
+        }
+
+        return null;
+      };
+
+      const details = collectError(rawError);
+      if (!details?.message) {
+        return fallback;
+      }
+
+      if (details.code === 'AccountOverdueError') {
+        return t('视频渠道上游账号已欠费，请充值或更换可用渠道。');
+      }
+
+      return details.message;
+    },
+    [t],
+  );
+
+  const fetchVideoTaskSnapshot = useCallback(
+    async (taskId) => {
+      const taskResponse = await fetch(
+        `${API_ENDPOINTS.VIDEO_GENERATION_TASK}/${taskId}`,
+        {
+          headers: {
+            'New-Api-User': getUserIdFromLocalStorage(),
+          },
+        },
+      );
+      const taskData = await taskResponse.json();
+      const taskStatus = normalizeTaskStatus(taskData);
+
+      setDebugData((prev) => ({
+        ...prev,
+        response: JSON.stringify(taskData, null, 2),
+      }));
+
+      if (!taskResponse.ok) {
+        throw new Error(parseVideoErrorMessage(taskData));
+      }
+
+      return {
+        taskData,
+        taskStatus,
+      };
+    },
+    [normalizeTaskStatus, parseVideoErrorMessage, setDebugData],
+  );
+
+  const formatVideoTaskMessage = useCallback((taskId, status, label) => {
+    const segments = [label];
+    if (taskId) {
+      segments.push(`Task ID: ${taskId}`);
+    }
+    if (status) {
+      segments.push(`Status: ${status}`);
+    }
+    return segments.join('\n\n');
+  }, []);
+
+  const pollVideoTask = useCallback(
+    async (messageId, taskId, options = {}) => {
+      if (!messageId || !taskId || videoPollingRef.current.has(messageId)) {
+        return;
+      }
+
+      const {
+        attempts = 150,
+        intervalMs = 2000,
+        pendingLabel = t('Seedance 视频生成中...'),
+        timeoutLabel = t('视频生成仍在处理中，请稍后通过任务 ID 查询'),
+      } = options;
+
+      videoPollingRef.current.add(messageId);
+
+      try {
+        for (let i = 0; i < attempts; i++) {
+          if (i > 0) {
+            await new Promise((resolve) => setTimeout(resolve, intervalMs));
+          }
+
+          const { taskData, taskStatus } = await fetchVideoTaskSnapshot(taskId);
+
+          if (['succeeded', 'success', 'completed'].includes(taskStatus)) {
+            const videoUrl = extractVideoUrl(taskData, taskId);
+            updateVideoAssistantMessage(messageId, {
+              content: `${t('视频生成完成')}\n\n[${t('点击播放视频')}](${videoUrl})`,
+              videoUrl,
+              taskId,
+              status: MESSAGE_STATUS.COMPLETE,
+              isThinkingComplete: true,
+            });
+            return;
+          }
+
+          if (['failed', 'failure', 'error'].includes(taskStatus)) {
+            throw new Error(
+              taskData?.error?.message ||
+                taskData?.data?.error?.message ||
+                taskData?.data?.fail_reason ||
+                t('视频生成失败'),
+            );
+          }
+
+          updateVideoAssistantMessage(messageId, {
+            content: formatVideoTaskMessage(taskId, taskStatus, pendingLabel),
+            taskId,
+            status: MESSAGE_STATUS.INCOMPLETE,
+          });
+        }
+
+        updateVideoAssistantMessage(messageId, {
+          content: formatVideoTaskMessage(taskId, 'processing', timeoutLabel),
+          taskId,
+          status: MESSAGE_STATUS.COMPLETE,
+          isThinkingComplete: true,
+        });
+      } catch (error) {
+        updateVideoAssistantMessage(messageId, {
+          content: t('视频请求发生错误: ') + error.message,
+          taskId,
+          status: MESSAGE_STATUS.ERROR,
+          errorCode: error.errorCode || null,
+        });
+      } finally {
+        videoPollingRef.current.delete(messageId);
+      }
+    },
+    [
+      extractVideoUrl,
+      fetchVideoTaskSnapshot,
+      formatVideoTaskMessage,
+      normalizeTaskStatus,
+      t,
+      updateVideoAssistantMessage,
+    ],
+  );
+
+  const submitVideoGeneration = useCallback(
+    async (content) => {
+      const prompt = typeof content === 'string' ? content.trim() : '';
+      if (!prompt) {
+        Toast.warning(t('请输入视频提示词'));
+        return;
+      }
+
+      const userMessage = createMessage(MESSAGE_ROLES.USER, prompt);
+      const assistantMessage = createMessage(
+        MESSAGE_ROLES.ASSISTANT,
+        t('正在创建 Seedance 视频任务...'),
+        {
+          status: MESSAGE_STATUS.LOADING,
+          reasoningContent: '',
+          isReasoningExpanded: false,
+          isThinkingComplete: false,
+        },
+      );
+      const payload = buildVideoPayload(prompt);
+
+      setMessage((prevMessage) => {
+        const nextMessages = [...prevMessage, userMessage, assistantMessage];
+        setTimeout(() => saveMessagesImmediately(nextMessages), 0);
+        return nextMessages;
+      });
+      setDebugData((prev) => ({
+        ...prev,
+        request: payload,
+        response: null,
+        timestamp: new Date().toISOString(),
+      }));
+      setActiveDebugTab(DEBUG_TABS.REQUEST);
+
+      try {
+        const createResponse = await fetch(API_ENDPOINTS.VIDEO_GENERATIONS, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'New-Api-User': getUserIdFromLocalStorage(),
+          },
+          body: JSON.stringify(payload),
+        });
+
+        const createData = await createResponse.json();
+        setDebugData((prev) => ({
+          ...prev,
+          response: JSON.stringify(createData, null, 2),
+        }));
+        setActiveDebugTab(DEBUG_TABS.RESPONSE);
+
+        if (!createResponse.ok) {
+          throw new Error(parseVideoErrorMessage(createData));
+        }
+
+        const taskId = extractTaskId(createData);
+        if (!taskId) {
+          throw new Error(t('视频任务创建失败：未返回任务 ID'));
+        }
+
+        updateVideoAssistantMessage(assistantMessage.id, {
+          content: formatVideoTaskMessage(
+            taskId,
+            'queued',
+            t('Seedance 视频任务已提交，正在生成...'),
+          ),
+          taskId,
+          status: MESSAGE_STATUS.INCOMPLETE,
+        });
+
+        await pollVideoTask(assistantMessage.id, taskId, {
+          pendingLabel: t('Seedance 视频生成中...'),
+          timeoutLabel: t('视频生成仍在处理中，请稍后通过任务 ID 查询'),
+        });
+      } catch (error) {
+        updateVideoAssistantMessage(assistantMessage.id, {
+          content: t('视频请求发生错误: ') + error.message,
+          status: MESSAGE_STATUS.ERROR,
+          errorCode: error.errorCode || null,
+        });
+      }
+    },
+    [
+      buildVideoPayload,
+      extractTaskId,
+      extractVideoUrl,
+      formatVideoTaskMessage,
+      normalizeTaskStatus,
+      pollVideoTask,
+      saveMessagesImmediately,
+      setActiveDebugTab,
+      setDebugData,
+      setMessage,
+      t,
+      updateVideoAssistantMessage,
+    ],
+  );
+
+  const submitImageGeneration = useCallback(
+    async (content) => {
+      const prompt = typeof content === 'string' ? content.trim() : '';
+      if (!prompt) {
+        Toast.warning(t('请输入图片提示词'));
+        return;
+      }
+
+      const userMessage = createMessage(MESSAGE_ROLES.USER, prompt);
+      const assistantMessage = createMessage(
+        MESSAGE_ROLES.ASSISTANT,
+        t('正在生成图片...'),
+        {
+          status: MESSAGE_STATUS.LOADING,
+          reasoningContent: '',
+          isReasoningExpanded: false,
+          isThinkingComplete: false,
+        },
+      );
+      const payload = buildImagePayload(prompt);
+
+      setMessage((prevMessage) => {
+        const nextMessages = [...prevMessage, userMessage, assistantMessage];
+        setTimeout(() => saveMessagesImmediately(nextMessages), 0);
+        return nextMessages;
+      });
+      setDebugData((prev) => ({
+        ...prev,
+        request: payload,
+        response: null,
+        timestamp: new Date().toISOString(),
+      }));
+      setActiveDebugTab(DEBUG_TABS.REQUEST);
+
+      try {
+        const createResponse = await fetch(API_ENDPOINTS.IMAGE_GENERATIONS, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'New-Api-User': getUserIdFromLocalStorage(),
+          },
+          body: JSON.stringify(payload),
+        });
+
+        const createData = await createResponse.json();
+        setDebugData((prev) => ({
+          ...prev,
+          response: JSON.stringify(createData, null, 2),
+        }));
+        setActiveDebugTab(DEBUG_TABS.RESPONSE);
+
+        if (!createResponse.ok) {
+          throw new Error(
+            createData?.error?.message ||
+              createData?.message ||
+              t('图片生成失败'),
+          );
+        }
+
+        const imageUrls = extractImageUrls(createData);
+        if (imageUrls.length === 0) {
+          throw new Error(t('图片生成完成，但未返回图片地址'));
+        }
+
+        updateImageAssistantMessage(assistantMessage.id, {
+          content: buildImageAssistantContent(prompt, imageUrls),
+          imageUrls,
+          status: MESSAGE_STATUS.COMPLETE,
+          isThinkingComplete: true,
+        });
+      } catch (error) {
+        updateImageAssistantMessage(assistantMessage.id, {
+          content: t('图片请求发生错误: ') + error.message,
+          status: MESSAGE_STATUS.ERROR,
+          errorCode: error.errorCode || null,
+        });
+      }
+    },
+    [
+      buildImageAssistantContent,
+      buildImagePayload,
+      extractImageUrls,
+      saveMessagesImmediately,
+      setActiveDebugTab,
+      setDebugData,
+      setMessage,
+      t,
+      updateImageAssistantMessage,
+    ],
+  );
 
   // 切换推理展开状态
   const toggleReasoningExpansion = useCallback(
@@ -394,6 +1120,12 @@ const Playground = () => {
     }
   }, [searchParams, t]);
 
+  useEffect(() => {
+    if (!isMobile) {
+      setMobileSidebarOpen(false);
+    }
+  }, [isMobile]);
+
   // Playground 组件无需再监听窗口变化，isMobile 由 useIsMobile Hook 自动更新
 
   // 构建预览payload
@@ -420,6 +1152,95 @@ const Playground = () => {
     setDebugData,
   ]);
 
+  useEffect(() => {
+    if (!Array.isArray(message) || message.length === 0) {
+      return;
+    }
+
+    message.forEach((msg) => {
+      if (
+        msg?.role !== MESSAGE_ROLES.ASSISTANT ||
+        !msg?.taskId ||
+        msg?.videoUrl ||
+        msg?.status === MESSAGE_STATUS.COMPLETE ||
+        msg?.status === MESSAGE_STATUS.ERROR
+      ) {
+        return;
+      }
+
+      pollVideoTask(msg.id, msg.taskId, {
+        pendingLabel: t('Seedance 视频生成中...'),
+        timeoutLabel: t('视频生成仍在处理中，请稍后通过任务 ID 查询'),
+      });
+    });
+  }, [message, pollVideoTask, t]);
+
+  useEffect(() => {
+    if (!Array.isArray(message) || message.length === 0) {
+      return;
+    }
+
+    message.forEach((msg) => {
+      if (
+        msg?.role !== MESSAGE_ROLES.ASSISTANT ||
+        !msg?.taskId ||
+        videoPollingRef.current.has(`${msg.id}:refresh`)
+      ) {
+        return;
+      }
+
+      const hasRecoverableVideoError =
+        msg?.status === MESSAGE_STATUS.ERROR &&
+        typeof msg?.content === 'string' &&
+        msg.content.includes('Cannot convert undefined or null to object');
+      const needsRefresh =
+        !msg?.videoUrl ||
+        isProxyVideoUrl(msg.videoUrl) ||
+        hasRecoverableVideoError ||
+        (typeof msg?.content === 'string' && isProxyVideoUrl(msg.content));
+
+      if (!needsRefresh) {
+        return;
+      }
+
+      const refreshKey = `${msg.id}:refresh`;
+      videoPollingRef.current.add(refreshKey);
+
+      fetchVideoTaskSnapshot(msg.taskId)
+        .then(({ taskData, taskStatus }) => {
+          if (!['succeeded', 'success', 'completed'].includes(taskStatus)) {
+            return;
+          }
+
+          const nextVideoUrl = extractVideoUrl(taskData, msg.taskId);
+          if (!nextVideoUrl || isProxyVideoUrl(nextVideoUrl)) {
+            return;
+          }
+
+          updateVideoAssistantMessage(msg.id, {
+            content: `${t('视频生成完成')}\n\n[${t('点击播放视频')}](${nextVideoUrl})`,
+            videoUrl: nextVideoUrl,
+            taskId: msg.taskId,
+            status: MESSAGE_STATUS.COMPLETE,
+            isThinkingComplete: true,
+          });
+        })
+        .catch((error) => {
+          console.error('刷新视频任务真实地址失败:', error);
+        })
+        .finally(() => {
+          videoPollingRef.current.delete(refreshKey);
+        });
+    });
+  }, [
+    extractVideoUrl,
+    fetchVideoTaskSnapshot,
+    isProxyVideoUrl,
+    message,
+    t,
+    updateVideoAssistantMessage,
+  ]);
+
   // 自动保存配置
   useEffect(() => {
     debouncedSaveConfig();
@@ -429,6 +1250,7 @@ const Playground = () => {
     showDebugPanel,
     customRequestMode,
     customRequestBody,
+    playgroundMode,
     debouncedSaveConfig,
   ]);
 
@@ -438,6 +1260,10 @@ const Playground = () => {
     // 清空对话后保存，传入空数组
     setTimeout(() => saveMessagesImmediately([]), 0);
   }, [setMessage, saveMessagesImmediately]);
+
+  const handleNewConversation = useCallback(() => {
+    startNewConversation();
+  }, [startNewConversation]);
 
   // 处理粘贴图片
   const handlePasteImage = useCallback(
@@ -461,107 +1287,45 @@ const Playground = () => {
 
   return (
     <PlaygroundProvider value={playgroundContextValue}>
-      <div className='playground-page h-full'>
-        <Layout className='playground-layout h-full bg-transparent flex flex-col md:flex-row'>
-          {(showSettings || !isMobile) && (
-            <Layout.Sider
-              className={`
-              playground-settings-sider bg-transparent border-r-0 flex-shrink-0 overflow-auto 
-              ${
-                isMobile
-                  ? 'playground-mobile-sheet fixed top-0 left-0 right-0 bottom-0 z-[1000] w-full h-auto bg-white shadow-lg'
-                  : 'relative z-[1] w-80 h-[calc(100vh-64px-12px-16px)]'
-              }
-            `}
-              width={isMobile ? '100%' : 320}
-            >
-              <OptimizedSettingsPanel
-                inputs={inputs}
-                parameterEnabled={parameterEnabled}
-                models={models}
-                groups={groups}
-                styleState={styleState}
-                showSettings={showSettings}
-                showDebugPanel={showDebugPanel}
-                customRequestMode={customRequestMode}
-                customRequestBody={customRequestBody}
-                onInputChange={handleInputChange}
-                onParameterToggle={handleParameterToggle}
-                onCloseSettings={() => setShowSettings(false)}
-                onConfigImport={handleConfigImport}
-                onConfigReset={handleConfigReset}
-                onCustomRequestModeChange={setCustomRequestMode}
-                onCustomRequestBodyChange={setCustomRequestBody}
-                previewPayload={previewPayload}
-                messages={message}
-              />
-            </Layout.Sider>
-          )}
+      <div className='new-playground-page'>
+        <PlaygroundSidebar
+          conversations={conversations}
+          activeConversationId={activeConversationId}
+          collapsed={sidebarCollapsed && !isMobile}
+          isMobile={isMobile}
+          mobileOpen={mobileSidebarOpen}
+          onNewChat={handleNewConversation}
+          onOpenSettings={() => setShowSettings(true)}
+          onSelectConversation={switchConversation}
+          onDeleteConversation={deleteConversation}
+          onToggleCollapsed={() => setSidebarCollapsed((value) => !value)}
+          onMobileOpen={() => setMobileSidebarOpen(true)}
+          onMobileClose={() => setMobileSidebarOpen(false)}
+        />
 
-          <Layout.Content className='playground-content relative flex-1 overflow-hidden'>
-            <div
-              className={`playground-workspace overflow-hidden flex flex-col lg:flex-row ${isMobile ? 'h-[calc(100vh-64px)]' : 'h-[calc(100vh-64px-12px-16px)]'}`}
-            >
-              <div className='playground-chat-column flex-1 flex flex-col'>
-                <ChatArea
-                  chatRef={chatRef}
-                  message={message}
-                  inputs={inputs}
-                  styleState={styleState}
-                  showDebugPanel={showDebugPanel}
-                  roleInfo={roleInfo}
-                  onMessageSend={onMessageSend}
-                  onMessageCopy={messageActions.handleMessageCopy}
-                  onMessageReset={messageActions.handleMessageReset}
-                  onMessageDelete={messageActions.handleMessageDelete}
-                  onStopGenerator={onStopGenerator}
-                  onClearMessages={handleClearMessages}
-                  onToggleDebugPanel={() => setShowDebugPanel(!showDebugPanel)}
-                  renderCustomChatContent={renderCustomChatContent}
-                  renderChatBoxAction={renderChatBoxAction}
-                  isMobile={isMobile}
-                />
-              </div>
-
-              {/* 调试面板 - 桌面端 */}
-              {showDebugPanel && !isMobile && (
-                <div className='playground-debug-shell w-96 flex-shrink-0 h-full'>
-                  <OptimizedDebugPanel
-                    debugData={debugData}
-                    activeDebugTab={activeDebugTab}
-                    onActiveDebugTabChange={setActiveDebugTab}
-                    styleState={styleState}
-                    customRequestMode={customRequestMode}
-                  />
-                </div>
-              )}
-            </div>
-
-            {/* 调试面板 - 移动端覆盖层 */}
-            {showDebugPanel && isMobile && (
-              <div className='playground-mobile-overlay fixed top-[64px] left-0 right-0 bottom-0 z-[1000] bg-white overflow-auto shadow-lg'>
-                <OptimizedDebugPanel
-                  debugData={debugData}
-                  activeDebugTab={activeDebugTab}
-                  onActiveDebugTabChange={setActiveDebugTab}
-                  styleState={styleState}
-                  showDebugPanel={showDebugPanel}
-                  onCloseDebugPanel={() => setShowDebugPanel(false)}
-                  customRequestMode={customRequestMode}
-                />
-              </div>
-            )}
-
-            {/* 浮动按钮 */}
-            <FloatingButtons
-              styleState={styleState}
-              showSettings={showSettings}
-              showDebugPanel={showDebugPanel}
-              onToggleSettings={() => setShowSettings(!showSettings)}
-              onToggleDebugPanel={() => setShowDebugPanel(!showDebugPanel)}
-            />
-          </Layout.Content>
-        </Layout>
+        <main className='new-playground-main'>
+          <ChatArea
+            chatRef={chatRef}
+            message={message}
+            inputs={inputs}
+            models={models}
+            imageModels={imageModels}
+            videoModels={videoModels}
+            playgroundMode={playgroundMode}
+            customRequestMode={customRequestMode}
+            roleInfo={roleInfo}
+            onInputChange={handleInputChange}
+            onModeChange={setPlaygroundMode}
+            onMessageSend={onMessageSend}
+            onMessageCopy={messageActions.handleMessageCopy}
+            onMessageReset={messageActions.handleMessageReset}
+            onMessageDelete={messageActions.handleMessageDelete}
+            onStopGenerator={onStopGenerator}
+            onClearMessages={handleClearMessages}
+            renderCustomChatContent={renderCustomChatContent}
+            renderChatBoxAction={renderChatBoxAction}
+          />
+        </main>
       </div>
     </PlaygroundProvider>
   );

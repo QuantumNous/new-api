@@ -70,27 +70,14 @@ const PageLayout = () => {
     (path) => path === location.pathname,
   );
 
-  const shouldInnerPadding =
-    location.pathname.includes('/console') &&
-    !location.pathname.startsWith('/console/chat') &&
-    location.pathname !== '/console/playground';
-
   const isConsoleRoute = location.pathname.startsWith('/console');
   const isAuthRoute = ['/login', '/register', '/reset', '/user/reset'].some(
     (path) => location.pathname === path,
   );
   const showSider = isConsoleRoute && (!isMobile || drawerOpen);
   const desktopConsoleShell = isConsoleRoute && !isMobile;
-  const contentPadding = shouldInnerPadding ? (isMobile ? '5px' : '24px') : '0';
-  let contentPaddingTop = desktopConsoleShell
-    ? '88px'
-    : shouldInnerPadding
-      ? contentPadding
-      : '0';
-
-  if (location.pathname.includes('/console/playground')) {
-    contentPaddingTop = '64px';
-  }
+  const contentPadding = isMobile ? '5px' : '24px';
+  let contentPaddingTop = desktopConsoleShell ? '88px' : '0';
 
   useEffect(() => {
     if (isMobile && drawerOpen && collapsed) {

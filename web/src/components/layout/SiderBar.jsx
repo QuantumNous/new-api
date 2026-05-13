@@ -229,11 +229,11 @@ const SiderBar = ({
         itemKey: 'playground',
         to: '/playground',
       },
-      {
-        text: t('在线体验'),
-        itemKey: 'onlineExperience',
-        to: '/online-experience',
-      },
+      // {
+      //   text: t('在线体验'),
+      //   itemKey: 'onlineExperience',
+      //   to: '/online-experience',
+      // },
       {
         text: t('聊天'),
         itemKey: 'chat',
