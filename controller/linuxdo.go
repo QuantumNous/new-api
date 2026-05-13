@@ -2,8 +2,6 @@ package controller
 
 import (
 	"encoding/base64"
-	"encoding/json"
-	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -14,6 +12,7 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/oauth"
 
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-gonic/gin"
@@ -37,7 +36,7 @@ func LinuxDoBind(c *gin.Context) {
 	code := c.Query("code")
 	linuxdoUser, err := getLinuxdoUserInfoByCode(code, c)
 	if err != nil {
-		common.ApiError(c, err)
+		handleOAuthError(c, err)
 		return
 	}
 
@@ -75,7 +74,7 @@ func LinuxDoBind(c *gin.Context) {
 
 func getLinuxdoUserInfoByCode(code string, c *gin.Context) (*LinuxdoUser, error) {
 	if code == "" {
-		return nil, errors.New(i18n.T(c, i18n.MsgOAuthInvalidCode))
+		return nil, oauth.NewOAuthError(i18n.MsgOAuthInvalidCode, nil)
 	}
 
 	// Get access token using Basic auth
@@ -107,7 +106,7 @@ func getLinuxdoUserInfoByCode(code string, c *gin.Context) (*LinuxdoUser, error)
 	client := http.Client{Timeout: 5 * time.Second}
 	res, err := client.Do(req)
 	if err != nil {
-		return nil, errors.New(i18n.T(c, i18n.MsgOAuthConnectFailed, providerParams("Linux DO")))
+		return nil, oauth.NewOAuthErrorWithRaw(i18n.MsgOAuthConnectFailed, providerParams("Linux DO"), err.Error())
 	}
 	defer res.Body.Close()
 
@@ -115,12 +114,12 @@ func getLinuxdoUserInfoByCode(code string, c *gin.Context) (*LinuxdoUser, error)
 		AccessToken string `json:"access_token"`
 		Message     string `json:"message"`
 	}
-	if err := json.NewDecoder(res.Body).Decode(&tokenRes); err != nil {
+	if err := common.DecodeJson(res.Body, &tokenRes); err != nil {
 		return nil, err
 	}
 
 	if tokenRes.AccessToken == "" {
-		return nil, fmt.Errorf("%s: %s", i18n.T(c, i18n.MsgOAuthTokenFailed, providerParams("Linux DO")), tokenRes.Message)
+		return nil, oauth.NewOAuthErrorWithRaw(i18n.MsgOAuthTokenFailed, providerParams("Linux DO"), tokenRes.Message)
 	}
 
 	// Get user info
@@ -134,17 +133,17 @@ func getLinuxdoUserInfoByCode(code string, c *gin.Context) (*LinuxdoUser, error)
 
 	res2, err := client.Do(req)
 	if err != nil {
-		return nil, errors.New(i18n.T(c, i18n.MsgOAuthGetUserErr))
+		return nil, oauth.NewOAuthErrorWithRaw(i18n.MsgOAuthConnectFailed, providerParams("Linux DO"), err.Error())
 	}
 	defer res2.Body.Close()
 
 	var linuxdoUser LinuxdoUser
-	if err := json.NewDecoder(res2.Body).Decode(&linuxdoUser); err != nil {
+	if err := common.DecodeJson(res2.Body, &linuxdoUser); err != nil {
 		return nil, err
 	}
 
 	if linuxdoUser.Id == 0 {
-		return nil, errors.New(i18n.T(c, i18n.MsgOAuthUserInfoEmpty, providerParams("Linux DO")))
+		return nil, oauth.NewOAuthError(i18n.MsgOAuthUserInfoEmpty, providerParams("Linux DO"))
 	}
 
 	return &linuxdoUser, nil
@@ -186,7 +185,7 @@ func LinuxdoOAuth(c *gin.Context) {
 	code := c.Query("code")
 	linuxdoUser, err := getLinuxdoUserInfoByCode(code, c)
 	if err != nil {
-		common.ApiError(c, err)
+		handleOAuthError(c, err)
 		return
 	}
 

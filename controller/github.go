@@ -2,8 +2,6 @@ package controller
 
 import (
 	"bytes"
-	"encoding/json"
-	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -12,6 +10,7 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/oauth"
 
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-gonic/gin"
@@ -31,10 +30,10 @@ type GitHubUser struct {
 
 func getGitHubUserInfoByCode(c *gin.Context, code string) (*GitHubUser, error) {
 	if code == "" {
-		return nil, errors.New(i18n.T(c, i18n.MsgOAuthInvalidCode))
+		return nil, oauth.NewOAuthError(i18n.MsgOAuthInvalidCode, nil)
 	}
 	values := map[string]string{"client_id": common.GitHubClientId, "client_secret": common.GitHubClientSecret, "code": code}
-	jsonData, err := json.Marshal(values)
+	jsonData, err := common.Marshal(values)
 	if err != nil {
 		return nil, err
 	}
@@ -50,11 +49,11 @@ func getGitHubUserInfoByCode(c *gin.Context, code string) (*GitHubUser, error) {
 	res, err := client.Do(req)
 	if err != nil {
 		common.SysLog(err.Error())
-		return nil, errors.New(i18n.T(c, i18n.MsgOAuthConnectFailed, providerParams("GitHub")))
+		return nil, oauth.NewOAuthErrorWithRaw(i18n.MsgOAuthConnectFailed, providerParams("GitHub"), err.Error())
 	}
 	defer res.Body.Close()
 	var oAuthResponse GitHubOAuthResponse
-	err = json.NewDecoder(res.Body).Decode(&oAuthResponse)
+	err = common.DecodeJson(res.Body, &oAuthResponse)
 	if err != nil {
 		return nil, err
 	}
@@ -66,16 +65,16 @@ func getGitHubUserInfoByCode(c *gin.Context, code string) (*GitHubUser, error) {
 	res2, err := client.Do(req)
 	if err != nil {
 		common.SysLog(err.Error())
-		return nil, errors.New(i18n.T(c, i18n.MsgOAuthConnectFailed, providerParams("GitHub")))
+		return nil, oauth.NewOAuthErrorWithRaw(i18n.MsgOAuthConnectFailed, providerParams("GitHub"), err.Error())
 	}
 	defer res2.Body.Close()
 	var githubUser GitHubUser
-	err = json.NewDecoder(res2.Body).Decode(&githubUser)
+	err = common.DecodeJson(res2.Body, &githubUser)
 	if err != nil {
 		return nil, err
 	}
 	if githubUser.Login == "" {
-		return nil, errors.New(i18n.T(c, i18n.MsgOAuthUserInfoEmpty, providerParams("GitHub")))
+		return nil, oauth.NewOAuthError(i18n.MsgOAuthUserInfoEmpty, providerParams("GitHub"))
 	}
 	return &githubUser, nil
 }
@@ -103,7 +102,7 @@ func GitHubOAuth(c *gin.Context) {
 	code := c.Query("code")
 	githubUser, err := getGitHubUserInfoByCode(c, code)
 	if err != nil {
-		common.ApiError(c, err)
+		handleOAuthError(c, err)
 		return
 	}
 	user := model.User{
@@ -170,7 +169,7 @@ func GitHubBind(c *gin.Context) {
 	code := c.Query("code")
 	githubUser, err := getGitHubUserInfoByCode(c, code)
 	if err != nil {
-		common.ApiError(c, err)
+		handleOAuthError(c, err)
 		return
 	}
 	user := model.User{

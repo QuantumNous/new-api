@@ -207,7 +207,7 @@ function OAuthCallback() {
           return
         }
         const message = res?.data?.message || 'OAuth failed'
-        const code = res?.data?.code
+        const code: string | undefined = res?.data?.code
         if (!res?.data?.success && !isBindingFlow) {
           // Backend returns stable i18n keys in code for OAuth business errors.
           if (code === OAUTH_ALREADY_BOUND_CODE) {

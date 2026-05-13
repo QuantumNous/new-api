@@ -4,6 +4,7 @@ import (
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"io"
 	"sort"
 
@@ -13,6 +14,7 @@ import (
 
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 )
 
 func TelegramBind(c *gin.Context) {
@@ -69,7 +71,12 @@ func TelegramLogin(c *gin.Context) {
 	}
 	user := model.User{TelegramId: telegramId}
 	if err := user.FillUserByTelegramId(); err != nil {
-		common.ApiErrorI18n(c, i18n.MsgOAuthUserDeleted)
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			common.ApiErrorI18n(c, i18n.MsgOAuthUserDeleted)
+			return
+		}
+		common.SysError("Telegram login failed to load user: " + err.Error())
+		common.ApiError(c, err)
 		return
 	}
 	setupLogin(&user, c)

@@ -1,8 +1,6 @@
 package controller
 
 import (
-	"encoding/json"
-	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -13,6 +11,7 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/oauth"
 	"github.com/QuantumNous/new-api/setting/system_setting"
 
 	"github.com/gin-contrib/sessions"
@@ -38,7 +37,7 @@ type OidcUser struct {
 
 func getOidcUserInfoByCode(c *gin.Context, code string) (*OidcUser, error) {
 	if code == "" {
-		return nil, errors.New(i18n.T(c, i18n.MsgOAuthInvalidCode))
+		return nil, oauth.NewOAuthError(i18n.MsgOAuthInvalidCode, nil)
 	}
 
 	values := url.Values{}
@@ -60,18 +59,18 @@ func getOidcUserInfoByCode(c *gin.Context, code string) (*OidcUser, error) {
 	res, err := client.Do(req)
 	if err != nil {
 		common.SysLog(err.Error())
-		return nil, errors.New(i18n.T(c, i18n.MsgOAuthConnectFailed, providerParams("OIDC")))
+		return nil, oauth.NewOAuthErrorWithRaw(i18n.MsgOAuthConnectFailed, providerParams("OIDC"), err.Error())
 	}
 	defer res.Body.Close()
 	var oidcResponse OidcResponse
-	err = json.NewDecoder(res.Body).Decode(&oidcResponse)
+	err = common.DecodeJson(res.Body, &oidcResponse)
 	if err != nil {
 		return nil, err
 	}
 
 	if oidcResponse.AccessToken == "" {
 		common.SysLog("OIDC 获取 Token 失败，请检查设置！")
-		return nil, errors.New(i18n.T(c, i18n.MsgOAuthTokenFailed, providerParams("OIDC")))
+		return nil, oauth.NewOAuthError(i18n.MsgOAuthTokenFailed, providerParams("OIDC"))
 	}
 
 	req, err = http.NewRequest("GET", system_setting.GetOIDCSettings().UserInfoEndpoint, nil)
@@ -82,22 +81,22 @@ func getOidcUserInfoByCode(c *gin.Context, code string) (*OidcUser, error) {
 	res2, err := client.Do(req)
 	if err != nil {
 		common.SysLog(err.Error())
-		return nil, errors.New(i18n.T(c, i18n.MsgOAuthConnectFailed, providerParams("OIDC")))
+		return nil, oauth.NewOAuthErrorWithRaw(i18n.MsgOAuthConnectFailed, providerParams("OIDC"), err.Error())
 	}
 	defer res2.Body.Close()
 	if res2.StatusCode != http.StatusOK {
 		common.SysLog("OIDC 获取用户信息失败！请检查设置！")
-		return nil, errors.New(i18n.T(c, i18n.MsgOAuthGetUserErr))
+		return nil, oauth.NewOAuthError(i18n.MsgOAuthGetUserErr, nil)
 	}
 
 	var oidcUser OidcUser
-	err = json.NewDecoder(res2.Body).Decode(&oidcUser)
+	err = common.DecodeJson(res2.Body, &oidcUser)
 	if err != nil {
 		return nil, err
 	}
 	if oidcUser.OpenID == "" || oidcUser.Email == "" {
 		common.SysLog("OIDC 获取用户信息为空！请检查设置！")
-		return nil, errors.New(i18n.T(c, i18n.MsgOAuthUserInfoEmpty, providerParams("OIDC")))
+		return nil, oauth.NewOAuthError(i18n.MsgOAuthUserInfoEmpty, providerParams("OIDC"))
 	}
 	return &oidcUser, nil
 }
@@ -124,7 +123,7 @@ func OidcAuth(c *gin.Context) {
 	code := c.Query("code")
 	oidcUser, err := getOidcUserInfoByCode(c, code)
 	if err != nil {
-		common.ApiError(c, err)
+		handleOAuthError(c, err)
 		return
 	}
 	user := model.User{
@@ -181,7 +180,7 @@ func OidcBind(c *gin.Context) {
 	code := c.Query("code")
 	oidcUser, err := getOidcUserInfoByCode(c, code)
 	if err != nil {
-		common.ApiError(c, err)
+		handleOAuthError(c, err)
 		return
 	}
 	user := model.User{

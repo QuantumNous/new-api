@@ -1,8 +1,6 @@
 package controller
 
 import (
-	"encoding/json"
-	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -13,6 +11,7 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/oauth"
 	"github.com/QuantumNous/new-api/setting/system_setting"
 
 	"github.com/gin-contrib/sessions"
@@ -36,7 +35,7 @@ type DiscordUser struct {
 
 func getDiscordUserInfoByCode(c *gin.Context, code string) (*DiscordUser, error) {
 	if code == "" {
-		return nil, errors.New(i18n.T(c, i18n.MsgOAuthInvalidCode))
+		return nil, oauth.NewOAuthError(i18n.MsgOAuthInvalidCode, nil)
 	}
 
 	values := url.Values{}
@@ -58,18 +57,18 @@ func getDiscordUserInfoByCode(c *gin.Context, code string) (*DiscordUser, error)
 	res, err := client.Do(req)
 	if err != nil {
 		common.SysLog(err.Error())
-		return nil, errors.New(i18n.T(c, i18n.MsgOAuthConnectFailed, providerParams("Discord")))
+		return nil, oauth.NewOAuthErrorWithRaw(i18n.MsgOAuthConnectFailed, providerParams("Discord"), err.Error())
 	}
 	defer res.Body.Close()
 	var discordResponse DiscordResponse
-	err = json.NewDecoder(res.Body).Decode(&discordResponse)
+	err = common.DecodeJson(res.Body, &discordResponse)
 	if err != nil {
 		return nil, err
 	}
 
 	if discordResponse.AccessToken == "" {
 		common.SysError("Discord 获取 Token 失败，请检查设置！")
-		return nil, errors.New(i18n.T(c, i18n.MsgOAuthTokenFailed, providerParams("Discord")))
+		return nil, oauth.NewOAuthError(i18n.MsgOAuthTokenFailed, providerParams("Discord"))
 	}
 
 	req, err = http.NewRequest("GET", "https://discord.com/api/v10/users/@me", nil)
@@ -80,22 +79,22 @@ func getDiscordUserInfoByCode(c *gin.Context, code string) (*DiscordUser, error)
 	res2, err := client.Do(req)
 	if err != nil {
 		common.SysLog(err.Error())
-		return nil, errors.New(i18n.T(c, i18n.MsgOAuthConnectFailed, providerParams("Discord")))
+		return nil, oauth.NewOAuthErrorWithRaw(i18n.MsgOAuthConnectFailed, providerParams("Discord"), err.Error())
 	}
 	defer res2.Body.Close()
 	if res2.StatusCode != http.StatusOK {
 		common.SysError("Discord 获取用户信息失败！请检查设置！")
-		return nil, errors.New(i18n.T(c, i18n.MsgOAuthGetUserErr))
+		return nil, oauth.NewOAuthError(i18n.MsgOAuthGetUserErr, nil)
 	}
 
 	var discordUser DiscordUser
-	err = json.NewDecoder(res2.Body).Decode(&discordUser)
+	err = common.DecodeJson(res2.Body, &discordUser)
 	if err != nil {
 		return nil, err
 	}
 	if discordUser.UID == "" || discordUser.ID == "" {
 		common.SysError("Discord 获取用户信息为空！请检查设置！")
-		return nil, errors.New(i18n.T(c, i18n.MsgOAuthUserInfoEmpty, providerParams("Discord")))
+		return nil, oauth.NewOAuthError(i18n.MsgOAuthUserInfoEmpty, providerParams("Discord"))
 	}
 	return &discordUser, nil
 }
@@ -122,7 +121,7 @@ func DiscordOAuth(c *gin.Context) {
 	code := c.Query("code")
 	discordUser, err := getDiscordUserInfoByCode(c, code)
 	if err != nil {
-		common.ApiError(c, err)
+		handleOAuthError(c, err)
 		return
 	}
 	user := model.User{
@@ -178,7 +177,7 @@ func DiscordBind(c *gin.Context) {
 	code := c.Query("code")
 	discordUser, err := getDiscordUserInfoByCode(c, code)
 	if err != nil {
-		common.ApiError(c, err)
+		handleOAuthError(c, err)
 		return
 	}
 	user := model.User{
