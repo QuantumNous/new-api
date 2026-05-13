@@ -202,11 +202,15 @@ func (e *NewAPIError) ToOpenAIError() OpenAIError {
 		}
 	}
 	if e.errorCode != ErrorCodeCountTokenFailed {
+		// Rewrite upstream error messages to hide provider details from end users
+		result.Message = common.RewriteUpstreamError(result.Message)
 		result.Message = common.MaskSensitiveInfo(result.Message)
 	}
 	if result.Message == "" {
 		result.Message = string(e.errorType)
 	}
+	// Clear metadata to prevent leaking upstream provider details
+	result.Metadata = nil
 	return result
 }
 
@@ -231,6 +235,8 @@ func (e *NewAPIError) ToClaudeError() ClaudeError {
 		}
 	}
 	if e.errorCode != ErrorCodeCountTokenFailed {
+		// Rewrite upstream error messages to hide provider details from end users
+		result.Message = common.RewriteUpstreamError(result.Message)
 		result.Message = common.MaskSensitiveInfo(result.Message)
 	}
 	if result.Message == "" {

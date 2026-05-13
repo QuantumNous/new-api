@@ -125,6 +125,9 @@ func InitEnv() {
 	SearchRateLimitEnable = GetEnvOrDefaultBool("SEARCH_RATE_LIMIT_ENABLE", true)
 	SearchRateLimitNum = GetEnvOrDefault("SEARCH_RATE_LIMIT", 10)
 	SearchRateLimitDuration = int64(GetEnvOrDefault("SEARCH_RATE_LIMIT_DURATION", 60))
+	// Whether to mask upstream provider error messages from API users
+	MaskUpstreamErrors = GetEnvOrDefaultBool("MASK_UPSTREAM_ERRORS", true)
+
 	initConstantEnv()
 }
 
