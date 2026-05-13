@@ -2494,3 +2494,260 @@ status: completed
 ### 下一步最小任务建议
 
 - 另开一轮处理 `go test ./relay/...` 中既有的 Claude 文件内容转换和 stream scanner 测试失败，避免它们继续干扰后续安全回归。
+
+## 旧版前端 EvoLink 风格首页骨架 Stage 1 记录
+
+任务名称：旧版前端公开首页新增 EvoLink 风格落地页静态骨架
+
+status: blocked
+
+### 本轮目标
+
+- 在 `feature/frontend-redesign-gptproto` 分支上，将 `web/classic` 旧版前端公开首页默认分支改造成 EvoLink 风格的信息架构静态骨架。
+- 仅抽象目标站的公告条、内部导航、Hero、热门模型、模型家族、API 场景、为什么选择、四步集成、FAQ、底部 CTA 的结构和视觉节奏。
+- 保留 `home_page_content` 后台自定义首页渲染逻辑、`NoticeModal`、`/api/notice`、系统名、Logo、`docs_link`、`server_address` 和 Base URL 复制能力。
+- 不复制目标站品牌、Logo、图片、原文案、数字承诺、版权信息或受保护素材；不接真实模型/价格接口；不新增依赖；不改后端、全局路由、全局布局、HeaderBar、Footer、登录/注册/控制台/价格页业务逻辑。
+
+### 修改文件
+
+- `web/classic/src/pages/Home/index.jsx`
+- `web/classic/src/pages/Home/landingData.js`
+- `web/classic/src/pages/Home/components/LandingAnnouncement.jsx`
+- `web/classic/src/pages/Home/components/LandingNav.jsx`
+- `web/classic/src/pages/Home/components/LandingHero.jsx`
+- `web/classic/src/pages/Home/components/FeaturedModels.jsx`
+- `web/classic/src/pages/Home/components/ModelFamilies.jsx`
+- `web/classic/src/pages/Home/components/ApiScenarios.jsx`
+- `web/classic/src/pages/Home/components/WhyChooseSection.jsx`
+- `web/classic/src/pages/Home/components/IntegrationSteps.jsx`
+- `web/classic/src/pages/Home/components/LandingFAQ.jsx`
+- `web/classic/src/pages/Home/components/LandingBottomCTA.jsx`
+
+### 实现摘要
+
+- `Home/index.jsx` 继续保留 `/api/home_page_content`、markdown / iframe 自定义首页渲染、`/api/notice` 弹窗检查和 Base URL 复制逻辑；仅替换 `homePageContentLoaded && homePageContent === ''` 的默认首页分支。
+- 新增 `landingData.js`，只保存静态展示数据：公告条、导航锚点、Hero 指标、热门能力卡、模型家族、API 场景、保守卖点、集成步骤和 FAQ。
+- 新增首页内部组件：公告条、内部导航、Hero、热门能力、模型家族、API 场景、为什么选择、四步集成、FAQ、底部 CTA。
+- 使用 Semi UI、Semi CSS 变量和 Tailwind utility；未新增全局 CSS，未修改 `index.css`、`body`、`.semi-*` 或 `.app-layout`。
+- 默认首页容器使用局部 `h-screen overflow-y-auto overflow-x-hidden`，避免桌面端全局 `body overflow-y: hidden` 影响长首页滚动。
+
+### 验证命令与结果
+
+- `C:\Users\Administrator\.bun\bin\bun.exe run build`（目录 `web/classic`）：通过；仅有既有 Browserslist 过期、`lottie-web` eval 和 chunk size 警告。
+- `C:\Users\Administrator\.bun\bin\bun.exe run lint`（目录 `web/classic`）：未通过；失败来自既有 repo-wide Prettier 问题，包含 `dist` 构建产物和大量未触碰源码文件，本轮新增/修改的 Home 文件未出现在警告列表中。
+- `$env:PATH='C:\Users\Administrator\.bun\bin;' + $env:PATH; C:\Users\Administrator\.bun\bin\bun.exe run eslint`（目录 `web/classic`）：未通过；失败主要来自既有 `dist/assets/*.js` 缺 header 以及未触碰源码文件缺 header/空行问题，本轮新增/修改的 Home 文件未出现在错误列表中。
+- `git diff --check`：通过。
+- `$env:PATH='C:\Users\Administrator\.bun\bin;' + $env:PATH; C:\Users\Administrator\.bun\bin\bunx prettier --check "src/pages/Home/**/*.{js,jsx}"`（目录 `web/classic`）：通过。
+- `$env:PATH='C:\Users\Administrator\.bun\bin;' + $env:PATH; C:\Users\Administrator\.bun\bin\bunx eslint "src/pages/Home/**/*.{js,jsx}"`（目录 `web/classic`）：通过。
+
+### 自审查结论
+
+- 当前分支已确认是 `feature/frontend-redesign-gptproto`。
+- 本轮业务代码变更仅在允许范围内：`web/classic/src/pages/Home/index.jsx` 和 `web/classic/src/pages/Home/` 下新增组件/数据。
+- 未新增依赖，未修改 `web/classic/package.json` 或 `web/classic/bun.lock`。
+- 未修改后端 Go 文件、全局路由、全局布局、HeaderBar、Footer、登录/注册/控制台/价格页业务逻辑。
+- 已保留 `home_page_content` 后台自定义首页逻辑、`NoticeModal`、`/api/notice`、系统名、Logo、`docs_link`、`server_address` 和 Base URL 复制能力。
+- 首页静态文案采用保守表述，未写未经确认的稳定性百分比、节省比例、用户数量、自动故障转移、智能路由、限流规避、SOC2、GDPR、TLS 1.3 等能力承诺。
+- 未复制 EvoLink 品牌、Logo、图片、原文案、数字承诺、版权信息或受保护素材。
+- 移动端通过响应式网格、横向隐藏和内部导航横向滚动降低溢出风险；暗色模式使用 Semi CSS 变量降低白底黑字冲突风险。
+
+### 已知风险或既有阻断
+
+- `web/classic` 全量 `lint` 当前会扫描 `dist` 和大量既有未格式化源码，导致 Prettier 检查失败；本轮允许范围不包含批量修复这些文件。
+- `web/classic` 全量 `eslint` 当前会扫描 `dist/assets` 构建产物并触发 header 规则，也存在若干未触碰源码的既有 header/空行问题；本轮允许范围不包含批量修复这些文件。
+- 本轮未启动浏览器做截图验证，移动端和暗色模式为代码级自审。
+
+### 提交状态
+
+- commit：未创建；原因是项目要求的全量 `bun run lint` 和 `bun run eslint` 未通过。
+- push：未执行。
+## 旧版前端 EvoLink 风格首页 Stage 1.5 验证阻断收口记录
+
+任务名称：EvoLink 风格首页开发后的全量 lint / eslint 阻断最小收口
+
+status: blocked
+
+### 本轮目标
+
+- 仅处理 `web/classic` 首页 Stage 1 开发后的全量 `lint` / `eslint` 验证阻断是否可以最小收口。
+- 不继续开发首页功能，不进入 Stage 2，不扩大首页改造。
+- 不批量格式化全项目，不批量修复未触碰源码，不修改后端，不新增依赖，不 push。
+
+### 状态确认
+
+- 当前分支：`feature/frontend-redesign-gptproto`。
+- 本轮开始时工作区仅包含 Stage 1 首页相关文件、`.ai/TASK.md`，以及本轮允许范围内新增的校验 ignore 文件。
+- 未切回 `main` / `master` / `dev`，未 push。
+
+### 本轮校验配置最小修复
+
+- 新增 `web/classic/.prettierignore`，仅排除：
+  - `dist/`
+  - `build/`
+- 新增 `web/classic/.eslintignore`，仅排除：
+  - `dist/`
+  - `build/`
+- 允许原因：`dist/` / `build/` 属于构建产物，不应参与源码 Prettier / ESLint 基线检查；该修复没有排除 `src/`，没有排除 `src/pages/Home/**`，也没有放宽本轮首页文件专项校验。
+
+### 验证命令与结果
+
+- `C:\Users\Administrator\.bun\bin\bun.exe run build`（目录 `web/classic`）：通过；仅有既有 Browserslist 过期、`lottie-web` eval、chunk size 警告。
+- `C:\Users\Administrator\.bun\bin\bun.exe run lint`（目录 `web/classic`）：未通过；新增 ignore 后 `dist/` 不再出现在失败列表，但仍有 61 个既有配置/未触碰源码文件存在 Prettier 风格问题，包括 `.eslintrc.cjs`、`.prettierrc.mjs`、`src/components/**`、`src/helpers/**`、`src/hooks/**`、`src/index.css`、`src/pages/Setting/**` 等；本轮 `src/pages/Home/**` 文件未出现在失败列表中。
+- `$env:PATH='C:\Users\Administrator\.bun\bin;' + $env:PATH; C:\Users\Administrator\.bun\bin\bun.exe run eslint`（目录 `web/classic`）：未通过；新增 ignore 后 `dist/assets/*.js` 不再出现在失败列表，但仍有 12 个既有未触碰源码错误，集中在缺少/错误 header 与多余空行规则：
+  - `src/components/common/ErrorBoundary.jsx`
+  - `src/components/table/channels/modals/StatusCodeRiskGuardModal.jsx`
+  - `src/components/table/channels/modals/statusCodeRiskGuard.js`
+  - `src/components/table/model-pricing/modal/components/DynamicPricingBreakdown.jsx`
+  - `src/constants/billing.constants.js`
+  - `src/helpers/api.js`
+  - `src/helpers/subscriptionFormat.js`
+  - `src/pages/Setting/Ratio/components/AutoGroupList.jsx`
+  - `src/pages/Setting/Ratio/components/GroupGroupRatioRules.jsx`
+  - `src/pages/Setting/Ratio/components/GroupTable.jsx`
+  - `src/pages/Setting/Ratio/components/requestRuleExpr.js`
+- `git diff --check`：通过。
+- `$env:PATH='C:\Users\Administrator\.bun\bin;' + $env:PATH; C:\Users\Administrator\.bun\bin\bunx prettier --check "src/pages/Home/**/*.{js,jsx}"`（目录 `web/classic`）：通过。
+- `$env:PATH='C:\Users\Administrator\.bun\bin;' + $env:PATH; C:\Users\Administrator\.bun\bin\bunx eslint "src/pages/Home/**/*.{js,jsx}"`（目录 `web/classic`）：通过。
+
+### 失败来源分类
+
+1. 本轮修改文件：未出现在全量 `lint` / `eslint` 失败列表中；Home 专项 Prettier / ESLint 均通过。
+2. `dist/`、`build/`、`assets` 构建产物：本轮新增 `.prettierignore` / `.eslintignore` 后已从失败列表中移除。
+3. 未触碰源码旧文件：仍是主要阻断来源；`lint` 剩余 61 个既有格式问题，`eslint` 剩余 12 个既有 header / 空行问题。
+4. 配置文件：`lint` 仍包含 `.eslintrc.cjs`、`.prettierrc.mjs` 的既有 Prettier 问题。
+5. 其他：未发现本轮新增依赖、后端文件、全局路由、全局布局、HeaderBar、Footer 或价格/登录/注册/控制台业务逻辑变更。
+
+### 自审查结论
+
+- 当前分支符合要求：`feature/frontend-redesign-gptproto`。
+- 本轮只做构建产物校验基线的最小 ignore 修复，未修改首页业务逻辑。
+- 未新增依赖，未修改后端，未修改全局路由/布局/HeaderBar/Footer。
+- `home_page_content`、`NoticeModal`、`/api/notice`、系统名、Logo、`docs_link`、`server_address` 和 Base URL 复制能力仍由 Stage 1 首页实现保留。
+- 没有复制 EvoLink 品牌、Logo、图片、原文案、数字承诺或受保护素材。
+- 因全量 `bun run lint` / `bun run eslint` 仍未通过，按项目规则不能 commit，不能标记完成。
+
+### 是否可以 commit
+
+- 不可以。
+- 原因：项目要求全量 `bun run lint` 和 `bun run eslint` 必须通过后才允许提交；当前剩余失败来自既有未触碰源码和配置文件，不属于本轮允许的最小修复范围。
+
+### 后续建议
+
+- 单独开一轮治理 `web/classic` 既有 lint / eslint 技术债，范围应明确限定为现有格式/header/空行问题，并单独验证。
+- 本轮已经完成构建产物 `dist/` / `build/` 的 ignore 基线修复；剩余不是 dist ignore 问题，而是未触碰源码与配置文件的既有风格问题。
+## 旧版前端 EvoLink 风格首页 Stage 1.6 校验基线定点治理记录
+
+任务名称：web/classic 前端 lint / eslint 基线定点治理
+
+status: completed
+
+### 本轮目标
+
+- 仅治理 `web/classic` 当前全量 `bun run lint` / `bun run eslint` 明确报告的既有机械校验问题。
+- 修复范围限定为 Prettier 格式、ESLint header 缺失/错误、多余空行。
+- 不继续开发首页功能，不进入 Stage 2，不新增依赖，不修改后端，不修改业务语义，不执行全项目或整个 `src` 目录格式化。
+
+### 本轮修复文件
+
+- `web/classic/.eslintrc.cjs`
+- `web/classic/.prettierrc.mjs`
+- `web/classic/src/components/auth/LoginForm.jsx`
+- `web/classic/src/components/auth/OAuth2Callback.jsx`
+- `web/classic/src/components/auth/RegisterForm.jsx`
+- `web/classic/src/components/common/ErrorBoundary.jsx`
+- `web/classic/src/components/common/modals/RiskAcknowledgementModal.jsx`
+- `web/classic/src/components/common/ui/SelectableButtonGroup.jsx`
+- `web/classic/src/components/layout/headerbar/LanguageSelector.jsx`
+- `web/classic/src/components/playground/MessageContent.jsx`
+- `web/classic/src/components/settings/CustomOAuthSetting.jsx`
+- `web/classic/src/components/settings/personal/cards/AccountManagement.jsx`
+- `web/classic/src/components/settings/personal/cards/NotificationSettings.jsx`
+- `web/classic/src/components/settings/personal/cards/PreferencesSettings.jsx`
+- `web/classic/src/components/table/channels/modals/EditChannelModal.jsx`
+- `web/classic/src/components/table/channels/modals/ModelSelectModal.jsx`
+- `web/classic/src/components/table/channels/modals/ModelTestModal.jsx`
+- `web/classic/src/components/table/channels/modals/ParamOverrideEditorModal.jsx`
+- `web/classic/src/components/table/channels/modals/StatusCodeRiskGuardModal.jsx`
+- `web/classic/src/components/table/channels/modals/statusCodeRiskGuard.js`
+- `web/classic/src/components/table/model-pricing/filter/PricingDisplaySettings.jsx`
+- `web/classic/src/components/table/model-pricing/layout/header/SearchActions.jsx`
+- `web/classic/src/components/table/model-pricing/modal/ModelDetailSideSheet.jsx`
+- `web/classic/src/components/table/model-pricing/modal/components/DynamicPricingBreakdown.jsx`
+- `web/classic/src/components/table/model-pricing/modal/components/ModelPricingTable.jsx`
+- `web/classic/src/components/table/model-pricing/view/card/PricingCardView.jsx`
+- `web/classic/src/components/table/redemptions/modals/EditRedemptionModal.jsx`
+- `web/classic/src/components/table/task-logs/TaskLogsColumnDefs.jsx`
+- `web/classic/src/components/table/task-logs/TaskLogsTable.jsx`
+- `web/classic/src/components/table/task-logs/modals/AudioPreviewModal.jsx`
+- `web/classic/src/components/table/tokens/modals/CopyTokensModal.jsx`
+- `web/classic/src/components/table/tokens/modals/EditTokenModal.jsx`
+- `web/classic/src/components/table/usage-logs/UsageLogsColumnDefs.jsx`
+- `web/classic/src/components/table/usage-logs/components/ParamOverrideEntry.jsx`
+- `web/classic/src/components/table/usage-logs/modals/ChannelAffinityUsageCacheModal.jsx`
+- `web/classic/src/components/table/usage-logs/modals/ColumnSelectorModal.jsx`
+- `web/classic/src/components/table/usage-logs/modals/ParamOverrideModal.jsx`
+- `web/classic/src/components/table/users/modals/EditUserModal.jsx`
+- `web/classic/src/components/topup/index.jsx`
+- `web/classic/src/components/topup/modals/TopupHistoryModal.jsx`
+- `web/classic/src/constants/billing.constants.js`
+- `web/classic/src/helpers/api.js`
+- `web/classic/src/helpers/render.jsx`
+- `web/classic/src/helpers/subscriptionFormat.js`
+- `web/classic/src/helpers/utils.jsx`
+- `web/classic/src/hooks/common/useHeaderBar.js`
+- `web/classic/src/hooks/dashboard/useDashboardCharts.jsx`
+- `web/classic/src/hooks/playground/useApiRequest.jsx`
+- `web/classic/src/hooks/tokens/useTokensData.jsx`
+- `web/classic/src/index.css`
+- `web/classic/src/pages/Setting/Chat/SettingsChats.jsx`
+- `web/classic/src/pages/Setting/Model/SettingGeminiModel.jsx`
+- `web/classic/src/pages/Setting/Operation/SettingsGeneral.jsx`
+- `web/classic/src/pages/Setting/Payment/SettingsPaymentGatewayWaffoPancake.jsx`
+- `web/classic/src/pages/Setting/Performance/SettingsPerformance.jsx`
+- `web/classic/src/pages/Setting/Ratio/GroupRatioSettings.jsx`
+- `web/classic/src/pages/Setting/Ratio/ToolPriceSettings.jsx`
+- `web/classic/src/pages/Setting/Ratio/components/AutoGroupList.jsx`
+- `web/classic/src/pages/Setting/Ratio/components/GroupGroupRatioRules.jsx`
+- `web/classic/src/pages/Setting/Ratio/components/GroupSpecialUsableRules.jsx`
+- `web/classic/src/pages/Setting/Ratio/components/GroupTable.jsx`
+- `web/classic/src/pages/Setting/Ratio/components/ModelPricingEditor.jsx`
+- `web/classic/src/pages/Setting/Ratio/components/TieredPricingEditor.jsx`
+- `web/classic/src/pages/Setting/Ratio/components/requestRuleExpr.js`
+- `web/classic/src/pages/Setting/Ratio/hooks/useModelPricingEditorState.js`
+- `.ai/TASK.md`
+
+### 修复方式
+
+- 对 `bun run lint` 明确报告的 61 个文件执行定点 `bunx prettier --write <明确文件列表>`。
+- 对 `bun run eslint` 明确报告的 11 个文件执行定点 `bunx eslint --fix <明确文件列表>`，修复 header 与多余空行。
+- ESLint 修复后，再对新增/修正 header 的 9 个文件执行定点 Prettier，确保全量格式检查通过。
+- 未执行 `prettier --write .`，未执行 `prettier --write src`，未对整个项目或整个 `src` 目录批量格式化。
+
+### 验证命令与结果
+
+- `C:\Users\Administrator\.bun\bin\bun.exe run build`（目录 `web/classic`）：通过；仅有既有 Browserslist 过期、`lottie-web` eval、chunk size 警告。
+- `C:\Users\Administrator\.bun\bin\bun.exe run lint`（目录 `web/classic`）：通过。
+- `$env:PATH='C:\Users\Administrator\.bun\bin;' + $env:PATH; C:\Users\Administrator\.bun\bin\bun.exe run eslint`（目录 `web/classic`）：通过。
+- `git diff --check`：通过。
+- `$env:PATH='C:\Users\Administrator\.bun\bin;' + $env:PATH; C:\Users\Administrator\.bun\bin\bunx prettier --check "src/pages/Home/**/*.{js,jsx}"`（目录 `web/classic`）：通过。
+- `$env:PATH='C:\Users\Administrator\.bun\bin;' + $env:PATH; C:\Users\Administrator\.bun\bin\bunx eslint "src/pages/Home/**/*.{js,jsx}"`（目录 `web/classic`）：通过。
+
+### 自审查结论
+
+- 当前分支为 `feature/frontend-redesign-gptproto`。
+- Stage 1.6 仅修复 `web/classic` 内 lint / eslint 明确报告的机械格式、header、空行问题。
+- 未新增依赖，未修改 `package.json` / `bun.lock`，未修改后端 Go 文件。
+- 未修改 API 协议、路由逻辑、权限逻辑、价格/模型/用户/令牌/渠道/充值业务语义。
+- 未修改全局路由、全局布局、HeaderBar 或 Footer 的业务逻辑；其中 `LanguageSelector.jsx` 仅因 lint 报告做 Prettier 机械格式化。
+- Stage 1 首页改造仍保留 `home_page_content`、`NoticeModal`、`/api/notice`、系统名、Logo、`docs_link`、`server_address` 与 Base URL 复制能力。
+- 未复制 EvoLink 品牌、Logo、图片、原文案、数字承诺或受保护素材。
+- diff 变化虽然包含若干大文件换行调整，但均来自明确失败文件的 Prettier / header / 空行机械修复；未发现业务语义变更。
+
+### 是否允许 commit
+
+- 允许。
+- 理由：当前分支正确，`build` / `lint` / `eslint` / `git diff --check` / Home 专项 Prettier / Home 专项 ESLint 均已通过，`.ai/TASK.md` 已更新，自审查通过。
+
+### 下一步建议
+
+- 后续如需继续首页二开，进入 Stage 2 前先保持本提交作为校验基线；Stage 2 再接入已有公开配置/状态数据，避免与本轮机械治理混在同一提交之外继续扩大范围。

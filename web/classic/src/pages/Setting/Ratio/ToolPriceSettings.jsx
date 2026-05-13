@@ -102,7 +102,11 @@ export default function ToolPriceSettings({ options }) {
     setJsonText(text);
     try {
       const parsed = JSON.parse(text);
-      if (typeof parsed !== 'object' || Array.isArray(parsed) || parsed === null) {
+      if (
+        typeof parsed !== 'object' ||
+        Array.isArray(parsed) ||
+        parsed === null
+      ) {
         setJsonError(t('JSON 必须是对象'));
         return;
       }
@@ -198,7 +202,11 @@ export default function ToolPriceSettings({ options }) {
         type='info'
         description={
           <>
-            <div>{t('配置各工具的调用价格（$/1K次调用）。按次计费模型不额外收取工具费用。')}</div>
+            <div>
+              {t(
+                '配置各工具的调用价格（$/1K次调用）。按次计费模型不额外收取工具费用。',
+              )}
+            </div>
             <div style={{ marginTop: 4 }}>
               <Text strong>{t('格式')}：</Text>
               <code>web_search_preview</code> {t('为默认价格')}，
@@ -247,7 +255,11 @@ export default function ToolPriceSettings({ options }) {
             style={{ fontFamily: 'monospace', fontSize: 13 }}
           />
           {jsonError && (
-            <Text type='danger' size='small' style={{ display: 'block', marginTop: 4 }}>
+            <Text
+              type='danger'
+              size='small'
+              style={{ display: 'block', marginTop: 4 }}
+            >
               {jsonError}
             </Text>
           )}
@@ -256,7 +268,9 @@ export default function ToolPriceSettings({ options }) {
               icon={<IconCopy />}
               size='small'
               theme='borderless'
-              onClick={() => { copy(jsonText, t('JSON')); }}
+              onClick={() => {
+                copy(jsonText, t('JSON'));
+              }}
             >
               {t('复制')}
             </Button>
@@ -267,7 +281,9 @@ export default function ToolPriceSettings({ options }) {
         </>
       )}
 
-      <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 16 }}>
+      <div
+        style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 16 }}
+      >
         <Button
           theme='solid'
           type='primary'

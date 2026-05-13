@@ -1,33 +1,124 @@
-/**
- * Single source of truth for billing expression variables.
- *
- * Every expression variable (p, c, cr, cc, ...) is defined here once.
- * All frontend consumers — editor, estimator, log display, model detail —
- * derive their data structures from this registry.
- *
- * To add a new variable:
- *   1. Add an entry here
- *   2. Backend: add to TokenParams, compileEnvPrototype, runProgram env, BuildTieredTokenParams
- */
+/*
+Copyright (C) 2025 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
 
 export const BILLING_VARS = [
-  { key: 'p', field: 'inputPrice', tierField: 'input_unit_cost', label: '输入价格', shortLabel: '输入', side: 'input', isBase: true },
-  { key: 'c', field: 'outputPrice', tierField: 'output_unit_cost', label: '补全价格', shortLabel: '补全', side: 'output', isBase: true },
-  { key: 'len', field: null, tierField: null, label: '输入长度', shortLabel: '长度', side: 'condition', isConditionOnly: true },
-  { key: 'cr', field: 'cacheReadPrice', tierField: 'cache_read_unit_cost', label: '缓存读取价格', shortLabel: '缓存读', side: 'input', group: 'cache' },
-  { key: 'cc', field: 'cacheCreatePrice', tierField: 'cache_create_unit_cost', label: '缓存创建价格', shortLabel: '缓存创建', side: 'input', group: 'cache' },
-  { key: 'cc1h', field: 'cacheCreate1hPrice', tierField: 'cache_create_1h_unit_cost', label: '1h缓存创建价格', shortLabel: '1h缓存创建', side: 'input', group: 'cache' },
-  { key: 'img', field: 'imagePrice', tierField: 'image_unit_cost', label: '图片输入价格', shortLabel: '图片输入', side: 'input', group: 'media' },
-  { key: 'img_o', field: 'imageOutputPrice', tierField: 'image_output_unit_cost', label: '图片输出价格', shortLabel: '图片输出', side: 'output', group: 'media' },
-  { key: 'ai', field: 'audioInputPrice', tierField: 'audio_input_unit_cost', label: '音频输入价格', shortLabel: '音频输入', side: 'input', group: 'media' },
-  { key: 'ao', field: 'audioOutputPrice', tierField: 'audio_output_unit_cost', label: '音频补全价格', shortLabel: '音频输出', side: 'output', group: 'media' },
+  {
+    key: 'p',
+    field: 'inputPrice',
+    tierField: 'input_unit_cost',
+    label: '输入价格',
+    shortLabel: '输入',
+    side: 'input',
+    isBase: true,
+  },
+  {
+    key: 'c',
+    field: 'outputPrice',
+    tierField: 'output_unit_cost',
+    label: '补全价格',
+    shortLabel: '补全',
+    side: 'output',
+    isBase: true,
+  },
+  {
+    key: 'len',
+    field: null,
+    tierField: null,
+    label: '输入长度',
+    shortLabel: '长度',
+    side: 'condition',
+    isConditionOnly: true,
+  },
+  {
+    key: 'cr',
+    field: 'cacheReadPrice',
+    tierField: 'cache_read_unit_cost',
+    label: '缓存读取价格',
+    shortLabel: '缓存读',
+    side: 'input',
+    group: 'cache',
+  },
+  {
+    key: 'cc',
+    field: 'cacheCreatePrice',
+    tierField: 'cache_create_unit_cost',
+    label: '缓存创建价格',
+    shortLabel: '缓存创建',
+    side: 'input',
+    group: 'cache',
+  },
+  {
+    key: 'cc1h',
+    field: 'cacheCreate1hPrice',
+    tierField: 'cache_create_1h_unit_cost',
+    label: '1h缓存创建价格',
+    shortLabel: '1h缓存创建',
+    side: 'input',
+    group: 'cache',
+  },
+  {
+    key: 'img',
+    field: 'imagePrice',
+    tierField: 'image_unit_cost',
+    label: '图片输入价格',
+    shortLabel: '图片输入',
+    side: 'input',
+    group: 'media',
+  },
+  {
+    key: 'img_o',
+    field: 'imageOutputPrice',
+    tierField: 'image_output_unit_cost',
+    label: '图片输出价格',
+    shortLabel: '图片输出',
+    side: 'output',
+    group: 'media',
+  },
+  {
+    key: 'ai',
+    field: 'audioInputPrice',
+    tierField: 'audio_input_unit_cost',
+    label: '音频输入价格',
+    shortLabel: '音频输入',
+    side: 'input',
+    group: 'media',
+  },
+  {
+    key: 'ao',
+    field: 'audioOutputPrice',
+    tierField: 'audio_output_unit_cost',
+    label: '音频补全价格',
+    shortLabel: '音频输出',
+    side: 'output',
+    group: 'media',
+  },
 ];
 
 export const BILLING_VAR_KEYS = BILLING_VARS.map((v) => v.key);
 
-export const BILLING_PRICING_VARS = BILLING_VARS.filter((v) => !v.isConditionOnly);
+export const BILLING_PRICING_VARS = BILLING_VARS.filter(
+  (v) => !v.isConditionOnly,
+);
 
-export const BILLING_EXTRA_VARS = BILLING_VARS.filter((v) => !v.isBase && !v.isConditionOnly);
+export const BILLING_EXTRA_VARS = BILLING_VARS.filter(
+  (v) => !v.isBase && !v.isConditionOnly,
+);
 
 export const BILLING_VAR_KEY_TO_FIELD = Object.fromEntries(
   BILLING_PRICING_VARS.map((v) => [v.key, v.field]),
