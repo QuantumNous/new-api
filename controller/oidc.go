@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/setting/system_setting"
 
@@ -35,9 +36,9 @@ type OidcUser struct {
 	Picture           string `json:"picture"`
 }
 
-func getOidcUserInfoByCode(code string) (*OidcUser, error) {
+func getOidcUserInfoByCode(c *gin.Context, code string) (*OidcUser, error) {
 	if code == "" {
-		return nil, errors.New("无效的参数")
+		return nil, errors.New(i18n.T(c, i18n.MsgOAuthInvalidCode))
 	}
 
 	values := url.Values{}
@@ -59,7 +60,7 @@ func getOidcUserInfoByCode(code string) (*OidcUser, error) {
 	res, err := client.Do(req)
 	if err != nil {
 		common.SysLog(err.Error())
-		return nil, errors.New("无法连接至 OIDC 服务器，请稍后重试！")
+		return nil, errors.New(i18n.T(c, i18n.MsgOAuthConnectFailed, providerParams("OIDC")))
 	}
 	defer res.Body.Close()
 	var oidcResponse OidcResponse
@@ -70,7 +71,7 @@ func getOidcUserInfoByCode(code string) (*OidcUser, error) {
 
 	if oidcResponse.AccessToken == "" {
 		common.SysLog("OIDC 获取 Token 失败，请检查设置！")
-		return nil, errors.New("OIDC 获取 Token 失败，请检查设置！")
+		return nil, errors.New(i18n.T(c, i18n.MsgOAuthTokenFailed, providerParams("OIDC")))
 	}
 
 	req, err = http.NewRequest("GET", system_setting.GetOIDCSettings().UserInfoEndpoint, nil)
@@ -81,12 +82,12 @@ func getOidcUserInfoByCode(code string) (*OidcUser, error) {
 	res2, err := client.Do(req)
 	if err != nil {
 		common.SysLog(err.Error())
-		return nil, errors.New("无法连接至 OIDC 服务器，请稍后重试！")
+		return nil, errors.New(i18n.T(c, i18n.MsgOAuthConnectFailed, providerParams("OIDC")))
 	}
 	defer res2.Body.Close()
 	if res2.StatusCode != http.StatusOK {
 		common.SysLog("OIDC 获取用户信息失败！请检查设置！")
-		return nil, errors.New("OIDC 获取用户信息失败！请检查设置！")
+		return nil, errors.New(i18n.T(c, i18n.MsgOAuthGetUserErr))
 	}
 
 	var oidcUser OidcUser
@@ -96,7 +97,7 @@ func getOidcUserInfoByCode(code string) (*OidcUser, error) {
 	}
 	if oidcUser.OpenID == "" || oidcUser.Email == "" {
 		common.SysLog("OIDC 获取用户信息为空！请检查设置！")
-		return nil, errors.New("OIDC 获取用户信息为空！请检查设置！")
+		return nil, errors.New(i18n.T(c, i18n.MsgOAuthUserInfoEmpty, providerParams("OIDC")))
 	}
 	return &oidcUser, nil
 }
@@ -117,14 +118,11 @@ func OidcAuth(c *gin.Context) {
 		return
 	}
 	if !system_setting.GetOIDCSettings().Enabled {
-		c.JSON(http.StatusOK, gin.H{
-			"success": false,
-			"message": "管理员未开启通过 OIDC 登录以及注册",
-		})
+		common.ApiErrorI18n(c, i18n.MsgOAuthNotEnabled, providerParams("OIDC"))
 		return
 	}
 	code := c.Query("code")
-	oidcUser, err := getOidcUserInfoByCode(code)
+	oidcUser, err := getOidcUserInfoByCode(c, code)
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -163,19 +161,13 @@ func OidcAuth(c *gin.Context) {
 				return
 			}
 		} else {
-			c.JSON(http.StatusOK, gin.H{
-				"success": false,
-				"message": "管理员关闭了新用户注册",
-			})
+			common.ApiErrorI18n(c, i18n.MsgUserRegisterDisabled)
 			return
 		}
 	}
 
 	if user.Status != common.UserStatusEnabled {
-		c.JSON(http.StatusOK, gin.H{
-			"message": "用户已被封禁",
-			"success": false,
-		})
+		common.ApiErrorI18n(c, i18n.MsgOAuthUserBanned)
 		return
 	}
 	setupLogin(&user, c)
@@ -183,14 +175,11 @@ func OidcAuth(c *gin.Context) {
 
 func OidcBind(c *gin.Context) {
 	if !system_setting.GetOIDCSettings().Enabled {
-		c.JSON(http.StatusOK, gin.H{
-			"success": false,
-			"message": "管理员未开启通过 OIDC 登录以及注册",
-		})
+		common.ApiErrorI18n(c, i18n.MsgOAuthNotEnabled, providerParams("OIDC"))
 		return
 	}
 	code := c.Query("code")
-	oidcUser, err := getOidcUserInfoByCode(code)
+	oidcUser, err := getOidcUserInfoByCode(c, code)
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -199,10 +188,7 @@ func OidcBind(c *gin.Context) {
 		OidcId: oidcUser.OpenID,
 	}
 	if model.IsOidcIdAlreadyTaken(user.OidcId) {
-		c.JSON(http.StatusOK, gin.H{
-			"success": false,
-			"message": "该 OIDC 账户已被绑定",
-		})
+		common.ApiErrorI18n(c, i18n.MsgOAuthAlreadyBound, providerParams("OIDC"))
 		return
 	}
 	session := sessions.Default(c)
