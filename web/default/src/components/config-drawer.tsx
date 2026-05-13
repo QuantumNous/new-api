@@ -1,3 +1,21 @@
+/*
+Copyright (C) 2023-2026 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
 import { type SVGProps } from 'react'
 import { Radio as RadioPrimitive } from '@base-ui/react/radio'
 import { RadioGroup as Radio } from '@base-ui/react/radio-group'
@@ -64,7 +82,7 @@ export function ConfigDrawer() {
             variant='ghost'
             aria-label={t('Open theme settings')}
             aria-describedby='config-drawer-description'
-            className='rounded-full max-md:hidden'
+            className='max-md:hidden'
           />
         }
       >
@@ -119,7 +137,7 @@ function SectionTitle(props: {
         <Button
           size='icon'
           variant='secondary'
-          className='size-4 rounded-full'
+          className='size-4'
           onClick={props.onReset}
           aria-label='Reset'
         >
@@ -148,7 +166,7 @@ function RadioGroupItem(props: {
     >
       <div
         className={cn(
-          'ring-border relative rounded-[6px] ring-[1px]',
+          'ring-border relative rounded-md ring-[1px]',
           'group-data-checked:ring-primary group-data-checked:shadow-2xl',
           'group-focus-visible:ring-2'
         )}

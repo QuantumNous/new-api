@@ -1,8 +1,30 @@
+/*
+Copyright (C) 2023-2026 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
 import * as React from 'react'
 import { Menu as MenuPrimitive } from '@base-ui/react/menu'
 import { ArrowRight01Icon, Tick02Icon } from '@hugeicons/core-free-icons'
 import { HugeiconsIcon } from '@hugeicons/react'
 import { cn } from '@/lib/utils'
+import {
+  handleDropdownMenuItemSelect,
+  type DropdownMenuItemSelectHandler,
+} from './dropdown-menu-events'
 
 function DropdownMenu({ ...props }: MenuPrimitive.Root.Props) {
   return <MenuPrimitive.Root data-slot='dropdown-menu' {...props} />
@@ -78,11 +100,21 @@ function DropdownMenuItem({
   className,
   inset,
   variant = 'default',
+  onClick,
+  onSelect,
   ...props
-}: MenuPrimitive.Item.Props & {
+}: Omit<MenuPrimitive.Item.Props, 'onSelect'> & {
   inset?: boolean
   variant?: 'default' | 'destructive'
+  onSelect?: DropdownMenuItemSelectHandler
 }) {
+  const handleClick = React.useCallback(
+    (event: React.MouseEvent<HTMLElement>) => {
+      handleDropdownMenuItemSelect(event, onClick, onSelect)
+    },
+    [onClick, onSelect]
+  )
+
   return (
     <MenuPrimitive.Item
       data-slot='dropdown-menu-item'
@@ -92,6 +124,7 @@ function DropdownMenuItem({
         "group/dropdown-menu-item focus:bg-accent focus:text-accent-foreground not-data-[variant=destructive]:focus:**:text-accent-foreground data-[variant=destructive]:text-destructive data-[variant=destructive]:focus:bg-destructive/10 data-[variant=destructive]:focus:text-destructive dark:data-[variant=destructive]:focus:bg-destructive/20 data-[variant=destructive]:*:[svg]:text-destructive relative flex cursor-default items-center gap-1.5 rounded-md px-1.5 py-1 text-sm outline-hidden select-none data-disabled:pointer-events-none data-disabled:opacity-50 data-inset:pl-7 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
         className
       )}
+      onClick={onClick || onSelect ? handleClick : undefined}
       {...props}
     />
   )

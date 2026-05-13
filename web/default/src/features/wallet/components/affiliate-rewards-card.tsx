@@ -1,3 +1,21 @@
+/*
+Copyright (C) 2023-2026 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
 import { Share2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { formatQuota } from '@/lib/format'
@@ -12,6 +30,7 @@ interface AffiliateRewardsCardProps {
   user: UserWalletData | null
   affiliateLink: string
   onTransfer: () => void
+  complianceConfirmed?: boolean
   loading?: boolean
 }
 
@@ -19,6 +38,7 @@ export function AffiliateRewardsCard({
   user,
   affiliateLink,
   onTransfer,
+  complianceConfirmed = true,
   loading,
 }: AffiliateRewardsCardProps) {
   const { t } = useTranslation()
@@ -92,6 +112,7 @@ export function AffiliateRewardsCard({
           {hasRewards && (
             <Button
               onClick={onTransfer}
+              disabled={!complianceConfirmed}
               className='h-9 shrink-0 px-3'
               size='sm'
             >
@@ -99,6 +120,13 @@ export function AffiliateRewardsCard({
             </Button>
           )}
         </div>
+        {!complianceConfirmed ? (
+          <p className='text-muted-foreground text-xs lg:col-span-3'>
+            {t(
+              'Referral reward transfer is disabled until the administrator confirms compliance terms.'
+            )}
+          </p>
+        ) : null}
       </CardContent>
     </Card>
   )

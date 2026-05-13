@@ -1,3 +1,21 @@
+/*
+Copyright (C) 2023-2026 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
 import { useState, useEffect, useCallback } from 'react'
 import { useQueryClient, useIsFetching } from '@tanstack/react-query'
 import { useNavigate, getRouteApi } from '@tanstack/react-router'
@@ -70,6 +88,8 @@ export function CommonLogsFilterBar<TData>(
     if (searchParams.group) next.group = searchParams.group
     if (searchParams.username) next.username = searchParams.username
     if (searchParams.requestId) next.requestId = searchParams.requestId
+    if (searchParams.upstreamRequestId)
+      next.upstreamRequestId = searchParams.upstreamRequestId
 
     if (Object.keys(next).length > 0) {
       setFilters((prev) => ({ ...prev, ...next }))
@@ -88,6 +108,7 @@ export function CommonLogsFilterBar<TData>(
     searchParams.group,
     searchParams.username,
     searchParams.requestId,
+    searchParams.upstreamRequestId,
     searchParams.type,
   ])
 
@@ -143,7 +164,8 @@ export function CommonLogsFilterBar<TData>(
     !!filters.token ||
     !!filters.username ||
     !!filters.channel ||
-    !!filters.requestId
+    !!filters.requestId ||
+    !!filters.upstreamRequestId
 
   const hasAdditionalFilters =
     !!filters.model || !!filters.group || !!logType || hasExpandedFilters
@@ -269,6 +291,15 @@ export function CommonLogsFilterBar<TData>(
             placeholder={t('Request ID')}
             value={filters.requestId || ''}
             onChange={(e) => handleChange('requestId', e.target.value)}
+            onKeyDown={handleKeyDown}
+            className={inputClass}
+          />
+          <Input
+            placeholder={t('Upstream Request ID')}
+            value={filters.upstreamRequestId || ''}
+            onChange={(e) =>
+              handleChange('upstreamRequestId', e.target.value)
+            }
             onKeyDown={handleKeyDown}
             className={inputClass}
           />

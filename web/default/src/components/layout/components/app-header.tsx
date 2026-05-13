@@ -1,5 +1,22 @@
+/*
+Copyright (C) 2023-2026 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
 import { useNotifications } from '@/hooks/use-notifications'
-import { useSidebarData } from '@/hooks/use-sidebar-data'
 import { useTopNavLinks } from '@/hooks/use-top-nav-links'
 import { ConfigDrawer } from '@/components/config-drawer'
 import { LanguageSwitcher } from '@/components/language-switcher'
@@ -10,8 +27,8 @@ import { Search } from '@/components/search'
 import { defaultTopNavLinks } from '../config/top-nav.config'
 import { type TopNavLink } from '../types'
 import { Header } from './header'
+import { SystemBrand } from './system-brand'
 import { TopNav } from './top-nav'
-import { WorkspaceSwitcher } from './workspace-switcher'
 
 /**
  * General application Header component
@@ -89,7 +106,6 @@ export function AppHeader({
   // Prioritize dynamically generated links from backend
   const dynamicLinks = useTopNavLinks()
   const links = dynamicLinks.length > 0 ? dynamicLinks : navLinks
-  const sidebarData = useSidebarData()
 
   // Notifications hook
   const notifications = useNotifications()
@@ -97,10 +113,7 @@ export function AppHeader({
   return (
     <>
       <Header>
-        <WorkspaceSwitcher
-          variant='inline'
-          workspaces={sidebarData.workspaces}
-        />
+        <SystemBrand variant='inline' />
 
         {leftContent ? (
           <div className='ms-2 flex items-center'>{leftContent}</div>

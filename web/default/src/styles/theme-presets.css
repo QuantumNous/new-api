@@ -1,4 +1,22 @@
 /*
+Copyright (C) 2023-2026 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
+/*
  * Theme presets — color palettes, border radius, and density scaling.
  *
  * Usage: applied via data attributes on <body>:
@@ -271,6 +289,49 @@
   --sidebar-accent: oklch(0.6359 0.1699 307.95);
   --sidebar-accent-foreground: oklch(1 0 0);
   --sidebar-ring: oklch(0.6359 0.1699 307.95);
+}
+
+/* ── Semantic surface bridge ──────────────────────────────────────────── */
+/* Color presets should tint the surfaces most components actually use, not
+ * only primary buttons. These derived tokens keep the app theme-aware without
+ * duplicating per-component dark-mode overrides. */
+[data-theme-preset]:not([data-theme-preset='default']) {
+  --card: color-mix(in oklch, var(--primary) 3%, var(--background));
+  --popover: color-mix(in oklch, var(--primary) 5%, var(--background));
+  --muted: color-mix(in oklch, var(--primary) 7%, var(--background));
+  --muted-foreground: color-mix(
+    in oklch,
+    var(--foreground) 68%,
+    var(--primary)
+  );
+  --accent: color-mix(in oklch, var(--primary) 14%, var(--background));
+  --accent-foreground: var(--foreground);
+  --border: color-mix(in oklch, var(--primary) 20%, var(--background));
+  --input: color-mix(in oklch, var(--primary) 22%, var(--background));
+  --sidebar: color-mix(in oklch, var(--primary) 4%, var(--background));
+  --sidebar-accent: color-mix(in oklch, var(--primary) 14%, var(--background));
+  --sidebar-accent-foreground: var(--foreground);
+  --sidebar-border: color-mix(in oklch, var(--primary) 18%, var(--background));
+  --success: var(--chart-2);
+  --warning: var(--chart-4);
+  --info: var(--chart-1);
+  --neutral: var(--muted-foreground);
+}
+.dark [data-theme-preset]:not([data-theme-preset='default']) {
+  --card: color-mix(in oklch, var(--primary) 8%, var(--background));
+  --popover: color-mix(in oklch, var(--primary) 12%, var(--background));
+  --muted: color-mix(in oklch, var(--primary) 12%, var(--background));
+  --muted-foreground: color-mix(
+    in oklch,
+    var(--foreground) 74%,
+    var(--primary)
+  );
+  --accent: color-mix(in oklch, var(--primary) 18%, var(--background));
+  --border: color-mix(in oklch, var(--primary) 24%, var(--background));
+  --input: color-mix(in oklch, var(--primary) 28%, var(--background));
+  --sidebar: color-mix(in oklch, var(--primary) 5%, var(--background));
+  --sidebar-accent: color-mix(in oklch, var(--primary) 18%, var(--background));
+  --sidebar-border: color-mix(in oklch, var(--primary) 22%, var(--background));
 }
 
 /* ── Border radius ────────────────────────────────────────────────────── */

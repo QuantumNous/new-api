@@ -1,7 +1,28 @@
+/*
+Copyright (C) 2023-2026 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
 import { memo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { cn } from '@/lib/utils'
-import { formatLatency, formatThroughput } from '../lib/mock-stats'
+import {
+  formatLatency,
+  formatThroughput,
+} from '@/features/performance-metrics/lib/format'
 
 export type ModelPerfBadgeData = {
   avg_latency_ms: number
@@ -9,8 +30,7 @@ export type ModelPerfBadgeData = {
   avg_tps: number
 }
 
-export interface ModelPerfBadgeProps
-  extends React.HTMLAttributes<HTMLDivElement> {
+export interface ModelPerfBadgeProps extends React.HTMLAttributes<HTMLDivElement> {
   perf: ModelPerfBadgeData | undefined
 }
 
@@ -47,7 +67,7 @@ export const ModelPerfBadge = memo(function ModelPerfBadge(
         <div className='text-muted-foreground/55 text-[10px] leading-4'>
           {t('Latency short')}
         </div>
-        <div className='text-muted-foreground/80 whitespace-nowrap font-mono text-xs leading-4'>
+        <div className='text-muted-foreground/80 font-mono text-xs leading-4 whitespace-nowrap'>
           {avg_latency_ms > 0 ? formatLatency(avg_latency_ms) : '—'}
         </div>
       </div>
@@ -55,7 +75,7 @@ export const ModelPerfBadge = memo(function ModelPerfBadge(
         <div className='text-muted-foreground/55 truncate text-[10px] leading-4'>
           {t('Throughput short')}
         </div>
-        <div className='text-muted-foreground/80 whitespace-nowrap font-mono text-xs leading-4'>
+        <div className='text-muted-foreground/80 font-mono text-xs leading-4 whitespace-nowrap'>
           {formatCompactThroughput(avg_tps)}
         </div>
       </div>

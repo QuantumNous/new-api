@@ -1,3 +1,21 @@
+/*
+Copyright (C) 2023-2026 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
 import { useState, useMemo, useEffect, useCallback, memo } from 'react'
 import { Pencil, Plus, Trash2, GripVertical, ChevronDown } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
@@ -9,12 +27,12 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card'
+import { Checkbox } from '@/components/ui/checkbox'
 import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
 } from '@/components/ui/collapsible'
-import { Checkbox } from '@/components/ui/checkbox'
 import {
   Dialog,
   DialogContent,
@@ -830,7 +848,9 @@ function GroupPricingTable({
           <div>
             <CardTitle>{t('Pricing groups')}</CardTitle>
             <CardDescription>
-              {t('Edit billing ratios and user-selectable groups in one table.')}
+              {t(
+                'Edit billing ratios and user-selectable groups in one table.'
+              )}
             </CardDescription>
           </div>
           <Button onClick={addRow} size='sm' className='sm:self-start'>
@@ -900,11 +920,7 @@ function GroupPricingTable({
                           <Checkbox
                             checked={row.selectable}
                             onCheckedChange={(checked) =>
-                              updateRow(
-                                row._id,
-                                'selectable',
-                                checked === true
-                              )
+                              updateRow(row._id, 'selectable', checked === true)
                             }
                             aria-label={t('User selectable')}
                           />

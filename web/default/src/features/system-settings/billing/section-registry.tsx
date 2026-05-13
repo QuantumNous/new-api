@@ -1,11 +1,29 @@
+/*
+Copyright (C) 2023-2026 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
 import { parseCurrencyDisplayType } from '@/lib/currency'
-import type { BillingSettings } from '../types'
-import { createSectionRegistry } from '../utils/section-registry'
 import { CheckinSettingsSection } from '../general/checkin-settings-section'
 import { PricingSection } from '../general/pricing-section'
 import { QuotaSettingsSection } from '../general/quota-settings-section'
 import { PaymentSettingsSection } from '../integrations/payment-settings-section'
 import { RatioSettingsCard } from '../models/ratio-settings-card'
+import type { BillingSettings } from '../types'
+import { createSectionRegistry } from '../utils/section-registry'
 
 const getModelDefaults = (settings: BillingSettings) => ({
   ModelPrice: settings.ModelPrice,
@@ -53,6 +71,10 @@ const BILLING_SECTIONS = [
               settings['quota_setting.enable_free_model_pre_consume'],
           },
         }}
+        complianceConfirmed={
+          (settings['payment_setting.compliance_confirmed'] ?? false) &&
+          settings['payment_setting.compliance_terms_version'] === 'v1'
+        }
       />
     ),
   },
@@ -161,14 +183,20 @@ const BILLING_SECTIONS = [
           WaffoPancakePrivateKey: settings.WaffoPancakePrivateKey ?? '',
           WaffoPancakeWebhookPublicKey:
             settings.WaffoPancakeWebhookPublicKey ?? '',
-          WaffoPancakeWebhookTestKey:
-            settings.WaffoPancakeWebhookTestKey ?? '',
+          WaffoPancakeWebhookTestKey: settings.WaffoPancakeWebhookTestKey ?? '',
           WaffoPancakeStoreID: settings.WaffoPancakeStoreID ?? '',
           WaffoPancakeProductID: settings.WaffoPancakeProductID ?? '',
           WaffoPancakeReturnURL: settings.WaffoPancakeReturnURL ?? '',
           WaffoPancakeCurrency: settings.WaffoPancakeCurrency ?? 'USD',
           WaffoPancakeUnitPrice: settings.WaffoPancakeUnitPrice ?? 1,
           WaffoPancakeMinTopUp: settings.WaffoPancakeMinTopUp ?? 1,
+        }}
+        complianceDefaults={{
+          confirmed: settings['payment_setting.compliance_confirmed'] ?? false,
+          termsVersion:
+            settings['payment_setting.compliance_terms_version'] ?? '',
+          confirmedAt: settings['payment_setting.compliance_confirmed_at'] ?? 0,
+          confirmedBy: settings['payment_setting.compliance_confirmed_by'] ?? 0,
         }}
       />
     ),
@@ -191,14 +219,15 @@ const BILLING_SECTIONS = [
 
 export type BillingSectionId = (typeof BILLING_SECTIONS)[number]['id']
 
-const billingRegistry = createSectionRegistry<BillingSectionId, BillingSettings>(
-  {
-    sections: BILLING_SECTIONS,
-    defaultSection: 'quota',
-    basePath: '/system-settings/billing',
-    urlStyle: 'path',
-  }
-)
+const billingRegistry = createSectionRegistry<
+  BillingSectionId,
+  BillingSettings
+>({
+  sections: BILLING_SECTIONS,
+  defaultSection: 'quota',
+  basePath: '/system-settings/billing',
+  urlStyle: 'path',
+})
 
 export const BILLING_SECTION_IDS = billingRegistry.sectionIds
 export const BILLING_DEFAULT_SECTION = billingRegistry.defaultSection

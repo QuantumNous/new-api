@@ -1,3 +1,21 @@
+/*
+Copyright (C) 2023-2026 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
 import { useState } from 'react'
 import { Search, Copy, Check, ChevronLeft, ChevronRight } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
@@ -158,8 +176,8 @@ export function BillingHistoryDialog({
                   </p>
                   <p className='mt-1 text-xs'>
                     {keyword
-                      ? 'Try adjusting your search'
-                      : 'Your transaction history will appear here'}
+                      ? t('Try adjusting your search')
+                      : t('Your transaction history will appear here')}
                   </p>
                 </div>
               ) : (
@@ -215,15 +233,15 @@ export function BillingHistoryDialog({
                         <div className='mt-3 grid grid-cols-2 gap-3 sm:mt-4 sm:grid-cols-3 sm:gap-4'>
                           <div className='space-y-1'>
                             <Label className='text-muted-foreground text-xs'>
-                              Payment Method
+                              {t('Payment Method')}
                             </Label>
                             <div className='text-sm font-medium'>
-                              {getPaymentMethodName(record.payment_method)}
+                              {getPaymentMethodName(record.payment_method, t)}
                             </div>
                           </div>
                           <div className='space-y-1'>
                             <Label className='text-muted-foreground text-xs'>
-                              Amount
+                              {t('Amount')}
                             </Label>
                             <div className='text-sm font-semibold'>
                               {formatCurrencyFromUSD(record.amount, {
@@ -235,7 +253,7 @@ export function BillingHistoryDialog({
                           </div>
                           <div className='space-y-1'>
                             <Label className='text-muted-foreground text-xs'>
-                              Payment
+                              {t('Payment')}
                             </Label>
                             <div className='text-sm font-semibold text-red-600'>
                               {formatNumber(record.money)}
@@ -252,7 +270,7 @@ export function BillingHistoryDialog({
                               onClick={() => setConfirmTradeNo(record.trade_no)}
                               disabled={completing}
                             >
-                              Complete Order
+                              {t('Complete Order')}
                             </Button>
                           </div>
                         )}
@@ -323,7 +341,7 @@ export function BillingHistoryDialog({
               onClick={handleConfirmComplete}
               disabled={completing}
             >
-              {completing ? 'Processing...' : 'Confirm'}
+              {completing ? t('Processing...') : t('Confirm')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

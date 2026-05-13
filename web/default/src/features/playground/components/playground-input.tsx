@@ -1,3 +1,21 @@
+/*
+Copyright (C) 2023-2026 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
 import { useState } from 'react'
 import {
   PaperclipIcon,
@@ -95,10 +113,7 @@ export function PlaygroundInput({
 
   return (
     <div className='grid shrink-0 gap-4 px-1 md:pb-4'>
-      <PromptInput
-        groupClassName='rounded-[20px] [--radius:20px]'
-        onSubmit={handleSubmit}
-      >
+      <PromptInput groupClassName='rounded-xl' onSubmit={handleSubmit}>
         <PromptInputTextarea
           autoComplete='off'
           autoCorrect='off'
@@ -117,7 +132,7 @@ export function PlaygroundInput({
               <DropdownMenuTrigger
                 render={
                   <PromptInputButton
-                    className='!rounded-full border font-medium'
+                    className='border font-medium'
                     disabled={disabled}
                     variant='outline'
                   />
@@ -156,7 +171,7 @@ export function PlaygroundInput({
             </DropdownMenu>
 
             <PromptInputButton
-              className='rounded-full border font-medium'
+              className='border font-medium'
               disabled={disabled}
               onClick={() => toast.info(t('Search feature in development'))}
               variant='outline'
@@ -180,7 +195,7 @@ export function PlaygroundInput({
 
             {isGenerating && onStop ? (
               <PromptInputButton
-                className='text-foreground rounded-full font-medium'
+                className='text-foreground font-medium'
                 onClick={onStop}
                 variant='secondary'
               >
@@ -190,7 +205,7 @@ export function PlaygroundInput({
               </PromptInputButton>
             ) : (
               <PromptInputButton
-                className='text-foreground rounded-full font-medium'
+                className='text-foreground font-medium'
                 disabled={disabled || !text.trim()}
                 type='submit'
                 variant='secondary'

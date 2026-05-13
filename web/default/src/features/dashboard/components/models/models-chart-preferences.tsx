@@ -1,4 +1,22 @@
-import { useEffect, useState } from 'react'
+/*
+Copyright (C) 2023-2026 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
+import { useState } from 'react'
 import { Save, Settings2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import type { TimeGranularity } from '@/lib/time'
@@ -45,9 +63,10 @@ export function ModelsChartPreferences(props: ModelsChartPreferencesProps) {
     props.preferences
   )
 
-  useEffect(() => {
-    if (open) setDraft(props.preferences)
-  }, [open, props.preferences])
+  const handleOpenChange = (nextOpen: boolean) => {
+    if (nextOpen) setDraft(props.preferences)
+    setOpen(nextOpen)
+  }
 
   const handleSave = () => {
     props.onPreferencesChange(draft)
@@ -55,7 +74,7 @@ export function ModelsChartPreferences(props: ModelsChartPreferencesProps) {
   }
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogTrigger render={<Button variant='outline' size='sm' />}>
         <Settings2 className='mr-2 h-4 w-4' />
         {t('Preferences')}
