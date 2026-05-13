@@ -293,6 +293,9 @@ func StreamScannerHandler(c *gin.Context, resp *http.Response, info *relaycommon
 
 	if info.StreamStatus.IsNormalEnd() && !info.StreamStatus.HasErrors() {
 		logger.LogInfo(c, fmt.Sprintf("stream ended: %s", info.StreamStatus.Summary()))
+	} else if !info.StreamStatus.HasErrors() && info.StreamStatus.EndReason == relaycommon.StreamEndReasonClientGone {
+		// 客户端主动断开不算服务端错误，避免日志噪声
+		logger.LogInfo(c, fmt.Sprintf("stream aborted by client: %s, received=%d", info.StreamStatus.Summary(), info.ReceivedResponseCount))
 	} else {
 		logger.LogError(c, fmt.Sprintf("stream ended: %s, received=%d", info.StreamStatus.Summary(), info.ReceivedResponseCount))
 	}
