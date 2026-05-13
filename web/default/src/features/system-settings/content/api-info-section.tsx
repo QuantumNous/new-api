@@ -249,12 +249,13 @@ export function ApiInfoSection({ enabled, data }: ApiInfoSectionProps) {
 
   const handleSaveAll = async () => {
     try {
-      await updateOption.mutateAsync({
+      const result = await updateOption.mutateAsync({
         key: 'console_setting.api_info',
         value: JSON.stringify(apiInfoList),
       })
-      setHasChanges(false)
-      toast.success(t('API info saved successfully'))
+      if (result.success) {
+        setHasChanges(false)
+      }
     } catch {
       toast.error(t('Failed to save API info'))
     }
