@@ -43,6 +43,7 @@ const HeaderBar = ({ onMobileMenuToggle, drawerOpen }) => {
     docsLink,
     isDemoSiteMode,
     isConsoleRoute,
+    location,
     theme,
     headerNavModules,
     pricingRequireAuth,
@@ -63,9 +64,22 @@ const HeaderBar = ({ onMobileMenuToggle, drawerOpen }) => {
   } = useNotifications(statusState);
 
   const { mainNavLinks } = useNavigation(t, docsLink, headerNavModules);
+  const isHomeRoute = location.pathname === '/';
+  const headerClassName = isHomeRoute
+    ? 'text-semi-color-text-0 sticky top-0 z-50 border-b border-semi-color-border bg-white/80 dark:bg-zinc-900/80 backdrop-blur-xl transition-colors duration-300'
+    : 'text-semi-color-text-0 sticky top-0 z-50 transition-colors duration-300 bg-white/75 dark:bg-zinc-900/75 backdrop-blur-lg';
+  const containerClassName = isHomeRoute
+    ? 'mx-auto w-full max-w-7xl px-3 sm:px-5 lg:px-8'
+    : 'w-full px-2';
+  const contentClassName = isHomeRoute
+    ? 'flex h-16 min-w-0 items-center justify-between gap-2'
+    : 'flex items-center justify-between h-16';
+  const logoWrapClassName = isHomeRoute
+    ? 'flex min-w-0 shrink-0 items-center'
+    : 'flex items-center';
 
   return (
-    <header className='text-semi-color-text-0 sticky top-0 z-50 transition-colors duration-300 bg-white/75 dark:bg-zinc-900/75 backdrop-blur-lg'>
+    <header className={headerClassName}>
       <NoticeModal
         visible={noticeVisible}
         onClose={handleNoticeClose}
@@ -74,9 +88,9 @@ const HeaderBar = ({ onMobileMenuToggle, drawerOpen }) => {
         unreadKeys={getUnreadKeys()}
       />
 
-      <div className='w-full px-2'>
-        <div className='flex items-center justify-between h-16'>
-          <div className='flex items-center'>
+      <div className={containerClassName}>
+        <div className={contentClassName}>
+          <div className={logoWrapClassName}>
             <MobileMenuButton
               isConsoleRoute={isConsoleRoute}
               isMobile={isMobile}
@@ -95,34 +109,39 @@ const HeaderBar = ({ onMobileMenuToggle, drawerOpen }) => {
               systemName={systemName}
               isSelfUseMode={isSelfUseMode}
               isDemoSiteMode={isDemoSiteMode}
+              showSubtitle={isHomeRoute && !isMobile}
               t={t}
             />
           </div>
 
-          <Navigation
-            mainNavLinks={mainNavLinks}
-            isMobile={isMobile}
-            isLoading={isLoading}
-            userState={userState}
-            pricingRequireAuth={pricingRequireAuth}
-          />
+          <div className={isHomeRoute ? 'min-w-0 flex-1' : 'contents'}>
+            <Navigation
+              mainNavLinks={mainNavLinks}
+              isMobile={isMobile}
+              isLoading={isLoading}
+              userState={userState}
+              pricingRequireAuth={pricingRequireAuth}
+            />
+          </div>
 
-          <ActionButtons
-            isNewYear={isNewYear}
-            unreadCount={unreadCount}
-            onNoticeOpen={handleNoticeOpen}
-            theme={theme}
-            onThemeToggle={handleThemeToggle}
-            currentLang={currentLang}
-            onLanguageChange={handleLanguageChange}
-            userState={userState}
-            isLoading={isLoading}
-            isMobile={isMobile}
-            isSelfUseMode={isSelfUseMode}
-            logout={logout}
-            navigate={navigate}
-            t={t}
-          />
+          <div className={isHomeRoute ? 'shrink-0' : ''}>
+            <ActionButtons
+              isNewYear={isNewYear}
+              unreadCount={unreadCount}
+              onNoticeOpen={handleNoticeOpen}
+              theme={theme}
+              onThemeToggle={handleThemeToggle}
+              currentLang={currentLang}
+              onLanguageChange={handleLanguageChange}
+              userState={userState}
+              isLoading={isLoading}
+              isMobile={isMobile}
+              isSelfUseMode={isSelfUseMode}
+              logout={logout}
+              navigate={navigate}
+              t={t}
+            />
+          </div>
         </div>
       </div>
     </header>

@@ -2876,3 +2876,58 @@ status: completed
 ### 提交状态
 
 - 验证通过，允许创建中文 commit：`前端：首页移动端与暗色模式回归优化`。
+
+## 旧版前端首页顶部导航整合记录
+
+任务名称：首页顶部导航整合为全局 HeaderBar 单导航
+
+status: completed
+
+### 本轮目标
+
+- 将首页默认 landing 顶部导航收敛为一条全局 HeaderBar。
+- 复用现有 HeaderBar 的通知、主题、语言、登录/注册或用户菜单能力。
+- 首页不再渲染 LandingNav，避免全局导航与首页内导航重复。
+- 保持整体视觉简约、居中、干净；不新增依赖、不改后端、不改全局路由、不改 Footer。
+
+### 本轮修改文件
+
+- `web/classic/src/components/layout/headerbar/index.jsx`
+- `web/classic/src/components/layout/headerbar/HeaderLogo.jsx`
+- `web/classic/src/pages/Home/index.jsx`
+- `.ai/TASK.md`
+
+### 实现摘要
+
+- `HeaderBar` 根据当前路由判断 `/` 首页，在首页使用更克制的半透明背景、底部分割线、居中 `max-w-7xl` 容器和紧凑响应式布局。
+- `HeaderLogo` 增加可选 `showSubtitle`，仅首页桌面端显示副标题“API 中转与模型管理入口”。
+- `Home/index.jsx` 默认 landing 分支移除 `LandingNav` 渲染，保留公告条、Hero、模型区、FAQ、底部 CTA，以及 `home_page_content` 非空覆盖逻辑。
+- 未改 `ActionButtons`、通知、主题、语言、用户入口行为。
+
+### 验证命令与结果
+
+- `C:\Users\Administrator\.bun\bin\bun.exe run build`（目录 `web/classic`）：通过；仅有既有 Browserslist 过期、`lottie-web` eval、chunk size 警告。
+- `C:\Users\Administrator\.bun\bin\bun.exe run lint`（目录 `web/classic`）：通过。
+- `C:\Users\Administrator\.bun\bin\bun.exe run eslint`（目录 `web/classic`）：通过。
+- `git diff --check`：通过。
+- `C:\Users\Administrator\.bun\bin\bunx.exe prettier --check "src/pages/Home/**/*.{js,jsx}"`（目录 `web/classic`）：通过。
+- `C:\Users\Administrator\.bun\bin\bunx.exe eslint "src/pages/Home/**/*.{js,jsx}"`（目录 `web/classic`）：通过。
+
+### 自审查结论
+
+- 当前分支为 `feature/frontend-redesign-gptproto`。
+- 本轮仅修改 HeaderBar 首页展示、HeaderLogo 可选副标题、Home 默认 landing 分支和 `.ai/TASK.md`。
+- 未新增依赖，未修改 `package.json` / `bun.lock`。
+- 未修改后端 Go 文件。
+- 未修改全局路由、PageLayout、Footer、登录、注册、控制台或价格页业务逻辑。
+- 保留 `home_page_content` 非空覆盖默认首页逻辑、NoticeModal、`/api/notice`、系统名、Logo、`docs_link`、`server_address` 和 Base URL 展示/复制能力。
+- 首页 `/` 默认 landing 只保留一条顶部导航，通知、主题、语言和用户入口继续复用全局 HeaderBar。
+
+### 已知风险
+
+- 首页移动端 Header 中间导航采用横向滚动/压缩的最小改动策略，极窄屏仍建议人工复查图标按钮密度。
+- 本轮没有删除 `LandingNav.jsx` 文件，只是不再渲染，便于降低删除风险。
+
+### 提交状态
+
+- 验证通过，允许创建中文 commit：`前端：首页整合顶部导航栏`。

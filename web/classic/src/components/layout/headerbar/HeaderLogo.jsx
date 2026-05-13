@@ -31,6 +31,7 @@ const HeaderLogo = ({
   systemName,
   isSelfUseMode,
   isDemoSiteMode,
+  showSubtitle = false,
   t,
 }) => {
   if (isMobile && isConsoleRoute) {
@@ -47,8 +48,14 @@ const HeaderLogo = ({
           className={`absolute inset-0 w-full h-full transition-all duration-200 group-hover:scale-110 rounded-full ${!isLoading && logoLoaded ? 'opacity-100' : 'opacity-0'}`}
         />
       </div>
-      <div className='hidden md:flex items-center gap-2'>
-        <div className='flex items-center gap-2'>
+      <div className='hidden md:flex min-w-0 items-center gap-2'>
+        <div
+          className={
+            showSubtitle
+              ? 'flex min-w-0 flex-col justify-center gap-0.5'
+              : 'flex min-w-0 items-center gap-2'
+          }
+        >
           <SkeletonWrapper
             loading={isLoading}
             type='title'
@@ -62,6 +69,13 @@ const HeaderLogo = ({
               {systemName}
             </Typography.Title>
           </SkeletonWrapper>
+          {showSubtitle && !isLoading && (
+            <span className='hidden whitespace-nowrap text-xs leading-none text-semi-color-text-2 lg:inline'>
+              API 中转与模型管理入口
+            </span>
+          )}
+        </div>
+        <div className='flex shrink-0 items-center gap-2'>
           {(isSelfUseMode || isDemoSiteMode) && !isLoading && (
             <Tag
               color={isSelfUseMode ? 'purple' : 'blue'}

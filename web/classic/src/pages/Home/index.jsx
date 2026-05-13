@@ -18,14 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { useContext, useEffect, useMemo, useState } from 'react';
-import {
-  API,
-  showError,
-  copy,
-  showSuccess,
-  getLogo,
-  getSystemName,
-} from '../../helpers';
+import { API, showError, copy, showSuccess } from '../../helpers';
 import { useIsMobile } from '../../hooks/common/useIsMobile';
 import { API_ENDPOINTS } from '../../constants/common.constant';
 import { StatusContext } from '../../context/Status';
@@ -35,7 +28,6 @@ import { marked } from 'marked';
 import { useTranslation } from 'react-i18next';
 import NoticeModal from '../../components/layout/NoticeModal';
 import LandingAnnouncement from './components/LandingAnnouncement';
-import LandingNav from './components/LandingNav';
 import LandingHero from './components/LandingHero';
 import FeaturedModels from './components/FeaturedModels';
 import ModelFamilies from './components/ModelFamilies';
@@ -144,9 +136,6 @@ const Home = () => {
   const isMobile = useIsMobile();
   const isSelfUseMode = statusState?.status?.self_use_mode_enabled || false;
   const docsLink = statusState?.status?.docs_link || '';
-  const logo = statusState?.status?.logo || getLogo();
-  const systemName =
-    statusState?.status?.system_name || getSystemName() || 'New API';
   const serverAddress =
     statusState?.status?.server_address || `${window.location.origin}`;
   const endpointItems = API_ENDPOINTS.map((e) => ({ value: e }));
@@ -263,13 +252,6 @@ const Home = () => {
           <LandingAnnouncement
             announcement={announcement}
             docsLink={docsLink}
-          />
-          <LandingNav
-            docsLink={docsLink}
-            isSelfUseMode={isSelfUseMode}
-            logo={logo}
-            systemName={systemName}
-            user={userState.user}
           />
           <LandingHero
             docsLink={docsLink}
