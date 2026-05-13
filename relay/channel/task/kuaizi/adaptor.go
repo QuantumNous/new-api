@@ -247,18 +247,16 @@ func (a *TaskAdaptor) DoResponse(c *gin.Context, resp *http.Response, info *rela
 		return
 	}
 
-	if env.Code != 200 {
-		taskErr = service.TaskErrorWrapper(
-			fmt.Errorf("kuaizi upstream code=%d message=%s", env.Code, env.Message),
-			"upstream_error", http.StatusBadGateway)
-		return
-	}
-
 	tid, _ := env.Data["task_id"].(string)
+
+	// Kuaizi documents success as code==200, but some deployments return
+	// code==0. Treat the presence of a non-empty task_id as the authoritative
+	// success signal; otherwise propagate the full upstream body in the error
+	// so operators can see exactly what came back.
 	if tid == "" {
 		taskErr = service.TaskErrorWrapper(
-			fmt.Errorf("kuaizi response missing task_id: %s", responseBody),
-			"invalid_response", http.StatusInternalServerError)
+			fmt.Errorf("kuaizi upstream code=%d message=%q body=%s", env.Code, env.Message, string(responseBody)),
+			"upstream_error", http.StatusBadGateway)
 		return
 	}
 
@@ -309,11 +307,13 @@ func (a *TaskAdaptor) ParseTaskResult(respBody []byte) (*relaycommon.TaskInfo, e
 	if err := common.Unmarshal(respBody, &env); err != nil {
 		return nil, errors.Wrap(err, "unmarshal task status failed")
 	}
-	if env.Code != 200 {
+	// Same lenient success check as DoResponse: presence of data is the signal.
+	// Kuaizi returns code==200 per spec but some deployments return 0.
+	if env.Data == nil {
 		return &relaycommon.TaskInfo{
 			Code:   env.Code,
 			Status: model.TaskStatusFailure,
-			Reason: env.Message,
+			Reason: fmt.Sprintf("kuaizi status code=%d message=%q body=%s", env.Code, env.Message, string(respBody)),
 		}, nil
 	}
 
