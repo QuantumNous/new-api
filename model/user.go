@@ -29,6 +29,7 @@ type User struct {
 	Role             int            `json:"role" gorm:"type:int;default:1"`   // admin, common
 	Status           int            `json:"status" gorm:"type:int;default:1"` // enabled, disabled
 	Email            string         `json:"email" gorm:"index" validate:"max=50"`
+	Phone            *string        `json:"phone,omitempty" gorm:"type:varchar(20);uniqueIndex"`
 	GitHubId         string         `json:"github_id" gorm:"column:github_id;index"`
 	DiscordId        string         `json:"discord_id" gorm:"column:discord_id;index"`
 	OidcId           string         `json:"oidc_id" gorm:"column:oidc_id;index"`
@@ -90,6 +91,25 @@ func RotateUserSessionToken(userId int) (string, error) {
 		return "", err
 	}
 	return token, nil
+}
+
+// IssueUserSessionToken returns the token that should be stored in a newly
+// created dashboard session. When single-device login is enabled it rotates the
+// token so older devices are invalidated; otherwise it reuses the existing token
+// so multiple devices can stay signed in. Password changes should still call
+// RotateUserSessionToken directly to invalidate all old sessions.
+func IssueUserSessionToken(userId int) (string, error) {
+	if common.SingleDeviceLoginEnabled {
+		return RotateUserSessionToken(userId)
+	}
+	var current string
+	if err := DB.Model(&User{}).Where("id = ?", userId).Select("session_token").Scan(&current).Error; err != nil {
+		return "", err
+	}
+	if current != "" {
+		return current, nil
+	}
+	return RotateUserSessionToken(userId)
 }
 
 // ValidateUserSessionToken checks whether the session token matches the latest one in DB.

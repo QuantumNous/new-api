@@ -123,7 +123,7 @@ func authHelper(c *gin.Context, minRole int) {
 			return
 		}
 	}
-	// Session 登录态下，校验会话令牌是否仍为最新（单设备登录策略）
+	// Session 登录态下，校验会话令牌是否仍为最新；关闭单设备登录时，多设备共享同一个令牌。
 	if !useAccessToken {
 		sessionToken, _ := session.Get("session_token").(string)
 		idInt, ok := sessionNumberToInt(id)
