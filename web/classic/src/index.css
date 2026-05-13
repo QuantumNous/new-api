@@ -1448,10 +1448,10 @@ html.dark .headerbar-surface {
 }
 
 .pricing-marketplace-sidebar-card {
-  padding: 14px;
-  border: 1px solid var(--semi-color-border);
-  border-radius: 8px;
-  background: var(--semi-color-bg-1);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  background: transparent;
 }
 
 .pricing-marketplace-sidebar-head {
@@ -1459,17 +1459,194 @@ html.dark .headerbar-surface {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  margin-bottom: 10px;
+  padding: 0 2px 2px;
 }
 
 .pricing-marketplace-sidebar-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
   color: var(--semi-color-text-0);
-  font-size: 16px;
+  font-size: 14px;
   font-weight: 700;
 }
 
-.pricing-marketplace-sidebar-card .sbg-button {
-  border-radius: 6px;
+.pricing-marketplace-reset-button {
+  color: var(--semi-color-text-2);
+  font-size: 12px;
+}
+
+.pricing-marketplace-filter-panel {
+  overflow: hidden;
+  border: 1px solid var(--semi-color-border);
+  border-radius: 8px;
+  background: var(--semi-color-bg-1);
+}
+
+.pricing-marketplace-filter-panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  min-height: 46px;
+  padding: 0 14px;
+  border: 0;
+  background: transparent;
+  color: var(--semi-color-text-0);
+  cursor: pointer;
+}
+
+.pricing-marketplace-filter-panel-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.pricing-marketplace-filter-options {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 0 8px 10px;
+}
+
+.pricing-marketplace-filter-options-scroll {
+  max-height: 248px;
+  overflow-y: auto;
+  padding-right: 6px;
+  scrollbar-width: thin;
+}
+
+.pricing-marketplace-filter-option {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  min-height: 38px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--semi-color-text-1);
+  text-align: left;
+  cursor: pointer;
+  transition:
+    background-color 0.16s ease,
+    color 0.16s ease;
+}
+
+.pricing-marketplace-filter-option:hover,
+.pricing-marketplace-filter-option.is-active {
+  background: var(--semi-color-fill-0);
+  color: var(--semi-color-text-0);
+}
+
+.pricing-marketplace-filter-check {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border: 1px solid var(--semi-color-border);
+  border-radius: 4px;
+  background: var(--semi-color-bg-0);
+  color: var(--semi-color-bg-0);
+}
+
+.pricing-marketplace-filter-option.is-active .pricing-marketplace-filter-check {
+  border-color: var(--semi-color-text-0);
+  background: var(--semi-color-text-0);
+}
+
+.pricing-marketplace-filter-option-icon {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  color: var(--semi-color-text-2);
+}
+
+.pricing-marketplace-filter-option-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  font-size: 14px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pricing-marketplace-filter-count {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  min-width: 28px;
+  height: 22px;
+  padding: 0 8px;
+  border-radius: 7px;
+  background: var(--semi-color-fill-1);
+  color: var(--semi-color-text-2);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.pricing-marketplace-filter-option.is-active .pricing-marketplace-filter-count {
+  background: var(--semi-color-bg-2);
+  color: var(--semi-color-text-0);
+}
+
+.pricing-marketplace-more-filters {
+  border: 1px solid var(--semi-color-border);
+  border-radius: 8px;
+  background: var(--semi-color-bg-1);
+}
+
+.pricing-marketplace-more-filters-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  min-height: 42px;
+  padding: 0 14px;
+  border: 0;
+  background: transparent;
+  color: var(--semi-color-text-1);
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.pricing-marketplace-more-filters-toggle span:last-child {
+  color: var(--semi-color-text-3);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.pricing-marketplace-more-filters-content {
+  padding: 0 10px 10px;
+}
+
+.pricing-marketplace-more-filters-content > div {
+  margin-bottom: 16px !important;
+}
+
+.pricing-marketplace-mobile-filter-content {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+}
+
+.pricing-marketplace-mobile-filter-section {
+  padding: 4px 2px 0;
+}
+
+.pricing-marketplace-mobile-filter-section > div {
+  margin-bottom: 18px !important;
 }
 
 .pricing-marketplace-filter-summary {
@@ -1511,9 +1688,27 @@ html.dark .headerbar-surface {
 
 .pricing-marketplace-card-cover {
   position: relative;
-  height: 212px;
+  aspect-ratio: 16 / 9;
+  height: auto;
+  min-height: 190px;
   overflow: hidden;
   background: #f3f4f6;
+}
+
+.pricing-marketplace-cover-image-media {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.pricing-marketplace-card-cover.has-image::after {
+  position: absolute;
+  inset: auto 0 0;
+  height: 42%;
+  background: linear-gradient(to top, rgba(15, 23, 42, 0.36), transparent);
+  content: '';
+  pointer-events: none;
 }
 
 .pricing-marketplace-cover-pattern {
@@ -1602,6 +1797,7 @@ html.dark .headerbar-surface {
 
 .pricing-marketplace-cover-badge {
   position: absolute;
+  z-index: 2;
   bottom: 12px;
   left: 12px;
   box-shadow: 0 8px 18px rgba(15, 23, 42, 0.08);
@@ -1609,6 +1805,7 @@ html.dark .headerbar-surface {
 
 .pricing-marketplace-cover-actions {
   position: absolute;
+  z-index: 2;
   top: 10px;
   right: 10px;
   display: flex;
@@ -1685,6 +1882,11 @@ html.dark .pricing-marketplace-cover-pattern {
   filter: saturate(0.9) brightness(0.72);
 }
 
+html.dark .pricing-marketplace-filter-option:hover,
+html.dark .pricing-marketplace-filter-option.is-active {
+  background: rgba(255, 255, 255, 0.07);
+}
+
 @media (max-width: 767px) {
   .pricing-marketplace-shell {
     padding-bottom: 28px;
@@ -1740,7 +1942,7 @@ html.dark .pricing-marketplace-cover-pattern {
   }
 
   .pricing-marketplace-card-cover {
-    height: 196px;
+    min-height: 188px;
   }
 
   .pricing-marketplace-card-footer {

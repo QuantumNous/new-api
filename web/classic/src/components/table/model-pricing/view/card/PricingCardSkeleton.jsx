@@ -32,6 +32,7 @@ const PricingCardSkeleton = ({ skeletonCount = 12, rowSelection = false }) => {
           >
             <div className='pricing-marketplace-card-cover pricing-marketplace-cover-general'>
               <Skeleton.Image
+                className='pricing-marketplace-cover-image-media'
                 style={{
                   width: '100%',
                   height: '100%',

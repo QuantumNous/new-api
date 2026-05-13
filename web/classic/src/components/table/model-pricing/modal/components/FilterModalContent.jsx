@@ -34,8 +34,6 @@ const FilterModalContent = ({ sidebarProps, t }) => {
     currency,
     setCurrency,
     siteDisplayType,
-    handleChange,
-    setActiveKey,
     showRatio,
     setShowRatio,
     viewMode,
@@ -77,28 +75,13 @@ const FilterModalContent = ({ sidebarProps, t }) => {
   });
 
   return (
-    <>
-      <PricingDisplaySettings
-        showWithRecharge={showWithRecharge}
-        setShowWithRecharge={setShowWithRecharge}
-        currency={currency}
-        setCurrency={setCurrency}
-        siteDisplayType={siteDisplayType}
-        showRatio={showRatio}
-        setShowRatio={setShowRatio}
-        viewMode={viewMode}
-        setViewMode={setViewMode}
-        tokenUnit={tokenUnit}
-        setTokenUnit={setTokenUnit}
-        loading={loading}
-        t={t}
-      />
-
+    <div className='pricing-marketplace-mobile-filter-content'>
       <PricingModelTypes
         filterModelType={filterModelType}
         setFilterModelType={setFilterModelType}
         modelTypeCounts={modelTypeCounts}
         loading={loading}
+        defaultOpen
         t={t}
       />
 
@@ -108,45 +91,65 @@ const FilterModalContent = ({ sidebarProps, t }) => {
         models={vendorModels}
         allModels={categoryProps.models}
         loading={loading}
+        compact
+        defaultOpen
         t={t}
       />
 
-      <PricingGroups
-        filterGroup={filterGroup}
-        setFilterGroup={setFilterGroup}
-        usableGroup={categoryProps.usableGroup}
-        groupRatio={categoryProps.groupRatio}
-        models={groupCountModels}
-        loading={loading}
-        t={t}
-      />
+      <div className='pricing-marketplace-mobile-filter-section'>
+        <PricingGroups
+          filterGroup={filterGroup}
+          setFilterGroup={setFilterGroup}
+          usableGroup={categoryProps.usableGroup}
+          groupRatio={categoryProps.groupRatio}
+          models={groupCountModels}
+          loading={loading}
+          t={t}
+        />
 
-      <PricingQuotaTypes
-        filterQuotaType={filterQuotaType}
-        setFilterQuotaType={setFilterQuotaType}
-        models={quotaTypeModels}
-        loading={loading}
-        t={t}
-      />
+        <PricingQuotaTypes
+          filterQuotaType={filterQuotaType}
+          setFilterQuotaType={setFilterQuotaType}
+          models={quotaTypeModels}
+          loading={loading}
+          t={t}
+        />
 
-      <PricingTags
-        filterTag={filterTag}
-        setFilterTag={setFilterTag}
-        models={tagModels}
-        allModels={categoryProps.models}
-        loading={loading}
-        t={t}
-      />
+        <PricingTags
+          filterTag={filterTag}
+          setFilterTag={setFilterTag}
+          models={tagModels}
+          allModels={categoryProps.models}
+          loading={loading}
+          t={t}
+        />
 
-      <PricingEndpointTypes
-        filterEndpointType={filterEndpointType}
-        setFilterEndpointType={setFilterEndpointType}
-        models={endpointTypeModels}
-        allModels={categoryProps.models}
-        loading={loading}
-        t={t}
-      />
-    </>
+        <PricingEndpointTypes
+          filterEndpointType={filterEndpointType}
+          setFilterEndpointType={setFilterEndpointType}
+          models={endpointTypeModels}
+          allModels={categoryProps.models}
+          loading={loading}
+          t={t}
+        />
+
+        <PricingDisplaySettings
+          showWithRecharge={showWithRecharge}
+          setShowWithRecharge={setShowWithRecharge}
+          currency={currency}
+          setCurrency={setCurrency}
+          siteDisplayType={siteDisplayType}
+          showRatio={showRatio}
+          setShowRatio={setShowRatio}
+          viewMode={viewMode}
+          setViewMode={setViewMode}
+          tokenUnit={tokenUnit}
+          setTokenUnit={setTokenUnit}
+          loading={loading}
+          t={t}
+        />
+      </div>
+    </div>
   );
 };
 

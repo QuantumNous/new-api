@@ -3176,3 +3176,73 @@ status: completed
 ### Commit Status
 
 - Verification passed; allowed commit message: `front-end: rebuild marketplace and navigation visual` equivalent Chinese commit `前端：重构模型广场与导航视觉`.
+
+## Stage 3.R.1: marketplace filter and card cover visual tuning
+
+Task: Stage 3.R.1 model marketplace left filter and card cover visual tuning
+
+status: completed
+
+### Goals
+
+- Make the `/pricing` left filter closer to the supplied EvoLink models reference: compact white panels, checkbox-style rows, count badges, and lighter reset affordance.
+- Prepare model cards for future real cover images while keeping local CSS fallback art when no safe image field is available.
+- Keep this as a visual-only round: no backend, no dependency, no route, no HeaderBar/Footer/Home/App/PageLayout changes, and no pricing data or billing logic changes.
+
+### Changed Files
+
+- `web/classic/src/components/table/model-pricing/filter/PricingModelTypes.jsx`
+- `web/classic/src/components/table/model-pricing/filter/PricingVendors.jsx`
+- `web/classic/src/components/table/model-pricing/layout/PricingSidebar.jsx`
+- `web/classic/src/components/table/model-pricing/modal/components/FilterModalContent.jsx`
+- `web/classic/src/components/table/model-pricing/view/card/PricingCardSkeleton.jsx`
+- `web/classic/src/components/table/model-pricing/view/card/PricingCardView.jsx`
+- `web/classic/src/index.css`
+- `.ai/TASK.md`
+
+### Implementation Summary
+
+- Replaced the button-heavy model type filter with a local checkbox-style filter panel using label + count badge rows.
+- Added compact Provider panel support using the same visual system; desktop Provider defaults collapsed, mobile Provider defaults open.
+- Kept group, quota, tag, and endpoint filters, but moved them into a quieter More Filters section on desktop. If an advanced filter is active, the section opens automatically.
+- Updated mobile filter modal content so model type and Provider use the same simplified panels, while existing display and advanced filters remain available.
+- Added defensive model card cover source detection for `cover`, `coverImage`, `cover_image`, `image`, `imageUrl`, `image_url`, `thumbnail`, `thumbnailUrl`, `thumbnail_url`, `avatar`, `avatarUrl`, `avatar_url`, `icon`, and `vendor_icon` when they look like usable image URLs or image data.
+- Added lazy cover image rendering with `object-fit: cover`; failed image loads fall back to the existing local CSS placeholder art.
+- Adjusted card skeleton and scoped `pricing-marketplace-*` styles for 16:9 cover media, compact filter panels, scrollable provider options, mobile modal spacing, and dark mode readability.
+
+### Verification Results
+
+- `C:\Users\Administrator\.bun\bin\bun.exe run build` in `web/classic`: passed, with existing Browserslist, lottie eval, and chunk-size warnings only.
+- `C:\Users\Administrator\.bun\bin\bun.exe run lint` in `web/classic`: passed.
+- `$env:PATH="$env:USERPROFILE\.bun\bin;$env:PATH"; C:\Users\Administrator\.bun\bin\bun.exe run eslint` in `web/classic`: passed.
+- `git diff --check`: passed.
+- `C:\Users\Administrator\.bun\bin\bunx.exe prettier --check "src/components/table/model-pricing/**/*.{js,jsx}" "src/pages/Pricing/**/*.{js,jsx}"` in `web/classic`: pending final run.
+- `C:\Users\Administrator\.bun\bin\bunx.exe eslint "src/components/table/model-pricing/**/*.{js,jsx}" "src/pages/Pricing/**/*.{js,jsx}"` in `web/classic`: pending final run.
+
+### Manual Regression
+
+- Code-level check: search state and hero search were not changed.
+- Code-level check: model type and Provider filters still call the same setters and share the same counts from `usePricingFilterCounts`.
+- Code-level check: group, quota, tag, and endpoint filters remain mounted under More Filters and keep existing state setters.
+- Code-level check: reset still calls `resetPricingFilters` and clears existing filters/sort/page state.
+- Code-level check: sticky sidebar container and mobile filter modal wiring were preserved.
+- Code-level check: sorting, pagination, card/table switching, and detail SideSheet were not changed.
+- Code-level check: card cover images use safe detected fields only; no external EvoLink images or assets were added.
+- Code-level check: image load failure falls back to local CSS cover placeholder.
+- Code-level check: dark mode uses Semi CSS variables plus scoped dark selectors.
+
+### Self Review
+
+- Branch remained `feature/frontend-redesign-gptproto`.
+- Modified only allowed model-pricing components, scoped `index.css`, and `.ai/TASK.md`.
+- `.ai/references/` stayed untracked and was not staged.
+- No backend files changed; `/api/pricing` structure and real billing logic untouched.
+- No dependency files changed; `package.json` and `bun.lock` untouched.
+- No HeaderBar, Footer, Home, App.jsx, PageLayout.jsx, login/register, console business pages, or `/models` route changes.
+- Search, filtering, sorting, pagination, detail SideSheet, and card/table switching remain wired through existing state and components.
+- No EvoLink brand, logo, images, original copy, price numbers, or discount numbers were copied.
+
+### Known Risks
+
+- Verification is code-level/build-level; no browser screenshot pass was performed in this round.
+- Future real cover image field naming may differ from the defensive list; unsupported field names will still fall back safely to CSS placeholder.

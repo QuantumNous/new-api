@@ -57,6 +57,120 @@ const COVER_CLASS_BY_TYPE = {
   general: 'pricing-marketplace-cover-general',
 };
 
+const COVER_IMAGE_FIELDS = [
+  'cover',
+  'coverImage',
+  'cover_image',
+  'image',
+  'imageUrl',
+  'image_url',
+  'thumbnail',
+  'thumbnailUrl',
+  'thumbnail_url',
+  'avatar',
+  'avatarUrl',
+  'avatar_url',
+  'icon',
+  'vendor_icon',
+];
+
+const isUsableImageSource = (value) => {
+  if (!value || typeof value !== 'string') return false;
+  const source = value.trim();
+  if (!source) return false;
+  return (
+    /^https?:\/\//i.test(source) ||
+    source.startsWith('/') ||
+    source.startsWith('data:image/') ||
+    /\.(avif|gif|jpe?g|png|svg|webp)(\?.*)?$/i.test(source)
+  );
+};
+
+const getCoverImageSource = (model) => {
+  if (!model) return '';
+  const source = COVER_IMAGE_FIELDS.map((field) => model[field]).find(
+    isUsableImageSource,
+  );
+  return typeof source === 'string' ? source.trim() : '';
+};
+
+const ModelCardCover = ({
+  model,
+  coverClass,
+  modelCapability,
+  getModelIcon,
+  copyText,
+  rowSelection,
+  isSelected,
+  handleCheckboxChange,
+}) => {
+  const coverImageSource = React.useMemo(
+    () => getCoverImageSource(model),
+    [model],
+  );
+  const [imageFailed, setImageFailed] = React.useState(false);
+  const showImage = coverImageSource && !imageFailed;
+
+  React.useEffect(() => {
+    setImageFailed(false);
+  }, [coverImageSource]);
+
+  return (
+    <div
+      className={`pricing-marketplace-card-cover ${coverClass} ${
+        showImage ? 'has-image' : ''
+      }`}
+    >
+      {showImage ? (
+        <img
+          className='pricing-marketplace-cover-image-media'
+          src={coverImageSource}
+          alt={model?.model_name || ''}
+          loading='lazy'
+          onError={() => setImageFailed(true)}
+        />
+      ) : (
+        <>
+          <div className='pricing-marketplace-cover-pattern' />
+          <div className='pricing-marketplace-cover-icon'>
+            {getModelIcon(model)}
+          </div>
+        </>
+      )}
+
+      <Tag
+        className='pricing-marketplace-cover-badge'
+        color={modelCapability.color}
+        size='small'
+      >
+        {modelCapability.label}
+      </Tag>
+      <div className='pricing-marketplace-cover-actions'>
+        <Button
+          size='small'
+          theme='outline'
+          type='tertiary'
+          icon={<Copy size={12} />}
+          onClick={(event) => {
+            event.stopPropagation();
+            copyText(model.model_name);
+          }}
+        />
+
+        {rowSelection && (
+          <Checkbox
+            checked={isSelected}
+            onChange={(event) => {
+              event.stopPropagation();
+              handleCheckboxChange(model, event.target.checked);
+            }}
+          />
+        )}
+      </div>
+    </div>
+  );
+};
+
 const PricingCardView = ({
   filteredModels,
   loading,
@@ -280,41 +394,16 @@ const PricingCardView = ({
               onClick={() => openModelDetail && openModelDetail(model)}
             >
               <div className='flex h-full flex-col'>
-                <div className={`pricing-marketplace-card-cover ${coverClass}`}>
-                  <div className='pricing-marketplace-cover-pattern' />
-                  <div className='pricing-marketplace-cover-icon'>
-                    {getModelIcon(model)}
-                  </div>
-                  <Tag
-                    className='pricing-marketplace-cover-badge'
-                    color={modelCapability.color}
-                    size='small'
-                  >
-                    {modelCapability.label}
-                  </Tag>
-                  <div className='pricing-marketplace-cover-actions'>
-                    <Button
-                      size='small'
-                      theme='outline'
-                      type='tertiary'
-                      icon={<Copy size={12} />}
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        copyText(model.model_name);
-                      }}
-                    />
-
-                    {rowSelection && (
-                      <Checkbox
-                        checked={isSelected}
-                        onChange={(event) => {
-                          event.stopPropagation();
-                          handleCheckboxChange(model, event.target.checked);
-                        }}
-                      />
-                    )}
-                  </div>
-                </div>
+                <ModelCardCover
+                  model={model}
+                  coverClass={coverClass}
+                  modelCapability={modelCapability}
+                  getModelIcon={getModelIcon}
+                  copyText={copyText}
+                  rowSelection={rowSelection}
+                  isSelected={isSelected}
+                  handleCheckboxChange={handleCheckboxChange}
+                />
 
                 <div className='pricing-marketplace-card-body'>
                   <div className='pricing-marketplace-card-provider'>

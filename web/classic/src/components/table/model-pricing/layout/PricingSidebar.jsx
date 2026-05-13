@@ -18,7 +18,8 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import { Button } from '@douyinfe/semi-ui';
+import { Button, Collapsible } from '@douyinfe/semi-ui';
+import { SlidersHorizontal } from 'lucide-react';
 import PricingGroups from '../filter/PricingGroups';
 import PricingQuotaTypes from '../filter/PricingQuotaTypes';
 import PricingEndpointTypes from '../filter/PricingEndpointTypes';
@@ -60,6 +61,13 @@ const PricingSidebar = ({
   t,
   ...categoryProps
 }) => {
+  const hasAdvancedFilters =
+    filterGroup !== 'all' ||
+    filterQuotaType !== 'all' ||
+    filterEndpointType !== 'all' ||
+    filterTag !== 'all';
+  const [showMoreFilters, setShowMoreFilters] =
+    React.useState(hasAdvancedFilters);
   const {
     quotaTypeModels,
     endpointTypeModels,
@@ -96,15 +104,25 @@ const PricingSidebar = ({
       setTokenUnit,
     });
 
+  React.useEffect(() => {
+    if (hasAdvancedFilters) {
+      setShowMoreFilters(true);
+    }
+  }, [hasAdvancedFilters]);
+
   return (
     <div className='pricing-marketplace-sidebar-card'>
       <div className='pricing-marketplace-sidebar-head'>
-        <div className='pricing-marketplace-sidebar-title'>{t('筛选')}</div>
+        <div className='pricing-marketplace-sidebar-title'>
+          <SlidersHorizontal size={16} strokeWidth={1.8} />
+          <span>{t('筛选')}</span>
+        </div>
         <Button
-          theme='outline'
+          theme='borderless'
           type='tertiary'
           onClick={handleResetFilters}
           size='small'
+          className='pricing-marketplace-reset-button'
         >
           {t('重置')}
         </Button>
@@ -115,6 +133,7 @@ const PricingSidebar = ({
         setFilterModelType={setFilterModelType}
         modelTypeCounts={modelTypeCounts}
         loading={loading}
+        defaultOpen
         t={t}
       />
 
@@ -124,44 +143,61 @@ const PricingSidebar = ({
         models={vendorModels}
         allModels={categoryProps.models}
         loading={loading}
+        compact
+        defaultOpen={false}
         t={t}
       />
 
-      <PricingGroups
-        filterGroup={filterGroup}
-        setFilterGroup={handleGroupClick}
-        usableGroup={categoryProps.usableGroup}
-        groupRatio={categoryProps.groupRatio}
-        models={groupCountModels}
-        loading={loading}
-        t={t}
-      />
+      <section className='pricing-marketplace-more-filters'>
+        <button
+          type='button'
+          className='pricing-marketplace-more-filters-toggle'
+          onClick={() => setShowMoreFilters((value) => !value)}
+        >
+          <span>{t('更多筛选')}</span>
+          <span>{showMoreFilters ? t('收起') : t('展开')}</span>
+        </button>
 
-      <PricingQuotaTypes
-        filterQuotaType={filterQuotaType}
-        setFilterQuotaType={setFilterQuotaType}
-        models={quotaTypeModels}
-        loading={loading}
-        t={t}
-      />
+        <Collapsible isOpen={showMoreFilters}>
+          <div className='pricing-marketplace-more-filters-content'>
+            <PricingGroups
+              filterGroup={filterGroup}
+              setFilterGroup={handleGroupClick}
+              usableGroup={categoryProps.usableGroup}
+              groupRatio={categoryProps.groupRatio}
+              models={groupCountModels}
+              loading={loading}
+              t={t}
+            />
 
-      <PricingTags
-        filterTag={filterTag}
-        setFilterTag={setFilterTag}
-        models={tagModels}
-        allModels={categoryProps.models}
-        loading={loading}
-        t={t}
-      />
+            <PricingQuotaTypes
+              filterQuotaType={filterQuotaType}
+              setFilterQuotaType={setFilterQuotaType}
+              models={quotaTypeModels}
+              loading={loading}
+              t={t}
+            />
 
-      <PricingEndpointTypes
-        filterEndpointType={filterEndpointType}
-        setFilterEndpointType={setFilterEndpointType}
-        models={endpointTypeModels}
-        allModels={categoryProps.models}
-        loading={loading}
-        t={t}
-      />
+            <PricingTags
+              filterTag={filterTag}
+              setFilterTag={setFilterTag}
+              models={tagModels}
+              allModels={categoryProps.models}
+              loading={loading}
+              t={t}
+            />
+
+            <PricingEndpointTypes
+              filterEndpointType={filterEndpointType}
+              setFilterEndpointType={setFilterEndpointType}
+              models={endpointTypeModels}
+              allModels={categoryProps.models}
+              loading={loading}
+              t={t}
+            />
+          </div>
+        </Collapsible>
+      </section>
     </div>
   );
 };

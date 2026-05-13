@@ -20,26 +20,20 @@ For commercial licensing, please contact support@quantumnous.com
 import React from 'react';
 import SelectableButtonGroup from '../../../common/ui/SelectableButtonGroup';
 import { getLobeHubIcon } from '../../../../helpers';
+import { Tag } from 'lucide-react';
+import { PricingFilterOptionPanel } from './PricingModelTypes';
 
-/**
- * 供应商筛选组件
- * @param {string|'all'} filterVendor 当前值
- * @param {Function} setFilterVendor setter
- * @param {Array} models 模型列表
- * @param {Array} allModels 所有模型列表（用于获取全部供应商）
- * @param {boolean} loading 是否加载中
- * @param {Function} t i18n
- */
 const PricingVendors = ({
   filterVendor,
   setFilterVendor,
   models = [],
   allModels = [],
   loading = false,
+  compact = false,
+  defaultOpen = false,
   t,
 }) => {
-  // 获取系统中所有供应商（基于 allModels，如果未提供则退化为 models）
-  const getAllVendors = React.useMemo(() => {
+  const allVendors = React.useMemo(() => {
     const vendors = new Set();
     const vendorIcons = new Map();
     let hasUnknownVendor = false;
@@ -62,12 +56,9 @@ const PricingVendors = ({
     };
   }, [allModels, models]);
 
-  // 计算每个供应商的模型数量（基于当前过滤后的 models）
   const getVendorCount = React.useCallback(
     (vendor) => {
-      if (vendor === 'all') {
-        return models.length;
-      }
+      if (vendor === 'all') return models.length;
       if (vendor === 'unknown') {
         return models.filter((model) => !model.vendor_name).length;
       }
@@ -76,40 +67,50 @@ const PricingVendors = ({
     [models],
   );
 
-  // 生成供应商选项
   const items = React.useMemo(() => {
     const result = [
       {
         value: 'all',
-        label: t('全部供应商'),
+        label: t('全部提供商'),
         tagCount: getVendorCount('all'),
       },
     ];
 
-    // 添加所有已知供应商
-    getAllVendors.vendors.forEach((vendor) => {
-      const count = getVendorCount(vendor);
-      const icon = getAllVendors.vendorIcons.get(vendor);
+    allVendors.vendors.forEach((vendor) => {
+      const icon = allVendors.vendorIcons.get(vendor);
       result.push({
         value: vendor,
         label: vendor,
         icon: icon ? getLobeHubIcon(icon, 16) : null,
-        tagCount: count,
+        tagCount: getVendorCount(vendor),
       });
     });
 
-    // 如果系统中存在未知供应商，添加"未知供应商"选项
-    if (getAllVendors.hasUnknownVendor) {
-      const count = getVendorCount('unknown');
+    if (allVendors.hasUnknownVendor) {
       result.push({
         value: 'unknown',
         label: t('未知供应商'),
-        tagCount: count,
+        tagCount: getVendorCount('unknown'),
       });
     }
 
     return result;
-  }, [getAllVendors, getVendorCount, t]);
+  }, [allVendors, getVendorCount, t]);
+
+  if (compact) {
+    return (
+      <PricingFilterOptionPanel
+        title={t('提供商 / Provider')}
+        icon={Tag}
+        items={items}
+        activeValue={filterVendor}
+        onChange={setFilterVendor}
+        loading={loading}
+        defaultOpen={defaultOpen}
+        optionsClassName='pricing-marketplace-filter-options-scroll'
+      />
+    );
+  }
 
   return (
     <SelectableButtonGroup
