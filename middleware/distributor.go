@@ -16,6 +16,7 @@ import (
 	"github.com/QuantumNous/new-api/model"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/setting"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	"github.com/QuantumNous/new-api/types"
 
@@ -35,6 +36,13 @@ func Distribute() func(c *gin.Context) {
 		if err != nil {
 			abortWithOpenAiMessage(c, http.StatusBadRequest, i18n.T(c, i18n.MsgDistributorInvalidRequest, map[string]any{"Error": err.Error()}))
 			return
+		}
+		// Global model alias: lets legacy clients sending bare model names
+		// (e.g. gpt-4o) hit channels that have been migrated to namespaced
+		// ids (openai/gpt-4o). Single hop; aliases are not chained.
+		if alias := setting.GetGlobalModelAlias(modelRequest.Model); alias != "" && alias != modelRequest.Model {
+			common.SetContextKey(c, constant.ContextKeyModelAliasedFrom, modelRequest.Model)
+			modelRequest.Model = alias
 		}
 		if ok {
 			id, err := strconv.Atoi(channelId.(string))
