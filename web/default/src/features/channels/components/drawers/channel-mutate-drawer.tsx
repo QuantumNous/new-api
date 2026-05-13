@@ -633,14 +633,19 @@ export function ChannelMutateDrawer({
   // Handle type change - set default base_url and other type-specific defaults
   useEffect(() => {
     if (isEditing) return // Don't auto-set defaults when editing
+    if (currentType === 0) return
 
-    // Auto-fill base_url from backend defaults when type changes
-    const defaultUrl = CHANNEL_DEFAULT_BASE_URLS[currentType]
-    if (defaultUrl) {
-      const currentBaseUrlValue = form.getValues('base_url')
-      if (!currentBaseUrlValue || currentBaseUrlValue === '') {
-        form.setValue('base_url', defaultUrl)
-      }
+    const defaultUrl = CHANNEL_DEFAULT_BASE_URLS[currentType] ?? ''
+    const currentBaseUrlValue = form.getValues('base_url')
+
+    // Only overwrite base_url if it is empty OR it equals one of the known
+    // type defaults (i.e. user hasn't manually entered a custom URL)
+    const allDefaultUrls = Object.values(CHANNEL_DEFAULT_BASE_URLS)
+    const isDefaultOrEmpty =
+      !currentBaseUrlValue || allDefaultUrls.includes(currentBaseUrlValue)
+
+    if (isDefaultOrEmpty) {
+      form.setValue('base_url', defaultUrl)
     }
 
     // Type 18 (Xunfei) - set default other (version)
