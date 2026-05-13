@@ -8,15 +8,29 @@ import (
 	"strings"
 
 	"github.com/QuantumNous/new-api/dto"
+	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/relay/channel"
+	"github.com/QuantumNous/new-api/relay/channel/claude"
 	"github.com/QuantumNous/new-api/relay/channel/openai"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
-	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/types"
 
 	"github.com/gin-gonic/gin"
 )
+
+func isClaudeNativeRoute(info *relaycommon.RelayInfo) bool {
+	return info != nil && info.RelayFormat == types.RelayFormatClaude
+}
+
+var cfAigPassthroughResponseHeaders = []string{
+	"cf-aig-cache-status",
+	"cf-aig-cache-ttl",
+	"cf-aig-event-id",
+	"cf-aig-log-id",
+	"cf-aig-request-id",
+	"cf-ray",
+}
 
 // autoPrefixModel ensures the model name carries a {provider}/ prefix as required
 // by Cloudflare AI Gateway's OpenAI-compatible endpoint. If the model already
@@ -56,8 +70,8 @@ func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 		return "", errors.New("account_id/gateway_id is required (set in Other field, format: {account_id}/{gateway_id})")
 	}
 
-	if info.RelayFormat == types.RelayFormatClaude {
-		return fmt.Sprintf("%s/v1/%s/compat/chat/completions", info.ChannelBaseUrl, apiVersion), nil
+	if isClaudeNativeRoute(info) {
+		return fmt.Sprintf("%s/v1/%s/anthropic/v1/messages", info.ChannelBaseUrl, apiVersion), nil
 	}
 
 	switch info.RelayMode {
@@ -76,7 +90,42 @@ func (a *Adaptor) SetupRequestHeader(c *gin.Context, header *http.Header, info *
 	channel.SetupApiRequestHeader(info, c, header)
 	header.Del("x-api-key")
 	header.Del("cf-aig-authorization")
-	header.Set("Authorization", fmt.Sprintf("Bearer %s", info.ApiKey))
+	header.Del("Authorization")
+	forwarded := make(map[string][]string)
+	for k, vs := range c.Request.Header {
+		lk := strings.ToLower(k)
+		if !strings.HasPrefix(lk, "cf-aig-") {
+			continue
+		}
+		if lk == "cf-aig-authorization" {
+			continue
+		}
+		header.Del(k)
+		for _, v := range vs {
+			header.Add(k, v)
+		}
+		forwarded[k] = vs
+	}
+
+	if isClaudeNativeRoute(info) {
+		header.Set("x-api-key", info.ApiKey)
+		anthropicVersion := c.Request.Header.Get("anthropic-version")
+		if anthropicVersion == "" {
+			anthropicVersion = "2023-06-01"
+		}
+		header.Set("anthropic-version", anthropicVersion)
+		if anthropicBeta := c.Request.Header.Get("anthropic-beta"); anthropicBeta != "" {
+			header.Set("anthropic-beta", anthropicBeta)
+		}
+	} else {
+		header.Set("Authorization", fmt.Sprintf("Bearer %s", info.ApiKey))
+	}
+
+	if len(forwarded) > 0 {
+		logger.LogInfo(c, fmt.Sprintf("[cloudflare_aig] forwarding cf-aig-* request headers: %v", forwarded))
+	} else {
+		logger.LogInfo(c, "[cloudflare_aig] no cf-aig-* request headers from client (cache will fall back to gateway default TTL)")
+	}
 	return nil
 }
 
@@ -114,17 +163,7 @@ func (a *Adaptor) ConvertClaudeRequest(c *gin.Context, info *relaycommon.RelayIn
 	if request == nil {
 		return nil, errors.New("request is nil")
 	}
-	aiRequest, err := service.ClaudeToOpenAIRequest(*request, info)
-	if err != nil {
-		return nil, err
-	}
-	aiRequest.Model = autoPrefixModel(aiRequest.Model)
-	if info.SupportStreamOptions && info.IsStream {
-		aiRequest.StreamOptions = &dto.StreamOptions{
-			IncludeUsage: true,
-		}
-	}
-	return aiRequest, nil
+	return request, nil
 }
 
 func (a *Adaptor) ConvertGeminiRequest(c *gin.Context, info *relaycommon.RelayInfo, request *dto.GeminiChatRequest) (any, error) {
@@ -136,6 +175,14 @@ func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, request
 }
 
 func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (usage any, err *types.NewAPIError) {
+	a.passthroughCfAigResponseHeaders(c, resp)
+	if isClaudeNativeRoute(info) {
+		info.FinalRequestRelayFormat = types.RelayFormatClaude
+		if info.IsStream {
+			return claude.ClaudeStreamHandler(c, resp, info)
+		}
+		return claude.ClaudeHandler(c, resp, info)
+	}
 	switch info.RelayMode {
 	case relayconstant.RelayModeResponses:
 		if info.IsStream {
@@ -151,6 +198,37 @@ func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycom
 		}
 	}
 	return
+}
+
+func (a *Adaptor) passthroughCfAigResponseHeaders(c *gin.Context, resp *http.Response) {
+	if c == nil || c.Writer == nil || resp == nil {
+		return
+	}
+	seen := make(map[string]string)
+	for _, name := range cfAigPassthroughResponseHeaders {
+		if v := resp.Header.Get(name); v != "" {
+			c.Writer.Header().Set(name, v)
+			seen[name] = v
+		}
+	}
+	for k, vs := range resp.Header {
+		lk := strings.ToLower(k)
+		if !strings.HasPrefix(lk, "cf-aig-") {
+			continue
+		}
+		if _, ok := seen[lk]; ok {
+			continue
+		}
+		if len(vs) > 0 {
+			c.Writer.Header().Set(k, vs[0])
+			seen[lk] = vs[0]
+		}
+	}
+	if len(seen) > 0 {
+		logger.LogInfo(c, fmt.Sprintf("[cloudflare_aig] upstream cf-aig-* response headers: %v", seen))
+	} else {
+		logger.LogInfo(c, "[cloudflare_aig] upstream returned no cf-aig-* response headers")
+	}
 }
 
 func (a *Adaptor) GetModelList() []string {
