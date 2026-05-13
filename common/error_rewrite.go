@@ -50,6 +50,11 @@ var upstreamErrorRules = []upstreamErrorRule{
 	// Content policy - these can be passed through as they're about user content
 	// (intentionally not rewritten)
 
+	// Upstream new-api / one-api instance errors (Chinese) - hide upstream group/channel details
+	{
+		keywords:    []string{"可用渠道不存在", "可用渠道失败", "当前分组负载已饱和", "上游负载已饱和"},
+		replacement: "The requested model is currently unavailable. Please try again later.",
+	},
 	// Server errors - hide upstream provider identity
 	{
 		keywords:    []string{"internal server error", "bad gateway", "service unavailable", "gateway timeout", "overloaded"},

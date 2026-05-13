@@ -54,6 +54,22 @@ func TestRewriteUpstreamError_Enabled(t *testing.T) {
 			input:    "The server is overloaded, please try again later.",
 			expected: "The upstream service encountered an error. Please try again later.",
 		},
+		// Upstream new-api instance errors (Chinese)
+		{
+			name:     "Upstream new-api channel not found",
+			input:    "分组 default 下模型 gpt-4o 的可用渠道不存在（retry）",
+			expected: "The requested model is currently unavailable. Please try again later.",
+		},
+		{
+			name:     "Upstream new-api channel fetch failed",
+			input:    "获取分组 vip 下模型 claude-3-opus 的可用渠道失败（retry）: some error",
+			expected: "The requested model is currently unavailable. Please try again later.",
+		},
+		{
+			name:     "Upstream new-api group overloaded",
+			input:    "当前分组负载已饱和，请稍后再试，或升级账户以提升服务质量。",
+			expected: "The requested model is currently unavailable. Please try again later.",
+		},
 		// Context length
 		{
 			name:     "Context length exceeded",
