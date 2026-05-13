@@ -226,7 +226,7 @@ const PlaygroundSidebar = ({
               {renderBrandMark()}
               <div className='new-playground-brand-copy'>
                 <Typography.Title heading={5} className='!mb-0 brand-title'>
-                  AI生图&AI视频
+                  {t('操练场')}
                 </Typography.Title>
               </div>
             </div>
