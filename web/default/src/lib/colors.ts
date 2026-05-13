@@ -33,6 +33,7 @@ export type SemanticColor =
   | 'indigo'
   | 'violet'
   | 'grey'
+  | 'slate'
 
 export const colorToBgClass: Record<SemanticColor, string> = {
   blue: 'bg-chart-1',
@@ -51,6 +52,7 @@ export const colorToBgClass: Record<SemanticColor, string> = {
   indigo: 'bg-chart-1',
   violet: 'bg-chart-4',
   grey: 'bg-neutral',
+  slate: 'bg-muted-foreground',
 }
 
 export const avatarColorMap: Record<SemanticColor, string> = {
@@ -70,6 +72,7 @@ export const avatarColorMap: Record<SemanticColor, string> = {
   indigo: 'bg-chart-1/10 text-chart-1',
   violet: 'bg-chart-4/10 text-chart-4',
   grey: 'bg-muted text-muted-foreground',
+  slate: 'bg-muted text-muted-foreground',
 }
 
 export function getAvatarColorClass(name: string): string {
