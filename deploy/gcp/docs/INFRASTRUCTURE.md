@@ -225,7 +225,19 @@ CI/CD 推到的镜像 tag：
 | `new-api.app.flatkey.ai` | A → `34.54.128.101` | DNS only（灰云，证书签发期间） |
 | `new-api.api.flatkey.ai` | A → `34.54.128.101` | DNS only |
 
-证书签好后可考虑翻成 Proxied（橙云）拿 Cloudflare WAF/缓存，配合 GCP LB Cloud Armor 白名单 Cloudflare IP 段进一步收紧。
+### 为什么是 DNS only（决策记录）
+
+试图把这两个 hostname 切到 Cloudflare Proxied（橙云）会遇到 TLS 握手失败 —— Cloudflare Universal SSL 只覆盖一级深度子域（`flatkey.ai` 和 `*.flatkey.ai`），不覆盖 `new-api.app.flatkey.ai` / `new-api.api.flatkey.ai` 这种三级深度。
+
+要让代理模式可用，三个路径：
+
+| 路径 | 月成本 | 适用 |
+|---|---|---|
+| 保持 DNS only（当前） | $0 | 默认推荐：业务是动态 API，CF 缓存帮不上忙；GCP LB 自带 DDoS 防护；TLS 由 Google-managed cert 终结，评级 A |
+| 买 Cloudflare ACM | $10/月/zone | 只在需要 CF WAF/Bot 防护时考虑 |
+| 改成单级子域（如 `newapi.flatkey.ai`） | $0 但改动大 | 需要重签 GCP cert、改应用 OAuth 回调、改邮件链接 |
+
+GCP Cloud Armor（按请求计费，~$5/月起）通常比 Cloudflare Free 的 WAF 能力更强、更可控，所以业务真需要 WAF 时优先考虑它而不是 CF ACM。
 
 ## 监控
 
@@ -271,6 +283,7 @@ state prefix：`envs/prod`，所以完整路径是 `gs://vocai-gemini-prod-newap
 4. **Memorystore Basic 单实例**：同理，要 HA 升级到 Standard tier（多 ~$35/月）。
 5. **静态出口 IP 未开**：如果某个上游 AI 服务要白名单出口 IP，需要加 Cloud NAT + 保留 IP（~$15/月）。
 6. **Cloud Run ingress 暂为 ALL**：意味着 `*.run.app` 直连可达（虽然不曝光）。证书签好且 LB 稳定后可锁到 `INTERNAL_LOAD_BALANCER`。
+7. **Cloudflare DNS only（灰云）**：尝试翻 Proxied（橙云）会 TLS 握手失败，因为 Universal SSL 只覆盖 1 级深度子域；要解锁需要 Cloudflare ACM（$10/月/zone）或改 hostname 到单级。详见上面"为什么是 DNS only"。
 
 ## 升级路径
 

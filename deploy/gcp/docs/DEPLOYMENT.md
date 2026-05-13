@@ -166,9 +166,26 @@ availability_type = "REGIONAL"  // 原 ZONAL
 
 ### 把 Cloudflare 切到 Proxied 模式
 
-1. Cloudflare DNS → 把记录的橙云打开
-2. SSL/TLS → Overview → 选 **Full (strict)**（验证 origin 证书；Google-managed 证书是真证书，能通过验证）
-3. （可选）在 GCP 上加 Cloud Armor 只放行 Cloudflare 出口 IP 段（https://www.cloudflare.com/ips-v4 ） 防止源站被绕过
+> **当前默认是 DNS only**。决策记录见 `INFRASTRUCTURE.md` 的"为什么是 DNS only"。
+>
+> 直接翻成 Proxied 会失败：Cloudflare Universal SSL 不覆盖 `new-api.app.flatkey.ai` 这种三级深度子域，CF 边缘没证书可以呈给客户端，TLS 握手报 `sslv3 alert handshake failure`。
+
+要正确切到代理模式，必须先解决证书覆盖问题。三选一：
+
+1. **买 Cloudflare ACM**（$10/月/zone）
+   - Cloudflare → SSL/TLS → Edge Certificates → Total TLS → 提示激活 ACM → 订阅
+   - 启用 ACM 后，再开 Total TLS（Wildcard 模式），5–15 分钟自动签出多级深度证书
+2. **改 hostname 到单级深度**（如 `newapi.flatkey.ai`）
+   - 改 `terraform.tfvars` 的 `lb_domains` → `terraform apply`（重建 GCP cert）
+   - 改 Cloudflare DNS、应用里的 OAuth 回调、邮件链接、`FRONTEND_BASE_URL` 等
+3. **不要 CF 代理**，改用 GCP Cloud Armor 加 WAF/防护
+
+证书覆盖到位后再做：
+
+1. Cloudflare DNS → 翻橙云
+2. SSL/TLS → Overview → 选 **Full (strict)**（验证 origin 证书；Google-managed 证书能通过）
+3. （可选）GCP 上加 Cloud Armor 只放行 Cloudflare 出口 IP 段（https://www.cloudflare.com/ips-v4 ）防止源站被绕过
+4. 用 `curl -sv https://new-api.app.flatkey.ai 2>&1 | grep -E 'subject:|issuer:'` 验证证书 subject 含 hostname、issuer 是 CF / Let's Encrypt（说明走代理）
 
 ## 密钥与凭据管理
 
