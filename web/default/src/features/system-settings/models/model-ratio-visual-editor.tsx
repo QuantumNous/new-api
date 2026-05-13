@@ -365,7 +365,19 @@ export const ModelRatioVisualEditor = memo(
         }
       })
 
-      return modelData.sort((a, b) => a.name.localeCompare(b.name))
+      // Models with a primary price configured (ratio, fixed price, or expression)
+      // sort before models that only have secondary fields or no price at all.
+      const hasConfiguredPrice = (row: ModelRow): boolean =>
+        row.billingMode === 'tiered_expr' ||
+        hasValue(row.price) ||
+        hasValue(row.ratio)
+
+      return modelData.sort((a, b) => {
+        const aHas = hasConfiguredPrice(a)
+        const bHas = hasConfiguredPrice(b)
+        if (aHas !== bHas) return aHas ? -1 : 1
+        return a.name.localeCompare(b.name)
+      })
     }, [
       modelPrice,
       modelRatio,
