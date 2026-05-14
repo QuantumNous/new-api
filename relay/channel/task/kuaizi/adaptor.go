@@ -227,9 +227,16 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 		}
 	}
 
-	data, err := common.Marshal(body)
+	// Keep '&' literal in image URLs forwarded to the upstream (e.g. baidu
+	// query-string image URLs) — encoding/json's default HTML-safe escape
+	// turns '&' into '&', which a small minority of upstream URL
+	// fetchers consume byte-for-byte instead of decoding.
+	data, err := common.MarshalNoHTMLEscape(body)
 	if err != nil {
 		return nil, err
+	}
+	if common.DebugEnabled {
+		common.SysLog(fmt.Sprintf("[kuaizi] POST %s/create body=%s", a.baseURL, string(data)))
 	}
 	return bytes.NewReader(data), nil
 }
