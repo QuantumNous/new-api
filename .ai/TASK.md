@@ -3459,3 +3459,95 @@ status: completed
 
 - Verification and self-review passed with a documented scope note for existing unrelated Go test failures.
 - Allowed commit message: `模型：支持模型广场封面图配置`.
+## Stage Cover.1.1: fix model cover URL save and echo-back
+
+Task: Stage Cover.1.1 fix `cover_url` save / echo-back / `/api/pricing` / card display chain
+
+status: completed
+
+### Goal
+
+- Fix only the existing `cover_url` closed loop where users reported that editing and saving the classic admin model cover URL did not persist back into edit form or marketplace card display.
+- Keep this round limited to save, echo-back, `/api/pricing`, and card-read compatibility.
+- Do not add upload, visual redesign, pricing logic changes, filter/sort changes, or `web/default` changes.
+
+### User Repro
+
+- Edit a model in classic admin and fill `https://placehold.co/800x450.png`.
+- Submit successfully.
+- Open `/pricing`: the corresponding card still has no image.
+- Re-open the same model edit dialog: the cover URL input is empty again.
+
+### Root Cause
+
+- Backend create/update handlers only bound `cover_url` and did not accept the camelCase alias `coverUrl`.
+- In real classic admin/browser flow, `coverUrl` could still appear in payload/object mapping, which meant the request completed but `CoverURL` remained empty on the Go side.
+- Because the value was not persisted, detail echo-back and `/api/pricing` output also remained empty.
+- The card display logic itself was already correct once `cover_url` reached `/api/pricing`.
+
+### Changed Files
+
+- `controller/model_meta.go`
+- `controller/model_meta_test.go`
+- `web/classic/src/components/table/models/modals/EditModelModal.jsx`
+- `.ai/TASK.md`
+
+### Fix Summary
+
+- Added a small request wrapper in `controller/model_meta.go` so create/update accept both `cover_url` and `coverUrl`, while still storing only `cover_url`.
+- Kept existing validation semantics: empty string, `http://`, `https://`, and `/...` local path remain allowed.
+- Added backend round-trip tests covering:
+  - create via `coverUrl` alias;
+  - update via `cover_url`;
+  - detail echo-back;
+  - list echo-back;
+  - clearing `cover_url` back to empty string;
+  - `/api/pricing` still includes `cover_url`.
+- Added a minimal classic admin form normalization:
+  - edit dialog read path now normalizes `data.cover_url ?? data.coverUrl ?? ''`;
+  - submit payload now includes both `cover_url` and `coverUrl` with the same value as a compatibility guard.
+
+### Pricing / Card Result
+
+- `/api/pricing` behavior did not need structural change in this round.
+- Once the saved value exists, `PricingCardView.jsx` already prefers `cover_url` first and correctly displays `https://placehold.co/800x450.png`.
+
+### Verification Results
+
+- `go test ./controller -run "Test(CreateModelMetaAcceptsCoverURLAlias|UpdateModelMetaCoverURLRoundTrip|GetPricingIncludesCoverURL)" -count=1`: passed.
+- `go test ./controller -run TestGetPricingIncludesCoverURL -count=1`: passed.
+- `go test ./controller -run "Test(CreateModelMetaAcceptsCoverURLAlias|UpdateModelMetaCoverURLRoundTrip)" -count=1`: passed.
+- `go test ./...`: failed due to existing unrelated failures in:
+  - `github.com/QuantumNous/new-api/relay/channel/claude`
+  - `github.com/QuantumNous/new-api/relay/helper`
+  These failures are unrelated to this model cover URL fix; `controller` and `model` affected areas passed.
+- `C:\Users\Administrator\.bun\bin\bun.exe run build` in `web/classic`: passed, with existing bundle-size/browserlist warnings only.
+- `C:\Users\Administrator\.bun\bin\bun.exe run lint` in `web/classic`: passed.
+- `$env:PATH="$env:USERPROFILE\.bun\bin;$env:PATH"; C:\Users\Administrator\.bun\bin\bun.exe run eslint` in `web/classic`: passed.
+- `C:\Users\Administrator\.bun\bin\bunx.exe prettier --check "src/components/table/model-pricing/**/*.{js,jsx}" "src/components/table/models/**/*.{js,jsx}" "src/pages/**/*.{js,jsx}"`: passed.
+- `C:\Users\Administrator\.bun\bin\bunx.exe eslint "src/components/table/model-pricing/**/*.{js,jsx}" "src/components/table/models/**/*.{js,jsx}" "src/pages/**/*.{js,jsx}"`: passed.
+- `git diff --check`: passed.
+
+### Regression Result
+
+- Code-level/backend test regression confirms `https://placehold.co/800x450.png` now persists through create/update and is returned by detail/list/pricing responses.
+- Classic admin edit dialog now has a read-path compatibility fallback for both `cover_url` and `coverUrl`.
+- `/api/pricing` still returns `cover_url` and the marketplace card still prefers `cover_url` first.
+- Empty `cover_url` remains compatible and can still be cleared back to fallback cover behavior.
+- `icon` semantics and `vendor_icon` fallback behavior were not changed.
+- Search, filtering, sorting, pagination, and detail SideSheet were not changed in this round.
+
+### Self Review
+
+- Branch remained `feature/frontend-redesign-gptproto`.
+- Modified files stayed within allowed backend/classic admin/task log scope.
+- No dependency files changed.
+- No upload logic, upload button, or visual redesign was added.
+- No real billing logic or `/api/pricing` old-field semantics were changed.
+- `icon` field meaning was preserved.
+- `web/default` was not modified.
+
+### Known Risks
+
+- Existing deployed environments still need the backend process to run current `AutoMigrate(&Model{})` at startup if their real database does not yet have the `cover_url` column.
+- This round used backend tests and frontend build/lint verification, not a browser screenshot capture.

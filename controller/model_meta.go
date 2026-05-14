@@ -13,6 +13,19 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+type modelMetaRequest struct {
+	model.Model
+	CoverURLAlias string `json:"coverUrl"`
+}
+
+func (r modelMetaRequest) toModel() model.Model {
+	m := r.Model
+	if strings.TrimSpace(m.CoverURL) == "" && strings.TrimSpace(r.CoverURLAlias) != "" {
+		m.CoverURL = r.CoverURLAlias
+	}
+	return m
+}
+
 func normalizeModelCoverURL(raw string) (string, bool) {
 	value := strings.TrimSpace(raw)
 	if value == "" {
@@ -93,11 +106,12 @@ func GetModelMeta(c *gin.Context) {
 
 // CreateModelMeta 新建模型
 func CreateModelMeta(c *gin.Context) {
-	var m model.Model
-	if err := c.ShouldBindJSON(&m); err != nil {
+	var req modelMetaRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
 		common.ApiError(c, err)
 		return
 	}
+	m := req.toModel()
 	if m.ModelName == "" {
 		common.ApiErrorMsg(c, "模型名称不能为空")
 		return
@@ -129,11 +143,12 @@ func CreateModelMeta(c *gin.Context) {
 func UpdateModelMeta(c *gin.Context) {
 	statusOnly := c.Query("status_only") == "true"
 
-	var m model.Model
-	if err := c.ShouldBindJSON(&m); err != nil {
+	var req modelMetaRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
 		common.ApiError(c, err)
 		return
 	}
+	m := req.toModel()
 	if m.Id == 0 {
 		common.ApiErrorMsg(c, "缺少模型 ID")
 		return

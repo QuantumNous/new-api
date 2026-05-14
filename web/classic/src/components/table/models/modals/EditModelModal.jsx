@@ -139,6 +139,7 @@ const EditModelModal = (props) => {
       const res = await API.get(`/api/models/${props.editingModel.id}`);
       const { success, message, data } = res.data;
       if (success) {
+        data.cover_url = data.cover_url ?? data.coverUrl ?? '';
         // 处理tags
         if (data.tags) {
           data.tags = data.tags.split(',').filter(Boolean);
@@ -195,6 +196,8 @@ const EditModelModal = (props) => {
     try {
       const submitData = {
         ...values,
+        cover_url: values.cover_url || '',
+        coverUrl: values.cover_url || '',
         tags: Array.isArray(values.tags) ? values.tags.join(',') : values.tags,
         endpoints: values.endpoints || '',
         status: values.status ? 1 : 0,
