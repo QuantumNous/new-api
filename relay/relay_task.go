@@ -538,7 +538,35 @@ func mapTaskStatusToSimple(status model.TaskStatus) string {
 	}
 }
 
+// TaskModel2Dto builds the customer-facing task DTO. For channels listed in
+// taskcommon.whitelabelChannels the upstream envelope (task.Data) and the
+// internal upstream_model_name are stripped so the response carries no
+// provider branding. Admin/internal views must call TaskModel2DtoAdmin
+// instead to preserve the raw payload for debugging.
 func TaskModel2Dto(task *model.Task) *dto.TaskDto {
+	d := taskModel2DtoFull(task)
+	if taskcommon.ShouldWhitelabelPlatform(task.Platform) {
+		d.Data = nil
+		props := task.Properties
+		props.UpstreamModelName = ""
+		d.Properties = props
+		// Bypass GetResultURL's FailReason fallback — for non-success tasks
+		// it would otherwise expose the raw upstream error string. Only the
+		// proxy URL (set by polling on success) is safe to surface.
+		d.ResultURL = task.PrivateData.ResultURL
+		d.FailReason = taskcommon.ScrubBrandedText(task.FailReason)
+	}
+	return d
+}
+
+// TaskModel2DtoAdmin returns the unsanitized task DTO with the raw upstream
+// envelope intact. Use only for admin endpoints that need to inspect the
+// upstream provider's response.
+func TaskModel2DtoAdmin(task *model.Task) *dto.TaskDto {
+	return taskModel2DtoFull(task)
+}
+
+func taskModel2DtoFull(task *model.Task) *dto.TaskDto {
 	return &dto.TaskDto{
 		ID:         task.ID,
 		CreatedAt:  task.CreatedAt,

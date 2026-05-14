@@ -3,13 +3,73 @@ package taskcommon
 import (
 	"encoding/base64"
 	"fmt"
+	"strconv"
+	"strings"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/model"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/setting/system_setting"
 	"github.com/gin-gonic/gin"
 )
+
+// whitelabelChannels lists channel types whose upstream URL/branding must
+// never reach customers. For these channels the public result_url is the
+// new-api proxy URL; the real upstream URL is preserved inside task.Data
+// and only resolved server-side by controller.VideoProxy.
+var whitelabelChannels = map[int]struct{}{
+	constant.ChannelTypeKuaiziLizhen: {},
+}
+
+// ShouldWhitelabelPlatform reports whether tasks on the given platform must
+// be served through the proxy regardless of whether the adapter produced a
+// direct upstream URL. The platform string for video channels is the
+// stringified channel type (see relay.GetTaskPlatform).
+func ShouldWhitelabelPlatform(platform constant.TaskPlatform) bool {
+	ct, err := strconv.Atoi(string(platform))
+	if err != nil {
+		return false
+	}
+	_, ok := whitelabelChannels[ct]
+	return ok
+}
+
+// ShouldWhitelabelChannelType reports whether the given channel type is on
+// the whitelabel list (used by controller code that has channel.Type at hand).
+func ShouldWhitelabelChannelType(channelType int) bool {
+	_, ok := whitelabelChannels[channelType]
+	return ok
+}
+
+// brandKeywords lists provider-identifying substrings that must not appear in
+// customer-facing text. Match is case-insensitive. Extend when adding new
+// whitelabel channels.
+var brandKeywords = []string{
+	"kuaizi", "lizhen",
+	"volces", "volcengine",
+	"bytedance",
+	"kz-cgt",
+	"tos-cn-beijing",
+}
+
+// ScrubBrandedText returns the input unchanged when it contains none of the
+// known brand keywords, otherwise returns a generic failure message. Used on
+// whitelabel channels for free-form fields (e.g. fail_reason) where upstream
+// text may leak the provider identity. Admins still see the original via
+// TaskModel2DtoAdmin.
+func ScrubBrandedText(s string) string {
+	if s == "" {
+		return ""
+	}
+	lower := strings.ToLower(s)
+	for _, kw := range brandKeywords {
+		if strings.Contains(lower, kw) {
+			return "task failed at upstream provider"
+		}
+	}
+	return s
+}
 
 // UnmarshalMetadata converts a map[string]any metadata to a typed struct via JSON round-trip.
 // This replaces the repeated pattern: json.Marshal(metadata) → json.Unmarshal(bytes, &target).

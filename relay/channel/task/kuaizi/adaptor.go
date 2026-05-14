@@ -359,6 +359,22 @@ func (a *TaskAdaptor) ParseTaskResult(respBody []byte) (*relaycommon.TaskInfo, e
 	return info, nil
 }
 
+// ExtractUpstreamVideoURL parses the raw upstream envelope persisted in
+// task.Data (the redacted {code,message,data} body from /status) and returns
+// the upstream `video_url`. Returns "" if the envelope can't be parsed or the
+// URL field isn't present. Used by controller.VideoProxy to resolve the real
+// download URL when serving whitelabeled responses.
+func ExtractUpstreamVideoURL(taskData []byte) string {
+	if len(taskData) == 0 {
+		return ""
+	}
+	var env envelope
+	if err := common.Unmarshal(taskData, &env); err != nil {
+		return ""
+	}
+	return extractVideoURL(env.Data)
+}
+
 // extractVideoURL is a defensive fallback for the success download link.
 // Real Kuaizi responses use `video_url`, which statusResponseData reads
 // directly; this helper handles the case where a future API revision moves
@@ -394,14 +410,18 @@ func (a *TaskAdaptor) ConvertToOpenAIVideo(originTask *model.Task) ([]byte, erro
 	ov.TaskID = originTask.TaskID
 	ov.Status = originTask.Status.ToVideoStatus()
 	ov.SetProgressStr(originTask.Progress)
-	ov.SetMetadata("url", extractVideoURL(env.Data))
+	// Use the whitelabeled proxy URL stored at success time, not the upstream
+	// volces.com TOS link — customers must never see the real provider host.
+	if originTask.Status == model.TaskStatusSuccess {
+		ov.SetMetadata("url", originTask.GetResultURL())
+	}
 	ov.CreatedAt = originTask.CreatedAt
 	ov.CompletedAt = originTask.UpdatedAt
 	ov.Model = originTask.Properties.OriginModelName
 
 	if originTask.Status == model.TaskStatusFailure {
 		ov.Error = &dto.OpenAIVideoError{
-			Message: originTask.FailReason,
+			Message: taskcommon.ScrubBrandedText(originTask.FailReason),
 			Code:    strconv.Itoa(env.Code),
 		}
 	}
