@@ -143,6 +143,12 @@ function replaceToken(source: string, token: string, value: string) {
   return source.split(token).join(value)
 }
 
+function normalizeApiKey(apiKey: string): string {
+  const trimmed = apiKey.trim()
+  if (!trimmed) return ''
+  return trimmed.startsWith('sk-') ? trimmed : `sk-${trimmed}`
+}
+
 export function resolveChatUrl({
   template,
   apiKey,
@@ -151,7 +157,7 @@ export function resolveChatUrl({
   let url = template
   const safeServerAddress = serverAddress || ''
 
-  const safeApiKey = apiKey || ''
+  const safeApiKey = normalizeApiKey(apiKey || '')
 
   if (url.includes('{cherryConfig}')) {
     const payload = {

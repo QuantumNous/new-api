@@ -176,8 +176,8 @@ export function BillingHistoryDialog({
                   </p>
                   <p className='mt-1 text-xs'>
                     {keyword
-                      ? 'Try adjusting your search'
-                      : 'Your transaction history will appear here'}
+                      ? t('Try adjusting your search')
+                      : t('Your transaction history will appear here')}
                   </p>
                 </div>
               ) : (
@@ -233,15 +233,15 @@ export function BillingHistoryDialog({
                         <div className='mt-3 grid grid-cols-2 gap-3 sm:mt-4 sm:grid-cols-3 sm:gap-4'>
                           <div className='space-y-1'>
                             <Label className='text-muted-foreground text-xs'>
-                              Payment Method
+                              {t('Payment Method')}
                             </Label>
                             <div className='text-sm font-medium'>
-                              {getPaymentMethodName(record.payment_method)}
+                              {getPaymentMethodName(record.payment_method, t)}
                             </div>
                           </div>
                           <div className='space-y-1'>
                             <Label className='text-muted-foreground text-xs'>
-                              Amount
+                              {t('Amount')}
                             </Label>
                             <div className='text-sm font-semibold'>
                               {formatCurrencyFromUSD(record.amount, {
@@ -253,7 +253,7 @@ export function BillingHistoryDialog({
                           </div>
                           <div className='space-y-1'>
                             <Label className='text-muted-foreground text-xs'>
-                              Payment
+                              {t('Payment')}
                             </Label>
                             <div className='text-sm font-semibold text-red-600'>
                               {formatNumber(record.money)}
@@ -270,7 +270,7 @@ export function BillingHistoryDialog({
                               onClick={() => setConfirmTradeNo(record.trade_no)}
                               disabled={completing}
                             >
-                              Complete Order
+                              {t('Complete Order')}
                             </Button>
                           </div>
                         )}
@@ -341,7 +341,7 @@ export function BillingHistoryDialog({
               onClick={handleConfirmComplete}
               disabled={completing}
             >
-              {completing ? 'Processing...' : 'Confirm'}
+              {completing ? t('Processing...') : t('Confirm')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

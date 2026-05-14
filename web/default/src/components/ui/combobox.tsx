@@ -68,6 +68,7 @@ function Combobox(
         placeholder={props.searchPlaceholder ?? props.placeholder}
         emptyText={props.emptyText}
         className={props.className}
+        allowCustomValue={props.allowCustomValue}
       />
     )
   }

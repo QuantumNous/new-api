@@ -109,24 +109,22 @@ function ModelChartsFallback() {
 
 function PerformanceOverviewFallback() {
   return (
-    <div className='space-y-3 sm:space-y-4'>
-      <div className='overflow-hidden rounded-lg border'>
-        <div className='divide-border/60 grid grid-cols-2 divide-x sm:grid-cols-4'>
-          {Array.from({ length: 4 }).map((_, i) => (
-            <div key={i} className='px-3 py-2.5 sm:px-5 sm:py-4'>
-              <Skeleton className='h-4 w-24' />
-              <Skeleton className='mt-2 h-7 w-20' />
-              <Skeleton className='mt-1.5 h-3.5 w-28' />
-            </div>
+    <div className='overflow-hidden rounded-lg border'>
+      <div className='flex flex-wrap items-center gap-x-6 gap-y-2 px-4 py-3 sm:px-5'>
+        <div className='flex items-center gap-2'>
+          <Skeleton className='h-4 w-24' />
+        </div>
+        {Array.from({ length: 3 }).map((_, i) => (
+          <div key={i} className='flex items-center gap-1.5'>
+            <Skeleton className='h-3 w-14' />
+            <Skeleton className='h-4 w-16' />
+          </div>
+        ))}
+        <div className='ml-auto flex items-center gap-2'>
+          {Array.from({ length: 2 }).map((_, i) => (
+            <Skeleton key={i} className='h-5 w-28 rounded-full' />
           ))}
         </div>
-      </div>
-      <div className='overflow-hidden rounded-lg border'>
-        <div className='flex items-center justify-between border-b px-4 py-3 sm:px-5'>
-          <Skeleton className='h-5 w-40' />
-          <Skeleton className='h-4 w-48' />
-        </div>
-        <Skeleton className='h-44 w-full' />
       </div>
     </div>
   )
@@ -267,12 +265,14 @@ export function Dashboard() {
                   />
                 </Suspense>
               </FadeIn>
+              {isAdmin && (
+                <FadeIn delay={0.05}>
+                  <Suspense fallback={<PerformanceOverviewFallback />}>
+                    <LazyPerformanceOverview />
+                  </Suspense>
+                </FadeIn>
+              )}
               <FadeIn delay={0.1}>
-                <Suspense fallback={<PerformanceOverviewFallback />}>
-                  <LazyPerformanceOverview />
-                </Suspense>
-              </FadeIn>
-              <FadeIn delay={0.15}>
                 <Suspense fallback={<ModelChartsFallback />}>
                   <LazyConsumptionDistributionChart
                     data={modelData}
@@ -286,7 +286,7 @@ export function Dashboard() {
                   />
                 </Suspense>
               </FadeIn>
-              <FadeIn delay={0.2}>
+              <FadeIn delay={0.15}>
                 <Suspense fallback={<ModelChartsFallback />}>
                   <LazyModelCharts
                     data={modelData}

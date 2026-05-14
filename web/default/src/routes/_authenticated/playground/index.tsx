@@ -16,11 +16,17 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { createFileRoute } from '@tanstack/react-router'
+import { createFileRoute, redirect } from '@tanstack/react-router'
 import { Main } from '@/components/layout'
 import { Playground } from '@/features/playground'
+import { isSidebarModuleEnabled } from '@/lib/nav-modules'
 
 export const Route = createFileRoute('/_authenticated/playground/')({
+  beforeLoad: () => {
+    if (!isSidebarModuleEnabled('chat', 'playground')) {
+      throw redirect({ to: '/dashboard' })
+    }
+  },
   component: PlaygroundPage,
 })
 
