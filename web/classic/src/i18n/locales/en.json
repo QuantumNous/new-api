@@ -3860,6 +3860,10 @@
     "Relay Format": "Relay Format",
     "重试次数": "Retry count",
     "重试通道链": "Retry channel chain",
-    "上游错误摘要": "Upstream error summary"
+    "上游错误摘要": "Upstream error summary",
+    "模型封面图片 URL": "Model cover image URL",
+    "模型封面图片 URL 格式不正确": "Model cover image URL format is invalid",
+    "请输入 https:// 图片地址或 /resource/images/... 路径": "Please enter an https:// image URL or a /resource/images/... path",
+    "用于模型广场卡片顶部封面图。支持 https:// 图片地址或站内 /resource/... 图片地址。留空时使用默认占位封面。": "Used for the top cover image on marketplace cards. Supports https:// image URLs or site-local /resource/... image paths. Leave empty to use the default placeholder cover."
   }
 }

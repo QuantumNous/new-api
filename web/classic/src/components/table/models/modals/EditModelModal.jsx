@@ -116,6 +116,7 @@ const EditModelModal = (props) => {
     model_name: props.editingModel?.model_name || '',
     description: '',
     icon: '',
+    cover_url: '',
     tags: [],
     vendor_id: undefined,
     vendor: '',
@@ -352,6 +353,20 @@ const EditModelModal = (props) => {
                           </Typography.Text>
                         </span>
                       }
+                      showClear
+                    />
+                  </Col>
+
+                  <Col span={24}>
+                    <Form.Input
+                      field='cover_url'
+                      label={t('模型封面图片 URL')}
+                      placeholder={t(
+                        '请输入 https:// 图片地址或 /resource/images/... 路径',
+                      )}
+                      extraText={t(
+                        '用于模型广场卡片顶部封面图。支持 https:// 图片地址或站内 /resource/... 图片地址。留空时使用默认占位封面。',
+                      )}
                       showClear
                     />
                   </Col>

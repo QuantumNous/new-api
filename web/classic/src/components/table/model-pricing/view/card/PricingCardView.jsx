@@ -58,6 +58,8 @@ const COVER_CLASS_BY_TYPE = {
 };
 
 const COVER_IMAGE_FIELDS = [
+  'cover_url',
+  'coverUrl',
   'cover',
   'coverImage',
   'cover_image',

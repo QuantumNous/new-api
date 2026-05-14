@@ -13,6 +13,20 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+func normalizeModelCoverURL(raw string) (string, bool) {
+	value := strings.TrimSpace(raw)
+	if value == "" {
+		return "", true
+	}
+	if strings.HasPrefix(value, "http://") || strings.HasPrefix(value, "https://") {
+		return value, true
+	}
+	if strings.HasPrefix(value, "/") {
+		return value, true
+	}
+	return "", false
+}
+
 // GetAllModelsMeta 获取模型列表（分页）
 func GetAllModelsMeta(c *gin.Context) {
 
@@ -88,6 +102,12 @@ func CreateModelMeta(c *gin.Context) {
 		common.ApiErrorMsg(c, "模型名称不能为空")
 		return
 	}
+	coverURL, ok := normalizeModelCoverURL(m.CoverURL)
+	if !ok {
+		common.ApiErrorMsg(c, "模型封面图片 URL 格式不正确")
+		return
+	}
+	m.CoverURL = coverURL
 	// 名称冲突检查
 	if dup, err := model.IsModelNameDuplicated(0, m.ModelName); err != nil {
 		common.ApiError(c, err)
@@ -117,6 +137,14 @@ func UpdateModelMeta(c *gin.Context) {
 	if m.Id == 0 {
 		common.ApiErrorMsg(c, "缺少模型 ID")
 		return
+	}
+	if !statusOnly {
+		coverURL, ok := normalizeModelCoverURL(m.CoverURL)
+		if !ok {
+			common.ApiErrorMsg(c, "模型封面图片 URL 格式不正确")
+			return
+		}
+		m.CoverURL = coverURL
 	}
 
 	if statusOnly {

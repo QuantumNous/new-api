@@ -26,6 +26,11 @@ type listModelsResponse struct {
 	Object  string             `json:"object"`
 }
 
+type pricingResponse struct {
+	Success bool            `json:"success"`
+	Data    []model.Pricing `json:"data"`
+}
+
 func setupModelListControllerTestDB(t *testing.T) *gorm.DB {
 	t.Helper()
 
@@ -239,4 +244,48 @@ func TestListModelsTokenLimitIncludesTieredBillingModel(t *testing.T) {
 	require.NotContains(t, ids, "zz-token-tiered-empty-expr-model")
 	require.NotContains(t, ids, "zz-token-tiered-missing-expr-model")
 	require.NotContains(t, ids, "zz-token-unpriced-model")
+}
+
+func TestGetPricingIncludesCoverURL(t *testing.T) {
+	withSelfUseModeDisabled(t)
+	db := setupModelListControllerTestDB(t)
+	model.InvalidatePricingCache()
+	t.Cleanup(model.InvalidatePricingCache)
+
+	require.NoError(t, db.Create(&model.Channel{
+		Id:     1,
+		Type:   constant.ChannelTypeOpenAI,
+		Key:    "test-key",
+		Name:   "test-channel",
+		Status: common.ChannelStatusEnabled,
+		Group:  "default",
+		Models: "zz-cover-model",
+	}).Error)
+	require.NoError(t, db.Create(&model.Ability{
+		Group:     "default",
+		Model:     "zz-cover-model",
+		ChannelId: 1,
+		Enabled:   true,
+	}).Error)
+	require.NoError(t, db.Create(&model.Model{
+		ModelName: "zz-cover-model",
+		CoverURL:  "/resource/images/zz-cover-model.webp",
+		Status:    1,
+	}).Error)
+
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = httptest.NewRequest(http.MethodGet, "/api/pricing", nil)
+
+	GetPricing(ctx)
+
+	require.Equal(t, http.StatusOK, recorder.Code)
+	var payload pricingResponse
+	require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &payload))
+	require.True(t, payload.Success)
+
+	pricingByName := pricingByModelName(payload.Data)
+	item, ok := pricingByName["zz-cover-model"]
+	require.True(t, ok)
+	require.Equal(t, "/resource/images/zz-cover-model.webp", item.CoverURL)
 }

@@ -3715,6 +3715,10 @@
     "Relay Format": "Format Relay",
     "重试次数": "Nombre de tentatives",
     "重试通道链": "Chaîne des canaux retentés",
-    "上游错误摘要": "Résumé de l'erreur amont"
+    "上游错误摘要": "Résumé de l'erreur amont",
+    "模型封面图片 URL": "URL de l'image de couverture du modèle",
+    "模型封面图片 URL 格式不正确": "Le format de l'URL de l'image de couverture du modèle est invalide",
+    "请输入 https:// 图片地址或 /resource/images/... 路径": "Veuillez saisir une URL d'image en https:// ou un chemin /resource/images/...",
+    "用于模型广场卡片顶部封面图。支持 https:// 图片地址或站内 /resource/... 图片地址。留空时使用默认占位封面。": "Utilisé pour l'image de couverture en haut des cartes de la place de marché des modèles. Prend en charge les URL d'image en https:// ou les chemins d'image locaux /resource/.... Laissez vide pour utiliser la couverture de remplacement par défaut."
   }
 }

@@ -3310,3 +3310,152 @@ status: completed
 
 - This round used code/build-level verification rather than pixel screenshot validation in a real browser.
 - The exact first-viewport feel can still vary if the deployed HeaderBar height or browser UI differs from the 64px header spacing used by the existing layout.
+
+## Stage Cover.1: classic admin model cover URL closed loop
+
+Task: Stage Cover.1 classic admin model cover URL closed loop
+
+status: completed
+
+### Goal
+
+- Add a classic admin-only `cover_url` configuration field for model metadata.
+- Save `cover_url` into the model metadata table through existing create/edit APIs.
+- Return `cover_url` from `/api/pricing` without changing existing pricing semantics.
+- Make `/pricing` marketplace cards prefer `cover_url` while preserving the existing CSS fallback cover.
+- Keep this round URL-only: no file upload, no upload button, no billing logic changes, no `icon` semantic change, and no `web/default` changes.
+
+### Confirmed Plan
+
+- User confirmed that model cover assets are not stored in frontend code and are not uploaded in this stage.
+- Classic admin form only accepts URL/path input.
+- Supported sources are public image URLs such as `https://...` and site-local paths such as `/resource/images/...`.
+- `icon` remains the model icon field for `@lobehub/icons` semantics and is not repurposed as cover storage.
+
+### Changed Files
+
+- `model/model_meta.go`
+- `model/pricing.go`
+- `controller/model_meta.go`
+- `controller/model_list_test.go`
+- `web/classic/src/components/table/models/modals/EditModelModal.jsx`
+- `web/classic/src/components/table/model-pricing/view/card/PricingCardView.jsx`
+- `web/classic/src/i18n/locales/en.json`
+- `web/classic/src/i18n/locales/zh.json`
+- `web/classic/src/i18n/locales/zh-CN.json`
+- `web/classic/src/i18n/locales/zh-TW.json`
+- `web/classic/src/i18n/locales/fr.json`
+- `web/classic/src/i18n/locales/ja.json`
+- `web/classic/src/i18n/locales/ru.json`
+- `web/classic/src/i18n/locales/vi.json`
+- `.ai/TASK.md`
+
+### Database Change
+
+- Added model metadata field `cover_url` on `model.Model`.
+- Storage type uses GORM `varchar(512)` and remains nullable/empty-string compatible.
+- Migration is handled by the existing `DB.AutoMigrate(&Model{})` path, so no destructive SQL migration was introduced.
+- This remains compatible with SQLite, MySQL, and PostgreSQL because it only adds a regular string column through existing GORM migration flow.
+
+### Backend Change
+
+- `controller.CreateModelMeta` and `controller.UpdateModelMeta` now accept `cover_url`.
+- Added lightweight normalization and validation:
+  - empty string allowed;
+  - `http://` allowed;
+  - `https://` allowed;
+  - `/`-prefixed site-local path allowed.
+- No external reachability check, image dimension check, upload logic, or `icon` mutation was added.
+- `status_only=true` update path remains unchanged and does not touch other fields.
+
+### Pricing API Change
+
+- `model.Pricing` now includes optional JSON field `cover_url`.
+- `/api/pricing` items inherit `cover_url` from matched model metadata during pricing cache build.
+- Existing `data`, `vendors`, `group_ratio`, `usable_group`, `supported_endpoint`, `auto_groups`, and TryUserAuth logic were not changed.
+- Existing price calculation, quota type, billing expr, and pricing field semantics were not changed.
+
+### Classic Admin Form Change
+
+- Added classic admin model form field `模型封面图片 URL` in the basic information section, near name/icon/description metadata.
+- Added helper text explaining that the field is used for marketplace card top covers and supports `https://` or `/resource/...` paths.
+- Existing model icon field label and meaning remain unchanged.
+- Existing create/edit flow now sends `cover_url`, and edit mode reads back `cover_url` from `/api/models/:id`.
+
+### Marketplace Card Change
+
+- `PricingCardView.jsx` now checks cover sources in this priority order:
+  - `cover_url`
+  - `coverUrl`
+  - `cover`
+  - `coverImage`
+  - `cover_image`
+  - `image`
+  - `imageUrl`
+  - `image_url`
+  - `thumbnail`
+  - `thumbnailUrl`
+  - `thumbnail_url`
+  - `avatar`
+  - `avatarUrl`
+  - `avatar_url`
+  - `icon`
+  - `vendor_icon`
+- If `cover_url` is present and loadable, it is rendered as the 16:9 cover image.
+- If `cover_url` is empty or the image load fails, the existing CSS placeholder/fallback cover remains in use.
+- Model type badge, provider text, model name, description, tags, detail entry, and existing card behaviors were kept unchanged.
+
+### Compatibility Result
+
+- Old models without `cover_url` remain creatable, editable, and viewable.
+- Old pricing items without `cover_url` still use the existing CSS fallback cover.
+- Image load failure still falls back to the existing CSS cover.
+- `icon` remains model-icon semantics.
+- `vendor_icon` fallback behavior remains available after higher-priority cover fields.
+
+### Verification
+
+- `gofmt -w controller/model_meta.go controller/model_list_test.go model/model_meta.go model/pricing.go`: passed.
+- `go test ./controller -run TestGetPricingIncludesCoverURL -count=1`: passed.
+- `go test ./...`: failed due to existing unrelated test failures in `github.com/QuantumNous/new-api/relay/channel/claude` and `github.com/QuantumNous/new-api/relay/helper`; no failure was introduced in `controller` or `model`, and the new `/api/pricing` cover test passed.
+- `C:\Users\Administrator\.bun\bin\bun.exe run build` in `web/classic`: passed, with existing Browserslist/lottie/chunk-size warnings only.
+- `C:\Users\Administrator\.bun\bin\bun.exe run lint` in `web/classic`: passed.
+- `C:\Users\Administrator\.bun\bin\bun.exe run eslint` in `web/classic`: passed.
+- `git diff --check`: passed.
+- `C:\Users\Administrator\.bun\bin\bunx.exe prettier --check "src/components/table/model-pricing/**/*.{js,jsx}" "src/pages/**/*.{js,jsx}"` in `web/classic`: passed.
+- `C:\Users\Administrator\.bun\bin\bunx.exe eslint "src/components/table/model-pricing/**/*.{js,jsx}" "src/pages/**/*.{js,jsx}"` in `web/classic`: passed.
+
+### Manual Regression
+
+- Code-level check: classic admin create form now shows `模型封面图片 URL`.
+- Code-level check: classic admin edit form now shows and hydrates `模型封面图片 URL`.
+- Code-level check: create/edit payload now includes `cover_url`.
+- Code-level check: `/api/pricing` pricing items now include `cover_url` when configured.
+- Code-level check: marketplace cards now prefer `cover_url` over previous detected fields.
+- Code-level check: empty `cover_url` still renders the existing CSS fallback cover.
+- Code-level check: failed image load still renders the existing CSS fallback cover.
+- Code-level check: search, filters, sorting, pagination, and detail SideSheet logic were not changed in this round.
+- Code-level check: no upload button, drag upload, crop flow, OSS upload, or `web/default` modification was added.
+
+### Self Review
+
+- Branch remained `feature/frontend-redesign-gptproto`.
+- Modified files stayed within allowed backend/classic admin/classic marketplace/i18n/task-log scope.
+- No dependency files changed.
+- No file upload logic was added.
+- No real billing logic or pricing helper semantics were changed.
+- `icon` field meaning was preserved.
+- `/api/pricing` old field semantics were preserved.
+- `web/default` was not modified.
+- No external protected cover assets or EvoLink materials were copied.
+
+### Known Risks
+
+- `cover_url` validation is intentionally lightweight and only checks allowed prefixes; it does not verify that the target really exists or is an image.
+- Full browser-level visual validation was not performed in this round; fallback behavior was confirmed at code/build level.
+- The repository currently has pre-existing unrelated Go test failures under Claude relay and stream helper packages, so full `go test ./...` is not green even though this round's affected areas passed.
+
+### Commit Status
+
+- Verification and self-review passed with a documented scope note for existing unrelated Go test failures.
+- Allowed commit message: `模型：支持模型广场封面图配置`.
