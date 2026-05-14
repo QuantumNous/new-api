@@ -4191,3 +4191,62 @@ status: completed
 
 - Browser-level visual confirmation was done by code and build/lint checks rather than an automated screenshot test.
 - The top toolbar can still show the currency selector if recharge-price display is enabled from another surviving settings surface; this preserves existing state behavior and avoids changing non-toolbar display settings.
+
+## Stage ModelCard.1.2: fine-tune model card price color
+
+Task: Stage ModelCard.1.2 model card lowest-price color slight gray adjustment
+
+status: completed
+
+### Goal
+
+- Make the `/pricing` card lowest-price color slightly grayer than the model name.
+- Preserve price readability in light and dark themes.
+- Do not change pricing calculations, toolbar behavior, backend, filters, sorting, pagination, or detail SideSheet.
+
+### User Feedback
+
+- The previous primary-text price color was too close to the model name color.
+- The price should remain clear but be slightly softer than the model title.
+
+### Changed Files
+
+- `web/classic/src/index.css`
+- `.ai/TASK.md`
+
+### Price Color Result
+
+- Updated `.pricing-marketplace-card-price-value` from `var(--semi-color-text-0)` to `var(--semi-color-text-1)`.
+- The model title remains `var(--semi-color-text-0)`, so it is visually deeper than the price.
+- Price unit text remains `var(--semi-color-text-2)` and note text remains `var(--semi-color-text-3)`.
+- No price values, units, lowest-price logic, or pricing helper semantics were changed.
+
+### Verification Results
+
+- `C:\Users\Administrator\.bun\bin\bun.exe run build` in `web/classic`: passed, with existing Browserslist, lottie eval, and chunk-size warnings only.
+- `C:\Users\Administrator\.bun\bin\bun.exe run lint` in `web/classic`: passed.
+- `$env:PATH="$env:USERPROFILE\.bun\bin;$env:PATH"; C:\Users\Administrator\.bun\bin\bun.exe run eslint` in `web/classic`: passed.
+- `git diff --check`: passed.
+- `C:\Users\Administrator\.bun\bin\bunx.exe prettier --check "src/components/table/model-pricing/**/*.{js,jsx}"` in `web/classic`: passed.
+- `$env:PATH="$env:USERPROFILE\.bun\bin;$env:PATH"; C:\Users\Administrator\.bun\bin\bunx.exe eslint "src/components/table/model-pricing/**/*.{js,jsx}"` in `web/classic`: passed.
+
+### Manual / Code-Level Regression
+
+- Code-level check: model title color remains `var(--semi-color-text-0)`.
+- Code-level check: price color is now `var(--semi-color-text-1)`, slightly grayer than the model title.
+- Code-level check: the price remains readable because it uses a Semi theme text variable and keeps the existing large size and heavy weight.
+- Code-level check: dark mode remains readable because the color follows Semi theme tokens.
+- Code-level check: price values, units, and lowest-price selection logic were not changed.
+- Code-level check: search, filters, sorting, pagination, and detail SideSheet were not changed.
+
+### Self Review
+
+- Branch remained `feature/frontend-redesign-gptproto`.
+- Modified files stayed within the allowed CSS/task-log scope.
+- No backend, database, `/api/pricing`, real billing logic, price helper semantics, image/video field logic, toolbar logic, HeaderBar, Home, Footer, PageLayout, `web/default`, or dependency changes were made.
+- No high-saturation color or overly light gray was introduced.
+- No push was performed.
+
+### Known Risks
+
+- Browser-level visual confirmation was done by code and build/lint checks rather than an automated screenshot test.
