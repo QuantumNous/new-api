@@ -188,13 +188,6 @@ const PlaygroundComposer = ({
                   className='video-option-control'
                   position='top'
                 />
-                <InputNumber
-                  min={1}
-                  max={4}
-                  value={inputs.imageCount}
-                  onChange={(value) => onInputChange('imageCount', value)}
-                  className='video-option-control'
-                />
               </div>
             )}
             {isVideoMode && (
