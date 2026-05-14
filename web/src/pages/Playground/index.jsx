@@ -96,6 +96,7 @@ const Playground = () => {
     handleInputChange,
     debouncedSaveConfig,
     saveMessagesImmediately,
+    persistMessagesSnapshot,
     startNewConversation,
     switchConversation,
     deleteConversation,
@@ -461,11 +462,15 @@ const Playground = () => {
         const nextMessages = prevMessages.map((msg) =>
           msg.id === messageId ? { ...msg, ...patch } : msg,
         );
-        setTimeout(() => saveMessagesImmediately(nextMessages), 0);
+        persistMessagesSnapshot(nextMessages, {
+          flushRemote:
+            patch?.status === MESSAGE_STATUS.COMPLETE ||
+            patch?.status === MESSAGE_STATUS.ERROR,
+        });
         return nextMessages;
       });
     },
-    [saveMessagesImmediately, setMessage],
+    [persistMessagesSnapshot, setMessage],
   );
 
   const buildImageAssistantContent = useCallback(
@@ -965,7 +970,7 @@ const Playground = () => {
 
       setMessage((prevMessage) => {
         const nextMessages = [...prevMessage, userMessage, assistantMessage];
-        setTimeout(() => saveMessagesImmediately(nextMessages), 0);
+        persistMessagesSnapshot(nextMessages);
         return nextMessages;
       });
       setDebugData((prev) => ({
@@ -1024,7 +1029,6 @@ const Playground = () => {
       buildImageAssistantContent,
       buildImagePayload,
       extractImageUrls,
-      saveMessagesImmediately,
       setActiveDebugTab,
       setDebugData,
       setMessage,

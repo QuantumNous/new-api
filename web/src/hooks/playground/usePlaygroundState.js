@@ -27,6 +27,7 @@ import {
   MESSAGE_STATUS,
 } from '../../constants/playground.constants';
 import { API } from '../../helpers/api';
+import { generateMessageId } from '../../helpers';
 import {
   loadConfig,
   saveConfig,
@@ -143,6 +144,7 @@ export const usePlaygroundState = () => {
   const saveConfigTimeoutRef = useRef(null);
   const saveRemoteConversationTimeoutRef = useRef(null);
   const deletedConversationIdsRef = useRef(new Set());
+  const remoteConversationHydratingRef = useRef(false);
   const currentConversationIdRef = useRef(
     savedConversationState.activeConversationId || null,
   );
@@ -224,18 +226,111 @@ export const usePlaygroundState = () => {
     if (!conversation) {
       return null;
     }
+
+    const seenMessageIds = new Set();
+    const normalizedMessages = Array.isArray(conversation.messages)
+      ? conversation.messages.map((msg) => {
+          const rawId =
+            typeof msg?.id === 'string' && msg.id.trim() !== '' ? msg.id : '';
+          const nextId =
+            rawId && !seenMessageIds.has(rawId) ? rawId : generateMessageId();
+          seenMessageIds.add(nextId);
+          return {
+            ...msg,
+            id: nextId,
+          };
+        })
+      : [];
+
     return {
       id: conversation.conversation_id || conversation.id,
       title: conversation.title || '新对话',
-      messages: Array.isArray(conversation.messages)
-        ? conversation.messages
-        : [],
+      messages: normalizedMessages,
       createdAt:
         conversation.created_at || conversation.createdAt || Date.now(),
       updatedAt:
         conversation.updated_at || conversation.updatedAt || Date.now(),
     };
   }, []);
+
+  const getConversationQualityScore = useCallback((conversation) => {
+    const messages = Array.isArray(conversation?.messages)
+      ? conversation.messages
+      : [];
+    const lastMessage = messages[messages.length - 1];
+    const hasImageContent = messages.some(
+      (msg) =>
+        Array.isArray(msg?.content) &&
+        msg.content.some((item) => item?.type === 'image_url'),
+    );
+
+    let score = messages.length * 10;
+    if (
+      lastMessage?.status === MESSAGE_STATUS.COMPLETE ||
+      lastMessage?.status === MESSAGE_STATUS.ERROR
+    ) {
+      score += 100;
+    }
+    if (
+      lastMessage?.status === MESSAGE_STATUS.LOADING ||
+      lastMessage?.status === MESSAGE_STATUS.INCOMPLETE
+    ) {
+      score -= 100;
+    }
+    if (hasImageContent) {
+      score += 50;
+    }
+
+    return score;
+  }, []);
+
+  const pickPreferredConversation = useCallback(
+    (left, right) => {
+      if (!left) {
+        return right;
+      }
+      if (!right) {
+        return left;
+      }
+
+      const leftUpdatedAt = Number(left.updatedAt || 0);
+      const rightUpdatedAt = Number(right.updatedAt || 0);
+      if (leftUpdatedAt !== rightUpdatedAt) {
+        return leftUpdatedAt > rightUpdatedAt ? left : right;
+      }
+
+      const leftScore = getConversationQualityScore(left);
+      const rightScore = getConversationQualityScore(right);
+      if (leftScore !== rightScore) {
+        return leftScore > rightScore ? left : right;
+      }
+
+      return left;
+    },
+    [getConversationQualityScore],
+  );
+
+  const mergeConversationLists = useCallback(
+    (localList = [], remoteList = []) => {
+      const mergedById = new Map();
+
+      [...localList, ...remoteList].forEach((conversation) => {
+        if (!conversation?.id) {
+          return;
+        }
+        const existingConversation = mergedById.get(conversation.id);
+        mergedById.set(
+          conversation.id,
+          pickPreferredConversation(existingConversation, conversation),
+        );
+      });
+
+      return Array.from(mergedById.values()).sort(
+        (a, b) => (b.updatedAt || 0) - (a.updatedAt || 0),
+      );
+    },
+    [pickPreferredConversation],
+  );
 
   const resolveActiveConversationId = useCallback(
     (conversationList, preferredActiveId = null) => {
@@ -311,6 +406,71 @@ export const usePlaygroundState = () => {
     [persistConversationToServer],
   );
 
+  const persistMessagesSnapshot = useCallback(
+    (messagesToSave, options = {}) => {
+      const nextMessages = messagesToSave || [];
+      const { flushRemote = false } = options;
+      saveMessages(nextMessages);
+
+      const now = Date.now();
+      const currentConversationId =
+        activeConversationId ||
+        currentConversationIdRef.current ||
+        `pg-${now}`;
+      const currentConversations =
+        localConversationStateRef.current.conversations || [];
+      const existingConversation = currentConversations.find(
+        (conversation) => conversation.id === currentConversationId,
+      );
+
+      deletedConversationIdsRef.current.delete(currentConversationId);
+      currentConversationIdRef.current = currentConversationId;
+
+      const nextConversation = {
+        ...(existingConversation ||
+          createStoredConversation(nextMessages, currentConversationId)),
+        id: currentConversationId,
+        title: createStoredConversation(nextMessages, currentConversationId)
+          .title,
+        messages: nextMessages,
+        updatedAt: now,
+      };
+
+      const updatedConversations = existingConversation
+        ? currentConversations.map((conversation) =>
+            conversation.id === currentConversationId
+              ? nextConversation
+              : conversation,
+          )
+        : [nextConversation, ...currentConversations];
+
+      persistConversationState(updatedConversations, currentConversationId);
+      if (flushRemote) {
+        if (saveRemoteConversationTimeoutRef.current) {
+          clearTimeout(saveRemoteConversationTimeoutRef.current);
+          saveRemoteConversationTimeoutRef.current = null;
+        }
+        persistConversationToServer(nextConversation).catch((error) => {
+          console.error('立即保存后端会话失败:', error);
+        });
+      } else {
+        scheduleRemoteConversationSave(nextConversation);
+      }
+
+      return {
+        currentConversationId,
+        nextConversation,
+        updatedConversations,
+      };
+    },
+    [
+      activeConversationId,
+      persistConversationState,
+      persistConversationToServer,
+      scheduleRemoteConversationSave,
+    ],
+  );
+
   // 配置更新函数
   const handleInputChange = useCallback((name, value) => {
     setInputs((prev) => ({ ...prev, [name]: value }));
@@ -327,51 +487,17 @@ export const usePlaygroundState = () => {
   const saveMessagesImmediately = useCallback(
     (messagesToSave) => {
       const nextMessages = messagesToSave || message;
-      saveMessages(nextMessages);
-
-      setConversations((prevConversations) => {
-        const now = Date.now();
-        const currentConversationId =
-          activeConversationId ||
-          currentConversationIdRef.current ||
-          `pg-${now}`;
-        deletedConversationIdsRef.current.delete(currentConversationId);
-        currentConversationIdRef.current = currentConversationId;
-        const existingConversation = prevConversations.find(
-          (conversation) => conversation.id === currentConversationId,
-        );
-
-        const nextConversation = {
-          ...(existingConversation ||
-            createStoredConversation(nextMessages, currentConversationId)),
-          id: currentConversationId,
-          title: createStoredConversation(nextMessages, currentConversationId)
-            .title,
-          messages: nextMessages,
-          updatedAt: now,
-        };
-
-        const updatedConversations = existingConversation
-          ? prevConversations.map((conversation) =>
-              conversation.id === currentConversationId
-                ? nextConversation
-                : conversation,
-            )
-          : [nextConversation, ...prevConversations];
-
-        persistConversationState(updatedConversations, currentConversationId);
-        scheduleRemoteConversationSave(nextConversation);
-        if (!activeConversationId) {
-          setActiveConversationId(currentConversationId);
-        }
-        return updatedConversations;
-      });
+      const { currentConversationId, updatedConversations } =
+        persistMessagesSnapshot(nextMessages);
+      setConversations(updatedConversations);
+      if (!activeConversationId) {
+        setActiveConversationId(currentConversationId);
+      }
     },
     [
       activeConversationId,
       message,
-      persistConversationState,
-      scheduleRemoteConversationSave,
+      persistMessagesSnapshot,
     ],
   );
 
@@ -487,27 +613,41 @@ export const usePlaygroundState = () => {
         return;
       }
 
-      const nextActiveConversationId = resolveActiveConversationId(
+      const mergedConversations = mergeConversationLists(
+        localConversationStateRef.current.conversations || [],
         indexedState.conversations,
-        indexedState.activeConversationId,
       );
-      const activeConversation = indexedState.conversations.find(
+      const { conversations: dedupedMergedConversations } =
+        dedupeConversations(mergedConversations);
+
+      const nextActiveConversationId = resolveActiveConversationId(
+        dedupedMergedConversations,
+        localConversationStateRef.current.activeConversationId ||
+          indexedState.activeConversationId,
+      );
+      const activeConversation = dedupedMergedConversations.find(
         (conversation) => conversation.id === nextActiveConversationId,
       );
 
       localConversationStateRef.current = {
-        conversations: indexedState.conversations,
+        conversations: dedupedMergedConversations,
         activeConversationId: nextActiveConversationId,
       };
       currentConversationIdRef.current = nextActiveConversationId;
-      setConversations(indexedState.conversations);
+      setConversations(dedupedMergedConversations);
       setActiveConversationId(nextActiveConversationId);
       setMessage(activeConversation?.messages || []);
       saveMessages(activeConversation?.messages || []);
       saveConversationState(
-        indexedState.conversations,
+        dedupedMergedConversations,
         nextActiveConversationId,
       );
+      saveConversationStateToIndexedDB(
+        dedupedMergedConversations,
+        nextActiveConversationId,
+      ).catch((error) => {
+        console.error('同步合并后的 IndexedDB 会话失败:', error);
+      });
       setConversationStorageReady(true);
     };
 
@@ -519,7 +659,11 @@ export const usePlaygroundState = () => {
     return () => {
       isCancelled = true;
     };
-  }, [resolveActiveConversationId]);
+  }, [
+    dedupeConversations,
+    mergeConversationLists,
+    resolveActiveConversationId,
+  ]);
 
   useEffect(() => {
     if (!conversationStorageReady) {
@@ -529,6 +673,10 @@ export const usePlaygroundState = () => {
     let isCancelled = false;
 
     const hydrateRemoteConversations = async () => {
+      if (remoteConversationHydratingRef.current) {
+        return;
+      }
+      remoteConversationHydratingRef.current = true;
       try {
         const res = await API.get(API_ENDPOINTS.PLAYGROUND_CONVERSATIONS, {
           disableDuplicate: true,
@@ -557,19 +705,25 @@ export const usePlaygroundState = () => {
         }
 
         if (normalizedRemoteConversations.length > 0) {
-          const nextActiveConversationId = resolveActiveConversationId(
+          const mergedConversations = mergeConversationLists(
+            localConversationStateRef.current.conversations || [],
             normalizedRemoteConversations,
+          );
+          const { conversations: dedupedMergedConversations } =
+            dedupeConversations(mergedConversations);
+          const nextActiveConversationId = resolveActiveConversationId(
+            dedupedMergedConversations,
             localConversationStateRef.current.activeConversationId,
           );
-          const activeConversation = normalizedRemoteConversations.find(
+          const activeConversation = dedupedMergedConversations.find(
             (conversation) => conversation.id === nextActiveConversationId,
           );
-          setConversations(normalizedRemoteConversations);
+          setConversations(dedupedMergedConversations);
           currentConversationIdRef.current = nextActiveConversationId;
           setActiveConversationId(nextActiveConversationId);
           setMessage(activeConversation?.messages || []);
           persistConversationState(
-            normalizedRemoteConversations,
+            dedupedMergedConversations,
             nextActiveConversationId,
           );
           saveMessages(activeConversation?.messages || []);
@@ -590,6 +744,8 @@ export const usePlaygroundState = () => {
         }
       } catch (error) {
         console.error('加载后端会话失败:', error);
+      } finally {
+        remoteConversationHydratingRef.current = false;
       }
     };
 
@@ -600,6 +756,7 @@ export const usePlaygroundState = () => {
     };
   }, [
     dedupeConversations,
+    mergeConversationLists,
     isConversationEmpty,
     normalizeConversation,
     conversationStorageReady,
@@ -733,9 +890,24 @@ export const usePlaygroundState = () => {
       lastMsg.status === MESSAGE_STATUS.LOADING ||
       lastMsg.status === MESSAGE_STATUS.INCOMPLETE
     ) {
+      const contentText =
+        typeof lastMsg.content === 'string' ? lastMsg.content : '';
+      const reasoningText =
+        typeof lastMsg.reasoningContent === 'string'
+          ? lastMsg.reasoningContent
+          : '';
+      const hasThinkContent =
+        reasoningText.trim() !== '' || contentText.includes('<think>');
+
+      // This repair path is only for chat-style incomplete thinking output.
+      // Do not rewrite image/video placeholder messages like "正在生成图片...".
+      if (!hasThinkContent) {
+        return;
+      }
+
       const processed = processIncompleteThinkTags(
-        lastMsg.content || '',
-        lastMsg.reasoningContent || '',
+        contentText,
+        reasoningText,
       );
 
       const fixedLastMsg = {
@@ -750,9 +922,10 @@ export const usePlaygroundState = () => {
       setMessage(updatedMessages);
 
       // 保存修复后的消息列表
-      setTimeout(() => saveMessagesImmediately(updatedMessages), 0);
+      persistMessagesSnapshot(updatedMessages);
+      setConversations(localConversationStateRef.current.conversations || []);
     }
-  }, []);
+  }, [message, persistMessagesSnapshot]);
 
   return {
     // 配置状态
@@ -817,6 +990,7 @@ export const usePlaygroundState = () => {
     handleParameterToggle,
     debouncedSaveConfig,
     saveMessagesImmediately,
+    persistMessagesSnapshot,
     createConversation,
     startNewConversation,
     switchConversation,
