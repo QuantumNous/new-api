@@ -3694,3 +3694,68 @@ status: completed
 - Browser-level hover playback was verified by code/build checks, not by an automated browser screenshot or interaction test.
 - Some remote video servers may block metadata loading or playback due to CORS/range/MIME policies; in that case the card falls back after the video element reports an error.
 - The first frame depends on browser metadata loading when no `cover_url` poster is configured.
+
+## Stage Cover.2.1: model marketplace video preview interaction polish
+
+Task: Stage Cover.2.1 remove preview badge and loop hover playback
+
+status: completed
+
+### Goal
+
+- Remove the extra `视频预览` text badge from model marketplace video covers.
+- Keep the existing model capability badge, such as text/image/video capability labels.
+- Make hover playback loop while the pointer remains over the cover area.
+- Keep mouse leave behavior: pause the video and reset `currentTime` to `0`.
+
+### User Feedback
+
+- The lower-right `视频预览` label looked like an unnecessary placeholder/tag and should be removed.
+- Videos should not stop on the last frame while hovered; they should loop.
+- Mouse leave must still stop playback and return to the beginning.
+
+### Changed Files
+
+- `web/classic/src/components/table/model-pricing/view/card/PricingCardView.jsx`
+- `web/classic/src/index.css`
+- `.ai/TASK.md`
+
+### Implementation Summary
+
+- Removed the conditional JSX that rendered `pricing-marketplace-cover-video-badge`.
+- Removed the now-unused `.pricing-marketplace-cover-video-badge` scoped CSS.
+- Added the native `loop` attribute to the marketplace card `<video>` element.
+- Preserved `muted`, `playsInline`, `preload="metadata"`, poster support, no controls, no autoplay, and existing video `onError` fallback.
+- Preserved existing `handleVideoMouseLeave` logic: `pause()` plus guarded `currentTime = 0`.
+
+### Verification Results
+
+- `C:\Users\Administrator\.bun\bin\bun.exe run build` in `web/classic`: passed, with existing Browserslist, lottie eval, and chunk-size warnings only.
+- `C:\Users\Administrator\.bun\bin\bun.exe run lint` in `web/classic`: passed.
+- `$env:PATH="$env:USERPROFILE\.bun\bin;$env:PATH"; C:\Users\Administrator\.bun\bin\bun.exe run eslint` in `web/classic`: passed.
+- `C:\Users\Administrator\.bun\bin\bunx.exe prettier --check "src/components/table/model-pricing/**/*.{js,jsx}"` in `web/classic`: passed.
+- `C:\Users\Administrator\.bun\bin\bunx.exe eslint "src/components/table/model-pricing/**/*.{js,jsx}"` in `web/classic`: passed.
+- `git diff --check`: passed.
+
+### Manual / Code-Level Regression
+
+- Code-level check: cards with `preview_video_url` no longer render the extra `视频预览` badge.
+- Code-level check: model capability badge remains rendered through `modelCapability.label`.
+- Code-level check: hover still calls `video.play()` and catches the promise.
+- Code-level check: video uses native `loop`, so playback repeats while hovered.
+- Code-level check: mouse leave still pauses and resets `currentTime` to `0`.
+- Code-level check: the next hover starts from the beginning because leave reset is unchanged.
+- Code-level check: cards without `preview_video_url` continue to use image cover/fallback paths.
+- Code-level check: video load failure still falls back to `cover_url`; image failure still falls back to CSS placeholder.
+- Code-level check: search, filtering, sorting, pagination, and detail SideSheet logic were not touched.
+
+### Self Review
+
+- Branch remained `feature/frontend-redesign-gptproto`.
+- Modified only allowed frontend card/CSS files and `.ai/TASK.md`.
+- No backend, database, `/api/pricing`, classic admin form, dependency, upload, billing, HeaderBar, Home, Footer, PageLayout, filter, sort, pagination, or detail SideSheet changes were made.
+- No push was performed.
+
+### Known Risks
+
+- Browser-level hover behavior was verified by code/build checks, not by an automated interaction test.

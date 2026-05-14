@@ -122,7 +122,6 @@ const ModelCardCover = ({
   rowSelection,
   isSelected,
   handleCheckboxChange,
-  t,
 }) => {
   const coverImageSource = React.useMemo(
     () => getCoverImageSource(model),
@@ -181,6 +180,7 @@ const ModelCardCover = ({
           poster={coverImageSource || undefined}
           muted
           playsInline
+          loop
           preload='metadata'
           onError={() => setVideoFailed(true)}
         />
@@ -208,11 +208,6 @@ const ModelCardCover = ({
       >
         {modelCapability.label}
       </Tag>
-      {showVideo && (
-        <span className='pricing-marketplace-cover-video-badge'>
-          {t('视频预览')}
-        </span>
-      )}
       <div className='pricing-marketplace-cover-actions'>
         <Button
           size='small'
@@ -471,7 +466,6 @@ const PricingCardView = ({
                   rowSelection={rowSelection}
                   isSelected={isSelected}
                   handleCheckboxChange={handleCheckboxChange}
-                  t={t}
                 />
 
                 <div className='pricing-marketplace-card-body'>
