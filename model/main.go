@@ -195,6 +195,18 @@ func InitDB() (err error) {
 		sqlDB.SetMaxOpenConns(common.GetEnvOrDefault("SQL_MAX_OPEN_CONNS", 1000))
 		sqlDB.SetConnMaxLifetime(time.Second * time.Duration(common.GetEnvOrDefault("SQL_MAX_LIFETIME", 60)))
 
+		if common.UsingSQLite {
+			if _, err := sqlDB.Exec("PRAGMA journal_mode=WAL"); err != nil {
+				common.SysLog("Warning: failed to set SQLite journal_mode=WAL: " + err.Error())
+			}
+			if _, err := sqlDB.Exec("PRAGMA busy_timeout=5000"); err != nil {
+				common.SysLog("Warning: failed to set SQLite busy_timeout: " + err.Error())
+			}
+			if _, err := sqlDB.Exec("PRAGMA synchronous=NORMAL"); err != nil {
+				common.SysLog("Warning: failed to set SQLite synchronous=NORMAL: " + err.Error())
+			}
+		}
+
 		if !common.IsMasterNode {
 			return nil
 		}
@@ -234,6 +246,18 @@ func InitLogDB() (err error) {
 		sqlDB.SetMaxIdleConns(common.GetEnvOrDefault("SQL_MAX_IDLE_CONNS", 100))
 		sqlDB.SetMaxOpenConns(common.GetEnvOrDefault("SQL_MAX_OPEN_CONNS", 1000))
 		sqlDB.SetConnMaxLifetime(time.Second * time.Duration(common.GetEnvOrDefault("SQL_MAX_LIFETIME", 60)))
+
+		if common.UsingSQLite {
+			if _, err := sqlDB.Exec("PRAGMA journal_mode=WAL"); err != nil {
+				common.SysLog("Warning: failed to set SQLite journal_mode=WAL: " + err.Error())
+			}
+			if _, err := sqlDB.Exec("PRAGMA busy_timeout=5000"); err != nil {
+				common.SysLog("Warning: failed to set SQLite busy_timeout: " + err.Error())
+			}
+			if _, err := sqlDB.Exec("PRAGMA synchronous=NORMAL"); err != nil {
+				common.SysLog("Warning: failed to set SQLite synchronous=NORMAL: " + err.Error())
+			}
+		}
 
 		if !common.IsMasterNode {
 			return nil
