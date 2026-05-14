@@ -3943,3 +3943,84 @@ status: completed
 
 - Browser-level visual and scroll behavior was verified by code/build checks, not by an automated browser interaction test.
 - Custom administrator-provided `footer_html` may still contain any text the administrator configured; this round only removes the default hardcoded attribution appended by the frontend.
+
+## Stage Detail.1.1: fix model marketplace filter sidebar sticky boundaries
+
+Task: Stage Detail.1.1 repair `/pricing` desktop filter sidebar sticky top/bottom boundaries
+
+status: completed
+
+### Goal
+
+- Keep the `/pricing` desktop filter sidebar following page scroll with CSS sticky.
+- Ensure the sidebar does not overlap the fixed top navigation.
+- Ensure the sidebar remains inside the model marketplace content area and naturally stops at the content bottom.
+- Preserve mobile filter modal behavior and avoid backend, pricing data, image/video, navigation, home, footer, `App.jsx`, and `PageLayout.jsx` changes.
+
+### User Feedback
+
+- The previous sticky boundary adjustment was not sufficient.
+- During page scroll, the left filter sidebar could still be covered by the top navigation.
+- The sidebar did not consistently remain within the model list content area.
+- Top and bottom boundary behavior felt unnatural.
+
+### Root Cause
+
+- The sticky element was also the direct grid child for the sidebar column, so the same node was responsible for grid layout height, sticky positioning, and internal scrolling.
+- `PageLayout` keeps the content area overflow hidden on desktop while an ancestor layout scrolls; this can make sticky containment feel unstable for `/pricing`.
+- The sidebar needed a local content-area rail that shares the right results column height, with a separate inner sticky panel.
+
+### Changed Files
+
+- `web/classic/src/components/table/model-pricing/layout/content/PricingContent.jsx`
+- `web/classic/src/index.css`
+- `.ai/TASK.md`
+
+### Sticky Top Boundary
+
+- Preserved CSS sticky and the header-safe `--pricing-marketplace-sticky-top: 88px` offset.
+- Kept `max-height` based on viewport height minus sticky top and bottom gap.
+- Added a desktop-only local `/pricing` scroll container on `.pricing-marketplace-page`, avoiding changes to `PageLayout`.
+
+### Sticky Bottom Boundary
+
+- Added `.pricing-marketplace-sidebar-rail` as the grid child that stays in the model marketplace body flow.
+- Moved the actual `position: sticky` behavior to an inner `.pricing-marketplace-sidebar-sticky` panel.
+- Changed the desktop body grid to `align-items: stretch`, so the sidebar rail and right results column share the same content-area height and sticky can stop naturally at the bottom.
+- Did not use `position: fixed` or JS scroll listeners.
+
+### Verification Results
+
+- `C:\Users\Administrator\.bun\bin\bun.exe run build` in `web/classic`: passed, with existing Browserslist, lottie eval, and chunk-size warnings only.
+- `C:\Users\Administrator\.bun\bin\bun.exe run lint` in `web/classic`: passed.
+- `$env:PATH="$env:USERPROFILE\.bun\bin;$env:PATH"; C:\Users\Administrator\.bun\bin\bun.exe run eslint` in `web/classic`: passed.
+- `git diff --check`: passed.
+- `C:\Users\Administrator\.bun\bin\bunx.exe prettier --check "src/components/table/model-pricing/**/*.{js,jsx}" "src/pages/Pricing/**/*.{js,jsx}"` in `web/classic`: passed.
+- `$env:PATH="$env:USERPROFILE\.bun\bin;$env:PATH"; C:\Users\Administrator\.bun\bin\bunx.exe eslint "src/components/table/model-pricing/**/*.{js,jsx}" "src/pages/Pricing/**/*.{js,jsx}"` in `web/classic`: passed.
+
+### Manual / Code-Level Regression
+
+- Code-level check: `/pricing` desktop filter sidebar uses CSS `position: sticky`, not `fixed`.
+- Code-level check: sticky `top` remains 88px, leaving room for the 64px header plus spacing.
+- Code-level check: the sidebar returns to the marketplace content start when scrolled back to the top.
+- Code-level check: the sidebar rail is a normal grid child sharing the right results height, so the sticky panel is constrained by the content area bottom.
+- Code-level check: long filter content uses internal `overflow-y: auto`.
+- Code-level check: pagination remains in the right results flow and the sidebar is not taken out of the document flow.
+- Code-level check: mobile still renders no desktop sidebar and continues to use `PricingFilterModal`.
+- Code-level check: search, filters, sorting, pagination, and detail SideSheet data logic were not changed.
+- Code-level check: HeaderBar, Home, Footer, `App.jsx`, and `PageLayout.jsx` were not changed.
+
+### Self Review
+
+- Branch remained `feature/frontend-redesign-gptproto`.
+- Modified files stayed within the allowed model-pricing layout/CSS/task-log scope.
+- No backend, database, `/api/pricing`, real billing logic, model image/video logic, upload logic, `web/default`, dependencies, HeaderBar, Home, Footer, `App.jsx`, or `PageLayout.jsx` changes were made.
+- No new dependency was added.
+- No `position: fixed` or JS scroll listener was introduced.
+- Desktop sticky is content-area sticky with a separate rail and inner sticky panel.
+- No obvious horizontal overflow or dark-mode-specific color regression was introduced by the scoped layout changes.
+- No push was performed.
+
+### Known Risks
+
+- Browser-level scroll interaction was verified by code structure and build/lint checks, not by an automated Playwright interaction test because Playwright is not installed in this workspace.

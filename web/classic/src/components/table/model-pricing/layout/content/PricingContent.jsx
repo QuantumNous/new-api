@@ -43,8 +43,10 @@ const PricingContent = ({ isMobile, sidebarProps, ...props }) => {
 
       <div className='pricing-marketplace-body'>
         {!isMobile && (
-          <aside className='pricing-marketplace-sidebar-sticky'>
-            <PricingSidebar {...sidebarProps} />
+          <aside className='pricing-marketplace-sidebar-rail'>
+            <div className='pricing-marketplace-sidebar-sticky'>
+              <PricingSidebar {...sidebarProps} />
+            </div>
           </aside>
         )}
 

@@ -1413,6 +1413,16 @@ html.dark .headerbar-surface {
   background: var(--semi-color-bg-0);
 }
 
+@media (min-width: 768px) {
+  .pricing-marketplace-page {
+    height: 100vh;
+    height: 100dvh;
+    overflow-x: hidden;
+    overflow-y: auto;
+    scroll-padding-top: var(--pricing-marketplace-sticky-top);
+  }
+}
+
 .pricing-marketplace-shell {
   min-width: 0;
   padding-bottom: 48px;
@@ -1421,12 +1431,17 @@ html.dark .headerbar-surface {
 .pricing-marketplace-body {
   display: grid;
   grid-template-columns: 256px minmax(0, 1fr);
-  align-items: start;
+  align-items: stretch;
   gap: 32px;
   width: min(100%, 1800px);
   margin: 0 auto;
   padding: 24px 48px var(--pricing-marketplace-sticky-bottom-gap);
   background: var(--semi-color-bg-0);
+}
+
+.pricing-marketplace-sidebar-rail {
+  min-width: 0;
+  align-self: stretch;
 }
 
 .pricing-marketplace-results {
