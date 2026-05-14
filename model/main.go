@@ -124,6 +124,13 @@ func chooseDB(envName string, isLog bool) (*gorm.DB, error) {
 		if strings.HasPrefix(dsn, "postgres://") || strings.HasPrefix(dsn, "postgresql://") {
 			// Use PostgreSQL
 			common.SysLog("using PostgreSQL as database")
+			if !strings.Contains(dsn, "sslmode") {
+				if strings.Contains(dsn, "?") {
+					dsn += "&sslmode=require"
+				} else {
+					dsn += "?sslmode=require"
+				}
+			}
 			if !isLog {
 				common.UsingPostgreSQL = true
 			} else {
@@ -155,6 +162,20 @@ func chooseDB(envName string, isLog bool) (*gorm.DB, error) {
 				dsn += "&parseTime=true"
 			} else {
 				dsn += "?parseTime=true"
+			}
+		}
+		if !strings.Contains(dsn, "charset") && !strings.Contains(dsn, "Charset") {
+			if strings.Contains(dsn, "?") {
+				dsn += "&charset=utf8mb4"
+			} else {
+				dsn += "?charset=utf8mb4"
+			}
+		}
+		if !strings.Contains(dsn, "loc=") {
+			if strings.Contains(dsn, "?") {
+				dsn += "&loc=Local"
+			} else {
+				dsn += "?loc=Local"
 			}
 		}
 		if !isLog {
@@ -193,7 +214,7 @@ func InitDB() (err error) {
 		}
 		sqlDB.SetMaxIdleConns(common.GetEnvOrDefault("SQL_MAX_IDLE_CONNS", 100))
 		sqlDB.SetMaxOpenConns(common.GetEnvOrDefault("SQL_MAX_OPEN_CONNS", 1000))
-		sqlDB.SetConnMaxLifetime(time.Second * time.Duration(common.GetEnvOrDefault("SQL_MAX_LIFETIME", 60)))
+		sqlDB.SetConnMaxLifetime(time.Second * time.Duration(common.GetEnvOrDefault("SQL_MAX_LIFETIME", 300)))
 
 		if !common.IsMasterNode {
 			return nil
@@ -233,7 +254,7 @@ func InitLogDB() (err error) {
 		}
 		sqlDB.SetMaxIdleConns(common.GetEnvOrDefault("SQL_MAX_IDLE_CONNS", 100))
 		sqlDB.SetMaxOpenConns(common.GetEnvOrDefault("SQL_MAX_OPEN_CONNS", 1000))
-		sqlDB.SetConnMaxLifetime(time.Second * time.Duration(common.GetEnvOrDefault("SQL_MAX_LIFETIME", 60)))
+		sqlDB.SetConnMaxLifetime(time.Second * time.Duration(common.GetEnvOrDefault("SQL_MAX_LIFETIME", 300)))
 
 		if !common.IsMasterNode {
 			return nil

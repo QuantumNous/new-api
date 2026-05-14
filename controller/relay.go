@@ -250,7 +250,14 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 var upgrader = websocket.Upgrader{
 	Subprotocols: []string{"realtime"}, // WS 握手支持的协议，如果有使用 Sec-WebSocket-Protocol，则必须在此声明对应的 Protocol TODO add other protocol
 	CheckOrigin: func(r *http.Request) bool {
-		return true // 允许跨域
+		if common.GetEnvOrDefaultBool("WS_ALLOW_ALL_ORIGINS", true) {
+			return true
+		}
+		origin := r.Header.Get("Origin")
+		if origin == "" {
+			return true
+		}
+		return origin == r.Host || strings.HasPrefix(origin, "http://"+r.Host) || strings.HasPrefix(origin, "https://"+r.Host)
 	},
 }
 
