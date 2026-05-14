@@ -32,7 +32,12 @@ import {
   IllustrationNoResult,
   IllustrationNoResultDark,
 } from '@douyinfe/semi-illustrations';
-import { stringToColor, getLobeHubIcon } from '../../../../../helpers';
+import {
+  stringToColor,
+  getLobeHubIcon,
+  calculateModelPrice,
+  getModelPriceItems,
+} from '../../../../../helpers';
 import PricingCardSkeleton from './PricingCardSkeleton';
 import { useMinimumLoadingTime } from '../../../../../hooks/common/useMinimumLoadingTime';
 import { renderLimitedItems } from '../../../../common/ui/RenderUtils';
@@ -111,6 +116,109 @@ const getCoverVideoSource = (model) => {
     isUsableVideoSource,
   );
   return typeof source === 'string' ? source.trim() : '';
+};
+
+const getComparablePriceValue = (value) => {
+  if (typeof value === 'number') {
+    return Number.isFinite(value) && value >= 0 ? value : null;
+  }
+  if (typeof value !== 'string') return null;
+  const normalized = value.replace(/,/g, '').match(/-?\d+(?:\.\d+)?/);
+  if (!normalized) return null;
+  const numericValue = Number(normalized[0]);
+  return Number.isFinite(numericValue) && numericValue >= 0
+    ? numericValue
+    : null;
+};
+
+const getLowestDisplayPriceItem = (items) => {
+  const comparableItems = items
+    .filter((item) => !item.isDynamic)
+    .map((item) => ({
+      item,
+      comparableValue: getComparablePriceValue(item.value),
+    }))
+    .filter(({ comparableValue }) => comparableValue !== null);
+
+  if (comparableItems.length === 0) return null;
+
+  return comparableItems.reduce((lowest, current) =>
+    current.comparableValue < lowest.comparableValue ? current : lowest,
+  ).item;
+};
+
+const buildPriceSummary = ({
+  record,
+  selectedGroup,
+  groupRatio,
+  tokenUnit,
+  displayPrice,
+  currency,
+  siteDisplayType,
+  t,
+}) => {
+  if (!record || typeof displayPrice !== 'function') {
+    return null;
+  }
+
+  const priceData = calculateModelPrice({
+    record,
+    selectedGroup,
+    groupRatio,
+    tokenUnit,
+    displayPrice,
+    currency,
+    quotaDisplayType: siteDisplayType,
+  });
+  const priceItems = getModelPriceItems(priceData, t, siteDisplayType);
+  const lowestItem = getLowestDisplayPriceItem(priceItems);
+
+  if (!lowestItem) {
+    return {
+      isAvailable: false,
+      title: t('查看详情'),
+      note: priceItems.some((item) => item.isDynamic)
+        ? t('动态计费')
+        : t('实际消耗以结算为准'),
+    };
+  }
+
+  return {
+    isAvailable: true,
+    label: t('最低'),
+    title: lowestItem.value,
+    suffix: lowestItem.suffix,
+    note: lowestItem.label,
+  };
+};
+
+const ModelCardPrice = ({ summary, t }) => {
+  if (!summary?.isAvailable) {
+    return (
+      <div className='pricing-marketplace-card-price is-empty'>
+        <div className='pricing-marketplace-card-price-label'>{t('价格')}</div>
+        <div className='pricing-marketplace-card-price-value'>
+          {summary?.title || t('查看详情')}
+        </div>
+        <div className='pricing-marketplace-card-price-note'>
+          {summary?.note || t('实际消耗以结算为准')}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className='pricing-marketplace-card-price'>
+      <div className='pricing-marketplace-card-price-label'>
+        {summary.label}
+      </div>
+      <div className='pricing-marketplace-card-price-value'>
+        <span>{summary.title}</span>
+        {summary.suffix && <small>{summary.suffix}</small>}
+      </div>
+      <div className='pricing-marketplace-card-price-note'>{summary.note}</div>
+    </div>
+  );
 };
 
 const ModelCardCover = ({
@@ -248,6 +356,12 @@ const PricingCardView = ({
   selectedRowKeys = [],
   setSelectedRowKeys,
   openModelDetail,
+  selectedGroup = 'all',
+  groupRatio = {},
+  currency = 'USD',
+  siteDisplayType = 'USD',
+  tokenUnit = 'M',
+  displayPrice,
   handleChange,
   setShowWithRecharge,
   setCurrency,
@@ -355,19 +469,6 @@ const PricingCardView = ({
     };
   };
 
-  const getBillingHint = (record) => {
-    if (record.quota_type === 1) return t('按次计费');
-    if (record.quota_type === 0) return t('按量计费');
-    return t('按站点配置计费');
-  };
-
-  const getModelDescription = (record) => {
-    return (
-      record.description ||
-      t('该模型来自站点公开配置，具体可用范围以账号和分组配置为准。')
-    );
-  };
-
   const renderTags = (record) => {
     const customTags = [];
     if (record.tags) {
@@ -390,11 +491,7 @@ const PricingCardView = ({
     }
 
     if (customTags.length === 0) {
-      return (
-        <Tag shape='circle' color='white' size='small'>
-          {t('站点配置')}
-        </Tag>
-      );
+      return null;
     }
 
     return renderLimitedItems({
@@ -448,6 +545,17 @@ const PricingCardView = ({
           const coverClass =
             COVER_CLASS_BY_TYPE[modelCapability.value] ||
             COVER_CLASS_BY_TYPE.general;
+          const renderedTags = renderTags(model);
+          const priceSummary = buildPriceSummary({
+            record: model,
+            selectedGroup,
+            groupRatio,
+            tokenUnit,
+            displayPrice,
+            currency,
+            siteDisplayType,
+            t,
+          });
 
           return (
             <Card
@@ -475,23 +583,15 @@ const PricingCardView = ({
                   <h3 className='pricing-marketplace-card-title'>
                     {model.model_name}
                   </h3>
-                  <p className='pricing-marketplace-card-description'>
-                    {getModelDescription(model)}
-                  </p>
 
-                  <div className='pricing-marketplace-card-tags'>
-                    {renderTags(model)}
-                  </div>
+                  {renderedTags && (
+                    <div className='pricing-marketplace-card-tags'>
+                      {renderedTags}
+                    </div>
+                  )}
 
                   <div className='pricing-marketplace-card-footer'>
-                    <div>
-                      <div className='text-xs font-medium text-semi-color-text-0'>
-                        {getBillingHint(model)}
-                      </div>
-                      <div className='text-xs text-semi-color-text-2'>
-                        {t('详情中可查看站点配置摘要')}
-                      </div>
-                    </div>
+                    <ModelCardPrice summary={priceSummary} t={t} />
                     <Button
                       size='small'
                       theme='borderless'

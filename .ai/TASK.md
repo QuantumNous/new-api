@@ -4024,3 +4024,96 @@ status: completed
 ### Known Risks
 
 - Browser-level scroll interaction was verified by code structure and build/lint checks, not by an automated Playwright interaction test because Playwright is not installed in this workspace.
+
+## Stage ModelCard.1: emphasize model card pricing and simplify card copy
+
+Task: Stage ModelCard.1 model marketplace card minimum price, no description, no site-config placeholder
+
+status: completed
+
+### Goal
+
+- Emphasize the lowest currently displayable price in `/pricing` card view.
+- Remove model description from card view only.
+- Remove the `站点配置` placeholder tag from card view only.
+- Preserve backend, `/api/pricing`, real billing logic, table view, detail SideSheet, filters, pagination, sorting, and image/video cover behavior.
+
+### User Requests
+
+- Card pricing should highlight the current model's lowest computable display price.
+- Card view should no longer show model descriptions.
+- Card view should no longer show the `站点配置` placeholder.
+
+### Changed Files
+
+- `web/classic/src/components/table/model-pricing/view/card/PricingCardView.jsx`
+- `web/classic/src/index.css`
+- `.ai/TASK.md`
+
+### Price Highlight Implementation
+
+- Card view now reuses existing `calculateModelPrice` and `getModelPriceItems` helpers from `helpers`.
+- The card passes the existing pricing context already provided by `useModelPricingData`: `selectedGroup`, `groupRatio`, `tokenUnit`, `displayPrice`, `currency`, and `siteDisplayType`.
+- The card converts existing display price items into comparable numeric values and selects the lowest displayable item.
+- The card displays a compact highlighted price block with `最低`, the selected value, its existing unit suffix, and the source price item label.
+- Dynamic pricing or unparseable price items safely fall back to `查看详情` instead of displaying `0` or a fabricated price.
+
+### Helper Reuse
+
+- Reused existing pricing helpers without changing their semantics.
+- Did not change table pricing column behavior or detail pricing table behavior.
+- Did not add a second billing/pricing algorithm; only selected the lowest value from already generated display price items.
+
+### Description Removal Result
+
+- Removed card-only model description rendering.
+- Kept description data untouched for search and detail SideSheet.
+- Did not modify backend model metadata or admin description fields.
+
+### Site Config Placeholder Removal Result
+
+- Removed the card-only fallback tag that displayed `站点配置` when a model had no custom tags.
+- Real model tags still render when present.
+- Detail pricing/configuration information remains untouched.
+
+### Verification Results
+
+- `C:\Users\Administrator\.bun\bin\bun.exe run build` in `web/classic`: passed, with existing Browserslist, lottie eval, and chunk-size warnings only.
+- First `C:\Users\Administrator\.bun\bin\bun.exe run lint` in `web/classic`: failed because `PricingCardView.jsx` needed Prettier formatting.
+- `C:\Users\Administrator\.bun\bin\bunx.exe prettier --write "src/components/table/model-pricing/view/card/PricingCardView.jsx"`: completed for that single file.
+- `C:\Users\Administrator\.bun\bin\bun.exe run lint` in `web/classic`: passed.
+- `$env:PATH="$env:USERPROFILE\.bun\bin;$env:PATH"; C:\Users\Administrator\.bun\bin\bun.exe run eslint` in `web/classic`: passed.
+- `git diff --check`: passed.
+- `C:\Users\Administrator\.bun\bin\bunx.exe prettier --check "src/components/table/model-pricing/**/*.{js,jsx}" "src/pages/Pricing/**/*.{js,jsx}"` in `web/classic`: passed.
+- `$env:PATH="$env:USERPROFILE\.bun\bin;$env:PATH"; C:\Users\Administrator\.bun\bin\bunx.exe eslint "src/components/table/model-pricing/**/*.{js,jsx}" "src/pages/Pricing/**/*.{js,jsx}"` in `web/classic`: passed.
+
+### Manual / Code-Level Regression
+
+- Code-level check: card view no longer renders the model description paragraph.
+- Code-level check: card view no longer renders the `站点配置` placeholder when custom tags are empty.
+- Code-level check: real custom tags still render when present.
+- Code-level check: pay-as-you-go models use existing helper output and highlight the lowest displayable price item.
+- Code-level check: per-call models use existing helper output and highlight the model price item.
+- Code-level check: dynamic/unparseable pricing falls back to `查看详情`.
+- Code-level check: units from `getModelPriceItems` suffix are preserved.
+- Code-level check: no discount, official-price comparison, or savings ratio is displayed.
+- Code-level check: `查看详情` button remains.
+- Code-level check: image cover source selection and fallback logic were not changed.
+- Code-level check: video preview hover/play/loop/error fallback logic was not changed.
+- Code-level check: search, filters, sorting, pagination, and detail SideSheet data logic were not changed.
+- Code-level check: table view files and table pricing columns were not changed.
+
+### Self Review
+
+- Branch remained `feature/frontend-redesign-gptproto`.
+- Modified files stayed within allowed card/CSS/task-log scope.
+- No backend, database, `/api/pricing`, real billing logic, image/video fields, old admin form, HeaderBar, Home, Footer, PageLayout, `web/default`, dependency, search/filter/sort/pagination, table view, or detail SideSheet changes were made.
+- No new dependency was added.
+- No fake hardcoded price was introduced.
+- Prices come from existing pricing data and existing helper output.
+- No push was performed.
+
+### Known Risks
+
+- Lowest price comparison parses numeric values from already formatted display strings. This is safe for current helper output but may need adjustment if future currency formatting uses non-decimal localized numerals.
+- Browser-level visual card layout was verified by code/build checks, not by an automated screenshot test.
