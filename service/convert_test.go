@@ -15,6 +15,7 @@ func TestClaudeToOpenAIRequest_ToolResultImages(t *testing.T) {
 		name               string
 		messages           []dto.ClaudeMessage
 		expectToolContent  string
+		expectToolContains string
 		expectImageURL     string
 		expectUserImageMsg bool
 	}{
@@ -117,6 +118,129 @@ func TestClaudeToOpenAIRequest_ToolResultImages(t *testing.T) {
 			expectImageURL:     "data:image/png;base64,xyz789",
 			expectUserImageMsg: true,
 		},
+		{
+			name: "multiple images in tool_result",
+			messages: []dto.ClaudeMessage{
+				{
+					Role:    "assistant",
+					Content: []any{map[string]any{"type": "tool_use", "id": "toolu_1", "name": "Read"}},
+				},
+				{
+					Role: "user",
+					Content: []any{
+						map[string]any{
+							"type":        "tool_result",
+							"tool_use_id": "toolu_1",
+							"content": []any{
+								map[string]any{
+									"type": "image",
+									"source": map[string]any{
+										"type":       "base64",
+										"media_type": "image/png",
+										"data":       "image1",
+									},
+								},
+								map[string]any{
+									"type": "image",
+									"source": map[string]any{
+										"type":       "base64",
+										"media_type": "image/jpeg",
+										"data":       "image2",
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			expectToolContent:  "[Tool result contained image content. The image content is provided in the following user message.]",
+			expectImageURL:     "data:image/jpeg;base64,image2",
+			expectUserImageMsg: true,
+		},
+		{
+			name: "image with url instead of data",
+			messages: []dto.ClaudeMessage{
+				{
+					Role:    "assistant",
+					Content: []any{map[string]any{"type": "tool_use", "id": "toolu_1", "name": "Read"}},
+				},
+				{
+					Role: "user",
+					Content: []any{
+						map[string]any{
+							"type":        "tool_result",
+							"tool_use_id": "toolu_1",
+							"content": []any{
+								map[string]any{
+									"type": "image",
+									"source": map[string]any{
+										"type": "url",
+										"url":  "https://example.com/img.png",
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			expectToolContent:  "[Tool result contained image content. The image content is provided in the following user message.]",
+			expectImageURL:     "https://example.com/img.png",
+			expectUserImageMsg: true,
+		},
+		{
+			name: "empty data image is skipped",
+			messages: []dto.ClaudeMessage{
+				{
+					Role:    "assistant",
+					Content: []any{map[string]any{"type": "tool_use", "id": "toolu_1", "name": "Read"}},
+				},
+				{
+					Role: "user",
+					Content: []any{
+						map[string]any{
+							"type":        "tool_result",
+							"tool_use_id": "toolu_1",
+							"content": []any{
+								map[string]any{
+									"type": "image",
+									"source": map[string]any{
+										"type":       "base64",
+										"media_type": "image/png",
+										"data":       "",
+									},
+								},
+								map[string]any{"type": "text", "text": "no image available"},
+							},
+						},
+					},
+				},
+			},
+			expectToolContent: "no image available",
+		},
+		{
+			name: "unknown block type serializes as text alongside real text",
+			messages: []dto.ClaudeMessage{
+				{
+					Role:    "assistant",
+					Content: []any{map[string]any{"type": "tool_use", "id": "toolu_1", "name": "Read"}},
+				},
+				{
+					Role: "user",
+					Content: []any{
+						map[string]any{
+							"type":        "tool_result",
+							"tool_use_id": "toolu_1",
+							"content": []any{
+								map[string]any{"type": "text", "text": "result"},
+								map[string]any{"type": "doc", "content": "doc content here"},
+							},
+						},
+					},
+				},
+			},
+			expectToolContent: "result\n",
+			expectToolContains: `{"type":"doc"`,
+		},
 	}
 
 	for _, tc := range testCases {
@@ -157,7 +281,12 @@ func TestClaudeToOpenAIRequest_ToolResultImages(t *testing.T) {
 			}
 
 			require.NotNil(t, toolMsg, "tool message should exist")
-			require.Equal(t, tc.expectToolContent, toolMsg.StringContent())
+			if tc.expectToolContains != "" {
+				require.Contains(t, toolMsg.StringContent(), tc.expectToolContent)
+				require.Contains(t, toolMsg.StringContent(), tc.expectToolContains)
+			} else {
+				require.Equal(t, tc.expectToolContent, toolMsg.StringContent())
+			}
 
 			if tc.expectUserImageMsg {
 				require.NotNil(t, imgUserMsg, "user message with image_url should exist")
