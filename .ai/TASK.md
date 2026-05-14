@@ -4190,6 +4190,66 @@ status: completed
 ### Known Risks
 
 - Browser-level visual confirmation was done by code and build/lint checks rather than an automated screenshot test.
+
+## Stage ModelCard.1.2 follow-up: make card price grayer
+
+Task: Follow-up to Stage ModelCard.1.2 price color adjustment after user requested `再灰一点`
+
+status: completed
+
+### Goal
+
+- Make the `/pricing` card lowest-price color one step grayer than the prior attempt.
+- Keep the model title darker than the price.
+- Preserve pricing logic, toolbar behavior, backend, filters, sorting, pagination, and detail SideSheet.
+
+### User Feedback
+
+- The price color should be grayer.
+
+### Changed Files
+
+- `web/classic/src/index.css`
+- `.ai/TASK.md`
+
+### Price Color Result
+
+- Updated `.pricing-marketplace-card-price-value` to `var(--semi-color-text-2)`.
+- Restored the global `body` text color to `var(--semi-color-text-0)` because the previous tiny color patch had affected `body` instead of the card price selector.
+- The model title remains `var(--semi-color-text-0)`.
+- Price unit text also uses `var(--semi-color-text-2)`, while note text remains weaker at `var(--semi-color-text-3)`.
+- No price values, units, lowest-price logic, or pricing helper semantics were changed.
+
+### Verification Results
+
+- `C:\Users\Administrator\.bun\bin\bun.exe run build` in `web/classic`: passed, with existing Browserslist, lottie eval, and chunk-size warnings only.
+- `C:\Users\Administrator\.bun\bin\bun.exe run lint` in `web/classic`: passed.
+- `$env:PATH="$env:USERPROFILE\.bun\bin;$env:PATH"; C:\Users\Administrator\.bun\bin\bun.exe run eslint` in `web/classic`: passed.
+- `git diff --check`: passed.
+- `C:\Users\Administrator\.bun\bin\bunx.exe prettier --check "src/components/table/model-pricing/**/*.{js,jsx}"` in `web/classic`: passed.
+- `$env:PATH="$env:USERPROFILE\.bun\bin;$env:PATH"; C:\Users\Administrator\.bun\bin\bunx.exe eslint "src/components/table/model-pricing/**/*.{js,jsx}"` in `web/classic`: passed.
+
+### Manual / Code-Level Regression
+
+- Code-level check: model title color remains `var(--semi-color-text-0)`.
+- Code-level check: price color is now `var(--semi-color-text-2)`, grayer than the title.
+- Code-level check: price remains readable through the existing 22px size and 900 font weight plus Semi theme token.
+- Code-level check: dark mode remains readable because the color follows Semi theme tokens.
+- Code-level check: global `body` text color is restored to the project default main text color.
+- Code-level check: price values, units, and lowest-price selection logic were not changed.
+- Code-level check: search, filters, sorting, pagination, and detail SideSheet were not changed.
+
+### Self Review
+
+- Branch remained `feature/frontend-redesign-gptproto`.
+- Modified files stayed within the CSS/task-log scope.
+- No backend, database, `/api/pricing`, real billing logic, price helper semantics, image/video field logic, toolbar logic, HeaderBar, Home, Footer, PageLayout, `web/default`, or dependency changes were made.
+- No high-saturation color was introduced.
+- No push was performed.
+
+### Known Risks
+
+- Browser-level visual confirmation was done by code and build/lint checks rather than an automated screenshot test.
 - The top toolbar can still show the currency selector if recharge-price display is enabled from another surviving settings surface; this preserves existing state behavior and avoids changing non-toolbar display settings.
 
 ## Stage ModelCard.1.2: fine-tune model card price color

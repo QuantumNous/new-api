@@ -27,7 +27,7 @@ body.sidebar-collapsed {
 body {
   font-family: Lato, 'Helvetica Neue', Arial, Helvetica, 'Microsoft YaHei',
     sans-serif;
-  color: var(--semi-color-text-1);
+  color: var(--semi-color-text-0);
   background-color: var(--semi-color-bg-0);
 }
 
@@ -2012,7 +2012,7 @@ html.dark .headerbar-surface {
   align-items: baseline;
   gap: 4px;
   margin-top: 5px;
-  color: var(--semi-color-text-0);
+  color: var(--semi-color-text-2);
   font-size: 22px;
   font-weight: 900;
   letter-spacing: -0.02em;
