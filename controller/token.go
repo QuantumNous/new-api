@@ -9,6 +9,7 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 
 	"github.com/gin-gonic/gin"
@@ -164,6 +165,64 @@ func GetTokenUsage(c *gin.Context) {
 	})
 }
 
+// validateTokenModelLimits 确保 token.ModelLimits 中的每个模型都在 token.Group
+// 所对应的可用模型集合内。空 group 与 auth.go 对齐——视为单一 user.Group；
+// auto 视为自动分组并集；具体分组必须在用户可用分组集合内。
+// 返回 nil 表示通过；非 nil 错误用于直接回写给客户端。
+func validateTokenModelLimits(userId int, token *model.Token) error {
+	if !token.ModelLimitsEnabled || strings.TrimSpace(token.ModelLimits) == "" {
+		return nil
+	}
+	user, err := model.GetUserCache(userId)
+	if err != nil {
+		return err
+	}
+	usable := service.GetUserUsableGroups(user.Group)
+
+	var targetGroups []string
+	switch token.Group {
+	case "":
+		targetGroups = []string{user.Group}
+	case "auto":
+		targetGroups = service.GetUserAutoGroup(user.Group)
+	default:
+		if _, ok := usable[token.Group]; !ok {
+			return fmt.Errorf("分组 %s 不在可用分组列表中", token.Group)
+		}
+		targetGroups = []string{token.Group}
+	}
+
+	available := make(map[string]bool)
+	for _, g := range targetGroups {
+		for _, m := range model.GetGroupEnabledModels(g) {
+			available[m] = true
+		}
+	}
+
+	var invalid []string
+	for _, m := range strings.Split(token.ModelLimits, ",") {
+		m = strings.TrimSpace(m)
+		if m == "" {
+			continue
+		}
+		if !available[m] {
+			if groups := model.GetModelEnableGroups(m); len(groups) > 0 {
+				invalid = append(invalid, fmt.Sprintf("%s（可用分组：%s）", m, strings.Join(groups, ", ")))
+			} else {
+				invalid = append(invalid, m)
+			}
+		}
+	}
+	if len(invalid) > 0 {
+		groupName := token.Group
+		if groupName == "" {
+			groupName = "默认分组"
+		}
+		return fmt.Errorf("以下模型不在令牌分组 %s 的可用模型范围内：%s", groupName, strings.Join(invalid, "; "))
+	}
+	return nil
+}
+
 func AddToken(c *gin.Context) {
 	token := model.Token{}
 	err := c.ShouldBindJSON(&token)
@@ -198,6 +257,13 @@ func AddToken(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
 			"message": fmt.Sprintf("已达到最大令牌数量限制 (%d)", maxTokens),
+		})
+		return
+	}
+	if err := validateTokenModelLimits(c.GetInt("id"), &token); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"message": err.Error(),
 		})
 		return
 	}
@@ -289,6 +355,13 @@ func UpdateToken(c *gin.Context) {
 	if statusOnly != "" {
 		cleanToken.Status = token.Status
 	} else {
+		if err := validateTokenModelLimits(userId, &token); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"success": false,
+				"message": err.Error(),
+			})
+			return
+		}
 		// If you add more fields, please also update token.Update()
 		cleanToken.Name = token.Name
 		cleanToken.ExpiredTime = token.ExpiredTime

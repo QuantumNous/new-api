@@ -95,6 +95,20 @@ export const useModelPricingData = () => {
     }
   }, [siteDisplayType]);
 
+  // 从 URL `?group=xxx` 同步初始筛选分组（仅在 pricing 数据首次到位后执行一次）
+  const urlGroupSyncedRef = useRef(false);
+  useEffect(() => {
+    if (urlGroupSyncedRef.current) return;
+    if (!usableGroup || Object.keys(usableGroup).length === 0) return;
+    const params = new URLSearchParams(window.location.search);
+    const target = params.get('group');
+    if (target && (target === 'all' || usableGroup[target])) {
+      setSelectedGroup(target);
+      setFilterGroup(target);
+    }
+    urlGroupSyncedRef.current = true;
+  }, [usableGroup]);
+
   const filteredModels = useMemo(() => {
     let result = models;
 

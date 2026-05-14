@@ -139,17 +139,23 @@ func Distribute() func(c *gin.Context) {
 						if usingGroup == "auto" {
 							showGroup = fmt.Sprintf("auto(%s)", selectGroup)
 						}
-						message := i18n.T(c, i18n.MsgDistributorGetChannelFailed, map[string]any{"Group": showGroup, "Model": modelRequest.Model, "Error": err.Error()})
-						// 如果错误，但是渠道不为空，说明是数据库一致性问题
-						//if channel != nil {
-						//	common.SysError(fmt.Sprintf("渠道不存在：%d", channel.Id))
-						//	message = "数据库一致性已被破坏，请联系管理员"
-						//}
-						abortWithOpenAiMessage(c, http.StatusServiceUnavailable, message, types.ErrorCodeModelNotFound)
+						params := map[string]any{"Group": showGroup, "Model": modelRequest.Model, "Error": err.Error()}
+						msgKey := i18n.MsgDistributorGetChannelFailed
+						if hint := availableGroupsHint(modelRequest.Model, usingGroup); hint != "" {
+							params["AvailableGroups"] = hint
+							msgKey = i18n.MsgDistributorGetChannelFailedWithHint
+						}
+						abortWithOpenAiMessage(c, http.StatusServiceUnavailable, i18n.T(c, msgKey, params), types.ErrorCodeModelNotFound)
 						return
 					}
 					if channel == nil {
-						abortWithOpenAiMessage(c, http.StatusServiceUnavailable, i18n.T(c, i18n.MsgDistributorNoAvailableChannel, map[string]any{"Group": usingGroup, "Model": modelRequest.Model}), types.ErrorCodeModelNotFound)
+						params := map[string]any{"Group": usingGroup, "Model": modelRequest.Model}
+						msgKey := i18n.MsgDistributorNoAvailableChannel
+						if hint := availableGroupsHint(modelRequest.Model, usingGroup); hint != "" {
+							params["AvailableGroups"] = hint
+							msgKey = i18n.MsgDistributorNoAvailableChannelHint
+						}
+						abortWithOpenAiMessage(c, http.StatusServiceUnavailable, i18n.T(c, msgKey, params), types.ErrorCodeModelNotFound)
 						return
 					}
 				}
@@ -404,6 +410,27 @@ func SetupContextForSelectedChannel(c *gin.Context, channel *model.Channel, mode
 		c.Set("bot_id", channel.Other)
 	}
 	return nil
+}
+
+// availableGroupsHint 返回该模型实际可用的分组列表（排除当前正在尝试的分组），
+// 用于在"无可用渠道"类错误中告诉用户应该改用哪个分组的令牌。
+// 没有其他可用分组时返回空字符串，上游会退回到不带 hint 的旧文案。
+func availableGroupsHint(modelName, currentGroup string) string {
+	groups := model.GetModelEnableGroups(modelName)
+	if len(groups) == 0 {
+		return ""
+	}
+	filtered := make([]string, 0, len(groups))
+	for _, g := range groups {
+		if g == currentGroup {
+			continue
+		}
+		filtered = append(filtered, g)
+	}
+	if len(filtered) == 0 {
+		return ""
+	}
+	return strings.Join(filtered, ", ")
 }
 
 // extractModelNameFromGeminiPath 从 Gemini API URL 路径中提取模型名

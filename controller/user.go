@@ -528,12 +528,34 @@ func GetUserModels(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
-	groups := service.GetUserUsableGroups(user.Group)
+	usableGroups := service.GetUserUsableGroups(user.Group)
+	requested := strings.TrimSpace(c.Query("group"))
+
+	// 收集目标分组列表
+	var targetGroups []string
+	switch requested {
+	case "":
+		for g := range usableGroups {
+			targetGroups = append(targetGroups, g)
+		}
+	case "auto":
+		targetGroups = service.GetUserAutoGroup(user.Group)
+	default:
+		if _, ok := usableGroups[requested]; !ok {
+			c.JSON(http.StatusForbidden, gin.H{
+				"success": false,
+				"message": fmt.Sprintf("无权访问分组 %s", requested),
+			})
+			return
+		}
+		targetGroups = []string{requested}
+	}
+
 	var models []string
-	for group := range groups {
-		for _, g := range model.GetGroupEnabledModels(group) {
-			if !common.StringsContains(models, g) {
-				models = append(models, g)
+	for _, group := range targetGroups {
+		for _, m := range model.GetGroupEnabledModels(group) {
+			if !common.StringsContains(models, m) {
+				models = append(models, m)
 			}
 		}
 	}

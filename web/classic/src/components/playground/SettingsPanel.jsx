@@ -18,8 +18,8 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import { Card, Select, Typography, Button, Switch } from '@douyinfe/semi-ui';
-import { Sparkles, Users, ToggleLeft, X, Settings } from 'lucide-react';
+import { Card, Select, Typography, Button, Switch, Tooltip } from '@douyinfe/semi-ui';
+import { Sparkles, Users, ToggleLeft, X, Settings, HelpCircle } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { renderGroupOption, selectFilter } from '../../helpers';
 import ParameterControl from './ParameterControl';
@@ -120,6 +120,17 @@ const SettingsPanel = ({
             <Typography.Text strong className='text-sm'>
               {t('分组')}
             </Typography.Text>
+            <Tooltip
+              content={t(
+                '不同分组对应不同的渠道与模型集合。切换分组后，下方"模型"下拉会自动按所选分组过滤；当前模型若在新分组不可用，将被自动切换。',
+              )}
+              position='top'
+            >
+              <HelpCircle
+                size={14}
+                className='text-gray-400 cursor-help'
+              />
+            </Tooltip>
             {customRequestMode && (
               <Typography.Text className='text-xs text-orange-600'>
                 ({t('已在自定义模式中忽略')})

@@ -22,6 +22,7 @@ import {
   API,
   showError,
   showSuccess,
+  showWarning,
   timestamp2string,
   renderGroupOption,
   getCurrencyConfig,
@@ -104,12 +105,16 @@ const EditTokenModal = (props) => {
     }
   };
 
-  const loadModels = async () => {
-    let res = await API.get(`/api/user/models`);
+  const loadModels = async (groupValue = '') => {
+    const params = groupValue
+      ? `?group=${encodeURIComponent(groupValue)}`
+      : '';
+    let res = await API.get(`/api/user/models${params}`);
     const { success, message, data } = res.data;
     if (success) {
       const categories = getModelCategories(t);
-      let localModelOptions = data.map((model) => {
+      const list = data || [];
+      let localModelOptions = list.map((model) => {
         let icon = null;
         for (const [key, category] of Object.entries(categories)) {
           if (key !== 'all' && category.filter({ model_name: model })) {
@@ -128,9 +133,26 @@ const EditTokenModal = (props) => {
         };
       });
       setModels(localModelOptions);
+      // 切换分组后，把当前 model_limits 里不在新模型集里的项清掉，给用户提示
+      const allowed = new Set(list);
+      const current = formApiRef.current?.getValue('model_limits') || [];
+      const stripped = current.filter((m) => allowed.has(m));
+      if (stripped.length !== current.length) {
+        formApiRef.current?.setValue('model_limits', stripped);
+        const removed = current.filter((m) => !allowed.has(m));
+        showWarning(
+          t('以下模型在所选分组下不可用，已自动移除：{{models}}', {
+            models: removed.join(', '),
+          }),
+        );
+      }
     } else {
       showError(t(message));
     }
+  };
+
+  const handleGroupChange = (newGroup) => {
+    loadModels(newGroup || '');
   };
 
   const loadGroups = async () => {
@@ -175,6 +197,8 @@ const EditTokenModal = (props) => {
       if (formApiRef.current) {
         formApiRef.current.setValues({ ...getInitValues(), ...data });
       }
+      // 编辑现有令牌时，按它已经选定的分组重新加载可用模型列表（空 group 走全分组并集）
+      await loadModels(data.group || '');
     } else {
       showError(message);
     }
@@ -387,7 +411,10 @@ const EditTokenModal = (props) => {
                       <Form.Select
                         field='group'
                         label={t('令牌分组')}
-                        placeholder={t('令牌分组，默认为用户的分组')}
+                        placeholder={t('请选择令牌分组')}
+                        rules={[
+                          { required: true, message: t('请选择令牌分组') },
+                        ]}
                         optionList={groups}
                         renderOptionItem={renderGroupOption}
                         filter={(input, option) => {
@@ -398,7 +425,27 @@ const EditTokenModal = (props) => {
                               option.label.toLowerCase().includes(q))
                           );
                         }}
-                        showClear
+                        onChange={handleGroupChange}
+                        extraText={
+                          <span>
+                            {t('该分组下可用模型数：{{count}}', {
+                              count: models.length,
+                            })}
+                            <a
+                              href={
+                                values.group && values.group !== 'auto'
+                                  ? `/pricing?group=${encodeURIComponent(values.group)}`
+                                  : '/pricing'
+                              }
+                              target='_blank'
+                              rel='noreferrer'
+                              className='ml-2'
+                              style={{ color: 'var(--semi-color-link)' }}
+                            >
+                              {t('查看模型广场')}
+                            </a>
+                          </span>
+                        }
                         style={{ width: '100%' }}
                       />
                     ) : (

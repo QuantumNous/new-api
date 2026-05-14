@@ -264,7 +264,9 @@ distributor.model_name_required: "Model name not specified, model name cannot be
 distributor.invalid_playground_request: "Invalid playground request: {{.Error}}"
 distributor.group_access_denied: "No permission to access this group"
 distributor.get_channel_failed: "Failed to get available channel for model {{.Model}} under group {{.Group}} (distributor): {{.Error}}"
+distributor.get_channel_failed_with_hint: "Failed to get available channel for model {{.Model}} under group {{.Group}} (distributor): {{.Error}}. This model is available in: {{.AvailableGroups}}. Please switch to a token of the matching group or visit the Pricing page."
 distributor.no_available_channel: "No available channel for model {{.Model}} under group {{.Group}} (distributor)"
+distributor.no_available_channel_with_hint: "No available channel for model {{.Model}} under group {{.Group}}. This model is available in: {{.AvailableGroups}}. Please switch to a token of the matching group or visit the Pricing page."
 distributor.invalid_midjourney_request: "Invalid Midjourney request: {{.Error}}"
 distributor.invalid_request_parse_model: "Invalid request, unable to parse model"
 

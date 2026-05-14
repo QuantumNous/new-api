@@ -19,7 +19,12 @@ For commercial licensing, please contact support@quantumnous.com
 
 import { useCallback, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { API, processModelsData, processGroupsData } from '../../helpers';
+import {
+  API,
+  processModelsData,
+  processGroupsData,
+  showWarning,
+} from '../../helpers';
 import { API_ENDPOINTS } from '../../constants/playground.constants';
 
 export const useDataLoader = (
@@ -33,18 +38,30 @@ export const useDataLoader = (
 
   const loadModels = useCallback(async () => {
     try {
-      const res = await API.get(API_ENDPOINTS.USER_MODELS);
+      const groupParam = inputs.group
+        ? `?group=${encodeURIComponent(inputs.group)}`
+        : '';
+      const res = await API.get(`${API_ENDPOINTS.USER_MODELS}${groupParam}`);
       const { success, message, data } = res.data;
 
       if (success) {
+        const previousModel = inputs.model;
         const { modelOptions, selectedModel } = processModelsData(
           data,
-          inputs.model,
+          previousModel,
         );
         setModels(modelOptions);
 
-        if (selectedModel !== inputs.model) {
+        if (selectedModel !== previousModel) {
           handleInputChange('model', selectedModel);
+          if (previousModel) {
+            showWarning(
+              t('模型 {{model}} 在所选分组下不可用，已切换为 {{next}}', {
+                model: previousModel,
+                next: selectedModel || t('（无可用模型）'),
+              }),
+            );
+          }
         }
       } else {
         showError(t(message));
@@ -52,7 +69,7 @@ export const useDataLoader = (
     } catch (error) {
       showError(t('加载模型失败'));
     }
-  }, [inputs.model, handleInputChange, setModels, t]);
+  }, [inputs.model, inputs.group, handleInputChange, setModels, t]);
 
   const loadGroups = useCallback(async () => {
     try {
