@@ -22,6 +22,10 @@ type SubscriptionEpayPayRequest struct {
 }
 
 func SubscriptionRequestEpay(c *gin.Context) {
+	if !requirePaymentCompliance(c) {
+		return
+	}
+
 	var req SubscriptionEpayPayRequest
 	if err := c.ShouldBindJSON(&req); err != nil || req.PlanId <= 0 {
 		common.ApiErrorMsg(c, "参数错误")
