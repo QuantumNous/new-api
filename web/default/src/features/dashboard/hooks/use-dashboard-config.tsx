@@ -7,6 +7,7 @@ import {
   Wallet,
   TrendingUp,
   Activity,
+  Database,
   type LucideIcon,
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
@@ -60,6 +61,13 @@ export function useModelStatCardsConfig(): StatCardConfig[] {
       icon: Zap,
       getValue: (stat, timeRangeMinutes = 1) =>
         safeDivide(stat?.tpm ?? 0, timeRangeMinutes),
+    },
+    {
+      key: 'cacheRead',
+      title: t('Cache Hits'),
+      description: t('Tokens served from cache'),
+      icon: Database,
+      getValue: (stat) => stat?.cacheRead ?? 0,
     },
   ]
 }

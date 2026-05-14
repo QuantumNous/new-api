@@ -12,7 +12,7 @@ import {
   FileText,
   KeyRound,
   ListChecks,
-  Play,
+  MessageSquare,
   RadioTower,
   ShieldCheck,
   TerminalSquare,
@@ -477,10 +477,10 @@ export function OverviewDashboard() {
   const quickActions = useMemo<QuickAction[]>(
     () => [
       {
-        title: t('Playground'),
-        description: t('Test models and prompts from the browser'),
+        title: t('Chat'),
+        description: t('Chat with models directly in the browser'),
         to: '/playground',
-        icon: Play,
+        icon: MessageSquare,
       },
       {
         title: t('Channels'),

@@ -246,8 +246,27 @@ func RecordConsumeLog(c *gin.Context, userId int, params RecordConsumeLogParams)
 		logger.LogError(c, "failed to record log: "+err.Error())
 	}
 	if common.DataExportEnabled {
+		// Extract cache token counts from the Other map before spawning goroutine
+		cacheTokens := 0
+		cacheCreationTokens := 0
+		if v, ok := params.Other["cache_tokens"]; ok {
+			switch n := v.(type) {
+			case int:
+				cacheTokens = n
+			case float64:
+				cacheTokens = int(n)
+			}
+		}
+		if v, ok := params.Other["cache_creation_tokens"]; ok {
+			switch n := v.(type) {
+			case int:
+				cacheCreationTokens = n
+			case float64:
+				cacheCreationTokens = int(n)
+			}
+		}
 		gopool.Go(func() {
-			LogQuotaData(userId, username, params.ModelName, params.Quota, common.GetTimestamp(), params.PromptTokens+params.CompletionTokens)
+			LogQuotaData(userId, username, params.ModelName, params.Quota, common.GetTimestamp(), params.PromptTokens+params.CompletionTokens, cacheTokens, cacheCreationTokens)
 		})
 	}
 }

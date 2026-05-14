@@ -94,6 +94,31 @@ const API_DEMOS: ApiDemoConfig[] = [
     accent: 'amber',
   },
   {
+    id: 'deepseek',
+    label: 'DeepSeek',
+    method: 'POST',
+    endpoint: '/v1/chat/completions',
+    headers: ['"Authorization: Bearer sk-••••"'],
+    request: [
+      '"model": "deepseek-reasoner",',
+      '"messages": [',
+      '  { "role": "user", "content": "..." }',
+      ']',
+    ],
+    response: [
+      '{',
+      '  "choices": [{ "message": {',
+      '    "reasoning_content": <think>,',
+      '    "content": <text> } }],',
+      '  "usage": { "total_tokens": <tokens> }',
+      '}',
+    ],
+    responseHighlights: ['<think>', '<text>', '<tokens>'],
+    tokens: 34,
+    latency: 178,
+    accent: 'violet',
+  },
+  {
     id: 'claude',
     label: 'Claude',
     method: 'POST',
@@ -116,29 +141,6 @@ const API_DEMOS: ApiDemoConfig[] = [
     tokens: 29,
     latency: 156,
     accent: 'blue',
-  },
-  {
-    id: 'gemini',
-    label: 'Gemini',
-    method: 'POST',
-    endpoint: '/v1beta/models/{model}:generateContent',
-    headers: ['"x-goog-api-key: sk-••••"'],
-    request: [
-      '"contents": [',
-      '  { "role": "user",',
-      '    "parts": [{ "text": "..." }] }',
-      ']',
-    ],
-    response: [
-      '{',
-      '  "candidates": [{ "content": { "parts": [{ "text": <text> }] } }],',
-      '  "usageMetadata": { "totalTokenCount": <tokens> }',
-      '}',
-    ],
-    responseHighlights: ['<text>', '<tokens>'],
-    tokens: 25,
-    latency: 93,
-    accent: 'violet',
   },
 ]
 
@@ -280,7 +282,7 @@ export function HeroTerminalDemo() {
             <span className='flex items-center gap-1'>
               <span className='tracking-wider uppercase'>cost</span>
               <span className='font-mono'>
-                ${(demo.tokens * 0.00003).toFixed(5)}
+                ¥{(demo.tokens * 0.0002).toFixed(4)}
               </span>
             </span>
           </div>
@@ -390,7 +392,13 @@ function renderResponseLine(line: string, demo: ApiDemoConfig): ReactNode {
       )
     }
     const placeholder = match[0]
-    if (placeholder === '<text>') {
+    if (placeholder === '<think>') {
+      segments.push(
+        <Accent key={`ph-${idx}`} accent={demo.accent}>
+          {`"${truncateResponse(demo, true)}"`}
+        </Accent>
+      )
+    } else if (placeholder === '<text>') {
       segments.push(
         <Accent key={`ph-${idx}`} accent={demo.accent}>
           {`"${truncateResponse(demo)}"`}
@@ -423,12 +431,13 @@ function renderResponseLine(line: string, demo: ApiDemoConfig): ReactNode {
   return segments
 }
 
-function truncateResponse(demo: ApiDemoConfig): string {
+function truncateResponse(demo: ApiDemoConfig, isThink = false): string {
+  if (isThink) return 'Analyzing the request...'
   const map: Record<string, string> = {
     'gpt-chat': 'Chat request routed.',
     responses: 'Response workflow ready.',
+    deepseek: 'DeepSeek request served.',
     claude: 'Claude message routed.',
-    gemini: 'Gemini request served.',
   }
   return map[demo.id] ?? '...'
 }

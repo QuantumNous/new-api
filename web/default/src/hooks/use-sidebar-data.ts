@@ -38,13 +38,13 @@ export function useSidebarData(): SidebarData {
         title: t('Chat'),
         items: [
           {
-            title: t('Playground'),
+            title: t('Chat'),
             url: '/playground',
-            icon: FlaskConical,
+            icon: MessageSquare,
           },
           {
-            title: t('Chat'),
-            icon: MessageSquare,
+            title: t('Playground'),
+            icon: FlaskConical,
             type: 'chat-presets',
           },
         ],
