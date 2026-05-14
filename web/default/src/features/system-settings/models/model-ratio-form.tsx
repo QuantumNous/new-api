@@ -41,13 +41,14 @@ function safeParseJson(s: string): Record<string, number> {
 }
 
 // Group section names in the merged JSON output
-const GROUP_CONFIGURED = '已设置价格' // models with ratio or price (primary pricing)
-const GROUP_UNCONFIGURED = '未设置价格' // models with only secondary fields (cache/image/audio/etc)
+const GROUP_CONFIGURED = 'configured' // models with ratio or price (primary pricing)
+const GROUP_UNCONFIGURED = 'unconfigured' // models with only secondary fields (cache/image/audio/etc)
+// Accept legacy Chinese names on input for backward compatibility with older saved JSON.
 const GROUP_KEYS = new Set([
   GROUP_CONFIGURED,
   GROUP_UNCONFIGURED,
-  'configured',
-  'unconfigured',
+  '已设置价格',
+  '未设置价格',
 ])
 
 const VALID_FIELDS = new Set([
@@ -86,8 +87,9 @@ function isGroupedFormat(obj: Record<string, unknown>): boolean {
 
 /**
  * Normalize input: accept either grouped format
- * `{ "已设置价格": {...}, "未设置价格": {...} }`
+ * `{ "configured": {...}, "unconfigured": {...} }`
  * or legacy flat format `{ "model-name": {...} }`.
+ * Legacy Chinese group names (`已设置价格` / `未设置价格`) are also accepted.
  * Returns a flat map of model → entry.
  */
 function normalizeToFlat(
@@ -125,8 +127,8 @@ function normalizeToFlat(
  * Convert 8 separate field JSONs → grouped merged JSON.
  * Output structure:
  *   {
- *     "已设置价格":   { "gpt-4": { "ratio": 1.0 }, ... },
- *     "未设置价格":   { "some-model": { "cache_ratio": 0.5 }, ... }
+ *     "configured":   { "gpt-4": { "ratio": 1.0 }, ... },
+ *     "unconfigured": { "some-model": { "cache_ratio": 0.5 }, ... }
  *   }
  */
 function fieldsToMerged(values: ModelFormValues): string {
@@ -240,7 +242,7 @@ function mergedToFields(
 
 /**
  * Validate JSON string. Accepts both grouped format
- * `{ "已设置价格": {...}, "未设置价格": {...} }` and legacy flat format
+ * `{ "configured": {...}, "unconfigured": {...} }` and legacy flat format
  * `{ "model-name": {...} }`. Returns error message or null.
  */
 function validateMergedJson(json: string): string | null {
@@ -488,8 +490,8 @@ export const ModelRatioForm = memo(function ModelRatioForm({
               <p>
                 模型按是否设置主价格（<code className='font-mono'>ratio</code> /{' '}
                 <code className='font-mono'>price</code>）自动分到{' '}
-                <code className='font-mono'>已设置价格</code> 与{' '}
-                <code className='font-mono'>未设置价格</code> 两组。新增模型放到任意一组都可以，应用时会自动归类。
+                <code className='font-mono'>configured</code> 与{' '}
+                <code className='font-mono'>unconfigured</code> 两组。新增模型放到任意一组都可以，应用时会自动归类。
               </p>
             </div>
 
@@ -513,7 +515,7 @@ export const ModelRatioForm = memo(function ModelRatioForm({
             <Textarea
               rows={20}
               className={`font-mono text-sm ${mergedError ? 'border-red-300 focus-visible:ring-red-400' : ''}`}
-              placeholder={`{\n  "已设置价格": {\n    "gpt-4": { "ratio": 1.0 }\n  },\n  "未设置价格": {}\n}`}
+              placeholder={`{\n  "configured": {\n    "gpt-4": { "ratio": 1.0 }\n  },\n  "unconfigured": {}\n}`}
               value={mergedDraft}
               onChange={(e) => handleDraftChange(e.target.value)}
               onKeyDown={handleMergedJsonTab}
