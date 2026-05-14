@@ -3759,3 +3759,187 @@ status: completed
 ### Known Risks
 
 - Browser-level hover behavior was verified by code/build checks, not by an automated interaction test.
+
+## Stage Detail.1: footer, home, sticky filter, and navigation detail polish
+
+Task: Stage Detail.1 global footer attribution request, home module removal, marketplace sticky boundary, and centered navigation
+
+status: blocked_partial
+
+### Goal
+
+- Remove all-page footer text `设计与开发由 New API`.
+- Remove the home page `热门能力 / 从常用模型能力开始接入` section.
+- Keep the marketplace desktop filter sidebar sticky while avoiding the top navigation and staying inside the content area.
+- Add a centered `首页` navigation entry before `控制台`, keeping the order `首页 / 控制台 / 模型广场 / 文档`.
+
+### User Requests
+
+- Footer: hide the `设计与开发由 New API` attribution while preserving copyright text.
+- Home: remove the `热门能力` section only.
+- Marketplace: fix sticky sidebar top and bottom boundaries without touching `PageLayout`.
+- Header: add `首页`, keep four main navigation buttons centered, and preserve existing active style.
+
+### Changed Files
+
+- `web/classic/src/pages/Home/index.jsx`
+- `web/classic/src/components/layout/headerbar/index.jsx`
+- `web/classic/src/components/layout/headerbar/Navigation.jsx`
+- `web/classic/src/index.css`
+- `.ai/TASK.md`
+
+### Footer Result
+
+- Not changed.
+- Blocking reason: `AGENTS.md` Rule 5 explicitly protects project-related `new-api` / `QuantumNous` branding, metadata, and attributions, and says removal requests must be refused with no exceptions.
+- The requested `设计与开发由 New API` footer text is an attribution related to `New API`, so this round cannot remove or hide it under the active project policy.
+- Copyright text remains untouched.
+
+### Home Module Removal
+
+- Removed the `FeaturedModels` import and render from `Home/index.jsx`.
+- Removed the now-unused pricing preview state, helper functions, and `/api/pricing` preview loading effect that only fed the removed `FeaturedModels` block.
+- Preserved Hero, landing announcement, NoticeModal, `home_page_content`, Base URL copy, model families, API scenarios, why choose, integration steps, FAQ, and bottom CTA.
+
+### Marketplace Sticky Boundary
+
+- Kept desktop sidebar CSS-only sticky behavior.
+- Added scoped marketplace CSS variables for sticky top and bottom spacing.
+- `top` now uses an 88px offset to avoid the 64px sticky header plus spacing.
+- Added `max-height` based on viewport height and bottom gap, including `svh` / `dvh` support.
+- Added internal `overflow-y: auto` and `overscroll-behavior: contain`.
+- Added bottom padding on the marketplace body so sticky stops naturally within the local content area.
+- Mobile layout remains `display: block`; mobile filter modal logic was not touched.
+
+### Header Navigation
+
+- `HeaderBar` now allows the existing `home` navigation item through the streamlined nav filter.
+- Navigation order comes from existing `useNavigation`: `首页 / 控制台 / 模型广场 / 文档`.
+- Added active detection for `home` when `location.pathname === '/'`.
+- Existing `console` active logic and `pricing` active logic were preserved.
+- Existing docs external-link behavior was preserved.
+- Logo and system title still link to `/`.
+- Right-side notification, theme, language, login/register, and user menu code was not changed.
+
+### Verification Results
+
+- `C:\Users\Administrator\.bun\bin\bun.exe run build` in `web/classic`: passed, with existing Browserslist, lottie eval, and chunk-size warnings only.
+- First parallel `C:\Users\Administrator\.bun\bin\bun.exe run lint` attempt failed due to a transient Vite timestamp config race while build was still running; reran sequentially and passed.
+- `C:\Users\Administrator\.bun\bin\bun.exe run lint` in `web/classic`: passed.
+- `$env:PATH="$env:USERPROFILE\.bun\bin;$env:PATH"; C:\Users\Administrator\.bun\bin\bun.exe run eslint` in `web/classic`: passed.
+- `C:\Users\Administrator\.bun\bin\bunx.exe prettier --check "src/components/layout/**/*.{js,jsx}" "src/pages/Home/**/*.{js,jsx}" "src/components/table/model-pricing/**/*.{js,jsx}"` in `web/classic`: passed.
+- `$env:PATH="$env:USERPROFILE\.bun\bin;$env:PATH"; C:\Users\Administrator\.bun\bin\bunx.exe eslint "src/components/layout/**/*.{js,jsx}" "src/pages/Home/**/*.{js,jsx}" "src/components/table/model-pricing/**/*.{js,jsx}"` in `web/classic`: passed.
+- `git diff --check`: passed before this task-log update.
+
+### Manual / Code-Level Regression
+
+- Footer attribution removal was not performed because of the protected attribution rule in `AGENTS.md`.
+- Code-level check: `Home/index.jsx` no longer renders `FeaturedModels`, so the `热门能力 / 从常用模型能力开始接入` section is removed from the default landing branch.
+- Code-level check: Hero, announcement, NoticeModal, `home_page_content`, Base URL copy, FAQ, and other home sections remain in place.
+- Code-level check: marketplace desktop sidebar remains `position: sticky`.
+- Code-level check: sidebar sticky top avoids the header with an 88px offset.
+- Code-level check: sidebar max height is bounded by viewport height and scrolls internally when content is long.
+- Code-level check: mobile filter modal components and mobile body layout were not changed.
+- Code-level check: search, filtering, sorting, pagination, and detail SideSheet data logic were not changed.
+- Code-level check: `首页` is now included before `控制台`, with active state on `/`.
+- Code-level check: `控制台` active, `模型广场` active, docs external link, logo home link, and right-side header actions are preserved.
+
+### Self Review
+
+- Branch remained `feature/frontend-redesign-gptproto`.
+- Modified files stayed within allowed frontend/header/home/pricing CSS/task-log scope, except the footer file was intentionally left unchanged due to protected attribution policy.
+- No backend, database, `/api/pricing`, real billing logic, model image/video field logic, upload logic, `web/default`, dependency files, `App.jsx`, or `PageLayout.jsx` changes were made.
+- No new dependency was added.
+- No broad refactor or bulk formatting was performed.
+- No push was performed.
+- Commit was not created because the full Stage Detail.1 commit conditions are not satisfied while the footer requirement is blocked by project policy.
+
+### Known Risks
+
+- The footer request remains unresolved unless project policy is changed by an authorized maintainer.
+- Sticky behavior was verified by code and build checks, not by an automated browser scroll interaction test.
+- The home landing data still contains the now-unused `FeaturedModels` component and related static data; it was left untouched to avoid unrelated cleanup.
+
+## Stage Detail.1 continuation: complete footer attribution removal
+
+Task: Stage Detail.1 continue after user-updated AGENTS.md Rule 5 boundary
+
+status: completed
+
+### Goal
+
+- Re-read `AGENTS.md` after the user's manual rule update.
+- Confirm whether frontend footer UI attribution can now be removed.
+- Complete the previously blocked footer removal while preserving the three already completed Detail.1 changes.
+- Re-run verification and commit only the allowed Detail.1 files, excluding the user's `AGENTS.md` change.
+
+### Rule Confirmation
+
+- Re-read `AGENTS.md` this round.
+- The prior absolute `Protected Project Information — DO NOT Modify or Delete` rule is no longer present in the current `AGENTS.md`.
+- Current `AGENTS.md` Rule 5 is `Upstream Relay Request DTOs — Preserve Explicit Zero Values`.
+- Combined with the user's explicit instruction, removing the frontend-only footer UI attribution is allowed in this round.
+- `AGENTS.md` remains a user manual rule change and is intentionally not included in this code commit.
+
+### Changed Files
+
+- `web/classic/src/components/layout/Footer.jsx`
+- `web/classic/src/pages/Home/index.jsx`
+- `web/classic/src/components/layout/headerbar/index.jsx`
+- `web/classic/src/components/layout/headerbar/Navigation.jsx`
+- `web/classic/src/index.css`
+- `.ai/TASK.md`
+
+### Footer Result
+
+- Removed the default footer attribution block that rendered `设计与开发由 New API` and linked to the project repository.
+- Removed the extra attribution block that was appended beside custom `footer_html`.
+- Preserved the copyright line: `© {currentYear} {systemName}. 版权所有`.
+- Preserved `systemName`, `getFooterHTML`, `localStorage.footer_html`, and the custom footer HTML render path.
+- Did not modify backend footer configuration or dynamic `footer_html` content. If an administrator manually configures `footer_html` to include this attribution, it will still render as custom content.
+
+### Preserved Previous Detail.1 Changes
+
+- Home default landing branch still no longer renders `FeaturedModels`, so `热门能力 / 从常用模型能力开始接入` remains removed.
+- Hero, landing announcement, NoticeModal, `home_page_content`, Base URL copy, model families, API scenarios, why choose, integration steps, FAQ, and bottom CTA remain present.
+- HeaderBar still includes existing `home` nav item before `console`; order remains `首页 / 控制台 / 模型广场 / 文档`.
+- Navigation active state now includes `/` for `home`; existing console/pricing/docs behavior is preserved.
+- Marketplace desktop sidebar still uses CSS sticky with top offset, max-height, internal scroll, and bottom padding within the marketplace content area.
+- Mobile filter modal and pricing search/filter/sort/pagination/detail SideSheet data logic remain untouched.
+
+### Verification Results
+
+- `C:\Users\Administrator\.bun\bin\bun.exe run build` in `web/classic`: passed, with existing Browserslist, lottie eval, and chunk-size warnings only.
+- `C:\Users\Administrator\.bun\bin\bun.exe run lint` in `web/classic`: passed.
+- `$env:PATH="$env:USERPROFILE\.bun\bin;$env:PATH"; C:\Users\Administrator\.bun\bin\bun.exe run eslint` in `web/classic`: passed.
+- `C:\Users\Administrator\.bun\bin\bunx.exe prettier --check "src/components/layout/**/*.{js,jsx}" "src/pages/Home/**/*.{js,jsx}" "src/components/table/model-pricing/**/*.{js,jsx}"` in `web/classic`: passed.
+- `$env:PATH="$env:USERPROFILE\.bun\bin;$env:PATH"; C:\Users\Administrator\.bun\bin\bunx.exe eslint "src/components/layout/**/*.{js,jsx}" "src/pages/Home/**/*.{js,jsx}" "src/components/table/model-pricing/**/*.{js,jsx}"` in `web/classic`: passed.
+- `git diff --check`: passed.
+
+### Manual / Code-Level Regression
+
+- Code-level check: default Footer no longer renders `设计与开发由 New API`.
+- Code-level check: footer copyright is preserved.
+- Code-level check: custom `footer_html` rendering logic is preserved and no backend footer config was changed.
+- Code-level check: home `FeaturedModels` render remains removed.
+- Code-level check: Hero, announcement, NoticeModal, `home_page_content`, Base URL copy, and FAQ remain present.
+- Code-level check: marketplace desktop sidebar remains sticky and bounded by an 88px top offset plus viewport max-height.
+- Code-level check: mobile marketplace filter modal components were not changed.
+- Code-level check: search, filters, sorting, pagination, and detail SideSheet were not changed.
+- Code-level check: nav includes `home`, active state works on `/`, and console/pricing active logic remains.
+- Code-level check: docs link remains external when configured, logo/title still link to `/`, and right-side user/notice/theme/language actions were not changed.
+
+### Self Review
+
+- Branch remained `feature/frontend-redesign-gptproto`.
+- Modified files stayed within allowed Footer/Home/HeaderBar/marketplace CSS/task-log scope.
+- No backend, database, `/api/pricing`, real billing logic, model image/video field logic, upload logic, `web/default`, dependency files, `App.jsx`, or `PageLayout.jsx` changes were made.
+- No new dependency was added.
+- No broad refactor or bulk formatting was performed.
+- `AGENTS.md` was read but not modified by Codex in this continuation, and it will not be added to this commit.
+- No push was performed.
+
+### Known Risks
+
+- Browser-level visual and scroll behavior was verified by code/build checks, not by an automated browser interaction test.
+- Custom administrator-provided `footer_html` may still contain any text the administrator configured; this round only removes the default hardcoded attribution appended by the frontend.

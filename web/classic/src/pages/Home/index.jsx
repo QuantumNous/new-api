@@ -29,7 +29,6 @@ import { useTranslation } from 'react-i18next';
 import NoticeModal from '../../components/layout/NoticeModal';
 import LandingAnnouncement from './components/LandingAnnouncement';
 import LandingHero from './components/LandingHero';
-import FeaturedModels from './components/FeaturedModels';
 import ModelFamilies from './components/ModelFamilies';
 import ApiScenarios from './components/ApiScenarios';
 import WhyChooseSection from './components/WhyChooseSection';
@@ -37,79 +36,6 @@ import IntegrationSteps from './components/IntegrationSteps';
 import LandingFAQ from './components/LandingFAQ';
 import LandingBottomCTA from './components/LandingBottomCTA';
 import { announcement } from './landingData';
-
-const MAX_PRICING_PREVIEW_CARDS = 6;
-const MIN_PRICING_PREVIEW_CARDS = 3;
-const MAX_PRICING_DESCRIPTION_LENGTH = 96;
-
-const truncateText = (text, maxLength) => {
-  if (typeof text !== 'string') return '';
-  const value = text.trim();
-  if (!value) return '';
-  return value.length > maxLength ? `${value.slice(0, maxLength)}...` : value;
-};
-
-const normalizeTag = (tag) => {
-  if (tag === undefined || tag === null) return '';
-  return String(tag).replace(/[_-]+/g, ' ').trim();
-};
-
-const normalizeTags = (model) => {
-  const tagItems =
-    typeof model.tags === 'string'
-      ? model.tags.split(/[,;|，、]+/)
-      : Array.isArray(model.tags)
-        ? model.tags
-        : [];
-  const endpointItems = Array.isArray(model.supported_endpoint_types)
-    ? model.supported_endpoint_types
-    : [];
-
-  const tags = [...tagItems, ...endpointItems]
-    .map(normalizeTag)
-    .filter(Boolean);
-  const uniqueTags = Array.from(new Set(tags)).slice(0, 3);
-
-  return uniqueTags.length > 0
-    ? uniqueTags
-    : ['OpenAI 兼容', 'API', '站点配置'];
-};
-
-const buildVendorMap = (vendors) => {
-  if (!Array.isArray(vendors)) return {};
-
-  return vendors.reduce((map, vendor) => {
-    if (vendor && vendor.id !== undefined && vendor.name) {
-      map[String(vendor.id)] = vendor.name;
-    }
-    return map;
-  }, {});
-};
-
-const normalizePricingPreviewCards = (payload) => {
-  if (!payload?.success || !Array.isArray(payload.data)) return [];
-
-  const vendorMap = buildVendorMap(payload.vendors);
-  const cards = payload.data
-    .filter(
-      (model) =>
-        model &&
-        typeof model.model_name === 'string' &&
-        model.model_name.trim() !== '',
-    )
-    .slice(0, MAX_PRICING_PREVIEW_CARDS)
-    .map((model) => ({
-      title: model.model_name.trim(),
-      provider: vendorMap[String(model.vendor_id)] || '站点配置',
-      description:
-        truncateText(model.description, MAX_PRICING_DESCRIPTION_LENGTH) ||
-        '该模型来自站点公开配置，具体可用范围、权限与计费方式以控制台和价格页为准。',
-      tags: normalizeTags(model),
-      status: '按站点配置计费',
-    }));
-
-  return cards.length >= MIN_PRICING_PREVIEW_CARDS ? cards : [];
-};
 
 const normalizeFaqItems = (items) => {
   if (!Array.isArray(items)) return undefined;
@@ -132,7 +58,6 @@ const Home = () => {
   const [homePageContentLoaded, setHomePageContentLoaded] = useState(false);
   const [homePageContent, setHomePageContent] = useState('');
   const [noticeVisible, setNoticeVisible] = useState(false);
-  const [pricingPreviewCards, setPricingPreviewCards] = useState([]);
   const isMobile = useIsMobile();
   const isSelfUseMode = statusState?.status?.self_use_mode_enabled || false;
   const docsLink = statusState?.status?.docs_link || '';
@@ -208,32 +133,6 @@ const Home = () => {
   }, []);
 
   useEffect(() => {
-    if (!homePageContentLoaded || homePageContent !== '') return;
-
-    let ignore = false;
-
-    const loadPricingPreview = async () => {
-      try {
-        const res = await API.get('/api/pricing', {
-          skipErrorHandler: true,
-        });
-        const previewCards = normalizePricingPreviewCards(res.data);
-        if (!ignore && previewCards.length > 0) {
-          setPricingPreviewCards(previewCards);
-        }
-      } catch {
-        // Keep the static landing cards when public pricing is unavailable.
-      }
-    };
-
-    loadPricingPreview();
-
-    return () => {
-      ignore = true;
-    };
-  }, [homePageContent, homePageContentLoaded]);
-
-  useEffect(() => {
     const timer = setInterval(() => {
       setEndpointIndex((prev) => (prev + 1) % endpointItems.length);
     }, 3000);
@@ -263,7 +162,6 @@ const Home = () => {
               user={userState.user}
             />
           </section>
-          <FeaturedModels items={pricingPreviewCards} />
           <ModelFamilies />
           <ApiScenarios />
           <WhyChooseSection />

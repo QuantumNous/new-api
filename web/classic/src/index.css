@@ -1408,6 +1408,8 @@ html.dark .headerbar-surface {
 .pricing-marketplace-page {
   min-width: 0;
   min-height: calc(100vh - 64px);
+  --pricing-marketplace-sticky-top: 88px;
+  --pricing-marketplace-sticky-bottom-gap: 24px;
   background: var(--semi-color-bg-0);
 }
 
@@ -1419,10 +1421,11 @@ html.dark .headerbar-surface {
 .pricing-marketplace-body {
   display: grid;
   grid-template-columns: 256px minmax(0, 1fr);
+  align-items: start;
   gap: 32px;
   width: min(100%, 1800px);
   margin: 0 auto;
-  padding: 24px 48px 0;
+  padding: 24px 48px var(--pricing-marketplace-sticky-bottom-gap);
   background: var(--semi-color-bg-0);
 }
 
@@ -1432,11 +1435,33 @@ html.dark .headerbar-surface {
 
 .pricing-marketplace-sidebar-sticky {
   position: sticky;
-  top: 88px;
+  top: var(--pricing-marketplace-sticky-top);
   align-self: start;
-  max-height: calc(100vh - 112px);
+  max-height: calc(
+    100vh - var(--pricing-marketplace-sticky-top) -
+      var(--pricing-marketplace-sticky-bottom-gap)
+  );
   overflow-y: auto;
+  overscroll-behavior: contain;
   scrollbar-width: thin;
+}
+
+@supports (height: 100svh) {
+  .pricing-marketplace-sidebar-sticky {
+    max-height: calc(
+      100svh - var(--pricing-marketplace-sticky-top) -
+        var(--pricing-marketplace-sticky-bottom-gap)
+    );
+  }
+}
+
+@supports (height: 100dvh) {
+  .pricing-marketplace-sidebar-sticky {
+    max-height: calc(
+      100dvh - var(--pricing-marketplace-sticky-top) -
+        var(--pricing-marketplace-sticky-bottom-gap)
+    );
+  }
 }
 
 .pricing-marketplace-hero {

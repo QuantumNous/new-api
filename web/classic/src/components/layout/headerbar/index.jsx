@@ -65,7 +65,7 @@ const HeaderBar = ({ onMobileMenuToggle, drawerOpen }) => {
 
   const { mainNavLinks } = useNavigation(t, docsLink, headerNavModules);
   const streamlinedNavLinks = mainNavLinks.filter((link) =>
-    ['console', 'pricing', 'docs'].includes(link.itemKey),
+    ['home', 'console', 'pricing', 'docs'].includes(link.itemKey),
   );
 
   return (

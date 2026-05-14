@@ -30,6 +30,9 @@ const Navigation = ({
 }) => {
   const location = useLocation();
   const isActiveLink = (itemKey) => {
+    if (itemKey === 'home') {
+      return location.pathname === '/';
+    }
     if (itemKey === 'pricing') {
       return location.pathname === '/pricing';
     }
