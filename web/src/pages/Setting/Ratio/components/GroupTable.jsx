@@ -6,6 +6,7 @@ import {
   Checkbox,
   Typography,
   Popconfirm,
+  Tag,
 } from '@douyinfe/semi-ui';
 import { IconPlus, IconDelete } from '@douyinfe/semi-icons';
 import { useTranslation } from 'react-i18next';
@@ -61,7 +62,7 @@ export function serializeGroupTable(rows) {
   };
 }
 
-export default function GroupTable({ groupRatio, userUsableGroups, onChange }) {
+export default function GroupTable({ groupRatio, userUsableGroups, onChange, userOverrideCounts }) {
   const { t } = useTranslation();
 
   const [rows, setRows] = useState(() =>
@@ -135,6 +136,9 @@ export default function GroupTable({ groupRatio, userUsableGroups, onChange }) {
   const duplicateNamesRef = useRef(duplicateNames);
   duplicateNamesRef.current = duplicateNames;
 
+  const userOverrideCountsRef = useRef(userOverrideCounts);
+  userOverrideCountsRef.current = userOverrideCounts;
+
   const columns = useMemo(
     () => [
       {
@@ -201,6 +205,21 @@ export default function GroupTable({ groupRatio, userUsableGroups, onChange }) {
               -
             </Text>
           ),
+      },
+      {
+        title: t('独立倍率'),
+        dataIndex: 'userOverride',
+        key: 'userOverride',
+        width: 100,
+        align: 'center',
+        render: (_, record) => {
+          const count = userOverrideCountsRef.current?.[record.name] || 0;
+          return count > 0 ? (
+            <Tag color='blue' size='small'>{count} {t('人')}</Tag>
+          ) : (
+            <Text type='tertiary' size='small'>-</Text>
+          );
+        },
       },
       {
         title: '',

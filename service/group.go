@@ -54,9 +54,13 @@ func GetUserAutoGroup(userGroup string) []string {
 }
 
 // GetUserGroupRatio 获取用户使用某个分组的倍率
+// userId 用户ID
 // userGroup 用户分组
 // group 需要获取倍率的分组
-func GetUserGroupRatio(userGroup, group string) float64 {
+func GetUserGroupRatio(userId int, userGroup, group string) float64 {
+	if ratio, ok := ratio_setting.GetUserGroupRatioOverride(userId, group); ok {
+		return ratio
+	}
 	ratio, ok := ratio_setting.GetGroupGroupRatio(userGroup, group)
 	if ok {
 		return ratio

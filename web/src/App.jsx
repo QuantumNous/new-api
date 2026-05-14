@@ -54,6 +54,7 @@ const PersonalSetting = lazy(
 const ImageStudio = lazy(() => import('./pages/ImageStudio'));
 const Commission = lazy(() => import('./pages/Commission'));
 const Invoice = lazy(() => import('./pages/Invoice'));
+const UserGroupRatio = lazy(() => import('./pages/UserGroupRatio'));
 const LoginForm = lazy(() => import('./components/auth/LoginForm'));
 const RegisterForm = lazy(() => import('./components/auth/RegisterForm'));
 const PasswordResetForm = lazy(
@@ -193,6 +194,16 @@ function App() {
             <AdminRoute>
               <Suspense fallback={<Loading></Loading>} key={location.pathname}>
                 <User />
+              </Suspense>
+            </AdminRoute>
+          }
+        />
+        <Route
+          path='/console/user-group-ratio'
+          element={
+            <AdminRoute>
+              <Suspense fallback={<Loading></Loading>} key={location.pathname}>
+                <UserGroupRatio />
               </Suspense>
             </AdminRoute>
           }

@@ -345,6 +345,17 @@ func SetApiRouter(router *gin.Engine) {
 			groupRoute.GET("/", controller.GetGroups)
 		}
 
+		userGroupRatioRoute := apiRouter.Group("/user_group_ratio")
+		userGroupRatioRoute.Use(middleware.AdminAuth())
+		{
+			userGroupRatioRoute.GET("/", controller.GetAllUserGroupRatios)
+			userGroupRatioRoute.GET("/count_by_group", controller.GetUserGroupRatioCountByGroup)
+			userGroupRatioRoute.POST("/", controller.CreateUserGroupRatio)
+			userGroupRatioRoute.PUT("/", controller.UpdateUserGroupRatio)
+			userGroupRatioRoute.DELETE("/:id", controller.DeleteUserGroupRatio)
+			userGroupRatioRoute.POST("/batch_delete", controller.BatchDeleteUserGroupRatios)
+		}
+
 		prefillGroupRoute := apiRouter.Group("/prefill_group")
 		prefillGroupRoute.Use(middleware.AdminAuth())
 		{

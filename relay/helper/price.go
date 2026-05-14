@@ -49,6 +49,14 @@ func HandleGroupRatio(ctx *gin.Context, relayInfo *relaycommon.RelayInfo) types.
 		relayInfo.UsingGroup = autoGroup.(string)
 	}
 
+	// check user-level group ratio (highest priority)
+	if userRatio, ok := ratio_setting.GetUserGroupRatioOverride(relayInfo.UserId, relayInfo.UsingGroup); ok {
+		groupRatioInfo.GroupSpecialRatio = userRatio
+		groupRatioInfo.GroupRatio = userRatio
+		groupRatioInfo.HasSpecialRatio = true
+		return groupRatioInfo
+	}
+
 	// check user group special ratio
 	userGroupRatio, ok := ratio_setting.GetGroupGroupRatio(relayInfo.UserGroup, relayInfo.UsingGroup)
 	if ok {

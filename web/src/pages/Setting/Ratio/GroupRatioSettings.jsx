@@ -73,6 +73,7 @@ export default function GroupRatioSettings(props) {
   const [loading, setLoading] = useState(false);
   const [editMode, setEditMode] = useState('visual');
   const [showGuide, setShowGuide] = useState(false);
+  const [userOverrideCounts, setUserOverrideCounts] = useState({});
 
   const [inputs, setInputs] = useState({
     GroupRatio: '',
@@ -154,6 +155,16 @@ export default function GroupRatioSettings(props) {
     }
   }, [props.options]);
 
+  useEffect(() => {
+    API.get('/api/user_group_ratio/count_by_group')
+      .then((res) => {
+        if (res.data.success) {
+          setUserOverrideCounts(res.data.data || {});
+        }
+      })
+      .catch(() => {});
+  }, []);
+
   const handleGroupTableChange = useCallback(
     ({ GroupRatio, UserUsableGroups }) => {
       setInputs((prev) => ({ ...prev, GroupRatio, UserUsableGroups }));
@@ -189,6 +200,7 @@ export default function GroupRatioSettings(props) {
           groupRatio={inputs.GroupRatio}
           userUsableGroups={inputs.UserUsableGroups}
           onChange={handleGroupTableChange}
+          userOverrideCounts={userOverrideCounts}
         />
       </Form.Section>
 

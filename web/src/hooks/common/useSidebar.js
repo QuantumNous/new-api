@@ -54,6 +54,7 @@ export const DEFAULT_ADMIN_CONFIG = {
     deployment: true,
     redemption: true,
     user: true,
+    'user-group-ratio': true,
     subscription: true,
     setting: true,
   },

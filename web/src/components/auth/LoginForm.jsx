@@ -560,7 +560,7 @@ const LoginForm = () => {
           <Text type='tertiary' style={{ fontSize: 14 }}>{t('使用邮箱或用户名登录你的账户')}</Text>
         </div>
         {status.passkey_login && passkeySupported && <Button theme='outline' type='tertiary' style={{ ...btnOutline, marginBottom: 16 }} icon={<IconKey size='small' />} onClick={handlePasskeyLogin} loading={passkeyLoading} onMouseEnter={hoverOn} onMouseLeave={hoverOff}>{t('使用 Passkey 登录')}</Button>}
-        <Form style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+        <Form style={{ display: 'flex', flexDirection: 'column', gap: 18 }} onSubmit={(e) => { e.preventDefault(); handleSubmit(); }}>
           <Form.Input field='username' label={t('用户名或邮箱')} placeholder={t('请输入您的用户名或邮箱地址')} name='username' onChange={(value) => handleChange('username', value)} prefix={<IconMail />} />
           <Form.Input field='password' label={t('密码')} placeholder={t('请输入您的密码')} name='password' mode='password' onChange={(value) => handleChange('password', value)} prefix={<IconLock />} />
           {(hasUserAgreement || hasPrivacyPolicy) && (
@@ -576,7 +576,7 @@ const LoginForm = () => {
             </div>
           )}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            <button type='button' onClick={handleSubmit} disabled={loginLoading || ((hasUserAgreement || hasPrivacyPolicy) && !agreedToTerms)} style={{ width: '100%', height: 44, borderRadius: 10, border: 'none', background: 'var(--semi-color-primary)', color: '#fff', fontSize: 15, fontWeight: 600, cursor: 'pointer', boxShadow: '0 4px 16px rgba(99,102,241,0.28)', transition: 'all 200ms ease' }} onMouseEnter={e => { e.currentTarget.style.background = 'var(--semi-color-primary-hover)'; e.currentTarget.style.boxShadow = '0 6px 24px rgba(99,102,241,0.4)'; }} onMouseLeave={e => { e.currentTarget.style.background = 'var(--semi-color-primary)'; e.currentTarget.style.boxShadow = '0 4px 16px rgba(99,102,241,0.28)'; }}>{t('继续')}</button>
+            <button type='submit' onClick={handleSubmit} disabled={loginLoading || ((hasUserAgreement || hasPrivacyPolicy) && !agreedToTerms)} style={{ width: '100%', height: 44, borderRadius: 10, border: 'none', background: 'var(--semi-color-primary)', color: '#fff', fontSize: 15, fontWeight: 600, cursor: 'pointer', boxShadow: '0 4px 16px rgba(99,102,241,0.28)', transition: 'all 200ms ease' }} onMouseEnter={e => { e.currentTarget.style.background = 'var(--semi-color-primary-hover)'; e.currentTarget.style.boxShadow = '0 6px 24px rgba(99,102,241,0.4)'; }} onMouseLeave={e => { e.currentTarget.style.background = 'var(--semi-color-primary)'; e.currentTarget.style.boxShadow = '0 4px 16px rgba(99,102,241,0.28)'; }}>{t('继续')}</button>
             <button type='button' onClick={handleResetPasswordClick} disabled={resetPasswordLoading} style={{ width: '100%', height: 40, borderRadius: 10, border: 'none', background: 'transparent', color: 'var(--semi-color-text-2)', fontSize: 13, fontWeight: 500, cursor: 'pointer', transition: 'color 150ms ease' }} onMouseEnter={e => { e.currentTarget.style.color = 'var(--semi-color-primary)'; }} onMouseLeave={e => { e.currentTarget.style.color = 'var(--semi-color-text-2)'; }}>{t('忘记密码？')}</button>
           </div>
         </Form>

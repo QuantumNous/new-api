@@ -279,6 +279,9 @@ func InitResources() error {
 	// Initialize options, should after model.InitDB()
 	model.InitOptionMap()
 
+	// Initialize user group ratio cache
+	initUserGroupRatioCache()
+
 	// 清理旧的磁盘缓存文件
 	common.CleanupOldCacheFiles()
 
@@ -319,4 +322,22 @@ func InitResources() error {
 	}
 
 	return nil
+}
+
+func initUserGroupRatioCache() {
+	records, err := model.GetAllUserGroupRatiosForCache()
+	if err != nil {
+		common.SysError("failed to load user group ratios: " + err.Error())
+		return
+	}
+	entries := make([]ratio_setting.UserGroupRatioEntry, 0, len(records))
+	for _, r := range records {
+		entries = append(entries, ratio_setting.UserGroupRatioEntry{
+			UserId:     r.UserId,
+			UsingGroup: r.UsingGroup,
+			Ratio:      r.Ratio,
+		})
+	}
+	ratio_setting.InitUserGroupRatioCache(entries)
+	common.SysLog(fmt.Sprintf("user group ratio cache loaded: %d entries", len(entries)))
 }

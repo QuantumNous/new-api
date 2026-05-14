@@ -285,6 +285,7 @@ func migrateDB() error {
 		&Commission{},
 		&CommissionWithdrawal{},
 		&Invoice{},
+		&UserGroupRatio{},
 	)
 	if err != nil {
 		return err

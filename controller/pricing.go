@@ -47,8 +47,9 @@ func GetPricing(c *gin.Context) {
 		if err == nil {
 			group = user.Group
 			for g := range groupRatio {
-				ratio, ok := ratio_setting.GetGroupGroupRatio(group, g)
-				if ok {
+				if userRatio, ok := ratio_setting.GetUserGroupRatioOverride(userId.(int), g); ok {
+					groupRatio[g] = userRatio
+				} else if ratio, ok := ratio_setting.GetGroupGroupRatio(group, g); ok {
 					groupRatio[g] = ratio
 				}
 			}
