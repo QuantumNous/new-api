@@ -280,6 +280,15 @@ func migrateDB() error {
 		&SubscriptionPreConsumeRecord{},
 		&CustomOAuthProvider{},
 		&UserOAuthBinding{},
+		&AgentSession{},
+		&AgentMessage{},
+		&AgentAuditLog{},
+		&AgentUserQuota{},
+		&AgentToolSetting{},
+		&AgentPaymentIntent{},
+		&AgentUserSetting{},
+		&AgentKBDoc{},
+		&AgentKBChunk{},
 	)
 	if err != nil {
 		return err
@@ -328,6 +337,15 @@ func migrateDBFast() error {
 		{&SubscriptionPreConsumeRecord{}, "SubscriptionPreConsumeRecord"},
 		{&CustomOAuthProvider{}, "CustomOAuthProvider"},
 		{&UserOAuthBinding{}, "UserOAuthBinding"},
+		{&AgentSession{}, "AgentSession"},
+		{&AgentMessage{}, "AgentMessage"},
+		{&AgentAuditLog{}, "AgentAuditLog"},
+		{&AgentUserQuota{}, "AgentUserQuota"},
+		{&AgentToolSetting{}, "AgentToolSetting"},
+		{&AgentPaymentIntent{}, "AgentPaymentIntent"},
+		{&AgentUserSetting{}, "AgentUserSetting"},
+		{&AgentKBDoc{}, "AgentKBDoc"},
+		{&AgentKBChunk{}, "AgentKBChunk"},
 	}
 	// 动态计算migration数量，确保errChan缓冲区足够大
 	errChan := make(chan error, len(migrations))

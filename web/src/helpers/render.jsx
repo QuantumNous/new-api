@@ -75,6 +75,7 @@ import {
   Package,
   Server,
   CalendarClock,
+  Bot,
 } from 'lucide-react';
 import {
   SiAtlassian,
@@ -89,7 +90,6 @@ import {
   SiGitlab,
   SiGoogle,
   SiKeycloak,
-  SiLinkedin,
   SiNextcloud,
   SiNotion,
   SiOkta,
@@ -122,6 +122,9 @@ export function getLucideIcon(key, selected = false) {
       return <TerminalSquare {...commonProps} color={iconColor} />;
     case 'chat':
       return <MessageSquare {...commonProps} color={iconColor} />;
+    case 'agent':
+    case 'agentAdmin':
+      return <Bot {...commonProps} color={iconColor} />;
     case 'token':
       return <Key {...commonProps} color={iconColor} />;
     case 'log':
@@ -504,7 +507,6 @@ const oauthProviderIconMap = {
   google: SiGoogle,
   discord: SiDiscord,
   facebook: SiFacebook,
-  linkedin: SiLinkedin,
   x: SiX,
   twitter: SiX,
   slack: SiSlack,

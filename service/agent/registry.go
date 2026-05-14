@@ -1,36 +1,71 @@
 package agent
 
-// ToolDefinition 工具定义
+import "sort"
+
 type ToolDefinition struct {
-	Name              string                 // 工具名称
-	Description       string                 // 工具描述
-	Parameters        map[string]interface{} // JSON Schema参数定义
-	NeedsConfirmation bool                   // 是否需要二次确认
-	Executor          ToolExecutor           // 执行器函数
+	Name              string                 `json:"name"`
+	DisplayName       string                 `json:"display_name"`
+	Description       string                 `json:"description"`
+	Parameters        map[string]interface{} `json:"parameters"`
+	NeedsConfirmation bool                   `json:"needs_confirmation"`
+	RiskLevel         string                 `json:"risk_level"`
+	Executor          ToolExecutor           `json:"-"`
 }
 
-// ToolExecutor 工具执行器函数类型
-type ToolExecutor func(userId int, args map[string]interface{}) (interface{}, error)
-
-// Registry 工具注册表，管理所有可用工具的JSON schema和执行器
 type Registry struct {
 	tools map[string]*ToolDefinition
 }
 
-// NewRegistry 创建工具注册表实例
 func NewRegistry() *Registry {
-	return &Registry{
-		tools: make(map[string]*ToolDefinition),
-	}
+	r := &Registry{tools: make(map[string]*ToolDefinition)}
+	RegisterAll(r)
+	return r
 }
 
-// RegisterTool 注册一个工具
+func RegisterAll(r *Registry) {
+	r.RegisterTool(toolGetBalance())
+	r.RegisterTool(toolListMyModels())
+	r.RegisterTool(toolQueryPricing())
+	r.RegisterTool(toolRecommendModel())
+	r.RegisterTool(toolListMyTokens())
+	r.RegisterTool(toolQueryMyLogs())
+	r.RegisterTool(toolExplainError())
+	r.RegisterTool(toolSearchKnowledge())
+	r.RegisterTool(toolCreateToken())
+	r.RegisterTool(toolDeleteToken())
+	r.RegisterTool(toolTriggerTopup())
+	r.RegisterTool(toolGetTopupLink())
+	r.RegisterTool(toolGetDocLink())
+	r.RegisterTool(toolClarify())
+}
+
 func (r *Registry) RegisterTool(tool *ToolDefinition) {
-	// TODO: 后续实现
+	if r == nil || tool == nil || tool.Name == "" {
+		return
+	}
+	r.tools[tool.Name] = tool
 }
 
-// GetTool 获取工具定义
 func (r *Registry) GetTool(name string) (*ToolDefinition, bool) {
-	// TODO: 后续实现
-	return nil, false
+	if r == nil {
+		return nil, false
+	}
+	tool, ok := r.tools[name]
+	return tool, ok
+}
+
+func (r *Registry) ListTools() []*ToolDefinition {
+	if r == nil {
+		return nil
+	}
+	names := make([]string, 0, len(r.tools))
+	for name := range r.tools {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	tools := make([]*ToolDefinition, 0, len(names))
+	for _, name := range names {
+		tools = append(tools, r.tools[name])
+	}
+	return tools
 }

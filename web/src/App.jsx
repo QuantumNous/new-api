@@ -44,6 +44,8 @@ import Task from './pages/Task';
 import ModelPage from './pages/Model';
 import ModelDeploymentPage from './pages/ModelDeployment';
 import Playground from './pages/Playground';
+import Agent from './pages/Agent';
+import AgentAdmin from './pages/AgentAdmin';
 import Subscription from './pages/Subscription';
 import OAuth2Callback from './components/auth/OAuth2Callback';
 import PersonalSetting from './components/settings/PersonalSetting';
@@ -145,6 +147,22 @@ function App() {
             <PrivateRoute>
               <Token />
             </PrivateRoute>
+          }
+        />
+        <Route
+          path='/console/agent'
+          element={
+            <PrivateRoute>
+              <Agent />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path='/console/agent/admin'
+          element={
+            <AdminRoute>
+              <AgentAdmin />
+            </AdminRoute>
           }
         />
         <Route

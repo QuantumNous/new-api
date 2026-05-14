@@ -24,6 +24,7 @@ import App from '../../App';
 import FooterBar from './Footer';
 import { ToastContainer } from 'react-toastify';
 import ErrorBoundary from '../common/ErrorBoundary';
+import FloatingAgentButton from '../agent/FloatingAgentButton';
 import React, { useContext, useEffect, useState } from 'react';
 import { useIsMobile } from '../../hooks/common/useIsMobile';
 import { useSidebarCollapsed } from '../../hooks/common/useSidebarCollapsed';
@@ -233,6 +234,7 @@ const PageLayout = () => {
           )}
         </Layout>
       </Layout>
+      <FloatingAgentButton />
       <ToastContainer />
     </Layout>
   );

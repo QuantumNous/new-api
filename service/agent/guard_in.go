@@ -2,14 +2,55 @@ package agent
 
 import (
 	"context"
+	"errors"
+	"fmt"
+	"time"
+
+	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/setting/agent_setting"
 )
 
-// GuardIn 入口护栏：身份校验、速率限制、破冰额度检查
-// 在Agent处理请求前执行，确保请求合法且在配额内
 func GuardIn(ctx context.Context, userId int) error {
-	// TODO: 后续实现
-	// 1. 检查用户身份是否有效
-	// 2. 检查速率限制
-	// 3. 检查破冰礼包额度或用户余额
+	if userId <= 0 {
+		return errors.New("invalid user")
+	}
+	setting := agent_setting.GetAgentSetting()
+	if !setting.Enabled {
+		return errors.New("agent service is disabled")
+	}
+	if setting.ChatRPM > 0 {
+		if err := checkRateLimit(fmt.Sprintf("agent:chat:%d:%d", userId, time.Now().Unix()/60), setting.ChatRPM, time.Minute); err != nil {
+			return err
+		}
+	}
+	return EnsureAgentQuota(ctx, userId)
+}
+
+func GuardConfirm(userId int) error {
+	setting := agent_setting.GetAgentSetting()
+	if !setting.Enabled {
+		return errors.New("agent service is disabled")
+	}
+	if setting.ConfirmRPM > 0 {
+		return checkRateLimit(fmt.Sprintf("agent:confirm:%d:%d", userId, time.Now().Unix()/60), setting.ConfirmRPM, time.Minute)
+	}
+	return nil
+}
+
+func checkRateLimit(key string, limit int, ttl time.Duration) error {
+	if !common.RedisEnabled || common.RDB == nil {
+		return nil
+	}
+	ctx := context.Background()
+	count, err := common.RDB.Incr(ctx, key).Result()
+	if err != nil {
+		return err
+	}
+	if count == 1 {
+		_ = common.RDB.Expire(ctx, key, ttl).Err()
+	}
+	if count > int64(limit) {
+		return errors.New("agent rate limit exceeded")
+	}
 	return nil
 }

@@ -29,6 +29,7 @@ export const DEFAULT_ADMIN_CONFIG = {
   chat: {
     enabled: true,
     playground: true,
+    agent: true,
     chat: true,
   },
   console: {
@@ -51,6 +52,7 @@ export const DEFAULT_ADMIN_CONFIG = {
     deployment: true,
     redemption: true,
     user: true,
+    agentAdmin: true,
     subscription: true,
     setting: true,
   },
