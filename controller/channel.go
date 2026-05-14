@@ -12,6 +12,7 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
+	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/model"
 	relaychannel "github.com/QuantumNous/new-api/relay/channel"
 	"github.com/QuantumNous/new-api/relay/channel/gemini"
@@ -561,15 +562,25 @@ func getVertexArrayKeys(keys string) ([]string, error) {
 }
 
 func AddChannel(c *gin.Context) {
+	ctx := c.Request.Context()
 	addChannelRequest := AddChannelRequest{}
 	err := c.ShouldBindJSON(&addChannelRequest)
 	if err != nil {
+		logger.LogError(ctx, fmt.Sprintf("[AddChannel] JSON bind error: %v", err))
 		common.ApiError(c, err)
 		return
 	}
+	logger.LogInfo(ctx, fmt.Sprintf("[AddChannel] request: mode=%q name=%q type=%d baseURL=%v keyLen=%d",
+		addChannelRequest.Mode,
+		addChannelRequest.Channel.Name,
+		addChannelRequest.Channel.Type,
+		addChannelRequest.Channel.BaseURL,
+		len(addChannelRequest.Channel.Key),
+	))
 
 	// 使用统一的校验函数
 	if err := validateChannel(addChannelRequest.Channel, true); err != nil {
+		logger.LogWarn(ctx, fmt.Sprintf("[AddChannel] validation failed: %v", err))
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
 			"message": err.Error(),
@@ -647,12 +658,39 @@ func AddChannel(c *gin.Context) {
 		}
 		channels = append(channels, *localChannel)
 	}
-	err = model.BatchInsertChannels(channels)
+	logger.LogInfo(ctx, fmt.Sprintf("[AddChannel] inserting %d channel(s)", len(channels)))
+	createdIds, err := model.BatchInsertChannels(channels)
 	if err != nil {
+		logger.LogError(ctx, fmt.Sprintf("[AddChannel] BatchInsertChannels error: %v", err))
 		common.ApiError(c, err)
 		return
 	}
+	logger.LogInfo(ctx, fmt.Sprintf("[AddChannel] inserted OK, ids=%v", createdIds))
 	service.ResetProxyClientCache()
+
+	// Post-creation: fetch upstream pricing and balance asynchronously.
+	go func(chs []model.Channel, ids []int) {
+		bgCtx := context.Background()
+		for i, id := range ids {
+			if id == 0 || i >= len(chs) {
+				logger.LogWarn(bgCtx, fmt.Sprintf("[AddChannel] post-create skip: id=%d i=%d", id, i))
+				continue
+			}
+			ch := chs[i]
+			ch.Id = id
+			logger.LogInfo(bgCtx, fmt.Sprintf("[AddChannel] post-create start: id=%d name=%q baseURL=%v", id, ch.Name, ch.BaseURL))
+			service.FetchChannelPricing(&ch)
+			logger.LogInfo(bgCtx, fmt.Sprintf("[AddChannel] FetchChannelPricing done: id=%d", id))
+			if !ch.ChannelInfo.IsMultiKey {
+				if _, balErr := updateChannelBalance(&ch); balErr != nil {
+					logger.LogWarn(bgCtx, fmt.Sprintf("[AddChannel] updateChannelBalance id=%d: %v", id, balErr))
+				} else {
+					logger.LogInfo(bgCtx, fmt.Sprintf("[AddChannel] updateChannelBalance done: id=%d", id))
+				}
+			}
+		}
+	}(channels, createdIds)
+
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",
@@ -957,6 +995,10 @@ func UpdateChannel(c *gin.Context) {
 	}
 	model.InitChannelCache()
 	service.ResetProxyClientCache()
+
+	// Re-fetch pricing after any channel update so key_group / base_url changes are reflected.
+	go service.FetchChannelPricing(&channel.Channel)
+
 	channel.Key = ""
 	clearChannelInfo(&channel.Channel)
 	c.JSON(http.StatusOK, gin.H{
@@ -1194,7 +1236,7 @@ func CopyChannel(c *gin.Context) {
 	}
 
 	// insert
-	if err := model.BatchInsertChannels([]model.Channel{clone}); err != nil {
+	if _, err := model.BatchInsertChannels([]model.Channel{clone}); err != nil {
 		common.SysError("failed to clone channel: " + err.Error())
 		c.JSON(http.StatusOK, gin.H{"success": false, "message": "复制渠道失败，请稍后重试"})
 		return

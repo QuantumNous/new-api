@@ -9,6 +9,7 @@ import (
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/pkg/billingexpr"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting/billing_setting"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
@@ -93,6 +94,23 @@ func ModelPriceHelper(c *gin.Context, info *relaycommon.RelayInfo, promptTokens 
 		var success bool
 		var matchName string
 		modelRatio, success, matchName = ratio_setting.GetModelRatio(info.OriginModelName)
+		// step4 fallback: when ModelRatio is not in the operator-managed table, derive
+		// it from the per-channel cost row (channel_model_pricings). This is the
+		// "cost == sell price" billing model (apimaster's 5% markup is layered on top
+		// via GroupRatio["auto-cheapest"] = 1.05, not here).
+		// Only triggers when the operator hasn't manually set ModelRatio — operator
+		// values always win, so emergency overrides keep working.
+		ratioFromChannel := false
+		if !success {
+			if channelID := c.GetInt("channel_id"); channelID > 0 {
+				if mr, cr, ok := service.ChannelModelPriceRatio(channelID, info.OriginModelName); ok {
+					modelRatio = mr
+					completionRatio = cr
+					success = true
+					ratioFromChannel = true
+				}
+			}
+		}
 		if !success {
 			acceptUnsetRatio := false
 			if info.UserSetting.AcceptUnsetRatioModel {
@@ -102,7 +120,11 @@ func ModelPriceHelper(c *gin.Context, info *relaycommon.RelayInfo, promptTokens 
 				return types.PriceData{}, modelPriceNotConfiguredError(matchName, info.UserId)
 			}
 		}
-		completionRatio = ratio_setting.GetCompletionRatio(info.OriginModelName)
+		// Skip the operator completion-ratio lookup when fallback already supplied
+		// one — channel_model_pricings.output_price / input_price is the source of truth.
+		if !ratioFromChannel {
+			completionRatio = ratio_setting.GetCompletionRatio(info.OriginModelName)
+		}
 		cacheRatio, _ = ratio_setting.GetCacheRatio(info.OriginModelName)
 		cacheCreationRatio, _ = ratio_setting.GetCreateCacheRatio(info.OriginModelName)
 		cacheCreationRatio5m = cacheCreationRatio

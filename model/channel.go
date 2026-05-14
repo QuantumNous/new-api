@@ -58,6 +58,14 @@ type Channel struct {
 	LastDetectedAt   *int64 `json:"last_detected_at" gorm:"bigint"`
 	LastDetectResult string `json:"last_detect_result" gorm:"type:varchar(32)"`
 
+	// Counter for "auto-disabled (status=3) channel needs N consecutive fingerprint
+	// passes to be re-enabled" recovery rule. pass +1; suspicious resets to 0;
+	// notcomplete leaves it. Counter only accumulates while status=3.
+	ConsecutiveFingerprintPass int `json:"consecutive_fingerprint_pass" gorm:"default:0"`
+
+	// cost tracking
+	RechargeRate *float64 `json:"recharge_rate" gorm:"column:recharge_rate"` // USD cost per 1 USDT of upstream credit
+
 	// cache info
 	Keys []string `json:"-" gorm:"-"`
 }
@@ -408,13 +416,14 @@ func GetChannelById(id int, selectAll bool) (*Channel, error) {
 	return channel, nil
 }
 
-func BatchInsertChannels(channels []Channel) error {
+// BatchInsertChannels inserts channels in batches and returns the auto-assigned IDs.
+func BatchInsertChannels(channels []Channel) ([]int, error) {
 	if len(channels) == 0 {
-		return nil
+		return nil, nil
 	}
 	tx := DB.Begin()
 	if tx.Error != nil {
-		return tx.Error
+		return nil, tx.Error
 	}
 	defer func() {
 		if r := recover(); r != nil {
@@ -422,19 +431,21 @@ func BatchInsertChannels(channels []Channel) error {
 		}
 	}()
 
+	ids := make([]int, 0, len(channels))
 	for _, chunk := range lo.Chunk(channels, 50) {
 		if err := tx.Create(&chunk).Error; err != nil {
 			tx.Rollback()
-			return err
+			return nil, err
 		}
 		for _, channel_ := range chunk {
+			ids = append(ids, channel_.Id)
 			if err := channel_.AddAbilities(tx); err != nil {
 				tx.Rollback()
-				return err
+				return nil, err
 			}
 		}
 	}
-	return tx.Commit().Error
+	return ids, tx.Commit().Error
 }
 
 func BatchDeleteChannels(ids []int) error {

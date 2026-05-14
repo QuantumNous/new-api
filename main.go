@@ -120,8 +120,15 @@ func main() {
 	service.StartSubscriptionQuotaResetTask()
 
 	// Apimaster detection integration tasks
-	service.StartDetectionSyncTask()
+	// detection_sync disabled 2026-05-14: auto_detect.go now writes channel_detect_logs
+	// directly (source='auto') and adjusts priority itself, so the cross-process pull
+	// from apimaster.detections is redundant. See plan A4.
+	// service.StartDetectionSyncTask()
 	service.StartAutoDetectTask()
+	service.StartUptimeCheckTask()
+
+	// Daily USD/CNY exchange rate fetch
+	service.StartExchangeRateFetchTask()
 
 	// Wire task polling adaptor factory (breaks service -> relay import cycle)
 	service.GetTaskAdaptorFunc = func(platform constant.TaskPlatform) service.TaskPollingAdaptor {

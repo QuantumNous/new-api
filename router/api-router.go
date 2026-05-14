@@ -214,6 +214,16 @@ func SetApiRouter(router *gin.Engine) {
 			ratioSyncRoute.GET("/channels", controller.GetSyncableChannels)
 			ratioSyncRoute.POST("/fetch", controller.FetchUpstreamRatios)
 		}
+		adminRoute := apiRouter.Group("/admin")
+		adminRoute.Use(middleware.AdminAuth())
+		{
+			adminRoute.GET("/exchange-rate", controller.GetExchangeRate)
+			adminRoute.GET("/model-data", controller.GetModelData)
+			adminRoute.POST("/model-data/toggle", controller.ToggleChannelStatus)
+			adminRoute.GET("/model-detect-config", controller.GetModelDetectConfig)
+			adminRoute.POST("/model-detect-config", controller.SaveModelDetectConfig)
+		}
+
 		channelRoute := apiRouter.Group("/channel")
 		channelRoute.Use(middleware.AdminAuth())
 		{
@@ -236,6 +246,7 @@ func SetApiRouter(router *gin.Engine) {
 			channelRoute.DELETE("/:id", controller.DeleteChannel)
 			channelRoute.POST("/batch", controller.DeleteChannelBatch)
 			channelRoute.POST("/fix", controller.FixChannelsAbilities)
+			channelRoute.GET("/upstream_pricing", controller.ProxyUpstreamPricing)
 			channelRoute.GET("/fetch_models/:id", controller.FetchUpstreamModels)
 			channelRoute.POST("/fetch_models", middleware.RootAuth(), controller.FetchModels)
 			channelRoute.POST("/codex/oauth/start", controller.StartCodexOAuth)

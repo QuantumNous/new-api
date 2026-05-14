@@ -30,7 +30,7 @@ import {
   getSortedRowModel,
   useReactTable,
 } from '@tanstack/react-table'
-import { Database } from 'lucide-react'
+import { Copy, Database } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { formatQuota } from '@/lib/format'
@@ -320,6 +320,7 @@ export function ApiKeysTable() {
             options: API_KEY_STATUS_OPTIONS,
           },
         ],
+        additionalSearch: <ApiBaseUrlBadge />,
       }}
       mobile={<ApiKeysMobileList table={table} isLoading={isLoading} />}
       getRowClassName={(row) =>
@@ -327,5 +328,56 @@ export function ApiKeysTable() {
       }
       bulkActions={<DataTableBulkActions table={table} />}
     />
+  )
+}
+
+// ApiBaseUrlBadge — shows the OpenAI-compatible base URL the user should send
+// requests to (with their token), plus a one-click copy button. Source is the
+// same `status.server_address` localStorage value used elsewhere (e.g.
+// data-table-row-actions.tsx), with window.location.origin as fallback.
+function ApiBaseUrlBadge() {
+  const { t } = useTranslation()
+  // Resolve the public-facing API origin. Priority:
+  //   1) Admin-configured ServerAddress in newapi (status.server_address from localStorage)
+  //   2) When running on apimaster.ai prod, nginx reverse-proxies /v1/ → newapi:3001,
+  //      so window.location.origin is correct.
+  //   3) Local dev hits apimaster Next.js on :3000; newapi is on :3001 with no proxy
+  //      in front. Detect localhost and rewrite the port.
+  const baseURL = (() => {
+    try {
+      const raw = localStorage.getItem('status')
+      if (raw) {
+        const status = JSON.parse(raw)
+        if (status?.server_address) return String(status.server_address)
+      }
+    } catch {
+      /* empty */
+    }
+    const { protocol, hostname, port } = window.location
+    if ((hostname === 'localhost' || hostname === '127.0.0.1') && port === '3000') {
+      return `${protocol}//${hostname}:3001`
+    }
+    return window.location.origin
+  })()
+  const url = baseURL.replace(/\/+$/, '')
+
+  const handleCopy = () => {
+    navigator.clipboard.writeText(url).then(
+      () => toast.success(t('Copied to clipboard')),
+      () => toast.error(t('Failed to copy'))
+    )
+  }
+
+  return (
+    <button
+      type='button'
+      onClick={handleCopy}
+      title={t('Click to copy the API base URL')}
+      className='inline-flex items-center gap-1.5 rounded-md border border-gray-200 bg-gray-50 px-2.5 py-1.5 text-xs hover:bg-gray-100 transition-colors'
+    >
+      <span className='text-gray-400'>{t('API Base URL')}:</span>
+      <span className='font-mono text-gray-700 max-w-[260px] truncate'>{url}</span>
+      <Copy className='h-3.5 w-3.5 text-gray-400' />
+    </button>
   )
 }

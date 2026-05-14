@@ -80,6 +80,10 @@ export const channelFormSchema = z.object({
   upstream_model_update_ignored_models: z.string().optional(),
   // KEY所在分组：该 API Key 在供应商站点属于哪个定价分组（如 aws-q、cc-sale）
   key_group: z.string().optional(),
+  // 充值汇率：USD cost per 1 USDT of upstream credit (e.g. 1.0 for USD direct, 1/7.3 for 1RMB=1USDT)
+  recharge_rate: z.number().min(0).optional(),
+  // 检测接口格式：fingerprint 调用时使用的 API 格式（openai-compatible / anthropic）
+  api_format: z.string().optional(),
 })
 
 export type ChannelFormValues = z.infer<typeof channelFormSchema>
@@ -138,6 +142,8 @@ export const CHANNEL_FORM_DEFAULT_VALUES: ChannelFormValues = {
   upstream_model_update_auto_sync_enabled: false,
   upstream_model_update_ignored_models: '',
   key_group: '',
+  recharge_rate: undefined,
+  api_format: 'openai-compatible',
 }
 
 // ============================================================================
@@ -172,6 +178,7 @@ export function transformChannelToFormDefaults(
         system_prompt: parsed.system_prompt || '',
         system_prompt_override: parsed.system_prompt_override || false,
         key_group: parsed.key_group || '',
+        api_format: parsed.api_format || 'openai-compatible',
       }
     } catch (error) {
       // eslint-disable-next-line no-console
@@ -267,6 +274,7 @@ export function transformChannelToFormDefaults(
     upstream_model_update_check_enabled: upstreamModelUpdateCheckEnabled,
     upstream_model_update_auto_sync_enabled: upstreamModelUpdateAutoSyncEnabled,
     upstream_model_update_ignored_models: upstreamModelUpdateIgnoredModels,
+    recharge_rate: channel.recharge_rate ?? undefined,
   }
 }
 
@@ -428,6 +436,7 @@ export function transformFormDataToCreatePayload(formData: ChannelFormValues): {
     header_override: formData.header_override || null,
     settings: buildSettingsJSON(formData),
     other: formData.other || '',
+    recharge_rate: formData.recharge_rate ?? null,
   }
 
   // Clean up empty strings to null for optional fields
@@ -476,6 +485,7 @@ export function transformFormDataToUpdatePayload(
     header_override: formData.header_override || null,
     settings: buildSettingsJSON(formData),
     other: formData.other || '',
+    recharge_rate: formData.recharge_rate ?? null,
   }
 
   // Only include key if it was changed (not empty)

@@ -558,11 +558,12 @@ export const getGroups = getUserGroups
 export async function fetchUpstreamPricingGroups(
   baseUrl: string
 ): Promise<Record<string, number>> {
-  const url = baseUrl.replace(/\/+$/, '') + '/api/pricing'
-  const res = await fetch(url, { signal: AbortSignal.timeout(8000) })
-  if (!res.ok) throw new Error(`HTTP ${res.status}`)
-  const data = await res.json()
-  return (data?.group_ratio as Record<string, number>) ?? {}
+  const res = await api.get('/api/channel/upstream_pricing', {
+    params: { base_url: baseUrl },
+    timeout: 12000,
+  })
+  if (!res.data?.success) throw new Error(res.data?.message ?? 'upstream error')
+  return (res.data?.data as Record<string, number>) ?? {}
 }
 
 /**

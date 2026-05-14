@@ -71,6 +71,7 @@ export const channelSchema = z.object({
     multi_key_mode: 'random',
   }),
   settings: z.string().default('{}'), // other_settings JSON
+  recharge_rate: z.number().nullish(), // USD cost per 1 USDT of upstream credit
 })
 
 export type Channel = z.infer<typeof channelSchema>

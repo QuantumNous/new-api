@@ -7,9 +7,11 @@ import (
 	"github.com/QuantumNous/new-api/common"
 )
 
+// step4 / apimaster: only auto-cheapest is surfaced to end-users. Internal code
+// paths (auto_group.go, topup-ratio.go, model_setting/*) still reference
+// "default" — that's fine because GetUserUsableGroups gates UI visibility only.
 var userUsableGroups = map[string]string{
-	"default": "默认分组",
-	"vip":     "vip分组",
+	"auto-cheapest": "智能路由（最便宜可用渠道优先，失败自动 fallback，含 5% 服务费）",
 }
 var userUsableGroupsMutex sync.RWMutex
 

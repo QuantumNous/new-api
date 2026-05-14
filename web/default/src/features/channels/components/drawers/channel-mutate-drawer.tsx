@@ -24,7 +24,7 @@ import {
   useCallback,
   useRef,
 } from 'react'
-import { useForm } from 'react-hook-form'
+import { useController, useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import {
@@ -279,6 +279,8 @@ function KeyGroupField({
   const [pricingGroups, setPricingGroups] = useState<Record<string, number>>({})
   const [fetching, setFetching] = useState(false)
   const [fetchError, setFetchError] = useState('')
+  // Track which baseUrl we already fetched for, to avoid redundant requests.
+  const fetchedForRef = useRef<string>('')
 
   async function handleFetch() {
     if (!baseUrl) return
@@ -287,12 +289,24 @@ function KeyGroupField({
     try {
       const groups = await fetchUpstreamPricingGroups(baseUrl)
       setPricingGroups(groups)
+      fetchedForRef.current = baseUrl
     } catch {
       setFetchError(t('Failed to fetch pricing groups, please enter manually'))
     } finally {
       setFetching(false)
     }
   }
+
+  // Auto-fetch on mount / when baseUrl changes (debounced so create-mode typing
+  // doesn't spam requests). Skip if we already fetched for this exact baseUrl.
+  useEffect(() => {
+    if (!baseUrl || fetchedForRef.current === baseUrl) return
+    const timer = setTimeout(() => {
+      handleFetch()
+    }, 500)
+    return () => clearTimeout(timer)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [baseUrl])
 
   const groupEntries = Object.entries(pricingGroups)
 
@@ -362,6 +376,94 @@ function KeyGroupField({
         </FormItem>
       )}
     />
+  )
+}
+
+const RECHARGE_PRESET_USD = '1usdt'  // 1 USDT = 1 USDT → rate 1.0
+const RECHARGE_PRESET_RMB = '1rmb'   // 1 RMB  = 1 USDT → rate 1/cny
+const RECHARGE_PRESET_CUSTOM = 'custom'
+
+function guessPreset(value: number | null | undefined, cnyRate: number): string {
+  if (value == null) return RECHARGE_PRESET_USD
+  if (Math.abs(value - 1) < 0.001) return RECHARGE_PRESET_USD
+  if (Math.abs(value - 1 / cnyRate) < 0.001) return RECHARGE_PRESET_RMB
+  return RECHARGE_PRESET_CUSTOM
+}
+
+function RechargeRateField({
+  control,
+}: {
+  control: ReturnType<typeof useForm<ChannelFormValues>>['control']
+}) {
+  const { t } = useTranslation()
+  const [cnyRate, setCnyRate] = useState<number>(7.3)
+  const [preset, setPreset] = useState<string>(RECHARGE_PRESET_USD)
+
+  const { field, fieldState } = useController({ control, name: 'recharge_rate' })
+
+  // Fetch live CNY rate once on mount
+  useEffect(() => {
+    fetch('/api/admin/exchange-rate')
+      .then((r) => r.json())
+      .then((j) => { if (j.success && j.rate > 0) setCnyRate(j.rate) })
+      .catch(() => {})
+  }, [])
+
+  // Sync preset from field value when editing an existing channel
+  useEffect(() => {
+    if (field.value != null) {
+      setPreset(guessPreset(field.value, cnyRate))
+    }
+  // Only run when the field value changes (e.g. drawer opens with existing channel)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [field.value])
+
+  function applyPreset(p: string) {
+    setPreset(p)
+    if (p === RECHARGE_PRESET_USD) field.onChange(1)
+    else if (p === RECHARGE_PRESET_RMB) field.onChange(parseFloat((1 / cnyRate).toFixed(6)))
+    // custom: leave current value, user types in the input
+  }
+
+  return (
+    <FormItem>
+      <FormLabel>{t('充值汇率')}</FormLabel>
+      <div className='flex gap-2'>
+        <Select value={preset} onValueChange={applyPreset}>
+          <SelectTrigger className='w-52 shrink-0'>
+            <span className='truncate'>
+              {preset === RECHARGE_PRESET_USD && '1 USDT = 1 USDT'}
+              {preset === RECHARGE_PRESET_RMB && `1 RMB = 1 USDT (≈${(1 / cnyRate).toFixed(4)})`}
+              {preset === RECHARGE_PRESET_CUSTOM && t('自定义')}
+            </span>
+          </SelectTrigger>
+          <SelectContent>
+            <SelectGroup>
+              <SelectItem value={RECHARGE_PRESET_USD}>1 USDT = 1 USDT</SelectItem>
+              <SelectItem value={RECHARGE_PRESET_RMB}>
+                1 RMB = 1 USDT <span className='text-muted-foreground ml-1 text-xs'>(≈{(1 / cnyRate).toFixed(4)})</span>
+              </SelectItem>
+              <SelectItem value={RECHARGE_PRESET_CUSTOM}>{t('自定义')}</SelectItem>
+            </SelectGroup>
+          </SelectContent>
+        </Select>
+        <FormControl>
+          <Input
+            type='number'
+            step='0.0001'
+            min='0'
+            placeholder='e.g. 1.0'
+            disabled={preset !== RECHARGE_PRESET_CUSTOM}
+            value={field.value ?? ''}
+            onChange={(e) => field.onChange(e.target.value === '' ? undefined : Number(e.target.value))}
+          />
+        </FormControl>
+      </div>
+      <FormDescription>
+        {t('USD cost per 1 USDT of upstream credit. Used to calculate real cost in USDT.')}
+      </FormDescription>
+      {fieldState.error && <p className='text-destructive text-xs'>{fieldState.error.message}</p>}
+    </FormItem>
   )
 }
 
@@ -2541,6 +2643,8 @@ export function ChannelMutateDrawer({
                   control={form.control}
                   baseUrl={form.watch('base_url') || ''}
                 />
+
+                <RechargeRateField control={form.control} />
               </div>
 
               <Collapsible

@@ -288,6 +288,7 @@ func migrateDB() error {
 	err := DB.AutoMigrate(
 		&Channel{},
 		&ChannelDetectLog{},
+		&ChannelModelPricing{},
 		&Token{},
 		&User{},
 		&PasskeyCredential{},

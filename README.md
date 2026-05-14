@@ -486,3 +486,295 @@ If this project is helpful to you, welcome to give us a ⭐️ Star！
 <sub>Built with ❤️ by QuantumNous</sub>
 
 </div>
+
+---
+
+## APIMaster 集成进度存档
+
+> 最后更新：2026-05-12。本节记录 new-api 嵌入 apimaster.ai 的改造进展，供明天继续。
+
+### 目标
+
+- apimaster.ai 的导航栏固定在顶部
+- 用户登录 apimaster 后，进入 `/console` 路由，iframe 内自动登录 new-api 控制台
+- new-api 的 AppHeader 隐藏，只保留左侧 Sidebar + 内容区
+- 管理员可通过 `?as=admin` 进入 admin 视图
+
+### 已完成的改造
+
+#### new-api 前端 (`/opt/newapi/new-api/web/default/`)
+
+| 文件 | 改动 |
+|------|------|
+| `src/main.tsx` | `basepath: '/_panel'` |
+| `rsbuild.config.ts` | `assetPrefix: '/_panel/'` |
+| `src/components/layout/components/authenticated-layout.tsx` | 移除 `AppHeader`，只保留 `SidebarProvider → AppSidebar + SidebarInset` |
+| `src/routes/(auth)/sign-in.tsx` | session 过期时重定向到 `/_panel/dashboard`（避免 iframe 内嵌套加载 Next.js `/console` 层） |
+
+#### new-api 后端 (`/opt/newapi/new-api/`)
+
+| 文件 | 改动 |
+|------|------|
+| `router/web-router.go` | `static.Serve("/_panel", themeFS)`；NoRoute 前缀改为 `/_panel/assets` |
+
+#### apimaster-ai (`/opt/apimaster-ai/`)
+
+| 文件 | 改动 |
+|------|------|
+| `app/console/[[...slug]]/page.tsx` | 新建；读取 session cookies，无 `session` cookie → 跳 console-bridge；渲染 full-height iframe 指向 `/_panel/{slug}` |
+| `app/api/console-bridge/route.ts` | `safeRedirect` 允许 `/_panel/` 前缀；按 userId HMAC 派生 new-api 密码；首次自动建账号 |
+| `middleware.ts` | `/console/*` 仅检查 `apimaster_session`，无 cookie → redirect `/login` |
+| `lib/server/auth-cookies.ts` | `clearAuthCookies` 同时清除 `session`（new-api session）确保退出登录彻底 |
+| `lib/auth/constants.ts` | 删除废弃的 `COOKIE_NA_ACCESS` / `COOKIE_NA_USER_ID` |
+
+#### nginx (`/etc/nginx/sites-enabled/apimaster.ai`)
+
+- `/_panel/` → `proxy_pass http://127.0.0.1:3001/;`（**末尾斜杠**，nginx 会剥离 `/_panel` 前缀再转发给 Go）
+- `/api/user/`、`/api/channel/` 等 → new-api port 3001
+- `/console` → Next.js port 3000
+
+#### 删除的旧代码（apimaster-ai）
+
+- `app/console/` 下所有旧子页面（channels/dashboard/gateway/keys/... 各自的 `page.tsx`）
+- `components/console/ConsoleShell.tsx`、`ConsoleDashboardClient.tsx`、`ConsoleGatewayClient.tsx` 等
+- `app/api/newapi/tokens/`
+- `lib/server/newapi-user-fetch.ts`、`lib/newapi/panel-url.ts`、`lib/console-target.ts`
+
+### 当前状态与遗留 Bug
+
+#### 已解决
+
+1. **黑屏**：nginx `proxy_pass http://127.0.0.1:3001/_panel/;` 没剥离前缀，Go 收到 `/_panel/static/js/index.js` → 匹配不到静态文件 → 返回 HTML。
+   修复：改为 `proxy_pass http://127.0.0.1:3001/;`（末尾斜杠）。
+
+2. **双层导航栏**：旧镜像的 `sign-in.tsx` 还在重定向到 `?redirect=/console/dashboard`，iframe 内加载了 Next.js `/console` 页（含 apimaster nav）。
+   修复：重新 build + `docker compose pull && up -d`，新镜像重定向到 `/_panel/dashboard`。
+
+3. **退出登录**：`clearAuthCookies` 未清除 `session`，new-api 侧仍保持登录。
+   修复：已加 `res.cookies.set("session", "", { maxAge: 0 })`。
+
+#### 待解决：**iframe 内白屏**
+
+症状：`/_panel/dashboard` HTML 正常返回（200），JS/CSS 资源全部 200 加载，但页面内容为白色。
+
+已排查：
+- 无 X-Frame-Options / CSP 阻断
+- nginx `/_panel/` → Go 路由正常（JS 返回 `text/javascript`）
+- `authenticated-layout.tsx` 的 `SidebarInset` 高度用 `calc(100svh - var(--app-header-height,0px))`，默认值 `0px` 不会高度塌陷
+- axios `baseURL = ''`，请求走同源，session cookie 会随请求发出
+
+**最可能原因**：`beforeLoad` 在 `/_authenticated/route.tsx` 调用 `getSelf()` → `GET /api/user/self`。
+若 session cookie 值不被 Go 接受（格式错误或已过期），会 redirect 到 `/sign-in` → console-bridge → `/_panel/dashboard` → 无限循环，React 渲染白屏。
+
+**下一步调试步骤**：
+1. 用 devtools Network 面板在 iframe 里查看 `/api/user/self` 的实际请求和响应（需在浏览器中打开 `/_panel/dashboard` 直接访问，而不是通过 iframe）
+2. 确认 `session` cookie 值格式：new-api Go 后端用 gin-session 读 cookie，值应是 gin-session 生成的 token，不是 JWT
+3. 若 401：检查 console-bridge 解析 `set-cookie` 的正则 `/(?:^|,)\s*session=([^;,]+)/i` 是否提取到了正确值
+4. 若是循环：检查 Go 日志 `docker logs apimaster-new-api --tail 50`
+
+### 环境信息
+
+| 组件 | 路径 / 端口 |
+|------|------------|
+| Next.js (apimaster) | `/opt/apimaster-ai`，port 3000，systemd `apimaster` |
+| new-api Go + SPA | Docker `apimaster-new-api`，port 3001 |
+| new-api DB | Docker `apimaster-new-api-postgres` |
+| nginx | `/etc/nginx/sites-enabled/apimaster.ai` |
+| new-api 源码 | `/opt/newapi/new-api/` |
+| Docker compose | `/opt/newapi/docker-compose.yml` |
+
+---
+
+## Step 2 & 3 进度存档（2026-05-14）
+
+> 本节接续上面 5-12 的存档，记录"自动检测 + 模型数据页"的完整落地、相关 bug 修复、以及未结闭环。
+
+### Step 2：自动检测（fingerprint + 运行状态）
+
+按模型粒度的两类定时检测，配置写入 `options` 表 key=`detect_config_{model}`。
+
+| 文件 | 作用 |
+|------|------|
+| [service/model_detect_config.go](service/model_detect_config.go) | 新增。读取/列举 per-model 配置：`LoadDetectConfig(model)` / `LoadAllConfiguredModels()` / `DetectConfigKey(model)` |
+| [service/auto_detect.go](service/auto_detect.go) | "模型检测"（fingerprint）调度，遍历 `(channel × model)`，1 分钟 tick |
+| [service/uptime_check.go](service/uptime_check.go) | 新增。"运行状态"探针调度，独立 ticker；端口/路径/模型 ID 全兼容 |
+| [main.go](main.go) | 启动两个 task：`StartAutoDetectTask()` / `StartUptimeCheckTask()` |
+| [model/channel_detect_log.go](model/channel_detect_log.go) | 增加 `ClaimedModel` / `PredictedModel` / `Top1Score` / `LatencyMeanMs` / `Note` |
+
+**`uptime_check.go` 的 URL/模型 兼容（已对齐 Flask）**：
+
+- `urlSuffixes = ["", "/api", "/v1", "/api/v1"]`
+- `stripKnownAPIPath()` → 剥掉 `/v1/chat/completions`、`/api/v1/chat/completions`、`/chat/completions`、`/v1`、`/api/v1`、`/api`
+- `baseURLCandidates()` → 原始 + 所有 `site_root + suffix` 组合 + 一份 `api.<domain>` 变体（例 `apimart.ai` → `api.apimart.ai`）
+- `_MODEL_ID_CANDIDATES`：`claude-haiku-4-5` → `claude-haiku-4-5-20251001`、`anthropic/claude-haiku-4.5`
+- 双重循环：外层走 URL 候选，内层走 model 候选；按 `probeErrURL` / `probeErrModel` / `probeErrOther` 分类，URL 错才换 URL，模型错才换 model
+
+### Step 3：模型数据页面 `/_panel/model-data`
+
+| 文件 | 作用 |
+|------|------|
+| [controller/model_data.go](controller/model_data.go) | 返回 `fingerprint_history[]` + `uptime_history[]`（各最多 24 条，含 `{status, detect_time, note}`），按 `source` 字段拆分 |
+| [web/default/src/features/model-data/index.tsx](web/default/src/features/model-data/index.tsx) | 主页面：MODEL_TABS、24 点 2×12 DotGrid、自动检测开关 + 间隔按钮 |
+
+**UI 细节**：
+
+- MODEL_TABS 顺序：Haiku 4.5 → Sonnet 4.6 → Opus 4.7 → GPT5.4 → GPT5.5
+- DotGrid：2 行 × 12 列；时间从老到新（左→右、上→下）；hover 走 `TooltipProvider delay={0}`，显示时间 + 状态 + 错误原因
+- 价格列保留 4 位小数；除了汇率（如 packyapi 1rmb=1usdt）
+- 间隔按钮：1 分钟自动检测开关放在页面而非设置里
+- "更新渠道"按钮触发 `service.FetchChannelPricing()` 异步刷新该渠道价格（[controller/channel.go](controller/channel.go) UpdateChannel）
+
+### 跨模块 Bug 修复（5-12 → 5-14 期间）
+
+| 现象 | 根因 | 修复 |
+|------|------|------|
+| 改完渠道分组后 model 价格没刷新 | `UpsertChannelModelPricings` 用了 `DB.Save`，新行 id=0 全部命中 unique idx_ch_model | [model/channel_model_pricing.go](model/channel_model_pricing.go) 改用 `clause.OnConflict{Columns:[channel_id,model_name], DoUpdates: AssignmentColumns(...)}` |
+| 模型映射输入框输入一个字母就失焦 | 父组件 echo 回 value → useEffect 重新 parse → `Date.now()` 生成新 row.id → React 重挂载 `<Input>` | [web/default/src/features/channels/components/model-mapping-editor.tsx](web/default/src/features/channels/components/model-mapping-editor.tsx) 加 `lastEmittedRef` + `emit()` helper，5 处 onChange 全切 emit |
+| 历史页点站点跳到 `/v1/chat/completions` | 链接直接拼 base_url | apimaster `lib/site-url.ts` 加 `getSiteHomepage()` 抽 scheme+hostname；historyall 全部走它 |
+| 编辑渠道页要等点击"获取上游分组"才拉模型 | 没有自动 fetch | [web/default/src/features/channels/components/drawers/channel-mutate-drawer.tsx](web/default/src/features/channels/components/drawers/channel-mutate-drawer.tsx) `KeyGroupField` 加 `useEffect` + `fetchedForRef` 防重复，500ms debounce |
+| Apimart 运行状态 fail 但 fingerprint pass | base_url 是 `apimart.ai`，实际 API 在 `api.apimart.ai`；Go 没复刻 Flask 的 fallback | uptime_check.go 全量端口 Flask URL 兼容（见 Step 2 表） |
+| Hover 价格 tooltip 700ms 才出 | 用 HTML title 属性 | 改 `TooltipProvider delay={0}` |
+| 输入框默认 1 清不掉 | 没让它支持空 | onFocus 自动 select；编辑期间允许空字符串 |
+| Docker 容器连不上 Flask | Gunicorn 只 bind 127.0.0.1 | [/etc/systemd/system/detect.service](/etc/systemd/system/detect.service) 加第二个 `--bind 172.17.0.1:7860` |
+| 控制台 admin 默认进 dashboard | 期望默认进 model-data | [/opt/apimaster-ai/app/console/[[...slug]]/page.tsx](/opt/apimaster-ai/app/console/%5B%5B...slug%5D%5D/page.tsx) 在 admin && landing 时 redirect `/console/model-data` |
+
+### 错误文案优化（apimaster 后端）
+
+| 文件 | 改动 |
+|------|------|
+| [/opt/apimaster-ai/backend/app/providers/openai_compat.py](/opt/apimaster-ai/backend/app/providers/openai_compat.py) | (1) 空 body / 非 JSON 给中文具体描述；(2) packyapi cc 类 key 识别后提示"该 API Key 仅限 Claude Code CLI 客户端使用"；(3) b.ai deposit_required → "访问受限，需要充值解锁高级模型" |
+| [/opt/apimaster-ai/backend/web/server.py](/opt/apimaster-ai/backend/web/server.py) | 403 access_denied 自动 fallback openai-compatible → anthropic（排除余额/充值类） |
+| [/opt/apimaster-ai/lib/fingerprint.ts](/opt/apimaster-ai/lib/fingerprint.ts) | `normalizeBaseUrl` 剥 `/chat/completions` 后缀，scheme 小写 |
+
+### 已知未结
+
+- **codextopapi 部分检测返回空 body**：错误提示已优化，但根因（限流？超时？）未定位，留作单独议题
+
+### 模型别名兼容（跨 newapi / apimaster）
+
+权威定义在 apimaster backend：[/opt/apimaster-ai/backend/model_registry/models.yaml](/opt/apimaster-ai/backend/model_registry/models.yaml)，每个模型有 `name` / `api_id` / `fingerprint_aliases`。
+
+newapi 这边 [service/uptime_check.go](service/uptime_check.go) 维护了对齐的 `ModelIDCandidates` map（外加 OpenRouter 风格的 `anthropic/claude-...` 变体），并 export 了 `ModelNameCandidates(canonical) []string` 给其他包用。
+
+已使用方：
+- `service/uptime_check.go` 探针重试时按 candidate 列表回退
+- `controller/model_data.go` SQL `IN ?` 查询 `channel_model_pricings` 跨变体匹配，并对 channel_id 去重保留最低价（修复了 Haiku 4.5 tab 只显示 roma 一个渠道的问题——Apimart/packyapi-claude 在 pricing 表存的是 `claude-haiku-4-5-20251001`，旧的严格 `=` 匹配漏掉了）
+
+后续新增 alias 时只需在 [service/uptime_check.go:35](service/uptime_check.go#L35) 加一行。
+
+---
+
+## 路由算法 0.1 存档（2026-05-14）
+
+第一版"按价格最便宜可用渠道优先 + 检测自动禁用 + 自动恢复"的最简路由。只做 cheapest 一种策略，跑在 newapi distributor 端；apimaster 不参与决策。
+
+### 规则矩阵（用户确认）
+
+| 维度 | 决策 |
+|------|------|
+| 算法位置 | newapi distributor |
+| 候选池排序 | `actual_price = input_price × COALESCE(recharge_rate, 1)` 升序 |
+| Fallback | 复用 newapi 现有 retry 机制（默认 retry 2 次） |
+| 自动禁用触发 | 一次 fingerprint **suspicious** 即 status=3 AutoDisabled（notcomplete 不触发，uptime 不触发） |
+| 自动恢复 | status=3 + counter 累计达 12 次 fingerprint pass → status=1 + counter 重置 |
+| Counter 语义 | 纯 int：pass +1；suspicious 归零；notcomplete 不动；不带时间窗 |
+| 手动禁用 | status=2 ManuallyDisabled（不被自动恢复，不进候选池） |
+| 手动启用 | status=1 + counter 重置 |
+| 请求失败（5xx/timeout） | 只走 retry，**不影响 status** |
+| 生效范围 | 仅 token group = `auto-cheapest`，其他 group 行为完全不变 |
+
+### 使用方法
+
+1. 「管理员后台 → 站点与品牌 → 系统信息 → 服务器地址」确认已填写公开 URL（如 `https://apimaster.ai`）。当前 DB 已写入。
+2. 在 token 管理页创建 token，"分组"下拉选 `auto-cheapest`（描述："智能路由（按价格选最便宜的可用渠道，失败自动 fallback）"）。
+3. 客户端用 `<ServerAddress>/v1/chat/completions` + 该 token 发请求；newapi 自动按价升序挑渠道，失败自动顺延。
+
+### 关键文件
+
+| 文件 | 作用 |
+|------|------|
+| [model/channel.go:62](model/channel.go#L62) | `ConsecutiveFingerprintPass` 字段 (gorm auto-migration) |
+| [service/auto_detect.go:267](service/auto_detect.go#L267) | suspicious→3 / status=3+pass→counter+1 / counter==12→1 状态机 |
+| [service/auto_detect.go:64](service/auto_detect.go#L64) | 检测范围扩到 `status IN (1, 3)` 让 AutoDisabled 也被持续检测 |
+| [service/uptime_check.go:83](service/uptime_check.go#L83) | uptime 同样扩到 1,3 |
+| [service/channel_select_cheapest.go](service/channel_select_cheapest.go) | 新建：`SelectCheapestEnabledChannel` + `AutoCheapestGroup` 常量 + `bannedChannelIDsFromContext` |
+| [service/channel_select.go:84](service/channel_select.go#L84) | `CacheGetRandomSatisfiedChannel` 入口加 `auto-cheapest` 分支 |
+| [middleware/distributor.go:102](middleware/distributor.go#L102) | distributor 对 auto-cheapest 跳过 affinity（粘性选择会破坏 cheapest 语义） |
+| [controller/model_data.go](controller/model_data.go) | 返回 `status` + `consecutive_fingerprint_pass`；新增 `ToggleChannelStatus` |
+| [router/api-router.go:222](router/api-router.go#L222) | 注册 `POST /api/admin/model-data/toggle` |
+| [setting/ratio_setting/group_ratio.go:12](setting/ratio_setting/group_ratio.go#L12) | `defaultGroupRatio` 加 `auto-cheapest: 1` |
+| [setting/user_usable_group.go:10](setting/user_usable_group.go#L10) | `userUsableGroups` 加 `auto-cheapest` 中文描述 |
+| `options.UserUsableGroups` (DB) | 手动 UPDATE 加 `auto-cheapest` 中文 desc——启动时 DB 值会覆盖代码默认 map |
+| [web/default/src/features/model-data/index.tsx](web/default/src/features/model-data/index.tsx) | 表格末尾"操作"列：启用/禁用按钮 + 状态徽章 `自动禁用 N/12` / `手动禁用` |
+| [web/default/src/features/keys/components/api-keys-table.tsx](web/default/src/features/keys/components/api-keys-table.tsx) | API 密钥页工具栏加 `ApiBaseUrlBadge`（点击复制 ServerAddress 到剪贴板） |
+
+### 价格公式备忘
+
+当前 `channel_model_pricings` 只有 `input_price` + `output_price` 两列，**没有** cache_read / cache_write。路由 0.1 SQL 排序键统一**只用 `input_price`**（用户确认）。未来扩 cache 字段后，公式回来加权（cache 价格通常是 input 的 0.1x / 1.25x，对 chat 场景实际成本影响显著）。
+
+### 不在 0.1 范围
+
+- 多策略（fastest / balanced 等）—— 后续版本
+- apimaster 用户级 API key 体系（用户在 apimaster 拿 key 转发到 newapi）
+- 计费分账
+- 流式响应 mid-stream fallback（首字节后技术上不可能）
+- per-token 自定义"12 次 / 24h"阈值（先全局硬编码 `fingerprintRecoveryThreshold = 12`）
+
+---
+
+## Step 4 计价系统改造存档（2026-05-14）
+
+路由 0.1 上线后立刻碰到 `model_price_error`：用户用 `auto-cheapest` token 请求，路由选好渠道但计价器拒收（newapi 计价走另一套 `ModelRatio` option，跟 `channel_model_pricings` 不通）。Step 4 解决两件事：(1) 让计价直接消费成本价；(2) 用 `GroupRatio = 1.05` 实现 5% 运营毛利。
+
+### 决策矩阵（用户确认）
+
+| 维度 | 决策 |
+|------|------|
+| 计价模型 | **per-request × per-channel**：每次请求按命中那个 channel 的 input_price 计费 |
+| ratio 公式 | `model_ratio = input_price / 2.0`，`completion_ratio = output_price / input_price` |
+| 5% 毛利落地 | `GroupRatio["auto-cheapest"] = 1.05`（不在充值环节抽，避免退款倒推） |
+| Fallback 触发 | `ModelRatio` / `ModelPrice` 都缺失时 → 自动从 `channel_model_pricings` 反查 |
+| 运营覆盖 | 后台手填 `ModelRatio` 仍优先（fallback 让位，作为应急通道） |
+| 默认 token group | `auto-cheapest`（新建 token 默认选） |
+| 用户可见 group | 仅 `auto-cheapest`（`default/vip/svip` 在用户面隐藏，代码层保留兜底） |
+| 使用日志 | 普通用户能看到 `channel_name`（透明转售卖点），admin 看完整 `#id` + chain + affinity |
+
+### 关键文件
+
+| 文件 | 改动 |
+|------|------|
+| [service/channel_pricing_lookup.go](service/channel_pricing_lookup.go) | **新建** `ChannelModelPriceRatio()` — 按 channel_id + model 反查 ratio |
+| [relay/helper/price.go](relay/helper/price.go#L96) | `ModelPriceHelper()` 在 `GetModelRatio` 失败时调上面 helper；`ratioFromChannel` 标志阻止后续覆盖 |
+| [setting/ratio_setting/group_ratio.go](setting/ratio_setting/group_ratio.go#L12) | `defaultGroupRatio["auto-cheapest"] = 1.05`（**5% 毛利在此**） |
+| [setting/user_usable_group.go](setting/user_usable_group.go#L10) | `userUsableGroups` 只留 `auto-cheapest`（用户面只显示这一个） |
+| DB `options.GroupRatio` | `INSERT '{"default":1,"vip":1,"svip":1,"auto-cheapest":1.05}'` |
+| DB `options.UserUsableGroups` | `UPDATE '{"auto-cheapest":"智能路由（…含 5% 服务费）"}'` |
+| [web/default/src/features/keys/constants.ts](web/default/src/features/keys/constants.ts#L77) | `DEFAULT_GROUP = 'auto-cheapest'` |
+| [web/default/src/features/keys/lib/api-key-form.ts](web/default/src/features/keys/lib/api-key-form.ts#L63) | 简化默认值逻辑，统一用 `DEFAULT_GROUP` |
+| [web/default/src/features/usage-logs/components/columns/common-logs-columns.tsx](web/default/src/features/usage-logs/components/columns/common-logs-columns.tsx#L292) | 非 admin 用户加简化 channel 列（只显示 `channel_name`） |
+
+### 端到端验证（已通过）
+
+```bash
+curl -sS -X POST https://apimaster.ai/v1/chat/completions \
+  -H "Authorization: Bearer sk-<auto-cheapest token>" \
+  -d '{"model":"claude-sonnet-4-6","messages":[{"role":"user","content":"hi"}],"max_tokens":20}'
+# → SSE stream, msg id 前缀 msg_bdrk_... 命中 Apimart（最便宜，input_price=0.8）
+# → 扣费 quota=123, channel_id=3, ratio = 0.8/2 × 1.05 = 0.42
+```
+
+### 配置陷阱
+
+**channel.base_url 必须是上游真实 API 端点**。例：apimart 的 API 在 `https://api.apimart.ai`（带 api 子域），不是主站 `https://apimart.ai`（主站没 /v1 路径，会返回 404 + Next.js HTML）。新加 channel 时确认 `curl -X POST <base_url>/v1/chat/completions` 能拿到 401 而不是 HTML 404。
+
+### 已知未结
+
+- **404 不自动 retry 到次贵渠道**：理论上 newapi `shouldRetry()` 默认 404 在 retry 范围（401-407），但实测没触发。下次再碰到时深挖
+- **relay 转发缺 base_url 子域 fallback**：`uptime_check.go` 已有 `api.<domain>` 候选 + `_strip_known_api_path` 兜底逻辑，但仅探针自己用；relay 转发请求时直接信任 `channel.base_url`。治本要在 `controller/relay.go` 转发处接同一套 candidates，但每请求多次试 URL 性能不佳，暂搁置
+
+### 不在 step 4 范围
+
+- **充值/退款 UI + 订单流**：5% 已通过 GroupRatio 落地，但充值入口、退款 UI、订单流是独立 step
+- **缓存价格**（`cache_read` / `cache_write`）：schema 没字段，公式重调留给后续
+- **多策略路由**（fastest / balanced）：路由 0.2 再做
+- **隐藏后台「分组与模型定价」页**：保留作为应急覆盖入口

@@ -10,9 +10,12 @@ import (
 )
 
 var defaultGroupRatio = map[string]float64{
-	"default": 1,
-	"vip":     1,
-	"svip":    1,
+	"default":       1,
+	"vip":           1,
+	"svip":          1,
+	// step4 / apimaster: the only group end-users see. 1.05 = 5% gross margin
+	// applied per-request (cleaner than topup-time fee — refunds are 1:1).
+	"auto-cheapest": 1.05,
 }
 
 var groupRatioMap = types.NewRWMap[string, float64]()

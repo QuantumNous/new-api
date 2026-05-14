@@ -18,7 +18,11 @@ import (
 )
 
 const (
-	autoDetectInterval       = 6 * time.Hour
+	// Tick frequency: how often we wake up to check whether any channel×model
+	// pair is due for re-detection. Per-model intervals are read from options
+	// table (detect_config_*); a model with interval=5min still won't fire more
+	// often than this tick.
+	autoDetectTickInterval   = 1 * time.Minute
 	autoDetectChannelTimeout = 10 * time.Minute
 	// default Flask URL; override with APIMASTER_FLASK_URL env var
 	autoDetectDefaultFlaskURL = "http://127.0.0.1:7860"
@@ -39,8 +43,8 @@ func StartAutoDetectTask() {
 			flaskURL = autoDetectDefaultFlaskURL
 		}
 		gopool.Go(func() {
-			logger.LogInfo(context.Background(), fmt.Sprintf("auto-detect task started (interval=%s, flask=%s)", autoDetectInterval, flaskURL))
-			ticker := time.NewTicker(autoDetectInterval)
+			logger.LogInfo(context.Background(), fmt.Sprintf("auto-detect task started (tick=%s, flask=%s)", autoDetectTickInterval, flaskURL))
+			ticker := time.NewTicker(autoDetectTickInterval)
 			defer ticker.Stop()
 			runAutoDetectOnce(flaskURL)
 			for range ticker.C {
@@ -50,47 +54,80 @@ func StartAutoDetectTask() {
 	})
 }
 
+// runAutoDetectOnce: for each (channel × supported model) pair where the model
+// has fingerprint_enabled=true, run a fingerprint detection if its interval has
+// elapsed since the last fingerprint run for this pair.
 func runAutoDetectOnce(flaskURL string) {
 	ctx := context.Background()
 
 	var channels []model.Channel
-	if err := model.DB.Where("status = 1 AND base_url != '' AND base_url IS NOT NULL").Find(&channels).Error; err != nil {
+	// status IN (1,3): keep probing AutoDisabled (3) channels so they have a chance
+	// to recover via the consecutive-pass counter. Skip ManuallyDisabled (2) — operator
+	// said "stop touching it".
+	if err := model.DB.Where("status IN (1, 3) AND base_url != '' AND base_url IS NOT NULL").Find(&channels).Error; err != nil {
 		logger.LogWarn(ctx, fmt.Sprintf("auto-detect: failed to list channels: %v", err))
 		return
 	}
 
-	cutoff := time.Now().Add(-autoDetectInterval).Unix()
+	configuredModels := LoadAllConfiguredModels()
+	if len(configuredModels) == 0 {
+		return // no per-model config saved → nothing to do
+	}
+
+	now := time.Now().Unix()
 
 	for _, ch := range channels {
 		if ch.BaseURL == nil || *ch.BaseURL == "" {
 			continue
 		}
-		// Skip channels detected recently
-		if ch.LastDetectedAt != nil && *ch.LastDetectedAt > cutoff {
-			continue
-		}
-		// Pick the test model: prefer TestModel field, fall back to first in Models
-		targetModel := pickDetectModel(&ch)
-		if targetModel == "" {
-			continue
-		}
+		channelModels := splitChannelModels(ch.Models)
+		for _, m := range configuredModels {
+			if !channelModels[m] {
+				continue // channel doesn't support this model
+			}
+			cfg := LoadDetectConfig(m)
+			if !cfg.FingerprintEnabled {
+				continue
+			}
 
-		detectOneChannel(ctx, flaskURL, &ch, targetModel)
+			intervalSec := int64(cfg.FingerprintIntervalMinutes) * 60
+			if intervalSec < 60 {
+				intervalSec = 60
+			}
+
+			lastTime := lastFingerprintTime(ch.Id, m)
+			if now-lastTime < intervalSec {
+				continue // not yet due
+			}
+
+			detectOneChannel(ctx, flaskURL, &ch, m)
+		}
 	}
 }
 
-func pickDetectModel(ch *model.Channel) string {
-	if ch.TestModel != nil && *ch.TestModel != "" {
-		return strings.TrimSpace(*ch.TestModel)
-	}
-	parts := strings.Split(ch.Models, ",")
-	for _, p := range parts {
+// splitChannelModels parses Channel.Models (comma-separated) into a set.
+func splitChannelModels(models string) map[string]bool {
+	out := map[string]bool{}
+	for _, p := range strings.Split(models, ",") {
 		p = strings.TrimSpace(p)
 		if p != "" {
-			return p
+			out[p] = true
 		}
 	}
-	return ""
+	return out
+}
+
+// lastFingerprintTime returns the most recent detect_time for this channel×model
+// from channel_detect_logs where source != 'uptime'. Returns 0 if none.
+func lastFingerprintTime(channelId int, modelName string) int64 {
+	var row struct{ DetectTime int64 }
+	model.DB.Table("channel_detect_logs").
+		Select("detect_time").
+		Where("channel_id = ? AND claimed_model = ? AND source <> ?", channelId, modelName, "uptime").
+		Order("detect_time DESC").
+		Limit(1).
+		Scan(&row)
+	return row.DetectTime
 }
 
 func detectOneChannel(ctx context.Context, flaskURL string, ch *model.Channel, targetModel string) {
@@ -104,10 +141,16 @@ func detectOneChannel(ctx context.Context, flaskURL string, ch *model.Channel, t
 		return
 	}
 
+	apiFormat := extractAPIFormat(ch.Setting)
+
+	// source='auto' tells Flask to flag this row in apimaster.detections so user-facing
+	// pages (history / stats / ranking) can filter background scans out.
 	body, err := common.Marshal(map[string]string{
 		"base_url":      baseURL,
 		"api_key":       apiKey,
 		"claimed_model": targetModel,
+		"api_format":    apiFormat,
+		"source":        "auto",
 	})
 	if err != nil {
 		return
@@ -123,6 +166,18 @@ func detectOneChannel(ctx context.Context, flaskURL string, ch *model.Channel, t
 	resp, err := client.Do(req)
 	if err != nil {
 		logger.LogWarn(ctx, fmt.Sprintf("auto-detect: channel %d request failed: %v", ch.Id, err))
+		// Persist the failure so the UI dot-grid shows it instead of silently
+		// disappearing — operator needs to see why detection didn't run.
+		now := time.Now().Unix()
+		model.DB.Create(&model.ChannelDetectLog{
+			ChannelId:    ch.Id,
+			Source:       "auto",
+			Status:       "notcomplete",
+			BaseURL:      baseURL,
+			ClaimedModel: targetModel,
+			Note:         fmt.Sprintf("Flask request failed: %v", err),
+			DetectTime:   now,
+		})
 		return
 	}
 	defer resp.Body.Close()
@@ -130,8 +185,13 @@ func detectOneChannel(ctx context.Context, flaskURL string, ch *model.Channel, t
 	// Consume NDJSON stream; each line is {"type":"progress"|"result"|"error", ...}
 	detectStatus := "notcomplete"
 	predictedModel := targetModel
+	noteText := ""
+	top1Score := 0.0
+	top5Json := ""
 
 	scanner := bufio.NewScanner(resp.Body)
+	// Default scanner buf is 64KB; Flask result event includes top5 + analysis text and can exceed that.
+	scanner.Buffer(make([]byte, 0, 64*1024), 1024*1024)
 	for scanner.Scan() {
 		var event struct {
 			Type  string         `json:"type"`
@@ -154,9 +214,20 @@ func detectOneChannel(ctx context.Context, flaskURL string, ch *model.Channel, t
 				if top, ok := event.Data["predicted_top1"].(string); ok && top != "" {
 					predictedModel = top
 				}
+				if score, ok := event.Data["top1_score"].(float64); ok {
+					top1Score = score
+				}
+				// top5 is an array of {label,score,rank,...} — keep raw JSON so frontend
+				// gets the exact same shape detection_sync delivers from apimaster PG.
+				if top5Raw, ok := event.Data["top5"]; ok && top5Raw != nil {
+					if b, err := common.Marshal(top5Raw); err == nil {
+						top5Json = string(b)
+					}
+				}
 			}
 		case "error":
 			detectStatus = "notcomplete"
+			noteText = event.Error
 		}
 		// Stop on terminal events
 		if event.Type == "result" || event.Type == "error" {
@@ -164,15 +235,24 @@ func detectOneChannel(ctx context.Context, flaskURL string, ch *model.Channel, t
 		}
 	}
 
+	if detectStatus == "notcomplete" && noteText == "" {
+		// Stream ended without a terminal event — likely truncation/timeout
+		noteText = "Flask stream ended without result"
+	}
+
 	now := time.Now().Unix()
 
 	logEntry := model.ChannelDetectLog{
-		ChannelId:  ch.Id,
-		Source:     "auto",
-		Status:     detectStatus,
-		BaseURL:    baseURL,
-		Model:      predictedModel,
-		DetectTime: now,
+		ChannelId:      ch.Id,
+		Source:         "auto",
+		Status:         detectStatus,
+		BaseURL:        baseURL,
+		ClaimedModel:   targetModel,
+		PredictedModel: predictedModel,
+		Top1Score:      top1Score,
+		Top5Json:       top5Json,
+		Note:           noteText,
+		DetectTime:     now,
 	}
 	model.DB.Create(&logEntry)
 
@@ -180,7 +260,57 @@ func detectOneChannel(ctx context.Context, flaskURL string, ch *model.Channel, t
 		"last_detected_at":    now,
 		"last_detect_result":  detectStatus,
 	}
+
+	// Routing algorithm 0.1 status machine:
+	//   suspicious → status=3 (AutoDisabled) + counter=0
+	//   pass while status=3 → counter+1; counter==fingerprintRecoveryThreshold → status=1 + counter=0
+	//   pass while status=1 → no-op (counter only matters during recovery)
+	//   notcomplete → leave status & counter alone (transient errors shouldn't punish)
+	//   status=2 (ManuallyDisabled) → algorithm never touches it
+	if ch.Status != common.ChannelStatusManuallyDisabled {
+		switch detectStatus {
+		case "suspicious":
+			updates["status"] = common.ChannelStatusAutoDisabled
+			updates["consecutive_fingerprint_pass"] = 0
+		case "pass":
+			if ch.Status == common.ChannelStatusAutoDisabled {
+				next := ch.ConsecutiveFingerprintPass + 1
+				if next >= fingerprintRecoveryThreshold {
+					updates["status"] = common.ChannelStatusEnabled
+					updates["consecutive_fingerprint_pass"] = 0
+				} else {
+					updates["consecutive_fingerprint_pass"] = next
+				}
+			}
+		}
+	}
+
 	if err := model.DB.Model(&model.Channel{}).Where("id = ?", ch.Id).Updates(updates).Error; err != nil {
 		logger.LogWarn(ctx, fmt.Sprintf("auto-detect: failed to update channel %d: %v", ch.Id, err))
 	}
+}
+
+// fingerprintRecoveryThreshold = how many consecutive fingerprint pass results
+// an auto-disabled channel must accumulate before it's re-enabled. 12 ≈ 12 minutes
+// at the default 1-minute tick or 12 hours at hourly tick — enough confidence
+// without keeping a confirmed-bad channel offline forever.
+const fingerprintRecoveryThreshold = 12
+
+// extractAPIFormat reads api_format from channel.Setting JSON.
+// Returns "openai-compatible" if absent or unrecognized.
+func extractAPIFormat(setting *string) string {
+	if setting == nil || *setting == "" {
+		return "openai-compatible"
+	}
+	var s struct {
+		APIFormat string `json:"api_format"`
+	}
+	if err := common.Unmarshal([]byte(*setting), &s); err != nil {
+		return "openai-compatible"
+	}
+	switch s.APIFormat {
+	case "openai-compatible", "openai", "anthropic", "gemini":
+		return s.APIFormat
+	}
+	return "openai-compatible"
 }

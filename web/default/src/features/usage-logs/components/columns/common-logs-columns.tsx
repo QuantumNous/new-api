@@ -289,6 +289,30 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
     },
   ]
 
+  // step4 (apimaster): regular users see a simplified channel column —
+  // just channel_name, no #id badge / chain / affinity flair. This makes
+  // "transparent cost-price routing" verifiable from the user's side
+  // (they see "this request actually went to packyapi-claude") without
+  // exposing internal channel IDs or admin-only metadata.
+  if (!isAdmin) {
+    columns.push({
+      id: 'channel',
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title={t('Channel')} />
+      ),
+      cell: ({ row }) => {
+        const log = row.original
+        if (!isDisplayableLogType(log.type)) return null
+        return (
+          <span className='text-muted-foreground text-sm'>
+            {log.channel_name || '—'}
+          </span>
+        )
+      },
+      meta: { label: t('Channel'), mobileHidden: true },
+    })
+  }
+
   if (isAdmin) {
     columns.push(
       {

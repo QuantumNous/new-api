@@ -389,34 +389,55 @@ func updateChannelBalance(channel *model.Channel) (float64, error) {
 	default:
 		return 0, errors.New("尚未实现")
 	}
+	// First try: standard OpenAI billing endpoints.
+	// Skip if hard_limit_usd >= 1e6 — relay platforms set a fake huge value as a placeholder.
 	url := fmt.Sprintf("%s/v1/dashboard/billing/subscription", baseURL)
+	body, err := GetResponseBody("GET", url, channel, GetAuthHeader(channel.Key))
+	if err == nil {
+		subscription := OpenAISubscriptionResponse{}
+		if jsonErr := json.Unmarshal(body, &subscription); jsonErr == nil &&
+			subscription.HardLimitUSD > 0 && subscription.HardLimitUSD < 1_000_000 {
+			now := time.Now()
+			startDate := fmt.Sprintf("%s-01", now.Format("2006-01"))
+			endDate := now.Format("2006-01-02")
+			if !subscription.HasPaymentMethod {
+				startDate = now.AddDate(0, 0, -100).Format("2006-01-02")
+			}
+			url = fmt.Sprintf("%s/v1/dashboard/billing/usage?start_date=%s&end_date=%s", baseURL, startDate, endDate)
+			if body2, err2 := GetResponseBody("GET", url, channel, GetAuthHeader(channel.Key)); err2 == nil {
+				usage := OpenAIUsageResponse{}
+				if json.Unmarshal(body2, &usage) == nil {
+					balance := subscription.HardLimitUSD - usage.TotalUsage/100
+					channel.UpdateBalance(balance)
+					return balance, nil
+				}
+			}
+		}
+	}
 
+	// Fallback: new-api / one-api relay station (/api/user/self quota).
+	return updateChannelNewAPIRelayBalance(channel)
+}
+
+// updateChannelNewAPIRelayBalance queries balance from new-api / one-api relay stations.
+// Tries /api/user/self (quota field, 500000 credits = $1).
+func updateChannelNewAPIRelayBalance(channel *model.Channel) (float64, error) {
+	url := fmt.Sprintf("%s/api/user/self", channel.GetBaseURL())
 	body, err := GetResponseBody("GET", url, channel, GetAuthHeader(channel.Key))
 	if err != nil {
 		return 0, err
 	}
-	subscription := OpenAISubscriptionResponse{}
-	err = json.Unmarshal(body, &subscription)
-	if err != nil {
-		return 0, err
+	var resp struct {
+		Success bool `json:"success"`
+		Data    struct {
+			Quota     int64 `json:"quota"`
+			UsedQuota int64 `json:"used_quota"`
+		} `json:"data"`
 	}
-	now := time.Now()
-	startDate := fmt.Sprintf("%s-01", now.Format("2006-01"))
-	endDate := now.Format("2006-01-02")
-	if !subscription.HasPaymentMethod {
-		startDate = now.AddDate(0, 0, -100).Format("2006-01-02")
+	if err = json.Unmarshal(body, &resp); err != nil || !resp.Success || resp.Data.Quota == 0 {
+		return 0, fmt.Errorf("relay balance: not supported")
 	}
-	url = fmt.Sprintf("%s/v1/dashboard/billing/usage?start_date=%s&end_date=%s", baseURL, startDate, endDate)
-	body, err = GetResponseBody("GET", url, channel, GetAuthHeader(channel.Key))
-	if err != nil {
-		return 0, err
-	}
-	usage := OpenAIUsageResponse{}
-	err = json.Unmarshal(body, &usage)
-	if err != nil {
-		return 0, err
-	}
-	balance := subscription.HardLimitUSD - usage.TotalUsage/100
+	balance := float64(resp.Data.Quota-resp.Data.UsedQuota) / 500_000.0
 	channel.UpdateBalance(balance)
 	return balance, nil
 }

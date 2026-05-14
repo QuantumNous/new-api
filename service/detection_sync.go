@@ -25,10 +25,15 @@ const (
 var detectionSyncOnce sync.Once
 
 type apimasterDetectionRow struct {
-	BaseURL    string `gorm:"column:base_url"`
-	Status     string `gorm:"column:status"`
-	Model      string `gorm:"column:model"`
-	DetectTime int64  `gorm:"column:detect_time"`
+	BaseURL           string  `gorm:"column:base_url"`
+	Status            string  `gorm:"column:status"`
+	ClaimedModel      string  `gorm:"column:claimed_model"`
+	PredictedTop1     string  `gorm:"column:predicted_top1"`
+	Top1Score         float64 `gorm:"column:top1_score"`
+	Top5Json          string  `gorm:"column:top5_json"` // JSON-stringified array from detections.top5
+	LatencyMeanMs     float64 `gorm:"column:latency_mean_ms"`
+	NotcompleteReason string  `gorm:"column:notcomplete_reason"`
+	DetectTime        int64   `gorm:"column:detect_time"`
 }
 
 // StartDetectionSyncTask periodically reads apimaster's detections PG table and
@@ -55,18 +60,23 @@ func runDetectionSyncOnce() {
 	since := time.Now().Add(-detectionLookback)
 
 	// Query most recent detection per base_url within lookback window.
+	// Include all statuses (pass/suspicious/notcomplete) so we record failures too.
 	// DISTINCT ON is PostgreSQL-specific — safe here because APIMASTER_PG_DB is always PG.
 	var rows []apimasterDetectionRow
 	err := model.APIMASTER_PG_DB.Raw(`
 		SELECT DISTINCT ON (base_url)
 			base_url,
 			status,
-			claimed_model AS model,
+			claimed_model,
+			COALESCE(predicted_top1, '')   AS predicted_top1,
+			COALESCE(top1_score, 0)        AS top1_score,
+			COALESCE(top5::text, '')       AS top5_json,
+			COALESCE(latency_mean_ms, 0)   AS latency_mean_ms,
+			COALESCE(notcomplete_reason, '') AS notcomplete_reason,
 			EXTRACT(EPOCH FROM created_at)::bigint AS detect_time
 		FROM detections
 		WHERE created_at > $1
 		  AND base_url IS NOT NULL
-		  AND status IN ('pass', 'suspicious')
 		ORDER BY base_url, created_at DESC
 	`, since).Scan(&rows).Error
 	if err != nil {
@@ -94,44 +104,51 @@ func applyDetectionResult(ctx context.Context, d apimasterDetectionRow) {
 
 		// Write log entry
 		logEntry := model.ChannelDetectLog{
-			ChannelId:  ch.Id,
-			Source:     "sync",
-			Status:     d.Status,
-			BaseURL:    d.BaseURL,
-			Model:      d.Model,
-			DetectTime: d.DetectTime,
+			ChannelId:      ch.Id,
+			Source:         "sync",
+			Status:         d.Status,
+			BaseURL:        d.BaseURL,
+			ClaimedModel:   d.ClaimedModel,
+			PredictedModel: d.PredictedTop1,
+			Top1Score:      d.Top1Score,
+			Top5Json:       d.Top5Json,
+			LatencyMeanMs:  d.LatencyMeanMs,
+			Note:           d.NotcompleteReason,
+			DetectTime:     d.DetectTime,
 		}
 		model.DB.Create(&logEntry)
 
-		// Compute priority update
-		priority := int64(0)
-		if ch.Priority != nil {
-			priority = *ch.Priority
-		}
 		now := time.Now().Unix()
 		updates := map[string]interface{}{
-			"last_detected_at":    now,
-			"last_detect_result":  d.Status,
+			"last_detected_at":   now,
+			"last_detect_result": d.Status,
 		}
 
-		if d.Status == "suspicious" {
-			priority -= detectionPriorityPenalty
-			if priority < 0 {
-				priority = 0
+		// Only adjust priority for conclusive results
+		if d.Status == "pass" || d.Status == "suspicious" {
+			priority := int64(0)
+			if ch.Priority != nil {
+				priority = *ch.Priority
 			}
-			updates["priority"] = priority
-			if priority == 0 {
-				updates["status"] = 2 // disable channel
+			if d.Status == "suspicious" {
+				priority -= detectionPriorityPenalty
+				if priority < 0 {
+					priority = 0
+				}
+				updates["priority"] = priority
+				if priority == 0 {
+					updates["status"] = 2 // disable channel
+				}
+			} else {
+				if ch.Status == 2 {
+					updates["status"] = 1 // re-enable if previously disabled by detection
+				}
+				priority += detectionPriorityBonus
+				if priority > detectionPriorityMax {
+					priority = detectionPriorityMax
+				}
+				updates["priority"] = priority
 			}
-		} else if d.Status == "pass" {
-			if ch.Status == 2 {
-				updates["status"] = 1 // re-enable if previously disabled by detection
-			}
-			priority += detectionPriorityBonus
-			if priority > detectionPriorityMax {
-				priority = detectionPriorityMax
-			}
-			updates["priority"] = priority
 		}
 
 		if err := model.DB.Model(&model.Channel{}).Where("id = ?", ch.Id).Updates(updates).Error; err != nil {

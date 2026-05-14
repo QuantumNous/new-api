@@ -74,7 +74,9 @@ export const API_KEY_STATUS_OPTIONS = Object.values(API_KEY_STATUSES).map(
 // Default Values
 // ============================================================================
 
-export const DEFAULT_GROUP = '' as const
+// step4 (apimaster): new tokens default to the routing-0.1 group so users get
+// "cheapest channel + auto-fallback + 5% via group ratio" out of the box.
+export const DEFAULT_GROUP = 'auto-cheapest' as const
 
 // ============================================================================
 // Error Messages (i18n keys: use t(ERROR_MESSAGES.xxx) when displaying)

@@ -33,6 +33,7 @@ import {
   CreditCard,
   ListTodo,
   Settings,
+  BarChart2,
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { WORKSPACE_IDS } from '@/components/layout/lib/workspace-registry'
@@ -129,6 +130,11 @@ export function useSidebarData(): SidebarData {
             title: t('Models'),
             url: '/models/metadata',
             icon: Box,
+          },
+          {
+            title: t('Model Data'),
+            url: '/model-data',
+            icon: BarChart2,
           },
           {
             title: t('Users'),

@@ -141,56 +141,46 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
 
   return (
     <div className='flex items-center justify-end gap-1'>
-      <Tooltip>
-        <TooltipTrigger
-          render={
-            <Button
-              variant='ghost'
-              size='icon-sm'
-              onClick={handleDirectTest}
-              disabled={isTesting}
-              aria-label={t('Test Connection')}
-            />
-          }
-        >
-          {isTesting ? (
-            <Loader2 className='size-4 animate-spin' />
-          ) : (
-            <Gauge className='size-4' />
-          )}
-        </TooltipTrigger>
-        <TooltipContent>{t('Test Connection')}</TooltipContent>
-      </Tooltip>
+      {/* 禁用/启用 */}
+      <Button
+        variant='ghost'
+        size='sm'
+        onClick={handleToggleStatus}
+        disabled={isTogglingStatus}
+        className={
+          isEnabled
+            ? 'text-destructive hover:text-destructive hover:bg-destructive/10 text-xs px-2 h-7'
+            : 'text-emerald-600 hover:text-emerald-600 hover:bg-emerald-50 text-xs px-2 h-7'
+        }
+      >
+        {isTogglingStatus ? (
+          <Loader2 className='size-3 animate-spin' />
+        ) : isEnabled ? (
+          t('Disable')
+        ) : (
+          t('Enable')
+        )}
+      </Button>
 
-      <Tooltip>
-        <TooltipTrigger
-          render={
-            <Button
-              variant='ghost'
-              size='icon-sm'
-              onClick={handleToggleStatus}
-              disabled={isTogglingStatus}
-              aria-label={isEnabled ? t('Disable') : t('Enable')}
-              className={
-                isEnabled
-                  ? 'text-destructive hover:text-destructive'
-                  : 'text-emerald-600 hover:text-emerald-600 dark:text-emerald-400 dark:hover:text-emerald-400'
-              }
-            />
-          }
-        >
-          {isTogglingStatus ? (
-            <Loader2 className='size-4 animate-spin' />
-          ) : isEnabled ? (
-            <PowerOff className='size-4' />
-          ) : (
-            <Power className='size-4' />
-          )}
-        </TooltipTrigger>
-        <TooltipContent>
-          {isEnabled ? t('Disable') : t('Enable')}
-        </TooltipContent>
-      </Tooltip>
+      {/* 编辑 */}
+      <Button
+        variant='ghost'
+        size='sm'
+        onClick={handleEdit}
+        className='text-xs px-2 h-7'
+      >
+        {t('Edit')}
+      </Button>
+
+      {/* 查询余额 */}
+      <Button
+        variant='ghost'
+        size='sm'
+        onClick={handleQueryBalance}
+        className='text-xs px-2 h-7'
+      >
+        {t('Query Balance')}
+      </Button>
 
       <DropdownMenu>
         <DropdownMenuTrigger

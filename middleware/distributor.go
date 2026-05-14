@@ -99,6 +99,9 @@ func Distribute() func(c *gin.Context) {
 					}
 				}
 
+				// auto-cheapest routing always picks the lowest-priced channel; channel
+				// affinity (sticky last-used) would defeat that, so skip it for this group.
+				if usingGroup != service.AutoCheapestGroup {
 				if preferredChannelID, found := service.GetPreferredChannelByAffinity(c, modelRequest.Model, usingGroup); found {
 					preferred, err := model.CacheGetChannel(preferredChannelID)
 					if err == nil && preferred != nil {
@@ -126,6 +129,7 @@ func Distribute() func(c *gin.Context) {
 						}
 					}
 				}
+				} // end auto-cheapest skip
 
 				if channel == nil {
 					channel, selectGroup, err = service.CacheGetRandomSatisfiedChannel(&service.RetryParam{

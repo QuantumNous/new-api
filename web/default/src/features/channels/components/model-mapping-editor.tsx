@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Code, Table, Plus, Trash2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { cn } from '@/lib/utils'
@@ -45,6 +45,10 @@ export function ModelMappingEditor({
   const [mode, setMode] = useState<'visual' | 'json'>('visual')
   const [rows, setRows] = useState<MappingRow[]>([])
   const [jsonValue, setJsonValue] = useState(value)
+  // Track the JSON we last emitted so we can ignore the parent echoing it back —
+  // otherwise re-parsing regenerates row IDs (Date.now()) → React remounts the
+  // <Input>s on every keystroke → focus is lost.
+  const lastEmittedRef = useRef<string>(value)
 
   const parseJsonToRows = (json: string) => {
     try {
@@ -66,12 +70,20 @@ export function ModelMappingEditor({
     }
   }
 
-  // Parse JSON to rows when value changes externally
+  // Parse JSON to rows when value changes externally (not from our own onChange).
   useEffect(() => {
+    if (value === lastEmittedRef.current) return
+    lastEmittedRef.current = value
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setJsonValue(value)
     parseJsonToRows(value)
   }, [value])
+
+  // Helper: emit a new JSON value and remember it so we don't re-parse our own echo.
+  const emit = (json: string) => {
+    lastEmittedRef.current = json
+    onChange(json)
+  }
 
   const convertRowsToJson = (updatedRows: MappingRow[]): string => {
     if (updatedRows.length === 0) {
@@ -101,7 +113,7 @@ export function ModelMappingEditor({
     setRows(updatedRows)
     const json = convertRowsToJson(updatedRows)
     setJsonValue(json)
-    onChange(json)
+    emit(json)
   }
 
   const handleRowChange = (
@@ -115,12 +127,12 @@ export function ModelMappingEditor({
     setRows(updatedRows)
     const json = convertRowsToJson(updatedRows)
     setJsonValue(json)
-    onChange(json)
+    emit(json)
   }
 
   const handleJsonChange = (newJson: string) => {
     setJsonValue(newJson)
-    onChange(newJson)
+    emit(newJson)
     parseJsonToRows(newJson)
   }
 
@@ -131,7 +143,7 @@ export function ModelMappingEditor({
       2
     )
     setJsonValue(template)
-    onChange(template)
+    emit(template)
     parseJsonToRows(template)
   }
 
@@ -140,7 +152,7 @@ export function ModelMappingEditor({
       // Switching to JSON mode: sync rows to JSON
       const json = convertRowsToJson(rows)
       setJsonValue(json)
-      onChange(json)
+      emit(json)
       setMode('json')
     } else {
       // Switching to visual mode: sync JSON to rows

@@ -86,6 +86,19 @@ func CacheGetRandomSatisfiedChannel(param *RetryParam) (*model.Channel, string, 
 	selectGroup := param.TokenGroup
 	userGroup := common.GetContextKeyString(param.Ctx, constant.ContextKeyUserGroup)
 
+	// Routing algorithm 0.1: when the token group is "auto-cheapest", bypass the
+	// priority/weight random selector and always pick the lowest-priced enabled
+	// channel. The retry loop in controller/relay.go re-enters here on failure;
+	// we read the addUsedChannel() history via context so each retry walks one
+	// step further down the price ladder.
+	if param.TokenGroup == AutoCheapestGroup {
+		ch, cheapErr := SelectCheapestEnabledChannel(param.Ctx, param.ModelName)
+		if cheapErr != nil {
+			return nil, AutoCheapestGroup, cheapErr
+		}
+		return ch, AutoCheapestGroup, nil
+	}
+
 	if param.TokenGroup == "auto" {
 		if len(setting.GetAutoGroups()) == 0 {
 			return nil, selectGroup, errors.New("auto groups is not enabled")
