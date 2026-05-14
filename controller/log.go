@@ -10,6 +10,24 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// parseChannelIdsQuery 兼容两种参数形式：
+//   - 新前端：?channel_ids=1&channel_ids=2（多值，多选下拉的产物）
+//   - 老前端 / 老脚本：?channel=N（单值字符串，保留兼容直到全部下游升级）
+//
+// 任一参数为正整数才会被采纳；非正/解析失败被丢弃。
+func parseChannelIdsQuery(c *gin.Context) []int {
+	ids := make([]int, 0)
+	for _, raw := range c.QueryArray("channel_ids") {
+		if v, err := strconv.Atoi(raw); err == nil && v > 0 {
+			ids = append(ids, v)
+		}
+	}
+	if legacy, err := strconv.Atoi(c.Query("channel")); err == nil && legacy > 0 {
+		ids = append(ids, legacy)
+	}
+	return ids
+}
+
 func GetAllLogs(c *gin.Context) {
 	pageInfo := common.GetPageQuery(c)
 	logType, _ := strconv.Atoi(c.Query("type"))
@@ -18,10 +36,10 @@ func GetAllLogs(c *gin.Context) {
 	username := c.Query("username")
 	tokenName := c.Query("token_name")
 	modelName := c.Query("model_name")
-	channel, _ := strconv.Atoi(c.Query("channel"))
+	channelIds := parseChannelIdsQuery(c)
 	group := c.Query("group")
 	requestId := c.Query("request_id")
-	logs, total, err := model.GetAllLogs(logType, startTimestamp, endTimestamp, modelName, username, tokenName, pageInfo.GetStartIdx(), pageInfo.GetPageSize(), channel, group, requestId)
+	logs, total, err := model.GetAllLogs(logType, startTimestamp, endTimestamp, modelName, username, tokenName, pageInfo.GetStartIdx(), pageInfo.GetPageSize(), channelIds, group, requestId)
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -100,9 +118,9 @@ func GetLogsStat(c *gin.Context) {
 	tokenName := c.Query("token_name")
 	username := c.Query("username")
 	modelName := c.Query("model_name")
-	channel, _ := strconv.Atoi(c.Query("channel"))
+	channelIds := parseChannelIdsQuery(c)
 	group := c.Query("group")
-	stat, err := model.SumUsedQuota(logType, startTimestamp, endTimestamp, modelName, username, tokenName, channel, group)
+	stat, err := model.SumUsedQuota(logType, startTimestamp, endTimestamp, modelName, username, tokenName, channelIds, group)
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -127,9 +145,9 @@ func GetLogsSelfStat(c *gin.Context) {
 	endTimestamp, _ := strconv.ParseInt(c.Query("end_timestamp"), 10, 64)
 	tokenName := c.Query("token_name")
 	modelName := c.Query("model_name")
-	channel, _ := strconv.Atoi(c.Query("channel"))
+	channelIds := parseChannelIdsQuery(c)
 	group := c.Query("group")
-	quotaNum, err := model.SumUsedQuota(logType, startTimestamp, endTimestamp, modelName, username, tokenName, channel, group)
+	quotaNum, err := model.SumUsedQuota(logType, startTimestamp, endTimestamp, modelName, username, tokenName, channelIds, group)
 	if err != nil {
 		common.ApiError(c, err)
 		return

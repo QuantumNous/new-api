@@ -29,7 +29,7 @@ func AdminListReconcileHourly(c *gin.Context) {
 		req.PageSize = 20
 	}
 	rows, total, err := model.ListReconcileHourlyPaged(
-		req.ChannelId, req.From, req.To, req.ModelName, req.Page, req.PageSize,
+		req.ChannelIds, req.From, req.To, req.ModelName, req.Page, req.PageSize,
 	)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": err.Error()})
@@ -38,7 +38,7 @@ func AdminListReconcileHourly(c *gin.Context) {
 	// "金额合计" Tag at the top of the admin reconcile page — sums across all
 	// matching rows for the current filter, not just the current page. The user
 	// can pick "本月"/"上月" via the date range picker if they want to compare.
-	filtered, err := model.ReconcileHourlyStat(req.ChannelId, req.From, req.To, req.ModelName)
+	filtered, err := model.ReconcileHourlyStat(req.ChannelIds, req.From, req.To, req.ModelName)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": err.Error()})
 		return
@@ -69,43 +69,62 @@ func AdminExportReconcileMonth(c *gin.Context) {
 		req.Format = "xlsx"
 	}
 
-	// channel_id == 0 means export all channels; validate only when a specific
-	// channel is requested.
-	if req.ChannelId > 0 {
-		ch, err := model.GetChannelById(req.ChannelId, false)
+	// Empty channel_ids means export every reconcile-enabled channel; when the
+	// admin picks a specific subset, validate each id exists before kicking off
+	// the export so a typo doesn't silently produce an empty file.
+	for _, id := range req.ChannelIds {
+		if id <= 0 {
+			continue
+		}
+		ch, err := model.GetChannelById(id, false)
 		if err != nil || ch == nil {
-			c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "渠道不存在"})
+			c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": fmt.Sprintf("渠道不存在: %d", id)})
 			return
 		}
 	}
 
 	adminId := c.GetInt("id")
+	channelLogStr := formatChannelIdsForLog(req.ChannelIds)
 	// Filename no longer embeds the channel name so it is stable regardless of
-	// whether the export is filtered to one channel or covers all channels.
+	// whether the export is filtered to one/several channels or covers all.
 	if req.Format == "csv" {
-		data, rowCount, err := service.ExportMonthCSV(req.ChannelId, req.Month, req.ModelName)
+		data, rowCount, err := service.ExportMonthCSV(req.ChannelIds, req.Month, req.ModelName)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": err.Error()})
 			return
 		}
 		filename := fmt.Sprintf("reconcile_%s.csv", req.Month)
 		model.RecordLog(adminId, model.LogTypeManage,
-			fmt.Sprintf("导出对账账单 [reconcile_export] (channel_id=%d, month=%s, rows=%d)", req.ChannelId, req.Month, rowCount))
+			fmt.Sprintf("导出对账账单 [reconcile_export] (channel_ids=%s, month=%s, rows=%d)", channelLogStr, req.Month, rowCount))
 		c.Header("Content-Disposition", buildAttachmentDisposition(filename))
 		c.Data(http.StatusOK, "text/csv; charset=utf-8", data)
 		return
 	}
 
-	data, rowCount, err := service.ExportMonthXLSX(req.ChannelId, req.Month, req.ModelName)
+	data, rowCount, err := service.ExportMonthXLSX(req.ChannelIds, req.Month, req.ModelName)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": err.Error()})
 		return
 	}
 	filename := fmt.Sprintf("reconcile_%s.xlsx", req.Month)
 	model.RecordLog(adminId, model.LogTypeManage,
-		fmt.Sprintf("导出对账账单 [reconcile_export] (channel_id=%d, month=%s, rows=%d)", req.ChannelId, req.Month, rowCount))
+		fmt.Sprintf("导出对账账单 [reconcile_export] (channel_ids=%s, month=%s, rows=%d)", channelLogStr, req.Month, rowCount))
 	c.Header("Content-Disposition", buildAttachmentDisposition(filename))
 	c.Data(http.StatusOK, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", data)
+}
+
+// formatChannelIdsForLog renders the channel id list for the audit log.
+// Empty (all channels) becomes "all" so log readers can tell that case apart
+// from a single zero id.
+func formatChannelIdsForLog(ids []int) string {
+	if len(ids) == 0 {
+		return "all"
+	}
+	parts := make([]string, 0, len(ids))
+	for _, id := range ids {
+		parts = append(parts, fmt.Sprintf("%d", id))
+	}
+	return strings.Join(parts, ",")
 }
 
 // buildAttachmentDisposition produces an RFC 5987 compliant Content-Disposition

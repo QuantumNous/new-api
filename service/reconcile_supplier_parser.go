@@ -45,14 +45,15 @@ func parseMonthRange(month string) (int64, int64, error) {
 }
 
 // ExportMonthXLSX builds an xlsx file listing every aggregated row for the
-// given channel and month, in the supplier-bill column layout. The admin
+// given channels and month, in the supplier-bill column layout. The admin
 // downloads this and lines it up against the supplier's own bill in Excel.
-func ExportMonthXLSX(channelId int, month, modelFilter string) ([]byte, int, error) {
+// Empty channelIds means "all reconcile-enabled channels".
+func ExportMonthXLSX(channelIds []int, month, modelFilter string) ([]byte, int, error) {
 	from, to, err := parseMonthRange(month)
 	if err != nil {
 		return nil, 0, err
 	}
-	rows, err := model.ListReconcileHourlyForExport(channelId, from, to, modelFilter)
+	rows, err := model.ListReconcileHourlyForExport(channelIds, from, to, modelFilter)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -106,12 +107,12 @@ func ExportMonthXLSX(channelId int, month, modelFilter string) ([]byte, int, err
 }
 
 // ExportMonthCSV is the CSV equivalent — same columns, UTF-8 BOM for Excel.
-func ExportMonthCSV(channelId int, month, modelFilter string) ([]byte, int, error) {
+func ExportMonthCSV(channelIds []int, month, modelFilter string) ([]byte, int, error) {
 	from, to, err := parseMonthRange(month)
 	if err != nil {
 		return nil, 0, err
 	}
-	rows, err := model.ListReconcileHourlyForExport(channelId, from, to, modelFilter)
+	rows, err := model.ListReconcileHourlyForExport(channelIds, from, to, modelFilter)
 	if err != nil {
 		return nil, 0, err
 	}

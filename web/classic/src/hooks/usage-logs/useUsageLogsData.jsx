@@ -102,7 +102,7 @@ export const useLogsData = () => {
     username: '',
     token_name: '',
     model_name: '',
-    channel: '',
+    channelIds: [], // empty = all channels
     group: '',
     request_id: '',
     dateRange: [
@@ -110,6 +110,26 @@ export const useLogsData = () => {
       timestamp2string(now.getTime() / 1000 + 3600),
     ],
     logType: '0',
+  };
+
+  // Channel reference data — admin filter shows a multi-select of all channels
+  // instead of asking the admin to memorise channel IDs.
+  const [channels, setChannels] = useState([]);
+  const loadChannels = async () => {
+    try {
+      const res = await API.get('/api/channel/?p=0&page_size=1000');
+      const { success, data } = res.data || {};
+      const items = success
+        ? Array.isArray(data?.items)
+          ? data.items
+          : Array.isArray(data)
+            ? data
+            : []
+        : [];
+      setChannels(items.map((c) => ({ id: c.id, name: c.name || `#${c.id}` })));
+    } catch (e) {
+      // Filter dropdown stays empty if the lookup fails
+    }
   };
 
   // Get default column visibility based on user role
@@ -252,18 +272,28 @@ export const useLogsData = () => {
       end_timestamp = formValues.dateRange[1];
     }
 
+    const rawIds = Array.isArray(formValues.channelIds) ? formValues.channelIds : [];
+    const channelIds = rawIds
+      .map((x) => Number(x))
+      .filter((x) => Number.isFinite(x) && x > 0);
+
     return {
       username: formValues.username || '',
       token_name: formValues.token_name || '',
       model_name: formValues.model_name || '',
       start_timestamp,
       end_timestamp,
-      channel: formValues.channel || '',
+      channelIds, // empty array = all channels
       group: formValues.group || '',
       request_id: formValues.request_id || '',
       logType: formValues.logType ? parseInt(formValues.logType) : 0,
     };
   };
+
+  // Build the repeated channel_ids query string (`&channel_ids=1&channel_ids=2`)
+  // used by both the stat and list endpoints. Empty array → empty string.
+  const channelIdsQueryString = (channelIds) =>
+    (channelIds || []).map((id) => `&channel_ids=${id}`).join('');
 
   // Statistics functions
   const getLogSelfStat = async () => {
@@ -296,14 +326,14 @@ export const useLogsData = () => {
       model_name,
       start_timestamp,
       end_timestamp,
-      channel,
+      channelIds,
       group,
       logType: formLogType,
     } = getFormValues();
     const currentLogType = formLogType !== undefined ? formLogType : logType;
     let localStartTimestamp = Date.parse(start_timestamp) / 1000;
     let localEndTimestamp = Date.parse(end_timestamp) / 1000;
-    let url = `/api/log/stat?type=${currentLogType}&username=${username}&token_name=${token_name}&model_name=${model_name}&start_timestamp=${localStartTimestamp}&end_timestamp=${localEndTimestamp}&channel=${channel}&group=${group}`;
+    let url = `/api/log/stat?type=${currentLogType}&username=${username}&token_name=${token_name}&model_name=${model_name}&start_timestamp=${localStartTimestamp}&end_timestamp=${localEndTimestamp}${channelIdsQueryString(channelIds)}&group=${group}`;
     url = encodeURI(url);
     let res = await API.get(url);
     const { success, message, data } = res.data;
@@ -737,7 +767,7 @@ export const useLogsData = () => {
       model_name,
       start_timestamp,
       end_timestamp,
-      channel,
+      channelIds,
       group,
       request_id,
       logType: formLogType,
@@ -755,7 +785,7 @@ export const useLogsData = () => {
 
     let url;
     if (isAdminUser) {
-      url = `/api/log/?p=${startIdx}&page_size=${size}&type=${currentLogType}&username=${username}&token_name=${token_name}&model_name=${model_name}&start_timestamp=${localStartTimestamp}&end_timestamp=${localEndTimestamp}&channel=${channel}&group=${group}&request_id=${request_id}`;
+      url = `/api/log/?p=${startIdx}&page_size=${size}&type=${currentLogType}&username=${username}&token_name=${token_name}&model_name=${model_name}&start_timestamp=${localStartTimestamp}&end_timestamp=${localEndTimestamp}${channelIdsQueryString(channelIds)}&group=${group}&request_id=${request_id}`;
     } else {
       url = `/api/log/self/?p=${startIdx}&page_size=${size}&type=${currentLogType}&token_name=${token_name}&model_name=${model_name}&start_timestamp=${localStartTimestamp}&end_timestamp=${localEndTimestamp}&group=${group}&request_id=${request_id}`;
     }
@@ -959,11 +989,15 @@ export const useLogsData = () => {
     const localPageSize =
       parseInt(localStorage.getItem('page-size')) || ITEMS_PER_PAGE;
     setPageSize(localPageSize);
+    if (isAdminUser) {
+      loadChannels();
+    }
     loadLogs(activePage, localPageSize)
       .then()
       .catch((reason) => {
         showError(reason);
       });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Initialize statistics when formApi is available
@@ -999,6 +1033,7 @@ export const useLogsData = () => {
     setFormApi,
     formInitValues,
     getFormValues,
+    channels,
 
     // Column visibility
     visibleColumns,

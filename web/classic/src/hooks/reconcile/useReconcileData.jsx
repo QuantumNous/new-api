@@ -51,7 +51,7 @@ export const useReconcileData = () => {
   const initRange = defaultDateRange();
   const formInitValues = {
     dateRange: initRange,
-    channelId: undefined, // undefined = all channels
+    channelIds: [], // empty = all channels
     modelName: '',
   };
   const formApiRef = useRef(null);
@@ -67,8 +67,12 @@ export const useReconcileData = () => {
   const readFilter = () => {
     const v = formApiRef.current?.getValues?.() ?? {};
     const dateRange = v.dateRange ?? initRange;
+    const rawIds = Array.isArray(v.channelIds) ? v.channelIds : [];
+    const channelIds = rawIds
+      .map((x) => Number(x))
+      .filter((x) => Number.isFinite(x) && x > 0);
     return {
-      channelId: v.channelId || 0, // 0 means all channels
+      channelIds, // empty array = all channels
       fromUnix: dateToUnix(dateRange?.[0]),
       toUnix: dateToUnix(dateRange?.[1]),
       modelName: v.modelName || '',
@@ -102,7 +106,8 @@ export const useReconcileData = () => {
         page: String(page),
         page_size: String(size),
       });
-      if (f.channelId) params.set('channel_id', String(f.channelId));
+      // 后端用 ?channel_ids=1&channel_ids=2 接收多值，留空 = 全部
+      f.channelIds.forEach((id) => params.append('channel_ids', String(id)));
       if (f.modelName) params.set('model_name', f.modelName);
       const res = await API.get(`/api/reconcile/admin/list?${params}`);
       const { success, message, data, total: total0, stat: stat0 } = res.data || {};
@@ -165,10 +170,16 @@ export const useReconcileData = () => {
         month: startMonth,
         format: 'xlsx',
       };
-      if (f.channelId) params.channel_id = f.channelId;
+      // axios 对数组参数默认会序列化成 channel_ids[]=1&channel_ids[]=2，
+      // 但 gin 的 form binding 期望 channel_ids=1&channel_ids=2；
+      // 用 paramsSerializer 显式按重复 key 形式序列化。
+      if (f.channelIds.length > 0) params.channel_ids = f.channelIds;
       if (f.modelName) params.model_name = f.modelName;
       const res = await API.get('/api/reconcile/admin/export', {
         params,
+        paramsSerializer: {
+          indexes: null, // axios: 重复 key 形式 (?a=1&a=2)
+        },
         responseType: 'blob',
       });
       if (

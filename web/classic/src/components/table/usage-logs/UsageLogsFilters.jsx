@@ -35,8 +35,13 @@ const LogsFilters = ({
   exportLogs,
   exporting,
   exportProgress,
+  channels,
   t,
 }) => {
+  const channelOptions = (channels || []).map((c) => ({
+    label: `${c.id} - ${c.name}`,
+    value: c.id,
+  }));
   return (
     <Form
       initValues={formInitValues}
@@ -107,13 +112,17 @@ const LogsFilters = ({
 
           {isAdminUser && (
             <>
-              <Form.Input
-                field='channel'
-                prefix={<IconSearch />}
-                placeholder={t('渠道 ID')}
+              <Form.Select
+                field='channelIds'
+                placeholder={t('渠道（留空 = 全部）')}
+                optionList={channelOptions}
+                multiple
+                maxTagCount={3}
+                filter
                 showClear
                 pure
                 size='small'
+                className='w-full'
               />
               <Form.Input
                 field='username'

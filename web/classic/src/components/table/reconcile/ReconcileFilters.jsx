@@ -39,10 +39,11 @@ const ReconcileFilters = ({
   exporting,
   t,
 }) => {
-  const channelOptions = [
-    { label: t('全部渠道'), value: 0 },
-    ...channels.map((c) => ({ label: `${c.id} - ${c.name}`, value: c.id })),
-  ];
+  // 多选语义：空集 = 全部渠道，所以不再放"全部渠道"哨兵项
+  const channelOptions = channels.map((c) => ({
+    label: `${c.id} - ${c.name}`,
+    value: c.id,
+  }));
 
   return (
     <Form
@@ -70,10 +71,12 @@ const ReconcileFilters = ({
             />
           </div>
           <Form.Select
-            field='channelId'
-            placeholder={t('渠道')}
+            field='channelIds'
+            placeholder={t('渠道（留空 = 全部）')}
             optionList={channelOptions}
             className='w-full'
+            multiple
+            maxTagCount={3}
             filter
             showClear
             pure

@@ -63,11 +63,11 @@ func GetReconcileHourlyAggregateInfo(channelId int, hourBucket int64) (aggregate
 }
 
 // ListReconcileHourlyForExport returns every aggregated row in [from, to] for
-// the given channel, ordered by hour_bucket then model_name then token_type.
+// the given channels, ordered by hour_bucket then model_name then token_type.
 // Used solely by the monthly export endpoint (no pagination — caller wants
-// the entire month in one xlsx).
-func ListReconcileHourlyForExport(channelId int, from, to int64, modelName string) ([]*ReconcileHourly, error) {
-	q := buildReconcileQuery(channelId, from, to, modelName)
+// the entire month in one xlsx). Empty channelIds means "all channels".
+func ListReconcileHourlyForExport(channelIds []int, from, to int64, modelName string) ([]*ReconcileHourly, error) {
+	q := buildReconcileQuery(channelIds, from, to, modelName)
 	var rows []*ReconcileHourly
 	if err := q.Order("hour_bucket ASC, channel_id ASC, model_name ASC, token_type ASC").
 		Find(&rows).Error; err != nil {
@@ -78,17 +78,17 @@ func ListReconcileHourlyForExport(channelId int, from, to int64, modelName strin
 }
 
 // ListReconcileHourlyPaged is the paginated viewer used by the admin reconcile
-// table page. Same filters as the export, plus page / pageSize. channelId == 0
-// means "all channels"; otherwise filters by that single channel.
+// table page. Same filters as the export, plus page / pageSize. Empty
+// channelIds means "all channels"; otherwise filters to that set.
 // Sorted hour_bucket DESC so the latest data appears first.
-func ListReconcileHourlyPaged(channelId int, from, to int64, modelName string, page, pageSize int) ([]*ReconcileHourly, int64, error) {
+func ListReconcileHourlyPaged(channelIds []int, from, to int64, modelName string, page, pageSize int) ([]*ReconcileHourly, int64, error) {
 	if page < 1 {
 		page = 1
 	}
 	if pageSize < 1 {
 		pageSize = 10
 	}
-	q := buildReconcileQuery(channelId, from, to, modelName)
+	q := buildReconcileQuery(channelIds, from, to, modelName)
 	var total int64
 	if err := q.Count(&total).Error; err != nil {
 		return nil, 0, err
@@ -140,8 +140,8 @@ func populateChannelNames(rows []*ReconcileHourly) {
 // filters as ListReconcileHourlyPaged. Used by the admin reconcile page to
 // show a "金额合计" tag matching the current filter — sum is calculated across
 // all matching rows, not just the current page.
-func ReconcileHourlyStat(channelId int, from, to int64, modelName string) (totalAmountCny float64, err error) {
-	q := buildReconcileQuery(channelId, from, to, modelName)
+func ReconcileHourlyStat(channelIds []int, from, to int64, modelName string) (totalAmountCny float64, err error) {
+	q := buildReconcileQuery(channelIds, from, to, modelName)
 	row := struct{ Sum float64 }{}
 	if err = q.Select("COALESCE(SUM(amount_cny), 0) AS sum").Scan(&row).Error; err != nil {
 		return 0, err
@@ -150,14 +150,36 @@ func ReconcileHourlyStat(channelId int, from, to int64, modelName string) (total
 }
 
 // buildReconcileQuery applies the shared filters used by both viewer + export.
-func buildReconcileQuery(channelId int, from, to int64, modelName string) *gorm.DB {
+// Empty channelIds means "all channels"; any element <= 0 is ignored.
+func buildReconcileQuery(channelIds []int, from, to int64, modelName string) *gorm.DB {
 	q := DB.Model(&ReconcileHourly{}).
 		Where("hour_bucket >= ? AND hour_bucket <= ?", from, to)
-	if channelId > 0 {
-		q = q.Where("channel_id = ?", channelId)
+	if filtered := sanitizeChannelIds(channelIds); len(filtered) > 0 {
+		q = q.Where("channel_id IN ?", filtered)
 	}
 	if modelName != "" {
 		q = q.Where("model_name LIKE ?", "%"+modelName+"%")
 	}
 	return q
+}
+
+// sanitizeChannelIds drops non-positive ids (defensive against legacy 0
+// sentinel callers) and de-duplicates while preserving order.
+func sanitizeChannelIds(ids []int) []int {
+	if len(ids) == 0 {
+		return nil
+	}
+	seen := make(map[int]struct{}, len(ids))
+	out := make([]int, 0, len(ids))
+	for _, id := range ids {
+		if id <= 0 {
+			continue
+		}
+		if _, ok := seen[id]; ok {
+			continue
+		}
+		seen[id] = struct{}{}
+		out = append(out, id)
+	}
+	return out
 }
