@@ -54,7 +54,7 @@ func palmStreamHandler(c *gin.Context, resp *http.Response) (*types.NewAPIError,
 	responseText := ""
 	responseId := helper.GetResponseID(c)
 	createdTime := common.GetTimestamp()
-	dataChan := make(chan string)
+	dataChan := make(chan string, 10)
 	stopChan := make(chan bool)
 	go func() {
 		responseBody, err := io.ReadAll(resp.Body)

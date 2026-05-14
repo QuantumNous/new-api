@@ -13,7 +13,6 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 
-	"github.com/bytedance/gopkg/util/gopool"
 	"github.com/gin-gonic/gin"
 )
 
@@ -111,7 +110,7 @@ func logHelper(ctx context.Context, level string, msg string) {
 	if logCount > maxLogCount && !setupLogWorking {
 		logCount = 0
 		setupLogWorking = true
-		gopool.Go(func() {
+		common.SafeGo(func() {
 			SetupLogger()
 		})
 	}

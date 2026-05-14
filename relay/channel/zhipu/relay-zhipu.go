@@ -159,8 +159,8 @@ func zhipuStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.
 	var usage *dto.Usage
 	scanner := bufio.NewScanner(resp.Body)
 	scanner.Split(bufio.ScanLines)
-	dataChan := make(chan string)
-	metaChan := make(chan string)
+	dataChan := make(chan string, 10)
+	metaChan := make(chan string, 10)
 	stopChan := make(chan bool)
 	go func() {
 		for scanner.Scan() {

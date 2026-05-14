@@ -20,7 +20,6 @@ import (
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/QuantumNous/new-api/types"
 
-	"github.com/bytedance/gopkg/util/gopool"
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
 )
@@ -384,7 +383,7 @@ func DoWssRequest(a Adaptor, c *gin.Context, info *common.RelayInfo, requestBody
 func startPingKeepAlive(c *gin.Context, pingInterval time.Duration) context.CancelFunc {
 	pingerCtx, stopPinger := context.WithCancel(context.Background())
 
-	gopool.Go(func() {
+	common.SafeGo(func() {
 		defer func() {
 			// 增加panic恢复处理
 			if r := recover(); r != nil {

@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"math"
 
-	"github.com/bytedance/gopkg/util/gopool"
 )
 
 var relayGoPool gopool.Pool

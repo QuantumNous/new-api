@@ -7,7 +7,6 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 
-	"github.com/bytedance/gopkg/util/gopool"
 	"gorm.io/gorm"
 )
 
@@ -31,7 +30,7 @@ func init() {
 }
 
 func InitBatchUpdater() {
-	gopool.Go(func() {
+	common.SafeGo(func() {
 		for {
 			time.Sleep(time.Duration(common.BatchUpdateInterval) * time.Second)
 			batchUpdate()

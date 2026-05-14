@@ -16,7 +16,6 @@ import (
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 
-	"github.com/bytedance/gopkg/util/gopool"
 
 	"github.com/gin-gonic/gin"
 )
@@ -93,7 +92,7 @@ func StreamScannerHandler(c *gin.Context, resp *http.Response, info *relaycommon
 
 		// 等待所有 goroutine 退出，最多等待5秒
 		done := make(chan struct{})
-		gopool.Go(func() {
+		common.SafeGo(func() {
 			wg.Wait()
 			close(done)
 		})
@@ -119,7 +118,7 @@ func StreamScannerHandler(c *gin.Context, resp *http.Response, info *relaycommon
 	// Handle ping data sending with improved error handling
 	if pingEnabled && pingTicker != nil {
 		wg.Add(1)
-		gopool.Go(func() {
+		common.SafeGo(func() {
 			defer func() {
 				wg.Done()
 				if r := recover(); r != nil {
@@ -142,7 +141,7 @@ func StreamScannerHandler(c *gin.Context, resp *http.Response, info *relaycommon
 				case <-pingTicker.C:
 					// 使用超时机制防止写操作阻塞
 					done := make(chan error, 1)
-					gopool.Go(func() {
+					common.SafeGo(func() {
 						writeMutex.Lock()
 						defer writeMutex.Unlock()
 						done <- PingData(c)
@@ -185,7 +184,7 @@ func StreamScannerHandler(c *gin.Context, resp *http.Response, info *relaycommon
 	dataChan := make(chan string, 10)
 
 	wg.Add(1)
-	gopool.Go(func() {
+	common.SafeGo(func() {
 		defer func() {
 			wg.Done()
 			if r := recover(); r != nil {

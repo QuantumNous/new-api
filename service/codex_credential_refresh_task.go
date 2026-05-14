@@ -13,7 +13,6 @@ import (
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/model"
 
-	"github.com/bytedance/gopkg/util/gopool"
 )
 
 const (
@@ -38,7 +37,7 @@ func StartCodexCredentialAutoRefreshTask() {
 			return
 		}
 
-		gopool.Go(func() {
+		common.SafeGo(func() {
 			logger.LogInfo(context.Background(), fmt.Sprintf("codex credential auto-refresh task started: tick=%s threshold=%s", codexCredentialRefreshTickInterval, codexCredentialRefreshThreshold))
 
 			ticker := time.NewTicker(codexCredentialRefreshTickInterval)

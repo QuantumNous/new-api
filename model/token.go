@@ -7,7 +7,6 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
-	"github.com/bytedance/gopkg/util/gopool"
 	"gorm.io/gorm"
 )
 
@@ -243,7 +242,7 @@ func GetTokenById(id int) (*Token, error) {
 	var err error = nil
 	err = DB.First(&token, "id = ?", id).Error
 	if shouldUpdateRedis(true, err) {
-		gopool.Go(func() {
+		common.SafeGo(func() {
 			if err := cacheSetToken(token); err != nil {
 				common.SysLog("failed to update user status cache: " + err.Error())
 			}
@@ -256,7 +255,7 @@ func GetTokenByKey(key string, fromDB bool) (token *Token, err error) {
 	defer func() {
 		// Update Redis cache asynchronously on successful DB read
 		if shouldUpdateRedis(fromDB, err) && token != nil {
-			gopool.Go(func() {
+			common.SafeGo(func() {
 				if err := cacheSetToken(*token); err != nil {
 					common.SysLog("failed to update user status cache: " + err.Error())
 				}
@@ -286,7 +285,7 @@ func (token *Token) Insert() error {
 func (token *Token) Update() (err error) {
 	defer func() {
 		if shouldUpdateRedis(true, err) {
-			gopool.Go(func() {
+			common.SafeGo(func() {
 				err := cacheSetToken(*token)
 				if err != nil {
 					common.SysLog("failed to update token cache: " + err.Error())
@@ -302,7 +301,7 @@ func (token *Token) Update() (err error) {
 func (token *Token) SelectUpdate() (err error) {
 	defer func() {
 		if shouldUpdateRedis(true, err) {
-			gopool.Go(func() {
+			common.SafeGo(func() {
 				err := cacheSetToken(*token)
 				if err != nil {
 					common.SysLog("failed to update token cache: " + err.Error())
@@ -317,7 +316,7 @@ func (token *Token) SelectUpdate() (err error) {
 func (token *Token) Delete() (err error) {
 	defer func() {
 		if shouldUpdateRedis(true, err) {
-			gopool.Go(func() {
+			common.SafeGo(func() {
 				err := cacheDeleteToken(token.Key)
 				if err != nil {
 					common.SysLog("failed to delete token cache: " + err.Error())
@@ -377,7 +376,7 @@ func IncreaseTokenQuota(tokenId int, key string, quota int) (err error) {
 		return errors.New("quota 不能为负数！")
 	}
 	if common.RedisEnabled {
-		gopool.Go(func() {
+		common.SafeGo(func() {
 			err := cacheIncrTokenQuota(key, int64(quota))
 			if err != nil {
 				common.SysLog("failed to increase token quota: " + err.Error())
@@ -407,7 +406,7 @@ func DecreaseTokenQuota(id int, key string, quota int) (err error) {
 		return errors.New("quota 不能为负数！")
 	}
 	if common.RedisEnabled {
-		gopool.Go(func() {
+		common.SafeGo(func() {
 			err := cacheDecrTokenQuota(key, int64(quota))
 			if err != nil {
 				common.SysLog("failed to decrease token quota: " + err.Error())
@@ -463,7 +462,7 @@ func BatchDeleteTokens(ids []int, userId int) (int, error) {
 	}
 
 	if common.RedisEnabled {
-		gopool.Go(func() {
+		common.SafeGo(func() {
 			for _, t := range tokens {
 				_ = cacheDeleteToken(t.Key)
 			}

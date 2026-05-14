@@ -26,7 +26,6 @@ import (
 	_ "github.com/QuantumNous/new-api/setting/performance_setting"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 
-	"github.com/bytedance/gopkg/util/gopool"
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-contrib/sessions/cookie"
 	"github.com/gin-gonic/gin"
@@ -132,10 +131,10 @@ func main() {
 	controller.StartChannelUpstreamModelUpdateTask()
 
 	if common.IsMasterNode && constant.UpdateTask {
-		gopool.Go(func() {
+		common.SafeGo(func() {
 			controller.UpdateMidjourneyTaskBulk()
 		})
-		gopool.Go(func() {
+		common.SafeGo(func() {
 			controller.UpdateTaskBulk()
 		})
 	}
@@ -146,7 +145,7 @@ func main() {
 	}
 
 	if os.Getenv("ENABLE_PPROF") == "true" {
-		gopool.Go(func() {
+		common.SafeGo(func() {
 			log.Println(http.ListenAndServe("0.0.0.0:8005", nil))
 		})
 		go common.Monitor()
