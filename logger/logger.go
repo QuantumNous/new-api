@@ -64,8 +64,12 @@ func SetupLogger() {
 		currentLogPathMu.Unlock()
 
 		common.LogWriterMu.Lock()
-		gin.DefaultWriter = io.MultiWriter(os.Stdout, fd)
-		gin.DefaultErrorWriter = io.MultiWriter(os.Stderr, fd)
+		if common.GinLogWriterFactory != nil {
+			gin.DefaultWriter, gin.DefaultErrorWriter = common.GinLogWriterFactory(os.Stdout, fd)
+		} else {
+			gin.DefaultWriter = io.MultiWriter(os.Stdout, fd)
+			gin.DefaultErrorWriter = io.MultiWriter(os.Stderr, fd)
+		}
 		if oldFile != nil {
 			_ = oldFile.Close()
 		}
