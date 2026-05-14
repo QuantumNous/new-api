@@ -398,6 +398,19 @@ func TokenAuth() func(c *gin.Context) {
 			key = parts[0]
 		}
 		token, err := model.ValidateUserToken(key)
+		if err != nil && shouldTryTokenQuotaFallback(token) {
+			fallbackToken, fallbackErr := model.GetNextAvailableTokenForUser(token.UserId, token.Id)
+			if fallbackErr == nil {
+				common.SysLog(fmt.Sprintf("TokenAuth switched exhausted token %d to fallback token %d for user %d", token.Id, fallbackToken.Id, token.UserId))
+				token = fallbackToken
+				err = nil
+			} else if errors.Is(fallbackErr, model.ErrDatabase) {
+				common.SysLog("TokenAuth GetNextAvailableTokenForUser database error: " + fallbackErr.Error())
+				abortWithOpenAiMessage(c, http.StatusInternalServerError,
+					common.TranslateMessage(c, i18n.MsgDatabaseError))
+				return
+			}
+		}
 		if token != nil {
 			id := c.GetInt("id")
 			if id == 0 {
@@ -472,6 +485,19 @@ func TokenAuth() func(c *gin.Context) {
 		}
 		c.Next()
 	}
+}
+
+func shouldTryTokenQuotaFallback(token *model.Token) bool {
+	if token == nil || token.UserId == 0 || token.UnlimitedQuota {
+		return false
+	}
+	if token.Status != common.TokenStatusEnabled && token.Status != common.TokenStatusExhausted {
+		return false
+	}
+	if token.ExpiredTime != -1 && token.ExpiredTime < common.GetTimestamp() {
+		return false
+	}
+	return token.RemainQuota <= 0
 }
 
 func SetupContextForToken(c *gin.Context, token *model.Token, parts ...string) error {

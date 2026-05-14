@@ -12,6 +12,7 @@ const (
 	APITypeTencent
 	APITypeGemini
 	APITypeZhipuV4
+
 	APITypeOllama
 	APITypePerplexity
 	APITypeAws

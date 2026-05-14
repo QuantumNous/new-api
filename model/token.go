@@ -225,6 +225,48 @@ func ValidateUserToken(key string) (token *Token, err error) {
 	return nil, fmt.Errorf("%w: %v", ErrDatabase, err)
 }
 
+func GetNextAvailableTokenForUser(userId int, currentTokenId int) (*Token, error) {
+	if userId == 0 {
+		return nil, errors.New("userId 为空！")
+	}
+
+	now := common.GetTimestamp()
+	findCandidates := func(afterCurrent bool) ([]Token, error) {
+		var tokens []Token
+		query := DB.Where("user_id = ? and id <> ? and status = ? and (expired_time = -1 or expired_time > ?)",
+			userId, currentTokenId, common.TokenStatusEnabled, now)
+		if currentTokenId > 0 {
+			if afterCurrent {
+				query = query.Where("id < ?", currentTokenId)
+			} else {
+				query = query.Where("id > ?", currentTokenId)
+			}
+		} else if !afterCurrent {
+			return tokens, nil
+		}
+		err := query.Order("id desc").Find(&tokens).Error
+		return tokens, err
+	}
+
+	for _, afterCurrent := range []bool{true, false} {
+		candidates, err := findCandidates(afterCurrent)
+		if err != nil {
+			return nil, fmt.Errorf("%w: %v", ErrDatabase, err)
+		}
+		for i := range candidates {
+			token, err := ValidateUserToken(candidates[i].Key)
+			if err == nil {
+				return token, nil
+			}
+			if !errors.Is(err, ErrTokenInvalid) && !errors.Is(err, ErrTokenNotProvided) {
+				return nil, err
+			}
+		}
+	}
+
+	return nil, ErrTokenInvalid
+}
+
 func GetTokenByIds(id int, userId int) (*Token, error) {
 	if id == 0 || userId == 0 {
 		return nil, errors.New("id 或 userId 为空！")
