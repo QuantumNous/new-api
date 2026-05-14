@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { memo, useCallback } from 'react';
-import { Input, Button, Switch, Select, Divider } from '@douyinfe/semi-ui';
+import { Input, Button, Select, Divider } from '@douyinfe/semi-ui';
 import { IconSearch, IconCopy, IconFilter } from '@douyinfe/semi-icons';
 
 const SearchActions = memo(
@@ -32,12 +32,9 @@ const SearchActions = memo(
     searchValue = '',
     setShowFilterModal,
     showWithRecharge,
-    setShowWithRecharge,
     currency,
     setCurrency,
     siteDisplayType,
-    showRatio,
-    setShowRatio,
     viewMode,
     setViewMode,
     tokenUnit,
@@ -111,18 +108,6 @@ const SearchActions = memo(
           <>
             <Divider layout='vertical' margin='8px' />
 
-            {supportsCurrencyDisplay && (
-              <div className='flex items-center gap-2'>
-                <span className='text-sm text-semi-color-text-2'>
-                  {t('充值价格显示')}
-                </span>
-                <Switch
-                  checked={showWithRecharge}
-                  onChange={setShowWithRecharge}
-                />
-              </div>
-            )}
-
             {supportsCurrencyDisplay && showWithRecharge && (
               <Select
                 value={currency}
@@ -134,13 +119,6 @@ const SearchActions = memo(
                 ]}
               />
             )}
-
-            <div className='flex items-center gap-2'>
-              <span className='text-sm text-semi-color-text-2'>
-                {t('倍率')}
-              </span>
-              <Switch checked={showRatio} onChange={setShowRatio} />
-            </div>
 
             <Button
               theme={viewMode === 'table' ? 'solid' : 'outline'}

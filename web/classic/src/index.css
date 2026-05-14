@@ -2012,7 +2012,7 @@ html.dark .headerbar-surface {
   align-items: baseline;
   gap: 4px;
   margin-top: 5px;
-  color: #ea580c;
+  color: var(--semi-color-text-0);
   font-size: 22px;
   font-weight: 900;
   letter-spacing: -0.02em;

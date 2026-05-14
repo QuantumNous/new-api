@@ -3829,7 +3829,7 @@ status: blocked_partial
 - `$env:PATH="$env:USERPROFILE\.bun\bin;$env:PATH"; C:\Users\Administrator\.bun\bin\bun.exe run eslint` in `web/classic`: passed.
 - `C:\Users\Administrator\.bun\bin\bunx.exe prettier --check "src/components/layout/**/*.{js,jsx}" "src/pages/Home/**/*.{js,jsx}" "src/components/table/model-pricing/**/*.{js,jsx}"` in `web/classic`: passed.
 - `$env:PATH="$env:USERPROFILE\.bun\bin;$env:PATH"; C:\Users\Administrator\.bun\bin\bunx.exe eslint "src/components/layout/**/*.{js,jsx}" "src/pages/Home/**/*.{js,jsx}" "src/components/table/model-pricing/**/*.{js,jsx}"` in `web/classic`: passed.
-- `git diff --check`: passed before this task-log update.
+- `git diff --check`: passed.
 
 ### Manual / Code-Level Regression
 
@@ -4117,3 +4117,77 @@ status: completed
 
 - Lowest price comparison parses numeric values from already formatted display strings. This is safe for current helper output but may need adjustment if future currency formatting uses non-decimal localized numerals.
 - Browser-level visual card layout was verified by code/build checks, not by an automated screenshot test.
+
+## Stage ModelCard.1.1: refine card price color and simplify marketplace toolbar
+
+Task: Stage ModelCard.1.1 model card price primary text color and top toolbar switch removal
+
+status: completed
+
+### Goal
+
+- Change the `/pricing` card lowest-price highlight from orange to black/theme primary text.
+- Remove the top toolbar `充值价格显示` switch.
+- Remove the top toolbar `倍率` switch.
+- Preserve backend, database, `/api/pricing`, real pricing helper semantics, image/video cover logic, filters, sorting, pagination, detail SideSheet, HeaderBar, Home, Footer, PageLayout, and dependencies.
+
+### User Feedback
+
+- The card lowest-price color was too vivid because it used orange.
+- The model marketplace top toolbar should no longer expose the `充值价格显示` and `倍率` switches.
+
+### Changed Files
+
+- `web/classic/src/components/table/model-pricing/layout/header/SearchActions.jsx`
+- `web/classic/src/index.css`
+- `.ai/TASK.md`
+
+### Price Color Result
+
+- Updated `.pricing-marketplace-card-price-value` from the orange `#ea580c` to `var(--semi-color-text-0)`.
+- This follows the Semi primary text color and remains readable in dark mode.
+- Did not change price values, units, lowest-price selection, or pricing helper semantics.
+
+### Toolbar Switch Removal Result
+
+- Removed the `充值价格显示` switch render block from `SearchActions.jsx`.
+- Removed the `倍率` switch render block from `SearchActions.jsx`.
+- Removed the now-unused `Switch` import and unused switch setter props from `SearchActions.jsx`.
+- Kept the existing underlying `showWithRecharge` and `showRatio` state flow because the sidebar, mobile filter modal, table view, and detail SideSheet still use those values.
+- Preserved sorting, copy button, table/card view toggle, token unit toggle, and the existing conditional currency selector behavior.
+
+### Verification Results
+
+- `C:\Users\Administrator\.bun\bin\bun.exe run build` in `web/classic`: passed, with existing Browserslist, lottie eval, and chunk-size warnings only.
+- `C:\Users\Administrator\.bun\bin\bun.exe run lint` in `web/classic`: passed.
+- `$env:PATH="$env:USERPROFILE\.bun\bin;$env:PATH"; C:\Users\Administrator\.bun\bin\bun.exe run eslint` in `web/classic`: passed.
+- `git diff --check`: passed before this task-log update.
+- `C:\Users\Administrator\.bun\bin\bunx.exe prettier --check "src/components/table/model-pricing/**/*.{js,jsx}" "src/pages/Pricing/**/*.{js,jsx}"` in `web/classic`: passed.
+- `$env:PATH="$env:USERPROFILE\.bun\bin;$env:PATH"; C:\Users\Administrator\.bun\bin\bunx.exe eslint "src/components/table/model-pricing/**/*.{js,jsx}" "src/pages/Pricing/**/*.{js,jsx}"` in `web/classic`: passed.
+
+### Manual / Code-Level Regression
+
+- Code-level check: card lowest-price text now uses `var(--semi-color-text-0)` instead of orange.
+- Code-level check: dark mode remains readable because the color comes from the Semi theme variable.
+- Code-level check: the `充值价格显示` switch no longer renders in the top toolbar.
+- Code-level check: the `倍率` switch no longer renders in the top toolbar.
+- Code-level check: sorting remains in the top toolbar.
+- Code-level check: table/card view toggle remains in the top toolbar.
+- Code-level check: copy button remains in the top toolbar.
+- Code-level check: search, filters, sorting, pagination, and detail SideSheet data logic were not changed.
+- Code-level check: image cover and video hover preview logic were not changed.
+- Code-level check: table view files and pricing helper files were not changed.
+
+### Self Review
+
+- Branch remained `feature/frontend-redesign-gptproto`.
+- Modified files stayed within the allowed SearchActions/CSS/task-log scope.
+- No backend, database, `/api/pricing`, real billing logic, price helper semantics, model image/video field logic, HeaderBar, Home, Footer, PageLayout, `web/default`, dependency, filter/sort/pagination, table view, or detail SideSheet data logic changes were made.
+- No new dependency was added.
+- No unused import or unused variable remained after removing the switches.
+- No push was performed.
+
+### Known Risks
+
+- Browser-level visual confirmation was done by code and build/lint checks rather than an automated screenshot test.
+- The top toolbar can still show the currency selector if recharge-price display is enabled from another surviving settings surface; this preserves existing state behavior and avoids changing non-toolbar display settings.
