@@ -40,7 +40,95 @@ function safeParseJson(s: string): Record<string, number> {
   }
 }
 
-/** Convert 8 separate field JSONs → one merged-per-model object (filters empty entries) */
+// Group section names in the merged JSON output
+const GROUP_CONFIGURED = '已设置价格' // models with ratio or price (primary pricing)
+const GROUP_UNCONFIGURED = '未设置价格' // models with only secondary fields (cache/image/audio/etc)
+const GROUP_KEYS = new Set([
+  GROUP_CONFIGURED,
+  GROUP_UNCONFIGURED,
+  'configured',
+  'unconfigured',
+])
+
+const VALID_FIELDS = new Set([
+  'ratio', 'price', 'completion_ratio', 'cache_ratio',
+  'create_cache_ratio', 'image_ratio', 'audio_ratio', 'audio_completion_ratio',
+])
+
+/** Whether an entry has a primary price set (ratio or fixed price) */
+function hasPrimaryPrice(entry: MergedModelEntry): boolean {
+  return entry.ratio !== undefined || entry.price !== undefined
+}
+
+/**
+ * Detect whether the parsed object is in grouped format.
+ * Grouped format: top-level keys are group names AND values look like groups
+ * (objects whose values are model entries — i.e. nested objects, not numbers).
+ * This disambiguates the edge case where a model is named the same as a group.
+ */
+function isGroupedFormat(obj: Record<string, unknown>): boolean {
+  const keys = Object.keys(obj)
+  if (keys.length === 0) return false
+  if (!keys.every((k) => GROUP_KEYS.has(k))) return false
+  // Check value shape: grouped values are objects-of-objects; flat values are
+  // objects-of-numbers. If any non-empty value contains a number directly, it's flat.
+  for (const v of Object.values(obj)) {
+    if (typeof v !== 'object' || v === null || Array.isArray(v)) return false
+    const innerEntries = Object.entries(v as Record<string, unknown>)
+    if (innerEntries.length === 0) continue // empty group is ok
+    for (const [, inner] of innerEntries) {
+      if (typeof inner === 'number') return false // model entry → flat
+      if (typeof inner === 'object' && inner !== null) return true // group → grouped
+    }
+  }
+  return true
+}
+
+/**
+ * Normalize input: accept either grouped format
+ * `{ "已设置价格": {...}, "未设置价格": {...} }`
+ * or legacy flat format `{ "model-name": {...} }`.
+ * Returns a flat map of model → entry.
+ */
+function normalizeToFlat(
+  parsed: unknown
+): Record<string, MergedModelEntry> | { error: string } {
+  if (typeof parsed !== 'object' || Array.isArray(parsed) || parsed === null) {
+    return { error: '顶层必须是对象' }
+  }
+  const obj = parsed as Record<string, unknown>
+  const grouped = isGroupedFormat(obj)
+
+  const flat: Record<string, MergedModelEntry> = {}
+  if (grouped) {
+    for (const [groupName, group] of Object.entries(obj)) {
+      if (
+        typeof group !== 'object' ||
+        Array.isArray(group) ||
+        group === null
+      ) {
+        return { error: `"${groupName}" 必须是对象` }
+      }
+      for (const [model, entry] of Object.entries(group as Record<string, unknown>)) {
+        flat[model] = entry as MergedModelEntry
+      }
+    }
+  } else {
+    for (const [model, entry] of Object.entries(obj)) {
+      flat[model] = entry as MergedModelEntry
+    }
+  }
+  return flat
+}
+
+/**
+ * Convert 8 separate field JSONs → grouped merged JSON.
+ * Output structure:
+ *   {
+ *     "已设置价格":   { "gpt-4": { "ratio": 1.0 }, ... },
+ *     "未设置价格":   { "some-model": { "cache_ratio": 0.5 }, ... }
+ *   }
+ */
 function fieldsToMerged(values: ModelFormValues): string {
   const ratio = safeParseJson(values.ModelRatio)
   const price = safeParseJson(values.ModelPrice)
@@ -62,8 +150,13 @@ function fieldsToMerged(values: ModelFormValues): string {
     ...Object.keys(audioCompletion),
   ])
 
-  const merged: Record<string, MergedModelEntry> = {}
-  for (const model of models) {
+  const configured: Record<string, MergedModelEntry> = {}
+  const unconfigured: Record<string, MergedModelEntry> = {}
+
+  // Sort model names alphabetically within each group
+  const sortedModels = Array.from(models).sort((a, b) => a.localeCompare(b))
+
+  for (const model of sortedModels) {
     const entry: MergedModelEntry = {}
     if (ratio[model] !== undefined) entry.ratio = ratio[model]
     if (price[model] !== undefined) entry.price = price[model]
@@ -74,25 +167,40 @@ function fieldsToMerged(values: ModelFormValues): string {
     if (audio[model] !== undefined) entry.audio_ratio = audio[model]
     if (audioCompletion[model] !== undefined) entry.audio_completion_ratio = audioCompletion[model]
     // Filter: skip models with no configured fields
-    if (Object.keys(entry).length > 0) {
-      merged[model] = entry
+    if (Object.keys(entry).length === 0) continue
+
+    if (hasPrimaryPrice(entry)) {
+      configured[model] = entry
+    } else {
+      unconfigured[model] = entry
     }
   }
 
-  if (Object.keys(merged).length === 0) return ''
-  return JSON.stringify(merged, null, 2)
+  const hasConfigured = Object.keys(configured).length > 0
+  const hasUnconfigured = Object.keys(unconfigured).length > 0
+  if (!hasConfigured && !hasUnconfigured) return ''
+
+  // Always output both groups in stable order, even when one is empty,
+  // so the user sees the structure and knows where to add new entries.
+  const result: Record<string, Record<string, MergedModelEntry>> = {
+    [GROUP_CONFIGURED]: configured,
+    [GROUP_UNCONFIGURED]: unconfigured,
+  }
+  return JSON.stringify(result, null, 2)
 }
 
 /** Convert merged JSON → 8 separate field JSONs (full replace, not merge) */
 function mergedToFields(
   mergedJson: string
 ): Partial<ModelFormValues> {
-  let merged: Record<string, MergedModelEntry>
+  let parsed: unknown
   try {
-    merged = JSON.parse(mergedJson)
+    parsed = JSON.parse(mergedJson)
   } catch {
     return {}
   }
+  const normalized = normalizeToFlat(parsed)
+  if ('error' in normalized) return {}
 
   const ratio: Record<string, number> = {}
   const price: Record<string, number> = {}
@@ -103,7 +211,8 @@ function mergedToFields(
   const audio: Record<string, number> = {}
   const audioCompletion: Record<string, number> = {}
 
-  for (const [model, entry] of Object.entries(merged)) {
+  for (const [model, entry] of Object.entries(normalized)) {
+    if (!entry || typeof entry !== 'object') continue
     if (entry.ratio !== undefined) ratio[model] = entry.ratio
     if (entry.price !== undefined) price[model] = entry.price
     if (entry.completion_ratio !== undefined) completion[model] = entry.completion_ratio
@@ -129,36 +238,38 @@ function mergedToFields(
   }
 }
 
-/** Validate JSON string, return error message or null */
+/**
+ * Validate JSON string. Accepts both grouped format
+ * `{ "已设置价格": {...}, "未设置价格": {...} }` and legacy flat format
+ * `{ "model-name": {...} }`. Returns error message or null.
+ */
 function validateMergedJson(json: string): string | null {
   const trimmed = json.trim()
-  if (!trimmed) return null // empty is valid (means no models)
+  if (!trimmed) return null // empty is valid
+  let parsed: unknown
   try {
-    const parsed = JSON.parse(trimmed)
-    if (typeof parsed !== 'object' || Array.isArray(parsed) || parsed === null) {
-      return '顶层必须是对象 { "模型名": { ... } }'
-    }
-    const validFields = new Set([
-      'ratio', 'price', 'completion_ratio', 'cache_ratio',
-      'create_cache_ratio', 'image_ratio', 'audio_ratio', 'audio_completion_ratio',
-    ])
-    for (const [model, entry] of Object.entries(parsed)) {
-      if (typeof entry !== 'object' || Array.isArray(entry) || entry === null) {
-        return `"${model}" 的值必须是对象，例如 { "ratio": 1.0 }`
-      }
-      for (const [field, val] of Object.entries(entry as Record<string, unknown>)) {
-        if (!validFields.has(field)) {
-          return `"${model}" 包含未知字段 "${field}"，可用字段：${[...validFields].join(', ')}`
-        }
-        if (typeof val !== 'number') {
-          return `"${model}.${field}" 的值必须是数字，当前为 ${typeof val}`
-        }
-      }
-    }
-    return null
+    parsed = JSON.parse(trimmed)
   } catch (e) {
     return 'JSON 格式错误：' + (e instanceof Error ? e.message : String(e))
   }
+  const normalized = normalizeToFlat(parsed)
+  if ('error' in normalized) {
+    return normalized.error
+  }
+  for (const [model, entry] of Object.entries(normalized)) {
+    if (typeof entry !== 'object' || Array.isArray(entry) || entry === null) {
+      return `"${model}" 的值必须是对象，例如 { "ratio": 1.0 }`
+    }
+    for (const [field, val] of Object.entries(entry as Record<string, unknown>)) {
+      if (!VALID_FIELDS.has(field)) {
+        return `"${model}" 包含未知字段 "${field}"，可用字段：${[...VALID_FIELDS].join(', ')}`
+      }
+      if (typeof val !== 'number') {
+        return `"${model}.${field}" 的值必须是数字，当前为 ${typeof val}`
+      }
+    }
+  }
+  return null
 }
 
 /** Max number of undo snapshots */
@@ -370,9 +481,17 @@ export const ModelRatioForm = memo(function ModelRatioForm({
             </details>
 
             {/* 提示栏 */}
-            <p className='text-muted-foreground text-xs'>
-              直接编辑下方 JSON，修改后点击「应用到表单」同步，再点「保存」生效。每次应用前会自动记录快照，可随时撤销。
-            </p>
+            <div className='text-muted-foreground space-y-1 text-xs'>
+              <p>
+                直接编辑下方 JSON，修改后点击「应用到表单」同步，再点「保存」生效。每次应用前会自动记录快照，可随时撤销。
+              </p>
+              <p>
+                模型按是否设置主价格（<code className='font-mono'>ratio</code> /{' '}
+                <code className='font-mono'>price</code>）自动分到{' '}
+                <code className='font-mono'>已设置价格</code> 与{' '}
+                <code className='font-mono'>未设置价格</code> 两组。新增模型放到任意一组都可以，应用时会自动归类。
+              </p>
+            </div>
 
             {/* 错误提示（实时校验） */}
             {mergedError && (
@@ -394,7 +513,7 @@ export const ModelRatioForm = memo(function ModelRatioForm({
             <Textarea
               rows={20}
               className={`font-mono text-sm ${mergedError ? 'border-red-300 focus-visible:ring-red-400' : ''}`}
-              placeholder={`{\n  "模型名": { "ratio": 1.0 }\n}`}
+              placeholder={`{\n  "已设置价格": {\n    "gpt-4": { "ratio": 1.0 }\n  },\n  "未设置价格": {}\n}`}
               value={mergedDraft}
               onChange={(e) => handleDraftChange(e.target.value)}
               onKeyDown={handleMergedJsonTab}
