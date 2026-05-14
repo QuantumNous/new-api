@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
+	"path"
 	"strconv"
 	"strings"
 	"time"
@@ -594,14 +596,19 @@ func CovertOpenAI2Gemini(c *gin.Context, textRequest dto.GeneralOpenAIRequest, i
 				if info.ChannelType == constant.ChannelTypeVertexAi {
 					if urlSource, ok := source.(*types.URLSource); ok && (strings.HasPrefix(urlSource.URL, "http") || strings.HasPrefix(urlSource.URL, "gs://")) {
 						mimeType := "image/jpeg"
-						urlLower := strings.ToLower(urlSource.URL)
-						if strings.HasSuffix(urlLower, ".png") {
-							mimeType = "image/png"
-						} else if strings.HasSuffix(urlLower, ".webp") {
-							mimeType = "image/webp"
-						} else if strings.HasSuffix(urlLower, ".gif") {
-							mimeType = "image/gif"
+						parsedUrl, err := url.Parse(urlSource.URL)
+						if err == nil {
+							ext := strings.ToLower(path.Ext(parsedUrl.Path))
+							switch ext {
+							case ".png":
+								mimeType = "image/png"
+							case ".webp":
+								mimeType = "image/webp"
+							case ".gif":
+								mimeType = "image/gif"
+							}
 						}
+						
 						parts = append(parts, dto.GeminiPart{
 							FileData: &dto.GeminiFileData{
 								MimeType: mimeType,
