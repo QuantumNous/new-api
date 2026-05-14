@@ -20,8 +20,7 @@ For commercial licensing, please contact support@quantumnous.com
 import React, { useMemo, useState } from 'react';
 import { Input, Typography } from '@douyinfe/semi-ui';
 import {
-  ChevronLeft,
-  MessageCircle,
+  TerminalSquare,
   MessageCircleMore,
   PanelLeftOpen,
   PanelRightOpen,
@@ -165,7 +164,7 @@ const PlaygroundSidebar = ({
 
   const renderBrandMark = () => (
     <div className='new-playground-logo' aria-hidden='true'>
-      <MessageCircle size={20} />
+      <TerminalSquare size={20} />
     </div>
   );
 
