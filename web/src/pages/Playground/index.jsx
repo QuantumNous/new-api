@@ -5,9 +5,14 @@ import React, {
   useState,
   useRef,
 } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import {
+  UNSAFE_NavigationContext as NavigationContext,
+  useLocation,
+  useNavigate,
+  useSearchParams,
+} from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { Toast } from '@douyinfe/semi-ui';
+import { Modal, Toast } from '@douyinfe/semi-ui';
 import './index.css';
 
 // Context
@@ -70,11 +75,19 @@ const generateAvatarDataUrl = (username) => {
 const Playground = () => {
   const { t } = useTranslation();
   const [userState] = useContext(UserContext);
+  const { navigator } = useContext(NavigationContext);
+  const location = useLocation();
+  const navigate = useNavigate();
   const isMobile = useIsMobile();
   const styleState = { isMobile };
   const [searchParams] = useSearchParams();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+  const [isImageGenerationPending, setIsImageGenerationPending] =
+    useState(false);
+  const pendingRouteRef = useRef(null);
+  const popstateGuardActiveRef = useRef(false);
+  const imageAbortControllerRef = useRef(null);
   const videoPollingRef = useRef(new Set());
 
   const state = usePlaygroundState();
@@ -176,6 +189,73 @@ const Playground = () => {
       avatar: getLogo(),
     },
   };
+
+  const imageGenerationBlockMessage = t(
+    '图片仍在生成中，切换对话、新建对话、切换模式或离开页面都不会停止后端任务，仍可能继续消耗额度。请等待生成完成后再操作。',
+  );
+
+  const showImageGenerationBlockedToast = useCallback(() => {
+    Toast.warning({
+      content: imageGenerationBlockMessage,
+      duration: 4,
+    });
+  }, [imageGenerationBlockMessage]);
+
+  const confirmLeaveDuringImageGeneration = useCallback(
+    (onConfirm) => {
+      Modal.confirm({
+        title: t('图片仍在生成中'),
+        content: imageGenerationBlockMessage,
+        okText: t('仍要离开'),
+        cancelText: t('留在当前页'),
+        onOk: onConfirm,
+      });
+    },
+    [imageGenerationBlockMessage, t],
+  );
+
+  const stopPendingImageGeneration = useCallback(
+    (options = {}) => {
+      const { silent = false } = options;
+
+      if (imageAbortControllerRef.current) {
+        imageAbortControllerRef.current.abort();
+        imageAbortControllerRef.current = null;
+      }
+
+      setIsImageGenerationPending(false);
+
+      if (!silent) {
+        Toast.info({
+          content: t(
+            '已尝试停止当前图片请求。若后端已将任务提交给上游，仍不能保证上游一定停止计费。',
+          ),
+          duration: 4,
+        });
+      }
+    },
+    [t],
+  );
+
+  const guardImageGenerationAction = useCallback(
+    (action) =>
+      (...args) => {
+        if (isImageGenerationPending) {
+          showImageGenerationBlockedToast();
+          return;
+        }
+        return action?.(...args);
+      },
+    [isImageGenerationPending, showImageGenerationBlockedToast],
+  );
+
+  const handleStopGeneration = useCallback(() => {
+    if (isImageGenerationPending) {
+      stopPendingImageGeneration();
+      return;
+    }
+    onStopGenerator();
+  }, [isImageGenerationPending, onStopGenerator, stopPendingImageGeneration]);
 
   // 消息操作
   const messageActions = useMessageActions(
@@ -980,18 +1060,27 @@ const Playground = () => {
         timestamp: new Date().toISOString(),
       }));
       setActiveDebugTab(DEBUG_TABS.REQUEST);
+      setIsImageGenerationPending(true);
 
       try {
+        if (imageAbortControllerRef.current) {
+          imageAbortControllerRef.current.abort();
+        }
+        const abortController = new AbortController();
+        imageAbortControllerRef.current = abortController;
+
         const createResponse = await fetch(API_ENDPOINTS.IMAGE_GENERATIONS, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
             'New-Api-User': getUserIdFromLocalStorage(),
           },
+          signal: abortController.signal,
           body: JSON.stringify(payload),
         });
 
         const createData = await createResponse.json();
+        imageAbortControllerRef.current = null;
         setDebugData((prev) => ({
           ...prev,
           response: JSON.stringify(createData, null, 2),
@@ -1018,17 +1107,32 @@ const Playground = () => {
           isThinkingComplete: true,
         });
       } catch (error) {
+        if (error?.name === 'AbortError') {
+          updateImageAssistantMessage(assistantMessage.id, {
+            content: t(
+              '图片请求已在前端停止。若上游任务已创建，仍可能继续执行。',
+            ),
+            status: MESSAGE_STATUS.COMPLETE,
+            isThinkingComplete: true,
+          });
+          return;
+        }
+
         updateImageAssistantMessage(assistantMessage.id, {
           content: t('图片请求发生错误: ') + error.message,
           status: MESSAGE_STATUS.ERROR,
           errorCode: error.errorCode || null,
         });
+      } finally {
+        imageAbortControllerRef.current = null;
+        setIsImageGenerationPending(false);
       }
     },
     [
       buildImageAssistantContent,
       buildImagePayload,
       extractImageUrls,
+      setIsImageGenerationPending,
       setActiveDebugTab,
       setDebugData,
       setMessage,
@@ -1129,6 +1233,161 @@ const Playground = () => {
       setMobileSidebarOpen(false);
     }
   }, [isMobile]);
+
+  useEffect(() => {
+    if (!isImageGenerationPending || !navigator?.block) {
+      return undefined;
+    }
+
+    const unblock = navigator.block((tx) => {
+      confirmLeaveDuringImageGeneration(() => {
+        stopPendingImageGeneration({ silent: true });
+        unblock();
+        tx.retry();
+      });
+    });
+
+    return unblock;
+  }, [
+    confirmLeaveDuringImageGeneration,
+    isImageGenerationPending,
+    navigator,
+    stopPendingImageGeneration,
+  ]);
+
+  useEffect(() => {
+    if (!isImageGenerationPending) {
+      return undefined;
+    }
+
+    const handleDocumentClickCapture = (event) => {
+      if (event.defaultPrevented) {
+        return;
+      }
+      if (event.button !== 0) {
+        return;
+      }
+      if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) {
+        return;
+      }
+
+      const anchor = event.target?.closest?.('a[href]');
+      if (!anchor) {
+        return;
+      }
+      if (anchor.target && anchor.target !== '_self') {
+        return;
+      }
+      if (anchor.hasAttribute('download')) {
+        return;
+      }
+
+      const href = anchor.getAttribute('href');
+      if (!href || href.startsWith('#') || href.startsWith('javascript:')) {
+        return;
+      }
+
+      let nextUrl;
+      try {
+        nextUrl = new URL(anchor.href, window.location.href);
+      } catch {
+        return;
+      }
+
+      if (nextUrl.origin !== window.location.origin) {
+        return;
+      }
+
+      const nextPath =
+        `${nextUrl.pathname}${nextUrl.search}${nextUrl.hash}` || '/';
+      const currentPath =
+        `${location.pathname}${location.search}${location.hash}` || '/';
+
+      if (nextPath === currentPath) {
+        return;
+      }
+
+      event.preventDefault();
+      event.stopPropagation();
+      pendingRouteRef.current = nextPath;
+      confirmLeaveDuringImageGeneration(() => {
+        stopPendingImageGeneration({ silent: true });
+        const targetPath = pendingRouteRef.current;
+        pendingRouteRef.current = null;
+        if (targetPath) {
+          navigate(targetPath);
+        }
+      });
+    };
+
+    document.addEventListener('click', handleDocumentClickCapture, true);
+    return () => {
+      document.removeEventListener('click', handleDocumentClickCapture, true);
+    };
+  }, [
+    confirmLeaveDuringImageGeneration,
+    isImageGenerationPending,
+    location.hash,
+    location.pathname,
+    location.search,
+    navigate,
+    stopPendingImageGeneration,
+  ]);
+
+  useEffect(() => {
+    if (!isImageGenerationPending) {
+      popstateGuardActiveRef.current = false;
+      return undefined;
+    }
+
+    if (!popstateGuardActiveRef.current) {
+      window.history.pushState(
+        { playgroundImagePendingGuard: true },
+        '',
+        window.location.href,
+      );
+      popstateGuardActiveRef.current = true;
+    }
+
+    const handlePopState = () => {
+      window.history.pushState(
+        { playgroundImagePendingGuard: true },
+        '',
+        window.location.href,
+      );
+      confirmLeaveDuringImageGeneration(() => {
+        stopPendingImageGeneration({ silent: true });
+        popstateGuardActiveRef.current = false;
+        window.history.back();
+      });
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => {
+      window.removeEventListener('popstate', handlePopState);
+    };
+  }, [
+    confirmLeaveDuringImageGeneration,
+    isImageGenerationPending,
+    stopPendingImageGeneration,
+  ]);
+
+  useEffect(() => {
+    if (!isImageGenerationPending) {
+      return undefined;
+    }
+
+    const handleBeforeUnload = (event) => {
+      event.preventDefault();
+      event.returnValue = imageGenerationBlockMessage;
+      return imageGenerationBlockMessage;
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+    };
+  }, [imageGenerationBlockMessage, isImageGenerationPending]);
 
   // Playground 组件无需再监听窗口变化，isMobile 由 useIsMobile Hook 自动更新
 
@@ -1258,6 +1517,15 @@ const Playground = () => {
     debouncedSaveConfig,
   ]);
 
+  useEffect(() => {
+    return () => {
+      if (imageAbortControllerRef.current) {
+        imageAbortControllerRef.current.abort();
+        imageAbortControllerRef.current = null;
+      }
+    };
+  }, []);
+
   // 清空对话的处理函数
   const handleClearMessages = useCallback(() => {
     setMessage([]);
@@ -1268,6 +1536,22 @@ const Playground = () => {
   const handleNewConversation = useCallback(() => {
     startNewConversation();
   }, [startNewConversation]);
+
+  const guardedClearMessages = useMemoizedCallback(
+    guardImageGenerationAction(handleClearMessages),
+  );
+  const guardedNewConversation = useMemoizedCallback(
+    guardImageGenerationAction(handleNewConversation),
+  );
+  const guardedSwitchConversation = useMemoizedCallback(
+    guardImageGenerationAction(switchConversation),
+  );
+  const guardedDeleteConversation = useMemoizedCallback(
+    guardImageGenerationAction(deleteConversation),
+  );
+  const guardedModeChange = useMemoizedCallback(
+    guardImageGenerationAction(setPlaygroundMode),
+  );
 
   // 处理粘贴图片
   const handlePasteImage = useCallback(
@@ -1298,10 +1582,10 @@ const Playground = () => {
           collapsed={sidebarCollapsed && !isMobile}
           isMobile={isMobile}
           mobileOpen={mobileSidebarOpen}
-          onNewChat={handleNewConversation}
+          onNewChat={guardedNewConversation}
           onOpenSettings={() => setShowSettings(true)}
-          onSelectConversation={switchConversation}
-          onDeleteConversation={deleteConversation}
+          onSelectConversation={guardedSwitchConversation}
+          onDeleteConversation={guardedDeleteConversation}
           onToggleCollapsed={() => setSidebarCollapsed((value) => !value)}
           onMobileOpen={() => setMobileSidebarOpen(true)}
           onMobileClose={() => setMobileSidebarOpen(false)}
@@ -1319,13 +1603,13 @@ const Playground = () => {
             customRequestMode={customRequestMode}
             roleInfo={roleInfo}
             onInputChange={handleInputChange}
-            onModeChange={setPlaygroundMode}
+            onModeChange={guardedModeChange}
             onMessageSend={onMessageSend}
             onMessageCopy={messageActions.handleMessageCopy}
             onMessageReset={messageActions.handleMessageReset}
             onMessageDelete={messageActions.handleMessageDelete}
-            onStopGenerator={onStopGenerator}
-            onClearMessages={handleClearMessages}
+            onStopGenerator={handleStopGeneration}
+            onClearMessages={guardedClearMessages}
             renderCustomChatContent={renderCustomChatContent}
             renderChatBoxAction={renderChatBoxAction}
           />
@@ -1334,5 +1618,15 @@ const Playground = () => {
     </PlaygroundProvider>
   );
 };
+
+function useMemoizedCallback(callback) {
+  const callbackRef = useRef(callback);
+
+  useEffect(() => {
+    callbackRef.current = callback;
+  }, [callback]);
+
+  return useCallback((...args) => callbackRef.current?.(...args), []);
+}
 
 export default Playground;

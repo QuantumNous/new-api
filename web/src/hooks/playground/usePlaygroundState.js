@@ -637,7 +637,6 @@ export const usePlaygroundState = () => {
       setConversations(dedupedMergedConversations);
       setActiveConversationId(nextActiveConversationId);
       setMessage(activeConversation?.messages || []);
-      saveMessages(activeConversation?.messages || []);
       saveConversationState(
         dedupedMergedConversations,
         nextActiveConversationId,
@@ -726,7 +725,6 @@ export const usePlaygroundState = () => {
             dedupedMergedConversations,
             nextActiveConversationId,
           );
-          saveMessages(activeConversation?.messages || []);
           return;
         }
 
