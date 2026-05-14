@@ -135,3 +135,7 @@ For request structs that are parsed from client JSON and then re-marshaled to up
 ### Rule 7: Billing Expression System — Read `pkg/billingexpr/expr.md`
 
 When working on tiered/dynamic billing (expression-based pricing), you MUST read `pkg/billingexpr/expr.md` first. It documents the design philosophy, expression language (variables, functions, examples), full system architecture (editor → storage → pre-consume → settlement → log display), token normalization rules (`p`/`c` auto-exclusion), quota conversion, and expression versioning. All code changes to the billing expression system must follow the patterns described in that document.
+
+### Rule 8: GCP Operations — Read `deploy/gcp/docs/OPERATIONS.md`
+
+Before running any `terraform`, `gcloud`, or other command that touches GCP infrastructure (project `vocai-gemini-prod`), you MUST read `deploy/gcp/docs/OPERATIONS.md` first. It documents Terraform state location, the two separate auth systems (ADC vs user CLI), Cloud Run fields owned by CI/CD that must stay in `lifecycle.ignore_changes`, the env-var-update / revision-conflict workaround, the HTTPS downtime window during managed SSL cert rotation (always warn the user before applying `lb_domains` changes), Cloudflare DNS-only constraint for depth-3 hostnames, and the whitelabel channel registry. Companion docs: `INFRASTRUCTURE.md` (resource inventory), `DEPLOYMENT.md` (deploy/rollback procedures).

@@ -10,10 +10,16 @@ github_repository = "SolveaCX/new-api"
 custom_domains = []
 
 // HTTPS LB front door — replaces domain mappings.
+// Old `new-api.*.flatkey.ai` kept during the migration window so existing
+// clients keep working while we cut over to the shorter `one.flatkey.ai` /
+// `router.flatkey.ai` pair. Remove the old entries once monitoring shows
+// no traffic on them.
 enable_load_balancer = true
 lb_domains = [
   "new-api.app.flatkey.ai",
   "new-api.api.flatkey.ai",
+  "one.flatkey.ai",
+  "router.flatkey.ai",
 ]
 
 // Keep Cloud Run open during initial bring-up so health probes against *.run.app still work.
