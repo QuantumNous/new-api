@@ -372,6 +372,14 @@
   font-weight: 700;
 }
 
+.task-detail-expired.semi-tag {
+  border: 1px solid rgba(251, 191, 36, 0.4) !important;
+  border-radius: 999px !important;
+  background: rgba(255, 247, 237, 0.98) !important;
+  color: #c2410c !important;
+  font-weight: 700;
+}
+
 .task-action-icon-button.semi-button {
   width: 34px;
   min-width: 34px;
@@ -633,6 +641,12 @@ html.dark .task-detail-empty.semi-tag,
 html.dark .task-action-icon-button.semi-button {
   border-color: rgba(58, 66, 82, 0.95) !important;
   background: rgba(16, 19, 24, 0.92) !important;
+}
+
+html.dark .task-detail-expired.semi-tag {
+  border-color: rgba(251, 191, 36, 0.28) !important;
+  background: rgba(67, 32, 10, 0.72) !important;
+  color: #fdba74 !important;
 }
 
 html.dark .task-progress-text.semi-tag,

@@ -129,7 +129,132 @@ const extractVideoPreviewUrl = (record) => {
     return resultUrl;
   }
 
+  const legacyFailReasonUrl =
+    extractVideoUrlFromPayload(record?.fail_reason) ||
+    pickHttpUrl(record?.fail_reason);
+  if (legacyFailReasonUrl) {
+    return legacyFailReasonUrl;
+  }
+
   return '';
+};
+
+const parseSignedUrlTime = (value) => {
+  if (typeof value !== 'string') {
+    return null;
+  }
+
+  const matched = value
+    .trim()
+    .match(/^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})Z$/);
+  if (!matched) {
+    return null;
+  }
+
+  const [, year, month, day, hour, minute, second] = matched;
+  return Date.UTC(
+    Number(year),
+    Number(month) - 1,
+    Number(day),
+    Number(hour),
+    Number(minute),
+    Number(second),
+  );
+};
+
+const parseExpiryTimestamp = (value) => {
+  if (typeof value !== 'string') {
+    return null;
+  }
+
+  const trimmed = value.trim();
+  if (!/^\d+$/.test(trimmed)) {
+    return null;
+  }
+
+  const numeric = Number(trimmed);
+  if (!Number.isFinite(numeric) || numeric <= 0) {
+    return null;
+  }
+
+  return trimmed.length > 10 ? numeric : numeric * 1000;
+};
+
+const getQueryParamIgnoreCase = (params, key) => {
+  if (!params || typeof key !== 'string' || key === '') {
+    return null;
+  }
+
+  const directValue = params.get(key);
+  if (directValue !== null) {
+    return directValue;
+  }
+
+  const lowerKey = key.toLowerCase();
+  for (const [entryKey, entryValue] of params.entries()) {
+    if (entryKey.toLowerCase() === lowerKey) {
+      return entryValue;
+    }
+  }
+
+  return null;
+};
+
+const extractUrlExpiryTime = (url) => {
+  if (typeof url !== 'string' || !/^https?:\/\//.test(url)) {
+    return null;
+  }
+
+  try {
+    const parsed = new URL(url);
+    const params = parsed.searchParams;
+
+    const signedDatePairs = [
+      ['X-Amz-Date', 'X-Amz-Expires'],
+      ['X-Goog-Date', 'X-Goog-Expires'],
+      ['X-Tos-Date', 'X-Tos-Expires'],
+    ];
+    for (const [dateKey, expiresKey] of signedDatePairs) {
+      const signedStart = parseSignedUrlTime(
+        getQueryParamIgnoreCase(params, dateKey),
+      );
+      const signedExpires = Number(
+        getQueryParamIgnoreCase(params, expiresKey),
+      );
+      if (
+        Number.isFinite(signedStart) &&
+        Number.isFinite(signedExpires) &&
+        signedExpires > 0
+      ) {
+        return signedStart + signedExpires * 1000;
+      }
+    }
+
+    const timestampFields = [
+      'Expires',
+      'expires',
+      'expire',
+      'expiration',
+      'e',
+    ];
+    for (const field of timestampFields) {
+      const expiryTime = parseExpiryTimestamp(
+        getQueryParamIgnoreCase(params, field),
+      );
+      if (expiryTime !== null) {
+        return expiryTime;
+      }
+    }
+  } catch {
+    return null;
+  }
+
+  return null;
+};
+
+const isResultLinkExpired = (url) => {
+  const expiryTime = extractUrlExpiryTime(url);
+  return expiryTime !== null && expiryTime <= Date.now();
 };
 
 const stringifyDetail = (value) => {
@@ -289,6 +414,14 @@ const renderInlineProgress = (progress, record) => {
     </Tooltip>
   );
 };
+
+const renderExpiredLinkTag = ({ t, tooltip }) => (
+  <Tooltip content={tooltip} position='top' showArrow>
+    <Tag className='task-detail-expired' shape='circle' prefixIcon={<Clock size={14} />}>
+      {t('链接过期')}
+    </Tag>
+  </Tooltip>
+);
 
 // Render functions
 const renderTimestamp = (timestampInSeconds) => {
@@ -635,6 +768,13 @@ export const getTaskLogsColumns = ({
         const resultUrl = extractVideoPreviewUrl(record);
         const hasResultUrl =
           typeof resultUrl === 'string' && /^https?:\/\//.test(resultUrl);
+        const isExpiredResultUrl = hasResultUrl && isResultLinkExpired(resultUrl);
+        if (isSuccess && isVideoTask && isExpiredResultUrl) {
+          return renderExpiredLinkTag({
+            t,
+            tooltip: t('任务结果链接已过期'),
+          });
+        }
         if (isSuccess && isVideoTask && hasResultUrl) {
           return renderDetailIcon({
             icon: <Video size={15} />,
