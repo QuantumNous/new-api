@@ -139,6 +139,15 @@ GET /v1/video/generations/{task_id}
 Authorization: Bearer <token>
 ```
 
+### 请求示例
+
+```bash
+curl -sS https://router.flatkey.ai/v1/video/generations/task_Bz1hVdh3OGDYAWpGe8EyCpqWHsAzSqVs \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+> 轮询建议：每 5–10 秒一次；连续失败请按指数退避（首次 1s，每次 ×2，上限 30s）。
+
 ### 响应（生成中）
 
 ```json
@@ -202,19 +211,27 @@ Authorization: Bearer <token>
 | `SUCCESS` | 成功，可读 `result_url` |
 | `FAILURE` | 失败，可读 `fail_reason` |
 
+> ⚠️ **创建响应和轮询响应字段形态不同**，SDK 类型定义要分开处理：
+> - `status`：创建响应是小写 `"queued"`；轮询响应是大写 `"QUEUED"` / `"IN_PROGRESS"` / `"SUCCESS"` / `"FAILURE"`。
+> - `progress`：创建响应是 `int`（`0`）；轮询响应是百分号字符串（`"50%"` / `"100%"`）。
+
 ---
 
 ## 3. 下载视频
 
-`result_url` 是同域代理链接，必须**带 token** 访问：
+`result_url` 是网关代理链接（形如 `/v1/videos/{task_id}/content`，子域可能与 base URL 不一致，直接使用响应里返回的完整 URL 即可），必须**带 token** 访问：
 
 ```bash
-curl -L -o output.mp4 \
-  "https://router.flatkey.ai/v1/videos/$TASK_ID/content" \
+RESULT_URL=$(curl -sS "https://router.flatkey.ai/v1/video/generations/$TASK_ID" \
+  -H "Authorization: Bearer $TOKEN" | jq -r '.data.result_url')
+
+curl -L -o output.mp4 "$RESULT_URL" \
   -H "Authorization: Bearer $TOKEN"
 ```
 
-视频生成后 **24 小时内有效**，过期需重新生成。
+> ⚠️ **不要**把 `result_url` 直接塞进浏览器或 `<video src>`——浏览器无法附带 `Authorization` 头。请用服务端 / SDK 带 token 拉取后转存到自家 OSS，或通过你自己的后端中转。
+
+视频链接 **24 小时内有效**，过期需重新生成。
 
 ---
 
@@ -235,25 +252,23 @@ curl -L -o output.mp4 \
 
 | 字段 | 类型 | 默认 | 取值 | 说明 |
 |---|---|---|---|---|
-| `resolution` | string | `720p` | `480p` / `720p` / `1080p` | 视频分辨率 |
-| `ratio` | string | `16:9` | `16:9` / `9:16` / `1:1` / `4:3` / `3:4` | 宽高比 |
-| `duration` | int | `5` | `5` / `10` | 视频时长（秒） |
-| `generate_audio` | bool | `false` | — | 是否生成配音 |
+| `resolution` | string | `720p` | `480p` / `720p` | 视频分辨率 |
+| `ratio` | string | `adaptive` | `16:9` / `9:16` / `1:1` / `4:3` / `3:4` / `21:9` / `adaptive` | 宽高比；`adaptive` 由模型按输入自动选择 |
+| `duration` | int | `5` | `video-fast` 4–12 / `video-pro` 4–15，传 `-1` 由模型自动决定 | 视频时长（秒） |
+| `generate_audio` | bool | `true` | — | 是否生成同步音频（人声 + 音效 + BGM）；台词放双引号里写在 prompt 中效果更好 |
 | `seed` | int | 随机 | 0–2147483647 | 固定随机种子用于结果复现 |
 | `web_search` | bool | `false` | — | 启用联网检索辅助生成 |
 
 ### 多模态输入
 
-通过 `input_type` 决定参考素材的用法：
+`input_type` 决定图像输入的用法（默认 `reference`）。**纯文本生成时不传 `images` 即可，`input_type` 字段可忽略。**
 
 | `input_type` | 含义 | 必须提供的素材 |
 |---|---|---|
-| `text2video` | 纯文本生成（默认） | 仅 prompt |
-| `image2video` | 图像驱动 | `images[0]` |
-| `first_last_frame` | 首尾帧插值 | `images[0]` (first_frame) + `images[1]` (last_frame) |
-| `reference` | 参考图风格迁移 | `images` 中 role=`reference_image` |
-| `video2video` | 视频风格化 | `videos[0]` |
-| `audio_driven` | 音频驱动 | `audios[0]` |
+| `reference` _(默认)_ | 全能参考 | `images` 中 role=`reference_image`（默认 role；最多 9 张） |
+| `first_last_frame` | 首尾帧插值 | `images` 中同时包含 role=`first_frame` 和 role=`last_frame` 两张图 |
+
+除 `images` 外，`video-pro` 模式下还可通过 `metadata.videos` / `metadata.audios` 提供视频或音频参考（每组最多 3 个、总时长 ≤ 15 秒；`audios` 必须搭配图片或视频使用）。
 
 ### 素材数组
 
@@ -298,13 +313,19 @@ curl -L -o output.mp4 \
 
 ### 错误响应体
 
+创建阶段的错误（HTTP 4xx / 5xx）走 OpenAI 风格：
+
 ```json
 {
-  "code": "invalid_request_error",
-  "message": "unsupported model \"video-ultra\"; expected video-fast or video-pro",
-  "data": null
+  "error": {
+    "code": "invalid_request_error",
+    "message": "unsupported model \"video-ultra\"; expected video-fast or video-pro",
+    "type": "new_api_error"
+  }
 }
 ```
+
+任务进入轮询阶段后，失败信息走 `data.status = "FAILURE"` + `data.fail_reason`（见 [2. 查询任务状态 → 响应（失败）](#响应失败)）。
 
 ---
 
@@ -404,17 +425,6 @@ generate().then(url => console.log('video:', url));
 按任务计费，价格取决于模型、分辨率、时长。具体费率请咨询客服。
 
 未成功（`FAILURE`）的任务**不扣费**。
-
----
-
-## 限流
-
-| 维度 | 默认配额 |
-|---|---|
-| 并发任务 | 5 个/账户 |
-| 每分钟提交数 | 30 次/账户 |
-
-超过配额会返回 `429`。如需提升配额请联系客服。
 
 ---
 
