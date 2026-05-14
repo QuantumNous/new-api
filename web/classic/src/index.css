@@ -1777,6 +1777,10 @@ html.dark .headerbar-surface {
   object-fit: cover;
 }
 
+.pricing-marketplace-cover-video-media {
+  background: #0f172a;
+}
+
 .pricing-marketplace-card-cover.has-image::after {
   position: absolute;
   inset: auto 0 0;
@@ -1876,6 +1880,21 @@ html.dark .headerbar-surface {
   bottom: 12px;
   left: 12px;
   box-shadow: 0 8px 18px rgba(15, 23, 42, 0.08);
+}
+
+.pricing-marketplace-cover-video-badge {
+  position: absolute;
+  z-index: 2;
+  right: 12px;
+  bottom: 12px;
+  padding: 3px 8px;
+  border: 1px solid rgba(255, 255, 255, 0.44);
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.5);
+  color: #fff;
+  font-size: 12px;
+  line-height: 1.4;
+  backdrop-filter: blur(8px);
 }
 
 .pricing-marketplace-cover-actions {

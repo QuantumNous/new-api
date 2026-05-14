@@ -3864,6 +3864,11 @@
     "模型封面图片 URL": "Model cover image URL",
     "模型封面图片 URL 格式不正确": "Model cover image URL format is invalid",
     "请输入 https:// 图片地址或 /resource/images/... 路径": "Please enter an https:// image URL or a /resource/images/... path",
-    "用于模型广场卡片顶部封面图。支持 https:// 图片地址或站内 /resource/... 图片地址。留空时使用默认占位封面。": "Used for the top cover image on marketplace cards. Supports https:// image URLs or site-local /resource/... image paths. Leave empty to use the default placeholder cover."
+    "用于模型广场卡片顶部封面图。支持 https:// 图片地址或站内 /resource/... 图片地址。留空时使用默认占位封面。": "Used for the top cover image on marketplace cards. Supports https:// image URLs or site-local /resource/... image paths. Leave empty to use the default placeholder cover.",
+    "模型预览视频 URL": "Model preview video URL",
+    "模型预览视频 URL 格式不正确": "Model preview video URL format is invalid",
+    "请输入 https:// 视频地址或 /resource/videos/... 路径": "Please enter an https:// video URL or a /resource/videos/... path",
+    "用于模型广场卡片顶部视频预览。支持 https:// 视频地址或站内 /resource/... 视频地址。留空时使用模型封面图片或默认占位封面。": "Used for the top video preview on marketplace cards. Supports https:// video URLs or site-local /resource/... video paths. Leave empty to use the model cover image or default placeholder cover.",
+    "视频预览": "Video preview"
   }
 }

@@ -76,6 +76,8 @@ const COVER_IMAGE_FIELDS = [
   'vendor_icon',
 ];
 
+const COVER_VIDEO_FIELDS = ['preview_video_url', 'previewVideoUrl'];
+
 const isUsableImageSource = (value) => {
   if (!value || typeof value !== 'string') return false;
   const source = value.trim();
@@ -88,10 +90,25 @@ const isUsableImageSource = (value) => {
   );
 };
 
+const isUsableVideoSource = (value) => {
+  if (!value || typeof value !== 'string') return false;
+  const source = value.trim();
+  if (!source) return false;
+  return /^https?:\/\//i.test(source) || source.startsWith('/');
+};
+
 const getCoverImageSource = (model) => {
   if (!model) return '';
   const source = COVER_IMAGE_FIELDS.map((field) => model[field]).find(
     isUsableImageSource,
+  );
+  return typeof source === 'string' ? source.trim() : '';
+};
+
+const getCoverVideoSource = (model) => {
+  if (!model) return '';
+  const source = COVER_VIDEO_FIELDS.map((field) => model[field]).find(
+    isUsableVideoSource,
   );
   return typeof source === 'string' ? source.trim() : '';
 };
@@ -105,25 +122,69 @@ const ModelCardCover = ({
   rowSelection,
   isSelected,
   handleCheckboxChange,
+  t,
 }) => {
   const coverImageSource = React.useMemo(
     () => getCoverImageSource(model),
     [model],
   );
+  const coverVideoSource = React.useMemo(
+    () => getCoverVideoSource(model),
+    [model],
+  );
   const [imageFailed, setImageFailed] = React.useState(false);
-  const showImage = coverImageSource && !imageFailed;
+  const [videoFailed, setVideoFailed] = React.useState(false);
+  const videoRef = React.useRef(null);
+  const showVideo = coverVideoSource && !videoFailed;
+  const showImage = !showVideo && coverImageSource && !imageFailed;
+  const showMedia = showVideo || showImage;
 
   React.useEffect(() => {
     setImageFailed(false);
   }, [coverImageSource]);
 
+  React.useEffect(() => {
+    setVideoFailed(false);
+  }, [coverVideoSource]);
+
+  const handleVideoMouseEnter = () => {
+    if (!videoRef.current) return;
+    const playPromise = videoRef.current.play();
+    if (playPromise?.catch) {
+      playPromise.catch(() => {});
+    }
+  };
+
+  const handleVideoMouseLeave = () => {
+    if (!videoRef.current) return;
+    videoRef.current.pause();
+    try {
+      videoRef.current.currentTime = 0;
+    } catch {
+      // Some streams are not seekable before metadata is ready.
+    }
+  };
+
   return (
     <div
       className={`pricing-marketplace-card-cover ${coverClass} ${
-        showImage ? 'has-image' : ''
+        showMedia ? 'has-image' : ''
       }`}
+      onMouseEnter={showVideo ? handleVideoMouseEnter : undefined}
+      onMouseLeave={showVideo ? handleVideoMouseLeave : undefined}
     >
-      {showImage ? (
+      {showVideo ? (
+        <video
+          ref={videoRef}
+          className='pricing-marketplace-cover-image-media pricing-marketplace-cover-video-media'
+          src={coverVideoSource}
+          poster={coverImageSource || undefined}
+          muted
+          playsInline
+          preload='metadata'
+          onError={() => setVideoFailed(true)}
+        />
+      ) : showImage ? (
         <img
           className='pricing-marketplace-cover-image-media'
           src={coverImageSource}
@@ -147,6 +208,11 @@ const ModelCardCover = ({
       >
         {modelCapability.label}
       </Tag>
+      {showVideo && (
+        <span className='pricing-marketplace-cover-video-badge'>
+          {t('视频预览')}
+        </span>
+      )}
       <div className='pricing-marketplace-cover-actions'>
         <Button
           size='small'
@@ -405,6 +471,7 @@ const PricingCardView = ({
                   rowSelection={rowSelection}
                   isSelected={isSelected}
                   handleCheckboxChange={handleCheckboxChange}
+                  t={t}
                 />
 
                 <div className='pricing-marketplace-card-body'>

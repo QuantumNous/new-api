@@ -1,7 +1,6 @@
 package controller
 
 import (
-	"encoding/json"
 	"sort"
 	"strconv"
 	"strings"
@@ -15,7 +14,8 @@ import (
 
 type modelMetaRequest struct {
 	model.Model
-	CoverURLAlias string `json:"coverUrl"`
+	CoverURLAlias        string `json:"coverUrl"`
+	PreviewVideoURLAlias string `json:"previewVideoUrl"`
 }
 
 func (r modelMetaRequest) toModel() model.Model {
@@ -23,10 +23,13 @@ func (r modelMetaRequest) toModel() model.Model {
 	if strings.TrimSpace(m.CoverURL) == "" && strings.TrimSpace(r.CoverURLAlias) != "" {
 		m.CoverURL = r.CoverURLAlias
 	}
+	if strings.TrimSpace(m.PreviewVideoURL) == "" && strings.TrimSpace(r.PreviewVideoURLAlias) != "" {
+		m.PreviewVideoURL = r.PreviewVideoURLAlias
+	}
 	return m
 }
 
-func normalizeModelCoverURL(raw string) (string, bool) {
+func normalizeModelMediaURL(raw string) (string, bool) {
 	value := strings.TrimSpace(raw)
 	if value == "" {
 		return "", true
@@ -38,6 +41,14 @@ func normalizeModelCoverURL(raw string) (string, bool) {
 		return value, true
 	}
 	return "", false
+}
+
+func normalizeModelCoverURL(raw string) (string, bool) {
+	return normalizeModelMediaURL(raw)
+}
+
+func normalizeModelPreviewVideoURL(raw string) (string, bool) {
+	return normalizeModelMediaURL(raw)
 }
 
 // GetAllModelsMeta 获取模型列表（分页）
@@ -122,6 +133,12 @@ func CreateModelMeta(c *gin.Context) {
 		return
 	}
 	m.CoverURL = coverURL
+	previewVideoURL, ok := normalizeModelPreviewVideoURL(m.PreviewVideoURL)
+	if !ok {
+		common.ApiErrorMsg(c, "模型预览视频 URL 格式不正确")
+		return
+	}
+	m.PreviewVideoURL = previewVideoURL
 	// 名称冲突检查
 	if dup, err := model.IsModelNameDuplicated(0, m.ModelName); err != nil {
 		common.ApiError(c, err)
@@ -160,6 +177,12 @@ func UpdateModelMeta(c *gin.Context) {
 			return
 		}
 		m.CoverURL = coverURL
+		previewVideoURL, ok := normalizeModelPreviewVideoURL(m.PreviewVideoURL)
+		if !ok {
+			common.ApiErrorMsg(c, "模型预览视频 URL 格式不正确")
+			return
+		}
+		m.PreviewVideoURL = previewVideoURL
 	}
 
 	if statusOnly {
@@ -235,7 +258,7 @@ func enrichModels(models []*model.Model) {
 			mm := models[idx]
 			if mm.Endpoints == "" {
 				eps := model.GetModelSupportEndpointTypes(mm.ModelName)
-				if b, err := json.Marshal(eps); err == nil {
+				if b, err := common.Marshal(eps); err == nil {
 					mm.Endpoints = string(b)
 				}
 			}
@@ -325,7 +348,7 @@ func enrichModels(models []*model.Model) {
 			for et := range es {
 				eps = append(eps, et)
 			}
-			if b, err := json.Marshal(eps); err == nil {
+			if b, err := common.Marshal(eps); err == nil {
 				mm.Endpoints = string(b)
 			}
 		}

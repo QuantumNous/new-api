@@ -289,3 +289,49 @@ func TestGetPricingIncludesCoverURL(t *testing.T) {
 	require.True(t, ok)
 	require.Equal(t, "/resource/images/zz-cover-model.webp", item.CoverURL)
 }
+
+func TestGetPricingIncludesPreviewVideoURL(t *testing.T) {
+	withSelfUseModeDisabled(t)
+	db := setupModelListControllerTestDB(t)
+	model.InvalidatePricingCache()
+	t.Cleanup(model.InvalidatePricingCache)
+
+	require.NoError(t, db.Create(&model.Channel{
+		Id:     1,
+		Type:   constant.ChannelTypeOpenAI,
+		Key:    "test-key",
+		Name:   "test-channel",
+		Status: common.ChannelStatusEnabled,
+		Group:  "default",
+		Models: "zz-preview-video-model",
+	}).Error)
+	require.NoError(t, db.Create(&model.Ability{
+		Group:     "default",
+		Model:     "zz-preview-video-model",
+		ChannelId: 1,
+		Enabled:   true,
+	}).Error)
+	require.NoError(t, db.Create(&model.Model{
+		ModelName:       "zz-preview-video-model",
+		CoverURL:        "/resource/images/zz-preview-video-model.webp",
+		PreviewVideoURL: "/resource/videos/zz-preview-video-model.mp4",
+		Status:          1,
+	}).Error)
+
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = httptest.NewRequest(http.MethodGet, "/api/pricing", nil)
+
+	GetPricing(ctx)
+
+	require.Equal(t, http.StatusOK, recorder.Code)
+	var payload pricingResponse
+	require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &payload))
+	require.True(t, payload.Success)
+
+	pricingByName := pricingByModelName(payload.Data)
+	item, ok := pricingByName["zz-preview-video-model"]
+	require.True(t, ok)
+	require.Equal(t, "/resource/images/zz-preview-video-model.webp", item.CoverURL)
+	require.Equal(t, "/resource/videos/zz-preview-video-model.mp4", item.PreviewVideoURL)
+}

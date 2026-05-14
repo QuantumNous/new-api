@@ -117,6 +117,7 @@ const EditModelModal = (props) => {
     description: '',
     icon: '',
     cover_url: '',
+    preview_video_url: '',
     tags: [],
     vendor_id: undefined,
     vendor: '',
@@ -140,6 +141,8 @@ const EditModelModal = (props) => {
       const { success, message, data } = res.data;
       if (success) {
         data.cover_url = data.cover_url ?? data.coverUrl ?? '';
+        data.preview_video_url =
+          data.preview_video_url ?? data.previewVideoUrl ?? '';
         // 处理tags
         if (data.tags) {
           data.tags = data.tags.split(',').filter(Boolean);
@@ -198,6 +201,8 @@ const EditModelModal = (props) => {
         ...values,
         cover_url: values.cover_url || '',
         coverUrl: values.cover_url || '',
+        preview_video_url: values.preview_video_url || '',
+        previewVideoUrl: values.preview_video_url || '',
         tags: Array.isArray(values.tags) ? values.tags.join(',') : values.tags,
         endpoints: values.endpoints || '',
         status: values.status ? 1 : 0,
@@ -369,6 +374,20 @@ const EditModelModal = (props) => {
                       )}
                       extraText={t(
                         '用于模型广场卡片顶部封面图。支持 https:// 图片地址或站内 /resource/... 图片地址。留空时使用默认占位封面。',
+                      )}
+                      showClear
+                    />
+                  </Col>
+
+                  <Col span={24}>
+                    <Form.Input
+                      field='preview_video_url'
+                      label={t('模型预览视频 URL')}
+                      placeholder={t(
+                        '请输入 https:// 视频地址或 /resource/videos/... 路径',
+                      )}
+                      extraText={t(
+                        '用于模型广场卡片顶部视频预览。支持 https:// 视频地址或站内 /resource/... 视频地址。留空时使用模型封面图片或默认占位封面。',
                       )}
                       showClear
                     />

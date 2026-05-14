@@ -46,10 +46,12 @@ func decodeAPISuccess[T any](t *testing.T, recorder *httptest.ResponseRecorder) 
 func TestCreateModelMetaAcceptsCoverURLAlias(t *testing.T) {
 	db := setupModelListControllerTestDB(t)
 	require.True(t, db.Migrator().HasColumn(&model.Model{}, "cover_url"))
+	require.True(t, db.Migrator().HasColumn(&model.Model{}, "preview_video_url"))
 
 	ctx, recorder := newJSONContext(http.MethodPost, "/api/models/", `{
 		"model_name":"zz-cover-alias-model",
 		"coverUrl":"https://placehold.co/800x450.png",
+		"preview_video_url":"/resource/videos/zz-cover-alias-model.mp4",
 		"status":1,
 		"sync_official":1,
 		"name_rule":0
@@ -59,15 +61,40 @@ func TestCreateModelMetaAcceptsCoverURLAlias(t *testing.T) {
 
 	created := decodeAPISuccess[model.Model](t, recorder)
 	require.Equal(t, "https://placehold.co/800x450.png", created.CoverURL)
+	require.Equal(t, "/resource/videos/zz-cover-alias-model.mp4", created.PreviewVideoURL)
 
 	var stored model.Model
 	require.NoError(t, db.First(&stored, created.Id).Error)
 	require.Equal(t, "https://placehold.co/800x450.png", stored.CoverURL)
+	require.Equal(t, "/resource/videos/zz-cover-alias-model.mp4", stored.PreviewVideoURL)
+}
+
+func TestCreateModelMetaAcceptsPreviewVideoURL(t *testing.T) {
+	db := setupModelListControllerTestDB(t)
+	require.True(t, db.Migrator().HasColumn(&model.Model{}, "preview_video_url"))
+
+	ctx, recorder := newJSONContext(http.MethodPost, "/api/models/", `{
+		"model_name":"zz-preview-video-create-model",
+		"preview_video_url":"https://example.com/videos/zz-preview-video-create-model.mp4",
+		"status":1,
+		"sync_official":1,
+		"name_rule":0
+	}`)
+
+	CreateModelMeta(ctx)
+
+	created := decodeAPISuccess[model.Model](t, recorder)
+	require.Equal(t, "https://example.com/videos/zz-preview-video-create-model.mp4", created.PreviewVideoURL)
+
+	var stored model.Model
+	require.NoError(t, db.First(&stored, created.Id).Error)
+	require.Equal(t, "https://example.com/videos/zz-preview-video-create-model.mp4", stored.PreviewVideoURL)
 }
 
 func TestUpdateModelMetaCoverURLRoundTrip(t *testing.T) {
 	db := setupModelListControllerTestDB(t)
 	require.True(t, db.Migrator().HasColumn(&model.Model{}, "cover_url"))
+	require.True(t, db.Migrator().HasColumn(&model.Model{}, "preview_video_url"))
 
 	initial := &model.Model{
 		ModelName:    "zz-cover-roundtrip-model",
@@ -123,4 +150,77 @@ func TestUpdateModelMetaCoverURLRoundTrip(t *testing.T) {
 
 	require.NoError(t, db.First(&stored, initial.Id).Error)
 	require.Empty(t, stored.CoverURL)
+}
+
+func TestUpdateModelMetaPreviewVideoURLRoundTrip(t *testing.T) {
+	db := setupModelListControllerTestDB(t)
+	require.True(t, db.Migrator().HasColumn(&model.Model{}, "preview_video_url"))
+
+	initial := &model.Model{
+		ModelName:    "zz-preview-video-roundtrip-model",
+		Status:       1,
+		SyncOfficial: 1,
+		NameRule:     model.NameRuleExact,
+	}
+	require.NoError(t, db.Create(initial).Error)
+
+	updateURL := "https://example.com/videos/zz-preview-video-roundtrip-model.mp4"
+	updateCtx, updateRecorder := newJSONContext(http.MethodPut, "/api/models/", fmt.Sprintf(`{
+		"id":%d,
+		"model_name":"zz-preview-video-roundtrip-model",
+		"description":"preview video url round trip",
+		"preview_video_url":"%s",
+		"status":1,
+		"sync_official":1,
+		"name_rule":0
+	}`, initial.Id, updateURL))
+
+	UpdateModelMeta(updateCtx)
+
+	updated := decodeAPISuccess[model.Model](t, updateRecorder)
+	require.Equal(t, updateURL, updated.PreviewVideoURL)
+
+	var stored model.Model
+	require.NoError(t, db.First(&stored, initial.Id).Error)
+	require.Equal(t, updateURL, stored.PreviewVideoURL)
+
+	detailCtx, detailRecorder := newJSONContext(http.MethodGet, "/api/models/"+strconv.Itoa(initial.Id), "")
+	detailCtx.Params = gin.Params{{Key: "id", Value: strconv.Itoa(initial.Id)}}
+	GetModelMeta(detailCtx)
+	detail := decodeAPISuccess[model.Model](t, detailRecorder)
+	require.Equal(t, updateURL, detail.PreviewVideoURL)
+
+	listCtx, listRecorder := newJSONContext(http.MethodGet, "/api/models/?p=1&page_size=20", "")
+	GetAllModelsMeta(listCtx)
+	listPayload := decodeAPISuccess[modelMetaListPayload](t, listRecorder)
+	require.Len(t, listPayload.Items, 1)
+	require.Equal(t, updateURL, listPayload.Items[0].PreviewVideoURL)
+
+	aliasURL := "/resource/videos/zz-preview-video-roundtrip-model.webm"
+	aliasCtx, aliasRecorder := newJSONContext(http.MethodPut, "/api/models/", fmt.Sprintf(`{
+		"id":%d,
+		"model_name":"zz-preview-video-roundtrip-model",
+		"previewVideoUrl":"%s",
+		"status":1,
+		"sync_official":1,
+		"name_rule":0
+	}`, initial.Id, aliasURL))
+	UpdateModelMeta(aliasCtx)
+	aliasUpdated := decodeAPISuccess[model.Model](t, aliasRecorder)
+	require.Equal(t, aliasURL, aliasUpdated.PreviewVideoURL)
+
+	clearCtx, clearRecorder := newJSONContext(http.MethodPut, "/api/models/", fmt.Sprintf(`{
+		"id":%d,
+		"model_name":"zz-preview-video-roundtrip-model",
+		"preview_video_url":"",
+		"status":1,
+		"sync_official":1,
+		"name_rule":0
+	}`, initial.Id))
+	UpdateModelMeta(clearCtx)
+	cleared := decodeAPISuccess[model.Model](t, clearRecorder)
+	require.Empty(t, cleared.PreviewVideoURL)
+
+	require.NoError(t, db.First(&stored, initial.Id).Error)
+	require.Empty(t, stored.PreviewVideoURL)
 }

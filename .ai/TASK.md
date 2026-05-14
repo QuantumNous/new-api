@@ -3551,3 +3551,146 @@ status: completed
 
 - Existing deployed environments still need the backend process to run current `AutoMigrate(&Model{})` at startup if their real database does not yet have the `cover_url` column.
 - This round used backend tests and frontend build/lint verification, not a browser screenshot capture.
+
+## Stage Cover.2: model marketplace video preview cover
+
+Task: Stage Cover.2 model marketplace preview video URL closed loop
+
+status: completed
+
+### Goal
+
+- Add URL-only model preview video configuration for classic admin model create/edit.
+- Save the value into the model metadata database field `preview_video_url`.
+- Return `preview_video_url` from `/api/pricing`.
+- Make `/pricing` marketplace cards render a non-autoplay video preview when `preview_video_url` exists.
+- Play only while hovering the cover area, then pause and reset to the beginning on mouse leave.
+- Preserve existing `cover_url` image cover behavior and CSS fallback behavior.
+
+### Confirmed Plan
+
+- User requested URL configuration and frontend hover playback only.
+- No file upload, upload button, drag upload, video transcoding, crop, generated cover, popup player, fullscreen player, or external video asset copy.
+- Field naming follows the requested database and backend JSON field `preview_video_url`.
+- Frontend and backend request binding accept both `preview_video_url` and `previewVideoUrl` for compatibility, while storage and `/api/pricing` return use `preview_video_url`.
+
+### Changed Files
+
+- `model/model_meta.go`
+- `model/pricing.go`
+- `controller/model_meta.go`
+- `controller/model_meta_test.go`
+- `controller/model_list_test.go`
+- `web/classic/src/components/table/models/modals/EditModelModal.jsx`
+- `web/classic/src/components/table/model-pricing/view/card/PricingCardView.jsx`
+- `web/classic/src/index.css`
+- `web/classic/src/i18n/locales/en.json`
+- `web/classic/src/i18n/locales/fr.json`
+- `web/classic/src/i18n/locales/ja.json`
+- `web/classic/src/i18n/locales/ru.json`
+- `web/classic/src/i18n/locales/vi.json`
+- `web/classic/src/i18n/locales/zh.json`
+- `web/classic/src/i18n/locales/zh-CN.json`
+- `web/classic/src/i18n/locales/zh-TW.json`
+- `.ai/TASK.md`
+
+### Database Field Change
+
+- Added `model.Model.PreviewVideoURL` mapped to JSON `preview_video_url` and database column `preview_video_url`.
+- GORM type is `varchar(512)`, matching the existing URL-oriented `cover_url` field convention.
+- The field is optional and empty-string compatible.
+- Migration is handled by the existing `AutoMigrate(&Model{})` path in normal and fast migration flows.
+- No destructive migration or database-specific SQL was added, so SQLite / MySQL / PostgreSQL compatibility is preserved.
+
+### Backend Interface Change
+
+- `CreateModelMeta` accepts and persists `preview_video_url`.
+- `UpdateModelMeta` accepts and persists `preview_video_url`.
+- Request compatibility accepts `previewVideoUrl` alias when snake_case is empty.
+- Empty string, `http://`, `https://`, and `/`-prefixed site-local paths are allowed.
+- No reachability check, video format probing, file size check, upload security logic, or upload flow was added.
+- Existing `cover_url`, `icon`, description, tags, vendor, endpoints, status, sync, and name-rule semantics were preserved.
+
+### Pricing API Change
+
+- `model.Pricing` now includes optional JSON field `preview_video_url`.
+- Pricing cache build copies `preview_video_url` from matched model metadata to `/api/pricing` items.
+- Existing `data`, `vendors`, `group_ratio`, `usable_group`, `supported_endpoint`, `auto_groups`, TryUserAuth behavior, and price calculation semantics were not changed.
+
+### Classic Admin Form Change
+
+- Added classic admin model form field `模型预览视频 URL` near the cover image URL and model basic metadata.
+- Field helper text explains it is used for marketplace card top video preview and supports `https://` or `/resource/...` video paths.
+- Create/edit submit payload includes both `preview_video_url` and `previewVideoUrl` as a compatibility guard.
+- Edit load normalizes both `preview_video_url` and `previewVideoUrl` for echo-back.
+- No upload button, drag upload, crop, OSS upload, or file selection was added.
+
+### Marketplace Video Preview Change
+
+- `PricingCardView.jsx` detects `preview_video_url` / `previewVideoUrl` separately from image cover fields.
+- Rendering priority is now:
+  - valid `preview_video_url`: render `<video>` in the existing 16:9 cover area;
+  - else valid `cover_url` image source: render image cover;
+  - else existing CSS fallback cover.
+- Video is rendered muted, playsInline, preload metadata, without controls, autoplay, or loop.
+- If `cover_url` is available, it is passed as `poster`.
+- On cover mouse enter, the card calls `video.play()` and catches the play promise.
+- On cover mouse leave, the card calls `pause()` and resets `currentTime` to `0`.
+- Video load failure falls back to the existing image cover path; image failure falls back to the existing CSS placeholder.
+- Added only scoped `pricing-marketplace-*` styles for video background and a small `视频预览` badge.
+
+### Verification Results
+
+- `gofmt -w controller/model_meta.go controller/model_meta_test.go controller/model_list_test.go model/model_meta.go model/pricing.go`: passed.
+- JSON locale parse check for all modified `web/classic/src/i18n/locales/*.json`: passed.
+- `go test ./controller -run "Test(CreateModelMeta|UpdateModelMeta|GetPricing)" -count=1`: passed.
+- `C:\Users\Administrator\.bun\bin\bun.exe run build` in `web/classic`: passed, with existing Browserslist, lottie eval, and chunk-size warnings only.
+- First parallel `C:\Users\Administrator\.bun\bin\bun.exe run lint` attempt failed because it raced with build-created temporary Vite config files; reran after build completed and passed.
+- `C:\Users\Administrator\.bun\bin\bun.exe run lint` in `web/classic`: passed.
+- `$env:PATH="$env:USERPROFILE\.bun\bin;$env:PATH"; C:\Users\Administrator\.bun\bin\bun.exe run eslint` in `web/classic`: passed.
+- `C:\Users\Administrator\.bun\bin\bunx.exe prettier --check "src/components/table/model-pricing/**/*.{js,jsx}" "src/components/table/models/**/*.{js,jsx}" "src/pages/**/*.{js,jsx}"` in `web/classic`: passed.
+- `C:\Users\Administrator\.bun\bin\bunx.exe eslint "src/components/table/model-pricing/**/*.{js,jsx}" "src/components/table/models/**/*.{js,jsx}" "src/pages/**/*.{js,jsx}"` in `web/classic`: passed.
+- `git diff --check`: passed.
+
+### Manual / Code-Level Regression
+
+- Classic admin create form now includes `模型预览视频 URL`.
+- Classic admin edit form now includes `模型预览视频 URL`.
+- Create/edit payload sends `preview_video_url` and `previewVideoUrl`.
+- Edit load echoes back `preview_video_url` / `previewVideoUrl`.
+- Backend tests confirm create receives `preview_video_url` and persists it.
+- Backend tests confirm update receives `preview_video_url` and persists it.
+- Backend tests confirm update receives `previewVideoUrl` alias and persists it.
+- Backend tests confirm empty string clears `preview_video_url`.
+- Backend tests confirm detail/list return `preview_video_url`.
+- Backend tests confirm `/api/pricing` returns `preview_video_url`.
+- Pricing card renders video when `preview_video_url` is present and valid.
+- Video does not autoplay by default because no `autoPlay` attribute is set and playback is only started on hover.
+- Mouse enter calls `video.play()` and catches the promise.
+- Mouse leave calls `pause()` and resets `currentTime` to `0`.
+- Video load failure falls back to `cover_url` image.
+- Missing or failed `cover_url` falls back to the existing CSS cover placeholder.
+- Existing image cover behavior remains available when no `preview_video_url` is configured.
+- `icon` remains model icon semantics and is not used to carry video URLs.
+- Search, filtering, sorting, pagination, card/table switching, and detail SideSheet logic were not changed.
+- No upload flow, external video asset copy, or `web/default` modification was added.
+
+### Self Review
+
+- Branch remained `feature/frontend-redesign-gptproto`.
+- Existing untracked `resource/` directory was present before this round and was not touched or staged.
+- Modified files stayed within allowed backend/classic admin/classic marketplace/i18n/task-log scope.
+- No dependencies, `package.json`, `bun.lock`, or lockfiles were changed.
+- No file upload, upload button, drag upload, OSS upload, video processing, or external asset copy was added.
+- No real billing logic or pricing helper semantics were changed.
+- `icon` and `cover_url` field semantics were preserved.
+- `/api/pricing` old field semantics and response envelope were preserved.
+- `web/default` was not modified.
+- Old models without `preview_video_url` remain compatible because the field is optional and omitempty/empty-string safe.
+- Video failure fallback, default non-autoplay, hover play, and mouse-leave reset are implemented in scoped card-cover logic.
+
+### Known Risks
+
+- Browser-level hover playback was verified by code/build checks, not by an automated browser screenshot or interaction test.
+- Some remote video servers may block metadata loading or playback due to CORS/range/MIME policies; in that case the card falls back after the video element reports an error.
+- The first frame depends on browser metadata loading when no `cover_url` poster is configured.

@@ -4250,6 +4250,11 @@
     "模型封面图片 URL": "URL ảnh bìa mô hình",
     "模型封面图片 URL 格式不正确": "Định dạng URL ảnh bìa mô hình không hợp lệ",
     "请输入 https:// 图片地址或 /resource/images/... 路径": "Vui lòng nhập URL ảnh https:// hoặc đường dẫn /resource/images/...",
-    "用于模型广场卡片顶部封面图。支持 https:// 图片地址或站内 /resource/... 图片地址。留空时使用默认占位封面。": "Dùng cho ảnh bìa phía trên của thẻ trong chợ mô hình. Hỗ trợ URL ảnh https:// hoặc đường dẫn ảnh nội bộ /resource/.... Để trống sẽ dùng ảnh bìa giữ chỗ mặc định."
+    "用于模型广场卡片顶部封面图。支持 https:// 图片地址或站内 /resource/... 图片地址。留空时使用默认占位封面。": "Dùng cho ảnh bìa phía trên của thẻ trong chợ mô hình. Hỗ trợ URL ảnh https:// hoặc đường dẫn ảnh nội bộ /resource/.... Để trống sẽ dùng ảnh bìa giữ chỗ mặc định.",
+    "模型预览视频 URL": "URL video xem trước mô hình",
+    "模型预览视频 URL 格式不正确": "Định dạng URL video xem trước mô hình không hợp lệ",
+    "请输入 https:// 视频地址或 /resource/videos/... 路径": "Vui lòng nhập URL video https:// hoặc đường dẫn /resource/videos/...",
+    "用于模型广场卡片顶部视频预览。支持 https:// 视频地址或站内 /resource/... 视频地址。留空时使用模型封面图片或默认占位封面。": "Dùng cho video xem trước phía trên của thẻ trong chợ mô hình. Hỗ trợ URL video https:// hoặc đường dẫn video nội bộ /resource/.... Để trống sẽ dùng ảnh bìa mô hình hoặc ảnh giữ chỗ mặc định.",
+    "视频预览": "Xem trước video"
   }
 }
