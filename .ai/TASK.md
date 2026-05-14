@@ -3246,3 +3246,67 @@ status: completed
 
 - Verification is code-level/build-level; no browser screenshot pass was performed in this round.
 - Future real cover image field naming may differ from the defensive list; unsupported field names will still fall back safely to CSS placeholder.
+
+## Stage Home.1: homepage first-screen height and responsive fit
+
+Task: Stage Home.1 homepage first-screen height and responsive adaptation
+
+status: completed
+
+### Goals
+
+- Keep the `/` homepage first viewport clean so the next section title/content does not peek into the initial screen.
+- Make the first-screen height responsive across common desktop ratios without hardcoding one machine-specific pixel height.
+- Preserve existing Home data flow: `home_page_content`, `NoticeModal`, Base URL copy, CTA routing, API preview, and subsequent landing sections.
+- Do not change marketplace, backend, routes, HeaderBar behavior, Footer, PageLayout, dependencies, or billing logic.
+
+### User Feedback
+
+- The homepage Hero was visually acceptable, but the bottom of the initial viewport exposed the next "popular capability" section on some screen ratios.
+- The Hero should occupy the first viewport and let the next section appear after the user scrolls.
+
+### Changed Files
+
+- `web/classic/src/pages/Home/index.jsx`
+- `web/classic/src/pages/Home/components/LandingHero.jsx`
+- `web/classic/src/index.css`
+- `.ai/TASK.md`
+
+### Implementation Summary
+
+- Wrapped `LandingAnnouncement` and `LandingHero` in a local `landing-first-screen` section inside the default landing branch.
+- Added local `landing-home-shell`, `landing-first-screen`, `landing-hero-section`, and `landing-hero-grid` styles.
+- Used `100svh` / `100dvh` and `calc(100dvh - 4rem)` so the first-screen block fills the viewport area beneath the 64px header spacing.
+- Used `clamp()` for Hero vertical padding and a short-screen desktop media query to keep the Hero compact without fixed one-off screen heights.
+- Added mobile overrides so the shell can use natural page height and avoid excessive empty space while preserving the first-screen minimum.
+
+### Verification Results
+
+- `bun run build`: initial `bun` command unavailable in this PowerShell PATH; reran with `C:\Users\Administrator\.bun\bin\bun.exe run build` in `web/classic`: passed, with existing Browserslist, lottie eval, and chunk-size warnings only.
+- `C:\Users\Administrator\.bun\bin\bun.exe run lint` in `web/classic`: passed.
+- `C:\Users\Administrator\.bun\bin\bun.exe run eslint` initially failed because the script calls `bunx` and this shell PATH lacked Bun bin; after prepending `$env:USERPROFILE\.bun\bin`, the same eslint script passed.
+- `git diff --check`: passed before task-log update; final run will be executed before commit.
+- `C:\Users\Administrator\.bun\bin\bunx.exe prettier --check "src/pages/Home/**/*.{js,jsx}" "src/components/layout/headerbar/**/*.{js,jsx}"`: passed.
+- `C:\Users\Administrator\.bun\bin\bunx.exe eslint "src/pages/Home/**/*.{js,jsx}" "src/components/layout/headerbar/**/*.{js,jsx}"`: passed.
+
+### Manual Regression
+
+- Code-level check: `/` default landing branch keeps `home_page_content` priority logic unchanged.
+- Code-level check: `NoticeModal`, `/api/notice`, Base URL copy, endpoint rotation, CTA routes, and API preview props were not changed.
+- Code-level check: first-screen height is driven by viewport units, so 1366x768, 1440x900, 1536x864, and 1920x1080 enter with the next section positioned after the first-screen block.
+- Code-level check: shorter desktop heights use reduced Hero padding instead of clipping content.
+- Code-level check: mobile shell switches to natural height with responsive first-screen minimum to avoid a large forced blank area.
+- Code-level check: dark mode continues to rely on existing Semi CSS variables; no global body, HeaderBar, Footer, PageLayout, or marketplace styles were changed.
+
+### Self Review
+
+- Branch remained `feature/frontend-redesign-gptproto`.
+- Modified only allowed Home files, scoped `landing-*` CSS in `index.css`, and `.ai/TASK.md`.
+- No dependency, backend, route, marketplace, pricing, billing, App.jsx, PageLayout.jsx, Footer, login/register, or console business changes.
+- `home_page_content`, `NoticeModal`, Base URL copy, CTA routing, and downstream landing sections were preserved.
+- The next section is not hidden; it remains in normal flow after the first-screen section and appears by scrolling.
+
+### Known Risks
+
+- This round used code/build-level verification rather than pixel screenshot validation in a real browser.
+- The exact first-viewport feel can still vary if the deployed HeaderBar height or browser UI differs from the 64px header spacing used by the existing layout.

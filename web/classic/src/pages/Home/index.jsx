@@ -248,19 +248,21 @@ const Home = () => {
         isMobile={isMobile}
       />
       {homePageContentLoaded && homePageContent === '' ? (
-        <div className='h-screen w-full overflow-y-auto overflow-x-hidden bg-semi-color-bg-0 pt-16 text-semi-color-text-0'>
-          <LandingAnnouncement
-            announcement={announcement}
-            docsLink={docsLink}
-          />
-          <LandingHero
-            docsLink={docsLink}
-            endpoint={currentEndpoint}
-            isSelfUseMode={isSelfUseMode}
-            onCopyBaseURL={handleCopyBaseURL}
-            serverAddress={serverAddress}
-            user={userState.user}
-          />
+        <div className='landing-home-shell h-screen w-full overflow-y-auto overflow-x-hidden bg-semi-color-bg-0 pt-16 text-semi-color-text-0'>
+          <section className='landing-first-screen'>
+            <LandingAnnouncement
+              announcement={announcement}
+              docsLink={docsLink}
+            />
+            <LandingHero
+              docsLink={docsLink}
+              endpoint={currentEndpoint}
+              isSelfUseMode={isSelfUseMode}
+              onCopyBaseURL={handleCopyBaseURL}
+              serverAddress={serverAddress}
+              user={userState.user}
+            />
+          </section>
           <FeaturedModels items={pricingPreviewCards} />
           <ModelFamilies />
           <ApiScenarios />

@@ -45,9 +45,9 @@ const LandingHero = ({
       : '免费开始';
 
   return (
-    <section className='relative overflow-hidden px-4 py-14 sm:px-6 lg:px-8 lg:py-20'>
+    <section className='landing-hero-section relative overflow-hidden px-4 py-14 sm:px-6 lg:px-8 lg:py-20'>
       <div className='pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(59,130,246,0.16),transparent_32%),radial-gradient(circle_at_80%_0%,rgba(20,184,166,0.12),transparent_28%)]' />
-      <div className='relative mx-auto grid w-full max-w-7xl items-stretch gap-10 lg:grid-cols-[1.05fr_0.95fr] lg:items-center'>
+      <div className='landing-hero-grid relative mx-auto grid w-full max-w-7xl items-stretch gap-10 lg:grid-cols-[1.05fr_0.95fr] lg:items-center'>
         <div className='min-w-0'>
           <Tag color='cyan' size='large' shape='circle'>
             统一接入 · 控制台管理 · OpenAI 兼容

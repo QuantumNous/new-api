@@ -1309,6 +1309,55 @@ html.dark .headerbar-surface {
   box-shadow: 0 10px 28px rgba(0, 0, 0, 0.24);
 }
 
+/* ==================== Home landing first-screen responsive fit ==================== */
+.landing-home-shell {
+  height: 100vh;
+  height: 100svh;
+  scroll-padding-top: 64px;
+}
+
+@supports (height: 100dvh) {
+  .landing-home-shell {
+    height: 100dvh;
+  }
+}
+
+.landing-first-screen {
+  display: flex;
+  flex-direction: column;
+  min-height: calc(100vh - 4rem);
+  min-height: calc(100svh - 4rem);
+}
+
+@supports (height: 100dvh) {
+  .landing-first-screen {
+    min-height: calc(100dvh - 4rem);
+  }
+}
+
+.landing-hero-section {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  padding-top: clamp(2.5rem, 6vh, 5rem);
+  padding-bottom: clamp(2.75rem, 6.5vh, 5.5rem);
+}
+
+.landing-hero-grid {
+  width: 100%;
+}
+
+@media (max-height: 820px) and (min-width: 768px) {
+  .landing-hero-section {
+    padding-top: clamp(1.75rem, 3.5vh, 3rem);
+    padding-bottom: clamp(2rem, 4vh, 3.25rem);
+  }
+
+  .landing-hero-grid {
+    gap: 2rem;
+  }
+}
+
 @media (max-width: 767px) {
   .headerbar-container {
     padding: 0 8px;
@@ -1326,6 +1375,32 @@ html.dark .headerbar-surface {
   .headerbar-nav {
     justify-content: flex-start;
     gap: 4px;
+  }
+
+  .landing-home-shell {
+    height: auto;
+    min-height: 100svh;
+  }
+
+  @supports (min-height: 100dvh) {
+    .landing-home-shell {
+      min-height: 100dvh;
+    }
+  }
+
+  .landing-first-screen {
+    min-height: calc(100svh - 4rem);
+  }
+
+  @supports (min-height: 100dvh) {
+    .landing-first-screen {
+      min-height: calc(100dvh - 4rem);
+    }
+  }
+
+  .landing-hero-section {
+    padding-top: clamp(2rem, 6vh, 3rem);
+    padding-bottom: clamp(2.5rem, 7vh, 3.5rem);
   }
 }
 
