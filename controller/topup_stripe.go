@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/setting"
@@ -44,18 +45,18 @@ type StripeAdaptor struct {
 
 func (*StripeAdaptor) RequestAmount(c *gin.Context, req *StripePayRequest) {
 	if req.Amount < getStripeMinTopup() {
-		c.JSON(http.StatusOK, gin.H{"message": "error", "data": fmt.Sprintf("充值数量不能小于 %d", getStripeMinTopup())})
+		paymentDataErrorI18n(c, i18n.MsgTopupAmountMin, map[string]any{"Amount": getStripeMinTopup()})
 		return
 	}
 	id := c.GetInt("id")
 	group, err := model.GetUserGroup(id, true)
 	if err != nil {
-		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "获取用户分组失败"})
+		paymentDataErrorI18n(c, i18n.MsgTopupGroupFailed)
 		return
 	}
 	payMoney := getStripePayMoney(float64(req.Amount), group)
 	if payMoney <= 0.01 {
-		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "充值金额过低"})
+		paymentDataErrorI18n(c, i18n.MsgPaymentAmountTooLow)
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"message": "success", "data": strconv.FormatFloat(payMoney, 'f', 2, 64)})
@@ -63,25 +64,25 @@ func (*StripeAdaptor) RequestAmount(c *gin.Context, req *StripePayRequest) {
 
 func (*StripeAdaptor) RequestPay(c *gin.Context, req *StripePayRequest) {
 	if req.PaymentMethod != model.PaymentMethodStripe {
-		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "不支持的支付渠道"})
+		paymentDataErrorI18n(c, i18n.MsgPaymentMethodNotExists)
 		return
 	}
 	if req.Amount < getStripeMinTopup() {
-		c.JSON(http.StatusOK, gin.H{"message": fmt.Sprintf("充值数量不能小于 %d", getStripeMinTopup()), "data": 10})
+		paymentMessageErrorI18n(c, http.StatusOK, i18n.MsgTopupAmountMin, 10, map[string]any{"Amount": getStripeMinTopup()})
 		return
 	}
 	if req.Amount > 10000 {
-		c.JSON(http.StatusOK, gin.H{"message": "充值数量不能大于 10000", "data": 10})
+		paymentMessageErrorI18n(c, http.StatusOK, i18n.MsgTopupAmountMax, 10, map[string]any{"Amount": 10000})
 		return
 	}
 
 	if req.SuccessURL != "" && common.ValidateRedirectURL(req.SuccessURL) != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"message": "支付成功重定向URL不在可信任域名列表中", "data": ""})
+		paymentMessageErrorI18n(c, http.StatusBadRequest, i18n.MsgPaymentRedirectUntrusted, "")
 		return
 	}
 
 	if req.CancelURL != "" && common.ValidateRedirectURL(req.CancelURL) != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"message": "支付取消重定向URL不在可信任域名列表中", "data": ""})
+		paymentMessageErrorI18n(c, http.StatusBadRequest, i18n.MsgPaymentRedirectUntrusted, "")
 		return
 	}
 
@@ -95,7 +96,7 @@ func (*StripeAdaptor) RequestPay(c *gin.Context, req *StripePayRequest) {
 	payLink, err := genStripeLink(referenceId, user.StripeCustomer, user.Email, req.Amount, req.SuccessURL, req.CancelURL)
 	if err != nil {
 		logger.LogError(c.Request.Context(), fmt.Sprintf("Stripe 创建 Checkout Session 失败 user_id=%d trade_no=%s amount=%d error=%q", id, referenceId, req.Amount, err.Error()))
-		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "拉起支付失败"})
+		paymentDataErrorI18n(c, i18n.MsgPaymentStartFailed)
 		return
 	}
 
@@ -112,7 +113,7 @@ func (*StripeAdaptor) RequestPay(c *gin.Context, req *StripePayRequest) {
 	err = topUp.Insert()
 	if err != nil {
 		logger.LogError(c.Request.Context(), fmt.Sprintf("Stripe 创建充值订单失败 user_id=%d trade_no=%s amount=%d error=%q", id, referenceId, req.Amount, err.Error()))
-		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "创建订单失败"})
+		paymentDataErrorI18n(c, i18n.MsgPaymentCreateFailed)
 		return
 	}
 	logger.LogInfo(c.Request.Context(), fmt.Sprintf("Stripe 充值订单创建成功 user_id=%d trade_no=%s amount=%d money=%.2f", id, referenceId, req.Amount, chargedMoney))
@@ -128,7 +129,7 @@ func RequestStripeAmount(c *gin.Context) {
 	var req StripePayRequest
 	err := c.ShouldBindJSON(&req)
 	if err != nil {
-		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "参数错误"})
+		paymentDataErrorI18n(c, i18n.MsgInvalidParams)
 		return
 	}
 	stripeAdaptor.RequestAmount(c, &req)
@@ -138,7 +139,7 @@ func RequestStripePay(c *gin.Context) {
 	var req StripePayRequest
 	err := c.ShouldBindJSON(&req)
 	if err != nil {
-		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "参数错误"})
+		paymentDataErrorI18n(c, i18n.MsgInvalidParams)
 		return
 	}
 	stripeAdaptor.RequestPay(c, &req)
