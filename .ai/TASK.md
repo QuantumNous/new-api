@@ -4191,6 +4191,67 @@ status: completed
 
 - Browser-level visual confirmation was done by code and build/lint checks rather than an automated screenshot test.
 
+## Stage ModelCard.1.2 follow-up: increase price contrast slightly
+
+Task: Follow-up to Stage ModelCard.1.2 after user requested the dollar sign and price digits slightly darker but not full black
+
+status: completed
+
+### Goal
+
+- Make the card price main value and dollar sign slightly darker than `var(--semi-color-text-2)`.
+- Keep the price visually distinct from the model title and avoid full black.
+- Preserve price calculation, toolbar behavior, backend, filters, sorting, pagination, and detail SideSheet.
+
+### User Feedback
+
+- The `$` symbol should be a little darker.
+- The price digits should be a little darker and more contrasted.
+- The price should not be fully black and should still differ from the model name.
+
+### Changed Files
+
+- `web/classic/src/index.css`
+- `.ai/TASK.md`
+
+### Price Color Result
+
+- Updated `.pricing-marketplace-card-price-value` from `var(--semi-color-text-2)` to `var(--semi-color-text-1)`.
+- This affects the main price text and `$` symbol, making them slightly darker and more prominent.
+- The model title remains `var(--semi-color-text-0)`, so the price still remains visually softer than the model name.
+- The unit text inside `.pricing-marketplace-card-price-value small` remains `var(--semi-color-text-2)`.
+- No price values, units, lowest-price logic, or pricing helper semantics were changed.
+
+### Verification Results
+
+- `C:\Users\Administrator\.bun\bin\bun.exe run build` in `web/classic`: passed, with existing Browserslist, lottie eval, and chunk-size warnings only.
+- `C:\Users\Administrator\.bun\bin\bun.exe run lint` in `web/classic`: passed.
+- `$env:PATH="$env:USERPROFILE\.bun\bin;$env:PATH"; C:\Users\Administrator\.bun\bin\bun.exe run eslint` in `web/classic`: passed.
+- `git diff --check`: passed.
+- `C:\Users\Administrator\.bun\bin\bunx.exe prettier --check "src/components/table/model-pricing/**/*.{js,jsx}"` in `web/classic`: passed.
+- `$env:PATH="$env:USERPROFILE\.bun\bin;$env:PATH"; C:\Users\Administrator\.bun\bin\bunx.exe eslint "src/components/table/model-pricing/**/*.{js,jsx}"` in `web/classic`: passed.
+
+### Manual / Code-Level Regression
+
+- Code-level check: model title color remains `var(--semi-color-text-0)`.
+- Code-level check: price main value and `$` use `var(--semi-color-text-1)`, darker than the previous gray but not the same as the title.
+- Code-level check: unit text remains weaker at `var(--semi-color-text-2)`.
+- Code-level check: dark mode remains readable because all colors use Semi theme tokens.
+- Code-level check: price values, units, and lowest-price selection logic were not changed.
+- Code-level check: search, filters, sorting, pagination, and detail SideSheet were not changed.
+
+### Self Review
+
+- Branch remained `feature/frontend-redesign-gptproto`.
+- Modified files stayed within CSS/task-log scope.
+- No backend, database, `/api/pricing`, real billing logic, price helper semantics, image/video field logic, toolbar logic, HeaderBar, Home, Footer, PageLayout, `web/default`, or dependency changes were made.
+- No high-saturation color or full black price color was introduced.
+- No push was performed.
+
+### Known Risks
+
+- Browser-level visual confirmation was done by code and build/lint checks rather than an automated screenshot test.
+
 ## Stage ModelCard.1.2 follow-up: make card price grayer
 
 Task: Follow-up to Stage ModelCard.1.2 price color adjustment after user requested `再灰一点`
