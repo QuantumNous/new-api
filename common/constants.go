@@ -173,6 +173,10 @@ var RelayTimeout int // unit is second
 var RelayMaxIdleConns int
 var RelayMaxIdleConnsPerHost int
 
+var TimeoutAlertWebhookURL string
+var TimeoutAlertLabel string
+var TimeoutAlertTimeoutMs int
+
 var GeminiSafetySetting string
 
 // https://docs.cohere.com/docs/safety-modes Type; NONE/CONTEXTUAL/STRICT

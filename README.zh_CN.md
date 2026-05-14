@@ -316,7 +316,11 @@ docker run --name new-api -d --restart always \
 | `CRYPTO_SECRET` | 加密密钥（Redis 必须）                                               | - |
 | `SQL_DSN` | 数据库连接字符串                                                     | - |
 | `REDIS_CONN_STRING` | Redis 连接字符串                                                  | - |
+| `RELAY_TIMEOUT` | 上游 HTTP 请求超时时间（秒），`0` 表示不启用 client timeout                    | `0` |
 | `STREAMING_TIMEOUT` | 流式超时时间（秒）                                                    | `300` |
+| `TIMEOUT_ALERT_WEBHOOK_URL` | relay 请求、流式请求、上游 408/504/524 超时告警的飞书机器人 Webhook          | - |
+| `TIMEOUT_ALERT_LABEL` | 超时告警标签                                                       | `ENV` 或 `NODE_NAME` |
+| `TIMEOUT_ALERT_TIMEOUT_MS` | 超时告警 Webhook 发送超时时间（毫秒）                                   | `3000` |
 | `STREAM_SCANNER_MAX_BUFFER_MB` | 流式扫描器单行最大缓冲（MB），图像生成等超大 `data:` 片段（如 4K 图片 base64）需适当调大 | `64` |
 | `MAX_REQUEST_BODY_MB` | 请求体最大大小（MB，**解压后**计；防止超大请求/zip bomb 导致内存暴涨），超过将返回 `413` | `32` |
 | `AZURE_DEFAULT_API_VERSION` | Azure API 版本                                                 | `2025-04-01-preview` |

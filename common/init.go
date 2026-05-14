@@ -104,6 +104,9 @@ func InitEnv() {
 	RelayTimeout = GetEnvOrDefault("RELAY_TIMEOUT", 0)
 	RelayMaxIdleConns = GetEnvOrDefault("RELAY_MAX_IDLE_CONNS", 500)
 	RelayMaxIdleConnsPerHost = GetEnvOrDefault("RELAY_MAX_IDLE_CONNS_PER_HOST", 100)
+	TimeoutAlertWebhookURL = GetEnvOrDefaultString("TIMEOUT_ALERT_WEBHOOK_URL", "")
+	TimeoutAlertLabel = GetEnvOrDefaultString("TIMEOUT_ALERT_LABEL", GetEnvOrDefaultString("ENV", NodeName))
+	TimeoutAlertTimeoutMs = GetEnvOrDefault("TIMEOUT_ALERT_TIMEOUT_MS", 3000)
 
 	// Initialize string variables with GetEnvOrDefaultString
 	GeminiSafetySetting = GetEnvOrDefaultString("GEMINI_SAFETY_SETTING", "BLOCK_NONE")

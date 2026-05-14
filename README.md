@@ -316,7 +316,11 @@ docker run --name new-api -d --restart always \
 | `CRYPTO_SECRET` | Encryption secret (required for Redis) | - |
 | `SQL_DSN` | Database connection string | - |
 | `REDIS_CONN_STRING` | Redis connection string | - |
+| `RELAY_TIMEOUT` | Upstream HTTP request timeout (seconds). `0` disables the client timeout | `0` |
 | `STREAMING_TIMEOUT` | Streaming timeout (seconds) | `300` |
+| `TIMEOUT_ALERT_WEBHOOK_URL` | Feishu bot webhook for relay request, stream, and upstream 408/504/524 timeout alerts | - |
+| `TIMEOUT_ALERT_LABEL` | Timeout alert label | `ENV` or `NODE_NAME` |
+| `TIMEOUT_ALERT_TIMEOUT_MS` | Timeout alert webhook delivery timeout (milliseconds) | `3000` |
 | `STREAM_SCANNER_MAX_BUFFER_MB` | Max per-line buffer (MB) for the stream scanner; increase when upstream sends huge image/base64 payloads | `64` |
 | `MAX_REQUEST_BODY_MB` | Max request body size (MB, counted **after decompression**; prevents huge requests/zip bombs from exhausting memory). Exceeding it returns `413` | `32` |
 | `AZURE_DEFAULT_API_VERSION` | Azure API version | `2025-04-01-preview` |

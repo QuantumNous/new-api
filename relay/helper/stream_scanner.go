@@ -14,6 +14,7 @@ import (
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/logger"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 
 	"github.com/bytedance/gopkg/util/gopool"
@@ -40,8 +41,9 @@ func StreamScannerHandler(c *gin.Context, resp *http.Response, info *relaycommon
 		return
 	}
 
-	// 无条件新建 StreamStatus
-	info.StreamStatus = relaycommon.NewStreamStatus()
+	if info.StreamStatus == nil {
+		info.StreamStatus = relaycommon.NewStreamStatus()
+	}
 
 	// 确保响应体总是被关闭
 	defer func() {
@@ -50,7 +52,11 @@ func StreamScannerHandler(c *gin.Context, resp *http.Response, info *relaycommon
 		}
 	}()
 
-	streamingTimeout := time.Duration(constant.StreamingTimeout) * time.Second
+	streamingTimeoutSeconds := constant.StreamingTimeout
+	if streamingTimeoutSeconds <= 0 {
+		streamingTimeoutSeconds = 300
+	}
+	streamingTimeout := time.Duration(streamingTimeoutSeconds) * time.Second
 
 	var (
 		stopChan   = make(chan bool, 3) // 增加缓冲区避免阻塞
@@ -284,7 +290,13 @@ func StreamScannerHandler(c *gin.Context, resp *http.Response, info *relaycommon
 	// 主循环等待完成或超时
 	select {
 	case <-ticker.C:
-		info.StreamStatus.SetEndReason(relaycommon.StreamEndReasonTimeout, nil)
+		timeoutErr := fmt.Errorf("streaming timeout after %ds", streamingTimeoutSeconds)
+		info.StreamStatus.SetEndReason(relaycommon.StreamEndReasonTimeout, timeoutErr)
+		service.NotifyRelayTimeout(c, info, service.TimeoutAlert{
+			Kind:           "stream",
+			TimeoutSeconds: streamingTimeoutSeconds,
+			Err:            timeoutErr,
+		})
 	case <-stopChan:
 		// EndReason already set by the goroutine that triggered stopChan
 	case <-c.Request.Context().Done():

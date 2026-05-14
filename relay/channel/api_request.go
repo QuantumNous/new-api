@@ -518,6 +518,13 @@ func doRequest(c *gin.Context, req *http.Request, info *common.RelayInfo) (*http
 	resp, err := client.Do(req)
 	if err != nil {
 		logger.LogError(c, "do request failed: "+err.Error())
+		if service.IsTimeoutError(err) {
+			service.NotifyRelayTimeout(c, info, service.TimeoutAlert{
+				Kind:           "relay_request",
+				TimeoutSeconds: common2.RelayTimeout,
+				Err:            err,
+			})
+		}
 		return nil, types.NewError(err, types.ErrorCodeDoRequestFailed, types.ErrOptionWithHideErrMsg("upstream error: do request failed"))
 	}
 	if resp == nil {
