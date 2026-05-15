@@ -213,9 +213,9 @@ export function WaffoSettingsSection(props: Props) {
   return (
     <>
       <SettingsSection
-        title={t('Waffo Payment Gateway')}
+        title={t('Waffo Aggregator Gateway')}
         description={t(
-          'Configure Waffo payment aggregation platform integration'
+          'Payment aggregator mode — onboard with your own registered company (offshore entity). Built for Enterprise.'
         )}
       >
         <Alert>
