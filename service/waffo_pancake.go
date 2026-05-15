@@ -131,6 +131,23 @@ func (t *waffoPancakeGraphQLEnvelopeFixTransport) RoundTrip(req *http.Request) (
 	if inner == nil {
 		inner = http.DefaultTransport
 	}
+	// Strip the SDK-auto-generated X-Idempotency-Key for GraphQL queries.
+	// Idempotency keys belong on state-changing operations (create / update /
+	// delete) where they protect against duplicate side effects from retries
+	// and double-clicks. The SDK applies them indiscriminately to every POST,
+	// including GraphQL queries — and Pancake server-side dedupes on the
+	// key, which means an identical query body served a stale snapshot back
+	// from before any newly-created entity existed (a freshly-minted Store
+	// or Product would never appear in the catalog dropdown). Reads should
+	// always be fresh; queries are reads.
+	//
+	// Mutating the request in RoundTrip is technically against the
+	// http.RoundTripper contract, but we're the sole owner of this transport
+	// and the inner transport (http.DefaultTransport) only reads the header
+	// once during request serialisation, so the deletion is safe.
+	if strings.HasSuffix(req.URL.Path, "/v1/graphql") {
+		req.Header.Del("X-Idempotency-Key")
+	}
 	resp, err := inner.RoundTrip(req)
 	if err != nil || resp == nil {
 		return resp, err
