@@ -42,6 +42,7 @@ import {
   paySubscriptionStripe,
   paySubscriptionCreem,
   paySubscriptionEpay,
+  paySubscriptionWaffoPancake,
 } from '../../api'
 import { formatDuration, formatResetPeriod } from '../../lib'
 import type { PlanRecord } from '../../types'
@@ -57,6 +58,7 @@ interface Props {
   plan: PlanRecord | null
   enableStripe?: boolean
   enableCreem?: boolean
+  enableWaffoPancake?: boolean
   enableOnlineTopUp?: boolean
   epayMethods?: PaymentMethod[]
   purchaseLimit?: number
@@ -81,9 +83,11 @@ export function SubscriptionPurchaseDialog(props: Props) {
 
   const hasStripe = props.enableStripe && !!plan.stripe_price_id
   const hasCreem = props.enableCreem && !!plan.creem_product_id
+  const hasWaffoPancake =
+    props.enableWaffoPancake && !!plan.waffo_pancake_product_id
   const hasEpay =
     props.enableOnlineTopUp && (props.epayMethods || []).length > 0
-  const hasAnyPayment = hasStripe || hasCreem || hasEpay
+  const hasAnyPayment = hasStripe || hasCreem || hasWaffoPancake || hasEpay
   const selectedEpayMethodLabel =
     (props.epayMethods || []).find((m) => m.type === selectedEpayMethod)
       ?.name ||
@@ -125,6 +129,32 @@ export function SubscriptionPurchaseDialog(props: Props) {
         window.open(res.data.checkout_url, '_blank')
         toast.success(t('Payment page opened'))
         props.onOpenChange(false)
+      } else {
+        toast.error(
+          res.message && res.message !== 'success'
+            ? res.message
+            : t('Payment request failed')
+        )
+      }
+    } catch {
+      toast.error(t('Payment request failed'))
+    } finally {
+      setPaying(false)
+    }
+  }
+
+  // Pancake uses an in-tab redirect rather than `window.open` because
+  // `window.open` fired after `await paySubscriptionWaffoPancake(...)` has
+  // lost the user-gesture context and gets popup-blocked. Same pattern as
+  // the wallet-side Pancake top-up handler in
+  // features/wallet/hooks/use-waffo-pancake-payment.ts.
+  const handlePayWaffoPancake = async () => {
+    setPaying(true)
+    try {
+      const res = await paySubscriptionWaffoPancake({ plan_id: plan.id })
+      if (res.message === 'success' && res.data?.checkout_url) {
+        toast.success(t('Redirecting to payment page...'))
+        window.location.href = res.data.checkout_url
       } else {
         toast.error(
           res.message && res.message !== 'success'
@@ -262,7 +292,7 @@ export function SubscriptionPurchaseDialog(props: Props) {
               <p className='text-muted-foreground text-xs'>
                 {t('Select payment method')}
               </p>
-              {(hasStripe || hasCreem) && (
+              {(hasStripe || hasCreem || hasWaffoPancake) && (
                 <div className='grid grid-cols-2 gap-2 sm:flex'>
                   {hasStripe && (
                     <Button
@@ -282,6 +312,16 @@ export function SubscriptionPurchaseDialog(props: Props) {
                       disabled={paying || limitReached}
                     >
                       Creem
+                    </Button>
+                  )}
+                  {hasWaffoPancake && (
+                    <Button
+                      variant='outline'
+                      className='flex-1'
+                      onClick={handlePayWaffoPancake}
+                      disabled={paying || limitReached}
+                    >
+                      Waffo Pancake
                     </Button>
                   )}
                 </div>

@@ -369,6 +369,38 @@ func ResolveWaffoPancakeTradeNo(event *waffoPancakeWebhookEvent) (string, error)
 	return tradeNo, nil
 }
 
+// ResolveWaffoPancakeSubscriptionTradeNo is the SubscriptionOrder-side
+// counterpart of ResolveWaffoPancakeTradeNo: same buyer-identity defence in
+// depth, but looks up a SubscriptionOrder (created by
+// SubscriptionRequestWaffoPancakePay) instead of a TopUp.
+//
+// Returns the trade_no so the webhook handler can pass it straight to
+// model.CompleteSubscriptionOrder.
+func ResolveWaffoPancakeSubscriptionTradeNo(event *waffoPancakeWebhookEvent) (string, error) {
+	if event == nil {
+		return "", fmt.Errorf("missing webhook event")
+	}
+	tradeNo := strings.TrimSpace(event.Data.OrderID)
+	if tradeNo == "" {
+		return "", fmt.Errorf("missing webhook orderId")
+	}
+	order := model.GetSubscriptionOrderByTradeNo(tradeNo)
+	if order == nil || order.PaymentProvider != model.PaymentProviderWaffoPancake {
+		return "", fmt.Errorf("waffo pancake subscription order not found for webhook orderId=%s", tradeNo)
+	}
+	expectedIdentity := WaffoPancakeBuyerIdentityFromUserID(order.UserId)
+	actualIdentity := strings.TrimSpace(event.Data.MerchantProvidedBuyerIdentity)
+	if actualIdentity != expectedIdentity {
+		return "", fmt.Errorf(
+			"waffo pancake buyer identity mismatch for subscription tradeNo=%s: expected=%q actual=%q",
+			tradeNo,
+			expectedIdentity,
+			actualIdentity,
+		)
+	}
+	return tradeNo, nil
+}
+
 // -----------------------------------------------------------------------------
 // Auto-provisioning
 // -----------------------------------------------------------------------------
@@ -405,6 +437,61 @@ func CreateWaffoPancakePrimaryStore(ctx context.Context, merchantID, privateKey 
 // (overridden per checkout via PriceSnapshot); SuccessURL is set from the
 // supplied returnURL when non-empty. Publishes before returning.
 //
+// CreateWaffoPancakeProductForPlan mints a Pancake OnetimeProduct sized to
+// a specific subscription plan: the buyer pays the plan's `amount` USD up
+// front, and the resulting PROD_ ID is what gets pinned to
+// SubscriptionPlan.WaffoPancakeProductId.
+//
+// Why OnetimeProduct (not SubscriptionProduct): new-api models
+// subscriptions as time-limited prepayments — UserSubscription has a fixed
+// expiration and renewal is a manual re-purchase. There's no renewal-event
+// handling on the webhook side, mirroring how the existing Stripe
+// integration works. OnetimeProduct semantics line up cleanly: each
+// purchase is a discrete payment that activates one fixed-duration
+// subscription period. Switch to SubscriptionProduct only if/when new-api
+// itself starts handling auto-renewal events.
+//
+// The returned product is published — buyers can hit it from checkout
+// immediately. SuccessURL is bound to the same Return URL the operator
+// saved for the wallet flow.
+func CreateWaffoPancakeProductForPlan(ctx context.Context, merchantID, privateKey, storeID, name, amount, returnURL string) (string, error) {
+	storeID = strings.TrimSpace(storeID)
+	if storeID == "" {
+		return "", fmt.Errorf("store id is required to create a product")
+	}
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return "", fmt.Errorf("plan name is required")
+	}
+	amount = strings.TrimSpace(amount)
+	if amount == "" {
+		return "", fmt.Errorf("plan price is required")
+	}
+	client, err := newWaffoPancakeClientFromCreds(merchantID, privateKey)
+	if err != nil {
+		return "", err
+	}
+	prodRes, err := client.OnetimeProducts.Create(ctx, pancake.CreateOnetimeProductParams{
+		StoreID: storeID,
+		Name:    name,
+		Prices: pancake.Prices{
+			"USD": {
+				Amount:      amount,
+				TaxCategory: pancake.TaxCategory("saas"),
+			},
+		},
+		SuccessURL: optionalString(strings.TrimSpace(returnURL)),
+	})
+	if err != nil {
+		return "", fmt.Errorf("create Waffo Pancake plan product: %w", err)
+	}
+	productID := prodRes.Product.ID
+	if _, err := client.OnetimeProducts.Publish(ctx, pancake.PublishOnetimeProductParams{ID: productID}); err != nil {
+		return "", fmt.Errorf("publish Waffo Pancake plan product: %w", err)
+	}
+	return productID, nil
+}
+
 // Like the store helper, this only talks to Pancake — nothing is written to
 // new-api settings until the operator clicks final Save.
 func CreateWaffoPancakePrimaryProduct(ctx context.Context, merchantID, privateKey, storeID, returnURL string) (string, error) {

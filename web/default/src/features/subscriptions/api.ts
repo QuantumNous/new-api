@@ -122,6 +122,49 @@ export async function paySubscriptionCreem(
   return res.data
 }
 
+export async function paySubscriptionWaffoPancake(
+  data: SubscriptionPayRequest
+): Promise<SubscriptionPayResponse> {
+  const res = await api.post('/api/subscription/waffo-pancake/pay', data)
+  return res.data
+}
+
+// Admin-side helper: mint a fresh Pancake OnetimeProduct sized to a
+// subscription plan's title + price. Uses the persisted Pancake creds +
+// StoreID on the backend so the operator never has to leave new-api to
+// copy a PROD_ ID from Pancake's dashboard.
+//
+// OnetimeProduct (not SubscriptionProduct) because new-api's subscription
+// model is time-limited prepayment with manual renewal — see the
+// controller's doc comment.
+export async function createWaffoPancakeSubscriptionProduct(data: {
+  name: string
+  amount: string
+}): Promise<
+  ApiResponse<{ product_id: string; product_name: string; store_id: string }>
+> {
+  const res = await api.post(
+    '/api/option/waffo-pancake/subscription-product',
+    data
+  )
+  return res.data
+}
+
+// Lists the OnetimeProducts in the saved Pancake store, for rendering the
+// subscription-plan dropdown. Returns an empty array if Pancake isn't fully
+// configured yet — caller surfaces that as a disabled-select state.
+export async function listWaffoPancakeSubscriptionProductOptions(): Promise<
+  ApiResponse<{
+    store_id: string
+    products: { id: string; name: string; status: string }[]
+  }>
+> {
+  const res = await api.post(
+    '/api/option/waffo-pancake/subscription-product-options'
+  )
+  return res.data
+}
+
 export async function paySubscriptionEpay(
   data: SubscriptionPayRequest & { payment_method: string }
 ): Promise<SubscriptionPayResponse & { url?: string }> {

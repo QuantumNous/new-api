@@ -51,7 +51,13 @@ import {
   SheetTitle,
 } from '@/components/ui/sheet'
 import { Switch } from '@/components/ui/switch'
-import { createPlan, updatePlan, getGroups } from '../api'
+import {
+  createPlan,
+  updatePlan,
+  getGroups,
+  createWaffoPancakeSubscriptionProduct,
+  listWaffoPancakeSubscriptionProductOptions,
+} from '../api'
 import { getDurationUnitOptions, getResetPeriodOptions } from '../constants'
 import {
   getPlanFormSchema,
@@ -79,6 +85,10 @@ export function SubscriptionsMutateDrawer({
   const { triggerRefresh } = useSubscriptions()
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [groupOptions, setGroupOptions] = useState<string[]>([])
+  const [creatingPancakeProduct, setCreatingPancakeProduct] = useState(false)
+  const [pancakeProducts, setPancakeProducts] = useState<
+    { id: string; name: string; status: string }[]
+  >([])
 
   const schema = getPlanFormSchema(t)
   const form = useForm<PlanFormValues>({
@@ -98,11 +108,43 @@ export function SubscriptionsMutateDrawer({
           if (res.success) setGroupOptions(res.data || [])
         })
         .catch(() => {})
+      // Best-effort: fetch the Pancake product list so the dropdown has
+      // something to render. A failure (e.g. gateway not configured) leaves
+      // the list empty and the operator can still pick "+ Create" to mint
+      // a fresh product inline.
+      listWaffoPancakeSubscriptionProductOptions()
+        .then((res) => {
+          if (
+            res.message === 'success' &&
+            typeof res.data === 'object' &&
+            res.data &&
+            Array.isArray((res.data as { products?: unknown }).products)
+          ) {
+            setPancakeProducts(
+              (res.data as { products: typeof pancakeProducts }).products
+            )
+          } else {
+            setPancakeProducts([])
+          }
+        })
+        .catch(() => setPancakeProducts([]))
     }
   }, [open, currentRow, form])
 
   const durationUnit = form.watch('duration_unit')
   const resetPeriod = form.watch('quota_reset_period')
+  // Reactive gate for the "+ Create on Pancake" button. The server-side
+  // mint needs a non-empty title and a positive price (those become the
+  // OnetimeProduct's name and amount), so the button stays disabled until
+  // both are present — same checks the handler itself does, just hoisted
+  // up so the operator gets immediate visual feedback instead of a toast
+  // after click.
+  const watchedTitle = form.watch('title')
+  const watchedPrice = form.watch('price_amount')
+  const pancakeCreateReady =
+    typeof watchedTitle === 'string' &&
+    watchedTitle.trim().length > 0 &&
+    Number(watchedPrice ?? 0) > 0
 
   const onSubmit = async (values: PlanFormValues) => {
     setIsSubmitting(true)
@@ -127,6 +169,85 @@ export function SubscriptionsMutateDrawer({
       toast.error(t('Request failed'))
     } finally {
       setIsSubmitting(false)
+    }
+  }
+
+  // "+ Create on Pancake" handler. Reads the plan title and price straight
+  // from the form, asks the backend to mint a Pancake OnetimeProduct using
+  // the persisted Pancake creds + StoreID + ReturnURL, then auto-fills
+  // the returned PROD_ ID into the form field and prepends it to the
+  // dropdown list — the admin never has to leave new-api to copy an ID
+  // out of Pancake's dashboard.
+  //
+  // OnetimeProduct (not SubscriptionProduct) matches new-api's
+  // time-limited-prepayment subscription model. See the controller's doc
+  // comment for rationale.
+  const handleCreatePancakeProduct = async () => {
+    const title = form.getValues('title').trim()
+    const priceAmount = Number(form.getValues('price_amount') || 0)
+    if (!title) {
+      toast.error(t('Plan title is required'))
+      return
+    }
+    if (priceAmount <= 0) {
+      toast.error(t('Plan price must be greater than zero'))
+      return
+    }
+    setCreatingPancakeProduct(true)
+    try {
+      const res = await createWaffoPancakeSubscriptionProduct({
+        name: title,
+        amount: priceAmount.toFixed(2),
+      })
+      if (
+        res.message === 'success' &&
+        typeof res.data === 'object' &&
+        res.data
+      ) {
+        const created = res.data as { product_id: string; product_name: string }
+        form.setValue('waffo_pancake_product_id', created.product_id, {
+          shouldDirty: true,
+        })
+        // Don't trust the response body — refetch the product list from
+        // Pancake's GraphQL so the dropdown reflects authoritative state.
+        // Matches the wallet binding's "+ Create" behavior. The Select's
+        // raw-ID fallback item covers the brief window between form value
+        // being set and the refetched list arriving.
+        try {
+          const refresh = await listWaffoPancakeSubscriptionProductOptions()
+          if (
+            refresh.message === 'success' &&
+            typeof refresh.data === 'object' &&
+            refresh.data &&
+            Array.isArray((refresh.data as { products?: unknown }).products)
+          ) {
+            setPancakeProducts(
+              (refresh.data as { products: typeof pancakeProducts }).products
+            )
+          }
+        } catch {
+          // Best-effort refresh; the form value already points at the new
+          // product, so a failure here just leaves the dropdown showing
+          // its previous contents plus a raw-ID fallback for the new
+          // selection.
+        }
+        toast.success(
+          `${t('Waffo Pancake product created')}: ${created.product_id}`
+        )
+      } else {
+        const reason = typeof res.data === 'string' ? res.data : undefined
+        toast.error(
+          reason
+            ? `${t('Waffo Pancake product creation failed')}: ${reason}`
+            : t('Waffo Pancake product creation failed')
+        )
+      }
+    } catch (err) {
+      toast.error(
+        `${t('Waffo Pancake product creation failed')}: ${err instanceof Error ? err.message : String(err)}`
+      )
+    } finally {
+      setCreatingPancakeProduct(false)
     }
   }
 
@@ -545,6 +666,69 @@ export function SubscriptionsMutateDrawer({
                     <FormMessage />
                   </FormItem>
                 )}
+              />
+
+              <FormField
+                control={form.control}
+                name='waffo_pancake_product_id'
+                render={({ field }) => {
+                  // Fallback raw-ID item so the trigger renders a value the
+                  // catalog hasn't (yet) loaded — mirrors the wallet binding
+                  // pattern in waffo-pancake-settings-section.tsx.
+                  const items = pancakeProducts.map((p) => ({
+                    value: p.id,
+                    label: `${p.name} (${p.id})`,
+                  }))
+                  if (
+                    field.value &&
+                    !pancakeProducts.some((p) => p.id === field.value)
+                  ) {
+                    items.push({ value: field.value, label: field.value })
+                  }
+                  return (
+                    <FormItem>
+                      <FormLabel>Waffo Pancake Product ID</FormLabel>
+                      <div className='flex gap-2'>
+                        <Select
+                          items={items}
+                          value={field.value || ''}
+                          onValueChange={(v) => field.onChange(v)}
+                          disabled={items.length === 0}
+                        >
+                          <SelectTrigger className='w-full flex-1'>
+                            <SelectValue
+                              placeholder={t('Select a product')}
+                            />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {items.map((item) => (
+                              <SelectItem key={item.value} value={item.value}>
+                                {item.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <Button
+                          type='button'
+                          variant='outline'
+                          onClick={handleCreatePancakeProduct}
+                          disabled={creatingPancakeProduct || !pancakeCreateReady}
+                          className='shrink-0'
+                        >
+                          {creatingPancakeProduct
+                            ? t('Creating...')
+                            : `+ ${t('Create')}`}
+                        </Button>
+                      </div>
+                      <FormDescription>
+                        {t(
+                          'Creates a Pancake product in the saved store using this plan’s title and price. Requires Waffo Pancake to be fully configured in Payment settings first.'
+                        )}
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )
+                }}
               />
             </div>
           </form>

@@ -301,6 +301,138 @@ func ListWaffoPancakeCatalog(c *gin.Context) {
 	})
 }
 
+type createWaffoPancakeSubscriptionProductRequest struct {
+	Name   string `json:"name"`
+	Amount string `json:"amount"`
+}
+
+// CreateWaffoPancakeSubscriptionProduct provisions a Pancake OnetimeProduct
+// scoped to a single subscription plan.
+//
+// Why "one-click" rather than "paste a PROD_ ID": the operator already
+// configured + saved Pancake credentials and bound a Store/Product pair via
+// the wallet binding flow, so by the time they're editing a subscription
+// plan we have everything we need — saved MerchantID + PrivateKey + StoreID
+// + ReturnURL. The endpoint mints a new product in the saved store sized
+// to the plan's price and returns the resulting PROD_ ID for the admin
+// form to pin into SubscriptionPlan.WaffoPancakeProductId.
+//
+// Why OnetimeProduct rather than SubscriptionProduct: new-api's
+// SubscriptionPlan is a time-limited prepayment — UserSubscription has a
+// fixed expiration and renewal is a manual re-purchase. There's no
+// renewal-event handling in the webhook, mirroring the existing Stripe
+// integration. OnetimeProduct semantics fit; SubscriptionProduct would
+// mean Pancake auto-renews on its side but new-api never extends the
+// user's access — bad UX. Revisit if/when new-api adds renewal handling.
+//
+// Body shape: `{ "name": "Plan title", "amount": "9.99" }`. Both come from
+// the plan-edit form; we don't read the plan from the DB here because the
+// admin may be creating a brand-new plan that doesn't have a row yet.
+func CreateWaffoPancakeSubscriptionProduct(c *gin.Context) {
+	var req createWaffoPancakeSubscriptionProductRequest
+	if c.Request.ContentLength > 0 {
+		if err := c.ShouldBindJSON(&req); err != nil {
+			c.JSON(http.StatusOK, gin.H{
+				"message": "error",
+				"data":    "Invalid request body.",
+			})
+			return
+		}
+	}
+	if strings.TrimSpace(req.Name) == "" {
+		c.JSON(http.StatusOK, gin.H{
+			"message": "error",
+			"data":    "Plan name is required.",
+		})
+		return
+	}
+	if strings.TrimSpace(req.Amount) == "" {
+		c.JSON(http.StatusOK, gin.H{
+			"message": "error",
+			"data":    "Plan price is required.",
+		})
+		return
+	}
+	merchantID, privateKey := resolveWaffoPancakeAdminCreds("", "")
+	storeID := strings.TrimSpace(setting.WaffoPancakeStoreID)
+	if merchantID == "" || privateKey == "" || storeID == "" {
+		c.JSON(http.StatusOK, gin.H{
+			"message": "error",
+			"data":    "Waffo Pancake is not fully configured — finish the gateway setup in the Payment settings first.",
+		})
+		return
+	}
+	productID, err := service.CreateWaffoPancakeProductForPlan(
+		c.Request.Context(),
+		merchantID,
+		privateKey,
+		storeID,
+		req.Name,
+		req.Amount,
+		setting.WaffoPancakeReturnURL,
+	)
+	if err != nil {
+		logger.LogError(c.Request.Context(), fmt.Sprintf("Waffo Pancake plan product creation failed: %v", err))
+		c.JSON(http.StatusOK, gin.H{
+			"message": "error",
+			"data":    fmt.Sprintf("Waffo Pancake plan product creation failed: %v", err),
+		})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"message": "success",
+		"data": gin.H{
+			"product_id":   productID,
+			"product_name": req.Name,
+			"store_id":     storeID,
+		},
+	})
+}
+
+// ListWaffoPancakeSubscriptionProductOptions returns the OnetimeProducts
+// available under the saved Pancake store, so the subscription-plan admin
+// form can render them in a dropdown (parallel to the catalog dropdown
+// used by the wallet binding flow).
+//
+// "SubscriptionProduct" in the endpoint name refers to new-api's plan
+// concept, not Pancake's SubscriptionProduct entity — under the hood we
+// list OnetimeProducts (see CreateWaffoPancakeSubscriptionProduct for the
+// rationale).
+func ListWaffoPancakeSubscriptionProductOptions(c *gin.Context) {
+	merchantID, privateKey := resolveWaffoPancakeAdminCreds("", "")
+	storeID := strings.TrimSpace(setting.WaffoPancakeStoreID)
+	if merchantID == "" || privateKey == "" || storeID == "" {
+		c.JSON(http.StatusOK, gin.H{
+			"message": "error",
+			"data":    "Waffo Pancake is not fully configured — finish the gateway setup in the Payment settings first.",
+		})
+		return
+	}
+	catalog, err := service.ListWaffoPancakeCatalog(c.Request.Context(), merchantID, privateKey)
+	if err != nil {
+		logger.LogError(c.Request.Context(), fmt.Sprintf("Waffo Pancake catalog query failed (subscription options): %v", err))
+		c.JSON(http.StatusOK, gin.H{
+			"message": "error",
+			"data":    fmt.Sprintf("Failed to load Waffo Pancake products: %v", err),
+		})
+		return
+	}
+	products := []service.WaffoPancakeCatalogProduct{}
+	for _, store := range catalog.Stores {
+		if store.ID == storeID {
+			products = store.OnetimeProducts
+			break
+		}
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"message": "success",
+		"data": gin.H{
+			"store_id": storeID,
+			"products": products,
+		},
+	})
+}
+
 // getWaffoPancakeBuyerIdentity returns the stable, merchant-controlled buyer
 // identifier sent to Pancake's Authenticated checkout endpoint. It is encoded
 // into the buyer session JWT and persisted on the order as
@@ -459,6 +591,35 @@ func WaffoPancakeWebhook(c *gin.Context) {
 
 	logger.LogInfo(c.Request.Context(), fmt.Sprintf("Waffo Pancake webhook 验签成功 event_type=%s event_id=%s order_id=%s client_ip=%s", event.NormalizedEventType(), event.ID, event.Data.OrderID, c.ClientIP()))
 	if event.NormalizedEventType() != "order.completed" {
+		c.String(http.StatusOK, "OK")
+		return
+	}
+
+	// Distinguish subscription vs top-up by the trade_no prefix we wrote at
+	// session-creation time. SubscriptionRequestWaffoPancakePay uses
+	// "WAFFO_PANCAKE_SUB-…"; the wallet top-up uses "WAFFO_PANCAKE-…". This
+	// keeps the dispatch O(1) and avoids speculatively hitting both tables.
+	rawTradeNo := strings.TrimSpace(event.Data.OrderID)
+	isSubscription := strings.HasPrefix(rawTradeNo, "WAFFO_PANCAKE_SUB-")
+
+	if isSubscription {
+		tradeNo, err := service.ResolveWaffoPancakeSubscriptionTradeNo(event)
+		if err != nil {
+			logger.LogError(c.Request.Context(), fmt.Sprintf(
+				"Waffo Pancake webhook 订阅订单解析失败 event_id=%s order_id=%s buyer_identity=%q client_ip=%s error=%q",
+				event.ID, event.Data.OrderID, event.Data.MerchantProvidedBuyerIdentity, c.ClientIP(), err.Error(),
+			))
+			c.String(http.StatusOK, "OK")
+			return
+		}
+		LockOrder(tradeNo)
+		defer UnlockOrder(tradeNo)
+		if err := model.CompleteSubscriptionOrder(tradeNo, string(bodyBytes), model.PaymentProviderWaffoPancake, ""); err != nil {
+			logger.LogError(c.Request.Context(), fmt.Sprintf("Waffo Pancake 订阅完成失败 trade_no=%s event_id=%s order_id=%s client_ip=%s error=%q", tradeNo, event.ID, event.Data.OrderID, c.ClientIP(), err.Error()))
+			c.String(http.StatusInternalServerError, "retry")
+			return
+		}
+		logger.LogInfo(c.Request.Context(), fmt.Sprintf("Waffo Pancake 订阅完成 trade_no=%s event_id=%s order_id=%s client_ip=%s", tradeNo, event.ID, event.Data.OrderID, c.ClientIP()))
 		c.String(http.StatusOK, "OK")
 		return
 	}

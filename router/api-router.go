@@ -159,6 +159,7 @@ func SetApiRouter(router *gin.Engine) {
 			subscriptionRoute.POST("/epay/pay", middleware.CriticalRateLimit(), controller.SubscriptionRequestEpay)
 			subscriptionRoute.POST("/stripe/pay", middleware.CriticalRateLimit(), controller.SubscriptionRequestStripePay)
 			subscriptionRoute.POST("/creem/pay", middleware.CriticalRateLimit(), controller.SubscriptionRequestCreemPay)
+			subscriptionRoute.POST("/waffo-pancake/pay", middleware.CriticalRateLimit(), controller.SubscriptionRequestWaffoPancakePay)
 		}
 		subscriptionAdminRoute := apiRouter.Group("/subscription/admin")
 		subscriptionAdminRoute.Use(middleware.AdminAuth())
@@ -193,6 +194,8 @@ func SetApiRouter(router *gin.Engine) {
 			optionRoute.POST("/waffo-pancake/catalog", controller.ListWaffoPancakeCatalog)
 			optionRoute.POST("/waffo-pancake/pair", controller.CreateWaffoPancakePair)
 			optionRoute.POST("/waffo-pancake/save", controller.SaveWaffoPancake)
+			optionRoute.POST("/waffo-pancake/subscription-product", controller.CreateWaffoPancakeSubscriptionProduct)
+			optionRoute.POST("/waffo-pancake/subscription-product-options", controller.ListWaffoPancakeSubscriptionProductOptions)
 		}
 
 		// Custom OAuth provider management (root only)
