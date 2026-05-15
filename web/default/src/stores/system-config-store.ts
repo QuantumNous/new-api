@@ -55,6 +55,12 @@ export const DEFAULT_CURRENCY_CONFIG: CurrencyConfig = {
   customCurrencyExchangeRate: 1,
 }
 
+function normalizeLogoUrl(logo: unknown): string {
+  return typeof logo === 'string' && logo && logo !== '/logo.png'
+    ? logo
+    : DEFAULT_LOGO
+}
+
 interface SystemConfigState {
   config: SystemConfig
   loading: boolean
@@ -83,6 +89,10 @@ export const useSystemConfigStore = create<SystemConfigState>()(
           config: {
             ...state.config,
             ...newConfig,
+            logo:
+              'logo' in newConfig
+                ? normalizeLogoUrl(newConfig.logo)
+                : state.config.logo,
             currency: {
               ...state.config.currency,
               ...(newConfig.currency ?? {}),
@@ -94,6 +104,27 @@ export const useSystemConfigStore = create<SystemConfigState>()(
     }),
     {
       name: 'system-config-storage',
+      merge: (persistedState, currentState) => {
+        const persisted = persistedState as Partial<SystemConfigState> | null
+        const config = {
+          ...currentState.config,
+          ...(persisted?.config ?? {}),
+        }
+
+        return {
+          ...currentState,
+          ...persisted,
+          config: {
+            ...config,
+            logo: normalizeLogoUrl(config.logo),
+            currency: {
+              ...currentState.config.currency,
+              ...(persisted?.config?.currency ?? {}),
+            },
+          },
+          loadedLogoUrl: normalizeLogoUrl(persisted?.loadedLogoUrl),
+        }
+      },
       partialize: (state) => ({
         config: state.config,
         loadedLogoUrl: state.loadedLogoUrl,
