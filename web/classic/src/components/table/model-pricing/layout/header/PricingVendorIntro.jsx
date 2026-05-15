@@ -50,15 +50,10 @@ const THEME_COLORS = {
 
 const COMPONENT_STYLES = {
   tag: {
-    backgroundColor: 'rgba(255,255,255,0.95)',
-    color: '#1f2937',
-    border: '1px solid rgba(255,255,255,0.8)',
-    fontWeight: '500',
+    fontWeight: '600',
   },
   avatarContainer:
-    'w-16 h-16 rounded-2xl bg-white/90 shadow-md backdrop-blur-sm flex items-center justify-center',
-  titleText: { color: 'white' },
-  descriptionText: { color: 'rgba(255,255,255,0.9)' },
+    'w-16 h-16 rounded-2xl flex items-center justify-center pricing-hero-avatar-shell',
 };
 
 const CONTENT_TEXTS = {
@@ -150,6 +145,7 @@ const PricingVendorIntro = memo(
     setShowWithRecharge,
     currency,
     setCurrency,
+    siteDisplayType,
     showRatio,
     setShowRatio,
     viewMode,
@@ -262,10 +258,7 @@ const PricingVendorIntro = memo(
     const createCoverStyle = useCallback(
       (primaryColor) => ({
         '--palette-primary-darkerChannel': primaryColor,
-        backgroundImage: `linear-gradient(0deg, rgba(var(--palette-primary-darkerChannel) / 80%), rgba(var(--palette-primary-darkerChannel) / 80%)), url('/cover-4.webp')`,
-        backgroundSize: 'cover',
-        backgroundPosition: 'center',
-        backgroundRepeat: 'no-repeat',
+        backgroundImage: `radial-gradient(circle at top right, rgba(var(--palette-primary-darkerChannel) / 0.22), transparent 30%), linear-gradient(180deg, rgba(var(--palette-primary-darkerChannel) / 0.06), rgba(var(--palette-primary-darkerChannel) / 0.02))`,
       }),
       [],
     );
@@ -285,6 +278,7 @@ const PricingVendorIntro = memo(
           setShowWithRecharge={setShowWithRecharge}
           currency={currency}
           setCurrency={setCurrency}
+          siteDisplayType={siteDisplayType}
           showRatio={showRatio}
           setShowRatio={setShowRatio}
           viewMode={viewMode}
@@ -307,6 +301,7 @@ const PricingVendorIntro = memo(
         setShowWithRecharge,
         currency,
         setCurrency,
+        siteDisplayType,
         showRatio,
         setShowRatio,
         viewMode,
@@ -326,13 +321,20 @@ const PricingVendorIntro = memo(
               className='pricing-hero-cover relative h-full'
               style={createCoverStyle(primaryDarkerChannel)}
             >
+              <div className='pricing-hero-grid' aria-hidden='true'>
+                <span />
+                <span />
+                <span />
+              </div>
               <div className='pricing-hero-inner relative z-10 h-full flex items-center justify-between p-4'>
                 <div className='pricing-hero-copy flex-1 min-w-0 mr-4'>
-                  <div className='pricing-hero-title-row flex flex-row flex-wrap items-center gap-2 sm:gap-3 mb-2'>
-                    <h2
-                      className='pricing-hero-title text-lg sm:text-xl font-bold truncate'
-                      style={COMPONENT_STYLES.titleText}
-                    >
+                  <div className='pricing-hero-title-row flex flex-row flex-wrap items-center gap-2 sm:gap-3 mb-3'>
+                    <span className='pricing-hero-kicker'>
+                      {filterVendor === 'all'
+                        ? t('全部供应商')
+                        : t('供应商视图')}
+                    </span>
+                    <h2 className='pricing-hero-title text-lg sm:text-xl font-bold truncate'>
                       {title}
                     </h2>
                     <Tag
@@ -346,8 +348,7 @@ const PricingVendorIntro = memo(
                   </div>
                   <Paragraph
                     className='pricing-hero-description text-xs sm:text-sm leading-relaxed !mb-0 cursor-pointer'
-                    style={COMPONENT_STYLES.descriptionText}
-                    ellipsis={{ rows: 2 }}
+                    ellipsis={{ rows: isMobile ? 3 : 2 }}
                     onClick={() => handleOpenDescModal(description)}
                   >
                     {description}

@@ -815,7 +815,7 @@ export const calculateModelPrice = ({
 export const getModelPriceItems = (priceData, t, quotaDisplayType = 'USD') => {
   if (priceData.isPerToken) {
     if (priceData.isTaskConditionalPricing) {
-      const unitSuffix = ` / 1${priceData.unitLabel} Tokens`;
+      const unitSuffix = ` / 1${priceData.unitLabel}`;
       return Object.entries(priceData.taskConditionalPrices || {}).flatMap(
         ([resolution, prices]) =>
           [
@@ -888,7 +888,7 @@ export const getModelPriceItems = (priceData, t, quotaDisplayType = 'USD') => {
       );
     }
 
-    const unitSuffix = ` / 1${priceData.unitLabel} Tokens`;
+    const unitSuffix = ` / 1${priceData.unitLabel}`;
     return [
       {
         key: 'input',

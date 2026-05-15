@@ -150,6 +150,26 @@ const PricingCardView = ({
     return record.description || '';
   };
 
+  const renderPriceSummary = (items) => {
+    return items.map((item) => (
+      <div key={item.key} className='pricing-model-card-price-row'>
+        <Tooltip content={item.label} position='top'>
+          <span className='pricing-model-card-price-name' title={item.label}>
+            {item.label}
+          </span>
+        </Tooltip>
+        <div className='pricing-model-card-price-value-wrap'>
+          <span className='pricing-model-card-price-value'>{item.value}</span>
+          {item.suffix ? (
+            <span className='pricing-model-card-price-suffix'>
+              {item.suffix}
+            </span>
+          ) : null}
+        </div>
+      </div>
+    ));
+  };
+
   const renderBillingTag = (quotaType) => {
     if (quotaType === 1) {
       return (
@@ -320,25 +340,12 @@ const PricingCardView = ({
                       </span>
                       {extraPriceItemsCount > 0 && (
                         <span className='pricing-model-card-price-more'>
-                          +{extraPriceItemsCount} {t('项更多价格细节')}
+                          +{extraPriceItemsCount}
                         </span>
                       )}
                     </div>
                     <div className='pricing-model-card-price-grid'>
-                      {primaryPriceItems.map((item) => (
-                        <div
-                          key={item.key}
-                          className='pricing-model-card-price-item'
-                        >
-                          <span className='pricing-model-card-price-name'>
-                            {item.label}
-                          </span>
-                          <span className='pricing-model-card-price-value'>
-                            {item.value}
-                            {item.suffix}
-                          </span>
-                        </div>
-                      ))}
+                      {renderPriceSummary(primaryPriceItems)}
                     </div>
                   </div>
 

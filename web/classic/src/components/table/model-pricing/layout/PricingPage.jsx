@@ -35,6 +35,67 @@ const PricingPage = () => {
   const groupCount = Object.keys(pricingData.usableGroup || {}).filter(
     (key) => key !== '',
   ).length;
+  const activeFilters = [
+    pricingData.filterVendor && pricingData.filterVendor !== 'all'
+      ? {
+          key: 'vendor',
+          label: pricingData.t('供应商'),
+          value:
+            pricingData.filterVendor === 'unknown'
+              ? pricingData.t('未知供应商')
+              : pricingData.filterVendor,
+        }
+      : null,
+    pricingData.filterGroup && pricingData.filterGroup !== 'all'
+      ? {
+          key: 'group',
+          label: pricingData.t('分组'),
+          value: pricingData.filterGroup,
+        }
+      : null,
+    pricingData.filterQuotaType && pricingData.filterQuotaType !== 'all'
+      ? {
+          key: 'quota',
+          label: pricingData.t('计费'),
+          value:
+            String(pricingData.filterQuotaType) === '1'
+              ? pricingData.t('按次')
+              : pricingData.t('按量'),
+        }
+      : null,
+    pricingData.filterEndpointType && pricingData.filterEndpointType !== 'all'
+      ? {
+          key: 'endpoint',
+          label: pricingData.t('端点'),
+          value: pricingData.filterEndpointType,
+        }
+      : null,
+    pricingData.filterTag && pricingData.filterTag !== 'all'
+      ? {
+          key: 'tag',
+          label: pricingData.t('标签'),
+          value: pricingData.filterTag,
+        }
+      : null,
+  ].filter(Boolean);
+  const totalModelCount = pricingData.models.length;
+  const filteredModelCount = pricingData.filteredModels.length;
+  const displayModeLabel =
+    viewMode === 'table'
+      ? pricingData.t('表格视图')
+      : pricingData.t('卡片视图');
+  const billingUnitLabel =
+    pricingData.siteDisplayType === 'TOKENS'
+      ? pricingData.t('{{unit}} Token 单位', { unit: pricingData.tokenUnit })
+      : showRatio
+        ? pricingData.t('{{currency}} + 倍率', {
+            currency: pricingData.showWithRecharge
+              ? pricingData.currency
+              : pricingData.t('基础价格'),
+          })
+        : pricingData.showWithRecharge
+          ? pricingData.currency
+          : pricingData.t('基础价格');
   const allProps = {
     ...pricingData,
     showRatio,
@@ -47,29 +108,68 @@ const PricingPage = () => {
     <div className='pricing-page-surface'>
       <div className='pricing-overview'>
         <div className='pricing-overview-copy'>
-          <div className='pricing-overview-kicker'>{pricingData.t('定价')}</div>
-          <h1 className='pricing-overview-title'>
-            {pricingData.t('模型定价')}
-          </h1>
-          <p className='pricing-overview-description'>
-            {pricingData.t(
-              '按供应商、计费方式、端点能力和分组倍率浏览全部可用模型，快速找到最适合当前业务场景的定价组合。',
-            )}
-          </p>
-        </div>
+          <div className='pricing-overview-mainline'>
+            <div className='pricing-overview-heading'>
+              <div className='pricing-overview-kicker'>
+                {pricingData.t('模型广场')}
+              </div>
+              <h1 className='pricing-overview-title'>
+                {pricingData.t('模型定价')}
+              </h1>
+            </div>
 
-        <div className='pricing-overview-metrics'>
-          <div className='pricing-overview-metric'>
-            <span>{pricingData.t('当前结果')}</span>
-            <strong>{pricingData.filteredModels.length}</strong>
-          </div>
-          <div className='pricing-overview-metric'>
-            <span>{pricingData.t('供应商')}</span>
-            <strong>{vendorCount}</strong>
-          </div>
-          <div className='pricing-overview-metric'>
-            <span>{pricingData.t('分组')}</span>
-            <strong>{groupCount}</strong>
+            <div className='pricing-overview-inline-meta'>
+              <span className='pricing-overview-inline-chip'>
+                <em>{pricingData.t('结果')}</em>
+                <strong>
+                  {filteredModelCount}/{totalModelCount}
+                </strong>
+              </span>
+              <span className='pricing-overview-inline-chip'>
+                <em>{pricingData.t('供应商')}</em>
+                <strong>{vendorCount}</strong>
+              </span>
+              <span className='pricing-overview-inline-chip'>
+                <em>{pricingData.t('分组')}</em>
+                <strong>{groupCount}</strong>
+              </span>
+              <span className='pricing-overview-inline-chip'>
+                <em>{pricingData.t('视图')}</em>
+                <strong>{displayModeLabel}</strong>
+              </span>
+              <span className='pricing-overview-inline-chip'>
+                <em>{pricingData.t('单位')}</em>
+                <strong>{billingUnitLabel}</strong>
+              </span>
+              <span className='pricing-overview-inline-chip'>
+                <em>{pricingData.t('状态')}</em>
+                <strong>
+                  {pricingData.loading
+                    ? pricingData.t('同步中')
+                    : pricingData.t('已就绪')}
+                </strong>
+              </span>
+            </div>
+
+            {(activeFilters.length > 0 || pricingData.searchValue) && (
+              <div className='pricing-overview-filters'>
+                <span className='pricing-overview-filters-label'>
+                  {pricingData.t('当前筛选')}
+                </span>
+                {pricingData.searchValue && (
+                  <span className='pricing-overview-filter-chip'>
+                    <em>{pricingData.t('搜索')}</em>
+                    <strong>{pricingData.searchValue}</strong>
+                  </span>
+                )}
+                {activeFilters.map((item) => (
+                  <span key={item.key} className='pricing-overview-filter-chip'>
+                    <em>{item.label}</em>
+                    <strong>{item.value}</strong>
+                  </span>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       </div>
