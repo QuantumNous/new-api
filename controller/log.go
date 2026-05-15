@@ -11,6 +11,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/setting/operation_setting"
 
 	"github.com/gin-gonic/gin"
 )
@@ -129,10 +130,65 @@ func writeLogCSVHeader(c *gin.Context, w *csv.Writer, includeAdminCols bool) err
 	headers = append(headers,
 		"令牌", "分组", "模型", "用时(s)",
 		"输入tokens", "输出tokens",
-		"原始quota", "费用(USD)",
+		"缓存读tokens", "缓存写tokens",
+		"原始quota", "费用(CNY)",
 		"IP", "请求ID", "详情",
 	)
 	return w.Write(headers)
+}
+
+// otherCacheTokens 从 log.Other JSON 里取缓存读/写 tokens。
+//
+// 缓存写口径必须与后端唯一来源 service.cacheWriteTokensTotal 对齐：
+//   - 若已有归一化后的 cache_write_tokens（service/text_quota.go:449 写入），直接用；
+//   - 否则按 canonical 公式：当 5m 或 1h 拆分存在时取 max(cache_creation_tokens, 5m+1h)，
+//     否则用 cache_creation_tokens 聚合值。
+//
+// 简单求 5m+1h 之和会丢掉某些 provider 把聚合写入 cache_creation_tokens、却没下发拆分残量的场景，
+// 测试见 service/text_quota_test.go:151。
+func otherCacheTokens(other string) (read, write int) {
+	if other == "" {
+		return 0, 0
+	}
+	m, err := common.StrToMap(other)
+	if err != nil || m == nil {
+		return 0, 0
+	}
+	toInt := func(v any) int {
+		switch x := v.(type) {
+		case float64:
+			return int(x)
+		case int:
+			return x
+		case int64:
+			return int(x)
+		case string:
+			n, _ := strconv.Atoi(x)
+			return n
+		}
+		return 0
+	}
+	read = toInt(m["cache_tokens"])
+
+	// 1) 现有日志若已携带归一化字段，直接采用，避免我们自己再算出和它不一致的值。
+	if v, ok := m["cache_write_tokens"]; ok {
+		if n := toInt(v); n > 0 {
+			return read, n
+		}
+	}
+	// 2) 老日志/没写归一化字段：复刻 cacheWriteTokensTotal 的口径。
+	creation := toInt(m["cache_creation_tokens"])
+	split := toInt(m["cache_creation_tokens_5m"]) + toInt(m["cache_creation_tokens_1h"])
+	if split > 0 {
+		if creation > split {
+			write = creation
+		} else {
+			write = split
+		}
+	} else {
+		write = creation
+	}
+	return read, write
 }
 
 // streamExportCSV 把"延迟响应头 + 中途错误标记"两件事封装起来。
@@ -213,10 +269,19 @@ func logToRow(l *model.Log, includeAdminCols bool) []string {
 			l.Username,
 		)
 	}
-	costUSD := ""
-	if common.QuotaPerUnit > 0 {
-		costUSD = strconv.FormatFloat(float64(l.Quota)/common.QuotaPerUnit, 'f', 6, 64)
+	// 费用按 CNY 输出：quota -> USD -> CNY，与前端 renderQuota 的 CNY 分支同款，
+	// 也与 controller/billing.go:50 的换算一致。
+	//
+	// 注意：QuotaPerUnit 与 USDExchangeRate 都是全局可变配置，日志里只存了整型 quota，
+	// 不存历史汇率，所以这一列是"按当前配置回算"的，改过汇率后老日志的 CNY 会漂。
+	// 这是数据模型的固有限制，前端展示也是同样行为。
+	// 汇率 <= 0 时不再 fallback 成 1（那会输出美元数值却挂 CNY 表头），直接留空。
+	costCNY := ""
+	rate := operation_setting.USDExchangeRate
+	if common.QuotaPerUnit > 0 && rate > 0 {
+		costCNY = strconv.FormatFloat(float64(l.Quota)/common.QuotaPerUnit*rate, 'f', 6, 64)
 	}
+	cacheRead, cacheWrite := otherCacheTokens(l.Other)
 	row = append(row,
 		l.TokenName,
 		l.Group,
@@ -224,8 +289,10 @@ func logToRow(l *model.Log, includeAdminCols bool) []string {
 		strconv.Itoa(l.UseTime),
 		strconv.Itoa(l.PromptTokens),
 		strconv.Itoa(l.CompletionTokens),
+		strconv.Itoa(cacheRead),
+		strconv.Itoa(cacheWrite),
 		strconv.Itoa(l.Quota),
-		costUSD,
+		costCNY,
 		l.Ip,
 		l.RequestId,
 		cleanLogContent(l.Content),
