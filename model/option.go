@@ -1,6 +1,7 @@
 package model
 
 import (
+	"context"
 	"strconv"
 	"strings"
 	"time"
@@ -207,15 +208,22 @@ func UpdateOption(key string, value string) error {
 	option := Option{
 		Key: key,
 	}
-	// https://gorm.io/docs/update.html#Save-All-Fields
 	DB.FirstOrCreate(&option, Option{Key: key})
 	option.Value = value
-	// Save is a combination function.
-	// If save value does not contain primary key, it will execute Create,
-	// otherwise it will execute Update (with all fields).
 	DB.Save(&option)
-	// Update OptionMap
-	return updateOptionMap(key, value)
+
+	// Update local OptionMap
+	if err := updateOptionMap(key, value); err != nil {
+		return err
+	}
+
+	// Notify peer replicas via pubsub. Pubsub failures are logged but do not
+	// fail the save — the 60s polling fallback (SyncOptions in main.go) will
+	// eventually converge state.
+	if pubErr := common.PublishConfigChanged(context.Background(), common.ConfigScopeOptions); pubErr != nil {
+		common.SysError("pubsub: failed to publish options change: " + pubErr.Error())
+	}
+	return nil
 }
 
 // UpdateOptionsBulk persists multiple key/value pairs in a single database
