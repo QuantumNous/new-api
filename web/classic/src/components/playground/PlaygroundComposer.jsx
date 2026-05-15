@@ -17,15 +17,9 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React, { useCallback, useEffect, useRef } from 'react';
-import {
-  Button,
-  InputNumber,
-  Select,
-  Toast,
-  Typography,
-} from '@douyinfe/semi-ui';
-import { Bot, Image as ImageIcon, Sparkles, Video } from 'lucide-react';
+import React, { useRef } from 'react';
+import { InputNumber, Select, Typography } from '@douyinfe/semi-ui';
+import { Bot, Image as ImageIcon, Sparkles, Video, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { usePlayground } from '../../contexts/PlaygroundContext';
 import { selectFilter } from '../../helpers';
@@ -42,63 +36,9 @@ const PlaygroundComposer = ({
   onModeChange,
 }) => {
   const { t } = useTranslation();
-  const { onPasteImage, imageEnabled } = usePlayground();
-  const containerRef = useRef(null);
+  const { imageUrls, onRemoveImage, onSelectImageFile } = usePlayground();
+  const fileInputRef = useRef(null);
   const { inputNode, sendNode, onClick } = detailProps;
-
-  const handlePaste = useCallback(
-    async (event) => {
-      const items = event.clipboardData?.items;
-      if (!items) return;
-
-      for (let i = 0; i < items.length; i++) {
-        const item = items[i];
-
-        if (item.type.indexOf('image') !== -1) {
-          event.preventDefault();
-          const file = item.getAsFile();
-
-          if (!file) break;
-
-          if (!imageEnabled) {
-            Toast.warning({
-              content: t('请先启用图片模式'),
-              duration: 3,
-            });
-            return;
-          }
-
-          const reader = new FileReader();
-          reader.onload = (readerEvent) => {
-            onPasteImage(readerEvent.target.result);
-            Toast.success({
-              content: t('图片已添加'),
-              duration: 2,
-            });
-          };
-          reader.onerror = () => {
-            Toast.error({
-              content: t('粘贴图片失败'),
-              duration: 2,
-            });
-          };
-          reader.readAsDataURL(file);
-          break;
-        }
-      }
-    },
-    [imageEnabled, onPasteImage, t],
-  );
-
-  useEffect(() => {
-    const container = containerRef.current;
-    if (!container) return;
-
-    container.addEventListener('paste', handlePaste);
-    return () => {
-      container.removeEventListener('paste', handlePaste);
-    };
-  }, [handlePaste]);
 
   const styledSendNode = React.cloneElement(sendNode, {
     className: `composer-send-button ${sendNode.props.className || ''}`,
@@ -118,7 +58,7 @@ const PlaygroundComposer = ({
       : inputs.model;
 
   return (
-    <div className='new-playground-composer-wrap' ref={containerRef}>
+    <div className='new-playground-composer-wrap'>
       <div className='new-playground-composer' onClick={onClick}>
         <div className='composer-input-row'>{inputNode}</div>
         <div className='composer-controls'>
@@ -149,17 +89,64 @@ const PlaygroundComposer = ({
                 <Typography.Text className='reference-label'>
                   {t('参考图片')}
                 </Typography.Text>
-                <button
-                  className={`reference-upload ${inputs.imageEnabled ? 'is-active' : ''}`}
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    onInputChange('imageEnabled', !inputs.imageEnabled);
-                  }}
-                  type='button'
-                >
-                  <ImageIcon size={20} />
-                </button>
-                <span>{t('支持 JPEG、PNG、Webp')}</span>
+                <div className='reference-image-row'>
+                  <button
+                    className={`reference-upload ${inputs.imageEnabled ? 'is-active' : ''}`}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      if (!inputs.imageEnabled) {
+                        onInputChange('imageEnabled', true);
+                      }
+                      fileInputRef.current?.click();
+                    }}
+                    type='button'
+                  >
+                    <ImageIcon size={20} />
+                  </button>
+                  <input
+                    ref={fileInputRef}
+                    type='file'
+                    accept='image/jpeg,image/png,image/webp'
+                    className='hidden'
+                    onChange={(event) => {
+                      const file = event.target.files?.[0];
+                      if (file) {
+                        onSelectImageFile?.(file);
+                      }
+                      event.target.value = '';
+                    }}
+                  />
+                  {inputs.imageEnabled && imageUrls.length > 0 && (
+                    <div className='reference-image-list'>
+                      {imageUrls.map((url, index) => (
+                        <div
+                          key={`${index}-${url.slice(0, 24)}`}
+                          className='reference-image-item'
+                        >
+                          <img
+                            src={url}
+                            alt={t('图片 {{index}}', { index: index + 1 })}
+                            className='reference-image-preview'
+                          />
+                          <button
+                            type='button'
+                            className='reference-image-remove'
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              onRemoveImage?.(index);
+                            }}
+                            aria-label={t('删除')}
+                          >
+                            <X size={12} />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                <span className='reference-help-text'>
+                  {t('支持 JPEG、PNG、Webp')}
+                </span>
               </div>
             )}
             {isImageMode && (

@@ -35,7 +35,6 @@ import {
   MESSAGE_STATUS,
   MESSAGE_ROLES,
   ERROR_MESSAGES,
-  PLAYGROUND_I18N_KEYS,
 } from '../../constants/playground.constants';
 import {
   getLogo,
@@ -193,7 +192,7 @@ const Playground = () => {
   };
 
   const imageGenerationBlockMessage = t(
-    PLAYGROUND_I18N_KEYS.IMAGE_GENERATION_PENDING_MESSAGE,
+    '图片仍在生成中，切换对话、新建对话、切换模式或离开页面都不会停止后端任务，仍可能继续消耗额度。请等待生成完成后再操作。',
   );
 
   const showImageGenerationBlockedToast = useCallback(() => {
@@ -206,10 +205,10 @@ const Playground = () => {
   const confirmLeaveDuringImageGeneration = useCallback(
     (onConfirm) => {
       Modal.confirm({
-        title: t(PLAYGROUND_I18N_KEYS.IMAGE_GENERATION_PENDING_TITLE),
+        title: t('图片仍在生成中'),
         content: imageGenerationBlockMessage,
-        okText: t(PLAYGROUND_I18N_KEYS.IMAGE_GENERATION_LEAVE_CONFIRM),
-        cancelText: t(PLAYGROUND_I18N_KEYS.IMAGE_GENERATION_STAY),
+        okText: t('仍要离开'),
+        cancelText: t('留在当前页'),
         onOk: onConfirm,
       });
     },
@@ -229,7 +228,9 @@ const Playground = () => {
 
       if (!silent) {
         Toast.info({
-          content: t(PLAYGROUND_I18N_KEYS.IMAGE_GENERATION_STOP_NOTICE),
+          content: t(
+            '已尝试停止当前图片请求。若后端已将任务提交给上游，仍不能保证上游一定停止计费。',
+          ),
           duration: 4,
         });
       }
@@ -307,9 +308,7 @@ const Playground = () => {
                 (url) => url.trim() !== '',
               );
               if (validImageUrls.length > 0) {
-                const textContent =
-                  getTextContent(messages[i]) ||
-                  t(PLAYGROUND_I18N_KEYS.PREVIEW_SAMPLE_MESSAGE);
+                const textContent = getTextContent(messages[i]) || '示例消息';
                 const content = buildMessageContent(
                   textContent,
                   validImageUrls,
@@ -335,7 +334,6 @@ const Playground = () => {
     playgroundMode,
     customRequestMode,
     customRequestBody,
-    t,
   ]);
 
   // 发送消息
@@ -1112,7 +1110,9 @@ const Playground = () => {
       } catch (error) {
         if (error?.name === 'AbortError') {
           updateImageAssistantMessage(assistantMessage.id, {
-            content: t(PLAYGROUND_I18N_KEYS.IMAGE_GENERATION_ABORTED),
+            content: t(
+              '图片请求已在前端停止。若上游任务已创建，仍可能继续执行。',
+            ),
             status: MESSAGE_STATUS.COMPLETE,
             isThinkingComplete: true,
           });
@@ -1567,9 +1567,60 @@ const Playground = () => {
     [inputs.imageEnabled, inputs.imageUrls, handleInputChange],
   );
 
+  const handleSelectImageFile = useCallback(
+    (file) => {
+      if (!file) {
+        return;
+      }
+
+      if (!inputs.imageEnabled) {
+        handleInputChange('imageEnabled', true);
+      }
+
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const base64Data = event.target?.result;
+        if (typeof base64Data !== 'string' || base64Data === '') {
+          Toast.error({
+            content: t('选择图片失败'),
+            duration: 2,
+          });
+          return;
+        }
+
+        const newUrls = [...(inputs.imageUrls || []), base64Data];
+        handleInputChange('imageUrls', newUrls);
+        Toast.success({
+          content: t('图片已添加'),
+          duration: 2,
+        });
+      };
+      reader.onerror = () => {
+        Toast.error({
+          content: t('选择图片失败'),
+          duration: 2,
+        });
+      };
+      reader.readAsDataURL(file);
+    },
+    [handleInputChange, inputs.imageEnabled, inputs.imageUrls, t],
+  );
+
+  const handleRemoveImage = useCallback(
+    (indexToRemove) => {
+      const nextUrls = (inputs.imageUrls || []).filter(
+        (_, index) => index !== indexToRemove,
+      );
+      handleInputChange('imageUrls', nextUrls);
+    },
+    [handleInputChange, inputs.imageUrls],
+  );
+
   // Playground Context 值
   const playgroundContextValue = {
     onPasteImage: handlePasteImage,
+    onSelectImageFile: handleSelectImageFile,
+    onRemoveImage: handleRemoveImage,
     imageUrls: inputs.imageUrls || [],
     imageEnabled: inputs.imageEnabled || false,
   };
