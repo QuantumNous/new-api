@@ -95,3 +95,34 @@ func GeminiTextGenerationStreamHandler(c *gin.Context, info *relaycommon.RelayIn
 		return true
 	})
 }
+
+func GeminiNativeImagePredictHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response) (*dto.Usage, *types.NewAPIError) {
+	defer service.CloseResponseBodyGracefully(resp)
+
+	responseBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, types.NewOpenAIError(err, types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
+	}
+
+	if common.DebugEnabled {
+		println(string(responseBody))
+	}
+
+	var geminiResponse dto.GeminiImageResponse
+	if err = common.Unmarshal(responseBody, &geminiResponse); err != nil {
+		return nil, types.NewOpenAIError(err, types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
+	}
+
+	generatedImages := 0
+	for _, prediction := range geminiResponse.Predictions {
+		if prediction.RaiFilteredReason != "" {
+			continue
+		}
+		if prediction.BytesBase64Encoded != "" {
+			generatedImages++
+		}
+	}
+
+	service.IOCopyBytesGracefully(c, resp, responseBody)
+	return buildGeminiImageUsage(generatedImages), nil
+}

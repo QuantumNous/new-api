@@ -27,6 +27,8 @@ func GetAndValidateRequest(c *gin.Context, format types.RelayFormat) (request dt
 			request, err = GetAndValidateGeminiEmbeddingRequest(c)
 		} else if strings.Contains(c.Request.URL.Path, ":batchEmbedContents") {
 			request, err = GetAndValidateGeminiBatchEmbeddingRequest(c)
+		} else if isGeminiImagePredictPath(c.Request.URL.Path) {
+			request, err = GetAndValidateGeminiImageRequest(c)
 		} else {
 			request, err = GetAndValidateGeminiRequest(c)
 		}
@@ -246,6 +248,31 @@ func GetAndValidateClaudeRequest(c *gin.Context) (textRequest *dto.ClaudeRequest
 	return textRequest, nil
 }
 
+func isGeminiImagePredictPath(path string) bool {
+	if !strings.Contains(path, ":predict") {
+		return false
+	}
+	modelName := extractGeminiModelNameFromPath(path)
+	return strings.HasPrefix(modelName, "imagen")
+}
+
+func extractGeminiModelNameFromPath(path string) string {
+	const modelsPrefix = "/models/"
+	modelsIndex := strings.Index(path, modelsPrefix)
+	if modelsIndex == -1 {
+		return ""
+	}
+	startIndex := modelsIndex + len(modelsPrefix)
+	if startIndex >= len(path) {
+		return ""
+	}
+	colonIndex := strings.Index(path[startIndex:], ":")
+	if colonIndex == -1 {
+		return path[startIndex:]
+	}
+	return path[startIndex : startIndex+colonIndex]
+}
+
 func GetAndValidateTextRequest(c *gin.Context, relayMode int) (*dto.GeneralOpenAIRequest, error) {
 	textRequest := &dto.GeneralOpenAIRequest{}
 	err := common.UnmarshalBodyReusable(c, textRequest)
@@ -318,6 +345,17 @@ func GetAndValidateGeminiRequest(c *gin.Context) (*dto.GeminiChatRequest, error)
 	//	relayInfo.IsStream = true
 	//}
 
+	return request, nil
+}
+
+func GetAndValidateGeminiImageRequest(c *gin.Context) (*dto.GeminiImageRequest, error) {
+	request := &dto.GeminiImageRequest{}
+	if err := common.UnmarshalBodyReusable(c, request); err != nil {
+		return nil, err
+	}
+	if len(request.Instances) == 0 {
+		return nil, errors.New("instances is required")
+	}
 	return request, nil
 }
 
