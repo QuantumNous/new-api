@@ -157,6 +157,7 @@ const (
 	MsgPaymentCreateFailed              = "payment.create_failed"
 	MsgPaymentStartFailed               = "payment.start_failed"
 	MsgPaymentAmountTooLow              = "payment.amount_too_low"
+	MsgPaymentComplianceRequired        = "payment.compliance_required"
 	MsgPaymentStripeNotConfig           = "payment.stripe_not_configured"
 	MsgPaymentWebhookNotConfig          = "payment.webhook_not_configured"
 	MsgPaymentPriceIdNotConfig          = "payment.price_id_not_configured"
@@ -334,10 +335,11 @@ const (
 // Distributor related messages
 const (
 	MsgDistributorInvalidRequest      = "distributor.invalid_request"
-	MsgDistributorInvalidChannelId    = "distributor.invalid_channel_id"
-	MsgDistributorChannelDisabled     = "distributor.channel_disabled"
-	MsgDistributorTokenNoModelAccess  = "distributor.token_no_model_access"
-	MsgDistributorTokenModelForbidden = "distributor.token_model_forbidden"
+	MsgDistributorInvalidChannelId        = "distributor.invalid_channel_id"
+	MsgDistributorChannelDisabled         = "distributor.channel_disabled"
+	MsgDistributorAffinityChannelDisabled = "distributor.affinity_channel_disabled"
+	MsgDistributorTokenNoModelAccess      = "distributor.token_no_model_access"
+	MsgDistributorTokenModelForbidden     = "distributor.token_model_forbidden"
 	MsgDistributorModelNameRequired   = "distributor.model_name_required"
 	MsgDistributorInvalidPlayground   = "distributor.invalid_playground_request"
 	MsgDistributorGroupAccessDenied   = "distributor.group_access_denied"
