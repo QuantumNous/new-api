@@ -25,6 +25,7 @@ import {
   API_ENDPOINTS,
   DEBUG_TABS,
   MESSAGE_STATUS,
+  PLAYGROUND_I18N_KEYS,
 } from '../../constants/playground.constants';
 import { API } from '../../helpers/api';
 import { generateMessageId } from '../../helpers';
@@ -63,7 +64,9 @@ export const usePlaygroundState = () => {
       const hasOldChinese =
         loaded[0].content === '你好' ||
         loaded[1].content === '你好，请问有什么可以帮助您的吗？' ||
-        loaded[1].content === '你好！很高兴见到你。有什么我可以帮助你的吗？';
+        loaded[1].content === '你好！很高兴见到你。有什么我可以帮助你的吗？' ||
+        loaded[0].content === t('默认用户消息') ||
+        loaded[1].content === t('默认助手消息');
 
       if (hasOldChinese) {
         // 清除旧的默认消息
@@ -182,10 +185,10 @@ export const usePlaygroundState = () => {
         return '';
       }
       if (isConversationEmpty(conversation)) {
-        return `empty:${conversation.title || '新对话'}`;
+        return `empty:${conversation.title || PLAYGROUND_I18N_KEYS.NEW_CONVERSATION}`;
       }
       return JSON.stringify({
-        title: conversation.title || '新对话',
+        title: conversation.title || PLAYGROUND_I18N_KEYS.NEW_CONVERSATION,
         messages: conversation.messages,
       });
     },
@@ -244,7 +247,7 @@ export const usePlaygroundState = () => {
 
     return {
       id: conversation.conversation_id || conversation.id,
-      title: conversation.title || '新对话',
+      title: conversation.title || PLAYGROUND_I18N_KEYS.NEW_CONVERSATION,
       messages: normalizedMessages,
       createdAt:
         conversation.created_at || conversation.createdAt || Date.now(),
@@ -378,7 +381,7 @@ export const usePlaygroundState = () => {
         API_ENDPOINTS.PLAYGROUND_CONVERSATIONS,
         {
           conversation_id: conversation.id,
-          title: conversation.title || '新对话',
+          title: conversation.title || PLAYGROUND_I18N_KEYS.NEW_CONVERSATION,
           messages: Array.isArray(conversation.messages)
             ? conversation.messages
             : [],

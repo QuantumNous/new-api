@@ -4413,6 +4413,14 @@
     "账户概览": "Tổng quan tài khoản",
     "这是不可撤销操作，请再次确认身份": "Đây là thao tác không thể hoàn tác, vui lòng xác nhận lại danh tính",
     "资料与安全": "Hồ sơ và bảo mật",
+    "新对话": "Cuộc trò chuyện mới",
+    "示例消息": "Tin nhắn mẫu",
+    "图片仍在生成中": "Quá trình tạo ảnh vẫn đang diễn ra",
+    "仍要离开": "Vẫn rời đi",
+    "留在当前页": "Ở lại trang này",
+    "图片仍在生成中，切换对话、新建对话、切换模式或离开页面都不会停止后端任务，仍可能继续消耗额度。请等待生成完成后再操作。": "Quá trình tạo ảnh vẫn đang diễn ra. Chuyển cuộc trò chuyện, tạo cuộc trò chuyện mới, đổi chế độ hoặc rời khỏi trang sẽ không dừng tác vụ phía backend và vẫn có thể tiếp tục tiêu tốn hạn mức. Vui lòng đợi cho đến khi quá trình tạo hoàn tất rồi hãy tiếp tục.",
+    "已尝试停止当前图片请求。若后端已将任务提交给上游，仍不能保证上游一定停止计费。": "Đã thử dừng yêu cầu tạo ảnh hiện tại. Nếu backend đã gửi tác vụ lên dịch vụ upstream, vẫn không thể đảm bảo phí sẽ ngừng tính.",
+    "图片请求已在前端停止。若上游任务已创建，仍可能继续执行。": "Yêu cầu tạo ảnh đã được dừng ở frontend. Nếu tác vụ upstream đã được tạo, nó vẫn có thể tiếp tục chạy.",
     "Turnstile 已启用，但 site key 为空。": "Turnstile đã được bật nhưng site key đang để trống."
   }
 }

@@ -43,7 +43,7 @@ const buildConversationTitle = (messages = []) => {
             .join(' ')
             .trim()
         : '';
-  return text ? text.slice(0, 30) : '新对话';
+  return text ? text.slice(0, 30) : '';
 };
 
 const isQuotaExceededError = (error) => {
@@ -177,7 +177,7 @@ const buildConversationStorageFallback = (conversations = []) => ({
   conversations: Array.isArray(conversations)
     ? conversations.map((conversation) => ({
         id: conversation?.id || `pg-${Date.now()}`,
-        title: conversation?.title || '新对话',
+        title: conversation?.title || '',
         messages: [],
         createdAt: conversation?.createdAt || Date.now(),
         updatedAt: conversation?.updatedAt || Date.now(),

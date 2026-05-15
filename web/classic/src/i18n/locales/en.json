@@ -3996,6 +3996,14 @@
     "账户概览": "Account overview",
     "这是不可撤销操作，请再次确认身份": "This action is irreversible. Please confirm your identity again",
     "注册时间": "Registration time",
-    "资料与安全": "Profile & Security"
+    "资料与安全": "Profile & Security",
+    "新对话": "New conversation",
+    "示例消息": "Sample message",
+    "图片仍在生成中": "Image generation is still in progress",
+    "仍要离开": "Leave anyway",
+    "留在当前页": "Stay on this page",
+    "图片仍在生成中，切换对话、新建对话、切换模式或离开页面都不会停止后端任务，仍可能继续消耗额度。请等待生成完成后再操作。": "Image generation is still in progress. Switching conversations, starting a new one, changing modes, or leaving the page will not stop the backend task and may continue consuming quota. Please wait until generation finishes before proceeding.",
+    "已尝试停止当前图片请求。若后端已将任务提交给上游，仍不能保证上游一定停止计费。": "Tried to stop the current image request. If the backend has already submitted the task upstream, billing may still continue.",
+    "图片请求已在前端停止。若上游任务已创建，仍可能继续执行。": "The image request was stopped on the frontend. If the upstream task was already created, it may still continue running."
   }
 }

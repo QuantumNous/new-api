@@ -3887,6 +3887,14 @@
     "这是不可撤销操作，请再次确认身份": "Cette action est irréversible. Veuillez confirmer à nouveau votre identité",
     "注册时间": "Date d'inscription",
     "资料与安全": "Profil et sécurité",
+    "新对话": "Nouvelle conversation",
+    "示例消息": "Message d'exemple",
+    "图片仍在生成中": "La génération d'image est toujours en cours",
+    "仍要离开": "Quitter quand même",
+    "留在当前页": "Rester sur cette page",
+    "图片仍在生成中，切换对话、新建对话、切换模式或离开页面都不会停止后端任务，仍可能继续消耗额度。请等待生成完成后再操作。": "La génération d'image est toujours en cours. Changer de conversation, en démarrer une nouvelle, changer de mode ou quitter la page n'arrêtera pas la tâche côté serveur et peut continuer à consommer du quota. Veuillez attendre la fin de la génération avant de continuer.",
+    "已尝试停止当前图片请求。若后端已将任务提交给上游，仍不能保证上游一定停止计费。": "Tentative d'arrêt de la requête d'image en cours. Si le backend a déjà soumis la tâche au fournisseur amont, la facturation peut continuer.",
+    "图片请求已在前端停止。若上游任务已创建，仍可能继续执行。": "La requête d'image a été arrêtée côté frontend. Si la tâche amont a déjà été créée, elle peut continuer à s'exécuter.",
     "Turnstile 已启用，但 site key 为空。": "Turnstile est activé, mais la clé de site est vide."
   }
 }

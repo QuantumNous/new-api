@@ -34,6 +34,7 @@ import {
   MESSAGE_STATUS,
   MESSAGE_ROLES,
   ERROR_MESSAGES,
+  PLAYGROUND_I18N_KEYS,
 } from '../../constants/playground.constants';
 import {
   getLogo,
@@ -191,7 +192,7 @@ const Playground = () => {
   };
 
   const imageGenerationBlockMessage = t(
-    '图片仍在生成中，切换对话、新建对话、切换模式或离开页面都不会停止后端任务，仍可能继续消耗额度。请等待生成完成后再操作。',
+    PLAYGROUND_I18N_KEYS.IMAGE_GENERATION_PENDING_MESSAGE,
   );
 
   const showImageGenerationBlockedToast = useCallback(() => {
@@ -204,10 +205,10 @@ const Playground = () => {
   const confirmLeaveDuringImageGeneration = useCallback(
     (onConfirm) => {
       Modal.confirm({
-        title: t('图片仍在生成中'),
+        title: t(PLAYGROUND_I18N_KEYS.IMAGE_GENERATION_PENDING_TITLE),
         content: imageGenerationBlockMessage,
-        okText: t('仍要离开'),
-        cancelText: t('留在当前页'),
+        okText: t(PLAYGROUND_I18N_KEYS.IMAGE_GENERATION_LEAVE_CONFIRM),
+        cancelText: t(PLAYGROUND_I18N_KEYS.IMAGE_GENERATION_STAY),
         onOk: onConfirm,
       });
     },
@@ -227,9 +228,7 @@ const Playground = () => {
 
       if (!silent) {
         Toast.info({
-          content: t(
-            '已尝试停止当前图片请求。若后端已将任务提交给上游，仍不能保证上游一定停止计费。',
-          ),
+          content: t(PLAYGROUND_I18N_KEYS.IMAGE_GENERATION_STOP_NOTICE),
           duration: 4,
         });
       }
@@ -307,7 +306,9 @@ const Playground = () => {
                 (url) => url.trim() !== '',
               );
               if (validImageUrls.length > 0) {
-                const textContent = getTextContent(messages[i]) || '示例消息';
+                const textContent =
+                  getTextContent(messages[i]) ||
+                  t(PLAYGROUND_I18N_KEYS.PREVIEW_SAMPLE_MESSAGE);
                 const content = buildMessageContent(
                   textContent,
                   validImageUrls,
@@ -333,6 +334,7 @@ const Playground = () => {
     playgroundMode,
     customRequestMode,
     customRequestBody,
+    t,
   ]);
 
   // 发送消息
@@ -1109,9 +1111,7 @@ const Playground = () => {
       } catch (error) {
         if (error?.name === 'AbortError') {
           updateImageAssistantMessage(assistantMessage.id, {
-            content: t(
-              '图片请求已在前端停止。若上游任务已创建，仍可能继续执行。',
-            ),
+            content: t(PLAYGROUND_I18N_KEYS.IMAGE_GENERATION_ABORTED),
             status: MESSAGE_STATUS.COMPLETE,
             isThinkingComplete: true,
           });

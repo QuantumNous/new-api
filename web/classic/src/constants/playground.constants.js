@@ -148,6 +148,20 @@ export const ERROR_MESSAGES = {
   NETWORK_ERROR: '网络连接失败或服务器无响应',
 };
 
+export const PLAYGROUND_I18N_KEYS = {
+  NEW_CONVERSATION: '新对话',
+  PREVIEW_SAMPLE_MESSAGE: '示例消息',
+  IMAGE_GENERATION_PENDING_TITLE: '图片仍在生成中',
+  IMAGE_GENERATION_PENDING_MESSAGE:
+    '图片仍在生成中，切换对话、新建对话、切换模式或离开页面都不会停止后端任务，仍可能继续消耗额度。请等待生成完成后再操作。',
+  IMAGE_GENERATION_LEAVE_CONFIRM: '仍要离开',
+  IMAGE_GENERATION_STAY: '留在当前页',
+  IMAGE_GENERATION_STOP_NOTICE:
+    '已尝试停止当前图片请求。若后端已将任务提交给上游，仍不能保证上游一定停止计费。',
+  IMAGE_GENERATION_ABORTED:
+    '图片请求已在前端停止。若上游任务已创建，仍可能继续执行。',
+};
+
 // ========== 存储键名 ==========
 export const STORAGE_KEYS = {
   CONFIG: 'playground_config',
