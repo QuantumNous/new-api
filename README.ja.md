@@ -206,7 +206,7 @@ docker run --name new-api -d --restart always \
 - 🤖 LinuxDO認証ログイン
 - 📱 Telegram認証ログイン
 - 🔑 OIDC統一認証
-- 🔍 Key使用量クォータ照会（[neko-api-key-tool](https://github.com/Calcium-Ion/neko-api-key-tool)と併用）
+- 🔍 Key使用量クォータ照会（[new-api-key-tool](https://github.com/Calcium-Ion/new-api-key-tool)と併用）
 
 
 
@@ -420,7 +420,7 @@ docker run --name new-api -d --restart always \
 
 | プロジェクト | 説明 |
 |------|------|
-| [neko-api-key-tool](https://github.com/Calcium-Ion/neko-api-key-tool) | キー使用量クォータ照会ツール |
+| [new-api-key-tool](https://github.com/Calcium-Ion/new-api-key-tool) | キー使用量クォータ照会ツール |
 | [new-api-horizon](https://github.com/Calcium-Ion/new-api-horizon) | New API高性能最適化版 |
 
 ---

@@ -206,7 +206,7 @@ docker run --name new-api -d --restart always \
 - 🤖 LinuxDO 授權登錄
 - 📱 Telegram 授權登錄
 - 🔑 OIDC 統一認證
-- 🔍 Key 查詢使用額度（配合 [neko-api-key-tool](https://github.com/Calcium-Ion/neko-api-key-tool)）
+- 🔍 Key 查詢使用額度（配合 [new-api-key-tool](https://github.com/Calcium-Ion/new-api-key-tool)）
 
 ### 🚀 高級功能
 
@@ -420,7 +420,7 @@ docker run --name new-api -d --restart always \
 
 | 項目 | 說明 |
 |------|------|
-| [neko-api-key-tool](https://github.com/Calcium-Ion/neko-api-key-tool) | Key 額度查詢工具 |
+| [new-api-key-tool](https://github.com/Calcium-Ion/new-api-key-tool) | Key 額度查詢工具 |
 | [new-api-horizon](https://github.com/Calcium-Ion/new-api-horizon) | New API 高性能優化版 |
 
 ---

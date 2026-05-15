@@ -110,6 +110,8 @@ const TopUp = () => {
   const [topupInfo, setTopupInfo] = useState({
     amount_options: [],
     discount: {},
+    enable_redemption: true,
+    payment_compliance_confirmed: true,
   });
 
   const confirmPayMethods = [
@@ -645,7 +647,7 @@ const TopUp = () => {
                 ? data.waffo_min_topup
                 : enableWaffoPancakeTopUp
                   ? data.waffo_pancake_min_topup
-                : 1;
+                  : 1;
           setEnableOnlineTopUp(enableOnlineTopUp);
           setEnableStripeTopUp(enableStripeTopUp);
           setEnableCreemTopUp(enableCreemTopUp);
@@ -657,6 +659,14 @@ const TopUp = () => {
           setMinTopUp(minTopUpValue);
           setTopUpCount(minTopUpValue);
           setTopUpLink(data.topup_link || '');
+          setTopupInfo((prev) => ({
+            ...prev,
+            enable_redemption: data.enable_redemption !== false,
+            payment_compliance_confirmed:
+              data.payment_compliance_confirmed !== false,
+            payment_compliance_terms_version:
+              data.payment_compliance_terms_version || '',
+          }));
 
           // 设置 Creem 产品
           try {
@@ -984,6 +994,7 @@ const TopUp = () => {
           activeSubscriptions={activeSubscriptions}
           allSubscriptions={allSubscriptions}
           reloadSubscriptionSelf={getSubscriptionSelf}
+          enableRedemption={topupInfo.enable_redemption !== false}
         />
         <InvitationCard
           t={t}
@@ -992,6 +1003,7 @@ const TopUp = () => {
           setOpenTransfer={setOpenTransfer}
           affLink={affLink}
           handleAffLinkClick={handleAffLinkClick}
+          complianceConfirmed={topupInfo.payment_compliance_confirmed !== false}
         />
       </div>
     </div>
