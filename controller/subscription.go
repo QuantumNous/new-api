@@ -6,6 +6,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
@@ -24,10 +25,18 @@ type BillingPreferenceRequest struct {
 // ---- User APIs ----
 
 func GetSubscriptionPlans(c *gin.Context) {
-	var plans []model.SubscriptionPlan
-	if err := model.DB.Where("enabled = ?", true).Order("sort_order desc, id desc").Find(&plans).Error; err != nil {
+	resp, err := buildSubscriptionPlansResponse()
+	if err != nil {
 		common.ApiError(c, err)
 		return
+	}
+	c.JSON(200, service.TranslateAPIResponse(c, "subscription_plans", resp, subscriptionPlansTranslationPaths))
+}
+
+func buildSubscriptionPlansResponse() (gin.H, error) {
+	var plans []model.SubscriptionPlan
+	if err := model.DB.Where("enabled = ?", true).Order("sort_order desc, id desc").Find(&plans).Error; err != nil {
+		return nil, err
 	}
 	result := make([]SubscriptionPlanDTO, 0, len(plans))
 	for _, p := range plans {
@@ -35,7 +44,7 @@ func GetSubscriptionPlans(c *gin.Context) {
 			Plan: p,
 		})
 	}
-	common.ApiSuccess(c, result)
+	return gin.H{"success": true, "message": "", "data": result}, nil
 }
 
 func GetSubscriptionSelf(c *gin.Context) {

@@ -17,10 +17,12 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useCallback } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { Languages, Check } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { useAuthStore } from '@/stores/auth-store'
 import { api } from '@/lib/api'
+import { refreshLanguageSensitiveQueries } from '@/lib/i18n-query-refresh'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import {
@@ -41,11 +43,13 @@ const languages = [
 
 export function LanguageSwitcher() {
   const { i18n, t } = useTranslation()
+  const queryClient = useQueryClient()
   const user = useAuthStore((s) => s.auth.user)
 
   const handleChangeLanguage = useCallback(
     async (code: string) => {
       await i18n.changeLanguage(code)
+      refreshLanguageSensitiveQueries(queryClient)
       if (user) {
         try {
           await api.put('/api/user/self', { language: code })
@@ -54,7 +58,7 @@ export function LanguageSwitcher() {
         }
       }
     },
-    [i18n, user]
+    [i18n, queryClient, user]
   )
 
   return (

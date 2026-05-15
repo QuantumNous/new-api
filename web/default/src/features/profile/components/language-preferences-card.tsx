@@ -17,10 +17,12 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useEffect, useMemo, useState } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { Languages, Loader2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { useAuthStore } from '@/stores/auth-store'
+import { refreshLanguageSensitiveQueries } from '@/lib/i18n-query-refresh'
 import {
   Select,
   SelectContent,
@@ -59,6 +61,7 @@ type LanguagePreferencesCardProps = {
 
 export function LanguagePreferencesCard(props: LanguagePreferencesCardProps) {
   const { t, i18n } = useTranslation()
+  const queryClient = useQueryClient()
   const { auth } = useAuthStore()
   const [saving, setSaving] = useState(false)
 
@@ -82,6 +85,7 @@ export function LanguagePreferencesCard(props: LanguagePreferencesCardProps) {
     setCurrentLanguage(nextLanguage)
     setSaving(true)
     await i18n.changeLanguage(nextLanguage)
+    refreshLanguageSensitiveQueries(queryClient)
 
     try {
       const response = await updateUserLanguage(nextLanguage)
@@ -108,6 +112,7 @@ export function LanguagePreferencesCard(props: LanguagePreferencesCardProps) {
     } catch (_error) {
       setCurrentLanguage(previousLanguage)
       await i18n.changeLanguage(previousLanguage)
+      refreshLanguageSensitiveQueries(queryClient)
       toast.error(t('Failed to update settings'))
     } finally {
       setSaving(false)

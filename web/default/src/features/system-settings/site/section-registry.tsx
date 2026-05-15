@@ -28,6 +28,7 @@ import { NoticeSection } from '../maintenance/notice-section'
 import { SidebarModulesSection } from '../maintenance/sidebar-modules-section'
 import type { SiteSettings } from '../types'
 import { createSectionRegistry } from '../utils/section-registry'
+import { AITranslationSection } from './ai-translation-section'
 
 const SITE_SECTIONS = [
   {
@@ -78,6 +79,22 @@ const SITE_SECTIONS = [
         />
       )
     },
+  },
+  {
+    id: 'ai-translation',
+    titleKey: 'AI automatic translation',
+    descriptionKey: 'Configure automatic translation for public API data',
+    build: (settings: SiteSettings) => (
+      <AITranslationSection
+        defaultValues={{
+          AITranslationEnabled: settings.AITranslationEnabled,
+          AITranslationBaseURL: settings.AITranslationBaseURL,
+          AITranslationAPIKey: settings.AITranslationAPIKey,
+          AITranslationModel: settings.AITranslationModel,
+          AITranslationTimeoutSeconds: settings.AITranslationTimeoutSeconds,
+        }}
+      />
+    ),
   },
   {
     id: 'sidebar-modules',

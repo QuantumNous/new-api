@@ -31,9 +31,15 @@ func isVisiblePublicKeyOption(key string) bool {
 	switch key {
 	case "WaffoPancakeWebhookPublicKey", "WaffoPancakeWebhookTestKey":
 		return true
+	case "AITranslationAPIKey":
+		return true
 	default:
 		return false
 	}
+}
+
+func isHiddenOptionKey(key string) bool {
+	return key == "AITranslationSnapshot"
 }
 
 func collectModelNamesFromOptionValue(raw string, modelNames map[string]struct{}) {
@@ -74,6 +80,9 @@ func GetOptions(c *gin.Context) {
 	optionValues := make(map[string]string)
 	common.OptionMapRWMutex.Lock()
 	for k, v := range common.OptionMap {
+		if isHiddenOptionKey(k) {
+			continue
+		}
 		value := common.Interface2String(v)
 		isSensitiveKey := strings.HasSuffix(k, "Token") ||
 			strings.HasSuffix(k, "Secret") ||

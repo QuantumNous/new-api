@@ -43,7 +43,7 @@ const StatusDot = memo(function StatusDot(props: { status: number }) {
 })
 
 export function UptimePanel() {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const [groups, setGroups] = useState<UptimeGroupResult[]>([])
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
@@ -69,7 +69,7 @@ export function UptimePanel() {
     return () => {
       abortController.abort()
     }
-  }, [])
+  }, [i18n.resolvedLanguage])
 
   const handleRefresh = () => {
     const abortController = new AbortController()

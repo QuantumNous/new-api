@@ -93,7 +93,7 @@ export function SubscriptionPlansCard({
   topupInfo,
   onAvailabilityChange,
 }: SubscriptionPlansCardProps) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
 
   const [plans, setPlans] = useState<PlanRecord[]>([])
   const [activeSubscriptions, setActiveSubscriptions] = useState<
@@ -151,7 +151,7 @@ export function SubscriptionPlansCard({
       setLoading(false)
     }
     init()
-  }, [fetchPlans, fetchSelfSubscription])
+  }, [fetchPlans, fetchSelfSubscription, i18n.resolvedLanguage])
 
   const handleRefresh = async () => {
     setRefreshing(true)

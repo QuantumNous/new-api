@@ -24,10 +24,15 @@ func GetGroups(c *gin.Context) {
 }
 
 func GetUserGroups(c *gin.Context) {
-	usableGroups := make(map[string]map[string]interface{})
 	userGroup := ""
 	userId := c.GetInt("id")
 	userGroup, _ = model.GetUserGroup(userId, false)
+	resp := buildUserGroupsResponse(userGroup)
+	c.JSON(http.StatusOK, service.TranslateAPIResponse(c, "user_groups", resp, userGroupsTranslationPaths))
+}
+
+func buildUserGroupsResponse(userGroup string) gin.H {
+	usableGroups := make(map[string]map[string]interface{})
 	userUsableGroups := service.GetUserUsableGroups(userGroup)
 	for groupName, _ := range ratio_setting.GetGroupRatioCopy() {
 		// UserUsableGroups contains the groups that the user can use
@@ -44,9 +49,10 @@ func GetUserGroups(c *gin.Context) {
 			"desc":  setting.GetUsableGroupDescription("auto"),
 		}
 	}
-	c.JSON(http.StatusOK, gin.H{
+	resp := gin.H{
 		"success": true,
 		"message": "",
 		"data":    usableGroups,
-	})
+	}
+	return resp
 }

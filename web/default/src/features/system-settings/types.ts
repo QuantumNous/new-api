@@ -39,6 +39,26 @@ export type UpdateOptionResponse = {
   message: string
 }
 
+export type GenerateAITranslationsResponse = {
+  success: boolean
+  message: string
+  data?: {
+    updated_at: number
+    stats: {
+      source_text_count: number
+      language_counts: Record<string, number>
+    }
+  }
+}
+
+export type UpdateAITranslationSettingsRequest = {
+  enabled: boolean
+  base_url: string
+  api_key?: string
+  model: string
+  timeout_seconds: number
+}
+
 export type DeleteLogsResponse = {
   success: boolean
   message: string
@@ -59,6 +79,11 @@ export type SiteSettings = {
   HeaderNavModules: string
   RankingsDisplayMultiplier: string
   RankingsDisplayJitterRatio: string
+  AITranslationEnabled: boolean | string
+  AITranslationBaseURL: string
+  AITranslationAPIKey: string
+  AITranslationModel: string
+  AITranslationTimeoutSeconds: string
   SidebarModulesAdmin: string
 }
 

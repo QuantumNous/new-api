@@ -154,6 +154,9 @@ export function getCommonHeaders(): Record<string, string> {
 
 // Attach user ID header for all requests
 api.interceptors.request.use((config) => {
+  config.headers = config.headers ?? {}
+  ;(config.headers as Record<string, string>)['Accept-Language'] =
+    i18next.resolvedLanguage || i18next.language || 'en'
   const uid = getUserId()
   if (uid) {
     // Custom header for user identification

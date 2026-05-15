@@ -12,6 +12,7 @@ import (
 	"github.com/QuantumNous/new-api/middleware"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/oauth"
+	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting"
 	"github.com/QuantumNous/new-api/setting/console_setting"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
@@ -39,11 +40,12 @@ func TestStatus(c *gin.Context) {
 	return
 }
 
-func GetStatus(c *gin.Context) {
-
+func buildStatusResponse() gin.H {
 	cs := console_setting.GetConsoleSetting()
 	common.OptionMapRWMutex.RLock()
-	defer common.OptionMapRWMutex.RUnlock()
+	headerNavModules := common.OptionMap["HeaderNavModules"]
+	sidebarModulesAdmin := common.OptionMap["SidebarModulesAdmin"]
+	common.OptionMapRWMutex.RUnlock()
 
 	passkeySetting := system_setting.GetPasskeySettings()
 	legalSetting := system_setting.GetLegalSettings()
@@ -100,8 +102,8 @@ func GetStatus(c *gin.Context) {
 		"faq_enabled":           cs.FAQEnabled,
 
 		// 模块管理配置
-		"HeaderNavModules":    common.OptionMap["HeaderNavModules"],
-		"SidebarModulesAdmin": common.OptionMap["SidebarModulesAdmin"],
+		"HeaderNavModules":    headerNavModules,
+		"SidebarModulesAdmin": sidebarModulesAdmin,
 
 		"oidc_enabled":                system_setting.GetOIDCSettings().Enabled,
 		"oidc_client_id":              system_setting.GetOIDCSettings().ClientId,
@@ -158,22 +160,34 @@ func GetStatus(c *gin.Context) {
 		data["custom_oauth_providers"] = providersInfo
 	}
 
-	c.JSON(http.StatusOK, gin.H{
+	resp := gin.H{
 		"success": true,
 		"message": "",
 		"data":    data,
-	})
+	}
+	return resp
+}
+
+func GetStatus(c *gin.Context) {
+	resp := buildStatusResponse()
+	c.JSON(http.StatusOK, service.TranslateAPIResponse(c, "status", resp, statusTranslationPaths))
 	return
 }
 
-func GetNotice(c *gin.Context) {
+func buildNoticeResponse() gin.H {
 	common.OptionMapRWMutex.RLock()
-	defer common.OptionMapRWMutex.RUnlock()
-	c.JSON(http.StatusOK, gin.H{
+	notice := common.OptionMap["Notice"]
+	common.OptionMapRWMutex.RUnlock()
+	return gin.H{
 		"success": true,
 		"message": "",
-		"data":    common.OptionMap["Notice"],
-	})
+		"data":    notice,
+	}
+}
+
+func GetNotice(c *gin.Context) {
+	resp := buildNoticeResponse()
+	c.JSON(http.StatusOK, service.TranslateAPIResponse(c, "notice", resp, noticeTranslationPaths))
 	return
 }
 

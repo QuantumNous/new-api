@@ -20,7 +20,9 @@ import { api } from '@/lib/api'
 import type {
   DeleteLogsResponse,
   FetchUpstreamRatiosRequest,
+  GenerateAITranslationsResponse,
   SystemOptionsResponse,
+  UpdateAITranslationSettingsRequest,
   UpdateOptionRequest,
   UpdateOptionResponse,
   UpstreamChannelsResponse,
@@ -47,6 +49,23 @@ export async function deleteLogsBefore(targetTimestamp: number) {
 export async function resetModelRatios() {
   const res = await api.post<UpdateOptionResponse>(
     '/api/option/rest_model_ratio'
+  )
+  return res.data
+}
+
+export async function generateAITranslations() {
+  const res = await api.post<GenerateAITranslationsResponse>(
+    '/api/option/ai_translation/generate'
+  )
+  return res.data
+}
+
+export async function updateAITranslationSettings(
+  request: UpdateAITranslationSettingsRequest
+) {
+  const res = await api.put<UpdateOptionResponse>(
+    '/api/option/ai_translation/settings',
+    request
   )
   return res.data
 }

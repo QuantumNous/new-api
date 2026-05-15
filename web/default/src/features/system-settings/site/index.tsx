@@ -37,6 +37,11 @@ const defaultSiteSettings: SiteSettings = {
   HeaderNavModules: '',
   RankingsDisplayMultiplier: '1',
   RankingsDisplayJitterRatio: '0',
+  AITranslationEnabled: false,
+  AITranslationBaseURL: 'https://api.openai.com/v1',
+  AITranslationAPIKey: '',
+  AITranslationModel: 'gpt-4o-mini',
+  AITranslationTimeoutSeconds: '30',
   SidebarModulesAdmin: '',
 }
 

@@ -8,7 +8,7 @@ import (
 )
 
 func GetRankings(c *gin.Context) {
-	result, err := service.GetRankingsSnapshot(c.DefaultQuery("period", "week"))
+	resp, err := buildRankingsResponse(c.DefaultQuery("period", "week"))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"success": false,
@@ -16,9 +16,16 @@ func GetRankings(c *gin.Context) {
 		})
 		return
 	}
+	c.JSON(http.StatusOK, service.TranslateAPIResponse(c, "rankings", resp, rankingsTranslationPaths))
+}
 
-	c.JSON(http.StatusOK, gin.H{
+func buildRankingsResponse(period string) (gin.H, error) {
+	result, err := service.GetRankingsSnapshot(period)
+	if err != nil {
+		return nil, err
+	}
+	return gin.H{
 		"success": true,
 		"data":    result,
-	})
+	}, nil
 }

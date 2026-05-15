@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting/console_setting"
 
 	"github.com/gin-gonic/gin"
@@ -129,13 +130,17 @@ func fetchGroupData(ctx context.Context, client *http.Client, groupConfig map[st
 }
 
 func GetUptimeKumaStatus(c *gin.Context) {
+	resp := buildUptimeKumaStatusResponse(c.Request.Context())
+	c.JSON(http.StatusOK, service.TranslateAPIResponse(c, "uptime_status", resp, uptimeTranslationPaths))
+}
+
+func buildUptimeKumaStatusResponse(parent context.Context) gin.H {
 	groups := console_setting.GetUptimeKumaGroups()
 	if len(groups) == 0 {
-		c.JSON(http.StatusOK, gin.H{"success": true, "message": "", "data": []UptimeGroupResult{}})
-		return
+		return gin.H{"success": true, "message": "", "data": []UptimeGroupResult{}}
 	}
 
-	ctx, cancel := context.WithTimeout(c.Request.Context(), requestTimeout)
+	ctx, cancel := context.WithTimeout(parent, requestTimeout)
 	defer cancel()
 
 	client := &http.Client{Timeout: httpTimeout}
@@ -151,5 +156,5 @@ func GetUptimeKumaStatus(c *gin.Context) {
 	}
 
 	g.Wait()
-	c.JSON(http.StatusOK, gin.H{"success": true, "message": "", "data": results})
+	return gin.H{"success": true, "message": "", "data": results}
 }
