@@ -3,86 +3,90 @@ package service
 import (
 	"bytes"
 	"context"
-	"crypto"
-	"crypto/rsa"
-	"crypto/sha256"
-	"crypto/x509"
-	"encoding/base64"
-	"encoding/pem"
+	"encoding/json"
 	"fmt"
 	"io"
-	"math"
 	"net/http"
-	"strconv"
 	"strings"
-	"time"
 
-	"github.com/QuantumNous/new-api/common"
-	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/setting"
+	pancake "github.com/waffo-com/waffo-pancake-sdk-go"
 )
 
-const (
-	waffoPancakeAuthBaseURL      = "https://waffo-pancake-auth-service.vercel.app"
-	waffoPancakeCheckoutPath     = "/v1/actions/checkout/create-session"
-	waffoPancakeDefaultTolerance = 5 * time.Minute
-)
+// -----------------------------------------------------------------------------
+// Public types (preserved shapes the controller depends on)
+// -----------------------------------------------------------------------------
 
+// WaffoPancakePriceSnapshot is the per-session price override sent with checkout.
 type WaffoPancakePriceSnapshot struct {
-	Amount      string `json:"amount"`
-	TaxIncluded bool   `json:"taxIncluded"`
-	TaxCategory string `json:"taxCategory"`
+	Amount      string
+	TaxCategory string
 }
 
+// WaffoPancakeCreateSessionParams is the input to CreateWaffoPancakeCheckoutSession.
+//
+// Intentionally simpler than the previous hand-rolled struct:
+//   - StoreID is dropped — the server derives the store from ProductID
+//   - Currency is dropped — Pancake only supports USD for new-api top-ups
+//   - ProductType is dropped — the SDK does not model it client-side
+//   - SuccessURL is dropped — bound to the auto-created Product once via
+//     EnsureWaffoPancakePrimaryProduct; the operator never sets it per-checkout
+//
+// BuyerIdentity binds the checkout session to a stable merchant-controlled
+// user ID (typically `new-api-user-<UserId>`). This is what makes the order
+// resilient to the buyer editing the email on the Waffo checkout form, and
+// what lets Pancake issue scoped session tokens for post-purchase self-service
+// (refund tickets, subscription cancellation, etc.) bound to this user.
 type WaffoPancakeCreateSessionParams struct {
-	StoreID          string                     `json:"storeId"`
-	ProductID        string                     `json:"productId"`
-	ProductType      string                     `json:"productType"`
-	Currency         string                     `json:"currency"`
-	PriceSnapshot    *WaffoPancakePriceSnapshot `json:"priceSnapshot,omitempty"`
-	BuyerEmail       string                     `json:"buyerEmail,omitempty"`
-	SuccessURL       string                     `json:"successUrl,omitempty"`
-	ExpiresInSeconds *int                       `json:"expiresInSeconds,omitempty"`
+	ProductID        string
+	BuyerIdentity    string
+	PriceSnapshot    *WaffoPancakePriceSnapshot
+	BuyerEmail       string
+	ExpiresInSeconds *int
 }
 
+// WaffoPancakeCheckoutSession is the response of CreateWaffoPancakeCheckoutSession.
+//
+// Token / TokenExpiresAt are populated by the SDK's Authenticated checkout
+// flow. CheckoutURL already has the `#token=...` fragment appended, so simply
+// redirecting the buyer to CheckoutURL is enough for the basic flow. The
+// fields are also exposed separately for use cases that want to drive buyer
+// self-service from new-api's own UI (e.g., issue refund / cancel subscription
+// without leaving new-api).
 type WaffoPancakeCheckoutSession struct {
-	SessionID   string `json:"sessionId"`
-	CheckoutURL string `json:"checkoutUrl"`
-	ExpiresAt   string `json:"expiresAt"`
-	OrderID     string `json:"orderId"`
+	SessionID      string
+	CheckoutURL    string
+	ExpiresAt      string
+	OrderID        string
+	Token          string
+	TokenExpiresAt string
 }
 
-type waffoPancakeAPIError struct {
-	Message string `json:"message"`
-	Layer   string `json:"layer"`
-}
-
-type waffoPancakeCreateSessionResponse struct {
-	Data   *WaffoPancakeCheckoutSession `json:"data"`
-	Errors []waffoPancakeAPIError       `json:"errors"`
+// waffoPancakeWebhookEvent is the verified webhook payload as exposed to
+// controllers. The shape mirrors the SDK's WebhookEvent/WebhookEventData but
+// uses plain strings so controllers don't have to import the SDK package.
+type waffoPancakeWebhookEvent struct {
+	ID        string
+	Timestamp string
+	EventType string
+	EventID   string
+	StoreID   string
+	Mode      string
+	Data      waffoPancakeWebhookData
 }
 
 type waffoPancakeWebhookData struct {
-	ID          string          `json:"id"`
-	OrderID     string          `json:"orderId"`
-	BuyerEmail  string          `json:"buyerEmail"`
-	Currency    string          `json:"currency"`
-	Amount      dto.StringValue `json:"amount"`
-	TaxAmount   dto.StringValue `json:"taxAmount"`
-	ProductName string          `json:"productName"`
+	OrderID                       string
+	BuyerEmail                    string
+	Currency                      string
+	Amount                        string
+	TaxAmount                     string
+	ProductName                   string
+	MerchantProvidedBuyerIdentity string
 }
 
-type waffoPancakeWebhookEvent struct {
-	ID        string                  `json:"id"`
-	Timestamp string                  `json:"timestamp"`
-	EventType string                  `json:"eventType"`
-	EventID   string                  `json:"eventId"`
-	StoreID   string                  `json:"storeId"`
-	Mode      string                  `json:"mode"`
-	Data      waffoPancakeWebhookData `json:"data"`
-}
-
+// NormalizedEventType returns the event type or empty string for a nil event.
 func (e *waffoPancakeWebhookEvent) NormalizedEventType() string {
 	if e == nil {
 		return ""
@@ -90,309 +94,487 @@ func (e *waffoPancakeWebhookEvent) NormalizedEventType() string {
 	return e.EventType
 }
 
+// -----------------------------------------------------------------------------
+// SDK client construction
+// -----------------------------------------------------------------------------
+
+// waffoPancakeGraphQLEnvelopeFixTransport works around a response-decoding bug
+// in waffo-pancake-sdk-go v0.1.1: the SDK assumes the HTTP body is a doubly-
+// wrapped envelope of the form
+//
+//	{"data": {"data": ..., "errors": [...], "warnings": [...]}}
+//
+// but the live `/v1/graphql` endpoint returns the standard single-wrap
+// GraphQL envelope:
+//
+//	{"data": ..., "errors": [...]}
+//
+// After the SDK strips the outer `data`, what remains is e.g. `{"stores":...}`,
+// which doesn't match the SDK's `GraphQLResponse{Data, Errors, Warnings}`
+// struct — so every field of `GraphQLResponse` ends up empty and the caller
+// sees a silently-empty response.
+//
+// To unblock new-api without forking the SDK, we wrap the response body in an
+// additional `{"data": ...}` envelope so the SDK's outer unwrap leaves the
+// standard GraphQL envelope behind for `GraphQLResponse` to decode normally.
+//
+// Scope: only `/v1/graphql` requests are touched. Every other endpoint already
+// uses the single-wrapped envelope the SDK expects and works unaltered.
+//
+// Drop this once the upstream SDK fix lands.
+type waffoPancakeGraphQLEnvelopeFixTransport struct {
+	inner http.RoundTripper
+}
+
+func (t *waffoPancakeGraphQLEnvelopeFixTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	inner := t.inner
+	if inner == nil {
+		inner = http.DefaultTransport
+	}
+	resp, err := inner.RoundTrip(req)
+	if err != nil || resp == nil {
+		return resp, err
+	}
+	if !strings.HasSuffix(req.URL.Path, "/v1/graphql") {
+		return resp, nil
+	}
+	body, readErr := io.ReadAll(resp.Body)
+	_ = resp.Body.Close()
+	if readErr != nil {
+		return resp, readErr
+	}
+	if len(bytes.TrimSpace(body)) == 0 {
+		resp.Body = io.NopCloser(bytes.NewReader(body))
+		return resp, nil
+	}
+	wrapped := make([]byte, 0, len(body)+9)
+	wrapped = append(wrapped, []byte(`{"data":`)...)
+	wrapped = append(wrapped, body...)
+	wrapped = append(wrapped, '}')
+	resp.Body = io.NopCloser(bytes.NewReader(wrapped))
+	resp.ContentLength = int64(len(wrapped))
+	return resp, nil
+}
+
+// newWaffoPancakeHTTPClient returns a fresh *http.Client preconfigured with
+// the GraphQL envelope-fix transport. Every SDK client builder below must use
+// this so GraphQL queries actually decode.
+func newWaffoPancakeHTTPClient() *http.Client {
+	return &http.Client{Transport: &waffoPancakeGraphQLEnvelopeFixTransport{inner: http.DefaultTransport}}
+}
+
+// newWaffoPancakeClient builds a fresh SDK client from the current settings.
+// Used by the runtime checkout / webhook paths, where credentials are already
+// persisted and trusted.
+//
+// Configuration endpoints should use newWaffoPancakeClientFromCreds instead so
+// the operator can verify / mint entities with typed-but-not-yet-saved
+// credentials.
+func newWaffoPancakeClient() (*pancake.Client, error) {
+	return pancake.New(pancake.Config{
+		MerchantID: setting.WaffoPancakeMerchantID,
+		PrivateKey: setting.WaffoPancakePrivateKey,
+		HTTPClient: newWaffoPancakeHTTPClient(),
+	})
+}
+
+// newWaffoPancakeClientFromCreds builds an SDK client from explicit
+// credentials supplied by the configuration UI. These values come straight
+// from the operator's input fields and are NOT persisted to settings — the
+// final Save action is what writes them through.
+func newWaffoPancakeClientFromCreds(merchantID, privateKey string) (*pancake.Client, error) {
+	if strings.TrimSpace(merchantID) == "" || strings.TrimSpace(privateKey) == "" {
+		return nil, fmt.Errorf("merchant id and private key are required")
+	}
+	return pancake.New(pancake.Config{
+		MerchantID: merchantID,
+		PrivateKey: privateKey,
+		HTTPClient: newWaffoPancakeHTTPClient(),
+	})
+}
+
+// -----------------------------------------------------------------------------
+// Checkout
+// -----------------------------------------------------------------------------
+
+// CreateWaffoPancakeCheckoutSession creates an authenticated checkout session
+// via the official Pancake SDK.
+//
+// "Authenticated" mode binds the order to a merchant-controlled buyer identity
+// (here: the new-api User.Id), so the order remains attributable to the right
+// user even if the buyer edits the email on the Waffo checkout form. The SDK
+// also issues a scoped session token in parallel and appends `#token=...` to
+// the returned CheckoutURL — buyers landing on the checkout page get the token
+// for free, and merchants can also drive post-purchase self-service flows
+// (refund, cancel subscription) from new-api's own UI using the Token field
+// returned below.
 func CreateWaffoPancakeCheckoutSession(ctx context.Context, params *WaffoPancakeCreateSessionParams) (*WaffoPancakeCheckoutSession, error) {
 	if params == nil {
 		return nil, fmt.Errorf("missing checkout params")
 	}
-
-	body, err := common.Marshal(params)
+	if strings.TrimSpace(params.BuyerIdentity) == "" {
+		return nil, fmt.Errorf("missing buyer identity")
+	}
+	client, err := newWaffoPancakeClient()
 	if err != nil {
-		return nil, fmt.Errorf("marshal Waffo Pancake checkout payload: %w", err)
+		return nil, fmt.Errorf("build Waffo Pancake client: %w", err)
 	}
 
-	privateKey, err := normalizeRSAPrivateKey(setting.WaffoPancakePrivateKey)
-	if err != nil {
-		return nil, err
+	sdkParams := pancake.AuthenticatedCheckoutParams{
+		CreateCheckoutSessionParams: pancake.CreateCheckoutSessionParams{
+			ProductID:        params.ProductID,
+			Currency:         "USD",
+			BuyerEmail:       optionalString(params.BuyerEmail),
+			ExpiresInSeconds: params.ExpiresInSeconds,
+		},
+		BuyerIdentity: params.BuyerIdentity,
 	}
-
-	timestamp := strconv.FormatInt(time.Now().Unix(), 10)
-	signature, err := signWaffoPancakeRequest(http.MethodPost, waffoPancakeCheckoutPath, timestamp, string(body), privateKey)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, waffoPancakeAuthBaseURL+waffoPancakeCheckoutPath, bytes.NewReader(body))
-	if err != nil {
-		return nil, fmt.Errorf("build Waffo Pancake checkout request: %w", err)
-	}
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("X-Merchant-Id", setting.WaffoPancakeMerchantID)
-	req.Header.Set("X-Timestamp", timestamp)
-	req.Header.Set("X-Signature", signature)
-	if setting.WaffoPancakeSandbox {
-		req.Header.Set("X-Environment", "test")
-	} else {
-		req.Header.Set("X-Environment", "prod")
-	}
-
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("request Waffo Pancake checkout session: %w", err)
-	}
-	defer resp.Body.Close()
-
-	responseBody, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("read Waffo Pancake checkout response: %w", err)
-	}
-
-	var result waffoPancakeCreateSessionResponse
-	if err := common.Unmarshal(responseBody, &result); err != nil {
-		return nil, fmt.Errorf("decode Waffo Pancake checkout response: %w", err)
-	}
-	if resp.StatusCode >= http.StatusBadRequest {
-		if len(result.Errors) > 0 {
-			return nil, fmt.Errorf("Waffo Pancake error (%d): %s", resp.StatusCode, result.Errors[0].Message)
+	if params.PriceSnapshot != nil {
+		sdkParams.PriceSnapshot = &pancake.PriceInfo{
+			Amount:      params.PriceSnapshot.Amount,
+			TaxCategory: pancake.TaxCategory(params.PriceSnapshot.TaxCategory),
 		}
-		return nil, fmt.Errorf("Waffo Pancake checkout request failed with status %d", resp.StatusCode)
 	}
-	if len(result.Errors) > 0 {
-		return nil, fmt.Errorf("Waffo Pancake error: %s", result.Errors[0].Message)
+
+	session, err := client.Checkout.Authenticated.Create(ctx, sdkParams)
+	if err != nil {
+		return nil, err
 	}
-	if result.Data == nil || result.Data.CheckoutURL == "" || strings.TrimSpace(result.Data.SessionID) == "" {
+	if session == nil || strings.TrimSpace(session.CheckoutURL) == "" || strings.TrimSpace(session.SessionID) == "" {
 		return nil, fmt.Errorf("Waffo Pancake returned empty checkout session")
 	}
-	return result.Data, nil
+	return &WaffoPancakeCheckoutSession{
+		SessionID:      session.SessionID,
+		CheckoutURL:    session.CheckoutURL,
+		ExpiresAt:      session.ExpiresAt,
+		Token:          session.Token,
+		TokenExpiresAt: session.TokenExpiresAt,
+	}, nil
 }
 
+func optionalString(s string) *string {
+	if strings.TrimSpace(s) == "" {
+		return nil
+	}
+	v := s
+	return &v
+}
+
+func derefString(p *string) string {
+	if p == nil {
+		return ""
+	}
+	return *p
+}
+
+// WaffoPancakeBuyerIdentityFromUserID renders the canonical buyer identity
+// string used at checkout for a given new-api user. The webhook handler and
+// the checkout request must both call this so the strings stay in lock-step:
+// any divergence would surface as an identity-mismatch failure during
+// webhook processing.
+func WaffoPancakeBuyerIdentityFromUserID(userID int) string {
+	return fmt.Sprintf("new-api-user-%d", userID)
+}
+
+// -----------------------------------------------------------------------------
+// Webhook
+// -----------------------------------------------------------------------------
+
+// VerifyConfiguredWaffoPancakeWebhook verifies the X-Waffo-Signature header
+// against the raw payload.
+//
+// Environment detection is fully delegated to the SDK: it reads the `mode`
+// field from the payload and picks the matching built-in public key (test or
+// prod) automatically. No client-side sandbox toggle is involved.
 func VerifyConfiguredWaffoPancakeWebhook(payload string, signatureHeader string) (*waffoPancakeWebhookEvent, error) {
-	environment := resolveWaffoPancakeWebhookEnvironment(payload)
-	return verifyWaffoPancakeWebhook(payload, signatureHeader, environment)
+	sdkEvent, err := pancake.VerifyWebhook(payload, signatureHeader, nil)
+	if err != nil {
+		return nil, err
+	}
+	var data pancake.WebhookEventData
+	if err := json.Unmarshal(sdkEvent.Data, &data); err != nil {
+		return nil, fmt.Errorf("decode Waffo Pancake webhook data: %w", err)
+	}
+	return &waffoPancakeWebhookEvent{
+		ID:        sdkEvent.ID,
+		Timestamp: sdkEvent.Timestamp,
+		EventType: sdkEvent.EventType,
+		EventID:   sdkEvent.EventID,
+		StoreID:   sdkEvent.StoreID,
+		Mode:      string(sdkEvent.Mode),
+		Data: waffoPancakeWebhookData{
+			OrderID:                       data.OrderID,
+			BuyerEmail:                    data.BuyerEmail,
+			Currency:                      data.Currency,
+			Amount:                        data.Amount,
+			TaxAmount:                     data.TaxAmount,
+			ProductName:                   data.ProductName,
+			MerchantProvidedBuyerIdentity: derefString(data.MerchantProvidedBuyerIdentity),
+		},
+	}, nil
 }
 
+// ResolveWaffoPancakeTradeNo maps a verified webhook event back to a local
+// TopUp trade_no, and verifies that the buyer identity Pancake echoed back
+// matches the one we generated for that user at checkout time.
+//
+// Defence-in-depth on top of the X-Waffo-Signature check: even if a webhook
+// payload survives signature verification, a mismatched
+// merchantProvidedBuyerIdentity is a strong signal that the order has been
+// tampered with or wires got crossed between merchants — treat it as a hard
+// rejection rather than crediting the wrong account.
 func ResolveWaffoPancakeTradeNo(event *waffoPancakeWebhookEvent) (string, error) {
 	if event == nil {
 		return "", fmt.Errorf("missing webhook event")
 	}
-
-	if tradeNo := strings.TrimSpace(event.Data.OrderID); tradeNo != "" {
-		topUp := model.GetTopUpByTradeNo(tradeNo)
-		if topUp != nil && topUp.PaymentMethod == model.PaymentMethodWaffoPancake {
-			return tradeNo, nil
-		}
+	tradeNo := strings.TrimSpace(event.Data.OrderID)
+	if tradeNo == "" {
+		return "", fmt.Errorf("missing webhook orderId")
+	}
+	topUp := model.GetTopUpByTradeNo(tradeNo)
+	// Use PaymentProvider rather than PaymentMethod here so the guard matches
+	// model.RechargeWaffoPancake's cross-gateway defence (a7c38ec8). Both
+	// fields are written to the same value on insert, but PaymentProvider is
+	// the one that survives any future per-user PaymentMethod customisation.
+	if topUp == nil || topUp.PaymentProvider != model.PaymentProviderWaffoPancake {
 		return "", fmt.Errorf("waffo pancake order not found for webhook orderId=%s", tradeNo)
 	}
-
-	return "", fmt.Errorf("missing webhook orderId")
-}
-
-func normalizeRSAPrivateKey(raw string) (string, error) {
-	return normalizePEMKey(raw, "PRIVATE KEY", "RSA PRIVATE KEY")
-}
-
-func normalizeRSAPublicKey(raw string) (string, error) {
-	return normalizePEMKey(raw, "PUBLIC KEY", "RSA PUBLIC KEY")
-}
-
-func normalizePEMKey(raw string, pkcs8Type string, pkcs1Type string) (string, error) {
-	if strings.TrimSpace(raw) == "" {
-		return "", fmt.Errorf("%s is empty", strings.ToLower(pkcs8Type))
+	expectedIdentity := WaffoPancakeBuyerIdentityFromUserID(topUp.UserId)
+	actualIdentity := strings.TrimSpace(event.Data.MerchantProvidedBuyerIdentity)
+	if actualIdentity != expectedIdentity {
+		return "", fmt.Errorf(
+			"waffo pancake buyer identity mismatch for tradeNo=%s: expected=%q actual=%q",
+			tradeNo,
+			expectedIdentity,
+			actualIdentity,
+		)
 	}
+	return tradeNo, nil
+}
 
-	normalized := strings.TrimSpace(strings.ReplaceAll(raw, `\n`, "\n"))
-	if strings.Contains(normalized, "BEGIN ") {
-		block, _ := pem.Decode([]byte(normalized))
-		if block == nil {
-			return "", fmt.Errorf("invalid PEM encoded %s", strings.ToLower(pkcs8Type))
-		}
-		return string(pem.EncodeToMemory(block)), nil
-	}
+// -----------------------------------------------------------------------------
+// Auto-provisioning
+// -----------------------------------------------------------------------------
 
-	der, err := base64.StdEncoding.DecodeString(strings.ReplaceAll(normalized, "\n", ""))
+// Default names used when the operator clicks "Create new". They are kept as
+// constants here so the frontend can render the exact name that will be
+// created (transparency), and so the body that goes to Pancake is fully
+// deterministic — the SDK's auto-generated X-Idempotency-Key is then stable
+// across retries / double-clicks, which lets Pancake dedupe server-side.
+const (
+	defaultWaffoPancakeStoreName   = "new-api-store"
+	defaultWaffoPancakeProductName = "new-api-charge-product"
+)
+
+// CreateWaffoPancakePrimaryStore creates a Pancake Store using the operator's
+// in-flight credentials (NOT yet persisted to settings). The returned ID is
+// passed back to the frontend so the operator can confirm before final Save.
+func CreateWaffoPancakePrimaryStore(ctx context.Context, merchantID, privateKey string) (string, error) {
+	client, err := newWaffoPancakeClientFromCreds(merchantID, privateKey)
 	if err != nil {
-		return "", fmt.Errorf("invalid base64 encoded %s: %w", strings.ToLower(pkcs8Type), err)
+		return "", err
 	}
-
-	pemType := pkcs8Type
-	if pkcs8Type == "PRIVATE KEY" {
-		if _, err := x509.ParsePKCS8PrivateKey(der); err != nil {
-			if _, err := x509.ParsePKCS1PrivateKey(der); err == nil {
-				pemType = pkcs1Type
-			} else {
-				return "", fmt.Errorf("invalid RSA private key")
-			}
-		}
-	} else {
-		if _, err := x509.ParsePKIXPublicKey(der); err != nil {
-			if _, err := x509.ParsePKCS1PublicKey(der); err == nil {
-				pemType = pkcs1Type
-			} else {
-				return "", fmt.Errorf("invalid RSA public key")
-			}
-		}
-	}
-
-	return string(pem.EncodeToMemory(&pem.Block{Type: pemType, Bytes: der})), nil
-}
-
-func signWaffoPancakeRequest(method string, path string, timestamp string, body string, privateKeyPEM string) (string, error) {
-	block, _ := pem.Decode([]byte(privateKeyPEM))
-	if block == nil {
-		return "", fmt.Errorf("invalid RSA private key PEM")
-	}
-
-	var privateKey *rsa.PrivateKey
-	switch block.Type {
-	case "PRIVATE KEY":
-		key, err := x509.ParsePKCS8PrivateKey(block.Bytes)
-		if err != nil {
-			return "", fmt.Errorf("parse PKCS#8 private key: %w", err)
-		}
-		parsed, ok := key.(*rsa.PrivateKey)
-		if !ok {
-			return "", fmt.Errorf("private key is not RSA")
-		}
-		privateKey = parsed
-	case "RSA PRIVATE KEY":
-		key, err := x509.ParsePKCS1PrivateKey(block.Bytes)
-		if err != nil {
-			return "", fmt.Errorf("parse PKCS#1 private key: %w", err)
-		}
-		privateKey = key
-	default:
-		return "", fmt.Errorf("unsupported private key type: %s", block.Type)
-	}
-
-	canonicalRequest := buildWaffoPancakeCanonicalRequest(method, path, timestamp, body)
-	digest := sha256.Sum256([]byte(canonicalRequest))
-	signature, err := rsa.SignPKCS1v15(nil, privateKey, crypto.SHA256, digest[:])
+	storeRes, err := client.Stores.Create(ctx, pancake.CreateStoreParams{
+		Name: defaultWaffoPancakeStoreName,
+	})
 	if err != nil {
-		return "", fmt.Errorf("sign Waffo Pancake request: %w", err)
+		return "", fmt.Errorf("create Waffo Pancake store: %w", err)
 	}
-	return base64.StdEncoding.EncodeToString(signature), nil
+	return storeRes.Store.ID, nil
 }
 
-func buildWaffoPancakeCanonicalRequest(method string, path string, timestamp string, body string) string {
-	bodyHash := sha256.Sum256([]byte(body))
-	return fmt.Sprintf(
-		"%s\n%s\n%s\n%s",
-		strings.ToUpper(method),
-		path,
-		timestamp,
-		base64.StdEncoding.EncodeToString(bodyHash[:]),
-	)
-}
-
-func verifyWaffoPancakeWebhook(payload string, signatureHeader string, environment string) (*waffoPancakeWebhookEvent, error) {
-	if signatureHeader == "" {
-		return nil, fmt.Errorf("missing X-Waffo-Signature header")
+// CreateWaffoPancakePrimaryProduct mints a Pancake OnetimeProduct in the given
+// store using the operator's in-flight credentials. 1 USD placeholder price
+// (overridden per checkout via PriceSnapshot); SuccessURL is set from the
+// supplied returnURL when non-empty. Publishes before returning.
+//
+// Like the store helper, this only talks to Pancake — nothing is written to
+// new-api settings until the operator clicks final Save.
+func CreateWaffoPancakePrimaryProduct(ctx context.Context, merchantID, privateKey, storeID, returnURL string) (string, error) {
+	storeID = strings.TrimSpace(storeID)
+	if storeID == "" {
+		return "", fmt.Errorf("store id is required to create a product")
 	}
-
-	timestampPart, signaturePart := parseWaffoPancakeSignatureHeader(signatureHeader)
-	if timestampPart == "" || signaturePart == "" {
-		return nil, fmt.Errorf("malformed X-Waffo-Signature header")
-	}
-
-	timestampMs, err := strconv.ParseInt(timestampPart, 10, 64)
+	client, err := newWaffoPancakeClientFromCreds(merchantID, privateKey)
 	if err != nil {
-		return nil, fmt.Errorf("invalid timestamp in X-Waffo-Signature header")
+		return "", err
 	}
-	if math.Abs(float64(time.Now().UnixMilli()-timestampMs)) > float64(waffoPancakeDefaultTolerance.Milliseconds()) {
-		return nil, fmt.Errorf("webhook timestamp outside tolerance window")
-	}
-
-	signatureInput := fmt.Sprintf("%s.%s", timestampPart, payload)
-	if err := verifyWaffoPancakeWebhookWithKey(signatureInput, signaturePart, resolveWaffoPancakeWebhookPublicKey(environment)); err != nil {
-		return nil, fmt.Errorf("invalid webhook signature")
-	}
-
-	var event waffoPancakeWebhookEvent
-	if err := common.Unmarshal([]byte(payload), &event); err != nil {
-		return nil, fmt.Errorf("parse Waffo Pancake webhook payload: %w", err)
-	}
-	return &event, nil
-}
-
-func parseWaffoPancakeSignatureHeader(header string) (string, string) {
-	var timestampPart string
-	var signaturePart string
-	for _, pair := range strings.Split(header, ",") {
-		key, value, found := strings.Cut(strings.TrimSpace(pair), "=")
-		if !found {
-			continue
-		}
-		switch key {
-		case "t":
-			timestampPart = value
-		case "v1":
-			signaturePart = value
-		}
-	}
-	return timestampPart, signaturePart
-}
-
-func resolveWaffoPancakeWebhookEnvironment(payload string) string {
-	var envelope struct {
-		Mode string `json:"mode"`
-	}
-	if err := common.Unmarshal([]byte(payload), &envelope); err != nil {
-		if setting.WaffoPancakeSandbox {
-			return "test"
-		}
-		return "prod"
-	}
-
-	switch strings.ToLower(strings.TrimSpace(envelope.Mode)) {
-	case "test":
-		return "test"
-	case "prod":
-		return "prod"
-	default:
-		if setting.WaffoPancakeSandbox {
-			return "test"
-		}
-		return "prod"
-	}
-}
-
-func resolveWaffoPancakeWebhookPublicKey(environment string) string {
-	if environment == "prod" {
-		return strings.TrimSpace(setting.WaffoPancakeWebhookPublicKey)
-	}
-	return strings.TrimSpace(setting.WaffoPancakeWebhookTestKey)
-}
-
-func verifyWaffoPancakeWebhookWithKey(signatureInput string, signaturePart string, rawPublicKey string) error {
-	publicKeyPEM, err := normalizeRSAPublicKey(rawPublicKey)
+	prodRes, err := client.OnetimeProducts.Create(ctx, pancake.CreateOnetimeProductParams{
+		StoreID: storeID,
+		Name:    defaultWaffoPancakeProductName,
+		Prices: pancake.Prices{
+			"USD": {
+				Amount:      "1.00", // overridden at checkout via PriceSnapshot
+				TaxCategory: pancake.TaxCategory("saas"),
+			},
+		},
+		SuccessURL: optionalString(strings.TrimSpace(returnURL)),
+	})
 	if err != nil {
-		return err
+		return "", fmt.Errorf("create Waffo Pancake product: %w", err)
 	}
-
-	block, _ := pem.Decode([]byte(publicKeyPEM))
-	if block == nil {
-		return fmt.Errorf("invalid RSA public key PEM")
+	productID := prodRes.Product.ID
+	if _, err := client.OnetimeProducts.Publish(ctx, pancake.PublishOnetimeProductParams{ID: productID}); err != nil {
+		return "", fmt.Errorf("publish Waffo Pancake product: %w", err)
 	}
+	return productID, nil
+}
 
-	var publicKey *rsa.PublicKey
-	switch block.Type {
-	case "PUBLIC KEY":
-		key, err := x509.ParsePKIXPublicKey(block.Bytes)
-		if err != nil {
-			return fmt.Errorf("parse PKIX public key: %w", err)
-		}
-		parsed, ok := key.(*rsa.PublicKey)
-		if !ok {
-			return fmt.Errorf("public key is not RSA")
-		}
-		publicKey = parsed
-	case "RSA PUBLIC KEY":
-		key, err := x509.ParsePKCS1PublicKey(block.Bytes)
-		if err != nil {
-			return fmt.Errorf("parse PKCS#1 public key: %w", err)
-		}
-		publicKey = key
-	default:
-		return fmt.Errorf("unsupported public key type: %s", block.Type)
-	}
+// WaffoPancakePairResult is the response of CreateWaffoPancakePrimaryPair.
+//
+// On the unhappy path where Store creation succeeded but Product creation
+// failed, ProductID + ProductName stay empty and OrphanStore is true so
+// the caller can surface a useful "store landed at STO_xxx but product
+// failed" message to the operator (and the next catalog refresh will
+// surface that orphan store so they can retry product-only creation).
+type WaffoPancakePairResult struct {
+	StoreID     string
+	StoreName   string
+	ProductID   string
+	ProductName string
+	OrphanStore bool
+}
 
-	signature, err := base64.StdEncoding.DecodeString(signaturePart)
+// CreateWaffoPancakePrimaryPair mints a Pancake Store AND a Pancake
+// OnetimeProduct in one shot, using the supplied in-flight credentials.
+//
+// This is the canonical "+ Create" entry point — the frontend never calls
+// the Store / Product primitives independently. The wrapper exists so the
+// controller can run the two SDK calls back-to-back, return both IDs to
+// the operator in one round-trip, and produce a single coherent error on
+// the unhappy path where the store landed but the product didn't.
+//
+// Nothing is persisted to settings — the operator's final Save action is
+// what writes the chosen IDs to the OptionMap.
+func CreateWaffoPancakePrimaryPair(ctx context.Context, merchantID, privateKey, returnURL string) (*WaffoPancakePairResult, error) {
+	storeID, err := CreateWaffoPancakePrimaryStore(ctx, merchantID, privateKey)
 	if err != nil {
-		return fmt.Errorf("decode webhook signature: %w", err)
+		return nil, err
 	}
+	productID, err := CreateWaffoPancakePrimaryProduct(ctx, merchantID, privateKey, storeID, returnURL)
+	if err != nil {
+		return &WaffoPancakePairResult{
+			StoreID:     storeID,
+			StoreName:   defaultWaffoPancakeStoreName,
+			OrphanStore: true,
+		}, fmt.Errorf("store created at %s but product creation failed: %w", storeID, err)
+	}
+	return &WaffoPancakePairResult{
+		StoreID:     storeID,
+		StoreName:   defaultWaffoPancakeStoreName,
+		ProductID:   productID,
+		ProductName: defaultWaffoPancakeProductName,
+	}, nil
+}
 
-	digest := sha256.Sum256([]byte(signatureInput))
-	if err := rsa.VerifyPKCS1v15(publicKey, crypto.SHA256, digest[:], signature); err != nil {
-		return fmt.Errorf("verify webhook signature: %w", err)
+// SaveWaffoPancakeConfig is the single atomic commit at the end of the
+// configuration flow: it writes all five operator-controlled values to the
+// OptionMap in one go (everything else has been transient up to this point).
+// Pure local persistence — no Pancake API calls.
+func SaveWaffoPancakeConfig(ctx context.Context, merchantID, privateKey, returnURL, storeID, productID string) error {
+	merchantID = strings.TrimSpace(merchantID)
+	storeID = strings.TrimSpace(storeID)
+	productID = strings.TrimSpace(productID)
+	if merchantID == "" || storeID == "" || productID == "" {
+		return fmt.Errorf("merchant id, store id, and product id are required to save")
+	}
+	if err := model.UpdateOption("WaffoPancakeMerchantID", merchantID); err != nil {
+		return fmt.Errorf("persist Waffo Pancake merchant id: %w", err)
+	}
+	// Blank private key means "keep whatever was previously saved", matching
+	// the standard Stripe-style API-secret UX.
+	if pk := strings.TrimSpace(privateKey); pk != "" {
+		if err := model.UpdateOption("WaffoPancakePrivateKey", pk); err != nil {
+			return fmt.Errorf("persist Waffo Pancake private key: %w", err)
+		}
+	}
+	trimmedReturn := strings.TrimSpace(returnURL)
+	if err := model.UpdateOption("WaffoPancakeReturnURL", trimmedReturn); err != nil {
+		return fmt.Errorf("persist Waffo Pancake return URL: %w", err)
+	}
+	if err := model.UpdateOption("WaffoPancakeStoreID", storeID); err != nil {
+		return fmt.Errorf("persist Waffo Pancake store id: %w", err)
+	}
+	if err := model.UpdateOption("WaffoPancakeProductID", productID); err != nil {
+		return fmt.Errorf("persist Waffo Pancake product id: %w", err)
+	}
+	if err := model.UpdateOption("WaffoPancakeProvisionedMerchantID", merchantID); err != nil {
+		return fmt.Errorf("persist Waffo Pancake provisioned merchant id: %w", err)
+	}
+	if err := model.UpdateOption("WaffoPancakeProvisionedReturnURL", trimmedReturn); err != nil {
+		return fmt.Errorf("persist Waffo Pancake provisioned return URL: %w", err)
 	}
 	return nil
+}
+
+// -----------------------------------------------------------------------------
+// Catalog browsing (for the "pick existing Store / Product" selector)
+// -----------------------------------------------------------------------------
+
+// WaffoPancakeCatalogProduct is one row in the product selector.
+type WaffoPancakeCatalogProduct struct {
+	ID     string `json:"id"`
+	Name   string `json:"name"`
+	Status string `json:"status"`
+}
+
+// WaffoPancakeCatalogStore is one row in the store selector, with the nested
+// list of its onetime products so the UI can render a dependent select without
+// a second round-trip.
+type WaffoPancakeCatalogStore struct {
+	ID               string                       `json:"id"`
+	Name             string                       `json:"name"`
+	Status           string                       `json:"status"`
+	ProdEnabled      bool                         `json:"prodEnabled"`
+	OnetimeProducts  []WaffoPancakeCatalogProduct `json:"onetimeProducts"`
+}
+
+// WaffoPancakeCatalog is the response of ListWaffoPancakeCatalog: every store
+// the merchant owns, plus the onetime products under each store.
+type WaffoPancakeCatalog struct {
+	Stores []WaffoPancakeCatalogStore `json:"stores"`
+}
+
+// ListWaffoPancakeCatalog runs a single GraphQL query against Pancake using
+// the operator's in-flight credentials (passed in directly, not read from
+// settings) and returns the merchant's Stores nested with their
+// OnetimeProducts. Doubles as a credential check — a successful response
+// proves the supplied MerchantID + PrivateKey can authenticate.
+func ListWaffoPancakeCatalog(ctx context.Context, merchantID, privateKey string) (*WaffoPancakeCatalog, error) {
+	client, err := newWaffoPancakeClientFromCreds(merchantID, privateKey)
+	if err != nil {
+		return nil, err
+	}
+
+	type queryShape struct {
+		Stores []WaffoPancakeCatalogStore `json:"stores"`
+	}
+	// The `stores` query applies a default pagination limit when none is
+	// supplied — the live API returns just one store without the arg, even
+	// when the merchant has more. Pass an explicit limit large enough to
+	// cover any realistic operator catalog. If this ever needs to grow past
+	// the cap we switch to paginated fetches via `offset`.
+	resp, err := pancake.GraphQLQuery[queryShape](ctx, client, pancake.GraphQLParams{
+		Query: `query {
+			stores(limit: 100) {
+				id
+				name
+				status
+				prodEnabled
+				onetimeProducts {
+					id
+					name
+					status
+				}
+			}
+		}`,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("query Waffo Pancake catalog: %w", err)
+	}
+	if len(resp.Errors) > 0 {
+		return nil, fmt.Errorf("waffo pancake catalog query returned %d errors: %s",
+			len(resp.Errors), resp.Errors[0].Message)
+	}
+	return &WaffoPancakeCatalog{Stores: resp.Data.Stores}, nil
 }

@@ -240,18 +240,14 @@ export type BillingSettings = {
   WaffoNotifyUrl: string
   WaffoReturnUrl: string
   WaffoPayMethods: string
-  WaffoPancakeEnabled: boolean
-  WaffoPancakeSandbox: boolean
   WaffoPancakeMerchantID: string
   WaffoPancakePrivateKey: string
-  WaffoPancakeWebhookPublicKey: string
-  WaffoPancakeWebhookTestKey: string
+  WaffoPancakeReturnURL: string
+  // Auto-provisioned by the backend; not edited by operators.
   WaffoPancakeStoreID: string
   WaffoPancakeProductID: string
-  WaffoPancakeReturnURL: string
-  WaffoPancakeCurrency: string
-  WaffoPancakeUnitPrice: number
-  WaffoPancakeMinTopUp: number
+  WaffoPancakeProvisionedMerchantID: string
+  WaffoPancakeProvisionedReturnURL: string
   'checkin_setting.enabled': boolean
   'checkin_setting.min_quota': number
   'checkin_setting.max_quota': number
