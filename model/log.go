@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
@@ -217,7 +218,9 @@ func RecordConsumeLog(c *gin.Context, userId int, params RecordConsumeLogParams)
 	requestId := c.GetString(common.RequestIdKey)
 	upstreamRequestId := c.GetString(common.UpstreamRequestIdKey)
 	otherStr := common.MapToJsonStr(params.Other)
-	// 渠道计费倍率快照：用于管理员维度的渠道成本统计，与用户扣费无关
+	// 渠道计费倍率快照：用于管理员维度的渠道成本统计，与用户扣费无关。
+	// 此处走 CacheGetChannel：内存缓存开启时（默认）为 map 读取，开销可忽略；
+	// 关闭时回退 DB 查询。为避免侵入全部调用方，刻意在此就地解析倍率。
 	channelRatio := 1.0
 	if channel, err := CacheGetChannel(params.ChannelId); err == nil && channel != nil {
 		channelRatio = channel.GetChannelRatio()
@@ -261,8 +264,10 @@ func RecordConsumeLog(c *gin.Context, userId int, params RecordConsumeLogParams)
 		logger.LogError(c, "failed to record log: "+err.Error())
 	}
 	if common.DataExportEnabled {
+		// 渠道维度成本 = 原始额度 × 渠道计费倍率，随用量数据一并预聚合进 quota_data
+		channelQuota := int(math.Round(float64(params.Quota) * channelRatio))
 		gopool.Go(func() {
-			LogQuotaData(userId, username, params.ModelName, params.Quota, common.GetTimestamp(), params.PromptTokens+params.CompletionTokens)
+			LogQuotaData(userId, username, params.ModelName, params.ChannelId, params.Quota, channelQuota, common.GetTimestamp(), params.PromptTokens+params.CompletionTokens)
 		})
 	}
 }
@@ -451,61 +456,6 @@ type Stat struct {
 	Quota int `json:"quota"`
 	Rpm   int `json:"rpm"`
 	Tpm   int `json:"tpm"`
-}
-
-// ChannelQuotaTrendPoint 渠道维度成本时间序列点（按小时聚合，前端再按粒度归并）。
-// Quota 为原始消耗额度之和，ChannelQuota 为按渠道计费倍率折算后的渠道维度成本。
-type ChannelQuotaTrendPoint struct {
-	ChannelId    int     `json:"channel_id"`
-	CreatedAt    int64   `json:"created_at"`
-	Count        int     `json:"count"`
-	Quota        int     `json:"quota"`
-	ChannelQuota float64 `json:"channel_quota"`
-}
-
-// ChannelQuotaMeta 渠道元信息：名称 + 当前配置的计费倍率。
-type ChannelQuotaMeta struct {
-	ChannelId    int     `json:"channel_id"`
-	ChannelName  string  `json:"channel_name"`
-	CurrentRatio float64 `json:"current_ratio"`
-}
-
-// ChannelQuotaResult 渠道成本数据：时间序列 + 渠道元信息（仅管理员可见）。
-type ChannelQuotaResult struct {
-	Points   []*ChannelQuotaTrendPoint `json:"points"`
-	Channels []*ChannelQuotaMeta       `json:"channels"`
-}
-
-// GetChannelQuotaData 按渠道 + 小时聚合消费日志，返回渠道维度成本时间序列。
-func GetChannelQuotaData(startTime int64, endTime int64) (*ChannelQuotaResult, error) {
-	var points []*ChannelQuotaTrendPoint
-	tx := LOG_DB.Table("logs").
-		Select("channel_id, (created_at - (created_at % 3600)) as created_at, COUNT(*) as count, SUM(quota) as quota, SUM(quota * COALESCE(channel_ratio, 1)) as channel_quota").
-		Where("type = ?", LogTypeConsume)
-	if startTime != 0 {
-		tx = tx.Where("created_at >= ?", startTime)
-	}
-	if endTime != 0 {
-		tx = tx.Where("created_at <= ?", endTime)
-	}
-	if err := tx.Group("channel_id, (created_at - (created_at % 3600))").Find(&points).Error; err != nil {
-		return nil, err
-	}
-	// 收集渠道元信息（名称 + 当前配置倍率；渠道可能已删除，缺失时留空）
-	idSet := make(map[int]bool)
-	for _, p := range points {
-		idSet[p.ChannelId] = true
-	}
-	channels := make([]*ChannelQuotaMeta, 0, len(idSet))
-	for id := range idSet {
-		meta := &ChannelQuotaMeta{ChannelId: id, CurrentRatio: 1}
-		if ch, err := CacheGetChannel(id); err == nil && ch != nil {
-			meta.ChannelName = ch.Name
-			meta.CurrentRatio = ch.GetChannelRatio()
-		}
-		channels = append(channels, meta)
-	}
-	return &ChannelQuotaResult{Points: points, Channels: channels}, nil
 }
 
 func SumUsedQuota(logType int, startTimestamp int64, endTimestamp int64, modelName string, username string, tokenName string, channel int, group string) (stat Stat, err error) {

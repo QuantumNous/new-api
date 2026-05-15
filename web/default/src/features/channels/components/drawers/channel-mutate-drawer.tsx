@@ -2546,9 +2546,13 @@ export function ChannelMutateDrawer({
                                   min='0'
                                   placeholder='1'
                                   {...field}
-                                  value={field.value ?? 1}
+                                  value={field.value ?? ''}
                                   onChange={(e) =>
-                                    field.onChange(Number(e.target.value))
+                                    field.onChange(
+                                      e.target.value === ''
+                                        ? undefined
+                                        : Number(e.target.value)
+                                    )
                                   }
                                 />
                               </FormControl>

@@ -4360,7 +4360,7 @@
     "Overall Ratio": "Coefficient global",
     "Saved": "Économisé",
     "Channel Cost Ranking": "Classement des coûts par canal",
-    "Cost Trend": "Tendance des coûts du canal",
+    "Channel Cost Trend": "Tendance des coûts du canal",
     "Top Channels": "Canaux principaux",
     "View channel-dimension cost statistics": "Afficher les statistiques de coûts par canal",
     "Channel billing ratio. Only scales channel-side usage stats (used quota / dashboard), does not affect user billing. 0 means this channel is not counted.": "Coefficient de facturation du canal. Ajuste uniquement les statistiques d'utilisation côté canal (quota utilisé / tableau de bord), n'affecte pas la facturation des utilisateurs. 0 signifie que ce canal n'est pas comptabilisé.",

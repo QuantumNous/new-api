@@ -4360,7 +4360,7 @@
     "Overall Ratio": "综合倍率",
     "Saved": "节省",
     "Channel Cost Ranking": "渠道成本排行",
-    "Cost Trend": "渠道成本趋势",
+    "Channel Cost Trend": "渠道成本趋势",
     "Top Channels": "热门渠道",
     "View channel-dimension cost statistics": "查看渠道维度的成本统计",
     "Channel billing ratio. Only scales channel-side usage stats (used quota / dashboard), does not affect user billing. 0 means this channel is not counted.": "渠道计费倍率：仅折算渠道维度的用量统计（已用额度 / 数据面板），不影响用户扣费。设为 0 表示该渠道不计入成本。",

@@ -67,7 +67,7 @@ const CHANNEL_CHARTS: {
   },
   {
     value: 'trend',
-    labelKey: 'Cost Trend',
+    labelKey: 'Channel Cost Trend',
     specKey: 'spec_user_trend',
     icon: TrendingUp,
   },
@@ -166,7 +166,7 @@ export function ChannelCharts() {
     }
     cd.spec_user_trend.title = {
       ...cd.spec_user_trend.title,
-      text: t('Cost Trend'),
+      text: t('Channel Cost Trend'),
     }
     return cd
   }, [mappedData, isLoading, timeGranularity, t, topN, customization.preset])

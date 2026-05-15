@@ -532,7 +532,7 @@ export const getLogsColumns = ({
                     {typeof record.channel_ratio === 'number' &&
                       record.channel_ratio !== 1 && (
                         <div>
-                          {t('渠道倍率')}：{record.channel_ratio}
+                          {t('渠道倍率')}：{record.channel_ratio}x
                         </div>
                       )}
                   </div>

@@ -4360,7 +4360,7 @@
     "Overall Ratio": "Hệ số tổng thể",
     "Saved": "Tiết kiệm",
     "Channel Cost Ranking": "Xếp hạng chi phí kênh",
-    "Cost Trend": "Xu hướng chi phí kênh",
+    "Channel Cost Trend": "Xu hướng chi phí kênh",
     "Top Channels": "Kênh hàng đầu",
     "View channel-dimension cost statistics": "Xem thống kê chi phí theo kênh",
     "Channel billing ratio. Only scales channel-side usage stats (used quota / dashboard), does not affect user billing. 0 means this channel is not counted.": "Hệ số tính phí kênh. Chỉ điều chỉnh thống kê sử dụng phía kênh (hạn ngạch đã dùng / bảng điều khiển), không ảnh hưởng đến việc tính phí người dùng. 0 nghĩa là kênh này không được tính chi phí.",

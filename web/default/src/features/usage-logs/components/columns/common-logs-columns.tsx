@@ -373,7 +373,7 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
                     {typeof log.channel_ratio === 'number' &&
                       log.channel_ratio !== 1 && (
                         <p className='text-muted-foreground text-xs'>
-                          {t('Channel Billing Ratio')}: {log.channel_ratio}
+                          {t('Channel Billing Ratio')}: {log.channel_ratio}x
                         </p>
                       )}
                     {affinity && (

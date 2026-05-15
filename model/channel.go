@@ -820,6 +820,8 @@ func EditChannelByTag(tag string, newTag *string, modelMapping *string, models *
 
 // applyChannelRatio 按渠道计费倍率折算渠道维度用量。
 // 该折算仅作用于渠道 used_quota 统计，不影响用户扣费。
+// 此处走 CacheGetChannel：内存缓存开启时（默认）为 map 读取，开销可忽略；
+// 关闭时回退 DB 查询。为避免侵入 UpdateChannelUsedQuota 的全部调用方，刻意在此就地解析倍率。
 func applyChannelRatio(id int, quota int) int {
 	channel, err := CacheGetChannel(id)
 	if err != nil || channel == nil {
