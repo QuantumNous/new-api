@@ -811,123 +811,66 @@ export const useLogsData = () => {
     setLoading(false);
   };
 
-  // Export logs to CSV (loops through all pages matching current filters)
+  // Export logs to CSV via single streaming request (后端流式输出，无分页限制)
   const exportLogs = async () => {
-    const LOG_TYPE_MAP = {
-      1: t('充值'),
-      2: t('消费'),
-      3: t('管理'),
-      4: t('系统'),
-      5: t('错误'),
-      6: t('退款'),
-    };
+    const {
+      username,
+      token_name,
+      model_name,
+      start_timestamp,
+      end_timestamp,
+      channelIds,
+      group,
+      request_id,
+      logType: formLogType,
+    } = getFormValues();
 
-    const csvEscape = (value) => {
-      if (value === null || value === undefined) return '';
-      const str = String(value);
-      if (/[",\n\r]/.test(str)) {
-        return `"${str.replace(/"/g, '""')}"`;
-      }
-      return str;
-    };
+    const currentLogType =
+      formLogType !== undefined ? formLogType : logType;
+    const localStartTimestamp = Date.parse(start_timestamp) / 1000;
+    const localEndTimestamp = Date.parse(end_timestamp) / 1000;
+
+    const exportPath = isAdminUser ? '/api/log/export' : '/api/log/self/export';
+    const adminOnly = isAdminUser
+      ? `&username=${username}${channelIdsQueryString(channelIds)}`
+      : '';
+    const exportUrl = encodeURI(
+      `${exportPath}?type=${currentLogType}&token_name=${token_name}&model_name=${model_name}&start_timestamp=${localStartTimestamp}&end_timestamp=${localEndTimestamp}&group=${group}&request_id=${request_id}${adminOnly}`,
+    );
 
     setExporting(true);
     setExportProgress({ current: 0, total: 0 });
 
     try {
-      const EXPORT_PAGE_SIZE = 100;
-      const firstRes = await API.get(buildLogsUrl(1, EXPORT_PAGE_SIZE));
-      const first = firstRes.data;
-      if (!first.success) {
-        showError(first.message);
-        return;
-      }
+      const res = await API.get(exportUrl, {
+        responseType: 'blob',
+        disableDuplicate: true,
+        onDownloadProgress: (evt) => {
+          // 后端流式返回 Content-Length 通常缺失，evt.total 大多为 0，只展示已下载字节数
+          setExportProgress({ current: evt.loaded || 0, total: evt.total || 0 });
+        },
+      });
 
-      const total = first.data.total;
-      if (total === 0) {
+      const blob = res.data;
+      if (!blob || blob.size === 0) {
         showError(t('没有符合条件的日志'));
         return;
       }
 
-      // Confirm if dataset is large
-      const LARGE_THRESHOLD = 50000;
-      if (total > LARGE_THRESHOLD) {
-        const confirmed = await new Promise((resolve) => {
-          Modal.confirm({
-            title: t('数据量较大'),
-            content: t('共 {{total}} 条日志，导出可能耗时较久，确定继续吗？', { total }),
-            onOk: () => resolve(true),
-            onCancel: () => resolve(false),
-          });
-        });
-        if (!confirmed) return;
-      }
-
-      let allItems = [...(first.data.items ?? [])];
-      setExportProgress({ current: allItems.length, total });
-
-      const totalPages = Math.ceil(total / EXPORT_PAGE_SIZE);
-      for (let p = 2; p <= totalPages; p++) {
-        const res = await API.get(buildLogsUrl(p, EXPORT_PAGE_SIZE));
-        if (!res.data.success) {
-          showError(res.data.message);
-          return;
+      // 后端在第一批查询失败时会返回 application/json 错误体（仍是 200，但 body 是 JSON）。
+      // 因为我们用了 responseType=blob，axios 不会自动解析，需要按 Content-Type 兜底处理。
+      const contentType = (res.headers?.['content-type'] || '').toLowerCase();
+      if (contentType.includes('application/json')) {
+        try {
+          const text = await blob.text();
+          const parsed = JSON.parse(text);
+          showError(parsed?.message || t('导出失败'));
+        } catch (e) {
+          showError(t('导出失败'));
         }
-        allItems = allItems.concat(res.data.items ?? []);
-        setExportProgress({ current: allItems.length, total });
+        return;
       }
 
-      // Build CSV header
-      const headers = [
-        t('时间'),
-        t('日志类型'),
-      ];
-      if (isAdminUser) {
-        headers.push(t('渠道ID'), t('用户'));
-      }
-      headers.push(
-        t('令牌'),
-        t('分组'),
-        t('模型'),
-        t('用时(s)'),
-        t('输入tokens'),
-        t('输出tokens'),
-        t('费用'),
-        'IP',
-        t('请求ID'),
-        t('详情'),
-      );
-
-      const rows = allItems.map((log) => {
-        const row = [
-          timestamp2string(log.created_at),
-          LOG_TYPE_MAP[log.type] || String(log.type),
-        ];
-        if (isAdminUser) {
-          row.push(log.channel || '', log.username || '');
-        }
-        row.push(
-          log.token_name || '',
-          log.group || '',
-          log.model_name || '',
-          log.use_time ?? '',
-          log.prompt_tokens ?? '',
-          log.completion_tokens ?? '',
-          renderQuota(log.quota || 0, 6),
-          log.ip || '',
-          log.request_id || '',
-          (log.content || '').replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim(),
-        );
-        return row;
-      });
-
-      const csv =
-        '﻿' +
-        [headers, ...rows]
-          .map((r) => r.map(csvEscape).join(','))
-          .join('\r\n');
-
-      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
       const url = URL.createObjectURL(blob);
       const now = new Date();
       const pad = (n) => String(n).padStart(2, '0');
@@ -940,7 +883,7 @@ export const useLogsData = () => {
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
 
-      showSuccess(t('导出成功，共 {{count}} 条', { count: allItems.length }));
+      showSuccess(t('导出成功'));
     } catch (err) {
       console.error('Export logs failed:', err);
       showError(t('导出失败') + ': ' + (err?.message || String(err)));

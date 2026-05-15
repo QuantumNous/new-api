@@ -1,8 +1,13 @@
 package controller
 
 import (
+	"encoding/csv"
+	"fmt"
 	"net/http"
+	"regexp"
 	"strconv"
+	"strings"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
@@ -69,6 +74,208 @@ func GetUserLogs(c *gin.Context) {
 	pageInfo.SetItems(logs)
 	common.ApiSuccess(c, pageInfo)
 	return
+}
+
+// logTypeLabel 与前端 LOG_TYPE_MAP 对齐，CSV 内固定输出中文文案，方便表格直接读。
+func logTypeLabel(t int) string {
+	switch t {
+	case model.LogTypeTopup:
+		return "充值"
+	case model.LogTypeConsume:
+		return "消费"
+	case model.LogTypeManage:
+		return "管理"
+	case model.LogTypeSystem:
+		return "系统"
+	case model.LogTypeError:
+		return "错误"
+	case model.LogTypeRefund:
+		return "退款"
+	default:
+		return strconv.Itoa(t)
+	}
+}
+
+var htmlTagRe = regexp.MustCompile(`<[^>]+>`)
+var whitespaceRe = regexp.MustCompile(`\s+`)
+
+// cleanLogContent 去掉 content 里的 HTML 标签并把多余空白压成单空格，
+// 与 classic 端 CSV 行为一致。
+func cleanLogContent(s string) string {
+	if s == "" {
+		return ""
+	}
+	out := htmlTagRe.ReplaceAllString(s, "")
+	out = whitespaceRe.ReplaceAllString(out, " ")
+	return strings.TrimSpace(out)
+}
+
+// writeLogCSVHeader 提交 HTTP 200 + CSV 响应头，写 UTF-8 BOM 和列头行。
+// 必须在第一次往 c.Writer 写字节之前调用——一旦调用后端就不能再返回 JSON 错误了。
+func writeLogCSVHeader(c *gin.Context, w *csv.Writer, includeAdminCols bool) error {
+	filename := fmt.Sprintf("logs_%s.csv", time.Now().Format("20060102_150405"))
+	c.Writer.Header().Set("Content-Type", "text/csv; charset=utf-8")
+	c.Writer.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"`, filename))
+	c.Writer.Header().Set("Cache-Control", "no-store")
+	c.Writer.WriteHeader(http.StatusOK)
+	// UTF-8 BOM, Excel 默认按 GBK 解码会乱码，加 BOM 后能识别 UTF-8。
+	if _, err := c.Writer.Write([]byte{0xEF, 0xBB, 0xBF}); err != nil {
+		return err
+	}
+	headers := []string{"时间", "日志类型"}
+	if includeAdminCols {
+		headers = append(headers, "渠道ID", "渠道名", "用户")
+	}
+	headers = append(headers,
+		"令牌", "分组", "模型", "用时(s)",
+		"输入tokens", "输出tokens",
+		"原始quota", "费用(USD)",
+		"IP", "请求ID", "详情",
+	)
+	return w.Write(headers)
+}
+
+// streamExportCSV 把"延迟响应头 + 中途错误标记"两件事封装起来。
+//   - 首批查询失败：headerWritten 仍为 false，由调用方走 common.ApiError 返回 JSON 500。
+//   - 首批查询成功但后续批次出错：CSV 头已写出，无法再切回 JSON，
+//     于是写一行 `# EXPORT ERROR,<msg>` 作为 trailer，让人/Excel 看到截断警告。
+//   - 完整成功：照常 flush。
+//
+// 返回值：
+//   - csvStarted=false 表示尚未写过 c.Writer，调用方可以走 ApiError；
+//   - csvStarted=true  表示已经写过 CSV header（含空结果时写空表头）。
+func streamExportCSV(
+	c *gin.Context,
+	includeAdminCols bool,
+	stream func(perBatch func(logs []*model.Log) error) error,
+) (csvStarted bool) {
+	var w *csv.Writer
+	headerWritten := false
+	mkWriter := func() error {
+		w = csv.NewWriter(c.Writer)
+		if err := writeLogCSVHeader(c, w, includeAdminCols); err != nil {
+			return err
+		}
+		headerWritten = true
+		return nil
+	}
+
+	streamErr := stream(func(batch []*model.Log) error {
+		if !headerWritten {
+			if err := mkWriter(); err != nil {
+				return err
+			}
+		}
+		for _, l := range batch {
+			if err := w.Write(logToRow(l, includeAdminCols)); err != nil {
+				return err
+			}
+		}
+		w.Flush()
+		return w.Error()
+	})
+
+	// 首批就失败：还没动 c.Writer，可以返回 JSON 错误。
+	if streamErr != nil && !headerWritten {
+		return false
+	}
+
+	// 没有任何行（空结果）：仍然写出只含 BOM + header 的 CSV，让前端拿到 200 + 空表。
+	if !headerWritten {
+		if err := mkWriter(); err != nil {
+			common.SysError("export logs: write empty header failed: " + err.Error())
+			return true
+		}
+		w.Flush()
+		return true
+	}
+
+	// 流中错误：补一行 trailer，让用户/Excel 能看到导出被截断。
+	if streamErr != nil {
+		_ = w.Write([]string{"# EXPORT ERROR", streamErr.Error()})
+		w.Flush()
+		common.SysError("export logs: stream truncated: " + streamErr.Error())
+		return true
+	}
+
+	w.Flush()
+	return true
+}
+
+// logToRow 把单条 log 渲染成 CSV 一行字符串切片。
+func logToRow(l *model.Log, includeAdminCols bool) []string {
+	timeStr := time.Unix(l.CreatedAt, 0).Format("2006-01-02 15:04:05")
+	row := []string{timeStr, logTypeLabel(l.Type)}
+	if includeAdminCols {
+		row = append(row,
+			strconv.Itoa(l.ChannelId),
+			l.ChannelName,
+			l.Username,
+		)
+	}
+	costUSD := ""
+	if common.QuotaPerUnit > 0 {
+		costUSD = strconv.FormatFloat(float64(l.Quota)/common.QuotaPerUnit, 'f', 6, 64)
+	}
+	row = append(row,
+		l.TokenName,
+		l.Group,
+		l.ModelName,
+		strconv.Itoa(l.UseTime),
+		strconv.Itoa(l.PromptTokens),
+		strconv.Itoa(l.CompletionTokens),
+		strconv.Itoa(l.Quota),
+		costUSD,
+		l.Ip,
+		l.RequestId,
+		cleanLogContent(l.Content),
+	)
+	return row
+}
+
+// ExportAllLogs 管理员视角：流式 CSV 导出所有匹配日志，不受分页 100 条上限制。
+func ExportAllLogs(c *gin.Context) {
+	logType, _ := strconv.Atoi(c.Query("type"))
+	startTimestamp, _ := strconv.ParseInt(c.Query("start_timestamp"), 10, 64)
+	endTimestamp, _ := strconv.ParseInt(c.Query("end_timestamp"), 10, 64)
+	username := c.Query("username")
+	tokenName := c.Query("token_name")
+	modelName := c.Query("model_name")
+	channelIds := parseChannelIdsQuery(c)
+	group := c.Query("group")
+	requestId := c.Query("request_id")
+
+	var firstBatchErr error
+	csvStarted := streamExportCSV(c, true, func(perBatch func(logs []*model.Log) error) error {
+		err := model.ExportAllLogs(logType, startTimestamp, endTimestamp, modelName, username, tokenName, channelIds, group, requestId, 1000, perBatch)
+		firstBatchErr = err
+		return err
+	})
+	if !csvStarted && firstBatchErr != nil {
+		common.ApiError(c, firstBatchErr)
+	}
+}
+
+// ExportUserLogs 普通用户视角：流式 CSV 导出自己的日志。
+func ExportUserLogs(c *gin.Context) {
+	userId := c.GetInt("id")
+	logType, _ := strconv.Atoi(c.Query("type"))
+	startTimestamp, _ := strconv.ParseInt(c.Query("start_timestamp"), 10, 64)
+	endTimestamp, _ := strconv.ParseInt(c.Query("end_timestamp"), 10, 64)
+	tokenName := c.Query("token_name")
+	modelName := c.Query("model_name")
+	group := c.Query("group")
+	requestId := c.Query("request_id")
+
+	var firstBatchErr error
+	csvStarted := streamExportCSV(c, false, func(perBatch func(logs []*model.Log) error) error {
+		err := model.ExportUserLogs(userId, logType, startTimestamp, endTimestamp, modelName, tokenName, group, requestId, 1000, perBatch)
+		firstBatchErr = err
+		return err
+	})
+	if !csvStarted && firstBatchErr != nil {
+		common.ApiError(c, firstBatchErr)
+	}
 }
 
 // Deprecated: SearchAllLogs 已废弃，前端未使用该接口。

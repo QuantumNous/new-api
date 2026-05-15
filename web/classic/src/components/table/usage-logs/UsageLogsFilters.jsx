@@ -203,8 +203,12 @@ const LogsFilters = ({
                 disabled={exporting}
                 size='small'
               >
-                {exporting && exportProgress?.total
-                  ? t('导出中 ({{current}}/{{total}})', exportProgress)
+                {exporting
+                  ? exportProgress?.current
+                    ? t('导出中 ({{kb}} KB)', {
+                        kb: Math.round((exportProgress.current || 0) / 1024),
+                      })
+                    : t('导出中')
                   : t('导出')}
               </Button>
             )}

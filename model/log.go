@@ -453,6 +453,178 @@ func GetUserLogs(userId int, logType int, startTimestamp int64, endTimestamp int
 	return logs, total, err
 }
 
+// loadChannelNameMap 一次性把渠道 id → name 读出来，供导出时回填 ChannelName。
+// 走内存缓存优先，未启用缓存时回退到一次 IN 查询，避免按 batch 反复查表。
+func loadChannelNameMap(channelIds []int) (map[int]string, error) {
+	if len(channelIds) == 0 {
+		return map[int]string{}, nil
+	}
+	result := make(map[int]string, len(channelIds))
+	if common.MemoryCacheEnabled {
+		missing := make([]int, 0)
+		for _, id := range channelIds {
+			if ch, err := CacheGetChannel(id); err == nil {
+				result[id] = ch.Name
+			} else {
+				missing = append(missing, id)
+			}
+		}
+		if len(missing) == 0 {
+			return result, nil
+		}
+		channelIds = missing
+	}
+	var rows []struct {
+		Id   int    `gorm:"column:id"`
+		Name string `gorm:"column:name"`
+	}
+	if err := DB.Table("channels").Select("id, name").Where("id IN ?", channelIds).Find(&rows).Error; err != nil {
+		return nil, err
+	}
+	for _, r := range rows {
+		result[r.Id] = r.Name
+	}
+	return result, nil
+}
+
+// streamLogsByCursor 用 ORDER BY id DESC + WHERE id < lastID 的手动游标分页遍历。
+// 不用 FindInBatches —— v1.25 的 FindInBatches 内部用 id > lastID 推进游标，
+// 与倒序遍历冲突，会出现重复或漏行。手动游标天然兼容并发新插入的日志（新行 id 更大，
+// 不会落进 id < lastID 的窗口里），保证导出快照稳定。
+//
+// applyFilters 在每次循环内被调用，用于在干净的 *gorm.DB 上重新拼出 WHERE 条件，
+// 避免跨迭代复用 tx 时把 LIMIT/WHERE 残留状态带过去。
+func streamLogsByCursor(applyFilters func(*gorm.DB) *gorm.DB, batchSize int, perBatch func(logs []*Log) error) error {
+	if batchSize <= 0 {
+		batchSize = 1000
+	}
+	var lastID int = 0
+	for {
+		var batch []*Log
+		q := applyFilters(LOG_DB.Model(&Log{})).Order("logs.id desc").Limit(batchSize)
+		if lastID > 0 {
+			q = q.Where("logs.id < ?", lastID)
+		}
+		if err := q.Find(&batch).Error; err != nil {
+			return err
+		}
+		if len(batch) == 0 {
+			return nil
+		}
+		if err := perBatch(batch); err != nil {
+			return err
+		}
+		if len(batch) < batchSize {
+			return nil
+		}
+		// batch 已按 id desc 排序，最后一行就是本批最小 id，作为下一轮游标。
+		lastID = batch[len(batch)-1].Id
+		if lastID <= 0 {
+			// 兜底：理论不会发生（主键从 1 起算），但避免任何异常导致死循环。
+			return nil
+		}
+	}
+}
+
+// ExportAllLogs 按管理员视角流式遍历匹配的日志，使用手动游标分页保证不重不漏。
+// callback 收到的 logs 切片仅在本次调用内有效，回调返回 error 会中止遍历。
+func ExportAllLogs(logType int, startTimestamp int64, endTimestamp int64, modelName string, username string, tokenName string, channelIds []int, group string, requestId string, batchSize int, callback func(logs []*Log) error) error {
+	applyFilters := func(tx *gorm.DB) *gorm.DB {
+		if logType != LogTypeUnknown {
+			tx = tx.Where("logs.type = ?", logType)
+		}
+		if modelName != "" {
+			tx = tx.Where("logs.model_name like ?", modelName)
+		}
+		if username != "" {
+			tx = tx.Where("logs.username = ?", username)
+		}
+		if tokenName != "" {
+			tx = tx.Where("logs.token_name = ?", tokenName)
+		}
+		if requestId != "" {
+			tx = tx.Where("logs.request_id = ?", requestId)
+		}
+		if startTimestamp != 0 {
+			tx = tx.Where("logs.created_at >= ?", startTimestamp)
+		}
+		if endTimestamp != 0 {
+			tx = tx.Where("logs.created_at <= ?", endTimestamp)
+		}
+		if filtered := sanitizeLogChannelIds(channelIds); len(filtered) > 0 {
+			tx = tx.Where("logs.channel_id IN ?", filtered)
+		}
+		if group != "" {
+			tx = tx.Where("logs."+logGroupCol+" = ?", group)
+		}
+		return tx
+	}
+
+	return streamLogsByCursor(applyFilters, batchSize, func(batch []*Log) error {
+		ids := types.NewSet[int]()
+		for _, l := range batch {
+			if l.ChannelId != 0 {
+				ids.Add(l.ChannelId)
+			}
+		}
+		if ids.Len() > 0 {
+			nameMap, err := loadChannelNameMap(ids.Items())
+			if err != nil {
+				return err
+			}
+			for i := range batch {
+				batch[i].ChannelName = nameMap[batch[i].ChannelId]
+			}
+		}
+		return callback(batch)
+	})
+}
+
+// ExportUserLogs 按普通用户视角流式遍历自己的日志，使用手动游标分页保证不重不漏。
+// 与 GetUserLogs 一致：不回填 ChannelName、对 model_name 做 LIKE escape。
+func ExportUserLogs(userId int, logType int, startTimestamp int64, endTimestamp int64, modelName string, tokenName string, group string, requestId string, batchSize int, callback func(logs []*Log) error) error {
+	var modelLikePattern string
+	if modelName != "" {
+		pattern, err := sanitizeLikePattern(modelName)
+		if err != nil {
+			return err
+		}
+		modelLikePattern = pattern
+	}
+
+	applyFilters := func(tx *gorm.DB) *gorm.DB {
+		tx = tx.Where("logs.user_id = ?", userId)
+		if logType != LogTypeUnknown {
+			tx = tx.Where("logs.type = ?", logType)
+		}
+		if modelLikePattern != "" {
+			tx = tx.Where("logs.model_name LIKE ? ESCAPE '!'", modelLikePattern)
+		}
+		if tokenName != "" {
+			tx = tx.Where("logs.token_name = ?", tokenName)
+		}
+		if requestId != "" {
+			tx = tx.Where("logs.request_id = ?", requestId)
+		}
+		if startTimestamp != 0 {
+			tx = tx.Where("logs.created_at >= ?", startTimestamp)
+		}
+		if endTimestamp != 0 {
+			tx = tx.Where("logs.created_at <= ?", endTimestamp)
+		}
+		if group != "" {
+			tx = tx.Where("logs."+logGroupCol+" = ?", group)
+		}
+		return tx
+	}
+
+	return streamLogsByCursor(applyFilters, batchSize, func(batch []*Log) error {
+		// 复用 formatUserLogs 的清洗：剥离 ChannelName + admin_info 等
+		formatUserLogs(batch, 0)
+		return callback(batch)
+	})
+}
+
 type Stat struct {
 	Quota int `json:"quota"`
 	Rpm   int `json:"rpm"`
