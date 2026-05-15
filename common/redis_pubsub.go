@@ -32,3 +32,36 @@ func PublishConfigChanged(ctx context.Context, scope string) error {
 	}
 	return RDB.Publish(ctx, ConfigChangedChannel, payload).Err()
 }
+
+// SubscribeConfigChanged starts a blocking subscribe loop on the config-changed channel.
+// Each non-self message dispatches the scope to the provided handler.
+// No-op (returns immediately) when Redis is disabled. Returns on context cancellation
+// or unrecoverable error. Reconnects are handled internally by go-redis.
+func SubscribeConfigChanged(ctx context.Context, handler func(scope string)) {
+	if !RedisEnabled || RDB == nil {
+		return
+	}
+	sub := RDB.Subscribe(ctx, ConfigChangedChannel)
+	defer sub.Close()
+	ch := sub.Channel()
+	selfID := GetReplicaID()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case msg, ok := <-ch:
+			if !ok {
+				return
+			}
+			var m configChangeMessage
+			if err := json.Unmarshal([]byte(msg.Payload), &m); err != nil {
+				SysError("pubsub: invalid payload: " + err.Error())
+				continue
+			}
+			if m.Source == selfID {
+				continue
+			}
+			handler(m.Scope)
+		}
+	}
+}
