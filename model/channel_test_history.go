@@ -1,8 +1,10 @@
 package model
 
 import (
+	"fmt"
 	"time"
 
+	"github.com/QuantumNous/new-api/common"
 	"github.com/bytedance/gopkg/util/gopool"
 )
 
@@ -29,7 +31,9 @@ func RecordChannelTestHistory(channelId int, channelName, testModel, status stri
 			ErrorMessage: errMsg,
 			TestedAt:     time.Now(),
 		}
-		DB.Create(&history)
+		if err := DB.Create(&history).Error; err != nil {
+			common.SysError(fmt.Sprintf("failed to record channel test history: %v", err))
+		}
 	})
 }
 

@@ -2,6 +2,7 @@ package controller
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -57,7 +58,7 @@ func normalizeChannelTestEndpoint(channel *model.Channel, modelName, endpointTyp
 	return normalized
 }
 
-func testChannel(channel *model.Channel, testModel string, endpointType string, isStream bool) testResult {
+func testChannel(ctx context.Context, channel *model.Channel, testModel string, endpointType string, isStream bool) testResult {
 	tik := time.Now()
 	var unsupportedTestChannelTypes = []int{
 		constant.ChannelTypeMidjourney,
@@ -138,10 +139,11 @@ func testChannel(channel *model.Channel, testModel string, endpointType string, 
 
 	c.Request = &http.Request{
 		Method: "POST",
-		URL:    &url.URL{Path: requestPath}, // 使用动态路径
+		URL:    &url.URL{Path: requestPath},
 		Body:   nil,
 		Header: make(http.Header),
 	}
+	c.Request = c.Request.WithContext(ctx)
 
 	cache, err := model.GetUserCache(1)
 	if err != nil {
@@ -835,7 +837,7 @@ func TestChannel(c *gin.Context) {
 	endpointType := c.Query("endpoint_type")
 	isStream, _ := strconv.ParseBool(c.Query("stream"))
 	tik := time.Now()
-	result := testChannel(channel, testModel, endpointType, isStream)
+	result := testChannel(c.Request.Context(), channel, testModel, endpointType, isStream)
 	if result.localErr != nil {
 		resp := gin.H{
 			"success": false,
@@ -926,19 +928,21 @@ func testAllChannels(notify bool) error {
 
 				testTimeout := 120 * time.Second
 				tik := time.Now()
+				ctx, cancel := context.WithTimeout(context.Background(), testTimeout)
 				resultCh := make(chan testResult, 1)
 				go func() {
-					resultCh <- testChannel(channel, testModelName, "", false)
+					resultCh <- testChannel(ctx, channel, testModelName, "", false)
 				}()
 				var result testResult
 				select {
 				case result = <-resultCh:
-				case <-time.After(testTimeout):
+				case <-ctx.Done():
 					result = testResult{
 						localErr:    fmt.Errorf("测试超时（%ds），模型「%s」未在限定时间内响应", int(testTimeout.Seconds()), testModelName),
 						newAPIError: types.NewOpenAIError(fmt.Errorf("test timeout after %ds", int(testTimeout.Seconds())), types.ErrorCodeChannelResponseTimeExceeded, http.StatusRequestTimeout),
 					}
 				}
+				cancel()
 				tok := time.Now()
 				milliseconds := tok.Sub(tik).Milliseconds()
 				totalMs += milliseconds
@@ -963,8 +967,7 @@ func testAllChannels(notify bool) error {
 					shouldBanModel = service.ShouldDisableChannel(newAPIError)
 
 					if shouldBanModel && service.IsChannelLevelError(newAPIError) {
-						// 通道级错误（API key 无效、余额不足等）→ 禁用整个通道，跳过剩余模型
-						if isChannelEnabled && channel.GetAutoBan() {
+						if isChannelEnabled && channel.GetAutoBan() && result.context != nil {
 							processChannelError(result.context, *types.NewChannelError(channel.Id, channel.Type, channel.Name, channel.ChannelInfo.IsMultiKey, common.GetContextKeyString(result.context, constant.ContextKeyChannelKey), channel.GetAutoBan()), newAPIError)
 						}
 						channelLevelErrorOccurred = true
