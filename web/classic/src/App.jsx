@@ -158,7 +158,23 @@ function App() {
           }
         />
         <Route
+          path='/playground'
+          element={
+            <PrivateRoute>
+              <Playground />
+            </PrivateRoute>
+          }
+        />
+        <Route
           path='/console/online-experience'
+          element={
+            <PrivateRoute>
+              <OnlineExperience />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path='/online-experience'
           element={
             <PrivateRoute>
               <OnlineExperience />
