@@ -16,13 +16,18 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useCallback } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
-import { Languages, Check } from 'lucide-react'
+import { Check, Languages, X } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { useAuthStore } from '@/stores/auth-store'
 import { api } from '@/lib/api'
 import { refreshLanguageSensitiveQueries } from '@/lib/i18n-query-refresh'
+import {
+  detectRegionalPromptLanguage,
+  LANGUAGE_REGION_PROMPT_DISMISSED_KEY,
+  type RegionalPromptLanguage,
+} from '@/lib/regional-language'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import {
@@ -31,6 +36,11 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover'
 
 const languages = [
   { code: 'en', label: 'English' },
@@ -41,14 +51,52 @@ const languages = [
   { code: 'vi', label: 'Tiếng Việt' },
 ]
 
+const regionalPromptMessages: Record<RegionalPromptLanguage, string> = {
+  zh: '你可以在这里切换语言',
+  fr: 'Vous pouvez changer de langue ici.',
+  ru: 'Здесь можно переключить язык.',
+  ja: 'ここで言語を切り替えられます。',
+  vi: 'Bạn có thể đổi ngôn ngữ tại đây.',
+}
+
 export function LanguageSwitcher() {
   const { i18n, t } = useTranslation()
   const queryClient = useQueryClient()
   const user = useAuthStore((s) => s.auth.user)
+  const [promptLanguage, setPromptLanguage] =
+    useState<RegionalPromptLanguage | null>(null)
+  const [promptOpen, setPromptOpen] = useState(false)
+  const [promptDismissed, setPromptDismissed] = useState(false)
+
+  const dismissRegionalPrompt = useCallback(() => {
+    setPromptDismissed(true)
+    setPromptOpen(false)
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem(LANGUAGE_REGION_PROMPT_DISMISSED_KEY, 'true')
+    }
+  }, [])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    if (
+      window.localStorage.getItem(LANGUAGE_REGION_PROMPT_DISMISSED_KEY) ===
+      'true'
+    ) {
+      return
+    }
+
+    setPromptDismissed(false)
+    const detectedLanguage = detectRegionalPromptLanguage()
+    if (!detectedLanguage) return
+
+    setPromptLanguage(detectedLanguage)
+    setPromptOpen(true)
+  }, [])
 
   const handleChangeLanguage = useCallback(
     async (code: string) => {
       await i18n.changeLanguage(code)
+      dismissRegionalPrompt()
       refreshLanguageSensitiveQueries(queryClient)
       if (user) {
         try {
@@ -58,31 +106,67 @@ export function LanguageSwitcher() {
         }
       }
     },
-    [i18n, queryClient, user]
+    [dismissRegionalPrompt, i18n, queryClient, user]
   )
 
   return (
-    <DropdownMenu modal={false}>
-      <DropdownMenuTrigger
-        render={<Button variant='ghost' size='icon' className='h-9 w-9' />}
-      >
-        <Languages className='size-[1.2rem]' />
-        <span className='sr-only'>{t('Change language')}</span>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align='end'>
-        {languages.map((lang) => (
-          <DropdownMenuItem
-            key={lang.code}
-            onClick={() => handleChangeLanguage(lang.code)}
+    <Popover
+      open={promptOpen}
+      onOpenChange={(open) => {
+        if (open && !promptDismissed) {
+          setPromptOpen(true)
+        }
+      }}
+    >
+      <PopoverTrigger render={<span className='inline-flex' />}>
+        <DropdownMenu modal={false}>
+          <DropdownMenuTrigger
+            render={<Button variant='ghost' size='icon' className='h-9 w-9' />}
+            onClick={dismissRegionalPrompt}
           >
-            {lang.label}
-            <Check
-              size={14}
-              className={cn('ms-auto', i18n.language !== lang.code && 'hidden')}
-            />
-          </DropdownMenuItem>
-        ))}
-      </DropdownMenuContent>
-    </DropdownMenu>
+            <Languages className='size-[1.2rem]' />
+            <span className='sr-only'>{t('Change language')}</span>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align='end'>
+            {languages.map((lang) => (
+              <DropdownMenuItem
+                key={lang.code}
+                onClick={() => handleChangeLanguage(lang.code)}
+              >
+                {lang.label}
+                <Check
+                  size={14}
+                  className={cn(
+                    'ms-auto',
+                    i18n.language !== lang.code && 'hidden'
+                  )}
+                />
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </PopoverTrigger>
+      {promptLanguage && (
+        <PopoverContent
+          side='bottom'
+          align='end'
+          sideOffset={12}
+          className='relative w-60 border-primary/30 pe-9 text-sm shadow-lg shadow-primary/10 ring-primary/20'
+        >
+          <span className='bg-popover border-primary/30 absolute -top-2 right-4 size-4 rotate-45 border-t border-l shadow-[-2px_-2px_4px_rgba(0,0,0,0.04)]' />
+          <span>{regionalPromptMessages[promptLanguage]}</span>
+          <Button
+            type='button'
+            variant='ghost'
+            size='icon'
+            className='absolute top-1.5 right-1.5 size-7'
+            onClick={dismissRegionalPrompt}
+          >
+            <X className='size-3.5' />
+            <span className='sr-only'>Close</span>
+          </Button>
+        </PopoverContent>
+      )}
+    </Popover>
   )
 }
