@@ -56,6 +56,7 @@ import { useApiInfo } from '../../hooks/use-status-data'
 import { AnnouncementsPanel } from './announcements-panel'
 import { ApiInfoPanel } from './api-info-panel'
 import { FAQPanel } from './faq-panel'
+import { PerformanceHealthPanel } from './performance-health-panel'
 import { SummaryCards } from './summary-cards'
 import { UptimePanel } from './uptime-panel'
 
@@ -716,6 +717,11 @@ export function OverviewDashboard() {
 
       <CardStaggerContainer className='grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_22rem]'>
         <div className='grid min-w-0 grid-cols-1 gap-4 lg:grid-cols-2'>
+          {isAdmin && (
+            <CardStaggerItem className='lg:col-span-2'>
+              <PerformanceHealthPanel />
+            </CardStaggerItem>
+          )}
           <CardStaggerItem>
             <ApiInfoPanel />
           </CardStaggerItem>

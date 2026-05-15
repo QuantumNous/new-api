@@ -151,15 +151,7 @@ export function ApiKeysMutateDrawer({
       ratio: info.ratio,
     })
   )
-
-  // Add auto group if configured
-  if (!groups.some((g) => g.value === 'auto')) {
-    groups.unshift({
-      value: 'auto',
-      label: 'auto',
-      desc: t('Auto (Circuit Breaker)'),
-    })
-  }
+  const backendHasAuto = groups.some((g) => g.value === 'auto')
 
   const form = useForm<ApiKeyFormValues>({
     resolver: zodResolver(apiKeyFormSchema),
@@ -169,17 +161,28 @@ export function ApiKeysMutateDrawer({
   // Load existing data when updating
   useEffect(() => {
     if (open && isUpdate && currentRow) {
-      // For update, fetch fresh data
       getApiKey(currentRow.id).then((result) => {
         if (result.success && result.data) {
           form.reset(transformApiKeyToFormDefaults(result.data))
         }
       })
     } else if (open && !isUpdate) {
-      // For create, reset to defaults
-      form.reset(getApiKeyFormDefaultValues(defaultUseAutoGroup))
+      form.reset(getApiKeyFormDefaultValues(defaultUseAutoGroup && backendHasAuto))
     }
-  }, [open, isUpdate, currentRow, form, defaultUseAutoGroup])
+  }, [open, isUpdate, currentRow, form, defaultUseAutoGroup, backendHasAuto])
+
+  // Correct group after groups load: if the form value is not in available groups, fall back
+  useEffect(() => {
+    if (groups.length === 0) return
+    const currentGroup = form.getValues('group')
+    if (currentGroup && !groups.some((g) => g.value === currentGroup)) {
+      const fallback = groups.find((g) => g.value === 'default')?.value ?? groups[0]?.value ?? ''
+      form.setValue('group', fallback)
+      if (currentGroup === 'auto') {
+        form.setValue('cross_group_retry', false)
+      }
+    }
+  }, [groups, form])
 
   const onSubmit = async (data: ApiKeyFormValues) => {
     setIsSubmitting(true)
