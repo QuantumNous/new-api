@@ -53,6 +53,7 @@ func trimModelThinking(modelName string) string {
 	return modelName
 }
 
+// GeminiHelper handles native Gemini relay requests.
 func GeminiHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types.NewAPIError) {
 	info.InitChannelMeta(c)
 
