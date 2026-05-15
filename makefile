@@ -8,7 +8,7 @@ DEV_POSTGRES_DB = new-api
 DEV_POSTGRES_USER = root
 DEV_SQLITE_PATH ?= one-api.db
 
-.PHONY: all build-frontend build-frontend-classic build-all-frontends start-backend dev dev-api dev-web dev-web-classic reset-setup
+.PHONY: all build-frontend build-frontend-classic build-all-frontends start-backend dev dev-api dev-api-rebuild dev-web dev-web-classic reset-setup
 
 all: build-all-frontends start-backend
 
@@ -28,7 +28,11 @@ start-backend:
 
 dev-api:
 	@echo "Starting backend services (docker)..."
-	@docker compose -f docker-compose.dev.yml up -d
+	@docker compose -f $(DEV_COMPOSE_FILE) up -d
+
+dev-api-rebuild:
+	@echo "Rebuilding and starting backend service (docker)..."
+	@docker compose -f $(DEV_COMPOSE_FILE) up -d --build $(DEV_BACKEND_SERVICE)
 
 dev-web:
 	@echo "Starting frontend dev server..."
