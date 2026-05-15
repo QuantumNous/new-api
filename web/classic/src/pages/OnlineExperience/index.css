@@ -1,0 +1,106 @@
+.playground-page {
+  background: radial-gradient(
+      circle at top left,
+      rgba(0, 82, 255, 0.08),
+      transparent 24%
+    ),
+    radial-gradient(
+      circle at right center,
+      rgba(87, 139, 250, 0.08),
+      transparent 20%
+    ),
+    linear-gradient(180deg, #f7fbff 0%, #f4f8fc 48%, #f8fbff 100%);
+  color: #1c2536;
+  padding: 12px 16px 16px;
+  box-sizing: border-box;
+}
+
+.playground-layout {
+  gap: 16px;
+}
+
+.playground-settings-sider .semi-layout-sider-children,
+.playground-debug-shell > *,
+.playground-chat-column > * {
+  height: 100%;
+  box-sizing: border-box;
+}
+
+.playground-workspace {
+  gap: 16px;
+}
+
+.playground-side-card.semi-card,
+.playground-chat-card.semi-card {
+  overflow: hidden;
+  height: 100%;
+  border: 1px solid rgba(216, 224, 235, 0.88) !important;
+  border-radius: 30px !important;
+  background: linear-gradient(
+      180deg,
+      rgba(255, 255, 255, 0.98),
+      rgba(246, 249, 252, 0.96)
+    ),
+    #ffffff !important;
+}
+
+.playground-chat-card .semi-card-body,
+.playground-side-card .semi-card-body {
+  height: 100%;
+}
+
+.playground-chat-card .semi-card-body {
+  padding: 0 !important;
+}
+
+.playground-chat-header {
+  border-bottom: 1px solid rgba(216, 224, 235, 0.82);
+  background: radial-gradient(
+      circle at top right,
+      rgba(0, 82, 255, 0.08),
+      transparent 26%
+    ),
+    linear-gradient(
+      180deg,
+      rgba(255, 255, 255, 0.98),
+      rgba(245, 249, 255, 0.98)
+    );
+}
+
+.playground-chat-header-icon,
+.playground-side-header-icon {
+  color: #ffffff;
+  background: linear-gradient(135deg, #0052ff, #69a0ff);
+  box-shadow: 0 14px 30px rgba(0, 82, 255, 0.2);
+}
+
+.playground-debug-header-icon {
+  background: linear-gradient(135deg, #0f172a, #2563eb);
+  box-shadow: 0 14px 30px rgba(15, 23, 42, 0.18);
+}
+
+.playground-chat-title.semi-typography,
+.playground-side-title.semi-typography {
+  color: #1c2536 !important;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+.playground-chat-subtitle,
+.playground-debug-timestamp,
+.playground-config-status,
+.playground-parameter-description,
+.playground-thinking-source,
+.playground-field-hint,
+.playground-image-toggle-icon,
+.playground-field-icon {
+  color: #667085 !important;
+}
+
+.playground-field-label {
+  color: #233149 !important;
+}
+
+.playground-field-hint {
+  color: #b54708 !important;
+}

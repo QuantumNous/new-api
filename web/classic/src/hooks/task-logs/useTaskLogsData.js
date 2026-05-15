@@ -207,13 +207,72 @@ export const useTaskLogsData = () => {
     };
   };
 
+  const parseJsonLike = (value) => {
+    if (!value) {
+      return null;
+    }
+    if (typeof value === 'object') {
+      return value;
+    }
+    if (typeof value !== 'string') {
+      return null;
+    }
+    try {
+      return JSON.parse(value);
+    } catch {
+      return null;
+    }
+  };
+
+  const extractProgressArray = (log) => {
+    const directProgress = log?.progress;
+    if (Array.isArray(directProgress)) {
+      return directProgress;
+    }
+
+    const parsedProgress = parseJsonLike(directProgress);
+    if (Array.isArray(parsedProgress)) {
+      return parsedProgress;
+    }
+
+    const data = parseJsonLike(log?.data);
+    if (!data || typeof data !== 'object') {
+      return null;
+    }
+
+    const candidates = [
+      data.progress,
+      data.progresses,
+      data.progress_array,
+      data.progressArray,
+      data.data?.progress,
+      data.data?.progresses,
+    ];
+
+    for (const candidate of candidates) {
+      if (Array.isArray(candidate)) {
+        return candidate;
+      }
+      const parsed = parseJsonLike(candidate);
+      if (Array.isArray(parsed)) {
+        return parsed;
+      }
+    }
+
+    return null;
+  };
+
   // Enrich logs data
   const enrichLogs = (items) => {
-    return items.map((log) => ({
-      ...log,
-      timestamp2string: timestamp2string(log.created_at),
-      key: '' + log.id,
-    }));
+    return items.map((log) => {
+      const progressArray = extractProgressArray(log);
+      return {
+        ...log,
+        progress: progressArray || log.progress,
+        timestamp2string: timestamp2string(log.created_at),
+        key: '' + log.id,
+      };
+    });
   };
 
   // Sync page data

@@ -19,32 +19,162 @@ For commercial licensing, please contact support@quantumnous.com
 
 import { useCallback, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { API, processModelsData, processGroupsData } from '../../helpers';
+import {
+  API,
+  processModelsData,
+  processGroupsData,
+  showError,
+} from '../../helpers';
 import { API_ENDPOINTS } from '../../constants/playground.constants';
+
+const PLAYGROUND_CHAT_ENDPOINT_TYPES = new Set([
+  'openai',
+  'openai-response',
+  'openai-response-compact',
+  'anthropic',
+  'gemini',
+]);
+
+const PLAYGROUND_IMAGE_MODEL_HINTS = [
+  'gpt-image',
+  'dall-e',
+  'imagen',
+  'flux',
+  'recraft',
+];
+
+const PLAYGROUND_VIDEO_MODEL_HINTS = [
+  'seedance',
+  'kling',
+  'veo',
+  'jimeng',
+  'cogvideo',
+  'luma',
+  'hailuo',
+  'video',
+];
+
+const isPlaygroundChatModel = (modelName) => {
+  if (typeof modelName !== 'string' || modelName.trim() === '') {
+    return false;
+  }
+  const normalizedModelName = modelName.toLowerCase();
+  return ![...PLAYGROUND_IMAGE_MODEL_HINTS, ...PLAYGROUND_VIDEO_MODEL_HINTS].some(
+    (hint) => normalizedModelName.includes(hint),
+  );
+};
 
 export const useDataLoader = (
   userState,
   inputs,
   handleInputChange,
   setModels,
+  setImageModels,
+  setVideoModels,
   setGroups,
 ) => {
+  if (typeof setGroups !== 'function' && typeof setVideoModels !== 'function') {
+    setGroups = setImageModels;
+    setImageModels = undefined;
+  }
+
   const { t } = useTranslation();
 
   const loadModels = useCallback(async () => {
     try {
-      const res = await API.get(API_ENDPOINTS.USER_MODELS);
+      const res = await API.get(API_ENDPOINTS.PRICING);
       const { success, message, data } = res.data;
 
       if (success) {
+        const pricingItems = Array.isArray(data) ? data : [];
+        const filteredModels = Array.from(
+          new Set(
+            pricingItems
+              .filter((item) => {
+                const modelName = item?.model_name;
+                const endpointTypes = Array.isArray(
+                  item?.supported_endpoint_types,
+                )
+                  ? item.supported_endpoint_types
+                  : [];
+
+                if (!isPlaygroundChatModel(modelName)) {
+                  return false;
+                }
+
+                return endpointTypes.some((endpointType) =>
+                  PLAYGROUND_CHAT_ENDPOINT_TYPES.has(endpointType),
+                );
+              })
+              .map((item) => item.model_name)
+              .filter(Boolean),
+          ),
+        );
+        const filteredVideoModels = Array.from(
+          new Set(
+            pricingItems
+              .filter((item) => {
+                const modelName = item?.model_name;
+                return (
+                  typeof modelName === 'string' &&
+                  modelName.trim() !== '' &&
+                  PLAYGROUND_VIDEO_MODEL_HINTS.some((hint) =>
+                    modelName.toLowerCase().includes(hint),
+                  )
+                );
+              })
+              .map((item) => item.model_name)
+              .filter(Boolean),
+          ),
+        );
+        const filteredImageModels = Array.from(
+          new Set(
+            pricingItems
+              .filter((item) => {
+                const modelName = item?.model_name;
+
+                return (
+                  typeof modelName === 'string' &&
+                  modelName.trim() !== '' &&
+                  PLAYGROUND_IMAGE_MODEL_HINTS.some((hint) =>
+                    modelName.toLowerCase().includes(hint),
+                  )
+                );
+              })
+              .map((item) => item.model_name)
+              .filter(Boolean),
+          ),
+        );
+
         const { modelOptions, selectedModel } = processModelsData(
-          data,
+          filteredModels,
           inputs.model,
         );
-        setModels(modelOptions);
+        const {
+          modelOptions: imageModelOptions,
+          selectedModel: selectedImageModel,
+        } = processModelsData(filteredImageModels, inputs.imageModel);
+        const {
+          modelOptions: videoModelOptions,
+          selectedModel: selectedVideoModel,
+        } = processModelsData(filteredVideoModels, inputs.videoModel);
 
-        if (selectedModel !== inputs.model) {
+        setModels(modelOptions);
+        if (typeof setImageModels === 'function') {
+          setImageModels(imageModelOptions);
+        }
+        if (typeof setVideoModels === 'function') {
+          setVideoModels(videoModelOptions);
+        }
+
+        if (selectedModel && selectedModel !== inputs.model) {
           handleInputChange('model', selectedModel);
+        }
+        if (selectedImageModel && selectedImageModel !== inputs.imageModel) {
+          handleInputChange('imageModel', selectedImageModel);
+        }
+        if (selectedVideoModel && selectedVideoModel !== inputs.videoModel) {
+          handleInputChange('videoModel', selectedVideoModel);
         }
       } else {
         showError(t(message));
@@ -52,7 +182,16 @@ export const useDataLoader = (
     } catch (error) {
       showError(t('加载模型失败'));
     }
-  }, [inputs.model, handleInputChange, setModels, t]);
+  }, [
+    inputs.model,
+    inputs.imageModel,
+    inputs.videoModel,
+    handleInputChange,
+    setModels,
+    setImageModels,
+    setVideoModels,
+    t,
+  ]);
 
   const loadGroups = useCallback(async () => {
     try {

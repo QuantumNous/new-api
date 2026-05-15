@@ -22,7 +22,191 @@ import {
   DEFAULT_CONFIG,
 } from '../../constants/playground.constants';
 
-const MESSAGES_STORAGE_KEY = 'playground_messages';
+const PLAYGROUND_DB_NAME = 'new-api-playground';
+const PLAYGROUND_DB_VERSION = 1;
+const PLAYGROUND_META_STORE = 'meta';
+const PLAYGROUND_CONVERSATION_STATE_KEY = 'conversation-state';
+const MAX_STORAGE_TEXT_LENGTH = 4000;
+const MAX_STORAGE_REASONING_LENGTH = 2000;
+const DATA_URL_PLACEHOLDER = '[local image omitted from localStorage]';
+const LONG_TEXT_PLACEHOLDER = '...[truncated]';
+
+const buildConversationTitle = (messages = []) => {
+  const firstUserMessage = messages.find((message) => message?.role === 'user');
+  const content = firstUserMessage?.content;
+  const text =
+    typeof content === 'string'
+      ? content
+      : Array.isArray(content)
+        ? content
+            .map((item) => item?.text || '')
+            .join(' ')
+            .trim()
+        : '';
+  return text ? text.slice(0, 30) : '新对话';
+};
+
+const isQuotaExceededError = (error) => {
+  if (!error) {
+    return false;
+  }
+
+  return (
+    error.name === 'QuotaExceededError' ||
+    error.name === 'NS_ERROR_DOM_QUOTA_REACHED' ||
+    error.code === 22 ||
+    error.code === 1014
+  );
+};
+
+const trimTextForStorage = (value, maxLength = MAX_STORAGE_TEXT_LENGTH) => {
+  if (typeof value !== 'string') {
+    return value;
+  }
+
+  if (value.startsWith('data:image/')) {
+    return DATA_URL_PLACEHOLDER;
+  }
+
+  if (value.length <= maxLength) {
+    return value;
+  }
+
+  return `${value.slice(0, maxLength)}${LONG_TEXT_PLACEHOLDER}`;
+};
+
+const sanitizeMessageContentForStorage = (content) => {
+  if (typeof content === 'string') {
+    return trimTextForStorage(content);
+  }
+
+  if (Array.isArray(content)) {
+    return content.map((item) => {
+      if (!item || typeof item !== 'object') {
+        return item;
+      }
+
+      if (item.type === 'image_url') {
+        const url = item.image_url?.url;
+        return {
+          ...item,
+          image_url: {
+            ...item.image_url,
+            url: trimTextForStorage(url),
+          },
+        };
+      }
+
+      return {
+        ...item,
+        text: trimTextForStorage(item.text),
+      };
+    });
+  }
+
+  return content;
+};
+
+const sanitizeMessageForStorage = (message) => {
+  if (!message || typeof message !== 'object') {
+    return message;
+  }
+
+  const sanitized = {
+    ...message,
+    content: sanitizeMessageContentForStorage(message.content),
+  };
+
+  if (typeof sanitized.reasoningContent === 'string') {
+    sanitized.reasoningContent = trimTextForStorage(
+      sanitized.reasoningContent,
+      MAX_STORAGE_REASONING_LENGTH,
+    );
+  }
+
+  if (Array.isArray(sanitized.imageUrls)) {
+    sanitized.imageUrls = sanitized.imageUrls.map((url) => trimTextForStorage(url));
+  }
+
+  return sanitized;
+};
+
+const sanitizeMessagesForStorage = (messages) =>
+  Array.isArray(messages) ? messages.map(sanitizeMessageForStorage) : [];
+
+const sanitizeConversationsForStorage = (conversations) =>
+  Array.isArray(conversations)
+    ? conversations.map((conversation) => ({
+        ...conversation,
+        messages: sanitizeMessagesForStorage(conversation?.messages),
+      }))
+    : [];
+
+const hasPlaceholderValue = (value) => {
+  if (typeof value === 'string') {
+    return value.includes(DATA_URL_PLACEHOLDER);
+  }
+
+  if (Array.isArray(value)) {
+    return value.some((item) => hasPlaceholderValue(item));
+  }
+
+  if (value && typeof value === 'object') {
+    return Object.values(value).some((item) => hasPlaceholderValue(item));
+  }
+
+  return false;
+};
+
+const hasPlaceholderInMessages = (messages) =>
+  Array.isArray(messages) && messages.some((message) => hasPlaceholderValue(message));
+
+const hasPlaceholderInConversations = (conversations) =>
+  Array.isArray(conversations) &&
+  conversations.some((conversation) =>
+    hasPlaceholderInMessages(conversation?.messages),
+  );
+
+const buildMessageStorageFallback = () => ({
+  messages: [],
+  timestamp: new Date().toISOString(),
+  overflow: true,
+});
+
+const buildConversationStorageFallback = (conversations = []) => ({
+  conversations: Array.isArray(conversations)
+    ? conversations.map((conversation) => ({
+        id: conversation?.id || `pg-${Date.now()}`,
+        title: conversation?.title || '新对话',
+        messages: [],
+        createdAt: conversation?.createdAt || Date.now(),
+        updatedAt: conversation?.updatedAt || Date.now(),
+      }))
+    : [],
+  timestamp: new Date().toISOString(),
+  overflow: true,
+});
+
+const setStorageItemSafely = (key, value, fallbackValue, errorLabel) => {
+  try {
+    localStorage.setItem(key, JSON.stringify(value));
+    return true;
+  } catch (error) {
+    if (!isQuotaExceededError(error)) {
+      console.error(errorLabel, error);
+      return false;
+    }
+  }
+
+  try {
+    localStorage.setItem(key, JSON.stringify(fallbackValue));
+    console.warn(`${errorLabel}，已自动降级为轻量存储`);
+    return true;
+  } catch (fallbackError) {
+    console.error(errorLabel, fallbackError);
+    return false;
+  }
+};
 
 /**
  * 保存配置到 localStorage
@@ -45,15 +229,18 @@ export const saveConfig = (config) => {
  * @param {Array} messages - 要保存的消息数组
  */
 export const saveMessages = (messages) => {
-  try {
-    const messagesToSave = {
-      messages,
-      timestamp: new Date().toISOString(),
-    };
-    localStorage.setItem(STORAGE_KEYS.MESSAGES, JSON.stringify(messagesToSave));
-  } catch (error) {
-    console.error('保存消息失败:', error);
-  }
+  const messagesToSave = {
+    messages,
+    timestamp: new Date().toISOString(),
+  };
+  const fallbackMessagesToSave = buildMessageStorageFallback();
+
+  setStorageItemSafely(
+    STORAGE_KEYS.MESSAGES,
+    messagesToSave,
+    fallbackMessagesToSave,
+    '保存消息失败',
+  );
 };
 
 /**
@@ -85,6 +272,8 @@ export const loadConfig = () => {
           parsedConfig.customRequestMode || DEFAULT_CONFIG.customRequestMode,
         customRequestBody:
           parsedConfig.customRequestBody || DEFAULT_CONFIG.customRequestBody,
+        playgroundMode:
+          parsedConfig.playgroundMode || DEFAULT_CONFIG.playgroundMode,
       };
 
       return mergedConfig;
@@ -105,6 +294,13 @@ export const loadMessages = () => {
     const savedMessages = localStorage.getItem(STORAGE_KEYS.MESSAGES);
     if (savedMessages) {
       const parsedMessages = JSON.parse(savedMessages);
+      if (parsedMessages?.overflow) {
+        return null;
+      }
+      if (hasPlaceholderInMessages(parsedMessages.messages)) {
+        localStorage.removeItem(STORAGE_KEYS.MESSAGES);
+        return null;
+      }
       return parsedMessages.messages || null;
     }
   } catch (error) {
@@ -112,6 +308,239 @@ export const loadMessages = () => {
   }
 
   return null;
+};
+
+export const createStoredConversation = (messages = [], id = null) => {
+  const now = Date.now();
+  return {
+    id: id || `pg-${now}`,
+    title: buildConversationTitle(messages),
+    messages,
+    createdAt: now,
+    updatedAt: now,
+  };
+};
+
+const normalizeConversationState = (state) => {
+  const conversations = Array.isArray(state?.conversations)
+    ? state.conversations
+    : [];
+  const activeConversationId =
+    state?.activeConversationId || conversations[0]?.id || null;
+
+  return {
+    conversations,
+    activeConversationId,
+  };
+};
+
+const openPlaygroundDB = () =>
+  new Promise((resolve, reject) => {
+    if (typeof window === 'undefined' || !window.indexedDB) {
+      resolve(null);
+      return;
+    }
+
+    const request = window.indexedDB.open(
+      PLAYGROUND_DB_NAME,
+      PLAYGROUND_DB_VERSION,
+    );
+
+    request.onupgradeneeded = () => {
+      const db = request.result;
+      if (!db.objectStoreNames.contains(PLAYGROUND_META_STORE)) {
+        db.createObjectStore(PLAYGROUND_META_STORE, { keyPath: 'key' });
+      }
+    };
+
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+
+const runMetaTransaction = async (mode, executor) => {
+  const db = await openPlaygroundDB();
+  if (!db) {
+    return null;
+  }
+
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction(PLAYGROUND_META_STORE, mode);
+    const store = transaction.objectStore(PLAYGROUND_META_STORE);
+
+    transaction.oncomplete = () => {
+      db.close();
+    };
+    transaction.onerror = () => {
+      db.close();
+      reject(transaction.error);
+    };
+    transaction.onabort = () => {
+      db.close();
+      reject(transaction.error);
+    };
+
+    executor(store, resolve, reject);
+  });
+};
+
+export const loadConversationStateFromIndexedDB = async () => {
+  try {
+    const payload = await runMetaTransaction('readonly', (store, resolve) => {
+      const request = store.get(PLAYGROUND_CONVERSATION_STATE_KEY);
+      request.onsuccess = () => resolve(request.result?.value || null);
+      request.onerror = () => resolve(null);
+    });
+
+    if (!payload) {
+      return null;
+    }
+
+    if (hasPlaceholderInConversations(payload.conversations)) {
+      clearConversationStateFromIndexedDB().catch((error) => {
+        console.error('清理被占位符污染的 IndexedDB 会话失败:', error);
+      });
+      return null;
+    }
+
+    return normalizeConversationState(payload);
+  } catch (error) {
+    console.error('从 IndexedDB 加载会话失败:', error);
+    return null;
+  }
+};
+
+export const saveConversationStateToIndexedDB = async (
+  conversations = [],
+  activeConversationId = null,
+) => {
+  try {
+    await runMetaTransaction('readwrite', (store, resolve, reject) => {
+      const request = store.put({
+        key: PLAYGROUND_CONVERSATION_STATE_KEY,
+        value: {
+          conversations,
+          activeConversationId,
+          timestamp: new Date().toISOString(),
+        },
+      });
+      request.onsuccess = () => resolve(true);
+      request.onerror = () => reject(request.error);
+    });
+  } catch (error) {
+    console.error('保存 IndexedDB 会话失败:', error);
+  }
+};
+
+export const clearConversationStateFromIndexedDB = async () => {
+  try {
+    await runMetaTransaction('readwrite', (store, resolve, reject) => {
+      const request = store.delete(PLAYGROUND_CONVERSATION_STATE_KEY);
+      request.onsuccess = () => resolve(true);
+      request.onerror = () => reject(request.error);
+    });
+  } catch (error) {
+    console.error('清理 IndexedDB 会话失败:', error);
+  }
+};
+
+export const migrateConversationStateToIndexedDB = async () => {
+  const indexedState = await loadConversationStateFromIndexedDB();
+  if (indexedState?.conversations?.length) {
+    return indexedState;
+  }
+
+  const localState = loadConversationState();
+  if (localState?.conversations?.length) {
+    await saveConversationStateToIndexedDB(
+      localState.conversations,
+      localState.activeConversationId,
+    );
+    return localState;
+  }
+
+  return null;
+};
+
+export const saveConversationState = (
+  conversations = [],
+  activeConversationId = null,
+) => {
+  const payload = {
+    conversations,
+    timestamp: new Date().toISOString(),
+  };
+  const fallbackPayload = buildConversationStorageFallback(conversations);
+
+  const saved = setStorageItemSafely(
+    STORAGE_KEYS.CONVERSATIONS,
+    payload,
+    fallbackPayload,
+    '保存会话失败',
+  );
+
+  if (!saved) {
+    return;
+  }
+
+  try {
+    if (activeConversationId) {
+      localStorage.setItem(
+        STORAGE_KEYS.ACTIVE_CONVERSATION,
+        activeConversationId,
+      );
+    } else {
+      localStorage.removeItem(STORAGE_KEYS.ACTIVE_CONVERSATION);
+    }
+  } catch (error) {
+    console.error('保存当前会话失败:', error);
+  }
+};
+
+export const loadConversationState = () => {
+  try {
+    const savedConversations = localStorage.getItem(STORAGE_KEYS.CONVERSATIONS);
+    const activeConversationId = localStorage.getItem(
+      STORAGE_KEYS.ACTIVE_CONVERSATION,
+    );
+
+    if (savedConversations) {
+      const parsed = JSON.parse(savedConversations);
+      if (parsed?.overflow) {
+        localStorage.removeItem(STORAGE_KEYS.CONVERSATIONS);
+        localStorage.removeItem(STORAGE_KEYS.ACTIVE_CONVERSATION);
+      } else {
+        const conversations = Array.isArray(parsed?.conversations)
+          ? parsed.conversations
+          : [];
+
+        if (hasPlaceholderInConversations(conversations)) {
+          localStorage.removeItem(STORAGE_KEYS.CONVERSATIONS);
+          localStorage.removeItem(STORAGE_KEYS.ACTIVE_CONVERSATION);
+        } else if (conversations.length > 0) {
+          return {
+            conversations,
+            activeConversationId:
+              activeConversationId || conversations[0]?.id || null,
+          };
+        }
+      }
+    }
+
+    const messages = loadMessages();
+    const fallbackConversation = createStoredConversation(messages || []);
+    return {
+      conversations: [fallbackConversation],
+      activeConversationId: fallbackConversation.id,
+    };
+  } catch (error) {
+    console.error('加载会话失败:', error);
+  }
+
+  const fallbackConversation = createStoredConversation([]);
+  return {
+    conversations: [fallbackConversation],
+    activeConversationId: fallbackConversation.id,
+  };
 };
 
 /**

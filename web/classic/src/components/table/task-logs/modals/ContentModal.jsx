@@ -58,114 +58,134 @@ const ContentModal = ({
     window.open(modalContent, '_blank');
   };
 
+  const getCompactUrl = (url) => {
+    if (!url) {
+      return '';
+    }
+    try {
+      const parsed = new URL(url);
+      const path = `${parsed.pathname}${parsed.search}`;
+      const shortPath =
+        path.length > 28 ? `${path.slice(0, 16)}...${path.slice(-8)}` : path;
+      return `${parsed.hostname}${shortPath}`;
+    } catch {
+      return url.length > 42 ? `${url.slice(0, 24)}...${url.slice(-12)}` : url;
+    }
+  };
+
+  const renderCompactUrl = () => (
+    <Text
+      className='task-video-url'
+      title={modalContent}
+      ellipsis={{ showTooltip: { content: modalContent } }}
+    >
+      {getCompactUrl(modalContent) || t('暂无链接')}
+    </Text>
+  );
+
+  const renderUrlSummary = () => (
+    <div className='task-video-url-summary'>
+      <span className='task-video-url-label'>{t('视频链接')}</span>
+      {renderCompactUrl()}
+    </div>
+  );
+
   const renderVideoContent = () => {
     if (videoError) {
       return (
-        <div style={{ textAlign: 'center', padding: '40px' }}>
-          <Text
-            type='tertiary'
-            style={{ display: 'block', marginBottom: '16px' }}
-          >
-            {t('视频无法在当前浏览器中播放，这可能是由于：')}
-          </Text>
-          <Text
-            type='tertiary'
-            style={{ display: 'block', marginBottom: '8px', fontSize: '12px' }}
-          >
-            {t('• 视频服务商的跨域限制')}
-          </Text>
-          <Text
-            type='tertiary'
-            style={{ display: 'block', marginBottom: '8px', fontSize: '12px' }}
-          >
-            {t('• 需要特定的请求头或认证')}
-          </Text>
-          <Text
-            type='tertiary'
-            style={{ display: 'block', marginBottom: '16px', fontSize: '12px' }}
-          >
-            {t('• 防盗链保护机制')}
-          </Text>
+        <div className='task-video-error-state'>
+          <div className='task-video-error-copy'>
+            <Text strong>{t('视频无法在当前浏览器中播放')}</Text>
+            <Text type='tertiary'>
+              {t(
+                '这可能是由于视频服务商的跨域限制、认证要求或防盗链保护机制。',
+              )}
+            </Text>
+          </div>
 
-          <div style={{ marginTop: '20px' }}>
+          <div className='task-video-modal-actions'>
             <Button
               icon={<IconExternalOpen />}
               onClick={handleOpenInNewTab}
-              style={{ marginRight: '8px' }}
+              className='task-video-action-button'
+              aria-label={t('在新标签页中打开')}
             >
               {t('在新标签页中打开')}
             </Button>
-            <Button icon={<IconCopy />} onClick={handleCopyUrl}>
+            <Button
+              icon={<IconCopy />}
+              onClick={handleCopyUrl}
+              className='task-video-action-button'
+              aria-label={t('复制链接')}
+            >
               {t('复制链接')}
             </Button>
           </div>
 
-          <div
-            style={{
-              marginTop: '16px',
-              padding: '8px',
-              backgroundColor: '#f8f9fa',
-              borderRadius: '4px',
-            }}
-          >
-            <Text
-              type='tertiary'
-              style={{ fontSize: '10px', wordBreak: 'break-all' }}
-            >
-              {modalContent}
-            </Text>
-          </div>
+          <div className='task-video-url-panel'>{renderUrlSummary()}</div>
         </div>
       );
     }
 
     return (
-      <div style={{ position: 'relative', height: '100%' }}>
-        {isLoading && (
-          <div
-            style={{
-              position: 'absolute',
-              top: '50%',
-              left: '50%',
-              transform: 'translate(-50%, -50%)',
-              zIndex: 10,
-            }}
-          >
-            <Spin size='large' />
+      <div className='task-video-modal-content'>
+        <div className='task-video-stage'>
+          {isLoading && (
+            <div className='task-video-loading'>
+              <Spin size='large' />
+            </div>
+          )}
+          <video
+            src={modalContent}
+            controls
+            className='task-video-player'
+            onError={handleVideoError}
+            onLoadedData={handleVideoLoaded}
+            onLoadStart={() => setIsLoading(true)}
+          />
+        </div>
+
+        <div className='task-video-toolbar'>
+          {renderUrlSummary()}
+          <div className='task-video-modal-actions'>
+            <Button
+              icon={<IconExternalOpen />}
+              onClick={handleOpenInNewTab}
+              className='task-video-action-button'
+              aria-label={t('在新标签页中打开')}
+            >
+              {t('新标签页')}
+            </Button>
+            <Button
+              icon={<IconCopy />}
+              onClick={handleCopyUrl}
+              className='task-video-action-button'
+              aria-label={t('复制链接')}
+            >
+              {t('复制链接')}
+            </Button>
           </div>
-        )}
-        <video
-          src={modalContent}
-          controls
-          style={{
-            width: '100%',
-            height: '100%',
-            maxWidth: '100%',
-            maxHeight: '100%',
-            objectFit: 'contain',
-          }}
-          onError={handleVideoError}
-          onLoadedData={handleVideoLoaded}
-          onLoadStart={() => setIsLoading(true)}
-        />
+        </div>
       </div>
     );
   };
 
   return (
     <Modal
+      title={isVideo ? t('视频预览') : undefined}
+      className={isVideo ? 'task-video-modal' : undefined}
       visible={isModalOpen}
       onOk={() => setIsModalOpen(false)}
       onCancel={() => setIsModalOpen(false)}
-      closable={null}
+      closable
+      footer={isVideo ? null : undefined}
       bodyStyle={{
         height: isVideo ? '70vh' : '400px',
         maxHeight: '80vh',
         overflow: 'auto',
-        padding: isVideo && videoError ? '0' : '24px',
+        padding: isVideo ? 0 : '24px',
       }}
-      width={isVideo ? '90vw' : 800}
-      style={isVideo ? { maxWidth: 960 } : undefined}
+      width={isVideo ? 'min(92vw, 980px)' : 800}
     >
       {isVideo ? (
         renderVideoContent()

@@ -334,9 +334,18 @@ export function compareObjects(oldObject, newObject) {
 
 // playground message
 
-// 生成唯一ID
-let messageId = 4;
-export const generateMessageId = () => `${messageId++}`;
+// 生成唯一ID，避免页面刷新后自增计数重置导致消息 ID 冲突
+export const generateMessageId = () => {
+  if (
+    typeof globalThis !== 'undefined' &&
+    globalThis.crypto &&
+    typeof globalThis.crypto.randomUUID === 'function'
+  ) {
+    return globalThis.crypto.randomUUID();
+  }
+
+  return `msg-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+};
 
 // 提取消息中的文本内容
 export const getTextContent = (message) => {

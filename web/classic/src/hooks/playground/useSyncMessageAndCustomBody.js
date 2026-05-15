@@ -19,6 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 
 import { useCallback, useRef } from 'react';
 import { MESSAGE_ROLES } from '../../constants/playground.constants';
+import { generateMessageId } from '../../helpers';
 
 export const useSyncMessageAndCustomBody = (
   customRequestMode,
@@ -114,8 +115,14 @@ export const useSyncMessageAndCustomBody = (
       const customPayload = JSON.parse(customRequestBody || '{}');
 
       if (customPayload.messages && Array.isArray(customPayload.messages)) {
+        const seenIds = new Set();
         const newMessages = customPayload.messages.map((msg, index) => ({
-          id: msg.id || (index + 1).toString(),
+          id:
+            typeof msg.id === 'string' &&
+            msg.id.trim() !== '' &&
+            !seenIds.has(msg.id)
+              ? (seenIds.add(msg.id), msg.id)
+              : generateMessageId(),
           role: msg.role || MESSAGE_ROLES.USER,
           content: msg.content || '',
           createAt: Date.now(),
