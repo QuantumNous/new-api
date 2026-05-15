@@ -304,6 +304,21 @@ const getUpstreamUpdateMeta = (record) => {
   };
 };
 
+const getBalanceQueryMeta = (record) => {
+  if (!record || record.children !== undefined || !record.settings) {
+    return null;
+  }
+  try {
+    const parsed =
+      typeof record.settings === 'string'
+        ? JSON.parse(record.settings)
+        : record.settings;
+    return parsed?.balance_query || null;
+  } catch (error) {
+    return null;
+  }
+};
+
 export const getChannelsColumns = ({
   t,
   COLUMN_KEYS,
@@ -528,6 +543,31 @@ export const getChannelsColumns = ({
       dataIndex: 'expired_time',
       render: (text, record, index) => {
         if (record.children === undefined) {
+          const balanceQuery = getBalanceQueryMeta(record);
+          const balanceResult = balanceQuery?.last_result;
+          const displayedBalance =
+            balanceResult?.is_valid === true &&
+            typeof balanceResult.remaining === 'number'
+              ? balanceResult.remaining
+              : record.balance;
+          const balanceTooltip =
+            record.type === 57
+              ? t('查看 Codex 帐号信息与用量')
+              : balanceResult?.is_valid === true
+                ? [
+                    `${t('套餐')}: ${balanceResult.plan_name || t('默认套餐')}`,
+                    `${t('剩余额度')}: ${renderQuotaWithAmount(displayedBalance)}`,
+                    `${t('已用额度')}: ${renderQuotaWithAmount(balanceResult.used || 0)}`,
+                    `${t('总额度')}: ${renderQuotaWithAmount(balanceResult.total || 0)}`,
+                    `${t('上次检测时间')}: ${timestamp2string(balanceResult.checked_at || record.balance_updated_time)}`,
+                    t('点击更新'),
+                  ].join('\n')
+                : balanceQuery?.last_error
+                  ? `${t('余额查询失败')}: ${balanceQuery.last_error}${t('，点击更新')}`
+                  : t('剩余额度') +
+                    ': ' +
+                    renderQuotaWithAmount(displayedBalance) +
+                    t('，点击更新');
           return (
             <div>
               <Space spacing={1}>
@@ -538,12 +578,7 @@ export const getChannelsColumns = ({
                 </Tooltip>
                 <Tooltip
                   content={
-                    record.type === 57
-                      ? t('查看 Codex 帐号信息与用量')
-                      : t('剩余额度') +
-                        ': ' +
-                        renderQuotaWithAmount(record.balance) +
-                        t('，点击更新')
+                    <div className='whitespace-pre-line'>{balanceTooltip}</div>
                   }
                 >
                   <Tag
@@ -555,7 +590,7 @@ export const getChannelsColumns = ({
                   >
                     {record.type === 57
                       ? t('帐号信息')
-                      : renderQuotaWithAmount(record.balance)}
+                      : renderQuotaWithAmount(displayedBalance)}
                   </Tag>
                 </Tooltip>
               </Space>

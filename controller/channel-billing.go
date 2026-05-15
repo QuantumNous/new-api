@@ -1,22 +1,25 @@
 package controller
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"strconv"
+	"strings"
+	"sync"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
+	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/QuantumNous/new-api/types"
 
 	"github.com/shopspring/decimal"
+	"github.com/tidwall/gjson"
 
 	"github.com/gin-gonic/gin"
 )
@@ -137,7 +140,15 @@ func GetClaudeAuthHeader(token string) http.Header {
 }
 
 func GetResponseBody(method, url string, channel *model.Channel, headers http.Header) ([]byte, error) {
-	req, err := http.NewRequest(method, url, nil)
+	return GetResponseBodyWithBody(method, url, "", channel, headers)
+}
+
+func GetResponseBodyWithBody(method, url string, body string, channel *model.Channel, headers http.Header) ([]byte, error) {
+	var reader io.Reader
+	if body != "" {
+		reader = strings.NewReader(body)
+	}
+	req, err := http.NewRequest(method, url, reader)
 	if err != nil {
 		return nil, err
 	}
@@ -152,18 +163,15 @@ func GetResponseBody(method, url string, channel *model.Channel, headers http.He
 	if err != nil {
 		return nil, err
 	}
+	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("status code: %d", res.StatusCode)
 	}
-	body, err := io.ReadAll(res.Body)
+	responseBody, err := io.ReadAll(res.Body)
 	if err != nil {
 		return nil, err
 	}
-	err = res.Body.Close()
-	if err != nil {
-		return nil, err
-	}
-	return body, nil
+	return responseBody, nil
 }
 
 func updateChannelCloseAIBalance(channel *model.Channel) (float64, error) {
@@ -174,7 +182,7 @@ func updateChannelCloseAIBalance(channel *model.Channel) (float64, error) {
 		return 0, err
 	}
 	response := OpenAICreditGrants{}
-	err = json.Unmarshal(body, &response)
+	err = common.Unmarshal(body, &response)
 	if err != nil {
 		return 0, err
 	}
@@ -189,7 +197,7 @@ func updateChannelOpenAISBBalance(channel *model.Channel) (float64, error) {
 		return 0, err
 	}
 	response := OpenAISBUsageResponse{}
-	err = json.Unmarshal(body, &response)
+	err = common.Unmarshal(body, &response)
 	if err != nil {
 		return 0, err
 	}
@@ -213,7 +221,7 @@ func updateChannelAIProxyBalance(channel *model.Channel) (float64, error) {
 		return 0, err
 	}
 	response := AIProxyUserOverviewResponse{}
-	err = json.Unmarshal(body, &response)
+	err = common.Unmarshal(body, &response)
 	if err != nil {
 		return 0, err
 	}
@@ -232,7 +240,7 @@ func updateChannelAPI2GPTBalance(channel *model.Channel) (float64, error) {
 		return 0, err
 	}
 	response := API2GPTUsageResponse{}
-	err = json.Unmarshal(body, &response)
+	err = common.Unmarshal(body, &response)
 	if err != nil {
 		return 0, err
 	}
@@ -247,7 +255,7 @@ func updateChannelSiliconFlowBalance(channel *model.Channel) (float64, error) {
 		return 0, err
 	}
 	response := SiliconFlowUsageResponse{}
-	err = json.Unmarshal(body, &response)
+	err = common.Unmarshal(body, &response)
 	if err != nil {
 		return 0, err
 	}
@@ -269,7 +277,7 @@ func updateChannelDeepSeekBalance(channel *model.Channel) (float64, error) {
 		return 0, err
 	}
 	response := DeepSeekUsageResponse{}
-	err = json.Unmarshal(body, &response)
+	err = common.Unmarshal(body, &response)
 	if err != nil {
 		return 0, err
 	}
@@ -298,7 +306,7 @@ func updateChannelAIGC2DBalance(channel *model.Channel) (float64, error) {
 		return 0, err
 	}
 	response := APGC2DGPTUsageResponse{}
-	err = json.Unmarshal(body, &response)
+	err = common.Unmarshal(body, &response)
 	if err != nil {
 		return 0, err
 	}
@@ -313,7 +321,7 @@ func updateChannelOpenRouterBalance(channel *model.Channel) (float64, error) {
 		return 0, err
 	}
 	response := OpenRouterCreditResponse{}
-	err = json.Unmarshal(body, &response)
+	err = common.Unmarshal(body, &response)
 	if err != nil {
 		return 0, err
 	}
@@ -343,7 +351,7 @@ func updateChannelMoonshotBalance(channel *model.Channel) (float64, error) {
 	}
 
 	response := MoonshotBalanceResponse{}
-	err = json.Unmarshal(body, &response)
+	err = common.Unmarshal(body, &response)
 	if err != nil {
 		return 0, err
 	}
@@ -356,7 +364,328 @@ func updateChannelMoonshotBalance(channel *model.Channel) (float64, error) {
 	return availableBalanceUsd, nil
 }
 
+const (
+	balanceQueryTemplateNewAPI        = "newapi"
+	balanceQueryDefaultIntervalSecond = 300
+)
+
+var channelBalanceQueryTaskOnce sync.Once
+
+type balanceQueryExecution struct {
+	Channel  *model.Channel
+	Settings dto.ChannelOtherSettings
+}
+
+type balanceQueryDebugInfo struct {
+	ChannelID int               `json:"channel_id"`
+	URL       string            `json:"url"`
+	Method    string            `json:"method"`
+	Headers   map[string]string `json:"headers"`
+	Body      string            `json:"body,omitempty"`
+	Response  string            `json:"response,omitempty"`
+	Error     string            `json:"error,omitempty"`
+}
+
+func getBalanceQueryIntervalSeconds(config dto.BalanceQuery) int {
+	if config.IntervalSeconds == nil {
+		return balanceQueryDefaultIntervalSecond
+	}
+	if *config.IntervalSeconds < 0 {
+		return balanceQueryDefaultIntervalSecond
+	}
+	return *config.IntervalSeconds
+}
+
+func buildBalanceQueryConfig(channel *model.Channel, config dto.BalanceQuery) dto.BalanceQuery {
+	template := strings.ToLower(strings.TrimSpace(config.Template))
+	if template == "" {
+		template = balanceQueryTemplateNewAPI
+	}
+	if template != balanceQueryTemplateNewAPI {
+		return config
+	}
+	config.Template = balanceQueryTemplateNewAPI
+	if strings.TrimSpace(config.Request.URL) == "" {
+		config.Request.URL = "{{baseUrl}}/api/user/self"
+	}
+	if strings.TrimSpace(config.Request.Method) == "" {
+		config.Request.Method = "GET"
+	}
+	if config.Request.Headers == nil {
+		config.Request.Headers = map[string]string{}
+	}
+	defaultHeaders := map[string]string{
+		"Content-Type":  "application/json",
+		"Authorization": "Bearer {{accessToken}}",
+		"User-Agent":    "cc-switch/1.0",
+		"New-Api-User":  "{{userId}}",
+	}
+	for key, value := range defaultHeaders {
+		if _, ok := config.Request.Headers[key]; !ok {
+			config.Request.Headers[key] = value
+		}
+	}
+	if strings.TrimSpace(config.Extractor.PlanNamePath) == "" {
+		config.Extractor.PlanNamePath = "data.group"
+	}
+	if strings.TrimSpace(config.Extractor.RemainingPath) == "" {
+		config.Extractor.RemainingPath = "data.quota"
+	}
+	if strings.TrimSpace(config.Extractor.UsedPath) == "" {
+		config.Extractor.UsedPath = "data.used_quota"
+	}
+	if strings.TrimSpace(config.Extractor.Unit) == "" {
+		config.Extractor.Unit = "USD"
+	}
+	if config.Extractor.Divisor == 0 {
+		config.Extractor.Divisor = 500000
+	}
+	if strings.TrimSpace(config.Extractor.SuccessPath) == "" {
+		config.Extractor.SuccessPath = "success"
+	}
+	if strings.TrimSpace(config.Extractor.SuccessValue) == "" {
+		config.Extractor.SuccessValue = "true"
+	}
+	if strings.TrimSpace(config.Extractor.MessagePath) == "" {
+		config.Extractor.MessagePath = "message"
+	}
+	_ = channel
+	return config
+}
+
+func replaceBalanceQueryVars(value string, channel *model.Channel, config dto.BalanceQuery) string {
+	baseURL := strings.TrimRight(channel.GetBaseURL(), "/")
+	if baseURL == "" {
+		baseURL = strings.TrimRight(constant.ChannelBaseURLs[channel.Type], "/")
+	}
+	accessToken := config.AccessToken
+	if accessToken == "" {
+		accessToken = channel.Key
+	}
+	replacer := strings.NewReplacer(
+		"{{baseUrl}}", baseURL,
+		"{{accessToken}}", accessToken,
+		"{{key}}", channel.Key,
+		"{{userId}}", config.UserID,
+		"{{channelId}}", strconv.Itoa(channel.Id),
+		"{{channelName}}", channel.Name,
+	)
+	return replacer.Replace(value)
+}
+
+func balanceQueryHeadersToMap(headers http.Header) map[string]string {
+	result := make(map[string]string, len(headers))
+	for key := range headers {
+		result[key] = headers.Get(key)
+	}
+	return result
+}
+
+func logBalanceQueryDebug(info balanceQueryDebugInfo) {
+	data, err := common.Marshal(info)
+	if err != nil {
+		common.SysLog(fmt.Sprintf("balance query debug: channel_id=%d, marshal error=%v", info.ChannelID, err))
+		return
+	}
+	common.SysLog("balance query debug: " + string(data))
+}
+
+func validateBalanceQuerySuccess(body []byte, extractor dto.BalanceQueryExtractorConfig) (bool, string) {
+	if extractor.SuccessPath == "" {
+		return true, ""
+	}
+	result := gjson.GetBytes(body, extractor.SuccessPath)
+	if !result.Exists() || result.Type == gjson.Null {
+		return false, "余额查询响应缺少成功状态字段"
+	}
+	expected := strings.TrimSpace(extractor.SuccessValue)
+	if expected == "" {
+		if result.Type == gjson.True {
+			return true, ""
+		}
+		return false, "余额查询响应状态为失败"
+	}
+	actual := strings.TrimSpace(result.String())
+	if result.Type == gjson.True {
+		actual = "true"
+	} else if result.Type == gjson.False {
+		actual = "false"
+	}
+	if actual == expected {
+		return true, ""
+	}
+	return false, "余额查询响应状态为失败"
+}
+
+func getBalanceQueryNumber(body []byte, path string, divisor float64) (float64, bool) {
+	if path == "" {
+		return 0, false
+	}
+	result := gjson.GetBytes(body, path)
+	if !result.Exists() || result.Type == gjson.Null {
+		return 0, false
+	}
+	value := result.Float()
+	if divisor != 0 {
+		value = value / divisor
+	}
+	return value, true
+}
+
+func extractBalanceQueryResult(body []byte, extractor dto.BalanceQueryExtractorConfig) dto.BalanceQueryResult {
+	divisor := extractor.Divisor
+	if divisor == 0 {
+		divisor = 1
+	}
+	result := dto.BalanceQueryResult{
+		IsValid:   true,
+		Unit:      extractor.Unit,
+		CheckedAt: common.GetTimestamp(),
+	}
+	if result.Unit == "" {
+		result.Unit = "USD"
+	}
+	if ok, message := validateBalanceQuerySuccess(body, extractor); !ok {
+		if extractor.MessagePath != "" {
+			if upstreamMessage := strings.TrimSpace(gjson.GetBytes(body, extractor.MessagePath).String()); upstreamMessage != "" {
+				message = upstreamMessage
+			}
+		}
+		result.IsValid = false
+		result.InvalidMessage = message
+		return result
+	}
+	if extractor.PlanNamePath != "" {
+		result.PlanName = strings.TrimSpace(gjson.GetBytes(body, extractor.PlanNamePath).String())
+	}
+	if result.PlanName == "" {
+		result.PlanName = "默认套餐"
+	}
+	if remaining, ok := getBalanceQueryNumber(body, extractor.RemainingPath, divisor); ok {
+		result.Remaining = remaining
+	} else {
+		result.IsValid = false
+		result.InvalidMessage = "余额查询响应缺少剩余额度字段"
+		return result
+	}
+	if used, ok := getBalanceQueryNumber(body, extractor.UsedPath, divisor); ok {
+		result.Used = used
+	}
+	if total, ok := getBalanceQueryNumber(body, extractor.TotalPath, divisor); ok {
+		result.Total = total
+	} else {
+		result.Total = result.Remaining + result.Used
+	}
+	return result
+}
+
+func persistBalanceQueryResult(channel *model.Channel, settings dto.ChannelOtherSettings, result dto.BalanceQueryResult, err error) {
+	settings.BalanceQuery.LastCheckTime = common.GetTimestamp()
+	settings.BalanceQuery.LastResult = &result
+	if err != nil {
+		settings.BalanceQuery.LastError = err.Error()
+	} else if !result.IsValid {
+		settings.BalanceQuery.LastError = result.InvalidMessage
+	} else {
+		settings.BalanceQuery.LastError = ""
+	}
+	channel.SetOtherSettings(settings)
+	updates := map[string]interface{}{
+		"settings": channel.OtherSettings,
+	}
+	if err == nil && result.IsValid {
+		channel.Balance = result.Remaining
+		channel.BalanceUpdatedTime = common.GetTimestamp()
+		updates["balance"] = channel.Balance
+		updates["balance_updated_time"] = channel.BalanceUpdatedTime
+	}
+	if updateErr := model.DB.Model(&model.Channel{}).Where("id = ?", channel.Id).Updates(updates).Error; updateErr != nil {
+		common.SysLog(fmt.Sprintf("failed to persist balance query result: channel_id=%d, error=%v", channel.Id, updateErr))
+	}
+}
+
+func updateChannelConfiguredBalance(channel *model.Channel) (float64, *dto.BalanceQueryResult, bool, error) {
+	settings := channel.GetOtherSettings()
+	config := settings.BalanceQuery
+	if !config.Enabled {
+		return 0, nil, false, nil
+	}
+	execution := balanceQueryExecution{Channel: channel, Settings: settings}
+	if config.SourceChannelID > 0 && config.SourceChannelID != channel.Id {
+		sourceChannel, err := model.GetChannelById(config.SourceChannelID, true)
+		if err != nil {
+			result := dto.BalanceQueryResult{IsValid: false, InvalidMessage: err.Error(), CheckedAt: common.GetTimestamp()}
+			persistBalanceQueryResult(channel, settings, result, err)
+			return 0, &result, true, err
+		}
+		sourceSettings := sourceChannel.GetOtherSettings()
+		if !sourceSettings.BalanceQuery.Enabled || sourceSettings.BalanceQuery.SourceChannelID > 0 {
+			err := errors.New("共享余额查询源渠道未启用独立余额查询配置")
+			result := dto.BalanceQueryResult{IsValid: false, InvalidMessage: err.Error(), CheckedAt: common.GetTimestamp()}
+			persistBalanceQueryResult(channel, settings, result, err)
+			return 0, &result, true, err
+		}
+		execution = balanceQueryExecution{Channel: sourceChannel, Settings: sourceSettings}
+	}
+	return executeChannelConfiguredBalance(channel, settings, execution)
+}
+
+func executeChannelConfiguredBalance(target *model.Channel, targetSettings dto.ChannelOtherSettings, execution balanceQueryExecution) (float64, *dto.BalanceQueryResult, bool, error) {
+	channel := execution.Channel
+	settings := execution.Settings
+	config := settings.BalanceQuery
+	config = buildBalanceQueryConfig(channel, config)
+	method := strings.ToUpper(strings.TrimSpace(config.Request.Method))
+	if method == "" {
+		method = http.MethodGet
+	}
+	url := replaceBalanceQueryVars(config.Request.URL, channel, config)
+	if strings.TrimSpace(url) == "" {
+		err := errors.New("余额查询请求地址不能为空")
+		result := dto.BalanceQueryResult{IsValid: false, InvalidMessage: err.Error(), CheckedAt: common.GetTimestamp()}
+		persistBalanceQueryResult(target, targetSettings, result, err)
+		return 0, &result, true, err
+	}
+	headers := http.Header{}
+	for key, value := range config.Request.Headers {
+		if strings.TrimSpace(key) == "" {
+			continue
+		}
+		headers.Set(key, replaceBalanceQueryVars(value, channel, config))
+	}
+	requestBody := replaceBalanceQueryVars(config.Request.Body, channel, config)
+	debugInfo := balanceQueryDebugInfo{
+		ChannelID: target.Id,
+		URL:       url,
+		Method:    method,
+		Headers:   balanceQueryHeadersToMap(headers),
+		Body:      requestBody,
+	}
+	body, err := GetResponseBodyWithBody(method, url, requestBody, channel, headers)
+	if err != nil {
+		debugInfo.Error = err.Error()
+		logBalanceQueryDebug(debugInfo)
+		result := dto.BalanceQueryResult{IsValid: false, InvalidMessage: err.Error(), CheckedAt: common.GetTimestamp()}
+		persistBalanceQueryResult(target, targetSettings, result, err)
+		return 0, &result, true, err
+	}
+	debugInfo.Response = string(body)
+	result := extractBalanceQueryResult(body, config.Extractor)
+	if !result.IsValid {
+		err = errors.New(result.InvalidMessage)
+		debugInfo.Error = err.Error()
+		logBalanceQueryDebug(debugInfo)
+		persistBalanceQueryResult(target, targetSettings, result, err)
+		return 0, &result, true, err
+	}
+	persistBalanceQueryResult(target, targetSettings, result, nil)
+	return result.Remaining, &result, true, nil
+}
+
 func updateChannelBalance(channel *model.Channel) (float64, error) {
+	if balance, _, configured, err := updateChannelConfiguredBalance(channel); configured {
+		return balance, err
+	}
 	baseURL := constant.ChannelBaseURLs[channel.Type]
 	if channel.GetBaseURL() == "" {
 		channel.BaseURL = &baseURL
@@ -396,7 +725,7 @@ func updateChannelBalance(channel *model.Channel) (float64, error) {
 		return 0, err
 	}
 	subscription := OpenAISubscriptionResponse{}
-	err = json.Unmarshal(body, &subscription)
+	err = common.Unmarshal(body, &subscription)
 	if err != nil {
 		return 0, err
 	}
@@ -412,7 +741,7 @@ func updateChannelBalance(channel *model.Channel) (float64, error) {
 		return 0, err
 	}
 	usage := OpenAIUsageResponse{}
-	err = json.Unmarshal(body, &usage)
+	err = common.Unmarshal(body, &usage)
 	if err != nil {
 		return 0, err
 	}
@@ -448,7 +777,134 @@ func UpdateChannelBalance(c *gin.Context) {
 		"success": true,
 		"message": "",
 		"balance": balance,
+		"data": gin.H{
+			"settings":             channel.OtherSettings,
+			"balance_updated_time": channel.BalanceUpdatedTime,
+		},
 	})
+}
+
+func GetChannelBalanceQueryInstances(c *gin.Context) {
+	channels, err := model.GetAllChannels(0, 0, true, true)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	instances := make([]gin.H, 0)
+	for _, channel := range channels {
+		settings := channel.GetOtherSettings()
+		config := settings.BalanceQuery
+		if !config.Enabled || config.SourceChannelID > 0 {
+			continue
+		}
+		interval := getBalanceQueryIntervalSeconds(config)
+		instances = append(instances, gin.H{
+			"id":               channel.Id,
+			"name":             channel.Name,
+			"type":             channel.Type,
+			"template":         config.Template,
+			"interval_seconds": interval,
+			"last_check_time":  config.LastCheckTime,
+			"last_error":       config.LastError,
+			"last_result":      config.LastResult,
+		})
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "",
+		"data":    instances,
+	})
+}
+
+func shouldRunChannelBalanceQuery(channel *model.Channel, now int64) bool {
+	settings := channel.GetOtherSettings()
+	config := settings.BalanceQuery
+	if !config.Enabled {
+		return false
+	}
+	interval := getBalanceQueryIntervalSeconds(config)
+	if interval == 0 {
+		return false
+	}
+	return config.LastCheckTime <= 0 || now-config.LastCheckTime >= int64(interval)
+}
+
+func updateConfiguredChannelsBalanceDue() error {
+	channels, err := model.GetAllChannels(0, 0, true, false)
+	if err != nil {
+		return err
+	}
+	now := common.GetTimestamp()
+	executedSharedSources := map[int]struct{}{}
+	for _, channel := range channels {
+		if channel.Status != common.ChannelStatusEnabled {
+			continue
+		}
+		if channel.ChannelInfo.IsMultiKey {
+			continue
+		}
+		if !shouldRunChannelBalanceQuery(channel, now) {
+			continue
+		}
+		settings := channel.GetOtherSettings()
+		config := settings.BalanceQuery
+		if config.SourceChannelID > 0 && config.SourceChannelID != channel.Id {
+			if _, ok := executedSharedSources[config.SourceChannelID]; ok {
+				continue
+			}
+			sourceChannel, sourceErr := model.GetChannelById(config.SourceChannelID, true)
+			if sourceErr != nil {
+				result := dto.BalanceQueryResult{IsValid: false, InvalidMessage: sourceErr.Error(), CheckedAt: common.GetTimestamp()}
+				persistBalanceQueryResult(channel, settings, result, sourceErr)
+				continue
+			}
+			sourceSettings := sourceChannel.GetOtherSettings()
+			if !sourceSettings.BalanceQuery.Enabled || sourceSettings.BalanceQuery.SourceChannelID > 0 {
+				sourceErr = errors.New("共享余额查询源渠道未启用独立余额查询配置")
+				result := dto.BalanceQueryResult{IsValid: false, InvalidMessage: sourceErr.Error(), CheckedAt: common.GetTimestamp()}
+				persistBalanceQueryResult(channel, settings, result, sourceErr)
+				continue
+			}
+			balance, result, _, sourceErr := executeChannelConfiguredBalance(sourceChannel, sourceSettings, balanceQueryExecution{Channel: sourceChannel, Settings: sourceSettings})
+			executedSharedSources[config.SourceChannelID] = struct{}{}
+			propagateSharedBalanceQueryResult(channels, config.SourceChannelID, result, sourceErr)
+			if sourceErr == nil && balance <= 0 {
+				service.DisableChannel(*types.NewChannelError(sourceChannel.Id, sourceChannel.Type, sourceChannel.Name, sourceChannel.ChannelInfo.IsMultiKey, "", sourceChannel.GetAutoBan()), "余额不足")
+			}
+			time.Sleep(common.RequestInterval)
+			continue
+		}
+		balance, _, configured, err := executeChannelConfiguredBalance(channel, settings, balanceQueryExecution{Channel: channel, Settings: settings})
+		if !configured {
+			continue
+		}
+		executedSharedSources[channel.Id] = struct{}{}
+		if err == nil {
+			lastResult := channel.GetOtherSettings().BalanceQuery.LastResult
+			propagateSharedBalanceQueryResult(channels, channel.Id, lastResult, nil)
+		}
+		if err == nil && balance <= 0 {
+			service.DisableChannel(*types.NewChannelError(channel.Id, channel.Type, channel.Name, channel.ChannelInfo.IsMultiKey, "", channel.GetAutoBan()), "余额不足")
+		}
+		time.Sleep(common.RequestInterval)
+	}
+	return nil
+}
+
+func propagateSharedBalanceQueryResult(channels []*model.Channel, sourceChannelID int, result *dto.BalanceQueryResult, queryErr error) {
+	if result == nil {
+		return
+	}
+	for _, channel := range channels {
+		if channel.Id == sourceChannelID {
+			continue
+		}
+		settings := channel.GetOtherSettings()
+		if !settings.BalanceQuery.Enabled || settings.BalanceQuery.SourceChannelID != sourceChannelID {
+			continue
+		}
+		persistBalanceQueryResult(channel, settings, *result, queryErr)
+	}
 }
 
 func updateAllChannelsBalance() error {
@@ -502,4 +958,22 @@ func AutomaticallyUpdateChannels(frequency int) {
 		_ = updateAllChannelsBalance()
 		common.SysLog("channels update done")
 	}
+}
+
+func StartChannelBalanceQueryTask() {
+	channelBalanceQueryTaskOnce.Do(func() {
+		if !common.IsMasterNode {
+			return
+		}
+		go func() {
+			common.SysLog("channel balance query task started")
+			ticker := time.NewTicker(30 * time.Second)
+			defer ticker.Stop()
+			for range ticker.C {
+				if err := updateConfiguredChannelsBalanceDue(); err != nil {
+					common.SysLog("channel balance query task failed: " + err.Error())
+				}
+			}
+		}()
+	})
 }

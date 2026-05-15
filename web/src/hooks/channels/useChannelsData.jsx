@@ -773,6 +773,9 @@ export const useChannelsData = () => {
       updateChannelProperty(record.id, (channel) => {
         channel.balance = balance;
         channel.balance_updated_time = Date.now() / 1000;
+        if (res.data.data?.settings) {
+          channel.settings = res.data.data.settings;
+        }
       });
       showInfo(
         t('通道 ${name} 余额更新成功！').replace('${name}', record.name),
