@@ -45,6 +45,31 @@ import { processIncompleteThinkTags } from '../../helpers';
 export const usePlaygroundState = () => {
   const { t } = useTranslation();
 
+  const normalizeConversationTitle = useCallback((conversation) => {
+    const title = typeof conversation?.title === 'string' ? conversation.title : '';
+    const legacyEmptyTitles = new Set([
+      PLAYGROUND_I18N_KEYS.NEW_CONVERSATION,
+      'New conversation',
+      'Nouvelle conversation',
+      '新しい会話',
+      'Новый диалог',
+      'Cuộc trò chuyện mới',
+      '新對話',
+      t(PLAYGROUND_I18N_KEYS.NEW_CONVERSATION),
+    ]);
+    const isLegacyEmptyTitle =
+      legacyEmptyTitles.has(title.trim());
+
+    if (
+      isLegacyEmptyTitle &&
+      (!Array.isArray(conversation?.messages) || conversation.messages.length === 0)
+    ) {
+      return '';
+    }
+
+    return title;
+  }, [t]);
+
   // 使用惰性初始化，确保只在组件首次挂载时加载配置和消息
   const [savedConfig] = useState(() => loadConfig());
   const [savedConversationState] = useState(() => loadConversationState());
@@ -184,15 +209,16 @@ export const usePlaygroundState = () => {
       if (!conversation) {
         return '';
       }
+      const normalizedTitle = normalizeConversationTitle(conversation);
       if (isConversationEmpty(conversation)) {
-        return `empty:${conversation.title || PLAYGROUND_I18N_KEYS.NEW_CONVERSATION}`;
+        return `empty:${normalizedTitle}`;
       }
       return JSON.stringify({
-        title: conversation.title || PLAYGROUND_I18N_KEYS.NEW_CONVERSATION,
+        title: normalizedTitle,
         messages: conversation.messages,
       });
     },
-    [isConversationEmpty],
+    [isConversationEmpty, normalizeConversationTitle],
   );
 
   const dedupeConversations = useCallback(
@@ -247,14 +273,14 @@ export const usePlaygroundState = () => {
 
     return {
       id: conversation.conversation_id || conversation.id,
-      title: conversation.title || PLAYGROUND_I18N_KEYS.NEW_CONVERSATION,
+      title: normalizeConversationTitle(conversation),
       messages: normalizedMessages,
       createdAt:
         conversation.created_at || conversation.createdAt || Date.now(),
       updatedAt:
         conversation.updated_at || conversation.updatedAt || Date.now(),
     };
-  }, []);
+  }, [normalizeConversationTitle]);
 
   const getConversationQualityScore = useCallback((conversation) => {
     const messages = Array.isArray(conversation?.messages)
@@ -381,7 +407,7 @@ export const usePlaygroundState = () => {
         API_ENDPOINTS.PLAYGROUND_CONVERSATIONS,
         {
           conversation_id: conversation.id,
-          title: conversation.title || PLAYGROUND_I18N_KEYS.NEW_CONVERSATION,
+          title: normalizeConversationTitle(conversation),
           messages: Array.isArray(conversation.messages)
             ? conversation.messages
             : [],
@@ -391,7 +417,7 @@ export const usePlaygroundState = () => {
         { skipErrorHandler: true },
       );
     },
-    [isConversationEmpty],
+    [isConversationEmpty, normalizeConversationTitle],
   );
 
   const scheduleRemoteConversationSave = useCallback(
