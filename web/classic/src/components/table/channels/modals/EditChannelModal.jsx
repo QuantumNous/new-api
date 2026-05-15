@@ -1032,7 +1032,7 @@ const EditChannelModal = (props) => {
         (data.remark && data.remark.trim()) ||
         (data.priority && data.priority !== 0) ||
         (data.weight && data.weight !== 0) ||
-        (data.channel_ratio !== undefined && data.channel_ratio !== 1) ||
+        (data.channel_ratio ?? 1) !== 1 ||
         (data.proxy && data.proxy.trim()) ||
         (data.system_prompt && data.system_prompt.trim()) ||
         data.thinking_to_content ||

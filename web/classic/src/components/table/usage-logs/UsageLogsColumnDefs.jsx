@@ -832,14 +832,16 @@ export const getLogsColumns = ({
         const isSubscription = other?.billing_source === 'subscription';
         // 渠道成本（仅管理员可见）：原始花费 × 渠道计费倍率，不影响用户扣费
         const channelRatio = record.channel_ratio;
+        const quotaValue = Number(text);
         const showChannelCost =
           isAdminUser &&
           typeof channelRatio === 'number' &&
           channelRatio !== 1 &&
-          parseInt(text) > 0;
+          Number.isFinite(quotaValue) &&
+          quotaValue > 0;
         const channelCostNode = showChannelCost ? (
           <div style={{ color: 'var(--semi-color-warning)', fontSize: '12px' }}>
-            A {renderQuota(Math.round(text * channelRatio), 6)}
+            A {renderQuota(Math.round(quotaValue * channelRatio), 6)}
           </div>
         ) : null;
         if (isSubscription) {
