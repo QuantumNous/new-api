@@ -103,6 +103,11 @@ func main() {
 	// convergence window from SyncFrequency (60s default) to milliseconds.
 	// 60s polling above remains as fallback in case pubsub messages are missed.
 	go common.SubscribeConfigChanged(context.Background(), func(scope string) {
+		defer func() {
+			if r := recover(); r != nil {
+				common.SysError(fmt.Sprintf("pubsub handler panic for scope=%s: %v", scope, r))
+			}
+		}()
 		switch scope {
 		case common.ConfigScopeOptions:
 			common.SysLog("pubsub: received options change, reloading from DB")
