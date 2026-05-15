@@ -14,6 +14,7 @@ import {
 import { useTranslation } from 'react-i18next';
 import { Modal, Toast } from '@douyinfe/semi-ui';
 import './index.css';
+import './index2.css';
 
 // Context
 import { UserContext } from '../../context/User';
