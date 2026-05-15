@@ -182,10 +182,10 @@ func InitOptionMap() {
 	}
 
 	common.OptionMapRWMutex.Unlock()
-	loadOptionsFromDatabase()
+	LoadOptionsFromDatabase()
 }
 
-func loadOptionsFromDatabase() {
+func LoadOptionsFromDatabase() {
 	options, _ := AllOption()
 	for _, option := range options {
 		err := updateOptionMap(option.Key, option.Value)
@@ -199,7 +199,7 @@ func SyncOptions(frequency int) {
 	for {
 		time.Sleep(time.Duration(frequency) * time.Second)
 		common.SysLog("syncing options from database")
-		loadOptionsFromDatabase()
+		LoadOptionsFromDatabase()
 	}
 }
 

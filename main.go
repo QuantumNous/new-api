@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"embed"
 	"fmt"
 	"log"
@@ -96,6 +97,23 @@ func main() {
 
 		go model.SyncChannelCache(common.SyncFrequency)
 	}
+
+	// Subscribe to peer config-change notifications. Each message triggers the
+	// corresponding reload primitive immediately, collapsing the cross-replica
+	// convergence window from SyncFrequency (60s default) to milliseconds.
+	// 60s polling above remains as fallback in case pubsub messages are missed.
+	go common.SubscribeConfigChanged(context.Background(), func(scope string) {
+		switch scope {
+		case common.ConfigScopeOptions:
+			common.SysLog("pubsub: received options change, reloading from DB")
+			model.LoadOptionsFromDatabase()
+		case common.ConfigScopeChannels:
+			common.SysLog("pubsub: received channels change, reloading cache")
+			model.InitChannelCache()
+		default:
+			common.SysLog("pubsub: unknown scope " + scope + ", ignoring")
+		}
+	})
 
 	// 热更新配置
 	go model.SyncOptions(common.SyncFrequency)
