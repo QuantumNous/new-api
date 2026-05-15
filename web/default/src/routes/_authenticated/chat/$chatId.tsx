@@ -16,18 +16,24 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useMemo } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, createFileRoute, redirect } from '@tanstack/react-router'
 import { Loader2, MessageCircleWarning } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import { toast } from 'sonner'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
-import { useActiveChatKey } from '@/features/chat/hooks/use-active-chat-key'
+import { ChatKeySelectSheet } from '@/features/chat/components/chat-key-select-sheet'
+import {
+  fetchChatKeySecret,
+  useChatKeyOptions,
+} from '@/features/chat/hooks/use-active-chat-key'
 import { useChatPresets } from '@/features/chat/hooks/use-chat-presets'
 import {
   chatLinkRequiresApiKey,
   resolveChatUrl,
 } from '@/features/chat/lib/chat-links'
+import type { ApiKey } from '@/features/keys/types'
 
 export const Route = createFileRoute('/_authenticated/chat/$chatId')({
   loader: async ({ params }) => {
@@ -42,6 +48,13 @@ function ChatRouteComponent() {
   const { t } = useTranslation()
   const { chatId } = Route.useParams()
   const { chatPresets, serverAddress } = useChatPresets()
+  const [activeKey, setActiveKey] = useState<string>()
+  const [sheetOpen, setSheetOpen] = useState(false)
+  const [pendingKeyId, setPendingKeyId] = useState<number | null>(null)
+  const hasNotifiedNoToken = useRef(false)
+  const autoSelectedKeyId = useRef<number | null>(null)
+  const hasOpenedSelection = useRef(false)
+
   const preset = useMemo(() => {
     const index = Number(chatId)
     if (!Number.isInteger(index)) return undefined
@@ -56,11 +69,80 @@ function ChatRouteComponent() {
   }, [isWebLink, preset])
 
   const {
-    data: activeKey,
+    data: apiKeys,
     isPending,
     isError,
     error,
-  } = useActiveChatKey(Boolean(preset && requiresActiveKey))
+  } = useChatKeyOptions(Boolean(preset && requiresActiveKey))
+
+  const handleSelectKey = useCallback(
+    async (apiKey: ApiKey) => {
+      if (pendingKeyId) return
+
+      setPendingKeyId(apiKey.id)
+      try {
+        const secret = await fetchChatKeySecret(apiKey)
+        setActiveKey(secret)
+        setSheetOpen(false)
+      } catch (error) {
+        const message =
+          error instanceof Error
+            ? error.message
+            : t(
+                'Unable to prepare chat link. Please ensure you have an enabled API key.'
+              )
+        toast.error(message)
+      } finally {
+        setPendingKeyId(null)
+      }
+    },
+    [pendingKeyId, t]
+  )
+
+  useEffect(() => {
+    setActiveKey(undefined)
+    setSheetOpen(false)
+    setPendingKeyId(null)
+    hasNotifiedNoToken.current = false
+    autoSelectedKeyId.current = null
+    hasOpenedSelection.current = false
+  }, [chatId])
+
+  useEffect(() => {
+    if (!preset || !requiresActiveKey || activeKey) return
+    if (isPending && !apiKeys) return
+    if (isError) return
+
+    const enabledKeys = apiKeys ?? []
+    if (enabledKeys.length === 0) {
+      if (!hasNotifiedNoToken.current) {
+        toast.error(t('No enabled tokens available'))
+        hasNotifiedNoToken.current = true
+      }
+      return
+    }
+
+    if (enabledKeys.length === 1) {
+      if (autoSelectedKeyId.current === enabledKeys[0].id) return
+      autoSelectedKeyId.current = enabledKeys[0].id
+      void handleSelectKey(enabledKeys[0])
+      return
+    }
+
+    if (!hasOpenedSelection.current) {
+      hasOpenedSelection.current = true
+      setSheetOpen(true)
+    }
+  }, [
+    activeKey,
+    apiKeys,
+    handleSelectKey,
+    isError,
+    isPending,
+    preset,
+    requiresActiveKey,
+    t,
+  ])
 
   const iframeSrc = useMemo(() => {
     if (!preset || !isWebLink) return ''
@@ -111,7 +193,7 @@ function ChatRouteComponent() {
     )
   }
 
-  if (requiresActiveKey && isPending) {
+  if (requiresActiveKey && ((isPending && !apiKeys) || pendingKeyId)) {
     return (
       <div className='flex h-full flex-col items-center justify-center gap-4'>
         <Loader2 className='text-muted-foreground h-8 w-8 animate-spin' />
@@ -122,11 +204,12 @@ function ChatRouteComponent() {
     )
   }
 
-  if (requiresActiveKey && (isError || !activeKey || !iframeSrc)) {
+  if (
+    requiresActiveKey &&
+    (isError || (apiKeys && apiKeys.length === 0) || (!activeKey && !sheetOpen))
+  ) {
     const message =
-      error instanceof Error
-        ? error.message
-        : 'Unable to generate chat link. Please check your API keys.'
+      error instanceof Error ? error.message : t('No enabled tokens available')
     return (
       <div className='flex h-full flex-col items-center justify-center p-6'>
         <Alert variant='destructive' className='max-w-xl'>
@@ -134,6 +217,26 @@ function ChatRouteComponent() {
           <AlertDescription>{message}</AlertDescription>
         </Alert>
       </div>
+    )
+  }
+
+  if (requiresActiveKey && !activeKey) {
+    return (
+      <>
+        <div className='flex h-full flex-col items-center justify-center gap-4'>
+          <Loader2 className='text-muted-foreground h-8 w-8 animate-spin' />
+          <p className='text-muted-foreground text-sm'>
+            {t('Preparing your chat link…')}
+          </p>
+        </div>
+        <ChatKeySelectSheet
+          open={sheetOpen}
+          apiKeys={apiKeys ?? []}
+          pendingKeyId={pendingKeyId}
+          onOpenChange={setSheetOpen}
+          onSelect={handleSelectKey}
+        />
+      </>
     )
   }
 
@@ -153,12 +256,21 @@ function ChatRouteComponent() {
   }
 
   return (
-    <iframe
-      src={iframeSrc}
-      key={iframeSrc}
-      className='h-full w-full border-0'
-      allow='camera; microphone'
-      title={`Chat preset: ${preset.name}`}
-    />
+    <>
+      <iframe
+        src={iframeSrc}
+        key={iframeSrc}
+        className='h-full w-full border-0'
+        allow='camera; microphone'
+        title={`Chat preset: ${preset.name}`}
+      />
+      <ChatKeySelectSheet
+        open={sheetOpen}
+        apiKeys={apiKeys ?? []}
+        pendingKeyId={pendingKeyId}
+        onOpenChange={setSheetOpen}
+        onSelect={handleSelectKey}
+      />
+    </>
   )
 }

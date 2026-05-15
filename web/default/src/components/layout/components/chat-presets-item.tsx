@@ -26,13 +26,18 @@ import {
   SidebarMenuItem,
   useSidebar,
 } from '@/components/ui/sidebar'
-import { fetchActiveChatKey } from '@/features/chat/hooks/use-active-chat-key'
+import { ChatKeySelectSheet } from '@/features/chat/components/chat-key-select-sheet'
+import {
+  fetchChatKeyOptions,
+  fetchChatKeySecret,
+} from '@/features/chat/hooks/use-active-chat-key'
 import { useChatPresets } from '@/features/chat/hooks/use-chat-presets'
 import {
   chatLinkRequiresApiKey,
   resolveChatUrl,
   type ChatPreset,
 } from '@/features/chat/lib/chat-links'
+import type { ApiKey } from '@/features/keys/types'
 import { normalizeHref } from '../lib/url-utils'
 
 function ChatMenuItem({
@@ -96,6 +101,11 @@ export function ChatPresetsItem() {
   const { setOpenMobile } = useSidebar()
   const href = useLocation({ select: (location) => location.href })
   const [loadingPresetId, setLoadingPresetId] = useState<string | null>(null)
+  const [selectingPreset, setSelectingPreset] = useState<ChatPreset | null>(
+    null
+  )
+  const [availableKeys, setAvailableKeys] = useState<ApiKey[]>([])
+  const [pendingKeyId, setPendingKeyId] = useState<number | null>(null)
   const loadingPresetIdRef = useRef<string | null>(null)
 
   const visiblePresets = useMemo(
@@ -103,41 +113,11 @@ export function ChatPresetsItem() {
     [chatPresets]
   )
 
-  const handleOpenExternal = useCallback(
-    async (preset: ChatPreset) => {
-      if (preset.type === 'web') return
-
-      const needsKey = chatLinkRequiresApiKey(preset.url)
-      let activeKey: string | undefined
-
-      if (needsKey && loadingPresetIdRef.current) {
-        toast.info(t('Preparing your chat link, please try again in a moment.'))
-        return
-      }
-
-      if (needsKey) {
-        loadingPresetIdRef.current = preset.id
-        setLoadingPresetId(preset.id)
-        try {
-          activeKey = await fetchActiveChatKey()
-        } catch (error) {
-          const message =
-            error instanceof Error
-              ? error.message
-              : t(
-                  'Unable to prepare chat link. Please ensure you have an enabled API key.'
-                )
-          toast.error(message)
-          return
-        } finally {
-          loadingPresetIdRef.current = null
-          setLoadingPresetId(null)
-        }
-      }
-
+  const openExternalPreset = useCallback(
+    (preset: ChatPreset, activeKey?: string) => {
       const url = resolveChatUrl({
         template: preset.url,
-        apiKey: needsKey ? activeKey : undefined,
+        apiKey: activeKey,
         serverAddress,
       })
 
@@ -152,6 +132,81 @@ export function ChatPresetsItem() {
       setOpenMobile(false)
     },
     [serverAddress, setOpenMobile, t]
+  )
+
+  const handleSelectExternalKey = useCallback(
+    async (apiKey: ApiKey) => {
+      if (!selectingPreset || pendingKeyId) return
+
+      setPendingKeyId(apiKey.id)
+      try {
+        const secret = await fetchChatKeySecret(apiKey)
+        setSelectingPreset(null)
+        openExternalPreset(selectingPreset, secret)
+      } catch (error) {
+        const message =
+          error instanceof Error
+            ? error.message
+            : t(
+                'Unable to prepare chat link. Please ensure you have an enabled API key.'
+              )
+        toast.error(message)
+      } finally {
+        setPendingKeyId(null)
+      }
+    },
+    [openExternalPreset, pendingKeyId, selectingPreset, t]
+  )
+
+  const handleOpenExternal = useCallback(
+    async (preset: ChatPreset) => {
+      if (preset.type === 'web') return
+
+      const needsKey = chatLinkRequiresApiKey(preset.url)
+
+      if (!needsKey) {
+        openExternalPreset(preset)
+        return
+      }
+
+      if (loadingPresetIdRef.current) {
+        toast.info(t('Preparing your chat link, please try again in a moment.'))
+        return
+      }
+
+      loadingPresetIdRef.current = preset.id
+      setLoadingPresetId(preset.id)
+      try {
+        const enabledKeys = await fetchChatKeyOptions()
+
+        if (enabledKeys.length === 0) {
+          toast.error(t('No enabled tokens available'))
+          return
+        }
+
+        if (enabledKeys.length === 1) {
+          const activeKey = await fetchChatKeySecret(enabledKeys[0])
+          openExternalPreset(preset, activeKey)
+          return
+        }
+
+        setAvailableKeys(enabledKeys)
+        setSelectingPreset(preset)
+        setOpenMobile(false)
+      } catch (error) {
+        const message =
+          error instanceof Error
+            ? error.message
+            : t(
+                'Unable to prepare chat link. Please ensure you have an enabled API key.'
+              )
+        toast.error(message)
+      } finally {
+        loadingPresetIdRef.current = null
+        setLoadingPresetId(null)
+      }
+    },
+    [openExternalPreset, setOpenMobile, t]
   )
 
   const normalizedHref = normalizeHref(href)
@@ -172,6 +227,15 @@ export function ChatPresetsItem() {
           onNavigate={() => setOpenMobile(false)}
         />
       ))}
+      <ChatKeySelectSheet
+        open={Boolean(selectingPreset)}
+        apiKeys={availableKeys}
+        pendingKeyId={pendingKeyId}
+        onOpenChange={(open) => {
+          if (!open) setSelectingPreset(null)
+        }}
+        onSelect={handleSelectExternalKey}
+      />
     </>
   )
 }

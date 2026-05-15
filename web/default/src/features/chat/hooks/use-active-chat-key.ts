@@ -20,25 +20,47 @@ import { useQuery } from '@tanstack/react-query'
 import { useAuthStore } from '@/stores/auth-store'
 import { fetchTokenKey, getApiKeys } from '@/features/keys/api'
 import { API_KEY_STATUS } from '@/features/keys/constants'
+import type { ApiKey } from '@/features/keys/types'
 
-export async function fetchActiveChatKey() {
-  const result = await getApiKeys({ p: 1, size: 50 })
+export async function fetchChatKeyOptions() {
+  const result = await getApiKeys({ p: 1, size: 1000 })
   if (!result.success) {
     throw new Error(result.message || 'Failed to load API keys')
   }
 
   const items = result.data?.items ?? []
-  const active = items.find((item) => item.status === API_KEY_STATUS.ENABLED)
-  if (!active) {
-    throw new Error('No enabled API keys found. Create or enable one first.')
-  }
+  return items.filter((item) => item.status === API_KEY_STATUS.ENABLED)
+}
 
-  const keyResult = await fetchTokenKey(active.id)
+export async function fetchChatKeySecret(apiKey: Pick<ApiKey, 'id'>) {
+  const keyResult = await fetchTokenKey(apiKey.id)
   if (!keyResult.success || !keyResult.data?.key) {
     throw new Error(keyResult.message || 'Failed to load API key')
   }
 
   return `sk-${keyResult.data.key}`
+}
+
+export async function fetchActiveChatKey() {
+  const items = await fetchChatKeyOptions()
+  const active = items[0]
+  if (!active) {
+    throw new Error('No enabled API keys found. Create or enable one first.')
+  }
+
+  return fetchChatKeySecret(active)
+}
+
+export function useChatKeyOptions(enabled: boolean) {
+  const userId = useAuthStore((state) => state.auth.user?.id)
+
+  return useQuery({
+    queryKey: ['chat-key-options', userId],
+    queryFn: fetchChatKeyOptions,
+    enabled: enabled && Boolean(userId),
+    staleTime: 5 * 60 * 1000,
+    gcTime: 10 * 60 * 1000,
+  })
 }
 
 /**
