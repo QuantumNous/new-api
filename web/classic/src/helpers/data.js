@@ -17,10 +17,16 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
+const DEFAULT_LOGO = '/logo.png?v=20260515';
+
+function normalizeLogoUrl(logo) {
+  return !logo || logo === '/logo.png' ? DEFAULT_LOGO : logo;
+}
+
 export function setStatusData(data) {
   localStorage.setItem('status', JSON.stringify(data));
   localStorage.setItem('system_name', data.system_name);
-  localStorage.setItem('logo', data.logo);
+  localStorage.setItem('logo', normalizeLogoUrl(data.logo));
   localStorage.setItem('footer_html', data.footer_html);
   localStorage.setItem('quota_per_unit', data.quota_per_unit);
   // 兼容：保留旧字段，同时写入新的额度展示类型

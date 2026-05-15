@@ -29,6 +29,7 @@ import i18next from 'i18next'
 import { toast } from 'sonner'
 import { useAuthStore } from '@/stores/auth-store'
 import { getStatus } from '@/lib/api'
+import { DEFAULT_LOGO } from '@/lib/constants'
 import '@/lib/dayjs'
 import { applyFaviconToDom } from '@/lib/dom-utils'
 import { handleServerError } from '@/lib/handle-server-error'
@@ -43,6 +44,10 @@ import './styles/index.css'
 
 // Ensure VChart theme is initialized before any chart mounts (prevents white default theme flash)
 // VChart theme is driven by our ThemeProvider (html.light/html.dark) via per-chart `theme` prop.
+const normalizeLogoUrl = (logo: unknown) =>
+  typeof logo === 'string' && logo && logo !== '/logo.png'
+    ? logo
+    : DEFAULT_LOGO
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -126,7 +131,7 @@ const rootElement = document.getElementById('root')!
       if (saved) {
         const s = JSON.parse(saved)
         if (s?.system_name) apply(s.system_name)
-        if (s?.logo) applyFaviconToDom(s.logo)
+        applyFaviconToDom(normalizeLogoUrl(s?.logo))
       }
     } catch {
       /* empty */
@@ -142,7 +147,7 @@ const rootElement = document.getElementById('root')!
             /* empty */
           }
         }
-        if (s?.logo) applyFaviconToDom(s.logo as string)
+        applyFaviconToDom(normalizeLogoUrl(s?.logo))
       })
       .catch(() => {
         /* empty */
