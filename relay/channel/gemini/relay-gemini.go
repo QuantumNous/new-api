@@ -1581,6 +1581,7 @@ func GeminiImageHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.
 	return buildGeminiImageUsage(len(openAIResponse.Data)), nil
 }
 
+// buildGeminiImageUsage returns usage for generated Gemini images.
 func buildGeminiImageUsage(generatedImages int) *dto.Usage {
 	// https://github.com/google-gemini/cookbook/blob/719a27d752aac33f39de18a8d3cb42a70874917e/quickstarts/Counting_Tokens.ipynb
 	// each image has fixed 258 tokens.

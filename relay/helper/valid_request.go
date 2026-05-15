@@ -248,6 +248,7 @@ func GetAndValidateClaudeRequest(c *gin.Context) (textRequest *dto.ClaudeRequest
 	return textRequest, nil
 }
 
+// isGeminiImagePredictPath reports whether a Gemini path targets Imagen predict.
 func isGeminiImagePredictPath(path string) bool {
 	if !strings.Contains(path, ":predict") {
 		return false
@@ -256,6 +257,7 @@ func isGeminiImagePredictPath(path string) bool {
 	return strings.HasPrefix(modelName, "imagen")
 }
 
+// extractGeminiModelNameFromPath extracts the model segment from a Gemini URL path.
 func extractGeminiModelNameFromPath(path string) string {
 	const modelsPrefix = "/models/"
 	modelsIndex := strings.Index(path, modelsPrefix)
@@ -348,6 +350,7 @@ func GetAndValidateGeminiRequest(c *gin.Context) (*dto.GeminiChatRequest, error)
 	return request, nil
 }
 
+// GetAndValidateGeminiImageRequest parses and validates a native Gemini image request.
 func GetAndValidateGeminiImageRequest(c *gin.Context) (*dto.GeminiImageRequest, error) {
 	request := &dto.GeminiImageRequest{}
 	if err := common.UnmarshalBodyReusable(c, request); err != nil {

@@ -203,6 +203,7 @@ func GeminiHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *typ
 	return nil
 }
 
+// geminiImagePredictHelper forwards native Gemini Imagen predict requests.
 func geminiImagePredictHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types.NewAPIError) {
 	imageReq, ok := info.Request.(*dto.GeminiImageRequest)
 	if !ok {

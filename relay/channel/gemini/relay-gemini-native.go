@@ -96,6 +96,7 @@ func GeminiTextGenerationStreamHandler(c *gin.Context, info *relaycommon.RelayIn
 	})
 }
 
+// GeminiNativeImagePredictHandler relays native Gemini Imagen predict responses.
 func GeminiNativeImagePredictHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response) (*dto.Usage, *types.NewAPIError) {
 	defer service.CloseResponseBodyGracefully(resp)
 

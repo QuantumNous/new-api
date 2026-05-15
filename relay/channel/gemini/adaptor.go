@@ -124,6 +124,7 @@ func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInf
 	return geminiRequest, nil
 }
 
+// convertImagen4SizeToAspectRatio maps OpenAI image sizes to Imagen 4 aspect ratios.
 func convertImagen4SizeToAspectRatio(size string) string {
 	if strings.Contains(size, ":") {
 		return size
