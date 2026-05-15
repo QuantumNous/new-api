@@ -8,6 +8,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// TestClaudeToOpenAIRequest_ToolResultImages verifies that Claude tool_result
+// content blocks are correctly converted to OpenAI format. It covers text-only,
+// image-only, mixed text+image, multiple images, URL sources, empty data,
+// and unknown block type serialization.
 func TestClaudeToOpenAIRequest_ToolResultImages(t *testing.T) {
 	t.Parallel()
 

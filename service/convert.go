@@ -14,6 +14,12 @@ import (
 	"github.com/samber/lo"
 )
 
+// ClaudeToOpenAIRequest converts a Claude Messages API request into an
+// equivalent OpenAI Chat Completions request. It handles system prompts,
+// message content (text, images), tool calls, and tool results.
+// In particular, tool_result content blocks are parsed recursively:
+// text blocks become role:"tool" messages, while image blocks are
+// split into a following role:"user" message with image_url content parts.
 func ClaudeToOpenAIRequest(claudeRequest dto.ClaudeRequest, info *relaycommon.RelayInfo) (*dto.GeneralOpenAIRequest, error) {
 	openAIRequest := dto.GeneralOpenAIRequest{
 		Model:       claudeRequest.Model,
