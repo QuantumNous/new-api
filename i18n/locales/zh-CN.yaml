@@ -110,6 +110,20 @@ quota.exceed_max: "额度值超出有效范围"
 quota.insufficient: "额度不足"
 quota.warning_invalid: "无效的预警类型"
 quota.threshold_gt_zero: "预警阈值必须大于0"
+quota.insufficient_remaining: "用户额度不足，剩余额度：{{.Remaining}}"
+quota.reserve_failed: "预扣费额度失败，用户剩余额度：{{.Remaining}}，需要预扣费额度：{{.Required}}"
+quota.subscription_insufficient: "订阅额度不足或未配置订阅：{{.Error}}"
+quota.notify.wallet_prompt: "您的额度即将用尽"
+quota.notify.subscription_prompt: "您的订阅额度即将用尽"
+quota.notify.short_content: "{{.Prompt}}，剩余额度：{{.Remaining}}，请及时充值"
+quota.notify.plain_content: "{{.Prompt}}，当前剩余额度为 {{.Remaining}}，请及时充值。"
+quota.notify.html_content: "{{.Prompt}}，当前剩余额度为 {{.Remaining}}，为了不影响您的使用，请及时充值。<br/>充值链接：<a href='{{.TopUpLink}}'>{{.TopUpLink}}</a>"
+
+# Codex messages
+codex.authorization_parse_failed: "解析授权信息失败，请检查输入格式"
+codex.authorization_exchange_failed: "授权码交换失败，请重试"
+codex.credential_parse_failed: "解析凭证失败，请检查渠道配置"
+codex.usage_fetch_failed: "获取用量信息失败，请稍后重试"
 
 # Subscription messages
 subscription.not_enabled: "套餐未启用"

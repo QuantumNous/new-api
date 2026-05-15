@@ -118,11 +118,27 @@ const (
 
 // Quota related messages
 const (
-	MsgQuotaNegative        = "quota.negative"
-	MsgQuotaExceedMax       = "quota.exceed_max"
-	MsgQuotaInsufficient    = "quota.insufficient"
-	MsgQuotaWarningInvalid  = "quota.warning_invalid"
-	MsgQuotaThresholdGtZero = "quota.threshold_gt_zero"
+	MsgQuotaNegative                 = "quota.negative"
+	MsgQuotaExceedMax                = "quota.exceed_max"
+	MsgQuotaInsufficient             = "quota.insufficient"
+	MsgQuotaWarningInvalid           = "quota.warning_invalid"
+	MsgQuotaThresholdGtZero          = "quota.threshold_gt_zero"
+	MsgQuotaInsufficientRemaining    = "quota.insufficient_remaining"
+	MsgQuotaReserveFailed            = "quota.reserve_failed"
+	MsgQuotaSubscriptionInsufficient = "quota.subscription_insufficient"
+	MsgQuotaNotifyWalletPrompt       = "quota.notify.wallet_prompt"
+	MsgQuotaNotifySubscriptionPrompt = "quota.notify.subscription_prompt"
+	MsgQuotaNotifyShortContent       = "quota.notify.short_content"
+	MsgQuotaNotifyPlainContent       = "quota.notify.plain_content"
+	MsgQuotaNotifyHTMLContent        = "quota.notify.html_content"
+)
+
+// Codex related messages
+const (
+	MsgCodexAuthorizationParseFailed    = "codex.authorization_parse_failed"
+	MsgCodexAuthorizationExchangeFailed = "codex.authorization_exchange_failed"
+	MsgCodexCredentialParseFailed       = "codex.credential_parse_failed"
+	MsgCodexUsageFetchFailed            = "codex.usage_fetch_failed"
 )
 
 // Subscription related messages
