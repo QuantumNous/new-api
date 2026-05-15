@@ -15,6 +15,8 @@ export interface QuotaDataItem {
   quota?: number
   cache_tokens?: number
   cache_creation_tokens?: number
+  prompt_tokens?: number
+  completion_tokens?: number
 }
 
 // ============================================================================
@@ -94,6 +96,12 @@ export interface ProcessedChartData {
 export interface ProcessedUserChartData {
   spec_user_rank: VChartSpec
   spec_user_trend: VChartSpec
+  spec_user_token: VChartSpec
+}
+
+export interface ProcessedModelTokenChartData {
+  spec: VChartSpec
+  totalTokensDisplay: string
 }
 
 // ============================================================================

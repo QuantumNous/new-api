@@ -47,6 +47,12 @@ const LazyConsumptionDistributionChart = lazy(() =>
   }))
 )
 
+const LazyModelTokenChart = lazy(() =>
+  import('./components/models/model-token-chart').then((m) => ({
+    default: m.ModelTokenChart,
+  }))
+)
+
 const LazyUserCharts = lazy(() =>
   import('./components/users/user-charts').then((m) => ({
     default: m.UserCharts,
@@ -215,6 +221,17 @@ export function Dashboard() {
                   <LazyLogStatCards
                     filters={modelFilters}
                     onDataUpdate={handleDataUpdate}
+                  />
+                </Suspense>
+              </FadeIn>
+              <FadeIn delay={0.05}>
+                <Suspense fallback={<ModelChartsFallback />}>
+                  <LazyModelTokenChart
+                    data={modelData}
+                    loading={dataLoading}
+                    timeGranularity={
+                      modelFilters.time_granularity || DEFAULT_TIME_GRANULARITY
+                    }
                   />
                 </Suspense>
               </FadeIn>

@@ -1,14 +1,14 @@
 import { useEffect, useMemo, useState, useRef, useCallback } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { VChart } from '@visactor/react-vchart'
-import { Users, Loader2 } from 'lucide-react'
+import { Users, BarChart3, Loader2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { getRollingDateRange, type TimeGranularity } from '@/lib/time'
 import { VCHART_OPTION } from '@/lib/vchart'
 import { useThemeCustomization } from '@/context/theme-customization-provider'
 import { useTheme } from '@/context/theme-provider'
 import { Skeleton } from '@/components/ui/skeleton'
-import { getUserQuotaDataByUsers } from '@/features/dashboard/api'
+import { getUserQuotaDataByUsers, getUserQuotaDates } from '@/features/dashboard/api'
 import {
   TIME_GRANULARITY_OPTIONS,
   TIME_RANGE_PRESETS,
@@ -18,6 +18,7 @@ import {
   getSavedGranularity,
   saveGranularity,
   processUserChartData,
+  processModelTokenChartData,
 } from '@/features/dashboard/lib'
 import type { ProcessedUserChartData } from '@/features/dashboard/types'
 
@@ -25,10 +26,10 @@ let themeManagerPromise: Promise<
   (typeof import('@visactor/vchart'))['ThemeManager']
 > | null = null
 
-const USER_CHARTS: {
+const USER_SUMMARY_CHARTS: {
   value: string
   labelKey: string
-  specKey: keyof ProcessedUserChartData
+  specKey: keyof Pick<ProcessedUserChartData, 'spec_user_rank' | 'spec_user_trend'>
 }[] = [
   {
     value: 'rank',
@@ -60,6 +61,7 @@ export function UserCharts() {
     getDefaultDays(timeGranularity)
   )
   const [topUserLimit, setTopUserLimit] = useState(10)
+  const [selectedUser, setSelectedUser] = useState<string | null>(null)
   const [timeRange, setTimeRange] = useState(() => {
     const days = getDefaultDays(timeGranularity)
     const { start, end } = getRollingDateRange(days)
@@ -106,10 +108,45 @@ export function UserCharts() {
     updateTheme()
   }, [resolvedTheme])
 
+  // Fetch user-level aggregated data (for rank + trend charts)
   const { data: userData, isLoading } = useQuery({
     queryKey: ['dashboard', 'user-quota', timeRange],
     queryFn: () => getUserQuotaDataByUsers(timeRange),
     select: (res) => (res.success ? res.data : []),
+    staleTime: 60_000,
+  })
+
+  // Derive top users for the selector
+  const topUsers = useMemo(() => {
+    if (!userData || userData.length === 0) return []
+    const userQuotaTotal = new Map<string, number>()
+    userData.forEach((item) => {
+      const username = item.username || 'unknown'
+      userQuotaTotal.set(username, (userQuotaTotal.get(username) || 0) + (Number(item.quota) || 0))
+    })
+    return Array.from(userQuotaTotal.entries())
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, topUserLimit)
+      .map(([u]) => u)
+  }, [userData, topUserLimit])
+
+  // Auto-select first user when list loads
+  useEffect(() => {
+    if (topUsers.length > 0 && (selectedUser === null || !topUsers.includes(selectedUser))) {
+      setSelectedUser(topUsers[0])
+    }
+  }, [topUsers, selectedUser])
+
+  // Fetch model-level data for selected user (token chart)
+  const { data: userModelData, isLoading: isUserModelLoading } = useQuery({
+    queryKey: ['dashboard', 'user-model-tokens', timeRange, selectedUser],
+    queryFn: () =>
+      getUserQuotaDates(
+        { ...timeRange, username: selectedUser! },
+        true
+      ),
+    select: (res) => (res.success ? res.data : []),
+    enabled: !!selectedUser,
     staleTime: 60_000,
   })
 
@@ -130,6 +167,17 @@ export function UserCharts() {
       topUserLimit,
       customization.preset,
     ]
+  )
+
+  const userTokenChartData = useMemo(
+    () =>
+      processModelTokenChartData(
+        isUserModelLoading ? [] : (userModelData ?? []),
+        timeGranularity,
+        t,
+        customization.preset
+      ),
+    [userModelData, isUserModelLoading, timeGranularity, t, customization.preset]
   )
 
   return (
@@ -191,13 +239,14 @@ export function UserCharts() {
           ))}
         </div>
 
-        {isLoading && (
+        {(isLoading || isUserModelLoading) && (
           <Loader2 className='text-muted-foreground size-4 animate-spin' />
         )}
       </div>
 
       <div className='grid gap-3'>
-        {USER_CHARTS.map((chart) => {
+        {/* Rank + Trend summary charts */}
+        {USER_SUMMARY_CHARTS.map((chart) => {
           const spec = chartData[chart.specKey]
 
           return (
@@ -231,6 +280,64 @@ export function UserCharts() {
             </div>
           )
         })}
+
+        {/* User Token Trend - model breakdown for selected user */}
+        <div className='overflow-hidden rounded-lg border'>
+          <div className='flex w-full flex-wrap items-center gap-2 border-b px-3 py-2 sm:px-5 sm:py-3'>
+            <BarChart3 className='text-muted-foreground/60 size-4 shrink-0' />
+            <div className='text-sm font-semibold shrink-0'>{t('User Token Trend')}</div>
+            <span className='text-muted-foreground text-xs shrink-0'>
+              {t('Total:')} {userTokenChartData.totalTokensDisplay}
+            </span>
+            {/* User selector */}
+            {topUsers.length > 0 && (
+              <div className='ml-auto flex items-center gap-1 overflow-x-auto'>
+                <span className='text-muted-foreground shrink-0 text-xs'>{t('User')}:</span>
+                <div className='flex items-center gap-0.5 rounded-md border p-0.5'>
+                  {topUsers.map((user) => (
+                    <button
+                      key={user}
+                      type='button'
+                      onClick={() => setSelectedUser(user)}
+                      className={`rounded px-2 py-0.5 text-xs font-medium transition-colors ${
+                        selectedUser === user
+                          ? 'bg-primary text-primary-foreground shadow-sm'
+                          : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+                      }`}
+                    >
+                      {user}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div className='h-[300px] p-1.5 sm:h-96 sm:p-2'>
+            {isUserModelLoading ? (
+              <Skeleton className='h-full w-full' />
+            ) : (
+              themeReady &&
+              userTokenChartData.spec && (
+                <VChart
+                  key={`user-token-model-${selectedUser}-${timeGranularity}-${resolvedTheme}-${customization.preset}`}
+                  spec={{
+                    ...userTokenChartData.spec,
+                    title: {
+                      visible: true,
+                      text: selectedUser
+                        ? `${t('User Token Trend')} - ${selectedUser}`
+                        : t('User Token Trend'),
+                    },
+                    theme: resolvedTheme === 'dark' ? 'dark' : 'light',
+                    background: 'transparent',
+                  }}
+                  option={VCHART_OPTION}
+                />
+              )
+            )}
+          </div>
+        </div>
       </div>
     </div>
   )

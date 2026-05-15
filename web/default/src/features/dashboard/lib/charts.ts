@@ -5,6 +5,7 @@ import { MAX_CHART_TREND_POINTS } from '@/features/dashboard/constants'
 import type {
   QuotaDataItem,
   ProcessedChartData,
+  ProcessedModelTokenChartData,
   ProcessedUserChartData,
 } from '@/features/dashboard/types'
 
@@ -27,6 +28,85 @@ const THEME_CHART_COLOR_VARIABLES = [
   '--chart-4',
   '--chart-5',
 ] as const
+
+const VIBRANT_TOKEN_COLORS = [
+  '#6366F1',
+  '#F59E0B',
+  '#10B981',
+  '#EC4899',
+  '#8B5CF6',
+  '#06B6D4',
+  '#F97316',
+  '#14B8A6',
+  '#E11D48',
+  '#3B82F6',
+  '#A855F7',
+  '#84CC16',
+  '#0EA5E9',
+  '#D946EF',
+  '#22C55E',
+]
+
+type HSL = { h: number; s: number; l: number }
+
+function parseColorToHSL(color: string): HSL {
+  const trim = (s: string) => s.trim()
+  const c = String(color).trim().toLowerCase()
+  if (!c || c === 'transparent' || c === 'none') return { h: 222, s: 89, l: 55 }
+
+  if (c.startsWith('#')) {
+    const hex = c.replace('#', '')
+    const r = parseInt(hex.substring(0, 2), 16)
+    const g = parseInt(hex.substring(2, 4), 16)
+    const b = parseInt(hex.substring(4, 6), 16)
+    if (!isNaN(r + g + b)) return rgbToHsl(r, g, b)
+  }
+
+  const rgbMatch = c.match(/^rgba?\s*\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/)
+  if (rgbMatch) {
+    return rgbToHsl(parseInt(rgbMatch[1]), parseInt(rgbMatch[2]), parseInt(rgbMatch[3]))
+  }
+
+  const hslMatch = c.match(/^hsla?\s*\(\s*([\d.]+)\s*,\s*([\d.]+)%\s*,\s*([\d.]+)%/)
+  if (hslMatch) {
+    return { h: parseFloat(hslMatch[1]), s: parseFloat(hslMatch[2]), l: parseFloat(hslMatch[3]) }
+  }
+
+  return { h: 222, s: 89, l: 55 }
+}
+
+function rgbToHsl(r: number, g: number, b: number): HSL {
+  const r1 = r / 255, g1 = g / 255, b1 = b / 255
+  const max = Math.max(r1, g1, b1), min = Math.min(r1, g1, b1)
+  const l = (max + min) / 2
+  if (max === min) return { h: 0, s: 0, l: Math.round(l * 100) }
+  const d = max - min
+  const s = l > 0.5 ? d / (2 - max - min) : d / (max + min)
+  let h = 0
+  if (max === r1) h = ((g1 - b1) / d + (g1 < b1 ? 6 : 0)) * 60
+  else if (max === g1) h = ((b1 - r1) / d + 2) * 60
+  else h = ((r1 - g1) / d + 4) * 60
+  return { h: Math.round(h), s: Math.round(s * 100), l: Math.round(l * 100) }
+}
+
+function hslToString(hsl: HSL): string {
+  return `hsl(${hsl.h}, ${hsl.s}%, ${hsl.l}%)`
+}
+
+function generateTokenColorVariants(baseColor: string): [string, string, string] {
+  const hsl = parseColorToHSL(baseColor)
+  const isGray = hsl.s < 15
+  const cacheHit: HSL = isGray
+    ? { h: hsl.h, s: 25, l: Math.min(85, hsl.l + 30) }
+    : { h: hsl.h, s: Math.max(20, hsl.s - 15), l: Math.min(88, hsl.l + 22) }
+  const cacheMiss: HSL = isGray
+    ? { h: hsl.h, s: 35, l: Math.max(30, hsl.l) }
+    : { h: hsl.h, s: hsl.s, l: hsl.l }
+  const output: HSL = isGray
+    ? { h: hsl.h, s: 40, l: Math.max(20, hsl.l - 15) }
+    : { h: hsl.h, s: Math.min(100, hsl.s + 10), l: Math.max(18, hsl.l - 12) }
+  return [hslToString(cacheHit), hslToString(cacheMiss), hslToString(output)]
+}
 
 function getThemeChartColors(themeKey?: string): string[] {
   if (typeof document === 'undefined') return []
@@ -766,6 +846,21 @@ export function processUserChartData(
       point: { visible: false },
       background: { fill: 'transparent' },
     },
+    spec_user_token: {
+      type: 'bar',
+      data: [{ id: 'userTokenData', values: [] }],
+      xField: 'Time',
+      yField: 'Tokens',
+      seriesField: 'Series',
+      stack: true,
+      title: {
+        visible: true,
+        text: tt('User Token Trend'),
+        subtext: tt('No data available'),
+      },
+      legends: { visible: false },
+      background: { fill: 'transparent' },
+    },
   }
 
   if (!data || data.length === 0) return emptyResult
@@ -830,6 +925,75 @@ export function processUserChartData(
         Usage: Number((q / quotaPerUnit).toFixed(4)),
       })
     })
+  })
+
+  const formatInt = (value: number) =>
+    Intl.NumberFormat(undefined, { maximumFractionDigits: 0 }).format(value)
+
+  const cacheHitLabel = tt('Input (Cache Hit)')
+  const cacheMissLabel = tt('Input (Cache Miss)')
+  const outputTokensLabel = tt('Output Tokens')
+
+  const tokenTimeUserMap = new Map<string, Map<string, { cacheHit: number; cacheMiss: number; output: number; total: number }>>()
+  data.forEach((item) => {
+    const ts = Number(item.created_at)
+    const timeKey = formatChartTime(ts, timeGranularity)
+    const user = item.username || 'unknown'
+    if (!topUserSet.has(user)) return
+    if (!tokenTimeUserMap.has(timeKey)) tokenTimeUserMap.set(timeKey, new Map())
+    const map = tokenTimeUserMap.get(timeKey)!
+    const prev = map.get(user) || { cacheHit: 0, cacheMiss: 0, output: 0, total: 0 }
+    const promptTokens = Number(item.prompt_tokens) || 0
+    const completionTokens = Number(item.completion_tokens) || 0
+    const cacheHit = Number(item.cache_tokens) || 0
+    const tokenUsed = Number(item.token_used) || 0
+
+    let cacheMissVal: number
+    let outputVal: number
+    if (promptTokens > 0 || completionTokens > 0) {
+      cacheMissVal = Math.max(0, promptTokens - cacheHit)
+      outputVal = completionTokens
+    } else {
+      const cacheCreation = Number(item.cache_creation_tokens) || 0
+      cacheMissVal = cacheCreation
+      outputVal = Math.max(0, tokenUsed - cacheHit - cacheCreation)
+    }
+
+    map.set(user, {
+      cacheHit: prev.cacheHit + cacheHit,
+      cacheMiss: prev.cacheMiss + cacheMissVal,
+      output: prev.output + outputVal,
+      total: prev.total + tokenUsed,
+    })
+  })
+
+  const tokenSeries: Array<{ Time: string; Series: string; Tokens: number; User: string }> = []
+  sortedTimePoints.forEach((time) => {
+    topUsers.forEach((user) => {
+      const stats = tokenTimeUserMap.get(time)?.get(user) || { cacheHit: 0, cacheMiss: 0, output: 0, total: 0 }
+      if (stats.cacheHit > 0) tokenSeries.push({ Time: time, Series: `${user} - ${cacheHitLabel}`, Tokens: stats.cacheHit, User: user })
+      if (stats.cacheMiss > 0) tokenSeries.push({ Time: time, Series: `${user} - ${cacheMissLabel}`, Tokens: stats.cacheMiss, User: user })
+      if (stats.output > 0) tokenSeries.push({ Time: time, Series: `${user} - ${outputTokensLabel}`, Tokens: stats.output, User: user })
+    })
+  })
+
+  const userTokenTotals = new Map<string, number>()
+  data.forEach((item) => {
+    const user = item.username || 'unknown'
+    if (!topUserSet.has(user)) return
+    userTokenTotals.set(user, (userTokenTotals.get(user) || 0) + (Number(item.token_used) || 0))
+  })
+  const sortedUsersByTokens = Array.from(userTokenTotals.entries())
+    .sort((a, b) => b[1] - a[1])
+    .map(([u]) => u)
+
+  const tokenDomain: string[] = []
+  const tokenColorRange: string[] = []
+  sortedUsersByTokens.forEach((user, i) => {
+    const baseColor = VIBRANT_TOKEN_COLORS[i % VIBRANT_TOKEN_COLORS.length]
+    const [light, medium, dark] = generateTokenColorVariants(baseColor)
+    tokenDomain.push(`${user} - ${cacheHitLabel}`, `${user} - ${cacheMissLabel}`, `${user} - ${outputTokensLabel}`)
+    tokenColorRange.push(light, medium, dark)
   })
 
   return {
@@ -970,5 +1134,240 @@ export function processUserChartData(
       background: { fill: 'transparent' },
       animation: true,
     },
+    spec_user_token: {
+      type: 'bar',
+      data: [{ id: 'userTokenData', values: tokenSeries }],
+      xField: 'Time',
+      yField: 'Tokens',
+      seriesField: 'Series',
+      stack: true,
+      title: {
+        visible: true,
+        text: tt('User Token Trend'),
+      },
+      legends: { visible: true, selectMode: 'single' },
+      bar: {
+        state: { hover: { stroke: '#000', lineWidth: 1 } },
+      },
+      color: {
+        type: 'ordinal',
+        domain: tokenDomain,
+        range: tokenColorRange,
+      },
+      tooltip: {
+        mark: {
+          content: [
+            {
+              key: (datum: Record<string, unknown>) => datum?.Series,
+              value: (datum: Record<string, unknown>) => formatInt(Number(datum?.Tokens) || 0),
+            },
+          ],
+        },
+      },
+      background: { fill: 'transparent' },
+      animation: true,
+    },
+  }
+}
+
+export function processModelTokenChartData(
+  data: QuotaDataItem[],
+  timeGranularity: TimeGranularity = 'day',
+  t?: TFunction,
+  themeKey?: string
+): ProcessedModelTokenChartData {
+  const tt: TFunction = t ?? ((x) => x)
+  const formatInt = (value: number) =>
+    Intl.NumberFormat(undefined, { maximumFractionDigits: 0 }).format(value)
+
+  const cacheHitLabel = tt('Input (Cache Hit)')
+  const cacheMissLabel = tt('Input (Cache Miss)')
+  const outputTokensLabel = tt('Output Tokens')
+
+  const emptyResult: ProcessedModelTokenChartData = {
+    spec: {
+      type: 'bar',
+      data: [{ id: 'modelTokenData', values: [] }],
+      xField: 'Time',
+      yField: 'Tokens',
+      seriesField: 'Series',
+      stack: true,
+      title: {
+        visible: true,
+        text: tt('Model Token Trend'),
+        subtext: tt('No data available'),
+      },
+      legends: { visible: false },
+      background: { fill: 'transparent' },
+    },
+    totalTokensDisplay: '0',
+  }
+
+  if (!data || data.length === 0) return emptyResult
+
+  const timeModelTokenMap = new Map<
+    string,
+    Map<string, { cacheHit: number; cacheMiss: number; output: number; total: number }>
+  >()
+
+  data.forEach((item) => {
+    const timestamp = Number(item.created_at)
+    const timeKey = formatChartTime(timestamp, timeGranularity)
+    const model = item.model_name || 'Unknown'
+
+    if (!timeModelTokenMap.has(timeKey)) {
+      timeModelTokenMap.set(timeKey, new Map())
+    }
+    const modelMap = timeModelTokenMap.get(timeKey)!
+    const prev = modelMap.get(model) || { cacheHit: 0, cacheMiss: 0, output: 0, total: 0 }
+    const promptTokens = Number(item.prompt_tokens) || 0
+    const completionTokens = Number(item.completion_tokens) || 0
+    const cacheHit = Number(item.cache_tokens) || 0
+    const tokenUsed = Number(item.token_used) || 0
+
+    let cacheMissVal: number
+    let outputVal: number
+    if (promptTokens > 0 || completionTokens > 0) {
+      // Use actual prompt/completion breakdown
+      cacheMissVal = Math.max(0, promptTokens - cacheHit)
+      outputVal = completionTokens
+    } else {
+      // Fallback for historical data: use cache_creation as cache miss proxy, rest as output
+      const cacheCreation = Number(item.cache_creation_tokens) || 0
+      cacheMissVal = cacheCreation
+      outputVal = Math.max(0, tokenUsed - cacheHit - cacheCreation)
+    }
+
+    modelMap.set(model, {
+      cacheHit: prev.cacheHit + cacheHit,
+      cacheMiss: prev.cacheMiss + cacheMissVal,
+      output: prev.output + outputVal,
+      total: prev.total + tokenUsed,
+    })
+  })
+
+  const sortedTimes = Array.from(timeModelTokenMap.keys()).sort()
+
+  const MAX_TREND_POINTS = MAX_CHART_TREND_POINTS
+  const fillTimePoints = (times: string[]) => {
+    if (times.length >= MAX_TREND_POINTS) return times
+    const lastTime = Math.max(
+      ...data.map((item) => Number(item.created_at) || 0)
+    )
+    const intervalSec =
+      timeGranularity === 'week'
+        ? 604800
+        : timeGranularity === 'day'
+          ? 86400
+          : 3600
+    return Array.from({ length: MAX_TREND_POINTS }, (_, i) =>
+      formatChartTime(
+        lastTime - (MAX_TREND_POINTS - 1 - i) * intervalSec,
+        timeGranularity
+      )
+    )
+  }
+  const chartTimes = fillTimePoints(sortedTimes)
+
+  const modelTokenTotals = new Map<string, number>()
+  data.forEach((item) => {
+    const model = item.model_name || 'Unknown'
+    modelTokenTotals.set(
+      model,
+      (modelTokenTotals.get(model) || 0) + (Number(item.token_used) || 0)
+    )
+  })
+
+  const sortedModels = Array.from(modelTokenTotals.entries())
+    .sort((a, b) => b[1] - a[1])
+    .map(([model]) => model)
+
+  const MAX_MODELS = 15
+  const topModels = new Set(sortedModels.slice(0, MAX_MODELS))
+  const otherLabel = tt('Other')
+
+  const tokenDomain: string[] = []
+  const tokenColorRange: string[] = []
+
+  sortedModels.forEach((model, i) => {
+    if (!topModels.has(model)) return
+    const baseColor = VIBRANT_TOKEN_COLORS[i % VIBRANT_TOKEN_COLORS.length]
+    const [light, medium, dark] = generateTokenColorVariants(baseColor)
+    tokenDomain.push(`${model} - ${cacheHitLabel}`, `${model} - ${cacheMissLabel}`, `${model} - ${outputTokensLabel}`)
+    tokenColorRange.push(light, medium, dark)
+  })
+
+  if (topModels.size < sortedModels.length) {
+    const otherBase = VIBRANT_TOKEN_COLORS[sortedModels.filter((m) => topModels.has(m)).length % VIBRANT_TOKEN_COLORS.length]
+    const [light, medium, dark] = generateTokenColorVariants(otherBase)
+    tokenDomain.push(`${otherLabel} - ${cacheHitLabel}`, `${otherLabel} - ${cacheMissLabel}`, `${otherLabel} - ${outputTokensLabel}`)
+    tokenColorRange.push(light, medium, dark)
+  }
+
+  const tokenSeries: Array<{ Time: string; Series: string; Tokens: number; Model: string }> = []
+
+  chartTimes.forEach((time) => {
+    const modelMap = timeModelTokenMap.get(time)
+    const sortedTopModels = sortedModels.filter((m) => topModels.has(m))
+
+    const otherBuckets = { cacheHit: 0, cacheMiss: 0, output: 0, total: 0 }
+    if (topModels.size < sortedModels.length) {
+      sortedModels.forEach((model) => {
+        if (topModels.has(model)) return
+        const stats = modelMap?.get(model)
+        if (!stats) return
+        otherBuckets.cacheHit += stats.cacheHit
+        otherBuckets.cacheMiss += stats.cacheMiss
+        otherBuckets.output += stats.output
+        otherBuckets.total += stats.total
+      })
+      if (otherBuckets.total > 0) {
+        if (otherBuckets.cacheHit > 0) tokenSeries.push({ Time: time, Series: `${otherLabel} - ${cacheHitLabel}`, Tokens: otherBuckets.cacheHit, Model: otherLabel })
+        if (otherBuckets.cacheMiss > 0) tokenSeries.push({ Time: time, Series: `${otherLabel} - ${cacheMissLabel}`, Tokens: otherBuckets.cacheMiss, Model: otherLabel })
+        if (otherBuckets.output > 0) tokenSeries.push({ Time: time, Series: `${otherLabel} - ${outputTokensLabel}`, Tokens: otherBuckets.output, Model: otherLabel })
+      }
+    }
+
+    sortedTopModels.forEach((model) => {
+      const stats = modelMap?.get(model) || { cacheHit: 0, cacheMiss: 0, output: 0, total: 0 }
+      if (stats.cacheHit > 0) tokenSeries.push({ Time: time, Series: `${model} - ${cacheHitLabel}`, Tokens: stats.cacheHit, Model: model })
+      if (stats.cacheMiss > 0) tokenSeries.push({ Time: time, Series: `${model} - ${cacheMissLabel}`, Tokens: stats.cacheMiss, Model: model })
+      if (stats.output > 0) tokenSeries.push({ Time: time, Series: `${model} - ${outputTokensLabel}`, Tokens: stats.output, Model: model })
+    })
+  })
+
+  const totalTokens = Array.from(modelTokenTotals.values()).reduce((sum, v) => sum + v, 0)
+
+  return {
+    spec: {
+      type: 'bar',
+      data: [{ id: 'modelTokenData', values: tokenSeries }],
+      xField: 'Time',
+      yField: 'Tokens',
+      seriesField: 'Series',
+      stack: true,
+      legends: { visible: true, selectMode: 'single' },
+      bar: {
+        state: { hover: { stroke: '#000', lineWidth: 1 } },
+      },
+      color: {
+        type: 'ordinal',
+        domain: tokenDomain,
+        range: tokenColorRange,
+      },
+      tooltip: {
+        mark: {
+          content: [
+            {
+              key: (datum: Record<string, unknown>) => datum?.Series,
+              value: (datum: Record<string, unknown>) => formatInt(Number(datum?.Tokens) || 0),
+            },
+          ],
+        },
+      },
+      background: { fill: 'transparent' },
+      animation: true,
+    },
+    totalTokensDisplay: formatInt(totalTokens),
   }
 }
