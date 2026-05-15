@@ -370,6 +370,12 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
                         {t('Chain')}: {channelChain}
                       </p>
                     )}
+                    {typeof log.channel_ratio === 'number' &&
+                      log.channel_ratio !== 1 && (
+                        <p className='text-muted-foreground text-xs'>
+                          {t('Channel Billing Ratio')}: {log.channel_ratio}
+                        </p>
+                      )}
                     {affinity && (
                       <div className='border-t pt-1 text-xs'>
                         <p className='font-medium'>{t('Channel Affinity')}</p>
@@ -696,28 +702,44 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
         const other = parseLogOther(log.other)
         const isSubscription = other?.billing_source === 'subscription'
 
+        // 渠道成本（仅管理员可见）：原始花费 × 渠道计费倍率，不影响用户扣费
+        const channelRatio = log.channel_ratio
+        const showChannelCost =
+          isAdmin &&
+          typeof channelRatio === 'number' &&
+          channelRatio !== 1 &&
+          quota > 0
+        const channelCostNode = showChannelCost ? (
+          <span className='inline-flex w-fit items-center rounded-md border border-amber-200 bg-amber-50 px-1.5 py-0.5 font-mono text-[11px] leading-none font-medium text-amber-700 tabular-nums dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-300'>
+            A {formatLogQuota(Math.round(quota * (channelRatio as number)))}
+          </span>
+        ) : null
+
         if (isSubscription) {
           return (
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger
-                  render={
-                    <span className='inline-flex items-center gap-1 rounded-md border border-emerald-200 bg-emerald-50 px-1.5 py-0.5 text-xs font-medium text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300' />
-                  }
-                >
-                  <span
-                    className='size-1.5 rounded-full bg-emerald-500'
-                    aria-hidden='true'
-                  />
-                  {t('Subscription')}
-                </TooltipTrigger>
-                <TooltipContent>
-                  <span>
-                    {t('Deducted by subscription')}: {formatLogQuota(quota)}
-                  </span>
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
+            <div className='flex flex-col gap-0.5'>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger
+                    render={
+                      <span className='inline-flex items-center gap-1 rounded-md border border-emerald-200 bg-emerald-50 px-1.5 py-0.5 text-xs font-medium text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300' />
+                    }
+                  >
+                    <span
+                      className='size-1.5 rounded-full bg-emerald-500'
+                      aria-hidden='true'
+                    />
+                    {t('Subscription')}
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <span>
+                      {t('Deducted by subscription')}: {formatLogQuota(quota)}
+                    </span>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+              {channelCostNode}
+            </div>
           )
         }
 
@@ -728,6 +750,7 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
             <span className='border-border/80 bg-muted/60 inline-flex w-fit items-center rounded-md border px-1.5 py-0.5 font-mono text-xs font-semibold tabular-nums'>
               {quotaStr}
             </span>
+            {channelCostNode}
           </div>
         )
       },

@@ -77,6 +77,12 @@ const LazyUserCharts = lazy(() =>
   }))
 )
 
+const LazyChannelCharts = lazy(() =>
+  import('./components/channels/channel-charts').then((m) => ({
+    default: m.ChannelCharts,
+  }))
+)
+
 function LogStatCardsFallback() {
   return (
     <div className='overflow-hidden rounded-lg border'>
@@ -146,6 +152,10 @@ const SECTION_META: Record<
     titleKey: 'User Analytics',
     descriptionKey: 'View user consumption statistics and charts',
   },
+  channels: {
+    titleKey: 'Channel Stats',
+    descriptionKey: 'View channel-dimension cost statistics',
+  },
 }
 
 export function Dashboard() {
@@ -194,7 +204,9 @@ export function Dashboard() {
   const visibleSections = useMemo(
     () =>
       DASHBOARD_SECTION_IDS.filter(
-        (section) => section !== 'overview' && (section !== 'users' || isAdmin)
+        (section) =>
+          section !== 'overview' &&
+          ((section !== 'users' && section !== 'channels') || isAdmin)
       ),
     [isAdmin]
   )
@@ -304,6 +316,13 @@ export function Dashboard() {
             <FadeIn>
               <Suspense fallback={<ModelChartsFallback />}>
                 <LazyUserCharts />
+              </Suspense>
+            </FadeIn>
+          )}
+          {activeSection === 'channels' && (
+            <FadeIn>
+              <Suspense fallback={<ModelChartsFallback />}>
+                <LazyChannelCharts />
               </Suspense>
             </FadeIn>
           )}

@@ -525,7 +525,19 @@ export const getLogsColumns = ({
             record.type === 6) ? (
           <Space>
             <span style={{ position: 'relative', display: 'inline-block' }}>
-              <Tooltip content={record.channel_name || t('未知渠道')}>
+              <Tooltip
+                content={
+                  <div style={{ lineHeight: 1.6 }}>
+                    <div>{record.channel_name || t('未知渠道')}</div>
+                    {typeof record.channel_ratio === 'number' &&
+                      record.channel_ratio !== 1 && (
+                        <div>
+                          {t('渠道倍率')}：{record.channel_ratio}
+                        </div>
+                      )}
+                  </div>
+                }
+              >
                 <span>
                   <Tag
                     color={colors[parseInt(text) % colors.length]}
@@ -818,15 +830,35 @@ export const getLogsColumns = ({
         }
         const other = getLogOther(record.other);
         const isSubscription = other?.billing_source === 'subscription';
+        // 渠道成本（仅管理员可见）：原始花费 × 渠道计费倍率，不影响用户扣费
+        const channelRatio = record.channel_ratio;
+        const showChannelCost =
+          isAdminUser &&
+          typeof channelRatio === 'number' &&
+          channelRatio !== 1 &&
+          parseInt(text) > 0;
+        const channelCostNode = showChannelCost ? (
+          <div style={{ color: 'var(--semi-color-warning)', fontSize: '12px' }}>
+            A {renderQuota(Math.round(text * channelRatio), 6)}
+          </div>
+        ) : null;
         if (isSubscription) {
           // Subscription billed: show only tag (no $0), but keep tooltip for equivalent cost.
           return (
-            <Tooltip content={`${t('由订阅抵扣')}：${renderQuota(text, 6)}`}>
-              <span>{renderBillingTag(record, t)}</span>
-            </Tooltip>
+            <div>
+              <Tooltip content={`${t('由订阅抵扣')}：${renderQuota(text, 6)}`}>
+                <span>{renderBillingTag(record, t)}</span>
+              </Tooltip>
+              {channelCostNode}
+            </div>
           );
         }
-        return <>{renderQuota(text, 6)}</>;
+        return (
+          <div>
+            <div>{renderQuota(text, 6)}</div>
+            {channelCostNode}
+          </div>
+        );
       },
     },
     {

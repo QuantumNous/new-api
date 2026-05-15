@@ -2530,6 +2530,35 @@ export function ChannelMutateDrawer({
                             </FormItem>
                           )}
                         />
+
+                        <FormField
+                          control={form.control}
+                          name='channel_ratio'
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>
+                                {t('Channel Billing Ratio')}
+                              </FormLabel>
+                              <FormControl>
+                                <Input
+                                  type='number'
+                                  step='0.01'
+                                  min='0'
+                                  placeholder='1'
+                                  {...field}
+                                  value={field.value ?? 1}
+                                  onChange={(e) =>
+                                    field.onChange(Number(e.target.value))
+                                  }
+                                />
+                              </FormControl>
+                              <FormDescription>
+                                {t(FIELD_DESCRIPTIONS.CHANNEL_RATIO)}
+                              </FormDescription>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
                       </div>
 
                       <FormField

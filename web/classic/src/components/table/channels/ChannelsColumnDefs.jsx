@@ -683,6 +683,17 @@ export const getChannelsColumns = ({
       },
     },
     {
+      key: COLUMN_KEYS.CHANNEL_RATIO,
+      title: t('渠道倍率'),
+      dataIndex: 'channel_ratio',
+      render: (text, record) => {
+        if (record.children !== undefined) {
+          return '';
+        }
+        return <span>{record.channel_ratio ?? 1}</span>;
+      },
+    },
+    {
       key: COLUMN_KEYS.OPERATE,
       title: '',
       dataIndex: 'operate',

@@ -33,6 +33,28 @@ export interface QuotaDataItem {
   quota?: number
 }
 
+// 渠道维度成本（仅管理员）：按天聚合的时间序列点。
+// quota 为原始消耗，channel_quota 为按渠道倍率折算后的渠道成本。
+export interface ChannelQuotaTrendPoint {
+  channel_id: number
+  created_at: number
+  count?: number
+  quota?: number
+  channel_quota?: number
+}
+
+// 渠道元信息：名称 + 当前配置的计费倍率
+export interface ChannelQuotaMeta {
+  channel_id: number
+  channel_name?: string
+  current_ratio?: number
+}
+
+export interface ChannelQuotaResult {
+  points: ChannelQuotaTrendPoint[]
+  channels: ChannelQuotaMeta[]
+}
+
 // ============================================================================
 // Uptime Monitoring Types
 // ============================================================================

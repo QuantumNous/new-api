@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"math/rand"
 	"strings"
 	"sync"
@@ -43,12 +44,15 @@ type Channel struct {
 	StatusCodeMapping *string `json:"status_code_mapping" gorm:"type:varchar(1024);default:''"`
 	Priority          *int64  `json:"priority" gorm:"bigint;default:0"`
 	AutoBan           *int    `json:"auto_ban" gorm:"default:1"`
-	OtherInfo         string  `json:"other_info"`
-	Tag               *string `json:"tag" gorm:"index"`
-	Setting           *string `json:"setting" gorm:"type:text"` // 渠道额外设置
-	ParamOverride     *string `json:"param_override" gorm:"type:text"`
-	HeaderOverride    *string `json:"header_override" gorm:"type:text"`
-	Remark            *string `json:"remark" gorm:"type:varchar(255)" validate:"max=255"`
+	// ChannelRatio 渠道计费倍率：仅影响渠道维度的用量统计（used_quota / 数据面板），不影响用户扣费。
+	// >=0，允许 0（表示该渠道不计成本）；nil / 负数按 1.0 处理。
+	ChannelRatio   *float64 `json:"channel_ratio" gorm:"default:1"`
+	OtherInfo      string   `json:"other_info"`
+	Tag            *string  `json:"tag" gorm:"index"`
+	Setting        *string  `json:"setting" gorm:"type:text"` // 渠道额外设置
+	ParamOverride  *string  `json:"param_override" gorm:"type:text"`
+	HeaderOverride *string  `json:"header_override" gorm:"type:text"`
+	Remark         *string  `json:"remark" gorm:"type:varchar(255)" validate:"max=255"`
 	// add after v0.8.5
 	ChannelInfo ChannelInfo `json:"channel_info" gorm:"type:json"`
 
@@ -469,6 +473,18 @@ func (channel *Channel) GetWeight() int {
 	return int(*channel.Weight)
 }
 
+// GetChannelRatio 返回渠道计费倍率。
+// nil（旧数据/未配置）或负数（非法数据）按 1.0 处理；允许 0。
+func (channel *Channel) GetChannelRatio() float64 {
+	if channel == nil || channel.ChannelRatio == nil {
+		return 1
+	}
+	if *channel.ChannelRatio < 0 {
+		return 1
+	}
+	return *channel.ChannelRatio
+}
+
 func (channel *Channel) GetBaseURL() string {
 	if channel.BaseURL == nil {
 		return ""
@@ -802,7 +818,22 @@ func EditChannelByTag(tag string, newTag *string, modelMapping *string, models *
 	return nil
 }
 
+// applyChannelRatio 按渠道计费倍率折算渠道维度用量。
+// 该折算仅作用于渠道 used_quota 统计，不影响用户扣费。
+func applyChannelRatio(id int, quota int) int {
+	channel, err := CacheGetChannel(id)
+	if err != nil || channel == nil {
+		return quota
+	}
+	ratio := channel.GetChannelRatio()
+	if ratio == 1 {
+		return quota
+	}
+	return int(math.Round(float64(quota) * ratio))
+}
+
 func UpdateChannelUsedQuota(id int, quota int) {
+	quota = applyChannelRatio(id, quota)
 	if common.BatchUpdateEnabled {
 		addNewRecord(BatchUpdateTypeChannelUsedQuota, id, quota)
 		return

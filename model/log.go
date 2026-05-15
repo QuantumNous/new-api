@@ -32,12 +32,14 @@ type Log struct {
 	IsStream         bool   `json:"is_stream"`
 	ChannelId        int    `json:"channel" gorm:"index"`
 	ChannelName      string `json:"channel_name" gorm:"->"`
-	TokenId          int    `json:"token_id" gorm:"default:0;index"`
-	Group            string `json:"group" gorm:"index"`
-	Ip               string `json:"ip" gorm:"index;default:''"`
-	RequestId         string `json:"request_id,omitempty" gorm:"type:varchar(64);index:idx_logs_request_id;default:''"`
-	UpstreamRequestId string `json:"upstream_request_id,omitempty" gorm:"type:varchar(128);index:idx_logs_upstream_request_id;default:''"`
-	Other             string `json:"other"`
+	// ChannelRatio 渠道计费倍率快照：仅供管理员视角的渠道维度成本统计，不影响用户扣费。
+	ChannelRatio      float64 `json:"channel_ratio" gorm:"default:1"`
+	TokenId           int     `json:"token_id" gorm:"default:0;index"`
+	Group             string  `json:"group" gorm:"index"`
+	Ip                string  `json:"ip" gorm:"index;default:''"`
+	RequestId         string  `json:"request_id,omitempty" gorm:"type:varchar(64);index:idx_logs_request_id;default:''"`
+	UpstreamRequestId string  `json:"upstream_request_id,omitempty" gorm:"type:varchar(128);index:idx_logs_upstream_request_id;default:''"`
+	Other             string  `json:"other"`
 }
 
 // don't use iota, avoid change log type value
@@ -54,6 +56,8 @@ const (
 func formatUserLogs(logs []*Log, startIdx int) {
 	for i := range logs {
 		logs[i].ChannelName = ""
+		// 渠道计费倍率属于管理员维度信息，对普通用户隐藏
+		logs[i].ChannelRatio = 0
 		var otherMap map[string]interface{}
 		otherMap, _ = common.StrToMap(logs[i].Other)
 		if otherMap != nil {
@@ -213,6 +217,11 @@ func RecordConsumeLog(c *gin.Context, userId int, params RecordConsumeLogParams)
 	requestId := c.GetString(common.RequestIdKey)
 	upstreamRequestId := c.GetString(common.UpstreamRequestIdKey)
 	otherStr := common.MapToJsonStr(params.Other)
+	// 渠道计费倍率快照：用于管理员维度的渠道成本统计，与用户扣费无关
+	channelRatio := 1.0
+	if channel, err := CacheGetChannel(params.ChannelId); err == nil && channel != nil {
+		channelRatio = channel.GetChannelRatio()
+	}
 	// 判断是否需要记录 IP
 	needRecordIp := false
 	if settingMap, err := GetUserSetting(userId, false); err == nil {
@@ -232,6 +241,7 @@ func RecordConsumeLog(c *gin.Context, userId int, params RecordConsumeLogParams)
 		ModelName:        params.ModelName,
 		Quota:            params.Quota,
 		ChannelId:        params.ChannelId,
+		ChannelRatio:     channelRatio,
 		TokenId:          params.TokenId,
 		UseTime:          params.UseTimeSeconds,
 		IsStream:         params.IsStream,
@@ -441,6 +451,61 @@ type Stat struct {
 	Quota int `json:"quota"`
 	Rpm   int `json:"rpm"`
 	Tpm   int `json:"tpm"`
+}
+
+// ChannelQuotaTrendPoint 渠道维度成本时间序列点（按小时聚合，前端再按粒度归并）。
+// Quota 为原始消耗额度之和，ChannelQuota 为按渠道计费倍率折算后的渠道维度成本。
+type ChannelQuotaTrendPoint struct {
+	ChannelId    int     `json:"channel_id"`
+	CreatedAt    int64   `json:"created_at"`
+	Count        int     `json:"count"`
+	Quota        int     `json:"quota"`
+	ChannelQuota float64 `json:"channel_quota"`
+}
+
+// ChannelQuotaMeta 渠道元信息：名称 + 当前配置的计费倍率。
+type ChannelQuotaMeta struct {
+	ChannelId    int     `json:"channel_id"`
+	ChannelName  string  `json:"channel_name"`
+	CurrentRatio float64 `json:"current_ratio"`
+}
+
+// ChannelQuotaResult 渠道成本数据：时间序列 + 渠道元信息（仅管理员可见）。
+type ChannelQuotaResult struct {
+	Points   []*ChannelQuotaTrendPoint `json:"points"`
+	Channels []*ChannelQuotaMeta       `json:"channels"`
+}
+
+// GetChannelQuotaData 按渠道 + 小时聚合消费日志，返回渠道维度成本时间序列。
+func GetChannelQuotaData(startTime int64, endTime int64) (*ChannelQuotaResult, error) {
+	var points []*ChannelQuotaTrendPoint
+	tx := LOG_DB.Table("logs").
+		Select("channel_id, (created_at - (created_at % 3600)) as created_at, COUNT(*) as count, SUM(quota) as quota, SUM(quota * COALESCE(channel_ratio, 1)) as channel_quota").
+		Where("type = ?", LogTypeConsume)
+	if startTime != 0 {
+		tx = tx.Where("created_at >= ?", startTime)
+	}
+	if endTime != 0 {
+		tx = tx.Where("created_at <= ?", endTime)
+	}
+	if err := tx.Group("channel_id, (created_at - (created_at % 3600))").Find(&points).Error; err != nil {
+		return nil, err
+	}
+	// 收集渠道元信息（名称 + 当前配置倍率；渠道可能已删除，缺失时留空）
+	idSet := make(map[int]bool)
+	for _, p := range points {
+		idSet[p.ChannelId] = true
+	}
+	channels := make([]*ChannelQuotaMeta, 0, len(idSet))
+	for id := range idSet {
+		meta := &ChannelQuotaMeta{ChannelId: id, CurrentRatio: 1}
+		if ch, err := CacheGetChannel(id); err == nil && ch != nil {
+			meta.ChannelName = ch.Name
+			meta.CurrentRatio = ch.GetChannelRatio()
+		}
+		channels = append(channels, meta)
+	}
+	return &ChannelQuotaResult{Points: points, Channels: channels}, nil
 }
 
 func SumUsedQuota(logType int, startTimestamp int64, endTimestamp int64, modelName string, username string, tokenName string, channel int, group string) (stat Stat, err error) {
