@@ -32,6 +32,26 @@ const (
 	channelUpstreamModelUpdateNotifyMaxFailedChannelIDs   = 10
 )
 
+var channelUpstreamModelUpdateSelectFields = []string{
+	"id",
+	"name",
+	"type",
+	"key",
+	"status",
+	"base_url",
+	"models",
+	"model_mapping",
+	"settings",
+	"setting",
+	"other",
+	"group",
+	"priority",
+	"weight",
+	"tag",
+	"channel_info",
+	"header_override",
+}
+
 var (
 	channelUpstreamModelUpdateTaskOnce    sync.Once
 	channelUpstreamModelUpdateTaskRunning atomic.Bool
@@ -521,7 +541,7 @@ func runChannelUpstreamModelUpdateTaskOnce() {
 	for {
 		var channels []*model.Channel
 		query := model.DB.
-			Select("id", "name", "type", "key", "status", "base_url", "models", "settings", "setting", "other", "group", "priority", "weight", "tag", "channel_info", "header_override").
+			Select(channelUpstreamModelUpdateSelectFields).
 			Where("status = ?", common.ChannelStatusEnabled).
 			Order("id asc").
 			Limit(channelUpstreamModelUpdateTaskBatchSize)
@@ -814,7 +834,7 @@ func collectPendingApplyUpstreamModelChanges(settings dto.ChannelOtherSettings) 
 func findEnabledChannelsAfterID(lastID int, batchSize int) ([]*model.Channel, error) {
 	var channels []*model.Channel
 	query := model.DB.
-		Select("id", "name", "type", "key", "status", "base_url", "models", "settings", "setting", "other", "group", "priority", "weight", "tag", "channel_info", "header_override").
+		Select(channelUpstreamModelUpdateSelectFields).
 		Where("status = ?", common.ChannelStatusEnabled).
 		Order("id asc").
 		Limit(batchSize)
