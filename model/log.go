@@ -75,7 +75,7 @@ func logBalanceDelta(log *Log) int {
 	switch log.Type {
 	case LogTypeConsume:
 		return -log.Quota
-	case LogTypeRefund, LogTypeTopup:
+	case LogTypeRefund, LogTypeTopup, LogTypeManage:
 		return log.Quota
 	default:
 		return 0
@@ -138,7 +138,7 @@ func GetLogByTokenId(tokenId int) (logs []*Log, err error) {
 	return logs, err
 }
 
-func RecordLog(userId int, logType int, content string) {
+func RecordLog(userId int, logType int, content string, quota int) {
 	if logType == LogTypeConsume && !common.LogConsumeEnabled {
 		return
 	}
@@ -149,6 +149,7 @@ func RecordLog(userId int, logType int, content string) {
 		CreatedAt: common.GetTimestamp(),
 		Type:      logType,
 		Content:   content,
+		Quota:     quota,
 	}
 	attachCurrentBalanceSnapshot(log)
 	err := LOG_DB.Create(log).Error
@@ -158,7 +159,7 @@ func RecordLog(userId int, logType int, content string) {
 }
 
 // RecordLogWithAdminInfo 记录操作日志，并将管理员相关信息存入 Other.admin_info，
-func RecordLogWithAdminInfo(userId int, logType int, content string, adminInfo map[string]interface{}) {
+func RecordLogWithAdminInfo(userId int, logType int, content string, quota int, adminInfo map[string]interface{}) {
 	if logType == LogTypeConsume && !common.LogConsumeEnabled {
 		return
 	}
@@ -169,6 +170,7 @@ func RecordLogWithAdminInfo(userId int, logType int, content string, adminInfo m
 		CreatedAt: common.GetTimestamp(),
 		Type:      logType,
 		Content:   content,
+		Quota:     quota,
 	}
 	attachCurrentBalanceSnapshot(log)
 	if len(adminInfo) > 0 {

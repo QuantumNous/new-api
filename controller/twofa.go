@@ -120,7 +120,7 @@ func Setup2FA(c *gin.Context) {
 	}
 
 	// 记录操作日志
-	model.RecordLog(userId, model.LogTypeSystem, "开始设置两步验证")
+	model.RecordLog(userId, model.LogTypeSystem, "开始设置两步验证", 0)
 
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
@@ -192,7 +192,7 @@ func Enable2FA(c *gin.Context) {
 	}
 
 	// 记录操作日志
-	model.RecordLog(userId, model.LogTypeSystem, "成功启用两步验证")
+	model.RecordLog(userId, model.LogTypeSystem, "成功启用两步验证", 0)
 
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
@@ -264,7 +264,7 @@ func Disable2FA(c *gin.Context) {
 	}
 
 	// 记录操作日志
-	model.RecordLog(userId, model.LogTypeSystem, "禁用两步验证")
+	model.RecordLog(userId, model.LogTypeSystem, "禁用两步验证", 0)
 
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
@@ -383,7 +383,7 @@ func RegenerateBackupCodes(c *gin.Context) {
 	}
 
 	// 记录操作日志
-	model.RecordLog(userId, model.LogTypeSystem, "重新生成两步验证备用码")
+	model.RecordLog(userId, model.LogTypeSystem, "重新生成两步验证备用码", 0)
 
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
@@ -549,7 +549,7 @@ func AdminDisable2FA(c *gin.Context) {
 		"admin_username": adminName,
 	}
 	model.RecordLogWithAdminInfo(userId, model.LogTypeManage,
-		"管理员强制禁用了用户的两步验证", adminInfo)
+		"管理员强制禁用了用户的两步验证", 0, adminInfo)
 
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
