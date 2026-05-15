@@ -62,8 +62,15 @@ function getErrorMessage(message: string | undefined, data: unknown): string {
  * Hook for handling Waffo Pancake payment processing
  *
  * Pancake uses a hosted checkout URL flow rather than the generic epay form
- * submission, so we open the returned URL in a new tab once the backend
- * returns a successful response.
+ * submission. We redirect the current tab to the returned URL — same pattern
+ * as Stripe Checkout / Lemonsqueezy / Creem hosted flows.
+ *
+ * Why same-tab: `window.open` would have to fire after `await
+ * requestWaffoPancakePayment(...)`, by which point the browser has lost the
+ * user-gesture context and pop-up blockers kick in. The buyer can hit Back
+ * to return to the wallet if they cancel out of the checkout, and the
+ * SuccessURL bound to the OnetimeProduct brings them back here after a
+ * successful payment.
  */
 export function useWaffoPancakePayment() {
   const [processing, setProcessing] = useState(false)
@@ -85,8 +92,8 @@ export function useWaffoPancakePayment() {
               toast.error(i18next.t('Invalid payment redirect URL'))
               return false
             }
-            window.open(checkoutUrl, '_blank', 'noopener,noreferrer')
             toast.success(i18next.t('Redirecting to payment page...'))
+            window.location.href = checkoutUrl
             return true
           }
         }

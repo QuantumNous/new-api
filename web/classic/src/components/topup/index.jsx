@@ -453,7 +453,11 @@ const TopUp = () => {
         if (message === 'success') {
           const checkoutUrl = data?.checkout_url || '';
           if (checkoutUrl) {
-            window.open(checkoutUrl, '_blank');
+            // In-tab redirect rather than window.open: the latter fires
+            // after `await` and loses the user-gesture context, so the
+            // browser pop-up blocker kicks in. Same pattern as the
+            // default frontend's wallet Pancake handler.
+            window.location.href = checkoutUrl;
           } else {
             showError(t('支付请求失败'));
           }
