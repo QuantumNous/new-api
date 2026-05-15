@@ -4,6 +4,7 @@
   "/status/": "/status/",
   "/your/endpoint": "/your/endpoint",
   "AIGC2D": "AIGC2D",
+  "Alipay": "Alipay",
   "Anthropic": "Anthropic",
   "API URL": "API URL",
   "API2GPT": "API2GPT",
@@ -86,9 +87,8 @@
   "VolcEngine": "VolcEngine",
   "Webhook URL": "Webhook URL",
   "Webhook URL:": "Webhook URL:",
+  "WeChat Pay": "WeChat Pay",
   "whsec_xxx": "whsec_xxx",
   "Xinference": "Xinference",
-  "Xunfei": "Xunfei",
-  "Alipay": "Alipay",
-  "WeChat Pay": "WeChat Pay"
+  "Xunfei": "Xunfei"
 }

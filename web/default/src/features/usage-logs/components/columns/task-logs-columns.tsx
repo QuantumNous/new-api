@@ -255,18 +255,18 @@ export function useTaskLogsColumns(isAdmin: boolean): ColumnDef<TaskLog>[] {
           log.action === TASK_ACTIONS.REFERENCE_GENERATE ||
           log.action === TASK_ACTIONS.REMIX_GENERATE
         const isSuccess = status === TASK_STATUS.SUCCESS
-        const isUrl = failReason?.startsWith('http')
+        const resultUrl = log.result_url || failReason
+        const isUrl = resultUrl?.startsWith('http')
 
         if (isSuccess && isVideoTask && isUrl) {
-          const videoUrl = `/v1/videos/${log.task_id}/content`
           return (
             <a
-              href={videoUrl}
+              href={resultUrl}
               target='_blank'
               rel='noopener noreferrer'
               className='text-foreground text-xs hover:underline'
             >
-              {t('Click to preview video')}
+              {t('Download video')}
             </a>
           )
         }

@@ -125,6 +125,13 @@ export interface LogOtherData {
   model_ratio?: number
   completion_ratio?: number
   model_price?: number
+  video_total_price?: number
+  video_resolution?: string
+  video_duration?: number
+  video_price_per_second?: number
+  video_fps?: number
+  video_base_fps?: number
+  video_fps_multiplier?: number
   group_ratio?: number
   user_group_ratio?: number
   cache_ratio?: number
@@ -245,6 +252,7 @@ export interface TaskLog {
   progress_message_en?: string
   data?: string // JSON string
   fail_reason?: string
+  result_url?: string
   status: string // NOT_START, SUBMITTED, IN_PROGRESS, SUCCESS, FAILURE, QUEUED, UNKNOWN
   other?: string
   created_at?: number

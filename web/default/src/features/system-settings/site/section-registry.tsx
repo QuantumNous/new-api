@@ -73,6 +73,8 @@ const SITE_SECTIONS = [
         <HeaderNavigationSection
           config={headerNavConfig}
           initialSerialized={headerNavSerialized}
+          rankingsDisplayMultiplier={settings.RankingsDisplayMultiplier}
+          rankingsDisplayJitterRatio={settings.RankingsDisplayJitterRatio}
         />
       )
     },

@@ -1,6 +1,7 @@
 package channel
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -534,12 +535,16 @@ func DoTaskApiRequest(a TaskAdaptor, c *gin.Context, info *common.RelayInfo, req
 	if err != nil {
 		return nil, err
 	}
-	req, err := http.NewRequest(c.Request.Method, fullRequestURL, requestBody)
+	bodyBytes, err := io.ReadAll(requestBody)
+	if err != nil {
+		return nil, fmt.Errorf("read request body failed: %w", err)
+	}
+	req, err := http.NewRequest(c.Request.Method, fullRequestURL, bytes.NewReader(bodyBytes))
 	if err != nil {
 		return nil, fmt.Errorf("new request failed: %w", err)
 	}
 	req.GetBody = func() (io.ReadCloser, error) {
-		return io.NopCloser(requestBody), nil
+		return io.NopCloser(bytes.NewReader(bodyBytes)), nil
 	}
 
 	err = a.BuildRequestHeader(c, req, info)

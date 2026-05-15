@@ -30,7 +30,12 @@ import {
 } from '../lib/dynamic-price'
 import { parseTags } from '../lib/filters'
 import { isTokenBasedModel } from '../lib/model-helpers'
-import { formatPrice, formatRequestPrice } from '../lib/price'
+import {
+  formatPrice,
+  formatRequestPrice,
+  formatVideoSecondPrice,
+  getVideoPriceEntries,
+} from '../lib/price'
 import type { PricingModel, TokenUnit } from '../types'
 import { ModelPerfBadge, type ModelPerfBadgeData } from './model-perf-badge'
 
@@ -63,6 +68,7 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
   const isDynamicPricing =
     props.model.billing_mode === 'tiered_expr' &&
     Boolean(props.model.billing_expr)
+  const isVideoSeconds = props.model.billing_mode === 'video_seconds'
   const hasCachedPrice = isTokenBased && props.model.cache_ratio != null
   const dynamicSummary = isDynamicPricing
     ? getDynamicPricingSummary(props.model, {
@@ -76,6 +82,9 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
 
   const primaryGroup = groups[0]
   const bottomTags = [...endpoints.slice(0, 2), ...tags.slice(0, 2)]
+  const videoPriceEntries = isVideoSeconds
+    ? getVideoPriceEntries(props.model).slice(0, 2)
+    : []
   const hiddenCount =
     Math.max(groups.length - 1, 0) +
     Math.max(endpoints.length - 2, 0) +
@@ -138,6 +147,36 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
                     {t('Dynamic Pricing')}
                   </span>
                 )
+              ) : isVideoSeconds ? (
+                <>
+                  {videoPriceEntries.length > 0 ? (
+                    videoPriceEntries.map((entry) => (
+                      <span
+                        key={entry.resolution}
+                        className='text-muted-foreground whitespace-nowrap'
+                      >
+                        {entry.resolution}{' '}
+                        <span className='text-foreground font-mono font-semibold'>
+                          {formatVideoSecondPrice(
+                            {
+                              ...props.model,
+                              video_price: {
+                                ...props.model.video_price,
+                                prices: { [entry.resolution]: entry.price },
+                              },
+                            },
+                            showRechargePrice,
+                            priceRate,
+                            usdExchangeRate
+                          )}
+                        </span>
+                        /{t('second')}
+                      </span>
+                    ))
+                  ) : (
+                    <span className='text-muted-foreground text-xs'>-</span>
+                  )}
+                </>
               ) : isTokenBased ? (
                 <>
                   <span className='text-muted-foreground whitespace-nowrap'>
@@ -227,15 +266,19 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
       </p>
 
       {/* Footer: left metadata and right performance summary share row alignment */}
-      <div className='mt-2 grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-2 gap-y-1 sm:mt-4'>
+      <div className='mt-2 grid grid-cols-1 items-start gap-x-2 gap-y-1 min-[520px]:grid-cols-[minmax(0,1fr)_auto] sm:mt-4'>
         <div className='flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1'>
           {primaryGroup && (
-            <span className='text-muted-foreground text-xs font-medium'>
+            <span className='text-muted-foreground max-w-full truncate text-xs font-medium whitespace-nowrap'>
               {primaryGroup} {t('Groups')}
             </span>
           )}
-          <span className='text-muted-foreground text-xs font-medium'>
-            {isTokenBased ? t('Token-based') : t('Per Request')}
+          <span className='text-muted-foreground max-w-full truncate text-xs font-medium whitespace-nowrap'>
+            {isVideoSeconds
+              ? t('Video per-second')
+              : isTokenBased
+                ? t('Token-based')
+                : t('Per Request')}
           </span>
           {isDynamicPricing && (
             <StatusBadge
@@ -246,19 +289,27 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
             />
           )}
         </div>
-        <ModelPerfBadge perf={props.perf} className='row-span-2 self-start' />
+        <ModelPerfBadge
+          perf={props.perf}
+          className='row-span-2 self-start max-[519px]:hidden'
+        />
 
         <div className='flex min-w-0 flex-wrap items-center gap-x-2.5 gap-y-0.5 sm:gap-x-3 sm:gap-y-1'>
           {bottomTags.map((item) => (
-            <span key={item} className='text-muted-foreground/70 text-xs'>
+            <span
+              key={item}
+              className='text-muted-foreground/70 max-w-full truncate text-xs whitespace-nowrap'
+            >
               {item}
             </span>
           ))}
-          <span className='text-muted-foreground/50 text-xs'>
-            {tokenUnitLabel}
-          </span>
+          {!isVideoSeconds && (
+            <span className='text-muted-foreground/50 text-xs whitespace-nowrap'>
+              {tokenUnitLabel}
+            </span>
+          )}
           {hiddenCount > 0 && (
-            <span className='text-muted-foreground/40 text-xs'>
+            <span className='text-muted-foreground/40 text-xs whitespace-nowrap'>
               +{hiddenCount}
             </span>
           )}

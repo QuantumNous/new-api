@@ -60,3 +60,59 @@ func TestModelPriceHelperTieredUsesPreloadedRequestInput(t *testing.T) {
 	require.Equal(t, billing_setting.BillingModeTieredExpr, info.TieredBillingSnapshot.BillingMode)
 	require.Equal(t, common.QuotaPerUnit, info.TieredBillingSnapshot.QuotaPerUnit)
 }
+
+func TestCalculateVideoSecondsBilling(t *testing.T) {
+	trace, err := calculateVideoSecondsBilling(relaycommon.TaskSubmitReq{
+		Duration: 5,
+		Width:    1280,
+		Height:   720,
+		FPS:      30,
+	}, billing_setting.VideoPriceConfig{
+		BaseFPS: 24,
+		Prices: map[string]float64{
+			"720p":  1,
+			"1080p": 2,
+		},
+	})
+	require.NoError(t, err)
+	require.Equal(t, "720p", trace.Resolution)
+	require.Equal(t, 5.0, trace.Duration)
+	require.Equal(t, 30.0/24.0, trace.FPSMultiplier)
+	require.Equal(t, 6.25, trace.TotalPrice)
+}
+
+func TestModelPriceHelperVideoSecondsDoesNotExposeBillableRatios(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	saved := map[string]string{}
+	require.NoError(t, config.GlobalConfig.SaveToDB(func(key, value string) error {
+		saved[key] = value
+		return nil
+	}))
+	t.Cleanup(func() {
+		require.NoError(t, config.GlobalConfig.LoadFromDB(saved))
+	})
+
+	require.NoError(t, config.GlobalConfig.LoadFromDB(map[string]string{
+		"billing_setting.billing_mode": `{"video-test-model":"video_seconds"}`,
+		"billing_setting.video_price":  `{"video-test-model":{"base_fps":24,"prices":{"720p":1}}}`,
+	}))
+
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Set("task_request", relaycommon.TaskSubmitReq{
+		Model:    "video-test-model",
+		Prompt:   "astronaut walking on the moon",
+		Duration: 5,
+		Width:    1280,
+		Height:   720,
+	})
+
+	priceData, err := modelPriceHelperVideoSeconds(ctx, &relaycommon.RelayInfo{
+		OriginModelName: "video-test-model",
+	}, types.GroupRatioInfo{GroupRatio: 1})
+	require.NoError(t, err)
+	require.Equal(t, billingexpr.QuotaRound(5*common.QuotaPerUnit), priceData.Quota)
+	require.Equal(t, 5.0, priceData.ModelPrice)
+	require.Empty(t, priceData.OtherRatios)
+}

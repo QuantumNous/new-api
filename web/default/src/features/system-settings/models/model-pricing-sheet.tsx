@@ -20,7 +20,7 @@ import { useEffect, useMemo, useState } from 'react'
 import * as z from 'zod'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { AlertTriangle, ChevronDown } from 'lucide-react'
+import { AlertTriangle, ChevronDown, Plus, Trash2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { cn } from '@/lib/utils'
 import { Alert, AlertDescription } from '@/components/ui/alert'
@@ -63,6 +63,14 @@ import {
   SheetTitle,
 } from '@/components/ui/sheet'
 import { Switch } from '@/components/ui/switch'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { combineBillingExpr } from '@/features/pricing/lib/billing-expr'
 import { TieredPricingEditor } from './tiered-pricing-editor'
@@ -84,7 +92,7 @@ type ModelPricingFormValues = z.infer<
   ReturnType<typeof createModelPricingSchema>
 >
 
-type PricingMode = 'per-token' | 'per-request' | 'tiered_expr'
+type PricingMode = 'per-token' | 'per-request' | 'tiered_expr' | 'video_seconds'
 type LaneKey =
   | 'completion'
   | 'cache'
@@ -106,6 +114,18 @@ export type ModelRatioData = {
   billingMode?: PricingMode
   billingExpr?: string
   requestRuleExpr?: string
+  videoPrice?: VideoPricingConfig
+}
+
+export type VideoPricingConfig = {
+  base_fps?: number
+  prices?: Record<string, number>
+}
+
+type VideoPriceRow = {
+  id: number
+  resolution: string
+  price: string
 }
 
 type ModelPricingSheetProps = {
@@ -276,6 +296,7 @@ function createInitialLaneState(data?: ModelRatioData | null) {
 function getModeLabel(mode: PricingMode) {
   if (mode === 'per-request') return 'Per-request'
   if (mode === 'tiered_expr') return 'Expression'
+  if (mode === 'video_seconds') return 'Video per-second'
   return 'Per-token'
 }
 
@@ -284,7 +305,51 @@ function getModeBadgeVariant(
 ): 'default' | 'secondary' | 'outline' {
   if (mode === 'per-request') return 'secondary'
   if (mode === 'tiered_expr') return 'default'
+  if (mode === 'video_seconds') return 'secondary'
   return 'outline'
+}
+
+function createInitialVideoRows(data?: ModelRatioData | null): {
+  baseFps: string
+  rows: VideoPriceRow[]
+} {
+  const config = data?.videoPrice
+  const prices = config?.prices || {}
+  const entries = Object.entries(prices)
+  if (entries.length === 0) {
+    return {
+      baseFps: formatNumber(config?.base_fps || 24),
+      rows: [
+        { id: 1, resolution: '720p', price: '' },
+        { id: 2, resolution: '1080p', price: '' },
+      ],
+    }
+  }
+  return {
+    baseFps: formatNumber(config?.base_fps || 24),
+    rows: entries.map(([resolution, price], index) => ({
+      id: index + 1,
+      resolution,
+      price: formatNumber(price),
+    })),
+  }
+}
+
+function videoRowsToConfig(
+  baseFps: string,
+  rows: VideoPriceRow[]
+): VideoPricingConfig {
+  const prices: Record<string, number> = {}
+  rows.forEach((row) => {
+    const resolution = row.resolution.trim()
+    const price = toNumberOrNull(row.price)
+    if (!resolution || price === null) return
+    prices[resolution] = price
+  })
+  return {
+    base_fps: toNumberOrNull(baseFps) || 24,
+    prices,
+  }
 }
 
 function buildPreviewRows(
@@ -306,6 +371,17 @@ function buildPreviewRows(
         label: t('Expression'),
         value: effectiveExpr || t('Empty'),
         multiline: true,
+      },
+    ]
+  }
+
+  if (mode === 'video_seconds') {
+    return [
+      { key: 'mode', label: 'BillingMode', value: 'video_seconds' },
+      {
+        key: 'video',
+        label: t('Video pricing'),
+        value: t('Configured by resolution price per second.'),
       },
     ]
   }
@@ -429,6 +505,9 @@ export function ModelPricingEditorPanel({
   })
   const [billingExpr, setBillingExpr] = useState('')
   const [requestRuleExpr, setRequestRuleExpr] = useState('')
+  const [videoBaseFps, setVideoBaseFps] = useState('24')
+  const [videoRows, setVideoRows] = useState<VideoPriceRow[]>([])
+  const [nextVideoRowId, setNextVideoRowId] = useState(3)
   const [previewOpen, setPreviewOpen] = useState(true)
   const isEditMode = !!editData
 
@@ -449,6 +528,7 @@ export function ModelPricingEditorPanel({
 
   useEffect(() => {
     const nextLaneState = createInitialLaneState(editData)
+    const nextVideoState = createInitialVideoRows(editData)
 
     if (editData) {
       form.reset({
@@ -465,6 +545,8 @@ export function ModelPricingEditorPanel({
       setPricingMode(
         editData.billingMode === 'tiered_expr'
           ? 'tiered_expr'
+          : editData.billingMode === 'video_seconds'
+            ? 'video_seconds'
           : editData.price
             ? 'per-request'
             : 'per-token'
@@ -491,6 +573,9 @@ export function ModelPricingEditorPanel({
     setPromptPrice(nextLaneState.promptPrice)
     setLanePrices(nextLaneState.prices)
     setLaneEnabled(nextLaneState.enabled)
+    setVideoBaseFps(nextVideoState.baseFps)
+    setVideoRows(nextVideoState.rows)
+    setNextVideoRowId(nextVideoState.rows.length + 1)
     setPreviewOpen(true)
   }, [editData, form])
 
@@ -612,6 +697,9 @@ export function ModelPricingEditorPanel({
     if (nextMode === 'tiered_expr' && !billingExpr) {
       setBillingExpr('tier("base", p * 0 + c * 0)')
     }
+    if (nextMode === 'video_seconds' && videoRows.length === 0) {
+      setVideoRows(createInitialVideoRows(editData).rows)
+    }
   }
 
   const watchedValues = form.watch()
@@ -726,6 +814,9 @@ export function ModelPricingEditorPanel({
       data.billingExpr = billingExpr
       data.requestRuleExpr = requestRuleExpr
     }
+    if (pricingMode === 'video_seconds') {
+      data.videoPrice = videoRowsToConfig(videoBaseFps, videoRows)
+    }
 
     onSave(data)
     form.reset()
@@ -800,13 +891,16 @@ export function ModelPricingEditorPanel({
               />
 
               <Tabs value={pricingMode} onValueChange={handleModeChange}>
-                <TabsList className='grid w-full grid-cols-3'>
+                <TabsList className='grid w-full grid-cols-4'>
                   <TabsTrigger value='per-token'>{t('Per-token')}</TabsTrigger>
                   <TabsTrigger value='per-request'>
                     {t('Per-request')}
                   </TabsTrigger>
                   <TabsTrigger value='tiered_expr'>
                     {t('Expression')}
+                  </TabsTrigger>
+                  <TabsTrigger value='video_seconds'>
+                    {t('Video per-second')}
                   </TabsTrigger>
                 </TabsList>
 
@@ -902,6 +996,26 @@ export function ModelPricingEditorPanel({
                     requestRuleExpr={requestRuleExpr}
                     onBillingExprChange={setBillingExpr}
                     onRequestRuleExprChange={setRequestRuleExpr}
+                  />
+                </TabsContent>
+
+                <TabsContent
+                  value='video_seconds'
+                  className='flex flex-col gap-5'
+                >
+                  <VideoPricingEditor
+                    baseFps={videoBaseFps}
+                    rows={videoRows}
+                    onBaseFpsChange={setVideoBaseFps}
+                    onRowsChange={(rows) => {
+                      setVideoRows(rows)
+                      setNextVideoRowId(
+                        rows.reduce((max, row) => Math.max(max, row.id), 0) +
+                          1
+                      )
+                    }}
+                    nextRowId={nextVideoRowId}
+                    onNextRowIdChange={setNextVideoRowId}
                   />
                 </TabsContent>
               </Tabs>
@@ -1041,5 +1155,135 @@ function PriceLane(props: {
           : t('Disabled lanes are omitted on save.')}
       </FieldDescription>
     </Field>
+  )
+}
+
+function VideoPricingEditor(props: {
+  baseFps: string
+  rows: VideoPriceRow[]
+  nextRowId: number
+  onBaseFpsChange: (value: string) => void
+  onRowsChange: (rows: VideoPriceRow[]) => void
+  onNextRowIdChange: (value: number) => void
+}) {
+  const { t } = useTranslation()
+
+  const updateRow = (
+    id: number,
+    field: 'resolution' | 'price',
+    value: string
+  ) => {
+    props.onRowsChange(
+      props.rows.map((row) =>
+        row.id === id ? { ...row, [field]: value } : row
+      )
+    )
+  }
+
+  const addRow = () => {
+    props.onRowsChange([
+      ...props.rows,
+      { id: props.nextRowId, resolution: '', price: '' },
+    ])
+    props.onNextRowIdChange(props.nextRowId + 1)
+  }
+
+  const removeRow = (id: number) => {
+    props.onRowsChange(props.rows.filter((row) => row.id !== id))
+  }
+
+  return (
+    <FieldGroup>
+      <Field>
+        <FieldLabel>{t('Base FPS')}</FieldLabel>
+        <Input
+          inputMode='decimal'
+          value={props.baseFps}
+          placeholder='24'
+          onChange={(event) => {
+            const value = event.target.value
+            if (numericDraftRegex.test(value)) {
+              props.onBaseFpsChange(value)
+            }
+          }}
+        />
+        <FieldDescription>
+          {t('Requests with higher FPS are multiplied by fps / base fps.')}
+        </FieldDescription>
+      </Field>
+
+      <Field>
+        <div className='flex items-center justify-between gap-3'>
+          <FieldContent>
+            <FieldTitle>{t('Resolution prices')}</FieldTitle>
+            <FieldDescription>
+              {t('Configure USD price per generated video second.')}
+            </FieldDescription>
+          </FieldContent>
+          <Button type='button' variant='outline' size='sm' onClick={addRow}>
+            <Plus data-icon='inline-start' />
+            {t('Add')}
+          </Button>
+        </div>
+        <div className='overflow-hidden rounded-md border'>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>{t('Resolution')}</TableHead>
+                <TableHead>{t('Price per second')}</TableHead>
+                <TableHead className='w-16 text-right'>
+                  {t('Actions')}
+                </TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {props.rows.map((row) => (
+                <TableRow key={row.id}>
+                  <TableCell>
+                    <Input
+                      value={row.resolution}
+                      placeholder='720p'
+                      onChange={(event) =>
+                        updateRow(row.id, 'resolution', event.target.value)
+                      }
+                    />
+                  </TableCell>
+                  <TableCell>
+                    <InputGroup>
+                      <InputGroupAddon>$</InputGroupAddon>
+                      <InputGroupInput
+                        inputMode='decimal'
+                        value={row.price}
+                        placeholder='1'
+                        onChange={(event) => {
+                          const value = event.target.value
+                          if (numericDraftRegex.test(value)) {
+                            updateRow(row.id, 'price', value)
+                          }
+                        }}
+                      />
+                      <InputGroupAddon align='inline-end'>
+                        {t('/ sec')}
+                      </InputGroupAddon>
+                    </InputGroup>
+                  </TableCell>
+                  <TableCell className='text-right'>
+                    <Button
+                      type='button'
+                      variant='ghost'
+                      size='icon'
+                      onClick={() => removeRow(row.id)}
+                      aria-label={t('Delete')}
+                    >
+                      <Trash2 className='text-destructive h-4 w-4' />
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+      </Field>
+    </FieldGroup>
   )
 }

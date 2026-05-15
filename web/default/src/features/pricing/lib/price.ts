@@ -138,6 +138,12 @@ const REQUEST_PRICE_FORMAT_OPTIONS: CurrencyFormatOptions = {
   abbreviate: false,
 }
 
+const VIDEO_PRICE_FORMAT_OPTIONS: CurrencyFormatOptions = {
+  digitsLarge: 4,
+  digitsSmall: 4,
+  abbreviate: false,
+}
+
 function formatPaymentCurrency(
   amount: number,
   options: CurrencyFormatOptions
@@ -283,5 +289,32 @@ export function formatRequestPrice(
     showWithRecharge,
     priceRate,
     REQUEST_PRICE_FORMAT_OPTIONS
+  )
+}
+
+export function getVideoPriceEntries(
+  model: PricingModel
+): Array<{ resolution: string; price: number }> {
+  const prices = model.video_price?.prices || {}
+  return Object.entries(prices)
+    .map(([resolution, price]) => ({ resolution, price: Number(price) }))
+    .filter((entry) => Number.isFinite(entry.price) && entry.price > 0)
+    .sort((a, b) => a.price - b.price)
+}
+
+export function formatVideoSecondPrice(
+  model: PricingModel,
+  showWithRecharge = false,
+  priceRate = 1,
+  _usdExchangeRate = 1,
+  ratio = 1
+): string {
+  const first = getVideoPriceEntries(model)[0]
+  if (!first) return '-'
+  return formatPricingCurrency(
+    first.price * ratio,
+    showWithRecharge,
+    priceRate,
+    VIDEO_PRICE_FORMAT_OPTIONS
   )
 }

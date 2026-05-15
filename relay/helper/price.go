@@ -2,6 +2,7 @@ package helper
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
@@ -167,6 +168,10 @@ func ModelPriceHelper(c *gin.Context, info *relaycommon.RelayInfo, promptTokens 
 func ModelPriceHelperPerCall(c *gin.Context, info *relaycommon.RelayInfo) (types.PriceData, error) {
 	groupRatioInfo := HandleGroupRatio(c, info)
 
+	if billing_setting.GetBillingMode(info.OriginModelName) == billing_setting.BillingModeVideoSeconds {
+		return modelPriceHelperVideoSeconds(c, info, groupRatioInfo)
+	}
+
 	modelPrice, success := ratio_setting.GetModelPrice(info.OriginModelName, true)
 	usePrice := success
 	var modelRatio float64
@@ -222,6 +227,206 @@ func ModelPriceHelperPerCall(c *gin.Context, info *relaycommon.RelayInfo) (types
 		GroupRatioInfo: groupRatioInfo,
 	}
 	return priceData, nil
+}
+
+type videoSecondsBillingTrace struct {
+	Resolution     string
+	Duration       float64
+	FPS            float64
+	BaseFPS        float64
+	FPSMultiplier  float64
+	PricePerSecond float64
+	TotalPrice     float64
+}
+
+func (t videoSecondsBillingTrace) toPriceDataTrace() *types.VideoSecondsTrace {
+	return &types.VideoSecondsTrace{
+		Resolution:     t.Resolution,
+		Duration:       t.Duration,
+		FPS:            t.FPS,
+		BaseFPS:        t.BaseFPS,
+		FPSMultiplier:  t.FPSMultiplier,
+		PricePerSecond: t.PricePerSecond,
+		TotalPrice:     t.TotalPrice,
+	}
+}
+
+func modelPriceHelperVideoSeconds(c *gin.Context, info *relaycommon.RelayInfo, groupRatioInfo types.GroupRatioInfo) (types.PriceData, error) {
+	cfg, ok := billing_setting.GetVideoPriceConfig(info.OriginModelName)
+	if !ok || len(cfg.Prices) == 0 {
+		return types.PriceData{}, fmt.Errorf("model %s video per-second price not configured", info.OriginModelName)
+	}
+	req, err := relaycommon.GetTaskRequest(c)
+	if err != nil {
+		return types.PriceData{}, err
+	}
+	trace, err := calculateVideoSecondsBilling(req, cfg)
+	if err != nil {
+		return types.PriceData{}, err
+	}
+	quota := billingexpr.QuotaRound(trace.TotalPrice * common.QuotaPerUnit * groupRatioInfo.GroupRatio)
+	priceData := types.PriceData{
+		ModelPrice:        trace.TotalPrice,
+		UsePrice:          true,
+		Quota:             quota,
+		GroupRatioInfo:    groupRatioInfo,
+		VideoSecondsTrace: trace.toPriceDataTrace(),
+	}
+	return priceData, nil
+}
+
+func calculateVideoSecondsBilling(req relaycommon.TaskSubmitReq, cfg billing_setting.VideoPriceConfig) (videoSecondsBillingTrace, error) {
+	resolution := resolveVideoResolution(req)
+	if resolution == "" {
+		return videoSecondsBillingTrace{}, fmt.Errorf("video resolution is required for video per-second billing")
+	}
+	pricePerSecond, ok := lookupVideoResolutionPrice(cfg.Prices, resolution)
+	if !ok || pricePerSecond <= 0 {
+		return videoSecondsBillingTrace{}, fmt.Errorf("video resolution %s price not configured", resolution)
+	}
+	duration := resolveVideoDuration(req)
+	if duration <= 0 {
+		return videoSecondsBillingTrace{}, fmt.Errorf("video duration is required for video per-second billing")
+	}
+	baseFPS := cfg.BaseFPS
+	if baseFPS <= 0 {
+		baseFPS = 24
+	}
+	fps := resolveVideoFPS(req)
+	if fps <= 0 {
+		fps = baseFPS
+	}
+	fpsMultiplier := fps / baseFPS
+	totalPrice := pricePerSecond * duration * fpsMultiplier
+	return videoSecondsBillingTrace{
+		Resolution:     resolution,
+		Duration:       duration,
+		FPS:            fps,
+		BaseFPS:        baseFPS,
+		FPSMultiplier:  fpsMultiplier,
+		PricePerSecond: pricePerSecond,
+		TotalPrice:     totalPrice,
+	}, nil
+}
+
+func lookupVideoResolutionPrice(prices map[string]float64, resolution string) (float64, bool) {
+	normalized := normalizeVideoResolution(resolution)
+	for key, price := range prices {
+		if normalizeVideoResolution(key) == normalized {
+			return price, true
+		}
+	}
+	return 0, false
+}
+
+func resolveVideoDuration(req relaycommon.TaskSubmitReq) float64 {
+	if req.Duration > 0 {
+		return float64(req.Duration)
+	}
+	if sec, err := strconv.ParseFloat(strings.TrimSpace(req.Seconds), 64); err == nil && sec > 0 {
+		return sec
+	}
+	return firstPositiveMetadataNumber(req.Metadata, "duration", "seconds", "duration_seconds", "durationSeconds")
+}
+
+func resolveVideoFPS(req relaycommon.TaskSubmitReq) float64 {
+	for _, v := range []int{req.FPS, req.FrameRate, req.FramesPerSecond, req.FramesPerSecondCamel} {
+		if v > 0 {
+			return float64(v)
+		}
+	}
+	return firstPositiveMetadataNumber(req.Metadata, "fps", "frame_rate", "frameRate", "framespersecond", "framesPerSecond")
+}
+
+func resolveVideoResolution(req relaycommon.TaskSubmitReq) string {
+	for _, key := range []string{"resolution", "quality", "size"} {
+		if v, ok := req.Metadata[key].(string); ok && strings.TrimSpace(v) != "" {
+			return normalizeVideoResolution(v)
+		}
+	}
+	if strings.TrimSpace(req.Size) != "" {
+		if res := resolutionFromSize(req.Size); res != "" {
+			return res
+		}
+	}
+	width := req.Width
+	height := req.Height
+	if width <= 0 {
+		width = int(firstPositiveMetadataNumber(req.Metadata, "width"))
+	}
+	if height <= 0 {
+		height = int(firstPositiveMetadataNumber(req.Metadata, "height"))
+	}
+	if width > 0 && height > 0 {
+		shortSide := width
+		if height < shortSide {
+			shortSide = height
+		}
+		return normalizeVideoResolution(fmt.Sprintf("%dp", shortSide))
+	}
+	return ""
+}
+
+func resolutionFromSize(size string) string {
+	parts := strings.FieldsFunc(strings.ToLower(strings.TrimSpace(size)), func(r rune) bool {
+		return r == 'x' || r == '*' || r == '×'
+	})
+	if len(parts) != 2 {
+		return normalizeVideoResolution(size)
+	}
+	width, errW := strconv.Atoi(strings.TrimSpace(parts[0]))
+	height, errH := strconv.Atoi(strings.TrimSpace(parts[1]))
+	if errW != nil || errH != nil || width <= 0 || height <= 0 {
+		return normalizeVideoResolution(size)
+	}
+	shortSide := width
+	if height < shortSide {
+		shortSide = height
+	}
+	return normalizeVideoResolution(fmt.Sprintf("%dp", shortSide))
+}
+
+func normalizeVideoResolution(resolution string) string {
+	resolution = strings.ToLower(strings.TrimSpace(resolution))
+	resolution = strings.ReplaceAll(resolution, " ", "")
+	if strings.HasSuffix(resolution, "p") {
+		return resolution
+	}
+	if v, err := strconv.Atoi(resolution); err == nil && v > 0 {
+		return fmt.Sprintf("%dp", v)
+	}
+	return resolution
+}
+
+func firstPositiveMetadataNumber(metadata map[string]interface{}, keys ...string) float64 {
+	if metadata == nil {
+		return 0
+	}
+	for _, key := range keys {
+		value, ok := metadata[key]
+		if !ok {
+			continue
+		}
+		switch v := value.(type) {
+		case int:
+			if v > 0 {
+				return float64(v)
+			}
+		case int64:
+			if v > 0 {
+				return float64(v)
+			}
+		case float64:
+			if v > 0 {
+				return v
+			}
+		case string:
+			if n, err := strconv.ParseFloat(strings.TrimSpace(v), 64); err == nil && n > 0 {
+				return n
+			}
+		}
+	}
+	return 0
 }
 
 func HasModelBillingConfig(modelName string) bool {

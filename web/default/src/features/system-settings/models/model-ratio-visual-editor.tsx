@@ -64,6 +64,7 @@ import {
   ModelPricingEditorPanel,
   ModelPricingSheet,
   type ModelRatioData,
+  type VideoPricingConfig,
 } from './model-pricing-sheet'
 
 type ModelRatioVisualEditorProps = {
@@ -77,6 +78,7 @@ type ModelRatioVisualEditorProps = {
   audioCompletionRatio: string
   billingMode: string
   billingExpr: string
+  videoPrice: string
   onChange: (field: string, value: string) => void
 }
 
@@ -93,6 +95,7 @@ type ModelRow = {
   billingMode?: string
   billingExpr?: string
   requestRuleExpr?: string
+  videoPrice?: VideoPricingConfig
   hasConflict: boolean
 }
 
@@ -128,12 +131,14 @@ const filterBySelectedValues = (
 const getModeLabel = (mode?: string) => {
   if (mode === 'per-request') return 'Per-request'
   if (mode === 'tiered_expr') return 'Expression'
+  if (mode === 'video_seconds') return 'Video per-second'
   return 'Per-token'
 }
 
 const getModeVariant = (mode?: string): 'warning' | 'info' | 'success' => {
   if (mode === 'per-request') return 'warning'
   if (mode === 'tiered_expr') return 'info'
+  if (mode === 'video_seconds') return 'warning'
   return 'success'
 }
 
@@ -148,6 +153,10 @@ const getExpressionSummary = (row: ModelRow, t: (key: string) => string) => {
 const getPriceSummary = (row: ModelRow, t: (key: string) => string) => {
   if (row.billingMode === 'tiered_expr') {
     return getExpressionSummary(row, t)
+  }
+  if (row.billingMode === 'video_seconds') {
+    const count = Object.keys(row.videoPrice?.prices || {}).length
+    return `${t('Video per-second')} · ${count} ${t('resolutions')}`
   }
   if (row.billingMode === 'per-request') {
     return row.price ? `$${row.price} / ${t('request')}` : t('Unset price')
@@ -175,6 +184,9 @@ const getPriceDetail = (row: ModelRow, t: (key: string) => string) => {
     return row.requestRuleExpr
       ? t('Includes request rules')
       : t('Expression based')
+  }
+  if (row.billingMode === 'video_seconds') {
+    return t('Configured by resolution price per second.')
   }
   if (row.billingMode === 'per-request') {
     return t('Fixed request price')
@@ -207,6 +219,7 @@ export const ModelRatioVisualEditor = memo(
     audioCompletionRatio,
     billingMode,
     billingExpr,
+    videoPrice,
     onChange,
   }: ModelRatioVisualEditorProps) {
     const { t } = useTranslation()
@@ -308,6 +321,13 @@ export const ModelRatioVisualEditor = memo(
           context: 'billing expression',
         }
       )
+      const videoPriceMap = safeJsonParse<Record<string, VideoPricingConfig>>(
+        videoPrice,
+        {
+          fallback: {},
+          context: 'video pricing',
+        }
+      )
 
       const modelNames = new Set([
         ...Object.keys(priceMap),
@@ -320,6 +340,7 @@ export const ModelRatioVisualEditor = memo(
         ...Object.keys(audioCompletionMap),
         ...Object.keys(billingModeMap),
         ...Object.keys(billingExprMap),
+        ...Object.keys(videoPriceMap),
       ])
 
       const modelData: ModelRow[] = Array.from(modelNames).map((name) => {
@@ -345,6 +366,22 @@ export const ModelRatioVisualEditor = memo(
             billingMode: 'tiered_expr',
             billingExpr: pureExpr,
             requestRuleExpr,
+            price,
+            ratio,
+            cacheRatio: cache,
+            createCacheRatio: createCache,
+            completionRatio: completion,
+            imageRatio: image,
+            audioRatio: audio,
+            audioCompletionRatio: audioCompletion,
+            hasConflict: false,
+          }
+        }
+        if (modeForModel === 'video_seconds') {
+          return {
+            name,
+            billingMode: 'video_seconds',
+            videoPrice: videoPriceMap[name],
             price,
             ratio,
             cacheRatio: cache,
@@ -392,6 +429,7 @@ export const ModelRatioVisualEditor = memo(
       audioCompletionRatio,
       billingMode,
       billingExpr,
+      videoPrice,
     ])
 
     const modeCounts = useMemo(
@@ -400,7 +438,8 @@ export const ModelRatioVisualEditor = memo(
           (acc, model) => {
             const mode =
               model.billingMode === 'per-request' ||
-              model.billingMode === 'tiered_expr'
+              model.billingMode === 'tiered_expr' ||
+              model.billingMode === 'video_seconds'
                 ? model.billingMode
                 : 'per-token'
             acc[mode] += 1
@@ -410,7 +449,11 @@ export const ModelRatioVisualEditor = memo(
             'per-token': 0,
             'per-request': 0,
             tiered_expr: 0,
-          } as Record<'per-token' | 'per-request' | 'tiered_expr', number>
+            video_seconds: 0,
+          } as Record<
+            'per-token' | 'per-request' | 'tiered_expr' | 'video_seconds',
+            number
+          >
         ),
       [models]
     )
@@ -430,11 +473,14 @@ export const ModelRatioVisualEditor = memo(
           billingMode:
             model.billingMode === 'tiered_expr'
               ? 'tiered_expr'
+              : model.billingMode === 'video_seconds'
+                ? 'video_seconds'
               : model.price && model.price !== ''
                 ? 'per-request'
                 : 'per-token',
           billingExpr: model.billingExpr,
           requestRuleExpr: model.requestRuleExpr,
+          videoPrice: model.videoPrice,
         })
         setEditorOpen(true)
         if (isMobile) setSheetOpen(true)
@@ -512,6 +558,10 @@ export const ModelRatioVisualEditor = memo(
           billingExpr,
           { fallback: {}, silent: true }
         )
+        const videoPriceMap = safeJsonParse<Record<string, VideoPricingConfig>>(
+          videoPrice,
+          { fallback: {}, silent: true }
+        )
 
         delete priceMap[name]
         delete ratioMap[name]
@@ -523,6 +573,7 @@ export const ModelRatioVisualEditor = memo(
         delete audioCompletionMap[name]
         delete billingModeMap[name]
         delete billingExprMap[name]
+        delete videoPriceMap[name]
 
         onChange('ModelPrice', JSON.stringify(priceMap, null, 2))
         onChange('ModelRatio', JSON.stringify(ratioMap, null, 2))
@@ -543,6 +594,10 @@ export const ModelRatioVisualEditor = memo(
           'billing_setting.billing_expr',
           JSON.stringify(billingExprMap, null, 2)
         )
+        onChange(
+          'billing_setting.video_price',
+          JSON.stringify(videoPriceMap, null, 2)
+        )
       },
       [
         modelPrice,
@@ -555,6 +610,7 @@ export const ModelRatioVisualEditor = memo(
         audioCompletionRatio,
         billingMode,
         billingExpr,
+        videoPrice,
         onChange,
       ]
     )
@@ -747,6 +803,10 @@ export const ModelRatioVisualEditor = memo(
           billingExpr,
           { fallback: {}, silent: true }
         )
+        const videoPriceMap = safeJsonParse<Record<string, VideoPricingConfig>>(
+          videoPrice,
+          { fallback: {}, silent: true }
+        )
 
         const setIfPresent = (
           target: Record<string, number>,
@@ -769,6 +829,7 @@ export const ModelRatioVisualEditor = memo(
           delete audioCompletionMap[name]
           delete billingModeMap[name]
           delete billingExprMap[name]
+          delete videoPriceMap[name]
 
           if (data.billingMode === 'tiered_expr') {
             const combined = combineBillingExpr(
@@ -791,6 +852,14 @@ export const ModelRatioVisualEditor = memo(
             setIfPresent(imageMap, name, data.imageRatio)
             setIfPresent(audioMap, name, data.audioRatio)
             setIfPresent(audioCompletionMap, name, data.audioCompletionRatio)
+          } else if (data.billingMode === 'video_seconds') {
+            if (
+              data.videoPrice &&
+              Object.keys(data.videoPrice.prices || {}).length > 0
+            ) {
+              billingModeMap[name] = 'video_seconds'
+              videoPriceMap[name] = data.videoPrice
+            }
           } else if (data.price && data.price !== '') {
             setIfPresent(priceMap, name, data.price)
           } else {
@@ -823,6 +892,10 @@ export const ModelRatioVisualEditor = memo(
           'billing_setting.billing_expr',
           JSON.stringify(billingExprMap, null, 2)
         )
+        onChange(
+          'billing_setting.video_price',
+          JSON.stringify(videoPriceMap, null, 2)
+        )
       },
       [
         modelPrice,
@@ -835,6 +908,7 @@ export const ModelRatioVisualEditor = memo(
         audioCompletionRatio,
         billingMode,
         billingExpr,
+        videoPrice,
         onChange,
       ]
     )
@@ -901,6 +975,11 @@ export const ModelRatioVisualEditor = memo(
                       label: 'Expression',
                       value: 'tiered_expr',
                       count: modeCounts.tiered_expr,
+                    },
+                    {
+                      label: 'Video per-second',
+                      value: 'video_seconds',
+                      count: modeCounts.video_seconds,
                     },
                   ],
                 },
@@ -1040,6 +1119,7 @@ export const ModelRatioVisualEditor = memo(
       prevProps.audioCompletionRatio === nextProps.audioCompletionRatio &&
       prevProps.billingMode === nextProps.billingMode &&
       prevProps.billingExpr === nextProps.billingExpr &&
+      prevProps.videoPrice === nextProps.videoPrice &&
       prevProps.onChange === nextProps.onChange
     )
   }

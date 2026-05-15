@@ -21,10 +21,21 @@ type PriceData struct {
 	AudioRatio           float64
 	AudioCompletionRatio float64
 	OtherRatios          map[string]float64
+	VideoSecondsTrace    *VideoSecondsTrace
 	UsePrice             bool
 	Quota                int // 按次计费的最终额度（MJ / Task）
 	QuotaToPreConsume    int // 按量计费的预消耗额度
 	GroupRatioInfo       GroupRatioInfo
+}
+
+type VideoSecondsTrace struct {
+	Resolution     string
+	Duration       float64
+	FPS            float64
+	BaseFPS        float64
+	FPSMultiplier  float64
+	PricePerSecond float64
+	TotalPrice     float64
 }
 
 func (p *PriceData) AddOtherRatio(key string, ratio float64) {

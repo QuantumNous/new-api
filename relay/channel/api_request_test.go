@@ -1,11 +1,17 @@
 package channel
 
 import (
+	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
+	"github.com/QuantumNous/new-api/dto"
+	"github.com/QuantumNous/new-api/model"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/setting/system_setting"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 )
@@ -190,4 +196,86 @@ func TestProcessHeaderOverride_PassHeadersTemplateSetsRuntimeHeaders(t *testing.
 	require.Equal(t, "Codex CLI", upstreamReq.Header.Get("Originator"))
 	require.Equal(t, "sess-123", upstreamReq.Header.Get("Session_id"))
 	require.Empty(t, upstreamReq.Header.Get("X-Codex-Beta-Features"))
+}
+
+type replayTaskAdaptor struct {
+	url string
+}
+
+func (a replayTaskAdaptor) Init(_ *relaycommon.RelayInfo) {}
+func (a replayTaskAdaptor) ValidateRequestAndSetAction(_ *gin.Context, _ *relaycommon.RelayInfo) *dto.TaskError {
+	return nil
+}
+func (a replayTaskAdaptor) EstimateBilling(_ *gin.Context, _ *relaycommon.RelayInfo) map[string]float64 {
+	return nil
+}
+func (a replayTaskAdaptor) AdjustBillingOnSubmit(_ *relaycommon.RelayInfo, _ []byte) map[string]float64 {
+	return nil
+}
+func (a replayTaskAdaptor) AdjustBillingOnComplete(_ *model.Task, _ *relaycommon.TaskInfo) int {
+	return 0
+}
+func (a replayTaskAdaptor) BuildRequestURL(_ *relaycommon.RelayInfo) (string, error) {
+	return a.url, nil
+}
+func (a replayTaskAdaptor) BuildRequestHeader(_ *gin.Context, req *http.Request, _ *relaycommon.RelayInfo) error {
+	req.Header.Set("Content-Type", "application/json")
+	return nil
+}
+func (a replayTaskAdaptor) BuildRequestBody(_ *gin.Context, _ *relaycommon.RelayInfo) (io.Reader, error) {
+	return strings.NewReader(`{"prompt":"小猫在城市上空急速飞行"}`), nil
+}
+func (a replayTaskAdaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, requestBody io.Reader) (*http.Response, error) {
+	return DoTaskApiRequest(a, c, info, requestBody)
+}
+func (a replayTaskAdaptor) DoResponse(_ *gin.Context, _ *http.Response, _ *relaycommon.RelayInfo) (string, []byte, *dto.TaskError) {
+	return "", nil, nil
+}
+func (a replayTaskAdaptor) GetModelList() []string { return nil }
+func (a replayTaskAdaptor) GetChannelName() string { return "replay-test" }
+func (a replayTaskAdaptor) FetchTask(_, _ string, _ map[string]any, _ string) (*http.Response, error) {
+	return nil, nil
+}
+func (a replayTaskAdaptor) ParseTaskResult(_ []byte) (*relaycommon.TaskInfo, error) {
+	return nil, nil
+}
+
+func TestDoTaskApiRequestReplaysBodyAfterRedirect(t *testing.T) {
+	fetchSetting := system_setting.GetFetchSetting()
+	originalFetchSetting := *fetchSetting
+	fetchSetting.EnableSSRFProtection = false
+	defer func() {
+		*fetchSetting = originalFetchSetting
+	}()
+	service.InitHttpClient()
+
+	var finalBody string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/redirect" {
+			http.Redirect(w, r, "/final", http.StatusTemporaryRedirect)
+			return
+		}
+		body, err := io.ReadAll(r.Body)
+		require.NoError(t, err)
+		finalBody = string(body)
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"ok":true}`))
+	}))
+	defer server.Close()
+
+	gin.SetMode(gin.TestMode)
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/video/generations", nil)
+
+	adaptor := replayTaskAdaptor{url: server.URL + "/redirect"}
+	info := &relaycommon.RelayInfo{ChannelMeta: &relaycommon.ChannelMeta{}}
+	body, err := adaptor.BuildRequestBody(c, info)
+	require.NoError(t, err)
+	resp, err := DoTaskApiRequest(adaptor, c, info, body)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+	require.JSONEq(t, `{"prompt":"小猫在城市上空急速飞行"}`, finalBody)
 }

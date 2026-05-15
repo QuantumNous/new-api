@@ -35,6 +35,8 @@ const defaultSiteSettings: SiteSettings = {
   'legal.user_agreement': '',
   'legal.privacy_policy': '',
   HeaderNavModules: '',
+  RankingsDisplayMultiplier: '1',
+  RankingsDisplayJitterRatio: '0',
   SidebarModulesAdmin: '',
 }
 

@@ -674,16 +674,53 @@ type TaskRelayInfo struct {
 }
 
 type TaskSubmitReq struct {
-	Prompt         string                 `json:"prompt"`
-	Model          string                 `json:"model,omitempty"`
-	Mode           string                 `json:"mode,omitempty"`
-	Image          string                 `json:"image,omitempty"`
-	Images         []string               `json:"images,omitempty"`
-	Size           string                 `json:"size,omitempty"`
-	Duration       int                    `json:"duration,omitempty"`
-	Seconds        string                 `json:"seconds,omitempty"`
-	InputReference string                 `json:"input_reference,omitempty"`
-	Metadata       map[string]interface{} `json:"metadata,omitempty"`
+	Prompt               string                 `json:"prompt"`
+	Model                string                 `json:"model,omitempty"`
+	Mode                 string                 `json:"mode,omitempty"`
+	Image                string                 `json:"image,omitempty"`
+	Images               []string               `json:"images,omitempty"`
+	ImageInputs          []TaskImageInput       `json:"-"`
+	Size                 string                 `json:"size,omitempty"`
+	Width                int                    `json:"width,omitempty"`
+	Height               int                    `json:"height,omitempty"`
+	Duration             int                    `json:"duration,omitempty"`
+	Seconds              string                 `json:"seconds,omitempty"`
+	FPS                  int                    `json:"fps,omitempty"`
+	FrameRate            int                    `json:"frame_rate,omitempty"`
+	FramesPerSecond      int                    `json:"framespersecond,omitempty"`
+	FramesPerSecondCamel int                    `json:"framesPerSecond,omitempty"`
+	InputReference       string                 `json:"input_reference,omitempty"`
+	Metadata             map[string]interface{} `json:"metadata,omitempty"`
+}
+
+type TaskImageInput struct {
+	URL  string `json:"url,omitempty"`
+	Role string `json:"role,omitempty"`
+}
+
+func (i *TaskImageInput) UnmarshalJSON(data []byte) error {
+	var url string
+	if err := common.Unmarshal(data, &url); err == nil {
+		i.URL = url
+		return nil
+	}
+
+	var obj struct {
+		URL      string `json:"url,omitempty"`
+		Role     string `json:"role,omitempty"`
+		ImageURL *struct {
+			URL string `json:"url,omitempty"`
+		} `json:"image_url,omitempty"`
+	}
+	if err := common.Unmarshal(data, &obj); err != nil {
+		return err
+	}
+	i.URL = obj.URL
+	i.Role = obj.Role
+	if i.URL == "" && obj.ImageURL != nil {
+		i.URL = obj.ImageURL.URL
+	}
+	return nil
 }
 
 func (t *TaskSubmitReq) GetPrompt() string {
@@ -695,18 +732,43 @@ func (t *TaskSubmitReq) HasImage() bool {
 }
 
 func (t *TaskSubmitReq) UnmarshalJSON(data []byte) error {
-	type Alias TaskSubmitReq
-	aux := &struct {
-		Metadata json.RawMessage `json:"metadata,omitempty"`
-		Duration json.RawMessage `json:"duration,omitempty"`
-		*Alias
-	}{
-		Alias: (*Alias)(t),
+	var aux struct {
+		Prompt               string                 `json:"prompt"`
+		Model                string                 `json:"model,omitempty"`
+		Mode                 string                 `json:"mode,omitempty"`
+		Image                string                 `json:"image,omitempty"`
+		Images               json.RawMessage        `json:"images,omitempty"`
+		Size                 string                 `json:"size,omitempty"`
+		Width                int                    `json:"width,omitempty"`
+		Height               int                    `json:"height,omitempty"`
+		Duration             json.RawMessage        `json:"duration,omitempty"`
+		Seconds              string                 `json:"seconds,omitempty"`
+		FPS                  int                    `json:"fps,omitempty"`
+		FrameRate            int                    `json:"frame_rate,omitempty"`
+		FramesPerSecond      int                    `json:"framespersecond,omitempty"`
+		FramesPerSecondCamel int                    `json:"framesPerSecond,omitempty"`
+		InputReference       string                 `json:"input_reference,omitempty"`
+		Metadata             json.RawMessage        `json:"metadata,omitempty"`
+		Extra                map[string]interface{} `json:"-"`
 	}
 
 	if err := common.Unmarshal(data, &aux); err != nil {
 		return err
 	}
+
+	t.Prompt = aux.Prompt
+	t.Model = aux.Model
+	t.Mode = aux.Mode
+	t.Image = aux.Image
+	t.Size = aux.Size
+	t.Width = aux.Width
+	t.Height = aux.Height
+	t.Seconds = aux.Seconds
+	t.FPS = aux.FPS
+	t.FrameRate = aux.FrameRate
+	t.FramesPerSecond = aux.FramesPerSecond
+	t.FramesPerSecondCamel = aux.FramesPerSecondCamel
+	t.InputReference = aux.InputReference
 
 	if len(aux.Duration) > 0 {
 		var durationInt int
@@ -718,6 +780,20 @@ func (t *TaskSubmitReq) UnmarshalJSON(data []byte) error {
 				if v, err := strconv.Atoi(durationStr); err == nil {
 					t.Duration = v
 				}
+			}
+		}
+	}
+
+	if len(aux.Images) > 0 {
+		imageInputs, err := parseTaskImageInputs(aux.Images)
+		if err != nil {
+			return err
+		}
+		t.ImageInputs = imageInputs
+		t.Images = make([]string, 0, len(imageInputs))
+		for _, imageInput := range imageInputs {
+			if imageInput.URL != "" {
+				t.Images = append(t.Images, imageInput.URL)
 			}
 		}
 	}
@@ -739,6 +815,19 @@ func (t *TaskSubmitReq) UnmarshalJSON(data []byte) error {
 	}
 
 	return nil
+}
+
+func parseTaskImageInputs(data []byte) ([]TaskImageInput, error) {
+	var single TaskImageInput
+	if err := common.Unmarshal(data, &single); err == nil && single.URL != "" {
+		return []TaskImageInput{single}, nil
+	}
+
+	var images []TaskImageInput
+	if err := common.Unmarshal(data, &images); err != nil {
+		return nil, err
+	}
+	return images, nil
 }
 func (t *TaskSubmitReq) UnmarshalMetadata(v any) error {
 	metadata := t.Metadata

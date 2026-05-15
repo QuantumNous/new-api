@@ -184,6 +184,10 @@ function buildDetailSegments(
         muted: true,
       })
     }
+  } else if (other.billing_mode === 'video_seconds') {
+    segments.push({
+      text: `${t('Video per-second')} · ${formatBillingCurrencyFromUSD(other.video_total_price ?? other.model_price ?? 0, priceOpts)}`,
+    })
   } else {
     const isPerCall = isPerCallBilling(other.model_price)
     if (isPerCall) {

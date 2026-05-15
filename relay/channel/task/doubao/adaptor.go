@@ -273,34 +273,72 @@ func (a *TaskAdaptor) convertToRequestPayload(req *relaycommon.TaskSubmitReq) (*
 		Content: []ContentItem{},
 	}
 
-	// Add images if present
-	if req.HasImage() {
-		for _, imgURL := range req.Images {
-			r.Content = append(r.Content, ContentItem{
-				Type: "image_url",
-				ImageURL: &MediaURL{
-					URL: imgURL,
-				},
-			})
-		}
-	}
-
 	metadata := req.Metadata
 	if err := taskcommon.UnmarshalMetadata(metadata, &r); err != nil {
 		return nil, errors.Wrap(err, "unmarshal metadata failed")
 	}
 
-	if sec, _ := strconv.Atoi(req.Seconds); sec > 0 {
+	// Add images if present
+	if req.HasImage() {
+		imageInputs := req.ImageInputs
+		if len(imageInputs) == 0 {
+			imageInputs = make([]relaycommon.TaskImageInput, 0, len(req.Images))
+			for _, imgURL := range req.Images {
+				imageInputs = append(imageInputs, relaycommon.TaskImageInput{URL: imgURL})
+			}
+		}
+		for _, imageInput := range imageInputs {
+			if imageInput.URL == "" {
+				continue
+			}
+			r.Content = append(r.Content, ContentItem{
+				Type: "image_url",
+				ImageURL: &MediaURL{
+					URL: imageInput.URL,
+				},
+				Role: imageInput.Role,
+			})
+		}
+	}
+
+	if req.Width > 0 && req.Height > 0 {
+		r.Resolution = fmt.Sprintf("%dp", minInt(req.Width, req.Height))
+		r.Ratio = fmt.Sprintf("%d:%d", req.Width/gcdInt(req.Width, req.Height), req.Height/gcdInt(req.Width, req.Height))
+	}
+
+	if req.Duration > 0 {
+		r.Duration = lo.ToPtr(dto.IntValue(req.Duration))
+	} else if sec, _ := strconv.Atoi(req.Seconds); sec > 0 {
 		r.Duration = lo.ToPtr(dto.IntValue(sec))
 	}
 
 	r.Content = lo.Reject(r.Content, func(c ContentItem, _ int) bool { return c.Type == "text" })
-	r.Content = append(r.Content, ContentItem{
-		Type: "text",
-		Text: req.Prompt,
-	})
+	r.Content = append([]ContentItem{{Type: "text", Text: req.Prompt}}, r.Content...)
 
 	return &r, nil
+}
+
+func minInt(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
+}
+
+func gcdInt(a, b int) int {
+	if a < 0 {
+		a = -a
+	}
+	if b < 0 {
+		b = -b
+	}
+	for b != 0 {
+		a, b = b, a%b
+	}
+	if a == 0 {
+		return 1
+	}
+	return a
 }
 
 func (a *TaskAdaptor) ParseTaskResult(respBody []byte) (*relaycommon.TaskInfo, error) {

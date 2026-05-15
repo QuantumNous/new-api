@@ -2,11 +2,14 @@ package service
 
 import (
 	"fmt"
+	"hash/fnv"
 	"math"
 	"sort"
+	"strconv"
 	"sync"
 	"time"
 
+	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
 )
 
@@ -18,6 +21,9 @@ const (
 	rankingMoverLimit       = 6
 	rankingOthersLabel      = "Others"
 	rankingUnknownVendor    = "Unknown"
+
+	rankingDisplayMultiplierOption = "RankingsDisplayMultiplier"
+	rankingDisplayJitterOption     = "RankingsDisplayJitterRatio"
 )
 
 type RankingsResponse struct {
@@ -119,6 +125,11 @@ type rankingModelMeta struct {
 	vendorIcon string
 }
 
+type rankingDisplaySettings struct {
+	multiplier float64
+	jitter     float64
+}
+
 type vendorAggregate struct {
 	name           string
 	icon           string
@@ -141,20 +152,22 @@ func GetRankingsSnapshot(period string) (*RankingsResponse, error) {
 	}
 
 	now := time.Now()
+	displaySettings := getRankingDisplaySettings()
+	cacheKey := rankingCacheKey(config, displaySettings)
 	rankingCacheMu.Lock()
-	if item, ok := rankingCache[config.id]; ok && now.Before(item.expiresAt) {
+	if item, ok := rankingCache[cacheKey]; ok && now.Before(item.expiresAt) {
 		rankingCacheMu.Unlock()
 		return item.data, nil
 	}
 	rankingCacheMu.Unlock()
 
-	data, err := buildRankingsSnapshot(config, now)
+	data, err := buildRankingsSnapshot(config, now, displaySettings)
 	if err != nil {
 		return nil, err
 	}
 
 	rankingCacheMu.Lock()
-	rankingCache[config.id] = rankingCacheItem{
+	rankingCache[cacheKey] = rankingCacheItem{
 		expiresAt: now.Add(rankingCacheTTL),
 		data:      data,
 	}
@@ -180,7 +193,31 @@ func rankingConfig(period string) (rankingPeriodConfig, error) {
 	}
 }
 
-func buildRankingsSnapshot(config rankingPeriodConfig, now time.Time) (*RankingsResponse, error) {
+func getRankingDisplaySettings() rankingDisplaySettings {
+	common.OptionMapRWMutex.RLock()
+	multiplierValue := common.OptionMap[rankingDisplayMultiplierOption]
+	jitterValue := common.OptionMap[rankingDisplayJitterOption]
+	common.OptionMapRWMutex.RUnlock()
+
+	multiplier, err := strconv.ParseFloat(multiplierValue, 64)
+	if err != nil || multiplier < 0 {
+		multiplier = 1
+	}
+	jitter, err := strconv.ParseFloat(jitterValue, 64)
+	if err != nil || jitter < 0 {
+		jitter = 0
+	}
+	return rankingDisplaySettings{
+		multiplier: multiplier,
+		jitter:     jitter,
+	}
+}
+
+func rankingCacheKey(config rankingPeriodConfig, settings rankingDisplaySettings) string {
+	return fmt.Sprintf("%s:display:%g:%g", config.id, settings.multiplier, settings.jitter)
+}
+
+func buildRankingsSnapshot(config rankingPeriodConfig, now time.Time, displaySettings rankingDisplaySettings) (*RankingsResponse, error) {
 	startTime, endTime := rankingTimeRange(config, now)
 	currentTotals, err := model.GetRankingQuotaTotals(startTime, endTime)
 	if err != nil {
@@ -199,6 +236,10 @@ func buildRankingsSnapshot(config rankingPeriodConfig, now time.Time) (*Rankings
 			return nil, err
 		}
 	}
+
+	currentTotals = applyRankingDisplayToTotals(currentTotals, displaySettings, config.id+":current")
+	currentBuckets = applyRankingDisplayToBuckets(currentBuckets, displaySettings, config.id+":bucket")
+	previousTotals = applyRankingDisplayToTotals(previousTotals, displaySettings, config.id+":previous")
 
 	meta := buildRankingModelMeta()
 	totalTokens := sumRankingTokens(currentTotals)
@@ -511,6 +552,60 @@ func buildRankingMovers(models []RankedModel) ([]RankingMover, []RankingMover) {
 		return droppers[i].RankDelta < droppers[j].RankDelta
 	})
 	return limitRankingMovers(movers, rankingMoverLimit), limitRankingMovers(droppers, rankingMoverLimit)
+}
+
+func applyRankingDisplayToTotals(totals []model.RankingQuotaTotal, settings rankingDisplaySettings, saltPrefix string) []model.RankingQuotaTotal {
+	if !rankingDisplayEnabled(settings) || len(totals) == 0 {
+		return totals
+	}
+	rows := make([]model.RankingQuotaTotal, len(totals))
+	for i, item := range totals {
+		rows[i] = item
+		rows[i].TotalTokens = rankingDisplayValue(item.TotalTokens, settings, fmt.Sprintf("%s:%s:%d", saltPrefix, item.ModelName, item.TotalTokens))
+	}
+	sort.Slice(rows, func(i, j int) bool {
+		if rows[i].TotalTokens == rows[j].TotalTokens {
+			return rows[i].ModelName < rows[j].ModelName
+		}
+		return rows[i].TotalTokens > rows[j].TotalTokens
+	})
+	return rows
+}
+
+func applyRankingDisplayToBuckets(buckets []model.RankingQuotaBucket, settings rankingDisplaySettings, saltPrefix string) []model.RankingQuotaBucket {
+	if !rankingDisplayEnabled(settings) || len(buckets) == 0 {
+		return buckets
+	}
+	rows := make([]model.RankingQuotaBucket, len(buckets))
+	for i, item := range buckets {
+		rows[i] = item
+		rows[i].Tokens = rankingDisplayValue(item.Tokens, settings, fmt.Sprintf("%s:%d:%s:%d", saltPrefix, item.Bucket, item.ModelName, item.Tokens))
+	}
+	return rows
+}
+
+func rankingDisplayEnabled(settings rankingDisplaySettings) bool {
+	return settings.multiplier != 1 || settings.jitter != 0
+}
+
+func rankingDisplayValue(value int64, settings rankingDisplaySettings, salt string) int64 {
+	if value <= 0 {
+		return 0
+	}
+	scaled := float64(value) * settings.multiplier
+	if settings.jitter > 0 {
+		scaled += scaled * settings.jitter * rankingStableRandom01(salt)
+	}
+	if scaled <= 0 {
+		return 0
+	}
+	return int64(math.Round(scaled))
+}
+
+func rankingStableRandom01(salt string) float64 {
+	hasher := fnv.New64a()
+	_, _ = hasher.Write([]byte(salt))
+	return float64(hasher.Sum64()%1_000_000) / 1_000_000
 }
 
 func sortedRankingBuckets(bucketSet map[int64]struct{}) []int64 {

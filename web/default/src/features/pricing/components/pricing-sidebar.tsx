@@ -199,12 +199,26 @@ export function PricingSidebar(props: PricingSidebarProps) {
     {
       value: QUOTA_TYPES.TOKEN,
       label: quotaTypeLabels[QUOTA_TYPES.TOKEN],
-      count: countBy(props.models, (model) => model.quota_type === 0),
+      count: countBy(
+        props.models,
+        (model) => model.billing_mode !== 'video_seconds' && model.quota_type === 0
+      ),
     },
     {
       value: QUOTA_TYPES.REQUEST,
       label: quotaTypeLabels[QUOTA_TYPES.REQUEST],
-      count: countBy(props.models, (model) => model.quota_type === 1),
+      count: countBy(
+        props.models,
+        (model) => model.billing_mode !== 'video_seconds' && model.quota_type === 1
+      ),
+    },
+    {
+      value: QUOTA_TYPES.VIDEO,
+      label: quotaTypeLabels[QUOTA_TYPES.VIDEO],
+      count: countBy(
+        props.models,
+        (model) => model.billing_mode === 'video_seconds'
+      ),
     },
   ]
 
@@ -238,7 +252,10 @@ export function PricingSidebar(props: PricingSidebarProps) {
         label,
         count: countBy(
           props.models,
-          (model) => model.supported_endpoint_types?.includes(value) ?? false
+          (model) =>
+            model.supported_endpoint_types?.includes(value) ||
+            (value === ENDPOINT_TYPES.OPENAI_VIDEO &&
+              model.billing_mode === 'video_seconds')
         ),
       })),
   ]

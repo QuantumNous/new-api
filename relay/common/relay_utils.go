@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
@@ -12,6 +13,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/samber/lo"
+	"golang.org/x/text/encoding/simplifiedchinese"
 )
 
 type HasPrompt interface {
@@ -102,6 +104,10 @@ func validateMultipartTaskRequest(c *gin.Context, info *RelayInfo, action string
 
 	if images := formData["images"]; len(images) > 0 {
 		req.Images = images
+		req.ImageInputs = make([]TaskImageInput, 0, len(images))
+		for _, image := range images {
+			req.ImageInputs = append(req.ImageInputs, TaskImageInput{URL: image})
+		}
 	}
 
 	for key, values := range formData {
@@ -139,6 +145,7 @@ func ValidateMultipartDirect(c *gin.Context, info *RelayInfo) *dto.TaskError {
 	}
 	if req.InputReference != "" {
 		req.Images = []string{req.InputReference}
+		req.ImageInputs = []TaskImageInput{{URL: req.InputReference}}
 	}
 
 	if strings.TrimSpace(req.Model) == "" {
@@ -206,7 +213,12 @@ func ValidateBasicTaskRequest(c *gin.Context, info *RelayInfo, action string) *d
 		}
 	}
 	// 为了metadata字段的兼容性，统一UnmarshalBodyReusable
-	if err := common.UnmarshalBodyReusable(c, &req); err != nil {
+	if strings.HasPrefix(contentType, "application/json") {
+		err = unmarshalTaskJSONBody(c, &req)
+	} else {
+		err = common.UnmarshalBodyReusable(c, &req)
+	}
+	if err != nil {
 		return createTaskError(err, "invalid_request", http.StatusBadRequest, true)
 	}
 
@@ -217,8 +229,30 @@ func ValidateBasicTaskRequest(c *gin.Context, info *RelayInfo, action string) *d
 	if len(req.Images) == 0 && strings.TrimSpace(req.Image) != "" {
 		// 兼容单图上传
 		req.Images = []string{req.Image}
+		req.ImageInputs = []TaskImageInput{{URL: req.Image}}
 	}
 
 	storeTaskRequest(c, info, action, req)
 	return nil
+}
+
+func unmarshalTaskJSONBody(c *gin.Context, req *TaskSubmitReq) error {
+	storage, err := common.GetBodyStorage(c)
+	if err != nil {
+		return err
+	}
+	requestBody, err := storage.Bytes()
+	if err != nil {
+		return err
+	}
+	if utf8.Valid(requestBody) {
+		return common.Unmarshal(requestBody, req)
+	}
+	decoded, decodeErr := simplifiedchinese.GB18030.NewDecoder().Bytes(requestBody)
+	if decodeErr == nil {
+		if err := common.Unmarshal(decoded, req); err == nil {
+			return nil
+		}
+	}
+	return common.Unmarshal(requestBody, req)
 }

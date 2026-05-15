@@ -31,6 +31,7 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form'
+import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
 import { SettingsSection } from '../components/settings-section'
 import { useUpdateOption } from '../hooks/use-update-option'
@@ -47,18 +48,42 @@ const headerNavSchema = z.object({
   pricingRequireAuth: z.boolean(),
   rankingsEnabled: z.boolean(),
   rankingsRequireAuth: z.boolean(),
+  rankingsDisplayMultiplier: z.number().min(0),
+  rankingsDisplayJitterRatio: z.number().min(0),
   docs: z.boolean(),
   about: z.boolean(),
 })
 
 type HeaderNavFormValues = z.infer<typeof headerNavSchema>
+type HeaderNavBooleanKey = Exclude<
+  keyof HeaderNavFormValues,
+  'rankingsDisplayMultiplier' | 'rankingsDisplayJitterRatio'
+>
 
 type HeaderNavigationSectionProps = {
   config: HeaderNavModulesConfig
   initialSerialized: string
+  rankingsDisplayMultiplier: string
+  rankingsDisplayJitterRatio: string
 }
 
-const toFormValues = (config: HeaderNavModulesConfig): HeaderNavFormValues => ({
+const parseDisplayNumber = (value: string | undefined, fallback: number) => {
+  const parsed = Number(value)
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : fallback
+}
+
+const toOptionNumber = (value: number) => {
+  if (!Number.isFinite(value) || value < 0) {
+    return '0'
+  }
+  return String(value)
+}
+
+const toFormValues = (
+  config: HeaderNavModulesConfig,
+  multiplier: string,
+  jitterRatio: string
+): HeaderNavFormValues => ({
   home:
     config.home === undefined ? HEADER_NAV_DEFAULT.home : Boolean(config.home),
   console:
@@ -81,6 +106,8 @@ const toFormValues = (config: HeaderNavModulesConfig): HeaderNavFormValues => ({
     config.rankings?.requireAuth === undefined
       ? HEADER_NAV_DEFAULT.rankings.requireAuth
       : Boolean(config.rankings.requireAuth),
+  rankingsDisplayMultiplier: parseDisplayNumber(multiplier, 1),
+  rankingsDisplayJitterRatio: parseDisplayNumber(jitterRatio, 0),
   docs:
     config.docs === undefined ? HEADER_NAV_DEFAULT.docs : Boolean(config.docs),
   about:
@@ -92,10 +119,20 @@ const toFormValues = (config: HeaderNavModulesConfig): HeaderNavFormValues => ({
 export function HeaderNavigationSection({
   config,
   initialSerialized,
+  rankingsDisplayMultiplier,
+  rankingsDisplayJitterRatio,
 }: HeaderNavigationSectionProps) {
   const { t } = useTranslation()
   const updateOption = useUpdateOption()
-  const formDefaults = useMemo(() => toFormValues(config), [config])
+  const formDefaults = useMemo(
+    () =>
+      toFormValues(
+        config,
+        rankingsDisplayMultiplier,
+        rankingsDisplayJitterRatio
+      ),
+    [config, rankingsDisplayJitterRatio, rankingsDisplayMultiplier]
+  )
 
   const form = useForm<HeaderNavFormValues>({
     resolver: zodResolver(headerNavSchema),
@@ -126,22 +163,47 @@ export function HeaderNavigationSection({
     }
 
     const serialized = serializeHeaderNavModules(payload)
-    if (serialized === initialSerialized) {
-      return
+    const updates: Array<{ key: string; value: string }> = []
+    if (serialized !== initialSerialized) {
+      updates.push({
+        key: 'HeaderNavModules',
+        value: serialized,
+      })
     }
 
-    await updateOption.mutateAsync({
-      key: 'HeaderNavModules',
-      value: serialized,
-    })
+    const nextMultiplier = toOptionNumber(values.rankingsDisplayMultiplier)
+    if (
+      nextMultiplier !==
+      toOptionNumber(parseDisplayNumber(rankingsDisplayMultiplier, 1))
+    ) {
+      updates.push({
+        key: 'RankingsDisplayMultiplier',
+        value: nextMultiplier,
+      })
+    }
+
+    const nextJitterRatio = toOptionNumber(values.rankingsDisplayJitterRatio)
+    if (
+      nextJitterRatio !==
+      toOptionNumber(parseDisplayNumber(rankingsDisplayJitterRatio, 0))
+    ) {
+      updates.push({
+        key: 'RankingsDisplayJitterRatio',
+        value: nextJitterRatio,
+      })
+    }
+
+    for (const update of updates) {
+      await updateOption.mutateAsync(update)
+    }
   }
 
   const resetToDefault = () => {
-    form.reset(toFormValues(HEADER_NAV_DEFAULT))
+    form.reset(toFormValues(HEADER_NAV_DEFAULT, '1', '0'))
   }
 
   const simpleModules: Array<{
-    key: keyof HeaderNavFormValues
+    key: HeaderNavBooleanKey
     title: string
     description: string
   }> = [
@@ -168,8 +230,8 @@ export function HeaderNavigationSection({
   ]
 
   const accessModules: Array<{
-    enabledKey: keyof HeaderNavFormValues
-    requireAuthKey: keyof HeaderNavFormValues
+    enabledKey: HeaderNavBooleanKey
+    requireAuthKey: HeaderNavBooleanKey
     requireAuthDependsOn: 'pricingEnabled' | 'rankingsEnabled'
     title: string
     description: string
@@ -285,6 +347,81 @@ export function HeaderNavigationSection({
                 />
               </div>
             ))}
+          </div>
+
+          <div className='space-y-4 rounded-lg border p-4'>
+            <div>
+              <h3 className='text-base font-medium'>
+                {t('Rankings display values')}
+              </h3>
+              <p className='text-muted-foreground text-sm'>
+                {t(
+                  'Only changes the public rankings display. Raw usage logs and billing stay unchanged.'
+                )}
+              </p>
+            </div>
+            <div className='grid gap-4 md:grid-cols-2'>
+              <FormField
+                control={form.control}
+                name='rankingsDisplayMultiplier'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t('Display multiplier')}</FormLabel>
+                    <FormControl>
+                      <Input
+                        type='number'
+                        min='0'
+                        step='0.01'
+                        placeholder='1'
+                        value={field.value}
+                        onBlur={field.onBlur}
+                        name={field.name}
+                        ref={field.ref}
+                        onChange={(event) =>
+                          field.onChange(event.currentTarget.valueAsNumber)
+                        }
+                      />
+                    </FormControl>
+                    <FormDescription>
+                      {t(
+                        'Displayed value equals raw value multiplied by this number.'
+                      )}
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name='rankingsDisplayJitterRatio'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t('Random jitter ratio')}</FormLabel>
+                    <FormControl>
+                      <Input
+                        type='number'
+                        min='0'
+                        step='0.01'
+                        placeholder='0'
+                        value={field.value}
+                        onBlur={field.onBlur}
+                        name={field.name}
+                        ref={field.ref}
+                        onChange={(event) =>
+                          field.onChange(event.currentTarget.valueAsNumber)
+                        }
+                      />
+                    </FormControl>
+                    <FormDescription>
+                      {t(
+                        'Adds stable positive random noise. Example: 0.05 means up to 5%.'
+                      )}
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
           </div>
 
           <div className='flex flex-wrap gap-3'>

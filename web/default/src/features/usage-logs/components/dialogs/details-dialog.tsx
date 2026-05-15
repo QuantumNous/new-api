@@ -135,6 +135,12 @@ function formatRatio(ratio: number | undefined): string {
   return ratio.toFixed(4)
 }
 
+function formatNumber(value: number | undefined, digits = 4): string {
+  if (value == null || !Number.isFinite(value)) return '-'
+  if (Number.isInteger(value)) return String(value)
+  return value.toFixed(digits).replace(/\.?0+$/, '')
+}
+
 function BillingBreakdown(props: {
   log: UsageLog
   other: LogOtherData
@@ -145,6 +151,7 @@ function BillingBreakdown(props: {
   const isPerCall = isPerCallBilling(other.model_price)
   const isClaude = other.claude === true
   const isTieredExpr = other.billing_mode === 'tiered_expr'
+  const isVideoSeconds = other.billing_mode === 'video_seconds'
   const tieredSummary = getTieredBillingSummary(other)
 
   const rows: Array<{ label: string; value: string }> = []
@@ -176,6 +183,55 @@ function BillingBreakdown(props: {
         value: t('No matching results'),
       })
     }
+  } else if (isVideoSeconds) {
+    rows.push({ label: t('Billing Mode'), value: t('Video per-second') })
+    if (other.video_resolution) {
+      rows.push({
+        label: t('Resolution'),
+        value: other.video_resolution,
+      })
+    }
+    if (other.video_price_per_second != null) {
+      rows.push({
+        label: t('Price per second'),
+        value: `${fmtPrice(other.video_price_per_second)}/${t('second')}`,
+      })
+    }
+    if (other.video_duration != null) {
+      rows.push({
+        label: t('Duration'),
+        value: `${formatNumber(other.video_duration)}${t('seconds')}`,
+      })
+    }
+    if (
+      other.video_fps_multiplier != null &&
+      Number.isFinite(other.video_fps_multiplier) &&
+      Math.abs(other.video_fps_multiplier - 1) > 0.0001
+    ) {
+      rows.push({
+        label: t('FPS multiplier'),
+        value: `${formatNumber(other.video_fps)} / ${formatNumber(other.video_base_fps)} = ${formatNumber(other.video_fps_multiplier)}x`,
+      })
+    }
+    if (
+      other.video_price_per_second != null &&
+      other.video_duration != null
+    ) {
+      const fpsMultiplier =
+        other.video_fps_multiplier != null &&
+        Number.isFinite(other.video_fps_multiplier) &&
+        Math.abs(other.video_fps_multiplier - 1) > 0.0001
+          ? ` × ${formatNumber(other.video_fps_multiplier)}`
+          : ''
+      rows.push({
+        label: t('Billing formula'),
+        value: `${other.video_resolution ? `${other.video_resolution}: ` : ''}${fmtPrice(other.video_price_per_second)}/${t('second')} × ${formatNumber(other.video_duration)}${t('seconds')}${fpsMultiplier} = ${fmtPrice(other.video_total_price ?? other.model_price ?? 0)}`,
+      })
+    }
+    rows.push({
+      label: t('Total Cost'),
+      value: fmtPrice(other.video_total_price ?? other.model_price ?? 0),
+    })
   } else if (isPerCall) {
     rows.push({ label: t('Billing Mode'), value: t('Per-call') })
     if (other.model_price != null) {
@@ -309,10 +365,12 @@ function BillingBreakdown(props: {
     })
   }
 
-  rows.push({
-    label: t('Total Cost'),
-    value: formatLogQuota(log.quota),
-  })
+  if (!isVideoSeconds) {
+    rows.push({
+      label: t('Total Cost'),
+      value: formatLogQuota(log.quota),
+    })
+  }
 
   if (rows.length === 0) return null
 

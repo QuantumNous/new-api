@@ -9,22 +9,31 @@ import (
 )
 
 const (
-	BillingModeRatio      = "ratio"
-	BillingModeTieredExpr = "tiered_expr"
-	BillingModeField      = "billing_mode"
-	BillingExprField      = "billing_expr"
+	BillingModeRatio        = "ratio"
+	BillingModeTieredExpr   = "tiered_expr"
+	BillingModeVideoSeconds = "video_seconds"
+	BillingModeField        = "billing_mode"
+	BillingExprField        = "billing_expr"
+	VideoPriceField         = "video_price"
 )
 
 // BillingSetting is managed by config.GlobalConfig.Register.
-// DB keys: billing_setting.billing_mode, billing_setting.billing_expr
+// DB keys: billing_setting.billing_mode, billing_setting.billing_expr, billing_setting.video_price
+type VideoPriceConfig struct {
+	BaseFPS float64            `json:"base_fps,omitempty"`
+	Prices  map[string]float64 `json:"prices,omitempty"`
+}
+
 type BillingSetting struct {
-	BillingMode map[string]string `json:"billing_mode"`
-	BillingExpr map[string]string `json:"billing_expr"`
+	BillingMode map[string]string           `json:"billing_mode"`
+	BillingExpr map[string]string           `json:"billing_expr"`
+	VideoPrice  map[string]VideoPriceConfig `json:"video_price"`
 }
 
 var billingSetting = BillingSetting{
 	BillingMode: make(map[string]string),
 	BillingExpr: make(map[string]string),
+	VideoPrice:  make(map[string]VideoPriceConfig),
 }
 
 func init() {
@@ -47,12 +56,21 @@ func GetBillingExpr(model string) (string, bool) {
 	return expr, ok
 }
 
+func GetVideoPriceConfig(model string) (VideoPriceConfig, bool) {
+	cfg, ok := billingSetting.VideoPrice[model]
+	return cfg, ok
+}
+
 func GetBillingModeCopy() map[string]string {
 	return lo.Assign(billingSetting.BillingMode)
 }
 
 func GetBillingExprCopy() map[string]string {
 	return lo.Assign(billingSetting.BillingExpr)
+}
+
+func GetVideoPriceCopy() map[string]VideoPriceConfig {
+	return lo.Assign(billingSetting.VideoPrice)
 }
 
 func GetPricingSyncData(base map[string]any) map[string]any {
@@ -62,6 +80,9 @@ func GetPricingSyncData(base map[string]any) map[string]any {
 	}
 	if exprs := GetBillingExprCopy(); len(exprs) > 0 {
 		extra[BillingExprField] = exprs
+	}
+	if videoPrices := GetVideoPriceCopy(); len(videoPrices) > 0 {
+		extra[VideoPriceField] = videoPrices
 	}
 	return lo.Assign(base, extra)
 }

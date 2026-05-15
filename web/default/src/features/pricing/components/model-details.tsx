@@ -19,7 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import { useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useNavigate, useParams, useSearch } from '@tanstack/react-router'
-import { ArrowLeft, Code2, HeartPulse, Info, Timer } from 'lucide-react'
+import { ArrowLeft, HeartPulse, Info, Timer } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { getLobeIcon } from '@/lib/lobe-icon'
 import { cn } from '@/lib/utils'
@@ -60,20 +60,15 @@ import {
 } from '../lib/dynamic-price'
 import { parseTags } from '../lib/filters'
 import { getAvailableGroups, isTokenBasedModel } from '../lib/model-helpers'
-import { inferModelMetadata } from '../lib/model-metadata'
-import { formatFixedPrice, formatGroupPrice } from '../lib/price'
-import type {
-  Modality,
-  ModelCapability,
-  PriceType,
-  PricingModel,
-  TokenUnit,
-} from '../types'
+import {
+  formatFixedPrice,
+  formatGroupPrice,
+  formatVideoSecondPrice,
+  getVideoPriceEntries,
+} from '../lib/price'
+import type { PriceType, PricingModel, TokenUnit } from '../types'
 import { DynamicPricingBreakdown } from './dynamic-pricing-breakdown'
-import { ModelDetailsApi, ModelDetailsProviderInfo } from './model-details-api'
-import { ModalityIcons } from './model-details-modalities'
 import { ModelDetailsPerformance } from './model-details-performance'
-import { ModelDetailsQuickStats } from './model-details-quick-stats'
 
 // ----------------------------------------------------------------------------
 // Local UI helpers
@@ -84,87 +79,6 @@ function SectionTitle(props: { children: React.ReactNode }) {
     <h2 className='text-muted-foreground mb-3 text-xs font-semibold tracking-wider uppercase'>
       {props.children}
     </h2>
-  )
-}
-
-const CAPABILITY_LABEL_KEYS: Record<ModelCapability, string> = {
-  function_calling: 'Function calling',
-  streaming: 'Streaming',
-  vision: 'Vision',
-  json_mode: 'JSON mode',
-  structured_output: 'Structured output',
-  reasoning: 'Reasoning',
-  tools: 'Tools',
-  system_prompt: 'System prompt',
-  web_search: 'Web search',
-  code_interpreter: 'Code interpreter',
-  caching: 'Prompt caching',
-  embeddings: 'Embeddings',
-}
-
-function CompactCapabilityList(props: { capabilities: ModelCapability[] }) {
-  const { t } = useTranslation()
-
-  if (props.capabilities.length === 0) {
-    return (
-      <span className='text-muted-foreground text-xs'>
-        {t('No capabilities reported for this model.')}
-      </span>
-    )
-  }
-
-  return (
-    <div className='flex flex-wrap gap-1.5'>
-      {props.capabilities.map((capability) => (
-        <span
-          key={capability}
-          className='bg-muted text-muted-foreground rounded-md px-2 py-1 text-xs font-medium'
-        >
-          {t(CAPABILITY_LABEL_KEYS[capability] ?? capability)}
-        </span>
-      ))}
-    </div>
-  )
-}
-
-function CompactModalities(props: { input: Modality[]; output: Modality[] }) {
-  const { t } = useTranslation()
-
-  return (
-    <div className='grid gap-2 sm:grid-cols-2'>
-      <div className='flex items-center justify-between gap-3 rounded-lg border px-3 py-2'>
-        <span className='text-muted-foreground text-xs font-medium'>
-          {t('Input')}
-        </span>
-        <ModalityIcons modalities={props.input} />
-      </div>
-      <div className='flex items-center justify-between gap-3 rounded-lg border px-3 py-2'>
-        <span className='text-muted-foreground text-xs font-medium'>
-          {t('Output')}
-        </span>
-        <ModalityIcons modalities={props.output} />
-      </div>
-    </div>
-  )
-}
-
-function ModelSignalsSection(props: {
-  capabilities: ModelCapability[]
-  input: Modality[]
-  output: Modality[]
-}) {
-  const { t } = useTranslation()
-
-  return (
-    <section>
-      <SectionTitle>
-        {t('Capabilities')} / {t('Supported modalities')}
-      </SectionTitle>
-      <div className='grid gap-3 rounded-xl border p-3 @2xl/details:grid-cols-[minmax(0,1.5fr)_minmax(260px,1fr)]'>
-        <CompactCapabilityList capabilities={props.capabilities} />
-        <CompactModalities input={props.input} output={props.output} />
-      </div>
-    </section>
   )
 }
 
@@ -299,9 +213,11 @@ function ModelHeader(props: { model: PricingModel }) {
         )}
         <span className='text-muted-foreground/30'>·</span>
         <span className='text-muted-foreground/70'>
-          {model.quota_type === QUOTA_TYPE_VALUES.TOKEN
-            ? t('Token-based')
-            : t('Per Request')}
+          {model.billing_mode === 'video_seconds'
+            ? t('Video per-second')
+            : model.quota_type === QUOTA_TYPE_VALUES.TOKEN
+              ? t('Token-based')
+              : t('Per Request')}
         </span>
         {model.billing_mode === 'tiered_expr' && model.billing_expr && (
           <>
@@ -396,6 +312,50 @@ function PriceSection(props: {
         props.model.audio_completion_ratio != null,
     },
   ]
+
+  if (props.model.billing_mode === 'video_seconds') {
+    const entries = getVideoPriceEntries(props.model)
+    return (
+      <section>
+        <SectionTitle>{t('Base Price')}</SectionTitle>
+        {entries.length > 0 ? (
+          <div className='bg-muted/20 rounded-lg border px-3 py-2.5'>
+            <div className='space-y-1.5'>
+              {entries.map((entry) => (
+                <div
+                  key={entry.resolution}
+                  className='flex items-baseline justify-between gap-4'
+                >
+                  <span className='text-muted-foreground/70 text-sm'>
+                    {entry.resolution}
+                  </span>
+                  <span className='text-foreground font-mono text-sm font-semibold tabular-nums'>
+                    {formatVideoSecondPrice(
+                      {
+                        ...props.model,
+                        video_price: {
+                          ...props.model.video_price,
+                          prices: { [entry.resolution]: entry.price },
+                        },
+                      },
+                      props.showRechargePrice,
+                      props.priceRate,
+                      props.usdExchangeRate
+                    )}
+                    <span className='text-muted-foreground/40 ml-1 text-xs font-normal'>
+                      / {t('second')}
+                    </span>
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <p className='text-muted-foreground text-sm'>-</p>
+        )}
+      </section>
+    )
+  }
 
   if (dynamicSummary) {
     if (dynamicSummary.isSpecialExpression) {
@@ -644,6 +604,72 @@ function GroupPricingSection(props: {
   const thClass =
     'text-muted-foreground py-2 text-[10px] font-medium tracking-wider uppercase'
 
+  if (props.model.billing_mode === 'video_seconds') {
+    const videoEntries = getVideoPriceEntries(props.model)
+    return (
+      <section>
+        <SectionTitle>{t('Pricing by Group')}</SectionTitle>
+        <AutoGroupChain model={props.model} autoGroups={props.autoGroups} />
+        <div className='-mx-4 overflow-x-auto sm:mx-0'>
+          <Table className='text-sm'>
+            <TableHeader>
+              <TableRow className='hover:bg-transparent'>
+                <TableHead className={thClass}>{t('Group')}</TableHead>
+                <TableHead className={thClass}>{t('Ratio')}</TableHead>
+                {videoEntries.map((entry) => (
+                  <TableHead
+                    key={entry.resolution}
+                    className={`${thClass} text-right`}
+                  >
+                    {entry.resolution}
+                  </TableHead>
+                ))}
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {availableGroups.map((group) => {
+                const ratio = props.groupRatio[group] || 1
+                return (
+                  <TableRow key={group}>
+                    <TableCell className='py-2.5'>
+                      <GroupBadge group={group} size='sm' />
+                    </TableCell>
+                    <TableCell className='text-muted-foreground py-2.5 font-mono text-xs'>
+                      {ratio}x
+                    </TableCell>
+                    {videoEntries.map((entry) => (
+                      <TableCell
+                        key={entry.resolution}
+                        className='py-2.5 text-right font-mono'
+                      >
+                        {formatVideoSecondPrice(
+                          {
+                            ...props.model,
+                            video_price: {
+                              ...props.model.video_price,
+                              prices: { [entry.resolution]: entry.price },
+                            },
+                          },
+                          showRechargePrice,
+                          props.priceRate,
+                          props.usdExchangeRate,
+                          ratio
+                        )}
+                      </TableCell>
+                    ))}
+                  </TableRow>
+                )
+              })}
+            </TableBody>
+          </Table>
+          <p className='text-muted-foreground/40 mt-1.5 px-4 text-[10px] sm:px-0'>
+            {t('Prices shown per second')}
+          </p>
+        </div>
+      </section>
+    )
+  }
+
   if (isDynamicPricingModel(props.model)) {
     const dynamicTiers = getDynamicPricingTiers(props.model)
 
@@ -882,7 +908,7 @@ function GroupPricingSection(props: {
   )
 }
 
-const TAB_VALUES = ['overview', 'performance', 'api'] as const
+const TAB_VALUES = ['overview', 'performance'] as const
 type TabValue = (typeof TAB_VALUES)[number]
 
 const TAB_META: Record<
@@ -891,7 +917,6 @@ const TAB_META: Record<
 > = {
   overview: { icon: Info, labelKey: 'Overview' },
   performance: { icon: HeartPulse, labelKey: 'Performance' },
-  api: { icon: Code2, labelKey: 'API' },
 }
 
 export interface ModelDetailsContentProps {
@@ -909,7 +934,6 @@ export interface ModelDetailsContentProps {
 export function ModelDetailsContent(props: ModelDetailsContentProps) {
   const { t } = useTranslation()
   const showRechargePrice = props.showRechargePrice ?? false
-  const metadata = useMemo(() => inferModelMetadata(props.model), [props.model])
 
   const isDynamic =
     props.model.billing_mode === 'tiered_expr' &&
@@ -963,27 +987,12 @@ export function ModelDetailsContent(props: ModelDetailsContentProps) {
             />
           </section>
 
-          <ModelDetailsQuickStats metadata={metadata} />
-
-          <ModelSignalsSection
-            capabilities={metadata.capabilities}
-            input={metadata.input_modalities}
-            output={metadata.output_modalities}
-          />
-
-          <ModelDetailsProviderInfo model={props.model} />
         </TabsContent>
 
         <TabsContent value='performance' className='outline-none'>
           <ModelDetailsPerformance model={props.model} />
         </TabsContent>
 
-        <TabsContent value='api' className='outline-none'>
-          <ModelDetailsApi
-            model={props.model}
-            endpointMap={props.endpointMap}
-          />
-        </TabsContent>
       </Tabs>
     </div>
   )

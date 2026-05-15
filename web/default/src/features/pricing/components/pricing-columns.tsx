@@ -37,6 +37,8 @@ import { isTokenBasedModel } from '../lib/model-helpers'
 import {
   formatPrice,
   formatRequestPrice,
+  formatVideoSecondPrice,
+  getVideoPriceEntries,
   stripTrailingZeros,
 } from '../lib/price'
 import type { PricingModel, TokenUnit } from '../types'
@@ -140,9 +142,10 @@ export function usePricingColumns(
       header: t('Type'),
       cell: ({ row }) => {
         const isTokenBased = row.original.quota_type === QUOTA_TYPE_VALUES.TOKEN
+        const isVideo = row.original.billing_mode === 'video_seconds'
         return (
           <span className='text-muted-foreground text-xs font-medium tracking-wider uppercase'>
-            {isTokenBased ? t('Token') : t('Request')}
+            {isVideo ? t('Video') : isTokenBased ? t('Token') : t('Request')}
           </span>
         )
       },
@@ -211,6 +214,27 @@ export function usePricingColumns(
                   ` · ${t('{{count}} tiers', {
                     count: dynamicSummary.tierCount,
                   })}`}
+              </div>
+            </div>
+          )
+        }
+
+        if (model.billing_mode === 'video_seconds') {
+          const price = stripTrailingZeros(
+            formatVideoSecondPrice(
+              model,
+              showRechargePrice,
+              priceRate,
+              usdExchangeRate
+            )
+          )
+          const firstEntry = getVideoPriceEntries(model)[0]
+          return (
+            <div className='min-w-[120px]'>
+              <span className='font-mono text-sm tabular-nums'>{price}</span>
+              <div className='text-muted-foreground/50 text-[10px]'>
+                / {t('second')}
+                {firstEntry ? ` 路 ${firstEntry.resolution}` : ''}
               </div>
             </div>
           )

@@ -130,6 +130,15 @@ const modelSchema = z.object({
       })
     }
   }),
+  VideoPrice: z.string().superRefine((value, ctx) => {
+    const result = validateJsonString(value)
+    if (!result.valid) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: result.message || 'Invalid JSON',
+      })
+    }
+  }),
 })
 
 const groupSchema = z.object({
@@ -251,6 +260,7 @@ export function RatioSettingsCard({
     ExposeRatioEnabled: modelDefaults.ExposeRatioEnabled,
     BillingMode: normalizeJsonString(modelDefaults.BillingMode),
     BillingExpr: normalizeJsonString(modelDefaults.BillingExpr),
+    VideoPrice: normalizeJsonString(modelDefaults.VideoPrice),
   })
 
   const groupNormalizedDefaults = useRef({
@@ -282,6 +292,7 @@ export function RatioSettingsCard({
       ),
       BillingMode: formatJsonForTextarea(modelDefaults.BillingMode),
       BillingExpr: formatJsonForTextarea(modelDefaults.BillingExpr),
+      VideoPrice: formatJsonForTextarea(modelDefaults.VideoPrice),
     },
   })
 
@@ -316,6 +327,7 @@ export function RatioSettingsCard({
       ExposeRatioEnabled: modelDefaults.ExposeRatioEnabled,
       BillingMode: normalizeJsonString(modelDefaults.BillingMode),
       BillingExpr: normalizeJsonString(modelDefaults.BillingExpr),
+      VideoPrice: normalizeJsonString(modelDefaults.VideoPrice),
     }
 
     modelForm.reset({
@@ -332,6 +344,7 @@ export function RatioSettingsCard({
       ),
       BillingMode: formatJsonForTextarea(modelDefaults.BillingMode),
       BillingExpr: formatJsonForTextarea(modelDefaults.BillingExpr),
+      VideoPrice: formatJsonForTextarea(modelDefaults.VideoPrice),
     })
   }, [modelDefaults, modelForm])
 
@@ -375,11 +388,13 @@ export function RatioSettingsCard({
         ExposeRatioEnabled: values.ExposeRatioEnabled,
         BillingMode: normalizeJsonString(values.BillingMode),
         BillingExpr: normalizeJsonString(values.BillingExpr),
+        VideoPrice: normalizeJsonString(values.VideoPrice),
       }
 
       const apiKeyMap: Record<string, string> = {
         BillingMode: 'billing_setting.billing_mode',
         BillingExpr: 'billing_setting.billing_expr',
+        VideoPrice: 'billing_setting.video_price',
       }
 
       const updates = (
@@ -491,6 +506,7 @@ export function RatioSettingsCard({
           AudioCompletionRatio: modelDefaults.AudioCompletionRatio,
           'billing_setting.billing_mode': modelDefaults.BillingMode,
           'billing_setting.billing_expr': modelDefaults.BillingExpr,
+          'billing_setting.video_price': modelDefaults.VideoPrice,
         }}
       />
     )
