@@ -787,8 +787,11 @@ func EnableChannelByTag(tag string) error {
 	if err != nil {
 		return err
 	}
-	err = UpdateAbilityStatusByTag(tag, true)
-	return err
+	if err = UpdateAbilityStatusByTag(tag, true); err != nil {
+		return err
+	}
+	publishChannelsChanged()
+	return nil
 }
 
 func DisableChannelByTag(tag string) error {
@@ -796,8 +799,11 @@ func DisableChannelByTag(tag string) error {
 	if err != nil {
 		return err
 	}
-	err = UpdateAbilityStatusByTag(tag, false)
-	return err
+	if err = UpdateAbilityStatusByTag(tag, false); err != nil {
+		return err
+	}
+	publishChannelsChanged()
+	return nil
 }
 
 func EditChannelByTag(tag string, newTag *string, modelMapping *string, models *string, group *string, priority *int64, weight *uint, paramOverride *string, headerOverride *string) error {
@@ -853,6 +859,7 @@ func EditChannelByTag(tag string, newTag *string, modelMapping *string, models *
 			return err
 		}
 	}
+	publishChannelsChanged()
 	return nil
 }
 
