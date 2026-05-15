@@ -1,6 +1,7 @@
 package model
 
 import (
+	"context"
 	"database/sql/driver"
 	"encoding/json"
 	"errors"
@@ -19,6 +20,15 @@ import (
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
+
+// publishChannelsChanged notifies peer replicas that channel state changed.
+// Failures are logged but do not affect the caller's success — the 60s
+// SyncChannelCache fallback in main.go will eventually converge state.
+func publishChannelsChanged() {
+	if err := common.PublishConfigChanged(context.Background(), common.ConfigScopeChannels); err != nil {
+		common.SysError("pubsub: failed to publish channels change: " + err.Error())
+	}
+}
 
 type Channel struct {
 	Id                 int     `json:"id"`
@@ -343,7 +353,11 @@ func (channel *Channel) GetAutoBan() bool {
 }
 
 func (channel *Channel) Save() error {
-	return DB.Save(channel).Error
+	if err := DB.Save(channel).Error; err != nil {
+		return err
+	}
+	publishChannelsChanged()
+	return nil
 }
 
 func (channel *Channel) SaveWithoutKey() error {
@@ -449,7 +463,11 @@ func BatchInsertChannels(channels []Channel) error {
 			}
 		}
 	}
-	return tx.Commit().Error
+	if err := tx.Commit().Error; err != nil {
+		return err
+	}
+	publishChannelsChanged()
+	return nil
 }
 
 func BatchDeleteChannels(ids []int) error {
@@ -471,7 +489,11 @@ func BatchDeleteChannels(ids []int) error {
 			return err
 		}
 	}
-	return tx.Commit().Error
+	if err := tx.Commit().Error; err != nil {
+		return err
+	}
+	publishChannelsChanged()
+	return nil
 }
 
 func (channel *Channel) GetPriority() int64 {
@@ -520,7 +542,11 @@ func (channel *Channel) Insert() error {
 		return err
 	}
 	err = channel.AddAbilities(nil)
-	return err
+	if err != nil {
+		return err
+	}
+	publishChannelsChanged()
+	return nil
 }
 
 func (channel *Channel) Update() error {
@@ -569,7 +595,11 @@ func (channel *Channel) Update() error {
 	}
 	DB.Model(channel).First(channel, "id = ?", channel.Id)
 	err = channel.UpdateAbilities(nil)
-	return err
+	if err != nil {
+		return err
+	}
+	publishChannelsChanged()
+	return nil
 }
 
 func (channel *Channel) UpdateResponseTime(responseTime int64) {
@@ -599,7 +629,11 @@ func (channel *Channel) Delete() error {
 		return err
 	}
 	err = channel.DeleteAbilities()
-	return err
+	if err != nil {
+		return err
+	}
+	publishChannelsChanged()
+	return nil
 }
 
 var channelStatusLock sync.Mutex
@@ -744,6 +778,7 @@ func UpdateChannelStatus(channelId int, usingKey string, status int, reason stri
 			return false
 		}
 	}
+	publishChannelsChanged()
 	return true
 }
 
