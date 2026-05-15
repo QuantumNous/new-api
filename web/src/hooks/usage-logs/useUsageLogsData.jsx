@@ -56,7 +56,6 @@ export const useLogsData = () => {
     MODEL: 'model',
     USE_TIME: 'use_time',
     PROMPT: 'prompt',
-    COMPLETION: 'completion',
     COST: 'cost',
     RETRY: 'retry',
     IP: 'ip',
@@ -119,7 +118,6 @@ export const useLogsData = () => {
       [COLUMN_KEYS.MODEL]: true,
       [COLUMN_KEYS.USE_TIME]: true,
       [COLUMN_KEYS.PROMPT]: true,
-      [COLUMN_KEYS.COMPLETION]: true,
       [COLUMN_KEYS.COST]: true,
       [COLUMN_KEYS.RETRY]: isAdminUser,
       [COLUMN_KEYS.IP]: true,
@@ -137,7 +135,13 @@ export const useLogsData = () => {
 
     try {
       const parsed = JSON.parse(savedColumns);
-      const merged = { ...defaults, ...parsed };
+      const savedVisibleColumns = Object.keys(defaults).reduce((acc, key) => {
+        if (Object.prototype.hasOwnProperty.call(parsed, key)) {
+          acc[key] = parsed[key];
+        }
+        return acc;
+      }, {});
+      const merged = { ...defaults, ...savedVisibleColumns };
 
       if (!isAdminUser) {
         merged[COLUMN_KEYS.CHANNEL] = false;
@@ -163,7 +167,9 @@ export const useLogsData = () => {
   };
 
   // Column visibility state
-  const [visibleColumns, setVisibleColumns] = useState(getInitialVisibleColumns);
+  const [visibleColumns, setVisibleColumns] = useState(
+    getInitialVisibleColumns,
+  );
   const [showColumnSelector, setShowColumnSelector] = useState(false);
   const [billingDisplayMode, setBillingDisplayMode] = useState(
     getInitialBillingDisplayMode,
@@ -399,6 +405,108 @@ export const useLogsData = () => {
     setShowParamOverrideModal(true);
   };
 
+  const toPositiveNumber = (value) => {
+    const parsed = Number(value);
+    if (!Number.isFinite(parsed) || parsed <= 0) {
+      return 0;
+    }
+    return parsed;
+  };
+
+  const getEffectiveGroupRatio = (groupRatio, userGroupRatio) => {
+    const parsedUserGroupRatio = Number(userGroupRatio);
+    if (Number.isFinite(parsedUserGroupRatio) && parsedUserGroupRatio !== -1) {
+      return parsedUserGroupRatio;
+    }
+
+    const parsedGroupRatio = Number(groupRatio);
+    if (Number.isFinite(parsedGroupRatio)) {
+      return parsedGroupRatio;
+    }
+
+    return 0;
+  };
+
+  const getUsageCacheQuota = (other) => {
+    if (!other || typeof other !== 'object') {
+      return {
+        cache_read_tokens: 0,
+        cache_write_tokens: 0,
+        cache_read_quota: 0,
+        cache_write_quota: 0,
+      };
+    }
+
+    const cacheReadTokens = toPositiveNumber(other.cache_tokens);
+    const cacheCreationTokens = toPositiveNumber(other.cache_creation_tokens);
+    const cacheCreationTokens5m = toPositiveNumber(
+      other.cache_creation_tokens_5m,
+    );
+    const cacheCreationTokens1h = toPositiveNumber(
+      other.cache_creation_tokens_1h,
+    );
+    const splitCacheCreationTokens =
+      cacheCreationTokens5m + cacheCreationTokens1h;
+    const cacheWriteTokens =
+      splitCacheCreationTokens > 0
+        ? Math.max(cacheCreationTokens, splitCacheCreationTokens)
+        : cacheCreationTokens;
+
+    const modelPrice = Number(other.model_price);
+    if (Number.isFinite(modelPrice) && modelPrice !== -1) {
+      return {
+        cache_read_tokens: cacheReadTokens,
+        cache_write_tokens: cacheWriteTokens,
+        cache_read_quota: 0,
+        cache_write_quota: 0,
+      };
+    }
+
+    const modelRatio = toPositiveNumber(other.model_ratio);
+    const groupRatio = getEffectiveGroupRatio(
+      other.group_ratio,
+      other.user_group_ratio,
+    );
+    if (modelRatio <= 0 || groupRatio <= 0) {
+      return {
+        cache_read_tokens: cacheReadTokens,
+        cache_write_tokens: cacheWriteTokens,
+        cache_read_quota: 0,
+        cache_write_quota: 0,
+      };
+    }
+
+    const cacheRatio = toPositiveNumber(other.cache_ratio) || 1.0;
+    const cacheReadQuota = Math.round(
+      cacheReadTokens * cacheRatio * modelRatio * groupRatio,
+    );
+
+    const cacheCreationRatio =
+      toPositiveNumber(other.cache_creation_ratio) || 1.0;
+    const cacheCreationRatio5m =
+      toPositiveNumber(other.cache_creation_ratio_5m) || cacheCreationRatio;
+    const cacheCreationRatio1h =
+      toPositiveNumber(other.cache_creation_ratio_1h) || cacheCreationRatio;
+    const legacyCacheCreationTokens =
+      splitCacheCreationTokens > 0
+        ? Math.max(cacheCreationTokens - splitCacheCreationTokens, 0)
+        : cacheCreationTokens;
+    const cacheWriteQuota = Math.round(
+      (legacyCacheCreationTokens * cacheCreationRatio +
+        cacheCreationTokens5m * cacheCreationRatio5m +
+        cacheCreationTokens1h * cacheCreationRatio1h) *
+        modelRatio *
+        groupRatio,
+    );
+
+    return {
+      cache_read_tokens: cacheReadTokens,
+      cache_write_tokens: cacheWriteTokens,
+      cache_read_quota: cacheReadQuota > 0 ? cacheReadQuota : 0,
+      cache_write_quota: cacheWriteQuota > 0 ? cacheWriteQuota : 0,
+    };
+  };
+
   // Format logs data
   const setLogsFormat = (logs) => {
     const requestConversionDisplayValue = (conversionChain) => {
@@ -416,9 +524,13 @@ export const useLogsData = () => {
       logs[i].timestamp2string = timestamp2string(logs[i].created_at);
       logs[i].key = logs[i].id;
       let other = getLogOther(logs[i].other);
+      Object.assign(logs[i], getUsageCacheQuota(other));
       let expandDataLocal = [];
 
-      if (isAdminUser && (logs[i].type === 0 || logs[i].type === 2 || logs[i].type === 6)) {
+      if (
+        isAdminUser &&
+        (logs[i].type === 0 || logs[i].type === 2 || logs[i].type === 6)
+      ) {
         expandDataLocal.push({
           key: t('渠道信息'),
           value: `${logs[i].channel} - ${logs[i].channel_name || '[未知]'}`,
@@ -461,42 +573,44 @@ export const useLogsData = () => {
         });
       }
       if (logs[i].type === 2) {
+        const logDetailContent = other?.claude
+          ? renderClaudeLogContent(
+              other?.model_ratio,
+              other.completion_ratio,
+              other.model_price,
+              other.group_ratio,
+              other?.user_group_ratio,
+              other.cache_ratio || 1.0,
+              other.cache_creation_ratio || 1.0,
+              other.cache_creation_tokens_5m || 0,
+              other.cache_creation_ratio_5m ||
+                other.cache_creation_ratio ||
+                1.0,
+              other.cache_creation_tokens_1h || 0,
+              other.cache_creation_ratio_1h ||
+                other.cache_creation_ratio ||
+                1.0,
+              billingDisplayMode,
+            )
+          : renderLogContent(
+              other?.model_ratio,
+              other.completion_ratio,
+              other.model_price,
+              other.group_ratio,
+              other?.user_group_ratio,
+              other.cache_ratio || 1.0,
+              false,
+              1.0,
+              other.web_search || false,
+              other.web_search_call_count || 0,
+              other.file_search || false,
+              other.file_search_call_count || 0,
+              billingDisplayMode,
+            );
+        logs[i].usage_tooltip_content = logDetailContent;
         expandDataLocal.push({
           key: t('日志详情'),
-          value: other?.claude
-            ? renderClaudeLogContent(
-                other?.model_ratio,
-                other.completion_ratio,
-                other.model_price,
-                other.group_ratio,
-                other?.user_group_ratio,
-                other.cache_ratio || 1.0,
-                other.cache_creation_ratio || 1.0,
-                other.cache_creation_tokens_5m || 0,
-                other.cache_creation_ratio_5m ||
-                  other.cache_creation_ratio ||
-                  1.0,
-                other.cache_creation_tokens_1h || 0,
-                other.cache_creation_ratio_1h ||
-                  other.cache_creation_ratio ||
-                  1.0,
-                billingDisplayMode,
-              )
-            : renderLogContent(
-                other?.model_ratio,
-                other.completion_ratio,
-                other.model_price,
-                other.group_ratio,
-                other?.user_group_ratio,
-                other.cache_ratio || 1.0,
-                false,
-                1.0,
-                other.web_search || false,
-                other.web_search_call_count || 0,
-                other.file_search || false,
-                other.file_search_call_count || 0,
-                billingDisplayMode,
-              ),
+          value: logDetailContent,
         });
         if (logs[i]?.content) {
           expandDataLocal.push({
@@ -605,6 +719,7 @@ export const useLogsData = () => {
               billingDisplayMode,
             );
           }
+          logs[i].billing_process_content = content;
           expandDataLocal.push({
             key: t('计费过程'),
             value: content,
@@ -628,7 +743,14 @@ export const useLogsData = () => {
           expandDataLocal.push({
             key: t('失败原因'),
             value: (
-              <div style={{ maxWidth: 600, whiteSpace: 'normal', wordBreak: 'break-word', lineHeight: 1.6 }}>
+              <div
+                style={{
+                  maxWidth: 600,
+                  whiteSpace: 'normal',
+                  wordBreak: 'break-word',
+                  lineHeight: 1.6,
+                }}
+              >
                 {other.reason}
               </div>
             ),
@@ -645,7 +767,8 @@ export const useLogsData = () => {
         const ss = other.stream_status;
         const isOk = ss.status === 'ok';
         const statusLabel = isOk ? '✓ ' + t('正常') : '✗ ' + t('异常');
-        let streamValue = statusLabel + ' (' + (ss.end_reason || 'unknown') + ')';
+        let streamValue =
+          statusLabel + ' (' + (ss.end_reason || 'unknown') + ')';
         if (ss.error_count > 0) {
           streamValue += ` [${t('软错误')}: ${ss.error_count}]`;
         }
@@ -660,7 +783,14 @@ export const useLogsData = () => {
           expandDataLocal.push({
             key: t('流错误详情'),
             value: (
-              <div style={{ maxWidth: 600, whiteSpace: 'pre-line', wordBreak: 'break-word', lineHeight: 1.6 }}>
+              <div
+                style={{
+                  maxWidth: 600,
+                  whiteSpace: 'pre-line',
+                  wordBreak: 'break-word',
+                  lineHeight: 1.6,
+                }}
+              >
                 {ss.errors.join('\n')}
               </div>
             ),

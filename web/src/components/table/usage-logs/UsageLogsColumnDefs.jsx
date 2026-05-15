@@ -36,7 +36,16 @@ import {
   renderModelPriceSimple,
 } from '../../../helpers';
 import { IconHelpCircle } from '@douyinfe/semi-icons';
-import { CircleAlert, Route, Sparkles, FileSearch } from 'lucide-react';
+import {
+  CircleAlert,
+  Route,
+  Sparkles,
+  FileSearch,
+  Download,
+  Upload,
+} from 'lucide-react';
+
+const CACHE_ACCENT_COLOR = 'rgba(var(--semi-orange-6), 1)';
 
 const colors = [
   'amber',
@@ -144,10 +153,7 @@ function renderType(type, t) {
 
 function buildStreamStatusTooltip(ss, t) {
   if (!ss) return null;
-  const lines = [
-    t('流状态') + '：' + t('异常'),
-    (ss.end_reason || 'unknown'),
-  ];
+  const lines = [t('流状态') + '：' + t('异常'), ss.end_reason || 'unknown'];
   if (ss.error_count > 0) {
     lines.push(`${t('软错误')}: ${ss.error_count}`);
   }
@@ -185,11 +191,7 @@ function renderIsStream(bool, t, streamStatus) {
                 userSelect: 'none',
               }}
             >
-              <CircleAlert
-                size={14}
-                strokeWidth={2.5}
-                color='currentColor'
-              />
+              <CircleAlert size={14} strokeWidth={2.5} color='currentColor' />
             </span>
           </Tooltip>
         )}
@@ -269,6 +271,112 @@ function renderBillingTag(record, t) {
   return null;
 }
 
+function renderCacheCostLine(icon, label, quota) {
+  if (!quota || quota <= 0) {
+    return null;
+  }
+
+  const Icon = icon;
+
+  return (
+    <span
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: 3,
+        marginTop: 2,
+        color: CACHE_ACCENT_COLOR,
+        fontSize: 11,
+        lineHeight: 1.2,
+        whiteSpace: 'nowrap',
+      }}
+    >
+      <Icon size={11} strokeWidth={2.2} color='currentColor' />
+      <span>
+        {label} {renderQuota(quota, 6)}
+      </span>
+    </span>
+  );
+}
+
+function renderTokenValue(icon, label, value, color) {
+  const Icon = icon;
+
+  return (
+    <span
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: 3,
+        color,
+        whiteSpace: 'nowrap',
+      }}
+    >
+      <Icon size={12} strokeWidth={2.2} color='currentColor' />
+      <span>{formatTokenCount(value)}</span>
+    </span>
+  );
+}
+
+function renderCacheTokenLine(icon, label, value) {
+  if (!value || value <= 0) {
+    return null;
+  }
+
+  const Icon = icon;
+
+  return (
+    <span
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: 3,
+        marginTop: 2,
+        color: CACHE_ACCENT_COLOR,
+        fontSize: 11,
+        lineHeight: 1.2,
+        whiteSpace: 'nowrap',
+      }}
+    >
+      <span
+        style={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: 3,
+        }}
+      >
+        <Icon size={11} strokeWidth={2.2} color='currentColor' />
+        <span>
+          {label} {formatTokenCount(value)}
+        </span>
+      </span>
+    </span>
+  );
+}
+
+function renderProcessTooltip(title, content, prefix = null) {
+  if (!content && !prefix) {
+    return null;
+  }
+
+  return (
+    <div style={{ maxWidth: 620, lineHeight: 1.6 }}>
+      <Typography.Text strong>{title}</Typography.Text>
+      {prefix ? <div style={{ marginTop: 6 }}>{prefix}</div> : null}
+      {content ? <div style={{ marginTop: 6 }}>{content}</div> : null}
+    </div>
+  );
+}
+
+function withProcessTooltip(node, title, content, prefix = null) {
+  const tooltipContent = renderProcessTooltip(title, content, prefix);
+  if (!tooltipContent) {
+    return node;
+  }
+
+  return <Tooltip content={tooltipContent}>{node}</Tooltip>;
+}
+
 function renderModelName(record, copyText, t) {
   let other = getLogOther(record.other);
   let modelMapped =
@@ -342,32 +450,6 @@ function toTokenNumber(value) {
 
 function formatTokenCount(value) {
   return toTokenNumber(value).toLocaleString();
-}
-
-function getPromptCacheSummary(other) {
-  if (!other || typeof other !== 'object') {
-    return null;
-  }
-
-  const cacheReadTokens = toTokenNumber(other.cache_tokens);
-  const cacheCreationTokens = toTokenNumber(other.cache_creation_tokens);
-  const cacheCreationTokens5m = toTokenNumber(other.cache_creation_tokens_5m);
-  const cacheCreationTokens1h = toTokenNumber(other.cache_creation_tokens_1h);
-
-  const hasSplitCacheCreation =
-    cacheCreationTokens5m > 0 || cacheCreationTokens1h > 0;
-  const cacheWriteTokens = hasSplitCacheCreation
-    ? cacheCreationTokens5m + cacheCreationTokens1h
-    : cacheCreationTokens;
-
-  if (cacheReadTokens <= 0 && cacheWriteTokens <= 0) {
-    return null;
-  }
-
-  return {
-    cacheReadTokens,
-    cacheWriteTokens,
-  };
 }
 
 function normalizeDetailText(detail) {
@@ -735,26 +817,28 @@ export const getLogsColumns = ({
         if (!(record.type === 2 || record.type === 5)) {
           return <></>;
         }
-        const detailBtn = record.request_id && record.type === 5 ? (
-          <Tooltip content={t('请求详情')}>
-            <Button
-              theme='borderless'
-              type='tertiary'
-              size='small'
-              style={{ padding: 2, height: 'auto' }}
-              icon={<FileSearch size={14} />}
-              onClick={(e) => {
-                e.stopPropagation();
-                showRequestDetailFunc?.(record.request_id);
-              }}
-            />
-          </Tooltip>
-        ) : null;
+        const detailBtn =
+          record.request_id && record.type === 5 ? (
+            <Tooltip content={t('请求详情')}>
+              <Button
+                theme='borderless'
+                type='tertiary'
+                size='small'
+                style={{ padding: 2, height: 'auto' }}
+                icon={<FileSearch size={14} />}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  showRequestDetailFunc?.(record.request_id);
+                }}
+              />
+            </Tooltip>
+          ) : null;
         const useTime = parseInt(text);
         const completionTokens = parseInt(record.completion_tokens);
-        const outTokPerSec = (useTime > 0 && completionTokens > 0)
-          ? (completionTokens / useTime).toFixed(1)
-          : null;
+        const outTokPerSec =
+          useTime > 0 && completionTokens > 0
+            ? (completionTokens / useTime).toFixed(1)
+            : null;
         const tokPerSecTag = outTokPerSec ? (
           <Tooltip content={t('每秒输出token数')}>
             <Tag color='blue' shape='circle'>
@@ -794,7 +878,7 @@ export const getLogsColumns = ({
       key: COLUMN_KEYS.PROMPT,
       title: (
         <div className='flex items-center gap-1'>
-          {t('输入')}
+          {t('输入/输出')}
           <Tooltip
             content={t(
               '根据 Anthropic 协定，/v1/messages 的输入 tokens 仅统计非缓存输入，不包含缓存读取与缓存写入 tokens。',
@@ -806,23 +890,12 @@ export const getLogsColumns = ({
       ),
       dataIndex: 'prompt_tokens',
       render: (text, record, index) => {
-        const other = getLogOther(record.other);
-        const cacheSummary = getPromptCacheSummary(other);
-        const hasCacheRead = (cacheSummary?.cacheReadTokens || 0) > 0;
-        const hasCacheWrite = (cacheSummary?.cacheWriteTokens || 0) > 0;
-        let cacheText = '';
-        if (hasCacheRead && hasCacheWrite) {
-          cacheText = `${t('缓存读')} ${formatTokenCount(cacheSummary.cacheReadTokens)} · ${t('写')} ${formatTokenCount(cacheSummary.cacheWriteTokens)}`;
-        } else if (hasCacheRead) {
-          cacheText = `${t('缓存读')} ${formatTokenCount(cacheSummary.cacheReadTokens)}`;
-        } else if (hasCacheWrite) {
-          cacheText = `${t('缓存写')} ${formatTokenCount(cacheSummary.cacheWriteTokens)}`;
-        }
+        const cacheReadTokens = record.cache_read_tokens || 0;
+        const cacheWriteTokens = record.cache_write_tokens || 0;
+        const processContent =
+          record.billing_process_content || record.usage_tooltip_content;
 
-        return record.type === 0 ||
-          record.type === 2 ||
-          record.type === 5 ||
-          record.type === 6 ? (
+        const tokenContent = (
           <div
             style={{
               display: 'inline-flex',
@@ -831,36 +904,26 @@ export const getLogsColumns = ({
               lineHeight: 1.2,
             }}
           >
-            <span>{text}</span>
-            {cacheText ? (
-              <span
-                style={{
-                  marginTop: 2,
-                  fontSize: 11,
-                  color: 'var(--semi-color-text-2)',
-                  whiteSpace: 'nowrap',
-                }}
-              >
-                {cacheText}
-              </span>
-            ) : null}
+            <span
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 8,
+              }}
+            >
+              {renderTokenValue(Upload, t('输入'), text)}
+              {renderTokenValue(Download, t('输出'), record.completion_tokens)}
+            </span>
+            {renderCacheTokenLine(Download, t('缓存读'), cacheReadTokens)}
+            {renderCacheTokenLine(Upload, t('缓存写'), cacheWriteTokens)}
           </div>
-        ) : (
-          <></>
         );
-      },
-    },
-    {
-      key: COLUMN_KEYS.COMPLETION,
-      title: t('输出'),
-      dataIndex: 'completion_tokens',
-      render: (text, record, index) => {
-        return parseInt(text) > 0 &&
-          (record.type === 0 ||
-            record.type === 2 ||
-            record.type === 5 ||
-            record.type === 6) ? (
-          <>{<span> {text} </span>}</>
+
+        return record.type === 0 ||
+          record.type === 2 ||
+          record.type === 5 ||
+          record.type === 6 ? (
+          withProcessTooltip(tokenContent, t('计费过程'), processContent)
         ) : (
           <></>
         );
@@ -883,15 +946,46 @@ export const getLogsColumns = ({
         }
         const other = getLogOther(record.other);
         const isSubscription = other?.billing_source === 'subscription';
+        const processContent = record.billing_process_content;
         if (isSubscription) {
           // Subscription billed: show only tag (no $0), but keep tooltip for equivalent cost.
           return (
-            <Tooltip content={`${t('由订阅抵扣')}：${renderQuota(text, 6)}`}>
+            <Tooltip
+              content={renderProcessTooltip(
+                t('计费过程'),
+                processContent,
+                `${t('由订阅抵扣')}：${renderQuota(text, 6)}`,
+              )}
+            >
               <span>{renderBillingTag(record, t)}</span>
             </Tooltip>
           );
         }
-        return <>{renderQuota(text, 6)}</>;
+        const cacheReadQuota = record.cache_read_quota || 0;
+        const cacheWriteQuota = record.cache_write_quota || 0;
+        if (cacheReadQuota <= 0 && cacheWriteQuota <= 0) {
+          return withProcessTooltip(
+            <span>{renderQuota(text, 6)}</span>,
+            t('计费过程'),
+            processContent,
+          );
+        }
+
+        const costContent = (
+          <div
+            style={{
+              display: 'inline-flex',
+              flexDirection: 'column',
+              alignItems: 'flex-start',
+              lineHeight: 1.2,
+            }}
+          >
+            <span>{renderQuota(text, 6)}</span>
+            {renderCacheCostLine(Download, t('缓存读消耗'), cacheReadQuota)}
+            {renderCacheCostLine(Upload, t('缓存写花费'), cacheWriteQuota)}
+          </div>
+        );
+        return withProcessTooltip(costContent, t('计费过程'), processContent);
       },
     },
     {

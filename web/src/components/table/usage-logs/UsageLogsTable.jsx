@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { useMemo } from 'react';
-import { Empty, Descriptions } from '@douyinfe/semi-ui';
+import { Empty } from '@douyinfe/semi-ui';
 import CardTable from '../../common/ui/CardTable';
 import {
   IllustrationNoResult,
@@ -29,7 +29,6 @@ import { getLogsColumns } from './UsageLogsColumnDefs';
 const LogsTable = (logsData) => {
   const {
     logs,
-    expandData,
     loading,
     activePage,
     pageSize,
@@ -41,7 +40,6 @@ const LogsTable = (logsData) => {
     copyText,
     showUserInfoFunc,
     openChannelAffinityUsageCacheModal,
-    hasExpandableRows,
     isAdminUser,
     billingDisplayMode,
     showRequestDetailFunc,
@@ -87,19 +85,9 @@ const LogsTable = (logsData) => {
       : visibleColumnsList;
   }, [compactMode, visibleColumnsList]);
 
-  const expandRowRender = (record, index) => {
-    return <Descriptions data={expandData[record.key]} />;
-  };
-
   return (
     <CardTable
       columns={tableColumns}
-      {...(hasExpandableRows() && {
-        expandedRowRender: expandRowRender,
-        expandRowByClick: true,
-        rowExpandable: (record) =>
-          expandData[record.key] && expandData[record.key].length > 0,
-      })}
       dataSource={logs}
       rowKey='key'
       loading={loading}
