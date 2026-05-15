@@ -549,7 +549,7 @@ export function WaffoPancakeSettingsSection(props: Props) {
     <SettingsSection
       title={t('Waffo Pancake MoR')}
       description={t(
-        'Start collecting payments globally without registering a company. Built for indie developers, OPC sole proprietorships, and startups. Waffo Pancake acts as your Merchant of Record, taking on the compliance burden of global payment collection — consumption tax, invoicing, subscription management, refunds, and chargebacks. Solo developers can launch without registering a company and stay focused on product instead of compliance. Onboard in minutes — one prompt to a full integration.'
+        'Start collecting payments globally without registering a company. Built for indie developers, OPC sole proprietorships, and startups. Waffo Pancake acts as your Merchant of Record, taking on the compliance burden of global payment collection — consumption tax, invoicing, subscription management, refunds, and chargebacks. Solo developers can launch fast and stay focused on product instead of compliance. Onboard in minutes — one prompt to a full integration.'
       )}
     >
       <Form {...form}>
@@ -668,6 +668,35 @@ export function WaffoPancakeSettingsSection(props: Props) {
                           'No stores on this merchant yet. Set a return URL and click Create to mint your first pair.'
                         )}
               </p>
+            </div>
+
+            {/*
+              Operator-facing explainer: why only ONE store + product needs
+              to be bound at the gateway level, and what each piece is used
+              for. Subscriptions reuse the same Store but get their own
+              per-plan product, configured in the Subscriptions admin.
+            */}
+            <div className='rounded-md border border-blue-200 bg-blue-50 p-3 text-xs text-blue-900 dark:border-blue-900/60 dark:bg-blue-950/40 dark:text-blue-100'>
+              <p className='mb-1 font-medium'>
+                {t('Why only one store + product?')}
+              </p>
+              <ul className='list-inside list-disc space-y-1'>
+                <li>
+                  {t(
+                    'The bound Store is the parent container for every Pancake product new-api creates from this admin — both the wallet top-up product and any subscription-plan products. One store is enough; pin a different one only if you genuinely run separate Pancake catalogs.'
+                  )}
+                </li>
+                <li>
+                  {t(
+                    'The bound Product powers wallet top-ups: when a user enters any amount, new-api runs the checkout against this single Pancake product and overrides the price per session — no need to pre-create $1 / $5 / $10 SKUs.'
+                  )}
+                </li>
+                <li>
+                  {t(
+                    'Subscription plans do NOT use the bound Product — each plan has its own dedicated Pancake product, set in the Subscriptions admin (or auto-minted via the "+ Create" button there).'
+                  )}
+                </li>
+              </ul>
             </div>
 
             {/* Create section — first, since creating auto-fills the pick-existing dropdowns below. */}

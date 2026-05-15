@@ -121,11 +121,19 @@ export function getPaymentIcon(
         />
       )
     case PAYMENT_TYPES.WAFFO_PANCAKE:
+      // Lucide doesn't ship a pancake glyph and react-icons' brand sets
+      // don't either — emoji is the cleanest way to render an actual
+      // pancake at icon size. The inline-flex + leading-none keeps it
+      // vertically centred inside the standard h-4 w-4 (or whatever)
+      // box the caller passes via className.
       return (
-        <CreditCard
-          className={className}
-          style={{ color: PAYMENT_ICON_COLORS[PAYMENT_TYPES.WAFFO_PANCAKE] }}
-        />
+        <span
+          role='img'
+          aria-label='pancake'
+          className={`inline-flex items-center justify-center leading-none ${className}`}
+        >
+          🥞
+        </span>
       )
     default:
       return <CreditCard className={className} />

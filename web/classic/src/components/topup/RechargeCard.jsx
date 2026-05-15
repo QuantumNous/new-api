@@ -354,10 +354,21 @@ const RechargeCard = ({
                                       }}
                                     />
                                   ) : payMethod.type === 'waffo_pancake' ? (
-                                    <CreditCard
-                                      size={18}
-                                      color='var(--semi-color-primary)'
-                                    />
+                                    <span
+                                      role='img'
+                                      aria-label='pancake'
+                                      style={{
+                                        fontSize: 18,
+                                        lineHeight: 1,
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        width: 18,
+                                        height: 18,
+                                      }}
+                                    >
+                                      🥞
+                                    </span>
                                   ) : (
                                     <CreditCard
                                       size={18}
