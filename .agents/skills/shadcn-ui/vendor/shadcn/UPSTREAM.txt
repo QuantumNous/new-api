@@ -1,0 +1,3 @@
+Source: https://github.com/shadcn-ui/ui/tree/56161142f1b83f612462772d18883807b5f0d601/skills/shadcn
+Branch: main
+Fetched: 2026-04-29
