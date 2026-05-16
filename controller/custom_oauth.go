@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/oauth"
 	"github.com/gin-gonic/gin"
@@ -469,7 +470,7 @@ func buildUserOAuthBindingsResponse(userId int) ([]UserOAuthBindingResponse, err
 func GetUserOAuthBindings(c *gin.Context) {
 	userId := c.GetInt("id")
 	if userId == 0 {
-		common.ApiErrorMsg(c, "未登录")
+		common.ApiErrorI18n(c, i18n.MsgUnauthorized)
 		return
 	}
 
@@ -523,14 +524,14 @@ func GetUserOAuthBindingsByAdmin(c *gin.Context) {
 func UnbindCustomOAuth(c *gin.Context) {
 	userId := c.GetInt("id")
 	if userId == 0 {
-		common.ApiErrorMsg(c, "未登录")
+		common.ApiErrorI18n(c, i18n.MsgUnauthorized)
 		return
 	}
 
 	providerIdStr := c.Param("provider_id")
 	providerId, err := strconv.Atoi(providerIdStr)
 	if err != nil {
-		common.ApiErrorMsg(c, "无效的提供商 ID")
+		common.ApiErrorI18n(c, i18n.MsgInvalidId)
 		return
 	}
 
@@ -541,7 +542,7 @@ func UnbindCustomOAuth(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
-		"message": "解绑成功",
+		"message": i18n.T(c, i18n.MsgCustomOAuthUnbindSuccess),
 	})
 }
 
