@@ -36,6 +36,11 @@ type responsesWSCreateEvent struct {
 	Request json.RawMessage `json:"response,omitempty"`
 }
 
+type responsesWSCreateRequest struct {
+	Request  dto.OpenAIResponsesRequest
+	Generate json.RawMessage
+}
+
 type responsesWSErrorEvent struct {
 	Type    string             `json:"type"`
 	EventID string             `json:"event_id,omitempty"`
@@ -97,16 +102,16 @@ func ResponsesWebSocketHelper(c *gin.Context, client *websocket.Conn) *types.New
 			continue
 		}
 
-		req, eventID, err := normalizeResponsesWSCreateEvent(message)
+		create, eventID, err := normalizeResponsesWSCreateEvent(message)
 		if err != nil {
 			session.sendError("", types.NewError(err, types.ErrorCodeInvalidRequest, types.ErrOptionWithSkipRetry()))
 			continue
 		}
-		if req.Model == "" {
+		if create.Request.Model == "" {
 			session.sendError(eventID, types.NewError(errors.New("model is required"), types.ErrorCodeInvalidRequest, types.ErrOptionWithSkipRetry()))
 			continue
 		}
-		if err := session.handleResponseCreate(req, eventID); err != nil {
+		if err := session.handleResponseCreate(create, eventID); err != nil {
 			session.sendError(eventID, err)
 		}
 	}
@@ -125,43 +130,51 @@ func responsesWSEventType(message []byte) (string, error) {
 	return event.Type, nil
 }
 
-func normalizeResponsesWSCreateEvent(message []byte) (dto.OpenAIResponsesRequest, string, error) {
+func normalizeResponsesWSCreateEvent(message []byte) (responsesWSCreateRequest, string, error) {
 	var event responsesWSCreateEvent
 	if err := common.Unmarshal(message, &event); err != nil {
-		return dto.OpenAIResponsesRequest{}, "", err
+		return responsesWSCreateRequest{}, "", err
 	}
 	if event.Type != responsesWSEventTypeResponseCreate {
-		return dto.OpenAIResponsesRequest{}, event.EventID, fmt.Errorf("unsupported event type %q", event.Type)
+		return responsesWSCreateRequest{}, event.EventID, fmt.Errorf("unsupported event type %q", event.Type)
+	}
+
+	var generate json.RawMessage
+	var raw map[string]json.RawMessage
+	if err := common.Unmarshal(message, &raw); err == nil {
+		if generateRaw, ok := raw["generate"]; ok {
+			generate = generateRaw
+		}
 	}
 
 	payload := event.Request
 	if len(payload) == 0 {
-		var raw map[string]json.RawMessage
 		if err := common.Unmarshal(message, &raw); err != nil {
-			return dto.OpenAIResponsesRequest{}, event.EventID, err
+			return responsesWSCreateRequest{}, event.EventID, err
 		}
 		delete(raw, "type")
 		delete(raw, "event_id")
 		delete(raw, "background")
+		delete(raw, "generate")
 		delete(raw, "stream")
 		delete(raw, "stream_options")
 		var err error
 		payload, err = common.Marshal(raw)
 		if err != nil {
-			return dto.OpenAIResponsesRequest{}, event.EventID, err
+			return responsesWSCreateRequest{}, event.EventID, err
 		}
 	} else {
-		var raw map[string]json.RawMessage
-		if err := common.Unmarshal(message, &raw); err == nil {
-			if generateRaw, ok := raw["generate"]; ok {
-				var responseMap map[string]json.RawMessage
-				if err := common.Unmarshal(payload, &responseMap); err == nil {
-					if _, exists := responseMap["generate"]; !exists {
-						responseMap["generate"] = generateRaw
-						if merged, err := common.Marshal(responseMap); err == nil {
-							payload = merged
-						}
-					}
+		var responseMap map[string]json.RawMessage
+		if err := common.Unmarshal(payload, &responseMap); err == nil {
+			if len(generate) == 0 {
+				if generateRaw, ok := responseMap["generate"]; ok {
+					generate = generateRaw
+				}
+			}
+			if _, exists := responseMap["generate"]; exists {
+				delete(responseMap, "generate")
+				if merged, err := common.Marshal(responseMap); err == nil {
+					payload = merged
 				}
 			}
 		}
@@ -169,14 +182,18 @@ func normalizeResponsesWSCreateEvent(message []byte) (dto.OpenAIResponsesRequest
 
 	var req dto.OpenAIResponsesRequest
 	if err := common.Unmarshal(payload, &req); err != nil {
-		return dto.OpenAIResponsesRequest{}, event.EventID, err
+		return responsesWSCreateRequest{}, event.EventID, err
 	}
 	req.Stream = nil
 	req.StreamOptions = nil
-	return req, event.EventID, nil
+	return responsesWSCreateRequest{
+		Request:  req,
+		Generate: generate,
+	}, event.EventID, nil
 }
 
-func (s *responsesWSSession) handleResponseCreate(req dto.OpenAIResponsesRequest, eventID string) *types.NewAPIError {
+func (s *responsesWSSession) handleResponseCreate(create responsesWSCreateRequest, eventID string) *types.NewAPIError {
+	req := create.Request
 	if s.lockedModel != "" && req.Model != s.lockedModel {
 		return types.NewErrorWithStatusCode(
 			fmt.Errorf("responses websocket connection is locked to model %q; got %q", s.lockedModel, req.Model),
@@ -201,10 +218,10 @@ func (s *responsesWSSession) handleResponseCreate(req dto.OpenAIResponsesRequest
 	}
 
 	if s.target == nil {
-		return s.connectAndSendFirst(req, eventID, commitRate)
+		return s.connectAndSendFirst(create, commitRate)
 	}
 
-	state, payload, apiErr := s.prepareCall(req, eventID, commitRate)
+	state, payload, apiErr := s.prepareCall(create, commitRate)
 	if apiErr != nil {
 		commitRate(false)
 		return apiErr
@@ -226,7 +243,8 @@ func (s *responsesWSSession) handleResponseCreate(req dto.OpenAIResponsesRequest
 	return nil
 }
 
-func (s *responsesWSSession) connectAndSendFirst(req dto.OpenAIResponsesRequest, eventID string, commitRate middleware.ModelRequestRateLimitCommit) *types.NewAPIError {
+func (s *responsesWSSession) connectAndSendFirst(create responsesWSCreateRequest, commitRate middleware.ModelRequestRateLimitCommit) *types.NewAPIError {
+	req := create.Request
 	if err := checkResponsesWSModelAccess(s.c, req.Model); err != nil {
 		commitRate(false)
 		return err
@@ -261,7 +279,7 @@ func (s *responsesWSSession) connectAndSendFirst(req dto.OpenAIResponsesRequest,
 			continue
 		}
 
-		state, payload, apiErr := s.prepareCall(req, eventID, commitRate)
+		state, payload, apiErr := s.prepareCall(create, commitRate)
 		if apiErr != nil {
 			commitRate(false)
 			return apiErr
@@ -270,14 +288,23 @@ func (s *responsesWSSession) connectAndSendFirst(req dto.OpenAIResponsesRequest,
 		adaptor := GetAdaptor(state.info.ApiType)
 		if adaptor == nil {
 			state.refund(s.c)
-			lastErr = types.NewError(fmt.Errorf("invalid api type: %d", state.info.ApiType), types.ErrorCodeInvalidApiType, types.ErrOptionWithSkipRetry())
+			apiErr = types.NewError(fmt.Errorf("invalid api type: %d", state.info.ApiType), types.ErrorCodeInvalidApiType, types.ErrOptionWithSkipRetry())
+			var shouldRetry bool
+			lastErr, shouldRetry = s.processChannelError(channel, apiErr, retryParam)
+			if !shouldRetry {
+				break
+			}
 			continue
 		}
 		adaptor.Init(state.info)
 		target, apiErr := dialResponsesWebSocketUpstream(s.c, adaptor, state.info)
 		if apiErr != nil {
 			state.refund(s.c)
-			lastErr = apiErr
+			var shouldRetry bool
+			lastErr, shouldRetry = s.processChannelError(channel, apiErr, retryParam)
+			if !shouldRetry {
+				break
+			}
 			continue
 		}
 
@@ -293,7 +320,12 @@ func (s *responsesWSSession) connectAndSendFirst(req dto.OpenAIResponsesRequest,
 			s.finishCall(state, false)
 			_ = target.Close()
 			s.target = nil
-			lastErr = types.NewError(err, types.ErrorCodeBadResponse, types.ErrOptionWithSkipRetry())
+			apiErr = types.NewError(err, types.ErrorCodeBadResponse)
+			var shouldRetry bool
+			lastErr, shouldRetry = s.processChannelError(channel, apiErr, retryParam)
+			if !shouldRetry {
+				break
+			}
 			continue
 		}
 
@@ -311,7 +343,27 @@ func (s *responsesWSSession) connectAndSendFirst(req dto.OpenAIResponsesRequest,
 	return lastErr
 }
 
-func (s *responsesWSSession) prepareCall(req dto.OpenAIResponsesRequest, eventID string, commitRate middleware.ModelRequestRateLimitCommit) (*responsesWSCallState, []byte, *types.NewAPIError) {
+func (s *responsesWSSession) processChannelError(channel *appmodel.Channel, apiErr *types.NewAPIError, retryParam *service.RetryParam) (*types.NewAPIError, bool) {
+	if apiErr == nil {
+		return nil, false
+	}
+	apiErr = service.NormalizeViolationFeeError(apiErr)
+	service.ResetStatusCode(apiErr, s.c.GetString("status_code_mapping"))
+	if channel != nil {
+		service.ProcessChannelError(s.c, *types.NewChannelError(
+			channel.Id,
+			channel.Type,
+			channel.Name,
+			channel.ChannelInfo.IsMultiKey,
+			common.GetContextKeyString(s.c, appconstant.ContextKeyChannelKey),
+			channel.GetAutoBan(),
+		), apiErr)
+	}
+	return apiErr, service.ShouldRetryRelayError(s.c, apiErr, common.RetryTimes-retryParam.GetRetry())
+}
+
+func (s *responsesWSSession) prepareCall(create responsesWSCreateRequest, commitRate middleware.ModelRequestRateLimitCommit) (*responsesWSCallState, []byte, *types.NewAPIError) {
+	req := create.Request
 	common.SetContextKey(s.c, appconstant.ContextKeyRequestStartTime, time.Now())
 	relayInfo := relaycommon.GenRelayInfoResponses(s.c, &req)
 	relayInfo.RequestId = fmt.Sprintf("%s-ws-%d", relayInfo.RequestId, s.nextEventIndex)
@@ -341,7 +393,7 @@ func (s *responsesWSSession) prepareCall(req dto.OpenAIResponsesRequest, eventID
 		}
 	}
 
-	payload, apiErr := buildResponsesWSCreatePayload(s.c, relayInfo, req, eventID)
+	payload, apiErr := buildResponsesWSCreatePayload(s.c, relayInfo, req, create.Generate)
 	if apiErr != nil {
 		if relayInfo.Billing != nil {
 			relayInfo.Billing.Refund(s.c)
@@ -356,7 +408,7 @@ func (s *responsesWSSession) prepareCall(req dto.OpenAIResponsesRequest, eventID
 	}, payload, nil
 }
 
-func buildResponsesWSCreatePayload(c *gin.Context, relayInfo *relaycommon.RelayInfo, req dto.OpenAIResponsesRequest, eventID string) ([]byte, *types.NewAPIError) {
+func buildResponsesWSCreatePayload(c *gin.Context, relayInfo *relaycommon.RelayInfo, req dto.OpenAIResponsesRequest, generate json.RawMessage) ([]byte, *types.NewAPIError) {
 	relayInfo.InitChannelMeta(c)
 	request, err := common.DeepCopy(&req)
 	if err != nil {
@@ -395,18 +447,31 @@ func buildResponsesWSCreatePayload(c *gin.Context, relayInfo *relaycommon.RelayI
 		}
 	}
 
-	event := map[string]any{
-		"type":     responsesWSEventTypeResponseCreate,
-		"response": json.RawMessage(jsonData),
-	}
-	if strings.TrimSpace(eventID) != "" {
-		event["event_id"] = eventID
-	}
-	payload, err := common.Marshal(event)
+	event, err := buildResponsesWSCreateEvent(jsonData, generate)
 	if err != nil {
 		return nil, types.NewError(err, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
 	}
-	return payload, nil
+	return event, nil
+}
+
+func buildResponsesWSCreateEvent(jsonData []byte, generate json.RawMessage) ([]byte, error) {
+	var event map[string]json.RawMessage
+	if err := common.Unmarshal(jsonData, &event); err != nil {
+		return nil, err
+	}
+	typeData, err := common.Marshal(responsesWSEventTypeResponseCreate)
+	if err != nil {
+		return nil, err
+	}
+	event["type"] = typeData
+	delete(event, "event_id")
+	delete(event, "background")
+	delete(event, "stream")
+	delete(event, "stream_options")
+	if len(generate) > 0 {
+		event["generate"] = generate
+	}
+	return common.Marshal(event)
 }
 
 func removeResponsesWSTransportFields(jsonData []byte) ([]byte, error) {
@@ -523,37 +588,13 @@ func (s *responsesWSSession) applyTerminalResponseUsage(state *responsesWSCallSt
 		return
 	}
 	if response.Usage != nil {
-		applyResponsesWSUsage(state.usage, response.Usage)
+		service.ApplyResponsesUsage(state.usage, response.Usage)
 	}
 	if response.HasImageGenerationCall() {
 		s.c.Set("image_generation_call", true)
 		s.c.Set("image_generation_call_quality", response.GetQuality())
 		s.c.Set("image_generation_call_size", response.GetSize())
 	}
-}
-
-func applyResponsesWSUsage(dst *dto.Usage, src *dto.Usage) {
-	if dst == nil || src == nil {
-		return
-	}
-	if src.InputTokens != 0 {
-		dst.PromptTokens = src.InputTokens
-		dst.InputTokens = src.InputTokens
-	}
-	if src.OutputTokens != 0 {
-		dst.CompletionTokens = src.OutputTokens
-		dst.OutputTokens = src.OutputTokens
-	}
-	if src.TotalTokens != 0 {
-		dst.TotalTokens = src.TotalTokens
-	}
-	if src.InputTokensDetails != nil {
-		dst.InputTokensDetails = src.InputTokensDetails
-		dst.PromptTokensDetails.CachedTokens = src.InputTokensDetails.CachedTokens
-	}
-	dst.PromptCacheHitTokens = src.PromptCacheHitTokens
-	dst.UsageSemantic = src.UsageSemantic
-	dst.UsageSource = src.UsageSource
 }
 
 func (s *responsesWSSession) finishCall(state *responsesWSCallState, success bool) {
