@@ -420,7 +420,7 @@ const EditTokenModal = (props) => {
                         renderOptionItem={renderGroupOption}
                         renderSelectedItem={(option) => option.value}
                         filter={(input, option) => {
-                          if (option._isCategoryHeader) return false;
+                          if (option._isCategoryHeader) return !input;
                           const q = input.toLowerCase();
                           return (
                             option.value?.toLowerCase().includes(q) ||
