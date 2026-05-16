@@ -126,11 +126,6 @@ func main() {
 	// Direct payment (Alipay/WeChat Pay) expired order cleanup
 	service.StartDirectPaymentExpiryScan()
 
-	// Reconciliation hourly aggregation (master node only)
-	if common.IsMasterNode {
-		service.StartReconcileAggregator()
-	}
-
 	// Wire task polling adaptor factory (breaks service -> relay import cycle)
 	service.GetTaskAdaptorFunc = func(platform constant.TaskPlatform) service.TaskPollingAdaptor {
 		a := relay.GetTaskAdaptor(platform)

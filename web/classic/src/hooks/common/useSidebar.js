@@ -53,7 +53,6 @@ export const DEFAULT_ADMIN_CONFIG = {
     user: true,
     kyc: true,
     subscription: true,
-    reconcile: true,
     setting: true,
   },
 };

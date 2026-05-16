@@ -182,7 +182,6 @@ const EditChannelModal = (props) => {
     status_code_mapping: '',
     models: [],
     auto_ban: 1,
-    need_reconcile: 0,
     test_model: '',
     groups: ['default'],
     priority: 0,
@@ -221,7 +220,6 @@ const EditChannelModal = (props) => {
   const [multiToSingle, setMultiToSingle] = useState(false);
   const [multiKeyMode, setMultiKeyMode] = useState('random');
   const [autoBan, setAutoBan] = useState(true);
-  const [needReconcile, setNeedReconcile] = useState(false);
   const [inputs, setInputs] = useState(originInputs);
   const [originModelOptions, setOriginModelOptions] = useState([]);
   const [modelOptions, setModelOptions] = useState([]);
@@ -985,11 +983,6 @@ const EditChannelModal = (props) => {
         setAutoBan(false);
       } else {
         setAutoBan(true);
-      }
-      if (data.need_reconcile === 1) {
-        setNeedReconcile(true);
-      } else {
-        setNeedReconcile(false);
       }
       // 同步企业账户状态
       setIsEnterpriseAccount(data.is_enterprise_account || false);
@@ -1863,7 +1856,6 @@ const EditChannelModal = (props) => {
 
     let res;
     localInputs.auto_ban = localInputs.auto_ban ? 1 : 0;
-    localInputs.need_reconcile = localInputs.need_reconcile ? 1 : 0;
     localInputs.models = localInputs.models.join(',');
     localInputs.group = (localInputs.groups || []).join(',');
 
@@ -3658,19 +3650,6 @@ const EditChannelModal = (props) => {
                       '仅当自动禁用开启时有效，关闭后不会自动禁用该渠道',
                     )}
                     initValue={autoBan}
-                  />
-
-                  {/* Need Reconcile - Core Config */}
-                  <Form.Switch
-                    field='need_reconcile'
-                    label={t('是否对账')}
-                    checkedText={t('开')}
-                    uncheckedText={t('关')}
-                    onChange={(value) => setNeedReconcile(value)}
-                    extraText={t(
-                      '开启后该渠道每小时被定时任务聚合一次，用于和供应商账单对账。仅对按小时聚合计费的供应商（如并行科技）有意义——其他实时扣款的平台无需开启。开启后下一个聚合周期生效。',
-                    )}
-                    initValue={needReconcile}
                   />
 
                   {/* Test Model - Core Config */}

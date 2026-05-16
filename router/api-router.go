@@ -197,18 +197,6 @@ func SetApiRouter(router *gin.Engine) {
 			subscriptionAdminRoute.DELETE("/user_subscriptions/:id", controller.AdminDeleteUserSubscription)
 		}
 
-		// Reconciliation admin routes:
-		//   - GET /list   paginated viewer of reconcile_hourly
-		//   - GET /export monthly xlsx download
-		// Both feed the same admin "对账管理" page; comparisons against the
-		// supplier bill happen manually in Excel.
-		reconcileAdmin := apiRouter.Group("/reconcile/admin")
-		reconcileAdmin.Use(middleware.AdminAuth())
-		{
-			reconcileAdmin.GET("/list", controller.AdminListReconcileHourly)
-			reconcileAdmin.GET("/export", controller.AdminExportReconcileMonth)
-		}
-
 		// Subscription payment callbacks (no auth)
 		apiRouter.POST("/subscription/epay/notify", controller.SubscriptionEpayNotify)
 		apiRouter.GET("/subscription/epay/notify", controller.SubscriptionEpayNotify)

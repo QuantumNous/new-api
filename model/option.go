@@ -172,7 +172,6 @@ func InitOptionMap() {
 	common.OptionMap["RetryTimes"] = strconv.Itoa(common.RetryTimes)
 	common.OptionMap["KYCEnabled"] = strconv.FormatBool(common.KYCEnabled)
 	common.OptionMap["KYCMaxSubmitCount"] = strconv.Itoa(common.KYCMaxSubmitCount)
-	common.OptionMap["ReconcileAggregateLagSeconds"] = strconv.Itoa(common.ReconcileAggregateLagSeconds)
 	common.OptionMap["DataExportInterval"] = strconv.Itoa(common.DataExportInterval)
 	common.OptionMap["DataExportDefaultTime"] = common.DataExportDefaultTime
 	common.OptionMap["DefaultCollapseSidebar"] = strconv.FormatBool(common.DefaultCollapseSidebar)
@@ -572,8 +571,6 @@ func updateOptionMap(key string, value string) (err error) {
 		err = setting.UpdateModelRequestRateLimitGroupByJSONString(value)
 	case "KYCMaxSubmitCount":
 		common.KYCMaxSubmitCount, _ = strconv.Atoi(value)
-	case "ReconcileAggregateLagSeconds":
-		common.ReconcileAggregateLagSeconds, _ = strconv.Atoi(value)
 	case "RetryTimes":
 		common.RetryTimes, _ = strconv.Atoi(value)
 	case "DataExportInterval":

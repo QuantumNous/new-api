@@ -291,14 +291,8 @@ func migrateDB() error {
 		if err := ensureSubscriptionPlanTableSQLite(); err != nil {
 			return err
 		}
-		if err := ensureReconcileHourlyTableSQLite(); err != nil {
-			return err
-		}
 	} else {
 		if err := DB.AutoMigrate(&SubscriptionPlan{}); err != nil {
-			return err
-		}
-		if err := DB.AutoMigrate(&ReconcileHourly{}); err != nil {
 			return err
 		}
 	}
@@ -368,14 +362,8 @@ func migrateDBFast() error {
 		if err := ensureSubscriptionPlanTableSQLite(); err != nil {
 			return err
 		}
-		if err := ensureReconcileHourlyTableSQLite(); err != nil {
-			return err
-		}
 	} else {
 		if err := DB.AutoMigrate(&SubscriptionPlan{}); err != nil {
-			return err
-		}
-		if err := DB.AutoMigrate(&ReconcileHourly{}); err != nil {
 			return err
 		}
 	}
@@ -455,78 +443,6 @@ PRIMARY KEY (` + "`id`" + `)
 		{Name: "quota_reset_custom_seconds", DDL: "`quota_reset_custom_seconds` bigint DEFAULT 0"},
 		{Name: "created_at", DDL: "`created_at` bigint"},
 		{Name: "updated_at", DDL: "`updated_at` bigint"},
-	}
-	for _, col := range required {
-		if _, ok := existing[col.Name]; ok {
-			continue
-		}
-		if err := DB.Exec("ALTER TABLE `" + tableName + "` ADD COLUMN " + col.DDL).Error; err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-// ensureReconcileHourlyTableSQLite hand-rolls the reconcile_hourly DDL on
-// SQLite because GORM's SQLite driver chokes on the comma inside the
-// `decimal(N,M)` type modifier — emitting an "invalid DDL, unbalanced
-// brackets" error both at CREATE time and at every subsequent AutoMigrate
-// PRAGMA round-trip. Same workaround that subscription_plans uses.
-func ensureReconcileHourlyTableSQLite() error {
-	if !common.UsingSQLite {
-		return nil
-	}
-	tableName := "reconcile_hourly"
-	if !DB.Migrator().HasTable(tableName) {
-		createSQL := `CREATE TABLE ` + "`" + tableName + "`" + ` (
-` + "`id`" + ` integer,
-` + "`hour_bucket`" + ` bigint NOT NULL,
-` + "`channel_id`" + ` integer NOT NULL,
-` + "`model_name`" + ` varchar(128) NOT NULL,
-` + "`token_type`" + ` varchar(16) NOT NULL,
-` + "`tokens`" + ` bigint NOT NULL DEFAULT 0,
-` + "`quota`" + ` bigint NOT NULL DEFAULT 0,
-` + "`amount_cny`" + ` decimal(20,6) NOT NULL DEFAULT 0,
-` + "`request_count`" + ` integer NOT NULL DEFAULT 0,
-` + "`note`" + ` varchar(255) DEFAULT '',
-` + "`aggregated_at`" + ` bigint NOT NULL DEFAULT 0,
-` + "`version`" + ` integer NOT NULL DEFAULT 1,
-PRIMARY KEY (` + "`id`" + `)
-)`
-		if err := DB.Exec(createSQL).Error; err != nil {
-			return err
-		}
-		idxSQL := "CREATE INDEX `idx_rh_lookup` ON `" + tableName +
-			"`(`hour_bucket`, `channel_id`, `model_name`, `token_type`)"
-		return DB.Exec(idxSQL).Error
-	}
-	// Table already exists — add any newly introduced columns. Schema
-	// changes here must be ALTER TABLE ADD COLUMN-friendly (SQLite has no
-	// ALTER COLUMN). Today we have all the columns from day one, so the
-	// loop is a no-op; the structure is here so future fields can be added
-	// without a destructive migration.
-	var cols []struct {
-		Name string `gorm:"column:name"`
-	}
-	if err := DB.Raw("PRAGMA table_info(`" + tableName + "`)").Scan(&cols).Error; err != nil {
-		return err
-	}
-	existing := make(map[string]struct{}, len(cols))
-	for _, c := range cols {
-		existing[c.Name] = struct{}{}
-	}
-	required := []sqliteColumnDef{
-		{Name: "hour_bucket", DDL: "`hour_bucket` bigint NOT NULL"},
-		{Name: "channel_id", DDL: "`channel_id` integer NOT NULL"},
-		{Name: "model_name", DDL: "`model_name` varchar(128) NOT NULL"},
-		{Name: "token_type", DDL: "`token_type` varchar(16) NOT NULL"},
-		{Name: "tokens", DDL: "`tokens` bigint NOT NULL DEFAULT 0"},
-		{Name: "quota", DDL: "`quota` bigint NOT NULL DEFAULT 0"},
-		{Name: "amount_cny", DDL: "`amount_cny` decimal(20,6) NOT NULL DEFAULT 0"},
-		{Name: "request_count", DDL: "`request_count` integer NOT NULL DEFAULT 0"},
-		{Name: "note", DDL: "`note` varchar(255) DEFAULT ''"},
-		{Name: "aggregated_at", DDL: "`aggregated_at` bigint NOT NULL DEFAULT 0"},
-		{Name: "version", DDL: "`version` integer NOT NULL DEFAULT 1"},
 	}
 	for _, col := range required {
 		if _, ok := existing[col.Name]; ok {
