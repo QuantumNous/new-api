@@ -2,12 +2,15 @@ package relay
 
 import (
 	"encoding/json"
+	"errors"
+	"net/http"
 	"strings"
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/dto"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/types"
 )
 
 func TestNormalizeResponsesWSCreateEventWrapper(t *testing.T) {
@@ -133,6 +136,33 @@ func TestHTTPResponsesRequestDoesNotMarshalGenerate(t *testing.T) {
 	}
 	if _, ok := data["generate"]; ok {
 		t.Fatalf("generate leaked into HTTP request JSON: %s", got)
+	}
+}
+
+func TestBuildResponsesWSErrorPayloadIncludesStatus(t *testing.T) {
+	payload, err := buildResponsesWSErrorPayload("evt_err", types.NewErrorWithStatusCode(
+		errors.New("model is required"),
+		types.ErrorCodeInvalidRequest,
+		http.StatusBadRequest,
+		types.ErrOptionWithSkipRetry(),
+	))
+	if err != nil {
+		t.Fatalf("buildResponsesWSErrorPayload() error = %v", err)
+	}
+	var data struct {
+		Type    string             `json:"type"`
+		Status  int                `json:"status"`
+		EventID string             `json:"event_id"`
+		Error   *types.OpenAIError `json:"error"`
+	}
+	if err := common.Unmarshal(payload, &data); err != nil {
+		t.Fatalf("unmarshal result: %v", err)
+	}
+	if data.Type != "error" || data.Status != http.StatusBadRequest || data.EventID != "evt_err" {
+		t.Fatalf("unexpected error event: %s", payload)
+	}
+	if data.Error == nil || data.Error.Code != string(types.ErrorCodeInvalidRequest) {
+		t.Fatalf("unexpected error body: %#v", data.Error)
 	}
 }
 

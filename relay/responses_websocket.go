@@ -43,6 +43,7 @@ type responsesWSCreateRequest struct {
 
 type responsesWSErrorEvent struct {
 	Type    string             `json:"type"`
+	Status  int                `json:"status"`
 	EventID string             `json:"event_id,omitempty"`
 	Error   *types.OpenAIError `json:"error"`
 }
@@ -700,16 +701,28 @@ func (s *responsesWSSession) sendError(eventID string, apiErr *types.NewAPIError
 	if apiErr == nil {
 		return
 	}
-	openaiErr := apiErr.ToOpenAIError()
-	payload, err := common.Marshal(&responsesWSErrorEvent{
-		Type:    "error",
-		EventID: eventID,
-		Error:   &openaiErr,
-	})
+	payload, err := buildResponsesWSErrorPayload(eventID, apiErr)
 	if err != nil {
 		return
 	}
 	_ = s.writeClient(websocket.TextMessage, payload)
+}
+
+func buildResponsesWSErrorPayload(eventID string, apiErr *types.NewAPIError) ([]byte, error) {
+	if apiErr == nil {
+		return nil, errors.New("api error is nil")
+	}
+	status := apiErr.StatusCode
+	if status == 0 {
+		status = http.StatusInternalServerError
+	}
+	openaiErr := apiErr.ToOpenAIError()
+	return common.Marshal(&responsesWSErrorEvent{
+		Type:    "error",
+		Status:  status,
+		EventID: eventID,
+		Error:   &openaiErr,
+	})
 }
 
 func (s *responsesWSSession) closeTarget() {
