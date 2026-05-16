@@ -1,0 +1,606 @@
+- generic [ref=e3]:
+  - generic [ref=e7]:
+    - link "logo AI模型一站式网关" [ref=e9] [cursor=pointer]:
+      - /url: /
+      - img "logo" [ref=e12]
+      - generic [ref=e17]: AI模型一站式网关
+    - generic [ref=e18]:
+      - navigation [ref=e19]
+      - generic [ref=e32]:
+        - button "系统公告" [ref=e33] [cursor=pointer]:
+          - img [ref=e35]
+        - button "切换主题" [ref=e38] [cursor=pointer]:
+          - img [ref=e40]
+        - button "common.changeLanguage" [ref=e44] [cursor=pointer]:
+          - img [ref=e46]
+  - generic [ref=e56]:
+    - complementary [ref=e57]
+    - generic [ref=e165]:
+      - main [ref=e166]:
+        - main [ref=e169]:
+          - generic [ref=e170]:
+            - tablist [ref=e171]:
+              - generic [ref=e172]:
+                - button "chevron_left" [disabled] [ref=e173]:
+                  - img "chevron_left" [ref=e175]:
+                    - img [ref=e176]
+                - generic [ref=e178]:
+                  - tab "运营设置" [selected] [ref=e179]:
+                    - generic [ref=e180]:
+                      - img [ref=e181]
+                      - text: 运营设置
+                  - tab "仪表盘设置" [ref=e184] [cursor=pointer]:
+                    - generic [ref=e185]:
+                      - img [ref=e186]
+                      - text: 仪表盘设置
+                  - tab "聊天设置" [ref=e191] [cursor=pointer]:
+                    - generic [ref=e192]:
+                      - img [ref=e193]
+                      - text: 聊天设置
+                  - tab "绘图设置" [ref=e195] [cursor=pointer]:
+                    - generic [ref=e196]:
+                      - img [ref=e197]
+                      - text: 绘图设置
+                  - tab "支付设置" [ref=e203] [cursor=pointer]:
+                    - generic [ref=e204]:
+                      - img [ref=e205]
+                      - text: 支付设置
+                  - tab "返佣设置" [ref=e207] [cursor=pointer]:
+                    - generic [ref=e208]:
+                      - img [ref=e209]
+                      - text: 返佣设置
+                  - tab "分组与模型定价设置" [ref=e214] [cursor=pointer]:
+                    - generic [ref=e215]:
+                      - img [ref=e216]
+                      - text: 分组与模型定价设置
+                  - tab "速率限制设置" [ref=e218] [cursor=pointer]:
+                    - generic [ref=e219]:
+                      - img [ref=e220]
+                      - text: 速率限制设置
+                  - tab "模型相关设置" [ref=e223] [cursor=pointer]:
+                    - generic [ref=e224]:
+                      - img [ref=e225]
+                      - text: 模型相关设置
+                  - tab "模型部署设置" [ref=e229] [cursor=pointer]:
+                    - generic [ref=e230]:
+                      - img [ref=e231]
+                      - text: 模型部署设置
+                  - tab "性能设置" [ref=e234] [cursor=pointer]:
+                    - generic [ref=e235]:
+                      - img [ref=e236]
+                      - text: 性能设置
+                  - tab "系统设置" [ref=e238] [cursor=pointer]:
+                    - generic [ref=e239]:
+                      - img [ref=e240]
+                      - text: 系统设置
+                  - tab "其他设置" [ref=e251] [cursor=pointer]:
+                    - generic [ref=e252]:
+                      - img [ref=e253]
+                      - text: 其他设置
+                - button "chevron_right" [ref=e258] [cursor=pointer]:
+                  - img "chevron_right" [ref=e260]:
+                    - img [ref=e261]
+            - tabpanel "运营设置" [ref=e264]:
+              - generic [ref=e267]:
+                - generic [ref=e273]:
+                  - heading "通用设置" [level=5] [ref=e274]
+                  - generic [ref=e275]:
+                    - generic [ref=e277]:
+                      - generic [ref=e279]: 充值链接
+                      - textbox "充值链接" [ref=e282]:
+                        - /placeholder: 例如发卡网站的购买链接
+                    - generic [ref=e284]:
+                      - generic [ref=e286]: 文档地址
+                      - textbox "文档地址" [ref=e289]:
+                        - /placeholder: 例如 https://docs.newapi.pro
+                    - generic [ref=e291]:
+                      - generic [ref=e293]: 失败重试次数
+                      - textbox "失败重试次数" [ref=e296]: "0"
+                  - generic [ref=e299]:
+                    - generic [ref=e301]: 站点额度展示类型及汇率
+                    - generic [ref=e302]:
+                      - generic [ref=e303]: 启用的货币（用户可从中选择偏好）
+                      - generic [ref=e304]:
+                        - generic [ref=e305]:
+                          - generic [ref=e306] [cursor=pointer]:
+                            - generic [ref=e307]:
+                              - checkbox "USD ($)" [checked] [ref=e308]
+                              - img "checkbox_tick" [ref=e310]:
+                                - img [ref=e311]
+                            - generic [ref=e314]: USD ($)
+                          - generic [ref=e315]:
+                            - generic [ref=e316]: 1 USD =
+                            - textbox [disabled] [ref=e317]: "1"
+                        - generic [ref=e318]:
+                          - generic [ref=e319] [cursor=pointer]:
+                            - checkbox "CNY (¥)" [ref=e321]
+                            - generic [ref=e324]: CNY (¥)
+                          - generic [ref=e325]:
+                            - generic [ref=e326]: 1 USD =
+                            - textbox [ref=e327]
+                        - generic [ref=e328]:
+                          - generic [ref=e329] [cursor=pointer]:
+                            - checkbox "Tokens" [ref=e331]
+                            - generic [ref=e334]: Tokens
+                          - generic [ref=e335]:
+                            - generic [ref=e336]: 1 USD =
+                            - textbox [ref=e337]
+                        - button "+ 新增自定义货币" [ref=e339] [cursor=pointer]:
+                          - generic [ref=e340]: + 新增自定义货币
+                      - generic [ref=e341]: 预览效果：$1.00
+                  - generic [ref=e344]:
+                    - generic [ref=e346]: 默认货币（未登录用户）
+                    - combobox "selected" [ref=e348] [cursor=pointer]:
+                      - generic [ref=e351]: USD ($)
+                      - img [ref=e353]:
+                        - img [ref=e354]
+                  - generic [ref=e356]:
+                    - generic [ref=e358]:
+                      - generic [ref=e360]: 额度查询接口返回令牌额度而非用户额度
+                      - generic [ref=e362] [cursor=pointer]:
+                        - generic [ref=e364]: 〇
+                        - switch "额度查询接口返回令牌额度而非用户额度" [ref=e365]
+                    - generic [ref=e367]:
+                      - generic [ref=e369]: 默认折叠侧边栏
+                      - generic [ref=e371] [cursor=pointer]:
+                        - generic [ref=e373]: 〇
+                        - switch "默认折叠侧边栏" [ref=e374]
+                    - generic [ref=e376]:
+                      - generic [ref=e378]: 演示站点模式
+                      - generic [ref=e380] [cursor=pointer]:
+                        - generic [ref=e382]: 〇
+                        - switch "演示站点模式" [ref=e383]
+                    - generic [ref=e385]:
+                      - generic [ref=e387]: 自用模式
+                      - generic [ref=e388]:
+                        - generic [ref=e389] [cursor=pointer]:
+                          - generic [ref=e391]: 〇
+                          - switch "自用模式" [ref=e392]
+                        - generic [ref=e393]: 开启后不限制：必须设置模型倍率
+                  - generic [ref=e396]:
+                    - generic [ref=e398]: 兑换码兑换
+                    - generic [ref=e399]:
+                      - generic [ref=e400] [cursor=pointer]:
+                        - generic [ref=e402]: 〇
+                        - switch "兑换码兑换" [ref=e403]
+                      - generic [ref=e404]: 关闭后用户将无法使用兑换码
+                  - generic [ref=e407]:
+                    - generic [ref=e409]: 用户最大令牌数量
+                    - generic [ref=e410]:
+                      - generic [ref=e411]:
+                        - spinbutton "用户最大令牌数量" [ref=e413]: "1000"
+                        - generic [ref=e414]:
+                          - img "chevron_up" [ref=e416]:
+                            - img [ref=e417]
+                          - img "chevron_down" [ref=e420]:
+                            - img [ref=e421]
+                      - generic [ref=e423]: 每个用户最多可创建的令牌数量，默认 1000，设置过大可能会影响性能
+                  - button "保存通用设置" [ref=e425] [cursor=pointer]:
+                    - generic [ref=e426]: 保存通用设置
+                - generic [ref=e430]:
+                  - heading "顶栏管理" [level=5] [ref=e431]
+                  - generic [ref=e432]:
+                    - generic [ref=e436]:
+                      - generic [ref=e437]:
+                        - generic [ref=e438]: 首页
+                        - generic [ref=e439]: 用户主页，展示系统信息
+                      - switch [checked] [ref=e443] [cursor=pointer]
+                    - generic [ref=e447]:
+                      - generic [ref=e448]:
+                        - generic [ref=e449]: 控制台
+                        - generic [ref=e450]: 用户控制面板，管理账户
+                      - switch [checked] [ref=e454] [cursor=pointer]
+                    - generic [ref=e457]:
+                      - generic [ref=e458]:
+                        - generic [ref=e459]:
+                          - generic [ref=e460]: 模型广场
+                          - generic [ref=e461]: 模型定价，需要登录访问
+                        - switch [checked] [ref=e465] [cursor=pointer]
+                      - generic [ref=e467]:
+                        - generic [ref=e468]:
+                          - generic [ref=e469]: 需要登录访问
+                          - generic [ref=e470]: 开启后未登录用户无法访问模型广场
+                        - switch [ref=e474] [cursor=pointer]
+                    - generic [ref=e478]:
+                      - generic [ref=e479]:
+                        - generic [ref=e480]: 文档
+                        - generic [ref=e481]: 系统文档和帮助信息
+                      - switch [checked] [ref=e485] [cursor=pointer]
+                    - generic [ref=e489]:
+                      - generic [ref=e490]:
+                        - generic [ref=e491]: 关于
+                        - generic [ref=e492]: 关于系统的详细信息
+                      - switch [checked] [ref=e496] [cursor=pointer]
+                  - generic [ref=e497]:
+                    - generic [ref=e498]: 自定义菜单添加自定义导航链接，支持内部路径和外部链接
+                    - generic [ref=e499]:
+                      - textbox "菜单名称" [ref=e501]
+                      - textbox "链接地址，如 https://docs.example.com 或 /about" [ref=e503]
+                      - button "plus 添加" [disabled] [ref=e504]:
+                        - generic [ref=e505]:
+                          - img "plus" [ref=e506]:
+                            - img [ref=e507]
+                          - generic [ref=e509]: 添加
+                  - generic [ref=e510]:
+                    - button "重置为默认" [ref=e511] [cursor=pointer]:
+                      - generic [ref=e512]: 重置为默认
+                    - button "保存设置" [ref=e513] [cursor=pointer]:
+                      - generic [ref=e514]: 保存设置
+                - generic [ref=e518]:
+                  - heading "侧边栏管理（全局控制）" [level=5] [ref=e519]
+                  - generic [ref=e520]:
+                    - generic [ref=e521]:
+                      - generic [ref=e522]:
+                        - generic [ref=e523]: 聊天区域
+                        - text: 操练场和聊天功能
+                      - switch [checked] [ref=e526] [cursor=pointer]
+                    - generic [ref=e527]:
+                      - generic [ref=e531]:
+                        - generic [ref=e532]:
+                          - generic [ref=e533]: 操练场
+                          - generic [ref=e534]: AI模型测试环境
+                        - switch [checked] [ref=e538] [cursor=pointer]
+                      - generic [ref=e542]:
+                        - generic [ref=e543]:
+                          - generic [ref=e544]: 聊天
+                          - generic [ref=e545]: 聊天会话管理
+                        - switch [checked] [ref=e549] [cursor=pointer]
+                  - generic [ref=e550]:
+                    - generic [ref=e551]:
+                      - generic [ref=e552]:
+                        - generic [ref=e553]: 控制台区域
+                        - text: 数据管理和日志查看
+                      - switch [checked] [ref=e556] [cursor=pointer]
+                    - generic [ref=e557]:
+                      - generic [ref=e561]:
+                        - generic [ref=e562]:
+                          - generic [ref=e563]: 数据看板
+                          - generic [ref=e564]: 系统数据统计
+                        - switch [checked] [ref=e568] [cursor=pointer]
+                      - generic [ref=e572]:
+                        - generic [ref=e573]:
+                          - generic [ref=e574]: 令牌管理
+                          - generic [ref=e575]: API令牌管理
+                        - switch [checked] [ref=e579] [cursor=pointer]
+                      - generic [ref=e583]:
+                        - generic [ref=e584]:
+                          - generic [ref=e585]: 使用日志
+                          - generic [ref=e586]: API使用记录
+                        - switch [checked] [ref=e590] [cursor=pointer]
+                      - generic [ref=e594]:
+                        - generic [ref=e595]:
+                          - generic [ref=e596]: 绘图日志
+                          - generic [ref=e597]: 绘图任务记录
+                        - switch [checked] [ref=e601] [cursor=pointer]
+                      - generic [ref=e605]:
+                        - generic [ref=e606]:
+                          - generic [ref=e607]: 任务日志
+                          - generic [ref=e608]: 系统任务记录
+                        - switch [checked] [ref=e612] [cursor=pointer]
+                  - generic [ref=e613]:
+                    - generic [ref=e614]:
+                      - generic [ref=e615]:
+                        - generic [ref=e616]: 个人中心区域
+                        - text: 用户个人功能
+                      - switch [checked] [ref=e619] [cursor=pointer]
+                    - generic [ref=e620]:
+                      - generic [ref=e624]:
+                        - generic [ref=e625]:
+                          - generic [ref=e626]: 钱包管理
+                          - generic [ref=e627]: 余额充值管理
+                        - switch [checked] [ref=e631] [cursor=pointer]
+                      - generic [ref=e635]:
+                        - generic [ref=e636]:
+                          - generic [ref=e637]: 个人设置
+                          - generic [ref=e638]: 个人信息设置
+                        - switch [checked] [ref=e642] [cursor=pointer]
+                  - generic [ref=e643]:
+                    - generic [ref=e644]:
+                      - generic [ref=e645]:
+                        - generic [ref=e646]: 管理员区域
+                        - text: 系统管理功能
+                      - switch [checked] [ref=e649] [cursor=pointer]
+                    - generic [ref=e650]:
+                      - generic [ref=e654]:
+                        - generic [ref=e655]:
+                          - generic [ref=e656]: 渠道管理
+                          - generic [ref=e657]: API渠道配置
+                        - switch [checked] [ref=e661] [cursor=pointer]
+                      - generic [ref=e665]:
+                        - generic [ref=e666]:
+                          - generic [ref=e667]: 模型管理
+                          - generic [ref=e668]: AI模型配置
+                        - switch [checked] [ref=e672] [cursor=pointer]
+                      - generic [ref=e676]:
+                        - generic [ref=e677]:
+                          - generic [ref=e678]: 模型部署
+                          - generic [ref=e679]: 模型部署管理
+                        - switch [checked] [ref=e683] [cursor=pointer]
+                      - generic [ref=e687]:
+                        - generic [ref=e688]:
+                          - generic [ref=e689]: 订阅管理
+                          - generic [ref=e690]: 订阅套餐管理
+                        - switch [checked] [ref=e694] [cursor=pointer]
+                      - generic [ref=e698]:
+                        - generic [ref=e699]:
+                          - generic [ref=e700]: 兑换码管理
+                          - generic [ref=e701]: 兑换码生成管理
+                        - switch [checked] [ref=e705] [cursor=pointer]
+                      - generic [ref=e709]:
+                        - generic [ref=e710]:
+                          - generic [ref=e711]: 用户管理
+                          - generic [ref=e712]: 用户账户管理
+                        - switch [checked] [ref=e716] [cursor=pointer]
+                      - generic [ref=e720]:
+                        - generic [ref=e721]:
+                          - generic [ref=e722]: 系统设置
+                          - generic [ref=e723]: 系统参数配置
+                        - switch [checked] [ref=e727] [cursor=pointer]
+                  - generic [ref=e728]:
+                    - button "重置为默认" [ref=e729] [cursor=pointer]:
+                      - generic [ref=e730]: 重置为默认
+                    - button "保存设置" [ref=e731] [cursor=pointer]:
+                      - generic [ref=e732]: 保存设置
+                - generic [ref=e738]:
+                  - heading "屏蔽词过滤设置" [level=5] [ref=e739]
+                  - generic [ref=e740]:
+                    - generic [ref=e742]:
+                      - generic [ref=e744]: 启用屏蔽词过滤功能
+                      - generic [ref=e746] [cursor=pointer]:
+                        - generic [ref=e748]: 〇
+                        - switch "启用屏蔽词过滤功能" [ref=e749]
+                    - generic [ref=e751]:
+                      - generic [ref=e753]: 启用 Prompt 检查
+                      - generic [ref=e755] [cursor=pointer]:
+                        - generic [ref=e757]: 〇
+                        - switch "启用 Prompt 检查" [ref=e758]
+                  - generic [ref=e761]:
+                    - generic [ref=e763]: 屏蔽词列表
+                    - generic [ref=e764]:
+                      - textbox "屏蔽词列表" [ref=e766]:
+                        - /placeholder: 一行一个屏蔽词，不需要符号分割
+                      - generic [ref=e767]: 一行一个屏蔽词，不需要符号分割
+                  - button "保存屏蔽词过滤设置" [ref=e769] [cursor=pointer]:
+                    - generic [ref=e770]: 保存屏蔽词过滤设置
+                - generic [ref=e776]:
+                  - heading "日志设置" [level=5] [ref=e777]
+                  - generic [ref=e778]:
+                    - generic [ref=e780]:
+                      - generic [ref=e782]: 启用额度消费日志记录
+                      - generic [ref=e784] [cursor=pointer]:
+                        - generic [ref=e786]: 〇
+                        - switch "启用额度消费日志记录" [ref=e787]
+                    - generic [ref=e790]:
+                      - generic [ref=e791]:
+                        - generic [ref=e793]: 清除历史日志
+                        - generic "清除历史日志" [ref=e795]:
+                          - combobox "Change date" [ref=e796]:
+                            - generic [ref=e797] [cursor=pointer]:
+                              - textbox "请选择日期及时间" [ref=e798]: 2026-04-14 21:54:24
+                              - img [ref=e800]:
+                                - img [ref=e801]
+                      - generic [ref=e808]: 将清除选定时间之前的所有日志
+                      - button "清除历史日志" [ref=e809] [cursor=pointer]:
+                        - generic [ref=e810]: 清除历史日志
+                  - button "保存日志设置" [ref=e812] [cursor=pointer]:
+                    - generic [ref=e813]: 保存日志设置
+                - generic [ref=e819]:
+                  - heading "监控设置" [level=5] [ref=e820]
+                  - generic [ref=e821]:
+                    - generic [ref=e823]:
+                      - generic [ref=e825]: 定时测试所有通道
+                      - generic [ref=e827] [cursor=pointer]:
+                        - generic [ref=e829]: 〇
+                        - switch "定时测试所有通道" [ref=e830]
+                    - generic [ref=e832]:
+                      - generic [ref=e834]: 自动测试所有通道间隔时间
+                      - generic [ref=e835]:
+                        - generic [ref=e836]:
+                          - generic [ref=e837]:
+                            - spinbutton "自动测试所有通道间隔时间" [ref=e838]: "10"
+                            - generic [ref=e839]: 分钟
+                          - generic [ref=e840]:
+                            - img "chevron_up" [ref=e842]:
+                              - img [ref=e843]
+                            - img "chevron_down" [ref=e846]:
+                              - img [ref=e847]
+                        - generic [ref=e849]: 每隔多少分钟测试一次所有通道
+                  - generic [ref=e850]:
+                    - generic [ref=e852]:
+                      - generic [ref=e854]: 测试所有渠道的最长响应时间
+                      - generic [ref=e855]:
+                        - generic [ref=e856]:
+                          - generic [ref=e857]:
+                            - spinbutton "测试所有渠道的最长响应时间" [ref=e858]: "0"
+                            - generic [ref=e859]: 秒
+                          - generic [ref=e860]:
+                            - img "chevron_up" [ref=e862]:
+                              - img [ref=e863]
+                            - img "chevron_down" [ref=e866]:
+                              - img [ref=e867]
+                        - generic [ref=e869]: 当运行通道全部测试时，超过此时间将自动禁用通道
+                    - generic [ref=e871]:
+                      - generic [ref=e873]: 额度提醒阈值
+                      - generic [ref=e874]:
+                        - generic [ref=e875]:
+                          - generic [ref=e876]:
+                            - spinbutton "额度提醒阈值" [ref=e877]: "0"
+                            - generic [ref=e878]: Token
+                          - generic [ref=e879]:
+                            - img "chevron_up" [ref=e881]:
+                              - img [ref=e882]
+                            - img "chevron_down" [ref=e885]:
+                              - img [ref=e886]
+                        - generic [ref=e888]: 低于此额度时将发送邮件提醒用户
+                  - generic [ref=e889]:
+                    - generic [ref=e891]:
+                      - generic [ref=e893]: 失败时自动禁用通道
+                      - generic [ref=e895] [cursor=pointer]:
+                        - generic [ref=e897]: 〇
+                        - switch "失败时自动禁用通道" [ref=e898]
+                    - generic [ref=e900]:
+                      - generic [ref=e902]: 成功时自动启用通道
+                      - generic [ref=e904] [cursor=pointer]:
+                        - generic [ref=e906]: 〇
+                        - switch "成功时自动启用通道" [ref=e907]
+                  - generic [ref=e909]:
+                    - generic [ref=e910]:
+                      - generic [ref=e912]: 自动禁用状态码
+                      - generic [ref=e913]:
+                        - textbox "自动禁用状态码" [ref=e915]:
+                          - /placeholder: 例如：401,403,429,500-599
+                          - text: "401"
+                        - generic [ref=e916]: 支持填写单个状态码或范围（含首尾），使用逗号分隔
+                    - 'generic "Tag: 401" [ref=e918]':
+                      - generic [ref=e919]: "401"
+                    - generic [ref=e920]:
+                      - generic [ref=e922]: 自动重试状态码
+                      - generic [ref=e923]:
+                        - textbox "自动重试状态码" [ref=e925]:
+                          - /placeholder: 例如：401,403,429,500-599
+                          - text: 100-199,300-399,401-407,409-499,500-503,505-523,525-599
+                        - generic [ref=e926]: 支持填写单个状态码或范围（含首尾），使用逗号分隔；504 和 524 始终不重试，不受此处配置影响
+                    - generic [ref=e927]:
+                      - 'generic "Tag: 100-199" [ref=e928]':
+                        - generic [ref=e929]: 100-199
+                      - 'generic "Tag: 300-399" [ref=e930]':
+                        - generic [ref=e931]: 300-399
+                      - 'generic "Tag: 401-407" [ref=e932]':
+                        - generic [ref=e933]: 401-407
+                      - 'generic "Tag: 409-503" [ref=e934]':
+                        - generic [ref=e935]: 409-503
+                      - 'generic "Tag: 505-523" [ref=e936]':
+                        - generic [ref=e937]: 505-523
+                      - 'generic "Tag: 525-599" [ref=e938]':
+                        - generic [ref=e939]: 525-599
+                    - generic [ref=e940]:
+                      - generic [ref=e942]: 自动禁用关键词
+                      - generic [ref=e943]:
+                        - textbox "自动禁用关键词" [ref=e945]:
+                          - /placeholder: 一行一个，不区分大小写
+                        - generic [ref=e946]: 当上游通道返回错误中包含这些关键词时（不区分大小写），自动禁用通道
+                  - button "保存监控设置" [ref=e948] [cursor=pointer]:
+                    - generic [ref=e949]: 保存监控设置
+                - generic [ref=e955]:
+                  - heading "额度设置" [level=5] [ref=e956]
+                  - generic [ref=e957]:
+                    - generic [ref=e959]:
+                      - generic [ref=e961]: 新用户初始额度
+                      - generic [ref=e963]:
+                        - generic [ref=e964]:
+                          - spinbutton "新用户初始额度" [ref=e965]: "0"
+                          - generic [ref=e966]: Token
+                        - generic [ref=e967]:
+                          - img "chevron_up" [ref=e969]:
+                            - img [ref=e970]
+                          - img "chevron_down" [ref=e973]:
+                            - img [ref=e974]
+                    - generic [ref=e977]:
+                      - generic [ref=e979]: 请求预扣费额度
+                      - generic [ref=e980]:
+                        - generic [ref=e981]:
+                          - generic [ref=e982]:
+                            - spinbutton "请求预扣费额度" [ref=e983]: "0"
+                            - generic [ref=e984]: Token
+                          - generic [ref=e985]:
+                            - img "chevron_up" [ref=e987]:
+                              - img [ref=e988]
+                            - img "chevron_down" [ref=e991]:
+                              - img [ref=e992]
+                        - generic [ref=e994]: 请求结束后多退少补
+                    - generic [ref=e996]:
+                      - generic [ref=e998]: 邀请新用户奖励额度
+                      - generic [ref=e1000]:
+                        - generic [ref=e1001]:
+                          - spinbutton "邀请新用户奖励额度" [ref=e1002]: "0"
+                          - generic [ref=e1003]: Token
+                        - generic [ref=e1004]:
+                          - img "chevron_up" [ref=e1006]:
+                            - img [ref=e1007]
+                          - img "chevron_down" [ref=e1010]:
+                            - img [ref=e1011]
+                  - generic [ref=e1015]:
+                    - generic [ref=e1017]: 新用户使用邀请码奖励额度
+                    - generic [ref=e1019]:
+                      - generic [ref=e1020]:
+                        - spinbutton "新用户使用邀请码奖励额度" [ref=e1021]: "0"
+                        - generic [ref=e1022]: Token
+                      - generic [ref=e1023]:
+                        - img "chevron_up" [ref=e1025]:
+                          - img [ref=e1026]
+                        - img "chevron_down" [ref=e1029]:
+                          - img [ref=e1030]
+                  - generic [ref=e1034]:
+                    - generic [ref=e1036]: 对免费模型启用预消耗
+                    - generic [ref=e1037]:
+                      - switch "对免费模型启用预消耗" [checked] [ref=e1040] [cursor=pointer]
+                      - generic [ref=e1041]: 开启后，对免费模型（倍率为0，或者价格为0）的模型也会预消耗额度
+                  - button "保存额度设置" [ref=e1043] [cursor=pointer]:
+                    - generic [ref=e1044]: 保存额度设置
+                - generic [ref=e1050]:
+                  - heading "签到设置" [level=5] [ref=e1051]
+                  - generic [ref=e1052]: 签到功能允许用户每日签到获取随机额度奖励
+                  - generic [ref=e1053]:
+                    - generic [ref=e1055]:
+                      - generic [ref=e1057]: 启用签到功能
+                      - generic [ref=e1059] [cursor=pointer]:
+                        - generic [ref=e1061]: 〇
+                        - switch "启用签到功能" [ref=e1062]
+                    - generic [ref=e1064]:
+                      - generic [ref=e1066]: 签到最小额度
+                      - generic [ref=e1068]:
+                        - spinbutton "签到最小额度" [disabled] [ref=e1070]: "1000"
+                        - generic [ref=e1071]:
+                          - img "chevron_up" [ref=e1073]:
+                            - img [ref=e1074]
+                          - img "chevron_down" [ref=e1077]:
+                            - img [ref=e1078]
+                    - generic [ref=e1081]:
+                      - generic [ref=e1083]: 签到最大额度
+                      - generic [ref=e1085]:
+                        - spinbutton "签到最大额度" [disabled] [ref=e1087]: "10000"
+                        - generic [ref=e1088]:
+                          - img "chevron_up" [ref=e1090]:
+                            - img [ref=e1091]
+                          - img "chevron_down" [ref=e1094]:
+                            - img [ref=e1095]
+                  - button "保存签到设置" [ref=e1098] [cursor=pointer]:
+                    - generic [ref=e1099]: 保存签到设置
+                - generic [ref=e1105]:
+                  - heading "CDN 加速设置" [level=5] [ref=e1106]
+                  - generic [ref=e1107]: 通过 CDN 加速前端静态资源加载，按访客国家分配不同的 CDN 节点。需要 nginx 配置 GeoIP 模块并传递国家代码请求头。
+                  - generic [ref=e1108]:
+                    - generic [ref=e1110]:
+                      - generic [ref=e1112]: 启用 CDN
+                      - generic [ref=e1114] [cursor=pointer]:
+                        - generic [ref=e1116]: 〇
+                        - switch "启用 CDN" [ref=e1117]
+                    - generic [ref=e1119]:
+                      - generic [ref=e1121]: 检测请求头
+                      - textbox "检测请求头" [disabled] [ref=e1124]:
+                        - /placeholder: X-GeoIP-Country
+                        - text: X-GeoIP-Country
+                  - heading "CDN 规则" [level=6] [ref=e1125]
+                  - generic [ref=e1126]: 按国家代码配置 CDN 地址，精确匹配国家规则，未匹配时使用 default 规则兜底
+                  - generic [ref=e1132]:
+                    - grid [ref=e1133]:
+                      - rowgroup [ref=e1138]:
+                        - row "国家代码 CDN 地址 操作" [ref=e1139]:
+                          - columnheader "国家代码" [ref=e1140]
+                          - columnheader "CDN 地址" [ref=e1141]
+                          - columnheader "操作" [ref=e1142]
+                      - rowgroup
+                    - generic [ref=e1144]: 暂无规则，请在下方添加
+                  - generic [ref=e1145]:
+                    - textbox "国家代码 (如 CN、US、default)" [disabled] [ref=e1147]
+                    - textbox "CDN 地址 (如 https://cdn-cn.example.com)" [disabled] [ref=e1149]
+                    - button "添加规则" [disabled] [ref=e1150]:
+                      - generic [ref=e1151]: 添加规则
+                  - button "保存 CDN 设置" [ref=e1153] [cursor=pointer]:
+                    - generic [ref=e1154]: 保存 CDN 设置
+      - generic [ref=e1159]:
+        - generic [ref=e1161]: © 2026 OneDayAI - 本地站. 版权所有
+        - generic [ref=e1162]:
+          - generic [ref=e1163]: 设计与开发由
+          - link "New API" [ref=e1164] [cursor=pointer]:
+            - /url: https://github.com/QuantumNous/new-api

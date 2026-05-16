@@ -1,0 +1,18 @@
+[     593ms] [LOG] %cWE ❤ NEWAPI%c Github: https://github.com/QuantumNous/new-api color: #10b981; font-weight: bold; font-size: 24px; color: inherit; font-size: 14px; @ http://127.0.0.1:3000/assets/index-DHeGAyju.js:14034
+[     752ms] [LOG]  data is ? {amount_options: Array(6), creem_products: [], discount: Object, enable_creem_topup: false, enable_online_topup: true} @ http://127.0.0.1:3000/assets/index-BmS157Xz.js:10
+[     752ms] [LOG]  creem products is ? [] @ http://127.0.0.1:3000/assets/index-BmS157Xz.js:10
+[  143652ms] [LOG] %cWE ❤ NEWAPI%c Github: https://github.com/QuantumNous/new-api color: #10b981; font-weight: bold; font-size: 24px; color: inherit; font-size: 14px; @ http://127.0.0.1:3000/assets/index-DHeGAyju.js:14034
+[  143738ms] [LOG]  data is ? {amount_options: Array(6), creem_products: [], discount: Object, enable_creem_topup: false, enable_online_topup: true} @ http://127.0.0.1:3000/assets/index-BmS157Xz.js:10
+[  143740ms] [LOG]  creem products is ? [] @ http://127.0.0.1:3000/assets/index-BmS157Xz.js:10
+[  198425ms] [VERBOSE] [DOM] Input elements should have autocomplete attributes (suggested: "current-password"): (More info: https://goo.gl/9p2vKq) %o @ http://127.0.0.1:3000/console/setting?tab=payment:0
+[  198425ms] [VERBOSE] [DOM] Input elements should have autocomplete attributes (suggested: "new-password"): (More info: https://goo.gl/9p2vKq) %o @ http://127.0.0.1:3000/console/setting?tab=payment:0
+[  198425ms] [VERBOSE] [DOM] Input elements should have autocomplete attributes (suggested: "new-password"): (More info: https://goo.gl/9p2vKq) %o @ http://127.0.0.1:3000/console/setting?tab=payment:0
+[  198425ms] [VERBOSE] [DOM] Input elements should have autocomplete attributes (suggested: "new-password"): (More info: https://goo.gl/9p2vKq) %o @ http://127.0.0.1:3000/console/setting?tab=payment:0
+[  198425ms] [VERBOSE] [DOM] Input elements should have autocomplete attributes (suggested: "new-password"): (More info: https://goo.gl/9p2vKq) %o @ http://127.0.0.1:3000/console/setting?tab=payment:0
+[  198425ms] [VERBOSE] [DOM] Input elements should have autocomplete attributes (suggested: "new-password"): (More info: https://goo.gl/9p2vKq) %o @ http://127.0.0.1:3000/console/setting?tab=payment:0
+[  198425ms] [VERBOSE] [DOM] Input elements should have autocomplete attributes (suggested: "new-password"): (More info: https://goo.gl/9p2vKq) %o @ http://127.0.0.1:3000/console/setting?tab=payment:0
+[  212774ms] [LOG]  data is ? {amount_options: Array(6), creem_products: [], discount: Object, enable_creem_topup: false, enable_online_topup: true} @ http://127.0.0.1:3000/assets/index-BmS157Xz.js:10
+[  212774ms] [LOG]  creem products is ? [] @ http://127.0.0.1:3000/assets/index-BmS157Xz.js:10
+[  213644ms] [LOG] %cWE ❤ NEWAPI%c Github: https://github.com/QuantumNous/new-api color: #10b981; font-weight: bold; font-size: 24px; color: inherit; font-size: 14px; @ http://127.0.0.1:3000/assets/index-DHeGAyju.js:14034
+[  213681ms] [LOG]  data is ? {amount_options: Array(6), creem_products: [], discount: Object, enable_creem_topup: false, enable_online_topup: true} @ http://127.0.0.1:3000/assets/index-BmS157Xz.js:10
+[  213681ms] [LOG]  creem products is ? [] @ http://127.0.0.1:3000/assets/index-BmS157Xz.js:10

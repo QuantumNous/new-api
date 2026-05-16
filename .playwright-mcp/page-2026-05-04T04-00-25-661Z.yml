@@ -1,0 +1,163 @@
+- generic [ref=e3]:
+  - generic [ref=e7]:
+    - link "logo All In One API Gateway" [ref=e9] [cursor=pointer]:
+      - /url: /
+      - img "logo" [ref=e12]
+      - generic [ref=e17]: All In One API Gateway
+    - generic [ref=e18]:
+      - navigation [ref=e19]
+      - generic [ref=e32]:
+        - button "Thông báo hệ thống" [ref=e33] [cursor=pointer]:
+          - img [ref=e35]
+        - button "Chuyển chủ đề" [ref=e38] [cursor=pointer]:
+          - img [ref=e40]
+        - button "Thay đổi ngôn ngữ" [ref=e44] [cursor=pointer]:
+          - img [ref=e46]
+  - main [ref=e58]:
+    - generic [ref=e60]:
+      - generic [ref=e61]:
+        - generic:
+          - img:
+            - generic: OneDayAI OneDayAI OneDayAI OneDayAI OneDayAI OneDayAI OneDayAI OneDayAI OneDayAI OneDayAI
+        - generic [ref=e69]:
+          - heading "Một cách hiệu quả và ổn định Truy cập tất cả mô hình AI" [level=2] [ref=e71]:
+            - text: Một cách hiệu quả và ổn định
+            - text: Truy cập tất cả mô hình AI
+          - heading "OneDayAI" [level=1] [ref=e73]
+          - paragraph [ref=e75]: Dịch vụ chuyển tiếp API cấp doanh nghiệp Enterprise hiệu quả chi phí, tất cả mô hình AI trong một! Tương thích hoàn toàn với giao thức các nền tảng, tích hợp liền mạch không cần kiến thức lập trình. Không lo kiểm soát rủi ro, hiệu suất xuất sắc, tích hợp tài nguyên hiệu quả — hỗ trợ kỹ thuật chuyên nghiệp!
+          - generic [ref=e77]:
+            - generic [ref=e78]:
+              - link "bolt Bắt đầu" [ref=e79] [cursor=pointer]:
+                - /url: /console
+                - img "bolt" [ref=e80]:
+                  - img [ref=e81]
+                - text: Bắt đầu
+              - button "external_open Xem tài liệu" [ref=e83] [cursor=pointer]:
+                - img "external_open" [ref=e84]:
+                  - img [ref=e85]
+                - text: Xem tài liệu
+            - generic [ref=e88]: Đăng ký để nhận $1 tín dụng dùng thử
+          - generic [ref=e90]:
+            - generic [ref=e91]: Hỗ trợ các nhà cung cấp sau (đăng nhập để xem thêm)
+            - generic [ref=e92]:
+              - img "openai" [ref=e93]
+              - img "claude" [ref=e94]
+              - img "bard" [ref=e95]
+              - img "mistral" [ref=e96]
+              - img "qwen" [ref=e97]
+              - img "stability-ai" [ref=e98]
+              - img "suno" [ref=e99]
+      - generic [ref=e101]:
+        - heading "Trao sức mạnh cho ứng dụng vớiAI thông minhDịch vụ" [level=2] [ref=e104]
+        - generic [ref=e105]:
+          - generic [ref=e107]:
+            - img "Tốc độ cao & Ổn định" [ref=e108]
+            - heading "Tốc độ cao & Ổn định" [level=5] [ref=e109]
+            - paragraph [ref=e110]: Tăng tốc toàn cầu Cloudflare Enterprise, phản hồi nhanh và ổn định dù bạn ở đâu.
+          - generic [ref=e112]:
+            - img "Bảo mật" [ref=e113]
+            - heading "Bảo mật" [level=5] [ref=e114]
+            - paragraph [ref=e115]: Bảo vệ nghiêm ngặt thông tin và dữ liệu tương tác. Chỉ chuyển tiếp dữ liệu, không lưu trữ. Mã hóa toàn bộ quá trình truyền dữ liệu, được bảo vệ bởi giải pháp bảo mật hàng đầu.
+          - generic [ref=e117]:
+            - img "Giá ưu đãi" [ref=e118]
+            - heading "Giá ưu đãi" [level=5] [ref=e119]
+            - paragraph [ref=e120]: Giá thấp hơn nhiều so với chính thức, xem chi tiết trong tài liệu. *Giá thương mại và máy chủ chuyên dụng dành riêng cho doanh nghiệp! Sử dụng công nghệ AI mới nhất với chi phí tối thiểu.
+          - generic [ref=e122]:
+            - img "Tương thích toàn diện" [ref=e123]
+            - heading "Tương thích toàn diện" [level=5] [ref=e124]
+            - paragraph [ref=e125]: Hỗ trợ tất cả mô hình OpenAI/Claude/Gemini và nhiều ứng dụng, framework AI. Hỗ trợ toàn diện cho phát triển sản phẩm AI hoặc huấn luyện mô hình riêng.
+          - generic [ref=e127]:
+            - img "Thanh toán theo lượng dùng" [ref=e128]
+            - heading "Thanh toán theo lượng dùng" [level=5] [ref=e129]
+            - paragraph [ref=e130]: Đăng ký ngay để nhận tín dụng dùng thử miễn phí! Không lo kiểm soát rủi ro, thanh toán theo lượng dùng, nạp tiền tiện lợi, theo dõi số dư và sử dụng theo thời gian thực.
+          - generic [ref=e132]:
+            - img "Dịch vụ chuyên nghiệp" [ref=e133]
+            - heading "Dịch vụ chuyên nghiệp" [level=5] [ref=e134]
+            - paragraph [ref=e135]: Kết hợp hỗ trợ trước và sau bán hàng với giao diện rõ ràng và quy trình dễ sử dụng. Cả nhà phát triển và người dùng thường đều có thể dễ dàng sử dụng dịch vụ.
+      - generic [ref=e138]:
+        - generic [ref=e139]:
+          - generic [ref=e140]: Tích hợp dịch vụ AI
+          - heading "Tất cả bạn cần đều ở đây ALL IN ONE" [level=2] [ref=e141]:
+            - text: Tất cả bạn cần đều ở đây
+            - generic [ref=e142]: ALL IN ONE
+          - generic [ref=e143]:
+            - paragraph [ref=e144]: Một API để truy cập OpenAI, Claude, Gemini, LLaMA 3, Stable Diffusion, Midjourney, Suno và hơn 100 mô hình AI.
+            - text: "* Phương thức gọi có thể khác nhau tùy theo mô hình, vui lòng tham khảo tài liệu."
+        - img "Integration" [ref=e146]
+      - generic [ref=e148]:
+        - generic [ref=e150]:
+          - heading "Hoàn thiện Hệ thống dịch vụ" [level=2] [ref=e151]:
+            - generic [ref=e152]: Hoàn thiện
+            - text: Hệ thống dịch vụ
+          - paragraph [ref=e153]: Hãy để chúng tôi xử lý việc tích hợp mô hình phức tạp. Bạn chỉ cần đăng ký, nạp tiền và kết nối ứng dụng.
+        - generic [ref=e154]:
+          - generic [ref=e156]:
+            - generic [ref=e157]:
+              - generic [ref=e158]:
+                - img "Tài liệu" [ref=e159]
+                - generic [ref=e160]:
+                  - strong [ref=e162]: Tài liệu
+                  - generic [ref=e163]: Khi sử dụng lần đầu, hãy đảm bảo đọc kỹ hướng dẫn chi tiết
+              - paragraph [ref=e164]: Trước tiên đăng ký tài khoản, sau đó nạp tiền, rồi sử dụng chức năng chat trong quản lý token hoặc sao chép địa chỉ API và KEY.
+            - button "Xem hướng dẫn" [ref=e166] [cursor=pointer]
+          - generic [ref=e168]:
+            - generic [ref=e169]:
+              - generic [ref=e170]:
+                - img "Giá cả" [ref=e171]
+                - generic [ref=e172]:
+                  - strong [ref=e174]: Giá cả
+                  - generic [ref=e175]: Thanh toán theo nhu cầu, minh bạch không phí ẩn, giúp bạn kiểm soát chi phí
+              - paragraph [ref=e176]: Kênh chính thức, Azure hoặc thay thế — bạn luôn tìm được dịch vụ và giá cả mong muốn. Chúng tôi cam kết không trộn kênh, giá minh bạch, và thông báo trước khi thay đổi giá.
+            - link "Xem giá" [ref=e178] [cursor=pointer]:
+              - /url: /pricing
+          - generic [ref=e180]:
+            - generic [ref=e181]:
+              - generic [ref=e182]:
+                - img "Mô hình" [ref=e183]
+                - generic [ref=e184]:
+                  - strong [ref=e186]: Mô hình
+                  - generic [ref=e187]: Mô hình AI văn bản/hình ảnh/âm thanh/video, lựa chọn toàn diện nhất
+              - paragraph [ref=e188]: Hỗ trợ hàng chục mô hình bao gồm OpenAI, Gemini, Claude, Zhipu, cùng các dịch vụ Midjourney/Suno.
+            - link "Xem tất cả mô hình" [ref=e190] [cursor=pointer]:
+              - /url: /pricing
+      - generic [ref=e192]:
+        - generic [ref=e194]:
+          - generic [ref=e195]: FAQs
+          - heading "Câu hỏi thường gặp" [level=2] [ref=e196]
+        - generic [ref=e198]:
+          - generic [ref=e199]:
+            - generic [ref=e200] [cursor=pointer]:
+              - heading "Tôi sử dụng như thế nào?" [level=6] [ref=e201]
+              - img "minus" [ref=e202]:
+                - img [ref=e203]
+            - paragraph [ref=e208]: Bạn chỉ cần thay thế địa chỉ API và KEY trong ứng dụng/dự án của bạn. Nếu có bất kỳ câu hỏi nào, hãy liên hệ với chúng tôi.
+          - generic [ref=e210] [cursor=pointer]:
+            - heading "Thông tin của tôi có bị rò rỉ không?" [level=6] [ref=e211]
+            - img "plus" [ref=e212]:
+              - img [ref=e213]
+          - generic [ref=e216] [cursor=pointer]:
+            - heading "Phải làm gì khi kết nối API thất bại hoặc bị gián đoạn?" [level=6] [ref=e217]
+            - img "plus" [ref=e218]:
+              - img [ref=e219]
+          - generic [ref=e222] [cursor=pointer]:
+            - heading "Bạn tính phí như thế nào?" [level=6] [ref=e223]
+            - img "plus" [ref=e224]:
+              - img [ref=e225]
+          - generic [ref=e228] [cursor=pointer]:
+            - heading "Có thể xuất hóa đơn không?" [level=6] [ref=e229]
+            - img "plus" [ref=e230]:
+              - img [ref=e231]
+        - generic [ref=e235]:
+          - heading "Còn thắc mắc?" [level=4] [ref=e236]
+          - paragraph [ref=e237]: Bạn có thể tham khảo tài liệu tích hợp và hướng dẫn sử dụng để nhanh chóng giải quyết hầu hết các vấn đề thường gặp.
+          - button "Xem tài liệu" [ref=e238] [cursor=pointer]
+      - generic [ref=e245]:
+        - img "rocket" [ref=e247]
+        - generic [ref=e248]:
+          - heading "Sẵn sàng chưa? Bắt đầu ngaytrải nghiệm" [level=2] [ref=e249]:
+            - text: Sẵn sàng chưa?
+            - text: Bắt đầu ngaytrải nghiệm
+          - generic [ref=e250]:
+            - link "Dùng thử ngay" [ref=e251] [cursor=pointer]:
+              - /url: /console
+            - button "Xem tài liệu" [ref=e252] [cursor=pointer]

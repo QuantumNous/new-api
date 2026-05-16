@@ -1,0 +1,498 @@
+- generic [ref=e3]:
+  - generic [ref=e7]:
+    - link "logo OneDayAI - 本地站 AI模型一站式网关" [ref=e378] [cursor=pointer]:
+      - /url: /
+      - img "logo" [ref=e12]
+      - generic [ref=e13]:
+        - heading "OneDayAI - 本地站" [level=4] [ref=e379]
+        - generic [ref=e17]: AI模型一站式网关
+    - generic [ref=e18]:
+      - navigation [ref=e19]:
+        - link "首页" [ref=e380] [cursor=pointer]:
+          - /url: /
+          - generic [ref=e382]: 首页
+        - link "控制台" [ref=e383] [cursor=pointer]:
+          - /url: /console
+          - generic [ref=e385]: 控制台
+        - link "模型广场" [ref=e386] [cursor=pointer]:
+          - /url: /pricing
+          - generic [ref=e388]: 模型广场
+        - link "文档" [ref=e389] [cursor=pointer]:
+          - /url: https://ncn174iua0ln.feishu.cn/wiki/BHSdwA8uZi9sPkkqf0ocHch5nMf
+          - generic [ref=e391]: 文档
+        - link "SLA" [ref=e392] [cursor=pointer]:
+          - /url: https://status.autocode.space/status/autocode
+          - generic [ref=e394]: SLA
+        - link "生图工具" [ref=e395] [cursor=pointer]:
+          - /url: /console/image-studio
+          - generic [ref=e397]: 生图工具
+      - generic [ref=e32]:
+        - button "系统公告" [ref=e33] [cursor=pointer]:
+          - img [ref=e35]
+        - button "切换主题" [ref=e38] [cursor=pointer]:
+          - img [ref=e40]
+        - button "common.changeLanguage" [ref=e44] [cursor=pointer]:
+          - img [ref=e46]
+        - button "Z zhangsan" [ref=e399] [cursor=pointer]:
+          - generic [ref=e401]:
+            - listitem [ref=e402]:
+              - img "Z" [ref=e404]
+            - generic [ref=e406]: zhangsan
+            - img [ref=e408]
+  - generic [ref=e56]:
+    - complementary [ref=e57]:
+      - generic [ref=e59]:
+        - menu [ref=e414]:
+          - generic [ref=e416]:
+            - generic [ref=e417]: 控制台
+            - link "数据看板" [ref=e418] [cursor=pointer]:
+              - /url: /console
+              - menuitem "数据看板" [ref=e419]:
+                - img [ref=e422]
+                - generic [ref=e427]: 数据看板
+            - link "令牌管理" [ref=e428] [cursor=pointer]:
+              - /url: /console/token
+              - menuitem "令牌管理" [ref=e429]:
+                - img [ref=e432]
+                - generic [ref=e436]: 令牌管理
+            - link "使用日志" [ref=e437] [cursor=pointer]:
+              - /url: /console/log
+              - menuitem "使用日志" [ref=e438]:
+                - img [ref=e441]
+                - generic [ref=e443]: 使用日志
+          - generic [ref=e445]:
+            - generic [ref=e446]: 个人中心
+            - link "钱包管理" [ref=e447] [cursor=pointer]:
+              - /url: /console/topup
+              - menuitem "钱包管理" [ref=e448]:
+                - img [ref=e451]
+                - generic [ref=e453]: 钱包管理
+            - link "充值订单" [ref=e454] [cursor=pointer]:
+              - /url: /console/invoice
+              - menuitem "充值订单" [ref=e455]:
+                - img [ref=e458]
+                - generic [ref=e462]: 充值订单
+            - link "返佣管理" [ref=e463] [cursor=pointer]:
+              - /url: /console/commission
+              - menuitem "返佣管理" [ref=e464]:
+                - img [ref=e467]
+                - generic [ref=e472]: 返佣管理
+            - link "生图工具" [ref=e473] [cursor=pointer]:
+              - /url: /console/image-studio
+              - menuitem "生图工具" [ref=e474]:
+                - img [ref=e477]
+                - generic [ref=e483]: 生图工具
+            - link "个人设置" [ref=e484] [cursor=pointer]:
+              - /url: /console/personal
+              - menuitem "个人设置" [ref=e485]:
+                - img [ref=e488]
+                - generic [ref=e491]: 个人设置
+          - generic [ref=e493]:
+            - generic [ref=e494]: 管理员
+            - link "渠道管理" [ref=e495] [cursor=pointer]:
+              - /url: /console/channel
+              - menuitem "渠道管理" [ref=e496]:
+                - img [ref=e499]
+                - generic [ref=e503]: 渠道管理
+            - link "订阅管理" [ref=e504] [cursor=pointer]:
+              - /url: /console/subscription
+              - menuitem "订阅管理" [ref=e505]:
+                - img [ref=e508]
+                - generic [ref=e512]: 订阅管理
+            - link "模型管理" [ref=e513] [cursor=pointer]:
+              - /url: /console/models
+              - menuitem "模型管理" [ref=e514]:
+                - img [ref=e517]
+                - generic [ref=e521]: 模型管理
+            - link "兑换码管理" [ref=e522] [cursor=pointer]:
+              - /url: /console/redemption
+              - menuitem "兑换码管理" [ref=e523]:
+                - img [ref=e526]
+                - generic [ref=e530]: 兑换码管理
+            - link "用户管理" [ref=e531] [cursor=pointer]:
+              - /url: /console/user
+              - menuitem "用户管理" [ref=e532]:
+                - img [ref=e535]
+                - generic [ref=e538]: 用户管理
+            - link "用户分组倍率" [ref=e539] [cursor=pointer]:
+              - /url: /console/user-group-ratio
+              - menuitem "用户分组倍率" [ref=e540]:
+                - img [ref=e543]
+                - generic [ref=e547]: 用户分组倍率
+            - link "系统设置" [ref=e548] [cursor=pointer]:
+              - /url: /console/setting
+              - menuitem "系统设置" [ref=e549]:
+                - img [ref=e552]
+                - generic [ref=e555]: 系统设置
+        - button "收起侧边栏" [ref=e556] [cursor=pointer]:
+          - generic [ref=e557]:
+            - img [ref=e558]
+            - generic [ref=e560]: 收起侧边栏
+    - generic [ref=e165]:
+      - main [ref=e166]:
+        - main [ref=e169]:
+          - generic [ref=e170]:
+            - tablist [ref=e171]:
+              - generic [ref=e172]:
+                - button "chevron_left" [disabled] [ref=e173]:
+                  - img "chevron_left" [ref=e175]:
+                    - img [ref=e176]
+                - generic [ref=e178]:
+                  - tab "运营设置" [ref=e179] [cursor=pointer]:
+                    - generic [ref=e180]:
+                      - img [ref=e181]
+                      - text: 运营设置
+                  - tab "仪表盘设置" [ref=e184] [cursor=pointer]:
+                    - generic [ref=e185]:
+                      - img [ref=e186]
+                      - text: 仪表盘设置
+                  - tab "聊天设置" [ref=e191] [cursor=pointer]:
+                    - generic [ref=e192]:
+                      - img [ref=e193]
+                      - text: 聊天设置
+                  - tab "绘图设置" [ref=e195] [cursor=pointer]:
+                    - generic [ref=e196]:
+                      - img [ref=e197]
+                      - text: 绘图设置
+                  - tab "支付设置" [ref=e203] [cursor=pointer]:
+                    - generic [ref=e204]:
+                      - img [ref=e205]
+                      - text: 支付设置
+                  - tab "返佣设置" [ref=e207] [cursor=pointer]:
+                    - generic [ref=e208]:
+                      - img [ref=e209]
+                      - text: 返佣设置
+                  - tab "分组与模型定价设置" [selected] [ref=e214]:
+                    - generic [ref=e215]:
+                      - img [ref=e216]
+                      - text: 分组与模型定价设置
+                  - tab "速率限制设置" [ref=e218] [cursor=pointer]:
+                    - generic [ref=e219]:
+                      - img [ref=e220]
+                      - text: 速率限制设置
+                  - tab "模型相关设置" [ref=e223] [cursor=pointer]:
+                    - generic [ref=e224]:
+                      - img [ref=e225]
+                      - text: 模型相关设置
+                  - tab "模型部署设置" [ref=e229] [cursor=pointer]:
+                    - generic [ref=e230]:
+                      - img [ref=e231]
+                      - text: 模型部署设置
+                  - tab "性能设置" [ref=e234] [cursor=pointer]:
+                    - generic [ref=e235]:
+                      - img [ref=e236]
+                      - text: 性能设置
+                  - tab "系统设置" [ref=e238] [cursor=pointer]:
+                    - generic [ref=e239]:
+                      - img [ref=e240]
+                      - text: 系统设置
+                  - tab "其他设置" [ref=e251] [cursor=pointer]:
+                    - generic [ref=e252]:
+                      - img [ref=e253]
+                      - text: 其他设置
+                - button "chevron_right" [ref=e258] [cursor=pointer]:
+                  - img "chevron_right" [ref=e260]:
+                    - img [ref=e261]
+            - tabpanel "分组与模型定价设置" [ref=e264]:
+              - generic [ref=e270]:
+                - tablist [ref=e271]:
+                  - tab "模型定价设置" [selected] [ref=e272]
+                  - tab "分组相关设置" [ref=e273] [cursor=pointer]
+                  - tab "未设置价格模型" [ref=e274] [cursor=pointer]
+                  - tab "上游倍率同步" [ref=e275] [cursor=pointer]
+                  - tab "工具调用定价" [ref=e276] [cursor=pointer]
+                - tabpanel "模型定价设置" [ref=e278]:
+                  - generic [ref=e280]:
+                    - generic [ref=e282]:
+                      - generic [ref=e283] [cursor=pointer]:
+                        - generic [ref=e284]:
+                          - radio "可视化编辑" [ref=e285]
+                          - img "radio" [ref=e287]:
+                            - img [ref=e288]
+                        - generic [ref=e291]: 可视化编辑
+                      - generic [ref=e292] [cursor=pointer]:
+                        - radio "手动编辑" [ref=e294]
+                        - generic [ref=e296]: 手动编辑
+                    - generic [ref=e297]:
+                      - generic [ref=e298]:
+                        - button "plus 添加模型" [ref=e299] [cursor=pointer]:
+                          - generic [ref=e300]:
+                            - img "plus" [ref=e301]:
+                              - img [ref=e302]
+                            - generic [ref=e304]: 添加模型
+                        - button "save 应用更改" [ref=e305] [cursor=pointer]:
+                          - generic [ref=e306]:
+                            - img "save" [ref=e307]:
+                              - img [ref=e308]
+                            - generic [ref=e310]: 应用更改
+                        - button "批量应用当前模型价格" [disabled] [ref=e311]:
+                          - generic [ref=e312]: 批量应用当前模型价格
+                        - generic [ref=e313]:
+                          - img "search" [ref=e315]:
+                            - img [ref=e316]
+                          - textbox "搜索模型名称" [ref=e318]
+                        - generic [ref=e319] [cursor=pointer]:
+                          - checkbox "仅显示矛盾倍率" [ref=e321]
+                          - generic [ref=e324]: 仅显示矛盾倍率
+                      - generic [ref=e325]:
+                        - generic [ref=e332]:
+                          - grid [ref=e335]:
+                            - rowgroup [ref=e342]:
+                              - row "Select all rows 模型名称 计费方式 价格摘要 操作" [ref=e343]:
+                                - columnheader "Select all rows" [ref=e344]:
+                                  - checkbox "Select all rows" [ref=e348]
+                                - columnheader "模型名称" [ref=e350]
+                                - columnheader "计费方式" [ref=e351]
+                                - columnheader "价格摘要" [ref=e352]
+                                - columnheader "操作" [ref=e353]
+                            - rowgroup [ref=e561]:
+                              - 'row "Select this row claude-4.6-opus-high Tag: 按量计费 输入 $5，额外价格项 3 delete" [ref=e562]':
+                                - gridcell "Select this row" [ref=e563]:
+                                  - checkbox "Select this row" [ref=e567]
+                                - gridcell "claude-4.6-opus-high" [ref=e569]:
+                                  - button "claude-4.6-opus-high" [ref=e571] [cursor=pointer]:
+                                    - generic [ref=e572]: claude-4.6-opus-high
+                                - 'gridcell "Tag: 按量计费" [ref=e573]':
+                                  - 'generic "Tag: 按量计费" [ref=e574]':
+                                    - generic [ref=e575]: 按量计费
+                                - gridcell "输入 $5，额外价格项 3" [ref=e576]
+                                - gridcell "delete" [ref=e577]:
+                                  - button "delete" [ref=e579] [cursor=pointer]:
+                                    - img "delete" [ref=e581]:
+                                      - img [ref=e582]
+                              - 'row "Select this row claude-4.6-sonnet-medium Tag: 按量计费 输入 $3，额外价格项 3 delete" [ref=e584]':
+                                - gridcell "Select this row" [ref=e585]:
+                                  - checkbox "Select this row" [ref=e589]
+                                - gridcell "claude-4.6-sonnet-medium" [ref=e591]:
+                                  - button "claude-4.6-sonnet-medium" [ref=e593] [cursor=pointer]:
+                                    - generic [ref=e594]: claude-4.6-sonnet-medium
+                                - 'gridcell "Tag: 按量计费" [ref=e595]':
+                                  - 'generic "Tag: 按量计费" [ref=e596]':
+                                    - generic [ref=e597]: 按量计费
+                                - gridcell "输入 $3，额外价格项 3" [ref=e598]
+                                - gridcell "delete" [ref=e599]:
+                                  - button "delete" [ref=e601] [cursor=pointer]:
+                                    - img "delete" [ref=e603]:
+                                      - img [ref=e604]
+                              - 'row "Select this row claude-haiku-4-5 Tag: 按量计费 输入 $1，额外价格项 3 delete" [ref=e606]':
+                                - gridcell "Select this row" [ref=e607]:
+                                  - checkbox "Select this row" [ref=e611]
+                                - gridcell "claude-haiku-4-5" [ref=e613]:
+                                  - button "claude-haiku-4-5" [ref=e615] [cursor=pointer]:
+                                    - generic [ref=e616]: claude-haiku-4-5
+                                - 'gridcell "Tag: 按量计费" [ref=e617]':
+                                  - 'generic "Tag: 按量计费" [ref=e618]':
+                                    - generic [ref=e619]: 按量计费
+                                - gridcell "输入 $1，额外价格项 3" [ref=e620]
+                                - gridcell "delete" [ref=e621]:
+                                  - button "delete" [ref=e623] [cursor=pointer]:
+                                    - img "delete" [ref=e625]:
+                                      - img [ref=e626]
+                              - 'row "Select this row claude-haiku-4-5-20251001 Tag: 按量计费 输入 $1，额外价格项 3 delete" [ref=e628]':
+                                - gridcell "Select this row" [ref=e629]:
+                                  - checkbox "Select this row" [ref=e633]
+                                - gridcell "claude-haiku-4-5-20251001" [ref=e635]:
+                                  - button "claude-haiku-4-5-20251001" [ref=e637] [cursor=pointer]:
+                                    - generic [ref=e638]: claude-haiku-4-5-20251001
+                                - 'gridcell "Tag: 按量计费" [ref=e639]':
+                                  - 'generic "Tag: 按量计费" [ref=e640]':
+                                    - generic [ref=e641]: 按量计费
+                                - gridcell "输入 $1，额外价格项 3" [ref=e642]
+                                - gridcell "delete" [ref=e643]:
+                                  - button "delete" [ref=e645] [cursor=pointer]:
+                                    - img "delete" [ref=e647]:
+                                      - img [ref=e648]
+                              - 'row "Select this row claude-opus-4-5-20251101 Tag: 按量计费 输入 $5，额外价格项 3 delete" [ref=e650]':
+                                - gridcell "Select this row" [ref=e651]:
+                                  - checkbox "Select this row" [ref=e655]
+                                - gridcell "claude-opus-4-5-20251101" [ref=e657]:
+                                  - button "claude-opus-4-5-20251101" [ref=e659] [cursor=pointer]:
+                                    - generic [ref=e660]: claude-opus-4-5-20251101
+                                - 'gridcell "Tag: 按量计费" [ref=e661]':
+                                  - 'generic "Tag: 按量计费" [ref=e662]':
+                                    - generic [ref=e663]: 按量计费
+                                - gridcell "输入 $5，额外价格项 3" [ref=e664]
+                                - gridcell "delete" [ref=e665]:
+                                  - button "delete" [ref=e667] [cursor=pointer]:
+                                    - img "delete" [ref=e669]:
+                                      - img [ref=e670]
+                              - 'row "Select this row claude-opus-4-5-20251101-thinking Tag: 按量计费 输入 $5，额外价格项 1 delete" [ref=e672]':
+                                - gridcell "Select this row" [ref=e673]:
+                                  - checkbox "Select this row" [ref=e677]
+                                - gridcell "claude-opus-4-5-20251101-thinking" [ref=e679]:
+                                  - button "claude-opus-4-5-20251101-thinking" [ref=e681] [cursor=pointer]:
+                                    - generic [ref=e682]: claude-opus-4-5-20251101-thinking
+                                - 'gridcell "Tag: 按量计费" [ref=e683]':
+                                  - 'generic "Tag: 按量计费" [ref=e684]':
+                                    - generic [ref=e685]: 按量计费
+                                - gridcell "输入 $5，额外价格项 1" [ref=e686]
+                                - gridcell "delete" [ref=e687]:
+                                  - button "delete" [ref=e689] [cursor=pointer]:
+                                    - img "delete" [ref=e691]:
+                                      - img [ref=e692]
+                              - 'row "Select this row claude-opus-4-6 Tag: 按量计费 输入 $5，额外价格项 3 delete" [ref=e694]':
+                                - gridcell "Select this row" [ref=e695]:
+                                  - checkbox "Select this row" [ref=e699]
+                                - gridcell "claude-opus-4-6" [ref=e701]:
+                                  - button "claude-opus-4-6" [ref=e703] [cursor=pointer]:
+                                    - generic [ref=e704]: claude-opus-4-6
+                                - 'gridcell "Tag: 按量计费" [ref=e705]':
+                                  - 'generic "Tag: 按量计费" [ref=e706]':
+                                    - generic [ref=e707]: 按量计费
+                                - gridcell "输入 $5，额外价格项 3" [ref=e708]
+                                - gridcell "delete" [ref=e709]:
+                                  - button "delete" [ref=e711] [cursor=pointer]:
+                                    - img "delete" [ref=e713]:
+                                      - img [ref=e714]
+                              - 'row "Select this row claude-opus-4-6-high Tag: 按量计费 输入 $6，额外价格项 3 delete" [ref=e716]':
+                                - gridcell "Select this row" [ref=e717]:
+                                  - checkbox "Select this row" [ref=e721]
+                                - gridcell "claude-opus-4-6-high" [ref=e723]:
+                                  - button "claude-opus-4-6-high" [ref=e725] [cursor=pointer]:
+                                    - generic [ref=e726]: claude-opus-4-6-high
+                                - 'gridcell "Tag: 按量计费" [ref=e727]':
+                                  - 'generic "Tag: 按量计费" [ref=e728]':
+                                    - generic [ref=e729]: 按量计费
+                                - gridcell "输入 $6，额外价格项 3" [ref=e730]
+                                - gridcell "delete" [ref=e731]:
+                                  - button "delete" [ref=e733] [cursor=pointer]:
+                                    - img "delete" [ref=e735]:
+                                      - img [ref=e736]
+                              - 'row "Select this row claude-opus-4-6-thinking Tag: 按量计费 输入 $5，额外价格项 3 delete" [ref=e738]':
+                                - gridcell "Select this row" [ref=e739]:
+                                  - checkbox "Select this row" [ref=e743]
+                                - gridcell "claude-opus-4-6-thinking" [ref=e745]:
+                                  - button "claude-opus-4-6-thinking" [ref=e747] [cursor=pointer]:
+                                    - generic [ref=e748]: claude-opus-4-6-thinking
+                                - 'gridcell "Tag: 按量计费" [ref=e749]':
+                                  - 'generic "Tag: 按量计费" [ref=e750]':
+                                    - generic [ref=e751]: 按量计费
+                                - gridcell "输入 $5，额外价格项 3" [ref=e752]
+                                - gridcell "delete" [ref=e753]:
+                                  - button "delete" [ref=e755] [cursor=pointer]:
+                                    - img "delete" [ref=e757]:
+                                      - img [ref=e758]
+                              - 'row "Select this row claude-opus-4-7 Tag: 按量计费 输入 $5，额外价格项 3 delete" [ref=e760]':
+                                - gridcell "Select this row" [ref=e761]:
+                                  - checkbox "Select this row" [ref=e765]
+                                - gridcell "claude-opus-4-7" [ref=e767]:
+                                  - button "claude-opus-4-7" [ref=e769] [cursor=pointer]:
+                                    - generic [ref=e770]: claude-opus-4-7
+                                - 'gridcell "Tag: 按量计费" [ref=e771]':
+                                  - 'generic "Tag: 按量计费" [ref=e772]':
+                                    - generic [ref=e773]: 按量计费
+                                - gridcell "输入 $5，额外价格项 3" [ref=e774]
+                                - gridcell "delete" [ref=e775]:
+                                  - button "delete" [ref=e777] [cursor=pointer]:
+                                    - img "delete" [ref=e779]:
+                                      - img [ref=e780]
+                          - generic [ref=e357]:
+                            - generic [ref=e782]: Showing 1 to 10 of 53
+                            - list [ref=e784]:
+                              - generic [ref=e785]: "Total pages: 6"
+                              - button "Previous" [disabled] [ref=e786]:
+                                - img "chevron_left" [ref=e787]:
+                                  - img [ref=e788]
+                              - listitem "Page 1" [ref=e790] [cursor=pointer]: "1"
+                              - listitem "Page 2" [ref=e791] [cursor=pointer]: "2"
+                              - listitem "Page 3" [ref=e792] [cursor=pointer]: "3"
+                              - listitem "Page 4" [ref=e793] [cursor=pointer]: "4"
+                              - listitem "Page 5" [ref=e794] [cursor=pointer]: "5"
+                              - listitem "Page 6" [ref=e795] [cursor=pointer]: "6"
+                              - button "Next" [ref=e796] [cursor=pointer]:
+                                - img "chevron_right" [ref=e797]:
+                                  - img [ref=e798]
+                        - generic [ref=e358]:
+                          - generic [ref=e360]:
+                            - 'generic "Tag: 按量计费" [ref=e801]':
+                              - generic [ref=e802]: 按量计费
+                            - heading "claude-4.6-opus-high" [level=6] [ref=e803]
+                          - generic [ref=e804]:
+                            - generic [ref=e805]:
+                              - generic [ref=e806]: 计费方式
+                              - generic [ref=e807]:
+                                - generic [ref=e808] [cursor=pointer]:
+                                  - generic [ref=e809]:
+                                    - radio "按量计费" [ref=e810]
+                                    - img "radio" [ref=e812]:
+                                      - img [ref=e813]
+                                  - generic [ref=e816]: 按量计费
+                                - generic [ref=e817] [cursor=pointer]:
+                                  - radio "按次计费" [ref=e819]
+                                  - generic [ref=e821]: 按次计费
+                                - generic [ref=e822] [cursor=pointer]:
+                                  - radio "表达式/阶梯计费" [ref=e824]
+                                  - generic [ref=e826]: 表达式/阶梯计费
+                              - generic [ref=e827]: 普通按量/按次直接填价格就行；如果价格要跟请求参数或请求头联动，请切到表达式/阶梯计费。
+                            - generic [ref=e829]:
+                              - generic [ref=e830]: 基础价格
+                              - generic [ref=e831]:
+                                - generic [ref=e833]: 输入价格
+                                - generic [ref=e834]:
+                                  - textbox "输入 $/1M tokens" [ref=e835]: "5"
+                                  - generic [ref=e836]: $/1M tokens
+                              - generic [ref=e837]:
+                                - generic [ref=e838]:
+                                  - generic [ref=e839]: 补全价格
+                                  - switch [checked] [ref=e842] [cursor=pointer]
+                                - generic [ref=e843]:
+                                  - textbox "输入 $/1M tokens" [ref=e844]: "25"
+                                  - generic [ref=e845]: $/1M tokens
+                              - generic [ref=e846]:
+                                - generic [ref=e847]:
+                                  - generic [ref=e848]: 缓存读取价格
+                                  - switch [checked] [ref=e851] [cursor=pointer]
+                                - generic [ref=e852]:
+                                  - textbox "输入 $/1M tokens" [ref=e853]: "1.5"
+                                  - generic [ref=e854]: $/1M tokens
+                              - generic [ref=e855]:
+                                - generic [ref=e856]:
+                                  - generic [ref=e857]: 缓存创建价格
+                                  - switch [checked] [ref=e860] [cursor=pointer]
+                                - generic [ref=e861]:
+                                  - textbox "输入 $/1M tokens" [ref=e862]: "6.25"
+                                  - generic [ref=e863]: $/1M tokens
+                            - generic [ref=e865]:
+                              - generic [ref=e866]:
+                                - generic [ref=e867]: 扩展价格
+                                - generic [ref=e868]: 这些价格都是可选项，不填也可以。
+                              - generic [ref=e869]:
+                                - generic [ref=e870]:
+                                  - generic [ref=e871]: 图片输入价格
+                                  - switch [ref=e874] [cursor=pointer]
+                                - generic [ref=e875]: 当前未启用，需要时再打开即可。
+                              - generic [ref=e876]:
+                                - generic [ref=e877]:
+                                  - generic [ref=e878]: 音频输入价格
+                                  - switch [ref=e881] [cursor=pointer]
+                                - generic [ref=e882]: 当前未启用，需要时再打开即可。
+                              - generic [ref=e883]:
+                                - generic [ref=e884]:
+                                  - generic [ref=e885]: 音频补全价格
+                                  - generic [ref=e886]:
+                                    - switch [disabled]
+                                - generic [ref=e888]: 请先开启并填写音频输入价格。
+                            - generic [ref=e890]:
+                              - generic [ref=e891]: 保存预览
+                              - generic [ref=e892]: 下面展示这个模型保存后会写入哪些后端字段，便于和原始 JSON 编辑框保持一致。
+                              - generic [ref=e893]:
+                                - strong [ref=e895]: ModelRatio
+                                - generic [ref=e896]: "2.5"
+                                - strong [ref=e898]: CompletionRatio
+                                - generic [ref=e899]: "5"
+                                - strong [ref=e901]: CacheRatio
+                                - generic [ref=e902]: "0.3"
+                                - strong [ref=e904]: CreateCacheRatio
+                                - generic [ref=e905]: "1.25"
+                                - strong [ref=e907]: ImageRatio
+                                - generic [ref=e908]: 空
+                                - strong [ref=e910]: AudioRatio
+                                - generic [ref=e911]: 空
+                                - strong [ref=e913]: AudioCompletionRatio
+                                - generic [ref=e914]: 空
+      - generic [ref=e372]:
+        - generic [ref=e374]: © 2026 OneDayAI - 本地站. 版权所有
+        - generic [ref=e375]:
+          - generic [ref=e376]: 设计与开发由
+          - link "New API" [ref=e377] [cursor=pointer]:
+            - /url: https://github.com/QuantumNous/new-api

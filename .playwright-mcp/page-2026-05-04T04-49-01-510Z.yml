@@ -1,0 +1,738 @@
+- generic [ref=e3]:
+  - generic [ref=e7]:
+    - link "logo OneDayAI - 本地站 All In One API Gateway" [ref=e184] [cursor=pointer]:
+      - /url: /
+      - img "logo" [ref=e12]
+      - generic [ref=e13]:
+        - heading "OneDayAI - 本地站" [level=4] [ref=e185]
+        - generic [ref=e17]: All In One API Gateway
+    - generic [ref=e18]:
+      - navigation [ref=e19]:
+        - link "Главная" [ref=e186] [cursor=pointer]:
+          - /url: /
+          - generic [ref=e188]: Главная
+        - link "Консоль" [ref=e189] [cursor=pointer]:
+          - /url: /console
+          - generic [ref=e191]: Консоль
+        - link "Площадка моделей" [ref=e192] [cursor=pointer]:
+          - /url: /pricing
+          - generic [ref=e194]: Площадка моделей
+        - link "Документация" [ref=e195] [cursor=pointer]:
+          - /url: https://ncn174iua0ln.feishu.cn/wiki/BHSdwA8uZi9sPkkqf0ocHch5nMf
+          - generic [ref=e197]: Документация
+        - link "SLA" [ref=e198] [cursor=pointer]:
+          - /url: https://status.autocode.space/status/autocode
+          - generic [ref=e200]: SLA
+      - generic [ref=e32]:
+        - button "Системные объявления" [ref=e33] [cursor=pointer]:
+          - img [ref=e35]
+        - button "Переключить тему" [ref=e38] [cursor=pointer]:
+          - img [ref=e40]
+        - button "Сменить язык" [ref=e44] [cursor=pointer]:
+          - img [ref=e46]
+        - button "Z zhangsan" [ref=e202] [cursor=pointer]:
+          - generic [ref=e204]:
+            - listitem [ref=e205]:
+              - img "Z" [ref=e207]
+            - generic [ref=e209]: zhangsan
+            - img [ref=e211]
+  - generic [ref=e56]:
+    - complementary [ref=e57]:
+      - generic [ref=e59]:
+        - menu [ref=e217]:
+          - generic [ref=e219]:
+            - generic [ref=e220]: Консоль
+            - link "Панель данных" [ref=e221] [cursor=pointer]:
+              - /url: /console
+              - menuitem "Панель данных" [ref=e222]:
+                - img [ref=e225]
+                - generic [ref=e230]: Панель данных
+            - link "Управление токенами" [ref=e231] [cursor=pointer]:
+              - /url: /console/token
+              - menuitem "Управление токенами" [ref=e232]:
+                - img [ref=e235]
+                - generic [ref=e239]: Управление токенами
+            - link "Журнал использования" [ref=e240] [cursor=pointer]:
+              - /url: /console/log
+              - menuitem "Журнал использования" [ref=e241]:
+                - img [ref=e244]
+                - generic [ref=e246]: Журнал использования
+          - generic [ref=e248]:
+            - generic [ref=e249]: Личный кабинет
+            - link "Управление кошельком" [ref=e250] [cursor=pointer]:
+              - /url: /console/topup
+              - menuitem "Управление кошельком" [ref=e251]:
+                - img [ref=e254]
+                - generic [ref=e256]: Управление кошельком
+            - link "Заказы пополнения" [ref=e257] [cursor=pointer]:
+              - /url: /console/invoice
+              - menuitem "Заказы пополнения" [ref=e258]:
+                - img [ref=e261]
+                - generic [ref=e265]: Заказы пополнения
+            - link "Управление комиссиями" [ref=e266] [cursor=pointer]:
+              - /url: /console/commission
+              - menuitem "Управление комиссиями" [ref=e267]:
+                - img [ref=e270]
+                - generic [ref=e275]: Управление комиссиями
+            - link "Генерация изображений" [ref=e276] [cursor=pointer]:
+              - /url: /console/image-studio
+              - menuitem "Генерация изображений" [ref=e277]:
+                - img [ref=e280]
+                - generic [ref=e286]: Генерация изображений
+            - link "Личные настройки" [ref=e287] [cursor=pointer]:
+              - /url: /console/personal
+              - menuitem "Личные настройки" [ref=e288]:
+                - img [ref=e291]
+                - generic [ref=e294]: Личные настройки
+          - generic [ref=e296]:
+            - generic [ref=e297]: Администратор
+            - link "Управление каналами" [ref=e298] [cursor=pointer]:
+              - /url: /console/channel
+              - menuitem "Управление каналами" [ref=e299]:
+                - img [ref=e302]
+                - generic [ref=e306]: Управление каналами
+            - link "Управление подписками" [ref=e307] [cursor=pointer]:
+              - /url: /console/subscription
+              - menuitem "Управление подписками" [ref=e308]:
+                - img [ref=e311]
+                - generic [ref=e315]: Управление подписками
+            - link "Управление кодами купонов" [ref=e316] [cursor=pointer]:
+              - /url: /console/redemption
+              - menuitem "Управление кодами купонов" [ref=e317]:
+                - img [ref=e320]
+                - generic [ref=e324]: Управление кодами купонов
+            - link "Управление пользователями" [ref=e325] [cursor=pointer]:
+              - /url: /console/user
+              - menuitem "Управление пользователями" [ref=e326]:
+                - img [ref=e329]
+                - generic [ref=e332]: Управление пользователями
+            - link "Настройки системы" [ref=e333] [cursor=pointer]:
+              - /url: /console/setting
+              - menuitem "Настройки системы" [ref=e334]:
+                - img [ref=e337]
+                - generic [ref=e340]: Настройки системы
+        - button "Свернуть боковую панель" [ref=e341] [cursor=pointer]:
+          - generic [ref=e342]:
+            - img [ref=e343]
+            - generic [ref=e345]: Свернуть боковую панель
+    - generic [ref=e165]:
+      - main [ref=e166]:
+        - main [ref=e348]:
+          - generic [ref=e349]:
+            - tablist [ref=e350]:
+              - generic [ref=e351]:
+                - button "chevron_left" [disabled] [ref=e352]:
+                  - img "chevron_left" [ref=e354]:
+                    - img [ref=e355]
+                - generic [ref=e357]:
+                  - tab "Операционные настройки" [selected] [ref=e358]:
+                    - generic [ref=e359]:
+                      - img [ref=e360]
+                      - text: Операционные настройки
+                  - tab "Настройки панели управления" [ref=e363] [cursor=pointer]:
+                    - generic [ref=e364]:
+                      - img [ref=e365]
+                      - text: Настройки панели управления
+                  - tab "Настройки чата" [ref=e370] [cursor=pointer]:
+                    - generic [ref=e371]:
+                      - img [ref=e372]
+                      - text: Настройки чата
+                  - tab "Настройки рисования" [ref=e374] [cursor=pointer]:
+                    - generic [ref=e375]:
+                      - img [ref=e376]
+                      - text: Настройки рисования
+                  - tab "Настройки оплаты" [ref=e382] [cursor=pointer]:
+                    - generic [ref=e383]:
+                      - img [ref=e384]
+                      - text: Настройки оплаты
+                  - tab "Настройки комиссий" [ref=e386] [cursor=pointer]:
+                    - generic [ref=e387]:
+                      - img [ref=e388]
+                      - text: Настройки комиссий
+                  - tab "Настройки групп и ценообразования моделей" [ref=e393] [cursor=pointer]:
+                    - generic [ref=e394]:
+                      - img [ref=e395]
+                      - text: Настройки групп и ценообразования моделей
+                  - tab "Настройки ограничения скорости" [ref=e397] [cursor=pointer]:
+                    - generic [ref=e398]:
+                      - img [ref=e399]
+                      - text: Настройки ограничения скорости
+                  - tab "Настройки, связанные с моделью" [ref=e402] [cursor=pointer]:
+                    - generic [ref=e403]:
+                      - img [ref=e404]
+                      - text: Настройки, связанные с моделью
+                  - tab "Настройки развертывания моделей" [ref=e408] [cursor=pointer]:
+                    - generic [ref=e409]:
+                      - img [ref=e410]
+                      - text: Настройки развертывания моделей
+                  - tab "Настройки производительности" [ref=e413] [cursor=pointer]:
+                    - generic [ref=e414]:
+                      - img [ref=e415]
+                      - text: Настройки производительности
+                  - tab "Настройки системы" [ref=e417] [cursor=pointer]:
+                    - generic [ref=e418]:
+                      - img [ref=e419]
+                      - text: Настройки системы
+                  - tab "Другие настройки" [ref=e430] [cursor=pointer]:
+                    - generic [ref=e431]:
+                      - img [ref=e432]
+                      - text: Другие настройки
+                - button "chevron_right" [ref=e437] [cursor=pointer]:
+                  - img "chevron_right" [ref=e439]:
+                    - img [ref=e440]
+            - tabpanel "Операционные настройки" [ref=e443]:
+              - generic [ref=e446]:
+                - generic [ref=e452]:
+                  - heading "Общие настройки" [level=5] [ref=e453]
+                  - generic [ref=e454]:
+                    - generic [ref=e456]:
+                      - generic [ref=e458]: Ссылка пополнения
+                      - textbox "Ссылка пополнения" [ref=e461]:
+                        - /placeholder: например ссылка на покупку на сайте карт
+                    - generic [ref=e463]:
+                      - generic [ref=e465]: Адрес документации
+                      - textbox "Адрес документации" [ref=e468]:
+                        - /placeholder: Например https://docs.newapi.pro
+                        - text: https://ncn174iua0ln.feishu.cn/wiki/BHSdwA8uZi9sPkkqf0ocHch5nMf
+                    - generic [ref=e470]:
+                      - generic [ref=e472]: Количество повторных попыток при неудаче
+                      - textbox "Количество повторных попыток при неудаче" [ref=e475]: "0"
+                  - generic [ref=e478]:
+                    - generic [ref=e480]: Тип отображения квот сайта и обменные курсы
+                    - generic [ref=e481]:
+                      - generic [ref=e482]: Включённые валюты (пользователи могут выбрать предпочтительную)
+                      - generic [ref=e483]:
+                        - generic [ref=e484]:
+                          - generic [ref=e485] [cursor=pointer]:
+                            - generic [ref=e486]:
+                              - checkbox "USD ($)" [checked] [ref=e487]
+                              - img "checkbox_tick" [ref=e489]:
+                                - img [ref=e490]
+                            - generic [ref=e493]: USD ($)
+                          - generic [ref=e494]:
+                            - generic [ref=e495]: 1 USD =
+                            - textbox [disabled] [ref=e496]: "1"
+                        - generic [ref=e497]:
+                          - generic [ref=e498] [cursor=pointer]:
+                            - generic [ref=e499]:
+                              - checkbox "CNY (¥)" [checked] [ref=e500]
+                              - img "checkbox_tick" [ref=e502]:
+                                - img [ref=e503]
+                            - generic [ref=e506]: CNY (¥)
+                          - generic [ref=e507]:
+                            - generic [ref=e508]: 1 USD =
+                            - textbox [ref=e509]: "1"
+                        - generic [ref=e510]:
+                          - generic [ref=e511] [cursor=pointer]:
+                            - generic [ref=e512]:
+                              - checkbox "Tokens" [checked] [ref=e513]
+                              - img "checkbox_tick" [ref=e515]:
+                                - img [ref=e516]
+                            - generic [ref=e519]: Tokens
+                          - generic [ref=e520]:
+                            - generic [ref=e521]: 1 USD =
+                            - textbox [ref=e522]: "500000"
+                        - generic [ref=e523]:
+                          - generic [ref=e524] [cursor=pointer]:
+                            - generic [ref=e525]:
+                              - checkbox "COIN (🪙)" [checked] [ref=e526]
+                              - img "checkbox_tick" [ref=e528]:
+                                - img [ref=e529]
+                            - generic [ref=e532]: COIN (🪙)
+                          - generic [ref=e533]:
+                            - generic [ref=e534]: 1 USD =
+                            - textbox [ref=e535]: "1"
+                          - button "Удалить" [ref=e536] [cursor=pointer]:
+                            - generic [ref=e537]: Удалить
+                        - button "+ Добавить валюту" [ref=e539] [cursor=pointer]:
+                          - generic [ref=e540]: + Добавить валюту
+                      - generic [ref=e541]: Предпросмотр：Введите обменный курс
+                  - generic [ref=e544]:
+                    - generic [ref=e546]: Валюта по умолчанию (для неавторизованных пользователей)
+                    - combobox "selected" [ref=e548] [cursor=pointer]:
+                      - generic [ref=e551]: COIN (🪙)
+                      - img [ref=e553]:
+                        - img [ref=e554]
+                  - generic [ref=e556]:
+                    - generic [ref=e558]:
+                      - generic [ref=e560]: Интерфейс запроса квоты возвращает квоту токенов, а не квоту пользователя
+                      - generic [ref=e562] [cursor=pointer]:
+                        - generic [ref=e564]: ｜
+                        - switch "Интерфейс запроса квоты возвращает квоту токенов, а не квоту пользователя" [checked] [ref=e565]
+                    - generic [ref=e567]:
+                      - generic [ref=e569]: Сворачивать боковую панель по умолчанию
+                      - generic [ref=e571] [cursor=pointer]:
+                        - generic [ref=e573]: 〇
+                        - switch "Сворачивать боковую панель по умолчанию" [ref=e574]
+                    - generic [ref=e576]:
+                      - generic [ref=e578]: Режим демонстрационного сайта
+                      - generic [ref=e580] [cursor=pointer]:
+                        - generic [ref=e582]: 〇
+                        - switch "Режим демонстрационного сайта" [ref=e583]
+                    - generic [ref=e585]:
+                      - generic [ref=e587]: Режим личного использования
+                      - generic [ref=e588]:
+                        - generic [ref=e589] [cursor=pointer]:
+                          - generic [ref=e591]: 〇
+                          - switch "Режим личного использования" [ref=e592]
+                        - generic [ref=e593]: "После включения без ограничений: необходимо установить множители моделей"
+                  - generic [ref=e596]:
+                    - generic [ref=e598]: Обменять код
+                    - generic [ref=e599]:
+                      - generic [ref=e600] [cursor=pointer]:
+                        - generic [ref=e602]: 〇
+                        - switch "Обменять код" [ref=e603]
+                      - generic [ref=e604]: При отключении пользователи не смогут использовать код погашения
+                  - generic [ref=e607]:
+                    - generic [ref=e609]: Макс. количество токенов пользователя
+                    - generic [ref=e610]:
+                      - generic [ref=e611]:
+                        - spinbutton "Макс. количество токенов пользователя" [ref=e613]: "1000"
+                        - generic [ref=e614]:
+                          - img "chevron_up" [ref=e616]:
+                            - img [ref=e617]
+                          - img "chevron_down" [ref=e620]:
+                            - img [ref=e621]
+                      - generic [ref=e623]: Максимальное количество токенов на пользователя. По умолчанию 1000; слишком большое значение может повлиять на производительность.
+                  - button "Сохранить общие настройки" [ref=e625] [cursor=pointer]:
+                    - generic [ref=e626]: Сохранить общие настройки
+                - generic [ref=e630]:
+                  - heading "Управление верхней панелью" [level=5] [ref=e631]
+                  - generic [ref=e632]:
+                    - generic [ref=e636]:
+                      - generic [ref=e637]:
+                        - generic [ref=e638]: Главная
+                        - generic [ref=e639]: Главная страница пользователя, отображение системной информации
+                      - switch [checked] [ref=e643] [cursor=pointer]
+                    - generic [ref=e647]:
+                      - generic [ref=e648]:
+                        - generic [ref=e649]: Консоль
+                        - generic [ref=e650]: Панель управления пользователя, управление аккаунтом
+                      - switch [checked] [ref=e654] [cursor=pointer]
+                    - generic [ref=e657]:
+                      - generic [ref=e658]:
+                        - generic [ref=e659]:
+                          - generic [ref=e660]: Площадка моделей
+                          - generic [ref=e661]: Ценообразование моделей, требуется вход для доступа
+                        - switch [checked] [ref=e665] [cursor=pointer]
+                      - generic [ref=e667]:
+                        - generic [ref=e668]:
+                          - generic [ref=e669]: Требуется вход для доступа
+                          - generic [ref=e670]: После включения незарегистрированные пользователи не смогут получить доступ к площади моделей
+                        - switch [ref=e674] [cursor=pointer]
+                    - generic [ref=e678]:
+                      - generic [ref=e679]:
+                        - generic [ref=e680]: Документация
+                        - generic [ref=e681]: Системная документация и справочная информация
+                      - switch [checked] [ref=e685] [cursor=pointer]
+                    - generic [ref=e689]:
+                      - generic [ref=e690]:
+                        - generic [ref=e691]: О программе
+                        - generic [ref=e692]: Подробная информация о системе
+                      - switch [ref=e696] [cursor=pointer]
+                  - generic [ref=e697]:
+                    - generic [ref=e698]: Пользовательское менюДобавить пользовательские навигационные ссылки (внутренние пути и внешние ссылки)
+                    - generic [ref=e699]:
+                      - img "link" [ref=e700]:
+                        - img [ref=e701]
+                      - generic [ref=e703]:
+                        - generic [ref=e704]: SLA
+                        - generic [ref=e705]: https://status.autocode.space/status/autocode
+                      - button "delete" [ref=e706] [cursor=pointer]:
+                        - img "delete" [ref=e708]:
+                          - img [ref=e709]
+                    - generic [ref=e711]:
+                      - textbox "Название меню" [ref=e713]
+                      - textbox "URL ссылки, напр. https://docs.example.com или /about" [ref=e715]
+                      - button "plus Добавить" [disabled] [ref=e716]:
+                        - generic [ref=e717]:
+                          - img "plus" [ref=e718]:
+                            - img [ref=e719]
+                          - generic [ref=e721]: Добавить
+                  - generic [ref=e722]:
+                    - button "Сбросить по умолчанию" [ref=e723] [cursor=pointer]:
+                      - generic [ref=e724]: Сбросить по умолчанию
+                    - button "Сохранить настройки" [ref=e725] [cursor=pointer]:
+                      - generic [ref=e726]: Сохранить настройки
+                - generic [ref=e730]:
+                  - heading "Управление боковой панелью (глобальный контроль)" [level=5] [ref=e731]
+                  - generic [ref=e732]:
+                    - generic [ref=e733]:
+                      - generic [ref=e734]:
+                        - generic [ref=e735]: Область чата
+                        - text: Тренировочная площадка и чат-функции
+                      - switch [ref=e738] [cursor=pointer]
+                    - generic [ref=e739]:
+                      - generic [ref=e743]:
+                        - generic [ref=e744]:
+                          - generic [ref=e745]: Тренировочная площадка
+                          - generic [ref=e746]: Среда тестирования AI моделей
+                        - generic [ref=e748]:
+                          - switch [disabled]
+                      - generic [ref=e753]:
+                        - generic [ref=e754]:
+                          - generic [ref=e755]: Чат
+                          - generic [ref=e756]: Управление сессиями чата
+                        - generic [ref=e758]:
+                          - switch [disabled]
+                  - generic [ref=e760]:
+                    - generic [ref=e761]:
+                      - generic [ref=e762]:
+                        - generic [ref=e763]: Область консоли
+                        - text: Управление данными и просмотр журналов
+                      - switch [checked] [ref=e766] [cursor=pointer]
+                    - generic [ref=e767]:
+                      - generic [ref=e771]:
+                        - generic [ref=e772]:
+                          - generic [ref=e773]: Панель данных
+                          - generic [ref=e774]: Статистика системных данных
+                        - switch [checked] [ref=e778] [cursor=pointer]
+                      - generic [ref=e782]:
+                        - generic [ref=e783]:
+                          - generic [ref=e784]: Управление токенами
+                          - generic [ref=e785]: Управление токенами API
+                        - switch [checked] [ref=e789] [cursor=pointer]
+                      - generic [ref=e793]:
+                        - generic [ref=e794]:
+                          - generic [ref=e795]: Журнал использования
+                          - generic [ref=e796]: История использования API
+                        - switch [checked] [ref=e800] [cursor=pointer]
+                      - generic [ref=e804]:
+                        - generic [ref=e805]:
+                          - generic [ref=e806]: Журнал рисования
+                          - generic [ref=e807]: Записи задач рисования
+                        - switch [ref=e811] [cursor=pointer]
+                      - generic [ref=e815]:
+                        - generic [ref=e816]:
+                          - generic [ref=e817]: Журнал задач
+                          - generic [ref=e818]: Записи системных задач
+                        - switch [ref=e822] [cursor=pointer]
+                  - generic [ref=e823]:
+                    - generic [ref=e824]:
+                      - generic [ref=e825]:
+                        - generic [ref=e826]: Область личного кабинета
+                        - text: Персональные функции пользователя
+                      - switch [checked] [ref=e829] [cursor=pointer]
+                    - generic [ref=e830]:
+                      - generic [ref=e834]:
+                        - generic [ref=e835]:
+                          - generic [ref=e836]: Управление кошельком
+                          - generic [ref=e837]: Управление пополнением баланса
+                        - switch [checked] [ref=e841] [cursor=pointer]
+                      - generic [ref=e845]:
+                        - generic [ref=e846]:
+                          - generic [ref=e847]: Личные настройки
+                          - generic [ref=e848]: Настройки личной информации
+                        - switch [checked] [ref=e852] [cursor=pointer]
+                  - generic [ref=e853]:
+                    - generic [ref=e854]:
+                      - generic [ref=e855]:
+                        - generic [ref=e856]: Область администратора
+                        - text: Функции системного управления
+                      - switch [checked] [ref=e859] [cursor=pointer]
+                    - generic [ref=e860]:
+                      - generic [ref=e864]:
+                        - generic [ref=e865]:
+                          - generic [ref=e866]: Управление каналами
+                          - generic [ref=e867]: Конфигурация каналов API
+                        - switch [checked] [ref=e871] [cursor=pointer]
+                      - generic [ref=e875]:
+                        - generic [ref=e876]:
+                          - generic [ref=e877]: Управление моделями
+                          - generic [ref=e878]: Конфигурация AI моделей
+                        - switch [ref=e882] [cursor=pointer]
+                      - generic [ref=e886]:
+                        - generic [ref=e887]:
+                          - generic [ref=e888]: Model Deployment
+                          - generic [ref=e889]: Model Deployment Management
+                        - switch [ref=e893] [cursor=pointer]
+                      - generic [ref=e897]:
+                        - generic [ref=e898]:
+                          - generic [ref=e899]: Управление подписками
+                          - generic [ref=e900]: Управление тарифами подписки
+                        - switch [checked] [ref=e904] [cursor=pointer]
+                      - generic [ref=e908]:
+                        - generic [ref=e909]:
+                          - generic [ref=e910]: Управление кодами купонов
+                          - generic [ref=e911]: Управление генерацией кодов купонов
+                        - switch [checked] [ref=e915] [cursor=pointer]
+                      - generic [ref=e919]:
+                        - generic [ref=e920]:
+                          - generic [ref=e921]: Управление пользователями
+                          - generic [ref=e922]: Управление аккаунтами пользователей
+                        - switch [checked] [ref=e926] [cursor=pointer]
+                      - generic [ref=e930]:
+                        - generic [ref=e931]:
+                          - generic [ref=e932]: Настройки системы
+                          - generic [ref=e933]: Конфигурация системных параметров
+                        - switch [checked] [ref=e937] [cursor=pointer]
+                  - generic [ref=e938]:
+                    - button "Сбросить по умолчанию" [ref=e939] [cursor=pointer]:
+                      - generic [ref=e940]: Сбросить по умолчанию
+                    - button "Сохранить настройки" [ref=e941] [cursor=pointer]:
+                      - generic [ref=e942]: Сохранить настройки
+                - generic [ref=e948]:
+                  - heading "Настройки фильтрации заблокированных слов" [level=5] [ref=e949]
+                  - generic [ref=e950]:
+                    - generic [ref=e952]:
+                      - generic [ref=e954]: Включить функцию фильтрации запрещённых слов
+                      - generic [ref=e956] [cursor=pointer]:
+                        - generic [ref=e958]: ｜
+                        - switch "Включить функцию фильтрации запрещённых слов" [checked] [ref=e959]
+                    - generic [ref=e961]:
+                      - generic [ref=e963]: Включить проверку Prompt
+                      - generic [ref=e965] [cursor=pointer]:
+                        - generic [ref=e967]: ｜
+                        - switch "Включить проверку Prompt" [checked] [ref=e968]
+                  - generic [ref=e971]:
+                    - generic [ref=e973]: Список заблокированных слов
+                    - generic [ref=e974]:
+                      - textbox "Список заблокированных слов" [ref=e976]:
+                        - /placeholder: Одно запрещенное слово на строку, не требуют разделителей
+                        - text: test_sensitive
+                      - generic [ref=e977]: Одно запрещенное слово на строку, не требуют разделителей
+                  - button "Сохранить настройки фильтрации запрещенных слов" [ref=e979] [cursor=pointer]:
+                    - generic [ref=e980]: Сохранить настройки фильтрации запрещенных слов
+                - generic [ref=e986]:
+                  - heading "Настройки журнала" [level=5] [ref=e987]
+                  - generic [ref=e988]:
+                    - generic [ref=e990]:
+                      - generic [ref=e992]: Включить журналирование потребления квоты
+                      - generic [ref=e994] [cursor=pointer]:
+                        - generic [ref=e996]: ｜
+                        - switch "Включить журналирование потребления квоты" [checked] [ref=e997]
+                    - generic [ref=e1000]:
+                      - generic [ref=e1001]:
+                        - generic [ref=e1003]: Очистить историю логов
+                        - generic "Очистить историю логов" [ref=e1005]:
+                          - combobox "Change date" [ref=e1006]:
+                            - generic [ref=e1007] [cursor=pointer]:
+                              - textbox "Выбрать дату и время" [ref=e1008]: 2026-04-04 12:48:24
+                              - img [ref=e1010]:
+                                - img [ref=e1011]
+                      - generic [ref=e1018]: Будут очищены все логи до выбранного времени
+                      - button "Очистить историю логов" [ref=e1019] [cursor=pointer]:
+                        - generic [ref=e1020]: Очистить историю логов
+                  - button "Сохранить настройки журнала" [ref=e1022] [cursor=pointer]:
+                    - generic [ref=e1023]: Сохранить настройки журнала
+                - generic [ref=e1029]:
+                  - heading "Настройки мониторинга" [level=5] [ref=e1030]
+                  - generic [ref=e1031]:
+                    - generic [ref=e1033]:
+                      - generic [ref=e1035]: Периодическое тестирование всех каналов
+                      - generic [ref=e1037] [cursor=pointer]:
+                        - generic [ref=e1039]: 〇
+                        - switch "Периодическое тестирование всех каналов" [ref=e1040]
+                    - generic [ref=e1042]:
+                      - generic [ref=e1044]: Интервал автоматического тестирования всех каналов
+                      - generic [ref=e1045]:
+                        - generic [ref=e1046]:
+                          - generic [ref=e1047]:
+                            - spinbutton "Интервал автоматического тестирования всех каналов" [ref=e1048]: "10"
+                            - generic [ref=e1049]: минут
+                          - generic [ref=e1050]:
+                            - img "chevron_up" [ref=e1052]:
+                              - img [ref=e1053]
+                            - img "chevron_down" [ref=e1056]:
+                              - img [ref=e1057]
+                        - generic [ref=e1059]: Как часто тестировать все каналы (в минутах)
+                  - generic [ref=e1060]:
+                    - generic [ref=e1062]:
+                      - generic [ref=e1064]: Максимальное время отклика для тестирования всех каналов
+                      - generic [ref=e1065]:
+                        - generic [ref=e1066]:
+                          - generic [ref=e1067]:
+                            - spinbutton "Максимальное время отклика для тестирования всех каналов" [ref=e1068]: "5"
+                            - generic [ref=e1069]: секунд
+                          - generic [ref=e1070]:
+                            - img "chevron_up" [ref=e1072]:
+                              - img [ref=e1073]
+                            - img "chevron_down" [ref=e1076]:
+                              - img [ref=e1077]
+                        - generic [ref=e1079]: При тестировании всех работающих каналов, превышение этого времени автоматически отключит канал
+                    - generic [ref=e1081]:
+                      - generic [ref=e1083]: Порог напоминания о квоте
+                      - generic [ref=e1084]:
+                        - generic [ref=e1085]:
+                          - generic [ref=e1086]:
+                            - spinbutton "Порог напоминания о квоте" [ref=e1087]: "1000"
+                            - generic [ref=e1088]: Token
+                          - generic [ref=e1089]:
+                            - img "chevron_up" [ref=e1091]:
+                              - img [ref=e1092]
+                            - img "chevron_down" [ref=e1095]:
+                              - img [ref=e1096]
+                        - generic [ref=e1098]: Когда баланс ниже этого лимита, пользователю будет отправлено email напоминание
+                  - generic [ref=e1099]:
+                    - generic [ref=e1101]:
+                      - generic [ref=e1103]: Автоматически отключать канал при неудаче
+                      - generic [ref=e1105] [cursor=pointer]:
+                        - generic [ref=e1107]: 〇
+                        - switch "Автоматически отключать канал при неудаче" [ref=e1108]
+                    - generic [ref=e1110]:
+                      - generic [ref=e1112]: Автоматически включать канал при успехе
+                      - generic [ref=e1114] [cursor=pointer]:
+                        - generic [ref=e1116]: 〇
+                        - switch "Автоматически включать канал при успехе" [ref=e1117]
+                  - generic [ref=e1119]:
+                    - generic [ref=e1120]:
+                      - generic [ref=e1122]: Auto-disable status codes
+                      - generic [ref=e1123]:
+                        - textbox "Auto-disable status codes" [ref=e1125]:
+                          - /placeholder: e.g. 401,403,429,500-599
+                          - text: "401"
+                        - generic [ref=e1126]: Supports single status codes or inclusive ranges; separate with commas
+                    - 'generic "Tag: 401" [ref=e1128]':
+                      - generic [ref=e1129]: "401"
+                    - generic [ref=e1130]:
+                      - generic [ref=e1132]: Auto-retry status codes
+                      - generic [ref=e1133]:
+                        - textbox "Auto-retry status codes" [ref=e1135]:
+                          - /placeholder: e.g. 401,403,429,500-599
+                          - text: 100-199,300-399,401-407,409-499,500-503,505-523,525-599
+                        - generic [ref=e1136]: Supports single status codes or inclusive ranges; separate with commas. 504 and 524 are never retried and are not affected by this setting
+                    - generic [ref=e1137]:
+                      - 'generic "Tag: 100-199" [ref=e1138]':
+                        - generic [ref=e1139]: 100-199
+                      - 'generic "Tag: 300-399" [ref=e1140]':
+                        - generic [ref=e1141]: 300-399
+                      - 'generic "Tag: 401-407" [ref=e1142]':
+                        - generic [ref=e1143]: 401-407
+                      - 'generic "Tag: 409-503" [ref=e1144]':
+                        - generic [ref=e1145]: 409-503
+                      - 'generic "Tag: 505-523" [ref=e1146]':
+                        - generic [ref=e1147]: 505-523
+                      - 'generic "Tag: 525-599" [ref=e1148]':
+                        - generic [ref=e1149]: 525-599
+                    - generic [ref=e1150]:
+                      - generic [ref=e1152]: Ключевые слова для автоматического отключения
+                      - generic [ref=e1153]:
+                        - textbox "Ключевые слова для автоматического отключения" [ref=e1155]:
+                          - /placeholder: Один элемент на строку, без учета регистра
+                          - text: Your credit balance is too low This organization has been disabled. You exceeded your current quota Permission denied The security token included in the request is invalid Operation not allowed Your account is not authorized
+                        - generic [ref=e1156]: Автоматически отключать канал, когда в ошибке от восходящего канала содержатся эти ключевые слова (без учета регистра)
+                  - button "Сохранить настройки мониторинга" [ref=e1158] [cursor=pointer]:
+                    - generic [ref=e1159]: Сохранить настройки мониторинга
+                - generic [ref=e1165]:
+                  - heading "Настройки квоты" [level=5] [ref=e1166]
+                  - generic [ref=e1167]:
+                    - generic [ref=e1169]:
+                      - generic [ref=e1171]: Начальная квота для новых пользователей
+                      - generic [ref=e1173]:
+                        - generic [ref=e1174]:
+                          - spinbutton "Начальная квота для новых пользователей" [ref=e1175]: "50000"
+                          - generic [ref=e1176]: Token
+                        - generic [ref=e1177]:
+                          - img "chevron_up" [ref=e1179]:
+                            - img [ref=e1180]
+                          - img "chevron_down" [ref=e1183]:
+                            - img [ref=e1184]
+                    - generic [ref=e1187]:
+                      - generic [ref=e1189]: Запрос суммы предварительного удержания
+                      - generic [ref=e1190]:
+                        - generic [ref=e1191]:
+                          - generic [ref=e1192]:
+                            - spinbutton "Запрос суммы предварительного удержания" [ref=e1193]: "500"
+                            - generic [ref=e1194]: Token
+                          - generic [ref=e1195]:
+                            - img "chevron_up" [ref=e1197]:
+                              - img [ref=e1198]
+                            - img "chevron_down" [ref=e1201]:
+                              - img [ref=e1202]
+                        - generic [ref=e1204]: После вывода запроса возврат излишков и доплата недостатка
+                    - generic [ref=e1206]:
+                      - generic [ref=e1208]: Лимит вознаграждения за приглашение новых пользователей
+                      - generic [ref=e1210]:
+                        - generic [ref=e1211]:
+                          - spinbutton "Лимит вознаграждения за приглашение новых пользователей" [ref=e1212]: "500000"
+                          - generic [ref=e1213]: Token
+                        - generic [ref=e1214]:
+                          - img "chevron_up" [ref=e1216]:
+                            - img [ref=e1217]
+                          - img "chevron_down" [ref=e1220]:
+                            - img [ref=e1221]
+                  - generic [ref=e1225]:
+                    - generic [ref=e1227]: Квота вознаграждения для новых пользователей, использующих приглашение
+                    - generic [ref=e1229]:
+                      - generic [ref=e1230]:
+                        - spinbutton "Квота вознаграждения для новых пользователей, использующих приглашение" [ref=e1231]: "500000"
+                        - generic [ref=e1232]: Token
+                      - generic [ref=e1233]:
+                        - img "chevron_up" [ref=e1235]:
+                          - img [ref=e1236]
+                        - img "chevron_down" [ref=e1239]:
+                          - img [ref=e1240]
+                  - generic [ref=e1244]:
+                    - generic [ref=e1246]: Включить предварительное списание для бесплатных моделей
+                    - generic [ref=e1247]:
+                      - switch "Включить предварительное списание для бесплатных моделей" [checked] [ref=e1250] [cursor=pointer]
+                      - generic [ref=e1251]: После включения бесплатные модели (коэффициент 0 или цена 0) тоже будут предварительно расходовать квоту
+                  - button "Сохранить настройки лимитов" [ref=e1253] [cursor=pointer]:
+                    - generic [ref=e1254]: Сохранить настройки лимитов
+                - generic [ref=e1260]:
+                  - heading "Настройки регистрации" [level=5] [ref=e1261]
+                  - generic [ref=e1262]: Функция регистрации позволяет пользователям регистрироваться ежедневно для получения случайных наград в виде квоты
+                  - generic [ref=e1263]:
+                    - generic [ref=e1265]:
+                      - generic [ref=e1267]: Включить функцию регистрации
+                      - generic [ref=e1269] [cursor=pointer]:
+                        - generic [ref=e1271]: 〇
+                        - switch "Включить функцию регистрации" [ref=e1272]
+                    - generic [ref=e1274]:
+                      - generic [ref=e1276]: Минимальная квота регистрации
+                      - generic [ref=e1278]:
+                        - spinbutton "Минимальная квота регистрации" [disabled] [ref=e1280]: "1000"
+                        - generic [ref=e1281]:
+                          - img "chevron_up" [ref=e1283]:
+                            - img [ref=e1284]
+                          - img "chevron_down" [ref=e1287]:
+                            - img [ref=e1288]
+                    - generic [ref=e1291]:
+                      - generic [ref=e1293]: Максимальная квота регистрации
+                      - generic [ref=e1295]:
+                        - spinbutton "Максимальная квота регистрации" [disabled] [ref=e1297]: "10000"
+                        - generic [ref=e1298]:
+                          - img "chevron_up" [ref=e1300]:
+                            - img [ref=e1301]
+                          - img "chevron_down" [ref=e1304]:
+                            - img [ref=e1305]
+                  - button "Сохранить настройки регистрации" [ref=e1308] [cursor=pointer]:
+                    - generic [ref=e1309]: Сохранить настройки регистрации
+                - generic [ref=e1315]:
+                  - heading "CDN Acceleration Settings" [level=5] [ref=e1316]
+                  - generic [ref=e1317]: Ускорение загрузки статических ресурсов через CDN с распределением по узлам в зависимости от страны посетителя. Требуется настройка модуля GeoIP в nginx и передача заголовка с кодом страны.
+                  - generic [ref=e1318]:
+                    - generic [ref=e1320]:
+                      - generic [ref=e1322]: Enable CDN
+                      - generic [ref=e1324] [cursor=pointer]:
+                        - generic [ref=e1326]: 〇
+                        - switch "Enable CDN" [ref=e1327]
+                    - generic [ref=e1329]:
+                      - generic [ref=e1331]: Обнаружить заголовки запроса
+                      - textbox "Обнаружить заголовки запроса" [disabled] [ref=e1334]:
+                        - /placeholder: X-GeoIP-Country
+                        - text: X-GeoIP-Country
+                  - heading "CDN Rules" [level=6] [ref=e1335]
+                  - generic [ref=e1336]: Настройка CDN-адресов по коду страны. Точное совпадение применяется; несовпадающие запросы используют правило default.
+                  - generic [ref=e1342]:
+                    - grid [ref=e1343]:
+                      - rowgroup [ref=e1348]:
+                        - row "Country Code CDN Address Действие" [ref=e1349]:
+                          - columnheader "Country Code" [ref=e1350]
+                          - columnheader "CDN Address" [ref=e1351]
+                          - columnheader "Действие" [ref=e1352]
+                      - rowgroup
+                    - generic [ref=e1354]: Нет правил. Добавьте ниже.
+                  - generic [ref=e1355]:
+                    - textbox "国家代码 (如 CN、US、default)" [disabled] [ref=e1357]
+                    - textbox "CDN 地址 (如 https://cdn-cn.example.com)" [disabled] [ref=e1359]
+                    - button "Добавить правило" [disabled] [ref=e1360]:
+                      - generic [ref=e1361]: Добавить правило
+                  - button "Save CDN Settings" [ref=e1363] [cursor=pointer]:
+                    - generic [ref=e1364]: Save CDN Settings
+      - generic [ref=e178]:
+        - generic [ref=e180]: © 2026 OneDayAI - 本地站. Все права защищены
+        - generic [ref=e181]:
+          - generic [ref=e182]: Дизайн и разработка
+          - link "New API" [ref=e183] [cursor=pointer]:
+            - /url: https://github.com/QuantumNous/new-api

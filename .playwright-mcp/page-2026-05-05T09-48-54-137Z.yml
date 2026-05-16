@@ -1,0 +1,62 @@
+- generic [ref=e3]:
+  - generic [ref=e7]:
+    - link "logo AI模型一站式网关" [ref=e9] [cursor=pointer]:
+      - /url: /
+      - img "logo" [ref=e12]
+      - generic [ref=e17]: AI模型一站式网关
+    - generic [ref=e18]:
+      - navigation [ref=e19]
+      - generic [ref=e32]:
+        - button "系统公告" [ref=e33] [cursor=pointer]:
+          - img [ref=e35]
+        - button "切换主题" [ref=e38] [cursor=pointer]:
+          - img [ref=e40]
+        - button "common.changeLanguage" [ref=e44] [cursor=pointer]:
+          - img [ref=e46]
+  - generic [ref=e57]:
+    - main [ref=e58]:
+      - generic [ref=e62]:
+        - generic [ref=e63]:
+          - img "Logo" [ref=e64]
+          - heading "OneDayAI - 本地站" [level=4] [ref=e65]
+          - generic [ref=e66]: AI模型一站式网关
+        - generic [ref=e69]:
+          - heading "注 册" [level=4] [ref=e70]
+          - generic [ref=e71]:
+            - generic [ref=e72]:
+              - generic [ref=e74]: 用户名
+              - generic [ref=e76]:
+                - img "user" [ref=e78]:
+                  - img [ref=e79]
+                - textbox "用户名" [ref=e82]:
+                  - /placeholder: 请输入用户名
+            - generic [ref=e83]:
+              - generic [ref=e85]: 密码
+              - generic [ref=e87]:
+                - img "lock" [ref=e89]:
+                  - img [ref=e90]
+                - textbox "密码" [ref=e92]:
+                  - /placeholder: 输入密码，最短 8 位，最长 20 位
+                - button "Show password" [ref=e93] [cursor=pointer]:
+                  - img "eye_closed_solid" [ref=e94]:
+                    - img [ref=e95]
+            - generic [ref=e98]:
+              - generic [ref=e100]: 确认密码
+              - generic [ref=e102]:
+                - img "lock" [ref=e104]:
+                  - img [ref=e105]
+                - textbox "确认密码" [ref=e107]
+                - button "Show password" [ref=e108] [cursor=pointer]:
+                  - img "eye_closed_solid" [ref=e109]:
+                    - img [ref=e110]
+            - button "注册" [ref=e114] [cursor=pointer]
+          - generic [ref=e116]:
+            - text: 已有账户？
+            - link "登录" [ref=e117] [cursor=pointer]:
+              - /url: /login
+    - generic [ref=e122]:
+      - generic [ref=e124]: © 2026 OneDayAI - 本地站. 版权所有
+      - generic [ref=e125]:
+        - generic [ref=e126]: 设计与开发由
+        - link "New API" [ref=e127] [cursor=pointer]:
+          - /url: https://github.com/QuantumNous/new-api

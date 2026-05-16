@@ -1,0 +1,428 @@
+- generic [ref=e3]:
+  - generic [ref=e7]:
+    - link "logo OneDayAI - 本地站 AI模型一站式网关" [ref=e184] [cursor=pointer]:
+      - /url: /
+      - img "logo" [ref=e12]
+      - generic [ref=e13]:
+        - heading "OneDayAI - 本地站" [level=4] [ref=e185]
+        - generic [ref=e17]: AI模型一站式网关
+    - generic [ref=e18]:
+      - navigation [ref=e19]:
+        - link "首页" [ref=e186] [cursor=pointer]:
+          - /url: /
+          - generic [ref=e188]: 首页
+        - link "控制台" [ref=e189] [cursor=pointer]:
+          - /url: /console
+          - generic [ref=e191]: 控制台
+        - link "模型广场" [ref=e192] [cursor=pointer]:
+          - /url: /pricing
+          - generic [ref=e194]: 模型广场
+        - link "文档" [ref=e195] [cursor=pointer]:
+          - /url: https://ncn174iua0ln.feishu.cn/wiki/BHSdwA8uZi9sPkkqf0ocHch5nMf
+          - generic [ref=e197]: 文档
+        - link "SLA" [ref=e198] [cursor=pointer]:
+          - /url: https://status.autocode.space/status/autocode
+          - generic [ref=e200]: SLA
+      - generic [ref=e32]:
+        - button "系统公告" [ref=e33] [cursor=pointer]:
+          - img [ref=e35]
+        - button "切换主题" [ref=e38] [cursor=pointer]:
+          - img [ref=e40]
+        - button "common.changeLanguage" [ref=e44] [cursor=pointer]:
+          - img [ref=e46]
+        - button "Z zhangsan" [ref=e202] [cursor=pointer]:
+          - generic [ref=e204]:
+            - listitem [ref=e205]:
+              - img "Z" [ref=e207]
+            - generic [ref=e209]: zhangsan
+            - img [ref=e211]
+  - generic [ref=e56]:
+    - complementary [ref=e57]:
+      - generic [ref=e59]:
+        - menu [ref=e217]:
+          - generic [ref=e219]:
+            - generic [ref=e220]: 控制台
+            - link "数据看板" [ref=e221] [cursor=pointer]:
+              - /url: /console
+              - menuitem "数据看板" [ref=e222]:
+                - img [ref=e225]
+                - generic [ref=e230]: 数据看板
+            - link "令牌管理" [ref=e231] [cursor=pointer]:
+              - /url: /console/token
+              - menuitem "令牌管理" [ref=e232]:
+                - img [ref=e235]
+                - generic [ref=e239]: 令牌管理
+            - link "使用日志" [ref=e240] [cursor=pointer]:
+              - /url: /console/log
+              - menuitem "使用日志" [ref=e241]:
+                - img [ref=e244]
+                - generic [ref=e246]: 使用日志
+          - generic [ref=e248]:
+            - generic [ref=e249]: 个人中心
+            - link "钱包管理" [ref=e250] [cursor=pointer]:
+              - /url: /console/topup
+              - menuitem "钱包管理" [ref=e251]:
+                - img [ref=e254]
+                - generic [ref=e256]: 钱包管理
+            - link "充值订单" [ref=e257] [cursor=pointer]:
+              - /url: /console/invoice
+              - menuitem "充值订单" [ref=e258]:
+                - img [ref=e261]
+                - generic [ref=e265]: 充值订单
+            - link "返佣管理" [ref=e266] [cursor=pointer]:
+              - /url: /console/commission
+              - menuitem "返佣管理" [ref=e267]:
+                - img [ref=e270]
+                - generic [ref=e275]: 返佣管理
+            - link "生图工具" [ref=e276] [cursor=pointer]:
+              - /url: /console/image-studio
+              - menuitem "生图工具" [ref=e277]:
+                - img [ref=e280]
+                - generic [ref=e286]: 生图工具
+            - link "个人设置" [ref=e287] [cursor=pointer]:
+              - /url: /console/personal
+              - menuitem "个人设置" [ref=e288]:
+                - img [ref=e291]
+                - generic [ref=e294]: 个人设置
+          - generic [ref=e296]:
+            - generic [ref=e297]: 管理员
+            - link "渠道管理" [ref=e298] [cursor=pointer]:
+              - /url: /console/channel
+              - menuitem "渠道管理" [ref=e299]:
+                - img [ref=e302]
+                - generic [ref=e306]: 渠道管理
+            - link "订阅管理" [ref=e307] [cursor=pointer]:
+              - /url: /console/subscription
+              - menuitem "订阅管理" [ref=e308]:
+                - img [ref=e311]
+                - generic [ref=e315]: 订阅管理
+            - link "兑换码管理" [ref=e316] [cursor=pointer]:
+              - /url: /console/redemption
+              - menuitem "兑换码管理" [ref=e317]:
+                - img [ref=e320]
+                - generic [ref=e324]: 兑换码管理
+            - link "用户管理" [ref=e325] [cursor=pointer]:
+              - /url: /console/user
+              - menuitem "用户管理" [ref=e326]:
+                - img [ref=e329]
+                - generic [ref=e332]: 用户管理
+            - link "系统设置" [ref=e333] [cursor=pointer]:
+              - /url: /console/setting
+              - menuitem "系统设置" [ref=e334]:
+                - img [ref=e337]
+                - generic [ref=e340]: 系统设置
+        - button "收起侧边栏" [ref=e341] [cursor=pointer]:
+          - generic [ref=e342]:
+            - img [ref=e343]
+            - generic [ref=e345]: 收起侧边栏
+    - generic [ref=e165]:
+      - main [ref=e166]:
+        - generic [ref=e347]:
+          - heading "充值账单" [level=6] [ref=e351]
+          - generic [ref=e352]:
+            - generic [ref=e354]:
+              - img "search" [ref=e356]:
+                - img [ref=e357]
+              - textbox "订单号" [ref=e359]
+            - generic [ref=e363]:
+              - grid [ref=e366]:
+                - rowgroup [ref=e379]:
+                  - row "用户 订单号 支付方式 充值额度 支付金额 可开票金额 已开票金额 状态 开票 操作 创建时间" [ref=e380]:
+                    - columnheader "用户" [ref=e381]
+                    - columnheader "订单号" [ref=e382]
+                    - columnheader "支付方式" [ref=e383]
+                    - columnheader "充值额度" [ref=e384]
+                    - columnheader "支付金额" [ref=e385]
+                    - columnheader "可开票金额" [ref=e386]
+                    - columnheader "已开票金额" [ref=e387]
+                    - columnheader "状态" [ref=e388]
+                    - columnheader "开票" [ref=e389]
+                    - columnheader "操作" [ref=e390]
+                    - columnheader "创建时间" [ref=e391]
+                - rowgroup [ref=e392]:
+                  - 'row "- ID: 1 SUBUSR1NOa0RcAO1777881744 copy 支付宝 Tag: 订阅套餐 ¥105.50 含服务费 ¥5.50 ¥100.00 ¥0.00 成功 申请开票 2026-05-04 16:02:24" [ref=e393]':
+                    - 'gridcell "- ID: 1" [ref=e394]':
+                      - generic [ref=e395]:
+                        - text: "-"
+                        - generic [ref=e397]: "ID: 1"
+                    - gridcell "SUBUSR1NOa0RcAO1777881744 copy" [ref=e398]:
+                      - generic [ref=e399]:
+                        - text: SUBUSR1NOa0RcAO1777881744
+                        - button "copy" [ref=e402] [cursor=pointer]:
+                          - img [ref=e403]
+                    - gridcell "支付宝" [ref=e406]
+                    - 'gridcell "Tag: 订阅套餐" [ref=e407]':
+                      - 'generic "Tag: 订阅套餐" [ref=e408]':
+                        - generic [ref=e409]: 订阅套餐
+                    - gridcell "¥105.50 含服务费 ¥5.50" [ref=e410]:
+                      - generic [ref=e411]:
+                        - generic [ref=e412]: ¥105.50
+                        - generic [ref=e414]: 含服务费 ¥5.50
+                    - gridcell "¥100.00" [ref=e415]:
+                      - generic [ref=e416]: ¥100.00
+                    - gridcell "¥0.00" [ref=e417]
+                    - gridcell "成功" [ref=e418]:
+                      - generic [ref=e422]: 成功
+                    - gridcell "申请开票" [ref=e423]:
+                      - button "申请开票" [ref=e425] [cursor=pointer]:
+                        - generic [ref=e426]: 申请开票
+                    - gridcell [ref=e427]
+                    - gridcell "2026-05-04 16:02:24" [ref=e428]
+                  - 'row "- ID: 1 SUBUSR1NOa0RcAO1777881744 copy 支付宝 Tag: 订阅套餐 ¥105.50 ¥0.00 ¥0.00 成功 - 2026-05-04 16:02:24" [ref=e429]':
+                    - 'gridcell "- ID: 1" [ref=e430]':
+                      - generic [ref=e431]:
+                        - text: "-"
+                        - generic [ref=e433]: "ID: 1"
+                    - gridcell "SUBUSR1NOa0RcAO1777881744 copy" [ref=e434]:
+                      - generic [ref=e435]:
+                        - text: SUBUSR1NOa0RcAO1777881744
+                        - button "copy" [ref=e438] [cursor=pointer]:
+                          - img [ref=e439]
+                    - gridcell "支付宝" [ref=e442]
+                    - 'gridcell "Tag: 订阅套餐" [ref=e443]':
+                      - 'generic "Tag: 订阅套餐" [ref=e444]':
+                        - generic [ref=e445]: 订阅套餐
+                    - gridcell "¥105.50" [ref=e446]:
+                      - generic [ref=e448]: ¥105.50
+                    - gridcell "¥0.00" [ref=e449]
+                    - gridcell "¥0.00" [ref=e450]
+                    - gridcell "成功" [ref=e451]:
+                      - generic [ref=e455]: 成功
+                    - gridcell "-" [ref=e456]
+                    - gridcell [ref=e457]
+                    - gridcell "2026-05-04 16:02:24" [ref=e458]
+                  - 'row "- ID: 1 SUBUSR1NObDpkaC1777881199 copy 支付宝 Tag: 订阅套餐 ¥100.00 - - 待支付 - 补单 2026-05-04 15:53:19" [ref=e459]':
+                    - 'gridcell "- ID: 1" [ref=e460]':
+                      - generic [ref=e461]:
+                        - text: "-"
+                        - generic [ref=e463]: "ID: 1"
+                    - gridcell "SUBUSR1NObDpkaC1777881199 copy" [ref=e464]:
+                      - generic [ref=e465]:
+                        - text: SUBUSR1NObDpkaC1777881199
+                        - button "copy" [ref=e468] [cursor=pointer]:
+                          - img [ref=e469]
+                    - gridcell "支付宝" [ref=e472]
+                    - 'gridcell "Tag: 订阅套餐" [ref=e473]':
+                      - 'generic "Tag: 订阅套餐" [ref=e474]':
+                        - generic [ref=e475]: 订阅套餐
+                    - gridcell "¥100.00" [ref=e476]:
+                      - generic [ref=e478]: ¥100.00
+                    - gridcell "-" [ref=e479]
+                    - gridcell "-" [ref=e480]
+                    - gridcell "待支付" [ref=e481]:
+                      - generic [ref=e485]: 待支付
+                    - gridcell "-" [ref=e486]
+                    - gridcell "补单" [ref=e487]:
+                      - button "补单" [ref=e488] [cursor=pointer]:
+                        - generic [ref=e489]: 补单
+                    - gridcell "2026-05-04 15:53:19" [ref=e490]
+                  - 'row "- ID: 1 SUBUSR1NO2mpTu51777880976 copy 支付宝 Tag: 订阅套餐 ¥100.00 - - 待支付 - 补单 2026-05-04 15:49:36" [ref=e491]':
+                    - 'gridcell "- ID: 1" [ref=e492]':
+                      - generic [ref=e493]:
+                        - text: "-"
+                        - generic [ref=e495]: "ID: 1"
+                    - gridcell "SUBUSR1NO2mpTu51777880976 copy" [ref=e496]:
+                      - generic [ref=e497]:
+                        - text: SUBUSR1NO2mpTu51777880976
+                        - button "copy" [ref=e500] [cursor=pointer]:
+                          - img [ref=e501]
+                    - gridcell "支付宝" [ref=e504]
+                    - 'gridcell "Tag: 订阅套餐" [ref=e505]':
+                      - 'generic "Tag: 订阅套餐" [ref=e506]':
+                        - generic [ref=e507]: 订阅套餐
+                    - gridcell "¥100.00" [ref=e508]:
+                      - generic [ref=e510]: ¥100.00
+                    - gridcell "-" [ref=e511]
+                    - gridcell "-" [ref=e512]
+                    - gridcell "待支付" [ref=e513]:
+                      - generic [ref=e517]: 待支付
+                    - gridcell "-" [ref=e518]
+                    - gridcell "补单" [ref=e519]:
+                      - button "补单" [ref=e520] [cursor=pointer]:
+                        - generic [ref=e521]: 补单
+                    - gridcell "2026-05-04 15:49:36" [ref=e522]
+                  - 'row "- ID: 1 SUBUSR1NOtOhOba1777880954 copy 支付宝 Tag: 订阅套餐 ¥100.00 - - 待支付 - 补单 2026-05-04 15:49:14" [ref=e523]':
+                    - 'gridcell "- ID: 1" [ref=e524]':
+                      - generic [ref=e525]:
+                        - text: "-"
+                        - generic [ref=e527]: "ID: 1"
+                    - gridcell "SUBUSR1NOtOhOba1777880954 copy" [ref=e528]:
+                      - generic [ref=e529]:
+                        - text: SUBUSR1NOtOhOba1777880954
+                        - button "copy" [ref=e532] [cursor=pointer]:
+                          - img [ref=e533]
+                    - gridcell "支付宝" [ref=e536]
+                    - 'gridcell "Tag: 订阅套餐" [ref=e537]':
+                      - 'generic "Tag: 订阅套餐" [ref=e538]':
+                        - generic [ref=e539]: 订阅套餐
+                    - gridcell "¥100.00" [ref=e540]:
+                      - generic [ref=e542]: ¥100.00
+                    - gridcell "-" [ref=e543]
+                    - gridcell "-" [ref=e544]
+                    - gridcell "待支付" [ref=e545]:
+                      - generic [ref=e549]: 待支付
+                    - gridcell "-" [ref=e550]
+                    - gridcell "补单" [ref=e551]:
+                      - button "补单" [ref=e552] [cursor=pointer]:
+                        - generic [ref=e553]: 补单
+                    - gridcell "2026-05-04 15:49:14" [ref=e554]
+                  - 'row "- ID: 1 SUBUSR1NO0M5qPl1777879647 copy 支付宝 Tag: 订阅套餐 ¥100.00 - - 待支付 - 补单 2026-05-04 15:27:27" [ref=e555]':
+                    - 'gridcell "- ID: 1" [ref=e556]':
+                      - generic [ref=e557]:
+                        - text: "-"
+                        - generic [ref=e559]: "ID: 1"
+                    - gridcell "SUBUSR1NO0M5qPl1777879647 copy" [ref=e560]:
+                      - generic [ref=e561]:
+                        - text: SUBUSR1NO0M5qPl1777879647
+                        - button "copy" [ref=e564] [cursor=pointer]:
+                          - img [ref=e565]
+                    - gridcell "支付宝" [ref=e568]
+                    - 'gridcell "Tag: 订阅套餐" [ref=e569]':
+                      - 'generic "Tag: 订阅套餐" [ref=e570]':
+                        - generic [ref=e571]: 订阅套餐
+                    - gridcell "¥100.00" [ref=e572]:
+                      - generic [ref=e574]: ¥100.00
+                    - gridcell "-" [ref=e575]
+                    - gridcell "-" [ref=e576]
+                    - gridcell "待支付" [ref=e577]:
+                      - generic [ref=e581]: 待支付
+                    - gridcell "-" [ref=e582]
+                    - gridcell "补单" [ref=e583]:
+                      - button "补单" [ref=e584] [cursor=pointer]:
+                        - generic [ref=e585]: 补单
+                    - gridcell "2026-05-04 15:27:27" [ref=e586]
+                  - 'row "- ID: 1 SUBUSR1NOBG8f1A1777879639 copy 支付宝 Tag: 订阅套餐 ¥100.00 - - 待支付 - 补单 2026-05-04 15:27:19" [ref=e587]':
+                    - 'gridcell "- ID: 1" [ref=e588]':
+                      - generic [ref=e589]:
+                        - text: "-"
+                        - generic [ref=e591]: "ID: 1"
+                    - gridcell "SUBUSR1NOBG8f1A1777879639 copy" [ref=e592]:
+                      - generic [ref=e593]:
+                        - text: SUBUSR1NOBG8f1A1777879639
+                        - button "copy" [ref=e596] [cursor=pointer]:
+                          - img [ref=e597]
+                    - gridcell "支付宝" [ref=e600]
+                    - 'gridcell "Tag: 订阅套餐" [ref=e601]':
+                      - 'generic "Tag: 订阅套餐" [ref=e602]':
+                        - generic [ref=e603]: 订阅套餐
+                    - gridcell "¥100.00" [ref=e604]:
+                      - generic [ref=e606]: ¥100.00
+                    - gridcell "-" [ref=e607]
+                    - gridcell "-" [ref=e608]
+                    - gridcell "待支付" [ref=e609]:
+                      - generic [ref=e613]: 待支付
+                    - gridcell "-" [ref=e614]
+                    - gridcell "补单" [ref=e615]:
+                      - button "补单" [ref=e616] [cursor=pointer]:
+                        - generic [ref=e617]: 补单
+                    - gridcell "2026-05-04 15:27:19" [ref=e618]
+                  - 'row "- ID: 2 USR2NOuJgOmv1777576947 copy 支付宝 20 ¥21.20 含服务费 ¥1.20 ¥20.00 ¥21.20 成功 Tag: 已开票 2026-05-01 03:22:27" [ref=e619]':
+                    - 'gridcell "- ID: 2" [ref=e620]':
+                      - generic [ref=e621]:
+                        - text: "-"
+                        - generic [ref=e623]: "ID: 2"
+                    - gridcell "USR2NOuJgOmv1777576947 copy" [ref=e624]:
+                      - generic [ref=e625]:
+                        - text: USR2NOuJgOmv1777576947
+                        - button "copy" [ref=e628] [cursor=pointer]:
+                          - img [ref=e629]
+                    - gridcell "支付宝" [ref=e632]
+                    - gridcell "20" [ref=e633]:
+                      - generic [ref=e634]:
+                        - img [ref=e635]
+                        - generic [ref=e640]: "20"
+                    - gridcell "¥21.20 含服务费 ¥1.20" [ref=e641]:
+                      - generic [ref=e642]:
+                        - generic [ref=e643]: ¥21.20
+                        - generic [ref=e645]: 含服务费 ¥1.20
+                    - gridcell "¥20.00" [ref=e646]:
+                      - generic [ref=e647]: ¥20.00
+                    - gridcell "¥21.20" [ref=e648]:
+                      - generic [ref=e649]: ¥21.20
+                    - gridcell "成功" [ref=e650]:
+                      - generic [ref=e654]: 成功
+                    - 'gridcell "Tag: 已开票" [ref=e655]':
+                      - 'generic "Tag: 已开票" [ref=e656]':
+                        - generic [ref=e657]: 已开票
+                    - gridcell [ref=e658]
+                    - gridcell "2026-05-01 03:22:27" [ref=e659]
+                  - 'row "- ID: 1 USR1NOWx7Z4U1777571030 copy 支付宝 20 ¥21.20 含服务费 ¥1.20 ¥20.00 ¥0.00 成功 Tag: 待开票 2026-05-01 01:43:50" [ref=e660]':
+                    - 'gridcell "- ID: 1" [ref=e661]':
+                      - generic [ref=e662]:
+                        - text: "-"
+                        - generic [ref=e664]: "ID: 1"
+                    - gridcell "USR1NOWx7Z4U1777571030 copy" [ref=e665]:
+                      - generic [ref=e666]:
+                        - text: USR1NOWx7Z4U1777571030
+                        - button "copy" [ref=e669] [cursor=pointer]:
+                          - img [ref=e670]
+                    - gridcell "支付宝" [ref=e673]
+                    - gridcell "20" [ref=e674]:
+                      - generic [ref=e675]:
+                        - img [ref=e676]
+                        - generic [ref=e681]: "20"
+                    - gridcell "¥21.20 含服务费 ¥1.20" [ref=e682]:
+                      - generic [ref=e683]:
+                        - generic [ref=e684]: ¥21.20
+                        - generic [ref=e686]: 含服务费 ¥1.20
+                    - gridcell "¥20.00" [ref=e687]:
+                      - generic [ref=e688]: ¥20.00
+                    - gridcell "¥0.00" [ref=e689]
+                    - gridcell "成功" [ref=e690]:
+                      - generic [ref=e694]: 成功
+                    - 'gridcell "Tag: 待开票" [ref=e695]':
+                      - 'generic "Tag: 待开票" [ref=e696]':
+                        - generic [ref=e697]: 待开票
+                    - gridcell [ref=e698]
+                    - gridcell "2026-05-01 01:43:50" [ref=e699]
+                  - 'row "- ID: 1 USR1NOF13tAA1777570428 copy 支付宝 20 ¥21.20 含服务费 ¥1.20 ¥20.00 ¥21.20 成功 Tag: 已开票 2026-05-01 01:33:48" [ref=e700]':
+                    - 'gridcell "- ID: 1" [ref=e701]':
+                      - generic [ref=e702]:
+                        - text: "-"
+                        - generic [ref=e704]: "ID: 1"
+                    - gridcell "USR1NOF13tAA1777570428 copy" [ref=e705]:
+                      - generic [ref=e706]:
+                        - text: USR1NOF13tAA1777570428
+                        - button "copy" [ref=e709] [cursor=pointer]:
+                          - img [ref=e710]
+                    - gridcell "支付宝" [ref=e713]
+                    - gridcell "20" [ref=e714]:
+                      - generic [ref=e715]:
+                        - img [ref=e716]
+                        - generic [ref=e721]: "20"
+                    - gridcell "¥21.20 含服务费 ¥1.20" [ref=e722]:
+                      - generic [ref=e723]:
+                        - generic [ref=e724]: ¥21.20
+                        - generic [ref=e726]: 含服务费 ¥1.20
+                    - gridcell "¥20.00" [ref=e727]:
+                      - generic [ref=e728]: ¥20.00
+                    - gridcell "¥21.20" [ref=e729]:
+                      - generic [ref=e730]: ¥21.20
+                    - gridcell "成功" [ref=e731]:
+                      - generic [ref=e735]: 成功
+                    - 'gridcell "Tag: 已开票" [ref=e736]':
+                      - 'generic "Tag: 已开票" [ref=e737]':
+                        - generic [ref=e738]: 已开票
+                    - gridcell [ref=e739]
+                    - gridcell "2026-05-01 01:33:48" [ref=e740]
+              - generic [ref=e741]:
+                - generic [ref=e742]: 显示第 1 条-第 10 条，共 20 条
+                - list [ref=e744]:
+                  - button "Previous" [disabled] [ref=e745]:
+                    - img "chevron_left" [ref=e746]:
+                      - img [ref=e747]
+                  - listitem "Page 1" [ref=e749] [cursor=pointer]: "1"
+                  - listitem "Page 2" [ref=e750] [cursor=pointer]: "2"
+                  - button "Next" [ref=e751] [cursor=pointer]:
+                    - img "chevron_right" [ref=e752]:
+                      - img [ref=e753]
+                  - combobox "selected" [ref=e756] [cursor=pointer]:
+                    - generic [ref=e759]: 每页条数：10
+                    - img [ref=e761]:
+                      - img [ref=e762]
+      - generic [ref=e178]:
+        - generic [ref=e180]: © 2026 OneDayAI - 本地站. 版权所有
+        - generic [ref=e181]:
+          - generic [ref=e182]: 设计与开发由
+          - link "New API" [ref=e183] [cursor=pointer]:
+            - /url: https://github.com/QuantumNous/new-api

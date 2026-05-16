@@ -1,0 +1,9 @@
+[     127ms] [LOG] %cWE ❤ NEWAPI%c Github: https://github.com/QuantumNous/new-api color: #10b981; font-weight: bold; font-size: 24px; color: inherit; font-size: 14px; @ http://localhost:3000/assets/index-BOxM5XuD.js:14037
+[   52425ms] [ERROR] Failed to load resource: the server responded with a status of 404 (Not Found) @ http://localhost:3000/assets/index-DqJJqJqJ.js:0
+[   69214ms] [ERROR] Failed to load resource: the server responded with a status of 401 (Unauthorized) @ http://localhost:3000/api/option/:0
+[   69219ms] [ERROR] Failed to load resource: the server responded with a status of 401 (Unauthorized) @ http://localhost:3000/api/option/:0
+[   69222ms] [ERROR] Failed to load resource: the server responded with a status of 401 (Unauthorized) @ http://localhost:3000/api/option/:0
+[   90334ms] [ERROR] Failed to load resource: the server responded with a status of 401 (Unauthorized) @ http://localhost:3000/api/option/:0
+[   90340ms] [ERROR] Failed to load resource: the server responded with a status of 401 (Unauthorized) @ http://localhost:3000/api/option/:0
+[   90343ms] [ERROR] Failed to load resource: the server responded with a status of 401 (Unauthorized) @ http://localhost:3000/api/option/:0
+[  170194ms] [ERROR] Failed to load resource: the server responded with a status of 401 (Unauthorized) @ http://localhost:3000/api/option/:0

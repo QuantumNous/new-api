@@ -1,0 +1,26 @@
+- generic [ref=e3]:
+  - generic [ref=e7]:
+    - link "logo API-шлюз Всё в Одном" [ref=e9] [cursor=pointer]:
+      - /url: /
+      - img "logo" [ref=e12]
+      - generic [ref=e17]: API-шлюз Всё в Одном
+    - generic [ref=e18]:
+      - navigation [ref=e19]
+      - generic [ref=e32]:
+        - button "Системные объявления" [ref=e33] [cursor=pointer]:
+          - img [ref=e35]
+        - button "Переключить тему" [ref=e38] [cursor=pointer]:
+          - img [ref=e40]
+        - button "Сменить язык" [ref=e44] [cursor=pointer]:
+          - img [ref=e46]
+  - generic [ref=e56]:
+    - complementary [ref=e57]
+    - generic [ref=e165]:
+      - main [ref=e166]:
+        - img [ref=e170]
+      - generic [ref=e178]:
+        - generic [ref=e180]: © 2026 OneDayAI - 本地站. Все права защищены
+        - generic [ref=e181]:
+          - generic [ref=e182]: Дизайн и разработка
+          - link "New API" [ref=e183] [cursor=pointer]:
+            - /url: https://github.com/QuantumNous/new-api

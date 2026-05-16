@@ -1,0 +1,163 @@
+- generic [ref=e3]:
+  - generic [ref=e7]:
+    - link "logo AI模型一站式网关" [ref=e9] [cursor=pointer]:
+      - /url: /
+      - img "logo" [ref=e12]
+      - generic [ref=e17]: AI模型一站式网关
+    - generic [ref=e18]:
+      - navigation [ref=e19]
+      - generic [ref=e32]:
+        - button "系统公告" [ref=e33] [cursor=pointer]:
+          - img [ref=e35]
+        - button "切换主题" [ref=e38] [cursor=pointer]:
+          - img [ref=e40]
+        - button "common.changeLanguage" [ref=e44] [cursor=pointer]:
+          - img [ref=e46]
+  - main [ref=e58]:
+    - generic [ref=e60]:
+      - generic [ref=e61]:
+        - generic:
+          - img:
+            - generic: OneDayAI OneDayAI OneDayAI OneDayAI OneDayAI OneDayAI OneDayAI OneDayAI OneDayAI OneDayAI
+        - generic [ref=e69]:
+          - heading "高效且稳定地 访问所有AI模型" [level=2] [ref=e71]:
+            - text: 高效且稳定地
+            - text: 访问所有AI模型
+          - heading "OneDayAI" [level=1] [ref=e73]
+          - paragraph [ref=e75]: 高性价比的Enterprise企业级API转发服务，AI模型All In One！ 完全兼容各平台接口协议，零开发基础无缝对接各种应用。 无忧风控问题、卓越性能保障、资源高效整合，为您提供专业的技术保障!
+          - generic [ref=e77]:
+            - generic [ref=e78]:
+              - link "bolt 立即开始" [ref=e79] [cursor=pointer]:
+                - /url: /register
+                - img "bolt" [ref=e80]:
+                  - img [ref=e81]
+                - text: 立即开始
+              - button "external_open 查看文档" [ref=e83] [cursor=pointer]:
+                - img "external_open" [ref=e84]:
+                  - img [ref=e85]
+                - text: 查看文档
+            - generic [ref=e88]: 注册可领取 $1 体验金
+          - generic [ref=e90]:
+            - generic [ref=e91]: 支持以下供应商 (更多供应商登录查看)
+            - generic [ref=e92]:
+              - img "openai" [ref=e93]
+              - img "claude" [ref=e94]
+              - img "bard" [ref=e95]
+              - img "mistral" [ref=e96]
+              - img "qwen" [ref=e97]
+              - img "stability-ai" [ref=e98]
+              - img "suno" [ref=e99]
+      - generic [ref=e101]:
+        - heading "为您的应用赋能AI智能化服务" [level=2] [ref=e104]
+        - generic [ref=e105]:
+          - generic [ref=e107]:
+            - img "高速 & 稳定" [ref=e108]
+            - heading "高速 & 稳定" [level=5] [ref=e109]
+            - paragraph [ref=e110]: Cloudflare Enterprise 全球加速，无论你在哪里，都能得到快速且稳定的响应。
+          - generic [ref=e112]:
+            - img "安全" [ref=e113]
+            - heading "安全" [level=5] [ref=e114]
+            - paragraph [ref=e115]: 严格保护信息和交互数据，仅转发数据不保存数据，数据传输全程加密，同时受业界领先安全解决方案保护，保障服务安全性。
+          - generic [ref=e117]:
+            - img "优惠价格" [ref=e118]
+            - heading "优惠价格" [level=5] [ref=e119]
+            - paragraph [ref=e120]: 价格远低于官方，请详见文档。*企业专享商业定价和专用服务器!以极低的成本使用最新的AI科技，创造价值、提高生产力。
+          - generic [ref=e122]:
+            - img "全面兼容" [ref=e123]
+            - heading "全面兼容" [level=5] [ref=e124]
+            - paragraph [ref=e125]: 支持OpenAI/Claude/Gemini全模型和大量AI应用及框架，无论开发AI产品、训练自有模型，都能为您提供全面的支持。
+          - generic [ref=e127]:
+            - img "按量付费" [ref=e128]
+            - heading "按量付费" [level=5] [ref=e129]
+            - paragraph [ref=e130]: 即刻注册，畅享免费测试额度！无需为各种风控问题而烦恼，按量付费，再无费用焦虑，充值更便捷，余额、用量实时掌握。
+          - generic [ref=e132]:
+            - img "专业服务" [ref=e133]
+            - heading "专业服务" [level=5] [ref=e134]
+            - paragraph [ref=e135]: 售前客服与售后服务兼顾，提供简洁明了的界面和易于操作的流程，无论开发者还是非技术人员，都能轻松使用我们的服务。
+      - generic [ref=e138]:
+        - generic [ref=e139]:
+          - generic [ref=e140]: AI服务集成
+          - heading "你想要的都在这里 ALL IN ONE" [level=2] [ref=e141]:
+            - text: 你想要的都在这里
+            - generic [ref=e142]: ALL IN ONE
+          - generic [ref=e143]:
+            - paragraph [ref=e144]: 一个接口，即可使用OpenAI、Claude、Gemini、LLaMA 3、Stable Diffusion、Midjourney、Suno 等 100+ AI模型。
+            - text: "* 不同模型可能调用方法不一样，具体请参考文档。"
+        - img "Integration" [ref=e146]
+      - generic [ref=e148]:
+        - generic [ref=e150]:
+          - heading "完善的 服务体系" [level=2] [ref=e151]:
+            - generic [ref=e152]: 完善的
+            - text: 服务体系
+          - paragraph [ref=e153]: 将复杂的模型集成工作交给我们，您只需注册账号、进行充值，并绑定应用即可轻松使用。
+        - generic [ref=e154]:
+          - generic [ref=e156]:
+            - generic [ref=e157]:
+              - generic [ref=e158]:
+                - img "文档" [ref=e159]
+                - generic [ref=e160]:
+                  - strong [ref=e162]: 文档
+                  - generic [ref=e163]: 首次使用时，请确保仔细阅读详细教程
+              - paragraph [ref=e164]: 首先注册账户，接着进行充值，然后在令牌管理中使用聊天功能或复制API地址及KEY以便使用。
+            - button "查看教程" [ref=e166] [cursor=pointer]
+          - generic [ref=e168]:
+            - generic [ref=e169]:
+              - generic [ref=e170]:
+                - img "价格" [ref=e171]
+                - generic [ref=e172]:
+                  - strong [ref=e174]: 价格
+                  - generic [ref=e175]: 按需付费，透明无隐形费用，帮助你控制成本
+              - paragraph [ref=e176]: 官方、Azure或逆向渠道，总能找到您想要的服务和价格。我们承诺渠道绝不混用，价格透明，并且调整价格时会提前公告。
+            - link "查看价格" [ref=e178] [cursor=pointer]:
+              - /url: /pricing
+          - generic [ref=e180]:
+            - generic [ref=e181]:
+              - generic [ref=e182]:
+                - img "模型" [ref=e183]
+                - generic [ref=e184]:
+                  - strong [ref=e186]: 模型
+                  - generic [ref=e187]: 文本/图像/音频/视频大模型，为你提供最全面的选择
+              - paragraph [ref=e188]: 支持OpenAI、Gemini、Claude、智谱等多达几十种模型，支持Midjourney/Suno等服务。
+            - link "查看所有模型" [ref=e190] [cursor=pointer]:
+              - /url: /pricing
+      - generic [ref=e192]:
+        - generic [ref=e194]:
+          - generic [ref=e195]: FAQs
+          - heading "常见问题" [level=2] [ref=e196]
+        - generic [ref=e198]:
+          - generic [ref=e199]:
+            - generic [ref=e200] [cursor=pointer]:
+              - heading "我该如何使用?" [level=6] [ref=e201]
+              - img "minus" [ref=e202]:
+                - img [ref=e203]
+            - paragraph [ref=e208]: 你只需替换你使用应用程序/项目中的API地址和KEY即可。如果你有任何问题，请随时联系我们。
+          - generic [ref=e210] [cursor=pointer]:
+            - heading "我的信息会被泄漏吗?" [level=6] [ref=e211]
+            - img "plus" [ref=e212]:
+              - img [ref=e213]
+          - generic [ref=e216] [cursor=pointer]:
+            - heading "连接你们的API失败或者中断怎么办?" [level=6] [ref=e217]
+            - img "plus" [ref=e218]:
+              - img [ref=e219]
+          - generic [ref=e222] [cursor=pointer]:
+            - heading "你们是怎么计算费用的?" [level=6] [ref=e223]
+            - img "plus" [ref=e224]:
+              - img [ref=e225]
+          - generic [ref=e228] [cursor=pointer]:
+            - heading "可以开发票吗?" [level=6] [ref=e229]
+            - img "plus" [ref=e230]:
+              - img [ref=e231]
+        - generic [ref=e235]:
+          - heading "还有更多疑问?" [level=4] [ref=e236]
+          - paragraph [ref=e237]: 你可以先查阅接入文档与使用说明，快速解决大多数常见问题。
+          - button "查看文档" [ref=e238] [cursor=pointer]
+      - generic [ref=e245]:
+        - img "rocket" [ref=e247]
+        - generic [ref=e248]:
+          - heading "准备好了吗？ 即刻开始体验" [level=2] [ref=e249]:
+            - text: 准备好了吗？
+            - text: 即刻开始体验
+          - generic [ref=e250]:
+            - link "立即试用" [ref=e251] [cursor=pointer]:
+              - /url: /register
+            - button "查看文档" [ref=e252] [cursor=pointer]

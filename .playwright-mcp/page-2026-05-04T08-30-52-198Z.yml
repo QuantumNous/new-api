@@ -1,0 +1,171 @@
+- generic [ref=e3]:
+  - generic [ref=e7]:
+    - link "logo AI模型一站式网关" [ref=e9] [cursor=pointer]:
+      - /url: /
+      - img "logo" [ref=e12]
+      - generic [ref=e17]: AI模型一站式网关
+    - generic [ref=e18]:
+      - navigation [ref=e19]
+      - generic [ref=e32]:
+        - button "系统公告" [ref=e33] [cursor=pointer]:
+          - img [ref=e35]
+        - button "切换主题" [ref=e38] [cursor=pointer]:
+          - img [ref=e40]
+        - button "common.changeLanguage" [ref=e44] [cursor=pointer]:
+          - img [ref=e46]
+  - generic [ref=e56]:
+    - complementary [ref=e57]
+    - generic [ref=e165]:
+      - main [ref=e166]:
+        - generic [ref=e169]:
+          - generic [ref=e171]:
+            - strong [ref=e174]: 账户统计
+            - generic [ref=e175]:
+              - generic [ref=e176]:
+                - generic [ref=e177]: $16798.61
+                - generic [ref=e178]:
+                  - img [ref=e179]
+                  - generic [ref=e182]: 当前余额
+              - generic [ref=e183]:
+                - generic [ref=e184]: $3409.48
+                - generic [ref=e185]:
+                  - img [ref=e186]
+                  - generic [ref=e189]: 历史消耗
+              - generic [ref=e190]:
+                - generic [ref=e191]: "14218"
+                - generic [ref=e192]:
+                  - img [ref=e193]
+                  - generic [ref=e194]: 请求次数
+          - generic [ref=e195]:
+            - generic [ref=e196]:
+              - generic [ref=e198]:
+                - heading "在线充值" [level=4] [ref=e199]
+                - generic [ref=e201]:
+                  - generic [ref=e202]:
+                    - generic [ref=e203] [cursor=pointer]:
+                      - generic [ref=e204]:
+                        - img [ref=e206]
+                        - generic [ref=e208]: 支付宝
+                      - img [ref=e210]
+                    - generic [ref=e213]:
+                      - img [ref=e214]
+                      - generic [ref=e216]:
+                        - text: 如遇支付失败可前往购买兑换码充值
+                        - link "https://pay.ldxp.cn/shop/Z3T3D4L5" [ref=e217] [cursor=pointer]:
+                          - /url: https://pay.ldxp.cn/shop/Z3T3D4L5
+                  - alert [ref=e218]:
+                    - generic [ref=e220]:
+                      - img [ref=e222]
+                      - generic [ref=e225]: 充值成功后不支持退款，请确认后再操作。
+                  - generic [ref=e226]:
+                    - generic [ref=e227]:
+                      - generic [ref=e228]:
+                        - img [ref=e229]
+                        - strong [ref=e233]: 税费类型
+                      - generic [ref=e234]:
+                        - generic [ref=e235] [cursor=pointer]: 不含税
+                        - generic [ref=e236] [cursor=pointer]: 含税
+                    - generic [ref=e238]: 选择不含税支付，本订单将无法开具发票。如需开票，请选择含税支付方式。2026年05月01日 00:00:00（UTC+0）前的充值订单如需开票，请联系站长处理；此后的订单请按照页面指引自助申请开票。
+                  - generic [ref=e240]:
+                    - generic [ref=e242]: 充值金额
+                    - generic [ref=e243]:
+                      - generic [ref=e244]:
+                        - generic [ref=e245]:
+                          - generic [ref=e246]: $
+                          - spinbutton "充值金额" [ref=e247]: "1"
+                        - generic [ref=e248]:
+                          - img "chevron_up" [ref=e250]:
+                            - img [ref=e251]
+                          - img "chevron_down" [ref=e254]:
+                            - img [ref=e255]
+                      - generic [ref=e258]: 金额需要 >= $1
+                  - generic [ref=e259]:
+                    - generic [ref=e260]:
+                      - strong [ref=e262]: 选择充值额度
+                      - generic [ref=e263]: (1 $ = 1.00 $)
+                    - generic [ref=e264]:
+                      - generic [ref=e265] [cursor=pointer]:
+                        - heading "10 $" [level=6] [ref=e266]:
+                          - img [ref=e267]
+                          - text: 10 $
+                        - generic [ref=e272]: 实付 $10.00
+                      - generic [ref=e273] [cursor=pointer]:
+                        - heading "20 $" [level=6] [ref=e274]:
+                          - img [ref=e275]
+                          - text: 20 $
+                        - generic [ref=e280]: 实付 $20.00
+                      - generic [ref=e281] [cursor=pointer]:
+                        - heading "50 $" [level=6] [ref=e282]:
+                          - img [ref=e283]
+                          - text: 50 $
+                        - generic [ref=e288]: 实付 $50.00
+                      - generic [ref=e289] [cursor=pointer]:
+                        - heading "100 $" [level=6] [ref=e290]:
+                          - img [ref=e291]
+                          - text: 100 $
+                        - generic [ref=e296]: 实付 $100.00
+                      - generic [ref=e297] [cursor=pointer]:
+                        - heading "200 $" [level=6] [ref=e298]:
+                          - img [ref=e299]
+                          - text: 200 $
+                        - generic [ref=e304]: 实付 $200.00
+                      - generic [ref=e305] [cursor=pointer]:
+                        - heading "500 $" [level=6] [ref=e306]:
+                          - img [ref=e307]
+                          - text: 500 $
+                        - generic [ref=e312]: 实付 $500.00
+              - generic [ref=e314]:
+                - heading "卡密充值" [level=4] [ref=e315]
+                - generic [ref=e317]:
+                  - textbox "兑换码" [ref=e320]
+                  - button "兑换" [ref=e321] [cursor=pointer]:
+                    - generic [ref=e322]: 兑换
+            - generic [ref=e325]:
+              - generic [ref=e326]:
+                - generic [ref=e327]: 充值金额
+                - strong [ref=e329]: $1
+              - generic [ref=e330]:
+                - generic [ref=e332]: 服务费
+                - strong [ref=e334]: 0%
+              - generic [ref=e335]:
+                - generic [ref=e336]: 开票额
+                - strong [ref=e338]: $0
+              - strong [ref=e342]: 支付金额
+              - button "支付" [ref=e344] [cursor=pointer]:
+                - generic [ref=e345]: 支付
+          - generic [ref=e347]:
+            - generic [ref=e349]:
+              - generic [ref=e350]:
+                - generic [ref=e351]:
+                  - strong [ref=e353]: 我的订阅
+                  - 'generic "Tag: 无生效" [ref=e354]':
+                    - generic [ref=e355]: 无生效
+                - generic [ref=e356]:
+                  - combobox "selected" [ref=e357] [cursor=pointer]:
+                    - generic [ref=e360]: 优先钱包
+                    - img [ref=e362]:
+                      - img [ref=e363]
+                  - button [ref=e365] [cursor=pointer]:
+                    - img [ref=e367]
+              - generic [ref=e372]: 已保存偏好为优先订阅，当前无生效订阅，将自动使用钱包
+              - generic [ref=e373]: 购买套餐后即可享受模型权益
+            - generic [ref=e377]:
+              - generic [ref=e378]:
+                - heading "112" [level=5] [ref=e379]
+                - generic [ref=e380]: "2222"
+              - generic [ref=e382]:
+                - generic [ref=e383]: $
+                - generic [ref=e384]: "100"
+              - generic [ref=e385]:
+                - generic [ref=e390]: "有效期: 1 个月"
+                - generic [ref=e395]: "总额度: $100.00"
+                - generic [ref=e400]: "升级分组: vip"
+                - generic [ref=e405]: "限制分组: vip"
+              - button "立即订阅" [ref=e408] [cursor=pointer]:
+                - generic [ref=e409]: 立即订阅
+      - generic [ref=e414]:
+        - generic [ref=e416]: © 2026 OneDayAI - 本地站. 版权所有
+        - generic [ref=e417]:
+          - generic [ref=e418]: 设计与开发由
+          - link "New API" [ref=e419] [cursor=pointer]:
+            - /url: https://github.com/QuantumNous/new-api

@@ -1,0 +1,12 @@
+[     170ms] [LOG] %cWE ❤ NEWAPI%c Github: https://github.com/QuantumNous/new-api color: #10b981; font-weight: bold; font-size: 24px; color: inherit; font-size: 14px; @ http://127.0.0.1:3000/assets/index-ssILPthb.js:14034
+[     225ms] [LOG]  data is ? {amount_options: Array(6), creem_products: [], discount: Object, enable_creem_topup: false, enable_online_topup: true} @ http://127.0.0.1:3000/assets/index-Cnqu83sI.js:10
+[     225ms] [LOG]  creem products is ? [] @ http://127.0.0.1:3000/assets/index-Cnqu83sI.js:10
+[  143352ms] [LOG] %cWE ❤ NEWAPI%c Github: https://github.com/QuantumNous/new-api color: #10b981; font-weight: bold; font-size: 24px; color: inherit; font-size: 14px; @ http://127.0.0.1:3000/assets/index-ssILPthb.js:14034
+[  143385ms] [LOG]  data is ? {amount_options: Array(6), creem_products: [], discount: Object, enable_creem_topup: false, enable_online_topup: true} @ http://127.0.0.1:3000/assets/index-Cnqu83sI.js:10
+[  143385ms] [LOG]  creem products is ? [] @ http://127.0.0.1:3000/assets/index-Cnqu83sI.js:10
+[  173404ms] [LOG] %cWE ❤ NEWAPI%c Github: https://github.com/QuantumNous/new-api color: #10b981; font-weight: bold; font-size: 24px; color: inherit; font-size: 14px; @ http://127.0.0.1:3000/assets/index-ssILPthb.js:14034
+[  173468ms] [LOG]  data is ? {amount_options: Array(6), creem_products: [], discount: Object, enable_creem_topup: false, enable_online_topup: true} @ http://127.0.0.1:3000/assets/index-Cnqu83sI.js:10
+[  173468ms] [LOG]  creem products is ? [] @ http://127.0.0.1:3000/assets/index-Cnqu83sI.js:10
+[  173644ms] [LOG] %cWE ❤ NEWAPI%c Github: https://github.com/QuantumNous/new-api color: #10b981; font-weight: bold; font-size: 24px; color: inherit; font-size: 14px; @ http://127.0.0.1:3000/assets/index-ssILPthb.js:14034
+[  173671ms] [LOG]  data is ? {amount_options: Array(6), creem_products: [], discount: Object, enable_creem_topup: false, enable_online_topup: true} @ http://127.0.0.1:3000/assets/index-Cnqu83sI.js:10
+[  173671ms] [LOG]  creem products is ? [] @ http://127.0.0.1:3000/assets/index-Cnqu83sI.js:10

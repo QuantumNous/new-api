@@ -1,0 +1,54 @@
+- generic [ref=e3]:
+  - generic [ref=e7]:
+    - link "logo Cổng API Tất Cả Trong Một" [ref=e9] [cursor=pointer]:
+      - /url: /
+      - img "logo" [ref=e12]
+      - generic [ref=e17]: Cổng API Tất Cả Trong Một
+    - generic [ref=e18]:
+      - navigation [ref=e19]
+      - generic [ref=e32]:
+        - button "Thông báo hệ thống" [ref=e33] [cursor=pointer]:
+          - img [ref=e35]
+        - button "Chuyển chủ đề" [ref=e38] [cursor=pointer]:
+          - img [ref=e40]
+        - button "Thay đổi ngôn ngữ" [ref=e44] [cursor=pointer]:
+          - img [ref=e46]
+  - generic [ref=e56]:
+    - complementary [ref=e57]
+    - generic [ref=e165]:
+      - main [ref=e166]:
+        - generic [ref=e169]:
+          - generic [ref=e171]:
+            - strong [ref=e174]: Thống kê tài khoản
+            - generic [ref=e175]:
+              - generic [ref=e176]:
+                - generic [ref=e177]: $NaN
+                - generic [ref=e178]:
+                  - img [ref=e179]
+                  - generic [ref=e182]: Số dư hiện tại
+              - generic [ref=e183]:
+                - generic [ref=e184]: $NaN
+                - generic [ref=e185]:
+                  - img [ref=e186]
+                  - generic [ref=e189]: Tiêu thụ
+              - generic [ref=e190]:
+                - generic [ref=e191]: "0"
+                - generic [ref=e192]:
+                  - img [ref=e193]
+                  - generic [ref=e194]: Số lần yêu cầu
+          - generic [ref=e196]:
+            - generic [ref=e198]:
+              - heading "Nạp tiền trực tuyến" [level=4] [ref=e199]
+              - img [ref=e203]
+            - generic [ref=e208]:
+              - heading "Nạp thẻ" [level=4] [ref=e209]
+              - generic [ref=e211]:
+                - textbox "Mã đổi" [ref=e216]
+                - button "Đổi" [ref=e217] [cursor=pointer]:
+                  - generic [ref=e218]: Đổi
+      - generic [ref=e223]:
+        - generic [ref=e225]: © 2026 OneDayAI - 本地站. Đã đăng ký bản quyền
+        - generic [ref=e226]:
+          - generic [ref=e227]: Thiết kế và phát triển bởi
+          - link "New API" [ref=e228] [cursor=pointer]:
+            - /url: https://github.com/QuantumNous/new-api

@@ -1,0 +1,44 @@
+- generic [ref=e3]:
+  - generic [ref=e7]:
+    - link "logo All In One API Gateway" [ref=e9] [cursor=pointer]:
+      - /url: /
+      - img "logo" [ref=e12]
+      - generic [ref=e17]: All In One API Gateway
+    - generic [ref=e18]:
+      - navigation [ref=e19]
+      - generic [ref=e32]:
+        - button "System Notice" [ref=e33] [cursor=pointer]:
+          - img [ref=e35]
+        - button "Switch Theme" [ref=e38] [cursor=pointer]:
+          - img [ref=e40]
+        - button "Change Language" [ref=e44] [cursor=pointer]:
+          - img [ref=e46]
+  - main [ref=e58]:
+    - generic [ref=e59]:
+      - generic [ref=e61]:
+        - img "Logo" [ref=e62]
+        - heading "OneDayAI - 本地站" [level=2] [ref=e63]
+        - text: 高性价比的Enterprise企业级API转发服务，AI模型All In One！完全兼容各平台接口协议，零开发基础无缝对接各种应用。
+        - generic [ref=e64]:
+          - generic [ref=e67]: 100+ AI 模型，一个 API 接入
+          - generic [ref=e70]: 企业级安全，数据仅转发不保存
+          - generic [ref=e73]: 全球 CDN 加速，低延迟响应
+      - generic [ref=e77]:
+        - generic [ref=e78]:
+          - heading "Log In" [level=3] [ref=e79]
+          - text: 选择一种方式登录你的账户
+        - generic [ref=e80]:
+          - button "github_logo Continue with GitHub" [ref=e81] [cursor=pointer]:
+            - generic [ref=e82]:
+              - img "github_logo" [ref=e83]:
+                - img [ref=e84]
+              - generic [ref=e87]: Continue with GitHub
+          - generic [ref=e89]: or
+          - button "mail Sign in with Email or Username" [ref=e90] [cursor=pointer]:
+            - img "mail" [ref=e91]:
+              - img [ref=e92]
+            - text: Sign in with Email or Username
+        - generic [ref=e94]:
+          - text: No account?
+          - link "Sign up" [ref=e95] [cursor=pointer]:
+            - /url: /register

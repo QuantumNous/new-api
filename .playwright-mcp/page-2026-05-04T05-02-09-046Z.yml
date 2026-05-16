@@ -1,0 +1,246 @@
+- generic [ref=e3]:
+  - generic [ref=e7]:
+    - link "logo OneDayAI - 本地站 Cổng API Tất Cả Trong Một" [ref=e231] [cursor=pointer]:
+      - /url: /
+      - img "logo" [ref=e12]
+      - generic [ref=e13]:
+        - heading "OneDayAI - 本地站" [level=4] [ref=e232]
+        - generic [ref=e17]: Cổng API Tất Cả Trong Một
+    - generic [ref=e18]:
+      - navigation [ref=e19]:
+        - link "Trang chủ" [ref=e233] [cursor=pointer]:
+          - /url: /
+          - generic [ref=e235]: Trang chủ
+        - link "Bảng điều khiển" [ref=e236] [cursor=pointer]:
+          - /url: /console
+          - generic [ref=e238]: Bảng điều khiển
+        - link "Thị trường mô hình" [ref=e239] [cursor=pointer]:
+          - /url: /pricing
+          - generic [ref=e241]: Thị trường mô hình
+        - link "Tài liệu" [ref=e242] [cursor=pointer]:
+          - /url: https://ncn174iua0ln.feishu.cn/wiki/BHSdwA8uZi9sPkkqf0ocHch5nMf
+          - generic [ref=e244]: Tài liệu
+        - link "SLA" [ref=e245] [cursor=pointer]:
+          - /url: https://status.autocode.space/status/autocode
+          - generic [ref=e247]: SLA
+      - generic [ref=e32]:
+        - button "Thông báo hệ thống" [ref=e33] [cursor=pointer]:
+          - img [ref=e35]
+        - button "Chuyển chủ đề" [ref=e38] [cursor=pointer]:
+          - img [ref=e40]
+        - button "Thay đổi ngôn ngữ" [ref=e44] [cursor=pointer]:
+          - img [ref=e46]
+        - button "Z zhangsan" [ref=e249] [cursor=pointer]:
+          - generic [ref=e251]:
+            - listitem [ref=e252]:
+              - img "Z" [ref=e254]
+            - generic [ref=e256]: zhangsan
+            - img [ref=e258]
+  - generic [ref=e56]:
+    - complementary [ref=e57]:
+      - generic [ref=e59]:
+        - menu [ref=e264]:
+          - generic [ref=e266]:
+            - generic [ref=e267]: Bảng điều khiển
+            - link "Bảng dữ liệu" [ref=e268] [cursor=pointer]:
+              - /url: /console
+              - menuitem "Bảng dữ liệu" [ref=e269]:
+                - img [ref=e272]
+                - generic [ref=e277]: Bảng dữ liệu
+            - link "Quản lý mã thông báo" [ref=e278] [cursor=pointer]:
+              - /url: /console/token
+              - menuitem "Quản lý mã thông báo" [ref=e279]:
+                - img [ref=e282]
+                - generic [ref=e286]: Quản lý mã thông báo
+            - link "Nhật ký sử dụng" [ref=e287] [cursor=pointer]:
+              - /url: /console/log
+              - menuitem "Nhật ký sử dụng" [ref=e288]:
+                - img [ref=e291]
+                - generic [ref=e293]: Nhật ký sử dụng
+          - generic [ref=e295]:
+            - generic [ref=e296]: Trung tâm cá nhân
+            - link "Quản lý ví" [ref=e297] [cursor=pointer]:
+              - /url: /console/topup
+              - menuitem "Quản lý ví" [ref=e298]:
+                - img [ref=e301]
+                - generic [ref=e303]: Quản lý ví
+            - link "Đơn nạp tiền" [ref=e304] [cursor=pointer]:
+              - /url: /console/invoice
+              - menuitem "Đơn nạp tiền" [ref=e305]:
+                - img [ref=e308]
+                - generic [ref=e312]: Đơn nạp tiền
+            - link "Quản lý hoa hồng" [ref=e313] [cursor=pointer]:
+              - /url: /console/commission
+              - menuitem "Quản lý hoa hồng" [ref=e314]:
+                - img [ref=e317]
+                - generic [ref=e322]: Quản lý hoa hồng
+            - link "Công cụ tạo ảnh" [ref=e323] [cursor=pointer]:
+              - /url: /console/image-studio
+              - menuitem "Công cụ tạo ảnh" [ref=e324]:
+                - img [ref=e327]
+                - generic [ref=e333]: Công cụ tạo ảnh
+            - link "Cài đặt cá nhân" [ref=e334] [cursor=pointer]:
+              - /url: /console/personal
+              - menuitem "Cài đặt cá nhân" [ref=e335]:
+                - img [ref=e338]
+                - generic [ref=e341]: Cài đặt cá nhân
+          - generic [ref=e343]:
+            - generic [ref=e344]: Quản trị viên
+            - link "Quản lý kênh" [ref=e345] [cursor=pointer]:
+              - /url: /console/channel
+              - menuitem "Quản lý kênh" [ref=e346]:
+                - img [ref=e349]
+                - generic [ref=e353]: Quản lý kênh
+            - link "Quản lý đăng ký" [ref=e354] [cursor=pointer]:
+              - /url: /console/subscription
+              - menuitem "Quản lý đăng ký" [ref=e355]:
+                - img [ref=e358]
+                - generic [ref=e362]: Quản lý đăng ký
+            - link "Quản lý mã đổi thưởng" [ref=e363] [cursor=pointer]:
+              - /url: /console/redemption
+              - menuitem "Quản lý mã đổi thưởng" [ref=e364]:
+                - img [ref=e367]
+                - generic [ref=e371]: Quản lý mã đổi thưởng
+            - link "Quản lý người dùng" [ref=e372] [cursor=pointer]:
+              - /url: /console/user
+              - menuitem "Quản lý người dùng" [ref=e373]:
+                - img [ref=e376]
+                - generic [ref=e379]: Quản lý người dùng
+            - link "Cài đặt hệ thống" [ref=e380] [cursor=pointer]:
+              - /url: /console/setting
+              - menuitem "Cài đặt hệ thống" [ref=e381]:
+                - img [ref=e384]
+                - generic [ref=e387]: Cài đặt hệ thống
+        - button "Thu gọn thanh bên" [ref=e388] [cursor=pointer]:
+          - generic [ref=e389]:
+            - img [ref=e390]
+            - generic [ref=e392]: Thu gọn thanh bên
+    - generic [ref=e165]:
+      - main [ref=e166]:
+        - generic [ref=e169]:
+          - generic [ref=e171]:
+            - strong [ref=e174]: Thống kê tài khoản
+            - generic [ref=e175]:
+              - generic [ref=e176]:
+                - generic [ref=e177]: $16798.61
+                - generic [ref=e178]:
+                  - img [ref=e179]
+                  - generic [ref=e182]: Số dư hiện tại
+              - generic [ref=e183]:
+                - generic [ref=e184]: $3409.48
+                - generic [ref=e185]:
+                  - img [ref=e186]
+                  - generic [ref=e189]: Tiêu thụ
+              - generic [ref=e190]:
+                - generic [ref=e191]: "14218"
+                - generic [ref=e192]:
+                  - img [ref=e193]
+                  - generic [ref=e194]: Số lần yêu cầu
+          - generic [ref=e195]:
+            - generic [ref=e196]:
+              - generic [ref=e198]:
+                - heading "Nạp tiền trực tuyến" [level=4] [ref=e199]
+                - generic [ref=e394]:
+                  - generic [ref=e395]:
+                    - generic [ref=e396] [cursor=pointer]:
+                      - generic [ref=e397]:
+                        - img [ref=e399]
+                        - generic [ref=e401]: 支付宝
+                      - img [ref=e403]
+                    - generic [ref=e405] [cursor=pointer]:
+                      - generic [ref=e408]: 微信
+                      - img [ref=e410]
+                  - alert [ref=e412]:
+                    - generic [ref=e414]:
+                      - img [ref=e416]
+                      - generic [ref=e419]: Nạp tiền không được hoàn lại. Vui lòng xác nhận trước khi tiếp tục.
+                  - generic [ref=e421]:
+                    - generic [ref=e423]: Số tiền nạp
+                    - generic [ref=e424]:
+                      - generic [ref=e425]:
+                        - generic [ref=e426]:
+                          - generic [ref=e427]: $
+                          - spinbutton "Số tiền nạp" [ref=e428]: "1"
+                        - generic [ref=e429]:
+                          - img "chevron_up" [ref=e431]:
+                            - img [ref=e432]
+                          - img "chevron_down" [ref=e435]:
+                            - img [ref=e436]
+                      - generic [ref=e439]: Số tiền cần >= $1
+                  - generic [ref=e440]:
+                    - generic [ref=e441]:
+                      - strong [ref=e443]: Chọn hạn ngạch nạp tiền
+                      - generic [ref=e444]: (1 $ = 1.00 $)
+                    - generic [ref=e445]:
+                      - generic [ref=e446] [cursor=pointer]:
+                        - heading "10 $" [level=6] [ref=e447]:
+                          - img [ref=e448]
+                          - text: 10 $
+                        - generic [ref=e453]: Thanh toán thực tế $10.00
+                      - generic [ref=e454] [cursor=pointer]:
+                        - heading "20 $" [level=6] [ref=e455]:
+                          - img [ref=e456]
+                          - text: 20 $
+                        - generic [ref=e461]: Thanh toán thực tế $20.00
+                      - generic [ref=e462] [cursor=pointer]:
+                        - heading "50 $" [level=6] [ref=e463]:
+                          - img [ref=e464]
+                          - text: 50 $
+                        - generic [ref=e469]: Thanh toán thực tế $50.00
+                      - generic [ref=e470] [cursor=pointer]:
+                        - heading "100 $" [level=6] [ref=e471]:
+                          - img [ref=e472]
+                          - text: 100 $
+                        - generic [ref=e477]: Thanh toán thực tế $100.00
+                      - generic [ref=e478] [cursor=pointer]:
+                        - heading "200 $" [level=6] [ref=e479]:
+                          - img [ref=e480]
+                          - text: 200 $
+                        - generic [ref=e485]: Thanh toán thực tế $200.00
+                      - generic [ref=e486] [cursor=pointer]:
+                        - heading "500 $" [level=6] [ref=e487]:
+                          - img [ref=e488]
+                          - text: 500 $
+                        - generic [ref=e493]: Thanh toán thực tế $500.00
+                  - generic [ref=e494]:
+                    - generic [ref=e495]:
+                      - generic [ref=e496]:
+                        - img [ref=e497]
+                        - strong [ref=e501]: Loại thuế
+                      - generic [ref=e502]:
+                        - generic [ref=e503] [cursor=pointer]: Không bao gồm thuế
+                        - generic [ref=e504] [cursor=pointer]: Bao gồm thuế
+                    - generic [ref=e506]: Chọn thanh toán không bao gồm thuế, đơn hàng này sẽ không thể xuất hóa đơn. Nếu cần hóa đơn, vui lòng chọn phương thức thanh toán bao gồm thuế. Đối với đơn nạp tiền trước 01/05/2026 00:00:00 (UTC+0), vui lòng liên hệ quản trị viên; đối với đơn sau ngày này, vui lòng làm theo hướng dẫn trên trang để yêu cầu xuất hóa đơn.
+              - generic [ref=e210]:
+                - heading "Nạp thẻ" [level=4] [ref=e211]
+                - generic [ref=e213]:
+                  - textbox "Mã đổi" [ref=e218]
+                  - button "Đổi" [ref=e219] [cursor=pointer]:
+                    - generic [ref=e220]: Đổi
+            - generic [ref=e509]:
+              - generic [ref=e510]:
+                - generic [ref=e511]: Số tiền nạp
+                - strong [ref=e513]: $1
+              - generic [ref=e514]:
+                - generic [ref=e515]: Đơn vị tiền tệ
+                - strong [ref=e517]: CNY
+              - generic [ref=e518]:
+                - generic [ref=e519]: Tỷ giá
+                - strong [ref=e521]: 1:1
+              - generic [ref=e522]:
+                - generic [ref=e524]: Phí dịch vụ
+                - strong [ref=e526]: 0%
+              - generic [ref=e527]:
+                - generic [ref=e528]: Số tiền hóa đơn
+                - strong [ref=e530]: $0
+              - generic [ref=e532]:
+                - strong [ref=e534]: Số tiền thanh toán
+                - strong [ref=e536]: 1.00 CNY
+              - button "Thanh toán" [ref=e537] [cursor=pointer]:
+                - generic [ref=e538]: Thanh toán
+      - generic [ref=e225]:
+        - generic [ref=e227]: © 2026 OneDayAI - 本地站. Đã đăng ký bản quyền
+        - generic [ref=e228]:
+          - generic [ref=e229]: Thiết kế và phát triển bởi
+          - link "New API" [ref=e230] [cursor=pointer]:
+            - /url: https://github.com/QuantumNous/new-api

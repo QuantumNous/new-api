@@ -92,6 +92,7 @@ export default function GroupRatioSettings(props) {
 
     const updateArray = compareObjects(inputs, inputsRow);
     if (!updateArray.length) {
+      showSuccess(t('保存成功'));
       return;
     }
 

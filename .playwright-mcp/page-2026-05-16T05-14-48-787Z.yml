@@ -1,0 +1,227 @@
+- generic [ref=e3]:
+  - generic [ref=e7]:
+    - link "logo AI模型一站式网关" [ref=e9] [cursor=pointer]:
+      - /url: /
+      - img "logo" [ref=e12]
+      - generic [ref=e17]: AI模型一站式网关
+    - generic [ref=e18]:
+      - navigation [ref=e19]
+      - generic [ref=e32]:
+        - button "系统公告" [ref=e33] [cursor=pointer]:
+          - img [ref=e35]
+        - button "切换主题" [ref=e38] [cursor=pointer]:
+          - img [ref=e40]
+        - button "common.changeLanguage" [ref=e44] [cursor=pointer]:
+          - img [ref=e46]
+  - generic [ref=e56]:
+    - complementary [ref=e57]
+    - main [ref=e166]:
+      - generic [ref=e168]:
+        - generic [ref=e172]:
+          - generic [ref=e173]:
+            - generic [ref=e174]:
+              - img [ref=e175]
+              - generic [ref=e179]: 令牌管理
+            - button "紧凑列表" [ref=e180] [cursor=pointer]:
+              - generic [ref=e181]: 紧凑列表
+          - generic [ref=e185]:
+            - generic [ref=e186]:
+              - button "添加令牌" [ref=e187] [cursor=pointer]:
+                - generic [ref=e188]: 添加令牌
+              - button "复制所选令牌" [ref=e189] [cursor=pointer]:
+                - generic [ref=e190]: 复制所选令牌
+              - button "删除所选令牌" [ref=e191] [cursor=pointer]:
+                - generic [ref=e192]: 删除所选令牌
+            - generic [ref=e195]:
+              - generic [ref=e197]:
+                - img "search" [ref=e199]:
+                  - img [ref=e200]
+                - textbox "搜索关键字" [ref=e202]
+              - generic [ref=e204]:
+                - img "search" [ref=e206]:
+                  - img [ref=e207]
+                - textbox "密钥" [ref=e209]
+              - generic [ref=e210]:
+                - button "查询" [ref=e211] [cursor=pointer]:
+                  - generic [ref=e212]: 查询
+                - button "重置" [ref=e213] [cursor=pointer]:
+                  - generic [ref=e214]: 重置
+        - grid [ref=e222]:
+          - rowgroup [ref=e236]:
+            - row "Select all rows 名称 状态 剩余额度/总额度 分组 密钥 可用模型 IP限制 创建时间 最后使用时间 过期时间" [ref=e237]:
+              - columnheader "Select all rows" [ref=e238]:
+                - checkbox "Select all rows" [ref=e242]
+              - columnheader "名称" [ref=e244]
+              - columnheader "状态" [ref=e245]
+              - columnheader "剩余额度/总额度" [ref=e246]
+              - columnheader "分组" [ref=e247]
+              - columnheader "密钥" [ref=e248]
+              - columnheader "可用模型" [ref=e249]
+              - columnheader "IP限制" [ref=e250]
+              - columnheader "创建时间" [ref=e251]
+              - columnheader "最后使用时间" [ref=e252]
+              - columnheader "过期时间" [ref=e253]
+              - columnheader [ref=e254]
+          - rowgroup [ref=e255]:
+            - 'row "Select this row 21312 Tag: 已启用 Tag: 无限额度 Tag: old-vip sk-Uh0g**********X6ry toggle token visibility copy token key Tag: 无限制 Tag: 无限制 2026-05-15 01:24:40 2026-05-15 02:23:50 永不过期 项目操作按钮组 禁用 编辑 删除" [ref=e256]':
+              - gridcell "Select this row" [ref=e257]:
+                - checkbox "Select this row" [ref=e261]
+              - gridcell "21312" [ref=e263]
+              - 'gridcell "Tag: 已启用" [ref=e264]':
+                - 'generic "Tag: 已启用" [ref=e265]':
+                  - generic [ref=e266]: 已启用
+              - 'gridcell "Tag: 无限额度" [ref=e267]':
+                - 'generic "Tag: 无限额度" [ref=e268]':
+                  - generic [ref=e269]: 无限额度
+              - 'gridcell "Tag: old-vip" [ref=e270]':
+                - 'button "Tag: old-vip" [ref=e273] [cursor=pointer]':
+                  - generic [ref=e274]: old-vip
+              - gridcell "sk-Uh0g**********X6ry toggle token visibility copy token key" [ref=e275]:
+                - generic [ref=e277]:
+                  - textbox [ref=e278]: sk-Uh0g**********X6ry
+                  - generic [ref=e280]:
+                    - button "toggle token visibility" [ref=e281] [cursor=pointer]:
+                      - img "eye_opened" [ref=e283]:
+                        - img [ref=e284]
+                    - button "copy token key" [ref=e286] [cursor=pointer]:
+                      - img "copy" [ref=e288]:
+                        - img [ref=e289]
+              - 'gridcell "Tag: 无限制" [ref=e292]':
+                - 'generic "Tag: 无限制" [ref=e293]':
+                  - generic [ref=e294]: 无限制
+              - 'gridcell "Tag: 无限制" [ref=e295]':
+                - 'generic "Tag: 无限制" [ref=e296]':
+                  - generic [ref=e297]: 无限制
+              - gridcell "2026-05-15 01:24:40" [ref=e298]:
+                - generic [ref=e299]: 2026-05-15 01:24:40
+              - gridcell "2026-05-15 02:23:50" [ref=e300]:
+                - generic [ref=e301]: 2026-05-15 02:23:50
+              - gridcell "永不过期" [ref=e302]:
+                - generic [ref=e303]: 永不过期
+              - gridcell "项目操作按钮组 禁用 编辑 删除" [ref=e304]:
+                - generic [ref=e305]:
+                  - group "项目操作按钮组" [ref=e306]:
+                    - button "聊天" [ref=e307] [cursor=pointer]:
+                      - generic [ref=e308]: 聊天
+                    - button "tree_triangle_down" [ref=e309] [cursor=pointer]:
+                      - img "tree_triangle_down" [ref=e311]:
+                        - img [ref=e312]
+                  - button "禁用" [ref=e314] [cursor=pointer]:
+                    - generic [ref=e315]: 禁用
+                  - button "编辑" [ref=e316] [cursor=pointer]:
+                    - generic [ref=e317]: 编辑
+                  - button "删除" [ref=e318] [cursor=pointer]:
+                    - generic [ref=e319]: 删除
+            - 'row "Select this row 12 Tag: 已启用 Tag: 无限额度 Tag: default sk-GdBD**********o1H8 toggle token visibility copy token key Tag: 无限制 Tag: 无限制 2026-04-24 23:42:07 2026-05-13 19:56:45 永不过期 项目操作按钮组 禁用 编辑 删除" [ref=e320]':
+              - gridcell "Select this row" [ref=e321]:
+                - checkbox "Select this row" [ref=e325]
+              - gridcell "12" [ref=e327]
+              - 'gridcell "Tag: 已启用" [ref=e328]':
+                - 'generic "Tag: 已启用" [ref=e329]':
+                  - generic [ref=e330]: 已启用
+              - 'gridcell "Tag: 无限额度" [ref=e331]':
+                - 'generic "Tag: 无限额度" [ref=e332]':
+                  - generic [ref=e333]: 无限额度
+              - 'gridcell "Tag: default" [ref=e334]':
+                - 'button "Tag: default" [ref=e337] [cursor=pointer]':
+                  - generic [ref=e338]: default
+              - gridcell "sk-GdBD**********o1H8 toggle token visibility copy token key" [ref=e339]:
+                - generic [ref=e341]:
+                  - textbox [ref=e342]: sk-GdBD**********o1H8
+                  - generic [ref=e344]:
+                    - button "toggle token visibility" [ref=e345] [cursor=pointer]:
+                      - img "eye_opened" [ref=e347]:
+                        - img [ref=e348]
+                    - button "copy token key" [ref=e350] [cursor=pointer]:
+                      - img "copy" [ref=e352]:
+                        - img [ref=e353]
+              - 'gridcell "Tag: 无限制" [ref=e356]':
+                - 'generic "Tag: 无限制" [ref=e357]':
+                  - generic [ref=e358]: 无限制
+              - 'gridcell "Tag: 无限制" [ref=e359]':
+                - 'generic "Tag: 无限制" [ref=e360]':
+                  - generic [ref=e361]: 无限制
+              - gridcell "2026-04-24 23:42:07" [ref=e362]:
+                - generic [ref=e363]: 2026-04-24 23:42:07
+              - gridcell "2026-05-13 19:56:45" [ref=e364]:
+                - generic [ref=e365]: 2026-05-13 19:56:45
+              - gridcell "永不过期" [ref=e366]:
+                - generic [ref=e367]: 永不过期
+              - gridcell "项目操作按钮组 禁用 编辑 删除" [ref=e368]:
+                - generic [ref=e369]:
+                  - group "项目操作按钮组" [ref=e370]:
+                    - button "聊天" [ref=e371] [cursor=pointer]:
+                      - generic [ref=e372]: 聊天
+                    - button "tree_triangle_down" [ref=e373] [cursor=pointer]:
+                      - img "tree_triangle_down" [ref=e375]:
+                        - img [ref=e376]
+                  - button "禁用" [ref=e378] [cursor=pointer]:
+                    - generic [ref=e379]: 禁用
+                  - button "编辑" [ref=e380] [cursor=pointer]:
+                    - generic [ref=e381]: 编辑
+                  - button "删除" [ref=e382] [cursor=pointer]:
+                    - generic [ref=e383]: 删除
+            - 'row "Select this row 111 Tag: 已启用 Tag: 无限额度 Tag: vip sk-aZMR**********0pXF toggle token visibility copy token key Tag: 无限制 Tag: 无限制 2026-03-16 21:12:14 2026-05-15 01:38:18 永不过期 项目操作按钮组 禁用 编辑 删除" [ref=e384]':
+              - gridcell "Select this row" [ref=e385]:
+                - checkbox "Select this row" [ref=e389]
+              - gridcell "111" [ref=e391]
+              - 'gridcell "Tag: 已启用" [ref=e392]':
+                - 'generic "Tag: 已启用" [ref=e393]':
+                  - generic [ref=e394]: 已启用
+              - 'gridcell "Tag: 无限额度" [ref=e395]':
+                - 'generic "Tag: 无限额度" [ref=e396]':
+                  - generic [ref=e397]: 无限额度
+              - 'gridcell "Tag: vip" [ref=e398]':
+                - 'button "Tag: vip" [ref=e401] [cursor=pointer]':
+                  - generic [ref=e402]: vip
+              - gridcell "sk-aZMR**********0pXF toggle token visibility copy token key" [ref=e403]:
+                - generic [ref=e405]:
+                  - textbox [ref=e406]: sk-aZMR**********0pXF
+                  - generic [ref=e408]:
+                    - button "toggle token visibility" [ref=e409] [cursor=pointer]:
+                      - img "eye_opened" [ref=e411]:
+                        - img [ref=e412]
+                    - button "copy token key" [ref=e414] [cursor=pointer]:
+                      - img "copy" [ref=e416]:
+                        - img [ref=e417]
+              - 'gridcell "Tag: 无限制" [ref=e420]':
+                - 'generic "Tag: 无限制" [ref=e421]':
+                  - generic [ref=e422]: 无限制
+              - 'gridcell "Tag: 无限制" [ref=e423]':
+                - 'generic "Tag: 无限制" [ref=e424]':
+                  - generic [ref=e425]: 无限制
+              - gridcell "2026-03-16 21:12:14" [ref=e426]:
+                - generic [ref=e427]: 2026-03-16 21:12:14
+              - gridcell "2026-05-15 01:38:18" [ref=e428]:
+                - generic [ref=e429]: 2026-05-15 01:38:18
+              - gridcell "永不过期" [ref=e430]:
+                - generic [ref=e431]: 永不过期
+              - gridcell "项目操作按钮组 禁用 编辑 删除" [ref=e432]:
+                - generic [ref=e433]:
+                  - group "项目操作按钮组" [ref=e434]:
+                    - button "聊天" [ref=e435] [cursor=pointer]:
+                      - generic [ref=e436]: 聊天
+                    - button "tree_triangle_down" [ref=e437] [cursor=pointer]:
+                      - img "tree_triangle_down" [ref=e439]:
+                        - img [ref=e440]
+                  - button "禁用" [ref=e442] [cursor=pointer]:
+                    - generic [ref=e443]: 禁用
+                  - button "编辑" [ref=e444] [cursor=pointer]:
+                    - generic [ref=e445]: 编辑
+                  - button "删除" [ref=e446] [cursor=pointer]:
+                    - generic [ref=e447]: 删除
+        - generic [ref=e449]:
+          - generic [ref=e450]: 显示第 1 条 - 第 3 条，共 3 条
+          - list [ref=e451]:
+            - generic [ref=e452]: "Total pages: 1"
+            - button "Previous" [disabled] [ref=e453]:
+              - img "chevron_left" [ref=e454]:
+                - img [ref=e455]
+            - listitem "Page 1" [ref=e457] [cursor=pointer]: "1"
+            - button "Next" [disabled] [ref=e458]:
+              - img "chevron_right" [ref=e459]:
+                - img [ref=e460]
+            - combobox "selected" [ref=e463] [cursor=pointer]:
+              - generic [ref=e466]: "Items per page: 10"
+              - img [ref=e468]:
+                - img [ref=e469]

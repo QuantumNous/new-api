@@ -1,0 +1,495 @@
+- generic [ref=e3]:
+  - generic [ref=e7]:
+    - link "logo OneDayAI - 本地站 AI模型一站式网关" [ref=e184] [cursor=pointer]:
+      - /url: /
+      - img "logo" [ref=e12]
+      - generic [ref=e13]:
+        - heading "OneDayAI - 本地站" [level=4] [ref=e185]
+        - generic [ref=e17]: AI模型一站式网关
+    - generic [ref=e18]:
+      - navigation [ref=e19]:
+        - link "首页" [ref=e186] [cursor=pointer]:
+          - /url: /
+          - generic [ref=e188]: 首页
+        - link "控制台" [ref=e189] [cursor=pointer]:
+          - /url: /console
+          - generic [ref=e191]: 控制台
+        - link "模型广场" [ref=e192] [cursor=pointer]:
+          - /url: /pricing
+          - generic [ref=e194]: 模型广场
+        - link "文档" [ref=e195] [cursor=pointer]:
+          - /url: https://ncn174iua0ln.feishu.cn/wiki/BHSdwA8uZi9sPkkqf0ocHch5nMf
+          - generic [ref=e197]: 文档
+        - link "SLA" [ref=e198] [cursor=pointer]:
+          - /url: https://status.autocode.space/status/autocode
+          - generic [ref=e200]: SLA
+        - link "生图工具" [ref=e201] [cursor=pointer]:
+          - /url: /console/image-studio
+          - generic [ref=e203]: 生图工具
+      - generic [ref=e32]:
+        - button "系统公告" [ref=e33] [cursor=pointer]:
+          - img [ref=e35]
+        - button "切换主题" [ref=e38] [cursor=pointer]:
+          - img [ref=e40]
+        - button "common.changeLanguage" [ref=e44] [cursor=pointer]:
+          - img [ref=e46]
+        - button "Z zhangsan" [ref=e205] [cursor=pointer]:
+          - generic [ref=e207]:
+            - listitem [ref=e208]:
+              - img "Z" [ref=e210]
+            - generic [ref=e212]: zhangsan
+            - img [ref=e214]
+  - generic [ref=e56]:
+    - complementary [ref=e57]:
+      - generic [ref=e59]:
+        - menu [ref=e220]:
+          - generic [ref=e222]:
+            - generic [ref=e223]: 控制台
+            - link "数据看板" [ref=e224] [cursor=pointer]:
+              - /url: /console
+              - menuitem "数据看板" [ref=e225]:
+                - img [ref=e228]
+                - generic [ref=e233]: 数据看板
+            - link "令牌管理" [ref=e234] [cursor=pointer]:
+              - /url: /console/token
+              - menuitem "令牌管理" [ref=e235]:
+                - img [ref=e238]
+                - generic [ref=e242]: 令牌管理
+            - link "使用日志" [ref=e243] [cursor=pointer]:
+              - /url: /console/log
+              - menuitem "使用日志" [ref=e244]:
+                - img [ref=e247]
+                - generic [ref=e249]: 使用日志
+          - generic [ref=e251]:
+            - generic [ref=e252]: 个人中心
+            - link "钱包管理" [ref=e253] [cursor=pointer]:
+              - /url: /console/topup
+              - menuitem "钱包管理" [ref=e254]:
+                - img [ref=e257]
+                - generic [ref=e259]: 钱包管理
+            - link "充值订单" [ref=e260] [cursor=pointer]:
+              - /url: /console/invoice
+              - menuitem "充值订单" [ref=e261]:
+                - img [ref=e264]
+                - generic [ref=e268]: 充值订单
+            - link "返佣管理" [ref=e269] [cursor=pointer]:
+              - /url: /console/commission
+              - menuitem "返佣管理" [ref=e270]:
+                - img [ref=e273]
+                - generic [ref=e278]: 返佣管理
+            - link "生图工具" [ref=e279] [cursor=pointer]:
+              - /url: /console/image-studio
+              - menuitem "生图工具" [ref=e280]:
+                - img [ref=e283]
+                - generic [ref=e289]: 生图工具
+            - link "个人设置" [ref=e290] [cursor=pointer]:
+              - /url: /console/personal
+              - menuitem "个人设置" [ref=e291]:
+                - img [ref=e294]
+                - generic [ref=e297]: 个人设置
+          - generic [ref=e299]:
+            - generic [ref=e300]: 管理员
+            - link "渠道管理" [ref=e301] [cursor=pointer]:
+              - /url: /console/channel
+              - menuitem "渠道管理" [ref=e302]:
+                - img [ref=e305]
+                - generic [ref=e309]: 渠道管理
+            - link "订阅管理" [ref=e310] [cursor=pointer]:
+              - /url: /console/subscription
+              - menuitem "订阅管理" [ref=e311]:
+                - img [ref=e314]
+                - generic [ref=e318]: 订阅管理
+            - link "模型管理" [ref=e319] [cursor=pointer]:
+              - /url: /console/models
+              - menuitem "模型管理" [ref=e320]:
+                - img [ref=e323]
+                - generic [ref=e327]: 模型管理
+            - link "兑换码管理" [ref=e328] [cursor=pointer]:
+              - /url: /console/redemption
+              - menuitem "兑换码管理" [ref=e329]:
+                - img [ref=e332]
+                - generic [ref=e336]: 兑换码管理
+            - link "用户管理" [ref=e337] [cursor=pointer]:
+              - /url: /console/user
+              - menuitem "用户管理" [ref=e338]:
+                - img [ref=e341]
+                - generic [ref=e344]: 用户管理
+            - link "用户分组倍率" [ref=e345] [cursor=pointer]:
+              - /url: /console/user-group-ratio
+              - menuitem "用户分组倍率" [ref=e346]:
+                - img [ref=e349]
+                - generic [ref=e353]: 用户分组倍率
+            - link "系统设置" [ref=e354] [cursor=pointer]:
+              - /url: /console/setting
+              - menuitem "系统设置" [ref=e355]:
+                - img [ref=e358]
+                - generic [ref=e361]: 系统设置
+        - button "收起侧边栏" [ref=e362] [cursor=pointer]:
+          - generic [ref=e363]:
+            - img [ref=e364]
+            - generic [ref=e366]: 收起侧边栏
+    - generic [ref=e165]:
+      - main [ref=e166]:
+        - main [ref=e369]:
+          - generic [ref=e370]:
+            - tablist [ref=e371]:
+              - generic [ref=e372]:
+                - button "chevron_left" [disabled] [ref=e373]:
+                  - img "chevron_left" [ref=e375]:
+                    - img [ref=e376]
+                - generic [ref=e378]:
+                  - tab "运营设置" [ref=e379] [cursor=pointer]:
+                    - generic [ref=e380]:
+                      - img [ref=e381]
+                      - text: 运营设置
+                  - tab "仪表盘设置" [ref=e384] [cursor=pointer]:
+                    - generic [ref=e385]:
+                      - img [ref=e386]
+                      - text: 仪表盘设置
+                  - tab "聊天设置" [ref=e391] [cursor=pointer]:
+                    - generic [ref=e392]:
+                      - img [ref=e393]
+                      - text: 聊天设置
+                  - tab "绘图设置" [ref=e395] [cursor=pointer]:
+                    - generic [ref=e396]:
+                      - img [ref=e397]
+                      - text: 绘图设置
+                  - tab "支付设置" [ref=e403] [cursor=pointer]:
+                    - generic [ref=e404]:
+                      - img [ref=e405]
+                      - text: 支付设置
+                  - tab "返佣设置" [ref=e407] [cursor=pointer]:
+                    - generic [ref=e408]:
+                      - img [ref=e409]
+                      - text: 返佣设置
+                  - tab "分组与模型定价设置" [selected] [ref=e414]:
+                    - generic [ref=e415]:
+                      - img [ref=e416]
+                      - text: 分组与模型定价设置
+                  - tab "速率限制设置" [ref=e418] [cursor=pointer]:
+                    - generic [ref=e419]:
+                      - img [ref=e420]
+                      - text: 速率限制设置
+                  - tab "模型相关设置" [ref=e423] [cursor=pointer]:
+                    - generic [ref=e424]:
+                      - img [ref=e425]
+                      - text: 模型相关设置
+                  - tab "模型部署设置" [ref=e429] [cursor=pointer]:
+                    - generic [ref=e430]:
+                      - img [ref=e431]
+                      - text: 模型部署设置
+                  - tab "性能设置" [ref=e434] [cursor=pointer]:
+                    - generic [ref=e435]:
+                      - img [ref=e436]
+                      - text: 性能设置
+                  - tab "系统设置" [ref=e438] [cursor=pointer]:
+                    - generic [ref=e439]:
+                      - img [ref=e440]
+                      - text: 系统设置
+                  - tab "其他设置" [ref=e451] [cursor=pointer]:
+                    - generic [ref=e452]:
+                      - img [ref=e453]
+                      - text: 其他设置
+                - button "chevron_right" [ref=e458] [cursor=pointer]:
+                  - img "chevron_right" [ref=e460]:
+                    - img [ref=e461]
+            - tabpanel "分组与模型定价设置" [ref=e464]:
+              - generic [ref=e470]:
+                - tablist [ref=e471]:
+                  - tab "模型定价设置" [ref=e472] [cursor=pointer]
+                  - tab "分组相关设置" [active] [selected] [ref=e473]
+                  - tab "未设置价格模型" [ref=e474] [cursor=pointer]
+                  - tab "上游倍率同步" [ref=e475] [cursor=pointer]
+                  - tab "工具调用定价" [ref=e476] [cursor=pointer]
+                - tabpanel "分组相关设置" [ref=e914]:
+                  - generic [ref=e917]:
+                    - generic [ref=e918]:
+                      - generic [ref=e919]:
+                        - generic [ref=e920]:
+                          - generic [ref=e921] [cursor=pointer]:
+                            - generic [ref=e922]:
+                              - radio "可视化编辑" [checked] [ref=e923]
+                              - img "radio" [ref=e925]:
+                                - img [ref=e926]
+                            - generic [ref=e929]: 可视化编辑
+                          - generic [ref=e930] [cursor=pointer]:
+                            - radio "手动编辑" [ref=e932]
+                            - generic [ref=e934]: 手动编辑
+                        - button "help_circle 使用说明" [ref=e935] [cursor=pointer]:
+                          - generic [ref=e936]:
+                            - img "help_circle" [ref=e937]:
+                              - img [ref=e938]
+                            - generic [ref=e940]: 使用说明
+                      - generic [ref=e941]:
+                        - generic [ref=e942]:
+                          - heading "分组管理" [level=5] [ref=e943]
+                          - generic [ref=e944]: 倍率用于计费乘数，勾选「用户可选」后用户可在创建令牌时选择该分组。拖动行可调整展示顺序。
+                          - generic [ref=e946]:
+                            - table [ref=e948]:
+                              - rowgroup [ref=e949]:
+                                - row "分组名称 倍率 分类 用户可选 描述 独立倍率" [ref=e950]:
+                                  - columnheader [ref=e951]
+                                  - columnheader "分组名称" [ref=e952]
+                                  - columnheader "倍率" [ref=e953]
+                                  - columnheader "分类" [ref=e954]
+                                  - columnheader "用户可选" [ref=e955]
+                                  - columnheader "描述" [ref=e956]
+                                  - columnheader "独立倍率" [ref=e957]
+                                  - columnheader [ref=e958]
+                              - rowgroup [ref=e959]:
+                                - button "handle default 1 chevron_up chevron_down checkbox_tick 默认分组 - delete" [ref=e960] [cursor=pointer]:
+                                  - cell "handle" [ref=e961]:
+                                    - img "handle" [ref=e962]:
+                                      - img [ref=e963]
+                                  - cell "default" [ref=e970]:
+                                    - textbox [ref=e972]: default
+                                  - cell "1 chevron_up chevron_down" [ref=e973]:
+                                    - generic [ref=e974]:
+                                      - spinbutton [ref=e976]: "1"
+                                      - generic [ref=e977]:
+                                        - img "chevron_up" [ref=e979]:
+                                          - img [ref=e980]
+                                        - img "chevron_down" [ref=e983]:
+                                          - img [ref=e984]
+                                  - cell [ref=e986]:
+                                    - combobox "selected" [ref=e987]:
+                                      - generic [ref=e990]: OpenAI
+                                      - img [ref=e992]:
+                                        - img [ref=e993]
+                                  - cell "checkbox_tick" [ref=e995]:
+                                    - generic [ref=e997]:
+                                      - checkbox [checked] [ref=e998]
+                                      - img "checkbox_tick" [ref=e1000]:
+                                        - img [ref=e1001]
+                                  - cell "默认分组" [ref=e1003]:
+                                    - textbox "分组描述" [ref=e1005]: 默认分组
+                                  - cell "-" [ref=e1006]
+                                  - cell "delete" [ref=e1007]:
+                                    - button "delete" [ref=e1008]:
+                                      - img "delete" [ref=e1010]:
+                                        - img [ref=e1011]
+                                - button "handle svip 1 chevron_up chevron_down - - delete" [ref=e1013] [cursor=pointer]:
+                                  - cell "handle" [ref=e1014]:
+                                    - img "handle" [ref=e1015]:
+                                      - img [ref=e1016]
+                                  - cell "svip" [ref=e1023]:
+                                    - textbox [ref=e1025]: svip
+                                  - cell "1 chevron_up chevron_down" [ref=e1026]:
+                                    - generic [ref=e1027]:
+                                      - spinbutton [ref=e1029]: "1"
+                                      - generic [ref=e1030]:
+                                        - img "chevron_up" [ref=e1032]:
+                                          - img [ref=e1033]
+                                        - img "chevron_down" [ref=e1036]:
+                                          - img [ref=e1037]
+                                  - cell [ref=e1039]:
+                                    - combobox "selected" [ref=e1040]:
+                                      - generic [ref=e1043]: Claude
+                                      - img [ref=e1045]:
+                                        - img [ref=e1046]
+                                  - cell [ref=e1048]:
+                                    - checkbox [ref=e1051]
+                                  - cell "-" [ref=e1053]
+                                  - cell "-" [ref=e1054]
+                                  - cell "delete" [ref=e1055]:
+                                    - button "delete" [ref=e1056]:
+                                      - img "delete" [ref=e1058]:
+                                        - img [ref=e1059]
+                                - button "handle vip 1 chevron_up chevron_down checkbox_tick vip分组 - delete" [ref=e1061] [cursor=pointer]:
+                                  - cell "handle" [ref=e1062]:
+                                    - img "handle" [ref=e1063]:
+                                      - img [ref=e1064]
+                                  - cell "vip" [ref=e1071]:
+                                    - textbox [ref=e1073]: vip
+                                  - cell "1 chevron_up chevron_down" [ref=e1074]:
+                                    - generic [ref=e1075]:
+                                      - spinbutton [ref=e1077]: "1"
+                                      - generic [ref=e1078]:
+                                        - img "chevron_up" [ref=e1080]:
+                                          - img [ref=e1081]
+                                        - img "chevron_down" [ref=e1084]:
+                                          - img [ref=e1085]
+                                  - cell [ref=e1087]:
+                                    - combobox "selected" [ref=e1088]:
+                                      - generic [ref=e1091]: Claude
+                                      - img [ref=e1093]:
+                                        - img [ref=e1094]
+                                  - cell "checkbox_tick" [ref=e1096]:
+                                    - generic [ref=e1098]:
+                                      - checkbox [checked] [ref=e1099]
+                                      - img "checkbox_tick" [ref=e1101]:
+                                        - img [ref=e1102]
+                                  - cell "vip分组" [ref=e1104]:
+                                    - textbox "分组描述" [ref=e1106]: vip分组
+                                  - cell "-" [ref=e1107]
+                                  - cell "delete" [ref=e1108]:
+                                    - button "delete" [ref=e1109]:
+                                      - img "delete" [ref=e1111]:
+                                        - img [ref=e1112]
+                              - status [ref=e1114]
+                            - button "plus 添加分组" [ref=e1116] [cursor=pointer]:
+                              - generic [ref=e1117]:
+                                - img "plus" [ref=e1118]:
+                                  - img [ref=e1119]
+                                - generic [ref=e1121]: 添加分组
+                        - generic [ref=e1122]:
+                          - heading "分组别名" [level=5] [ref=e1123]
+                          - generic [ref=e1124]: 别名允许用户使用旧的分组名称访问新的分组。可设置独立倍率，留空则使用目标分组倍率。
+                          - generic [ref=e1126]:
+                            - table [ref=e1128]:
+                              - rowgroup [ref=e1129]:
+                                - row "别名 目标分组 独立倍率 操作" [ref=e1130]:
+                                  - columnheader "别名" [ref=e1131]
+                                  - columnheader "目标分组" [ref=e1132]
+                                  - columnheader "独立倍率" [ref=e1133]
+                                  - columnheader "操作" [ref=e1134]
+                              - rowgroup [ref=e1135]:
+                                - row "old-vip1 chevron_up chevron_down 保存 delete" [ref=e1136]:
+                                  - cell "old-vip1" [ref=e1137]:
+                                    - textbox "输入别名" [ref=e1139]: old-vip1
+                                  - cell [ref=e1140]:
+                                    - combobox "selected" [ref=e1141] [cursor=pointer]:
+                                      - generic [ref=e1144]: vip
+                                      - img [ref=e1146]:
+                                        - img [ref=e1147]
+                                  - cell "chevron_up chevron_down" [ref=e1149]:
+                                    - generic [ref=e1150]:
+                                      - spinbutton "留空使用目标倍率" [ref=e1152]
+                                      - generic [ref=e1153]:
+                                        - img "chevron_up" [ref=e1155]:
+                                          - img [ref=e1156]
+                                        - img "chevron_down" [ref=e1159]:
+                                          - img [ref=e1160]
+                                  - cell "保存 delete" [ref=e1162]:
+                                    - generic [ref=e1163]:
+                                      - button "保存" [ref=e1164] [cursor=pointer]:
+                                        - generic [ref=e1165]: 保存
+                                      - button "delete" [ref=e1166] [cursor=pointer]:
+                                        - img "delete" [ref=e1168]:
+                                          - img [ref=e1169]
+                            - button "plus 添加别名" [ref=e1172] [cursor=pointer]:
+                              - generic [ref=e1173]:
+                                - img "plus" [ref=e1174]:
+                                  - img [ref=e1175]
+                                - generic [ref=e1177]: 添加别名
+                        - generic [ref=e1178]:
+                          - heading "自动分组" [level=5] [ref=e1179]
+                          - generic [ref=e1180]: 令牌分组设为 auto 时，按以下顺序依次尝试选择可用分组，排在前面的优先级更高
+                          - generic [ref=e1183]:
+                            - generic [ref=e1185]: 默认使用auto分组
+                            - generic [ref=e1186]:
+                              - generic [ref=e1188] [cursor=pointer]:
+                                - generic [ref=e1190]: 〇
+                                - switch [ref=e1191]
+                              - text: 开启后创建令牌默认选择auto分组，初始令牌也将设为auto
+                          - generic [ref=e1192]:
+                            - generic [ref=e1194]:
+                              - generic [ref=e1196]: "1"
+                              - combobox "selected" [ref=e1197] [cursor=pointer]:
+                                - generic [ref=e1200]: default
+                                - img [ref=e1202]:
+                                  - img [ref=e1203]
+                              - button "chevron_up" [disabled] [ref=e1205]:
+                                - img "chevron_up" [ref=e1207]:
+                                  - img [ref=e1208]
+                              - button "chevron_down" [disabled] [ref=e1210]:
+                                - img "chevron_down" [ref=e1212]:
+                                  - img [ref=e1213]
+                              - button "delete" [ref=e1215] [cursor=pointer]:
+                                - img "delete" [ref=e1217]:
+                                  - img [ref=e1218]
+                            - button "plus 添加分组" [ref=e1221] [cursor=pointer]:
+                              - generic [ref=e1222]:
+                                - img "plus" [ref=e1223]:
+                                  - img [ref=e1224]
+                                - generic [ref=e1226]: 添加分组
+                        - generic [ref=e1227]:
+                          - heading "分组特殊倍率" [level=5] [ref=e1228]
+                          - generic [ref=e1229]: 当某个分组的用户使用另一个分组的令牌时，可设置特殊倍率覆盖基础倍率。例如：vip 分组的用户使用 default 分组时倍率为 0.5
+                          - generic [ref=e1230]:
+                            - generic [ref=e1231]:
+                              - generic [ref=e1232] [cursor=pointer]:
+                                - generic [ref=e1233]:
+                                  - img "chevron_down" [ref=e1234]:
+                                    - img [ref=e1235]
+                                  - strong [ref=e1238]: vip
+                                  - generic [ref=e1240]: 1 条规则
+                                - generic [ref=e1241]:
+                                  - button "plus" [ref=e1242]:
+                                    - img "plus" [ref=e1244]:
+                                      - img [ref=e1245]
+                                  - button "delete" [ref=e1247]:
+                                    - img "delete" [ref=e1249]:
+                                      - img [ref=e1250]
+                              - generic [ref=e1254]:
+                                - combobox "selected" [ref=e1255] [cursor=pointer]:
+                                  - generic [ref=e1258]: edit_this
+                                  - img [ref=e1260]:
+                                    - img [ref=e1261]
+                                - generic [ref=e1263]:
+                                  - spinbutton [ref=e1265]: "0.9"
+                                  - generic [ref=e1266]:
+                                    - img "chevron_up" [ref=e1268]:
+                                      - img [ref=e1269]
+                                    - img "chevron_down" [ref=e1272]:
+                                      - img [ref=e1273]
+                                - button "delete" [ref=e1275] [cursor=pointer]:
+                                  - img "delete" [ref=e1277]:
+                                    - img [ref=e1278]
+                            - generic [ref=e1280]:
+                              - combobox [ref=e1281] [cursor=pointer]:
+                                - generic [ref=e1284]: 选择用户分组
+                                - img [ref=e1286]:
+                                  - img [ref=e1287]
+                              - button "plus 添加分组规则" [ref=e1289] [cursor=pointer]:
+                                - generic [ref=e1290]:
+                                  - img "plus" [ref=e1291]:
+                                    - img [ref=e1292]
+                                  - generic [ref=e1294]: 添加分组规则
+                        - generic [ref=e1295]:
+                          - heading "分组特殊可用分组" [level=5] [ref=e1296]
+                          - generic [ref=e1297]: 为特定用户分组配置可用分组的增减规则。「添加」为该分组新增可用分组，「移除」移除默认可用分组，「追加」直接追加分组
+                          - generic [ref=e1298]:
+                            - generic [ref=e1299]:
+                              - generic [ref=e1300] [cursor=pointer]:
+                                - generic [ref=e1301]:
+                                  - img "chevron_down" [ref=e1302]:
+                                    - img [ref=e1303]
+                                  - strong [ref=e1306]: vip
+                                  - generic [ref=e1308]: 1 条规则
+                                - generic [ref=e1309]:
+                                  - button "plus" [ref=e1310]:
+                                    - img "plus" [ref=e1312]:
+                                      - img [ref=e1313]
+                                  - button "delete" [ref=e1315]:
+                                    - img "delete" [ref=e1317]:
+                                      - img [ref=e1318]
+                              - generic [ref=e1322]:
+                                - combobox "selected" [ref=e1323] [cursor=pointer]:
+                                  - 'generic "Tag: 追加" [ref=e1327]':
+                                    - generic [ref=e1328]: 追加
+                                  - img [ref=e1330]:
+                                    - img [ref=e1331]
+                                - textbox "分组名称" [ref=e1334]: append_1
+                                - textbox "分组描述" [ref=e1336]: vip_special_group_1
+                                - button "delete" [ref=e1337] [cursor=pointer]:
+                                  - img "delete" [ref=e1339]:
+                                    - img [ref=e1340]
+                            - generic [ref=e1342]:
+                              - combobox [ref=e1343] [cursor=pointer]:
+                                - generic [ref=e1346]: 选择用户分组
+                                - img [ref=e1348]:
+                                  - img [ref=e1349]
+                              - button "plus 添加分组规则" [ref=e1351] [cursor=pointer]:
+                                - generic [ref=e1352]:
+                                  - img "plus" [ref=e1353]:
+                                    - img [ref=e1354]
+                                  - generic [ref=e1356]: 添加分组规则
+                    - button "保存分组相关设置" [ref=e1357] [cursor=pointer]:
+                      - generic [ref=e1358]: 保存分组相关设置
+      - generic [ref=e178]:
+        - generic [ref=e180]: © 2026 OneDayAI - 本地站. 版权所有
+        - generic [ref=e181]:
+          - generic [ref=e182]: 设计与开发由
+          - link "New API" [ref=e183] [cursor=pointer]:
+            - /url: https://github.com/QuantumNous/new-api

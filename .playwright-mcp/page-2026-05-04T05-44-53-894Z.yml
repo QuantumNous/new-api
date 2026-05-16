@@ -1,0 +1,276 @@
+- generic [ref=e3]:
+  - generic [ref=e7]:
+    - link "logo OneDayAI - 本地站 AI模型一站式网关" [ref=e9] [cursor=pointer]:
+      - /url: /
+      - img "logo" [ref=e11]
+      - generic [ref=e12]:
+        - heading "OneDayAI - 本地站" [level=4] [ref=e14]
+        - generic [ref=e15]: AI模型一站式网关
+    - generic [ref=e16]:
+      - navigation [ref=e17]:
+        - link "首页" [ref=e18] [cursor=pointer]:
+          - /url: /
+          - generic [ref=e20]: 首页
+        - link "控制台" [ref=e21] [cursor=pointer]:
+          - /url: /console
+          - generic [ref=e23]: 控制台
+        - link "模型广场" [ref=e24] [cursor=pointer]:
+          - /url: /pricing
+          - generic [ref=e26]: 模型广场
+        - link "文档" [ref=e27] [cursor=pointer]:
+          - /url: https://ncn174iua0ln.feishu.cn/wiki/BHSdwA8uZi9sPkkqf0ocHch5nMf
+          - generic [ref=e29]: 文档
+        - link "SLA" [ref=e30] [cursor=pointer]:
+          - /url: https://status.autocode.space/status/autocode
+          - generic [ref=e32]: SLA
+      - generic [ref=e33]:
+        - button "系统公告" [ref=e34] [cursor=pointer]:
+          - img [ref=e36]
+        - button "切换主题" [ref=e39] [cursor=pointer]:
+          - img [ref=e41]
+        - button "common.changeLanguage" [ref=e45] [cursor=pointer]:
+          - img [ref=e47]
+        - button "Z zhangsan" [ref=e52] [cursor=pointer]:
+          - generic [ref=e54]:
+            - listitem [ref=e55]:
+              - img "Z" [ref=e57]
+            - generic [ref=e59]: zhangsan
+            - img [ref=e61]
+  - generic [ref=e63]:
+    - complementary [ref=e64]:
+      - generic [ref=e66]:
+        - menu [ref=e71]:
+          - generic [ref=e73]:
+            - generic [ref=e74]: 控制台
+            - link "数据看板" [ref=e75] [cursor=pointer]:
+              - /url: /console
+              - menuitem "数据看板" [ref=e76]:
+                - img [ref=e79]
+                - generic [ref=e84]: 数据看板
+            - link "令牌管理" [ref=e85] [cursor=pointer]:
+              - /url: /console/token
+              - menuitem "令牌管理" [ref=e86]:
+                - img [ref=e89]
+                - generic [ref=e93]: 令牌管理
+            - link "使用日志" [ref=e94] [cursor=pointer]:
+              - /url: /console/log
+              - menuitem "使用日志" [ref=e95]:
+                - img [ref=e98]
+                - generic [ref=e100]: 使用日志
+          - generic [ref=e102]:
+            - generic [ref=e103]: 个人中心
+            - link "钱包管理" [ref=e104] [cursor=pointer]:
+              - /url: /console/topup
+              - menuitem "钱包管理" [ref=e105]:
+                - img [ref=e108]
+                - generic [ref=e110]: 钱包管理
+            - link "充值订单" [ref=e111] [cursor=pointer]:
+              - /url: /console/invoice
+              - menuitem "充值订单" [ref=e112]:
+                - img [ref=e115]
+                - generic [ref=e119]: 充值订单
+            - link "返佣管理" [ref=e120] [cursor=pointer]:
+              - /url: /console/commission
+              - menuitem "返佣管理" [ref=e121]:
+                - img [ref=e124]
+                - generic [ref=e129]: 返佣管理
+            - link "生图工具" [ref=e130] [cursor=pointer]:
+              - /url: /console/image-studio
+              - menuitem "生图工具" [ref=e131]:
+                - img [ref=e134]
+                - generic [ref=e140]: 生图工具
+            - link "个人设置" [ref=e141] [cursor=pointer]:
+              - /url: /console/personal
+              - menuitem "个人设置" [ref=e142]:
+                - img [ref=e145]
+                - generic [ref=e148]: 个人设置
+          - generic [ref=e150]:
+            - generic [ref=e151]: 管理员
+            - link "渠道管理" [ref=e152] [cursor=pointer]:
+              - /url: /console/channel
+              - menuitem "渠道管理" [ref=e153]:
+                - img [ref=e156]
+                - generic [ref=e160]: 渠道管理
+            - link "订阅管理" [ref=e161] [cursor=pointer]:
+              - /url: /console/subscription
+              - menuitem "订阅管理" [ref=e162]:
+                - img [ref=e165]
+                - generic [ref=e169]: 订阅管理
+            - link "兑换码管理" [ref=e170] [cursor=pointer]:
+              - /url: /console/redemption
+              - menuitem "兑换码管理" [ref=e171]:
+                - img [ref=e174]
+                - generic [ref=e178]: 兑换码管理
+            - link "用户管理" [ref=e179] [cursor=pointer]:
+              - /url: /console/user
+              - menuitem "用户管理" [ref=e180]:
+                - img [ref=e183]
+                - generic [ref=e186]: 用户管理
+            - link "系统设置" [ref=e187] [cursor=pointer]:
+              - /url: /console/setting
+              - menuitem "系统设置" [ref=e188]:
+                - img [ref=e191]
+                - generic [ref=e194]: 系统设置
+        - button "收起侧边栏" [ref=e196] [cursor=pointer]:
+          - generic [ref=e197]:
+            - img [ref=e198]
+            - generic [ref=e200]: 收起侧边栏
+    - generic [ref=e201]:
+      - main [ref=e202]:
+        - generic [ref=e205]:
+          - generic [ref=e207]:
+            - strong [ref=e210]: 账户统计
+            - generic [ref=e211]:
+              - generic [ref=e212]:
+                - generic [ref=e213]: $16798.61
+                - generic [ref=e214]:
+                  - img [ref=e215]
+                  - generic [ref=e218]: 当前余额
+              - generic [ref=e219]:
+                - generic [ref=e220]: $3409.48
+                - generic [ref=e221]:
+                  - img [ref=e222]
+                  - generic [ref=e225]: 历史消耗
+              - generic [ref=e226]:
+                - generic [ref=e227]: "14218"
+                - generic [ref=e228]:
+                  - img [ref=e229]
+                  - generic [ref=e230]: 请求次数
+          - generic [ref=e231]:
+            - generic [ref=e232]:
+              - generic [ref=e234]:
+                - heading "在线充值" [level=4] [ref=e235]
+                - generic [ref=e237]:
+                  - generic [ref=e238]:
+                    - generic [ref=e239] [cursor=pointer]:
+                      - generic [ref=e240]:
+                        - img [ref=e242]
+                        - generic [ref=e244]: 支付宝
+                      - img [ref=e246]
+                    - generic [ref=e248] [cursor=pointer]:
+                      - generic [ref=e251]: 如遇支付失败可前往购买兑换码充值：https://pay.ldxp.cn/shop/Z3T3D4L5
+                      - img [ref=e253]
+                  - alert [ref=e255]:
+                    - generic [ref=e257]:
+                      - img [ref=e259]
+                      - generic [ref=e262]: 充值成功后不支持退款，请确认后再操作。
+                  - generic [ref=e264]:
+                    - generic [ref=e266]: 充值金额
+                    - generic [ref=e267]:
+                      - generic [ref=e268]:
+                        - generic [ref=e269]:
+                          - generic [ref=e270]: $
+                          - spinbutton "充值金额" [ref=e271]: "1"
+                        - generic [ref=e272]:
+                          - img "chevron_up" [ref=e274]:
+                            - img [ref=e275]
+                          - img "chevron_down" [ref=e278]:
+                            - img [ref=e279]
+                      - generic [ref=e282]: 金额需要 >= $1
+                  - generic [ref=e283]:
+                    - generic [ref=e284]:
+                      - strong [ref=e286]: 选择充值额度
+                      - generic [ref=e287]: (1 $ = 1.00 $)
+                    - generic [ref=e288]:
+                      - generic [ref=e289] [cursor=pointer]:
+                        - heading "10 $" [level=6] [ref=e290]:
+                          - img [ref=e291]
+                          - text: 10 $
+                        - generic [ref=e296]: 实付 $10.00
+                      - generic [ref=e297] [cursor=pointer]:
+                        - heading "20 $" [level=6] [ref=e298]:
+                          - img [ref=e299]
+                          - text: 20 $
+                        - generic [ref=e304]: 实付 $20.00
+                      - generic [ref=e305] [cursor=pointer]:
+                        - heading "50 $" [level=6] [ref=e306]:
+                          - img [ref=e307]
+                          - text: 50 $
+                        - generic [ref=e312]: 实付 $50.00
+                      - generic [ref=e313] [cursor=pointer]:
+                        - heading "100 $" [level=6] [ref=e314]:
+                          - img [ref=e315]
+                          - text: 100 $
+                        - generic [ref=e320]: 实付 $100.00
+                      - generic [ref=e321] [cursor=pointer]:
+                        - heading "200 $" [level=6] [ref=e322]:
+                          - img [ref=e323]
+                          - text: 200 $
+                        - generic [ref=e328]: 实付 $200.00
+                      - generic [ref=e329] [cursor=pointer]:
+                        - heading "500 $" [level=6] [ref=e330]:
+                          - img [ref=e331]
+                          - text: 500 $
+                        - generic [ref=e336]: 实付 $500.00
+                  - generic [ref=e337]:
+                    - generic [ref=e338]:
+                      - generic [ref=e339]:
+                        - img [ref=e340]
+                        - strong [ref=e344]: 税费类型
+                      - generic [ref=e345]:
+                        - generic [ref=e346] [cursor=pointer]: 不含税
+                        - generic [ref=e347] [cursor=pointer]: 含税
+                    - generic [ref=e349]: 选择不含税支付，本订单将无法开具发票。如需开票，请选择含税支付方式。2026年05月01日 00:00:00（UTC+0）前的充值订单如需开票，请联系站长处理；此后的订单请按照页面指引自助申请开票。
+              - generic [ref=e351]:
+                - heading "卡密充值" [level=4] [ref=e352]
+                - generic [ref=e354]:
+                  - textbox "兑换码" [ref=e357]
+                  - button "兑换" [ref=e358] [cursor=pointer]:
+                    - generic [ref=e359]: 兑换
+            - generic [ref=e362]:
+              - generic [ref=e363]:
+                - generic [ref=e364]: 充值金额
+                - strong [ref=e366]: $1
+              - generic [ref=e367]:
+                - generic [ref=e368]: 支付货币
+                - strong [ref=e370]: CNY
+              - generic [ref=e371]:
+                - generic [ref=e372]: 支付货币汇率
+                - strong [ref=e374]: 1:1
+              - generic [ref=e375]:
+                - generic [ref=e377]: 服务费
+                - strong [ref=e379]: 0%
+              - generic [ref=e380]:
+                - generic [ref=e381]: 开票额
+                - strong [ref=e383]: $0
+              - generic [ref=e385]:
+                - strong [ref=e387]: 支付金额
+                - strong [ref=e389]: 1.00 CNY
+              - button "支付" [ref=e390] [cursor=pointer]:
+                - generic [ref=e391]: 支付
+          - generic [ref=e393]:
+            - generic [ref=e395]:
+              - generic [ref=e396]:
+                - generic [ref=e397]:
+                  - strong [ref=e399]: 我的订阅
+                  - 'generic "Tag: 无生效" [ref=e400]':
+                    - generic [ref=e401]: 无生效
+                - generic [ref=e402]:
+                  - combobox "selected" [ref=e403] [cursor=pointer]:
+                    - generic [ref=e406]: 优先钱包
+                    - img [ref=e408]:
+                      - img [ref=e409]
+                  - button [ref=e411] [cursor=pointer]:
+                    - img [ref=e413]
+              - generic [ref=e418]: 已保存偏好为优先订阅，当前无生效订阅，将自动使用钱包
+              - generic [ref=e419]: 购买套餐后即可享受模型权益
+            - generic [ref=e423]:
+              - generic [ref=e424]:
+                - heading "112" [level=5] [ref=e425]
+                - generic [ref=e426]: "2222"
+              - generic [ref=e428]:
+                - generic [ref=e429]: $
+                - generic [ref=e430]: "100"
+              - generic [ref=e431]:
+                - generic [ref=e436]: "有效期: 1 个月"
+                - generic [ref=e441]: "总额度: $100.00"
+                - generic [ref=e446]: "升级分组: vip"
+                - generic [ref=e451]: "限制分组: vip"
+              - button "立即订阅" [ref=e454] [cursor=pointer]:
+                - generic [ref=e455]: 立即订阅
+      - generic [ref=e460]:
+        - generic [ref=e462]: © 2026 OneDayAI - 本地站. 版权所有
+        - generic [ref=e463]:
+          - generic [ref=e464]: 设计与开发由
+          - link "New API" [ref=e465] [cursor=pointer]:
+            - /url: https://github.com/QuantumNous/new-api

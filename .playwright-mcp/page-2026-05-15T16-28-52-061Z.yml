@@ -1,0 +1,44 @@
+- generic [ref=e3]:
+  - generic [ref=e7]:
+    - link "logo Passerelle API Tout-en-Un" [ref=e9] [cursor=pointer]:
+      - /url: /
+      - img "logo" [ref=e12]
+      - generic [ref=e17]: Passerelle API Tout-en-Un
+    - generic [ref=e18]:
+      - navigation [ref=e19]
+      - generic [ref=e32]:
+        - button "Avis système" [ref=e33] [cursor=pointer]:
+          - img [ref=e35]
+        - button "Changer de thème" [ref=e38] [cursor=pointer]:
+          - img [ref=e40]
+        - button "Changer de langue" [ref=e44] [cursor=pointer]:
+          - img [ref=e46]
+  - main [ref=e58]:
+    - generic [ref=e59]:
+      - generic [ref=e61]:
+        - img "Logo" [ref=e62]
+        - heading "OneDayAI - 本地站" [level=2] [ref=e63]
+        - text: Service de passerelle API entreprise rentable. Tous les modèles IA en un seul endroit ! Compatible avec toutes les API, intégration transparente sans effort de développement.
+        - generic [ref=e64]:
+          - generic [ref=e67]: 100+ modèles IA, un seul accès API
+          - generic [ref=e70]: Sécurité entreprise, données transmises uniquement, jamais stockées
+          - generic [ref=e73]: Accélération CDN mondiale, réponse à faible latence
+      - generic [ref=e77]:
+        - generic [ref=e78]:
+          - heading "Se connecter" [level=3] [ref=e79]
+          - text: Choisissez une méthode pour vous connecter
+        - generic [ref=e80]:
+          - button "github_logo Continuer avec GitHub" [ref=e81] [cursor=pointer]:
+            - generic [ref=e82]:
+              - img "github_logo" [ref=e83]:
+                - img [ref=e84]
+              - generic [ref=e87]: Continuer avec GitHub
+          - generic [ref=e89]: Ou
+          - button "mail Connectez-vous avec votre e-mail ou votre nom d'utilisateur" [ref=e90] [cursor=pointer]:
+            - img "mail" [ref=e91]:
+              - img [ref=e92]
+            - text: Connectez-vous avec votre e-mail ou votre nom d'utilisateur
+        - generic [ref=e94]:
+          - text: Pas de compte ?
+          - link "S'inscrire" [ref=e95] [cursor=pointer]:
+            - /url: /register

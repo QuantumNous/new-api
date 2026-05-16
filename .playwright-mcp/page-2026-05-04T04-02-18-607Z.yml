@@ -1,0 +1,186 @@
+- generic [ref=e3]:
+  - generic [ref=e7]:
+    - link "logo OneDayAI - 本地站 All In One API Gateway" [ref=e9] [cursor=pointer]:
+      - /url: /
+      - img "logo" [ref=e11]
+      - generic [ref=e12]:
+        - heading "OneDayAI - 本地站" [level=4] [ref=e14]
+        - generic [ref=e15]: All In One API Gateway
+    - generic [ref=e16]:
+      - navigation [ref=e17]:
+        - link "Главная страница" [ref=e18] [cursor=pointer]:
+          - /url: /
+          - generic [ref=e20]: Главная страница
+        - link "Консоль" [ref=e21] [cursor=pointer]:
+          - /url: /console
+          - generic [ref=e23]: Консоль
+        - link "Площадка моделей" [ref=e24] [cursor=pointer]:
+          - /url: /pricing
+          - generic [ref=e26]: Площадка моделей
+        - link "Документация" [ref=e27] [cursor=pointer]:
+          - /url: https://ncn174iua0ln.feishu.cn/wiki/BHSdwA8uZi9sPkkqf0ocHch5nMf
+          - generic [ref=e29]: Документация
+        - link "SLA" [ref=e30] [cursor=pointer]:
+          - /url: https://status.autocode.space/status/autocode
+          - generic [ref=e32]: SLA
+      - generic [ref=e33]:
+        - button "Системные объявления" [ref=e34] [cursor=pointer]:
+          - img [ref=e36]
+        - button "Переключить тему" [ref=e39] [cursor=pointer]:
+          - img [ref=e41]
+        - button "Change Language" [ref=e45] [cursor=pointer]:
+          - img [ref=e47]
+        - button "Z zhangsan" [ref=e52] [cursor=pointer]:
+          - generic [ref=e54]:
+            - listitem [ref=e55]:
+              - img "Z" [ref=e57]
+            - generic [ref=e59]: zhangsan
+            - img [ref=e61]
+  - main [ref=e65]:
+    - generic [ref=e67]:
+      - generic [ref=e68]:
+        - generic:
+          - img:
+            - generic: OneDayAI OneDayAI OneDayAI OneDayAI OneDayAI OneDayAI OneDayAI OneDayAI OneDayAI OneDayAI
+        - generic [ref=e76]:
+          - heading "Эффективно и стабильно Доступ ко всем ИИ-моделям" [level=2] [ref=e78]:
+            - text: Эффективно и стабильно
+            - text: Доступ ко всем ИИ-моделям
+          - heading "OneDayAI" [level=1] [ref=e80]
+          - paragraph [ref=e82]: Экономичный корпоративный сервис пересылки API уровня Enterprise, все ИИ-модели в одном месте! Полная совместимость со всеми протоколами платформ, бесшовная интеграция без навыков разработки. Никаких забот о рисках, отличная производительность, эффективная интеграция ресурсов — профессиональная техническая поддержка!
+          - generic [ref=e84]:
+            - generic [ref=e85]:
+              - link "bolt Начать" [ref=e86] [cursor=pointer]:
+                - /url: /console
+                - img "bolt" [ref=e87]:
+                  - img [ref=e88]
+                - text: Начать
+              - button "external_open Документация" [ref=e90] [cursor=pointer]:
+                - img "external_open" [ref=e91]:
+                  - img [ref=e92]
+                - text: Документация
+            - generic [ref=e95]: Зарегистрируйтесь и получите $1 тестовых кредитов
+          - generic [ref=e97]:
+            - generic [ref=e98]: Поддерживаемые провайдеры (войдите, чтобы увидеть больше)
+            - generic [ref=e99]:
+              - img "openai" [ref=e100]
+              - img "claude" [ref=e101]
+              - img "bard" [ref=e102]
+              - img "mistral" [ref=e103]
+              - img "qwen" [ref=e104]
+              - img "stability-ai" [ref=e105]
+              - img "suno" [ref=e106]
+      - generic [ref=e108]:
+        - heading "Расширьте возможности приложений сИИ-интеллектСервисы" [level=2] [ref=e111]
+        - generic [ref=e112]:
+          - generic [ref=e114]:
+            - img "Быстро & Стабильно" [ref=e115]
+            - heading "Быстро & Стабильно" [level=5] [ref=e116]
+            - paragraph [ref=e117]: Глобальное ускорение Cloudflare Enterprise — быстрые и стабильные ответы, где бы вы ни были.
+          - generic [ref=e119]:
+            - img "Безопасность" [ref=e120]
+            - heading "Безопасность" [level=5] [ref=e121]
+            - paragraph [ref=e122]: Строгая защита информации и данных взаимодействия. Мы только пересылаем данные, не храним их. Полное шифрование передачи данных с защитой ведущими решениями безопасности.
+          - generic [ref=e124]:
+            - img "Выгодные цены" [ref=e125]
+            - heading "Выгодные цены" [level=5] [ref=e126]
+            - paragraph [ref=e127]: Цены значительно ниже официальных, подробнее в документации. *Специальные корпоративные цены и выделенные серверы! Используйте новейшие ИИ-технологии по минимальной стоимости.
+          - generic [ref=e129]:
+            - img "Полная совместимость" [ref=e130]
+            - heading "Полная совместимость" [level=5] [ref=e131]
+            - paragraph [ref=e132]: Поддержка всех моделей OpenAI/Claude/Gemini и множества ИИ-приложений и фреймворков. Комплексная поддержка для разработки ИИ-продуктов или обучения собственных моделей.
+          - generic [ref=e134]:
+            - img "Оплата по использованию" [ref=e135]
+            - heading "Оплата по использованию" [level=5] [ref=e136]
+            - paragraph [ref=e137]: Зарегистрируйтесь сейчас и получите бесплатные тестовые кредиты! Без забот о рисках, оплата по использованию, удобное пополнение и отслеживание баланса в реальном времени.
+          - generic [ref=e139]:
+            - img "Профессиональный сервис" [ref=e140]
+            - heading "Профессиональный сервис" [level=5] [ref=e141]
+            - paragraph [ref=e142]: Предпродажная и послепродажная поддержка с простым интерфейсом и удобным процессом. Как разработчики, так и обычные пользователи могут легко использовать наш сервис.
+      - generic [ref=e145]:
+        - generic [ref=e146]:
+          - generic [ref=e147]: Интеграция ИИ-сервисов
+          - heading "Всё, что вам нужно ALL IN ONE" [level=2] [ref=e148]:
+            - text: Всё, что вам нужно
+            - generic [ref=e149]: ALL IN ONE
+          - generic [ref=e150]:
+            - paragraph [ref=e151]: Один API для доступа к OpenAI, Claude, Gemini, LLaMA 3, Stable Diffusion, Midjourney, Suno и более 100 ИИ-моделей.
+            - text: "* Методы вызова могут отличаться для разных моделей, см. документацию."
+        - img "Integration" [ref=e153]
+      - generic [ref=e155]:
+        - generic [ref=e157]:
+          - heading "Полноценная Сервисная система" [level=2] [ref=e158]:
+            - generic [ref=e159]: Полноценная
+            - text: Сервисная система
+          - paragraph [ref=e160]: Доверьте нам сложную интеграцию моделей. Просто зарегистрируйтесь, пополните баланс и подключите приложение.
+        - generic [ref=e161]:
+          - generic [ref=e163]:
+            - generic [ref=e164]:
+              - generic [ref=e165]:
+                - img "Документация" [ref=e166]
+                - generic [ref=e167]:
+                  - strong [ref=e169]: Документация
+                  - generic [ref=e170]: При первом использовании обязательно внимательно прочитайте руководство
+              - paragraph [ref=e171]: Сначала зарегистрируйте аккаунт, затем пополните баланс, затем используйте чат в управлении токенами или скопируйте адрес API и ключ.
+            - button "Посмотреть руководство" [ref=e173] [cursor=pointer]
+          - generic [ref=e175]:
+            - generic [ref=e176]:
+              - generic [ref=e177]:
+                - img "Цена" [ref=e178]
+                - generic [ref=e179]:
+                  - strong [ref=e181]: Цена
+                  - generic [ref=e182]: Платите по потребности, прозрачное ценообразование без скрытых платежей
+              - paragraph [ref=e183]: "Официальные, Azure или альтернативные каналы — вы всегда найдёте нужный сервис и цену. Мы гарантируем: каналы никогда не смешиваются, ценообразование прозрачное, об изменении цен уведомляем заранее."
+            - link "Посмотреть цены" [ref=e185] [cursor=pointer]:
+              - /url: /pricing
+          - generic [ref=e187]:
+            - generic [ref=e188]:
+              - generic [ref=e189]:
+                - img "Модель" [ref=e190]
+                - generic [ref=e191]:
+                  - strong [ref=e193]: Модель
+                  - generic [ref=e194]: ИИ-модели для текста/изображений/аудио/видео — самый полный выбор
+              - paragraph [ref=e195]: Поддержка десятков моделей, включая OpenAI, Gemini, Claude, Zhipu, а также сервисов Midjourney/Suno.
+            - link "Посмотреть все модели" [ref=e197] [cursor=pointer]:
+              - /url: /pricing
+      - generic [ref=e199]:
+        - generic [ref=e201]:
+          - generic [ref=e202]: FAQs
+          - heading "ЧаВо" [level=2] [ref=e203]
+        - generic [ref=e205]:
+          - generic [ref=e206]:
+            - generic [ref=e207] [cursor=pointer]:
+              - heading "Как начать пользоваться?" [level=6] [ref=e208]
+              - img "minus" [ref=e209]:
+                - img [ref=e210]
+            - paragraph [ref=e215]: Просто замените адрес API и ключ в вашем приложении/проекте. Если у вас есть вопросы, свяжитесь с нами.
+          - generic [ref=e217] [cursor=pointer]:
+            - heading "Будет ли моя информация раскрыта?" [level=6] [ref=e218]
+            - img "plus" [ref=e219]:
+              - img [ref=e220]
+          - generic [ref=e223] [cursor=pointer]:
+            - heading "Что делать, если подключение к API не удаётся или прерывается?" [level=6] [ref=e224]
+            - img "plus" [ref=e225]:
+              - img [ref=e226]
+          - generic [ref=e229] [cursor=pointer]:
+            - heading "Как вы рассчитываете стоимость?" [level=6] [ref=e230]
+            - img "plus" [ref=e231]:
+              - img [ref=e232]
+          - generic [ref=e235] [cursor=pointer]:
+            - heading "Можно получить счёт-фактуру?" [level=6] [ref=e236]
+            - img "plus" [ref=e237]:
+              - img [ref=e238]
+        - generic [ref=e242]:
+          - heading "Остались вопросы?" [level=4] [ref=e243]
+          - paragraph [ref=e244]: Сначала ознакомьтесь с документацией по интеграции и руководством для быстрого решения большинства распространённых проблем.
+          - button "Документация" [ref=e245] [cursor=pointer]
+      - generic [ref=e252]:
+        - img "rocket" [ref=e254]
+        - generic [ref=e255]:
+          - heading "Готовы? Начать сейчасОпыт" [level=2] [ref=e256]:
+            - text: Готовы?
+            - text: Начать сейчасОпыт
+          - generic [ref=e257]:
+            - link "Попробовать" [ref=e258] [cursor=pointer]:
+              - /url: /console
+            - button "Документация" [ref=e259] [cursor=pointer]

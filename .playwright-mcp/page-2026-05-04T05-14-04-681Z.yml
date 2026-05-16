@@ -1,0 +1,186 @@
+- generic [ref=e3]:
+  - generic [ref=e7]:
+    - link "logo OneDayAI - 本地站 Passerelle API Tout-en-Un" [active] [ref=e9] [cursor=pointer]:
+      - /url: /
+      - img "logo" [ref=e11]
+      - generic [ref=e12]:
+        - heading "OneDayAI - 本地站" [level=4] [ref=e14]
+        - generic [ref=e15]: Passerelle API Tout-en-Un
+    - generic [ref=e16]:
+      - navigation [ref=e17]:
+        - link "Accueil" [ref=e18] [cursor=pointer]:
+          - /url: /
+          - generic [ref=e20]: Accueil
+        - link "Console" [ref=e21] [cursor=pointer]:
+          - /url: /console
+          - generic [ref=e23]: Console
+        - link "Marché des modèles" [ref=e24] [cursor=pointer]:
+          - /url: /pricing
+          - generic [ref=e26]: Marché des modèles
+        - link "Documentation" [ref=e27] [cursor=pointer]:
+          - /url: https://ncn174iua0ln.feishu.cn/wiki/BHSdwA8uZi9sPkkqf0ocHch5nMf
+          - generic [ref=e29]: Documentation
+        - link "SLA" [ref=e30] [cursor=pointer]:
+          - /url: https://status.autocode.space/status/autocode
+          - generic [ref=e32]: SLA
+      - generic [ref=e33]:
+        - button "Avis système" [ref=e34] [cursor=pointer]:
+          - img [ref=e36]
+        - button "Changer de thème" [ref=e39] [cursor=pointer]:
+          - img [ref=e41]
+        - button "Changer de langue" [ref=e45] [cursor=pointer]:
+          - img [ref=e47]
+        - button "Z zhangsan" [ref=e52] [cursor=pointer]:
+          - generic [ref=e54]:
+            - listitem [ref=e55]:
+              - img "Z" [ref=e57]
+            - generic [ref=e59]: zhangsan
+            - img [ref=e61]
+  - main [ref=e65]:
+    - generic [ref=e67]:
+      - generic [ref=e68]:
+        - generic:
+          - img:
+            - generic: OneDayAI OneDayAI OneDayAI OneDayAI OneDayAI OneDayAI OneDayAI OneDayAI OneDayAI OneDayAI
+        - generic [ref=e76]:
+          - heading "De manière efficace et stable Accédez à tous les modèles IA" [level=2] [ref=e78]:
+            - text: De manière efficace et stable
+            - text: Accédez à tous les modèles IA
+          - heading "OneDayAI" [level=1] [ref=e80]
+          - paragraph [ref=e82]: Service de transfert d'API Enterprise à excellent rapport qualité-prix, tous les modèles IA en un ! Entièrement compatible avec les protocoles de toutes les plateformes, intégration transparente sans aucune base de développement requise. Aucun souci de contrôle des risques, performances excellentes, intégration efficace des ressources pour un support technique professionnel !
+          - generic [ref=e84]:
+            - generic [ref=e85]:
+              - link "bolt Commencer" [ref=e86] [cursor=pointer]:
+                - /url: /console
+                - img "bolt" [ref=e87]:
+                  - img [ref=e88]
+                - text: Commencer
+              - button "external_open Voir la documentation" [ref=e90] [cursor=pointer]:
+                - img "external_open" [ref=e91]:
+                  - img [ref=e92]
+                - text: Voir la documentation
+            - generic [ref=e95]: Inscrivez-vous pour obtenir 1 $ de crédit d'essai
+          - generic [ref=e97]:
+            - generic [ref=e98]: Fournisseurs pris en charge (connectez-vous pour en voir plus)
+            - generic [ref=e99]:
+              - img "openai" [ref=e100]
+              - img "claude" [ref=e101]
+              - img "bard" [ref=e102]
+              - img "mistral" [ref=e103]
+              - img "qwen" [ref=e104]
+              - img "stability-ai" [ref=e105]
+              - img "suno" [ref=e106]
+      - generic [ref=e108]:
+        - heading "Dynamisez vos applications avecIntelligence IAServices" [level=2] [ref=e111]
+        - generic [ref=e112]:
+          - generic [ref=e114]:
+            - img "Rapide & Stable" [ref=e115]
+            - heading "Rapide & Stable" [level=5] [ref=e116]
+            - paragraph [ref=e117]: Accélération mondiale Cloudflare Enterprise, des réponses rapides et stables où que vous soyez.
+          - generic [ref=e119]:
+            - img "Sécurité" [ref=e120]
+            - heading "Sécurité" [level=5] [ref=e121]
+            - paragraph [ref=e122]: Protection stricte des informations et données d'interaction. Nous ne faisons que transférer les données sans les stocker. Transmission entièrement chiffrée et protégée par des solutions de sécurité de pointe.
+          - generic [ref=e124]:
+            - img "Prix avantageux" [ref=e125]
+            - heading "Prix avantageux" [level=5] [ref=e126]
+            - paragraph [ref=e127]: Prix bien inférieurs aux tarifs officiels, voir la documentation. *Tarification commerciale et serveurs dédiés exclusifs aux entreprises ! Utilisez les dernières technologies IA à un coût minimal pour créer de la valeur et augmenter la productivité.
+          - generic [ref=e129]:
+            - img "Entièrement compatible" [ref=e130]
+            - heading "Entièrement compatible" [level=5] [ref=e131]
+            - paragraph [ref=e132]: Prise en charge de tous les modèles OpenAI/Claude/Gemini et de nombreuses applications et frameworks IA. Support complet pour le développement de produits IA ou l'entraînement de modèles personnalisés.
+          - generic [ref=e134]:
+            - img "Paiement à l'usage" [ref=e135]
+            - heading "Paiement à l'usage" [level=5] [ref=e136]
+            - paragraph [ref=e137]: Inscrivez-vous maintenant et profitez de crédits d'essai gratuits ! Sans souci de contrôle des risques, paiement à l'usage, recharge facile avec suivi en temps réel du solde et de l'utilisation.
+          - generic [ref=e139]:
+            - img "Service professionnel" [ref=e140]
+            - heading "Service professionnel" [level=5] [ref=e141]
+            - paragraph [ref=e142]: Support avant-vente et après-vente combinés, avec une interface claire et un processus simple. Développeurs comme non-techniciens peuvent facilement utiliser nos services.
+      - generic [ref=e145]:
+        - generic [ref=e146]:
+          - generic [ref=e147]: Intégration de services IA
+          - heading "Tout ce dont vous avez besoin ALL IN ONE" [level=2] [ref=e148]:
+            - text: Tout ce dont vous avez besoin
+            - generic [ref=e149]: ALL IN ONE
+          - generic [ref=e150]:
+            - paragraph [ref=e151]: Une seule API pour accéder à OpenAI, Claude, Gemini, LLaMA 3, Stable Diffusion, Midjourney, Suno et plus de 100 modèles IA.
+            - text: "* Les méthodes d'appel peuvent varier selon les modèles, veuillez consulter la documentation."
+        - img "Integration" [ref=e153]
+      - generic [ref=e155]:
+        - generic [ref=e157]:
+          - heading "Un Écosystème de services" [level=2] [ref=e158]:
+            - generic [ref=e159]: Un
+            - text: Écosystème de services
+          - paragraph [ref=e160]: Confiez-nous l'intégration complexe des modèles. Il vous suffit de vous inscrire, recharger et connecter votre application.
+        - generic [ref=e161]:
+          - generic [ref=e163]:
+            - generic [ref=e164]:
+              - generic [ref=e165]:
+                - img "Documentation" [ref=e166]
+                - generic [ref=e167]:
+                  - strong [ref=e169]: Documentation
+                  - generic [ref=e170]: Lors de la première utilisation, veuillez lire attentivement le tutoriel détaillé
+              - paragraph [ref=e171]: Inscrivez-vous d'abord, rechargez votre compte, puis utilisez la fonction chat dans la gestion des jetons ou copiez l'adresse API et la clé.
+            - button "Voir le tutoriel" [ref=e173] [cursor=pointer]
+          - generic [ref=e175]:
+            - generic [ref=e176]:
+              - generic [ref=e177]:
+                - img "Prix" [ref=e178]
+                - generic [ref=e179]:
+                  - strong [ref=e181]: Prix
+                  - generic [ref=e182]: Payez selon vos besoins, tarification transparente sans frais cachés pour maîtriser vos coûts
+              - paragraph [ref=e183]: Canaux officiels, Azure ou alternatifs — vous trouverez toujours le service et le prix souhaités. Nous garantissons de ne jamais mélanger les canaux, une tarification transparente et une annonce préalable des changements de prix.
+            - link "Voir les tarifs" [ref=e185] [cursor=pointer]:
+              - /url: /pricing
+          - generic [ref=e187]:
+            - generic [ref=e188]:
+              - generic [ref=e189]:
+                - img "Modèle" [ref=e190]
+                - generic [ref=e191]:
+                  - strong [ref=e193]: Modèle
+                  - generic [ref=e194]: Modèles IA texte/image/audio/vidéo, les choix les plus complets
+              - paragraph [ref=e195]: Prise en charge de dizaines de modèles dont OpenAI, Gemini, Claude, Zhipu, ainsi que des services Midjourney/Suno.
+            - link "Voir tous les modèles" [ref=e197] [cursor=pointer]:
+              - /url: /pricing
+      - generic [ref=e199]:
+        - generic [ref=e201]:
+          - generic [ref=e202]: FAQs
+          - heading "FAQ" [level=2] [ref=e203]
+        - generic [ref=e205]:
+          - generic [ref=e206]:
+            - generic [ref=e207] [cursor=pointer]:
+              - heading "Comment l'utiliser ?" [level=6] [ref=e208]
+              - img "minus" [ref=e209]:
+                - img [ref=e210]
+            - paragraph [ref=e215]: Il vous suffit de remplacer l'adresse API et la clé dans votre application/projet. N'hésitez pas à nous contacter pour toute question.
+          - generic [ref=e217] [cursor=pointer]:
+            - heading "Mes informations seront-elles divulguées ?" [level=6] [ref=e218]
+            - img "plus" [ref=e219]:
+              - img [ref=e220]
+          - generic [ref=e223] [cursor=pointer]:
+            - heading "Que faire si la connexion à votre API échoue ou est interrompue ?" [level=6] [ref=e224]
+            - img "plus" [ref=e225]:
+              - img [ref=e226]
+          - generic [ref=e229] [cursor=pointer]:
+            - heading "Comment calculez-vous les frais ?" [level=6] [ref=e230]
+            - img "plus" [ref=e231]:
+              - img [ref=e232]
+          - generic [ref=e235] [cursor=pointer]:
+            - heading "Puis-je obtenir une facture ?" [level=6] [ref=e236]
+            - img "plus" [ref=e237]:
+              - img [ref=e238]
+        - generic [ref=e242]:
+          - heading "Encore des questions ?" [level=4] [ref=e243]
+          - paragraph [ref=e244]: Consultez d'abord la documentation d'intégration et le guide d'utilisation pour résoudre rapidement la plupart des problèmes courants.
+          - button "Voir la documentation" [ref=e245] [cursor=pointer]
+      - generic [ref=e252]:
+        - img "rocket" [ref=e254]
+        - generic [ref=e255]:
+          - heading "Prêt ? Commencer maintenantl'expérience" [level=2] [ref=e256]:
+            - text: Prêt ?
+            - text: Commencer maintenantl'expérience
+          - generic [ref=e257]:
+            - link "Essayer maintenant" [ref=e258] [cursor=pointer]:
+              - /url: /console
+            - button "Voir la documentation" [ref=e259] [cursor=pointer]

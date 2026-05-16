@@ -1,0 +1,162 @@
+[    4029ms] [INFO] %cDownload the React DevTools for a better development experience: https://reactjs.org/link/react-devtools font-weight:bold @ http://localhost:5173/node_modules/.vite/deps/chunk-5B54REGN.js?v=0fca4dcc:21550
+[    4189ms] [LOG] %cWE ❤ NEWAPI%c Github: https://github.com/QuantumNous/new-api color: #10b981; font-weight: bold; font-size: 24px; color: inherit; font-size: 14px; @ http://localhost:5173/src/index.jsx:1633
+[    4198ms] [LOG] %c[code-inspector-plugin]
+%c• Press and hold %cshift %c+ %c⌥option %cto use the feature.
+• Press %cshift %c+ %c⌥option %c+ %cZ %cto see and change feature.
+• Current Feature: %cLocate Code color: #006aff; font-weight: bolder; font-size: 12px; color: #00B42A; font-family: PingFang SC; font-size: 12px; color: #006aff; font-weight: bold; font-family: PingFang SC; font-size: 12px; color: #00B42A; font-family: PingFang SC; font-size: 12px; color: #006aff; font-weight: bold; font-family: PingFang SC; font-size: 12px; color: #00B42A; font-family: PingFang SC; font-size: 12px; color: #006aff; font-weight: bold; font-family: PingFang SC; font-size: 12px; color: #00B42A; font-family: PingFang SC; font-size: 12px; color: #006aff; font-weight: bold; font-family: PingFang SC; font-size: 12px; color: #00B42A; font-family: PingFang SC; font-size: 12px; color: #006aff; font-weight: bold; font-family: PingFang SC; font-size: 12px; color: #00B42A; font-family: PingFang SC; font-size: 12px; color: #006aff; font-weight: bold; font-family: PingFang SC; font-size: 12px; @ http://localhost:5173/src/index.jsx:1495
+[    4260ms] [ERROR] Warning: findDOMNode is deprecated and will be removed in the next major release. Instead, add a ref directly to the element you want to reference. Learn more about using refs safely here: https://reactjs.org/link/strict-mode-find-node @ http://localhost:5173/src/index.jsx:42
+[    4262ms] [ERROR] Warning: %s is deprecated in StrictMode. %s was passed an instance of %s which is inside StrictMode. Instead, add a ref directly to the element you want to reference. Learn more about using refs safely here: https://reactjs.org/link/strict-mode-find-node%s findDOMNode findDOMNode Button2 
+    at button
+    at Button (http://localhost:5173/node_modules/.vite/deps/@douyinfe_semi-ui.js?v=116ff00b:35597:14)
+    at IconButton (http://localhost:5173/node_modules/.vite/deps/@douyinfe_semi-ui.js?v=116ff00b:35693:18)
+    at Button2 (http://localhost:5173/node_modules/.vite/deps/@douyinfe_semi-ui.js?v=116ff00b:36670:5)
+    at Tooltip2 (http://localhost:5173/node_modules/.vite/deps/chunk-YEM75KTT.js?v=0fca4dcc:5485:5)
+    at _Dropdown (http://localhost:5173/node_modules/.vite/deps/@douyinfe_semi-ui.js?v=116ff00b:60692:5)
+    at ThemeToggle (http://localhost:5173/src/components/layout/headerbar/ThemeToggle.jsx:215:24)
+    at div
+    at ActionButtons (http://localhost:5173/src/components/layout/headerbar/ActionButtons.jsx:24:3)
+    at div
+    at div
+    at div
+    at header
+    at HeaderBar (http://localhost:5173/src/components/layout/headerbar/index.jsx:55:22)
+    at header
+    at Basic (http://localhost:5173/node_modules/.vite/deps/@douyinfe_semi-ui.js?v=116ff00b:61310:13)
+    at Adapter (http://localhost:5173/node_modules/.vite/deps/@douyinfe_semi-ui.js?v=116ff00b:61299:30)
+    at section
+    at Layout (http://localhost:5173/node_modules/.vite/deps/@douyinfe_semi-ui.js?v=116ff00b:61338:5)
+    at PageLayout (http://localhost:5173/src/components/layout/PageLayout.jsx:43:37)
+    at LocaleProvider (http://localhost:5173/node_modules/.vite/deps/@douyinfe_semi-ui.js?v=116ff00b:91970:5)
+    at SemiLocaleWrapper (http://localhost:5173/src/index.jsx:1640:30)
+    at ThemeProvider (http://localhost:5173/src/context/Theme/index.jsx:49:33)
+    at Router (http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=0e3bb28a:4544:15)
+    at BrowserRouter (http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=0e3bb28a:5290:5)
+    at UserProvider (http://localhost:5173/src/context/User/index.jsx:26:32)
+    at StatusProvider (http://localhost:5173/src/context/Status/index.jsx:24:34) @ http://localhost:5173/src/index.jsx:42
+[    4486ms] [VERBOSE] [DOM] Input elements should have autocomplete attributes (suggested: "current-password"): (More info: https://goo.gl/9p2vKq) %o @ http://localhost:5173/login:0
+[   62255ms] [VERBOSE] [DOM] Input elements should have autocomplete attributes (suggested: "current-password"): (More info: https://goo.gl/9p2vKq) %o @ http://localhost:5173/login:0
+[   64060ms] [ERROR] Warning: Received `%s` for a non-boolean attribute `%s`.
+
+If you want to write it to the DOM, pass a string instead: %s="%s" or %s={value.toString()}.%s true active active true active 
+    at div
+    at Generic (http://localhost:5173/node_modules/.vite/deps/@douyinfe_semi-ui.js?v=116ff00b:38918:15)
+    at div
+    at Divider (http://localhost:5173/node_modules/.vite/deps/@douyinfe_semi-ui.js?v=116ff00b:58994:5)
+    at div
+    at SelectableButtonGroup (http://localhost:5173/src/components/common/ui/SelectableButtonGroup.jsx:33:3)
+    at PricingVendors (http://localhost:5173/src/components/table/model-pricing/filter/PricingVendors.jsx:22:3)
+    at div
+    at PricingSidebar (http://localhost:5173/src/components/table/model-pricing/layout/PricingSidebar.jsx:28:3)
+    at div
+    at aside
+    at Sider (http://localhost:5173/node_modules/.vite/deps/@douyinfe_semi-ui.js?v=116ff00b:61209:5)
+    at section
+    at Layout (http://localhost:5173/node_modules/.vite/deps/@douyinfe_semi-ui.js?v=116ff00b:61338:5)
+    at div
+    at PricingPage (http://localhost:5173/src/components/table/model-pricing/layout/PricingPage.jsx:27:23)
+    at Pricing
+    at Suspense
+    at RenderedRoute (http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=0e3bb28a:4131:5)
+    at Routes (http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=0e3bb28a:4601:5)
+    at SetupCheck (http://localhost:5173/src/components/layout/SetupCheck.js:4:23)
+    at App (http://localhost:5173/src/App.jsx:111:20)
+    at ErrorBoundary (http://localhost:5173/src/components/common/ErrorBoundary.jsx:13:5)
+    at I18nextWithTranslation (http://localhost:5173/node_modules/.vite/deps/react-i18next.js?v=8944c068:717:9)
+    at main
+    at Basic (http://localhost:5173/node_modules/.vite/deps/@douyinfe_semi-ui.js?v=116ff00b:61310:13)
+    at Adapter (http://localhost:5173/node_modules/.vite/deps/@douyinfe_semi-ui.js?v=116ff00b:61299:30)
+    at section
+    at Layout (http://localhost:5173/node_modules/.vite/deps/@douyinfe_semi-ui.js?v=116ff00b:61338:5)
+    at section
+    at Layout (http://localhost:5173/node_modules/.vite/deps/@douyinfe_semi-ui.js?v=116ff00b:61338:5)
+    at section
+    at Layout (http://localhost:5173/node_modules/.vite/deps/@douyinfe_semi-ui.js?v=116ff00b:61338:5)
+    at PageLayout (http://localhost:5173/src/components/layout/PageLayout.jsx:43:37)
+    at LocaleProvider (http://localhost:5173/node_modules/.vite/deps/@douyinfe_semi-ui.js?v=116ff00b:91970:5)
+    at SemiLocaleWrapper (http://localhost:5173/src/index.jsx:1640:30)
+    at ThemeProvider (http://localhost:5173/src/context/Theme/index.jsx:49:33)
+    at Router (http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=0e3bb28a:4544:15)
+    at BrowserRouter (http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=0e3bb28a:5290:5)
+    at UserProvider (http://localhost:5173/src/context/User/index.jsx:26:32)
+    at StatusProvider (http://localhost:5173/src/context/Status/index.jsx:24:34) @ http://localhost:5173/src/index.jsx:42
+[   64094ms] [ERROR] Warning: Failed %s type: %s%s prop Invalid prop `type` of value `button` supplied to `Button2`, expected one of ["primary","secondary","tertiary","warning","danger"]. 
+    at Button2 (http://localhost:5173/node_modules/.vite/deps/@douyinfe_semi-ui.js?v=116ff00b:36670:5)
+    at ModelDetailSideSheet (http://localhost:5173/src/components/table/model-pricing/modal/ModelDetailSideSheet.jsx:29:3)
+    at div
+    at PricingPage (http://localhost:5173/src/components/table/model-pricing/layout/PricingPage.jsx:27:23)
+    at Pricing
+    at Suspense
+    at RenderedRoute (http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=0e3bb28a:4131:5)
+    at Routes (http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=0e3bb28a:4601:5)
+    at SetupCheck (http://localhost:5173/src/components/layout/SetupCheck.js:4:23)
+    at App (http://localhost:5173/src/App.jsx:111:20)
+    at ErrorBoundary (http://localhost:5173/src/components/common/ErrorBoundary.jsx:13:5)
+    at I18nextWithTranslation (http://localhost:5173/node_modules/.vite/deps/react-i18next.js?v=8944c068:717:9)
+    at main
+    at Basic (http://localhost:5173/node_modules/.vite/deps/@douyinfe_semi-ui.js?v=116ff00b:61310:13)
+    at Adapter (http://localhost:5173/node_modules/.vite/deps/@douyinfe_semi-ui.js?v=116ff00b:61299:30)
+    at section
+    at Layout (http://localhost:5173/node_modules/.vite/deps/@douyinfe_semi-ui.js?v=116ff00b:61338:5)
+    at section
+    at Layout (http://localhost:5173/node_modules/.vite/deps/@douyinfe_semi-ui.js?v=116ff00b:61338:5)
+    at section
+    at Layout (http://localhost:5173/node_modules/.vite/deps/@douyinfe_semi-ui.js?v=116ff00b:61338:5)
+    at PageLayout (http://localhost:5173/src/components/layout/PageLayout.jsx:43:37)
+    at LocaleProvider (http://localhost:5173/node_modules/.vite/deps/@douyinfe_semi-ui.js?v=116ff00b:91970:5)
+    at SemiLocaleWrapper (http://localhost:5173/src/index.jsx:1640:30)
+    at ThemeProvider (http://localhost:5173/src/context/Theme/index.jsx:49:33)
+    at Router (http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=0e3bb28a:4544:15)
+    at BrowserRouter (http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=0e3bb28a:5290:5)
+    at UserProvider (http://localhost:5173/src/context/User/index.jsx:26:32)
+    at StatusProvider (http://localhost:5173/src/context/Status/index.jsx:24:34) @ http://localhost:5173/src/index.jsx:42
+[   65138ms] [ERROR] Warning: %s is deprecated in StrictMode. %s was passed an instance of %s which is inside StrictMode. Instead, add a ref directly to the element you want to reference. Learn more about using refs safely here: https://reactjs.org/link/strict-mode-find-node%s findDOMNode findDOMNode ReactResizeObserver 
+    at p
+    at Typography (http://localhost:5173/node_modules/.vite/deps/chunk-YEM75KTT.js?v=0fca4dcc:6480:18)
+    at LocaleConsumer (http://localhost:5173/node_modules/.vite/deps/chunk-YEM75KTT.js?v=0fca4dcc:6181:22)
+    at ReactResizeObserver (http://localhost:5173/node_modules/.vite/deps/chunk-YEM75KTT.js?v=0fca4dcc:7207:5)
+    at Base (http://localhost:5173/node_modules/.vite/deps/chunk-YEM75KTT.js?v=0fca4dcc:7379:5)
+    at Paragraph (http://localhost:5173/node_modules/.vite/deps/@douyinfe_semi-ui.js?v=116ff00b:31301:17)
+    at div
+    at div
+    at div
+    at div
+    at div
+    at Card (http://localhost:5173/node_modules/.vite/deps/@douyinfe_semi-ui.js?v=116ff00b:39164:5)
+    at http://localhost:5173/src/components/table/model-pricing/layout/header/PricingVendorIntro.jsx:125:7
+    at http://localhost:5173/src/components/table/model-pricing/layout/header/PricingVendorIntroWithSkeleton.jsx:24:8
+    at http://localhost:5173/src/components/table/model-pricing/layout/header/PricingTopSection.jsx:25:7
+    at div
+    at div
+    at PricingContent (http://localhost:5173/src/components/table/model-pricing/layout/content/PricingContent.jsx:20:27)
+    at main
+    at Basic (http://localhost:5173/node_modules/.vite/deps/@douyinfe_semi-ui.js?v=116ff00b:61310:13)
+    at Adapter (http://localhost:5173/node_modules/.vite/deps/@douyinfe_semi-ui.js?v=116ff00b:61299:30)
+    at section
+    at Layout (http://localhost:5173/node_modules/.vite/deps/@douyinfe_semi-ui.js?v=116ff00b:61338:5)
+    at div
+    at PricingPage (http://localhost:5173/src/components/table/model-pricing/layout/PricingPage.jsx:27:23)
+    at Pricing
+    at Suspense
+    at RenderedRoute (http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=0e3bb28a:4131:5)
+    at Routes (http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=0e3bb28a:4601:5)
+    at SetupCheck (http://localhost:5173/src/components/layout/SetupCheck.js:4:23)
+    at App (http://localhost:5173/src/App.jsx:111:20)
+    at ErrorBoundary (http://localhost:5173/src/components/common/ErrorBoundary.jsx:13:5)
+    at I18nextWithTranslation (http://localhost:5173/node_modules/.vite/deps/react-i18next.js?v=8944c068:717:9)
+    at main
+    at Basic (http://localhost:5173/node_modules/.vite/deps/@douyinfe_semi-ui.js?v=116ff00b:61310:13)
+    at Adapter (http://localhost:5173/node_modules/.vite/deps/@douyinfe_semi-ui.js?v=116ff00b:61299:30)
+    at section
+    at Layout (http://localhost:5173/node_modules/.vite/deps/@douyinfe_semi-ui.js?v=116ff00b:61338:5)
+    at section
+    at Layout (http://localhost:5173/node_modules/.vite/deps/@douyinfe_semi-ui.js?v=116ff00b:61338:5)
+    at section
+    at Layout (http://localhost:5173/node_modules/.vite/deps/@douyinfe_semi-ui.js?v=116ff00b:61338:5)
+    at PageLayout (http://localhost:5173/src/components/layout/PageLayout.jsx:43:37)
+    at LocaleProvider (http://localhost:5173/node_modules/.vite/deps/@douyinfe_semi-ui.js?v=116ff00b:91970:5)
+    at SemiLocaleWrapper (http://localhost:5173/src/index.jsx:1640:30)
+    at ThemeProvider (http://localhost:5173/src/context/Theme/index.jsx:49:33)
+    at Router (http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=0e3bb28a:4544:15)
+    at BrowserRouter (http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=0e3bb28a:5290:5)
+    at UserProvider (http://localhost:5173/src/context/User/index.jsx:26:32)
+    at StatusProvider (http://localhost:5173/src/context/Status/index.jsx:24:34) @ http://localhost:5173/src/index.jsx:42

@@ -1,0 +1,147 @@
+- generic [ref=e3]:
+  - generic [ref=e7]:
+    - link "logo AI模型一站式网关" [ref=e9] [cursor=pointer]:
+      - /url: /
+      - img "logo" [ref=e12]
+      - generic [ref=e17]: AI模型一站式网关
+    - generic [ref=e18]:
+      - navigation [ref=e19]
+      - generic [ref=e32]:
+        - button "系统公告" [ref=e33] [cursor=pointer]:
+          - img [ref=e35]
+        - button "切换主题" [ref=e38] [cursor=pointer]:
+          - img [ref=e40]
+        - button "common.changeLanguage" [ref=e44] [cursor=pointer]:
+          - img [ref=e46]
+  - generic [ref=e56]:
+    - complementary [ref=e57]
+    - generic [ref=e165]:
+      - main [ref=e166]:
+        - main [ref=e169]:
+          - generic [ref=e170]:
+            - tablist [ref=e171]:
+              - generic [ref=e172]:
+                - button "chevron_left" [disabled] [ref=e173]:
+                  - img "chevron_left" [ref=e175]:
+                    - img [ref=e176]
+                - generic [ref=e178]:
+                  - tab "运营设置" [ref=e179] [cursor=pointer]:
+                    - generic [ref=e180]:
+                      - img [ref=e181]
+                      - text: 运营设置
+                  - tab "仪表盘设置" [ref=e184] [cursor=pointer]:
+                    - generic [ref=e185]:
+                      - img [ref=e186]
+                      - text: 仪表盘设置
+                  - tab "聊天设置" [ref=e191] [cursor=pointer]:
+                    - generic [ref=e192]:
+                      - img [ref=e193]
+                      - text: 聊天设置
+                  - tab "绘图设置" [ref=e195] [cursor=pointer]:
+                    - generic [ref=e196]:
+                      - img [ref=e197]
+                      - text: 绘图设置
+                  - tab "支付设置" [ref=e203] [cursor=pointer]:
+                    - generic [ref=e204]:
+                      - img [ref=e205]
+                      - text: 支付设置
+                  - tab "返佣设置" [ref=e207] [cursor=pointer]:
+                    - generic [ref=e208]:
+                      - img [ref=e209]
+                      - text: 返佣设置
+                  - tab "分组与模型定价设置" [selected] [ref=e214]:
+                    - generic [ref=e215]:
+                      - img [ref=e216]
+                      - text: 分组与模型定价设置
+                  - tab "速率限制设置" [ref=e218] [cursor=pointer]:
+                    - generic [ref=e219]:
+                      - img [ref=e220]
+                      - text: 速率限制设置
+                  - tab "模型相关设置" [ref=e223] [cursor=pointer]:
+                    - generic [ref=e224]:
+                      - img [ref=e225]
+                      - text: 模型相关设置
+                  - tab "模型部署设置" [ref=e229] [cursor=pointer]:
+                    - generic [ref=e230]:
+                      - img [ref=e231]
+                      - text: 模型部署设置
+                  - tab "性能设置" [ref=e234] [cursor=pointer]:
+                    - generic [ref=e235]:
+                      - img [ref=e236]
+                      - text: 性能设置
+                  - tab "系统设置" [ref=e238] [cursor=pointer]:
+                    - generic [ref=e239]:
+                      - img [ref=e240]
+                      - text: 系统设置
+                  - tab "其他设置" [ref=e251] [cursor=pointer]:
+                    - generic [ref=e252]:
+                      - img [ref=e253]
+                      - text: 其他设置
+                - button "chevron_right" [ref=e258] [cursor=pointer]:
+                  - img "chevron_right" [ref=e260]:
+                    - img [ref=e261]
+            - tabpanel "分组与模型定价设置" [ref=e264]:
+              - generic [ref=e270]:
+                - tablist [ref=e271]:
+                  - tab "模型定价设置" [selected] [ref=e272]
+                  - tab "分组相关设置" [ref=e273] [cursor=pointer]
+                  - tab "未设置价格模型" [ref=e274] [cursor=pointer]
+                  - tab "上游倍率同步" [ref=e275] [cursor=pointer]
+                  - tab "工具调用定价" [ref=e276] [cursor=pointer]
+                - tabpanel "模型定价设置" [ref=e278]:
+                  - generic [ref=e280]:
+                    - generic [ref=e282]:
+                      - generic [ref=e283] [cursor=pointer]:
+                        - generic [ref=e284]:
+                          - radio "可视化编辑" [ref=e285]
+                          - img "radio" [ref=e287]:
+                            - img [ref=e288]
+                        - generic [ref=e291]: 可视化编辑
+                      - generic [ref=e292] [cursor=pointer]:
+                        - radio "手动编辑" [ref=e294]
+                        - generic [ref=e296]: 手动编辑
+                    - generic [ref=e297]:
+                      - generic [ref=e298]:
+                        - button "plus 添加模型" [ref=e299] [cursor=pointer]:
+                          - generic [ref=e300]:
+                            - img "plus" [ref=e301]:
+                              - img [ref=e302]
+                            - generic [ref=e304]: 添加模型
+                        - button "save 应用更改" [ref=e305] [cursor=pointer]:
+                          - generic [ref=e306]:
+                            - img "save" [ref=e307]:
+                              - img [ref=e308]
+                            - generic [ref=e310]: 应用更改
+                        - button "批量应用当前模型价格" [disabled] [ref=e311]:
+                          - generic [ref=e312]: 批量应用当前模型价格
+                        - generic [ref=e313]:
+                          - img "search" [ref=e315]:
+                            - img [ref=e316]
+                          - textbox "搜索模型名称" [ref=e318]
+                        - generic [ref=e319] [cursor=pointer]:
+                          - checkbox "仅显示矛盾倍率" [ref=e321]
+                          - generic [ref=e324]: 仅显示矛盾倍率
+                      - generic [ref=e325]:
+                        - generic [ref=e334]:
+                          - grid [ref=e335]:
+                            - rowgroup [ref=e342]:
+                              - row "Select all rows 模型名称 计费方式 价格摘要 操作" [ref=e343]:
+                                - columnheader "Select all rows" [ref=e344]:
+                                  - checkbox "Select all rows" [ref=e348]
+                                - columnheader "模型名称" [ref=e350]
+                                - columnheader "计费方式" [ref=e351]
+                                - columnheader "价格摘要" [ref=e352]
+                                - columnheader "操作" [ref=e353]
+                            - rowgroup
+                          - generic [ref=e356]: 暂无模型
+                        - generic [ref=e358]:
+                          - heading "模型计费编辑器" [level=6] [ref=e362]
+                          - generic [ref=e365]:
+                            - heading "暂无模型" [level=6] [ref=e366]
+                            - generic [ref=e367]: 请先新增模型或从左侧列表选择一个模型
+      - generic [ref=e372]:
+        - generic [ref=e374]: © 2026 OneDayAI - 本地站. 版权所有
+        - generic [ref=e375]:
+          - generic [ref=e376]: 设计与开发由
+          - link "New API" [ref=e377] [cursor=pointer]:
+            - /url: https://github.com/QuantumNous/new-api

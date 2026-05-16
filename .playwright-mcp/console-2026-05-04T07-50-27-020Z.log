@@ -1,0 +1,3 @@
+[     524ms] [LOG] %cWE ❤ NEWAPI%c Github: https://github.com/QuantumNous/new-api color: #10b981; font-weight: bold; font-size: 24px; color: inherit; font-size: 14px; @ http://127.0.0.1:3000/assets/index-Cnq5Murj.js:14034
+[     681ms] [LOG]  data is ? {amount_options: Array(6), creem_products: [], discount: Object, enable_creem_topup: false, enable_online_topup: true} @ http://127.0.0.1:3000/assets/index-Cbkklfdw.js:10
+[     682ms] [LOG]  creem products is ? [] @ http://127.0.0.1:3000/assets/index-Cbkklfdw.js:10

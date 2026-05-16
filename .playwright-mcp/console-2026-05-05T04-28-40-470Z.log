@@ -1,0 +1,36 @@
+[     336ms] [INFO] %cDownload the React DevTools for a better development experience: https://reactjs.org/link/react-devtools font-weight:bold @ http://localhost:5173/node_modules/.vite/deps/chunk-5B54REGN.js?v=0fca4dcc:21550
+[     420ms] [LOG] %cWE ❤ NEWAPI%c Github: https://github.com/QuantumNous/new-api color: #10b981; font-weight: bold; font-size: 24px; color: inherit; font-size: 14px; @ http://localhost:5173/src/index.jsx?t=1777955301807:1633
+[     422ms] [LOG] %c[code-inspector-plugin]
+%c• Press and hold %cshift %c+ %c⌥option %cto use the feature.
+• Press %cshift %c+ %c⌥option %c+ %cZ %cto see and change feature.
+• Current Feature: %cLocate Code color: #006aff; font-weight: bolder; font-size: 12px; color: #00B42A; font-family: PingFang SC; font-size: 12px; color: #006aff; font-weight: bold; font-family: PingFang SC; font-size: 12px; color: #00B42A; font-family: PingFang SC; font-size: 12px; color: #006aff; font-weight: bold; font-family: PingFang SC; font-size: 12px; color: #00B42A; font-family: PingFang SC; font-size: 12px; color: #006aff; font-weight: bold; font-family: PingFang SC; font-size: 12px; color: #00B42A; font-family: PingFang SC; font-size: 12px; color: #006aff; font-weight: bold; font-family: PingFang SC; font-size: 12px; color: #00B42A; font-family: PingFang SC; font-size: 12px; color: #006aff; font-weight: bold; font-family: PingFang SC; font-size: 12px; color: #00B42A; font-family: PingFang SC; font-size: 12px; color: #006aff; font-weight: bold; font-family: PingFang SC; font-size: 12px; @ http://localhost:5173/src/index.jsx?t=1777955301807:1495
+[     452ms] [ERROR] Warning: findDOMNode is deprecated and will be removed in the next major release. Instead, add a ref directly to the element you want to reference. Learn more about using refs safely here: https://reactjs.org/link/strict-mode-find-node @ http://localhost:5173/src/index.jsx?t=1777955301807:42
+[     452ms] [ERROR] Warning: %s is deprecated in StrictMode. %s was passed an instance of %s which is inside StrictMode. Instead, add a ref directly to the element you want to reference. Learn more about using refs safely here: https://reactjs.org/link/strict-mode-find-node%s findDOMNode findDOMNode Button2 
+    at button
+    at Button (http://localhost:5173/node_modules/.vite/deps/@douyinfe_semi-ui.js?v=116ff00b:35597:14)
+    at IconButton (http://localhost:5173/node_modules/.vite/deps/@douyinfe_semi-ui.js?v=116ff00b:35693:18)
+    at Button2 (http://localhost:5173/node_modules/.vite/deps/@douyinfe_semi-ui.js?v=116ff00b:36670:5)
+    at Tooltip2 (http://localhost:5173/node_modules/.vite/deps/chunk-YEM75KTT.js?v=0fca4dcc:5485:5)
+    at _Dropdown (http://localhost:5173/node_modules/.vite/deps/@douyinfe_semi-ui.js?v=116ff00b:60692:5)
+    at ThemeToggle (http://localhost:5173/src/components/layout/headerbar/ThemeToggle.jsx:215:24)
+    at div
+    at ActionButtons (http://localhost:5173/src/components/layout/headerbar/ActionButtons.jsx:24:3)
+    at div
+    at div
+    at div
+    at header
+    at HeaderBar (http://localhost:5173/src/components/layout/headerbar/index.jsx:55:22)
+    at header
+    at Basic (http://localhost:5173/node_modules/.vite/deps/@douyinfe_semi-ui.js?v=116ff00b:61310:13)
+    at Adapter (http://localhost:5173/node_modules/.vite/deps/@douyinfe_semi-ui.js?v=116ff00b:61299:30)
+    at section
+    at Layout (http://localhost:5173/node_modules/.vite/deps/@douyinfe_semi-ui.js?v=116ff00b:61338:5)
+    at PageLayout (http://localhost:5173/src/components/layout/PageLayout.jsx:43:37)
+    at LocaleProvider (http://localhost:5173/node_modules/.vite/deps/@douyinfe_semi-ui.js?v=116ff00b:91970:5)
+    at SemiLocaleWrapper (http://localhost:5173/src/index.jsx?t=1777955301807:1640:30)
+    at ThemeProvider (http://localhost:5173/src/context/Theme/index.jsx:49:33)
+    at Router (http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=0e3bb28a:4544:15)
+    at BrowserRouter (http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=0e3bb28a:5290:5)
+    at UserProvider (http://localhost:5173/src/context/User/index.jsx:26:32)
+    at StatusProvider (http://localhost:5173/src/context/Status/index.jsx:24:34) @ http://localhost:5173/src/index.jsx?t=1777955301807:42
+[     574ms] [VERBOSE] [DOM] Input elements should have autocomplete attributes (suggested: "current-password"): (More info: https://goo.gl/9p2vKq) %o @ http://localhost:5173/login:0

@@ -1,0 +1,4 @@
+[     409ms] [LOG] %cWE ❤ NEWAPI%c Github: https://github.com/QuantumNous/new-api color: #10b981; font-weight: bold; font-size: 24px; color: inherit; font-size: 14px; @ http://127.0.0.1:3000/assets/index-CO6lUvZW.js:14034
+[     507ms] [LOG]  data is ? {amount_options: Array(6), creem_products: [], discount: Object, enable_creem_topup: false, enable_online_topup: true} @ http://127.0.0.1:3000/assets/index-BCsj5jf8.js:10
+[     509ms] [LOG]  creem products is ? [] @ http://127.0.0.1:3000/assets/index-BCsj5jf8.js:10
+[   42825ms] [ERROR] Failed to load resource: the server responded with a status of 401 (Unauthorized) @ http://127.0.0.1:3000/api/user/orders/self?p=0&page_size=10:0

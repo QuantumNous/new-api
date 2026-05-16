@@ -1,0 +1,437 @@
+- generic [ref=e3]:
+  - generic [ref=e7]:
+    - link "logo OneDayAI - 本地站 All In One API Gateway" [ref=e174] [cursor=pointer]:
+      - /url: /
+      - img "logo" [ref=e12]
+      - generic [ref=e13]:
+        - heading "OneDayAI - 本地站" [level=4] [ref=e175]
+        - generic [ref=e17]: All In One API Gateway
+    - generic [ref=e18]:
+      - navigation [ref=e19]:
+        - link "Accueil" [ref=e176] [cursor=pointer]:
+          - /url: /
+          - generic [ref=e178]: Accueil
+        - link "Console" [ref=e179] [cursor=pointer]:
+          - /url: /console
+          - generic [ref=e181]: Console
+        - link "Marché des modèles" [ref=e182] [cursor=pointer]:
+          - /url: /pricing
+          - generic [ref=e184]: Marché des modèles
+        - link "Documentation" [ref=e185] [cursor=pointer]:
+          - /url: https://ncn174iua0ln.feishu.cn/wiki/BHSdwA8uZi9sPkkqf0ocHch5nMf
+          - generic [ref=e187]: Documentation
+        - link "SLA" [ref=e188] [cursor=pointer]:
+          - /url: https://status.autocode.space/status/autocode
+          - generic [ref=e190]: SLA
+      - generic [ref=e32]:
+        - button "Avis système" [ref=e33] [cursor=pointer]:
+          - img [ref=e35]
+        - button "Changer de thème" [ref=e38] [cursor=pointer]:
+          - img [ref=e40]
+        - button "Changer de langue" [ref=e44] [cursor=pointer]:
+          - img [ref=e46]
+        - button "Z zhangsan" [ref=e192] [cursor=pointer]:
+          - generic [ref=e194]:
+            - listitem [ref=e195]:
+              - img "Z" [ref=e197]
+            - generic [ref=e199]: zhangsan
+            - img [ref=e201]
+  - generic [ref=e56]:
+    - complementary [ref=e57]:
+      - generic [ref=e59]:
+        - menu [ref=e207]:
+          - generic [ref=e209]:
+            - generic [ref=e210]: Console
+            - link "Tableau de bord" [ref=e211] [cursor=pointer]:
+              - /url: /console
+              - menuitem "Tableau de bord" [ref=e212]:
+                - img [ref=e215]
+                - generic [ref=e220]: Tableau de bord
+            - link "Jetons" [ref=e221] [cursor=pointer]:
+              - /url: /console/token
+              - menuitem "Jetons" [ref=e222]:
+                - img [ref=e225]
+                - generic [ref=e229]: Jetons
+            - link "Journaux" [ref=e230] [cursor=pointer]:
+              - /url: /console/log
+              - menuitem "Journaux" [ref=e231]:
+                - img [ref=e234]
+                - generic [ref=e236]: Journaux
+          - generic [ref=e238]:
+            - generic [ref=e239]: Centre personnel
+            - link "Portefeuille" [ref=e240] [cursor=pointer]:
+              - /url: /console/topup
+              - menuitem "Portefeuille" [ref=e241]:
+                - img [ref=e244]
+                - generic [ref=e246]: Portefeuille
+            - link "Commandes de recharge" [ref=e247] [cursor=pointer]:
+              - /url: /console/invoice
+              - menuitem "Commandes de recharge" [ref=e248]:
+                - img [ref=e251]
+                - generic [ref=e255]: Commandes de recharge
+            - link "Gestion des commissions" [ref=e256] [cursor=pointer]:
+              - /url: /console/commission
+              - menuitem "Gestion des commissions" [ref=e257]:
+                - img [ref=e260]
+                - generic [ref=e265]: Gestion des commissions
+            - link "Outil de génération d'images" [ref=e266] [cursor=pointer]:
+              - /url: /console/image-studio
+              - menuitem "Outil de génération d'images" [ref=e267]:
+                - img [ref=e270]
+                - generic [ref=e276]: Outil de génération d'images
+            - link "Profil" [ref=e277] [cursor=pointer]:
+              - /url: /console/personal
+              - menuitem "Profil" [ref=e278]:
+                - img [ref=e281]
+                - generic [ref=e284]: Profil
+          - generic [ref=e286]:
+            - generic [ref=e287]: Admin
+            - link "Canaux" [ref=e288] [cursor=pointer]:
+              - /url: /console/channel
+              - menuitem "Canaux" [ref=e289]:
+                - img [ref=e292]
+                - generic [ref=e296]: Canaux
+            - link "Gestion des abonnements" [ref=e297] [cursor=pointer]:
+              - /url: /console/subscription
+              - menuitem "Gestion des abonnements" [ref=e298]:
+                - img [ref=e301]
+                - generic [ref=e305]: Gestion des abonnements
+            - link "Codes d'échange" [ref=e306] [cursor=pointer]:
+              - /url: /console/redemption
+              - menuitem "Codes d'échange" [ref=e307]:
+                - img [ref=e310]
+                - generic [ref=e314]: Codes d'échange
+            - link "Utilisateurs" [ref=e315] [cursor=pointer]:
+              - /url: /console/user
+              - menuitem "Utilisateurs" [ref=e316]:
+                - img [ref=e319]
+                - generic [ref=e322]: Utilisateurs
+            - link "Système" [ref=e323] [cursor=pointer]:
+              - /url: /console/setting
+              - menuitem "Système" [ref=e324]:
+                - img [ref=e327]
+                - generic [ref=e330]: Système
+        - button "Réduire la barre latérale" [ref=e331] [cursor=pointer]:
+          - generic [ref=e332]:
+            - img [ref=e333]
+            - generic [ref=e335]: Réduire la barre latérale
+    - main [ref=e166]:
+      - generic [ref=e337]:
+        - generic [ref=e341]:
+          - generic [ref=e342]:
+            - tablist [ref=e343]:
+              - generic [ref=e344]:
+                - button "chevron_left" [disabled] [ref=e345]:
+                  - img "chevron_left" [ref=e347]:
+                    - img [ref=e348]
+                - generic [ref=e350]:
+                  - tab "Tous 5" [selected] [ref=e351]:
+                    - generic [ref=e352]:
+                      - text: Tous
+                      - generic [ref=e354]: "5"
+                  - tab "OpenAI OpenAI 2" [ref=e355] [cursor=pointer]:
+                    - generic [ref=e356]:
+                      - img "OpenAI" [ref=e357]
+                      - text: OpenAI
+                      - generic [ref=e360]: "2"
+                  - tab "Claude Anthropic Claude 1" [ref=e361] [cursor=pointer]:
+                    - generic [ref=e362]:
+                      - img "Claude" [ref=e363]
+                      - text: Anthropic Claude
+                      - generic [ref=e366]: "1"
+                  - tab "FastGPT 自定义渠道 2" [ref=e367] [cursor=pointer]:
+                    - generic [ref=e368]:
+                      - img "FastGPT" [ref=e369]
+                      - text: 自定义渠道
+                      - generic [ref=e373]: "2"
+                - button "chevron_right" [disabled] [ref=e374]:
+                  - img "chevron_right" [ref=e376]:
+                    - img [ref=e377]
+            - generic:
+              - tabpanel "Tous 5"
+          - generic [ref=e379]:
+            - generic [ref=e382]:
+              - generic [ref=e383]:
+                - button "Supprimer les canaux sélectionnés" [disabled] [ref=e384]:
+                  - generic [ref=e385]: Supprimer les canaux sélectionnés
+                - button "Définir l'étiquette par lots" [disabled] [ref=e386]:
+                  - generic [ref=e387]: Définir l'étiquette par lots
+                - button "Opérations par lots" [ref=e388] [cursor=pointer]:
+                  - generic [ref=e389]: Opérations par lots
+                - button "Liste compacte" [ref=e390] [cursor=pointer]:
+                  - generic [ref=e391]: Liste compacte
+              - generic [ref=e392]:
+                - generic [ref=e393]:
+                  - strong [ref=e395]: Trier par ID
+                  - switch [ref=e398] [cursor=pointer]
+                - generic [ref=e399]:
+                  - strong [ref=e401]: Activer la sélection par lots
+                  - switch [ref=e404] [cursor=pointer]
+                - generic [ref=e405]:
+                  - strong [ref=e407]: Activer le mode étiquette
+                  - switch [ref=e410] [cursor=pointer]
+                - generic [ref=e411]:
+                  - strong [ref=e413]: Filtre d'état
+                  - combobox "selected" [ref=e414] [cursor=pointer]:
+                    - generic [ref=e417]: Tous
+                    - img [ref=e419]:
+                      - img [ref=e420]
+            - generic [ref=e424]:
+              - generic [ref=e425]:
+                - button "Ajouter un canal" [ref=e426] [cursor=pointer]:
+                  - generic [ref=e427]: Ajouter un canal
+                - button "Actualiser" [ref=e428] [cursor=pointer]:
+                  - generic [ref=e429]: Actualiser
+                - button "Colonnes" [ref=e430] [cursor=pointer]:
+                  - generic [ref=e431]: Colonnes
+              - generic [ref=e433]:
+                - generic [ref=e435]:
+                  - img "search" [ref=e437]:
+                    - img [ref=e438]
+                  - textbox "ID du canal, nom, clé, URL de base" [ref=e440]
+                - generic [ref=e442]:
+                  - img "search" [ref=e444]:
+                    - img [ref=e445]
+                  - textbox "mot-clé du modèle" [ref=e447]
+                - combobox "selected" [ref=e449] [cursor=pointer]:
+                  - generic [ref=e452]: Sélectionner un groupe
+                  - img [ref=e454]:
+                    - img [ref=e455]
+                - button "Requête" [ref=e457] [cursor=pointer]:
+                  - generic [ref=e458]: Requête
+                - button "Réinitialisation" [ref=e459] [cursor=pointer]:
+                  - generic [ref=e460]: Réinitialisation
+        - grid [ref=e468]:
+          - rowgroup [ref=e480]:
+            - row "ID Nom Groupe Type Statut Temps de réponse Utilisé/Restant Priorité Poids" [ref=e481]:
+              - columnheader "ID" [ref=e482]
+              - columnheader "Nom" [ref=e483]
+              - columnheader "Groupe" [ref=e484]
+              - columnheader "Type" [ref=e485]
+              - columnheader "Statut" [ref=e486]
+              - columnheader "Temps de réponse" [ref=e487]
+              - columnheader "Utilisé/Restant" [ref=e488]
+              - columnheader "Priorité" [ref=e489]
+              - columnheader "Poids" [ref=e490]
+              - columnheader [ref=e491]
+          - rowgroup [ref=e492]:
+            - 'row "6 Codex_vip_image_edit_自建 Tag: vip Tag: 自定义渠道 Tag: Activé Tag: Non testé Tag: $2.00 Tag: $0 0 0 Tester un seul groupe de projet d''opération de canal Désactiver Modifier more" [ref=e493]':
+              - gridcell "6" [ref=e494]
+              - gridcell "Codex_vip_image_edit_自建" [ref=e495]
+              - 'gridcell "Tag: vip" [ref=e496]':
+                - 'button "Tag: vip" [ref=e500] [cursor=pointer]':
+                  - generic [ref=e501]: vip
+              - 'gridcell "Tag: 自定义渠道" [ref=e502]':
+                - 'generic "Tag: 自定义渠道" [ref=e503]':
+                  - img "FastGPT" [ref=e505]
+                  - generic [ref=e508]: 自定义渠道
+              - 'gridcell "Tag: Activé" [ref=e509]':
+                - 'generic "Tag: Activé" [ref=e510]':
+                  - generic [ref=e511]: Activé
+              - 'gridcell "Tag: Non testé" [ref=e512]':
+                - 'generic "Tag: Non testé" [ref=e514]':
+                  - generic [ref=e515]: Non testé
+              - 'gridcell "Tag: $2.00 Tag: $0" [ref=e516]':
+                - generic [ref=e518]:
+                  - 'generic "Tag: $2.00" [ref=e519]':
+                    - generic [ref=e520]: $2.00
+                  - 'button "Tag: $0" [ref=e521] [cursor=pointer]':
+                    - generic [ref=e522]: $0
+              - gridcell "0" [ref=e523]:
+                - spinbutton [ref=e527]: "0"
+              - gridcell "0" [ref=e528]:
+                - spinbutton [ref=e532]: "0"
+              - gridcell "Tester un seul groupe de projet d'opération de canal Désactiver Modifier more" [ref=e533]:
+                - generic [ref=e534]:
+                  - group "Tester un seul groupe de projet d'opération de canal" [ref=e535]:
+                    - button "Tester" [ref=e536] [cursor=pointer]:
+                      - generic [ref=e537]: Tester
+                    - button "tree_triangle_down" [ref=e538] [cursor=pointer]:
+                      - img "tree_triangle_down" [ref=e540]:
+                        - img [ref=e541]
+                  - button "Désactiver" [ref=e543] [cursor=pointer]:
+                    - generic [ref=e544]: Désactiver
+                  - button "Modifier" [ref=e545] [cursor=pointer]:
+                    - generic [ref=e546]: Modifier
+                  - button "more" [ref=e547] [cursor=pointer]:
+                    - img "more" [ref=e549]:
+                      - img [ref=e550]
+            - 'row "4 Codex_vip_image Tag: vip Tag: 自定义渠道 Tag: Activé Tag: Non testé Tag: $3.55 Tag: $0 0 0 Tester un seul groupe de projet d''opération de canal Désactiver Modifier more" [ref=e554]':
+              - gridcell "4" [ref=e555]
+              - gridcell "Codex_vip_image" [ref=e556]
+              - 'gridcell "Tag: vip" [ref=e557]':
+                - 'button "Tag: vip" [ref=e561] [cursor=pointer]':
+                  - generic [ref=e562]: vip
+              - 'gridcell "Tag: 自定义渠道" [ref=e563]':
+                - 'generic "Tag: 自定义渠道" [ref=e564]':
+                  - img "FastGPT" [ref=e566]
+                  - generic [ref=e569]: 自定义渠道
+              - 'gridcell "Tag: Activé" [ref=e570]':
+                - 'generic "Tag: Activé" [ref=e571]':
+                  - generic [ref=e572]: Activé
+              - 'gridcell "Tag: Non testé" [ref=e573]':
+                - 'generic "Tag: Non testé" [ref=e575]':
+                  - generic [ref=e576]: Non testé
+              - 'gridcell "Tag: $3.55 Tag: $0" [ref=e577]':
+                - generic [ref=e579]:
+                  - 'generic "Tag: $3.55" [ref=e580]':
+                    - generic [ref=e581]: $3.55
+                  - 'button "Tag: $0" [ref=e582] [cursor=pointer]':
+                    - generic [ref=e583]: $0
+              - gridcell "0" [ref=e584]:
+                - spinbutton [ref=e588]: "0"
+              - gridcell "0" [ref=e589]:
+                - spinbutton [ref=e593]: "0"
+              - gridcell "Tester un seul groupe de projet d'opération de canal Désactiver Modifier more" [ref=e594]:
+                - generic [ref=e595]:
+                  - group "Tester un seul groupe de projet d'opération de canal" [ref=e596]:
+                    - button "Tester" [ref=e597] [cursor=pointer]:
+                      - generic [ref=e598]: Tester
+                    - button "tree_triangle_down" [ref=e599] [cursor=pointer]:
+                      - img "tree_triangle_down" [ref=e601]:
+                        - img [ref=e602]
+                  - button "Désactiver" [ref=e604] [cursor=pointer]:
+                    - generic [ref=e605]: Désactiver
+                  - button "Modifier" [ref=e606] [cursor=pointer]:
+                    - generic [ref=e607]: Modifier
+                  - button "more" [ref=e608] [cursor=pointer]:
+                    - img "more" [ref=e610]:
+                      - img [ref=e611]
+            - 'row "7 Codex_vip_OpenAI_main_自建_复制 Tag: vip Tag: OpenAI Tag: Désactivé Tag: Non testé Tag: $0.01 Tag: $0 0 0 Tester un seul groupe de projet d''opération de canal Activer Modifier more" [ref=e615]':
+              - gridcell "7" [ref=e616]
+              - gridcell "Codex_vip_OpenAI_main_自建_复制" [ref=e617]
+              - 'gridcell "Tag: vip" [ref=e618]':
+                - 'button "Tag: vip" [ref=e622] [cursor=pointer]':
+                  - generic [ref=e623]: vip
+              - 'gridcell "Tag: OpenAI" [ref=e624]':
+                - 'generic "Tag: OpenAI" [ref=e625]':
+                  - img "OpenAI" [ref=e627]
+                  - generic [ref=e629]: OpenAI
+              - 'gridcell "Tag: Désactivé" [ref=e630]':
+                - 'generic "Tag: Désactivé" [ref=e631]':
+                  - generic [ref=e632]: Désactivé
+              - 'gridcell "Tag: Non testé" [ref=e633]':
+                - 'generic "Tag: Non testé" [ref=e635]':
+                  - generic [ref=e636]: Non testé
+              - 'gridcell "Tag: $0.01 Tag: $0" [ref=e637]':
+                - generic [ref=e639]:
+                  - 'generic "Tag: $0.01" [ref=e640]':
+                    - generic [ref=e641]: $0.01
+                  - 'button "Tag: $0" [ref=e642] [cursor=pointer]':
+                    - generic [ref=e643]: $0
+              - gridcell "0" [ref=e644]:
+                - spinbutton [ref=e648]: "0"
+              - gridcell "0" [ref=e649]:
+                - spinbutton [ref=e653]: "0"
+              - gridcell "Tester un seul groupe de projet d'opération de canal Activer Modifier more" [ref=e654]:
+                - generic [ref=e655]:
+                  - group "Tester un seul groupe de projet d'opération de canal" [ref=e656]:
+                    - button "Tester" [ref=e657] [cursor=pointer]:
+                      - generic [ref=e658]: Tester
+                    - button "tree_triangle_down" [ref=e659] [cursor=pointer]:
+                      - img "tree_triangle_down" [ref=e661]:
+                        - img [ref=e662]
+                  - button "Activer" [ref=e664] [cursor=pointer]:
+                    - generic [ref=e665]: Activer
+                  - button "Modifier" [ref=e666] [cursor=pointer]:
+                    - generic [ref=e667]: Modifier
+                  - button "more" [ref=e668] [cursor=pointer]:
+                    - img "more" [ref=e670]:
+                      - img [ref=e671]
+            - 'row "5 Codex_vip_OpenAI_main_自建 Tag: vip Tag: OpenAI Tag: Activé Tag: Non testé Tag: $3.70 Tag: $0 0 0 Tester un seul groupe de projet d''opération de canal Désactiver Modifier more" [ref=e675]':
+              - gridcell "5" [ref=e676]
+              - gridcell "Codex_vip_OpenAI_main_自建" [ref=e677]
+              - 'gridcell "Tag: vip" [ref=e678]':
+                - 'button "Tag: vip" [ref=e682] [cursor=pointer]':
+                  - generic [ref=e683]: vip
+              - 'gridcell "Tag: OpenAI" [ref=e684]':
+                - 'generic "Tag: OpenAI" [ref=e685]':
+                  - img "OpenAI" [ref=e687]
+                  - generic [ref=e689]: OpenAI
+              - 'gridcell "Tag: Activé" [ref=e690]':
+                - 'generic "Tag: Activé" [ref=e691]':
+                  - generic [ref=e692]: Activé
+              - 'gridcell "Tag: Non testé" [ref=e693]':
+                - 'generic "Tag: Non testé" [ref=e695]':
+                  - generic [ref=e696]: Non testé
+              - 'gridcell "Tag: $3.70 Tag: $0" [ref=e697]':
+                - generic [ref=e699]:
+                  - 'generic "Tag: $3.70" [ref=e700]':
+                    - generic [ref=e701]: $3.70
+                  - 'button "Tag: $0" [ref=e702] [cursor=pointer]':
+                    - generic [ref=e703]: $0
+              - gridcell "0" [ref=e704]:
+                - spinbutton [ref=e708]: "0"
+              - gridcell "0" [ref=e709]:
+                - spinbutton [ref=e713]: "0"
+              - gridcell "Tester un seul groupe de projet d'opération de canal Désactiver Modifier more" [ref=e714]:
+                - generic [ref=e715]:
+                  - group "Tester un seul groupe de projet d'opération de canal" [ref=e716]:
+                    - button "Tester" [ref=e717] [cursor=pointer]:
+                      - generic [ref=e718]: Tester
+                    - button "tree_triangle_down" [ref=e719] [cursor=pointer]:
+                      - img "tree_triangle_down" [ref=e721]:
+                        - img [ref=e722]
+                  - button "Désactiver" [ref=e724] [cursor=pointer]:
+                    - generic [ref=e725]: Désactiver
+                  - button "Modifier" [ref=e726] [cursor=pointer]:
+                    - generic [ref=e727]: Modifier
+                  - button "more" [ref=e728] [cursor=pointer]:
+                    - img "more" [ref=e730]:
+                      - img [ref=e731]
+            - 'row "8 11111 Tag: default Tag: Anthropic Claude Tag: Activé Tag: 5.37s Tag: $0.00 Tag: $0 0 0 Tester un seul groupe de projet d''opération de canal Désactiver Modifier more" [ref=e735]':
+              - gridcell "8" [ref=e736]
+              - gridcell "11111" [ref=e737]
+              - 'gridcell "Tag: default" [ref=e738]':
+                - 'button "Tag: default" [ref=e742] [cursor=pointer]':
+                  - generic [ref=e743]: default
+              - 'gridcell "Tag: Anthropic Claude" [ref=e744]':
+                - 'generic "Tag: Anthropic Claude" [ref=e745]':
+                  - img "Claude" [ref=e747]
+                  - generic [ref=e749]: Anthropic Claude
+              - 'gridcell "Tag: Activé" [ref=e750]':
+                - 'generic "Tag: Activé" [ref=e751]':
+                  - generic [ref=e752]: Activé
+              - 'gridcell "Tag: 5.37s" [ref=e753]':
+                - 'generic "Tag: 5.37s" [ref=e755]':
+                  - generic [ref=e756]: 5.37s
+              - 'gridcell "Tag: $0.00 Tag: $0" [ref=e757]':
+                - generic [ref=e759]:
+                  - 'generic "Tag: $0.00" [ref=e760]':
+                    - generic [ref=e761]: $0.00
+                  - 'button "Tag: $0" [ref=e762] [cursor=pointer]':
+                    - generic [ref=e763]: $0
+              - gridcell "0" [ref=e764]:
+                - spinbutton [ref=e768]: "0"
+              - gridcell "0" [ref=e769]:
+                - spinbutton [ref=e773]: "0"
+              - gridcell "Tester un seul groupe de projet d'opération de canal Désactiver Modifier more" [ref=e774]:
+                - generic [ref=e775]:
+                  - group "Tester un seul groupe de projet d'opération de canal" [ref=e776]:
+                    - button "Tester" [ref=e777] [cursor=pointer]:
+                      - generic [ref=e778]: Tester
+                    - button "tree_triangle_down" [ref=e779] [cursor=pointer]:
+                      - img "tree_triangle_down" [ref=e781]:
+                        - img [ref=e782]
+                  - button "Désactiver" [ref=e784] [cursor=pointer]:
+                    - generic [ref=e785]: Désactiver
+                  - button "Modifier" [ref=e786] [cursor=pointer]:
+                    - generic [ref=e787]: Modifier
+                  - button "more" [ref=e788] [cursor=pointer]:
+                    - img "more" [ref=e790]:
+                      - img [ref=e791]
+        - generic [ref=e796]:
+          - generic [ref=e797]: Affichage de 1 à 5 sur 5 éléments
+          - list [ref=e798]:
+            - generic [ref=e799]: "Total des pages : 1"
+            - button "Previous" [disabled] [ref=e800]:
+              - img "chevron_left" [ref=e801]:
+                - img [ref=e802]
+            - listitem "Page 1" [ref=e804] [cursor=pointer]: "1"
+            - button "Next" [disabled] [ref=e805]:
+              - img "chevron_right" [ref=e806]:
+                - img [ref=e807]
+            - combobox "selected" [ref=e810] [cursor=pointer]:
+              - generic [ref=e813]: "Éléments par page : 10"
+              - img [ref=e815]:
+                - img [ref=e816]
