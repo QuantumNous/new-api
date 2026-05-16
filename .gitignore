@@ -32,3 +32,7 @@ data/
 .test
 token_estimator_test.go
 skills-lock.json
+.playwright-mcp/
+blocked-*.png
+fill_ru_translations.py
+docs/group-management-enhancement.md

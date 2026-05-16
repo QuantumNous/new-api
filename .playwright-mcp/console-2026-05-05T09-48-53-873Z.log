@@ -1,3 +1,0 @@
-[     196ms] [LOG] %cWE ❤ NEWAPI%c Github: https://github.com/QuantumNous/new-api color: #10b981; font-weight: bold; font-size: 24px; color: inherit; font-size: 14px; @ http://localhost:3000/assets/index-CluU9jUr.js:14034
-[     341ms] [VERBOSE] [DOM] Input elements should have autocomplete attributes (suggested: "new-password"): (More info: https://goo.gl/9p2vKq) %o @ http://localhost:3000/register:0
-[     341ms] [VERBOSE] [DOM] Input elements should have autocomplete attributes (suggested: "new-password"): (More info: https://goo.gl/9p2vKq) %o @ http://localhost:3000/register:0
