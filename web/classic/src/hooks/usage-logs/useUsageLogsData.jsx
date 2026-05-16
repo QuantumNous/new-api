@@ -449,6 +449,7 @@ export const useLogsData = () => {
       }
       if (logs[i].type === 2) {
         let modelMapped =
+          isAdminUser &&
           other?.is_model_mapped &&
           other?.upstream_model_name &&
           other?.upstream_model_name !== '';

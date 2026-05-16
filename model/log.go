@@ -62,6 +62,9 @@ func formatUserLogs(logs []*Log, startIdx int) {
 			delete(otherMap, "admin_info")
 			// delete(otherMap, "reject_reason")
 			delete(otherMap, "stream_status")
+			// Remove model mapping fields visible only to admins.
+			delete(otherMap, "is_model_mapped")
+			delete(otherMap, "upstream_model_name")
 		}
 		logs[i].Other = common.MapToJsonStr(otherMap)
 		logs[i].Id = startIdx + i + 1

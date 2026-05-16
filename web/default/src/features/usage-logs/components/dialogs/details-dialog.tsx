@@ -829,8 +829,8 @@ export function DetailsDialog(props: DetailsDialogProps) {
               />
             )}
 
-            {/* Model mapping */}
-            {other?.is_model_mapped && other?.upstream_model_name && (
+            {/* Model mapping (admin only) */}
+            {props.isAdmin && other?.is_model_mapped && other?.upstream_model_name && (
               <DetailSection label={t('Model Mapping')}>
                 <DetailRow
                   label={t('Request Model')}

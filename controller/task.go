@@ -89,6 +89,14 @@ func tasksToDto(tasks []*model.Task, fillUser bool) []*dto.TaskDto {
 			}
 		}
 		result[i] = relay.TaskModel2Dto(task)
+		if !fillUser {
+			// Strip upstream model name from user-facing responses.
+			if props, ok := result[i].Properties.(model.Properties); ok {
+				stripped := props
+				stripped.UpstreamModelName = ""
+				result[i].Properties = stripped
+			}
+		}
 	}
 	return result
 }
