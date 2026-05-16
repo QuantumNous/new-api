@@ -64,6 +64,7 @@ export const STATIC_I18N_KEYS = [
   'All Tags',
   'More...',
   'Less',
+  'Save {{percent}}%',
 
   // Roles
   'Super Admin',

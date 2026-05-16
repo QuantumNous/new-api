@@ -39,6 +39,19 @@ export function usePricingData() {
     () => Math.max((status?.usd_exchange_rate as number) ?? priceRate, 0.001),
     [status?.usd_exchange_rate, priceRate]
   )
+  const officialUsdExchangeRate = useMemo(() => {
+    const stripeUnitPrice = Number(status?.stripe_unit_price)
+    if (Number.isFinite(stripeUnitPrice) && stripeUnitPrice > 0) {
+      return stripeUnitPrice
+    }
+
+    const paymentPrice = Number(status?.price)
+    if (Number.isFinite(paymentPrice) && paymentPrice > 0) {
+      return paymentPrice
+    }
+
+    return usdExchangeRate
+  }, [status?.stripe_unit_price, status?.price, usdExchangeRate])
 
   const models = useMemo(() => {
     if (!data?.data || !data?.vendors) return []
@@ -72,5 +85,6 @@ export function usePricingData() {
     refetch,
     priceRate,
     usdExchangeRate,
+    officialUsdExchangeRate,
   }
 }

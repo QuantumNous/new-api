@@ -73,6 +73,105 @@ function getMinGroupRatio(
   return minRatio === Number.POSITIVE_INFINITY ? 1 : minRatio
 }
 
+type CheapestGroupRatio = {
+  group: string
+  ratio: number
+}
+
+export type OfficialSavings = {
+  percent: number
+  group: string
+  groupRatio: number
+}
+
+export type OfficialSavingsOptions = {
+  priceRate?: number
+  usdExchangeRate?: number
+  officialUsdExchangeRate?: number
+}
+
+function getCheapestEnabledGroupRatio(
+  enableGroups: string[],
+  groupRatio: Record<string, number>
+): CheapestGroupRatio | null {
+  if (enableGroups.length === 0) return null
+
+  let cheapest: CheapestGroupRatio | null = null
+
+  for (const group of enableGroups) {
+    const rawRatio = groupRatio[group]
+    const ratio = rawRatio === undefined ? 1 : Number(rawRatio)
+    if (!Number.isFinite(ratio) || ratio <= 0) continue
+
+    if (!cheapest || ratio < cheapest.ratio) {
+      cheapest = { group, ratio }
+    }
+  }
+
+  return cheapest
+}
+
+function getPositiveNumber(value: number | null | undefined): number | null {
+  if (value == null) return null
+  const number = Number(value)
+  return Number.isFinite(number) && number > 0 ? number : null
+}
+
+function hasComparablePrice(model: PricingModel): boolean {
+  if (model.billing_mode === 'tiered_expr') {
+    return false
+  }
+
+  if (model.quota_type === QUOTA_TYPE_VALUES.REQUEST) {
+    return getPositiveNumber(model.model_price) !== null
+  }
+
+  return (
+    model.quota_type === QUOTA_TYPE_VALUES.TOKEN &&
+    getPositiveNumber(model.model_ratio) !== null
+  )
+}
+
+export function calculateOfficialSavings(
+  model: PricingModel,
+  options: OfficialSavingsOptions = {}
+): OfficialSavings | null {
+  if (!hasComparablePrice(model)) return null
+
+  const enableGroups = Array.isArray(model.enable_groups)
+    ? model.enable_groups
+    : []
+  const groupRatio = model.group_ratio || {}
+  const cheapestGroup = getCheapestEnabledGroupRatio(enableGroups, groupRatio)
+  if (!cheapestGroup) return null
+
+  const localUsdPriceRate =
+    getPositiveNumber(options.priceRate) ??
+    getPositiveNumber(options.usdExchangeRate) ??
+    1
+  const officialUsdExchangeRate =
+    getPositiveNumber(options.officialUsdExchangeRate) ??
+    getPositiveNumber(options.usdExchangeRate) ??
+    localUsdPriceRate
+
+  const relativePrice =
+    (cheapestGroup.ratio * localUsdPriceRate) / officialUsdExchangeRate
+  const percent = (1 - relativePrice) * 100
+
+  if (!Number.isFinite(percent) || percent <= 0) return null
+
+  return {
+    percent: Math.min(percent, 100),
+    group: cheapestGroup.group,
+    groupRatio: cheapestGroup.ratio,
+  }
+}
+
+export function formatSavingsPercent(percent: number): string {
+  if (!Number.isFinite(percent)) return ''
+  return percent.toFixed(2).replace(/\.?0+$/, '')
+}
+
 /**
  * Calculate token price in USD.
  *

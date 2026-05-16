@@ -35,8 +35,10 @@ import {
 import { parseTags } from '../lib/filters'
 import { isTokenBasedModel } from '../lib/model-helpers'
 import {
+  calculateOfficialSavings,
   formatPrice,
   formatRequestPrice,
+  formatSavingsPercent,
   stripTrailingZeros,
 } from '../lib/price'
 import type { PricingModel, TokenUnit } from '../types'
@@ -49,6 +51,7 @@ export interface PricingColumnsOptions {
   tokenUnit?: TokenUnit
   priceRate?: number
   usdExchangeRate?: number
+  officialUsdExchangeRate?: number
   showRechargePrice?: boolean
 }
 
@@ -102,10 +105,29 @@ export function usePricingColumns(
     tokenUnit = DEFAULT_TOKEN_UNIT,
     priceRate = 1,
     usdExchangeRate = 1,
+    officialUsdExchangeRate = priceRate,
     showRechargePrice = false,
   } = options
 
   const tokenUnitLabel = tokenUnit === 'K' ? '1K' : '1M'
+
+  const renderSavingsBadge = (model: PricingModel) => {
+    const savings = calculateOfficialSavings(model, {
+      priceRate,
+      usdExchangeRate,
+      officialUsdExchangeRate,
+    })
+
+    if (!savings) return null
+
+    return (
+      <div className='mt-1 inline-flex rounded-full border border-emerald-500/25 bg-emerald-500/10 px-2 py-0.5 text-[11px] leading-none font-semibold text-emerald-700 dark:text-emerald-300'>
+        {t('Save {{percent}}%', {
+          percent: formatSavingsPercent(savings.percent),
+        })}
+      </div>
+    )
+  }
 
   return [
     // Model column
@@ -212,6 +234,7 @@ export function usePricingColumns(
                     count: dynamicSummary.tierCount,
                   })}`}
               </div>
+              {renderSavingsBadge(model)}
             </div>
           )
         }
@@ -250,6 +273,7 @@ export function usePricingColumns(
               <div className='text-muted-foreground/50 text-[10px]'>
                 / {tokenUnitLabel} tokens
               </div>
+              {renderSavingsBadge(model)}
             </div>
           )
         }
@@ -269,6 +293,7 @@ export function usePricingColumns(
             <div className='text-muted-foreground/50 text-[10px]'>
               / {t('request')}
             </div>
+            {renderSavingsBadge(model)}
           </div>
         )
       },

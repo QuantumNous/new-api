@@ -44,6 +44,7 @@ export interface PricingTableProps {
   isLoading?: boolean
   priceRate?: number
   usdExchangeRate?: number
+  officialUsdExchangeRate?: number
   tokenUnit?: TokenUnit
   showRechargePrice?: boolean
   onModelClick?: (modelName: string) => void
@@ -56,6 +57,7 @@ export function PricingTable(props: PricingTableProps) {
     isLoading = false,
     priceRate = 1,
     usdExchangeRate = 1,
+    officialUsdExchangeRate = usdExchangeRate,
     tokenUnit = DEFAULT_TOKEN_UNIT,
     showRechargePrice = false,
     onModelClick,
@@ -70,6 +72,7 @@ export function PricingTable(props: PricingTableProps) {
     tokenUnit,
     priceRate,
     usdExchangeRate,
+    officialUsdExchangeRate,
     showRechargePrice,
   })
 

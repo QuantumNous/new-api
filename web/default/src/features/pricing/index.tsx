@@ -50,6 +50,7 @@ export function Pricing() {
     isLoading,
     priceRate,
     usdExchangeRate,
+    officialUsdExchangeRate,
   } = usePricingData()
 
   const {
@@ -126,6 +127,7 @@ export function Pricing() {
           onModelClick={handleModelClick}
           priceRate={priceRate}
           usdExchangeRate={usdExchangeRate}
+          officialUsdExchangeRate={officialUsdExchangeRate}
           tokenUnit={tokenUnit}
           showRechargePrice={showRechargePrice}
         />
@@ -137,6 +139,7 @@ export function Pricing() {
         models={filteredModels}
         priceRate={priceRate}
         usdExchangeRate={usdExchangeRate}
+        officialUsdExchangeRate={officialUsdExchangeRate}
         tokenUnit={tokenUnit}
         showRechargePrice={showRechargePrice}
         onModelClick={handleModelClick}
