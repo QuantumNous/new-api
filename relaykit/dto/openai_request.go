@@ -1022,6 +1022,7 @@ type OpenAIResponsesRequest struct {
 	Truncation       json.RawMessage `json:"truncation,omitempty"`
 	User             json.RawMessage `json:"user,omitempty"`
 	MaxToolCalls     *uint           `json:"max_tool_calls,omitempty"`
+	Generate         *bool           `json:"generate,omitempty"`
 	Prompt           json.RawMessage `json:"prompt,omitempty"`
 	// Codex Responses metadata/client_metadata:
 	// https://github.com/openai/codex/commit/14df0e8833aad0d6d78287954b61ffac67af936c
