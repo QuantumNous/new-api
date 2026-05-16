@@ -19,7 +19,6 @@ For commercial licensing, please contact support@quantumnous.com
 import React, { useState, useCallback, useMemo } from 'react';
 import {
   Button,
-  Collapsible,
   Input,
   Select,
   Tag,
@@ -144,7 +143,7 @@ function UsableGroupSection({ groupName, items, opOptions, onUpdate, onRemove, o
           </Popconfirm>
         </div>
       </div>
-      <Collapsible isOpen={open} keepDOM>
+      {open && (
         <div style={{ padding: '8px 12px' }}>
           {items.map((rule) => (
             <div
@@ -198,7 +197,7 @@ function UsableGroupSection({ groupName, items, opOptions, onUpdate, onRemove, o
             </div>
           ))}
         </div>
-      </Collapsible>
+      )}
     </div>
   );
 }
