@@ -45,28 +45,18 @@ import {
 import { useTranslation } from 'react-i18next';
 import GroupTable from './components/GroupTable';
 import AutoGroupList from './components/AutoGroupList';
+import AliasManager from './components/AliasManager';
 import GroupGroupRatioRules from './components/GroupGroupRatioRules';
 import GroupSpecialUsableRules from './components/GroupSpecialUsableRules';
 
 const { Text, Title, Paragraph } = Typography;
 
 const OPTION_KEYS = [
-  'GroupRatio',
-  'UserUsableGroups',
   'GroupGroupRatio',
   'group_ratio_setting.group_special_usable_group',
   'AutoGroups',
   'DefaultUseAutoGroup',
 ];
-
-function parseJSONSafe(str, fallback) {
-  if (!str || !str.trim()) return fallback;
-  try {
-    return JSON.parse(str);
-  } catch {
-    return fallback;
-  }
-}
 
 export default function GroupRatioSettings(props) {
   const { t } = useTranslation();
@@ -74,10 +64,9 @@ export default function GroupRatioSettings(props) {
   const [editMode, setEditMode] = useState('visual');
   const [showGuide, setShowGuide] = useState(false);
   const [userOverrideCounts, setUserOverrideCounts] = useState({});
+  const [groupNamesFromTable, setGroupNamesFromTable] = useState([]);
 
   const [inputs, setInputs] = useState({
-    GroupRatio: '',
-    UserUsableGroups: '',
     GroupGroupRatio: '',
     'group_ratio_setting.group_special_usable_group': '',
     AutoGroups: '',
@@ -88,9 +77,8 @@ export default function GroupRatioSettings(props) {
   const dataVersionRef = useRef(0);
 
   const groupNames = useMemo(() => {
-    const ratioMap = parseJSONSafe(inputs.GroupRatio, {});
-    return Object.keys(ratioMap);
-  }, [inputs.GroupRatio]);
+    return groupNamesFromTable;
+  }, [groupNamesFromTable]);
 
   async function onSubmit() {
     if (editMode === 'manual') {
@@ -104,7 +92,7 @@ export default function GroupRatioSettings(props) {
 
     const updateArray = compareObjects(inputs, inputsRow);
     if (!updateArray.length) {
-      return showWarning(t('你似乎并没有修改什么'));
+      return;
     }
 
     const requestQueue = updateArray.map((item) => {
@@ -165,13 +153,6 @@ export default function GroupRatioSettings(props) {
       .catch(() => {});
   }, []);
 
-  const handleGroupTableChange = useCallback(
-    ({ GroupRatio, UserUsableGroups }) => {
-      setInputs((prev) => ({ ...prev, GroupRatio, UserUsableGroups }));
-    },
-    [],
-  );
-
   const handleAutoGroupsChange = useCallback((value) => {
     setInputs((prev) => ({ ...prev, AutoGroups: value }));
   }, []);
@@ -193,15 +174,20 @@ export default function GroupRatioSettings(props) {
     <Form key='form-visual' values={inputs} style={{ marginBottom: 15 }}>
       <Form.Section text={t('分组管理')}>
         <Text type='tertiary' size='small' style={{ display: 'block', marginBottom: 12 }}>
-          {t('倍率用于计费乘数，勾选「用户可选」后用户可在创建令牌时选择该分组')}
+          {t('倍率用于计费乘数，勾选「用户可选」后用户可在创建令牌时选择该分组。拖动行可调整展示顺序。')}
         </Text>
         <GroupTable
           key={`gt_${dv}`}
-          groupRatio={inputs.GroupRatio}
-          userUsableGroups={inputs.UserUsableGroups}
-          onChange={handleGroupTableChange}
           userOverrideCounts={userOverrideCounts}
+          onGroupNamesChange={setGroupNamesFromTable}
         />
+      </Form.Section>
+
+      <Form.Section text={t('分组别名')}>
+        <Text type='tertiary' size='small' style={{ display: 'block', marginBottom: 12 }}>
+          {t('别名允许用户使用旧的分组名称访问新的分组。可设置独立倍率，留空则使用目标分组倍率。')}
+        </Text>
+        <AliasManager groupNames={groupNamesFromTable} />
       </Form.Section>
 
       <Form.Section text={t('自动分组')}>
@@ -279,56 +265,9 @@ export default function GroupRatioSettings(props) {
       style={{ marginBottom: 15 }}
     >
       <Form.Section text={t('分组JSON设置')}>
-        <Row gutter={16}>
-          <Col xs={24} sm={16}>
-            <Form.TextArea
-              label={t('分组倍率')}
-              placeholder={t('为一个 JSON 文本，键为分组名称，值为倍率')}
-              extraText={t(
-                '分组倍率设置，可以在此处新增分组或修改现有分组的倍率，格式为 JSON 字符串，例如：{"vip": 0.5, "test": 1}，表示 vip 分组的倍率为 0.5，test 分组的倍率为 1',
-              )}
-              field={'GroupRatio'}
-              autosize={{ minRows: 6, maxRows: 12 }}
-              trigger='blur'
-              stopValidateWithError
-              rules={[
-                {
-                  validator: (rule, value) => verifyJSON(value),
-                  message: t('不是合法的 JSON 字符串'),
-                },
-              ]}
-              onChange={(value) =>
-                setInputs((prev) => ({ ...prev, GroupRatio: value }))
-              }
-            />
-          </Col>
-        </Row>
-        <Row gutter={16}>
-          <Col xs={24} sm={16}>
-            <Form.TextArea
-              label={t('用户可选分组')}
-              placeholder={t(
-                '为一个 JSON 文本，键为分组名称，值为分组描述',
-              )}
-              extraText={t(
-                '用户新建令牌时可选的分组，格式为 JSON 字符串，例如：{"vip": "VIP 用户", "test": "测试"}，表示用户可以选择 vip 分组和 test 分组',
-              )}
-              field={'UserUsableGroups'}
-              autosize={{ minRows: 6, maxRows: 12 }}
-              trigger='blur'
-              stopValidateWithError
-              rules={[
-                {
-                  validator: (rule, value) => verifyJSON(value),
-                  message: t('不是合法的 JSON 字符串'),
-                },
-              ]}
-              onChange={(value) =>
-                setInputs((prev) => ({ ...prev, UserUsableGroups: value }))
-              }
-            />
-          </Col>
-        </Row>
+        <Text type='tertiary' size='small' style={{ display: 'block', marginBottom: 12 }}>
+          {t('分组倍率和用户可选分组已迁移到可视化编辑模式的分组管理表格中，请切换到可视化编辑模式进行管理。')}
+        </Text>
         <Row gutter={16}>
           <Col xs={24} sm={16}>
             <Form.TextArea

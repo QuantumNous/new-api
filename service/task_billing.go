@@ -261,30 +261,34 @@ func RecalculateTaskQuotaByTokens(ctx context.Context, task *model.Task, totalTo
 		return
 	}
 
-	// 获取用户和组的倍率信息
-	usingGroup := task.Group
-	var userGroup string
-	user, err := model.GetUserById(task.UserId, false)
-	if err == nil {
-		userGroup = user.Group
-		if usingGroup == "" {
-			usingGroup = user.Group
-		}
-	}
-	if usingGroup == "" {
-		return
-	}
-
-	groupRatio := ratio_setting.GetGroupRatio(usingGroup)
-	userGroupRatio, hasUserGroupRatio := ratio_setting.GetGroupGroupRatio(userGroup, usingGroup)
-
+	// 获取分组倍率：优先使用提交时快照的 GroupRatio（已包含 alias RatioOverride 和 user override），
+	// 避免轮询阶段重新推导时因 alias 解析丢失原始分组信息。
 	var finalGroupRatio float64
-	if userRatio, ok := ratio_setting.GetUserGroupRatioOverride(task.UserId, usingGroup); ok {
-		finalGroupRatio = userRatio
-	} else if hasUserGroupRatio {
-		finalGroupRatio = userGroupRatio
+	if bc := task.PrivateData.BillingContext; bc != nil && bc.GroupRatio > 0 {
+		finalGroupRatio = bc.GroupRatio
 	} else {
-		finalGroupRatio = groupRatio
+		// 兜底：快照缺失时重新推导（兼容旧任务）
+		usingGroup := task.Group
+		var userGroup string
+		user, err := model.GetUserById(task.UserId, false)
+		if err == nil {
+			userGroup = user.Group
+			if usingGroup == "" {
+				usingGroup = user.Group
+			}
+		}
+		if usingGroup == "" {
+			return
+		}
+		groupRatio := ratio_setting.GetGroupRatio(usingGroup)
+		userGroupRatio, hasUserGroupRatio := ratio_setting.GetGroupGroupRatio(userGroup, usingGroup)
+		if userRatio, ok := ratio_setting.GetUserGroupRatioOverride(task.UserId, usingGroup); ok {
+			finalGroupRatio = userRatio
+		} else if hasUserGroupRatio {
+			finalGroupRatio = userGroupRatio
+		} else {
+			finalGroupRatio = groupRatio
+		}
 	}
 
 	// 计算 OtherRatios 乘积（视频折扣、时长等）

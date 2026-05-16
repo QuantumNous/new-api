@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/pkg/billingexpr"
@@ -50,11 +51,27 @@ func HandleGroupRatio(ctx *gin.Context, relayInfo *relaycommon.RelayInfo) types.
 	}
 
 	// check user-level group ratio (highest priority)
-	if userRatio, ok := ratio_setting.GetUserGroupRatioOverride(relayInfo.UserId, relayInfo.UsingGroup); ok {
+	// Use the original token group name (before alias resolution) so that a user override
+	// on "vip" does not accidentally apply when the token requested "vip-alias".
+	usingGroupForOverride := relayInfo.UsingGroup
+	if orig, exists := common.GetContextKey(ctx, constant.ContextKeyOriginalTokenGroup); exists {
+		usingGroupForOverride = orig.(string)
+	}
+	if userRatio, ok := ratio_setting.GetUserGroupRatioOverride(relayInfo.UserId, usingGroupForOverride); ok {
 		groupRatioInfo.GroupSpecialRatio = userRatio
 		groupRatioInfo.GroupRatio = userRatio
 		groupRatioInfo.HasSpecialRatio = true
 		return groupRatioInfo
+	}
+
+	// check alias ratio override (second priority — applies when token uses an alias group)
+	if aliasRatio, exists := common.GetContextKey(ctx, constant.ContextKeyAliasRatioOverride); exists {
+		if ratio, ok := aliasRatio.(float64); ok {
+			groupRatioInfo.GroupSpecialRatio = ratio
+			groupRatioInfo.GroupRatio = ratio
+			groupRatioInfo.HasSpecialRatio = true
+			return groupRatioInfo
+		}
 	}
 
 	// check user group special ratio

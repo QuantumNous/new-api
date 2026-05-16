@@ -27,6 +27,7 @@ import {
   Modal,
   Space,
   Card,
+  Switch,
 } from '@douyinfe/semi-ui';
 import { API, showError, showSuccess, timestamp2string } from '../../helpers';
 import { marked } from 'marked';
@@ -36,6 +37,9 @@ import Text from '@douyinfe/semi-ui/lib/es/typography/text';
 
 const LEGAL_USER_AGREEMENT_KEY = 'legal.user_agreement';
 const LEGAL_PRIVACY_POLICY_KEY = 'legal.privacy_policy';
+const GEO_BLOCK_ENABLED_KEY = 'geo_block.enabled';
+const GEO_BLOCK_COUNTRIES_KEY = 'geo_block.countries';
+const GEO_BLOCK_PAGE_CONTENT_KEY = 'geo_block.page_content';
 
 const OtherSetting = () => {
   const { t } = useTranslation();
@@ -43,6 +47,9 @@ const OtherSetting = () => {
     Notice: '',
     [LEGAL_USER_AGREEMENT_KEY]: '',
     [LEGAL_PRIVACY_POLICY_KEY]: '',
+    [GEO_BLOCK_ENABLED_KEY]: 'false',
+    [GEO_BLOCK_COUNTRIES_KEY]: '',
+    [GEO_BLOCK_PAGE_CONTENT_KEY]: '',
     SystemName: '',
     Logo: '',
     Footer: '',
@@ -76,6 +83,9 @@ const OtherSetting = () => {
     Notice: false,
     [LEGAL_USER_AGREEMENT_KEY]: false,
     [LEGAL_PRIVACY_POLICY_KEY]: false,
+    [GEO_BLOCK_ENABLED_KEY]: false,
+    [GEO_BLOCK_COUNTRIES_KEY]: false,
+    [GEO_BLOCK_PAGE_CONTENT_KEY]: false,
     SystemName: false,
     Logo: false,
     HomePageContent: false,
@@ -90,6 +100,7 @@ const OtherSetting = () => {
 
   // 通用设置
   const formAPISettingGeneral = useRef();
+  const formAPIGeoBlock = useRef();
   // 通用设置 - Notice
   const submitNotice = async () => {
     try {
@@ -145,6 +156,42 @@ const OtherSetting = () => {
         ...loadingInput,
         [LEGAL_PRIVACY_POLICY_KEY]: false,
       }));
+    }
+  };
+  // GeoIP 封锁设置
+  const submitGeoBlockEnabled = async (checked) => {
+    try {
+      setLoadingInput((prev) => ({ ...prev, [GEO_BLOCK_ENABLED_KEY]: true }));
+      const value = checked ? 'true' : 'false';
+      await updateOption(GEO_BLOCK_ENABLED_KEY, value);
+      setInputs((prev) => ({ ...prev, [GEO_BLOCK_ENABLED_KEY]: value }));
+      showSuccess(t('GeoIP 封锁状态已更新'));
+    } catch (error) {
+      showError(t('GeoIP 封锁状态更新失败'));
+    } finally {
+      setLoadingInput((prev) => ({ ...prev, [GEO_BLOCK_ENABLED_KEY]: false }));
+    }
+  };
+  const submitGeoBlockCountries = async () => {
+    try {
+      setLoadingInput((prev) => ({ ...prev, [GEO_BLOCK_COUNTRIES_KEY]: true }));
+      await updateOption(GEO_BLOCK_COUNTRIES_KEY, inputs[GEO_BLOCK_COUNTRIES_KEY]);
+      showSuccess(t('封锁国家列表已更新'));
+    } catch (error) {
+      showError(t('封锁国家列表更新失败'));
+    } finally {
+      setLoadingInput((prev) => ({ ...prev, [GEO_BLOCK_COUNTRIES_KEY]: false }));
+    }
+  };
+  const submitGeoBlockPageContent = async () => {
+    try {
+      setLoadingInput((prev) => ({ ...prev, [GEO_BLOCK_PAGE_CONTENT_KEY]: true }));
+      await updateOption(GEO_BLOCK_PAGE_CONTENT_KEY, inputs[GEO_BLOCK_PAGE_CONTENT_KEY]);
+      showSuccess(t('封锁页面内容已更新'));
+    } catch (error) {
+      showError(t('封锁页面内容更新失败'));
+    } finally {
+      setLoadingInput((prev) => ({ ...prev, [GEO_BLOCK_PAGE_CONTENT_KEY]: false }));
     }
   };
   // 个性化设置
@@ -289,8 +336,9 @@ const OtherSetting = () => {
         }
       });
       setInputs(newInputs);
-      formAPISettingGeneral.current.setValues(newInputs);
-      formAPIPersonalization.current.setValues(newInputs);
+      formAPISettingGeneral.current?.setValues(newInputs);
+      formAPIGeoBlock.current?.setValues(newInputs);
+      formAPIPersonalization.current?.setValues(newInputs);
     } else {
       showError(message);
     }
@@ -412,6 +460,51 @@ const OtherSetting = () => {
                 loading={loadingInput[LEGAL_PRIVACY_POLICY_KEY]}
               >
                 {t('设置隐私政策')}
+              </Button>
+            </Form.Section>
+          </Card>
+        </Form>
+        {/* GeoIP 封锁设置 */}
+        <Form values={inputs} getFormApi={(formAPI) => (formAPIGeoBlock.current = formAPI)}>
+          <Card>
+            <Form.Section text={t('GeoIP 地区封锁')}>
+              <div style={{ marginBottom: 16 }}>
+                <Space>
+                  <Switch
+                    checked={inputs[GEO_BLOCK_ENABLED_KEY] === 'true'}
+                    onChange={submitGeoBlockEnabled}
+                    loading={loadingInput[GEO_BLOCK_ENABLED_KEY]}
+                  />
+                  <Text>{t('启用 GeoIP 地区封锁')}</Text>
+                </Space>
+              </div>
+              <Form.Input
+                label={t('封锁国家列表')}
+                placeholder={t('输入国家代码，逗号分隔，例如：CN,RU,IR')}
+                field={GEO_BLOCK_COUNTRIES_KEY}
+                onChange={handleInputChange}
+                helpText={t('使用 ISO 3166-1 alpha-2 国家代码，多个国家用逗号分隔')}
+              />
+              <Button
+                onClick={submitGeoBlockCountries}
+                loading={loadingInput[GEO_BLOCK_COUNTRIES_KEY]}
+              >
+                {t('保存封锁国家列表')}
+              </Button>
+              <Form.TextArea
+                label={t('封锁页面内容')}
+                placeholder={t('在此输入封锁页面显示的 HTML 内容')}
+                field={GEO_BLOCK_PAGE_CONTENT_KEY}
+                onChange={handleInputChange}
+                style={{ fontFamily: 'JetBrains Mono, Consolas' }}
+                autosize={{ minRows: 6, maxRows: 12 }}
+                helpText={t('支持 HTML 代码，留空则显示默认的 Access Denied 提示')}
+              />
+              <Button
+                onClick={submitGeoBlockPageContent}
+                loading={loadingInput[GEO_BLOCK_PAGE_CONTENT_KEY]}
+              >
+                {t('保存封锁页面内容')}
               </Button>
             </Form.Section>
           </Card>

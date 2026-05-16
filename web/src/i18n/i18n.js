@@ -19,8 +19,6 @@ For commercial licensing, please contact support@quantumnous.com
 
 import i18n from 'i18next';
 import { initReactI18next } from 'react-i18next';
-import LanguageDetector from 'i18next-browser-languagedetector';
-
 import enTranslation from './locales/en.json';
 import frTranslation from './locales/fr.json';
 import zhCNTranslation from './locales/zh-CN.json';
@@ -31,9 +29,9 @@ import viTranslation from './locales/vi.json';
 import { supportedLanguages } from './language';
 
 i18n
-  .use(LanguageDetector)
   .use(initReactI18next)
   .init({
+    lng: 'en',
     load: 'currentOnly',
     supportedLngs: supportedLanguages,
     resources: {

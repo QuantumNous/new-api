@@ -1,6 +1,7 @@
 package model
 
 import (
+	"fmt"
 	"strconv"
 	"strings"
 	"time"
@@ -529,11 +530,11 @@ func updateOptionMap(key string, value string) (err error) {
 	case "ModelRatio":
 		err = ratio_setting.UpdateModelRatioByJSONString(value)
 	case "GroupRatio":
-		err = ratio_setting.UpdateGroupRatioByJSONString(value)
+		err = fmt.Errorf("GroupRatio 已迁移到分组管理表，请通过分组管理界面操作")
 	case "GroupGroupRatio":
 		err = ratio_setting.UpdateGroupGroupRatioByJSONString(value)
 	case "UserUsableGroups":
-		err = setting.UpdateUserUsableGroupsByJSONString(value)
+		err = fmt.Errorf("UserUsableGroups 已迁移到分组管理表，请通过分组管理界面操作")
 	case "CompletionRatio":
 		err = ratio_setting.UpdateCompletionRatioByJSONString(value)
 	case "ModelPrice":

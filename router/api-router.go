@@ -343,6 +343,21 @@ func SetApiRouter(router *gin.Engine) {
 		groupRoute.Use(middleware.AdminAuth())
 		{
 			groupRoute.GET("/", controller.GetGroups)
+			groupRoute.GET("/all", controller.GetAllGroupsAdmin)
+			groupRoute.POST("/", controller.CreateGroup)
+			groupRoute.PUT("/sort", controller.UpdateGroupSort)
+			groupRoute.GET("/categories", controller.GetGroupCategories)
+			groupRoute.PUT("/:id", controller.UpdateGroup)
+			groupRoute.DELETE("/:id", controller.DeleteGroup)
+		}
+
+		groupAliasRoute := apiRouter.Group("/group_alias")
+		groupAliasRoute.Use(middleware.AdminAuth())
+		{
+			groupAliasRoute.GET("/", controller.GetAllGroupAliases)
+			groupAliasRoute.POST("/", controller.CreateGroupAlias)
+			groupAliasRoute.PUT("/:id", controller.UpdateGroupAlias)
+			groupAliasRoute.DELETE("/:id", controller.DeleteGroupAlias)
 		}
 
 		userGroupRatioRoute := apiRouter.Group("/user_group_ratio")

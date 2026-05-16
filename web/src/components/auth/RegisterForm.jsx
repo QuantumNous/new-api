@@ -69,9 +69,9 @@ const RegisterForm = () => {
   let navigate = useNavigate();
   const { t } = useTranslation();
   const githubButtonTextKeyByState = {
-    idle: '使用 GitHub 继续',
-    redirecting: '正在跳转 GitHub...',
-    timeout: '请求超时，请刷新页面后重新发起 GitHub 登录',
+    idle: t('使用 GitHub 继续'),
+    redirecting: t('正在跳转 GitHub...'),
+    timeout: t('请求超时，请刷新页面后重新发起 GitHub 登录'),
   };
   const [inputs, setInputs] = useState({
     username: '',
@@ -109,7 +109,7 @@ const RegisterForm = () => {
   const [githubButtonState, setGithubButtonState] = useState('idle');
   const [githubButtonDisabled, setGithubButtonDisabled] = useState(false);
   const githubTimeoutRef = useRef(null);
-  const githubButtonText = t(githubButtonTextKeyByState[githubButtonState]);
+  const githubButtonText = githubButtonTextKeyByState[githubButtonState];
 
   const logo = getLogo();
   const systemName = getSystemName();

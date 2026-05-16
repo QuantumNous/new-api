@@ -7,6 +7,9 @@ import (
 	"github.com/QuantumNous/new-api/common"
 )
 
+// Provider function variable — set by main.go after model/cache initialization.
+var UserUsableGroupsCopyProvider func() map[string]string
+
 var userUsableGroups = map[string]string{
 	"default": "默认分组",
 	"vip":     "vip分组",
@@ -14,6 +17,9 @@ var userUsableGroups = map[string]string{
 var userUsableGroupsMutex sync.RWMutex
 
 func GetUserUsableGroupsCopy() map[string]string {
+	if UserUsableGroupsCopyProvider != nil {
+		return UserUsableGroupsCopyProvider()
+	}
 	userUsableGroupsMutex.RLock()
 	defer userUsableGroupsMutex.RUnlock()
 
@@ -44,6 +50,13 @@ func UpdateUserUsableGroupsByJSONString(jsonStr string) error {
 }
 
 func GetUsableGroupDescription(groupName string) string {
+	if UserUsableGroupsCopyProvider != nil {
+		groups := UserUsableGroupsCopyProvider()
+		if desc, ok := groups[groupName]; ok {
+			return desc
+		}
+		return groupName
+	}
 	userUsableGroupsMutex.RLock()
 	defer userUsableGroupsMutex.RUnlock()
 
@@ -51,4 +64,12 @@ func GetUsableGroupDescription(groupName string) string {
 		return desc
 	}
 	return groupName
+}
+
+// LoadUserUsableGroupsToMemory loads usable groups into the in-memory map.
+// Used when Redis is disabled so the map is populated from DB on startup.
+func LoadUserUsableGroupsToMemory(m map[string]string) {
+	userUsableGroupsMutex.Lock()
+	defer userUsableGroupsMutex.Unlock()
+	userUsableGroups = m
 }

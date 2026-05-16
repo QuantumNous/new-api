@@ -71,4 +71,11 @@ const (
 	// Values: 1 = has active subscription, 0 = no active subscription.
 	// If not set, the caller must fall back to a DB query.
 	ContextKeyHasActiveSubscription ContextKey = "has_active_subscription"
+
+	// ContextKeyAliasRatioOverride stores the ratio override from a group alias resolution.
+	ContextKeyAliasRatioOverride ContextKey = "alias_ratio_override"
+
+	// ContextKeyOriginalTokenGroup stores the token group name before alias resolution.
+	// Used so that user-level ratio overrides are keyed on the alias name, not the resolved target.
+	ContextKeyOriginalTokenGroup ContextKey = "original_token_group"
 )

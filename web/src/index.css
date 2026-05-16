@@ -1185,3 +1185,26 @@ body[theme-mode='dark'] {
   --semi-color-white: #1e293b;
   --semi-color-black: #f1f5f9;
 }
+
+
+.group-desc-html p {
+  margin: 0;
+}
+.group-desc-html h1,
+.group-desc-html h2,
+.group-desc-html h3,
+.group-desc-html h4,
+.group-desc-html h5,
+.group-desc-html h6 {
+  font-size: inherit;
+  font-weight: 600;
+  margin: 0;
+}
+.group-desc-html ul,
+.group-desc-html ol {
+  margin: 0;
+  padding-left: 16px;
+}
+.group-desc-html a {
+  color: var(--semi-color-link);
+}

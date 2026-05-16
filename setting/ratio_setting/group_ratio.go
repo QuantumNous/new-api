@@ -9,6 +9,14 @@ import (
 	"github.com/QuantumNous/new-api/types"
 )
 
+// Provider function variables — set by main.go after model/cache initialization.
+// When set, these override the in-memory map reads with Redis-backed lookups.
+var (
+	GroupRatioGetProvider      func(name string) (float64, bool)
+	GroupRatioContainsProvider func(name string) bool
+	GroupRatioCopyProvider     func() map[string]float64
+)
+
 var defaultGroupRatio = map[string]float64{
 	"default": 1,
 	"vip":     1,
@@ -65,10 +73,16 @@ func GetGroupRatioSetting() *GroupRatioSetting {
 }
 
 func GetGroupRatioCopy() map[string]float64 {
+	if GroupRatioCopyProvider != nil {
+		return GroupRatioCopyProvider()
+	}
 	return groupRatioMap.ReadAll()
 }
 
 func ContainsGroupRatio(name string) bool {
+	if GroupRatioContainsProvider != nil {
+		return GroupRatioContainsProvider(name)
+	}
 	_, ok := groupRatioMap.Get(name)
 	return ok
 }
@@ -82,12 +96,28 @@ func UpdateGroupRatioByJSONString(jsonStr string) error {
 }
 
 func GetGroupRatio(name string) float64 {
+	if GroupRatioGetProvider != nil {
+		ratio, ok := GroupRatioGetProvider(name)
+		if !ok {
+			common.SysLog("group ratio not found: " + name)
+			return 1
+		}
+		return ratio
+	}
 	ratio, ok := groupRatioMap.Get(name)
 	if !ok {
 		common.SysLog("group ratio not found: " + name)
 		return 1
 	}
 	return ratio
+}
+
+// LoadGroupRatioToMemory loads group ratios into the in-memory map.
+// Used when Redis is disabled so the map is populated from DB on startup.
+func LoadGroupRatioToMemory(ratios map[string]float64) {
+	for name, ratio := range ratios {
+		groupRatioMap.Set(name, ratio)
+	}
 }
 
 func GetGroupGroupRatio(userGroup, usingGroup string) (float64, bool) {

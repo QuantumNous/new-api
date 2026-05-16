@@ -18,6 +18,8 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import i18next from 'i18next';
+import { marked } from 'marked';
+import DOMPurify from 'dompurify';
 import { Modal, Tag, Typography, Avatar } from '@douyinfe/semi-ui';
 import { copy, showSuccess } from './utils';
 import { MOBILE_BREAKPOINT } from '../hooks/common/useIsMobile';
@@ -603,15 +605,29 @@ export const renderGroupOption = (item) => {
       onClick={handleClick}
       onMouseEnter={handleMouseEnter}
     >
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-        <Typography.Text strong type={disabled ? 'tertiary' : undefined}>
-          {value}
-        </Typography.Text>
-        <Typography.Text type='secondary' size='small'>
-          {label}
-        </Typography.Text>
-      </div>
-      {item.ratio && renderRatio(item.ratio)}
+      {item._isCategoryHeader ? (
+        <div style={{ width: '100%', textAlign: 'center' }}>
+          <Typography.Text type='tertiary' size='small' strong>
+            {label}
+          </Typography.Text>
+        </div>
+      ) : (
+        <>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+            <Typography.Text strong type={disabled ? 'tertiary' : undefined}>
+              {value}
+            </Typography.Text>
+            {label && (
+              <span
+                className='semi-typography semi-typography-secondary semi-typography-small semi-typography-normal group-desc-html'
+                style={{ lineHeight: 1.4 }}
+                dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(marked.parse(label.replace(/\\n/g, '\n'), { breaks: true })) }}
+              />
+            )}
+          </div>
+          {item.ratio != null && item.ratio !== undefined && renderRatio(item.ratio)}
+        </>
+      )}
     </div>
   );
 };

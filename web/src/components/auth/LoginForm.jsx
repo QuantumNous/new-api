@@ -71,9 +71,9 @@ const LoginForm = () => {
   let navigate = useNavigate();
   const { t } = useTranslation();
   const githubButtonTextKeyByState = {
-    idle: '使用 GitHub 继续',
-    redirecting: '正在跳转 GitHub...',
-    timeout: '请求超时，请刷新页面后重新发起 GitHub 登录',
+    idle: t('使用 GitHub 继续'),
+    redirecting: t('正在跳转 GitHub...'),
+    timeout: t('请求超时，请刷新页面后重新发起 GitHub 登录'),
   };
   const [inputs, setInputs] = useState({
     username: '',
@@ -110,7 +110,7 @@ const LoginForm = () => {
   const [githubButtonState, setGithubButtonState] = useState('idle');
   const [githubButtonDisabled, setGithubButtonDisabled] = useState(false);
   const githubTimeoutRef = useRef(null);
-  const githubButtonText = t(githubButtonTextKeyByState[githubButtonState]);
+  const githubButtonText = githubButtonTextKeyByState[githubButtonState];
   const [customOAuthLoading, setCustomOAuthLoading] = useState({});
 
   const logo = getLogo();
@@ -421,7 +421,7 @@ const LoginForm = () => {
       return;
     }
     if (!window.PublicKeyCredential) {
-      showInfo('当前浏览器不支持 Passkey');
+      showInfo(t('当前浏览器不支持 Passkey'));
       return;
     }
 
@@ -430,7 +430,7 @@ const LoginForm = () => {
       const beginRes = await API.post('/api/user/passkey/login/begin');
       const { success, message, data } = beginRes.data;
       if (!success) {
-        showError(message || '无法发起 Passkey 登录');
+        showError(message || t('无法发起 Passkey 登录'));
         return;
       }
 
@@ -442,7 +442,7 @@ const LoginForm = () => {
       });
       const payload = buildAssertionResult(assertion);
       if (!payload) {
-        showError('Passkey 验证失败，请重试');
+        showError(t('Passkey 验证失败，请重试'));
         return;
       }
 
@@ -458,13 +458,13 @@ const LoginForm = () => {
         showSuccess(t('登录成功！'));
         navigate('/console');
       } else {
-        showError(finish.message || 'Passkey 登录失败，请重试');
+        showError(finish.message || t('Passkey 登录失败，请重试'));
       }
     } catch (error) {
       if (error?.name === 'AbortError') {
-        showInfo('已取消 Passkey 登录');
+        showInfo(t('已取消 Passkey 登录'));
       } else {
-        showError('Passkey 登录失败，请重试');
+        showError(t('Passkey 登录失败，请重试'));
       }
     } finally {
       setPasskeyLoading(false);
@@ -490,7 +490,7 @@ const LoginForm = () => {
     userDispatch({ type: 'login', payload: data });
     setUserData(data);
     updateAPI();
-    showSuccess('登录成功！');
+    showSuccess(t('登录成功！'));
     navigate('/console');
   };
 
@@ -605,7 +605,7 @@ const LoginForm = () => {
         }}
       >
         <div className='flex flex-col items-center'>
-          <img src={status.wechat_qrcode} alt='微信二维码' className='mb-4' />
+          <img src={status.wechat_qrcode} alt={t('微信二维码')} className='mb-4' />
         </div>
 
         <div className='text-center mb-4'>
@@ -648,7 +648,7 @@ const LoginForm = () => {
                 />
               </svg>
             </div>
-            两步验证
+            {t('两步验证')}
           </div>
         }
         visible={showTwoFA}

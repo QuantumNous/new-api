@@ -22,6 +22,7 @@ import (
 	"github.com/QuantumNous/new-api/relay"
 	"github.com/QuantumNous/new-api/router"
 	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/setting"
 	_ "github.com/QuantumNous/new-api/setting/performance_setting"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 
@@ -279,8 +280,8 @@ func InitResources() error {
 	// Initialize options, should after model.InitDB()
 	model.InitOptionMap()
 
-	// Initialize user group ratio cache
-	initUserGroupRatioCache()
+	// Migrate groups from options to groups table (one-time migration)
+	model.MigrateGroupsFromOptions()
 
 	// 清理旧的磁盘缓存文件
 	common.CleanupOldCacheFiles()
@@ -299,6 +300,56 @@ func InitResources() error {
 	if err != nil {
 		return err
 	}
+
+	// Warm up group and alias caches after Redis is ready
+	model.WarmUpGroupCache()
+	model.WarmUpAliasCache()
+
+	if common.RedisEnabled {
+		// Wire up group providers to use Redis-backed cache
+		ratio_setting.GroupRatioGetProvider = model.CacheGetGroupRatio
+		ratio_setting.GroupRatioContainsProvider = model.CacheContainsGroup
+		ratio_setting.GroupRatioCopyProvider = func() map[string]float64 {
+			groups, err := model.CacheGetAllGroups()
+			if err != nil {
+				return map[string]float64{}
+			}
+			result := make(map[string]float64, len(groups))
+			for _, g := range groups {
+				result[g.Name] = g.Ratio
+			}
+			return result
+		}
+		setting.UserUsableGroupsCopyProvider = func() map[string]string {
+			result, err := model.CacheGetUsableGroups()
+			if err != nil {
+				return map[string]string{}
+			}
+			return result
+		}
+	} else {
+		// No Redis: load groups from DB into in-memory maps so every request
+		// doesn't fall through to a DB query.
+		groups, err := model.GetAllGroups()
+		if err != nil {
+			common.SysLog("failed to load groups into memory: " + err.Error())
+		} else {
+			ratios := make(map[string]float64, len(groups))
+			usable := make(map[string]string, len(groups))
+			for _, g := range groups {
+				ratios[g.Name] = g.Ratio
+				if g.UserSelectable {
+					usable[g.Name] = g.Description
+				}
+			}
+			ratio_setting.LoadGroupRatioToMemory(ratios)
+			setting.LoadUserUsableGroupsToMemory(usable)
+			common.SysLog("loaded groups into memory (no Redis)")
+		}
+	}
+
+	// Initialize user group ratio cache — must run after providers are wired up
+	initUserGroupRatioCache()
 
 	// 启动系统监控
 	common.StartSystemMonitor()

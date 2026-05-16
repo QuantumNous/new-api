@@ -3,7 +3,6 @@ package service
 import (
 	"errors"
 	"fmt"
-	"log"
 	"math"
 	"strings"
 	"time"
@@ -112,13 +111,21 @@ func PreWssConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, usag
 	autoGroup, exists := common.GetContextKey(ctx, constant.ContextKeyAutoGroup)
 	if exists {
 		groupRatio = ratio_setting.GetGroupRatio(autoGroup.(string))
-		log.Printf("final group ratio: %f", groupRatio)
 		relayInfo.UsingGroup = autoGroup.(string)
 	}
 
+	// Use original token group name (before alias resolution) for user-level override lookup.
+	usingGroupForOverride := relayInfo.UsingGroup
+	if orig, exists := common.GetContextKey(ctx, constant.ContextKeyOriginalTokenGroup); exists {
+		usingGroupForOverride = orig.(string)
+	}
 	actualGroupRatio := groupRatio
-	if userRatio, ok := ratio_setting.GetUserGroupRatioOverride(relayInfo.UserId, relayInfo.UsingGroup); ok {
+	if userRatio, ok := ratio_setting.GetUserGroupRatioOverride(relayInfo.UserId, usingGroupForOverride); ok {
 		actualGroupRatio = userRatio
+	} else if aliasRatio, exists := common.GetContextKey(ctx, constant.ContextKeyAliasRatioOverride); exists {
+		if ratio, ok := aliasRatio.(float64); ok {
+			actualGroupRatio = ratio
+		}
 	} else {
 		userGroupRatio, ok := ratio_setting.GetGroupGroupRatio(relayInfo.UserGroup, relayInfo.UsingGroup)
 		if ok {

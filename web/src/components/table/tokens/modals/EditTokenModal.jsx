@@ -137,17 +137,45 @@ const EditTokenModal = (props) => {
     let res = await API.get(`/api/user/self/groups`);
     const { success, message, data } = res.data;
     if (success) {
-      let localGroupOptions = Object.entries(data).map(([group, info]) => ({
+      let localGroupOptions = Object.entries(data)
+        .filter(([, info]) => !info.is_alias)
+        .map(([group, info]) => ({
         label: info.desc,
         value: group,
         ratio: info.ratio,
+        category: info.category || '',
+        sort_order: info.sort_order ?? 9999,
       }));
-      if (statusState?.status?.default_use_auto_group) {
-        if (localGroupOptions.some((group) => group.value === 'auto')) {
-          localGroupOptions.sort((a, b) => (a.value === 'auto' ? -1 : 1));
+      // Sort by sort_order first (admin-defined order)
+      localGroupOptions.sort((a, b) => a.sort_order - b.sort_order);
+      // Extract auto option
+      const categorized = localGroupOptions.filter((g) => g.value !== 'auto');
+      const autoOption = localGroupOptions.find((g) => g.value === 'auto');
+      // Group by category while preserving sort_order within each category
+      const categoryOrder = [];
+      const categoryGroups = {};
+      for (const opt of categorized) {
+        const cat = opt.category || '';
+        if (!categoryGroups[cat]) {
+          categoryGroups[cat] = [];
+          categoryOrder.push(cat);
         }
+        categoryGroups[cat].push(opt);
       }
-      setGroups(localGroupOptions);
+      const result = [];
+      if (autoOption) result.push(autoOption);
+      for (const cat of categoryOrder) {
+        if (cat) {
+          result.push({
+            label: `── ${cat} ──`,
+            value: `__category_${cat}`,
+            disabled: true,
+            _isCategoryHeader: true,
+          });
+        }
+        result.push(...categoryGroups[cat]);
+      }
+      setGroups(result);
       // if (statusState?.status?.default_use_auto_group && formApiRef.current) {
       //   formApiRef.current.setValue('group', 'auto');
       // }
@@ -390,7 +418,9 @@ const EditTokenModal = (props) => {
                         placeholder={t('令牌分组，默认为用户的分组')}
                         optionList={groups}
                         renderOptionItem={renderGroupOption}
+                        renderSelectedItem={(option) => option.value}
                         filter={(input, option) => {
+                          if (option._isCategoryHeader) return false;
                           const q = input.toLowerCase();
                           return (
                             option.value?.toLowerCase().includes(q) ||
