@@ -98,7 +98,7 @@ func ResponsesWebSocketHelper(c *gin.Context, client *websocket.Conn) *types.New
 				continue
 			}
 			if err := session.writeTarget(messageType, message); err != nil {
-				return session.handleTargetWriteFailure(err)
+				return session.handleControlEventWriteFailure(err)
 			}
 			continue
 		}
@@ -244,6 +244,12 @@ func (s *responsesWSSession) handleResponseCreate(create responsesWSCreateReques
 	if err := s.writeTarget(websocket.TextMessage, payload); err != nil {
 		return s.handleTargetWriteFailureWithState(state, err)
 	}
+	return nil
+}
+
+func (s *responsesWSSession) handleControlEventWriteFailure(err error) *types.NewAPIError {
+	apiErr := s.handleTargetWriteFailure(err)
+	s.sendError("", apiErr)
 	return nil
 }
 

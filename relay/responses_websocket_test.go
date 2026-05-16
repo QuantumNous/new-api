@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/dto"
@@ -257,6 +258,43 @@ func TestHandleTargetWriteFailureWithStateReleasesCurrentAndClearsTarget(t *test
 	}
 }
 
+func TestHandleControlEventWriteFailureSendsResponsesError(t *testing.T) {
+	clientConn, serverConn, cleanupClient := newTestWebSocketPair(t)
+	defer cleanupClient()
+	target, cleanupTarget := newTestResponsesWSTarget(t)
+	defer cleanupTarget()
+
+	session := &responsesWSSession{
+		client: serverConn,
+		target: target,
+	}
+	apiErr := session.handleControlEventWriteFailure(errors.New("write failed"))
+	if apiErr != nil {
+		t.Fatalf("handleControlEventWriteFailure() error = %v", apiErr)
+	}
+	if session.target != nil {
+		t.Fatal("target was not cleared")
+	}
+
+	if err := clientConn.SetReadDeadline(time.Now().Add(time.Second)); err != nil {
+		t.Fatalf("set read deadline: %v", err)
+	}
+	_, payload, err := clientConn.ReadMessage()
+	if err != nil {
+		t.Fatalf("read responses error event: %v", err)
+	}
+	var data struct {
+		Type   string `json:"type"`
+		Status int    `json:"status"`
+	}
+	if err := common.Unmarshal(payload, &data); err != nil {
+		t.Fatalf("unmarshal result: %v", err)
+	}
+	if data.Type != "error" || data.Status == 0 {
+		t.Fatalf("unexpected error event: %s", payload)
+	}
+}
+
 func TestObserveUpstreamFailedReleasesCurrent(t *testing.T) {
 	var committed *bool
 	session := &responsesWSSession{}
@@ -279,6 +317,12 @@ func TestObserveUpstreamFailedReleasesCurrent(t *testing.T) {
 }
 
 func newTestResponsesWSTarget(t *testing.T) (*websocket.Conn, func()) {
+	t.Helper()
+	target, _, cleanup := newTestWebSocketPair(t)
+	return target, cleanup
+}
+
+func newTestWebSocketPair(t *testing.T) (*websocket.Conn, *websocket.Conn, func()) {
 	t.Helper()
 	upgrader := websocket.Upgrader{}
 	serverConnCh := make(chan *websocket.Conn, 1)
@@ -303,5 +347,5 @@ func newTestResponsesWSTarget(t *testing.T) (*websocket.Conn, func()) {
 		_ = serverConn.Close()
 		server.Close()
 	}
-	return target, cleanup
+	return target, serverConn, cleanup
 }
