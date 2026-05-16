@@ -4454,6 +4454,21 @@
     "operation and charging behavior": "operation and charging behavior",
     "，": ", ",
     "，and ": ", and ",
-    "、": ", "
+    "、": ", ",
+    "Consumed Quota": "Consumed Quota",
+    "End Time (optional)": "End Time (optional)",
+    "Export Excel": "Export Excel",
+    "Export failed": "Export failed",
+    "Failed to fetch statistics": "Failed to fetch statistics",
+    "Model Name (optional)": "Model Name (optional)",
+    "Query": "Query",
+    "Request Count Distribution": "Request Count Distribution",
+    "Start Time (optional)": "Start Time (optional)",
+    "Statistics": "Statistics",
+    "Summary": "Summary",
+    "Token Name (optional)": "Token Name (optional)",
+    "Usage Statistics": "Usage Statistics",
+    "Username (required)": "Username (required)",
+    "Username is required": "Username is required"
   }
 }

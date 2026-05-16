@@ -79,7 +79,7 @@ export function getDefaultTimeRange(): { start: Date; end: Date } {
   const now = new Date()
   const start = new Date(now)
   start.setHours(0, 0, 0, 0)
-  const end = new Date(now.getTime() + 3600 * 1000) // +1 hour
+  const end = new Date()
 
   return { start, end }
 }

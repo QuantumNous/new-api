@@ -3874,6 +3874,7 @@
     "This model has both fixed-price and token-price settings. Saving the current mode will rewrite the conflicting fields.": "このモデルには固定価格とトークン価格設定の両方があります。現在のモードで保存すると、競合するフィールドが上書きされます。",
     "This model is not available in any group, or no group pricing information is configured.": "このモデルはどのグループでも利用できないか、グループの料金情報が設定されていません。",
     "This month": "今月",
+    "This Month (preset)": "今月",
     "This page has not been created yet.": "このページはまだ作成されていません。",
     "This project must be used in compliance with the": "このプロジェクトは、以下を遵守して使用する必要があります",
     "This record was written by a pre-upgrade instance and lacks audit info. Upgrade the instance to record server IP, callback IP, payment method and system version.": "古いバージョンのインスタンスがこの記録を書き込み、監査情報がありません。最新に更新し、サーバーIP・コールバックIP・支払方法・OSバージョンの記録を有効にしてください。",

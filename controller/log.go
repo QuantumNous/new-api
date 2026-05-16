@@ -126,6 +126,22 @@ func GetLogsStat(c *gin.Context) {
 	return
 }
 
+func checkStatisticsUsername(c *gin.Context, username string) bool {
+	role := c.GetInt("role")
+	if role >= common.RoleAdminUser {
+		return true
+	}
+	currentUsername := c.GetString("username")
+	if username != currentUsername {
+		c.JSON(http.StatusForbidden, gin.H{
+			"success": false,
+			"message": "you can only query your own statistics",
+		})
+		return false
+	}
+	return true
+}
+
 func GetLogStatistics(c *gin.Context) {
 	username := c.Query("username")
 	if username == "" {
@@ -133,6 +149,9 @@ func GetLogStatistics(c *gin.Context) {
 			"success": false,
 			"message": "username is required",
 		})
+		return
+	}
+	if !checkStatisticsUsername(c, username) {
 		return
 	}
 	tokenName := c.Query("token_name")
@@ -167,6 +186,9 @@ func ExportLogStatistics(c *gin.Context) {
 			"success": false,
 			"message": "username is required",
 		})
+		return
+	}
+	if !checkStatisticsUsername(c, username) {
 		return
 	}
 	tokenName := c.Query("token_name")
@@ -295,4 +317,140 @@ func DeleteHistoryLogs(c *gin.Context) {
 		"data":    count,
 	})
 	return
+}
+
+func GetStatisticsUserOptions(c *gin.Context) {
+	keyword := c.Query("keyword")
+	page, _ := strconv.Atoi(c.Query("p"))
+	if page < 1 {
+		page = 1
+	}
+	pageSize, _ := strconv.Atoi(c.Query("page_size"))
+	if pageSize < 1 || pageSize > 100 {
+		pageSize = 20
+	}
+
+	var usernames []string
+	if keyword != "" {
+		users, _, err := model.SearchUsers(keyword, "", (page-1)*pageSize, pageSize)
+		if err != nil {
+			common.ApiError(c, err)
+			return
+		}
+		for _, u := range users {
+			usernames = append(usernames, u.Username)
+		}
+	} else {
+		pageInfo := &common.PageInfo{Page: page, PageSize: pageSize}
+		users, _, err := model.GetAllUsers(pageInfo)
+		if err != nil {
+			common.ApiError(c, err)
+			return
+		}
+		for _, u := range users {
+			usernames = append(usernames, u.Username)
+		}
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"data":    usernames,
+	})
+}
+
+func GetStatisticsTokenOptions(c *gin.Context) {
+	role := c.GetInt("role")
+	userId := c.GetInt("id")
+	username := c.Query("username")
+
+	if role < common.RoleAdminUser {
+		username = c.GetString("username")
+	}
+
+	var user model.User
+	if err := model.DB.Where("username = ?", username).First(&user).Error; err != nil {
+		c.JSON(http.StatusOK, gin.H{
+			"success": true,
+			"data":    []string{},
+		})
+		return
+	}
+
+	if role < common.RoleAdminUser && user.Id != userId {
+		c.JSON(http.StatusOK, gin.H{
+			"success": true,
+			"data":    []string{},
+		})
+		return
+	}
+
+	tokens, err := model.GetAllUserTokens(user.Id, 0, 100)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+
+	var tokenNames []string
+	for _, t := range tokens {
+		tokenNames = append(tokenNames, t.Name)
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"data":    tokenNames,
+	})
+}
+
+func GetStatisticsModelOptions(c *gin.Context) {
+	username := c.Query("username")
+	tokenName := c.Query("token_name")
+
+	if tokenName != "" && username != "" {
+		var user model.User
+		if err := model.DB.Where("username = ?", username).First(&user).Error; err != nil {
+			c.JSON(http.StatusOK, gin.H{
+				"success": true,
+				"data":    model.GetEnabledModels(),
+			})
+			return
+		}
+
+		var token model.Token
+		if err := model.DB.Where("user_id = ? AND name = ?", user.Id, tokenName).First(&token).Error; err != nil {
+			c.JSON(http.StatusOK, gin.H{
+				"success": true,
+				"data":    model.GetEnabledModels(),
+			})
+			return
+		}
+
+		if token.IsModelLimitsEnabled() {
+			limits := token.GetModelLimits()
+			if len(limits) > 0 {
+				enabledModels := model.GetEnabledModels()
+				enabledMap := make(map[string]bool, len(enabledModels))
+				for _, m := range enabledModels {
+					enabledMap[m] = true
+				}
+				var result []string
+				for _, m := range limits {
+					if enabledMap[m] {
+						result = append(result, m)
+					}
+				}
+				if len(result) > 0 {
+					c.JSON(http.StatusOK, gin.H{
+						"success": true,
+						"data":    result,
+					})
+					return
+				}
+			}
+		}
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"data":    model.GetEnabledModels(),
+	})
 }

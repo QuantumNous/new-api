@@ -3873,7 +3873,7 @@
     "This model has both fixed-price and ratio settings. Saving the current mode will rewrite the conflicting fields.": "该模型同时存在固定价格和比例设置。保存当前模式会重写冲突字段。",
     "This model has both fixed-price and token-price settings. Saving the current mode will rewrite the conflicting fields.": "该模型同时存在固定价格和按 token 价格设置。保存当前模式会重写冲突字段。",
     "This model is not available in any group, or no group pricing information is configured.": "此模型在任何分组中均不可用，或未配置分组定价信息。",
-    "This month": "本月获得",
+    "This month": "本月",
     "This page has not been created yet.": "此页面尚未创建。",
     "This project must be used in compliance with the": "此项目的使用必须遵守",
     "This record was written by a pre-upgrade instance and lacks audit info. Upgrade the instance to record server IP, callback IP, payment method and system version.": "该记录由旧版本实例写入，缺少审计信息，建议将实例升级至最新版本以便记录服务器 IP、回调 IP、支付方式与系统版本等审计字段。",
@@ -4454,6 +4454,21 @@
     "operation and charging behavior": "运营和收费行为产生的法律责任",
     "，": "，",
     "，and ": "，",
-    "、": "、"
+    "、": "、",
+    "Consumed Quota": "消耗额度",
+    "End Time (optional)": "结束时间（可选）",
+    "Export Excel": "导出 Excel",
+    "Export failed": "导出失败",
+    "Failed to fetch statistics": "获取统计信息失败",
+    "Model Name (optional)": "模型名称（可选）",
+    "Query": "查询",
+    "Request Count Distribution": "调用次数分布",
+    "Start Time (optional)": "开始时间（可选）",
+    "Statistics": "统计",
+    "Summary": "统计汇总",
+    "Token Name (optional)": "令牌名称（可选）",
+    "Usage Statistics": "使用统计",
+    "Username (required)": "用户名称（必填）",
+    "Username is required": "请输入用户名"
   }
 }

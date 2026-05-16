@@ -20,7 +20,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { useQueryClient, useIsFetching } from '@tanstack/react-query'
 import { useNavigate, getRouteApi } from '@tanstack/react-router'
 import { type Table } from '@tanstack/react-table'
-import { Eye, EyeOff } from 'lucide-react'
+import { Eye, EyeOff, BarChart3 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { useIsAdmin } from '@/hooks/use-admin'
 import { Button } from '@/components/ui/button'
@@ -58,6 +58,7 @@ function isLogTypeValue(value: string): value is LogTypeValue {
 
 interface CommonLogsFilterBarProps<TData> {
   table: Table<TData>
+  onStatisticsClick?: () => void
 }
 
 export function CommonLogsFilterBar<TData>(
@@ -197,10 +198,22 @@ export function CommonLogsFilterBar<TData>(
     </div>
   )
 
+  const statsButton = props.onStatisticsClick ? (
+    <Button
+      variant='outline'
+      size='sm'
+      onClick={props.onStatisticsClick}
+    >
+      <BarChart3 className='mr-1.5 size-4' />
+      {t('Statistics')}
+    </Button>
+  ) : null
+
   return (
     <DataTableToolbar
       table={props.table}
       leftActions={statsBar}
+      preActions={statsButton}
       customSearch={
         <CompactDateTimeRangePicker
           start={filters.startTime}

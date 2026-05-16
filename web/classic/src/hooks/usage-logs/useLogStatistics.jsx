@@ -31,10 +31,21 @@ export const useLogStatistics = () => {
   const [statistics, setStatistics] = useState(null);
   const [trend, setTrend] = useState([]);
 
+  const isAdminUser = (() => {
+    const user = localStorage.getItem('user');
+    if (!user) return false;
+    try { return JSON.parse(user).role >= 10; } catch { return false; }
+  })();
+  const currentUser = (() => {
+    const user = localStorage.getItem('user');
+    if (!user) return '';
+    try { return JSON.parse(user).username || ''; } catch { return ''; }
+  })();
+
   // Form defaults
   const now = new Date();
   const formInitValues = {
-    username: '',
+    username: isAdminUser ? '' : (currentUser || ''),
     token_name: '',
     model_name: '',
     dateRange: [
@@ -108,7 +119,6 @@ export const useLogStatistics = () => {
       const contentDisposition = res.headers['content-disposition'];
       let filename = `usage_statistics_${params.username}.xlsx`;
       if (contentDisposition) {
-        // Prefer filename*=UTF-8''... (RFC 5987), fall back to filename="..."
         const utf8Match = contentDisposition.match(/filename\*=UTF-8''(.+?)(?:;|$)/);
         if (utf8Match) {
           filename = decodeURIComponent(utf8Match[1]);
@@ -128,6 +138,42 @@ export const useLogStatistics = () => {
       setExportLoading(false);
     }
   }, [getFormParams, t]);
+
+  // Fetch options for comboboxes
+  const fetchUserOptions = useCallback(async (keyword) => {
+    if (!isAdminUser) return [];
+    try {
+      const url = `/api/log/statistics/options/users?keyword=${encodeURIComponent(keyword || '')}&page_size=50`;
+      const res = await API.get(url);
+      return res.data?.data || [];
+    } catch {
+      return [];
+    }
+  }, [isAdminUser]);
+
+  const fetchTokenOptions = useCallback(async (username) => {
+    if (!username) return [];
+    try {
+      const url = `/api/log/statistics/options/tokens?username=${encodeURIComponent(username)}`;
+      const res = await API.get(url);
+      return res.data?.data || [];
+    } catch {
+      return [];
+    }
+  }, []);
+
+  const fetchModelOptions = useCallback(async (username, tokenName) => {
+    try {
+      const params = new URLSearchParams();
+      if (username) params.set('username', username);
+      if (tokenName) params.set('token_name', tokenName);
+      const url = `/api/log/statistics/options/models?${params.toString()}`;
+      const res = await API.get(url);
+      return res.data?.data || [];
+    } catch {
+      return [];
+    }
+  }, []);
 
   // Build VChart specs from data
   const buildBarSpec = useCallback(() => {
@@ -234,6 +280,10 @@ export const useLogStatistics = () => {
     buildBarSpec,
     buildTrendSpec,
     buildQuotaBarSpec,
+    fetchUserOptions,
+    fetchTokenOptions,
+    fetchModelOptions,
+    isAdminUser,
     t,
   };
 };

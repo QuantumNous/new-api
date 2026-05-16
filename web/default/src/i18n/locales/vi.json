@@ -3874,6 +3874,7 @@
     "This model has both fixed-price and token-price settings. Saving the current mode will rewrite the conflicting fields.": "Mô hình này có cả giá cố định và cài đặt giá theo token. Lưu chế độ hiện tại sẽ ghi lại các trường xung đột.",
     "This model is not available in any group, or no group pricing information is configured.": "Mô hình này không khả dụng trong bất kỳ nhóm nào, hoặc thông tin giá nhóm chưa được cấu hình.",
     "This month": "Tháng này",
+    "This Month (preset)": "Tháng này",
     "This page has not been created yet.": "Trang này chưa được tạo.",
     "This project must be used in compliance with the": "Dự án này phải được sử dụng tuân thủ theo",
     "This record was written by a pre-upgrade instance and lacks audit info. Upgrade the instance to record server IP, callback IP, payment method and system version.": "Bản ghi này do bản cũ tạo và thiếu thông tin audit. Nâng cấp bản cài để lưu IP máy chủ, IP callback, hình thức thanh toán và phiên bản hệ thống.",

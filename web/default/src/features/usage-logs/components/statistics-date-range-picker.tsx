@@ -18,6 +18,8 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { useCallback, useMemo, useRef, useState } from 'react'
 import { CalendarDays } from 'lucide-react'
+import { type DateRange } from 'react-day-picker'
+// ✅ 修复2：直接引入官方类型
 import { enUS, fr, ja, ru, vi, zhCN } from 'react-day-picker/locale'
 import { useTranslation } from 'react-i18next'
 import dayjs from '@/lib/dayjs'
@@ -39,24 +41,19 @@ const calendarLocales = {
   vi,
 } as const
 
-interface DateRange {
-  from?: Date
-  to?: Date
-}
-
-interface CompactDateTimeRangePickerProps {
+interface StatisticsDateRangePickerProps {
   start?: Date
   end?: Date
   onChange: (range: { start?: Date; end?: Date }) => void
   className?: string
 }
 
-export function CompactDateTimeRangePicker({
+export function StatisticsDateRangePicker({
   start,
   end,
   onChange,
   className,
-}: CompactDateTimeRangePickerProps) {
+}: StatisticsDateRangePickerProps) {
   const { t, i18n } = useTranslation()
   const calendarLocale =
     calendarLocales[i18n.language as keyof typeof calendarLocales] ?? enUS
@@ -73,7 +70,9 @@ export function CompactDateTimeRangePicker({
   })
   const [month1, setMonth1] = useState<Date | undefined>(start ?? new Date())
   const [month2, setMonth2] = useState<Date | undefined>(
-    start ? dayjs(start).add(1, 'month').toDate() : dayjs().add(1, 'month').toDate()
+    start
+      ? dayjs(start).add(1, 'month').toDate()
+      : dayjs().add(1, 'month').toDate()
   )
   const pickedEndRef = useRef(false)
 
@@ -103,15 +102,12 @@ export function CompactDateTimeRangePicker({
     [start, end]
   )
 
-  const buildDateTime = useCallback(
-    (date: Date, timeStr: string): Date => {
-      const [h, m] = timeStr.split(':').map(Number)
-      const d = new Date(date)
-      d.setHours(h || 0, m || 0, 0, 0)
-      return d
-    },
-    []
-  )
+  const buildDateTime = useCallback((date: Date, timeStr: string): Date => {
+    const [h, m] = timeStr.split(':').map(Number)
+    const d = new Date(date)
+    d.setHours(h || 0, m || 0, 0, 0)
+    return d
+  }, [])
 
   const commit = useCallback(
     (r: DateRange, sTime: string, eTime: string) => {
@@ -124,18 +120,15 @@ export function CompactDateTimeRangePicker({
     [onChange, buildDateTime]
   )
 
-  const handleRangeSelect = useCallback(
-    (selected: DateRange | undefined) => {
-      if (!selected) return
-      if (!pickedEndRef.current) {
-        setRange({ from: selected.from, to: undefined })
-        pickedEndRef.current = false
-      } else {
-        setRange({ from: selected.from, to: selected.to })
-      }
-    },
-    []
-  )
+  const handleRangeSelect = useCallback((selected: DateRange | undefined) => {
+    if (!selected) return
+    if (!pickedEndRef.current) {
+      setRange({ from: selected.from, to: undefined })
+      pickedEndRef.current = false
+    } else {
+      setRange({ from: selected.from, to: selected.to })
+    }
+  }, [])
 
   const handleCalendarClick = useCallback(
     (day: Date, modifiers: Record<string, boolean>) => {
@@ -200,6 +193,19 @@ export function CompactDateTimeRangePicker({
     [t]
   )
 
+  // ✅ 修复1：使用 cn 并扩充选择器。强行重写起止和选中项在 Hover 时的背景色与文字色，击碎 Ghost 样式的暗黑主题污染。
+  const calendarClassNames = cn(
+    'w-full',
+    '[&_[data-slot=calendar]]:w-full',
+    '[&_.day-range-start:hover]:bg-primary [&_.day-range-start:hover]:text-primary-foreground',
+    '[&_.day-range-end:hover]:bg-primary [&_.day-range-end:hover]:text-primary-foreground',
+    '[&_.day-selected:hover]:bg-primary [&_.day-selected:hover]:text-primary-foreground',
+    '[&_.rdp-day_range_start:hover]:bg-primary [&_.rdp-day_range_start:hover]:text-primary-foreground',
+    '[&_.rdp-day_range_end:hover]:bg-primary [&_.rdp-day_range_end:hover]:text-primary-foreground',
+    '[&_.rdp-day_selected:hover]:bg-primary [&_.rdp-day_selected:hover]:text-primary-foreground',
+    '[&_[aria-selected=true]:hover]:bg-primary [&_[aria-selected=true]:hover]:text-primary-foreground'
+  )
+
   return (
     <Popover open={open} onOpenChange={handleOpenChange}>
       <PopoverTrigger
@@ -220,10 +226,10 @@ export function CompactDateTimeRangePicker({
       </PopoverTrigger>
       <PopoverContent
         align='start'
-        className='w-[min(620px,calc(100vw-2rem))] p-3'
+        className='w-[min(640px,calc(100vw-2rem))] p-4'
       >
-        <div className='space-y-3'>
-          <div className='flex gap-4'>
+        <div className='flex flex-col gap-4'>
+          <div className='flex gap-4 overflow-x-auto overflow-y-hidden'>
             <Calendar
               mode='range'
               numberOfMonths={1}
@@ -235,6 +241,7 @@ export function CompactDateTimeRangePicker({
               locale={calendarLocale}
               captionLayout='dropdown'
               disabled={(date: Date) => date > new Date()}
+              className={calendarClassNames}
             />
             <Calendar
               mode='range'
@@ -247,12 +254,13 @@ export function CompactDateTimeRangePicker({
               locale={calendarLocale}
               captionLayout='dropdown'
               disabled={(date: Date) => date > new Date()}
+              className={calendarClassNames}
             />
           </div>
 
-          <div className='grid grid-cols-[1fr_auto_1fr] items-center gap-3'>
-            <div className='border-input flex items-center gap-2 rounded-md border px-2 py-1'>
-              <span className='text-xs'>
+          <div className='border-border grid grid-cols-[1fr_auto_1fr] items-center gap-3 border-t pt-4'>
+            <div className='border-input flex items-center justify-between gap-2 rounded-md border px-3 py-1.5'>
+              <span className='text-muted-foreground text-xs whitespace-nowrap'>
                 {range.from
                   ? dayjs(range.from).format('YYYY-MM-DD')
                   : t('Start Time')}
@@ -261,12 +269,12 @@ export function CompactDateTimeRangePicker({
                 type='time'
                 value={startTime}
                 onChange={(e) => setStartTime(e.target.value)}
-                className='h-7 w-full border-0 bg-transparent p-0 font-mono text-xs outline-none [&::-webkit-calendar-picker-indicator]:hidden'
+                className='h-7 w-[76px] shrink-0 border-0 bg-transparent p-0 font-mono text-xs outline-none [&::-webkit-calendar-picker-indicator]:hidden'
               />
             </div>
             <span className='text-muted-foreground text-xs'>~</span>
-            <div className='border-input flex items-center gap-2 rounded-md border px-2 py-1'>
-              <span className='text-xs'>
+            <div className='border-input flex items-center justify-between gap-2 rounded-md border px-3 py-1.5'>
+              <span className='text-muted-foreground text-xs whitespace-nowrap'>
                 {range.to
                   ? dayjs(range.to).format('YYYY-MM-DD')
                   : t('End Time')}
@@ -275,19 +283,19 @@ export function CompactDateTimeRangePicker({
                 type='time'
                 value={endTime}
                 onChange={(e) => setEndTime(e.target.value)}
-                className='h-7 w-full border-0 bg-transparent p-0 font-mono text-xs outline-none [&::-webkit-calendar-picker-indicator]:hidden'
+                className='h-7 w-[76px] shrink-0 border-0 bg-transparent p-0 font-mono text-xs outline-none [&::-webkit-calendar-picker-indicator]:hidden'
               />
             </div>
           </div>
 
-          <div className='flex flex-wrap gap-1.5'>
+          <div className='flex flex-wrap gap-2 pt-1'>
             {presetButtons.map((btn) => (
               <Button
                 key={btn.kind}
                 type='button'
                 variant='secondary'
                 size='sm'
-                className='h-7 flex-1 px-2 text-xs'
+                className='h-8 flex-1 px-2 text-xs'
                 onClick={() => applyPreset(btn.kind)}
               >
                 {btn.label}
@@ -296,7 +304,7 @@ export function CompactDateTimeRangePicker({
           </div>
 
           <div className='flex justify-end'>
-            <Button size='sm' className='h-8' onClick={handleConfirm}>
+            <Button size='sm' className='h-8 px-5' onClick={handleConfirm}>
               {t('Confirm')}
             </Button>
           </div>

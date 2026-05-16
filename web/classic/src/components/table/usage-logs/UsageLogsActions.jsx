@@ -86,23 +86,22 @@ const LogsActions = ({
         </Space>
       </Skeleton>
 
-      <CompactModeToggle
-        compactMode={compactMode}
-        setCompactMode={setCompactMode}
-        t={t}
-      />
+      <div className='flex items-center gap-2 ml-auto'>
+        <CompactModeToggle
+          compactMode={compactMode}
+          setCompactMode={setCompactMode}
+          t={t}
+        />
 
-      {isAdminUser && (
         <Button
           type='primary'
           size='small'
           icon={<IconHistogram />}
           onClick={() => setShowStatisticsDrawer(true)}
-          style={{ marginLeft: 8 }}
         >
           {t('统计')}
         </Button>
-      )}
+      </div>
     </div>
   );
 };

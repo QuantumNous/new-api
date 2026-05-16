@@ -56,6 +56,7 @@ const TaskLogsFilters = ({
               showClear
               pure
               size='small'
+              disabledDate={(date) => date && date.getTime() > Date.now()}
               presets={DATE_RANGE_PRESETS.map((preset) => ({
                 text: t(preset.text),
                 start: preset.start(),
