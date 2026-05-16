@@ -172,6 +172,11 @@ func InitOptionMap() {
 	common.OptionMap["RetryTimes"] = strconv.Itoa(common.RetryTimes)
 	common.OptionMap["KYCEnabled"] = strconv.FormatBool(common.KYCEnabled)
 	common.OptionMap["KYCMaxSubmitCount"] = strconv.Itoa(common.KYCMaxSubmitCount)
+	common.OptionMap["ReconcileUploadMaxFileBytes"] = strconv.FormatInt(common.ReconcileUploadMaxFileBytes, 10)
+	common.OptionMap["ReconcileUploadMaxLogRangeDays"] = strconv.Itoa(common.ReconcileUploadMaxLogRangeDays)
+	common.OptionMap["ReconcileDriftOkPct"] = strconv.FormatFloat(common.ReconcileDriftOkPct, 'f', -1, 64)
+	common.OptionMap["ReconcileDriftWarnPct"] = strconv.FormatFloat(common.ReconcileDriftWarnPct, 'f', -1, 64)
+	common.OptionMap["ReconcileMaxBuckets"] = strconv.Itoa(common.ReconcileMaxBuckets)
 	common.OptionMap["DataExportInterval"] = strconv.Itoa(common.DataExportInterval)
 	common.OptionMap["DataExportDefaultTime"] = common.DataExportDefaultTime
 	common.OptionMap["DefaultCollapseSidebar"] = strconv.FormatBool(common.DefaultCollapseSidebar)
@@ -571,6 +576,16 @@ func updateOptionMap(key string, value string) (err error) {
 		err = setting.UpdateModelRequestRateLimitGroupByJSONString(value)
 	case "KYCMaxSubmitCount":
 		common.KYCMaxSubmitCount, _ = strconv.Atoi(value)
+	case "ReconcileUploadMaxFileBytes":
+		common.ReconcileUploadMaxFileBytes, _ = strconv.ParseInt(value, 10, 64)
+	case "ReconcileUploadMaxLogRangeDays":
+		common.ReconcileUploadMaxLogRangeDays, _ = strconv.Atoi(value)
+	case "ReconcileDriftOkPct":
+		common.ReconcileDriftOkPct, _ = strconv.ParseFloat(value, 64)
+	case "ReconcileDriftWarnPct":
+		common.ReconcileDriftWarnPct, _ = strconv.ParseFloat(value, 64)
+	case "ReconcileMaxBuckets":
+		common.ReconcileMaxBuckets, _ = strconv.Atoi(value)
 	case "RetryTimes":
 		common.RetryTimes, _ = strconv.Atoi(value)
 	case "DataExportInterval":

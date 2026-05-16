@@ -197,6 +197,15 @@ func SetApiRouter(router *gin.Engine) {
 			subscriptionAdminRoute.DELETE("/user_subscriptions/:id", controller.AdminDeleteUserSubscription)
 		}
 
+		// Reconciliation v3.0 (upload-driven). Admin uploads supplier xlsx,
+		// system compares against logs in memory, returns full diff in one
+		// response. See docs/reconciliation-upload-design.md.
+		reconcileAdmin := apiRouter.Group("/reconcile/admin")
+		reconcileAdmin.Use(middleware.AdminAuth())
+		{
+			reconcileAdmin.POST("/upload", controller.AdminReconcileUpload)
+		}
+
 		// Subscription payment callbacks (no auth)
 		apiRouter.POST("/subscription/epay/notify", controller.SubscriptionEpayNotify)
 		apiRouter.GET("/subscription/epay/notify", controller.SubscriptionEpayNotify)
