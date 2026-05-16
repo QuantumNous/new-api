@@ -1468,11 +1468,18 @@ export function PaymentSettingsSection({
 
       <Separator />
 
-      <WaffoSettingsSection defaultValues={waffoDefaultValues} />
+      <div
+        className={cn(!complianceConfirmed && 'pointer-events-none opacity-40')}
+        aria-disabled={!complianceConfirmed}
+      >
+        <WaffoSettingsSection defaultValues={waffoDefaultValues} />
 
-      <Separator />
+        <Separator />
 
-      <WaffoPancakeSettingsSection defaultValues={waffoPancakeDefaultValues} />
+        <WaffoPancakeSettingsSection
+          defaultValues={waffoPancakeDefaultValues}
+        />
+      </div>
       {/* eslint-enable react-hooks/refs */}
     </SettingsSection>
   )
