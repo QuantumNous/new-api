@@ -88,28 +88,28 @@ func ResponsesWebSocketHelper(c *gin.Context, client *websocket.Conn) *types.New
 
 		eventType, eventErr := responsesWSEventType(message)
 		if eventErr != nil {
-			session.sendError("", types.NewError(eventErr, types.ErrorCodeInvalidRequest, types.ErrOptionWithSkipRetry()))
+			session.sendError("", newResponsesWSInvalidRequestError(eventErr))
 			continue
 		}
 
 		if eventType != responsesWSEventTypeResponseCreate {
 			if session.target == nil {
-				session.sendError("", types.NewError(errors.New("first responses websocket event must be response.create"), types.ErrorCodeInvalidRequest, types.ErrOptionWithSkipRetry()))
+				session.sendError("", newResponsesWSInvalidRequestError(errors.New("first responses websocket event must be response.create")))
 				continue
 			}
 			if err := session.writeTarget(messageType, message); err != nil {
-				return types.NewError(err, types.ErrorCodeBadResponse, types.ErrOptionWithSkipRetry())
+				return session.handleTargetWriteFailure(err)
 			}
 			continue
 		}
 
 		create, eventID, err := normalizeResponsesWSCreateEvent(message)
 		if err != nil {
-			session.sendError("", types.NewError(err, types.ErrorCodeInvalidRequest, types.ErrOptionWithSkipRetry()))
+			session.sendError("", newResponsesWSInvalidRequestError(err))
 			continue
 		}
 		if create.Request.Model == "" {
-			session.sendError(eventID, types.NewError(errors.New("model is required"), types.ErrorCodeInvalidRequest, types.ErrOptionWithSkipRetry()))
+			session.sendError(eventID, newResponsesWSInvalidRequestError(errors.New("model is required")))
 			continue
 		}
 		if err := session.handleResponseCreate(create, eventID); err != nil {
@@ -129,6 +129,10 @@ func responsesWSEventType(message []byte) (string, error) {
 		return "", errors.New("websocket event type is required")
 	}
 	return event.Type, nil
+}
+
+func newResponsesWSInvalidRequestError(err error) *types.NewAPIError {
+	return types.NewErrorWithStatusCode(err, types.ErrorCodeInvalidRequest, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
 }
 
 func normalizeResponsesWSCreateEvent(message []byte) (responsesWSCreateRequest, string, error) {
@@ -238,10 +242,21 @@ func (s *responsesWSSession) handleResponseCreate(create responsesWSCreateReques
 		)
 	}
 	if err := s.writeTarget(websocket.TextMessage, payload); err != nil {
-		s.finishCall(state, false)
-		return types.NewError(err, types.ErrorCodeBadResponse, types.ErrOptionWithSkipRetry())
+		return s.handleTargetWriteFailureWithState(state, err)
 	}
 	return nil
+}
+
+func (s *responsesWSSession) handleTargetWriteFailure(err error) *types.NewAPIError {
+	s.closeTarget()
+	apiErr := types.NewError(err, types.ErrorCodeBadResponse)
+	apiErr, _ = s.processChannelError(s.lockedChannel, apiErr, nil)
+	return apiErr
+}
+
+func (s *responsesWSSession) handleTargetWriteFailureWithState(state *responsesWSCallState, err error) *types.NewAPIError {
+	s.finishCall(state, false)
+	return s.handleTargetWriteFailure(err)
 }
 
 func (s *responsesWSSession) connectAndSendFirst(create responsesWSCreateRequest, commitRate middleware.ModelRequestRateLimitCommit) *types.NewAPIError {
@@ -349,8 +364,12 @@ func (s *responsesWSSession) processChannelError(channel *appmodel.Channel, apiE
 		return nil, false
 	}
 	apiErr = service.NormalizeViolationFeeError(apiErr)
-	service.ResetStatusCode(apiErr, s.c.GetString("status_code_mapping"))
-	if channel != nil {
+	statusCodeMapping := ""
+	if s.c != nil {
+		statusCodeMapping = s.c.GetString("status_code_mapping")
+	}
+	service.ResetStatusCode(apiErr, statusCodeMapping)
+	if channel != nil && s.c != nil {
 		service.ProcessChannelError(s.c, *types.NewChannelError(
 			channel.Id,
 			channel.Type,
@@ -359,6 +378,9 @@ func (s *responsesWSSession) processChannelError(channel *appmodel.Channel, apiE
 			common.GetContextKeyString(s.c, appconstant.ContextKeyChannelKey),
 			channel.GetAutoBan(),
 		), apiErr)
+	}
+	if retryParam == nil {
+		return apiErr, false
 	}
 	return apiErr, service.ShouldRetryRelayError(s.c, apiErr, common.RetryTimes-retryParam.GetRetry())
 }

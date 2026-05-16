@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 
@@ -11,6 +12,8 @@ import (
 	"github.com/QuantumNous/new-api/dto"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/types"
+
+	"github.com/gorilla/websocket"
 )
 
 func TestNormalizeResponsesWSCreateEventWrapper(t *testing.T) {
@@ -166,6 +169,22 @@ func TestBuildResponsesWSErrorPayloadIncludesStatus(t *testing.T) {
 	}
 }
 
+func TestResponsesWSInvalidRequestErrorUsesBadRequestStatus(t *testing.T) {
+	payload, err := buildResponsesWSErrorPayload("", newResponsesWSInvalidRequestError(errors.New("bad event")))
+	if err != nil {
+		t.Fatalf("buildResponsesWSErrorPayload() error = %v", err)
+	}
+	var data struct {
+		Status int `json:"status"`
+	}
+	if err := common.Unmarshal(payload, &data); err != nil {
+		t.Fatalf("unmarshal result: %v", err)
+	}
+	if data.Status != http.StatusBadRequest {
+		t.Fatalf("status = %d, want %d", data.Status, http.StatusBadRequest)
+	}
+}
+
 func TestRemoveResponsesWSTransportFields(t *testing.T) {
 	payload := []byte(`{
 		"model": "gpt-5.3-codex-spark",
@@ -208,6 +227,36 @@ func TestToWebSocketURL(t *testing.T) {
 	}
 }
 
+func TestHandleTargetWriteFailureWithStateReleasesCurrentAndClearsTarget(t *testing.T) {
+	target, cleanup := newTestResponsesWSTarget(t)
+	defer cleanup()
+
+	var committed *bool
+	session := &responsesWSSession{target: target}
+	state := &responsesWSCallState{
+		info: &relaycommon.RelayInfo{},
+		commitRate: func(success bool) {
+			committed = &success
+		},
+	}
+	session.current = state
+
+	apiErr := session.handleTargetWriteFailureWithState(state, errors.New("write failed"))
+
+	if apiErr == nil {
+		t.Fatal("apiErr is nil")
+	}
+	if session.target != nil {
+		t.Fatal("target was not cleared")
+	}
+	if session.getCurrent() != nil {
+		t.Fatal("current response was not released")
+	}
+	if committed == nil || *committed {
+		t.Fatalf("commit success = %v, want false", committed)
+	}
+}
+
 func TestObserveUpstreamFailedReleasesCurrent(t *testing.T) {
 	var committed *bool
 	session := &responsesWSSession{}
@@ -227,4 +276,32 @@ func TestObserveUpstreamFailedReleasesCurrent(t *testing.T) {
 	if committed == nil || *committed {
 		t.Fatalf("commit success = %v, want false", committed)
 	}
+}
+
+func newTestResponsesWSTarget(t *testing.T) (*websocket.Conn, func()) {
+	t.Helper()
+	upgrader := websocket.Upgrader{}
+	serverConnCh := make(chan *websocket.Conn, 1)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		conn, err := upgrader.Upgrade(w, r, nil)
+		if err != nil {
+			t.Errorf("upgrade websocket: %v", err)
+			return
+		}
+		serverConnCh <- conn
+	}))
+
+	targetURL := "ws" + strings.TrimPrefix(server.URL, "http")
+	target, _, err := websocket.DefaultDialer.Dial(targetURL, nil)
+	if err != nil {
+		server.Close()
+		t.Fatalf("dial websocket: %v", err)
+	}
+	serverConn := <-serverConnCh
+	cleanup := func() {
+		_ = target.Close()
+		_ = serverConn.Close()
+		server.Close()
+	}
+	return target, cleanup
 }
