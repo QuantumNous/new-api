@@ -863,7 +863,6 @@ type OpenAIResponsesRequest struct {
 	Truncation       json.RawMessage `json:"truncation,omitempty"`
 	User             json.RawMessage `json:"user,omitempty"`
 	MaxToolCalls     *uint           `json:"max_tool_calls,omitempty"`
-	Generate         *bool           `json:"generate,omitempty"`
 	Prompt           json.RawMessage `json:"prompt,omitempty"`
 	// qwen
 	EnableThinking json.RawMessage `json:"enable_thinking,omitempty"`
