@@ -243,29 +243,37 @@ const OtherSetting = () => {
       // );
 
       // Option 2: Use the JSON proxy approach which often works better with GitHub API
-      const res = await fetch(
+      const response = await fetch(
         'https://api.github.com/repos/Wischoicer-Xian/new-api/releases/latest',
         {
           headers: {
             Accept: 'application/json',
             'Content-Type': 'application/json',
-            // Adding User-Agent which is often required by GitHub API
             'User-Agent': 'new-api-update-checker',
           },
         },
-      ).then((response) => response.json());
+      );
 
-      // Option 3: Use a local proxy endpoint
-      // Create a cached version of the response to avoid frequent GitHub API calls
-      // const res = await API.get('/api/status/github-latest-release');
+      if (!response.ok) {
+        throw new Error(
+          response.status === 404
+            ? '当前仓库暂无发布版本，无法检查更新'
+            : `GitHub API 请求失败 (${response.status})`,
+        );
+      }
 
+      const res = await response.json();
       const { tag_name, body } = res;
+      if (!tag_name) {
+        throw new Error('返回的发布信息格式异常');
+      }
+
       if (tag_name === statusState?.status?.version) {
         showSuccess(`已是最新版本：${tag_name}`);
       } else {
         setUpdateData({
           tag_name: tag_name,
-          content: marked.parse(body),
+          content: marked.parse(body || ''),
         });
         setShowUpdateModal(true);
       }

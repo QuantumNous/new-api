@@ -72,7 +72,13 @@ export function UpdateCheckerSection({
       )
 
       if (!response.ok) {
-        throw new Error(t('Failed to contact GitHub releases API'))
+        throw new Error(
+          response.status === 404
+            ? t('No release found for this repository yet.')
+            : t('Failed to contact GitHub releases API ({{status}})', {
+                status: response.status,
+              }),
+        )
       }
 
       const data = (await response.json()) as ReleaseInfo
