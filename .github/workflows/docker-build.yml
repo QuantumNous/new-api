@@ -2,14 +2,18 @@ name: Publish Docker image (Multi-arch)
 
 on:
   push:
+    branches:
+      - main
     tags:
       - '*'
       - '!nightly*'
+      - '!*-alpha*'
   workflow_dispatch:
     inputs:
-      tag:
-        description: 'Tag name to build (e.g., v0.10.8-alpha.3)'
-        required: true
+      ref:
+        description: 'Git ref to build (e.g., main or v0.10.8)'
+        required: false
+        default: 'main'
         type: string
 
 jobs:
@@ -27,7 +31,7 @@ jobs:
             runner: ubuntu-24.04-arm
     runs-on: ${{ matrix.runner }}
     outputs:
-      tag: ${{ steps.version.outputs.tag }}
+      image_version: ${{ steps.version.outputs.image_version }}
 
     permissions:
       packages: write
@@ -39,24 +43,37 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: ${{ github.event_name == 'workflow_dispatch' && 0 || 1 }}
-          ref: ${{ github.event.inputs.tag || github.ref }}
+          ref: ${{ github.event.inputs.ref || github.ref }}
 
-      - name: Resolve tag & write VERSION
+      - name: Resolve image version & write VERSION
         id: version
         run: |
-          if [ -n "${{ github.event.inputs.tag }}" ]; then
-            TAG="${{ github.event.inputs.tag }}"
-            if ! git rev-parse "refs/tags/$TAG" >/dev/null 2>&1; then
-              echo "::error::Tag '$TAG' does not exist"
-              exit 1
+          if [ -n "${{ github.event.inputs.ref }}" ]; then
+            REF_NAME="${{ github.event.inputs.ref }}"
+            if git rev-parse "refs/tags/$REF_NAME" >/dev/null 2>&1; then
+              IMAGE_VERSION="$REF_NAME"
+              VERSION_KIND="tag"
+            else
+              SHORT_SHA="$(git rev-parse --short HEAD)"
+              SAFE_REF="${REF_NAME//\//-}"
+              IMAGE_VERSION="${SAFE_REF}-${SHORT_SHA}"
+              VERSION_KIND="ref"
             fi
+          elif [[ "${GITHUB_REF}" == refs/tags/* ]]; then
+            IMAGE_VERSION="${GITHUB_REF#refs/tags/}"
+            VERSION_KIND="tag"
           else
-            TAG=${GITHUB_REF#refs/tags/}
+            SHORT_SHA="$(git rev-parse --short HEAD)"
+            BRANCH_NAME="${GITHUB_REF#refs/heads/}"
+            SAFE_BRANCH="${BRANCH_NAME//\//-}"
+            IMAGE_VERSION="${SAFE_BRANCH}-${SHORT_SHA}"
+            VERSION_KIND="branch"
           fi
-          echo "TAG=${TAG}" >> $GITHUB_ENV
-          echo "tag=${TAG}" >> $GITHUB_OUTPUT
-          echo "${TAG}" > VERSION
-          echo "Building tag: ${TAG} for ${{ matrix.arch }}"
+          echo "IMAGE_VERSION=${IMAGE_VERSION}" >> $GITHUB_ENV
+          echo "VERSION_KIND=${VERSION_KIND}" >> $GITHUB_ENV
+          echo "image_version=${IMAGE_VERSION}" >> $GITHUB_OUTPUT
+          echo "${IMAGE_VERSION}" > VERSION
+          echo "Building image version: ${IMAGE_VERSION} (${VERSION_KIND}) for ${{ matrix.arch }}"
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -81,7 +98,7 @@ jobs:
           platforms: ${{ matrix.platform }}
           push: true
           tags: |
-            calciumion/new-api:${{ env.TAG }}-${{ matrix.arch }}
+            calciumion/new-api:${{ env.IMAGE_VERSION }}-${{ matrix.arch }}
             calciumion/new-api:latest-${{ matrix.arch }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
@@ -99,7 +116,8 @@ jobs:
         run: |
           echo "### Docker Image Digest (${{ matrix.arch }})" >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
-          echo "calciumion/new-api:${TAG}-${{ matrix.arch }}" >> $GITHUB_STEP_SUMMARY
+          echo "calciumion/new-api:${IMAGE_VERSION}-${{ matrix.arch }}" >> $GITHUB_STEP_SUMMARY
+          echo "calciumion/new-api:latest-${{ matrix.arch }}" >> $GITHUB_STEP_SUMMARY
           echo "${{ steps.build.outputs.digest }}" >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
 
@@ -107,11 +125,10 @@ jobs:
     name: Create multi-arch manifests
     needs: [build_single_arch]
     runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
 
     steps:
-      - name: Set version
-        run: echo "TAG=${{ needs.build_single_arch.outputs.tag }}" >> $GITHUB_ENV
+      - name: Set image version
+        run: echo "IMAGE_VERSION=${{ needs.build_single_arch.outputs.image_version }}" >> $GITHUB_ENV
 
       - name: Log in to Docker Hub
         uses: docker/login-action@v3
@@ -122,9 +139,9 @@ jobs:
       - name: Create & push manifest (version)
         run: |
           docker buildx imagetools create \
-            -t calciumion/new-api:${TAG} \
-            calciumion/new-api:${TAG}-amd64 \
-            calciumion/new-api:${TAG}-arm64
+            -t calciumion/new-api:${IMAGE_VERSION} \
+            calciumion/new-api:${IMAGE_VERSION}-amd64 \
+            calciumion/new-api:${IMAGE_VERSION}-arm64
 
       - name: Create & push manifest (latest)
         run: |
@@ -137,5 +154,7 @@ jobs:
         run: |
           echo "### Multi-arch Manifest" >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
-          docker buildx imagetools inspect calciumion/new-api:${TAG} >> $GITHUB_STEP_SUMMARY
+          docker buildx imagetools inspect calciumion/new-api:${IMAGE_VERSION} >> $GITHUB_STEP_SUMMARY
+          echo "---" >> $GITHUB_STEP_SUMMARY
+          docker buildx imagetools inspect calciumion/new-api:latest >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
