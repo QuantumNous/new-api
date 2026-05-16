@@ -33,10 +33,6 @@ import {
 const languages = [
   { code: 'en', label: 'English' },
   { code: 'zh', label: '中文' },
-  { code: 'fr', label: 'Français' },
-  { code: 'ru', label: 'Русский' },
-  { code: 'ja', label: '日本語' },
-  { code: 'vi', label: 'Tiếng Việt' },
 ]
 
 export function LanguageSwitcher() {

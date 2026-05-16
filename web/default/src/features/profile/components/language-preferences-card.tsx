@@ -37,10 +37,6 @@ import type { UserProfile } from '../types'
 const LANGUAGE_OPTIONS = [
   { value: 'zh', label: '简体中文' },
   { value: 'en', label: 'English' },
-  { value: 'fr', label: 'Français' },
-  { value: 'ru', label: 'Русский' },
-  { value: 'ja', label: '日本語' },
-  { value: 'vi', label: 'Tiếng Việt' },
 ] as const
 
 function normalizeLanguage(value?: string | null): string {
