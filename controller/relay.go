@@ -133,11 +133,10 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		meta = fastTokenCountMetaForPricing(request)
 	}
 
+	checkedSensitiveScopes := make(map[string]struct{})
 	if needSensitiveCheck && meta != nil {
-		contains, words := service.CheckSensitiveText(meta.CombineText)
-		if contains {
-			logger.LogWarn(c, fmt.Sprintf("user sensitive words detected: %s", strings.Join(words, ", ")))
-			newAPIError = types.NewError(err, types.ErrorCodeSensitiveWordsDetected)
+		if sensitiveErr := checkPromptSensitiveForRelay(c, relayInfo, meta, checkedSensitiveScopes); sensitiveErr != nil {
+			newAPIError = sensitiveErr
 			return
 		}
 	}
@@ -194,6 +193,13 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 			logger.LogError(c, channelErr.Error())
 			newAPIError = channelErr
 			break
+		}
+
+		if needSensitiveCheck && meta != nil {
+			if sensitiveErr := checkPromptSensitiveForRelay(c, relayInfo, meta, checkedSensitiveScopes); sensitiveErr != nil {
+				newAPIError = sensitiveErr
+				break
+			}
 		}
 
 		addUsedChannel(c, channel.Id)
@@ -287,6 +293,41 @@ func fastTokenCountMetaForPricing(request dto.Request) *types.TokenCountMeta {
 		// Best-effort: leave CombineText empty to avoid large allocations.
 	}
 	return meta
+}
+
+func checkPromptSensitiveForRelay(c *gin.Context, info *relaycommon.RelayInfo, meta *types.TokenCountMeta, checkedScopes map[string]struct{}) *types.NewAPIError {
+	if meta == nil {
+		return nil
+	}
+	result := service.CheckSensitiveTextByScope(c, info, meta.CombineText, checkedScopes)
+	if !result.Contains {
+		return nil
+	}
+	logger.LogWarn(c, fmt.Sprintf(
+		"user sensitive words detected: words=%s, rules=%s, rule_names=%s, groups=%s, models=%s, legacy=%t",
+		joinLimitedStrings(result.Words, 20),
+		joinLimitedStrings(result.Match.RuleIDs, 20),
+		joinLimitedStrings(result.Match.RuleNames, 20),
+		joinLimitedStrings(result.Scope.EffectiveGroups, 20),
+		joinLimitedStrings(result.Scope.ModelCandidates, 20),
+		result.Match.Legacy,
+	))
+	return types.NewErrorWithStatusCode(
+		errors.New("sensitive words detected"),
+		types.ErrorCodeSensitiveWordsDetected,
+		http.StatusBadRequest,
+		types.ErrOptionWithSkipRetry(),
+	)
+}
+
+func joinLimitedStrings(values []string, limit int) string {
+	if len(values) == 0 {
+		return ""
+	}
+	if limit <= 0 || len(values) <= limit {
+		return strings.Join(values, ", ")
+	}
+	return fmt.Sprintf("%s, ...(+%d)", strings.Join(values[:limit], ", "), len(values)-limit)
 }
 
 func getChannel(c *gin.Context, info *relaycommon.RelayInfo, retryParam *service.RetryParam) (*model.Channel, *types.NewAPIError) {
@@ -512,6 +553,7 @@ func RelayTask(c *gin.Context) {
 		ModelName:  relayInfo.OriginModelName,
 		Retry:      common.GetPointer(0),
 	}
+	checkedSensitiveScopes := make(map[string]struct{})
 
 	for ; retryParam.GetRetry() <= common.RetryTimes; retryParam.IncreaseRetry() {
 		var channel *model.Channel
@@ -546,7 +588,7 @@ func RelayTask(c *gin.Context) {
 		}
 		c.Request.Body = io.NopCloser(bodyStorage)
 
-		result, taskErr = relay.RelayTaskSubmit(c, relayInfo)
+		result, taskErr = relay.RelayTaskSubmit(c, relayInfo, checkedSensitiveScopes)
 		if taskErr == nil {
 			break
 		}

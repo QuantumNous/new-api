@@ -109,6 +109,12 @@ func GetAllModels(offset int, limit int) ([]*Model, error) {
 	return models, err
 }
 
+func GetAllEnabledModels() ([]*Model, error) {
+	var models []*Model
+	err := DB.Where("status = ?", 1).Order("model_name ASC").Find(&models).Error
+	return models, err
+}
+
 func GetBoundChannelsByModelsMap(modelNames []string) (map[string][]BoundChannel, error) {
 	result := make(map[string][]BoundChannel)
 	if len(modelNames) == 0 {

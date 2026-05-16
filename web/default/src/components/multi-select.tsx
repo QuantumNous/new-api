@@ -35,6 +35,7 @@ interface MultiSelectProps {
   onChange: (values: string[]) => void
   placeholder?: string
   className?: string
+  maxVisibleOptions?: number
 }
 
 export function MultiSelect({
@@ -43,6 +44,7 @@ export function MultiSelect({
   onChange,
   placeholder,
   className,
+  maxVisibleOptions = 200,
 }: MultiSelectProps) {
   const { t } = useTranslation()
   const resolvedPlaceholder = placeholder ?? t('Select items...')
@@ -68,9 +70,20 @@ export function MultiSelect({
     }
   }
 
-  const selectables = options.filter(
-    (option) => !selected.includes(option.value)
-  )
+  const selectables = React.useMemo(() => {
+    const selectedSet = new Set(selected)
+    const query = inputValue.trim().toLowerCase()
+    return options
+      .filter((option) => !selectedSet.has(option.value))
+      .filter((option) => {
+        if (!query) return true
+        return (
+          option.label.toLowerCase().includes(query) ||
+          option.value.toLowerCase().includes(query)
+        )
+      })
+      .slice(0, maxVisibleOptions)
+  }, [inputValue, maxVisibleOptions, options, selected])
 
   return (
     <Command

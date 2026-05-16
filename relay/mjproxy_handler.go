@@ -488,6 +488,9 @@ func RelayMidjourneySubmit(c *gin.Context, relayInfo *relaycommon.RelayInfo) *dt
 	if midjRequest.Action == constant.MjActionInPaint || midjRequest.Action == constant.MjActionCustomZoom {
 		consumeQuota = false
 	}
+	if sensitiveErr := checkPromptSensitiveForMidjourney(c, relayInfo, &midjRequest); sensitiveErr != nil {
+		return sensitiveErr
+	}
 
 	//baseURL := common.ChannelBaseURLs[channelType]
 	requestURL := getMjRequestPath(c.Request.URL.String())

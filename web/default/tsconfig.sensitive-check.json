@@ -1,0 +1,12 @@
+{
+  "extends": "./tsconfig.app.json",
+  "include": [
+    "src/env.d.ts",
+    "src/components/multi-select.tsx",
+    "src/features/system-settings/api.ts",
+    "src/features/system-settings/request-limits/sensitive-words-section.tsx",
+    "src/features/system-settings/security/index.tsx",
+    "src/features/system-settings/security/section-registry.tsx",
+    "src/features/system-settings/types.ts"
+  ]
+}

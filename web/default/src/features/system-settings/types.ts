@@ -321,6 +321,7 @@ export type SecuritySettings = {
   CheckSensitiveEnabled: boolean
   CheckSensitiveOnPromptEnabled: boolean
   SensitiveWords: string
+  SensitiveCheckRules: string
   'fetch_setting.enable_ssrf_protection': boolean
   'fetch_setting.allow_private_ip': boolean
   'fetch_setting.domain_filter_mode': boolean
@@ -392,5 +393,29 @@ export type UpstreamRatiosResponse = {
   data: {
     differences: DifferencesMap
     test_results: TestResult[]
+  }
+}
+
+export type SensitiveScopeGroupOption = {
+  value: string
+  label: string
+  desc?: string
+  ratio: number
+}
+
+export type SensitiveScopeModelOption = {
+  value: string
+  label: string
+  enable_groups: string[]
+  vendor?: string
+  endpoints?: string[]
+}
+
+export type SensitiveScopeOptionsResponse = {
+  success: boolean
+  message: string
+  data: {
+    groups: SensitiveScopeGroupOption[]
+    models: SensitiveScopeModelOption[]
   }
 }
