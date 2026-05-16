@@ -279,7 +279,7 @@ const OtherSetting = () => {
       }
     } catch (error) {
       console.error('Failed to check for updates:', error);
-      showError('检查更新失败，请稍后再试');
+      showError(error.message || '检查更新失败，请稍后再试');
     } finally {
       setLoadingInput((loadingInput) => ({
         ...loadingInput,
