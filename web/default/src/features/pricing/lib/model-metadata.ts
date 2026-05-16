@@ -25,10 +25,10 @@ import { hashStringToSeed, seededRandom } from './seed'
 //
 // The backend does not currently return `context_length`, `max_output_tokens`,
 // `knowledge_cutoff`, `release_date`, `parameter_count`, or modality/capability
-// flags for a model. Until it does, we infer reasonable values client-side
-// from the data we already have (endpoint types, ratios, tags, model name)
-// and fall back to a deterministic mock seeded from the model name so that
-// every render of the same model shows the same numbers.
+// flags for a model. Until it does, we infer safe operational metadata from
+// endpoint types, ratios, tags, and model names. Dates are only shown when they
+// are explicit because invented lifecycle dates are more misleading than empty
+// fields.
 //
 // When the backend starts returning these fields, callers should prefer the
 // explicit values on `model.*` and only fall back to the inferred ones.
@@ -76,20 +76,6 @@ const CODE_NAME_PATTERNS = [/code/i, /-coder/i]
 
 const WEB_SEARCH_PATTERNS = [/web[-_ ]?search/i, /-online/i, /perplexity/i]
 
-const KNOWLEDGE_CUTOFFS = [
-  '2023-04',
-  '2023-10',
-  '2023-12',
-  '2024-04',
-  '2024-06',
-  '2024-08',
-  '2024-10',
-  '2024-12',
-  '2025-02',
-  '2025-04',
-  '2025-08',
-]
-
 const PARAM_BUCKETS = [
   '1.5B',
   '3B',
@@ -102,10 +88,73 @@ const PARAM_BUCKETS = [
   '405B',
 ]
 
-const CONTEXT_BUCKETS = [
-  8_192, 16_384, 32_768, 65_536, 128_000, 200_000, 1_000_000,
-]
-const MAX_OUTPUT_BUCKETS = [2_048, 4_096, 8_192, 16_384, 32_768, 65_536]
+const MODEL_METADATA_OVERRIDES: Record<
+  string,
+  Partial<
+    Pick<
+      ModelMetadata,
+      | 'context_length'
+      | 'max_output_tokens'
+      | 'knowledge_cutoff'
+      | 'release_date'
+      | 'input_modalities'
+      | 'output_modalities'
+      | 'capabilities'
+    >
+  >
+> = {
+  'claude-sonnet-4-6': {
+    context_length: 1_000_000,
+    max_output_tokens: 64_000,
+    input_modalities: ['text', 'image'],
+    output_modalities: ['text'],
+    capabilities: [
+      'streaming',
+      'system_prompt',
+      'function_calling',
+      'tools',
+      'json_mode',
+      'structured_output',
+      'vision',
+      'reasoning',
+      'code_interpreter',
+    ],
+  },
+  'claude-opus-4-7': {
+    context_length: 1_000_000,
+    max_output_tokens: 128_000,
+    input_modalities: ['text', 'image'],
+    output_modalities: ['text'],
+    capabilities: [
+      'streaming',
+      'system_prompt',
+      'function_calling',
+      'tools',
+      'json_mode',
+      'structured_output',
+      'vision',
+      'reasoning',
+      'code_interpreter',
+    ],
+  },
+  'claude-haiku-4-5-20251001': {
+    context_length: 200_000,
+    max_output_tokens: 64_000,
+    input_modalities: ['text', 'image'],
+    output_modalities: ['text'],
+    capabilities: [
+      'streaming',
+      'system_prompt',
+      'function_calling',
+      'tools',
+      'json_mode',
+      'structured_output',
+      'vision',
+      'reasoning',
+      'code_interpreter',
+    ],
+  },
+}
 
 const TAG_TO_CAPABILITY: Record<string, ModelCapability> = {
   vision: 'vision',
@@ -249,11 +298,43 @@ function ordered(modalities: Set<Modality>): Modality[] {
   return order.filter((m) => modalities.has(m))
 }
 
+function parseTokenCount(value: string): number {
+  const normalized = value.replace(/,/g, '').trim().toLowerCase()
+  const match = normalized.match(/^(\d+(?:\.\d+)?)(m|k)?$/)
+  if (!match) return 0
+
+  const number = Number(match[1])
+  if (!Number.isFinite(number)) return 0
+  if (match[2] === 'm') return Math.round(number * 1_000_000)
+  if (match[2] === 'k') return Math.round(number * 1_000)
+  return Math.round(number)
+}
+
+function inferLimitsFromDescription(
+  description?: string
+): { context?: number; maxOutput?: number } {
+  if (!description) return {}
+
+  const contextMatch = description.match(
+    /([\d,.]+(?:\s*[mk])?)\s*[- ]?token\s+context\s+window/i
+  )
+  const outputMatch = description.match(
+    /(?:up to|maximum of|max(?:imum)?(?: output)?(?: tokens)?(?: of)?)\s+([\d,.]+(?:\s*[mk])?)\s+(?:output\s+)?tokens/i
+  )
+
+  const context = contextMatch ? parseTokenCount(contextMatch[1]) : 0
+  const maxOutput = outputMatch ? parseTokenCount(outputMatch[1]) : 0
+
+  return {
+    context: context > 0 ? context : undefined,
+    maxOutput: maxOutput > 0 ? maxOutput : undefined,
+  }
+}
+
 function inferContextAndOutputs(
   name: string,
-  rand: () => number,
   endpoints: string[]
-): { context: number; maxOutput: number } {
+): { context?: number; maxOutput?: number } {
   if (endpoints.includes('embeddings') || endpoints.includes('jina-rerank')) {
     return { context: 8_192, maxOutput: 0 }
   }
@@ -285,30 +366,14 @@ function inferContextAndOutputs(
     return { context: 16_384, maxOutput: 4_096 }
   }
 
-  const context = pickFromBuckets(CONTEXT_BUCKETS, rand)
-  const maxOutput = Math.min(context, pickFromBuckets(MAX_OUTPUT_BUCKETS, rand))
-  return { context, maxOutput }
-}
-
-function inferReleaseAndCutoff(rand: () => number): {
-  release: string
-  cutoff: string
-} {
-  const cutoff = pickFromBuckets(KNOWLEDGE_CUTOFFS, rand)
-  const [year, month] = cutoff.split('-').map(Number)
-  const offsetMonths = 4 + Math.floor(rand() * 6)
-  const releaseMonth = month + offsetMonths
-  const releaseYear = year + Math.floor((releaseMonth - 1) / 12)
-  const finalMonth = ((releaseMonth - 1) % 12) + 1
-  const release = `${releaseYear}-${String(finalMonth).padStart(2, '0')}-15`
-  return { release, cutoff }
+  return {}
 }
 
 export type ModelMetadata = {
-  context_length: number
-  max_output_tokens: number
-  knowledge_cutoff: string
-  release_date: string
+  context_length?: number
+  max_output_tokens?: number
+  knowledge_cutoff?: string
+  release_date?: string
   parameter_count: string
   input_modalities: Modality[]
   output_modalities: Modality[]
@@ -324,23 +389,37 @@ export function inferModelMetadata(model: PricingModel): ModelMetadata {
   const rand = seededRandom(hashStringToSeed(name))
   const tags = parseModelTags(model.tags)
   const endpoints = model.supported_endpoint_types || []
+  const override = MODEL_METADATA_OVERRIDES[name.toLowerCase()]
 
   const inputs =
-    model.input_modalities ?? inferInputModalities(model, tags, endpoints, name)
+    model.input_modalities ??
+    override?.input_modalities ??
+    inferInputModalities(model, tags, endpoints, name)
   const outputs =
-    model.output_modalities ?? inferOutputModalities(model, endpoints, name)
+    model.output_modalities ??
+    override?.output_modalities ??
+    inferOutputModalities(model, endpoints, name)
   const capabilities =
     model.capabilities ??
+    override?.capabilities ??
     inferCapabilities(model, tags, endpoints, name, outputs, inputs)
 
-  const fallback = inferContextAndOutputs(name, rand, endpoints)
-  const cutoffAndRelease = inferReleaseAndCutoff(rand)
+  const descriptionLimits = inferLimitsFromDescription(model.description)
+  const fallback = inferContextAndOutputs(name, endpoints)
 
   return {
-    context_length: model.context_length ?? fallback.context,
-    max_output_tokens: model.max_output_tokens ?? fallback.maxOutput,
-    knowledge_cutoff: model.knowledge_cutoff ?? cutoffAndRelease.cutoff,
-    release_date: model.release_date ?? cutoffAndRelease.release,
+    context_length:
+      model.context_length ??
+      override?.context_length ??
+      descriptionLimits.context ??
+      fallback.context,
+    max_output_tokens:
+      model.max_output_tokens ??
+      override?.max_output_tokens ??
+      descriptionLimits.maxOutput ??
+      fallback.maxOutput,
+    knowledge_cutoff: model.knowledge_cutoff ?? override?.knowledge_cutoff,
+    release_date: model.release_date ?? override?.release_date,
     parameter_count:
       model.parameter_count ?? pickFromBuckets(PARAM_BUCKETS, rand),
     input_modalities: inputs,

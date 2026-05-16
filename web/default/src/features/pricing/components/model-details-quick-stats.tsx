@@ -49,17 +49,19 @@ function buildStats(
   metadata: ModelMetadata,
   t: (key: string) => string
 ): Stat[] {
-  const stats: Stat[] = [
-    {
+  const stats: Stat[] = []
+
+  if (metadata.context_length) {
+    stats.push({
       key: 'context',
       icon: Layers,
       label: t('Context'),
       value: formatTokenCount(metadata.context_length),
       hint: t('Maximum input window'),
-    },
-  ]
+    })
+  }
 
-  if (metadata.max_output_tokens > 0) {
+  if (metadata.max_output_tokens && metadata.max_output_tokens > 0) {
     stats.push({
       key: 'max-output',
       icon: Maximize2,
