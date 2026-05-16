@@ -36,6 +36,7 @@ import {
 } from '@/lib/format'
 import { getLobeIcon } from '@/lib/lobe-icon'
 import { cn, truncateText } from '@/lib/utils'
+import { TruncatedText } from '@/components/truncated-text'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import {
@@ -556,7 +557,11 @@ export function useChannelsColumns(): ColumnDef<Channel>[] {
           <div className='flex items-center gap-2'>
             <div className='flex flex-col gap-1'>
               <div className='flex items-center gap-1.5'>
-                <span className='font-medium'>{truncateText(name, 30)}</span>
+                <TruncatedText
+                  text={name}
+                  className='font-medium'
+                  maxWidth='max-w-[180px]'
+                />
                 {isPassThrough && (
                   <TooltipProvider delay={100}>
                     <Tooltip>
