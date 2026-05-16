@@ -1,6 +1,7 @@
 package relay
 
 import (
+	"encoding/json"
 	"strings"
 	"testing"
 
@@ -23,18 +24,19 @@ func TestNormalizeResponsesWSCreateEventWrapper(t *testing.T) {
 		}
 	}`)
 
-	req, eventID, err := normalizeResponsesWSCreateEvent(message)
+	create, eventID, err := normalizeResponsesWSCreateEvent(message)
 	if err != nil {
 		t.Fatalf("normalizeResponsesWSCreateEvent() error = %v", err)
 	}
+	req := create.Request
 	if eventID != "evt_1" {
 		t.Fatalf("eventID = %q, want evt_1", eventID)
 	}
 	if req.Model != "gpt-5.3-codex-spark" {
 		t.Fatalf("model = %q", req.Model)
 	}
-	if req.Generate == nil || *req.Generate {
-		t.Fatalf("generate = %v, want false pointer", req.Generate)
+	if strings.TrimSpace(string(create.Generate)) != "false" {
+		t.Fatalf("generate = %s, want false", create.Generate)
 	}
 	if req.Stream != nil {
 		t.Fatalf("stream = %v, want nil", req.Stream)
@@ -59,24 +61,78 @@ func TestNormalizeResponsesWSCreateEventFlat(t *testing.T) {
 		"stream_options": {"include_usage": true}
 	}`)
 
-	req, eventID, err := normalizeResponsesWSCreateEvent(message)
+	create, eventID, err := normalizeResponsesWSCreateEvent(message)
 	if err != nil {
 		t.Fatalf("normalizeResponsesWSCreateEvent() error = %v", err)
 	}
+	req := create.Request
 	if eventID != "evt_2" {
 		t.Fatalf("eventID = %q, want evt_2", eventID)
 	}
 	if req.Model != "gpt-5.3-codex-spark" {
 		t.Fatalf("model = %q", req.Model)
 	}
-	if req.Generate == nil || *req.Generate {
-		t.Fatalf("generate = %v, want false pointer", req.Generate)
+	if strings.TrimSpace(string(create.Generate)) != "false" {
+		t.Fatalf("generate = %s, want false", create.Generate)
 	}
 	if req.Stream != nil {
 		t.Fatalf("stream = %v, want nil", req.Stream)
 	}
 	if req.StreamOptions != nil {
 		t.Fatalf("stream_options = %#v, want nil", req.StreamOptions)
+	}
+}
+
+func TestBuildResponsesWSCreateEventIsFlat(t *testing.T) {
+	payload := []byte(`{
+		"model": "gpt-5.3-codex-spark",
+		"input": "hi",
+		"store": false,
+		"event_id": "evt_upstream",
+		"stream": true,
+		"background": true,
+		"stream_options": {"include_usage": true}
+	}`)
+
+	got, err := buildResponsesWSCreateEvent(payload, json.RawMessage(`false`))
+	if err != nil {
+		t.Fatalf("buildResponsesWSCreateEvent() error = %v", err)
+	}
+	var data map[string]any
+	if err := common.Unmarshal(got, &data); err != nil {
+		t.Fatalf("unmarshal result: %v", err)
+	}
+	if data["type"] != responsesWSEventTypeResponseCreate {
+		t.Fatalf("type = %#v", data["type"])
+	}
+	if data["model"] != "gpt-5.3-codex-spark" || data["input"] != "hi" || data["store"] != false {
+		t.Fatalf("unexpected flat event fields: %s", got)
+	}
+	if data["generate"] != false {
+		t.Fatalf("generate = %#v, want false", data["generate"])
+	}
+	for _, key := range []string{"response", "event_id", "stream", "background", "stream_options"} {
+		if _, ok := data[key]; ok {
+			t.Fatalf("field %q should not be present in upstream event: %s", key, got)
+		}
+	}
+}
+
+func TestHTTPResponsesRequestDoesNotMarshalGenerate(t *testing.T) {
+	var req dto.OpenAIResponsesRequest
+	if err := common.Unmarshal([]byte(`{"model":"gpt-5.3-codex-spark","input":"hi","generate":false}`), &req); err != nil {
+		t.Fatalf("unmarshal request: %v", err)
+	}
+	got, err := common.Marshal(req)
+	if err != nil {
+		t.Fatalf("marshal request: %v", err)
+	}
+	var data map[string]any
+	if err := common.Unmarshal(got, &data); err != nil {
+		t.Fatalf("unmarshal result: %v", err)
+	}
+	if _, ok := data["generate"]; ok {
+		t.Fatalf("generate leaked into HTTP request JSON: %s", got)
 	}
 }
 
@@ -119,33 +175,6 @@ func TestToWebSocketURL(t *testing.T) {
 		if got := toWebSocketURL(input); got != want {
 			t.Fatalf("toWebSocketURL(%q) = %q, want %q", input, got, want)
 		}
-	}
-}
-
-func TestApplyResponsesWSUsage(t *testing.T) {
-	dst := &dto.Usage{}
-	src := &dto.Usage{
-		InputTokens:  11,
-		OutputTokens: 7,
-		TotalTokens:  18,
-		InputTokensDetails: &dto.InputTokenDetails{
-			CachedTokens: 3,
-		},
-		PromptCacheHitTokens: 3,
-		UsageSemantic:        "openai",
-		UsageSource:          "upstream",
-	}
-
-	applyResponsesWSUsage(dst, src)
-
-	if dst.PromptTokens != 11 || dst.CompletionTokens != 7 || dst.TotalTokens != 18 {
-		t.Fatalf("usage tokens = %#v", dst)
-	}
-	if dst.PromptTokensDetails.CachedTokens != 3 {
-		t.Fatalf("cached tokens = %d, want 3", dst.PromptTokensDetails.CachedTokens)
-	}
-	if dst.UsageSemantic != "openai" || dst.UsageSource != "upstream" {
-		t.Fatalf("usage metadata = %#v", dst)
 	}
 }
 
