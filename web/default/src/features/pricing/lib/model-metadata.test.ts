@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { describe, test } from 'node:test'
-import { inferModelMetadata } from './model-metadata'
+import { formatTokenCount, inferModelMetadata } from './model-metadata'
 import type { PricingModel } from '../types'
 
 function pricingModel(overrides: Partial<PricingModel>): PricingModel {
@@ -17,6 +17,12 @@ function pricingModel(overrides: Partial<PricingModel>): PricingModel {
 }
 
 describe('inferModelMetadata', () => {
+  test('formats million-token windows without hiding meaningful precision', () => {
+    assert.equal(formatTokenCount(1_000_000), '1M')
+    assert.equal(formatTokenCount(1_050_000), '1.05M')
+    assert.equal(formatTokenCount(1_500_000), '1.5M')
+  })
+
   test('parses token limits from model descriptions before name heuristics', () => {
     const metadata = inferModelMetadata(
       pricingModel({

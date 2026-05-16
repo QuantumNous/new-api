@@ -432,12 +432,16 @@ const TOKEN_FORMAT = new Intl.NumberFormat(undefined, {
   maximumFractionDigits: 1,
 })
 
+const MILLION_TOKEN_FORMAT = new Intl.NumberFormat(undefined, {
+  maximumFractionDigits: 2,
+})
+
 /** Format a token count compactly: 128_000 → "128K", 1_000_000 → "1M". */
 export function formatTokenCount(tokens: number): string {
   if (!Number.isFinite(tokens) || tokens <= 0) return '—'
   if (tokens >= 1_000_000) {
     const value = tokens / 1_000_000
-    return `${TOKEN_FORMAT.format(value)}M`
+    return `${MILLION_TOKEN_FORMAT.format(value)}M`
   }
   if (tokens >= 1_000) {
     const value = tokens / 1_000
