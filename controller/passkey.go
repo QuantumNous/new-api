@@ -48,7 +48,7 @@ func apiPasskeyError(c *gin.Context, err error) {
 }
 
 func unauthorizedPasskeyError(c *gin.Context, err error) {
-	message := err.Error()
+	message := i18n.T(c, i18n.MsgUnauthorized)
 	switch {
 	case errors.Is(err, errPasskeySessionNotLoggedIn):
 		message = i18n.T(c, i18n.MsgSecureNotLoggedIn)
