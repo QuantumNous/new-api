@@ -10,9 +10,9 @@ func CORS() gin.HandlerFunc {
 	config := cors.DefaultConfig()
 	config.AllowAllOrigins = common.GetEnvOrDefaultBool("CORS_ALLOW_ALL_ORIGINS", true)
 	if config.AllowAllOrigins {
-		// AllowCredentials cannot be true with AllowAllOrigins in strict browsers;
-		// when AllowAllOrigins is enabled, credentials support is controlled separately.
-		config.AllowCredentials = common.GetEnvOrDefaultBool("CORS_ALLOW_CREDENTIALS", true)
+		// Per W3C CORS spec: AllowCredentials must be false when AllowAllOrigins
+		// is true (wildcard Access-Control-Allow-Origin cannot be combined with credentials).
+		config.AllowCredentials = false
 	}
 	config.AllowMethods = []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"}
 	config.AllowHeaders = []string{"*"}
