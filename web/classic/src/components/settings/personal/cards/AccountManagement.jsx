@@ -164,9 +164,7 @@ const AccountManagement = ({
   }, []);
 
   const passkeyEnabled = passkeyStatus?.enabled;
-  const lastUsedLabel = passkeyStatus?.last_used_at
-    ? new Date(passkeyStatus.last_used_at).toLocaleString()
-    : t('尚未使用');
+  const passkeyCredentials = passkeyStatus?.credentials || [];
 
   return (
     <Card className='!rounded-2xl'>
@@ -660,72 +658,83 @@ const AccountManagement = ({
 
                 {/* Passkey 设置 */}
                 <Card className='!rounded-xl w-full'>
-                  <div className='flex flex-col sm:flex-row items-start sm:justify-between gap-4'>
-                    <div className='flex items-start w-full sm:w-auto'>
-                      <div className='w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center mr-4 flex-shrink-0'>
-                        <IconKey size='large' className='text-slate-600' />
-                      </div>
-                      <div>
-                        <Typography.Title heading={6} className='mb-1'>
-                          {t('Passkey 登录')}
-                        </Typography.Title>
-                        <Typography.Text type='tertiary' className='text-sm'>
-                          {passkeyEnabled
-                            ? t('已启用 Passkey，无需密码即可登录')
-                            : t('使用 Passkey 实现免密且更安全的登录体验')}
-                        </Typography.Text>
-                        <div className='mt-2 text-xs text-gray-500 space-y-1'>
-                          <div>
-                            {t('最后使用时间')}：{lastUsedLabel}
-                          </div>
-                          {/*{passkeyEnabled && (*/}
-                          {/*  <div>*/}
-                          {/*    {t('备份支持')}：*/}
-                          {/*    {passkeyStatus?.backup_eligible*/}
-                          {/*      ? t('支持备份')*/}
-                          {/*      : t('不支持')}*/}
-                          {/*    ，{t('备份状态')}：*/}
-                          {/*    {passkeyStatus?.backup_state ? t('已备份') : t('未备份')}*/}
-                          {/*  </div>*/}
-                          {/*)}*/}
+                  <div className='flex flex-col gap-4'>
+                    <div className='flex flex-col sm:flex-row items-start sm:justify-between gap-4'>
+                      <div className='flex items-start w-full sm:w-auto'>
+                        <div className='w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center mr-4 flex-shrink-0'>
+                          <IconKey size='large' className='text-slate-600' />
+                        </div>
+                        <div>
+                          <Typography.Title heading={6} className='mb-1'>
+                            {t('Passkey 登录')}
+                          </Typography.Title>
+                          <Typography.Text type='tertiary' className='text-sm'>
+                            {passkeyEnabled
+                              ? t('已启用 Passkey，无需密码即可登录')
+                              : t('使用 Passkey 实现免密且更安全的登录体验')}
+                          </Typography.Text>
                           {!passkeySupported && (
-                            <div className='text-amber-600'>
+                            <div className='mt-2 text-xs text-amber-600'>
                               {t('当前设备不支持 Passkey')}
                             </div>
                           )}
                         </div>
                       </div>
+                      <Button
+                        type='primary'
+                        theme='solid'
+                        onClick={onPasskeyRegister}
+                        className='w-full sm:w-auto'
+                        icon={<IconKey />}
+                        disabled={!passkeySupported}
+                        loading={passkeyRegisterLoading}
+                      >
+                        {t('注册 Passkey')}
+                      </Button>
                     </div>
-                    <Button
-                      type={passkeyEnabled ? 'danger' : 'primary'}
-                      theme={passkeyEnabled ? 'solid' : 'solid'}
-                      onClick={
-                        passkeyEnabled
-                          ? () => {
-                              Modal.confirm({
-                                title: t('确认解绑 Passkey'),
-                                content: t(
-                                  '解绑后将无法使用 Passkey 登录，确定要继续吗？',
-                                ),
-                                okText: t('确认解绑'),
-                                cancelText: t('取消'),
-                                okType: 'danger',
-                                onOk: onPasskeyDelete,
-                              });
-                            }
-                          : onPasskeyRegister
-                      }
-                      className={`w-full sm:w-auto ${passkeyEnabled ? '!bg-slate-500 hover:!bg-slate-600' : ''}`}
-                      icon={<IconKey />}
-                      disabled={!passkeySupported && !passkeyEnabled}
-                      loading={
-                        passkeyEnabled
-                          ? passkeyDeleteLoading
-                          : passkeyRegisterLoading
-                      }
-                    >
-                      {passkeyEnabled ? t('解绑 Passkey') : t('注册 Passkey')}
-                    </Button>
+                    {passkeyEnabled && passkeyCredentials.length > 0 && (
+                      <div className='space-y-3 border-t pt-4'>
+                        {passkeyCredentials.map((cred) => (
+                          <div key={cred.credential_id} className='flex flex-col sm:flex-row items-start sm:items-center sm:justify-between gap-2 p-3 rounded-lg border'>
+                            <div className='text-sm space-y-1'>
+                              <div className='font-medium'>
+                                {cred.attachment === 'platform'
+                                  ? t('内置设备')
+                                  : cred.attachment === 'cross-platform'
+                                    ? t('外部设备')
+                                    : t('未知设备')}
+                              </div>
+                              <div className='text-xs text-gray-500'>
+                                {t('最后使用')}：{cred.last_used_at
+                                  ? new Date(cred.last_used_at).toLocaleString()
+                                  : t('尚未使用')}
+                              </div>
+                              <div className='text-xs text-gray-500'>
+                                {t('创建时间')}：{new Date(cred.created_at).toLocaleString()}
+                              </div>
+                            </div>
+                            <Button
+                              type='danger'
+                              theme='solid'
+                              size='small'
+                              loading={passkeyDeleteLoading === cred.credential_id}
+                              onClick={() => {
+                                Modal.confirm({
+                                  title: t('确认解绑 Passkey'),
+                                  content: t('解绑后将无法使用此 Passkey 登录，确定要继续吗？'),
+                                  okText: t('确认解绑'),
+                                  cancelText: t('取消'),
+                                  okType: 'danger',
+                                  onOk: () => onPasskeyDelete(cred.credential_id),
+                                });
+                              }}
+                            >
+                              {t('解绑')}
+                            </Button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </Card>
 

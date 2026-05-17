@@ -254,6 +254,8 @@ func migrateDB() error {
 	if err := migrateTokenModelLimitsToText(); err != nil {
 		return err
 	}
+	// Migrate passkey_credentials: drop old unique index on user_id to allow multiple passkeys per user
+	migratePasskeyUserIDUniqueIndex()
 
 	err := DB.AutoMigrate(
 		&Channel{},
@@ -703,4 +705,28 @@ func PingDB() error {
 	lastPingTime = time.Now()
 	common.SysLog("Database pinged successfully")
 	return nil
+}
+
+
+func migratePasskeyUserIDUniqueIndex() {
+	m := DB.Migrator()
+	indexes, err := m.GetIndexes(&PasskeyCredential{})
+	if err != nil {
+		common.SysLog(fmt.Sprintf("failed to get indexes for passkey_credentials: %v", err))
+		return
+	}
+	for _, idx := range indexes {
+		unique, ok := idx.Unique()
+		if !ok || !unique {
+			continue
+		}
+		cols := idx.Columns()
+		if len(cols) == 1 && cols[0] == "user_id" {
+			if err := m.DropIndex(&PasskeyCredential{}, idx.Name()); err != nil {
+				common.SysLog(fmt.Sprintf("failed to drop index %s: %v", idx.Name(), err))
+			} else {
+				common.SysLog(fmt.Sprintf("dropped old unique index %s on passkey_credentials.user_id", idx.Name()))
+			}
+		}
+	}
 }

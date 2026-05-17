@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"net/http"
@@ -40,13 +41,10 @@ func PasskeyRegisterBegin(c *gin.Context) {
 		return
 	}
 
-	credential, err := model.GetPasskeyByUserID(user.Id)
-	if err != nil && !errors.Is(err, model.ErrPasskeyNotFound) {
+	credentials, err := model.GetPasskeyByUserID(user.Id)
+	if err != nil {
 		common.ApiError(c, err)
 		return
-	}
-	if errors.Is(err, model.ErrPasskeyNotFound) {
-		credential = nil
 	}
 
 	wa, err := passkeysvc.BuildWebAuthn(c.Request)
@@ -55,11 +53,14 @@ func PasskeyRegisterBegin(c *gin.Context) {
 		return
 	}
 
-	waUser := passkeysvc.NewWebAuthnUser(user, credential)
+	waUser := passkeysvc.NewWebAuthnUser(user, credentials...)
 	var options []webauthnlib.RegistrationOption
-	if credential != nil {
-		descriptor := credential.ToWebAuthnCredential().Descriptor()
-		options = append(options, webauthnlib.WithExclusions([]protocol.CredentialDescriptor{descriptor}))
+	if len(credentials) > 0 {
+		descriptors := make([]protocol.CredentialDescriptor, 0, len(credentials))
+		for _, cred := range credentials {
+			descriptors = append(descriptors, cred.ToWebAuthnCredential().Descriptor())
+		}
+		options = append(options, webauthnlib.WithExclusions(descriptors))
 	}
 
 	creation, sessionData, err := wa.BeginRegistration(waUser, options...)
@@ -110,13 +111,10 @@ func PasskeyRegisterFinish(c *gin.Context) {
 		return
 	}
 
-	credentialRecord, err := model.GetPasskeyByUserID(user.Id)
-	if err != nil && !errors.Is(err, model.ErrPasskeyNotFound) {
+	credentials, err := model.GetPasskeyByUserID(user.Id)
+	if err != nil {
 		common.ApiError(c, err)
 		return
-	}
-	if errors.Is(err, model.ErrPasskeyNotFound) {
-		credentialRecord = nil
 	}
 
 	sessionData, err := passkeysvc.PopSessionData(c, passkeysvc.RegistrationSessionKey)
@@ -125,7 +123,7 @@ func PasskeyRegisterFinish(c *gin.Context) {
 		return
 	}
 
-	waUser := passkeysvc.NewWebAuthnUser(user, credentialRecord)
+	waUser := passkeysvc.NewWebAuthnUser(user, credentials...)
 	credential, err := wa.FinishRegistration(waUser, *sessionData, c.Request)
 	if err != nil {
 		common.ApiError(c, err)
@@ -159,11 +157,17 @@ func PasskeyDelete(c *gin.Context) {
 		return
 	}
 
+	credentialID := c.Param("credential_id")
+	if credentialID == "" {
+		common.ApiErrorMsg(c, "无效的凭证 ID")
+		return
+	}
+
 	if !requirePasskeyDeleteVerification(c, user.Id) {
 		return
 	}
 
-	if err := model.DeletePasskeyByUserID(user.Id); err != nil {
+	if err := model.DeletePasskeyByCredentialID(credentialID, user.Id); err != nil {
 		common.ApiError(c, err)
 		return
 	}
@@ -184,31 +188,43 @@ func PasskeyStatus(c *gin.Context) {
 		return
 	}
 
-	credential, err := model.GetPasskeyByUserID(user.Id)
-	if errors.Is(err, model.ErrPasskeyNotFound) {
-		c.JSON(http.StatusOK, gin.H{
-			"success": true,
-			"message": "",
-			"data": gin.H{
-				"enabled": false,
-			},
-		})
-		return
-	}
+	credentials, err := model.GetPasskeyByUserID(user.Id)
 	if err != nil {
 		common.ApiError(c, err)
 		return
 	}
 
-	data := gin.H{
-		"enabled":      true,
-		"last_used_at": credential.LastUsedAt,
+	if len(credentials) == 0 {
+		c.JSON(http.StatusOK, gin.H{
+			"success": true,
+			"message": "",
+			"data": gin.H{
+				"enabled": false,
+				"credentials": []gin.H{},
+			},
+		})
+		return
+	}
+
+	credList := make([]gin.H, 0, len(credentials))
+	for _, cred := range credentials {
+		credList = append(credList, gin.H{
+			"credential_id":  cred.CredentialID,
+			"created_at":     cred.CreatedAt,
+			"last_used_at":   cred.LastUsedAt,
+			"backup_eligible": cred.BackupEligible,
+			"backup_state":   cred.BackupState,
+			"attachment":     cred.Attachment,
+		})
 	}
 
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",
-		"data":    data,
+		"data": gin.H{
+			"enabled":     true,
+			"credentials": credList,
+		},
 	})
 }
 
@@ -351,15 +367,16 @@ func AdminResetPasskey(c *gin.Context) {
 		return
 	}
 
-	if _, err := model.GetPasskeyByUserID(user.Id); err != nil {
-		if errors.Is(err, model.ErrPasskeyNotFound) {
-			c.JSON(http.StatusOK, gin.H{
-				"success": false,
-				"message": "该用户尚未绑定 Passkey",
-			})
-			return
-		}
+	credentials, err := model.GetPasskeyByUserID(user.Id)
+	if err != nil {
 		common.ApiError(c, err)
+		return
+	}
+	if len(credentials) == 0 {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": "该用户尚未绑定 Passkey",
+		})
 		return
 	}
 
@@ -392,8 +409,15 @@ func PasskeyVerifyBegin(c *gin.Context) {
 		return
 	}
 
-	credential, err := model.GetPasskeyByUserID(user.Id)
+	credentials, err := model.GetPasskeyByUserID(user.Id)
 	if err != nil {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": "该用户尚未绑定 Passkey",
+		})
+		return
+	}
+	if len(credentials) == 0 {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
 			"message": "该用户尚未绑定 Passkey",
@@ -407,7 +431,7 @@ func PasskeyVerifyBegin(c *gin.Context) {
 		return
 	}
 
-	waUser := passkeysvc.NewWebAuthnUser(user, credential)
+	waUser := passkeysvc.NewWebAuthnUser(user, credentials...)
 	assertion, sessionData, err := wa.BeginLogin(waUser)
 	if err != nil {
 		common.ApiError(c, err)
@@ -452,8 +476,15 @@ func PasskeyVerifyFinish(c *gin.Context) {
 		return
 	}
 
-	credential, err := model.GetPasskeyByUserID(user.Id)
+	credentials, err := model.GetPasskeyByUserID(user.Id)
 	if err != nil {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": "该用户尚未绑定 Passkey",
+		})
+		return
+	}
+	if len(credentials) == 0 {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
 			"message": "该用户尚未绑定 Passkey",
@@ -467,19 +498,29 @@ func PasskeyVerifyFinish(c *gin.Context) {
 		return
 	}
 
-	waUser := passkeysvc.NewWebAuthnUser(user, credential)
-	_, err = wa.FinishLogin(waUser, *sessionData, c.Request)
+	waUser := passkeysvc.NewWebAuthnUser(user, credentials...)
+	credential, err := wa.FinishLogin(waUser, *sessionData, c.Request)
 	if err != nil {
 		common.ApiError(c, err)
 		return
 	}
 
-	// 更新凭证的最后使用时间
-	now := time.Now()
-	credential.LastUsedAt = &now
-	if err := model.UpsertPasskeyCredential(credential); err != nil {
-		common.ApiError(c, err)
-		return
+	// 更新匹配的凭证的最后使用时间
+	credIDStr := base64.StdEncoding.EncodeToString(credential.ID)
+	var matched *model.PasskeyCredential
+	for _, cred := range credentials {
+		if cred.CredentialID == credIDStr {
+			matched = cred
+			break
+		}
+	}
+	if matched != nil {
+		now := time.Now()
+		matched.LastUsedAt = &now
+		if err := model.UpsertPasskeyCredential(matched); err != nil {
+			common.ApiError(c, err)
+			return
+		}
 	}
 
 	session := sessions.Default(c)
@@ -540,16 +581,16 @@ func requirePasskeyDeleteVerification(c *gin.Context, userID int) bool {
 		return requireSecureVerificationMethod(c, secureVerificationMethod2FA)
 	}
 
-	_, err = model.GetPasskeyByUserID(userID)
+	credentials, err := model.GetPasskeyByUserID(userID)
 	if err != nil {
-		if errors.Is(err, model.ErrPasskeyNotFound) {
-			c.JSON(http.StatusOK, gin.H{
-				"success": false,
-				"message": "该用户尚未绑定 Passkey",
-			})
-			return false
-		}
 		common.ApiError(c, err)
+		return false
+	}
+	if len(credentials) == 0 {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": "该用户尚未绑定 Passkey",
+		})
 		return false
 	}
 

@@ -31,7 +31,7 @@ import {
   finishPasskeyRegistration,
   getPasskeyStatus,
 } from '../api'
-import type { PasskeyStatus } from '../types'
+import type { PasskeyCredential, PasskeyStatus } from '../types'
 
 interface UsePasskeyManagementOptions {
   onStatusChange?: (status: PasskeyStatus | null) => void
@@ -45,7 +45,7 @@ export function usePasskeyManagement(
   const [status, setStatus] = useState<PasskeyStatus | null>(null)
   const [loading, setLoading] = useState(true)
   const [registering, setRegistering] = useState(false)
-  const [removing, setRemoving] = useState(false)
+  const [removing, setRemoving] = useState<string | null>(null)
   const [supported, setSupported] = useState(false)
 
   const fetchStatus = useCallback(async () => {
@@ -147,30 +147,39 @@ export function usePasskeyManagement(
     }
   }, [supported, fetchStatus])
 
-  const remove = useCallback(async () => {
-    setRemoving(true)
-    try {
-      const res = await deletePasskey()
-      if (!res.success) {
-        toast.error(res.message || i18next.t('Failed to remove Passkey'))
+  const remove = useCallback(
+    async (credentialId: string) => {
+      setRemoving(credentialId)
+      try {
+        const res = await deletePasskey(credentialId)
+        if (!res.success) {
+          toast.error(res.message || i18next.t('Failed to remove Passkey'))
+          return false
+        }
+
+        toast.success(i18next.t('Passkey removed successfully'))
+        await fetchStatus()
+        return true
+      } catch (error) {
+        // eslint-disable-next-line no-console
+        console.error('[Passkey] Removal error', error)
+        toast.error(i18next.t('Failed to remove Passkey'))
         return false
+      } finally {
+        setRemoving(null)
       }
+    },
+    [fetchStatus]
+  )
 
-      toast.success(i18next.t('Passkey removed successfully'))
-      await fetchStatus()
-      return true
-    } catch (error) {
-      // eslint-disable-next-line no-console
-      console.error('[Passkey] Removal error', error)
-      toast.error(i18next.t('Failed to remove Passkey'))
-      return false
-    } finally {
-      setRemoving(false)
-    }
-  }, [fetchStatus])
-
-  const enabled = useMemo(() => Boolean(status?.enabled), [status])
-  const lastUsed = useMemo(() => status?.last_used_at ?? null, [status])
+  const enabled = useMemo(
+    () => Boolean(status?.enabled) && (status?.credentials?.length ?? 0) > 0,
+    [status]
+  )
+  const credentials = useMemo(
+    () => status?.credentials ?? [],
+    [status]
+  )
 
   return {
     status,
@@ -179,7 +188,7 @@ export function usePasskeyManagement(
     removing,
     supported,
     enabled,
-    lastUsed,
+    credentials,
     fetchStatus,
     register,
     remove,

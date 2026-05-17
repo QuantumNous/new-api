@@ -56,7 +56,9 @@ interface PasskeyCardProps {
 
 export function PasskeyCard({ loading: pageLoading }: PasskeyCardProps) {
   const { t } = useTranslation()
-  const [confirmOpen, setConfirmOpen] = useState(false)
+  const [confirmCredentialId, setConfirmCredentialId] = useState<string | null>(
+    null
+  )
   const [restrictedMethod, setRestrictedMethod] =
     useState<VerificationMethod | null>(null)
 
@@ -67,7 +69,7 @@ export function PasskeyCard({ loading: pageLoading }: PasskeyCardProps) {
     removing,
     supported,
     enabled,
-    lastUsed,
+    credentials,
     register,
     remove,
   } = usePasskeyManagement()
@@ -107,8 +109,6 @@ export function PasskeyCard({ loading: pageLoading }: PasskeyCardProps) {
 
     const methods = await fetchVerificationMethods()
     if (!methods.has2FA) {
-      // Without 2FA enabled, register directly. The browser-level Passkey prompt
-      // is itself a strong proof of presence, so no extra verification is needed.
       await register()
       return
     }
@@ -123,38 +123,41 @@ export function PasskeyCard({ loading: pageLoading }: PasskeyCardProps) {
     })
   }, [fetchVerificationMethods, register, startVerification, supported, t])
 
-  const handleRemove = useCallback(async () => {
-    const methods = await fetchVerificationMethods()
-    const required: VerificationMethod | null = methods.has2FA
-      ? '2fa'
-      : methods.hasPasskey
-        ? 'passkey'
-        : null
+  const handleRemove = useCallback(
+    async (credentialId: string) => {
+      const methods = await fetchVerificationMethods()
+      const required: VerificationMethod | null = methods.has2FA
+        ? '2fa'
+        : methods.hasPasskey
+          ? 'passkey'
+          : null
 
-    if (!required) {
-      toast.error(
-        t(
-          'Please enable Two-factor Authentication or Passkey before proceeding'
+      if (!required) {
+        toast.error(
+          t(
+            'Please enable Two-factor Authentication or Passkey before proceeding'
+          )
         )
-      )
-      return
-    }
+        return
+      }
 
-    if (required === 'passkey' && !methods.passkeySupported) {
-      toast.info(t('This device does not support Passkey'))
-      return
-    }
+      if (required === 'passkey' && !methods.passkeySupported) {
+        toast.info(t('This device does not support Passkey'))
+        return
+      }
 
-    setConfirmOpen(false)
-    setRestrictedMethod(required)
-    await startVerification(remove, {
-      preferredMethod: required,
-      title: t('Security verification'),
-      description: t(
-        'Confirm your identity before removing this Passkey from your account.'
-      ),
-    })
-  }, [fetchVerificationMethods, remove, startVerification, t])
+      setConfirmCredentialId(null)
+      setRestrictedMethod(required)
+      await startVerification(() => remove(credentialId), {
+        preferredMethod: required,
+        title: t('Security verification'),
+        description: t(
+          'Confirm your identity before removing this Passkey from your account.'
+        ),
+      })
+    },
+    [fetchVerificationMethods, remove, startVerification, t]
+  )
 
   const handleVerificationCancel = useCallback(() => {
     setRestrictedMethod(null)
@@ -171,9 +174,6 @@ export function PasskeyCard({ loading: pageLoading }: PasskeyCardProps) {
     [setVerificationOpen]
   )
 
-  // Adapt the hook's `Promise<unknown>` return into the dialog's
-  // `void | Promise<void>` signature without losing error propagation
-  // semantics (errors are surfaced via toast inside the hook).
   const handleDialogVerify = useCallback(
     async (method: VerificationMethod, code?: string) => {
       try {
@@ -199,11 +199,6 @@ export function PasskeyCard({ loading: pageLoading }: PasskeyCardProps) {
     )
   }
 
-  const formattedLastUsed =
-    lastUsed && !Number.isNaN(Date.parse(lastUsed))
-      ? dayjs(lastUsed).fromNow()
-      : t('Not used yet')
-
   const showUnsupportedNotice = !supported && !enabled
 
   return (
@@ -220,48 +215,28 @@ export function PasskeyCard({ loading: pageLoading }: PasskeyCardProps) {
 
         <CardContent className='p-3 sm:p-5'>
           <div className='space-y-6'>
-            <div className='flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between xl:flex-col 2xl:flex-row'>
-              <div className='flex items-start gap-4'>
-                <div className='bg-muted rounded-md p-2'>
-                  <KeyRound className='h-5 w-5' />
-                </div>
-                <div className='space-y-1'>
-                  <div className='flex flex-wrap items-center gap-2'>
-                    <p className='font-medium'>{t('Passkey Authentication')}</p>
-                    <StatusBadge
-                      label={enabled ? t('Enabled') : t('Disabled')}
-                      variant={enabled ? 'success' : 'neutral'}
-                      showDot
-                      copyable={false}
-                    />
-                    {status?.backup_eligible !== undefined && (
+            {!enabled && (
+              <div className='flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between xl:flex-col 2xl:flex-row'>
+                <div className='flex items-start gap-4'>
+                  <div className='bg-muted rounded-md p-2'>
+                    <KeyRound className='h-5 w-5' />
+                  </div>
+                  <div className='space-y-1'>
+                    <div className='flex flex-wrap items-center gap-2'>
+                      <p className='font-medium'>{t('Passkey Authentication')}</p>
                       <StatusBadge
-                        label={
-                          status.backup_eligible
-                            ? status.backup_state
-                              ? t('Backed up')
-                              : t('Not backed up')
-                            : t('No backup')
-                        }
-                        variant={
-                          status.backup_eligible
-                            ? status.backup_state
-                              ? 'success'
-                              : 'warning'
-                            : 'neutral'
-                        }
+                        label={t('Disabled')}
+                        variant='neutral'
                         showDot
                         copyable={false}
                       />
-                    )}
+                    </div>
+                    <p className='text-muted-foreground text-sm'>
+                      {t('No Passkeys registered')}
+                    </p>
                   </div>
-                  <p className='text-muted-foreground text-sm'>
-                    {t('Last used:')} {formattedLastUsed}
-                  </p>
                 </div>
-              </div>
 
-              {!enabled && (
                 <Button
                   className='w-full sm:w-auto xl:w-full 2xl:w-auto'
                   onClick={handleRegister}
@@ -272,56 +247,43 @@ export function PasskeyCard({ loading: pageLoading }: PasskeyCardProps) {
                   )}
                   {t('Enable Passkey')}
                 </Button>
-              )}
-            </div>
+              </div>
+            )}
 
             {enabled && (
-              <div className='flex flex-col gap-3 border-t pt-6 sm:flex-row xl:flex-col 2xl:flex-row'>
-                <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
-                  <AlertDialogTrigger
-                    render={
-                      <Button
-                        variant='destructive'
-                        className='flex-1'
-                        disabled={removing}
-                      />
-                    }
+              <div className='space-y-4'>
+                <div className='flex items-center justify-between'>
+                  <div className='flex items-center gap-2'>
+                    <div className='bg-muted rounded-md p-2'>
+                      <KeyRound className='h-5 w-5' />
+                    </div>
+                    <p className='font-medium'>
+                      {t('Registered Passkeys')} ({credentials.length})
+                    </p>
+                  </div>
+                  <Button
+                    size='sm'
+                    onClick={handleRegister}
+                    disabled={!supported || registering}
                   >
-                    {removing ? (
+                    {registering && (
                       <Loader2 className='mr-2 h-4 w-4 animate-spin' />
-                    ) : (
-                      <AlertTriangle className='mr-2 h-4 w-4' />
                     )}
-                    {t('Remove Passkey')}
-                  </AlertDialogTrigger>
-                  <AlertDialogContent>
-                    <AlertDialogHeader>
-                      <AlertDialogTitle>
-                        {t('Remove Passkey?')}
-                      </AlertDialogTitle>
-                      <AlertDialogDescription>
-                        {t(
-                          'Removing Passkey will require you to sign in with your password next time. You can re-register anytime.'
-                        )}
-                      </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                      <AlertDialogCancel disabled={removing}>
-                        {t('Cancel')}
-                      </AlertDialogCancel>
-                      <AlertDialogAction
-                        className='bg-destructive text-destructive-foreground hover:bg-destructive/90'
-                        disabled={removing}
-                        onClick={(event) => {
-                          event.preventDefault()
-                          handleRemove()
-                        }}
-                      >
-                        {t('Remove')}
-                      </AlertDialogAction>
-                    </AlertDialogFooter>
-                  </AlertDialogContent>
-                </AlertDialog>
+                    {t('Add Passkey')}
+                  </Button>
+                </div>
+
+                <div className='space-y-3'>
+                  {credentials.map((cred) => (
+                    <PasskeyCredentialItem
+                      key={cred.credential_id}
+                      credential={cred}
+                      removing={removing === cred.credential_id}
+                      onRemove={() => setConfirmCredentialId(cred.credential_id)}
+                      t={t}
+                    />
+                  ))}
+                </div>
               </div>
             )}
 
@@ -344,6 +306,45 @@ export function PasskeyCard({ loading: pageLoading }: PasskeyCardProps) {
         </CardContent>
       </Card>
 
+      {/* Remove confirmation dialog */}
+      <AlertDialog
+        open={confirmCredentialId !== null}
+        onOpenChange={(open) => {
+          if (!open) setConfirmCredentialId(null)
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t('Remove Passkey?')}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {t(
+                'Removing this Passkey will prevent sign-in with this device. You can re-register anytime.'
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel
+              disabled={removing === confirmCredentialId}
+              onClick={() => setConfirmCredentialId(null)}
+            >
+              {t('Cancel')}
+            </AlertDialogCancel>
+            <AlertDialogAction
+              className='bg-destructive text-destructive-foreground hover:bg-destructive/90'
+              disabled={removing === confirmCredentialId}
+              onClick={(event) => {
+                event.preventDefault()
+                if (confirmCredentialId) {
+                  handleRemove(confirmCredentialId)
+                }
+              }}
+            >
+              {t('Remove')}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       <SecureVerificationDialog
         open={verificationOpen}
         onOpenChange={handleVerificationOpenChange}
@@ -355,5 +356,88 @@ export function PasskeyCard({ loading: pageLoading }: PasskeyCardProps) {
         onMethodChange={switchMethod}
       />
     </>
+  )
+}
+
+function PasskeyCredentialItem({
+  credential,
+  removing,
+  onRemove,
+  t,
+}: {
+  credential: {
+    credential_id: string
+    created_at: string
+    last_used_at?: string | null
+    backup_eligible?: boolean
+    backup_state?: boolean
+    attachment?: string
+  }
+  removing: boolean
+  onRemove: () => void
+  t: (key: string) => string
+}) {
+  const formattedLastUsed =
+    credential.last_used_at && !Number.isNaN(Date.parse(credential.last_used_at))
+      ? dayjs(credential.last_used_at).fromNow()
+      : t('Not used yet')
+
+  const deviceType =
+    credential.attachment === 'platform'
+      ? t('Built-in Device')
+      : credential.attachment === 'cross-platform'
+        ? t('External Device')
+        : t('Unknown Device')
+
+  return (
+    <div className='flex flex-col gap-3 rounded-lg border p-4 sm:flex-row sm:items-center sm:justify-between'>
+      <div className='space-y-1'>
+        <div className='flex flex-wrap items-center gap-2'>
+          <p className='font-medium'>{deviceType}</p>
+          {credential.backup_eligible !== undefined && (
+            <StatusBadge
+              label={
+                credential.backup_eligible
+                  ? credential.backup_state
+                    ? t('Backed up')
+                    : t('Not backed up')
+                  : t('No backup')
+              }
+              variant={
+                credential.backup_eligible
+                  ? credential.backup_state
+                    ? 'success'
+                    : 'warning'
+                  : 'neutral'
+              }
+              showDot
+              copyable={false}
+              size='sm'
+            />
+          )}
+        </div>
+        <div className='text-muted-foreground text-xs space-y-0.5'>
+          <p>
+            {t('Last used:')} {formattedLastUsed}
+          </p>
+          <p>
+            {t('Created:')}{' '}
+            {dayjs(credential.created_at).format('YYYY-MM-DD HH:mm')}
+          </p>
+        </div>
+      </div>
+
+      <Button
+        variant='destructive'
+        size='sm'
+        className='w-full sm:w-auto'
+        disabled={removing}
+        onClick={onRemove}
+      >
+        {removing && <Loader2 className='mr-2 h-4 w-4 animate-spin' />}
+        <AlertTriangle className='mr-2 h-4 w-4' />
+        {t('Remove')}
+      </Button>
+    </div>
   )
 }

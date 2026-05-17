@@ -74,9 +74,9 @@ const PersonalSetting = () => {
   const [disableButton, setDisableButton] = useState(false);
   const [countdown, setCountdown] = useState(30);
   const [systemToken, setSystemToken] = useState('');
-  const [passkeyStatus, setPasskeyStatus] = useState({ enabled: false });
+  const [passkeyStatus, setPasskeyStatus] = useState({ enabled: false, credentials: [] });
   const [passkeyRegisterLoading, setPasskeyRegisterLoading] = useState(false);
-  const [passkeyDeleteLoading, setPasskeyDeleteLoading] = useState(false);
+  const [passkeyDeleteLoading, setPasskeyDeleteLoading] = useState(null);
   const [passkeySupported, setPasskeySupported] = useState(false);
   const [
     passkeyRequiredVerificationMethod,
@@ -225,9 +225,7 @@ const PersonalSetting = () => {
       if (success) {
         setPasskeyStatus({
           enabled: data?.enabled || false,
-          last_used_at: data?.last_used_at || null,
-          backup_eligible: data?.backup_eligible || false,
-          backup_state: data?.backup_state || false,
+          credentials: data?.credentials || [],
         });
       } else {
         showError(message);
@@ -331,10 +329,10 @@ const PersonalSetting = () => {
     await startPasskeyRegistration();
   };
 
-  const removePasskey = async () => {
-    setPasskeyDeleteLoading(true);
+  const removePasskey = async (credentialId) => {
+    setPasskeyDeleteLoading(credentialId);
     try {
-      const res = await API.delete('/api/user/passkey');
+      const res = await API.delete(`/api/user/passkey/${encodeURIComponent(credentialId)}`);
       const { success, message } = res.data;
       if (!success) {
         throw new Error(message || t('操作失败，请重试'));
@@ -346,12 +344,12 @@ const PersonalSetting = () => {
     } catch (error) {
       throw new Error(error?.message || t('操作失败，请重试'));
     } finally {
-      setPasskeyDeleteLoading(false);
+      setPasskeyDeleteLoading(null);
     }
   };
 
-  const handleRemovePasskey = async () => {
-    await startPasskeyManagementVerification(removePasskey);
+  const handleRemovePasskey = async (credentialId) => {
+    await startPasskeyManagementVerification(() => removePasskey(credentialId));
   };
 
   const handlePasskeyVerificationCancel = () => {

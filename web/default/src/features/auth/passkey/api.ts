@@ -43,8 +43,12 @@ export async function finishPasskeyRegistration(
   return res.data
 }
 
-export async function deletePasskey(): Promise<ApiResponse> {
-  const res = await api.delete<ApiResponse>('/api/user/passkey')
+export async function deletePasskey(
+  credentialId: string
+): Promise<ApiResponse> {
+  const res = await api.delete<ApiResponse>(
+    `/api/user/passkey/${encodeURIComponent(credentialId)}`
+  )
   return res.data
 }
 
