@@ -130,8 +130,10 @@ func OaiStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Re
 	var lastStreamData string
 	var secondLastStreamData string // 存储倒数第二个stream data，用于音频模型
 
-	// 检查是否为音频模型
-	isAudioModel := strings.Contains(strings.ToLower(model), "audio")
+	// Audio model detection uses upstream model name, not caller model.
+	// When model mapping is active the caller name may not contain "audio"
+	// even though the upstream model is an audio model.
+	isAudioModel := strings.Contains(strings.ToLower(info.UpstreamModelName), "audio")
 
 	helper.StreamScannerHandler(c, resp, info, func(data string, sr *helper.StreamResult) {
 		if lastStreamData != "" {
