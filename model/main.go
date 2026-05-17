@@ -247,7 +247,7 @@ func InitLogDB() (err error) {
 		sqlDB.SetMaxOpenConns(common.GetEnvOrDefault("SQL_MAX_OPEN_CONNS", 1000))
 		sqlDB.SetConnMaxLifetime(time.Second * time.Duration(common.GetEnvOrDefault("SQL_MAX_LIFETIME", 60)))
 
-		if common.UsingSQLite {
+		if common.LogSqlType == common.DatabaseTypeSQLite {
 			if _, err := sqlDB.Exec("PRAGMA journal_mode=WAL"); err != nil {
 				common.SysLog("Warning: failed to set SQLite journal_mode=WAL: " + err.Error())
 			}
