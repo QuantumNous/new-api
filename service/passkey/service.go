@@ -118,7 +118,7 @@ autoDetect:
 		}
 	}
 	if host == "" {
-		return nil, newUserError(UserErrorOriginUnknown, "could not determine passkey origin", map[string]any{"Host": r.Host, "ServerAddress": system_setting.ServerAddress})
+		return nil, newUserError(UserErrorOriginUnknown, "could not determine passkey origin", map[string]any{"Host": r.Host})
 	}
 	if scheme == "" {
 		scheme = "https"
