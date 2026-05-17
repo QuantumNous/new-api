@@ -745,7 +745,10 @@ export function WaffoPancakeSettingsSection(props: Props) {
                       items={storeSelectItems}
                       value={chosenStoreID}
                       onValueChange={(value) => {
-                        setChosenStoreID(value)
+                        // Base UI's Select can deliver null when the user
+                        // deselects; we normalize to '' so the state type
+                        // stays `string`.
+                        setChosenStoreID(value ?? '')
                         setChosenProductID('')
                       }}
                     >
@@ -767,7 +770,7 @@ export function WaffoPancakeSettingsSection(props: Props) {
                     <Select
                       items={productSelectItems}
                       value={chosenProductID}
-                      onValueChange={setChosenProductID}
+                      onValueChange={(value) => setChosenProductID(value ?? '')}
                       disabled={
                         !chosenStoreID || productSelectItems.length === 0
                       }

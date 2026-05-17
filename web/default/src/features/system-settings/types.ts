@@ -243,11 +243,10 @@ export type BillingSettings = {
   WaffoPancakeMerchantID: string
   WaffoPancakePrivateKey: string
   WaffoPancakeReturnURL: string
-  // Auto-provisioned by the backend; not edited by operators.
+  // Bound by the operator through the catalog flow in the admin Pancake
+  // section (saved via /api/option/waffo-pancake/save).
   WaffoPancakeStoreID: string
   WaffoPancakeProductID: string
-  WaffoPancakeProvisionedMerchantID: string
-  WaffoPancakeProvisionedReturnURL: string
   'checkin_setting.enabled': boolean
   'checkin_setting.min_quota': number
   'checkin_setting.max_quota': number

@@ -96,8 +96,6 @@ const defaultBillingSettings: BillingSettings = {
   WaffoPancakeReturnURL: '',
   WaffoPancakeStoreID: '',
   WaffoPancakeProductID: '',
-  WaffoPancakeProvisionedMerchantID: '',
-  WaffoPancakeProvisionedReturnURL: '',
   'checkin_setting.enabled': false,
   'checkin_setting.min_quota': 1000,
   'checkin_setting.max_quota': 10000,

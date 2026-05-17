@@ -602,12 +602,6 @@ func SaveWaffoPancakeConfig(ctx context.Context, merchantID, privateKey, returnU
 	if err := model.UpdateOption("WaffoPancakeProductID", productID); err != nil {
 		return fmt.Errorf("persist Waffo Pancake product id: %w", err)
 	}
-	if err := model.UpdateOption("WaffoPancakeProvisionedMerchantID", merchantID); err != nil {
-		return fmt.Errorf("persist Waffo Pancake provisioned merchant id: %w", err)
-	}
-	if err := model.UpdateOption("WaffoPancakeProvisionedReturnURL", trimmedReturn); err != nil {
-		return fmt.Errorf("persist Waffo Pancake provisioned return URL: %w", err)
-	}
 	return nil
 }
 
