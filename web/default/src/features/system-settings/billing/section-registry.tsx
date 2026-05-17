@@ -148,6 +148,9 @@ const BILLING_SECTIONS = [
           PayMethods: settings.PayMethods,
           AmountOptions: settings['payment_setting.amount_options'],
           AmountDiscount: settings['payment_setting.amount_discount'],
+          BusinessFeatures: settings['payment_setting.business_features'],
+          ProviderSceneScopes:
+            settings['payment_setting.provider_scene_scopes'],
           StripeApiSecret: settings.StripeApiSecret,
           StripeWebhookSecret: settings.StripeWebhookSecret,
           StripePriceId: settings.StripePriceId,

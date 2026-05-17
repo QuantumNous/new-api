@@ -11,13 +11,37 @@ func isPaymentComplianceConfirmed() bool {
 	return operation_setting.IsPaymentComplianceConfirmed()
 }
 
-func isStripeTopUpEnabled() bool {
-	if !isPaymentComplianceConfirmed() {
-		return false
-	}
+func isPaymentProviderAvailableForScene(provider string, scene string, configured bool) bool {
+	return isPaymentComplianceConfirmed() &&
+		configured &&
+		operation_setting.IsPaymentProviderAllowedForScene(provider, scene)
+}
+
+func isStripeTopUpConfigured() bool {
 	return strings.TrimSpace(setting.StripeApiSecret) != "" &&
 		strings.TrimSpace(setting.StripeWebhookSecret) != "" &&
 		strings.TrimSpace(setting.StripePriceId) != ""
+}
+
+func isStripeSubscriptionConfigured() bool {
+	return strings.TrimSpace(setting.StripeApiSecret) != "" &&
+		strings.TrimSpace(setting.StripeWebhookSecret) != ""
+}
+
+func isStripeTopUpEnabled() bool {
+	return isPaymentProviderAvailableForScene(
+		operation_setting.PaymentProviderStripe,
+		operation_setting.PaymentSceneWalletTopUp,
+		isStripeTopUpConfigured(),
+	)
+}
+
+func isStripeSubscriptionEnabled() bool {
+	return isPaymentProviderAvailableForScene(
+		operation_setting.PaymentProviderStripe,
+		operation_setting.PaymentSceneSubscriptionPurchase,
+		isStripeSubscriptionConfigured(),
+	)
 }
 
 func isStripeWebhookConfigured() bool {
@@ -25,67 +49,90 @@ func isStripeWebhookConfigured() bool {
 }
 
 func isStripeWebhookEnabled() bool {
-	return isStripeTopUpEnabled()
+	return isPaymentComplianceConfirmed() && isStripeWebhookConfigured()
 }
 
-func isCreemTopUpEnabled() bool {
-	if !isPaymentComplianceConfirmed() {
-		return false
-	}
+func isCreemTopUpConfigured() bool {
 	products := strings.TrimSpace(setting.CreemProducts)
 	return strings.TrimSpace(setting.CreemApiKey) != "" &&
+		isCreemWebhookConfigured() &&
 		products != "" &&
 		products != "[]"
 }
 
+func isCreemSubscriptionConfigured() bool {
+	return strings.TrimSpace(setting.CreemApiKey) != "" && isCreemWebhookConfigured()
+}
+
+func isCreemTopUpEnabled() bool {
+	return isPaymentProviderAvailableForScene(
+		operation_setting.PaymentProviderCreem,
+		operation_setting.PaymentSceneWalletTopUp,
+		isCreemTopUpConfigured(),
+	)
+}
+
+func isCreemSubscriptionEnabled() bool {
+	return isPaymentProviderAvailableForScene(
+		operation_setting.PaymentProviderCreem,
+		operation_setting.PaymentSceneSubscriptionPurchase,
+		isCreemSubscriptionConfigured(),
+	)
+}
+
 func isCreemWebhookConfigured() bool {
-	return strings.TrimSpace(setting.CreemWebhookSecret) != ""
+	return setting.CreemTestMode || strings.TrimSpace(setting.CreemWebhookSecret) != ""
 }
 
 func isCreemWebhookEnabled() bool {
-	return isCreemTopUpEnabled() && isCreemWebhookConfigured()
+	return isPaymentComplianceConfirmed() && isCreemWebhookConfigured()
 }
 
-func isWaffoTopUpEnabled() bool {
-	if !isPaymentComplianceConfirmed() {
-		return false
-	}
+func isWaffoConfigured() bool {
 	if !setting.WaffoEnabled {
 		return false
 	}
-
-	return isWaffoWebhookConfigured()
-}
-
-func isWaffoWebhookConfigured() bool {
 	if setting.WaffoSandbox {
 		return strings.TrimSpace(setting.WaffoSandboxApiKey) != "" &&
 			strings.TrimSpace(setting.WaffoSandboxPrivateKey) != "" &&
 			strings.TrimSpace(setting.WaffoSandboxPublicCert) != ""
 	}
-
 	return strings.TrimSpace(setting.WaffoApiKey) != "" &&
 		strings.TrimSpace(setting.WaffoPrivateKey) != "" &&
 		strings.TrimSpace(setting.WaffoPublicCert) != ""
 }
 
-func isWaffoWebhookEnabled() bool {
-	return isWaffoTopUpEnabled()
+func isWaffoTopUpEnabled() bool {
+	return isPaymentProviderAvailableForScene(
+		operation_setting.PaymentProviderWaffo,
+		operation_setting.PaymentSceneWalletTopUp,
+		isWaffoConfigured(),
+	)
 }
 
-func isWaffoPancakeTopUpEnabled() bool {
-	if !isPaymentComplianceConfirmed() {
-		return false
-	}
-	if !setting.WaffoPancakeEnabled {
-		return false
-	}
+func isWaffoWebhookConfigured() bool {
+	return isWaffoConfigured()
+}
 
-	return isWaffoPancakeWebhookConfigured() &&
+func isWaffoWebhookEnabled() bool {
+	return isPaymentComplianceConfirmed() && isWaffoWebhookConfigured()
+}
+
+func isWaffoPancakeTopUpConfigured() bool {
+	return setting.WaffoPancakeEnabled &&
+		isWaffoPancakeWebhookConfigured() &&
 		strings.TrimSpace(setting.WaffoPancakeMerchantID) != "" &&
 		strings.TrimSpace(setting.WaffoPancakePrivateKey) != "" &&
 		strings.TrimSpace(setting.WaffoPancakeStoreID) != "" &&
 		strings.TrimSpace(setting.WaffoPancakeProductID) != ""
+}
+
+func isWaffoPancakeTopUpEnabled() bool {
+	return isPaymentProviderAvailableForScene(
+		operation_setting.PaymentProviderWaffoPancake,
+		operation_setting.PaymentSceneWalletTopUp,
+		isWaffoPancakeTopUpConfigured(),
+	)
 }
 
 func isWaffoPancakeWebhookConfigured() bool {
@@ -93,27 +140,47 @@ func isWaffoPancakeWebhookConfigured() bool {
 	if setting.WaffoPancakeSandbox {
 		currentWebhookKey = strings.TrimSpace(setting.WaffoPancakeWebhookTestKey)
 	}
-
-	return currentWebhookKey != ""
+	return setting.WaffoPancakeEnabled && currentWebhookKey != ""
 }
 
 func isWaffoPancakeWebhookEnabled() bool {
-	return isWaffoPancakeTopUpEnabled()
+	return isPaymentComplianceConfirmed() && isWaffoPancakeWebhookConfigured()
 }
 
-func isEpayTopUpEnabled() bool {
-	if !isPaymentComplianceConfirmed() {
-		return false
-	}
-	return isEpayWebhookConfigured() && len(operation_setting.PayMethods) > 0
-}
-
-func isEpayWebhookConfigured() bool {
+func isEpayConfigured() bool {
 	return strings.TrimSpace(operation_setting.PayAddress) != "" &&
 		strings.TrimSpace(operation_setting.EpayId) != "" &&
 		strings.TrimSpace(operation_setting.EpayKey) != ""
 }
 
+func isEpayTopUpConfigured() bool {
+	return isEpayConfigured() && len(operation_setting.PayMethods) > 0
+}
+
+func isEpaySubscriptionConfigured() bool {
+	return isEpayConfigured() && len(operation_setting.PayMethods) > 0
+}
+
+func isEpayTopUpEnabled() bool {
+	return isPaymentProviderAvailableForScene(
+		operation_setting.PaymentProviderEpay,
+		operation_setting.PaymentSceneWalletTopUp,
+		isEpayTopUpConfigured(),
+	)
+}
+
+func isEpaySubscriptionEnabled() bool {
+	return isPaymentProviderAvailableForScene(
+		operation_setting.PaymentProviderEpay,
+		operation_setting.PaymentSceneSubscriptionPurchase,
+		isEpaySubscriptionConfigured(),
+	)
+}
+
+func isEpayWebhookConfigured() bool {
+	return isEpayConfigured()
+}
+
 func isEpayWebhookEnabled() bool {
-	return isEpayTopUpEnabled()
+	return isPaymentComplianceConfirmed() && isEpayWebhookConfigured()
 }

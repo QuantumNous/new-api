@@ -114,6 +114,32 @@ const paymentSchema = z.object({
       })
     }
   }),
+  BusinessFeatures: z.string().superRefine((value, ctx) => {
+    const error = getJsonError(
+      value,
+      (parsed) =>
+        !!parsed && typeof parsed === 'object' && !Array.isArray(parsed)
+    )
+    if (error) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: error,
+      })
+    }
+  }),
+  ProviderSceneScopes: z.string().superRefine((value, ctx) => {
+    const error = getJsonError(
+      value,
+      (parsed) =>
+        !!parsed && typeof parsed === 'object' && !Array.isArray(parsed)
+    )
+    if (error) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: error,
+      })
+    }
+  }),
   StripeApiSecret: z.string(),
   StripeWebhookSecret: z.string(),
   StripePriceId: z.string(),
@@ -258,6 +284,10 @@ export function PaymentSettingsSection({
       PayMethods: formatJsonForEditor(defaultValues.PayMethods),
       AmountOptions: formatJsonForEditor(defaultValues.AmountOptions),
       AmountDiscount: formatJsonForEditor(defaultValues.AmountDiscount),
+      BusinessFeatures: formatJsonForEditor(defaultValues.BusinessFeatures),
+      ProviderSceneScopes: formatJsonForEditor(
+        defaultValues.ProviderSceneScopes
+      ),
       CreemProducts: formatJsonForEditor(defaultValues.CreemProducts),
     },
   })
@@ -270,6 +300,10 @@ export function PaymentSettingsSection({
       PayMethods: formatJsonForEditor(parsedDefaults.PayMethods),
       AmountOptions: formatJsonForEditor(parsedDefaults.AmountOptions),
       AmountDiscount: formatJsonForEditor(parsedDefaults.AmountDiscount),
+      BusinessFeatures: formatJsonForEditor(parsedDefaults.BusinessFeatures),
+      ProviderSceneScopes: formatJsonForEditor(
+        parsedDefaults.ProviderSceneScopes
+      ),
       CreemProducts: formatJsonForEditor(parsedDefaults.CreemProducts),
     })
   }, [defaultsSignature, form])
@@ -282,6 +316,8 @@ export function PaymentSettingsSection({
       PayMethods: values.PayMethods.trim(),
       AmountOptions: values.AmountOptions.trim(),
       AmountDiscount: values.AmountDiscount.trim(),
+      BusinessFeatures: values.BusinessFeatures.trim(),
+      ProviderSceneScopes: values.ProviderSceneScopes.trim(),
     }
 
     const initial = {
@@ -290,6 +326,8 @@ export function PaymentSettingsSection({
       PayMethods: initialRef.current.PayMethods.trim(),
       AmountOptions: initialRef.current.AmountOptions.trim(),
       AmountDiscount: initialRef.current.AmountDiscount.trim(),
+      BusinessFeatures: initialRef.current.BusinessFeatures.trim(),
+      ProviderSceneScopes: initialRef.current.ProviderSceneScopes.trim(),
     }
 
     const updates: Array<{ key: string; value: string | number }> = []
@@ -326,6 +364,26 @@ export function PaymentSettingsSection({
       updates.push({
         key: 'payment_setting.amount_discount',
         value: sanitized.AmountDiscount,
+      })
+    }
+
+    if (
+      normalizeJsonForComparison(sanitized.BusinessFeatures) !==
+      normalizeJsonForComparison(initial.BusinessFeatures)
+    ) {
+      updates.push({
+        key: 'payment_setting.business_features',
+        value: sanitized.BusinessFeatures,
+      })
+    }
+
+    if (
+      normalizeJsonForComparison(sanitized.ProviderSceneScopes) !==
+      normalizeJsonForComparison(initial.ProviderSceneScopes)
+    ) {
+      updates.push({
+        key: 'payment_setting.provider_scene_scopes',
+        value: sanitized.ProviderSceneScopes,
       })
     }
 
@@ -524,6 +582,8 @@ export function PaymentSettingsSection({
       PayMethods: values.PayMethods.trim(),
       AmountOptions: values.AmountOptions.trim(),
       AmountDiscount: values.AmountDiscount.trim(),
+      BusinessFeatures: values.BusinessFeatures.trim(),
+      ProviderSceneScopes: values.ProviderSceneScopes.trim(),
       StripeApiSecret: values.StripeApiSecret.trim(),
       StripeWebhookSecret: values.StripeWebhookSecret.trim(),
       StripePriceId: values.StripePriceId.trim(),
@@ -544,6 +604,8 @@ export function PaymentSettingsSection({
       PayMethods: initialRef.current.PayMethods.trim(),
       AmountOptions: initialRef.current.AmountOptions.trim(),
       AmountDiscount: initialRef.current.AmountDiscount.trim(),
+      BusinessFeatures: initialRef.current.BusinessFeatures.trim(),
+      ProviderSceneScopes: initialRef.current.ProviderSceneScopes.trim(),
       StripeApiSecret: initialRef.current.StripeApiSecret.trim(),
       StripeWebhookSecret: initialRef.current.StripeWebhookSecret.trim(),
       StripePriceId: initialRef.current.StripePriceId.trim(),
@@ -606,6 +668,26 @@ export function PaymentSettingsSection({
       updates.push({
         key: 'payment_setting.amount_discount',
         value: sanitized.AmountDiscount,
+      })
+    }
+
+    if (
+      normalizeJsonForComparison(sanitized.BusinessFeatures) !==
+      normalizeJsonForComparison(initial.BusinessFeatures)
+    ) {
+      updates.push({
+        key: 'payment_setting.business_features',
+        value: sanitized.BusinessFeatures,
+      })
+    }
+
+    if (
+      normalizeJsonForComparison(sanitized.ProviderSceneScopes) !==
+      normalizeJsonForComparison(initial.ProviderSceneScopes)
+    ) {
+      updates.push({
+        key: 'payment_setting.provider_scene_scopes',
+        value: sanitized.ProviderSceneScopes,
       })
     }
 
@@ -954,6 +1036,56 @@ export function PaymentSettingsSection({
                     </FormControl>
                     <FormDescription>
                       {t('Discount map by recharge amount (JSON object)')}
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+
+            <div className='grid gap-6 md:grid-cols-2 md:items-start'>
+              <FormField
+                control={form.control}
+                name='BusinessFeatures'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t('Business features')}</FormLabel>
+                    <FormControl>
+                      <Textarea
+                        rows={6}
+                        placeholder='{"wallet_topup":false,"subscription_purchase":true}'
+                        {...field}
+                        onChange={(event) => field.onChange(event.target.value)}
+                      />
+                    </FormControl>
+                    <FormDescription>
+                      {t(
+                        'Control user-facing billing entries such as wallet top-up, subscription purchase, redemption, invitation transfer, and check-in rewards.'
+                      )}
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name='ProviderSceneScopes'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t('Payment scene scopes')}</FormLabel>
+                    <FormControl>
+                      <Textarea
+                        rows={6}
+                        placeholder='{"epay":{"wallet_topup":false,"subscription_purchase":true}}'
+                        {...field}
+                        onChange={(event) => field.onChange(event.target.value)}
+                      />
+                    </FormControl>
+                    <FormDescription>
+                      {t(
+                        'Control which payment provider can be used for wallet top-up or subscription purchase.'
+                      )}
                     </FormDescription>
                     <FormMessage />
                   </FormItem>

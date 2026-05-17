@@ -328,7 +328,7 @@ type TransferAffQuotaRequest struct {
 }
 
 func TransferAffQuota(c *gin.Context) {
-	if !requirePaymentCompliance(c) {
+	if !requireBillingFeature(c, operation_setting.BillingFeatureInvitationTransfer) {
 		return
 	}
 
@@ -1086,8 +1086,7 @@ func getTopUpLock(userID int) *topUpTryLock {
 }
 
 func TopUp(c *gin.Context) {
-	if !operation_setting.IsPaymentComplianceConfirmed() {
-		common.ApiErrorI18n(c, i18n.MsgPaymentComplianceRequired)
+	if !requireBillingFeature(c, operation_setting.BillingFeatureRedemptionRedeem) {
 		return
 	}
 

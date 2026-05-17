@@ -60,8 +60,7 @@ func GetRedemption(c *gin.Context) {
 }
 
 func AddRedemption(c *gin.Context) {
-	if !operation_setting.IsPaymentComplianceConfirmed() {
-		common.ApiErrorI18n(c, i18n.MsgPaymentComplianceRequired)
+	if !requireBillingFeature(c, operation_setting.BillingFeatureRedemptionManage) {
 		return
 	}
 
@@ -133,6 +132,10 @@ func DeleteRedemption(c *gin.Context) {
 }
 
 func UpdateRedemption(c *gin.Context) {
+	if !requireBillingFeature(c, operation_setting.BillingFeatureRedemptionManage) {
+		return
+	}
+
 	statusOnly := c.Query("status_only")
 	redemption := model.Redemption{}
 	err := c.ShouldBindJSON(&redemption)

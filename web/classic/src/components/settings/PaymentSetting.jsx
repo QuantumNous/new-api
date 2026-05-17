@@ -45,6 +45,8 @@ const PaymentSetting = () => {
     PayMethods: '',
     AmountOptions: '',
     AmountDiscount: '',
+    BusinessFeatures: '',
+    ProviderSceneScopes: '',
 
     StripeApiSecret: '',
     StripeWebhookSecret: '',
@@ -155,6 +157,28 @@ const PaymentSetting = () => {
               );
             } catch (error) {
               newInputs['AmountDiscount'] = item.value;
+            }
+            break;
+          case 'payment_setting.business_features':
+            try {
+              newInputs['BusinessFeatures'] = JSON.stringify(
+                JSON.parse(item.value),
+                null,
+                2,
+              );
+            } catch (error) {
+              newInputs['BusinessFeatures'] = item.value;
+            }
+            break;
+          case 'payment_setting.provider_scene_scopes':
+            try {
+              newInputs['ProviderSceneScopes'] = JSON.stringify(
+                JSON.parse(item.value),
+                null,
+                2,
+              );
+            } catch (error) {
+              newInputs['ProviderSceneScopes'] = item.value;
             }
             break;
           case 'payment_setting.compliance_confirmed':

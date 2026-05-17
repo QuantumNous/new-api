@@ -95,6 +95,8 @@ export interface PaymentMethod {
   min_topup?: number
   /** Optional icon URL provided by backend (preferred over built-in icons) */
   icon?: string
+  /** Payment provider identifier */
+  provider?: string
 }
 
 /**
@@ -121,6 +123,10 @@ export interface TopupInfo {
   enable_stripe_topup: boolean
   /** Available payment methods */
   pay_methods: PaymentMethod[]
+  /** Available payment methods grouped by billing scene */
+  payment_methods_by_scene?: Record<string, PaymentMethod[]>
+  /** Available subscription purchase payment methods */
+  subscription_payment_methods?: PaymentMethod[]
   /** Minimum topup amount for online topup */
   min_topup: number
   /** Minimum topup amount for Stripe */
@@ -147,6 +153,16 @@ export interface TopupInfo {
   waffo_pancake_min_topup?: number
   /** Whether redemption code usage is enabled */
   enable_redemption?: boolean
+  /** Whether subscription purchase is enabled */
+  enable_subscription_purchase?: boolean
+  /** Whether Epay subscription purchase is enabled */
+  enable_epay_subscription?: boolean
+  /** Whether Stripe subscription purchase is enabled */
+  enable_stripe_subscription?: boolean
+  /** Whether Creem subscription purchase is enabled */
+  enable_creem_subscription?: boolean
+  /** User-facing billing feature flags */
+  features?: Record<string, boolean>
   /** Whether compliance confirmation has been completed */
   payment_compliance_confirmed?: boolean
   /** Current compliance terms version */

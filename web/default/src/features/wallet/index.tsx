@@ -77,6 +77,12 @@ export function Wallet(props: WalletProps) {
   const { status } = useStatus()
   const { currency } = useSystemConfig()
   const { topupInfo, presetAmounts, loading: topupLoading } = useTopupInfo()
+  const hasCalculableWalletPayment = useMemo(() => {
+    if (!topupInfo || topupInfo.features?.wallet_topup === false) {
+      return false
+    }
+    return Array.isArray(topupInfo.pay_methods) && topupInfo.pay_methods.length > 0
+  }, [topupInfo])
 
   // Calculate effective exchange rate - when display type is USD, use rate of 1
   const effectiveUsdExchangeRate = useMemo(() => {
@@ -136,11 +142,12 @@ export function Wallet(props: WalletProps) {
       const minTopup = getMinTopupAmount(topupInfo)
       setTopupAmount(minTopup)
 
-      // Calculate initial payment amount with default payment type
-      const defaultPaymentType = getDefaultPaymentType(topupInfo)
-      calculatePaymentAmount(minTopup, defaultPaymentType)
+      if (hasCalculableWalletPayment) {
+        const defaultPaymentType = getDefaultPaymentType(topupInfo)
+        calculatePaymentAmount(minTopup, defaultPaymentType)
+      }
     }
-  }, [topupInfo, topupAmount, calculatePaymentAmount])
+  }, [topupInfo, topupAmount, hasCalculableWalletPayment, calculatePaymentAmount])
 
   // Get current payment type (selected or default)
   const getCurrentPaymentType = useCallback(() => {
@@ -320,6 +327,7 @@ export function Wallet(props: WalletProps) {
               affiliateLink={affiliateLink}
               onTransfer={() => setTransferDialogOpen(true)}
               complianceConfirmed={
+                topupInfo?.features?.invitation_transfer !== false &&
                 topupInfo?.payment_compliance_confirmed !== false
               }
               loading={affiliateLoading}

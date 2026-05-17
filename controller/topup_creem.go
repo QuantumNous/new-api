@@ -13,6 +13,7 @@ import (
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/setting"
+	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"io"
 	"net/http"
 	"time"
@@ -142,6 +143,10 @@ func (*CreemAdaptor) RequestPay(c *gin.Context, req *CreemPayRequest) {
 }
 
 func RequestCreemPay(c *gin.Context) {
+	if !requireWalletTopUp(c, operation_setting.PaymentProviderCreem) {
+		return
+	}
+
 	var req CreemPayRequest
 
 	// 读取body内容用于打印，同时保留原始数据供后续使用

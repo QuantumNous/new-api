@@ -109,12 +109,29 @@ export function SubscriptionPlansCard({
   const [purchaseOpen, setPurchaseOpen] = useState(false)
   const [selectedPlan, setSelectedPlan] = useState<PlanRecord | null>(null)
 
-  const enableStripe = !!topupInfo?.enable_stripe_topup
-  const enableCreem = !!topupInfo?.enable_creem_topup
-  const enableOnlineTopUp = !!topupInfo?.enable_online_topup
+  const subscriptionPurchaseEnabled =
+    topupInfo?.enable_subscription_purchase !== false
+  const enableStripe =
+    subscriptionPurchaseEnabled &&
+    !!(topupInfo?.enable_stripe_subscription ?? topupInfo?.enable_stripe_topup)
+  const enableCreem =
+    subscriptionPurchaseEnabled &&
+    !!(topupInfo?.enable_creem_subscription ?? topupInfo?.enable_creem_topup)
+  const enableOnlineTopUp =
+    subscriptionPurchaseEnabled &&
+    !!(topupInfo?.enable_epay_subscription ?? topupInfo?.enable_online_topup)
   const epayMethods = useMemo(
-    () => getEpayMethods(topupInfo?.pay_methods),
-    [topupInfo?.pay_methods]
+    () =>
+      getEpayMethods(
+        topupInfo?.payment_methods_by_scene?.subscription_purchase ||
+          topupInfo?.subscription_payment_methods ||
+          topupInfo?.pay_methods
+      ),
+    [
+      topupInfo?.payment_methods_by_scene,
+      topupInfo?.subscription_payment_methods,
+      topupInfo?.pay_methods,
+    ]
   )
 
   const fetchPlans = useCallback(async () => {
@@ -602,8 +619,11 @@ export function SubscriptionPlansCard({
                           setSelectedPlan(p)
                           setPurchaseOpen(true)
                         }}
+                        disabled={!subscriptionPurchaseEnabled}
                       >
-                        {t('Subscribe Now')}
+                        {subscriptionPurchaseEnabled
+                          ? t('Subscribe Now')
+                          : t('Unavailable')}
                       </Button>
                     )}
                   </CardContent>

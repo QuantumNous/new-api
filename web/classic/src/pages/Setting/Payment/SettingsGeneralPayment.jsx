@@ -39,6 +39,8 @@ export default function SettingsGeneralPayment(props) {
     PayMethods: '',
     AmountOptions: '',
     AmountDiscount: '',
+    BusinessFeatures: '',
+    ProviderSceneScopes: '',
   });
   const [originInputs, setOriginInputs] = useState({});
   const formApiRef = useRef(null);
@@ -52,6 +54,8 @@ export default function SettingsGeneralPayment(props) {
         PayMethods: props.options.PayMethods || '',
         AmountOptions: props.options.AmountOptions || '',
         AmountDiscount: props.options.AmountDiscount || '',
+        BusinessFeatures: props.options.BusinessFeatures || '',
+        ProviderSceneScopes: props.options.ProviderSceneScopes || '',
       };
       setInputs(currentInputs);
       setOriginInputs({ ...currentInputs });
@@ -98,6 +102,24 @@ export default function SettingsGeneralPayment(props) {
       return;
     }
 
+    if (
+      originInputs.BusinessFeatures !== inputs.BusinessFeatures &&
+      inputs.BusinessFeatures.trim() !== '' &&
+      !verifyJSON(inputs.BusinessFeatures)
+    ) {
+      showError(t('Business features must be a valid JSON object'));
+      return;
+    }
+
+    if (
+      originInputs.ProviderSceneScopes !== inputs.ProviderSceneScopes &&
+      inputs.ProviderSceneScopes.trim() !== '' &&
+      !verifyJSON(inputs.ProviderSceneScopes)
+    ) {
+      showError(t('Provider scene scopes must be a valid JSON object'));
+      return;
+    }
+
     setLoading(true);
     try {
       const options = [
@@ -129,6 +151,18 @@ export default function SettingsGeneralPayment(props) {
         options.push({
           key: 'payment_setting.amount_discount',
           value: inputs.AmountDiscount,
+        });
+      }
+      if (originInputs.BusinessFeatures !== inputs.BusinessFeatures) {
+        options.push({
+          key: 'payment_setting.business_features',
+          value: inputs.BusinessFeatures,
+        });
+      }
+      if (originInputs.ProviderSceneScopes !== inputs.ProviderSceneScopes) {
+        options.push({
+          key: 'payment_setting.provider_scene_scopes',
+          value: inputs.ProviderSceneScopes,
         });
       }
 
@@ -234,6 +268,33 @@ export default function SettingsGeneralPayment(props) {
                 autosize
                 extraText={t(
                   '设置不同充值金额对应的折扣，键为充值金额，值为折扣率，例如：{"100": 0.95, "200": 0.9, "500": 0.85}',
+                )}
+              />
+            </Col>
+          </Row>
+          <Row
+            gutter={{ xs: 8, sm: 16, md: 24, lg: 24, xl: 24, xxl: 24 }}
+            style={{ marginTop: 16 }}
+          >
+            <Col xs={24} sm={24} md={12} lg={12} xl={12}>
+              <Form.TextArea
+                field='BusinessFeatures'
+                label={t('Business feature switches')}
+                placeholder='{"wallet_topup":false,"subscription_purchase":true}'
+                autosize
+                extraText={t(
+                  'Controls user-facing billing entrances such as wallet topup, subscription purchase, redemption, invitation rewards and check-in rewards.',
+                )}
+              />
+            </Col>
+            <Col xs={24} sm={24} md={12} lg={12} xl={12}>
+              <Form.TextArea
+                field='ProviderSceneScopes'
+                label={t('Provider scene scopes')}
+                placeholder='{"epay":{"wallet_topup":false,"subscription_purchase":true}}'
+                autosize
+                extraText={t(
+                  'Controls which payment providers can be used by each billing scene.',
                 )}
               />
             </Col>

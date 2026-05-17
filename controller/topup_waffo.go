@@ -100,6 +100,10 @@ type WaffoPayRequest struct {
 }
 
 func RequestWaffoAmount(c *gin.Context) {
+	if !requireWalletTopUp(c, operation_setting.PaymentProviderWaffo) {
+		return
+	}
+
 	var req WaffoPayRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "参数错误"})
@@ -130,6 +134,10 @@ func RequestWaffoAmount(c *gin.Context) {
 
 // RequestWaffoPay 创建 Waffo 支付订单
 func RequestWaffoPay(c *gin.Context) {
+	if !requireWalletTopUp(c, operation_setting.PaymentProviderWaffo) {
+		return
+	}
+
 	if !setting.WaffoEnabled {
 		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "Waffo 支付未启用"})
 		return

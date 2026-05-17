@@ -4,7 +4,10 @@ import "github.com/QuantumNous/new-api/setting/config"
 
 type PaymentSetting struct {
 	AmountOptions  []int           `json:"amount_options"`
-	AmountDiscount map[int]float64 `json:"amount_discount"` // 充值金额对应的折扣，例如 100 元 0.9 表示 100 元充值享受 9 折优惠
+	AmountDiscount map[int]float64 `json:"amount_discount"`
+
+	BusinessFeatures    map[string]bool            `json:"business_features"`
+	ProviderSceneScopes map[string]map[string]bool `json:"provider_scene_scopes"`
 
 	ComplianceConfirmed    bool   `json:"compliance_confirmed"`
 	ComplianceTermsVersion string `json:"compliance_terms_version"`
@@ -15,22 +18,24 @@ type PaymentSetting struct {
 
 const CurrentComplianceTermsVersion = "v1"
 
-// 默认配置
 var paymentSetting = PaymentSetting{
-	AmountOptions:  []int{10, 20, 50, 100, 200, 500},
-	AmountDiscount: map[int]float64{},
+	AmountOptions:       []int{10, 20, 50, 100, 200, 500},
+	AmountDiscount:      map[int]float64{},
+	BusinessFeatures:    DefaultBusinessFeatures(),
+	ProviderSceneScopes: DefaultProviderSceneScopes(),
 }
 
 func init() {
-	// 注册到全局配置管理器
 	config.GlobalConfig.Register("payment_setting", &paymentSetting)
 }
 
 func GetPaymentSetting() *PaymentSetting {
+	NormalizePaymentSetting()
 	return &paymentSetting
 }
 
 func IsPaymentComplianceConfirmed() bool {
-	return paymentSetting.ComplianceConfirmed &&
-		paymentSetting.ComplianceTermsVersion == CurrentComplianceTermsVersion
+	setting := GetPaymentSetting()
+	return setting.ComplianceConfirmed &&
+		setting.ComplianceTermsVersion == CurrentComplianceTermsVersion
 }

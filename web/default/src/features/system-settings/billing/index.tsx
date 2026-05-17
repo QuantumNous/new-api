@@ -66,6 +66,10 @@ const defaultBillingSettings: BillingSettings = {
   PayMethods: '',
   'payment_setting.amount_options': '',
   'payment_setting.amount_discount': '',
+  'payment_setting.business_features':
+    '{"wallet_topup":true,"subscription_purchase":true,"redemption_redeem":true,"redemption_manage":true,"invitation_reward":true,"invitation_transfer":true,"checkin_reward":true}',
+  'payment_setting.provider_scene_scopes':
+    '{"epay":{"wallet_topup":true,"subscription_purchase":true},"stripe":{"wallet_topup":true,"subscription_purchase":true},"creem":{"wallet_topup":true,"subscription_purchase":true},"waffo":{"wallet_topup":true,"subscription_purchase":false},"waffo_pancake":{"wallet_topup":true,"subscription_purchase":false}}',
   'payment_setting.compliance_confirmed': false,
   'payment_setting.compliance_terms_version': '',
   'payment_setting.compliance_confirmed_at': 0,

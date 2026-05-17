@@ -25,13 +25,22 @@ func GetTopUpInfo(c *gin.Context) {
 	complianceConfirmed := operation_setting.IsPaymentComplianceConfirmed()
 
 	// 获取支付方式
-	payMethods := operation_setting.PayMethods
+	payMethods := buildWalletTopUpPayMethods()
 	if !complianceConfirmed {
 		payMethods = []map[string]string{}
 	}
+	subscriptionPayMethods := buildSubscriptionPayMethods()
+	features := buildCapabilityFeatures()
+	walletTopUpFeatureEnabled := features[operation_setting.BillingFeatureWalletTopUp]
+	subscriptionFeatureEnabled := features[operation_setting.BillingFeatureSubscriptionPurchase]
+	paymentMethodsByScene := map[string][]map[string]string{
+		operation_setting.PaymentSceneWalletTopUp:          payMethods,
+		operation_setting.PaymentSceneSubscriptionPurchase: subscriptionPayMethods,
+	}
+	paymentSetting := operation_setting.GetPaymentSetting()
 
 	// 如果启用了 Stripe 支付，添加到支付方法列表
-	if isStripeTopUpEnabled() {
+	if walletTopUpFeatureEnabled && isStripeTopUpEnabled() {
 		// 检查是否已经包含 Stripe
 		hasStripe := false
 		for _, method := range payMethods {
@@ -53,7 +62,7 @@ func GetTopUpInfo(c *gin.Context) {
 	}
 
 	// 如果启用了 Waffo 支付，添加到支付方法列表
-	enableWaffo := isWaffoTopUpEnabled()
+	enableWaffo := walletTopUpFeatureEnabled && isWaffoTopUpEnabled()
 	if enableWaffo {
 		hasWaffo := false
 		for _, method := range payMethods {
@@ -74,7 +83,7 @@ func GetTopUpInfo(c *gin.Context) {
 		}
 	}
 
-	enableWaffoPancake := isWaffoPancakeTopUpEnabled()
+	enableWaffoPancake := walletTopUpFeatureEnabled && isWaffoPancakeTopUpEnabled()
 	if enableWaffoPancake {
 		hasWaffoPancake := false
 		for _, method := range payMethods {
@@ -93,31 +102,35 @@ func GetTopUpInfo(c *gin.Context) {
 			})
 		}
 	}
+	paymentMethodsByScene[operation_setting.PaymentSceneWalletTopUp] = payMethods
 
 	data := gin.H{
-		"enable_online_topup":              isEpayTopUpEnabled(),
-		"enable_stripe_topup":              isStripeTopUpEnabled(),
-		"enable_creem_topup":               isCreemTopUpEnabled(),
+		"enable_online_topup":              walletTopUpFeatureEnabled && isEpayTopUpEnabled(),
+		"enable_stripe_topup":              walletTopUpFeatureEnabled && isStripeTopUpEnabled(),
+		"enable_creem_topup":               walletTopUpFeatureEnabled && isCreemTopUpEnabled(),
 		"enable_waffo_topup":               enableWaffo,
 		"enable_waffo_pancake_topup":       enableWaffoPancake,
-		"enable_redemption":                complianceConfirmed,
+		"enable_redemption":                features[operation_setting.BillingFeatureRedemptionRedeem],
+		"enable_subscription_purchase":     features[operation_setting.BillingFeatureSubscriptionPurchase],
+		"enable_epay_subscription":         subscriptionFeatureEnabled && isEpaySubscriptionEnabled(),
+		"enable_stripe_subscription":       subscriptionFeatureEnabled && isStripeSubscriptionEnabled(),
+		"enable_creem_subscription":        subscriptionFeatureEnabled && isCreemSubscriptionEnabled(),
 		"payment_compliance_confirmed":     complianceConfirmed,
 		"payment_compliance_terms_version": operation_setting.CurrentComplianceTermsVersion,
-		"waffo_pay_methods": func() interface{} {
-			if enableWaffo {
-				return setting.GetWaffoPayMethods()
-			}
-			return nil
-		}(),
-		"creem_products":          setting.CreemProducts,
-		"pay_methods":             payMethods,
-		"min_topup":               operation_setting.MinTopUp,
-		"stripe_min_topup":        setting.StripeMinTopUp,
-		"waffo_min_topup":         setting.WaffoMinTopUp,
-		"waffo_pancake_min_topup": setting.WaffoPancakeMinTopUp,
-		"amount_options":          operation_setting.GetPaymentSetting().AmountOptions,
-		"discount":                operation_setting.GetPaymentSetting().AmountDiscount,
-		"topup_link":              common.TopUpLink,
+		"features":                         features,
+		"provider_scene_scopes":            operation_setting.CopyProviderSceneScopes(paymentSetting.ProviderSceneScopes),
+		"payment_methods_by_scene":         paymentMethodsByScene,
+		"subscription_payment_methods":     subscriptionPayMethods,
+		"waffo_pay_methods":                buildWalletTopUpWaffoPayMethods(),
+		"creem_products":                   setting.CreemProducts,
+		"pay_methods":                      payMethods,
+		"min_topup":                        operation_setting.MinTopUp,
+		"stripe_min_topup":                 setting.StripeMinTopUp,
+		"waffo_min_topup":                  setting.WaffoMinTopUp,
+		"waffo_pancake_min_topup":          setting.WaffoPancakeMinTopUp,
+		"amount_options":                   paymentSetting.AmountOptions,
+		"discount":                         paymentSetting.AmountDiscount,
+		"topup_link":                       common.TopUpLink,
 	}
 	common.ApiSuccess(c, data)
 }
@@ -186,6 +199,10 @@ func getMinTopup() int64 {
 }
 
 func RequestEpay(c *gin.Context) {
+	if !requireWalletTopUp(c, operation_setting.PaymentProviderEpay) {
+		return
+	}
+
 	var req EpayRequest
 	err := c.ShouldBindJSON(&req)
 	if err != nil {
@@ -411,6 +428,10 @@ func EpayNotify(c *gin.Context) {
 }
 
 func RequestAmount(c *gin.Context) {
+	if !requireWalletTopUp(c, operation_setting.PaymentProviderEpay) {
+		return
+	}
+
 	var req AmountRequest
 	err := c.ShouldBindJSON(&req)
 	if err != nil {

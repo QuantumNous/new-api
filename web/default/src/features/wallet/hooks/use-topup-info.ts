@@ -70,6 +70,7 @@ function parsePaymentMethods(
         name: typeof item.name === 'string' ? item.name : '',
         type,
         color: typeof item.color === 'string' ? item.color : undefined,
+        provider: typeof item.provider === 'string' ? item.provider : undefined,
         min_topup:
           type === 'stripe' && normalizedMinTopup <= 0
             ? stripeMinTopup
@@ -77,6 +78,23 @@ function parsePaymentMethods(
       }
     })
     .filter((item) => item.name && item.type && item.type !== 'waffo')
+}
+
+function parsePaymentMethodsByScene(
+  data: unknown,
+  stripeMinTopup: number
+): Record<string, PaymentMethod[]> {
+  if (!data || typeof data !== 'object' || Array.isArray(data)) {
+    return {}
+  }
+
+  return Object.entries(data).reduce<Record<string, PaymentMethod[]>>(
+    (result, [scene, methods]) => {
+      result[scene] = parsePaymentMethods(methods, stripeMinTopup)
+      return result
+    },
+    {}
+  )
 }
 
 function parseWaffoPayMethods(data: unknown): WaffoPayMethod[] {
@@ -182,6 +200,14 @@ export function useTopupInfo() {
         ...response.data,
         pay_methods: parsePaymentMethods(
           response.data.pay_methods,
+          response.data.stripe_min_topup
+        ),
+        payment_methods_by_scene: parsePaymentMethodsByScene(
+          response.data.payment_methods_by_scene,
+          response.data.stripe_min_topup
+        ),
+        subscription_payment_methods: parsePaymentMethods(
+          response.data.subscription_payment_methods,
           response.data.stripe_min_topup
         ),
         amount_options: parseAmountOptions(response.data.amount_options),

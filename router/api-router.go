@@ -144,6 +144,12 @@ func SetApiRouter(router *gin.Engine) {
 			}
 		}
 
+		billingRoute := apiRouter.Group("/billing")
+		billingRoute.Use(middleware.UserAuth())
+		{
+			billingRoute.GET("/capabilities", controller.GetBillingCapabilities)
+		}
+
 		// Subscription billing (plans, purchase, admin management)
 		subscriptionRoute := apiRouter.Group("/subscription")
 		subscriptionRoute.Use(middleware.UserAuth())

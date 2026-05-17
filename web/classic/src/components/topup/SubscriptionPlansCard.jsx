@@ -74,6 +74,7 @@ const SubscriptionPlansCard = ({
   loading = false,
   plans = [],
   payMethods = [],
+  enableSubscriptionPurchase = true,
   enableOnlineTopUp = false,
   enableStripeTopUp = false,
   enableCreemTopUp = false,
@@ -93,6 +94,10 @@ const SubscriptionPlansCard = ({
   const epayMethods = useMemo(() => getEpayMethods(payMethods), [payMethods]);
 
   const openBuy = (p) => {
+    if (!enableSubscriptionPurchase) {
+      showError(t('Subscription purchase is disabled'));
+      return;
+    }
     setSelectedPlan(p);
     setSelectedEpayMethod(epayMethods?.[0]?.type || '');
     setOpen(true);
@@ -620,9 +625,11 @@ const SubscriptionPlansCard = ({
                               theme='outline'
                               type='primary'
                               block
-                              disabled={reached}
+                              disabled={reached || !enableSubscriptionPurchase}
                               onClick={() => {
-                                if (!reached) openBuy(p);
+                                if (!reached && enableSubscriptionPurchase) {
+                                  openBuy(p);
+                                }
                               }}
                             >
                               {reached ? t('已达上限') : t('立即订阅')}
@@ -670,6 +677,7 @@ const SubscriptionPlansCard = ({
         selectedEpayMethod={selectedEpayMethod}
         setSelectedEpayMethod={setSelectedEpayMethod}
         epayMethods={epayMethods}
+        enableSubscriptionPurchase={enableSubscriptionPurchase}
         enableOnlineTopUp={enableOnlineTopUp}
         enableStripeTopUp={enableStripeTopUp}
         enableCreemTopUp={enableCreemTopUp}

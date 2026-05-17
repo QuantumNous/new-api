@@ -33,6 +33,17 @@ func isPaymentComplianceOptionKey(key string) bool {
 	return strings.HasPrefix(key, "payment_setting.compliance_")
 }
 
+func validatePaymentSettingOptionValue(key string, value string) error {
+	switch key {
+	case "payment_setting.business_features":
+		return operation_setting.ValidateBusinessFeaturesJSON(value)
+	case "payment_setting.provider_scene_scopes":
+		return operation_setting.ValidateProviderSceneScopesJSON(value)
+	default:
+		return nil
+	}
+}
+
 func isPositiveOptionValue(value string) bool {
 	intValue, err := strconv.Atoi(strings.TrimSpace(value))
 	if err == nil {
@@ -145,6 +156,10 @@ func UpdateOption(c *gin.Context) {
 		option.Value = common.Interface2String(option.Value.(int))
 	default:
 		option.Value = fmt.Sprintf("%v", option.Value)
+	}
+	if err = validatePaymentSettingOptionValue(option.Key, option.Value.(string)); err != nil {
+		common.ApiErrorMsg(c, "invalid payment setting: "+err.Error())
+		return
 	}
 	switch option.Key {
 	case "QuotaForInviter", "QuotaForInvitee":

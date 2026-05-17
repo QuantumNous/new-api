@@ -22,7 +22,7 @@ type SubscriptionEpayPayRequest struct {
 }
 
 func SubscriptionRequestEpay(c *gin.Context) {
-	if !requirePaymentCompliance(c) {
+	if !requireSubscriptionPurchase(c, operation_setting.PaymentProviderEpay) {
 		return
 	}
 
