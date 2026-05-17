@@ -34,6 +34,7 @@ import {
   getLogOther,
   renderModelTag,
   renderModelPriceSimple,
+  getCurrencyConfig,
 } from '../../../helpers';
 import { IconHelpCircle } from '@douyinfe/semi-icons';
 import {
@@ -43,9 +44,55 @@ import {
   FileSearch,
   Download,
   Upload,
+  Package,
+  SquarePen,
 } from 'lucide-react';
 
 const CACHE_ACCENT_COLOR = 'rgba(var(--semi-orange-6), 1)';
+
+const DETAIL_TOOLTIP_PANEL_STYLE = {
+  minWidth: 220,
+  lineHeight: 1.5,
+  color: 'rgba(255, 255, 255, 0.92)',
+};
+
+const DETAIL_TOOLTIP_SECTION_STYLE = {
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 2,
+};
+
+const DETAIL_TOOLTIP_TITLE_STYLE = {
+  fontSize: 12,
+  fontWeight: 600,
+  color: 'rgba(255, 255, 255, 0.72)',
+  marginBottom: 4,
+};
+
+const DETAIL_TOOLTIP_ROW_STYLE = {
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+  gap: 16,
+  whiteSpace: 'nowrap',
+};
+
+const DETAIL_TOOLTIP_LABEL_STYLE = {
+  color: 'rgba(255, 255, 255, 0.58)',
+};
+
+const DETAIL_TOOLTIP_VALUE_STYLE = {
+  color: 'rgba(255, 255, 255, 0.92)',
+  fontWeight: 500,
+};
+
+const DETAIL_TOOLTIP_TOTAL_STYLE = {
+  ...DETAIL_TOOLTIP_ROW_STYLE,
+  gap: 24,
+  borderTop: '1px solid rgba(255, 255, 255, 0.18)',
+  paddingTop: 6,
+  marginTop: 6,
+};
 
 const colors = [
   'amber',
@@ -354,27 +401,313 @@ function renderCacheTokenLine(icon, label, value) {
   );
 }
 
-function renderProcessTooltip(title, content, prefix = null) {
-  if (!content && !prefix) {
+function DetailTooltipRow({ label, value, valueStyle = null }) {
+  if (value === undefined || value === null || value === '') {
     return null;
   }
 
   return (
-    <div style={{ maxWidth: 620, lineHeight: 1.6 }}>
-      <Typography.Text strong>{title}</Typography.Text>
-      {prefix ? <div style={{ marginTop: 6 }}>{prefix}</div> : null}
-      {content ? <div style={{ marginTop: 6 }}>{content}</div> : null}
+    <div style={DETAIL_TOOLTIP_ROW_STYLE}>
+      <span style={DETAIL_TOOLTIP_LABEL_STYLE}>{label}</span>
+      <span style={{ ...DETAIL_TOOLTIP_VALUE_STYLE, ...valueStyle }}>
+        {value}
+      </span>
     </div>
   );
 }
 
-function withProcessTooltip(node, title, content, prefix = null) {
-  const tooltipContent = renderProcessTooltip(title, content, prefix);
-  if (!tooltipContent) {
-    return node;
+function formatDisplayMoneyFromUsd(usdAmount, digits = 6) {
+  const amount = Number(usdAmount);
+  if (!Number.isFinite(amount)) {
+    return null;
   }
 
-  return <Tooltip content={tooltipContent}>{node}</Tooltip>;
+  const { symbol, rate, type } = getCurrencyConfig();
+  if (type === 'TOKENS') {
+    return renderQuota(Math.round(amount), 6);
+  }
+
+  return `${symbol}${(amount * rate).toFixed(digits)}`;
+}
+
+function formatUnitPriceFromUsd(usdAmount) {
+  const formatted = formatDisplayMoneyFromUsd(usdAmount, 4);
+  return formatted ? `${formatted} / 1M Token` : null;
+}
+
+function getEffectiveGroupRatio(groupRatio, userGroupRatio) {
+  const parsedUserGroupRatio = Number(userGroupRatio);
+  if (Number.isFinite(parsedUserGroupRatio) && parsedUserGroupRatio !== -1) {
+    return parsedUserGroupRatio;
+  }
+
+  const parsedGroupRatio = Number(groupRatio);
+  return Number.isFinite(parsedGroupRatio) ? parsedGroupRatio : 1;
+}
+
+function getCacheWriteBreakdown(record, other) {
+  const cacheCreationTokens = toTokenNumber(other?.cache_creation_tokens);
+  const cacheCreationTokens5m = toTokenNumber(other?.cache_creation_tokens_5m);
+  const cacheCreationTokens1h = toTokenNumber(other?.cache_creation_tokens_1h);
+  const splitCacheCreationTokens =
+    cacheCreationTokens5m + cacheCreationTokens1h;
+  const fallbackCacheWriteTokens = toTokenNumber(record?.cache_write_tokens);
+
+  if (splitCacheCreationTokens > 0) {
+    return {
+      legacyTokens: Math.max(cacheCreationTokens - splitCacheCreationTokens, 0),
+      tokens5m: cacheCreationTokens5m,
+      tokens1h: cacheCreationTokens1h,
+    };
+  }
+
+  return {
+    legacyTokens: cacheCreationTokens || fallbackCacheWriteTokens,
+    tokens5m: 0,
+    tokens1h: 0,
+  };
+}
+
+function buildTokenDetail(
+  record,
+  inputTokens,
+  cacheReadTokens,
+  cacheWriteTokens,
+) {
+  const outputTokens = toTokenNumber(record?.completion_tokens);
+  const totalTokens =
+    inputTokens + outputTokens + cacheReadTokens + cacheWriteTokens;
+
+  return {
+    inputTokens,
+    outputTokens,
+    cacheReadTokens,
+    cacheWriteTokens,
+    totalTokens,
+  };
+}
+
+function renderTokenDetailTooltip(detail, t) {
+  if (!detail) {
+    return null;
+  }
+
+  return (
+    <div style={DETAIL_TOOLTIP_PANEL_STYLE}>
+      <div style={DETAIL_TOOLTIP_SECTION_STYLE}>
+        <div style={DETAIL_TOOLTIP_TITLE_STYLE}>{t('Token 明细')}</div>
+        <DetailTooltipRow
+          label={t('输入 Token')}
+          value={formatTokenCount(detail.inputTokens)}
+        />
+        <DetailTooltipRow
+          label={t('输出 Token')}
+          value={formatTokenCount(detail.outputTokens)}
+        />
+        {detail.cacheReadTokens > 0 ? (
+          <DetailTooltipRow
+            label={t('缓存读取 Token')}
+            value={formatTokenCount(detail.cacheReadTokens)}
+          />
+        ) : null}
+        {detail.cacheWriteTokens > 0 ? (
+          <DetailTooltipRow
+            label={t('缓存写入 Token')}
+            value={formatTokenCount(detail.cacheWriteTokens)}
+          />
+        ) : null}
+      </div>
+      <div style={DETAIL_TOOLTIP_TOTAL_STYLE}>
+        <span style={DETAIL_TOOLTIP_LABEL_STYLE}>{t('总 Token')}</span>
+        <span
+          style={{
+            color: '#60a5fa',
+            fontWeight: 600,
+          }}
+        >
+          {formatTokenCount(detail.totalTokens)}
+        </span>
+      </div>
+    </div>
+  );
+}
+
+function buildCostDetail(record) {
+  const other = getLogOther(record?.other);
+  const modelPrice = Number(other?.model_price);
+  const groupRatio = getEffectiveGroupRatio(
+    other?.group_ratio,
+    other?.user_group_ratio,
+  );
+  const billedQuota = toTokenNumber(record?.quota);
+
+  if (Number.isFinite(modelPrice) && modelPrice !== -1) {
+    return {
+      groupRatio,
+      originalAmount: modelPrice,
+      billedQuota,
+      serviceTier: other?.service_tier || other?.tier || '',
+    };
+  }
+
+  const modelRatio = Number(other?.model_ratio);
+  if (!Number.isFinite(modelRatio)) {
+    return {
+      groupRatio,
+      billedQuota,
+      serviceTier: other?.service_tier || other?.tier || '',
+    };
+  }
+
+  const completionRatio = Number(other?.completion_ratio || 0);
+  const cacheRatio = Number(other?.cache_ratio || 1);
+  const cacheCreationRatio = Number(other?.cache_creation_ratio || 1);
+  const cacheCreationRatio5m = Number(
+    other?.cache_creation_ratio_5m || cacheCreationRatio,
+  );
+  const cacheCreationRatio1h = Number(
+    other?.cache_creation_ratio_1h || cacheCreationRatio,
+  );
+  const inputUnitPrice = modelRatio * 2.0;
+  const outputUnitPrice = inputUnitPrice * completionRatio;
+  const cacheReadUnitPrice = inputUnitPrice * cacheRatio;
+  const cacheWriteUnitPrice = inputUnitPrice * cacheCreationRatio;
+  const cacheWriteUnitPrice5m = inputUnitPrice * cacheCreationRatio5m;
+  const cacheWriteUnitPrice1h = inputUnitPrice * cacheCreationRatio1h;
+  const inputTokens = getPrimaryInputTokens(record, record?.prompt_tokens);
+  const outputTokens = toTokenNumber(record?.completion_tokens);
+  const cacheReadTokens = toTokenNumber(record?.cache_read_tokens);
+  const cacheWriteBreakdown = getCacheWriteBreakdown(record, other);
+  const inputAmount = (inputTokens / 1000000) * inputUnitPrice;
+  const outputAmount = (outputTokens / 1000000) * outputUnitPrice;
+  const cacheReadAmount = (cacheReadTokens / 1000000) * cacheReadUnitPrice;
+  const cacheWriteAmount =
+    (cacheWriteBreakdown.legacyTokens / 1000000) * cacheWriteUnitPrice +
+    (cacheWriteBreakdown.tokens5m / 1000000) * cacheWriteUnitPrice5m +
+    (cacheWriteBreakdown.tokens1h / 1000000) * cacheWriteUnitPrice1h;
+  const originalAmount =
+    inputAmount + outputAmount + cacheReadAmount + cacheWriteAmount;
+
+  return {
+    inputAmount,
+    outputAmount,
+    inputUnitPrice,
+    outputUnitPrice,
+    cacheReadAmount,
+    cacheWriteAmount,
+    cacheReadUnitPrice,
+    cacheWriteUnitPrice:
+      cacheWriteBreakdown.tokens5m > 0 || cacheWriteBreakdown.tokens1h > 0
+        ? null
+        : cacheWriteUnitPrice,
+    cacheWriteUnitPrice5m:
+      cacheWriteBreakdown.tokens5m > 0 ? cacheWriteUnitPrice5m : null,
+    cacheWriteUnitPrice1h:
+      cacheWriteBreakdown.tokens1h > 0 ? cacheWriteUnitPrice1h : null,
+    groupRatio,
+    originalAmount,
+    billedQuota,
+    serviceTier: other?.service_tier || other?.tier || '',
+  };
+}
+
+function renderCostDetailTooltip(detail, t) {
+  if (!detail) {
+    return null;
+  }
+
+  return (
+    <div style={DETAIL_TOOLTIP_PANEL_STYLE}>
+      <div
+        style={{
+          ...DETAIL_TOOLTIP_SECTION_STYLE,
+          borderBottom: '1px solid rgba(255, 255, 255, 0.18)',
+          paddingBottom: 6,
+          marginBottom: 6,
+        }}
+      >
+        <div style={DETAIL_TOOLTIP_TITLE_STYLE}>{t('成本明细')}</div>
+        <DetailTooltipRow
+          label={t('输入成本')}
+          value={formatDisplayMoneyFromUsd(detail.inputAmount)}
+        />
+        <DetailTooltipRow
+          label={t('输出成本')}
+          value={formatDisplayMoneyFromUsd(detail.outputAmount)}
+        />
+        <DetailTooltipRow
+          label={t('输入单价')}
+          value={formatUnitPriceFromUsd(detail.inputUnitPrice)}
+          valueStyle={{ color: '#7dd3fc' }}
+        />
+        <DetailTooltipRow
+          label={t('输出单价')}
+          value={formatUnitPriceFromUsd(detail.outputUnitPrice)}
+          valueStyle={{ color: '#c4b5fd' }}
+        />
+        {detail.cacheReadAmount > 0 ? (
+          <DetailTooltipRow
+            label={t('缓存读取成本')}
+            value={formatDisplayMoneyFromUsd(detail.cacheReadAmount)}
+          />
+        ) : null}
+        {detail.cacheWriteAmount > 0 ? (
+          <DetailTooltipRow
+            label={t('缓存写入成本')}
+            value={formatDisplayMoneyFromUsd(detail.cacheWriteAmount)}
+          />
+        ) : null}
+        {detail.cacheReadUnitPrice ? (
+          <DetailTooltipRow
+            label={t('缓存输入价格')}
+            value={formatUnitPriceFromUsd(detail.cacheReadUnitPrice)}
+            valueStyle={{ color: '#fdba74' }}
+          />
+        ) : null}
+        {detail.cacheWriteUnitPrice ? (
+          <DetailTooltipRow
+            label={t('缓存输出价格')}
+            value={formatUnitPriceFromUsd(detail.cacheWriteUnitPrice)}
+            valueStyle={{ color: '#fbbf24' }}
+          />
+        ) : null}
+        {detail.cacheWriteUnitPrice5m ? (
+          <DetailTooltipRow
+            label={t('5m 缓存输出价格')}
+            value={formatUnitPriceFromUsd(detail.cacheWriteUnitPrice5m)}
+            valueStyle={{ color: '#fbbf24' }}
+          />
+        ) : null}
+        {detail.cacheWriteUnitPrice1h ? (
+          <DetailTooltipRow
+            label={t('1h 缓存输出价格')}
+            value={formatUnitPriceFromUsd(detail.cacheWriteUnitPrice1h)}
+            valueStyle={{ color: '#fbbf24' }}
+          />
+        ) : null}
+      </div>
+      <DetailTooltipRow
+        label={t('服务档位')}
+        value={detail.serviceTier}
+        valueStyle={{ color: '#67e8f9', fontWeight: 600 }}
+      />
+      <DetailTooltipRow
+        label={t('倍率')}
+        value={`${formatRatio(detail.groupRatio)}x`}
+        valueStyle={{ color: '#60a5fa', fontWeight: 600 }}
+      />
+      <DetailTooltipRow
+        label={t('原始')}
+        value={formatDisplayMoneyFromUsd(detail.originalAmount)}
+      />
+      <div style={DETAIL_TOOLTIP_TOTAL_STYLE}>
+        <span style={DETAIL_TOOLTIP_LABEL_STYLE}>{t('计费')}</span>
+        <span style={{ color: '#4ade80', fontWeight: 600 }}>
+          {renderQuota(detail.billedQuota, 6)}
+        </span>
+      </div>
+    </div>
+  );
 }
 
 function renderModelName(record, copyText, t) {
@@ -452,10 +785,21 @@ function formatTokenCount(value) {
   return toTokenNumber(value).toLocaleString();
 }
 
-function normalizeDetailText(detail) {
-  return String(detail || '')
-    .replace(/\n\r/g, '\n')
-    .replace(/\r\n/g, '\n');
+function getPrimaryInputTokens(record, fallbackValue) {
+  const other = getLogOther(record?.other);
+  const fallbackTokens = toTokenNumber(fallbackValue);
+  const explicitTotalInputTokens = toTokenNumber(other?.input_tokens_total);
+  const inputTokens =
+    explicitTotalInputTokens > 0 ? explicitTotalInputTokens : fallbackTokens;
+  const cacheTokens =
+    toTokenNumber(record?.cache_read_tokens) +
+    toTokenNumber(record?.cache_write_tokens);
+
+  if (inputTokens <= 0 || cacheTokens <= 0) {
+    return inputTokens;
+  }
+
+  return inputTokens >= cacheTokens ? inputTokens - cacheTokens : inputTokens;
 }
 
 function getUsageLogGroupSummary(groupRatio, userGroupRatio, t) {
@@ -881,7 +1225,7 @@ export const getLogsColumns = ({
           {t('输入/输出')}
           <Tooltip
             content={t(
-              '根据 Anthropic 协定，/v1/messages 的输入 tokens 仅统计非缓存输入，不包含缓存读取与缓存写入 tokens。',
+              '第一行输入 tokens 仅展示非缓存输入；缓存读写 tokens 会在下方单独展示。',
             )}
           >
             <IconHelpCircle className='text-gray-400 cursor-help' />
@@ -892,8 +1236,13 @@ export const getLogsColumns = ({
       render: (text, record, index) => {
         const cacheReadTokens = record.cache_read_tokens || 0;
         const cacheWriteTokens = record.cache_write_tokens || 0;
-        const processContent =
-          record.billing_process_content || record.usage_tooltip_content;
+        const inputTokens = getPrimaryInputTokens(record, text);
+        const tokenDetail = buildTokenDetail(
+          record,
+          inputTokens,
+          toTokenNumber(cacheReadTokens),
+          toTokenNumber(cacheWriteTokens),
+        );
 
         const tokenContent = (
           <div
@@ -911,11 +1260,11 @@ export const getLogsColumns = ({
                 gap: 8,
               }}
             >
-              {renderTokenValue(Upload, t('输入'), text)}
+              {renderTokenValue(Upload, t('输入'), inputTokens)}
               {renderTokenValue(Download, t('输出'), record.completion_tokens)}
             </span>
-            {renderCacheTokenLine(Download, t('缓存读'), cacheReadTokens)}
-            {renderCacheTokenLine(Upload, t('缓存写'), cacheWriteTokens)}
+            {renderCacheTokenLine(Package, t('缓存读'), cacheReadTokens)}
+            {renderCacheTokenLine(SquarePen, t('缓存写'), cacheWriteTokens)}
           </div>
         );
 
@@ -923,7 +1272,9 @@ export const getLogsColumns = ({
           record.type === 2 ||
           record.type === 5 ||
           record.type === 6 ? (
-          withProcessTooltip(tokenContent, t('计费过程'), processContent)
+          <Tooltip content={renderTokenDetailTooltip(tokenDetail, t)}>
+            {tokenContent}
+          </Tooltip>
         ) : (
           <></>
         );
@@ -946,17 +1297,11 @@ export const getLogsColumns = ({
         }
         const other = getLogOther(record.other);
         const isSubscription = other?.billing_source === 'subscription';
-        const processContent = record.billing_process_content;
+        const costDetail = buildCostDetail(record);
         if (isSubscription) {
           // Subscription billed: show only tag (no $0), but keep tooltip for equivalent cost.
           return (
-            <Tooltip
-              content={renderProcessTooltip(
-                t('计费过程'),
-                processContent,
-                `${t('由订阅抵扣')}：${renderQuota(text, 6)}`,
-              )}
-            >
+            <Tooltip content={renderCostDetailTooltip(costDetail, t)}>
               <span>{renderBillingTag(record, t)}</span>
             </Tooltip>
           );
@@ -964,10 +1309,10 @@ export const getLogsColumns = ({
         const cacheReadQuota = record.cache_read_quota || 0;
         const cacheWriteQuota = record.cache_write_quota || 0;
         if (cacheReadQuota <= 0 && cacheWriteQuota <= 0) {
-          return withProcessTooltip(
-            <span>{renderQuota(text, 6)}</span>,
-            t('计费过程'),
-            processContent,
+          return (
+            <Tooltip content={renderCostDetailTooltip(costDetail, t)}>
+              <span>{renderQuota(text, 6)}</span>
+            </Tooltip>
           );
         }
 
@@ -981,11 +1326,15 @@ export const getLogsColumns = ({
             }}
           >
             <span>{renderQuota(text, 6)}</span>
-            {renderCacheCostLine(Download, t('缓存读消耗'), cacheReadQuota)}
-            {renderCacheCostLine(Upload, t('缓存写花费'), cacheWriteQuota)}
+            {renderCacheCostLine(Package, t('缓存读消耗'), cacheReadQuota)}
+            {renderCacheCostLine(SquarePen, t('缓存写花费'), cacheWriteQuota)}
           </div>
         );
-        return withProcessTooltip(costContent, t('计费过程'), processContent);
+        return (
+          <Tooltip content={renderCostDetailTooltip(costDetail, t)}>
+            {costContent}
+          </Tooltip>
+        );
       },
     },
     {
