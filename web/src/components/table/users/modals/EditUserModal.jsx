@@ -87,6 +87,7 @@ const EditUserModal = (props) => {
     oidc_id: '',
     discord_id: '',
     wechat_id: '',
+    qq_id: '',
     telegram_id: '',
     linux_do_id: '',
     email: '',

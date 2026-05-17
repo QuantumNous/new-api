@@ -399,6 +399,7 @@ func GetSelf(c *gin.Context) {
 		"discord_id":        user.DiscordId,
 		"oidc_id":           user.OidcId,
 		"wechat_id":         user.WeChatId,
+		"qq_id":             user.QQId,
 		"telegram_id":       user.TelegramId,
 		"group":             user.Group,
 		"quota":             user.Quota,
@@ -607,6 +608,13 @@ func AdminClearUserBinding(c *gin.Context) {
 	if myRole <= user.Role && myRole != common.RoleRootUser {
 		common.ApiErrorI18n(c, i18n.MsgUserNoPermissionSameLevel)
 		return
+	}
+
+	if bindingType == "qq" && user.QQId != "" {
+		if err := notifyQQServiceUnbind(*user, user.QQId); err != nil {
+			common.ApiError(c, err)
+			return
+		}
 	}
 
 	if err := user.ClearBinding(bindingType); err != nil {

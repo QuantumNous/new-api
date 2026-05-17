@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"io"
@@ -367,13 +368,24 @@ func updateChannelMoonshotBalance(channel *model.Channel) (float64, error) {
 const (
 	balanceQueryTemplateNewAPI        = "newapi"
 	balanceQueryDefaultIntervalSecond = 300
+	channelLowBalanceNotifyThreshold  = 3.0
+	channelLowBalanceNotifyCooldown   = 2 * time.Hour
 )
 
 var channelBalanceQueryTaskOnce sync.Once
+var channelLowBalanceNotifyStore sync.Map
 
 type balanceQueryExecution struct {
 	Channel  *model.Channel
 	Settings dto.ChannelOtherSettings
+}
+
+type channelLowBalanceNotifyPayload struct {
+	QQ      string `json:"qq"`
+	AdminQQ string `json:"admin_qq"`
+	To      string `json:"to"`
+	Message string `json:"message"`
+	Content string `json:"content"`
 }
 
 type balanceQueryDebugInfo struct {
@@ -488,6 +500,84 @@ func logBalanceQueryDebug(info balanceQueryDebugInfo) {
 		return
 	}
 	common.SysLog("balance query debug: " + string(data))
+}
+
+func shouldSendChannelLowBalanceNotify(channelId int, now time.Time) bool {
+	key := "channel_low_balance_notify"
+	if common.RedisEnabled {
+		if _, err := common.RedisGet(key); err == nil {
+			return false
+		}
+		if err := common.RedisSet(key, "1", channelLowBalanceNotifyCooldown); err == nil {
+			return true
+		} else {
+			common.SysLog(fmt.Sprintf("failed to set channel low balance notify redis key: channel_id=%d, error=%v", channelId, err))
+		}
+	}
+
+	nowUnix := now.Unix()
+	if value, ok := channelLowBalanceNotifyStore.Load(key); ok {
+		if lastSentAt, ok := value.(int64); ok && nowUnix-lastSentAt < int64(channelLowBalanceNotifyCooldown.Seconds()) {
+			return false
+		}
+	}
+	channelLowBalanceNotifyStore.Store(key, nowUnix)
+	return true
+}
+
+func channelQQServiceURL(path string) string {
+	return strings.TrimRight(common.QQCallbackAddress, "/") + path
+}
+
+func setChannelQQServiceAuthHeader(req *http.Request) {
+	if common.QQCallbackAccessToken != "" {
+		req.Header.Set("Authorization", common.QQCallbackAccessToken)
+		req.Header.Set("X-Access-Token", common.QQCallbackAccessToken)
+	}
+}
+
+func sendChannelLowBalanceNotify(channel *model.Channel, balance float64) {
+	if channel == nil || balance >= channelLowBalanceNotifyThreshold {
+		return
+	}
+	if common.QQCallbackAddress == "" || common.QQCallbackAccessToken == "" || common.QQAdminNumber == "" {
+		return
+	}
+	if !shouldSendChannelLowBalanceNotify(channel.Id, time.Now()) {
+		return
+	}
+
+	go func() {
+		message := fmt.Sprintf("渠道余额低于 %.2f USD：渠道ID %d，名称 %s，当前余额 %.4f USD", channelLowBalanceNotifyThreshold, channel.Id, channel.Name, balance)
+		payload, err := common.Marshal(channelLowBalanceNotifyPayload{
+			QQ:      common.QQAdminNumber,
+			AdminQQ: common.QQAdminNumber,
+			To:      common.QQAdminNumber,
+			Message: message,
+			Content: message,
+		})
+		if err != nil {
+			common.SysLog(fmt.Sprintf("failed to marshal channel low balance notify payload: channel_id=%d, error=%v", channel.Id, err))
+			return
+		}
+		req, err := http.NewRequest(http.MethodPost, channelQQServiceURL("/api/nachoai/send_message"), bytes.NewReader(payload))
+		if err != nil {
+			common.SysLog(fmt.Sprintf("failed to create channel low balance notify request: channel_id=%d, error=%v", channel.Id, err))
+			return
+		}
+		req.Header.Set("Content-Type", "application/json")
+		setChannelQQServiceAuthHeader(req)
+		client := http.Client{Timeout: 5 * time.Second}
+		resp, err := client.Do(req)
+		if err != nil {
+			common.SysLog(fmt.Sprintf("failed to send channel low balance notify: channel_id=%d, error=%v", channel.Id, err))
+			return
+		}
+		defer resp.Body.Close()
+		if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+			common.SysLog(fmt.Sprintf("failed to send channel low balance notify: channel_id=%d, status=%d", channel.Id, resp.StatusCode))
+		}
+	}()
 }
 
 func validateBalanceQuerySuccess(body []byte, extractor dto.BalanceQueryExtractorConfig) (bool, string) {
@@ -684,6 +774,9 @@ func executeChannelConfiguredBalance(target *model.Channel, targetSettings dto.C
 
 func updateChannelBalance(channel *model.Channel) (float64, error) {
 	if balance, _, configured, err := updateChannelConfiguredBalance(channel); configured {
+		if err == nil {
+			sendChannelLowBalanceNotify(channel, balance)
+		}
 		return balance, err
 	}
 	baseURL := constant.ChannelBaseURLs[channel.Type]
@@ -747,6 +840,7 @@ func updateChannelBalance(channel *model.Channel) (float64, error) {
 	}
 	balance := subscription.HardLimitUSD - usage.TotalUsage/100
 	channel.UpdateBalance(balance)
+	sendChannelLowBalanceNotify(channel, balance)
 	return balance, nil
 }
 
@@ -868,6 +962,9 @@ func updateConfiguredChannelsBalanceDue() error {
 			balance, result, _, sourceErr := executeChannelConfiguredBalance(sourceChannel, sourceSettings, balanceQueryExecution{Channel: sourceChannel, Settings: sourceSettings})
 			executedSharedSources[config.SourceChannelID] = struct{}{}
 			propagateSharedBalanceQueryResult(channels, config.SourceChannelID, result, sourceErr)
+			if sourceErr == nil {
+				sendChannelLowBalanceNotify(sourceChannel, balance)
+			}
 			if sourceErr == nil && balance <= 0 {
 				service.DisableChannel(*types.NewChannelError(sourceChannel.Id, sourceChannel.Type, sourceChannel.Name, sourceChannel.ChannelInfo.IsMultiKey, "", sourceChannel.GetAutoBan()), "余额不足")
 			}
@@ -882,6 +979,7 @@ func updateConfiguredChannelsBalanceDue() error {
 		if err == nil {
 			lastResult := channel.GetOtherSettings().BalanceQuery.LastResult
 			propagateSharedBalanceQueryResult(channels, channel.Id, lastResult, nil)
+			sendChannelLowBalanceNotify(channel, balance)
 		}
 		if err == nil && balance <= 0 {
 			service.DisableChannel(*types.NewChannelError(channel.Id, channel.Type, channel.Name, channel.ChannelInfo.IsMultiKey, "", channel.GetAutoBan()), "余额不足")

@@ -43,6 +43,7 @@ import PreferencesSettings from './personal/cards/PreferencesSettings';
 import CheckinCalendar from './personal/cards/CheckinCalendar';
 import EmailBindModal from './personal/modals/EmailBindModal';
 import WeChatBindModal from './personal/modals/WeChatBindModal';
+import QQBindModal from './personal/modals/QQBindModal';
 import AccountDeleteModal from './personal/modals/AccountDeleteModal';
 import ChangePasswordModal from './personal/modals/ChangePasswordModal';
 
@@ -53,6 +54,7 @@ const PersonalSetting = () => {
 
   const [inputs, setInputs] = useState({
     wechat_verification_code: '',
+    qq_verification_code: '',
     email_verification_code: '',
     email: '',
     self_account_deletion_confirmation: '',
@@ -63,7 +65,13 @@ const PersonalSetting = () => {
   const [status, setStatus] = useState({});
   const [showChangePasswordModal, setShowChangePasswordModal] = useState(false);
   const [showWeChatBindModal, setShowWeChatBindModal] = useState(false);
+  const [showQQBindModal, setShowQQBindModal] = useState(false);
   const [showEmailBindModal, setShowEmailBindModal] = useState(false);
+  const [qqBindInfo, setQQBindInfo] = useState({
+    qq_number: '',
+    command: '',
+  });
+  const [qqBindCreateLoading, setQQBindCreateLoading] = useState(false);
   const [showAccountDeleteModal, setShowAccountDeleteModal] = useState(false);
   const [turnstileEnabled, setTurnstileEnabled] = useState(false);
   const [turnstileSiteKey, setTurnstileSiteKey] = useState('');
@@ -317,6 +325,42 @@ const PersonalSetting = () => {
     }
   };
 
+  const bindQQ = async () => {
+    if (inputs.qq_verification_code === '') return;
+    const res = await API.post('/api/oauth/qq/bind', {
+      code: inputs.qq_verification_code,
+    });
+    const { success, message } = res.data;
+    if (success) {
+      showSuccess(t('QQ账户绑定成功！'));
+      setShowQQBindModal(false);
+      await getUserData();
+    } else {
+      showError(message);
+    }
+  };
+
+  const startQQBind = async () => {
+    setQQBindCreateLoading(true);
+    try {
+      const res = await API.post('/api/oauth/qq/create');
+      const { success, message, data } = res.data;
+      if (success) {
+        setQQBindInfo({
+          qq_number: data?.qq_number || status.qq_number || '',
+          command: data?.command || `/nachoai b ${userState.user?.id}`,
+        });
+        setShowQQBindModal(true);
+      } else {
+        showError(message);
+      }
+    } catch (error) {
+      showError(error.response?.data?.message || error.message || t('操作失败'));
+    } finally {
+      setQQBindCreateLoading(false);
+    }
+  };
+
   const changePassword = async () => {
     // if (inputs.original_password === '') {
     //   showError(t('请输入原密码！'));
@@ -476,6 +520,8 @@ const PersonalSetting = () => {
                 systemToken={systemToken}
                 setShowEmailBindModal={setShowEmailBindModal}
                 setShowWeChatBindModal={setShowWeChatBindModal}
+                startQQBind={startQQBind}
+                qqBindCreateLoading={qqBindCreateLoading}
                 generateAccessToken={generateAccessToken}
                 handleSystemTokenClick={handleSystemTokenClick}
                 setShowChangePasswordModal={setShowChangePasswordModal}
@@ -528,6 +574,17 @@ const PersonalSetting = () => {
         handleInputChange={handleInputChange}
         bindWeChat={bindWeChat}
         status={status}
+      />
+
+      <QQBindModal
+        t={t}
+        showQQBindModal={showQQBindModal}
+        setShowQQBindModal={setShowQQBindModal}
+        inputs={inputs}
+        handleInputChange={handleInputChange}
+        bindQQ={bindQQ}
+        qqBindInfo={qqBindInfo}
+        userId={userState.user?.id}
       />
 
       <AccountDeleteModal

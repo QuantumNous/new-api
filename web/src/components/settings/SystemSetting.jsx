@@ -77,6 +77,11 @@ const SystemSetting = () => {
     WeChatServerAddress: '',
     WeChatServerToken: '',
     WeChatAccountQRCodeImageURL: '',
+    QQAuthEnabled: '',
+    QQCallbackAddress: '',
+    QQCallbackAccessToken: '',
+    QQNumber: '',
+    QQAdminNumber: '',
     TurnstileCheckEnabled: '',
     TurnstileSiteKey: '',
     TurnstileSecretKey: '',
@@ -177,6 +182,7 @@ const SystemSetting = () => {
           case 'EmailVerificationEnabled':
           case 'GitHubOAuthEnabled':
           case 'WeChatAuthEnabled':
+          case 'QQAuthEnabled':
           case 'TelegramOAuthEnabled':
           case 'RegisterEnabled':
           case 'TurnstileCheckEnabled':
@@ -451,6 +457,42 @@ const SystemSetting = () => {
       options.push({
         key: 'WeChatServerToken',
         value: inputs.WeChatServerToken,
+      });
+    }
+
+    if (options.length > 0) {
+      await updateOptions(options);
+    }
+  };
+
+  const submitQQ = async () => {
+    const options = [];
+
+    if (originInputs['QQCallbackAddress'] !== inputs.QQCallbackAddress) {
+      options.push({
+        key: 'QQCallbackAddress',
+        value: removeTrailingSlash(inputs.QQCallbackAddress),
+      });
+    }
+    if (
+      originInputs['QQCallbackAccessToken'] !== inputs.QQCallbackAccessToken &&
+      inputs.QQCallbackAccessToken !== ''
+    ) {
+      options.push({
+        key: 'QQCallbackAccessToken',
+        value: inputs.QQCallbackAccessToken,
+      });
+    }
+    if (originInputs['QQNumber'] !== inputs.QQNumber) {
+      options.push({
+        key: 'QQNumber',
+        value: inputs.QQNumber,
+      });
+    }
+    if (originInputs['QQAdminNumber'] !== inputs.QQAdminNumber) {
+      options.push({
+        key: 'QQAdminNumber',
+        value: inputs.QQAdminNumber,
       });
     }
 
@@ -1074,6 +1116,15 @@ const SystemSetting = () => {
                         {t('允许通过微信登录 & 注册')}
                       </Form.Checkbox>
                       <Form.Checkbox
+                        field='QQAuthEnabled'
+                        noLabel
+                        onChange={(e) =>
+                          handleCheckboxChange('QQAuthEnabled', e)
+                        }
+                      >
+                        {t('允许 QQ 账户绑定')}
+                      </Form.Checkbox>
+                      <Form.Checkbox
                         field='TelegramOAuthEnabled'
                         noLabel
                         onChange={(e) =>
@@ -1578,6 +1629,40 @@ const SystemSetting = () => {
                   <Button onClick={submitWeChat}>
                     {t('保存 WeChat Server 设置')}
                   </Button>
+                </Form.Section>
+              </Card>
+
+              <Card>
+                <Form.Section text={t('配置 QQ 绑定')}>
+                  <Text>{t('用以支持用户绑定 QQ 账户')}</Text>
+                  <Row
+                    gutter={{ xs: 8, sm: 16, md: 24, lg: 24, xl: 24, xxl: 24 }}
+                  >
+                    <Col xs={24} sm={24} md={12} lg={12} xl={12}>
+                      <Form.Input
+                        field='QQCallbackAddress'
+                        label={t('QQ 服务地址')}
+                      />
+                    </Col>
+                    <Col xs={24} sm={24} md={12} lg={12} xl={12}>
+                      <Form.Input
+                        field='QQCallbackAccessToken'
+                        label={t('QQ 回调 accessToken')}
+                        type='password'
+                        placeholder={t('敏感信息不会发送到前端显示')}
+                      />
+                    </Col>
+                    <Col xs={24} sm={24} md={12} lg={12} xl={12}>
+                      <Form.Input field='QQNumber' label={t('QQ号')} />
+                    </Col>
+                    <Col xs={24} sm={24} md={12} lg={12} xl={12}>
+                      <Form.Input
+                        field='QQAdminNumber'
+                        label={t('管理员QQ')}
+                      />
+                    </Col>
+                  </Row>
+                  <Button onClick={submitQQ}>{t('保存 QQ 绑定设置')}</Button>
                 </Form.Section>
               </Card>
 

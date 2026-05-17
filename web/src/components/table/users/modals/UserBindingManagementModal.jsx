@@ -41,6 +41,7 @@ import {
   IconGithubLogo,
 } from '@douyinfe/semi-icons';
 import { SiDiscord, SiTelegram, SiWechat, SiLinux } from 'react-icons/si';
+import { FaQq } from 'react-icons/fa';
 
 const { Text } = Typography;
 
@@ -90,6 +91,7 @@ const UserBindingManagementModal = ({
           discord_id: userData.discord_id || '',
           oidc_id: userData.oidc_id || '',
           wechat_id: userData.wechat_id || '',
+          qq_id: userData.qq_id || '',
           telegram_id: userData.telegram_id || '',
           linux_do_id: userData.linux_do_id || '',
         });
@@ -251,6 +253,14 @@ const UserBindingManagementModal = ({
       icon: (
         <SiWechat size={20} className='text-slate-600 dark:text-slate-300' />
       ),
+    },
+    {
+      key: 'qq',
+      field: 'qq_id',
+      name: 'QQ',
+      enabled: Boolean(statusInfo.qq_login),
+      value: getBuiltInBindingValue('qq_id'),
+      icon: <FaQq size={20} className='text-slate-600 dark:text-slate-300' />,
     },
     {
       key: 'telegram',

@@ -94,6 +94,11 @@ var LinuxDOMinimumTrustLevel = 0
 var WeChatServerAddress = ""
 var WeChatServerToken = ""
 var WeChatAccountQRCodeImageURL = ""
+var QQAuthEnabled = false
+var QQCallbackAddress = ""
+var QQCallbackAccessToken = ""
+var QQNumber = ""
+var QQAdminNumber = ""
 
 var TurnstileSiteKey = ""
 var TurnstileSecretKey = ""

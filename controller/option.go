@@ -181,6 +181,14 @@ func UpdateOption(c *gin.Context) {
 			})
 			return
 		}
+	case "QQAuthEnabled":
+		if option.Value == "true" && (common.QQCallbackAddress == "" || common.QQCallbackAccessToken == "" || common.QQNumber == "" || common.QQAdminNumber == "") {
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"message": "无法启用 QQ 账户绑定，请先填入 QQ 服务地址、accessToken、QQ 号和管理员 QQ！",
+			})
+			return
+		}
 	case "TurnstileCheckEnabled":
 		if option.Value == "true" && common.TurnstileSiteKey == "" {
 			c.JSON(http.StatusOK, gin.H{
