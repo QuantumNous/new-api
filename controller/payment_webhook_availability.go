@@ -61,10 +61,8 @@ func isWaffoWebhookEnabled() bool {
 }
 
 func isWaffoPancakeTopUpEnabled() bool {
-	// Presence-of-credentials = enabled, mirroring Stripe / Creem / Epay.
-	// No explicit webhook-public-key configuration required either: the SDK
-	// ships with the canonical test/prod keys and selects per webhook
-	// event.mode.
+	// Presence-of-credentials = enabled. Webhook public keys ship inside
+	// the SDK; mode (test/prod) is read from each event.
 	return strings.TrimSpace(setting.WaffoPancakeMerchantID) != "" &&
 		strings.TrimSpace(setting.WaffoPancakePrivateKey) != "" &&
 		strings.TrimSpace(setting.WaffoPancakeProductID) != ""

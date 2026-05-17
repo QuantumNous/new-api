@@ -45,10 +45,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { SettingsSection } from '../components/settings-section'
 import { removeTrailingSlash } from './utils'
 
-// The form schema describes only what the operator types directly. Save is
-// the single point where any of this lands in the OptionMap — intermediate
-// API calls (catalog, create-store, create-product) pass these values
-// transiently in the request body.
+// Only operator-typed fields. Nothing else lands in OptionMap until Save.
 const waffoPancakeSchema = z.object({
   WaffoPancakeMerchantID: z.string(),
   WaffoPancakePrivateKey: z.string(),
@@ -91,9 +88,6 @@ const DEFAULT_NEW_PAIR_NAME = `${DEFAULT_NEW_STORE_NAME} + ${DEFAULT_NEW_PRODUCT
 export function WaffoPancakeSettingsSection(props: Props) {
   const { t } = useTranslation()
 
-  // Persisted state surfaced from props — these reflect what's currently
-  // committed in the OptionMap, so the operator can see at a glance what
-  // the next Waffo Pancake top-up will route through.
   const [storeID, setStoreID] = React.useState(
     props.provisionedStoreID ?? ''
   )
@@ -101,16 +95,12 @@ export function WaffoPancakeSettingsSection(props: Props) {
     props.provisionedProductID ?? ''
   )
 
-  // Transient UI state — everything below this comment lives in React only,
-  // never auto-PUT to the backend, until the operator clicks Save.
   const [phase, setPhase] = React.useState<'idle' | 'verifying' | 'saving'>(
     'idle'
   )
   const [catalog, setCatalog] = React.useState<CatalogStore[]>([])
-  // Seed from saved bindings so the dropdowns render the operator's existing
-  // selection on page refresh — without waiting for the async catalog fetch
-  // to finish. The catalog effect later confirms / re-anchors them once the
-  // server-side enumeration arrives.
+  // Seed dropdowns from saved bindings so they render on first paint instead
+  // of waiting for the async catalog fetch to confirm them.
   const [chosenStoreID, setChosenStoreID] = React.useState<string>(
     props.provisionedStoreID ?? ''
   )
@@ -128,8 +118,8 @@ export function WaffoPancakeSettingsSection(props: Props) {
     [props.defaultValues]
   )
 
-  // Tracks which "merchantID|privateKey" pair we last verified against
-  // Pancake so the debounced effect skips when nothing changed.
+  // "merchantID|privateKey" of the last verified pair; debounced verify
+  // skips when nothing changed.
   const lastVerifiedSignature = React.useRef('')
   const fetchSerialRef = React.useRef(0)
 
@@ -142,9 +132,9 @@ export function WaffoPancakeSettingsSection(props: Props) {
     },
   })
 
-  // Mount-only initialisation. We never re-sync form values from props after
-  // the first render — the PrivateKey is sensitive and never echoed by the
-  // backend, so a subsequent reset would wipe whatever the operator typed.
+  // Mount-only — never re-sync from props after the first render. The
+  // backend strips PrivateKey from GET /api/option/, so a re-sync would
+  // wipe whatever the operator just typed.
   const didMountRef = React.useRef(false)
   React.useEffect(() => {
     const parsed = JSON.parse(defaultsSignature) as WaffoPancakeSettingsValues
@@ -172,12 +162,8 @@ export function WaffoPancakeSettingsSection(props: Props) {
     return catalog.find((s) => s.id === chosenStoreID)?.onetimeProducts ?? []
   }, [catalog, chosenStoreID])
 
-  // Select items mirror the catalog. When the saved binding refers to an ID
-  // we don't have a full record for yet (catalog still loading on initial
-  // mount, or the entity has been deleted on Pancake's side), we append the
-  // raw ID as an item so the SelectTrigger can render it instead of the
-  // empty placeholder. The fallback item disappears as soon as the catalog
-  // loads and contains the real labeled entry.
+  // Raw-ID fallback items render the trigger before the catalog loads or
+  // when the saved entity has been deleted upstream.
   const storeSelectItems = React.useMemo(() => {
     const items = catalog.map((s) => ({
       value: s.id,
@@ -202,13 +188,9 @@ export function WaffoPancakeSettingsSection(props: Props) {
     return items
   }, [productsForChosenStore, chosenProductID])
 
-  // Fetches the merchant's catalog with credentials passed verbatim in the
-  // request body — nothing about the typed values is written to the OptionMap.
-  //
-  // `preselect` lets callers (notably handleCreatePair after a successful
-  // mint) tell us "after the catalog reloads, anchor the dropdowns to
-  // these IDs". When omitted, we fall back to the existing precedence:
-  // saved binding → first store with products → empty.
+  // Verifies typed creds against Pancake (via /catalog) and refreshes the
+  // dropdown options. `preselect` overrides the post-load anchor selection;
+  // omitting it defaults to: saved binding → first store with products.
   const verifyAndFetchCatalog = React.useCallback(
     async (
       merchantID: string,
@@ -256,16 +238,11 @@ export function WaffoPancakeSettingsSection(props: Props) {
 
       setCatalog(stores)
       if (preselect) {
-        // Explicit override — caller knows which IDs to anchor on (e.g.
-        // freshly-minted IDs from a successful + Create round-trip).
         setChosenStoreID(preselect.storeID ?? '')
         setChosenProductID(preselect.productID ?? '')
       } else {
-        // Pre-select the currently-bound product when re-loading, so the
-        // dropdowns echo what's already saved. Otherwise default to the
-        // first store with products + its first product — so a returning
-        // operator with credentials but no saved binding can hit Save
-        // without an extra click.
+        // Default anchor: bound product if found, else first product of
+        // the first store with any — saves a click for new operators.
         const boundStore = stores.find((s) =>
           s.onetimeProducts.some((p) => p.id === productID)
         )
@@ -290,7 +267,6 @@ export function WaffoPancakeSettingsSection(props: Props) {
     [productID, t]
   )
 
-  // Debounced auto-verify when both fields are non-empty.
   const watchedMerchantID = form.watch('WaffoPancakeMerchantID') || ''
   const watchedPrivateKey = form.watch('WaffoPancakePrivateKey') || ''
   React.useEffect(() => {
@@ -307,36 +283,22 @@ export function WaffoPancakeSettingsSection(props: Props) {
     return () => clearTimeout(timer)
   }, [watchedMerchantID, watchedPrivateKey, verifyAndFetchCatalog])
 
-  // Initial-load auto-verify using SAVED credentials.
-  //
-  // The backend strips the private key from GET /api/option/ (it's a
-  // *Key-suffixed option, so the sensitive-key filter removes it). That
-  // means a returning admin opens the page with a populated MerchantID but
-  // an empty PrivateKey field — the debounced effect above won't fire, so
-  // the catalog stays empty and the operator can't see their bound store.
-  //
-  // To unblock this, we fire one catalog query on mount with empty creds in
-  // the body. The catalog controller treats "both blank" as "use the saved
-  // creds from the OptionMap" and runs the query server-side. The frontend
-  // never sees the private key, but the dropdowns populate as expected.
+  // Initial-load verify: GET /api/option/ strips PrivateKey so a returning
+  // admin opens the page with empty key. Send blank creds in the body —
+  // the catalog controller falls back to the persisted OptionMap creds.
   const initialLoadRef = React.useRef(false)
   React.useEffect(() => {
     if (initialLoadRef.current) return
     if (!props.defaultValues.WaffoPancakeMerchantID.trim()) return
     initialLoadRef.current = true
     setPhase('verifying')
-    // Empty strings — backend falls back to setting-stored creds.
     void verifyAndFetchCatalog('', '')
   }, [props.defaultValues.WaffoPancakeMerchantID, verifyAndFetchCatalog])
 
-  // Helper: pull current creds for an admin request body.
-  //
-  // Returns the typed values when the operator has edited either credential
-  // field (MerchantID changed or any PrivateKey entered); otherwise returns
-  // empty strings, which signal the backend to fall back to the persisted
-  // creds via resolveWaffoPancakeAdminCreds. Without this branch, the
-  // returning-admin case sends {merchantID: <saved>, privateKey: ''} which
-  // the backend would treat as "typed creds with missing key" and reject.
+  // Returns typed creds when the operator edited either field; otherwise
+  // blanks so the backend falls back to persisted creds. Without this,
+  // returning admins (saved merchant ID but empty key field) would send
+  // a mixed-state body that the backend rejects.
   const readCreds = () => {
     const formMerchant = (
       form.getValues('WaffoPancakeMerchantID') || ''
@@ -348,10 +310,8 @@ export function WaffoPancakeSettingsSection(props: Props) {
     return { merchantID: formMerchant, privateKey: formKey }
   }
 
-  // handleCreatePair mints a fresh store AND a fresh product in one shot.
-  // The product's SuccessURL is bound to whatever sits in the Return URL
-  // field — so we prompt for explicit acknowledgement when that field is
-  // empty rather than silently creating a product without a redirect.
+  // The minted product's SuccessURL is pinned to the current Return URL
+  // field, so we prompt before creating when that field is empty.
   const handleCreatePair = async () => {
     if (!credsReady) {
       toast.error(
@@ -374,11 +334,6 @@ export function WaffoPancakeSettingsSection(props: Props) {
     }
     setCreatingPair(true)
     try {
-      // Single round-trip — backend creates Store + OnetimeProduct
-      // server-side and returns both IDs. On the unhappy path where only
-      // the store landed, the error data carries `orphan_store: true`
-      // along with the store_id/name so we can still preselect that
-      // store in the dropdown for retry.
       const res = await api.post<
         BackendBody<{
           store_id: string
@@ -403,9 +358,8 @@ export function WaffoPancakeSettingsSection(props: Props) {
           product_id: string
           product_name: string
         }
-        // Don't trust the response body — refetch the catalog from
-        // Pancake's GraphQL so the dropdowns reflect authoritative state,
-        // then anchor the selectors on the freshly-minted IDs.
+        // Refetch from GraphQL rather than trusting the response body so the
+        // dropdowns reflect authoritative state, then anchor on minted IDs.
         setPhase('verifying')
         await verifyAndFetchCatalog(merchantID, privateKey, {
           storeID: created.store_id,
@@ -416,8 +370,6 @@ export function WaffoPancakeSettingsSection(props: Props) {
         )
         return
       }
-      // Failure paths — distinguish orphan-store partial failure from a
-      // generic error so the operator gets actionable feedback.
       const errData =
         body && typeof body.data === 'object' && body.data !== null
           ? (body.data as {
@@ -428,9 +380,6 @@ export function WaffoPancakeSettingsSection(props: Props) {
             })
           : null
       if (errData?.orphan_store && errData.store_id) {
-        // Same authoritative refresh on the partial-failure path — the
-        // orphan store really did land on Pancake's side, so a real query
-        // will surface it (no need to optimistically inject).
         setPhase('verifying')
         await verifyAndFetchCatalog(merchantID, privateKey, {
           storeID: errData.store_id,
@@ -453,12 +402,9 @@ export function WaffoPancakeSettingsSection(props: Props) {
   }
 
   const handleSave = async () => {
-    // Save sends form values raw — it does NOT route through the
-    // smart-empty readCreds() because the backend's SaveWaffoPancakeConfig
-    // already handles "blank private key means keep existing", and Save
-    // requires a non-empty MerchantID. For a returning admin that hasn't
-    // edited creds, the MerchantID is still populated from props
-    // (defaultValues), so this works without any fallback.
+    // Sends raw form values (not readCreds): SaveWaffoPancakeConfig already
+    // treats a blank PrivateKey as "keep existing", and MerchantID stays
+    // populated from props for returning admins.
     const merchantID = (
       form.getValues('WaffoPancakeMerchantID') || ''
     ).trim()
@@ -516,22 +462,9 @@ export function WaffoPancakeSettingsSection(props: Props) {
   const verifying = phase === 'verifying'
   const saving = phase === 'saving'
 
-  // Saved-vs-typed credential resolution.
-  //
-  // The PrivateKey field is sensitive — the backend strips it from
-  // GET /api/option/, so on initial mount the form has
-  //   { merchantID: <saved or ''>, privateKey: '' }
-  // To support returning admins who shouldn't have to re-paste the private
-  // key just to click "+ Create" or trigger a re-verify, we treat the form
-  // as "not edited" when the MerchantID still matches what came from props
-  // AND the PrivateKey field is empty. In that case the backend will fall
-  // back to the persisted creds (see resolveWaffoPancakeAdminCreds in
-  // controller/topup_waffo_pancake.go).
-  //
-  // Any deviation — a changed MerchantID OR any non-empty PrivateKey —
-  // counts as an edit, and we require BOTH fields filled before letting
-  // the operator proceed (mixed states would either fail signature
-  // verification or silently use a stale key).
+  // "Not edited" = MerchantID unchanged AND PrivateKey field blank, in
+  // which case the backend falls back to persisted creds. Otherwise we
+  // require both fields filled (mixed states would fail signature check).
   const savedMerchantID = (
     props.defaultValues.WaffoPancakeMerchantID || ''
   ).trim()
@@ -745,9 +678,7 @@ export function WaffoPancakeSettingsSection(props: Props) {
                       items={storeSelectItems}
                       value={chosenStoreID}
                       onValueChange={(value) => {
-                        // Base UI's Select can deliver null when the user
-                        // deselects; we normalize to '' so the state type
-                        // stays `string`.
+                        // Base UI Select can deliver null on deselect.
                         setChosenStoreID(value ?? '')
                         setChosenProductID('')
                       }}

@@ -143,11 +143,8 @@ export function SubscriptionPurchaseDialog(props: Props) {
     }
   }
 
-  // Pancake uses an in-tab redirect rather than `window.open` because
-  // `window.open` fired after `await paySubscriptionWaffoPancake(...)` has
-  // lost the user-gesture context and gets popup-blocked. Same pattern as
-  // the wallet-side Pancake top-up handler in
-  // features/wallet/hooks/use-waffo-pancake-payment.ts.
+  // In-tab redirect (not window.open) — user-gesture context is lost
+  // across the await, so a popup would be blocked. Same as the wallet hook.
   const handlePayWaffoPancake = async () => {
     setPaying(true)
     try {

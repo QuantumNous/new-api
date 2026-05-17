@@ -108,10 +108,7 @@ export function SubscriptionsMutateDrawer({
           if (res.success) setGroupOptions(res.data || [])
         })
         .catch(() => {})
-      // Best-effort: fetch the Pancake product list so the dropdown has
-      // something to render. A failure (e.g. gateway not configured) leaves
-      // the list empty and the operator can still pick "+ Create" to mint
-      // a fresh product inline.
+      // Best-effort — empty list still lets the operator use "+ Create".
       listWaffoPancakeSubscriptionProductOptions()
         .then((res) => {
           if (
@@ -133,12 +130,7 @@ export function SubscriptionsMutateDrawer({
 
   const durationUnit = form.watch('duration_unit')
   const resetPeriod = form.watch('quota_reset_period')
-  // Reactive gate for the "+ Create on Pancake" button. The server-side
-  // mint needs a non-empty title and a positive price (those become the
-  // OnetimeProduct's name and amount), so the button stays disabled until
-  // both are present — same checks the handler itself does, just hoisted
-  // up so the operator gets immediate visual feedback instead of a toast
-  // after click.
+  // Gate "+ Create on Pancake" on the same checks the mint handler runs.
   const watchedTitle = form.watch('title')
   const watchedPrice = form.watch('price_amount')
   const pancakeCreateReady =
@@ -172,16 +164,9 @@ export function SubscriptionsMutateDrawer({
     }
   }
 
-  // "+ Create on Pancake" handler. Reads the plan title and price straight
-  // from the form, asks the backend to mint a Pancake OnetimeProduct using
-  // the persisted Pancake creds + StoreID + ReturnURL, then auto-fills
-  // the returned PROD_ ID into the form field and prepends it to the
-  // dropdown list — the admin never has to leave new-api to copy an ID
-  // out of Pancake's dashboard.
-  //
-  // OnetimeProduct (not SubscriptionProduct) matches new-api's
-  // time-limited-prepayment subscription model. See the controller's doc
-  // comment for rationale.
+  // Mints a Pancake OnetimeProduct (not SubscriptionProduct — see
+  // controller) using persisted creds + the form's title/price, then
+  // pins the returned PROD_ ID into the form field.
   const handleCreatePancakeProduct = async () => {
     const title = form.getValues('title').trim()
     const priceAmount = Number(form.getValues('price_amount') || 0)
@@ -208,11 +193,7 @@ export function SubscriptionsMutateDrawer({
         form.setValue('waffo_pancake_product_id', created.product_id, {
           shouldDirty: true,
         })
-        // Don't trust the response body — refetch the product list from
-        // Pancake's GraphQL so the dropdown reflects authoritative state.
-        // Matches the wallet binding's "+ Create" behavior. The Select's
-        // raw-ID fallback item covers the brief window between form value
-        // being set and the refetched list arriving.
+        // Refetch from GraphQL so the dropdown reflects authoritative state.
         try {
           const refresh = await listWaffoPancakeSubscriptionProductOptions()
           if (
@@ -226,10 +207,8 @@ export function SubscriptionsMutateDrawer({
             )
           }
         } catch {
-          // Best-effort refresh; the form value already points at the new
-          // product, so a failure here just leaves the dropdown showing
-          // its previous contents plus a raw-ID fallback for the new
-          // selection.
+          // Best-effort — form value already points at the new product;
+          // raw-ID fallback covers the missing label.
         }
         toast.success(
           `${t('Waffo Pancake product created')}: ${created.product_id}`
@@ -672,9 +651,7 @@ export function SubscriptionsMutateDrawer({
                 control={form.control}
                 name='waffo_pancake_product_id'
                 render={({ field }) => {
-                  // Fallback raw-ID item so the trigger renders a value the
-                  // catalog hasn't (yet) loaded — mirrors the wallet binding
-                  // pattern in waffo-pancake-settings-section.tsx.
+                  // Raw-ID fallback for IDs not yet in the catalog.
                   const items = pancakeProducts.map((p) => ({
                     value: p.id,
                     label: `${p.name} (${p.id})`,

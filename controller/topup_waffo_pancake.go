@@ -102,12 +102,9 @@ func getWaffoPancakeBuyerEmail(user *model.User) string {
 	return ""
 }
 
-// Waffo Pancake admin configuration endpoints below take in-flight
-// credentials (`merchant_id` + `private_key`) from the request body, with a
-// fallback to the persisted credentials when the body is blank (see
-// resolveWaffoPancakeAdminCreds). Typed body creds let the operator verify
-// values the operator just pasted — nothing is written to the OptionMap
-// until SaveWaffoPancake explicitly persists everything.
+// The admin config endpoints below accept typed-but-not-yet-saved creds in
+// the body and fall back to persisted creds when the body is blank (see
+// resolveWaffoPancakeAdminCreds). Only SaveWaffoPancake writes to OptionMap.
 
 type waffoPancakeCredsRequest struct {
 	MerchantID string `json:"merchant_id"`
@@ -128,14 +125,8 @@ type createWaffoPancakePairRequest struct {
 	ReturnURL  string `json:"return_url"`
 }
 
-// SaveWaffoPancake is the atomic final-save endpoint: it accepts all five
-// operator-controlled values in one body and writes them through to the
-// OptionMap. Nothing is committed before this — the catalog / pair-creation
-// endpoints all operate entirely in transient state.
-//
-// Naming note: this used to be called InitializeWaffoPancake / `/initialize`
-// when the same endpoint also handled auto-provisioning. Provisioning has
-// since been split out into CreateWaffoPancakePair; this is purely Save now.
+// SaveWaffoPancake atomically persists all five operator-controlled fields.
+// Catalog / pair endpoints are transient — only this one writes the OptionMap.
 func SaveWaffoPancake(c *gin.Context) {
 	var req saveWaffoPancakeRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -169,17 +160,10 @@ func SaveWaffoPancake(c *gin.Context) {
 	})
 }
 
-// resolveWaffoPancakeAdminCreds picks between request-body credentials and
-// persisted ones for an admin operation.
-//
-//   - If the body has at least one non-empty field, use the body (operator is
-//     verifying typed-but-not-yet-saved creds).
-//   - Otherwise, fall back to the persisted credentials so a returning admin
-//     can invoke admin operations without having to re-paste the private key
-//     (which is stripped from `GET /api/option/` for security).
-//
-// Returns blank strings when neither source has creds — callers should
-// surface that as "not configured".
+// resolveWaffoPancakeAdminCreds prefers body creds (typed-but-not-yet-saved
+// values, for verification) and falls back to persisted creds when the body
+// is blank (so returning admins don't have to re-paste the private key,
+// which is stripped from GET /api/option/).
 func resolveWaffoPancakeAdminCreds(bodyMerchantID, bodyPrivateKey string) (string, string) {
 	m := strings.TrimSpace(bodyMerchantID)
 	k := strings.TrimSpace(bodyPrivateKey)
@@ -189,17 +173,9 @@ func resolveWaffoPancakeAdminCreds(bodyMerchantID, bodyPrivateKey string) (strin
 	return m, k
 }
 
-// CreateWaffoPancakePair mints a Pancake Store AND a Pancake OnetimeProduct
-// in one server-side round-trip, returning both IDs.
-//
-// Replaces the older /store and /product endpoints, which were always called
-// back-to-back by the UI (the frontend never had a use case for "create a
-// store without a product"). Merging them lets the controller surface an
-// orphan-store error coherently on the unhappy path where the store landed
-// but the product didn't.
-//
-// Same dual-mode credential resolution as ListWaffoPancakeCatalog: typed
-// creds from the body when present, otherwise the persisted creds.
+// CreateWaffoPancakePair mints a Store + OnetimeProduct pair in one round-
+// trip. Surfaces an orphan-store flag when the product half fails so the
+// frontend can preselect / retry without losing context.
 func CreateWaffoPancakePair(c *gin.Context) {
 	var req createWaffoPancakePairRequest
 	if c.Request.ContentLength > 0 {
@@ -224,9 +200,6 @@ func CreateWaffoPancakePair(c *gin.Context) {
 	)
 	if err != nil {
 		logger.LogError(c.Request.Context(), fmt.Sprintf("Waffo Pancake pair creation failed: %v", err))
-		// If only the product half failed, the partial result still
-		// carries the orphan store so the frontend can preselect /
-		// retry without losing context.
 		data := gin.H{"error": err.Error()}
 		if result != nil && result.OrphanStore {
 			data["store_id"] = result.StoreID
@@ -250,25 +223,12 @@ func CreateWaffoPancakePair(c *gin.Context) {
 	})
 }
 
-// ListWaffoPancakeCatalog returns the merchant's existing Stores +
-// OnetimeProducts.
-//
-// Two call modes:
-//   - When the request body carries both `merchant_id` and `private_key`, the
-//     controller uses those (the operator is verifying typed-but-not-yet-saved
-//     credentials during the configuration flow).
-//   - When both body fields are blank, the controller falls back to the
-//     persisted credentials in the OptionMap. This is the initial-load path:
-//     a returning admin opens the settings page and we want the dropdowns to
-//     populate without forcing them to re-paste the private key (which is
-//     stripped from `GET /api/option/` for security).
-//
-// A successful 200 always also confirms the resolved credentials can
-// authenticate against Pancake, so this doubles as a credential probe.
+// ListWaffoPancakeCatalog returns the merchant's Stores + OnetimeProducts.
+// Doubles as a credential probe (a successful 200 proves the resolved creds
+// authenticate). See resolveWaffoPancakeAdminCreds for credential resolution.
 func ListWaffoPancakeCatalog(c *gin.Context) {
 	var req waffoPancakeCredsRequest
-	// A genuinely malformed body should fail. An empty body is valid — we
-	// interpret it as "use saved creds" below.
+	// An empty body means "use persisted creds"; only fail on malformed JSON.
 	if c.Request.ContentLength > 0 {
 		if err := c.ShouldBindJSON(&req); err != nil {
 			c.JSON(http.StatusOK, gin.H{
@@ -306,28 +266,11 @@ type createWaffoPancakeSubscriptionProductRequest struct {
 	Amount string `json:"amount"`
 }
 
-// CreateWaffoPancakeSubscriptionProduct provisions a Pancake OnetimeProduct
-// scoped to a single subscription plan.
-//
-// Why "one-click" rather than "paste a PROD_ ID": the operator already
-// configured + saved Pancake credentials and bound a Store/Product pair via
-// the wallet binding flow, so by the time they're editing a subscription
-// plan we have everything we need — saved MerchantID + PrivateKey + StoreID
-// + ReturnURL. The endpoint mints a new product in the saved store sized
-// to the plan's price and returns the resulting PROD_ ID for the admin
-// form to pin into SubscriptionPlan.WaffoPancakeProductId.
-//
-// Why OnetimeProduct rather than SubscriptionProduct: new-api's
-// SubscriptionPlan is a time-limited prepayment — UserSubscription has a
-// fixed expiration and renewal is a manual re-purchase. There's no
-// renewal-event handling in the webhook, mirroring the existing Stripe
-// integration. OnetimeProduct semantics fit; SubscriptionProduct would
-// mean Pancake auto-renews on its side but new-api never extends the
-// user's access — bad UX. Revisit if/when new-api adds renewal handling.
-//
-// Body shape: `{ "name": "Plan title", "amount": "9.99" }`. Both come from
-// the plan-edit form; we don't read the plan from the DB here because the
-// admin may be creating a brand-new plan that doesn't have a row yet.
+// CreateWaffoPancakeSubscriptionProduct mints an OnetimeProduct (not
+// SubscriptionProduct — see service.CreateWaffoPancakeProductForPlan)
+// sized to a plan's `name` + `amount`, using persisted Pancake credentials
+// + StoreID. Reads from the form, not the plan row, so newly-typed unsaved
+// plans can mint a product too.
 func CreateWaffoPancakeSubscriptionProduct(c *gin.Context) {
 	var req createWaffoPancakeSubscriptionProductRequest
 	if c.Request.ContentLength > 0 {
@@ -390,14 +333,8 @@ func CreateWaffoPancakeSubscriptionProduct(c *gin.Context) {
 }
 
 // ListWaffoPancakeSubscriptionProductOptions returns the OnetimeProducts
-// available under the saved Pancake store, so the subscription-plan admin
-// form can render them in a dropdown (parallel to the catalog dropdown
-// used by the wallet binding flow).
-//
-// "SubscriptionProduct" in the endpoint name refers to new-api's plan
-// concept, not Pancake's SubscriptionProduct entity — under the hood we
-// list OnetimeProducts (see CreateWaffoPancakeSubscriptionProduct for the
-// rationale).
+// in the saved Pancake store, for the subscription-plan dropdown. The name
+// reflects new-api's plan concept; under the hood it's still OnetimeProducts.
 func ListWaffoPancakeSubscriptionProductOptions(c *gin.Context) {
 	merchantID, privateKey := resolveWaffoPancakeAdminCreds("", "")
 	storeID := strings.TrimSpace(setting.WaffoPancakeStoreID)
@@ -433,17 +370,6 @@ func ListWaffoPancakeSubscriptionProductOptions(c *gin.Context) {
 	})
 }
 
-// getWaffoPancakeBuyerIdentity returns the stable, merchant-controlled buyer
-// identifier sent to Pancake's Authenticated checkout endpoint. It is encoded
-// into the buyer session JWT and persisted on the order as
-// `merchantProvidedBuyerIdentity`, so it survives the buyer changing email at
-// checkout and is what scopes any future self-service buyer session tokens
-// (refund tickets, subscription cancellation) back to this exact user.
-//
-// The format is defined in service.WaffoPancakeBuyerIdentityFromUserID — both
-// the checkout request and the webhook handler call into the same renderer so
-// they can't drift. We deliberately do NOT use email here — emails change,
-// user IDs don't.
 func getWaffoPancakeBuyerIdentity(user *model.User) string {
 	if user == nil {
 		return ""
@@ -452,8 +378,6 @@ func getWaffoPancakeBuyerIdentity(user *model.User) string {
 }
 
 func RequestWaffoPancakePay(c *gin.Context) {
-	// Gateway is considered enabled when its required credentials are present
-	// (matches the Stripe / Creem pattern — no separate Enabled toggle).
 	if !isWaffoPancakeTopUpEnabled() {
 		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "Waffo Pancake 配置不完整"})
 		return
@@ -506,9 +430,6 @@ func RequestWaffoPancakePay(c *gin.Context) {
 	}
 
 	expiresInSeconds := 45 * 60
-	// SuccessURL is bound to the auto-created OnetimeProduct itself, so we
-	// don't have to pass it on every checkout — service.CreateWaffoPancakeCheckoutSession
-	// dropped the field accordingly.
 	session, err := service.CreateWaffoPancakeCheckoutSession(c.Request.Context(), &service.WaffoPancakeCreateSessionParams{
 		ProductID:     setting.WaffoPancakeProductID,
 		BuyerIdentity: getWaffoPancakeBuyerIdentity(user),
@@ -548,11 +469,9 @@ func WaffoPancakeWebhook(c *gin.Context) {
 		return
 	}
 
-	// The route is /api/waffo-pancake/webhook/:env so the operator registers
-	// the test URL in Pancake's Test Mode webhook slot and the prod URL in the
-	// Prod Mode slot. We enforce that the event's mode field matches the URL
-	// segment to keep test traffic from accidentally crediting production
-	// accounts (and vice-versa) — defence-in-depth on top of signature checks.
+	// :env splits test vs prod traffic at the routing layer — operator
+	// registers each URL in the matching webhook slot in Pancake's dashboard.
+	// We then enforce event.mode == expectedEnv to catch mis-registrations.
 	expectedEnv := strings.TrimSpace(c.Param("env"))
 	if expectedEnv != "test" && expectedEnv != "prod" {
 		logger.LogWarn(c.Request.Context(), fmt.Sprintf(
@@ -595,10 +514,8 @@ func WaffoPancakeWebhook(c *gin.Context) {
 		return
 	}
 
-	// Distinguish subscription vs top-up by the trade_no prefix we wrote at
-	// session-creation time. SubscriptionRequestWaffoPancakePay uses
-	// "WAFFO_PANCAKE_SUB-…"; the wallet top-up uses "WAFFO_PANCAKE-…". This
-	// keeps the dispatch O(1) and avoids speculatively hitting both tables.
+	// Subscription vs top-up dispatch by trade_no prefix (written at
+	// session-creation time): WAFFO_PANCAKE_SUB- vs WAFFO_PANCAKE-.
 	rawTradeNo := strings.TrimSpace(event.Data.OrderID)
 	isSubscription := strings.HasPrefix(rawTradeNo, "WAFFO_PANCAKE_SUB-")
 
@@ -626,10 +543,9 @@ func WaffoPancakeWebhook(c *gin.Context) {
 
 	tradeNo, err := service.ResolveWaffoPancakeTradeNo(event)
 	if err != nil {
-		// Escalated to Error because this branch covers both order-not-found
-		// (delivery accident) and buyer-identity-mismatch (potential tamper /
-		// cross-merchant attack). Either way it needs human attention — the
-		// 200 OK keeps Waffo from retrying a permanently-unresolvable webhook.
+		// LogError (not LogWarn): covers order-not-found and buyer-identity
+		// mismatch — both warrant human attention. 200 OK so Waffo doesn't
+		// retry a permanently-unresolvable webhook.
 		logger.LogError(c.Request.Context(), fmt.Sprintf(
 			"Waffo Pancake webhook 订单解析失败 event_id=%s order_id=%s buyer_identity=%q client_ip=%s error=%q",
 			event.ID, event.Data.OrderID, event.Data.MerchantProvidedBuyerIdentity, c.ClientIP(), err.Error(),

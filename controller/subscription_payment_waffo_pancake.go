@@ -16,23 +16,10 @@ import (
 	"github.com/thanhpk/randstr"
 )
 
-// SubscriptionWaffoPancakePayRequest is the request body for the subscription
-// purchase endpoint. The buyer picks a plan in the wallet UI; the only thing
-// the backend needs to know is which plan to mint a checkout session for.
 type SubscriptionWaffoPancakePayRequest struct {
 	PlanId int `json:"plan_id"`
 }
 
-// SubscriptionRequestWaffoPancakePay creates a Pancake checkout session for
-// a subscription plan purchase. Mirrors the Stripe and Creem subscription
-// flows: validate plan + gateway config, create a SubscriptionOrder row
-// (status = pending) keyed by a uniquely-prefixed trade_no, then ask the
-// Pancake SDK for a hosted-checkout URL with a PriceSnapshot override
-// pinned to the plan's current PriceAmount (USD).
-//
-// The webhook handler (WaffoPancakeWebhook) tries CompleteSubscriptionOrder
-// before falling back to RechargeWaffoPancake, so the same /webhook/:env
-// endpoint handles both subscription and top-up completions.
 func SubscriptionRequestWaffoPancakePay(c *gin.Context) {
 	var req SubscriptionWaffoPancakePayRequest
 	if err := c.ShouldBindJSON(&req); err != nil || req.PlanId <= 0 {
@@ -53,9 +40,8 @@ func SubscriptionRequestWaffoPancakePay(c *gin.Context) {
 		common.ApiErrorMsg(c, "该套餐未配置 WaffoPancakeProductId")
 		return
 	}
-	// Gateway must be fully configured. We don't gate on WaffoPancakeProductID
-	// from settings here — the plan can target its own Pancake product, but
-	// MerchantID + PrivateKey are still required to authenticate the call.
+	// Plan targets its own Pancake product, so we only require credentials
+	// here — not the gateway-level WaffoPancakeProductID.
 	if strings.TrimSpace(setting.WaffoPancakeMerchantID) == "" ||
 		strings.TrimSpace(setting.WaffoPancakePrivateKey) == "" {
 		common.ApiErrorMsg(c, "Waffo Pancake 未配置或密钥无效")
@@ -85,8 +71,8 @@ func SubscriptionRequestWaffoPancakePay(c *gin.Context) {
 		}
 	}
 
-	// Distinct prefix from the top-up flow (which uses WAFFO_PANCAKE-…) so the
-	// webhook handler can tell which table to look up.
+	// WAFFO_PANCAKE_SUB- prefix (vs. wallet's WAFFO_PANCAKE-) drives webhook
+	// dispatch in WaffoPancakeWebhook.
 	tradeNo := fmt.Sprintf("WAFFO_PANCAKE_SUB-%d-%d-%s", userId, time.Now().UnixMilli(), randstr.String(6))
 
 	order := &model.SubscriptionOrder{
@@ -125,8 +111,6 @@ func SubscriptionRequestWaffoPancakePay(c *gin.Context) {
 	}
 	logger.LogInfo(c.Request.Context(), fmt.Sprintf("Waffo Pancake 订阅订单创建成功 user_id=%d plan_id=%d trade_no=%s session_id=%s money=%.2f", userId, plan.Id, tradeNo, session.SessionID, plan.PriceAmount))
 
-	// Match the field-name convention used by the wallet Pancake flow
-	// (checkout_url) so the frontend can share its response-shape handling.
 	c.JSON(http.StatusOK, gin.H{
 		"message": "success",
 		"data": gin.H{

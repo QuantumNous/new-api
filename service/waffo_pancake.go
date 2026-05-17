@@ -14,10 +14,6 @@ import (
 	pancake "github.com/waffo-com/waffo-pancake-sdk-go"
 )
 
-// -----------------------------------------------------------------------------
-// Public types (preserved shapes the controller depends on)
-// -----------------------------------------------------------------------------
-
 // WaffoPancakePriceSnapshot is the per-session price override sent with checkout.
 type WaffoPancakePriceSnapshot struct {
 	Amount      string
@@ -25,19 +21,8 @@ type WaffoPancakePriceSnapshot struct {
 }
 
 // WaffoPancakeCreateSessionParams is the input to CreateWaffoPancakeCheckoutSession.
-//
-// Intentionally simpler than the previous hand-rolled struct:
-//   - StoreID is dropped — the server derives the store from ProductID
-//   - Currency is dropped — Pancake only supports USD for new-api top-ups
-//   - ProductType is dropped — the SDK does not model it client-side
-//   - SuccessURL is dropped — bound to the auto-created Product once via
-//     EnsureWaffoPancakePrimaryProduct; the operator never sets it per-checkout
-//
-// BuyerIdentity binds the checkout session to a stable merchant-controlled
-// user ID (typically `new-api-user-<UserId>`). This is what makes the order
-// resilient to the buyer editing the email on the Waffo checkout form, and
-// what lets Pancake issue scoped session tokens for post-purchase self-service
-// (refund tickets, subscription cancellation, etc.) bound to this user.
+// BuyerIdentity (merchant-controlled, stable per user) is what survives the
+// buyer editing email at checkout — see WaffoPancakeBuyerIdentityFromUserID.
 type WaffoPancakeCreateSessionParams struct {
 	ProductID        string
 	BuyerIdentity    string
@@ -47,13 +32,8 @@ type WaffoPancakeCreateSessionParams struct {
 }
 
 // WaffoPancakeCheckoutSession is the response of CreateWaffoPancakeCheckoutSession.
-//
-// Token / TokenExpiresAt are populated by the SDK's Authenticated checkout
-// flow. CheckoutURL already has the `#token=...` fragment appended, so simply
-// redirecting the buyer to CheckoutURL is enough for the basic flow. The
-// fields are also exposed separately for use cases that want to drive buyer
-// self-service from new-api's own UI (e.g., issue refund / cancel subscription
-// without leaving new-api).
+// CheckoutURL already carries the `#token=...` fragment; Token / TokenExpiresAt
+// are exposed separately for self-service flows driven from new-api's own UI.
 type WaffoPancakeCheckoutSession struct {
 	SessionID      string
 	CheckoutURL    string
@@ -63,9 +43,8 @@ type WaffoPancakeCheckoutSession struct {
 	TokenExpiresAt string
 }
 
-// waffoPancakeWebhookEvent is the verified webhook payload as exposed to
-// controllers. The shape mirrors the SDK's WebhookEvent/WebhookEventData but
-// uses plain strings so controllers don't have to import the SDK package.
+// waffoPancakeWebhookEvent mirrors the SDK's WebhookEvent shape using plain
+// strings so controllers don't have to import the SDK package.
 type waffoPancakeWebhookEvent struct {
 	ID        string
 	Timestamp string
@@ -94,34 +73,19 @@ func (e *waffoPancakeWebhookEvent) NormalizedEventType() string {
 	return e.EventType
 }
 
-// -----------------------------------------------------------------------------
-// SDK client construction
-// -----------------------------------------------------------------------------
-
-// waffoPancakeGraphQLEnvelopeFixTransport works around a response-decoding bug
-// in waffo-pancake-sdk-go v0.1.1: the SDK assumes the HTTP body is a doubly-
-// wrapped envelope of the form
+// waffoPancakeGraphQLEnvelopeFixTransport works around two issues in
+// waffo-pancake-sdk-go v0.1.1 that only affect /v1/graphql:
 //
-//	{"data": {"data": ..., "errors": [...], "warnings": [...]}}
+//  1. Response decoding: the SDK expects a doubly-wrapped envelope
+//     {"data": {"data": ..., "errors": [...]}} but the live endpoint
+//     returns the standard single-wrap {"data": ..., "errors": [...]},
+//     so we re-wrap the body for the SDK's outer unwrap to peel off.
+//  2. Idempotency: the SDK signs every POST with an X-Idempotency-Key,
+//     including queries; Pancake dedupes on that key server-side and
+//     would serve a stale snapshot back, so freshly-created entities
+//     wouldn't appear in the catalog. Queries are reads — strip it.
 //
-// but the live `/v1/graphql` endpoint returns the standard single-wrap
-// GraphQL envelope:
-//
-//	{"data": ..., "errors": [...]}
-//
-// After the SDK strips the outer `data`, what remains is e.g. `{"stores":...}`,
-// which doesn't match the SDK's `GraphQLResponse{Data, Errors, Warnings}`
-// struct — so every field of `GraphQLResponse` ends up empty and the caller
-// sees a silently-empty response.
-//
-// To unblock new-api without forking the SDK, we wrap the response body in an
-// additional `{"data": ...}` envelope so the SDK's outer unwrap leaves the
-// standard GraphQL envelope behind for `GraphQLResponse` to decode normally.
-//
-// Scope: only `/v1/graphql` requests are touched. Every other endpoint already
-// uses the single-wrapped envelope the SDK expects and works unaltered.
-//
-// Drop this once the upstream SDK fix lands.
+// Drop the whole transport once both ship upstream.
 type waffoPancakeGraphQLEnvelopeFixTransport struct {
 	inner http.RoundTripper
 }
@@ -131,20 +95,6 @@ func (t *waffoPancakeGraphQLEnvelopeFixTransport) RoundTrip(req *http.Request) (
 	if inner == nil {
 		inner = http.DefaultTransport
 	}
-	// Strip the SDK-auto-generated X-Idempotency-Key for GraphQL queries.
-	// Idempotency keys belong on state-changing operations (create / update /
-	// delete) where they protect against duplicate side effects from retries
-	// and double-clicks. The SDK applies them indiscriminately to every POST,
-	// including GraphQL queries — and Pancake server-side dedupes on the
-	// key, which means an identical query body served a stale snapshot back
-	// from before any newly-created entity existed (a freshly-minted Store
-	// or Product would never appear in the catalog dropdown). Reads should
-	// always be fresh; queries are reads.
-	//
-	// Mutating the request in RoundTrip is technically against the
-	// http.RoundTripper contract, but we're the sole owner of this transport
-	// and the inner transport (http.DefaultTransport) only reads the header
-	// once during request serialisation, so the deletion is safe.
 	if strings.HasSuffix(req.URL.Path, "/v1/graphql") {
 		req.Header.Del("X-Idempotency-Key")
 	}
@@ -173,20 +123,14 @@ func (t *waffoPancakeGraphQLEnvelopeFixTransport) RoundTrip(req *http.Request) (
 	return resp, nil
 }
 
-// newWaffoPancakeHTTPClient returns a fresh *http.Client preconfigured with
-// the GraphQL envelope-fix transport. Every SDK client builder below must use
-// this so GraphQL queries actually decode.
 func newWaffoPancakeHTTPClient() *http.Client {
 	return &http.Client{Transport: &waffoPancakeGraphQLEnvelopeFixTransport{inner: http.DefaultTransport}}
 }
 
-// newWaffoPancakeClient builds a fresh SDK client from the current settings.
-// Used by the runtime checkout / webhook paths, where credentials are already
-// persisted and trusted.
-//
-// Configuration endpoints should use newWaffoPancakeClientFromCreds instead so
-// the operator can verify / mint entities with typed-but-not-yet-saved
-// credentials.
+// newWaffoPancakeClient builds an SDK client from persisted settings. The
+// runtime checkout / webhook paths use this; configuration endpoints use
+// newWaffoPancakeClientFromCreds so the operator can verify typed-but-not-
+// yet-saved credentials.
 func newWaffoPancakeClient() (*pancake.Client, error) {
 	return pancake.New(pancake.Config{
 		MerchantID: setting.WaffoPancakeMerchantID,
@@ -195,10 +139,6 @@ func newWaffoPancakeClient() (*pancake.Client, error) {
 	})
 }
 
-// newWaffoPancakeClientFromCreds builds an SDK client from explicit
-// credentials supplied by the configuration UI. These values come straight
-// from the operator's input fields and are NOT persisted to settings — the
-// final Save action is what writes them through.
 func newWaffoPancakeClientFromCreds(merchantID, privateKey string) (*pancake.Client, error) {
 	if strings.TrimSpace(merchantID) == "" || strings.TrimSpace(privateKey) == "" {
 		return nil, fmt.Errorf("merchant id and private key are required")
@@ -210,21 +150,9 @@ func newWaffoPancakeClientFromCreds(merchantID, privateKey string) (*pancake.Cli
 	})
 }
 
-// -----------------------------------------------------------------------------
-// Checkout
-// -----------------------------------------------------------------------------
-
-// CreateWaffoPancakeCheckoutSession creates an authenticated checkout session
-// via the official Pancake SDK.
-//
-// "Authenticated" mode binds the order to a merchant-controlled buyer identity
-// (here: the new-api User.Id), so the order remains attributable to the right
-// user even if the buyer edits the email on the Waffo checkout form. The SDK
-// also issues a scoped session token in parallel and appends `#token=...` to
-// the returned CheckoutURL — buyers landing on the checkout page get the token
-// for free, and merchants can also drive post-purchase self-service flows
-// (refund, cancel subscription) from new-api's own UI using the Token field
-// returned below.
+// CreateWaffoPancakeCheckoutSession creates an Authenticated-mode checkout
+// session: the order is bound to BuyerIdentity (stable per user) so it stays
+// attributable even if the buyer edits the email on Waffo's checkout form.
 func CreateWaffoPancakeCheckoutSession(ctx context.Context, params *WaffoPancakeCreateSessionParams) (*WaffoPancakeCheckoutSession, error) {
 	if params == nil {
 		return nil, fmt.Errorf("missing checkout params")
@@ -285,24 +213,14 @@ func derefString(p *string) string {
 }
 
 // WaffoPancakeBuyerIdentityFromUserID renders the canonical buyer identity
-// string used at checkout for a given new-api user. The webhook handler and
-// the checkout request must both call this so the strings stay in lock-step:
-// any divergence would surface as an identity-mismatch failure during
-// webhook processing.
+// for checkout. Webhook handlers compare against the value rendered here to
+// reject identity mismatches, so both call sites must use this function.
 func WaffoPancakeBuyerIdentityFromUserID(userID int) string {
 	return fmt.Sprintf("new-api-user-%d", userID)
 }
 
-// -----------------------------------------------------------------------------
-// Webhook
-// -----------------------------------------------------------------------------
-
-// VerifyConfiguredWaffoPancakeWebhook verifies the X-Waffo-Signature header
-// against the raw payload.
-//
-// Environment detection is fully delegated to the SDK: it reads the `mode`
-// field from the payload and picks the matching built-in public key (test or
-// prod) automatically. No client-side sandbox toggle is involved.
+// VerifyConfiguredWaffoPancakeWebhook verifies the signature header. The SDK
+// picks the matching test / prod public key from the payload's `mode` field.
 func VerifyConfiguredWaffoPancakeWebhook(payload string, signatureHeader string) (*waffoPancakeWebhookEvent, error) {
 	sdkEvent, err := pancake.VerifyWebhook(payload, signatureHeader, nil)
 	if err != nil {
@@ -331,15 +249,9 @@ func VerifyConfiguredWaffoPancakeWebhook(payload string, signatureHeader string)
 	}, nil
 }
 
-// ResolveWaffoPancakeTradeNo maps a verified webhook event back to a local
-// TopUp trade_no, and verifies that the buyer identity Pancake echoed back
-// matches the one we generated for that user at checkout time.
-//
-// Defence-in-depth on top of the X-Waffo-Signature check: even if a webhook
-// payload survives signature verification, a mismatched
-// merchantProvidedBuyerIdentity is a strong signal that the order has been
-// tampered with or wires got crossed between merchants — treat it as a hard
-// rejection rather than crediting the wrong account.
+// ResolveWaffoPancakeTradeNo maps a verified webhook event to a local TopUp
+// trade_no, rejecting any payload whose buyer identity doesn't match the one
+// we recorded at checkout — defence-in-depth on top of signature verification.
 func ResolveWaffoPancakeTradeNo(event *waffoPancakeWebhookEvent) (string, error) {
 	if event == nil {
 		return "", fmt.Errorf("missing webhook event")
@@ -349,10 +261,6 @@ func ResolveWaffoPancakeTradeNo(event *waffoPancakeWebhookEvent) (string, error)
 		return "", fmt.Errorf("missing webhook orderId")
 	}
 	topUp := model.GetTopUpByTradeNo(tradeNo)
-	// Use PaymentProvider rather than PaymentMethod here so the guard matches
-	// model.RechargeWaffoPancake's cross-gateway defence (a7c38ec8). Both
-	// fields are written to the same value on insert, but PaymentProvider is
-	// the one that survives any future per-user PaymentMethod customisation.
 	if topUp == nil || topUp.PaymentProvider != model.PaymentProviderWaffoPancake {
 		return "", fmt.Errorf("waffo pancake order not found for webhook orderId=%s", tradeNo)
 	}
@@ -369,13 +277,8 @@ func ResolveWaffoPancakeTradeNo(event *waffoPancakeWebhookEvent) (string, error)
 	return tradeNo, nil
 }
 
-// ResolveWaffoPancakeSubscriptionTradeNo is the SubscriptionOrder-side
-// counterpart of ResolveWaffoPancakeTradeNo: same buyer-identity defence in
-// depth, but looks up a SubscriptionOrder (created by
-// SubscriptionRequestWaffoPancakePay) instead of a TopUp.
-//
-// Returns the trade_no so the webhook handler can pass it straight to
-// model.CompleteSubscriptionOrder.
+// ResolveWaffoPancakeSubscriptionTradeNo is the SubscriptionOrder counterpart
+// of ResolveWaffoPancakeTradeNo.
 func ResolveWaffoPancakeSubscriptionTradeNo(event *waffoPancakeWebhookEvent) (string, error) {
 	if event == nil {
 		return "", fmt.Errorf("missing webhook event")
@@ -401,23 +304,15 @@ func ResolveWaffoPancakeSubscriptionTradeNo(event *waffoPancakeWebhookEvent) (st
 	return tradeNo, nil
 }
 
-// -----------------------------------------------------------------------------
-// Auto-provisioning
-// -----------------------------------------------------------------------------
-
-// Default names used when the operator clicks "Create new". They are kept as
-// constants here so the frontend can render the exact name that will be
-// created (transparency), and so the body that goes to Pancake is fully
-// deterministic — the SDK's auto-generated X-Idempotency-Key is then stable
-// across retries / double-clicks, which lets Pancake dedupe server-side.
+// Deterministic default names for "+ Create": stable bodies mean stable
+// X-Idempotency-Key, which lets Pancake dedupe retries server-side.
 const (
 	defaultWaffoPancakeStoreName   = "new-api-store"
 	defaultWaffoPancakeProductName = "new-api-charge-product"
 )
 
-// CreateWaffoPancakePrimaryStore creates a Pancake Store using the operator's
-// in-flight credentials (NOT yet persisted to settings). The returned ID is
-// passed back to the frontend so the operator can confirm before final Save.
+// CreateWaffoPancakePrimaryStore creates a Pancake Store using in-flight
+// (not-yet-persisted) credentials and returns the new store ID.
 func CreateWaffoPancakePrimaryStore(ctx context.Context, merchantID, privateKey string) (string, error) {
 	client, err := newWaffoPancakeClientFromCreds(merchantID, privateKey)
 	if err != nil {
@@ -432,28 +327,13 @@ func CreateWaffoPancakePrimaryStore(ctx context.Context, merchantID, privateKey 
 	return storeRes.Store.ID, nil
 }
 
-// CreateWaffoPancakePrimaryProduct mints a Pancake OnetimeProduct in the given
-// store using the operator's in-flight credentials. 1 USD placeholder price
-// (overridden per checkout via PriceSnapshot); SuccessURL is set from the
-// supplied returnURL when non-empty. Publishes before returning.
-//
-// CreateWaffoPancakeProductForPlan mints a Pancake OnetimeProduct sized to
-// a specific subscription plan: the buyer pays the plan's `amount` USD up
-// front, and the resulting PROD_ ID is what gets pinned to
+// CreateWaffoPancakeProductForPlan mints (and publishes) a Pancake
+// OnetimeProduct priced at `amount` USD, used as a subscription plan's
 // SubscriptionPlan.WaffoPancakeProductId.
 //
-// Why OnetimeProduct (not SubscriptionProduct): new-api models
-// subscriptions as time-limited prepayments — UserSubscription has a fixed
-// expiration and renewal is a manual re-purchase. There's no renewal-event
-// handling on the webhook side, mirroring how the existing Stripe
-// integration works. OnetimeProduct semantics line up cleanly: each
-// purchase is a discrete payment that activates one fixed-duration
-// subscription period. Switch to SubscriptionProduct only if/when new-api
-// itself starts handling auto-renewal events.
-//
-// The returned product is published — buyers can hit it from checkout
-// immediately. SuccessURL is bound to the same Return URL the operator
-// saved for the wallet flow.
+// OnetimeProduct (not SubscriptionProduct) because new-api has no renewal-
+// event handling; Pancake auto-renewing without new-api extending user
+// access would be a UX divergence. Revisit if renewal handling is added.
 func CreateWaffoPancakeProductForPlan(ctx context.Context, merchantID, privateKey, storeID, name, amount, returnURL string) (string, error) {
 	storeID = strings.TrimSpace(storeID)
 	if storeID == "" {
@@ -492,8 +372,9 @@ func CreateWaffoPancakeProductForPlan(ctx context.Context, merchantID, privateKe
 	return productID, nil
 }
 
-// Like the store helper, this only talks to Pancake — nothing is written to
-// new-api settings until the operator clicks final Save.
+// CreateWaffoPancakePrimaryProduct mints (and publishes) the wallet-top-up
+// OnetimeProduct under storeID. Per-checkout price overrides via PriceSnapshot
+// are what make the "1.00" seed price irrelevant at runtime.
 func CreateWaffoPancakePrimaryProduct(ctx context.Context, merchantID, privateKey, storeID, returnURL string) (string, error) {
 	storeID = strings.TrimSpace(storeID)
 	if storeID == "" {
@@ -525,12 +406,8 @@ func CreateWaffoPancakePrimaryProduct(ctx context.Context, merchantID, privateKe
 }
 
 // WaffoPancakePairResult is the response of CreateWaffoPancakePrimaryPair.
-//
-// On the unhappy path where Store creation succeeded but Product creation
-// failed, ProductID + ProductName stay empty and OrphanStore is true so
-// the caller can surface a useful "store landed at STO_xxx but product
-// failed" message to the operator (and the next catalog refresh will
-// surface that orphan store so they can retry product-only creation).
+// When OrphanStore is true the store was created but the product wasn't,
+// so the caller can surface a partial-failure message with StoreID.
 type WaffoPancakePairResult struct {
 	StoreID     string
 	StoreName   string
@@ -539,17 +416,9 @@ type WaffoPancakePairResult struct {
 	OrphanStore bool
 }
 
-// CreateWaffoPancakePrimaryPair mints a Pancake Store AND a Pancake
-// OnetimeProduct in one shot, using the supplied in-flight credentials.
-//
-// This is the canonical "+ Create" entry point — the frontend never calls
-// the Store / Product primitives independently. The wrapper exists so the
-// controller can run the two SDK calls back-to-back, return both IDs to
-// the operator in one round-trip, and produce a single coherent error on
-// the unhappy path where the store landed but the product didn't.
-//
-// Nothing is persisted to settings — the operator's final Save action is
-// what writes the chosen IDs to the OptionMap.
+// CreateWaffoPancakePrimaryPair mints a Store + OnetimeProduct in one
+// round-trip — the canonical "+ Create" entry point. Nothing is persisted
+// to settings; the operator's final Save commits the chosen IDs.
 func CreateWaffoPancakePrimaryPair(ctx context.Context, merchantID, privateKey, returnURL string) (*WaffoPancakePairResult, error) {
 	storeID, err := CreateWaffoPancakePrimaryStore(ctx, merchantID, privateKey)
 	if err != nil {
@@ -571,10 +440,9 @@ func CreateWaffoPancakePrimaryPair(ctx context.Context, merchantID, privateKey, 
 	}, nil
 }
 
-// SaveWaffoPancakeConfig is the single atomic commit at the end of the
-// configuration flow: it writes all five operator-controlled values to the
-// OptionMap in one go (everything else has been transient up to this point).
-// Pure local persistence — no Pancake API calls.
+// SaveWaffoPancakeConfig persists the operator-controlled fields atomically
+// at the end of the configuration flow. Pure local writes — no SDK calls.
+// A blank privateKey is treated as "keep current" (Stripe-style API-secret UX).
 func SaveWaffoPancakeConfig(ctx context.Context, merchantID, privateKey, returnURL, storeID, productID string) error {
 	merchantID = strings.TrimSpace(merchantID)
 	storeID = strings.TrimSpace(storeID)
@@ -585,8 +453,6 @@ func SaveWaffoPancakeConfig(ctx context.Context, merchantID, privateKey, returnU
 	if err := model.UpdateOption("WaffoPancakeMerchantID", merchantID); err != nil {
 		return fmt.Errorf("persist Waffo Pancake merchant id: %w", err)
 	}
-	// Blank private key means "keep whatever was previously saved", matching
-	// the standard Stripe-style API-secret UX.
 	if pk := strings.TrimSpace(privateKey); pk != "" {
 		if err := model.UpdateOption("WaffoPancakePrivateKey", pk); err != nil {
 			return fmt.Errorf("persist Waffo Pancake private key: %w", err)
@@ -605,39 +471,29 @@ func SaveWaffoPancakeConfig(ctx context.Context, merchantID, privateKey, returnU
 	return nil
 }
 
-// -----------------------------------------------------------------------------
-// Catalog browsing (for the "pick existing Store / Product" selector)
-// -----------------------------------------------------------------------------
-
-// WaffoPancakeCatalogProduct is one row in the product selector.
 type WaffoPancakeCatalogProduct struct {
 	ID     string `json:"id"`
 	Name   string `json:"name"`
 	Status string `json:"status"`
 }
 
-// WaffoPancakeCatalogStore is one row in the store selector, with the nested
-// list of its onetime products so the UI can render a dependent select without
-// a second round-trip.
+// WaffoPancakeCatalogStore nests its OnetimeProducts so the UI can render a
+// dependent store→product select without a second round-trip.
 type WaffoPancakeCatalogStore struct {
-	ID               string                       `json:"id"`
-	Name             string                       `json:"name"`
-	Status           string                       `json:"status"`
-	ProdEnabled      bool                         `json:"prodEnabled"`
-	OnetimeProducts  []WaffoPancakeCatalogProduct `json:"onetimeProducts"`
+	ID              string                       `json:"id"`
+	Name            string                       `json:"name"`
+	Status          string                       `json:"status"`
+	ProdEnabled     bool                         `json:"prodEnabled"`
+	OnetimeProducts []WaffoPancakeCatalogProduct `json:"onetimeProducts"`
 }
 
-// WaffoPancakeCatalog is the response of ListWaffoPancakeCatalog: every store
-// the merchant owns, plus the onetime products under each store.
 type WaffoPancakeCatalog struct {
 	Stores []WaffoPancakeCatalogStore `json:"stores"`
 }
 
-// ListWaffoPancakeCatalog runs a single GraphQL query against Pancake using
-// the operator's in-flight credentials (passed in directly, not read from
-// settings) and returns the merchant's Stores nested with their
-// OnetimeProducts. Doubles as a credential check — a successful response
-// proves the supplied MerchantID + PrivateKey can authenticate.
+// ListWaffoPancakeCatalog queries Pancake's GraphQL `stores` for the
+// merchant's stores + onetime products. A successful call also proves
+// the supplied credentials authenticate (doubles as a credential probe).
 func ListWaffoPancakeCatalog(ctx context.Context, merchantID, privateKey string) (*WaffoPancakeCatalog, error) {
 	client, err := newWaffoPancakeClientFromCreds(merchantID, privateKey)
 	if err != nil {
@@ -647,11 +503,9 @@ func ListWaffoPancakeCatalog(ctx context.Context, merchantID, privateKey string)
 	type queryShape struct {
 		Stores []WaffoPancakeCatalogStore `json:"stores"`
 	}
-	// The `stores` query applies a default pagination limit when none is
-	// supplied — the live API returns just one store without the arg, even
-	// when the merchant has more. Pass an explicit limit large enough to
-	// cover any realistic operator catalog. If this ever needs to grow past
-	// the cap we switch to paginated fetches via `offset`.
+	// `limit: 100` because the API returns a single store when limit is
+	// omitted, even for multi-store merchants. Bump to paginated fetches
+	// (via `offset`) if real catalogs ever cross the cap.
 	resp, err := pancake.GraphQLQuery[queryShape](ctx, client, pancake.GraphQLParams{
 		Query: `query {
 			stores(limit: 100) {

@@ -56,11 +56,8 @@ func SetApiRouter(router *gin.Engine) {
 		apiRouter.POST("/stripe/webhook", controller.StripeWebhook)
 		apiRouter.POST("/creem/webhook", controller.CreemWebhook)
 		apiRouter.POST("/waffo/webhook", controller.WaffoWebhook)
-		// Split test/prod webhook endpoints so the operator can register one URL
-		// in Pancake's Test Mode webhook slot and the other in Prod Mode —
-		// prevents cross-environment quota crediting at the routing layer rather
-		// than relying solely on the event.mode field. Handler verifies that the
-		// path segment matches the event's mode.
+		// :env separates test vs prod URLs so the operator can register each
+		// in Pancake's matching webhook slot; handler enforces env match.
 		apiRouter.POST("/waffo-pancake/webhook/:env", controller.WaffoPancakeWebhook)
 
 		// Universal secure verification routes
