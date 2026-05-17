@@ -16,18 +16,22 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func streamResponseXAI2OpenAI(xAIResp *dto.ChatCompletionsStreamResponse, usage *dto.Usage) *dto.ChatCompletionsStreamResponse {
+func streamResponseXAI2OpenAI(xAIResp *dto.ChatCompletionsStreamResponse, usage *dto.Usage, callerModel string) *dto.ChatCompletionsStreamResponse {
 	if xAIResp == nil {
 		return nil
 	}
 	if xAIResp.Usage != nil {
 		xAIResp.Usage.CompletionTokens = usage.CompletionTokens
 	}
+	model := callerModel
+	if model == "" {
+		model = xAIResp.Model
+	}
 	openAIResp := &dto.ChatCompletionsStreamResponse{
 		Id:      xAIResp.Id,
 		Object:  xAIResp.Object,
 		Created: xAIResp.Created,
-		Model:   xAIResp.Model,
+		Model:   model,
 		Choices: xAIResp.Choices,
 		Usage:   xAIResp.Usage,
 	}
@@ -40,6 +44,8 @@ func xAIStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Re
 	var responseTextBuilder strings.Builder
 	var toolCount int
 	var containStreamUsage bool
+
+	callerModel := relaycommon.GetCallerModelName(c, info)
 
 	helper.SetEventStreamHeaders(c)
 
@@ -59,7 +65,7 @@ func xAIStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Re
 			usage.CompletionTokens = usage.TotalTokens - usage.PromptTokens
 		}
 
-		openaiResponse := streamResponseXAI2OpenAI(xAIResp, usage)
+		openaiResponse := streamResponseXAI2OpenAI(xAIResp, usage, callerModel)
 		_ = openai.ProcessStreamResponse(*openaiResponse, &responseTextBuilder, &toolCount)
 		if err := helper.ObjectData(c, openaiResponse); err != nil {
 			common.SysLog(err.Error())
@@ -95,6 +101,10 @@ func xAIHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response
 	}
 
 	// new body
+	callerModel := relaycommon.GetCallerModelName(c, info)
+	if callerModel != "" {
+		xaiResponse.Model = callerModel
+	}
 	encodeJson, err := common.Marshal(xaiResponse)
 	if err != nil {
 		return nil, types.NewError(err, types.ErrorCodeBadResponseBody)

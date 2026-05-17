@@ -179,7 +179,7 @@ func handleLastResponse(lastStreamData string, responseId *string, createAt *int
 	*responseId = lastStreamResponse.Id
 	*createAt = lastStreamResponse.Created
 	*systemFingerprint = lastStreamResponse.GetSystemFingerprint()
-	*model = lastStreamResponse.Model
+	// Don't overwrite model with upstream model; caller model is set upstream
 
 	if service.ValidUsage(lastStreamResponse.Usage) {
 		*containStreamUsage = true

@@ -41,6 +41,14 @@ func OaiResponsesHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http
 	}
 
 	// 写入新的 response body
+	callerModel := relaycommon.GetCallerModelName(c, info)
+	if callerModel != "" {
+		patched, changed, err := relaycommon.PatchTopLevelModelRaw(responseBody, callerModel)
+		if err == nil && changed {
+			relaycommon.MarkResponseBodyRewritten(c)
+			responseBody = patched
+		}
+	}
 	service.IOCopyBytesGracefully(c, resp, responseBody)
 
 	// compute usage
@@ -79,7 +87,18 @@ func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 	var usage = &dto.Usage{}
 	var responseTextBuilder strings.Builder
 
+	callerModel := relaycommon.GetCallerModelName(c, info)
+
 	helper.StreamScannerHandler(c, resp, info, func(data string, sr *helper.StreamResult) {
+
+		// Patch response.model in raw SSE data before sending
+		if callerModel != "" {
+			patched, changed, err := relaycommon.PatchResponsesEventModelRaw(common.StringToByteSlice(data), callerModel)
+			if err == nil && changed {
+				relaycommon.MarkResponseBodyRewritten(c)
+				data = string(patched)
+			}
+		}
 
 		// 检查当前数据是否包含 completed 状态和 usage 信息
 		var streamResponse dto.ResponsesStreamResponse

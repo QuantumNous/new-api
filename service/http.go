@@ -9,6 +9,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/logger"
+	relaycommon "github.com/QuantumNous/new-api/relay/common"
 
 	"github.com/gin-gonic/gin"
 )
@@ -37,6 +38,13 @@ func ShouldCopyUpstreamHeader(c *gin.Context, k string, v []string) bool {
 			c.Set(common.UpstreamRequestIdKey, v[0])
 		}
 		return false
+	}
+	// When the response body has been rewritten, strip integrity headers
+	// that would be invalid against the modified content.
+	if relaycommon.IsResponseBodyRewritten(c) {
+		if strings.EqualFold(k, "ETag") || strings.EqualFold(k, "Content-MD5") {
+			return false
+		}
 	}
 	return true
 }

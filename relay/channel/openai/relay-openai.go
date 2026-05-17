@@ -27,7 +27,14 @@ func sendStreamData(c *gin.Context, info *relaycommon.RelayInfo, data string, fo
 		return nil
 	}
 
+	// Patch top-level model to caller model for raw passthrough path
 	if !forceFormat && !thinkToContent {
+		callerModel := relaycommon.GetCallerModelName(c, info)
+		patched, changed, err := relaycommon.PatchTopLevelModelRaw(common.StringToByteSlice(data), callerModel)
+		if err == nil && changed {
+			relaycommon.MarkResponseBodyRewritten(c)
+			return helper.StringData(c, string(patched))
+		}
 		return helper.StringData(c, data)
 	}
 
@@ -111,7 +118,7 @@ func OaiStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Re
 
 	defer service.CloseResponseBodyGracefully(resp)
 
-	model := info.UpstreamModelName
+	model := relaycommon.GetCallerModelName(c, info)
 	var responseId string
 	var createAt int64 = 0
 	var systemFingerprint string
@@ -292,6 +299,15 @@ func OpenaiHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Respo
 			return nil, types.NewError(err, types.ErrorCodeBadResponseBody)
 		}
 		responseBody = geminiRespStr
+	}
+
+	callerModel := relaycommon.GetCallerModelName(c, info)
+	if callerModel != "" {
+		patched, changed, err := relaycommon.PatchTopLevelModelRaw(responseBody, callerModel)
+		if err == nil && changed {
+			relaycommon.MarkResponseBodyRewritten(c)
+			responseBody = patched
+		}
 	}
 
 	service.IOCopyBytesGracefully(c, resp, responseBody)

@@ -272,7 +272,7 @@ func ollamaEmbeddingHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *h
 		data = append(data, dto.OpenAIEmbeddingResponseItem{Index: i, Object: "embedding", Embedding: emb})
 	}
 	usage := &dto.Usage{PromptTokens: oResp.PromptEvalCount, CompletionTokens: 0, TotalTokens: oResp.PromptEvalCount}
-	embResp := &dto.OpenAIEmbeddingResponse{Object: "list", Data: data, Model: info.UpstreamModelName, Usage: *usage}
+	embResp := &dto.OpenAIEmbeddingResponse{Object: "list", Data: data, Model: relaycommon.GetCallerModelName(c, info), Usage: *usage}
 	out, _ := common.Marshal(embResp)
 	service.IOCopyBytesGracefully(c, resp, out)
 	return usage, nil
