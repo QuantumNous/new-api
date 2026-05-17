@@ -915,7 +915,7 @@ const Home = () => {
                 }}
               >
                 {features.map((feature, index) => (
-                  <Reveal key={feature.title} delay={index * 70} distance={34}>
+                  <Reveal key={feature.title} delay={index * 70} distance={34} style={{ height: '100%' }}>
                     <div
                       className='uni-home-hover-card'
                       style={{
@@ -927,6 +927,7 @@ const Home = () => {
                         background: 'var(--semi-color-bg-1)',
                         borderRadius: 16,
                         border: '1px solid var(--semi-color-border)',
+                        height: '100%',
                       }}
                     >
                       <img
@@ -1168,7 +1169,7 @@ const Home = () => {
                 }}
               >
                 {serviceCards.map((card, index) => (
-                  <Reveal key={card.title} delay={index * 90} distance={30}>
+                  <Reveal key={card.title} delay={index * 90} distance={30} style={{ height: '100%' }}>
                     <div
                       className='uni-home-hover-card'
                       style={{
@@ -1178,6 +1179,7 @@ const Home = () => {
                         background: 'var(--semi-color-bg-1)',
                         border: '1px solid var(--semi-color-border)',
                         borderRadius: 16,
+                        height: '100%',
                       }}
                     >
                       <div
