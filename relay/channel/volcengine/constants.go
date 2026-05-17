@@ -12,6 +12,8 @@ var ModelList = []string{
 	"seedream-4-0-250828",
 	"doubao-seedance-1-0-pro-250528",
 	"seedance-1-0-pro-250528",
+	"doubao-seedance-2-0-260128",
+	"doubao-seedance-2-0-fast-260128",
 	"doubao-seed-1-6-thinking-250715",
 	"seed-1-6-thinking-250715",
 }

@@ -674,16 +674,22 @@ type TaskRelayInfo struct {
 }
 
 type TaskSubmitReq struct {
-	Prompt         string                 `json:"prompt"`
-	Model          string                 `json:"model,omitempty"`
-	Mode           string                 `json:"mode,omitempty"`
-	Image          string                 `json:"image,omitempty"`
-	Images         []string               `json:"images,omitempty"`
-	Size           string                 `json:"size,omitempty"`
-	Duration       int                    `json:"duration,omitempty"`
-	Seconds        string                 `json:"seconds,omitempty"`
-	InputReference string                 `json:"input_reference,omitempty"`
-	Metadata       map[string]interface{} `json:"metadata,omitempty"`
+	Prompt         string                   `json:"prompt"`
+	Model          string                   `json:"model,omitempty"`
+	Mode           string                   `json:"mode,omitempty"`
+	Image          string                   `json:"image,omitempty"`
+	Images         []string                 `json:"images,omitempty"`
+	Size           string                   `json:"size,omitempty"`
+	Duration       int                      `json:"duration,omitempty"`
+	Seconds        string                   `json:"seconds,omitempty"`
+	InputReference string                   `json:"input_reference,omitempty"`
+	Metadata       map[string]interface{}   `json:"metadata,omitempty"`
+	Content        []map[string]interface{} `json:"content,omitempty"`
+	GenerateAudio  *bool                    `json:"generate_audio,omitempty"`
+	Ratio          string                   `json:"ratio,omitempty"`
+	AspectRatio    string                   `json:"aspect_ratio,omitempty"`
+	Resolution     string                   `json:"resolution,omitempty"`
+	Watermark      *bool                    `json:"watermark,omitempty"`
 }
 
 func (t *TaskSubmitReq) GetPrompt() string {
@@ -763,6 +769,7 @@ type TaskInfo struct {
 	Url              string `json:"url,omitempty"`
 	RemoteUrl        string `json:"remote_url,omitempty"`
 	Progress         string `json:"progress,omitempty"`
+	PromptTokens     int    `json:"prompt_tokens,omitempty"`     // 用量展示 / 日志
 	CompletionTokens int    `json:"completion_tokens,omitempty"` // 用于按倍率计费
 	TotalTokens      int    `json:"total_tokens,omitempty"`      // 用于按倍率计费
 }

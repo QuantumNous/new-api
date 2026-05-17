@@ -122,6 +122,11 @@ func testChannel(channel *model.Channel, testModel string, endpointType string, 
 			requestPath = "/v1/images/generations"
 		}
 
+		// VolcEngine 视频生成模型
+		if channel.Type == constant.ChannelTypeVolcEngine && strings.Contains(testModel, "seedance") {
+			requestPath = "/v1/imagegen/video"
+		}
+
 		// responses-only models
 		if strings.Contains(strings.ToLower(testModel), "codex") {
 			requestPath = "/v1/responses"
@@ -200,6 +205,9 @@ func testChannel(channel *model.Channel, testModel string, endpointType string, 
 			relayFormat = types.RelayFormatEmbedding
 		}
 		if c.Request.URL.Path == "/v1/images/generations" {
+			relayFormat = types.RelayFormatOpenAIImage
+		}
+		if c.Request.URL.Path == "/v1/imagegen/video" {
 			relayFormat = types.RelayFormatOpenAIImage
 		}
 		if c.Request.URL.Path == "/v1/messages" {

@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <title>new-api 视频生成对接文档（技术版·1页）</title>
+  <style>
+    body { font-family: "Microsoft YaHei", "SimSun", sans-serif; line-height: 1.5; font-size: 12pt; color: #111; }
+    h1 { font-size: 20pt; margin: 0 0 12px 0; }
+    h2 { font-size: 14pt; margin: 18px 0 8px 0; }
+    p, li { margin: 4px 0; }
+    code, pre { font-family: Consolas, "Courier New", monospace; font-size: 10.5pt; }
+    pre { background: #f6f8fa; border: 1px solid #ddd; padding: 10px; white-space: pre-wrap; word-wrap: break-word; }
+    table { border-collapse: collapse; width: 100%; margin: 8px 0; }
+    th, td { border: 1px solid #ccc; padding: 6px 8px; text-align: left; vertical-align: top; }
+    .muted { color: #555; }
+  </style>
+</head>
+<body>
+  <h1>new-api 视频生成对接文档（技术版·1页）</h1>
+
+  <p><b>网关地址：</b><code>http://115.190.186.95:3000</code></p>
+  <p><b>适用模型：</b>字节火山方舟视频模型（如 <code>seed-2-0-pro-260328</code> 对应接入点）</p>
+  <p><b>说明：</b>输入参数与官方一致；查询输出按本网关实际返回解析。</p>
+  <p><b>网关入口：</b><a href="http://115.190.186.95:3000/">http://115.190.186.95:3000/</a></p>
+  <p><b>官方输入参考：</b>
+    <a href="https://www.volcengine.com/docs/82379/1393047">Seedance 2.0 API 参考</a>、
+    <a href="https://www.volcengine.com/docs/82379/1585128?lang=zh">Responses API 迁移说明</a>
+  </p>
+
+  <h2>1) 鉴权与接口</h2>
+  <ul>
+    <li>Header: <code>Authorization: Bearer {YOUR_NEWAPI_TOKEN}</code></li>
+    <li>Header: <code>Content-Type: application/json</code></li>
+    <li>创建任务: <code>POST /v1/video/generations</code></li>
+    <li>查询任务: <code>GET /v1/video/generations/{task_id}</code></li>
+  </ul>
+  <p class="muted">请固定使用以上两条 <code>/v1/video/generations</code> 路由，不要与 <code>/v1/videos/{task_id}</code> 混用（返回结构不同）。</p>
+
+  <h2>2) 创建任务（输入=官方格式透传）</h2>
+  <p>请求体按火山方舟官方字段组织（示例）：</p>
+  <pre>{
+  "model": "ep-20260421151549-v6kls",
+  "content": [
+    {
+      "type": "text",
+      "text": "一只猫在赛博朋克城市屋顶奔跑，电影级镜头"
+    }
+  ],
+  "duration": 10,
+  "ratio": "9:16",
+  "resolution": "720p",
+  "seed": 9919,
+  "generate_audio": true
+}</pre>
+
+  <p>创建响应（示例）：</p>
+  <pre>{
+  "id": "task_tPnDwqDZuBxgY7OBA3kOLgNHxkjvQllH",
+  "task_id": "task_tPnDwqDZuBxgY7OBA3kOLgNHxkjvQllH",
+  "object": "video",
+  "model": "ep-20260421151549-v6kls",
+  "status": "queued",
+  "progress": 0,
+  "created_at": 1777283108
+}</pre>
+
+  <h2>3) 查询任务（输出=网关实际格式）</h2>
+  <p>固定外层结构：</p>
+  <pre>{
+  "code": "success",
+  "message": "",
+  "data": { ... }
+}</pre>
+  <ul>
+    <li><code>code</code>: 接口是否调用成功（成功通常为 <code>success</code>）</li>
+    <li><code>data</code>: 任务详情（核心）</li>
+  </ul>
+
+  <p><code>data</code> 核心字段：</p>
+  <table>
+    <tr><th>字段</th><th>说明</th></tr>
+    <tr><td><code>task_id</code></td><td>任务ID</td></tr>
+    <tr><td><code>status</code></td><td>顶层任务状态：<code>IN_PROGRESS</code> / <code>SUCCESS</code> / <code>FAILURE</code></td></tr>
+    <tr><td><code>progress</code></td><td>百分比字符串，如 <code>50%</code>、<code>100%</code></td></tr>
+    <tr><td><code>result_url</code></td><td>成功后的视频URL（优先使用）</td></tr>
+    <tr><td><code>fail_reason</code></td><td>失败原因</td></tr>
+    <tr><td><code>data.status</code></td><td>上游原始状态，如 <code>running</code> / <code>succeeded</code></td></tr>
+    <tr><td><code>data.content.video_url</code></td><td>上游原始视频URL（成功时可作兜底）</td></tr>
+  </table>
+
+  <h2>4) 状态流转与解析规则</h2>
+  <ul>
+    <li><code>IN_PROGRESS</code>: 继续轮询</li>
+    <li><code>SUCCESS</code>: 任务完成</li>
+    <li><code>FAILURE</code>: 任务失败</li>
+  </ul>
+  <p>建议按以下优先级解析：</p>
+  <ol>
+    <li>判断外层 <code>code == "success"</code></li>
+    <li>判断 <code>data.status</code></li>
+    <li>成功取地址：优先 <code>data.result_url</code>，兜底 <code>data.data.content.video_url</code></li>
+    <li>失败取原因：优先 <code>data.fail_reason</code>，兜底 <code>data.data.error.message</code>（若有）</li>
+  </ol>
+
+  <h2>5) 典型查询响应示例</h2>
+  <p>进行中：</p>
+  <pre>{
+  "code": "success",
+  "message": "",
+  "data": {
+    "task_id": "task_tPnDwqDZuBxgY7OBA3kOLgNHxkjvQllH",
+    "status": "IN_PROGRESS",
+    "progress": "50%",
+    "fail_reason": "",
+    "data": {
+      "status": "running"
+    }
+  }
+}</pre>
+
+  <p>已完成：</p>
+  <pre>{
+  "code": "success",
+  "message": "",
+  "data": {
+    "task_id": "task_tPnDwqDZuBxgY7OBA3kOLgNHxkjvQllH",
+    "status": "SUCCESS",
+    "progress": "100%",
+    "result_url": "https://xxx.mp4",
+    "fail_reason": "",
+    "data": {
+      "status": "succeeded",
+      "content": {
+        "video_url": "https://xxx.mp4"
+      }
+    }
+  }
+}</pre>
+
+  <h2>6) 轮询与容错建议</h2>
+  <ul>
+    <li>轮询间隔：<code>2~3s</code></li>
+    <li>超时：<code>5~10min</code>（按业务调整）</li>
+    <li>停止条件：<code>SUCCESS</code> 或 <code>FAILURE</code></li>
+    <li>错误处理：<code>400</code> 参数错误；<code>401/403</code> 鉴权失败；<code>429</code> 限流退避；<code>5xx</code> 指数退避重试</li>
+    <li><code>result_url</code> 可能为签名地址，建议完成后尽快下载/转存</li>
+  </ul>
+
+  <h2>7) 最小对接流程</h2>
+  <ol>
+    <li>调用 <code>POST /v1/video/generations</code> 提交任务，拿到 <code>task_id</code></li>
+    <li>轮询 <code>GET /v1/video/generations/{task_id}</code></li>
+    <li><code>data.status == SUCCESS</code> 时读取 <code>data.result_url</code> 获取视频</li>
+  </ol>
+</body>
+</html>

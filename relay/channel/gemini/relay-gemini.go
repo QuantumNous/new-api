@@ -64,11 +64,84 @@ const (
 func isNew25ProModel(modelName string) bool {
 	return strings.HasPrefix(modelName, "gemini-2.5-pro") &&
 		!strings.HasPrefix(modelName, "gemini-2.5-pro-preview-05-06") &&
-		!strings.HasPrefix(modelName, "gemini-2.5-pro-preview-03-25")
+		!strings.HasPrefix(modelName, "gemini-2.5-pro-preview-03-25") &&
+		!isGeminiPreviewTTSModel(modelName)
 }
 
 func is25FlashLiteModel(modelName string) bool {
 	return strings.HasPrefix(modelName, "gemini-2.5-flash-lite")
+}
+
+// isGeminiPreviewTTSModel 判断是否为 Gemini generateContent 的 TTS 模型（仅支持 AUDIO 输出，需 speechConfig）。
+// 涵盖：*-preview-tts（如 gemini-2.5-*-preview-tts）、*-tts-preview（如 gemini-3.1-flash-tts-preview）。
+func isGeminiPreviewTTSModel(modelName string) bool {
+	if strings.Contains(modelName, "-preview-tts") {
+		return true
+	}
+	return strings.Contains(modelName, "-tts-preview")
+}
+
+// applyGeminiPreviewTTSGenerationDefaults 为原生 TTS 模型（见 isGeminiPreviewTTSModel）补齐上游必需的 generationConfig
+func applyGeminiPreviewTTSGenerationDefaults(gc *dto.GeminiChatGenerationConfig) {
+	if gc == nil {
+		return
+	}
+	gc.ResponseModalities = []string{"AUDIO"}
+	if gc.ResponseMimeType == "application/json" {
+		gc.ResponseMimeType = ""
+		gc.ResponseSchema = nil
+		gc.ResponseJsonSchema = nil
+	}
+	if len(gc.SpeechConfig) == 0 {
+		b, err := common.Marshal(map[string]interface{}{
+			"voiceConfig": map[string]interface{}{
+				"prebuiltVoiceConfig": map[string]interface{}{
+					"voiceName": "Algenib",
+				},
+			},
+		})
+		if err == nil {
+			gc.SpeechConfig = json.RawMessage(b)
+		}
+	}
+}
+
+// normalizeSpeechConfigMapForGeminiAPI 将 extra_body 中的 speech_config（支持 snake_case）转为 Gemini API 所需的 camelCase 结构
+func normalizeSpeechConfigMapForGeminiAPI(in map[string]interface{}) map[string]interface{} {
+	if len(in) == 0 {
+		return nil
+	}
+	var vc map[string]interface{}
+	if v, ok := in["voice_config"].(map[string]interface{}); ok {
+		vc = v
+	} else if v, ok := in["voiceConfig"].(map[string]interface{}); ok {
+		vc = v
+	}
+	if vc == nil {
+		return in
+	}
+	outVC := make(map[string]interface{})
+	var pbc map[string]interface{}
+	if v, ok := vc["prebuilt_voice_config"].(map[string]interface{}); ok {
+		pbc = v
+	} else if v, ok := vc["prebuiltVoiceConfig"].(map[string]interface{}); ok {
+		pbc = v
+	}
+	if pbc != nil {
+		geminiPBC := make(map[string]interface{})
+		if vn, ok := pbc["voice_name"]; ok {
+			geminiPBC["voiceName"] = vn
+		} else if vn, ok := pbc["voiceName"]; ok {
+			geminiPBC["voiceName"] = vn
+		}
+		if len(geminiPBC) > 0 {
+			outVC["prebuiltVoiceConfig"] = geminiPBC
+		}
+	}
+	if len(outVC) == 0 {
+		return in
+	}
+	return map[string]interface{}{"voiceConfig": outVC}
 }
 
 // clampThinkingBudget 根据模型名称将预算限制在允许的范围内
@@ -132,6 +205,9 @@ func clampThinkingBudgetByEffort(modelName string, effort string) int {
 }
 
 func ThinkingAdaptor(geminiRequest *dto.GeminiChatRequest, info *relaycommon.RelayInfo, oaiRequest ...dto.GeneralOpenAIRequest) {
+	if isGeminiPreviewTTSModel(info.UpstreamModelName) {
+		return
+	}
 	if model_setting.GetGeminiSettings().ThinkingAdapterEnabled {
 		modelName := info.UpstreamModelName
 		isNew25Pro := strings.HasPrefix(modelName, "gemini-2.5-pro") &&
@@ -347,6 +423,20 @@ func CovertOpenAI2Gemini(c *gin.Context, textRequest dto.GeneralOpenAIRequest, i
 						return nil, fmt.Errorf("failed to marshal image_config: %w", err)
 					}
 					geminiRequest.GenerationConfig.ImageConfig = imageConfigBytes
+				}
+			}
+
+			if _, hasErrorParam := googleBody["speechConfig"]; hasErrorParam {
+				return nil, errors.New("extra_body.google.speechConfig is not supported, use extra_body.google.speech_config instead")
+			}
+			if speechConfig, ok := googleBody["speech_config"].(map[string]interface{}); ok {
+				geminiSpeech := normalizeSpeechConfigMapForGeminiAPI(speechConfig)
+				if len(geminiSpeech) > 0 {
+					speechBytes, err := common.Marshal(geminiSpeech)
+					if err != nil {
+						return nil, fmt.Errorf("failed to marshal speech_config: %w", err)
+					}
+					geminiRequest.GenerationConfig.SpeechConfig = speechBytes
 				}
 			}
 		}
@@ -639,6 +729,10 @@ func CovertOpenAI2Gemini(c *gin.Context, textRequest dto.GeneralOpenAIRequest, i
 				},
 			},
 		}
+	}
+
+	if isGeminiPreviewTTSModel(info.UpstreamModelName) {
+		applyGeminiPreviewTTSGenerationDefaults(&geminiRequest.GenerationConfig)
 	}
 
 	return &geminiRequest, nil

@@ -71,9 +71,11 @@ func GetTaskRequest(c *gin.Context) (TaskSubmitReq, error) {
 	return req, nil
 }
 
-func validatePrompt(prompt string) *dto.TaskError {
+func validatePrompt(prompt string, content []map[string]interface{}) *dto.TaskError {
 	if strings.TrimSpace(prompt) == "" {
-		return createTaskError(fmt.Errorf("prompt is required"), "invalid_request", http.StatusBadRequest, true)
+		if len(content) == 0 {
+			return createTaskError(fmt.Errorf("prompt is required"), "invalid_request", http.StatusBadRequest, true)
+		}
 	}
 	return nil
 }
@@ -149,7 +151,7 @@ func ValidateMultipartDirect(c *gin.Context, info *RelayInfo) *dto.TaskError {
 		hasInputReference = true
 	}
 
-	if taskErr := validatePrompt(prompt); taskErr != nil {
+	if taskErr := validatePrompt(prompt, req.Content); taskErr != nil {
 		return taskErr
 	}
 
@@ -210,7 +212,7 @@ func ValidateBasicTaskRequest(c *gin.Context, info *RelayInfo, action string) *d
 		return createTaskError(err, "invalid_request", http.StatusBadRequest, true)
 	}
 
-	if taskErr := validatePrompt(req.Prompt); taskErr != nil {
+	if taskErr := validatePrompt(req.Prompt, req.Content); taskErr != nil {
 		return taskErr
 	}
 

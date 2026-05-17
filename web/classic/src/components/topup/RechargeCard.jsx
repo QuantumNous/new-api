@@ -571,9 +571,19 @@ const RechargeCard = ({
         <Card
           className='!rounded-xl w-full'
           title={
-            <Text type='tertiary' strong>
-              {t('兑换码充值')}
-            </Text>
+            <div className='flex items-center gap-2'>
+              <Text type='tertiary' strong>
+                {t('兑换码充值')}
+              </Text>
+              <a
+                href='http://83zi.com/faka.html'
+                target='_blank'
+                rel='noopener noreferrer'
+                className='text-blue-500 hover:text-blue-600'
+              >
+                购买兑换码
+              </a>
+            </div>
           }
         >
           <Form

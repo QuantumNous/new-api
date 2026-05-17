@@ -45,10 +45,19 @@ i18n
       ja: jaTranslation,
       vi: viTranslation,
     },
-    fallbackLng: 'zh-CN',
+    // 中文优先：缺 key 时先简体再英文；繁体先简体再英文
+    fallbackLng: {
+      'zh-TW': ['zh-CN', 'en'],
+      'zh-CN': ['en'],
+      default: ['zh-CN', 'en'],
+    },
     nsSeparator: false,
     interpolation: {
       escapeValue: false,
+    },
+    detection: {
+      order: ['localStorage', 'navigator'],
+      caches: ['localStorage'],
     },
   });
 

@@ -16,7 +16,8 @@ import (
 
 // LogTaskConsumption 记录任务消费日志和统计信息（仅记录，不涉及实际扣费）。
 // 实际扣费已由 BillingSession（PreConsumeBilling + SettleBilling）完成。
-func LogTaskConsumption(c *gin.Context, info *relaycommon.RelayInfo) {
+// publicTaskID 为网关侧任务公开 ID，任务完成后用于回写 prompt/completion 用量列。
+func LogTaskConsumption(c *gin.Context, info *relaycommon.RelayInfo, publicTaskID string) {
 	tokenName := c.GetString("token_name")
 	logContent := fmt.Sprintf("操作 %s", info.Action)
 	// 支持任务仅按次计费
@@ -49,6 +50,9 @@ func LogTaskConsumption(c *gin.Context, info *relaycommon.RelayInfo) {
 	if info.IsModelMapped {
 		other["is_model_mapped"] = true
 		other["upstream_model_name"] = info.UpstreamModelName
+	}
+	if publicTaskID != "" {
+		other["public_task_id"] = publicTaskID
 	}
 	model.RecordConsumeLog(c, info.UserId, model.RecordConsumeLogParams{
 		ChannelId: info.ChannelId,
@@ -164,6 +168,12 @@ func RefundTaskQuota(ctx context.Context, task *model.Task, reason string) {
 	// 2. 退还令牌额度
 	taskAdjustTokenQuota(ctx, task, -quota)
 
+	// 与提交时 LogTaskConsumption 的已用统计对齐：预扣退还后扣减累计已用与渠道已用
+	model.AdjustUserUsedQuota(task.UserId, -quota)
+	if task.ChannelId > 0 {
+		model.UpdateChannelUsedQuota(task.ChannelId, -quota)
+	}
+
 	// 3. 记录日志
 	other := taskBillingOther(task)
 	other["task_id"] = task.TaskID
@@ -181,10 +191,59 @@ func RefundTaskQuota(ctx context.Context, task *model.Task, reason string) {
 	})
 }
 
+// derivePromptCompletionFromTaskInfo 从任务轮询结果推导用于用量日志的输入/输出 token。
+func derivePromptCompletionFromTaskInfo(tr *relaycommon.TaskInfo) (prompt int, completion int) {
+	if tr == nil {
+		return 0, 0
+	}
+	prompt = tr.PromptTokens
+	completion = tr.CompletionTokens
+	if completion <= 0 && tr.TotalTokens > 0 {
+		completion = tr.TotalTokens
+	}
+	if prompt <= 0 && tr.TotalTokens > 0 && completion > 0 {
+		if p := tr.TotalTokens - completion; p > 0 {
+			prompt = p
+		}
+	}
+	return prompt, completion
+}
+
+// ReportTaskUsageToConsumeLog 任务成功完成后，将上游 usage 写回提交时的消费日志；无法匹配时补一条额度为 0 的用量记录。
+func ReportTaskUsageToConsumeLog(task *model.Task, taskResult *relaycommon.TaskInfo) {
+	if task == nil || taskResult == nil {
+		return
+	}
+	pt, ct := derivePromptCompletionFromTaskInfo(taskResult)
+	if pt <= 0 && ct <= 0 {
+		return
+	}
+	if model.TryPatchTaskConsumeLogTokens(task.UserId, task.TaskID, pt, ct) {
+		return
+	}
+	other := taskBillingOther(task)
+	other["task_id"] = task.TaskID
+	other["is_task_usage_only"] = true
+	model.RecordTaskBillingLog(model.RecordTaskBillingLogParams{
+		UserId:             task.UserId,
+		LogType:            model.LogTypeConsume,
+		Content:            "任务完成用量",
+		ChannelId:          task.ChannelId,
+		ModelName:          taskModelName(task),
+		Quota:              0,
+		TokenId:            task.PrivateData.TokenId,
+		Group:              task.Group,
+		Other:              other,
+		PromptTokens:       pt,
+		CompletionTokens:   ct,
+	})
+}
+
 // RecalculateTaskQuota 通用的异步差额结算。
 // actualQuota 是任务完成后的实际应扣额度，与预扣额度 (task.Quota) 做差额结算。
 // reason 用于日志记录（例如 "token重算" 或 "adaptor调整"）。
-func RecalculateTaskQuota(ctx context.Context, task *model.Task, actualQuota int, reason string) {
+// usageForLog 可选，用于在差额结算日志中写入 prompt/completion token（与额度无关）。
+func RecalculateTaskQuota(ctx context.Context, task *model.Task, actualQuota int, reason string, usageForLog *relaycommon.TaskInfo) {
 	if actualQuota <= 0 {
 		return
 	}
@@ -226,29 +285,39 @@ func RecalculateTaskQuota(ctx context.Context, task *model.Task, actualQuota int
 	} else {
 		logType = model.LogTypeRefund
 		logQuota = -quotaDelta
+		model.AdjustUserUsedQuota(task.UserId, quotaDelta)
+		if task.ChannelId > 0 {
+			model.UpdateChannelUsedQuota(task.ChannelId, quotaDelta)
+		}
 	}
 	other := taskBillingOther(task)
 	other["task_id"] = task.TaskID
 	other["pre_consumed_quota"] = preConsumedQuota
 	other["actual_quota"] = actualQuota
+	pt, ct := 0, 0
+	if usageForLog != nil {
+		pt, ct = derivePromptCompletionFromTaskInfo(usageForLog)
+	}
 	model.RecordTaskBillingLog(model.RecordTaskBillingLogParams{
-		UserId:    task.UserId,
-		LogType:   logType,
-		Content:   reason,
-		ChannelId: task.ChannelId,
-		ModelName: taskModelName(task),
-		Quota:     logQuota,
-		TokenId:   task.PrivateData.TokenId,
-		Group:     task.Group,
-		Other:     other,
+		UserId:             task.UserId,
+		LogType:            logType,
+		Content:            reason,
+		ChannelId:          task.ChannelId,
+		ModelName:          taskModelName(task),
+		Quota:              logQuota,
+		TokenId:            task.PrivateData.TokenId,
+		Group:              task.Group,
+		Other:              other,
+		PromptTokens:       pt,
+		CompletionTokens:   ct,
 	})
 }
 
 // RecalculateTaskQuotaByTokens 根据实际 token 消耗重新计费（异步差额结算）。
 // 当任务成功且返回了 totalTokens 时，根据模型倍率和分组倍率重新计算实际扣费额度，
 // 与预扣费的差额进行补扣或退还。支持钱包和订阅计费来源。
-func RecalculateTaskQuotaByTokens(ctx context.Context, task *model.Task, totalTokens int) {
-	if totalTokens <= 0 {
+func RecalculateTaskQuotaByTokens(ctx context.Context, task *model.Task, taskResult *relaycommon.TaskInfo) {
+	if taskResult == nil || taskResult.TotalTokens <= 0 {
 		return
 	}
 
@@ -294,8 +363,8 @@ func RecalculateTaskQuotaByTokens(ctx context.Context, task *model.Task, totalTo
 	}
 
 	// 计算实际应扣费额度: totalTokens * modelRatio * groupRatio * otherMultiplier
-	actualQuota := int(float64(totalTokens) * modelRatio * finalGroupRatio * otherMultiplier)
+	actualQuota := int(float64(taskResult.TotalTokens) * modelRatio * finalGroupRatio * otherMultiplier)
 
-	reason := fmt.Sprintf("token重算：tokens=%d, modelRatio=%.2f, groupRatio=%.2f, otherMultiplier=%.4f", totalTokens, modelRatio, finalGroupRatio, otherMultiplier)
-	RecalculateTaskQuota(ctx, task, actualQuota, reason)
+	reason := fmt.Sprintf("token重算：tokens=%d, modelRatio=%.2f, groupRatio=%.2f, otherMultiplier=%.4f", taskResult.TotalTokens, modelRatio, finalGroupRatio, otherMultiplier)
+	RecalculateTaskQuota(ctx, task, actualQuota, reason, taskResult)
 }

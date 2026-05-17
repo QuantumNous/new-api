@@ -189,6 +189,10 @@ type ChannelSpecialBase struct {
 	OpenAIBaseURL string
 }
 
+// VolcEngineOpenSpeechTTSV3BaseURL 为火山豆包 OpenSpeech「语音合成 HTTP V3（单向 NDJSON）」渠道占位 Base URL。
+// 在「字节火山」类渠道中将 API 地址填为此值（或填完整 unidirectional URL）时，/v1/audio/speech 将走 V3 协议（X-Api-App-Id / Access-Key / Resource-Id），密钥格式仍为 appid|access_token。
+const VolcEngineOpenSpeechTTSV3BaseURL = "openspeech-tts-v3"
+
 var ChannelSpecialBases = map[string]ChannelSpecialBase{
 	"glm-coding-plan": {
 		ClaudeBaseURL: "https://open.bigmodel.cn/api/anthropic",

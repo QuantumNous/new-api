@@ -377,22 +377,30 @@ func updateVideoSingleTask(ctx context.Context, adaptor TaskPollingAdaptor, ch *
 	snap := task.Snapshot()
 
 	taskResult := &relaycommon.TaskInfo{}
-	// try parse as New API response format
-	var responseItems dto.TaskResponse[model.Task]
+	// try parse as New API response format（必须用 TaskDto：model.Task 的 PrivateData 为 json:"-"，
+	// 上游 JSON 顶层的 result_url 无法反序列化进 PrivateData，会导致 Url 为空并错误回退为 BuildProxyURL 自引用）
+	var responseItems dto.TaskResponse[dto.TaskDto]
+	var dtoInnerData []byte
 	if err = common.Unmarshal(responseBody, &responseItems); err == nil && responseItems.IsSuccess() {
 		logger.LogDebug(ctx, fmt.Sprintf("updateVideoSingleTask parsed as new api response format: %+v", responseItems))
 		t := responseItems.Data
 		taskResult.TaskID = t.TaskID
-		taskResult.Status = string(t.Status)
-		taskResult.Url = t.GetResultURL()
+		taskResult.Status = t.Status
+		taskResult.Url = t.ResultURL
 		taskResult.Progress = t.Progress
 		taskResult.Reason = t.FailReason
 		task.Data = t.Data
+		dtoInnerData = t.Data
 	} else if taskResult, err = adaptor.ParseTaskResult(responseBody); err != nil {
 		return fmt.Errorf("parseTaskResult failed for task %s: %w", taskId, err)
 	}
 
+	mergeTaskUsageFromNestedJSON(dtoInnerData, taskResult)
+	mergeTaskUsageFromNestedJSON(responseBody, taskResult)
+
 	task.Data = redactVideoResponseBody(responseBody)
+
+	mergeTaskUsageFromNestedJSON(task.Data, taskResult)
 
 	logger.LogDebug(ctx, fmt.Sprintf("updateVideoSingleTask taskResult: %+v", taskResult))
 
@@ -548,13 +556,46 @@ func settleTaskBillingOnComplete(ctx context.Context, adaptor TaskPollingAdaptor
 	}
 	// 1. 优先让 adaptor 决定最终额度
 	if actualQuota := adaptor.AdjustBillingOnComplete(task, taskResult); actualQuota > 0 {
-		RecalculateTaskQuota(ctx, task, actualQuota, "adaptor计费调整")
+		RecalculateTaskQuota(ctx, task, actualQuota, "adaptor计费调整", taskResult)
+	} else if taskResult != nil && taskResult.TotalTokens > 0 {
+		// 2. 回退到 token 重算
+		RecalculateTaskQuotaByTokens(ctx, task, taskResult)
+	}
+	// 3. 将 usage 写回消费日志（与额度差额是否为零无关）
+	ReportTaskUsageToConsumeLog(task, taskResult)
+}
+
+// mergeTaskUsageFromNestedJSON 从视频/方舟等嵌套 JSON 的 usage 块补全 TaskInfo（New API 轮询路径常不经 adaptor.ParseTaskResult）。
+func mergeTaskUsageFromNestedJSON(raw []byte, taskResult *relaycommon.TaskInfo) {
+	if len(raw) == 0 || taskResult == nil {
 		return
 	}
-	// 2. 回退到 token 重算
-	if taskResult.TotalTokens > 0 {
-		RecalculateTaskQuotaByTokens(ctx, task, taskResult.TotalTokens)
+	var payload struct {
+		Usage struct {
+			TotalTokens      int `json:"total_tokens"`
+			CompletionTokens int `json:"completion_tokens"`
+			PromptTokens     int `json:"prompt_tokens"`
+		} `json:"usage"`
+	}
+	if err := common.Unmarshal(raw, &payload); err != nil {
 		return
 	}
-	// 3. 无调整，保持预扣额度
+	u := payload.Usage
+	if u.TotalTokens <= 0 && u.CompletionTokens <= 0 && u.PromptTokens <= 0 {
+		return
+	}
+	if taskResult.TotalTokens <= 0 && u.TotalTokens > 0 {
+		taskResult.TotalTokens = u.TotalTokens
+	}
+	if taskResult.CompletionTokens <= 0 && u.CompletionTokens > 0 {
+		taskResult.CompletionTokens = u.CompletionTokens
+	}
+	if taskResult.PromptTokens <= 0 && u.PromptTokens > 0 {
+		taskResult.PromptTokens = u.PromptTokens
+	}
+	if taskResult.PromptTokens <= 0 && taskResult.TotalTokens > 0 && taskResult.CompletionTokens > 0 {
+		if p := taskResult.TotalTokens - taskResult.CompletionTokens; p > 0 {
+			taskResult.PromptTokens = p
+		}
+	}
 }

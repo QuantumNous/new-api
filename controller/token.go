@@ -227,9 +227,11 @@ func AddToken(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
+	// 创建成功时返回完整 key（仅此一次），供外部系统（如 Webman 渠道注册）保存为 API Token。
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",
+		"data":    cleanToken.GetFullKey(),
 	})
 }
 

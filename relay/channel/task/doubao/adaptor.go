@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
@@ -22,6 +23,10 @@ import (
 	"github.com/pkg/errors"
 	"github.com/samber/lo"
 )
+
+func isVolcEngineOfficial(baseURL string) bool {
+	return strings.HasPrefix(baseURL, "https://ark.") || strings.HasPrefix(baseURL, "https://visual.")
+}
 
 // ============================
 // Request / Response structures
@@ -121,7 +126,10 @@ func (a *TaskAdaptor) ValidateRequestAndSetAction(c *gin.Context, info *relaycom
 
 // BuildRequestURL constructs the upstream URL.
 func (a *TaskAdaptor) BuildRequestURL(_ *relaycommon.RelayInfo) (string, error) {
-	return fmt.Sprintf("%s/api/v3/contents/generations/tasks", a.baseURL), nil
+	if isVolcEngineOfficial(a.baseURL) {
+		return fmt.Sprintf("%s/api/v3/contents/generations/tasks", a.baseURL), nil
+	}
+	return fmt.Sprintf("%s/v1/video/generations", a.baseURL), nil
 }
 
 // BuildRequestHeader sets required headers.
@@ -241,7 +249,12 @@ func (a *TaskAdaptor) FetchTask(baseUrl, key string, body map[string]any, proxy 
 		return nil, fmt.Errorf("invalid task_id")
 	}
 
-	uri := fmt.Sprintf("%s/api/v3/contents/generations/tasks/%s", baseUrl, taskID)
+	var uri string
+	if isVolcEngineOfficial(baseUrl) {
+		uri = fmt.Sprintf("%s/api/v3/contents/generations/tasks/%s", baseUrl, taskID)
+	} else {
+		uri = fmt.Sprintf("%s/v1/video/generations/%s", baseUrl, taskID)
+	}
 
 	req, err := http.NewRequest(http.MethodGet, uri, nil)
 	if err != nil {
@@ -269,20 +282,59 @@ func (a *TaskAdaptor) GetChannelName() string {
 
 func (a *TaskAdaptor) convertToRequestPayload(req *relaycommon.TaskSubmitReq) (*requestPayload, error) {
 	r := requestPayload{
-		Model:   req.Model,
-		Content: []ContentItem{},
+		Model: req.Model,
 	}
 
-	// Add images if present
-	if req.HasImage() {
-		for _, imgURL := range req.Images {
-			r.Content = append(r.Content, ContentItem{
-				Type: "image_url",
-				ImageURL: &MediaURL{
-					URL: imgURL,
-				},
-			})
+	// Use Content array if provided
+	if len(req.Content) > 0 {
+		for _, item := range req.Content {
+			contentItem := ContentItem{}
+			if t, ok := item["type"].(string); ok {
+				contentItem.Type = t
+			}
+			if text, ok := item["text"].(string); ok {
+				contentItem.Text = text
+			}
+			if imageURL, ok := item["image_url"].(map[string]interface{}); ok {
+				if url, ok := imageURL["url"].(string); ok {
+					contentItem.ImageURL = &MediaURL{URL: url}
+				}
+			}
+			if videoURL, ok := item["video_url"].(map[string]interface{}); ok {
+				if url, ok := videoURL["url"].(string); ok {
+					contentItem.VideoURL = &MediaURL{URL: url}
+				}
+			}
+			if audioURL, ok := item["audio_url"].(map[string]interface{}); ok {
+				if url, ok := audioURL["url"].(string); ok {
+					contentItem.AudioURL = &MediaURL{URL: url}
+				}
+			}
+			if role, ok := item["role"].(string); ok {
+				contentItem.Role = role
+			}
+			r.Content = append(r.Content, contentItem)
 		}
+	} else {
+		r.Content = []ContentItem{}
+
+		// Add images if present
+		if req.HasImage() {
+			for _, imgURL := range req.Images {
+				r.Content = append(r.Content, ContentItem{
+					Type: "image_url",
+					ImageURL: &MediaURL{
+						URL: imgURL,
+					},
+				})
+			}
+		}
+
+		r.Content = lo.Reject(r.Content, func(c ContentItem, _ int) bool { return c.Type == "text" })
+		r.Content = append(r.Content, ContentItem{
+			Type: "text",
+			Text: req.Prompt,
+		})
 	}
 
 	metadata := req.Metadata
@@ -294,11 +346,24 @@ func (a *TaskAdaptor) convertToRequestPayload(req *relaycommon.TaskSubmitReq) (*
 		r.Duration = lo.ToPtr(dto.IntValue(sec))
 	}
 
-	r.Content = lo.Reject(r.Content, func(c ContentItem, _ int) bool { return c.Type == "text" })
-	r.Content = append(r.Content, ContentItem{
-		Type: "text",
-		Text: req.Prompt,
-	})
+	if req.Duration > 0 {
+		r.Duration = lo.ToPtr(dto.IntValue(req.Duration))
+	}
+	if req.Ratio != "" {
+		r.Ratio = req.Ratio
+	}
+	if req.AspectRatio != "" {
+		r.Ratio = req.AspectRatio
+	}
+	if req.Resolution != "" {
+		r.Resolution = req.Resolution
+	}
+	if req.GenerateAudio != nil {
+		r.GenerateAudio = lo.ToPtr(dto.BoolValue(*req.GenerateAudio))
+	}
+	if req.Watermark != nil {
+		r.Watermark = lo.ToPtr(dto.BoolValue(*req.Watermark))
+	}
 
 	return &r, nil
 }

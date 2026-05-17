@@ -25,8 +25,10 @@ import (
 )
 
 const (
-	contextKeyTTSRequest     = "volcengine_tts_request"
-	contextKeyResponseFormat = "response_format"
+	contextKeyTTSRequest              = "volcengine_tts_request"
+	contextKeyResponseFormat          = "response_format"
+	contextKeyTTSOpenSpeechV3         = "volcengine_tts_openspeech_v3"
+	contextKeyTTSOpenSpeechV3Resource = "volcengine_tts_openspeech_v3_resource_id"
 )
 
 type Adaptor struct {
@@ -49,6 +51,25 @@ func (a *Adaptor) ConvertClaudeRequest(c *gin.Context, info *relaycommon.RelayIn
 func (a *Adaptor) ConvertAudioRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.AudioRequest) (io.Reader, error) {
 	if info.RelayMode != constant.RelayModeAudioSpeech {
 		return nil, errors.New("unsupported audio relay mode")
+	}
+
+	baseURL := info.ChannelBaseUrl
+	if baseURL == "" {
+		baseURL = channelconstant.ChannelBaseURLs[channelconstant.ChannelTypeVolcEngine]
+	}
+	if isOpenSpeechTTSV3Base(baseURL) {
+		encoding := mapEncoding(request.ResponseFormat)
+		c.Set(contextKeyResponseFormat, encoding)
+		resourceID := parseTTSV3ResourceID(request.Metadata)
+		c.Set(contextKeyTTSOpenSpeechV3, true)
+		c.Set(contextKeyTTSOpenSpeechV3Resource, resourceID)
+		info.IsStream = false
+		speaker := mapVoiceType(request.Voice)
+		jsonData, buildErr := buildTTSV3RequestBody(request.Input, speaker, encoding)
+		if buildErr != nil {
+			return nil, fmt.Errorf("error marshalling openspeech v3 request: %w", buildErr)
+		}
+		return bytes.NewReader(jsonData), nil
 	}
 
 	appID, token, err := parseVolcengineAuth(info.ApiKey)
@@ -274,6 +295,13 @@ func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 		case constant.RelayModeResponses:
 			return fmt.Sprintf("%s/api/v3/responses", baseUrl), nil
 		case constant.RelayModeAudioSpeech:
+			if isOpenSpeechTTSV3Base(baseUrl) {
+				u := strings.TrimSpace(baseUrl)
+				if strings.HasPrefix(strings.ToLower(u), "http") {
+					return u, nil
+				}
+				return openSpeechTTSV3DefaultURL, nil
+			}
 			if baseUrl == channelconstant.ChannelBaseURLs[channelconstant.ChannelTypeVolcEngine] {
 				return "wss://openspeech.bytedance.com/api/v1/tts/ws_binary", nil
 			}
@@ -288,6 +316,25 @@ func (a *Adaptor) SetupRequestHeader(c *gin.Context, req *http.Header, info *rel
 	channel.SetupApiRequestHeader(info, c, req)
 
 	if info.RelayMode == constant.RelayModeAudioSpeech {
+		if v, ok := c.Get(contextKeyTTSOpenSpeechV3); ok {
+			if useV3, ok2 := v.(bool); ok2 && useV3 {
+				appID, token, parseErr := parseVolcengineAuth(info.ApiKey)
+				if parseErr != nil {
+					return parseErr
+				}
+				rid := defaultTTSV3ResourceID
+				if rv, ok3 := c.Get(contextKeyTTSOpenSpeechV3Resource); ok3 {
+					if s, ok4 := rv.(string); ok4 && strings.TrimSpace(s) != "" {
+						rid = strings.TrimSpace(s)
+					}
+				}
+				req.Set("Content-Type", "application/json")
+				req.Set("X-Api-App-Id", appID)
+				req.Set("X-Api-Access-Key", token)
+				req.Set("X-Api-Resource-Id", rid)
+				return nil
+			}
+		}
 		parts := strings.Split(info.ApiKey, "|")
 		if len(parts) == 2 {
 			req.Set("Authorization", "Bearer;"+parts[1])
@@ -354,6 +401,12 @@ func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycom
 	}
 
 	if info.RelayMode == constant.RelayModeAudioSpeech {
+		if v, ok := c.Get(contextKeyTTSOpenSpeechV3); ok {
+			if useV3, ok2 := v.(bool); ok2 && useV3 {
+				encoding := mapEncoding(c.GetString(contextKeyResponseFormat))
+				return handleTTSV3NdjsonResponse(c, resp, info, encoding)
+			}
+		}
 		encoding := mapEncoding(c.GetString(contextKeyResponseFormat))
 		if info.IsStream {
 			volcRequestInterface, exists := c.Get(contextKeyTTSRequest)

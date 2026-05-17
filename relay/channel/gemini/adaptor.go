@@ -40,6 +40,9 @@ func (a *Adaptor) ConvertGeminiRequest(c *gin.Context, info *relaycommon.RelayIn
 			}
 		}
 	}
+	if isGeminiPreviewTTSModel(info.UpstreamModelName) {
+		applyGeminiPreviewTTSGenerationDefaults(&request.GenerationConfig)
+	}
 	return request, nil
 }
 

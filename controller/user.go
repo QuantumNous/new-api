@@ -376,6 +376,19 @@ func GetAffCode(c *gin.Context) {
 	return
 }
 
+func GetAffInvitees(c *gin.Context) {
+	inviterId := c.GetInt("id")
+	pageInfo := common.GetPageQuery(c)
+	invitees, total, err := model.GetInviteesByInviterId(inviterId, pageInfo)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	pageInfo.SetTotal(int(total))
+	pageInfo.SetItems(invitees)
+	common.ApiSuccess(c, pageInfo)
+}
+
 func GetSelf(c *gin.Context) {
 	id := c.GetInt("id")
 	userRole := c.GetInt("role")
@@ -383,6 +396,10 @@ func GetSelf(c *gin.Context) {
 	if err != nil {
 		common.ApiError(c, err)
 		return
+	}
+	inviteeCount, countErr := model.GetInviteeCountByInviterId(id)
+	if countErr == nil {
+		user.AffCount = int(inviteeCount)
 	}
 	// Hide admin remarks: set to empty to trigger omitempty tag, ensuring the remark field is not included in JSON returned to regular users
 	user.Remark = ""
