@@ -102,7 +102,7 @@ func TextHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types
 		}
 		if common.DebugEnabled {
 			if debugBytes, bErr := storage.Bytes(); bErr == nil {
-				println("requestBody: ", string(debugBytes))
+				logger.LogDebug(c, "requestBody: %s", debugBytes)
 			}
 		}
 		requestBody = common.ReaderOnly(storage)
