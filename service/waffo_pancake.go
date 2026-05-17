@@ -43,19 +43,19 @@ type WaffoPancakeCheckoutSession struct {
 	TokenExpiresAt string
 }
 
-// waffoPancakeWebhookEvent mirrors the SDK's WebhookEvent shape using plain
+// WaffoPancakeWebhookEvent mirrors the SDK's WebhookEvent shape using plain
 // strings so controllers don't have to import the SDK package.
-type waffoPancakeWebhookEvent struct {
+type WaffoPancakeWebhookEvent struct {
 	ID        string
 	Timestamp string
 	EventType string
 	EventID   string
 	StoreID   string
 	Mode      string
-	Data      waffoPancakeWebhookData
+	Data      WaffoPancakeWebhookData
 }
 
-type waffoPancakeWebhookData struct {
+type WaffoPancakeWebhookData struct {
 	OrderID                       string
 	BuyerEmail                    string
 	Currency                      string
@@ -66,7 +66,7 @@ type waffoPancakeWebhookData struct {
 }
 
 // NormalizedEventType returns the event type or empty string for a nil event.
-func (e *waffoPancakeWebhookEvent) NormalizedEventType() string {
+func (e *WaffoPancakeWebhookEvent) NormalizedEventType() string {
 	if e == nil {
 		return ""
 	}
@@ -221,7 +221,7 @@ func WaffoPancakeBuyerIdentityFromUserID(userID int) string {
 
 // VerifyConfiguredWaffoPancakeWebhook verifies the signature header. The SDK
 // picks the matching test / prod public key from the payload's `mode` field.
-func VerifyConfiguredWaffoPancakeWebhook(payload string, signatureHeader string) (*waffoPancakeWebhookEvent, error) {
+func VerifyConfiguredWaffoPancakeWebhook(payload string, signatureHeader string) (*WaffoPancakeWebhookEvent, error) {
 	sdkEvent, err := pancake.VerifyWebhook(payload, signatureHeader, nil)
 	if err != nil {
 		return nil, err
@@ -230,14 +230,14 @@ func VerifyConfiguredWaffoPancakeWebhook(payload string, signatureHeader string)
 	if err := json.Unmarshal(sdkEvent.Data, &data); err != nil {
 		return nil, fmt.Errorf("decode Waffo Pancake webhook data: %w", err)
 	}
-	return &waffoPancakeWebhookEvent{
+	return &WaffoPancakeWebhookEvent{
 		ID:        sdkEvent.ID,
 		Timestamp: sdkEvent.Timestamp,
 		EventType: sdkEvent.EventType,
 		EventID:   sdkEvent.EventID,
 		StoreID:   sdkEvent.StoreID,
 		Mode:      string(sdkEvent.Mode),
-		Data: waffoPancakeWebhookData{
+		Data: WaffoPancakeWebhookData{
 			OrderID:                       data.OrderID,
 			BuyerEmail:                    data.BuyerEmail,
 			Currency:                      data.Currency,
@@ -252,7 +252,7 @@ func VerifyConfiguredWaffoPancakeWebhook(payload string, signatureHeader string)
 // ResolveWaffoPancakeTradeNo maps a verified webhook event to a local TopUp
 // trade_no, rejecting any payload whose buyer identity doesn't match the one
 // we recorded at checkout — defence-in-depth on top of signature verification.
-func ResolveWaffoPancakeTradeNo(event *waffoPancakeWebhookEvent) (string, error) {
+func ResolveWaffoPancakeTradeNo(event *WaffoPancakeWebhookEvent) (string, error) {
 	if event == nil {
 		return "", fmt.Errorf("missing webhook event")
 	}
@@ -279,7 +279,7 @@ func ResolveWaffoPancakeTradeNo(event *waffoPancakeWebhookEvent) (string, error)
 
 // ResolveWaffoPancakeSubscriptionTradeNo is the SubscriptionOrder counterpart
 // of ResolveWaffoPancakeTradeNo.
-func ResolveWaffoPancakeSubscriptionTradeNo(event *waffoPancakeWebhookEvent) (string, error) {
+func ResolveWaffoPancakeSubscriptionTradeNo(event *WaffoPancakeWebhookEvent) (string, error) {
 	if event == nil {
 		return "", fmt.Errorf("missing webhook event")
 	}

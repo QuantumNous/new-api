@@ -55,8 +55,8 @@ func TestResolveWaffoPancakeTradeNo_UsesWebhookOrderIDWhenLocalOrderExists(t *te
 	}
 	require.NoError(t, db.Create(topUp).Error)
 
-	tradeNo, err := ResolveWaffoPancakeTradeNo(&waffoPancakeWebhookEvent{
-		Data: waffoPancakeWebhookData{
+	tradeNo, err := ResolveWaffoPancakeTradeNo(&WaffoPancakeWebhookEvent{
+		Data: WaffoPancakeWebhookData{
 			OrderID:                       "ORD_5dXBtmF2HLlHfbPNm0Wcnz",
 			MerchantProvidedBuyerIdentity: WaffoPancakeBuyerIdentityFromUserID(topUp.UserId),
 		},
@@ -82,8 +82,8 @@ func TestResolveWaffoPancakeTradeNo_RejectsBuyerIdentityMismatch(t *testing.T) {
 
 	// Webhook reports the right order but a different buyer — could be a
 	// crossed-wires bug or a tampered payload. Either way: reject.
-	tradeNo, err := ResolveWaffoPancakeTradeNo(&waffoPancakeWebhookEvent{
-		Data: waffoPancakeWebhookData{
+	tradeNo, err := ResolveWaffoPancakeTradeNo(&WaffoPancakeWebhookEvent{
+		Data: WaffoPancakeWebhookData{
 			OrderID:                       "ORD_identity_mismatch_case",
 			MerchantProvidedBuyerIdentity: WaffoPancakeBuyerIdentityFromUserID(99), // wrong user
 		},
@@ -111,8 +111,8 @@ func TestResolveWaffoPancakeTradeNo_RejectsMissingBuyerIdentity(t *testing.T) {
 	// An empty MerchantProvidedBuyerIdentity means the order was either created
 	// via the (now-deprecated) anonymous flow or the field was stripped — also
 	// reject so that we never credit anonymous orders to a specific user.
-	tradeNo, err := ResolveWaffoPancakeTradeNo(&waffoPancakeWebhookEvent{
-		Data: waffoPancakeWebhookData{
+	tradeNo, err := ResolveWaffoPancakeTradeNo(&WaffoPancakeWebhookEvent{
+		Data: WaffoPancakeWebhookData{
 			OrderID: "ORD_missing_identity",
 		},
 	})
@@ -144,8 +144,8 @@ func TestResolveWaffoPancakeTradeNo_FailsWhenWebhookOrderIDIsUnknown(t *testing.
 	}
 	require.NoError(t, db.Create(topUp).Error)
 
-	tradeNo, err := ResolveWaffoPancakeTradeNo(&waffoPancakeWebhookEvent{
-		Data: waffoPancakeWebhookData{
+	tradeNo, err := ResolveWaffoPancakeTradeNo(&WaffoPancakeWebhookEvent{
+		Data: WaffoPancakeWebhookData{
 			OrderID:    "ORD_unknown",
 			BuyerEmail: user.Email,
 			Amount:     "29.00",

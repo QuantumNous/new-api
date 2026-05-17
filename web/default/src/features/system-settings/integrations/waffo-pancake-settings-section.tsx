@@ -22,7 +22,6 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { api } from '@/lib/api'
 import { Button } from '@/components/ui/button'
 import {
   Form,
@@ -44,6 +43,14 @@ import {
 import { Textarea } from '@/components/ui/textarea'
 import { SettingsSection } from '../components/settings-section'
 import { removeTrailingSlash } from './utils'
+import {
+  type CatalogStore,
+  type PairOrphanError,
+  type PairResult,
+  createWaffoPancakePair,
+  listWaffoPancakeCatalog,
+  saveWaffoPancakeConfig,
+} from './waffo-pancake-api'
 
 // Only operator-typed fields. Nothing else lands in OptionMap until Save.
 const waffoPancakeSchema = z.object({
@@ -59,25 +66,6 @@ interface Props {
   defaultValues: WaffoPancakeSettingsValues
   provisionedStoreID?: string
   provisionedProductID?: string
-}
-
-interface CatalogProduct {
-  id: string
-  name: string
-  status: string
-}
-
-interface CatalogStore {
-  id: string
-  name: string
-  status: string
-  prodEnabled: boolean
-  onetimeProducts: CatalogProduct[]
-}
-
-interface BackendBody<T> {
-  message?: string
-  data?: T | string
 }
 
 const PANCAKE_DASHBOARD_URL = 'https://pancake.waffo.ai/dashboard'
@@ -200,12 +188,8 @@ export function WaffoPancakeSettingsSection(props: Props) {
       const serial = ++fetchSerialRef.current
       let stores: CatalogStore[] = []
       try {
-        const res = await api.post<BackendBody<{ stores: CatalogStore[] }>>(
-          '/api/option/waffo-pancake/catalog',
-          { merchant_id: merchantID, private_key: privateKey }
-        )
+        const body = await listWaffoPancakeCatalog(merchantID, privateKey)
         if (serial !== fetchSerialRef.current) return
-        const body = res.data
         if (
           body?.message === 'success' &&
           typeof body.data === 'object' &&
@@ -334,30 +318,17 @@ export function WaffoPancakeSettingsSection(props: Props) {
     }
     setCreatingPair(true)
     try {
-      const res = await api.post<
-        BackendBody<{
-          store_id: string
-          store_name: string
-          product_id: string
-          product_name: string
-        }>
-      >('/api/option/waffo-pancake/pair', {
-        merchant_id: merchantID,
-        private_key: privateKey,
-        return_url: trimmedReturn,
+      const body = await createWaffoPancakePair({
+        merchantID,
+        privateKey,
+        returnURL: trimmedReturn,
       })
-      const body = res.data
       if (
         body?.message === 'success' &&
         typeof body.data === 'object' &&
         body.data
       ) {
-        const created = body.data as {
-          store_id: string
-          store_name: string
-          product_id: string
-          product_name: string
-        }
+        const created = body.data as PairResult
         // Refetch from GraphQL rather than trusting the response body so the
         // dropdowns reflect authoritative state, then anchor on minted IDs.
         setPhase('verifying')
@@ -372,12 +343,7 @@ export function WaffoPancakeSettingsSection(props: Props) {
       }
       const errData =
         body && typeof body.data === 'object' && body.data !== null
-          ? (body.data as {
-              error?: string
-              orphan_store?: boolean
-              store_id?: string
-              store_name?: string
-            })
+          ? (body.data as PairOrphanError)
           : null
       if (errData?.orphan_store && errData.store_id) {
         setPhase('verifying')
@@ -421,16 +387,13 @@ export function WaffoPancakeSettingsSection(props: Props) {
     }
     setPhase('saving')
     try {
-      const res = await api.post<
-        BackendBody<{ product_id: string; store_id: string }>
-      >('/api/option/waffo-pancake/save', {
-        merchant_id: merchantID,
-        private_key: privateKey,
-        return_url: removeTrailingSlash(returnURL.trim()),
-        store_id: chosenStoreID,
-        product_id: chosenProductID,
+      const body = await saveWaffoPancakeConfig({
+        merchantID,
+        privateKey,
+        returnURL: removeTrailingSlash(returnURL.trim()),
+        storeID: chosenStoreID,
+        productID: chosenProductID,
       })
-      const body = res.data
       if (
         body?.message === 'success' &&
         typeof body.data === 'object' &&
