@@ -129,6 +129,73 @@ func TestOpenaiImageStreamHandlerWrapsJSONResponse(t *testing.T) {
 	require.Contains(t, recorder.Body.String(), `data: [DONE]`)
 }
 
+func TestOpenaiHandlerWithUsageReturnsImageJSONError(t *testing.T) {
+	oldMode := gin.Mode()
+	gin.SetMode(gin.TestMode)
+	t.Cleanup(func() { gin.SetMode(oldMode) })
+
+	body := `{"error":{"message":"content moderation failed","type":"upstream_error","code":"content_moderation_failed","status":502,"generation_id":"gen_123","credits_consumed":0}}`
+
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/images/generations", nil)
+
+	resp := &http.Response{
+		StatusCode: http.StatusOK,
+		Body:       io.NopCloser(strings.NewReader(body)),
+		Header:     http.Header{"Content-Type": []string{"application/json"}},
+	}
+	info := &relaycommon.RelayInfo{
+		ChannelMeta: &relaycommon.ChannelMeta{},
+		IsStream:    false,
+	}
+
+	usage, err := OpenaiHandlerWithUsage(c, info, resp)
+	require.Nil(t, usage)
+	require.NotNil(t, err)
+	require.Equal(t, http.StatusBadGateway, err.StatusCode)
+	oaiError := err.ToOpenAIError()
+	require.Equal(t, "content moderation failed", oaiError.Message)
+	require.Equal(t, "upstream_error", oaiError.Type)
+	require.Equal(t, "content_moderation_failed", oaiError.Code)
+	require.Equal(t, 502, oaiError.Status)
+	require.Equal(t, "gen_123", oaiError.GenerationID)
+	require.NotNil(t, oaiError.CreditsConsumed)
+	require.Equal(t, 0, *oaiError.CreditsConsumed)
+	require.Empty(t, recorder.Body.String())
+}
+
+func TestOpenaiImageStreamHandlerReturnsJSONErrorFallback(t *testing.T) {
+	oldMode := gin.Mode()
+	gin.SetMode(gin.TestMode)
+	t.Cleanup(func() { gin.SetMode(oldMode) })
+
+	body := `{"error":{"message":"image edit failed","type":"upstream_error","code":"content_moderation_failed","status":502,"generation_id":"gen_stream","credits_consumed":0}}`
+
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/images/generations", nil)
+
+	resp := &http.Response{
+		StatusCode: http.StatusOK,
+		Body:       io.NopCloser(strings.NewReader(body)),
+		Header:     http.Header{"Content-Type": []string{"application/json"}},
+	}
+	info := &relaycommon.RelayInfo{
+		ChannelMeta: &relaycommon.ChannelMeta{},
+		IsStream:    true,
+	}
+
+	usage, err := OpenaiImageStreamHandler(c, info, resp)
+	require.Nil(t, usage)
+	require.NotNil(t, err)
+	require.Equal(t, http.StatusBadGateway, err.StatusCode)
+	oaiError := err.ToOpenAIError()
+	require.Equal(t, "image edit failed", oaiError.Message)
+	require.Equal(t, "gen_stream", oaiError.GenerationID)
+	require.Empty(t, recorder.Body.String())
+}
+
 func TestOpenaiImageStreamHandlerRecordsUpstreamErrorEvent(t *testing.T) {
 	oldMode := gin.Mode()
 	gin.SetMode(gin.TestMode)

@@ -574,12 +574,26 @@ func OpenaiHandlerWithUsage(c *gin.Context, info *relaycommon.RelayInfo, resp *h
 		return nil, types.NewOpenAIError(err, types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
 	}
 
+	if oaiError := usageResp.GetOpenAIError(); oaiError != nil && oaiError.Type != "" {
+		return nil, types.WithOpenAIError(*oaiError, openAIErrorStatusCode(oaiError, resp.StatusCode))
+	}
+
 	// 写入新的 response body
 	service.IOCopyBytesGracefully(c, resp, responseBody)
 
 	normalizeOpenAIUsage(&usageResp.Usage)
 	applyUsagePostProcessing(info, &usageResp.Usage, responseBody)
 	return &usageResp.Usage, nil
+}
+
+func openAIErrorStatusCode(oaiError *types.OpenAIError, fallback int) int {
+	if oaiError != nil && oaiError.Status >= http.StatusBadRequest && oaiError.Status <= 599 {
+		return oaiError.Status
+	}
+	if fallback >= http.StatusBadRequest && fallback <= 599 {
+		return fallback
+	}
+	return http.StatusBadGateway
 }
 
 func normalizeOpenAIUsage(usage *dto.Usage) {
@@ -763,6 +777,9 @@ func OpenaiImageJSONAsStreamHandler(c *gin.Context, info *relaycommon.RelayInfo,
 
 	var usageResp dto.SimpleResponse
 	_ = common.Unmarshal(responseBody, &usageResp)
+	if oaiError := usageResp.GetOpenAIError(); oaiError != nil && oaiError.Type != "" {
+		return nil, types.WithOpenAIError(*oaiError, openAIErrorStatusCode(oaiError, resp.StatusCode))
+	}
 	normalizeOpenAIUsage(&usageResp.Usage)
 	applyUsagePostProcessing(info, &usageResp.Usage, responseBody)
 

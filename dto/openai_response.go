@@ -429,6 +429,35 @@ func GetOpenAIError(errorField any) *types.OpenAIError {
 		if errCode, ok := err["code"]; ok {
 			openaiErr.Code = errCode
 		}
+		if errStatus, ok := err["status"]; ok {
+			switch status := errStatus.(type) {
+			case int:
+				openaiErr.Status = status
+			case float64:
+				openaiErr.Status = int(status)
+			case json.Number:
+				if value, parseErr := status.Int64(); parseErr == nil {
+					openaiErr.Status = int(value)
+				}
+			}
+		}
+		if generationID, ok := err["generation_id"].(string); ok {
+			openaiErr.GenerationID = generationID
+		}
+		if creditsConsumed, ok := err["credits_consumed"]; ok {
+			switch credits := creditsConsumed.(type) {
+			case int:
+				openaiErr.CreditsConsumed = &credits
+			case float64:
+				value := int(credits)
+				openaiErr.CreditsConsumed = &value
+			case json.Number:
+				if value, parseErr := credits.Int64(); parseErr == nil {
+					consumed := int(value)
+					openaiErr.CreditsConsumed = &consumed
+				}
+			}
+		}
 		return openaiErr
 	case string:
 		// 处理简单字符串错误
