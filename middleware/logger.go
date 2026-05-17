@@ -4,10 +4,11 @@ import (
 	"fmt"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 	"github.com/gin-gonic/gin"
 )
 
-const RouteTagKey = "route_tag"
+const RouteTagKey = string(constant.ContextKeyRouteTag)
 
 func RouteTag(tag string) gin.HandlerFunc {
 	return func(c *gin.Context) {
