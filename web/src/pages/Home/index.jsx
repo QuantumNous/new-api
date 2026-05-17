@@ -1178,7 +1178,6 @@ const Home = () => {
                         background: 'var(--semi-color-bg-1)',
                         border: '1px solid var(--semi-color-border)',
                         borderRadius: 16,
-                        height: 290,
                       }}
                     >
                       <div
@@ -1222,7 +1221,7 @@ const Home = () => {
                             fontSize: 14,
                             lineHeight: '24px',
                             margin: 0,
-                            height: 90,
+                            flex: 1,
                           }}
                         >
                           {card.desc}
