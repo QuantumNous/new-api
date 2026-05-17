@@ -17,7 +17,6 @@ on:
         type: string
 
 env:
-  GHCR_IMAGE: ghcr.io/${{ github.repository_owner }}/new-api
   DOCKERHUB_IMAGE: calciumion/new-api
 
 jobs:
@@ -119,11 +118,20 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
+      - name: Prepare registry image names
+        id: registry_names
+        shell: bash
+        run: |
+          OWNER_LC="$(printf '%s' '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')"
+          GHCR_IMAGE="ghcr.io/${OWNER_LC}/new-api"
+          echo "GHCR_IMAGE=${GHCR_IMAGE}" >> "$GITHUB_ENV"
+          echo "ghcr_image=${GHCR_IMAGE}" >> "$GITHUB_OUTPUT"
+
       - name: Extract metadata (labels)
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ${{ env.GHCR_IMAGE }}
+          images: ${{ steps.registry_names.outputs.ghcr_image }}
 
       - name: Prepare image tags
         id: tags
@@ -206,7 +214,10 @@ jobs:
 
     steps:
       - name: Set image version
+        shell: bash
         run: |
+          OWNER_LC="$(printf '%s' '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')"
+          echo "GHCR_IMAGE=ghcr.io/${OWNER_LC}/new-api" >> $GITHUB_ENV
           echo "IMAGE_VERSION=${{ needs.build_single_arch.outputs.image_version }}" >> $GITHUB_ENV
           echo "PUBLISH_LATEST=${{ needs.build_single_arch.outputs.publish_latest }}" >> $GITHUB_ENV
           echo "DOCKERHUB_ENABLED=${{ needs.build_single_arch.outputs.dockerhub_enabled }}" >> $GITHUB_ENV
