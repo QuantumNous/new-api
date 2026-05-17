@@ -90,6 +90,7 @@ export const STATIC_I18N_KEYS = [
   'Failed to update API key status',
   'Successfully created {{count}} API Key(s)',
   'Successfully deleted {{count}} API key(s)',
+  'Enter API key for this channel',
 
   // Users
   'Root',
