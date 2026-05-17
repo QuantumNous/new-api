@@ -3,6 +3,7 @@ package model
 import (
 	"fmt"
 	"log"
+	"net/url"
 	"os"
 	"strings"
 	"sync"
@@ -115,6 +116,46 @@ func CheckSetup() {
 	}
 }
 
+func mysqlDSNHasQueryKey(dsn string, key string) bool {
+	query, ok := mysqlDSNQuery(dsn)
+	if !ok {
+		return false
+	}
+	values, err := url.ParseQuery(query)
+	if err != nil {
+		return false
+	}
+	_, ok = values[key]
+	return ok
+}
+
+func mysqlDSNQuery(dsn string) (string, bool) {
+	pathIndex := strings.LastIndex(dsn, "/")
+	if pathIndex < 0 {
+		return "", false
+	}
+	queryIndex := strings.Index(dsn[pathIndex+1:], "?")
+	if queryIndex < 0 {
+		return "", false
+	}
+	queryStart := pathIndex + 1 + queryIndex + 1
+	return dsn[queryStart:], true
+}
+
+func appendMySQLDSNParam(dsn string, param string) string {
+	if _, ok := mysqlDSNQuery(dsn); ok {
+		return dsn + "&" + param
+	}
+	return dsn + "?" + param
+}
+
+func prepareMySQLDSN(dsn string) string {
+	if !mysqlDSNHasQueryKey(dsn, "parseTime") {
+		dsn = appendMySQLDSNParam(dsn, "parseTime=true")
+	}
+	return dsn
+}
+
 func chooseDB(envName string, isLog bool) (*gorm.DB, error) {
 	defer func() {
 		initCol()
@@ -124,13 +165,6 @@ func chooseDB(envName string, isLog bool) (*gorm.DB, error) {
 		if strings.HasPrefix(dsn, "postgres://") || strings.HasPrefix(dsn, "postgresql://") {
 			// Use PostgreSQL
 			common.SysLog("using PostgreSQL as database")
-			if !strings.Contains(dsn, "sslmode") {
-				if strings.Contains(dsn, "?") {
-					dsn += "&sslmode=require"
-				} else {
-					dsn += "?sslmode=require"
-				}
-			}
 			if !isLog {
 				common.UsingPostgreSQL = true
 			} else {
@@ -157,27 +191,7 @@ func chooseDB(envName string, isLog bool) (*gorm.DB, error) {
 		// Use MySQL
 		common.SysLog("using MySQL as database")
 		// check parseTime
-		if !strings.Contains(dsn, "parseTime") {
-			if strings.Contains(dsn, "?") {
-				dsn += "&parseTime=true"
-			} else {
-				dsn += "?parseTime=true"
-			}
-		}
-		if !strings.Contains(dsn, "charset") && !strings.Contains(dsn, "Charset") {
-			if strings.Contains(dsn, "?") {
-				dsn += "&charset=utf8mb4"
-			} else {
-				dsn += "?charset=utf8mb4"
-			}
-		}
-		if !strings.Contains(dsn, "loc=") {
-			if strings.Contains(dsn, "?") {
-				dsn += "&loc=Local"
-			} else {
-				dsn += "?loc=Local"
-			}
-		}
+		dsn = prepareMySQLDSN(dsn)
 		if !isLog {
 			common.UsingMySQL = true
 		} else {
@@ -214,7 +228,7 @@ func InitDB() (err error) {
 		}
 		sqlDB.SetMaxIdleConns(common.GetEnvOrDefault("SQL_MAX_IDLE_CONNS", 100))
 		sqlDB.SetMaxOpenConns(common.GetEnvOrDefault("SQL_MAX_OPEN_CONNS", 1000))
-		sqlDB.SetConnMaxLifetime(time.Second * time.Duration(common.GetEnvOrDefault("SQL_MAX_LIFETIME", 300)))
+		sqlDB.SetConnMaxLifetime(time.Second * time.Duration(common.GetEnvOrDefault("SQL_MAX_LIFETIME", 60)))
 
 		if !common.IsMasterNode {
 			return nil
@@ -254,7 +268,7 @@ func InitLogDB() (err error) {
 		}
 		sqlDB.SetMaxIdleConns(common.GetEnvOrDefault("SQL_MAX_IDLE_CONNS", 100))
 		sqlDB.SetMaxOpenConns(common.GetEnvOrDefault("SQL_MAX_OPEN_CONNS", 1000))
-		sqlDB.SetConnMaxLifetime(time.Second * time.Duration(common.GetEnvOrDefault("SQL_MAX_LIFETIME", 300)))
+		sqlDB.SetConnMaxLifetime(time.Second * time.Duration(common.GetEnvOrDefault("SQL_MAX_LIFETIME", 60)))
 
 		if !common.IsMasterNode {
 			return nil

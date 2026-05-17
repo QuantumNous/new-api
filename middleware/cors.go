@@ -1,6 +1,8 @@
 package middleware
 
 import (
+	"strings"
+
 	"github.com/QuantumNous/new-api/common"
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
@@ -13,10 +15,30 @@ func CORS() gin.HandlerFunc {
 		// Per W3C CORS spec: AllowCredentials must be false when AllowAllOrigins
 		// is true (wildcard Access-Control-Allow-Origin cannot be combined with credentials).
 		config.AllowCredentials = false
+	} else {
+		config.AllowOrigins = parseCORSAllowedOrigins(common.GetEnvOrDefaultString("CORS_ALLOWED_ORIGINS", ""))
+		if len(config.AllowOrigins) == 0 {
+			config.AllowOriginFunc = func(origin string) bool {
+				return false
+			}
+		}
+		config.AllowCredentials = common.GetEnvOrDefaultBool("CORS_ALLOW_CREDENTIALS", true)
 	}
 	config.AllowMethods = []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"}
 	config.AllowHeaders = []string{"*"}
 	return cors.New(config)
+}
+
+func parseCORSAllowedOrigins(value string) []string {
+	parts := strings.Split(value, ",")
+	origins := make([]string, 0, len(parts))
+	for _, part := range parts {
+		origin := strings.TrimSpace(part)
+		if origin != "" {
+			origins = append(origins, origin)
+		}
+	}
+	return origins
 }
 
 func PoweredBy() gin.HandlerFunc {
