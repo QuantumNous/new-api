@@ -95,9 +95,11 @@ func LogDebug(ctx context.Context, msg string, args ...any) {
 }
 
 func logHelper(ctx context.Context, level string, msg string) {
-	id := ctx.Value(common.RequestIdKey)
-	if id == nil {
-		id = "SYSTEM"
+	var id any = "SYSTEM"
+	if ctx != nil {
+		if requestID := ctx.Value(common.RequestIdKey); requestID != nil {
+			id = requestID
+		}
 	}
 	now := time.Now()
 	common.LogWriterMu.RLock()
