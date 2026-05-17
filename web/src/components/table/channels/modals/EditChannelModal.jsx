@@ -148,12 +148,42 @@ const BALANCE_QUERY_NEWAPI_TEMPLATE = {
     remaining_path: 'data.quota',
     used_path: 'data.used_quota',
     total_path: '',
+    unit_path: '',
     unit: 'USD',
     divisor: 500000,
     success_path: 'success',
     success_value: 'true',
+    success_optional: false,
     message_path: 'message',
   },
+};
+
+const BALANCE_QUERY_SUB2API_TEMPLATE = {
+  request: {
+    url: '{{baseUrl}}/v1/usage',
+    method: 'GET',
+    headers: {
+      Authorization: 'Bearer {{apiKey}}',
+    },
+  },
+  extractor: {
+    plan_name_path: '',
+    remaining_path: 'remaining,quota.remaining,balance',
+    used_path: '',
+    total_path: '',
+    unit_path: 'unit,quota.unit',
+    unit: 'USD',
+    divisor: 1,
+    success_path: 'is_active,isValid',
+    success_value: 'true',
+    success_optional: true,
+    message_path: 'message,error',
+  },
+};
+
+const BALANCE_QUERY_TEMPLATES = {
+  newapi: BALANCE_QUERY_NEWAPI_TEMPLATE,
+  sub2api: BALANCE_QUERY_SUB2API_TEMPLATE,
 };
 
 // 支持并且已适配通过接口获取模型列表的渠道类型
@@ -263,12 +293,15 @@ const EditChannelModal = (props) => {
     balance_query_used_path: BALANCE_QUERY_NEWAPI_TEMPLATE.extractor.used_path,
     balance_query_total_path:
       BALANCE_QUERY_NEWAPI_TEMPLATE.extractor.total_path,
+    balance_query_unit_path: BALANCE_QUERY_NEWAPI_TEMPLATE.extractor.unit_path,
     balance_query_unit: BALANCE_QUERY_NEWAPI_TEMPLATE.extractor.unit,
     balance_query_divisor: BALANCE_QUERY_NEWAPI_TEMPLATE.extractor.divisor,
     balance_query_success_path:
       BALANCE_QUERY_NEWAPI_TEMPLATE.extractor.success_path,
     balance_query_success_value:
       BALANCE_QUERY_NEWAPI_TEMPLATE.extractor.success_value,
+    balance_query_success_optional:
+      BALANCE_QUERY_NEWAPI_TEMPLATE.extractor.success_optional,
     balance_query_message_path:
       BALANCE_QUERY_NEWAPI_TEMPLATE.extractor.message_path,
     balance_query_last_check_time: 0,
@@ -609,40 +642,37 @@ const EditChannelModal = (props) => {
     handleInputChange('settings', settingsJson);
   };
 
-  const applyBalanceQueryTemplate = () => {
+  const applyBalanceQueryTemplate = (templateKey = 'newapi') => {
+    const template =
+      BALANCE_QUERY_TEMPLATES[templateKey] || BALANCE_QUERY_NEWAPI_TEMPLATE;
+    const templateLabel = templateKey === 'sub2api' ? 'sub2api' : 'New API';
     const updates = {
-      balance_query_template: 'newapi',
-      balance_query_request_url: BALANCE_QUERY_NEWAPI_TEMPLATE.request.url,
-      balance_query_request_method:
-        BALANCE_QUERY_NEWAPI_TEMPLATE.request.method,
+      balance_query_template: templateKey,
+      balance_query_request_url: template.request.url,
+      balance_query_request_method: template.request.method,
       balance_query_request_headers: JSON.stringify(
-        BALANCE_QUERY_NEWAPI_TEMPLATE.request.headers,
+        template.request.headers,
         null,
         2,
       ),
       balance_query_request_body: '',
-      balance_query_plan_name_path:
-        BALANCE_QUERY_NEWAPI_TEMPLATE.extractor.plan_name_path,
-      balance_query_remaining_path:
-        BALANCE_QUERY_NEWAPI_TEMPLATE.extractor.remaining_path,
-      balance_query_used_path:
-        BALANCE_QUERY_NEWAPI_TEMPLATE.extractor.used_path,
-      balance_query_total_path:
-        BALANCE_QUERY_NEWAPI_TEMPLATE.extractor.total_path,
-      balance_query_unit: BALANCE_QUERY_NEWAPI_TEMPLATE.extractor.unit,
-      balance_query_divisor: BALANCE_QUERY_NEWAPI_TEMPLATE.extractor.divisor,
-      balance_query_success_path:
-        BALANCE_QUERY_NEWAPI_TEMPLATE.extractor.success_path,
-      balance_query_success_value:
-        BALANCE_QUERY_NEWAPI_TEMPLATE.extractor.success_value,
-      balance_query_message_path:
-        BALANCE_QUERY_NEWAPI_TEMPLATE.extractor.message_path,
+      balance_query_plan_name_path: template.extractor.plan_name_path,
+      balance_query_remaining_path: template.extractor.remaining_path,
+      balance_query_used_path: template.extractor.used_path,
+      balance_query_total_path: template.extractor.total_path,
+      balance_query_unit_path: template.extractor.unit_path,
+      balance_query_unit: template.extractor.unit,
+      balance_query_divisor: template.extractor.divisor,
+      balance_query_success_path: template.extractor.success_path,
+      balance_query_success_value: template.extractor.success_value,
+      balance_query_success_optional: template.extractor.success_optional,
+      balance_query_message_path: template.extractor.message_path,
     };
     Object.entries(updates).forEach(([key, value]) => {
       formApiRef.current?.setValue(key, value);
     });
     setInputs((prev) => ({ ...prev, ...updates }));
-    showSuccess(t('已填入 New API 余额查询模板'));
+    showSuccess(t('已填入 {{name}} 余额查询模板', { name: templateLabel }));
   };
 
   const handleBalanceQueryInputChange = (key, value) => {
@@ -1031,6 +1061,9 @@ const EditChannelModal = (props) => {
           const balanceQuery = parsedSettings.balance_query || {};
           const balanceRequest = balanceQuery.request || {};
           const balanceExtractor = balanceQuery.extractor || {};
+          const balanceTemplate =
+            BALANCE_QUERY_TEMPLATES[balanceQuery.template] ||
+            BALANCE_QUERY_NEWAPI_TEMPLATE;
           data.balance_query_enabled = balanceQuery.enabled === true;
           data.balance_query_template = balanceQuery.template || 'newapi';
           data.balance_query_interval_seconds =
@@ -1042,45 +1075,46 @@ const EditChannelModal = (props) => {
           data.balance_query_access_token = balanceQuery.access_token || '';
           data.balance_query_user_id = balanceQuery.user_id || '';
           data.balance_query_request_url =
-            balanceRequest.url || BALANCE_QUERY_NEWAPI_TEMPLATE.request.url;
+            balanceRequest.url || balanceTemplate.request.url;
           data.balance_query_request_method =
-            balanceRequest.method ||
-            BALANCE_QUERY_NEWAPI_TEMPLATE.request.method;
+            balanceRequest.method || balanceTemplate.request.method;
           data.balance_query_request_headers = JSON.stringify(
-            balanceRequest.headers ||
-              BALANCE_QUERY_NEWAPI_TEMPLATE.request.headers,
+            balanceRequest.headers || balanceTemplate.request.headers,
             null,
             2,
           );
           data.balance_query_request_body = balanceRequest.body || '';
           data.balance_query_plan_name_path =
             balanceExtractor.plan_name_path ||
-            BALANCE_QUERY_NEWAPI_TEMPLATE.extractor.plan_name_path;
+            balanceTemplate.extractor.plan_name_path;
           data.balance_query_remaining_path =
             balanceExtractor.remaining_path ||
-            BALANCE_QUERY_NEWAPI_TEMPLATE.extractor.remaining_path;
+            balanceTemplate.extractor.remaining_path;
           data.balance_query_used_path =
-            balanceExtractor.used_path ||
-            BALANCE_QUERY_NEWAPI_TEMPLATE.extractor.used_path;
+            balanceExtractor.used_path || balanceTemplate.extractor.used_path;
           data.balance_query_total_path =
-            balanceExtractor.total_path ||
-            BALANCE_QUERY_NEWAPI_TEMPLATE.extractor.total_path;
+            balanceExtractor.total_path || balanceTemplate.extractor.total_path;
+          data.balance_query_unit_path =
+            balanceExtractor.unit_path || balanceTemplate.extractor.unit_path;
           data.balance_query_unit =
-            balanceExtractor.unit ||
-            BALANCE_QUERY_NEWAPI_TEMPLATE.extractor.unit;
+            balanceExtractor.unit || balanceTemplate.extractor.unit;
           data.balance_query_divisor =
             typeof balanceExtractor.divisor === 'number'
               ? balanceExtractor.divisor
-              : BALANCE_QUERY_NEWAPI_TEMPLATE.extractor.divisor;
+              : balanceTemplate.extractor.divisor;
           data.balance_query_success_path =
             balanceExtractor.success_path ||
-            BALANCE_QUERY_NEWAPI_TEMPLATE.extractor.success_path;
+            balanceTemplate.extractor.success_path;
           data.balance_query_success_value =
             balanceExtractor.success_value ||
-            BALANCE_QUERY_NEWAPI_TEMPLATE.extractor.success_value;
+            balanceTemplate.extractor.success_value;
+          data.balance_query_success_optional =
+            typeof balanceExtractor.success_optional === 'boolean'
+              ? balanceExtractor.success_optional
+              : balanceTemplate.extractor.success_optional;
           data.balance_query_message_path =
             balanceExtractor.message_path ||
-            BALANCE_QUERY_NEWAPI_TEMPLATE.extractor.message_path;
+            balanceTemplate.extractor.message_path;
           data.balance_query_last_check_time =
             Number(balanceQuery.last_check_time) || 0;
           data.balance_query_last_result = balanceQuery.last_result || null;
@@ -1128,6 +1162,8 @@ const EditChannelModal = (props) => {
             BALANCE_QUERY_NEWAPI_TEMPLATE.extractor.used_path;
           data.balance_query_total_path =
             BALANCE_QUERY_NEWAPI_TEMPLATE.extractor.total_path;
+          data.balance_query_unit_path =
+            BALANCE_QUERY_NEWAPI_TEMPLATE.extractor.unit_path;
           data.balance_query_unit =
             BALANCE_QUERY_NEWAPI_TEMPLATE.extractor.unit;
           data.balance_query_divisor =
@@ -1136,6 +1172,8 @@ const EditChannelModal = (props) => {
             BALANCE_QUERY_NEWAPI_TEMPLATE.extractor.success_path;
           data.balance_query_success_value =
             BALANCE_QUERY_NEWAPI_TEMPLATE.extractor.success_value;
+          data.balance_query_success_optional =
+            BALANCE_QUERY_NEWAPI_TEMPLATE.extractor.success_optional;
           data.balance_query_message_path =
             BALANCE_QUERY_NEWAPI_TEMPLATE.extractor.message_path;
           data.balance_query_last_check_time = 0;
@@ -1183,6 +1221,8 @@ const EditChannelModal = (props) => {
           BALANCE_QUERY_NEWAPI_TEMPLATE.extractor.used_path;
         data.balance_query_total_path =
           BALANCE_QUERY_NEWAPI_TEMPLATE.extractor.total_path;
+        data.balance_query_unit_path =
+          BALANCE_QUERY_NEWAPI_TEMPLATE.extractor.unit_path;
         data.balance_query_unit = BALANCE_QUERY_NEWAPI_TEMPLATE.extractor.unit;
         data.balance_query_divisor =
           BALANCE_QUERY_NEWAPI_TEMPLATE.extractor.divisor;
@@ -1190,6 +1230,8 @@ const EditChannelModal = (props) => {
           BALANCE_QUERY_NEWAPI_TEMPLATE.extractor.success_path;
         data.balance_query_success_value =
           BALANCE_QUERY_NEWAPI_TEMPLATE.extractor.success_value;
+        data.balance_query_success_optional =
+          BALANCE_QUERY_NEWAPI_TEMPLATE.extractor.success_optional;
         data.balance_query_message_path =
           BALANCE_QUERY_NEWAPI_TEMPLATE.extractor.message_path;
         data.balance_query_last_check_time = 0;
@@ -2114,10 +2156,12 @@ const EditChannelModal = (props) => {
         remaining_path: localInputs.balance_query_remaining_path || '',
         used_path: localInputs.balance_query_used_path || '',
         total_path: localInputs.balance_query_total_path || '',
+        unit_path: localInputs.balance_query_unit_path || '',
         unit: localInputs.balance_query_unit || 'USD',
         divisor: Number(localInputs.balance_query_divisor) || 1,
         success_path: localInputs.balance_query_success_path || '',
         success_value: localInputs.balance_query_success_value || '',
+        success_optional: localInputs.balance_query_success_optional === true,
         message_path: localInputs.balance_query_message_path || '',
       },
       last_result: settings.balance_query?.last_result || null,
@@ -2166,10 +2210,12 @@ const EditChannelModal = (props) => {
     delete localInputs.balance_query_remaining_path;
     delete localInputs.balance_query_used_path;
     delete localInputs.balance_query_total_path;
+    delete localInputs.balance_query_unit_path;
     delete localInputs.balance_query_unit;
     delete localInputs.balance_query_divisor;
     delete localInputs.balance_query_success_path;
     delete localInputs.balance_query_success_value;
+    delete localInputs.balance_query_success_optional;
     delete localInputs.balance_query_message_path;
     delete localInputs.balance_query_last_check_time;
     delete localInputs.balance_query_last_result;
@@ -2847,9 +2893,17 @@ const EditChannelModal = (props) => {
                       size='small'
                       type='tertiary'
                       theme='outline'
-                      onClick={applyBalanceQueryTemplate}
+                      onClick={() => applyBalanceQueryTemplate('newapi')}
                     >
                       {t('填入 New API 模板')}
+                    </Button>
+                    <Button
+                      size='small'
+                      type='tertiary'
+                      theme='outline'
+                      onClick={() => applyBalanceQueryTemplate('sub2api')}
+                    >
+                      {t('填入 sub2api 模板')}
                     </Button>
                   </div>
                   <Form.Switch
@@ -2874,6 +2928,7 @@ const EditChannelModal = (props) => {
                         label={t('模板')}
                         optionList={[
                           { label: 'New API', value: 'newapi' },
+                          { label: 'sub2api', value: 'sub2api' },
                           { label: t('自定义'), value: 'custom' },
                         ]}
                         onChange={(value) =>
@@ -2957,7 +3012,7 @@ const EditChannelModal = (props) => {
                       )
                     }
                     extraText={t(
-                      '支持 {{baseUrl}}、{{accessToken}}、{{userId}} 变量',
+                      '支持 {{baseUrl}}、{{accessToken}}、{{apiKey}}、{{userId}} 变量',
                     )}
                   />
                   <Row gutter={12}>
@@ -3059,7 +3114,7 @@ const EditChannelModal = (props) => {
                     </Col>
                   </Row>
                   <Row gutter={12}>
-                    <Col span={12}>
+                    <Col span={8}>
                       <Form.Input
                         field='balance_query_total_path'
                         label={t('总额度路径')}
@@ -3073,7 +3128,7 @@ const EditChannelModal = (props) => {
                         }
                       />
                     </Col>
-                    <Col span={12}>
+                    <Col span={8}>
                       <Form.Input
                         field='balance_query_plan_name_path'
                         label={t('套餐名称路径')}
@@ -3086,9 +3141,23 @@ const EditChannelModal = (props) => {
                         }
                       />
                     </Col>
+                    <Col span={8}>
+                      <Form.Input
+                        field='balance_query_unit_path'
+                        label={t('单位路径')}
+                        placeholder='unit,quota.unit'
+                        showClear
+                        onChange={(value) =>
+                          handleBalanceQueryInputChange(
+                            'balance_query_unit_path',
+                            value,
+                          )
+                        }
+                      />
+                    </Col>
                   </Row>
                   <Row gutter={12}>
-                    <Col span={8}>
+                    <Col span={6}>
                       <Form.Input
                         field='balance_query_success_path'
                         label={t('成功状态路径')}
@@ -3102,7 +3171,7 @@ const EditChannelModal = (props) => {
                         }
                       />
                     </Col>
-                    <Col span={8}>
+                    <Col span={6}>
                       <Form.Input
                         field='balance_query_success_value'
                         label={t('成功状态值')}
@@ -3116,7 +3185,7 @@ const EditChannelModal = (props) => {
                         }
                       />
                     </Col>
-                    <Col span={8}>
+                    <Col span={6}>
                       <Form.Input
                         field='balance_query_message_path'
                         label={t('错误消息路径')}
@@ -3125,6 +3194,20 @@ const EditChannelModal = (props) => {
                         onChange={(value) =>
                           handleBalanceQueryInputChange(
                             'balance_query_message_path',
+                            value,
+                          )
+                        }
+                      />
+                    </Col>
+                    <Col span={6}>
+                      <Form.Switch
+                        field='balance_query_success_optional'
+                        label={t('成功状态可缺省')}
+                        checkedText={t('是')}
+                        uncheckedText={t('否')}
+                        onChange={(value) =>
+                          handleBalanceQueryInputChange(
+                            'balance_query_success_optional',
                             value,
                           )
                         }

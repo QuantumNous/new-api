@@ -367,6 +367,7 @@ func updateChannelMoonshotBalance(channel *model.Channel) (float64, error) {
 
 const (
 	balanceQueryTemplateNewAPI        = "newapi"
+	balanceQueryTemplateSub2API       = "sub2api"
 	balanceQueryDefaultIntervalSecond = 300
 	channelLowBalanceNotifyThreshold  = 3.0
 	channelLowBalanceNotifyCooldown   = 2 * time.Hour
@@ -413,10 +414,51 @@ func buildBalanceQueryConfig(channel *model.Channel, config dto.BalanceQuery) dt
 	if template == "" {
 		template = balanceQueryTemplateNewAPI
 	}
-	if template != balanceQueryTemplateNewAPI {
+	switch template {
+	case balanceQueryTemplateNewAPI:
+		config.Template = balanceQueryTemplateNewAPI
+	case balanceQueryTemplateSub2API:
+		config.Template = balanceQueryTemplateSub2API
+	default:
 		return config
 	}
-	config.Template = balanceQueryTemplateNewAPI
+
+	if template == balanceQueryTemplateSub2API {
+		if strings.TrimSpace(config.Request.URL) == "" {
+			config.Request.URL = "{{baseUrl}}/v1/usage"
+		}
+		if strings.TrimSpace(config.Request.Method) == "" {
+			config.Request.Method = "GET"
+		}
+		if config.Request.Headers == nil {
+			config.Request.Headers = map[string]string{}
+		}
+		if _, ok := config.Request.Headers["Authorization"]; !ok {
+			config.Request.Headers["Authorization"] = "Bearer {{apiKey}}"
+		}
+		if strings.TrimSpace(config.Extractor.RemainingPath) == "" {
+			config.Extractor.RemainingPath = "remaining,quota.remaining,balance"
+		}
+		if strings.TrimSpace(config.Extractor.UnitPath) == "" {
+			config.Extractor.UnitPath = "unit,quota.unit"
+		}
+		if strings.TrimSpace(config.Extractor.Unit) == "" {
+			config.Extractor.Unit = "USD"
+		}
+		if config.Extractor.Divisor == 0 {
+			config.Extractor.Divisor = 1
+		}
+		if strings.TrimSpace(config.Extractor.SuccessPath) == "" {
+			config.Extractor.SuccessPath = "is_active,isValid"
+		}
+		if strings.TrimSpace(config.Extractor.SuccessValue) == "" {
+			config.Extractor.SuccessValue = "true"
+		}
+		config.Extractor.SuccessOptional = true
+		_ = channel
+		return config
+	}
+
 	if strings.TrimSpace(config.Request.URL) == "" {
 		config.Request.URL = "{{baseUrl}}/api/user/self"
 	}
@@ -477,6 +519,7 @@ func replaceBalanceQueryVars(value string, channel *model.Channel, config dto.Ba
 	replacer := strings.NewReplacer(
 		"{{baseUrl}}", baseURL,
 		"{{accessToken}}", accessToken,
+		"{{apiKey}}", channel.Key,
 		"{{key}}", channel.Key,
 		"{{userId}}", config.UserID,
 		"{{channelId}}", strconv.Itoa(channel.Id),
@@ -500,6 +543,27 @@ func logBalanceQueryDebug(info balanceQueryDebugInfo) {
 		return
 	}
 	common.SysLog("balance query debug: " + string(data))
+}
+
+func splitBalanceQueryPaths(path string) []string {
+	parts := strings.Split(path, ",")
+	paths := make([]string, 0, len(parts))
+	for _, part := range parts {
+		if trimmed := strings.TrimSpace(part); trimmed != "" {
+			paths = append(paths, trimmed)
+		}
+	}
+	return paths
+}
+
+func getBalanceQueryJSONValue(body []byte, path string) (gjson.Result, bool) {
+	for _, candidate := range splitBalanceQueryPaths(path) {
+		result := gjson.GetBytes(body, candidate)
+		if result.Exists() && result.Type != gjson.Null {
+			return result, true
+		}
+	}
+	return gjson.Result{}, false
 }
 
 func shouldSendChannelLowBalanceNotify(channelId int, now time.Time) bool {
@@ -584,8 +648,11 @@ func validateBalanceQuerySuccess(body []byte, extractor dto.BalanceQueryExtracto
 	if extractor.SuccessPath == "" {
 		return true, ""
 	}
-	result := gjson.GetBytes(body, extractor.SuccessPath)
-	if !result.Exists() || result.Type == gjson.Null {
+	result, ok := getBalanceQueryJSONValue(body, extractor.SuccessPath)
+	if !ok {
+		if extractor.SuccessOptional {
+			return true, ""
+		}
 		return false, "余额查询响应缺少成功状态字段"
 	}
 	expected := strings.TrimSpace(extractor.SuccessValue)
@@ -611,8 +678,8 @@ func getBalanceQueryNumber(body []byte, path string, divisor float64) (float64, 
 	if path == "" {
 		return 0, false
 	}
-	result := gjson.GetBytes(body, path)
-	if !result.Exists() || result.Type == gjson.Null {
+	result, ok := getBalanceQueryJSONValue(body, path)
+	if !ok {
 		return 0, false
 	}
 	value := result.Float()
@@ -646,10 +713,19 @@ func extractBalanceQueryResult(body []byte, extractor dto.BalanceQueryExtractorC
 		return result
 	}
 	if extractor.PlanNamePath != "" {
-		result.PlanName = strings.TrimSpace(gjson.GetBytes(body, extractor.PlanNamePath).String())
+		if value, ok := getBalanceQueryJSONValue(body, extractor.PlanNamePath); ok {
+			result.PlanName = strings.TrimSpace(value.String())
+		}
 	}
 	if result.PlanName == "" {
 		result.PlanName = "默认套餐"
+	}
+	if extractor.UnitPath != "" {
+		if unit, ok := getBalanceQueryJSONValue(body, extractor.UnitPath); ok {
+			if unitValue := strings.TrimSpace(unit.String()); unitValue != "" {
+				result.Unit = unitValue
+			}
+		}
 	}
 	if remaining, ok := getBalanceQueryNumber(body, extractor.RemainingPath, divisor); ok {
 		result.Remaining = remaining

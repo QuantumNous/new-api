@@ -73,15 +73,17 @@ type BalanceQueryRequestConfig struct {
 }
 
 type BalanceQueryExtractorConfig struct {
-	PlanNamePath  string  `json:"plan_name_path,omitempty"`
-	RemainingPath string  `json:"remaining_path,omitempty"`
-	UsedPath      string  `json:"used_path,omitempty"`
-	TotalPath     string  `json:"total_path,omitempty"`
-	Unit          string  `json:"unit,omitempty"`
-	Divisor       float64 `json:"divisor,omitempty"`
-	SuccessPath   string  `json:"success_path,omitempty"`
-	SuccessValue  string  `json:"success_value,omitempty"`
-	MessagePath   string  `json:"message_path,omitempty"`
+	PlanNamePath    string  `json:"plan_name_path,omitempty"`
+	RemainingPath   string  `json:"remaining_path,omitempty"`
+	UsedPath        string  `json:"used_path,omitempty"`
+	TotalPath       string  `json:"total_path,omitempty"`
+	UnitPath        string  `json:"unit_path,omitempty"`
+	Unit            string  `json:"unit,omitempty"`
+	Divisor         float64 `json:"divisor,omitempty"`
+	SuccessPath     string  `json:"success_path,omitempty"`
+	SuccessValue    string  `json:"success_value,omitempty"`
+	SuccessOptional bool    `json:"success_optional,omitempty"`
+	MessagePath     string  `json:"message_path,omitempty"`
 }
 
 type BalanceQueryResult struct {
