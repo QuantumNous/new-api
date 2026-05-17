@@ -66,11 +66,13 @@ export default function SettingsPaymentGatewayWaffoPancake(props) {
       ...(formApiRef.current?.getValues?.() || {}),
     };
 
-    // Gateway is implicitly enabled once credentials are filled in.
-    const intendsToConfigure = values.WaffoPancakeMerchantID.trim() !== '';
-
     setLoading(true);
     try {
+      // Classic admin only persists the three operator-typed fields.
+      // Store/Product binding is handled exclusively by the default
+      // frontend's catalog flow (see waffo-pancake-settings-section.tsx)
+      // because picking entities from a live catalog needs the Select +
+      // dependent-dropdown UX that the classic Semi-UI page doesn't have.
       const options = [
         {
           key: 'WaffoPancakeMerchantID',
@@ -102,29 +104,6 @@ export default function SettingsPaymentGatewayWaffoPancake(props) {
       if (errorResults.length > 0) {
         errorResults.forEach((res) => showError(res.data.message));
         return;
-      }
-
-      // After credentials are persisted, ask the backend to auto-provision a
-      // Pancake Store + OnetimeProduct (idempotent).
-      if (intendsToConfigure) {
-        try {
-          const provisionRes = await API.post(
-            '/api/option/waffo-pancake/initialize',
-          );
-          if (!provisionRes.data?.success) {
-            const reason =
-              typeof provisionRes.data?.data === 'string'
-                ? provisionRes.data.data
-                : provisionRes.data?.message;
-            showError(reason || t('Waffo Pancake 自动创建商品失败'));
-            return;
-          }
-        } catch (err) {
-          showError(
-            `${t('Waffo Pancake 自动创建商品失败')}: ${err?.message ?? err}`,
-          );
-          return;
-        }
       }
 
       showSuccess(t('更新成功'));
