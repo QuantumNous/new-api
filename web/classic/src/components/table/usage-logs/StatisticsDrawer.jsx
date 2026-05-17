@@ -134,13 +134,22 @@ const StatisticsDrawer = ({
   const quotaBarSpec = buildQuotaBarSpec();
   const hasData = statistics && statistics.length > 0;
 
+  const fmtTokenM = (v) => {
+    const m = (v || 0) / 1_000_000;
+    if (m === 0) return '0';
+    if (m >= 100) return m.toFixed(1);
+    if (m >= 1) return m.toFixed(2);
+    if (m >= 0.01) return m.toFixed(4);
+    return m.toFixed(6);
+  };
+
   const columns = [
     { title: t('模型名称'), dataIndex: 'model_name', key: 'model_name' },
     { title: t('调用次数'), dataIndex: 'request_count', key: 'request_count', render: (text) => renderNumber(text) },
     { title: t('消耗额度'), dataIndex: 'quota', key: 'quota', render: (text) => renderQuota(text) },
-    { title: 'Prompt Tokens(M)', dataIndex: 'prompt_tokens', key: 'prompt_tokens', render: (text) => renderNumber((text || 0) / 1_000_000) },
-    { title: 'Completion Tokens(M)', dataIndex: 'completion_tokens', key: 'completion_tokens', render: (text) => renderNumber((text || 0) / 1_000_000) },
-    { title: t('总 Tokens(M)'), key: 'total_tokens', render: (_, record) => renderNumber(((record.prompt_tokens || 0) + (record.completion_tokens || 0)) / 1_000_000) },
+    { title: 'Prompt Tokens(M)', dataIndex: 'prompt_tokens', key: 'prompt_tokens', render: (text) => fmtTokenM(text) },
+    { title: 'Completion Tokens(M)', dataIndex: 'completion_tokens', key: 'completion_tokens', render: (text) => fmtTokenM(text) },
+    { title: t('总 Tokens(M)'), key: 'total_tokens', render: (_, record) => fmtTokenM((record.prompt_tokens || 0) + (record.completion_tokens || 0)) },
   ];
 
   const summaryData = hasData ? [{

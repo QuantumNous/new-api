@@ -175,16 +175,35 @@ export async function getStatisticsUserOptions(
   return res.data?.data ?? []
 }
 
+export interface TokenOption {
+  id: number
+  name: string
+}
+
+export interface TokenOptionsResponse {
+  data: TokenOption[]
+  has_more: boolean
+  next_cursor: number
+}
+
 export async function getStatisticsTokenOptions(
-  username?: string
-): Promise<string[]> {
+  username?: string,
+  keyword?: string,
+  cursor?: number
+): Promise<TokenOptionsResponse> {
   const queryParams = buildQueryParams({
     username: username || '',
+    keyword: keyword || '',
+    cursor: cursor ?? 0,
   })
   const res = await api.get(
     `/api/log/statistics/options/tokens?${queryParams}`
   )
-  return res.data?.data ?? []
+  return {
+    data: res.data?.data ?? [],
+    has_more: res.data?.has_more ?? false,
+    next_cursor: res.data?.next_cursor ?? 0,
+  }
 }
 
 export async function getStatisticsModelOptions(

@@ -156,7 +156,8 @@ export const useLogStatistics = () => {
     try {
       const url = `/api/log/statistics/options/tokens?username=${encodeURIComponent(username)}`;
       const res = await API.get(url);
-      return res.data?.data || [];
+      const data = res.data?.data || [];
+      return data.map((t) => (typeof t === 'object' && t.name ? t.name : t));
     } catch {
       return [];
     }

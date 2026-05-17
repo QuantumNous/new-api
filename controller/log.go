@@ -371,7 +371,8 @@ func GetStatisticsTokenOptions(c *gin.Context) {
 	if err := model.DB.Where("username = ?", username).First(&user).Error; err != nil {
 		c.JSON(http.StatusOK, gin.H{
 			"success": true,
-			"data":    []string{},
+			"data":    []any{},
+			"has_more": false,
 		})
 		return
 	}
@@ -379,31 +380,65 @@ func GetStatisticsTokenOptions(c *gin.Context) {
 	if role < common.RoleAdminUser && user.Id != userId {
 		c.JSON(http.StatusOK, gin.H{
 			"success": true,
-			"data":    []string{},
+			"data":    []any{},
+			"has_more": false,
 		})
 		return
 	}
 
-	tokens, err := model.GetAllUserTokens(user.Id, 0, 100)
-	if err != nil {
+	keyword := c.Query("keyword")
+	cursor, _ := strconv.Atoi(c.Query("cursor"))
+	if cursor < 0 {
+		cursor = 0
+	}
+	pageSize := 50
+
+	query := model.DB.Where("user_id = ?", user.Id)
+	if keyword != "" {
+		query = query.Where("name LIKE ?", keyword+"%")
+	}
+	query = query.Where("id > ?", cursor).Order("id asc").Limit(pageSize + 1)
+
+	var tokens []*model.Token
+	if err := query.Find(&tokens).Error; err != nil {
 		common.ApiError(c, err)
 		return
 	}
 
-	var tokenNames []string
+	hasMore := len(tokens) > pageSize
+	if hasMore {
+		tokens = tokens[:pageSize]
+	}
+
+	type tokenOption struct {
+		Id   int    `json:"id"`
+		Name string `json:"name"`
+	}
+	options := make([]tokenOption, 0, len(tokens))
 	for _, t := range tokens {
-		tokenNames = append(tokenNames, t.Name)
+		options = append(options, tokenOption{Id: t.Id, Name: t.Name})
+	}
+
+	nextCursor := 0
+	if len(tokens) > 0 {
+		nextCursor = tokens[len(tokens)-1].Id
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"data":    tokenNames,
+		"success":     true,
+		"data":        options,
+		"has_more":    hasMore,
+		"next_cursor": nextCursor,
 	})
 }
 
 func GetStatisticsModelOptions(c *gin.Context) {
 	username := c.Query("username")
 	tokenName := c.Query("token_name")
+
+	if username != "" && !checkStatisticsUsername(c, username) {
+		return
+	}
 
 	if tokenName != "" && username != "" {
 		var user model.User

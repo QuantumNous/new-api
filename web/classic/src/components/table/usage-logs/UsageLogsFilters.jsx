@@ -29,6 +29,9 @@ const LogsFilters = ({
   refresh,
   setShowColumnSelector,
   formApi,
+  dateRangeValue,
+  handleDateRangeChange,
+  resetDateRange,
   setLogType,
   loading,
   isAdminUser,
@@ -54,6 +57,8 @@ const LogsFilters = ({
               className='w-full'
               type='dateTimeRange'
               placeholder={[t('开始时间'), t('结束时间')]}
+              value={dateRangeValue}
+              onChange={handleDateRangeChange}
               showClear
               pure
               size='small'
@@ -167,6 +172,7 @@ const LogsFilters = ({
               onClick={() => {
                 if (formApi) {
                   formApi.reset();
+                  resetDateRange();
                   setLogType(0);
                   setTimeout(() => {
                     refresh();

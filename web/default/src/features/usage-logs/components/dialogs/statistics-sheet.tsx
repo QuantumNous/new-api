@@ -140,8 +140,8 @@ export function StatisticsSheet({ open, onOpenChange }: StatisticsSheetProps) {
     }
     const timer = setTimeout(() => {
       getStatisticsTokenOptions(username)
-        .then((names) =>
-          setTokenOptions(names.map((n) => ({ value: n, label: n })))
+        .then((res) =>
+          setTokenOptions(res.data.map((t) => ({ value: t.name, label: t.name })))
         )
         .catch(() => setTokenOptions([]))
     }, 300)
@@ -218,6 +218,15 @@ export function StatisticsSheet({ open, onOpenChange }: StatisticsSheetProps) {
       setExportLoading(false)
     }
   }, [buildParams, t])
+
+  const fmtTokenM = useCallback((v: number) => {
+    const m = v / 1_000_000
+    if (m === 0) return '0'
+    if (m >= 100) return m.toFixed(1)
+    if (m >= 1) return m.toFixed(2)
+    if (m >= 0.01) return m.toFixed(4)
+    return m.toFixed(6)
+  }, [])
 
   const hasData = statistics !== null && statistics.length > 0
 
@@ -518,18 +527,15 @@ export function StatisticsSheet({ open, onOpenChange }: StatisticsSheetProps) {
                           {formatLogQuota(m.quota)}
                         </TableCell>
                         <TableCell className='text-right'>
-                          {formatNumber((m.prompt_tokens || 0) / 1_000_000)}
+                          {fmtTokenM(m.prompt_tokens || 0)}
                         </TableCell>
                         <TableCell className='text-right'>
-                          {formatNumber(
-                            (m.completion_tokens || 0) / 1_000_000
-                          )}
+                          {fmtTokenM(m.completion_tokens || 0)}
                         </TableCell>
                         <TableCell className='text-right'>
-                          {formatNumber(
-                            ((m.prompt_tokens || 0) +
-                              (m.completion_tokens || 0)) /
-                              1_000_000
+                          {fmtTokenM(
+                            (m.prompt_tokens || 0) +
+                              (m.completion_tokens || 0)
                           )}
                         </TableCell>
                       </TableRow>
@@ -544,15 +550,13 @@ export function StatisticsSheet({ open, onOpenChange }: StatisticsSheetProps) {
                           {formatLogQuota(s.quota)}
                         </TableCell>
                         <TableCell className='text-right'>
-                          {formatNumber(s.prompt_tokens / 1_000_000)}
+                          {fmtTokenM(s.prompt_tokens)}
                         </TableCell>
                         <TableCell className='text-right'>
-                          {formatNumber(s.completion_tokens / 1_000_000)}
+                          {fmtTokenM(s.completion_tokens)}
                         </TableCell>
                         <TableCell className='text-right'>
-                          {formatNumber(
-                            (s.prompt_tokens + s.completion_tokens) / 1_000_000
-                          )}
+                          {fmtTokenM(s.prompt_tokens + s.completion_tokens)}
                         </TableCell>
                       </TableRow>
                     ))}
