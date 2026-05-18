@@ -72,3 +72,7 @@ jobs:
           go test ./internal/... -count=1 -race -timeout 60s
           go test ./model/ -run 'TestUser_Airbotix' -count=1 -timeout 60s
           go test ./relay/ -run 'TestApplyAirbotixPolicy' -count=1 -race -timeout 60s
+          # Smart-router integration: catalog endpoint pricing math, kids
+          # pre-filter, internal-token auth, cross-model fallback.
+          go test ./controller/ -run 'TestModelRatio|TestGetModelRatio|TestKidsMode|TryCrossModelFallback|IsChannelExhaustion' -count=1 -race -timeout 60s
+          go test ./middleware/ -run 'TestInternalToken' -count=1 -race -timeout 60s
