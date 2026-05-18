@@ -19,6 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import { type ReactNode } from 'react'
 import { CreditCard, Landmark } from 'lucide-react'
 import { SiAlipay, SiWechat, SiStripe } from 'react-icons/si'
+import i18next from 'i18next'
 import { PAYMENT_TYPES, PAYMENT_ICON_COLORS } from '../constants'
 
 // ============================================================================
@@ -129,7 +130,7 @@ export function getPaymentIcon(
       return (
         <span
           role='img'
-          aria-label='pancake'
+          aria-label={i18next.t('Pancake')}
           className={`inline-flex items-center justify-center leading-none ${className}`}
         >
           🥞
