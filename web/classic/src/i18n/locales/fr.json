@@ -75,7 +75,7 @@
     "5m缓存创建价格：{{symbol}}{{price}} / 1M tokens": "Prix de création du cache 5m : {{symbol}}{{price}} / 1M tokens",
     "8 - 高": "8 - Haute",
     "AGPL v3.0协议": "Licence AGPL v3.0",
-    "AI 对话": "Conversation IA",
+    "AI 智能助手": "Assistant IA",
     "AI模型测试环境": "Environnement de test de modèle d'IA",
     "AI模型配置": "Configuration du modèle d'IA",
     "AK/SK 模式：使用 AccessKey 和 SecretAccessKey；API Key 模式：使用 API Key": "Mode AK/SK : utiliser AccessKey et SecretAccessKey ; mode API Key : utiliser API Key",

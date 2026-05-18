@@ -69,7 +69,7 @@
     "5m缓存创建价格：{{symbol}}{{price}} / 1M tokens": "Giá tạo bộ nhớ đệm 5m: {{symbol}}{{price}} / 1M tokens",
     "8 - 高": "8 - Cao",
     "AGPL v3.0协议": "Giấy phép AGPL v3.0",
-    "AI 对话": "Trò chuyện AI",
+    "AI 智能助手": "Trợ lý AI",
     "AI模型测试环境": "Môi trường thử nghiệm mô hình AI",
     "AI模型配置": "Cấu hình mô hình AI",
     "AK/SK 模式：使用 AccessKey 和 SecretAccessKey；API Key 模式：使用 API Key": "AK/SK mode uses AccessKey and SecretAccessKey; API Key mode uses an API Key",

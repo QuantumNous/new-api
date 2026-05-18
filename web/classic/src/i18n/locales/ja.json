@@ -69,7 +69,7 @@
     "5m缓存创建价格：{{symbol}}{{price}} / 1M tokens": "5m キャッシュ作成価格：{{symbol}}{{price}} / 1M tokens",
     "8 - 高": "8 - 高",
     "AGPL v3.0协议": "AGPL v3.0ライセンス",
-    "AI 对话": "AIチャット",
+    "AI 智能助手": "AIアシスタント",
     "AI模型测试环境": "AIモデルテスト環境",
     "AI模型配置": "AIモデル設定",
     "AK/SK 模式：使用 AccessKey 和 SecretAccessKey；API Key 模式：使用 API Key": "AK/SK mode uses AccessKey and SecretAccessKey; API Key mode uses an API Key",

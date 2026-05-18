@@ -79,7 +79,7 @@
     "5m缓存创建价格：{{symbol}}{{price}} / 1M tokens": "Цена создания кеша 5m: {{symbol}}{{price}} / 1M tokens",
     "8 - 高": "8 - Высокий",
     "AGPL v3.0协议": "Лицензия AGPL v3.0",
-    "AI 对话": "AI диалог",
+    "AI 智能助手": "AI-ассистент",
     "AI模型测试环境": "Среда тестирования AI моделей",
     "AI模型配置": "Конфигурация AI моделей",
     "AK/SK 模式：使用 AccessKey 和 SecretAccessKey；API Key 模式：使用 API Key": "Режим AK/SK: используйте AccessKey и SecretAccessKey; режим API Key: используйте API Key",
