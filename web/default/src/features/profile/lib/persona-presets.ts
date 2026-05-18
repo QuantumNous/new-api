@@ -42,9 +42,18 @@ const CASUAL_SIDEBAR = {
   // Chat lets casual users actually use AI in-browser without setting up
   // a client. This is the loudest path to first-call.
   chat: { enabled: true, playground: true, chat: true },
-  // Hide the console group entirely — token/log/midjourney/task are all
-  // technical / per-request audit views.
-  console: { enabled: false },
+  // Casual users still need API Keys — the whole casual persona pitch is
+  // "paste your key into the AI app you already use". Keep token visible;
+  // hide the request-level audit views (detail/log/midjourney/task) since
+  // those are technical.
+  console: {
+    enabled: true,
+    detail: false,
+    token: true,
+    log: false,
+    midjourney: false,
+    task: false,
+  },
   personal: { enabled: true, topup: true, personal: true },
   // Admin section visibility is also gated by role; setting false here
   // makes the intent explicit.
