@@ -2,7 +2,6 @@ package service
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -146,13 +145,6 @@ func optionalString(s string) *string {
 	return &v
 }
 
-func derefString(p *string) string {
-	if p == nil {
-		return ""
-	}
-	return *p
-}
-
 // WaffoPancakeBuyerIdentityFromUserID renders the canonical buyer identity
 // for checkout. Webhook handlers compare against the value rendered here to
 // reject identity mismatches, so both call sites must use this function.
@@ -163,29 +155,29 @@ func WaffoPancakeBuyerIdentityFromUserID(userID int) string {
 // VerifyConfiguredWaffoPancakeWebhook verifies the signature header. The SDK
 // picks the matching test / prod public key from the payload's `mode` field.
 func VerifyConfiguredWaffoPancakeWebhook(payload string, signatureHeader string) (*WaffoPancakeWebhookEvent, error) {
-	sdkEvent, err := pancake.VerifyWebhook(payload, signatureHeader, nil)
+	evt, err := pancake.VerifyWebhookTyped[pancake.WebhookEventData](payload, signatureHeader, nil)
 	if err != nil {
 		return nil, err
 	}
-	var data pancake.WebhookEventData
-	if err := json.Unmarshal(sdkEvent.Data, &data); err != nil {
-		return nil, fmt.Errorf("decode Waffo Pancake webhook data: %w", err)
+	identity := ""
+	if evt.Data.MerchantProvidedBuyerIdentity != nil {
+		identity = *evt.Data.MerchantProvidedBuyerIdentity
 	}
 	return &WaffoPancakeWebhookEvent{
-		ID:        sdkEvent.ID,
-		Timestamp: sdkEvent.Timestamp,
-		EventType: sdkEvent.EventType,
-		EventID:   sdkEvent.EventID,
-		StoreID:   sdkEvent.StoreID,
-		Mode:      string(sdkEvent.Mode),
+		ID:        evt.ID,
+		Timestamp: evt.Timestamp,
+		EventType: evt.EventType,
+		EventID:   evt.EventID,
+		StoreID:   evt.StoreID,
+		Mode:      string(evt.Mode),
 		Data: WaffoPancakeWebhookData{
-			OrderID:                       data.OrderID,
-			BuyerEmail:                    data.BuyerEmail,
-			Currency:                      data.Currency,
-			Amount:                        data.Amount,
-			TaxAmount:                     data.TaxAmount,
-			ProductName:                   data.ProductName,
-			MerchantProvidedBuyerIdentity: derefString(data.MerchantProvidedBuyerIdentity),
+			OrderID:                       evt.Data.OrderID,
+			BuyerEmail:                    evt.Data.BuyerEmail,
+			Currency:                      evt.Data.Currency,
+			Amount:                        evt.Data.Amount,
+			TaxAmount:                     evt.Data.TaxAmount,
+			ProductName:                   evt.Data.ProductName,
+			MerchantProvidedBuyerIdentity: identity,
 		},
 	}, nil
 }
