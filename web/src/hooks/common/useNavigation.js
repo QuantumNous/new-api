@@ -26,12 +26,13 @@ export const useNavigation = (t, docsLink, headerNavModules) => {
       home: true,
       console: true,
       pricing: true,
+      partners: true,
       docs: true,
       about: true,
     };
 
     // 使用传入的配置或默认配置
-    const modules = headerNavModules || defaultModules;
+    const modules = { ...defaultModules, ...(headerNavModules || {}) };
 
     const allLinks = [
       {
@@ -48,6 +49,12 @@ export const useNavigation = (t, docsLink, headerNavModules) => {
         text: t('模型广场'),
         itemKey: 'pricing',
         to: '/pricing',
+      },
+      {
+        text: t('推广合作'),
+        itemKey: 'partners',
+        isExternal: true,
+        externalLink: 'https://partners.infistar.ai',
       },
       ...(docsLink
         ? [

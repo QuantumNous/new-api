@@ -55,6 +55,11 @@ import TwoFAVerification from './TwoFAVerification';
 import AuthShell from './AuthShell';
 import { getAuthPageCopy } from './authShellContent';
 import SliderCaptcha from './SliderCaptcha';
+import {
+  persistAllowedReturnTo,
+  redirectAfterAuth,
+  withAllowedReturnTo,
+} from './returnTo';
 import { useTranslation } from 'react-i18next';
 import { SiDiscord } from 'react-icons/si';
 
@@ -109,11 +114,6 @@ const LoginForm = () => {
   const githubButtonText = t(githubButtonTextKeyByState[githubButtonState]);
   const systemName = getSystemName();
 
-  let affCode = new URLSearchParams(window.location.search).get('aff');
-  if (affCode) {
-    localStorage.setItem('aff', affCode);
-  }
-
   const status = useMemo(() => {
     if (statusState?.status) return statusState.status;
     const savedStatus = localStorage.getItem('status');
@@ -165,6 +165,8 @@ const LoginForm = () => {
   }, []);
 
   useEffect(() => {
+    persistAllowedReturnTo();
+
     if (searchParams.get('expired')) {
       showError(t('未登录或登录已过期，请重新登录'));
     }
@@ -217,7 +219,7 @@ const LoginForm = () => {
         userDispatch({ type: 'login', payload: data });
         setUserData(data);
         updateAPI();
-        navigate('/');
+        redirectAfterAuth(navigate, '/');
         showSuccess('登录成功！');
         setShowWeChatLoginModal(false);
       } else {
@@ -259,7 +261,7 @@ const LoginForm = () => {
               centered: true,
             });
           }
-          navigate('/console');
+          redirectAfterAuth(navigate, '/console');
         } else {
           showError(message);
           resetSliderCaptcha();
@@ -326,7 +328,7 @@ const LoginForm = () => {
         setUserData(data);
         showSuccess('登录成功！');
         updateAPI();
-        navigate('/');
+        redirectAfterAuth(navigate, '/');
       } else {
         showError(message);
       }
@@ -453,7 +455,7 @@ const LoginForm = () => {
         setUserData(finish.data);
         updateAPI();
         showSuccess('登录成功！');
-        navigate('/console');
+        redirectAfterAuth(navigate, '/console');
       } else {
         showError(finish.message || 'Passkey 登录失败，请重试');
       }
@@ -473,7 +475,7 @@ const LoginForm = () => {
     setUserData(data);
     updateAPI();
     showSuccess('登录成功！');
-    navigate('/console');
+    redirectAfterAuth(navigate, '/console');
   };
 
   const handleBackToLogin = () => {
@@ -820,7 +822,7 @@ const LoginForm = () => {
       <p className='auth-theme-switch-text mt-8 text-center text-sm'>
         {pageCopy.switchPrefix}{' '}
         <Link
-          to={pageCopy.switchHref}
+          to={withAllowedReturnTo(pageCopy.switchHref)}
           className='auth-theme-switch-link font-medium'
         >
           {pageCopy.switchText}

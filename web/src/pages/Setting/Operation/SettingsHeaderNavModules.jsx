@@ -46,6 +46,7 @@ export default function SettingsHeaderNavModules(props) {
       enabled: true,
       requireAuth: false, // 默认不需要登录鉴权
     },
+    partners: true,
     docs: true,
     about: true,
   });
@@ -86,6 +87,7 @@ export default function SettingsHeaderNavModules(props) {
         enabled: true,
         requireAuth: false,
       },
+      partners: true,
       docs: true,
       about: true,
     };
@@ -142,7 +144,7 @@ export default function SettingsHeaderNavModules(props) {
           };
         }
 
-        setHeaderNavModules(modules);
+        setHeaderNavModules({ partners: true, ...modules });
       } catch (error) {
         // 使用默认配置
         const defaultModules = {
@@ -152,6 +154,7 @@ export default function SettingsHeaderNavModules(props) {
             enabled: true,
             requireAuth: false,
           },
+          partners: true,
           docs: true,
           about: true,
         };
@@ -177,6 +180,11 @@ export default function SettingsHeaderNavModules(props) {
       title: t('模型广场'),
       description: t('模型定价，需要登录访问'),
       hasSubConfig: true, // 标识该模块有子配置
+    },
+    {
+      key: 'partners',
+      title: t('推广合作'),
+      description: t('推广合作入口'),
     },
     {
       key: 'docs',

@@ -29,6 +29,7 @@ import {
 } from '../../helpers';
 import { UserContext } from '../../context/User';
 import Loading from '../common/ui/Loading';
+import { redirectAfterAuth } from './returnTo';
 
 const OAuth2Callback = (props) => {
   const { t } = useTranslation();
@@ -65,7 +66,7 @@ const OAuth2Callback = (props) => {
         setUserData(data);
         updateAPI();
         showSuccess(t('登录成功！'));
-        navigate('/console/token');
+        redirectAfterAuth(navigate, '/console/token');
       }
     } catch (error) {
       // 网络错误等可重试

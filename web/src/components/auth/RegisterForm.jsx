@@ -49,6 +49,11 @@ import { StatusContext } from '../../context/Status';
 import AuthShell from './AuthShell';
 import { getAuthPageCopy } from './authShellContent';
 import SliderCaptcha from './SliderCaptcha';
+import {
+  persistAllowedReturnTo,
+  redirectAfterAuth,
+  withAllowedReturnTo,
+} from './returnTo';
 import { useTranslation } from 'react-i18next';
 import { SiDiscord } from 'react-icons/si';
 
@@ -108,11 +113,6 @@ const RegisterForm = () => {
   const githubButtonText = t(githubButtonTextKeyByState[githubButtonState]);
   const systemName = getSystemName();
 
-  let affCode = new URLSearchParams(window.location.search).get('aff');
-  if (affCode) {
-    localStorage.setItem('aff', affCode);
-  }
-
   const status = useMemo(() => {
     if (statusState?.status) return statusState.status;
     const savedStatus = localStorage.getItem('status');
@@ -138,6 +138,10 @@ const RegisterForm = () => {
       status.telegram_oauth ||
       hasCustomOAuthProviders,
   );
+
+  useEffect(() => {
+    persistAllowedReturnTo();
+  }, []);
 
   useEffect(() => {
     setShowEmailVerification(!!status?.email_verification);
@@ -214,7 +218,7 @@ const RegisterForm = () => {
         userDispatch({ type: 'login', payload: data });
         setUserData(data);
         updateAPI();
-        navigate('/');
+        redirectAfterAuth(navigate, '/');
         showSuccess('登录成功！');
         setShowWeChatLoginModal(false);
       } else {
@@ -230,20 +234,13 @@ const RegisterForm = () => {
   const submitRegister = async () => {
     setRegisterLoading(true);
     try {
-      if (!affCode) {
-        affCode = localStorage.getItem('aff');
-      }
-      const payload = {
-        ...inputs,
-        aff_code: affCode,
-      };
       const res = await API.post(
         `/api/user/register?turnstile=${turnstileToken}`,
-        payload,
+        inputs,
       );
       const { success, message } = res.data;
       if (success) {
-        navigate('/login');
+        navigate(withAllowedReturnTo('/login'));
         showSuccess('注册成功！');
       } else {
         showError(message);
@@ -396,7 +393,7 @@ const RegisterForm = () => {
         setUserData(data);
         showSuccess('登录成功！');
         updateAPI();
-        navigate('/');
+        redirectAfterAuth(navigate, '/');
       } else {
         showError(message);
       }
@@ -759,7 +756,7 @@ const RegisterForm = () => {
       <p className='auth-theme-switch-text mt-8 text-center text-sm'>
         {pageCopy.switchPrefix}{' '}
         <Link
-          to={pageCopy.switchHref}
+          to={withAllowedReturnTo(pageCopy.switchHref)}
           className='auth-theme-switch-link font-medium'
         >
           {pageCopy.switchText}
