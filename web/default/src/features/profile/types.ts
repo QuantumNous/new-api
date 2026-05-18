@@ -173,6 +173,19 @@ export interface UpdateUserSettingsRequest {
   upstream_model_update_notify_enabled?: boolean
   /** UI-tailoring preference; see UserSettings.persona */
   persona?: Persona | 'unset'
+  /** Favourite AI brand. Matches dto.UserSetting.BrandPreference. */
+  brand_preference?: 'claude' | 'openai' | 'gemini' | 'deepseek' | ''
+  /** Preferred client / landing surface. Matches dto.UserSetting.PreferredClient. */
+  preferred_client?:
+    | 'cherry-studio'
+    | 'chatbox'
+    | 'lobechat'
+    | 'cursor'
+    | 'claude-code'
+    | 'code'
+    | 'playground'
+    | 'dashboard'
+    | ''
   /** Sidebar visibility config (matches dto.UserSetting.SidebarModules) */
   sidebar_modules?: string
 }
