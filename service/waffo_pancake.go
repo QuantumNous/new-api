@@ -1,12 +1,9 @@
 package service
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
-	"net/http"
 	"strings"
 
 	"github.com/QuantumNous/new-api/model"
@@ -73,60 +70,6 @@ func (e *WaffoPancakeWebhookEvent) NormalizedEventType() string {
 	return e.EventType
 }
 
-// waffoPancakeGraphQLEnvelopeFixTransport works around two issues in
-// waffo-pancake-sdk-go v0.1.1 that only affect /v1/graphql:
-//
-//  1. Response decoding: the SDK expects a doubly-wrapped envelope
-//     {"data": {"data": ..., "errors": [...]}} but the live endpoint
-//     returns the standard single-wrap {"data": ..., "errors": [...]},
-//     so we re-wrap the body for the SDK's outer unwrap to peel off.
-//  2. Idempotency: the SDK signs every POST with an X-Idempotency-Key,
-//     including queries; Pancake dedupes on that key server-side and
-//     would serve a stale snapshot back, so freshly-created entities
-//     wouldn't appear in the catalog. Queries are reads — strip it.
-//
-// Drop the whole transport once both ship upstream.
-type waffoPancakeGraphQLEnvelopeFixTransport struct {
-	inner http.RoundTripper
-}
-
-func (t *waffoPancakeGraphQLEnvelopeFixTransport) RoundTrip(req *http.Request) (*http.Response, error) {
-	inner := t.inner
-	if inner == nil {
-		inner = http.DefaultTransport
-	}
-	if strings.HasSuffix(req.URL.Path, "/v1/graphql") {
-		req.Header.Del("X-Idempotency-Key")
-	}
-	resp, err := inner.RoundTrip(req)
-	if err != nil || resp == nil {
-		return resp, err
-	}
-	if !strings.HasSuffix(req.URL.Path, "/v1/graphql") {
-		return resp, nil
-	}
-	body, readErr := io.ReadAll(resp.Body)
-	_ = resp.Body.Close()
-	if readErr != nil {
-		return resp, readErr
-	}
-	if len(bytes.TrimSpace(body)) == 0 {
-		resp.Body = io.NopCloser(bytes.NewReader(body))
-		return resp, nil
-	}
-	wrapped := make([]byte, 0, len(body)+9)
-	wrapped = append(wrapped, []byte(`{"data":`)...)
-	wrapped = append(wrapped, body...)
-	wrapped = append(wrapped, '}')
-	resp.Body = io.NopCloser(bytes.NewReader(wrapped))
-	resp.ContentLength = int64(len(wrapped))
-	return resp, nil
-}
-
-func newWaffoPancakeHTTPClient() *http.Client {
-	return &http.Client{Transport: &waffoPancakeGraphQLEnvelopeFixTransport{inner: http.DefaultTransport}}
-}
-
 // newWaffoPancakeClient builds an SDK client from persisted settings. The
 // runtime checkout / webhook paths use this; configuration endpoints use
 // newWaffoPancakeClientFromCreds so the operator can verify typed-but-not-
@@ -135,7 +78,6 @@ func newWaffoPancakeClient() (*pancake.Client, error) {
 	return pancake.New(pancake.Config{
 		MerchantID: setting.WaffoPancakeMerchantID,
 		PrivateKey: setting.WaffoPancakePrivateKey,
-		HTTPClient: newWaffoPancakeHTTPClient(),
 	})
 }
 
@@ -146,7 +88,6 @@ func newWaffoPancakeClientFromCreds(merchantID, privateKey string) (*pancake.Cli
 	return pancake.New(pancake.Config{
 		MerchantID: merchantID,
 		PrivateKey: privateKey,
-		HTTPClient: newWaffoPancakeHTTPClient(),
 	})
 }
 
