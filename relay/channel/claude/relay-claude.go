@@ -804,7 +804,7 @@ func HandleStreamResponseData(c *gin.Context, info *relaycommon.RelayInfo, claud
 
 		if claudeResponse.Type == "message_start" {
 			// message_start, 获取usage
-			if claudeResponse.Message != nil {
+			if claudeResponse.Message != nil && !info.IsModelMapped {
 				info.UpstreamModelName = claudeResponse.Message.Model
 			}
 		} else if claudeResponse.Type == "message_delta" {

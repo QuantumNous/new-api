@@ -63,6 +63,7 @@ func ResolveOriginTask(c *gin.Context, info *relaycommon.RelayInfo) *dto.TaskErr
 	if !exist {
 		return service.TaskErrorWrapperLocal(errors.New("task_origin_not_exist"), "task_not_exist", http.StatusBadRequest)
 	}
+	info.OriginTaskID = originTask.GetUpstreamTaskID()
 
 	// 从原始任务推导模型名称
 	if info.OriginModelName == "" {

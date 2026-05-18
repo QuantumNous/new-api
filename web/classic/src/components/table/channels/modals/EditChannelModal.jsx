@@ -1334,12 +1334,14 @@ const EditChannelModal = (props) => {
       } else {
         formApiRef.current?.setValues(getInitValues());
         try {
-          navigator?.clipboard?.readText()?.then((text) => {
-            const parsed = parseChannelConnectionString(text);
-            if (parsed) {
-              setClipboardConfig(parsed);
-            }
-          }).catch(() => {});
+          if (navigator?.clipboard?.readText) {
+            navigator.clipboard.readText().then((text) => {
+              const parsed = parseChannelConnectionString(text);
+              if (parsed) {
+                setClipboardConfig(parsed);
+              }
+            }).catch(() => {});
+          }
         } catch {}
       }
       fetchModelGroups();
