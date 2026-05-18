@@ -1720,6 +1720,7 @@
     "支付渠道": "Payment Channels",
     "支付设置": "Payment",
     "支付请求失败": "Payment request failed",
+    "支付跳转地址不安全": "Unsafe payment redirect URL",
     "支付返回地址": "Return URL",
     "支付金额": "Payment Amount",
     "支持 Ctrl+V 粘贴图片": "Supports Ctrl+V to paste images",
