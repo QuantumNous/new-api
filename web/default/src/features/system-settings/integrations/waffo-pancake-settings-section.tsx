@@ -378,7 +378,7 @@ export function WaffoPancakeSettingsSection(props: Props) {
       form.getValues('WaffoPancakePrivateKey') || ''
     ).trim()
     if (!merchantID) {
-      toast.error(t('Merchant ID is required.'))
+      toast.error(t('Merchant ID is required'))
       return
     }
     if (!chosenStoreID || !chosenProductID) {
