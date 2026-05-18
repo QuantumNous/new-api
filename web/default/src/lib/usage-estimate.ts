@@ -83,3 +83,52 @@ export function formatCount(n: number): string {
   if (n < 1_000_000) return `${Math.floor(n / 1000)}k`
   return `${(n / 1_000_000).toFixed(1).replace(/\.0$/, '')}m`
 }
+
+/**
+ * Per-model character estimates — onboarding-v2 §7.4 wants users to see
+ * "约能用 Sonnet X 万字 / GPT-4o X 万字 / DeepSeek X 万字" on each top-up
+ * tier so they can gauge value across cheap / mid / premium models.
+ *
+ * effectiveRatio = input_ratio × 3 — rough multiplier that accounts for
+ * the typical 1:2 input:output split AND output being ~4× input. Yields
+ * the right order of magnitude for marketing copy; never billing-grade.
+ *
+ * model_ratio values come from setting/ratio_setting/model_ratio.go.
+ * Update HIGHLIGHT_MODELS in lock-step with pricing changes.
+ */
+const HIGHLIGHT_MODELS: { name: string; effectiveRatio: number }[] = [
+  { name: 'Claude Sonnet', effectiveRatio: 4.5 }, // input ratio 1.5
+  { name: 'GPT-4o', effectiveRatio: 3.75 }, // input ratio 1.25
+  { name: 'DeepSeek V3', effectiveRatio: 0.405 }, // input ratio 0.135
+]
+
+const CHARS_PER_TOKEN = 1.4
+
+/**
+ * Returns rough character-count estimates for each highlight model at a
+ * given quota balance. Empty array if input is non-positive.
+ */
+export function estimateCharsByModel(
+  quota: number | null | undefined
+): { name: string; chars: number }[] {
+  if (!quota || !Number.isFinite(quota) || quota <= 0) return []
+  return HIGHLIGHT_MODELS.map(({ name, effectiveRatio }) => {
+    const tokens = quota / (effectiveRatio * 2)
+    return {
+      name,
+      chars: Math.max(0, Math.floor(tokens * CHARS_PER_TOKEN)),
+    }
+  })
+}
+
+/**
+ * Format a character count for Chinese-friendly marketing copy:
+ *   < 10_000 → "X 字"
+ *   < 100_000_000 → "X 万字"
+ *   ≥ 100_000_000 → "X.Y 亿字"
+ */
+export function formatChars(n: number): string {
+  if (n < 10_000) return `${n} 字`
+  if (n < 100_000_000) return `${Math.round(n / 10_000)} 万字`
+  return `${(n / 100_000_000).toFixed(1).replace(/\.0$/, '')} 亿字`
+}

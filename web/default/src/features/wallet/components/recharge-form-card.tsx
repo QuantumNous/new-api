@@ -20,7 +20,7 @@ import { useState, useEffect } from 'react'
 import { Gift, ExternalLink, Loader2, Receipt, WalletCards } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { formatNumber } from '@/lib/format'
-import { estimateChats, formatCount } from '@/lib/usage-estimate'
+import { estimateCharsByModel, formatChars } from '@/lib/usage-estimate'
 import { useIsCasual } from '@/hooks/use-casual'
 import { cn } from '@/lib/utils'
 import { Alert, AlertDescription } from '@/components/ui/alert'
@@ -269,19 +269,25 @@ export function RechargeFormCard({
                               </span>
                             )}
                           </div>
-                          {/* Human-friendly "how many chats" hint — derived
-                            * from the preset's quota value (estimateChats
-                            * uses a mid-tier model average; see
-                            * lib/usage-estimate.ts). Helps non-technical
-                            * users gauge value at a glance. */}
+                          {/* Per-model "how many characters" breakdown
+                            * (onboarding-v2 §7.4). Three lines covering
+                            * one premium / one mid / one cheap model so
+                            * users see the price-per-model spread at a
+                            * glance. Numbers are deliberately optimistic
+                            * order-of-magnitude — see usage-estimate.ts
+                            * for the multiplier math. */}
                           {(() => {
-                            const chats = estimateChats(preset.value)
-                            if (chats <= 0) return null
+                            const breakdown = estimateCharsByModel(
+                              preset.value
+                            )
+                            if (breakdown.length === 0) return null
                             return (
-                              <div className='text-muted-foreground/70 mt-1 w-full text-[11px]'>
-                                {t('≈ {{count}} chats', {
-                                  count: formatCount(chats),
-                                })}
+                              <div className='text-muted-foreground/70 mt-1.5 w-full space-y-0.5 text-[11px] leading-tight'>
+                                {breakdown.map(({ name, chars }) => (
+                                  <div key={name} className='truncate'>
+                                    ≈ {name}: {formatChars(chars)}
+                                  </div>
+                                ))}
                               </div>
                             )
                           })()}
