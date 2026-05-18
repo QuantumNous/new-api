@@ -72,6 +72,8 @@ const SystemSetting = () => {
     WorkerUrl: '',
     WorkerValidKey: '',
     WorkerAllowHttpImageRequestEnabled: '',
+    PromotionWebhookUrl: '',
+    PromotionWebhookSecret: '',
     Footer: '',
     WeChatAuthEnabled: '',
     WeChatServerAddress: '',
@@ -310,6 +312,29 @@ const SystemSetting = () => {
     ];
     if (inputs.WorkerValidKey !== '' || WorkerUrl === '') {
       options.push({ key: 'WorkerValidKey', value: inputs.WorkerValidKey });
+    }
+    await updateOptions(options);
+  };
+
+  const submitPromotionWebhook = async () => {
+    const PromotionWebhookUrl = removeTrailingSlash(
+      inputs.PromotionWebhookUrl || '',
+    );
+    if (
+      PromotionWebhookUrl &&
+      !PromotionWebhookUrl.startsWith('http://') &&
+      !PromotionWebhookUrl.startsWith('https://')
+    ) {
+      showError(t('Webhook地址必须以 http:// 或 https:// 开头'));
+      return;
+    }
+    const options = [{ key: 'PromotionWebhookUrl', value: PromotionWebhookUrl }];
+    const PromotionWebhookSecret = inputs.PromotionWebhookSecret || '';
+    if (PromotionWebhookSecret !== '' || PromotionWebhookUrl === '') {
+      options.push({
+        key: 'PromotionWebhookSecret',
+        value: PromotionWebhookSecret,
+      });
     }
     await updateOptions(options);
   };
@@ -781,6 +806,47 @@ const SystemSetting = () => {
                     {t('允许 HTTP 协议图片请求（适用于自部署代理）')}
                   </Form.Checkbox>
                   <Button onClick={submitWorker}>{t('更新Worker设置')}</Button>
+                </Form.Section>
+              </Card>
+
+              <Card>
+                <Form.Section text={t('推广Webhook')}>
+                  <Banner
+                    type='info'
+                    description={t(
+                      '配置后，用户注册、充值成功、用户状态变化事件会异步推送到该地址；每次推送都会入库记录状态，并最多重试3次。',
+                    )}
+                    style={{ marginBottom: 20, marginTop: 16 }}
+                  />
+                  <Row
+                    gutter={{ xs: 8, sm: 16, md: 24, lg: 24, xl: 24, xxl: 24 }}
+                  >
+                    <Col xs={24} sm={24} md={12} lg={12} xl={12}>
+                      <Form.Input
+                        field='PromotionWebhookUrl'
+                        label={t('推广Webhook地址')}
+                        placeholder='例如：https://example.com/promotion/webhook'
+                        extraText={t(
+                          '留空表示关闭。请求方法为POST，Body使用统一事件envelope。',
+                        )}
+                        showClear
+                      />
+                    </Col>
+                    <Col xs={24} sm={24} md={12} lg={12} xl={12}>
+                      <Form.Input
+                        field='PromotionWebhookSecret'
+                        label={t('推广Webhook密钥')}
+                        placeholder={t('敏感信息不会发送到前端显示')}
+                        type='password'
+                        extraText={t(
+                          '填写后会附加 X-Webhook-Signature 与 Authorization: Bearer 请求头；留空表示保持当前密钥不变。',
+                        )}
+                      />
+                    </Col>
+                  </Row>
+                  <Button onClick={submitPromotionWebhook}>
+                    {t('更新推广Webhook')}
+                  </Button>
                 </Form.Section>
               </Card>
 

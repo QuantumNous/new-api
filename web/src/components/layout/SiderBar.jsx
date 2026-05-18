@@ -45,6 +45,7 @@ const routerMap = {
   detail: '/console',
   pricing: '/pricing',
   task: '/console/task',
+  promotion_event: '/console/promotion-event',
   models: '/console/models',
   deployment: '/console/deployment',
   playground: '/console/playground',
@@ -104,6 +105,12 @@ const SiderBar = ({ onNavigate = () => {} }) => {
         to: '/task',
         className:
           localStorage.getItem('enable_task') === 'true' ? '' : 'tableHiddle',
+      },
+      {
+        text: t('推广事件'),
+        itemKey: 'promotion_event',
+        to: '/promotion-event',
+        className: isAdmin() ? '' : 'tableHiddle',
       },
     ];
 

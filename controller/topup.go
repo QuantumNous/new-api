@@ -90,12 +90,32 @@ func GetTopUpInfo(c *gin.Context) {
 		}
 	}
 
+	if isWechatNativeTopUpEnabled() {
+		hasWechatNative := false
+		for _, method := range payMethods {
+			if method["type"] == model.PaymentMethodWechatNative {
+				hasWechatNative = true
+				break
+			}
+		}
+
+		if !hasWechatNative {
+			payMethods = append(payMethods, map[string]string{
+				"name":      "微信支付",
+				"type":      model.PaymentMethodWechatNative,
+				"color":     "rgba(var(--semi-green-5), 1)",
+				"min_topup": strconv.Itoa(setting.WechatNativeMinTopUp),
+			})
+		}
+	}
+
 	data := gin.H{
 		"enable_online_topup":        isEpayTopUpEnabled(),
 		"enable_stripe_topup":        isStripeTopUpEnabled(),
 		"enable_creem_topup":         isCreemTopUpEnabled(),
 		"enable_waffo_topup":         enableWaffo,
 		"enable_waffo_pancake_topup": enableWaffoPancake,
+		"enable_wechat_native_topup": isWechatNativeTopUpEnabled(),
 		"waffo_pay_methods": func() interface{} {
 			if enableWaffo {
 				return setting.GetWaffoPayMethods()
@@ -108,6 +128,7 @@ func GetTopUpInfo(c *gin.Context) {
 		"stripe_min_topup":        setting.StripeMinTopUp,
 		"waffo_min_topup":         setting.WaffoMinTopUp,
 		"waffo_pancake_min_topup": setting.WaffoPancakeMinTopUp,
+		"wechat_native_min_topup": setting.WechatNativeMinTopUp,
 		"amount_options":          operation_setting.GetPaymentSetting().AmountOptions,
 		"discount":                operation_setting.GetPaymentSetting().AmountDiscount,
 	}
@@ -128,6 +149,7 @@ var nonEpayPaymentMethodsForCallback = []string{
 	model.PaymentMethodCreem,
 	model.PaymentMethodWaffo,
 	model.PaymentMethodWaffoPancake,
+	model.PaymentMethodWechatNative,
 }
 
 func isNonEpayPaymentMethodForEpayCallback(paymentMethod string) bool {
@@ -406,6 +428,7 @@ func EpayNotify(c *gin.Context) {
 			}
 			logger.LogInfo(c.Request.Context(), fmt.Sprintf("易支付 充值成功 trade_no=%s user_id=%d client_ip=%s quota_to_add=%d money=%.2f topup=%q", topUp.TradeNo, topUp.UserId, c.ClientIP(), quotaToAdd, topUp.Money, common.GetJsonString(topUp)))
 			model.RecordTopupLog(topUp.UserId, fmt.Sprintf("使用在线充值成功，充值金额: %v，支付金额：%f", logger.LogQuota(quotaToAdd), topUp.Money), c.ClientIP(), topUp.PaymentMethod, "epay")
+			service.EmitPromotionTopupSucceeded(topUp, "CNY")
 		}
 	} else {
 		logger.LogInfo(c.Request.Context(), fmt.Sprintf("易支付 webhook 忽略事件 trade_no=%s callback_type=%s trade_status=%s client_ip=%s verify_info=%q", verifyInfo.ServiceTradeNo, verifyInfo.Type, verifyInfo.TradeStatus, c.ClientIP(), common.GetJsonString(verifyInfo)))
@@ -503,10 +526,14 @@ func AdminCompleteTopUp(c *gin.Context) {
 	// 订单级互斥，防止并发补单
 	LockOrder(req.TradeNo)
 	defer UnlockOrder(req.TradeNo)
+	beforeTopUp := model.GetTopUpByTradeNo(req.TradeNo)
 
 	if err := model.ManualCompleteTopUp(req.TradeNo, c.ClientIP()); err != nil {
 		common.ApiError(c, err)
 		return
+	}
+	if beforeTopUp == nil || beforeTopUp.Status != common.TopUpStatusSuccess {
+		service.EmitPromotionTopupManualCompleted(model.GetTopUpByTradeNo(req.TradeNo), "CNY")
 	}
 	common.ApiSuccess(c, nil)
 }

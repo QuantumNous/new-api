@@ -71,6 +71,7 @@ import {
   BarChart3,
   Image as ImageIcon,
   CheckSquare,
+  Megaphone,
   CreditCard,
   Layers,
   Gift,
@@ -135,6 +136,8 @@ export function getLucideIcon(key, selected = false) {
       return <ImageIcon {...commonProps} color={iconColor} />;
     case 'task':
       return <CheckSquare {...commonProps} color={iconColor} />;
+    case 'promotion_event':
+      return <Megaphone {...commonProps} color={iconColor} />;
     case 'topup':
       return <CreditCard {...commonProps} color={iconColor} />;
     case 'channel':

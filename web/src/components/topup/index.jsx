@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React, { useEffect, useState, useContext, useRef } from 'react';
+import React, { useEffect, useState, useContext } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import {
   API,
@@ -26,17 +26,14 @@ import {
   showSuccess,
   renderQuota,
   renderQuotaWithAmount,
-  copy,
-  getQuotaPerUnit,
 } from '../../helpers';
 import { Modal, Toast } from '@douyinfe/semi-ui';
 import { useTranslation } from 'react-i18next';
 import { UserContext } from '../../context/User';
 import { StatusContext } from '../../context/Status';
+import { QRCodeSVG } from 'qrcode.react';
 
 import RechargeCard from './RechargeCard';
-import InvitationCard from './InvitationCard';
-import TransferModal from './modals/TransferModal';
 import PaymentConfirmModal from './modals/PaymentConfirmModal';
 import TopupHistoryModal from './modals/TopupHistoryModal';
 
@@ -78,6 +75,11 @@ const TopUp = () => {
   const [enableWaffoPancakeTopUp, setEnableWaffoPancakeTopUp] = useState(false);
   const [waffoPancakeMinTopUp, setWaffoPancakeMinTopUp] = useState(1);
 
+  // 微信支付 Native 相关状态
+  const [enableWechatNativeTopUp, setEnableWechatNativeTopUp] = useState(false);
+  const [wechatNativeOpen, setWechatNativeOpen] = useState(false);
+  const [wechatNativePayData, setWechatNativePayData] = useState(null);
+
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [open, setOpen] = useState(false);
   const [payWay, setPayWay] = useState('');
@@ -85,13 +87,6 @@ const TopUp = () => {
   const [paymentLoading, setPaymentLoading] = useState(false);
   const [confirmLoading, setConfirmLoading] = useState(false);
   const [payMethods, setPayMethods] = useState([]);
-
-  const affFetchedRef = useRef(false);
-
-  // 邀请相关状态
-  const [affLink, setAffLink] = useState('');
-  const [openTransfer, setOpenTransfer] = useState(false);
-  const [transferAmount, setTransferAmount] = useState(0);
 
   // 账单Modal状态
   const [openHistory, setOpenHistory] = useState(false);
@@ -207,6 +202,11 @@ const TopUp = () => {
         showError(t('管理员未开启 Waffo 充值！'));
         return;
       }
+    } else if (payment === 'wechat_native') {
+      if (!enableWechatNativeTopUp) {
+        showError(t('管理员未开启微信支付充值！'));
+        return;
+      }
     } else {
       if (!enableOnlineTopUp) {
         showError(t('管理员未开启在线充值！'));
@@ -261,6 +261,10 @@ const TopUp = () => {
       if (amount === 0) {
         await getStripeAmount();
       }
+    } else if (payWay === 'wechat_native') {
+      if (amount === 0) {
+        await getAmount();
+      }
     } else {
       // 普通支付处理
       if (amount === 0) {
@@ -281,6 +285,10 @@ const TopUp = () => {
           amount: parseInt(topUpCount),
           payment_method: 'stripe',
         });
+      } else if (payWay === 'wechat_native') {
+        res = await API.post('/api/user/wechat-native/pay', {
+          amount: parseInt(topUpCount),
+        });
       } else {
         // 普通支付请求
         res = await API.post('/api/user/pay', {
@@ -295,6 +303,9 @@ const TopUp = () => {
           if (payWay === 'stripe') {
             // Stripe 支付回调处理
             window.open(data.pay_link, '_blank');
+          } else if (payWay === 'wechat_native') {
+            setWechatNativePayData(data);
+            setWechatNativeOpen(true);
           } else {
             // 普通支付表单提交
             let params = data;
@@ -615,7 +626,10 @@ const TopUp = () => {
               if (!method.color) {
                 if (method.type === 'alipay') {
                   method.color = 'rgba(var(--semi-blue-5), 1)';
-                } else if (method.type === 'wxpay') {
+                } else if (
+                  method.type === 'wxpay' ||
+                  method.type === 'wechat_native'
+                ) {
                   method.color = 'rgba(var(--semi-green-5), 1)';
                 } else if (method.type === 'stripe') {
                   method.color = 'rgba(var(--semi-purple-5), 1)';
@@ -639,6 +653,8 @@ const TopUp = () => {
           const enableWaffoTopUp = data.enable_waffo_topup || false;
           const enableWaffoPancakeTopUp =
             data.enable_waffo_pancake_topup || false;
+          const enableWechatNativeTopUp =
+            data.enable_wechat_native_topup || false;
           const minTopUpValue = enableOnlineTopUp
             ? data.min_topup
             : enableStripeTopUp
@@ -647,7 +663,9 @@ const TopUp = () => {
                 ? data.waffo_min_topup
                 : enableWaffoPancakeTopUp
                   ? data.waffo_pancake_min_topup
-                : 1;
+                  : enableWechatNativeTopUp
+                    ? data.wechat_native_min_topup
+                    : 1;
           setEnableOnlineTopUp(enableOnlineTopUp);
           setEnableStripeTopUp(enableStripeTopUp);
           setEnableCreemTopUp(enableCreemTopUp);
@@ -656,6 +674,7 @@ const TopUp = () => {
           setWaffoMinTopUp(data.waffo_min_topup || 1);
           setEnableWaffoPancakeTopUp(enableWaffoPancakeTopUp);
           setWaffoPancakeMinTopUp(data.waffo_pancake_min_topup || 1);
+          setEnableWechatNativeTopUp(enableWechatNativeTopUp);
           setMinTopUp(minTopUpValue);
           setTopUpCount(minTopUpValue);
 
@@ -694,43 +713,6 @@ const TopUp = () => {
     }
   };
 
-  // 获取邀请链接
-  const getAffLink = async () => {
-    const res = await API.get('/api/user/aff');
-    const { success, message, data } = res.data;
-    if (success) {
-      let link = `${window.location.origin}/register?aff=${data}`;
-      setAffLink(link);
-    } else {
-      showError(message);
-    }
-  };
-
-  // 划转邀请额度
-  const transfer = async () => {
-    if (transferAmount < getQuotaPerUnit()) {
-      showError(t('划转金额最低为') + ' ' + renderQuota(getQuotaPerUnit()));
-      return;
-    }
-    const res = await API.post(`/api/user/aff_transfer`, {
-      quota: transferAmount,
-    });
-    const { success, message } = res.data;
-    if (success) {
-      showSuccess(message);
-      setOpenTransfer(false);
-      getUserQuota().then();
-    } else {
-      showError(message);
-    }
-  };
-
-  // 复制邀请链接
-  const handleAffLinkClick = async () => {
-    await copy(affLink);
-    showSuccess(t('邀请链接已复制到剪切板'));
-  };
-
   // URL 参数自动打开账单弹窗（支付回跳时触发）
   useEffect(() => {
     if (searchParams.get('show_history') === 'true') {
@@ -743,13 +725,6 @@ const TopUp = () => {
   useEffect(() => {
     // 始终获取最新用户数据，确保余额等统计信息准确
     getUserQuota().then();
-    setTransferAmount(getQuotaPerUnit());
-  }, []);
-
-  useEffect(() => {
-    if (affFetchedRef.current) return;
-    affFetchedRef.current = true;
-    getAffLink().then();
   }, []);
 
   // 在 statusState 可用时获取充值信息
@@ -832,10 +807,6 @@ const TopUp = () => {
     setOpen(false);
   };
 
-  const handleTransferCancel = () => {
-    setOpenTransfer(false);
-  };
-
   const handleOpenHistory = () => {
     setOpenHistory(true);
   };
@@ -875,19 +846,6 @@ const TopUp = () => {
 
   return (
     <div className='w-full max-w-7xl mx-auto relative min-h-screen lg:min-h-0 header-offset-top px-2'>
-      {/* 划转模态框 */}
-      <TransferModal
-        t={t}
-        openTransfer={openTransfer}
-        transfer={transfer}
-        handleTransferCancel={handleTransferCancel}
-        userState={userState}
-        renderQuota={renderQuota}
-        getQuotaPerUnit={getQuotaPerUnit}
-        transferAmount={transferAmount}
-        setTransferAmount={setTransferAmount}
-      />
-
       {/* 充值确认模态框 */}
       <PaymentConfirmModal
         t={t}
@@ -911,6 +869,26 @@ const TopUp = () => {
         onCancel={handleHistoryCancel}
         t={t}
       />
+
+      <Modal
+        title={t('微信扫码支付')}
+        visible={wechatNativeOpen}
+        onCancel={() => setWechatNativeOpen(false)}
+        footer={null}
+        centered
+        size='small'
+      >
+        <div className='flex flex-col items-center gap-4 py-2'>
+          {wechatNativePayData?.code_url && (
+            <QRCodeSVG value={wechatNativePayData.code_url} size={220} />
+          )}
+          <div className='text-center text-sm text-slate-500 dark:text-slate-400'>
+            {t(
+              '请使用微信扫码完成支付，支付成功后可在充值记录中查看到账状态。',
+            )}
+          </div>
+        </div>
+      </Modal>
 
       {/* Creem 充值确认模态框 */}
       <Modal
@@ -941,7 +919,7 @@ const TopUp = () => {
       </Modal>
 
       {/* 主布局区域 */}
-      <div className='grid grid-cols-1 lg:grid-cols-2 gap-6'>
+      <div className='grid grid-cols-1 gap-6'>
         <RechargeCard
           t={t}
           enableOnlineTopUp={enableOnlineTopUp}
@@ -951,6 +929,7 @@ const TopUp = () => {
           creemPreTopUp={creemPreTopUp}
           enableWaffoTopUp={enableWaffoTopUp}
           enableWaffoPancakeTopUp={enableWaffoPancakeTopUp}
+          enableWechatNativeTopUp={enableWechatNativeTopUp}
           presetAmounts={presetAmounts}
           selectedPreset={selectedPreset}
           selectPresetAmount={selectPresetAmount}
@@ -986,14 +965,6 @@ const TopUp = () => {
           activeSubscriptions={activeSubscriptions}
           allSubscriptions={allSubscriptions}
           reloadSubscriptionSelf={getSubscriptionSelf}
-        />
-        <InvitationCard
-          t={t}
-          userState={userState}
-          renderQuota={renderQuota}
-          setOpenTransfer={setOpenTransfer}
-          affLink={affLink}
-          handleAffLinkClick={handleAffLinkClick}
         />
       </div>
     </div>

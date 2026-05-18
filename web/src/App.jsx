@@ -39,6 +39,7 @@ import Chat2Link from './pages/Chat2Link';
 import Midjourney from './pages/Midjourney';
 import Pricing from './pages/Pricing';
 import Task from './pages/Task';
+import PromotionEvent from './pages/PromotionEvent';
 import ModelPage from './pages/Model';
 import ModelDeploymentPage from './pages/ModelDeployment';
 import Playground from './pages/Playground';
@@ -295,6 +296,16 @@ function App() {
                 <Task />
               </Suspense>
             </PrivateRoute>
+          }
+        />
+        <Route
+          path='/console/promotion-event'
+          element={
+            <AdminRoute>
+              <Suspense fallback={<Loading></Loading>} key={location.pathname}>
+                <PromotionEvent />
+              </Suspense>
+            </AdminRoute>
           }
         />
         <Route

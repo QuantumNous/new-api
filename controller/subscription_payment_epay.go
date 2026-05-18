@@ -160,6 +160,7 @@ func SubscriptionEpayNotify(c *gin.Context) {
 		_, _ = c.Writer.Write([]byte("fail"))
 		return
 	}
+	service.EmitPromotionSubscriptionPaid(model.GetTopUpByTradeNo(verifyInfo.ServiceTradeNo), "CNY")
 
 	_, _ = c.Writer.Write([]byte("success"))
 }
@@ -209,6 +210,7 @@ func SubscriptionEpayReturn(c *gin.Context) {
 			c.Redirect(http.StatusFound, system_setting.ServerAddress+"/console/topup?pay=fail")
 			return
 		}
+		service.EmitPromotionSubscriptionPaid(model.GetTopUpByTradeNo(verifyInfo.ServiceTradeNo), "CNY")
 		c.Redirect(http.StatusFound, system_setting.ServerAddress+"/console/topup?pay=success")
 		return
 	}

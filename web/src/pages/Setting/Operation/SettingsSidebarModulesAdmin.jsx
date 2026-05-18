@@ -52,6 +52,7 @@ export default function SettingsSidebarModulesAdmin(props) {
       log: true,
       midjourney: true,
       task: true,
+      promotion_event: true,
     },
     personal: {
       enabled: true,
@@ -113,6 +114,7 @@ export default function SettingsSidebarModulesAdmin(props) {
         log: true,
         midjourney: true,
         task: true,
+        promotion_event: true,
       },
       personal: {
         enabled: true,
@@ -174,7 +176,14 @@ export default function SettingsSidebarModulesAdmin(props) {
     if (props.options && props.options.SidebarModulesAdmin) {
       try {
         const modules = JSON.parse(props.options.SidebarModulesAdmin);
-        setSidebarModulesAdmin(modules);
+        setSidebarModulesAdmin((defaults) => ({
+          ...defaults,
+          ...modules,
+          console: {
+            ...defaults.console,
+            ...(modules.console || {}),
+          },
+        }));
       } catch (error) {
         // 使用默认配置
         const defaultModules = {
@@ -186,6 +195,7 @@ export default function SettingsSidebarModulesAdmin(props) {
             log: true,
             midjourney: true,
             task: true,
+            promotion_event: true,
           },
           personal: { enabled: true, topup: true, personal: true },
           admin: {
@@ -233,6 +243,11 @@ export default function SettingsSidebarModulesAdmin(props) {
           description: t('绘图任务记录'),
         },
         { key: 'task', title: t('任务日志'), description: t('系统任务记录') },
+        {
+          key: 'promotion_event',
+          title: t('推广事件'),
+          description: t('推广Webhook调用记录'),
+        },
       ],
     },
     {

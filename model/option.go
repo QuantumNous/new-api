@@ -73,6 +73,8 @@ func InitOptionMap() {
 	common.OptionMap["WorkerUrl"] = system_setting.WorkerUrl
 	common.OptionMap["WorkerValidKey"] = system_setting.WorkerValidKey
 	common.OptionMap["WorkerAllowHttpImageRequestEnabled"] = strconv.FormatBool(system_setting.WorkerAllowHttpImageRequestEnabled)
+	common.OptionMap["PromotionWebhookUrl"] = system_setting.PromotionWebhookUrl
+	common.OptionMap["PromotionWebhookSecret"] = system_setting.PromotionWebhookSecret
 	common.OptionMap["PayAddress"] = ""
 	common.OptionMap["CustomCallbackAddress"] = ""
 	common.OptionMap["EpayId"] = ""
@@ -90,6 +92,13 @@ func InitOptionMap() {
 	common.OptionMap["CreemProducts"] = setting.CreemProducts
 	common.OptionMap["CreemTestMode"] = strconv.FormatBool(setting.CreemTestMode)
 	common.OptionMap["CreemWebhookSecret"] = setting.CreemWebhookSecret
+	common.OptionMap["WechatNativeAppId"] = setting.WechatNativeAppId
+	common.OptionMap["WechatNativeMchId"] = setting.WechatNativeMchId
+	common.OptionMap["WechatNativeApiV3Key"] = setting.WechatNativeApiV3Key
+	common.OptionMap["WechatNativeMerchantSerialNo"] = setting.WechatNativeMerchantSerialNo
+	common.OptionMap["WechatNativeMerchantPrivateKey"] = setting.WechatNativeMerchantPrivateKey
+	common.OptionMap["WechatNativePlatformCert"] = setting.WechatNativePlatformCert
+	common.OptionMap["WechatNativeMinTopUp"] = strconv.Itoa(setting.WechatNativeMinTopUp)
 	common.OptionMap["WaffoEnabled"] = strconv.FormatBool(setting.WaffoEnabled)
 	common.OptionMap["WaffoApiKey"] = setting.WaffoApiKey
 	common.OptionMap["WaffoPrivateKey"] = setting.WaffoPrivateKey
@@ -133,8 +142,6 @@ func InitOptionMap() {
 	common.OptionMap["TurnstileSiteKey"] = ""
 	common.OptionMap["TurnstileSecretKey"] = ""
 	common.OptionMap["QuotaForNewUser"] = strconv.Itoa(common.QuotaForNewUser)
-	common.OptionMap["QuotaForInviter"] = strconv.Itoa(common.QuotaForInviter)
-	common.OptionMap["QuotaForInvitee"] = strconv.Itoa(common.QuotaForInvitee)
 	common.OptionMap["QuotaRemindThreshold"] = strconv.Itoa(common.QuotaRemindThreshold)
 	common.OptionMap["PreConsumedQuota"] = strconv.Itoa(common.PreConsumedQuota)
 	common.OptionMap["ModelRequestRateLimitCount"] = strconv.Itoa(setting.ModelRequestRateLimitCount)
@@ -351,6 +358,10 @@ func updateOptionMap(key string, value string) (err error) {
 		system_setting.WorkerUrl = value
 	case "WorkerValidKey":
 		system_setting.WorkerValidKey = value
+	case "PromotionWebhookUrl":
+		system_setting.PromotionWebhookUrl = value
+	case "PromotionWebhookSecret":
+		system_setting.PromotionWebhookSecret = value
 	case "PayAddress":
 		operation_setting.PayAddress = value
 	case "Chats":
@@ -389,6 +400,20 @@ func updateOptionMap(key string, value string) (err error) {
 		setting.CreemTestMode = value == "true"
 	case "CreemWebhookSecret":
 		setting.CreemWebhookSecret = value
+	case "WechatNativeAppId":
+		setting.WechatNativeAppId = value
+	case "WechatNativeMchId":
+		setting.WechatNativeMchId = value
+	case "WechatNativeApiV3Key":
+		setting.WechatNativeApiV3Key = value
+	case "WechatNativeMerchantSerialNo":
+		setting.WechatNativeMerchantSerialNo = value
+	case "WechatNativeMerchantPrivateKey":
+		setting.WechatNativeMerchantPrivateKey = value
+	case "WechatNativePlatformCert":
+		setting.WechatNativePlatformCert = value
+	case "WechatNativeMinTopUp":
+		setting.WechatNativeMinTopUp, _ = strconv.Atoi(value)
 	case "WaffoEnabled":
 		setting.WaffoEnabled = value == "true"
 	case "WaffoApiKey":
@@ -477,10 +502,6 @@ func updateOptionMap(key string, value string) (err error) {
 		common.TurnstileSecretKey = value
 	case "QuotaForNewUser":
 		common.QuotaForNewUser, _ = strconv.Atoi(value)
-	case "QuotaForInviter":
-		common.QuotaForInviter, _ = strconv.Atoi(value)
-	case "QuotaForInvitee":
-		common.QuotaForInvitee, _ = strconv.Atoi(value)
 	case "QuotaRemindThreshold":
 		common.QuotaRemindThreshold, _ = strconv.Atoi(value)
 	case "PreConsumedQuota":

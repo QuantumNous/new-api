@@ -34,8 +34,6 @@ export default function SettingsCreditLimit(props) {
   const [inputs, setInputs] = useState({
     QuotaForNewUser: '',
     PreConsumedQuota: '',
-    QuotaForInviter: '',
-    QuotaForInvitee: '',
     'quota_setting.enable_free_model_pre_consume': true,
   });
   const refForm = useRef();
@@ -126,42 +124,6 @@ export default function SettingsCreditLimit(props) {
                     setInputs({
                       ...inputs,
                       PreConsumedQuota: String(value),
-                    })
-                  }
-                />
-              </Col>
-              <Col xs={24} sm={12} md={8} lg={8} xl={8}>
-                <Form.InputNumber
-                  label={t('邀请新用户奖励额度')}
-                  field={'QuotaForInviter'}
-                  step={1}
-                  min={0}
-                  suffix={'Token'}
-                  extraText={''}
-                  placeholder={t('例如：2000')}
-                  onChange={(value) =>
-                    setInputs({
-                      ...inputs,
-                      QuotaForInviter: String(value),
-                    })
-                  }
-                />
-              </Col>
-            </Row>
-            <Row>
-              <Col xs={24} sm={12} md={8} lg={8} xl={6}>
-                <Form.InputNumber
-                  label={t('新用户使用邀请码奖励额度')}
-                  field={'QuotaForInvitee'}
-                  step={1}
-                  min={0}
-                  suffix={'Token'}
-                  extraText={''}
-                  placeholder={t('例如：1000')}
-                  onChange={(value) =>
-                    setInputs({
-                      ...inputs,
-                      QuotaForInvitee: String(value),
                     })
                   }
                 />
