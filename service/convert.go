@@ -146,6 +146,7 @@ func ClaudeToOpenAIRequest(claudeRequest dto.ClaudeRequest, info *relaycommon.Re
 			contents := content
 			var toolCalls []dto.ToolCallRequest
 			mediaMessages := make([]dto.MediaContent, 0, len(contents))
+			var reasoningContent strings.Builder
 
 			for _, mediaMsg := range contents {
 				switch mediaMsg.Type {
@@ -165,6 +166,10 @@ func ClaudeToOpenAIRequest(claudeRequest dto.ClaudeRequest, info *relaycommon.Re
 						ImageUrl: &dto.MessageImageUrl{Url: imageData},
 					}
 					mediaMessages = append(mediaMessages, mediaMessage)
+				case "thinking":
+					if shouldPreserveClaudeThinkingAsOpenAIReasoning(info, claudeRequest.Model) && mediaMsg.Thinking != nil {
+						reasoningContent.WriteString(*mediaMsg.Thinking)
+					}
 				case "tool_use":
 					toolCall := dto.ToolCallRequest{
 						ID:   mediaMsg.Id,
@@ -201,12 +206,15 @@ func ClaudeToOpenAIRequest(claudeRequest dto.ClaudeRequest, info *relaycommon.Re
 			if len(toolCalls) > 0 {
 				openAIMessage.SetToolCalls(toolCalls)
 			}
+			if reasoningContent.Len() > 0 {
+				openAIMessage.ReasoningContent = common.GetPointer[string](reasoningContent.String())
+			}
 
 			if len(mediaMessages) > 0 && len(toolCalls) == 0 {
 				openAIMessage.SetMediaContent(mediaMessages)
 			}
 		}
-		if len(openAIMessage.ParseContent()) > 0 || len(openAIMessage.ToolCalls) > 0 {
+		if len(openAIMessage.ParseContent()) > 0 || len(openAIMessage.ToolCalls) > 0 || openAIMessage.GetReasoningContent() != "" {
 			openAIMessages = append(openAIMessages, openAIMessage)
 		}
 	}
@@ -214,6 +222,14 @@ func ClaudeToOpenAIRequest(claudeRequest dto.ClaudeRequest, info *relaycommon.Re
 	openAIRequest.Messages = openAIMessages
 
 	return &openAIRequest, nil
+}
+
+func shouldPreserveClaudeThinkingAsOpenAIReasoning(info *relaycommon.RelayInfo, requestModel string) bool {
+	modelName := requestModel
+	if info != nil && info.ChannelMeta != nil && info.UpstreamModelName != "" {
+		modelName = info.UpstreamModelName
+	}
+	return strings.HasPrefix(modelName, "deepseek-v4-")
 }
 
 func generateStopBlock(index int) *dto.ClaudeResponse {
