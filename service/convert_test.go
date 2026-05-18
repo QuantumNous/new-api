@@ -48,6 +48,34 @@ func TestClaudeToOpenAIRequestPreservesThinkingForDeepSeekV4(t *testing.T) {
 	require.Len(t, converted.Messages[0].ParseToolCalls(), 1)
 }
 
+func TestClaudeToOpenAIRequestPreservesThinkingForMappedDeepSeekV4(t *testing.T) {
+	info := &relaycommon.RelayInfo{
+		OriginModelName: "deepseek-v4",
+		ChannelMeta: &relaycommon.ChannelMeta{
+			UpstreamModelName: "deepseek-v4-flash",
+		},
+	}
+	req := dto.ClaudeRequest{
+		Model: "deepseek-v4",
+		Messages: []dto.ClaudeMessage{
+			{
+				Role: "assistant",
+				Content: []dto.ClaudeMediaMessage{
+					{
+						Type:     "thinking",
+						Thinking: common.GetPointer("mapped model context"),
+					},
+				},
+			},
+		},
+	}
+
+	converted, err := ClaudeToOpenAIRequest(req, info)
+	require.NoError(t, err)
+	require.Len(t, converted.Messages, 1)
+	require.Equal(t, "mapped model context", converted.Messages[0].GetReasoningContent())
+}
+
 func TestClaudeToOpenAIRequestDropsThinkingForOtherModels(t *testing.T) {
 	info := &relaycommon.RelayInfo{
 		OriginModelName: "gpt-4.1",

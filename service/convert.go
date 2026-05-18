@@ -226,8 +226,8 @@ func ClaudeToOpenAIRequest(claudeRequest dto.ClaudeRequest, info *relaycommon.Re
 
 func shouldPreserveClaudeThinkingAsOpenAIReasoning(info *relaycommon.RelayInfo, requestModel string) bool {
 	modelName := requestModel
-	if info != nil && info.ChannelMeta != nil && info.UpstreamModelName != "" {
-		modelName = info.UpstreamModelName
+	if info != nil && info.ChannelMeta != nil && info.ChannelMeta.UpstreamModelName != "" {
+		modelName = info.ChannelMeta.UpstreamModelName
 	}
 	return strings.HasPrefix(modelName, "deepseek-v4-")
 }
