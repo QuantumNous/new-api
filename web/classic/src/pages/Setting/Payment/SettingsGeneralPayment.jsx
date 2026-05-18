@@ -55,11 +55,6 @@ const businessFeatureItems = [
     description: '用户使用兑换码兑换额度',
   },
   {
-    key: 'redemption_manage',
-    label: '兑换码管理',
-    description: '管理员创建和管理兑换码',
-  },
-  {
     key: 'invitation_reward',
     label: '邀请奖励',
     description: '邀请人和被邀请人获得奖励额度',
@@ -123,6 +118,8 @@ const defaultProviderSceneScopes = {
   waffo_pancake: { wallet_topup: true, subscription_purchase: false },
 };
 
+const businessFeatureKeys = Object.keys(defaultBusinessFeatures);
+
 const panelStyle = {
   border: '1px solid var(--semi-color-border)',
   borderRadius: 8,
@@ -160,19 +157,19 @@ const readBoolean = (value, fallback) =>
 
 const readBusinessFeatures = (value) => {
   const parsed = parseObject(value);
-  return businessFeatureItems.reduce((features, item) => {
-    features[item.key] = readBoolean(
-      parsed[item.key],
-      defaultBusinessFeatures[item.key],
-    );
+  return businessFeatureKeys.reduce((features, key) => {
+    features[key] =
+      key === 'redemption_manage'
+        ? true
+        : readBoolean(parsed[key], defaultBusinessFeatures[key]);
     return features;
   }, {});
 };
 
 const writeBusinessFeatures = (features) =>
   JSON.stringify(
-    businessFeatureItems.reduce((result, item) => {
-      result[item.key] = !!features[item.key];
+    businessFeatureKeys.reduce((result, key) => {
+      result[key] = key === 'redemption_manage' ? true : !!features[key];
       return result;
     }, {}),
     null,
@@ -222,6 +219,12 @@ const writeProviderSceneScopes = (scopes) =>
     2,
   );
 
+const normalizeBusinessFeaturesValue = (value) =>
+  writeBusinessFeatures(readBusinessFeatures(value));
+
+const normalizeProviderSceneScopesValue = (value) =>
+  writeProviderSceneScopes(readProviderSceneScopes(value));
+
 export default function SettingsGeneralPayment(props) {
   const { t } = useTranslation();
   const sectionTitle = props.hideSectionTitle ? undefined : t('通用设置');
@@ -248,8 +251,12 @@ export default function SettingsGeneralPayment(props) {
         PayMethods: props.options.PayMethods || '',
         AmountOptions: props.options.AmountOptions || '',
         AmountDiscount: props.options.AmountDiscount || '',
-        BusinessFeatures: props.options.BusinessFeatures || '',
-        ProviderSceneScopes: props.options.ProviderSceneScopes || '',
+        BusinessFeatures: normalizeBusinessFeaturesValue(
+          props.options.BusinessFeatures || '',
+        ),
+        ProviderSceneScopes: normalizeProviderSceneScopesValue(
+          props.options.ProviderSceneScopes || '',
+        ),
       };
       setInputs(currentInputs);
       setOriginInputs({ ...currentInputs });

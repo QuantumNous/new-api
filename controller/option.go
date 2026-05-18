@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -33,14 +34,35 @@ func isPaymentComplianceOptionKey(key string) bool {
 	return strings.HasPrefix(key, "payment_setting.compliance_")
 }
 
-func validatePaymentSettingOptionValue(key string, value string) error {
+func marshalPaymentSettingDefault(value any) string {
+	bytes, err := json.Marshal(value)
+	if err != nil {
+		return "{}"
+	}
+	return string(bytes)
+}
+
+func normalizePaymentSettingOptionValue(key string, value string) (string, error) {
+	trimmed := strings.TrimSpace(value)
 	switch key {
 	case "payment_setting.business_features":
-		return operation_setting.ValidateBusinessFeaturesJSON(value)
+		if trimmed == "" {
+			return marshalPaymentSettingDefault(operation_setting.DefaultBusinessFeatures()), nil
+		}
+		if err := operation_setting.ValidateBusinessFeaturesJSON(trimmed); err != nil {
+			return "", err
+		}
+		return trimmed, nil
 	case "payment_setting.provider_scene_scopes":
-		return operation_setting.ValidateProviderSceneScopesJSON(value)
+		if trimmed == "" {
+			return marshalPaymentSettingDefault(operation_setting.DefaultProviderSceneScopes()), nil
+		}
+		if err := operation_setting.ValidateProviderSceneScopesJSON(trimmed); err != nil {
+			return "", err
+		}
+		return trimmed, nil
 	default:
-		return nil
+		return value, nil
 	}
 }
 
@@ -157,10 +179,12 @@ func UpdateOption(c *gin.Context) {
 	default:
 		option.Value = fmt.Sprintf("%v", option.Value)
 	}
-	if err = validatePaymentSettingOptionValue(option.Key, option.Value.(string)); err != nil {
+	normalizedValue, err := normalizePaymentSettingOptionValue(option.Key, option.Value.(string))
+	if err != nil {
 		common.ApiErrorMsg(c, "invalid payment setting: "+err.Error())
 		return
 	}
+	option.Value = normalizedValue
 	switch option.Key {
 	case "QuotaForInviter", "QuotaForInvitee":
 		if isPositiveOptionValue(option.Value.(string)) && !operation_setting.IsPaymentComplianceConfirmed() {

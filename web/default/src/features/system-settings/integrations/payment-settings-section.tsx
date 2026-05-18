@@ -222,11 +222,6 @@ const BUSINESS_FEATURE_ITEMS: Array<{
     descriptionKey: 'Users can redeem balance codes.',
   },
   {
-    key: 'redemption_manage',
-    labelKey: 'Redemption code management',
-    descriptionKey: 'Administrators can create and manage redemption codes.',
-  },
-  {
     key: 'invitation_reward',
     labelKey: 'Invitation rewards',
     descriptionKey: 'Inviters and invitees can receive reward balance.',
@@ -297,6 +292,10 @@ const DEFAULT_PROVIDER_SCENE_SCOPES: ProviderSceneScopeMap = {
   waffo_pancake: { wallet_topup: true, subscription_purchase: false },
 }
 
+const BUSINESS_FEATURE_KEYS = Object.keys(
+  DEFAULT_BUSINESS_FEATURES
+) as BillingFeatureKey[]
+
 function parseJsonObject(value: string): Record<string, unknown> {
   try {
     const parsed = JSON.parse(value || '{}')
@@ -315,20 +314,20 @@ function readBoolean(value: unknown, fallback: boolean) {
 
 function readBusinessFeatures(value: string): BillingFeatureMap {
   const parsed = parseJsonObject(value)
-  return BUSINESS_FEATURE_ITEMS.reduce((features, item) => {
-    features[item.key] = readBoolean(
-      parsed[item.key],
-      DEFAULT_BUSINESS_FEATURES[item.key]
-    )
+  return BUSINESS_FEATURE_KEYS.reduce((features, key) => {
+    features[key] =
+      key === 'redemption_manage'
+        ? true
+        : readBoolean(parsed[key], DEFAULT_BUSINESS_FEATURES[key])
     return features
   }, {} as BillingFeatureMap)
 }
 
 function writeBusinessFeatures(features: BillingFeatureMap) {
   return JSON.stringify(
-    BUSINESS_FEATURE_ITEMS.reduce(
+    BUSINESS_FEATURE_KEYS.reduce(
       (result, item) => {
-        result[item.key] = features[item.key]
+        result[item] = item === 'redemption_manage' ? true : features[item]
         return result
       },
       {} as Record<BillingFeatureKey, boolean>
@@ -336,6 +335,14 @@ function writeBusinessFeatures(features: BillingFeatureMap) {
     null,
     2
   )
+}
+
+function normalizeBusinessFeaturesValue(value: string) {
+  return writeBusinessFeatures(readBusinessFeatures(value))
+}
+
+function normalizeProviderSceneScopesValue(value: string) {
+  return writeProviderSceneScopes(readProviderSceneScopes(value))
 }
 
 function readProviderSceneScopes(value: string): ProviderSceneScopeMap {
@@ -593,8 +600,10 @@ export function PaymentSettingsSection({
       PayMethods: formatJsonForEditor(defaultValues.PayMethods),
       AmountOptions: formatJsonForEditor(defaultValues.AmountOptions),
       AmountDiscount: formatJsonForEditor(defaultValues.AmountDiscount),
-      BusinessFeatures: formatJsonForEditor(defaultValues.BusinessFeatures),
-      ProviderSceneScopes: formatJsonForEditor(
+      BusinessFeatures: normalizeBusinessFeaturesValue(
+        defaultValues.BusinessFeatures
+      ),
+      ProviderSceneScopes: normalizeProviderSceneScopesValue(
         defaultValues.ProviderSceneScopes
       ),
       CreemProducts: formatJsonForEditor(defaultValues.CreemProducts),
@@ -609,8 +618,10 @@ export function PaymentSettingsSection({
       PayMethods: formatJsonForEditor(parsedDefaults.PayMethods),
       AmountOptions: formatJsonForEditor(parsedDefaults.AmountOptions),
       AmountDiscount: formatJsonForEditor(parsedDefaults.AmountDiscount),
-      BusinessFeatures: formatJsonForEditor(parsedDefaults.BusinessFeatures),
-      ProviderSceneScopes: formatJsonForEditor(
+      BusinessFeatures: normalizeBusinessFeaturesValue(
+        parsedDefaults.BusinessFeatures
+      ),
+      ProviderSceneScopes: normalizeProviderSceneScopesValue(
         parsedDefaults.ProviderSceneScopes
       ),
       CreemProducts: formatJsonForEditor(parsedDefaults.CreemProducts),
