@@ -41,24 +41,65 @@ import {
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 
-const rateLimitDialogSchema = z.object({
-  groupName: z.string().min(1, 'Group name is required'),
-  maxRequests: z
-    .number()
-    .min(0, 'Must be ≥ 0')
-    .max(2147483647, 'Must be ≤ 2,147,483,647'),
-  maxSuccess: z
-    .number()
-    .min(1, 'Must be ≥ 1')
-    .max(2147483647, 'Must be ≤ 2,147,483,647'),
-})
+const parseOptionalInt = (value: string, fallback: number) =>
+  value === '' ? undefined : parseInt(value) || fallback
+
+const rateLimitDialogSchema = z
+  .object({
+    groupName: z.string().min(1, 'Group name is required'),
+    maxRequests: z
+      .number()
+      .min(0, 'Must be >= 0')
+      .max(2147483647, 'Must be <= 2,147,483,647')
+      .optional(),
+    maxSuccess: z
+      .number()
+      .min(1, 'Must be >= 1')
+      .max(2147483647, 'Must be <= 2,147,483,647')
+      .optional(),
+    maxConcurrent: z
+      .number()
+      .min(0, 'Must be >= 0')
+      .max(2147483647, 'Must be <= 2,147,483,647')
+      .optional(),
+  })
+  .superRefine((data, ctx) => {
+    const hasRateLimit =
+      data.maxRequests !== undefined || data.maxSuccess !== undefined
+
+    if (hasRateLimit) {
+      if (data.maxRequests === undefined) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['maxRequests'],
+          message: 'Required when successful request limit is set',
+        })
+      }
+      if (data.maxSuccess === undefined) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['maxSuccess'],
+          message: 'Required when total request limit is set',
+        })
+      }
+    }
+
+    if (!hasRateLimit && data.maxConcurrent === undefined) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['maxConcurrent'],
+        message: 'Set at least one group limit',
+      })
+    }
+  })
 
 type RateLimitDialogFormValues = z.infer<typeof rateLimitDialogSchema>
 
 export type RateLimitEntryData = {
   groupName: string
-  maxRequests: number
-  maxSuccess: number
+  maxRequests?: number
+  maxSuccess?: number
+  maxConcurrent?: number
 }
 
 type RateLimitDialogProps = {
@@ -81,8 +122,9 @@ export function RateLimitDialog({
     resolver: zodResolver(rateLimitDialogSchema),
     defaultValues: {
       groupName: '',
-      maxRequests: 0,
-      maxSuccess: 1,
+      maxRequests: undefined,
+      maxSuccess: undefined,
+      maxConcurrent: undefined,
     },
   })
 
@@ -92,8 +134,9 @@ export function RateLimitDialog({
     } else {
       form.reset({
         groupName: '',
-        maxRequests: 0,
-        maxSuccess: 1,
+        maxRequests: undefined,
+        maxSuccess: undefined,
+        maxConcurrent: undefined,
       })
     }
   }, [editData, form, open])
@@ -110,11 +153,11 @@ export function RateLimitDialog({
         <DialogHeader>
           <DialogTitle>
             {isEditMode
-              ? t('Edit group rate limit')
-              : t('Add group rate limit')}
+              ? t('Edit group request limits')
+              : t('Add group request limits')}
           </DialogTitle>
           <DialogDescription>
-            {t('Configure rate limiting rules for a specific user group.')}
+            {t('Configure rate and concurrency limits for a specific user group.')}
           </DialogDescription>
         </DialogHeader>
 
@@ -161,9 +204,9 @@ export function RateLimitDialog({
                         min={0}
                         max={2147483647}
                         step={1}
-                        {...field}
+                        value={field.value ?? ''}
                         onChange={(e) =>
-                          field.onChange(parseInt(e.target.value) || 0)
+                          field.onChange(parseOptionalInt(e.target.value, 0))
                         }
                       />
                       <span className='text-muted-foreground text-sm'>
@@ -172,7 +215,7 @@ export function RateLimitDialog({
                     </div>
                   </FormControl>
                   <FormDescription>
-                    {t('Total requests allowed per period. 0 = unlimited.')}
+                    {t('Leave blank to use the global rate limit for this group. 0 = unlimited.')}
                   </FormDescription>
                   <FormMessage />
                 </FormItem>
@@ -192,9 +235,9 @@ export function RateLimitDialog({
                         min={1}
                         max={2147483647}
                         step={1}
-                        {...field}
+                        value={field.value ?? ''}
                         onChange={(e) =>
-                          field.onChange(parseInt(e.target.value) || 1)
+                          field.onChange(parseOptionalInt(e.target.value, 1))
                         }
                       />
                       <span className='text-muted-foreground text-sm'>
@@ -203,7 +246,38 @@ export function RateLimitDialog({
                     </div>
                   </FormControl>
                   <FormDescription>
-                    {t('Only successful requests count toward this limit.')}
+                    {t('Required when total request limit is set.')}
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name='maxConcurrent'
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t('Max concurrent requests')}</FormLabel>
+                  <FormControl>
+                    <div className='flex items-center gap-2'>
+                      <Input
+                        type='number'
+                        min={0}
+                        max={2147483647}
+                        step={1}
+                        value={field.value ?? ''}
+                        onChange={(e) =>
+                          field.onChange(parseOptionalInt(e.target.value, 0))
+                        }
+                      />
+                      <span className='text-muted-foreground text-sm'>
+                        {t('requests')}
+                      </span>
+                    </div>
+                  </FormControl>
+                  <FormDescription>
+                    {t('Concurrent in-flight model requests per user, 0 = unlimited')}
                   </FormDescription>
                   <FormMessage />
                 </FormItem>

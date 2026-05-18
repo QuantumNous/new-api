@@ -115,6 +115,16 @@ export function RateLimitSection({ defaultValues }: RateLimitSectionProps) {
     mode: 'onChange', // Enable real-time validation
     defaultValues,
   })
+  const concurrencyGroupValue =
+    form.watch('ModelRequestConcurrencyLimitGroup') || ''
+
+  const setConcurrencyGroupValue = (value: string) => {
+    form.setValue('ModelRequestConcurrencyLimitGroup', value, {
+      shouldDirty: true,
+      shouldTouch: true,
+      shouldValidate: true,
+    })
+  }
 
   useEffect(() => {
     form.reset(defaultValues)
@@ -285,60 +295,36 @@ export function RateLimitSection({ defaultValues }: RateLimitSectionProps) {
               )}
             />
 
-            <div className='grid gap-4 md:grid-cols-2'>
-              <FormField
-                control={form.control}
-                name='ModelRequestConcurrencyLimitCount'
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>{t('Max concurrent requests')}</FormLabel>
-                    <FormControl>
-                      <div className='flex items-center gap-2'>
-                        <Input
-                          type='number'
-                          min={0}
-                          max={100000000}
-                          step={1}
-                          {...field}
-                          onChange={(e) =>
-                            field.onChange(parseInt(e.target.value) || 0)
-                          }
-                        />
-                        <span className='text-muted-foreground text-sm'>
-                          {t('requests')}
-                        </span>
-                      </div>
-                    </FormControl>
-                    <FormDescription>
-                      {t('Concurrent in-flight model requests per user, 0 = unlimited')}
-                    </FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name='ModelRequestConcurrencyLimitGroup'
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>{t('Group-based concurrency limits')}</FormLabel>
-                    <FormControl>
-                      <Textarea
-                        rows={5}
-                        placeholder={`{\n  "default": 2,\n  "vip": 10\n}`}
-                        className='font-mono text-sm'
+            <FormField
+              control={form.control}
+              name='ModelRequestConcurrencyLimitCount'
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t('Max concurrent requests')}</FormLabel>
+                  <FormControl>
+                    <div className='flex max-w-md items-center gap-2'>
+                      <Input
+                        type='number'
+                        min={0}
+                        max={100000000}
+                        step={1}
                         {...field}
+                        onChange={(e) =>
+                          field.onChange(parseInt(e.target.value) || 0)
+                        }
                       />
-                    </FormControl>
-                    <FormDescription>
-                      {t('JSON object mapping user groups to concurrent request limits. 0 = unlimited.')}
-                    </FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </div>
+                      <span className='text-muted-foreground text-sm'>
+                        {t('requests')}
+                      </span>
+                    </div>
+                  </FormControl>
+                  <FormDescription>
+                    {t('Concurrent in-flight model requests per user, 0 = unlimited')}
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
           </div>
 
           <FormField
@@ -372,14 +358,37 @@ export function RateLimitSection({ defaultValues }: RateLimitSectionProps) {
                     <RateLimitVisualEditor
                       value={field.value || ''}
                       onChange={field.onChange}
+                      concurrencyValue={concurrencyGroupValue}
+                      onConcurrencyChange={setConcurrencyGroupValue}
                     />
                   ) : (
-                    <Textarea
-                      rows={8}
-                      placeholder={`{\n  "default": [200, 100],\n  "vip": [0, 1000]\n}`}
-                      className='font-mono text-sm'
-                      {...field}
-                    />
+                    <div className='grid gap-4 lg:grid-cols-2'>
+                      <div className='space-y-2'>
+                        <FormLabel className='text-sm'>
+                          {t('Group-based rate limits')}
+                        </FormLabel>
+                        <Textarea
+                          rows={8}
+                          placeholder={`{\n  "default": [200, 100],\n  "vip": [0, 1000]\n}`}
+                          className='font-mono text-sm'
+                          {...field}
+                        />
+                      </div>
+                      <div className='space-y-2'>
+                        <FormLabel className='text-sm'>
+                          {t('Max concurrent requests')}
+                        </FormLabel>
+                        <Textarea
+                          rows={8}
+                          placeholder={`{\n  "default": 2,\n  "vip": 10\n}`}
+                          className='font-mono text-sm'
+                          value={concurrencyGroupValue}
+                          onChange={(e) =>
+                            setConcurrencyGroupValue(e.target.value)
+                          }
+                        />
+                      </div>
+                    </div>
                   )}
                 </FormControl>
                 {!useVisualEditor && (
@@ -410,6 +419,15 @@ export function RateLimitSection({ defaultValues }: RateLimitSectionProps) {
                   </FormDescription>
                 )}
                 <FormMessage />
+                {form.formState.errors.ModelRequestConcurrencyLimitGroup
+                  ?.message && (
+                  <p className='text-destructive text-sm font-medium'>
+                    {
+                      form.formState.errors.ModelRequestConcurrencyLimitGroup
+                        .message
+                    }
+                  </p>
+                )}
               </FormItem>
             )}
           />
