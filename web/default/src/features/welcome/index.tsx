@@ -188,9 +188,13 @@ export function Welcome({ step = 'persona' }: { step?: WelcomeStep }) {
 
       // Land on wallet (PRD §7.4): the user just signed up — first action
       // they need to take is top up, not pick a client. Backend hint wins
-      // if it has one (e.g. magic-link flow).
+      // if it has one (e.g. magic-link flow). `||` (not `??`) because the
+      // backend returns `next: ""` when no preferred_client was captured,
+      // and an empty string must fall through to the persona default —
+      // otherwise navigate({to: ''}) drops the search params and the
+      // /welcome route rewinds to step=persona.
       const target: string =
-        handoff?.next ?? preset?.defaultRoute ?? '/wallet'
+        handoff?.next || preset?.defaultRoute || '/wallet'
       navigate({ to: target as never, replace: true })
     } catch {
       toast.error(t('Could not save your selection.'))
