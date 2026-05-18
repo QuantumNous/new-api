@@ -1,0 +1,113 @@
+# Full-stack local environment: DeepRouter + smart-router + Postgres + Redis.
+#
+# Used to test the deeprouter-auto virtual-model end-to-end. Both DeepRouter
+# and smart-router are built from local source — assumes the sibling repo
+# `deeprouter-ai/smart-router` is checked out at ../smart-router.
+#
+# Usage:
+#   1. Set DEEPROUTER_INTERNAL_TOKEN in your shell (any random string):
+#        export DEEPROUTER_INTERNAL_TOKEN=$(openssl rand -hex 32)
+#   2. docker compose -f docker-compose.smart-router.yml up -d --build
+#   3. DeepRouter admin: http://localhost:3000  (default root/123456 on first boot)
+#   4. smart-router health: curl http://localhost:8001/health
+#      (only reachable from inside the network; expose via SMART_ROUTER_EXPOSE=1)
+#   5. End-to-end probe:
+#        curl -X POST http://localhost:3000/v1/chat/completions \
+#          -H "Authorization: Bearer <user-token>" \
+#          -d '{"model":"deeprouter-auto","messages":[{"role":"user","content":"hi"}]}'
+#      Response should include header:
+#        X-DeepRouter-Routed-Model: <model picked by smart-router>
+#
+# Reset everything (including data):
+#   docker compose -f docker-compose.smart-router.yml down -v
+
+services:
+  new-api:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    image: new-api-dev:local
+    container_name: deeprouter-new-api
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    volumes:
+      - sr_new_api_data:/data
+    environment:
+      - SQL_DSN=postgresql://root:123456@postgres:5432/new-api
+      - REDIS_CONN_STRING=redis://redis
+      - TZ=Asia/Shanghai
+      - BATCH_UPDATE_ENABLED=true
+      # Smart-router wiring — see internal/smart_router_client/client.go.
+      - SMART_ROUTER_URL=http://smart-router:8001
+      - SMART_ROUTER_TIMEOUT_MS=200
+      # Shared secret used both by /internal/router-catalog auth and by
+      # smart-router's catalog client. MUST be set in the host shell.
+      - DEEPROUTER_INTERNAL_TOKEN=${DEEPROUTER_INTERNAL_TOKEN:?DEEPROUTER_INTERNAL_TOKEN required}
+    depends_on:
+      redis:
+        condition: service_started
+      postgres:
+        condition: service_healthy
+    networks:
+      - sr-network
+
+  smart-router:
+    build:
+      context: ../smart-router
+      dockerfile: Dockerfile
+    image: smart-router:local
+    container_name: deeprouter-smart-router
+    restart: unless-stopped
+    # Default: bind to all interfaces so new-api can reach it; expose port
+    # only if SMART_ROUTER_EXPOSE=1 (handy for local curl debugging).
+    ports:
+      - "${SMART_ROUTER_HOST_PORT:-127.0.0.1:8001}:8001"
+    environment:
+      - SMART_ROUTER_ADDR=0.0.0.0:8001
+      - DEEPROUTER_URL=http://new-api:3000
+      - DEEPROUTER_INTERNAL_TOKEN=${DEEPROUTER_INTERNAL_TOKEN:?DEEPROUTER_INTERNAL_TOKEN required}
+      - SMART_ROUTER_DEFAULT=gpt-4o-mini
+    depends_on:
+      new-api:
+        condition: service_started
+    networks:
+      - sr-network
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8001/health | grep -q '\"status\"' || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  redis:
+    image: redis:7-alpine
+    container_name: deeprouter-redis
+    restart: unless-stopped
+    networks:
+      - sr-network
+
+  postgres:
+    image: postgres:15-alpine
+    container_name: deeprouter-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: root
+      POSTGRES_PASSWORD: 123456
+      POSTGRES_DB: new-api
+    volumes:
+      - sr_pg_data:/var/lib/postgresql/data
+    networks:
+      - sr-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U root -d new-api"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+volumes:
+  sr_new_api_data:
+  sr_pg_data:
+
+networks:
+  sr-network:
+    driver: bridge

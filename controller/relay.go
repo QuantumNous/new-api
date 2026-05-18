@@ -191,6 +191,17 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		relayInfo.RetryIndex = retryParam.GetRetry()
 		channel, channelErr := getChannel(c, relayInfo, retryParam)
 		if channelErr != nil {
+			// Smart-router cross-model fallback: if smart-router gave us a
+			// fallback chain and the only failure mode is "no channels for
+			// this model", swap to the next model in the chain and continue.
+			// All other error classes (config errors, body errors, etc.)
+			// surface unchanged. See controller/relay_cross_model.go.
+			if isChannelExhaustionError(channelErr) {
+				if nextModel, ok := tryCrossModelFallback(c, relayInfo, retryParam); ok {
+					logger.LogInfo(c, "smart-router cross-model fallback: → "+nextModel)
+					continue
+				}
+			}
 			logger.LogError(c, channelErr.Error())
 			newAPIError = channelErr
 			break
