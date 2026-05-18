@@ -29,7 +29,7 @@ var completionRatioMetaOptionKeys = []string{
 
 func isVisiblePublicKeyOption(key string) bool {
 	switch key {
-	case "WaffoPancakeWebhookPublicKey", "WaffoPancakeWebhookTestKey":
+	case "AlipayPublicKey", "WaffoPancakeWebhookPublicKey", "WaffoPancakeWebhookTestKey":
 		return true
 	default:
 		return false

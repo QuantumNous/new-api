@@ -36,6 +36,7 @@ export type TopupInfoResponse = ApiResponse<TopupInfo>
 export type RedemptionResponse = ApiResponse<number>
 export type AmountResponse = ApiResponse<string>
 export type PaymentResponse = ApiResponse<Record<string, unknown>> & {
+  method?: 'GET' | 'POST'
   url?: string
 }
 export type StripePaymentResponse = ApiResponse<{ pay_link: string }>

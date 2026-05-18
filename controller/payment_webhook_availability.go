@@ -3,9 +3,21 @@ package controller
 import (
 	"strings"
 
+	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/setting"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 )
+
+func isAlipayConfigured() bool {
+	return strings.TrimSpace(setting.AlipayAppId) != "" &&
+		strings.TrimSpace(setting.AlipayPrivateKey) != "" &&
+		strings.TrimSpace(setting.AlipayPublicKey) != ""
+}
+
+func isAlipayTopUpEnabled() bool {
+	return isAlipayConfigured() &&
+		operation_setting.ContainsPayMethod(model.PaymentMethodAlipay)
+}
 
 func isStripeTopUpEnabled() bool {
 	return strings.TrimSpace(setting.StripeApiSecret) != "" &&

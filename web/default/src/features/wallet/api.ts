@@ -104,6 +104,7 @@ export async function requestPayment(
   } as Record<string, unknown>)
   return {
     ...res.data,
+    method: res.data.method,
     url: res.data.url || (res as unknown as { url?: string }).url,
   }
 }

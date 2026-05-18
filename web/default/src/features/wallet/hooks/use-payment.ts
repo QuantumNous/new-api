@@ -110,7 +110,7 @@ export function usePayment() {
         if (!isStripe && response.data) {
           const url = (response as unknown as { url?: string }).url
           if (url) {
-            submitPaymentForm(url, response.data)
+            submitPaymentForm(url, response.data, response.method || 'POST')
             toast.success(i18next.t('Redirecting to payment page...'))
             return true
           }

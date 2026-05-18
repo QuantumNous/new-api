@@ -25,6 +25,9 @@ tiktoken_cache
 plans
 .claude
 .cursor
+.codex
+output
+skills
 
 electron/node_modules
 electron/dist

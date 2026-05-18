@@ -25,6 +25,14 @@ import (
 func GetTopUpInfo(c *gin.Context) {
 	// 获取支付方式
 	payMethods := operation_setting.PayMethods
+	enableEpay := isEpayTopUpEnabled()
+	enableAlipay := isAlipayTopUpEnabled()
+	payMethods = lo.Filter(payMethods, func(method map[string]string, _ int) bool {
+		if method["type"] == model.PaymentMethodAlipay {
+			return enableEpay || enableAlipay
+		}
+		return enableEpay
+	})
 
 	// 如果启用了 Stripe 支付，添加到支付方法列表
 	if isStripeTopUpEnabled() {
@@ -91,7 +99,7 @@ func GetTopUpInfo(c *gin.Context) {
 	}
 
 	data := gin.H{
-		"enable_online_topup":        isEpayTopUpEnabled(),
+		"enable_online_topup":        len(payMethods) > 0 && (enableEpay || enableAlipay),
 		"enable_stripe_topup":        isStripeTopUpEnabled(),
 		"enable_creem_topup":         isCreemTopUpEnabled(),
 		"enable_waffo_topup":         enableWaffo,
@@ -204,6 +212,10 @@ func RequestEpay(c *gin.Context) {
 
 	if !operation_setting.ContainsPayMethod(req.PaymentMethod) {
 		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "支付方式不存在"})
+		return
+	}
+	if req.PaymentMethod == model.PaymentMethodAlipay && isAlipayTopUpEnabled() {
+		requestAlipayPagePay(c, &req, id, payMoney)
 		return
 	}
 
