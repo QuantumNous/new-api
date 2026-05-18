@@ -87,18 +87,28 @@ export const API_ENDPOINTS = {
 // 模型的 supported_endpoint_types 命中此 map 任一 key → 操练场拦截，弹框提示走 API；
 // 全部不命中 / 列表为空 / 拉不到 pricing → 放行（fail-open）。
 // 一个模型挂多个非 chat 端点时按 priority 选第一个展示 curl。
-// 一个模型挂多个非 chat 端点时按 priority 选第一个展示。
 export const PLAYGROUND_UNSUPPORTED_ENDPOINTS = {
   'openai-video': {
+    // model 名含 I2V 视为图生视频，curl 模板内多塞一个 metadata.first_frame_image 示例，
+    // 让用户一眼就知道首帧图片是必填项。paratera 适配器走 metadata 反序列化映射到上游同名字段。
     label: '视频生成',
     path: '/v1/videos',
     priority: 1,
-    buildBody: (model, prompt) => ({
-      model,
-      prompt: prompt || '你的提示词',
-      duration: 6,
-      size: '1280x720',
-    }),
+    buildBody: (model, prompt) => {
+      const isI2V = /I2V/i.test(model || '');
+      const body = {
+        model,
+        prompt: prompt || (isI2V ? '镜头缓慢推进' : '你的提示词'),
+        duration: 6,
+        size: '1280x720',
+      };
+      if (isI2V) {
+        body.metadata = {
+          first_frame_image: 'https://your-image-url.jpg',
+        };
+      }
+      return body;
+    },
   },
   'image-generation': {
     label: '图像生成',
