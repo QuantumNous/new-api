@@ -21,7 +21,20 @@ import { ArrowRight } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { useSystemConfig } from '@/hooks/use-system-config'
 import { Button } from '@/components/ui/button'
-import { HeroTerminalDemo } from '../hero-terminal-demo'
+
+// Brand names to show in the "supported models" strip below the hero CTA.
+// Plain text rather than logos — keeps the bundle light and avoids the
+// trademark / licensing surface for marketing artwork. Real logos can
+// land as a follow-up once we standardize the asset set.
+const SUPPORTED_BRANDS = [
+  'OpenAI',
+  'Anthropic',
+  'Google',
+  'DeepSeek',
+  'Moonshot',
+  'Alibaba',
+  'xAI',
+] as const
 
 interface HeroProps {
   className?: string
@@ -64,16 +77,18 @@ export function Hero(props: HeroProps) {
           className='landing-animate-fade-up text-[clamp(2.5rem,6.2vw,4.75rem)] leading-[1.02] font-bold tracking-normal'
           style={{ animationDelay: '60ms' }}
         >
-          {t('One account.')}
+          {t('Pay in CNY.')}
           <br />
-          <span className='text-accent'>{t('Every AI model.')}</span>
+          <span className='text-accent'>
+            {t('Use GPT, Claude, Gemini, DeepSeek.')}
+          </span>
         </h1>
         <p
           className='landing-animate-fade-up text-muted-foreground mt-6 max-w-2xl text-base leading-relaxed opacity-0 md:text-lg'
           style={{ animationDelay: '120ms' }}
         >
           {t(
-            "Sign up once, top up in your currency, and you're chatting with GPT-5, Claude, Gemini, and 20+ other models — all from one place. No API keys, no foreign cards, no engineering."
+            'Top up via WeChat or Alipay from ¥5. No overseas credit card. No need to sign up with each AI provider separately.'
           )}
         </p>
         <div
@@ -99,11 +114,35 @@ export function Hero(props: HeroProps) {
         </div>
       </div>
 
+      {/* Supported brands strip — replaces the developer-oriented terminal
+       * demo that used to live here. Per onboarding-v2-prd §7.1 the first
+       * screen must not show API / token / base URL noise. The terminal
+       * demo file is kept on disk for when we ship a Developer-mode home. */}
       <div
-        className='landing-animate-fade-up w-full opacity-0'
+        className='landing-animate-fade-up mt-12 w-full max-w-3xl opacity-0'
         style={{ animationDelay: '260ms' }}
       >
-        <HeroTerminalDemo />
+        <p className='text-muted-foreground text-center text-xs tracking-wide uppercase'>
+          {t('All these models, one account')}
+        </p>
+        <div className='mt-4 flex flex-wrap items-center justify-center gap-x-8 gap-y-3'>
+          {SUPPORTED_BRANDS.map((brand) => (
+            <span
+              key={brand}
+              className='text-foreground/80 text-base font-medium tracking-tight md:text-lg'
+            >
+              {brand}
+            </span>
+          ))}
+        </div>
+        <div className='mt-4 text-center'>
+          <Link
+            to='/pricing'
+            className='text-muted-foreground hover:text-foreground text-xs'
+          >
+            {t('See all supported models →')}
+          </Link>
+        </div>
       </div>
     </section>
   )
