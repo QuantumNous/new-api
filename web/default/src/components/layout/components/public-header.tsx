@@ -16,8 +16,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useState, useEffect } from 'react'
-import { Link, useRouterState } from '@tanstack/react-router'
+import { useCallback, useEffect, useState } from 'react'
+import { Link, useNavigate, useRouterState } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
 import { useAuthStore } from '@/stores/auth-store'
 import { cn } from '@/lib/utils'
@@ -25,6 +25,14 @@ import { useNotifications } from '@/hooks/use-notifications'
 import { useSystemConfig } from '@/hooks/use-system-config'
 import { useTopNavLinks } from '@/hooks/use-top-nav-links'
 import { Button } from '@/components/ui/button'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import { Skeleton } from '@/components/ui/skeleton'
 import { LanguageSwitcher } from '@/components/language-switcher'
 import { NotificationButton } from '@/components/notification-button'
@@ -34,6 +42,13 @@ import { ThemeSwitch } from '@/components/theme-switch'
 import { defaultTopNavLinks } from '../config/top-nav.config'
 import type { TopNavLink } from '../types'
 import { HeaderLogo } from './header-logo'
+
+const AUTH_PROMPT_SECONDS = 5
+
+type AuthPromptTarget = {
+  title: string
+  href: string
+}
 
 export interface PublicHeaderProps {
   navLinks?: TopNavLink[]
@@ -65,8 +80,13 @@ export function PublicHeader(props: PublicHeaderProps) {
   } = props
 
   const { t } = useTranslation()
+  const navigate = useNavigate()
   const [scrolled, setScrolled] = useState(false)
   const [mobileOpen, setMobileOpen] = useState(false)
+  const [authPromptTarget, setAuthPromptTarget] =
+    useState<AuthPromptTarget | null>(null)
+  const [authPromptSecondsLeft, setAuthPromptSecondsLeft] =
+    useState(AUTH_PROMPT_SECONDS)
   const { auth } = useAuthStore()
   const {
     systemName,
@@ -97,6 +117,67 @@ export function PublicHeader(props: PublicHeaderProps) {
       document.body.style.overflow = ''
     }
   }, [mobileOpen])
+
+  useEffect(() => {
+    if (!authPromptTarget) return
+
+    const intervalId = window.setInterval(() => {
+      setAuthPromptSecondsLeft((seconds) => Math.max(seconds - 1, 0))
+    }, 1000)
+
+    const timeoutId = window.setTimeout(() => {
+      const redirect = authPromptTarget.href
+      setAuthPromptTarget(null)
+      navigate({ to: '/sign-in', search: { redirect } })
+    }, AUTH_PROMPT_SECONDS * 1000)
+
+    return () => {
+      window.clearInterval(intervalId)
+      window.clearTimeout(timeoutId)
+    }
+  }, [authPromptTarget, navigate])
+
+  const closeAuthPrompt = useCallback(() => {
+    setAuthPromptTarget(null)
+    setAuthPromptSecondsLeft(AUTH_PROMPT_SECONDS)
+  }, [])
+
+  const navigateToSignIn = useCallback(() => {
+    const redirect = authPromptTarget?.href || '/'
+    setAuthPromptTarget(null)
+    navigate({ to: '/sign-in', search: { redirect } })
+  }, [authPromptTarget?.href, navigate])
+
+  const handleNavLinkClick = useCallback(
+    (
+      event: React.MouseEvent<HTMLAnchorElement>,
+      link: TopNavLink,
+      closeMobile = false
+    ) => {
+      if (link.disabled) {
+        event.preventDefault()
+        return
+      }
+
+      if (link.requiresAuth) {
+        event.preventDefault()
+        if (closeMobile) {
+          setMobileOpen(false)
+        }
+        setAuthPromptSecondsLeft(AUTH_PROMPT_SECONDS)
+        setAuthPromptTarget({
+          title: t(link.title),
+          href: link.href,
+        })
+        return
+      }
+
+      if (closeMobile) {
+        setMobileOpen(false)
+      }
+    },
+    [t]
+  )
 
   return (
     <>
@@ -150,7 +231,13 @@ export function PublicHeader(props: PublicHeaderProps) {
                       href={link.href}
                       target='_blank'
                       rel='noopener noreferrer'
-                      className='text-muted-foreground hover:text-foreground rounded-lg px-3 py-1.5 text-[13px] font-medium transition-colors duration-200'
+                      aria-disabled={link.disabled}
+                      tabIndex={link.disabled ? -1 : undefined}
+                      onClick={(event) => handleNavLinkClick(event, link)}
+                      className={cn(
+                        'text-muted-foreground hover:text-foreground rounded-lg px-3 py-1.5 text-[13px] font-medium transition-colors duration-200',
+                        link.disabled && 'pointer-events-none opacity-50'
+                      )}
                     >
                       {t(link.title)}
                     </a>
@@ -160,11 +247,14 @@ export function PublicHeader(props: PublicHeaderProps) {
                   <Link
                     key={i}
                     to={link.href}
+                    disabled={link.disabled}
+                    onClick={(event) => handleNavLinkClick(event, link)}
                     className={cn(
                       'rounded-lg px-3 py-1.5 text-[13px] font-medium transition-colors duration-200',
                       isActive
                         ? 'text-foreground'
-                        : 'text-muted-foreground hover:text-foreground'
+                        : 'text-muted-foreground hover:text-foreground',
+                      link.disabled && 'pointer-events-none opacity-50'
                     )}
                   >
                     {t(link.title)}
@@ -260,21 +350,42 @@ export function PublicHeader(props: PublicHeaderProps) {
           <nav className='flex flex-col gap-1'>
             {links.map((link, i) => {
               const isActive = pathname === link.href
+              const linkClassName = cn(
+                'flex items-center gap-3 py-3 text-base font-medium tracking-tight transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)]',
+                mobileOpen
+                  ? 'translate-y-0 opacity-100'
+                  : 'translate-y-4 opacity-0',
+                isActive ? 'text-foreground' : 'text-muted-foreground',
+                link.disabled && 'pointer-events-none opacity-50'
+              )
+              const transitionStyle = {
+                transitionDelay: mobileOpen ? `${100 + i * 50}ms` : '0ms',
+              }
+              if (link.external) {
+                return (
+                  <a
+                    key={i}
+                    href={link.href}
+                    target='_blank'
+                    rel='noopener noreferrer'
+                    aria-disabled={link.disabled}
+                    tabIndex={link.disabled ? -1 : undefined}
+                    onClick={(event) => handleNavLinkClick(event, link, true)}
+                    className={linkClassName}
+                    style={transitionStyle}
+                  >
+                    {t(link.title)}
+                  </a>
+                )
+              }
               return (
                 <Link
                   key={i}
                   to={link.href}
-                  onClick={() => setMobileOpen(false)}
-                  className={cn(
-                    'flex items-center gap-3 py-3 text-base font-medium tracking-tight transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)]',
-                    mobileOpen
-                      ? 'translate-y-0 opacity-100'
-                      : 'translate-y-4 opacity-0',
-                    isActive ? 'text-foreground' : 'text-muted-foreground'
-                  )}
-                  style={{
-                    transitionDelay: mobileOpen ? `${100 + i * 50}ms` : '0ms',
-                  }}
+                  disabled={link.disabled}
+                  onClick={(event) => handleNavLinkClick(event, link, true)}
+                  className={linkClassName}
+                  style={transitionStyle}
                 >
                   {t(link.title)}
                 </Link>
@@ -303,6 +414,37 @@ export function PublicHeader(props: PublicHeaderProps) {
           </div>
         </div>
       </div>
+
+      <Dialog
+        open={!!authPromptTarget}
+        onOpenChange={(open) => {
+          if (!open) {
+            closeAuthPrompt()
+          }
+        }}
+      >
+        <DialogContent className='sm:max-w-md'>
+          <DialogHeader>
+            <DialogTitle>{t('Sign in required')}</DialogTitle>
+            <DialogDescription>
+              {t('Please sign in to view {{module}}.', {
+                module: authPromptTarget?.title || '',
+              })}
+            </DialogDescription>
+          </DialogHeader>
+          <div className='bg-muted/40 text-muted-foreground rounded-lg px-3 py-2 text-sm'>
+            {t('Redirecting to sign in in {{seconds}} seconds.', {
+              seconds: authPromptSecondsLeft,
+            })}
+          </div>
+          <DialogFooter>
+            <Button variant='outline' onClick={closeAuthPrompt}>
+              {t('Cancel')}
+            </Button>
+            <Button onClick={navigateToSignIn}>{t('Sign in now')}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Notification Dialog */}
       {showNotifications && (
