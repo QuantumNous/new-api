@@ -55,6 +55,7 @@ export const userSchema = z.object({
   created_at: z.number().optional(),
   updated_at: z.number().optional(),
   last_login_at: z.number().optional(),
+  last_ip: z.string().optional(),
   DeletedAt: z.any().nullable().optional(),
   remark: z.string().optional(),
 })

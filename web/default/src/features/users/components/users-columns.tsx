@@ -221,6 +221,22 @@ export function useUsersColumns(): ColumnDef<User>[] {
       meta: { label: t('Quota') },
     },
     {
+      accessorKey: 'last_ip',
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title={t('IP Address')} />
+      ),
+      cell: ({ row }) => {
+        const lastIp = row.getValue('last_ip') as string | undefined
+        return (
+          <LongText className='text-muted-foreground max-w-[140px] font-mono text-sm'>
+            {lastIp || '-'}
+          </LongText>
+        )
+      },
+      enableSorting: false,
+      meta: { label: t('IP Address'), mobileHidden: true },
+    },
+    {
       accessorKey: 'group',
       header: ({ column }) => (
         <DataTableColumnHeader column={column} title={t('Group')} />

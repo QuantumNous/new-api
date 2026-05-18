@@ -112,7 +112,7 @@ export interface UserSettings {
   gotify_priority?: number
   /** Accept unset model ratio model */
   accept_unset_model_ratio_model?: boolean
-  /** Record IP log */
+  /** Legacy setting kept for parsing existing user settings */
   record_ip_log?: boolean
   /** Receive upstream model update notifications (admin only) */
   upstream_model_update_notify_enabled?: boolean
@@ -143,7 +143,6 @@ export interface UpdateUserSettingsRequest {
   gotify_token?: string
   gotify_priority?: number
   accept_unset_model_ratio_model?: boolean
-  record_ip_log?: boolean
   upstream_model_update_notify_enabled?: boolean
 }
 

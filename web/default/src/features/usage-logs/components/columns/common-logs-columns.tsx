@@ -464,6 +464,27 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
           )
         },
         meta: { label: t('User'), mobileHidden: true },
+      },
+      {
+        accessorKey: 'ip',
+        header: ({ column }) => (
+          <DataTableColumnHeader column={column} title={t('IP Address')} />
+        ),
+        cell: function IpCell({ row }) {
+          const { sensitiveVisible } = useUsageLogsContext()
+          const ip = row.original.ip
+          if (!ip) {
+            return <span className='text-muted-foreground/60 text-xs'>-</span>
+          }
+
+          return (
+            <span className='text-muted-foreground block max-w-[140px] truncate font-mono text-xs'>
+              {sensitiveVisible ? ip : '••••••'}
+            </span>
+          )
+        },
+        enableSorting: false,
+        meta: { label: t('IP Address'), mobileHidden: true },
       }
     )
   }

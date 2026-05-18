@@ -53,6 +53,7 @@ type User struct {
 	StripeCustomer   string         `json:"stripe_customer" gorm:"type:varchar(64);column:stripe_customer;index"`
 	CreatedAt        int64          `json:"created_at" gorm:"autoCreateTime;column:created_at"`
 	LastLoginAt      int64          `json:"last_login_at" gorm:"default:0;column:last_login_at"`
+	LastIp           string         `json:"last_ip" gorm:"-"`
 }
 
 func (user *User) ToBaseUser() *UserBase {
@@ -216,6 +217,10 @@ func GetAllUsers(pageInfo *common.PageInfo) (users []*User, total int64, err err
 		tx.Rollback()
 		return nil, 0, err
 	}
+	if err = fillUsersLastIp(users); err != nil {
+		tx.Rollback()
+		return nil, 0, err
+	}
 
 	// Commit transaction
 	if err = tx.Commit().Error; err != nil {
@@ -283,6 +288,10 @@ func SearchUsers(keyword string, group string, startIdx int, num int) ([]*User, 
 		tx.Rollback()
 		return nil, 0, err
 	}
+	if err = fillUsersLastIp(users); err != nil {
+		tx.Rollback()
+		return nil, 0, err
+	}
 
 	// 提交事务
 	if err = tx.Commit().Error; err != nil {
@@ -290,6 +299,64 @@ func SearchUsers(keyword string, group string, startIdx int, num int) ([]*User, 
 	}
 
 	return users, total, nil
+}
+
+func fillUsersLastIp(users []*User) error {
+	if len(users) == 0 {
+		return nil
+	}
+	userIds := make([]int, 0, len(users))
+	userById := make(map[int]*User, len(users))
+	for _, user := range users {
+		if user == nil || user.Id == 0 {
+			continue
+		}
+		userIds = append(userIds, user.Id)
+		userById[user.Id] = user
+	}
+	if len(userIds) == 0 {
+		return nil
+	}
+
+	type latestUserLogId struct {
+		UserId int
+		MaxId  int
+	}
+	var latestLogIds []latestUserLogId
+	if err := LOG_DB.Model(&Log{}).
+		Select("user_id, MAX(id) AS max_id").
+		Where("user_id IN ? AND ip <> ?", userIds, "").
+		Group("user_id").
+		Scan(&latestLogIds).Error; err != nil {
+		return err
+	}
+	if len(latestLogIds) == 0 {
+		return nil
+	}
+
+	logIds := make([]int, 0, len(latestLogIds))
+	for _, latestLogId := range latestLogIds {
+		if latestLogId.MaxId > 0 {
+			logIds = append(logIds, latestLogId.MaxId)
+		}
+	}
+	if len(logIds) == 0 {
+		return nil
+	}
+
+	var logs []Log
+	if err := LOG_DB.Model(&Log{}).
+		Select("user_id, ip").
+		Where("id IN ?", logIds).
+		Find(&logs).Error; err != nil {
+		return err
+	}
+	for _, log := range logs {
+		if user := userById[log.UserId]; user != nil {
+			user.LastIp = log.Ip
+		}
+	}
+	return nil
 }
 
 func GetUserById(id int, selectAll bool) (*User, error) {
