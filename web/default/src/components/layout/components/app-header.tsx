@@ -18,6 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { useNotifications } from '@/hooks/use-notifications'
 import { useTopNavLinks } from '@/hooks/use-top-nav-links'
+import { BalanceWidget } from '@/components/balance-widget'
 import { ConfigDrawer } from '@/components/config-drawer'
 import { LanguageSwitcher } from '@/components/language-switcher'
 import { NotificationButton } from '@/components/notification-button'
@@ -128,6 +129,7 @@ export function AppHeader({
                 <TopNav links={links} />
               </div>
             )}
+            <BalanceWidget className='hidden sm:inline-flex' />
             {showSearch && <Search />}
             {showNotifications && (
               <NotificationButton
