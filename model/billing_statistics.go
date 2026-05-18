@@ -3,7 +3,6 @@ package model
 import (
 	"errors"
 	"sort"
-	"strconv"
 	"strings"
 	"time"
 
@@ -75,13 +74,23 @@ type BillingStatisticsResult struct {
 }
 
 type billingStatsAggregate struct {
-	BucketStart        int64
-	BucketLabel        string
 	UserId             int
 	Username           string
 	RechargeAmount     float64
 	SubscriptionAmount float64
 	ConsumeQuota       int64
+}
+
+type billingRechargeStatsRow struct {
+	UserId             int
+	RechargeAmount     float64
+	SubscriptionAmount float64
+}
+
+type billingConsumeStatsRow struct {
+	UserId       int
+	Username     string
+	ConsumeQuota int64
 }
 
 func GetBillingStatistics(query BillingStatisticsQuery) (*BillingStatisticsResult, error) {
@@ -119,20 +128,21 @@ func GetBillingStatistics(query BillingStatisticsQuery) (*BillingStatisticsResul
 		}, nil
 	}
 
-	aggregates := map[string]*billingStatsAggregate{}
+	aggregates := map[int]*billingStatsAggregate{}
 	if err := addRechargeBillingStats(query, userIds, userNames, aggregates); err != nil {
 		return nil, err
 	}
 	if err := addConsumeBillingStats(query, userIds, userNames, aggregates); err != nil {
 		return nil, err
 	}
+	if err := fillBillingStatsAggregateUsernames(aggregates, userNames); err != nil {
+		return nil, err
+	}
 
 	userAggregates := make(map[int]*BillingStatisticsUserRow)
 	summary := BillingStatisticsSummary{}
 	for _, agg := range aggregates {
-		row := BillingStatisticsRow{
-			BucketStart:        agg.BucketStart,
-			BucketLabel:        agg.BucketLabel,
+		row := BillingStatisticsUserRow{
 			UserId:             agg.UserId,
 			Username:           agg.Username,
 			RechargeAmount:     agg.RechargeAmount,
@@ -145,20 +155,7 @@ func GetBillingStatistics(query BillingStatisticsQuery) (*BillingStatisticsResul
 		summary.RechargeAmount += row.RechargeAmount
 		summary.SubscriptionAmount += row.SubscriptionAmount
 		summary.ConsumeQuota += row.ConsumeQuota
-		userRow := userAggregates[row.UserId]
-		if userRow == nil {
-			userRow = &BillingStatisticsUserRow{
-				UserId:   row.UserId,
-				Username: row.Username,
-			}
-			userAggregates[row.UserId] = userRow
-		}
-		if userRow.Username == "" {
-			userRow.Username = row.Username
-		}
-		userRow.RechargeAmount += row.RechargeAmount
-		userRow.SubscriptionAmount += row.SubscriptionAmount
-		userRow.ConsumeQuota += row.ConsumeQuota
+		userAggregates[row.UserId] = &row
 	}
 	summary.TotalAmount = summary.RechargeAmount + summary.SubscriptionAmount
 	summary.ConsumeAmount = quotaToBillingAmount(summary.ConsumeQuota)
@@ -260,9 +257,12 @@ func billingStatsUsers(username string) ([]int, map[int]string, error) {
 	return userIds, userNames, nil
 }
 
-func addRechargeBillingStats(query BillingStatisticsQuery, userIds []int, userNames map[int]string, aggregates map[string]*billingStatsAggregate) error {
-	var topups []TopUp
+func addRechargeBillingStats(query BillingStatisticsQuery, userIds []int, userNames map[int]string, aggregates map[int]*billingStatsAggregate) error {
+	var rows []billingRechargeStatsRow
 	tx := DB.Model(&TopUp{}).
+		Select(
+			"user_id, COALESCE(SUM(CASE WHEN amount = 0 THEN money ELSE 0 END), 0) AS subscription_amount, COALESCE(SUM(CASE WHEN amount <> 0 THEN money ELSE 0 END), 0) AS recharge_amount",
+		).
 		Where(
 			"status = ? AND ((complete_time > 0 AND complete_time >= ? AND complete_time < ?) OR (complete_time = 0 AND create_time >= ? AND create_time < ?))",
 			common.TopUpStatusSuccess,
@@ -274,66 +274,83 @@ func addRechargeBillingStats(query BillingStatisticsQuery, userIds []int, userNa
 	if len(userIds) > 0 {
 		tx = tx.Where("user_id IN ?", userIds)
 	}
-	if err := tx.Find(&topups).Error; err != nil {
+	if err := tx.Group("user_id").Scan(&rows).Error; err != nil {
 		return err
 	}
 
-	for _, topup := range topups {
-		timestamp := topup.CompleteTime
-		if timestamp <= 0 {
-			timestamp = topup.CreateTime
-		}
-		agg := getBillingStatsAggregate(query, userNames, aggregates, topup.UserId, timestamp)
-		if topup.Amount == 0 {
-			agg.SubscriptionAmount += topup.Money
-			continue
-		}
-		agg.RechargeAmount += topup.Money
+	for _, row := range rows {
+		agg := getBillingStatsAggregate(userNames, aggregates, row.UserId)
+		agg.RechargeAmount += row.RechargeAmount
+		agg.SubscriptionAmount += row.SubscriptionAmount
 	}
 	return nil
 }
 
-func addConsumeBillingStats(query BillingStatisticsQuery, userIds []int, userNames map[int]string, aggregates map[string]*billingStatsAggregate) error {
-	var logs []Log
+func addConsumeBillingStats(query BillingStatisticsQuery, userIds []int, userNames map[int]string, aggregates map[int]*billingStatsAggregate) error {
+	var rows []billingConsumeStatsRow
 	tx := LOG_DB.Model(&Log{}).
-		Select("user_id, username, created_at, quota").
+		Select("user_id, MAX(username) AS username, COALESCE(SUM(quota), 0) AS consume_quota").
 		Where("type = ? AND created_at >= ? AND created_at < ?", LogTypeConsume, query.StartTimestamp, query.EndTimestamp)
 	if len(userIds) > 0 {
 		tx = tx.Where("user_id IN ?", userIds)
 	}
-	if err := tx.Find(&logs).Error; err != nil {
+	if err := tx.Group("user_id").Scan(&rows).Error; err != nil {
 		return err
 	}
 
-	for _, log := range logs {
-		if log.Username != "" {
-			userNames[log.UserId] = log.Username
+	for _, row := range rows {
+		if row.Username != "" {
+			userNames[row.UserId] = row.Username
 		}
-		agg := getBillingStatsAggregate(query, userNames, aggregates, log.UserId, log.CreatedAt)
-		agg.ConsumeQuota += int64(log.Quota)
+		agg := getBillingStatsAggregate(userNames, aggregates, row.UserId)
+		agg.ConsumeQuota += row.ConsumeQuota
 	}
 	return nil
 }
 
-func getBillingStatsAggregate(query BillingStatisticsQuery, userNames map[int]string, aggregates map[string]*billingStatsAggregate, userId int, timestamp int64) *billingStatsAggregate {
-	bucketStart, bucketLabel := billingStatsBucket(timestamp, query.Granularity)
-	key := strings.Join([]string{time.Unix(bucketStart, 0).Format(time.RFC3339), strconv.Itoa(userId)}, "|")
-	if agg, ok := aggregates[key]; ok {
+func getBillingStatsAggregate(userNames map[int]string, aggregates map[int]*billingStatsAggregate, userId int) *billingStatsAggregate {
+	if agg, ok := aggregates[userId]; ok {
 		return agg
 	}
 	username := userNames[userId]
-	if username == "" && userId > 0 {
-		username, _ = GetUsernameById(userId, false)
-		userNames[userId] = username
-	}
 	agg := &billingStatsAggregate{
-		BucketStart: bucketStart,
-		BucketLabel: bucketLabel,
-		UserId:      userId,
-		Username:    username,
+		UserId:   userId,
+		Username: username,
 	}
-	aggregates[key] = agg
+	aggregates[userId] = agg
 	return agg
+}
+
+func fillBillingStatsAggregateUsernames(aggregates map[int]*billingStatsAggregate, userNames map[int]string) error {
+	missingUserIds := make([]int, 0)
+	for userId, agg := range aggregates {
+		if userId <= 0 || agg.Username != "" {
+			continue
+		}
+		if username := userNames[userId]; username != "" {
+			agg.Username = username
+			continue
+		}
+		missingUserIds = append(missingUserIds, userId)
+	}
+	if len(missingUserIds) == 0 {
+		return nil
+	}
+
+	var users []User
+	if err := DB.Model(&User{}).
+		Select("id, username").
+		Where("id IN ?", missingUserIds).
+		Find(&users).Error; err != nil {
+		return err
+	}
+	for _, user := range users {
+		userNames[user.Id] = user.Username
+		if agg := aggregates[user.Id]; agg != nil && agg.Username == "" {
+			agg.Username = user.Username
+		}
+	}
+	return nil
 }
 
 func billingStatsBucket(timestamp int64, granularity string) (int64, string) {
