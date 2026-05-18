@@ -42,20 +42,26 @@ type chatRequestSnippet struct {
 // name on success, an empty string on graceful failure. Context keys + the
 // X-DeepRouter-Routed-Model response header are set on success.
 //
-// Failure modes (all return "" without erroring the request):
-//   - SMART_ROUTER_URL unset → returns DefaultAutoFallbackModel
-//   - Body cannot be re-parsed → returns DefaultAutoFallbackModel
-//   - Smart-router unreachable / circuit-broken → returns DefaultAutoFallbackModel
-//   - Smart-router returns no usable primary → returns DefaultAutoFallbackModel
+// Failure modes (all return DefaultAutoFallbackModel + recorded reason):
+//   - SMART_ROUTER_URL unset → "smart_router_disabled"
+//   - empty messages parsed from body → "smart_router_no_messages"
+//   - smart-router HTTP call errored → "smart_router_error"
+//   - smart-router returned a sentinel no-decision response → "smart_router_no_decision"
 //
 // The caller (Distribute) treats a non-empty return as "use this model and
 // continue"; an empty return is treated as "leave the model name alone".
+//
+// Wraps resolveAutoModel with the process-wide Default() client; tests use
+// the unexported variant with their own httptest-backed client.
 func ResolveAutoModel(c *gin.Context, modelName string) string {
+	return resolveAutoModel(c, modelName, smart_router_client.Default())
+}
+
+func resolveAutoModel(c *gin.Context, modelName string, client *smart_router_client.Client) string {
 	if modelName != VirtualModelAuto {
 		return ""
 	}
 
-	client := smart_router_client.Default()
 	originalModel := modelName
 
 	// Parse only the snippet we need from the request body. Failure here
@@ -69,7 +75,12 @@ func ResolveAutoModel(c *gin.Context, modelName string) string {
 	reason := "smart_router_disabled"
 	strategy := ""
 
-	if client.Enabled() && len(snippet.Messages) > 0 {
+	switch {
+	case !client.Enabled():
+		reason = "smart_router_disabled"
+	case len(snippet.Messages) == 0:
+		reason = "smart_router_no_messages"
+	default:
 		ctx, cancel := context.WithTimeout(c.Request.Context(), smartRouterCallTimeout)
 		defer cancel()
 		req := smart_router_client.RouteRequest{

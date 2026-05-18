@@ -73,6 +73,20 @@ type Client struct {
 	breakerUntil    time.Time
 }
 
+// NewClient builds a Client with the given base URL and per-call timeout.
+// Pass an empty baseURL to get a permanently-disabled client (Route is a
+// no-op). Exposed so call sites that wire smart-router into the request
+// path can inject a stub in tests.
+func NewClient(baseURL string, timeout time.Duration) *Client {
+	if timeout <= 0 {
+		timeout = defaultTimeoutMs * time.Millisecond
+	}
+	return &Client{
+		baseURL: baseURL,
+		http:    &http.Client{Timeout: timeout},
+	}
+}
+
 var (
 	once     sync.Once
 	instance atomic.Pointer[Client]
@@ -81,6 +95,10 @@ var (
 // Default returns the process-wide client. The first call resolves env vars;
 // later calls return the same pointer. When SMART_ROUTER_URL is unset the
 // returned pointer is non-nil but `Route` always reports disabled.
+//
+// Callers that need a different baseURL (e.g. tests) should use NewClient
+// instead — Default() is a singleton on purpose so we don't rebuild the
+// http.Client on every request.
 func Default() *Client {
 	once.Do(func() {
 		baseURL := os.Getenv("SMART_ROUTER_URL")
@@ -90,13 +108,7 @@ func Default() *Client {
 				timeoutMs = n
 			}
 		}
-		c := &Client{
-			baseURL: baseURL,
-			http: &http.Client{
-				Timeout: time.Duration(timeoutMs) * time.Millisecond,
-			},
-		}
-		instance.Store(c)
+		instance.Store(NewClient(baseURL, time.Duration(timeoutMs)*time.Millisecond))
 	})
 	return instance.Load()
 }

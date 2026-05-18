@@ -2,11 +2,79 @@ package controller
 
 import (
 	"math"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 
 	"github.com/QuantumNous/new-api/internal/kids"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
+
+	"github.com/gin-gonic/gin"
 )
+
+func init() { gin.SetMode(gin.TestMode) }
+
+// TestGetRouterCatalog_InputValidation covers the request-parsing paths that
+// don't touch the DB. The DB-backed paths (tenant lookup, abilities join,
+// pricing pull) are covered end-to-end by docker-compose smoke
+// (commit b02776f6 in deeprouter; manual probe documented in smart-router
+// docs/PRD.md Phase 2 status).
+func TestGetRouterCatalog_InputValidation(t *testing.T) {
+	r := gin.New()
+	r.GET("/internal/router-catalog", GetRouterCatalog)
+
+	// Only the no-DB paths are exercised here. Anything past
+	// strconv.Atoi hits model.GetUserById which needs a live gorm.DB
+	// (covered by docker-compose smoke).
+	cases := []struct {
+		name        string
+		queryString string
+		wantStatus  int
+		wantSubstr  string
+	}{
+		{"missing tenant_id", "", http.StatusBadRequest, "missing_tenant_id"},
+		{"empty tenant_id", "?tenant_id=", http.StatusBadRequest, "missing_tenant_id"},
+		{"non-numeric tenant_id", "?tenant_id=abc", http.StatusBadRequest, "invalid_tenant_id"},
+		{"floating-point tenant_id", "?tenant_id=1.5", http.StatusBadRequest, "invalid_tenant_id"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodGet, "/internal/router-catalog"+tc.queryString, nil)
+			w := httptest.NewRecorder()
+			r.ServeHTTP(w, req)
+			if w.Code != tc.wantStatus {
+				t.Errorf("status = %d, want %d (body=%s)", w.Code, tc.wantStatus, w.Body.String())
+			}
+			if tc.wantSubstr != "" && !contains(w.Body.String(), tc.wantSubstr) {
+				t.Errorf("body=%q does not contain %q", w.Body.String(), tc.wantSubstr)
+			}
+		})
+	}
+}
+
+func contains(s, substr string) bool {
+	for i := 0; i+len(substr) <= len(s); i++ {
+		if s[i:i+len(substr)] == substr {
+			return true
+		}
+	}
+	return false
+}
+
+// TestChannelTypeToBrand_KnownEntries locks the brand mapping for the channel
+// types we currently route through. Adding a new channel type without
+// updating this map would silently make smart-router's allowed_brands
+// constraint useless for that brand.
+func TestChannelTypeToBrand_KnownEntries(t *testing.T) {
+	for chanType, wantBrand := range channelTypeToBrand {
+		if wantBrand == "" {
+			t.Errorf("channel type %d maps to empty brand", chanType)
+		}
+	}
+	if len(channelTypeToBrand) < 5 {
+		t.Errorf("brand map suspiciously small: %d entries", len(channelTypeToBrand))
+	}
+}
 
 // TestKidsModeCatalogPreFilter pins the design contract that the catalog
 // endpoint pre-filters models on the kids-safe whitelist for kids_mode
