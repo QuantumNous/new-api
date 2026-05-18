@@ -190,6 +190,46 @@ export function Pricing() {
                 'Discover curated AI models, compare pricing and capabilities, and choose the right model for every scenario.'
               )}
             </p>
+            {/* "Which model should I use?" quick-pick hints — onboarding-v2
+              * §7.9. Informational only (no filter side-effect); helps
+              * non-tech users orient before scrolling the full table. */}
+            <div className='bg-muted/30 mx-auto mt-5 grid max-w-2xl grid-cols-1 gap-x-4 gap-y-1.5 rounded-lg border px-4 py-3 text-left text-xs sm:grid-cols-2 sm:text-sm'>
+              <div className='text-foreground sm:col-span-2 mb-0.5 text-xs font-medium tracking-wider uppercase'>
+                {t('Not sure which model?')}
+              </div>
+              <div>
+                <span className='text-muted-foreground'>
+                  📝 {t('Writing / chat')}:{' '}
+                </span>
+                <span className='text-foreground font-medium'>
+                  Claude Sonnet · GPT-4o
+                </span>
+              </div>
+              <div>
+                <span className='text-muted-foreground'>
+                  🌐 {t('Translation')}:{' '}
+                </span>
+                <span className='text-foreground font-medium'>
+                  DeepSeek V3 · Gemini Flash
+                </span>
+              </div>
+              <div>
+                <span className='text-muted-foreground'>
+                  🧮 {t('Math / code')}:{' '}
+                </span>
+                <span className='text-foreground font-medium'>
+                  o4-mini · DeepSeek R1
+                </span>
+              </div>
+              <div>
+                <span className='text-muted-foreground'>
+                  📄 {t('Long docs')}:{' '}
+                </span>
+                <span className='text-foreground font-medium'>
+                  Gemini 2 Pro · Claude Opus · Kimi K2
+                </span>
+              </div>
+            </div>
             <SearchBar
               value={searchInput}
               onChange={setSearchInput}
