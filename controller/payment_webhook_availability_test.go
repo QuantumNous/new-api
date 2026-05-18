@@ -164,3 +164,34 @@ func TestEpayWebhookEnabledRequiresTopUpAndWebhookConfig(t *testing.T) {
 	operation_setting.PayMethods = nil
 	require.False(t, isEpayWebhookEnabled())
 }
+
+func TestWechatNativeWebhookEnabledRequiresTopUpAndWebhookConfig(t *testing.T) {
+	originalAppID := setting.WechatNativeAppId
+	originalMchID := setting.WechatNativeMchId
+	originalApiV3Key := setting.WechatNativeApiV3Key
+	originalSerialNo := setting.WechatNativeMerchantSerialNo
+	originalPrivateKey := setting.WechatNativeMerchantPrivateKey
+	originalPlatformCert := setting.WechatNativePlatformCert
+	t.Cleanup(func() {
+		setting.WechatNativeAppId = originalAppID
+		setting.WechatNativeMchId = originalMchID
+		setting.WechatNativeApiV3Key = originalApiV3Key
+		setting.WechatNativeMerchantSerialNo = originalSerialNo
+		setting.WechatNativeMerchantPrivateKey = originalPrivateKey
+		setting.WechatNativePlatformCert = originalPlatformCert
+	})
+
+	setting.WechatNativeAppId = "wx_app"
+	setting.WechatNativeMchId = "mch"
+	setting.WechatNativeApiV3Key = "12345678901234567890123456789012"
+	setting.WechatNativeMerchantSerialNo = "serial"
+	setting.WechatNativeMerchantPrivateKey = "private"
+	setting.WechatNativePlatformCert = ""
+	require.False(t, isWechatNativeWebhookEnabled())
+
+	setting.WechatNativePlatformCert = "cert"
+	require.True(t, isWechatNativeWebhookEnabled())
+
+	setting.WechatNativeApiV3Key = ""
+	require.False(t, isWechatNativeWebhookEnabled())
+}

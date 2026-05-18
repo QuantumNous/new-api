@@ -25,6 +25,7 @@ import SettingsPaymentGatewayStripe from '../../pages/Setting/Payment/SettingsPa
 import SettingsPaymentGatewayCreem from '../../pages/Setting/Payment/SettingsPaymentGatewayCreem';
 import SettingsPaymentGatewayWaffo from '../../pages/Setting/Payment/SettingsPaymentGatewayWaffo';
 import SettingsPaymentGatewayWaffoPancake from '../../pages/Setting/Payment/SettingsPaymentGatewayWaffoPancake';
+import SettingsPaymentGatewayWechatNative from '../../pages/Setting/Payment/SettingsPaymentGatewayWechatNative';
 import { API, showError, toBoolean } from '../../helpers';
 import { useTranslation } from 'react-i18next';
 
@@ -49,6 +50,14 @@ const PaymentSetting = () => {
     StripeUnitPrice: 8.0,
     StripeMinTopUp: 1,
     StripePromotionCodesEnabled: false,
+
+    WechatNativeAppId: '',
+    WechatNativeMchId: '',
+    WechatNativeApiV3Key: '',
+    WechatNativeMerchantSerialNo: '',
+    WechatNativeMerchantPrivateKey: '',
+    WechatNativePlatformCert: '',
+    WechatNativeMinTopUp: 1,
 
     WaffoPancakeEnabled: false,
     WaffoPancakeSandbox: false,
@@ -108,6 +117,7 @@ const PaymentSetting = () => {
           case 'MinTopUp':
           case 'StripeUnitPrice':
           case 'StripeMinTopUp':
+          case 'WechatNativeMinTopUp':
           case 'WaffoPancakeUnitPrice':
           case 'WaffoPancakeMinTopUp':
             newInputs[item.key] = parseFloat(item.value);
@@ -179,6 +189,16 @@ const PaymentSetting = () => {
             </Tabs.TabPane>
             <Tabs.TabPane tab={t('Stripe 设置')} itemKey='stripe'>
               <SettingsPaymentGatewayStripe
+                options={inputs}
+                refresh={onRefresh}
+                hideSectionTitle
+              />
+            </Tabs.TabPane>
+            <Tabs.TabPane
+              tab={t('微信支付 Native 设置')}
+              itemKey='wechat-native'
+            >
+              <SettingsPaymentGatewayWechatNative
                 options={inputs}
                 refresh={onRefresh}
                 hideSectionTitle

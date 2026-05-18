@@ -16,6 +16,7 @@ func TestIsNonEpayPaymentMethodForEpayCallback(t *testing.T) {
 		{name: "creem", paymentMethod: model.PaymentMethodCreem, expectedBlocked: true},
 		{name: "waffo", paymentMethod: model.PaymentMethodWaffo, expectedBlocked: true},
 		{name: "waffo pancake", paymentMethod: model.PaymentMethodWaffoPancake, expectedBlocked: true},
+		{name: "wechat native", paymentMethod: model.PaymentMethodWechatNative, expectedBlocked: true},
 		{name: "alipay", paymentMethod: "alipay", expectedBlocked: false},
 		{name: "wxpay", paymentMethod: "wxpay", expectedBlocked: false},
 		{name: "custom epay type", paymentMethod: "custom1", expectedBlocked: false},

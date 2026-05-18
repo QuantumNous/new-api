@@ -85,6 +85,19 @@ func isWaffoPancakeWebhookEnabled() bool {
 	return isWaffoPancakeTopUpEnabled()
 }
 
+func isWechatNativeTopUpEnabled() bool {
+	return strings.TrimSpace(setting.WechatNativeAppId) != "" &&
+		strings.TrimSpace(setting.WechatNativeMchId) != "" &&
+		strings.TrimSpace(setting.WechatNativeApiV3Key) != "" &&
+		strings.TrimSpace(setting.WechatNativeMerchantSerialNo) != "" &&
+		strings.TrimSpace(setting.WechatNativeMerchantPrivateKey) != "" &&
+		strings.TrimSpace(setting.WechatNativePlatformCert) != ""
+}
+
+func isWechatNativeWebhookEnabled() bool {
+	return isWechatNativeTopUpEnabled()
+}
+
 func isEpayTopUpEnabled() bool {
 	return isEpayWebhookConfigured() && len(operation_setting.PayMethods) > 0
 }
