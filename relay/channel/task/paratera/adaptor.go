@@ -176,14 +176,17 @@ func (a *TaskAdaptor) convertToRequestPayload(req *relaycommon.TaskSubmitReq, in
 	return videoRequest, nil
 }
 
+// parseResolutionFromSize 将 OpenAI 风格的 size（如 "1280x768" / "768P" / "1280x720"）
+// 映射到 Paratera 接受的三档（512P / 768P / 1080P）。
+// 注意：Paratera 不接受 720P，遇到 720 一律回退到 768P。
 func (a *TaskAdaptor) parseResolutionFromSize(size string, modelConfig ModelConfig) string {
 	switch {
 	case strings.Contains(size, "1080"):
 		return Resolution1080P
-	case strings.Contains(size, "768"):
+	case strings.Contains(size, "768"), strings.Contains(size, "720"):
 		return Resolution768P
-	case strings.Contains(size, "720"):
-		return Resolution720P
+	case strings.Contains(size, "512"):
+		return Resolution512P
 	default:
 		return modelConfig.DefaultResolution
 	}

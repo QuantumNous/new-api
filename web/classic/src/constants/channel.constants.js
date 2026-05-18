@@ -192,7 +192,7 @@ export const CHANNEL_OPTIONS = [
   {
     value: 58,
     color: 'purple',
-    label: '并行科技视频模型',
+    label: 'paratera视频模型',
   },
 ];
 

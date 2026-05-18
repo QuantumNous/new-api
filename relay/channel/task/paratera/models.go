@@ -22,12 +22,17 @@ const (
 	TaskStatusSuccess    = hailuo.TaskStatusSuccess
 	TaskStatusFailed     = hailuo.TaskStatusFailed
 
-	Resolution720P  = hailuo.Resolution720P
+	// Paratera 平台只接受 512P / 768P / 1080P（实测上游返回
+	// "param 'resolution' only support 512P, 768P and 1080P"）。
+	// 直连 MiniMax 的 720P 在并行平台上不被支持，要映射成 768P。
+	Resolution512P  = hailuo.Resolution512P
 	Resolution768P  = hailuo.Resolution768P
 	Resolution1080P = hailuo.Resolution1080P
 
-	DefaultDuration   = hailuo.DefaultDuration
-	DefaultResolution = hailuo.DefaultResolution
+	DefaultDuration = hailuo.DefaultDuration
+
+	// 不复用 hailuo.DefaultResolution（值为 720P），并行平台默认 768P。
+	DefaultResolution = Resolution768P
 )
 
 // modelConfigs 是并行平台支持的 6 个 MiniMax 视频模型的默认参数表，
@@ -36,16 +41,16 @@ const (
 var modelConfigs = map[string]ModelConfig{
 	"MiniMax-T2V-01": {
 		Name:                 "MiniMax-T2V-01",
-		DefaultResolution:    Resolution720P,
+		DefaultResolution:    Resolution768P,
 		SupportedDurations:   []int{6},
-		SupportedResolutions: []string{Resolution720P},
+		SupportedResolutions: []string{Resolution768P},
 		HasPromptOptimizer:   true,
 	},
 	"MiniMax-T2V-01-Director": {
 		Name:                 "MiniMax-T2V-01-Director",
-		DefaultResolution:    Resolution720P,
+		DefaultResolution:    Resolution768P,
 		SupportedDurations:   []int{6},
-		SupportedResolutions: []string{Resolution720P, Resolution1080P},
+		SupportedResolutions: []string{Resolution768P, Resolution1080P},
 		HasPromptOptimizer:   true,
 	},
 	"MiniMax-Hailuo-02": {
@@ -58,23 +63,23 @@ var modelConfigs = map[string]ModelConfig{
 	},
 	"MiniMax-I2V-01": {
 		Name:                 "MiniMax-I2V-01",
-		DefaultResolution:    Resolution720P,
+		DefaultResolution:    Resolution768P,
 		SupportedDurations:   []int{6},
-		SupportedResolutions: []string{Resolution720P},
+		SupportedResolutions: []string{Resolution768P},
 		HasPromptOptimizer:   true,
 	},
 	"MiniMax-I2V-01-Live": {
 		Name:                 "MiniMax-I2V-01-Live",
-		DefaultResolution:    Resolution720P,
+		DefaultResolution:    Resolution768P,
 		SupportedDurations:   []int{6},
-		SupportedResolutions: []string{Resolution720P},
+		SupportedResolutions: []string{Resolution768P},
 		HasPromptOptimizer:   true,
 	},
 	"MiniMax-I2V-01-Director": {
 		Name:                 "MiniMax-I2V-01-Director",
-		DefaultResolution:    Resolution720P,
+		DefaultResolution:    Resolution768P,
 		SupportedDurations:   []int{6},
-		SupportedResolutions: []string{Resolution720P, Resolution1080P},
+		SupportedResolutions: []string{Resolution768P, Resolution1080P},
 		HasPromptOptimizer:   true,
 	},
 }
