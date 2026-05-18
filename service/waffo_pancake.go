@@ -528,5 +528,17 @@ func ListWaffoPancakeCatalog(ctx context.Context, merchantID, privateKey string)
 		return nil, fmt.Errorf("waffo pancake catalog query returned %d errors: %s",
 			len(resp.Errors), resp.Errors[0].Message)
 	}
-	return &WaffoPancakeCatalog{Stores: resp.Data.Stores}, nil
+	// Drop non-active products. Operators should only see items they can
+	// actually bind without later hitting "product unavailable" at checkout.
+	stores := resp.Data.Stores
+	for i := range stores {
+		active := stores[i].OnetimeProducts[:0]
+		for _, p := range stores[i].OnetimeProducts {
+			if strings.EqualFold(strings.TrimSpace(p.Status), "active") {
+				active = append(active, p)
+			}
+		}
+		stores[i].OnetimeProducts = active
+	}
+	return &WaffoPancakeCatalog{Stores: stores}, nil
 }
