@@ -1239,6 +1239,15 @@ type UpdateUserSettingRequest struct {
 	PreferredClient    *string `json:"preferred_client,omitempty"`
 	SidebarModules     *string `json:"sidebar_modules,omitempty"`
 	AcquisitionChannel *string `json:"acquisition_channel,omitempty"`
+	// Phase 3 profile-extension fields. Same partial-PATCH semantics
+	// — pointer types so the wizard / profile editor can leave any
+	// field untouched. Industry + ExpectedVolume are open enums (the
+	// dto allow-list is duplicated in the frontend Select options);
+	// the controller stores whatever string the caller sends so a new
+	// enum value rolls out without a backend bump.
+	Industry        *string `json:"industry,omitempty"`
+	ExpectedVolume  *string `json:"expected_volume,omitempty"`
+	MarketingEmails *bool   `json:"marketing_emails,omitempty"`
 }
 
 func UpdateUserSetting(c *gin.Context) {
@@ -1400,6 +1409,15 @@ func UpdateUserSetting(c *gin.Context) {
 	}
 	if req.AcquisitionChannel != nil {
 		settings.AcquisitionChannel = *req.AcquisitionChannel
+	}
+	if req.Industry != nil {
+		settings.Industry = *req.Industry
+	}
+	if req.ExpectedVolume != nil {
+		settings.ExpectedVolume = *req.ExpectedVolume
+	}
+	if req.MarketingEmails != nil {
+		settings.MarketingEmails = *req.MarketingEmails
 	}
 
 	// 更新用户设置

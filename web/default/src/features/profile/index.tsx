@@ -27,6 +27,7 @@ import { CheckinCalendarCard } from './components/checkin-calendar-card'
 import { LanguagePreferencesCard } from './components/language-preferences-card'
 import { OnboardingPreferencesCard } from './components/onboarding-preferences-card'
 import { PasskeyCard } from './components/passkey-card'
+import { ProfileExtensionCard } from './components/profile-extension-card'
 import { ProfileHeader } from './components/profile-header'
 import { ProfileSecurityCard } from './components/profile-security-card'
 import { ProfileSettingsCard } from './components/profile-settings-card'
@@ -63,6 +64,10 @@ export function Profile() {
                   onProfileUpdate={refreshProfile}
                 />
                 <OnboardingPreferencesCard
+                  profile={profile}
+                  onProfileUpdate={refreshProfile}
+                />
+                <ProfileExtensionCard
                   profile={profile}
                   onProfileUpdate={refreshProfile}
                 />

@@ -188,6 +188,10 @@ export interface UpdateUserSettingsRequest {
     | ''
   /** Sidebar visibility config (matches dto.UserSetting.SidebarModules) */
   sidebar_modules?: string
+  /** Phase 3 self-reported profile fields — all optional. */
+  industry?: string
+  expected_volume?: 'trying' | 'daily-low' | 'daily-medium' | 'daily-high' | ''
+  marketing_emails?: boolean
 }
 
 /**
