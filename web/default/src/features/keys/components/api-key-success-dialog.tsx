@@ -113,6 +113,16 @@ export function ApiKeySuccessDialog({
                 'Paste it into the AI tool you already use — find the "API Key" field in its settings.'
               )}
             </p>
+            <div className='mt-2'>
+              <Button
+                size='sm'
+                variant='outline'
+                className='rounded-full text-xs'
+                render={
+                  <a href='/keys/test'>{t('Test this key →')}</a>
+                }
+              />
+            </div>
           </div>
         </div>
         <AlertDialogFooter>

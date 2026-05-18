@@ -51,6 +51,7 @@ import { Route as AuthenticatedDashboardIndexRouteImport } from './routes/_authe
 import { Route as AuthenticatedChannelsIndexRouteImport } from './routes/_authenticated/channels/index'
 import { Route as AuthenticatedUsageLogsSectionRouteImport } from './routes/_authenticated/usage-logs/$section'
 import { Route as AuthenticatedModelsSectionRouteImport } from './routes/_authenticated/models/$section'
+import { Route as AuthenticatedKeysTestRouteImport } from './routes/_authenticated/keys/test'
 import { Route as AuthenticatedHelpPricingRouteImport } from './routes/_authenticated/help/pricing'
 import { Route as AuthenticatedErrorsErrorRouteImport } from './routes/_authenticated/errors/$error'
 import { Route as AuthenticatedDashboardSectionRouteImport } from './routes/_authenticated/dashboard/$section'
@@ -292,6 +293,11 @@ const AuthenticatedModelsSectionRoute =
     path: '/models/$section',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedKeysTestRoute = AuthenticatedKeysTestRouteImport.update({
+  id: '/keys/test',
+  path: '/keys/test',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedHelpPricingRoute =
   AuthenticatedHelpPricingRouteImport.update({
     id: '/help/pricing',
@@ -436,6 +442,7 @@ export interface FileRoutesByFullPath {
   '/dashboard/$section': typeof AuthenticatedDashboardSectionRoute
   '/errors/$error': typeof AuthenticatedErrorsErrorRoute
   '/help/pricing': typeof AuthenticatedHelpPricingRoute
+  '/keys/test': typeof AuthenticatedKeysTestRoute
   '/models/$section': typeof AuthenticatedModelsSectionRoute
   '/usage-logs/$section': typeof AuthenticatedUsageLogsSectionRoute
   '/channels/': typeof AuthenticatedChannelsIndexRoute
@@ -496,6 +503,7 @@ export interface FileRoutesByTo {
   '/dashboard/$section': typeof AuthenticatedDashboardSectionRoute
   '/errors/$error': typeof AuthenticatedErrorsErrorRoute
   '/help/pricing': typeof AuthenticatedHelpPricingRoute
+  '/keys/test': typeof AuthenticatedKeysTestRoute
   '/models/$section': typeof AuthenticatedModelsSectionRoute
   '/usage-logs/$section': typeof AuthenticatedUsageLogsSectionRoute
   '/channels': typeof AuthenticatedChannelsIndexRoute
@@ -560,6 +568,7 @@ export interface FileRoutesById {
   '/_authenticated/dashboard/$section': typeof AuthenticatedDashboardSectionRoute
   '/_authenticated/errors/$error': typeof AuthenticatedErrorsErrorRoute
   '/_authenticated/help/pricing': typeof AuthenticatedHelpPricingRoute
+  '/_authenticated/keys/test': typeof AuthenticatedKeysTestRoute
   '/_authenticated/models/$section': typeof AuthenticatedModelsSectionRoute
   '/_authenticated/usage-logs/$section': typeof AuthenticatedUsageLogsSectionRoute
   '/_authenticated/channels/': typeof AuthenticatedChannelsIndexRoute
@@ -623,6 +632,7 @@ export interface FileRouteTypes {
     | '/dashboard/$section'
     | '/errors/$error'
     | '/help/pricing'
+    | '/keys/test'
     | '/models/$section'
     | '/usage-logs/$section'
     | '/channels/'
@@ -683,6 +693,7 @@ export interface FileRouteTypes {
     | '/dashboard/$section'
     | '/errors/$error'
     | '/help/pricing'
+    | '/keys/test'
     | '/models/$section'
     | '/usage-logs/$section'
     | '/channels'
@@ -746,6 +757,7 @@ export interface FileRouteTypes {
     | '/_authenticated/dashboard/$section'
     | '/_authenticated/errors/$error'
     | '/_authenticated/help/pricing'
+    | '/_authenticated/keys/test'
     | '/_authenticated/models/$section'
     | '/_authenticated/usage-logs/$section'
     | '/_authenticated/channels/'
@@ -1096,6 +1108,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedModelsSectionRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/keys/test': {
+      id: '/_authenticated/keys/test'
+      path: '/keys/test'
+      fullPath: '/keys/test'
+      preLoaderRoute: typeof AuthenticatedKeysTestRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/help/pricing': {
       id: '/_authenticated/help/pricing'
       path: '/help/pricing'
@@ -1320,6 +1339,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedDashboardSectionRoute: typeof AuthenticatedDashboardSectionRoute
   AuthenticatedErrorsErrorRoute: typeof AuthenticatedErrorsErrorRoute
   AuthenticatedHelpPricingRoute: typeof AuthenticatedHelpPricingRoute
+  AuthenticatedKeysTestRoute: typeof AuthenticatedKeysTestRoute
   AuthenticatedModelsSectionRoute: typeof AuthenticatedModelsSectionRoute
   AuthenticatedUsageLogsSectionRoute: typeof AuthenticatedUsageLogsSectionRoute
   AuthenticatedChannelsIndexRoute: typeof AuthenticatedChannelsIndexRoute
@@ -1343,6 +1363,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedDashboardSectionRoute: AuthenticatedDashboardSectionRoute,
   AuthenticatedErrorsErrorRoute: AuthenticatedErrorsErrorRoute,
   AuthenticatedHelpPricingRoute: AuthenticatedHelpPricingRoute,
+  AuthenticatedKeysTestRoute: AuthenticatedKeysTestRoute,
   AuthenticatedModelsSectionRoute: AuthenticatedModelsSectionRoute,
   AuthenticatedUsageLogsSectionRoute: AuthenticatedUsageLogsSectionRoute,
   AuthenticatedChannelsIndexRoute: AuthenticatedChannelsIndexRoute,
