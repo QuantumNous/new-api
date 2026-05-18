@@ -178,6 +178,315 @@ type PaymentSettingsSectionProps = {
   complianceDefaults: PaymentComplianceDefaults
 }
 
+type BillingFeatureKey =
+  | 'wallet_topup'
+  | 'subscription_purchase'
+  | 'redemption_redeem'
+  | 'redemption_manage'
+  | 'invitation_reward'
+  | 'invitation_transfer'
+  | 'checkin_reward'
+
+type PaymentSceneKey = 'wallet_topup' | 'subscription_purchase'
+type PaymentProviderKey =
+  | 'epay'
+  | 'stripe'
+  | 'creem'
+  | 'waffo'
+  | 'waffo_pancake'
+
+type BillingFeatureMap = Record<BillingFeatureKey, boolean>
+type ProviderSceneScopeMap = Record<
+  PaymentProviderKey,
+  Record<PaymentSceneKey, boolean>
+>
+
+const BUSINESS_FEATURE_ITEMS: Array<{
+  key: BillingFeatureKey
+  labelKey: string
+  descriptionKey: string
+}> = [
+  {
+    key: 'wallet_topup',
+    labelKey: 'Wallet top-up',
+    descriptionKey: 'Users can add balance directly.',
+  },
+  {
+    key: 'subscription_purchase',
+    labelKey: 'Subscription purchase',
+    descriptionKey: 'Users can buy subscription plans.',
+  },
+  {
+    key: 'redemption_redeem',
+    labelKey: 'Redeem code usage',
+    descriptionKey: 'Users can redeem balance codes.',
+  },
+  {
+    key: 'redemption_manage',
+    labelKey: 'Redemption code management',
+    descriptionKey: 'Administrators can create and manage redemption codes.',
+  },
+  {
+    key: 'invitation_reward',
+    labelKey: 'Invitation rewards',
+    descriptionKey: 'Inviters and invitees can receive reward balance.',
+  },
+  {
+    key: 'invitation_transfer',
+    labelKey: 'Reward transfer',
+    descriptionKey: 'Users can transfer invitation rewards to balance.',
+  },
+  {
+    key: 'checkin_reward',
+    labelKey: 'Check-in rewards',
+    descriptionKey: 'Users can receive daily check-in rewards.',
+  },
+]
+
+const PAYMENT_SCENE_ITEMS: Array<{
+  key: PaymentSceneKey
+  labelKey: string
+}> = [
+  { key: 'wallet_topup', labelKey: 'Wallet top-up' },
+  { key: 'subscription_purchase', labelKey: 'Subscription purchase' },
+]
+
+const PAYMENT_PROVIDER_ITEMS: Array<{
+  key: PaymentProviderKey
+  labelKey: string
+  supportedScenes: readonly PaymentSceneKey[]
+}> = [
+  {
+    key: 'epay',
+    labelKey: 'Epay',
+    supportedScenes: ['wallet_topup', 'subscription_purchase'],
+  },
+  {
+    key: 'stripe',
+    labelKey: 'Stripe',
+    supportedScenes: ['wallet_topup', 'subscription_purchase'],
+  },
+  {
+    key: 'creem',
+    labelKey: 'Creem',
+    supportedScenes: ['wallet_topup', 'subscription_purchase'],
+  },
+  { key: 'waffo', labelKey: 'Waffo', supportedScenes: ['wallet_topup'] },
+  {
+    key: 'waffo_pancake',
+    labelKey: 'Waffo Pancake',
+    supportedScenes: ['wallet_topup'],
+  },
+]
+
+const DEFAULT_BUSINESS_FEATURES: BillingFeatureMap = {
+  wallet_topup: true,
+  subscription_purchase: true,
+  redemption_redeem: true,
+  redemption_manage: true,
+  invitation_reward: true,
+  invitation_transfer: true,
+  checkin_reward: true,
+}
+
+const DEFAULT_PROVIDER_SCENE_SCOPES: ProviderSceneScopeMap = {
+  epay: { wallet_topup: true, subscription_purchase: true },
+  stripe: { wallet_topup: true, subscription_purchase: true },
+  creem: { wallet_topup: true, subscription_purchase: true },
+  waffo: { wallet_topup: true, subscription_purchase: false },
+  waffo_pancake: { wallet_topup: true, subscription_purchase: false },
+}
+
+function parseJsonObject(value: string): Record<string, unknown> {
+  try {
+    const parsed = JSON.parse(value || '{}')
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+      return parsed as Record<string, unknown>
+    }
+  } catch {
+    return {}
+  }
+  return {}
+}
+
+function readBoolean(value: unknown, fallback: boolean) {
+  return typeof value === 'boolean' ? value : fallback
+}
+
+function readBusinessFeatures(value: string): BillingFeatureMap {
+  const parsed = parseJsonObject(value)
+  return BUSINESS_FEATURE_ITEMS.reduce((features, item) => {
+    features[item.key] = readBoolean(
+      parsed[item.key],
+      DEFAULT_BUSINESS_FEATURES[item.key]
+    )
+    return features
+  }, {} as BillingFeatureMap)
+}
+
+function writeBusinessFeatures(features: BillingFeatureMap) {
+  return JSON.stringify(
+    BUSINESS_FEATURE_ITEMS.reduce(
+      (result, item) => {
+        result[item.key] = features[item.key]
+        return result
+      },
+      {} as Record<BillingFeatureKey, boolean>
+    ),
+    null,
+    2
+  )
+}
+
+function readProviderSceneScopes(value: string): ProviderSceneScopeMap {
+  const parsed = parseJsonObject(value)
+  return PAYMENT_PROVIDER_ITEMS.reduce((providers, provider) => {
+    const rawProvider = parsed[provider.key]
+    const scenes =
+      rawProvider &&
+      typeof rawProvider === 'object' &&
+      !Array.isArray(rawProvider)
+        ? (rawProvider as Record<string, unknown>)
+        : {}
+
+    providers[provider.key] = PAYMENT_SCENE_ITEMS.reduce(
+      (sceneResult, scene) => {
+        const supported = provider.supportedScenes.includes(scene.key)
+        sceneResult[scene.key] = supported
+          ? readBoolean(
+              scenes[scene.key],
+              DEFAULT_PROVIDER_SCENE_SCOPES[provider.key][scene.key]
+            )
+          : false
+        return sceneResult
+      },
+      {} as Record<PaymentSceneKey, boolean>
+    )
+    return providers
+  }, {} as ProviderSceneScopeMap)
+}
+
+function writeProviderSceneScopes(scopes: ProviderSceneScopeMap) {
+  return JSON.stringify(
+    PAYMENT_PROVIDER_ITEMS.reduce((providerResult, provider) => {
+      providerResult[provider.key] = PAYMENT_SCENE_ITEMS.reduce(
+        (sceneResult, scene) => {
+          const supported = provider.supportedScenes.includes(scene.key)
+          sceneResult[scene.key] = supported
+            ? scopes[provider.key][scene.key]
+            : false
+          return sceneResult
+        },
+        {} as Record<PaymentSceneKey, boolean>
+      )
+      return providerResult
+    }, {} as ProviderSceneScopeMap),
+    null,
+    2
+  )
+}
+
+function BusinessFeaturesVisualEditor({
+  value,
+  onChange,
+}: {
+  value: string
+  onChange: (value: string) => void
+}) {
+  const { t } = useTranslation()
+  const features = React.useMemo(() => readBusinessFeatures(value), [value])
+
+  const updateFeature = (feature: BillingFeatureKey, enabled: boolean) => {
+    onChange(writeBusinessFeatures({ ...features, [feature]: enabled }))
+  }
+
+  return (
+    <div className='grid gap-3 md:grid-cols-2'>
+      {BUSINESS_FEATURE_ITEMS.map((item) => (
+        <div
+          key={item.key}
+          className='border-border bg-background flex min-h-20 items-center justify-between gap-3 rounded-md border p-3'
+        >
+          <div className='min-w-0 space-y-1'>
+            <div className='text-sm font-medium'>{t(item.labelKey)}</div>
+            <p className='text-muted-foreground text-xs leading-5'>
+              {t(item.descriptionKey)}
+            </p>
+          </div>
+          <Switch
+            checked={features[item.key]}
+            onCheckedChange={(checked) => updateFeature(item.key, checked)}
+          />
+        </div>
+      ))}
+    </div>
+  )
+}
+
+function ProviderSceneScopesVisualEditor({
+  value,
+  onChange,
+}: {
+  value: string
+  onChange: (value: string) => void
+}) {
+  const { t } = useTranslation()
+  const scopes = React.useMemo(() => readProviderSceneScopes(value), [value])
+
+  const updateScope = (
+    provider: PaymentProviderKey,
+    scene: PaymentSceneKey,
+    enabled: boolean
+  ) => {
+    onChange(
+      writeProviderSceneScopes({
+        ...scopes,
+        [provider]: {
+          ...scopes[provider],
+          [scene]: enabled,
+        },
+      })
+    )
+  }
+
+  return (
+    <div className='border-border overflow-hidden rounded-md border'>
+      <div className='bg-muted/40 grid grid-cols-[minmax(92px,1fr)_minmax(72px,90px)_minmax(72px,90px)] gap-2 px-3 py-2 text-xs font-medium sm:grid-cols-[minmax(120px,1fr)_110px_110px]'>
+        <span>{t('Payment provider')}</span>
+        {PAYMENT_SCENE_ITEMS.map((scene) => (
+          <span key={scene.key} className='text-center'>
+            {t(scene.labelKey)}
+          </span>
+        ))}
+      </div>
+      {PAYMENT_PROVIDER_ITEMS.map((provider) => (
+        <div
+          key={provider.key}
+          className='border-border grid grid-cols-[minmax(92px,1fr)_minmax(72px,90px)_minmax(72px,90px)] items-center gap-2 border-t px-3 py-3 sm:grid-cols-[minmax(120px,1fr)_110px_110px]'
+        >
+          <div className='text-sm font-medium break-words'>
+            {t(provider.labelKey)}
+          </div>
+          {PAYMENT_SCENE_ITEMS.map((scene) => {
+            const supported = provider.supportedScenes.includes(scene.key)
+            return (
+              <div key={scene.key} className='flex justify-center'>
+                <Switch
+                  checked={supported && scopes[provider.key][scene.key]}
+                  disabled={!supported}
+                  onCheckedChange={(checked) =>
+                    updateScope(provider.key, scene.key, checked)
+                  }
+                />
+              </div>
+            )
+          })}
+        </div>
+      ))}
+    </div>
+  )
+}
+
 export function PaymentSettingsSection({
   defaultValues,
   waffoDefaultValues,
@@ -1049,19 +1358,15 @@ export function PaymentSettingsSection({
                 name='BusinessFeatures'
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>{t('Business features')}</FormLabel>
+                    <FormLabel>{t('Business capabilities')}</FormLabel>
                     <FormControl>
-                      <Textarea
-                        rows={6}
-                        placeholder='{"wallet_topup":false,"subscription_purchase":true}'
-                        {...field}
-                        onChange={(event) => field.onChange(event.target.value)}
+                      <BusinessFeaturesVisualEditor
+                        value={field.value}
+                        onChange={field.onChange}
                       />
                     </FormControl>
                     <FormDescription>
-                      {t(
-                        'Control user-facing billing entries such as wallet top-up, subscription purchase, redemption, invitation transfer, and check-in rewards.'
-                      )}
+                      {t('Visible billing entries')}
                     </FormDescription>
                     <FormMessage />
                   </FormItem>
@@ -1073,19 +1378,15 @@ export function PaymentSettingsSection({
                 name='ProviderSceneScopes'
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>{t('Payment scene scopes')}</FormLabel>
+                    <FormLabel>{t('Payment provider scenes')}</FormLabel>
                     <FormControl>
-                      <Textarea
-                        rows={6}
-                        placeholder='{"epay":{"wallet_topup":false,"subscription_purchase":true}}'
-                        {...field}
-                        onChange={(event) => field.onChange(event.target.value)}
+                      <ProviderSceneScopesVisualEditor
+                        value={field.value}
+                        onChange={field.onChange}
                       />
                     </FormControl>
                     <FormDescription>
-                      {t(
-                        'Control which payment provider can be used for wallet top-up or subscription purchase.'
-                      )}
+                      {t('Scene availability by provider')}
                     </FormDescription>
                     <FormMessage />
                   </FormItem>

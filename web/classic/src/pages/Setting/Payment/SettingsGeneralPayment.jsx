@@ -18,7 +18,15 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { useEffect, useState, useRef } from 'react';
-import { Button, Col, Form, Row, Spin } from '@douyinfe/semi-ui';
+import {
+  Button,
+  Col,
+  Form,
+  Row,
+  Spin,
+  Switch,
+  Typography,
+} from '@douyinfe/semi-ui';
 import {
   API,
   removeTrailingSlash,
@@ -27,6 +35,192 @@ import {
   verifyJSON,
 } from '../../../helpers';
 import { useTranslation } from 'react-i18next';
+
+const { Text } = Typography;
+
+const businessFeatureItems = [
+  {
+    key: 'wallet_topup',
+    label: '额度充值',
+    description: '用户直接购买余额或额度',
+  },
+  {
+    key: 'subscription_purchase',
+    label: '订阅购买',
+    description: '用户购买订阅套餐',
+  },
+  {
+    key: 'redemption_redeem',
+    label: '兑换码使用',
+    description: '用户使用兑换码兑换额度',
+  },
+  {
+    key: 'redemption_manage',
+    label: '兑换码管理',
+    description: '管理员创建和管理兑换码',
+  },
+  {
+    key: 'invitation_reward',
+    label: '邀请奖励',
+    description: '邀请人和被邀请人获得奖励额度',
+  },
+  {
+    key: 'invitation_transfer',
+    label: '奖励转余额',
+    description: '用户将邀请奖励转入余额',
+  },
+  {
+    key: 'checkin_reward',
+    label: '签到奖励',
+    description: '用户每日签到获得奖励额度',
+  },
+];
+
+const paymentSceneItems = [
+  { key: 'wallet_topup', label: '额度充值' },
+  { key: 'subscription_purchase', label: '订阅购买' },
+];
+
+const paymentProviderItems = [
+  {
+    key: 'epay',
+    label: '易支付',
+    supportedScenes: ['wallet_topup', 'subscription_purchase'],
+  },
+  {
+    key: 'stripe',
+    label: 'Stripe',
+    supportedScenes: ['wallet_topup', 'subscription_purchase'],
+  },
+  {
+    key: 'creem',
+    label: 'Creem',
+    supportedScenes: ['wallet_topup', 'subscription_purchase'],
+  },
+  { key: 'waffo', label: 'Waffo', supportedScenes: ['wallet_topup'] },
+  {
+    key: 'waffo_pancake',
+    label: 'Waffo Pancake',
+    supportedScenes: ['wallet_topup'],
+  },
+];
+
+const defaultBusinessFeatures = {
+  wallet_topup: true,
+  subscription_purchase: true,
+  redemption_redeem: true,
+  redemption_manage: true,
+  invitation_reward: true,
+  invitation_transfer: true,
+  checkin_reward: true,
+};
+
+const defaultProviderSceneScopes = {
+  epay: { wallet_topup: true, subscription_purchase: true },
+  stripe: { wallet_topup: true, subscription_purchase: true },
+  creem: { wallet_topup: true, subscription_purchase: true },
+  waffo: { wallet_topup: true, subscription_purchase: false },
+  waffo_pancake: { wallet_topup: true, subscription_purchase: false },
+};
+
+const panelStyle = {
+  border: '1px solid var(--semi-color-border)',
+  borderRadius: 8,
+  padding: 12,
+  background: 'var(--semi-color-bg-0)',
+};
+
+const switchRowStyle = {
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+  gap: 12,
+  minHeight: 56,
+  padding: '10px 0',
+  borderBottom: '1px solid var(--semi-color-border)',
+};
+
+const sceneGridColumns =
+  'minmax(80px, 1fr) minmax(72px, 86px) minmax(72px, 86px)';
+
+const parseObject = (value) => {
+  try {
+    const parsed = JSON.parse(value || '{}');
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+      return parsed;
+    }
+  } catch (error) {
+    return {};
+  }
+  return {};
+};
+
+const readBoolean = (value, fallback) =>
+  typeof value === 'boolean' ? value : fallback;
+
+const readBusinessFeatures = (value) => {
+  const parsed = parseObject(value);
+  return businessFeatureItems.reduce((features, item) => {
+    features[item.key] = readBoolean(
+      parsed[item.key],
+      defaultBusinessFeatures[item.key],
+    );
+    return features;
+  }, {});
+};
+
+const writeBusinessFeatures = (features) =>
+  JSON.stringify(
+    businessFeatureItems.reduce((result, item) => {
+      result[item.key] = !!features[item.key];
+      return result;
+    }, {}),
+    null,
+    2,
+  );
+
+const readProviderSceneScopes = (value) => {
+  const parsed = parseObject(value);
+  return paymentProviderItems.reduce((providers, provider) => {
+    const rawProvider = parsed[provider.key];
+    const scenes =
+      rawProvider &&
+      typeof rawProvider === 'object' &&
+      !Array.isArray(rawProvider)
+        ? rawProvider
+        : {};
+    providers[provider.key] = paymentSceneItems.reduce((sceneResult, scene) => {
+      const supported = provider.supportedScenes.includes(scene.key);
+      sceneResult[scene.key] = supported
+        ? readBoolean(
+            scenes[scene.key],
+            defaultProviderSceneScopes[provider.key][scene.key],
+          )
+        : false;
+      return sceneResult;
+    }, {});
+    return providers;
+  }, {});
+};
+
+const writeProviderSceneScopes = (scopes) =>
+  JSON.stringify(
+    paymentProviderItems.reduce((providerResult, provider) => {
+      providerResult[provider.key] = paymentSceneItems.reduce(
+        (sceneResult, scene) => {
+          const supported = provider.supportedScenes.includes(scene.key);
+          sceneResult[scene.key] = supported
+            ? !!scopes[provider.key]?.[scene.key]
+            : false;
+          return sceneResult;
+        },
+        {},
+      );
+      return providerResult;
+    }, {}),
+    null,
+    2,
+  );
 
 export default function SettingsGeneralPayment(props) {
   const { t } = useTranslation();
@@ -64,7 +258,27 @@ export default function SettingsGeneralPayment(props) {
   }, [props.options]);
 
   const handleFormChange = (values) => {
-    setInputs(values);
+    setInputs((prev) => ({ ...prev, ...values }));
+  };
+
+  const updateInputValue = (key, value) => {
+    setInputs((prev) => ({ ...prev, [key]: value }));
+    formApiRef.current?.setValue(key, value);
+  };
+
+  const updateBusinessFeature = (featureKey, enabled) => {
+    const next = readBusinessFeatures(inputs.BusinessFeatures);
+    next[featureKey] = enabled;
+    updateInputValue('BusinessFeatures', writeBusinessFeatures(next));
+  };
+
+  const updateProviderSceneScope = (providerKey, sceneKey, enabled) => {
+    const next = readProviderSceneScopes(inputs.ProviderSceneScopes);
+    next[providerKey] = {
+      ...next[providerKey],
+      [sceneKey]: enabled,
+    };
+    updateInputValue('ProviderSceneScopes', writeProviderSceneScopes(next));
   };
 
   const submitGeneralSettings = async () => {
@@ -107,7 +321,7 @@ export default function SettingsGeneralPayment(props) {
       inputs.BusinessFeatures.trim() !== '' &&
       !verifyJSON(inputs.BusinessFeatures)
     ) {
-      showError(t('Business features must be a valid JSON object'));
+      showError(t('业务能力开关配置不是合法的 JSON 对象'));
       return;
     }
 
@@ -116,7 +330,7 @@ export default function SettingsGeneralPayment(props) {
       inputs.ProviderSceneScopes.trim() !== '' &&
       !verifyJSON(inputs.ProviderSceneScopes)
     ) {
-      showError(t('Provider scene scopes must be a valid JSON object'));
+      showError(t('支付通道场景配置不是合法的 JSON 对象'));
       return;
     }
 
@@ -277,26 +491,118 @@ export default function SettingsGeneralPayment(props) {
             style={{ marginTop: 16 }}
           >
             <Col xs={24} sm={24} md={12} lg={12} xl={12}>
-              <Form.TextArea
-                field='BusinessFeatures'
-                label={t('Business feature switches')}
-                placeholder='{"wallet_topup":false,"subscription_purchase":true}'
-                autosize
-                extraText={t(
-                  'Controls user-facing billing entrances such as wallet topup, subscription purchase, redemption, invitation rewards and check-in rewards.',
-                )}
-              />
+              <Form.Slot label={t('业务能力开关')}>
+                <div style={panelStyle}>
+                  {businessFeatureItems.map((item, index) => {
+                    const features = readBusinessFeatures(
+                      inputs.BusinessFeatures,
+                    );
+                    return (
+                      <div
+                        key={item.key}
+                        style={{
+                          ...switchRowStyle,
+                          borderBottom:
+                            index === businessFeatureItems.length - 1
+                              ? 'none'
+                              : switchRowStyle.borderBottom,
+                        }}
+                      >
+                        <div>
+                          <Text strong>{t(item.label)}</Text>
+                          <br />
+                          <Text type='tertiary' size='small'>
+                            {t(item.description)}
+                          </Text>
+                        </div>
+                        <Switch
+                          checked={features[item.key]}
+                          onChange={(checked) =>
+                            updateBusinessFeature(item.key, checked)
+                          }
+                        />
+                      </div>
+                    );
+                  })}
+                </div>
+              </Form.Slot>
             </Col>
             <Col xs={24} sm={24} md={12} lg={12} xl={12}>
-              <Form.TextArea
-                field='ProviderSceneScopes'
-                label={t('Provider scene scopes')}
-                placeholder='{"epay":{"wallet_topup":false,"subscription_purchase":true}}'
-                autosize
-                extraText={t(
-                  'Controls which payment providers can be used by each billing scene.',
-                )}
-              />
+              <Form.Slot label={t('支付通道场景')}>
+                <div style={panelStyle}>
+                  <div
+                    style={{
+                      display: 'grid',
+                      gridTemplateColumns: sceneGridColumns,
+                      gap: 6,
+                      paddingBottom: 8,
+                      borderBottom: '1px solid var(--semi-color-border)',
+                    }}
+                  >
+                    <Text type='secondary' size='small'>
+                      {t('支付通道')}
+                    </Text>
+                    {paymentSceneItems.map((scene) => (
+                      <Text
+                        key={scene.key}
+                        type='secondary'
+                        size='small'
+                        style={{ textAlign: 'center' }}
+                      >
+                        {t(scene.label)}
+                      </Text>
+                    ))}
+                  </div>
+                  {paymentProviderItems.map((provider) => {
+                    const scopes = readProviderSceneScopes(
+                      inputs.ProviderSceneScopes,
+                    );
+                    return (
+                      <div
+                        key={provider.key}
+                        style={{
+                          display: 'grid',
+                          gridTemplateColumns: sceneGridColumns,
+                          alignItems: 'center',
+                          gap: 6,
+                          minHeight: 48,
+                          borderBottom: '1px solid var(--semi-color-border)',
+                        }}
+                      >
+                        <Text strong>{t(provider.label)}</Text>
+                        {paymentSceneItems.map((scene) => {
+                          const supported = provider.supportedScenes.includes(
+                            scene.key,
+                          );
+                          return (
+                            <div
+                              key={scene.key}
+                              style={{
+                                display: 'flex',
+                                justifyContent: 'center',
+                              }}
+                            >
+                              <Switch
+                                checked={
+                                  supported && scopes[provider.key]?.[scene.key]
+                                }
+                                disabled={!supported}
+                                onChange={(checked) =>
+                                  updateProviderSceneScope(
+                                    provider.key,
+                                    scene.key,
+                                    checked,
+                                  )
+                                }
+                              />
+                            </div>
+                          );
+                        })}
+                      </div>
+                    );
+                  })}
+                </div>
+              </Form.Slot>
             </Col>
           </Row>
           <Button onClick={submitGeneralSettings} style={{ marginTop: 16 }}>
