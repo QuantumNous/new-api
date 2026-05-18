@@ -40,17 +40,6 @@ type ApiKeySuccessDialogProps = {
   purpose?: SimplePurposeId
 }
 
-// The 6 client integrations promoted on the success page. Targets are
-// placeholder routes for Phase 1 — real screenshot tutorials land in Phase 2.
-const CLIENT_LINKS: Array<{ slug: string; label: string }> = [
-  { slug: 'cherry-studio', label: 'Cherry Studio' },
-  { slug: 'chatbox', label: 'Chatbox' },
-  { slug: 'lobechat', label: 'LobeChat' },
-  { slug: 'cursor', label: 'Cursor' },
-  { slug: 'claude-code', label: 'Claude Code' },
-  { slug: 'code', label: 'Python / Node code' },
-]
-
 function defaultBaseUrl(): string {
   if (typeof window === 'undefined') return 'https://deeprouter.ai/v1'
   const { protocol, host } = window.location
@@ -119,28 +108,11 @@ export function ApiKeySuccessDialog({
             <p className='text-foreground text-xs font-medium'>
               {t('How to use this key')}
             </p>
-            <p className='text-muted-foreground mt-1 text-xs'>
-              {t('Pick your client and follow the setup guide:')}
+            <p className='text-muted-foreground mt-1 text-xs leading-relaxed'>
+              {t(
+                'Paste it into the AI tool you already use — find the "API Key" field in its settings.'
+              )}
             </p>
-            <div className='mt-2 flex flex-wrap gap-2'>
-              {CLIENT_LINKS.map((c) => (
-                <Button
-                  key={c.slug}
-                  size='sm'
-                  variant='outline'
-                  className='rounded-full text-xs'
-                  render={
-                    <a
-                      href={`/onboarding/${c.slug}`}
-                      target='_blank'
-                      rel='noreferrer'
-                    />
-                  }
-                >
-                  {c.label}
-                </Button>
-              ))}
-            </div>
           </div>
         </div>
         <AlertDialogFooter>

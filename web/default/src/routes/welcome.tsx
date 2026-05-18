@@ -23,7 +23,7 @@ import { Welcome } from '@/features/welcome'
 // Wizard step is encoded in the URL so browser back/forward and refresh
 // land on the same step the user was on. Default = 'persona' (step 1).
 const welcomeSearchSchema = z.object({
-  step: z.enum(['persona', 'brand', 'client']).optional(),
+  step: z.enum(['persona', 'brand']).optional(),
 })
 
 export const Route = createFileRoute('/welcome')({

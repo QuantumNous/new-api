@@ -21,13 +21,10 @@ import { useNavigate } from '@tanstack/react-router'
 import {
   ArrowRight,
   Check,
-  Code,
   Copy,
   Gift,
   KeyRound,
   MessageSquare,
-  PlayCircle,
-  Sparkles,
   Terminal,
   Users,
   type LucideIcon,
@@ -55,18 +52,15 @@ const PERSONAS: Array<{
     id: 'casual',
     icon: MessageSquare,
     titleKey: 'Casual',
-    // Verbose-by-default because /welcome runs BEFORE persona is set,
-    // so FieldHint can't detect casual. Verbose for everyone is fine
-    // here — this screen is shown exactly once per account.
     descKey:
-      'For chatting, writing, translation, image generation. No code needed — you use a desktop app like Cherry Studio.',
+      'For chatting, writing, translation, image generation. No code needed — paste your key into the AI app you already use.',
   },
   {
     id: 'dev',
     icon: Terminal,
     titleKey: 'Developer',
     descKey:
-      'For coding and integrating the API into your own scripts or products. You will write code or use tools like Cursor.',
+      "For coding and API integration. You'll write code or use the API directly.",
     badge: 'Most users',
   },
   {
@@ -88,84 +82,6 @@ const BRANDS: Array<{ id: BrandId; label: string }> = [
   { id: '', label: 'No preference' },
 ]
 
-// Step 4 — preferred client / landing
-type ClientId =
-  | 'cherry-studio' | 'chatbox' | 'lobechat'
-  | 'cursor' | 'claude-code' | 'code'
-  | 'playground' | 'dashboard'
-
-const CLIENTS: Array<{
-  id: ClientId
-  icon: LucideIcon
-  titleKey: string
-  descKey: string
-  recommendedFor: Persona[]
-}> = [
-  {
-    id: 'cherry-studio',
-    icon: Sparkles,
-    titleKey: 'Cherry Studio',
-    descKey:
-      'Free desktop app. Double-click to install. Best place to start if you don\'t code.',
-    recommendedFor: ['casual'],
-  },
-  {
-    id: 'chatbox',
-    icon: MessageSquare,
-    titleKey: 'Chatbox',
-    descKey:
-      'Web + desktop + mobile. Works in browser, no install needed.',
-    recommendedFor: [],
-  },
-  {
-    id: 'lobechat',
-    icon: MessageSquare,
-    titleKey: 'LobeChat',
-    descKey: 'Open-source chat client with plugins for advanced use.',
-    recommendedFor: [],
-  },
-  {
-    id: 'cursor',
-    icon: Code,
-    titleKey: 'Cursor',
-    descKey:
-      'AI-powered code editor. Replaces VS Code for AI pair programming.',
-    recommendedFor: ['dev', 'team'],
-  },
-  {
-    id: 'claude-code',
-    icon: Terminal,
-    titleKey: 'Claude Code',
-    descKey:
-      "Anthropic's command-line AI assistant. You'll need a terminal.",
-    recommendedFor: ['dev'],
-  },
-  {
-    id: 'code',
-    icon: Code,
-    titleKey: 'Python / Node',
-    descKey:
-      'Call the API directly from your own Python or Node.js code.',
-    recommendedFor: ['dev'],
-  },
-  {
-    id: 'playground',
-    icon: PlayCircle,
-    titleKey: 'Try in browser',
-    descKey:
-      'Zero setup — chat with the AI right here on this site. Best to test quickly.',
-    recommendedFor: ['casual'],
-  },
-  {
-    id: 'dashboard',
-    icon: KeyRound,
-    titleKey: 'Just look around',
-    descKey:
-      'Skip the guide and explore the dashboard yourself. You can come back later.',
-    recommendedFor: ['team'],
-  },
-]
-
 const QUOTA_PER_USD = 500_000
 const AVG_CHAT_COST_USD = 0.005
 
@@ -180,7 +96,7 @@ function formatChatsCount(n: number): string {
   return `${Math.floor(n / 1000)}k`
 }
 
-export type WelcomeStep = 'persona' | 'brand' | 'client'
+export type WelcomeStep = 'persona' | 'brand'
 
 export function Welcome({ step = 'persona' }: { step?: WelcomeStep }) {
   const { t } = useTranslation()
@@ -214,7 +130,6 @@ export function Welcome({ step = 'persona' }: { step?: WelcomeStep }) {
   // null and gets auto-suggested from the chosen persona below.
   const [persona, setPersona] = useState<Persona | null>('casual')
   const [brand, setBrand] = useState<BrandId>('')
-  const [client, setClient] = useState<ClientId | null>(null)
   const [submitting, setSubmitting] = useState(false)
 
   const goToStep = (next: WelcomeStep) => {
@@ -229,30 +144,15 @@ export function Welcome({ step = 'persona' }: { step?: WelcomeStep }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [step])
 
-  // Pre-suggest a sensible client based on persona pick — but user can
-  // override any time before final submit.
-  useEffect(() => {
-    if (!persona || client) return
-    const suggested = CLIENTS.find((c) =>
-      c.recommendedFor.includes(persona)
-    )
-    if (suggested) setClient(suggested.id)
-  }, [persona, client])
-
-  const handleFinish = async (
-    landingOverride?: ClientId,
-    skipAll = false
-  ) => {
+  const handleFinish = async (skipAll = false) => {
     if (submitting) return
     setSubmitting(true)
     try {
-      const finalClient = landingOverride ?? client ?? 'dashboard'
       const finalPersona = persona ?? 'dev' // legacy-safe default
       const finalBrand = brand
       const settingPatch: Partial<UserSettings> = {
         persona: finalPersona,
         brand_preference: finalBrand as UserSettings['brand_preference'],
-        preferred_client: finalClient,
       }
       // Snap the right sidebar preset for the chosen persona so the
       // dashboard's sidebar config takes effect on next page load.
@@ -286,27 +186,11 @@ export function Welcome({ step = 'persona' }: { step?: WelcomeStep }) {
         })
       }
 
-      // Decide where to land. Priority:
-      //   1. backend's hint from register response (handoff.next)
-      //   2. matching /onboarding/<client> route
-      //   3. /playground or /dashboard
-      let target: string = '/dashboard/overview'
-      if (handoff?.next) {
-        target = handoff.next
-      } else if (
-        finalClient === 'cherry-studio' ||
-        finalClient === 'chatbox' ||
-        finalClient === 'lobechat' ||
-        finalClient === 'cursor' ||
-        finalClient === 'claude-code' ||
-        finalClient === 'code'
-      ) {
-        target = `/onboarding/${finalClient}`
-      } else if (finalClient === 'playground') {
-        target = '/playground'
-      } else {
-        target = preset?.defaultRoute ?? '/dashboard/overview'
-      }
+      // Land on wallet (PRD §7.4): the user just signed up — first action
+      // they need to take is top up, not pick a client. Backend hint wins
+      // if it has one (e.g. magic-link flow).
+      const target: string =
+        handoff?.next ?? preset?.defaultRoute ?? '/wallet'
       navigate({ to: target as never, replace: true })
     } catch {
       toast.error(t('Could not save your selection.'))
@@ -364,14 +248,14 @@ export function Welcome({ step = 'persona' }: { step?: WelcomeStep }) {
       </div>
 
       <Stepper
-        currentStep={step === 'persona' ? 1 : step === 'brand' ? 2 : 3}
-        totalSteps={3}
+        currentStep={step === 'persona' ? 1 : 2}
+        totalSteps={2}
       />
 
       {step === 'persona' && (
         <Section
           title={t('How do you plan to use DeepRouter?')}
-          stepLabel={t('Step 1 of 3')}
+          stepLabel={t('Step 1 of 2')}
         >
           <div className='grid gap-3 sm:grid-cols-3'>
             {PERSONAS.map((p) => (
@@ -395,7 +279,7 @@ export function Welcome({ step = 'persona' }: { step?: WelcomeStep }) {
           subtitle={t(
             'Your default key will route to this brand when you call model: "deeprouter".'
           )}
-          stepLabel={t('Step 2 of 3')}
+          stepLabel={t('Step 2 of 2')}
         >
           <div className='flex flex-wrap gap-2'>
             {BRANDS.map((b) => (
@@ -414,30 +298,6 @@ export function Welcome({ step = 'persona' }: { step?: WelcomeStep }) {
         </Section>
       )}
 
-      {step === 'client' && persona && (
-        <Section
-          title={t('Where would you like to start?')}
-          stepLabel={t('Step 3 of 3')}
-        >
-          <div className='grid gap-3 sm:grid-cols-2 lg:grid-cols-3'>
-            {CLIENTS.map((c) => {
-              const recommended = c.recommendedFor.includes(persona)
-              return (
-                <ChoiceCard
-                  key={c.id}
-                  icon={<c.icon className='h-5 w-5' />}
-                  title={t(c.titleKey)}
-                  description={t(c.descKey)}
-                  badge={recommended ? t('Recommended') : undefined}
-                  selected={client === c.id}
-                  onClick={() => setClient(c.id)}
-                />
-              )
-            })}
-          </div>
-        </Section>
-      )}
-
       <div className='mt-6 flex items-center justify-between gap-2'>
         <div className='flex items-center gap-2'>
           {step !== 'persona' && (
@@ -446,9 +306,7 @@ export function Welcome({ step = 'persona' }: { step?: WelcomeStep }) {
               variant='outline'
               size='sm'
               disabled={submitting}
-              onClick={() =>
-                goToStep(step === 'brand' ? 'persona' : 'brand')
-              }
+              onClick={() => goToStep('persona')}
             >
               {t('Back')}
             </Button>
@@ -458,15 +316,15 @@ export function Welcome({ step = 'persona' }: { step?: WelcomeStep }) {
             variant='ghost'
             size='sm'
             disabled={submitting}
-            onClick={() => handleFinish('dashboard', true)}
+            onClick={() => handleFinish(true)}
           >
             {t('Skip — set this later')}
           </Button>
         </div>
-        {step === 'client' ? (
+        {step === 'brand' ? (
           <Button
             type='button'
-            disabled={!persona || !client || submitting}
+            disabled={!persona || submitting}
             onClick={() => handleFinish()}
           >
             {submitting ? t('Saving...') : t('Finish')}
@@ -475,8 +333,8 @@ export function Welcome({ step = 'persona' }: { step?: WelcomeStep }) {
         ) : (
           <Button
             type='button'
-            disabled={step === 'persona' ? !persona : false}
-            onClick={() => goToStep(step === 'persona' ? 'brand' : 'client')}
+            disabled={!persona}
+            onClick={() => goToStep('brand')}
           >
             {t('Continue')}
             <ArrowRight className='ml-1.5 h-4 w-4' />
