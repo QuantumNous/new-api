@@ -58,6 +58,23 @@ const isValidJSON = (value: string | undefined) => {
   }
 }
 
+const isValidConcurrencyJSON = (value: string | undefined) => {
+  if (!value || value.trim() === '') return true
+  try {
+    const parsed = JSON.parse(value)
+    if (typeof parsed !== 'object' || Array.isArray(parsed)) {
+      return false
+    }
+    for (const [, val] of Object.entries(parsed)) {
+      if (typeof val !== 'number') return false
+      if (val < 0 || val > 2147483647) return false
+    }
+    return true
+  } catch {
+    return false
+  }
+}
+
 const createRateLimitSchema = (t: (key: string) => string) =>
   z.object({
     ModelRequestRateLimitEnabled: z.boolean(),
@@ -68,6 +85,14 @@ const createRateLimitSchema = (t: (key: string) => string) =>
       .string()
       .optional()
       .refine(isValidJSON, {
+        message: t('Invalid JSON format or values out of allowed range'),
+      }),
+    ModelRequestConcurrencyLimitEnabled: z.boolean(),
+    ModelRequestConcurrencyLimitCount: z.number().min(0).max(100000000),
+    ModelRequestConcurrencyLimitGroup: z
+      .string()
+      .optional()
+      .refine(isValidConcurrencyJSON, {
         message: t('Invalid JSON format or values out of allowed range'),
       }),
   })
@@ -232,6 +257,88 @@ export function RateLimitSection({ defaultValues }: RateLimitSectionProps) {
                 </FormItem>
               )}
             />
+          </div>
+
+          <div className='space-y-4 border-t pt-6'>
+            <FormField
+              control={form.control}
+              name='ModelRequestConcurrencyLimitEnabled'
+              render={({ field }) => (
+                <FormItem className='flex flex-row items-center justify-between rounded-lg border p-4'>
+                  <div className='space-y-0.5'>
+                    <FormLabel className='text-base'>
+                      {t('Enable concurrency limiting')}
+                    </FormLabel>
+                    <FormDescription>
+                      {t(
+                        'Restrict how many model requests each user can run at the same time.'
+                      )}
+                    </FormDescription>
+                  </div>
+                  <FormControl>
+                    <Switch
+                      checked={field.value}
+                      onCheckedChange={field.onChange}
+                    />
+                  </FormControl>
+                </FormItem>
+              )}
+            />
+
+            <div className='grid gap-4 md:grid-cols-2'>
+              <FormField
+                control={form.control}
+                name='ModelRequestConcurrencyLimitCount'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t('Max concurrent requests')}</FormLabel>
+                    <FormControl>
+                      <div className='flex items-center gap-2'>
+                        <Input
+                          type='number'
+                          min={0}
+                          max={100000000}
+                          step={1}
+                          {...field}
+                          onChange={(e) =>
+                            field.onChange(parseInt(e.target.value) || 0)
+                          }
+                        />
+                        <span className='text-muted-foreground text-sm'>
+                          {t('requests')}
+                        </span>
+                      </div>
+                    </FormControl>
+                    <FormDescription>
+                      {t('Concurrent in-flight model requests per user, 0 = unlimited')}
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name='ModelRequestConcurrencyLimitGroup'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t('Group-based concurrency limits')}</FormLabel>
+                    <FormControl>
+                      <Textarea
+                        rows={5}
+                        placeholder={`{\n  "default": 2,\n  "vip": 10\n}`}
+                        className='font-mono text-sm'
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormDescription>
+                      {t('JSON object mapping user groups to concurrent request limits. 0 = unlimited.')}
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
           </div>
 
           <FormField
