@@ -674,6 +674,20 @@ const EditChannelModal = (props) => {
             base_url: 'https://ark.cn-beijing.volces.com',
           }));
           break;
+        case 58:
+          localModels = [
+            'MiniMax-T2V-01',
+            'MiniMax-T2V-01-Director',
+            'MiniMax-Hailuo-02',
+            'MiniMax-I2V-01',
+            'MiniMax-I2V-01-Live',
+            'MiniMax-I2V-01-Director',
+          ];
+          setInputs((prevInputs) => ({
+            ...prevInputs,
+            base_url: 'https://llmapi.paratera.com',
+          }));
+          break;
         default:
           localModels = getChannelModels(value);
           break;
