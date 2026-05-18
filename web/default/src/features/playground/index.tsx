@@ -21,7 +21,6 @@ import { useQuery } from '@tanstack/react-query'
 import { getUserModels, getUserGroups } from './api'
 import { PlaygroundChat } from './components/playground-chat'
 import { PlaygroundInput } from './components/playground-input'
-import { DEFAULT_GROUP } from './constants'
 import { usePlaygroundState, useChatHandler } from './hooks'
 import { createUserMessage, createLoadingAssistantMessage } from './lib'
 import type { Message as MessageType } from './types'
@@ -79,22 +78,16 @@ export function Playground() {
   useEffect(() => {
     if (!groupsData) return
 
-    // Add auto group if not present
-    const hasAutoGroup = groupsData.some((g) => g.value === DEFAULT_GROUP)
-    const processedGroups = hasAutoGroup
-      ? groupsData
-      : [
-          {
-            value: DEFAULT_GROUP,
-            label: 'Auto',
-            ratio: 1,
-            desc: 'Circuit Breaker',
-          },
-          ...groupsData,
-        ]
+    setGroups(groupsData)
 
-    setGroups(processedGroups)
-  }, [groupsData, setGroups])
+    const hasCurrentGroup = groupsData.some((g) => g.value === config.group)
+    if (!hasCurrentGroup && groupsData.length > 0) {
+      const fallback =
+        groupsData.find((g) => g.value === 'default')?.value ??
+        groupsData[0].value
+      updateConfig('group', fallback)
+    }
+  }, [groupsData, setGroups, config.group, updateConfig])
 
   const handleSendMessage = (text: string) => {
     const userMessage = createUserMessage(text)

@@ -79,7 +79,9 @@ function ChatMenuItem({
             />
           }
         >
-          <span>{preset.name}</span>
+          <span className='min-w-0 flex-1 truncate whitespace-nowrap'>
+            {preset.name}
+          </span>
         </SidebarMenuSubButton>
       </SidebarMenuSubItem>
     )
@@ -95,11 +97,13 @@ function ChatMenuItem({
         isActive={false}
         className='justify-between'
       >
-        <span>{preset.name}</span>
+        <span className='min-w-0 flex-1 truncate whitespace-nowrap'>
+          {preset.name}
+        </span>
         {loading ? (
-          <Loader2 className='h-4 w-4 animate-spin' />
+          <Loader2 className='h-4 w-4 shrink-0 animate-spin' />
         ) : (
-          <ExternalLink className='h-4 w-4' />
+          <ExternalLink className='h-4 w-4 shrink-0' />
         )}
       </SidebarMenuSubButton>
     </SidebarMenuSubItem>
