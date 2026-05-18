@@ -1,0 +1,419 @@
+# DeepRouter — Seed Models Configuration
+#
+# 用法：scripts/seed-models/seed.py 读取本文件，调用 admin API 自动建/更新所有 channel。
+# 关键约定：
+#   - `key_env` 指向环境变量名；上游 API key 从环境读取，不写在本文件
+#   - `enabled: false` 的 channel 不会被创建/更新
+#   - `name` 是幂等键（同名 channel 会被更新而不是重复创建）
+#   - 模型 `models` 是 new-api 已经内置定价的型号；陌生型号会落到默认 ratio (1.0 = $0.002/1K)
+#   - `type` 数字来自 constant/channel.go 的 ChannelType* 枚举
+
+version: 1
+
+defaults:
+  group: default
+  priority: 100
+  weight: 10
+  status: enabled      # enabled | disabled
+  mode: single         # single | batch | multi_to_single
+
+channels:
+
+  # ─────────────────────────────────────────────────────────────────────
+  # 国际大模型厂商（International）
+  # ─────────────────────────────────────────────────────────────────────
+
+  - name: OpenAI
+    type: 1
+    enabled: true
+    key_env: OPENAI_API_KEY
+    base_url: https://api.openai.com
+    test_model: gpt-4o-mini
+    tag: openai
+    models:
+      # GPT-5 系列
+      - gpt-5
+      - gpt-5-mini
+      - gpt-5-nano
+      - gpt-5-chat-latest
+      # GPT-4.1 系列
+      - gpt-4.1
+      - gpt-4.1-mini
+      - gpt-4.1-nano
+      # GPT-4o 系列
+      - gpt-4o
+      - gpt-4o-mini
+      - chatgpt-4o-latest
+      - gpt-4o-audio-preview
+      - gpt-4o-realtime-preview
+      - gpt-4o-mini-realtime-preview
+      # 推理系列 o-family
+      - o3
+      - o3-mini
+      - o3-pro
+      - o4-mini
+      # 多模态生成
+      - gpt-image-1
+      - dall-e-3
+      - dall-e-2
+      # 语音
+      - whisper-1
+      - tts-1
+      - tts-1-hd
+      # 向量
+      - text-embedding-3-large
+      - text-embedding-3-small
+      # 内容安全
+      - omni-moderation-latest
+
+  - name: Anthropic Claude
+    type: 14
+    enabled: true
+    key_env: ANTHROPIC_API_KEY
+    base_url: https://api.anthropic.com
+    test_model: claude-haiku-4-5-20251001
+    tag: anthropic
+    models:
+      # Claude 4.x 最新主力
+      - claude-opus-4-7
+      - claude-opus-4-6
+      - claude-opus-4-5-20251101
+      - claude-sonnet-4-5-20250929
+      - claude-sonnet-4-20250514
+      - claude-haiku-4-5-20251001
+      # Claude 3.x 兼容
+      - claude-3-7-sonnet-20250219
+      - claude-3-7-sonnet-20250219-thinking
+      - claude-3-5-sonnet-20241022
+      - claude-3-5-sonnet-20240620
+      - claude-3-5-haiku-20241022
+      - claude-3-opus-20240229
+      - claude-3-haiku-20240307
+      # Opus 4.7 思维深度变体
+      - claude-opus-4-7-max
+      - claude-opus-4-7-xhigh
+      - claude-opus-4-7-high
+      - claude-opus-4-7-medium
+      - claude-opus-4-7-low
+
+  - name: Google Gemini
+    type: 24
+    enabled: true
+    key_env: GEMINI_API_KEY
+    base_url: https://generativelanguage.googleapis.com
+    test_model: gemini-2.5-flash
+    tag: google
+    models:
+      - gemini-2.5-pro
+      - gemini-2.5-flash
+      - gemini-2.5-flash-lite-preview-06-17
+      - gemini-2.0-flash
+      - gemini-1.5-pro-latest
+      - gemini-1.5-flash-latest
+      - gemini-embedding-001
+
+  - name: xAI Grok
+    type: 48
+    enabled: true
+    key_env: XAI_API_KEY
+    base_url: https://api.x.ai
+    test_model: grok-3-mini-beta
+    tag: xai
+    models:
+      - grok-3-beta
+      - grok-3-mini-beta
+      - grok-3-fast-beta
+      - grok-3-mini-fast-beta
+      - grok-2
+      - grok-2-vision
+      - grok-beta
+      - grok-vision-beta
+
+  - name: Mistral
+    type: 42
+    enabled: true
+    key_env: MISTRAL_API_KEY
+    base_url: https://api.mistral.ai
+    test_model: mistral-small-latest
+    tag: mistral
+    models:
+      - mistral-large-latest
+      - mistral-medium-latest
+      - mistral-small-latest
+      - codestral-latest
+      - pixtral-large-latest
+
+  - name: Cohere
+    type: 34
+    enabled: true
+    key_env: COHERE_API_KEY
+    base_url: https://api.cohere.ai
+    test_model: command-r
+    tag: cohere
+    models:
+      - command-r-plus
+      - command-r
+      - command-r-plus-08-2024
+      - command-r-08-2024
+      - command
+      - command-light
+
+  - name: Perplexity Sonar
+    type: 27
+    enabled: true
+    key_env: PERPLEXITY_API_KEY
+    base_url: https://api.perplexity.ai
+    test_model: llama-3-sonar-small-32k-online
+    tag: perplexity
+    models:
+      - llama-3-sonar-small-32k-chat
+      - llama-3-sonar-small-32k-online
+      - llama-3-sonar-large-32k-chat
+      - llama-3-sonar-large-32k-online
+
+  # ─────────────────────────────────────────────────────────────────────
+  # 国产大模型厂商（China majors）
+  # ─────────────────────────────────────────────────────────────────────
+
+  - name: DeepSeek 深度求索
+    type: 43
+    enabled: true
+    key_env: DEEPSEEK_API_KEY
+    base_url: https://api.deepseek.com
+    test_model: deepseek-chat
+    tag: deepseek
+    models:
+      - deepseek-chat
+      - deepseek-reasoner
+      - deepseek-coder
+
+  - name: Moonshot Kimi 月之暗面
+    type: 25
+    enabled: true
+    key_env: MOONSHOT_API_KEY
+    base_url: https://api.moonshot.cn
+    test_model: moonshot-v1-8k
+    tag: moonshot
+    models:
+      - moonshot-v1-8k
+      - moonshot-v1-32k
+      - moonshot-v1-128k
+      - moonshot-v1-auto
+      - kimi-latest
+      - kimi-k2-0905
+      - kimi-k2-turbo-preview
+
+  - name: 阿里通义 Qwen
+    type: 17
+    enabled: true
+    key_env: ALI_API_KEY
+    base_url: https://dashscope.aliyuncs.com
+    test_model: qwen-turbo
+    tag: alibaba
+    models:
+      - qwen-max
+      - qwen-plus
+      - qwen-turbo
+      - qwen-long
+      - qwen-vl-max
+      - qwen-vl-plus
+      - qwen2.5-72b-instruct
+      - qwen2.5-coder-32b-instruct
+      - qwen3-max
+      - qwen3-plus
+      - qwen3-turbo
+      - qwen3-coder-plus
+
+  - name: 智谱 GLM
+    type: 26
+    enabled: true
+    key_env: ZHIPU_API_KEY
+    base_url: https://open.bigmodel.cn
+    test_model: glm-4-flash
+    tag: zhipu
+    models:
+      - glm-4-plus
+      - glm-4-air
+      - glm-4-airx
+      - glm-4-long
+      - glm-4-flash
+      - glm-4v-plus
+      - glm-4
+      - glm-4v
+      - glm-4-alltools
+
+  - name: 字节跳动豆包 Doubao
+    type: 45
+    enabled: true
+    key_env: VOLCENGINE_API_KEY
+    base_url: https://ark.cn-beijing.volces.com
+    test_model: doubao-lite-32k
+    tag: doubao
+    models:
+      - doubao-pro-4k
+      - doubao-pro-32k
+      - doubao-pro-128k
+      - doubao-pro-256k
+      - doubao-lite-4k
+      - doubao-lite-32k
+      - doubao-lite-128k
+      - doubao-vision-pro-32k
+      - doubao-vision-lite-32k
+
+  - name: 百度文心 ERNIE
+    type: 46
+    enabled: true
+    key_env: BAIDU_API_KEY
+    base_url: https://qianfan.baidubce.com
+    test_model: ERNIE-Speed-8K
+    tag: baidu
+    models:
+      - ERNIE-4.0-8K
+      - ERNIE-3.5-8K
+      - ERNIE-3.5-8K-0205
+      - ERNIE-3.5-4K-0205
+      - ERNIE-Speed-8K
+      - ERNIE-Speed-128K
+      - ERNIE-Lite-8K-0922
+      - ERNIE-Lite-8K-0308
+      - ERNIE-Tiny-8K
+      - ERNIE-Bot-8K
+
+  - name: 腾讯混元 Hunyuan
+    type: 23
+    enabled: true
+    key_env: TENCENT_API_KEY
+    base_url: https://hunyuan.tencentcloudapi.com
+    test_model: hunyuan
+    tag: tencent
+    models:
+      - hunyuan
+      - hunyuan-pro
+      - hunyuan-standard
+      - hunyuan-standard-256K
+      - hunyuan-lite
+      - hunyuan-vision
+
+  - name: 讯飞星火 SparkDesk
+    type: 18
+    enabled: true
+    key_env: XUNFEI_API_KEY
+    # base_url 留空，讯飞用 WebSocket
+    test_model: SparkDesk-v3.5
+    tag: xunfei
+    models:
+      - SparkDesk-v4.0
+      - SparkDesk-v3.5
+      - SparkDesk-v3.1
+      - SparkDesk-v2.1
+      - SparkDesk-v1.1
+
+  - name: MiniMax abab
+    type: 35
+    enabled: true
+    key_env: MINIMAX_API_KEY
+    base_url: https://api.minimax.chat
+    test_model: abab6.5-chat
+    tag: minimax
+    models:
+      - abab7-chat-preview
+      - abab6.5s-chat
+      - abab6.5-chat
+      - abab5.5-chat
+
+  - name: 零一万物 Yi
+    type: 31
+    enabled: true
+    key_env: YI_API_KEY
+    base_url: https://api.lingyiwanwu.com
+    test_model: yi-spark
+    tag: lingyiwanwu
+    models:
+      - yi-lightning
+      - yi-large
+      - yi-large-turbo
+      - yi-large-rag
+      - yi-medium
+      - yi-medium-200k
+      - yi-spark
+      - yi-vision
+
+  - name: 360 智脑
+    type: 19
+    enabled: false        # 默认关，需要时打开
+    key_env: SANLIULING_API_KEY
+    test_model: 360gpt-turbo
+    tag: sanliuling
+    models:
+      - 360GPT_S2_V9
+      - 360gpt-turbo
+      - 360gpt-pro
+      - 360gpt2-pro
+
+  # ─────────────────────────────────────────────────────────────────────
+  # 聚合 / 备用渠道（Aggregators / Fallback）
+  # ─────────────────────────────────────────────────────────────────────
+
+  - name: OpenRouter 聚合
+    type: 20
+    enabled: false        # 默认关，作为兜底渠道
+    key_env: OPENROUTER_API_KEY
+    base_url: https://openrouter.ai/api
+    test_model: openai/gpt-4o-mini
+    tag: openrouter
+    models:
+      - openai/gpt-4o
+      - openai/gpt-4o-mini
+      - anthropic/claude-3.5-sonnet
+      - google/gemini-pro-1.5
+      - meta-llama/llama-3.1-405b-instruct
+      - mistralai/mistral-large
+
+  - name: SiliconFlow 硅基流动
+    type: 40
+    enabled: false        # 默认关，国内开源模型聚合
+    key_env: SILICONFLOW_API_KEY
+    base_url: https://api.siliconflow.cn
+    test_model: Qwen/Qwen3-235B-A22B-Instruct-2507
+    tag: siliconflow
+    models:
+      - Qwen/Qwen3-235B-A22B-Thinking-2507
+      - Qwen/Qwen3-Coder-480B-A35B-Instruct-FP8
+      - Qwen/Qwen3-235B-A22B-Instruct-2507
+      - deepseek-ai/DeepSeek-R1-0528
+      - deepseek-ai/DeepSeek-R1
+      - deepseek-ai/DeepSeek-V3-0324
+      - deepseek-ai/DeepSeek-V3.1
+
+  # ─────────────────────────────────────────────────────────────────────
+  # 多模态：图像 / 视频 / 音乐（Multimedia）
+  # ─────────────────────────────────────────────────────────────────────
+
+  - name: Midjourney
+    type: 2
+    enabled: false        # 默认关，需要 MJ 代理 API
+    key_env: MIDJOURNEY_API_KEY
+    test_model: midjourney
+    tag: midjourney
+    models:
+      - midjourney
+
+  - name: Suno 音乐
+    type: 36
+    enabled: false        # 默认关
+    key_env: SUNO_API_KEY
+    test_model: suno_music
+    tag: suno
+    models:
+      - suno_music
+      - suno_lyrics
+
+  - name: Sora 视频
+    type: 55
+    enabled: false        # 默认关
+    key_env: SORA_API_KEY
+    test_model: sora-2
+    tag: sora
+    models:
+      - sora-2
+      - sora-2-pro
