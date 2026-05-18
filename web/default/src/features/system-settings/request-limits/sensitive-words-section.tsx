@@ -31,6 +31,7 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form'
+import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import { SettingsSection } from '../components/settings-section'
@@ -40,6 +41,13 @@ const sensitiveSchema = z.object({
   CheckSensitiveEnabled: z.boolean(),
   CheckSensitiveOnPromptEnabled: z.boolean(),
   SensitiveWords: z.string().optional(),
+  ModerationEnabled: z.boolean(),
+  ModerationModel: z.string().optional(),
+  ModerationBaseURL: z.string().optional(),
+  ModerationAPIKey: z.string().optional(),
+  ModerationTimeoutSeconds: z.number().int().min(1).max(120),
+  ModerationFailureMode: z.string().optional(),
+  ModerationBlockCategories: z.string().optional(),
 })
 
 type SensitiveFormValues = z.infer<typeof sensitiveSchema>
@@ -154,6 +162,153 @@ export function SensitiveWordsSection({
               </FormItem>
             )}
           />
+
+          <div className='space-y-4 border-t pt-6'>
+            <FormField
+              control={form.control}
+              name='ModerationEnabled'
+              render={({ field }) => (
+                <FormItem className='flex flex-row items-center justify-between rounded-lg border p-4'>
+                  <div className='space-y-0.5'>
+                    <FormLabel className='text-base'>
+                      {t('Enable moderation model')}
+                    </FormLabel>
+                    <FormDescription>
+                      {t(
+                        'Use OpenAI moderation to inspect prompt text and images before routing.'
+                      )}
+                    </FormDescription>
+                  </div>
+                  <FormControl>
+                    <Switch
+                      checked={field.value}
+                      onCheckedChange={field.onChange}
+                    />
+                  </FormControl>
+                </FormItem>
+              )}
+            />
+
+            <div className='grid gap-4 md:grid-cols-2'>
+              <FormField
+                control={form.control}
+                name='ModerationBaseURL'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t('Moderation API Base URL')}</FormLabel>
+                    <FormControl>
+                      <Input
+                        placeholder='https://api.openai.com/v1'
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name='ModerationModel'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t('Moderation Model')}</FormLabel>
+                    <FormControl>
+                      <Input placeholder='omni-moderation-latest' {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name='ModerationAPIKey'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t('Moderation API Key')}</FormLabel>
+                    <FormControl>
+                      <Input
+                        type='password'
+                        placeholder={t('Leave blank to keep unchanged')}
+                        autoComplete='off'
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormDescription>
+                      {t(
+                        'This key is stored server-side and is not returned after saving.'
+                      )}
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name='ModerationTimeoutSeconds'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t('Moderation Timeout')}</FormLabel>
+                    <FormControl>
+                      <Input
+                        type='number'
+                        min={1}
+                        max={120}
+                        value={field.value}
+                        onChange={(event) =>
+                          field.onChange(Number(event.target.value))
+                        }
+                      />
+                    </FormControl>
+                    <FormDescription>{t('Seconds')}</FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name='ModerationFailureMode'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t('Moderation Failure Mode')}</FormLabel>
+                    <FormControl>
+                      <Input placeholder='open' {...field} />
+                    </FormControl>
+                    <FormDescription>
+                      {t(
+                        'Use open to allow requests when moderation is unavailable, or closed to reject them.'
+                      )}
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+
+            <FormField
+              control={form.control}
+              name='ModerationBlockCategories'
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t('Blocked Moderation Categories')}</FormLabel>
+                  <FormControl>
+                    <Textarea
+                      rows={6}
+                      placeholder={
+                        'sexual/minors\nself-harm/instructions\nillicit/violent'
+                      }
+                      {...field}
+                    />
+                  </FormControl>
+                  <FormDescription>
+                    {t(
+                      'One category per line. Flagged categories outside this list are logged as warnings.'
+                    )}
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </div>
 
           <Button type='submit' disabled={updateOption.isPending}>
             {updateOption.isPending

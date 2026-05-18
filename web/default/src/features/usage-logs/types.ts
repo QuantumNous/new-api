@@ -109,7 +109,12 @@ export interface LogOtherData {
     // Manage audit fields (type=3, admin only)
     admin_username?: string
     admin_id?: number | string
+    request_snapshot?: RequestSnapshot
+    moderation?: ModerationResult
+    moderation_error?: string
   }
+  moderation?: ModerationResult
+  moderation_error?: string
   request_path?: string
   request_conversion?: string[]
   ws?: boolean
@@ -196,6 +201,31 @@ export interface LogOtherData {
   subscription_consumed?: number
   subscription_remain?: number
   subscription_total?: number
+}
+
+export interface ModerationResult {
+  action?: string
+  flagged?: boolean
+  model?: string
+  blocked_categories?: string[]
+  flagged_categories?: string[]
+  category_scores?: Record<string, number>
+  category_applied_input_types?: Record<string, string[]>
+  input_types?: string[]
+  error?: string
+}
+
+export interface RequestSnapshot {
+  method?: string
+  path?: string
+  query?: string
+  content_type?: string
+  content_length?: number
+  headers?: Record<string, string[]>
+  body?: unknown
+  body_preview?: string
+  body_truncated?: boolean
+  body_error?: string
 }
 
 /**

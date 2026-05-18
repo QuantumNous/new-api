@@ -124,10 +124,11 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 	}
 
 	needSensitiveCheck := setting.ShouldCheckPromptSensitive()
+	needModerationCheck := setting.ModerationEnabled
 	needCountToken := constant.CountToken
-	// Avoid building huge CombineText (strings.Join) when token counting and sensitive check are both disabled.
+	// Avoid building huge CombineText (strings.Join) when token counting, moderation, and sensitive checks are disabled.
 	var meta *types.TokenCountMeta
-	if needSensitiveCheck || needCountToken {
+	if needSensitiveCheck || needModerationCheck || needCountToken {
 		meta = request.GetTokenCountMeta()
 	} else {
 		meta = fastTokenCountMetaForPricing(request)
@@ -137,8 +138,35 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		contains, words := service.CheckSensitiveText(meta.CombineText)
 		if contains {
 			logger.LogWarn(c, fmt.Sprintf("user sensitive words detected: %s", strings.Join(words, ", ")))
-			newAPIError = types.NewError(err, types.ErrorCodeSensitiveWordsDetected)
+			newAPIError = types.NewErrorWithStatusCode(fmt.Errorf("sensitive words detected: %s", strings.Join(words, ", ")), types.ErrorCodeSensitiveWordsDetected, http.StatusForbidden, types.ErrOptionWithSkipRetry())
+			recordRelayPrecheckErrorLog(c, relayInfo, newAPIError, map[string]interface{}{
+				"reject_reason":   "sensitive_words_detected",
+				"sensitive_words": words,
+			})
 			return
+		}
+	}
+
+	if needModerationCheck {
+		moderationResult, moderationErr := service.ModerateRelayRequest(c.Request.Context(), request, meta)
+		if moderationErr != nil {
+			logger.LogError(c, fmt.Sprintf("moderation check failed: %s", moderationErr.Error()))
+			if service.ModerationFailureModeClosed() {
+				newAPIError = types.NewErrorWithStatusCode(fmt.Errorf("moderation check failed"), types.ErrorCodeInvalidRequest, http.StatusForbidden, types.ErrOptionWithSkipRetry())
+				recordRelayModerationErrorLog(c, relayInfo, newAPIError, moderationResult, moderationErr)
+				return
+			}
+			c.Set("moderation_result", service.NewModerationErrorResult(moderationErr))
+		} else if moderationResult != nil && moderationResult.Action == "block" {
+			logger.LogWarn(c, fmt.Sprintf("moderation blocked request: %s", strings.Join(moderationResult.BlockedCategories, ", ")))
+			newAPIError = types.NewErrorWithStatusCode(fmt.Errorf("request content rejected by moderation"), types.ErrorCodeInvalidRequest, http.StatusForbidden, types.ErrOptionWithSkipRetry())
+			recordRelayModerationErrorLog(c, relayInfo, newAPIError, moderationResult, nil)
+			return
+		} else if moderationResult != nil && moderationResult.Action == "warn" {
+			c.Set("moderation_result", moderationResult)
+			logger.LogWarn(c, fmt.Sprintf("moderation flagged request: %s", strings.Join(moderationResult.FlaggedCategories, ", ")))
+		} else if moderationResult != nil {
+			c.Set("moderation_result", moderationResult)
 		}
 	}
 
@@ -247,6 +275,84 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 			perfmetrics.RecordRelaySample(relayInfo, false, 0)
 		})
 	}
+}
+
+func recordRelayPrecheckErrorLog(c *gin.Context, relayInfo *relaycommon.RelayInfo, err *types.NewAPIError, extra map[string]interface{}) {
+	if !constant.ErrorLogEnabled || !types.IsRecordErrorLog(err) {
+		return
+	}
+	userId := c.GetInt("id")
+	tokenName := c.GetString("token_name")
+	modelName := c.GetString("original_model")
+	if modelName == "" && relayInfo != nil {
+		modelName = relayInfo.OriginModelName
+	}
+	tokenId := c.GetInt("token_id")
+	userGroup := c.GetString("group")
+	other := make(map[string]interface{})
+	if c.Request != nil && c.Request.URL != nil {
+		other["request_path"] = c.Request.URL.Path
+	}
+	other["error_type"] = err.GetErrorType()
+	other["error_code"] = err.GetErrorCode()
+	other["status_code"] = err.StatusCode
+	for key, value := range extra {
+		other[key] = value
+	}
+	adminInfo := make(map[string]interface{})
+	for key, value := range extra {
+		adminInfo[key] = value
+	}
+	if snapshot := buildErrorRequestSnapshot(c); len(snapshot) > 0 {
+		adminInfo["request_snapshot"] = snapshot
+	}
+	other["admin_info"] = adminInfo
+	startTime := common.GetContextKeyTime(c, constant.ContextKeyRequestStartTime)
+	if startTime.IsZero() {
+		startTime = time.Now()
+	}
+	useTimeSeconds := int(time.Since(startTime).Seconds())
+	model.RecordErrorLog(c, userId, 0, modelName, tokenName, err.MaskSensitiveErrorWithStatusCode(), tokenId, useTimeSeconds, common.GetContextKeyBool(c, constant.ContextKeyIsStream), userGroup, other)
+}
+
+func recordRelayModerationErrorLog(c *gin.Context, relayInfo *relaycommon.RelayInfo, err *types.NewAPIError, moderationResult *service.ModerationResult, moderationErr error) {
+	if !constant.ErrorLogEnabled || !types.IsRecordErrorLog(err) {
+		return
+	}
+	userId := c.GetInt("id")
+	tokenName := c.GetString("token_name")
+	modelName := c.GetString("original_model")
+	if modelName == "" && relayInfo != nil {
+		modelName = relayInfo.OriginModelName
+	}
+	tokenId := c.GetInt("token_id")
+	userGroup := c.GetString("group")
+	other := make(map[string]interface{})
+	if c.Request != nil && c.Request.URL != nil {
+		other["request_path"] = c.Request.URL.Path
+	}
+	other["error_type"] = err.GetErrorType()
+	other["error_code"] = err.GetErrorCode()
+	other["status_code"] = err.StatusCode
+	other["moderation"] = moderationResult
+	if moderationErr != nil {
+		other["moderation_error"] = moderationErr.Error()
+	}
+	adminInfo := make(map[string]interface{})
+	adminInfo["moderation"] = moderationResult
+	if moderationErr != nil {
+		adminInfo["moderation_error"] = moderationErr.Error()
+	}
+	if snapshot := buildErrorRequestSnapshot(c); len(snapshot) > 0 {
+		adminInfo["request_snapshot"] = snapshot
+	}
+	other["admin_info"] = adminInfo
+	startTime := common.GetContextKeyTime(c, constant.ContextKeyRequestStartTime)
+	if startTime.IsZero() {
+		startTime = time.Now()
+	}
+	useTimeSeconds := int(time.Since(startTime).Seconds())
+	model.RecordErrorLog(c, userId, 0, modelName, tokenName, err.MaskSensitiveErrorWithStatusCode(), tokenId, useTimeSeconds, common.GetContextKeyBool(c, constant.ContextKeyIsStream), userGroup, other)
 }
 
 var upgrader = websocket.Upgrader{
@@ -391,6 +497,9 @@ func processChannelError(c *gin.Context, channelError types.ChannelError, err *t
 			adminInfo["multi_key_index"] = common.GetContextKeyInt(c, constant.ContextKeyChannelMultiKeyIndex)
 		}
 		service.AppendChannelAffinityAdminInfo(c, adminInfo)
+		if snapshot := buildErrorRequestSnapshot(c); len(snapshot) > 0 {
+			adminInfo["request_snapshot"] = snapshot
+		}
 		other["admin_info"] = adminInfo
 		startTime := common.GetContextKeyTime(c, constant.ContextKeyRequestStartTime)
 		if startTime.IsZero() {

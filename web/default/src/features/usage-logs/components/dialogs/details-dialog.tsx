@@ -64,7 +64,7 @@ import {
   isPerCallBilling,
   isTimingLogType,
 } from '../../lib/utils'
-import type { LogOtherData } from '../../types'
+import type { LogOtherData, ModerationResult, RequestSnapshot } from '../../types'
 
 function timingTextColorClass(
   variant: 'success' | 'warning' | 'danger'
@@ -139,6 +139,174 @@ function formatNumber(value: number | undefined, digits = 4): string {
   if (value == null || !Number.isFinite(value)) return '-'
   if (Number.isInteger(value)) return String(value)
   return value.toFixed(digits).replace(/\.?0+$/, '')
+}
+
+function formatSnapshotValue(value: unknown): string {
+  if (value == null || value === '') return '-'
+  if (typeof value === 'string') return value
+  return JSON.stringify(value, null, 2)
+}
+
+function RequestSnapshotSection(props: {
+  snapshot: RequestSnapshot
+  onCopy: (text: string) => void
+  copiedText: string | null
+}) {
+  const { t } = useTranslation()
+  const snapshot = props.snapshot
+  const headersText = formatSnapshotValue(snapshot.headers)
+  const bodyText = formatSnapshotValue(snapshot.body ?? snapshot.body_preview)
+  const copyText = JSON.stringify(snapshot, null, 2)
+
+  return (
+    <DetailSection label={t('Request Snapshot')}>
+      <div className='relative min-w-0'>
+        <Button
+          variant='ghost'
+          size='sm'
+          className='absolute top-0 right-0 h-5 w-5 p-0'
+          onClick={() => props.onCopy(copyText)}
+          title={t('Copy to clipboard')}
+          aria-label={t('Copy to clipboard')}
+        >
+          {props.copiedText === copyText ? (
+            <Check className='size-3 text-green-600' />
+          ) : (
+            <Copy className='size-3' />
+          )}
+        </Button>
+        <div className='min-w-0 space-y-1 pr-6'>
+          <DetailRow
+            label={t('Request')}
+            value={`${snapshot.method || '-'} ${snapshot.path || '-'}${snapshot.query ? `?${snapshot.query}` : ''}`}
+            mono
+          />
+          {snapshot.content_type && (
+            <DetailRow
+              label={t('Content Type')}
+              value={snapshot.content_type}
+              mono
+            />
+          )}
+          {snapshot.content_length != null && (
+            <DetailRow
+              label={t('Content Length')}
+              value={String(snapshot.content_length)}
+              mono
+            />
+          )}
+          {snapshot.body_error && (
+            <DetailRow label={t('Body Error')} value={snapshot.body_error} />
+          )}
+          {snapshot.body_truncated && (
+            <DetailRow label={t('Body Status')} value={t('Truncated')} />
+          )}
+        </div>
+        {snapshot.headers && (
+          <div className='mt-2 min-w-0'>
+            <Label className='text-muted-foreground text-xs'>
+              {t('Request Headers')}
+            </Label>
+            <pre className='bg-background/60 mt-1 max-h-48 overflow-auto rounded border p-2 font-mono text-[11px] leading-relaxed whitespace-pre-wrap'>
+              {headersText}
+            </pre>
+          </div>
+        )}
+        {(snapshot.body != null || snapshot.body_preview) && (
+          <div className='mt-2 min-w-0'>
+            <Label className='text-muted-foreground text-xs'>
+              {t('Request Parameters')}
+            </Label>
+            <pre className='bg-background/60 mt-1 max-h-72 overflow-auto rounded border p-2 font-mono text-[11px] leading-relaxed whitespace-pre-wrap'>
+              {bodyText}
+            </pre>
+          </div>
+        )}
+      </div>
+    </DetailSection>
+  )
+}
+
+function ModerationSection(props: {
+  moderation?: ModerationResult
+  error?: string
+  onCopy: (text: string) => void
+  copiedText: string | null
+}) {
+  const { t } = useTranslation()
+  const moderation = props.moderation
+  const copyText = JSON.stringify(
+    { moderation, moderation_error: props.error },
+    null,
+    2
+  )
+
+  return (
+    <DetailSection
+      icon={<ShieldCheck className='size-3.5' />}
+      label={t('Moderation Result')}
+      variant={moderation?.action === 'block' ? 'danger' : 'default'}
+    >
+      <div className='relative min-w-0'>
+        <Button
+          variant='ghost'
+          size='sm'
+          className='absolute top-0 right-0 h-5 w-5 p-0'
+          onClick={() => props.onCopy(copyText)}
+          title={t('Copy to clipboard')}
+          aria-label={t('Copy to clipboard')}
+        >
+          {props.copiedText === copyText ? (
+            <Check className='size-3 text-green-600' />
+          ) : (
+            <Copy className='size-3' />
+          )}
+        </Button>
+        <div className='min-w-0 space-y-1 pr-6'>
+          {moderation?.action && (
+            <DetailRow label={t('Action')} value={moderation.action} mono />
+          )}
+          {moderation?.model && (
+            <DetailRow label={t('Model')} value={moderation.model} mono />
+          )}
+          {moderation?.input_types?.length ? (
+            <DetailRow
+              label={t('Input Types')}
+              value={moderation.input_types.join(', ')}
+            />
+          ) : null}
+          {moderation?.blocked_categories?.length ? (
+            <DetailRow
+              label={t('Blocked Categories')}
+              value={moderation.blocked_categories.join(', ')}
+            />
+          ) : null}
+          {moderation?.flagged_categories?.length ? (
+            <DetailRow
+              label={t('Flagged Categories')}
+              value={moderation.flagged_categories.join(', ')}
+            />
+          ) : null}
+          {props.error && (
+            <DetailRow label={t('Moderation Error')} value={props.error} />
+          )}
+          {moderation?.error && (
+            <DetailRow label={t('Moderation Error')} value={moderation.error} />
+          )}
+        </div>
+        {moderation?.category_scores && (
+          <div className='mt-2 min-w-0'>
+            <Label className='text-muted-foreground text-xs'>
+              {t('Category Scores')}
+            </Label>
+            <pre className='bg-background/60 mt-1 max-h-48 overflow-auto rounded border p-2 font-mono text-[11px] leading-relaxed whitespace-pre-wrap'>
+              {JSON.stringify(moderation.category_scores, null, 2)}
+            </pre>
+          </div>
+        )}
+      </div>
+    </DetailSection>
+  )
 }
 
 function BillingBreakdown(props: {
@@ -479,6 +647,15 @@ export function DetailsDialog(props: DetailsDialogProps) {
   const showAdminIp =
     !!props.log.ip && (showTiming || (props.isAdmin && isTopup))
   const adminInfo = other?.admin_info
+  const requestSnapshot =
+    props.isAdmin && adminInfo?.request_snapshot
+      ? adminInfo.request_snapshot
+      : null
+  const moderation = other?.moderation || adminInfo?.moderation
+  const moderationError =
+    props.isAdmin && (adminInfo?.moderation_error || other?.moderation_error)
+      ? adminInfo?.moderation_error || other?.moderation_error
+      : undefined
   const topupAuditFields =
     isTopup && props.isAdmin && adminInfo
       ? ([
@@ -714,6 +891,23 @@ export function DetailsDialog(props: DetailsDialogProps) {
                   </div>
                 </div>
               </DetailSection>
+            )}
+
+            {requestSnapshot && (
+              <RequestSnapshotSection
+                snapshot={requestSnapshot}
+                onCopy={copyToClipboard}
+                copiedText={copiedText}
+              />
+            )}
+
+            {(moderation || moderationError) && (
+              <ModerationSection
+                moderation={moderation}
+                error={moderationError}
+                onCopy={copyToClipboard}
+                copiedText={copiedText}
+              />
             )}
 
             {/* Reject reason (admin only) */}

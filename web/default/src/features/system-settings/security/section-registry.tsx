@@ -51,6 +51,13 @@ const SECURITY_SECTIONS = [
           CheckSensitiveEnabled: settings.CheckSensitiveEnabled,
           CheckSensitiveOnPromptEnabled: settings.CheckSensitiveOnPromptEnabled,
           SensitiveWords: settings.SensitiveWords,
+          ModerationEnabled: settings.ModerationEnabled,
+          ModerationModel: settings.ModerationModel,
+          ModerationBaseURL: settings.ModerationBaseURL,
+          ModerationAPIKey: settings.ModerationAPIKey,
+          ModerationTimeoutSeconds: settings.ModerationTimeoutSeconds,
+          ModerationFailureMode: settings.ModerationFailureMode,
+          ModerationBlockCategories: settings.ModerationBlockCategories,
         }}
       />
     ),

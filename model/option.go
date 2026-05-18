@@ -176,6 +176,13 @@ func InitOptionMap(loadFromDatabase ...bool) {
 	common.OptionMap["MjForwardUrlEnabled"] = strconv.FormatBool(setting.MjForwardUrlEnabled)
 	common.OptionMap["MjActionCheckSuccessEnabled"] = strconv.FormatBool(setting.MjActionCheckSuccessEnabled)
 	common.OptionMap["CheckSensitiveEnabled"] = strconv.FormatBool(setting.CheckSensitiveEnabled)
+	common.OptionMap["ModerationEnabled"] = strconv.FormatBool(setting.ModerationEnabled)
+	common.OptionMap["ModerationModel"] = setting.ModerationModel
+	common.OptionMap["ModerationBaseURL"] = setting.ModerationBaseURL
+	common.OptionMap["ModerationAPIKey"] = setting.ModerationAPIKey
+	common.OptionMap["ModerationTimeoutSeconds"] = strconv.Itoa(setting.ModerationTimeoutSeconds)
+	common.OptionMap["ModerationFailureMode"] = setting.ModerationFailureMode
+	common.OptionMap["ModerationBlockCategories"] = setting.ModerationBlockCategoriesToString()
 	common.OptionMap["DemoSiteEnabled"] = strconv.FormatBool(operation_setting.DemoSiteEnabled)
 	common.OptionMap["SelfUseModeEnabled"] = strconv.FormatBool(operation_setting.SelfUseModeEnabled)
 	common.OptionMap["ModelRequestRateLimitEnabled"] = strconv.FormatBool(setting.ModelRequestRateLimitEnabled)
@@ -321,6 +328,8 @@ func updateOptionMap(key string, value string) (err error) {
 			setting.MjActionCheckSuccessEnabled = boolValue
 		case "CheckSensitiveEnabled":
 			setting.CheckSensitiveEnabled = boolValue
+		case "ModerationEnabled":
+			setting.ModerationEnabled = boolValue
 		case "DemoSiteEnabled":
 			operation_setting.DemoSiteEnabled = boolValue
 		case "SelfUseModeEnabled":
@@ -545,6 +554,21 @@ func updateOptionMap(key string, value string) (err error) {
 		common.QuotaPerUnit, _ = strconv.ParseFloat(value, 64)
 	case "SensitiveWords":
 		setting.SensitiveWordsFromString(value)
+	case "ModerationModel":
+		setting.ModerationModel = strings.TrimSpace(value)
+	case "ModerationBaseURL":
+		setting.ModerationBaseURL = strings.TrimRight(strings.TrimSpace(value), "/")
+	case "ModerationAPIKey":
+		setting.ModerationAPIKey = strings.TrimSpace(value)
+	case "ModerationTimeoutSeconds":
+		setting.ModerationTimeoutSeconds, _ = strconv.Atoi(value)
+		if setting.ModerationTimeoutSeconds <= 0 {
+			setting.ModerationTimeoutSeconds = 10
+		}
+	case "ModerationFailureMode":
+		setting.ModerationFailureMode = setting.NormalizeModerationFailureMode(value)
+	case "ModerationBlockCategories":
+		setting.ModerationBlockCategoriesFromString(value)
 	case "AutomaticDisableKeywords":
 		operation_setting.AutomaticDisableKeywordsFromString(value)
 	case "AutomaticDisableStatusCodes":

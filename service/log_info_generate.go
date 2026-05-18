@@ -71,6 +71,7 @@ func GenerateTextOtherInfo(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, m
 	}
 
 	AppendChannelAffinityAdminInfo(ctx, adminInfo)
+	appendModerationInfo(ctx, other, adminInfo)
 
 	other["admin_info"] = adminInfo
 	appendRequestPath(ctx, relayInfo, other)
@@ -80,6 +81,18 @@ func GenerateTextOtherInfo(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, m
 	appendParamOverrideInfo(relayInfo, other)
 	appendStreamStatus(relayInfo, other)
 	return other
+}
+
+func appendModerationInfo(ctx *gin.Context, other map[string]interface{}, adminInfo map[string]interface{}) {
+	if ctx == nil || other == nil {
+		return
+	}
+	if value, ok := ctx.Get("moderation_result"); ok && value != nil {
+		other["moderation"] = value
+		if adminInfo != nil {
+			adminInfo["moderation"] = value
+		}
+	}
 }
 
 func appendParamOverrideInfo(relayInfo *relaycommon.RelayInfo, other map[string]interface{}) {

@@ -171,6 +171,12 @@ func SetApiRouter(router *gin.Engine) {
 			subscriptionAdminRoute.DELETE("/user_subscriptions/:id", controller.AdminDeleteUserSubscription)
 		}
 
+		billingRoute := apiRouter.Group("/billing")
+		billingRoute.Use(middleware.AdminAuth())
+		{
+			billingRoute.GET("/statistics", controller.GetBillingStatistics)
+		}
+
 		// Subscription payment callbacks (no auth)
 		apiRouter.POST("/subscription/epay/notify", controller.SubscriptionEpayNotify)
 		apiRouter.GET("/subscription/epay/notify", controller.SubscriptionEpayNotify)

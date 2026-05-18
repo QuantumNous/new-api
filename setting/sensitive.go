@@ -19,6 +19,18 @@ var SensitiveWords = []string{
 	"test_sensitive",
 }
 
+var ModerationEnabled = false
+var ModerationModel = "omni-moderation-latest"
+var ModerationBaseURL = "https://api.openai.com/v1"
+var ModerationAPIKey = ""
+var ModerationTimeoutSeconds = 10
+var ModerationFailureMode = "open"
+var ModerationBlockCategories = []string{
+	"sexual/minors",
+	"self-harm/instructions",
+	"illicit/violent",
+}
+
 func SensitiveWordsToString() string {
 	return strings.Join(SensitiveWords, "\n")
 }
@@ -36,6 +48,39 @@ func SensitiveWordsFromString(s string) {
 
 func ShouldCheckPromptSensitive() bool {
 	return CheckSensitiveEnabled && CheckSensitiveOnPromptEnabled
+}
+
+func ShouldModeratePrompt() bool {
+	return ModerationEnabled && strings.TrimSpace(ModerationAPIKey) != ""
+}
+
+func ModerationBlockCategoriesToString() string {
+	return strings.Join(ModerationBlockCategories, "\n")
+}
+
+func ModerationBlockCategoriesFromString(s string) {
+	ModerationBlockCategories = splitModerationList(s)
+}
+
+func NormalizeModerationFailureMode(mode string) string {
+	mode = strings.ToLower(strings.TrimSpace(mode))
+	if mode != "closed" {
+		return "open"
+	}
+	return mode
+}
+
+func splitModerationList(s string) []string {
+	items := []string{}
+	for _, raw := range strings.FieldsFunc(s, func(r rune) bool {
+		return r == '\n' || r == ',' || r == ';'
+	}) {
+		item := strings.TrimSpace(raw)
+		if item != "" {
+			items = append(items, item)
+		}
+	}
+	return items
 }
 
 //func ShouldCheckCompletionSensitive() bool {

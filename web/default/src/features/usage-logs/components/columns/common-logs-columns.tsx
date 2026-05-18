@@ -120,6 +120,28 @@ function buildDetailSegments(
   if (!other) return []
 
   const segments: DetailSegment[] = []
+  const moderation = other.moderation || other.admin_info?.moderation
+  if (moderation) {
+    const action = moderation.action || (moderation.flagged ? 'warn' : 'pass')
+    const actionLabel =
+      action === 'block'
+        ? t('Blocked')
+        : action === 'warn'
+          ? t('Flagged')
+          : action === 'error'
+            ? t('Failed')
+            : t('Passed')
+    const categories =
+      moderation.blocked_categories?.length
+        ? moderation.blocked_categories
+        : moderation.flagged_categories
+    segments.push({
+      text: categories?.length
+        ? `${t('Moderation')}: ${actionLabel} (${categories.join(', ')})`
+        : `${t('Moderation')}: ${actionLabel}`,
+      danger: action === 'block' || action === 'error' || action === 'warn',
+    })
+  }
 
   const priceOpts = { digitsLarge: 4, digitsSmall: 6, abbreviate: false }
   const formatPrice = (price: number) =>
