@@ -200,6 +200,10 @@ const EditChannelModal = (props) => {
     vertex_key_type: 'json',
     // 仅 AWS: 密钥格式和区域（存入 settings.aws_key_type 和 settings.aws_region）
     aws_key_type: 'ak_sk',
+    // Claude Platform on AWS (type 58)
+    claude_on_aws_auth_type: 'api_key',
+    claude_on_aws_region: '',
+    claude_on_aws_workspace_id: '',
     // 企业账户设置
     is_enterprise_account: false,
     // 字段透传控制默认值
@@ -897,6 +901,13 @@ const EditChannelModal = (props) => {
           data.vertex_key_type = parsedSettings.vertex_key_type || 'json';
           // 读取 AWS 密钥格式和区域
           data.aws_key_type = parsedSettings.aws_key_type || 'ak_sk';
+          // Read Claude Platform on AWS settings
+          data.claude_on_aws_auth_type =
+            parsedSettings.claude_on_aws_auth_type || 'api_key';
+          data.claude_on_aws_region =
+            parsedSettings.claude_on_aws_region || '';
+          data.claude_on_aws_workspace_id =
+            parsedSettings.claude_on_aws_workspace_id || '';
           // 读取企业账户设置
           data.is_enterprise_account =
             parsedSettings.openrouter_enterprise === true;
@@ -933,6 +944,9 @@ const EditChannelModal = (props) => {
           data.region = '';
           data.vertex_key_type = 'json';
           data.aws_key_type = 'ak_sk';
+          data.claude_on_aws_auth_type = 'api_key';
+          data.claude_on_aws_region = '';
+          data.claude_on_aws_workspace_id = '';
           data.is_enterprise_account = false;
           data.allow_service_tier = false;
           data.disable_store = false;
@@ -951,6 +965,9 @@ const EditChannelModal = (props) => {
         // 兼容历史数据：老渠道没有 settings 时，默认按 json 展示
         data.vertex_key_type = 'json';
         data.aws_key_type = 'ak_sk';
+        data.claude_on_aws_auth_type = 'api_key';
+        data.claude_on_aws_region = '';
+        data.claude_on_aws_workspace_id = '';
         data.is_enterprise_account = false;
         data.allow_service_tier = false;
         data.disable_store = false;
@@ -1778,6 +1795,19 @@ const EditChannelModal = (props) => {
       settings.aws_key_type = localInputs.aws_key_type || 'ak_sk';
     }
 
+    // type === 58 (Claude Platform on AWS): persist auth type / region / workspace_id
+    if (localInputs.type === 58) {
+      settings.claude_on_aws_auth_type =
+        localInputs.claude_on_aws_auth_type || 'api_key';
+      settings.claude_on_aws_region = localInputs.claude_on_aws_region || '';
+      settings.claude_on_aws_workspace_id =
+        localInputs.claude_on_aws_workspace_id || '';
+    } else {
+      delete settings.claude_on_aws_auth_type;
+      delete settings.claude_on_aws_region;
+      delete settings.claude_on_aws_workspace_id;
+    }
+
     // type === 41 (Vertex): 始终保存 vertex_key_type 到 settings，避免编辑时被重置
     if (localInputs.type === 41) {
       settings.vertex_key_type = localInputs.vertex_key_type || 'json';
@@ -1840,6 +1870,10 @@ const EditChannelModal = (props) => {
     delete localInputs.vertex_key_type;
     // 顶层的 aws_key_type 不应发送给后端
     delete localInputs.aws_key_type;
+    // Strip Claude Platform on AWS transient fields from the payload
+    delete localInputs.claude_on_aws_auth_type;
+    delete localInputs.claude_on_aws_region;
+    delete localInputs.claude_on_aws_workspace_id;
     // 清理字段透传控制的临时字段
     delete localInputs.allow_service_tier;
     delete localInputs.disable_store;
@@ -2689,6 +2723,70 @@ const EditChannelModal = (props) => {
                           }}
                           extraText={t(
                             'AK/SK 模式：使用 AccessKey 和 SecretAccessKey；API Key 模式：使用 API Key',
+                          )}
+                        />
+                      </>
+                    )}
+
+                    {inputs.type === 58 && (
+                      <>
+                        <Form.Select
+                          field='claude_on_aws_auth_type'
+                          label={t('Authentication Method')}
+                          placeholder={t('Select auth method')}
+                          optionList={[
+                            { label: 'API Key', value: 'api_key' },
+                            { label: 'AWS SigV4 (IAM)', value: 'sigv4' },
+                          ]}
+                          style={{ width: '100%' }}
+                          value={inputs.claude_on_aws_auth_type || 'api_key'}
+                          onChange={(value) => {
+                            handleChannelOtherSettingsChange(
+                              'claude_on_aws_auth_type',
+                              value,
+                            );
+                          }}
+                          extraText={t(
+                            'API Key mode uses the Bearer key issued in the AWS Console; SigV4 mode uses AK|SK or AK|SK|SessionToken',
+                          )}
+                        />
+                        <Form.Input
+                          field='claude_on_aws_region'
+                          label={t('AWS Region')}
+                          placeholder={t('e.g., us-east-1, us-west-2, eu-west-1')}
+                          rules={[
+                            { required: true, message: t('Region is required') },
+                          ]}
+                          value={inputs.claude_on_aws_region || ''}
+                          onChange={(value) => {
+                            handleChannelOtherSettingsChange(
+                              'claude_on_aws_region',
+                              value,
+                            );
+                          }}
+                          extraText={t(
+                            'Region of the Claude Platform on AWS endpoint, used in URL aws-external-anthropic.{region}.api.aws',
+                          )}
+                        />
+                        <Form.Input
+                          field='claude_on_aws_workspace_id'
+                          label={t('Workspace ID')}
+                          placeholder={t('e.g., wrkspc_01abcdefghij')}
+                          rules={[
+                            {
+                              required: true,
+                              message: t('Workspace ID is required'),
+                            },
+                          ]}
+                          value={inputs.claude_on_aws_workspace_id || ''}
+                          onChange={(value) => {
+                            handleChannelOtherSettingsChange(
+                              'claude_on_aws_workspace_id',
+                              value,
+                            );
+                          }}
+                          extraText={t(
+                            'Required anthropic-workspace-id header. Find it in AWS Console → Claude Platform on AWS → Workspaces.',
                           )}
                         />
                       </>

@@ -14,6 +14,7 @@
   "checkout.session.completed": "checkout.session.completed",
   "checkout.session.expired": "checkout.session.expired",
   "Claude": "Claude",
+  "Claude Platform on AWS": "Claude Platform on AWS",
   "Client ID": "Client ID",
   "Client Secret": "Client Secret",
   "Cloudflare": "Cloudflare",
@@ -97,5 +98,6 @@
   "Well-Known URL": "Well-Known URL",
   "whsec_xxx": "whsec_xxx",
   "Worker URL": "Worker URL",
-  "Xinference": "Xinference"
+  "Xinference": "Xinference",
+  "Workspace ID *": "Workspace ID *"
 }

@@ -18,6 +18,8 @@ func GetEndpointTypesByChannelType(channelType int, modelName string) []constant
 	//	endpointTypes = []constant.EndpointType{constant.EndpointTypeJimeng}
 	case constant.ChannelTypeAws:
 		fallthrough
+	case constant.ChannelTypeClaudeOnAws:
+		fallthrough
 	case constant.ChannelTypeAnthropic:
 		endpointTypes = []constant.EndpointType{constant.EndpointTypeAnthropic, constant.EndpointTypeOpenAI}
 	case constant.ChannelTypeVertexAi:
