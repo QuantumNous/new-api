@@ -12,6 +12,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
+	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/relay/channel/codex"
 	"github.com/QuantumNous/new-api/service"
@@ -80,11 +81,11 @@ func startCodexOAuthWithChannelID(c *gin.Context, channelID int) {
 			return
 		}
 		if ch == nil {
-			c.JSON(http.StatusOK, gin.H{"success": false, "message": "channel not found"})
+			common.ApiErrorI18n(c, i18n.MsgCodexOAuthChannelNotFound)
 			return
 		}
 		if ch.Type != constant.ChannelTypeCodex {
-			c.JSON(http.StatusOK, gin.H{"success": false, "message": "channel type is not Codex"})
+			common.ApiErrorI18n(c, i18n.MsgCodexOAuthNotCodexChannel)
 			return
 		}
 	}
@@ -133,15 +134,15 @@ func completeCodexOAuthWithChannelID(c *gin.Context, channelID int) {
 	code, state, err := parseCodexAuthorizationInput(req.Input)
 	if err != nil {
 		common.SysError("failed to parse codex authorization input: " + err.Error())
-		c.JSON(http.StatusOK, gin.H{"success": false, "message": "解析授权信息失败，请检查输入格式"})
+		common.ApiErrorI18n(c, i18n.MsgCodexOAuthParseAuthInfoFailed)
 		return
 	}
 	if strings.TrimSpace(code) == "" {
-		c.JSON(http.StatusOK, gin.H{"success": false, "message": "missing authorization code"})
+		common.ApiErrorI18n(c, i18n.MsgCodexOAuthMissingAuthCode)
 		return
 	}
 	if strings.TrimSpace(state) == "" {
-		c.JSON(http.StatusOK, gin.H{"success": false, "message": "missing state in input"})
+		common.ApiErrorI18n(c, i18n.MsgCodexOAuthMissingState)
 		return
 	}
 
@@ -153,11 +154,11 @@ func completeCodexOAuthWithChannelID(c *gin.Context, channelID int) {
 			return
 		}
 		if ch == nil {
-			c.JSON(http.StatusOK, gin.H{"success": false, "message": "channel not found"})
+			common.ApiErrorI18n(c, i18n.MsgCodexOAuthChannelNotFound)
 			return
 		}
 		if ch.Type != constant.ChannelTypeCodex {
-			c.JSON(http.StatusOK, gin.H{"success": false, "message": "channel type is not Codex"})
+			common.ApiErrorI18n(c, i18n.MsgCodexOAuthNotCodexChannel)
 			return
 		}
 		channelProxy = ch.GetSetting().Proxy
@@ -167,11 +168,11 @@ func completeCodexOAuthWithChannelID(c *gin.Context, channelID int) {
 	expectedState, _ := session.Get(codexOAuthSessionKey(channelID, "state")).(string)
 	verifier, _ := session.Get(codexOAuthSessionKey(channelID, "verifier")).(string)
 	if strings.TrimSpace(expectedState) == "" || strings.TrimSpace(verifier) == "" {
-		c.JSON(http.StatusOK, gin.H{"success": false, "message": "oauth flow not started or session expired"})
+		common.ApiErrorI18n(c, i18n.MsgCodexOAuthSessionExpired)
 		return
 	}
 	if state != expectedState {
-		c.JSON(http.StatusOK, gin.H{"success": false, "message": "state mismatch"})
+		common.ApiErrorI18n(c, i18n.MsgCodexOAuthStateMismatch)
 		return
 	}
 
@@ -181,7 +182,7 @@ func completeCodexOAuthWithChannelID(c *gin.Context, channelID int) {
 	tokenRes, err := service.ExchangeCodexAuthorizationCodeWithProxy(ctx, code, verifier, channelProxy)
 	if err != nil {
 		common.SysError("failed to exchange codex authorization code: " + err.Error())
-		c.JSON(http.StatusOK, gin.H{"success": false, "message": "授权码交换失败，请重试"})
+		common.ApiErrorI18n(c, i18n.MsgCodexOAuthTokenExchangeFailed)
 		return
 	}
 

@@ -138,6 +138,9 @@ const (
 	MsgSubscriptionPurchaseMax      = "subscription.purchase_max"
 	MsgSubscriptionInvalidId        = "subscription.invalid_id"
 	MsgSubscriptionInvalidUserId    = "subscription.invalid_user_id"
+	MsgSubscriptionUserNotFound     = "subscription.user_not_found"
+	MsgSubscriptionProductConfigErr = "subscription.product_config_error"
+	MsgSubscriptionProductNotFound  = "subscription.product_not_found"
 )
 
 // Payment related messages
@@ -162,6 +165,13 @@ const (
 	MsgTopupOrderStatus    = "topup.order_status"
 	MsgTopupFailed         = "topup.failed"
 	MsgTopupInvalidQuota   = "topup.invalid_quota"
+	MsgTopupGetUserGroupFailed     = "topup.get_user_group_failed"
+	MsgTopupUnsupportedPayChannel  = "topup.unsupported_payment_channel"
+	MsgTopupSelectProduct          = "topup.select_product"
+	MsgTopupAmountTooLow           = "topup.amount_too_low"
+	MsgTopupWaffoPancakeNotEnabled = "topup.waffo_pancake_not_enabled"
+	MsgTopupWaffoPancakeIncomplete = "topup.waffo_pancake_incomplete_config"
+	MsgTopupMinAmount              = "topup.min_amount"
 )
 
 // Channel related messages
@@ -176,7 +186,19 @@ const (
 	MsgChannelQueryFailed        = "channel.query_failed"
 	MsgChannelNoValidUpstream    = "channel.no_valid_upstream"
 	MsgChannelUpstreamSaturated  = "channel.upstream_saturated"
-	MsgChannelGetAvailableFailed = "channel.get_available_failed"
+	MsgChannelGetAvailableFailed      = "channel.get_available_failed"
+	MsgChannelGetTagsCountFailed      = "channel.get_tags_count_failed"
+	MsgChannelGetTagChannelsFailed    = "channel.get_tag_channels_failed"
+	MsgChannelGetChannelCountFailed   = "channel.get_channel_count_failed"
+	MsgChannelGetTypeStatsFailed      = "channel.get_type_stats_failed"
+	MsgChannelFetchSuccess            = "channel.fetch_success"
+	MsgChannelDeploymentRegionRequired = "channel.deployment_region_required"
+	MsgChannelRefreshCredentialFailed = "channel.refresh_credential_failed"
+	MsgChannelVertexAiKeysRequired    = "channel.vertex_ai_keys_required"
+	MsgChannelTagRequired             = "channel.tag_required"
+	MsgChannelGetInfoFailed           = "channel.get_info_failed"
+	MsgChannelCopyFailed              = "channel.copy_failed"
+	MsgChannelNotExistsForUpdate      = "channel.not_exists_for_update"
 )
 
 // Model related messages
@@ -213,20 +235,43 @@ const (
 
 // Passkey related messages
 const (
-	MsgPasskeyCreateFailed  = "passkey.create_failed"
-	MsgPasskeyLoginAbnormal = "passkey.login_abnormal"
-	MsgPasskeyUpdateFailed  = "passkey.update_failed"
-	MsgPasskeyInvalidUserId = "passkey.invalid_user_id"
-	MsgPasskeyVerifyFailed  = "passkey.verify_failed"
+	MsgPasskeyCreateFailed           = "passkey.create_failed"
+	MsgPasskeyLoginAbnormal          = "passkey.login_abnormal"
+	MsgPasskeyUpdateFailed           = "passkey.update_failed"
+	MsgPasskeyInvalidUserId          = "passkey.invalid_user_id"
+	MsgPasskeyVerifyFailed           = "passkey.verify_failed"
+	MsgPasskeyRegisterSuccess        = "passkey.register_success"
+	MsgPasskeyHandleCredentialMismatch = "passkey.handle_credential_mismatch"
+	MsgPasskeyVerifySuccess          = "passkey.verify_success"
+	MsgPasskeyNotEnabled             = "passkey.not_enabled"
+	MsgPasskeyDeleteSuccess          = "passkey.delete_success"
+	MsgPasskeyNotBound               = "passkey.not_bound"
+	MsgPasskeyReset                  = "passkey.reset"
+	MsgPasskeySaveSessionFailed      = "passkey.save_session_failed"
 )
 
 // 2FA related messages
 const (
-	MsgTwoFANotEnabled    = "twofa.not_enabled"
-	MsgTwoFAUserIdEmpty   = "twofa.user_id_empty"
-	MsgTwoFAAlreadyExists = "twofa.already_exists"
-	MsgTwoFARecordIdEmpty = "twofa.record_id_empty"
-	MsgTwoFACodeInvalid   = "twofa.code_invalid"
+	MsgTwoFANotEnabled               = "twofa.not_enabled"
+	MsgTwoFAUserIdEmpty              = "twofa.user_id_empty"
+	MsgTwoFAAlreadyExists            = "twofa.already_exists"
+	MsgTwoFARecordIdEmpty            = "twofa.record_id_empty"
+	MsgTwoFACodeInvalid              = "twofa.code_invalid"
+	MsgTwoFAGenerateSecretFailed     = "twofa.generate_secret_failed"
+	MsgTwoFAGenerateBackupFailed     = "twofa.generate_backup_failed"
+	MsgTwoFASaveBackupFailed         = "twofa.save_backup_failed"
+	MsgTwoFAEnableSuccess            = "twofa.enable_success"
+	MsgTwoFAAlreadyEnabled           = "twofa.already_enabled"
+	MsgTwoFANeedSetup                = "twofa.need_setup"
+	MsgTwoFADisabled                 = "twofa.disabled"
+	MsgTwoFADisableSuccess           = "twofa.disable_success"
+	MsgTwoFARegenerateSuccess        = "twofa.regenerate_success"
+	MsgTwoFASessionExpired           = "twofa.session_expired"
+	MsgTwoFASessionInvalid           = "twofa.session_invalid"
+	MsgTwoFAUserNotFound             = "twofa.user_not_found"
+	MsgTwoFAForbidden                = "twofa.forbidden"
+	MsgTwoFAAdminDisabled            = "twofa.admin_disabled"
+	MsgTwoFASetupInitSuccess        = "twofa.setup_init_success"
 )
 
 // Rate limit related messages
@@ -277,6 +322,26 @@ const (
 	MsgAbilityRepairRunning = "ability.repair_running"
 )
 
+// Misc related messages
+const (
+	MsgMiscDBConnectionFailed = "misc.database_connection_failed"
+)
+
+// Secure verification related messages
+const (
+	MsgSecureVerificationCodeRequired           = "secure_verification.code_required"
+	MsgSecureVerificationSuccess               = "secure_verification.verify_success"
+	MsgSecureVerificationRequired              = "secure_verification.required"
+	MsgSecureVerificationCorresponding         = "secure_verification.corresponding_required"
+	MsgSecureVerifyNotLoggedIn                  = "secure_verify.not_logged_in"
+	MsgSecureVerifyGetUserFailed                = "secure_verify.get_user_failed"
+	MsgSecureVerifyNo2FAOrPasskey               = "secure_verify.no_2fa_or_passkey"
+	MsgSecureVerifyPasskeyStatusAbnormal        = "secure_verify.passkey_status_abnormal"
+	MsgSecureVerifyPasskeyNotReady              = "secure_verify.passkey_not_ready"
+	MsgSecureVerifyUnsupportedMethod            = "secure_verify.unsupported_method"
+	MsgSecureVerifyFailed                       = "secure_verify.failed"
+)
+
 // OAuth related messages
 const (
 	MsgOAuthInvalidCode     = "oauth.invalid_code"
@@ -293,6 +358,35 @@ const (
 	MsgOAuthTokenFailed     = "oauth.token_failed"
 	MsgOAuthUserInfoEmpty   = "oauth.user_info_empty"
 	MsgOAuthTrustLevelLow   = "oauth.trust_level_low"
+)
+
+// TopUp Creem related messages
+const (
+	MsgTopupCreemUnsupportedPayment  = "topup_creem.unsupported_payment"
+	MsgTopupCreemSelectProduct       = "topup_creem.select_product"
+	MsgTopupCreemProductConfigError  = "topup_creem.product_config_error"
+	MsgTopupCreemProductNotFound     = "topup_creem.product_not_found"
+)
+
+// Waffo Pancake related messages
+const (
+	MsgWaffoNotEnabled       = "waffo.not_enabled"
+	MsgWaffoConfigIncomplete = "waffo.config_incomplete"
+)
+
+// Misc additional messages
+const (
+	MsgMiscInvalidEmail          = "misc.invalid_email"
+	MsgMiscEmailTaken            = "misc.email_taken"
+	MsgMiscResetLinkInvalid      = "misc.reset_link_invalid"
+	MsgMiscEmailAliasRestricted  = "misc.email_alias_restricted"
+)
+
+// Passkey delete/reset messages
+const (
+	MsgPasskeyAlreadyBound    = "passkey.already_bound"
+	MsgPasskeyResetSuccess    = "passkey.reset_success"
+	MsgPasskeyUnbindSuccess   = "passkey.unbind_success"
 )
 
 // Model layer error messages (for translation in controller)
@@ -329,4 +423,22 @@ const (
 	MsgCustomOAuthHasBindings       = "custom_oauth.has_bindings"
 	MsgCustomOAuthBindingNotFound   = "custom_oauth.binding_not_found"
 	MsgCustomOAuthProviderIdInvalid = "custom_oauth.provider_id_field_invalid"
+	MsgCustomOAuthUnbindSuccess     = "custom_oauth.unbind_success"
+)
+
+// Codex OAuth related messages
+const (
+	MsgCodexOAuthChannelNotFound       = "codex_oauth.channel_not_found"
+	MsgCodexOAuthNotCodexChannel       = "codex_oauth.not_codex_channel"
+	MsgCodexOAuthParseAuthInfoFailed   = "codex_oauth.parse_auth_info_failed"
+	MsgCodexOAuthMissingAuthCode       = "codex_oauth.missing_auth_code"
+	MsgCodexOAuthMissingState          = "codex_oauth.missing_state"
+	MsgCodexOAuthSessionExpired        = "codex_oauth.session_expired"
+	MsgCodexOAuthStateMismatch         = "codex_oauth.state_mismatch"
+	MsgCodexOAuthTokenExchangeFailed   = "codex_oauth.token_exchange_failed"
+	MsgCodexOAuthMultiKeyNotSupported  = "codex_oauth.multi_key_not_supported"
+	MsgCodexOAuthParseCredentialFailed = "codex_oauth.parse_credential_failed"
+	MsgCodexOAuthAccessTokenRequired    = "codex_oauth.access_token_required"
+	MsgCodexOAuthAccountIdRequired      = "codex_oauth.account_id_required"
+	MsgCodexOAuthGetUsageFailed         = "codex_oauth.get_usage_failed"
 )

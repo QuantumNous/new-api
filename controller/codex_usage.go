@@ -10,6 +10,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
+	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/relay/channel/codex"
 	"github.com/QuantumNous/new-api/service"
@@ -30,32 +31,32 @@ func GetCodexChannelUsage(c *gin.Context) {
 		return
 	}
 	if ch == nil {
-		c.JSON(http.StatusOK, gin.H{"success": false, "message": "channel not found"})
+		common.ApiErrorI18n(c, i18n.MsgCodexOAuthChannelNotFound)
 		return
 	}
 	if ch.Type != constant.ChannelTypeCodex {
-		c.JSON(http.StatusOK, gin.H{"success": false, "message": "channel type is not Codex"})
+		common.ApiErrorI18n(c, i18n.MsgCodexOAuthNotCodexChannel)
 		return
 	}
 	if ch.ChannelInfo.IsMultiKey {
-		c.JSON(http.StatusOK, gin.H{"success": false, "message": "multi-key channel is not supported"})
+		common.ApiErrorI18n(c, i18n.MsgCodexOAuthMultiKeyNotSupported)
 		return
 	}
 
 	oauthKey, err := codex.ParseOAuthKey(strings.TrimSpace(ch.Key))
 	if err != nil {
 		common.SysError("failed to parse oauth key: " + err.Error())
-		c.JSON(http.StatusOK, gin.H{"success": false, "message": "解析凭证失败，请检查渠道配置"})
+		common.ApiErrorI18n(c, i18n.MsgCodexOAuthParseCredentialFailed)
 		return
 	}
 	accessToken := strings.TrimSpace(oauthKey.AccessToken)
 	accountID := strings.TrimSpace(oauthKey.AccountID)
 	if accessToken == "" {
-		c.JSON(http.StatusOK, gin.H{"success": false, "message": "codex channel: access_token is required"})
+		common.ApiErrorI18n(c, i18n.MsgCodexOAuthAccessTokenRequired)
 		return
 	}
 	if accountID == "" {
-		c.JSON(http.StatusOK, gin.H{"success": false, "message": "codex channel: account_id is required"})
+		common.ApiErrorI18n(c, i18n.MsgCodexOAuthAccountIdRequired)
 		return
 	}
 
@@ -71,7 +72,7 @@ func GetCodexChannelUsage(c *gin.Context) {
 	statusCode, body, err := service.FetchCodexWhamUsage(ctx, client, ch.GetBaseURL(), accessToken, accountID)
 	if err != nil {
 		common.SysError("failed to fetch codex usage: " + err.Error())
-		c.JSON(http.StatusOK, gin.H{"success": false, "message": "获取用量信息失败，请稍后重试"})
+		common.ApiErrorI18n(c, i18n.MsgCodexOAuthGetUsageFailed)
 		return
 	}
 
@@ -101,7 +102,7 @@ func GetCodexChannelUsage(c *gin.Context) {
 			statusCode, body, err = service.FetchCodexWhamUsage(ctx2, client, ch.GetBaseURL(), oauthKey.AccessToken, accountID)
 			if err != nil {
 				common.SysError("failed to fetch codex usage after refresh: " + err.Error())
-				c.JSON(http.StatusOK, gin.H{"success": false, "message": "获取用量信息失败，请稍后重试"})
+				common.ApiErrorI18n(c, i18n.MsgCodexOAuthGetUsageFailed)
 				return
 			}
 		}
