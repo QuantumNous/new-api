@@ -1,8 +1,10 @@
 package model
 
 import (
+	"database/sql"
 	"errors"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -14,6 +16,7 @@ const (
 	BillingStatsGranularityDay   = "day"
 	BillingStatsGranularityWeek  = "week"
 	BillingStatsGranularityMonth = "month"
+	BillingStatsGranularityYear  = "year"
 
 	BillingStatsUSDToCNYRate = 7
 )
@@ -93,6 +96,12 @@ type billingConsumeStatsRow struct {
 	ConsumeQuota int64
 }
 
+type billingStatsBucketRange struct {
+	Start int64
+	End   int64
+	Label string
+}
+
 func GetBillingStatistics(query BillingStatisticsQuery) (*BillingStatisticsResult, error) {
 	query.Granularity = normalizeBillingStatsGranularity(query.Granularity)
 	query.Page, query.PageSize = normalizeBillingStatsPagination(query.Page, query.PageSize)
@@ -136,6 +145,10 @@ func GetBillingStatistics(query BillingStatisticsQuery) (*BillingStatisticsResul
 		return nil, err
 	}
 	if err := fillBillingStatsAggregateUsernames(aggregates, userNames); err != nil {
+		return nil, err
+	}
+	items, err := getBillingStatsChartItems(query, userIds)
+	if err != nil {
 		return nil, err
 	}
 
@@ -203,17 +216,17 @@ func GetBillingStatistics(query BillingStatisticsQuery) (*BillingStatisticsResul
 		TotalPages:     totalPages,
 		UserItemsTotal: userItemsTotal,
 		Summary:        summary,
-		Items:          []BillingStatisticsRow{},
+		Items:          items,
 		UserItems:      pagedUserItems,
 	}, nil
 }
 
 func normalizeBillingStatsGranularity(granularity string) string {
 	switch strings.ToLower(strings.TrimSpace(granularity)) {
-	case BillingStatsGranularityDay, BillingStatsGranularityWeek, BillingStatsGranularityMonth:
+	case BillingStatsGranularityDay, BillingStatsGranularityWeek, BillingStatsGranularityMonth, BillingStatsGranularityYear:
 		return strings.ToLower(strings.TrimSpace(granularity))
 	default:
-		return BillingStatsGranularityHour
+		return BillingStatsGranularityDay
 	}
 }
 
@@ -308,6 +321,143 @@ func addConsumeBillingStats(query BillingStatisticsQuery, userIds []int, userNam
 	return nil
 }
 
+func getBillingStatsChartItems(query BillingStatisticsQuery, userIds []int) ([]BillingStatisticsRow, error) {
+	buckets := billingStatsBucketRanges(query.StartTimestamp, query.EndTimestamp, query.Granularity)
+	items := make([]BillingStatisticsRow, 0, len(buckets))
+	itemByBucket := make(map[int64]*BillingStatisticsRow, len(buckets))
+	for _, bucket := range buckets {
+		row := &BillingStatisticsRow{
+			BucketStart: bucket.Start,
+			BucketLabel: bucket.Label,
+		}
+		itemByBucket[bucket.Start] = row
+		items = append(items, *row)
+	}
+
+	if err := addBillingStatsChartRechargeItems(query, userIds, buckets, itemByBucket); err != nil {
+		return nil, err
+	}
+	if err := addBillingStatsChartConsumeItems(query, userIds, buckets, itemByBucket); err != nil {
+		return nil, err
+	}
+
+	for index := range items {
+		if row := itemByBucket[items[index].BucketStart]; row != nil {
+			row.TotalAmount = row.RechargeAmount + row.SubscriptionAmount
+			row.ConsumeAmount = quotaToBillingAmount(row.ConsumeQuota)
+			row.RedundantAmount = row.TotalAmount - row.ConsumeAmount
+			items[index] = *row
+		}
+	}
+
+	return items, nil
+}
+
+func addBillingStatsChartRechargeItems(query BillingStatisticsQuery, userIds []int, buckets []billingStatsBucketRange, itemByBucket map[int64]*BillingStatisticsRow) error {
+	if len(buckets) == 0 {
+		return nil
+	}
+	selectSQL, selectArgs := billingStatsRechargeBucketSelectSQL(buckets)
+	tx := DB.Model(&TopUp{}).
+		Select(selectSQL, selectArgs...).
+		Where(
+			"status = ? AND ((complete_time > 0 AND complete_time >= ? AND complete_time < ?) OR (complete_time = 0 AND create_time >= ? AND create_time < ?))",
+			common.TopUpStatusSuccess,
+			query.StartTimestamp,
+			query.EndTimestamp,
+			query.StartTimestamp,
+			query.EndTimestamp,
+		)
+	if len(userIds) > 0 {
+		tx = tx.Where("user_id IN ?", userIds)
+	}
+	rows, err := tx.Rows()
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+	if !rows.Next() {
+		return nil
+	}
+
+	values := make([]sql.NullFloat64, len(buckets)*2)
+	scanArgs := make([]any, len(values))
+	for i := range values {
+		scanArgs[i] = &values[i]
+	}
+	if err := rows.Scan(scanArgs...); err != nil {
+		return err
+	}
+	for index, bucket := range buckets {
+		if item := itemByBucket[bucket.Start]; item != nil {
+			item.SubscriptionAmount = values[index*2].Float64
+			item.RechargeAmount = values[index*2+1].Float64
+		}
+	}
+	return nil
+}
+
+func addBillingStatsChartConsumeItems(query BillingStatisticsQuery, userIds []int, buckets []billingStatsBucketRange, itemByBucket map[int64]*BillingStatisticsRow) error {
+	if len(buckets) == 0 {
+		return nil
+	}
+	selectSQL, selectArgs := billingStatsConsumeBucketSelectSQL(buckets)
+	tx := LOG_DB.Model(&Log{}).
+		Select(selectSQL, selectArgs...).
+		Where("type = ? AND created_at >= ? AND created_at < ?", LogTypeConsume, query.StartTimestamp, query.EndTimestamp)
+	if len(userIds) > 0 {
+		tx = tx.Where("user_id IN ?", userIds)
+	}
+	rows, err := tx.Rows()
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+	if !rows.Next() {
+		return nil
+	}
+
+	values := make([]sql.NullInt64, len(buckets))
+	scanArgs := make([]any, len(values))
+	for i := range values {
+		scanArgs[i] = &values[i]
+	}
+	if err := rows.Scan(scanArgs...); err != nil {
+		return err
+	}
+	for index, bucket := range buckets {
+		if item := itemByBucket[bucket.Start]; item != nil {
+			item.ConsumeQuota = values[index].Int64
+		}
+	}
+	return nil
+}
+
+func billingStatsRechargeBucketSelectSQL(buckets []billingStatsBucketRange) (string, []any) {
+	parts := make([]string, 0, len(buckets)*2)
+	args := make([]any, 0, len(buckets)*10)
+	for index, bucket := range buckets {
+		condition := "((complete_time > 0 AND complete_time >= ? AND complete_time < ?) OR (complete_time = 0 AND create_time >= ? AND create_time < ?))"
+		parts = append(parts,
+			"COALESCE(SUM(CASE WHEN "+condition+" AND amount = 0 THEN money ELSE 0 END), 0) AS subscription_amount_"+strconv.Itoa(index),
+			"COALESCE(SUM(CASE WHEN "+condition+" AND amount <> 0 THEN money ELSE 0 END), 0) AS recharge_amount_"+strconv.Itoa(index),
+		)
+		args = append(args, bucket.Start, bucket.End, bucket.Start, bucket.End)
+		args = append(args, bucket.Start, bucket.End, bucket.Start, bucket.End)
+	}
+	return strings.Join(parts, ", "), args
+}
+
+func billingStatsConsumeBucketSelectSQL(buckets []billingStatsBucketRange) (string, []any) {
+	parts := make([]string, 0, len(buckets))
+	args := make([]any, 0, len(buckets)*2)
+	for index, bucket := range buckets {
+		parts = append(parts, "COALESCE(SUM(CASE WHEN created_at >= ? AND created_at < ? THEN quota ELSE 0 END), 0) AS consume_quota_"+strconv.Itoa(index))
+		args = append(args, bucket.Start, bucket.End)
+	}
+	return strings.Join(parts, ", "), args
+}
+
 func getBillingStatsAggregate(userNames map[int]string, aggregates map[int]*billingStatsAggregate, userId int) *billingStatsAggregate {
 	if agg, ok := aggregates[userId]; ok {
 		return agg
@@ -351,6 +501,108 @@ func fillBillingStatsAggregateUsernames(aggregates map[int]*billingStatsAggregat
 		}
 	}
 	return nil
+}
+
+func billingStatsBucketRanges(startTimestamp int64, endTimestamp int64, granularity string) []billingStatsBucketRange {
+	if endTimestamp <= startTimestamp {
+		return []billingStatsBucketRange{}
+	}
+	start := billingStatsBucketStart(time.Unix(startTimestamp, 0), granularity)
+	end := time.Unix(endTimestamp, 0)
+	ranges := make([]billingStatsBucketRange, 0)
+	for current := start; current.Unix() < endTimestamp; current = billingStatsNextBucketStart(current, granularity) {
+		next := billingStatsNextBucketStart(current, granularity)
+		bucketEnd := next
+		if bucketEnd.After(end) {
+			bucketEnd = end
+		}
+		if bucketEnd.Unix() <= startTimestamp {
+			continue
+		}
+		ranges = append(ranges, billingStatsBucketRange{
+			Start: current.Unix(),
+			End:   bucketEnd.Unix(),
+			Label: billingStatsBucketLabel(current, granularity),
+		})
+	}
+	return ranges
+}
+
+func billingStatsBucketStart(t time.Time, granularity string) time.Time {
+	switch granularity {
+	case BillingStatsGranularityMonth:
+		return time.Date(t.Year(), t.Month(), 1, 0, 0, 0, 0, t.Location())
+	case BillingStatsGranularityYear:
+		return time.Date(t.Year(), 1, 1, 0, 0, 0, 0, t.Location())
+	default:
+		return time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, t.Location())
+	}
+}
+
+func billingStatsNextBucketStart(t time.Time, granularity string) time.Time {
+	switch granularity {
+	case BillingStatsGranularityMonth:
+		return t.AddDate(0, 1, 0)
+	case BillingStatsGranularityYear:
+		return t.AddDate(1, 0, 0)
+	default:
+		return t.AddDate(0, 0, 1)
+	}
+}
+
+func billingStatsBucketLabel(t time.Time, granularity string) string {
+	switch granularity {
+	case BillingStatsGranularityMonth:
+		return t.Format("2006-01")
+	case BillingStatsGranularityYear:
+		return t.Format("2006")
+	default:
+		return t.Format("2006-01-02")
+	}
+}
+
+func billingStatsBucketSQL(timestampExpr string, granularity string) string {
+	switch {
+	case common.UsingPostgreSQL:
+		return billingStatsPostgresBucketSQL(timestampExpr, granularity)
+	case common.UsingMySQL:
+		return billingStatsMySQLBucketSQL(timestampExpr, granularity)
+	default:
+		return billingStatsSQLiteBucketSQL(timestampExpr, granularity)
+	}
+}
+
+func billingStatsPostgresBucketSQL(timestampExpr string, granularity string) string {
+	switch granularity {
+	case BillingStatsGranularityMonth:
+		return "CAST(EXTRACT(EPOCH FROM date_trunc('month', to_timestamp(" + timestampExpr + "))) AS BIGINT)"
+	case BillingStatsGranularityYear:
+		return "CAST(EXTRACT(EPOCH FROM date_trunc('year', to_timestamp(" + timestampExpr + "))) AS BIGINT)"
+	default:
+		return "CAST(EXTRACT(EPOCH FROM date_trunc('day', to_timestamp(" + timestampExpr + "))) AS BIGINT)"
+	}
+}
+
+func billingStatsMySQLBucketSQL(timestampExpr string, granularity string) string {
+	switch granularity {
+	case BillingStatsGranularityMonth:
+		return "UNIX_TIMESTAMP(DATE_FORMAT(FROM_UNIXTIME(" + timestampExpr + "), '%Y-%m-01 00:00:00'))"
+	case BillingStatsGranularityYear:
+		return "UNIX_TIMESTAMP(DATE_FORMAT(FROM_UNIXTIME(" + timestampExpr + "), '%Y-01-01 00:00:00'))"
+	default:
+		return "UNIX_TIMESTAMP(DATE(FROM_UNIXTIME(" + timestampExpr + ")))"
+	}
+}
+
+func billingStatsSQLiteBucketSQL(timestampExpr string, granularity string) string {
+	switch granularity {
+	case BillingStatsGranularityMonth:
+		return "CAST(strftime('%s', datetime(" + timestampExpr + ", 'unixepoch', 'localtime', 'start of month', 'utc')) AS INTEGER)"
+	case BillingStatsGranularityYear:
+		return "CAST(strftime('%s', datetime(" + timestampExpr + ", 'unixepoch', 'localtime', 'start of year', 'utc')) AS INTEGER)"
+	default:
+		return "CAST(strftime('%s', datetime(" + timestampExpr + ", 'unixepoch', 'localtime', 'start of day', 'utc')) AS INTEGER)"
+	}
 }
 
 func billingStatsBucket(timestamp int64, granularity string) (int64, string) {

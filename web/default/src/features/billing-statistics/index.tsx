@@ -28,6 +28,7 @@ import {
   Wallet,
   WalletCards,
 } from 'lucide-react'
+import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from 'recharts'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import dayjs from '@/lib/dayjs'
@@ -40,6 +41,12 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card'
+import {
+  ChartContainer,
+  ChartTooltip,
+  ChartTooltipContent,
+  type ChartConfig,
+} from '@/components/ui/chart'
 import { Input } from '@/components/ui/input'
 import {
   Select,
@@ -59,9 +66,10 @@ import {
 } from '@/components/ui/table'
 import { SectionPageLayout } from '@/components/layout'
 import { getBillingStatistics } from './api'
-import type { BillingStatisticsResult } from './types'
+import type { BillingStatisticsResult, BillingStatsGranularity } from './types'
 
 type TimePreset = 'last_hour' | 'today' | 'this_week' | 'this_month'
+type ChartGranularity = Extract<BillingStatsGranularity, 'day' | 'month' | 'year'>
 
 const TIME_PRESETS: Array<{ value: TimePreset; label: string }> = [
   { value: 'last_hour', label: 'Last 1 Hour' },
@@ -72,6 +80,25 @@ const TIME_PRESETS: Array<{ value: TimePreset; label: string }> = [
 
 const DATE_TIME_FORMAT = 'YYYY-MM-DDTHH:mm'
 const PAGE_SIZE_OPTIONS = [10, 20, 50, 100]
+const CHART_GRANULARITY_OPTIONS: Array<{
+  value: ChartGranularity
+  label: string
+}> = [
+  { value: 'day', label: 'Daily' },
+  { value: 'month', label: 'Monthly' },
+  { value: 'year', label: 'Yearly' },
+]
+
+const billingChartConfig = {
+  total_amount: {
+    label: 'Total Amount',
+    color: 'var(--chart-1)',
+  },
+  consume_amount: {
+    label: 'Total Usage Cost',
+    color: 'var(--chart-2)',
+  },
+} satisfies ChartConfig
 
 function formatDateTime(value: dayjs.Dayjs) {
   return value.format(DATE_TIME_FORMAT)
@@ -134,6 +161,85 @@ function StatTile(props: {
   )
 }
 
+function BillingStatisticsChart(props: {
+  data: BillingStatisticsResult | null
+  loading: boolean
+}) {
+  const { t } = useTranslation()
+  const rows = props.data?.items ?? []
+
+  return (
+    <Card className='mt-4 rounded-lg'>
+      <CardHeader>
+        <CardTitle>{t('Billing Trend')}</CardTitle>
+        <CardDescription>
+          {t('Total amount and total usage cost by selected granularity')}
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        {rows.length === 0 ? (
+          <div className='text-muted-foreground flex h-64 items-center justify-center rounded-lg border border-dashed text-sm'>
+            {props.loading ? t('Loading...') : t('No data')}
+          </div>
+        ) : (
+          <ChartContainer
+            config={billingChartConfig}
+            className='h-72 w-full aspect-auto'
+            initialDimension={{ width: 800, height: 288 }}
+          >
+            <BarChart data={rows} margin={{ top: 8, right: 8, left: 8 }}>
+              <CartesianGrid vertical={false} />
+              <XAxis
+                dataKey='bucket_label'
+                tickLine={false}
+                axisLine={false}
+                tickMargin={8}
+                minTickGap={18}
+              />
+              <YAxis
+                tickLine={false}
+                axisLine={false}
+                tickMargin={8}
+                tickFormatter={(value) => formatRenminbiAmount(Number(value))}
+                width={72}
+              />
+              <ChartTooltip
+                cursor={false}
+                content={
+                  <ChartTooltipContent
+                    formatter={(value, name) => (
+                      <>
+                        <span className='text-muted-foreground'>
+                          {name === 'total_amount'
+                            ? t('Total Amount')
+                            : t('Total Usage Cost')}
+                        </span>
+                        <span className='font-mono font-medium tabular-nums'>
+                          {formatRenminbiAmount(Number(value))}
+                        </span>
+                      </>
+                    )}
+                  />
+                }
+              />
+              <Bar
+                dataKey='total_amount'
+                fill='var(--color-total_amount)'
+                radius={[4, 4, 0, 0]}
+              />
+              <Bar
+                dataKey='consume_amount'
+                fill='var(--color-consume_amount)'
+                radius={[4, 4, 0, 0]}
+              />
+            </BarChart>
+          </ChartContainer>
+        )}
+      </CardContent>
+    </Card>
+  )
+}
+
 export function BillingStatistics() {
   const { t } = useTranslation()
   const initialRange = useMemo(() => getPresetRange('today'), [])
@@ -141,6 +247,8 @@ export function BillingStatistics() {
   const [endDate, setEndDate] = useState(formatDateTime(initialRange.end))
   const [activePreset, setActivePreset] = useState<TimePreset | null>('today')
   const [username, setUsername] = useState('')
+  const [chartGranularity, setChartGranularity] =
+    useState<ChartGranularity>('day')
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(20)
   const [data, setData] = useState<BillingStatisticsResult | null>(null)
@@ -150,12 +258,12 @@ export function BillingStatistics() {
     () => ({
       start_timestamp: dayjs(startDate).unix(),
       end_timestamp: dayjs(endDate).unix(),
-      granularity: 'hour' as const,
+      granularity: chartGranularity,
       username: username.trim() || undefined,
       p: page,
       page_size: pageSize,
     }),
-    [endDate, page, pageSize, startDate, username]
+    [chartGranularity, endDate, page, pageSize, startDate, username]
   )
 
   const applyPreset = useCallback((preset: TimePreset) => {
@@ -260,7 +368,7 @@ export function BillingStatistics() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className='grid gap-3 lg:grid-cols-[220px_220px_1fr_220px_auto]'>
+            <div className='grid gap-3 lg:grid-cols-[220px_220px_1fr_180px_220px_auto]'>
               <Input
                 type='datetime-local'
                 value={startDate}
@@ -293,6 +401,30 @@ export function BillingStatistics() {
                   </Button>
                 ))}
               </div>
+              <Select
+                items={CHART_GRANULARITY_OPTIONS.map((option) => ({
+                  value: option.value,
+                  label: t(option.label),
+                }))}
+                value={chartGranularity}
+                onValueChange={(value) => {
+                  setChartGranularity(value as ChartGranularity)
+                  setPage(1)
+                }}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder={t('Granularity')} />
+                </SelectTrigger>
+                <SelectContent alignItemWithTrigger={false}>
+                  <SelectGroup>
+                    {CHART_GRANULARITY_OPTIONS.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        {t(option.label)}
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
               <Input
                 value={username}
                 placeholder={t('Username')}
@@ -308,6 +440,8 @@ export function BillingStatistics() {
             </div>
           </CardContent>
         </Card>
+
+        <BillingStatisticsChart data={data} loading={loading} />
 
         <Card className='mt-4 rounded-lg'>
           <CardHeader>

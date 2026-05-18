@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-export type BillingStatsGranularity = 'hour' | 'day' | 'week' | 'month'
+export type BillingStatsGranularity = 'hour' | 'day' | 'week' | 'month' | 'year'
 
 export interface BillingStatisticsQuery {
   start_timestamp: number
