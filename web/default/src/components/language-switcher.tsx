@@ -18,6 +18,10 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { useCallback, useEffect, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
+import {
+  INTERFACE_LANGUAGE_OPTIONS,
+  normalizeInterfaceLanguage,
+} from '@/i18n/languages'
 import { Check, Languages, X } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { useAuthStore } from '@/stores/auth-store'
@@ -42,15 +46,6 @@ import {
   PopoverTrigger,
 } from '@/components/ui/popover'
 
-const languages = [
-  { code: 'en', label: 'English' },
-  { code: 'zh', label: '中文' },
-  { code: 'fr', label: 'Français' },
-  { code: 'ru', label: 'Русский' },
-  { code: 'ja', label: '日本語' },
-  { code: 'vi', label: 'Tiếng Việt' },
-]
-
 const regionalPromptMessages: Record<RegionalPromptLanguage, string> = {
   zh: '你可以在这里切换语言',
   fr: 'Vous pouvez changer de langue ici.',
@@ -63,6 +58,7 @@ export function LanguageSwitcher() {
   const { i18n, t } = useTranslation()
   const queryClient = useQueryClient()
   const user = useAuthStore((s) => s.auth.user)
+  const currentLanguage = normalizeInterfaceLanguage(i18n.language)
   const [promptLanguage, setPromptLanguage] =
     useState<RegionalPromptLanguage | null>(null)
   const [promptOpen, setPromptOpen] = useState(false)
@@ -95,12 +91,13 @@ export function LanguageSwitcher() {
 
   const handleChangeLanguage = useCallback(
     async (code: string) => {
-      await i18n.changeLanguage(code)
+      const nextLanguage = normalizeInterfaceLanguage(code)
+      await i18n.changeLanguage(nextLanguage)
       dismissRegionalPrompt()
       refreshLanguageSensitiveQueries(queryClient)
       if (user) {
         try {
-          await api.put('/api/user/self', { language: code })
+          await api.put('/api/user/self', { language: nextLanguage })
         } catch {
           // Best-effort persistence; don't block the UI on failure
         }
@@ -128,7 +125,7 @@ export function LanguageSwitcher() {
             <span className='sr-only'>{t('Change language')}</span>
           </DropdownMenuTrigger>
           <DropdownMenuContent align='end'>
-            {languages.map((lang) => (
+            {INTERFACE_LANGUAGE_OPTIONS.map((lang) => (
               <DropdownMenuItem
                 key={lang.code}
                 onClick={() => handleChangeLanguage(lang.code)}
@@ -138,7 +135,7 @@ export function LanguageSwitcher() {
                   size={14}
                   className={cn(
                     'ms-auto',
-                    i18n.language !== lang.code && 'hidden'
+                    currentLanguage !== lang.code && 'hidden'
                   )}
                 />
               </DropdownMenuItem>
@@ -163,7 +160,7 @@ export function LanguageSwitcher() {
             onClick={dismissRegionalPrompt}
           >
             <X className='size-3.5' />
-            <span className='sr-only'>Close</span>
+            <span className='sr-only'>{t('Close')}</span>
           </Button>
         </PopoverContent>
       )}

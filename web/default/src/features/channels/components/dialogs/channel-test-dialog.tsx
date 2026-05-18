@@ -232,13 +232,20 @@ export function ChannelTestDialog({
       } catch (error: unknown) {
         updateTestResult(model, {
           status: 'error',
-          error: error instanceof Error ? error.message : 'Test failed',
+          error: error instanceof Error ? error.message : t('Test failed'),
         })
       } finally {
         markModelTesting(model, false)
       }
     },
-    [currentRow, endpointType, isStreamTest, markModelTesting, updateTestResult]
+    [
+      currentRow,
+      endpointType,
+      isStreamTest,
+      markModelTesting,
+      t,
+      updateTestResult,
+    ]
   )
 
   const handleBatchTest = useCallback(
