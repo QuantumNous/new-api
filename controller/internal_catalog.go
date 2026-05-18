@@ -8,6 +8,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
+	"github.com/QuantumNous/new-api/internal/kids"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 
@@ -123,6 +124,13 @@ func GetRouterCatalog(c *gin.Context) {
 		// GetModelPrice) don't fit smart-router's per-1M-token schema and
 		// the Tier-1 heuristic rules don't route to them either. Skip.
 		if _, hasPerCall := ratio_setting.GetModelPrice(name, false); hasPerCall {
+			continue
+		}
+		// kids_mode tenants get a pre-filtered catalog so smart-router can't
+		// pick a non-kids-safe model in the first place. relay/airbotix_policy.go
+		// re-checks the same whitelist at request time as defense in depth —
+		// this filter is a performance optimisation, not the safety boundary.
+		if user.KidsMode && !kids.IsModelEligible(name) {
 			continue
 		}
 		brand, ok := channelTypeToBrand[row.channelType]

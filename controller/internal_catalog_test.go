@@ -4,8 +4,44 @@ import (
 	"math"
 	"testing"
 
+	"github.com/QuantumNous/new-api/internal/kids"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 )
+
+// TestKidsModeCatalogPreFilter pins the design contract that the catalog
+// endpoint pre-filters models on the kids-safe whitelist for kids_mode
+// tenants. The actual filtering happens inside GetRouterCatalog and is
+// covered end-to-end by docker-compose smoke. This test just locks the
+// whitelist itself so adding a new V0 model can't accidentally bypass the
+// "kid-safe by name" check by being named in a way the prefix matcher
+// confuses for a safe model.
+func TestKidsModeCatalogPreFilter(t *testing.T) {
+	allow := []string{
+		"gpt-4o-mini",
+		"gpt-4o",
+		"claude-3-5-haiku",
+		"claude-3-5-haiku-20241022", // versioned variant — prefix match
+		"claude-3-5-sonnet",
+	}
+	deny := []string{
+		"claude-3-opus-latest", // opus NOT in whitelist
+		"gpt-4-turbo",          // base 4-turbo NOT in whitelist
+		"o1-mini",              // reasoning models NOT in whitelist
+		"deepseek-chat",        // deepseek NOT in whitelist (no audit yet)
+		"gemini-1.5-pro",       // gemini NOT in whitelist
+		"",
+	}
+	for _, m := range allow {
+		if !kids.IsModelEligible(m) {
+			t.Errorf("expected %q to be kids-eligible", m)
+		}
+	}
+	for _, m := range deny {
+		if kids.IsModelEligible(m) {
+			t.Errorf("expected %q to be NOT kids-eligible", m)
+		}
+	}
+}
 
 // TestModelRatioConversion locks the conversion factor between DeepRouter's
 // internal model_ratio units and smart-router's per-1M-USD schema. Numbers
