@@ -441,6 +441,23 @@ export function WaffoPancakeSettingsSection(props: Props) {
     : hasSavedCreds
   const hasCatalog = catalog.length > 0
 
+  let bindStatusMessage: string
+  if (!credsReady) {
+    bindStatusMessage = t('Fill in the credentials above to begin.')
+  } else if (verifying) {
+    bindStatusMessage = t(
+      'Verifying credentials and pulling stores from your Pancake account...'
+    )
+  } else if (hasCatalog) {
+    bindStatusMessage = t(
+      'Mint a fresh pair below — or pick an existing one further down. Click Save when ready.'
+    )
+  } else {
+    bindStatusMessage = t(
+      'No stores on this merchant yet. Set a return URL and click Create to mint your first pair.'
+    )
+  }
+
   return (
     <SettingsSection
       title={t('Waffo Pancake MoR')}
@@ -550,19 +567,7 @@ export function WaffoPancakeSettingsSection(props: Props) {
                 {t('Bind a Pancake store + product')}
               </h4>
               <p className='text-muted-foreground text-xs'>
-                {!credsReady
-                  ? t('Fill in the credentials above to begin.')
-                  : verifying
-                    ? t(
-                        'Verifying credentials and pulling stores from your Pancake account...'
-                      )
-                    : hasCatalog
-                      ? t(
-                          'Mint a fresh pair below — or pick an existing one further down. Click Save when ready.'
-                        )
-                      : t(
-                          'No stores on this merchant yet. Set a return URL and click Create to mint your first pair.'
-                        )}
+                {bindStatusMessage}
               </p>
             </div>
 
