@@ -76,6 +76,7 @@ const NotificationSettings = ({
       log: true,
       midjourney: true,
       task: true,
+      promotion_event: true,
     },
     personal: {
       enabled: true,
@@ -164,6 +165,7 @@ const NotificationSettings = ({
         log: true,
         midjourney: true,
         task: true,
+        promotion_event: true,
       },
       personal: { enabled: true, topup: true, personal: true },
       admin: {
@@ -207,7 +209,14 @@ const NotificationSettings = ({
           } else {
             userConf = userRes.data.data.sidebar_modules;
           }
-          setSidebarModulesUser(userConf);
+          setSidebarModulesUser((defaults) => ({
+            ...defaults,
+            ...userConf,
+            console: {
+              ...defaults.console,
+              ...(userConf.console || {}),
+            },
+          }));
         }
       } catch (error) {
         console.error('加载边栏配置失败:', error);
@@ -271,6 +280,11 @@ const NotificationSettings = ({
           description: t('绘图任务记录'),
         },
         { key: 'task', title: t('任务日志'), description: t('系统任务记录') },
+        {
+          key: 'promotion_event',
+          title: t('推广事件'),
+          description: t('推广Webhook调用记录'),
+        },
       ],
     },
     {
