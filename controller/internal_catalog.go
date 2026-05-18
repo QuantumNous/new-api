@@ -14,6 +14,20 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// modelRatioToPerMillionUSD converts DeepRouter's internal "model ratio" units
+// to USD per 1M tokens. Derived from setting/ratio_setting/model_ratio.go:
+//
+//	const USD = 500     // $0.002 = 1 ratio unit → $1 = 500 ratio units
+//	// 1 ratio === $0.002 / 1K tokens
+//
+// So price_per_1M_USD = ratio * ($0.002 / 1k tokens) * (1000 / 1) = ratio * 2.
+// Verified against authoritative comments in model_ratio.go:
+//
+//	"gpt-4o":  1.25, // $2.5 / 1M tokens  →  1.25 * 2 = 2.5 ✓
+//	"gpt-4":   15,   // $30 / 1M tokens   →  15   * 2 = 30  ✓
+//	"chatgpt-4o-latest": 2.5, // $5/1M    →  2.5  * 2 = 5   ✓
+const modelRatioToPerMillionUSD = 2.0
+
 // channelTypeToBrand maps DeepRouter's internal channel-type IDs (defined in
 // constant/channel.go) to the brand string returned to smart-router. Smart-router
 // uses these for the `allowed_brands` constraint filter. The set is intentionally
@@ -105,14 +119,18 @@ func GetRouterCatalog(c *gin.Context) {
 
 	models := make([]CatalogModelInfo, 0, len(agg))
 	for name, row := range agg {
+		// Models with a fixed per-call price (image / video / audio — see
+		// GetModelPrice) don't fit smart-router's per-1M-token schema and
+		// the Tier-1 heuristic rules don't route to them either. Skip.
+		if _, hasPerCall := ratio_setting.GetModelPrice(name, false); hasPerCall {
+			continue
+		}
 		brand, ok := channelTypeToBrand[row.channelType]
 		if !ok {
 			brand = "other"
 		}
 		ratio, _, _ := ratio_setting.GetModelRatio(name)
-		// ratio_setting uses per-1k-token units; smart-router's Constraints
-		// schema is per-1M tokens. Scale by 1000.
-		inputPer1M := ratio * 1000
+		inputPer1M := ratio * modelRatioToPerMillionUSD
 		outputPer1M := inputPer1M * ratio_setting.GetCompletionRatio(name)
 		models = append(models, CatalogModelInfo{
 			Name:             name,
