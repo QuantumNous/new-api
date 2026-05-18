@@ -37,6 +37,16 @@ func Distribute() func(c *gin.Context) {
 			abortWithOpenAiMessage(c, http.StatusBadRequest, i18n.T(c, i18n.MsgDistributorInvalidRequest, map[string]any{"Error": err.Error()}))
 			return
 		}
+		// DeepRouter smart routing: deeprouter-auto triggers an HTTP call
+		// to the smart-router sidecar (internal/smart_router_client), which
+		// picks a model by analysing the prompt content. Failure modes (sidecar
+		// down, no SMART_ROUTER_URL, malformed reply) fall back to a default
+		// model so the gateway never breaks because the router is down.
+		if modelRequest != nil && modelRequest.Model == VirtualModelAuto {
+			if resolved := ResolveAutoModel(c, modelRequest.Model); resolved != "" {
+				modelRequest.Model = resolved
+			}
+		}
 		// DeepRouter Simple-mode: if the token was created with a purpose
 		// binding and the client sent one of our virtual model names
 		// (deeprouter, deeprouter-coding, ...), resolve it to the concrete

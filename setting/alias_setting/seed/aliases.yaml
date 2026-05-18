@@ -220,3 +220,7 @@ virtual_models:
   - deeprouter-video
   - deeprouter-voice
   - deeprouter-voice-tts # explicit TTS variant when purpose=voice
+  - deeprouter-auto      # → smart-router HTTP call (internal/smart_router_client).
+                         # Content-aware routing: smart-router analyses the prompt
+                         # and returns the cheapest model that can answer it well,
+                         # falling back to gpt-4o-mini if the sidecar is unreachable.

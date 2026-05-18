@@ -86,4 +86,12 @@ const (
 	// Populated by middleware/policy.go so downstream code (billing dispatch) does
 	// not need a second DB lookup to read BillingWebhookURL / WebhookSecret.
 	ContextKeyAirbotixUser ContextKey = "airbotix_user"
+
+	// Set by middleware/distributor.go when smart-router resolves a deeprouter-auto
+	// request. The Reason / Strategy fields are logged for observability and exposed
+	// in the X-DeepRouter-Routed-Reason / X-DeepRouter-Routed-Strategy response
+	// headers. FallbackChain is reserved for cross-model fallback (Phase 2.5).
+	ContextKeySmartRouterFallback ContextKey = "smart_router_fallback_chain"
+	ContextKeySmartRouterReason   ContextKey = "smart_router_reason"
+	ContextKeySmartRouterStrategy ContextKey = "smart_router_strategy"
 )
