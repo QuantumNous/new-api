@@ -79,6 +79,57 @@ export const API_ENDPOINTS = {
   CHAT_COMPLETIONS: '/pg/chat/completions',
   USER_MODELS: '/api/user/models',
   USER_GROUPS: '/api/user/self/groups',
+  PRICING: '/api/pricing',
+};
+
+// ========== 非 chat 端点的 curl 模板 ==========
+// 判定规则参见 helpers/playground.js#isPlaygroundSupported：
+// 模型的 supported_endpoint_types 命中此 map 任一 key → 操练场拦截，弹框提示走 API；
+// 全部不命中 / 列表为空 / 拉不到 pricing → 放行（fail-open）。
+// 一个模型挂多个非 chat 端点时按 priority 选第一个展示 curl。
+// 一个模型挂多个非 chat 端点时按 priority 选第一个展示。
+export const PLAYGROUND_UNSUPPORTED_ENDPOINTS = {
+  'openai-video': {
+    label: '视频生成',
+    path: '/v1/videos',
+    priority: 1,
+    buildBody: (model, prompt) => ({
+      model,
+      prompt: prompt || '你的提示词',
+      duration: 6,
+      size: '1280x720',
+    }),
+  },
+  'image-generation': {
+    label: '图像生成',
+    path: '/v1/images/generations',
+    priority: 2,
+    buildBody: (model, prompt) => ({
+      model,
+      prompt: prompt || '你的提示词',
+      size: '1024x1024',
+      n: 1,
+    }),
+  },
+  embeddings: {
+    label: '嵌入向量',
+    path: '/v1/embeddings',
+    priority: 3,
+    buildBody: (model, prompt) => ({
+      model,
+      input: prompt || '你的文本',
+    }),
+  },
+  'jina-rerank': {
+    label: '重排序',
+    path: '/v1/rerank',
+    priority: 4,
+    buildBody: (model, prompt) => ({
+      model,
+      query: prompt || '你的查询',
+      documents: ['文档 1', '文档 2'],
+    }),
+  },
 };
 
 // ========== 配置默认值 ==========

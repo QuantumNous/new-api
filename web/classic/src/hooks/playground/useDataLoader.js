@@ -33,6 +33,7 @@ export const useDataLoader = (
   handleInputChange,
   setModels,
   setGroups,
+  setModelEndpointTypes,
 ) => {
   const { t } = useTranslation();
 
@@ -97,16 +98,42 @@ export const useDataLoader = (
     }
   }, [userState, inputs.group, handleInputChange, setGroups, t]);
 
+  // 拉一次 /api/pricing，构建 model -> endpoint_types[] 映射，
+  // 用于提交前判断模型是否可在操练场调试（非 chat 模型会弹框提示）。
+  // 失败 silent：保持 map 为空 == 全部放行（fail-open），不影响 chat 主路径。
+  const loadModelEndpointTypes = useCallback(async () => {
+    if (!setModelEndpointTypes) return;
+    try {
+      // skipErrorHandler 跳过全局拦截器的 Toast，pricing 拉不到不应该让用户看到错误弹窗。
+      const res = await API.get(API_ENDPOINTS.PRICING, {
+        skipErrorHandler: true,
+      });
+      const { success, data } = res.data || {};
+      if (!success || !Array.isArray(data)) return;
+      const map = new Map();
+      data.forEach((item) => {
+        if (item && item.model_name) {
+          map.set(item.model_name, item.supported_endpoint_types || []);
+        }
+      });
+      setModelEndpointTypes(map);
+    } catch (_) {
+      // 静默：保持 map 为空 → isPlaygroundSupported 一律放行
+    }
+  }, [setModelEndpointTypes]);
+
   // 自动加载数据
   useEffect(() => {
     if (userState?.user) {
       loadModels();
       loadGroups();
+      loadModelEndpointTypes();
     }
-  }, [userState?.user, loadModels, loadGroups]);
+  }, [userState?.user, loadModels, loadGroups, loadModelEndpointTypes]);
 
   return {
     loadModels,
     loadGroups,
+    loadModelEndpointTypes,
   };
 };

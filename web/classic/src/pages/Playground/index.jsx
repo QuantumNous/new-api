@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React, { useContext, useEffect, useCallback, useRef } from 'react';
+import React, { useContext, useEffect, useCallback, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { Layout, Toast, Modal } from '@douyinfe/semi-ui';
@@ -59,7 +59,12 @@ import {
 } from '../../components/playground/OptimizedComponents';
 import ChatArea from '../../components/playground/ChatArea';
 import FloatingButtons from '../../components/playground/FloatingButtons';
+import UnsupportedModelModal from '../../components/playground/UnsupportedModelModal';
 import { PlaygroundProvider } from '../../contexts/PlaygroundContext';
+import {
+  isPlaygroundSupported,
+  pickPrimaryUnsupportedEndpoint,
+} from '../../helpers/playground';
 
 // 生成头像
 const generateAvatarDataUrl = (username) => {
@@ -95,6 +100,7 @@ const Playground = () => {
     customRequestBody,
     showSettings,
     models,
+    modelEndpointTypes,
     groups,
     status,
     message,
@@ -111,6 +117,7 @@ const Playground = () => {
     handleConfigReset,
     setShowSettings,
     setModels,
+    setModelEndpointTypes,
     setGroups,
     setStatus,
     setMessage,
@@ -132,7 +139,14 @@ const Playground = () => {
   );
 
   // 数据加载
-  useDataLoader(userState, inputs, handleInputChange, setModels, setGroups);
+  useDataLoader(
+    userState,
+    inputs,
+    handleInputChange,
+    setModels,
+    setGroups,
+    setModelEndpointTypes,
+  );
 
   // 消息编辑
   const {
@@ -237,9 +251,36 @@ const Playground = () => {
     }
   }, [inputs, parameterEnabled, message, customRequestMode, customRequestBody]);
 
+  // 操练场不支持模型时的弹框 state
+  const [unsupportedModal, setUnsupportedModal] = useState({
+    visible: false,
+    model: '',
+    endpoint: null,
+    prompt: '',
+  });
+
   // 发送消息
   function onMessageSend(content, attachment) {
     console.log('attachment: ', attachment);
+
+    // 提交前拦截：非 chat 模型（image-generation / openai-video / embeddings / jina-rerank）
+    // 弹框提示用户改用直接 API 调用。customRequestMode 下放行（hacker 模式 escape hatch）。
+    if (
+      !customRequestMode &&
+      !isPlaygroundSupported(inputs.model, modelEndpointTypes)
+    ) {
+      const endpoint = pickPrimaryUnsupportedEndpoint(
+        modelEndpointTypes,
+        inputs.model,
+      );
+      setUnsupportedModal({
+        visible: true,
+        model: inputs.model,
+        endpoint,
+        prompt: content,
+      });
+      return;
+    }
 
     // 创建用户消息和加载消息
     const userMessage = createMessage(MESSAGE_ROLES.USER, content);
@@ -602,6 +643,15 @@ const Playground = () => {
             />
           </Layout.Content>
         </Layout>
+        <UnsupportedModelModal
+          visible={unsupportedModal.visible}
+          model={unsupportedModal.model}
+          endpoint={unsupportedModal.endpoint}
+          userPrompt={unsupportedModal.prompt}
+          onClose={() =>
+            setUnsupportedModal((prev) => ({ ...prev, visible: false }))
+          }
+        />
       </div>
     </PlaygroundProvider>
   );

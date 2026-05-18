@@ -82,6 +82,7 @@ export const usePlaygroundState = () => {
   // UI状态
   const [showSettings, setShowSettings] = useState(false);
   const [models, setModels] = useState([]);
+  const [modelEndpointTypes, setModelEndpointTypes] = useState(() => new Map());
   const [groups, setGroups] = useState([]);
   const [status, setStatus] = useState({});
 
@@ -280,6 +281,7 @@ export const usePlaygroundState = () => {
     // UI状态
     showSettings,
     models,
+    modelEndpointTypes,
     groups,
     status,
 
@@ -308,6 +310,7 @@ export const usePlaygroundState = () => {
     setCustomRequestBody,
     setShowSettings,
     setModels,
+    setModelEndpointTypes,
     setGroups,
     setStatus,
     setMessage,
