@@ -22,6 +22,97 @@ type GeminiChatRequest struct {
 	CachedContent      string                     `json:"cachedContent,omitempty"`
 }
 
+// GeminiInteractionRequest carries native Vertex interaction payloads such as
+// Lyria 3 requests without forcing them into generateContent semantics.
+type GeminiInteractionRequest struct {
+	Model   *string        `json:"model,omitempty"`
+	Payload map[string]any `json:"-"`
+}
+
+// UnmarshalJSON preserves the complete native interaction payload while
+// exposing model for channel model mapping and billing.
+func (r *GeminiInteractionRequest) UnmarshalJSON(data []byte) error {
+	var payload map[string]any
+	if err := common.Unmarshal(data, &payload); err != nil {
+		return err
+	}
+	r.Payload = payload
+	if model, ok := payload["model"].(string); ok {
+		r.Model = &model
+	}
+	return nil
+}
+
+// MarshalJSON writes the mapped model back into the preserved native payload.
+func (r GeminiInteractionRequest) MarshalJSON() ([]byte, error) {
+	payload := make(map[string]any, len(r.Payload)+1)
+	for k, v := range r.Payload {
+		payload[k] = v
+	}
+	if r.Model != nil {
+		payload["model"] = *r.Model
+	}
+	return common.Marshal(payload)
+}
+
+// GetTokenCountMeta estimates billing text from the native interaction input.
+func (r *GeminiInteractionRequest) GetTokenCountMeta() *types.TokenCountMeta {
+	var inputTexts []string
+	collectGeminiInteractionTexts(r.Payload["input"], &inputTexts)
+	return &types.TokenCountMeta{
+		CombineText: strings.Join(inputTexts, "\n"),
+	}
+}
+
+// IsStream returns false because Vertex interactions are non-streaming.
+func (r *GeminiInteractionRequest) IsStream(c *gin.Context) bool {
+	return false
+}
+
+// SetModelName keeps the URL-selected or mapped model in the native payload.
+func (r *GeminiInteractionRequest) SetModelName(modelName string) {
+	if modelName == "" {
+		return
+	}
+	r.Model = &modelName
+	if r.Payload == nil {
+		r.Payload = map[string]any{}
+	}
+	r.Payload["model"] = modelName
+}
+
+// collectGeminiInteractionTexts extracts text from flexible interaction input
+// arrays without interpreting provider-specific media fields.
+func collectGeminiInteractionTexts(value any, texts *[]string) {
+	switch v := value.(type) {
+	case string:
+		if v != "" {
+			*texts = append(*texts, v)
+		}
+	case []any:
+		for _, item := range v {
+			collectGeminiInteractionTexts(item, texts)
+		}
+	case map[string]any:
+		if itemType, ok := v["type"].(string); ok {
+			if itemType != "text" {
+				return
+			}
+			if text, ok := v["text"].(string); ok && text != "" {
+				*texts = append(*texts, text)
+			}
+			return
+		}
+		if text, ok := v["text"].(string); ok && text != "" {
+			*texts = append(*texts, text)
+			return
+		}
+		for _, item := range v {
+			collectGeminiInteractionTexts(item, texts)
+		}
+	}
+}
+
 // UnmarshalJSON allows GeminiChatRequest to accept both snake_case and camelCase fields.
 func (r *GeminiChatRequest) UnmarshalJSON(data []byte) error {
 	type Alias GeminiChatRequest
@@ -44,9 +135,9 @@ func (r *GeminiChatRequest) UnmarshalJSON(data []byte) error {
 }
 
 type ToolConfig struct {
-	FunctionCallingConfig *FunctionCallingConfig `json:"functionCallingConfig,omitempty"`
-	RetrievalConfig       *RetrievalConfig       `json:"retrievalConfig,omitempty"`
-	IncludeServerSideToolInvocations *bool       `json:"includeServerSideToolInvocations,omitempty"`
+	FunctionCallingConfig            *FunctionCallingConfig `json:"functionCallingConfig,omitempty"`
+	RetrievalConfig                  *RetrievalConfig       `json:"retrievalConfig,omitempty"`
+	IncludeServerSideToolInvocations *bool                  `json:"includeServerSideToolInvocations,omitempty"`
 }
 
 type FunctionCallingConfig struct {
