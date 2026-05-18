@@ -16,35 +16,36 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { Settings, Zap, BarChart3 } from 'lucide-react'
+import { KeyRound, UserPlus, Wallet } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { AnimateInView } from '@/components/animate-in-view'
 
 export function HowItWorks() {
   const { t } = useTranslation()
 
+  // 3 non-technical user steps aligned with onboarding-v2 §4 黄金路径
+  // (Sign up → Top up → Use). Was previously dev-oriented (Configure /
+  // Connect / Monitor with channel / API-route talk).
   const steps = [
     {
       num: '1',
-      title: t('Configure'),
-      desc: t(
-        'Add your API keys, set up channels and configure access permissions'
-      ),
-      icon: <Settings className='size-6' strokeWidth={1.5} />,
+      title: t('Sign up'),
+      desc: t('30 seconds with WeChat scan or your phone number.'),
+      icon: <UserPlus className='size-6' strokeWidth={1.5} />,
     },
     {
       num: '2',
-      title: t('Connect'),
-      desc: t(
-        'Connect through OpenAI, Claude, Gemini, and other compatible API routes'
-      ),
-      icon: <Zap className='size-6' strokeWidth={1.5} />,
+      title: t('Top up'),
+      desc: t('From ¥5 via WeChat Pay or Alipay. No overseas card.'),
+      icon: <Wallet className='size-6' strokeWidth={1.5} />,
     },
     {
       num: '3',
-      title: t('Monitor'),
-      desc: t('Track usage, costs and performance with real-time analytics'),
-      icon: <BarChart3 className='size-6' strokeWidth={1.5} />,
+      title: t('Use anywhere'),
+      desc: t(
+        'Copy your key, paste it into the AI tool you already use. One key, every supported model.'
+      ),
+      icon: <KeyRound className='size-6' strokeWidth={1.5} />,
     },
   ]
 

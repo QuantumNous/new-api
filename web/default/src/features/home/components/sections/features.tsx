@@ -16,16 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import {
-  Zap,
-  Shield,
-  Globe,
-  Code,
-  Gauge,
-  DollarSign,
-  Users,
-  HeartHandshake,
-} from 'lucide-react'
+import { Gauge, Receipt, Sparkles, Wallet } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { AnimateInView } from '@/components/animate-in-view'
 
@@ -36,80 +27,79 @@ interface FeaturesProps {
 export function Features(_props: FeaturesProps) {
   const { t } = useTranslation()
 
+  // Four cards aligned to onboarding-v2 §7.1 user-benefit list:
+  //   1) WeChat/Alipay payment   2) one account = every model
+  //   3) pay-as-you-go           4) ICP-registered, invoices
+  // Bento grid uses 1+2 / 2+1 column spans so visual rhythm matches old.
   const features = [
     {
-      id: 'fast',
+      id: 'cny-pay',
       num: '01',
-      title: t('Lightning Fast'),
+      title: t('Pay in CNY'),
       desc: t(
-        'Optimized network architecture ensures millisecond response times'
+        'WeChat or Alipay, from ¥5. No overseas credit card. No exchange-rate guesswork.'
+      ),
+      span: 'md:col-span-1',
+      icon: <Wallet className='text-accent size-4' />,
+      visual: (
+        <div className='mt-4 flex flex-wrap items-center gap-2 text-xs'>
+          <span className='border-border bg-card/70 text-muted-foreground rounded-md border px-2.5 py-1.5'>
+            {t('WeChat Pay')}
+          </span>
+          <span className='border-border bg-card/70 text-muted-foreground rounded-md border px-2.5 py-1.5'>
+            {t('Alipay')}
+          </span>
+        </div>
+      ),
+    },
+    {
+      id: 'one-account',
+      num: '02',
+      title: t('One account, every major AI'),
+      desc: t(
+        'GPT-5, Claude, Gemini, DeepSeek, Kimi, Qwen — call them all with one API key. No separate signups with each provider.'
       ),
       span: 'md:col-span-2',
-      icon: <Zap className='text-accent size-4' />,
+      icon: <Sparkles className='text-success size-4' />,
       visual: (
-        <div className='mt-4 grid grid-cols-3 gap-2'>
-          {['OpenAI', 'Claude', 'Gemini', 'DeepSeek', 'Qwen', 'Llama'].map(
-            (name) => (
-              <div
-                key={name}
-                className='border-border bg-card/70 text-muted-foreground hover:border-accent/30 hover:bg-accent/5 flex items-center justify-center rounded-[7px] border px-3 py-2 text-xs transition-colors duration-300'
-              >
-                {name}
-              </div>
-            )
-          )}
+        <div className='mt-4 grid grid-cols-3 gap-2 md:grid-cols-4'>
+          {[
+            'OpenAI',
+            'Anthropic',
+            'Google',
+            'DeepSeek',
+            'Moonshot',
+            'Alibaba',
+            'xAI',
+            'Mistral',
+          ].map((name) => (
+            <div
+              key={name}
+              className='border-border bg-card/70 text-muted-foreground hover:border-accent/30 hover:bg-accent/5 flex items-center justify-center rounded-[7px] border px-3 py-2 text-xs transition-colors duration-300'
+            >
+              {name}
+            </div>
+          ))}
         </div>
       ),
     },
     {
-      id: 'secure',
-      num: '02',
-      title: t('Secure & Reliable'),
-      desc: t(
-        'Enterprise-grade security with comprehensive permission management'
-      ),
-      span: 'md:col-span-1',
-      icon: <Shield className='text-success size-4' />,
-      visual: (
-        <div className='mt-4 flex items-center justify-center'>
-          <div className='relative'>
-            <div className='border-success/20 bg-success/10 flex size-16 items-center justify-center rounded-xl border'>
-              <Shield className='text-success size-7' strokeWidth={1.5} />
-            </div>
-            <div className='bg-success absolute -top-1 -right-1 flex size-4 items-center justify-center rounded-full'>
-              <svg
-                className='size-2.5 text-white'
-                fill='none'
-                viewBox='0 0 24 24'
-                stroke='currentColor'
-                strokeWidth={3}
-              >
-                <path
-                  strokeLinecap='round'
-                  strokeLinejoin='round'
-                  d='m4.5 12.75 6 6 9-13.5'
-                />
-              </svg>
-            </div>
-          </div>
-        </div>
-      ),
-    },
-    {
-      id: 'global',
+      id: 'pay-per-use',
       num: '03',
-      title: t('Global Coverage'),
-      desc: t('Multi-region deployment for stable global access'),
-      span: 'md:col-span-1',
-      icon: <Globe className='text-accent size-4' />,
+      title: t('Pay only for what you use'),
+      desc: t(
+        'No subscription. Every call shows the exact charge in your billing history.'
+      ),
+      span: 'md:col-span-2',
+      icon: <Gauge className='text-accent size-4' />,
       visual: (
         <div className='mt-4 space-y-2'>
-          {[t('Load Balancing'), t('Rate Limiting'), t('Cost Tracking')].map(
+          {[t('Top up ¥5'), t('Call any model'), t('See per-call charge')].map(
             (step, i) => (
               <div key={step} className='flex items-center gap-2'>
                 <div
                   className={`flex size-6 items-center justify-center rounded-full text-[10px] font-bold ${
-                    i === 1
+                    i === 2
                       ? 'border-accent/30 bg-accent/10 text-accent border'
                       : 'border-border/40 bg-muted text-muted-foreground border'
                   }`}
@@ -125,53 +115,21 @@ export function Features(_props: FeaturesProps) {
       ),
     },
     {
-      id: 'developer',
+      id: 'invoice',
       num: '04',
-      title: t('Developer Friendly'),
-      desc: t('Compatible API routes for common AI application workflows'),
-      span: 'md:col-span-2',
-      icon: <Code className='text-warning size-4' />,
+      title: t('Invoice on request'),
+      desc: t(
+        'ICP-registered entity in mainland China. Business invoices available.'
+      ),
+      span: 'md:col-span-1',
+      icon: <Receipt className='text-warning size-4' />,
       visual: (
-        <div className='mt-4 flex items-center gap-3'>
-          <div className='flex -space-x-2'>
-            {['API', 'SDK', 'CLI', 'Docs'].map((n) => (
-              <div
-                key={n}
-                className='border-background bg-card text-muted-foreground flex size-8 items-center justify-center rounded-full border-2 text-[9px] font-bold'
-              >
-                {n}
-              </div>
-            ))}
-          </div>
-          <div className='text-muted-foreground flex items-center gap-1.5 text-xs'>
-            <Code className='text-accent size-3.5' />
-            {t('Multi-protocol Compatible')}
+        <div className='mt-4 flex items-center justify-center'>
+          <div className='border-warning/20 bg-warning/10 flex size-16 items-center justify-center rounded-xl border'>
+            <Receipt className='text-warning size-7' strokeWidth={1.5} />
           </div>
         </div>
       ),
-    },
-  ]
-
-  const additionalFeatures = [
-    {
-      icon: <Gauge className='size-5' strokeWidth={1.5} />,
-      title: t('High Performance'),
-      desc: t('Support for high concurrency with automatic load balancing'),
-    },
-    {
-      icon: <DollarSign className='size-5' strokeWidth={1.5} />,
-      title: t('Transparent Billing'),
-      desc: t('Pay-as-you-go with real-time usage monitoring'),
-    },
-    {
-      icon: <Users className='size-5' strokeWidth={1.5} />,
-      title: t('Team Collaboration'),
-      desc: t('Multi-user management with flexible permission allocation'),
-    },
-    {
-      icon: <HeartHandshake className='size-5' strokeWidth={1.5} />,
-      title: t('Open Source'),
-      desc: t('Community driven, self-hosted, and extensible'),
     },
   ]
 
@@ -180,12 +138,12 @@ export function Features(_props: FeaturesProps) {
       <div className='mx-auto max-w-6xl'>
         <AnimateInView className='mb-16 max-w-lg'>
           <p className='text-muted-foreground mb-3 text-xs font-semibold tracking-widest uppercase'>
-            {t('Core Features')}
+            {t('Why DeepRouter')}
           </p>
           <h2 className='text-3xl leading-tight font-bold tracking-normal md:text-5xl'>
-            {t('One interface,')}
+            {t('Pay in CNY.')}
             <br />
-            {t('redundant upstreams.')}
+            {t('Skip the signup tax.')}
           </h2>
         </AnimateInView>
 
@@ -212,25 +170,6 @@ export function Features(_props: FeaturesProps) {
           ))}
         </div>
 
-        {/* Additional features row */}
-        <div className='mt-12 grid grid-cols-2 gap-8 md:grid-cols-4 md:gap-12'>
-          {additionalFeatures.map((f, i) => (
-            <AnimateInView
-              key={f.title}
-              delay={i * 100}
-              animation='fade-up'
-              className='flex flex-col items-center text-center'
-            >
-              <div className='border-border bg-card text-muted-foreground group-hover:text-accent mb-3 flex size-12 items-center justify-center rounded-xl border transition-colors'>
-                {f.icon}
-              </div>
-              <h3 className='mb-1.5 text-sm font-semibold'>{f.title}</h3>
-              <p className='text-muted-foreground max-w-[200px] text-xs leading-relaxed'>
-                {f.desc}
-              </p>
-            </AnimateInView>
-          ))}
-        </div>
       </div>
     </section>
   )
