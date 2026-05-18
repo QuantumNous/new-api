@@ -30,7 +30,9 @@ export function ApiKeys() {
       <SectionPageLayout>
         <SectionPageLayout.Title>{t('API Keys')}</SectionPageLayout.Title>
         <SectionPageLayout.Description>
-          {t('Manage your API keys for accessing the service')}
+          {t(
+            'Your call key. Paste it into the AI tool you already use. Lost the value? Regenerate — your balance is safe.'
+          )}
         </SectionPageLayout.Description>
         <SectionPageLayout.Actions>
           <ApiKeysPrimaryButtons />
