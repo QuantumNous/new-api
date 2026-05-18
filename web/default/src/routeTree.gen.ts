@@ -53,6 +53,7 @@ import { Route as AuthenticatedUsageLogsSectionRouteImport } from './routes/_aut
 import { Route as AuthenticatedModelsSectionRouteImport } from './routes/_authenticated/models/$section'
 import { Route as AuthenticatedKeysTestRouteImport } from './routes/_authenticated/keys/test'
 import { Route as AuthenticatedHelpPricingRouteImport } from './routes/_authenticated/help/pricing'
+import { Route as AuthenticatedHelpFaqRouteImport } from './routes/_authenticated/help/faq'
 import { Route as AuthenticatedErrorsErrorRouteImport } from './routes/_authenticated/errors/$error'
 import { Route as AuthenticatedDashboardSectionRouteImport } from './routes/_authenticated/dashboard/$section'
 import { Route as AuthenticatedChatChatIdRouteImport } from './routes/_authenticated/chat/$chatId'
@@ -304,6 +305,11 @@ const AuthenticatedHelpPricingRoute =
     path: '/help/pricing',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedHelpFaqRoute = AuthenticatedHelpFaqRouteImport.update({
+  id: '/help/faq',
+  path: '/help/faq',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedErrorsErrorRoute =
   AuthenticatedErrorsErrorRouteImport.update({
     id: '/errors/$error',
@@ -441,6 +447,7 @@ export interface FileRoutesByFullPath {
   '/chat/$chatId': typeof AuthenticatedChatChatIdRoute
   '/dashboard/$section': typeof AuthenticatedDashboardSectionRoute
   '/errors/$error': typeof AuthenticatedErrorsErrorRoute
+  '/help/faq': typeof AuthenticatedHelpFaqRoute
   '/help/pricing': typeof AuthenticatedHelpPricingRoute
   '/keys/test': typeof AuthenticatedKeysTestRoute
   '/models/$section': typeof AuthenticatedModelsSectionRoute
@@ -502,6 +509,7 @@ export interface FileRoutesByTo {
   '/chat/$chatId': typeof AuthenticatedChatChatIdRoute
   '/dashboard/$section': typeof AuthenticatedDashboardSectionRoute
   '/errors/$error': typeof AuthenticatedErrorsErrorRoute
+  '/help/faq': typeof AuthenticatedHelpFaqRoute
   '/help/pricing': typeof AuthenticatedHelpPricingRoute
   '/keys/test': typeof AuthenticatedKeysTestRoute
   '/models/$section': typeof AuthenticatedModelsSectionRoute
@@ -567,6 +575,7 @@ export interface FileRoutesById {
   '/_authenticated/chat/$chatId': typeof AuthenticatedChatChatIdRoute
   '/_authenticated/dashboard/$section': typeof AuthenticatedDashboardSectionRoute
   '/_authenticated/errors/$error': typeof AuthenticatedErrorsErrorRoute
+  '/_authenticated/help/faq': typeof AuthenticatedHelpFaqRoute
   '/_authenticated/help/pricing': typeof AuthenticatedHelpPricingRoute
   '/_authenticated/keys/test': typeof AuthenticatedKeysTestRoute
   '/_authenticated/models/$section': typeof AuthenticatedModelsSectionRoute
@@ -631,6 +640,7 @@ export interface FileRouteTypes {
     | '/chat/$chatId'
     | '/dashboard/$section'
     | '/errors/$error'
+    | '/help/faq'
     | '/help/pricing'
     | '/keys/test'
     | '/models/$section'
@@ -692,6 +702,7 @@ export interface FileRouteTypes {
     | '/chat/$chatId'
     | '/dashboard/$section'
     | '/errors/$error'
+    | '/help/faq'
     | '/help/pricing'
     | '/keys/test'
     | '/models/$section'
@@ -756,6 +767,7 @@ export interface FileRouteTypes {
     | '/_authenticated/chat/$chatId'
     | '/_authenticated/dashboard/$section'
     | '/_authenticated/errors/$error'
+    | '/_authenticated/help/faq'
     | '/_authenticated/help/pricing'
     | '/_authenticated/keys/test'
     | '/_authenticated/models/$section'
@@ -1122,6 +1134,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedHelpPricingRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/help/faq': {
+      id: '/_authenticated/help/faq'
+      path: '/help/faq'
+      fullPath: '/help/faq'
+      preLoaderRoute: typeof AuthenticatedHelpFaqRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/errors/$error': {
       id: '/_authenticated/errors/$error'
       path: '/errors/$error'
@@ -1338,6 +1357,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedChatChatIdRoute: typeof AuthenticatedChatChatIdRoute
   AuthenticatedDashboardSectionRoute: typeof AuthenticatedDashboardSectionRoute
   AuthenticatedErrorsErrorRoute: typeof AuthenticatedErrorsErrorRoute
+  AuthenticatedHelpFaqRoute: typeof AuthenticatedHelpFaqRoute
   AuthenticatedHelpPricingRoute: typeof AuthenticatedHelpPricingRoute
   AuthenticatedKeysTestRoute: typeof AuthenticatedKeysTestRoute
   AuthenticatedModelsSectionRoute: typeof AuthenticatedModelsSectionRoute
@@ -1362,6 +1382,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedChatChatIdRoute: AuthenticatedChatChatIdRoute,
   AuthenticatedDashboardSectionRoute: AuthenticatedDashboardSectionRoute,
   AuthenticatedErrorsErrorRoute: AuthenticatedErrorsErrorRoute,
+  AuthenticatedHelpFaqRoute: AuthenticatedHelpFaqRoute,
   AuthenticatedHelpPricingRoute: AuthenticatedHelpPricingRoute,
   AuthenticatedKeysTestRoute: AuthenticatedKeysTestRoute,
   AuthenticatedModelsSectionRoute: AuthenticatedModelsSectionRoute,
