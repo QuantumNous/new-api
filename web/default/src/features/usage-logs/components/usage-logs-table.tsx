@@ -166,9 +166,9 @@ export function UsageLogsTable({ logCategory }: UsageLogsTableProps) {
       columns={columns as ColumnDef<Record<string, unknown>>[]}
       isLoading={isLoadingData}
       isFetching={isFetching}
-      emptyTitle={t('No Logs Found')}
+      emptyTitle={t('No API calls yet')}
       emptyDescription={t(
-        'No usage logs available. Logs will appear here once API calls are made.'
+        'Logs show up here as soon as you call the API. Try the Playground to send your first request, or follow the setup guide for your client.'
       )}
       skeletonKeyPrefix='usage-log-skeleton'
       tableClassName='max-h-[calc(100dvh-13rem)] overflow-auto sm:max-h-[calc(100dvh-14rem)]'

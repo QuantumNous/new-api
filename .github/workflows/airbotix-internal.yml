@@ -14,6 +14,10 @@ on:
       - 'relay/airbotix_policy_test.go'
       - 'service/airbotix_billing.go'
       - 'constant/context_key.go'
+      - 'controller/**'
+      - 'router/**'
+      - 'dto/**'
+      - 'common/**'
       - '.github/workflows/airbotix-internal.yml'
   pull_request:
     paths:
@@ -24,6 +28,10 @@ on:
       - 'relay/airbotix_policy_test.go'
       - 'service/airbotix_billing.go'
       - 'constant/context_key.go'
+      - 'controller/**'
+      - 'router/**'
+      - 'dto/**'
+      - 'common/**'
       - '.github/workflows/airbotix-internal.yml'
   workflow_dispatch:
 
@@ -49,9 +57,15 @@ jobs:
         run: go vet ./internal/... ./middleware/...
 
       - name: Build full tree we wire into
+        # NOTE: controller/ and router/ are included so a Go compile error
+        # like PR #8's `cleanUser.Setting = &settingStr` (string vs *string
+        # mismatch) gets caught here. The full-tree docker build only
+        # runs on push to alpha/nightly branches, so without these two
+        # paths a broken main can sit broken for days.
         run: |
           go build ./internal/...
           go build ./model/... ./constant/... ./middleware/... ./service/... ./relay/...
+          go build ./controller/... ./router/... ./dto/... ./common/...
 
       - name: Run unit tests
         run: |
