@@ -74,9 +74,17 @@ const PageLayout = () => {
   const isAuthRoute = ['/login', '/register', '/reset', '/user/reset'].some(
     (path) => location.pathname === path,
   );
+  const isFrontRoute = [
+    '/login',
+    '/register',
+    '/reset',
+    '/user/reset',
+    '/',
+    '/pricing',
+  ].some((path) => location.pathname === path);
   const showSider = isConsoleRoute && (!isMobile || drawerOpen);
   const desktopConsoleShell = isConsoleRoute && !isMobile;
-  const contentPadding = isMobile ? '5px' : '24px';
+  const contentPadding = isFrontRoute ? '0' : isMobile ? '5px' : '24px';
   let contentPaddingTop = desktopConsoleShell ? '88px' : '0';
 
   useEffect(() => {
