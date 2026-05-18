@@ -12,6 +12,7 @@ import (
 	"github.com/QuantumNous/new-api/setting/performance_setting"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	"github.com/QuantumNous/new-api/setting/system_setting"
+	"gorm.io/gorm"
 )
 
 type Option struct {
@@ -215,6 +216,39 @@ func UpdateOption(key string, value string) error {
 	DB.Save(&option)
 	// Update OptionMap
 	return updateOptionMap(key, value)
+}
+
+// UpdateOptionsBulk persists multiple key/value pairs in a single database
+// transaction, then dispatches them through updateOptionMap in one pass. If
+// any DB write fails the whole transaction rolls back and no in-memory state
+// is touched — safe for callers that must commit a set of related options
+// atomically (e.g. payment gateway binding).
+func UpdateOptionsBulk(values map[string]string) error {
+	if len(values) == 0 {
+		return nil
+	}
+	err := DB.Transaction(func(tx *gorm.DB) error {
+		for k, v := range values {
+			option := Option{Key: k}
+			if err := tx.FirstOrCreate(&option, Option{Key: k}).Error; err != nil {
+				return err
+			}
+			option.Value = v
+			if err := tx.Save(&option).Error; err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+	for k, v := range values {
+		if err := updateOptionMap(k, v); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func updateOptionMap(key string, value string) (err error) {

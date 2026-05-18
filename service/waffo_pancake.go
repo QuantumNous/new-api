@@ -374,8 +374,9 @@ func CreateWaffoPancakePrimaryPair(ctx context.Context, merchantID, privateKey, 
 }
 
 // SaveWaffoPancakeConfig persists the operator-controlled fields atomically
-// at the end of the configuration flow. Pure local writes — no SDK calls.
-// A blank privateKey is treated as "keep current" (Stripe-style API-secret UX).
+// at the end of the configuration flow via model.UpdateOptionsBulk (single
+// DB transaction). A blank privateKey is treated as "keep current"
+// (Stripe-style API-secret UX) and is omitted from the bulk payload.
 func SaveWaffoPancakeConfig(ctx context.Context, merchantID, privateKey, returnURL, storeID, productID string) error {
 	merchantID = strings.TrimSpace(merchantID)
 	storeID = strings.TrimSpace(storeID)
@@ -383,23 +384,17 @@ func SaveWaffoPancakeConfig(ctx context.Context, merchantID, privateKey, returnU
 	if merchantID == "" || storeID == "" || productID == "" {
 		return fmt.Errorf("merchant id, store id, and product id are required to save")
 	}
-	if err := model.UpdateOption("WaffoPancakeMerchantID", merchantID); err != nil {
-		return fmt.Errorf("persist Waffo Pancake merchant id: %w", err)
+	values := map[string]string{
+		"WaffoPancakeMerchantID": merchantID,
+		"WaffoPancakeReturnURL":  strings.TrimSpace(returnURL),
+		"WaffoPancakeStoreID":    storeID,
+		"WaffoPancakeProductID":  productID,
 	}
 	if pk := strings.TrimSpace(privateKey); pk != "" {
-		if err := model.UpdateOption("WaffoPancakePrivateKey", pk); err != nil {
-			return fmt.Errorf("persist Waffo Pancake private key: %w", err)
-		}
+		values["WaffoPancakePrivateKey"] = pk
 	}
-	trimmedReturn := strings.TrimSpace(returnURL)
-	if err := model.UpdateOption("WaffoPancakeReturnURL", trimmedReturn); err != nil {
-		return fmt.Errorf("persist Waffo Pancake return URL: %w", err)
-	}
-	if err := model.UpdateOption("WaffoPancakeStoreID", storeID); err != nil {
-		return fmt.Errorf("persist Waffo Pancake store id: %w", err)
-	}
-	if err := model.UpdateOption("WaffoPancakeProductID", productID); err != nil {
-		return fmt.Errorf("persist Waffo Pancake product id: %w", err)
+	if err := model.UpdateOptionsBulk(values); err != nil {
+		return fmt.Errorf("persist Waffo Pancake config: %w", err)
 	}
 	return nil
 }
