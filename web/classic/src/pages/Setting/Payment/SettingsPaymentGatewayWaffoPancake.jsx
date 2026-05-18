@@ -130,7 +130,7 @@ export default function SettingsPaymentGatewayWaffoPancake(props) {
               <>
                 Waffo Pancake 商户 ID 与私钥请在
                 <a
-                  href='https://pancake.waffo.ai/dashboard'
+                  href='https://pancake.waffo.ai/merchant/dashboard'
                   target='_blank'
                   rel='noreferrer'
                 >
