@@ -16,17 +16,14 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { VChart } from '@visactor/react-vchart'
-import { KeyRound, Loader2 } from 'lucide-react'
+import { Hash, Coins, Layers, Gauge, Zap, Loader2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import { getRollingDateRange, type TimeGranularity } from '@/lib/time'
+import { formatNumber, formatQuota } from '@/lib/format'
 import { useAuthStore } from '@/stores/auth-store'
 import { ROLE } from '@/lib/roles'
-import { getRollingDateRange, type TimeGranularity } from '@/lib/time'
-import { VCHART_OPTION } from '@/lib/vchart'
-import { useThemeCustomization } from '@/context/theme-customization-provider'
-import { useTheme } from '@/context/theme-provider'
 import { Skeleton } from '@/components/ui/skeleton'
 import { getTokenQuotaData } from '@/features/dashboard/api'
 import {
@@ -36,42 +33,29 @@ import {
 import {
   getDefaultDays,
   getSavedGranularity,
-  processTokenChartData,
   saveGranularity,
+  calculateDashboardStats,
+  safeDivide,
 } from '@/features/dashboard/lib'
-import type { ProcessedTokenChartData } from '@/features/dashboard/types'
+import type { TokenQuotaDataItem, QuotaDataItem } from '@/features/dashboard/types'
+import { ConsumptionDistributionChart } from '../models/consumption-distribution-chart'
+import { ModelCharts } from '../models/model-charts'
 
-let themeManagerPromise: Promise<
-  (typeof import('@visactor/vchart'))['ThemeManager']
-> | null = null
+/** Map TokenQuotaDataItem → QuotaDataItem so existing chart functions can be reused */
+function mapToQuotaData(items: TokenQuotaDataItem[]): QuotaDataItem[] {
+  return items.map((item) => ({
+    model_name: item.token_name || `key-${item.token_id ?? 'unknown'}`,
+    created_at: item.created_at,
+    count: item.count,
+    quota: item.quota,
+    token_used: item.token_used,
+  }))
+}
 
-const KEY_CHARTS: {
-  value: string
-  labelKey: string
-  specKey: keyof ProcessedTokenChartData
-}[] = [
-  {
-    value: 'rank',
-    labelKey: 'API Key Consumption Ranking',
-    specKey: 'spec_token_rank',
-  },
-  {
-    value: 'trend',
-    labelKey: 'API Key Consumption Trend',
-    specKey: 'spec_token_trend',
-  },
-]
-
-const TOP_KEY_LIMIT_OPTIONS = [5, 10, 20]
+const TOP_KEY_LIMIT_OPTIONS = [5, 10, 20, 50]
 
 export function KeyCharts() {
   const { t } = useTranslation()
-  const { resolvedTheme } = useTheme()
-  const { customization } = useThemeCustomization()
-  const [themeReady, setThemeReady] = useState(false)
-  const themeManagerRef = useRef<
-    (typeof import('@visactor/vchart'))['ThemeManager'] | null
-  >(null)
 
   const userRole = useAuthStore((state) => state.auth.user?.role)
   const isAdmin = Boolean(userRole && userRole >= ROLE.ADMIN)
@@ -102,62 +86,96 @@ export function KeyCharts() {
   }, [])
 
   const handleGranularityChange = useCallback(
-    (granularity: TimeGranularity) => {
-      setTimeGranularity(granularity)
-      saveGranularity(granularity)
-      const days = getDefaultDays(granularity)
-      if (days !== selectedRange) {
-        handleRangeChange(days)
-      }
+    (g: TimeGranularity) => {
+      setTimeGranularity(g)
+      saveGranularity(g)
+      const days = getDefaultDays(g)
+      if (days !== selectedRange) handleRangeChange(days)
     },
     [selectedRange, handleRangeChange]
   )
 
-  useEffect(() => {
-    const updateTheme = async () => {
-      setThemeReady(false)
-      if (!themeManagerPromise) {
-        themeManagerPromise = import('@visactor/vchart').then(
-          (m) => m.ThemeManager
-        )
-      }
-      const ThemeManager = await themeManagerPromise
-      themeManagerRef.current = ThemeManager
-      ThemeManager.setCurrentTheme(resolvedTheme === 'dark' ? 'dark' : 'light')
-      setThemeReady(true)
-    }
-    void updateTheme()
-  }, [resolvedTheme])
-
-  const { data: tokenData, isLoading } = useQuery({
+  const { data: rawData, isLoading } = useQuery({
     queryKey: ['dashboard', 'token-quota', timeRange, isAdmin],
     queryFn: () => getTokenQuotaData(timeRange, isAdmin),
     select: (res) => (res.success ? res.data : []),
     staleTime: 60_000,
   })
 
-  const chartData = useMemo(
-    () =>
-      processTokenChartData(
-        isLoading ? [] : (tokenData ?? []),
-        timeGranularity,
-        t,
-        topKeyLimit,
-        customization.preset
-      ),
-    [
-      tokenData,
-      isLoading,
-      timeGranularity,
-      t,
-      topKeyLimit,
-      customization.preset,
-    ]
+  const tokenData: TokenQuotaDataItem[] = isLoading ? [] : (rawData ?? [])
+  const mappedData: QuotaDataItem[] = useMemo(
+    () => mapToQuotaData(tokenData),
+    [tokenData]
+  )
+  const topNKeySet = useMemo(() => {
+    const totals = new Map<string, number>()
+    tokenData.forEach((item) => {
+      const key = item.token_name || `key-${item.token_id ?? 'unknown'}`
+      totals.set(key, (totals.get(key) ?? 0) + (item.quota ?? 0))
+    })
+
+    return new Set(
+      Array.from(totals.entries())
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, topKeyLimit)
+        .map(([key]) => key)
+    )
+  }, [tokenData, topKeyLimit])
+  const filteredMappedData = useMemo(
+    () => mappedData.filter((item) => topNKeySet.has(item.model_name ?? '')),
+    [mappedData, topNKeySet]
   )
 
+  // Aggregate stats for the stat cards row
+  const stats = useMemo(() => calculateDashboardStats(tokenData), [tokenData])
+  const timeRangeMinutes = useMemo(
+    () => (timeRange.end_timestamp - timeRange.start_timestamp) / 60,
+    [timeRange]
+  )
+
+  const statCards = [
+    {
+      key: 'count',
+      title: t('Total Count'),
+      desc: t('Statistical count'),
+      icon: Hash,
+      value: formatNumber(stats.totalCount),
+    },
+    {
+      key: 'quota',
+      title: t('Total Quota'),
+      desc: t('Statistical quota'),
+      icon: Coins,
+      value: formatQuota(stats.totalQuota),
+    },
+    {
+      key: 'tokens',
+      title: t('Total Tokens'),
+      desc: t('Statistical tokens'),
+      icon: Layers,
+      value: formatNumber(stats.totalTokens),
+    },
+    {
+      key: 'avgRpm',
+      title: t('Average RPM'),
+      desc: t('Requests per minute'),
+      icon: Gauge,
+      value: formatNumber(safeDivide(stats.totalCount, timeRangeMinutes)),
+    },
+    {
+      key: 'avgTpm',
+      title: t('Average TPM'),
+      desc: t('Tokens per minute'),
+      icon: Zap,
+      value: formatNumber(safeDivide(stats.totalTokens, timeRangeMinutes)),
+    },
+  ]
+
   return (
-    <div className='space-y-3'>
+    <div className='space-y-3 sm:space-y-4'>
+      {/* Filter bar */}
       <div className='flex items-center gap-1.5 overflow-x-auto pb-1 sm:gap-2'>
+        {/* Time range presets */}
         <div className='flex shrink-0 items-center gap-1.5 rounded-lg border p-0.5'>
           {TIME_RANGE_PRESETS.map((preset) => (
             <button
@@ -175,14 +193,13 @@ export function KeyCharts() {
           ))}
         </div>
 
+        {/* Time granularity */}
         <div className='flex shrink-0 items-center gap-1.5 rounded-lg border p-0.5'>
           {TIME_GRANULARITY_OPTIONS.map((opt) => (
             <button
               key={opt.value}
               type='button'
-              onClick={() =>
-                handleGranularityChange(opt.value as TimeGranularity)
-              }
+              onClick={() => handleGranularityChange(opt.value as TimeGranularity)}
               className={`rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${
                 timeGranularity === opt.value
                   ? 'bg-primary text-primary-foreground shadow-sm'
@@ -219,42 +236,61 @@ export function KeyCharts() {
         )}
       </div>
 
-      <div className='grid gap-3'>
-        {KEY_CHARTS.map((chart) => {
-          const spec = chartData[chart.specKey]
-
-          return (
-            <div
-              key={chart.value}
-              className='overflow-hidden rounded-lg border'
-            >
-              <div className='flex w-full items-center gap-2 border-b px-3 py-2 sm:px-5 sm:py-3'>
-                <KeyRound className='text-muted-foreground/60 size-4' />
-                <div className='text-sm font-semibold'>{t(chart.labelKey)}</div>
-              </div>
-
-              <div className='h-[300px] p-1.5 sm:h-96 sm:p-2'>
+      {/* Stat cards */}
+      <div className='overflow-hidden rounded-lg border'>
+        <div className='divide-border/60 grid grid-cols-2 divide-x sm:grid-cols-3 lg:grid-cols-5'>
+          {statCards.map((card, idx) => {
+            const Icon = card.icon
+            return (
+              <div
+                key={card.key}
+                className={`px-3 py-2.5 sm:px-5 sm:py-4 ${
+                  idx === statCards.length - 1 && statCards.length % 2 !== 0
+                    ? 'col-span-2 sm:col-span-1'
+                    : ''
+                }`}
+              >
+                <div className='flex items-center gap-2'>
+                  <Icon className='text-muted-foreground/60 size-3.5 shrink-0' />
+                  <div className='text-muted-foreground truncate text-xs font-medium tracking-wider uppercase'>
+                    {card.title}
+                  </div>
+                </div>
                 {isLoading ? (
-                  <Skeleton className='h-full w-full' />
+                  <div className='mt-2 space-y-1.5'>
+                    <Skeleton className='h-7 w-20' />
+                    <Skeleton className='h-3.5 w-28' />
+                  </div>
                 ) : (
-                  themeReady &&
-                  spec && (
-                    <VChart
-                      key={`key-${chart.value}-${topKeyLimit}-${resolvedTheme}-${customization.preset}`}
-                      spec={{
-                        ...spec,
-                        theme: resolvedTheme === 'dark' ? 'dark' : 'light',
-                        background: 'transparent',
-                      }}
-                      option={VCHART_OPTION}
-                    />
-                  )
+                  <>
+                    <div className='text-foreground mt-1.5 font-mono text-lg font-bold tracking-tight tabular-nums sm:mt-2 sm:text-2xl'>
+                      {card.value}
+                    </div>
+                    <div className='text-muted-foreground/60 mt-1 hidden text-xs md:block'>
+                      {card.desc}
+                    </div>
+                  </>
                 )}
               </div>
-            </div>
-          )
-        })}
+            )
+          })}
+        </div>
       </div>
+
+      {/* Quota distribution over time (bar / area) */}
+      <ConsumptionDistributionChart
+        data={filteredMappedData}
+        loading={isLoading}
+        timeGranularity={timeGranularity}
+      />
+
+      {/* Key analytics: trend / proportion / top */}
+      <ModelCharts
+        data={filteredMappedData}
+        loading={isLoading}
+        timeGranularity={timeGranularity}
+        title={t('API Key Analytics')}
+      />
     </div>
   )
 }

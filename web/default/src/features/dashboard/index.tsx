@@ -24,6 +24,7 @@ import { ROLE } from '@/lib/roles'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { SectionPageLayout } from '@/components/layout'
+import { useStatus } from '@/hooks/use-status'
 import { FadeIn } from '@/components/page-transition'
 import { ModelsChartPreferences } from './components/models/models-chart-preferences'
 import { ModelsFilter } from './components/models/models-filter-dialog'
@@ -163,6 +164,7 @@ export function Dashboard() {
   const navigate = useNavigate()
   const params = route.useParams()
   const userRole = useAuthStore((state) => state.auth.user?.role)
+  const { status } = useStatus()
   const activeSection = (params.section ??
     DASHBOARD_DEFAULT_SECTION) as DashboardSectionId
 
@@ -201,12 +203,16 @@ export function Dashboard() {
 
   const meta = SECTION_META[activeSection] ?? SECTION_META.overview
   const isAdmin = Boolean(userRole && userRole >= ROLE.ADMIN)
+  const apiKeyStatsEnabled = status?.api_key_stats_enabled ?? false
   const visibleSections = useMemo(
     () =>
       DASHBOARD_SECTION_IDS.filter(
-        (section) => section !== 'overview' && (section !== 'users' || isAdmin)
+        (section) =>
+          section !== 'overview' &&
+          (section !== 'users' || isAdmin) &&
+          (section !== 'keys' || apiKeyStatsEnabled)
       ),
-    [isAdmin]
+    [isAdmin, apiKeyStatsEnabled]
   )
   const handleSectionChange = useCallback(
     (section: string) => {
@@ -317,7 +323,7 @@ export function Dashboard() {
               </Suspense>
             </FadeIn>
           )}
-          {activeSection === 'keys' && (
+          {activeSection === 'keys' && apiKeyStatsEnabled && (
             <FadeIn>
               <Suspense fallback={<ModelChartsFallback />}>
                 <LazyKeyCharts />

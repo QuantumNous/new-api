@@ -41,6 +41,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
+import { useStatus } from '@/hooks/use-status'
 import { SettingsSection } from '../components/settings-section'
 import { useUpdateOption } from '../hooks/use-update-option'
 
@@ -48,6 +49,7 @@ const dataDashboardSchema = z.object({
   DataExportEnabled: z.boolean(),
   DataExportInterval: z.number().int().min(1).max(1440),
   DataExportDefaultTime: z.enum(['hour', 'day', 'week']),
+  ApiKeyStatsEnabled: z.boolean(),
 })
 
 type DataDashboardFormValues = z.infer<typeof dataDashboardSchema>
@@ -64,7 +66,9 @@ const granularityOptions = [
 
 export function DashboardSection({ defaultValues }: DashboardSectionProps) {
   const { t } = useTranslation()
+  const { status } = useStatus()
   const updateOption = useUpdateOption()
+  const isSelfUseMode = status?.self_use_mode_enabled ?? false
 
   const form = useForm<DataDashboardFormValues>({
     resolver: zodResolver(dataDashboardSchema),
@@ -114,6 +118,33 @@ export function DashboardSection({ defaultValues }: DashboardSectionProps) {
               </FormItem>
             )}
           />
+
+          {isSelfUseMode && (
+            <FormField
+              control={form.control}
+              name='ApiKeyStatsEnabled'
+              render={({ field }) => (
+                <FormItem className='flex flex-row items-center justify-between rounded-lg border p-4'>
+                  <div className='space-y-0.5'>
+                    <FormLabel className='text-base'>
+                      {t('Enable API Key Statistics')}
+                    </FormLabel>
+                    <FormDescription>
+                      {t(
+                        'Show API key consumption statistics tab in the dashboard. Only available in self-use mode.'
+                      )}
+                    </FormDescription>
+                  </div>
+                  <FormControl>
+                    <Switch
+                      checked={field.value}
+                      onCheckedChange={field.onChange}
+                    />
+                  </FormControl>
+                </FormItem>
+              )}
+            />
+          )}
 
           <div className='grid gap-6 sm:grid-cols-2'>
             <FormField
