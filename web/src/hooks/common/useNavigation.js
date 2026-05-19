@@ -19,14 +19,19 @@ For commercial licensing, please contact support@quantumnous.com
 
 import { useMemo } from 'react';
 
-export const useNavigation = (t, docsLink, headerNavModules) => {
+export const useNavigation = (
+  t,
+  docsLink,
+  headerNavModules,
+  partnershipPromoterEnabled = false,
+) => {
   const mainNavLinks = useMemo(() => {
     // 默认配置，如果没有传入配置则显示所有模块
     const defaultModules = {
       home: true,
       console: true,
       pricing: true,
-      partners: true,
+        partners: partnershipPromoterEnabled,
       docs: true,
       about: true,
     };
@@ -53,8 +58,7 @@ export const useNavigation = (t, docsLink, headerNavModules) => {
       {
         text: t('推广合作'),
         itemKey: 'partners',
-        isExternal: true,
-        externalLink: 'https://partners.infistar.ai',
+        to: '/partners/promoter',
       },
       ...(docsLink
         ? [
@@ -86,7 +90,7 @@ export const useNavigation = (t, docsLink, headerNavModules) => {
       }
       return modules[link.itemKey] === true;
     });
-  }, [t, docsLink, headerNavModules]);
+  }, [t, docsLink, headerNavModules, partnershipPromoterEnabled]);
 
   return {
     mainNavLinks,

@@ -41,6 +41,7 @@ const HeaderBar = ({ onMobileMenuToggle, drawerOpen }) => {
     isNewYear,
     isSelfUseMode,
     docsLink,
+    partnershipPromoterEnabled,
     isDemoSiteMode,
     isConsoleRoute,
     headerNavModules,
@@ -55,7 +56,12 @@ const HeaderBar = ({ onMobileMenuToggle, drawerOpen }) => {
   const { noticeVisible, unreadCount, handleNoticeOpen, handleNoticeClose } =
     useNotifications();
 
-  const { mainNavLinks } = useNavigation(t, docsLink, headerNavModules);
+  const { mainNavLinks } = useNavigation(
+    t,
+    docsLink,
+    headerNavModules,
+    partnershipPromoterEnabled,
+  );
 
   return (
     <header className='text-semi-color-text-0'>

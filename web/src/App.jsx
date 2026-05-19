@@ -40,6 +40,7 @@ import Midjourney from './pages/Midjourney';
 import Pricing from './pages/Pricing';
 import Task from './pages/Task';
 import PromotionEvent from './pages/PromotionEvent';
+import Promoter from './pages/Partners/Promoter';
 import ModelPage from './pages/Model';
 import ModelDeploymentPage from './pages/ModelDeployment';
 import Playground from './pages/Playground';
@@ -306,6 +307,14 @@ function App() {
                 <PromotionEvent />
               </Suspense>
             </AdminRoute>
+          }
+        />
+        <Route
+          path='/partners/promoter'
+          element={
+            <Suspense fallback={<Loading></Loading>} key={location.pathname}>
+              <Promoter />
+            </Suspense>
           }
         />
         <Route
