@@ -466,7 +466,7 @@ func AdminDisable2FA(c *gin.Context) {
 	}
 
 	myRole := c.GetInt("role")
-	if myRole <= targetUser.Role && myRole != common.RoleRootUser {
+	if !canManageTargetRole(myRole, targetUser.Role) {
 		common.ApiErrorI18n(c, i18n.MsgTwoFANoPermissionManage)
 		return
 	}

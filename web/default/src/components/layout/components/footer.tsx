@@ -157,8 +157,8 @@ export function Footer(props: FooterProps) {
             href: 'https://github.com/novicezk/midjourney-proxy',
           },
           {
-            text: t('footer.columns.related.links.neko'),
-            href: 'https://github.com/Calcium-Ion/neko-api-key-tool',
+            text: t('footer.columns.related.links.newApiKeyTool'),
+            href: 'https://github.com/Calcium-Ion/new-api-key-tool',
           },
         ],
       },

@@ -135,6 +135,7 @@ payment.stripe_not_configured: "Stripe 未配置或密钥无效"
 payment.webhook_not_configured: "Webhook 未配置"
 payment.price_id_not_configured: "该套餐未配置 StripePriceId"
 payment.creem_not_configured: "该套餐未配置 CreemProductId"
+payment.compliance_required: "支付、兑换码、订阅计划和邀请返利功能已禁用。管理员需先确认合规声明后方可启用。"
 
 # Topup messages
 topup.not_provided: "未提供支付单号"

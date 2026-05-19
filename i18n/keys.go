@@ -142,16 +142,17 @@ const (
 
 // Payment related messages
 const (
-	MsgPaymentNotConfigured    = "payment.not_configured"
-	MsgPaymentMethodNotExists  = "payment.method_not_exists"
-	MsgPaymentCallbackError    = "payment.callback_error"
-	MsgPaymentCreateFailed     = "payment.create_failed"
-	MsgPaymentStartFailed      = "payment.start_failed"
-	MsgPaymentAmountTooLow     = "payment.amount_too_low"
-	MsgPaymentStripeNotConfig  = "payment.stripe_not_configured"
-	MsgPaymentWebhookNotConfig = "payment.webhook_not_configured"
-	MsgPaymentPriceIdNotConfig = "payment.price_id_not_configured"
-	MsgPaymentCreemNotConfig   = "payment.creem_not_configured"
+	MsgPaymentNotConfigured      = "payment.not_configured"
+	MsgPaymentMethodNotExists    = "payment.method_not_exists"
+	MsgPaymentCallbackError      = "payment.callback_error"
+	MsgPaymentCreateFailed       = "payment.create_failed"
+	MsgPaymentStartFailed        = "payment.start_failed"
+	MsgPaymentAmountTooLow       = "payment.amount_too_low"
+	MsgPaymentStripeNotConfig    = "payment.stripe_not_configured"
+	MsgPaymentWebhookNotConfig   = "payment.webhook_not_configured"
+	MsgPaymentPriceIdNotConfig   = "payment.price_id_not_configured"
+	MsgPaymentCreemNotConfig     = "payment.creem_not_configured"
+	MsgPaymentComplianceRequired = "payment.compliance_required"
 )
 
 // Topup related messages
