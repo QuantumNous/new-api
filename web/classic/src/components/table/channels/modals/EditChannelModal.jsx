@@ -201,7 +201,7 @@ const EditChannelModal = (props) => {
     // 仅 AWS: 密钥格式和区域（存入 settings.aws_key_type 和 settings.aws_region）
     aws_key_type: 'ak_sk',
     // Claude Platform on AWS (type 58)
-    claude_on_aws_auth_type: 'api_key',
+    claude_on_aws_auth_type: 'sigv4',
     claude_on_aws_region: '',
     claude_on_aws_workspace_id: '',
     // 企业账户设置
@@ -903,7 +903,7 @@ const EditChannelModal = (props) => {
           data.aws_key_type = parsedSettings.aws_key_type || 'ak_sk';
           // Read Claude Platform on AWS settings
           data.claude_on_aws_auth_type =
-            parsedSettings.claude_on_aws_auth_type || 'api_key';
+            parsedSettings.claude_on_aws_auth_type || 'sigv4';
           data.claude_on_aws_region =
             parsedSettings.claude_on_aws_region || '';
           data.claude_on_aws_workspace_id =
@@ -944,7 +944,7 @@ const EditChannelModal = (props) => {
           data.region = '';
           data.vertex_key_type = 'json';
           data.aws_key_type = 'ak_sk';
-          data.claude_on_aws_auth_type = 'api_key';
+          data.claude_on_aws_auth_type = 'sigv4';
           data.claude_on_aws_region = '';
           data.claude_on_aws_workspace_id = '';
           data.is_enterprise_account = false;
@@ -965,7 +965,7 @@ const EditChannelModal = (props) => {
         // 兼容历史数据：老渠道没有 settings 时，默认按 json 展示
         data.vertex_key_type = 'json';
         data.aws_key_type = 'ak_sk';
-        data.claude_on_aws_auth_type = 'api_key';
+        data.claude_on_aws_auth_type = 'sigv4';
         data.claude_on_aws_region = '';
         data.claude_on_aws_workspace_id = '';
         data.is_enterprise_account = false;
@@ -1798,7 +1798,7 @@ const EditChannelModal = (props) => {
     // type === 58 (Claude Platform on AWS): persist auth type / region / workspace_id
     if (localInputs.type === 58) {
       settings.claude_on_aws_auth_type =
-        localInputs.claude_on_aws_auth_type || 'api_key';
+        localInputs.claude_on_aws_auth_type || 'sigv4';
       settings.claude_on_aws_region = localInputs.claude_on_aws_region || '';
       settings.claude_on_aws_workspace_id =
         localInputs.claude_on_aws_workspace_id || '';
@@ -2739,7 +2739,7 @@ const EditChannelModal = (props) => {
                             { label: 'AWS SigV4 (IAM)', value: 'sigv4' },
                           ]}
                           style={{ width: '100%' }}
-                          value={inputs.claude_on_aws_auth_type || 'api_key'}
+                          value={inputs.claude_on_aws_auth_type || 'sigv4'}
                           onChange={(value) => {
                             handleChannelOtherSettingsChange(
                               'claude_on_aws_auth_type',
