@@ -39,6 +39,7 @@ import InvitationCard from './InvitationCard';
 import TransferModal from './modals/TransferModal';
 import PaymentConfirmModal from './modals/PaymentConfirmModal';
 import TopupHistoryModal from './modals/TopupHistoryModal';
+import SubscriptionEpayResultModal from './modals/SubscriptionEpayResultModal';
 
 const parseJsonArray = (value) => {
   if (Array.isArray(value)) {
@@ -188,6 +189,15 @@ const TopUp = () => {
   const [enableStripeSubscription, setEnableStripeSubscription] =
     useState(false);
   const [enableCreemSubscription, setEnableCreemSubscription] = useState(false);
+  const subscriptionPaymentTradeNo =
+    searchParams.get('out_trade_no') ||
+    searchParams.get('outTradeNo') ||
+    searchParams.get('trade_no') ||
+    searchParams.get('mchOrderNo') ||
+    '';
+  const showSubscriptionPaymentResult =
+    !!subscriptionPaymentTradeNo &&
+    (searchParams.get('subscription_pay') === '1' || searchParams.has('pay'));
 
   // 预设充值额度选项
   const [presetAmounts, setPresetAmounts] = useState([]);
@@ -220,6 +230,17 @@ const TopUp = () => {
     return Number.isFinite(configuredMinTopUp) && configuredMinTopUp > 0
       ? configuredMinTopUp
       : minTopUp;
+  };
+
+  const closeSubscriptionPaymentResult = () => {
+    const next = new URLSearchParams(searchParams);
+    next.delete('subscription_pay');
+    next.delete('out_trade_no');
+    next.delete('outTradeNo');
+    next.delete('trade_no');
+    next.delete('mchOrderNo');
+    next.delete('pay');
+    setSearchParams(next, { replace: true });
   };
 
   const requestAmountByPayment = async (payment, value) => {
@@ -637,6 +658,10 @@ const TopUp = () => {
     }
   };
 
+  const handleSubscriptionPaymentPaid = async () => {
+    await Promise.all([getSubscriptionSelf(), getUserQuota()]);
+  };
+
   const updateBillingPreference = async (pref) => {
     const previousPref = billingPreference;
     setBillingPreference(pref);
@@ -992,6 +1017,14 @@ const TopUp = () => {
         visible={openHistory}
         onCancel={handleHistoryCancel}
         t={t}
+      />
+
+      <SubscriptionEpayResultModal
+        t={t}
+        visible={showSubscriptionPaymentResult}
+        tradeNo={subscriptionPaymentTradeNo}
+        onClose={closeSubscriptionPaymentResult}
+        onPaid={handleSubscriptionPaymentPaid}
       />
 
       {/* Creem 充值确认模态框 */}

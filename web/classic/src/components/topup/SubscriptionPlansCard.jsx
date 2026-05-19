@@ -32,6 +32,7 @@ import {
 } from '@douyinfe/semi-ui';
 import { API, showError, showSuccess, renderQuota } from '../../helpers';
 import { getCurrencyConfig } from '../../helpers/render';
+import { saveSubscriptionEpayCheckout } from '../../helpers/subscriptionEpayCheckout';
 import { RefreshCw, Sparkles } from 'lucide-react';
 import SubscriptionPurchaseModal from './modals/SubscriptionPurchaseModal';
 import {
@@ -46,27 +47,6 @@ function getEpayMethods(payMethods = []) {
   return (payMethods || []).filter(
     (m) => m?.type && m.type !== 'stripe' && m.type !== 'creem',
   );
-}
-
-// 提交易支付表单
-function submitEpayForm({ url, params }) {
-  const form = document.createElement('form');
-  form.action = url;
-  form.method = 'POST';
-  const isSafari =
-    navigator.userAgent.indexOf('Safari') > -1 &&
-    navigator.userAgent.indexOf('Chrome') < 1;
-  if (!isSafari) form.target = '_blank';
-  Object.keys(params || {}).forEach((key) => {
-    const input = document.createElement('input');
-    input.type = 'hidden';
-    input.name = key;
-    input.value = params[key];
-    form.appendChild(input);
-  });
-  document.body.appendChild(form);
-  form.submit();
-  document.body.removeChild(form);
 }
 
 const SubscriptionPlansCard = ({
@@ -186,9 +166,26 @@ const SubscriptionPlansCard = ({
         payment_method: selectedEpayMethod,
       });
       if (res.data?.message === 'success') {
-        submitEpayForm({ url: res.data.url, params: res.data.data });
+        const tradeNo =
+          res.data?.trade_no ||
+          res.data?.data?.out_trade_no ||
+          res.data?.data?.trade_no;
+        if (!tradeNo) {
+          showError(t('支付请求失败'));
+          return;
+        }
+        saveSubscriptionEpayCheckout({
+          tradeNo,
+          url: res.data.url,
+          params: res.data.data,
+        });
         showSuccess(t('已发起支付'));
         closeBuy();
+        window.location.assign(
+          `/console/topup?subscription_pay=1&out_trade_no=${encodeURIComponent(
+            tradeNo,
+          )}`,
+        );
       } else {
         const errorMsg =
           typeof res.data?.data === 'string'
