@@ -75,6 +75,9 @@ func InitOptionMap() {
 	common.OptionMap["WorkerAllowHttpImageRequestEnabled"] = strconv.FormatBool(system_setting.WorkerAllowHttpImageRequestEnabled)
 	common.OptionMap["PromotionWebhookUrl"] = system_setting.PromotionWebhookUrl
 	common.OptionMap["PromotionWebhookSecret"] = system_setting.PromotionWebhookSecret
+	common.OptionMap["PartnershipPromoterApiBaseURL"] = system_setting.PartnershipPromoterApiBaseURL
+	common.OptionMap["InfistarPromoterBridgeSecret"] = system_setting.InfistarPromoterBridgeSecret
+	common.OptionMap["PartnershipPromoterProxyTimeoutSeconds"] = strconv.Itoa(system_setting.PartnershipPromoterProxyTimeoutSeconds)
 	common.OptionMap["PayAddress"] = ""
 	common.OptionMap["CustomCallbackAddress"] = ""
 	common.OptionMap["EpayId"] = ""
@@ -372,6 +375,16 @@ func updateOptionMap(key string, value string) (err error) {
 		system_setting.PromotionWebhookUrl = value
 	case "PromotionWebhookSecret":
 		system_setting.PromotionWebhookSecret = value
+	case "PartnershipPromoterApiBaseURL":
+		system_setting.PartnershipPromoterApiBaseURL = value
+	case "InfistarPromoterBridgeSecret":
+		system_setting.InfistarPromoterBridgeSecret = value
+	case "PartnershipPromoterProxyTimeoutSeconds":
+		intValue, _ := strconv.Atoi(value)
+		if intValue <= 0 {
+			intValue = 5
+		}
+		system_setting.PartnershipPromoterProxyTimeoutSeconds = intValue
 	case "PayAddress":
 		operation_setting.PayAddress = value
 	case "Chats":

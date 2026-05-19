@@ -74,6 +74,9 @@ const SystemSetting = () => {
     WorkerAllowHttpImageRequestEnabled: '',
     PromotionWebhookUrl: '',
     PromotionWebhookSecret: '',
+    PartnershipPromoterApiBaseURL: '',
+    InfistarPromoterBridgeSecret: '',
+    PartnershipPromoterProxyTimeoutSeconds: 5,
     Footer: '',
     WeChatAuthEnabled: '',
     WeChatServerAddress: '',
@@ -335,6 +338,33 @@ const SystemSetting = () => {
         key: 'PromotionWebhookSecret',
         value: PromotionWebhookSecret,
       });
+    }
+    await updateOptions(options);
+  };
+
+  const submitPartnershipPromoterProxy = async () => {
+    const baseURL = removeTrailingSlash(
+      inputs.PartnershipPromoterApiBaseURL || '',
+    );
+    if (
+      baseURL &&
+      !baseURL.startsWith('http://') &&
+      !baseURL.startsWith('https://')
+    ) {
+      showError(t('代理地址必须以 http:// 或 https:// 开头'));
+      return;
+    }
+    const timeout = Number(inputs.PartnershipPromoterProxyTimeoutSeconds || 5);
+    const options = [
+      { key: 'PartnershipPromoterApiBaseURL', value: baseURL },
+      {
+        key: 'PartnershipPromoterProxyTimeoutSeconds',
+        value: String(timeout > 0 ? timeout : 5),
+      },
+    ];
+    const secret = inputs.InfistarPromoterBridgeSecret || '';
+    if (secret !== '' || baseURL === '') {
+      options.push({ key: 'InfistarPromoterBridgeSecret', value: secret });
     }
     await updateOptions(options);
   };
@@ -846,6 +876,54 @@ const SystemSetting = () => {
                   </Row>
                   <Button onClick={submitPromotionWebhook}>
                     {t('更新推广Webhook')}
+                  </Button>
+                </Form.Section>
+              </Card>
+
+              <Card>
+                <Form.Section text={t('推广者前台代理')}>
+                  <Banner
+                    type='info'
+                    description={t(
+                      '配置 NewAPI 后端访问联运前台 API 的受控入口。浏览器只请求同域 /api/partnership/promoter/*，NewAPI 后端会签名身份后转发。',
+                    )}
+                    style={{ marginBottom: 20, marginTop: 16 }}
+                  />
+                  <Row
+                    gutter={{ xs: 8, sm: 16, md: 24, lg: 24, xl: 24, xxl: 24 }}
+                  >
+                    <Col xs={24} sm={24} md={12} lg={12} xl={12}>
+                      <Form.Input
+                        field='PartnershipPromoterApiBaseURL'
+                        label={t('联运前台API地址')}
+                        placeholder='例如：http://127.0.0.1:8797'
+                        extraText={t('留空表示关闭推广者前台代理。')}
+                        showClear
+                      />
+                    </Col>
+                    <Col xs={24} sm={24} md={12} lg={12} xl={12}>
+                      <Form.Input
+                        field='InfistarPromoterBridgeSecret'
+                        label={t('推广者桥接密钥')}
+                        placeholder={t('敏感信息不会发送到前端显示')}
+                        type='password'
+                        extraText={t(
+                          '填写后用于生成 X-Infistar-User-Signature；留空表示保持当前密钥不变。',
+                        )}
+                      />
+                    </Col>
+                    <Col xs={24} sm={24} md={12} lg={12} xl={12}>
+                      <Form.InputNumber
+                        field='PartnershipPromoterProxyTimeoutSeconds'
+                        label={t('代理超时时间（秒）')}
+                        min={1}
+                        max={30}
+                        precision={0}
+                      />
+                    </Col>
+                  </Row>
+                  <Button onClick={submitPartnershipPromoterProxy}>
+                    {t('更新推广者前台代理')}
                   </Button>
                 </Form.Section>
               </Card>

@@ -342,6 +342,16 @@ func SetApiRouter(router *gin.Engine) {
 			promotionWebhookRoute.POST("/:id/resend", controller.ResendPromotionWebhookLog)
 		}
 
+		partnershipPromoterRoute := apiRouter.Group("/partnership/promoter")
+		{
+			partnershipPromoterRoute.GET("/me", controller.PartnershipPromoterProxy)
+			partnershipPromoterRoute.POST("/me/open", controller.PartnershipPromoterProxy)
+			partnershipPromoterRoute.GET("/center", controller.PartnershipPromoterProxy)
+			partnershipPromoterRoute.PATCH("/referral-credential", controller.PartnershipPromoterProxy)
+			partnershipPromoterRoute.PUT("/payout-profile", controller.PartnershipPromoterProxy)
+			partnershipPromoterRoute.POST("/withdrawals", controller.PartnershipPromoterProxy)
+		}
+
 		vendorRoute := apiRouter.Group("/vendors")
 		vendorRoute.Use(middleware.AdminAuth())
 		{
