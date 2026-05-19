@@ -3629,7 +3629,7 @@
     "Show only bound providers": "バインド済みのプロバイダーのみ表示",
     "Show prices in currency instead of quota.": "クォータではなく通貨で価格を表示。",
     "Show setup guide": "セットアップガイドを表示",
-    "Show API key consumption statistics tab in the dashboard. Only available in self-use mode.": "ダッシュボードにAPIキー消費統計タブを表示します。自用モードでのみ利用できます。",
+    "Show API key consumption statistics tab in the dashboard. Only available in self-use mode.": "ダッシュボードにAPIキー消費統計タブを表示します。セルフユースモードでのみ利用できます。",
     "Show token usage statistics in the UI": "UIでトークン使用統計を表示",
     "Showcase core capabilities with demo credentials and limited access.": "デモ用の認証情報と制限付きアクセスでコア機能を紹介します。",
     "Showing": "表示",

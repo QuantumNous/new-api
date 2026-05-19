@@ -93,6 +93,11 @@ function renderQuotaCompat(rawQuota: number, digits = 4): string {
   return symbol + fixed
 }
 
+function getTokenDisplayKey(item: TokenQuotaDataItem): string {
+  if (item.token_id != null) return `${item.token_name || 'key'}#${item.token_id}`
+  return item.token_name || 'key-unknown'
+}
+
 /**
  * Process and aggregate chart data
  */
@@ -1055,7 +1060,7 @@ export function processTokenChartData(
 
   const keyQuotaTotal = new Map<string, number>()
   data.forEach((item) => {
-    const keyName = item.token_name || `key#${item.token_id ?? 'unknown'}`
+    const keyName = getTokenDisplayKey(item)
     const prev = keyQuotaTotal.get(keyName) || 0
     keyQuotaTotal.set(keyName, prev + (Number(item.quota) || 0))
   })
@@ -1083,7 +1088,7 @@ export function processTokenChartData(
     const ts = Number(item.created_at)
     const timeKey = formatChartTime(ts, timeGranularity)
     allTimePoints.add(timeKey)
-    const keyName = item.token_name || `key#${item.token_id ?? 'unknown'}`
+    const keyName = getTokenDisplayKey(item)
     if (!topKeySet.has(keyName)) return
     if (!timeKeyMap.has(timeKey)) timeKeyMap.set(timeKey, new Map())
     const map = timeKeyMap.get(timeKey)!

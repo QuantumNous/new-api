@@ -42,9 +42,14 @@ import { ConsumptionDistributionChart } from '../models/consumption-distribution
 import { ModelCharts } from '../models/model-charts'
 
 /** Map TokenQuotaDataItem → QuotaDataItem so existing chart functions can be reused */
+function getTokenDisplayKey(item: TokenQuotaDataItem): string {
+  if (item.token_id != null) return `${item.token_name || 'key'}#${item.token_id}`
+  return item.token_name || 'key-unknown'
+}
+
 function mapToQuotaData(items: TokenQuotaDataItem[]): QuotaDataItem[] {
   return items.map((item) => ({
-    model_name: item.token_name || `key-${item.token_id ?? 'unknown'}`,
+    model_name: getTokenDisplayKey(item),
     created_at: item.created_at,
     count: item.count,
     quota: item.quota,
@@ -110,7 +115,7 @@ export function KeyCharts() {
   const topNKeySet = useMemo(() => {
     const totals = new Map<string, number>()
     tokenData.forEach((item) => {
-      const key = item.token_name || `key-${item.token_id ?? 'unknown'}`
+      const key = getTokenDisplayKey(item)
       totals.set(key, (totals.get(key) ?? 0) + (item.quota ?? 0))
     })
 

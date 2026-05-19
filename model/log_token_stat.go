@@ -1,7 +1,15 @@
 package model
 
 import (
+	"fmt"
+	"time"
+
 	"github.com/QuantumNous/new-api/common"
+)
+
+const (
+	tokenStatsDefaultRangeSeconds = 24 * 60 * 60
+	tokenStatsMaxRangeSeconds     = 30 * 24 * 60 * 60
 )
 
 // TokenQuotaData is hourly aggregated usage data by API key.
@@ -18,6 +26,11 @@ type TokenQuotaData struct {
 // userId = 0 returns all users' data; userId > 0 limits data to that user.
 func GetLogStatsByToken(userId int, startTime, endTime int64) ([]*TokenQuotaData, error) {
 	var results []*TokenQuotaData
+
+	startTime, endTime, err := normalizeTokenStatsTimeRange(startTime, endTime, time.Now().Unix())
+	if err != nil {
+		return nil, err
+	}
 
 	query := LOG_DB.Table("logs").
 		Select(`token_id,
@@ -47,4 +60,23 @@ func GetLogStatsByToken(userId int, startTime, endTime int64) ([]*TokenQuotaData
 		return nil, err
 	}
 	return results, nil
+}
+
+func normalizeTokenStatsTimeRange(startTime, endTime, now int64) (int64, int64, error) {
+	if startTime == 0 && endTime == 0 {
+		endTime = now
+		startTime = endTime - tokenStatsDefaultRangeSeconds
+	} else if endTime == 0 {
+		endTime = now
+	} else if startTime == 0 {
+		startTime = endTime - tokenStatsMaxRangeSeconds
+	}
+
+	if endTime < startTime {
+		return 0, 0, fmt.Errorf("invalid time range: end_timestamp < start_timestamp")
+	}
+	if endTime-startTime > tokenStatsMaxRangeSeconds {
+		startTime = endTime - tokenStatsMaxRangeSeconds
+	}
+	return startTime, endTime, nil
 }
