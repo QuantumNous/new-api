@@ -40,12 +40,6 @@ interface FooterProps {
   className?: string
 }
 
-const NEW_API_FOOTER_ATTRIBUTION_KEY = [
-  'footer',
-  'new' + 'api',
-  'projectAttributionSuffix',
-].join('.')
-
 function FooterLinkItem(props: { link: FooterLink }) {
   const { t } = useTranslation()
   const isExternal = props.link.href.startsWith('http')
@@ -80,16 +74,8 @@ function ProjectAttribution(props: { currentYear: number }) {
   return (
     <div className='text-muted-foreground/45 text-center text-xs sm:text-right'>
       <span className='text-muted-foreground/45'>
-        &copy; {props.currentYear}{' '}
-        <a
-          href='https://github.com/QuantumNous/new-api'
-          target='_blank'
-          rel='noopener noreferrer'
-          className='text-foreground/70 hover:text-foreground font-medium transition-colors'
-        >
-          {t('New API')}
-        </a>
-        . {t(NEW_API_FOOTER_ATTRIBUTION_KEY)}
+        &copy; {props.currentYear} {t('Yunhe Xingze Token Operations Center')}.{' '}
+        {t('footer.platformAttributionSuffix')}
       </span>
     </div>
   )
@@ -105,60 +91,61 @@ export function Footer(props: FooterProps) {
   } = useSystemConfig()
 
   const displayLogo = systemLogo || props.logo || '/logo.png'
-  const displayName = systemName || props.name || 'New API'
+  const displayName =
+    systemName || props.name || t('Yunhe Xingze Token Operations Center')
   const isDemoSiteMode = Boolean(demoSiteEnabled)
   const currentYear = new Date().getFullYear()
 
   const fallbackColumns = useMemo<FooterColumnProps[]>(
     () => [
       {
-        title: t('footer.columns.about.title'),
+        title: t('footer.columns.platform.title'),
         links: [
           {
-            text: t('footer.columns.about.links.aboutProject'),
-            href: 'https://docs.newapi.pro/wiki/project-introduction/',
+            text: t('footer.columns.platform.links.aboutCenter'),
+            href: '/about',
           },
           {
-            text: t('footer.columns.about.links.contact'),
-            href: 'https://docs.newapi.pro/support/community-interaction/',
+            text: t('footer.columns.platform.links.modelResources'),
+            href: '/pricing',
           },
           {
-            text: t('footer.columns.about.links.features'),
-            href: 'https://docs.newapi.pro/wiki/features-introduction/',
+            text: t('footer.columns.platform.links.operationsRankings'),
+            href: '/rankings',
           },
         ],
       },
       {
-        title: t('footer.columns.docs.title'),
+        title: t('footer.columns.access.title'),
         links: [
           {
-            text: t('footer.columns.docs.links.quickStart'),
-            href: 'https://docs.newapi.pro/getting-started/',
+            text: t('footer.columns.access.links.integrationDocs'),
+            href: '/docs',
           },
           {
-            text: t('footer.columns.docs.links.installation'),
-            href: 'https://docs.newapi.pro/installation/',
+            text: t('footer.columns.access.links.apiKeys'),
+            href: '/keys',
           },
           {
-            text: t('footer.columns.docs.links.apiDocs'),
-            href: 'https://docs.newapi.pro/api/',
+            text: t('footer.columns.access.links.auditLogs'),
+            href: '/usage-logs/common',
           },
         ],
       },
       {
-        title: t('footer.columns.related.title'),
+        title: t('footer.columns.operations.title'),
         links: [
           {
-            text: t('footer.columns.related.links.oneApi'),
-            href: 'https://github.com/songquanpeng/one-api',
+            text: t('footer.columns.operations.links.modelChannels'),
+            href: '/channels',
           },
           {
-            text: t('footer.columns.related.links.midjourney'),
-            href: 'https://github.com/novicezk/midjourney-proxy',
+            text: t('footer.columns.operations.links.tenantAccounts'),
+            href: '/users',
           },
           {
-            text: t('footer.columns.related.links.newApiKeyTool'),
-            href: 'https://github.com/Calcium-Ion/new-api-key-tool',
+            text: t('footer.columns.operations.links.platformConfig'),
+            href: '/system-settings/site',
           },
         ],
       },
@@ -210,7 +197,7 @@ export function Footer(props: FooterProps) {
               </span>
             </Link>
             <p className='text-muted-foreground/60 mt-3 max-w-[200px] text-xs leading-relaxed'>
-              {t('Powerful API Management Platform')}
+              {t('Integrated token operations and model service platform')}
             </p>
           </div>
 

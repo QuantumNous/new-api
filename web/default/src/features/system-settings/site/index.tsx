@@ -26,7 +26,7 @@ import {
 const defaultSiteSettings: SiteSettings = {
   'theme.frontend': 'default',
   Notice: '',
-  SystemName: 'New API',
+  SystemName: '昀河星泽词元运营中心',
   Logo: '',
   Footer: '',
   About: '',

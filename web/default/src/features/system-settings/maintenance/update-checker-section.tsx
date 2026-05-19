@@ -72,7 +72,7 @@ export function UpdateCheckerSection({
       )
 
       if (!response.ok) {
-        throw new Error(t('Failed to contact GitHub releases API'))
+        throw new Error(t('Failed to contact release service'))
       }
 
       const data = (await response.json()) as ReleaseInfo

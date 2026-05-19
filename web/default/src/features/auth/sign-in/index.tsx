@@ -17,46 +17,113 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { Link, useSearch } from '@tanstack/react-router'
+import { Coins, Plug, ShieldCheck, Users } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import { cn } from '@/lib/utils'
+import { useSystemConfig } from '@/hooks/use-system-config'
 import { useStatus } from '@/hooks/use-status'
+import { Card, CardContent } from '@/components/ui/card'
+import { Skeleton } from '@/components/ui/skeleton'
 import { AuthLayout } from '../auth-layout'
 import { TermsFooter } from '../components/terms-footer'
 import { UserAuthForm } from './components/user-auth-form'
+
+const CAPABILITY_ITEMS = [
+  { icon: Plug, labelKey: 'Unified model service access' },
+  { icon: Coins, labelKey: 'Unified token resource operations' },
+  { icon: Users, labelKey: 'Tenant management' },
+  { icon: ShieldCheck, labelKey: 'Call audit and operations monitoring' },
+] as const
 
 export function SignIn() {
   const { t } = useTranslation()
   const { redirect } = useSearch({ from: '/(auth)/sign-in' })
   const { status } = useStatus()
+  const { logo, loading: logoLoading } = useSystemConfig()
+
+  const sidebar = (
+    <div className='mx-auto w-full max-w-lg space-y-8 lg:mx-0'>
+      <div className='space-y-5'>
+        <div className='flex items-center gap-3'>
+          <div className='relative h-11 w-11 shrink-0'>
+            {logoLoading ? (
+              <Skeleton className='absolute inset-0 rounded-xl' />
+            ) : (
+              <img
+                src={logo}
+                alt={t('Logo')}
+                className='h-11 w-11 rounded-xl object-cover ring-1 ring-white/20'
+              />
+            )}
+          </div>
+        </div>
+        <div className='space-y-3'>
+          <h1 className='text-2xl font-semibold tracking-tight text-white sm:text-3xl'>
+            {t('Yunhe Xingze Token Operations Center')}
+          </h1>
+          <p className='text-sm leading-relaxed text-slate-300 sm:text-base'>
+            {t(
+              'Integrated model services and AI resource operations platform for government and enterprise'
+            )}
+          </p>
+        </div>
+      </div>
+
+      <ul className='space-y-3'>
+        {CAPABILITY_ITEMS.map(({ icon: Icon, labelKey }) => (
+          <li
+            key={labelKey}
+            className='flex items-start gap-3 rounded-lg border border-white/10 bg-white/5 px-4 py-3 backdrop-blur-sm'
+          >
+            <span className='mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-md bg-indigo-500/20 text-indigo-200'>
+              <Icon className='size-4' aria-hidden />
+            </span>
+            <span className='text-sm leading-snug text-slate-100'>
+              {t(labelKey)}
+            </span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  )
 
   return (
-    <AuthLayout>
-      <div className='w-full space-y-8'>
-        <div className='space-y-2'>
-          <h2 className='text-center text-2xl font-semibold tracking-tight sm:text-left'>
-            {t('Sign in')}
-          </h2>
-          {!status?.self_use_mode_enabled && status?.register_enabled !== false && (
-            <p className='text-muted-foreground text-left text-sm sm:text-base'>
-              {t("Don't have an account?")}{' '}
-              <Link
-                to='/sign-up'
-                className='hover:text-primary font-medium underline underline-offset-4'
-              >
-                {t('Sign up')}
-              </Link>
-              .
-            </p>
-          )}
-        </div>
+    <AuthLayout sidebar={sidebar}>
+      <Card
+        className={cn(
+          'border-white/15 bg-card/95 shadow-2xl shadow-indigo-950/40 backdrop-blur-md',
+          'ring-1 ring-white/10'
+        )}
+      >
+        <CardContent className='space-y-8 p-6 sm:p-8'>
+          <div className='space-y-2'>
+            <h2 className='text-center text-2xl font-semibold tracking-tight sm:text-left'>
+              {t('Sign in')}
+            </h2>
+            {!status?.self_use_mode_enabled &&
+              status?.register_enabled !== false && (
+                <p className='text-muted-foreground text-left text-sm sm:text-base'>
+                  {t("Don't have an account?")}{' '}
+                  <Link
+                    to='/sign-up'
+                    className='hover:text-primary font-medium underline underline-offset-4'
+                  >
+                    {t('Sign up')}
+                  </Link>
+                  .
+                </p>
+              )}
+          </div>
 
-        <UserAuthForm redirectTo={redirect} />
+          <UserAuthForm redirectTo={redirect} />
 
-        <TermsFooter
-          variant='sign-in'
-          status={status}
-          className='text-center'
-        />
-      </div>
+          <TermsFooter
+            variant='sign-in'
+            status={status}
+            className='text-center'
+          />
+        </CardContent>
+      </Card>
     </AuthLayout>
   )
 }

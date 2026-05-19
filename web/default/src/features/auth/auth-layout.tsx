@@ -18,16 +18,37 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { Link } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
+import { cn } from '@/lib/utils'
 import { useSystemConfig } from '@/hooks/use-system-config'
 import { Skeleton } from '@/components/ui/skeleton'
 
 type AuthLayoutProps = {
   children: React.ReactNode
+  sidebar?: React.ReactNode
 }
 
-export function AuthLayout({ children }: AuthLayoutProps) {
+export function AuthLayout({ children, sidebar }: AuthLayoutProps) {
   const { t } = useTranslation()
   const { systemName, logo, loading } = useSystemConfig()
+
+  if (sidebar) {
+    return (
+      <div
+        className={cn(
+          'relative flex min-h-svh flex-col',
+          'bg-slate-950 bg-gradient-to-br from-slate-950 via-indigo-950 to-violet-950',
+          'lg:grid lg:grid-cols-2 lg:gap-0'
+        )}
+      >
+        <div className='flex flex-col justify-center px-6 py-10 sm:px-10 lg:px-14 lg:py-16'>
+          {sidebar}
+        </div>
+        <div className='flex flex-1 items-center justify-center px-4 py-8 lg:px-10 lg:py-16'>
+          <div className='w-full max-w-md'>{children}</div>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className='relative grid h-svh max-w-none'>

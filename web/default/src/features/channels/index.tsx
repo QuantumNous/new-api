@@ -28,9 +28,11 @@ export function Channels() {
   return (
     <ChannelsProvider>
       <SectionPageLayout>
-        <SectionPageLayout.Title>{t('Channels')}</SectionPageLayout.Title>
+        <SectionPageLayout.Title>
+          {t('Model Service Channels')}
+        </SectionPageLayout.Title>
         <SectionPageLayout.Description>
-          {t('Manage API channels and provider configurations')}
+          {t('Manage model service channels and provider configurations')}
         </SectionPageLayout.Description>
         <SectionPageLayout.Actions>
           <ChannelsPrimaryButtons />

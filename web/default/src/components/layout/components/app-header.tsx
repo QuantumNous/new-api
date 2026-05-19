@@ -16,6 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { cn } from '@/lib/utils'
 import { useNotifications } from '@/hooks/use-notifications'
 import { useTopNavLinks } from '@/hooks/use-top-nav-links'
 import { ConfigDrawer } from '@/components/config-drawer'
@@ -112,7 +113,12 @@ export function AppHeader({
 
   return (
     <>
-      <Header>
+      <Header
+        className={cn(
+          'border-b border-slate-200/80 bg-white/85 shadow-sm backdrop-blur-md',
+          'dark:border-white/10 dark:bg-slate-950/90'
+        )}
+      >
         <SystemBrand variant='inline' />
 
         {leftContent ? (
@@ -120,7 +126,13 @@ export function AppHeader({
         ) : null}
 
         {rightContent ?? (
-          <div className='ms-auto flex items-center gap-1 sm:gap-2'>
+          <div
+            className={cn(
+              'ms-auto flex items-center gap-0.5 rounded-lg border px-1 py-0.5 sm:gap-1 sm:px-1.5',
+              'border-slate-200/60 bg-slate-50/80',
+              'dark:border-white/10 dark:bg-white/5'
+            )}
+          >
             {showTopNav && (
               <div className='me-1 hidden lg:block'>
                 <TopNav links={links} />

@@ -17,13 +17,14 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useState, useEffect, useRef, type ReactNode } from 'react'
+import { useTranslation } from 'react-i18next'
 import { cn } from '@/lib/utils'
 
 type AccentTone = 'emerald' | 'amber' | 'blue' | 'violet'
 
 interface ApiDemoConfig {
   id: string
-  label: string
+  labelKey: string
   method: 'POST' | 'GET'
   endpoint: string
   headers: string[]
@@ -72,7 +73,7 @@ const ACCENT_CLASSES: Record<
 const API_DEMOS: ApiDemoConfig[] = [
   {
     id: 'gpt-chat',
-    label: 'Chat',
+    labelKey: 'Home demo tab chat',
     method: 'POST',
     endpoint: '/v1/chat/completions',
     headers: ['"Authorization: Bearer sk-••••"'],
@@ -95,7 +96,7 @@ const API_DEMOS: ApiDemoConfig[] = [
   },
   {
     id: 'responses',
-    label: 'Responses',
+    labelKey: 'Home demo tab responses',
     method: 'POST',
     endpoint: '/v1/responses',
     headers: ['"Authorization: Bearer sk-••••"'],
@@ -113,7 +114,7 @@ const API_DEMOS: ApiDemoConfig[] = [
   },
   {
     id: 'claude',
-    label: 'Claude',
+    labelKey: 'Home demo tab messages',
     method: 'POST',
     endpoint: '/v1/messages',
     headers: ['"x-api-key: sk-••••"', '"anthropic-version: 2023-06-01"'],
@@ -137,7 +138,7 @@ const API_DEMOS: ApiDemoConfig[] = [
   },
   {
     id: 'gemini',
-    label: 'Gemini',
+    labelKey: 'Home demo tab multimodal',
     method: 'POST',
     endpoint: '/v1beta/models/{model}:generateContent',
     headers: ['"x-goog-api-key: sk-••••"'],
@@ -164,6 +165,7 @@ const CYCLE_INTERVAL = 4500
 const TRANSITION_MS = 220
 
 export function HeroTerminalDemo() {
+  const { t } = useTranslation()
   const [activeIndex, setActiveIndex] = useState(0)
   const [transitioning, setTransitioning] = useState(false)
   const intervalRef = useRef<ReturnType<typeof setInterval>>(undefined)
@@ -203,20 +205,17 @@ export function HeroTerminalDemo() {
 
   return (
     <div className='mx-auto mt-16 w-full max-w-2xl'>
+      <p className='mb-3 text-center text-xs font-medium tracking-widest text-violet-300/80 uppercase'>
+        {t('Home unified access demo title')}
+      </p>
       <div
         className={cn(
-          'overflow-hidden rounded-2xl border backdrop-blur-sm',
-          'border-border/60 bg-white/95 shadow-[0_20px_50px_-25px_rgba(15,23,42,0.18)]',
-          'dark:border-white/[0.06] dark:bg-[#0b0f17]/95 dark:shadow-[0_20px_60px_-25px_rgba(0,0,0,0.7)]'
+          'overflow-hidden rounded-2xl border border-violet-500/20 backdrop-blur-md',
+          'bg-slate-900/90 shadow-[0_24px_60px_-20px_rgba(79,70,229,0.35)]'
         )}
       >
         {/* Tab strip */}
-        <div
-          className={cn(
-            'flex items-center gap-1 border-b px-2 sm:gap-1.5 sm:px-3',
-            'border-border/50 dark:border-white/[0.05]'
-          )}
-        >
+        <div className='flex items-center gap-1 border-b border-white/10 px-2 sm:gap-1.5 sm:px-3'>
           {API_DEMOS.map((item, index) => {
             const tone = ACCENT_CLASSES[item.accent]
             const isActive = index === activeIndex
@@ -228,28 +227,23 @@ export function HeroTerminalDemo() {
                   'relative -mb-px flex items-center gap-1.5 border-b-2 px-2.5 py-2.5 text-[11px] font-medium tracking-wide transition-colors sm:px-3 sm:text-xs',
                   isActive
                     ? `${tone.activeBorder} ${tone.activeText}`
-                    : 'text-foreground/40 hover:text-foreground/70 border-transparent'
+                    : 'border-transparent text-slate-500 hover:text-slate-300'
                 )}
               >
-                {item.label}
+                {t(item.labelKey)}
               </button>
             )
           })}
           <div className='ml-auto flex items-center gap-2 pr-2 sm:pr-3'>
             <span className='inline-block size-1.5 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.45)]' />
-            <span className='text-foreground/40 font-mono text-[10px] tracking-wider uppercase'>
-              200 ok
+            <span className='font-mono text-[10px] tracking-wider text-slate-500 uppercase'>
+              {t('Home demo status ok')}
             </span>
           </div>
         </div>
 
         {/* Endpoint row */}
-        <div
-          className={cn(
-            'flex items-center gap-2.5 border-b px-5 py-3',
-            'border-border/40 dark:border-white/[0.04]'
-          )}
-        >
+        <div className='flex items-center gap-2.5 border-b border-white/10 px-5 py-3'>
           <span
             className={cn(
               'rounded-md px-1.5 py-0.5 font-mono text-[10px] font-semibold tracking-wider',
@@ -260,7 +254,7 @@ export function HeroTerminalDemo() {
           </span>
           <code
             className={cn(
-              'text-foreground/75 truncate font-mono text-[12.5px] transition-opacity duration-200',
+              'truncate font-mono text-[12.5px] text-slate-300 transition-opacity duration-200',
               transitioning ? 'opacity-0' : 'opacity-100'
             )}
           >
@@ -278,32 +272,31 @@ export function HeroTerminalDemo() {
         </div>
 
         {/* Footer metrics */}
-        <div
-          className={cn(
-            'flex items-center justify-between border-t px-5 py-2.5',
-            'border-border/40 bg-muted/30 dark:border-white/[0.05] dark:bg-white/[0.02]'
-          )}
-        >
-          <div className='text-foreground/40 flex items-center gap-3 text-[10px] tabular-nums'>
+        <div className='flex items-center justify-between border-t border-white/10 bg-white/[0.02] px-5 py-2.5'>
+          <div className='flex items-center gap-3 text-[10px] text-slate-500 tabular-nums'>
             <span className='flex items-center gap-1'>
-              <span className='font-mono'>{demo.latency}</span>
+              <span className='font-mono text-slate-300'>{demo.latency}</span>
               <span className='tracking-wider uppercase'>ms</span>
             </span>
-            <span className='bg-foreground/15 size-1 rounded-full' />
+            <span className='size-1 rounded-full bg-slate-600' />
             <span className='flex items-center gap-1'>
-              <span className='font-mono'>{demo.tokens}</span>
-              <span className='tracking-wider uppercase'>tokens</span>
+              <span className='font-mono text-slate-300'>{demo.tokens}</span>
+              <span className='tracking-wider uppercase'>
+                {t('Home demo tokens label')}
+              </span>
             </span>
-            <span className='bg-foreground/15 size-1 rounded-full' />
+            <span className='size-1 rounded-full bg-slate-600' />
             <span className='flex items-center gap-1'>
-              <span className='tracking-wider uppercase'>cost</span>
-              <span className='font-mono'>
-                ${(demo.tokens * 0.00003).toFixed(5)}
+              <span className='tracking-wider uppercase'>
+                {t('Home demo cost label')}
+              </span>
+              <span className='font-mono text-slate-300'>
+                {(demo.tokens * 0.00003).toFixed(5)}
               </span>
             </span>
           </div>
-          <span className='text-foreground/30 font-mono text-[10px] tracking-wider uppercase'>
-            stream · sse
+          <span className='font-mono text-[10px] tracking-wider text-slate-600 uppercase'>
+            {t('Home demo stream label')}
           </span>
         </div>
       </div>
@@ -443,10 +436,10 @@ function renderResponseLine(line: string, demo: ApiDemoConfig): ReactNode {
 
 function truncateResponse(demo: ApiDemoConfig): string {
   const map: Record<string, string> = {
-    'gpt-chat': 'Chat request routed.',
-    responses: 'Response workflow ready.',
-    claude: 'Claude message routed.',
-    gemini: 'Gemini request served.',
+    'gpt-chat': '模型对话请求已接入平台路由。',
+    responses: '响应式工作流请求已完成调度。',
+    claude: '多厂商消息接口已统一转发。',
+    gemini: '多模态生成请求已纳入运营监控。',
   }
   return map[demo.id] ?? '...'
 }

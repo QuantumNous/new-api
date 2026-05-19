@@ -36,14 +36,13 @@ export function CTA(props: CTAProps) {
 
   return (
     <section className='relative z-10 overflow-hidden px-6 py-24 md:py-32'>
-      {/* Gradient mesh background */}
       <div
         aria-hidden
-        className='absolute inset-0 -z-10 opacity-20 dark:opacity-[0.08]'
+        className='absolute inset-0 -z-10 opacity-40'
         style={{
           background: [
-            'radial-gradient(ellipse 50% 50% at 30% 50%, oklch(0.7 0.15 250 / 70%) 0%, transparent 70%)',
-            'radial-gradient(ellipse 40% 40% at 70% 40%, oklch(0.65 0.12 200 / 50%) 0%, transparent 70%)',
+            'radial-gradient(ellipse 50% 50% at 30% 50%, oklch(0.45 0.18 265 / 60%) 0%, transparent 70%)',
+            'radial-gradient(ellipse 40% 40% at 70% 40%, oklch(0.42 0.15 290 / 45%) 0%, transparent 70%)',
           ].join(', '),
         }}
       />
@@ -52,29 +51,30 @@ export function CTA(props: CTAProps) {
         className='mx-auto max-w-2xl text-center'
         animation='scale-in'
       >
-        <h2 className='text-2xl leading-tight font-bold tracking-tight md:text-4xl'>
-          {t('Ready to simplify')}
+        <h2 className='text-2xl leading-tight font-bold tracking-tight text-slate-50 md:text-4xl'>
+          {t('Home CTA title line one')}
           <br />
-          <span className='bg-gradient-to-r from-blue-400 via-violet-400 to-purple-500 bg-clip-text text-transparent'>
-            {t('your AI integration?')}
+          <span className='bg-gradient-to-r from-blue-300 via-violet-300 to-purple-400 bg-clip-text text-transparent'>
+            {t('Home CTA title line two')}
           </span>
         </h2>
-        <p className='text-muted-foreground/80 mx-auto mt-5 max-w-md text-sm leading-relaxed md:text-base'>
-          {t(
-            'Deploy your own gateway and start routing requests through your configured upstream services.'
-          )}
+        <p className='mx-auto mt-5 max-w-md text-sm leading-relaxed text-slate-400 md:text-base'>
+          {t('Home CTA description')}
         </p>
         <div className='mt-8 flex items-center justify-center gap-3'>
-          <Button className='group rounded-lg' render={<Link to='/sign-up' />}>
-            {t('Get Started')}
+          <Button
+            className='group rounded-lg border-0 bg-gradient-to-r from-blue-600 to-violet-600 text-white shadow-lg shadow-violet-900/30 hover:from-blue-500 hover:to-violet-500'
+            render={<Link to='/sign-up' />}
+          >
+            {t('Home Enter Operations Console')}
             <ArrowRight className='ml-1 size-3.5 transition-transform duration-200 group-hover:translate-x-0.5' />
           </Button>
           <Button
             variant='outline'
-            className='border-border/50 hover:border-border hover:bg-muted/50 rounded-lg'
+            className='rounded-lg border-white/20 bg-white/5 text-slate-100 hover:border-violet-400/50 hover:bg-violet-500/10 hover:text-white'
             render={<Link to='/pricing' />}
           >
-            {t('View Pricing')}
+            {t('Home View Integration Capabilities')}
           </Button>
         </div>
       </AnimateInView>

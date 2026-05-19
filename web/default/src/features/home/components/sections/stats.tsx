@@ -38,43 +38,30 @@ function Counter(props: CounterProps) {
     [decimals]
   )
 
-  const animate = useCallback(() => {
-    const el = ref.current
-    if (!el) return
-    const start = performance.now()
-    const step = (now: number) => {
-      const progress = Math.min((now - start) / duration, 1)
-      const eased = 1 - Math.pow(1 - progress, 3)
-      el.textContent = `${prefix}${formatValue(eased * end)}${suffix}`
-      if (progress < 1) requestAnimationFrame(step)
-    }
-    requestAnimationFrame(step)
-  }, [end, duration, prefix, suffix, formatValue])
-
   useEffect(() => {
     const el = ref.current
-    if (!el) return
-
-    const mq = window.matchMedia('(prefers-reduced-motion: reduce)')
-    if (mq.matches) {
-      el.textContent = `${prefix}${formatValue(end)}${suffix}`
-      return
-    }
+    if (!el || startedRef.current) return
 
     const observer = new IntersectionObserver(
       ([entry]) => {
-        if (entry.isIntersecting && !startedRef.current) {
-          startedRef.current = true
-          animate()
-          observer.unobserve(el)
+        if (!entry.isIntersecting || startedRef.current) return
+        startedRef.current = true
+
+        const start = performance.now()
+        const tick = (now: number) => {
+          const progress = Math.min((now - start) / duration, 1)
+          const eased = 1 - Math.pow(1 - progress, 3)
+          el.textContent = `${prefix}${formatValue(end * eased)}${suffix}`
+          if (progress < 1) requestAnimationFrame(tick)
         }
+        requestAnimationFrame(tick)
       },
-      { threshold: 0.5 }
+      { threshold: 0.3 }
     )
 
     observer.observe(el)
     return () => observer.disconnect()
-  }, [animate, end, prefix, suffix, formatValue])
+  }, [end, suffix, prefix, duration, decimals, formatValue])
 
   return (
     <span ref={ref} className='tabular-nums'>
@@ -98,14 +85,14 @@ export function Stats(_props: StatsProps) {
   const { t } = useTranslation()
 
   const stats: StatItem[] = [
-    { end: 50, suffix: '+', label: t('upstream services integrated') },
-    { end: 100, suffix: '+', label: t('model billing support') },
-    { end: 50, suffix: '+', label: t('compatible API routes') },
-    { end: 10, suffix: '+', label: t('scheduling controls') },
+    { end: 50, suffix: '+', label: t('Home stat model channels') },
+    { end: 100, suffix: '+', label: t('Home stat billing models') },
+    { end: 50, suffix: '+', label: t('Home stat access routes') },
+    { end: 10, suffix: '+', label: t('Home stat scheduling policies') },
   ]
 
   return (
-    <div className='border-border/40 bg-muted/10 relative z-10 border-y'>
+    <div className='relative z-10 border-y border-white/10 bg-slate-900/60 backdrop-blur-sm'>
       <div className='mx-auto max-w-6xl px-6 py-10 md:py-12'>
         <div className='grid grid-cols-2 gap-8 md:grid-cols-4 md:gap-12'>
           {stats.map((s) => (
@@ -113,12 +100,10 @@ export function Stats(_props: StatsProps) {
               key={s.label}
               className='flex flex-col items-center text-center'
             >
-              <span className='text-2xl font-bold tracking-tight md:text-3xl'>
+              <span className='bg-gradient-to-r from-blue-300 to-violet-300 bg-clip-text text-2xl font-bold tracking-tight text-transparent md:text-3xl'>
                 <Counter end={s.end} suffix={s.suffix} decimals={s.decimals} />
               </span>
-              <span className='text-muted-foreground mt-1.5 text-xs'>
-                {s.label}
-              </span>
+              <span className='mt-1.5 text-xs text-slate-400'>{s.label}</span>
             </div>
           ))}
         </div>

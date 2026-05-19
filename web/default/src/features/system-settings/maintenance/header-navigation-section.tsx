@@ -152,18 +152,18 @@ export function HeaderNavigationSection({
     },
     {
       key: 'console',
-      title: t('Console'),
-      description: t('User dashboard and quota controls.'),
+      title: t('Operations Console'),
+      description: t('User dashboard and token quota controls.'),
     },
     {
       key: 'docs',
-      title: t('Docs'),
-      description: t('Documentation or external knowledge base.'),
+      title: t('Integration Docs'),
+      description: t('Integration documentation or external knowledge base.'),
     },
     {
       key: 'about',
-      title: t('About'),
-      description: t('Static page describing the platform.'),
+      title: t('About Center'),
+      description: t('Static page describing the operations center.'),
     },
   ]
 
@@ -180,8 +180,8 @@ export function HeaderNavigationSection({
       enabledKey: 'pricingEnabled',
       requireAuthKey: 'pricingRequireAuth',
       requireAuthDependsOn: 'pricingEnabled',
-      title: t('Model Square'),
-      description: t('Public model catalog and pricing page.'),
+      title: t('Model Resource Marketplace'),
+      description: t('Public model resource catalog and pricing page.'),
       requireAuthTitle: t('Require login to view models'),
       requireAuthDescription: t(
         'Visitors must authenticate before accessing the pricing directory.'
@@ -191,8 +191,10 @@ export function HeaderNavigationSection({
       enabledKey: 'rankingsEnabled',
       requireAuthKey: 'rankingsRequireAuth',
       requireAuthDependsOn: 'rankingsEnabled',
-      title: t('Rankings'),
-      description: t('Public rankings page based on live usage data.'),
+      title: t('Operations Rankings'),
+      description: t(
+        'Public operations ranking page based on live usage data.'
+      ),
       requireAuthTitle: t('Require login to view rankings'),
       requireAuthDescription: t(
         'Visitors must authenticate before accessing the rankings page.'

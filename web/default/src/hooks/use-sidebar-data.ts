@@ -69,30 +69,30 @@ export function useSidebarData(): SidebarData {
       },
       {
         id: 'general',
-        title: t('General'),
+        title: t('Operations Console'),
         items: [
           {
-            title: t('Overview'),
+            title: t('Operations Overview'),
             url: '/dashboard/overview',
             icon: Activity,
           },
           {
-            title: t('Dashboard'),
+            title: t('Model Call Analytics'),
             url: '/dashboard/models',
             icon: LayoutDashboard,
           },
           {
-            title: t('API Keys'),
+            title: t('Application Access Keys'),
             url: '/keys',
             icon: Key,
           },
           {
-            title: t('Usage Logs'),
+            title: t('Token Consumption Details'),
             url: '/usage-logs/common',
             icon: FileText,
           },
           {
-            title: t('Task Logs'),
+            title: t('Task Audit Records'),
             url: '/usage-logs/task',
             activeUrls: ['/usage-logs/drawing'],
             configUrls: ['/usage-logs/drawing', '/usage-logs/task'],
@@ -102,15 +102,15 @@ export function useSidebarData(): SidebarData {
       },
       {
         id: 'personal',
-        title: t('Personal'),
+        title: t('Personal Center'),
         items: [
           {
-            title: t('Wallet'),
+            title: t('Token Quota Management'),
             url: '/wallet',
             icon: Wallet,
           },
           {
-            title: t('Profile'),
+            title: t('Account Profile'),
             url: '/profile',
             icon: User,
           },
@@ -118,35 +118,35 @@ export function useSidebarData(): SidebarData {
       },
       {
         id: 'admin',
-        title: t('Admin'),
+        title: t('Platform Administration'),
         items: [
           {
-            title: t('Channels'),
+            title: t('Model Service Channels'),
             url: '/channels',
             icon: Radio,
           },
           {
-            title: t('Models'),
+            title: t('Model Resource Pool'),
             url: '/models/metadata',
             icon: Box,
           },
           {
-            title: t('Users'),
+            title: t('Tenant & Account Management'),
             url: '/users',
             icon: Users,
           },
           {
-            title: t('Redemption Codes'),
+            title: t('Resource Redemption Management'),
             url: '/redemption-codes',
             icon: Ticket,
           },
           {
-            title: t('Subscription Management'),
+            title: t('Subscription Plan Management'),
             url: '/subscriptions',
             icon: CreditCard,
           },
           {
-            title: t('System Settings'),
+            title: t('Platform Configuration Center'),
             url: '/system-settings/site',
             activeUrls: ['/system-settings'],
             icon: Settings,

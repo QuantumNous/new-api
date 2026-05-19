@@ -19,14 +19,45 @@ For commercial licensing, please contact support@quantumnous.com
 import { useMemo } from 'react'
 import { useLocation } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
+import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/stores/auth-store'
 import { ROLE } from '@/lib/roles'
 import { useLayout } from '@/context/layout-provider'
 import { useSidebarConfig } from '@/hooks/use-sidebar-config'
 import { useSidebarData } from '@/hooks/use-sidebar-data'
-import { Sidebar, SidebarContent, SidebarRail } from '@/components/ui/sidebar'
+import {
+  Sidebar,
+  SidebarContent,
+  SidebarHeader,
+  SidebarRail,
+} from '@/components/ui/sidebar'
 import { getNavGroupsForPath } from '../lib/workspace-registry'
 import { NavGroup } from './nav-group'
+import { SystemBrand } from './system-brand'
+
+const sidebarShellClassName = cn(
+  '[&_[data-slot=sidebar-inner]]:border-white/10',
+  '[&_[data-slot=sidebar-inner]]:bg-gradient-to-b',
+  '[&_[data-slot=sidebar-inner]]:from-slate-950',
+  '[&_[data-slot=sidebar-inner]]:via-slate-900',
+  '[&_[data-slot=sidebar-inner]]:to-indigo-950',
+  '[&_[data-slot=sidebar-inner]]:text-slate-100',
+  '[&_[data-sidebar=sidebar][data-mobile=true]]:border-white/10',
+  '[&_[data-sidebar=sidebar][data-mobile=true]]:bg-gradient-to-b',
+  '[&_[data-sidebar=sidebar][data-mobile=true]]:from-slate-950',
+  '[&_[data-sidebar=sidebar][data-mobile=true]]:via-slate-900',
+  '[&_[data-sidebar=sidebar][data-mobile=true]]:to-indigo-950',
+  '[&_[data-sidebar=sidebar][data-mobile=true]]:text-slate-100'
+)
+
+const sidebarContentClassName = cn(
+  'px-2 py-3',
+  '[&_[data-sidebar=group-label]]:text-xs [&_[data-sidebar=group-label]]:font-medium [&_[data-sidebar=group-label]]:tracking-wide [&_[data-sidebar=group-label]]:text-slate-400',
+  '[&_[data-sidebar=menu-button]:hover]:bg-white/10 [&_[data-sidebar=menu-button]:hover]:text-slate-50',
+  '[&_[data-active=true]]:bg-indigo-500/20 [&_[data-active=true]]:text-indigo-100',
+  '[&_[data-active=true]]:shadow-[inset_0_0_0_1px_rgba(129,140,248,0.35)]',
+  '[&_[data-active=true]_svg]:text-indigo-200'
+)
 
 /**
  * Application sidebar component
@@ -62,14 +93,21 @@ export function AppSidebar() {
   }, [configFilteredNavGroups, userRole])
 
   return (
-    <Sidebar collapsible={collapsible} variant={variant}>
-      <SidebarContent className='py-2'>
+    <Sidebar
+      collapsible={collapsible}
+      variant={variant}
+      className={sidebarShellClassName}
+    >
+      <SidebarHeader className='border-b border-white/10 px-2 py-3'>
+        <SystemBrand variant='sidebar' />
+      </SidebarHeader>
+      <SidebarContent className={sidebarContentClassName}>
         {currentNavGroups.map((props) => {
           const key = props.id || props.title
           return <NavGroup key={key} {...props} />
         })}
       </SidebarContent>
-      <SidebarRail />
+      <SidebarRail className='hover:after:bg-indigo-400/40' />
     </Sidebar>
   )
 }

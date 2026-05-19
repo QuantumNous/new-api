@@ -48,73 +48,49 @@ function EmptyAboutState() {
           <Construction className='text-muted-foreground h-24 w-24' />
         </div>
         <div className='space-y-2'>
-          <h2 className='text-2xl font-bold'>{t('No About Content Set')}</h2>
+          <h2 className='text-2xl font-bold'>{t('About Center')}</h2>
           <p className='text-muted-foreground'>
             {t(
-              'The administrator has not configured any about content yet. You can set it in the settings page, supporting HTML or URL.'
+              'Yunhe Xingze Token Operations Center provides integrated model service access, token resource operations, tenant management, and call auditing for enterprise scenarios.'
             )}
           </p>
         </div>
-        <div className='space-y-4 text-sm'>
+        <div className='mx-auto grid max-w-2xl gap-3 text-left text-sm sm:grid-cols-2'>
+          <div className='bg-muted/30 rounded-lg border p-4'>
+            <p className='font-medium'>{t('Unified Model Service Access')}</p>
+            <p className='text-muted-foreground mt-1'>
+              {t(
+                'Centralized access and governance for multiple model services.'
+              )}
+            </p>
+          </div>
+          <div className='bg-muted/30 rounded-lg border p-4'>
+            <p className='font-medium'>{t('Token Resource Operations')}</p>
+            <p className='text-muted-foreground mt-1'>
+              {t('Manage token quota, recharge, settlement, and consumption.')}
+            </p>
+          </div>
+          <div className='bg-muted/30 rounded-lg border p-4'>
+            <p className='font-medium'>{t('Tenant Account Governance')}</p>
+            <p className='text-muted-foreground mt-1'>
+              {t(
+                'Coordinate tenant groups, accounts, roles, and access policies.'
+              )}
+            </p>
+          </div>
+          <div className='bg-muted/30 rounded-lg border p-4'>
+            <p className='font-medium'>{t('Call Audit Center')}</p>
+            <p className='text-muted-foreground mt-1'>
+              {t(
+                'Track service calls, usage details, and operational records.'
+              )}
+            </p>
+          </div>
+        </div>
+        <div className='text-muted-foreground space-y-2 text-sm'>
           <p>
-            {t('New API Project Repository:')}{' '}
-            <a
-              href='https://github.com/QuantumNous/new-api'
-              target='_blank'
-              rel='noopener noreferrer'
-              className='text-primary hover:underline'
-            >
-              {t('https://github.com/QuantumNous/new-api')}
-            </a>
-          </p>
-          <p className='text-muted-foreground'>
-            <a
-              href='https://github.com/QuantumNous/new-api'
-              target='_blank'
-              rel='noopener noreferrer'
-              className='text-primary hover:underline'
-            >
-              {t('NewAPI')}
-            </a>{' '}
-            © {currentYear}{' '}
-            <a
-              href='https://github.com/QuantumNous'
-              target='_blank'
-              rel='noopener noreferrer'
-              className='text-primary hover:underline'
-            >
-              {t('QuantumNous')}
-            </a>{' '}
-            {t('| Based on')}{' '}
-            <a
-              href='https://github.com/songquanpeng/one-api'
-              target='_blank'
-              rel='noopener noreferrer'
-              className='text-primary hover:underline'
-            >
-              {t('One API')}
-            </a>{' '}
-            © 2023{' '}
-            <a
-              href='https://github.com/songquanpeng'
-              target='_blank'
-              rel='noopener noreferrer'
-              className='text-primary hover:underline'
-            >
-              {t('JustSong')}
-            </a>
-          </p>
-          <p className='text-muted-foreground'>
-            {t('This project must be used in compliance with the')}{' '}
-            <a
-              href='https://github.com/QuantumNous/new-api/blob/main/LICENSE'
-              target='_blank'
-              rel='noopener noreferrer'
-              className='text-primary hover:underline'
-            >
-              {t('AGPL v3.0 License')}
-            </a>
-            .
+            &copy; {currentYear} {t('Yunhe Xingze Token Operations Center')}.{' '}
+            {t('All rights reserved.')}
           </p>
         </div>
       </div>
@@ -161,7 +137,7 @@ export function About() {
         <iframe
           src={rawContent}
           className='h-[calc(100vh-3.5rem)] w-full border-0'
-          title={t('About')}
+          title={t('About Center')}
         />
       </PublicLayout>
     )

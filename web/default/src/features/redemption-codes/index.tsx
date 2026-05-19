@@ -29,10 +29,10 @@ export function Redemptions() {
     <RedemptionsProvider>
       <SectionPageLayout>
         <SectionPageLayout.Title>
-          {t('Redemption Codes')}
+          {t('Resource Redemption Management')}
         </SectionPageLayout.Title>
         <SectionPageLayout.Description>
-          {t('Manage redemption codes for quota top-up')}
+          {t('Manage redemption codes for token quota recharge')}
         </SectionPageLayout.Description>
         <SectionPageLayout.Actions>
           <RedemptionsPrimaryButtons />

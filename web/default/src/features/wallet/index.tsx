@@ -260,9 +260,11 @@ export function Wallet(props: WalletProps) {
   return (
     <>
       <SectionPageLayout>
-        <SectionPageLayout.Title>{t('Wallet')}</SectionPageLayout.Title>
+        <SectionPageLayout.Title>
+          {t('Token Quota Management')}
+        </SectionPageLayout.Title>
         <SectionPageLayout.Description>
-          {t('Manage your balance and payment methods')}
+          {t('Manage your token quota and payment methods')}
         </SectionPageLayout.Description>
         <SectionPageLayout.Content>
           <div className='mx-auto flex w-full max-w-7xl flex-col gap-4 sm:gap-5'>

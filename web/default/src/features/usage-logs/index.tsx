@@ -44,15 +44,15 @@ const SECTION_META: Record<
   { titleKey: string; descriptionKey: string }
 > = {
   common: {
-    titleKey: 'Common Logs',
-    descriptionKey: 'View and manage your API usage logs',
+    titleKey: 'Token Consumption Details',
+    descriptionKey: 'View and manage token consumption audit records',
   },
   drawing: {
-    titleKey: 'Drawing Logs',
+    titleKey: 'Drawing Audit Records',
     descriptionKey: 'View and manage your drawing logs',
   },
   task: {
-    titleKey: 'Task Logs',
+    titleKey: 'Task Audit Records',
     descriptionKey: 'View and manage your task logs',
   },
 }
@@ -76,7 +76,7 @@ function UsageLogsContent() {
   const tabNavGroups = useMemo<NavGroup[]>(
     () => [
       {
-        title: 'Task Logs',
+        title: 'Task Audit Records',
         items: TASK_LOG_SECTIONS.map((section) => ({
           title: SECTION_META[section].titleKey,
           url: `/usage-logs/${section}`,
@@ -127,7 +127,7 @@ function UsageLogsContent() {
           <div className='space-y-4'>
             {showTaskSwitcher && (
               <Tabs value={activeCategory} onValueChange={handleSectionChange}>
-                <TabsList className='group-data-horizontal/tabs:h-auto max-w-full flex-wrap justify-start'>
+                <TabsList className='max-w-full flex-wrap justify-start group-data-horizontal/tabs:h-auto'>
                   {visibleSections.map((section) => (
                     <TabsTrigger key={section} value={section}>
                       {t(SECTION_META[section].titleKey)}

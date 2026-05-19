@@ -18,6 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { Link } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
+import { DEFAULT_SYSTEM_NAME, normalizeSystemName } from '@/lib/constants'
 import { cn } from '@/lib/utils'
 import { useStatus } from '@/hooks/use-status'
 import { useSystemConfig } from '@/hooks/use-system-config'
@@ -50,7 +51,9 @@ export function SystemBrand(props: SystemBrandProps) {
   const { logo } = useSystemConfig()
 
   const variant = props.variant ?? 'sidebar'
-  const name = status?.system_name || props.defaultName || 'New API'
+  const name = normalizeSystemName(
+    status?.system_name || props.defaultName || DEFAULT_SYSTEM_NAME
+  )
   const version =
     status?.version || props.defaultVersion || t('Unknown version')
 
@@ -60,18 +63,21 @@ export function SystemBrand(props: SystemBrandProps) {
         to='/'
         aria-label={t('Go to home')}
         className={cn(
-          'text-foreground inline-flex h-7 items-center gap-1.5 rounded-md px-1.5 text-sm font-medium transition-colors outline-none select-none',
-          'hover:bg-accent focus-visible:ring-ring/40 focus-visible:ring-2'
+          'inline-flex h-8 max-w-[min(100%,18rem)] items-center gap-2 rounded-lg border px-2 text-sm font-semibold transition-colors outline-none select-none',
+          'border-slate-200/80 bg-white/80 text-slate-800 shadow-sm backdrop-blur-sm',
+          'hover:bg-white hover:text-slate-900',
+          'focus-visible:ring-2 focus-visible:ring-indigo-400/40',
+          'dark:border-white/10 dark:bg-white/5 dark:text-slate-100 dark:hover:bg-white/10'
         )}
       >
-        <div className='flex size-5 items-center justify-center overflow-hidden rounded-md'>
+        <div className='flex size-6 shrink-0 items-center justify-center overflow-hidden rounded-md ring-1 ring-indigo-400/20'>
           <img
             src={logo}
             alt={t('Logo')}
             className='size-full rounded-md object-cover'
           />
         </div>
-        <span className='max-w-[12rem] truncate'>{name}</span>
+        <span className='truncate'>{name}</span>
       </Link>
     )
   }
@@ -81,10 +87,13 @@ export function SystemBrand(props: SystemBrandProps) {
       <SidebarMenuItem>
         <SidebarMenuButton
           size='lg'
-          className='hover:text-sidebar-foreground active:text-sidebar-foreground cursor-default hover:bg-transparent active:bg-transparent'
+          className={cn(
+            'cursor-default rounded-lg border border-white/10 bg-white/5 px-2 hover:bg-white/5 active:bg-white/5',
+            'hover:text-slate-50 active:text-slate-50'
+          )}
           render={<div />}
         >
-          <div className='flex aspect-square size-8 items-center justify-center overflow-hidden rounded-lg'>
+          <div className='flex aspect-square size-8 items-center justify-center overflow-hidden rounded-lg ring-1 ring-white/15'>
             <img
               src={logo}
               alt={t('Logo')}
@@ -92,8 +101,8 @@ export function SystemBrand(props: SystemBrandProps) {
             />
           </div>
           <div className='grid flex-1 text-start text-sm leading-tight group-data-[collapsible=icon]:hidden'>
-            <span className='truncate font-semibold'>{name}</span>
-            <span className='truncate text-xs'>{version}</span>
+            <span className='truncate font-semibold text-slate-50'>{name}</span>
+            <span className='truncate text-xs text-slate-400'>{version}</span>
           </div>
         </SidebarMenuButton>
       </SidebarMenuItem>

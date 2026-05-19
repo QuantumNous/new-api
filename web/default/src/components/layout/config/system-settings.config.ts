@@ -45,40 +45,40 @@ export function getSystemSettingsNavGroups(t: TFunction): NavGroup[] {
   return [
     {
       id: 'system-administration',
-      title: t('System Administration'),
+      title: t('Platform Configuration Center'),
       items: [
         {
-          title: t('Site & Branding'),
+          title: t('Center Brand Configuration'),
           icon: Settings,
           items: getSiteSectionNavItems(t),
         },
         {
-          title: t('Authentication'),
+          title: t('Authentication Access'),
           icon: Shield,
           items: getAuthSectionNavItems(t),
         },
         {
-          title: t('Billing & Payment'),
+          title: t('Billing & Settlement'),
           icon: CreditCard,
           items: getBillingSectionNavItems(t),
         },
         {
-          title: t('Models & Routing'),
+          title: t('Model Resources & Routing'),
           icon: Box,
           items: getModelsSectionNavItems(t),
         },
         {
-          title: t('Security & Limits'),
+          title: t('Security & Rate Limits'),
           icon: ShieldAlert,
           items: getSecuritySectionNavItems(t),
         },
         {
-          title: t('Console Content'),
+          title: t('Operations Content'),
           icon: Layout,
           items: getContentSectionNavItems(t),
         },
         {
-          title: t('Operations'),
+          title: t('Operations Monitoring'),
           icon: Wrench,
           items: getOperationsSectionNavItems(t),
         },

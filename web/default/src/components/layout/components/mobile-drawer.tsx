@@ -20,6 +20,8 @@ import { Link } from '@tanstack/react-router'
 import { X, User, Wallet, LogOut } from 'lucide-react'
 import { AnimatePresence, motion, type Variants } from 'motion/react'
 import { useTranslation } from 'react-i18next'
+import { normalizeSystemName } from '@/lib/constants'
+import { cn } from '@/lib/utils'
 import type { AuthUser } from '@/stores/auth-store'
 import useDialogState from '@/hooks/use-dialog'
 import { useUserDisplay } from '@/hooks/use-user-display'
@@ -50,10 +52,12 @@ function BrandLogo({
   logoLoaded,
   onClick,
 }: BrandLogoProps) {
+  const brandName = normalizeSystemName(displaySiteName)
+
   return (
     <Link
       to={homeUrl}
-      className='flex items-center gap-2 text-xl font-bold'
+      className='flex items-center gap-2 text-lg font-semibold text-slate-50'
       onClick={onClick}
     >
       <div className='relative h-6 w-6'>
@@ -62,7 +66,11 @@ function BrandLogo({
         ) : null}
         {displayLogo}
       </div>
-      {loading ? <Skeleton className='h-5 w-20' /> : displaySiteName}
+      {loading ? (
+        <Skeleton className='h-5 w-40 bg-white/10' />
+      ) : (
+        <span className='line-clamp-2 leading-snug'>{brandName}</span>
+      )}
     </Link>
   )
 }
@@ -87,21 +95,19 @@ function MobileUserProfile({ user, onNavigate }: MobileUserProfileProps) {
       {/* User info section - compact style matching navigation */}
       <div className='flex flex-col text-sm'>
         {/* User header - simplified */}
-        <div className='border-border flex items-center gap-2.5 border-b p-2.5'>
+        <div className='flex items-center gap-2.5 border-b border-white/10 p-2.5'>
           <Avatar className='size-9'>
             <AvatarImage src='/avatars/01.png' alt={`@${displayName}`} />
             <AvatarFallback className='text-xs'>{initials}</AvatarFallback>
           </Avatar>
           <div className='flex flex-1 flex-col gap-0.5 overflow-hidden'>
-            <p className='text-foreground truncate font-medium'>
-              {displayName}
-            </p>
+            <p className='truncate font-medium text-slate-50'>{displayName}</p>
             <div className='flex items-center gap-1.5'>
-              <span className='text-muted-foreground text-xs'>{roleLabel}</span>
+              <span className='text-xs text-slate-400'>{roleLabel}</span>
               {user.group && (
                 <>
-                  <span className='text-muted-foreground text-xs'>·</span>
-                  <span className='text-muted-foreground text-xs'>
+                  <span className='text-xs text-slate-500'>·</span>
+                  <span className='text-xs text-slate-400'>
                     {String(user.group)}
                   </span>
                 </>
@@ -114,26 +120,26 @@ function MobileUserProfile({ user, onNavigate }: MobileUserProfileProps) {
         <Link
           to='/profile'
           onClick={onNavigate}
-          className='text-primary/60 hover:text-primary/80 border-border flex items-center gap-2.5 border-b p-2.5 transition-colors'
+          className='flex items-center gap-2.5 border-b border-white/10 p-2.5 text-slate-200 transition-colors hover:bg-white/5 hover:text-indigo-200'
         >
           <User className='size-4' />
-          {t('Profile')}
+          {t('Account Profile')}
         </Link>
 
         <Link
           to='/wallet'
           onClick={onNavigate}
-          className='text-primary/60 hover:text-primary/80 border-border flex items-center gap-2.5 border-b p-2.5 transition-colors'
+          className='flex items-center gap-2.5 border-b border-white/10 p-2.5 text-slate-200 transition-colors hover:bg-white/5 hover:text-indigo-200'
         >
           <Wallet className='size-4' />
-          {t('Wallet')}
+          {t('Token Quota Management')}
         </Link>
 
         {/* Sign out - consistent style */}
         <Button
           variant='ghost'
           onClick={() => setSignOutOpen(true)}
-          className='text-destructive hover:text-destructive/80 h-auto w-full justify-start gap-2.5 p-2.5 hover:bg-transparent'
+          className='text-destructive hover:bg-destructive/10 hover:text-destructive h-auto w-full justify-start gap-2.5 p-2.5'
         >
           <LogOut className='size-4' />
           {t('Sign out')}
@@ -205,7 +211,10 @@ export function MobileDrawer({
         <>
           {/* Overlay */}
           <motion.div
-            className={MOBILE_DRAWER_CONFIG.overlayClassName}
+            className={cn(
+              MOBILE_DRAWER_CONFIG.overlayClassName,
+              'bg-slate-950/60 backdrop-blur-sm'
+            )}
             initial='hidden'
             animate='visible'
             exit='exit'
@@ -218,7 +227,10 @@ export function MobileDrawer({
 
           {/* Drawer Content */}
           <motion.div
-            className={MOBILE_DRAWER_CONFIG.drawerClassName}
+            className={cn(
+              'fixed inset-x-0 bottom-3 z-50 mx-auto w-[95%] rounded-xl border border-white/10 p-4 shadow-2xl shadow-indigo-950/30 md:hidden',
+              'bg-slate-950/95 text-slate-100 backdrop-blur-xl'
+            )}
             initial='hidden'
             animate='visible'
             exit='exit'
@@ -248,7 +260,7 @@ export function MobileDrawer({
 
               {/* Navigation links */}
               <motion.div
-                className='border-border mb-4 flex flex-col rounded-md border text-sm'
+                className='mb-4 flex flex-col rounded-lg border border-white/10 bg-white/5 text-sm'
                 variants={{ hidden: { opacity: 0 }, visible: { opacity: 1 } }}
               >
                 {loading ? (
@@ -262,12 +274,12 @@ export function MobileDrawer({
                     {mobileLinksList.map((link, index) => (
                       <motion.div
                         key={`${link.href}-${index}`}
-                        className='border-border border-b p-2.5 last:border-b-0'
+                        className='border-b border-white/10 p-2.5 last:border-b-0'
                         variants={MOBILE_DRAWER_ANIMATION.menuItem as Variants}
                       >
                         <Link
                           to={link.href}
-                          className='text-primary/60 hover:text-primary/80 transition-colors'
+                          className='text-slate-200 transition-colors hover:text-indigo-200'
                           onClick={onClose}
                         >
                           {link.title}

@@ -272,7 +272,9 @@ export function EmailSettingsSection({
                 <FormControl>
                   <Input
                     autoComplete='off'
-                    placeholder={t('New API &lt;noreply@example.com&gt;')}
+                    placeholder={t(
+                      'Yunhe Xingze Token Operations Center &lt;noreply@example.com&gt;'
+                    )}
                     {...field}
                     onChange={(event) => field.onChange(event.target.value)}
                   />

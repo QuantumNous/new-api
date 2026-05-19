@@ -22,6 +22,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+import { DEFAULT_SYSTEM_NAME } from '@/lib/constants'
 import { cn } from '@/lib/utils'
 import { useSystemConfig } from '@/hooks/use-system-config'
 import {
@@ -75,7 +76,7 @@ export function SetupWizard() {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
-  const { systemName, logo, loading: systemConfigLoading } = useSystemConfig()
+  const { logo, loading: systemConfigLoading } = useSystemConfig()
 
   const [currentStep, setCurrentStep] = useState(0)
   const [setupStatus, setSetupStatus] = useState<SetupStatus | undefined>()
@@ -277,48 +278,66 @@ export function SetupWizard() {
   }
 
   return (
-    <div className='bg-muted/40 relative min-h-svh py-10'>
-      <div className='absolute top-4 right-4 sm:top-6 sm:right-6'>
+    <div className='relative isolate min-h-svh overflow-hidden bg-slate-950 py-8 text-slate-50 sm:py-10'>
+      <div
+        aria-hidden='true'
+        className='pointer-events-none absolute inset-0 -z-30 bg-[linear-gradient(135deg,#020617_0%,#0f172a_34%,#1e1b4b_68%,#111827_100%)]'
+      />
+      <div
+        aria-hidden='true'
+        className='pointer-events-none absolute inset-0 -z-20 bg-[linear-gradient(rgba(125,211,252,0.08)_1px,transparent_1px),linear-gradient(90deg,rgba(125,211,252,0.08)_1px,transparent_1px)] [mask-image:linear-gradient(to_bottom,black,transparent_84%)] bg-[size:72px_72px]'
+      />
+      <div
+        aria-hidden='true'
+        className='pointer-events-none absolute inset-x-0 top-0 -z-10 h-80 bg-[linear-gradient(90deg,rgba(14,165,233,0.16),rgba(99,102,241,0.22),rgba(168,85,247,0.16))]'
+      />
+      <div className='absolute top-4 right-4 z-10 text-slate-100 sm:top-6 sm:right-6 [&_button]:border [&_button]:border-white/10 [&_button]:bg-white/10 [&_button]:backdrop-blur-md [&_button:hover]:bg-white/15'>
         <LanguageSwitcher />
       </div>
-      <div className='container mx-auto flex max-w-5xl flex-col gap-8 px-4 sm:px-6'>
-        <div className='flex flex-col items-center gap-3'>
-          <div className='relative h-12 w-12'>
+      <div className='container mx-auto flex max-w-6xl flex-col gap-8 px-4 sm:px-6'>
+        <div className='flex flex-col items-center gap-4 pt-8 text-center sm:pt-4'>
+          <div className='inline-flex items-center rounded-lg border border-cyan-300/20 bg-cyan-300/10 px-3 py-1 text-xs font-medium text-cyan-100 shadow-lg shadow-cyan-950/30 backdrop-blur-md'>
+            {t('System setup wizard')}
+          </div>
+          <div className='relative h-14 w-14'>
             {systemConfigLoading ? (
-              <Skeleton className='absolute inset-0 rounded-full' />
+              <Skeleton className='absolute inset-0 rounded-lg bg-white/10' />
             ) : (
               <img
                 src={logo}
                 alt={t('System logo')}
-                className='h-12 w-12 rounded-full object-cover shadow-sm'
+                className='h-14 w-14 rounded-lg border border-white/15 object-cover shadow-2xl shadow-cyan-950/40'
               />
             )}
           </div>
           {systemConfigLoading ? (
-            <Skeleton className='h-7 w-40' />
+            <Skeleton className='h-8 w-72 max-w-full bg-white/10' />
           ) : (
-            <h1 className='text-2xl font-semibold tracking-tight'>
-              {t('Initialize')} {systemName}
+            <h1 className='max-w-3xl text-3xl font-semibold tracking-normal text-white sm:text-4xl'>
+              {DEFAULT_SYSTEM_NAME}
             </h1>
           )}
-          <p className='text-muted-foreground text-center text-sm sm:text-base'>
+          <p className='max-w-2xl text-sm leading-6 text-slate-300 sm:text-base'>
+            面向政企场景的一体化模型服务与AI资源运营平台
+          </p>
+          <p className='max-w-2xl text-sm leading-6 text-slate-400'>
             {t(
               'Follow the guided steps to prepare your workspace before the first login.'
             )}
           </p>
         </div>
 
-        <Card className='shadow-lg'>
-          <CardHeader className='space-y-2'>
-            <CardTitle className='text-xl font-semibold'>
+        <Card className='rounded-lg border border-white/15 bg-slate-950/55 text-slate-50 shadow-[0_24px_80px_rgba(15,23,42,0.58)] ring-1 ring-cyan-200/10 backdrop-blur-xl'>
+          <CardHeader className='space-y-2 border-b border-white/10 px-5 pb-5 sm:px-6'>
+            <CardTitle className='text-xl font-semibold text-white'>
               {t('System setup wizard')}
             </CardTitle>
-            <CardDescription>
+            <CardDescription className='text-slate-300/80'>
               {t('Complete these steps to finish the initial installation.')}
             </CardDescription>
           </CardHeader>
 
-          <CardContent className='space-y-6'>
+          <CardContent className='space-y-6 px-5 sm:px-6 [&_.bg-card]:border-white/10 [&_.bg-card]:bg-white/[0.06] [&_.border]:border-white/10 [&_.text-foreground]:text-slate-50 [&_.text-muted-foreground]:text-slate-300/75 [&_[data-slot=input]]:border-white/15 [&_[data-slot=input]]:bg-slate-950/45 [&_[data-slot=input]]:text-slate-50 [&_[data-slot=input]]:placeholder:text-slate-500 [&_[data-slot=separator]]:bg-white/10 [&_label]:text-slate-100'>
             <ol className='grid gap-3 sm:grid-cols-4'>
               {STEPS.map((step, index) => {
                 const isActive = currentStep === index
@@ -327,32 +346,32 @@ export function SetupWizard() {
                   <li
                     key={step.titleKey}
                     className={cn(
-                      'rounded-xl border p-3',
+                      'rounded-lg border p-3 transition-colors',
                       isActive
-                        ? 'border-primary ring-primary/20 ring-2'
+                        ? 'border-cyan-300/55 bg-cyan-300/10 shadow-lg ring-2 shadow-cyan-950/25 ring-cyan-300/20'
                         : isCompleted
-                          ? 'border-primary/40 bg-primary/5'
-                          : 'border-muted bg-card'
+                          ? 'border-emerald-300/35 bg-emerald-300/10'
+                          : 'border-white/10 bg-white/[0.04]'
                     )}
                   >
                     <div className='flex items-start gap-3'>
                       <span
                         className={cn(
-                          'flex size-6 items-center justify-center rounded-md border text-xs font-semibold',
+                          'flex size-6 shrink-0 items-center justify-center rounded-md border text-xs font-semibold',
                           isActive
-                            ? 'border-primary bg-primary text-primary-foreground'
+                            ? 'border-cyan-200 bg-cyan-300 text-slate-950'
                             : isCompleted
-                              ? 'border-primary bg-primary text-primary-foreground'
-                              : 'border-muted-foreground/40 text-muted-foreground'
+                              ? 'border-emerald-200 bg-emerald-300 text-slate-950'
+                              : 'border-white/20 text-slate-400'
                         )}
                       >
                         {index + 1}
                       </span>
                       <div className='space-y-1'>
-                        <p className='text-sm font-semibold'>
+                        <p className='text-sm font-semibold text-slate-50'>
                           {t(step.titleKey)}
                         </p>
-                        <p className='text-muted-foreground text-xs'>
+                        <p className='text-xs leading-5 text-slate-400'>
                           {t(step.descriptionKey)}
                         </p>
                       </div>
@@ -382,7 +401,7 @@ export function SetupWizard() {
           </CardContent>
 
           {!isLoading && !isError && (
-            <CardFooter className='w-full justify-end border-t'>
+            <CardFooter className='w-full justify-end border-t border-white/10 bg-white/[0.04] px-5 sm:px-6 [&_.bg-background]:border-white/15 [&_.bg-background]:bg-white/5 [&_.bg-background]:text-slate-100 [&_.bg-background:hover]:bg-white/10 [&_[data-slot=button]]:shadow-lg'>
               <StepNavigation
                 currentStep={currentStep}
                 totalSteps={STEPS.length}

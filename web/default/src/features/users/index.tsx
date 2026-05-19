@@ -31,9 +31,11 @@ function UsersContent() {
   return (
     <>
       <SectionPageLayout>
-        <SectionPageLayout.Title>{t('Users')}</SectionPageLayout.Title>
+        <SectionPageLayout.Title>
+          {t('Tenant & Account Management')}
+        </SectionPageLayout.Title>
         <SectionPageLayout.Description>
-          {t('Manage users and their permissions')}
+          {t('Manage tenants, accounts, and permissions')}
         </SectionPageLayout.Description>
         <SectionPageLayout.Actions>
           <UsersPrimaryButtons />

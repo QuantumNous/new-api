@@ -23,7 +23,8 @@ For commercial licensing, please contact support@quantumnous.com
 import { type TFunction } from 'i18next'
 
 // Layout - Main base classes
-export const MAIN_BASE_CLASSES = 'bg-background text-foreground w-full'
+export const MAIN_BASE_CLASSES =
+  'dark bg-gradient-to-b from-slate-950 via-indigo-950/35 to-slate-950 text-slate-100 w-full'
 
 // Hero section - AI Applications (Left side)
 export const AI_APPLICATIONS = [
@@ -62,22 +63,22 @@ export const DEFAULT_STATS = [
   {
     value: '50',
     suffix: '+',
-    description: 'upstream services integrated',
+    description: 'Home stat model channels',
   },
   {
     value: '100',
     suffix: '+',
-    description: 'model billing support',
+    description: 'Home stat billing models',
   },
   {
     value: '50',
     suffix: '+',
-    description: 'compatible API routes',
+    description: 'Home stat access routes',
   },
   {
     value: '10',
     suffix: '+',
-    description: 'scheduling controls',
+    description: 'Home stat scheduling policies',
   },
 ] as const
 
@@ -121,8 +122,8 @@ export const DEFAULT_FEATURES = [
     iconName: 'Users',
   },
   {
-    title: 'Open Source',
-    description: 'Community driven, self-hosted, and extensible',
+    title: 'Enterprise Operations',
+    description: 'Governed deployment, operations, and resource management',
     iconName: 'HeartHandshake',
   },
 ] as const

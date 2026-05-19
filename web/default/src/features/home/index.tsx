@@ -18,11 +18,15 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { useTranslation } from 'react-i18next'
 import { useAuthStore } from '@/stores/auth-store'
+import { DEFAULT_SYSTEM_NAME } from '@/lib/constants'
 import { Markdown } from '@/components/ui/markdown'
 import { PublicLayout } from '@/components/layout'
 import { Footer } from '@/components/layout/components/footer'
 import { CTA, Features, Hero, HowItWorks, Stats } from './components'
 import { useHomePageContent } from './hooks'
+
+const HOME_PORTAL_SHELL =
+  'dark min-h-screen bg-gradient-to-b from-slate-950 via-indigo-950/35 to-slate-950 text-slate-100'
 
 export function Home() {
   const { t } = useTranslation()
@@ -32,9 +36,11 @@ export function Home() {
 
   if (!isLoaded) {
     return (
-      <PublicLayout showMainContainer={false}>
-        <main className='flex min-h-screen items-center justify-center'>
-          <div className='text-muted-foreground'>{t('Loading...')}</div>
+      <PublicLayout showMainContainer={false} siteName={DEFAULT_SYSTEM_NAME}>
+        <main
+          className={`${HOME_PORTAL_SHELL} flex min-h-screen items-center justify-center`}
+        >
+          <div className='text-slate-400'>{t('Loading...')}</div>
         </main>
       </PublicLayout>
     )
@@ -42,8 +48,8 @@ export function Home() {
 
   if (content) {
     return (
-      <PublicLayout showMainContainer={false}>
-        <main className='overflow-x-hidden'>
+      <PublicLayout showMainContainer={false} siteName={DEFAULT_SYSTEM_NAME}>
+        <main className={`${HOME_PORTAL_SHELL} overflow-x-hidden`}>
           {isUrl ? (
             <iframe
               src={content}
@@ -61,13 +67,15 @@ export function Home() {
   }
 
   return (
-    <PublicLayout showMainContainer={false}>
-      <Hero isAuthenticated={isAuthenticated} />
-      <Stats />
-      <Features />
-      <HowItWorks />
-      <CTA isAuthenticated={isAuthenticated} />
-      <Footer />
+    <PublicLayout showMainContainer={false} siteName={DEFAULT_SYSTEM_NAME}>
+      <div className={HOME_PORTAL_SHELL}>
+        <Hero isAuthenticated={isAuthenticated} />
+        <Stats />
+        <Features />
+        <HowItWorks />
+        <CTA isAuthenticated={isAuthenticated} />
+        <Footer />
+      </div>
     </PublicLayout>
   )
 }

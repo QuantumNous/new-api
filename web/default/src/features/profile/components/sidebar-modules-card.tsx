@@ -73,32 +73,32 @@ export function SidebarModulesCard() {
     },
     {
       key: 'console',
-      title: t('Console Area'),
+      title: t('Operations Console Area'),
       description: t('Data management and log viewing'),
       modules: [
         {
           key: 'detail',
-          title: t('Dashboard'),
+          title: t('Model Call Analytics'),
           description: t('System data statistics'),
         },
         {
           key: 'token',
-          title: t('Token Management'),
-          description: t('API token management'),
+          title: t('Application Access Keys'),
+          description: t('Application access key management'),
         },
         {
           key: 'log',
-          title: t('Usage Logs'),
-          description: t('API usage records'),
+          title: t('Token Consumption Details'),
+          description: t('Token usage records'),
         },
         {
           key: 'midjourney',
-          title: t('Drawing Logs'),
+          title: t('Drawing Audit Records'),
           description: t('Drawing task records'),
         },
         {
           key: 'task',
-          title: t('Task Logs'),
+          title: t('Task Audit Records'),
           description: t('System task records'),
         },
       ],
@@ -110,12 +110,12 @@ export function SidebarModulesCard() {
       modules: [
         {
           key: 'topup',
-          title: t('Wallet Management'),
-          description: t('Balance and top-up management'),
+          title: t('Token Quota Management'),
+          description: t('Token quota and recharge management'),
         },
         {
           key: 'personal',
-          title: t('Personal Settings'),
+          title: t('Account Profile'),
           description: t('Personal info settings'),
         },
       ],

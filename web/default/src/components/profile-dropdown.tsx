@@ -20,6 +20,7 @@ import { useMemo } from 'react'
 import { useNavigate } from '@tanstack/react-router'
 import { User, Wallet, LogOut, Settings } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/stores/auth-store'
 import { getUserAvatarFallback, getUserAvatarStyle } from '@/lib/avatar'
 import { ROLE } from '@/lib/roles'
@@ -56,7 +57,16 @@ export function ProfileDropdown() {
     <>
       <DropdownMenu modal={false}>
         <DropdownMenuTrigger
-          render={<Button variant='ghost' className='relative size-6 p-0' />}
+          render={
+            <Button
+              variant='ghost'
+              className={cn(
+                'relative size-8 rounded-full border p-0 shadow-sm',
+                'border-slate-200/80 bg-white/90',
+                'dark:border-white/15 dark:bg-white/10'
+              )}
+            />
+          }
         >
           <Avatar className='size-6'>
             <AvatarFallback
@@ -67,7 +77,14 @@ export function ProfileDropdown() {
             </AvatarFallback>
           </Avatar>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align='end' sideOffset={8} className='w-56'>
+        <DropdownMenuContent
+          align='end'
+          sideOffset={8}
+          className={cn(
+            'w-56 border-white/10 bg-slate-950/95 text-slate-100 shadow-xl backdrop-blur-md',
+            'dark:border-white/10 dark:bg-slate-950/95'
+          )}
+        >
           <div className='flex items-center gap-2 px-1.5 py-1.5'>
             <Avatar className='size-8'>
               <AvatarFallback
@@ -78,17 +95,15 @@ export function ProfileDropdown() {
               </AvatarFallback>
             </Avatar>
             <div className='flex flex-1 flex-col gap-0.5 overflow-hidden'>
-              <p className='text-foreground truncate text-sm font-medium'>
+              <p className='truncate text-sm font-medium text-slate-50'>
                 {displayName}
               </p>
               <div className='flex items-center gap-1.5'>
-                <span className='text-muted-foreground text-xs'>
-                  {roleLabel}
-                </span>
+                <span className='text-xs text-slate-400'>{roleLabel}</span>
                 {user?.group && (
                   <>
-                    <span className='text-muted-foreground text-xs'>·</span>
-                    <span className='text-muted-foreground truncate text-xs'>
+                    <span className='text-xs text-slate-500'>·</span>
+                    <span className='truncate text-xs text-slate-400'>
                       {String(user.group)}
                     </span>
                   </>
@@ -97,20 +112,27 @@ export function ProfileDropdown() {
             </div>
           </div>
 
-          <DropdownMenuSeparator />
+          <DropdownMenuSeparator className='bg-white/10' />
 
-          <DropdownMenuItem onClick={() => navigate({ to: '/profile' })}>
+          <DropdownMenuItem
+            className='focus:bg-white/10 focus:text-slate-50'
+            onClick={() => navigate({ to: '/profile' })}
+          >
             <User className='size-4' />
-            {t('Profile')}
+            {t('Account Profile')}
           </DropdownMenuItem>
 
-          <DropdownMenuItem onClick={() => navigate({ to: '/wallet' })}>
+          <DropdownMenuItem
+            className='focus:bg-white/10 focus:text-slate-50'
+            onClick={() => navigate({ to: '/wallet' })}
+          >
             <Wallet className='size-4' />
-            {t('Wallet')}
+            {t('Token Quota Management')}
           </DropdownMenuItem>
 
           {isSuperAdmin && (
             <DropdownMenuItem
+              className='focus:bg-white/10 focus:text-slate-50'
               onClick={() =>
                 navigate({
                   to: '/system-settings/site/$section',
@@ -119,13 +141,17 @@ export function ProfileDropdown() {
               }
             >
               <Settings className='size-4' />
-              {t('System Settings')}
+              {t('Platform Configuration Center')}
             </DropdownMenuItem>
           )}
 
-          <DropdownMenuSeparator />
+          <DropdownMenuSeparator className='bg-white/10' />
 
-          <DropdownMenuItem variant='destructive' onClick={() => setOpen(true)}>
+          <DropdownMenuItem
+            variant='destructive'
+            className='focus:bg-destructive/20'
+            onClick={() => setOpen(true)}
+          >
             <LogOut className='size-4' />
             {t('Sign out')}
           </DropdownMenuItem>

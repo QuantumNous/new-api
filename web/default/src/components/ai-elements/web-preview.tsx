@@ -253,7 +253,7 @@ export const WebPreviewConsole = ({
           />
         }
       >
-        {t('Console')}
+        {t('Operations Console')}
         <ChevronDownIcon
           className={cn(
             'h-4 w-4 transition-transform duration-200',

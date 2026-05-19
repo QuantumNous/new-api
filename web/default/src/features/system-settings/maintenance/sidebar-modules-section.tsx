@@ -60,15 +60,15 @@ export function SidebarModulesSection({
       description: t('Playground experiments and live conversations.'),
     },
     console: {
-      title: t('Console area'),
-      description: t('Dashboards, tokens, and usage analytics.'),
+      title: t('Operations Console Area'),
+      description: t('Dashboards, access keys, and usage analytics.'),
     },
     personal: {
-      title: t('Personal area'),
-      description: t('Wallet management and personal preferences.'),
+      title: t('Personal Center Area'),
+      description: t('Token quota management and personal preferences.'),
     },
     admin: {
-      title: t('Admin area'),
+      title: t('Platform Administration Area'),
       description: t('Global configuration and administrative tools.'),
     },
   }
@@ -89,59 +89,59 @@ export function SidebarModulesSection({
     },
     console: {
       detail: {
-        title: t('Dashboard'),
+        title: t('Model Call Analytics'),
         description: t('Aggregated usage metrics and trend charts.'),
       },
       token: {
-        title: t('Token management'),
-        description: t('Create, revoke, and audit API tokens.'),
+        title: t('Application Access Keys'),
+        description: t('Create, revoke, and audit application access keys.'),
       },
       log: {
-        title: t('Usage logs'),
+        title: t('Token Consumption Details'),
         description: t('Detailed request logs for investigations.'),
       },
       midjourney: {
-        title: t('Drawing logs'),
+        title: t('Drawing Audit Records'),
         description: t('History of Midjourney-style image tasks.'),
       },
       task: {
-        title: t('Task logs'),
+        title: t('Task Audit Records'),
         description: t('Background job tracker for queued work.'),
       },
     },
     personal: {
       topup: {
-        title: t('Wallet'),
+        title: t('Token Quota Management'),
         description: t('Top up balance and view billing history.'),
       },
       personal: {
-        title: t('Profile'),
+        title: t('Account Profile'),
         description: t('Personal settings and profile management.'),
       },
     },
     admin: {
       channel: {
-        title: t('Channels'),
+        title: t('Model Service Channels'),
         description: t('Configure upstream providers and routing.'),
       },
       models: {
-        title: t('Models'),
+        title: t('Model Resource Pool'),
         description: t('Manage catalog visibility and pricing.'),
       },
       redemption: {
-        title: t('Redeem codes'),
+        title: t('Resource Redemption Management'),
         description: t('Create and review invite or credit codes.'),
       },
       user: {
-        title: t('Users'),
+        title: t('Tenant & Account Management'),
         description: t('Administer user accounts and roles.'),
       },
       setting: {
-        title: t('System settings'),
+        title: t('Platform Configuration Center'),
         description: t('Advanced platform configuration.'),
       },
       subscription: {
-        title: t('Subscription Management'),
+        title: t('Subscription Plan Management'),
         description: t('Manage subscription plans and pricing.'),
       },
     },

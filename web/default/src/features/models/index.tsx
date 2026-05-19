@@ -47,11 +47,11 @@ const SECTION_META: Record<
   { titleKey: string; descriptionKey: string }
 > = {
   metadata: {
-    titleKey: 'Metadata',
-    descriptionKey: 'Manage model metadata and configuration',
+    titleKey: 'Model Resource Pool',
+    descriptionKey: 'Manage model resource metadata and configuration',
   },
   deployments: {
-    titleKey: 'Deployments',
+    titleKey: 'Model Deployments',
     descriptionKey: 'Manage model deployments',
   },
 }
@@ -142,7 +142,7 @@ function ModelsContent() {
         <SectionPageLayout.Content>
           <div className='space-y-4'>
             <Tabs value={activeSection} onValueChange={handleSectionChange}>
-              <TabsList className='group-data-horizontal/tabs:h-auto max-w-full flex-wrap justify-start'>
+              <TabsList className='max-w-full flex-wrap justify-start group-data-horizontal/tabs:h-auto'>
                 {MODELS_SECTION_IDS.map((section) => (
                   <TabsTrigger key={section} value={section}>
                     {t(SECTION_META[section].titleKey)}

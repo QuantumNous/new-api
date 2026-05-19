@@ -389,13 +389,13 @@ export const TYPE_TO_KEY_PROMPT: Record<number, string> = {
   22: 'Format: APIKey-AppId, e.g., fastgpt-0sp2gtvfdgyi4k30jwlgwf1i-64f335d84283f05518e9e041',
   23: 'Format: AppId|SecretId|SecretKey',
   33: 'Format: Ak|Sk|Region',
-  50: 'Format: AccessKey|SecretKey (or just ApiKey if upstream is New API)',
+  50: 'Format: AccessKey|SecretKey (or just ApiKey for compatible relay upstreams)',
   51: 'Format: Access Key ID|Secret Access Key',
   57: 'Paste Codex OAuth JSON credential (access_token / refresh_token / account_id)',
 }
 
 export const CHANNEL_TYPE_WARNINGS: Record<number, string> = {
   3: 'For channels added after May 10, 2025, no need to remove "." from model names during deployment',
-  8: 'If connecting to upstream One API or New API relay projects, use OpenAI type instead unless you know what you are doing',
+  8: 'If connecting to upstream compatible relay projects, use OpenAI type instead unless you know what you are doing',
   37: 'Dify channels only support chatflow and agent, and agent does not support images',
 }

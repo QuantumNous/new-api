@@ -28,9 +28,11 @@ export function ApiKeys() {
   return (
     <ApiKeysProvider>
       <SectionPageLayout>
-        <SectionPageLayout.Title>{t('API Keys')}</SectionPageLayout.Title>
+        <SectionPageLayout.Title>
+          {t('Application Access Keys')}
+        </SectionPageLayout.Title>
         <SectionPageLayout.Description>
-          {t('Manage your API keys for accessing the service')}
+          {t('Manage application access keys for service integration')}
         </SectionPageLayout.Description>
         <SectionPageLayout.Actions>
           <ApiKeysPrimaryButtons />
