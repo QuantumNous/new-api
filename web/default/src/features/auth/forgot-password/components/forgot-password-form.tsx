@@ -107,7 +107,7 @@ export function ForgotPasswordForm({
           )}
         />
 
-        <Button className='mt-2' disabled={isLoading || isActive}>
+        <Button type='submit' className='mt-2' disabled={isLoading || isActive}>
           {isActive ? `Resend (${secondsLeft}s)` : 'Send reset email'}
           {isLoading ? <Loader2 className='animate-spin' /> : <ArrowRight />}
         </Button>
