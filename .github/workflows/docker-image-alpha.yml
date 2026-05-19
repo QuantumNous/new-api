@@ -1,9 +1,6 @@
 name: Publish Docker image (alpha)
 
 on:
-  push:
-    branches:
-      - alpha
   workflow_dispatch:
     inputs:
       name:

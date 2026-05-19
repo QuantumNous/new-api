@@ -1,10 +1,6 @@
 name: Publish Docker image (Multi-arch)
 
 on:
-  push:
-    tags:
-      - '*'
-      - '!nightly*'
   workflow_dispatch:
     inputs:
       tag:

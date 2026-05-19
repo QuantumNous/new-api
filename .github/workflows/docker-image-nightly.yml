@@ -1,9 +1,6 @@
 name: Publish Docker image (nightly)
 
 on:
-  push:
-    branches:
-      - nightly
   workflow_dispatch:
     inputs:
       name:
