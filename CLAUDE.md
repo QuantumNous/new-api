@@ -1,4 +1,4 @@
-# CLAUDE.md — Project Conventions for new-api
+  # CLAUDE.md — Project Conventions for new-api
 
 ## Overview
 
@@ -139,3 +139,82 @@ When working on tiered/dynamic billing (expression-based pricing), you MUST read
 ### Rule 8: GCP Operations — Read `deploy/gcp/docs/OPERATIONS.md`
 
 Before running any `terraform`, `gcloud`, or other command that touches GCP infrastructure (project `vocai-gemini-prod`), you MUST read `deploy/gcp/docs/OPERATIONS.md` first. It documents Terraform state location, the two separate auth systems (ADC vs user CLI), Cloud Run fields owned by CI/CD that must stay in `lifecycle.ignore_changes`, the env-var-update / revision-conflict workaround, the HTTPS downtime window during managed SSL cert rotation (always warn the user before applying `lb_domains` changes), Cloudflare DNS-only constraint for depth-3 hostnames, and the whitelabel channel registry. Companion docs: `INFRASTRUCTURE.md` (resource inventory), `DEPLOYMENT.md` (deploy/rollback procedures).
+
+---
+
+## Code Map — 按需加载的模块级文档（重要）
+
+本仓库为每个主要模块都维护了一份 `AGENTS.md`，记录该目录的职责、关键文件、内部约定与测试方式。**这些文件不会在会话启动时自动加载**——只有当前文件（根 `CLAUDE.md` / `AGENTS.md`）会随会话初始化进入上下文。
+
+### 加载约定（AI 阅读规则）
+
+- **禁止**一次性把全部 `AGENTS.md` 读入上下文，浪费 token。
+- **必须**在以下场景**主动 `Read` 对应模块的 `AGENTS.md`**：
+  1. 准备**读取或修改**某个模块目录下的代码文件之前
+  2. 需要了解某模块的内部约定、典型模式、依赖关系或测试方式时
+  3. 跨模块协作（例如新增 channel 同时涉及 `relay/` + `setting/` + `dto/`）
+  4. 用户提问明确指向某个目录或子系统时
+- **可省略**：若本文件 Rule 1–8 已覆盖目标问题（如纯粹的 JSON / 跨 DB / Bun 问题），不必再读子文件。
+- 子文件顶部均带 `<!-- Parent: ../AGENTS.md -->`，可沿父链回溯。
+- 子文件末尾 `<!-- MANUAL: -->` 分隔线下方为人工补充内容，重新生成时必须保留。
+
+### 模块级文档索引
+
+#### 后端 Go 应用层
+- `controller/AGENTS.md` — HTTP handler 薄胶水层、统一响应与 i18n 错误
+- `service/AGENTS.md` — 业务逻辑层（计费、渠道选择、token 计数等）
+- `model/AGENTS.md` — GORM 数据访问、跨 DB 兼容、内存缓存
+- `router/AGENTS.md` — 路由注册与限流策略分配
+- `middleware/AGENTS.md` — 鉴权、分发、限流、CORS、日志、错误响应
+
+#### 共享与类型
+- `common/AGENTS.md` — 共享工具（JSON / DB flags / Redis / crypto / env），Rule 1 核心实现
+- `dto/AGENTS.md` — 请求/响应结构体（重点：Rule 6 指针零值）
+- `constant/AGENTS.md` — 枚举常量与 context key
+- `types/AGENTS.md` — relay 格式、错误体系（NewAPIError）
+
+#### Relay 中继子系统
+- `relay/AGENTS.md` — 总入口、handler 分发与计费生命周期
+- `relay/channel/AGENTS.md` — 40+ provider 适配器模式（**新增 channel 必读**，含 Rule 4）
+- `relay/channel/task/AGENTS.md` — 异步任务类 provider（kling/sora/suno/jimeng/kuaizi …）
+- `relay/common/AGENTS.md` — RelayInfo / BillingSettler / StreamStatus / streamSupportedChannels
+- `relay/common_handler/AGENTS.md` — 跨 provider 复用的响应处理器
+- `relay/constant/AGENTS.md` — RelayMode / Path2RelayMode
+- `relay/helper/AGENTS.md` — SSE 流式工具、计费辅助
+- `relay/reasonmap/AGENTS.md` — Claude ↔ OpenAI finish_reason 映射
+
+#### 内部包 pkg/
+- `pkg/AGENTS.md` — 子包总览
+- `pkg/billingexpr/AGENTS.md` — 计费表达式（→ Rule 7 / `expr.md`）
+- `pkg/cachex/AGENTS.md` — 双层缓存（Redis + 内存）
+- `pkg/ionet/AGENTS.md` — HTTP 客户端抽象
+- `pkg/perf_metrics/AGENTS.md` — 性能指标采集
+
+#### 配置 setting/
+- `setting/AGENTS.md` — 配置注册体系总览
+- `setting/billing_setting/AGENTS.md` — 计费相关配置（→ Rule 7）
+- `setting/config/AGENTS.md` — ConfigManager 与 DB 序列化
+- `setting/console_setting/AGENTS.md` — 控制台 UI 配置
+- `setting/model_setting/AGENTS.md` — 模型相关配置
+- `setting/operation_setting/AGENTS.md` — 运营配置
+- `setting/perf_metrics_setting/AGENTS.md` — 性能指标开关
+- `setting/performance_setting/AGENTS.md` — 性能调优
+- `setting/ratio_setting/AGENTS.md` — 计费比率与模型价格
+- `setting/reasoning/AGENTS.md` — 推理相关配置
+- `setting/system_setting/AGENTS.md` — 系统级配置
+
+#### 国际化与认证
+- `oauth/AGENTS.md` — OAuth provider 实现
+- `i18n/AGENTS.md` — 后端 go-i18n（与前端 i18next 完全独立）
+
+#### 部署与文档
+- `deploy/AGENTS.md` — 部署目录总览
+- `deploy/gcp/AGENTS.md` — GCP 部署入口（→ Rule 8 / `OPERATIONS.md`）
+- `docs/AGENTS.md` — 面向人类的项目文档导航
+- `logger/AGENTS.md` — 日志输出层
+- `electron/AGENTS.md` — 桌面端打包
+
+#### 前端
+- `web/AGENTS.md` — 前端容器（双主题）
+- `web/default/AGENTS.md` — 默认主题（React 19 + Rsbuild + Base UI + Tailwind，规范详尽）
+- `web/classic/AGENTS.md` — 经典主题（React 18 + Vite + Semi Design）
