@@ -261,3 +261,19 @@ func ValidateProviderSceneScopesJSON(raw string) error {
 	}
 	return ValidateProviderSceneScopes(scopes)
 }
+
+func NormalizeProviderSceneScopesJSON(raw string) (string, error) {
+	var scopes map[string]map[string]bool
+	if err := json.Unmarshal([]byte(strings.TrimSpace(raw)), &scopes); err != nil {
+		return "", err
+	}
+	if err := ValidateProviderSceneScopes(scopes); err != nil {
+		return "", err
+	}
+	normalizeProviderSceneScopes(&scopes)
+	bytes, err := json.Marshal(scopes)
+	if err != nil {
+		return "", err
+	}
+	return string(bytes), nil
+}

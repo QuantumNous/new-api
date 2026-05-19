@@ -54,10 +54,7 @@ func normalizePaymentSettingOptionValue(key string, value string) (string, error
 		if trimmed == "" {
 			return marshalPaymentSettingDefault(operation_setting.DefaultProviderSceneScopes()), nil
 		}
-		if err := operation_setting.ValidateProviderSceneScopesJSON(trimmed); err != nil {
-			return "", err
-		}
-		return trimmed, nil
+		return operation_setting.NormalizeProviderSceneScopesJSON(trimmed)
 	default:
 		return value, nil
 	}

@@ -137,3 +137,29 @@ func TestNormalizeBusinessFeaturesJSONDropsLegacyKeys(t *testing.T) {
 		t.Fatal("legacy checkin_reward should not be written back")
 	}
 }
+
+func TestNormalizeProviderSceneScopesJSONFillsDefaults(t *testing.T) {
+	normalized, err := NormalizeProviderSceneScopesJSON(
+		`{"epay":{"wallet_topup":false},"waffo":{"wallet_topup":false}}`,
+	)
+	if err != nil {
+		t.Fatalf("provider scene scopes should normalize: %v", err)
+	}
+
+	var scopes map[string]map[string]bool
+	if err := json.Unmarshal([]byte(normalized), &scopes); err != nil {
+		t.Fatalf("normalized scopes should be valid JSON: %v", err)
+	}
+	if scopes[PaymentProviderEpay][PaymentSceneWalletTopUp] {
+		t.Fatal("explicit epay wallet_topup=false should be preserved")
+	}
+	if !scopes[PaymentProviderEpay][PaymentSceneSubscriptionPurchase] {
+		t.Fatal("missing epay subscription_purchase should be filled from defaults")
+	}
+	if scopes[PaymentProviderWaffo][PaymentSceneSubscriptionPurchase] {
+		t.Fatal("unsupported waffo subscription_purchase should remain false")
+	}
+	if _, ok := scopes[PaymentProviderStripe]; !ok {
+		t.Fatal("missing stripe provider should be filled from defaults")
+	}
+}

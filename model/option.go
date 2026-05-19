@@ -208,6 +208,12 @@ func SyncOptions(frequency int) {
 }
 
 func UpdateOption(key string, value string) error {
+	normalizedValue, err := normalizeOptionValueForStorage(key, value)
+	if err != nil {
+		return err
+	}
+	value = normalizedValue
+
 	// Save to database first
 	option := Option{
 		Key: key,
@@ -223,7 +229,39 @@ func UpdateOption(key string, value string) error {
 	return updateOptionMap(key, value)
 }
 
+func normalizeOptionValueForStorage(key string, value string) (string, error) {
+	trimmed := strings.TrimSpace(value)
+	switch key {
+	case "payment_setting.business_features":
+		if trimmed == "" {
+			bytes, err := common.Marshal(operation_setting.DefaultBusinessFeatures())
+			if err != nil {
+				return "{}", nil
+			}
+			return string(bytes), nil
+		}
+		return operation_setting.NormalizeBusinessFeaturesJSON(trimmed)
+	case "payment_setting.provider_scene_scopes":
+		if trimmed == "" {
+			bytes, err := common.Marshal(operation_setting.DefaultProviderSceneScopes())
+			if err != nil {
+				return "{}", nil
+			}
+			return string(bytes), nil
+		}
+		return operation_setting.NormalizeProviderSceneScopesJSON(trimmed)
+	default:
+		return value, nil
+	}
+}
+
 func updateOptionMap(key string, value string) (err error) {
+	normalizedValue, err := normalizeOptionValueForStorage(key, value)
+	if err != nil {
+		return err
+	}
+	value = normalizedValue
+
 	common.OptionMapRWMutex.Lock()
 	defer common.OptionMapRWMutex.Unlock()
 	common.OptionMap[key] = value

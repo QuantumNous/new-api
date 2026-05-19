@@ -203,6 +203,13 @@ const normalizeBusinessFeaturesValue = (value) =>
 const normalizeProviderSceneScopesValue = (value) =>
   writeProviderSceneScopes(readProviderSceneScopes(value));
 
+const visualOnlyInputKeys = ['BusinessFeatures', 'ProviderSceneScopes'];
+
+const getFormInputs = (values) => {
+  const { BusinessFeatures, ProviderSceneScopes, ...formInputs } = values;
+  return formInputs;
+};
+
 export default function SettingsGeneralPayment(props) {
   const { t } = useTranslation();
   const sectionTitle = props.hideSectionTitle ? undefined : t('通用设置');
@@ -238,17 +245,19 @@ export default function SettingsGeneralPayment(props) {
       };
       setInputs(currentInputs);
       setOriginInputs({ ...currentInputs });
-      formApiRef.current.setValues(currentInputs);
+      formApiRef.current.setValues(getFormInputs(currentInputs));
     }
   }, [props.options]);
 
   const handleFormChange = (values) => {
-    setInputs((prev) => ({ ...prev, ...values }));
+    setInputs((prev) => ({ ...prev, ...getFormInputs(values) }));
   };
 
   const updateInputValue = (key, value) => {
     setInputs((prev) => ({ ...prev, [key]: value }));
-    formApiRef.current?.setValue(key, value);
+    if (!visualOnlyInputKeys.includes(key)) {
+      formApiRef.current?.setValue(key, value);
+    }
   };
 
   const updateBusinessFeature = (featureKey, enabled) => {
@@ -393,7 +402,7 @@ export default function SettingsGeneralPayment(props) {
   return (
     <Spin spinning={loading}>
       <Form
-        initValues={inputs}
+        initValues={getFormInputs(inputs)}
         onValueChange={handleFormChange}
         getFormApi={(api) => (formApiRef.current = api)}
       >
