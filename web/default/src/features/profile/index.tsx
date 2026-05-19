@@ -19,6 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import { useAuthStore } from '@/stores/auth-store'
 import { useStatus } from '@/hooks/use-status'
 import { Main } from '@/components/layout'
+import { ROLE } from '@/lib/roles'
 import {
   CardStaggerContainer,
   CardStaggerItem,
@@ -34,14 +35,16 @@ import { useProfile } from './hooks'
 export function Profile() {
   const { profile, loading, refreshProfile } = useProfile()
   const { status } = useStatus()
-  const permissions = useAuthStore((s) => s.auth.user?.permissions)
+  const currentUser = useAuthStore((s) => s.auth.user)
 
   const checkinEnabled = status?.checkin_enabled === true
   const turnstileEnabled = !!(
     status?.turnstile_check && status?.turnstile_site_key
   )
   const turnstileSiteKey = status?.turnstile_site_key || ''
-  const canConfigureSidebar = permissions?.sidebar_settings !== false
+  const canConfigureSidebar =
+    (currentUser?.role ?? 0) >= ROLE.ADMIN &&
+    currentUser?.permissions?.sidebar_settings === true
   const showSideRail = checkinEnabled || canConfigureSidebar
 
   return (
