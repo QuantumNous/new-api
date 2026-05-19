@@ -1,0 +1,67 @@
+<!-- Parent: ../AGENTS.md -->
+<!-- Generated: 2026-05-18 | Updated: 2026-05-18 -->
+
+# oauth
+
+## Purpose
+
+实现 OAuth 2.0 / OIDC 第三方登录功能，提供统一的 Provider 注册中心和多个具体 OAuth 提供方适配器。支持内置提供方（GitHub、Discord、LinuxDo、OIDC）和从数据库动态加载的自定义通用 OAuth 提供方。
+
+## Key Files
+
+| File | Description |
+|------|-------------|
+| `registry.go` | Provider 注册中心：`Register`/`Unregister`、`GetProvider`、`LoadCustomProviders`、`ReloadCustomProviders` |
+| `provider.go` | `Provider` 接口定义及公共 OAuth 流程实现 |
+| `types.go` | 核心类型：`OAuthToken`、`OAuthUser`、`OAuthError`、`AccessDeniedError` |
+| `generic.go` | `GenericOAuthProvider`：通用 OAuth 适配器，支持从 DB 配置动态创建 |
+| `github.go` | GitHub OAuth 适配器 |
+| `discord.go` | Discord OAuth 适配器 |
+| `linuxdo.go` | LinuxDo OAuth 适配器 |
+| `oidc.go` | OIDC（OpenID Connect）适配器 |
+
+## For AI Agents
+
+### Working In This Directory
+
+- `Provider` 接口定义在 `provider.go`，新增内置提供方须实现该接口并在启动时调用 `Register(name, provider)`。
+- 自定义提供方（`GenericOAuthProvider`）从数据库加载，通过 `LoadCustomProviders()` 批量注册；动态增删时调用 `RegisterOrUpdateCustomProvider` / `UnregisterCustomProvider`。
+- `customProviderSlugs` 追踪哪些提供方是动态注册的，以便 `LoadCustomProviders` 重载时只清理自定义提供方，不影响内置提供方。
+- 错误类型分两种：`OAuthError`（包含 i18n 消息键，最终翻译后展示给用户）和 `AccessDeniedError`（直接展示原始消息）。
+- OAuth 流程中涉及 i18n 翻译的错误，使用 `NewOAuthError(msgKey, params)` 构建，在 controller 层调用 `i18n.T(c, err.MsgKey, err.Params)` 翻译。
+- 不要在此包中直接调用 `model` 包以外的数据库操作，保持依赖方向为 `controller → oauth → model`。
+
+### Testing Requirements
+
+- 目前无独立单元测试；通过 OAuth 登录 E2E 流程验证各提供方。
+- 新增提供方时，建议 mock HTTP 响应编写单元测试，覆盖 token 交换和用户信息解析。
+
+### Common Patterns
+
+```go
+// 获取已注册的提供方
+provider := oauth.GetProvider("github")
+if provider == nil {
+    // 提供方未注册或未启用
+}
+
+// 动态更新自定义提供方（来自 DB 变更）
+oauth.RegisterOrUpdateCustomProvider(config)
+
+// 重新加载所有自定义提供方
+oauth.ReloadCustomProviders()
+```
+
+## Dependencies
+
+### Internal
+
+- `model/` — `GetAllCustomOAuthProviders()`、`CustomOAuthProvider` 结构
+- `common/` — `SysError`、`SysLog` 日志函数
+- `i18n/` — 错误消息翻译（在 controller 层调用，非直接依赖）
+
+### External
+
+无（HTTP 请求通过标准库 `net/http` 完成）
+
+<!-- MANUAL: 手动补充内容写在此分隔线下方，重新生成时保留 -->
