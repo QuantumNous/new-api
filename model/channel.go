@@ -827,6 +827,37 @@ func DeleteDisabledChannel() (int64, error) {
 	return result.RowsAffected, result.Error
 }
 
+// BuildChannelGroupCondition returns a SQL fragment and arg that matches a single
+// group token inside the CSV `group` column. Returns ("", nil) when group is empty,
+// which means no filter should be applied. The semantics match SearchChannels so
+// frontend filtering behaves consistently across both endpoints.
+func BuildChannelGroupCondition(group string) (string, interface{}) {
+	if group == "" || group == "null" {
+		return "", nil
+	}
+	var groupCondition string
+	if common.UsingMySQL {
+		groupCondition = `CONCAT(',', ` + commonGroupCol + `, ',') LIKE ?`
+	} else {
+		// sqlite, PostgreSQL
+		groupCondition = `(',' || ` + commonGroupCol + ` || ',') LIKE ?`
+	}
+	return groupCondition, "%," + group + ",%"
+}
+
+// ChannelGroupMatches reports whether a CSV `group` column value contains the
+// given group token. Used for in-memory filtering when SQL filtering is not
+// applicable (e.g. tag-mode pagination loads channels per tag in Go).
+func ChannelGroupMatches(channelGroups string, group string) bool {
+	if group == "" {
+		return true
+	}
+	if channelGroups == "" {
+		return false
+	}
+	return strings.Contains(","+channelGroups+",", ","+group+",")
+}
+
 func GetPaginatedTags(offset int, limit int) ([]*string, error) {
 	var tags []*string
 	err := DB.Model(&Channel{}).Select("DISTINCT tag").Where("tag != ''").Offset(offset).Limit(limit).Find(&tags).Error

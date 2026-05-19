@@ -85,6 +85,12 @@ func GetAllChannels(c *gin.Context) {
 			typeFilter = t
 		}
 	}
+	// group filter: matches CSV `group` column using the same semantics as SearchChannels
+	groupFilter := c.Query("group")
+	if groupFilter == "null" {
+		groupFilter = ""
+	}
+	groupCondition, groupArg := model.BuildChannelGroupCondition(groupFilter)
 
 	var total int64
 
@@ -114,6 +120,9 @@ func GetAllChannels(c *gin.Context) {
 				if typeFilter >= 0 && ch.Type != typeFilter {
 					continue
 				}
+				if groupFilter != "" && !model.ChannelGroupMatches(ch.Group, groupFilter) {
+					continue
+				}
 				filtered = append(filtered, ch)
 			}
 			channelData = append(channelData, filtered...)
@@ -128,6 +137,9 @@ func GetAllChannels(c *gin.Context) {
 			baseQuery = baseQuery.Where("status = ?", common.ChannelStatusEnabled)
 		} else if statusFilter == 0 {
 			baseQuery = baseQuery.Where("status != ?", common.ChannelStatusEnabled)
+		}
+		if groupCondition != "" {
+			baseQuery = baseQuery.Where(groupCondition, groupArg)
 		}
 
 		baseQuery.Count(&total)
@@ -149,6 +161,9 @@ func GetAllChannels(c *gin.Context) {
 		countQuery = countQuery.Where("status = ?", common.ChannelStatusEnabled)
 	} else if statusFilter == 0 {
 		countQuery = countQuery.Where("status != ?", common.ChannelStatusEnabled)
+	}
+	if groupCondition != "" {
+		countQuery = countQuery.Where(groupCondition, groupArg)
 	}
 	var results []struct {
 		Type  int64
