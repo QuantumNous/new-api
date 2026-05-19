@@ -74,6 +74,28 @@ func TestHandleStreamResponseDataPreservesMappedModelName(t *testing.T) {
 	require.Equal(t, "mapped-claude-model", info.UpstreamModelName)
 }
 
+func TestHandleStreamResponseDataUpdatesUnmappedModelName(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest("POST", "/v1/messages", nil)
+
+	info := &relaycommon.RelayInfo{
+		RelayFormat: types.RelayFormatClaude,
+		ChannelMeta: &relaycommon.ChannelMeta{
+			IsModelMapped:     false,
+			UpstreamModelName: "original-model",
+		},
+	}
+	claudeInfo := &ClaudeResponseInfo{Usage: &dto.Usage{}}
+	data := `{"type":"message_start","message":{"id":"msg_123","model":"provider-claude-model","usage":{"input_tokens":1,"output_tokens":1}}}`
+
+	err := HandleStreamResponseData(c, info, claudeInfo, data)
+
+	require.Nil(t, err)
+	require.Equal(t, "provider-claude-model", info.UpstreamModelName)
+}
+
 func TestFormatClaudeResponseInfo_MessageDelta_FullUsage(t *testing.T) {
 	// message_start 先积累 usage
 	claudeInfo := &ClaudeResponseInfo{
