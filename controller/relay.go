@@ -123,6 +123,11 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		return
 	}
 
+	if relayFormat == types.RelayFormatClaude && relayInfo.RelayMode == relayconstant.RelayModeClaudeCountTokens {
+		newAPIError = relayClaudeCountTokens(c, relayInfo, request)
+		return
+	}
+
 	needSensitiveCheck := setting.ShouldCheckPromptSensitive()
 	needCountToken := constant.CountToken
 	// Avoid building huge CombineText (strings.Join) when token counting and sensitive check are both disabled.
@@ -179,10 +184,11 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 	}()
 
 	retryParam := &service.RetryParam{
-		Ctx:        c,
-		TokenGroup: relayInfo.TokenGroup,
-		ModelName:  relayInfo.OriginModelName,
-		Retry:      common.GetPointer(0),
+		Ctx:                 c,
+		TokenGroup:          relayInfo.TokenGroup,
+		ModelName:           relayInfo.OriginModelName,
+		Retry:               common.GetPointer(0),
+		AllowedChannelTypes: service.GetAllowedChannelTypes(c),
 	}
 	relayInfo.RetryIndex = 0
 	relayInfo.LastError = nil
@@ -247,6 +253,72 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 	}
 }
 
+func relayClaudeCountTokens(c *gin.Context, relayInfo *relaycommon.RelayInfo, request dto.Request) *types.NewAPIError {
+	if setting.ShouldCheckPromptSensitive() {
+		meta := request.GetTokenCountMeta()
+		if meta != nil {
+			contains, words := service.CheckSensitiveText(meta.CombineText)
+			if contains {
+				logger.LogWarn(c, fmt.Sprintf("user sensitive words detected: %s", strings.Join(words, ", ")))
+				return types.NewError(errors.New("sensitive words detected"), types.ErrorCodeSensitiveWordsDetected)
+			}
+		}
+	}
+
+	retryParam := &service.RetryParam{
+		Ctx:                 c,
+		TokenGroup:          relayInfo.TokenGroup,
+		ModelName:           relayInfo.OriginModelName,
+		Retry:               common.GetPointer(0),
+		AllowedChannelTypes: service.GetAllowedChannelTypes(c),
+	}
+	relayInfo.RetryIndex = 0
+	relayInfo.LastError = nil
+
+	var newAPIError *types.NewAPIError
+	for ; retryParam.GetRetry() <= common.RetryTimes; retryParam.IncreaseRetry() {
+		relayInfo.RetryIndex = retryParam.GetRetry()
+		channel, channelErr := getChannel(c, relayInfo, retryParam)
+		if channelErr != nil {
+			logger.LogError(c, channelErr.Error())
+			newAPIError = channelErr
+			break
+		}
+
+		addUsedChannel(c, channel.Id)
+		bodyStorage, bodyErr := common.GetBodyStorage(c)
+		if bodyErr != nil {
+			if common.IsRequestBodyTooLargeError(bodyErr) || errors.Is(bodyErr, common.ErrRequestBodyTooLarge) {
+				newAPIError = types.NewErrorWithStatusCode(bodyErr, types.ErrorCodeReadRequestBodyFailed, http.StatusRequestEntityTooLarge, types.ErrOptionWithSkipRetry())
+			} else {
+				newAPIError = types.NewErrorWithStatusCode(bodyErr, types.ErrorCodeReadRequestBodyFailed, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
+			}
+			break
+		}
+		c.Request.Body = io.NopCloser(bodyStorage)
+
+		newAPIError = relay.ClaudeCountTokensHelper(c, relayInfo)
+		if newAPIError == nil {
+			relayInfo.LastError = nil
+			return nil
+		}
+
+		relayInfo.LastError = newAPIError
+		processChannelError(c, *types.NewChannelError(channel.Id, channel.Type, channel.Name, channel.ChannelInfo.IsMultiKey, common.GetContextKeyString(c, constant.ContextKeyChannelKey), channel.GetAutoBan()), newAPIError)
+
+		if !shouldRetry(c, newAPIError, common.RetryTimes-retryParam.GetRetry()) {
+			break
+		}
+	}
+
+	useChannel := c.GetStringSlice("use_channel")
+	if len(useChannel) > 1 {
+		retryLogStr := fmt.Sprintf("重试：%s", strings.Trim(strings.Join(strings.Fields(fmt.Sprint(useChannel)), "->"), "[]"))
+		logger.LogInfo(c, retryLogStr)
+	}
+	return newAPIError
+}
+
 var upgrader = websocket.Upgrader{
 	Subprotocols: []string{"realtime"}, // WS 握手支持的协议，如果有使用 Sec-WebSocket-Protocol，则必须在此声明对应的 Protocol TODO add other protocol
 	CheckOrigin: func(r *http.Request) bool {
@@ -296,9 +368,13 @@ func getChannel(c *gin.Context, info *relaycommon.RelayInfo, retryParam *service
 		if !autoBan {
 			autoBanInt = 0
 		}
+		channelType := c.GetInt("channel_type")
+		if !service.IsChannelTypeAllowed(channelType, retryParam.AllowedChannelTypes) {
+			return nil, types.NewErrorWithStatusCode(fmt.Errorf("channel type %d is not allowed for this route", channelType), types.ErrorCodeGetChannelFailed, http.StatusServiceUnavailable, types.ErrOptionWithSkipRetry())
+		}
 		return &model.Channel{
 			Id:      c.GetInt("channel_id"),
-			Type:    c.GetInt("channel_type"),
+			Type:    channelType,
 			Name:    c.GetString("channel_name"),
 			AutoBan: &autoBanInt,
 		}, nil
