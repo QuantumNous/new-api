@@ -17,9 +17,14 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React from 'react';
+import React, { useContext } from 'react';
 import { Navigate } from 'react-router-dom';
 import { history } from './history';
+import {
+  clearPersistedReturnTo,
+  getAuthRedirectPath,
+} from '../components/auth/returnTo';
+import { UserContext } from '../context/User';
 
 export function authHeader() {
   // return authorization header with jwt token
@@ -33,10 +38,13 @@ export function authHeader() {
 }
 
 export const AuthRedirect = ({ children }) => {
-  const user = localStorage.getItem('user');
+  const [userState] = useContext(UserContext);
+  const user = userState?.user;
 
   if (user) {
-    return <Navigate to='/console' replace />;
+    const target = getAuthRedirectPath();
+    clearPersistedReturnTo();
+    return <Navigate to={target} replace />;
   }
 
   return children;

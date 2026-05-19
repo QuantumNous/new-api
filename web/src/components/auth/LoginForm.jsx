@@ -113,6 +113,7 @@ const LoginForm = () => {
   const githubTimeoutRef = useRef(null);
   const githubButtonText = t(githubButtonTextKeyByState[githubButtonState]);
   const systemName = getSystemName();
+  const authReturnSearchRef = useRef(window.location.search);
 
   const status = useMemo(() => {
     if (statusState?.status) return statusState.status;
@@ -165,7 +166,7 @@ const LoginForm = () => {
   }, []);
 
   useEffect(() => {
-    persistAllowedReturnTo();
+    persistAllowedReturnTo(authReturnSearchRef.current);
 
     if (searchParams.get('expired')) {
       showError(t('未登录或登录已过期，请重新登录'));
@@ -216,10 +217,10 @@ const LoginForm = () => {
       );
       const { success, message, data } = res.data;
       if (success) {
-        userDispatch({ type: 'login', payload: data });
         setUserData(data);
         updateAPI();
-        redirectAfterAuth(navigate, '/');
+        redirectAfterAuth(navigate, '/', authReturnSearchRef.current);
+        userDispatch({ type: 'login', payload: data });
         showSuccess('登录成功！');
         setShowWeChatLoginModal(false);
       } else {
@@ -236,7 +237,8 @@ const LoginForm = () => {
     setLoginLoading(true);
     try {
       if (username && password) {
-        const res = await API.post(`/api/user/login?turnstile=${turnstileToken}`,
+        const res = await API.post(
+          `/api/user/login?turnstile=${turnstileToken}`,
           {
             username,
             password,
@@ -250,7 +252,6 @@ const LoginForm = () => {
             return;
           }
 
-          userDispatch({ type: 'login', payload: data });
           setUserData(data);
           updateAPI();
           showSuccess('登录成功！');
@@ -261,7 +262,8 @@ const LoginForm = () => {
               centered: true,
             });
           }
-          redirectAfterAuth(navigate, '/console');
+          redirectAfterAuth(navigate, '/console', authReturnSearchRef.current);
+          userDispatch({ type: 'login', payload: data });
         } else {
           showError(message);
           resetSliderCaptcha();
@@ -324,11 +326,11 @@ const LoginForm = () => {
       const res = await API.get('/api/oauth/telegram/login', { params });
       const { success, message, data } = res.data;
       if (success) {
-        userDispatch({ type: 'login', payload: data });
         setUserData(data);
         showSuccess('登录成功！');
         updateAPI();
-        redirectAfterAuth(navigate, '/');
+        redirectAfterAuth(navigate, '/', authReturnSearchRef.current);
+        userDispatch({ type: 'login', payload: data });
       } else {
         showError(message);
       }
@@ -448,14 +450,17 @@ const LoginForm = () => {
         return;
       }
 
-      const finishRes = await API.post('/api/user/passkey/login/finish', payload);
+      const finishRes = await API.post(
+        '/api/user/passkey/login/finish',
+        payload,
+      );
       const finish = finishRes.data;
       if (finish.success) {
-        userDispatch({ type: 'login', payload: finish.data });
         setUserData(finish.data);
         updateAPI();
         showSuccess('登录成功！');
-        redirectAfterAuth(navigate, '/console');
+        redirectAfterAuth(navigate, '/console', authReturnSearchRef.current);
+        userDispatch({ type: 'login', payload: finish.data });
       } else {
         showError(finish.message || 'Passkey 登录失败，请重试');
       }
@@ -471,11 +476,11 @@ const LoginForm = () => {
   };
 
   const handle2FASuccess = (data) => {
-    userDispatch({ type: 'login', payload: data });
     setUserData(data);
     updateAPI();
     showSuccess('登录成功！');
-    redirectAfterAuth(navigate, '/console');
+    redirectAfterAuth(navigate, '/console', authReturnSearchRef.current);
+    userDispatch({ type: 'login', payload: data });
   };
 
   const handleBackToLogin = () => {
@@ -677,7 +682,9 @@ const LoginForm = () => {
         </div>
 
         <div className='mb-4 text-center'>
-          <p>{t('微信扫码关注公众号，输入「验证码」获取验证码（三分钟内有效）')}</p>
+          <p>
+            {t('微信扫码关注公众号，输入「验证码」获取验证码（三分钟内有效）')}
+          </p>
         </div>
 
         <div>

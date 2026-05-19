@@ -1,22 +1,27 @@
-const allowedReturnToUrls = new Set(['https://partners.infistar.ai/']);
+const allowedReturnToPaths = new Set(['/partners/promoter']);
 const returnToStorageKey = 'auth_return_to';
 
 export function getAllowedReturnTo(search = window.location.search) {
-  const returnTo = new URLSearchParams(search).get('return_to');
+  const params = new URLSearchParams(search);
+  const returnTo = params.get('return_to');
   if (!returnTo) {
     return '';
   }
 
-  try {
-    const normalizedReturnTo = new URL(returnTo).href;
-    return allowedReturnToUrls.has(normalizedReturnTo) ? normalizedReturnTo : '';
-  } catch (error) {
+  if (!returnTo.startsWith('/')) {
     return '';
   }
+  const normalizedReturnTo = new URL(returnTo, window.location.origin);
+  if (normalizedReturnTo.origin !== window.location.origin) {
+    return '';
+  }
+  return allowedReturnToPaths.has(normalizedReturnTo.pathname)
+    ? `${normalizedReturnTo.pathname}${normalizedReturnTo.search}`
+    : '';
 }
 
-export function persistAllowedReturnTo() {
-  const returnTo = getAllowedReturnTo();
+export function persistAllowedReturnTo(search = window.location.search) {
+  const returnTo = getAllowedReturnTo(search);
   if (returnTo) {
     localStorage.setItem(returnToStorageKey, returnTo);
   }
@@ -25,24 +30,37 @@ export function persistAllowedReturnTo() {
 
 export function getPersistedAllowedReturnTo() {
   const returnTo =
-    localStorage.getItem(returnToStorageKey) || getAllowedReturnTo();
-  return allowedReturnToUrls.has(returnTo) ? returnTo : '';
+    getAllowedReturnTo() || localStorage.getItem(returnToStorageKey);
+  if (!returnTo) return '';
+  const normalizedReturnTo = new URL(returnTo, window.location.origin);
+  return allowedReturnToPaths.has(normalizedReturnTo.pathname)
+    ? `${normalizedReturnTo.pathname}${normalizedReturnTo.search}`
+    : '';
 }
 
 export function clearPersistedReturnTo() {
   localStorage.removeItem(returnToStorageKey);
 }
 
-export function redirectAfterAuth(navigate, fallbackPath) {
-  const returnTo = getPersistedAllowedReturnTo();
-  clearPersistedReturnTo();
+export function redirectAfterAuth(
+  navigate,
+  fallbackPath,
+  search = window.location.search,
+) {
+  const returnTo = getAllowedReturnTo(search) || getPersistedAllowedReturnTo();
 
   if (returnTo) {
-    window.location.assign(returnTo);
+    navigate(returnTo, { replace: true });
     return;
   }
 
-  navigate(fallbackPath);
+  clearPersistedReturnTo();
+  navigate(fallbackPath, { replace: true });
+}
+
+export function getAuthRedirectPath(search = window.location.search) {
+  const returnTo = getAllowedReturnTo(search) || getPersistedAllowedReturnTo();
+  return returnTo || '/console';
 }
 
 export function withAllowedReturnTo(path) {
