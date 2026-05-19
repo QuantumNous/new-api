@@ -2,6 +2,8 @@ package model
 
 import (
 	"errors"
+	"fmt"
+	"runtime/debug"
 	"sync"
 	"time"
 
@@ -50,6 +52,13 @@ func addNewRecord(type_ int, id int, value int) {
 }
 
 func batchUpdate() {
+	defer func() {
+		if r := recover(); r != nil {
+			// 之前没有 recover 时，goroutine 任意一次 panic 整个 flusher 就永久死亡。
+			// 现在 panic 被吞下并打到错误日志，下次 tick 仍会重新进入这个函数。
+			common.SysError(fmt.Sprintf("batch update panic recovered: %v\n%s", r, debug.Stack()))
+		}
+	}()
 	// check if there's any data to update
 	hasData := false
 	for i := 0; i < BatchUpdateTypeCount; i++ {
@@ -78,12 +87,12 @@ func batchUpdate() {
 			case BatchUpdateTypeUserQuota:
 				err := increaseUserQuota(key, value)
 				if err != nil {
-					common.SysLog("failed to batch update user quota: " + err.Error())
+					common.SysError("failed to batch update user quota: " + err.Error())
 				}
 			case BatchUpdateTypeTokenQuota:
 				err := increaseTokenQuota(key, value)
 				if err != nil {
-					common.SysLog("failed to batch update token quota: " + err.Error())
+					common.SysError("failed to batch update token quota: " + err.Error())
 				}
 			case BatchUpdateTypeUsedQuota:
 				updateUserUsedQuota(key, value)
