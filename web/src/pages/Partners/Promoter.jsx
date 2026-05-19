@@ -953,14 +953,14 @@ const Promoter = () => {
     <div className='grid gap-5'>
       <Panel>
         <PanelTitle
-          title='分佣梯度'
-          hint='按当月有效 GMV 对应区间计算，最终以月度分佣记录为准。'
+          title='分佣阶梯'
+          hint='当月有效金额越高，后面的区间会按更高比例计算；最终金额以月度分佣记录为准。'
         />
         <TableWrap>
           <table className='portal-table'>
             <thead>
               <tr>
-                <th>月有效 GMV 区间</th>
+                <th>月有效金额区间</th>
                 <th>分佣比例</th>
               </tr>
             </thead>
@@ -980,38 +980,41 @@ const Promoter = () => {
       <Panel>
         <PanelTitle
           title='分佣示例'
-          hint='按区间分段计算，每段金额只拿该段自己的比例。'
+          hint='每个区间按对应比例计算，前面区间的金额不会因为进入更高档而改变。'
         />
         <div className='mt-4 grid gap-3 md:grid-cols-2'>
           <RuleCard
             title='示例一：本月 4 万 GMV'
-            detail='4 万都在 0-5 万区间，按 8% 计算，预估分佣 3200 元。'
+            detail='本月有效金额 4 万，全部落在 0-5 万区间，按 8% 计算，预估分佣 3200 元。'
           />
           <RuleCard
             title='示例二：本月 12 万 GMV'
-            detail='前 5 万按 8%，中间 5 万按 10%，剩下 2 万按 12%，预估分佣 11400 元。'
+            detail='本月有效金额 12 万：前 5 万按 8%，5-10 万按 10%，10-12 万按 12%，预估分佣 11400 元。'
           />
         </div>
       </Panel>
       <Panel>
         <PanelTitle
           title='规则说明'
-          hint='这里仅展示推广者需要了解的基础结算口径。'
+          hint='下面说明推荐关系、有效金额、结算和提现怎么看。'
         />
         <div className='mt-4 grid gap-3 md:grid-cols-2'>
           {[
             [
-              '推荐关系',
-              '用户通过你的推荐链接注册，或在注册页填写你的推荐口令后，会记录到你的推广数据中。',
+              '推荐归属',
+              '用户通过你的推广链接、二维码注册，或注册时填写你的推荐口令，会记录为你的推广用户。',
             ],
             [
-              '有效 GMV',
-              '用户完成有效充值后，扣除退款和不参与分佣的项目，再进入分佣统计。',
+              '有效金额',
+              '用户完成有效充值后，扣除退款、异常订单和不参与分佣的项目，剩余金额用于计算分佣。',
             ],
-            ['月度分佣', '系统按月生成分佣记录，确认后会更新可提现金额。'],
             [
-              '提现申请',
-              '有可提现分佣时，可以在分佣提现页提交申请，并查看处理进度。',
+              '分佣生成',
+              '每月会生成一条分佣记录，你可以在分佣提现页查看应结金额、状态和可提现时间。',
+            ],
+            [
+              '提现处理',
+              '记录变为可提现后，就可以提交提现申请；处理进度会同步显示在提现记录里。',
             ],
           ].map(([title, detail]) => (
             <RuleCard key={title} title={title} detail={detail} />
@@ -1243,7 +1246,7 @@ function Landing({ loading, onOpen }) {
               <PreviewItem
                 color='purple'
                 title='梯度分佣'
-                detail='有效 GMV 越稳定，分佣比例按梯度提升，最高 20%。'
+                detail='有效金额越稳定，后续区间的分佣比例越高，最高 20%。'
                 icon='chart'
               />
             </div>
