@@ -30,6 +30,12 @@ type LoginRequest struct {
 	Password string `json:"password"`
 }
 
+type RegisterRequest struct {
+	model.User
+	ManualReferral string `json:"manual_referral"`
+	LinkReferral   string `json:"link_referral"`
+}
+
 func userValidationErrorMessage(err error) string {
 	var validationErrors validator.ValidationErrors
 	if !errors.As(err, &validationErrors) || len(validationErrors) == 0 {
@@ -170,12 +176,13 @@ func Register(c *gin.Context) {
 		common.ApiErrorI18n(c, i18n.MsgUserPasswordRegisterDisabled)
 		return
 	}
-	var user model.User
-	err := common.DecodeJson(c.Request.Body, &user)
+	var req RegisterRequest
+	err := common.DecodeJson(c.Request.Body, &req)
 	if err != nil {
 		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
 		return
 	}
+	user := req.User
 	if err := common.Validate.Struct(&user); err != nil {
 		common.ApiErrorI18n(c, i18n.MsgUserInputInvalid, map[string]any{"Error": userValidationErrorMessage(err)})
 		return
@@ -248,13 +255,22 @@ func Register(c *gin.Context) {
 			return
 		}
 	}
-	service.EmitPromotionUserRegistered(insertedUser.Id, "", "")
+	service.EmitPromotionUserRegistered(insertedUser.Id, normalizePromotionReferral(req.ManualReferral), normalizePromotionReferral(req.LinkReferral))
 
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",
 	})
 	return
+}
+
+func normalizePromotionReferral(value string) string {
+	value = strings.TrimSpace(value)
+	runes := []rune(value)
+	if len(runes) > 64 {
+		return string(runes[:64])
+	}
+	return value
 }
 
 func GetAllUsers(c *gin.Context) {

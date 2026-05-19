@@ -2,6 +2,7 @@ package service
 
 import (
 	"bytes"
+	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
@@ -144,6 +145,7 @@ func queuePromotionWebhook(eventType string, userID int, dedupeKey string, paylo
 		common.SysLog("failed to marshal promotion webhook payload: " + err.Error())
 		return
 	}
+	common.SysLog(fmt.Sprintf("promotion webhook queued event_type=%s event_id=%s newapi_user_id=%s dedupe_key=%s url=%s", envelope.EventType, envelope.EventID, envelope.NewAPIUserID, envelope.DedupeKey, webhookURL))
 
 	log := &model.PromotionWebhookLog{
 		EventID:      envelope.EventID,
@@ -185,9 +187,11 @@ func deliverPromotionWebhookLog(logID int) {
 	now := common.GetTimestamp()
 	httpStatus, responseBody, sendErr := sendPromotionWebhook(log.WebhookURL, strings.TrimSpace(system_setting.PromotionWebhookSecret), []byte(log.Payload))
 	if sendErr == nil {
+		common.SysLog(fmt.Sprintf("promotion webhook delivered id=%d event_type=%s newapi_user_id=%s status=%d", log.Id, log.EventType, log.NewAPIUserID, httpStatus))
 		_ = model.UpdatePromotionWebhookLogResult(log.Id, model.PromotionWebhookStatusSuccess, attempt, httpStatus, responseBody, "", 0, now)
 		return
 	}
+	common.SysLog(fmt.Sprintf("promotion webhook delivery failed id=%d event_type=%s newapi_user_id=%s attempt=%d status=%d error=%q", log.Id, log.EventType, log.NewAPIUserID, attempt, httpStatus, sendErr.Error()))
 
 	status := model.PromotionWebhookStatusPending
 	nextRetryAt := now + int64(60*(1<<(attempt-1)))
@@ -246,8 +250,9 @@ func sendPromotionWebhook(webhookURL string, secret string, body []byte) (int, s
 			Body: body,
 		}
 		if secret != "" {
-			workerReq.Headers["X-Webhook-Signature"] = generateSignature(secret, body)
-			workerReq.Headers["Authorization"] = "Bearer " + secret
+			timestamp := strconv.FormatInt(time.Now().Unix(), 10)
+			workerReq.Headers["X-Partnership-Event-Timestamp"] = timestamp
+			workerReq.Headers["X-Partnership-Event-Signature"] = generatePartnershipEventSignature(timestamp, secret, body)
 		}
 		resp, err = DoWorkerRequest(workerReq)
 	} else {
@@ -261,8 +266,9 @@ func sendPromotionWebhook(webhookURL string, secret string, body []byte) (int, s
 		}
 		req.Header.Set("Content-Type", "application/json")
 		if secret != "" {
-			req.Header.Set("X-Webhook-Signature", generateSignature(secret, body))
-			req.Header.Set("Authorization", "Bearer "+secret)
+			timestamp := strconv.FormatInt(time.Now().Unix(), 10)
+			req.Header.Set("X-Partnership-Event-Timestamp", timestamp)
+			req.Header.Set("X-Partnership-Event-Signature", generatePartnershipEventSignature(timestamp, secret, body))
 		}
 		resp, err = GetHttpClient().Do(req)
 	}
@@ -276,4 +282,12 @@ func sendPromotionWebhook(webhookURL string, secret string, body []byte) (int, s
 		return resp.StatusCode, responseBody, fmt.Errorf("promotion webhook failed with status code: %d", resp.StatusCode)
 	}
 	return resp.StatusCode, responseBody, nil
+}
+
+func generatePartnershipEventSignature(timestamp string, secret string, body []byte) string {
+	h := hmac.New(sha256.New, []byte(secret))
+	h.Write([]byte(timestamp))
+	h.Write([]byte("."))
+	h.Write(body)
+	return hex.EncodeToString(h.Sum(nil))
 }

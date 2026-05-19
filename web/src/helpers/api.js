@@ -25,6 +25,10 @@ import {
 } from './utils';
 import axios from 'axios';
 import { MESSAGE_ROLES } from '../constants/playground.constants';
+import {
+  getPromotionLinkReferral,
+  getPromotionManualReferral,
+} from '../components/auth/promotionReferral';
 
 export let API = axios.create({
   baseURL: import.meta.env.VITE_REACT_APP_SERVER_URL
@@ -242,9 +246,17 @@ export const processGroupsData = (data, userGroup) => {
 
 export async function getOAuthState() {
   let path = '/api/oauth/state';
-  let affCode = localStorage.getItem('aff');
-  if (affCode && affCode.length > 0) {
-    path += `?aff=${affCode}`;
+  const params = new URLSearchParams();
+  const linkReferral = getPromotionLinkReferral() || localStorage.getItem('aff');
+  const manualReferral = getPromotionManualReferral();
+  if (linkReferral) {
+    params.set('link_referral', linkReferral);
+  }
+  if (manualReferral) {
+    params.set('manual_referral', manualReferral);
+  }
+  if (params.toString()) {
+    path += `?${params.toString()}`;
   }
   const res = await API.get(path);
   const { success, message, data } = res.data;

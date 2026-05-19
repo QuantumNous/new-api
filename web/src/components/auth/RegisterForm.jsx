@@ -54,6 +54,12 @@ import {
   redirectAfterAuth,
   withAllowedReturnTo,
 } from './returnTo';
+import {
+  clearPromotionReferral,
+  getPromotionLinkReferral,
+  persistPromotionLinkReferral,
+  setPromotionManualReferral,
+} from './promotionReferral';
 import { useTranslation } from 'react-i18next';
 import { SiDiscord } from 'react-icons/si';
 
@@ -81,6 +87,8 @@ const RegisterForm = () => {
     email: '',
     verification_code: '',
     wechat_verification_code: '',
+    manual_referral: '',
+    link_referral: '',
   });
   const { username, password, password2 } = inputs;
   const [, userDispatch] = useContext(UserContext);
@@ -141,6 +149,11 @@ const RegisterForm = () => {
 
   useEffect(() => {
     persistAllowedReturnTo();
+    persistPromotionLinkReferral();
+    setInputs((current) => ({
+      ...current,
+      link_referral: getPromotionLinkReferral(),
+    }));
   }, []);
 
   useEffect(() => {
@@ -196,6 +209,9 @@ const RegisterForm = () => {
 
   const handleChange = (name, value) => {
     setInputs((current) => ({ ...current, [name]: value }));
+    if (name === 'manual_referral') {
+      setPromotionManualReferral(value);
+    }
   };
 
   const onWeChatLoginClicked = () => {
@@ -240,6 +256,7 @@ const RegisterForm = () => {
       );
       const { success, message } = res.data;
       if (success) {
+        clearPromotionReferral();
         navigate(withAllowedReturnTo('/login'));
         showSuccess('注册成功！');
       } else {
@@ -724,6 +741,29 @@ const RegisterForm = () => {
             </div>
           </>
         )}
+
+        <div>
+          <label className='auth-theme-field-label mb-2 block text-sm font-medium'>
+            {t('推广信息')}
+          </label>
+          <input
+            type='text'
+            name='manual_referral'
+            placeholder={t('可填写推广链接后缀或推荐口令')}
+            className={inputClassName}
+            value={inputs.manual_referral}
+            onChange={(event) =>
+              handleChange('manual_referral', event.target.value)
+            }
+            maxLength={64}
+          />
+          {inputs.link_referral && !inputs.manual_referral && (
+            <p className='mt-2 text-xs text-slate-500 dark:text-slate-400'>
+              {t('已识别推广链接来源：')}
+              {inputs.link_referral}
+            </p>
+          )}
+        </div>
 
         {renderTerms()}
 

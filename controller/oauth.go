@@ -25,6 +25,12 @@ func GenerateOAuthCode(c *gin.Context) {
 	session := sessions.Default(c)
 	state := common.GetRandomString(12)
 	session.Set("oauth_state", state)
+	session.Set("promotion_manual_referral", normalizePromotionReferral(c.Query("manual_referral")))
+	linkReferral := c.Query("link_referral")
+	if linkReferral == "" {
+		linkReferral = c.Query("aff")
+	}
+	session.Set("promotion_link_referral", normalizePromotionReferral(linkReferral))
 	err := session.Save()
 	if err != nil {
 		common.ApiError(c, err)
@@ -286,7 +292,7 @@ func findOrCreateOAuthUser(c *gin.Context, provider oauth.Provider, oauthUser *o
 
 		// Perform post-transaction tasks (logs, sidebar config)
 		user.FinalizeOAuthUserCreation()
-		service.EmitPromotionUserRegistered(user.Id, "", "")
+		service.EmitPromotionUserRegistered(user.Id, sessionString(session.Get("promotion_manual_referral")), sessionString(session.Get("promotion_link_referral")))
 	} else {
 		// Built-in provider: create user and update provider ID in a transaction
 		err := model.DB.Transaction(func(tx *gorm.DB) error {
@@ -316,10 +322,17 @@ func findOrCreateOAuthUser(c *gin.Context, provider oauth.Provider, oauthUser *o
 
 		// Perform post-transaction tasks
 		user.FinalizeOAuthUserCreation()
-		service.EmitPromotionUserRegistered(user.Id, "", "")
+		service.EmitPromotionUserRegistered(user.Id, sessionString(session.Get("promotion_manual_referral")), sessionString(session.Get("promotion_link_referral")))
 	}
 
 	return user, nil
+}
+
+func sessionString(value interface{}) string {
+	if text, ok := value.(string); ok {
+		return text
+	}
+	return ""
 }
 
 // Error types for OAuth
