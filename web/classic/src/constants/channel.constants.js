@@ -194,6 +194,13 @@ export const CHANNEL_OPTIONS = [
     color: 'blue',
     label: 'Kuaizi 丽帧',
   },
+  // IDs 59-99 reserved for upstream main repo; downstream channels start at 100
+  // to avoid merge conflicts when syncing from QuantumNous/new-api.
+  {
+    value: 100,
+    color: 'blue',
+    label: 'BlockRun',
+  },
 ];
 
 // Channel types that support upstream model list fetching in UI.
