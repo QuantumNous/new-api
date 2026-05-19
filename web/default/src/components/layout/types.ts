@@ -97,5 +97,6 @@ export type TopNavLink = {
   href: string
   isActive?: boolean
   disabled?: boolean
+  requiresAuth?: boolean
   external?: boolean
 }

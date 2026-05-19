@@ -151,7 +151,7 @@ export function DashboardSection({ defaultValues }: DashboardSectionProps) {
                     items={[
                       ...granularityOptions.map((option) => ({
                         value: option.value,
-                        label: option.label,
+                        label: t(option.label),
                       })),
                     ]}
                     onValueChange={field.onChange}
@@ -167,7 +167,7 @@ export function DashboardSection({ defaultValues }: DashboardSectionProps) {
                       <SelectGroup>
                         {granularityOptions.map((option) => (
                           <SelectItem key={option.value} value={option.value}>
-                            {option.label}
+                            {t(option.label)}
                           </SelectItem>
                         ))}
                       </SelectGroup>
