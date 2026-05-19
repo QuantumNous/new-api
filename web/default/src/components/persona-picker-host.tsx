@@ -37,8 +37,19 @@ import { useAuthStore } from '@/stores/auth-store'
  *     /profile preset switcher) — just not as a blocking layout-level
  *     modal anymore
  *
- * Loop prevention: skip the redirect when already on /welcome.
+ * Loop prevention:
+ *   - skip the redirect when already on /welcome
+ *   - skip ONE redirect right after the wizard's Finish — the wizard
+ *     sets sessionStorage['dr_welcome_just_finished'] before navigating
+ *     to the persona's default route. Without this guard there's a
+ *     race where setUser hasn't propagated to all useAuthStore
+ *     subscribers by the time PersonaPickerHost's effect re-runs on
+ *     the destination route, so `shouldPrompt` is still true and the
+ *     host bounces the user back to /welcome (defaulting to step 1).
+ *     This guard is one-shot: consume the flag and never block again.
  */
+const WELCOME_JUST_FINISHED_KEY = 'dr_welcome_just_finished'
+
 export function PersonaPickerHost() {
   const shouldPrompt = useShouldPromptPersona()
   const user = useAuthStore((s) => s.auth.user)
@@ -49,6 +60,21 @@ export function PersonaPickerHost() {
     const path =
       typeof window !== 'undefined' ? window.location.pathname : ''
     if (path === '/welcome') return
+    if (typeof window !== 'undefined') {
+      try {
+        if (
+          window.sessionStorage.getItem(WELCOME_JUST_FINISHED_KEY) === '1'
+        ) {
+          // One-shot: consume the flag and skip this redirect. By the
+          // next render the store-update is guaranteed to have settled.
+          window.sessionStorage.removeItem(WELCOME_JUST_FINISHED_KEY)
+          return
+        }
+      } catch {
+        /* private mode / disabled storage — fall through to the normal
+         * redirect path. The only cost is the bounce the user reported. */
+      }
+    }
     navigate({ to: '/welcome', replace: true })
   }, [user, shouldPrompt, navigate])
 

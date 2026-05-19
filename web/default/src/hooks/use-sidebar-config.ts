@@ -159,6 +159,55 @@ function parseUserSidebarConfig(
 }
 
 /**
+ * Read the user's persona out of a raw `setting` field that may be either an
+ * object or a (possibly double-encoded) JSON string. Returns undefined when
+ * the field is missing or can't be parsed.
+ */
+function readPersona(setting: unknown): string | undefined {
+  if (!setting) return undefined
+  let value: unknown = setting
+  if (typeof value === 'string') {
+    try {
+      value = JSON.parse(value)
+    } catch {
+      return undefined
+    }
+  }
+  if (!value || typeof value !== 'object') return undefined
+  const persona = (value as { persona?: unknown }).persona
+  return typeof persona === 'string' ? persona : undefined
+}
+
+/**
+ * Patch over a legacy CASUAL_SIDEBAR snapshot frozen into user.setting at
+ * onboarding time. The original CASUAL_SIDEBAR set `console.enabled: false`
+ * outright, which hides /keys (API Keys) — the one thing the casual persona
+ * is supposed to surface. New preset enables console with token-only.
+ * Existing casual users have the stale shape persisted in DB and won't pick
+ * up the new preset without re-running /welcome, so override at read time.
+ *
+ * Drop this once a backend backfill has rewritten old casual settings.
+ */
+function upgradeLegacyCasualConfig(
+  config: SidebarModulesUserConfig,
+  persona: string | undefined
+): SidebarModulesUserConfig {
+  if (!config || persona !== 'casual') return config
+  if (config.console?.enabled !== false) return config
+  return {
+    ...config,
+    console: {
+      enabled: true,
+      detail: false,
+      token: true,
+      log: false,
+      midjourney: false,
+      task: false,
+    },
+  }
+}
+
+/**
  * Check if a module is enabled. Admin config is the first (authoritative)
  * layer: if admin disables a section/module it is always hidden. User config
  * is a second narrower layer: it can only further hide what admin allowed.
@@ -292,8 +341,13 @@ export function useSidebarConfig(navGroups: NavGroup[]): NavGroup[] {
     if (auth?.user?.permissions?.sidebar_settings === false) {
       return null
     }
-    return parseUserSidebarConfig(auth?.user?.sidebar_modules)
-  }, [auth?.user?.permissions?.sidebar_settings, auth?.user?.sidebar_modules])
+    const parsed = parseUserSidebarConfig(auth?.user?.sidebar_modules)
+    return upgradeLegacyCasualConfig(parsed, readPersona(auth?.user?.setting))
+  }, [
+    auth?.user?.permissions?.sidebar_settings,
+    auth?.user?.sidebar_modules,
+    auth?.user?.setting,
+  ])
 
   const filteredNavGroups = useMemo(
     () =>
