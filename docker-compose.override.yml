@@ -1,0 +1,3 @@
+services:
+  new-api:
+    image: ghcr.io/asf26/moligate:latest
