@@ -131,7 +131,8 @@ function money(value) {
   return new Intl.NumberFormat('zh-CN', {
     style: 'currency',
     currency: 'CNY',
-    maximumFractionDigits: 0,
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
   }).format(toNumber(value));
 }
 
@@ -143,18 +144,158 @@ function copyText(text, label = '内容') {
     .catch(() => Toast.warning('当前浏览器不支持自动复制'));
 }
 
-function downloadQrSvg(filename) {
+function withReferralSource(value, source) {
+  if (!value) return '';
+  try {
+    const url = new URL(value, window.location.origin);
+    url.searchParams.set('ref_source', source);
+    return url.toString();
+  } catch (error) {
+    return value;
+  }
+}
+
+function loadCanvasImage(src) {
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+    if (!src.startsWith('data:') && !src.startsWith('blob:')) {
+      image.crossOrigin = 'anonymous';
+    }
+    image.onload = () => resolve(image);
+    image.onerror = () => reject(new Error('image load failed'));
+    image.src = src;
+  });
+}
+
+async function downloadQrPng(filename, avatarUrl) {
   const svg = document.querySelector('[data-promoter-qr="main"]');
   if (!svg) return;
-  const blob = new Blob([new XMLSerializer().serializeToString(svg)], {
+  const clone = svg.cloneNode(true);
+  clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+  clone.setAttribute('width', '660');
+  clone.setAttribute('height', '660');
+  const blob = new Blob([new XMLSerializer().serializeToString(clone)], {
     type: 'image/svg+xml;charset=utf-8',
   });
   const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = filename;
-  link.click();
-  URL.revokeObjectURL(url);
+  const canvas = document.createElement('canvas');
+  canvas.width = 720;
+  canvas.height = 720;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) {
+    URL.revokeObjectURL(url);
+    return;
+  }
+  try {
+    const qrImage = await loadCanvasImage(url);
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, 720, 720);
+    ctx.drawImage(qrImage, 30, 30, 660, 660);
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(294, 294, 132, 132);
+    if (avatarUrl) {
+      const avatar = await loadCanvasImage(avatarUrl);
+      ctx.drawImage(avatar, 304, 304, 112, 112);
+    } else {
+      ctx.fillStyle = '#2f65ff';
+      ctx.fillRect(304, 304, 112, 112);
+      ctx.fillStyle = '#ffffff';
+      ctx.font = 'bold 36px Arial';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('FI', 360, 360);
+    }
+    const link = document.createElement('a');
+    link.href = canvas.toDataURL('image/png');
+    link.download = filename.replace(/\.svg$/i, '.png');
+    link.click();
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
+
+function uploadImageAsDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || ''));
+    reader.onerror = () => reject(new Error('image read failed'));
+    reader.readAsDataURL(file);
+  });
+}
+
+function formatDateTime(value) {
+  const text = String(value || '').trim();
+  if (!text || text === '-') return '-';
+  if (/^\d{4}-\d{2}-\d{2}$/.test(text)) return text;
+  const date = new Date(text);
+  if (!Number.isNaN(date.getTime())) {
+    const pad = (next) => String(next).padStart(2, '0');
+    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
+  }
+  return text.includes('T') ? text.replace('T', ' ').slice(0, 19) : text;
+}
+
+function buildMonthTrend(rows) {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = now.getMonth();
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const trend = Array.from({ length: daysInMonth }, (_, index) => ({
+    day: `${String(month + 1).padStart(2, '0')}-${String(index + 1).padStart(2, '0')}`,
+    gmv: 0,
+    commission: 0,
+  }));
+  rows.forEach((row) => {
+    const date = new Date(rowValue(row, ['date', 'occurred_at', 'occurredAt'], ''));
+    if (Number.isNaN(date.getTime())) return;
+    if (date.getFullYear() !== year || date.getMonth() !== month) return;
+    const index = date.getDate() - 1;
+    trend[index].gmv += toNumber(rowValue(row, ['effective_gmv', 'effectiveGmv'], 0));
+    trend[index].commission += toNumber(rowValue(row, ['commission_amount', 'commissionAmount'], 0));
+  });
+  return trend;
+}
+
+function barHeight(value, maxValue) {
+  if (value <= 0 || maxValue <= 0) return 0;
+  return Math.max(8, Math.round((value / maxValue) * 100));
+}
+
+function yAxisTicks(maxValue) {
+  if (maxValue <= 0) return [0];
+  const step = niceTickStep(maxValue / 3);
+  return [step * 3, step * 2, step, 0];
+}
+
+function niceTickStep(rawStep) {
+  if (rawStep <= 0) return 1;
+  const magnitude = 10 ** Math.floor(Math.log10(rawStep));
+  const normalized = rawStep / magnitude;
+  if (normalized <= 1) return magnitude;
+  if (normalized <= 2) return 2 * magnitude;
+  if (normalized <= 5) return 5 * magnitude;
+  return 10 * magnitude;
+}
+
+function compactMoney(value) {
+  if (value >= 10000) {
+    return `${new Intl.NumberFormat('zh-CN', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(value / 10000)} 万`;
+  }
+  return new Intl.NumberFormat('zh-CN', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(value);
+}
+
+function trendTickLabels(rows) {
+  const indexes = [0, 7, 14, 21, rows.length - 1].filter(
+    (value, index, list) =>
+      value >= 0 && value < rows.length && list.indexOf(value) === index,
+  );
+  return indexes.map((index) => rows[index].day);
 }
 
 function normalizeRows(rows) {
@@ -210,6 +351,7 @@ const Promoter = () => {
   const [center, setCenter] = useState(null);
   const [credentialModal, setCredentialModal] = useState(null);
   const [credentialDraft, setCredentialDraft] = useState('');
+  const [qrAvatarUrl, setQrAvatarUrl] = useState('');
   const [payoutModalVisible, setPayoutModalVisible] = useState(false);
   const [withdrawModalVisible, setWithdrawModalVisible] = useState(false);
   const [withdrawAmount, setWithdrawAmount] = useState('');
@@ -217,7 +359,6 @@ const Promoter = () => {
   const [payoutDraft, setPayoutDraft] = useState({
     identity_name: '',
     identity_no: '',
-    bank_account_name: '',
     bank_account_no: '',
     bank_name: '',
     bank_branch: '',
@@ -230,6 +371,10 @@ const Promoter = () => {
   const stats = snapshot.stats || {};
   const users = normalizeRows(snapshot.users);
   const topups = normalizeRows(snapshot.topups);
+  const monthTrend = normalizeRows(
+    snapshot.month_trend || stats.month_trend,
+  );
+  const monthTrendRows = monthTrend.length ? monthTrend : topups;
   const statements = normalizeRows(snapshot.statements);
   const withdrawals = normalizeRows(snapshot.withdrawals);
   const receipt = snapshot.receipt || {};
@@ -243,8 +388,15 @@ const Promoter = () => {
     portalProfile.recommendation_phrase || profile?.recommendation_phrase || '';
   const recommendationLink =
     portalProfile.recommendation_link || profile?.recommendation_link || '';
+  const referralLink = withReferralSource(recommendationLink, 'link');
+  const qrRecommendationLink = withReferralSource(recommendationLink, 'qr');
   const remainingChanges =
     portalProfile.remaining_changes ?? profile?.remaining_changes ?? 0;
+  const commissionTiers = normalizeRows(
+    snapshot.commission_tiers || stats.commission_tiers,
+  ).length
+    ? normalizeRows(snapshot.commission_tiers || stats.commission_tiers)
+    : tierRows.map(([range, rate]) => ({ range, rate }));
 
   const monthGmv = stats.month_effective_gmv || 0;
   const monthCommission = stats.month_commission || 0;
@@ -253,7 +405,7 @@ const Promoter = () => {
   const availableWithdraw = stats.available_withdraw || 0;
   const withdrawingAmount = stats.withdrawing_amount || 0;
   const paidAmount = stats.paid_amount || 0;
-  const currentRate = stats.current_rate || '12%';
+  const currentRate = stats.current_rate || '区间阶梯';
 
   const filteredUsers = users.filter((item) =>
     isInRange(rowValue(item, ['locked_at', 'lockedAt'], ''), userRange),
@@ -292,11 +444,15 @@ const Promoter = () => {
         setPayoutDraft({
           identity_name: nextReceipt.identity_name || '',
           identity_no: nextReceipt.identity_no || '',
-          bank_account_name: nextReceipt.bank_account_name || '',
           bank_account_no: nextReceipt.bank_account_no || '',
           bank_name: nextReceipt.bank_name || '',
           bank_branch: nextReceipt.bank_branch || '',
         });
+        const nextAvatar =
+          centerRes.data?.profile?.qr_avatar_url ||
+          centerRes.data?.profile?.qrAvatarUrl ||
+          '';
+        if (nextAvatar) setQrAvatarUrl(nextAvatar);
       }
     } catch (error) {
       if (error?.response?.status === 401) {
@@ -354,9 +510,16 @@ const Promoter = () => {
 
   const savePayoutProfile = async () => {
     try {
-      await API.put(`${apiPrefix}/payout-profile`, payoutDraft, {
-        skipErrorHandler: true,
-      });
+      await API.put(
+        `${apiPrefix}/payout-profile`,
+        {
+          ...payoutDraft,
+          bank_account_name: payoutDraft.identity_name,
+        },
+        {
+          skipErrorHandler: true,
+        },
+      );
       setPayoutModalVisible(false);
       showSuccess(t('收款资料已保存'));
       await fetchPromoterState();
@@ -387,6 +550,18 @@ const Promoter = () => {
     setCredentialDraft(
       kind === 'code' ? recommendationCode : recommendationPhrase,
     );
+  };
+
+  const uploadQrAvatar = async (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    try {
+      setQrAvatarUrl(await uploadImageAsDataUrl(file));
+    } catch (error) {
+      Toast.error('头像读取失败，请重新选择图片');
+    } finally {
+      event.target.value = '';
+    }
   };
 
   const renderOverview = () => (
@@ -425,8 +600,8 @@ const Promoter = () => {
             <PreviewToolLine
               icon='link'
               label='推荐链接'
-              value={recommendationLink}
-              onClick={() => copyText(recommendationLink, '推广链接')}
+              value={referralLink}
+              onClick={() => copyText(referralLink, '推广链接')}
             />
             <PreviewToolLine
               icon='message'
@@ -440,8 +615,9 @@ const Promoter = () => {
               value='扫码进入专属推广入口'
               action='下载'
               onClick={() =>
-                downloadQrSvg(
-                  `infistar-${recommendationCode || 'promoter'}-qr.svg`,
+                downloadQrPng(
+                  `infistar-${recommendationCode || 'promoter'}-qr.png`,
+                  qrAvatarUrl,
                 )
               }
             />
@@ -458,13 +634,14 @@ const Promoter = () => {
         <Panel>
           <PanelTitle title='二维码预览' />
           <div className='mt-4 flex flex-col items-center'>
-            <QrPreview value={recommendationLink} />
+            <QrPreview avatarUrl={qrAvatarUrl} value={qrRecommendationLink} />
             <button
               className='infistar-btn-secondary mt-4 w-full max-w-[240px]'
               type='button'
               onClick={() =>
-                downloadQrSvg(
-                  `infistar-${recommendationCode || 'promoter'}-qr.svg`,
+                downloadQrPng(
+                  `infistar-${recommendationCode || 'promoter'}-qr.png`,
+                  qrAvatarUrl,
                 )
               }
             >
@@ -477,7 +654,7 @@ const Promoter = () => {
       <div className='grid gap-5 xl:grid-cols-[1fr_0.95fr]'>
         <Panel>
           <PanelTitle title='本月趋势' />
-          <TrendBars />
+          <TrendBars rows={monthTrendRows} />
         </Panel>
         <Panel>
           <PanelTitle title='最近分佣' />
@@ -557,8 +734,8 @@ const Promoter = () => {
           <div className='mt-5 grid gap-3'>
             <ToolInfoRow
               label='推荐链接'
-              value={recommendationLink}
-              onCopy={() => copyText(recommendationLink, '推广链接')}
+              value={referralLink}
+              onCopy={() => copyText(referralLink, '推广链接')}
               onEdit={() => openCredentialModal('code')}
               disabled={restricted}
             />
@@ -576,20 +753,41 @@ const Promoter = () => {
         </Panel>
 
         <Panel>
-          <PanelTitle title='带头像二维码' />
+          <PanelTitle title='二维码' />
           <div className='mt-5 flex flex-col items-center'>
-            <QrPreview value={recommendationLink} />
-            <button
-              className='infistar-btn-primary mt-5 w-full max-w-[320px]'
-              type='button'
-              onClick={() =>
-                downloadQrSvg(
-                  `infistar-${recommendationCode || 'promoter'}-qr.svg`,
-                )
-              }
-            >
-              下载二维码
-            </button>
+            <QrPreview avatarUrl={qrAvatarUrl} value={qrRecommendationLink} />
+            <div className='mt-5 flex w-full max-w-[320px] gap-3'>
+              <label className='infistar-btn-secondary flex-1 cursor-pointer'>
+                更换头像
+                <input
+                  accept='image/*'
+                  className='hidden'
+                  type='file'
+                  onChange={uploadQrAvatar}
+                />
+              </label>
+              <button
+                className='infistar-btn-primary flex-1'
+                type='button'
+                onClick={() =>
+                  downloadQrPng(
+                    `infistar-${recommendationCode || 'promoter'}-qr.png`,
+                    qrAvatarUrl,
+                  )
+                }
+              >
+                下载二维码
+              </button>
+            </div>
+            {qrAvatarUrl ? (
+              <button
+                className='mt-3 text-sm font-bold text-slate-500'
+                type='button'
+                onClick={() => setQrAvatarUrl('')}
+              >
+                恢复默认头像
+              </button>
+            ) : null}
           </div>
         </Panel>
       </div>
@@ -610,7 +808,7 @@ const Promoter = () => {
         <UseCaseCard
           color='amber'
           icon='qr'
-          title='海报物料：用带头像二维码更醒目'
+          title='海报物料：用二维码更醒目'
           detail='将专属二维码添加到海报、宣传页等物料，扫码即可关注与注册。'
         />
       </div>
@@ -767,15 +965,33 @@ const Promoter = () => {
               </tr>
             </thead>
             <tbody>
-              {tierRows.map(([range, ratio]) => (
-                <tr key={range}>
-                  <td className='font-bold text-slate-900'>{range}</td>
-                  <td>{ratio}</td>
+              {commissionTiers.map((item) => (
+                <tr key={rowValue(item, ['range', 'label'])}>
+                  <td className='font-bold text-slate-900'>
+                    {rowValue(item, ['range', 'label'])}
+                  </td>
+                  <td>{rowValue(item, ['rate', 'ratio'])}</td>
                 </tr>
               ))}
             </tbody>
           </table>
         </TableWrap>
+      </Panel>
+      <Panel>
+        <PanelTitle
+          title='分佣示例'
+          hint='按区间分段计算，每段金额只拿该段自己的比例。'
+        />
+        <div className='mt-4 grid gap-3 md:grid-cols-2'>
+          <RuleCard
+            title='示例一：本月 4 万 GMV'
+            detail='4 万都在 0-5 万区间，按 8% 计算，预估分佣 3200 元。'
+          />
+          <RuleCard
+            title='示例二：本月 12 万 GMV'
+            detail='前 5 万按 8%，中间 5 万按 10%，剩下 2 万按 12%，预估分佣 11400 元。'
+          />
+        </div>
       </Panel>
       <Panel>
         <PanelTitle
@@ -884,7 +1100,6 @@ const Promoter = () => {
           {[
             ['identity_name', '真实姓名'],
             ['identity_no', '身份证号'],
-            ['bank_account_name', '开户人姓名'],
             ['bank_account_no', '收款账号'],
             ['bank_name', '开户银行'],
             ['bank_branch', '开户支行'],
@@ -1261,8 +1476,8 @@ function UserTable({ rows }) {
         <thead>
           <tr>
             <th>用户 ID</th>
-            <th>绑定方式</th>
-            <th>绑定时间</th>
+            <th>推广注册方式</th>
+            <th>推广注册时间</th>
             <th>首充状态</th>
             <th>用户状态</th>
           </tr>
@@ -1274,7 +1489,7 @@ function UserTable({ rows }) {
                 {rowValue(item, ['masked_id', 'maskedId'])}
               </td>
               <td>{rowValue(item, ['source', 'attribution_source'])}</td>
-              <td>{rowValue(item, ['locked_at', 'lockedAt'])}</td>
+              <td>{formatDateTime(rowValue(item, ['locked_at', 'lockedAt']))}</td>
               <td>
                 <StatusBadge
                   status={rowValue(
@@ -1343,7 +1558,7 @@ function TopupTable({ rows, compact = false }) {
             >
               {compact ? (
                 <>
-                  <td>{rowValue(item, ['date'])}</td>
+                  <td>{formatDateTime(rowValue(item, ['date']))}</td>
                   <td>{rowValue(item, ['type'])}</td>
                   <td className='font-bold text-slate-900'>
                     {rowValue(item, ['masked_user_id', 'maskedUserId'])}
@@ -1361,7 +1576,7 @@ function TopupTable({ rows, compact = false }) {
                 </>
               ) : (
                 <>
-                  <td>{rowValue(item, ['date'])}</td>
+                  <td>{formatDateTime(rowValue(item, ['date']))}</td>
                   <td className='font-bold text-slate-900'>
                     {rowValue(item, ['masked_flow_no', 'maskedFlowNo'])}
                   </td>
@@ -1489,12 +1704,12 @@ function WithdrawalTable({ rows }) {
               <td className='font-bold text-slate-900'>
                 {rowValue(item, ['id'])}
               </td>
-              <td>{rowValue(item, ['applied_at', 'appliedAt'])}</td>
+              <td>{formatDateTime(rowValue(item, ['applied_at', 'appliedAt']))}</td>
               <td>{money(rowValue(item, ['amount'], 0))}</td>
               <td>
                 <StatusBadge status={rowValue(item, ['status'], '处理中')} />
               </td>
-              <td>{rowValue(item, ['handled_at', 'handledAt'])}</td>
+              <td>{formatDateTime(rowValue(item, ['handled_at', 'handledAt']))}</td>
               <td>{rowValue(item, ['note'])}</td>
             </tr>
           ))}
@@ -1526,7 +1741,7 @@ function CredentialChangeTable({ rows }) {
         <tbody>
           {rows.map((item, index) => (
             <tr key={rowValue(item, ['id', 'changed_at', 'changedAt'], index)}>
-              <td>{rowValue(item, ['changed_at', 'changedAt', 'time'])}</td>
+              <td>{formatDateTime(rowValue(item, ['changed_at', 'changedAt', 'time']))}</td>
               <td>
                 {rowValue(item, ['type', 'credential_type', 'credentialType'])}
               </td>
@@ -1543,13 +1758,26 @@ function CredentialChangeTable({ rows }) {
   );
 }
 
-function TrendBars() {
-  const bars = [
-    34, 62, 28, 48, 86, 22, 68, 30, 24, 34, 50, 18, 54, 62, 98, 16, 56, 80, 60,
-    34, 42, 46, 36, 70, 20, 86, 52, 22, 38, 56, 18,
-  ];
+function TrendBars({ rows }) {
+  const trendRows = buildMonthTrend(rows);
+  const maxValue = Math.max(...trendRows.flatMap((item) => [item.gmv, item.commission]), 0);
+  const axisTicks = yAxisTicks(maxValue);
+  const axisMax = axisTicks[0] || maxValue || 1;
+  const hasData = trendRows.some((item) => item.gmv > 0 || item.commission > 0);
+  if (!hasData) {
+    return (
+      <EmptyState
+        title='暂无本月趋势数据'
+        detail='本月出现有效充值后，这里会按日期展示 GMV 和预估分佣。'
+      />
+    );
+  }
   return (
     <div className='mt-4'>
+      <div className='mb-3 flex flex-wrap items-center justify-between gap-3 text-sm text-slate-500'>
+        <span className='font-bold text-slate-700'>金额刻度（元）</span>
+        <span className='text-xs text-slate-400'>悬停日期柱查看明细</span>
+      </div>
       <div className='mb-4 flex flex-wrap gap-6 text-sm text-slate-500'>
         <span className='inline-flex items-center gap-2'>
           <i className='h-2.5 w-2.5 rounded-sm bg-[#6b48ff]' />
@@ -1560,31 +1788,58 @@ function TrendBars() {
           预估分佣（元）
         </span>
       </div>
-      <div className='flex h-[116px] items-end gap-2 border-b border-slate-200 px-1'>
-        {bars.map((height, index) => (
-          <div key={index} className='flex h-full flex-1 items-end gap-1'>
+      <div className='grid grid-cols-[76px_minmax(0,1fr)] gap-3'>
+        <div className='relative h-[148px] pr-2 text-right text-[11px] font-semibold text-slate-500'>
+          {axisTicks.map((tick) => (
             <span
-              className='block w-1/2 rounded-t bg-[#6b48ff]'
-              style={{ height: `${height}%` }}
-            />
-            <span
-              className='block w-1/2 rounded-t bg-[#4da3ff]'
-              style={{ height: `${Math.max(12, height * 0.32)}%` }}
-            />
+              key={tick}
+              className='absolute right-2 -translate-y-1/2'
+              style={{ top: `${100 - (tick / axisMax) * 100}%` }}
+            >
+              {compactMoney(tick)}
+            </span>
+          ))}
+        </div>
+        <div>
+          <div className='relative h-[148px] border-b border-slate-200 px-1'>
+            {axisTicks.map((tick) => (
+              <span
+                key={tick}
+                className='pointer-events-none absolute left-0 right-0 border-t border-dashed border-slate-100'
+                style={{ top: `${100 - (tick / axisMax) * 100}%` }}
+              />
+            ))}
+            <div className='relative z-10 flex h-full items-end gap-2'>
+              {trendRows.map((item) => (
+                <div key={item.day} className='group relative flex h-full flex-1 items-end gap-1'>
+                  <div className='pointer-events-none absolute left-1/2 top-0 z-20 hidden w-max -translate-x-1/2 -translate-y-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-left text-xs text-slate-600 shadow-lg group-hover:block'>
+                    <div className='mb-1 font-black text-slate-900'>{item.day}</div>
+                    <div>有效 GMV：{money(item.gmv)}</div>
+                    <div>预估分佣：{money(item.commission)}</div>
+                  </div>
+                  <span
+                    className='block w-1/2 rounded-t bg-[#6b48ff]'
+                    style={{ height: `${barHeight(item.gmv, axisMax)}%` }}
+                  />
+                  <span
+                    className='block w-1/2 rounded-t bg-[#4da3ff]'
+                    style={{ height: `${barHeight(item.commission, axisMax)}%` }}
+                  />
+                </div>
+              ))}
+            </div>
           </div>
-        ))}
-      </div>
-      <div className='mt-2 grid grid-cols-5 text-center text-xs text-slate-500'>
-        <span>05-01</span>
-        <span>05-08</span>
-        <span>05-15</span>
-        <span>05-22</span>
-        <span>05-31</span>
+          <div className='mt-2 grid grid-cols-5 text-center text-xs text-slate-500'>
+            {trendTickLabels(trendRows).map((label) => (
+              <span key={label}>{label}</span>
+            ))}
+          </div>
+        </div>
       </div>
     </div>
   );
 }
-function QrPreview({ value }) {
+function QrPreview({ avatarUrl, value }) {
   return (
     <div className='relative grid h-56 w-56 place-items-center rounded-lg border border-slate-300 bg-white p-3 shadow-sm'>
       {value ? (
@@ -1592,9 +1847,17 @@ function QrPreview({ value }) {
       ) : (
         <div className='h-full w-full rounded bg-slate-50' />
       )}
-      <span className='absolute grid h-12 w-12 place-items-center rounded-lg border-4 border-white bg-gradient-to-br from-[#2f65ff] to-[#7545ff] text-sm font-black text-white shadow-sm'>
-        FI
-      </span>
+      {avatarUrl ? (
+        <img
+          alt=''
+          className='absolute h-12 w-12 rounded-lg border-4 border-white object-cover shadow-sm'
+          src={avatarUrl}
+        />
+      ) : (
+        <span className='absolute grid h-12 w-12 place-items-center rounded-lg border-4 border-white bg-gradient-to-br from-[#2f65ff] to-[#7545ff] text-sm font-black text-white shadow-sm'>
+          FI
+        </span>
+      )}
     </div>
   );
 }

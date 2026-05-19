@@ -8,6 +8,7 @@ export function persistPromotionLinkReferral(search = window.location.search) {
   const normalizedReferral = referral.trim();
   if (normalizedReferral) {
     localStorage.setItem(promotionLinkReferralStorageKey, normalizedReferral);
+    localStorage.removeItem(promotionManualReferralStorageKey);
   }
   return normalizedReferral;
 }
