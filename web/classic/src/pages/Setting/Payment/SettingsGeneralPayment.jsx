@@ -54,21 +54,6 @@ const businessFeatureItems = [
     label: '兑换码使用',
     description: '用户使用兑换码兑换额度',
   },
-  {
-    key: 'invitation_reward',
-    label: '邀请奖励',
-    description: '邀请人和被邀请人获得奖励额度',
-  },
-  {
-    key: 'invitation_transfer',
-    label: '奖励转余额',
-    description: '用户将邀请奖励转入余额',
-  },
-  {
-    key: 'checkin_reward',
-    label: '签到奖励',
-    description: '用户每日签到获得奖励额度',
-  },
 ];
 
 const paymentSceneItems = [
@@ -104,10 +89,6 @@ const defaultBusinessFeatures = {
   wallet_topup: true,
   subscription_purchase: true,
   redemption_redeem: true,
-  redemption_manage: true,
-  invitation_reward: true,
-  invitation_transfer: true,
-  checkin_reward: true,
 };
 
 const defaultProviderSceneScopes = {
@@ -158,10 +139,7 @@ const readBoolean = (value, fallback) =>
 const readBusinessFeatures = (value) => {
   const parsed = parseObject(value);
   return businessFeatureKeys.reduce((features, key) => {
-    features[key] =
-      key === 'redemption_manage'
-        ? true
-        : readBoolean(parsed[key], defaultBusinessFeatures[key]);
+    features[key] = readBoolean(parsed[key], defaultBusinessFeatures[key]);
     return features;
   }, {});
 };
@@ -169,7 +147,7 @@ const readBusinessFeatures = (value) => {
 const writeBusinessFeatures = (features) =>
   JSON.stringify(
     businessFeatureKeys.reduce((result, key) => {
-      result[key] = key === 'redemption_manage' ? true : !!features[key];
+      result[key] = !!features[key];
       return result;
     }, {}),
     null,

@@ -41,6 +41,8 @@ func TestBillingCapabilitiesRespectBusinessFeaturesAndDoNotExposeSecrets(t *test
 	features := data["features"].(map[string]bool)
 	require.False(t, features[operation_setting.BillingFeatureWalletTopUp])
 	require.True(t, features[operation_setting.BillingFeatureSubscriptionPurchase])
+	require.NotContains(t, features, operation_setting.BillingFeatureInvitationReward)
+	require.NotContains(t, features, operation_setting.BillingFeatureCheckinReward)
 
 	paymentMethods := data["payment_methods"].(map[string][]map[string]string)
 	require.Empty(t, paymentMethods[operation_setting.PaymentSceneWalletTopUp])

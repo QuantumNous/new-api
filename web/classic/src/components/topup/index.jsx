@@ -1083,7 +1083,6 @@ const TopUp = () => {
           affLink={affLink}
           handleAffLinkClick={handleAffLinkClick}
           complianceConfirmed={
-            topupInfo.features?.invitation_transfer !== false &&
             topupInfo.payment_compliance_confirmed !== false
           }
         />

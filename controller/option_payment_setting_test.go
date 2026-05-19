@@ -37,3 +37,17 @@ func TestNormalizePaymentSettingOptionValueRejectsUnknownStructuredKeys(t *testi
 	)
 	require.Error(t, err)
 }
+
+func TestNormalizePaymentSettingOptionValueDropsLegacyBusinessFeatureKeys(t *testing.T) {
+	value, err := normalizePaymentSettingOptionValue(
+		"payment_setting.business_features",
+		`{"wallet_topup":false,"invitation_reward":false,"redemption_manage":false}`,
+	)
+	require.NoError(t, err)
+
+	var features map[string]bool
+	require.NoError(t, json.Unmarshal([]byte(value), &features))
+	require.False(t, features[operation_setting.BillingFeatureWalletTopUp])
+	require.NotContains(t, features, operation_setting.BillingFeatureInvitationReward)
+	require.NotContains(t, features, operation_setting.BillingFeatureRedemptionManage)
+}

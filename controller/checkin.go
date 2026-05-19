@@ -50,10 +50,6 @@ func DoCheckin(c *gin.Context) {
 		common.ApiErrorMsg(c, "签到功能未启用")
 		return
 	}
-	if !requireBillingFeature(c, operation_setting.BillingFeatureCheckinReward) {
-		return
-	}
-
 	userId := c.GetInt("id")
 
 	checkin, err := model.UserCheckin(userId)

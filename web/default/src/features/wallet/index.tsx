@@ -327,7 +327,6 @@ export function Wallet(props: WalletProps) {
               affiliateLink={affiliateLink}
               onTransfer={() => setTransferDialogOpen(true)}
               complianceConfirmed={
-                topupInfo?.features?.invitation_transfer !== false &&
                 topupInfo?.payment_compliance_confirmed !== false
               }
               loading={affiliateLoading}

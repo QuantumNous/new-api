@@ -328,7 +328,7 @@ type TransferAffQuotaRequest struct {
 }
 
 func TransferAffQuota(c *gin.Context) {
-	if !requireBillingFeature(c, operation_setting.BillingFeatureInvitationTransfer) {
+	if !requirePaymentCompliance(c) {
 		return
 	}
 

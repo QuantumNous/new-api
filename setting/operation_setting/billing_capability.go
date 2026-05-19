@@ -10,27 +10,34 @@ const (
 	BillingFeatureWalletTopUp          = "wallet_topup"
 	BillingFeatureSubscriptionPurchase = "subscription_purchase"
 	BillingFeatureRedemptionRedeem     = "redemption_redeem"
-	BillingFeatureRedemptionManage     = "redemption_manage"
-	BillingFeatureInvitationReward     = "invitation_reward"
-	BillingFeatureInvitationTransfer   = "invitation_transfer"
-	BillingFeatureCheckinReward        = "checkin_reward"
-	PaymentSceneWalletTopUp            = "wallet_topup"
-	PaymentSceneSubscriptionPurchase   = "subscription_purchase"
-	PaymentProviderEpay                = "epay"
-	PaymentProviderStripe              = "stripe"
-	PaymentProviderCreem               = "creem"
-	PaymentProviderWaffo               = "waffo"
-	PaymentProviderWaffoPancake        = "waffo_pancake"
+
+	// Legacy keys are accepted when reading older saved JSON, but they are not
+	// active billing switches anymore. Each feature is controlled elsewhere.
+	BillingFeatureRedemptionManage   = "redemption_manage"
+	BillingFeatureInvitationReward   = "invitation_reward"
+	BillingFeatureInvitationTransfer = "invitation_transfer"
+	BillingFeatureCheckinReward      = "checkin_reward"
+
+	PaymentSceneWalletTopUp          = "wallet_topup"
+	PaymentSceneSubscriptionPurchase = "subscription_purchase"
+	PaymentProviderEpay              = "epay"
+	PaymentProviderStripe            = "stripe"
+	PaymentProviderCreem             = "creem"
+	PaymentProviderWaffo             = "waffo"
+	PaymentProviderWaffoPancake      = "waffo_pancake"
 )
 
 var knownBillingFeatures = map[string]struct{}{
 	BillingFeatureWalletTopUp:          {},
 	BillingFeatureSubscriptionPurchase: {},
 	BillingFeatureRedemptionRedeem:     {},
-	BillingFeatureRedemptionManage:     {},
-	BillingFeatureInvitationReward:     {},
-	BillingFeatureInvitationTransfer:   {},
-	BillingFeatureCheckinReward:        {},
+}
+
+var legacyBillingFeatureKeys = map[string]struct{}{
+	BillingFeatureRedemptionManage:   {},
+	BillingFeatureInvitationReward:   {},
+	BillingFeatureInvitationTransfer: {},
+	BillingFeatureCheckinReward:      {},
 }
 
 var knownPaymentScenes = map[string]struct{}{
@@ -51,10 +58,6 @@ func DefaultBusinessFeatures() map[string]bool {
 		BillingFeatureWalletTopUp:          true,
 		BillingFeatureSubscriptionPurchase: true,
 		BillingFeatureRedemptionRedeem:     true,
-		BillingFeatureRedemptionManage:     true,
-		BillingFeatureInvitationReward:     true,
-		BillingFeatureInvitationTransfer:   true,
-		BillingFeatureCheckinReward:        true,
 	}
 }
 
@@ -198,11 +201,16 @@ func CopyProviderSceneScopes(scopes map[string]map[string]bool) map[string]map[s
 
 func ValidateBusinessFeatures(features map[string]bool) error {
 	for feature := range features {
-		if !IsKnownBillingFeature(feature) {
+		if !IsKnownBillingFeature(feature) && !IsLegacyBillingFeatureKey(feature) {
 			return fmt.Errorf("unknown billing feature: %s", feature)
 		}
 	}
 	return nil
+}
+
+func IsLegacyBillingFeatureKey(feature string) bool {
+	_, ok := legacyBillingFeatureKeys[feature]
+	return ok
 }
 
 func ValidateProviderSceneScopes(scopes map[string]map[string]bool) error {
@@ -228,6 +236,22 @@ func ValidateBusinessFeaturesJSON(raw string) error {
 		return err
 	}
 	return ValidateBusinessFeatures(features)
+}
+
+func NormalizeBusinessFeaturesJSON(raw string) (string, error) {
+	var features map[string]bool
+	if err := json.Unmarshal([]byte(strings.TrimSpace(raw)), &features); err != nil {
+		return "", err
+	}
+	if err := ValidateBusinessFeatures(features); err != nil {
+		return "", err
+	}
+	normalizeBusinessFeatures(&features)
+	bytes, err := json.Marshal(features)
+	if err != nil {
+		return "", err
+	}
+	return string(bytes), nil
 }
 
 func ValidateProviderSceneScopesJSON(raw string) error {

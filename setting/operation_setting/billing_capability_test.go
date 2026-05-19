@@ -1,6 +1,9 @@
 package operation_setting
 
-import "testing"
+import (
+	"encoding/json"
+	"testing"
+)
 
 func restorePaymentSetting(t *testing.T) func() {
 	t.Helper()
@@ -46,8 +49,9 @@ func TestNormalizePaymentSettingPreservesExplicitFalseAndDropsUnknownKeys(t *tes
 
 	paymentSetting = PaymentSetting{
 		BusinessFeatures: map[string]bool{
-			BillingFeatureWalletTopUp: false,
-			"walletTopup":             true,
+			BillingFeatureWalletTopUp:      false,
+			BillingFeatureInvitationReward: false,
+			"walletTopup":                  true,
 		},
 		ProviderSceneScopes: map[string]map[string]bool{
 			PaymentProviderEpay: {
@@ -70,6 +74,9 @@ func TestNormalizePaymentSettingPreservesExplicitFalseAndDropsUnknownKeys(t *tes
 	if _, ok := paymentSetting.BusinessFeatures["walletTopup"]; ok {
 		t.Fatal("unknown business feature should be dropped")
 	}
+	if _, ok := paymentSetting.BusinessFeatures[BillingFeatureInvitationReward]; ok {
+		t.Fatal("legacy business feature should be dropped")
+	}
 	if !paymentSetting.BusinessFeatures[BillingFeatureSubscriptionPurchase] {
 		t.Fatal("missing subscription_purchase should be filled from defaults")
 	}
@@ -91,6 +98,9 @@ func TestValidateBillingCapabilityConfig(t *testing.T) {
 	if err := ValidateBusinessFeaturesJSON(`{"wallet_topup":false}`); err != nil {
 		t.Fatalf("valid business features should pass: %v", err)
 	}
+	if err := ValidateBusinessFeaturesJSON(`{"invitation_reward":false}`); err != nil {
+		t.Fatalf("legacy business feature should be accepted: %v", err)
+	}
 	if err := ValidateProviderSceneScopesJSON(`{"epay":{"subscription_purchase":true}}`); err != nil {
 		t.Fatalf("valid provider scene scopes should pass: %v", err)
 	}
@@ -102,5 +112,28 @@ func TestValidateBillingCapabilityConfig(t *testing.T) {
 	}
 	if err := ValidateProviderSceneScopesJSON(`{"epay":{"subscription":true}}`); err == nil {
 		t.Fatal("unknown payment scene should fail validation")
+	}
+}
+
+func TestNormalizeBusinessFeaturesJSONDropsLegacyKeys(t *testing.T) {
+	normalized, err := NormalizeBusinessFeaturesJSON(
+		`{"wallet_topup":false,"invitation_reward":false,"checkin_reward":false}`,
+	)
+	if err != nil {
+		t.Fatalf("normalization should accept legacy keys: %v", err)
+	}
+
+	var features map[string]bool
+	if err := json.Unmarshal([]byte(normalized), &features); err != nil {
+		t.Fatalf("normalized features should be valid JSON: %v", err)
+	}
+	if features[BillingFeatureWalletTopUp] {
+		t.Fatal("explicit wallet_topup=false should be preserved")
+	}
+	if _, ok := features[BillingFeatureInvitationReward]; ok {
+		t.Fatal("legacy invitation_reward should not be written back")
+	}
+	if _, ok := features[BillingFeatureCheckinReward]; ok {
+		t.Fatal("legacy checkin_reward should not be written back")
 	}
 }

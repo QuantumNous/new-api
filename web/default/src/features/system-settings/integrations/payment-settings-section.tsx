@@ -182,10 +182,6 @@ type BillingFeatureKey =
   | 'wallet_topup'
   | 'subscription_purchase'
   | 'redemption_redeem'
-  | 'redemption_manage'
-  | 'invitation_reward'
-  | 'invitation_transfer'
-  | 'checkin_reward'
 
 type PaymentSceneKey = 'wallet_topup' | 'subscription_purchase'
 type PaymentProviderKey =
@@ -220,21 +216,6 @@ const BUSINESS_FEATURE_ITEMS: Array<{
     key: 'redemption_redeem',
     labelKey: 'Redeem code usage',
     descriptionKey: 'Users can redeem balance codes.',
-  },
-  {
-    key: 'invitation_reward',
-    labelKey: 'Invitation rewards',
-    descriptionKey: 'Inviters and invitees can receive reward balance.',
-  },
-  {
-    key: 'invitation_transfer',
-    labelKey: 'Reward transfer',
-    descriptionKey: 'Users can transfer invitation rewards to balance.',
-  },
-  {
-    key: 'checkin_reward',
-    labelKey: 'Check-in rewards',
-    descriptionKey: 'Users can receive daily check-in rewards.',
   },
 ]
 
@@ -278,10 +259,6 @@ const DEFAULT_BUSINESS_FEATURES: BillingFeatureMap = {
   wallet_topup: true,
   subscription_purchase: true,
   redemption_redeem: true,
-  redemption_manage: true,
-  invitation_reward: true,
-  invitation_transfer: true,
-  checkin_reward: true,
 }
 
 const DEFAULT_PROVIDER_SCENE_SCOPES: ProviderSceneScopeMap = {
@@ -315,10 +292,7 @@ function readBoolean(value: unknown, fallback: boolean) {
 function readBusinessFeatures(value: string): BillingFeatureMap {
   const parsed = parseJsonObject(value)
   return BUSINESS_FEATURE_KEYS.reduce((features, key) => {
-    features[key] =
-      key === 'redemption_manage'
-        ? true
-        : readBoolean(parsed[key], DEFAULT_BUSINESS_FEATURES[key])
+    features[key] = readBoolean(parsed[key], DEFAULT_BUSINESS_FEATURES[key])
     return features
   }, {} as BillingFeatureMap)
 }
@@ -327,7 +301,7 @@ function writeBusinessFeatures(features: BillingFeatureMap) {
   return JSON.stringify(
     BUSINESS_FEATURE_KEYS.reduce(
       (result, item) => {
-        result[item] = item === 'redemption_manage' ? true : features[item]
+        result[item] = features[item]
         return result
       },
       {} as Record<BillingFeatureKey, boolean>
