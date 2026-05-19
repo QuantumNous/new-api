@@ -20,7 +20,10 @@ import * as z from 'zod'
 import type { Resolver } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { RotateCcw } from 'lucide-react'
+import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
+import { DEFAULT_SYSTEM_NAME, normalizeSystemName } from '@/lib/constants'
+import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import {
   Form,
@@ -74,26 +77,41 @@ function normalizeValue(value: unknown): string {
   return typeof value === 'string' ? value : String(value)
 }
 
+const cockpitFieldClassName =
+  'border-white/10 bg-slate-950/50 text-slate-100 placeholder:text-slate-500'
+
+const cockpitOutlineButtonClassName = cn(
+  'border-white/15 bg-slate-800/70 text-slate-100 shadow-none',
+  'hover:border-white/20 hover:bg-white/15 hover:text-slate-50',
+  'disabled:opacity-60 disabled:text-slate-300',
+  '[&_svg]:text-slate-200'
+)
+
 export function SystemInfoSection({ defaultValues }: SystemInfoSectionProps) {
   const { t } = useTranslation()
   const updateOption = useUpdateOption()
 
-  const normalizedDefaults: SystemInfoFormValues = {
-    theme: {
-      frontend:
-        defaultValues.theme?.frontend === 'classic' ? 'classic' : 'default',
-    },
-    SystemName: normalizeValue(defaultValues.SystemName),
-    ServerAddress: normalizeValue(defaultValues.ServerAddress),
-    Logo: normalizeValue(defaultValues.Logo),
-    Footer: normalizeValue(defaultValues.Footer),
-    About: normalizeValue(defaultValues.About),
-    HomePageContent: normalizeValue(defaultValues.HomePageContent),
-    legal: {
-      user_agreement: normalizeValue(defaultValues.legal?.user_agreement),
-      privacy_policy: normalizeValue(defaultValues.legal?.privacy_policy),
-    },
-  }
+  const normalizedDefaults = useMemo<SystemInfoFormValues>(
+    () => ({
+      theme: {
+        frontend:
+          defaultValues.theme?.frontend === 'classic' ? 'classic' : 'default',
+      },
+      SystemName: normalizeSystemName(
+        normalizeValue(defaultValues.SystemName)
+      ),
+      ServerAddress: normalizeValue(defaultValues.ServerAddress),
+      Logo: normalizeValue(defaultValues.Logo),
+      Footer: normalizeValue(defaultValues.Footer),
+      About: normalizeValue(defaultValues.About),
+      HomePageContent: normalizeValue(defaultValues.HomePageContent),
+      legal: {
+        user_agreement: normalizeValue(defaultValues.legal?.user_agreement),
+        privacy_policy: normalizeValue(defaultValues.legal?.privacy_policy),
+      },
+    }),
+    [defaultValues]
+  )
 
   const systemInfoSchemaWithI18n = z.object({
     theme: z.object({
@@ -139,12 +157,18 @@ export function SystemInfoSection({ defaultValues }: SystemInfoSectionProps) {
     <>
       <FormNavigationGuard when={isDirty} />
 
-      <SettingsSection
-        title={t('System Information')}
-        description={t('Configure basic system information and branding')}
-      >
+      <div className='rounded-2xl border border-violet-500/15 bg-slate-900/40 p-4 shadow-inner shadow-indigo-950/20 backdrop-blur-sm sm:p-6'>
+        <SettingsSection
+          title={t('Site platform basic information')}
+          description={t('Site platform basic information description')}
+          titleProps={{ className: 'text-slate-50' }}
+          descriptionClassName='text-slate-400'
+        >
         <Form {...form}>
-          <form onSubmit={handleSubmit} className='space-y-6'>
+          <form
+            onSubmit={handleSubmit}
+            className='space-y-6 [&_label]:text-slate-200 [&_[data-slot=form-description]]:text-slate-400'
+          >
             <FormDirtyIndicator isDirty={isDirty} />
             <FormField
               control={form.control}
@@ -164,7 +188,9 @@ export function SystemInfoSection({ defaultValues }: SystemInfoSectionProps) {
                     value={field.value}
                   >
                     <FormControl>
-                      <SelectTrigger className='w-full'>
+                      <SelectTrigger
+                        className={cn('w-full', cockpitFieldClassName)}
+                      >
                         <SelectValue />
                       </SelectTrigger>
                     </FormControl>
@@ -197,8 +223,13 @@ export function SystemInfoSection({ defaultValues }: SystemInfoSectionProps) {
                   <FormLabel>{t('System Name')}</FormLabel>
                   <FormControl>
                     <Input
-                      placeholder={t('Yunhe Xingze Token Operations Center')}
-                      {...field}
+                      className={cockpitFieldClassName}
+                      placeholder={DEFAULT_SYSTEM_NAME}
+                      name={field.name}
+                      ref={field.ref}
+                      onBlur={field.onBlur}
+                      value={normalizeSystemName(field.value)}
+                      onChange={(event) => field.onChange(event.target.value)}
                     />
                   </FormControl>
                   <FormDescription>
@@ -216,7 +247,11 @@ export function SystemInfoSection({ defaultValues }: SystemInfoSectionProps) {
                 <FormItem>
                   <FormLabel>{t('Server Address')}</FormLabel>
                   <FormControl>
-                    <Input placeholder='https://yourdomain.com' {...field} />
+                    <Input
+                      className={cockpitFieldClassName}
+                      placeholder='https://yourdomain.com'
+                      {...field}
+                    />
                   </FormControl>
                   <FormDescription>
                     {t(
@@ -236,6 +271,7 @@ export function SystemInfoSection({ defaultValues }: SystemInfoSectionProps) {
                   <FormLabel>{t('Logo URL')}</FormLabel>
                   <FormControl>
                     <Input
+                      className={cockpitFieldClassName}
                       placeholder={t('https://example.com/logo.png')}
                       {...field}
                     />
@@ -256,6 +292,7 @@ export function SystemInfoSection({ defaultValues }: SystemInfoSectionProps) {
                   <FormLabel>{t('Footer')}</FormLabel>
                   <FormControl>
                     <Textarea
+                      className={cockpitFieldClassName}
                       placeholder={t(
                         '© 2025 Your Company. All rights reserved.'
                       )}
@@ -278,6 +315,7 @@ export function SystemInfoSection({ defaultValues }: SystemInfoSectionProps) {
                   <FormLabel>{t('About')}</FormLabel>
                   <FormControl>
                     <Textarea
+                      className={cockpitFieldClassName}
                       placeholder={t(
                         'Enter HTML code (e.g., <p>About us...</p>) or a URL (e.g., https://example.com) to embed as iframe'
                       )}
@@ -303,6 +341,7 @@ export function SystemInfoSection({ defaultValues }: SystemInfoSectionProps) {
                   <FormLabel>{t('Home Page Content')}</FormLabel>
                   <FormControl>
                     <Textarea
+                      className={cockpitFieldClassName}
                       placeholder={t(
                         'Welcome to Yunhe Xingze Token Operations Center...'
                       )}
@@ -328,6 +367,7 @@ export function SystemInfoSection({ defaultValues }: SystemInfoSectionProps) {
                   <FormLabel>{t('User Agreement')}</FormLabel>
                   <FormControl>
                     <Textarea
+                      className={cockpitFieldClassName}
                       placeholder={t(
                         'Provide Markdown, HTML, or an external URL for the user agreement'
                       )}
@@ -353,6 +393,7 @@ export function SystemInfoSection({ defaultValues }: SystemInfoSectionProps) {
                   <FormLabel>{t('Privacy Policy')}</FormLabel>
                   <FormControl>
                     <Textarea
+                      className={cockpitFieldClassName}
                       placeholder={t(
                         'Provide Markdown, HTML, or an external URL for the privacy policy'
                       )}
@@ -380,6 +421,7 @@ export function SystemInfoSection({ defaultValues }: SystemInfoSectionProps) {
               <Button
                 type='button'
                 variant='outline'
+                className={cockpitOutlineButtonClassName}
                 onClick={handleReset}
                 disabled={!isDirty || updateOption.isPending || isSubmitting}
               >
@@ -389,7 +431,8 @@ export function SystemInfoSection({ defaultValues }: SystemInfoSectionProps) {
             </div>
           </form>
         </Form>
-      </SettingsSection>
+        </SettingsSection>
+      </div>
     </>
   )
 }

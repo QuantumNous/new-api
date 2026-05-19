@@ -46,13 +46,14 @@ export function ApiInfoPanel() {
 
   return (
     <PanelWrapper
+      variant='cockpit'
       title={
         <span className='flex items-center gap-2'>
-          <Route className='text-muted-foreground/60 size-4' />
-          {t('API Info')}
+          <Route className='size-4 text-violet-400' />
+          {t('Dashboard panel api title')}
         </span>
       }
-      description={t('Configured routes and latency checks')}
+      description={t('Dashboard panel api description')}
       loading={loading}
       empty={!list.length}
       emptyMessage={t('No API routes configured')}

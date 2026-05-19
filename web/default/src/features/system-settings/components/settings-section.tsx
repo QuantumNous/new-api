@@ -20,6 +20,7 @@ type SettingsSectionProps = {
   title: string
   titleProps?: React.HTMLAttributes<HTMLHeadingElement>
   description?: string
+  descriptionClassName?: string
   children: React.ReactNode
   className?: string
 }
@@ -28,6 +29,7 @@ export function SettingsSection({
   title,
   titleProps,
   description,
+  descriptionClassName,
   children,
   className,
 }: SettingsSectionProps) {
@@ -50,7 +52,13 @@ export function SettingsSection({
           {title}
         </h3>
         {description && (
-          <p className='text-muted-foreground text-sm'>{description}</p>
+          <p
+            className={
+              descriptionClassName ?? 'text-muted-foreground text-sm'
+            }
+          >
+            {description}
+          </p>
         )}
       </div>
       {children}

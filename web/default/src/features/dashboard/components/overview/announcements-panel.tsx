@@ -56,13 +56,14 @@ export function AnnouncementsPanel() {
 
   return (
     <PanelWrapper
+      variant='cockpit'
       title={
         <span className='flex items-center gap-2'>
-          <Megaphone className='text-muted-foreground/60 size-4' />
-          {t('Announcements')}
+          <Megaphone className='size-4 text-violet-400' />
+          {t('Dashboard panel announcements title')}
         </span>
       }
-      description={t('Latest platform updates and notices')}
+      description={t('Dashboard panel announcements description')}
       loading={loading}
       empty={!list.length}
       emptyMessage={t('No announcements at this time')}

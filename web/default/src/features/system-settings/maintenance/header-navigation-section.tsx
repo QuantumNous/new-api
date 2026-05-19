@@ -21,6 +21,7 @@ import * as z from 'zod'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useTranslation } from 'react-i18next'
+import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import {
   Form,
@@ -33,6 +34,13 @@ import {
 } from '@/components/ui/form'
 import { Switch } from '@/components/ui/switch'
 import { SettingsSection } from '../components/settings-section'
+
+const cockpitOutlineButtonClassName = cn(
+  'border-white/15 bg-slate-800/70 text-slate-100 shadow-none',
+  'hover:border-white/20 hover:bg-white/15 hover:text-slate-50',
+  'disabled:opacity-60 disabled:text-slate-300',
+  '[&_svg]:text-slate-200'
+)
 import { useUpdateOption } from '../hooks/use-update-option'
 import {
   HEADER_NAV_DEFAULT,
@@ -290,7 +298,12 @@ export function HeaderNavigationSection({
           </div>
 
           <div className='flex flex-wrap gap-3'>
-            <Button type='button' variant='outline' onClick={resetToDefault}>
+            <Button
+              type='button'
+              variant='outline'
+              className={cockpitOutlineButtonClassName}
+              onClick={resetToDefault}
+            >
               {t('Reset to default')}
             </Button>
             <Button type='submit' disabled={updateOption.isPending}>

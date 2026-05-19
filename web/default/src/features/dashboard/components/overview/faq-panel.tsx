@@ -36,13 +36,14 @@ export function FAQPanel() {
 
   return (
     <PanelWrapper
+      variant='cockpit'
       title={
         <span className='flex items-center gap-2'>
-          <HelpCircle className='text-muted-foreground/60 size-4' />
-          {t('FAQ')}
+          <HelpCircle className='size-4 text-violet-400' />
+          {t('Dashboard panel faq title')}
         </span>
       }
-      description={t('Answers for common access and billing questions')}
+      description={t('Dashboard panel faq description')}
       loading={loading}
       empty={!list.length}
       emptyMessage={t('No FAQ entries available')}

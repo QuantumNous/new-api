@@ -135,8 +135,8 @@ const SECTION_META: Record<
   { titleKey: string; descriptionKey: string }
 > = {
   overview: {
-    titleKey: 'Overview',
-    descriptionKey: 'View dashboard overview and statistics',
+    titleKey: 'Dashboard Operations Console',
+    descriptionKey: 'Dashboard Operations Cockpit description',
   },
   models: {
     titleKey: 'Model Call Analytics',
@@ -225,11 +225,21 @@ export function Dashboard() {
     ) : null
 
   return (
-    <SectionPageLayout>
-      <SectionPageLayout.Title>{t(meta.titleKey)}</SectionPageLayout.Title>
-      <SectionPageLayout.Description>
-        {t(meta.descriptionKey)}
-      </SectionPageLayout.Description>
+    <div className='dark flex min-h-full flex-col text-slate-100'>
+      <SectionPageLayout>
+        <SectionPageLayout.Title>
+          <span className='text-slate-50'>{t(meta.titleKey)}</span>
+          {activeSection === 'overview' ? (
+            <span className='mt-1 block text-sm font-normal text-slate-400'>
+              {t('Dashboard overview page subtitle')}
+            </span>
+          ) : null}
+        </SectionPageLayout.Title>
+      {activeSection !== 'overview' ? (
+        <SectionPageLayout.Description>
+          {t(meta.descriptionKey)}
+        </SectionPageLayout.Description>
+      ) : null}
       <SectionPageLayout.Content>
         <div className='space-y-3 sm:space-y-4'>
           {activeSection !== 'overview' && (
@@ -254,7 +264,11 @@ export function Dashboard() {
               )}
             </div>
           )}
-          {activeSection === 'overview' && <OverviewDashboard />}
+          {activeSection === 'overview' && (
+            <div className='-mx-1 rounded-2xl border border-violet-500/15 bg-slate-950/40 px-1 pb-3 pt-1 shadow-inner shadow-indigo-950/30'>
+              <OverviewDashboard />
+            </div>
+          )}
           {activeSection === 'models' && (
             <>
               <FadeIn>
@@ -309,6 +323,7 @@ export function Dashboard() {
           )}
         </div>
       </SectionPageLayout.Content>
-    </SectionPageLayout>
+      </SectionPageLayout>
+    </div>
   )
 }

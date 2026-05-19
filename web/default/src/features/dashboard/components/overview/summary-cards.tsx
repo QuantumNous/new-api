@@ -20,28 +20,42 @@ import { useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import {
+  Activity,
   ArrowRight,
-  Flame,
+  Building2,
+  Coins,
+  RadioTower,
   ShieldCheck,
+  Timer,
   TrendingDown,
+  Flame,
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { useAuthStore } from '@/stores/auth-store'
-import { getCurrencyLabel, isCurrencyDisplayEnabled } from '@/lib/currency'
-import { formatNumber, formatQuota } from '@/lib/format'
+import { formatNumber } from '@/lib/format'
 import { computeTimeRange } from '@/lib/time'
+import { ROLE } from '@/lib/roles'
 import { cn } from '@/lib/utils'
 import { useStatus } from '@/hooks/use-status'
 import { Button } from '@/components/ui/button'
 import { StaggerContainer, StaggerItem } from '@/components/page-transition'
 import { getUserQuotaDates } from '@/features/dashboard/api'
-import { useSummaryCardsConfig } from '@/features/dashboard/hooks/use-dashboard-config'
+import { useApiInfo } from '@/features/dashboard/hooks/use-status-data'
 import type { QuotaDataItem } from '@/features/dashboard/types'
+import { getPerfMetricsSummary } from '@/features/performance-metrics/api'
+import {
+  formatLatency,
+  formatUptimePct,
+} from '@/features/performance-metrics/lib/format'
 import { StatCard } from '../ui/stat-card'
+import { formatQuotaForCockpit } from './cockpit-display'
 
+const PERFORMANCE_WINDOW_HOURS = 24
 const SUMMARY_SPARKLINE_BUCKETS = 12
 
 type SummarySparklineKey = 'balance' | 'usage' | 'requests'
+
+type HealthLevel = 'healthy' | 'caution' | 'critical'
 
 function getBucketIndex(
   timestamp: number,
@@ -86,20 +100,7 @@ function buildSummarySparklines(
     balance += usage[index]
   }
 
-  return {
-    balance: balanceTrend,
-    usage,
-    requests,
-  }
-}
-
-function getSummarySparkline(
-  key: string,
-  sparklineData: Record<SummarySparklineKey, number[]>
-): number[] | undefined {
-  if (key === 'usage') return sparklineData.usage
-  if (key === 'requests') return sparklineData.requests
-  return undefined
+  return { balance: balanceTrend, usage, requests }
 }
 
 function getRunwayDays(remainQuota: number, recentUsage: number): number | null {
@@ -108,8 +109,6 @@ function getRunwayDays(remainQuota: number, recentUsage: number): number | null 
   if (!Number.isFinite(days)) return null
   return days
 }
-
-type HealthLevel = 'healthy' | 'caution' | 'critical'
 
 function getHealthLevel(
   remainQuota: number,
@@ -125,30 +124,47 @@ const HEALTH_CONFIG: Record<
   HealthLevel,
   { dotClass: string; labelKey: string }
 > = {
-  healthy: {
-    dotClass: 'bg-success',
-    labelKey: 'Healthy',
-  },
-  caution: {
-    dotClass: 'bg-warning',
-    labelKey: 'Low balance',
-  },
-  critical: {
-    dotClass: 'bg-destructive',
-    labelKey: 'Balance depleted',
-  },
+  healthy: { dotClass: 'bg-emerald-500', labelKey: 'Dashboard health healthy' },
+  caution: { dotClass: 'bg-amber-500', labelKey: 'Dashboard health caution' },
+  critical: { dotClass: 'bg-red-500', labelKey: 'Dashboard health critical' },
 }
 
+function simpleAverageSuccessRate(
+  rows: { success_rate: number }[]
+): number {
+  let total = 0
+  let count = 0
+  for (const row of rows) {
+    const value = Number(row.success_rate)
+    if (!Number.isFinite(value)) continue
+    total += value
+    count++
+  }
+  return count > 0 ? total / count : NaN
+}
+
+function simpleAverageLatency(rows: { avg_latency_ms: number }[]): number {
+  let total = 0
+  let count = 0
+  for (const row of rows) {
+    const value = Number(row.avg_latency_ms)
+    if (!Number.isFinite(value) || value <= 0) continue
+    total += value
+    count++
+  }
+  return count > 0 ? Math.round(total / count) : NaN
+}
 
 export function SummaryCards() {
   const { t } = useTranslation()
   const user = useAuthStore((state) => state.auth.user)
-  const { status, loading } = useStatus()
+  const { loading: statusLoading } = useStatus()
+  const { items: apiInfoItems } = useApiInfo()
+  const isAdmin = Boolean(user?.role && user.role >= ROLE.ADMIN)
 
   const summaryTimeRange = useMemo(() => computeTimeRange(1), [])
   const remainQuota = Number(user?.quota ?? 0)
   const usedQuota = Number(user?.used_quota ?? 0)
-  const requestCount = Number(user?.request_count ?? 0)
 
   const usageTrendQuery = useQuery({
     queryKey: [
@@ -167,23 +183,14 @@ export function SummaryCards() {
     staleTime: 60 * 1000,
   })
 
-  const summaryValues = useMemo(() => {
-    return {
-      usedDisplay: formatQuota(usedQuota),
-      requestCountDisplay: formatNumber(requestCount),
-    }
-  }, [requestCount, usedQuota])
+  const metricsQuery = useQuery({
+    queryKey: ['perf-metrics-summary', PERFORMANCE_WINDOW_HOURS],
+    queryFn: () => getPerfMetricsSummary(PERFORMANCE_WINDOW_HOURS),
+    staleTime: 60 * 1000,
+    retry: false,
+  })
 
-  const currencyEnabledFromStore = isCurrencyDisplayEnabled()
-  const statusCurrencyFlag =
-    typeof status?.display_in_currency === 'boolean'
-      ? Boolean(status.display_in_currency)
-      : undefined
-  const currencyEnabled =
-    statusCurrencyFlag !== undefined
-      ? statusCurrencyFlag
-      : currencyEnabledFromStore
-  const currencyLabel = currencyEnabled ? getCurrencyLabel() : 'Tokens'
+  const perfModels = metricsQuery.data?.data.models ?? []
 
   const sparklineData = useMemo(
     () =>
@@ -201,6 +208,15 @@ export function SummaryCards() {
     ]
   )
 
+  const recentCalls = useMemo(
+    () =>
+      (usageTrendQuery.data?.data ?? []).reduce(
+        (total, item) => total + (Number(item.count) || 0),
+        0
+      ),
+    [usageTrendQuery.data?.data]
+  )
+
   const recentUsage = useMemo(
     () =>
       (usageTrendQuery.data?.data ?? []).reduce(
@@ -214,99 +230,143 @@ export function SummaryCards() {
   const healthCfg = HEALTH_CONFIG[healthLevel]
   const runwayDays = getRunwayDays(remainQuota, recentUsage)
 
-  const todayUsageDisplay = formatQuota(recentUsage)
+  const kpiLoading = usageTrendQuery.isLoading || statusLoading
 
-  const items = useSummaryCardsConfig({
-    ...summaryValues,
-    todayUsageDisplay,
-    currencyEnabled,
-    currencyLabel,
-  }).map((config, index) => {
-    const tones = ['rose', 'teal', 'gray'] as const
+  const successRate = simpleAverageSuccessRate(perfModels)
+  const avgLatencyMs = simpleAverageLatency(perfModels)
 
-    return {
-      key: config.key,
-      title: config.title,
-      value: config.value,
-      desc: config.description,
-      icon: config.icon,
-      tone: tones[index] ?? 'gray',
-      sparkline:
-        config.key === 'todayUsage'
-          ? sparklineData.usage
-          : getSummarySparkline(config.key, sparklineData),
-      sparklineVariant: 'line' as const,
-    }
-  })
+  const kpiItems = [
+    {
+      key: 'calls',
+      title: t('Dashboard KPI calls today'),
+      value: formatNumber(recentCalls),
+      description: t('Dashboard KPI window 24h'),
+      icon: Activity,
+      tone: 'teal' as const,
+      sparkline: sparklineData.requests,
+    },
+    {
+      key: 'tokens',
+      title: t('Dashboard KPI tokens today'),
+      value: formatQuotaForCockpit(recentUsage),
+      description: t('Dashboard KPI tokens description'),
+      icon: Coins,
+      tone: 'rose' as const,
+      sparkline: sparklineData.usage,
+    },
+    {
+      key: 'tenants',
+      title: t('Dashboard KPI active tenants'),
+      value: isAdmin ? '—' : '1',
+      description: isAdmin
+        ? t('Dashboard KPI tenants admin hint')
+        : t('Dashboard KPI tenants self hint'),
+      icon: Building2,
+      tone: 'gray' as const,
+    },
+    {
+      key: 'channels',
+      title: t('Dashboard KPI online channels'),
+      value:
+        apiInfoItems.length > 0
+          ? formatNumber(apiInfoItems.length)
+          : '—',
+      description: t('Dashboard KPI channels hint'),
+      icon: RadioTower,
+      tone: 'gray' as const,
+    },
+    {
+      key: 'success',
+      title: t('Dashboard KPI success rate'),
+      value: isAdmin ? formatUptimePct(successRate) : '—',
+      description: isAdmin
+        ? t('Dashboard KPI perf 24h')
+        : t('Dashboard admin only metric'),
+      icon: ShieldCheck,
+      tone: 'teal' as const,
+    },
+    {
+      key: 'latency',
+      title: t('Dashboard KPI avg latency'),
+      value: isAdmin ? formatLatency(avgLatencyMs) : '—',
+      description: isAdmin
+        ? t('Dashboard KPI perf 24h')
+        : t('Dashboard admin only metric'),
+      icon: Timer,
+      tone: 'gray' as const,
+    },
+  ]
 
   return (
-    <div className='bg-card overflow-hidden rounded-2xl border shadow-xs'>
-      <div className='grid xl:grid-cols-[minmax(0,1fr)_19rem]'>
-        <div className='flex flex-col gap-3 p-4 sm:p-5'>
-          <div className='flex flex-wrap items-start justify-between gap-3'>
-            <div className='flex flex-col gap-1'>
-              <h3 className='text-base font-semibold'>
-                {t('Usage at a glance')}
-              </h3>
-              <p className='text-muted-foreground text-sm'>
-                {t('Monitor balance, usage, and request volume')}
-              </p>
-            </div>
+    <section className='overflow-hidden rounded-2xl border border-violet-500/20 bg-slate-900/60 shadow-lg shadow-indigo-950/20 backdrop-blur-sm'>
+      <div className='grid xl:grid-cols-[minmax(0,1fr)_17rem]'>
+        <div className='flex flex-col gap-4 p-4 sm:p-5'>
+          <div className='flex flex-col gap-1'>
+            <h3 className='text-base font-semibold text-slate-50'>
+              {t('Dashboard KPI section title')}
+            </h3>
+            <p className='text-sm text-slate-400'>
+              {t('Dashboard KPI section description')}
+            </p>
           </div>
-          <StaggerContainer className='grid gap-3 md:grid-cols-3'>
-            {items.map((it) => (
+
+          <StaggerContainer className='grid gap-3 sm:grid-cols-2 xl:grid-cols-3'>
+            {kpiItems.map((it) => (
               <StaggerItem
                 key={it.key}
-                className='bg-background/60 rounded-xl border p-3'
+                className='cockpit-stat-card rounded-xl border border-white/10 bg-slate-950/50 p-3'
               >
                 <StatCard
                   title={it.title}
                   value={it.value}
-                  description={it.desc}
+                  description={it.description}
                   icon={it.icon}
                   tone={it.tone}
                   sparkline={it.sparkline}
-                  sparklineVariant={it.sparklineVariant}
-                  loading={loading}
+                  sparklineVariant='line'
+                  loading={kpiLoading}
+                  variant='cockpit'
                 />
               </StaggerItem>
             ))}
           </StaggerContainer>
         </div>
 
-        <div className='bg-warning/10 flex flex-col justify-between gap-4 border-t p-4 sm:p-5 xl:border-t-0 xl:border-l'>
+        <div className='flex flex-col justify-between gap-4 border-t border-white/10 bg-indigo-950/30 p-4 sm:p-5 xl:border-t-0 xl:border-l'>
           <div className='flex flex-col gap-3'>
             <div className='flex items-center justify-between'>
-              <span className='text-muted-foreground text-xs font-medium'>
-                {t('Credit remaining')}
+              <span className='text-xs font-medium text-slate-400'>
+                {t('Dashboard token balance label')}
               </span>
               <span className='flex items-center gap-1.5'>
                 <span
                   className={cn('size-1.5 rounded-full', healthCfg.dotClass)}
                   aria-hidden='true'
                 />
-                <span className='text-muted-foreground text-[11px] font-medium'>
+                <span className='text-[11px] font-medium text-slate-400'>
                   {t(healthCfg.labelKey)}
                 </span>
               </span>
             </div>
 
-            <div className='font-mono text-2xl font-semibold tracking-tight'>
-              {formatQuota(remainQuota)}
+            <div className='font-mono text-2xl font-semibold tracking-tight text-slate-50'>
+              {formatQuotaForCockpit(remainQuota)}
             </div>
 
             <div className='grid grid-cols-2 gap-2'>
-              <div className='bg-background/60 rounded-lg px-2.5 py-2'>
-                <div className='text-muted-foreground flex items-center gap-1 text-[11px] leading-none font-medium'>
+              <div className='rounded-lg border border-white/10 bg-slate-950/40 px-2.5 py-2'>
+                <div className='flex items-center gap-1 text-[11px] font-medium text-slate-500'>
                   <Flame className='size-3 shrink-0' aria-hidden='true' />
-                  <span className='truncate'>{t('Last 24h usage')}</span>
+                  <span className='truncate'>
+                    {t('Dashboard token usage 24h')}
+                  </span>
                 </div>
-                <div className='text-foreground mt-1.5 truncate text-xs font-semibold tabular-nums'>
-                  {formatQuota(recentUsage)}
+                <div className='mt-1.5 truncate text-xs font-semibold text-slate-200 tabular-nums'>
+                  {formatQuotaForCockpit(recentUsage)}
                 </div>
               </div>
-              <div className='bg-background/60 rounded-lg px-2.5 py-2'>
-                <div className='text-muted-foreground flex items-center gap-1 text-[11px] leading-none font-medium'>
+              <div className='rounded-lg border border-white/10 bg-slate-950/40 px-2.5 py-2'>
+                <div className='flex items-center gap-1 text-[11px] font-medium text-slate-500'>
                   {runwayDays !== null && runwayDays < 3 ? (
                     <TrendingDown
                       className='size-3 shrink-0'
@@ -318,38 +378,46 @@ export function SummaryCards() {
                       aria-hidden='true'
                     />
                   )}
-                  <span className='truncate'>{t('Runway')}</span>
+                  <span className='truncate'>{t('Dashboard runway label')}</span>
                 </div>
                 <div
                   className={cn(
                     'mt-1.5 truncate text-xs font-semibold tabular-nums',
-                    healthLevel === 'critical' && 'text-destructive',
-                    healthLevel === 'caution' && 'text-warning'
+                    healthLevel === 'critical' && 'text-red-400',
+                    healthLevel === 'caution' && 'text-amber-400',
+                    healthLevel === 'healthy' && 'text-slate-200'
                   )}
                 >
                   {runwayDays !== null
                     ? runwayDays < 1
-                      ? t('Less than 1 day left')
+                      ? t('Dashboard less than 1 day')
                       : runwayDays > 999
-                        ? `999+ ${t('days')}`
-                        : `~${formatNumber(Math.floor(runwayDays))} ${t('days')}`
+                        ? `999+ ${t('Dashboard days suffix')}`
+                        : `~${formatNumber(Math.floor(runwayDays))} ${t('Dashboard days suffix')}`
                     : remainQuota <= 0
-                      ? t('Balance depleted')
-                      : t('No recent usage')}
+                      ? t('Dashboard health critical')
+                      : t('Dashboard no recent usage')}
                 </div>
               </div>
             </div>
+
+            <p className='text-[11px] text-slate-500'>
+              {t('Dashboard historical usage hint', {
+                used: formatQuotaForCockpit(usedQuota),
+              })}
+            </p>
           </div>
 
           <Button
-            className='justify-between'
+            className='justify-between border-violet-500/30 bg-violet-600/25 text-slate-100 hover:bg-violet-600/40'
+            variant='outline'
             render={<Link to='/wallet' />}
           >
-            <span>{t('Wallet')}</span>
+            <span>{t('Dashboard resource recharge')}</span>
             <ArrowRight data-icon='inline-end' />
           </Button>
         </div>
       </div>
-    </div>
+    </section>
   )
 }

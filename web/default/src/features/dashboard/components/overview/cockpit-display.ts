@@ -16,27 +16,19 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { cn } from '@/lib/utils'
-import { SidebarTrigger } from '@/components/ui/sidebar'
+import { formatQuota } from '@/lib/format'
 
-type HeaderProps = React.HTMLAttributes<HTMLElement>
-
-export function Header({ className, children, ...props }: HeaderProps) {
-  return (
-    <header
-      className={cn(
-        'sticky top-0 z-40 h-[var(--app-header-height,3rem)] w-full shrink-0 bg-transparent',
-        className
-      )}
-      {...props}
-    >
-      <div className='flex h-full items-center gap-1.5 px-2 sm:gap-2 sm:px-3'>
-        <SidebarTrigger
-          variant='ghost'
-          className='size-8 text-slate-200 hover:bg-white/10 hover:text-slate-50'
-        />
-        {children}
-      </div>
-    </header>
-  )
+/** Dashboard display-only: normalize quota/currency strings to RMB presentation. */
+export function formatQuotaForCockpit(value: number): string {
+  return formatQuota(value)
+    .replace(/\$/g, '¥')
+    .replace(/\bUSD\b/gi, 'CNY')
+    .replace(/美元/g, '人民币')
+    .replace(/\bdollars?\b/gi, '人民币')
 }
+
+export const COCKPIT_PANEL_CLASS =
+  'border-violet-500/20 bg-slate-900/60 text-slate-100 shadow-lg shadow-indigo-950/20 backdrop-blur-sm'
+
+export const COCKPIT_CARD_CLASS =
+  'overflow-hidden rounded-2xl border border-violet-500/20 bg-slate-900/60 shadow-lg shadow-indigo-950/20 backdrop-blur-sm'

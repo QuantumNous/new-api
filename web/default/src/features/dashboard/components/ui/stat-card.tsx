@@ -48,6 +48,7 @@ interface StatCardProps {
   loading?: boolean
   error?: boolean
   action?: ReactNode
+  variant?: 'default' | 'cockpit'
 }
 
 const TONE_CLASSES: Record<StatCardTone, string> = {
@@ -60,6 +61,12 @@ const LINE_TONE_CLASSES: Record<StatCardTone, string> = {
   rose: 'text-warning',
   teal: 'text-primary',
   gray: 'text-muted-foreground',
+}
+
+const COCKPIT_LINE_TONE_CLASSES: Record<StatCardTone, string> = {
+  rose: 'text-violet-400',
+  teal: 'text-blue-400',
+  gray: 'text-slate-500',
 }
 
 const DETAIL_TONE_CLASSES: Record<StatCardDetailTone, string> = {
@@ -116,7 +123,11 @@ function buildLineSparkline(values?: number[]) {
   }
 }
 
-function LineSparkline(props: { values?: number[]; tone: StatCardTone }) {
+function LineSparkline(props: {
+  values?: number[]
+  tone: StatCardTone
+  cockpit?: boolean
+}) {
   const rawGradientId = useId()
   const gradientId = `stat-card-line-${rawGradientId.replace(/:/g, '')}`
   const paths = buildLineSparkline(props.values)
@@ -127,7 +138,9 @@ function LineSparkline(props: { values?: number[]; tone: StatCardTone }) {
     <div
       className={cn(
         'relative h-8 overflow-hidden rounded-lg',
-        LINE_TONE_CLASSES[props.tone]
+        props.cockpit
+          ? COCKPIT_LINE_TONE_CLASSES[props.tone]
+          : LINE_TONE_CLASSES[props.tone]
       )}
       aria-hidden='true'
     >
@@ -207,13 +220,22 @@ export function StatCard(props: StatCardProps) {
   const Icon = props.icon
   const tone = props.tone ?? 'gray'
   const sparklineVariant = props.sparklineVariant ?? 'bars'
+  const isCockpit = props.variant === 'cockpit'
 
   return (
     <div className='group flex min-h-32 flex-col justify-between gap-3'>
       <div className='flex items-start justify-between gap-1'>
-        <div className='text-muted-foreground flex items-center gap-1.5 text-xs font-medium sm:gap-2'>
+        <div
+          className={cn(
+            'flex items-center gap-1.5 text-xs font-medium sm:gap-2',
+            isCockpit ? 'text-slate-400' : 'text-muted-foreground'
+          )}
+        >
           <Icon
-            className='text-muted-foreground/60 size-3.5 shrink-0'
+            className={cn(
+              'size-3.5 shrink-0',
+              isCockpit ? 'text-violet-400/80' : 'text-muted-foreground/60'
+            )}
             aria-hidden='true'
           />
           <span className='line-clamp-2 leading-snug'>{props.title}</span>
@@ -237,10 +259,20 @@ export function StatCard(props: StatCardProps) {
         </div>
       ) : (
         <div className='flex flex-col gap-1'>
-          <div className='text-foreground font-mono text-2xl font-semibold tracking-tight break-all tabular-nums'>
+          <div
+            className={cn(
+              'font-mono text-2xl font-semibold tracking-tight break-all tabular-nums',
+              isCockpit ? 'text-slate-50' : 'text-foreground'
+            )}
+          >
             {props.value}
           </div>
-          <p className='text-muted-foreground/60 text-xs leading-relaxed'>
+          <p
+            className={cn(
+              'text-xs leading-relaxed',
+              isCockpit ? 'text-slate-500' : 'text-muted-foreground/60'
+            )}
+          >
             {props.description}
           </p>
         </div>
@@ -249,7 +281,11 @@ export function StatCard(props: StatCardProps) {
       {props.details?.length ? (
         <StatCardDetails details={props.details} />
       ) : sparklineVariant === 'line' ? (
-        <LineSparkline values={props.sparkline} tone={tone} />
+        <LineSparkline
+          values={props.sparkline}
+          tone={tone}
+          cockpit={isCockpit}
+        />
       ) : (
         <BarSparkline values={props.sparkline} tone={tone} />
       )}

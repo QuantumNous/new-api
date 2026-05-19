@@ -28,6 +28,29 @@ import {
   SidebarMenuItem,
 } from '@/components/ui/sidebar'
 
+const UNKNOWN_VERSION_KEYS = new Set([
+  'unknown version',
+  '未知版本',
+  'version inconnue',
+  'неизвестная версия',
+  'phiên bản không xác định',
+  '不明なバージョン',
+])
+
+function resolveDisplayVersion(
+  raw: string | undefined,
+  unknownLabel: string
+): string | null {
+  const trimmed = raw?.trim()
+  if (!trimmed) return null
+
+  const normalized = trimmed.toLowerCase()
+  if (normalized === unknownLabel.trim().toLowerCase()) return null
+  if (UNKNOWN_VERSION_KEYS.has(normalized)) return null
+
+  return trimmed
+}
+
 type SystemBrandProps = {
   defaultName?: string
   defaultVersion?: string
@@ -54,8 +77,10 @@ export function SystemBrand(props: SystemBrandProps) {
   const name = normalizeSystemName(
     status?.system_name || props.defaultName || DEFAULT_SYSTEM_NAME
   )
-  const version =
-    status?.version || props.defaultVersion || t('Unknown version')
+  const displayVersion = resolveDisplayVersion(
+    status?.version || props.defaultVersion,
+    t('Unknown version')
+  )
 
   if (variant === 'inline') {
     return (
@@ -64,10 +89,9 @@ export function SystemBrand(props: SystemBrandProps) {
         aria-label={t('Go to home')}
         className={cn(
           'inline-flex h-8 max-w-[min(100%,18rem)] items-center gap-2 rounded-lg border px-2 text-sm font-semibold transition-colors outline-none select-none',
-          'border-slate-200/80 bg-white/80 text-slate-800 shadow-sm backdrop-blur-sm',
-          'hover:bg-white hover:text-slate-900',
-          'focus-visible:ring-2 focus-visible:ring-indigo-400/40',
-          'dark:border-white/10 dark:bg-white/5 dark:text-slate-100 dark:hover:bg-white/10'
+          'border-white/10 bg-white/5 text-slate-100 shadow-sm backdrop-blur-sm',
+          'hover:bg-white/10 hover:text-slate-50',
+          'focus-visible:ring-2 focus-visible:ring-indigo-400/40'
         )}
       >
         <div className='flex size-6 shrink-0 items-center justify-center overflow-hidden rounded-md ring-1 ring-indigo-400/20'>
@@ -100,9 +124,18 @@ export function SystemBrand(props: SystemBrandProps) {
               className='size-full rounded-lg object-cover'
             />
           </div>
-          <div className='grid flex-1 text-start text-sm leading-tight group-data-[collapsible=icon]:hidden'>
+          <div
+            className={cn(
+              'flex flex-1 flex-col text-start text-sm leading-tight group-data-[collapsible=icon]:hidden',
+              !displayVersion && 'justify-center'
+            )}
+          >
             <span className='truncate font-semibold text-slate-50'>{name}</span>
-            <span className='truncate text-xs text-slate-400'>{version}</span>
+            {displayVersion ? (
+              <span className='truncate text-xs text-slate-400'>
+                {displayVersion}
+              </span>
+            ) : null}
           </div>
         </SidebarMenuButton>
       </SidebarMenuItem>

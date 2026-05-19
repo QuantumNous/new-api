@@ -22,11 +22,28 @@ For commercial licensing, please contact support@quantumnous.com
 
 // System Configuration Defaults
 export const DEFAULT_SYSTEM_NAME = '昀河星泽词元运营中心'
-export const LEGACY_SYSTEM_NAMES = ['New API', 'NEW API', 'new-api', 'One API']
+export const LEGACY_SYSTEM_NAMES = [
+  'New API',
+  'NEW API',
+  'new-api',
+  'One API',
+  'ONE API',
+  'one api',
+] as const
 
+const LEGACY_SYSTEM_NAME_LOOKUP = new Set(
+  LEGACY_SYSTEM_NAMES.map((name) => name.toLowerCase())
+)
+
+/** Display-only: map legacy product names to the branded operations center name. */
 export function normalizeSystemName(name?: string | null) {
   if (!name) return DEFAULT_SYSTEM_NAME
-  return LEGACY_SYSTEM_NAMES.includes(name.trim()) ? DEFAULT_SYSTEM_NAME : name
+  const trimmed = name.trim()
+  if (!trimmed) return DEFAULT_SYSTEM_NAME
+  if (LEGACY_SYSTEM_NAME_LOOKUP.has(trimmed.toLowerCase())) {
+    return DEFAULT_SYSTEM_NAME
+  }
+  return trimmed
 }
 export const DEFAULT_LOGO = '/logo.png'
 

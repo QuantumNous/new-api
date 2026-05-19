@@ -65,8 +65,13 @@ function rateDotClass(rate: number): string {
   return 'bg-destructive'
 }
 
-export function PerformanceHealthPanel() {
+interface PerformanceHealthPanelProps {
+  variant?: 'default' | 'cockpit-ranking'
+}
+
+export function PerformanceHealthPanel(props: PerformanceHealthPanelProps) {
   const { t } = useTranslation()
+  const isCockpit = props.variant === 'cockpit-ranking'
   const metricsQuery = useQuery({
     queryKey: ['perf-metrics-summary', PERFORMANCE_WINDOW_HOURS],
     queryFn: () => getPerfMetricsSummary(PERFORMANCE_WINDOW_HOURS),
@@ -94,61 +99,111 @@ export function PerformanceHealthPanel() {
   const hasData = models.length > 0
 
   return (
-    <section className='bg-card h-full overflow-hidden rounded-2xl border shadow-xs'>
-      <div className='flex items-center gap-2 border-b px-4 py-3 sm:px-5'>
-        <HeartPulse className='text-muted-foreground/60 size-4 shrink-0' aria-hidden='true' />
-        <h3 className='text-sm font-semibold'>{t('Performance health')}</h3>
-        <span className='text-muted-foreground ml-auto text-xs'>
-          {t('Performance metrics for the last 24 hours')}
+    <section
+      className={cn(
+        'h-full min-h-[18rem] overflow-hidden rounded-2xl border shadow-xs',
+        isCockpit
+          ? 'border-violet-500/20 bg-slate-900/60 backdrop-blur-sm'
+          : 'bg-card'
+      )}
+    >
+      <div
+        className={cn(
+          'flex items-center gap-2 border-b px-4 py-3 sm:px-5',
+          isCockpit && 'border-white/10'
+        )}
+      >
+        <HeartPulse
+          className={cn(
+            'size-4 shrink-0',
+            isCockpit ? 'text-violet-400' : 'text-muted-foreground/60'
+          )}
+          aria-hidden='true'
+        />
+        <h3
+          className={cn('text-sm font-semibold', isCockpit && 'text-slate-100')}
+        >
+          {isCockpit
+            ? t('Dashboard chart model ranking')
+            : t('Performance health')}
+        </h3>
+        <span
+          className={cn(
+            'ml-auto text-xs',
+            isCockpit ? 'text-slate-400' : 'text-muted-foreground'
+          )}
+        >
+          {t('Dashboard KPI perf 24h')}
         </span>
       </div>
 
       <div className='space-y-3 p-4 sm:p-5'>
-        <div className='grid grid-cols-3 gap-2'>
-          <MetricCell
-            icon={HeartPulse}
-            label={t('Success rate')}
-            value={formatUptimePct(summary.successRate)}
-            loading={loading}
-            valueClassName={rateTextClass(summary.successRate)}
-          />
-          <MetricCell
-            icon={Timer}
-            label={t('Average latency')}
-            value={formatLatency(summary.avgLatencyMs)}
-            loading={loading}
-          />
-          <MetricCell
-            icon={Gauge}
-            label={t('Throughput')}
-            value={formatThroughput(summary.avgTps)}
-            loading={loading}
-          />
-        </div>
+        {!isCockpit && (
+          <div className='grid grid-cols-3 gap-2'>
+            <MetricCell
+              icon={HeartPulse}
+              label={t('Success rate')}
+              value={formatUptimePct(summary.successRate)}
+              loading={loading}
+              valueClassName={rateTextClass(summary.successRate)}
+            />
+            <MetricCell
+              icon={Timer}
+              label={t('Average latency')}
+              value={formatLatency(summary.avgLatencyMs)}
+              loading={loading}
+            />
+            <MetricCell
+              icon={Gauge}
+              label={t('Throughput')}
+              value={formatThroughput(summary.avgTps)}
+              loading={loading}
+            />
+          </div>
+        )}
 
         {loading ? (
           <div className='space-y-1'>
             {Array.from({ length: 3 }).map((_, i) => (
-              <Skeleton key={i} className='h-5 w-full rounded' />
+              <Skeleton
+                key={i}
+                className={cn(
+                  'h-5 w-full rounded',
+                  isCockpit && 'bg-slate-800'
+                )}
+              />
             ))}
           </div>
-        ) : hasData && (
+        ) : hasData ? (
           <div>
-            <span className='text-muted-foreground mb-1 block text-[11px] font-medium'>
-              {t('Top models by traffic')}
-            </span>
+            {!isCockpit && (
+              <span className='text-muted-foreground mb-1 block text-[11px] font-medium'>
+                {t('Top models by traffic')}
+              </span>
+            )}
             <div className='grid grid-cols-1 gap-x-4 sm:grid-cols-2'>
               {topModels.map((model) => (
                 <div
                   key={model.model_name}
-                  className='flex items-center justify-between gap-2 rounded px-1.5 py-1'
+                  className={cn(
+                    'flex items-center justify-between gap-2 rounded px-1.5 py-1',
+                    isCockpit && 'border border-white/5 bg-slate-950/40'
+                  )}
                 >
-                  <span className='min-w-0 flex-1 truncate font-mono text-[11px]'>
+                  <span
+                    className={cn(
+                      'min-w-0 flex-1 truncate font-mono text-[11px]',
+                      isCockpit && 'text-slate-300'
+                    )}
+                  >
                     {model.model_name}
                   </span>
                   <span className='inline-flex shrink-0 items-center gap-1'>
                     <span
-                      className={cn('size-1.5 rounded-full', rateDotClass(model.success_rate))}
+                      className={cn(
+                        'size-1.5 rounded-full',
+                        rateDotClass(model.success_rate)
+                      )}
                       aria-hidden='true'
                     />
                     <span
@@ -164,6 +219,15 @@ export function PerformanceHealthPanel() {
               ))}
             </div>
           </div>
+        ) : (
+          <p
+            className={cn(
+              'text-xs',
+              isCockpit ? 'text-slate-500' : 'text-muted-foreground'
+            )}
+          >
+            {t('No data available')}
+          </p>
         )}
       </div>
     </section>

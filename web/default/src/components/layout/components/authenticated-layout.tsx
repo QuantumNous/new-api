@@ -47,7 +47,8 @@ export function AuthenticatedLayout(props: AuthenticatedLayoutProps) {
                 className={cn(
                   '@container/content',
                   'h-[calc(100svh-var(--app-header-height,0px))]',
-                  'peer-data-[variant=inset]:h-[calc(100svh-var(--app-header-height,0px)-(var(--spacing)*4))]'
+                  'peer-data-[variant=inset]:h-[calc(100svh-var(--app-header-height,0px)-(var(--spacing)*4))]',
+                  'bg-gradient-to-br from-slate-950 via-slate-900 to-indigo-950/90 text-slate-100'
                 )}
               >
                 {props.children ?? <AnimatedOutlet />}

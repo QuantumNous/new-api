@@ -48,7 +48,7 @@ export function getSystemSettingsNavGroups(t: TFunction): NavGroup[] {
       title: t('Platform Configuration Center'),
       items: [
         {
-          title: t('Center Brand Configuration'),
+          title: t('Site platform basic information'),
           icon: Settings,
           items: getSiteSectionNavItems(t),
         },

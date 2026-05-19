@@ -54,6 +54,9 @@ const sidebarContentClassName = cn(
   'px-2 py-3',
   '[&_[data-sidebar=group-label]]:text-xs [&_[data-sidebar=group-label]]:font-medium [&_[data-sidebar=group-label]]:tracking-wide [&_[data-sidebar=group-label]]:text-slate-400',
   '[&_[data-sidebar=menu-button]:hover]:bg-white/10 [&_[data-sidebar=menu-button]:hover]:text-slate-50',
+  '[&_[data-sidebar=menu-sub]]:border-white/10',
+  '[&_[data-sidebar=menu-sub-button]]:text-slate-400',
+  '[&_[data-sidebar=menu-sub-button]:hover]:bg-white/10 [&_[data-sidebar=menu-sub-button]:hover]:text-slate-100',
   '[&_[data-active=true]]:bg-indigo-500/20 [&_[data-active=true]]:text-indigo-100',
   '[&_[data-active=true]]:shadow-[inset_0_0_0_1px_rgba(129,140,248,0.35)]',
   '[&_[data-active=true]_svg]:text-indigo-200'

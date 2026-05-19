@@ -42,8 +42,13 @@ const StatusDot = memo(function StatusDot(props: { status: number }) {
   return <span className={cn('inline-block size-2 rounded-full', color)} />
 })
 
-export function UptimePanel() {
+interface UptimePanelProps {
+  variant?: 'default' | 'cockpit'
+}
+
+export function UptimePanel(props: UptimePanelProps) {
   const { t } = useTranslation()
+  const isCockpit = props.variant === 'cockpit'
   const [groups, setGroups] = useState<UptimeGroupResult[]>([])
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
@@ -93,13 +98,25 @@ export function UptimePanel() {
 
   return (
     <PanelWrapper
+      variant={isCockpit ? 'cockpit' : 'default'}
       title={
         <span className='flex items-center gap-2'>
-          <Activity className='text-muted-foreground/60 size-4' />
-          {t('Uptime')}
+          <Activity
+            className={cn(
+              'size-4',
+              isCockpit ? 'text-violet-400' : 'text-muted-foreground/60'
+            )}
+          />
+          {isCockpit
+            ? t('Dashboard chart channel health')
+            : t('Uptime')}
         </span>
       }
-      description={t('Grouped monitor status from Uptime Kuma')}
+      description={
+        isCockpit
+          ? t('Dashboard chart channel health description')
+          : t('Grouped monitor status from Uptime Kuma')
+      }
       loading={loading}
       empty={!groups.length}
       emptyMessage={t('No uptime monitoring configured')}
