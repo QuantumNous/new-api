@@ -248,7 +248,7 @@ export async function getOAuthState() {
   let path = '/api/oauth/state';
   const params = new URLSearchParams();
   const linkReferral = getPromotionLinkReferral() || localStorage.getItem('aff');
-  const manualReferral = getPromotionManualReferral();
+  const manualReferral = linkReferral ? '' : getPromotionManualReferral();
   if (linkReferral) {
     params.set('link_referral', linkReferral);
   }

@@ -150,9 +150,11 @@ const RegisterForm = () => {
   useEffect(() => {
     persistAllowedReturnTo();
     persistPromotionLinkReferral();
+    const linkReferral = getPromotionLinkReferral();
     setInputs((current) => ({
       ...current,
-      link_referral: getPromotionLinkReferral(),
+      link_referral: linkReferral,
+      manual_referral: linkReferral ? '' : current.manual_referral,
     }));
   }, []);
 
@@ -742,28 +744,24 @@ const RegisterForm = () => {
           </>
         )}
 
-        <div>
-          <label className='auth-theme-field-label mb-2 block text-sm font-medium'>
-            {t('推广信息')}
-          </label>
-          <input
-            type='text'
-            name='manual_referral'
-            placeholder={t('可填写推广链接后缀或推荐口令')}
-            className={inputClassName}
-            value={inputs.manual_referral}
-            onChange={(event) =>
-              handleChange('manual_referral', event.target.value)
-            }
-            maxLength={64}
-          />
-          {inputs.link_referral && !inputs.manual_referral && (
-            <p className='mt-2 text-xs text-slate-500 dark:text-slate-400'>
-              {t('已识别推广链接来源：')}
-              {inputs.link_referral}
-            </p>
-          )}
-        </div>
+        {!inputs.link_referral && (
+          <div>
+            <label className='auth-theme-field-label mb-2 block text-sm font-medium'>
+              {t('推广信息')}
+            </label>
+            <input
+              type='text'
+              name='manual_referral'
+              placeholder={t('可填写推广链接后缀或推荐口令')}
+              className={inputClassName}
+              value={inputs.manual_referral}
+              onChange={(event) =>
+                handleChange('manual_referral', event.target.value)
+              }
+              maxLength={64}
+            />
+          </div>
+        )}
 
         {renderTerms()}
 
