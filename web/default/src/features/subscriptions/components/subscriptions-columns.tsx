@@ -22,7 +22,11 @@ import { useTranslation } from 'react-i18next'
 import { DataTableColumnHeader } from '@/components/data-table'
 import { GroupBadge } from '@/components/group-badge'
 import { StatusBadge } from '@/components/status-badge'
-import { formatDuration, formatResetPeriod } from '../lib'
+import {
+  formatDuration,
+  formatResetPeriod,
+  formatSubscriptionPrice,
+} from '../lib'
 import type { PlanRecord } from '../types'
 import { DataTableRowActions } from './data-table-row-actions'
 
@@ -74,7 +78,7 @@ export function useSubscriptionsColumns(): ColumnDef<PlanRecord>[] {
         ),
         cell: ({ row }) => (
           <span className='font-semibold text-emerald-600'>
-            ${Number(row.original.plan.price_amount || 0).toFixed(2)}
+            {formatSubscriptionPrice(row.original.plan)}
           </span>
         ),
         size: 100,

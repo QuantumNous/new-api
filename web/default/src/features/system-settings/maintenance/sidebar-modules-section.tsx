@@ -114,6 +114,12 @@ export function SidebarModulesSection({
         title: t('Wallet'),
         description: t('Top up balance and view billing history.'),
       },
+      affiliate: {
+        title: t('Affiliate'),
+        description: t(
+          'Manage PayPal payout account and top-up commission ledger.'
+        ),
+      },
       personal: {
         title: t('Profile'),
         description: t('Personal settings and profile management.'),
@@ -143,6 +149,12 @@ export function SidebarModulesSection({
       subscription: {
         title: t('Subscription Management'),
         description: t('Manage subscription plans and pricing.'),
+      },
+      affiliate: {
+        title: t('Affiliate Management'),
+        description: t(
+          'Manage wallet top-up affiliate commissions and offline settlement.'
+        ),
       },
     },
   }

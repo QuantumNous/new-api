@@ -231,6 +231,10 @@ export type BillingSettings = {
   'payment_setting.compliance_confirmed_at': number
   'payment_setting.compliance_confirmed_by': number
   'payment_setting.compliance_confirmed_ip': string
+  'distribution_setting.enabled': boolean
+  'distribution_setting.level1_rate_bps': number
+  'distribution_setting.level2_rate_bps': number
+  'distribution_setting.currency': string
   StripeApiSecret: string
   StripeWebhookSecret: string
   StripePriceId: string

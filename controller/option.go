@@ -33,6 +33,10 @@ func isPaymentComplianceOptionKey(key string) bool {
 	return strings.HasPrefix(key, "payment_setting.compliance_")
 }
 
+func isDistributionOptionKey(key string) bool {
+	return strings.HasPrefix(key, operation_setting.DistributionSettingName+".")
+}
+
 func isPositiveOptionValue(value string) bool {
 	intValue, err := strconv.Atoi(strings.TrimSpace(value))
 	if err == nil {
@@ -156,6 +160,12 @@ func UpdateOption(c *gin.Context) {
 		if isPaymentComplianceOptionKey(option.Key) {
 			common.ApiErrorMsg(c, "合规确认字段不允许通过通用设置接口修改")
 			return
+		}
+		if isDistributionOptionKey(option.Key) {
+			if err := operation_setting.ValidateDistributionOptionUpdate(option.Key, option.Value.(string)); err != nil {
+				common.ApiError(c, err)
+				return
+			}
 		}
 	}
 	switch option.Key {

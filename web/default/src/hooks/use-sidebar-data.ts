@@ -33,6 +33,7 @@ import {
   CreditCard,
   ListTodo,
   Settings,
+  HandCoins,
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { WORKSPACE_IDS } from '@/components/layout/lib/workspace-registry'
@@ -110,6 +111,11 @@ export function useSidebarData(): SidebarData {
             icon: Wallet,
           },
           {
+            title: t('Affiliate'),
+            url: '/affiliate',
+            icon: HandCoins,
+          },
+          {
             title: t('Profile'),
             url: '/profile',
             icon: User,
@@ -144,6 +150,11 @@ export function useSidebarData(): SidebarData {
             title: t('Subscription Management'),
             url: '/subscriptions',
             icon: CreditCard,
+          },
+          {
+            title: t('Affiliate Management'),
+            url: '/affiliate-commissions',
+            icon: HandCoins,
           },
           {
             title: t('System Settings'),

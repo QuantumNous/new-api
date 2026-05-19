@@ -27,7 +27,7 @@ export const subscriptionPlanSchema = z.object({
   title: z.string(),
   subtitle: z.string().optional(),
   price_amount: z.number(),
-  currency: z.string().default('USD'),
+  currency: z.string().default('CNY'),
   duration_unit: z.enum(['year', 'month', 'day', 'hour', 'custom']),
   duration_value: z.number(),
   custom_seconds: z.number().optional(),

@@ -23,7 +23,6 @@ import { useQuery } from '@tanstack/react-query'
 import { Pencil } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { getCurrencyDisplay, getCurrencyLabel } from '@/lib/currency'
 import { formatQuota, parseQuotaFromDollars } from '@/lib/format'
 import { Button } from '@/components/ui/button'
 import {
@@ -54,6 +53,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from '@/components/ui/sheet'
+import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import { createUser, updateUser, getUser, getGroups } from '../api'
 import { BINDING_FIELDS, ERROR_MESSAGES, SUCCESS_MESSAGES } from '../constants'
@@ -113,10 +113,6 @@ export function UsersMutateDrawer({
       form.reset(USER_FORM_DEFAULT_VALUES)
     }
   }, [open, isUpdate, currentRow, form])
-
-  const { meta: currencyMeta } = getCurrencyDisplay()
-  const currencyLabel = getCurrencyLabel()
-  const tokensOnly = currencyMeta.kind === 'tokens'
 
   const currentQuotaRaw = form.watch('quota_dollars') || 0
 
@@ -343,16 +339,14 @@ export function UsersMutateDrawer({
                       <FormItem>
                         <FormLabel>
                           {t('Remaining Quota ({{currency}})', {
-                            currency: currencyLabel,
+                            currency: 'USD',
                           })}
                         </FormLabel>
                         <div className='flex gap-2'>
                           <FormControl>
                             <Input
                               value={
-                                tokensOnly
-                                  ? String(field.value || 0)
-                                  : (field.value || 0).toFixed(6)
+                                (field.value || 0).toFixed(6)
                               }
                               readOnly
                               className='flex-1'
@@ -371,6 +365,29 @@ export function UsersMutateDrawer({
                           {formatQuota(parseQuotaFromDollars(field.value || 0))}
                         </FormDescription>
                         <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name='distribution_enabled'
+                    render={({ field }) => (
+                      <FormItem className='flex flex-row items-center justify-between rounded-lg border p-4'>
+                        <div className='space-y-0.5'>
+                          <FormLabel>{t('Affiliate eligibility')}</FormLabel>
+                          <FormDescription>
+                            {t(
+                              'Controls whether this user can earn affiliate commissions as a promoter.'
+                            )}
+                          </FormDescription>
+                        </div>
+                        <FormControl>
+                          <Switch
+                            checked={field.value ?? true}
+                            onCheckedChange={field.onChange}
+                          />
+                        </FormControl>
                       </FormItem>
                     )}
                   />

@@ -76,19 +76,8 @@ export function formatQuota(quota: number): string {
 export function parseQuotaFromDollars(amount: number): number {
   if (!Number.isFinite(amount)) return 0
 
-  const { config, meta } = getCurrencyDisplay()
-
-  // Tokens-only or raw quota mode
-  if (meta.kind === 'tokens') {
-    return Math.round(amount)
-  }
-
-  const exchangeRate =
-    meta.kind === 'currency' || meta.kind === 'custom' ? meta.exchangeRate : 1
-
-  const usdAmount = exchangeRate > 0 ? amount / exchangeRate : amount
-
-  return Math.round(usdAmount * config.quotaPerUnit)
+  const { config } = getCurrencyDisplay()
+  return Math.round(amount * config.quotaPerUnit)
 }
 
 /**
@@ -96,17 +85,9 @@ export function parseQuotaFromDollars(amount: number): number {
  * Reverse of parseQuotaFromDollars.
  */
 export function quotaUnitsToDollars(units: number): number {
-  const { config, meta } = getCurrencyDisplay()
-
-  if (meta.kind === 'tokens') {
-    return units
-  }
-
+  const { config } = getCurrencyDisplay()
   const usdAmount = units / config.quotaPerUnit
-  const exchangeRate =
-    meta.kind === 'currency' || meta.kind === 'custom' ? meta.exchangeRate : 1
-
-  return usdAmount * exchangeRate
+  return usdAmount
 }
 
 // ============================================================================

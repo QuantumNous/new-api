@@ -43,7 +43,11 @@ import {
   paySubscriptionCreem,
   paySubscriptionEpay,
 } from '../../api'
-import { formatDuration, formatResetPeriod } from '../../lib'
+import {
+  formatDuration,
+  formatResetPeriod,
+  formatSubscriptionPrice,
+} from '../../lib'
 import type { PlanRecord } from '../../types'
 
 interface PaymentMethod {
@@ -90,7 +94,7 @@ export function SubscriptionPurchaseDialog(props: Props) {
     selectedEpayMethod ||
     t('Select payment method')
   const totalAmount = Number(plan.total_amount || 0)
-  const price = Number(plan.price_amount || 0).toFixed(2)
+  const price = formatSubscriptionPrice(plan)
   const limitReached =
     (props.purchaseLimit || 0) > 0 &&
     (props.purchaseCount || 0) >= (props.purchaseLimit || 0)
@@ -244,7 +248,7 @@ export function SubscriptionPurchaseDialog(props: Props) {
             <Separator />
             <div className='flex items-center justify-between'>
               <span className='text-sm font-medium'>{t('Amount Due')}</span>
-              <span className='text-primary text-lg font-bold'>${price}</span>
+              <span className='text-primary text-lg font-bold'>{price}</span>
             </div>
           </div>
 

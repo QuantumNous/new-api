@@ -61,6 +61,24 @@ func SetApiRouter(router *gin.Engine) {
 		// Universal secure verification routes
 		apiRouter.POST("/verify", middleware.UserAuth(), middleware.CriticalRateLimit(), controller.UniversalVerify)
 
+		affiliateSelfRoute := apiRouter.Group("/affiliate/self")
+		affiliateSelfRoute.Use(middleware.UserAuth())
+		{
+			affiliateSelfRoute.GET("/summary", controller.GetSelfAffiliateSummary)
+			affiliateSelfRoute.GET("/commissions", controller.GetSelfAffiliateCommissions)
+			affiliateSelfRoute.GET("/payout-profile", controller.GetSelfAffiliatePayoutProfile)
+			affiliateSelfRoute.PUT("/payout-profile", controller.UpdateSelfAffiliatePayoutProfile)
+		}
+
+		affiliateAdminRoute := apiRouter.Group("/affiliate/admin")
+		affiliateAdminRoute.Use(middleware.AdminAuth())
+		{
+			affiliateAdminRoute.GET("/summary", controller.AdminAffiliateSummary)
+			affiliateAdminRoute.GET("/commissions", controller.AdminListAffiliateCommissions)
+			affiliateAdminRoute.POST("/commissions/settle", controller.AdminSettleAffiliateCommissions)
+			affiliateAdminRoute.GET("/commissions/export", controller.AdminExportAffiliateCommissions)
+		}
+
 		userRoute := apiRouter.Group("/user")
 		{
 			userRoute.POST("/register", middleware.CriticalRateLimit(), middleware.TurnstileCheck(), controller.Register)

@@ -21,11 +21,11 @@ import { useTranslation } from 'react-i18next'
 import { getSelf } from '@/lib/api'
 import { useStatus } from '@/hooks/use-status'
 import { SectionPageLayout } from '@/components/layout'
-import { AffiliateRewardsCard } from './components/affiliate-rewards-card'
 import { BillingHistoryDialog } from './components/dialogs/billing-history-dialog'
 import { CreemConfirmDialog } from './components/dialogs/creem-confirm-dialog'
 import { PaymentConfirmDialog } from './components/dialogs/payment-confirm-dialog'
 import { TransferDialog } from './components/dialogs/transfer-dialog'
+import { AffiliateRewardsCard } from './components/affiliate-rewards-card'
 import { RechargeFormCard } from './components/recharge-form-card'
 import { SubscriptionPlansCard } from './components/subscription-plans-card'
 import { WalletStatsCard } from './components/wallet-stats-card'
@@ -33,11 +33,11 @@ import { DEFAULT_DISCOUNT_RATE } from './constants'
 import {
   useTopupInfo,
   usePayment,
-  useAffiliate,
   useRedemption,
   useCreemPayment,
   useWaffoPayment,
   useWaffoPancakePayment,
+  useAffiliate,
 } from './hooks'
 import {
   getDefaultPaymentType,
@@ -65,13 +65,13 @@ export function Wallet(props: WalletProps) {
     useState<PaymentMethod>()
   const [paymentLoading, setPaymentLoading] = useState<string | null>(null)
   const [confirmDialogOpen, setConfirmDialogOpen] = useState(false)
-  const [transferDialogOpen, setTransferDialogOpen] = useState(false)
   const [billingDialogOpen, setBillingDialogOpen] = useState(false)
   const [redemptionCode, setRedemptionCode] = useState('')
   const [creemDialogOpen, setCreemDialogOpen] = useState(false)
   const [selectedCreemProduct, setSelectedCreemProduct] =
     useState<CreemProduct | null>(null)
   const [showSubscriptionPanel, setShowSubscriptionPanel] = useState(true)
+  const [transferDialogOpen, setTransferDialogOpen] = useState(false)
 
   const { status } = useStatus()
   const { topupInfo, presetAmounts, loading: topupLoading } = useTopupInfo()
@@ -82,17 +82,17 @@ export function Wallet(props: WalletProps) {
     calculatePaymentAmount,
     processPayment,
   } = usePayment()
+  const { redeeming, redeemCode } = useRedemption()
+  const { processing: creemProcessing, processCreemPayment } = useCreemPayment()
+  const { processWaffoPayment } = useWaffoPayment()
+  const { processing: pancakeProcessing, processWaffoPancakePayment } =
+    useWaffoPancakePayment()
   const {
     affiliateLink,
     loading: affiliateLoading,
     transferQuota,
     transferring,
   } = useAffiliate()
-  const { redeeming, redeemCode } = useRedemption()
-  const { processing: creemProcessing, processCreemPayment } = useCreemPayment()
-  const { processWaffoPayment } = useWaffoPayment()
-  const { processing: pancakeProcessing, processWaffoPancakePayment } =
-    useWaffoPancakePayment()
 
   // Fetch and refresh user data
   const fetchUser = useCallback(async () => {
@@ -198,7 +198,6 @@ export function Wallet(props: WalletProps) {
     }
   }
 
-  // Handle transfer
   const handleTransfer = async (amount: number) => {
     const success = await transferQuota(amount)
     if (success) {
@@ -259,6 +258,16 @@ export function Wallet(props: WalletProps) {
           <div className='mx-auto flex w-full max-w-7xl flex-col gap-4 sm:gap-5'>
             <WalletStatsCard user={user} loading={userLoading} />
 
+            <AffiliateRewardsCard
+              user={user}
+              affiliateLink={affiliateLink}
+              onTransfer={() => setTransferDialogOpen(true)}
+              complianceConfirmed={
+                topupInfo?.payment_compliance_confirmed !== false
+              }
+              loading={userLoading || affiliateLoading}
+            />
+
             <div
               className={
                 showSubscriptionPanel
@@ -304,16 +313,6 @@ export function Wallet(props: WalletProps) {
                 onAvailabilityChange={handleSubscriptionAvailabilityChange}
               />
             </div>
-
-            <AffiliateRewardsCard
-              user={user}
-              affiliateLink={affiliateLink}
-              onTransfer={() => setTransferDialogOpen(true)}
-              complianceConfirmed={
-                topupInfo?.payment_compliance_confirmed !== false
-              }
-              loading={affiliateLoading}
-            />
           </div>
         </SectionPageLayout.Content>
       </SectionPageLayout>
@@ -330,14 +329,6 @@ export function Wallet(props: WalletProps) {
         discountRate={getDiscountRate()}
       />
 
-      <TransferDialog
-        open={transferDialogOpen}
-        onOpenChange={setTransferDialogOpen}
-        onConfirm={handleTransfer}
-        availableQuota={user?.aff_quota ?? 0}
-        transferring={transferring}
-      />
-
       <BillingHistoryDialog
         open={billingDialogOpen}
         onOpenChange={setBillingDialogOpen}
@@ -349,6 +340,14 @@ export function Wallet(props: WalletProps) {
         onConfirm={handleCreemConfirm}
         product={selectedCreemProduct}
         processing={creemProcessing}
+      />
+
+      <TransferDialog
+        open={transferDialogOpen}
+        onOpenChange={setTransferDialogOpen}
+        onConfirm={handleTransfer}
+        availableQuota={user?.aff_quota ?? 0}
+        transferring={transferring}
       />
     </>
   )

@@ -19,7 +19,6 @@ For commercial licensing, please contact support@quantumnous.com
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { getCurrencyDisplay, getCurrencyLabel } from '@/lib/currency'
 import { formatQuota, parseQuotaFromDollars } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -49,10 +48,6 @@ export function UserQuotaDialog(props: UserQuotaDialogProps) {
   const [mode, setMode] = useState<QuotaAdjustMode>('add')
   const [amount, setAmount] = useState('')
   const [loading, setLoading] = useState(false)
-
-  const { meta: currencyMeta } = getCurrencyDisplay()
-  const currencyLabel = getCurrencyLabel()
-  const tokensOnly = currencyMeta.kind === 'tokens'
 
   const amountValue = parseFloat(amount) || 0
   const quotaValue = parseQuotaFromDollars(Math.abs(amountValue))
@@ -110,9 +105,7 @@ export function UserQuotaDialog(props: UserQuotaDialogProps) {
     props.onOpenChange(false)
   }
 
-  const placeholder = tokensOnly
-    ? t('Enter amount in tokens')
-    : t('Enter amount in {{currency}}', { currency: currencyLabel })
+  const placeholder = t('Enter amount in {{currency}}', { currency: 'USD' })
 
   return (
     <Dialog open={props.open} onOpenChange={props.onOpenChange}>
@@ -158,11 +151,11 @@ export function UserQuotaDialog(props: UserQuotaDialogProps) {
 
           <div className='space-y-2'>
             <Label>
-              {t('Amount')} ({currencyLabel})
+              {t('Amount')} (USD)
             </Label>
             <Input
               type='number'
-              step={tokensOnly ? 1 : 0.000001}
+              step={0.000001}
               min={mode === 'override' ? undefined : 0}
               placeholder={placeholder}
               value={amount}

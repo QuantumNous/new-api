@@ -68,11 +68,11 @@ export function AffiliateRewardsCard({
           </div>
           <div className='min-w-0'>
             <h3 className='truncate text-sm font-semibold'>
-              {t('Referral Program')}
+              {t('Registration Invite Rewards')}
             </h3>
             <p className='text-muted-foreground line-clamp-1 text-xs'>
               {t(
-                'Earn rewards when your referrals add funds. Transfer accumulated rewards to your balance anytime.'
+                'Earn quota rewards when invited users register. Transfer accumulated rewards to your balance anytime.'
               )}
             </p>
           </div>

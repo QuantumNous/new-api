@@ -91,7 +91,7 @@ export function formValuesToPlanPayload(values: PlanFormValues): PlanPayload {
     plan: {
       ...values,
       price_amount: Number(values.price_amount || 0),
-      currency: 'USD',
+      currency: 'CNY',
       duration_value: Number(values.duration_value || 0),
       custom_seconds: Number(values.custom_seconds || 0),
       quota_reset_period: values.quota_reset_period || 'never',
