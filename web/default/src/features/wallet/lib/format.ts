@@ -62,6 +62,22 @@ export function formatCurrency(amount: number | string): string {
 }
 
 /**
+ * Format recharge credit amounts. Top-up amounts are configured in USD.
+ */
+export function formatUsdCreditAmount(amount: number | string): string {
+  const formatted = formatCurrency(amount)
+  return formatted === '-' ? formatted : `$${formatted}`
+}
+
+/**
+ * Format local payment amounts charged by local payment providers.
+ */
+export function formatLocalPaymentAmount(amount: number | string): string {
+  const formatted = formatCurrency(amount)
+  return formatted === '-' ? formatted : `¥${formatted}`
+}
+
+/**
  * Get discount label for display (e.g., "20% OFF")
  */
 export function getDiscountLabel(discount: number): string {
@@ -78,17 +94,14 @@ export function getDiscountLabel(discount: number): string {
 export function calculatePresetPricing(
   presetValue: number,
   priceRatio: number,
-  discount: number,
-  usdExchangeRate: number = 1
+  discount: number
 ) {
   const originalPrice = presetValue * priceRatio
   const actualPrice = originalPrice * discount
   const savedAmount = originalPrice - actualPrice
   const hasDiscount = discount < 1.0
-  const displayValue = presetValue * usdExchangeRate
 
   return {
-    displayValue,
     originalPrice,
     actualPrice,
     savedAmount,
