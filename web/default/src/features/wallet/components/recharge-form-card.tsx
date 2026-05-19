@@ -19,7 +19,6 @@ For commercial licensing, please contact support@quantumnous.com
 import { useState, useEffect } from 'react'
 import { Gift, ExternalLink, Loader2, Receipt, WalletCards } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { formatNumber } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
@@ -35,11 +34,12 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip'
 import {
-  formatCurrency,
   getDiscountLabel,
   getPaymentIcon,
   getMinTopupAmount,
   calculatePresetPricing,
+  formatLocalPaymentAmount,
+  formatUsdCreditAmount,
 } from '../lib'
 import type {
   PaymentMethod,
@@ -68,7 +68,6 @@ interface RechargeFormCardProps {
   topupLink?: string
   loading?: boolean
   priceRatio?: number
-  usdExchangeRate?: number
   onOpenBilling?: () => void
   creemProducts?: CreemProduct[]
   enableCreemTopup?: boolean
@@ -98,7 +97,6 @@ export function RechargeFormCard({
   topupLink,
   loading,
   priceRatio = 1,
-  usdExchangeRate = 1,
   onOpenBilling,
   creemProducts,
   enableCreemTopup,
@@ -223,15 +221,13 @@ export function RechargeFormCard({
                         topupInfo?.discount?.[preset.value] ||
                         1.0
                       const {
-                        displayValue,
                         actualPrice,
                         savedAmount,
                         hasDiscount,
                       } = calculatePresetPricing(
                         preset.value,
                         priceRatio,
-                        discount,
-                        usdExchangeRate
+                        discount
                       )
                       return (
                         <Button
@@ -247,7 +243,7 @@ export function RechargeFormCard({
                         >
                           <div className='flex w-full items-center justify-between'>
                             <div className='text-base font-semibold sm:text-lg'>
-                              {formatNumber(displayValue)}
+                              {formatUsdCreditAmount(preset.value)}
                             </div>
                             {hasDiscount && (
                               <div className='text-xs font-medium text-green-600'>
@@ -256,11 +252,11 @@ export function RechargeFormCard({
                             )}
                           </div>
                           <div className='text-muted-foreground mt-1.5 w-full text-xs sm:mt-2'>
-                            Pay {formatCurrency(actualPrice)}
+                            Pay {formatLocalPaymentAmount(actualPrice)}
                             {hasDiscount && savedAmount > 0 && (
                               <span className='text-green-600'>
                                 {' '}
-                                • Save {formatCurrency(savedAmount)}
+                                • Save {formatLocalPaymentAmount(savedAmount)}
                               </span>
                             )}
                           </div>
@@ -285,7 +281,7 @@ export function RechargeFormCard({
                     value={localAmount}
                     onChange={(e) => handleAmountChange(e.target.value)}
                     min={minTopup}
-                    placeholder={`Minimum ${minTopup}`}
+                    placeholder={`Minimum ${formatUsdCreditAmount(minTopup)}`}
                     className='h-9 text-base sm:h-10 sm:text-lg'
                   />
                   <div className='bg-muted/30 flex min-h-9 items-center justify-between gap-2 rounded-md border px-3 lg:min-w-52'>
@@ -296,7 +292,7 @@ export function RechargeFormCard({
                       <Skeleton className='h-5 w-16' />
                     ) : (
                       <span className='text-sm font-semibold'>
-                        {formatCurrency(paymentAmount)}
+                        {formatLocalPaymentAmount(paymentAmount)}
                       </span>
                     )}
                   </div>
@@ -341,7 +337,7 @@ export function RechargeFormCard({
                             <TooltipTrigger render={button}></TooltipTrigger>
                             <TooltipContent>
                               {t('Minimum topup amount: {{amount}}', {
-                                amount: minTopup,
+                                amount: formatUsdCreditAmount(minTopup),
                               })}
                             </TooltipContent>
                           </Tooltip>
@@ -404,7 +400,7 @@ export function RechargeFormCard({
                               <TooltipTrigger render={button}></TooltipTrigger>
                               <TooltipContent>
                                 {t('Minimum topup amount: {{amount}}', {
-                                  amount: waffoMin,
+                                  amount: formatUsdCreditAmount(waffoMin),
                                 })}
                               </TooltipContent>
                             </Tooltip>

@@ -88,7 +88,7 @@ export async function updateUser(
  * Delete a single user (hard delete)
  */
 export async function deleteUser(id: number): Promise<ApiResponse> {
-  const res = await api.delete(`/api/user/${id}/`)
+  const res = await api.delete(`/api/user/${id}`)
   return res.data
 }
 
