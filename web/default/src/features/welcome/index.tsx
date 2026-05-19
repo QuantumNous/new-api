@@ -195,6 +195,22 @@ export function Welcome({ step = 'persona' }: { step?: WelcomeStep }) {
       // /welcome route rewinds to step=persona.
       const target: string =
         handoff?.next || preset?.defaultRoute || '/wallet'
+      // Tell PersonaPickerHost to skip its very next redirect. After
+      // navigate fires, AuthenticatedLayout will mount on the target
+      // route and PersonaPickerHost's effect re-reads from authStore;
+      // if our setUser hasn't propagated to that subscriber yet,
+      // shouldPrompt is still true and the host bounces back to
+      // /welcome (defaulting to step=persona — exactly the bug
+      // reported). The flag is one-shot; PersonaPickerHost consumes
+      // it on the next render and resumes normal behaviour after.
+      if (typeof window !== 'undefined') {
+        try {
+          window.sessionStorage.setItem('dr_welcome_just_finished', '1')
+        } catch {
+          /* private mode — host will still try to redirect, but
+           * setUser usually wins the race anyway. */
+        }
+      }
       navigate({ to: target as never, replace: true })
     } catch {
       toast.error(t('Could not save your selection.'))
