@@ -90,6 +90,7 @@ const RechargeCard = ({
   enableWaffoTopUp,
   enableWaffoPancakeTopUp,
   enableWechatNativeTopUp,
+  enableAlipayTopUp,
   subscriptionLoading = false,
   subscriptionPlans = [],
   billingPreference,
@@ -321,17 +322,21 @@ const RechargeCard = ({
                             const isWaffoPancake =
                               payMethod.type === 'waffo_pancake';
                             const isWechatNative =
-                              payMethod.type === 'wechat_native';
+                              payMethod.type === 'direct_wechat_native';
+                            const isAlipayDirect =
+                              payMethod.type === 'direct_alipay';
                             const disabled =
                               (!enableOnlineTopUp &&
                                 !isStripe &&
                                 !isWaffo &&
                                 !isWaffoPancake &&
-                                !isWechatNative) ||
+                                !isWechatNative &&
+                                !isAlipayDirect) ||
                               (!enableStripeTopUp && isStripe) ||
                               (!enableWaffoTopUp && isWaffo) ||
                               (!enableWaffoPancakeTopUp && isWaffoPancake) ||
                               (!enableWechatNativeTopUp && isWechatNative) ||
+                              (!enableAlipayTopUp && isAlipayDirect) ||
                               minTopupVal > Number(topUpCount || 0);
 
                             const buttonEl = (
@@ -345,10 +350,12 @@ const RechargeCard = ({
                                   paymentLoading && payWay === payMethod.type
                                 }
                                 icon={
-                                  payMethod.type === 'alipay' ? (
+                                  payMethod.type === 'alipay' ||
+                                  payMethod.type === 'direct_alipay' ? (
                                     <SiAlipay size={18} color='#1677FF' />
                                   ) : payMethod.type === 'wxpay' ||
-                                    payMethod.type === 'wechat_native' ? (
+                                    payMethod.type ===
+                                      'direct_wechat_native' ? (
                                     <SiWechat size={18} color='#07C160' />
                                   ) : payMethod.type === 'stripe' ? (
                                     <SiStripe size={18} color='#635BFF' />

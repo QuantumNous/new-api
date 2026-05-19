@@ -25,7 +25,7 @@ import SettingsPaymentGatewayStripe from '../../pages/Setting/Payment/SettingsPa
 import SettingsPaymentGatewayCreem from '../../pages/Setting/Payment/SettingsPaymentGatewayCreem';
 import SettingsPaymentGatewayWaffo from '../../pages/Setting/Payment/SettingsPaymentGatewayWaffo';
 import SettingsPaymentGatewayWaffoPancake from '../../pages/Setting/Payment/SettingsPaymentGatewayWaffoPancake';
-import SettingsPaymentGatewayWechatNative from '../../pages/Setting/Payment/SettingsPaymentGatewayWechatNative';
+import SettingsPaymentGatewayDirectPay from '../../pages/Setting/Payment/SettingsPaymentGatewayDirectPay';
 import { API, showError, toBoolean } from '../../helpers';
 import { useTranslation } from 'react-i18next';
 
@@ -58,6 +58,17 @@ const PaymentSetting = () => {
     WechatNativeMerchantPrivateKey: '',
     WechatNativePlatformCert: '',
     WechatNativeMinTopUp: 1,
+    DirectPayWechatEnabled: false,
+
+    AlipayAppId: '',
+    AlipayPrivateKey: '',
+    AlipayPublicKey: '',
+    AlipayAppCertPublicKey: '',
+    AlipayRootCert: '',
+    AlipayPublicCert: '',
+    AlipaySandbox: false,
+    AlipayMinTopUp: 1,
+    DirectPayAlipayEnabled: false,
 
     WaffoPancakeEnabled: false,
     WaffoPancakeSandbox: false,
@@ -118,6 +129,7 @@ const PaymentSetting = () => {
           case 'StripeUnitPrice':
           case 'StripeMinTopUp':
           case 'WechatNativeMinTopUp':
+          case 'AlipayMinTopUp':
           case 'WaffoPancakeUnitPrice':
           case 'WaffoPancakeMinTopUp':
             newInputs[item.key] = parseFloat(item.value);
@@ -131,6 +143,9 @@ const PaymentSetting = () => {
             newInputs[item.key] = item.value;
             break;
           case 'WaffoPancakeSandbox':
+          case 'AlipaySandbox':
+          case 'DirectPayWechatEnabled':
+          case 'DirectPayAlipayEnabled':
             newInputs[item.key] = toBoolean(item.value);
             break;
           default:
@@ -180,6 +195,13 @@ const PaymentSetting = () => {
                 hideSectionTitle
               />
             </Tabs.TabPane>
+            <Tabs.TabPane tab={t('直连支付设置')} itemKey='direct-pay'>
+              <SettingsPaymentGatewayDirectPay
+                options={inputs}
+                refresh={onRefresh}
+                hideSectionTitle
+              />
+            </Tabs.TabPane>
             <Tabs.TabPane tab={t('易支付设置')} itemKey='epay'>
               <SettingsPaymentGateway
                 options={inputs}
@@ -189,16 +211,6 @@ const PaymentSetting = () => {
             </Tabs.TabPane>
             <Tabs.TabPane tab={t('Stripe 设置')} itemKey='stripe'>
               <SettingsPaymentGatewayStripe
-                options={inputs}
-                refresh={onRefresh}
-                hideSectionTitle
-              />
-            </Tabs.TabPane>
-            <Tabs.TabPane
-              tab={t('微信支付 Native 设置')}
-              itemKey='wechat-native'
-            >
-              <SettingsPaymentGatewayWechatNative
                 options={inputs}
                 refresh={onRefresh}
                 hideSectionTitle

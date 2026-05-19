@@ -79,6 +79,9 @@ const TopUp = () => {
   const [enableWechatNativeTopUp, setEnableWechatNativeTopUp] = useState(false);
   const [wechatNativeOpen, setWechatNativeOpen] = useState(false);
   const [wechatNativePayData, setWechatNativePayData] = useState(null);
+  const [enableAlipayTopUp, setEnableAlipayTopUp] = useState(false);
+  const [alipayOpen, setAlipayOpen] = useState(false);
+  const [alipayPayData, setAlipayPayData] = useState(null);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [open, setOpen] = useState(false);
@@ -202,9 +205,14 @@ const TopUp = () => {
         showError(t('管理员未开启 Waffo 充值！'));
         return;
       }
-    } else if (payment === 'wechat_native') {
+    } else if (payment === 'direct_wechat_native') {
       if (!enableWechatNativeTopUp) {
         showError(t('管理员未开启微信支付充值！'));
+        return;
+      }
+    } else if (payment === 'direct_alipay') {
+      if (!enableAlipayTopUp) {
+        showError(t('管理员未开启支付宝充值！'));
         return;
       }
     } else {
@@ -261,7 +269,11 @@ const TopUp = () => {
       if (amount === 0) {
         await getStripeAmount();
       }
-    } else if (payWay === 'wechat_native') {
+    } else if (payWay === 'direct_wechat_native') {
+      if (amount === 0) {
+        await getAmount();
+      }
+    } else if (payWay === 'direct_alipay') {
       if (amount === 0) {
         await getAmount();
       }
@@ -285,8 +297,12 @@ const TopUp = () => {
           amount: parseInt(topUpCount),
           payment_method: 'stripe',
         });
-      } else if (payWay === 'wechat_native') {
-        res = await API.post('/api/user/wechat-native/pay', {
+      } else if (payWay === 'direct_wechat_native') {
+        res = await API.post('/api/user/direct-pay/wechat-native/pay', {
+          amount: parseInt(topUpCount),
+        });
+      } else if (payWay === 'direct_alipay') {
+        res = await API.post('/api/user/direct-pay/alipay/pay', {
           amount: parseInt(topUpCount),
         });
       } else {
@@ -303,9 +319,12 @@ const TopUp = () => {
           if (payWay === 'stripe') {
             // Stripe 支付回调处理
             window.open(data.pay_link, '_blank');
-          } else if (payWay === 'wechat_native') {
+          } else if (payWay === 'direct_wechat_native') {
             setWechatNativePayData(data);
             setWechatNativeOpen(true);
+          } else if (payWay === 'direct_alipay') {
+            setAlipayPayData(data);
+            setAlipayOpen(true);
           } else {
             // 普通支付表单提交
             let params = data;
@@ -624,11 +643,14 @@ const TopUp = () => {
               }
 
               if (!method.color) {
-                if (method.type === 'alipay') {
+                if (
+                  method.type === 'alipay' ||
+                  method.type === 'direct_alipay'
+                ) {
                   method.color = 'rgba(var(--semi-blue-5), 1)';
                 } else if (
                   method.type === 'wxpay' ||
-                  method.type === 'wechat_native'
+                  method.type === 'direct_wechat_native'
                 ) {
                   method.color = 'rgba(var(--semi-green-5), 1)';
                 } else if (method.type === 'stripe') {
@@ -655,6 +677,7 @@ const TopUp = () => {
             data.enable_waffo_pancake_topup || false;
           const enableWechatNativeTopUp =
             data.enable_wechat_native_topup || false;
+          const enableAlipayTopUp = data.enable_alipay_topup || false;
           const minTopUpValue = enableOnlineTopUp
             ? data.min_topup
             : enableStripeTopUp
@@ -665,7 +688,9 @@ const TopUp = () => {
                   ? data.waffo_pancake_min_topup
                   : enableWechatNativeTopUp
                     ? data.wechat_native_min_topup
-                    : 1;
+                    : enableAlipayTopUp
+                      ? data.alipay_min_topup
+                      : 1;
           setEnableOnlineTopUp(enableOnlineTopUp);
           setEnableStripeTopUp(enableStripeTopUp);
           setEnableCreemTopUp(enableCreemTopUp);
@@ -675,6 +700,7 @@ const TopUp = () => {
           setEnableWaffoPancakeTopUp(enableWaffoPancakeTopUp);
           setWaffoPancakeMinTopUp(data.waffo_pancake_min_topup || 1);
           setEnableWechatNativeTopUp(enableWechatNativeTopUp);
+          setEnableAlipayTopUp(enableAlipayTopUp);
           setMinTopUp(minTopUpValue);
           setTopUpCount(minTopUpValue);
 
@@ -890,6 +916,26 @@ const TopUp = () => {
         </div>
       </Modal>
 
+      <Modal
+        title={t('支付宝扫码支付')}
+        visible={alipayOpen}
+        onCancel={() => setAlipayOpen(false)}
+        footer={null}
+        centered
+        size='small'
+      >
+        <div className='flex flex-col items-center gap-4 py-2'>
+          {alipayPayData?.qr_code && (
+            <QRCodeSVG value={alipayPayData.qr_code} size={220} />
+          )}
+          <div className='text-center text-sm text-slate-500 dark:text-slate-400'>
+            {t(
+              '请使用支付宝扫码完成支付，支付成功后可在充值记录中查看到账状态。',
+            )}
+          </div>
+        </div>
+      </Modal>
+
       {/* Creem 充值确认模态框 */}
       <Modal
         title={t('确定要充值 $')}
@@ -930,6 +976,7 @@ const TopUp = () => {
           enableWaffoTopUp={enableWaffoTopUp}
           enableWaffoPancakeTopUp={enableWaffoPancakeTopUp}
           enableWechatNativeTopUp={enableWechatNativeTopUp}
+          enableAlipayTopUp={enableAlipayTopUp}
           presetAmounts={presetAmounts}
           selectedPreset={selectedPreset}
           selectPresetAmount={selectPresetAmount}

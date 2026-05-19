@@ -99,6 +99,16 @@ func InitOptionMap() {
 	common.OptionMap["WechatNativeMerchantPrivateKey"] = setting.WechatNativeMerchantPrivateKey
 	common.OptionMap["WechatNativePlatformCert"] = setting.WechatNativePlatformCert
 	common.OptionMap["WechatNativeMinTopUp"] = strconv.Itoa(setting.WechatNativeMinTopUp)
+	common.OptionMap["DirectPayWechatEnabled"] = strconv.FormatBool(setting.DirectPayWechatEnabled)
+	common.OptionMap["AlipayAppId"] = setting.AlipayAppId
+	common.OptionMap["AlipayPrivateKey"] = setting.AlipayPrivateKey
+	common.OptionMap["AlipayPublicKey"] = setting.AlipayPublicKey
+	common.OptionMap["AlipayAppCertPublicKey"] = setting.AlipayAppCertPublicKey
+	common.OptionMap["AlipayRootCert"] = setting.AlipayRootCert
+	common.OptionMap["AlipayPublicCert"] = setting.AlipayPublicCert
+	common.OptionMap["AlipaySandbox"] = strconv.FormatBool(setting.AlipaySandbox)
+	common.OptionMap["AlipayMinTopUp"] = strconv.Itoa(setting.AlipayMinTopUp)
+	common.OptionMap["DirectPayAlipayEnabled"] = strconv.FormatBool(setting.DirectPayAlipayEnabled)
 	common.OptionMap["WaffoEnabled"] = strconv.FormatBool(setting.WaffoEnabled)
 	common.OptionMap["WaffoApiKey"] = setting.WaffoApiKey
 	common.OptionMap["WaffoPrivateKey"] = setting.WaffoPrivateKey
@@ -414,6 +424,26 @@ func updateOptionMap(key string, value string) (err error) {
 		setting.WechatNativePlatformCert = value
 	case "WechatNativeMinTopUp":
 		setting.WechatNativeMinTopUp, _ = strconv.Atoi(value)
+	case "DirectPayWechatEnabled":
+		setting.DirectPayWechatEnabled = value == "true"
+	case "AlipayAppId":
+		setting.AlipayAppId = value
+	case "AlipayPrivateKey":
+		setting.AlipayPrivateKey = value
+	case "AlipayPublicKey":
+		setting.AlipayPublicKey = value
+	case "AlipayAppCertPublicKey":
+		setting.AlipayAppCertPublicKey = value
+	case "AlipayRootCert":
+		setting.AlipayRootCert = value
+	case "AlipayPublicCert":
+		setting.AlipayPublicCert = value
+	case "AlipaySandbox":
+		setting.AlipaySandbox = value == "true"
+	case "AlipayMinTopUp":
+		setting.AlipayMinTopUp, _ = strconv.Atoi(value)
+	case "DirectPayAlipayEnabled":
+		setting.DirectPayAlipayEnabled = value == "true"
 	case "WaffoEnabled":
 		setting.WaffoEnabled = value == "true"
 	case "WaffoApiKey":

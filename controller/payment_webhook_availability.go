@@ -86,7 +86,8 @@ func isWaffoPancakeWebhookEnabled() bool {
 }
 
 func isWechatNativeTopUpEnabled() bool {
-	return strings.TrimSpace(setting.WechatNativeAppId) != "" &&
+	return setting.DirectPayWechatEnabled &&
+		strings.TrimSpace(setting.WechatNativeAppId) != "" &&
 		strings.TrimSpace(setting.WechatNativeMchId) != "" &&
 		strings.TrimSpace(setting.WechatNativeApiV3Key) != "" &&
 		strings.TrimSpace(setting.WechatNativeMerchantSerialNo) != "" &&
@@ -96,6 +97,26 @@ func isWechatNativeTopUpEnabled() bool {
 
 func isWechatNativeWebhookEnabled() bool {
 	return isWechatNativeTopUpEnabled()
+}
+
+func isAlipayTopUpEnabled() bool {
+	return setting.DirectPayAlipayEnabled &&
+		strings.TrimSpace(setting.AlipayAppId) != "" &&
+		strings.TrimSpace(setting.AlipayPrivateKey) != "" &&
+		isAlipayWebhookConfigured()
+}
+
+func isAlipayWebhookConfigured() bool {
+	if strings.TrimSpace(setting.AlipayPublicKey) != "" {
+		return true
+	}
+	return strings.TrimSpace(setting.AlipayAppCertPublicKey) != "" &&
+		strings.TrimSpace(setting.AlipayRootCert) != "" &&
+		strings.TrimSpace(setting.AlipayPublicCert) != ""
+}
+
+func isAlipayWebhookEnabled() bool {
+	return isAlipayTopUpEnabled()
 }
 
 func isEpayTopUpEnabled() bool {

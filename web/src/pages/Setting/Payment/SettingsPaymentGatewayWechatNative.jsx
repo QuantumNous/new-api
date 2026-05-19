@@ -42,6 +42,7 @@ export default function SettingsPaymentGatewayWechatNative(props) {
     WechatNativeMerchantPrivateKey: '',
     WechatNativePlatformCert: '',
     WechatNativeMinTopUp: 1,
+    DirectPayWechatEnabled: false,
   });
   const formApiRef = useRef(null);
 
@@ -60,6 +61,7 @@ export default function SettingsPaymentGatewayWechatNative(props) {
           props.options.WechatNativeMinTopUp !== undefined
             ? parseFloat(props.options.WechatNativeMinTopUp)
             : 1,
+        DirectPayWechatEnabled: Boolean(props.options.DirectPayWechatEnabled),
       };
       setInputs(currentInputs);
       formApiRef.current.setValues(currentInputs);
@@ -84,6 +86,10 @@ export default function SettingsPaymentGatewayWechatNative(props) {
         {
           key: 'WechatNativeMinTopUp',
           value: String(inputs.WechatNativeMinTopUp || 1),
+        },
+        {
+          key: 'DirectPayWechatEnabled',
+          value: String(Boolean(inputs.DirectPayWechatEnabled)),
         },
       ];
 
@@ -140,7 +146,7 @@ export default function SettingsPaymentGatewayWechatNative(props) {
                 {props.options.ServerAddress
                   ? removeTrailingSlash(props.options.ServerAddress)
                   : t('网站地址')}
-                /api/user/wechat-native/notify
+                /api/user/direct-pay/wechat-native/notify
               </>
             }
             style={{ marginBottom: 12 }}
@@ -187,6 +193,12 @@ export default function SettingsPaymentGatewayWechatNative(props) {
                 label={t('最低充值数量')}
                 min={1}
                 precision={0}
+              />
+            </Col>
+            <Col xs={24} sm={24} md={8} lg={8} xl={8}>
+              <Form.Switch
+                field='DirectPayWechatEnabled'
+                label={t('启用微信直连支付')}
               />
             </Col>
           </Row>

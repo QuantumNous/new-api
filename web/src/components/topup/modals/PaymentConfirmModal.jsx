@@ -122,14 +122,15 @@ const PaymentConfirmModal = ({
                   if (payMethod) {
                     return (
                       <>
-                        {payMethod.type === 'alipay' ? (
+                        {payMethod.type === 'alipay' ||
+                        payMethod.type === 'direct_alipay' ? (
                           <SiAlipay
                             className='mr-2'
                             size={16}
                             color='#1677FF'
                           />
                         ) : payMethod.type === 'wxpay' ||
-                          payMethod.type === 'wechat_native' ? (
+                          payMethod.type === 'direct_wechat_native' ? (
                           <SiWechat
                             className='mr-2'
                             size={16}

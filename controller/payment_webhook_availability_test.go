@@ -172,6 +172,7 @@ func TestWechatNativeWebhookEnabledRequiresTopUpAndWebhookConfig(t *testing.T) {
 	originalSerialNo := setting.WechatNativeMerchantSerialNo
 	originalPrivateKey := setting.WechatNativeMerchantPrivateKey
 	originalPlatformCert := setting.WechatNativePlatformCert
+	originalEnabled := setting.DirectPayWechatEnabled
 	t.Cleanup(func() {
 		setting.WechatNativeAppId = originalAppID
 		setting.WechatNativeMchId = originalMchID
@@ -179,8 +180,10 @@ func TestWechatNativeWebhookEnabledRequiresTopUpAndWebhookConfig(t *testing.T) {
 		setting.WechatNativeMerchantSerialNo = originalSerialNo
 		setting.WechatNativeMerchantPrivateKey = originalPrivateKey
 		setting.WechatNativePlatformCert = originalPlatformCert
+		setting.DirectPayWechatEnabled = originalEnabled
 	})
 
+	setting.DirectPayWechatEnabled = true
 	setting.WechatNativeAppId = "wx_app"
 	setting.WechatNativeMchId = "mch"
 	setting.WechatNativeApiV3Key = "12345678901234567890123456789012"
