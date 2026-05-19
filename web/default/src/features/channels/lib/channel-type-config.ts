@@ -134,6 +134,18 @@ export const CHANNEL_TYPE_CONFIGS: Record<number, ChannelTypeConfig> = {
       baseUrl: 'Default: https://api.replicate.com',
     },
   },
+  100: {
+    id: 100,
+    name: CHANNEL_TYPES[100],
+    icon: 'openai',
+    defaultBaseUrl: 'https://blockrun.ai/api',
+    hints: {
+      baseUrl: 'Default: https://blockrun.ai/api',
+      key: 'EVM wallet private key (0x-prefixed hex)',
+      other:
+        'Pay-per-call in USDC on Base via x402. Fund the wallet address first; per-call charges are capped at $1 by the gateway.',
+    },
+  },
 }
 
 /**
