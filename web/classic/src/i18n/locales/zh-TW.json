@@ -1615,6 +1615,7 @@
     "按次：{{symbol}}{{price}} * {{ratioType}}：{{ratio}} = {{symbol}}{{total}}": "按次：{{symbol}}{{price}} * {{ratioType}}：{{ratio}} = {{symbol}}{{total}}",
     "按次计费": "按次計費",
     "按照如下格式输入：AccessKey|SecretAccessKey|Region": "按照如下格式輸入：AccessKey|SecretAccessKey|Region",
+    "按照如下格式输入：AccessKeyID|SecretAccessKey 或 AK|SK|SessionToken": "按照如下格式輸入：AccessKeyID|SecretAccessKey 或 AK|SK|SessionToken",
     "按量计费": "按量計費",
     "按量计费下需要先填写输入价格，才能保存其它价格项。": "按量計費下需要先填寫輸入價格，才能儲存其它價格項。",
     "按顺序替换content中的变量占位符": "按順序替換content中的變數佔位符",

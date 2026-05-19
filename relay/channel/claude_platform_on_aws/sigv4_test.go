@@ -106,6 +106,9 @@ func TestSigV4_ClaudePlatformOnAws_AddsRequiredHeaders(t *testing.T) {
 	}
 }
 
+// TestParseSigV4ApiKey covers the accepted API key formats for SigV4
+// authentication: two-part long-term credentials, three-part temporary
+// credentials, and the malformed inputs that must be rejected.
 func TestParseSigV4ApiKey(t *testing.T) {
 	cases := []struct {
 		name    string
@@ -139,6 +142,10 @@ func TestParseSigV4ApiKey(t *testing.T) {
 	}
 }
 
+// TestCanonicalQuery exercises canonicalQuery against the SigV4 spec rules:
+// empty query, already-sorted pairs, out-of-order pairs that must be
+// re-sorted, repeated keys preserved in original value order, and
+// percent-encoding of reserved characters such as space.
 func TestCanonicalQuery(t *testing.T) {
 	cases := []struct {
 		in, out string

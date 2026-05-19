@@ -281,17 +281,30 @@ func trimAllWS(s string) string {
 	return b.String()
 }
 
+// hashSHA256Hex returns the lower-case hex SHA-256 digest of data.
+// SigV4 uses this for both the canonical request hash and the payload
+// hash.
 func hashSHA256Hex(data []byte) string {
 	sum := sha256.Sum256(data)
 	return hex.EncodeToString(sum[:])
 }
 
+// hmacSHA256 returns HMAC-SHA256(key, data). Used as the building block
+// for the SigV4 signing key derivation chain.
 func hmacSHA256(key, data []byte) []byte {
 	h := hmac.New(sha256.New, key)
 	h.Write(data)
 	return h.Sum(nil)
 }
 
+// deriveSigningKey computes the SigV4 signing key by chaining HMAC-SHA256
+// over date, region, service and the literal "aws4_request", as defined
+// by the AWS Signature Version 4 specification:
+//
+//	kDate    = HMAC("AWS4" + secret, dateStamp)
+//	kRegion  = HMAC(kDate,    region)
+//	kService = HMAC(kRegion,  service)
+//	kSigning = HMAC(kService, "aws4_request")
 func deriveSigningKey(secretKey, dateStamp, region, service string) []byte {
 	kDate := hmacSHA256([]byte("AWS4"+secretKey), []byte(dateStamp))
 	kRegion := hmacSHA256(kDate, []byte(region))

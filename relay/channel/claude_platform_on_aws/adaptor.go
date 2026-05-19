@@ -68,10 +68,15 @@ func resolveWorkspaceID(c *gin.Context, info *relaycommon.RelayInfo) string {
 	return ""
 }
 
+// GetChannelName returns the human-readable channel identifier used in
+// logs and admin dashboards.
 func (a *Adaptor) GetChannelName() string {
 	return ChannelName
 }
 
+// GetModelList returns the list of model IDs supported by Claude Platform
+// on AWS. The list is reused from the first-party Claude channel because
+// AWS publishes the same model IDs.
 func (a *Adaptor) GetModelList() []string {
 	return ModelList
 }

@@ -3165,7 +3165,13 @@ const EditChannelModal = (props) => {
                                   : t(
                                       '按照如下格式输入：AccessKey|SecretAccessKey|Region',
                                     )
-                                : t(type2secretPrompt(inputs.type))
+                                : inputs.type === 58
+                                  ? inputs.claude_on_aws_auth_type === 'sigv4'
+                                    ? t(
+                                        '按照如下格式输入：AccessKeyID|SecretAccessKey 或 AK|SK|SessionToken',
+                                      )
+                                    : t(type2secretPrompt(inputs.type))
+                                  : t(type2secretPrompt(inputs.type))
                             }
                             rules={
                               isEdit

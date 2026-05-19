@@ -4477,7 +4477,7 @@
     "Your transaction history will appear here": "您的交易历史会显示在这里",
     "Your Turnstile secret key": "您的 Turnstile 密钥",
     "Your Turnstile site key": "您的 Turnstile 站点密钥",
-    "Workspace ID *": "Workspace ID *",
+    "Workspace ID *": "工作区 ID *",
     "Select auth method": "请选择鉴权方式",
     "API Key mode: paste the key generated in AWS Console → Claude Platform on AWS → API keys": "API Key 模式：粘贴在 AWS Console → Claude Platform on AWS → API keys 生成的 key",
     "SigV4 mode: paste credentials in format AK|SK or AK|SK|SessionToken": "SigV4 模式：使用 AK|SK 或 AK|SK|SessionToken 三段格式",

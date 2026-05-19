@@ -82,6 +82,31 @@ export const channelFormSchema = z.object({
   upstream_model_update_check_enabled: z.boolean().optional(),
   upstream_model_update_auto_sync_enabled: z.boolean().optional(),
   upstream_model_update_ignored_models: z.string().optional(),
+}).superRefine((data, ctx) => {
+  // Claude Platform on AWS (type 58): require region and workspace ID,
+  // and constrain the auth type so the form cannot submit invalid configs.
+  if (data.type !== 58) return
+  if (!data.claude_on_aws_auth_type) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['claude_on_aws_auth_type'],
+      message: 'Authentication method is required',
+    })
+  }
+  if (!data.claude_on_aws_region?.trim()) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['claude_on_aws_region'],
+      message: 'AWS region is required',
+    })
+  }
+  if (!data.claude_on_aws_workspace_id?.trim()) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['claude_on_aws_workspace_id'],
+      message: 'Workspace ID is required',
+    })
+  }
 })
 
 export type ChannelFormValues = z.infer<typeof channelFormSchema>
@@ -128,7 +153,7 @@ export const CHANNEL_FORM_DEFAULT_VALUES: ChannelFormValues = {
   vertex_key_type: 'json',
   aws_key_type: 'ak_sk',
   // Claude Platform on AWS specific
-  claude_on_aws_auth_type: 'api_key',
+  claude_on_aws_auth_type: 'sigv4',
   claude_on_aws_region: '',
   claude_on_aws_workspace_id: '',
   azure_responses_version: '',
@@ -187,7 +212,7 @@ export function transformChannelToFormDefaults(
   let azureResponsesVersion = ''
   let isEnterpriseAccount = false
   let awsKeyType: 'ak_sk' | 'api_key' = 'ak_sk'
-  let claudeOnAwsAuthType: 'sigv4' | 'api_key' = 'api_key'
+  let claudeOnAwsAuthType: 'sigv4' | 'api_key' = 'sigv4'
   let claudeOnAwsRegion = ''
   let claudeOnAwsWorkspaceId = ''
   let allowServiceTier = false
@@ -208,7 +233,7 @@ export function transformChannelToFormDefaults(
       azureResponsesVersion = parsed.azure_responses_version || ''
       isEnterpriseAccount = parsed.openrouter_enterprise === true
       awsKeyType = parsed.aws_key_type || 'ak_sk'
-      claudeOnAwsAuthType = parsed.claude_on_aws_auth_type || 'api_key'
+      claudeOnAwsAuthType = parsed.claude_on_aws_auth_type || 'sigv4'
       claudeOnAwsRegion = parsed.claude_on_aws_region || ''
       claudeOnAwsWorkspaceId = parsed.claude_on_aws_workspace_id || ''
       allowServiceTier = parsed.allow_service_tier === true
@@ -344,7 +369,7 @@ function buildSettingsJSON(formData: ChannelFormValues): string {
   // Claude Platform on AWS (type 58): auth type, region, workspace id
   if (formData.type === 58) {
     settingsObj.claude_on_aws_auth_type =
-      formData.claude_on_aws_auth_type || 'api_key'
+      formData.claude_on_aws_auth_type || 'sigv4'
     settingsObj.claude_on_aws_region = formData.claude_on_aws_region || ''
     settingsObj.claude_on_aws_workspace_id =
       formData.claude_on_aws_workspace_id || ''

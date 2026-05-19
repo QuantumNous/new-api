@@ -1647,6 +1647,7 @@
     "按次：{{symbol}}{{price}} * {{ratioType}}：{{ratio}} = {{symbol}}{{total}}": "Par requête : {{symbol}}{{price}} * {{ratioType}} : {{ratio}} = {{symbol}}{{total}}",
     "按次计费": "Paiement par requête",
     "按照如下格式输入：AccessKey|SecretAccessKey|Region": "Entrez au format : AccessKey|SecretAccessKey|Region",
+    "按照如下格式输入：AccessKeyID|SecretAccessKey 或 AK|SK|SessionToken": "Entrez au format : AccessKeyID|SecretAccessKey ou AK|SK|SessionToken",
     "按量计费": "Paiement à l'utilisation",
     "按量计费下需要先填写输入价格，才能保存其它价格项。": "En facturation au volume, il faut d'abord renseigner le prix d'entrée avant d'enregistrer les autres prix.",
     "按顺序替换content中的变量占位符": "Remplacer les espaces réservés de variable dans le contenu dans l'ordre",
