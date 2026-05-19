@@ -77,6 +77,12 @@ const LazyUserCharts = lazy(() =>
   }))
 )
 
+const LazyKeyCharts = lazy(() =>
+  import('./components/keys/key-charts').then((m) => ({
+    default: m.KeyCharts,
+  }))
+)
+
 function LogStatCardsFallback() {
   return (
     <div className='overflow-hidden rounded-lg border'>
@@ -145,6 +151,10 @@ const SECTION_META: Record<
   users: {
     titleKey: 'User Analytics',
     descriptionKey: 'View user consumption statistics and charts',
+  },
+  keys: {
+    titleKey: 'API Key Analytics',
+    descriptionKey: 'View API key consumption statistics and charts',
   },
 }
 
@@ -304,6 +314,13 @@ export function Dashboard() {
             <FadeIn>
               <Suspense fallback={<ModelChartsFallback />}>
                 <LazyUserCharts />
+              </Suspense>
+            </FadeIn>
+          )}
+          {activeSection === 'keys' && (
+            <FadeIn>
+              <Suspense fallback={<ModelChartsFallback />}>
+                <LazyKeyCharts />
               </Suspense>
             </FadeIn>
           )}
