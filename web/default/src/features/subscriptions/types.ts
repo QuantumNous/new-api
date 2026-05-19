@@ -93,11 +93,29 @@ export interface SubscriptionPayRequest {
 export interface SubscriptionPayResponse {
   success: boolean
   message?: string
-  data?: {
+  data?: Record<string, unknown> & {
     pay_link?: string
     checkout_url?: string
   }
   url?: string
+  trade_no?: string
+  return_url?: string
+}
+
+export type SubscriptionOrderPaymentStatus =
+  | 'pending'
+  | 'paid'
+  | 'failed'
+  | 'expired'
+
+export interface SubscriptionOrderStatusData {
+  status: SubscriptionOrderPaymentStatus
+  order_status?: string
+  trade_no: string
+  plan_id?: number
+  amount?: number
+  payment_method?: string
+  complete_time?: number
 }
 
 export interface CreateUserSubscriptionRequest {

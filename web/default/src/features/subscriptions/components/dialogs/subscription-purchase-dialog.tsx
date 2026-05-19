@@ -17,6 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useState, useEffect } from 'react'
+import { useNavigate } from '@tanstack/react-router'
 import { Crown, CalendarClock, Package } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -43,7 +44,11 @@ import {
   paySubscriptionCreem,
   paySubscriptionEpay,
 } from '../../api'
-import { formatDuration, formatResetPeriod } from '../../lib'
+import {
+  formatDuration,
+  formatResetPeriod,
+  saveSubscriptionEpayCheckout,
+} from '../../lib'
 import type { PlanRecord } from '../../types'
 
 interface PaymentMethod {
@@ -65,6 +70,7 @@ interface Props {
 
 export function SubscriptionPurchaseDialog(props: Props) {
   const { t } = useTranslation()
+  const navigate = useNavigate()
   const [paying, setPaying] = useState(false)
   const [selectedEpayMethod, setSelectedEpayMethod] = useState('')
 
@@ -139,10 +145,6 @@ export function SubscriptionPurchaseDialog(props: Props) {
     }
   }
 
-  const isSafari =
-    typeof navigator !== 'undefined' &&
-    /^((?!chrome|android).)*safari/i.test(navigator.userAgent)
-
   const handlePayEpay = async () => {
     if (!selectedEpayMethod) {
       toast.error(t('Please select a payment method'))
@@ -155,24 +157,25 @@ export function SubscriptionPurchaseDialog(props: Props) {
         payment_method: selectedEpayMethod,
       })
       if (res.message === 'success' && res.url) {
-        const form = document.createElement('form')
-        form.action = res.url
-        form.method = 'POST'
-        if (!isSafari) {
-          form.target = '_blank'
+        const tradeNo =
+          res.trade_no ||
+          String(res.data?.out_trade_no || res.data?.trade_no || '')
+        if (!tradeNo) {
+          toast.error(t('Payment request failed'))
+          return
         }
-        Object.entries(res.data || {}).forEach(([key, value]) => {
-          const input = document.createElement('input')
-          input.type = 'hidden'
-          input.name = key
-          input.value = String(value)
-          form.appendChild(input)
+
+        saveSubscriptionEpayCheckout({
+          tradeNo,
+          url: res.url,
+          params: res.data || {},
         })
-        document.body.appendChild(form)
-        form.submit()
-        document.body.removeChild(form)
         toast.success(t('Payment initiated'))
         props.onOpenChange(false)
+        void navigate({
+          to: '/wallet/subscription-result',
+          search: { out_trade_no: tradeNo },
+        })
       } else {
         toast.error(
           res.message && res.message !== 'success'

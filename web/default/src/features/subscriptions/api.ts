@@ -26,6 +26,7 @@ import type {
   SubscriptionPayResponse,
   SubscriptionPayRequest,
   SelfSubscriptionData,
+  SubscriptionOrderStatusData,
 } from './types'
 
 // ============================================================================
@@ -130,6 +131,19 @@ export async function paySubscriptionEpay(
     ...res.data,
     url: res.data.url || (res as unknown as { url?: string }).url,
   }
+}
+
+export async function getSubscriptionOrderStatus(
+  outTradeNo: string
+): Promise<ApiResponse<SubscriptionOrderStatusData>> {
+  const params = new URLSearchParams({ outTradeNo })
+  const res = await api.get(
+    `/api/subscription/order/status?${params.toString()}`,
+    {
+      skipBusinessError: true,
+    } as Record<string, unknown>
+  )
+  return res.data
 }
 
 // ============================================================================

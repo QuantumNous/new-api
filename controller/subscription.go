@@ -22,6 +22,19 @@ type BillingPreferenceRequest struct {
 	BillingPreference string `json:"billing_preference"`
 }
 
+func normalizeSubscriptionOrderStatus(status string) string {
+	switch status {
+	case common.TopUpStatusSuccess:
+		return "paid"
+	case common.TopUpStatusFailed:
+		return "failed"
+	case common.TopUpStatusExpired:
+		return "expired"
+	default:
+		return "pending"
+	}
+}
+
 // ---- User APIs ----
 
 func GetSubscriptionPlans(c *gin.Context) {
@@ -65,6 +78,40 @@ func GetSubscriptionSelf(c *gin.Context) {
 		"billing_preference": pref,
 		"subscriptions":      activeSubscriptions, // all active subscriptions
 		"all_subscriptions":  allSubscriptions,    // all subscriptions including expired
+	})
+}
+
+func GetSubscriptionOrderStatus(c *gin.Context) {
+	userId := c.GetInt("id")
+	tradeNo := strings.TrimSpace(c.Query("outTradeNo"))
+	if tradeNo == "" {
+		tradeNo = strings.TrimSpace(c.Query("out_trade_no"))
+	}
+	if tradeNo == "" {
+		tradeNo = strings.TrimSpace(c.Query("trade_no"))
+	}
+	if tradeNo == "" {
+		tradeNo = strings.TrimSpace(c.Query("mchOrderNo"))
+	}
+	if tradeNo == "" {
+		common.ApiErrorMsg(c, "missing outTradeNo")
+		return
+	}
+
+	order := model.GetSubscriptionOrderByTradeNo(tradeNo)
+	if order == nil || order.UserId != userId {
+		common.ApiErrorMsg(c, "order not found")
+		return
+	}
+
+	common.ApiSuccess(c, gin.H{
+		"status":         normalizeSubscriptionOrderStatus(order.Status),
+		"order_status":   order.Status,
+		"trade_no":       order.TradeNo,
+		"plan_id":        order.PlanId,
+		"amount":         order.Money,
+		"payment_method": order.PaymentMethod,
+		"complete_time":  order.CompleteTime,
 	})
 }
 

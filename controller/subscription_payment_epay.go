@@ -21,6 +21,38 @@ type SubscriptionEpayPayRequest struct {
 	PaymentMethod string `json:"payment_method"`
 }
 
+func subscriptionEpayReturnURL(tradeNo string, payState string) string {
+	values := url.Values{}
+	if tradeNo != "" {
+		values.Set("out_trade_no", tradeNo)
+	}
+	if payState != "" {
+		values.Set("pay", payState)
+	}
+
+	suffix := "/console/topup"
+	if common.GetTheme() == "default" {
+		suffix = "/wallet/subscription-result"
+	}
+	if encoded := values.Encode(); encoded != "" {
+		suffix += "?" + encoded
+	}
+	return paymentReturnPath(suffix)
+}
+
+func subscriptionEpayTradeNoFromParams(params map[string]string) string {
+	if params == nil {
+		return ""
+	}
+	if tradeNo := params["out_trade_no"]; tradeNo != "" {
+		return tradeNo
+	}
+	if tradeNo := params["trade_no"]; tradeNo != "" {
+		return tradeNo
+	}
+	return params["mchOrderNo"]
+}
+
 func SubscriptionRequestEpay(c *gin.Context) {
 	if !requireSubscriptionPurchase(c, operation_setting.PaymentProviderEpay) {
 		return
@@ -63,6 +95,9 @@ func SubscriptionRequestEpay(c *gin.Context) {
 		}
 	}
 
+	tradeNo := fmt.Sprintf("%s%d", common.GetRandomString(6), time.Now().Unix())
+	tradeNo = fmt.Sprintf("SUBUSR%dNO%s", userId, tradeNo)
+
 	callBackAddress := service.GetCallbackAddress()
 	returnUrl, err := url.Parse(callBackAddress + "/api/subscription/epay/return")
 	if err != nil {
@@ -74,9 +109,6 @@ func SubscriptionRequestEpay(c *gin.Context) {
 		common.ApiErrorMsg(c, "回调地址配置错误")
 		return
 	}
-
-	tradeNo := fmt.Sprintf("%s%d", common.GetRandomString(6), time.Now().Unix())
-	tradeNo = fmt.Sprintf("SUBUSR%dNO%s", userId, tradeNo)
 
 	client := GetEpayClient()
 	if client == nil {
@@ -112,7 +144,7 @@ func SubscriptionRequestEpay(c *gin.Context) {
 		common.ApiErrorMsg(c, "拉起支付失败")
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"message": "success", "data": params, "url": uri})
+	c.JSON(http.StatusOK, gin.H{"message": "success", "data": params, "url": uri, "trade_no": tradeNo, "return_url": returnUrl.String()})
 }
 
 func SubscriptionEpayNotify(c *gin.Context) {
@@ -169,14 +201,14 @@ func SubscriptionEpayNotify(c *gin.Context) {
 }
 
 // SubscriptionEpayReturn handles browser return after payment.
-// It verifies the payload and completes the order, then redirects to console.
+// It verifies the payload and completes the order, then redirects to the result page.
 func SubscriptionEpayReturn(c *gin.Context) {
 	var params map[string]string
 
 	if c.Request.Method == "POST" {
 		// POST 请求：从 POST body 解析参数
 		if err := c.Request.ParseForm(); err != nil {
-			c.Redirect(http.StatusFound, paymentReturnPath("/console/topup?pay=fail"))
+			c.Redirect(http.StatusFound, subscriptionEpayReturnURL("", "fail"))
 			return
 		}
 		params = lo.Reduce(lo.Keys(c.Request.PostForm), func(r map[string]string, t string, i int) map[string]string {
@@ -192,29 +224,29 @@ func SubscriptionEpayReturn(c *gin.Context) {
 	}
 
 	if len(params) == 0 {
-		c.Redirect(http.StatusFound, paymentReturnPath("/console/topup?pay=fail"))
+		c.Redirect(http.StatusFound, subscriptionEpayReturnURL("", "fail"))
 		return
 	}
 
 	client := GetEpayClient()
 	if client == nil {
-		c.Redirect(http.StatusFound, paymentReturnPath("/console/topup?pay=fail"))
+		c.Redirect(http.StatusFound, subscriptionEpayReturnURL(subscriptionEpayTradeNoFromParams(params), "fail"))
 		return
 	}
 	verifyInfo, err := client.Verify(params)
 	if err != nil || !verifyInfo.VerifyStatus {
-		c.Redirect(http.StatusFound, paymentReturnPath("/console/topup?pay=fail"))
+		c.Redirect(http.StatusFound, subscriptionEpayReturnURL(subscriptionEpayTradeNoFromParams(params), "fail"))
 		return
 	}
 	if verifyInfo.TradeStatus == epay.StatusTradeSuccess {
 		LockOrder(verifyInfo.ServiceTradeNo)
 		defer UnlockOrder(verifyInfo.ServiceTradeNo)
 		if err := model.CompleteSubscriptionOrder(verifyInfo.ServiceTradeNo, common.GetJsonString(verifyInfo), model.PaymentProviderEpay, verifyInfo.Type); err != nil {
-			c.Redirect(http.StatusFound, paymentReturnPath("/console/topup?pay=fail"))
+			c.Redirect(http.StatusFound, subscriptionEpayReturnURL(verifyInfo.ServiceTradeNo, "fail"))
 			return
 		}
-		c.Redirect(http.StatusFound, paymentReturnPath("/console/topup?pay=success"))
+		c.Redirect(http.StatusFound, subscriptionEpayReturnURL(verifyInfo.ServiceTradeNo, "success"))
 		return
 	}
-	c.Redirect(http.StatusFound, paymentReturnPath("/console/topup?pay=pending"))
+	c.Redirect(http.StatusFound, subscriptionEpayReturnURL(verifyInfo.ServiceTradeNo, "pending"))
 }
