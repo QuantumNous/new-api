@@ -26,7 +26,7 @@ func insertSubscriptionPlanForPaymentGuardTest(t *testing.T, id int) *Subscripti
 		Id:            id,
 		Title:         "Guard Plan",
 		PriceAmount:   9.99,
-		Currency:      "USD",
+		Currency:      SubscriptionCurrencyCNY,
 		DurationUnit:  SubscriptionDurationMonth,
 		DurationValue: 1,
 		Enabled:       true,

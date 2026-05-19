@@ -40,7 +40,7 @@ For commercial licensing, please contact support@quantumnous.com
  * - `formatCurrencyFromUSD()`: Use for quota/balance display (stored as USD, converted for display)
  * - `formatBillingCurrencyFromUSD()`: Use for billing/pricing displays (never shows tokens)
  * - `formatLocalCurrencyAmount()`: Use for payment amounts already in local currency
- * - `formatQuotaWithCurrency()`: Use for raw quota values (converts to USD first)
+ * - `formatQuotaWithCurrency()`: Use for raw quota values (converts to system USD first)
  *
  * ## Example Scenario
  *
@@ -68,7 +68,7 @@ For commercial licensing, please contact support@quantumnous.com
  * | Billing history Amount | USD (from DB) | `formatCurrencyFromUSD()` | Historical USD needs conversion |
  * | Billing history Payment | Local currency | `formatNumber()` | Just show number, no symbol |
  * | Model pricing | USD | `formatBillingCurrencyFromUSD()` | Never show as tokens |
- * | Raw quota from API | Tokens | `formatQuotaWithCurrency()` | Convert tokens → USD → display |
+ * | Raw quota from API | Tokens | `formatQuotaWithCurrency()` | Convert tokens → system USD |
  *
  * ## Critical Rules
  *
@@ -375,6 +375,26 @@ export function formatCurrencyFromUSD(
 }
 
 /**
+ * Format an amount in the system quota unit, which is USD.
+ *
+ * Quota/balance is an internal credit unit and should stay in USD even when
+ * payment-facing prices such as subscription plans are displayed in CNY.
+ */
+export function formatSystemCurrencyUSD(
+  amountUSD: number | null | undefined,
+  options?: CurrencyFormatOptions
+): string {
+  if (amountUSD == null || Number.isNaN(amountUSD)) return '-'
+
+  return formatCurrencyValue(amountUSD, mergeOptions(options), {
+    kind: 'currency',
+    symbol: '$',
+    currencyCode: 'USD',
+    exchangeRate: 1,
+  })
+}
+
+/**
  * Format USD amounts for billing/payment contexts (never shows tokens).
  *
  * Similar to formatCurrencyFromUSD, but NEVER displays in token units.
@@ -422,28 +442,24 @@ export function formatBillingCurrencyFromUSD(
 }
 
 /**
- * Format raw quota values (token units) to display currency.
+ * Format raw quota values (token units) to the system USD quota unit.
  *
- * Converts raw quota/token amounts to USD first, then formats according
- * to display settings. Use when you have quota in token units (e.g., 5000000)
- * and need to display it as currency (e.g., "$10").
+ * Converts raw quota/token amounts to USD first. Use when you have quota in
+ * token units (e.g., 5000000) and need to display it as the user quota amount
+ * (e.g., "$10").
  *
  * @param quota - Raw quota amount in token units (e.g., 5000000)
  * @param options - Optional formatting configuration
  * @returns Formatted string with currency symbol or token count
  *
  * @example
- * // With quotaPerUnit: 500000, quotaDisplayType: 'USD'
+ * // With quotaPerUnit: 500000
  * formatQuotaWithCurrency(5000000) → "$10"
- *
- * @example
- * // With quotaPerUnit: 500000, quotaDisplayType: 'CNY', usdExchangeRate: 7
- * formatQuotaWithCurrency(5000000) → "¥70"
  *
  * @remarks
  * Use this function for:
  * - Raw quota values from database (stored as tokens)
- * - When you need to convert tokens → USD → display currency
+ * - When you need to convert tokens → system USD
  *
  * DO NOT use for:
  * - Values already in USD → use formatCurrencyFromUSD()
@@ -457,7 +473,7 @@ export function formatQuotaWithCurrency(
 
   const { config } = getCurrencyDisplay()
   const amountUSD = quota / config.quotaPerUnit
-  return formatCurrencyFromUSD(amountUSD, options)
+  return formatSystemCurrencyUSD(amountUSD, options)
 }
 
 /**

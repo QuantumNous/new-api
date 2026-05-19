@@ -24,6 +24,7 @@ import { PaymentSettingsSection } from '../integrations/payment-settings-section
 import { RatioSettingsCard } from '../models/ratio-settings-card'
 import type { BillingSettings } from '../types'
 import { createSectionRegistry } from '../utils/section-registry'
+import { DistributionSettingsSection } from './distribution-settings-section'
 
 const getModelDefaults = (settings: BillingSettings) => ({
   ModelPrice: settings.ModelPrice,
@@ -198,6 +199,25 @@ const BILLING_SECTIONS = [
           confirmedAt: settings['payment_setting.compliance_confirmed_at'] ?? 0,
           confirmedBy: settings['payment_setting.compliance_confirmed_by'] ?? 0,
         }}
+      />
+    ),
+  },
+  {
+    id: 'distribution',
+    titleKey: 'Distribution',
+    descriptionKey: 'Configure two-level wallet top-up affiliate commissions',
+    build: (settings: BillingSettings) => (
+      <DistributionSettingsSection
+        defaultValues={{
+          enabled: settings['distribution_setting.enabled'],
+          level1RateBps: settings['distribution_setting.level1_rate_bps'],
+          level2RateBps: settings['distribution_setting.level2_rate_bps'],
+          currency: settings['distribution_setting.currency'],
+        }}
+        complianceConfirmed={
+          (settings['payment_setting.compliance_confirmed'] ?? false) &&
+          settings['payment_setting.compliance_terms_version'] === 'v1'
+        }
       />
     ),
   },

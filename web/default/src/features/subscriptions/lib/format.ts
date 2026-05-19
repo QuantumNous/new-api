@@ -60,6 +60,16 @@ export function formatResetPeriod(
   return t('No Reset')
 }
 
+export function formatSubscriptionPrice(
+  planOrAmount?: Partial<SubscriptionPlan> | number | string | null
+): string {
+  const amount =
+    typeof planOrAmount === 'object' && planOrAmount !== null
+      ? Number(planOrAmount.price_amount || 0)
+      : Number(planOrAmount || 0)
+  return `¥${Number.isFinite(amount) ? amount.toFixed(2) : '0.00'}`
+}
+
 export function formatTimestamp(ts: number): string {
   if (!ts) return '-'
   return dayjs(ts * 1000).format('YYYY-MM-DD HH:mm:ss')

@@ -114,6 +114,13 @@ export function SidebarModulesCard() {
           description: t('Balance and top-up management'),
         },
         {
+          key: 'affiliate',
+          title: t('Affiliate'),
+          description: t(
+            'Manage PayPal payout account and top-up commission ledger.'
+          ),
+        },
+        {
           key: 'personal',
           title: t('Personal Settings'),
           description: t('Personal info settings'),

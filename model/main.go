@@ -266,6 +266,8 @@ func migrateDB() error {
 		&Log{},
 		&Midjourney{},
 		&TopUp{},
+		&AffiliateCommission{},
+		&AffiliatePayoutProfile{},
 		&QuotaData{},
 		&Task{},
 		&Model{},
@@ -294,6 +296,9 @@ func migrateDB() error {
 			return err
 		}
 	}
+	if err := migrateSubscriptionPlanCurrencyToCNY(); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -315,6 +320,8 @@ func migrateDBFast() error {
 		{&Log{}, "Log"},
 		{&Midjourney{}, "Midjourney"},
 		{&TopUp{}, "TopUp"},
+		{&AffiliateCommission{}, "AffiliateCommission"},
+		{&AffiliatePayoutProfile{}, "AffiliatePayoutProfile"},
 		{&QuotaData{}, "QuotaData"},
 		{&Task{}, "Task"},
 		{&Model{}, "Model"},
@@ -363,6 +370,9 @@ func migrateDBFast() error {
 			return err
 		}
 	}
+	if err := migrateSubscriptionPlanCurrencyToCNY(); err != nil {
+		return err
+	}
 	common.SysLog("database migrated")
 	return nil
 }
@@ -391,7 +401,7 @@ func ensureSubscriptionPlanTableSQLite() error {
 ` + "`title`" + ` varchar(128) NOT NULL,
 ` + "`subtitle`" + ` varchar(255) DEFAULT '',
 ` + "`price_amount`" + ` decimal(10,6) NOT NULL,
-` + "`currency`" + ` varchar(8) NOT NULL DEFAULT 'USD',
+` + "`currency`" + ` varchar(8) NOT NULL DEFAULT 'CNY',
 ` + "`duration_unit`" + ` varchar(16) NOT NULL DEFAULT 'month',
 ` + "`duration_value`" + ` integer NOT NULL DEFAULT 1,
 ` + "`custom_seconds`" + ` bigint NOT NULL DEFAULT 0,
@@ -424,7 +434,7 @@ PRIMARY KEY (` + "`id`" + `)
 		{Name: "title", DDL: "`title` varchar(128) NOT NULL"},
 		{Name: "subtitle", DDL: "`subtitle` varchar(255) DEFAULT ''"},
 		{Name: "price_amount", DDL: "`price_amount` decimal(10,6) NOT NULL"},
-		{Name: "currency", DDL: "`currency` varchar(8) NOT NULL DEFAULT 'USD'"},
+		{Name: "currency", DDL: "`currency` varchar(8) NOT NULL DEFAULT 'CNY'"},
 		{Name: "duration_unit", DDL: "`duration_unit` varchar(16) NOT NULL DEFAULT 'month'"},
 		{Name: "duration_value", DDL: "`duration_value` integer NOT NULL DEFAULT 1"},
 		{Name: "custom_seconds", DDL: "`custom_seconds` bigint NOT NULL DEFAULT 0"},
@@ -562,6 +572,19 @@ func migrateSubscriptionPlanPriceAmount() {
 			common.SysLog(fmt.Sprintf("Successfully migrated %s.%s to decimal(10,6)", tableName, columnName))
 		}
 	}
+}
+
+func migrateSubscriptionPlanCurrencyToCNY() error {
+	if !DB.Migrator().HasTable(&SubscriptionPlan{}) {
+		return nil
+	}
+	if !DB.Migrator().HasColumn(&SubscriptionPlan{}, "currency") {
+		return nil
+	}
+	return DB.Model(&SubscriptionPlan{}).
+		Where("currency <> ?", SubscriptionCurrencyCNY).
+		Update("currency", SubscriptionCurrencyCNY).
+		Error
 }
 
 func closeDB(db *gorm.DB) error {

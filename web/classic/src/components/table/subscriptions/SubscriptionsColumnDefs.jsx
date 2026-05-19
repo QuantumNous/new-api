@@ -30,9 +30,13 @@ import {
   Tooltip,
 } from '@douyinfe/semi-ui';
 import { renderQuota } from '../../../helpers';
-import { convertUSDToCurrency } from '../../../helpers/render';
 
 const { Text } = Typography;
+
+function formatSubscriptionPrice(amount) {
+  const value = Number(amount || 0);
+  return `¥${Number.isFinite(value) ? value.toFixed(2) : '0.00'}`;
+}
 
 function formatDuration(plan, t) {
   if (!plan) return '';
@@ -79,7 +83,7 @@ const renderPlanTitle = (text, record, t) => {
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
         <Text type='tertiary'>{t('价格')}</Text>
         <Text strong style={{ color: 'var(--semi-color-success)' }}>
-          {convertUSDToCurrency(Number(plan?.price_amount || 0), 2)}
+          {formatSubscriptionPrice(plan?.price_amount)}
         </Text>
         <Text type='tertiary'>{t('总额度')}</Text>
         {plan?.total_amount > 0 ? (
@@ -128,7 +132,7 @@ const renderPlanTitle = (text, record, t) => {
 const renderPrice = (text) => {
   return (
     <Text strong style={{ color: 'var(--semi-color-success)' }}>
-      {convertUSDToCurrency(Number(text || 0), 2)}
+      {formatSubscriptionPrice(text)}
     </Text>
   );
 };

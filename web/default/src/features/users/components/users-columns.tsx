@@ -274,16 +274,21 @@ export function useUsersColumns(): ColumnDef<User>[] {
         const affCount = user.aff_count || 0
         const affHistoryQuota = user.aff_history_quota || 0
         const inviterId = user.inviter_id || 0
+        const distributionEnabled = user.distribution_enabled !== false
 
         return (
-          <div className='flex items-center gap-1.5 text-xs font-medium'>
+          <div className='flex flex-wrap items-center gap-1.5 text-xs font-medium'>
             <span
               className={cn(
                 'size-1.5 shrink-0 rounded-full',
-                dotColorMap.neutral
+                distributionEnabled ? dotColorMap.success : dotColorMap.neutral
               )}
               aria-hidden='true'
             />
+            <span className='text-muted-foreground'>
+              {distributionEnabled ? t('Agent enabled') : t('Agent disabled')}
+            </span>
+            <span className='text-muted-foreground/30'>·</span>
             <Tooltip>
               <TooltipTrigger
                 render={<span className='text-muted-foreground cursor-help' />}

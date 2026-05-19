@@ -34,11 +34,15 @@ import {
   IllustrationNoResultDark,
 } from '@douyinfe/semi-illustrations';
 import { API, showError, showSuccess } from '../../../../helpers';
-import { convertUSDToCurrency } from '../../../../helpers/render';
 import { useIsMobile } from '../../../../hooks/common/useIsMobile';
 import CardTable from '../../../common/ui/CardTable';
 
 const { Text } = Typography;
+
+function formatSubscriptionPrice(amount) {
+  const value = Number(amount || 0);
+  return `¥${Number.isFinite(value) ? value.toFixed(2) : '0.00'}`;
+}
 
 function formatTs(ts) {
   if (!ts) return '-';
@@ -104,9 +108,8 @@ const UserSubscriptionsModal = ({ visible, onCancel, user, t, onSuccess }) => {
 
   const planOptions = useMemo(() => {
     return (plans || []).map((p) => ({
-      label: `${p?.plan?.title || ''} (${convertUSDToCurrency(
-        Number(p?.plan?.price_amount || 0),
-        2,
+      label: `${p?.plan?.title || ''} (${formatSubscriptionPrice(
+        p?.plan?.price_amount,
       )})`,
       value: p?.plan?.id,
     }));
