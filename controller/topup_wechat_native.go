@@ -1,23 +1,13 @@
 package controller
 
 import (
-	"bytes"
 	"context"
-	"crypto"
-	"crypto/aes"
-	"crypto/cipher"
-	"crypto/rand"
 	"crypto/rsa"
-	"crypto/sha256"
 	"crypto/x509"
-	"encoding/base64"
 	"encoding/pem"
 	"errors"
 	"fmt"
-	"io"
-	"math/big"
 	"net/http"
-	"strconv"
 	"strings"
 	"time"
 
@@ -28,55 +18,13 @@ import (
 	"github.com/QuantumNous/new-api/setting"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/gin-gonic/gin"
+	"github.com/go-pay/gopay"
+	wechat "github.com/go-pay/gopay/wechat/v3"
 	"github.com/shopspring/decimal"
 )
 
-const wechatNativeTransactionsURL = "https://api.mch.weixin.qq.com/v3/pay/transactions/native"
-
 type WechatNativePayRequest struct {
 	Amount int64 `json:"amount"`
-}
-
-type wechatNativeTransactionRequest struct {
-	AppID       string                        `json:"appid"`
-	MchID       string                        `json:"mchid"`
-	Description string                        `json:"description"`
-	OutTradeNo  string                        `json:"out_trade_no"`
-	NotifyURL   string                        `json:"notify_url"`
-	Amount      wechatNativeTransactionAmount `json:"amount"`
-}
-
-type wechatNativeTransactionAmount struct {
-	Total    int64  `json:"total"`
-	Currency string `json:"currency"`
-}
-
-type wechatNativeTransactionResponse struct {
-	CodeURL string `json:"code_url"`
-	Code    string `json:"code"`
-	Message string `json:"message"`
-}
-
-type wechatNativeNotifyResource struct {
-	Algorithm      string `json:"algorithm"`
-	Ciphertext     string `json:"ciphertext"`
-	Nonce          string `json:"nonce"`
-	AssociatedData string `json:"associated_data"`
-}
-
-type wechatNativeNotifyRequest struct {
-	ID           string                     `json:"id"`
-	EventType    string                     `json:"event_type"`
-	ResourceType string                     `json:"resource_type"`
-	Resource     wechatNativeNotifyResource `json:"resource"`
-}
-
-type wechatNativeNotifyTransaction struct {
-	OutTradeNo string `json:"out_trade_no"`
-	TradeState string `json:"trade_state"`
-	Amount     struct {
-		Total int64 `json:"total"`
-	} `json:"amount"`
 }
 
 func RequestWechatNativePay(c *gin.Context) {
@@ -124,7 +72,7 @@ func RequestWechatNativePay(c *gin.Context) {
 		Amount:        amount,
 		Money:         payMoney,
 		TradeNo:       tradeNo,
-		PaymentMethod: model.PaymentMethodWechatNative,
+		PaymentMethod: model.PaymentMethodDirectWechat,
 		CreateTime:    time.Now().Unix(),
 		Status:        common.TopUpStatusPending,
 	}
@@ -137,7 +85,7 @@ func RequestWechatNativePay(c *gin.Context) {
 	codeURL, err := createWechatNativeTransaction(c.Request.Context(), tradeNo, req.Amount, moneyCents)
 	if err != nil {
 		logger.LogError(c.Request.Context(), fmt.Sprintf("微信支付 Native 拉起支付失败 user_id=%d trade_no=%s amount=%d error=%q", id, tradeNo, req.Amount, err.Error()))
-		_ = model.UpdatePendingTopUpStatus(tradeNo, model.PaymentMethodWechatNative, common.TopUpStatusFailed)
+		_ = model.UpdatePendingTopUpStatus(tradeNo, model.PaymentMethodDirectWechat, common.TopUpStatusFailed)
 		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "拉起支付失败"})
 		return
 	}
@@ -146,55 +94,49 @@ func RequestWechatNativePay(c *gin.Context) {
 }
 
 func createWechatNativeTransaction(ctx context.Context, tradeNo string, amount int64, moneyCents int64) (string, error) {
-	notifyURL := service.GetCallbackAddress() + "/api/user/wechat-native/notify"
-	body := wechatNativeTransactionRequest{
-		AppID:       setting.WechatNativeAppId,
-		MchID:       setting.WechatNativeMchId,
-		Description: fmt.Sprintf("TUC%d", amount),
-		OutTradeNo:  tradeNo,
-		NotifyURL:   notifyURL,
-		Amount: wechatNativeTransactionAmount{
-			Total:    moneyCents,
-			Currency: "CNY",
-		},
-	}
-	bodyBytes, err := common.Marshal(body)
+	client, err := newWechatPayClient()
 	if err != nil {
 		return "", err
 	}
 
-	request, err := http.NewRequestWithContext(ctx, http.MethodPost, wechatNativeTransactionsURL, bytes.NewReader(bodyBytes))
-	if err != nil {
-		return "", err
-	}
-	request.Header.Set("Accept", "application/json")
-	request.Header.Set("Content-Type", "application/json")
-	authorization, err := buildWechatPayAuthorization(http.MethodPost, "/v3/pay/transactions/native", string(bodyBytes))
-	if err != nil {
-		return "", err
-	}
-	request.Header.Set("Authorization", authorization)
+	notifyURL := service.GetCallbackAddress() + "/api/user/direct-pay/wechat-native/notify"
+	bm := make(gopay.BodyMap)
+	bm.Set("appid", setting.WechatNativeAppId).
+		Set("mchid", setting.WechatNativeMchId).
+		Set("description", fmt.Sprintf("TUC%d", amount)).
+		Set("out_trade_no", tradeNo).
+		Set("notify_url", notifyURL).
+		SetBodyMap("amount", func(amountMap gopay.BodyMap) {
+			amountMap.Set("total", moneyCents).
+				Set("currency", "CNY")
+		})
 
-	response, err := http.DefaultClient.Do(request)
+	response, err := client.V3TransactionNative(ctx, bm)
 	if err != nil {
 		return "", err
 	}
-	defer response.Body.Close()
-
-	var result wechatNativeTransactionResponse
-	if err := common.DecodeJson(response.Body, &result); err != nil {
-		return "", err
-	}
-	if response.StatusCode < http.StatusOK || response.StatusCode >= http.StatusMultipleChoices {
-		if result.Message != "" {
-			return "", errors.New(result.Message)
+	if response.Code != wechat.Success {
+		if response.ErrResponse.Message != "" {
+			return "", errors.New(response.ErrResponse.Message)
 		}
-		return "", fmt.Errorf("wechat pay status %d", response.StatusCode)
+		if response.Error != "" {
+			return "", errors.New(response.Error)
+		}
+		return "", fmt.Errorf("wechat pay status %d", response.Code)
 	}
-	if result.CodeURL == "" {
+	if response.Response == nil || response.Response.CodeUrl == "" {
 		return "", errors.New("微信支付未返回二维码链接")
 	}
-	return result.CodeURL, nil
+	return response.Response.CodeUrl, nil
+}
+
+func newWechatPayClient() (*wechat.ClientV3, error) {
+	return wechat.NewClientV3(
+		setting.WechatNativeMchId,
+		setting.WechatNativeMerchantSerialNo,
+		setting.WechatNativeApiV3Key,
+		setting.WechatNativeMerchantPrivateKey,
+	)
 }
 
 func WechatNativeNotify(c *gin.Context) {
@@ -204,36 +146,29 @@ func WechatNativeNotify(c *gin.Context) {
 		return
 	}
 
-	body, err := io.ReadAll(c.Request.Body)
+	notify, err := wechat.V3ParseNotify(c.Request)
 	if err != nil {
-		c.JSON(http.StatusOK, gin.H{"code": "FAIL", "message": "read body failed"})
+		logger.LogWarn(c.Request.Context(), fmt.Sprintf("微信支付 Native webhook 解析失败 client_ip=%s error=%q", c.ClientIP(), err.Error()))
+		c.JSON(http.StatusOK, gin.H{"code": "FAIL", "message": "invalid payload"})
 		return
 	}
-	if !verifyWechatPayNotifySignature(c, body) {
+	if err := verifyWechatPayNotifySignature(notify); err != nil {
 		logger.LogWarn(c.Request.Context(), fmt.Sprintf("微信支付 Native webhook 验签失败 path=%q client_ip=%s", c.Request.RequestURI, c.ClientIP()))
 		c.JSON(http.StatusOK, gin.H{"code": "FAIL", "message": "signature verify failed"})
 		return
 	}
 
-	var notify wechatNativeNotifyRequest
-	if err := common.Unmarshal(body, &notify); err != nil {
-		logger.LogWarn(c.Request.Context(), fmt.Sprintf("微信支付 Native webhook 解析失败 client_ip=%s error=%q", c.ClientIP(), err.Error()))
-		c.JSON(http.StatusOK, gin.H{"code": "FAIL", "message": "invalid payload"})
-		return
-	}
-	plaintext, err := decryptWechatPayResource(notify.Resource)
+	transaction, err := notify.DecryptPayCipherText(setting.WechatNativeApiV3Key)
 	if err != nil {
 		logger.LogWarn(c.Request.Context(), fmt.Sprintf("微信支付 Native webhook 解密失败 client_ip=%s error=%q", c.ClientIP(), err.Error()))
 		c.JSON(http.StatusOK, gin.H{"code": "FAIL", "message": "decrypt failed"})
 		return
 	}
-
-	var transaction wechatNativeNotifyTransaction
-	if err := common.Unmarshal(plaintext, &transaction); err != nil {
+	if transaction == nil || transaction.Amount == nil {
 		c.JSON(http.StatusOK, gin.H{"code": "FAIL", "message": "invalid transaction"})
 		return
 	}
-	if transaction.TradeState != "SUCCESS" {
+	if transaction.TradeState != wechat.TradeStateSuccess {
 		logger.LogInfo(c.Request.Context(), fmt.Sprintf("微信支付 Native webhook 忽略事件 trade_no=%s trade_state=%s client_ip=%s", transaction.OutTradeNo, transaction.TradeState, c.ClientIP()))
 		c.JSON(http.StatusOK, gin.H{"code": "SUCCESS", "message": "成功"})
 		return
@@ -241,7 +176,7 @@ func WechatNativeNotify(c *gin.Context) {
 
 	LockOrder(transaction.OutTradeNo)
 	defer UnlockOrder(transaction.OutTradeNo)
-	if err := model.RechargeWechatNative(transaction.OutTradeNo, transaction.Amount.Total, c.ClientIP()); err != nil {
+	if err := model.RechargeWechatNative(transaction.OutTradeNo, int64(transaction.Amount.Total), c.ClientIP()); err != nil {
 		if strings.Contains(err.Error(), "状态错误") {
 			c.JSON(http.StatusOK, gin.H{"code": "SUCCESS", "message": "成功"})
 			return
@@ -254,85 +189,12 @@ func WechatNativeNotify(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"code": "SUCCESS", "message": "成功"})
 }
 
-func buildWechatPayAuthorization(method string, canonicalURL string, body string) (string, error) {
-	timestamp := strconv.FormatInt(time.Now().Unix(), 10)
-	nonce, err := randomWechatPayNonce()
-	if err != nil {
-		return "", err
-	}
-	message := strings.Join([]string{method, canonicalURL, timestamp, nonce, body}, "\n") + "\n"
-	signature, err := signWechatPayMessage(message)
-	if err != nil {
-		return "", err
-	}
-	return fmt.Sprintf(`WECHATPAY2-SHA256-RSA2048 mchid="%s",nonce_str="%s",signature="%s",timestamp="%s",serial_no="%s"`, setting.WechatNativeMchId, nonce, signature, timestamp, setting.WechatNativeMerchantSerialNo), nil
-}
-
-func signWechatPayMessage(message string) (string, error) {
-	privateKey, err := parseWechatPayPrivateKey(setting.WechatNativeMerchantPrivateKey)
-	if err != nil {
-		return "", err
-	}
-	hash := sha256.Sum256([]byte(message))
-	signature, err := rsa.SignPKCS1v15(rand.Reader, privateKey, crypto.SHA256, hash[:])
-	if err != nil {
-		return "", err
-	}
-	return base64.StdEncoding.EncodeToString(signature), nil
-}
-
-func verifyWechatPayNotifySignature(c *gin.Context, body []byte) bool {
-	timestamp := c.GetHeader("Wechatpay-Timestamp")
-	nonce := c.GetHeader("Wechatpay-Nonce")
-	signatureText := c.GetHeader("Wechatpay-Signature")
-	serial := c.GetHeader("Wechatpay-Serial")
-	if timestamp == "" || nonce == "" || signatureText == "" || serial == "" {
-		return false
-	}
-
+func verifyWechatPayNotifySignature(notify *wechat.V3NotifyReq) error {
 	publicKey, err := parseWechatPayPlatformPublicKey(setting.WechatNativePlatformCert)
 	if err != nil {
-		return false
+		return err
 	}
-	signature, err := base64.StdEncoding.DecodeString(signatureText)
-	if err != nil {
-		return false
-	}
-	message := timestamp + "\n" + nonce + "\n" + string(body) + "\n"
-	hash := sha256.Sum256([]byte(message))
-	return rsa.VerifyPKCS1v15(publicKey, crypto.SHA256, hash[:], signature) == nil
-}
-
-func decryptWechatPayResource(resource wechatNativeNotifyResource) ([]byte, error) {
-	if resource.Ciphertext == "" || resource.Nonce == "" {
-		return nil, errors.New("missing resource fields")
-	}
-	ciphertext, err := base64.StdEncoding.DecodeString(resource.Ciphertext)
-	if err != nil {
-		return nil, err
-	}
-	block, err := aes.NewCipher([]byte(setting.WechatNativeApiV3Key))
-	if err != nil {
-		return nil, err
-	}
-	gcm, err := cipher.NewGCM(block)
-	if err != nil {
-		return nil, err
-	}
-	return gcm.Open(nil, []byte(resource.Nonce), ciphertext, []byte(resource.AssociatedData))
-}
-
-func parseWechatPayPrivateKey(pemText string) (*rsa.PrivateKey, error) {
-	block, _ := pem.Decode([]byte(strings.TrimSpace(pemText)))
-	if block == nil {
-		return nil, errors.New("invalid private key pem")
-	}
-	if key, err := x509.ParsePKCS8PrivateKey(block.Bytes); err == nil {
-		if rsaKey, ok := key.(*rsa.PrivateKey); ok {
-			return rsaKey, nil
-		}
-	}
-	return x509.ParsePKCS1PrivateKey(block.Bytes)
+	return notify.VerifySignByPK(publicKey)
 }
 
 func parseWechatPayPlatformPublicKey(pemText string) (*rsa.PublicKey, error) {
@@ -356,13 +218,4 @@ func parseWechatPayPlatformPublicKey(pemText string) (*rsa.PublicKey, error) {
 		return nil, errors.New("platform public key is not rsa")
 	}
 	return rsaKey, nil
-}
-
-func randomWechatPayNonce() (string, error) {
-	max := new(big.Int).Lsh(big.NewInt(1), 128)
-	n, err := rand.Int(rand.Reader, max)
-	if err != nil {
-		return "", err
-	}
-	return fmt.Sprintf("%032x", n), nil
 }
