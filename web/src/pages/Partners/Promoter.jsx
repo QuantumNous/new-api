@@ -261,6 +261,35 @@ function barHeight(value, maxValue) {
   return Math.max(8, Math.round((value / maxValue) * 100));
 }
 
+function yAxisTicks(maxValue) {
+  if (maxValue <= 0) return [0];
+  const step = niceTickStep(maxValue / 3);
+  return [step * 3, step * 2, step, 0];
+}
+
+function niceTickStep(rawStep) {
+  if (rawStep <= 0) return 1;
+  const magnitude = 10 ** Math.floor(Math.log10(rawStep));
+  const normalized = rawStep / magnitude;
+  if (normalized <= 1) return magnitude;
+  if (normalized <= 2) return 2 * magnitude;
+  if (normalized <= 5) return 5 * magnitude;
+  return 10 * magnitude;
+}
+
+function compactMoney(value) {
+  if (value >= 10000) {
+    return `${new Intl.NumberFormat('zh-CN', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(value / 10000)} 万`;
+  }
+  return new Intl.NumberFormat('zh-CN', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(value);
+}
+
 function trendTickLabels(rows) {
   const indexes = [0, 7, 14, 21, rows.length - 1].filter(
     (value, index, list) =>
@@ -1732,6 +1761,8 @@ function CredentialChangeTable({ rows }) {
 function TrendBars({ rows }) {
   const trendRows = buildMonthTrend(rows);
   const maxValue = Math.max(...trendRows.flatMap((item) => [item.gmv, item.commission]), 0);
+  const axisTicks = yAxisTicks(maxValue);
+  const axisMax = axisTicks[0] || maxValue || 1;
   const hasData = trendRows.some((item) => item.gmv > 0 || item.commission > 0);
   if (!hasData) {
     return (
@@ -1743,6 +1774,10 @@ function TrendBars({ rows }) {
   }
   return (
     <div className='mt-4'>
+      <div className='mb-3 flex flex-wrap items-center justify-between gap-3 text-sm text-slate-500'>
+        <span className='font-bold text-slate-700'>金额刻度（元）</span>
+        <span className='text-xs text-slate-400'>悬停日期柱查看明细</span>
+      </div>
       <div className='mb-4 flex flex-wrap gap-6 text-sm text-slate-500'>
         <span className='inline-flex items-center gap-2'>
           <i className='h-2.5 w-2.5 rounded-sm bg-[#6b48ff]' />
@@ -1753,26 +1788,53 @@ function TrendBars({ rows }) {
           预估分佣（元）
         </span>
       </div>
-      <div className='flex h-[116px] items-end gap-2 border-b border-slate-200 px-1'>
-        {trendRows.map((item) => (
-          <div key={item.day} className='flex h-full flex-1 items-end gap-1'>
+      <div className='grid grid-cols-[76px_minmax(0,1fr)] gap-3'>
+        <div className='relative h-[148px] pr-2 text-right text-[11px] font-semibold text-slate-500'>
+          {axisTicks.map((tick) => (
             <span
-              className='block w-1/2 rounded-t bg-[#6b48ff]'
-              style={{ height: `${barHeight(item.gmv, maxValue)}%` }}
-              title={`${item.day} GMV ${money(item.gmv)}`}
-            />
-            <span
-              className='block w-1/2 rounded-t bg-[#4da3ff]'
-              style={{ height: `${barHeight(item.commission, maxValue)}%` }}
-              title={`${item.day} 分佣 ${money(item.commission)}`}
-            />
+              key={tick}
+              className='absolute right-2 -translate-y-1/2'
+              style={{ top: `${100 - (tick / axisMax) * 100}%` }}
+            >
+              {compactMoney(tick)}
+            </span>
+          ))}
+        </div>
+        <div>
+          <div className='relative h-[148px] border-b border-slate-200 px-1'>
+            {axisTicks.map((tick) => (
+              <span
+                key={tick}
+                className='pointer-events-none absolute left-0 right-0 border-t border-dashed border-slate-100'
+                style={{ top: `${100 - (tick / axisMax) * 100}%` }}
+              />
+            ))}
+            <div className='relative z-10 flex h-full items-end gap-2'>
+              {trendRows.map((item) => (
+                <div key={item.day} className='group relative flex h-full flex-1 items-end gap-1'>
+                  <div className='pointer-events-none absolute left-1/2 top-0 z-20 hidden w-max -translate-x-1/2 -translate-y-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-left text-xs text-slate-600 shadow-lg group-hover:block'>
+                    <div className='mb-1 font-black text-slate-900'>{item.day}</div>
+                    <div>有效 GMV：{money(item.gmv)}</div>
+                    <div>预估分佣：{money(item.commission)}</div>
+                  </div>
+                  <span
+                    className='block w-1/2 rounded-t bg-[#6b48ff]'
+                    style={{ height: `${barHeight(item.gmv, axisMax)}%` }}
+                  />
+                  <span
+                    className='block w-1/2 rounded-t bg-[#4da3ff]'
+                    style={{ height: `${barHeight(item.commission, axisMax)}%` }}
+                  />
+                </div>
+              ))}
+            </div>
           </div>
-        ))}
-      </div>
-      <div className='mt-2 grid grid-cols-5 text-center text-xs text-slate-500'>
-        {trendTickLabels(trendRows).map((label) => (
-          <span key={label}>{label}</span>
-        ))}
+          <div className='mt-2 grid grid-cols-5 text-center text-xs text-slate-500'>
+            {trendTickLabels(trendRows).map((label) => (
+              <span key={label}>{label}</span>
+            ))}
+          </div>
+        </div>
       </div>
     </div>
   );
