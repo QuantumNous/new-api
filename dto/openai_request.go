@@ -227,10 +227,11 @@ func (r *GeneralOpenAIRequest) GetSystemRoleName() string {
 const CustomType = "custom"
 
 type ToolCallRequest struct {
-	ID       string          `json:"id,omitempty"`
-	Type     string          `json:"type"`
-	Function FunctionRequest `json:"function,omitempty"`
-	Custom   json.RawMessage `json:"custom,omitempty"`
+	ID                string          `json:"id,omitempty"`
+	Type              string          `json:"type"`
+	Function          FunctionRequest `json:"function,omitempty"`
+	Custom            json.RawMessage `json:"custom,omitempty"`
+	SearchContextSize string          `json:"search_context_size,omitempty"`
 }
 
 type FunctionRequest struct {

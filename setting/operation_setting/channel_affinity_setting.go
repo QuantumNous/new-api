@@ -2,8 +2,15 @@ package operation_setting
 
 import "github.com/QuantumNous/new-api/setting/config"
 
+// ChannelAffinityKeySource 定义渠道亲和规则的 key 提取来源。
+//
+// 编写时间：2026-05-17
+// 作者：苍朮
+// 用途：描述渠道亲和规则从上下文、请求头、请求体 JSON 路径或 Claude prompt cache 信号中提取稳定 key 的方式。
+// 参数说明：无；该类型通过 Type、Key、Path 字段承载配置参数。
+// 返回值说明：无；该类型用于配置反序列化和规则匹配。
 type ChannelAffinityKeySource struct {
-	Type string `json:"type"` // context_int, context_string, request_header, gjson
+	Type string `json:"type"` // context_int, context_string, request_header, gjson, claude_prompt_cache_key
 	Key  string `json:"key,omitempty"`
 	Path string `json:"path,omitempty"`
 }
@@ -100,6 +107,7 @@ var channelAffinitySetting = ChannelAffinitySetting{
 			PathRegex:  []string{"/v1/messages"},
 			KeySources: []ChannelAffinityKeySource{
 				{Type: "gjson", Path: "metadata.user_id"},
+				{Type: "claude_prompt_cache_key"},
 			},
 			ValueRegex:            "",
 			TTLSeconds:            0,

@@ -871,7 +871,17 @@ func TestChannel(c *gin.Context) {
 var testAllChannelsLock sync.Mutex
 var testAllChannelsRunning bool = false
 
-func testAllChannels(notify bool) error {
+func shouldSkipAutomaticChannelTest(channel *model.Channel, excludedChannelIDs map[int]struct{}) bool {
+	if channel == nil {
+		return true
+	}
+	if _, excluded := excludedChannelIDs[channel.Id]; excluded {
+		return true
+	}
+	return channel.Status == common.ChannelStatusManuallyDisabled
+}
+
+func testAllChannels(notify bool, useAutomaticTestFilter bool) error {
 
 	testAllChannelsLock.Lock()
 	if testAllChannelsRunning {
@@ -882,11 +892,18 @@ func testAllChannels(notify bool) error {
 	testAllChannelsLock.Unlock()
 	channels, getChannelErr := model.GetAllChannels(0, 0, true, false)
 	if getChannelErr != nil {
+		testAllChannelsLock.Lock()
+		testAllChannelsRunning = false
+		testAllChannelsLock.Unlock()
 		return getChannelErr
 	}
 	var disableThreshold = int64(common.ChannelDisableThreshold * 1000)
 	if disableThreshold == 0 {
 		disableThreshold = 10000000 // a impossible value
+	}
+	excludedChannelIDs := map[int]struct{}{}
+	if useAutomaticTestFilter {
+		excludedChannelIDs = operation_setting.GetAutoTestChannelExcludedIDSet()
 	}
 	gopool.Go(func() {
 		// 使用 defer 确保无论如何都会重置运行状态，防止死锁
@@ -897,7 +914,7 @@ func testAllChannels(notify bool) error {
 		}()
 
 		for _, channel := range channels {
-			if channel.Status == common.ChannelStatusManuallyDisabled {
+			if shouldSkipAutomaticChannelTest(channel, excludedChannelIDs) {
 				continue
 			}
 			isChannelEnabled := channel.Status == common.ChannelStatusEnabled
@@ -944,7 +961,7 @@ func testAllChannels(notify bool) error {
 }
 
 func TestAllChannels(c *gin.Context) {
-	err := testAllChannels(true)
+	err := testAllChannels(true, false)
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -973,7 +990,7 @@ func AutomaticallyTestChannels() {
 				time.Sleep(time.Duration(int(math.Round(frequency))) * time.Minute)
 				common.SysLog(fmt.Sprintf("automatically test channels with interval %f minutes", frequency))
 				common.SysLog("automatically testing all channels")
-				_ = testAllChannels(false)
+				_ = testAllChannels(false, true)
 				common.SysLog("automatically channel test finished")
 				if !operation_setting.GetMonitorSetting().AutoTestChannelEnabled {
 					break

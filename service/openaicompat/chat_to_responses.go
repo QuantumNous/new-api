@@ -73,6 +73,13 @@ func convertChatResponseFormatToResponsesText(reqFormat *dto.ResponseFormat) jso
 	return textRaw
 }
 
+// ChatCompletionsRequestToResponsesRequest 将 OpenAI Chat Completions 通用请求转换为 OpenAI Responses 请求。
+//
+// 编写时间：2026-05-17
+// 作者：苍朮
+// 用途：复用现有兼容链路，把消息、工具、采样参数以及显式 prompt cache 字段转换到 Responses 请求结构。
+// 参数说明：req 为待转换的 GeneralOpenAIRequest，不能为空且必须包含 model。
+// 返回值说明：返回 OpenAIResponsesRequest；请求非法或不支持转换时返回错误。
 func ChatCompletionsRequestToResponsesRequest(req *dto.GeneralOpenAIRequest) (*dto.OpenAIResponsesRequest, error) {
 	if req == nil {
 		return nil, errors.New("request is nil")
@@ -297,6 +304,14 @@ func ChatCompletionsRequestToResponsesRequest(req *dto.GeneralOpenAIRequest) (*d
 					"description": tool.Function.Description,
 					"parameters":  tool.Function.Parameters,
 				})
+			case dto.BuildInToolWebSearchPreview, dto.BuildInToolWebSearch, "google_search":
+				webSearchTool := map[string]any{
+					"type": dto.BuildInToolWebSearch,
+				}
+				if tool.SearchContextSize != "" {
+					webSearchTool["search_context_size"] = tool.SearchContextSize
+				}
+				tools = append(tools, webSearchTool)
 			default:
 				// Best-effort: keep original tool shape for unknown types.
 				var m map[string]any
@@ -372,20 +387,27 @@ func ChatCompletionsRequestToResponsesRequest(req *dto.GeneralOpenAIRequest) (*d
 		topP = common.GetPointer(lo.FromPtr(req.TopP))
 	}
 
+	var promptCacheKeyRaw json.RawMessage
+	if strings.TrimSpace(req.PromptCacheKey) != "" {
+		promptCacheKeyRaw, _ = common.Marshal(req.PromptCacheKey)
+	}
+
 	out := &dto.OpenAIResponsesRequest{
-		Model:             req.Model,
-		Input:             inputRaw,
-		Instructions:      instructionsRaw,
-		Stream:            req.Stream,
-		Temperature:       req.Temperature,
-		Text:              textRaw,
-		ToolChoice:        toolChoiceRaw,
-		Tools:             toolsRaw,
-		TopP:              topP,
-		User:              req.User,
-		ParallelToolCalls: parallelToolCallsRaw,
-		Store:             req.Store,
-		Metadata:          req.Metadata,
+		Model:                req.Model,
+		Input:                inputRaw,
+		Instructions:         instructionsRaw,
+		Stream:               req.Stream,
+		Temperature:          req.Temperature,
+		Text:                 textRaw,
+		ToolChoice:           toolChoiceRaw,
+		Tools:                toolsRaw,
+		TopP:                 topP,
+		User:                 req.User,
+		ParallelToolCalls:    parallelToolCallsRaw,
+		Store:                req.Store,
+		Metadata:             req.Metadata,
+		PromptCacheKey:       promptCacheKeyRaw,
+		PromptCacheRetention: req.PromptCacheRetention,
 	}
 	if req.MaxTokens != nil || req.MaxCompletionTokens != nil {
 		out.MaxOutputTokens = lo.ToPtr(maxOutputTokens)

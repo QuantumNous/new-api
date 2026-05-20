@@ -30,6 +30,29 @@ import {
 import { useTranslation } from 'react-i18next';
 import HttpStatusCodeRulesInput from '../../../components/settings/HttpStatusCodeRulesInput';
 
+const normalizeChannelIds = (value = '') => {
+  const seen = new Set();
+  return String(value)
+    .split(/[,\s;]+/)
+    .map((item) => item.trim())
+    .filter(Boolean)
+    .filter((item) => {
+      if (seen.has(item)) return false;
+      seen.add(item);
+      return true;
+    })
+    .join(',');
+};
+
+const isValidChannelIdList = (value = '') => {
+  const trimmed = String(value).trim();
+  if (!trimmed) return true;
+  return trimmed
+    .split(/[,\s;]+/)
+    .filter(Boolean)
+    .every((item) => /^[1-9]\d*$/.test(item));
+};
+
 export default function SettingsMonitoring(props) {
   const { t } = useTranslation();
   const [loading, setLoading] = useState(false);
@@ -44,6 +67,7 @@ export default function SettingsMonitoring(props) {
       '100-199,300-399,401-407,409-499,500-503,505-523,525-599',
     'monitor_setting.auto_test_channel_enabled': false,
     'monitor_setting.auto_test_channel_minutes': 10,
+    'monitor_setting.auto_test_channel_excluded_ids': '',
   });
   const refForm = useRef();
   const [inputsRow, setInputsRow] = useState(inputs);
@@ -55,7 +79,20 @@ export default function SettingsMonitoring(props) {
   );
 
   function onSubmit() {
-    const updateArray = compareObjects(inputs, inputsRow);
+    if (
+      !isValidChannelIdList(
+        inputs['monitor_setting.auto_test_channel_excluded_ids'],
+      )
+    ) {
+      return showError(t('定时测试排除渠道 ID 格式不正确'));
+    }
+    const normalizedInputs = {
+      ...inputs,
+      'monitor_setting.auto_test_channel_excluded_ids': normalizeChannelIds(
+        inputs['monitor_setting.auto_test_channel_excluded_ids'],
+      ),
+    };
+    const updateArray = compareObjects(normalizedInputs, inputsRow);
     if (!updateArray.length) return showWarning(t('你似乎并没有修改什么'));
     if (!parsedAutoDisableStatusCodes.ok) {
       const details =
@@ -82,7 +119,7 @@ export default function SettingsMonitoring(props) {
           AutomaticDisableStatusCodes: parsedAutoDisableStatusCodes.normalized,
           AutomaticRetryStatusCodes: parsedAutoRetryStatusCodes.normalized,
         };
-        value = normalizedMap[item.key] ?? inputs[item.key];
+        value = normalizedMap[item.key] ?? normalizedInputs[item.key];
       }
       return API.put('/api/option/', {
         key: item.key,
@@ -160,6 +197,23 @@ export default function SettingsMonitoring(props) {
                       ...inputs,
                       'monitor_setting.auto_test_channel_minutes':
                         parseInt(value),
+                    })
+                  }
+                />
+              </Col>
+              <Col xs={24} sm={12} md={8} lg={8} xl={8}>
+                <Form.TextArea
+                  label={t('定时测试排除渠道 ID')}
+                  extraText={t(
+                    '填写不参与定时测试的渠道 ID，多个用逗号或换行分隔，留空则测试所有可用渠道',
+                  )}
+                  placeholder={'1,2,3'}
+                  field={'monitor_setting.auto_test_channel_excluded_ids'}
+                  autosize={{ minRows: 3, maxRows: 6 }}
+                  onChange={(value) =>
+                    setInputs({
+                      ...inputs,
+                      'monitor_setting.auto_test_channel_excluded_ids': value,
                     })
                   }
                 />

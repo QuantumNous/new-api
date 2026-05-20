@@ -79,6 +79,7 @@ func ResponsesHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *
 		}
 		requestBody = common.ReaderOnly(storage)
 	} else {
+		service.ApplyOpenAIResponsesAutoPromptCacheKey(c, request)
 		convertedRequest, err := adaptor.ConvertOpenAIResponsesRequest(c, info, *request)
 		if err != nil {
 			return types.NewError(err, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())

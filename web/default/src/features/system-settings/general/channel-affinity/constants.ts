@@ -76,7 +76,10 @@ export const RULE_TEMPLATES: Record<string, RuleTemplate> = {
     name: 'claude cli trace',
     model_regex: ['^claude-.*$'],
     path_regex: ['/v1/messages'],
-    key_sources: [{ type: 'gjson', path: 'metadata.user_id' }],
+    key_sources: [
+      { type: 'gjson', path: 'metadata.user_id' },
+      { type: 'claude_prompt_cache_key' },
+    ],
     param_override_template: buildPassHeadersTemplate(
       CLAUDE_CLI_HEADER_PASSTHROUGH_HEADERS
     ),

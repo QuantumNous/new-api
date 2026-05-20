@@ -52,6 +52,12 @@ func (a *Adaptor) ConvertEmbeddingRequest(c *gin.Context, info *relaycommon.Rela
 	return nil, errors.New("codex channel: /v1/embeddings endpoint not supported")
 }
 
+// ConvertOpenAIResponsesRequest
+// 编写时间：2026-05-18
+// 作者：苍朮
+// 用途：将通用 OpenAI Responses 请求整理为 Codex 后端接受的请求格式。
+// 参数说明：c 为 Gin 请求上下文；info 为中转请求元信息；request 为待转换的 Responses 请求体。
+// 返回值说明：返回转换后的请求体；转换失败时返回错误。
 func (a *Adaptor) ConvertOpenAIResponsesRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.OpenAIResponsesRequest) (any, error) {
 	isCompact := info != nil && info.RelayMode == relayconstant.RelayModeResponsesCompact
 
@@ -95,6 +101,9 @@ func (a *Adaptor) ConvertOpenAIResponsesRequest(c *gin.Context, info *relaycommo
 	if len(request.Instructions) == 0 {
 		request.Instructions = json.RawMessage(`""`)
 	}
+	if err := normalizeCodexResponsesTools(&request); err != nil {
+		return nil, err
+	}
 
 	if isCompact {
 		return request, nil
@@ -105,6 +114,41 @@ func (a *Adaptor) ConvertOpenAIResponsesRequest(c *gin.Context, info *relaycommo
 	request.MaxOutputTokens = nil
 	request.Temperature = nil
 	return request, nil
+}
+
+// normalizeCodexResponsesTools
+// 编写时间：2026-05-18
+// 作者：苍朮
+// 用途：把 OpenAI 公共 Responses 的 web_search_preview 工具名转换成 Codex 后端接受的 web_search。
+// 参数说明：request 为需要就地规范化 tools 字段的 Responses 请求体。
+// 返回值说明：规范化成功返回 nil；tools JSON 无法解析或重新编码时返回错误。
+func normalizeCodexResponsesTools(request *dto.OpenAIResponsesRequest) error {
+	if request == nil || len(request.Tools) == 0 {
+		return nil
+	}
+
+	var tools []map[string]any
+	if err := common.Unmarshal(request.Tools, &tools); err != nil {
+		return err
+	}
+
+	changed := false
+	for _, tool := range tools {
+		if tool["type"] == dto.BuildInToolWebSearchPreview {
+			tool["type"] = "web_search"
+			changed = true
+		}
+	}
+	if !changed {
+		return nil
+	}
+
+	toolsRaw, err := common.Marshal(tools)
+	if err != nil {
+		return err
+	}
+	request.Tools = toolsRaw
+	return nil
 }
 
 func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, requestBody io.Reader) (any, error) {

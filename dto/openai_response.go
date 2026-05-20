@@ -348,6 +348,18 @@ type ResponsesOutput struct {
 	CallId    string                   `json:"call_id,omitempty"`
 	Name      string                   `json:"name,omitempty"`
 	Arguments json.RawMessage          `json:"arguments,omitempty"`
+	Action    *ResponsesOutputAction   `json:"action,omitempty"`
+}
+
+// ResponsesOutputAction 表示 Responses 内建工具调用的动作参数。
+//
+// 编写时间：2026-05-18
+// 作者：苍朮
+// 用途：承载 web_search_call 等内建工具返回的查询信息，便于转换回 Claude server tool。
+// 参数说明：Type 为动作类型；Query 为搜索查询文本。
+type ResponsesOutputAction struct {
+	Type  string `json:"type,omitempty"`
+	Query string `json:"query,omitempty"`
 }
 
 // ArgumentsString returns function call arguments in the string form expected by Chat Completions.
@@ -375,6 +387,7 @@ type ResponsesReasoningSummaryPart struct {
 }
 
 const (
+	BuildInToolWebSearch        = "web_search"
 	BuildInToolWebSearchPreview = "web_search_preview"
 	BuildInToolFileSearch       = "file_search"
 )

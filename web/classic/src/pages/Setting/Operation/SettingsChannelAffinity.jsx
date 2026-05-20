@@ -70,6 +70,7 @@ const KEY_SOURCE_TYPES = [
   { label: 'context_int', value: 'context_int' },
   { label: 'context_string', value: 'context_string' },
   { label: 'request_header', value: 'request_header' },
+  { label: 'claude_prompt_cache_key', value: 'claude_prompt_cache_key' },
   { label: 'gjson', value: 'gjson' },
 ];
 
