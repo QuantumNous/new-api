@@ -67,6 +67,12 @@ type ResponsesStreamState struct {
 	// inline <think>...</think> marker.
 	InThinkInlineTag bool
 
+	// PendingTagBuffer holds a trailing chunk fragment that could still grow
+	// into a complete `<think>` or `</think>` token once the next chunk
+	// arrives. It is bounded by the longest possible partial-tag length so
+	// memory growth is constant. Always flushed at EOS.
+	PendingTagBuffer string
+
 	// Usage accumulates the latest usage seen on stream completion.
 	Usage *ResponsesUsageSnapshot
 

@@ -1,7 +1,6 @@
 package openaicompat
 
 import (
-	"encoding/json"
 	"strings"
 	"testing"
 
@@ -17,7 +16,7 @@ func unmarshalEvent(t *testing.T, ev ResponsesAPIEvent) map[string]any {
 	data, err := common.Marshal(ev)
 	require.NoError(t, err)
 	var m map[string]any
-	require.NoError(t, json.Unmarshal(data, &m))
+	require.NoError(t, common.Unmarshal(data, &m))
 	return m
 }
 
@@ -457,7 +456,7 @@ func TestResponsesAPIEvent_MarshalJSON_PayloadCannotShadowDedicatedFields(t *tes
 	raw, err := ev.MarshalJSON()
 	require.NoError(t, err)
 	var got map[string]any
-	require.NoError(t, json.Unmarshal(raw, &got))
+	require.NoError(t, common.Unmarshal(raw, &got))
 	require.Equal(t, "response.completed", got["type"], "dedicated type must win over payload key")
 	require.EqualValues(t, 42, got["sequence_number"], "dedicated sequence_number must win over payload key")
 	require.NotNil(t, got["response"], "non-conflicting payload keys must still be present")

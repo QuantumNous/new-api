@@ -1,7 +1,6 @@
 package openaicompat
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -581,7 +580,7 @@ func convertResponsesContentParts(parts []any) []dto.MediaContent {
 		pt, _ := pm["type"].(string)
 		switch pt {
 		case "input_text", "output_text":
-			if t, _ := pm["text"].(string); true {
+			if t, ok := pm["text"].(string); ok {
 				result = append(result, dto.MediaContent{
 					Type: dto.ContentTypeText,
 					Text: t,
@@ -671,6 +670,3 @@ func extractReasoningItemText(item map[string]any) string {
 	}
 	return ""
 }
-
-// avoid unused-import lint when json is not referenced.
-var _ json.RawMessage

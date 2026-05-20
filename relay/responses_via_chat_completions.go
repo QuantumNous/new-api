@@ -137,7 +137,8 @@ func runAnthropicToResponsesStream(c *gin.Context, info *relaycommon.RelayInfo, 
 		var claudeResponse dto.ClaudeResponse
 		if e := common.UnmarshalJsonStr(data, &claudeResponse); e != nil {
 			logger.LogError(c, "claude_stream_unmarshal_failed: "+e.Error())
-			sr.Error(e)
+			streamErr = types.NewError(e, types.ErrorCodeBadResponseBody)
+			sr.Stop(streamErr)
 			return
 		}
 		// Surface upstream Claude errors.
@@ -148,6 +149,8 @@ func runAnthropicToResponsesStream(c *gin.Context, info *relaycommon.RelayInfo, 
 			sr.Stop(streamErr)
 			return
 		}
+		// Preserve refusal marking (parity with HandleStreamResponseData).
+		markClaudeRefusalFromStreamChunk(c, &claudeResponse)
 
 		// Build the Chat-Completions chunk equivalent.
 		chatChunk := claudechannel.StreamResponseClaude2OpenAI(&claudeResponse)
@@ -157,23 +160,30 @@ func runAnthropicToResponsesStream(c *gin.Context, info *relaycommon.RelayInfo, 
 			return
 		}
 		// Attach the running usage on the final delta so the translator can
-		// pick it up.
+		// pick it up. Normalize Anthropic semantics first so cached/cache-
+		// creation input tokens fold into prompt_tokens — the Responses
+		// translator subtracts cached from prompt_tokens to derive
+		// input_tokens.
 		if claudeInfo.Done && claudeInfo.Usage != nil {
-			chatChunk.Usage = claudeInfo.Usage
+			chatChunk.Usage = normalizeClaudeUsageForOpenAISemantics(claudeInfo.Usage)
 		}
 		evs := openaicompat.ChatCompletionsStreamToResponsesEvents(chatChunk, state)
 		if e := writeEvents(evs); e != nil {
 			logger.LogError(c, "responses_stream_write_failed: "+e.Error())
-			sr.Error(e)
+			streamErr = types.NewOpenAIError(e, types.ErrorCodeBadResponse, http.StatusInternalServerError)
+			sr.Stop(streamErr)
 			return
 		}
 	})
 
-	// EOS flush: idempotent — when an upstream error was previously emitted,
-	// this returns no events because state.CompletedSent was set inside
-	// EmitChatStreamErrorEvent.
-	flushEvents := openaicompat.ChatCompletionsStreamToResponsesEvents(nil, state)
-	_ = writeEvents(flushEvents)
+	// EOS flush: only run when the stream finished normally. On an upstream
+	// error we already emitted response.failed (via EmitChatStreamErrorEvent)
+	// or are propagating streamErr to the caller, and the unconditional flush
+	// would otherwise emit a synthetic response.completed alongside.
+	if streamErr == nil {
+		flushEvents := openaicompat.ChatCompletionsStreamToResponsesEvents(nil, state)
+		_ = writeEvents(flushEvents)
+	}
 
 	if streamErr != nil {
 		return nil, streamErr
@@ -218,13 +228,18 @@ func runAnthropicToResponsesNonStream(c *gin.Context, info *relaycommon.RelayInf
 	if claudeError := claudeResponse.GetClaudeError(); claudeError != nil && claudeError.Type != "" {
 		return nil, types.WithClaudeError(*claudeError, resp.StatusCode)
 	}
+	// Preserve refusal marking (parity with the non-pivot Claude handler).
+	markClaudeRefusalFromResponse(c, &claudeResponse)
 
 	openaiResp := claudechannel.ResponseClaude2OpenAI(&claudeResponse)
 	if openaiResp == nil {
 		return nil, types.NewOpenAIError(fmt.Errorf("nil openai response from Claude conversion"), types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
 	}
 
-	// Build usage from the Claude response.
+	// Build usage from the Claude response. Folding cache_read/creation into
+	// PromptTokens keeps OpenAI semantics for the Responses translator while
+	// the returned *dto.Usage retains the raw Anthropic-semantic counts the
+	// gateway accounting layer expects.
 	usage := &dto.Usage{}
 	if claudeResponse.Usage != nil {
 		usage.PromptTokens = claudeResponse.Usage.InputTokens
@@ -234,7 +249,14 @@ func runAnthropicToResponsesNonStream(c *gin.Context, info *relaycommon.RelayInf
 		usage.PromptTokensDetails.CachedTokens = claudeResponse.Usage.CacheReadInputTokens
 		usage.PromptTokensDetails.CachedCreationTokens = claudeResponse.Usage.CacheCreationInputTokens
 	}
-	openaiResp.Usage = *usage
+	// Hand the translator an OpenAI-semantic usage view so the cached/creation
+	// breakdown survives the responses envelope (translator subtracts cached
+	// from prompt_tokens to derive input_tokens).
+	if normalized := normalizeClaudeUsageForOpenAISemantics(usage); normalized != nil {
+		openaiResp.Usage = *normalized
+	} else {
+		openaiResp.Usage = *usage
+	}
 
 	responsesResp, e := openaicompat.ChatCompletionsResponseToResponsesResponse(openaiResp, info.UpstreamModelName)
 	if e != nil {
@@ -247,4 +269,52 @@ func runAnthropicToResponsesNonStream(c *gin.Context, info *relaycommon.RelayInf
 	}
 	service.IOCopyBytesGracefully(c, resp, responseBody)
 	return usage, nil
+}
+
+// markClaudeRefusalFromStreamChunk mirrors the refusal-detection performed by
+// claudechannel.HandleStreamResponseData. Without it, /v1/responses requests
+// routed through the pivot would not record the moderation/accounting signal
+// that the direct Claude relay records.
+func markClaudeRefusalFromStreamChunk(c *gin.Context, cr *dto.ClaudeResponse) {
+	if c == nil || cr == nil {
+		return
+	}
+	if cr.StopReason != "" && strings.EqualFold(cr.StopReason, "refusal") {
+		common.SetContextKey(c, appconstant.ContextKeyAdminRejectReason, "claude_stop_reason=refusal")
+		return
+	}
+	if cr.Delta != nil && cr.Delta.StopReason != nil && strings.EqualFold(*cr.Delta.StopReason, "refusal") {
+		common.SetContextKey(c, appconstant.ContextKeyAdminRejectReason, "claude_stop_reason=refusal")
+	}
+}
+
+// markClaudeRefusalFromResponse mirrors the refusal-detection performed by the
+// direct Claude non-streaming handler.
+func markClaudeRefusalFromResponse(c *gin.Context, cr *dto.ClaudeResponse) {
+	if c == nil || cr == nil {
+		return
+	}
+	if strings.EqualFold(cr.StopReason, "refusal") {
+		common.SetContextKey(c, appconstant.ContextKeyAdminRejectReason, "claude_stop_reason=refusal")
+	}
+}
+
+// normalizeClaudeUsageForOpenAISemantics folds Anthropic's separately-counted
+// cache_read and cache_creation input tokens into prompt_tokens so the
+// downstream Responses translator (which uses OpenAI semantics and subtracts
+// cached from prompt) produces correct input_tokens / total_tokens. Returns
+// the original *dto.Usage when no conversion is needed.
+func normalizeClaudeUsageForOpenAISemantics(in *dto.Usage) *dto.Usage {
+	if in == nil {
+		return nil
+	}
+	if in.UsageSemantic != "anthropic" {
+		return in
+	}
+	cp := *in
+	cp.PromptTokens = in.PromptTokens + in.PromptTokensDetails.CachedTokens + in.PromptTokensDetails.CachedCreationTokens
+	cp.TotalTokens = cp.PromptTokens + cp.CompletionTokens
+	// Drop the semantic marker so a second pass through this helper is a no-op.
+	cp.UsageSemantic = ""
+	return &cp
 }

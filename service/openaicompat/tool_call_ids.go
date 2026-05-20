@@ -70,8 +70,15 @@ func SanitizeToolCallIDs(req *dto.GeneralOpenAIRequest) {
 				if strings.TrimSpace(tc.Type) == "" {
 					tc.Type = "function"
 				}
-				// Sanitize ID.
+				// Sanitize ID. Reuse an existing remap before generating a new
+				// one so repeated invalid originals (e.g. multiple `"::::"`) all
+				// get the same sanitized id — matching the tool_result remap
+				// that only retains the last write.
 				origID := tc.ID
+				if remapped, ok := idMap[origID]; ok {
+					tc.ID = remapped
+					continue
+				}
 				newID := sanitizeOneToolID(origID)
 				if newID != origID {
 					idMap[origID] = newID

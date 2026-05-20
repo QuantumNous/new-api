@@ -489,6 +489,7 @@ func ChatCompletionsResponseToResponsesResponse(resp *dto.OpenAITextResponse, re
 	}
 
 	// Function call items.
+	fcAuto := 0
 	for _, tc := range ch.Message.ParseToolCalls() {
 		if strings.TrimSpace(tc.Function.Name) == "" {
 			continue
@@ -496,7 +497,8 @@ func ChatCompletionsResponseToResponsesResponse(resp *dto.OpenAITextResponse, re
 		argsRaw, _ := common.Marshal(tc.Function.Arguments)
 		fcItemID := tc.ID
 		if strings.TrimSpace(fcItemID) == "" {
-			fcItemID = idBase
+			fcAuto++
+			fcItemID = fmt.Sprintf("%s_%d", idBase, fcAuto)
 		}
 		if !strings.HasPrefix(fcItemID, "fc_") {
 			fcItemID = "fc_" + fcItemID

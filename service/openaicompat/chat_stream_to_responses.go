@@ -2,6 +2,7 @@ package openaicompat
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 
@@ -154,9 +155,12 @@ func EmitChatStreamErrorEvent(state *ResponsesStreamState, message string) []Res
 	if state == nil || state.ErrorEmitted {
 		return nil
 	}
-	state.ErrorEmitted = true
+	events := make([]ResponsesAPIEvent, 0, 2)
 	if !state.Started {
-		// Emit the minimum prelude.
+		// Emit the minimum prelude as part of the returned events so its
+		// sequence number is observed by the caller. Discarding it here would
+		// still bump the counter and skew the subsequent response.failed
+		// sequence number to 2 instead of 1.
 		if state.CreatedAt == 0 {
 			state.CreatedAt = time.Now().Unix()
 		}
@@ -164,18 +168,17 @@ func EmitChatStreamErrorEvent(state *ResponsesStreamState, message string) []Res
 			state.ResponseID = "resp_error"
 		}
 		envelope := buildResponseEnvelope(state, "failed")
-		_ = emitEvent(state, "response.created", map[string]any{"response": envelope})
+		events = append(events, emitEvent(state, "response.created", map[string]any{"response": envelope}))
 		state.Started = true
 	}
-	events := []ResponsesAPIEvent{
-		emitEvent(state, "response.failed", map[string]any{
-			"response": map[string]any{
-				"id":     state.ResponseID,
-				"status": "failed",
-				"error":  map[string]any{"message": message},
-			},
-		}),
-	}
+	events = append(events, emitEvent(state, "response.failed", map[string]any{
+		"response": map[string]any{
+			"id":     state.ResponseID,
+			"status": "failed",
+			"error":  map[string]any{"message": message},
+		},
+	}))
+	state.ErrorEmitted = true
 	// response.failed is terminal — mark the stream as completed so any
 	// subsequent flushOnEOS is a no-op and we never emit both response.failed
 	// and response.completed on the same stream.
@@ -185,6 +188,11 @@ func EmitChatStreamErrorEvent(state *ResponsesStreamState, message string) []Res
 
 func handleTextDeltaWithInlineThink(state *ResponsesStreamState, text string) []ResponsesAPIEvent {
 	events := make([]ResponsesAPIEvent, 0, 2)
+	// Resume any partial <think>/</think> token saved from a previous chunk.
+	if state.PendingTagBuffer != "" {
+		text = state.PendingTagBuffer + text
+		state.PendingTagBuffer = ""
+	}
 	for text != "" {
 		if state.InThinkInlineTag {
 			// Looking for </think>.
@@ -206,14 +214,19 @@ func handleTextDeltaWithInlineThink(state *ResponsesStreamState, text string) []
 				text = rest
 				continue
 			}
-			// All remaining text is reasoning.
-			events = append(events, ensureReasoningOpen(state)...)
-			events = append(events, emitEvent(state, "response.reasoning_summary_text.delta", map[string]any{
-				"item_id":       state.ReasoningItemID,
-				"output_index":  state.ReasoningItemIndex,
-				"summary_index": 0,
-				"delta":         text,
-			}))
+			// No closing </think> in this chunk yet. Hold back any trailing
+			// prefix that could grow into </think> on the next chunk.
+			emit, pending := splitPendingThinkTag(text)
+			state.PendingTagBuffer = pending
+			if emit != "" {
+				events = append(events, ensureReasoningOpen(state)...)
+				events = append(events, emitEvent(state, "response.reasoning_summary_text.delta", map[string]any{
+					"item_id":       state.ReasoningItemID,
+					"output_index":  state.ReasoningItemIndex,
+					"summary_index": 0,
+					"delta":         emit,
+				}))
+			}
 			return events
 		}
 
@@ -238,18 +251,55 @@ func handleTextDeltaWithInlineThink(state *ResponsesStreamState, text string) []
 			continue
 		}
 
-		// No tag; plain text.
-		events = append(events, closeReasoningIfOpen(state)...)
-		events = append(events, ensureMessageOpen(state)...)
-		events = append(events, emitEvent(state, "response.output_text.delta", map[string]any{
-			"item_id":       state.MessageItemID,
-			"output_index":  state.MessageItemIndex,
-			"content_index": 0,
-			"delta":         text,
-		}))
+		// No opening <think> in this chunk. Hold back any trailing prefix
+		// that could grow into <think> on the next chunk.
+		emit, pending := splitPendingThinkTag(text)
+		state.PendingTagBuffer = pending
+		if emit != "" {
+			events = append(events, closeReasoningIfOpen(state)...)
+			events = append(events, ensureMessageOpen(state)...)
+			events = append(events, emitEvent(state, "response.output_text.delta", map[string]any{
+				"item_id":       state.MessageItemID,
+				"output_index":  state.MessageItemIndex,
+				"content_index": 0,
+				"delta":         emit,
+			}))
+		}
 		return events
 	}
 	return events
+}
+
+// splitPendingThinkTag separates text into the portion safe to emit and a
+// trailing partial-tag fragment that should be buffered until the next chunk.
+// A trailing substring beginning with '<' is buffered only when it is a strict
+// prefix of "<think>" or "</think>" (i.e. could still grow into a real tag).
+// Tail length is bounded by len("</think>")-1, so memory use is constant and
+// ordinary text containing a stray '<' is emitted normally.
+func splitPendingThinkTag(text string) (emit string, pending string) {
+	if text == "" {
+		return "", ""
+	}
+	maxLook := len("</think>") - 1
+	start := len(text) - maxLook
+	if start < 0 {
+		start = 0
+	}
+	for i := start; i < len(text); i++ {
+		if text[i] != '<' {
+			continue
+		}
+		tail := text[i:]
+		if strings.ContainsRune(tail, '>') {
+			// A complete-looking tag is already present; let the main loop
+			// process it on the next iteration.
+			return text, ""
+		}
+		if strings.HasPrefix("<think>", tail) || strings.HasPrefix("</think>", tail) {
+			return text[:i], tail
+		}
+	}
+	return text, ""
 }
 
 func handleToolCallDelta(state *ResponsesStreamState, tc dto.ToolCallResponse) []ResponsesAPIEvent {
@@ -440,10 +490,20 @@ func closeReasoningIfOpen(state *ResponsesStreamState) []ResponsesAPIEvent {
 
 func closeAllOpenFunctionCalls(state *ResponsesStreamState) []ResponsesAPIEvent {
 	events := make([]ResponsesAPIEvent, 0)
-	for _, fc := range state.FuncCalls {
-		if fc.Done {
+	// Collect open entries and sort by tool index (the map key) so the close
+	// order — and the sequence numbers it stamps onto downstream events — is
+	// deterministic across identical streams. state.FuncCalls is a Go map and
+	// would otherwise iterate in random order.
+	indices := make([]int, 0, len(state.FuncCalls))
+	for idx, fc := range state.FuncCalls {
+		if fc == nil || fc.Done {
 			continue
 		}
+		indices = append(indices, idx)
+	}
+	sort.Ints(indices)
+	for _, idx := range indices {
+		fc := state.FuncCalls[idx]
 		args := fc.ArgsBuf
 		if strings.TrimSpace(args) == "" {
 			args = "{}"
@@ -557,6 +617,31 @@ func flushOnEOS(state *ResponsesStreamState) []ResponsesAPIEvent {
 		events = append(events, emitEvent(state, "response.in_progress", map[string]any{"response": envelope}))
 		state.Started = true
 		state.InProgressSent = true
+	}
+	// Flush any partial-tag fragment held back across chunks. It cannot grow
+	// into a complete <think>/</think> now, so emit it to whichever channel
+	// is currently active.
+	if state.PendingTagBuffer != "" {
+		pending := state.PendingTagBuffer
+		state.PendingTagBuffer = ""
+		if state.InThinkInlineTag {
+			events = append(events, ensureReasoningOpen(state)...)
+			events = append(events, emitEvent(state, "response.reasoning_summary_text.delta", map[string]any{
+				"item_id":       state.ReasoningItemID,
+				"output_index":  state.ReasoningItemIndex,
+				"summary_index": 0,
+				"delta":         pending,
+			}))
+		} else {
+			events = append(events, closeReasoningIfOpen(state)...)
+			events = append(events, ensureMessageOpen(state)...)
+			events = append(events, emitEvent(state, "response.output_text.delta", map[string]any{
+				"item_id":       state.MessageItemID,
+				"output_index":  state.MessageItemIndex,
+				"content_index": 0,
+				"delta":         pending,
+			}))
+		}
 	}
 	// Close in deterministic order: message, reasoning (if inline-only),
 	// then function_calls.

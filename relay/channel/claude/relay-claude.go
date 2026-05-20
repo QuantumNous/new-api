@@ -146,7 +146,17 @@ func applyCacheControlToLastAssistantContent(messages []dto.ClaudeMessage) {
 		}
 		blocks, ok := messages[i].Content.([]dto.ClaudeMediaMessage)
 		if !ok {
-			return
+			// RequestOpenAI2ClaudeMessage emits plain-string content for the
+			// common text-only assistant case; promote it to a single-block
+			// []ClaudeMediaMessage so we can attach cache_control.
+			if text, ok := messages[i].Content.(string); ok && text != "" {
+				blocks = []dto.ClaudeMediaMessage{{
+					Type: "text",
+					Text: common.GetPointer[string](text),
+				}}
+			} else {
+				return
+			}
 		}
 		for j := len(blocks) - 1; j >= 0; j-- {
 			switch blocks[j].Type {
