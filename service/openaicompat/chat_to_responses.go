@@ -450,11 +450,13 @@ func ChatCompletionsResponseToResponsesResponse(resp *dto.OpenAITextResponse, re
 	ch := resp.Choices[0]
 
 	output := make([]dto.ResponsesOutput, 0, 4)
+	idBase := ResponsesIDBase(respID)
 
 	// Reasoning item.
 	if rc := ch.Message.GetReasoningContent(); rc != "" {
 		output = append(output, dto.ResponsesOutput{
 			Type:   "reasoning",
+			ID:     "rs_" + idBase,
 			Status: "completed",
 			Content: []dto.ResponsesOutputContent{
 				{Type: "summary_text", Text: rc},
@@ -477,6 +479,7 @@ func ChatCompletionsResponseToResponsesResponse(resp *dto.OpenAITextResponse, re
 	if text != "" {
 		output = append(output, dto.ResponsesOutput{
 			Type:   "message",
+			ID:     "msg_" + idBase,
 			Status: "completed",
 			Role:   "assistant",
 			Content: []dto.ResponsesOutputContent{
@@ -491,8 +494,16 @@ func ChatCompletionsResponseToResponsesResponse(resp *dto.OpenAITextResponse, re
 			continue
 		}
 		argsRaw, _ := common.Marshal(tc.Function.Arguments)
+		fcItemID := tc.ID
+		if strings.TrimSpace(fcItemID) == "" {
+			fcItemID = idBase
+		}
+		if !strings.HasPrefix(fcItemID, "fc_") {
+			fcItemID = "fc_" + fcItemID
+		}
 		output = append(output, dto.ResponsesOutput{
 			Type:      "function_call",
+			ID:        fcItemID,
 			Status:    "completed",
 			CallId:    tc.ID,
 			Name:      tc.Function.Name,

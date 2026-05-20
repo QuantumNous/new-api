@@ -1,6 +1,7 @@
 package openaicompat
 
 import (
+	"fmt"
 	"strings"
 	"time"
 
@@ -125,7 +126,7 @@ func ChatCompletionsStreamToResponsesEvents(chunk *dto.ChatCompletionsStreamResp
 		events = append(events, closeMessageIfOpen(state)...)
 		events = append(events, ensureReasoningOpen(state)...)
 		events = append(events, emitEvent(state, "response.reasoning_summary_text.delta", map[string]any{
-			"item_id":       state.ResponseID,
+			"item_id":       state.ReasoningItemID,
 			"output_index":  state.ReasoningItemIndex,
 			"summary_index": 0,
 			"delta":         rc,
@@ -193,7 +194,7 @@ func handleTextDeltaWithInlineThink(state *ResponsesStreamState, text string) []
 				if inside != "" {
 					events = append(events, ensureReasoningOpen(state)...)
 					events = append(events, emitEvent(state, "response.reasoning_summary_text.delta", map[string]any{
-						"item_id":       state.ResponseID,
+						"item_id":       state.ReasoningItemID,
 						"output_index":  state.ReasoningItemIndex,
 						"summary_index": 0,
 						"delta":         inside,
@@ -208,7 +209,7 @@ func handleTextDeltaWithInlineThink(state *ResponsesStreamState, text string) []
 			// All remaining text is reasoning.
 			events = append(events, ensureReasoningOpen(state)...)
 			events = append(events, emitEvent(state, "response.reasoning_summary_text.delta", map[string]any{
-				"item_id":       state.ResponseID,
+				"item_id":       state.ReasoningItemID,
 				"output_index":  state.ReasoningItemIndex,
 				"summary_index": 0,
 				"delta":         text,
@@ -224,7 +225,7 @@ func handleTextDeltaWithInlineThink(state *ResponsesStreamState, text string) []
 				events = append(events, closeReasoningIfOpen(state)...)
 				events = append(events, ensureMessageOpen(state)...)
 				events = append(events, emitEvent(state, "response.output_text.delta", map[string]any{
-					"item_id":       state.ResponseID,
+					"item_id":       state.MessageItemID,
 					"output_index":  state.MessageItemIndex,
 					"content_index": 0,
 					"delta":         before,
@@ -241,7 +242,7 @@ func handleTextDeltaWithInlineThink(state *ResponsesStreamState, text string) []
 		events = append(events, closeReasoningIfOpen(state)...)
 		events = append(events, ensureMessageOpen(state)...)
 		events = append(events, emitEvent(state, "response.output_text.delta", map[string]any{
-			"item_id":       state.ResponseID,
+			"item_id":       state.MessageItemID,
 			"output_index":  state.MessageItemIndex,
 			"content_index": 0,
 			"delta":         text,
@@ -276,10 +277,15 @@ func handleToolCallDelta(state *ResponsesStreamState, tc dto.ToolCallResponse) [
 			callID = tc.ID
 			fc.ID = tc.ID
 		}
+		// Derive a stable item id from the call id so the wire item.id and the
+		// item_id referenced by function_call_arguments.* match each other.
+		fc.ItemID = funcCallItemID(state, callID)
 		events = append(events, emitEvent(state, "response.output_item.added", map[string]any{
 			"output_index": fc.ItemIndex,
 			"item": map[string]any{
+				"id":        fc.ItemID,
 				"type":      "function_call",
+				"status":    "in_progress",
 				"call_id":   callID,
 				"name":      fc.Name,
 				"arguments": "",
@@ -293,13 +299,16 @@ func handleToolCallDelta(state *ResponsesStreamState, tc dto.ToolCallResponse) [
 		if tc.Function.Name != "" && fc.Name == "" {
 			fc.Name = tc.Function.Name
 		}
+		if fc.ItemID == "" && fc.ID != "" {
+			fc.ItemID = funcCallItemID(state, fc.ID)
+		}
 	}
 
 	// Argument deltas.
 	if tc.Function.Arguments != "" {
 		fc.ArgsBuf += tc.Function.Arguments
 		events = append(events, emitEvent(state, "response.function_call_arguments.delta", map[string]any{
-			"item_id":      fc.ID,
+			"item_id":      fc.ItemID,
 			"output_index": fc.ItemIndex,
 			"delta":        tc.Function.Arguments,
 		}))
@@ -313,18 +322,21 @@ func ensureMessageOpen(state *ResponsesStreamState) []ResponsesAPIEvent {
 	}
 	events := make([]ResponsesAPIEvent, 0, 2)
 	state.MessageItemIndex = nextItemIndex(state)
+	state.MessageItemID = assignMessageItemID(state)
 	state.MessageItemOpen = true
 	state.MessageContentPartOpen = true
 	events = append(events, emitEvent(state, "response.output_item.added", map[string]any{
 		"output_index": state.MessageItemIndex,
 		"item": map[string]any{
+			"id":      state.MessageItemID,
 			"type":    "message",
+			"status":  "in_progress",
 			"role":    "assistant",
 			"content": []any{},
 		},
 	}))
 	events = append(events, emitEvent(state, "response.content_part.added", map[string]any{
-		"item_id":       state.ResponseID,
+		"item_id":       state.MessageItemID,
 		"output_index":  state.MessageItemIndex,
 		"content_index": 0,
 		"part": map[string]any{
@@ -340,25 +352,29 @@ func closeMessageIfOpen(state *ResponsesStreamState) []ResponsesAPIEvent {
 		return nil
 	}
 	events := make([]ResponsesAPIEvent, 0, 3)
+	itemID := state.MessageItemID
 	events = append(events, emitEvent(state, "response.output_text.done", map[string]any{
-		"item_id":       state.ResponseID,
+		"item_id":       itemID,
 		"output_index":  state.MessageItemIndex,
 		"content_index": 0,
 	}))
 	events = append(events, emitEvent(state, "response.content_part.done", map[string]any{
-		"item_id":       state.ResponseID,
+		"item_id":       itemID,
 		"output_index":  state.MessageItemIndex,
 		"content_index": 0,
 	}))
 	events = append(events, emitEvent(state, "response.output_item.done", map[string]any{
 		"output_index": state.MessageItemIndex,
 		"item": map[string]any{
-			"type": "message",
-			"role": "assistant",
+			"id":     itemID,
+			"type":   "message",
+			"status": "completed",
+			"role":   "assistant",
 		},
 	}))
 	state.MessageItemOpen = false
 	state.MessageContentPartOpen = false
+	state.MessageItemID = ""
 	return events
 }
 
@@ -368,17 +384,20 @@ func ensureReasoningOpen(state *ResponsesStreamState) []ResponsesAPIEvent {
 	}
 	events := make([]ResponsesAPIEvent, 0, 2)
 	state.ReasoningItemIndex = nextItemIndex(state)
+	state.ReasoningItemID = assignReasoningItemID(state)
 	state.ReasoningItemOpen = true
 	state.ReasoningSummaryPartOpen = true
 	events = append(events, emitEvent(state, "response.output_item.added", map[string]any{
 		"output_index": state.ReasoningItemIndex,
 		"item": map[string]any{
+			"id":      state.ReasoningItemID,
 			"type":    "reasoning",
+			"status":  "in_progress",
 			"summary": []any{},
 		},
 	}))
 	events = append(events, emitEvent(state, "response.reasoning_summary_part.added", map[string]any{
-		"item_id":       state.ResponseID,
+		"item_id":       state.ReasoningItemID,
 		"output_index":  state.ReasoningItemIndex,
 		"summary_index": 0,
 		"part": map[string]any{
@@ -394,24 +413,28 @@ func closeReasoningIfOpen(state *ResponsesStreamState) []ResponsesAPIEvent {
 		return nil
 	}
 	events := make([]ResponsesAPIEvent, 0, 3)
+	itemID := state.ReasoningItemID
 	events = append(events, emitEvent(state, "response.reasoning_summary_text.done", map[string]any{
-		"item_id":       state.ResponseID,
+		"item_id":       itemID,
 		"output_index":  state.ReasoningItemIndex,
 		"summary_index": 0,
 	}))
 	events = append(events, emitEvent(state, "response.reasoning_summary_part.done", map[string]any{
-		"item_id":       state.ResponseID,
+		"item_id":       itemID,
 		"output_index":  state.ReasoningItemIndex,
 		"summary_index": 0,
 	}))
 	events = append(events, emitEvent(state, "response.output_item.done", map[string]any{
 		"output_index": state.ReasoningItemIndex,
 		"item": map[string]any{
-			"type": "reasoning",
+			"id":     itemID,
+			"type":   "reasoning",
+			"status": "completed",
 		},
 	}))
 	state.ReasoningItemOpen = false
 	state.ReasoningSummaryPartOpen = false
+	state.ReasoningItemID = ""
 	return events
 }
 
@@ -425,15 +448,20 @@ func closeAllOpenFunctionCalls(state *ResponsesStreamState) []ResponsesAPIEvent 
 		if strings.TrimSpace(args) == "" {
 			args = "{}"
 		}
+		if fc.ItemID == "" {
+			fc.ItemID = funcCallItemID(state, fc.ID)
+		}
 		events = append(events, emitEvent(state, "response.function_call_arguments.done", map[string]any{
-			"item_id":      fc.ID,
+			"item_id":      fc.ItemID,
 			"output_index": fc.ItemIndex,
 			"arguments":    args,
 		}))
 		events = append(events, emitEvent(state, "response.output_item.done", map[string]any{
 			"output_index": fc.ItemIndex,
 			"item": map[string]any{
+				"id":        fc.ItemID,
 				"type":      "function_call",
+				"status":    "completed",
 				"call_id":   fc.ID,
 				"name":      fc.Name,
 				"arguments": args,
@@ -448,6 +476,65 @@ func nextItemIndex(state *ResponsesStreamState) int {
 	idx := state.ItemIndex
 	state.ItemIndex++
 	return idx
+}
+
+// responseIDSuffix returns the portion of state.ResponseID after the "resp_"
+// prefix, stripped of any further item-type prefix. It is used as the stable
+// base for derived item ids ("msg_<suffix>", "rs_<suffix>", ...).
+func responseIDSuffix(state *ResponsesStreamState) string {
+	return ResponsesIDBase(state.ResponseID)
+}
+
+// ResponsesIDBase returns the portion of a Responses-API response id after the
+// "resp_" prefix (and any subsequent item-type prefix such as "msg_"/"rs_"/
+// "fc_"). It is the stable base used when deriving per-item ids in both the
+// streaming and non-streaming chat→responses translators.
+func ResponsesIDBase(respID string) string {
+	base := strings.TrimPrefix(respID, "resp_")
+	for _, p := range []string{"msg_", "rs_", "fc_"} {
+		if strings.HasPrefix(base, p) {
+			base = strings.TrimPrefix(base, p)
+			break
+		}
+	}
+	if base == "" {
+		base = "chat"
+	}
+	return base
+}
+
+// assignMessageItemID returns a fresh message item id and bumps the per-stream
+// counter so subsequent reopens (e.g. after an inline </think> close) get a
+// unique value.
+func assignMessageItemID(state *ResponsesStreamState) string {
+	state.MessageItemCount++
+	if state.MessageItemCount == 1 {
+		return "msg_" + responseIDSuffix(state)
+	}
+	return fmt.Sprintf("msg_%s_%d", responseIDSuffix(state), state.MessageItemCount)
+}
+
+// assignReasoningItemID mirrors assignMessageItemID for reasoning items.
+func assignReasoningItemID(state *ResponsesStreamState) string {
+	state.ReasoningItemCount++
+	if state.ReasoningItemCount == 1 {
+		return "rs_" + responseIDSuffix(state)
+	}
+	return fmt.Sprintf("rs_%s_%d", responseIDSuffix(state), state.ReasoningItemCount)
+}
+
+// funcCallItemID derives a stable function_call item id ("fc_<callId>") from
+// the upstream call id, falling back to the response suffix when callID is
+// empty so the wire id is always non-empty.
+func funcCallItemID(state *ResponsesStreamState, callID string) string {
+	base := strings.TrimSpace(callID)
+	if base == "" {
+		base = responseIDSuffix(state)
+	}
+	if strings.HasPrefix(base, "fc_") {
+		return base
+	}
+	return "fc_" + base
 }
 
 func flushOnEOS(state *ResponsesStreamState) []ResponsesAPIEvent {

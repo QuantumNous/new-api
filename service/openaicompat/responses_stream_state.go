@@ -5,7 +5,10 @@ package openaicompat
 // ResponsesStreamFuncCall holds per-tool-call streaming state used by
 // ChatCompletionsStreamToResponsesEvents.
 type ResponsesStreamFuncCall struct {
-	ID        string
+	ID string
+	// ItemID is the function_call item's own id ("fc_..."), distinct from
+	// ID/CallID which is the call_id referenced by tool result messages.
+	ItemID    string
 	Name      string
 	ArgsBuf   string
 	ItemIndex int
@@ -37,11 +40,25 @@ type ResponsesStreamState struct {
 	MessageItemIndex       int
 	MessageContentPartOpen bool
 	MessageOutputIndex     int
+	// MessageItemID is the id of the currently-open message item ("msg_..."),
+	// referenced by all content_part.* and output_text.* events that belong to
+	// it. Cleared when the message item closes.
+	MessageItemID string
+	// MessageItemCount tracks how many message items have been opened in this
+	// stream, so that subsequent reopens (e.g. after an interleaved think tag)
+	// get unique ids.
+	MessageItemCount int
 
 	// Reasoning output_item lifecycle.
 	ReasoningItemOpen        bool
 	ReasoningItemIndex       int
 	ReasoningSummaryPartOpen bool
+	// ReasoningItemID is the id of the currently-open reasoning item
+	// ("rs_..."), referenced by all reasoning_summary_* events. Cleared when
+	// the reasoning item closes.
+	ReasoningItemID string
+	// ReasoningItemCount mirrors MessageItemCount for reasoning items.
+	ReasoningItemCount int
 
 	// FuncCalls is keyed by the chunk tool_call index.
 	FuncCalls map[int]*ResponsesStreamFuncCall
