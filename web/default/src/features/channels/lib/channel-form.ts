@@ -67,8 +67,8 @@ export const channelFormSchema = z.object({
   aws_key_type: z.enum(['ak_sk', 'api_key']).optional(), // AWS specific
   azure_responses_version: z.string().optional(), // Azure specific
   openai_admin_key: z.string().optional(), // OpenAI specific: admin key for usage statistics
-  openai_prepaid_amount: z.coerce.number().min(0).optional(),
-  openai_prepaid_since: z.coerce.number().min(0).optional(),
+  openai_prepaid_amount: z.number().min(0),
+  openai_prepaid_since: z.number().int().min(0),
   // Field passthrough controls (stored in settings JSON)
   allow_service_tier: z.boolean().optional(), // OpenAI/Anthropic
   disable_store: z.boolean().optional(), // OpenAI only
