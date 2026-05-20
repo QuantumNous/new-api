@@ -77,7 +77,6 @@ import {
   getNameRuleOptions,
   ENDPOINT_TEMPLATES,
   ERROR_MESSAGES,
-  MODEL_NAME_REQUIRED_KEY,
   resolveModelToastMessage,
   formatModelEstimatedMillionTokenPrice,
   formatModelCalculatedRatio,
@@ -88,7 +87,7 @@ import type { Model } from '../../types'
 // Extended schema for ratio configuration (internal form state only)
 const extendedModelFormSchema = z.object({
   id: z.number().optional(),
-  model_name: z.string().min(1, MODEL_NAME_REQUIRED_KEY),
+  model_name: z.string().min(1, 'Please enter model resource name'),
   description: z.string(),
   icon: z.string(),
   tags: z.array(z.string()),
@@ -883,8 +882,8 @@ export function ModelMutateDrawer({
                         onChange={field.onChange}
                         keyPlaceholder='endpoint_type'
                         valuePlaceholder='{"path": "/v1/...", "method": "POST"}'
-                        keyLabel='Endpoint Type'
-                        valueLabel='Configuration'
+                        keyLabel={t('Access endpoint type')}
+                        valueLabel={t('Configuration content')}
                         valueType='any'
                         emptyMessage={t(
                           'No endpoints configured. Switch to JSON mode or add rows to define endpoints.'

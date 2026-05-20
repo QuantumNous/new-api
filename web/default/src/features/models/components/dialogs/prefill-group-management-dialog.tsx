@@ -67,6 +67,8 @@ import { ConfirmDialog } from '@/components/confirm-dialog'
 import { StatusBadge } from '@/components/status-badge'
 import { deletePrefillGroup, getPrefillGroups } from '../../api'
 import {
+  DEPLOYMENT_GHOST_ICON_BUTTON_CLASS,
+  DEPLOYMENT_OUTLINE_BUTTON_CLASS,
   ERROR_MESSAGES,
   resolveModelToastMessage,
 } from '../../constants'
@@ -148,6 +150,12 @@ export function PrefillGroupManagementDialog({
       setIsDeleting(false)
     }
   }, [open])
+
+  useEffect(() => {
+    if (error instanceof Error && error.message) {
+      console.warn('[models] prefill groups load error:', error.message)
+    }
+  }, [error])
 
   const handleDeleteClick = (group: PrefillGroup) => {
     setDeleteState({ open: true, group })
@@ -241,6 +249,10 @@ export function PrefillGroupManagementDialog({
                 <Button
                   size='sm'
                   variant='ghost'
+                  className={cn(
+                    DEPLOYMENT_GHOST_ICON_BUTTON_CLASS,
+                    'disabled:bg-white/5 disabled:text-slate-400'
+                  )}
                   onClick={() => refetchGroups()}
                   disabled={isFetching}
                 >
@@ -271,8 +283,7 @@ export function PrefillGroupManagementDialog({
                     <Alert variant='destructive'>
                       <AlertTitle>{t('Unable to load groups')}</AlertTitle>
                       <AlertDescription>
-                        {(error as Error).message ||
-                          t('Please retry or refresh the page.')}
+                        {t('Prefill groups load failed description')}
                       </AlertDescription>
                     </Alert>
                   )}
@@ -499,6 +510,7 @@ export function PrefillGroupManagementDialog({
                                       <Button
                                         size='icon'
                                         variant='outline'
+                                        className={DEPLOYMENT_OUTLINE_BUTTON_CLASS}
                                         onClick={() => onEditGroup(group)}
                                       >
                                         <Pencil className='h-4 w-4' />
@@ -509,7 +521,10 @@ export function PrefillGroupManagementDialog({
                                       <Button
                                         size='icon'
                                         variant='ghost'
-                                        className='text-destructive hover:text-destructive'
+                                        className={cn(
+                                          DEPLOYMENT_GHOST_ICON_BUTTON_CLASS,
+                                          'text-rose-300 hover:bg-rose-500/15 hover:text-rose-200 [&_svg]:text-rose-300 hover:[&_svg]:text-rose-200 disabled:bg-white/5 disabled:text-slate-400 disabled:[&_svg]:text-slate-400'
+                                        )}
                                         onClick={() => handleDeleteClick(group)}
                                       >
                                         <Trash2 className='h-4 w-4' />

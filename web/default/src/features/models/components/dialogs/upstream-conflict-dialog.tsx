@@ -34,6 +34,7 @@ import {
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+import { cn } from '@/lib/utils'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -69,7 +70,11 @@ import {
 } from '@/components/ui/table'
 import { StatusBadge } from '@/components/status-badge'
 import { applyUpstreamOverwrite } from '../../api'
-import { getConflictFieldLabel, resolveModelToastMessage } from '../../constants'
+import {
+  DEPLOYMENT_OUTLINE_BUTTON_CLASS,
+  getConflictFieldLabel,
+  resolveModelToastMessage,
+} from '../../constants'
 import { modelsQueryKeys, vendorsQueryKeys } from '../../lib'
 import type { SyncOverwritePayload } from '../../types'
 import { useModels } from '../models-provider'
@@ -427,7 +432,7 @@ export function UpstreamConflictDialog({
         toast.error(
           resolveModelToastMessage(
             response.message,
-            'Failed to apply overwrite.',
+            'Upstream overwrite apply failed',
             t
           )
         )
@@ -437,7 +442,7 @@ export function UpstreamConflictDialog({
       if (message) {
         console.warn('[models] upstream overwrite error:', message)
       }
-      toast.error(t('Failed to apply overwrite.'))
+      toast.error(t('Upstream overwrite apply failed'))
     } finally {
       setIsSubmitting(false)
     }
@@ -597,7 +602,10 @@ export function UpstreamConflictDialog({
                         <Button
                           variant='outline'
                           size='icon'
-                          className='h-7 w-7 sm:h-8 sm:w-8'
+                          className={cn(
+                            DEPLOYMENT_OUTLINE_BUTTON_CLASS,
+                            'h-7 w-7 sm:h-8 sm:w-8'
+                          )}
                           onClick={() =>
                             setPageIndex((prev) => Math.max(0, prev - 1))
                           }
@@ -615,7 +623,10 @@ export function UpstreamConflictDialog({
                         <Button
                           variant='outline'
                           size='icon'
-                          className='h-7 w-7 sm:h-8 sm:w-8'
+                          className={cn(
+                            DEPLOYMENT_OUTLINE_BUTTON_CLASS,
+                            'h-7 w-7 sm:h-8 sm:w-8'
+                          )}
                           onClick={() =>
                             setPageIndex((prev) =>
                               Math.min(totalPages - 1, prev + 1)
@@ -650,6 +661,7 @@ export function UpstreamConflictDialog({
             <div className='flex flex-col gap-2 sm:flex-row sm:justify-end'>
               <Button
                 variant='outline'
+                className={cn(DEPLOYMENT_OUTLINE_BUTTON_CLASS)}
                 onClick={() => {
                   setUpstreamConflicts([])
                   onOpenChange(false)

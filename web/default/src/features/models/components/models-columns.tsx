@@ -94,14 +94,14 @@ export function useModelsColumns(vendors: Vendor[] = []): ColumnDef<Model>[] {
           checked={table.getIsAllPageRowsSelected()}
           indeterminate={table.getIsSomePageRowsSelected()}
           onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
-          aria-label='Select all'
+          aria-label={t('Select all model resources')}
         />
       ),
       cell: ({ row }) => (
         <Checkbox
           checked={row.getIsSelected()}
           onCheckedChange={(value) => row.toggleSelected(!!value)}
-          aria-label='Select row'
+          aria-label={t('Select current model resource')}
         />
       ),
       enableSorting: false,

@@ -38,6 +38,7 @@ import { StatusBadge } from '@/components/status-badge'
 import { syncUpstream, previewUpstreamDiff } from '../../api'
 import {
   ERROR_MESSAGES,
+  DEPLOYMENT_OUTLINE_BUTTON_CLASS,
   getSyncLocaleOptions,
   getSyncSourceOptions,
   resolveModelToastMessage,
@@ -269,6 +270,7 @@ export function SyncWizardDialog({
         <DialogFooter className='flex-shrink-0 gap-2 sm:justify-end'>
           <Button
             variant='outline'
+            className={cn(DEPLOYMENT_OUTLINE_BUTTON_CLASS)}
             onClick={() => onOpenChange(false)}
             disabled={isSyncing}
           >

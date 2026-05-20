@@ -20,6 +20,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { ChevronLeft, ChevronRight, Loader2, Plus, Search } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import { cn } from '@/lib/utils'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { Button } from '@/components/ui/button'
 import {
@@ -38,6 +39,7 @@ import {
 } from '@/components/ui/empty'
 import { Input } from '@/components/ui/input'
 import { StatusBadge } from '@/components/status-badge'
+import { DEPLOYMENT_OUTLINE_BUTTON_CLASS } from '../../constants'
 import { getMissingModels } from '../../api'
 import { DEFAULT_PAGE_SIZE } from '../../constants'
 import { modelsQueryKeys } from '../../lib'
@@ -214,7 +216,10 @@ export function MissingModelsDialog({
                       <Button
                         variant='outline'
                         size='icon'
-                        className='h-8 w-8'
+                        className={cn(
+                          DEPLOYMENT_OUTLINE_BUTTON_CLASS,
+                          'h-8 w-8'
+                        )}
                         onClick={() =>
                           setCurrentPage((prev) => Math.max(1, prev - 1))
                         }
@@ -226,7 +231,10 @@ export function MissingModelsDialog({
                       <Button
                         variant='outline'
                         size='icon'
-                        className='h-8 w-8'
+                        className={cn(
+                          DEPLOYMENT_OUTLINE_BUTTON_CLASS,
+                          'h-8 w-8'
+                        )}
                         onClick={() =>
                           setCurrentPage((prev) =>
                             Math.min(totalPages, prev + 1)

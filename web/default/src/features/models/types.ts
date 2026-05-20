@@ -229,7 +229,7 @@ export interface PrefillGroupsResponse {
  */
 export const modelFormSchema = z.object({
   id: z.number().optional(),
-  model_name: z.string().min(1, 'Model name is required'),
+  model_name: z.string().min(1, 'Please enter model resource name'),
   description: z.string().default(''),
   icon: z.string().default(''),
   tags: z.array(z.string()).default([]),
@@ -247,7 +247,7 @@ export type ModelFormValues = z.infer<typeof modelFormSchema>
  */
 export const vendorFormSchema = z.object({
   id: z.number().optional(),
-  name: z.string().min(1, 'Vendor name is required'),
+  name: z.string().min(1, 'Please enter service source name'),
   description: z.string().default(''),
   icon: z.string().default(''),
   status: z.number().default(1),
@@ -260,7 +260,7 @@ export type VendorFormValues = z.infer<typeof vendorFormSchema>
  */
 export const prefillGroupFormSchema = z.object({
   id: z.number().optional(),
-  name: z.string().min(1, 'Group name is required'),
+  name: z.string().min(1, 'Please enter prefill group name'),
   description: z.string().optional(),
   type: z.enum(['model', 'tag', 'endpoint']),
   items: z.union([z.string(), z.array(z.string())]),
