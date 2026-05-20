@@ -205,3 +205,27 @@ func TestUpdateChannelOpenAIBalance_StartTimeIsFirstOfMonthUTC(t *testing.T) {
 
 	require.Equal(t, "31", got.Get("limit"))
 }
+
+// TestChannelClean_RemovesOpenAIAdminKey verifies that Channel.Clean zeroes out the inference
+// Key column AND the OpenAIAdminKey nested in OtherSettings JSON. This is the core masking
+// guarantee that prevents the admin key from being exposed in GET /api/channel/<id> responses
+// or in the channel list / search payloads.
+func TestChannelClean_RemovesOpenAIAdminKey(t *testing.T) {
+	_ = openTokenControllerTestDB(t)
+	settingsBytes, err := common.Marshal(dto.ChannelOtherSettings{OpenAIAdminKey: "sk-admin-secret"})
+	require.NoError(t, err)
+	bURL := "http://x"
+	ch := &model.Channel{
+		Type:          constant.ChannelTypeOpenAI,
+		Key:           "sk-secret",
+		Status:        1,
+		BaseURL:       &bURL,
+		OtherSettings: string(settingsBytes),
+	}
+
+	ch.Clean()
+
+	require.Equal(t, "", ch.Key, "inference key must be masked")
+	other := ch.GetOtherSettings()
+	require.Equal(t, "", other.OpenAIAdminKey, "openai admin key must be stripped from OtherSettings")
+}

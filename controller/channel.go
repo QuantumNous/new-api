@@ -67,6 +67,13 @@ func clearChannelInfo(channel *model.Channel) {
 		channel.ChannelInfo.MultiKeyDisabledReason = nil
 		channel.ChannelInfo.MultiKeyDisabledTime = nil
 	}
+	// Strip secrets embedded in OtherSettings JSON (e.g. OpenAIAdminKey) before serializing
+	// the channel back to API clients. The inference Key column is already cleared either via
+	// gorm Omit("key") at the query layer or by explicit channel.Key = "" in the caller.
+	if other := channel.GetOtherSettings(); other.OpenAIAdminKey != "" {
+		other.OpenAIAdminKey = ""
+		channel.SetOtherSettings(other)
+	}
 }
 
 func applyChannelStatusFilter(query *gorm.DB, statusFilter int) *gorm.DB {
