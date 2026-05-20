@@ -1,0 +1,5 @@
+# Local DB backups from seed — never commit
+backups/
+backups/**
+*.sql.backup
+*.dump
