@@ -2005,6 +2005,30 @@ export function ChannelMutateDrawer({
                   }}
                 />
 
+                {currentType === 1 && (
+                  <FormField
+                    control={form.control}
+                    name='openai_admin_key'
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>{t('OpenAI Admin Key')}</FormLabel>
+                        <FormControl>
+                          <Textarea
+                            placeholder='sk-admin-...'
+                            rows={2}
+                            {...field}
+                          />
+                        </FormControl>
+                        <FormDescription>
+                          {t(
+                            'Admin key (sk-admin-...) used for fetching usage statistics. Not used for inference.'
+                          )}
+                        </FormDescription>
+                      </FormItem>
+                    )}
+                  />
+                )}
+
                 {currentType === 57 && (
                   <div className='bg-muted/20 space-y-3 rounded-lg border p-4'>
                     <div className='flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between'>
