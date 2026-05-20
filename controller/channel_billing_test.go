@@ -176,3 +176,32 @@ func TestUpdateChannelOpenAIBalance_BadJSON(t *testing.T) {
 	require.Contains(t, err.Error(), "parse openai usage")
 	require.Equal(t, float64(0), balance)
 }
+
+func TestUpdateChannelOpenAIBalance_StartTimeIsFirstOfMonthUTC(t *testing.T) {
+	_ = openTokenControllerTestDB(t)
+
+	var got url.Values
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		got = r.URL.Query()
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = fmt.Fprint(w, `{"object":"page","data":[],"has_more":false,"next_page":""}`)
+	}))
+	defer ts.Close()
+
+	ch := buildOpenAIChannelWithAdminKey(t, ts.URL, "sk-admin-test")
+	_, err := updateChannelOpenAIBalance(ch)
+	require.NoError(t, err)
+
+	now := time.Now().UTC()
+	wantStart := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, time.UTC).Unix()
+	require.Equal(t, strconv.FormatInt(wantStart, 10), got.Get("start_time"))
+
+	endStr := got.Get("end_time")
+	require.NotEmpty(t, endStr)
+	endParsed, err := strconv.ParseInt(endStr, 10, 64)
+	require.NoError(t, err)
+	require.GreaterOrEqual(t, endParsed, wantStart)
+	require.LessOrEqual(t, endParsed-now.Unix(), int64(5))
+
+	require.Equal(t, "31", got.Get("limit"))
+}
