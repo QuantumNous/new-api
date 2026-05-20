@@ -64,6 +64,14 @@ const isPlaygroundChatModel = (modelName) => {
   );
 };
 
+const sortModelNames = (modelNames) =>
+  [...modelNames].sort((left, right) =>
+    String(left).localeCompare(String(right), undefined, {
+      numeric: true,
+      sensitivity: 'base',
+    }),
+  );
+
 export const useDataLoader = (
   userState,
   inputs,
@@ -87,62 +95,68 @@ export const useDataLoader = (
 
       if (success) {
         const pricingItems = Array.isArray(data) ? data : [];
-        const filteredModels = Array.from(
-          new Set(
-            pricingItems
-              .filter((item) => {
-                const modelName = item?.model_name;
-                const endpointTypes = Array.isArray(
-                  item?.supported_endpoint_types,
-                )
-                  ? item.supported_endpoint_types
-                  : [];
+        const filteredModels = sortModelNames(
+          Array.from(
+            new Set(
+              pricingItems
+                .filter((item) => {
+                  const modelName = item?.model_name;
+                  const endpointTypes = Array.isArray(
+                    item?.supported_endpoint_types,
+                  )
+                    ? item.supported_endpoint_types
+                    : [];
 
-                if (!isPlaygroundChatModel(modelName)) {
-                  return false;
-                }
+                  if (!isPlaygroundChatModel(modelName)) {
+                    return false;
+                  }
 
-                return endpointTypes.some((endpointType) =>
-                  PLAYGROUND_CHAT_ENDPOINT_TYPES.has(endpointType),
-                );
-              })
-              .map((item) => item.model_name)
-              .filter(Boolean),
+                  return endpointTypes.some((endpointType) =>
+                    PLAYGROUND_CHAT_ENDPOINT_TYPES.has(endpointType),
+                  );
+                })
+                .map((item) => item.model_name)
+                .filter(Boolean),
+            ),
           ),
         );
-        const filteredVideoModels = Array.from(
-          new Set(
-            pricingItems
-              .filter((item) => {
-                const modelName = item?.model_name;
-                return (
-                  typeof modelName === 'string' &&
-                  modelName.trim() !== '' &&
-                  PLAYGROUND_VIDEO_MODEL_HINTS.some((hint) =>
-                    modelName.toLowerCase().includes(hint),
-                  )
-                );
-              })
-              .map((item) => item.model_name)
-              .filter(Boolean),
+        const filteredVideoModels = sortModelNames(
+          Array.from(
+            new Set(
+              pricingItems
+                .filter((item) => {
+                  const modelName = item?.model_name;
+                  return (
+                    typeof modelName === 'string' &&
+                    modelName.trim() !== '' &&
+                    PLAYGROUND_VIDEO_MODEL_HINTS.some((hint) =>
+                      modelName.toLowerCase().includes(hint),
+                    )
+                  );
+                })
+                .map((item) => item.model_name)
+                .filter(Boolean),
+            ),
           ),
         );
-        const filteredImageModels = Array.from(
-          new Set(
-            pricingItems
-              .filter((item) => {
-                const modelName = item?.model_name;
+        const filteredImageModels = sortModelNames(
+          Array.from(
+            new Set(
+              pricingItems
+                .filter((item) => {
+                  const modelName = item?.model_name;
 
-                return (
-                  typeof modelName === 'string' &&
-                  modelName.trim() !== '' &&
-                  PLAYGROUND_IMAGE_MODEL_HINTS.some((hint) =>
-                    modelName.toLowerCase().includes(hint),
-                  )
-                );
-              })
-              .map((item) => item.model_name)
-              .filter(Boolean),
+                  return (
+                    typeof modelName === 'string' &&
+                    modelName.trim() !== '' &&
+                    PLAYGROUND_IMAGE_MODEL_HINTS.some((hint) =>
+                      modelName.toLowerCase().includes(hint),
+                    )
+                  );
+                })
+                .map((item) => item.model_name)
+                .filter(Boolean),
+            ),
           ),
         );
 

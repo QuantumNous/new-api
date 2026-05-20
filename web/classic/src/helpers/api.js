@@ -208,10 +208,17 @@ export const handleApiError = (error, response = null) => {
 
 // 处理模型数据
 export const processModelsData = (data, currentModel) => {
-  const modelOptions = data.map((model) => ({
-    label: model,
-    value: model,
-  }));
+  const modelOptions = [...data]
+    .sort((left, right) =>
+      String(left).localeCompare(String(right), undefined, {
+        numeric: true,
+        sensitivity: 'base',
+      }),
+    )
+    .map((model) => ({
+      label: model,
+      value: model,
+    }));
 
   const hasCurrentModel = modelOptions.some(
     (option) => option.value === currentModel,
