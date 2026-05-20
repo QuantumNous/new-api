@@ -198,7 +198,10 @@ export function transformChannelToFormDefaults(
       const parsed = JSON.parse(channel.settings)
       vertexKeyType = parsed.vertex_key_type || 'json'
       azureResponsesVersion = parsed.azure_responses_version || ''
-      openaiAdminKey = parsed.openai_admin_key || ''
+      // openai_admin_key is intentionally NOT loaded from the channel response — the
+      // backend masks it on read for security, and the field must start empty in edit
+      // mode so the user can leave it blank to preserve the existing value.
+      openaiAdminKey = ''
       isEnterpriseAccount = parsed.openrouter_enterprise === true
       awsKeyType = parsed.aws_key_type || 'ak_sk'
       allowServiceTier = parsed.allow_service_tier === true
@@ -315,9 +318,18 @@ function buildSettingsJSON(formData: ChannelFormValues): string {
     delete settingsObj.azure_responses_version
   }
 
-  // Add openai_admin_key for OpenAI channels (type 1)
-  if (formData.type === 1 && formData.openai_admin_key) {
-    settingsObj.openai_admin_key = formData.openai_admin_key
+  // Add openai_admin_key for OpenAI channels (type 1).
+  // Empty value means "keep existing" — backend preserves the stored admin key when the
+  // payload omits it, mirroring the behavior of the main inference `key` field. Do NOT
+  // delete the field on empty here; let the backend reconcile.
+  if (formData.type === 1) {
+    if (formData.openai_admin_key) {
+      settingsObj.openai_admin_key = formData.openai_admin_key
+    } else {
+      // Strip any masked/empty value carried over from the parsed `settings` field so we
+      // don't send a stray empty string; backend will copy the existing value from DB.
+      delete settingsObj.openai_admin_key
+    }
   } else if ('openai_admin_key' in settingsObj) {
     delete settingsObj.openai_admin_key
   }

@@ -2009,23 +2009,28 @@ export function ChannelMutateDrawer({
                   <FormField
                     control={form.control}
                     name='openai_admin_key'
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>{t('OpenAI Admin Key')}</FormLabel>
-                        <FormControl>
-                          <Textarea
-                            placeholder='sk-admin-...'
-                            rows={2}
-                            {...field}
-                          />
-                        </FormControl>
-                        <FormDescription>
-                          {t(
-                            'Admin key (sk-admin-...) used for fetching usage statistics. Not used for inference.'
-                          )}
-                        </FormDescription>
-                      </FormItem>
-                    )}
+                    render={({ field }) => {
+                      const adminKeyPlaceholder = isEditing
+                        ? t('Leave empty to keep existing admin key')
+                        : 'sk-admin-...'
+                      return (
+                        <FormItem>
+                          <FormLabel>{t('OpenAI Admin Key')}</FormLabel>
+                          <FormControl>
+                            <Textarea
+                              placeholder={adminKeyPlaceholder}
+                              rows={2}
+                              {...field}
+                            />
+                          </FormControl>
+                          <FormDescription>
+                            {t(
+                              'Admin key (sk-admin-...) used for fetching usage statistics. Not used for inference.'
+                            )}
+                          </FormDescription>
+                        </FormItem>
+                      )
+                    }}
                   />
                 )}
 
