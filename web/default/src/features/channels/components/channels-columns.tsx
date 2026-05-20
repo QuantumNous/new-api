@@ -29,11 +29,11 @@ import {
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { getCurrencyLabel } from '@/lib/currency'
 import {
-  formatTimestampToDate,
-  formatQuota as formatQuotaValue,
-} from '@/lib/format'
+  formatQuotaForOpsCenter,
+  formatWalletAmountForOpsCenter,
+} from '@/lib/ops-billing-display'
+import { formatTimestampToDate } from '@/lib/format'
 import { getLobeIcon } from '@/lib/lobe-icon'
 import { cn, truncateText } from '@/lib/utils'
 import { TruncatedText } from '@/components/truncated-text'
@@ -56,7 +56,6 @@ import {
 import { getCodexUsage } from '../api'
 import { CHANNEL_STATUS_CONFIG, MODEL_FETCHABLE_TYPES } from '../constants'
 import {
-  formatBalance,
   formatRelativeTime,
   formatResponseTime,
   getBalanceVariant,
@@ -217,7 +216,14 @@ function PriorityCell({ channel }: { channel: Channel }) {
           open={confirmOpen}
           onOpenChange={setConfirmOpen}
           title={t('Confirm Batch Update')}
-          desc={`This will update the priority to ${pendingValue} for all ${channelCount} channel(s) with tag "${tag}". Continue?`}
+          desc={t(
+            'This will update the priority to {{value}} for all {{count}} service channel(s) with tag "{{tag}}". Continue?',
+            {
+              value: pendingValue ?? 0,
+              count: channelCount,
+              tag,
+            }
+          )}
           confirmText='Update'
           handleConfirm={() => {
             if (pendingValue !== null) {
@@ -272,7 +278,14 @@ function WeightCell({ channel }: { channel: Channel }) {
           open={confirmOpen}
           onOpenChange={setConfirmOpen}
           title={t('Confirm Batch Update')}
-          desc={`This will update the weight to ${pendingValue} for all ${channelCount} channel(s) with tag "${tag}". Continue?`}
+          desc={t(
+            'This will update the weight to {{value}} for all {{count}} service channel(s) with tag "{{tag}}". Continue?',
+            {
+              value: pendingValue ?? 0,
+              count: channelCount,
+              tag,
+            }
+          )}
           confirmText='Update'
           handleConfirm={() => {
             if (pendingValue !== null) {
@@ -310,19 +323,14 @@ function BalanceCell({ channel }: { channel: Channel }) {
   const [codexUsageOpen, setCodexUsageOpen] = useState(false)
   const [codexUsageResponse, setCodexUsageResponse] =
     useState<CodexUsageDialogData | null>(null)
-  const currencyLabel = getCurrencyLabel()
-  const tokenSuffix = currencyLabel === 'Tokens' ? ' Tokens' : ''
-  const withSuffix = (value: string) =>
-    tokenSuffix && value !== '-' ? `${value}${tokenSuffix}` : value
-
-  const usedDisplay = withSuffix(formatQuotaValue(usedQuota))
-  const remainingDisplay = withSuffix(formatBalance(balance))
+  const usedDisplay = formatQuotaForOpsCenter(usedQuota)
+  const remainingDisplay = formatWalletAmountForOpsCenter(balance)
 
   // Tag row: only show cumulative used quota
   if (isTagRow) {
     return (
       <StatusBadge
-        label={`Used: ${usedDisplay}`}
+        label={`${t('Used:')} ${usedDisplay}`}
         variant='neutral'
         size='sm'
         copyable={false}
@@ -397,7 +405,7 @@ function BalanceCell({ channel }: { channel: Channel }) {
             }
           >
             {isUpdating
-              ? 'Updating...'
+              ? t('Updating...')
               : channel.type === 57
                 ? t('Account Info')
                 : remainingDisplay}
@@ -487,7 +495,7 @@ export function useChannelsColumns(): ColumnDef<Channel>[] {
       accessorKey: 'id',
       meta: { label: t('ID'), mobileHidden: true },
       header: ({ column }) => (
-        <DataTableColumnHeader column={column} title='ID' />
+        <DataTableColumnHeader column={column} title={t('ID')} />
       ),
       cell: ({ row }) => {
         const id = row.getValue('id') as number

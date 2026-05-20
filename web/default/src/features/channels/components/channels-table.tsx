@@ -32,6 +32,7 @@ import {
 import { useDebounce, useMediaQuery } from '@/hooks'
 import { useTranslation } from 'react-i18next'
 import { getLobeIcon } from '@/lib/lobe-icon'
+import { cn } from '@/lib/utils'
 import { useTableUrlState } from '@/hooks/use-table-url-state'
 import { Input } from '@/components/ui/input'
 import {
@@ -58,6 +59,26 @@ import { useChannels } from './channels-provider'
 import { DataTableBulkActions } from './data-table-bulk-actions'
 
 const route = getRouteApi('/_authenticated/channels/')
+
+const channelsToolbarClassName = cn(
+  '[&_input]:border-white/15 [&_input]:bg-slate-950/50 [&_input]:text-slate-100',
+  '[&_input::placeholder]:text-slate-500'
+)
+
+const channelsTableHeaderClassName = cn(
+  'bg-slate-900/80 text-slate-200',
+  '[&_th]:border-white/10 [&_th]:text-slate-200',
+  '[&_button]:text-slate-200',
+  '[&_svg]:text-slate-400',
+  '[&_[data-slot=checkbox]]:border-white/25'
+)
+
+const channelsTableClassName = cn(
+  'border-white/10 bg-slate-900/40',
+  '[&_[data-slot=empty-title]]:text-slate-100',
+  '[&_[data-slot=empty-description]]:text-slate-400',
+  '[&_[data-slot=empty-icon]]:text-slate-300'
+)
 
 const CHANNEL_SORTABLE_COLUMNS = new Set<ChannelSortBy>([
   'id',
@@ -350,7 +371,7 @@ export function ChannelsTable() {
 
     return [
       {
-        label: 'All Types',
+        label: t('All Types'),
         value: 'all',
         count: totalTypes,
       },
@@ -383,14 +404,17 @@ export function ChannelsTable() {
       )}
       skeletonKeyPrefix='channel-skeleton'
       applyHeaderSize
+      tableHeaderClassName={channelsTableHeaderClassName}
+      tableClassName={channelsTableClassName}
       toolbarProps={{
         searchPlaceholder: t('Filter by name, ID, or key...'),
+        className: channelsToolbarClassName,
         additionalSearch: (
           <Input
             placeholder={t('Filter by model...')}
             value={modelFilterInput}
             onChange={(e) => setModelFilterInput(e.target.value)}
-            className='w-full sm:w-[150px] lg:w-[180px]'
+            className='w-full border-white/15 bg-slate-950/50 text-slate-100 placeholder:text-slate-500 sm:w-[150px] lg:w-[180px]'
           />
         ),
         filters: [

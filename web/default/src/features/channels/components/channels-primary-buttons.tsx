@@ -31,6 +31,7 @@ import {
   ArrowUpFromLine,
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -51,6 +52,26 @@ import {
   handleUpdateAllBalances,
 } from '../lib'
 import { useChannels } from './channels-provider'
+
+const channelsToggleShellClassName = cn(
+  'border-white/15 bg-slate-900/50',
+  '[&_label]:text-slate-100',
+  '[&_svg]:text-slate-300'
+)
+
+const channelsSwitchClassName = cn(
+  'border border-white/20 shadow-sm',
+  'data-unchecked:!bg-white/15',
+  'data-checked:!bg-indigo-500',
+  '[&_[data-slot=switch-thumb]]:!bg-white',
+  'data-unchecked:[&_[data-slot=switch-thumb]]:!bg-slate-200'
+)
+
+const channelsOutlineButtonClassName = cn(
+  'border-white/15 bg-slate-900/70 text-slate-100',
+  'hover:bg-white/15 hover:text-white',
+  '[&_svg]:text-slate-200'
+)
 
 export function ChannelsPrimaryButtons() {
   const { t } = useTranslation()
@@ -79,8 +100,13 @@ export function ChannelsPrimaryButtons() {
     <>
       <div className='flex items-center gap-2'>
         {/* Desktop: Toggle switches visible */}
-        <div className='hidden items-center gap-2 rounded-md border px-3 py-1.5 sm:flex'>
-          <Tags className='text-muted-foreground h-4 w-4' />
+        <div
+          className={cn(
+            'hidden items-center gap-2 rounded-md border px-3 py-1.5 sm:flex',
+            channelsToggleShellClassName
+          )}
+        >
+          <Tags className='h-4 w-4' />
           <Label htmlFor='tag-mode' className='cursor-pointer text-sm'>
             {t('Tag Mode')}
           </Label>
@@ -88,11 +114,17 @@ export function ChannelsPrimaryButtons() {
             id='tag-mode'
             checked={enableTagMode}
             onCheckedChange={handleTagModeToggle}
+            className={channelsSwitchClassName}
           />
         </div>
 
-        <div className='hidden items-center gap-2 rounded-md border px-3 py-1.5 sm:flex'>
-          <SortAsc className='text-muted-foreground h-4 w-4' />
+        <div
+          className={cn(
+            'hidden items-center gap-2 rounded-md border px-3 py-1.5 sm:flex',
+            channelsToggleShellClassName
+          )}
+        >
+          <SortAsc className='h-4 w-4' />
           <Label htmlFor='id-sort' className='cursor-pointer text-sm'>
             {t('Sort by ID')}
           </Label>
@@ -100,6 +132,7 @@ export function ChannelsPrimaryButtons() {
             id='id-sort'
             checked={idSort}
             onCheckedChange={handleIdSortToggle}
+            className={channelsSwitchClassName}
           />
         </div>
 
@@ -112,7 +145,15 @@ export function ChannelsPrimaryButtons() {
 
         {/* More Actions */}
         <DropdownMenu>
-          <DropdownMenuTrigger render={<Button variant='outline' size='sm' />}>
+          <DropdownMenuTrigger
+            render={
+              <Button
+                variant='outline'
+                size='sm'
+                className={channelsOutlineButtonClassName}
+              />
+            }
+          >
             <MoreHorizontal className='h-4 w-4' />
           </DropdownMenuTrigger>
           <DropdownMenuContent align='end' className='w-56'>
@@ -219,7 +260,9 @@ export function ChannelsPrimaryButtons() {
         open={showDeleteDialog}
         onOpenChange={setShowDeleteDialog}
         title={t('Delete All Disabled Channels?')}
-        desc='This will permanently delete all manually and automatically disabled channels. This action cannot be undone.'
+        desc={t(
+          'This will permanently delete all manually and automatically disabled channels. This action cannot be undone.'
+        )}
         destructive
         handleConfirm={() => {
           handleDeleteAllDisabled(queryClient, (_count) => {

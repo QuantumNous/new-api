@@ -615,8 +615,8 @@ function TestModelsBulkActions({
 
   const buttonLabel =
     selectedModels.length > 0
-      ? `Test ${selectedModels.length} selected`
-      : 'Test selected models'
+      ? t('Test {{count}} selected', { count: selectedModels.length })
+      : t('Test selected models')
 
   return (
     <BulkActionsToolbar table={table} entityName='model'>

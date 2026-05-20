@@ -34,10 +34,23 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import {
+  dataTablePaginationActivePageClassName,
+  dataTablePaginationOutlineButtonClassName,
+  dataTablePaginationSelectContentClassName,
+  dataTablePaginationSelectItemClassName,
+  dataTablePaginationSelectTriggerClassName,
+  dataTablePaginationTextClassName,
+} from './toolbar-button-styles'
 
 type DataTablePaginationProps<TData> = {
   table: Table<TData>
 }
+
+const paginationNavButtonClassName = cn(
+  'size-8 p-0',
+  dataTablePaginationOutlineButtonClassName
+)
 
 export function DataTablePagination<TData>({
   table,
@@ -50,13 +63,19 @@ export function DataTablePagination<TData>({
   return (
     <div
       className={cn(
+        dataTablePaginationTextClassName,
         'flex items-center justify-between overflow-clip',
         '@max-2xl/content:flex-col-reverse @max-2xl/content:gap-2 sm:@max-2xl/content:gap-4'
       )}
       style={{ overflowClipMargin: 1 }}
     >
       <div className='flex w-full items-center justify-between gap-2'>
-        <div className='flex min-w-0 items-center text-xs font-medium whitespace-nowrap sm:min-w-[130px] sm:text-sm @2xl/content:hidden'>
+        <div
+          className={cn(
+            dataTablePaginationTextClassName,
+            'flex min-w-0 items-center text-xs font-medium whitespace-nowrap sm:min-w-[130px] sm:text-sm @2xl/content:hidden'
+          )}
+        >
           {t('Page {{current}} of {{total}}', {
             current: currentPage,
             total: totalPages,
@@ -75,27 +94,50 @@ export function DataTablePagination<TData>({
               table.setPageSize(Number(value))
             }}
           >
-            <SelectTrigger className='h-8 w-[64px] sm:w-[70px]'>
+            <SelectTrigger
+              className={cn(
+                'h-8 w-[64px] sm:w-[70px]',
+                dataTablePaginationSelectTriggerClassName
+              )}
+            >
               <SelectValue placeholder={table.getState().pagination.pageSize} />
             </SelectTrigger>
-            <SelectContent side='top' alignItemWithTrigger={false}>
+            <SelectContent
+              side='top'
+              alignItemWithTrigger={false}
+              className={dataTablePaginationSelectContentClassName}
+            >
               <SelectGroup>
                 {[10, 20, 30, 40, 50, 100].map((pageSize) => (
-                  <SelectItem key={pageSize} value={`${pageSize}`}>
+                  <SelectItem
+                    key={pageSize}
+                    value={`${pageSize}`}
+                    className={dataTablePaginationSelectItemClassName}
+                  >
                     {pageSize}
                   </SelectItem>
                 ))}
               </SelectGroup>
             </SelectContent>
           </Select>
-          <p className='hidden text-sm font-medium sm:block'>
+          <p
+            className={cn(
+              dataTablePaginationTextClassName,
+              'hidden text-sm font-medium sm:block'
+            )}
+          >
             {t('Rows per page')}
           </p>
         </div>
       </div>
 
       <div className='flex items-center sm:space-x-6 lg:space-x-8'>
-        <div className='flex min-w-[130px] items-center text-sm font-medium whitespace-nowrap @max-3xl/content:hidden'>
+        <div
+          className={cn(
+            dataTablePaginationTextClassName,
+            'flex min-w-[130px] items-center text-sm font-medium whitespace-nowrap @max-3xl/content:hidden'
+          )}
+        >
           {t('Page {{current}} of {{total}}', {
             current: currentPage,
             total: totalPages,
@@ -104,7 +146,10 @@ export function DataTablePagination<TData>({
         <div className='flex items-center space-x-1.5 sm:space-x-2'>
           <Button
             variant='outline'
-            className='size-8 p-0 @max-md/content:hidden'
+            className={cn(
+              paginationNavButtonClassName,
+              '@max-md/content:hidden'
+            )}
             onClick={() => table.setPageIndex(0)}
             disabled={!table.getCanPreviousPage()}
           >
@@ -113,7 +158,7 @@ export function DataTablePagination<TData>({
           </Button>
           <Button
             variant='outline'
-            className='size-8 p-0'
+            className={paginationNavButtonClassName}
             onClick={() => table.previousPage()}
             disabled={!table.getCanPreviousPage()}
           >
@@ -125,11 +170,18 @@ export function DataTablePagination<TData>({
           {pageNumbers.map((pageNumber, index) => (
             <div key={`${pageNumber}-${index}`} className='flex items-center'>
               {pageNumber === '...' ? (
-                <span className='text-muted-foreground px-1 text-sm'>...</span>
+                <span className='px-1 text-sm text-slate-400'>...</span>
               ) : (
                 <Button
-                  variant={currentPage === pageNumber ? 'default' : 'outline'}
-                  className='h-8 min-w-8 px-2'
+                  variant={
+                    currentPage === pageNumber ? 'default' : 'outline'
+                  }
+                  className={cn(
+                    'h-8 min-w-8 px-2',
+                    currentPage === pageNumber
+                      ? dataTablePaginationActivePageClassName
+                      : dataTablePaginationOutlineButtonClassName
+                  )}
                   onClick={() => table.setPageIndex((pageNumber as number) - 1)}
                 >
                   <span className='sr-only'>Go to page {pageNumber}</span>
@@ -141,7 +193,7 @@ export function DataTablePagination<TData>({
 
           <Button
             variant='outline'
-            className='size-8 p-0'
+            className={paginationNavButtonClassName}
             onClick={() => table.nextPage()}
             disabled={!table.getCanNextPage()}
           >
@@ -150,7 +202,10 @@ export function DataTablePagination<TData>({
           </Button>
           <Button
             variant='outline'
-            className='size-8 p-0 @max-md/content:hidden'
+            className={cn(
+              paginationNavButtonClassName,
+              '@max-md/content:hidden'
+            )}
             onClick={() => table.setPageIndex(table.getPageCount() - 1)}
             disabled={!table.getCanNextPage()}
           >

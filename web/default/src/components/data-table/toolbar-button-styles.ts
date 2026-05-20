@@ -57,3 +57,39 @@ export const dataTableViewTriggerClassName = cn(
   'disabled:border-white/10 disabled:bg-white/10 disabled:text-slate-300 disabled:opacity-60',
   'data-disabled:border-white/10 data-disabled:bg-white/10 data-disabled:text-slate-300 data-disabled:opacity-60'
 )
+
+/** Table footer pagination on dark cockpit layouts. */
+export const dataTablePaginationTextClassName = 'text-slate-200'
+
+export const dataTablePaginationSelectTriggerClassName = cn(
+  'border-white/15 bg-slate-900/70 text-slate-100',
+  'data-placeholder:text-slate-400',
+  '[&_[data-slot=select-value]]:text-slate-100',
+  '[&_svg]:!text-slate-300'
+)
+
+export const dataTablePaginationSelectContentClassName = cn(
+  'border border-white/10 bg-slate-900 text-slate-100 ring-white/10',
+  '[&_[data-slot=select-item]]:text-slate-100',
+  'focus:[&_[data-slot=select-item]]:bg-white/10',
+  'focus:[&_[data-slot=select-item]]:text-white'
+)
+
+export const dataTablePaginationSelectItemClassName = cn(
+  'text-slate-100 focus:bg-white/10 focus:text-white'
+)
+
+export const dataTablePaginationOutlineButtonClassName = cn(
+  'border-white/15 bg-slate-900/70 text-slate-100',
+  'hover:bg-white/15 hover:text-white',
+  '[&_svg]:text-slate-300',
+  'hover:[&_svg]:text-white',
+  'disabled:pointer-events-none disabled:border-white/10 disabled:bg-white/5',
+  'disabled:text-slate-400 disabled:opacity-60',
+  'disabled:[&_svg]:text-slate-500'
+)
+
+export const dataTablePaginationActivePageClassName = cn(
+  'border-indigo-500/60 bg-indigo-500 text-white',
+  'hover:bg-indigo-400 hover:text-white'
+)
