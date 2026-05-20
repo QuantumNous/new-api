@@ -159,3 +159,20 @@ func TestUpdateChannelOpenAIBalance_Upstream403(t *testing.T) {
 	require.NoError(t, model.DB.First(&fresh, ch.Id).Error)
 	require.Equal(t, float64(0), fresh.Balance)
 }
+
+func TestUpdateChannelOpenAIBalance_BadJSON(t *testing.T) {
+	_ = openTokenControllerTestDB(t)
+
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = fmt.Fprint(w, `not-json-garbage`)
+	}))
+	defer ts.Close()
+
+	ch := buildOpenAIChannelWithAdminKey(t, ts.URL, "sk-admin-test")
+
+	balance, err := updateChannelOpenAIBalance(ch)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "parse openai usage")
+	require.Equal(t, float64(0), balance)
+}
