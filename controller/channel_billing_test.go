@@ -206,6 +206,113 @@ func TestUpdateChannelOpenAIBalance_StartTimeIsFirstOfMonthUTC(t *testing.T) {
 	require.Equal(t, "31", got.Get("limit"))
 }
 
+func TestUpdateChannelOpenAIBalance_PrepaidRemaining(t *testing.T) {
+	_ = openTokenControllerTestDB(t)
+
+	var capturedQuery url.Values
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		capturedQuery = r.URL.Query()
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = fmt.Fprint(w, `{
+            "object": "page",
+            "data": [{"object": "bucket","start_time": 0,"end_time": 0,
+                "results": [{"object": "organization.costs.result","amount": {"value": 3.25,"currency": "usd"}}]}],
+            "has_more": false,
+            "next_page": ""
+        }`)
+	}))
+	defer ts.Close()
+
+	settings := dto.ChannelOtherSettings{
+		OpenAIAdminKey:      "sk-admin-test",
+		OpenAIPrepaidAmount: 20.0,
+		OpenAIPrepaidSince:  1700000000,
+	}
+	require.NoError(t, model.DB.AutoMigrate(&model.Channel{}))
+	encoded, _ := common.Marshal(settings)
+	bURL := ts.URL
+	ch := &model.Channel{
+		Type: constant.ChannelTypeOpenAI, Key: "sk-fake",
+		Status: 1, Name: "test", BaseURL: &bURL,
+		OtherSettings: string(encoded),
+	}
+	require.NoError(t, model.DB.Create(ch).Error)
+
+	balance, err := updateChannelOpenAIBalance(ch)
+	require.NoError(t, err)
+	require.InDelta(t, 16.75, balance, 0.001) // 20.0 - 3.25 remaining
+	require.Equal(t, "1700000000", capturedQuery.Get("start_time"))
+}
+
+func TestUpdateChannelOpenAIBalance_PrepaidExhausted(t *testing.T) {
+	_ = openTokenControllerTestDB(t)
+
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = fmt.Fprint(w, `{
+            "object": "page",
+            "data": [{"object": "bucket","start_time": 0,"end_time": 0,
+                "results": [{"object": "organization.costs.result","amount": {"value": 25.0,"currency": "usd"}}]}],
+            "has_more": false,
+            "next_page": ""
+        }`)
+	}))
+	defer ts.Close()
+
+	settings := dto.ChannelOtherSettings{
+		OpenAIAdminKey: "sk-admin-test", OpenAIPrepaidAmount: 20.0, OpenAIPrepaidSince: 1700000000,
+	}
+	require.NoError(t, model.DB.AutoMigrate(&model.Channel{}))
+	encoded, _ := common.Marshal(settings)
+	bURL := ts.URL
+	ch := &model.Channel{
+		Type: constant.ChannelTypeOpenAI, Key: "sk-fake",
+		Status: 1, Name: "test", BaseURL: &bURL,
+		OtherSettings: string(encoded),
+	}
+	require.NoError(t, model.DB.Create(ch).Error)
+
+	balance, err := updateChannelOpenAIBalance(ch)
+	require.NoError(t, err)
+	require.Equal(t, float64(0), balance) // cost > prepaid: clamp to 0
+}
+
+func TestUpdateChannelOpenAIBalance_PrepaidPartialUnsetFallsBackToMTD(t *testing.T) {
+	_ = openTokenControllerTestDB(t)
+
+	var capturedQuery url.Values
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		capturedQuery = r.URL.Query()
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = fmt.Fprint(w, `{
+            "object": "page",
+            "data": [],
+            "has_more": false,
+            "next_page": ""
+        }`)
+	}))
+	defer ts.Close()
+
+	// Only prepaid_amount set, NOT prepaid_since — should fall back to MTD
+	settings := dto.ChannelOtherSettings{
+		OpenAIAdminKey: "sk-admin-test", OpenAIPrepaidAmount: 20.0, // OpenAIPrepaidSince: 0 (unset)
+	}
+	require.NoError(t, model.DB.AutoMigrate(&model.Channel{}))
+	encoded, _ := common.Marshal(settings)
+	bURL := ts.URL
+	ch := &model.Channel{
+		Type: constant.ChannelTypeOpenAI, Key: "sk-fake",
+		Status: 1, Name: "test", BaseURL: &bURL,
+		OtherSettings: string(encoded),
+	}
+	require.NoError(t, model.DB.Create(ch).Error)
+
+	_, err := updateChannelOpenAIBalance(ch)
+	require.NoError(t, err)
+	// start_time should be 1st of current month UTC (fallback path)
+	require.Equal(t, strconv.FormatInt(firstDayOfCurrentMonthUTC(), 10), capturedQuery.Get("start_time"))
+}
+
 // TestChannelClean_RemovesOpenAIAdminKey verifies that Channel.Clean zeroes out the inference
 // Key column AND the OpenAIAdminKey nested in OtherSettings JSON. This is the core masking
 // guarantee that prevents the admin key from being exposed in GET /api/channel/<id> responses
