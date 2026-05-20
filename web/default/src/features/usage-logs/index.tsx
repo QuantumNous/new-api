@@ -37,7 +37,8 @@ import {
 } from './section-registry'
 
 const route = getRouteApi('/_authenticated/usage-logs/$section')
-const TASK_LOG_SECTIONS = ['drawing', 'task'] as const
+/** Task audit is listed before drawing audit (product default). */
+const TASK_LOG_SECTIONS = ['task', 'drawing'] as const
 
 const SECTION_META: Record<
   UsageLogsSectionId,

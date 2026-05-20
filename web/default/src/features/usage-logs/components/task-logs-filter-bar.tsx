@@ -164,8 +164,8 @@ export function TaskLogsFilterBar<TData>(props: TaskLogsFilterBarProps<TData>) {
   const filterValue = getFilterValue(filters, props.logCategory)
   const placeholder =
     props.logCategory === 'drawing'
-      ? t('Filter by Midjourney task ID')
-      : t('Filter by task ID')
+      ? t('usageLogs.filter.drawing_task_id')
+      : t('usageLogs.filter.task_id')
   const searchInputClass = cn(
     'h-8 w-full sm:w-[180px] lg:w-[200px]',
     usageLogsFilterSearchInputClassName
@@ -193,7 +193,11 @@ export function TaskLogsFilterBar<TData>(props: TaskLogsFilterBarProps<TData>) {
       additionalSearch={
         <>
           <Input
-            aria-label={t('Task ID')}
+            aria-label={
+              props.logCategory === 'drawing'
+                ? t('usageLogs.col.drawing_task_id')
+                : t('usageLogs.col.task_id')
+            }
             placeholder={placeholder}
             value={filterValue}
             onChange={(e) => handleFilterChange(e.target.value)}

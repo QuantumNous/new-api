@@ -144,7 +144,10 @@ export function useDrawingLogsColumns(
   columns.push({
     accessorKey: 'mj_id',
     header: ({ column }) => (
-      <DataTableColumnHeader column={column} title={t('Task ID')} />
+      <DataTableColumnHeader
+        column={column}
+        title={t('usageLogs.col.drawing_task_id')}
+      />
     ),
     cell: ({ row }) => {
       const mjId = row.getValue('mj_id') as string
@@ -165,7 +168,7 @@ export function useDrawingLogsColumns(
         </div>
       )
     },
-    meta: { label: t('Task ID'), mobileTitle: true },
+    meta: { label: t('usageLogs.col.drawing_task_id'), mobileTitle: true },
   })
 
   columns.push(

@@ -110,7 +110,7 @@ export function SidebarModulesSection({
       },
       midjourney: {
         title: t('Drawing Audit Records'),
-        description: t('History of Midjourney-style image tasks.'),
+        description: t('usageLogs.page.drawing.description'),
       },
       task: {
         title: t('Task Audit Records'),

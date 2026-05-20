@@ -29,15 +29,15 @@ const USAGE_LOGS_SECTIONS = [
     build: () => null, // Content is rendered directly in the page component
   },
   {
-    id: 'drawing',
-    titleKey: 'Drawing Audit Records',
-    descriptionKey: 'usageLogs.page.drawing.description',
-    build: () => null, // Content is rendered directly in the page component
-  },
-  {
     id: 'task',
     titleKey: 'Task Audit Records',
     descriptionKey: 'usageLogs.page.task.description',
+    build: () => null, // Content is rendered directly in the page component
+  },
+  {
+    id: 'drawing',
+    titleKey: 'Drawing Audit Records',
+    descriptionKey: 'usageLogs.page.drawing.description',
     build: () => null, // Content is rendered directly in the page component
   },
 ] as const

@@ -68,11 +68,11 @@ export function ImageDialog({
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className='sm:max-w-3xl'>
         <DialogHeader>
-          <DialogTitle>{t('Image Preview')}</DialogTitle>
+          <DialogTitle>{t('usageLogs.dialog.image.title')}</DialogTitle>
           <DialogDescription>
             {taskId
-              ? `${t('Task ID:')} ${taskId}`
-              : t('View the generated image')}
+              ? `${t('usageLogs.dialog.image.task_id_label')}: ${taskId}`
+              : t('usageLogs.dialog.image.description')}
           </DialogDescription>
         </DialogHeader>
 
@@ -87,7 +87,7 @@ export function ImageDialog({
               {/* Actual Image */}
               <img
                 src={imageUrl}
-                alt={t('Generated image')}
+                alt={t('usageLogs.dialog.image.alt')}
                 className={`max-h-[550px] w-full rounded-lg object-contain ${
                   isLoading || hasError ? 'opacity-0' : 'opacity-100'
                 }`}
@@ -100,7 +100,7 @@ export function ImageDialog({
               {hasError && (
                 <div className='absolute inset-0 flex items-center justify-center'>
                   <p className='text-muted-foreground text-sm'>
-                    {t('Failed to load image')}
+                    {t('usageLogs.dialog.image.load_failed')}
                   </p>
                 </div>
               )}

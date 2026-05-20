@@ -95,7 +95,7 @@ export function useSidebarData(): SidebarData {
             title: t('Task Audit Records'),
             url: '/usage-logs/task',
             activeUrls: ['/usage-logs/drawing'],
-            configUrls: ['/usage-logs/drawing', '/usage-logs/task'],
+            configUrls: ['/usage-logs/task', '/usage-logs/drawing'],
             icon: ListTodo,
           },
         ],
