@@ -360,6 +360,8 @@ func updateChannelMoonshotBalance(channel *model.Channel) (float64, error) {
 
 // Costs API response structures (https://platform.openai.com/docs/api-reference/usage/costs)
 
+const openAICostsMaxPages = 50 // safety cap for pagination; daily buckets over a month never exceed this
+
 type openAICostsResponse struct {
 	Object   string             `json:"object"`
 	Data     []openAICostBucket `json:"data"`
@@ -406,13 +408,14 @@ func updateChannelOpenAIBalance(channel *model.Channel) (float64, error) {
 
 	var total float64
 	pageToken := ""
-	for {
+	exhausted := true
+	for iter := 0; iter < openAICostsMaxPages; iter++ {
 		query := url.Values{}
 		query.Set("start_time", strconv.FormatInt(start, 10))
 		query.Set("end_time", strconv.FormatInt(end, 10))
 		query.Set("limit", "31")
 		if pageToken != "" {
-			query.Set("page_token", pageToken)
+			query.Set("page", pageToken)
 		}
 		fullURL := fmt.Sprintf("%s/v1/organization/costs?%s", baseURL, query.Encode())
 
@@ -433,9 +436,13 @@ func updateChannelOpenAIBalance(channel *model.Channel) (float64, error) {
 		}
 
 		if !resp.HasMore || resp.NextPage == "" {
+			exhausted = false
 			break
 		}
 		pageToken = resp.NextPage
+	}
+	if exhausted {
+		return total, fmt.Errorf("openai costs pagination did not terminate after %d pages", openAICostsMaxPages)
 	}
 
 	channel.UpdateBalance(total)
