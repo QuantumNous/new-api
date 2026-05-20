@@ -33,7 +33,7 @@ import {
 import { useTranslation } from 'react-i18next'
 import {
   formatBillingAmountForOpsCenter,
-  formatLogQuotaForOpsCenter,
+  formatUsageLogQuotaDisplay,
 } from '@/lib/ops-billing-display'
 import { formatTokens, formatUseTime } from '@/lib/format'
 import { cn } from '@/lib/utils'
@@ -61,7 +61,32 @@ import {
   isViolationFeeLog,
   getFirstResponseTimeColor,
   getResponseTimeColor,
+  formatLogContentSummaryForDisplay,
 } from '../../lib/format'
+import {
+  usageLogsDialogBackendPreClassName,
+  usageLogsDialogBackendTextClassName,
+  usageLogsDialogContentPanelClassName,
+  usageLogsDialogContentTextClassName,
+  usageLogsDialogCopyButtonClassName,
+  usageLogsDialogCopyButtonInlineClassName,
+  usageLogsDialogLabelClassName,
+  usageLogsDialogMutedInlineClassName,
+  usageLogsDialogParamOverrideContentClassName,
+  usageLogsDialogParamOverrideRowClassName,
+  usageLogsDialogSectionDangerClassName,
+  usageLogsDialogSectionDangerLabelClassName,
+  usageLogsDialogSectionLabelClassName,
+  usageLogsDialogSectionPanelClassName,
+  usageLogsDialogTieredPanelClassName,
+  usageLogsDialogTimingDangerClassName,
+  usageLogsDialogTimingSuccessClassName,
+  usageLogsDialogTimingWarningClassName,
+  usageLogsDialogTitleClassName,
+  usageLogsDialogValueClassName,
+  usageLogsDialogValueMutedClassName,
+  usageLogsDialogWarningTextClassName,
+} from '../../lib/ops-ui-styles'
 import {
   getLogTypeConfig,
   isPerCallBilling,
@@ -72,9 +97,9 @@ import type { LogOtherData } from '../../types'
 function timingTextColorClass(
   variant: 'success' | 'warning' | 'danger'
 ): string {
-  if (variant === 'success') return 'text-emerald-600'
-  if (variant === 'warning') return 'text-amber-600'
-  return 'text-rose-600'
+  if (variant === 'success') return usageLogsDialogTimingSuccessClassName
+  if (variant === 'warning') return usageLogsDialogTimingWarningClassName
+  return usageLogsDialogTimingDangerClassName
 }
 
 function DetailRow(props: {
@@ -85,14 +110,13 @@ function DetailRow(props: {
 }) {
   return (
     <div className='grid min-w-0 grid-cols-[5.25rem_minmax(0,1fr)] gap-2 text-sm sm:grid-cols-[7rem_minmax(0,1fr)] sm:gap-3'>
-      <span className='text-muted-foreground min-w-0 text-xs'>
-        {props.label}
-      </span>
+      <span className={usageLogsDialogLabelClassName}>{props.label}</span>
       <span
         className={cn(
-          'max-w-full min-w-0 text-xs break-all sm:break-words',
-          props.mono && 'font-mono',
-          props.muted && 'text-muted-foreground'
+          props.muted
+            ? usageLogsDialogValueMutedClassName
+            : usageLogsDialogValueClassName,
+          props.mono && 'font-mono'
         )}
       >
         {props.value}
@@ -112,20 +136,20 @@ function DetailSection(props: {
     <div className='min-w-0 space-y-1.5'>
       <Label
         className={cn(
-          'flex items-center gap-1.5 text-xs font-semibold',
-          isDanger && 'text-red-500'
+          isDanger
+            ? usageLogsDialogSectionDangerLabelClassName
+            : usageLogsDialogSectionLabelClassName
         )}
       >
         {props.icon}
         {props.label}
       </Label>
       <div
-        className={cn(
-          'min-w-0 space-y-1 overflow-hidden rounded-md border p-2.5 max-sm:p-2',
+        className={
           isDanger
-            ? 'border-red-200 bg-red-50 dark:border-red-900 dark:bg-red-950/20'
-            : 'bg-muted/30'
-        )}
+            ? usageLogsDialogSectionDangerClassName
+            : usageLogsDialogSectionPanelClassName
+        }
       >
         {props.children}
       </div>
@@ -184,7 +208,7 @@ function BillingBreakdown(props: {
     rows.push({ label: t('Billing Mode'), value: t('Per-call') })
     if (other.model_price != null) {
       rows.push({
-        label: t('Model Price'),
+        label: t('usageLogs.dialog.model_unit_price'),
         value: fmtPrice(other.model_price),
       })
     }
@@ -192,13 +216,13 @@ function BillingBreakdown(props: {
     rows.push({ label: t('Billing Mode'), value: t('Per-token') })
     if (other.model_ratio != null) {
       rows.push({
-        label: t('Input'),
+        label: t('usageLogs.dialog.input_unit_price'),
         value: `${fmtPrice(baseInputUSD)}/M`,
       })
     }
     if (other.completion_ratio != null && other.model_ratio != null) {
       rows.push({
-        label: t('Output'),
+        label: t('usageLogs.dialog.output_unit_price'),
         value: `${fmtPrice(baseInputUSD * other.completion_ratio)}/M`,
       })
     }
@@ -217,7 +241,7 @@ function BillingBreakdown(props: {
   if (!isTieredExpr && isClaude && hasAnyCacheTokens(other)) {
     if (other.cache_ratio != null && other.cache_ratio !== 1) {
       rows.push({
-        label: t('Cache Read'),
+        label: t('usageLogs.dialog.cache_read_unit_price'),
         value: `${fmtPrice(baseInputUSD * other.cache_ratio)}/M`,
       })
     }
@@ -226,7 +250,7 @@ function BillingBreakdown(props: {
       other.cache_creation_ratio !== 1
     ) {
       rows.push({
-        label: t('Cache Creation'),
+        label: t('usageLogs.dialog.cache_creation_unit_price'),
         value: `${fmtPrice(baseInputUSD * other.cache_creation_ratio)}/M`,
       })
     }
@@ -235,7 +259,7 @@ function BillingBreakdown(props: {
       other.cache_creation_ratio_5m !== 0
     ) {
       rows.push({
-        label: t('Cache Creation (5m)'),
+        label: t('usageLogs.dialog.cache_creation_5m_unit_price'),
         value: `${fmtPrice(baseInputUSD * other.cache_creation_ratio_5m)}/M`,
       })
     }
@@ -244,7 +268,7 @@ function BillingBreakdown(props: {
       other.cache_creation_ratio_1h !== 0
     ) {
       rows.push({
-        label: t('Cache Creation (1h)'),
+        label: t('usageLogs.dialog.cache_creation_1h_unit_price'),
         value: `${fmtPrice(baseInputUSD * other.cache_creation_ratio_1h)}/M`,
       })
     }
@@ -253,7 +277,7 @@ function BillingBreakdown(props: {
   if (!isTieredExpr) {
     if (other.audio_ratio != null && other.audio_ratio !== 1) {
       rows.push({
-        label: t('Audio input'),
+        label: t('usageLogs.dialog.audio_input_per_m'),
         value: `${fmtPrice(baseInputUSD * other.audio_ratio)}/M`,
       })
     }
@@ -263,14 +287,14 @@ function BillingBreakdown(props: {
       other.audio_completion_ratio !== 1
     ) {
       rows.push({
-        label: t('Audio output'),
+        label: t('usageLogs.dialog.audio_output_per_m'),
         value: `${fmtPrice(baseInputUSD * other.audio_completion_ratio)}/M`,
       })
     }
 
     if (other.image_ratio != null && other.image_ratio !== 1) {
       rows.push({
-        label: t('Image input'),
+        label: t('usageLogs.dialog.image_input_per_m'),
         value: `${fmtPrice(baseInputUSD * other.image_ratio)}/M`,
       })
     }
@@ -278,28 +302,28 @@ function BillingBreakdown(props: {
 
   if (other.web_search && other.web_search_call_count) {
     rows.push({
-      label: t('Web Search'),
+      label: t('usageLogs.dialog.web_search'),
       value: `${other.web_search_call_count}x${other.web_search_price ? ` (${fmtPrice(other.web_search_price)})` : ''}`,
     })
   }
 
   if (other.file_search && other.file_search_call_count) {
     rows.push({
-      label: t('File Search'),
+      label: t('usageLogs.dialog.file_search'),
       value: `${other.file_search_call_count}x${other.file_search_price ? ` (${fmtPrice(other.file_search_price)})` : ''}`,
     })
   }
 
   if (other.image_generation_call && other.image_generation_call_price) {
     rows.push({
-      label: t('Image Generation'),
+      label: t('usageLogs.dialog.image_generation_unit_price'),
       value: fmtPrice(other.image_generation_call_price),
     })
   }
 
   if (other.audio_input_seperate_price && other.audio_input_price) {
     rows.push({
-      label: t('Audio Input Price'),
+      label: t('usageLogs.dialog.audio_input_unit_price'),
       value: fmtPrice(other.audio_input_price),
     })
   }
@@ -314,14 +338,14 @@ function BillingBreakdown(props: {
   }
 
   rows.push({
-    label: t('Total Cost'),
-    value: formatLogQuotaForOpsCenter(log.quota),
+    label: t('usageLogs.dialog.quota_consumption'),
+    value: formatUsageLogQuotaDisplay(log.quota),
   })
 
   if (rows.length === 0) return null
 
   return (
-    <DetailSection label={t('Billing Details')}>
+    <DetailSection label={t('usageLogs.dialog.billing_details')}>
       {rows.map((row, idx) => (
         <DetailRow key={idx} label={row.label} value={row.value} mono />
       ))}
@@ -345,49 +369,52 @@ function TokenBreakdown(props: { log: UsageLog; other: LogOtherData }) {
 
   const rows: Array<{ label: string; value: string }> = []
 
-  rows.push({ label: t('Input Tokens'), value: promptTokens.toLocaleString() })
   rows.push({
-    label: t('Output Tokens'),
+    label: t('usageLogs.dialog.input_tokens'),
+    value: promptTokens.toLocaleString(),
+  })
+  rows.push({
+    label: t('usageLogs.dialog.output_tokens'),
     value: completionTokens.toLocaleString(),
   })
 
   if (cacheRead > 0) {
     rows.push({
-      label: t('Cache Read'),
+      label: t('usageLogs.dialog.cache_read_tokens'),
       value: cacheRead.toLocaleString(),
     })
   }
 
   if (cacheWrite > 0 && cacheWrite5m === 0 && cacheWrite1h === 0) {
     rows.push({
-      label: t('Cache Write'),
+      label: t('usageLogs.dialog.cache_write_tokens'),
       value: cacheWrite.toLocaleString(),
     })
   }
 
   if (cacheWrite5m > 0) {
     rows.push({
-      label: t('Cache Write (5m)'),
+      label: t('usageLogs.dialog.cache_write_5m_tokens'),
       value: cacheWrite5m.toLocaleString(),
     })
   }
 
   if (cacheWrite1h > 0) {
     rows.push({
-      label: t('Cache Write (1h)'),
+      label: t('usageLogs.dialog.cache_write_1h_tokens'),
       value: cacheWrite1h.toLocaleString(),
     })
   }
 
   if (other.image && other.image_output) {
     rows.push({
-      label: t('Image Tokens'),
+      label: t('usageLogs.dialog.image_output_tokens'),
       value: other.image_output.toLocaleString(),
     })
   }
 
   return (
-    <DetailSection label={t('Token Breakdown')}>
+    <DetailSection label={t('usageLogs.dialog.token_breakdown')}>
       {rows.map((row, idx) => (
         <DetailRow key={idx} label={row.label} value={row.value} mono />
       ))}
@@ -405,7 +432,11 @@ interface DetailsDialogProps {
 export function DetailsDialog(props: DetailsDialogProps) {
   const { t } = useTranslation()
   const { copiedText, copyToClipboard } = useCopyToClipboard({ notify: false })
-  const details = props.log.content ?? ''
+  const rawDetails = props.log.content ?? ''
+  const displayDetails = formatLogContentSummaryForDisplay(
+    rawDetails,
+    props.log.type
+  )
   const other = parseLogOther(props.log.other)
   const typeConfig = getLogTypeConfig(props.log.type)
 
@@ -466,9 +497,14 @@ export function DetailsDialog(props: DetailsDialogProps) {
     const hasUsername = username != null && String(username).trim() !== ''
     const hasId = id != null && String(id).trim() !== ''
     if (!hasUsername && !hasId) return null
-    if (hasUsername && hasId) return `${username} (ID: ${id})`
+    if (hasUsername && hasId) {
+      return t('usageLogs.dialog.operator_display', {
+        name: username,
+        id: String(id),
+      })
+    }
     if (hasUsername) return String(username)
-    return `ID: ${id}`
+    return t('usageLogs.dialog.operator_id', { id: String(id) })
   })()
 
   const conversionChain =
@@ -477,8 +513,8 @@ export function DetailsDialog(props: DetailsDialogProps) {
       : []
   const conversionLabel =
     conversionChain.length <= 1
-      ? t('Native format')
-      : conversionChain.join(' -> ')
+      ? t('usageLogs.dialog.native_format')
+      : conversionChain.join(' → ')
   const showConversion =
     props.isAdmin &&
     props.log.type !== 6 &&
@@ -498,8 +534,13 @@ export function DetailsDialog(props: DetailsDialogProps) {
         )}
       >
         <DialogHeader className='max-sm:gap-1'>
-          <DialogTitle className='flex items-center gap-2 text-base'>
-            {t('Log Details')}
+          <DialogTitle
+            className={cn(
+              'flex items-center gap-2',
+              usageLogsDialogTitleClassName
+            )}
+          >
+            {t('usageLogs.dialog.title')}
             <StatusBadge
               label={t(typeConfig.label)}
               variant={typeConfig.color as StatusBadgeProps['variant']}
@@ -508,7 +549,7 @@ export function DetailsDialog(props: DetailsDialogProps) {
             />
           </DialogTitle>
           <DialogDescription className='sr-only'>
-            {t('View the complete details for this log entry')}
+            {t('usageLogs.dialog.sr_description')}
           </DialogDescription>
         </DialogHeader>
 
@@ -533,12 +574,12 @@ export function DetailsDialog(props: DetailsDialogProps) {
 
               {props.isAdmin && props.log.channel > 0 && (
                 <DetailRow
-                  label={t('Channel')}
+                  label={t('usageLogs.dialog.channel')}
                   value={
                     <span>
                       {props.log.channel}
                       {props.log.channel_name && (
-                        <span className='text-muted-foreground'>
+                        <span className={usageLogsDialogMutedInlineClassName}>
                           {' '}
                           ({props.log.channel_name})
                         </span>
@@ -555,7 +596,7 @@ export function DetailsDialog(props: DetailsDialogProps) {
 
               {props.log.token_name && (
                 <DetailRow
-                  label={t('Token')}
+                  label={t('usageLogs.dialog.access_key')}
                   value={props.log.token_name}
                   mono
                 />
@@ -613,7 +654,8 @@ export function DetailsDialog(props: DetailsDialogProps) {
                             )}
                           >
                             {' '}
-                            (FRT: {formatUseTime(other.frt / 1000)})
+                            ({t('usageLogs.dialog.frt')}：{' '}
+                            {formatUseTime(other.frt / 1000)})
                           </span>
                         )}
                     </span>
@@ -629,18 +671,18 @@ export function DetailsDialog(props: DetailsDialogProps) {
                   <Button
                     variant='ghost'
                     size='sm'
-                    className='absolute top-0 right-0 h-5 w-5 p-0'
+                    className={usageLogsDialogCopyButtonInlineClassName}
                     onClick={() => copyToClipboard(conversionLabel)}
                     title={t('Copy to clipboard')}
                     aria-label={t('Copy to clipboard')}
                   >
                     {copiedText === conversionLabel ? (
-                      <Check className='size-3 text-green-600' />
+                      <Check className='size-3.5 text-emerald-700' />
                     ) : (
-                      <Copy className='size-3' />
+                      <Copy className='size-3.5' />
                     )}
                   </Button>
-                  <div className='min-w-0 space-y-1 pr-6'>
+                  <div className='min-w-0 space-y-1 pr-7'>
                     {other?.request_path && (
                       <DetailRow
                         label={t('Path')}
@@ -650,10 +692,15 @@ export function DetailsDialog(props: DetailsDialogProps) {
                     )}
                     <div className='flex min-w-0 items-center gap-1.5 text-xs'>
                       <Route
-                        className='text-muted-foreground size-3'
+                        className={cn('size-3', usageLogsDialogMutedInlineClassName)}
                         aria-hidden='true'
                       />
-                      <span className='min-w-0 break-all sm:break-words'>
+                      <span
+                        className={cn(
+                          'min-w-0 break-all sm:break-words',
+                          usageLogsDialogValueClassName
+                        )}
+                      >
                         {conversionLabel}
                       </span>
                     </div>
@@ -669,7 +716,9 @@ export function DetailsDialog(props: DetailsDialogProps) {
                 label={t('Reject Reason')}
                 variant='danger'
               >
-                <p className='text-xs break-words'>{other.reject_reason}</p>
+                <p className={usageLogsDialogBackendTextClassName}>
+                  {other.reject_reason}
+                </p>
               </DetailSection>
             )}
 
@@ -694,8 +743,10 @@ export function DetailsDialog(props: DetailsDialogProps) {
                   />
                 )}
                 <DetailRow
-                  label={t('Fee Amount')}
-                  value={formatLogQuotaForOpsCenter(other.fee_quota ?? props.log.quota)}
+                  label={t('usageLogs.dialog.violation_quota')}
+                  value={formatUsageLogQuotaDisplay(
+                    other.fee_quota ?? props.log.quota
+                  )}
                   mono
                 />
               </DetailSection>
@@ -703,7 +754,7 @@ export function DetailsDialog(props: DetailsDialogProps) {
 
             {/* Refund details (type=6) */}
             {isRefund && other && (other.task_id || other.reason) && (
-              <DetailSection label={t('Refund Details')}>
+              <DetailSection label={t('usageLogs.dialog.refund_details')}>
                 {other.task_id && (
                   <DetailRow label={t('Task ID')} value={other.task_id} mono />
                 )}
@@ -717,7 +768,7 @@ export function DetailsDialog(props: DetailsDialogProps) {
             {showTopupAuditSection && (
               <DetailSection
                 icon={<ShieldCheck className='size-3.5' aria-hidden='true' />}
-                label={t('Top-up Audit Info')}
+                label={t('usageLogs.dialog.topup_audit')}
               >
                 {topupAuditFields.map((field, idx) => (
                   <DetailRow
@@ -728,7 +779,12 @@ export function DetailsDialog(props: DetailsDialogProps) {
                   />
                 ))}
                 {showLegacyTopupWarning && (
-                  <div className='flex items-start gap-1.5 text-xs text-amber-600 dark:text-amber-400'>
+                  <div
+                    className={cn(
+                      'flex items-start gap-1.5',
+                      usageLogsDialogWarningTextClassName
+                    )}
+                  >
                     <Info
                       className='mt-0.5 size-3.5 shrink-0'
                       aria-hidden='true'
@@ -749,10 +805,10 @@ export function DetailsDialog(props: DetailsDialogProps) {
                 label={
                   <span className='flex items-center gap-1.5'>
                     <UserCog
-                      className='text-muted-foreground size-3.5'
+                      className={cn('size-3.5', usageLogsDialogMutedInlineClassName)}
                       aria-hidden='true'
                     />
-                    {t('Operator Admin')}
+                    {t('usageLogs.dialog.operator_admin')}
                   </span>
                 }
                 value={manageOperator}
@@ -764,32 +820,32 @@ export function DetailsDialog(props: DetailsDialogProps) {
             {hasAudioTokens && other && (
               <DetailSection
                 icon={<Headphones className='size-3.5' aria-hidden='true' />}
-                label={t('Audio Tokens')}
+                label={t('usageLogs.dialog.audio_section')}
               >
                 {other.audio_input != null && other.audio_input > 0 && (
                   <DetailRow
-                    label={t('Audio Input')}
+                    label={t('usageLogs.dialog.audio_input')}
                     value={formatTokens(other.audio_input)}
                     mono
                   />
                 )}
                 {other.audio_output != null && other.audio_output > 0 && (
                   <DetailRow
-                    label={t('Audio Output')}
+                    label={t('usageLogs.dialog.audio_output')}
                     value={formatTokens(other.audio_output)}
                     mono
                   />
                 )}
                 {other.text_input != null && other.text_input > 0 && (
                   <DetailRow
-                    label={t('Text Input')}
+                    label={t('usageLogs.dialog.text_input')}
                     value={formatTokens(other.text_input)}
                     mono
                   />
                 )}
                 {other.text_output != null && other.text_output > 0 && (
                   <DetailRow
-                    label={t('Text Output')}
+                    label={t('usageLogs.dialog.text_output')}
                     value={formatTokens(other.text_output)}
                     mono
                   />
@@ -835,14 +891,14 @@ export function DetailsDialog(props: DetailsDialogProps) {
 
             {/* Model mapping */}
             {other?.is_model_mapped && other?.upstream_model_name && (
-              <DetailSection label={t('Model Mapping')}>
+              <DetailSection label={t('usageLogs.dialog.model_mapping')}>
                 <DetailRow
-                  label={t('Request Model')}
+                  label={t('usageLogs.dialog.request_model')}
                   value={props.log.model_name}
                   mono
                 />
                 <DetailRow
-                  label={t('Actual Model')}
+                  label={t('usageLogs.dialog.actual_model')}
                   value={other.upstream_model_name}
                   mono
                 />
@@ -865,7 +921,7 @@ export function DetailsDialog(props: DetailsDialogProps) {
 
             {/* Tiered pricing breakdown (when billing_mode is tiered_expr) */}
             {isTieredBilling && other?.expr_b64 && (
-              <div className='bg-muted/30 min-w-0 overflow-hidden rounded-md border px-3 max-sm:px-2'>
+              <div className={usageLogsDialogTieredPanelClassName}>
                 <DynamicPricingBreakdown
                   billingExpr={decodeBillingExprB64(other.expr_b64)}
                   matchedTierLabel={other.matched_tier}
@@ -888,7 +944,7 @@ export function DetailsDialog(props: DetailsDialogProps) {
                       ) : (
                         <Cloud className='size-3 text-emerald-500' />
                       )}
-                      <span className='text-xs'>
+                      <span className={usageLogsDialogValueClassName}>
                         {other.admin_info.local_count_tokens
                           ? t('Local Billing')
                           : t('Upstream Response')}
@@ -934,7 +990,7 @@ export function DetailsDialog(props: DetailsDialogProps) {
                   )}
                   {Array.isArray(other.stream_status.errors) &&
                     other.stream_status.errors.length > 0 && (
-                      <pre className='bg-background/60 mt-1 max-h-32 overflow-y-auto rounded border p-2 font-mono text-[11px] leading-relaxed break-words whitespace-pre-wrap'>
+                      <pre className={usageLogsDialogBackendPreClassName}>
                         {other.stream_status.errors.join('\n')}
                       </pre>
                     )}
@@ -943,7 +999,7 @@ export function DetailsDialog(props: DetailsDialogProps) {
 
             {/* Subscription billing details */}
             {isSubscription && other && (
-              <DetailSection label={t('Subscription Billing')}>
+              <DetailSection label={t('usageLogs.dialog.subscription_billing')}>
                 {other.subscription_plan_id && (
                   <DetailRow
                     label={t('Plan')}
@@ -959,30 +1015,36 @@ export function DetailsDialog(props: DetailsDialogProps) {
                 )}
                 {other.subscription_pre_consumed != null && (
                   <DetailRow
-                    label={t('Pre-consumed')}
-                    value={formatLogQuotaForOpsCenter(other.subscription_pre_consumed)}
+                    label={t('usageLogs.dialog.pre_consumed')}
+                    value={formatUsageLogQuotaDisplay(
+                      other.subscription_pre_consumed
+                    )}
                     mono
                   />
                 )}
                 {other.subscription_post_delta != null &&
                   other.subscription_post_delta !== 0 && (
                     <DetailRow
-                      label={t('Post Delta')}
-                      value={formatLogQuotaForOpsCenter(other.subscription_post_delta)}
+                      label={t('usageLogs.dialog.post_delta')}
+                      value={formatUsageLogQuotaDisplay(
+                        other.subscription_post_delta
+                      )}
                       mono
                     />
                   )}
                 {other.subscription_consumed != null && (
                   <DetailRow
-                    label={t('Final Consumed')}
-                    value={formatLogQuotaForOpsCenter(other.subscription_consumed)}
+                    label={t('usageLogs.dialog.final_consumed')}
+                    value={formatUsageLogQuotaDisplay(
+                      other.subscription_consumed
+                    )}
                     mono
                   />
                 )}
                 {other.subscription_remain != null && (
                   <DetailRow
-                    label={t('Remaining')}
-                    value={`${formatLogQuotaForOpsCenter(other.subscription_remain)}${other.subscription_total != null ? ` / ${formatLogQuotaForOpsCenter(other.subscription_total)}` : ''}`}
+                    label={t('usageLogs.dialog.remaining')}
+                    value={`${formatUsageLogQuotaDisplay(other.subscription_remain)}${other.subscription_total != null ? ` / ${formatUsageLogQuotaDisplay(other.subscription_total)}` : ''}`}
                     mono
                   />
                 )}
@@ -1004,7 +1066,7 @@ export function DetailsDialog(props: DetailsDialogProps) {
                     return (
                       <div
                         key={idx}
-                        className='bg-background/60 flex min-w-0 flex-col gap-1.5 rounded border p-2 sm:flex-row sm:items-start sm:gap-2'
+                        className={usageLogsDialogParamOverrideRowClassName}
                       >
                         <StatusBadge
                           variant='neutral'
@@ -1012,7 +1074,7 @@ export function DetailsDialog(props: DetailsDialogProps) {
                           className='shrink-0 font-medium'
                           copyable={false}
                         />
-                        <span className='min-w-0 font-mono text-[11px] leading-relaxed break-all sm:break-words'>
+                        <span className={usageLogsDialogParamOverrideContentClassName}>
                           {parsed.content}
                         </span>
                       </div>
@@ -1022,26 +1084,28 @@ export function DetailsDialog(props: DetailsDialogProps) {
               )}
 
             {/* Content */}
-            {details && (
+            {rawDetails && (
               <div className='space-y-1.5'>
-                <Label className='text-xs font-semibold'>{t('Content')}</Label>
-                <div className='bg-muted/30 relative min-w-0 overflow-hidden rounded-md border p-2.5'>
+                <Label className={usageLogsDialogSectionLabelClassName}>
+                  {t('usageLogs.dialog.content')}
+                </Label>
+                <div className={usageLogsDialogContentPanelClassName}>
                   <Button
                     variant='ghost'
                     size='sm'
-                    className='absolute top-1.5 right-1.5 h-5 w-5 p-0'
-                    onClick={() => copyToClipboard(details)}
+                    className={usageLogsDialogCopyButtonClassName}
+                    onClick={() => copyToClipboard(rawDetails)}
                     title={t('Copy to clipboard')}
                     aria-label={t('Copy to clipboard')}
                   >
-                    {copiedText === details ? (
-                      <Check className='size-3 text-green-600' />
+                    {copiedText === rawDetails ? (
+                      <Check className='size-3.5 text-emerald-700' />
                     ) : (
-                      <Copy className='size-3' />
+                      <Copy className='size-3.5' />
                     )}
                   </Button>
-                  <p className='min-w-0 pr-6 text-xs leading-relaxed break-all whitespace-pre-wrap sm:break-words'>
-                    {details}
+                  <p className={usageLogsDialogContentTextClassName}>
+                    {displayDetails}
                   </p>
                 </div>
               </div>

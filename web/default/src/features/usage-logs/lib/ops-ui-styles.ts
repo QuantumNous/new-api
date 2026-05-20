@@ -136,3 +136,81 @@ export const usageLogsLogTypeBadgeClass =
 
 export const usageLogsDetailSummaryClass =
   'text-sm leading-snug text-slate-300'
+
+// —— G: Details dialog (light popover — dark text for contrast) —— //
+
+export const usageLogsDialogTitleClassName =
+  'text-base font-semibold text-slate-950'
+
+export const usageLogsDialogLabelClassName =
+  'min-w-0 text-sm font-medium text-slate-700'
+
+export const usageLogsDialogValueClassName =
+  'max-w-full min-w-0 text-sm break-all text-slate-900 sm:break-words'
+
+export const usageLogsDialogValueMutedClassName =
+  'max-w-full min-w-0 text-sm break-all text-slate-600 sm:break-words'
+
+export const usageLogsDialogSectionLabelClassName =
+  'flex items-center gap-1.5 text-sm font-semibold text-slate-800'
+
+export const usageLogsDialogSectionPanelClassName = cn(
+  'min-w-0 space-y-1 overflow-hidden rounded-md border border-slate-200 bg-slate-100 p-2.5 max-sm:p-2'
+)
+
+export const usageLogsDialogSectionDangerClassName = cn(
+  'min-w-0 space-y-1 overflow-hidden rounded-md border border-red-200 bg-red-50 p-2.5 max-sm:p-2'
+)
+
+export const usageLogsDialogSectionDangerLabelClassName =
+  'flex items-center gap-1.5 text-sm font-semibold text-red-700'
+
+export const usageLogsDialogContentPanelClassName = cn(
+  'relative min-w-0 overflow-hidden rounded-md border border-slate-200 bg-slate-100 p-3'
+)
+
+export const usageLogsDialogContentTextClassName =
+  'min-w-0 pr-8 text-sm leading-relaxed break-all whitespace-pre-wrap text-slate-900 sm:break-words'
+
+export const usageLogsDialogMutedInlineClassName = 'text-slate-600'
+
+export const usageLogsDialogCopyButtonClassName = cn(
+  'absolute top-1.5 right-1.5 h-6 w-6 p-0 text-slate-600',
+  'hover:bg-slate-200 hover:text-slate-900',
+  '[&_svg]:size-3.5 [&_svg]:text-slate-600',
+  'hover:[&_svg]:text-slate-800'
+)
+
+export const usageLogsDialogCopyButtonInlineClassName = cn(
+  'absolute top-0 right-0 h-6 w-6 p-0 text-slate-600',
+  'hover:bg-slate-200 hover:text-slate-900',
+  '[&_svg]:size-3.5 [&_svg]:text-slate-600',
+  'hover:[&_svg]:text-slate-800'
+)
+
+export const usageLogsDialogTimingSuccessClassName = 'text-emerald-700'
+
+export const usageLogsDialogTimingWarningClassName = 'text-amber-700'
+
+export const usageLogsDialogTimingDangerClassName = 'text-rose-700'
+
+export const usageLogsDialogTieredPanelClassName = cn(
+  'min-w-0 overflow-hidden rounded-md border border-slate-200 bg-slate-100 px-3 max-sm:px-2'
+)
+
+export const usageLogsDialogBackendTextClassName =
+  'text-sm leading-relaxed break-words text-slate-800'
+
+export const usageLogsDialogBackendPreClassName = cn(
+  'mt-1 max-h-32 overflow-y-auto rounded border border-slate-200 bg-slate-100 p-2',
+  'font-mono text-xs leading-relaxed break-words whitespace-pre-wrap text-slate-900'
+)
+
+export const usageLogsDialogParamOverrideRowClassName = cn(
+  'flex min-w-0 flex-col gap-1.5 rounded border border-slate-200 bg-slate-50 p-2 sm:flex-row sm:items-start sm:gap-2'
+)
+
+export const usageLogsDialogParamOverrideContentClassName =
+  'min-w-0 font-mono text-xs leading-relaxed break-all text-slate-900 sm:break-words'
+
+export const usageLogsDialogWarningTextClassName = 'text-sm text-amber-800'

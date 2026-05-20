@@ -107,26 +107,62 @@ export function isViolationFeeLog(other: LogOtherData | null): boolean {
  * Display-only normalization for log content summaries (table cell / previews).
  * Does not mutate stored log content.
  */
+const QUOTA_CONTENT_CURRENCY = '[$¥￥＄]?'
+
+function normalizeQuotaAdjustmentContentDisplay(text: string): string {
+  let result = text.replace(/用户额度/g, '用户词元额度')
+
+  result = result.replace(
+    new RegExp(`词元额度\\s*${QUOTA_CONTENT_CURRENCY}\\s*([\\d,.]+)`, 'gi'),
+    '词元额度 $1'
+  )
+  result = result.replace(
+    new RegExp(`(?<!词元)额度\\s*${QUOTA_CONTENT_CURRENCY}\\s*([\\d,.]+)`, 'gi'),
+    '词元额度 $1'
+  )
+  result = result.replace(
+    /(管理员(?:增加|减少|调整)用户(?:词元)?额度)\s*[$¥￥＄]?\s*([\d,.]+)/gi,
+    '$1 $2'
+  )
+  result = result.replace(
+    /(词元额度\s+[\d,.]+)\s+额度\s*$/i,
+    '$1'
+  )
+  result = result.replace(
+    /(管理员(?:增加|减少|调整)用户词元额度\s+[\d,.]+)\s+额度\s*$/i,
+    '$1'
+  )
+
+  return result
+    .replace(/[$¥￥＄]/g, '')
+    .replace(/\bUSD\b/gi, '')
+    .replace(/美元/g, '')
+    .replace(/\bdollars?\b/gi, '')
+    .replace(/\s{2,}/g, ' ')
+    .trimEnd()
+}
+
 export function formatLogContentSummaryForDisplay(
   text: string,
   logType?: number
 ): string {
   if (!text) return text
 
-  let result = normalizeBillingDisplayString(text)
-
   const quotaContext =
     (logType != null && QUOTA_ADJUSTMENT_LOG_TYPES.has(logType)) ||
-    /(?:用户)?额度|词元|quota/i.test(result)
+    /(?:用户)?额度|词元|quota/i.test(text)
 
   if (quotaContext) {
-    result = result.replace(/用户额度/g, '用户词元额度')
-    result = result.replace(
-      /(?<!词元)额度\s*[¥￥]?\s*([\d,.]+)/gi,
-      '词元额度 $1'
-    )
-    result = result.replace(/词元额度\s*[¥￥]\s*/g, '词元额度 ')
+    return normalizeQuotaAdjustmentContentDisplay(text)
   }
+
+  let result = normalizeBillingDisplayString(text)
+  result = result.replace(/用户额度/g, '用户词元额度')
+  result = result.replace(
+    /(?<!词元)额度\s*[¥￥]?\s*([\d,.]+)/gi,
+    '词元额度 $1'
+  )
+  result = result.replace(/词元额度\s*[¥￥]\s*/g, '词元额度 ')
 
   return result
     .replace(/\$/g, '')

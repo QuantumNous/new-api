@@ -41,6 +41,29 @@ export function formatLogQuotaForOpsCenter(quota: number): string {
   return normalizeBillingDisplayString(formatLogQuota(quota))
 }
 
+/**
+ * Usage-logs detail dialog: show raw quota units as 词元额度/消耗 (never as RMB or USD).
+ * Display-only; does not change quota math or global formatQuotaWithCurrency.
+ */
+export function formatUsageLogQuotaDisplay(
+  quota: number | null | undefined,
+  options?: { digitsLarge?: number; digitsSmall?: number }
+): string {
+  if (quota == null || Number.isNaN(quota)) return '-'
+
+  const abs = Math.abs(quota)
+  const digitsLarge = options?.digitsLarge ?? 4
+  const digitsSmall = options?.digitsSmall ?? 6
+  const digits = abs >= 1 ? digitsLarge : digitsSmall
+
+  const formatted = new Intl.NumberFormat(undefined, {
+    maximumFractionDigits: digits,
+    minimumFractionDigits: 0,
+  }).format(quota)
+
+  return normalizeBillingDisplayString(formatted)
+}
+
 export function formatBillingAmountForOpsCenter(
   amountUSD: number | null | undefined,
   options?: CurrencyFormatOptions
