@@ -23,7 +23,10 @@ import { formatTimestampToDate } from '@/lib/format'
 import { Button } from '@/components/ui/button'
 import { DataTableColumnHeader } from '@/components/data-table/column-header'
 import { StatusBadge } from '@/components/status-badge'
-import { getDeploymentStatusConfig } from '../constants'
+import {
+  DEPLOYMENT_GHOST_ICON_BUTTON_CLASS,
+  getDeploymentStatusConfig,
+} from '../constants'
 import {
   formatRemainingMinutes,
   normalizeDeploymentStatus,
@@ -66,9 +69,12 @@ export function useDeploymentsColumns(opts: {
       id: 'name',
       accessorFn: (row) =>
         row.container_name || row.deployment_name || row.name || '',
-      meta: { label: t('Name'), mobileTitle: true },
+      meta: { label: t('Deployment name column'), mobileTitle: true },
       header: ({ column }) => (
-        <DataTableColumnHeader column={column} title={t('Name')} />
+        <DataTableColumnHeader
+          column={column}
+          title={t('Deployment name column')}
+        />
       ),
       cell: ({ getValue }) => {
         const name = String(getValue() || '-') || '-'
@@ -86,8 +92,8 @@ export function useDeploymentsColumns(opts: {
     },
     {
       accessorKey: 'status',
-      meta: { label: t('Status'), mobileBadge: true },
-      header: t('Status'),
+      meta: { label: t('Deployment status column'), mobileBadge: true },
+      header: t('Deployment status column'),
       cell: ({ row }) => {
         const raw = row.original.status
         const key = normalizeDeploymentStatus(raw)
@@ -122,8 +128,8 @@ export function useDeploymentsColumns(opts: {
     },
     {
       accessorKey: 'provider',
-      meta: { label: t('Provider') },
-      header: t('Provider'),
+      meta: { label: t('Deployment source column') },
+      header: t('Deployment source column'),
       cell: ({ row }) => {
         const provider = row.original.provider
         if (!provider)
@@ -142,8 +148,8 @@ export function useDeploymentsColumns(opts: {
     },
     {
       accessorKey: 'time_remaining',
-      meta: { label: t('Time remaining') },
-      header: t('Time remaining'),
+      meta: { label: t('Time remaining deployment') },
+      header: t('Time remaining deployment'),
       cell: ({ row }) => {
         const status = normalizeDeploymentStatus(row.original.status)
         const remainingText =
@@ -193,8 +199,8 @@ export function useDeploymentsColumns(opts: {
     },
     {
       id: 'hardware',
-      meta: { label: t('Hardware'), mobileHidden: true },
-      header: t('Hardware'),
+      meta: { label: t('Hardware specification column'), mobileHidden: true },
+      header: t('Hardware specification column'),
       accessorFn: (row) =>
         row.hardware_info || row.hardware_name || row.brand_name || '',
       cell: ({ row }) => {
@@ -228,9 +234,9 @@ export function useDeploymentsColumns(opts: {
     },
     {
       accessorKey: 'created_at',
-      meta: { label: t('Created'), mobileHidden: true },
+      meta: { label: t('Created at deployment'), mobileHidden: true },
       header: ({ column }) => (
-        <DataTableColumnHeader column={column} title={t('Created')} />
+        <DataTableColumnHeader column={column} title={t('Created at deployment')} />
       ),
       cell: ({ row }) => {
         const ts =
@@ -264,50 +270,56 @@ export function useDeploymentsColumns(opts: {
             <Button
               variant='ghost'
               size='sm'
+              className={DEPLOYMENT_GHOST_ICON_BUTTON_CLASS}
               onClick={() => opts.onViewLogs(id)}
-              title={t('View logs')}
+              title={t('View deployment logs')}
             >
               <Eye className='h-4 w-4' />
             </Button>
             <Button
               variant='ghost'
               size='sm'
+              className={DEPLOYMENT_GHOST_ICON_BUTTON_CLASS}
               onClick={() => opts.onViewDetails(id)}
-              title={t('View details')}
+              title={t('View deployment details')}
             >
               <Info className='h-4 w-4' />
             </Button>
             <Button
               variant='ghost'
               size='sm'
+              className={DEPLOYMENT_GHOST_ICON_BUTTON_CLASS}
               onClick={() => opts.onUpdateConfig(id)}
-              title={t('Update configuration')}
+              title={t('Update deployment configuration')}
             >
               <Settings2 className='h-4 w-4' />
             </Button>
             <Button
               variant='ghost'
               size='sm'
+              className={DEPLOYMENT_GHOST_ICON_BUTTON_CLASS}
               onClick={() => opts.onExtend(id)}
-              title={t('Extend deployment')}
+              title={t('Extend deployment action')}
             >
               <Timer className='h-4 w-4' />
             </Button>
             <Button
               variant='ghost'
               size='sm'
+              className={DEPLOYMENT_GHOST_ICON_BUTTON_CLASS}
               onClick={() => opts.onRename(id, String(currentName))}
-              title={t('Rename deployment')}
+              title={t('Rename deployment action')}
             >
               <Pencil className='h-4 w-4' />
             </Button>
             <Button
               variant='ghost'
               size='sm'
+              className={DEPLOYMENT_GHOST_ICON_BUTTON_CLASS}
               onClick={() => opts.onDelete(row.original)}
-              title={t('Delete')}
+              title={t('Delete deployment action')}
             >
-              <Trash2 className='h-4 w-4 text-red-500' />
+              <Trash2 className='h-4 w-4 text-red-400' />
             </Button>
           </div>
         )

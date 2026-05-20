@@ -23,6 +23,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+import type { TFunction } from 'i18next'
 import { Button } from '@/components/ui/button'
 import {
   Form,
@@ -59,32 +60,61 @@ import {
   getAvailableReplicas,
   getHardwareTypes,
 } from '../../api'
+import {
+  DEPLOYMENT_OUTLINE_BUTTON_CLASS,
+  ERROR_MESSAGES,
+  formatDeploymentPriceEstimateDisplay,
+  resolveModelToastMessage,
+} from '../../constants'
 import { deploymentsQueryKeys } from '../../lib'
+
+function buildCreateDeploymentFormSchema(t: TFunction) {
+  const required = t('Field is required')
+  const invalidNumber = t('Please enter a valid number')
+  const portRange = t('Port must be between 1 and 65535')
+  return z.object({
+    resource_private_name: z
+      .string({ required_error: required })
+      .trim()
+      .min(1, { message: required }),
+    image_url: z
+      .string({ required_error: required })
+      .min(1, { message: required }),
+    traffic_port: z.coerce
+      .number({ invalid_type_error: invalidNumber })
+      .int({ message: invalidNumber })
+      .min(1, { message: portRange })
+      .max(65535, { message: portRange }),
+    hardware_id: z.string({ required_error: required }).min(1, { message: required }),
+    gpus_per_container: z.coerce
+      .number({ invalid_type_error: invalidNumber })
+      .int({ message: invalidNumber })
+      .min(1, { message: t('Must be at least 1') }),
+    location_ids: z
+      .array(z.string())
+      .min(1, { message: t('Select at least one deployment region') }),
+    replica_count: z.coerce
+      .number({ invalid_type_error: invalidNumber })
+      .int({ message: invalidNumber })
+      .min(1, { message: t('Must be at least 1') }),
+    duration_hours: z.coerce
+      .number({ invalid_type_error: invalidNumber })
+      .int({ message: invalidNumber })
+      .min(1, { message: t('Must be at least 1') }),
+    env_json: z.string().optional(),
+    secret_env_json: z.string().optional(),
+    entrypoint: z.string().optional(),
+    args: z.string().optional(),
+    registry_username: z.string().optional(),
+    registry_secret: z.string().optional(),
+    currency: z.string().optional(),
+  })
+}
 
 const BUILTIN_IMAGE = 'ollama/ollama:latest'
 const DEFAULT_TRAFFIC_PORT = 11434
 
-const schema = z.object({
-  resource_private_name: z.string().min(1),
-  image_url: z.string().min(1),
-  traffic_port: z.coerce.number().int().min(1).max(65535),
-  hardware_id: z.string().min(1),
-  gpus_per_container: z.coerce.number().int().min(1),
-  location_ids: z.array(z.string()).min(1),
-  replica_count: z.coerce.number().int().min(1),
-  duration_hours: z.coerce.number().int().min(1),
-  // Advanced
-  env_json: z.string().optional(),
-  secret_env_json: z.string().optional(),
-  entrypoint: z.string().optional(),
-  args: z.string().optional(),
-  registry_username: z.string().optional(),
-  registry_secret: z.string().optional(),
-  currency: z.string().optional(),
-})
-
-// NOTE: react-hook-form resolver uses the schema input type (coerce input is unknown)
-type FormValues = z.input<typeof schema>
+type FormValues = z.input<ReturnType<typeof buildCreateDeploymentFormSchema>>
 
 function toNumber(value: unknown, fallback: number) {
   const n = typeof value === 'number' ? value : Number(value)
@@ -100,6 +130,8 @@ export function CreateDeploymentDrawer({
 }) {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
+
+  const schema = useMemo(() => buildCreateDeploymentFormSchema(t), [t])
 
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
@@ -234,14 +266,20 @@ export function CreateDeploymentDrawer({
 
   const createMutation = useMutation({
     mutationFn: async (values: FormValues) => {
-      const env =
-        values.env_json && values.env_json.trim()
-          ? (JSON.parse(values.env_json) as Record<string, unknown>)
-          : undefined
-      const secretEnv =
-        values.secret_env_json && values.secret_env_json.trim()
-          ? (JSON.parse(values.secret_env_json) as Record<string, unknown>)
-          : undefined
+      let env: Record<string, unknown> | undefined
+      let secretEnv: Record<string, unknown> | undefined
+      try {
+        env =
+          values.env_json && values.env_json.trim()
+            ? (JSON.parse(values.env_json) as Record<string, unknown>)
+            : undefined
+        secretEnv =
+          values.secret_env_json && values.secret_env_json.trim()
+            ? (JSON.parse(values.secret_env_json) as Record<string, unknown>)
+            : undefined
+      } catch {
+        throw new Error('__DEPLOYMENT_JSON_PARSE__')
+      }
 
       const envVariables =
         env && typeof env === 'object' && !Array.isArray(env)
@@ -323,10 +361,26 @@ export function CreateDeploymentDrawer({
         onOpenChange(false)
         return
       }
-      toast.error(data?.message || t('Failed to create deployment'))
+      toast.error(
+        resolveModelToastMessage(
+          data?.message,
+          ERROR_MESSAGES.DEPLOYMENT_CREATE_FAILED,
+          t
+        )
+      )
     },
     onError: (err: Error) => {
-      toast.error(err.message || t('Failed to create deployment'))
+      if (err.message === '__DEPLOYMENT_JSON_PARSE__') {
+        toast.error(t('Invalid JSON in environment variables'))
+        return
+      }
+      toast.error(
+        resolveModelToastMessage(
+          err.message,
+          ERROR_MESSAGES.DEPLOYMENT_CREATE_FAILED,
+          t
+        )
+      )
     },
   })
 
@@ -359,11 +413,9 @@ export function CreateDeploymentDrawer({
       (est as Record<string, unknown>)?.total_cost ??
       (est as Record<string, unknown>)?.total ??
       ''
-    const currency = (est as Record<string, unknown>)?.currency ?? ''
-    if (total === '' && currency === '') return ''
-    return `${total} ${currency}`.trim()
+    if (total === '' || total === undefined || total === null) return ''
+    return formatDeploymentPriceEstimateDisplay(total)
   }, [priceData])
-  void priceSummary
 
   return (
     <Sheet
@@ -379,7 +431,7 @@ export function CreateDeploymentDrawer({
         <SheetHeader className='text-start'>
           <SheetTitle>{t('Create deployment')}</SheetTitle>
           <SheetDescription>
-            {t('Configure and deploy a new container instance.')}
+            {t('Configure deployment instance description')}
           </SheetDescription>
         </SheetHeader>
 
@@ -402,7 +454,7 @@ export function CreateDeploymentDrawer({
                 name='resource_private_name'
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>{t('Container name')}</FormLabel>
+                    <FormLabel>{t('Deployment instance name')}</FormLabel>
                     <FormControl>
                       <Input placeholder={t('Enter a name')} {...field} />
                     </FormControl>
@@ -449,7 +501,7 @@ export function CreateDeploymentDrawer({
                   name='hardware_id'
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>{t('Hardware type')}</FormLabel>
+                      <FormLabel>{t('Hardware specification type')}</FormLabel>
                       <Select
                         items={[
                           ...hardwareOptions.map((opt) => ({
@@ -487,7 +539,7 @@ export function CreateDeploymentDrawer({
                 name='location_ids'
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>{t('Deployment location')}</FormLabel>
+                    <FormLabel>{t('Deployment region field')}</FormLabel>
                     <FormControl>
                       <MultiSelect
                         options={locationOptions}
@@ -499,7 +551,7 @@ export function CreateDeploymentDrawer({
                         placeholder={
                           isLoadingReplicas
                             ? t('Loading...')
-                            : t('Select locations')
+                            : t('Select deployment regions')
                         }
                         className={
                           isLoadingReplicas || !hardwareId
@@ -618,11 +670,17 @@ export function CreateDeploymentDrawer({
                 name='currency'
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>{t('Billing currency')}</FormLabel>
+                    <FormLabel>{t('Settlement currency label')}</FormLabel>
                     <Select
                       items={[
-                        { value: 'usdc', label: 'USDC' },
-                        { value: 'iocoin', label: 'IOCOIN' },
+                        {
+                          value: 'usdc',
+                          label: t('Billing currency display RMB'),
+                        },
+                        {
+                          value: 'iocoin',
+                          label: t('Billing currency display IO'),
+                        },
                       ]}
                       value={field.value || 'usdc'}
                       onValueChange={(v) => field.onChange(v)}
@@ -634,14 +692,29 @@ export function CreateDeploymentDrawer({
                       </FormControl>
                       <SelectContent alignItemWithTrigger={false}>
                         <SelectGroup>
-                          <SelectItem value='usdc'>USDC</SelectItem>
-                          <SelectItem value='iocoin'>IOCOIN</SelectItem>
+                          <SelectItem value='usdc'>
+                            {t('Billing currency display RMB')}
+                          </SelectItem>
+                          <SelectItem value='iocoin'>
+                            {t('Billing currency display IO')}
+                          </SelectItem>
                         </SelectGroup>
                       </SelectContent>
                     </Select>
                   </FormItem>
                 )}
               />
+              {priceSummary ? (
+                <div className='text-muted-foreground text-sm'>
+                  {t('Estimated cost')}:{' '}
+                  <span className='font-medium text-foreground'>
+                    {priceSummary}
+                  </span>{' '}
+                  <span className='text-xs'>
+                    （{t('Estimated price currency note')}）
+                  </span>
+                </div>
+              ) : null}
             </div>
 
             {/* Advanced Configuration */}
@@ -763,7 +836,11 @@ export function CreateDeploymentDrawer({
         </Form>
 
         <SheetFooter className='gap-2'>
-          <SheetClose render={<Button variant='outline' />}>
+          <SheetClose
+            render={
+              <Button variant='outline' className={DEPLOYMENT_OUTLINE_BUTTON_CLASS} />
+            }
+          >
             {t('Cancel')}
           </SheetClose>
           <Button
@@ -771,7 +848,9 @@ export function CreateDeploymentDrawer({
             type='submit'
             disabled={createMutation.isPending}
           >
-            {createMutation.isPending ? t('Submitting...') : t('Create')}
+            {createMutation.isPending
+              ? t('Creating deployment...')
+              : t('Create deployment confirm')}
           </Button>
         </SheetFooter>
       </SheetContent>

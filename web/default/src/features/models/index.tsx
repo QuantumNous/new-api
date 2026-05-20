@@ -34,10 +34,11 @@ import { ModelsProvider, useModels } from './components/models-provider'
 import { ModelsTable } from './components/models-table'
 import { useModelDeploymentSettings } from './hooks/use-model-deployment-settings'
 import { deploymentsQueryKeys } from './lib'
+import { DEPLOYMENT_OUTLINE_BUTTON_CLASS } from './constants'
 import {
   type ModelsSectionId,
   MODELS_DEFAULT_SECTION,
-  MODELS_SECTION_IDS,
+  MODELS_VISIBLE_SECTION_IDS,
 } from './section-registry'
 
 const route = getRouteApi('/_authenticated/models/$section')
@@ -52,8 +53,9 @@ const SECTION_META: Record<
     descriptionKey: 'Manage model resource metadata and configuration',
   },
   deployments: {
-    titleKey: 'Model Deployments',
-    descriptionKey: 'Manage model deployments',
+    titleKey: 'Model deployments',
+    tabTitleKey: 'Model deployments',
+    descriptionKey: 'Manage deployment instances description',
   },
 }
 
@@ -134,7 +136,12 @@ function ModelsContent() {
           {activeSection === 'metadata' ? (
             <ModelsPrimaryButtons />
           ) : (
-            <Button onClick={() => setCreateDeploymentOpen(true)} size='sm'>
+            <Button
+              variant='outline'
+              onClick={() => setCreateDeploymentOpen(true)}
+              size='sm'
+              className={DEPLOYMENT_OUTLINE_BUTTON_CLASS}
+            >
               <Plus className='h-4 w-4' />
               {t('Create deployment')}
             </Button>
@@ -144,7 +151,7 @@ function ModelsContent() {
           <div className='space-y-4'>
             <Tabs value={activeSection} onValueChange={handleSectionChange}>
               <TabsList className='max-w-full flex-wrap justify-start group-data-horizontal/tabs:h-auto'>
-                {MODELS_SECTION_IDS.map((section) => (
+                {MODELS_VISIBLE_SECTION_IDS.map((section) => (
                   <TabsTrigger key={section} value={section}>
                     {t(
                       SECTION_META[section].tabTitleKey ??

@@ -48,9 +48,14 @@ import {
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { getDeployment, updateDeployment } from '../../api'
+import {
+  DEPLOYMENT_OUTLINE_BUTTON_CLASS,
+  ERROR_MESSAGES,
+  resolveModelToastMessage,
+} from '../../constants'
 import { deploymentsQueryKeys } from '../../lib'
 
-const schema = z.object({
+const updateDeploymentConfigSchema = z.object({
   image_url: z.string().optional(),
   traffic_port: z.coerce.number().int().min(1).max(65535).optional(),
   entrypoint: z.string().optional(),
@@ -62,7 +67,7 @@ const schema = z.object({
   secret_env_json: z.string().optional(),
 })
 
-type Values = z.input<typeof schema>
+type Values = z.input<typeof updateDeploymentConfigSchema>
 
 function normalizeJsonObject(input?: string) {
   if (!input || !input.trim()) return undefined
@@ -91,7 +96,7 @@ export function UpdateConfigDialog({
   const queryClient = useQueryClient()
 
   const form = useForm<Values>({
-    resolver: zodResolver(schema) as unknown as Resolver<Values>,
+    resolver: zodResolver(updateDeploymentConfigSchema) as unknown as Resolver<Values>,
     defaultValues: {
       image_url: '',
       traffic_port: undefined,
@@ -157,16 +162,23 @@ export function UpdateConfigDialog({
   const title = useMemo(
     () =>
       deploymentId
-        ? `${t('Update configuration')} - ${deploymentId}`
-        : t('Update configuration'),
+        ? `${t('Update deployment configuration')} - ${deploymentId}`
+        : t('Update deployment configuration'),
     [deploymentId, t]
   )
 
   const onSubmit = async (values: Values) => {
     if (!deploymentId) return
     try {
-      const env_variables = normalizeJsonObject(values.env_json)
-      const secret_env_variables = normalizeJsonObject(values.secret_env_json)
+      let env_variables: Record<string, string> | undefined
+      let secret_env_variables: Record<string, string> | undefined
+      try {
+        env_variables = normalizeJsonObject(values.env_json)
+        secret_env_variables = normalizeJsonObject(values.secret_env_json)
+      } catch {
+        toast.error(t('Invalid JSON in environment variables'))
+        return
+      }
       const entrypoint = values.entrypoint
         ? values.entrypoint
             .split(' ')
@@ -196,7 +208,7 @@ export function UpdateConfigDialog({
       })
 
       if (res.success) {
-        toast.success(t('Updated successfully'))
+        toast.success(t('Deployment configuration updated'))
         queryClient.invalidateQueries({
           queryKey: deploymentsQueryKeys.lists(),
         })
@@ -204,10 +216,18 @@ export function UpdateConfigDialog({
         onOpenChange(false)
         return
       }
-      toast.error(res.message || t('Update failed'))
+      toast.error(
+        resolveModelToastMessage(
+          res.message,
+          ERROR_MESSAGES.DEPLOYMENT_UPDATE_FAILED,
+          t
+        )
+      )
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : t('Update failed')
-      toast.error(msg)
+      const msg = err instanceof Error ? err.message : undefined
+      toast.error(
+        resolveModelToastMessage(msg, ERROR_MESSAGES.DEPLOYMENT_UPDATE_FAILED, t)
+      )
     }
   }
 
@@ -416,6 +436,7 @@ export function UpdateConfigDialog({
                   <Button
                     type='button'
                     variant='outline'
+                    className={DEPLOYMENT_OUTLINE_BUTTON_CLASS}
                     onClick={() => onOpenChange(false)}
                   >
                     {t('Cancel')}

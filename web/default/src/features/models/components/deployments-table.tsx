@@ -27,6 +27,7 @@ import {
 import { useMediaQuery } from '@/hooks'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+import { cn } from '@/lib/utils'
 import { useTableUrlState } from '@/hooks/use-table-url-state'
 import {
   AlertDialog,
@@ -40,7 +41,12 @@ import {
 } from '@/components/ui/alert-dialog'
 import { DataTablePage } from '@/components/data-table'
 import { deleteDeployment, listDeployments, searchDeployments } from '../api'
-import { getDeploymentStatusOptions } from '../constants'
+import {
+  DEPLOYMENT_OUTLINE_BUTTON_CLASS,
+  ERROR_MESSAGES,
+  getDeploymentStatusOptions,
+  resolveModelToastMessage,
+} from '../constants'
 import { deploymentsQueryKeys } from '../lib'
 import type { Deployment } from '../types'
 import { useDeploymentsColumns } from './deployments-columns'
@@ -51,6 +57,38 @@ import { ViewDetailsDialog } from './dialogs/view-details-dialog'
 import { ViewLogsDialog } from './dialogs/view-logs-dialog'
 
 const route = getRouteApi('/_authenticated/models/$section')
+
+const deploymentsToolbarClassName = cn(
+  '[&_input]:border-white/15 [&_input]:bg-slate-950/50 [&_input]:text-slate-100',
+  '[&_input::placeholder]:text-slate-500',
+  '[&_button]:border-white/15 [&_button]:text-slate-200',
+  '[&_button[data-state=open]]:bg-slate-800'
+)
+
+const deploymentsTableHeaderClassName = cn(
+  'bg-slate-900/80 text-slate-200',
+  '[&_th]:border-white/10 [&_th]:text-slate-200',
+  '[&_button]:text-slate-200',
+  '[&_svg]:text-slate-400',
+  '[&_[data-slot=checkbox]]:border-white/25'
+)
+
+const deploymentsTableClassName = cn(
+  'border-white/10 bg-slate-900/40',
+  '[&_[data-slot=empty-title]]:text-slate-100',
+  '[&_[data-slot=empty-description]]:text-slate-400',
+  '[&_[data-slot=empty-icon]]:text-slate-300',
+  '[&_[data-slot=table-row]:hover]:!bg-white/5',
+  '[&_th:last-child]:sticky [&_th:last-child]:right-0 [&_th:last-child]:z-20',
+  '[&_th:last-child]:border-l [&_th:last-child]:border-white/10',
+  '[&_th:last-child]:bg-slate-900/95',
+  '[&_th:last-child]:shadow-[-10px_0_16px_-10px_rgba(0,0,0,0.65)]',
+  '[&_td:last-child]:sticky [&_td:last-child]:right-0 [&_td:last-child]:z-10',
+  '[&_td:last-child]:border-l [&_td:last-child]:border-white/10',
+  '[&_td:last-child]:bg-slate-900/95',
+  '[&_td:last-child]:shadow-[-10px_0_16px_-10px_rgba(0,0,0,0.65)]',
+  '[&_[data-slot=table-row]:hover_td:last-child]:bg-slate-900'
+)
 
 export function DeploymentsTable() {
   const { t } = useTranslation()
@@ -151,15 +189,27 @@ export function DeploymentsTable() {
     try {
       const res = await deleteDeployment(deleteTarget.id)
       if (res?.success) {
-        toast.success(t('Deleted successfully'))
+        toast.success(t('Deployment deleted successfully'))
         queryClient.invalidateQueries({
           queryKey: deploymentsQueryKeys.lists(),
         })
       } else {
-        toast.error(res?.message || t('Delete failed'))
+        toast.error(
+          resolveModelToastMessage(
+            res?.message,
+            ERROR_MESSAGES.DEPLOYMENT_DELETE_FAILED,
+            t
+          )
+        )
       }
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : t('Delete failed'))
+      toast.error(
+        resolveModelToastMessage(
+          err instanceof Error ? err.message : undefined,
+          ERROR_MESSAGES.DEPLOYMENT_DELETE_FAILED,
+          t
+        )
+      )
     } finally {
       setIsDeleting(false)
       setDeleteOpen(false)
@@ -235,18 +285,21 @@ export function DeploymentsTable() {
         columns={columns}
         isLoading={isLoading}
         isFetching={isFetching}
-        emptyTitle={t('No Deployments Found')}
+        emptyTitle={t('No model deployments found')}
         emptyDescription={t(
-          'No deployments available. Create one to get started.'
+          'No model deployments available. Create one to get started.'
         )}
         skeletonKeyPrefix='deployment-skeleton'
         applyHeaderSize
+        tableHeaderClassName={deploymentsTableHeaderClassName}
+        tableClassName={deploymentsTableClassName}
         toolbarProps={{
-          searchPlaceholder: t('Search deployments...'),
+          searchPlaceholder: t('Search model deployments placeholder'),
+          className: deploymentsToolbarClassName,
           filters: [
             {
               columnId: 'status',
-              title: t('Status'),
+              title: t('Deployment status column'),
               options: statusFilterOptions,
               singleSelect: true,
             },
@@ -303,10 +356,10 @@ export function DeploymentsTable() {
       <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>{t('Confirm delete')}</AlertDialogTitle>
+            <AlertDialogTitle>{t('Confirm delete deployment')}</AlertDialogTitle>
             <AlertDialogDescription>
               {t(
-                'Are you sure you want to delete deployment "{{name}}"? This action cannot be undone.',
+                'Are you sure you want to delete this deployment "{{name}}"? This action cannot be undone.',
                 {
                   name:
                     deleteTarget?.container_name ||
@@ -317,7 +370,10 @@ export function DeploymentsTable() {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={isDeleting}>
+            <AlertDialogCancel
+              disabled={isDeleting}
+              className={DEPLOYMENT_OUTLINE_BUTTON_CLASS}
+            >
               {t('Cancel')}
             </AlertDialogCancel>
             <AlertDialogAction

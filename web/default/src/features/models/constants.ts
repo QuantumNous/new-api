@@ -17,7 +17,10 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { type TFunction } from 'i18next'
-import { formatWalletPaymentAmount } from '@/lib/ops-billing-display'
+import {
+  formatWalletPaymentAmount,
+  normalizeBillingDisplayString,
+} from '@/lib/ops-billing-display'
 import type { NameRule, ModelStatus, SyncSource } from './types'
 
 // ============================================================================
@@ -108,13 +111,24 @@ export function getSyncStatusOptions(t: TFunction) {
 
 export function getDeploymentStatusOptions(t: TFunction) {
   return [
-    { label: t('All Status'), value: 'all' },
-    { label: t('Running'), value: 'running' },
-    { label: t('Completed'), value: 'completed' },
-    { label: t('Failed'), value: 'failed' },
-    { label: t('Deployment requested'), value: 'deployment requested' },
-    { label: t('Termination requested'), value: 'termination requested' },
-    { label: t('Destroyed'), value: 'destroyed' },
+    { label: t('All deployment statuses'), value: 'all' },
+    { label: t('Deployment status running'), value: 'running' },
+    { label: t('Deployment status completed'), value: 'completed' },
+    { label: t('Deployment status failed'), value: 'failed' },
+    {
+      label: t('Deployment status requested'),
+      value: 'deployment requested',
+    },
+    {
+      label: t('Deployment status termination requested'),
+      value: 'termination requested',
+    },
+    { label: t('Deployment status destroyed'), value: 'destroyed' },
+    {
+      label: t('Deployment status stopped'),
+      value: 'deployment stopped',
+    },
+    { label: t('Deployment status deleted'), value: 'deleted' },
   ] as const
 }
 
@@ -127,18 +141,27 @@ export function getDeploymentStatusConfig(t: TFunction): Record<
   }
 > {
   return {
-    running: { label: t('Running'), variant: 'success', showDot: true },
-    completed: { label: t('Completed'), variant: 'success' },
-    failed: { label: t('Failed'), variant: 'danger' },
-    error: { label: t('Failed'), variant: 'danger' },
-    destroyed: { label: t('Destroyed'), variant: 'danger' },
+    running: {
+      label: t('Deployment status running'),
+      variant: 'success',
+      showDot: true,
+    },
+    completed: { label: t('Deployment status completed'), variant: 'success' },
+    failed: { label: t('Deployment status failed'), variant: 'danger' },
+    error: { label: t('Deployment status failed'), variant: 'danger' },
+    destroyed: { label: t('Deployment status destroyed'), variant: 'danger' },
+    deleted: { label: t('Deployment status deleted'), variant: 'danger' },
+    'deployment stopped': {
+      label: t('Deployment status stopped'),
+      variant: 'neutral',
+    },
     'deployment requested': {
-      label: t('Deployment requested'),
+      label: t('Deployment status requested'),
       variant: 'warning',
       showDot: true,
     },
     'termination requested': {
-      label: t('Termination requested'),
+      label: t('Deployment status termination requested'),
       variant: 'warning',
       showDot: true,
     },
@@ -184,7 +207,31 @@ export const ERROR_MESSAGES = {
   VENDOR_OPERATION_FAILED: 'Operation failed, please check and try again',
   PREFILL_OPERATION_FAILED: 'Operation failed, please check and try again',
   PREFILL_DELETE_FAILED: 'Failed to delete prefill tenant group',
+  DEPLOYMENT_DELETE_FAILED: 'Deployment delete failed',
+  DEPLOYMENT_CREATE_FAILED: 'Deployment create failed',
+  DEPLOYMENT_EXTEND_FAILED: 'Deployment extend failed',
+  DEPLOYMENT_UPDATE_FAILED: 'Deployment update failed',
+  DEPLOYMENT_RENAME_FAILED: 'Deployment rename failed',
 } as const
+
+/** Outline / cancel buttons on dark model-deployment surfaces (readable default state). */
+export const DEPLOYMENT_OUTLINE_BUTTON_CLASS =
+  'border-white/15 bg-white/10 text-slate-100 [&_svg]:text-slate-100 hover:bg-white/15 hover:text-white hover:[&_svg]:text-white data-popup-open:bg-white/10 disabled:border-white/10 disabled:bg-white/5 disabled:text-slate-400 disabled:opacity-60'
+
+/** Row icon actions on deployment table (dark backgrounds). */
+export const DEPLOYMENT_GHOST_ICON_BUTTON_CLASS =
+  'text-slate-200 hover:bg-white/10 hover:text-white [&_svg]:text-slate-300 hover:[&_svg]:text-white'
+
+/** Display-only: format estimate totals from deployment pricing API as RMB. */
+export function formatDeploymentPriceEstimateDisplay(total: unknown): string {
+  if (total === undefined || total === null) return ''
+  const n = typeof total === 'number' ? total : Number.parseFloat(String(total))
+  if (Number.isFinite(n)) {
+    return formatWalletPaymentAmount(n)
+  }
+  const s = String(total).trim()
+  return s ? normalizeBillingDisplayString(s) : ''
+}
 
 /** Upstream conflict field keys — maps API field names to i18n label keys. */
 export const CONFLICT_FIELD_LABEL_KEYS: Record<string, string> = {

@@ -31,6 +31,7 @@ import { useTranslation } from 'react-i18next'
 import { cn } from '@/lib/utils'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
+import { DEPLOYMENT_OUTLINE_BUTTON_CLASS } from '../constants'
 
 type LoadingPhase = 'idle' | 'settings' | 'connection' | 'done'
 type StepStatus = 'pending' | 'loading' | 'done'
@@ -48,6 +49,19 @@ function getConnectionStatus(
   if (phase === 'connection') return 'loading'
   if (phase === 'done' && connectionOk) return 'done'
   return 'pending'
+}
+
+function resolveDeploymentConnectionMessage(
+  raw: string | null,
+  t: (key: string) => string
+): string {
+  if (!raw) return t('Deployment connection error fallback')
+  const translated = t(raw)
+  if (translated !== raw) return translated
+  if (raw.trim().toLowerCase() === 'connection failed') {
+    return t('Connection failed')
+  }
+  return t('Deployment connection error fallback')
 }
 
 interface DeploymentAccessGuardProps {
@@ -182,11 +196,17 @@ export function DeploymentAccessGuard({
           <Alert variant='destructive'>
             <AlertCircle className='h-4 w-4' />
             <AlertTitle>{t('Connection error')}</AlertTitle>
-            <AlertDescription>{t(connectionError)}</AlertDescription>
+            <AlertDescription>
+              {resolveDeploymentConnectionMessage(connectionError, t)}
+            </AlertDescription>
           </Alert>
           <div className='flex gap-2'>
-            <Button variant='outline' onClick={onRetry} className='flex-1'>
-              {t('Retry')}
+            <Button
+              variant='outline'
+              onClick={onRetry}
+              className={cn('flex-1', DEPLOYMENT_OUTLINE_BUTTON_CLASS)}
+            >
+              {t('Retry connectivity check')}
             </Button>
             <Button onClick={handleGoToSettings} className='flex-1'>
               <Settings className='mr-2 h-4 w-4' />

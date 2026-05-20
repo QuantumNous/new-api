@@ -37,6 +37,7 @@ import {
 } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
 import { getDeploymentLogs, listDeploymentContainers } from '../../api'
+import { DEPLOYMENT_OUTLINE_BUTTON_CLASS } from '../../constants'
 
 interface ViewLogsDialogProps {
   open: boolean
@@ -147,7 +148,7 @@ export function ViewLogsDialog({
         <DialogHeader>
           <DialogTitle className='flex items-center gap-2'>
             <Terminal className='h-5 w-5' />
-            {t('Deployment logs')}
+            {t('Deployment logs title')}
           </DialogTitle>
         </DialogHeader>
 
@@ -159,6 +160,7 @@ export function ViewLogsDialog({
             <Button
               variant='outline'
               size='sm'
+              className={DEPLOYMENT_OUTLINE_BUTTON_CLASS}
               onClick={() => {
                 refetchContainers()
                 refetchLogs()
@@ -175,6 +177,7 @@ export function ViewLogsDialog({
             <Button
               variant='outline'
               size='sm'
+              className={DEPLOYMENT_OUTLINE_BUTTON_CLASS}
               onClick={handleDownload}
               disabled={!logsText.trim()}
             >
@@ -293,22 +296,27 @@ export function ViewLogsDialog({
         >
           {isLoadingContainers || isLoadingLogs ? (
             <div className='flex items-center justify-center py-8'>
-              <Loader2 className='h-6 w-6 animate-spin text-gray-400' />
+              <Loader2 className='text-muted-foreground h-6 w-6 animate-spin' />
             </div>
           ) : containers.length === 0 ? (
-            <div className='py-8 text-center text-gray-400'>
+            <div className='text-muted-foreground py-8 text-center'>
               {t('No containers')}
             </div>
           ) : !containerId ? (
-            <div className='py-8 text-center text-gray-400'>
+            <div className='text-muted-foreground py-8 text-center'>
               {t('Please select a container')}
             </div>
           ) : !logsText.trim() ? (
-            <div className='py-8 text-center text-gray-400'>{t('No logs')}</div>
+            <div className='text-muted-foreground py-8 text-center'>
+              {t('No logs')}
+            </div>
           ) : (
             <div className='font-mono text-sm'>
               {logLines.map((line, idx) => (
-                <div key={idx} className='whitespace-pre-wrap text-gray-200'>
+                <div
+                  key={idx}
+                  className='text-foreground/90 whitespace-pre-wrap'
+                >
                   {line}
                 </div>
               ))}

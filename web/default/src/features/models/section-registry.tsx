@@ -30,8 +30,8 @@ const MODELS_SECTIONS = [
   },
   {
     id: 'deployments',
-    titleKey: 'Deployments',
-    descriptionKey: 'Manage model deployments',
+    titleKey: 'Model deployments',
+    descriptionKey: 'Manage deployment instances description',
     build: () => null, // Content is rendered directly in the page component
   },
 ] as const
@@ -52,3 +52,9 @@ const modelsRegistry = createSectionRegistry<
 export const MODELS_SECTION_IDS = modelsRegistry.sectionIds
 export const MODELS_DEFAULT_SECTION = modelsRegistry.defaultSection
 export const getModelsSectionNavItems = modelsRegistry.getSectionNavItems
+
+/**
+ * User-visible sections on the Models page.
+ * Keep deployments registered for future recovery, but hide its entry for now.
+ */
+export const MODELS_VISIBLE_SECTION_IDS = ['metadata'] as const

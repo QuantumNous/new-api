@@ -21,6 +21,7 @@ import { useQuery } from '@tanstack/react-query'
 import { Copy, ExternalLink, Loader2, RefreshCcw } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import {
   Collapsible,
@@ -36,6 +37,7 @@ import {
 } from '@/components/ui/dialog'
 import { Separator } from '@/components/ui/separator'
 import { getDeployment, listDeploymentContainers } from '../../api'
+import { DEPLOYMENT_OUTLINE_BUTTON_CLASS } from '../../constants'
 
 export function ViewDetailsDialog({
   open,
@@ -119,7 +121,7 @@ export function ViewDetailsDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className='max-h-[calc(100dvh-2rem)] overflow-hidden max-sm:w-screen max-sm:max-w-none max-sm:rounded-none max-sm:p-4 sm:max-w-3xl'>
         <DialogHeader>
-          <DialogTitle>{t('Deployment details')}</DialogTitle>
+          <DialogTitle>{t('Deployment details title')}</DialogTitle>
         </DialogHeader>
 
         <div className='max-h-[calc(100dvh-8.5rem)] space-y-3 overflow-y-auto py-2 pr-1 sm:max-h-[72vh] sm:space-y-4'>
@@ -129,13 +131,19 @@ export function ViewDetailsDialog({
               <span className='font-mono'>{deploymentId}</span>
             </div>
             <div className='grid grid-cols-2 gap-2 sm:flex sm:items-center'>
-              <Button variant='outline' size='sm' onClick={handleCopyId}>
+              <Button
+                variant='outline'
+                size='sm'
+                className={DEPLOYMENT_OUTLINE_BUTTON_CLASS}
+                onClick={handleCopyId}
+              >
                 <Copy className='mr-2 h-4 w-4' />
                 {t('Copy')}
               </Button>
               <Button
                 variant='outline'
                 size='sm'
+                className={DEPLOYMENT_OUTLINE_BUTTON_CLASS}
                 onClick={handleRefresh}
                 disabled={isFetchingDetails || isFetchingContainers}
               >
@@ -164,7 +172,7 @@ export function ViewDetailsDialog({
               <div className='grid gap-3 sm:grid-cols-2'>
                 <div className='rounded-lg border p-3'>
                   <div className='text-muted-foreground text-xs'>
-                    {t('Status')}
+                    {t('Deployment status detail')}
                   </div>
                   <div className='mt-1 font-medium'>
                     {String(details?.status ?? '-')}
@@ -172,7 +180,7 @@ export function ViewDetailsDialog({
                 </div>
                 <div className='rounded-lg border p-3'>
                   <div className='text-muted-foreground text-xs'>
-                    {t('Hardware')}
+                    {t('Hardware specification detail')}
                   </div>
                   <div className='mt-1 font-medium'>
                     {String(details?.brand_name ?? '')}{' '}
@@ -200,7 +208,7 @@ export function ViewDetailsDialog({
               {locations.length ? (
                 <div className='rounded-lg border p-3'>
                   <div className='text-muted-foreground text-xs'>
-                    {t('Locations')}
+                    {t('Deployment region section')}
                   </div>
                   <div className='mt-1 flex flex-wrap gap-2 text-sm'>
                     {locations.map((x) => (
@@ -235,17 +243,20 @@ export function ViewDetailsDialog({
                               {id}
                             </div>
                             <div className='text-muted-foreground text-xs'>
-                              {status ? `${t('Status')}: ${status}` : ''}
+                              {status
+                                ? `${t('Deployment status detail')}: ${status}`
+                                : ''}
                             </div>
                           </div>
                           {url ? (
                             <Button
                               variant='outline'
                               size='sm'
+                              className={DEPLOYMENT_OUTLINE_BUTTON_CLASS}
                               onClick={() => window.open(url, '_blank')}
                             >
                               <ExternalLink className='mr-2 h-4 w-4' />
-                              {t('Open')}
+                              {t('Open access endpoint')}
                             </Button>
                           ) : null}
                         </div>
@@ -273,7 +284,7 @@ export function ViewDetailsDialog({
           <Button
             variant='outline'
             onClick={() => onOpenChange(false)}
-            className='w-full sm:w-auto'
+            className={cn('w-full sm:w-auto', DEPLOYMENT_OUTLINE_BUTTON_CLASS)}
           >
             {t('Close')}
           </Button>

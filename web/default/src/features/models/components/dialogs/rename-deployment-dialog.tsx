@@ -31,6 +31,11 @@ import {
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { checkClusterNameAvailability, updateDeploymentName } from '../../api'
+import {
+  DEPLOYMENT_OUTLINE_BUTTON_CLASS,
+  ERROR_MESSAGES,
+  resolveModelToastMessage,
+} from '../../constants'
 import { deploymentsQueryKeys } from '../../lib'
 
 export function RenameDeploymentDialog({
@@ -94,7 +99,7 @@ export function RenameDeploymentDialog({
     try {
       const res = await updateDeploymentName(deploymentId, trimmed)
       if (res.success) {
-        toast.success(t('Renamed successfully'))
+        toast.success(t('Deployment renamed successfully'))
         queryClient.invalidateQueries({
           queryKey: deploymentsQueryKeys.lists(),
         })
@@ -102,9 +107,21 @@ export function RenameDeploymentDialog({
         onOpenChange(false)
         return
       }
-      toast.error(res.message || t('Rename failed'))
+      toast.error(
+        resolveModelToastMessage(
+          res.message,
+          ERROR_MESSAGES.DEPLOYMENT_RENAME_FAILED,
+          t
+        )
+      )
     } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : t('Rename failed'))
+      toast.error(
+        resolveModelToastMessage(
+          err instanceof Error ? err.message : undefined,
+          ERROR_MESSAGES.DEPLOYMENT_RENAME_FAILED,
+          t
+        )
+      )
     } finally {
       setIsSubmitting(false)
     }
@@ -132,7 +149,11 @@ export function RenameDeploymentDialog({
         </div>
 
         <DialogFooter className='mt-4'>
-          <Button variant='outline' onClick={() => onOpenChange(false)}>
+          <Button
+            variant='outline'
+            className={DEPLOYMENT_OUTLINE_BUTTON_CLASS}
+            onClick={() => onOpenChange(false)}
+          >
             {t('Cancel')}
           </Button>
           <Button onClick={() => void onSubmit()} disabled={!canSubmit}>

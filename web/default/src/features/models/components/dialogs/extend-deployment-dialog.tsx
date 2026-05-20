@@ -32,6 +32,12 @@ import {
 import { Input } from '@/components/ui/input'
 import { Separator } from '@/components/ui/separator'
 import { estimatePrice, extendDeployment, getDeployment } from '../../api'
+import {
+  DEPLOYMENT_OUTLINE_BUTTON_CLASS,
+  ERROR_MESSAGES,
+  formatDeploymentPriceEstimateDisplay,
+  resolveModelToastMessage,
+} from '../../constants'
 import { deploymentsQueryKeys } from '../../lib'
 
 function toInt(value: unknown, fallback: number) {
@@ -129,9 +135,8 @@ export function ExtendDeploymentDialog({
       const b = breakdown as Record<string, unknown>
       total = b.total_cost ?? b.totalCost ?? b.TotalCost ?? total
     }
-    const currency = record.currency ?? 'USDC'
     if (total === undefined || total === null) return ''
-    return `${String(total)} ${String(currency).toUpperCase()}`.trim()
+    return formatDeploymentPriceEstimateDisplay(total)
   }, [priceRes])
 
   const canSubmit = Boolean(deploymentId) && hours > 0 && !isSubmitting
@@ -147,7 +152,7 @@ export function ExtendDeploymentDialog({
     try {
       const res = await extendDeployment(deploymentId, h)
       if (res.success) {
-        toast.success(t('Extended successfully'))
+        toast.success(t('Deployment extended successfully'))
         queryClient.invalidateQueries({
           queryKey: deploymentsQueryKeys.lists(),
         })
@@ -155,9 +160,21 @@ export function ExtendDeploymentDialog({
         onOpenChange(false)
         return
       }
-      toast.error(res.message || t('Extend failed'))
+      toast.error(
+        resolveModelToastMessage(
+          res.message,
+          ERROR_MESSAGES.DEPLOYMENT_EXTEND_FAILED,
+          t
+        )
+      )
     } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : t('Extend failed'))
+      toast.error(
+        resolveModelToastMessage(
+          err instanceof Error ? err.message : undefined,
+          ERROR_MESSAGES.DEPLOYMENT_EXTEND_FAILED,
+          t
+        )
+      )
     } finally {
       setIsSubmitting(false)
     }
@@ -190,14 +207,16 @@ export function ExtendDeploymentDialog({
                 onChange={(e) => setHours(toInt(e.target.value, 1))}
               />
               <div className='text-muted-foreground text-xs'>
-                {t('This will extend the deployment by the specified hours.')}
+                {t('Extend deployment duration hint')}
               </div>
             </div>
 
             <Separator />
 
             <div className='space-y-1'>
-              <div className='text-sm font-medium'>{t('Estimated cost')}</div>
+              <div className='text-sm font-medium'>
+                {t('Estimated deployment cost')}
+              </div>
               <div className='text-muted-foreground text-sm'>
                 {isLoadingPrice || isFetchingPrice ? (
                   <span className='inline-flex items-center gap-2'>
@@ -205,7 +224,16 @@ export function ExtendDeploymentDialog({
                     {t('Calculating...')}
                   </span>
                 ) : priceParams ? (
-                  priceSummary || t('Not available')
+                  <>
+                    <span className='font-medium text-foreground'>
+                      {priceSummary || t('Not available')}
+                    </span>
+                    {priceSummary ? (
+                      <span className='text-muted-foreground ml-1 text-xs'>
+                        （{t('Estimated price currency note')}）
+                      </span>
+                    ) : null}
+                  </>
                 ) : (
                   t('Not available')
                 )}
@@ -220,7 +248,11 @@ export function ExtendDeploymentDialog({
         )}
 
         <DialogFooter className='mt-4'>
-          <Button variant='outline' onClick={() => onOpenChange(false)}>
+          <Button
+            variant='outline'
+            className={DEPLOYMENT_OUTLINE_BUTTON_CLASS}
+            onClick={() => onOpenChange(false)}
+          >
             {t('Cancel')}
           </Button>
           <Button onClick={() => void onSubmit()} disabled={!canSubmit}>

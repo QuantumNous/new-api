@@ -49,6 +49,13 @@ export const Route = createFileRoute('/_authenticated/models/$section')({
       })
     }
 
+    if (params.section === 'deployments') {
+      throw redirect({
+        to: '/models/$section',
+        params: { section: MODELS_DEFAULT_SECTION },
+      })
+    }
+
     const validSections = MODELS_SECTION_IDS as unknown as string[]
     if (!validSections.includes(params.section)) {
       throw redirect({
