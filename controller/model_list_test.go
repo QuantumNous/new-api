@@ -179,6 +179,37 @@ func TestBuildGeminiModelNormalizesPrefixedID(t *testing.T) {
 	require.ElementsMatch(t, []string{"generateContent"}, geminiModel.SupportedGenerationMethods)
 }
 
+func TestGetGeminiSupportedGenerationMethodsUsesEndpointMetadata(t *testing.T) {
+	require.ElementsMatch(t,
+		[]string{"predict"},
+		getGeminiSupportedGenerationMethods(dto.OpenAIModels{
+			Id:                     "custom-image-model",
+			SupportedEndpointTypes: []constant.EndpointType{constant.EndpointTypeImageGeneration, constant.EndpointTypeGemini},
+		}),
+	)
+	require.ElementsMatch(t,
+		[]string{"embedContent", "batchEmbedContents"},
+		getGeminiSupportedGenerationMethods(dto.OpenAIModels{
+			Id:                     "custom-embedding-model",
+			SupportedEndpointTypes: []constant.EndpointType{constant.EndpointTypeEmbeddings, constant.EndpointTypeGemini},
+		}),
+	)
+	require.ElementsMatch(t,
+		[]string{"embedContent", "batchEmbedContents"},
+		getGeminiSupportedGenerationMethods(dto.OpenAIModels{
+			Id:                     "gemini-embedding-001",
+			SupportedEndpointTypes: []constant.EndpointType{constant.EndpointTypeGemini, constant.EndpointTypeOpenAI},
+		}),
+	)
+	require.ElementsMatch(t,
+		[]string{"generateContent"},
+		getGeminiSupportedGenerationMethods(dto.OpenAIModels{
+			Id:                     "custom-text-model",
+			SupportedEndpointTypes: []constant.EndpointType{constant.EndpointTypeGemini},
+		}),
+	)
+}
+
 func pricingByModelName(pricings []model.Pricing) map[string]model.Pricing {
 	byName := make(map[string]model.Pricing, len(pricings))
 	for _, pricing := range pricings {

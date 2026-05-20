@@ -246,7 +246,32 @@ func buildGeminiModel(openAIModel dto.OpenAIModels) dto.GeminiModel {
 }
 
 func getGeminiSupportedGenerationMethods(openAIModel dto.OpenAIModels) []string {
-	normalizedModelID := normalizeGeminiModelID(openAIModel.Id)
+	if methods := getGeminiSupportedGenerationMethodsFromEndpoints(openAIModel.SupportedEndpointTypes); len(methods) > 0 {
+		return methods
+	}
+	if methods := getGeminiSupportedGenerationMethodsFromModelID(openAIModel.Id); len(methods) > 0 {
+		return methods
+	}
+
+	return []string{"generateContent"}
+}
+
+func getGeminiSupportedGenerationMethodsFromEndpoints(endpointTypes []constant.EndpointType) []string {
+	methods := make([]string, 0, 2)
+	for _, endpointType := range endpointTypes {
+		switch endpointType {
+		case constant.EndpointTypeImageGeneration:
+			methods = appendUniqueGeminiMethod(methods, "predict")
+		case constant.EndpointTypeEmbeddings:
+			methods = appendUniqueGeminiMethod(methods, "embedContent")
+			methods = appendUniqueGeminiMethod(methods, "batchEmbedContents")
+		}
+	}
+	return methods
+}
+
+func getGeminiSupportedGenerationMethodsFromModelID(modelID string) []string {
+	normalizedModelID := normalizeGeminiModelID(modelID)
 	switch {
 	case isGeminiVideoModel(normalizedModelID):
 		return []string{"predictLongRunning"}
@@ -256,21 +281,7 @@ func getGeminiSupportedGenerationMethods(openAIModel dto.OpenAIModels) []string 
 		return []string{"predict"}
 	}
 
-	methods := make([]string, 0, 2)
-	for _, endpointType := range openAIModel.SupportedEndpointTypes {
-		switch endpointType {
-		case constant.EndpointTypeGemini:
-			methods = appendUniqueGeminiMethod(methods, "generateContent")
-		case constant.EndpointTypeEmbeddings:
-			methods = appendUniqueGeminiMethod(methods, "embedContent")
-			methods = appendUniqueGeminiMethod(methods, "batchEmbedContents")
-		}
-	}
-	if len(methods) > 0 {
-		return methods
-	}
-
-	return []string{"generateContent"}
+	return nil
 }
 
 func normalizeGeminiModelID(modelID string) string {
