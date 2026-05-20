@@ -235,11 +235,11 @@ export const AUTO_BAN_OPTIONS = [
 // ============================================================================
 
 export const ERROR_MESSAGES = {
-  REQUIRED_NAME: 'Channel name is required',
-  REQUIRED_TYPE: 'Channel type is required',
-  REQUIRED_KEY: 'API key is required',
-  REQUIRED_MODELS: 'Models are required',
-  REQUIRED_GROUP: 'Group is required',
+  REQUIRED_NAME: 'Service channel name is required',
+  REQUIRED_TYPE: 'Service type is required',
+  REQUIRED_KEY: 'Access credential is required',
+  REQUIRED_MODELS: 'At least one model resource is required',
+  REQUIRED_GROUP: 'At least one tenant group is required',
   INVALID_JSON: 'Invalid JSON format',
   INVALID_MODEL_MAPPING: 'Invalid model mapping format',
   CREATE_FAILED: 'Failed to create channel',
@@ -340,30 +340,33 @@ export const FIELD_PLACEHOLDERS = {
   BASE_URL: 'Leave empty to use default',
   KEY: 'API Key (one per line for batch mode)',
   MODELS: 'Comma-separated model names, e.g., gpt-4,gpt-3.5-turbo',
-  GROUP: 'Please Select user groups that can access this channel.',
+  GROUP: 'Select tenant groups that can access this service channel.',
   MODEL_MAPPING: '{"request_model": "actual_model"}',
-  TEST_MODEL: 'Model to use for testing',
-  TAG: 'Optional tag for grouping channels',
-  REMARK: 'Optional notes about this channel',
+  TEST_MODEL: 'Model for connectivity checks',
+  TAG: 'Optional tag for grouping service channels',
+  REMARK: 'Optional notes about this service channel',
   PARAM_OVERRIDE: '{"temperature": 0.7}',
   HEADER_OVERRIDE: '{"X-Custom-Header": "value"}',
   STATUS_CODE_MAPPING: '{"400": "500"}',
 } as const
 
 export const FIELD_DESCRIPTIONS = {
-  NAME: 'Friendly name to identify this channel',
+  NAME: 'Display name to identify this service channel',
   TYPE: 'Provider type (OpenAI, Anthropic, etc.)',
   BASE_URL: 'Custom API base URL. Leave empty to use provider default.',
-  KEY: 'API key from the provider',
+  KEY: 'Access credential from the service provider',
   MODELS:
-    'List of models supported by this channel. Use comma to separate multiple models.',
-  GROUP: 'User groups that can access this channel. ',
+    'Model resources supported by this service channel. Separate multiple with commas.',
+  GROUP: 'Tenant groups that can access this service channel.',
   MODEL_MAPPING:
-    'Map request model names to actual provider model names (JSON format)',
-  PRIORITY: 'Higher priority channels are selected first',
-  WEIGHT: 'Used for load balancing. Higher weight = more requests',
-  TEST_MODEL: 'Model to use when testing channel connectivity',
-  AUTO_BAN: 'Automatically disable channel on repeated failures',
+    'Map requested model names to upstream model resources (JSON format)',
+  PRIORITY:
+    'Service channels with higher routing priority are scheduled first',
+  WEIGHT:
+    'Dispatch weight controls traffic distribution across service channels',
+  TEST_MODEL: 'Model resource used when running connectivity checks',
+  AUTO_BAN:
+    'Automatically disable this service channel after repeated failures',
   STATUS_CODE_MAPPING: 'Map response status codes (JSON format)',
   TAG: 'Group channels by tag for batch operations',
   REMARK: 'Internal notes (not shown to users)',

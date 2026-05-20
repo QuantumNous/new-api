@@ -1174,7 +1174,7 @@ export function ChannelMutateDrawer({
                   render={({ field }) => (
                     <FormItem className='flex items-center justify-between rounded-lg border px-4 py-3'>
                       <div className='space-y-0.5'>
-                        <FormLabel>{t('Enabled')}</FormLabel>
+                        <FormLabel>{t('Enable service channel')}</FormLabel>
                         <FormDescription className='text-xs'>
                           {t('Enable or disable this channel')}
                         </FormDescription>
@@ -1817,7 +1817,7 @@ export function ChannelMutateDrawer({
 
                 <div className='border-border/60 border-t pt-4'>
                   <SubHeading
-                    title={t('Authentication')}
+                    title={t('Access authentication')}
                     icon={<KeyRound className='h-3.5 w-3.5' />}
                   />
                 </div>
@@ -1896,7 +1896,7 @@ export function ChannelMutateDrawer({
                     })()
                     return (
                       <FormItem>
-                        <FormLabel>{t('API Key *')}</FormLabel>
+                        <FormLabel>{t('Access credential *')}</FormLabel>
                         <FormControl>
                           <Textarea
                             placeholder={keyPlaceholder}
@@ -2231,7 +2231,7 @@ export function ChannelMutateDrawer({
                               onClick={handleClearModels}
                             >
                               <Eraser className='mr-2 h-4 w-4' />
-                              {t('Clear All')}
+                              {t('Clear model resources')}
                             </Button>
                             <Button
                               type='button'
@@ -2240,7 +2240,7 @@ export function ChannelMutateDrawer({
                               onClick={handleCopyModels}
                             >
                               <Copy className='mr-2 h-4 w-4' />
-                              {t('Copy All')}
+                              {t('Copy model resources')}
                             </Button>
                             {prefillGroups.map((group) => (
                               <Button
@@ -2434,7 +2434,7 @@ export function ChannelMutateDrawer({
                 >
                   <div className='space-y-0.5'>
                     <div className='text-[13px] font-semibold'>
-                      {t('Advanced Settings')}
+                      {t('Advanced configuration')}
                     </div>
                     <div className='text-muted-foreground text-xs'>
                       {t(
