@@ -67,6 +67,8 @@ export const channelFormSchema = z.object({
   aws_key_type: z.enum(['ak_sk', 'api_key']).optional(), // AWS specific
   azure_responses_version: z.string().optional(), // Azure specific
   openai_admin_key: z.string().optional(), // OpenAI specific: admin key for usage statistics
+  openai_prepaid_amount: z.coerce.number().min(0).optional(),
+  openai_prepaid_since: z.coerce.number().min(0).optional(),
   // Field passthrough controls (stored in settings JSON)
   allow_service_tier: z.boolean().optional(), // OpenAI/Anthropic
   disable_store: z.boolean().optional(), // OpenAI only
@@ -126,6 +128,8 @@ export const CHANNEL_FORM_DEFAULT_VALUES: ChannelFormValues = {
   aws_key_type: 'ak_sk',
   azure_responses_version: '',
   openai_admin_key: '',
+  openai_prepaid_amount: 0,
+  openai_prepaid_since: 0,
   // Field passthrough controls
   allow_service_tier: false,
   disable_store: false,
@@ -180,6 +184,8 @@ export function transformChannelToFormDefaults(
   let vertexKeyType: 'json' | 'api_key' = 'json'
   let azureResponsesVersion = ''
   let openaiAdminKey = ''
+  let openaiPrepaidAmount = 0
+  let openaiPrepaidSince = 0
   let isEnterpriseAccount = false
   let awsKeyType: 'ak_sk' | 'api_key' = 'ak_sk'
   let allowServiceTier = false
@@ -202,6 +208,10 @@ export function transformChannelToFormDefaults(
       // backend masks it on read for security, and the field must start empty in edit
       // mode so the user can leave it blank to preserve the existing value.
       openaiAdminKey = ''
+      // openai_prepaid_amount and openai_prepaid_since are NOT masked by the backend,
+      // so they're safe to round-trip through edit mode.
+      openaiPrepaidAmount = parsed.openai_prepaid_amount ?? 0
+      openaiPrepaidSince = parsed.openai_prepaid_since ?? 0
       isEnterpriseAccount = parsed.openrouter_enterprise === true
       awsKeyType = parsed.aws_key_type || 'ak_sk'
       allowServiceTier = parsed.allow_service_tier === true
@@ -259,6 +269,8 @@ export function transformChannelToFormDefaults(
     vertex_key_type: vertexKeyType,
     azure_responses_version: azureResponsesVersion,
     openai_admin_key: openaiAdminKey,
+    openai_prepaid_amount: openaiPrepaidAmount,
+    openai_prepaid_since: openaiPrepaidSince,
     aws_key_type: awsKeyType,
     allow_service_tier: allowServiceTier,
     disable_store: disableStore,
@@ -330,8 +342,24 @@ function buildSettingsJSON(formData: ChannelFormValues): string {
       // don't send a stray empty string; backend will copy the existing value from DB.
       delete settingsObj.openai_admin_key
     }
+    if ((formData.openai_prepaid_amount ?? 0) > 0) {
+      settingsObj.openai_prepaid_amount = formData.openai_prepaid_amount
+    } else {
+      delete settingsObj.openai_prepaid_amount
+    }
+    if ((formData.openai_prepaid_since ?? 0) > 0) {
+      settingsObj.openai_prepaid_since = formData.openai_prepaid_since
+    } else {
+      delete settingsObj.openai_prepaid_since
+    }
   } else if ('openai_admin_key' in settingsObj) {
     delete settingsObj.openai_admin_key
+    if ('openai_prepaid_amount' in settingsObj) {
+      delete settingsObj.openai_prepaid_amount
+    }
+    if ('openai_prepaid_since' in settingsObj) {
+      delete settingsObj.openai_prepaid_since
+    }
   }
 
   // Add enterprise account setting for OpenRouter (type 20)
