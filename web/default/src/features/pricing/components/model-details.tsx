@@ -61,7 +61,12 @@ import {
 import { parseTags } from '../lib/filters'
 import { getAvailableGroups, isTokenBasedModel } from '../lib/model-helpers'
 import { inferModelMetadata } from '../lib/model-metadata'
+import { normalizeBillingDisplayString } from '@/lib/ops-billing-display'
 import { formatFixedPrice, formatGroupPrice } from '../lib/price'
+
+function displayPrice(value: string): string {
+  return normalizeBillingDisplayString(value)
+}
 import type {
   Modality,
   ModelCapability,
@@ -484,13 +489,15 @@ function PriceSection(props: {
             {t('Per request')}
           </span>
           <span className='text-foreground font-mono text-sm font-semibold tabular-nums'>
-            {formatFixedPrice(
-              props.model,
-              baseGroupKey,
-              props.showRechargePrice,
-              props.priceRate,
-              props.usdExchangeRate,
-              baseGroupRatioMap
+            {displayPrice(
+              formatFixedPrice(
+                props.model,
+                baseGroupKey,
+                props.showRechargePrice,
+                props.priceRate,
+                props.usdExchangeRate,
+                baseGroupRatioMap
+              )
             )}
           </span>
         </div>
@@ -501,15 +508,17 @@ function PriceSection(props: {
   const secondaryItems = secondaryPriceTypes.filter((p) => p.available)
   const renderPrice = (type: PriceType) => (
     <>
-      {formatGroupPrice(
-        props.model,
-        baseGroupKey,
-        type,
-        props.tokenUnit,
-        props.showRechargePrice,
-        props.priceRate,
-        props.usdExchangeRate,
-        baseGroupRatioMap
+      {displayPrice(
+        formatGroupPrice(
+          props.model,
+          baseGroupKey,
+          type,
+          props.tokenUnit,
+          props.showRechargePrice,
+          props.priceRate,
+          props.usdExchangeRate,
+          baseGroupRatioMap
+        )
       )}
       <span className='text-muted-foreground/40 ml-1 text-xs font-normal'>
         / {tokenUnitLabel}
@@ -814,27 +823,31 @@ function GroupPricingSection(props: {
                   {isTokenBased ? (
                     <>
                       <TableCell className='py-2.5 text-right font-mono'>
-                        {formatGroupPrice(
-                          props.model,
-                          group,
-                          'input',
-                          props.tokenUnit,
-                          showRechargePrice,
-                          props.priceRate,
-                          props.usdExchangeRate,
-                          props.groupRatio
+                        {displayPrice(
+                          formatGroupPrice(
+                            props.model,
+                            group,
+                            'input',
+                            props.tokenUnit,
+                            showRechargePrice,
+                            props.priceRate,
+                            props.usdExchangeRate,
+                            props.groupRatio
+                          )
                         )}
                       </TableCell>
                       <TableCell className='py-2.5 text-right font-mono'>
-                        {formatGroupPrice(
-                          props.model,
-                          group,
-                          'output',
-                          props.tokenUnit,
-                          showRechargePrice,
-                          props.priceRate,
-                          props.usdExchangeRate,
-                          props.groupRatio
+                        {displayPrice(
+                          formatGroupPrice(
+                            props.model,
+                            group,
+                            'output',
+                            props.tokenUnit,
+                            showRechargePrice,
+                            props.priceRate,
+                            props.usdExchangeRate,
+                            props.groupRatio
+                          )
                         )}
                       </TableCell>
                       {extraPriceTypes.map((ep) => (
@@ -842,28 +855,32 @@ function GroupPricingSection(props: {
                           key={ep.type}
                           className='py-2.5 text-right font-mono'
                         >
-                          {formatGroupPrice(
-                            props.model,
-                            group,
-                            ep.type,
-                            props.tokenUnit,
-                            showRechargePrice,
-                            props.priceRate,
-                            props.usdExchangeRate,
-                            props.groupRatio
+                          {displayPrice(
+                            formatGroupPrice(
+                              props.model,
+                              group,
+                              ep.type,
+                              props.tokenUnit,
+                              showRechargePrice,
+                              props.priceRate,
+                              props.usdExchangeRate,
+                              props.groupRatio
+                            )
                           )}
                         </TableCell>
                       ))}
                     </>
                   ) : (
                     <TableCell className='py-2.5 text-right font-mono'>
-                      {formatFixedPrice(
-                        props.model,
-                        group,
-                        showRechargePrice,
-                        props.priceRate,
-                        props.usdExchangeRate,
-                        props.groupRatio
+                      {displayPrice(
+                        formatFixedPrice(
+                          props.model,
+                          group,
+                          showRechargePrice,
+                          props.priceRate,
+                          props.usdExchangeRate,
+                          props.groupRatio
+                        )
                       )}
                     </TableCell>
                   )}

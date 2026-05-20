@@ -20,6 +20,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Plus } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+import { formatSubscriptionPriceDisplay } from '@/lib/ops-billing-display'
 import { Button } from '@/components/ui/button'
 import {
   Select,
@@ -207,8 +208,9 @@ export function UserSubscriptionsDialog(props: Props) {
                     value: String(p.plan.id),
                     label: (
                       <>
-                        {p.plan.title}($
-                        {Number(p.plan.price_amount || 0).toFixed(2)})
+                        {p.plan.title} (
+                        {formatSubscriptionPriceDisplay(p.plan.price_amount || 0)}
+                        )
                       </>
                     ),
                   })),
@@ -223,8 +225,9 @@ export function UserSubscriptionsDialog(props: Props) {
                   <SelectGroup>
                     {plans.map((p) => (
                       <SelectItem key={p.plan.id} value={String(p.plan.id)}>
-                        {p.plan.title} ($
-                        {Number(p.plan.price_amount || 0).toFixed(2)})
+                        {p.plan.title} (
+                        {formatSubscriptionPriceDisplay(p.plan.price_amount || 0)}
+                        )
                       </SelectItem>
                     ))}
                   </SelectGroup>

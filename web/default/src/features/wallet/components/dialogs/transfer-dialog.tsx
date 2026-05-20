@@ -19,7 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import { useState, useEffect } from 'react'
 import { Loader2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { formatQuota } from '@/lib/format'
+import { formatQuotaForOpsCenter } from '@/lib/ops-billing-display'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -83,7 +83,7 @@ export function TransferDialog({
               {t('Available Rewards')}
             </Label>
             <div className='text-2xl font-semibold'>
-              {formatQuota(availableQuota)}
+              {formatQuotaForOpsCenter(availableQuota)}
             </div>
           </div>
 
@@ -105,7 +105,7 @@ export function TransferDialog({
               className='font-mono text-lg'
             />
             <p className='text-muted-foreground text-xs'>
-              {t('Minimum:')} {formatQuota(QUOTA_PER_DOLLAR)}
+              {t('Minimum:')} {formatQuotaForOpsCenter(QUOTA_PER_DOLLAR)}
             </p>
           </div>
         </div>

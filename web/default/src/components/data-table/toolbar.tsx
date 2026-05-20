@@ -25,6 +25,10 @@ import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { DataTableFacetedFilter } from './faceted-filter'
+import {
+  dataTableResetGhostClassName,
+  dataTableResetOutlineClassName,
+} from './toolbar-button-styles'
 import { DataTableViewOptions } from './view-options'
 
 type FilterDef = {
@@ -195,14 +199,19 @@ export function DataTableToolbar<TData>(props: DataTableToolbarProps<TData>) {
   // nothing to reset); ghost text + X for filter-as-you-type mode (only
   // visible when active filters exist).
   const resetButton = hasSearch ? (
-    <Button variant='outline' onClick={handleReset} disabled={!isFiltered}>
+    <Button
+      variant='outline'
+      onClick={handleReset}
+      disabled={!isFiltered}
+      className={dataTableResetOutlineClassName}
+    >
       {t('Reset')}
     </Button>
   ) : isFiltered ? (
     <Button
       variant='ghost'
       onClick={handleReset}
-      className='text-muted-foreground hover:text-foreground gap-1 px-2'
+      className={dataTableResetGhostClassName}
     >
       {t('Reset')}
       <Cross2Icon />

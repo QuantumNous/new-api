@@ -16,6 +16,10 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import {
+  formatCreemPriceForOpsCenter,
+  formatWalletPaymentAmount,
+} from '@/lib/ops-billing-display'
 import { DEFAULT_DISCOUNT_RATE } from '../constants'
 
 // ============================================================================
@@ -29,8 +33,7 @@ export function formatCreemPrice(
   price: number,
   currency: 'USD' | 'EUR'
 ): string {
-  const symbol = currency === 'EUR' ? '€' : '$'
-  return `${symbol}${price.toFixed(2)}`
+  return formatCreemPriceForOpsCenter(price, currency)
 }
 
 /**
@@ -51,14 +54,7 @@ export function formatQuotaShort(quota: number): string {
  * This is used for payment amounts that have been calculated via priceRatio.
  */
 export function formatCurrency(amount: number | string): string {
-  const numeric =
-    typeof amount === 'number' ? amount : Number.parseFloat(String(amount))
-  if (!Number.isFinite(numeric)) return '-'
-
-  return new Intl.NumberFormat(undefined, {
-    minimumFractionDigits: 0,
-    maximumFractionDigits: Math.abs(numeric) >= 1 ? 2 : 4,
-  }).format(numeric)
+  return formatWalletPaymentAmount(amount)
 }
 
 /**

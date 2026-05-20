@@ -19,6 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import { type Table } from '@tanstack/react-table'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
+import { dataTableViewTriggerClassName } from './toolbar-button-styles'
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
@@ -42,7 +43,7 @@ export function DataTableViewOptions<TData>({
         render={
           <Button
             variant='outline'
-            className='shrink-0'
+            className={dataTableViewTriggerClassName}
             aria-label={t('View')}
           />
         }

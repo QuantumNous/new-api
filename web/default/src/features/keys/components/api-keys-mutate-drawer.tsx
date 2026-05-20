@@ -30,7 +30,11 @@ import {
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { getUserModels, getUserGroups } from '@/lib/api'
-import { getCurrencyDisplay, getCurrencyLabel } from '@/lib/currency'
+import { getCurrencyDisplay } from '@/lib/currency'
+import {
+  getOpsCenterCurrencyLabel,
+  getOpsCenterCurrencyLabelZh,
+} from '@/lib/ops-billing-display'
 import { cn } from '@/lib/utils'
 import { useStatus } from '@/hooks/use-status'
 import { Button } from '@/components/ui/button'
@@ -119,7 +123,7 @@ export function ApiKeysMutateDrawer({
   currentRow,
   side = 'right',
 }: ApiKeyMutateDrawerProps) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const isUpdate = !!currentRow
   const { triggerRefresh } = useApiKeys()
   const { status } = useStatus()
@@ -259,7 +263,10 @@ export function ApiKeysMutateDrawer({
   }
 
   const { meta: currencyMeta } = getCurrencyDisplay()
-  const currencyLabel = getCurrencyLabel()
+  const currencyLabel =
+    i18n.language === 'zh'
+      ? getOpsCenterCurrencyLabelZh()
+      : getOpsCenterCurrencyLabel()
   const tokensOnly = currencyMeta.kind === 'tokens'
   const quotaLabel = t('Quota ({{currency}})', { currency: currencyLabel })
   const quotaPlaceholder = tokensOnly

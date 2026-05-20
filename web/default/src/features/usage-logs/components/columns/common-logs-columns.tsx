@@ -21,12 +21,11 @@ import { type ColumnDef } from '@tanstack/react-table'
 import { CircleAlert, Sparkles, KeyRound } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { getUserAvatarFallback, getUserAvatarStyle } from '@/lib/avatar'
-import { formatBillingCurrencyFromUSD } from '@/lib/currency'
 import {
-  formatUseTime,
-  formatLogQuota,
-  formatTimestampToDate,
-} from '@/lib/format'
+  formatBillingAmountForOpsCenter,
+  formatLogQuotaForOpsCenter,
+} from '@/lib/ops-billing-display'
+import { formatUseTime, formatTimestampToDate } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import {
@@ -111,7 +110,7 @@ function buildDetailSegments(
       })
     }
     segments.push({
-      text: `${t('Fee')}: ${formatLogQuota(other?.fee_quota ?? log.quota)}`,
+      text: `${t('Fee')}: ${formatLogQuotaForOpsCenter(other?.fee_quota ?? log.quota)}`,
       muted: true,
     })
     return segments
@@ -123,9 +122,9 @@ function buildDetailSegments(
 
   const priceOpts = { digitsLarge: 4, digitsSmall: 6, abbreviate: false }
   const formatPrice = (price: number) =>
-    `${formatBillingCurrencyFromUSD(price, priceOpts)}/M`
+    `${formatBillingAmountForOpsCenter(price, priceOpts)}/M`
   const formatPriceCompact = (price: number) =>
-    formatBillingCurrencyFromUSD(price, priceOpts)
+    formatBillingAmountForOpsCenter(price, priceOpts)
   const formatPriceList = (prices: string[], showUnit: boolean) => {
     const text = prices.join(' / ')
     return showUnit ? `${text}/M` : text
@@ -188,7 +187,7 @@ function buildDetailSegments(
     const isPerCall = isPerCallBilling(other.model_price)
     if (isPerCall) {
       segments.push({
-        text: `${t('Per-call')} · ${formatBillingCurrencyFromUSD(other.model_price!, priceOpts)}`,
+        text: `${t('Per-call')} · ${formatBillingAmountForOpsCenter(other.model_price!, priceOpts)}`,
       })
     } else if (other.model_ratio != null) {
       const inputPriceUSD = other.model_ratio * 2.0
@@ -741,7 +740,7 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
                 </TooltipTrigger>
                 <TooltipContent>
                   <span>
-                    {t('Deducted by subscription')}: {formatLogQuota(quota)}
+                    {t('Deducted by subscription')}: {formatLogQuotaForOpsCenter(quota)}
                   </span>
                 </TooltipContent>
               </Tooltip>
@@ -749,7 +748,7 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
           )
         }
 
-        const quotaStr = formatLogQuota(quota)
+        const quotaStr = formatLogQuotaForOpsCenter(quota)
 
         return (
           <div className='flex flex-col gap-0.5'>

@@ -38,6 +38,7 @@ import {
   PopoverTrigger,
 } from '@/components/ui/popover'
 import { Separator } from '@/components/ui/separator'
+import { dataTableFilterTriggerClassName } from './toolbar-button-styles'
 
 type DataTableFacetedFilterProps<TData, TValue> = {
   column?: Column<TData, TValue>
@@ -68,7 +69,11 @@ export function DataTableFacetedFilter<TData, TValue>({
     <Popover>
       <PopoverTrigger
         render={
-          <Button variant='outline' size='sm' className='h-8 border-dashed' />
+          <Button
+            variant='outline'
+            size='sm'
+            className={dataTableFilterTriggerClassName}
+          />
         }
       >
         <PlusCircledIcon className='size-4' />

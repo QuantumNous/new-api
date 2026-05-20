@@ -19,7 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import { useQuery } from '@tanstack/react-query'
 import { getRouteApi } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
-import { formatLogQuota } from '@/lib/format'
+import { formatLogQuotaForOpsCenter } from '@/lib/ops-billing-display'
 import { cn } from '@/lib/utils'
 import { useIsAdmin } from '@/hooks/use-admin'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -88,7 +88,11 @@ export function CommonLogsStats() {
     <div className='flex flex-wrap items-center gap-2'>
       <StatBadge
         label={t('Usage')}
-        value={sensitiveVisible ? formatLogQuota(stats?.quota || 0) : '••••'}
+        value={
+          sensitiveVisible
+            ? formatLogQuotaForOpsCenter(stats?.quota || 0)
+            : '••••'
+        }
         accent='bg-sky-500/70'
       />
       <StatBadge

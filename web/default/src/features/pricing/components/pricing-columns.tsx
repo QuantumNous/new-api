@@ -18,6 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { type ColumnDef } from '@tanstack/react-table'
 import { useTranslation } from 'react-i18next'
+import { normalizeBillingDisplayString } from '@/lib/ops-billing-display'
 import { getLobeIcon } from '@/lib/lobe-icon'
 import {
   Tooltip,
@@ -40,6 +41,10 @@ import {
   stripTrailingZeros,
 } from '../lib/price'
 import type { PricingModel, TokenUnit } from '../types'
+
+function displayPrice(value: string): string {
+  return normalizeBillingDisplayString(value)
+}
 
 // ----------------------------------------------------------------------------
 // Pricing Table Columns
@@ -201,7 +206,7 @@ export function usePricingColumns(
                     {index > 0 && (
                       <span className='text-muted-foreground/40 mx-1'>/</span>
                     )}
-                    {stripTrailingZeros(entry.formatted)}
+                    {displayPrice(stripTrailingZeros(entry.formatted))}
                   </span>
                 ))}
               </span>
@@ -243,9 +248,9 @@ export function usePricingColumns(
           return (
             <div className='min-w-[160px]'>
               <span className='font-mono text-sm tabular-nums'>
-                {inputPrice}
+                {displayPrice(inputPrice)}
                 <span className='text-muted-foreground/40 mx-1'>/</span>
-                {outputPrice}
+                {displayPrice(outputPrice)}
               </span>
               <div className='text-muted-foreground/50 text-[10px]'>
                 / {tokenUnitLabel} tokens
@@ -265,7 +270,9 @@ export function usePricingColumns(
 
         return (
           <div className='min-w-[100px]'>
-            <span className='font-mono text-sm tabular-nums'>{price}</span>
+            <span className='font-mono text-sm tabular-nums'>
+              {displayPrice(price)}
+            </span>
             <div className='text-muted-foreground/50 text-[10px]'>
               / {t('request')}
             </div>
@@ -310,7 +317,7 @@ export function usePricingColumns(
           return (
             <div className='min-w-[80px]'>
               <span className='font-mono text-sm tabular-nums'>
-                {stripTrailingZeros(cacheEntry.formatted)}
+                {displayPrice(stripTrailingZeros(cacheEntry.formatted))}
               </span>
               <div className='text-muted-foreground/50 text-[10px]'>
                 / {tokenUnitLabel}
@@ -339,7 +346,7 @@ export function usePricingColumns(
         return (
           <div className='min-w-[80px]'>
             <span className='font-mono text-sm tabular-nums'>
-              {cachedPrice}
+              {displayPrice(cachedPrice)}
             </span>
             <div className='text-muted-foreground/50 text-[10px]'>
               / {tokenUnitLabel}

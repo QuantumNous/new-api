@@ -20,7 +20,8 @@ import { useQuery } from '@tanstack/react-query'
 import { type ColumnDef } from '@tanstack/react-table'
 import { useTranslation } from 'react-i18next'
 import { getUserGroups } from '@/lib/api'
-import { formatQuota, formatTimestampToDate } from '@/lib/format'
+import { formatTimestampToDate } from '@/lib/format'
+import { formatQuotaForOpsCenter } from '@/lib/ops-billing-display'
 import { cn } from '@/lib/utils'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Progress } from '@/components/ui/progress'
@@ -40,6 +41,15 @@ import {
   IpRestrictionsCell,
 } from './api-keys-cells'
 import { DataTableRowActions } from './data-table-row-actions'
+
+const keysColumnHeaderClassName = cn(
+  'text-slate-200 font-medium',
+  '[&_button]:text-slate-200',
+  '[&_svg]:text-slate-300'
+)
+
+const keysCheckboxClassName =
+  'translate-y-[2px] border-white/25 data-[state=checked]:border-indigo-400 data-[state=checked]:bg-indigo-500/80'
 
 function getQuotaProgressColor(percentage: number): string {
   if (percentage <= 10) return '[&_[data-slot=progress-indicator]]:bg-rose-500'
@@ -79,7 +89,7 @@ export function useApiKeysColumns(): ColumnDef<ApiKey>[] {
           indeterminate={table.getIsSomePageRowsSelected()}
           onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
           aria-label='Select all'
-          className='translate-y-[2px]'
+          className={keysCheckboxClassName}
         />
       ),
       cell: ({ row }) => (
@@ -87,7 +97,7 @@ export function useApiKeysColumns(): ColumnDef<ApiKey>[] {
           checked={row.getIsSelected()}
           onCheckedChange={(value) => row.toggleSelected(!!value)}
           aria-label='Select row'
-          className='translate-y-[2px]'
+          className={keysCheckboxClassName}
         />
       ),
       enableSorting: false,
@@ -97,7 +107,11 @@ export function useApiKeysColumns(): ColumnDef<ApiKey>[] {
     {
       accessorKey: 'name',
       header: ({ column }) => (
-        <DataTableColumnHeader column={column} title={t('Name')} />
+        <DataTableColumnHeader
+          column={column}
+          title={t('Name')}
+          className={keysColumnHeaderClassName}
+        />
       ),
       cell: ({ row }) => (
         <div className='max-w-[200px] truncate font-medium'>
@@ -109,7 +123,11 @@ export function useApiKeysColumns(): ColumnDef<ApiKey>[] {
     {
       accessorKey: 'status',
       header: ({ column }) => (
-        <DataTableColumnHeader column={column} title={t('Status')} />
+        <DataTableColumnHeader
+          column={column}
+          title={t('Status')}
+          className={keysColumnHeaderClassName}
+        />
       ),
       cell: ({ row }) => {
         const statusConfig = API_KEY_STATUSES[row.getValue('status') as number]
@@ -129,7 +147,9 @@ export function useApiKeysColumns(): ColumnDef<ApiKey>[] {
     {
       id: 'key',
       accessorKey: 'key',
-      header: t('API Key'),
+      header: () => (
+        <div className='text-sm font-medium text-slate-200'>{t('API Key')}</div>
+      ),
       cell: ({ row }) => <ApiKeyCell apiKey={row.original} />,
       enableSorting: false,
       meta: { label: t('API Key') },
@@ -138,7 +158,11 @@ export function useApiKeysColumns(): ColumnDef<ApiKey>[] {
       id: 'quota',
       accessorKey: 'remain_quota',
       header: ({ column }) => (
-        <DataTableColumnHeader column={column} title={t('Quota')} />
+        <DataTableColumnHeader
+          column={column}
+          title={t('Quota')}
+          className={keysColumnHeaderClassName}
+        />
       ),
       cell: ({ row }) => {
         const apiKey = row.original
@@ -162,10 +186,10 @@ export function useApiKeysColumns(): ColumnDef<ApiKey>[] {
             <TooltipTrigger render={<div className='w-[150px] space-y-1' />}>
               <div className='flex justify-between text-xs'>
                 <span className='font-medium tabular-nums'>
-                  {formatQuota(remaining)}
+                  {formatQuotaForOpsCenter(remaining)}
                 </span>
                 <span className='text-muted-foreground tabular-nums'>
-                  {formatQuota(total)}
+                  {formatQuotaForOpsCenter(total)}
                 </span>
               </div>
               <Progress
@@ -176,14 +200,14 @@ export function useApiKeysColumns(): ColumnDef<ApiKey>[] {
             <TooltipContent>
               <div className='space-y-1 text-xs'>
                 <div>
-                  {t('Used:')} {formatQuota(used)}
+                  {t('Used:')} {formatQuotaForOpsCenter(used)}
                 </div>
                 <div>
-                  {t('Remaining:')} {formatQuota(remaining)} (
+                  {t('Remaining:')} {formatQuotaForOpsCenter(remaining)} (
                   {percentage.toFixed(1)}%)
                 </div>
                 <div>
-                  {t('Total:')} {formatQuota(total)}
+                  {t('Total:')} {formatQuotaForOpsCenter(total)}
                 </div>
               </div>
             </TooltipContent>
@@ -195,7 +219,11 @@ export function useApiKeysColumns(): ColumnDef<ApiKey>[] {
     {
       accessorKey: 'group',
       header: ({ column }) => (
-        <DataTableColumnHeader column={column} title={t('Group')} />
+        <DataTableColumnHeader
+          column={column}
+          title={t('Group')}
+          className={keysColumnHeaderClassName}
+        />
       ),
       cell: ({ row }) => {
         const apiKey = row.original
@@ -238,7 +266,11 @@ export function useApiKeysColumns(): ColumnDef<ApiKey>[] {
       id: 'model_limits',
       accessorKey: 'model_limits',
       header: ({ column }) => (
-        <DataTableColumnHeader column={column} title={t('Models')} />
+        <DataTableColumnHeader
+          column={column}
+          title={t('Models')}
+          className={keysColumnHeaderClassName}
+        />
       ),
       cell: ({ row }) => <ModelLimitsCell apiKey={row.original} />,
       enableSorting: false,
@@ -248,7 +280,11 @@ export function useApiKeysColumns(): ColumnDef<ApiKey>[] {
       id: 'allow_ips',
       accessorKey: 'allow_ips',
       header: ({ column }) => (
-        <DataTableColumnHeader column={column} title={t('IP Restriction')} />
+        <DataTableColumnHeader
+          column={column}
+          title={t('IP Restriction')}
+          className={keysColumnHeaderClassName}
+        />
       ),
       cell: ({ row }) => <IpRestrictionsCell apiKey={row.original} />,
       enableSorting: false,
@@ -257,7 +293,11 @@ export function useApiKeysColumns(): ColumnDef<ApiKey>[] {
     {
       accessorKey: 'created_time',
       header: ({ column }) => (
-        <DataTableColumnHeader column={column} title={t('Created')} />
+        <DataTableColumnHeader
+          column={column}
+          title={t('Created')}
+          className={keysColumnHeaderClassName}
+        />
       ),
       cell: ({ row }) => (
         <span className='text-muted-foreground font-mono text-xs tabular-nums'>
@@ -269,7 +309,11 @@ export function useApiKeysColumns(): ColumnDef<ApiKey>[] {
     {
       accessorKey: 'accessed_time',
       header: ({ column }) => (
-        <DataTableColumnHeader column={column} title={t('Last Used')} />
+        <DataTableColumnHeader
+          column={column}
+          title={t('Last Used')}
+          className={keysColumnHeaderClassName}
+        />
       ),
       cell: ({ row }) => {
         const accessedTime = row.getValue('accessed_time') as number
@@ -287,7 +331,11 @@ export function useApiKeysColumns(): ColumnDef<ApiKey>[] {
     {
       accessorKey: 'expired_time',
       header: ({ column }) => (
-        <DataTableColumnHeader column={column} title={t('Expires')} />
+        <DataTableColumnHeader
+          column={column}
+          title={t('Expires')}
+          className={keysColumnHeaderClassName}
+        />
       ),
       cell: ({ row }) => {
         const expiredTime = row.getValue('expired_time') as number

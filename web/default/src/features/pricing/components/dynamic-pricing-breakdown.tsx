@@ -172,7 +172,7 @@ export function DynamicPricingBreakdown({
         rate: currency.customCurrencyExchangeRate || 1,
       }
     }
-    return { symbol: '$', rate: 1 }
+    return { symbol: '¥', rate: currency.usdExchangeRate || 7 }
   }, [currency])
 
   const { tiers, ruleGroups } = useMemo(() => {

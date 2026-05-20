@@ -20,7 +20,8 @@ import { useCallback, useEffect, useState } from 'react'
 import { Loader2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { formatQuota, formatCompactNumber } from '@/lib/format'
+import { formatCompactNumber } from '@/lib/format'
+import { formatQuotaForOpsCenter } from '@/lib/ops-billing-display'
 import {
   Dialog,
   DialogContent,
@@ -120,11 +121,11 @@ export function UserInfoDialog({
             <div className='grid grid-cols-2 gap-4'>
               <InfoItem
                 label={t('Balance')}
-                value={formatQuota(userInfo.quota)}
+                value={formatQuotaForOpsCenter(userInfo.quota)}
               />
               <InfoItem
                 label={t('Used Quota')}
-                value={formatQuota(userInfo.used_quota)}
+                value={formatQuotaForOpsCenter(userInfo.used_quota)}
               />
             </div>
 
@@ -162,7 +163,7 @@ export function UserInfoDialog({
                 {userInfo.aff_quota !== undefined && userInfo.aff_quota > 0 && (
                   <InfoItem
                     label={t('Invitation Quota')}
-                    value={formatQuota(userInfo.aff_quota)}
+                    value={formatQuotaForOpsCenter(userInfo.aff_quota)}
                   />
                 )}
               </>
