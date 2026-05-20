@@ -124,3 +124,17 @@ func TestUpdateChannelOpenAIBalance_Pagination(t *testing.T) {
 	require.Equal(t, "page-token-2", capturedTokenOnSecondCall)
 	require.InDelta(t, 12.25, balance, 0.001)
 }
+
+func TestUpdateChannelOpenAIBalance_NoAdminKey(t *testing.T) {
+	_ = openTokenControllerTestDB(t)
+	ch := buildOpenAIChannelWithAdminKey(t, "http://unused", "")
+
+	balance, err := updateChannelOpenAIBalance(ch)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "openai admin key is not set")
+	require.Equal(t, float64(0), balance)
+
+	var fresh model.Channel
+	require.NoError(t, model.DB.First(&fresh, ch.Id).Error)
+	require.Equal(t, float64(0), fresh.Balance)
+}
