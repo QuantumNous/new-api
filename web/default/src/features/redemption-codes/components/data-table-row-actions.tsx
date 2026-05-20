@@ -26,6 +26,7 @@ import {
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -36,7 +37,12 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { updateRedemptionStatus } from '../api'
-import { REDEMPTION_STATUS, SUCCESS_MESSAGES } from '../constants'
+import {
+  ERROR_MESSAGES,
+  REDEMPTION_GHOST_ICON_BUTTON_CLASS,
+  REDEMPTION_STATUS,
+  SUCCESS_MESSAGES,
+} from '../constants'
 import { isRedemptionExpired } from '../lib'
 import { redemptionSchema } from '../types'
 import { useRedemptions } from './redemptions-provider'
@@ -70,6 +76,8 @@ export function DataTableRowActions<TData>({
         : t(SUCCESS_MESSAGES.REDEMPTION_ENABLED)
       toast.success(message)
       triggerRefresh()
+    } else {
+      toast.error(t(ERROR_MESSAGES.STATUS_UPDATE_FAILED))
     }
   }
 
@@ -82,7 +90,10 @@ export function DataTableRowActions<TData>({
         render={
           <Button
             variant='ghost'
-            className='data-popup-open:bg-muted flex h-8 w-8 p-0'
+            className={cn(
+              'data-popup-open:bg-muted flex h-8 w-8 p-0',
+              REDEMPTION_GHOST_ICON_BUTTON_CLASS
+            )}
           />
         }
       >
@@ -97,7 +108,7 @@ export function DataTableRowActions<TData>({
           }}
           disabled={!canEdit}
         >
-          {t('Edit')}
+          {t('Redemption action edit')}
           <DropdownMenuShortcut>
             <Edit size={16} />
           </DropdownMenuShortcut>
@@ -106,14 +117,14 @@ export function DataTableRowActions<TData>({
           <DropdownMenuItem onClick={handleToggleStatus}>
             {isEnabled ? (
               <>
-                {t('Disable')}
+                {t('Redemption action disable')}
                 <DropdownMenuShortcut>
                   <PowerOff size={16} />
                 </DropdownMenuShortcut>
               </>
             ) : (
               <>
-                {t('Enable')}
+                {t('Redemption action enable')}
                 <DropdownMenuShortcut>
                   <Power size={16} />
                 </DropdownMenuShortcut>
@@ -129,7 +140,7 @@ export function DataTableRowActions<TData>({
           }}
           className='text-destructive focus:text-destructive'
         >
-          {t('Delete')}
+          {t('Redemption action delete')}
           <DropdownMenuShortcut>
             <Trash2 size={16} />
           </DropdownMenuShortcut>

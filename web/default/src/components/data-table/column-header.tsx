@@ -46,8 +46,20 @@ export function DataTableColumnHeader<TData, TValue>({
   className,
 }: DataTableColumnHeaderProps<TData, TValue>) {
   const { t } = useTranslation()
+  const sortIconClass =
+    'ms-2 h-4 w-4 shrink-0 text-slate-600 transition-colors dark:text-slate-300 group-hover/button:text-slate-900 dark:group-hover/button:text-white'
+
   if (!column.getCanSort()) {
-    return <div className={cn(className)}>{title}</div>
+    return (
+      <div
+        className={cn(
+          'font-semibold text-slate-800 dark:text-slate-100',
+          className
+        )}
+      >
+        {title}
+      </div>
+    )
   }
 
   return (
@@ -58,17 +70,17 @@ export function DataTableColumnHeader<TData, TValue>({
             <Button
               variant='ghost'
               size='sm'
-              className='data-popup-open:bg-accent -ms-3 h-8'
+              className='data-popup-open:bg-accent -ms-3 h-8 font-semibold text-slate-800 hover:text-slate-950 dark:text-slate-100 dark:hover:text-white'
             />
           }
         >
           <span>{title}</span>
           {column.getIsSorted() === 'desc' ? (
-            <ArrowDownIcon className='ms-2 h-4 w-4' />
+            <ArrowDownIcon className={sortIconClass} />
           ) : column.getIsSorted() === 'asc' ? (
-            <ArrowUpIcon className='ms-2 h-4 w-4' />
+            <ArrowUpIcon className={sortIconClass} />
           ) : (
-            <CaretSortIcon className='ms-2 h-4 w-4' />
+            <CaretSortIcon className={sortIconClass} />
           )}
         </DropdownMenuTrigger>
         <DropdownMenuContent align='start'>

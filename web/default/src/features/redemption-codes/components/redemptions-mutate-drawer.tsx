@@ -21,8 +21,9 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { getCurrencyDisplay, getCurrencyLabel } from '@/lib/currency'
+import { getCurrencyDisplay } from '@/lib/currency'
 import { addTimeToDate } from '@/lib/time'
+import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import {
   Form,
@@ -45,7 +46,11 @@ import {
 } from '@/components/ui/sheet'
 import { DateTimePicker } from '@/components/datetime-picker'
 import { createRedemption, updateRedemption, getRedemption } from '../api'
-import { SUCCESS_MESSAGES } from '../constants'
+import {
+  ERROR_MESSAGES,
+  REDEMPTION_OUTLINE_BUTTON_CLASS,
+  SUCCESS_MESSAGES,
+} from '../constants'
 import {
   getRedemptionFormSchema,
   type RedemptionFormValues,
@@ -71,6 +76,8 @@ export function RedemptionsMutateDrawer({
   const isUpdate = !!currentRow
   const { triggerRefresh } = useRedemptions()
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const expiryPresetButtonClass =
+    'border-slate-300 text-slate-800 hover:bg-slate-100 hover:text-slate-900 disabled:border-slate-200 disabled:bg-slate-100/60 disabled:text-slate-400 dark:border-white/15 dark:bg-white/10 dark:text-slate-100 dark:hover:bg-white/15 dark:hover:text-white dark:disabled:border-white/10 dark:disabled:bg-white/5 dark:disabled:text-slate-400'
 
   const form = useForm<RedemptionFormValues>({
     resolver: zodResolver(getRedemptionFormSchema(t)),
@@ -106,6 +113,8 @@ export function RedemptionsMutateDrawer({
           toast.success(t(SUCCESS_MESSAGES.REDEMPTION_UPDATED))
           onOpenChange(false)
           triggerRefresh()
+        } else {
+          toast.error(t(ERROR_MESSAGES.UPDATE_FAILED))
         }
       } else {
         // Create mode
@@ -114,13 +123,19 @@ export function RedemptionsMutateDrawer({
           const count = result.data?.length || 0
           toast.success(
             count > 1
-              ? t('Successfully created {{count}} redemption codes', {
+              ? t('Redemption successfully created count', {
                   count,
                 })
               : t(SUCCESS_MESSAGES.REDEMPTION_CREATED)
           )
           onOpenChange(false)
           triggerRefresh()
+        } else {
+          const message = typeof result.message === 'string' ? result.message : ''
+          const hasChineseContent = /[\u4e00-\u9fff]/.test(message)
+          toast.error(t(ERROR_MESSAGES.CREATE_FAILED), {
+            description: hasChineseContent ? message : undefined,
+          })
         }
       }
     } finally {
@@ -134,12 +149,11 @@ export function RedemptionsMutateDrawer({
   }
 
   const { meta: currencyMeta } = getCurrencyDisplay()
-  const currencyLabel = getCurrencyLabel()
   const tokensOnly = currencyMeta.kind === 'tokens'
-  const quotaLabel = t('Quota ({{currency}})', { currency: currencyLabel })
+  const quotaLabel = t('Redemption form quota label')
   const quotaPlaceholder = tokensOnly
-    ? t('Enter quota in tokens')
-    : t('Enter quota in {{currency}}', { currency: currencyLabel })
+    ? t('Redemption form enter token quota')
+    : t('Redemption form enter redeem quota')
 
   return (
     <Sheet
@@ -155,16 +169,14 @@ export function RedemptionsMutateDrawer({
         <SheetHeader className='border-b px-4 py-3 text-start sm:px-6 sm:py-4'>
           <SheetTitle>
             {isUpdate
-              ? t('Update Redemption Code')
-              : t('Create Redemption Code')}
+              ? t('Update resource redemption code')
+              : t('Create resource redemption code sheet')}
           </SheetTitle>
           <SheetDescription>
             {isUpdate
-              ? t('Update the redemption code by providing necessary info.')
-              : t(
-                  'Add new redemption code(s) by providing necessary info.'
-                )}{' '}
-            {t('Click save when you&apos;re done.')}
+              ? t('Redemption form update description')
+              : t('Redemption form create description')}{' '}
+            {t('Redemption form save hint')}
           </SheetDescription>
         </SheetHeader>
         <Form {...form}>
@@ -178,12 +190,15 @@ export function RedemptionsMutateDrawer({
               name='name'
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>{t('Name')}</FormLabel>
+                  <FormLabel>{t('Redemption form name label')}</FormLabel>
                   <FormControl>
-                    <Input {...field} placeholder={t('Enter a name')} />
+                    <Input
+                      {...field}
+                      placeholder={t('Redemption form name placeholder')}
+                    />
                   </FormControl>
                   <FormDescription>
-                    {t('Name for this redemption code (1-20 characters)')}
+                    {t('Redemption form name description')}
                   </FormDescription>
                   <FormMessage />
                 </FormItem>
@@ -209,10 +224,8 @@ export function RedemptionsMutateDrawer({
                   </FormControl>
                   <FormDescription>
                     {tokensOnly
-                      ? t('Enter the quota amount in tokens')
-                      : t('Enter the quota amount in {{currency}}', {
-                          currency: currencyLabel,
-                        })}
+                      ? t('Redemption form quota help tokens')
+                      : t('Redemption form quota help cny')}
                   </FormDescription>
                   <FormMessage />
                 </FormItem>
@@ -224,13 +237,13 @@ export function RedemptionsMutateDrawer({
               name='expired_time'
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>{t('Expiration Time')}</FormLabel>
+                  <FormLabel>{t('Redemption form expiry label')}</FormLabel>
                   <div className='space-y-2'>
                     <FormControl>
                       <DateTimePicker
                         value={field.value}
                         onChange={field.onChange}
-                        placeholder={t('Never expires')}
+                        placeholder={t('Redemption form expiry never placeholder')}
                       />
                     </FormControl>
                     <div className='grid grid-cols-4 gap-1.5 sm:flex sm:gap-2'>
@@ -238,38 +251,42 @@ export function RedemptionsMutateDrawer({
                         type='button'
                         variant='outline'
                         size='sm'
+                        className={cn(expiryPresetButtonClass)}
                         onClick={() => handleSetExpiry(0, 0, 0)}
                       >
-                        {t('Never')}
+                        {t('Redemption expiry preset never')}
                       </Button>
                       <Button
                         type='button'
                         variant='outline'
                         size='sm'
+                        className={cn(expiryPresetButtonClass)}
                         onClick={() => handleSetExpiry(1, 0, 0)}
                       >
-                        {t('1M')}
+                        {t('Redemption expiry preset one month')}
                       </Button>
                       <Button
                         type='button'
                         variant='outline'
                         size='sm'
+                        className={cn(expiryPresetButtonClass)}
                         onClick={() => handleSetExpiry(0, 7, 0)}
                       >
-                        {t('1W')}
+                        {t('Redemption expiry preset one week')}
                       </Button>
                       <Button
                         type='button'
                         variant='outline'
                         size='sm'
+                        className={cn(expiryPresetButtonClass)}
                         onClick={() => handleSetExpiry(0, 1, 0)}
                       >
-                        {t('1 Day')}
+                        {t('Redemption expiry preset one day')}
                       </Button>
                     </div>
                   </div>
                   <FormDescription>
-                    {t('Leave empty for never expires')}
+                    {t('Redemption form expiry leave empty')}
                   </FormDescription>
                   <FormMessage />
                 </FormItem>
@@ -282,21 +299,21 @@ export function RedemptionsMutateDrawer({
                 name='count'
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>{t('Quantity')}</FormLabel>
+                    <FormLabel>{t('Redemption form quantity label')}</FormLabel>
                     <FormControl>
                       <Input
                         {...field}
                         type='number'
                         min='1'
                         max='100'
-                        placeholder={t('Number of codes to create')}
+                        placeholder={t('Redemption form quantity placeholder')}
                         onChange={(e) =>
                           field.onChange(parseInt(e.target.value, 10) || 1)
                         }
                       />
                     </FormControl>
                     <FormDescription>
-                      {t('Create multiple redemption codes at once (1-100)')}
+                      {t('Redemption form quantity description')}
                     </FormDescription>
                     <FormMessage />
                   </FormItem>
@@ -306,7 +323,14 @@ export function RedemptionsMutateDrawer({
           </form>
         </Form>
         <SheetFooter className='grid grid-cols-2 gap-2 border-t px-4 py-3 sm:flex sm:px-6 sm:py-4'>
-          <SheetClose render={<Button variant='outline' />}>
+          <SheetClose
+            render={
+              <Button
+                variant='outline'
+                className={cn(REDEMPTION_OUTLINE_BUTTON_CLASS)}
+              />
+            }
+          >
             {t('Close')}
           </SheetClose>
           <Button form='redemption-form' type='submit' disabled={isSubmitting}>

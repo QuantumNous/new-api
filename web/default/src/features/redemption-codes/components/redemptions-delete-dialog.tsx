@@ -19,6 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+import { cn } from '@/lib/utils'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -30,7 +31,11 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { deleteRedemption } from '../api'
-import { SUCCESS_MESSAGES } from '../constants'
+import {
+  ERROR_MESSAGES,
+  REDEMPTION_OUTLINE_BUTTON_CLASS,
+  SUCCESS_MESSAGES,
+} from '../constants'
 import { useRedemptions } from './redemptions-provider'
 
 export function RedemptionsDeleteDialog() {
@@ -48,6 +53,8 @@ export function RedemptionsDeleteDialog() {
         toast.success(t(SUCCESS_MESSAGES.REDEMPTION_DELETED))
         setOpen(null)
         triggerRefresh()
+      } else {
+        toast.error(t(ERROR_MESSAGES.DELETE_FAILED))
       }
     } finally {
       setIsDeleting(false)
@@ -61,15 +68,18 @@ export function RedemptionsDeleteDialog() {
     >
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>{t('Are you sure?')}</AlertDialogTitle>
+          <AlertDialogTitle>{t('Redemption delete confirm title')}</AlertDialogTitle>
           <AlertDialogDescription>
-            {t('This will permanently delete redemption code')}{' '}
+            {t('Redemption delete confirm description prefix')}{' '}
             <span className='font-semibold'>{currentRow?.name}</span>
-            {t('. This action cannot be undone.')}
+            {t('Redemption delete confirm description suffix')}
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
-          <AlertDialogCancel disabled={isDeleting}>
+          <AlertDialogCancel
+            disabled={isDeleting}
+            className={cn(REDEMPTION_OUTLINE_BUTTON_CLASS)}
+          >
             {t('Cancel')}
           </AlertDialogCancel>
           <AlertDialogAction

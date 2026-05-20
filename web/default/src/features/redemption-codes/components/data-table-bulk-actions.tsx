@@ -21,6 +21,7 @@ import { type Table } from '@tanstack/react-table'
 import { Trash2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import {
   Tooltip,
@@ -31,6 +32,7 @@ import { ConfirmDialog } from '@/components/confirm-dialog'
 import { CopyButton } from '@/components/copy-button'
 import { DataTableBulkActions as BulkActionsToolbar } from '@/components/data-table'
 import { deleteInvalidRedemptions } from '../api'
+import { ERROR_MESSAGES, REDEMPTION_OUTLINE_BUTTON_CLASS } from '../constants'
 import { type Redemption } from '../types'
 import { useRedemptions } from './redemptions-provider'
 
@@ -64,13 +66,15 @@ export function DataTableBulkActions<TData>({
       if (result.success) {
         const count = result.data || 0
         toast.success(
-          t('Successfully deleted {{count}} invalid redemption codes', {
+          t('Redemption bulk delete invalid success', {
             count,
           })
         )
         table.resetRowSelection()
         triggerRefresh()
         setShowDeleteInvalidConfirm(false)
+      } else {
+        toast.error(t(ERROR_MESSAGES.DELETE_INVALID_FAILED))
       }
     } finally {
       setIsDeleting(false)
@@ -79,15 +83,15 @@ export function DataTableBulkActions<TData>({
 
   return (
     <>
-      <BulkActionsToolbar table={table} entityName={t('redemption code')}>
+      <BulkActionsToolbar table={table} entityName={t('Redemption bulk entity name')}>
         <CopyButton
           value={contentToCopy}
           variant='outline'
           size='icon'
-          className='size-8'
-          tooltip={t('Copy selected codes')}
-          successTooltip={t('Codes copied!')}
-          aria-label={t('Copy selected codes')}
+          className={cn('size-8', REDEMPTION_OUTLINE_BUTTON_CLASS)}
+          tooltip={t('Redemption bulk copy selected')}
+          successTooltip={t('Redemption bulk copy success')}
+          aria-label={t('Redemption bulk copy selected')}
         />
 
         <Tooltip>
@@ -98,16 +102,16 @@ export function DataTableBulkActions<TData>({
                 size='icon'
                 onClick={() => setShowDeleteInvalidConfirm(true)}
                 className='size-8'
-                aria-label={t('Delete invalid redemption codes')}
-                title={t('Delete invalid redemption codes')}
+                aria-label={t('Redemption bulk delete invalid aria')}
+                title={t('Redemption bulk delete invalid title')}
               />
             }
           >
             <Trash2 />
-            <span className='sr-only'>{t('Delete invalid codes')}</span>
+            <span className='sr-only'>{t('Redemption bulk delete invalid sr')}</span>
           </TooltipTrigger>
           <TooltipContent>
-            <p>{t('Delete invalid codes (used/disabled/expired)')}</p>
+            <p>{t('Redemption bulk delete invalid tooltip')}</p>
           </TooltipContent>
         </Tooltip>
       </BulkActionsToolbar>
@@ -119,18 +123,14 @@ export function DataTableBulkActions<TData>({
         handleConfirm={handleDeleteInvalid}
         isLoading={isDeleting}
         className='max-w-md'
-        title={t('Delete Invalid Redemption Codes?')}
+        title={t('Redemption bulk delete invalid confirm title')}
         desc={
-          <>
-            {t('This will delete all')} <strong>{t('used')}</strong>,{' '}
-            <strong>{t('disabled')}</strong>
-            {t(', and')} <strong>{t('expired')}</strong>{' '}
-            {t('redemption codes.')}
-            <br />
-            {t('This action cannot be undone.')}
-          </>
+          <div className='space-y-2 text-sm'>
+            <p>{t('Redemption bulk delete invalid confirm full')}</p>
+            <p>{t('Redemption bulk delete invalid confirm irreversible')}</p>
+          </div>
         }
-        confirmText={t('Delete Invalid')}
+        confirmText={t('Redemption bulk delete invalid confirm button')}
       />
     </>
   )

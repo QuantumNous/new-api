@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { type ColumnDef } from '@tanstack/react-table'
 import { useTranslation } from 'react-i18next'
-import { formatQuota, formatTimestampToDate } from '@/lib/format'
+import { formatTimestampToDate } from '@/lib/format'
 import { Checkbox } from '@/components/ui/checkbox'
 import {
   Tooltip,
@@ -38,13 +38,13 @@ export function useRedemptionsColumns(): ColumnDef<Redemption>[] {
   return [
     {
       id: 'select',
-      meta: { label: t('Select') },
+      meta: { label: t('Redemption table select column') },
       header: ({ table }) => (
         <Checkbox
           checked={table.getIsAllPageRowsSelected()}
           indeterminate={table.getIsSomePageRowsSelected()}
           onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
-          aria-label={t('Select all')}
+          aria-label={t('Redemption table select all')}
           className='translate-y-[2px]'
         />
       ),
@@ -52,7 +52,7 @@ export function useRedemptionsColumns(): ColumnDef<Redemption>[] {
         <Checkbox
           checked={row.getIsSelected()}
           onCheckedChange={(value) => row.toggleSelected(!!value)}
-          aria-label={t('Select row')}
+          aria-label={t('Redemption table select row')}
           className='translate-y-[2px]'
         />
       ),
@@ -71,9 +71,12 @@ export function useRedemptionsColumns(): ColumnDef<Redemption>[] {
     },
     {
       accessorKey: 'name',
-      meta: { label: t('Name'), mobileTitle: true },
+      meta: { label: t('Redemption table column name'), mobileTitle: true },
       header: ({ column }) => (
-        <DataTableColumnHeader column={column} title={t('Name')} />
+        <DataTableColumnHeader
+          column={column}
+          title={t('Redemption table column name')}
+        />
       ),
       cell: ({ row }) => {
         return (
@@ -85,9 +88,12 @@ export function useRedemptionsColumns(): ColumnDef<Redemption>[] {
     },
     {
       accessorKey: 'status',
-      meta: { label: t('Status'), mobileBadge: true },
+      meta: { label: t('Redemption table column status'), mobileBadge: true },
       header: ({ column }) => (
-        <DataTableColumnHeader column={column} title={t('Status')} />
+        <DataTableColumnHeader
+          column={column}
+          title={t('Redemption table column status')}
+        />
       ),
       cell: ({ row }) => {
         const redemption = row.original
@@ -97,7 +103,7 @@ export function useRedemptionsColumns(): ColumnDef<Redemption>[] {
         if (isRedemptionExpired(redemption.expired_time, statusValue)) {
           return (
             <StatusBadge
-              label={t('Expired')}
+              label={t('Redemption status expired')}
               variant='warning'
               showDot={true}
               copyable={false}
@@ -138,9 +144,12 @@ export function useRedemptionsColumns(): ColumnDef<Redemption>[] {
     {
       id: 'code',
       accessorKey: 'key',
-      meta: { label: t('Code') },
+      meta: { label: t('Redemption table column key') },
       header: ({ column }) => (
-        <DataTableColumnHeader column={column} title={t('Code')} />
+        <DataTableColumnHeader
+          column={column}
+          title={t('Redemption table column key')}
+        />
       ),
       cell: function CodeCell({ row }) {
         const redemption = row.original
@@ -149,11 +158,11 @@ export function useRedemptionsColumns(): ColumnDef<Redemption>[] {
 
         return (
           <MaskedValueDisplay
-            label={t('Full Code')}
+            label={t('Redemption table full code')}
             fullValue={key}
             maskedValue={maskedKey}
-            copyTooltip={t('Copy code')}
-            copyAriaLabel={t('Copy redemption code')}
+            copyTooltip={t('Redemption copy code')}
+            copyAriaLabel={t('Redemption copy code aria')}
           />
         )
       },
@@ -161,15 +170,18 @@ export function useRedemptionsColumns(): ColumnDef<Redemption>[] {
     },
     {
       accessorKey: 'quota',
-      meta: { label: t('Quota') },
+      meta: { label: t('Redemption table column quota') },
       header: ({ column }) => (
-        <DataTableColumnHeader column={column} title={t('Quota')} />
+        <DataTableColumnHeader
+          column={column}
+          title={t('Redemption table column quota')}
+        />
       ),
       cell: ({ row }) => {
         const quota = row.getValue('quota') as number
         return (
           <StatusBadge
-            label={formatQuota(quota)}
+            label={formatQuotaForOpsCenter(quota)}
             variant='neutral'
             copyable={false}
           />
@@ -178,9 +190,12 @@ export function useRedemptionsColumns(): ColumnDef<Redemption>[] {
     },
     {
       accessorKey: 'created_time',
-      meta: { label: t('Created'), mobileHidden: true },
+      meta: { label: t('Redemption table column created'), mobileHidden: true },
       header: ({ column }) => (
-        <DataTableColumnHeader column={column} title={t('Created')} />
+        <DataTableColumnHeader
+          column={column}
+          title={t('Redemption table column created')}
+        />
       ),
       cell: ({ row }) => {
         return (
@@ -192,9 +207,12 @@ export function useRedemptionsColumns(): ColumnDef<Redemption>[] {
     },
     {
       accessorKey: 'expired_time',
-      meta: { label: t('Expires'), mobileHidden: true },
+      meta: { label: t('Redemption table column expires'), mobileHidden: true },
       header: ({ column }) => (
-        <DataTableColumnHeader column={column} title={t('Expires')} />
+        <DataTableColumnHeader
+          column={column}
+          title={t('Redemption table column expires')}
+        />
       ),
       cell: ({ row }) => {
         const expiredTime = row.getValue('expired_time') as number
@@ -219,9 +237,15 @@ export function useRedemptionsColumns(): ColumnDef<Redemption>[] {
     },
     {
       accessorKey: 'used_user_id',
-      meta: { label: t('Redeemed By'), mobileHidden: true },
+      meta: {
+        label: t('Redemption table column redeemed account'),
+        mobileHidden: true,
+      },
       header: ({ column }) => (
-        <DataTableColumnHeader column={column} title={t('Redeemed By')} />
+        <DataTableColumnHeader
+          column={column}
+          title={t('Redemption table column redeemed account')}
+        />
       ),
       cell: ({ row }) => {
         const userId = row.getValue('used_user_id') as number
@@ -236,7 +260,7 @@ export function useRedemptionsColumns(): ColumnDef<Redemption>[] {
             <TooltipTrigger
               render={
                 <StatusBadge
-                  label={t('User {{id}}', { id: userId })}
+                  label={t('Redemption table account id badge', { id: userId })}
                   variant='neutral'
                   copyable={false}
                   className='cursor-help'
@@ -246,11 +270,12 @@ export function useRedemptionsColumns(): ColumnDef<Redemption>[] {
             <TooltipContent>
               <div className='space-y-1 text-xs'>
                 <div>
-                  {t('User ID:')} {userId}
+                  {t('Redemption table tooltip account id')}{' '}
+                  {userId}
                 </div>
                 {redemption.redeemed_time > 0 && (
                   <div>
-                    {t('Redeemed:')}{' '}
+                    {t('Redemption table tooltip redeemed time')}{' '}
                     {formatTimestampToDate(redemption.redeemed_time)}
                   </div>
                 )}

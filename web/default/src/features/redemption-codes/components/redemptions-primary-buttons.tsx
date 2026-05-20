@@ -28,7 +28,7 @@ export function RedemptionsPrimaryButtons() {
     <div className='flex gap-2'>
       <Button size='sm' onClick={() => setOpen('create')}>
         <Plus className='h-4 w-4' />
-        {t('Create Code')}
+        {t('Create resource redemption code')}
       </Button>
     </div>
   )

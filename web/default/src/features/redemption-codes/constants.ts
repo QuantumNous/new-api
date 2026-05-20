@@ -42,19 +42,19 @@ export const REDEMPTION_STATUSES: Record<
   }
 > = {
   [REDEMPTION_STATUS.ENABLED]: {
-    labelKey: 'Unused',
+    labelKey: 'Redemption status pending',
     variant: 'success',
     value: REDEMPTION_STATUS.ENABLED,
     showDot: true,
   },
   [REDEMPTION_STATUS.DISABLED]: {
-    labelKey: 'Disabled',
+    labelKey: 'Redemption status disabled',
     variant: 'neutral',
     value: REDEMPTION_STATUS.DISABLED,
     showDot: true,
   },
   [REDEMPTION_STATUS.USED]: {
-    labelKey: 'Used',
+    labelKey: 'Redemption status redeemed',
     variant: 'neutral',
     value: REDEMPTION_STATUS.USED,
     showDot: true,
@@ -72,11 +72,19 @@ export function getRedemptionStatusOptions(t: TFunction) {
       value: String(config.value),
     })),
     {
-      label: t('Expired'),
+      label: t('Redemption status expired'),
       value: REDEMPTION_FILTER_EXPIRED,
     },
   ]
 }
+
+/** Dark-theme readable outline buttons (Sheet / dialogs). */
+export const REDEMPTION_OUTLINE_BUTTON_CLASS =
+  'border-white/15 bg-white/10 text-slate-100 [&_svg]:text-slate-100 hover:bg-white/15 hover:text-white hover:[&_svg]:text-white data-popup-open:bg-white/10 disabled:border-white/10 disabled:bg-white/5 disabled:text-slate-400 disabled:opacity-60'
+
+/** Dark-theme row action trigger (ghost icon). */
+export const REDEMPTION_GHOST_ICON_BUTTON_CLASS =
+  'text-slate-200 hover:bg-white/10 hover:text-white [&_svg]:text-slate-300 hover:[&_svg]:text-white data-popup-open:bg-white/10'
 
 // ============================================================================
 // Validation Constants
@@ -95,17 +103,19 @@ export const REDEMPTION_VALIDATION = {
 
 // i18n keys; use t(ERROR_MESSAGES.xxx) when displaying. For form schema with interpolation use getRedemptionFormErrorMessages(t).
 export const ERROR_MESSAGES = {
-  UNEXPECTED: 'An unexpected error occurred',
-  LOAD_FAILED: 'Failed to load redemption codes',
-  SEARCH_FAILED: 'Failed to search redemption codes',
-  CREATE_FAILED: 'Failed to create redemption code',
-  UPDATE_FAILED: 'Failed to update redemption code',
-  DELETE_FAILED: 'Failed to delete redemption code',
-  DELETE_INVALID_FAILED: 'Failed to delete invalid redemption codes',
-  STATUS_UPDATE_FAILED: 'Failed to update redemption code status',
-  NAME_LENGTH_INVALID: 'Name must be between {{min}} and {{max}} characters',
-  COUNT_INVALID: 'Count must be between {{min}} and {{max}}',
-  EXPIRED_TIME_INVALID: 'Expired time cannot be earlier than current time',
+  UNEXPECTED: 'Redemption error unexpected',
+  LOAD_FAILED: 'Redemption codes load failed',
+  SEARCH_FAILED: 'Redemption codes search failed',
+  CREATE_FAILED: 'Redemption code create failed',
+  UPDATE_FAILED: 'Redemption code update failed',
+  DELETE_FAILED: 'Redemption code delete failed',
+  DELETE_INVALID_FAILED: 'Redemption codes delete invalid failed',
+  STATUS_UPDATE_FAILED: 'Redemption code status update failed',
+  NAME_LENGTH_INVALID:
+    'Redemption form name length must be between {{min}} and {{max}} characters',
+  COUNT_INVALID:
+    'Redemption form batch count must be between {{min}} and {{max}}',
+  EXPIRED_TIME_INVALID: 'Redemption form expiry cannot be before now',
 } as const
 
 /** For form schema only: returns translated messages with interpolation. */
@@ -128,10 +138,10 @@ export function getRedemptionFormErrorMessages(t: TFunction) {
 // ============================================================================
 
 export const SUCCESS_MESSAGES = {
-  REDEMPTION_CREATED: 'Redemption code(s) created successfully',
-  REDEMPTION_UPDATED: 'Redemption code updated successfully',
-  REDEMPTION_DELETED: 'Redemption code deleted successfully',
-  REDEMPTION_ENABLED: 'Redemption code enabled successfully',
-  REDEMPTION_DISABLED: 'Redemption code disabled successfully',
-  COPY_SUCCESS: 'Copied to clipboard',
+  REDEMPTION_CREATED: 'Resource redemption code created successfully',
+  REDEMPTION_UPDATED: 'Resource redemption code updated successfully',
+  REDEMPTION_DELETED: 'Resource redemption code deleted successfully',
+  REDEMPTION_ENABLED: 'Resource redemption code enabled successfully',
+  REDEMPTION_DISABLED: 'Resource redemption code disabled successfully',
+  COPY_SUCCESS: 'Redemption copy success',
 } as const
