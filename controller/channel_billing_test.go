@@ -1,6 +1,11 @@
 package controller
 
 import (
+	"fmt"
+	"net/http"
+	"net/http/httptest"
+	"net/url"
+	"strconv"
 	"testing"
 	"time"
 
@@ -16,6 +21,7 @@ import (
 // adminKey is stored inside ChannelOtherSettings.OpenAIAdminKey. If empty, the field is omitted.
 func buildOpenAIChannelWithAdminKey(t *testing.T, baseURL, adminKey string) *model.Channel {
 	t.Helper()
+	require.NoError(t, model.DB.AutoMigrate(&model.Channel{}))
 	settings := dto.ChannelOtherSettings{}
 	if adminKey != "" {
 		settings.OpenAIAdminKey = adminKey
@@ -39,4 +45,44 @@ func buildOpenAIChannelWithAdminKey(t *testing.T, baseURL, adminKey string) *mod
 func firstDayOfCurrentMonthUTC() int64 {
 	now := time.Now().UTC()
 	return time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, time.UTC).Unix()
+}
+
+func TestUpdateChannelOpenAIBalance_SingleBucket(t *testing.T) {
+	_ = openTokenControllerTestDB(t)
+
+	var capturedAuth string
+	var capturedQuery url.Values
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		capturedAuth = r.Header.Get("Authorization")
+		capturedQuery = r.URL.Query()
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = fmt.Fprint(w, `{
+			"object": "page",
+			"data": [
+				{
+					"object": "bucket",
+					"start_time": 1747008000,
+					"end_time": 1747094400,
+					"results": [
+						{"object": "organization.costs.result", "amount": {"value": 10.5, "currency": "usd"}}
+					]
+				}
+			],
+			"has_more": false,
+			"next_page": ""
+		}`)
+	}))
+	defer ts.Close()
+
+	ch := buildOpenAIChannelWithAdminKey(t, ts.URL, "sk-admin-test")
+
+	balance, err := updateChannelOpenAIBalance(ch)
+	require.NoError(t, err)
+	require.InDelta(t, 10.5, balance, 0.001)
+	require.Equal(t, "Bearer sk-admin-test", capturedAuth)
+	require.Equal(t, strconv.FormatInt(firstDayOfCurrentMonthUTC(), 10), capturedQuery.Get("start_time"))
+
+	var fresh model.Channel
+	require.NoError(t, model.DB.First(&fresh, ch.Id).Error)
+	require.InDelta(t, 10.5, fresh.Balance, 0.001)
 }
