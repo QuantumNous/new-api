@@ -19,8 +19,9 @@ For commercial licensing, please contact support@quantumnous.com
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { getCurrencyDisplay, getCurrencyLabel } from '@/lib/currency'
-import { formatQuota, parseQuotaFromDollars } from '@/lib/format'
+import { getCurrencyDisplay } from '@/lib/currency'
+import { parseQuotaFromDollars } from '@/lib/format'
+import { formatQuotaForOpsCenter } from '@/lib/ops-billing-display'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import {
@@ -34,6 +35,7 @@ import {
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { adjustUserQuota } from '../api'
+import { resolveUserToastMessage } from '../constants'
 import type { QuotaAdjustMode } from '../types'
 
 interface UserQuotaDialogProps {
@@ -51,7 +53,6 @@ export function UserQuotaDialog(props: UserQuotaDialogProps) {
   const [loading, setLoading] = useState(false)
 
   const { meta: currencyMeta } = getCurrencyDisplay()
-  const currencyLabel = getCurrencyLabel()
   const tokensOnly = currencyMeta.kind === 'tokens'
 
   const amountValue = parseFloat(amount) || 0
@@ -62,12 +63,12 @@ export function UserQuotaDialog(props: UserQuotaDialogProps) {
     const val = quotaValue
     switch (mode) {
       case 'add':
-        return `${t('Current quota')}: ${formatQuota(current)}  +${formatQuota(val)} = ${formatQuota(current + val)}`
+        return `${t('Current token quota')}: ${formatQuotaForOpsCenter(current)}  +${formatQuotaForOpsCenter(val)} = ${formatQuotaForOpsCenter(current + val)}`
       case 'subtract':
-        return `${t('Current quota')}: ${formatQuota(current)}  -${formatQuota(val)} = ${formatQuota(current - val)}`
+        return `${t('Current token quota')}: ${formatQuotaForOpsCenter(current)}  -${formatQuotaForOpsCenter(val)} = ${formatQuotaForOpsCenter(current - val)}`
       case 'override': {
         const overrideQuota = parseQuotaFromDollars(amountValue)
-        return `${t('Current quota')}: ${formatQuota(current)} → ${formatQuota(overrideQuota)}`
+        return `${t('Current token quota')}: ${formatQuotaForOpsCenter(current)} → ${formatQuotaForOpsCenter(overrideQuota)}`
       }
       default:
         return ''
@@ -95,10 +96,16 @@ export function UserQuotaDialog(props: UserQuotaDialogProps) {
         props.onOpenChange(false)
         props.onSuccess()
       } else {
-        toast.error(result.message || t('Failed to adjust quota'))
+        toast.error(
+          resolveUserToastMessage(
+            result.message,
+            'Failed to adjust quota',
+            t
+          )
+        )
       }
-    } catch (e: unknown) {
-      toast.error(e instanceof Error ? e.message : t('Failed to adjust quota'))
+    } catch (_e: unknown) {
+      toast.error(t('Failed to adjust quota'))
     } finally {
       setLoading(false)
     }
@@ -110,17 +117,13 @@ export function UserQuotaDialog(props: UserQuotaDialogProps) {
     props.onOpenChange(false)
   }
 
-  const placeholder = tokensOnly
-    ? t('Enter amount in tokens')
-    : t('Enter amount in {{currency}}', { currency: currencyLabel })
-
   return (
     <Dialog open={props.open} onOpenChange={props.onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>{t('Adjust Quota')}</DialogTitle>
+          <DialogTitle>{t('Adjust token quota')}</DialogTitle>
           <DialogDescription>
-            {t('Select an operation mode and enter the amount')}
+            {t('Select operation mode and enter adjustment amount')}
           </DialogDescription>
         </DialogHeader>
         <div className='space-y-4'>
@@ -147,24 +150,22 @@ export function UserQuotaDialog(props: UserQuotaDialogProps) {
                   }}
                 >
                   {m === 'add'
-                    ? t('Add')
+                    ? t('Add token quota')
                     : m === 'subtract'
-                      ? t('Subtract')
-                      : t('Override')}
+                      ? t('Subtract token quota')
+                      : t('Override token quota')}
                 </Button>
               ))}
             </div>
           </div>
 
           <div className='space-y-2'>
-            <Label>
-              {t('Amount')} ({currencyLabel})
-            </Label>
+            <Label>{t('Adjustment amount')}</Label>
             <Input
               type='number'
               step={tokensOnly ? 1 : 0.000001}
               min={mode === 'override' ? undefined : 0}
-              placeholder={placeholder}
+              placeholder={t('Enter adjustment amount')}
               value={amount}
               onChange={(e) => setAmount(e.target.value)}
               onKeyDown={(e) => {

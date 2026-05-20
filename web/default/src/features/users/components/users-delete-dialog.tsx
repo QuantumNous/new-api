@@ -30,7 +30,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { deleteUser } from '../api'
-import { ERROR_MESSAGES } from '../constants'
+import { ERROR_MESSAGES, resolveUserToastMessage } from '../constants'
 import { getUserActionMessage } from '../lib'
 import { useUsers } from './users-provider'
 
@@ -50,7 +50,13 @@ export function UsersDeleteDialog() {
         setOpen(null)
         triggerRefresh()
       } else {
-        toast.error(result.message || t(ERROR_MESSAGES.DELETE_FAILED))
+        toast.error(
+          resolveUserToastMessage(
+            result.message,
+            ERROR_MESSAGES.DELETE_FAILED,
+            t
+          )
+        )
       }
     } catch (_error) {
       toast.error(t(ERROR_MESSAGES.UNEXPECTED))
@@ -68,7 +74,7 @@ export function UsersDeleteDialog() {
         <AlertDialogHeader>
           <AlertDialogTitle>{t('Are you sure?')}</AlertDialogTitle>
           <AlertDialogDescription>
-            {t('This will permanently delete user')}{' '}
+            {t('This will permanently delete the account')}{' '}
             <span className='font-semibold'>{currentRow?.username}</span>
             {t('. This action cannot be undone.')}
           </AlertDialogDescription>
@@ -82,7 +88,7 @@ export function UsersDeleteDialog() {
             disabled={isDeleting}
             className='bg-destructive text-destructive-foreground hover:bg-destructive/90'
           >
-            {isDeleting ? 'Deleting...' : 'Delete'}
+            {isDeleting ? t('Deleting...') : t('Delete account')}
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>

@@ -23,8 +23,9 @@ import { useQuery } from '@tanstack/react-query'
 import { Pencil } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { getCurrencyDisplay, getCurrencyLabel } from '@/lib/currency'
-import { formatQuota, parseQuotaFromDollars } from '@/lib/format'
+import { getCurrencyDisplay } from '@/lib/currency'
+import { parseQuotaFromDollars } from '@/lib/format'
+import { formatQuotaForOpsCenter } from '@/lib/ops-billing-display'
 import { Button } from '@/components/ui/button'
 import {
   Form,
@@ -56,7 +57,14 @@ import {
 } from '@/components/ui/sheet'
 import { Textarea } from '@/components/ui/textarea'
 import { createUser, updateUser, getUser, getGroups } from '../api'
-import { BINDING_FIELDS, ERROR_MESSAGES, SUCCESS_MESSAGES } from '../constants'
+import {
+  BINDING_FIELDS,
+  ERROR_MESSAGES,
+  PASSWORD_LENGTH_MESSAGE_KEY,
+  SUCCESS_MESSAGES,
+  getPasswordFieldError,
+  resolveUserToastMessage,
+} from '../constants'
 import {
   userFormSchema,
   type UserFormValues,
@@ -115,21 +123,18 @@ export function UsersMutateDrawer({
   }, [open, isUpdate, currentRow, form])
 
   const { meta: currencyMeta } = getCurrencyDisplay()
-  const currencyLabel = getCurrencyLabel()
   const tokensOnly = currencyMeta.kind === 'tokens'
 
   const currentQuotaRaw = form.watch('quota_dollars') || 0
 
   const onSubmit = async (data: UserFormValues) => {
-    if (!isUpdate) {
-      const passwordLength = data.password?.length || 0
-      if (passwordLength < 8 || passwordLength > 20) {
-        form.setError('password', {
-          type: 'manual',
-          message: t('Password must be between 8 and 20 characters'),
-        })
-        return
-      }
+    const passwordError = getPasswordFieldError(data.password, isUpdate)
+    if (passwordError) {
+      form.setError('password', {
+        type: 'manual',
+        message: passwordError,
+      })
+      return
     }
 
     setIsSubmitting(true)
@@ -149,10 +154,13 @@ export function UsersMutateDrawer({
         triggerRefresh()
       } else {
         toast.error(
-          result.message ||
-            (isUpdate
-              ? t(ERROR_MESSAGES.UPDATE_FAILED)
-              : t(ERROR_MESSAGES.CREATE_FAILED))
+          resolveUserToastMessage(
+            result.message,
+            isUpdate
+              ? ERROR_MESSAGES.UPDATE_FAILED
+              : ERROR_MESSAGES.CREATE_FAILED,
+            t
+          )
         )
       }
     } catch (_error) {
@@ -185,12 +193,16 @@ export function UsersMutateDrawer({
         <SheetContent className='flex h-dvh w-full flex-col gap-0 overflow-hidden p-0 sm:max-w-[600px]'>
           <SheetHeader className='border-b px-4 py-3 text-start sm:px-6 sm:py-4'>
             <SheetTitle>
-              {isUpdate ? t('Update') : t('Create')} {t('User')}
+              {isUpdate ? t('Update account') : t('Create account')}
             </SheetTitle>
             <SheetDescription>
               {isUpdate
-                ? t('Update the user by providing necessary info.')
-                : t('Add a new user by providing necessary info.')}
+                ? t(
+                    'Update account profile, tenant group, role, and token quota settings'
+                  )
+                : t(
+                    'Add a new account with roles, tenant group, and token quota'
+                  )}
             </SheetDescription>
           </SheetHeader>
           <Form {...form}>
@@ -210,11 +222,11 @@ export function UsersMutateDrawer({
                   name='username'
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>{t('Username')}</FormLabel>
+                      <FormLabel>{t('Account name')}</FormLabel>
                       <FormControl>
                         <Input
                           {...field}
-                          placeholder={t('Enter username')}
+                          placeholder={t('Enter account name')}
                           disabled={isUpdate}
                         />
                       </FormControl>
@@ -229,11 +241,14 @@ export function UsersMutateDrawer({
                     name='role'
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>{t('Role')}</FormLabel>
+                        <FormLabel>{t('Account role')}</FormLabel>
                         <Select
                           items={[
                             { value: '1', label: t('Common User') },
-                            { value: '10', label: t('Admin') },
+                            {
+                              value: '10',
+                              label: t('Platform administrator'),
+                            },
                           ]}
                           onValueChange={(value) =>
                             value !== null && field.onChange(parseInt(value))
@@ -250,12 +265,16 @@ export function UsersMutateDrawer({
                               <SelectItem value='1'>
                                 {t('Common User')}
                               </SelectItem>
-                              <SelectItem value='10'>{t('Admin')}</SelectItem>
+                              <SelectItem value='10'>
+                                {t('Platform administrator')}
+                              </SelectItem>
                             </SelectGroup>
                           </SelectContent>
                         </Select>
                         <FormDescription>
-                          {t("Set the user's role (cannot be Root)")}
+                          {t(
+                            'Set account role (cannot be Super administrator)'
+                          )}
                         </FormDescription>
                         <FormMessage />
                       </FormItem>
@@ -276,7 +295,7 @@ export function UsersMutateDrawer({
                         />
                       </FormControl>
                       <FormDescription>
-                        {t('Leave empty to use username')}
+                        {t('Leave empty to use account name')}
                       </FormDescription>
                       <FormMessage />
                     </FormItem>
@@ -286,7 +305,7 @@ export function UsersMutateDrawer({
                 <FormField
                   control={form.control}
                   name='password'
-                  render={({ field }) => (
+                  render={({ field, fieldState }) => (
                     <FormItem>
                       <FormLabel>{t('Password')}</FormLabel>
                       <FormControl>
@@ -298,8 +317,19 @@ export function UsersMutateDrawer({
                               ? t('Leave empty to keep unchanged')
                               : t('Enter password (min 8 characters)')
                           }
+                          onChange={(event) => {
+                            field.onChange(event)
+                            if (form.formState.errors.password) {
+                              form.clearErrors('password')
+                            }
+                          }}
                         />
                       </FormControl>
+                      {!fieldState.error && (
+                        <FormDescription>
+                          {t(PASSWORD_LENGTH_MESSAGE_KEY)}
+                        </FormDescription>
+                      )}
                       <FormMessage />
                     </FormItem>
                   )}
@@ -309,14 +339,16 @@ export function UsersMutateDrawer({
               {/* Group & Quota Settings (Update only) */}
               {isUpdate && (
                 <div className='space-y-4'>
-                  <h3 className='text-sm font-medium'>{t('Group & Quota')}</h3>
+                  <h3 className='text-sm font-medium'>
+                    {t('Tenant group and token quota')}
+                  </h3>
 
                   <FormField
                     control={form.control}
                     name='group'
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>{t('Group')}</FormLabel>
+                        <FormLabel>{t('Tenant group')}</FormLabel>
                         <Select
                           items={[
                             ...groups.map((group) => ({
@@ -352,11 +384,7 @@ export function UsersMutateDrawer({
                     name='quota_dollars'
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>
-                          {t('Remaining Quota ({{currency}})', {
-                            currency: currencyLabel,
-                          })}
-                        </FormLabel>
+                        <FormLabel>{t('Remaining token quota')}</FormLabel>
                         <div className='flex gap-2'>
                           <FormControl>
                             <Input
@@ -375,11 +403,13 @@ export function UsersMutateDrawer({
                             onClick={() => setQuotaDialogOpen(true)}
                           >
                             <Pencil className='mr-1 h-4 w-4' />
-                            {t('Adjust Quota')}
+                            {t('Adjust token quota')}
                           </Button>
                         </div>
                         <FormDescription>
-                          {formatQuota(parseQuotaFromDollars(field.value || 0))}
+                          {formatQuotaForOpsCenter(
+                            parseQuotaFromDollars(field.value || 0)
+                          )}
                         </FormDescription>
                         <FormMessage />
                       </FormItem>
@@ -416,7 +446,7 @@ export function UsersMutateDrawer({
                   </h3>
                   <p className='text-muted-foreground text-xs'>
                     {t(
-                      'Third-party account bindings (read-only, managed by user in profile settings)'
+                      'Third-party bindings (read-only, managed in account profile)'
                     )}
                   </p>
 

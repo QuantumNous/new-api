@@ -74,26 +74,34 @@ export const USER_ROLE = {
 
 export const USER_ROLES = {
   [USER_ROLE.USER]: {
-    labelKey: 'User',
+    labelKey: 'Common User',
     value: USER_ROLE.USER,
     icon: User,
   },
   [USER_ROLE.ADMIN]: {
-    labelKey: 'Admin',
+    labelKey: 'Platform administrator',
     value: USER_ROLE.ADMIN,
     icon: Users,
   },
   [USER_ROLE.ROOT]: {
-    labelKey: 'Root',
+    labelKey: 'Super administrator',
     value: USER_ROLE.ROOT,
     icon: Shield,
   },
 } as const
 
 export const getUserRoleOptions = (t: (key: string) => string) => [
-  { label: t('User'), value: String(USER_ROLE.USER), icon: User },
-  { label: t('Admin'), value: String(USER_ROLE.ADMIN), icon: Users },
-  { label: t('Root'), value: String(USER_ROLE.ROOT), icon: Shield },
+  { label: t('Common User'), value: String(USER_ROLE.USER), icon: User },
+  {
+    label: t('Platform administrator'),
+    value: String(USER_ROLE.ADMIN),
+    icon: Users,
+  },
+  {
+    label: t('Super administrator'),
+    value: String(USER_ROLE.ROOT),
+    icon: Shield,
+  },
 ]
 
 // ============================================================================
@@ -121,7 +129,7 @@ export const BINDING_FIELDS = [
 
 export const ERROR_MESSAGES = {
   UNEXPECTED: 'An unexpected error occurred',
-  NO_USER: 'No user selected',
+  NO_USER: 'No account selected',
   LOAD_FAILED: 'Failed to load users',
   SEARCH_FAILED: 'Failed to search users',
   CREATE_FAILED: 'Failed to create user',
@@ -137,3 +145,73 @@ export const SUCCESS_MESSAGES = {
   USER_CREATED: 'User created successfully',
   USER_UPDATED: 'User updated successfully',
 } as const
+
+/** i18n key for inline password field validation (FormMessage runs t()). */
+export const PASSWORD_LENGTH_MESSAGE_KEY =
+  'Password must be between 8 and 20 characters'
+
+export const PASSWORD_VALIDATION_FAILED_KEY =
+  'Password does not meet requirements, please check and try again'
+
+export const UPDATE_FORM_INVALID_KEY =
+  'Account update failed, please check the form'
+
+/**
+ * Client-side password check. Update: empty password is allowed (unchanged).
+ * Create: password must be 8–20 characters.
+ */
+export function getPasswordFieldError(
+  password: string | undefined,
+  isUpdate: boolean
+): string | null {
+  const length = password?.length ?? 0
+  if (isUpdate && length === 0) {
+    return null
+  }
+  if (length < 8 || length > 20) {
+    return PASSWORD_LENGTH_MESSAGE_KEY
+  }
+  return null
+}
+
+export function isBackendPasswordValidationError(message?: string): boolean {
+  if (!message) {
+    return false
+  }
+  const lower = message.toLowerCase()
+  return (
+    lower.includes('user.password') ||
+    (lower.includes('password') &&
+      (lower.includes('min') ||
+        lower.includes('max') ||
+        lower.includes('validation')))
+  )
+}
+
+/**
+ * Prefer localized fallback for user-facing toasts; use API message only if it
+ * matches a known i18n key (e.g. already translated on the server).
+ */
+export function resolveUserToastMessage(
+  message: string | undefined,
+  fallbackKey: string,
+  t: (key: string) => string
+): string {
+  if (message && isBackendPasswordValidationError(message)) {
+    console.warn('[users] API password validation:', message)
+    return t(PASSWORD_VALIDATION_FAILED_KEY)
+  }
+
+  if (message) {
+    const translated = t(message)
+    if (translated !== message) {
+      return translated
+    }
+    console.warn('[users] API error:', message)
+    if (fallbackKey === ERROR_MESSAGES.UPDATE_FAILED) {
+      return t(UPDATE_FORM_INVALID_KEY)
+    }
+  }
+
+  return t(fallbackKey)
+}

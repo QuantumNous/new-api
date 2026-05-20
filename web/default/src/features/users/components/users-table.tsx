@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { getRouteApi } from '@tanstack/react-router'
 import {
@@ -33,28 +33,104 @@ import {
 import { useMediaQuery } from '@/hooks'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+import { cn } from '@/lib/utils'
 import { useTableUrlState } from '@/hooks/use-table-url-state'
 import {
-  DISABLED_ROW_DESKTOP,
+  DataTableBulkActions as BulkActionsToolbar,
   DISABLED_ROW_MOBILE,
   DataTablePage,
 } from '@/components/data-table'
+import type { Table } from '@tanstack/react-table'
 import { getUsers, searchUsers } from '../api'
 import {
   USER_STATUS,
+  ERROR_MESSAGES,
   getUserStatusOptions,
   getUserRoleOptions,
   isUserDeleted,
+  resolveUserToastMessage,
 } from '../constants'
 import type { User } from '../types'
-import { DataTableBulkActions } from './data-table-bulk-actions'
 import { useUsersColumns } from './users-columns'
 import { useUsers } from './users-provider'
 
 const route = getRouteApi('/_authenticated/users/')
 
+const usersToolbarClassName = cn(
+  '[&_input]:border-white/15 [&_input]:bg-slate-950/50 [&_input]:text-slate-100',
+  '[&_input::placeholder]:text-slate-500',
+  '[&_button]:border-white/15 [&_button]:text-slate-200',
+  '[&_button[data-state=open]]:bg-slate-800'
+)
+
+const usersTableHeaderClassName = cn(
+  'bg-slate-900/80 text-slate-200',
+  '[&_th]:border-white/10 [&_th]:text-slate-200',
+  '[&_button]:text-slate-200',
+  '[&_svg]:text-slate-400',
+  '[&_[data-slot=checkbox]]:border-white/25'
+)
+
+const usersDisabledRowClassName = cn(
+  '[&>td:first-child]:border-l-muted-foreground/35 [&>td:first-child]:border-l-4 [&>td:first-child]:pl-1',
+  'bg-slate-900/50 hover:bg-slate-900/60'
+)
+
+const usersSelectedRowClassName = cn(
+  'data-[state=selected]:!bg-cyan-500/10',
+  'data-[state=selected]:hover:!bg-cyan-500/15',
+  'data-[state=selected]:!text-slate-100',
+  'data-[state=selected]:ring-1 data-[state=selected]:ring-cyan-400/30',
+  'data-[state=selected]:!border-cyan-400/20',
+  '[&[data-state=selected]_.text-muted-foreground]:!text-slate-300',
+  '[&[data-state=selected]_span.text-muted-foreground]:!text-slate-300',
+  '[&[data-state=selected]_[data-slot=progress]]:opacity-100'
+)
+
+const usersTableClassName = cn(
+  'border-white/10 bg-slate-900/40',
+  '[&_[data-slot=empty-title]]:text-slate-100',
+  '[&_[data-slot=empty-description]]:text-slate-400',
+  '[&_[data-slot=empty-icon]]:text-slate-300',
+  '[&_[data-slot=table-row]:hover]:!bg-white/5',
+  '[&_[data-slot=table-row][data-state=selected]]:!bg-cyan-500/10',
+  '[&_[data-slot=table-row][data-state=selected]:hover]:!bg-cyan-500/15',
+  '[&_[data-slot=table-row][data-state=selected]]:!text-slate-100',
+  '[&_[data-slot=table-row][data-state=selected]_.text-muted-foreground]:!text-slate-300',
+  '[&_[data-slot=table-row][data-state=selected]_[data-slot=checkbox]]:border-cyan-400/50',
+  '[&_[data-slot=table-row][data-state=selected]_[data-slot=checkbox][data-state=checked]]:border-cyan-400',
+  '[&_[data-slot=table-row][data-state=selected]_[data-slot=checkbox][data-state=checked]]:bg-cyan-600',
+  '[&_th:last-child]:sticky [&_th:last-child]:right-0 [&_th:last-child]:z-20',
+  '[&_th:last-child]:border-l [&_th:last-child]:border-white/10',
+  '[&_th:last-child]:bg-slate-900/95',
+  '[&_th:last-child]:shadow-[-10px_0_16px_-10px_rgba(0,0,0,0.65)]',
+  '[&_td:last-child]:sticky [&_td:last-child]:right-0 [&_td:last-child]:z-10',
+  '[&_td:last-child]:border-l [&_td:last-child]:border-white/10',
+  '[&_td:last-child]:bg-slate-900/95',
+  '[&_td:last-child]:shadow-[-10px_0_16px_-10px_rgba(0,0,0,0.65)]',
+  '[&_[data-slot=table-row][data-state=selected]_td:last-child]:!bg-slate-900',
+  '[&_[data-slot=table-row]:hover_td:last-child]:bg-slate-900'
+)
+
 function isDisabledUserRow(user: User) {
   return isUserDeleted(user) || user.status === USER_STATUS.DISABLED
+}
+
+function UsersBulkActions({ table }: { table: Table<User> }) {
+  const { t } = useTranslation()
+  const selectionSummary = useCallback(
+    (count: number) => t('{{count}} accounts selected', { count }),
+    [t]
+  )
+  return (
+    <BulkActionsToolbar
+      table={table}
+      entityName='account'
+      selectionSummary={selectionSummary}
+    >
+      <></>
+    </BulkActionsToolbar>
+  )
 }
 
 export function UsersTable() {
@@ -108,7 +184,13 @@ export function UsersTable() {
 
       if (!result.success) {
         toast.error(
-          result.message || `Failed to ${hasFilter ? 'search' : 'load'} users`
+          resolveUserToastMessage(
+            result.message,
+            hasFilter
+              ? ERROR_MESSAGES.SEARCH_FAILED
+              : ERROR_MESSAGES.LOAD_FAILED,
+            t
+          )
         )
         return { items: [], total: 0 }
       }
@@ -180,31 +262,48 @@ export function UsersTable() {
         'No users available. Try adjusting your search or filters.'
       )}
       skeletonKeyPrefix='users-skeleton'
+      applyHeaderSize
+      tableHeaderClassName={usersTableHeaderClassName}
+      tableClassName={usersTableClassName}
       toolbarProps={{
         searchPlaceholder: t('Filter by username, name or email...'),
+        className: usersToolbarClassName,
         filters: [
           {
             columnId: 'status',
-            title: t('Status'),
+            title: t('Account status'),
             options: getUserStatusOptions(t),
             singleSelect: true,
           },
           {
             columnId: 'role',
-            title: t('Role'),
+            title: t('Account role'),
             options: getUserRoleOptions(t),
             singleSelect: true,
           },
         ],
       }}
-      getRowClassName={(row, { isMobile }) =>
-        isDisabledUserRow(row.original)
-          ? isMobile
-            ? DISABLED_ROW_MOBILE
-            : DISABLED_ROW_DESKTOP
-          : undefined
-      }
-      bulkActions={<DataTableBulkActions table={table} />}
+      getRowClassName={(row, { isMobile }) => {
+        const isSelected = row.getIsSelected()
+        const isDisabled = isDisabledUserRow(row.original)
+
+        if (isSelected) {
+          return cn(
+            usersSelectedRowClassName,
+            isDisabled &&
+              (isMobile
+                ? 'border-l-4 border-l-cyan-500/40'
+                : '[&>td:first-child]:border-l-cyan-500/40 [&>td:first-child]:border-l-4')
+          )
+        }
+
+        if (isDisabled) {
+          return isMobile ? DISABLED_ROW_MOBILE : usersDisabledRowClassName
+        }
+
+        return undefined
+      }}
+      bulkActions={<UsersBulkActions table={table} />}
     />
   )
 }

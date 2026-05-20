@@ -35,7 +35,9 @@ function UsersContent() {
           {t('Tenant & Account Management')}
         </SectionPageLayout.Title>
         <SectionPageLayout.Description>
-          {t('Manage tenants, accounts, and permissions')}
+          {t(
+            'Manage tenant accounts, account roles, tenant groups, and token quota'
+          )}
         </SectionPageLayout.Description>
         <SectionPageLayout.Actions>
           <UsersPrimaryButtons />

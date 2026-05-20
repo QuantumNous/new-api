@@ -50,6 +50,7 @@ import {
   USER_ROLE,
   ERROR_MESSAGES,
   isUserDeleted,
+  resolveUserToastMessage,
 } from '../constants'
 import { getUserActionMessage } from '../lib'
 import { type User, type ManageUserAction } from '../types'
@@ -87,7 +88,11 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
         triggerRefresh()
       } else {
         toast.error(
-          result.message || t('Failed to {{action}} user', { action })
+          resolveUserToastMessage(
+            result.message,
+            'Account operation failed',
+            t
+          )
         )
       }
     } catch (_error) {
@@ -102,7 +107,13 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
         toast.success(t('Passkey reset successfully'))
         triggerRefresh()
       } else {
-        toast.error(result.message || t('Failed to reset Passkey'))
+        toast.error(
+          resolveUserToastMessage(
+            result.message,
+            'Failed to reset Passkey',
+            t
+          )
+        )
       }
     } catch (_error) {
       toast.error(t(ERROR_MESSAGES.UNEXPECTED))
@@ -118,7 +129,9 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
         toast.success(t('Two-factor authentication reset'))
         triggerRefresh()
       } else {
-        toast.error(result.message || t('Failed to reset 2FA'))
+        toast.error(
+          resolveUserToastMessage(result.message, 'Failed to reset 2FA', t)
+        )
       }
     } catch (_error) {
       toast.error(t(ERROR_MESSAGES.UNEXPECTED))
@@ -141,17 +154,27 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
         <DropdownMenuTrigger
           render={
             <Button
-              variant='ghost'
-              className='data-popup-open:bg-muted flex h-8 w-8 p-0'
+              variant='outline'
+              size='sm'
+              className='h-8 min-w-[5.5rem] gap-1.5 border-white/15 bg-slate-800/90 px-2.5 text-slate-200 hover:bg-white/10 hover:text-white data-popup-open:border-cyan-500/30 data-popup-open:bg-slate-700'
+              title={t('Open account actions')}
+              aria-label={t('Open account actions')}
             />
           }
         >
-          <MoreHorizontal className='h-4 w-4' />
-          <span className='sr-only'>{t('Open menu')}</span>
+          <Pencil className='h-3.5 w-3.5 shrink-0 opacity-90' />
+          <MoreHorizontal className='h-4 w-4 shrink-0' />
+          <span className='text-xs font-medium'>{t('Actions')}</span>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align='end' className='w-[180px]'>
-          <DropdownMenuItem onClick={handleEdit}>
-            {t('Edit')}
+        <DropdownMenuContent
+          align='end'
+          className='w-[200px] border-white/10 bg-slate-900 text-slate-100'
+        >
+          <DropdownMenuItem
+            onClick={handleEdit}
+            className='font-medium focus:bg-cyan-500/15'
+          >
+            {t('Edit account')}
             <DropdownMenuShortcut>
               <Pencil size={16} />
             </DropdownMenuShortcut>
@@ -161,7 +184,7 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
 
           {isDisabled ? (
             <DropdownMenuItem onClick={() => handleManage('enable')}>
-              {t('Enable')}
+              {t('Enable account')}
               <DropdownMenuShortcut>
                 <Power size={16} />
               </DropdownMenuShortcut>
@@ -171,7 +194,7 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
               onClick={() => handleManage('disable')}
               disabled={isRoot}
             >
-              {t('Disable')}
+              {t('Disable account')}
               <DropdownMenuShortcut>
                 <PowerOff size={16} />
               </DropdownMenuShortcut>
@@ -180,7 +203,7 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
 
           {isAdmin && !isRoot && (
             <DropdownMenuItem onClick={() => handleManage('demote')}>
-              {t('Demote')}
+              {t('Demote to common account')}
               <DropdownMenuShortcut>
                 <ArrowDown size={16} />
               </DropdownMenuShortcut>
@@ -189,7 +212,7 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
 
           {!isAdmin && (
             <DropdownMenuItem onClick={() => handleManage('promote')}>
-              {t('Promote')}
+              {t('Promote to platform administrator')}
               <DropdownMenuShortcut>
                 <ArrowUp size={16} />
               </DropdownMenuShortcut>
@@ -202,7 +225,7 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
               setBindingDialogOpen(true)
             }}
           >
-            {t('Manage Bindings')}
+            {t('Manage account bindings')}
             <DropdownMenuShortcut>
               <Link2 size={16} />
             </DropdownMenuShortcut>
@@ -214,7 +237,7 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
               setSubscriptionsDialogOpen(true)
             }}
           >
-            {t('Manage Subscriptions')}
+            {t('Manage subscription plans')}
             <DropdownMenuShortcut>
               <CreditCard size={16} />
             </DropdownMenuShortcut>
@@ -255,7 +278,7 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
             className='text-destructive focus:text-destructive'
             disabled={isRoot}
           >
-            {t('Delete')}
+            {t('Delete account')}
             <DropdownMenuShortcut>
               <Trash2 size={16} />
             </DropdownMenuShortcut>
@@ -267,8 +290,11 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
         open={resetPasskeyOpen}
         onOpenChange={setResetPasskeyOpen}
         title={t('Reset Passkey')}
-        desc={`Reset Passkey for ${user.username}? The user will need to register a new Passkey before using passwordless login.`}
-        confirmText='Reset Passkey'
+        desc={t(
+          'Reset Passkey for {{username}}? The account must register a new Passkey before passwordless login.',
+          { username: user.username }
+        )}
+        confirmText={t('Reset Passkey')}
         handleConfirm={handleResetPasskey}
       />
 
@@ -276,8 +302,11 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
         open={resetTwoFAOpen}
         onOpenChange={setResetTwoFAOpen}
         title={t('Reset Two-Factor Authentication')}
-        desc={`Reset 2FA for ${user.username}? The user must set up 2FA again to continue using it.`}
-        confirmText='Reset 2FA'
+        desc={t(
+          'Reset 2FA for {{username}}? The account must set up two-factor authentication again.',
+          { username: user.username }
+        )}
+        confirmText={t('Reset 2FA')}
         handleConfirm={handleResetTwoFA}
       />
 

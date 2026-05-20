@@ -49,6 +49,7 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip'
 import { ConfirmDialog } from '@/components/confirm-dialog'
+import { resolveUserToastMessage } from '../../constants'
 import { StatusBadge } from '@/components/status-badge'
 import {
   getUser,
@@ -306,7 +307,9 @@ export function UserBindingDialog(props: Props) {
         await fetchData()
         props.onUnbindSuccess?.()
       } else {
-        toast.error(res?.message || t('Unbind failed'))
+        toast.error(
+          resolveUserToastMessage(res?.message, 'Unbind failed', t)
+        )
       }
     } catch {
       toast.error(t('Unbind failed'))
@@ -326,7 +329,7 @@ export function UserBindingDialog(props: Props) {
               {t('Account Binding Management')}
             </DialogTitle>
             <DialogDescription className='sr-only'>
-              {t('Manage account bindings for this user')}
+              {t('Manage third-party bindings for this account')}
             </DialogDescription>
           </DialogHeader>
 
@@ -376,7 +379,7 @@ export function UserBindingDialog(props: Props) {
                 {displayedBindings.length === 0 ? (
                   <p className='text-muted-foreground py-4 text-center text-sm'>
                     {showBoundOnly
-                      ? t('This user has no bindings')
+                      ? t('This account has no bindings')
                       : t('No providers available')}
                   </p>
                 ) : (
@@ -440,7 +443,7 @@ export function UserBindingDialog(props: Props) {
         onOpenChange={(open) => !open && setUnbindTarget(null)}
         title={t('Confirm Unbind')}
         desc={t(
-          'Are you sure you want to unbind {{provider}} for this user? The user will no longer be able to log in via this method.',
+          'Are you sure you want to unbind {{provider}} for this account? The account will no longer be able to sign in with this method.',
           {
             provider: unbindTarget?.label || '',
           }

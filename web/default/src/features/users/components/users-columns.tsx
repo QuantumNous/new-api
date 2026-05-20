@@ -18,7 +18,8 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { type ColumnDef } from '@tanstack/react-table'
 import { useTranslation } from 'react-i18next'
-import { formatQuota, formatTimestamp } from '@/lib/format'
+import { formatTimestamp } from '@/lib/format'
+import { formatQuotaForOpsCenter } from '@/lib/ops-billing-display'
 import { cn } from '@/lib/utils'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Progress } from '@/components/ui/progress'
@@ -51,7 +52,7 @@ export function useUsersColumns(): ColumnDef<User>[] {
           checked={table.getIsAllPageRowsSelected()}
           indeterminate={table.getIsSomePageRowsSelected()}
           onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
-          aria-label='Select all'
+          aria-label={t('Select all accounts')}
           className='translate-y-[2px]'
         />
       ),
@@ -59,7 +60,7 @@ export function useUsersColumns(): ColumnDef<User>[] {
         <Checkbox
           checked={row.getIsSelected()}
           onCheckedChange={(value) => row.toggleSelected(!!value)}
-          aria-label='Select row'
+          aria-label={t('Select account row')}
           className='translate-y-[2px]'
         />
       ),
@@ -80,7 +81,7 @@ export function useUsersColumns(): ColumnDef<User>[] {
     {
       accessorKey: 'username',
       header: ({ column }) => (
-        <DataTableColumnHeader column={column} title={t('Username')} />
+        <DataTableColumnHeader column={column} title={t('Account name')} />
       ),
       cell: ({ row }) => {
         const username = row.getValue('username') as string
@@ -115,12 +116,12 @@ export function useUsersColumns(): ColumnDef<User>[] {
         )
       },
       enableHiding: false,
-      meta: { label: t('Username'), mobileTitle: true },
+      meta: { label: t('Account name'), mobileTitle: true },
     },
     {
       accessorKey: 'status',
       header: ({ column }) => (
-        <DataTableColumnHeader column={column} title={t('Status')} />
+        <DataTableColumnHeader column={column} title={t('Account status')} />
       ),
       cell: ({ row }) => {
         const user = row.original
@@ -156,13 +157,13 @@ export function useUsersColumns(): ColumnDef<User>[] {
         return value.includes(String(row.getValue(id)))
       },
       enableSorting: false,
-      meta: { label: t('Status'), mobileBadge: true },
+      meta: { label: t('Account status'), mobileBadge: true },
     },
     {
       id: 'quota',
       accessorKey: 'quota',
       header: ({ column }) => (
-        <DataTableColumnHeader column={column} title={t('Quota')} />
+        <DataTableColumnHeader column={column} title={t('Token quota')} />
       ),
       cell: ({ row }) => {
         const user = row.original
@@ -188,10 +189,10 @@ export function useUsersColumns(): ColumnDef<User>[] {
             >
               <div className='flex justify-between text-xs'>
                 <span className='font-medium tabular-nums'>
-                  {formatQuota(remaining)}
+                  {formatQuotaForOpsCenter(remaining)}
                 </span>
                 <span className='text-muted-foreground tabular-nums'>
-                  {formatQuota(total)}
+                  {formatQuotaForOpsCenter(total)}
                 </span>
               </div>
               <Progress
@@ -202,13 +203,13 @@ export function useUsersColumns(): ColumnDef<User>[] {
             <TooltipContent>
               <div className='space-y-1 text-xs'>
                 <div>
-                  {t('Used:')} {formatQuota(used)}
+                  {t('Used:')} {formatQuotaForOpsCenter(used)}
                 </div>
                 <div>
-                  {t('Remaining:')} {formatQuota(remaining)}
+                  {t('Remaining:')} {formatQuotaForOpsCenter(remaining)}
                 </div>
                 <div>
-                  {t('Total:')} {formatQuota(total)}
+                  {t('Total:')} {formatQuotaForOpsCenter(total)}
                 </div>
                 <div>
                   {t('Percentage:')} {percentage.toFixed(1)}%
@@ -218,28 +219,28 @@ export function useUsersColumns(): ColumnDef<User>[] {
           </Tooltip>
         )
       },
-      meta: { label: t('Quota') },
+      meta: { label: t('Token quota') },
     },
     {
       accessorKey: 'group',
       header: ({ column }) => (
-        <DataTableColumnHeader column={column} title={t('Group')} />
+        <DataTableColumnHeader column={column} title={t('Tenant group')} />
       ),
       cell: ({ row }) => {
         const group = row.getValue('group') as string
         return <GroupBadge group={group} />
       },
       filterFn: (row, id, value) => {
-        const group = String(row.getValue(id) || t('User Group')).toLowerCase()
+        const group = String(row.getValue(id) || t('Tenant group')).toLowerCase()
         const searchValue = String(value).toLowerCase()
         return group.includes(searchValue)
       },
-      meta: { label: t('Group') },
+      meta: { label: t('Tenant group') },
     },
     {
       accessorKey: 'role',
       header: ({ column }) => (
-        <DataTableColumnHeader column={column} title={t('Role')} />
+        <DataTableColumnHeader column={column} title={t('Account role')} />
       ),
       cell: ({ row }) => {
         const roleValue = row.getValue('role') as number
@@ -262,7 +263,7 @@ export function useUsersColumns(): ColumnDef<User>[] {
         return value.includes(String(row.getValue(id)))
       },
       enableSorting: false,
-      meta: { label: t('Role') },
+      meta: { label: t('Account role') },
     },
     {
       id: 'invite_info',
@@ -299,7 +300,7 @@ export function useUsersColumns(): ColumnDef<User>[] {
               <TooltipTrigger
                 render={<span className='text-muted-foreground cursor-help' />}
               >
-                {t('Revenue')}: {formatQuota(affHistoryQuota)}
+                {t('Revenue')}: {formatQuotaForOpsCenter(affHistoryQuota)}
               </TooltipTrigger>
               <TooltipContent>
                 <p className='text-xs'>{t('Total invitation revenue')}</p>
@@ -368,7 +369,14 @@ export function useUsersColumns(): ColumnDef<User>[] {
     },
     {
       id: 'actions',
+      header: () => (
+        <span className='text-slate-200'>{t('Actions')}</span>
+      ),
       cell: ({ row }) => <DataTableRowActions row={row} />,
+      enableHiding: false,
+      enableSorting: false,
+      size: 112,
+      minSize: 112,
       meta: { label: t('Actions') },
     },
   ]

@@ -33,6 +33,8 @@ import {
 type DataTableBulkActionsProps<TData> = {
   table: Table<TData>
   entityName: string
+  /** When set, overrides the default "{{count}} {{entityName}}(s) selected" label. */
+  selectionSummary?: (count: number) => string
   children: React.ReactNode
 }
 
@@ -49,6 +51,7 @@ type DataTableBulkActionsProps<TData> = {
 export function DataTableBulkActions<TData>({
   table,
   entityName,
+  selectionSummary,
   children,
 }: DataTableBulkActionsProps<TData>): React.ReactNode | null {
   const { t } = useTranslation()
@@ -58,9 +61,13 @@ export function DataTableBulkActions<TData>({
   const [announcement, setAnnouncement] = useState('')
 
   // Announce selection changes to screen readers
+  const selectionLabel =
+    selectionSummary?.(selectedCount) ??
+    `${selectedCount} ${entityName}${selectedCount > 1 ? 's' : ''} selected`
+
   useEffect(() => {
     if (selectedCount > 0) {
-      const message = `${selectedCount} ${entityName}${selectedCount > 1 ? 's' : ''} selected. Bulk actions toolbar is available.`
+      const message = `${selectionLabel}. Bulk actions toolbar is available.`
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setAnnouncement(message)
 
@@ -68,7 +75,7 @@ export function DataTableBulkActions<TData>({
       const timer = setTimeout(() => setAnnouncement(''), 3000)
       return () => clearTimeout(timer)
     }
-  }, [selectedCount, entityName])
+  }, [selectedCount, selectionLabel])
 
   const handleClearSelection = () => {
     table.resetRowSelection()
@@ -155,7 +162,11 @@ export function DataTableBulkActions<TData>({
       <div
         ref={toolbarRef}
         role='toolbar'
-        aria-label={`Bulk actions for ${selectedCount} selected ${entityName}${selectedCount > 1 ? 's' : ''}`}
+        aria-label={
+          selectionSummary
+            ? selectionLabel
+            : `Bulk actions for ${selectedCount} selected ${entityName}${selectedCount > 1 ? 's' : ''}`
+        }
         aria-describedby='bulk-actions-description'
         tabIndex={-1}
         onKeyDown={handleKeyDown}
@@ -212,10 +223,10 @@ export function DataTableBulkActions<TData>({
               {selectedCount}
             </Badge>{' '}
             <span className='hidden sm:inline'>
-              {entityName}
-              {selectedCount > 1 ? 's' : ''}
-            </span>{' '}
-            {t('selected')}
+              {selectionSummary
+                ? selectionLabel
+                : `${entityName}${selectedCount > 1 ? 's' : ''} ${t('selected')}`}
+            </span>
           </div>
 
           <Separator
