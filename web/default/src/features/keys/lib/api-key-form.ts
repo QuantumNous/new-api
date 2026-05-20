@@ -29,7 +29,7 @@ import { type ApiKeyFormData, type ApiKey } from '../types'
 export function getApiKeyFormSchema(t: TFunction) {
   return z
     .object({
-      name: z.string().min(1, t('Please enter a name')),
+      name: z.string().min(1, t('keys.form.name_required')),
       remain_quota_dollars: z.number().optional(),
       expired_time: z.date().optional(),
       unlimited_quota: z.boolean(),
@@ -51,7 +51,7 @@ export function getApiKeyFormSchema(t: TFunction) {
         ctx.addIssue({
           code: 'custom',
           path: ['remain_quota_dollars'],
-          message: t('Quota must be zero or greater'),
+          message: t('keys.form.quota_min'),
         })
       }
     })

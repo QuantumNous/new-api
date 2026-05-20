@@ -137,6 +137,18 @@ export const usageLogsLogTypeBadgeClass =
 export const usageLogsDetailSummaryClass =
   'text-sm leading-snug text-slate-300'
 
+/** Task/drawing table rows — override global muted hover on dark ops tables */
+export const usageLogsTableBodyRowClassName = cn(
+  'hover:!bg-cyan-500/10 dark:hover:!bg-white/5',
+  'data-[state=selected]:!bg-cyan-500/10 data-[state=selected]:!text-slate-100'
+)
+
+export const usageLogsTableClickableLinkClass =
+  'text-sm text-cyan-300 hover:text-cyan-200 hover:underline'
+
+export const usageLogsTableFailReasonClass =
+  'truncate text-sm leading-snug text-rose-300 group-hover:underline'
+
 // —— G: Details dialog (light popover — dark text for contrast) —— //
 
 export const usageLogsDialogTitleClassName =

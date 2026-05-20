@@ -31,10 +31,6 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { getUserModels, getUserGroups } from '@/lib/api'
 import { getCurrencyDisplay } from '@/lib/currency'
-import {
-  getOpsCenterCurrencyLabel,
-  getOpsCenterCurrencyLabelZh,
-} from '@/lib/ops-billing-display'
 import { cn } from '@/lib/utils'
 import { useStatus } from '@/hooks/use-status'
 import { Button } from '@/components/ui/button'
@@ -75,6 +71,7 @@ import {
   transformFormDataToPayload,
   transformApiKeyToFormDefaults,
 } from '../lib'
+import { keysSheetSectionClassName } from '../lib/keys-ui-styles'
 import { type ApiKey } from '../types'
 import {
   ApiKeyGroupCombobox,
@@ -100,7 +97,7 @@ function ApiKeyFormSection(props: ApiKeyFormSectionProps) {
   const Icon = props.icon
 
   return (
-    <section className='bg-card rounded-lg border'>
+    <section className={cn('rounded-lg border', keysSheetSectionClassName)}>
       <div className='flex items-center gap-2.5 border-b px-3 py-2.5 sm:gap-3 sm:px-4 sm:py-3'>
         <div className='bg-muted text-muted-foreground flex size-8 shrink-0 items-center justify-center rounded-lg border sm:size-10'>
           <Icon className='size-4 sm:size-5' />
@@ -123,7 +120,7 @@ export function ApiKeysMutateDrawer({
   currentRow,
   side = 'right',
 }: ApiKeyMutateDrawerProps) {
-  const { t, i18n } = useTranslation()
+  const { t } = useTranslation()
   const isUpdate = !!currentRow
   const { triggerRefresh } = useApiKeys()
   const { status } = useStatus()
@@ -204,7 +201,11 @@ export function ApiKeysMutateDrawer({
           onOpenChange(false)
           triggerRefresh()
         } else {
-          toast.error(result.message || t(ERROR_MESSAGES.UPDATE_FAILED))
+          if (result.message) {
+            // eslint-disable-next-line no-console
+            console.warn('[keys]', result.message)
+          }
+          toast.error(t(ERROR_MESSAGES.UPDATE_FAILED))
         }
       } else {
         // Create mode - handle batch creation
@@ -222,14 +223,18 @@ export function ApiKeysMutateDrawer({
           if (result.success) {
             successCount++
           } else {
-            toast.error(result.message || t(ERROR_MESSAGES.CREATE_FAILED))
+            if (result.message) {
+              // eslint-disable-next-line no-console
+              console.warn('[keys]', result.message)
+            }
+            toast.error(t(ERROR_MESSAGES.CREATE_FAILED))
             break
           }
         }
 
         if (successCount > 0) {
           toast.success(
-            t('Successfully created {{count}} API Key(s)', {
+            t('keys.drawer.created_batch', {
               count: successCount,
             })
           )
@@ -245,7 +250,7 @@ export function ApiKeysMutateDrawer({
   }
 
   const onInvalid: SubmitErrorHandler<ApiKeyFormValues> = () => {
-    toast.error(t('Please fix the highlighted fields before saving'))
+    toast.error(t('keys.drawer.fix_fields'))
   }
 
   const handleSetExpiry = (months: number, days: number, hours: number) => {
@@ -263,15 +268,7 @@ export function ApiKeysMutateDrawer({
   }
 
   const { meta: currencyMeta } = getCurrencyDisplay()
-  const currencyLabel =
-    i18n.language === 'zh'
-      ? getOpsCenterCurrencyLabelZh()
-      : getOpsCenterCurrencyLabel()
   const tokensOnly = currencyMeta.kind === 'tokens'
-  const quotaLabel = t('Quota ({{currency}})', { currency: currencyLabel })
-  const quotaPlaceholder = tokensOnly
-    ? t('Enter quota in tokens')
-    : t('Enter quota in {{currency}}', { currency: currencyLabel })
   const selectedGroup = form.watch('group')
   const unlimitedQuota = form.watch('unlimited_quota')
 
@@ -290,14 +287,12 @@ export function ApiKeysMutateDrawer({
         className='bg-background flex !h-dvh !w-screen max-w-none gap-0 overflow-hidden p-0 sm:!w-full sm:!max-w-[620px]'
       >
         <SheetHeader className='bg-background border-b px-4 py-3 text-start sm:px-5 sm:py-4'>
-          <SheetTitle className='text-base sm:text-lg'>
-            {isUpdate ? t('Update API Key') : t('Create API Key')}
+          <SheetTitle className='text-base font-semibold text-slate-950 sm:text-lg'>
+            {isUpdate ? t('keys.drawer.update_title') : t('keys.drawer.create_title')}
           </SheetTitle>
-          <SheetDescription className='pr-6 text-xs sm:text-sm'>
-            {isUpdate
-              ? t('Update the API key by providing necessary info.')
-              : t('Add a new API key by providing necessary info.')}{' '}
-            {t("Click save when you're done.")}
+          <SheetDescription className='pr-6 text-xs text-slate-600 sm:text-sm'>
+            {isUpdate ? t('keys.drawer.update_desc') : t('keys.drawer.create_desc')}{' '}
+            {t('keys.drawer.done_hint')}
           </SheetDescription>
         </SheetHeader>
         <Form {...form}>
@@ -307,8 +302,8 @@ export function ApiKeysMutateDrawer({
             className='min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain px-3 py-3 sm:space-y-4 sm:px-4 sm:py-4'
           >
             <ApiKeyFormSection
-              title={t('Basic Information')}
-              description={t('Set API key basic information')}
+              title={t('keys.drawer.basic_title')}
+              description={t('keys.drawer.basic_desc')}
               icon={KeyRound}
             >
               <FormField
@@ -316,9 +311,12 @@ export function ApiKeysMutateDrawer({
                 name='name'
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>{t('Name')}</FormLabel>
+                    <FormLabel>{t('keys.col.name')}</FormLabel>
                     <FormControl>
-                      <Input {...field} placeholder={t('Enter a name')} />
+                      <Input
+                        {...field}
+                        placeholder={t('keys.drawer.name_placeholder')}
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -330,13 +328,13 @@ export function ApiKeysMutateDrawer({
                 name='group'
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>{t('Group')}</FormLabel>
+                    <FormLabel>{t('keys.col.group')}</FormLabel>
                     <FormControl>
                       <ApiKeyGroupCombobox
                         options={groups}
                         value={field.value}
                         onValueChange={field.onChange}
-                        placeholder={t('Select a group')}
+                        placeholder={t('keys.drawer.group_placeholder')}
                       />
                     </FormControl>
                     <FormMessage />
@@ -352,12 +350,10 @@ export function ApiKeysMutateDrawer({
                     <FormItem className='flex min-h-16 flex-row items-center justify-between gap-3 rounded-lg border px-3 py-2.5 sm:min-h-20 sm:gap-4 sm:px-4 sm:py-3'>
                       <div className='space-y-0.5'>
                         <FormLabel className='text-sm'>
-                          {t('Cross-group retry')}
+                          {t('keys.drawer.cross_group')}
                         </FormLabel>
                         <FormDescription className='line-clamp-2 text-xs sm:line-clamp-none'>
-                          {t(
-                            'When enabled, if channels in the current group fail, it will try channels in the next group in order.'
-                          )}
+                          {t('keys.drawer.cross_group_desc')}
                         </FormDescription>
                       </div>
                       <FormControl>
@@ -436,22 +432,20 @@ export function ApiKeysMutateDrawer({
                   name='tokenCount'
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>{t('Quantity')}</FormLabel>
+                      <FormLabel>{t('keys.drawer.quantity')}</FormLabel>
                       <FormControl>
                         <Input
                           {...field}
                           type='number'
                           min='1'
-                          placeholder={t('Number of keys to create')}
+                          placeholder={t('keys.drawer.quantity_placeholder')}
                           onChange={(e) =>
                             field.onChange(parseInt(e.target.value, 10) || 1)
                           }
                         />
                       </FormControl>
                       <FormDescription>
-                        {t(
-                          'Create multiple API keys at once (random suffix will be added to names)'
-                        )}
+                        {t('keys.drawer.quantity_desc')}
                       </FormDescription>
                       <FormMessage />
                     </FormItem>
@@ -461,8 +455,8 @@ export function ApiKeysMutateDrawer({
             </ApiKeyFormSection>
 
             <ApiKeyFormSection
-              title={t('Quota Settings')}
-              description={t('Set quota amount and limits')}
+              title={t('keys.drawer.quota_title')}
+              description={t('keys.drawer.quota_desc')}
               icon={WalletCards}
             >
               {!unlimitedQuota && (
@@ -471,24 +465,20 @@ export function ApiKeysMutateDrawer({
                   name='remain_quota_dollars'
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>{quotaLabel}</FormLabel>
+                      <FormLabel>{t('keys.drawer.quota_label')}</FormLabel>
                       <FormControl>
                         <Input
                           {...field}
                           type='number'
                           step={tokensOnly ? 1 : 0.01}
-                          placeholder={quotaPlaceholder}
+                          placeholder={t('keys.drawer.quota_placeholder')}
                           onChange={(e) =>
                             field.onChange(parseFloat(e.target.value) || 0)
                           }
                         />
                       </FormControl>
                       <FormDescription>
-                        {tokensOnly
-                          ? t('Enter the quota amount in tokens')
-                          : t('Enter the quota amount in {{currency}}', {
-                              currency: currencyLabel,
-                            })}
+                        {t('keys.drawer.quota_hint')}
                       </FormDescription>
                       <FormMessage />
                     </FormItem>
@@ -503,10 +493,10 @@ export function ApiKeysMutateDrawer({
                   <FormItem className='flex min-h-16 flex-row items-center justify-between gap-3 rounded-lg border px-3 py-2.5 sm:min-h-20 sm:gap-4 sm:px-4 sm:py-3'>
                     <div className='space-y-0.5'>
                       <FormLabel className='text-sm'>
-                        {t('Unlimited Quota')}
+                        {t('keys.drawer.unlimited_quota')}
                       </FormLabel>
                       <FormDescription className='text-xs'>
-                        {t('Enable unlimited quota for this API key')}
+                        {t('keys.drawer.unlimited_quota_desc')}
                       </FormDescription>
                     </div>
                     <FormControl>
@@ -521,7 +511,7 @@ export function ApiKeysMutateDrawer({
             </ApiKeyFormSection>
 
             <Collapsible open={advancedOpen} onOpenChange={setAdvancedOpen}>
-              <section className='bg-card rounded-lg border'>
+              <section className={cn('rounded-lg border', keysSheetSectionClassName)}>
                 <CollapsibleTrigger
                   render={
                     <button
@@ -535,10 +525,10 @@ export function ApiKeysMutateDrawer({
                   </div>
                   <div className='min-w-0 flex-1'>
                     <h3 className='text-sm leading-none font-medium'>
-                      {t('Advanced Settings')}
+                      {t('keys.drawer.advanced_title')}
                     </h3>
                     <p className='text-muted-foreground mt-1 text-xs'>
-                      {t('Set API key access restrictions')}
+                      {t('keys.drawer.advanced_desc')}
                     </p>
                   </div>
                   <ChevronDown
@@ -555,7 +545,7 @@ export function ApiKeysMutateDrawer({
                       name='model_limits'
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>{t('Model Limits')}</FormLabel>
+                          <FormLabel>{t('keys.drawer.model_limits')}</FormLabel>
                           <FormControl>
                             <MultiSelect
                               options={models.map((m) => ({
@@ -565,12 +555,12 @@ export function ApiKeysMutateDrawer({
                               selected={field.value}
                               onChange={field.onChange}
                               placeholder={t(
-                                'Select models (empty for allow all)'
+                                'keys.drawer.model_limits_placeholder'
                               )}
                             />
                           </FormControl>
                           <FormDescription>
-                            {t('Limit which models can be used with this key')}
+                            {t('keys.drawer.model_limits_desc')}
                           </FormDescription>
                           <FormMessage />
                         </FormItem>
@@ -582,23 +572,17 @@ export function ApiKeysMutateDrawer({
                       name='allow_ips'
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>
-                            {t('IP Whitelist (supports CIDR)')}
-                          </FormLabel>
+                          <FormLabel>{t('keys.drawer.ip_whitelist')}</FormLabel>
                           <FormControl>
                             <Textarea
                               {...field}
                               className='min-h-20 resize-none'
-                              placeholder={t(
-                                'One IP per line (empty for no restriction)'
-                              )}
+                              placeholder={t('keys.drawer.ip_placeholder')}
                               rows={3}
                             />
                           </FormControl>
                           <FormDescription>
-                            {t(
-                              'Do not over-trust this feature. IP may be spoofed. Please use with nginx, CDN and other gateways.'
-                            )}
+                            {t('keys.drawer.ip_desc')}
                           </FormDescription>
                           <FormMessage />
                         </FormItem>
@@ -614,7 +598,7 @@ export function ApiKeysMutateDrawer({
           <SheetClose
             render={<Button variant='outline' className='w-full sm:w-auto' />}
           >
-            {t('Close')}
+            {t('keys.drawer.close')}
           </SheetClose>
           <Button
             type='button'
@@ -622,7 +606,7 @@ export function ApiKeysMutateDrawer({
             disabled={isSubmitting}
             className='w-full sm:w-auto'
           >
-            {isSubmitting ? t('Saving...') : t('Save changes')}
+            {isSubmitting ? t('keys.drawer.saving') : t('keys.drawer.save')}
           </Button>
         </SheetFooter>
       </SheetContent>

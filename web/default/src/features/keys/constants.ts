@@ -38,25 +38,25 @@ export const API_KEY_STATUSES: Record<
   }
 > = {
   [API_KEY_STATUS.ENABLED]: {
-    label: 'Enabled',
+    label: 'keys.status.enabled',
     variant: 'success',
     value: API_KEY_STATUS.ENABLED,
     showDot: true,
   },
   [API_KEY_STATUS.DISABLED]: {
-    label: 'Disabled',
+    label: 'keys.status.disabled',
     variant: 'neutral',
     value: API_KEY_STATUS.DISABLED,
     showDot: true,
   },
   [API_KEY_STATUS.EXPIRED]: {
-    label: 'Expired',
+    label: 'keys.status.expired',
     variant: 'warning',
     value: API_KEY_STATUS.EXPIRED,
     showDot: true,
   },
   [API_KEY_STATUS.EXHAUSTED]: {
-    label: 'Exhausted',
+    label: 'keys.status.exhausted',
     variant: 'danger',
     value: API_KEY_STATUS.EXHAUSTED,
     showDot: true,
@@ -81,14 +81,14 @@ export const DEFAULT_GROUP = '' as const
 // ============================================================================
 
 export const ERROR_MESSAGES = {
-  UNEXPECTED: 'An unexpected error occurred',
-  LOAD_FAILED: 'Failed to load API keys',
-  SEARCH_FAILED: 'Failed to search API keys',
-  CREATE_FAILED: 'Failed to create API key',
-  UPDATE_FAILED: 'Failed to update API key',
-  DELETE_FAILED: 'Failed to delete API key',
-  BATCH_DELETE_FAILED: 'Failed to delete API keys',
-  STATUS_UPDATE_FAILED: 'Failed to update API key status',
+  UNEXPECTED: 'keys.toast.unexpected',
+  LOAD_FAILED: 'keys.toast.load_failed',
+  SEARCH_FAILED: 'keys.toast.search_failed',
+  CREATE_FAILED: 'keys.toast.create_failed',
+  UPDATE_FAILED: 'keys.toast.update_failed',
+  DELETE_FAILED: 'keys.toast.delete_failed',
+  BATCH_DELETE_FAILED: 'keys.toast.batch_delete_failed',
+  STATUS_UPDATE_FAILED: 'keys.toast.status_failed',
 } as const
 
 // ============================================================================
@@ -96,9 +96,9 @@ export const ERROR_MESSAGES = {
 // ============================================================================
 
 export const SUCCESS_MESSAGES = {
-  API_KEY_CREATED: 'API Key created successfully',
-  API_KEY_UPDATED: 'API Key updated successfully',
-  API_KEY_DELETED: 'API Key deleted successfully',
-  API_KEY_ENABLED: 'API Key enabled successfully',
-  API_KEY_DISABLED: 'API Key disabled successfully',
+  API_KEY_CREATED: 'keys.toast.created',
+  API_KEY_UPDATED: 'keys.toast.updated',
+  API_KEY_DELETED: 'keys.toast.deleted',
+  API_KEY_ENABLED: 'keys.toast.enabled',
+  API_KEY_DISABLED: 'keys.toast.disabled',
 } as const

@@ -19,7 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 /* eslint-disable react-refresh/only-export-components */
 import { useState, useMemo } from 'react'
 import type { ColumnDef } from '@tanstack/react-table'
-import { Music } from 'lucide-react'
+import { AudioLines } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { getUserAvatarFallback, getUserAvatarStyle } from '@/lib/avatar'
 import { formatTimestampToDate } from '@/lib/format'
@@ -29,6 +29,16 @@ import { DataTableColumnHeader } from '@/components/data-table'
 import { StatusBadge } from '@/components/status-badge'
 import { TASK_ACTIONS, TASK_STATUS } from '../../constants'
 import { taskActionMapper, taskStatusMapper } from '../../lib/mappers'
+import {
+  usageLogsColumnHeaderClassName,
+  usageLogsDetailSummaryClass,
+  usageLogsInlinePillClass,
+  usageLogsTableClickableLinkClass,
+  usageLogsTableEmptyClass,
+  usageLogsTableFailReasonClass,
+  usageLogsTableMetaClass,
+  usageLogsTablePrimaryClass,
+} from '../../lib/ops-ui-styles'
 import type { TaskLog } from '../../types'
 import {
   AudioPreviewDialog,
@@ -72,11 +82,19 @@ function AudioPreviewCell({ log }: { log: TaskLog }) {
     <>
       <button
         type='button'
-        className='group flex items-center gap-1 text-left text-xs'
+        className='group flex items-center gap-1.5 text-left'
         onClick={() => setOpen(true)}
       >
-        <Music className='text-muted-foreground size-3' />
-        <span className='text-foreground leading-snug group-hover:underline'>
+        <AudioLines
+          className='size-3.5 shrink-0 text-slate-400 group-hover:text-cyan-300'
+          aria-hidden
+        />
+        <span
+          className={cn(
+            usageLogsDetailSummaryClass,
+            'group-hover:text-cyan-200 group-hover:underline'
+          )}
+        >
           {t('Click to preview audio')}
         </span>
       </button>
@@ -95,7 +113,11 @@ export function useTaskLogsColumns(isAdmin: boolean): ColumnDef<TaskLog>[] {
     {
       accessorKey: 'submit_time',
       header: ({ column }) => (
-        <DataTableColumnHeader column={column} title={t('Submit Time')} />
+        <DataTableColumnHeader
+          column={column}
+          title={t('Submit Time')}
+          className={usageLogsColumnHeaderClassName}
+        />
       ),
       cell: ({ row }) => {
         const log = row.original
@@ -103,15 +125,25 @@ export function useTaskLogsColumns(isAdmin: boolean): ColumnDef<TaskLog>[] {
 
         return (
           <div className='flex flex-col gap-0.5'>
-            <span className='font-mono text-xs tabular-nums'>
+            <span
+              className={cn(
+                'font-mono text-xs tabular-nums',
+                usageLogsTablePrimaryClass
+              )}
+            >
               {formatTimestampToDate(submitTime, 'seconds')}
             </span>
             {log.finish_time ? (
-              <span className='text-muted-foreground/60 font-mono text-[11px] tabular-nums'>
+              <span
+                className={cn(
+                  'font-mono text-[11px] tabular-nums',
+                  usageLogsTableMetaClass
+                )}
+              >
                 {formatTimestampToDate(log.finish_time, 'seconds')}
               </span>
             ) : (
-              <span className='text-muted-foreground/50 text-[11px]'>-</span>
+              <span className={usageLogsTableEmptyClass}>-</span>
             )}
           </div>
         )
@@ -124,61 +156,77 @@ export function useTaskLogsColumns(isAdmin: boolean): ColumnDef<TaskLog>[] {
     columns.push(
       createChannelColumn<TaskLog>({ headerLabel: t('usageLogs.col.channel') }),
       {
-      id: 'user',
-      header: ({ column }) => (
-        <DataTableColumnHeader column={column} title={t('usageLogs.col.account')} />
-      ),
-      cell: function UserCell({ row }) {
-        const { sensitiveVisible, setSelectedUserId, setUserInfoDialogOpen } =
-          useUsageLogsContext()
-        const log = row.original
-        const displayName = log.username || String(log.user_id || '?')
+        id: 'user',
+        header: ({ column }) => (
+          <DataTableColumnHeader
+            column={column}
+            title={t('usageLogs.col.account')}
+            className={usageLogsColumnHeaderClassName}
+          />
+        ),
+        cell: function UserCell({ row }) {
+          const { sensitiveVisible, setSelectedUserId, setUserInfoDialogOpen } =
+            useUsageLogsContext()
+          const log = row.original
+          const displayName = log.username || String(log.user_id || '?')
 
-        return (
-          <button
-            type='button'
-            className='flex items-center gap-1.5 text-left'
-            aria-label={t('usageLogs.userDialog.view_account')}
-            onClick={(e) => {
-              e.stopPropagation()
-              setSelectedUserId(log.user_id)
-              setUserInfoDialogOpen(true)
-            }}
-          >
-            <Avatar className='ring-border/60 size-6 ring-1'>
-              <AvatarFallback
+          return (
+            <button
+              type='button'
+              className='flex items-center gap-1.5 text-left'
+              aria-label={t('usageLogs.userDialog.view_account')}
+              onClick={(e) => {
+                e.stopPropagation()
+                setSelectedUserId(log.user_id)
+                setUserInfoDialogOpen(true)
+              }}
+            >
+              <Avatar className='size-6 ring-1 ring-white/15'>
+                <AvatarFallback
+                  className={cn(
+                    'text-[11px] font-semibold',
+                    !sensitiveVisible && 'bg-white/10 text-slate-400'
+                  )}
+                  style={
+                    sensitiveVisible
+                      ? getUserAvatarStyle(displayName)
+                      : undefined
+                  }
+                >
+                  {sensitiveVisible ? getUserAvatarFallback(displayName) : '•'}
+                </AvatarFallback>
+              </Avatar>
+              <span
                 className={cn(
-                  'text-[11px] font-semibold',
-                  !sensitiveVisible && 'bg-muted text-muted-foreground'
+                  'max-w-[100px] truncate text-sm font-semibold hover:underline',
+                  usageLogsTablePrimaryClass
                 )}
-                style={
-                  sensitiveVisible ? getUserAvatarStyle(displayName) : undefined
-                }
               >
-                {sensitiveVisible ? getUserAvatarFallback(displayName) : '•'}
-              </AvatarFallback>
-            </Avatar>
-            <span className='truncate text-sm text-slate-700 hover:underline dark:text-slate-200'>
-              {sensitiveVisible ? displayName : '••••'}
-            </span>
-          </button>
-        )
-      },
-      meta: { label: t('usageLogs.col.account'), mobileHidden: true },
-    })
+                {sensitiveVisible ? displayName : '••••'}
+              </span>
+            </button>
+          )
+        },
+        meta: { label: t('usageLogs.col.account'), mobileHidden: true },
+      }
+    )
   }
 
   columns.push(
     {
       accessorKey: 'task_id',
       header: ({ column }) => (
-        <DataTableColumnHeader column={column} title={t('Task ID')} />
+        <DataTableColumnHeader
+          column={column}
+          title={t('Task ID')}
+          className={usageLogsColumnHeaderClassName}
+        />
       ),
       cell: ({ row }) => {
         const log = row.original
         const taskId = row.getValue('task_id') as string
         if (!taskId) {
-          return <span className='text-muted-foreground/60 text-xs'>-</span>
+          return <span className={usageLogsTableEmptyClass}>-</span>
         }
         return (
           <div className='flex max-w-[170px] flex-col gap-0.5'>
@@ -187,9 +235,12 @@ export function useTaskLogsColumns(isAdmin: boolean): ColumnDef<TaskLog>[] {
               autoColor={taskId}
               size='sm'
               showDot={false}
-              className='border-border/60 bg-muted/30 max-w-full truncate rounded-md border px-1.5 py-0.5 font-mono'
+              className={cn(
+                usageLogsInlinePillClass,
+                'max-w-full truncate font-mono'
+              )}
             />
-            <span className='text-muted-foreground/60 truncate text-[11px]'>
+            <span className={cn('truncate', usageLogsTableMetaClass)}>
               {t(log.platform)} · {t(taskActionMapper.getLabel(log.action))}
             </span>
           </div>
@@ -207,7 +258,11 @@ export function useTaskLogsColumns(isAdmin: boolean): ColumnDef<TaskLog>[] {
     {
       accessorKey: 'status',
       header: ({ column }) => (
-        <DataTableColumnHeader column={column} title={t('Status')} />
+        <DataTableColumnHeader
+          column={column}
+          title={t('Status')}
+          className={usageLogsColumnHeaderClassName}
+        />
       ),
       cell: ({ row }) => {
         const status = row.getValue('status') as string
@@ -227,7 +282,11 @@ export function useTaskLogsColumns(isAdmin: boolean): ColumnDef<TaskLog>[] {
     {
       accessorKey: 'fail_reason',
       header: ({ column }) => (
-        <DataTableColumnHeader column={column} title={t('Details')} />
+        <DataTableColumnHeader
+          column={column}
+          title={t('Details')}
+          className={usageLogsColumnHeaderClassName}
+        />
       ),
       cell: function DetailsCell({ row }) {
         const log = row.original
@@ -267,7 +326,7 @@ export function useTaskLogsColumns(isAdmin: boolean): ColumnDef<TaskLog>[] {
               href={videoUrl}
               target='_blank'
               rel='noopener noreferrer'
-              className='text-foreground text-xs hover:underline'
+              className={usageLogsTableClickableLinkClass}
             >
               {t('Click to preview video')}
             </a>
@@ -275,18 +334,22 @@ export function useTaskLogsColumns(isAdmin: boolean): ColumnDef<TaskLog>[] {
         }
 
         if (!failReason) {
-          return <span className='text-muted-foreground/60 text-xs'>-</span>
+          return (
+            <span className={usageLogsTableEmptyClass}>
+              {t('usageLogs.task.no_details')}
+            </span>
+          )
         }
 
         return (
           <>
             <button
               type='button'
-              className='group flex max-w-[200px] items-center gap-1 text-left text-xs'
+              className='group flex max-w-[200px] items-center gap-1 text-left'
               onClick={() => setDialogOpen(true)}
               title={t('Click to view full error message')}
             >
-              <span className='truncate leading-snug text-red-600 group-hover:underline dark:text-red-400'>
+              <span className={usageLogsTableFailReasonClass}>
                 {failReason}
               </span>
             </button>

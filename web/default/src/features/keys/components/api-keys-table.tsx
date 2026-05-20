@@ -33,7 +33,6 @@ import {
 import { Database } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { formatQuotaForOpsCenter } from '@/lib/ops-billing-display'
 import { cn } from '@/lib/utils'
 import { useTableUrlState } from '@/hooks/use-table-url-state'
 import {
@@ -57,6 +56,15 @@ import {
   API_KEY_STATUSES,
   ERROR_MESSAGES,
 } from '../constants'
+import { formatKeyQuotaDisplay } from '../lib/format-key-quota'
+import {
+  keysFilterToolbarClassName,
+  keysMobileShellClassName,
+  keysTableClassName,
+  keysTableHeaderClassName,
+  keysTableMetaClass,
+  keysTablePrimaryClass,
+} from '../lib/keys-ui-styles'
 import { type ApiKey } from '../types'
 import { ApiKeyCell } from './api-keys-cells'
 import { useApiKeysColumns } from './api-keys-columns'
@@ -65,29 +73,6 @@ import { DataTableBulkActions } from './data-table-bulk-actions'
 import { DataTableRowActions } from './data-table-row-actions'
 
 const route = getRouteApi('/_authenticated/keys/')
-
-const keysToolbarClassName = cn(
-  '[&_input]:border-white/15 [&_input]:bg-slate-950/50 [&_input]:text-slate-100',
-  '[&_input::placeholder]:text-slate-500'
-)
-
-const keysTableHeaderClassName = cn(
-  'bg-slate-900/80 text-slate-200',
-  '[&_th]:text-slate-200',
-  '[&_button]:text-slate-200',
-  '[&_svg]:text-slate-400',
-  '[&_[data-slot=checkbox]]:border-white/25'
-)
-
-const keysTableClassName = cn(
-  'border-white/10 bg-slate-900/40',
-  '[&_[data-slot=empty-title]]:text-slate-100',
-  '[&_[data-slot=empty-description]]:text-slate-400',
-  '[&_[data-slot=empty-icon]]:text-slate-300'
-)
-
-const keysMobileShellClassName =
-  'overflow-hidden rounded-lg border border-white/10 bg-slate-900/40'
 
 function isDisabledApiKeyRow(apiKey: ApiKey) {
   return apiKey.status !== API_KEY_STATUS.ENABLED
@@ -137,12 +122,10 @@ function ApiKeysMobileList({
               <Database className='size-6' />
             </EmptyMedia>
             <EmptyTitle className='text-slate-100'>
-              {t('No API Keys Found')}
+              {t('keys.empty.title')}
             </EmptyTitle>
             <EmptyDescription className='text-slate-400'>
-              {t(
-                'No API keys available. Create your first API key to get started.'
-              )}
+              {t('keys.empty.description')}
             </EmptyDescription>
           </EmptyHeader>
         </Empty>
@@ -170,7 +153,9 @@ function ApiKeysMobileList({
                 <div className='truncate text-sm font-semibold'>
                   {apiKey.name}
                 </div>
-                <div className='text-[11px] text-slate-400'>{t('API Key')}</div>
+                <div className='text-[11px] text-slate-400'>
+                  {t('keys.col.access_key')}
+                </div>
               </div>
               {statusConfig && (
                 <StatusBadge
@@ -190,15 +175,19 @@ function ApiKeysMobileList({
             </div>
 
             <div className='flex items-center justify-between gap-2 text-xs'>
-              <span className='text-slate-400'>{t('Quota')}</span>
+              <span className={keysTableMetaClass}>{t('keys.col.quota')}</span>
               {apiKey.unlimited_quota ? (
-                <span className='font-medium'>{t('Unlimited')}</span>
+                <span className={cn('font-medium', keysTablePrimaryClass)}>
+                  {t('keys.quota.unlimited')}
+                </span>
               ) : (
-                <span className='font-medium tabular-nums'>
-                  {formatQuotaForOpsCenter(apiKey.remain_quota)}
-                  <span className='font-normal text-slate-500'>
+                <span
+                  className={cn('font-medium tabular-nums', keysTablePrimaryClass)}
+                >
+                  {formatKeyQuotaDisplay(apiKey.remain_quota)}
+                  <span className={cn('font-normal', keysTableMetaClass)}>
                     {' / '}
-                    {formatQuotaForOpsCenter(total)}
+                    {formatKeyQuotaDisplay(total)}
                   </span>
                 </span>
               )}
@@ -251,7 +240,11 @@ export function ApiKeysTable() {
       if (hasFilter) {
         const result = await searchApiKeys({ keyword: globalFilter })
         if (!result.success) {
-          toast.error(result.message || t(ERROR_MESSAGES.SEARCH_FAILED))
+          if (result.message) {
+            // eslint-disable-next-line no-console
+            console.warn('[keys]', result.message)
+          }
+          toast.error(t(ERROR_MESSAGES.SEARCH_FAILED))
           return { items: [], total: 0 }
         }
         return {
@@ -267,7 +260,11 @@ export function ApiKeysTable() {
       })
 
       if (!result.success) {
-        toast.error(result.message || t(ERROR_MESSAGES.LOAD_FAILED))
+        if (result.message) {
+          // eslint-disable-next-line no-console
+          console.warn('[keys]', result.message)
+        }
+        toast.error(t(ERROR_MESSAGES.LOAD_FAILED))
         return { items: [], total: 0 }
       }
 
@@ -329,18 +326,16 @@ export function ApiKeysTable() {
       columns={columns}
       isLoading={isLoading}
       isFetching={isFetching}
-      emptyTitle={t('No API Keys Found')}
-      emptyDescription={t(
-        'No API keys available. Create your first API key to get started.'
-      )}
+      emptyTitle={t('keys.empty.title')}
+      emptyDescription={t('keys.empty.description')}
       skeletonKeyPrefix='api-keys-skeleton'
       toolbarProps={{
-        searchPlaceholder: t('Filter by name or key...'),
-        className: keysToolbarClassName,
+        searchPlaceholder: t('keys.filter.placeholder'),
+        className: keysFilterToolbarClassName,
         filters: [
           {
             columnId: 'status',
-            title: t('Status'),
+            title: t('keys.filter.status'),
             options: API_KEY_STATUS_OPTIONS,
             singleSelect: true,
           },

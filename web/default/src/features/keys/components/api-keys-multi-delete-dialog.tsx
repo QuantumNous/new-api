@@ -50,12 +50,16 @@ export function ApiKeysMultiDeleteDialog<TData>({
 
       if (result.success) {
         const count = result.data || ids.length
-        toast.success(t('Successfully deleted {{count}} API key(s)', { count }))
+        toast.success(t('keys.toast.batch_deleted', { count }))
         table.resetRowSelection()
         triggerRefresh()
         onOpenChange(false)
       } else {
-        toast.error(result.message || t(ERROR_MESSAGES.BATCH_DELETE_FAILED))
+        if (result.message) {
+          // eslint-disable-next-line no-console
+          console.warn('[keys]', result.message)
+        }
+        toast.error(t(ERROR_MESSAGES.BATCH_DELETE_FAILED))
       }
     } catch (_error) {
       toast.error(t(ERROR_MESSAGES.UNEXPECTED))
@@ -72,17 +76,19 @@ export function ApiKeysMultiDeleteDialog<TData>({
       handleConfirm={handleConfirm}
       isLoading={isDeleting}
       className='max-w-md'
-      title={t('Delete {{count}} API key(s)?', { count: selectedRows.length })}
+      title={t('keys.dialog.multi_delete.title', {
+        count: selectedRows.length,
+      })}
       desc={
         <>
-          {t('You are about to delete {{count}} API key(s).', {
+          {t('keys.dialog.multi_delete.desc', {
             count: selectedRows.length,
           })}{' '}
           <br />
-          {t('This action cannot be undone.')}
+          {t('keys.dialog.multi_delete.undo')}
         </>
       }
-      confirmText={t('Delete')}
+      confirmText={t('keys.dialog.delete.confirm')}
     />
   )
 }

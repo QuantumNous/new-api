@@ -33,6 +33,7 @@ import {
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { copyToClipboard } from '@/lib/copy-to-clipboard'
+import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -55,6 +56,7 @@ import { resolveChatUrl, type ChatPreset } from '@/features/chat/lib/chat-links'
 import { sendToFluent } from '@/features/chat/lib/send-to-fluent'
 import { updateApiKeyStatus } from '../api'
 import { API_KEY_STATUS, ERROR_MESSAGES, SUCCESS_MESSAGES } from '../constants'
+import { keysGhostIconButtonClassName } from '../lib/keys-ui-styles'
 import { apiKeySchema } from '../types'
 import { useApiKeys } from './api-keys-provider'
 
@@ -160,7 +162,11 @@ export function DataTableRowActions<TData>({
         toast.success(message)
         triggerRefresh()
       } else {
-        toast.error(result.message || t(ERROR_MESSAGES.STATUS_UPDATE_FAILED))
+        if (result.message) {
+          // eslint-disable-next-line no-console
+          console.warn('[keys]', result.message)
+        }
+        toast.error(t(ERROR_MESSAGES.STATUS_UPDATE_FAILED))
       }
     } catch {
       toast.error(t(ERROR_MESSAGES.UNEXPECTED))
@@ -179,12 +185,15 @@ export function DataTableRowActions<TData>({
               size='icon-sm'
               onClick={handleToggleStatus}
               disabled={isTogglingStatus}
-              aria-label={isEnabled ? t('Disable') : t('Enable')}
-              className={
-                isEnabled
-                  ? 'text-destructive hover:text-destructive'
-                  : 'text-emerald-600 hover:text-emerald-600 dark:text-emerald-400 dark:hover:text-emerald-400'
+              aria-label={
+                isEnabled ? t('keys.action.disable') : t('keys.action.enable')
               }
+              className={cn(
+                keysGhostIconButtonClassName,
+                isEnabled
+                  ? 'text-rose-400 hover:text-rose-300'
+                  : 'text-emerald-400 hover:text-emerald-300'
+              )}
             />
           }
         >
@@ -197,7 +206,7 @@ export function DataTableRowActions<TData>({
           )}
         </TooltipTrigger>
         <TooltipContent>
-          {isEnabled ? t('Disable') : t('Enable')}
+          {isEnabled ? t('keys.action.disable') : t('keys.action.enable')}
         </TooltipContent>
       </Tooltip>
 
@@ -206,12 +215,15 @@ export function DataTableRowActions<TData>({
           render={
             <Button
               variant='ghost'
-              className='data-popup-open:bg-muted flex h-8 w-8 p-0'
+              className={cn(
+                'data-popup-open:bg-white/10 flex h-8 w-8 p-0',
+                keysGhostIconButtonClassName
+              )}
             />
           }
         >
           <DotsHorizontalIcon className='h-4 w-4' />
-          <span className='sr-only'>{t('Open menu')}</span>
+          <span className='sr-only'>{t('keys.action.open_menu')}</span>
         </DropdownMenuTrigger>
         <DropdownMenuContent align='end' className='w-[200px]'>
           <DropdownMenuItem
@@ -219,10 +231,10 @@ export function DataTableRowActions<TData>({
               const realKey = await resolveRealKey(apiKey.id)
               if (!realKey) return
               const ok = await copyToClipboard(realKey)
-              if (ok) toast.success(t('Copied'))
+              if (ok) toast.success(t('keys.toast.copied'))
             }}
           >
-            {t('Copy Key')}
+            {t('keys.action.copy')}
             <DropdownMenuShortcut>
               <Copy size={16} />
             </DropdownMenuShortcut>
@@ -236,10 +248,10 @@ export function DataTableRowActions<TData>({
                 getServerAddress()
               )
               const ok = await copyToClipboard(connStr)
-              if (ok) toast.success(t('Copied'))
+              if (ok) toast.success(t('keys.toast.copied'))
             }}
           >
-            {t('Copy Connection Info')}
+            {t('keys.action.copy_connection')}
             <DropdownMenuShortcut>
               <Link size={16} />
             </DropdownMenuShortcut>
@@ -251,7 +263,7 @@ export function DataTableRowActions<TData>({
               setOpen('update')
             }}
           >
-            {t('Edit')}
+            {t('keys.action.edit')}
             <DropdownMenuShortcut>
               <Edit size={16} />
             </DropdownMenuShortcut>
@@ -298,7 +310,7 @@ export function DataTableRowActions<TData>({
             }}
             className='text-destructive focus:text-destructive'
           >
-            {t('Delete')}
+            {t('keys.action.delete')}
             <DropdownMenuShortcut>
               <Trash2 size={16} />
             </DropdownMenuShortcut>

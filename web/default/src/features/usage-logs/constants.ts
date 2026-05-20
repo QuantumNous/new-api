@@ -160,7 +160,7 @@ export const MJ_SUBMIT_RESULT_CODES = {
  */
 export const TASK_ACTIONS = {
   // Suno (uppercase)
-  MUSIC: 'MUSIC', // 生成音乐
+  MUSIC: 'MUSIC', // 生成音频（UI label via TASK_ACTION_MAPPINGS）
   LYRICS: 'LYRICS', // 生成歌词
 
   // Video generation (camelCase)
@@ -268,7 +268,7 @@ export const MJ_SUBMIT_RESULT_MAPPINGS: Record<string, StatusMapping> = {
  * Task action type mappings
  */
 export const TASK_ACTION_MAPPINGS: Record<string, StatusMapping> = {
-  [TASK_ACTIONS.MUSIC]: { label: 'Generate Music', variant: 'neutral' },
+  [TASK_ACTIONS.MUSIC]: { label: 'Generate Audio', variant: 'neutral' },
   [TASK_ACTIONS.LYRICS]: { label: 'Generate Lyrics', variant: 'pink' },
   [TASK_ACTIONS.GENERATE]: { label: 'Image to Video', variant: 'blue' },
   [TASK_ACTIONS.TEXT_GENERATE]: { label: 'Text to Video', variant: 'blue' },

@@ -22,6 +22,7 @@ import { Copy, Trash2, Loader2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { copyToClipboard } from '@/lib/copy-to-clipboard'
+import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import {
   Tooltip,
@@ -30,6 +31,11 @@ import {
 } from '@/components/ui/tooltip'
 import { DataTableBulkActions as BulkActionsToolbar } from '@/components/data-table'
 import { type ApiKey } from '../types'
+import {
+  keysBulkCountTextClassName,
+  keysBulkPanelClassName,
+  keysOutlineIconButtonClassName,
+} from '../lib/keys-ui-styles'
 import { ApiKeysMultiDeleteDialog } from './api-keys-multi-delete-dialog'
 import { useApiKeys } from './api-keys-provider'
 
@@ -66,13 +72,15 @@ export function DataTableBulkActions<TData>({
       if (lines.length > 0) {
         const ok = await copyToClipboard(lines.join('\n'))
         if (ok) {
-          toast.success(t('Copied {{count}} key(s)', { count: lines.length }))
+          toast.success(
+            t('keys.bulk.copied', { count: lines.length })
+          )
         } else {
-          toast.error(t('Failed to copy keys'))
+          toast.error(t('keys.bulk.copy_failed'))
         }
       }
     } catch {
-      toast.error(t('Failed to copy keys'))
+      toast.error(t('keys.bulk.copy_failed'))
     } finally {
       setIsCopying(false)
     }
@@ -80,17 +88,23 @@ export function DataTableBulkActions<TData>({
 
   return (
     <>
-      <BulkActionsToolbar table={table} entityName='API key'>
+      <BulkActionsToolbar
+        table={table}
+        entityName={t('keys.col.access_key')}
+        selectionSummary={(count) => t('keys.bulk.selected', { count })}
+        panelClassName={keysBulkPanelClassName}
+        countTextClassName={keysBulkCountTextClassName}
+      >
         <Tooltip>
           <TooltipTrigger
             render={
               <Button
                 variant='outline'
                 size='icon'
-                className='size-8'
+                className={cn('size-8', keysOutlineIconButtonClassName)}
                 onClick={handleBatchCopy}
                 disabled={isCopying}
-                aria-label={t('Copy selected keys')}
+                aria-label={t('keys.action.copy_selected')}
               />
             }
           >
@@ -101,7 +115,7 @@ export function DataTableBulkActions<TData>({
             )}
           </TooltipTrigger>
           <TooltipContent>
-            <p>{t('Copy selected keys')}</p>
+            <p>{t('keys.action.copy_selected')}</p>
           </TooltipContent>
         </Tooltip>
 
@@ -113,15 +127,15 @@ export function DataTableBulkActions<TData>({
                 size='icon'
                 onClick={() => setShowDeleteConfirm(true)}
                 className='size-8'
-                aria-label={t('Delete selected API keys')}
+                aria-label={t('keys.action.delete_selected')}
               />
             }
           >
             <Trash2 />
-            <span className='sr-only'>{t('Delete selected API keys')}</span>
+            <span className='sr-only'>{t('keys.action.delete_selected')}</span>
           </TooltipTrigger>
           <TooltipContent>
-            <p>{t('Delete selected API keys')}</p>
+            <p>{t('keys.action.delete_selected')}</p>
           </TooltipContent>
         </Tooltip>
       </BulkActionsToolbar>

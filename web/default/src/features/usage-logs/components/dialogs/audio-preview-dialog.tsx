@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useState, useRef, useEffect } from 'react'
-import { ExternalLink, Copy, Music } from 'lucide-react'
+import { ExternalLink, Copy, AudioLines } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
@@ -156,14 +156,14 @@ export function AudioPreviewDialog(props: AudioPreviewDialogProps) {
       <DialogContent className='sm:max-w-lg'>
         <DialogHeader>
           <DialogTitle className='flex items-center gap-2'>
-            <Music className='h-5 w-5' />
+            <AudioLines className='h-5 w-5' aria-hidden />
             {t('Audio Preview')}
           </DialogTitle>
         </DialogHeader>
 
         {clips.length === 0 ? (
-          <p className='text-muted-foreground py-4 text-center text-sm'>
-            {t('None')}
+          <p className='py-4 text-center text-sm text-slate-600'>
+            {t('No audio available')}
           </p>
         ) : (
           <ScrollArea className='max-h-[60vh]'>

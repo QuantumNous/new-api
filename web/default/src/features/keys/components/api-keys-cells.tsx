@@ -20,6 +20,7 @@ import { useState, useCallback } from 'react'
 import { Check, Copy, Loader2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { copyToClipboard } from '@/lib/copy-to-clipboard'
+import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import {
   Popover,
@@ -33,6 +34,12 @@ import {
 } from '@/components/ui/tooltip'
 import { StatusBadge } from '@/components/status-badge'
 import { type ApiKey } from '../types'
+import {
+  keysGhostIconButtonClassName,
+  keysPopoverPanelClassName,
+  keysTableMetaClass,
+  keysTooltipContentClassName,
+} from '../lib/keys-ui-styles'
 import { useApiKeys } from './api-keys-provider'
 
 export function ApiKeyCell({ apiKey }: { apiKey: ApiKey }) {
@@ -77,23 +84,27 @@ export function ApiKeyCell({ apiKey }: { apiKey: ApiKey }) {
             <Button
               variant='ghost'
               size='sm'
-              className='text-muted-foreground h-7 font-mono text-xs'
+              className={cn(
+                'h-7 font-mono text-xs',
+                keysTableMetaClass,
+                keysGhostIconButtonClassName
+              )}
             />
           }
         >
           {maskedKey}
         </PopoverTrigger>
         <PopoverContent
-          className='w-auto max-w-[min(90vw,28rem)]'
+          className={cn('w-auto max-w-[min(90vw,28rem)]', keysPopoverPanelClassName)}
           align='start'
         >
           <div className='space-y-2'>
-            <p className='text-muted-foreground text-xs'>{t('Full API Key')}</p>
+            <p className='text-xs text-slate-600'>{t('keys.cell.full_key')}</p>
             {isLoading ? (
               <div className='flex items-center gap-2 py-2'>
-                <Loader2 className='size-3.5 animate-spin' />
-                <span className='text-muted-foreground text-xs'>
-                  {t('Loading...')}
+                <Loader2 className='size-3.5 animate-spin text-slate-500' />
+                <span className='text-xs text-slate-600'>
+                  {t('keys.cell.loading')}
                 </span>
               </div>
             ) : (
@@ -102,7 +113,7 @@ export function ApiKeyCell({ apiKey }: { apiKey: ApiKey }) {
                 value={resolvedFullKey || maskedKey}
                 autoFocus
                 onFocus={(e) => e.target.select()}
-                className='bg-muted/50 w-full min-w-[280px] rounded-md border px-3 py-2 font-mono text-xs outline-none'
+                className='w-full min-w-[280px] rounded-md border border-slate-200 bg-slate-50 px-3 py-2 font-mono text-xs text-slate-900 outline-none'
               />
             )}
           </div>
@@ -114,7 +125,7 @@ export function ApiKeyCell({ apiKey }: { apiKey: ApiKey }) {
             <Button
               variant='ghost'
               size='icon'
-              className='size-7 shrink-0'
+              className={cn('size-7 shrink-0', keysGhostIconButtonClassName)}
               onClick={handleCopy}
               disabled={isLoading}
             />
@@ -123,17 +134,17 @@ export function ApiKeyCell({ apiKey }: { apiKey: ApiKey }) {
           {isLoading ? (
             <Loader2 className='size-3.5 animate-spin' />
           ) : isCopied ? (
-            <Check className='size-3.5 text-green-600' />
+            <Check className='size-3.5 text-emerald-500' />
           ) : (
             <Copy className='size-3.5' />
           )}
         </TooltipTrigger>
-        <TooltipContent>
+        <TooltipContent className={keysTooltipContentClassName}>
           {isLoading
-            ? t('Loading...')
+            ? t('keys.cell.loading')
             : isCopied
-              ? t('Copied!')
-              : t('Copy API key')}
+              ? t('keys.cell.copied')
+              : t('keys.cell.copy_key')}
         </TooltipContent>
       </Tooltip>
     </div>
@@ -145,7 +156,11 @@ export function ModelLimitsCell({ apiKey }: { apiKey: ApiKey }) {
 
   if (!apiKey.model_limits_enabled || !apiKey.model_limits) {
     return (
-      <StatusBadge label={t('Unlimited')} variant='neutral' copyable={false} />
+      <StatusBadge
+        label={t('keys.models.unlimited')}
+        variant='neutral'
+        copyable={false}
+      />
     )
   }
 
@@ -155,12 +170,15 @@ export function ModelLimitsCell({ apiKey }: { apiKey: ApiKey }) {
     <Tooltip>
       <TooltipTrigger render={<span />}>
         <StatusBadge
-          label={t('{{count}} model(s)', { count: models.length })}
+          label={t('keys.models.count', { count: models.length })}
           variant='neutral'
           copyable={false}
         />
       </TooltipTrigger>
-      <TooltipContent side='top' className='max-w-xs'>
+      <TooltipContent
+        side='top'
+        className={cn('max-w-xs', keysTooltipContentClassName)}
+      >
         <div className='max-h-[200px] space-y-0.5 overflow-y-auto text-xs'>
           {models.map((m) => (
             <div key={m} className='font-mono'>
@@ -180,7 +198,7 @@ export function IpRestrictionsCell({ apiKey }: { apiKey: ApiKey }) {
   if (!allowIps) {
     return (
       <StatusBadge
-        label={t('No restriction')}
+        label={t('keys.cell.no_ip')}
         variant='neutral'
         copyable={false}
       />
@@ -196,12 +214,15 @@ export function IpRestrictionsCell({ apiKey }: { apiKey: ApiKey }) {
     <Tooltip>
       <TooltipTrigger render={<span />}>
         <StatusBadge
-          label={t('{{count}} IP(s)', { count: ips.length })}
+          label={t('keys.cell.ip_count', { count: ips.length })}
           variant='neutral'
           copyable={false}
         />
       </TooltipTrigger>
-      <TooltipContent side='top' className='max-w-xs'>
+      <TooltipContent
+        side='top'
+        className={cn('max-w-xs', keysTooltipContentClassName)}
+      >
         <div className='max-h-[200px] space-y-0.5 overflow-y-auto text-xs'>
           {ips.map((ip) => (
             <div key={ip} className='font-mono'>

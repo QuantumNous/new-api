@@ -42,6 +42,7 @@ import { useColumnsByCategory } from '../lib/columns'
 import { fetchLogsByCategory } from '../lib/utils'
 import type { LogCategory } from '../types'
 import { usageLogsTableHeaderClassName } from './columns/column-helpers'
+import { usageLogsTableBodyRowClassName } from '../lib/ops-ui-styles'
 import { CommonLogsFilterBar } from './common-logs-filter-bar'
 import { TaskLogsFilterBar } from './task-logs-filter-bar'
 
@@ -165,6 +166,7 @@ export function UsageLogsTable({ logCategory }: UsageLogsTableProps) {
   }, [pageCount, ensurePageInRange])
 
   const isCommon = logCategory === 'common'
+  const isTaskOrDrawing = logCategory === 'task' || logCategory === 'drawing'
 
   return (
     <DataTablePage
@@ -192,7 +194,14 @@ export function UsageLogsTable({ logCategory }: UsageLogsTableProps) {
           isCommon && logType != null ? (logTypeRowTint[logType] ?? '') : ''
 
         return (
-          <TableRow key={row.id} className={cn('transition-colors', tintClass)}>
+          <TableRow
+            key={row.id}
+            className={cn(
+              'transition-colors',
+              tintClass,
+              isTaskOrDrawing && usageLogsTableBodyRowClassName
+            )}
+          >
             {row.getVisibleCells().map((cell) => (
               <TableCell key={cell.id} className={isCommon ? 'py-2' : 'py-3.5'}>
                 {flexRender(cell.column.columnDef.cell, cell.getContext())}

@@ -29,10 +29,10 @@ export function ApiKeys() {
     <ApiKeysProvider>
       <SectionPageLayout>
         <SectionPageLayout.Title>
-          {t('Application Access Keys')}
+          {t('keys.page.title')}
         </SectionPageLayout.Title>
         <SectionPageLayout.Description>
-          {t('Manage application access keys for service integration')}
+          {t('keys.page.description')}
         </SectionPageLayout.Description>
         <SectionPageLayout.Actions>
           <ApiKeysPrimaryButtons />

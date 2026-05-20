@@ -16,20 +16,11 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { Plus } from 'lucide-react'
-import { useTranslation } from 'react-i18next'
-import { Button } from '@/components/ui/button'
-import { useApiKeys } from './api-keys-provider'
+import { formatUsageLogQuotaDisplay } from '@/lib/ops-billing-display'
 
-export function ApiKeysPrimaryButtons() {
-  const { t } = useTranslation()
-  const { setOpen } = useApiKeys()
-  return (
-    <div className='flex gap-2'>
-      <Button size='sm' onClick={() => setOpen('create')}>
-        <Plus className='h-4 w-4' />
-        {t('keys.primary.create')}
-      </Button>
-    </div>
-  )
+/** Display-only: quota units as token credit numbers (no ¥ / USD / CNY). */
+export function formatKeyQuotaDisplay(
+  quota: number | null | undefined
+): string {
+  return formatUsageLogQuotaDisplay(quota)
 }
