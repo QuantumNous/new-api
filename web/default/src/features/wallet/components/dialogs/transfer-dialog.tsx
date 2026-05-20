@@ -32,6 +32,10 @@ import {
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { QUOTA_PER_DOLLAR } from '../../constants'
+import { cn } from '@/lib/utils'
+
+const WALLET_OUTLINE_BTN =
+  'border-border bg-background text-foreground shadow-none hover:bg-muted/80 dark:border-slate-600 dark:bg-slate-950 dark:text-slate-100 dark:hover:bg-slate-900 dark:disabled:opacity-70'
 
 interface TransferDialogProps {
   open: boolean
@@ -70,17 +74,17 @@ export function TransferDialog({
       <DialogContent className='max-sm:w-[calc(100vw-1.5rem)] sm:max-w-md'>
         <DialogHeader>
           <DialogTitle className='text-xl font-semibold'>
-            {t('Transfer Rewards')}
+            {t('wallet.transfer.title')}
           </DialogTitle>
-          <DialogDescription>
-            {t('Move affiliate rewards to your main balance')}
+          <DialogDescription className='dark:text-slate-400'>
+            {t('wallet.transfer.description')}
           </DialogDescription>
         </DialogHeader>
 
         <div className='space-y-4 py-3 sm:space-y-6 sm:py-4'>
           <div className='space-y-2'>
-            <Label className='text-muted-foreground text-xs font-medium tracking-wider uppercase'>
-              {t('Available Rewards')}
+            <Label className='text-muted-foreground text-xs font-medium tracking-wider uppercase dark:text-slate-400'>
+              {t('wallet.transfer.available_rewards')}
             </Label>
             <div className='text-2xl font-semibold'>
               {formatQuotaForOpsCenter(availableQuota)}
@@ -90,9 +94,9 @@ export function TransferDialog({
           <div className='space-y-3'>
             <Label
               htmlFor='transfer-amount'
-              className='text-muted-foreground text-xs font-medium tracking-wider uppercase'
+              className='text-muted-foreground text-xs font-medium tracking-wider uppercase dark:text-slate-400'
             >
-              {t('Transfer Amount')}
+              {t('wallet.transfer.transfer_amount')}
             </Label>
             <Input
               id='transfer-amount'
@@ -104,8 +108,10 @@ export function TransferDialog({
               step={QUOTA_PER_DOLLAR}
               className='font-mono text-lg'
             />
-            <p className='text-muted-foreground text-xs'>
-              {t('Minimum:')} {formatQuotaForOpsCenter(QUOTA_PER_DOLLAR)}
+            <p className='text-muted-foreground text-xs dark:text-slate-400'>
+              {t('wallet.transfer.minimum_line', {
+                amount: formatQuotaForOpsCenter(QUOTA_PER_DOLLAR),
+              })}
             </p>
           </div>
         </div>
@@ -115,6 +121,7 @@ export function TransferDialog({
             variant='outline'
             onClick={() => onOpenChange(false)}
             disabled={transferring}
+            className={cn(WALLET_OUTLINE_BTN)}
           >
             {t('Cancel')}
           </Button>

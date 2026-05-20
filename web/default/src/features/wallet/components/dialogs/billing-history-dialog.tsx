@@ -20,7 +20,6 @@ import { useState } from 'react'
 import { Search, Copy, Check, ChevronLeft, ChevronRight } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { formatWalletAmountForOpsCenter } from '@/lib/ops-billing-display'
-import { formatNumber } from '@/lib/format'
 import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard'
 import {
   AlertDialog,
@@ -59,6 +58,10 @@ import {
   getPaymentMethodName,
   formatTimestamp,
 } from '../../lib/billing'
+import { cn } from '@/lib/utils'
+
+const WALLET_OUTLINE_BTN =
+  'border-border bg-background text-foreground shadow-none hover:bg-muted/80 dark:border-slate-600 dark:bg-slate-950 dark:text-slate-100 dark:hover:bg-slate-900 dark:disabled:opacity-70'
 
 interface BillingHistoryDialogProps {
   open: boolean
@@ -104,9 +107,9 @@ export function BillingHistoryDialog({
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent className='flex max-h-[calc(100dvh-2rem)] flex-col max-sm:h-dvh max-sm:w-screen max-sm:max-w-none max-sm:rounded-none max-sm:p-4 sm:max-w-4xl'>
           <DialogHeader>
-            <DialogTitle>{t('Billing History')}</DialogTitle>
-            <DialogDescription>
-              {t('View your topup transaction records and payment history')}
+            <DialogTitle>{t('wallet.billing.history_title')}</DialogTitle>
+            <DialogDescription className='dark:text-slate-400'>
+              {t('wallet.billing.history_description')}
             </DialogDescription>
           </DialogHeader>
 
@@ -170,7 +173,7 @@ export function BillingHistoryDialog({
                   ))}
                 </div>
               ) : records.length === 0 ? (
-                <div className='text-muted-foreground flex h-[320px] flex-col items-center justify-center text-center sm:h-[400px]'>
+                <div className='text-muted-foreground flex h-[320px] flex-col items-center justify-center text-center sm:h-[400px] dark:text-slate-400'>
                   <p className='text-sm font-medium'>
                     {t('No billing records found')}
                   </p>
@@ -217,7 +220,7 @@ export function BillingHistoryDialog({
                                 />
                               )}
                             </div>
-                            <div className='text-muted-foreground text-xs'>
+                            <div className='text-muted-foreground text-xs dark:text-slate-400'>
                               {formatTimestamp(record.create_time)}
                             </div>
                           </div>
@@ -232,16 +235,16 @@ export function BillingHistoryDialog({
                         {/* Details Grid */}
                         <div className='mt-3 grid grid-cols-2 gap-3 sm:mt-4 sm:grid-cols-3 sm:gap-4'>
                           <div className='space-y-1'>
-                            <Label className='text-muted-foreground text-xs'>
-                              {t('Payment Method')}
+                            <Label className='text-muted-foreground text-xs dark:text-slate-400'>
+                              {t('wallet.billing.history_payment_method')}
                             </Label>
                             <div className='text-sm font-medium'>
                               {getPaymentMethodName(record.payment_method, t)}
                             </div>
                           </div>
                           <div className='space-y-1'>
-                            <Label className='text-muted-foreground text-xs'>
-                              {t('Amount')}
+                            <Label className='text-muted-foreground text-xs dark:text-slate-400'>
+                              {t('wallet.billing.history_amount')}
                             </Label>
                             <div className='text-sm font-semibold'>
                               {formatWalletAmountForOpsCenter(record.amount, {
@@ -252,11 +255,15 @@ export function BillingHistoryDialog({
                             </div>
                           </div>
                           <div className='space-y-1'>
-                            <Label className='text-muted-foreground text-xs'>
-                              {t('Payment')}
+                            <Label className='text-muted-foreground text-xs dark:text-slate-400'>
+                              {t('wallet.billing.history_payment')}
                             </Label>
-                            <div className='text-sm font-semibold text-red-600'>
-                              {formatNumber(record.money)}
+                            <div className='text-sm font-semibold text-red-600 dark:text-red-400'>
+                              {formatWalletAmountForOpsCenter(record.money, {
+                                digitsLarge: 2,
+                                digitsSmall: 2,
+                                abbreviate: false,
+                              })}
                             </div>
                           </div>
                         </div>
@@ -267,10 +274,11 @@ export function BillingHistoryDialog({
                             <Button
                               size='sm'
                               variant='outline'
+                              className={WALLET_OUTLINE_BTN}
                               onClick={() => setConfirmTradeNo(record.trade_no)}
                               disabled={completing}
                             >
-                              {t('Complete Order')}
+                              {t('wallet.billing.history_complete_order')}
                             </Button>
                           </div>
                         )}
@@ -284,7 +292,7 @@ export function BillingHistoryDialog({
             {/* Pagination */}
             {!loading && records.length > 0 && (
               <div className='flex flex-col items-center gap-3 border-t pt-4 sm:flex-row sm:items-center sm:justify-between'>
-                <div className='text-muted-foreground text-xs sm:text-sm'>
+                <div className='text-muted-foreground text-xs sm:text-sm dark:text-slate-400'>
                   {t('Showing')} {(page - 1) * pageSize + 1}-
                   {Math.min(page * pageSize, total)} {t('of')} {total}
                 </div>
@@ -294,11 +302,11 @@ export function BillingHistoryDialog({
                     size='sm'
                     onClick={() => handlePageChange(page - 1)}
                     disabled={page <= 1}
-                    className='h-8 w-8 p-0'
+                    className={cn('h-8 w-8 p-0', WALLET_OUTLINE_BTN)}
                   >
                     <ChevronLeft className='h-4 w-4' />
                   </Button>
-                  <div className='text-muted-foreground flex items-center gap-1 text-sm'>
+                  <div className='text-muted-foreground flex items-center gap-1 text-sm dark:text-slate-400'>
                     <span className='font-medium'>{page}</span>
                     <span>/</span>
                     <span>{totalPages}</span>
@@ -308,7 +316,7 @@ export function BillingHistoryDialog({
                     size='sm'
                     onClick={() => handlePageChange(page + 1)}
                     disabled={page >= totalPages}
-                    className='h-8 w-8 p-0'
+                    className={cn('h-8 w-8 p-0', WALLET_OUTLINE_BTN)}
                   >
                     <ChevronRight className='h-4 w-4' />
                   </Button>
@@ -326,7 +334,7 @@ export function BillingHistoryDialog({
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>{t('Complete Order')}</AlertDialogTitle>
+            <AlertDialogTitle>{t('wallet.billing.history_complete_order')}</AlertDialogTitle>
             <AlertDialogDescription>
               {t(
                 'Are you sure you want to manually complete this order? The user will be credited with the corresponding quota.'
@@ -334,7 +342,7 @@ export function BillingHistoryDialog({
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={completing}>
+            <AlertDialogCancel disabled={completing} className={WALLET_OUTLINE_BTN}>
               {t('Cancel')}
             </AlertDialogCancel>
             <AlertDialogAction

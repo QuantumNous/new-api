@@ -60,10 +60,11 @@ export function CreemProductsSection({
         >
           <CardContent className='p-3 text-center sm:p-4'>
             <div className='mb-2 text-lg font-medium'>{product.name}</div>
-            <div className='text-muted-foreground mb-2 text-sm'>
-              {t('Quota')}: {formatNumber(product.quota)}
+            <div className='text-muted-foreground mb-2 text-sm dark:text-slate-400'>
+              {t('wallet.creem.quota_label')}: {formatNumber(product.quota)}
             </div>
-            <div className='text-lg font-semibold text-indigo-600'>
+            <div className='text-lg font-semibold text-indigo-600 dark:text-indigo-400'>
+              {t('wallet.creem.price_label')}:{' '}
               {formatCreemPrice(product.price, product.currency)}
             </div>
           </CardContent>

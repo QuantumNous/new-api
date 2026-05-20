@@ -24,7 +24,15 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
 import { CopyButton } from '@/components/copy-button'
+import { cn } from '@/lib/utils'
 import type { UserWalletData } from '../types'
+
+/** Outline controls on the affiliate card — high default contrast in dark mode. */
+const WALLET_OUTLINE_BTN =
+  'border-slate-300 bg-white text-slate-900 shadow-sm hover:bg-slate-100 dark:border-slate-500 dark:bg-slate-800 dark:text-slate-50 dark:hover:border-slate-400 dark:hover:bg-slate-700 dark:disabled:border-slate-600 dark:disabled:bg-slate-900 dark:disabled:text-slate-400'
+
+const AFFILIATE_LINK_INPUT =
+  'h-9 min-w-0 flex-1 border-slate-300 bg-white font-mono text-sm text-slate-900 placeholder:text-slate-500 dark:border-slate-500 dark:bg-slate-950 dark:text-slate-100 dark:placeholder:text-slate-400'
 
 interface AffiliateRewardsCardProps {
   user: UserWalletData | null
@@ -44,14 +52,14 @@ export function AffiliateRewardsCard({
   const { t } = useTranslation()
   if (loading) {
     return (
-      <Card className='bg-muted/20 py-0'>
+      <Card className='border border-slate-200 bg-slate-50 py-0 dark:border-slate-600 dark:bg-slate-900'>
         <CardContent className='grid gap-4 p-3 sm:p-4 lg:grid-cols-[minmax(220px,1fr)_minmax(220px,0.72fr)_minmax(320px,1.15fr)] lg:items-center'>
           <div>
-            <Skeleton className='h-5 w-32' />
-            <Skeleton className='mt-2 h-4 w-48' />
+            <Skeleton className='h-5 w-32 dark:bg-slate-700' />
+            <Skeleton className='mt-2 h-4 w-48 dark:bg-slate-700' />
           </div>
-          <Skeleton className='h-14 rounded-lg' />
-          <Skeleton className='h-10 rounded-lg' />
+          <Skeleton className='h-14 rounded-lg dark:bg-slate-700' />
+          <Skeleton className='h-10 rounded-lg dark:bg-slate-700' />
         </CardContent>
       </Card>
     )
@@ -60,25 +68,23 @@ export function AffiliateRewardsCard({
   const hasRewards = (user?.aff_quota ?? 0) > 0
 
   return (
-    <Card className='bg-muted/20 py-0'>
+    <Card className='border border-slate-200 bg-slate-50 py-0 dark:border-slate-600 dark:bg-slate-900'>
       <CardContent className='grid gap-3 p-3 sm:gap-4 sm:p-4 lg:grid-cols-[minmax(200px,1fr)_minmax(180px,0.65fr)_minmax(280px,1fr)] lg:items-center'>
         <div className='flex min-w-0 items-center gap-2.5'>
-          <div className='bg-background flex size-8 shrink-0 items-center justify-center rounded-lg border'>
-            <Share2 className='text-muted-foreground size-4' />
+          <div className='flex size-9 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-white dark:border-slate-600 dark:bg-slate-800'>
+            <Share2 className='size-4 text-slate-600 dark:text-slate-200' />
           </div>
           <div className='min-w-0'>
-            <h3 className='truncate text-sm font-semibold'>
-              {t('Referral Program')}
+            <h3 className='truncate text-sm font-semibold text-slate-900 dark:text-slate-50'>
+              {t('wallet.affiliate.title')}
             </h3>
-            <p className='text-muted-foreground line-clamp-1 text-xs'>
-              {t(
-                'Earn rewards when your referrals add funds. Transfer accumulated rewards to your balance anytime.'
-              )}
+            <p className='line-clamp-2 text-sm leading-relaxed text-slate-700 dark:text-slate-200'>
+              {t('wallet.affiliate.description')}
             </p>
           </div>
         </div>
 
-        <div className='grid grid-cols-3 gap-1.5 text-center'>
+        <div className='grid grid-cols-3 gap-2 text-center'>
           {[
             [t('Pending'), formatQuotaForOpsCenter(user?.aff_quota ?? 0)],
             [
@@ -87,11 +93,14 @@ export function AffiliateRewardsCard({
             ],
             [t('Invites'), String(user?.aff_count ?? 0)],
           ].map(([label, value]) => (
-            <div key={label}>
-              <div className='text-muted-foreground truncate text-[10px] font-medium tracking-wider uppercase'>
+            <div
+              key={label}
+              className='rounded-lg border border-slate-200 bg-white px-2 py-2 dark:border-slate-600 dark:bg-slate-800'
+            >
+              <div className='truncate text-xs font-semibold tracking-wide text-slate-600 uppercase dark:text-slate-200'>
                 {label}
               </div>
-              <div className='mt-0.5 truncate text-sm font-semibold tabular-nums'>
+              <div className='mt-1 truncate text-base font-bold tabular-nums text-slate-900 dark:text-slate-50'>
                 {value}
               </div>
             </div>
@@ -102,13 +111,13 @@ export function AffiliateRewardsCard({
           <Input
             value={affiliateLink}
             readOnly
-            className='border-muted bg-background/70 h-9 min-w-0 flex-1 font-mono text-xs'
+            className={AFFILIATE_LINK_INPUT}
           />
           <CopyButton
             value={affiliateLink}
             variant='outline'
-            className='bg-background size-9 shrink-0'
-            iconClassName='size-4'
+            className={cn('size-9 shrink-0', WALLET_OUTLINE_BTN)}
+            iconClassName='size-4 text-slate-700 dark:text-slate-100'
             tooltip={t('Copy referral link')}
             aria-label={t('Copy referral link')}
           />
@@ -116,18 +125,17 @@ export function AffiliateRewardsCard({
             <Button
               onClick={onTransfer}
               disabled={!complianceConfirmed}
-              className='h-9 shrink-0 px-3'
+              variant='outline'
+              className={cn('h-9 shrink-0 px-3', WALLET_OUTLINE_BTN)}
               size='sm'
             >
-              {t('Transfer to Balance')}
+              {t('wallet.affiliate.transfer_button')}
             </Button>
           )}
         </div>
         {!complianceConfirmed ? (
-          <p className='text-muted-foreground text-xs lg:col-span-3'>
-            {t(
-              'Referral reward transfer is disabled until the administrator confirms compliance terms.'
-            )}
+          <p className='text-sm leading-relaxed text-slate-600 lg:col-span-3 dark:text-slate-200'>
+            {t('wallet.affiliate.compliance_note')}
           </p>
         ) : null}
       </CardContent>

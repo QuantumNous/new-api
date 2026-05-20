@@ -31,13 +31,13 @@ export function WalletStatsCard(props: WalletStatsCardProps) {
   const { t } = useTranslation()
   if (props.loading) {
     return (
-      <div className='overflow-hidden rounded-lg border'>
-        <div className='divide-border/60 grid grid-cols-3 divide-x'>
+      <div className='overflow-hidden rounded-lg border bg-card dark:border-slate-700/80 dark:bg-slate-900/40'>
+        <div className='divide-border/60 grid grid-cols-3 divide-x dark:divide-slate-700/80'>
           {Array.from({ length: 3 }).map((_, i) => (
             <div key={i} className='px-3 py-3 sm:px-5 sm:py-4'>
-              <Skeleton className='h-3.5 w-20' />
-              <Skeleton className='mt-2 h-7 w-28' />
-              <Skeleton className='mt-1.5 h-3.5 w-24' />
+              <Skeleton className='h-4 w-24 dark:bg-slate-700' />
+              <Skeleton className='mt-2.5 h-8 w-32 dark:bg-slate-600' />
+              <Skeleton className='mt-2 h-3.5 w-28 dark:bg-slate-700' />
             </div>
           ))}
         </div>
@@ -47,41 +47,41 @@ export function WalletStatsCard(props: WalletStatsCardProps) {
 
   const stats = [
     {
-      label: t('Current Balance'),
+      label: t('wallet.stats.current_quota'),
       value: formatQuotaForOpsCenter(props.user?.quota ?? 0),
-      description: t('Remaining quota'),
+      description: t('wallet.stats.remaining_desc'),
       icon: WalletCards,
     },
     {
-      label: t('Total Usage'),
+      label: t('wallet.stats.total_usage'),
       value: formatQuotaForOpsCenter(props.user?.used_quota ?? 0),
-      description: t('Total consumed quota'),
+      description: t('wallet.stats.usage_desc'),
       icon: BarChart3,
     },
     {
-      label: t('API Requests'),
+      label: t('wallet.stats.api_requests'),
       value: (props.user?.request_count ?? 0).toLocaleString(),
-      description: t('Total requests made'),
+      description: t('wallet.stats.api_requests_desc'),
       icon: Activity,
     },
   ]
 
   return (
-    <div className='overflow-hidden rounded-lg border'>
-      <div className='divide-border/60 grid grid-cols-3 divide-x'>
+    <div className='overflow-hidden rounded-lg border bg-card dark:border-slate-700/80 dark:bg-slate-900/40'>
+      <div className='divide-border/60 grid grid-cols-3 divide-x dark:divide-slate-700/80'>
         {stats.map((item) => (
-          <div key={item.label} className='px-3 py-3 sm:px-5 sm:py-4'>
+          <div key={item.label} className='px-3 py-3.5 sm:px-5 sm:py-4'>
             <div className='flex items-center gap-2'>
-              <item.icon className='text-muted-foreground/60 size-3.5 shrink-0' />
-              <div className='text-muted-foreground truncate text-xs font-medium tracking-wider uppercase'>
+              <item.icon className='text-muted-foreground size-4 shrink-0 dark:text-slate-300' />
+              <div className='text-muted-foreground truncate text-xs font-semibold tracking-wide uppercase dark:text-sm dark:text-slate-200'>
                 {item.label}
               </div>
             </div>
 
-            <div className='text-foreground mt-1.5 font-mono text-base font-bold tracking-tight break-all tabular-nums sm:mt-2 sm:text-2xl'>
+            <div className='text-foreground mt-2 font-mono text-lg font-bold tracking-tight break-all tabular-nums dark:text-slate-50 sm:mt-2.5 sm:text-2xl dark:sm:text-[1.75rem]'>
               {item.value}
             </div>
-            <div className='text-muted-foreground/60 mt-1 hidden text-xs md:block'>
+            <div className='text-muted-foreground mt-1.5 hidden text-xs leading-relaxed md:block dark:text-slate-300'>
               {item.description}
             </div>
           </div>

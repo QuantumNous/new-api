@@ -50,6 +50,9 @@ import type {
 } from '../types'
 import { CreemProductsSection } from './creem-products-section'
 
+const WALLET_OUTLINE_BTN =
+  'border-border bg-background text-foreground shadow-none hover:bg-muted/80 dark:border-slate-600 dark:bg-slate-950 dark:text-slate-100 dark:hover:bg-slate-900 dark:disabled:border-slate-700 dark:disabled:text-slate-400 dark:disabled:opacity-80'
+
 interface RechargeFormCardProps {
   topupInfo: TopupInfo | null
   presetAmounts: PresetAmount[]
@@ -188,8 +191,8 @@ export function RechargeFormCard({
 
   return (
     <TitledCard
-      title={t('Add Funds')}
-      description={t('Choose an amount and payment method')}
+      title={t('wallet.topup.card_title')}
+      description={t('wallet.topup.card_description')}
       icon={<WalletCards className='h-4 w-4' />}
       action={
         onOpenBilling ? (
@@ -197,10 +200,13 @@ export function RechargeFormCard({
             variant='outline'
             size='sm'
             onClick={onOpenBilling}
-            className='w-full gap-2 sm:w-auto'
+            className={cn(
+              'w-full gap-2 sm:w-auto',
+              WALLET_OUTLINE_BTN
+            )}
           >
             <Receipt className='h-4 w-4' />
-            {t('Order History')}
+            {t('wallet.topup.order_history')}
           </Button>
         ) : null
       }
@@ -213,8 +219,8 @@ export function RechargeFormCard({
             <>
               {presetAmounts.length > 0 && (
                 <div className='space-y-2.5 sm:space-y-3'>
-                  <Label className='text-muted-foreground text-xs font-medium tracking-wider uppercase'>
-                    {t('Amount')}
+                  <Label className='text-muted-foreground text-xs font-medium tracking-wider uppercase dark:text-slate-400'>
+                    {t('wallet.topup.amount_label')}
                   </Label>
                   <div className='grid grid-cols-2 gap-1.5 sm:gap-3 md:grid-cols-4'>
                     {presetAmounts.map((preset, index) => {
@@ -238,6 +244,7 @@ export function RechargeFormCard({
                           key={index}
                           variant='outline'
                           className={cn(
+                            WALLET_OUTLINE_BTN,
                             'hover:border-foreground flex min-h-16 flex-col items-start rounded-lg px-3 py-2.5 text-left whitespace-normal sm:min-h-[72px] sm:p-4',
                             selectedPreset === preset.value
                               ? 'border-foreground bg-foreground/5 dark:border-foreground dark:bg-foreground/10'
@@ -250,12 +257,12 @@ export function RechargeFormCard({
                               {formatNumber(displayValue)}
                             </div>
                             {hasDiscount && (
-                              <div className='text-xs font-medium text-green-600'>
-                                {getDiscountLabel(discount)}
+                              <div className='text-xs font-medium text-green-600 dark:text-green-400'>
+                                {getDiscountLabel(discount, t)}
                               </div>
                             )}
                           </div>
-                          <div className='text-muted-foreground mt-1.5 w-full text-xs sm:mt-2'>
+                          <div className='text-muted-foreground mt-1.5 w-full text-xs sm:mt-2 dark:text-slate-400'>
                             {t('Pay {{amount}}', {
                               amount: formatCurrency(actualPrice),
                             })}
@@ -279,9 +286,9 @@ export function RechargeFormCard({
               <div className='space-y-2.5 sm:space-y-3'>
                 <Label
                   htmlFor='topup-amount'
-                  className='text-muted-foreground text-xs font-medium tracking-wider uppercase'
+                  className='text-muted-foreground text-xs font-medium tracking-wider uppercase dark:text-slate-400'
                 >
-                  {t('Custom Amount')}
+                  {t('wallet.topup.custom_amount')}
                 </Label>
                 <div className='grid grid-cols-[minmax(0,1fr)_minmax(110px,0.55fr)] gap-2 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center'>
                   <Input
@@ -290,12 +297,14 @@ export function RechargeFormCard({
                     value={localAmount}
                     onChange={(e) => handleAmountChange(e.target.value)}
                     min={minTopup}
-                    placeholder={`Minimum ${minTopup}`}
+                    placeholder={t('wallet.topup.min_placeholder', {
+                      min: minTopup,
+                    })}
                     className='h-9 text-base sm:h-10 sm:text-lg'
                   />
                   <div className='bg-muted/30 flex min-h-9 items-center justify-between gap-2 rounded-md border px-3 lg:min-w-52'>
-                    <span className='text-muted-foreground truncate text-xs'>
-                      {t('Amount to pay:')}
+                    <span className='text-muted-foreground truncate text-xs dark:text-slate-400'>
+                      {t('wallet.topup.amount_to_pay_inline')}
                     </span>
                     {calculating ? (
                       <Skeleton className='h-5 w-16' />
@@ -309,8 +318,8 @@ export function RechargeFormCard({
               </div>
 
               <div className='space-y-2.5 sm:space-y-3'>
-                <Label className='text-muted-foreground text-xs font-medium tracking-wider uppercase'>
-                  {t('Payment Method')}
+                <Label className='text-muted-foreground text-xs font-medium tracking-wider uppercase dark:text-slate-400'>
+                  {t('wallet.topup.payment_method')}
                 </Label>
                 {hasStandardPaymentMethods ? (
                   <div className='grid grid-cols-2 gap-1.5 sm:gap-3 lg:grid-cols-3'>
@@ -324,7 +333,10 @@ export function RechargeFormCard({
                           variant='outline'
                           onClick={() => onPaymentMethodSelect(method)}
                           disabled={disabled || !!paymentLoading}
-                          className='h-9 min-w-0 justify-start gap-2 rounded-lg px-3'
+                          className={cn(
+                            WALLET_OUTLINE_BTN,
+                            'h-9 min-w-0 justify-start gap-2 rounded-lg px-3'
+                          )}
                         >
                           {paymentLoading === method.type ? (
                             <Loader2 className='h-4 w-4 animate-spin' />
@@ -371,8 +383,8 @@ export function RechargeFormCard({
                 hasWaffoPaymentMethods &&
                 onWaffoMethodSelect && (
                   <div className='space-y-2.5 sm:space-y-3'>
-                    <Label className='text-muted-foreground text-xs font-medium tracking-wider uppercase'>
-                      {t('Waffo Payment')}
+                    <Label className='text-muted-foreground text-xs font-medium tracking-wider uppercase dark:text-slate-400'>
+                      {t('wallet.topup.waffo_section')}
                     </Label>
                     <div className='grid grid-cols-2 gap-1.5 sm:gap-3 lg:grid-cols-3'>
                       {waffoPayMethods?.map((method, index) => {
@@ -386,7 +398,10 @@ export function RechargeFormCard({
                             variant='outline'
                             onClick={() => onWaffoMethodSelect(method, index)}
                             disabled={belowMin || !!paymentLoading}
-                            className='h-9 min-w-0 justify-start gap-2 rounded-lg px-3'
+                            className={cn(
+                              WALLET_OUTLINE_BTN,
+                              'h-9 min-w-0 justify-start gap-2 rounded-lg px-3'
+                            )}
                           >
                             {paymentLoading === loadingKey ? (
                               <Loader2 className='h-4 w-4 animate-spin' />
@@ -440,8 +455,8 @@ export function RechargeFormCard({
         creemProducts.length > 0 &&
         onCreemProductSelect && (
           <div className='space-y-2.5 border-t pt-4 sm:space-y-3 sm:pt-6'>
-            <Label className='text-muted-foreground text-xs font-medium tracking-wider uppercase'>
-              {t('Creem Payment')}
+            <Label className='text-muted-foreground text-xs font-medium tracking-wider uppercase dark:text-slate-400'>
+              {t('wallet.topup.creem_section')}
             </Label>
             <CreemProductsSection
               products={creemProducts}
@@ -454,12 +469,12 @@ export function RechargeFormCard({
       {redemptionEnabled ? (
         <div className='space-y-2.5 border-t pt-4 sm:space-y-3 sm:pt-6'>
           <div className='flex items-center gap-2'>
-            <Gift className='text-muted-foreground h-4 w-4' />
+            <Gift className='text-muted-foreground h-4 w-4 dark:text-slate-400' />
             <Label
               htmlFor='redemption-code'
-              className='text-muted-foreground text-xs font-medium tracking-wider uppercase'
+              className='text-muted-foreground text-xs font-medium tracking-wider uppercase dark:text-slate-400'
             >
-              {t('Have a Code?')}
+              {t('wallet.topup.have_code')}
             </Label>
           </div>
           <div className='grid grid-cols-[minmax(0,1fr)_auto] gap-2'>
@@ -467,29 +482,29 @@ export function RechargeFormCard({
               id='redemption-code'
               value={redemptionCode}
               onChange={(e) => onRedemptionCodeChange(e.target.value)}
-              placeholder={t('Enter your redemption code')}
+              placeholder={t('wallet.topup.code_placeholder')}
               className='h-9 min-w-0'
             />
             <Button
               onClick={onRedeem}
               disabled={redeeming}
               variant='outline'
-              className='h-9 px-4'
+              className={cn('h-9 px-4', WALLET_OUTLINE_BTN)}
             >
               {redeeming && <Loader2 className='mr-2 h-4 w-4 animate-spin' />}
-              {t('Redeem')}
+              {t('wallet.topup.redeem')}
             </Button>
           </div>
           {topupLink && (
-            <p className='text-muted-foreground text-xs'>
-              {t('Need a redemption code?')}{' '}
+            <p className='text-muted-foreground text-xs dark:text-slate-400'>
+              {t('wallet.topup.need_code')}{' '}
               <a
                 href={topupLink}
                 target='_blank'
                 rel='noopener noreferrer'
-                className='inline-flex items-center gap-1 underline-offset-4 hover:underline'
+                className='text-foreground inline-flex items-center gap-1 underline-offset-4 hover:underline dark:text-slate-200'
               >
-                {t('Get one here')}
+                {t('wallet.topup.get_code')}
                 <ExternalLink className='h-3 w-3' />
               </a>
             </p>

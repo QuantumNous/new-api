@@ -41,10 +41,14 @@ export function useCreemPayment() {
         return true
       }
 
-      toast.error(response.message || i18next.t('Payment request failed'))
+      if (response.message) {
+        // eslint-disable-next-line no-console
+        console.warn('[creem payment]', response.message)
+      }
+      toast.error(i18next.t('wallet.toast.payment_failed'))
       return false
     } catch (_error) {
-      toast.error(i18next.t('Payment request failed'))
+      toast.error(i18next.t('wallet.toast.payment_failed'))
       return false
     } finally {
       setProcessing(false)

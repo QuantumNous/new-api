@@ -33,12 +33,14 @@ function getPaymentUrl(data: unknown): string | null {
   return null
 }
 
-function getErrorMessage(message: string | undefined, data: unknown): string {
+function logWaffoPaymentFailure(message: string | undefined, data: unknown) {
   if (typeof data === 'string' && data.trim()) {
-    return data
+    // eslint-disable-next-line no-console
+    console.warn('[waffo payment]', data)
+  } else if (message) {
+    // eslint-disable-next-line no-console
+    console.warn('[waffo payment]', message)
   }
-
-  return message || i18next.t('Payment request failed')
 }
 
 /**
@@ -67,10 +69,11 @@ export function useWaffoPayment() {
           }
         }
 
-        toast.error(getErrorMessage(response.message, response.data))
+        logWaffoPaymentFailure(response.message, response.data)
+        toast.error(i18next.t('wallet.toast.payment_failed'))
         return false
       } catch (_error) {
-        toast.error(i18next.t('Payment request failed'))
+        toast.error(i18next.t('wallet.toast.payment_failed'))
         return false
       } finally {
         setProcessing(false)

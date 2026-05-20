@@ -65,16 +65,18 @@ export function useBillingHistory(options: UseBillingHistoryOptions = {}) {
         setRecords(response.data.items || [])
         setTotal(response.data.total || 0)
       } else {
-        toast.error(
-          response.message || i18next.t('Failed to load billing history')
-        )
+        if (response.message) {
+          // eslint-disable-next-line no-console
+          console.warn('[billing history]', response.message)
+        }
+        toast.error(i18next.t('wallet.toast.billing_load_failed'))
         setRecords([])
         setTotal(0)
       }
     } catch (error) {
       // eslint-disable-next-line no-console
       console.error('Failed to fetch billing history:', error)
-      toast.error(i18next.t('Failed to load billing history'))
+      toast.error(i18next.t('wallet.toast.billing_load_failed'))
       setRecords([])
       setTotal(0)
     } finally {
@@ -101,13 +103,17 @@ export function useBillingHistory(options: UseBillingHistoryOptions = {}) {
           await fetchBillingHistory()
           return true
         } else {
-          toast.error(response.message || i18next.t('Failed to complete order'))
+          if (response.message) {
+            // eslint-disable-next-line no-console
+            console.warn('[complete order]', response.message)
+          }
+          toast.error(i18next.t('wallet.toast.order_complete_failed'))
           return false
         }
       } catch (error) {
         // eslint-disable-next-line no-console
         console.error('Failed to complete order:', error)
-        toast.error(i18next.t('Failed to complete order'))
+        toast.error(i18next.t('wallet.toast.order_complete_failed'))
         return false
       } finally {
         setCompleting(false)

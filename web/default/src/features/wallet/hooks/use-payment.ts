@@ -95,7 +95,11 @@ export function usePayment() {
             })
 
         if (!isApiSuccess(response)) {
-          toast.error(response.message || i18next.t('Payment request failed'))
+          if (response.message) {
+            // eslint-disable-next-line no-console
+            console.warn('[payment]', response.message)
+          }
+          toast.error(i18next.t('wallet.toast.payment_failed'))
           return false
         }
 
@@ -118,7 +122,7 @@ export function usePayment() {
 
         return false
       } catch (_error) {
-        toast.error(i18next.t('Payment request failed'))
+        toast.error(i18next.t('wallet.toast.payment_failed'))
         return false
       } finally {
         setProcessing(false)
