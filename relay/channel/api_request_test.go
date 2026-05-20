@@ -80,7 +80,7 @@ func TestProcessHeaderOverride_NonTestKeepsClientHeaderPlaceholder(t *testing.T)
 	require.Equal(t, "trace-123", headers["x-upstream-trace"])
 }
 
-func TestProcessHeaderOverride_RuntimeOverrideIsFinalHeaderMap(t *testing.T) {
+func TestProcessHeaderOverride_ChannelOverrideWinsOverRuntime(t *testing.T) {
 	t.Parallel()
 
 	gin.SetMode(gin.TestMode)
@@ -105,10 +105,13 @@ func TestProcessHeaderOverride_RuntimeOverrideIsFinalHeaderMap(t *testing.T) {
 
 	headers, err := processHeaderOverride(info, ctx)
 	require.NoError(t, err)
-	require.Equal(t, "runtime-value", headers["x-static"])
+	// Channel-level header_override entries take precedence over the runtime
+	// override map (set by upstream features such as channel affinity rules).
+	// This makes the admin UI the authoritative source for header policy.
+	require.Equal(t, "legacy-value", headers["x-static"])
+	require.Equal(t, "legacy-only", headers["x-legacy"])
+	// Runtime-only entries are still included via the union merge.
 	require.Equal(t, "runtime-only", headers["x-runtime"])
-	_, exists := headers["x-legacy"]
-	require.False(t, exists)
 }
 
 func TestProcessHeaderOverride_PassthroughSkipsAcceptEncoding(t *testing.T) {

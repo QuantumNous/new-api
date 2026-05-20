@@ -420,10 +420,29 @@ func GetEffectiveHeaderOverride(info *RelayInfo) map[string]interface{} {
 	if info == nil {
 		return map[string]interface{}{}
 	}
-	if info.UseRuntimeHeadersOverride {
-		return sanitizeHeaderOverrideMap(info.RuntimeHeadersOverride)
+	channelOverride := sanitizeHeaderOverrideMap(getHeaderOverrideMap(info))
+	if !info.UseRuntimeHeadersOverride {
+		return channelOverride
 	}
-	return sanitizeHeaderOverrideMap(getHeaderOverrideMap(info))
+	// Merge channel-level override on top of the runtime override map. Runtime
+	// overrides come from upstream features such as channel affinity rules,
+	// which inject pass-through headers (e.g. claude-cli "anthropic-beta")
+	// into the request. The channel-level header_override is set explicitly by
+	// the operator in the admin UI and represents the more intentional source
+	// of truth, so its entries (including empty-string suppression markers)
+	// must win when both define the same key.
+	runtimeOverride := sanitizeHeaderOverrideMap(info.RuntimeHeadersOverride)
+	if len(channelOverride) == 0 {
+		return runtimeOverride
+	}
+	merged := make(map[string]interface{}, len(runtimeOverride)+len(channelOverride))
+	for k, v := range runtimeOverride {
+		merged[k] = v
+	}
+	for k, v := range channelOverride {
+		merged[k] = v
+	}
+	return merged
 }
 
 func tryParseOperations(paramOverride map[string]interface{}) ([]ParamOperation, bool) {
