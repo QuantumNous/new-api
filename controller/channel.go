@@ -185,6 +185,12 @@ func GetAllChannels(c *gin.Context) {
 	return
 }
 
+// buildFetchModelsHeaders constructs the HTTP headers used when fetching the
+// list of available models from a channel's upstream provider. It applies
+// channel-level header_override entries on top of the default auth headers,
+// expanding the {api_key} placeholder. An override entry whose value is the
+// empty string is treated as an explicit suppression marker and removes the
+// header instead of setting it to an empty value.
 func buildFetchModelsHeaders(channel *model.Channel, key string) (http.Header, error) {
 	var headers http.Header
 	switch channel.Type {
