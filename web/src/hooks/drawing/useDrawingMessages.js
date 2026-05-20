@@ -11,17 +11,14 @@ export function useDrawingMessages(activeSessionId) {
       setMessages([]);
       return;
     }
+    setMessages([]);
     setLoading(true);
-    try {
-      const res = await API.get(DRAWING_API.SESSION_DETAIL(activeSessionId));
-      if (res.data.success) {
-        setMessages(res.data.data.messages || []);
-      }
-    } catch (e) {
-      console.error('Failed to load messages', e);
-    } finally {
-      setLoading(false);
-    }
+    API.get(DRAWING_API.SESSION_MESSAGES(activeSessionId))
+      .then((res) => {
+        if (res.data.success) setMessages(res.data.data || []);
+      })
+      .catch((e) => console.error('Failed to load messages', e))
+      .finally(() => setLoading(false));
   }, [activeSessionId]);
 
   const addOptimisticMessage = useCallback((msg) => {

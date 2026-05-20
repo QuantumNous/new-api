@@ -103,6 +103,12 @@ func GetDrawingMessagesBySessionId(sessionId string, userId int) ([]*DrawingMess
 	return messages, err
 }
 
+func GetDrawingMessageById(id string, sessionId string, userId int) (*DrawingMessage, error) {
+	var msg DrawingMessage
+	err := DB.Where("id = ? AND session_id = ? AND user_id = ?", id, sessionId, userId).First(&msg).Error
+	return &msg, err
+}
+
 func GetDrawingMessageByTaskId(taskId string) (*DrawingMessage, error) {
 	var msg DrawingMessage
 	err := DB.Where("task_id = ?", taskId).First(&msg).Error

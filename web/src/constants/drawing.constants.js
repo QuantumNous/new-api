@@ -32,6 +32,8 @@ export const DRAWING_STATUS = {
 export const DRAWING_API = {
   SESSIONS: '/pg/drawing/sessions',
   SESSION_DETAIL: (sessionId) => `/pg/drawing/sessions/${sessionId}`,
+  SESSION_MESSAGES: (sessionId) => `/pg/drawing/sessions/${sessionId}/messages`,
+  MESSAGE_IMAGES: (sessionId, messageId) => `/pg/drawing/sessions/${sessionId}/messages/${messageId}/images`,
   GENERATE: (sessionId) => `/pg/drawing/sessions/${sessionId}/generate`,
   TASK_STATUS: (taskId) => `/pg/drawing/tasks/${taskId}`,
 };

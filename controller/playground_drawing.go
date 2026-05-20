@@ -59,16 +59,55 @@ func GetDrawingSessionDetail(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
+	common.ApiSuccess(c, session)
+}
+
+func GetDrawingSessionMessages(c *gin.Context) {
+	userId := c.GetInt("id")
+	sessionId := c.Param("session_id")
 
 	messages, err := model.GetDrawingMessagesBySessionId(sessionId, userId)
 	if err != nil {
 		common.ApiError(c, err)
 		return
 	}
+	// strip image data
+	type MessageMeta struct {
+		ID         int64  `json:"id"`
+		SessionID  string `json:"session_id"`
+		TaskID     string `json:"task_id"`
+		Prompt     string `json:"prompt"`
+		Model      string `json:"model"`
+		Size       string `json:"size"`
+		Quality    string `json:"quality"`
+		Status     string `json:"status"`
+		FailReason string `json:"fail_reason"`
+		CreatedAt  int64  `json:"created_at"`
+	}
+	result := make([]MessageMeta, len(messages))
+	for i, m := range messages {
+		result[i] = MessageMeta{
+			ID: m.ID, SessionID: m.SessionID, TaskID: m.TaskID,
+			Prompt: m.Prompt, Model: m.Model, Size: m.Size, Quality: m.Quality,
+			Status: m.Status, FailReason: m.FailReason, CreatedAt: m.CreatedAt,
+		}
+	}
+	common.ApiSuccess(c, result)
+}
 
+func GetDrawingMessageImages(c *gin.Context) {
+	userId := c.GetInt("id")
+	sessionId := c.Param("session_id")
+	messageId := c.Param("message_id")
+
+	msg, err := model.GetDrawingMessageById(messageId, sessionId, userId)
+	if err != nil {
+		common.ApiErrorMsg(c, "消息不存在")
+		return
+	}
 	common.ApiSuccess(c, gin.H{
-		"session":  session,
-		"messages": messages,
+		"image_urls":  msg.ImageUrls,
+		"result_data": msg.ResultData,
 	})
 }
 

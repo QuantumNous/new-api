@@ -75,6 +75,8 @@ func SetRelayRouter(router *gin.Engine) {
 		drawingRouter.POST("/sessions", controller.CreateDrawingSession)
 		drawingRouter.GET("/sessions", controller.ListDrawingSessions)
 		drawingRouter.GET("/sessions/:session_id", controller.GetDrawingSessionDetail)
+		drawingRouter.GET("/sessions/:session_id/messages", controller.GetDrawingSessionMessages)
+		drawingRouter.GET("/sessions/:session_id/messages/:message_id/images", controller.GetDrawingMessageImages)
 		drawingRouter.DELETE("/sessions/:session_id", controller.DeleteDrawingSessionHandler)
 		drawingRouter.POST("/sessions/:session_id/generate", controller.SubmitDrawingTask)
 		drawingRouter.GET("/tasks/:task_id", controller.GetDrawingTaskStatus)
