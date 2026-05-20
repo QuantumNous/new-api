@@ -367,12 +367,13 @@ export const FIELD_DESCRIPTIONS = {
   TEST_MODEL: 'Model resource used when running connectivity checks',
   AUTO_BAN:
     'Automatically disable this service channel after repeated failures',
-  STATUS_CODE_MAPPING: 'Map response status codes (JSON format)',
+  STATUS_CODE_MAPPING:
+    'Map HTTP response status codes to specified codes (JSON format)',
   TAG: 'Group channels by tag for batch operations',
   REMARK: 'Internal notes (not shown to users)',
   SETTING: 'Channel-specific settings (JSON format)',
-  PARAM_OVERRIDE: 'Override request parameters (JSON format)',
-  HEADER_OVERRIDE: 'Override request headers (JSON format)',
+  PARAM_OVERRIDE: 'Override request parameters using JSON configuration',
+  HEADER_OVERRIDE: 'Override request headers using JSON configuration',
   MULTI_KEY_MODE: 'How to select keys: random or sequential polling',
   BATCH_ADD: 'Create multiple service channels from multiple access credentials',
   OPENAI_ORG: 'OpenAI Organization ID (optional)',

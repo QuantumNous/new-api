@@ -2632,8 +2632,8 @@ export function ChannelMutateDrawer({
                                 disabled={isSubmitting}
                                 keyPlaceholder='400'
                                 valuePlaceholder='500'
-                                keyLabel='Original Code'
-                                valueLabel='Mapped Code'
+                                keyLabel={t('Original Code')}
+                                valueLabel={t('Mapped Code')}
                                 emptyMessage={t(
                                   'No status code mappings configured.'
                                 )}
@@ -2722,8 +2722,8 @@ export function ChannelMutateDrawer({
                                 disabled={isSubmitting}
                                 keyPlaceholder='temperature'
                                 valuePlaceholder='0.7'
-                                keyLabel='Parameter'
-                                valueLabel='Value'
+                                keyLabel={t('Parameter')}
+                                valueLabel={t('Value')}
                                 emptyMessage={t(
                                   'No parameter overrides configured.'
                                 )}
