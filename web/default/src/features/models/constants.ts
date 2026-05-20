@@ -179,7 +179,33 @@ export const ERROR_MESSAGES = {
   BATCH_ENABLE_FAILED: 'Failed to enable model resource',
   BATCH_DISABLE_FAILED: 'Failed to disable model resource',
   SELECT_AT_LEAST_ONE: 'Please select at least one model resource',
+  SYNC_PREVIEW_FAILED: 'Failed to preview upstream diff',
+  SYNC_FAILED: 'Sync failed',
+  VENDOR_OPERATION_FAILED: 'Operation failed, please check and try again',
+  PREFILL_OPERATION_FAILED: 'Operation failed, please check and try again',
+  PREFILL_DELETE_FAILED: 'Failed to delete prefill tenant group',
 } as const
+
+/** Upstream conflict field keys — maps API field names to i18n label keys. */
+export const CONFLICT_FIELD_LABEL_KEYS: Record<string, string> = {
+  description: 'Resource description',
+  icon: 'Icon',
+  tags: 'Resource tags',
+  vendor: 'Service source',
+  name_rule: 'Name Rule',
+  status: 'Model status',
+  endpoints: 'Access endpoints',
+  quota_types: 'Resource billing method',
+  enable_groups: 'Tenant groups',
+}
+
+export function getConflictFieldLabel(
+  field: string,
+  t: (key: string) => string
+): string {
+  const key = CONFLICT_FIELD_LABEL_KEYS[field]
+  return key ? t(key) : field
+}
 
 export function formatModelEstimatedMillionTokenPrice(
   amount: number,
@@ -248,7 +274,9 @@ export function getSyncSourceOptions(t: TFunction) {
     {
       label: t('Official Repository'),
       value: 'official' as SyncSource,
-      description: t('Sync from the public upstream metadata repository.'),
+      description: t(
+        'Sync model resources and service sources from the public upstream metadata repository.'
+      ),
       disabled: false,
     },
     {

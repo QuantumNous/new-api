@@ -57,7 +57,11 @@ import { JsonEditor } from '@/components/json-editor'
 import { StatusBadge } from '@/components/status-badge'
 import { TagInput } from '@/components/tag-input'
 import { createPrefillGroup, updatePrefillGroup } from '../../api'
-import { ENDPOINT_TEMPLATES } from '../../constants'
+import {
+  ENDPOINT_TEMPLATES,
+  ERROR_MESSAGES,
+  resolveModelToastMessage,
+} from '../../constants'
 import { prefillGroupsQueryKeys } from '../../lib'
 import {
   prefillGroupFormSchema,
@@ -66,7 +70,7 @@ import {
 } from '../../types'
 import {
   DEFAULT_FORM_VALUES,
-  PREFILL_GROUP_TYPE_META,
+  getPrefillGroupTypeMeta,
   PREFILL_GROUP_TYPES,
   type PrefillGroupType,
   parseStringItems,
@@ -159,24 +163,34 @@ export function PrefillGroupFormDrawer({
 
       if (response.success) {
         toast.success(
-          isEdit ? 'Prefill group updated' : 'Prefill group created'
+          isEdit ? t('Prefill group updated') : t('Prefill group created')
         )
         queryClient.invalidateQueries({
           queryKey: prefillGroupsQueryKeys.lists(),
         })
         onClose()
       } else {
-        toast.error(response.message || 'Operation failed')
+        toast.error(
+          resolveModelToastMessage(
+            response.message,
+            ERROR_MESSAGES.PREFILL_OPERATION_FAILED,
+            t
+          )
+        )
       }
     } catch (err: unknown) {
-      toast.error((err as Error)?.message || 'Operation failed')
+      const message = (err as Error)?.message
+      if (message) {
+        console.warn('[models] prefill group save error:', message)
+      }
+      toast.error(t(ERROR_MESSAGES.PREFILL_OPERATION_FAILED))
     } finally {
       setIsSaving(false)
     }
   }
 
-  const meta =
-    PREFILL_GROUP_TYPE_META[selectedType] || PREFILL_GROUP_TYPE_META.model
+  const typeMeta = getPrefillGroupTypeMeta(t)
+  const meta = typeMeta[selectedType] || typeMeta.model
 
   return (
     <Sheet open={open} onOpenChange={handleOpenChange}>
@@ -216,7 +230,7 @@ export function PrefillGroupFormDrawer({
                     <FormLabel>{t('Group Name')}</FormLabel>
                     <FormControl>
                       <Input
-                        placeholder={t('Premium chat models')}
+                        placeholder={t('Premium chat model resources')}
                         {...field}
                       />
                     </FormControl>
@@ -269,19 +283,21 @@ export function PrefillGroupFormDrawer({
                 name='type'
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Group Type</FormLabel>
+                    <FormLabel>{t('Group Type')}</FormLabel>
                     <Select
                       items={[
                         ...PREFILL_GROUP_TYPES.map((type) => ({
                           value: type.value,
                           label: (
                             <div className='flex flex-col text-left'>
-                              <span className='font-medium'>{type.label}</span>
+                              <span className='font-medium'>
+                                {t(type.labelKey)}
+                              </span>
                               <span
                                 data-prefill-description
                                 className='text-muted-foreground text-xs'
                               >
-                                {type.description}
+                                {t(type.descriptionKey)}
                               </span>
                             </div>
                           ),
@@ -304,13 +320,13 @@ export function PrefillGroupFormDrawer({
                             <SelectItem key={type.value} value={type.value}>
                               <div className='flex flex-col text-left'>
                                 <span className='font-medium'>
-                                  {type.label}
+                                  {t(type.labelKey)}
                                 </span>
                                 <span
                                   data-prefill-description
                                   className='text-muted-foreground text-xs'
                                 >
-                                  {type.description}
+                                  {t(type.descriptionKey)}
                                 </span>
                               </div>
                             </SelectItem>
@@ -349,12 +365,12 @@ export function PrefillGroupFormDrawer({
                             onChange={field.onChange}
                             keyPlaceholder='provider'
                             valuePlaceholder='{"path": "/v1/...","method": "POST"}'
-                            keyLabel={t('Provider')}
+                            keyLabel={t('Service source')}
                             valueLabel={t('Endpoint config')}
                             valueType='any'
                             template={ENDPOINT_TEMPLATES}
                             emptyMessage={t(
-                              'Define endpoint mappings for each provider.'
+                              'Define endpoint mappings for each service source.'
                             )}
                           />
                         ) : (
@@ -372,7 +388,7 @@ export function PrefillGroupFormDrawer({
                           ? t(
                               'Provide a JSON object where each key maps to an endpoint definition.'
                             )
-                          : t('Add each model or tag you want to include.')}
+                          : t('Add each model resource or tag you want to include.')}
                       </FormDescription>
                       <FormMessage />
                     </FormItem>

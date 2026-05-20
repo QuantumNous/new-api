@@ -128,8 +128,11 @@ export function MissingModelsDialog({
         </DialogHeader>
 
         {isLoading ? (
-          <div className='flex items-center justify-center py-12'>
+          <div className='flex flex-col items-center justify-center gap-2 py-12'>
             <Loader2 className='h-8 w-8 animate-spin' />
+            <p className='text-muted-foreground text-sm'>
+              {t('Loading missing model resources...')}
+            </p>
           </div>
         ) : missingModels.length === 0 ? (
           <div className='text-muted-foreground py-12 text-center'>
@@ -155,7 +158,7 @@ export function MissingModelsDialog({
                   }}
                   placeholder={t('Search models...')}
                   className='pl-9'
-                  aria-label={t('Search missing models')}
+                  aria-label={t('Search missing model resources')}
                 />
               </div>
             </div>
@@ -193,7 +196,7 @@ export function MissingModelsDialog({
                         onClick={() => handleConfigureModel(modelName)}
                       >
                         <Plus className='h-4 w-4' />
-                        Configure
+                        {t('Configure model resource')}
                       </Button>
                     </div>
                   ))}

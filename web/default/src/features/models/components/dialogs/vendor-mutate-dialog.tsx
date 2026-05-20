@@ -44,6 +44,7 @@ import {
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { createVendor, updateVendor } from '../../api'
+import { ERROR_MESSAGES, resolveModelToastMessage } from '../../constants'
 import { vendorsQueryKeys, modelsQueryKeys } from '../../lib'
 import { vendorFormSchema, type Vendor } from '../../types'
 
@@ -73,7 +74,6 @@ export function VendorMutateDialog({
     },
   })
 
-  // Load vendor data for editing
   useEffect(() => {
     if (open && isEdit && currentVendor) {
       form.reset({
@@ -102,16 +102,28 @@ export function VendorMutateDialog({
 
       if (response.success) {
         toast.success(
-          isEdit ? 'Vendor updated successfully' : 'Vendor created successfully'
+          isEdit
+            ? t('Vendor updated successfully')
+            : t('Vendor created successfully')
         )
         queryClient.invalidateQueries({ queryKey: vendorsQueryKeys.lists() })
         queryClient.invalidateQueries({ queryKey: modelsQueryKeys.lists() })
         onOpenChange(false)
       } else {
-        toast.error(response.message || 'Operation failed')
+        toast.error(
+          resolveModelToastMessage(
+            response.message,
+            ERROR_MESSAGES.VENDOR_OPERATION_FAILED,
+            t
+          )
+        )
       }
     } catch (error: unknown) {
-      toast.error((error as Error)?.message || 'Operation failed')
+      const message = (error as Error)?.message
+      if (message) {
+        console.warn('[models] vendor save error:', message)
+      }
+      toast.error(t(ERROR_MESSAGES.VENDOR_OPERATION_FAILED))
     } finally {
       setIsSaving(false)
     }
@@ -186,7 +198,7 @@ export function VendorMutateDialog({
                     />
                   </FormControl>
                   <FormDescription>
-                    {t('@lobehub/icons key name')}
+                    {t('Resource icon identifier')}
                   </FormDescription>
                   <FormMessage />
                 </FormItem>
@@ -204,7 +216,11 @@ export function VendorMutateDialog({
               </Button>
               <Button type='submit' disabled={isSaving}>
                 {isSaving && <Loader2 className='mr-2 h-4 w-4 animate-spin' />}
-                {isSaving ? 'Saving...' : isEdit ? 'Update' : 'Create'}
+                {isSaving
+                  ? t('Saving...')
+                  : isEdit
+                    ? t('Update')
+                    : t('Create')}
               </Button>
             </DialogFooter>
           </form>

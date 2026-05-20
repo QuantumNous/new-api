@@ -69,21 +69,10 @@ import {
 } from '@/components/ui/table'
 import { StatusBadge } from '@/components/status-badge'
 import { applyUpstreamOverwrite } from '../../api'
+import { getConflictFieldLabel, resolveModelToastMessage } from '../../constants'
 import { modelsQueryKeys, vendorsQueryKeys } from '../../lib'
 import type { SyncOverwritePayload } from '../../types'
 import { useModels } from '../models-provider'
-
-const FIELD_LABELS: Record<string, string> = {
-  description: 'Description',
-  icon: 'Icon',
-  tags: 'Tags',
-  vendor: 'Vendor',
-  name_rule: 'Name Rule',
-  status: 'Status',
-  endpoints: 'Endpoints',
-  quota_types: 'Quota Types',
-  enable_groups: 'Enable Groups',
-}
 
 const formatValue = (value: unknown) => {
   if (value === null || value === undefined) return '—'
@@ -156,12 +145,12 @@ export function UpstreamConflictDialog({
         id: `${conflict.model_name}-${field.field}`,
         modelName: conflict.model_name,
         fieldKey: field.field,
-        fieldLabel: FIELD_LABELS[field.field] || field.field,
+        fieldLabel: getConflictFieldLabel(field.field, t),
         localValue: field.local,
         upstreamValue: field.upstream,
       }))
     })
-  }, [upstreamConflicts])
+  }, [upstreamConflicts, t])
 
   const totalModels = upstreamConflicts.length
   const totalFields = conflictRows.length
@@ -184,7 +173,7 @@ export function UpstreamConflictDialog({
       }
 
       const fieldMatch = conflict.fields?.some((field) => {
-        const label = FIELD_LABELS[field.field] || field.field
+        const label = getConflictFieldLabel(field.field, t)
         return (
           label.toLowerCase().includes(normalizedSearch) ||
           field.field.toLowerCase().includes(normalizedSearch)
@@ -208,12 +197,12 @@ export function UpstreamConflictDialog({
     })
 
     return { matchingModelNames: modelMatches, visibleRowIds: rowIdSet }
-  }, [normalizedSearch, upstreamConflicts, conflictRows])
+  }, [normalizedSearch, upstreamConflicts, conflictRows, t])
 
   const columns = useMemo<ColumnDef<ConflictFieldRow>[]>(() => {
     const modelColumn: ColumnDef<ConflictFieldRow> = {
       accessorKey: 'modelName',
-      header: 'Model',
+      header: t('Model resource'),
       cell: ({ row }) => (
         <div className='flex items-start gap-3'>
           {isMobile ? (
@@ -244,7 +233,7 @@ export function UpstreamConflictDialog({
 
     const diffColumn: ColumnDef<ConflictFieldRow> = {
       id: 'actions',
-      header: 'Diff',
+      header: t('Diff'),
       enableSorting: false,
       enableHiding: false,
       cell: ({ row }) => (
@@ -259,12 +248,12 @@ export function UpstreamConflictDialog({
             }
           >
             <MousePointerClick className='h-3.5 w-3.5' />
-            {!isMobile && 'View diff'}
+            {!isMobile && t('View diff')}
           </PopoverTrigger>
           <PopoverContent className='w-[min(90vw,24rem)] space-y-4 text-sm'>
             <div>
               <StatusBadge
-                label='Local'
+                label={t('Local config')}
                 variant='neutral'
                 size='sm'
                 copyable={false}
@@ -276,7 +265,7 @@ export function UpstreamConflictDialog({
             </div>
             <div>
               <StatusBadge
-                label='Upstream'
+                label={t('Upstream config')}
                 variant='info'
                 size='sm'
                 copyable={false}
@@ -323,7 +312,7 @@ export function UpstreamConflictDialog({
       modelColumn,
       {
         accessorKey: 'fieldLabel',
-        header: 'Field',
+        header: t('Field'),
         cell: ({ row }) => (
           <StatusBadge
             label={row.original.fieldLabel}
@@ -337,16 +326,16 @@ export function UpstreamConflictDialog({
       },
       {
         accessorKey: 'localValue',
-        header: 'Local Value',
+        header: t('Local Value'),
         cell: ({ row }) => <ValuePreview value={row.original.localValue} />,
       },
       {
         accessorKey: 'upstreamValue',
-        header: 'Upstream Value',
+        header: t('Upstream Value'),
         cell: ({ row }) => <ValuePreview value={row.original.upstreamValue} />,
       },
     ]
-  }, [isMobile])
+  }, [isMobile, t])
 
   const table = useReactTable({
     data: conflictRows,
@@ -435,10 +424,20 @@ export function UpstreamConflictDialog({
         setUpstreamConflicts([])
         onOpenChange(false)
       } else {
-        toast.error(response.message || t('Failed to apply overwrite.'))
+        toast.error(
+          resolveModelToastMessage(
+            response.message,
+            'Failed to apply overwrite.',
+            t
+          )
+        )
       }
     } catch (error: unknown) {
-      toast.error((error as Error)?.message || t('Failed to apply overwrite.'))
+      const message = (error as Error)?.message
+      if (message) {
+        console.warn('[models] upstream overwrite error:', message)
+      }
+      toast.error(t('Failed to apply overwrite.'))
     } finally {
       setIsSubmitting(false)
     }
@@ -477,13 +476,13 @@ export function UpstreamConflictDialog({
               <div className='flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between'>
                 <div className='space-y-1'>
                   <div className='text-sm font-medium'>
-                    {visibleModelCount} {t('model')}
-                    {visibleModelCount === 1 ? '' : 's'} {t('with conflicts')}
+                    {t('{{count}} model resources with conflicts', {
+                      count: visibleModelCount,
+                    })}
                   </div>
                   <div className='text-muted-foreground text-xs'>
-                    {visibleFieldCount} {t('field')}
-                    {visibleFieldCount === 1 ? '' : 's'} {t('showing •')}{' '}
-                    {totalSelectedFields} {t('selected')}
+                    {t('{{count}} items', { count: visibleFieldCount })}{' '}
+                    {t('showing •')} {totalSelectedFields} {t('selected')}
                   </div>
                 </div>
                 <div className='flex w-full flex-col gap-2 sm:w-auto sm:flex-row'>
@@ -497,7 +496,7 @@ export function UpstreamConflictDialog({
                       }}
                       placeholder={t('Search models or fields...')}
                       className='pl-9'
-                      aria-label={t('Search conflicting models or fields')}
+                      aria-label={t('Search conflicting model resources or fields')}
                     />
                   </div>
                   <Button
@@ -560,8 +559,7 @@ export function UpstreamConflictDialog({
                   <div className='bg-muted/40 flex flex-col gap-2 border-t px-2 py-1.5 text-sm sm:flex-row sm:items-center sm:justify-between sm:gap-3 sm:px-3 sm:py-2'>
                     <div className='text-muted-foreground text-xs'>
                       {t('Showing')} {displayStart}-{displayEnd} {t('of')}{' '}
-                      {visibleFieldCount} {t('field')}
-                      {visibleFieldCount === 1 ? '' : 's'}
+                      {t('{{count}} items', { count: visibleFieldCount })}
                     </div>
                     <div className='flex items-center justify-between gap-2 sm:flex-wrap sm:gap-3'>
                       <div className='flex items-center gap-1.5 text-xs sm:gap-2'>

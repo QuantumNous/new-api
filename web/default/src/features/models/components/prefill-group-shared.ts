@@ -16,6 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { type TFunction } from 'i18next'
 import type { StatusBadgeProps } from '@/components/status-badge'
 import { type PrefillGroup, type PrefillGroupFormValues } from '../types'
 
@@ -24,39 +25,43 @@ export type PrefillGroupType = PrefillGroup['type']
 export const PREFILL_GROUP_TYPES = [
   {
     value: 'model' as PrefillGroupType,
-    label: 'Model Group',
-    description: 'Reusable sets of models you can attach to channels.',
+    labelKey: 'Model resource group',
+    descriptionKey:
+      'Reusable sets of model resources you can attach to channels.',
     badge: 'blue' as StatusBadgeProps['variant'],
   },
   {
     value: 'tag' as PrefillGroupType,
-    label: 'Tag Group',
-    description: 'Collections of metadata tags for bulk operations.',
+    labelKey: 'Resource tag group',
+    descriptionKey: 'Collections of resource tags for bulk operations.',
     badge: 'purple' as StatusBadgeProps['variant'],
   },
   {
     value: 'endpoint' as PrefillGroupType,
-    label: 'Endpoint Group',
-    description: 'HTTP endpoint mappings shared across providers.',
+    labelKey: 'Access endpoint group',
+    descriptionKey: 'HTTP endpoint mappings shared across service sources.',
     badge: 'cyan' as StatusBadgeProps['variant'],
   },
 ] as const
 
-export const PREFILL_GROUP_TYPE_META = PREFILL_GROUP_TYPES.reduce<
-  Record<
-    PrefillGroupType,
-    { label: string; badge: StatusBadgeProps['variant'] }
-  >
->(
-  (acc, type) => {
-    acc[type.value] = { label: type.label, badge: type.badge }
-    return acc
-  },
-  {} as Record<
-    PrefillGroupType,
-    { label: string; badge: StatusBadgeProps['variant'] }
-  >
-)
+export function getPrefillGroupTypeMeta(t: TFunction): Record<
+  PrefillGroupType,
+  { label: string; badge: StatusBadgeProps['variant'] }
+> {
+  return PREFILL_GROUP_TYPES.reduce(
+    (acc, type) => {
+      acc[type.value] = {
+        label: t(type.labelKey),
+        badge: type.badge,
+      }
+      return acc
+    },
+    {} as Record<
+      PrefillGroupType,
+      { label: string; badge: StatusBadgeProps['variant'] }
+    >
+  )
+}
 
 export const DEFAULT_FORM_VALUES: PrefillGroupFormValues = {
   name: '',

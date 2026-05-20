@@ -36,7 +36,12 @@ import { Label } from '@/components/ui/label'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { StatusBadge } from '@/components/status-badge'
 import { syncUpstream, previewUpstreamDiff } from '../../api'
-import { getSyncLocaleOptions, getSyncSourceOptions } from '../../constants'
+import {
+  ERROR_MESSAGES,
+  getSyncLocaleOptions,
+  getSyncSourceOptions,
+  resolveModelToastMessage,
+} from '../../constants'
 import { modelsQueryKeys, vendorsQueryKeys } from '../../lib'
 import type { SyncLocale, SyncSource } from '../../types'
 import { useModels } from '../models-provider'
@@ -63,7 +68,6 @@ export function SyncWizardDialog({
   const [source, setSource] = useState<SyncSource>('official')
   const [isSyncing, setIsSyncing] = useState(false)
 
-  // Get translated options
   const SYNC_SOURCE_OPTIONS = getSyncSourceOptions(t)
   const SYNC_LOCALE_OPTIONS = getSyncLocaleOptions(t)
 
@@ -88,37 +92,62 @@ export function SyncWizardDialog({
       const previewRes = await previewUpstreamDiff({ locale, source })
 
       if (!previewRes.success) {
-        throw new Error(previewRes.message || 'Failed to preview upstream diff')
+        toast.error(
+          resolveModelToastMessage(
+            previewRes.message,
+            ERROR_MESSAGES.SYNC_PREVIEW_FAILED,
+            t
+          )
+        )
+        return
       }
 
       const conflicts = previewRes.data?.conflicts || []
 
       if (conflicts.length > 0) {
         toast.warning(
-          `Found ${conflicts.length} conflict${conflicts.length > 1 ? 's' : ''}. Please resolve them first.`
+          t('Found {{count}} upstream conflicts, please confirm to continue', {
+            count: conflicts.length,
+          })
         )
         setUpstreamConflicts(conflicts)
         setOpen('upstream-conflict')
         return
       }
 
-      // No conflicts, proceed with sync
       const response = await syncUpstream({ locale, source })
 
       if (response.success) {
         const { created_models, created_vendors, updated_models } =
           response.data || {}
         toast.success(
-          `Sync completed! Created ${created_models || 0} models, updated ${updated_models || 0}, and added ${created_vendors || 0} vendors.`
+          t(
+            'Sync completed: created {{created}} model resources, updated {{updated}}, added {{vendors}} service sources',
+            {
+              created: created_models || 0,
+              updated: updated_models || 0,
+              vendors: created_vendors || 0,
+            }
+          )
         )
         queryClient.invalidateQueries({ queryKey: modelsQueryKeys.lists() })
         queryClient.invalidateQueries({ queryKey: vendorsQueryKeys.lists() })
         onOpenChange(false)
       } else {
-        toast.error(response.message || 'Sync failed')
+        toast.error(
+          resolveModelToastMessage(
+            response.message,
+            ERROR_MESSAGES.SYNC_FAILED,
+            t
+          )
+        )
       }
     } catch (error: unknown) {
-      toast.error((error as Error)?.message || 'Sync failed')
+      const message = (error as Error)?.message
+      if (message) {
+        console.warn('[models] sync wizard error:', message)
+      }
+      toast.error(t(ERROR_MESSAGES.SYNC_FAILED))
     } finally {
       setIsSyncing(false)
     }
@@ -133,7 +162,9 @@ export function SyncWizardDialog({
         <DialogHeader className='flex-shrink-0 text-start'>
           <DialogTitle>{t('Sync Upstream Models')}</DialogTitle>
           <DialogDescription>
-            {t('Synchronize models and vendors from an upstream source')}
+            {t(
+              'Synchronize model resources and service sources from an upstream source'
+            )}
           </DialogDescription>
         </DialogHeader>
 
@@ -182,7 +213,7 @@ export function SyncWizardDialog({
                           <span className='font-medium'>{option.label}</span>
                           {option.value === 'official' && (
                             <StatusBadge
-                              label='Default'
+                              label={t('Default')}
                               variant='neutral'
                               copyable={false}
                             />
@@ -246,7 +277,7 @@ export function SyncWizardDialog({
           <Button onClick={handleSync} disabled={isSyncing}>
             {isSyncing && <Loader2 className='mr-2 h-4 w-4 animate-spin' />}
             <RefreshCw className='mr-2 h-4 w-4' />
-            {isSyncing ? 'Syncing...' : 'Sync Now'}
+            {isSyncing ? t('Syncing...') : t('Sync Now')}
           </Button>
         </DialogFooter>
       </DialogContent>

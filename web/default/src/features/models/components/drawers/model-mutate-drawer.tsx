@@ -721,7 +721,7 @@ export function ModelMutateDrawer({
                       />
                     </FormControl>
                     <FormDescription className='text-xs'>
-                      {t('@lobehub/icons key')}
+                      {t('Resource icon identifier')}
                     </FormDescription>
                     <FormMessage />
                   </FormItem>

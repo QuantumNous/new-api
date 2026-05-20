@@ -93,14 +93,14 @@ export function ModelsPrimaryButtons() {
         </DropdownMenuTrigger>
         <DropdownMenuContent align='end' className='w-56'>
           <DropdownMenuItem onClick={handleMissingModels}>
-            {t('Missing Models')}
+            {t('Missing model resources')}
             <DropdownMenuShortcut>
               <AlertCircle className='h-4 w-4' />
             </DropdownMenuShortcut>
           </DropdownMenuItem>
 
           <DropdownMenuItem onClick={handleSync}>
-            {t('Sync Upstream')}
+            {t('Sync upstream model resources')}
             <DropdownMenuShortcut>
               <RefreshCw className='h-4 w-4' />
             </DropdownMenuShortcut>
@@ -109,14 +109,14 @@ export function ModelsPrimaryButtons() {
           <DropdownMenuSeparator />
 
           <DropdownMenuItem onClick={handlePrefillGroups}>
-            {t('Prefill Groups')}
+            {t('Prefill tenant groups')}
             <DropdownMenuShortcut>
               <List className='h-4 w-4' />
             </DropdownMenuShortcut>
           </DropdownMenuItem>
 
           <DropdownMenuItem onClick={handleManageVendors}>
-            {t('Manage Vendors')}
+            {t('Manage service sources')}
             <DropdownMenuShortcut>
               <Building2 className='h-4 w-4' />
             </DropdownMenuShortcut>

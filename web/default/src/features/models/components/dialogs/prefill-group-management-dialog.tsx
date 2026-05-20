@@ -66,10 +66,14 @@ import {
 import { ConfirmDialog } from '@/components/confirm-dialog'
 import { StatusBadge } from '@/components/status-badge'
 import { deletePrefillGroup, getPrefillGroups } from '../../api'
+import {
+  ERROR_MESSAGES,
+  resolveModelToastMessage,
+} from '../../constants'
 import { prefillGroupsQueryKeys } from '../../lib'
 import type { PrefillGroup } from '../../types'
 import {
-  PREFILL_GROUP_TYPE_META,
+  getPrefillGroupTypeMeta,
   parseEndpointKeys,
   parseStringItems,
 } from '../prefill-group-shared'
@@ -109,6 +113,7 @@ export function PrefillGroupManagementDialog({
   })
 
   const groups = useMemo(() => data?.data ?? [], [data?.data])
+  const prefillTypeMeta = useMemo(() => getPrefillGroupTypeMeta(t), [t])
 
   const sortedGroups = useMemo(
     () =>
@@ -124,7 +129,7 @@ export function PrefillGroupManagementDialog({
   const normalizedGroups = useMemo(
     () =>
       sortedGroups.map((group) => {
-        const meta = PREFILL_GROUP_TYPE_META[group.type] || {
+        const meta = prefillTypeMeta[group.type] || {
           label: group.type,
           badge: 'neutral' as const,
         }
@@ -134,7 +139,7 @@ export function PrefillGroupManagementDialog({
             : parseStringItems(group.items)
         return { group, meta, parsedItems }
       }),
-    [sortedGroups]
+    [sortedGroups, prefillTypeMeta]
   )
 
   useEffect(() => {
@@ -154,16 +159,28 @@ export function PrefillGroupManagementDialog({
     try {
       const response = await deletePrefillGroup(deleteState.group.id)
       if (response.success) {
-        toast.success(`Deleted "${deleteState.group.name}"`)
+        toast.success(
+          t('Deleted "{{name}}"', { name: deleteState.group.name })
+        )
         queryClient.invalidateQueries({
           queryKey: prefillGroupsQueryKeys.lists(),
         })
         setDeleteState({ open: false, group: null })
       } else {
-        toast.error(response.message || 'Failed to delete group')
+        toast.error(
+          resolveModelToastMessage(
+            response.message,
+            ERROR_MESSAGES.PREFILL_DELETE_FAILED,
+            t
+          )
+        )
       }
     } catch (err: unknown) {
-      toast.error((err as Error)?.message || 'Failed to delete group')
+      const message = (err as Error)?.message
+      if (message) {
+        console.warn('[models] prefill group delete error:', message)
+      }
+      toast.error(t(ERROR_MESSAGES.PREFILL_DELETE_FAILED))
     } finally {
       setIsDeleting(false)
     }
@@ -236,7 +253,7 @@ export function PrefillGroupManagementDialog({
                 </Button>
               </div>
               <StatusBadge
-                label={`${groups.length} group${groups.length === 1 ? '' : 's'}`}
+                label={t('{{count}} groups', { count: groups.length })}
                 variant='neutral'
                 copyable={false}
               />
@@ -255,7 +272,7 @@ export function PrefillGroupManagementDialog({
                       <AlertTitle>{t('Unable to load groups')}</AlertTitle>
                       <AlertDescription>
                         {(error as Error).message ||
-                          'Please retry or refresh the page.'}
+                          t('Please retry or refresh the page.')}
                       </AlertDescription>
                     </Alert>
                   )}
@@ -314,7 +331,7 @@ export function PrefillGroupManagementDialog({
                                 </CardDescription>
                               ) : (
                                 <CardDescription className='text-muted-foreground italic'>
-                                  No description provided
+                                  {t('No description provided')}
                                 </CardDescription>
                               )}
                             </div>
@@ -326,7 +343,7 @@ export function PrefillGroupManagementDialog({
                                 onClick={() => onEditGroup(group)}
                               >
                                 <Pencil className='h-4 w-4' />
-                                <span className='sr-only'>Edit group</span>
+                                <span className='sr-only'>{t('Edit group')}</span>
                               </Button>
                               <Button
                                 size='icon'
@@ -335,15 +352,19 @@ export function PrefillGroupManagementDialog({
                                 onClick={() => handleDeleteClick(group)}
                               >
                                 <Trash2 className='h-4 w-4' />
-                                <span className='sr-only'>Delete group</span>
+                                <span className='sr-only'>
+                                  {t('Delete group')}
+                                </span>
                               </Button>
                             </div>
                           </CardHeader>
                           <CardContent className='space-y-3'>
                             <div className='text-muted-foreground flex flex-wrap items-center gap-2 text-xs font-medium tracking-wide uppercase'>
-                              <span>Items</span>
+                              <span>{t('Items')}</span>
                               <StatusBadge
-                                label={`${parsedItems.length} item${parsedItems.length === 1 ? '' : 's'}`}
+                                label={t('{{count}} items', {
+                                  count: parsedItems.length,
+                                })}
                                 variant='neutral'
                                 size='sm'
                                 copyable={false}
@@ -361,7 +382,9 @@ export function PrefillGroupManagementDialog({
                                 ))}
                                 {parsedItems.length > 6 && (
                                   <StatusBadge
-                                    label={`+${parsedItems.length - 6} more`}
+                                    label={t('+{{count}} more', {
+                                      count: parsedItems.length - 6,
+                                    })}
                                     variant='neutral'
                                     size='sm'
                                     copyable={false}
@@ -371,8 +394,8 @@ export function PrefillGroupManagementDialog({
                             ) : (
                               <p className='text-muted-foreground text-sm'>
                                 {group.type === 'endpoint'
-                                  ? 'No endpoint mappings configured.'
-                                  : 'No items configured yet.'}
+                                  ? t('No endpoint mappings configured.')
+                                  : t('No items configured yet.')}
                               </p>
                             )}
                           </CardContent>
@@ -419,7 +442,7 @@ export function PrefillGroupManagementDialog({
                                         </p>
                                       ) : (
                                         <p className='text-muted-foreground text-xs italic'>
-                                          No description provided
+                                          {t('No description provided')}
                                         </p>
                                       )}
                                     </div>
@@ -448,7 +471,9 @@ export function PrefillGroupManagementDialog({
                                             ))}
                                           {parsedItems.length > 6 && (
                                             <StatusBadge
-                                              label={`+${parsedItems.length - 6} more`}
+                                              label={t('+{{count}} more', {
+                                      count: parsedItems.length - 6,
+                                    })}
                                               variant='neutral'
                                               size='sm'
                                               copyable={false}
@@ -458,14 +483,15 @@ export function PrefillGroupManagementDialog({
                                       ) : (
                                         <p className='text-muted-foreground text-sm'>
                                           {group.type === 'endpoint'
-                                            ? 'No endpoint mappings configured.'
-                                            : 'No items configured yet.'}
+                                            ? t('No endpoint mappings configured.')
+                                            : t('No items configured yet.')}
                                         </p>
                                       )}
                                     </div>
                                     <div className='text-muted-foreground mt-2 text-xs font-medium tracking-wide uppercase'>
-                                      {parsedItems.length} item
-                                      {parsedItems.length === 1 ? '' : 's'}
+                                      {t('{{count}} items', {
+                                        count: parsedItems.length,
+                                      })}
                                     </div>
                                   </TableCell>
                                   <TableCell className='align-top'>
@@ -477,7 +503,7 @@ export function PrefillGroupManagementDialog({
                                       >
                                         <Pencil className='h-4 w-4' />
                                         <span className='sr-only'>
-                                          Edit group
+                                          {t('Edit group')}
                                         </span>
                                       </Button>
                                       <Button
@@ -488,7 +514,7 @@ export function PrefillGroupManagementDialog({
                                       >
                                         <Trash2 className='h-4 w-4' />
                                         <span className='sr-only'>
-                                          Delete group
+                                          {t('Delete group')}
                                         </span>
                                       </Button>
                                     </div>
@@ -511,7 +537,7 @@ export function PrefillGroupManagementDialog({
       <ConfirmDialog
         open={deleteState.open}
         onOpenChange={(next) => setDeleteState({ open: next, group: null })}
-        title={t('Delete group')}
+        title={t('Delete prefill tenant group')}
         desc={
           <p>
             {t('Are you sure you want to delete')}{' '}
@@ -520,7 +546,7 @@ export function PrefillGroupManagementDialog({
           </p>
         }
         destructive
-        confirmText={isDeleting ? 'Deleting...' : 'Delete'}
+        confirmText={isDeleting ? t('Deleting...') : t('Delete')}
         isLoading={isDeleting}
         handleConfirm={handleDeleteConfirm}
       />
