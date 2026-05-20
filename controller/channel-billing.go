@@ -386,10 +386,17 @@ type openAICostAmount struct {
 	Currency string  `json:"currency"`
 }
 
-// updateChannelOpenAIBalance fetches month-to-date OpenAI usage via the Costs API and writes
-// it into channel.Balance. Requires an admin-scoped key (sk-admin-...) stored in
+// updateChannelOpenAIBalance fetches OpenAI usage via the Costs API and writes a balance
+// value into channel.Balance. Requires an admin-scoped key (sk-admin-...) stored in
 // channel.other_settings.openai_admin_key. The legacy /v1/dashboard/billing endpoints were
 // deprecated by OpenAI; this function is their replacement.
+//
+// Two modes are supported:
+//   - Prepaid remaining: if both OpenAIPrepaidAmount > 0 and OpenAIPrepaidSince > 0 are set,
+//     costs are summed from OpenAIPrepaidSince to now, and the returned balance is
+//     OpenAIPrepaidAmount - total_costs (clamped to 0).
+//   - Month-to-date spend (fallback): otherwise, costs are summed from the 1st of the current
+//     UTC month to now and returned as-is.
 func updateChannelOpenAIBalance(channel *model.Channel) (float64, error) {
 	settings := channel.GetOtherSettings()
 	adminKey := strings.TrimSpace(settings.OpenAIAdminKey)
@@ -403,7 +410,13 @@ func updateChannelOpenAIBalance(channel *model.Channel) (float64, error) {
 	}
 
 	now := time.Now().UTC()
-	start := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, time.UTC).Unix()
+	prepaidMode := settings.OpenAIPrepaidAmount > 0 && settings.OpenAIPrepaidSince > 0
+	var start int64
+	if prepaidMode {
+		start = settings.OpenAIPrepaidSince
+	} else {
+		start = time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, time.UTC).Unix()
+	}
 	end := now.Unix()
 
 	var total float64
@@ -445,8 +458,16 @@ func updateChannelOpenAIBalance(channel *model.Channel) (float64, error) {
 		return total, fmt.Errorf("openai costs pagination did not terminate after %d pages", openAICostsMaxPages)
 	}
 
-	channel.UpdateBalance(total)
-	return total, nil
+	balance := total
+	if prepaidMode {
+		balance = settings.OpenAIPrepaidAmount - total
+		if balance < 0 {
+			balance = 0
+		}
+	}
+
+	channel.UpdateBalance(balance)
+	return balance, nil
 }
 
 func updateChannelBalance(channel *model.Channel) (float64, error) {
