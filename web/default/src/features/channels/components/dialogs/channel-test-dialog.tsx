@@ -575,6 +575,7 @@ export function ChannelTestDialog({
                 <div
                   className='overflow-hidden rounded-md border'
                   role='region'
+                  aria-label={t('Channel models')}
                 >
                   <div className='max-h-90 overflow-auto **:data-[slot=table-container]:overflow-visible'>
                     <Table className='w-max min-w-full table-auto'>
