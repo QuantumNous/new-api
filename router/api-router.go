@@ -281,12 +281,6 @@ func SetApiRouter(router *gin.Engine) {
 				tokenUsageRoute.GET("/", controller.GetTokenUsage)
 			}
 		}
-		v1UsageRoute := apiRouter.Group("/v1/usage")
-		v1UsageRoute.Use(middleware.CORS())
-		{
-			v1UsageRoute.GET("/stats", controller.GetUsageStats)
-		}
-
 		redemptionRoute := apiRouter.Group("/redemption")
 		redemptionRoute.Use(middleware.AdminAuth())
 		{
