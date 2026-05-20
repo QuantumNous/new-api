@@ -206,6 +206,11 @@ func buildFetchModelsHeaders(channel *model.Channel, key string) (http.Header, e
 		if strings.Contains(str, "{api_key}") {
 			str = strings.ReplaceAll(str, "{api_key}", key)
 		}
+		// An empty value explicitly suppresses the header.
+		if str == "" {
+			headers.Del(k)
+			continue
+		}
 		headers.Set(k, str)
 	}
 

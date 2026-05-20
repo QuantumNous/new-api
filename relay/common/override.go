@@ -395,12 +395,11 @@ func sanitizeHeaderOverrideMap(source map[string]interface{}) map[string]interfa
 			continue
 		}
 		normalizedValue := strings.TrimSpace(fmt.Sprintf("%v", value))
-		if normalizedValue == "" {
-			if isHeaderPassthroughRuleKeyForOverride(normalizedKey) {
-				target[normalizedKey] = ""
-			}
-			continue
-		}
+		// An empty value is preserved as an explicit suppression marker:
+		// downstream consumers will Del() the header instead of forwarding it.
+		// Passthrough rule keys ("*", "re:...", "regex:...") historically use
+		// an empty value as well, and that contract is preserved by the same
+		// fall-through behavior.
 		target[normalizedKey] = normalizedValue
 	}
 	return target

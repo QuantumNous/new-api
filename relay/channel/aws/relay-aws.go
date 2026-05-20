@@ -112,6 +112,13 @@ func doAwsClientRequest(c *gin.Context, info *relaycommon.RelayInfo, a *Adaptor,
 		return nil, err
 	}
 	for key, value := range headerOverride {
+		// An empty value explicitly suppresses the header upstream, including
+		// any value previously written by SetupRequestHeader (e.g. anthropic-beta
+		// copied from the client request, which Bedrock often rejects).
+		if value == "" {
+			requestHeader.Del(key)
+			continue
+		}
 		requestHeader.Set(key, value)
 	}
 

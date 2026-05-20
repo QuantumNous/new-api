@@ -154,9 +154,10 @@ func applyHeaderOverridePlaceholders(template string, c *gin.Context, apiKey str
 	if strings.Contains(template, "{api_key}") {
 		template = strings.ReplaceAll(template, "{api_key}", apiKey)
 	}
-	if strings.TrimSpace(template) == "" {
-		return "", false, nil
-	}
+	// An empty template is treated as an explicit suppression marker:
+	// the entry is included with an empty value so that downstream consumers
+	// can delete the header from the upstream request, rather than letting a
+	// value previously written by the channel adaptor leak through.
 	return template, true, nil
 }
 
@@ -279,6 +280,12 @@ func applyHeaderOverrideToRequest(req *http.Request, headerOverride map[string]s
 		return
 	}
 	for key, value := range headerOverride {
+		// An empty value is an explicit suppression marker: remove the header
+		// from the upstream request rather than forwarding the empty string.
+		if value == "" {
+			req.Header.Del(key)
+			continue
+		}
 		req.Header.Set(key, value)
 		// set Host in req
 		if strings.EqualFold(key, "Host") {
@@ -368,6 +375,11 @@ func DoWssRequest(a Adaptor, c *gin.Context, info *common.RelayInfo, requestBody
 		return nil, err
 	}
 	for key, value := range headerOverride {
+		// An empty value explicitly suppresses the header upstream.
+		if value == "" {
+			targetHeader.Del(key)
+			continue
+		}
 		targetHeader.Set(key, value)
 	}
 	targetHeader.Set("Content-Type", c.Request.Header.Get("Content-Type"))
