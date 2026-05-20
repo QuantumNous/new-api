@@ -121,10 +121,12 @@ export function useTaskLogsColumns(isAdmin: boolean): ColumnDef<TaskLog>[] {
   ]
 
   if (isAdmin) {
-    columns.push(createChannelColumn<TaskLog>({ headerLabel: t('Channel') }), {
+    columns.push(
+      createChannelColumn<TaskLog>({ headerLabel: t('usageLogs.col.channel') }),
+      {
       id: 'user',
       header: ({ column }) => (
-        <DataTableColumnHeader column={column} title={t('User')} />
+        <DataTableColumnHeader column={column} title={t('usageLogs.col.account')} />
       ),
       cell: function UserCell({ row }) {
         const { sensitiveVisible, setSelectedUserId, setUserInfoDialogOpen } =
@@ -155,13 +157,13 @@ export function useTaskLogsColumns(isAdmin: boolean): ColumnDef<TaskLog>[] {
                 {sensitiveVisible ? getUserAvatarFallback(displayName) : '•'}
               </AvatarFallback>
             </Avatar>
-            <span className='text-muted-foreground truncate text-sm hover:underline'>
+            <span className='truncate text-sm text-slate-700 hover:underline dark:text-slate-200'>
               {sensitiveVisible ? displayName : '••••'}
             </span>
           </button>
         )
       },
-      meta: { label: t('User'), mobileHidden: true },
+      meta: { label: t('usageLogs.col.account'), mobileHidden: true },
     })
   }
 

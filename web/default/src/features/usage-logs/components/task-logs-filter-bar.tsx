@@ -24,6 +24,12 @@ import { useTranslation } from 'react-i18next'
 import { useIsAdmin } from '@/hooks/use-admin'
 import { Input } from '@/components/ui/input'
 import { DataTableToolbar } from '@/components/data-table'
+import {
+  usageLogsFilterDateTriggerClassName,
+  usageLogsFilterSearchInputClassName,
+  usageLogsToolbarQueryButtonClassName,
+} from '../lib/ops-ui-styles'
+import { cn } from '@/lib/utils'
 import { buildSearchParams } from '../lib/filter'
 import { getDefaultTimeRange } from '../lib/utils'
 import type { DrawingLogFilters, LogCategory, TaskLogFilters } from '../types'
@@ -160,7 +166,14 @@ export function TaskLogsFilterBar<TData>(props: TaskLogsFilterBarProps<TData>) {
     props.logCategory === 'drawing'
       ? t('Filter by Midjourney task ID')
       : t('Filter by task ID')
-  const inputClass = 'w-full sm:w-[180px] lg:w-[200px]'
+  const searchInputClass = cn(
+    'h-8 w-full sm:w-[180px] lg:w-[200px]',
+    usageLogsFilterSearchInputClassName
+  )
+  const dateTriggerClass = cn(
+    'w-full sm:w-[340px]',
+    usageLogsFilterDateTriggerClassName
+  )
   const hasAdditionalFilters = !!filterValue || !!filters.channel
 
   return (
@@ -174,7 +187,7 @@ export function TaskLogsFilterBar<TData>(props: TaskLogsFilterBarProps<TData>) {
             handleChange('startTime', start)
             handleChange('endTime', end)
           }}
-          className='w-full sm:w-[340px]'
+          className={dateTriggerClass}
         />
       }
       additionalSearch={
@@ -185,20 +198,23 @@ export function TaskLogsFilterBar<TData>(props: TaskLogsFilterBarProps<TData>) {
             value={filterValue}
             onChange={(e) => handleFilterChange(e.target.value)}
             onKeyDown={handleKeyDown}
-            className={inputClass}
+            className={searchInputClass}
           />
           {isAdmin && (
             <Input
-              placeholder={t('Channel ID')}
+              placeholder={t('usageLogs.filter.channel_id')}
               value={filters.channel || ''}
               onChange={(e) => handleChange('channel', e.target.value)}
               onKeyDown={handleKeyDown}
-              className={inputClass}
+              className={searchInputClass}
             />
           )}
         </>
       }
       hasAdditionalFilters={hasAdditionalFilters}
+      resetLabel={t('usageLogs.toolbar.clear_filters')}
+      searchLabel={t('usageLogs.toolbar.query')}
+      searchButtonClassName={usageLogsToolbarQueryButtonClassName}
       onSearch={handleApply}
       searchLoading={fetchingLogs > 0}
       onReset={handleReset}

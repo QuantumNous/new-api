@@ -49,11 +49,11 @@ const SECTION_META: Record<
   },
   drawing: {
     titleKey: 'Drawing Audit Records',
-    descriptionKey: 'View and manage your drawing logs',
+    descriptionKey: 'usageLogs.page.drawing.description',
   },
   task: {
     titleKey: 'Task Audit Records',
-    descriptionKey: 'View and manage your task logs',
+    descriptionKey: 'usageLogs.page.task.description',
   },
 }
 
@@ -109,8 +109,7 @@ function UsageLogsContent() {
     [navigate]
   )
 
-  const pageMeta =
-    activeCategory === 'common' ? SECTION_META.common : SECTION_META.task
+  const pageMeta = SECTION_META[activeCategory]
   const showTaskSwitcher =
     activeCategory !== 'common' && visibleSections.length > 1
 

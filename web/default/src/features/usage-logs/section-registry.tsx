@@ -24,20 +24,20 @@ import { createSectionRegistry } from '@/features/system-settings/utils/section-
 const USAGE_LOGS_SECTIONS = [
   {
     id: 'common',
-    titleKey: 'Common Logs',
-    descriptionKey: 'View and manage your API usage logs',
+    titleKey: 'Token Consumption Details',
+    descriptionKey: 'View and manage token consumption audit records',
     build: () => null, // Content is rendered directly in the page component
   },
   {
     id: 'drawing',
-    titleKey: 'Drawing Logs',
-    descriptionKey: 'View and manage your drawing logs',
+    titleKey: 'Drawing Audit Records',
+    descriptionKey: 'usageLogs.page.drawing.description',
     build: () => null, // Content is rendered directly in the page component
   },
   {
     id: 'task',
-    titleKey: 'Task Logs',
-    descriptionKey: 'View and manage your task logs',
+    titleKey: 'Task Audit Records',
+    descriptionKey: 'usageLogs.page.task.description',
     build: () => null, // Content is rendered directly in the page component
   },
 ] as const

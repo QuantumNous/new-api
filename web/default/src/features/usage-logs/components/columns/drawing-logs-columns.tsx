@@ -114,7 +114,9 @@ export function useDrawingLogsColumns(
 
   if (isAdmin) {
     columns.push(
-      createChannelColumn<MidjourneyLog>({ headerLabel: t('Channel') })
+      createChannelColumn<MidjourneyLog>({
+        headerLabel: t('usageLogs.col.channel'),
+      })
     )
   }
 

@@ -31,12 +31,16 @@ import {
 
 type DataTableViewOptionsProps<TData> = {
   table: Table<TData>
+  /** Override default `t('View')` trigger label. */
+  triggerLabel?: string
 }
 
 export function DataTableViewOptions<TData>({
   table,
+  triggerLabel,
 }: DataTableViewOptionsProps<TData>) {
   const { t } = useTranslation()
+  const label = triggerLabel ?? t('View')
   return (
     <DropdownMenu modal={false}>
       <DropdownMenuTrigger
@@ -44,11 +48,11 @@ export function DataTableViewOptions<TData>({
           <Button
             variant='outline'
             className={dataTableViewTriggerClassName}
-            aria-label={t('View')}
+            aria-label={label}
           />
         }
       >
-        {t('View')}
+        {label}
       </DropdownMenuTrigger>
       <DropdownMenuContent align='end' className='w-[150px]'>
         <DropdownMenuGroup>

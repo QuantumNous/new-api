@@ -17,6 +17,17 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 /* eslint-disable react-refresh/only-export-components */
+export {
+  usageLogsColumnHeaderClassName,
+  usageLogsDetailSummaryClass,
+  usageLogsInlinePillClass,
+  usageLogsLogTypeBadgeClass,
+  usageLogsTableEmptyClass,
+  usageLogsTableHeaderClassName,
+  usageLogsTableMetaClass,
+  usageLogsTablePrimaryClass,
+} from '../../lib/ops-ui-styles'
+
 import { useState } from 'react'
 import type { ColumnDef } from '@tanstack/react-table'
 import { Zap } from 'lucide-react'
@@ -31,6 +42,12 @@ import {
 import { DataTableColumnHeader } from '@/components/data-table'
 import { StatusBadge } from '@/components/status-badge'
 import { formatDuration } from '../../lib/format'
+import {
+  usageLogsInlinePillClass,
+  usageLogsTableEmptyClass,
+  usageLogsTableMetaClass,
+  usageLogsTablePrimaryClass,
+} from '../../lib/ops-ui-styles'
 import { FailReasonDialog } from '../dialogs/fail-reason-dialog'
 
 /**
@@ -85,10 +102,15 @@ export function createTimestampColumn<T>(config: {
     cell: ({ row }) => {
       const timestamp = row.getValue(accessorKey) as number
       if (!timestamp) {
-        return <span className='text-muted-foreground/60 text-xs'>-</span>
+        return <span className={usageLogsTableEmptyClass}>-</span>
       }
       return (
-        <span className='font-mono text-xs tabular-nums'>
+        <span
+          className={cn(
+            'font-mono text-xs tabular-nums',
+            usageLogsTablePrimaryClass
+          )}
+        >
           {formatTimestampToDate(timestamp, unit)}
         </span>
       )
@@ -101,22 +123,19 @@ export function createTimestampColumn<T>(config: {
  * Duration pill colors matching common logs timing column
  */
 const durationPillBg: Record<string, string> = {
-  green:
-    'border border-emerald-200/60 bg-emerald-50/70 dark:border-emerald-800/50 dark:bg-emerald-950/25',
-  red: 'border border-rose-200/70 bg-rose-50/70 dark:border-rose-800/50 dark:bg-rose-950/25',
-  success:
-    'border border-emerald-200/60 bg-emerald-50/50 dark:border-emerald-800/50 dark:bg-emerald-950/20',
-  info: 'border border-sky-200/60 bg-sky-50/50 dark:border-sky-800/50 dark:bg-sky-950/20',
-  warning:
-    'border border-amber-200/60 bg-amber-50/50 dark:border-amber-800/50 dark:bg-amber-950/20',
+  green: 'border border-emerald-500/30 bg-emerald-500/10',
+  red: 'border border-rose-500/30 bg-rose-500/10',
+  success: 'border border-emerald-500/30 bg-emerald-500/10',
+  info: 'border border-sky-500/30 bg-sky-500/10',
+  warning: 'border border-amber-500/30 bg-amber-500/10',
 }
 
 const durationTextColor: Record<string, string> = {
-  green: 'text-emerald-700 dark:text-emerald-400',
-  red: 'text-rose-700 dark:text-rose-400',
-  success: 'text-emerald-700 dark:text-emerald-400',
-  info: 'text-sky-700 dark:text-sky-400',
-  warning: 'text-amber-700 dark:text-amber-400',
+  green: 'text-emerald-400',
+  red: 'text-rose-400',
+  success: 'text-emerald-400',
+  info: 'text-sky-400',
+  warning: 'text-amber-400',
 }
 
 const durationDotColor: Record<string, string> = {
@@ -159,7 +178,7 @@ export function createDurationColumn<T>(config: {
       )
 
       if (!duration) {
-        return <span className='text-muted-foreground/60 text-xs'>-</span>
+        return <span className={usageLogsTableEmptyClass}>-</span>
       }
 
       const variant =
@@ -205,7 +224,7 @@ export function createChannelColumn<T>(config: {
     cell: ({ row }) => {
       const channelId = row.getValue(accessorKey) as number
       if (!channelId) {
-        return <span className='text-muted-foreground/60 text-xs'>-</span>
+        return <span className={usageLogsTableEmptyClass}>-</span>
       }
       return (
         <StatusBadge
@@ -241,7 +260,7 @@ export function createFailReasonColumn<T>(config: {
       const [dialogOpen, setDialogOpen] = useState(false)
 
       if (!failReason) {
-        return <span className='text-muted-foreground/60 text-xs'>-</span>
+        return <span className={usageLogsTableEmptyClass}>-</span>
       }
 
       return (
@@ -252,7 +271,7 @@ export function createFailReasonColumn<T>(config: {
             onClick={() => setDialogOpen(true)}
             title={cellTitle}
           >
-            <span className='truncate leading-snug text-red-600 group-hover:underline dark:text-red-400'>
+            <span className='truncate leading-snug text-red-400 group-hover:underline'>
               {failReason}
             </span>
           </button>
@@ -285,13 +304,9 @@ export function createProgressColumn<T>(config: {
     cell: ({ row }) => {
       const progress = row.getValue(accessorKey) as string
       if (!progress) {
-        return <span className='text-muted-foreground/60 text-xs'>-</span>
+        return <span className={usageLogsTableEmptyClass}>-</span>
       }
-      return (
-        <span className='border-border/60 bg-muted/30 inline-flex items-center rounded-md border px-1.5 py-0.5 font-mono text-xs'>
-          {progress}
-        </span>
-      )
+      return <span className={usageLogsInlinePillClass}>{progress}</span>
     },
     meta: { label: headerLabel },
   }

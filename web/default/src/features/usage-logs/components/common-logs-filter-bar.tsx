@@ -20,7 +20,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { useQueryClient, useIsFetching } from '@tanstack/react-query'
 import { useNavigate, getRouteApi } from '@tanstack/react-router'
 import { type Table } from '@tanstack/react-table'
-import { Eye, EyeOff } from 'lucide-react'
+import { Eye, EyeOff, Search } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { useIsAdmin } from '@/hooks/use-admin'
 import { Button } from '@/components/ui/button'
@@ -33,12 +33,18 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from '@/components/ui/tooltip'
 import { DataTableToolbar } from '@/components/data-table'
+import { cn } from '@/lib/utils'
+import {
+  usageLogsFilterDateTriggerClassName,
+  usageLogsFilterSearchIconClassName,
+  usageLogsFilterSearchInputClassName,
+  usageLogsFilterSearchInputFieldClassName,
+  usageLogsFilterSelectTriggerClassName,
+  usageLogsToolbarExpandButtonClassName,
+  usageLogsToolbarPlaintextButtonClassName,
+  usageLogsToolbarQueryButtonClassName,
+} from '../lib/ops-ui-styles'
 import { LOG_TYPES } from '../constants'
 import { buildSearchParams } from '../lib/filter'
 import { getDefaultTimeRange } from '../lib/utils'
@@ -58,6 +64,25 @@ function isLogTypeValue(value: string): value is LogTypeValue {
 
 interface CommonLogsFilterBarProps<TData> {
   table: Table<TData>
+}
+
+function FilterSearchInput({
+  containerClassName,
+  className,
+  ...props
+}: React.ComponentProps<typeof Input> & { containerClassName?: string }) {
+  return (
+    <div className={cn('group relative', containerClassName)}>
+      <Input
+        {...props}
+        className={cn(usageLogsFilterSearchInputFieldClassName, className)}
+      />
+      <Search
+        className={usageLogsFilterSearchIconClassName}
+        aria-hidden='true'
+      />
+    </div>
+  )
 }
 
 export function CommonLogsFilterBar<TData>(
@@ -170,30 +195,39 @@ export function CommonLogsFilterBar<TData>(
   const hasAdditionalFilters =
     !!filters.model || !!filters.group || !!logType || hasExpandedFilters
 
-  const inputClass = 'w-full sm:w-[140px] lg:w-[160px]'
+  const filterWidth = 'w-full sm:w-[140px] lg:w-[160px]'
+  const searchInputClass = cn(filterWidth, usageLogsFilterSearchInputClassName)
+  const selectTriggerClass = cn(
+    filterWidth,
+    usageLogsFilterSelectTriggerClassName
+  )
+  const dateTriggerClass = cn(
+    'w-full sm:w-[340px]',
+    usageLogsFilterDateTriggerClassName
+  )
   const sensitiveType = sensitiveVisible ? 'text' : 'password'
 
   const statsBar = (
     <div className='flex flex-wrap items-center gap-2'>
       <CommonLogsStats />
-      <Tooltip>
-        <TooltipTrigger
-          render={
-            <Button
-              variant='ghost'
-              size='icon'
-              onClick={() => setSensitiveVisible(!sensitiveVisible)}
-              aria-label={sensitiveVisible ? t('Hide') : t('Show')}
-              className='text-muted-foreground hover:text-foreground size-7'
-            />
-          }
-        >
-          {sensitiveVisible ? <Eye /> : <EyeOff />}
-        </TooltipTrigger>
-        <TooltipContent>
-          {sensitiveVisible ? t('Hide') : t('Show')}
-        </TooltipContent>
-      </Tooltip>
+      <Button
+        type='button'
+        variant='outline'
+        onClick={() => setSensitiveVisible(!sensitiveVisible)}
+        aria-label={
+          sensitiveVisible
+            ? t('usageLogs.toolbar.hide_plaintext')
+            : t('usageLogs.toolbar.show_plaintext')
+        }
+        className={usageLogsToolbarPlaintextButtonClassName}
+      >
+        {sensitiveVisible ? <Eye /> : <EyeOff />}
+        <span>
+          {sensitiveVisible
+            ? t('usageLogs.toolbar.hide_plaintext')
+            : t('usageLogs.toolbar.show_plaintext')}
+        </span>
+      </Button>
     </div>
   )
 
@@ -209,29 +243,31 @@ export function CommonLogsFilterBar<TData>(
             handleChange('startTime', start)
             handleChange('endTime', end)
           }}
-          className='w-full sm:w-[340px]'
+          className={dateTriggerClass}
         />
       }
       additionalSearch={
         <>
-          <Input
-            placeholder={t('Model Name')}
+          <FilterSearchInput
+            aria-label={t('usageLogs.filter.model_by_name')}
+            placeholder={t('usageLogs.filter.model_by_name')}
             value={filters.model || ''}
             onChange={(e) => handleChange('model', e.target.value)}
             onKeyDown={handleKeyDown}
-            className={inputClass}
+            containerClassName={filterWidth}
           />
-          <Input
-            placeholder={t('Group')}
+          <FilterSearchInput
+            aria-label={t('usageLogs.filter.group_by')}
+            placeholder={t('usageLogs.filter.group_by')}
             type={sensitiveType}
             value={filters.group || ''}
             onChange={(e) => handleChange('group', e.target.value)}
             onKeyDown={handleKeyDown}
-            className={inputClass}
+            containerClassName={filterWidth}
           />
           <Select
             items={[
-              { value: 'all', label: t('All Types') },
+              { value: 'all', label: t('usageLogs.filter.all_types') },
               ...LOG_TYPES.map((type) => ({
                 value: String(type.value),
                 label: t(type.label),
@@ -242,12 +278,12 @@ export function CommonLogsFilterBar<TData>(
               setLogType(value !== null && isLogTypeValue(value) ? value : '')
             }}
           >
-            <SelectTrigger className={inputClass}>
-              <SelectValue placeholder={t('All Types')} />
+            <SelectTrigger className={selectTriggerClass}>
+              <SelectValue placeholder={t('usageLogs.filter.all_types')} />
             </SelectTrigger>
             <SelectContent alignItemWithTrigger={false}>
               <SelectGroup>
-                <SelectItem value='all'>{t('All Types')}</SelectItem>
+                <SelectItem value='all'>{t('usageLogs.filter.all_types')}</SelectItem>
                 {LOG_TYPES.map((type) => (
                   <SelectItem key={type.value} value={String(type.value)}>
                     {t(type.label)}
@@ -261,30 +297,30 @@ export function CommonLogsFilterBar<TData>(
       expandable={
         <>
           <Input
-            placeholder={t('Token Name')}
+            placeholder={t('usageLogs.filter.access_key')}
             type={sensitiveType}
             value={filters.token || ''}
             onChange={(e) => handleChange('token', e.target.value)}
             onKeyDown={handleKeyDown}
-            className={inputClass}
+            className={searchInputClass}
           />
           {isAdmin && (
             <Input
-              placeholder={t('Username')}
+              placeholder={t('usageLogs.filter.username')}
               type={sensitiveType}
               value={filters.username || ''}
               onChange={(e) => handleChange('username', e.target.value)}
               onKeyDown={handleKeyDown}
-              className={inputClass}
+              className={searchInputClass}
             />
           )}
           {isAdmin && (
             <Input
-              placeholder={t('Channel ID')}
+              placeholder={t('usageLogs.filter.channel_id')}
               value={filters.channel || ''}
               onChange={(e) => handleChange('channel', e.target.value)}
               onKeyDown={handleKeyDown}
-              className={inputClass}
+              className={searchInputClass}
             />
           )}
           <Input
@@ -292,7 +328,7 @@ export function CommonLogsFilterBar<TData>(
             value={filters.requestId || ''}
             onChange={(e) => handleChange('requestId', e.target.value)}
             onKeyDown={handleKeyDown}
-            className={inputClass}
+            className={searchInputClass}
           />
           <Input
             placeholder={t('Upstream Request ID')}
@@ -301,12 +337,19 @@ export function CommonLogsFilterBar<TData>(
               handleChange('upstreamRequestId', e.target.value)
             }
             onKeyDown={handleKeyDown}
-            className={inputClass}
+            className={searchInputClass}
           />
         </>
       }
       hasExpandedActiveFilters={hasExpandedFilters}
       hasAdditionalFilters={hasAdditionalFilters}
+      expandLabel={t('usageLogs.toolbar.more_filters')}
+      collapseLabel={t('usageLogs.toolbar.collapse_filters')}
+      resetLabel={t('usageLogs.toolbar.clear_filters')}
+      searchLabel={t('usageLogs.toolbar.query')}
+      searchButtonClassName={usageLogsToolbarQueryButtonClassName}
+      expandButtonClassName={usageLogsToolbarExpandButtonClassName}
+      viewOptionsLabel={t('usageLogs.toolbar.columns')}
       onSearch={handleApply}
       searchLoading={fetchingLogs > 0}
       onReset={handleReset}

@@ -16,6 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { normalizeBillingDisplayString } from '@/lib/ops-billing-display'
 import type { StatusBadgeProps } from '@/components/status-badge'
 import {
   BILLING_PRICING_VARS,
@@ -23,10 +24,18 @@ import {
   parseTiersFromExpr,
   type ParsedTier,
 } from '@/features/pricing/lib/billing-expr'
+import { LOG_TYPE_ENUM } from '../constants'
 import type { UsageLog } from '../data/schema'
 import type { LogOtherData } from '../types'
 
 export { normalizeTierLabel }
+
+const QUOTA_ADJUSTMENT_LOG_TYPES = new Set<number>([
+  LOG_TYPE_ENUM.TOPUP,
+  LOG_TYPE_ENUM.MANAGE,
+  LOG_TYPE_ENUM.SYSTEM,
+  LOG_TYPE_ENUM.REFUND,
+])
 
 const PARAM_OVERRIDE_ACTION_MAP: Record<string, string> = {
   set: 'Set',
@@ -94,6 +103,38 @@ export function isViolationFeeLog(other: LogOtherData | null): boolean {
 /**
  * Parse the 'other' field from JSON string to object
  */
+/**
+ * Display-only normalization for log content summaries (table cell / previews).
+ * Does not mutate stored log content.
+ */
+export function formatLogContentSummaryForDisplay(
+  text: string,
+  logType?: number
+): string {
+  if (!text) return text
+
+  let result = normalizeBillingDisplayString(text)
+
+  const quotaContext =
+    (logType != null && QUOTA_ADJUSTMENT_LOG_TYPES.has(logType)) ||
+    /(?:用户)?额度|词元|quota/i.test(result)
+
+  if (quotaContext) {
+    result = result.replace(/用户额度/g, '用户词元额度')
+    result = result.replace(
+      /(?<!词元)额度\s*[¥￥]?\s*([\d,.]+)/gi,
+      '词元额度 $1'
+    )
+    result = result.replace(/词元额度\s*[¥￥]\s*/g, '词元额度 ')
+  }
+
+  return result
+    .replace(/\$/g, '')
+    .replace(/\bUSD\b/gi, 'CNY')
+    .replace(/美元/g, '人民币')
+    .replace(/\bdollars?\b/gi, '人民币')
+}
+
 export function parseLogOther(other: string): LogOtherData | null {
   if (!other) return null
   try {

@@ -41,6 +41,7 @@ import { DEFAULT_LOGS_DATA, LOG_TYPE_ENUM } from '../constants'
 import { useColumnsByCategory } from '../lib/columns'
 import { fetchLogsByCategory } from '../lib/utils'
 import type { LogCategory } from '../types'
+import { usageLogsTableHeaderClassName } from './columns/column-helpers'
 import { CommonLogsFilterBar } from './common-logs-filter-bar'
 import { TaskLogsFilterBar } from './task-logs-filter-bar'
 
@@ -116,7 +117,11 @@ export function UsageLogsTable({ logCategory }: UsageLogsTableProps) {
       })
 
       if (!result?.success) {
-        toast.error(result?.message || t('Failed to load logs'))
+        if (result?.message) {
+          // eslint-disable-next-line no-console
+          console.warn('[usage-logs]', result.message)
+        }
+        toast.error(t('usageLogs.toast.load_failed'))
         return DEFAULT_LOGS_DATA
       }
 
@@ -167,13 +172,11 @@ export function UsageLogsTable({ logCategory }: UsageLogsTableProps) {
       columns={columns as ColumnDef<Record<string, unknown>>[]}
       isLoading={isLoadingData}
       isFetching={isFetching}
-      emptyTitle={t('No Logs Found')}
-      emptyDescription={t(
-        'No usage logs available. Logs will appear here once API calls are made.'
-      )}
+      emptyTitle={t('usageLogs.empty.title')}
+      emptyDescription={t('usageLogs.empty.description')}
       skeletonKeyPrefix='usage-log-skeleton'
       tableClassName='max-h-[calc(100dvh-13rem)] overflow-auto sm:max-h-[calc(100dvh-14rem)]'
-      tableHeaderClassName='bg-muted/30 sticky top-0 z-10'
+      tableHeaderClassName={usageLogsTableHeaderClassName}
       toolbar={
         isCommon ? (
           <CommonLogsFilterBar table={table} />

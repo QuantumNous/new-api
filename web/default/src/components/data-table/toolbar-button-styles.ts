@@ -32,6 +32,37 @@ export const dataTableFilterTriggerClassName = cn(
   'disabled:border-white/10 disabled:bg-white/10 disabled:text-slate-300 disabled:opacity-60'
 )
 
+/** Filter controls on dark cockpit layouts (no theme-variable / dark: dependency). */
+const dataTableFilterControlBaseClassName = cn(
+  'border-white/20 bg-slate-900/60 text-slate-100 shadow-none',
+  'placeholder:text-slate-400',
+  'hover:border-white/30 hover:bg-slate-900/75',
+  'focus-visible:border-white/35 focus-visible:ring-1 focus-visible:ring-white/15'
+)
+
+/** Filter text inputs — overrides default Input border/placeholder. */
+export const dataTableFilterSearchInputClassName = cn(
+  'h-8',
+  dataTableFilterControlBaseClassName
+)
+
+/** Filter Select triggers. */
+export const dataTableFilterSelectTriggerClassName = cn(
+  'h-8 w-full min-w-[7.5rem] justify-between gap-2 px-2.5 py-0 font-normal',
+  dataTableFilterControlBaseClassName,
+  'data-placeholder:text-slate-400',
+  '[&_[data-slot=select-value]]:min-w-0 [&_[data-slot=select-value]]:truncate [&_[data-slot=select-value]]:text-slate-100',
+  '[&_svg]:pointer-events-none [&_svg]:!size-4 [&_svg]:shrink-0 [&_svg]:!text-slate-300 [&_svg]:!opacity-100',
+  'aria-expanded:border-white/35 aria-expanded:bg-slate-900/80'
+)
+
+/** Date-range popover trigger on filter toolbars. */
+export const dataTableFilterDateTriggerClassName = cn(
+  'h-8 w-full justify-start gap-2 px-2.5 font-mono text-xs font-normal',
+  dataTableFilterControlBaseClassName,
+  '[&_svg]:!text-slate-300 [&_svg]:!opacity-100'
+)
+
 export const dataTableResetGhostClassName = cn(
   'gap-1 px-2',
   'border border-white/15 bg-white/10 text-slate-100',

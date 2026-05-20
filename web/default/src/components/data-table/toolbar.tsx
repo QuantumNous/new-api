@@ -121,6 +121,20 @@ export type DataTableToolbarProps<TData> = {
    * Outer wrapper className override.
    */
   className?: string
+  /** Override default `t('Expand')` label. */
+  expandLabel?: string
+  /** Override default `t('Collapse')` label. */
+  collapseLabel?: string
+  /** Override default `t('Reset')` label. */
+  resetLabel?: string
+  /** Override default `t('Search')` label. */
+  searchLabel?: string
+  /** Optional className for the explicit Search / Apply button. */
+  searchButtonClassName?: string
+  /** Optional className for the expand / collapse toggle. */
+  expandButtonClassName?: string
+  /** Label for column visibility trigger; forwarded to `DataTableViewOptions`. */
+  viewOptionsLabel?: string
 }
 
 /**
@@ -205,7 +219,7 @@ export function DataTableToolbar<TData>(props: DataTableToolbarProps<TData>) {
       disabled={!isFiltered}
       className={dataTableResetOutlineClassName}
     >
-      {t('Reset')}
+      {props.resetLabel ?? t('Reset')}
     </Button>
   ) : isFiltered ? (
     <Button
@@ -213,20 +227,27 @@ export function DataTableToolbar<TData>(props: DataTableToolbarProps<TData>) {
       onClick={handleReset}
       className={dataTableResetGhostClassName}
     >
-      {t('Reset')}
+      {props.resetLabel ?? t('Reset')}
       <Cross2Icon />
     </Button>
   ) : null
 
   const searchButton = hasSearch ? (
-    <Button onClick={props.onSearch} disabled={props.searchLoading}>
+    <Button
+      onClick={props.onSearch}
+      disabled={props.searchLoading}
+      className={props.searchButtonClassName}
+    >
       {props.searchLoading && <Loader2 className='animate-spin' />}
-      {t('Search')}
+      {props.searchLabel ?? t('Search')}
     </Button>
   ) : null
 
   const viewOptionsNode = !props.hideViewOptions ? (
-    <DataTableViewOptions table={props.table} />
+    <DataTableViewOptions
+      table={props.table}
+      triggerLabel={props.viewOptionsLabel}
+    />
   ) : null
 
   const expandToggle = hasExpandable ? (
@@ -238,10 +259,13 @@ export function DataTableToolbar<TData>(props: DataTableToolbarProps<TData>) {
         'text-muted-foreground hover:text-foreground gap-1 px-2',
         props.hasExpandedActiveFilters &&
           !expanded &&
-          'text-primary hover:text-primary'
+          'text-primary hover:text-primary',
+        props.expandButtonClassName
       )}
     >
-      {expanded ? t('Collapse') : t('Expand')}
+      {expanded
+        ? (props.collapseLabel ?? t('Collapse'))
+        : (props.expandLabel ?? t('Expand'))}
       <ChevronDown
         className={cn(
           'size-3.5 transition-transform duration-200',

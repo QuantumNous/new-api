@@ -124,13 +124,13 @@ export function CompactDateTimeRangePicker({
             variant='outline'
             className={cn(
               'w-full justify-start gap-2 px-2.5 font-mono text-xs font-normal',
-              !start && !end && 'text-muted-foreground',
+              !start && !end && 'text-slate-400',
               className
             )}
           />
         }
       >
-        <CalendarDays className='text-muted-foreground size-4 shrink-0' />
+        <CalendarDays className='size-4 shrink-0 text-slate-300' />
         <span className='truncate'>{label}</span>
       </PopoverTrigger>
       <PopoverContent
