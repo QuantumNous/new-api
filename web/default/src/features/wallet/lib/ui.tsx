@@ -122,18 +122,24 @@ export function getPaymentIcon(
         />
       )
     case PAYMENT_TYPES.WAFFO_PANCAKE:
-      // Lucide doesn't ship a pancake glyph and react-icons' brand sets
-      // don't either — emoji is the cleanest way to render an actual
-      // pancake at icon size. The inline-flex + leading-none keeps it
-      // vertically centred inside the standard h-4 w-4 (or whatever)
-      // box the caller passes via className.
+      // The W glyph fills only ~40% of its viewBox vertically (wide and
+      // short letterform); scale(2) brings its rendered height in line
+      // with Stripe's S and Creem's Landmark.
       return (
         <span
-          role='img'
-          aria-label={i18next.t('Pancake')}
           className={`inline-flex items-center justify-center leading-none ${className}`}
+          style={{ transform: 'scale(2)' }}
         >
-          🥞
+          <img
+            src='/waffo-logo-light.svg'
+            alt={i18next.t('Waffo')}
+            className='block h-full w-full object-contain dark:hidden'
+          />
+          <img
+            src='/waffo-logo-dark.svg'
+            alt={i18next.t('Waffo')}
+            className='hidden h-full w-full object-contain dark:block'
+          />
         </span>
       )
     default:
