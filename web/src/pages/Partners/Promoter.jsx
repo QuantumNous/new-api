@@ -175,6 +175,11 @@ const promoterStyles = `
   background: #f8faff;
   box-shadow: 0 8px 18px -16px rgba(79, 70, 229, 0.5);
 }
+.promoter-page .partner-dashboard-surface {
+  background:
+    radial-gradient(circle at 82% 0%, rgba(79,70,229,.05), transparent 32%),
+    linear-gradient(180deg, #fcfdff 0%, #ffffff 58%, #fafbff 100%);
+}
 .promoter-page .entry-action {
   border-radius: 12px;
   border: 1px solid #e2e8f0;
@@ -185,6 +190,8 @@ const promoterStyles = `
   font-weight: 800;
 }
 .promoter-page .partner-card {
+  position: relative;
+  z-index: 0;
   min-width: 0;
   max-width: 100%;
   border: 0;
@@ -198,6 +205,62 @@ const promoterStyles = `
   transform: translateY(-2px);
   background: rgba(255,255,255,.94);
   box-shadow: inset 0 1px 0 rgba(255,255,255,.96), 0 22px 52px -36px rgba(79,70,229,.32);
+}
+.promoter-page .partner-card:has(.partner-page-select-trigger[aria-expanded="true"]) {
+  z-index: 40;
+}
+.promoter-page .partner-footer {
+  display: grid;
+  grid-template-columns: minmax(0,1fr) minmax(180px,260px);
+  gap: 32px;
+  margin-top: 48px;
+  border-top: 1px solid rgba(226,232,240,.78);
+  padding: 30px 4px 0;
+}
+.promoter-page .partner-footer-logo {
+  height: 34px;
+  width: auto;
+  max-width: 190px;
+  object-fit: contain;
+  object-position: left center;
+}
+.promoter-page .partner-footer-desc {
+  margin-top: 14px;
+  max-width: 360px;
+  color: #64748b;
+  font-size: 14px;
+  line-height: 24px;
+  font-weight: 700;
+}
+.promoter-page .partner-footer-copy {
+  margin-top: 18px;
+  color: #94a3b8;
+  font-size: 12px;
+  line-height: 20px;
+  font-weight: 700;
+}
+.promoter-page .partner-footer-title {
+  color: #111827;
+  font-size: 15px;
+  line-height: 22px;
+  font-weight: 900;
+}
+.promoter-page .partner-footer-links {
+  display: grid;
+  gap: 12px;
+  margin-top: 14px;
+  color: #64748b;
+  font-size: 14px;
+  line-height: 22px;
+  font-weight: 800;
+}
+.promoter-page .partner-footer-links a {
+  color: inherit;
+  text-decoration: none;
+  transition: color 160ms ease;
+}
+.promoter-page .partner-footer-links a:hover {
+  color: #4f46e5;
 }
 .promoter-page .partner-entry-hero-card,
 .promoter-page .partner-entry-section-card,
@@ -312,6 +375,19 @@ const promoterStyles = `
   line-height: 36px;
   font-weight: 950;
 }
+.promoter-page .partner-overview-stat-icon,
+.promoter-page .partner-promo-icon {
+  display: inline-flex;
+  width: 58px;
+  height: 58px;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  border-radius: 18px;
+  background: #eef0ff;
+  color: #4f46e5;
+  box-shadow: none;
+}
 .promoter-page .partner-promo-title {
   color: #111827;
   font-size: 17px;
@@ -322,9 +398,26 @@ const promoterStyles = `
   margin-top: 8px;
   font-weight: 600;
 }
+.promoter-page .partner-overview-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 340px;
+  gap: 20px;
+}
+.promoter-page .partner-overview-panel {
+  display: flex;
+  min-height: 260px;
+  flex-direction: column;
+}
+.promoter-page .partner-overview-panel.is-wide {
+  grid-column: 1 / -1;
+}
+.promoter-page .partner-preview-list {
+  display: grid;
+  gap: 12px;
+}
 .promoter-page .partner-preview-row {
   display: grid;
-  grid-template-columns: 48px 96px minmax(0,1fr) auto;
+  grid-template-columns: 48px 96px minmax(0,1fr) 78px;
   align-items: center;
   gap: 14px;
   min-height: 68px;
@@ -334,6 +427,16 @@ const promoterStyles = `
   -webkit-backdrop-filter: blur(14px);
   box-shadow: inset 0 1px 0 rgba(255,255,255,.72);
   padding: 12px 14px;
+}
+.promoter-page .partner-preview-row-icon {
+  display: inline-flex;
+  width: 44px;
+  height: 44px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 16px;
+  background: #eef0ff;
+  color: #4f46e5;
 }
 .promoter-page .partner-preview-label {
   color: #64748b;
@@ -350,6 +453,19 @@ const promoterStyles = `
   font-weight: 800;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+.promoter-page .partner-overview-qr-frame {
+  position: relative;
+  display: grid;
+  width: 224px;
+  height: 224px;
+  place-items: center;
+  border-radius: 18px;
+  background: rgba(255,255,255,.72);
+  padding: 12px;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.9), 0 16px 34px -28px rgba(79,70,229,.34);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
 }
 .promoter-page .partner-action {
   display: inline-flex;
@@ -372,17 +488,101 @@ const promoterStyles = `
   background: #f8faff;
   box-shadow: 0 8px 18px -16px rgba(79,70,229,.5);
 }
+.promoter-page .partner-tool-row {
+  display: grid;
+  grid-template-columns: 146px minmax(0,1fr) auto;
+  align-items: center;
+  gap: 16px;
+  min-height: 88px;
+  border-radius: 18px;
+  background: rgba(255,255,255,.68);
+  padding: 15px 16px;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.72);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+}
+.promoter-page .partner-tool-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  color: #374151;
+  font-size: 15px;
+  line-height: 24px;
+  font-weight: 900;
+  white-space: nowrap;
+}
+.promoter-page .partner-tool-label-icon {
+  display: inline-flex;
+  width: 36px;
+  height: 36px;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  border-radius: 12px;
+  background: #eef0ff;
+  color: #4f46e5;
+}
+.promoter-page .partner-overview-stat-icon svg,
+.promoter-page .partner-promo-icon svg {
+  width: 22px;
+  height: 22px;
+}
+.promoter-page .partner-preview-row-icon svg {
+  width: 18px;
+  height: 18px;
+}
+.promoter-page .partner-tool-label-icon svg {
+  width: 17px;
+  height: 17px;
+}
+.promoter-page .partner-tool-value {
+  min-width: 0;
+  overflow: hidden;
+  border-radius: 14px;
+  background: rgba(255,255,255,.7);
+  padding: 15px 18px;
+  color: #374151;
+  font-size: 16px;
+  line-height: 24px;
+  font-weight: 800;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.promoter-page .partner-tool-actions {
+  display: flex;
+  min-width: 176px;
+  flex-wrap: nowrap;
+  justify-content: flex-end;
+  gap: 10px;
+}
+.promoter-page .partner-tool-actions > button {
+  min-width: 82px;
+  height: 44px;
+  padding-right: 14px;
+  padding-left: 14px;
+  white-space: nowrap;
+}
+.promoter-page .partner-tools-layout {
+  align-items: stretch;
+}
+.promoter-page .partner-commission-table {
+  overflow: hidden;
+  border-radius: 16px;
+  background: rgba(255,255,255,.66);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.74);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+}
 .promoter-page .portal-table {
   width: 100%;
-  border-collapse: separate;
-  border-spacing: 0;
-  background: #fff;
+  border-collapse: collapse;
+  background: transparent;
   font-size: 13px;
+  text-align: left;
 }
 .promoter-page .portal-table th {
   white-space: nowrap;
-  background: #f8fafc;
-  padding: 12px 14px;
+  padding: 14px 16px;
   text-align: left;
   font-size: 12px;
   font-weight: 800;
@@ -390,9 +590,14 @@ const promoterStyles = `
 }
 .promoter-page .portal-table td {
   white-space: nowrap;
-  border-top: 1px solid #e2e8f0;
-  padding: 13px 14px;
+  padding: 14px 16px;
   color: #475569;
+}
+.promoter-page .portal-table tbody tr {
+  background: rgba(255,255,255,.58);
+}
+.promoter-page .portal-table tbody tr + tr {
+  border-top: 1px solid #eef2f7;
 }
 .promoter-page .portal-table tbody tr:hover {
   background: rgba(248,250,255,.72);
@@ -410,7 +615,27 @@ const promoterStyles = `
   color: #e11d48;
   font-weight: 900;
 }
+.promoter-page .partner-table-status {
+  display: inline-flex;
+  min-height: 26px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  padding: 4px 10px;
+  font-size: 12px;
+  line-height: 1;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.promoter-page .partner-table-empty {
+  padding: 24px 16px;
+  text-align: center;
+  color: #94a3b8;
+  font-weight: 700;
+}
 .promoter-page .partner-list-pagination {
+  position: relative;
+  z-index: 1;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -421,12 +646,14 @@ const promoterStyles = `
   font-size: 13px;
   font-weight: 700;
 }
-.promoter-page .partner-page-meta,
-.promoter-page .partner-page-controls {
+.promoter-page .partner-list-pagination.is-open {
+  z-index: 80;
+}
+.promoter-page .partner-page-meta {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 8px;
+  gap: 12px;
 }
 .promoter-page .partner-page-size {
   position: relative;
@@ -438,10 +665,24 @@ const promoterStyles = `
   background: rgba(255,255,255,.76);
   box-shadow: 0 14px 32px -24px rgba(79,70,229,.34), inset 0 0 0 1px rgba(99,102,241,.10);
   padding: 3px 4px 3px 12px;
+  transition: background-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
+}
+.promoter-page .partner-page-size:hover,
+.promoter-page .partner-page-size:focus-within {
+  transform: translateY(-1px);
+  background: rgba(255,255,255,.94);
+  box-shadow: 0 18px 34px -24px rgba(79,70,229,.46), inset 0 0 0 1px rgba(79,70,229,.20);
+}
+.promoter-page .partner-page-size > span {
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 900;
+  white-space: nowrap;
 }
 .promoter-page .partner-page-select {
   position: relative;
   display: inline-flex;
+  align-items: center;
 }
 .promoter-page .partner-page-select-trigger {
   display: inline-flex;
@@ -458,6 +699,16 @@ const promoterStyles = `
   padding: 0 12px 0 14px;
   font-size: 12px;
   font-weight: 900;
+  outline: none;
+  box-shadow: 0 12px 22px -16px rgba(79,70,229,.72);
+  transition: box-shadow 160ms ease, transform 160ms ease, filter 160ms ease;
+}
+.promoter-page .partner-page-select-trigger:hover {
+  filter: brightness(1.03);
+}
+.promoter-page .partner-page-select-trigger:focus-visible,
+.promoter-page .partner-page-select-trigger[aria-expanded="true"] {
+  box-shadow: 0 0 0 4px rgba(79,70,229,.14), 0 12px 22px -16px rgba(79,70,229,.72);
 }
 .promoter-page .partner-page-select-trigger::after {
   content: "";
@@ -466,12 +717,18 @@ const promoterStyles = `
   border-right: 2px solid rgba(255,255,255,.9);
   border-bottom: 2px solid rgba(255,255,255,.9);
   transform: translateY(-2px) rotate(45deg);
+  pointer-events: none;
+  transition: transform 160ms ease;
+}
+.promoter-page .partner-page-select-trigger[aria-expanded="true"]::after {
+  transform: translateY(2px) rotate(225deg);
 }
 .promoter-page .partner-page-select-menu {
   position: absolute;
   left: 0;
   top: calc(100% + 8px);
-  z-index: 60;
+  bottom: auto;
+  z-index: 120;
   min-width: 122px;
   overflow: hidden;
   border-radius: 14px;
@@ -493,11 +750,27 @@ const promoterStyles = `
   color: #334155;
   font-size: 12px;
   font-weight: 900;
+  transition: background-color 140ms ease, color 140ms ease;
 }
 .promoter-page .partner-page-select-option:hover,
+.promoter-page .partner-page-select-option:focus-visible,
 .promoter-page .partner-page-select-option.is-active {
   background: #eef0ff;
   color: #4f46e5;
+  outline: none;
+}
+.promoter-page .partner-page-select-option.is-active::after {
+  content: "";
+  width: 6px;
+  height: 10px;
+  border-right: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
+  transform: translateY(-1px) rotate(45deg);
+}
+.promoter-page .partner-page-controls {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
 }
 .promoter-page .partner-page-button {
   display: inline-flex;
@@ -529,6 +802,7 @@ const promoterStyles = `
 }
 .promoter-page .partner-trend-chart-card {
   margin-top: 18px;
+  position: relative;
   overflow: hidden;
   border-radius: 20px;
   background: rgba(255,255,255,.72);
@@ -536,6 +810,85 @@ const promoterStyles = `
   -webkit-backdrop-filter: blur(14px);
   box-shadow: inset 0 1px 0 rgba(255,255,255,.88);
   padding: 18px;
+}
+.promoter-page .partner-trend-empty-note {
+  margin-top: 14px;
+  border-radius: 14px;
+  background: rgba(238,240,255,.68);
+  padding: 10px 14px;
+  color: #64748b;
+  font-size: 13px;
+  line-height: 20px;
+  font-weight: 700;
+}
+.promoter-page .partner-trend-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 18px;
+  color: #475569;
+  font-size: 13px;
+  font-weight: 800;
+}
+.promoter-page .partner-trend-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.promoter-page .partner-trend-legend-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  background: #4f46e5;
+}
+.promoter-page .partner-trend-legend-dot.is-line {
+  background: #06b6d4;
+}
+.promoter-page .partner-trend-svg-wrap {
+  position: relative;
+  margin-top: 14px;
+  overflow-x: auto;
+  overflow-y: visible;
+}
+.promoter-page .partner-trend-svg {
+  display: block;
+  width: 100%;
+  min-width: 920px;
+  height: auto;
+}
+.promoter-page .partner-trend-grid {
+  stroke: #e8eef8;
+  stroke-width: 1;
+}
+.promoter-page .partner-trend-axis-text {
+  fill: #94a3b8;
+  font-size: 12px;
+  font-weight: 700;
+}
+.promoter-page .partner-trend-label {
+  fill: #334155;
+  font-size: 13px;
+  font-weight: 900;
+}
+.promoter-page .partner-trend-hover-zone {
+  fill: transparent;
+  cursor: pointer;
+  pointer-events: all;
+}
+.promoter-page .partner-trend-item {
+  outline: none;
+}
+.promoter-page .partner-trend-gmv-bar {
+  fill: url(#partnerTrendBarGradient);
+  transition: opacity 160ms ease, transform 160ms ease;
+}
+.promoter-page .partner-trend-commission-bar {
+  fill: url(#partnerTrendCommissionGradient);
+  transition: opacity 160ms ease, transform 160ms ease;
+}
+.promoter-page .partner-trend-item:hover .partner-trend-gmv-bar,
+.promoter-page .partner-trend-item:hover .partner-trend-commission-bar {
+  opacity: .9;
+  transform: translateY(-2px);
 }
 .promoter-page .partner-trend-summary {
   display: grid;
@@ -566,13 +919,6 @@ const promoterStyles = `
 }
 .promoter-page .partner-trend-summary-sub {
   color: #4f46e5;
-}
-.promoter-page .partner-trend-item span {
-  transition: transform 160ms ease, opacity 160ms ease;
-}
-.promoter-page .partner-trend-item:hover span {
-  transform: translateY(-2px);
-  opacity: .9;
 }
 .promoter-page .partner-tier-visual {
   display: grid;
@@ -776,15 +1122,24 @@ const promoterStyles = `
 }
 .promoter-page .partner-modal-shell,
 .promoter-page .partner-receipt-shell {
+  position: relative;
+  overflow: hidden;
   width: 100%;
-  border: 1px solid rgba(226,232,240,.92);
-  background: rgba(255,255,255,.96);
-  box-shadow: 0 24px 70px rgba(15,23,42,.22);
-  backdrop-filter: blur(18px) saturate(1.06);
-  -webkit-backdrop-filter: blur(18px) saturate(1.06);
+  background:
+    radial-gradient(circle at 86% 0%, rgba(79,70,229,.10), transparent 34%),
+    linear-gradient(180deg, rgba(255,255,255,.98) 0%, rgba(248,250,255,.96) 100%);
+  box-shadow: 0 32px 90px -48px rgba(15,23,42,.62);
+}
+.promoter-page .partner-modal-shell::before,
+.promoter-page .partner-receipt-shell::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.95);
 }
 .promoter-page .partner-modal-shell {
-  border-radius: 24px;
+  border-radius: 16px;
   padding: 24px;
 }
 .promoter-page .partner-modal-head,
@@ -812,23 +1167,24 @@ const promoterStyles = `
 .promoter-page .partner-modal-close,
 .promoter-page .partner-receipt-close {
   display: inline-flex;
-  height: 36px;
-  width: 36px;
+  height: 38px;
+  width: 38px;
   align-items: center;
   justify-content: center;
-  border-radius: 12px;
-  border: 1px solid #e2e8f0;
-  background: #fff;
-  color: #475569;
-  font-size: 20px;
+  border-radius: 14px;
+  background: rgba(255,255,255,.76);
+  color: #64748b;
+  font-size: 22px;
   font-weight: 800;
-  transition: transform 160ms ease, border-color 160ms ease, color 160ms ease;
+  line-height: 1;
+  transition: transform 160ms ease, background-color 160ms ease, color 160ms ease, box-shadow 160ms ease;
 }
 .promoter-page .partner-modal-close:hover,
 .promoter-page .partner-receipt-close:hover {
   transform: translateY(-1px);
-  border-color: #c7d2fe;
-  color: #4f46e5;
+  background: #fff;
+  color: #111827;
+  box-shadow: 0 12px 28px -22px rgba(79,70,229,.42);
 }
 .promoter-page .partner-modal-form {
   display: grid;
@@ -861,27 +1217,30 @@ const promoterStyles = `
   padding: 24px 24px 18px;
 }
 .promoter-page .partner-receipt-title-wrap {
-  display: flex;
+  display: grid;
+  grid-template-columns: 52px minmax(0,1fr);
   align-items: center;
   gap: 14px;
 }
 .promoter-page .partner-receipt-icon {
-  display: grid;
-  height: 48px;
-  width: 48px;
-  place-items: center;
-  border-radius: 16px;
-  background: #eef2ff;
+  display: inline-flex;
+  height: 52px;
+  width: 52px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 18px;
+  background: #eef0ff;
   color: #4f46e5;
 }
 .promoter-page .partner-receipt-form {
   display: grid;
   grid-template-columns: repeat(2,minmax(0,1fr));
-  gap: 16px;
-  padding: 0 24px 6px;
+  gap: 14px;
+  padding: 4px 26px 0;
 }
 .promoter-page .partner-receipt-field {
-  display: block;
+  display: grid;
+  gap: 8px;
   min-width: 0;
 }
 .promoter-page .partner-receipt-field.is-wide {
@@ -889,26 +1248,29 @@ const promoterStyles = `
 }
 .promoter-page .partner-receipt-label {
   display: block;
-  margin-bottom: 8px;
-  color: #334155;
+  color: #475569;
   font-size: 13px;
+  line-height: 18px;
   font-weight: 900;
 }
 .promoter-page .partner-receipt-input {
+  height: 48px;
   width: 100%;
-  border-radius: 12px;
-  border: 1px solid #cbd5e1;
-  background: #fff;
-  padding: 12px 13px;
-  color: #0f172a;
+  border: 0;
+  border-radius: 14px;
+  background: rgba(255,255,255,.82);
+  padding: 0 15px;
+  color: #111827;
   font-size: 14px;
   font-weight: 700;
   outline: none;
-  transition: border-color 160ms ease, box-shadow 160ms ease;
+  box-shadow: inset 0 0 0 1px rgba(226,232,240,.9);
+  transition: background-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
 }
 .promoter-page .partner-receipt-input:focus {
-  border-color: #4f46e5;
-  box-shadow: 0 0 0 4px rgba(79,70,229,.12);
+  background: #fff;
+  box-shadow: inset 0 0 0 1px #4f46e5, 0 0 0 4px rgba(79,70,229,.10);
+  transform: translateY(-1px);
 }
 .promoter-page .partner-receipt-footer {
   padding: 18px 24px 24px;
@@ -919,6 +1281,12 @@ const promoterStyles = `
   }
 }
 @media (max-width: 768px) {
+  .promoter-page .partner-overview-layout {
+    grid-template-columns: 1fr;
+  }
+  .promoter-page .partner-overview-panel.is-wide {
+    grid-column: auto;
+  }
   .promoter-page .partner-list-pagination,
   .promoter-page .partner-page-meta,
   .promoter-page .partner-page-controls {
@@ -932,8 +1300,22 @@ const promoterStyles = `
   .promoter-page .partner-preview-row .partner-action {
     grid-column: 2;
   }
+  .promoter-page .partner-tool-row {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+  .promoter-page .partner-tool-actions {
+    display: grid;
+    grid-template-columns: repeat(2,minmax(120px,1fr));
+    min-width: 0;
+  }
   .promoter-page .partner-trend-summary {
     grid-template-columns: 1fr;
+  }
+  .promoter-page .partner-footer {
+    grid-template-columns: 1fr;
+    gap: 22px;
+    margin-top: 36px;
   }
   .promoter-page .partner-tier-visual {
     grid-template-columns: 1fr;
@@ -1109,9 +1491,32 @@ function buildMonthTrend(rows) {
   return trend;
 }
 
-function barHeight(value, maxValue) {
-  if (value <= 0 || maxValue <= 0) return 0;
-  return Math.max(8, Math.round((value / maxValue) * 100));
+function currentMonthLabel() {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+}
+
+function buildMonthTrendWeeks(rows) {
+  const days = buildMonthTrend(rows);
+  const weeks = [];
+  for (let index = 0; index < days.length; index += 7) {
+    const slice = days.slice(index, index + 7);
+    const first = slice[0]?.day;
+    const last = slice[slice.length - 1]?.day;
+    weeks.push({
+      label: first === last ? first : `${first} ~ ${last}`,
+      aria: first === last ? first : `${first} 到 ${last}`,
+      gmv: slice.reduce((sum, item) => sum + item.gmv, 0),
+      commission: slice.reduce((sum, item) => sum + item.commission, 0),
+    });
+  }
+  return weeks;
+}
+
+function trendAxisMax(rows) {
+  const maxValue = Math.max(...rows.flatMap((row) => [row.gmv, row.commission]), 1);
+  const step = Math.max(10000, Math.ceil(maxValue / 3 / 10000) * 10000);
+  return step * 3;
 }
 
 function yAxisTicks(maxValue) {
@@ -1457,10 +1862,10 @@ const Promoter = () => {
         />
       </div>
 
-      <div className='grid gap-5 xl:grid-cols-[1fr_0.95fr]'>
-        <Panel>
+      <div className='partner-overview-layout'>
+        <Panel className='partner-overview-panel'>
           <PanelTitle title='推广工具预览' />
-          <div className='mt-4 grid gap-3'>
+          <div className='partner-preview-list mt-5'>
             <PreviewToolLine
               icon='link'
               label='推荐链接'
@@ -1487,7 +1892,7 @@ const Promoter = () => {
             />
           </div>
           <button
-            className='infistar-btn-primary mt-4 w-full'
+            className='infistar-btn-primary mt-5 h-12 w-full'
             type='button'
             onClick={() => setActiveTab('tools')}
           >
@@ -1495,12 +1900,12 @@ const Promoter = () => {
           </button>
         </Panel>
 
-        <Panel>
+        <Panel className='partner-overview-panel'>
           <PanelTitle title='二维码预览' />
-          <div className='mt-4 flex flex-col items-center'>
+          <div className='mt-5 flex flex-1 flex-col items-center gap-4'>
             <QrPreview avatarUrl={qrAvatarUrl} value={qrRecommendationLink} />
             <button
-              className='infistar-btn-secondary mt-4 w-full max-w-[240px]'
+              className='infistar-btn-primary mt-auto h-12 w-full rounded-xl px-4 text-sm font-black'
               type='button'
               onClick={() =>
                 downloadQrPng(
@@ -1513,73 +1918,93 @@ const Promoter = () => {
             </button>
           </div>
         </Panel>
-      </div>
 
-      <div className='grid gap-5 xl:grid-cols-[1fr_0.95fr]'>
-        <Panel>
-          <PanelTitle title='本月趋势' />
+        <Panel className='partner-overview-panel is-wide'>
+          <PanelHeader
+            title='本月趋势'
+            hint='按周展示有效 GMV 和预估分佣趋势。'
+            right={
+              <span className='rounded-full bg-indigo-50 px-4 py-2 text-xs font-black text-indigo-600'>
+                {currentMonthLabel()}
+              </span>
+            }
+          />
           <TrendBars rows={monthTrendRows} />
         </Panel>
-        <Panel>
-          <PanelTitle title='最近分佣' />
-          <TableWrap>
-            <table className='portal-table'>
-              <thead>
-                <tr>
-                  <th>账单月份</th>
-                  <th>有效 GMV</th>
-                  <th>返佣比例</th>
-                  <th>实结佣金</th>
-                  <th>状态</th>
-                </tr>
-              </thead>
-              <tbody>
-                {(statements.length
-                  ? statements.slice(0, 3)
-                  : [
-                      {
-                        month: '本月',
-                        effective_gmv: monthGmv,
-                        ratio: currentRate,
-                        settled_commission: monthCommission,
-                        status: '统计中',
-                      },
-                    ]
-                ).map((item, index) => (
-                  <tr key={rowValue(item, ['month'], index)}>
-                    <td>{rowValue(item, ['month'])}</td>
-                    <td>
-                      {money(
-                        rowValue(item, ['effective_gmv', 'effectiveGmv'], 0),
-                      )}
-                    </td>
-                    <td>{rowValue(item, ['ratio'], currentRate)}</td>
-                    <td>
-                      {money(
-                        rowValue(
-                          item,
-                          ['settled_commission', 'settledCommission'],
-                          monthCommission,
-                        ),
-                      )}
-                    </td>
-                    <td>
-                      <StatusBadge
-                        status={rowValue(item, ['status'], '统计中')}
-                      />
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </TableWrap>
-          <button
-            className='infistar-btn-secondary mx-auto mt-4 flex w-full max-w-[240px]'
-            type='button'
-            onClick={() => setActiveTab('withdrawals')}
-          >
-            查看分佣提现
-          </button>
+
+        <Panel className='partner-overview-panel is-wide'>
+          <PanelHeader
+            title='最近分佣'
+            hint='展示近几个月的分佣账单和结算状态。'
+            right={
+              <button
+                className='infistar-btn-primary h-11 rounded-xl px-5 text-sm font-black'
+                type='button'
+                onClick={() => setActiveTab('withdrawals')}
+              >
+                查看分佣提现
+              </button>
+            }
+          />
+          <PartnerListTable
+            columns={[
+              {
+                key: 'month',
+                label: '账单月份',
+                render: (item) => rowValue(item, ['month']),
+                primary: true,
+              },
+              {
+                key: 'effectiveGmv',
+                label: '有效 GMV',
+                render: (item) =>
+                  money(rowValue(item, ['effective_gmv', 'effectiveGmv'], 0)),
+              },
+              {
+                key: 'ratio',
+                label: '返佣比例',
+                render: (item) => rowValue(item, ['ratio'], currentRate),
+              },
+              {
+                key: 'settledCommission',
+                label: '实结佣金',
+                render: (item) =>
+                  money(
+                    rowValue(
+                      item,
+                      ['settled_commission', 'settledCommission'],
+                      monthCommission,
+                    ),
+                  ),
+                money: true,
+              },
+              {
+                key: 'status',
+                label: '状态',
+                render: (item) => (
+                  <StatusBadge status={rowValue(item, ['status'], '统计中')} />
+                ),
+              },
+            ]}
+            emptyTitle='暂无最近分佣记录'
+            getRowKey={(item, index) =>
+              String(rowValue(item, ['month'], `overview-${index}`))
+            }
+            minWidth={760}
+            rows={
+              statements.length
+                ? statements.slice(0, 3)
+                : [
+                    {
+                      month: '本月',
+                      effective_gmv: monthGmv,
+                      ratio: currentRate,
+                      settled_commission: monthCommission,
+                      status: '统计中',
+                    },
+                  ]
+            }
+          />
         </Panel>
       </div>
     </div>
@@ -1590,13 +2015,13 @@ const Promoter = () => {
       <div className='grid gap-5 lg:grid-cols-3'>
         <UseCaseCard
           color='purple'
-          icon='userPlus'
+          icon='users'
           title='社群转发：用推荐口令更自然'
           detail='在社群或聊天中分享推荐口令，用户注册时手动填写即可归属。'
         />
         <UseCaseCard
           color='blue'
-          icon='link'
+          icon='book'
           title='内容平台：用推荐链接更方便'
           detail='在文章、视频、评论区等内容平台分享推荐链接，用户点击即可注册。'
         />
@@ -1608,8 +2033,8 @@ const Promoter = () => {
         />
       </div>
 
-      <div className='grid items-stretch gap-5 xl:grid-cols-[minmax(0,1fr)_320px]'>
-        <Panel className='flex min-h-[260px] flex-col'>
+      <div className='partner-overview-layout partner-tools-layout'>
+        <Panel className='partner-overview-panel'>
           <PanelTitle
             title='推荐信息'
             hint={`推荐链接和推荐口令今年合计还可修改 ${remainingChanges} 次；修改后旧链接或旧口令立即失效。`}
@@ -1685,11 +2110,11 @@ const Promoter = () => {
           </div>
         </Panel>
 
-        <Panel className='flex min-h-[260px] flex-col'>
+        <Panel className='partner-overview-panel'>
           <PanelTitle title='二维码' />
-          <div className='mt-5 flex flex-1 flex-col items-center'>
+          <div className='mt-5 flex flex-1 flex-col items-center gap-4'>
             <QrPreview avatarUrl={qrAvatarUrl} value={qrRecommendationLink} />
-            <div className='mt-5 grid w-full gap-3'>
+            <div className='grid w-full gap-3'>
               <label className='partner-action h-11 cursor-pointer rounded-xl px-4 text-sm font-bold'>
                 上传头像
                 <input
@@ -1700,7 +2125,7 @@ const Promoter = () => {
                 />
               </label>
               <button
-                className='infistar-btn-primary h-11 w-full'
+                className='infistar-btn-primary h-11 w-full rounded-xl px-4 text-sm font-black'
                 type='button'
                 onClick={() =>
                   downloadQrPng(
@@ -1725,7 +2150,7 @@ const Promoter = () => {
         </Panel>
       </div>
 
-      <Panel>
+      <Panel className='mt-0'>
         <PanelTitle title='推荐信息变更记录' />
         <CredentialChangeTable
           rows={normalizeRows(
@@ -1738,24 +2163,28 @@ const Promoter = () => {
 
   const renderData = () => (
     <div className='grid gap-5'>
-      <div className='grid gap-3 md:grid-cols-2 xl:grid-cols-4'>
-        <InfoBox
-          title='本月新增推广用户'
+      <div className='grid gap-4 md:grid-cols-2 xl:grid-cols-4'>
+        <SummaryStatCard
+          icon='userPlus'
+          label='本月新增推广用户'
           value={`${monthNewUsers}`}
           color='purple'
         />
-        <InfoBox
-          title='本月已首充用户'
+        <SummaryStatCard
+          icon='checkUser'
+          label='本月已首充用户'
           value={`${firstChargedUsers}`}
           color='cyan'
         />
-        <InfoBox
-          title='本月有效 GMV'
+        <SummaryStatCard
+          icon='chart'
+          label='本月有效 GMV'
           value={money(monthGmv)}
           color='blue'
         />
-        <InfoBox
-          title='本月预估分佣'
+        <SummaryStatCard
+          icon='calendar'
+          label='本月预估分佣'
           value={money(monthCommission)}
           color='amber'
         />
@@ -1763,7 +2192,6 @@ const Promoter = () => {
       <Panel>
         <PanelHeader
           title='推广用户'
-          hint='只展示脱敏用户 ID，不展示昵称、手机号、邮箱或实名信息。'
           right={<SegmentedRange value={userRange} onChange={setUserRange} />}
         />
         <UserTable rows={filteredUsers} />
@@ -1781,58 +2209,62 @@ const Promoter = () => {
 
   const renderWithdrawals = () => (
     <div className='grid gap-5'>
-      <div className='grid gap-3 md:grid-cols-3'>
-        <InfoBox
-          title='可提现分佣'
+      <div className='grid gap-4 md:grid-cols-2 xl:grid-cols-3'>
+        <SummaryStatCard
+          icon='wallet'
+          label='可提现分佣'
           value={money(availableWithdraw)}
           color='amber'
         />
-        <InfoBox
-          title='提现中'
+        <SummaryStatCard
+          icon='transfer'
+          label='提现中'
           value={money(withdrawingAmount)}
           color='blue'
         />
-        <InfoBox
-          title='已提现'
+        <SummaryStatCard
+          icon='check'
+          label='已提现'
           value={money(paidAmount)}
           color='green'
         />
       </div>
-      <div className='grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px]'>
-        <Panel>
-          <PanelTitle
-            title='月度分佣记录'
-            hint='发布后可按可提现金额发起申请。'
-          />
-          <StatementTable rows={statements} />
-        </Panel>
-        <Panel>
-          <PanelTitle title='申请提现' hint='提交前请先确认身份和银行卡信息。' />
-          <div className='mt-4 rounded-2xl bg-slate-50 px-5 py-4'>
+      <Panel>
+        <div className='grid gap-5 xl:grid-cols-[240px_minmax(280px,1fr)_300px] xl:items-center'>
+          <div className='min-w-[220px]'>
+            <PanelTitle title='申请提现' hint='提交前请先确认身份和银行卡信息。' />
+          </div>
+          <div className='rounded-2xl bg-slate-50 px-5 py-4'>
             <div className='text-xs font-bold text-slate-500'>当前可提现</div>
             <div className='mt-1 text-3xl font-black text-[#4f46e5]'>
               {money(availableWithdraw)}
             </div>
           </div>
-          <button
-            className='infistar-btn-primary mt-4 w-full'
-            type='button'
-            disabled={restricted}
-            onClick={() => setWithdrawModalVisible(true)}
-          >
-            申请提现
-          </button>
-          <button
-            className='partner-action mt-3 h-11 w-full rounded-xl text-sm font-bold'
-            type='button'
-            onClick={() => setPayoutModalVisible(true)}
-          >
-            查看收款信息
-          </button>
-        </Panel>
-      </div>
+          <div className='grid gap-3'>
+            <button
+              className='infistar-btn-primary h-11 rounded-xl text-sm font-bold'
+              type='button'
+              disabled={restricted}
+              onClick={() => setWithdrawModalVisible(true)}
+            >
+              申请提现
+            </button>
+            <button
+              className='partner-action h-11 rounded-xl text-sm font-bold'
+              type='button'
+              onClick={() => setPayoutModalVisible(true)}
+            >
+              查看收款信息
+            </button>
+          </div>
+        </div>
+      </Panel>
       <Panel>
-        <PanelTitle title='提现记录' hint='前台不展示完整财务凭证。' />
+        <PanelTitle title='月度分佣记录' />
+        <StatementTable rows={statements} />
+      </Panel>
+      <Panel>
+        <PanelTitle title='提现记录' />
         <WithdrawalTable rows={withdrawals} />
       </Panel>
     </div>
@@ -1878,12 +2310,16 @@ const Promoter = () => {
               '通过你的推荐链接、推荐口令或二维码注册并完成的有效充值会进入统计；退款、异常订单和不参与分佣的项目不会计入。',
             ],
             [
-              '推荐链接和推荐口令绑定的是同一个账户吗？',
+              '推荐链接、口令和二维码会分别统计吗？',
               '是。同一个推广账户下的链接、口令和二维码会统一归因，用户通过任一入口注册后都会绑定到同一个推荐关系。',
             ],
             [
               '分佣什么时候可以提现？',
               '系统按月生成分佣记录。记录进入可提现状态后，可以在分佣提现页面提交提现申请并查看处理进度。',
+            ],
+            [
+              '修改推荐链接或口令会影响老用户吗？',
+              '不会影响已经绑定的推荐关系。修改后新链接或新口令生效，旧链接或旧口令将不再用于新的推荐绑定。',
             ],
           ].map(([title, detail]) => (
             <details key={title} className='partner-faq-item'>
@@ -1924,6 +2360,7 @@ const Promoter = () => {
         {activeTab === 'withdrawals' && renderWithdrawals()}
         {activeTab === 'rules' && renderRules()}
       </section>
+      <PartnerFooter />
     </div>
   );
 
@@ -1938,7 +2375,7 @@ const Promoter = () => {
   return (
     <main className='promoter-page header-offset-top header-offset-min-height overflow-x-hidden bg-[#f8fafc] text-slate-950'>
       <style>{promoterStyles}</style>
-      <div className='header-offset-min-height bg-[radial-gradient(circle_at_18%_10%,rgba(79,70,229,0.08),transparent_28%),radial-gradient(circle_at_84%_18%,rgba(6,182,212,0.08),transparent_30%)]'>
+      <div className='header-offset-min-height partner-dashboard-surface'>
         {maintenance ? (
           <MaintenanceState onRetry={fetchPromoterState} />
         ) : shouldShowDashboard ? (
@@ -1991,7 +2428,7 @@ const Promoter = () => {
   );
 };
 
-function PartnerModalFrame({ children, maxWidth = '520px', onClose }) {
+function PartnerModalFrame({ children, maxWidth = '448px', onClose }) {
   return (
     <div className='partner-modal-backdrop' role='dialog' aria-modal='true'>
       <button
@@ -2010,12 +2447,10 @@ function PartnerModalFrame({ children, maxWidth = '520px', onClose }) {
 function WithdrawalDialog({
   amount,
   available,
-  note,
   payoutDraft,
   onClose,
   onSubmit,
   setAmount,
-  setNote,
 }) {
   return (
     <PartnerModalFrame onClose={onClose}>
@@ -2046,14 +2481,6 @@ function WithdrawalDialog({
               max={available}
               value={amount}
               onChange={(event) => setAmount(event.target.value)}
-            />
-          </label>
-          <label className='partner-receipt-field'>
-            <span className='partner-receipt-label'>备注</span>
-            <input
-              className='partner-receipt-input'
-              value={note}
-              onChange={(event) => setNote(event.target.value)}
             />
           </label>
           <div className='partner-modal-summary'>
@@ -2163,6 +2590,35 @@ function formatPayoutSummary(draft) {
     ? `尾号 ${accountNo.slice(-4)}`
     : '未填写账号';
   return [identityName || '未填写姓名', bankName || '未填写银行', accountLabel].join(' · ');
+}
+
+function PartnerFooter() {
+  return (
+    <footer className='partner-footer'>
+      <div>
+        <img
+          className='partner-footer-logo'
+          src='/header-logo.svg'
+          alt='无限星河'
+        />
+        <p className='partner-footer-desc'>
+          让顶尖 AI 模型，以更透明、可信、低成本的方式服务每一位 AI 用户。
+        </p>
+        <p className='partner-footer-copy'>
+          © {new Date().getFullYear()} Infistar. All rights reserved.
+        </p>
+      </div>
+      <div>
+        <h4 className='partner-footer-title'>产品与文档</h4>
+        <div className='partner-footer-links'>
+          <a href='/pricing'>模型覆盖矩阵</a>
+          <a href='https://doc.infistar.ai/' target='_blank' rel='noopener noreferrer'>
+            文档
+          </a>
+        </div>
+      </div>
+    </footer>
+  );
 }
 
 function Landing({ loading, onOpen }) {
@@ -2347,8 +2803,7 @@ function TabNav({ activeTab, setActiveTab }) {
             type='button'
             onClick={() => setActiveTab(tab.key)}
           >
-            <span className='hidden sm:inline'>{tab.label}</span>
-            <span className='sm:hidden'>{tab.shortLabel}</span>
+            {tab.label}
           </button>
         ))}
       </div>
@@ -2368,16 +2823,16 @@ function Panel({ children, className = '' }) {
 function PanelTitle({ title, hint }) {
   return (
     <div>
-      <div className='text-lg font-black text-slate-950'>{title}</div>
+      <div className='text-xl font-black text-slate-950'>{title}</div>
       {hint ? (
-        <div className='mt-1 text-xs leading-5 text-slate-500'>{hint}</div>
+        <div className='mt-2 text-sm leading-6 text-slate-500'>{hint}</div>
       ) : null}
     </div>
   );
 }
 function PanelHeader({ title, hint, right }) {
   return (
-    <div className='flex flex-wrap items-start justify-between gap-3'>
+    <div className={`flex flex-wrap ${hint ? 'items-start' : 'items-center'} justify-between gap-3`}>
       <PanelTitle title={title} hint={hint} />
       {right}
     </div>
@@ -2385,7 +2840,7 @@ function PanelHeader({ title, hint, right }) {
 }
 function TableWrap({ children }) {
   return (
-    <div className='mt-4 overflow-x-auto rounded-2xl border border-slate-100 bg-white/80'>
+    <div className='partner-commission-table mt-5 overflow-x-auto'>
       {children}
     </div>
   );
@@ -2422,8 +2877,8 @@ function PartnerListTable({
           </thead>
           <tbody>
             {visibleRows.length ? (
-              visibleRows.map((row) => (
-                <tr key={getRowKey(row)}>
+              visibleRows.map((row, index) => (
+                <tr key={getRowKey(row, start + index)}>
                   {columns.map((column) => (
                     <td
                       key={column.key}
@@ -2443,29 +2898,24 @@ function PartnerListTable({
               ))
             ) : (
               <tr>
-                <td
-                  className='py-8 text-center font-bold text-slate-400'
-                  colSpan={columns.length}
-                >
-                  {emptyTitle}
+                <td colSpan={columns.length}>
+                  <div className='partner-table-empty'>{emptyTitle}</div>
                 </td>
               </tr>
             )}
           </tbody>
         </table>
       </TableWrap>
-      {rows.length ? (
-        <PartnerListPagination
-          page={page}
-          pageSize={pageSize}
-          setPage={setPage}
-          setPageSize={(nextSize) => {
-            setPageSize(nextSize);
-            setPage(1);
-          }}
-          total={rows.length}
-        />
-      ) : null}
+      <PartnerListPagination
+        page={page}
+        pageSize={pageSize}
+        setPage={setPage}
+        setPageSize={(nextSize) => {
+          setPageSize(nextSize);
+          setPage(1);
+        }}
+        total={rows.length}
+      />
     </>
   );
 }
@@ -2477,8 +2927,22 @@ function PartnerListPagination({ page, pageSize, setPage, setPageSize, total }) 
   const end = Math.min(page * pageSize, total);
   const pageSizeOptions = [10, 20, 50];
 
+  useEffect(() => {
+    if (!open) return undefined;
+    const close = () => setOpen(false);
+    const closeOnEscape = (event) => {
+      if (event.key === 'Escape') close();
+    };
+    window.addEventListener('click', close);
+    window.addEventListener('keydown', closeOnEscape);
+    return () => {
+      window.removeEventListener('click', close);
+      window.removeEventListener('keydown', closeOnEscape);
+    };
+  }, [open]);
+
   return (
-    <div className='partner-list-pagination'>
+    <div className={`partner-list-pagination ${open ? 'is-open' : ''}`}>
       <div className='partner-page-meta'>
         <span>
           共 {total} 条记录，当前显示 {start}-{end} 条
@@ -2491,11 +2955,19 @@ function PartnerListPagination({ page, pageSize, setPage, setPageSize, total }) 
               aria-haspopup='listbox'
               className='partner-page-select-trigger'
               type='button'
-              onClick={() => setOpen((value) => !value)}
+              onClick={(event) => {
+                event.stopPropagation();
+                setOpen((value) => !value);
+              }}
             >
               <span>{pageSize} 条/页</span>
             </button>
-            <div className='partner-page-select-menu' hidden={!open} role='listbox'>
+            <div
+              className='partner-page-select-menu'
+              hidden={!open}
+              role='listbox'
+              onClick={(event) => event.stopPropagation()}
+            >
               {pageSizeOptions.map((option) => (
                 <button
                   key={option}
@@ -2506,6 +2978,7 @@ function PartnerListPagination({ page, pageSize, setPage, setPageSize, total }) 
                   onClick={() => {
                     setPageSize(option);
                     setOpen(false);
+                    Toast.success(`每页显示 ${option} 条`);
                   }}
                 >
                   {option} 条/页
@@ -2577,7 +3050,7 @@ function PreviewToolLine({ icon, label, value, action = '复制', onClick }) {
   return (
     <div className='partner-preview-row'>
       <MiniIconBubble color='blue' icon={icon} />
-      <span className='partner-preview-label'>{label}</span>
+      <span className='text-sm font-black text-slate-950'>{label}</span>
       <span className='partner-preview-value'>
         {value || '-'}
       </span>
@@ -2589,15 +3062,19 @@ function PreviewToolLine({ icon, label, value, action = '复制', onClick }) {
 }
 function ToolInfoRow({ icon, label, value, primaryAction, secondaryAction }) {
   return (
-    <div className='partner-preview-row'>
-      <MiniIconBubble color='purple' icon={icon} />
-      <div className='partner-preview-label'>{label}</div>
-      <div className='partner-preview-value'>
+    <div className='partner-tool-row'>
+      <div className='partner-tool-label'>
+        <span className='partner-tool-label-icon'>
+          <IconGlyph icon={icon} small />
+        </span>
+        {label}
+      </div>
+      <div className='partner-tool-value'>
         {value || '-'}
       </div>
-      <div className='flex flex-wrap gap-2'>
-        {primaryAction}
+      <div className='partner-tool-actions'>
         {secondaryAction}
+        {primaryAction}
       </div>
     </div>
   );
@@ -2639,13 +3116,6 @@ function RuleCard({ title, detail }) {
 }
 
 function UserTable({ rows }) {
-  if (!rows.length)
-    return (
-      <EmptyState
-        title='还没有推广用户'
-        detail='复制推广链接、推荐口令或二维码，分享给需要 Infistar 的用户。'
-      />
-    );
   return (
     <PartnerListTable
       columns={[
@@ -2698,13 +3168,6 @@ function UserTable({ rows }) {
 }
 
 function TopupTable({ rows, compact = false }) {
-  if (!rows.length)
-    return (
-      <EmptyState
-        title='当前时间范围内没有充值流水'
-        detail='推广用户产生有效充值后，会显示在这里。'
-      />
-    );
   const columns = compact
     ? [
         {
@@ -2789,13 +3252,6 @@ function TopupTable({ rows, compact = false }) {
 }
 
 function StatementTable({ rows }) {
-  if (!rows.length)
-    return (
-      <EmptyState
-        title='暂无月度分佣记录'
-        detail='联运系统生成月度分佣记录后，会显示在这里。'
-      />
-    );
   return (
     <PartnerListTable
       columns={[
@@ -2844,13 +3300,6 @@ function StatementTable({ rows }) {
   );
 }
 function WithdrawalTable({ rows }) {
-  if (!rows.length)
-    return (
-      <EmptyState
-        title='暂无提现记录'
-        detail='提交提现申请后，会显示处理进度。'
-      />
-    );
   return (
     <PartnerListTable
       columns={[
@@ -2886,13 +3335,6 @@ function WithdrawalTable({ rows }) {
   );
 }
 function CredentialChangeTable({ rows }) {
-  if (!rows.length)
-    return (
-      <EmptyState
-        title='暂无推荐信息变更记录'
-        detail='推荐链接后缀或推荐口令发生变更后，会显示在这里。'
-      />
-    );
   return (
     <PartnerListTable
       columns={[
@@ -2927,13 +3369,24 @@ function CredentialChangeTable({ rows }) {
 }
 
 function TrendBars({ rows }) {
-  const trendRows = buildMonthTrend(rows);
-  const trendPeriod = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`;
+  const trendRows = buildMonthTrendWeeks(rows);
+  const trendPeriod = currentMonthLabel();
   const totalGmv = trendRows.reduce((sum, item) => sum + item.gmv, 0);
   const totalCommission = trendRows.reduce((sum, item) => sum + item.commission, 0);
-  const maxValue = Math.max(...trendRows.flatMap((item) => [item.gmv, item.commission]), 0);
-  const axisTicks = yAxisTicks(maxValue);
-  const axisMax = axisTicks[0] || maxValue || 1;
+  const axisMax = trendAxisMax(trendRows);
+  const axisValues = [axisMax, (axisMax * 2) / 3, axisMax / 3, 0];
+  const width = Math.max(920, 170 + trendRows.length * 170);
+  const height = 320;
+  const plotLeft = 92;
+  const plotRight = width - 88;
+  const plotTop = 48;
+  const plotBottom = 228;
+  const groupWidth = (plotRight - plotLeft) / Math.max(1, trendRows.length);
+  const barWidth = 28;
+  const barGap = 8;
+  const hoverWidth = Math.min(138, groupWidth * 0.78);
+  const yOf = (value) =>
+    plotBottom - (Math.min(value, axisMax) / axisMax) * (plotBottom - plotTop);
   const hasData = trendRows.some((item) => item.gmv > 0 || item.commission > 0);
   const summary = (
     <div className='partner-trend-summary'>
@@ -2950,81 +3403,115 @@ function TrendBars({ rows }) {
       </div>
     </div>
   );
-  if (!hasData) {
-    return (
-      <div className='mt-4'>
-        {summary}
-        <EmptyState
-          title='暂无本月趋势数据'
-          detail='本月出现有效充值后，这里会按日期展示 GMV 和预估分佣。'
-        />
-      </div>
-    );
-  }
   return (
-    <div className='mt-4'>
+    <div>
       {summary}
-      <div className='mb-3 flex flex-wrap items-center justify-between gap-3 text-sm text-slate-500'>
-        <span className='font-bold text-slate-700'>金额刻度（元）</span>
-        <span className='text-xs text-slate-400'>悬停日期柱查看明细</span>
-      </div>
-      <div className='mb-4 flex flex-wrap gap-6 text-sm text-slate-500'>
-        <span className='inline-flex items-center gap-2'>
-          <i className='h-2.5 w-2.5 rounded-sm bg-[#6b48ff]' />
-          有效 GMV（元）
-        </span>
-        <span className='inline-flex items-center gap-2'>
-          <i className='h-2.5 w-2.5 rounded-sm bg-[#4da3ff]' />
-          预估分佣（元）
-        </span>
-      </div>
-      <div className='grid grid-cols-[76px_minmax(0,1fr)] gap-3'>
-        <div className='relative h-[148px] pr-2 text-right text-[11px] font-semibold text-slate-500'>
-          {axisTicks.map((tick) => (
-            <span
-              key={tick}
-              className='absolute right-2 -translate-y-1/2'
-              style={{ top: `${100 - (tick / axisMax) * 100}%` }}
-            >
-              {compactMoney(tick)}
-            </span>
-          ))}
+      <div className='partner-trend-chart-card'>
+        <div className='partner-trend-legend'>
+          <span className='partner-trend-legend-item'>
+            <i className='partner-trend-legend-dot' />
+            有效 GMV
+          </span>
+          <span className='partner-trend-legend-item'>
+            <i className='partner-trend-legend-dot is-line' />
+            预估分佣
+          </span>
         </div>
-        <div>
-          <div className='relative h-[148px] border-b border-slate-200 px-1'>
-            {axisTicks.map((tick) => (
-              <span
-                key={tick}
-                className='pointer-events-none absolute left-0 right-0 border-t border-dashed border-slate-100'
-                style={{ top: `${100 - (tick / axisMax) * 100}%` }}
-              />
-            ))}
-            <div className='relative z-10 flex h-full items-end gap-2'>
-              {trendRows.map((item) => (
-                <div key={item.day} className='group relative flex h-full flex-1 items-end gap-1'>
-                  <div className='pointer-events-none absolute left-1/2 top-0 z-20 hidden w-max -translate-x-1/2 -translate-y-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-left text-xs text-slate-600 shadow-lg group-hover:block'>
-                    <div className='mb-1 font-black text-slate-900'>{item.day}</div>
-                    <div>有效 GMV：{money(item.gmv)}</div>
-                    <div>预估分佣：{money(item.commission)}</div>
-                  </div>
-                  <span
-                    className='block w-1/2 rounded-t bg-[#6b48ff]'
-                    style={{ height: `${barHeight(item.gmv, axisMax)}%` }}
+        <div className='partner-trend-svg-wrap'>
+          <svg
+            className='partner-trend-svg'
+            viewBox={`0 0 ${width} ${height}`}
+            role='img'
+            aria-label='本月有效 GMV 与预估分佣对比图'
+          >
+            <defs>
+              <linearGradient id='partnerTrendBarGradient' x1='0' x2='0' y1='0' y2='1'>
+                <stop offset='0%' stopColor='#4F46E5' />
+                <stop offset='100%' stopColor='#60A5FA' />
+              </linearGradient>
+              <linearGradient id='partnerTrendCommissionGradient' x1='0' x2='0' y1='0' y2='1'>
+                <stop offset='0%' stopColor='#06B6D4' />
+                <stop offset='100%' stopColor='#A5F3FC' />
+              </linearGradient>
+            </defs>
+            {axisValues.map((value) => {
+              const y = yOf(value);
+              return (
+                <React.Fragment key={value}>
+                  <line
+                    className='partner-trend-grid'
+                    x1={plotLeft}
+                    x2={plotRight}
+                    y1={y}
+                    y2={y}
                   />
-                  <span
-                    className='block w-1/2 rounded-t bg-[#4da3ff]'
-                    style={{ height: `${barHeight(item.commission, axisMax)}%` }}
+                  <text
+                    className='partner-trend-axis-text'
+                    x={value === 0 ? 26 : 8}
+                    y={y + 4}
+                  >
+                    {compactMoney(value)}
+                  </text>
+                </React.Fragment>
+              );
+            })}
+            {trendRows.map((item, index) => {
+              const center = plotLeft + groupWidth * (index + 0.5);
+              const rawGmvHeight = plotBottom - yOf(item.gmv);
+              const rawCommissionHeight = plotBottom - yOf(item.commission);
+              const gmvHeight = item.gmv > 0 ? Math.max(8, rawGmvHeight) : 6;
+              const commissionHeight =
+                item.commission > 0 ? Math.max(8, rawCommissionHeight) : 6;
+              const gmvY = item.gmv > 0 ? plotBottom - gmvHeight : plotBottom - 6;
+              const commissionY =
+                item.commission > 0 ? plotBottom - commissionHeight : plotBottom - 6;
+              const gmvX = center - barWidth - barGap / 2;
+              const commissionX = center + barGap / 2;
+              return (
+                <g
+                  key={item.label}
+                  className='partner-trend-item'
+                  tabIndex='0'
+                  aria-label={`${item.aria}，有效 GMV ${item.gmv.toFixed(2)} 元，预估分佣 ${item.commission.toFixed(2)} 元`}
+                >
+                  <title>
+                    {item.label}：有效 GMV {money(item.gmv)}，预估分佣 {money(item.commission)}
+                  </title>
+                  <rect
+                    className='partner-trend-hover-zone'
+                    x={center - hoverWidth / 2}
+                    y={40}
+                    width={hoverWidth}
+                    height={205}
+                    rx={18}
                   />
-                </div>
-              ))}
-            </div>
-          </div>
-          <div className='mt-2 grid grid-cols-5 text-center text-xs text-slate-500'>
-            {trendTickLabels(trendRows).map((label) => (
-              <span key={label}>{label}</span>
-            ))}
-          </div>
+                  <rect
+                    className='partner-trend-gmv-bar'
+                    x={gmvX}
+                    y={gmvY}
+                    width={barWidth}
+                    height={gmvHeight}
+                  />
+                  <rect
+                    className='partner-trend-commission-bar'
+                    x={commissionX}
+                    y={commissionY}
+                    width={barWidth}
+                    height={commissionHeight}
+                  />
+                  <text className='partner-trend-label' x={center} y={272} textAnchor='middle'>
+                    {item.label}
+                  </text>
+                </g>
+              );
+            })}
+          </svg>
         </div>
+        {!hasData ? (
+          <div className='partner-trend-empty-note'>
+            暂无本月有效充值数据，当前按周展示 0 值；产生有效 GMV 后会自动更新柱状趋势。
+          </div>
+        ) : null}
       </div>
     </div>
   );
@@ -3115,7 +3602,7 @@ function QrPreview({ avatarUrl, compact = false, value }) {
   const avatarClass = compact ? 'h-9 w-9 rounded-lg' : 'h-12 w-12 rounded-lg';
   const showCenterLogo = Boolean(avatarUrl || !compact);
   return (
-    <div className={`relative grid ${sizeClass} place-items-center rounded-[16px] border border-slate-200 bg-white p-3 shadow-sm`}>
+    <div className={compact ? `relative grid ${sizeClass} place-items-center rounded-[16px] border border-slate-200 bg-white p-3 shadow-sm` : 'partner-overview-qr-frame'}>
       {value ? (
         <QRCodeSVG data-promoter-qr={compact ? undefined : 'main'} value={value} size={qrSize} level='H' />
       ) : (
@@ -3128,7 +3615,7 @@ function QrPreview({ avatarUrl, compact = false, value }) {
           src={avatarUrl}
         />
       ) : showCenterLogo ? (
-        <span className={`absolute grid ${avatarClass} place-items-center border-4 border-white bg-gradient-to-br from-[#4f46e5] to-[#06b6d4] text-sm font-black text-white shadow-sm`}>
+        <span className={`absolute grid ${avatarClass} place-items-center border-4 border-white bg-white text-sm font-black text-indigo-600 shadow-sm`}>
           FI
         </span>
       ) : null}
@@ -3190,7 +3677,7 @@ function LandingScenarioCard({ color, detail, icon, title }) {
 function UseCaseCard({ color, detail, icon, title }) {
   return (
     <article className='partner-promo-card'>
-      <MiniIconBubble color={color} icon={icon} />
+      <PromoIconBubble icon={icon} />
       <div>
         <h3 className='partner-promo-title'>{title}</h3>
         <p className='partner-promo-desc'>{detail}</p>
@@ -3216,73 +3703,170 @@ function PreviewItem({ color, title, detail, icon }) {
 
 function StatusBadge({ status }) {
   const tone = {
-    正常: 'border-emerald-200 bg-emerald-50 text-emerald-700',
-    合作中: 'border-emerald-200 bg-emerald-50 text-emerald-700',
-    生效中: 'border-emerald-200 bg-emerald-50 text-emerald-700',
-    已首充: 'border-emerald-200 bg-emerald-50 text-emerald-700',
-    未首充: 'border-slate-200 bg-slate-50 text-slate-600',
-    统计中: 'border-sky-200 bg-sky-50 text-sky-700',
-    待确认: 'border-amber-200 bg-amber-50 text-amber-700',
-    已结算: 'border-emerald-200 bg-emerald-50 text-emerald-700',
-    可提现: 'border-amber-200 bg-amber-50 text-amber-700',
-    提现中: 'border-blue-200 bg-blue-50 text-blue-700',
-    已提现: 'border-slate-200 bg-slate-100 text-slate-600',
-    已扣回: 'border-rose-200 bg-rose-50 text-rose-700',
-    已排除: 'border-slate-200 bg-slate-100 text-slate-600',
-    已注销: 'border-slate-200 bg-slate-100 text-slate-500',
-    处理中: 'border-blue-200 bg-blue-50 text-blue-700',
-    已打款: 'border-emerald-200 bg-emerald-50 text-emerald-700',
+    正常: 'bg-emerald-50 text-emerald-700',
+    合作中: 'bg-emerald-50 text-emerald-700',
+    生效中: 'bg-emerald-50 text-emerald-700',
+    已首充: 'bg-emerald-50 text-emerald-700',
+    未首充: 'bg-slate-100 text-slate-600',
+    统计中: 'bg-blue-50 text-blue-700',
+    待确认: 'bg-amber-50 text-amber-700',
+    已结算: 'bg-emerald-50 text-emerald-700',
+    可提现: 'bg-amber-50 text-amber-700',
+    提现中: 'bg-blue-50 text-blue-700',
+    已提现: 'bg-slate-100 text-slate-600',
+    已扣回: 'bg-rose-50 text-rose-700',
+    已排除: 'bg-slate-100 text-slate-600',
+    已注销: 'bg-slate-100 text-slate-500',
+    处理中: 'bg-blue-50 text-blue-700',
+    已打款: 'bg-emerald-50 text-emerald-700',
   };
   return (
     <span
-      className={`rounded border px-2 py-1 text-xs font-bold ${tone[status] || tone['待确认']}`}
+      className={`partner-table-status ${tone[status] || tone['待确认']}`}
     >
       {status}
     </span>
   );
 }
-function IconBubble({ color, icon }) {
+function IconBubble({ icon }) {
   return (
-    <span
-      className={`grid h-[58px] w-[58px] shrink-0 place-items-center rounded-full ${bubbleColor(color)}`}
-    >
+    <span className='partner-overview-stat-icon'>
       <IconGlyph icon={icon} />
     </span>
   );
 }
 function MiniIconBubble({ color, icon }) {
   return (
-    <span
-      className={`grid h-11 w-11 shrink-0 place-items-center rounded-full ${bubbleColor(color)}`}
-    >
+    <span className='partner-preview-row-icon'>
       <IconGlyph icon={icon} small />
     </span>
   );
 }
+function PromoIconBubble({ icon }) {
+  return (
+    <span className='partner-promo-icon'>
+      <IconGlyph icon={icon} />
+    </span>
+  );
+}
 function IconGlyph({ icon, small = false }) {
-  const size = small ? '18' : '28';
+  const size = small ? '18' : '22';
   const glyphs = {
-    userPlus:
-      'M12 12a4 4 0 1 0-4-4 4 4 0 0 0 4 4Zm0 2c-4 0-7 2-7 4v1h14v-1c0-2-3-4-7-4Zm8-5v3h3v2h-3v3h-2v-3h-3v-2h3V9h2Z',
-    link: 'M10 13a5 5 0 0 1 0-7l2-2a5 5 0 0 1 7 7l-1 1-2-2 1-1a2 2 0 0 0-3-3l-2 2a2 2 0 0 0 0 3l-2 2Zm4-2a5 5 0 0 1 0 7l-2 2a5 5 0 1 1-7-7l1-1 2 2-1 1a2 2 0 1 0 3 3l2-2a2 2 0 0 0 0-3l2-2Z',
-    chart: 'M4 19h16v2H2V3h2v16Zm3-2V9h3v8H7Zm5 0V5h3v12h-3Zm5 0v-6h3v6h-3Z',
-    calendar: 'M7 2h2v2h6V2h2v2h3v18H4V4h3V2Zm11 8H6v10h12V10Z',
-    wallet: 'M3 6h18v14H3V6Zm2 3v9h14V9H5Zm11 3h2v3h-2v-3Z',
-    qr: 'M3 3h8v8H3V3Zm2 2v4h4V5H5Zm8-2h8v8h-8V3Zm2 2v4h4V5h-4ZM3 13h8v8H3v-8Zm2 2v4h4v-4H5Zm10-2h2v2h-2v-2Zm4 0h2v4h-4v-2h2v-2Zm-6 4h2v4h-2v-4Zm4 2h4v2h-4v-2Z',
-    message: 'M4 4h16v12H8l-4 4V4Zm3 3v2h10V7H7Zm0 4v2h7v-2H7Z',
-    bolt: 'M13 2 4 14h7l-1 8 9-12h-7l1-8Z',
-    share: 'M18 16.1c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11A3 3 0 1 0 15 5c0 .24.04.47.09.7L8.04 9.81a3 3 0 1 0 0 4.38l7.12 4.18c-.05.21-.08.43-.08.65a2.92 2.92 0 1 0 2.92-2.92Z',
-    book: 'M5 4h11a3 3 0 0 1 3 3v13H8a3 3 0 0 1-3-3V4Zm3 13h9V7a1 1 0 0 0-1-1H7v10a1 1 0 0 0 1 1Z',
+    userPlus: (
+      <>
+        <path d='M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2' />
+        <circle cx='9' cy='7' r='4' />
+        <path d='M19 8v6' />
+        <path d='M22 11h-6' />
+      </>
+    ),
+    users: (
+      <>
+        <path d='M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2' />
+        <circle cx='9' cy='7' r='4' />
+        <path d='M23 21v-2a4 4 0 0 0-3-3.87' />
+        <path d='M16 3.13a4 4 0 0 1 0 7.75' />
+      </>
+    ),
+    link: (
+      <>
+        <path d='M10 13a5 5 0 0 0 7.07 0l2.12-2.12a5 5 0 0 0-7.07-7.07L11 4.93' />
+        <path d='M14 11a5 5 0 0 0-7.07 0L4.81 13.12a5 5 0 0 0 7.07 7.07L13 19.07' />
+      </>
+    ),
+    chart: (
+      <>
+        <path d='M3 3v18h18' />
+        <path d='m19 9-5 5-4-4-3 3' />
+      </>
+    ),
+    calendar: (
+      <>
+        <path d='M8 2v4' />
+        <path d='M16 2v4' />
+        <rect x='3' y='4' width='18' height='18' rx='2' />
+        <path d='M3 10h18' />
+        <path d='m9 16 2 2 4-4' />
+      </>
+    ),
+    wallet: (
+      <>
+        <rect x='2' y='5' width='20' height='14' rx='2' />
+        <path d='M16 9h2' />
+        <path d='M6 12h6' />
+        <path d='M6 15h4' />
+      </>
+    ),
+    checkUser: (
+      <>
+        <path d='M16 11a4 4 0 1 0-8 0' />
+        <path d='M6 21v-2a4 4 0 0 1 4-4h2' />
+        <path d='m16 19 2 2 4-4' />
+      </>
+    ),
+    transfer: (
+      <>
+        <path d='M12 2v20' />
+        <path d='m17 5-5-3-5 3' />
+        <path d='m17 19-5 3-5-3' />
+        <path d='M4 12h16' />
+      </>
+    ),
+    check: (
+      <>
+        <path d='M20 7H4a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2Z' />
+        <path d='M16 7V5a2 2 0 0 0-2-2H6' />
+        <path d='m9 14 2 2 4-5' />
+      </>
+    ),
+    qr: (
+      <>
+        <path d='M4 4h6v6H4z' />
+        <path d='M14 4h6v6h-6z' />
+        <path d='M4 14h6v6H4z' />
+        <path d='M14 14h2' />
+        <path d='M20 14v2' />
+        <path d='M16 18h4' />
+        <path d='M18 16v4' />
+      </>
+    ),
+    message: (
+      <>
+        <path d='M21 15a4 4 0 0 1-4 4H7l-4 4V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z' />
+        <path d='M8 9h8' />
+        <path d='M8 13h5' />
+      </>
+    ),
+    bolt: <path d='M13 2 4 14h7l-1 8 9-12h-7l1-8Z' />,
+    share: (
+      <>
+        <circle cx='18' cy='5' r='3' />
+        <circle cx='6' cy='12' r='3' />
+        <circle cx='18' cy='19' r='3' />
+        <path d='m8.59 13.51 6.83 3.98' />
+        <path d='m15.41 6.51-6.82 3.98' />
+      </>
+    ),
+    book: (
+      <>
+        <path d='M4 19.5A2.5 2.5 0 0 1 6.5 17H20' />
+        <path d='M4 4.5A2.5 2.5 0 0 1 6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5z' />
+      </>
+    ),
   };
   return (
     <svg
       width={size}
       height={size}
       viewBox='0 0 24 24'
-      fill='currentColor'
+      fill='none'
+      stroke='currentColor'
+      strokeWidth='2'
+      strokeLinecap='round'
+      strokeLinejoin='round'
       aria-hidden='true'
     >
-      <path d={glyphs[icon] || glyphs.link} />
+      {glyphs[icon] || glyphs.link}
     </svg>
   );
 }

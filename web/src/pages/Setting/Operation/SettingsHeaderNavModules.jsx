@@ -182,14 +182,14 @@ export default function SettingsHeaderNavModules(props) {
       hasSubConfig: true, // 标识该模块有子配置
     },
     {
-      key: 'partners',
-      title: t('推广合作'),
-      description: t('推广合作入口'),
-    },
-    {
       key: 'docs',
       title: t('文档'),
       description: t('系统文档和帮助信息'),
+    },
+    {
+      key: 'partners',
+      title: t('推广入口'),
+      description: t('推广合作入口'),
     },
     {
       key: 'about',

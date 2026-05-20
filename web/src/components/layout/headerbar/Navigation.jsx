@@ -32,6 +32,33 @@ const Navigation = ({
     mainNavLinks.map((link) => {
       const commonLinkClasses =
         'transition-colors hover:text-indigo-600 whitespace-nowrap';
+      const linkClasses =
+        link.itemKey === 'partners'
+          ? 'inline-flex items-center gap-1.5 font-bold text-[#4f46e5] transition-colors hover:text-emerald-500 whitespace-nowrap'
+          : commonLinkClasses;
+      const linkContent = (
+        <>
+          {link.itemKey === 'partners' ? (
+            <svg
+              width='16'
+              height='16'
+              viewBox='0 0 24 24'
+              fill='none'
+              stroke='currentColor'
+              strokeWidth='2.2'
+              strokeLinecap='round'
+              strokeLinejoin='round'
+              aria-hidden='true'
+            >
+              <path d='M4 13a8 8 0 0 1 8-8' />
+              <path d='M4 13v6h6' />
+              <path d='M20 11a8 8 0 0 1-8 8' />
+              <path d='M20 11V5h-6' />
+            </svg>
+          ) : null}
+          {link.text}
+        </>
+      );
 
       if (link.isExternal) {
         return (
@@ -40,9 +67,9 @@ const Navigation = ({
             href={link.externalLink}
             target='_blank'
             rel='noopener noreferrer'
-            className={commonLinkClasses}
+            className={linkClasses}
           >
-            {link.text}
+            {linkContent}
           </a>
         );
       }
@@ -56,8 +83,8 @@ const Navigation = ({
       }
 
       return (
-        <Link key={link.itemKey} to={targetPath} className={commonLinkClasses}>
-          {link.text}
+        <Link key={link.itemKey} to={targetPath} className={linkClasses}>
+          {linkContent}
         </Link>
       );
     });

@@ -31,8 +31,8 @@ export const useNavigation = (
       home: true,
       console: true,
       pricing: true,
-        partners: partnershipPromoterEnabled,
       docs: true,
+      partners: partnershipPromoterEnabled,
       about: true,
     };
 
@@ -55,11 +55,6 @@ export const useNavigation = (
         itemKey: 'pricing',
         to: '/pricing',
       },
-      {
-        text: t('推广合作'),
-        itemKey: 'partners',
-        to: '/partners/promoter',
-      },
       ...(docsLink
         ? [
             {
@@ -70,6 +65,11 @@ export const useNavigation = (
             },
           ]
         : []),
+      {
+        text: t('推广入口'),
+        itemKey: 'partners',
+        to: '/partners/promoter',
+      },
       {
         text: t('关于'),
         itemKey: 'about',
