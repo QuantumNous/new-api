@@ -35,7 +35,7 @@ export function SignIn() {
           <h2 className='text-center text-2xl font-semibold tracking-tight sm:text-left'>
             {t('Sign in')}
           </h2>
-          {!status?.self_use_mode_enabled && (
+          {!status?.self_use_mode_enabled && status?.register_enabled !== false && (
             <p className='text-muted-foreground text-left text-sm sm:text-base'>
               {t("Don't have an account?")}{' '}
               <Link

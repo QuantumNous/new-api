@@ -127,7 +127,7 @@ function UsageLogsContent() {
           <div className='space-y-4'>
             {showTaskSwitcher && (
               <Tabs value={activeCategory} onValueChange={handleSectionChange}>
-                <TabsList className='h-auto max-w-full flex-wrap justify-start'>
+                <TabsList className='group-data-horizontal/tabs:h-auto max-w-full flex-wrap justify-start'>
                   {visibleSections.map((section) => (
                     <TabsTrigger key={section} value={section}>
                       {t(SECTION_META[section].titleKey)}
