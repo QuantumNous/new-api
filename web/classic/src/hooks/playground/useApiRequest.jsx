@@ -127,7 +127,6 @@ export const useApiRequest = (
 
           return [...prevMessage.slice(0, -1), newMessage];
         }
-
         return prevMessage;
       });
     },

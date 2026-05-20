@@ -24,6 +24,7 @@ import {
   DEFAULT_CONFIG,
   API_ENDPOINTS,
   DEBUG_TABS,
+  MESSAGE_ROLES,
   MESSAGE_STATUS,
   PLAYGROUND_I18N_KEYS,
 } from '../../constants/playground.constants';
@@ -910,6 +911,7 @@ export const usePlaygroundState = () => {
     if (!Array.isArray(message) || message.length === 0) return;
 
     const lastMsg = message[message.length - 1];
+    const prevMsg = message.length > 1 ? message[message.length - 2] : null;
     if (lastMsg?.taskId) {
       return;
     }
@@ -929,6 +931,13 @@ export const usePlaygroundState = () => {
       // This repair path is only for chat-style incomplete thinking output.
       // Do not rewrite image/video placeholder messages like "正在生成图片...".
       if (!hasThinkContent) {
+        return;
+      }
+
+      // Only repair messages that were restored from persisted conversation
+      // state. If the previous message is a user message, we are in an active
+      // request lifecycle and the streaming hook should own status changes.
+      if (prevMsg?.role === MESSAGE_ROLES.USER) {
         return;
       }
 
