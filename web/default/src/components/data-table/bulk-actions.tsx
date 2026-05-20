@@ -35,6 +35,12 @@ type DataTableBulkActionsProps<TData> = {
   entityName: string
   /** When set, overrides the default "{{count}} {{entityName}}(s) selected" label. */
   selectionSummary?: (count: number) => string
+  /** Optional dark-theme (or custom) panel styles; defaults to theme background. */
+  panelClassName?: string
+  clearButtonClassName?: string
+  countTextClassName?: string
+  badgeClassName?: string
+  separatorClassName?: string
   children: React.ReactNode
 }
 
@@ -52,6 +58,11 @@ export function DataTableBulkActions<TData>({
   table,
   entityName,
   selectionSummary,
+  panelClassName,
+  clearButtonClassName,
+  countTextClassName,
+  badgeClassName,
+  separatorClassName,
   children,
 }: DataTableBulkActionsProps<TData>): React.ReactNode | null {
   const { t } = useTranslation()
@@ -178,10 +189,9 @@ export function DataTableBulkActions<TData>({
       >
         <div
           className={cn(
-            'p-2 shadow-xl',
-            'rounded-xl border',
-            'bg-background/95 supports-[backdrop-filter]:bg-background/60 backdrop-blur-lg',
-            'flex items-center gap-x-2'
+            'flex items-center gap-x-2 rounded-xl border p-2 shadow-xl',
+            panelClassName ??
+              'border-border bg-background/95 backdrop-blur-lg supports-[backdrop-filter]:bg-background/60'
           )}
         >
           <Tooltip>
@@ -191,7 +201,7 @@ export function DataTableBulkActions<TData>({
                   variant='outline'
                   size='icon'
                   onClick={handleClearSelection}
-                  className='size-6'
+                  className={cn('size-6', clearButtonClassName)}
                   aria-label={t('Clear selection')}
                   title={t('Clear selection (Escape)')}
                 />
@@ -206,18 +216,21 @@ export function DataTableBulkActions<TData>({
           </Tooltip>
 
           <Separator
-            className='h-5'
+            className={cn('h-5', separatorClassName)}
             orientation='vertical'
             aria-hidden='true'
           />
 
           <div
-            className='flex items-center gap-x-1 text-sm'
+            className={cn(
+              'flex items-center gap-x-1 text-sm',
+              countTextClassName
+            )}
             id='bulk-actions-description'
           >
             <Badge
               variant='default'
-              className='min-w-8 rounded-lg'
+              className={cn('min-w-8 rounded-lg', badgeClassName)}
               aria-label={`${selectedCount} selected`}
             >
               {selectedCount}
@@ -230,7 +243,7 @@ export function DataTableBulkActions<TData>({
           </div>
 
           <Separator
-            className='h-5'
+            className={cn('h-5', separatorClassName)}
             orientation='vertical'
             aria-hidden='true'
           />

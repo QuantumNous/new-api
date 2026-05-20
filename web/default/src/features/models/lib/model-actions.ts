@@ -20,7 +20,11 @@ import { type QueryClient } from '@tanstack/react-query'
 import i18next from 'i18next'
 import { toast } from 'sonner'
 import { updateModelStatus, deleteModel as deleteModelAPI } from '../api'
+import { ERROR_MESSAGES, resolveModelToastMessage } from '../constants'
 import { modelsQueryKeys } from './query-keys'
+
+const t = (key: string, options?: Record<string, unknown>) =>
+  i18next.t(key, options)
 
 // ============================================================================
 // Model Status Actions
@@ -37,16 +41,20 @@ export async function handleEnableModel(
   try {
     const response = await updateModelStatus(id, 1)
     if (response.success) {
-      toast.success(i18next.t('Model enabled successfully'))
+      toast.success(t('Model resource enabled successfully'))
       queryClient?.invalidateQueries({ queryKey: modelsQueryKeys.lists() })
       onSuccess?.()
     } else {
-      toast.error(response.message || i18next.t('Failed to enable model'))
+      toast.error(
+        resolveModelToastMessage(
+          response.message,
+          ERROR_MESSAGES.ENABLE_FAILED,
+          t
+        )
+      )
     }
   } catch (error: unknown) {
-    toast.error(
-      (error as Error)?.message || i18next.t('Failed to enable model')
-    )
+    toast.error(t(ERROR_MESSAGES.ENABLE_FAILED))
   }
 }
 
@@ -61,16 +69,20 @@ export async function handleDisableModel(
   try {
     const response = await updateModelStatus(id, 0)
     if (response.success) {
-      toast.success(i18next.t('Model disabled successfully'))
+      toast.success(t('Model resource disabled successfully'))
       queryClient?.invalidateQueries({ queryKey: modelsQueryKeys.lists() })
       onSuccess?.()
     } else {
-      toast.error(response.message || i18next.t('Failed to disable model'))
+      toast.error(
+        resolveModelToastMessage(
+          response.message,
+          ERROR_MESSAGES.DISABLE_FAILED,
+          t
+        )
+      )
     }
   } catch (error: unknown) {
-    toast.error(
-      (error as Error)?.message || i18next.t('Failed to disable model')
-    )
+    toast.error(t(ERROR_MESSAGES.DISABLE_FAILED))
   }
 }
 
@@ -105,16 +117,20 @@ export async function handleDeleteModel(
   try {
     const response = await deleteModelAPI(id)
     if (response.success) {
-      toast.success(i18next.t('Model deleted successfully'))
+      toast.success(t('Model resource deleted successfully'))
       queryClient?.invalidateQueries({ queryKey: modelsQueryKeys.lists() })
       onSuccess?.()
     } else {
-      toast.error(response.message || i18next.t('Failed to delete model'))
+      toast.error(
+        resolveModelToastMessage(
+          response.message,
+          ERROR_MESSAGES.DELETE_FAILED,
+          t
+        )
+      )
     }
   } catch (error: unknown) {
-    toast.error(
-      (error as Error)?.message || i18next.t('Failed to delete model')
-    )
+    toast.error(t(ERROR_MESSAGES.DELETE_FAILED))
   }
 }
 
@@ -127,7 +143,7 @@ export async function handleBatchDeleteModels(
   onSuccess?: (deletedCount: number) => void
 ): Promise<void> {
   if (ids.length === 0) {
-    toast.error(i18next.t('Please select at least one model'))
+    toast.error(t(ERROR_MESSAGES.SELECT_AT_LEAST_ONE))
     return
   }
 
@@ -150,7 +166,7 @@ export async function handleBatchDeleteModels(
 
     if (successCount > 0) {
       toast.success(
-        i18next.t('Successfully deleted {{count}} model(s)', {
+        t('Successfully deleted {{count}} model resource(s)', {
           count: successCount,
         })
       )
@@ -160,11 +176,13 @@ export async function handleBatchDeleteModels(
 
     if (failedCount > 0) {
       toast.error(
-        i18next.t('Failed to delete {{count}} model(s)', { count: failedCount })
+        t('Failed to delete {{count}} model resource(s)', {
+          count: failedCount,
+        })
       )
     }
   } catch (error: unknown) {
-    toast.error((error as Error)?.message || i18next.t('Batch delete failed'))
+    toast.error(t('Batch delete failed'))
   }
 }
 
@@ -181,7 +199,7 @@ export async function handleBatchEnableModels(
   onSuccess?: () => void
 ): Promise<void> {
   if (ids.length === 0) {
-    toast.error(i18next.t('Please select at least one model'))
+    toast.error(t(ERROR_MESSAGES.SELECT_AT_LEAST_ONE))
     return
   }
 
@@ -202,7 +220,7 @@ export async function handleBatchEnableModels(
 
     if (successCount > 0) {
       toast.success(
-        i18next.t('Successfully enabled {{count}} model(s)', {
+        t('Successfully enabled {{count}} model resource(s)', {
           count: successCount,
         })
       )
@@ -212,11 +230,11 @@ export async function handleBatchEnableModels(
 
     if (failedCount > 0) {
       toast.error(
-        i18next.t('Failed to enable {{count}} model(s)', { count: failedCount })
+        t('Failed to enable {{count}} model resource(s)', { count: failedCount })
       )
     }
   } catch (error: unknown) {
-    toast.error((error as Error)?.message || i18next.t('Batch enable failed'))
+    toast.error(t('Batch enable failed'))
   }
 }
 
@@ -229,7 +247,7 @@ export async function handleBatchDisableModels(
   onSuccess?: () => void
 ): Promise<void> {
   if (ids.length === 0) {
-    toast.error(i18next.t('Please select at least one model'))
+    toast.error(t(ERROR_MESSAGES.SELECT_AT_LEAST_ONE))
     return
   }
 
@@ -250,7 +268,7 @@ export async function handleBatchDisableModels(
 
     if (successCount > 0) {
       toast.success(
-        i18next.t('Successfully disabled {{count}} model(s)', {
+        t('Successfully disabled {{count}} model resource(s)', {
           count: successCount,
         })
       )
@@ -260,12 +278,12 @@ export async function handleBatchDisableModels(
 
     if (failedCount > 0) {
       toast.error(
-        i18next.t('Failed to disable {{count}} model(s)', {
+        t('Failed to disable {{count}} model resource(s)', {
           count: failedCount,
         })
       )
     }
   } catch (error: unknown) {
-    toast.error((error as Error)?.message || i18next.t('Batch disable failed'))
+    toast.error(t('Batch disable failed'))
   }
 }

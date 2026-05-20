@@ -17,6 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { type TFunction } from 'i18next'
+import { formatWalletPaymentAmount } from '@/lib/ops-billing-display'
 import type { NameRule, ModelStatus, SyncSource } from './types'
 
 // ============================================================================
@@ -45,22 +46,22 @@ export function getNameRuleConfig(
     0: {
       label: t('Exact'),
       color: 'green',
-      description: t('Match model name exactly'),
+      description: t('Match model resource name exactly'),
     },
     1: {
       label: t('Prefix'),
       color: 'blue',
-      description: t('Match models starting with this name'),
+      description: t('Match model resources starting with this name'),
     },
     2: {
       label: t('Contains'),
       color: 'orange',
-      description: t('Match models containing this name'),
+      description: t('Match model resources containing this name'),
     },
     3: {
       label: t('Suffix'),
       color: 'purple',
-      description: t('Match models ending with this name'),
+      description: t('Match model resources ending with this name'),
     },
   }
 }
@@ -155,6 +156,62 @@ export function getQuotaTypeConfig(
     0: { label: t('Usage-based'), color: 'violet' },
     1: { label: t('Per-call'), color: 'teal' },
   }
+}
+
+// ============================================================================
+// Endpoint Templates
+// ============================================================================
+
+// ============================================================================
+// Toast / form message keys
+// ============================================================================
+
+export const MODEL_NAME_REQUIRED_KEY = 'Model name is required'
+
+export const ERROR_MESSAGES = {
+  UNEXPECTED: 'Model operation failed',
+  ENABLE_FAILED: 'Failed to enable model resource',
+  DISABLE_FAILED: 'Failed to disable model resource',
+  DELETE_FAILED: 'Failed to delete model resource',
+  CREATE_FAILED: 'Failed to create model resource',
+  UPDATE_FAILED: 'Failed to update model resource',
+  BATCH_DELETE_FAILED: 'Failed to delete model resource',
+  BATCH_ENABLE_FAILED: 'Failed to enable model resource',
+  BATCH_DISABLE_FAILED: 'Failed to disable model resource',
+  SELECT_AT_LEAST_ONE: 'Please select at least one model resource',
+} as const
+
+export function formatModelEstimatedMillionTokenPrice(
+  amount: number,
+  t: TFunction
+): string {
+  return t('Estimated price: {{price}} per million tokens', {
+    price: formatWalletPaymentAmount(amount),
+  })
+}
+
+export function formatModelCalculatedRatio(ratio: number, t: TFunction): string {
+  return t('Calculated ratio: {{ratio}}', { ratio: ratio.toFixed(4) })
+}
+
+/**
+ * Prefer localized fallback for user-facing toasts; use API message only if it
+ * matches a known i18n key.
+ */
+export function resolveModelToastMessage(
+  message: string | undefined,
+  fallbackKey: string,
+  t: (key: string) => string
+): string {
+  if (message) {
+    const translated = t(message)
+    if (translated !== message) {
+      return translated
+    }
+    console.warn('[models] API error:', message)
+  }
+
+  return t(fallbackKey)
 }
 
 // ============================================================================

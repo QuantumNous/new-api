@@ -73,14 +73,22 @@ import { normalizeJsonString } from '@/features/system-settings/models/utils'
 import type { ModelSettings } from '@/features/system-settings/types'
 import { safeJsonParse } from '@/features/system-settings/utils/json-parser'
 import { createModel, updateModel, getModel, getVendors } from '../../api'
-import { getNameRuleOptions, ENDPOINT_TEMPLATES } from '../../constants'
+import {
+  getNameRuleOptions,
+  ENDPOINT_TEMPLATES,
+  ERROR_MESSAGES,
+  MODEL_NAME_REQUIRED_KEY,
+  resolveModelToastMessage,
+  formatModelEstimatedMillionTokenPrice,
+  formatModelCalculatedRatio,
+} from '../../constants'
 import { modelsQueryKeys, vendorsQueryKeys, parseModelTags } from '../../lib'
 import type { Model } from '../../types'
 
 // Extended schema for ratio configuration (internal form state only)
 const extendedModelFormSchema = z.object({
   id: z.number().optional(),
-  model_name: z.string().min(1, 'Model name is required'),
+  model_name: z.string().min(1, MODEL_NAME_REQUIRED_KEY),
   description: z.string(),
   icon: z.string(),
   tags: z.array(z.string()),
@@ -590,17 +598,25 @@ export function ModelMutateDrawer({
 
           toast.success(
             isEditing
-              ? 'Model updated successfully'
-              : 'Model created successfully'
+              ? t('Model resource updated successfully')
+              : t('Model resource created successfully')
           )
           queryClient.invalidateQueries({ queryKey: modelsQueryKeys.lists() })
           queryClient.invalidateQueries({ queryKey: ['system-options'] })
           onOpenChange(false)
         } else {
-          toast.error(response.message || 'Operation failed')
+          toast.error(
+            resolveModelToastMessage(
+              response.message,
+              isEditing
+                ? ERROR_MESSAGES.UPDATE_FAILED
+                : ERROR_MESSAGES.CREATE_FAILED,
+              t
+            )
+          )
         }
       } catch (error: unknown) {
-        toast.error((error as Error)?.message || 'Operation failed')
+        toast.error(t(ERROR_MESSAGES.UNEXPECTED))
       } finally {
         setIsSubmitting(false)
       }
@@ -614,6 +630,7 @@ export function ModelMutateDrawer({
       oldModelName,
       modelSettings,
       updateOption,
+      t,
     ]
   )
 
@@ -634,10 +651,8 @@ export function ModelMutateDrawer({
           </SheetTitle>
           <SheetDescription>
             {isEditing
-              ? t("Update model configuration and click save when you're done.")
-              : t(
-                  'Add a new model to the system by providing the necessary information.'
-                )}
+              ? t('Update model resource configuration and save when done.')
+              : t('Add a new model resource with the required information.')}
           </SheetDescription>
         </SheetHeader>
 
@@ -668,7 +683,7 @@ export function ModelMutateDrawer({
                       />
                     </FormControl>
                     <FormDescription>
-                      {t('The unique identifier for this model')}
+                      {t('The unique identifier for this model resource')}
                     </FormDescription>
                     <FormMessage />
                   </FormItem>
@@ -680,10 +695,10 @@ export function ModelMutateDrawer({
                 name='description'
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>{t('Description')}</FormLabel>
+                    <FormLabel>{t('Resource description')}</FormLabel>
                     <FormControl>
                       <Textarea
-                        placeholder={t('Describe this model...')}
+                        placeholder={t('Describe this model resource...')}
                         rows={3}
                         {...field}
                       />
@@ -718,7 +733,7 @@ export function ModelMutateDrawer({
                 name='vendor_id'
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>{t('Vendor')}</FormLabel>
+                    <FormLabel>{t('Service source')}</FormLabel>
                     <Select
                       items={[
                         ...vendors.map((vendor) => ({
@@ -759,7 +774,7 @@ export function ModelMutateDrawer({
                 name='tags'
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>{t('Tags')}</FormLabel>
+                    <FormLabel>{t('Resource tags')}</FormLabel>
                     <FormControl>
                       <TagInput
                         value={field.value || []}
@@ -816,7 +831,7 @@ export function ModelMutateDrawer({
                       </RadioGroup>
                     </FormControl>
                     <FormDescription>
-                      {t('How this model name should match requests')}
+                      {t('How this model resource name should match requests')}
                     </FormDescription>
                     <FormMessage />
                   </FormItem>
@@ -922,7 +937,7 @@ export function ModelMutateDrawer({
                   name='price'
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>{t('Fixed price (USD)')}</FormLabel>
+                      <FormLabel>{t('Fixed billing price (CNY)')}</FormLabel>
                       <FormControl>
                         <Input
                           type='text'
@@ -938,7 +953,7 @@ export function ModelMutateDrawer({
                       </FormControl>
                       <FormDescription>
                         {t(
-                          'Cost in USD per request, regardless of tokens used.'
+                          'Cost in CNY per request, regardless of tokens used.'
                         )}
                       </FormDescription>
                       <FormMessage />
@@ -964,7 +979,7 @@ export function ModelMutateDrawer({
                       <div className='flex items-center space-x-2'>
                         <RadioGroupItem value='price' id='price' />
                         <Label htmlFor='price' className='font-normal'>
-                          {t('Price mode (USD per 1M tokens)')}
+                          {t('Price mode (CNY per million tokens)')}
                         </Label>
                       </div>
                     </RadioGroup>
@@ -977,7 +992,7 @@ export function ModelMutateDrawer({
                         name='ratio'
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel>{t('Model ratio')}</FormLabel>
+                            <FormLabel>{t('Model resource ratio')}</FormLabel>
                             <FormControl>
                               <Input
                                 type='text'
@@ -1000,7 +1015,10 @@ export function ModelMutateDrawer({
                             </FormControl>
                             <FormDescription>
                               {field.value && !isNaN(parseFloat(field.value))
-                                ? `Calculated price: $${(parseFloat(field.value) * 2).toFixed(4)} per 1M tokens`
+                                ? formatModelEstimatedMillionTokenPrice(
+                                    parseFloat(field.value) * 2,
+                                    t
+                                  )
                                 : t('Multiplier for prompt tokens.')}
                             </FormDescription>
                             <FormMessage />
@@ -1042,7 +1060,11 @@ export function ModelMutateDrawer({
                               !isNaN(parseFloat(field.value)) &&
                               promptPrice &&
                               !isNaN(parseFloat(promptPrice))
-                                ? `Calculated price: $${(parseFloat(promptPrice) * parseFloat(field.value)).toFixed(4)} per 1M tokens`
+                                ? formatModelEstimatedMillionTokenPrice(
+                                    parseFloat(promptPrice) *
+                                      parseFloat(field.value),
+                                    t
+                                  )
                                 : t('Multiplier for completion tokens.')}
                             </FormDescription>
                             <FormMessage />
@@ -1054,7 +1076,7 @@ export function ModelMutateDrawer({
                     <>
                       <div className='space-y-4'>
                         <div className='space-y-2'>
-                          <Label>{t('Prompt price ($/1M tokens)')}</Label>
+                          <Label>{t('Input price (CNY per million tokens)')}</Label>
                           <Input
                             type='text'
                             placeholder='2.0'
@@ -1065,13 +1087,18 @@ export function ModelMutateDrawer({
                           />
                           <p className='text-muted-foreground text-sm'>
                             {promptPrice && !isNaN(parseFloat(promptPrice))
-                              ? `Calculated ratio: ${(parseFloat(promptPrice) / 2).toFixed(4)}`
+                              ? formatModelCalculatedRatio(
+                                  parseFloat(promptPrice) / 2,
+                                  t
+                                )
                               : t('Enter Input price to calculate ratio')}
                           </p>
                         </div>
 
                         <div className='space-y-2'>
-                          <Label>{t('Completion price ($/1M tokens)')}</Label>
+                          <Label>
+                            {t('Output price (CNY per million tokens)')}
+                          </Label>
                           <Input
                             type='text'
                             placeholder='4.0'
@@ -1086,7 +1113,11 @@ export function ModelMutateDrawer({
                             promptPrice &&
                             !isNaN(parseFloat(promptPrice)) &&
                             parseFloat(promptPrice) > 0
-                              ? `Calculated ratio: ${(parseFloat(completionPrice) / parseFloat(promptPrice)).toFixed(4)}`
+                              ? formatModelCalculatedRatio(
+                                  parseFloat(completionPrice) /
+                                    parseFloat(promptPrice),
+                                  t
+                                )
                               : t('Enter Completion price to calculate ratio')}
                           </p>
                         </div>
@@ -1244,7 +1275,7 @@ export function ModelMutateDrawer({
                         {t('Enabled')}
                       </FormLabel>
                       <FormDescription>
-                        {t('Enable or disable this model')}
+                        {t('Enable or disable this model resource')}
                       </FormDescription>
                     </div>
                     <FormControl>
@@ -1291,7 +1322,7 @@ export function ModelMutateDrawer({
           </SheetClose>
           <Button form='model-form' type='submit' disabled={isSubmitting}>
             {isSubmitting && <Loader2 className='mr-2 h-4 w-4 animate-spin' />}
-            {isEditing ? t('Update Model') : t('Save changes')}
+            {isEditing ? t('Update Model') : t('Create Model')}
           </Button>
         </SheetFooter>
       </SheetContent>

@@ -66,18 +66,20 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
       <DropdownMenuTrigger
         render={
           <Button
-            variant='ghost'
-            className='data-popup-open:bg-muted flex h-8 w-8 p-0'
+            variant='outline'
+            size='sm'
+            className='h-8 min-w-[5.5rem] gap-1.5 border-white/15 bg-slate-800/90 px-2.5 text-slate-200 hover:bg-white/10 hover:text-white data-popup-open:border-cyan-500/30 data-popup-open:bg-slate-700'
+            title={t('Open menu')}
+            aria-label={t('Open menu')}
           />
         }
       >
         <MoreHorizontal className='h-4 w-4' />
         <span className='sr-only'>{t('Open menu')}</span>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align='end' className='w-48'>
-        {/* Edit */}
+      <DropdownMenuContent align='end' className='w-52'>
         <DropdownMenuItem onClick={handleEdit}>
-          {t('Edit')}
+          {t('Edit model resource')}
           <DropdownMenuShortcut>
             <Pencil size={16} />
           </DropdownMenuShortcut>
@@ -85,18 +87,17 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
 
         <DropdownMenuSeparator />
 
-        {/* Enable/Disable */}
         <DropdownMenuItem onClick={handleToggleStatus}>
           {isEnabled ? (
             <>
-              {t('Disable')}
+              {t('Disable model resource')}
               <DropdownMenuShortcut>
                 <PowerOff size={16} />
               </DropdownMenuShortcut>
             </>
           ) : (
             <>
-              {t('Enable')}
+              {t('Enable model resource')}
               <DropdownMenuShortcut>
                 <Power size={16} />
               </DropdownMenuShortcut>
@@ -106,7 +107,6 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
 
         <DropdownMenuSeparator />
 
-        {/* Delete */}
         <DropdownMenuItem
           onSelect={(e) => {
             e.preventDefault()
@@ -114,7 +114,7 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
           }}
           className='text-destructive focus:text-destructive'
         >
-          {t('Delete')}
+          {t('Delete model resource')}
           <DropdownMenuShortcut>
             <Trash2 size={16} />
           </DropdownMenuShortcut>
@@ -124,9 +124,12 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
       <ConfirmDialog
         open={deleteConfirmOpen}
         onOpenChange={setDeleteConfirmOpen}
-        title={t('Delete Model')}
-        desc={`Are you sure you want to delete "${model.model_name}"? This action cannot be undone.`}
-        confirmText='Delete'
+        title={t('Delete model resource')}
+        desc={t(
+          'Are you sure you want to delete model resource "{{name}}"? This action cannot be undone.',
+          { name: model.model_name }
+        )}
+        confirmText={t('Delete model resource')}
         destructive
         handleConfirm={() => {
           handleDeleteModel(model.id, queryClient)

@@ -16,13 +16,14 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useState } from 'react'
+import { useCallback, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { type Table } from '@tanstack/react-table'
 import { Power, PowerOff, Trash2, Copy } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { copyToClipboard } from '@/lib/copy-to-clipboard'
+import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -44,6 +45,33 @@ import {
   handleBatchDeleteModels,
 } from '../lib'
 import type { Model } from '../types'
+
+const modelsBulkPanelClassName = cn(
+  'border-white/10 bg-slate-950/90 shadow-black/40 backdrop-blur-md'
+)
+
+const modelsBulkClearButtonClassName = cn(
+  'border-white/15 bg-white/10 text-slate-100',
+  '[&_svg]:text-slate-100',
+  'hover:bg-white/15 hover:text-white hover:[&_svg]:text-white',
+  'disabled:bg-white/5 disabled:text-slate-400 disabled:border-white/10 disabled:opacity-60'
+)
+
+const modelsBulkActionButtonClassName = cn(
+  'size-8 border-white/15 bg-white/10 text-slate-100',
+  '[&_svg]:text-slate-100',
+  'hover:bg-white/15 hover:text-white hover:[&_svg]:text-white',
+  'disabled:pointer-events-auto disabled:bg-white/5 disabled:text-slate-400',
+  'disabled:border-white/10 disabled:opacity-60 disabled:[&_svg]:text-slate-400'
+)
+
+const modelsBulkDeleteButtonClassName = cn(
+  'size-8 border-red-400/30 bg-red-500/10 text-red-300',
+  '[&_svg]:text-red-300',
+  'hover:bg-red-500/15 hover:text-red-200 hover:[&_svg]:text-red-200',
+  'disabled:pointer-events-auto disabled:bg-white/5 disabled:text-slate-400',
+  'disabled:border-white/10 disabled:opacity-60 disabled:[&_svg]:text-slate-400'
+)
 
 interface DataTableBulkActionsProps<TData> {
   table: Table<TData>
@@ -69,6 +97,14 @@ export function DataTableBulkActions<TData>({
 
   const selectedModels = selectedRows.map((row) => row.original as Model)
 
+  const selectionSummary = useCallback(
+    (count: number) =>
+      count === 1
+        ? t('{{count}} model resource selected', { count })
+        : t('{{count}} model resources selected', { count }),
+    [t]
+  )
+
   const handleClearSelection = () => {
     table.resetRowSelection()
   }
@@ -92,15 +128,29 @@ export function DataTableBulkActions<TData>({
     const names = selectedModels.map((m) => m.model_name).join(',')
     const success = await copyToClipboard(names)
     if (success) {
-      toast.success(t('Model names copied to clipboard'))
+      toast.success(t('Model resource names copied to clipboard'))
     } else {
-      toast.error(t('Failed to copy model names'))
+      toast.error(t('Failed to copy model resource names'))
     }
   }
 
+  const enableLabel = t('Enable selected model resources')
+  const disableLabel = t('Disable selected model resources')
+  const copyLabel = t('Copy model resource name list')
+  const deleteLabel = t('Delete selected model resources')
+
   return (
     <>
-      <BulkActionsToolbar table={table} entityName='model'>
+      <BulkActionsToolbar
+        table={table}
+        entityName='model'
+        selectionSummary={selectionSummary}
+        panelClassName={modelsBulkPanelClassName}
+        clearButtonClassName={modelsBulkClearButtonClassName}
+        countTextClassName='text-slate-200'
+        badgeClassName='border-cyan-500/30 bg-cyan-500/20 text-cyan-100'
+        separatorClassName='bg-white/10'
+      >
         <Tooltip>
           <TooltipTrigger
             render={
@@ -108,17 +158,18 @@ export function DataTableBulkActions<TData>({
                 variant='outline'
                 size='icon'
                 onClick={handleEnableAll}
-                className='size-8'
-                aria-label={t('Enable selected models')}
-                title={t('Enable selected models')}
+                disabled={selectedIds.length === 0}
+                className={modelsBulkActionButtonClassName}
+                aria-label={enableLabel}
+                title={enableLabel}
               />
             }
           >
             <Power />
-            <span className='sr-only'>{t('Enable selected models')}</span>
+            <span className='sr-only'>{enableLabel}</span>
           </TooltipTrigger>
           <TooltipContent>
-            <p>{t('Enable selected models')}</p>
+            <p>{enableLabel}</p>
           </TooltipContent>
         </Tooltip>
 
@@ -129,17 +180,18 @@ export function DataTableBulkActions<TData>({
                 variant='outline'
                 size='icon'
                 onClick={handleDisableAll}
-                className='size-8'
-                aria-label={t('Disable selected models')}
-                title={t('Disable selected models')}
+                disabled={selectedIds.length === 0}
+                className={modelsBulkActionButtonClassName}
+                aria-label={disableLabel}
+                title={disableLabel}
               />
             }
           >
             <PowerOff />
-            <span className='sr-only'>{t('Disable selected models')}</span>
+            <span className='sr-only'>{disableLabel}</span>
           </TooltipTrigger>
           <TooltipContent>
-            <p>{t('Disable selected models')}</p>
+            <p>{disableLabel}</p>
           </TooltipContent>
         </Tooltip>
 
@@ -150,17 +202,18 @@ export function DataTableBulkActions<TData>({
                 variant='outline'
                 size='icon'
                 onClick={handleCopyNames}
-                className='size-8'
-                aria-label={t('Copy model names')}
-                title={t('Copy model names')}
+                disabled={selectedIds.length === 0}
+                className={modelsBulkActionButtonClassName}
+                aria-label={copyLabel}
+                title={copyLabel}
               />
             }
           >
             <Copy />
-            <span className='sr-only'>{t('Copy model names')}</span>
+            <span className='sr-only'>{copyLabel}</span>
           </TooltipTrigger>
           <TooltipContent>
-            <p>{t('Copy model names')}</p>
+            <p>{copyLabel}</p>
           </TooltipContent>
         </Tooltip>
 
@@ -168,32 +221,34 @@ export function DataTableBulkActions<TData>({
           <TooltipTrigger
             render={
               <Button
-                variant='destructive'
+                variant='outline'
                 size='icon'
                 onClick={() => setShowDeleteConfirm(true)}
-                className='size-8'
-                aria-label={t('Delete selected models')}
-                title={t('Delete selected models')}
+                disabled={selectedIds.length === 0}
+                className={modelsBulkDeleteButtonClassName}
+                aria-label={deleteLabel}
+                title={deleteLabel}
               />
             }
           >
             <Trash2 />
-            <span className='sr-only'>{t('Delete selected models')}</span>
+            <span className='sr-only'>{deleteLabel}</span>
           </TooltipTrigger>
           <TooltipContent>
-            <p>{t('Delete selected models')}</p>
+            <p>{deleteLabel}</p>
           </TooltipContent>
         </Tooltip>
       </BulkActionsToolbar>
 
-      {/* Delete Confirmation Dialog */}
       <Dialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>{t('Delete Models?')}</DialogTitle>
+            <DialogTitle>{t('Delete selected model resources?')}</DialogTitle>
             <DialogDescription>
-              {t('Are you sure you want to delete')} {selectedIds.length}{' '}
-              {t('model(s)? This action cannot be undone.')}
+              {t(
+                'Are you sure you want to delete {{count}} selected model resources? This action cannot be undone.',
+                { count: selectedIds.length }
+              )}
             </DialogDescription>
           </DialogHeader>
 
@@ -205,7 +260,7 @@ export function DataTableBulkActions<TData>({
               {t('Cancel')}
             </Button>
             <Button variant='destructive' onClick={handleDeleteAll}>
-              {t('Delete')}
+              {t('Delete model resource')}
             </Button>
           </DialogFooter>
         </DialogContent>

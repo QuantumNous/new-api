@@ -25,6 +25,7 @@ import {
   AlertCircle,
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -66,12 +67,28 @@ export function ModelsPrimaryButtons() {
       {/* Create Model */}
       <Button onClick={handleCreateModel} size='sm'>
         <Plus className='h-4 w-4' />
-        {t('Add Model')}
+        {t('Create model resource')}
       </Button>
 
       {/* More Actions */}
       <DropdownMenu>
-        <DropdownMenuTrigger render={<Button variant='outline' size='sm' />}>
+        <DropdownMenuTrigger
+          render={
+            <Button
+              variant='outline'
+              size='sm'
+              className={cn(
+                'border-white/15 bg-white/10 text-slate-100',
+                '[&_svg]:text-slate-100',
+                'hover:bg-white/15 hover:text-white hover:[&_svg]:text-white',
+                'data-popup-open:bg-white/15 data-popup-open:text-white data-popup-open:[&_svg]:text-white',
+                'disabled:bg-white/5 disabled:text-slate-400 disabled:border-white/10 disabled:opacity-60'
+              )}
+              aria-label={t('More...')}
+              title={t('More...')}
+            />
+          }
+        >
           <MoreHorizontal className='h-4 w-4' />
         </DropdownMenuTrigger>
         <DropdownMenuContent align='end' className='w-56'>

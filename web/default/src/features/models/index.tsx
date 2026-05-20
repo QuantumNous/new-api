@@ -44,10 +44,11 @@ const route = getRouteApi('/_authenticated/models/$section')
 
 const SECTION_META: Record<
   ModelsSectionId,
-  { titleKey: string; descriptionKey: string }
+  { titleKey: string; tabTitleKey?: string; descriptionKey: string }
 > = {
   metadata: {
     titleKey: 'Model Resource Pool',
+    tabTitleKey: 'Metadata',
     descriptionKey: 'Manage model resource metadata and configuration',
   },
   deployments: {
@@ -145,7 +146,10 @@ function ModelsContent() {
               <TabsList className='max-w-full flex-wrap justify-start group-data-horizontal/tabs:h-auto'>
                 {MODELS_SECTION_IDS.map((section) => (
                   <TabsTrigger key={section} value={section}>
-                    {t(SECTION_META[section].titleKey)}
+                    {t(
+                      SECTION_META[section].tabTitleKey ??
+                        SECTION_META[section].titleKey
+                    )}
                   </TabsTrigger>
                 ))}
               </TabsList>

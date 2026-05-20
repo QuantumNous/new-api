@@ -27,6 +27,7 @@ import {
 } from '@tanstack/react-table'
 import { useMediaQuery } from '@/hooks'
 import { useTranslation } from 'react-i18next'
+import { cn } from '@/lib/utils'
 import { useTableUrlState } from '@/hooks/use-table-url-state'
 import { DataTablePage } from '@/components/data-table'
 import { getModels, searchModels, getVendors } from '../api'
@@ -41,6 +42,57 @@ import { useModelsColumns } from './models-columns'
 import { useModels } from './models-provider'
 
 const route = getRouteApi('/_authenticated/models/$section')
+
+const modelsToolbarClassName = cn(
+  '[&_input]:border-white/15 [&_input]:bg-slate-950/50 [&_input]:text-slate-100',
+  '[&_input::placeholder]:text-slate-500',
+  '[&_button]:border-white/15 [&_button]:text-slate-200',
+  '[&_button[data-state=open]]:bg-slate-800'
+)
+
+const modelsTableHeaderClassName = cn(
+  'bg-slate-900/80 text-slate-200',
+  '[&_th]:border-white/10 [&_th]:text-slate-200',
+  '[&_button]:text-slate-200',
+  '[&_svg]:text-slate-400',
+  '[&_[data-slot=checkbox]]:border-white/25'
+)
+
+const modelsDisabledRowClassName = cn(
+  '[&>td:first-child]:border-l-muted-foreground/35 [&>td:first-child]:border-l-4 [&>td:first-child]:pl-1',
+  'bg-slate-900/50 hover:bg-slate-900/60'
+)
+
+const modelsSelectedRowClassName = cn(
+  'data-[state=selected]:!bg-cyan-500/10',
+  'data-[state=selected]:hover:!bg-cyan-500/15',
+  'data-[state=selected]:!text-slate-100',
+  'data-[state=selected]:ring-1 data-[state=selected]:ring-cyan-400/30',
+  '[&[data-state=selected]_.text-muted-foreground]:!text-slate-300'
+)
+
+const modelsTableClassName = cn(
+  'border-white/10 bg-slate-900/40',
+  '[&_[data-slot=empty-title]]:text-slate-100',
+  '[&_[data-slot=empty-description]]:text-slate-400',
+  '[&_[data-slot=empty-icon]]:text-slate-300',
+  '[&_[data-slot=table-row]:hover]:!bg-white/5',
+  '[&_[data-slot=table-row][data-state=selected]]:!bg-cyan-500/10',
+  '[&_[data-slot=table-row][data-state=selected]:hover]:!bg-cyan-500/15',
+  '[&_[data-slot=table-row][data-state=selected]]:!text-slate-100',
+  '[&_[data-slot=table-row][data-state=selected]_.text-muted-foreground]:!text-slate-300',
+  '[&_[data-slot=table-row][data-state=selected]_[data-slot=checkbox]]:border-cyan-400/50',
+  '[&_th:last-child]:sticky [&_th:last-child]:right-0 [&_th:last-child]:z-20',
+  '[&_th:last-child]:border-l [&_th:last-child]:border-white/10',
+  '[&_th:last-child]:bg-slate-900/95',
+  '[&_th:last-child]:shadow-[-10px_0_16px_-10px_rgba(0,0,0,0.65)]',
+  '[&_td:last-child]:sticky [&_td:last-child]:right-0 [&_td:last-child]:z-10',
+  '[&_td:last-child]:border-l [&_td:last-child]:border-white/10',
+  '[&_td:last-child]:bg-slate-900/95',
+  '[&_td:last-child]:shadow-[-10px_0_16px_-10px_rgba(0,0,0,0.65)]',
+  '[&_[data-slot=table-row][data-state=selected]_td:last-child]:!bg-slate-900',
+  '[&_[data-slot=table-row]:hover_td:last-child]:bg-slate-900'
+)
 
 export function ModelsTable() {
   const { t } = useTranslation()
@@ -225,24 +277,27 @@ export function ModelsTable() {
       columns={columns}
       isLoading={isLoading}
       isFetching={isFetching}
-      emptyTitle={t('No Models Found')}
+      emptyTitle={t('No model resources found')}
       emptyDescription={t(
         'No models available. Create your first model to get started.'
       )}
       skeletonKeyPrefix='model-skeleton'
       applyHeaderSize
+      tableHeaderClassName={modelsTableHeaderClassName}
+      tableClassName={modelsTableClassName}
       toolbarProps={{
-        searchPlaceholder: t('Filter by model name...'),
+        searchPlaceholder: t('Filter by model resource name...'),
+        className: modelsToolbarClassName,
         filters: [
           {
             columnId: 'status',
-            title: t('Status'),
+            title: t('Model status'),
             options: [...getModelStatusOptions(t)],
             singleSelect: true,
           },
           {
             columnId: 'vendor_id',
-            title: t('Vendor'),
+            title: t('Service source'),
             options: vendorFilterOptions,
             singleSelect: true,
           },
@@ -253,6 +308,24 @@ export function ModelsTable() {
             singleSelect: true,
           },
         ],
+      }}
+      getRowClassName={(row) => {
+        const isSelected = row.getIsSelected()
+        const isDisabled = row.original.status === 0
+
+        if (isSelected) {
+          return cn(
+            modelsSelectedRowClassName,
+            isDisabled &&
+              '[&>td:first-child]:border-l-cyan-500/40 [&>td:first-child]:border-l-4'
+          )
+        }
+
+        if (isDisabled) {
+          return modelsDisabledRowClassName
+        }
+
+        return undefined
       }}
       bulkActions={<DataTableBulkActions table={table} />}
     />

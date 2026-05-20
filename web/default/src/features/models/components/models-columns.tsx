@@ -239,8 +239,8 @@ export function useModelsColumns(vendors: Vendor[] = []): ColumnDef<Model>[] {
     // Status column
     {
       accessorKey: 'status',
-      meta: { label: t('Status'), mobileBadge: true },
-      header: t('Status'),
+      meta: { label: t('Model status'), mobileBadge: true },
+      header: t('Model status'),
       cell: ({ row }) => {
         const status = row.getValue('status') as number
         const config =
@@ -447,9 +447,9 @@ export function useModelsColumns(vendors: Vendor[] = []): ColumnDef<Model>[] {
     // Enable Groups column
     {
       accessorKey: 'enable_groups',
-      meta: { label: t('Enable Groups'), mobileHidden: true },
+      meta: { label: t('Tenant groups'), mobileHidden: true },
       header: ({ column }) => (
-        <DataTableColumnHeader column={column} title={t('Enable Groups')} />
+        <DataTableColumnHeader column={column} title={t('Tenant groups')} />
       ),
       cell: ({ row }) => {
         const groups = row.getValue('enable_groups') as string[]
