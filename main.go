@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"embed"
 	"fmt"
 	"log"
@@ -19,6 +20,7 @@ import (
 	"github.com/QuantumNous/new-api/middleware"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/oauth"
+	"github.com/QuantumNous/new-api/pkg/armsotel"
 	perfmetrics "github.com/QuantumNous/new-api/pkg/perf_metrics"
 	"github.com/QuantumNous/new-api/relay"
 	"github.com/QuantumNous/new-api/router"
@@ -55,6 +57,16 @@ func main() {
 		common.FatalLog("failed to initialize resources: " + err.Error())
 		return
 	}
+	shutdownTracing, err := armsotel.Init(context.Background())
+	if err != nil {
+		common.FatalLog("failed to initialize opentelemetry: " + err.Error())
+		return
+	}
+	defer func() {
+		if err := shutdownTracing(context.Background()); err != nil {
+			common.SysError(fmt.Sprintf("shutdown opentelemetry error: %v", err))
+		}
+	}()
 
 	common.SysLog("New API " + common.Version + " started")
 	if os.Getenv("GIN_MODE") != "debug" {
@@ -171,6 +183,7 @@ func main() {
 	}))
 	// This will cause SSE not to work!!!
 	//server.Use(gzip.Gzip(gzip.DefaultCompression))
+	server.Use(middleware.Trace())
 	server.Use(middleware.RequestId())
 	server.Use(middleware.PoweredBy())
 	server.Use(middleware.I18n())

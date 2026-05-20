@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/pkg/armsotel"
 	"github.com/QuantumNous/new-api/setting/system_setting"
 
 	"golang.org/x/net/proxy"
@@ -46,12 +47,12 @@ func InitHttpClient() {
 
 	if common.RelayTimeout == 0 {
 		httpClient = &http.Client{
-			Transport:     transport,
+			Transport:     armsotel.WrapTransport(transport),
 			CheckRedirect: checkRedirect,
 		}
 	} else {
 		httpClient = &http.Client{
-			Transport:     transport,
+			Transport:     armsotel.WrapTransport(transport),
 			Timeout:       time.Duration(common.RelayTimeout) * time.Second,
 			CheckRedirect: checkRedirect,
 		}
@@ -75,7 +76,7 @@ func ResetProxyClientCache() {
 	proxyClientLock.Lock()
 	defer proxyClientLock.Unlock()
 	for _, client := range proxyClients {
-		if transport, ok := client.Transport.(*http.Transport); ok && transport != nil {
+		if transport, ok := client.Transport.(interface{ CloseIdleConnections() }); ok && transport != nil {
 			transport.CloseIdleConnections()
 		}
 	}
@@ -115,7 +116,7 @@ func NewProxyHttpClient(proxyURL string) (*http.Client, error) {
 			transport.TLSClientConfig = common.InsecureTLSConfig
 		}
 		client := &http.Client{
-			Transport:     transport,
+			Transport:     armsotel.WrapTransport(transport),
 			CheckRedirect: checkRedirect,
 		}
 		client.Timeout = time.Duration(common.RelayTimeout) * time.Second
@@ -156,7 +157,7 @@ func NewProxyHttpClient(proxyURL string) (*http.Client, error) {
 			transport.TLSClientConfig = common.InsecureTLSConfig
 		}
 
-		client := &http.Client{Transport: transport, CheckRedirect: checkRedirect}
+		client := &http.Client{Transport: armsotel.WrapTransport(transport), CheckRedirect: checkRedirect}
 		client.Timeout = time.Duration(common.RelayTimeout) * time.Second
 		proxyClientLock.Lock()
 		proxyClients[proxyURL] = client

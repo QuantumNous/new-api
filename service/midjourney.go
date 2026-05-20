@@ -13,6 +13,7 @@ import (
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/logger"
+	"github.com/QuantumNous/new-api/pkg/armsotel"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/setting"
 
@@ -196,13 +197,12 @@ func DoMidjourneyHttpRequest(c *gin.Context, timeout time.Duration, fullRequestU
 	if err != nil {
 		return MidjourneyErrorWithStatusCodeWrapper(constant.MjErrorUnknown, "marshal_request_body_failed", http.StatusInternalServerError), nullBytes, err
 	}
-	req, err := http.NewRequest(c.Request.Method, fullRequestURL, strings.NewReader(string(reqBody)))
+	ctx, cancel := context.WithTimeout(armsotel.DetachedContext(c.Request.Context()), timeout)
+	defer cancel()
+	req, err := http.NewRequestWithContext(ctx, c.Request.Method, fullRequestURL, strings.NewReader(string(reqBody)))
 	if err != nil {
 		return MidjourneyErrorWithStatusCodeWrapper(constant.MjErrorUnknown, "create_request_failed", http.StatusInternalServerError), nullBytes, err
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
-	// 使用带有超时的 context 创建新的请求
-	req = req.WithContext(ctx)
 	req.Header.Set("Content-Type", c.Request.Header.Get("Content-Type"))
 	req.Header.Set("Accept", c.Request.Header.Get("Accept"))
 	auth := common.GetContextKeyString(c, constant.ContextKeyChannelKey)
@@ -210,7 +210,6 @@ func DoMidjourneyHttpRequest(c *gin.Context, timeout time.Duration, fullRequestU
 		auth = strings.TrimPrefix(auth, "Bearer ")
 		req.Header.Set("mj-api-secret", auth)
 	}
-	defer cancel()
 	resp, err := GetHttpClient().Do(req)
 	if err != nil {
 		common.SysLog("do request failed: " + err.Error())

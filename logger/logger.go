@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/pkg/armsotel"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 
 	"github.com/bytedance/gopkg/util/gopool"
@@ -96,18 +97,28 @@ func LogDebug(ctx context.Context, msg string, args ...any) {
 
 func logHelper(ctx context.Context, level string, msg string) {
 	var id any = "SYSTEM"
+	var traceCtx context.Context
 	if ctx != nil {
 		if requestID := ctx.Value(common.RequestIdKey); requestID != nil {
 			id = requestID
 		}
+		traceCtx = ctx
+		if ginCtx, ok := ctx.(*gin.Context); ok && ginCtx.Request != nil {
+			traceCtx = ginCtx.Request.Context()
+		}
 	}
+	traceID, spanID := armsotel.TraceIDsFromContext(traceCtx)
 	now := time.Now()
 	common.LogWriterMu.RLock()
 	writer := gin.DefaultErrorWriter
 	if level == loggerINFO {
 		writer = gin.DefaultWriter
 	}
-	_, _ = fmt.Fprintf(writer, "[%s] %v | %s | %s \n", level, now.Format("2006/01/02 - 15:04:05"), id, msg)
+	if traceID != "" {
+		_, _ = fmt.Fprintf(writer, "[%s] %v | %s | trace=%s span=%s | %s \n", level, now.Format("2006/01/02 - 15:04:05"), id, traceID, spanID, msg)
+	} else {
+		_, _ = fmt.Fprintf(writer, "[%s] %v | %s | %s \n", level, now.Format("2006/01/02 - 15:04:05"), id, msg)
+	}
 	common.LogWriterMu.RUnlock()
 	logCount++ // we don't need accurate count, so no lock here
 	if logCount > maxLogCount && !setupLogWorking {

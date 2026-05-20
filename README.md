@@ -328,6 +328,12 @@ docker run --name new-api -d --restart always \
 | `PYROSCOPE_MUTEX_RATE` | Pyroscope mutex sampling rate | `5` |
 | `PYROSCOPE_BLOCK_RATE` | Pyroscope block sampling rate | `5` |
 | `HOSTNAME` | Hostname tag for Pyroscope | `new-api` |
+| `OTEL_SERVICE_NAME` | OpenTelemetry service name for ARMS tracing | `new-api` |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | OTLP gRPC endpoint, usually the in-cluster collector | - |
+| `OTEL_EXPORTER_OTLP_HEADERS` | OTLP exporter headers, for example ARMS authentication | - |
+| `OTEL_TRACES_SAMPLER` | Trace sampler, use `parentbased_traceidratio` in production | `parentbased_always_on` |
+| `OTEL_TRACES_SAMPLER_ARG` | Sampling ratio when using `parentbased_traceidratio` | `1` |
+| `OTEL_RESOURCE_ATTRIBUTES` | Comma-separated resource attributes such as region/cluster/env | - |
 
 📖 **Complete configuration:** [Environment Variables Documentation](https://docs.newapi.pro/en/docs/installation/config-maintenance/environment-variables)
 
