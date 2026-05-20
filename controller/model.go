@@ -237,9 +237,10 @@ func ListModels(c *gin.Context, modelType int) {
 }
 
 func buildGeminiModel(openAIModel dto.OpenAIModels) dto.GeminiModel {
+	normalizedModelID := normalizeGeminiModelID(openAIModel.Id)
 	return dto.GeminiModel{
-		Name:                       fmt.Sprintf("models/%s", normalizeGeminiModelID(openAIModel.Id)),
-		DisplayName:                openAIModel.Id,
+		Name:                       fmt.Sprintf("models/%s", normalizedModelID),
+		DisplayName:                normalizedModelID,
 		SupportedGenerationMethods: getGeminiSupportedGenerationMethods(openAIModel),
 	}
 }

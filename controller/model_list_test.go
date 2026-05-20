@@ -171,6 +171,14 @@ func geminiMethods(model dto.GeminiModel) []string {
 	return append([]string(nil), model.SupportedGenerationMethods...)
 }
 
+func TestBuildGeminiModelNormalizesPrefixedID(t *testing.T) {
+	geminiModel := buildGeminiModel(dto.OpenAIModels{Id: "models/gemini-2.5-flash"})
+
+	require.Equal(t, "models/gemini-2.5-flash", geminiModel.Name)
+	require.Equal(t, "gemini-2.5-flash", geminiModel.DisplayName)
+	require.ElementsMatch(t, []string{"generateContent"}, geminiModel.SupportedGenerationMethods)
+}
+
 func pricingByModelName(pricings []model.Pricing) map[string]model.Pricing {
 	byName := make(map[string]model.Pricing, len(pricings))
 	for _, pricing := range pricings {
