@@ -31,12 +31,12 @@ export function ToggleStatusDialog() {
   if (open !== 'toggle-status' || !currentRow) return null
 
   const isEnabled = currentRow.plan.enabled
-  const title = isEnabled ? t('Confirm disable') : t('Confirm enable')
+  const title = isEnabled
+    ? t('subs.toggle.confirm_disable_title')
+    : t('subs.toggle.confirm_enable_title')
   const description = isEnabled
-    ? t(
-        'After disabling, it will no longer be shown to users, but historical orders are not affected. Continue?'
-      )
-    : t('After enabling, the plan will be shown to users. Continue?')
+    ? t('subs.toggle.confirm_disable_desc')
+    : t('subs.toggle.confirm_enable_desc')
 
   const handleConfirm = async () => {
     setLoading(true)
@@ -44,13 +44,15 @@ export function ToggleStatusDialog() {
       const res = await patchPlanStatus(currentRow.plan.id, !isEnabled)
       if (res.success) {
         toast.success(
-          isEnabled ? t('Has been disabled') : t('Has been enabled')
+          isEnabled ? t('subs.toast.plan_disabled') : t('subs.toast.plan_enabled')
         )
         triggerRefresh()
         setOpen(null)
+      } else {
+        toast.error(t('subs.toast.plan_status_failed'))
       }
     } catch {
-      toast.error(t('Operation failed'))
+      toast.error(t('subs.toast.plan_status_failed'))
     } finally {
       setLoading(false)
     }
@@ -64,7 +66,7 @@ export function ToggleStatusDialog() {
       desc={description}
       handleConfirm={handleConfirm}
       isLoading={loading}
-      confirmText={isEnabled ? t('Disable') : t('Enable')}
+      confirmText={isEnabled ? t('subs.row.disable_plan') : t('subs.row.enable_plan')}
       destructive={isEnabled}
     />
   )

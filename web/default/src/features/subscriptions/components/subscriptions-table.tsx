@@ -27,6 +27,7 @@ import {
   useReactTable,
 } from '@tanstack/react-table'
 import { useTranslation } from 'react-i18next'
+import { cn } from '@/lib/utils'
 import { DataTablePage } from '@/components/data-table'
 import { getAdminPlans } from '../api'
 import { useSubscriptionsColumns } from './subscriptions-columns'
@@ -66,11 +67,18 @@ export function SubscriptionsTable() {
       table={table}
       columns={columns}
       isLoading={isLoading}
-      emptyTitle={t('No subscription plans yet')}
-      emptyDescription={t(
-        'Click "Create Plan" to create your first subscription plan'
-      )}
+      emptyTitle={t('subs.empty.plans_title')}
+      emptyDescription={t('subs.empty.plans_description')}
       skeletonKeyPrefix='subscriptions-skeleton'
+      tableHeaderClassName={cn(
+        /* Subscriptions only: thead/header text + sort icons readable without relying on theme dark: */
+        '[&_th]:!text-slate-100',
+        '[&_th>div]:!text-slate-100',
+        '[&_th_button]:!text-slate-100',
+        '[&_th_button_span]:!text-slate-100',
+        '[&_th_button_svg]:!text-white/85',
+        'hover:[&_th_button]:!bg-white/10'
+      )}
     />
   )
 }

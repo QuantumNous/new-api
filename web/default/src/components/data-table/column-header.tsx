@@ -47,13 +47,13 @@ export function DataTableColumnHeader<TData, TValue>({
 }: DataTableColumnHeaderProps<TData, TValue>) {
   const { t } = useTranslation()
   const sortIconClass =
-    'ms-2 h-4 w-4 shrink-0 text-slate-600 transition-colors dark:text-slate-300 group-hover/button:text-slate-900 dark:group-hover/button:text-white'
+    'ms-2 h-4 w-4 shrink-0 text-slate-600 transition-colors group-hover/button:text-slate-900 dark:text-white/70 dark:group-hover/button:text-white'
 
   if (!column.getCanSort()) {
     return (
       <div
         className={cn(
-          'font-semibold text-slate-800 dark:text-slate-100',
+          'font-semibold text-slate-800 dark:text-white/90',
           className
         )}
       >
@@ -70,7 +70,7 @@ export function DataTableColumnHeader<TData, TValue>({
             <Button
               variant='ghost'
               size='sm'
-              className='data-popup-open:bg-accent -ms-3 h-8 font-semibold text-slate-800 hover:text-slate-950 dark:text-slate-100 dark:hover:text-white'
+              className='data-popup-open:bg-accent -ms-3 h-8 font-semibold text-slate-800 hover:bg-muted/60 hover:text-slate-950 dark:bg-transparent dark:text-white/90 dark:hover:bg-white/10 dark:hover:text-white'
             />
           }
         >

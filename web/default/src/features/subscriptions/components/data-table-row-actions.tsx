@@ -26,6 +26,8 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import { cn } from '@/lib/utils'
+import { SUBSCRIPTIONS_GHOST_ICON_BUTTON_CLASS } from '../constants'
 import type { PlanRecord } from '../types'
 import { useSubscriptions } from './subscriptions-provider'
 
@@ -40,7 +42,12 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
-        render={<Button variant='ghost' className='h-8 w-8 p-0' />}
+        render={
+          <Button
+            variant='ghost'
+            className={cn('h-8 w-8 p-0', SUBSCRIPTIONS_GHOST_ICON_BUTTON_CLASS)}
+          />
+        }
       >
         <MoreHorizontal className='h-4 w-4' />
       </DropdownMenuTrigger>
@@ -53,7 +60,7 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
           }}
         >
           <Pencil className='mr-2 h-4 w-4' />
-          {t('Edit')}
+          {t('subs.row.edit')}
         </DropdownMenuItem>
         <DropdownMenuItem
           disabled={!complianceConfirmed}
@@ -65,12 +72,12 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
           {row.original.plan.enabled ? (
             <>
               <PowerOff className='mr-2 h-4 w-4' />
-              {t('Disable')}
+              {t('subs.row.disable_plan')}
             </>
           ) : (
             <>
               <Power className='mr-2 h-4 w-4' />
-              {t('Enable')}
+              {t('subs.row.enable_plan')}
             </>
           )}
         </DropdownMenuItem>

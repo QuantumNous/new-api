@@ -39,16 +39,14 @@ function SubscriptionsContent() {
           {t('Subscription Plan Management')}
         </SectionPageLayout.Title>
         <SectionPageLayout.Description>
-          {t('Manage subscription plan creation, pricing and status')}
+          {t('subs.page.manage_intro')}
         </SectionPageLayout.Description>
         <SectionPageLayout.Actions>
           <div className='flex items-center gap-2'>
             <Alert variant='default' className='hidden px-3 py-2 sm:flex'>
               <Info className='h-4 w-4' />
               <AlertDescription className='text-xs'>
-                {t(
-                  'Stripe/Creem requires creating products on the third-party platform and entering the ID'
-                )}
+                {t('subs.page.stripe_creem_alert')}
               </AlertDescription>
             </Alert>
             <SubscriptionsPrimaryButtons />
@@ -58,9 +56,7 @@ function SubscriptionsContent() {
           {!complianceConfirmed ? (
             <Alert variant='destructive' className='mb-4'>
               <AlertDescription>
-                {t(
-                  'Subscription plan creation and changes are locked until the administrator confirms compliance terms in Payment Gateway settings.'
-                )}
+                {t('subs.page.compliance_lock')}
               </AlertDescription>
             </Alert>
           ) : null}

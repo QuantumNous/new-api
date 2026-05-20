@@ -18,22 +18,58 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { Plus } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip'
 import { useSubscriptions } from './subscriptions-provider'
 
 export function SubscriptionsPrimaryButtons() {
   const { t } = useTranslation()
   const { setOpen, complianceConfirmed } = useSubscriptions()
+
+  const createButtonClassName = cn(
+    'shadow-sm text-primary-foreground [&_svg]:text-primary-foreground',
+    'disabled:pointer-events-none disabled:cursor-not-allowed',
+    /* Disabled: readable on dark surfaces without looking “broken” */
+    'disabled:!opacity-90 disabled:border disabled:border-white/15 disabled:bg-white/10 disabled:text-slate-200 disabled:shadow-none',
+    'disabled:[&_svg]:text-slate-200'
+  )
+
+  const createButton = (
+    <Button
+      size='sm'
+      onClick={() => setOpen('create')}
+      disabled={!complianceConfirmed}
+      className={createButtonClassName}
+    >
+      <Plus className='h-4 w-4' />
+      {t('subs.action.create_plan')}
+    </Button>
+  )
+
   return (
     <div className='flex gap-2'>
-      <Button
-        size='sm'
-        onClick={() => setOpen('create')}
-        disabled={!complianceConfirmed}
-      >
-        <Plus className='h-4 w-4' />
-        {t('Create Plan')}
-      </Button>
+      {complianceConfirmed ? (
+        createButton
+      ) : (
+        <TooltipProvider delay={200}>
+          <Tooltip>
+            <TooltipTrigger
+              render={<span className='inline-flex cursor-default rounded-lg' />}
+            >
+              {createButton}
+            </TooltipTrigger>
+            <TooltipContent side='bottom' className='max-w-xs text-balance'>
+              <p>{t('subs.action.create_plan_disabled_reason')}</p>
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+      )}
     </div>
   )
 }
