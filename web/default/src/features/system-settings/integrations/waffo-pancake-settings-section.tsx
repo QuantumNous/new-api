@@ -41,7 +41,6 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
-import { SettingsSection } from '../components/settings-section'
 import { removeTrailingSlash } from './utils'
 import {
   type CatalogStore,
@@ -459,12 +458,15 @@ export function WaffoPancakeSettingsSection(props: Props) {
   }
 
   return (
-    <SettingsSection
-      title={t('Waffo Pancake MoR')}
-      description={t(
-        'Start collecting payments globally without registering a company. Built for indie developers, OPC sole proprietorships, and startups. Waffo Pancake acts as your Merchant of Record, taking on the compliance burden of global payment collection — consumption tax, invoicing, subscription management, refunds, and chargebacks. Solo developers can launch fast and stay focused on product instead of compliance. Onboard in minutes — one prompt to a full integration.'
-      )}
-    >
+    <div className='space-y-4 pt-4'>
+      <div>
+        <h3 className='text-lg font-medium'>{t('Waffo Pancake MoR')}</h3>
+        <p className='text-muted-foreground text-sm'>
+          {t(
+            'Start collecting payments globally without registering a company. Built for indie developers, OPC sole proprietorships, and startups. Waffo Pancake acts as your Merchant of Record, taking on the compliance burden of global payment collection — consumption tax, invoicing, subscription management, refunds, and chargebacks. Solo developers can launch fast and stay focused on product instead of compliance. Onboard in minutes — one prompt to a full integration.'
+          )}
+        </p>
+      </div>
       <Form {...form}>
         <form
           onSubmit={(e) => e.preventDefault()}
@@ -722,6 +724,6 @@ export function WaffoPancakeSettingsSection(props: Props) {
           </div>
         </form>
       </Form>
-    </SettingsSection>
+    </div>
   )
 }
