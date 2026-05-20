@@ -369,9 +369,9 @@ export const FIELD_DESCRIPTIONS = {
     'Automatically disable this service channel after repeated failures',
   STATUS_CODE_MAPPING:
     'Map HTTP response status codes to specified codes (JSON format)',
-  TAG: 'Group channels by tag for batch operations',
-  REMARK: 'Internal notes (not shown to users)',
-  SETTING: 'Channel-specific settings (JSON format)',
+  TAG: 'Group service channels by tag for batch operations',
+  REMARK: 'Internal notes (not shown to end users)',
+  SETTING: 'Service channel-specific settings (JSON format)',
   PARAM_OVERRIDE: 'Override request parameters using JSON configuration',
   HEADER_OVERRIDE: 'Override request headers using JSON configuration',
   MULTI_KEY_MODE: 'How to select keys: random or sequential polling',

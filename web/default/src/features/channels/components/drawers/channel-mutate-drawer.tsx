@@ -3089,7 +3089,7 @@ export function ChannelMutateDrawer({
                                 <FormLabel>{t('Force Format')}</FormLabel>
                                 <FormDescription>
                                   {t(
-                                    'Force format response to OpenAI standard (OpenAI channel only)'
+                                    'Force format response to OpenAI standard (OpenAI service channel only)'
                                   )}
                                 </FormDescription>
                               </div>
@@ -3163,7 +3163,7 @@ export function ChannelMutateDrawer({
                           </FormControl>
                           <FormDescription>
                             {t(
-                              'Network proxy for this channel (supports socks5 protocol)'
+                              'Network proxy for this service channel (supports socks5 protocol)'
                             )}
                           </FormDescription>
                           <FormMessage />
@@ -3187,7 +3187,7 @@ export function ChannelMutateDrawer({
                             />
                           </FormControl>
                           <FormDescription>
-                            {t('Default system prompt for this channel')}
+                            {t('Default system prompt for this service channel')}
                           </FormDescription>
                           <FormMessage />
                         </FormItem>
@@ -3205,7 +3205,7 @@ export function ChannelMutateDrawer({
                             </FormLabel>
                             <FormDescription>
                               {t(
-                                'Concatenate channel system prompt with user&apos;s prompt'
+                                'Concatenate service channel system prompt with user&apos;s prompt'
                               )}
                             </FormDescription>
                           </div>
@@ -3237,7 +3237,7 @@ export function ChannelMutateDrawer({
                                   </FormLabel>
                                   <FormDescription>
                                     {t(
-                                      'Periodically check for upstream model changes'
+                                      'Periodically check for upstream model resource changes'
                                     )}
                                   </FormDescription>
                                 </div>
@@ -3261,7 +3261,7 @@ export function ChannelMutateDrawer({
                                   </FormLabel>
                                   <FormDescription>
                                     {t(
-                                      'Automatically sync model list when upstream changes are detected'
+                                      'Automatically sync model resources when upstream changes are detected'
                                     )}
                                   </FormDescription>
                                 </div>
