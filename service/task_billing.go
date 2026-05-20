@@ -9,9 +9,12 @@ import (
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/model"
+	taskcommon "github.com/QuantumNous/new-api/relay/channel/task/taskcommon"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/setting/billing_setting"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	"github.com/gin-gonic/gin"
+	"github.com/tidwall/gjson"
 )
 
 // LogTaskConsumption 记录任务消费日志和统计信息（仅记录，不涉及实际扣费）。
@@ -139,6 +142,22 @@ func taskBillingOther(task *model.Task) map[string]interface{} {
 	if props.UpstreamModelName != "" && props.UpstreamModelName != props.OriginModelName {
 		other["is_model_mapped"] = true
 		other["upstream_model_name"] = props.UpstreamModelName
+	}
+	if cost := taskcommon.ExtractUSDFromJSON(task.Data); cost > 0 {
+		other["upstream_cost_usd"] = cost
+		mult := 1.0
+		if bc := task.PrivateData.BillingContext; bc != nil && bc.UpstreamCostMultiplier > 0 {
+			mult = bc.UpstreamCostMultiplier
+		} else if name := taskModelName(task); name != "" {
+			mult = billing_setting.ResolveUpstreamCostMultiplier(name)
+		}
+		if mult != 1 {
+			other["upstream_cost_multiplier"] = mult
+			other["upstream_cost_usd_effective"] = cost * mult
+		}
+		if sec := gjson.GetBytes(task.Data, "data.actual_time").Int(); sec > 0 {
+			other["upstream_actual_time_sec"] = sec
+		}
 	}
 	return other
 }

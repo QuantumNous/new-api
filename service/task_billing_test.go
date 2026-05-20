@@ -630,12 +630,13 @@ func (m *mockAdaptor) AdjustBillingOnComplete(_ *model.Task, _ *relaycommon.Task
 // PerCallBilling tests — settleTaskBillingOnComplete
 // ===========================================================================
 
-func TestSettle_PerCallBilling_SkipsAdaptorAdjust(t *testing.T) {
+func TestSettle_PerCallBilling_StillUsesAdaptorUpstreamCost(t *testing.T) {
 	truncate(t)
 	ctx := context.Background()
 
 	const userID, tokenID, channelID = 30, 30, 30
 	const initQuota, preConsumed = 10000, 5000
+	const adaptorQuota = 2000
 	const tokenRemain = 8000
 
 	seedUser(t, userID, initQuota)
@@ -645,16 +646,16 @@ func TestSettle_PerCallBilling_SkipsAdaptorAdjust(t *testing.T) {
 	task := makeTask(userID, channelID, preConsumed, tokenID, BillingSourceWallet, 0)
 	task.PrivateData.BillingContext.PerCallBilling = true
 
-	adaptor := &mockAdaptor{adjustReturn: 2000}
+	adaptor := &mockAdaptor{adjustReturn: adaptorQuota}
 	taskResult := &relaycommon.TaskInfo{Status: model.TaskStatusSuccess}
 
 	settleTaskBillingOnComplete(ctx, adaptor, task, taskResult)
 
-	// Per-call: no adjustment despite adaptor returning 2000
-	assert.Equal(t, initQuota, getUserQuota(t, userID))
-	assert.Equal(t, tokenRemain, getTokenRemainQuota(t, tokenID))
-	assert.Equal(t, preConsumed, task.Quota)
-	assert.Equal(t, int64(0), countLogs(t))
+	// 上游 cost 结算优先于按次计费标记（如 ApiMart data.cost）
+	assert.Equal(t, initQuota+(preConsumed-adaptorQuota), getUserQuota(t, userID))
+	assert.Equal(t, tokenRemain+(preConsumed-adaptorQuota), getTokenRemainQuota(t, tokenID))
+	assert.Equal(t, adaptorQuota, task.Quota)
+	assert.Equal(t, int64(1), countLogs(t))
 }
 
 func TestSettle_PerCallBilling_SkipsTotalTokens(t *testing.T) {

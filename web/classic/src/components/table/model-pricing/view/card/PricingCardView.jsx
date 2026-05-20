@@ -160,7 +160,13 @@ const PricingCardView = ({
         -
       </Tag>
     );
-    if (record.quota_type === 1) {
+    if (record.billing_mode === 'per_second') {
+      billingTag = (
+        <Tag key='billing' shape='circle' color='purple' size='small'>
+          {t('按秒计费')}
+        </Tag>
+      );
+    } else if (record.quota_type === 1) {
       billingTag = (
         <Tag key='billing' shape='circle' color='teal' size='small'>
           {t('按次计费')}

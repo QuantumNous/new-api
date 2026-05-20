@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"strconv"
 	"strings"
 	"time"
 
@@ -697,7 +696,7 @@ func (t *TaskSubmitReq) GetPrompt() string {
 }
 
 func (t *TaskSubmitReq) HasImage() bool {
-	return len(t.Images) > 0
+	return len(t.Images) > 0 || strings.TrimSpace(t.Image) != ""
 }
 
 func (t *TaskSubmitReq) UnmarshalJSON(data []byte) error {
@@ -705,6 +704,7 @@ func (t *TaskSubmitReq) UnmarshalJSON(data []byte) error {
 	aux := &struct {
 		Metadata json.RawMessage `json:"metadata,omitempty"`
 		Duration json.RawMessage `json:"duration,omitempty"`
+		Image    json.RawMessage `json:"image,omitempty"`
 		*Alias
 	}{
 		Alias: (*Alias)(t),
@@ -714,36 +714,13 @@ func (t *TaskSubmitReq) UnmarshalJSON(data []byte) error {
 		return err
 	}
 
-	if len(aux.Duration) > 0 {
-		var durationInt int
-		if err := common.Unmarshal(aux.Duration, &durationInt); err == nil {
-			t.Duration = durationInt
-		} else {
-			var durationStr string
-			if err := common.Unmarshal(aux.Duration, &durationStr); err == nil && durationStr != "" {
-				if v, err := strconv.Atoi(durationStr); err == nil {
-					t.Duration = v
-				}
-			}
-		}
+	// images 保持标准 []string 解析；仅 image 可能是对象（兼容旧客户端）
+	if len(aux.Image) > 0 {
+		applyParsedImageURLs(t, parseFlexibleImageURLs(aux.Image))
 	}
 
-	if len(aux.Metadata) > 0 {
-		var metadataStr string
-		if err := common.Unmarshal(aux.Metadata, &metadataStr); err == nil && metadataStr != "" {
-			var metadataObj map[string]interface{}
-			if err := common.Unmarshal([]byte(metadataStr), &metadataObj); err == nil {
-				t.Metadata = metadataObj
-				return nil
-			}
-		}
-
-		var metadataObj map[string]interface{}
-		if err := common.Unmarshal(aux.Metadata, &metadataObj); err == nil {
-			t.Metadata = metadataObj
-		}
-	}
-
+	unmarshalTaskSubmitDuration(aux.Duration, t)
+	unmarshalTaskSubmitMetadata(aux.Metadata, t)
 	return nil
 }
 func (t *TaskSubmitReq) UnmarshalMetadata(v any) error {

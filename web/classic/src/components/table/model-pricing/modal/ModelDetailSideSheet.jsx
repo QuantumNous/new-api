@@ -106,6 +106,24 @@ const ModelDetailSideSheet = ({
                 </div>
               </>
             )}
+            {modelData.billing_mode === 'per_second' &&
+              modelData.upstream_cost_multiplier > 0 &&
+              modelData.upstream_cost_multiplier !== 1 && (
+                <>
+                  <Divider margin={16} />
+                  <div style={{ padding: '0 24px' }}>
+                    <Text strong style={{ display: 'block', marginBottom: 8 }}>
+                      {t('上游 cost 结算')}
+                    </Text>
+                    <Text type='secondary' size='small'>
+                      {t(
+                        '任务完成后按上游 data.cost × {{mult}} × 分组倍率结算（预扣仍按每秒价格 × duration）。',
+                        { mult: modelData.upstream_cost_multiplier },
+                      )}
+                    </Text>
+                  </div>
+                </>
+              )}
             <Divider margin={16} />
             <div style={{ padding: '0 24px' }}>
               <ModelPricingTable

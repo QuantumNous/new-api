@@ -73,11 +73,13 @@ const ModelPricingTable = ({
         billingType:
           modelData?.billing_mode === 'tiered_expr'
             ? t('动态计费')
-            : modelData?.quota_type === 0
-              ? t('按量计费')
-              : modelData?.quota_type === 1
-                ? t('按次计费')
-                : '-',
+            : modelData?.billing_mode === 'per_second'
+              ? t('按秒计费')
+              : modelData?.quota_type === 0
+                ? t('按量计费')
+                : modelData?.quota_type === 1
+                  ? t('按次计费')
+                  : '-',
         priceItems: getModelPriceItems(priceData, t, siteDisplayType),
       };
     });
@@ -118,6 +120,7 @@ const ModelPricingTable = ({
         let color = 'white';
         if (text === t('按量计费')) color = 'violet';
         else if (text === t('按次计费')) color = 'teal';
+        else if (text === t('按秒计费')) color = 'purple';
         else if (text === t('动态计费')) color = 'amber';
         return (
           <Tag color={color} size='small' shape='circle'>

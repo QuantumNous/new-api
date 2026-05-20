@@ -42,6 +42,7 @@ const EMPTY_MODEL = {
   audioOutputPrice: '',
   billingExpr: '',
   requestRuleExpr: '',
+  upstreamCostMultiplier: '',
   rawRatios: {
     modelRatio: '',
     completionRatio: '',
@@ -123,6 +124,21 @@ const normalizeCompletionRatioMeta = (rawMeta) => {
 
 const buildModelState = (name, sourceMaps) => {
   const billingMode = sourceMaps.ModelBillingMode?.[name];
+  if (billingMode === 'per_second') {
+    const fixedPrice = toNumericString(sourceMaps.ModelPrice[name]);
+    const upstreamCostMultiplier = toNumericString(
+      sourceMaps.ModelUpstreamCostMultiplier?.[name],
+    );
+    return {
+      ...EMPTY_MODEL,
+      name,
+      billingMode: 'per-second',
+      fixedPrice,
+      upstreamCostMultiplier,
+      rawRatios: { ...EMPTY_MODEL.rawRatios },
+      hasConflict: false,
+    };
+  }
   if (billingMode === 'tiered_expr') {
     const fullBillingExpr = sourceMaps.ModelBillingExpr?.[name] || '';
     const { billingExpr, requestRuleExpr } =
@@ -303,6 +319,15 @@ export const buildSummaryText = (model, t) => {
     return `${t('阶梯计费')} (${tierCount} ${t('档')})${requestRuleSuffix}`;
   }
 
+  if (model.billingMode === 'per-second' && hasValue(model.fixedPrice)) {
+    const multSuffix =
+      hasValue(model.upstreamCostMultiplier) &&
+      Number(model.upstreamCostMultiplier) !== 1
+        ? `，cost×${model.upstreamCostMultiplier}`
+        : '';
+    return `${t('按秒')} $${model.fixedPrice} / ${t('秒')}${multSuffix}${requestRuleSuffix}`;
+  }
+
   if (model.billingMode === 'per-request' && hasValue(model.fixedPrice)) {
     return `${t('按次')} $${model.fixedPrice} / ${t('次')}${requestRuleSuffix}`;
   }
@@ -346,7 +371,7 @@ const serializeModel = (model, t) => {
     AudioCompletionRatio: null,
   };
 
-  if (model.billingMode === 'per-request') {
+  if (model.billingMode === 'per-request' || model.billingMode === 'per-second') {
     if (hasValue(model.fixedPrice)) {
       result.ModelPrice = toNormalizedNumber(model.fixedPrice);
     }
@@ -487,7 +512,7 @@ export const buildPreviewRows = (model, t) => {
     return rows;
   }
 
-  if (model.billingMode === 'per-request') {
+  if (model.billingMode === 'per-request' || model.billingMode === 'per-second') {
     const rows = [
       {
         key: 'ModelPrice',
@@ -495,6 +520,20 @@ export const buildPreviewRows = (model, t) => {
         value: hasValue(model.fixedPrice) ? model.fixedPrice : t('空'),
       },
     ];
+    if (model.billingMode === 'per-second') {
+      rows.push({
+        key: 'BillingMode',
+        label: 'ModelBillingMode',
+        value: 'per_second',
+      });
+      rows.push({
+        key: 'UpstreamCostMultiplier',
+        label: 'UpstreamCostMultiplier',
+        value: hasValue(model.upstreamCostMultiplier)
+          ? model.upstreamCostMultiplier
+          : '1',
+      });
+    }
     return rows;
   }
 
@@ -648,6 +687,9 @@ export function useModelPricingEditorState({
       AudioCompletionRatio: parseOptionJSON(options.AudioCompletionRatio),
       ModelBillingMode: parseOptionJSON(options['billing_setting.billing_mode']),
       ModelBillingExpr: parseOptionJSON(options['billing_setting.billing_expr']),
+      ModelUpstreamCostMultiplier: parseOptionJSON(
+        options['billing_setting.upstream_cost_multiplier'],
+      ),
     };
 
     const names = new Set([
@@ -663,6 +705,7 @@ export function useModelPricingEditorState({
       ...Object.keys(sourceMaps.AudioCompletionRatio),
       ...Object.keys(sourceMaps.ModelBillingMode),
       ...Object.keys(sourceMaps.ModelBillingExpr),
+      ...Object.keys(sourceMaps.ModelUpstreamCostMultiplier),
     ]);
 
     const nextModels = Array.from(names)
@@ -964,6 +1007,7 @@ export function useModelPricingEditorState({
           ...model,
           billingMode: selectedModel.billingMode,
           fixedPrice: selectedModel.fixedPrice,
+          upstreamCostMultiplier: selectedModel.upstreamCostMultiplier,
           inputPrice: selectedModel.inputPrice,
           completionPrice: selectedModel.completionPrice,
           cachePrice: selectedModel.cachePrice,
@@ -1038,6 +1082,12 @@ export function useModelPricingEditorState({
         'billing_setting.billing_mode': {},
         'billing_setting.billing_expr': {},
       };
+      const costMultiplierOutput = {
+        ...parseOptionJSON(options['billing_setting.upstream_cost_multiplier']),
+      };
+      const prevBillingModes = parseOptionJSON(
+        options['billing_setting.billing_mode'],
+      );
 
       for (const model of models) {
         if (model.billingMode === 'tiered_expr') {
@@ -1048,6 +1098,19 @@ export function useModelPricingEditorState({
           if (finalBillingExpr) {
             tieredOutput['billing_setting.billing_mode'][model.name] = 'tiered_expr';
             tieredOutput['billing_setting.billing_expr'][model.name] = finalBillingExpr;
+          }
+        } else if (model.billingMode === 'per-second') {
+          tieredOutput['billing_setting.billing_mode'][model.name] = 'per_second';
+          const mult = toNumberOrNull(model.upstreamCostMultiplier);
+          if (mult !== null && mult > 0) {
+            costMultiplierOutput[model.name] = mult;
+          } else {
+            delete costMultiplierOutput[model.name];
+          }
+        } else {
+          delete costMultiplierOutput[model.name];
+          if (prevBillingModes?.[model.name] === 'per_second') {
+            tieredOutput['billing_setting.billing_mode'][model.name] = 'ratio';
           }
         }
 
@@ -1082,6 +1145,10 @@ export function useModelPricingEditorState({
             value: JSON.stringify(value, null, 2),
           }),
         ),
+        API.put('/api/option/', {
+          key: 'billing_setting.upstream_cost_multiplier',
+          value: JSON.stringify(costMultiplierOutput, null, 2),
+        }),
       ];
 
       const results = await Promise.all(requestQueue);

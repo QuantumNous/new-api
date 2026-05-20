@@ -59,6 +59,21 @@ func storeTaskRequest(c *gin.Context, info *RelayInfo, action string, requestObj
 	info.Action = action
 	c.Set("task_request", requestObj)
 }
+
+// BuildTaskFetchBody builds the body map for TaskAdaptor.FetchTask during polling.
+// Includes upstream_model / req_key when stored on the task (required by ApiWenhao and similar vendors).
+func BuildTaskFetchBody(taskID, action, upstreamModel string) map[string]any {
+	body := map[string]any{
+		"task_id": taskID,
+		"action":  action,
+	}
+	upstreamModel = strings.TrimSpace(upstreamModel)
+	if upstreamModel != "" {
+		body["upstream_model"] = upstreamModel
+		body["req_key"] = upstreamModel
+	}
+	return body
+}
 func GetTaskRequest(c *gin.Context) (TaskSubmitReq, error) {
 	v, exists := c.Get("task_request")
 	if !exists {
@@ -141,6 +156,9 @@ func ValidateMultipartDirect(c *gin.Context, info *RelayInfo) *dto.TaskError {
 	}
 	if req.InputReference != "" {
 		req.Images = []string{req.InputReference}
+	}
+	if len(req.Images) == 0 && strings.TrimSpace(req.Image) != "" {
+		req.Images = []string{strings.TrimSpace(req.Image)}
 	}
 
 	if strings.TrimSpace(req.Model) == "" {

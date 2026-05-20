@@ -198,9 +198,11 @@ export default function ModelPricingEditor({
           >
             {record.billingMode === 'per-request'
               ? t('按次计费')
-              : record.billingMode === 'tiered_expr'
-                ? getExprModeLabel(record)
-                : t('按量计费')}
+              : record.billingMode === 'per-second'
+                ? t('按秒计费')
+                : record.billingMode === 'tiered_expr'
+                  ? getExprModeLabel(record)
+                  : t('按量计费')}
           </Tag>
         ),
       },
@@ -380,16 +382,20 @@ export default function ModelPricingEditor({
                   color={
                     selectedModel.billingMode === 'per-request'
                       ? 'teal'
-                      : selectedModel.billingMode === 'tiered_expr'
-                        ? 'amber'
-                        : 'blue'
+                      : selectedModel.billingMode === 'per-second'
+                        ? 'violet'
+                        : selectedModel.billingMode === 'tiered_expr'
+                          ? 'amber'
+                          : 'blue'
                   }
                 >
                   {selectedModel.billingMode === 'per-request'
                     ? t('按次计费')
-                    : selectedModel.billingMode === 'tiered_expr'
-                      ? getExprModeLabel(selectedModel)
-                      : t('按量计费')}
+                    : selectedModel.billingMode === 'per-second'
+                      ? t('按秒计费')
+                      : selectedModel.billingMode === 'tiered_expr'
+                        ? getExprModeLabel(selectedModel)
+                        : t('按量计费')}
                 </Tag>
               ) : null
             }
@@ -414,6 +420,7 @@ export default function ModelPricingEditor({
                   >
                     <Radio value='per-token'>{t('按量计费')}</Radio>
                     <Radio value='per-request'>{t('按次计费')}</Radio>
+                    <Radio value='per-second'>{t('按秒计费')}</Radio>
                     <Radio value='tiered_expr'>{t('表达式/阶梯计费')}</Radio>
                   </RadioGroup>
                   <div className='mt-2 text-xs text-gray-500'>
@@ -449,6 +456,29 @@ export default function ModelPricingEditor({
                     onChange={(value) => handleNumericFieldChange('fixedPrice', value)}
                     extraText={t('适合 MJ / 任务类等按次收费模型。')}
                   />
+                ) : selectedModel.billingMode === 'per-second' ? (
+                  <>
+                    <PriceInput
+                      label={t('每秒价格')}
+                      value={selectedModel.fixedPrice}
+                      placeholder={t('例如 0.02')}
+                      suffix={t('$/秒')}
+                      onChange={(value) =>
+                        handleNumericFieldChange('fixedPrice', value)
+                      }
+                    />
+                    <PriceInput
+                      label={t('上游 cost 结算乘数')}
+                      value={selectedModel.upstreamCostMultiplier}
+                      placeholder={t('默认 1')}
+                      onChange={(value) =>
+                        handleNumericFieldChange('upstreamCostMultiplier', value)
+                      }
+                      extraText={t(
+                        '任务完成按上游 data.cost 扣费时：实际 cost × 此系数 × 500000 × 分组倍率。留空或填 1 表示不调整；例如汇率设错可填 7.3 将美元 cost 按人民币口径结算。预扣仍按每秒价格 × duration，不受此项影响。',
+                      )}
+                    />
+                  </>
                 ) : selectedModel.billingMode === 'tiered_expr' ? (
                   <TieredPricingEditor
                     model={selectedModel}

@@ -359,10 +359,11 @@ func updateVideoSingleTask(ctx context.Context, adaptor TaskPollingAdaptor, ch *
 	if privateData.Key != "" {
 		key = privateData.Key
 	}
-	resp, err := adaptor.FetchTask(baseURL, key, map[string]any{
-		"task_id": task.GetUpstreamTaskID(),
-		"action":  task.Action,
-	}, proxy)
+	resp, err := adaptor.FetchTask(baseURL, key, relaycommon.BuildTaskFetchBody(
+		task.GetUpstreamTaskID(),
+		task.Action,
+		task.Properties.UpstreamModelName,
+	), proxy)
 	if err != nil {
 		return fmt.Errorf("fetchTask failed for task %s: %w", taskId, err)
 	}
@@ -549,15 +550,18 @@ func truncateBase64(s string) string {
 //  2. taskResult.TotalTokens > 0 → 按 token 重算
 //  3. 都不满足 → 保持预扣额度不变
 func settleTaskBillingOnComplete(ctx context.Context, adaptor TaskPollingAdaptor, task *model.Task, taskResult *relaycommon.TaskInfo) {
-	// 0. 按次计费的任务不做差额结算
+	// 1. 优先让 adaptor 按上游实际费用（如 ApiMart data.cost）决定最终额度
+	if actualQuota := adaptor.AdjustBillingOnComplete(task, taskResult); actualQuota > 0 {
+		RecalculateTaskQuota(ctx, task, actualQuota, "adaptor计费调整(上游cost)", taskResult)
+		ReportTaskUsageToConsumeLog(task, taskResult)
+		return
+	}
+	// 2. 按次计费且无上游 cost 时保持预扣额度
 	if bc := task.PrivateData.BillingContext; bc != nil && bc.PerCallBilling {
 		logger.LogInfo(ctx, fmt.Sprintf("任务 %s 按次计费，跳过差额结算", task.TaskID))
 		return
 	}
-	// 1. 优先让 adaptor 决定最终额度
-	if actualQuota := adaptor.AdjustBillingOnComplete(task, taskResult); actualQuota > 0 {
-		RecalculateTaskQuota(ctx, task, actualQuota, "adaptor计费调整", taskResult)
-	} else if taskResult != nil && taskResult.TotalTokens > 0 {
+	if taskResult != nil && taskResult.TotalTokens > 0 {
 		// 2. 回退到 token 重算
 		RecalculateTaskQuotaByTokens(ctx, task, taskResult)
 	}

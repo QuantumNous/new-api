@@ -11,20 +11,30 @@ import (
 const (
 	BillingModeRatio      = "ratio"
 	BillingModeTieredExpr = "tiered_expr"
-	BillingModeField      = "billing_mode"
-	BillingExprField      = "billing_expr"
+	// BillingModePerSecond marks task/video models billed per second (ModelPrice × duration).
+	BillingModePerSecond = "per_second"
+	BillingModeField              = "billing_mode"
+	BillingExprField              = "billing_expr"
+	UpstreamCostMultiplierField   = "upstream_cost_multiplier"
 )
+
+// IsPerSecondModel reports whether the model uses per-second fixed pricing (not flat per-call).
+func IsPerSecondModel(model string) bool {
+	return GetBillingMode(model) == BillingModePerSecond
+}
 
 // BillingSetting is managed by config.GlobalConfig.Register.
 // DB keys: billing_setting.billing_mode, billing_setting.billing_expr
 type BillingSetting struct {
-	BillingMode map[string]string `json:"billing_mode"`
-	BillingExpr map[string]string `json:"billing_expr"`
+	BillingMode            map[string]string  `json:"billing_mode"`
+	BillingExpr            map[string]string  `json:"billing_expr"`
+	UpstreamCostMultiplier map[string]float64 `json:"upstream_cost_multiplier"`
 }
 
 var billingSetting = BillingSetting{
-	BillingMode: make(map[string]string),
-	BillingExpr: make(map[string]string),
+	BillingMode:            make(map[string]string),
+	BillingExpr:            make(map[string]string),
+	UpstreamCostMultiplier: make(map[string]float64),
 }
 
 func init() {
@@ -35,7 +45,20 @@ func init() {
 // Read accessors (hot path, must be fast)
 // ---------------------------------------------------------------------------
 
+func ensureBillingSettingMaps() {
+	if billingSetting.BillingMode == nil {
+		billingSetting.BillingMode = make(map[string]string)
+	}
+	if billingSetting.BillingExpr == nil {
+		billingSetting.BillingExpr = make(map[string]string)
+	}
+	if billingSetting.UpstreamCostMultiplier == nil {
+		billingSetting.UpstreamCostMultiplier = make(map[string]float64)
+	}
+}
+
 func GetBillingMode(model string) string {
+	ensureBillingSettingMaps()
 	if mode, ok := billingSetting.BillingMode[model]; ok {
 		return mode
 	}
@@ -55,13 +78,46 @@ func GetBillingExprCopy() map[string]string {
 	return lo.Assign(billingSetting.BillingExpr)
 }
 
+// GetUpstreamCostMultiplier returns the multiplier applied to upstream data.cost at task settle.
+// Second return is false when unset; callers should treat that as 1.0.
+func GetUpstreamCostMultiplier(model string) (float64, bool) {
+	ensureBillingSettingMaps()
+	if model == "" || billingSetting.UpstreamCostMultiplier == nil {
+		return 1, false
+	}
+	m, ok := billingSetting.UpstreamCostMultiplier[model]
+	if !ok || m <= 0 {
+		return 1, false
+	}
+	return m, true
+}
+
+// ResolveUpstreamCostMultiplier returns multiplier for billing (default 1).
+func ResolveUpstreamCostMultiplier(model string) float64 {
+	m, ok := GetUpstreamCostMultiplier(model)
+	if !ok {
+		return 1
+	}
+	return m
+}
+
+func GetUpstreamCostMultiplierCopy() map[string]float64 {
+	if billingSetting.UpstreamCostMultiplier == nil {
+		return map[string]float64{}
+	}
+	return lo.Assign(billingSetting.UpstreamCostMultiplier)
+}
+
 func GetPricingSyncData(base map[string]any) map[string]any {
-	extra := make(map[string]any, 2)
+	extra := make(map[string]any, 3)
 	if modes := GetBillingModeCopy(); len(modes) > 0 {
 		extra[BillingModeField] = modes
 	}
 	if exprs := GetBillingExprCopy(); len(exprs) > 0 {
 		extra[BillingExprField] = exprs
+	}
+	if mults := GetUpstreamCostMultiplierCopy(); len(mults) > 0 {
+		extra[UpstreamCostMultiplierField] = mults
 	}
 	return lo.Assign(base, extra)
 }

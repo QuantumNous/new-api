@@ -33,9 +33,10 @@ type Pricing struct {
 	AudioCompletionRatio   *float64                `json:"audio_completion_ratio,omitempty"`
 	EnableGroup            []string                `json:"enable_groups"`
 	SupportedEndpointTypes []constant.EndpointType `json:"supported_endpoint_types"`
-	BillingMode            string                  `json:"billing_mode,omitempty"`
-	BillingExpr            string                  `json:"billing_expr,omitempty"`
-	PricingVersion         string                  `json:"pricing_version,omitempty"`
+	BillingMode              string   `json:"billing_mode,omitempty"`
+	BillingExpr              string   `json:"billing_expr,omitempty"`
+	UpstreamCostMultiplier   *float64 `json:"upstream_cost_multiplier,omitempty"`
+	PricingVersion           string   `json:"pricing_version,omitempty"`
 }
 
 type PricingVendor struct {
@@ -331,10 +332,18 @@ func updatePricing() {
 			audioCompletionRatio := ratio_setting.GetAudioCompletionRatio(model)
 			pricing.AudioCompletionRatio = &audioCompletionRatio
 		}
-		if billingMode := billing_setting.GetBillingMode(model); billingMode == "tiered_expr" {
-			if expr, ok := billing_setting.GetBillingExpr(model); ok && strings.TrimSpace(expr) != "" {
+		if billingMode := billing_setting.GetBillingMode(model); billingMode != "" && billingMode != billing_setting.BillingModeRatio {
+			switch billingMode {
+			case billing_setting.BillingModeTieredExpr:
+				if expr, ok := billing_setting.GetBillingExpr(model); ok && strings.TrimSpace(expr) != "" {
+					pricing.BillingMode = billingMode
+					pricing.BillingExpr = expr
+				}
+			case billing_setting.BillingModePerSecond:
 				pricing.BillingMode = billingMode
-				pricing.BillingExpr = expr
+				if mult, ok := billing_setting.GetUpstreamCostMultiplier(model); ok {
+					pricing.UpstreamCostMultiplier = &mult
+				}
 			}
 		}
 		pricingMap = append(pricingMap, pricing)
@@ -342,7 +351,7 @@ func updatePricing() {
 
 	// 防止大更新后数据不通用
 	if len(pricingMap) > 0 {
-		pricingMap[0].PricingVersion = "5a90f2b86c08bd983a9a2e6d66c255f4eaef9c4bc934386d2b6ae84ef0ff1f1f"
+		pricingMap[0].PricingVersion = "6b01c3d97d19ce094b0a3f7e77d366f5fb0a5d6c7e8f9a0b1c2d3e4f5a6b7c8d9"
 	}
 
 	// 刷新缓存映射，供高并发快速查询

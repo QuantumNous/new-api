@@ -134,6 +134,30 @@ export const CHANNEL_TYPE_CONFIGS: Record<number, ChannelTypeConfig> = {
       baseUrl: 'Default: https://api.replicate.com',
     },
   },
+  58: {
+    id: 58,
+    name: CHANNEL_TYPES[58],
+    icon: 'openai',
+    defaultBaseUrl: 'https://saast.fuwenhao.com',
+    hints: {
+      key: 'Format: sk-... (Bearer token)',
+      models: 'grok-video-3 (map to upstream req_key)',
+      baseUrl: 'Default: https://saast.fuwenhao.com (do not include /open/v1/createtask)',
+      other: 'Model mapping: user model → upstream req_key (e.g. newapi_grok-video-3-10s_to_video)',
+    },
+  },
+  59: {
+    id: 59,
+    name: CHANNEL_TYPES[59],
+    icon: 'openai',
+    defaultBaseUrl: 'https://api.apimart.ai',
+    hints: {
+      key: 'Format: sk-... (Bearer token)',
+      models: 'grok-imagine-1.0-video-apimart',
+      baseUrl: 'Default: https://api.apimart.ai',
+      other: 'Async video: POST /v1/videos/generations, poll GET /v1/tasks/{id}',
+    },
+  },
 }
 
 /**

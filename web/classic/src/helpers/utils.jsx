@@ -748,12 +748,18 @@ export const calculateModelPrice = ({
   }
 
   if (record.quota_type === 1) {
-    // 按次计费
     const priceUSD = parseFloat(record.model_price) * usedGroupRatio;
     const displayVal = displayPrice(priceUSD);
+    const isPerSecond = record.billing_mode === 'per_second';
+    const upstreamCostMultiplier =
+      record.upstream_cost_multiplier > 0
+        ? Number(record.upstream_cost_multiplier)
+        : 1;
 
     return {
       price: displayVal,
+      isPerSecond,
+      upstreamCostMultiplier,
       isPerToken: false,
       isTokensDisplay: false,
       usedGroup,
@@ -886,14 +892,29 @@ export const getModelPriceItems = (
     ].filter((item) => item.value !== null && item.value !== undefined && item.value !== '');
   }
 
-  return [
+  const items = [
     {
       key: 'fixed',
       label: t('模型价格'),
       value: priceData.price,
-      suffix: ` / ${t('次')}`,
+      suffix: priceData.isPerSecond ? ` / ${t('秒')}` : ` / ${t('次')}`,
     },
-  ].filter((item) => item.value !== null && item.value !== undefined && item.value !== '');
+  ];
+  if (
+    priceData.isPerSecond &&
+    priceData.upstreamCostMultiplier > 0 &&
+    priceData.upstreamCostMultiplier !== 1
+  ) {
+    items.push({
+      key: 'cost-mult',
+      label: t('上游 cost 乘数'),
+      value: String(priceData.upstreamCostMultiplier),
+      suffix: '',
+    });
+  }
+  return items.filter(
+    (item) => item.value !== null && item.value !== undefined && item.value !== '',
+  );
 };
 
 // 格式化动态计费摘要（用于卡片视图，与 formatPriceInfo 风格统一）
