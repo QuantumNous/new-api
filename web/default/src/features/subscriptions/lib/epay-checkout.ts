@@ -21,7 +21,6 @@ export interface SubscriptionEpayCheckout {
   url: string
   params: Record<string, unknown>
   createdAt: number
-  openedAt?: number
 }
 
 const CHECKOUT_STORAGE_PREFIX = 'subscription-epay-checkout:'
@@ -83,33 +82,10 @@ export function clearSubscriptionEpayCheckout(tradeNo: string): void {
   window.sessionStorage.removeItem(getStorageKey(tradeNo))
 }
 
-export function markSubscriptionEpayCheckoutOpened(
-  tradeNo: string
-): SubscriptionEpayCheckout | null {
-  const checkout = readSubscriptionEpayCheckout(tradeNo)
-  if (!checkout) {
-    return null
-  }
-
-  const nextCheckout: SubscriptionEpayCheckout = {
-    ...checkout,
-    openedAt: Date.now(),
-  }
-  window.sessionStorage.setItem(
-    getStorageKey(tradeNo),
-    JSON.stringify(nextCheckout)
-  )
-  return nextCheckout
-}
-
 export function submitSubscriptionEpayCheckout(
   checkout: SubscriptionEpayCheckout,
   target: string
-): boolean {
-  if (typeof document === 'undefined' || !checkout.url) {
-    return false
-  }
-
+): void {
   const form = document.createElement('form')
   form.action = checkout.url
   form.method = 'POST'
@@ -126,5 +102,4 @@ export function submitSubscriptionEpayCheckout(
   document.body.appendChild(form)
   form.submit()
   document.body.removeChild(form)
-  return true
 }
