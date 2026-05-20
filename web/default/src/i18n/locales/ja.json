@@ -2161,6 +2161,7 @@
     "Leave empty to disable the agreement requirement. Supports Markdown, HTML, or a full URL to redirect users.": "利用規約の要件を無効にするには空のままにしてください。Markdown、HTML、またはユーザーをリダイレクトするための完全なURLをサポートします。",
     "Leave empty to disable the privacy policy requirement. Supports Markdown, HTML, or a full URL to redirect users.": "プライバシーポリシーの要件を無効にするには空のままにしてください。Markdown、HTML、またはユーザーをリダイレクトするための完全なURLをサポートします。",
     "Leave empty to disband the tag": "タグを解散するには空のままにしてください",
+    "Leave empty to keep existing admin key": "Leave empty to keep existing admin key",
     "Leave empty to keep existing key": "空欄のままにすると既存のキーを保持します",
     "Leave empty to keep unchanged": "変更しない場合は空欄のまま",
     "Leave empty to use account email": "アカウントのメールアドレスを使用するには空のままにしてください",

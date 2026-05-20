@@ -2161,6 +2161,7 @@
     "Leave empty to disable the agreement requirement. Supports Markdown, HTML, or a full URL to redirect users.": "Leave empty to disable the agreement requirement. Supports Markdown, HTML, or a full URL to redirect users.",
     "Leave empty to disable the privacy policy requirement. Supports Markdown, HTML, or a full URL to redirect users.": "Leave empty to disable the privacy policy requirement. Supports Markdown, HTML, or a full URL to redirect users.",
     "Leave empty to disband the tag": "Leave empty to disband the tag",
+    "Leave empty to keep existing admin key": "Leave empty to keep existing admin key",
     "Leave empty to keep existing key": "Leave empty to keep existing key",
     "Leave empty to keep unchanged": "Leave empty to keep unchanged",
     "Leave empty to use account email": "Leave empty to use account email",

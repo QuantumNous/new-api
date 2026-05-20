@@ -2161,6 +2161,7 @@
     "Leave empty to disable the agreement requirement. Supports Markdown, HTML, or a full URL to redirect users.": "Оставьте пустым, чтобы отключить требование соглашения. Поддерживает Markdown, HTML или полный URL для перенаправления пользователей.",
     "Leave empty to disable the privacy policy requirement. Supports Markdown, HTML, or a full URL to redirect users.": "Оставьте пустым, чтобы отключить требование политики конфиденциальности. Поддерживает Markdown, HTML или полный URL для перенаправления пользователей.",
     "Leave empty to disband the tag": "Оставьте пустым, чтобы удалить тег",
+    "Leave empty to keep existing admin key": "Оставьте пустым, чтобы сохранить текущий admin key",
     "Leave empty to keep existing key": "Оставьте пустым, чтобы сохранить существующий ключ",
     "Leave empty to keep unchanged": "Оставьте пустым, чтобы сохранить без изменений",
     "Leave empty to use account email": "Оставьте пустым, чтобы использовать электронную почту учетной записи",

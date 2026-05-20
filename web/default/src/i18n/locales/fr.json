@@ -2161,6 +2161,7 @@
     "Leave empty to disable the agreement requirement. Supports Markdown, HTML, or a full URL to redirect users.": "Laissez vide pour désactiver l'exigence d'accord. Prend en charge Markdown, HTML ou une URL complète pour rediriger les utilisateurs.",
     "Leave empty to disable the privacy policy requirement. Supports Markdown, HTML, or a full URL to redirect users.": "Laissez vide pour désactiver l'exigence de politique de confidentialité. Prend en charge Markdown, HTML ou une URL complète pour rediriger les utilisateurs.",
     "Leave empty to disband the tag": "Laissez vide pour dissoudre l'étiquette",
+    "Leave empty to keep existing admin key": "Leave empty to keep existing admin key",
     "Leave empty to keep existing key": "Laissez vide pour conserver la clé existante",
     "Leave empty to keep unchanged": "Laissez vide pour conserver inchangé",
     "Leave empty to use account email": "Laissez vide pour utiliser l'e-mail du compte",

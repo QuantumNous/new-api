@@ -2161,6 +2161,7 @@
     "Leave empty to disable the agreement requirement. Supports Markdown, HTML, or a full URL to redirect users.": "Để trống để tắt yêu cầu đồng ý. Hỗ trợ Markdown, HTML hoặc một URL đầy đủ để chuyển hướng người dùng.",
     "Leave empty to disable the privacy policy requirement. Supports Markdown, HTML, or a full URL to redirect users.": "Để trống để vô hiệu hóa yêu cầu chính sách bảo mật. Hỗ trợ Markdown, HTML hoặc một URL đầy đủ để chuyển hướng người dùng.",
     "Leave empty to disband the tag": "Để trống để giải tán thẻ",
+    "Leave empty to keep existing admin key": "Leave empty to keep existing admin key",
     "Leave empty to keep existing key": "Để trống để giữ khóa hiện có",
     "Leave empty to keep unchanged": "Để trống để giữ nguyên",
     "Leave empty to use account email": "Để trống để sử dụng email tài khoản",
