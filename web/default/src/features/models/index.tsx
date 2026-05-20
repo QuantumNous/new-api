@@ -142,7 +142,7 @@ function ModelsContent() {
         <SectionPageLayout.Content>
           <div className='space-y-4'>
             <Tabs value={activeSection} onValueChange={handleSectionChange}>
-              <TabsList className='h-auto max-w-full flex-wrap justify-start'>
+              <TabsList className='group-data-horizontal/tabs:h-auto max-w-full flex-wrap justify-start'>
                 {MODELS_SECTION_IDS.map((section) => (
                   <TabsTrigger key={section} value={section}>
                     {t(SECTION_META[section].titleKey)}

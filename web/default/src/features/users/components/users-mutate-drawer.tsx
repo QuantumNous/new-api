@@ -121,6 +121,17 @@ export function UsersMutateDrawer({
   const currentQuotaRaw = form.watch('quota_dollars') || 0
 
   const onSubmit = async (data: UserFormValues) => {
+    if (!isUpdate) {
+      const passwordLength = data.password?.length || 0
+      if (passwordLength < 8 || passwordLength > 20) {
+        form.setError('password', {
+          type: 'manual',
+          message: t('Password must be between 8 and 20 characters'),
+        })
+        return
+      }
+    }
+
     setIsSubmitting(true)
     try {
       const payload = transformFormDataToPayload(data, currentRow?.id)
