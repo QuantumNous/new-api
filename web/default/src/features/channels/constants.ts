@@ -374,7 +374,7 @@ export const FIELD_DESCRIPTIONS = {
   PARAM_OVERRIDE: 'Override request parameters (JSON format)',
   HEADER_OVERRIDE: 'Override request headers (JSON format)',
   MULTI_KEY_MODE: 'How to select keys: random or sequential polling',
-  BATCH_ADD: 'Create multiple channels from multiple keys',
+  BATCH_ADD: 'Create multiple service channels from multiple access credentials',
   OPENAI_ORG: 'OpenAI Organization ID (optional)',
 } as const
 
@@ -398,7 +398,7 @@ export const TYPE_TO_KEY_PROMPT: Record<number, string> = {
 }
 
 export const CHANNEL_TYPE_WARNINGS: Record<number, string> = {
-  3: 'For channels added after May 10, 2025, no need to remove "." from model names during deployment',
-  8: 'If connecting to upstream compatible relay projects, use OpenAI type instead unless you know what you are doing',
-  37: 'Dify channels only support chatflow and agent, and agent does not support images',
+  3: 'For service channels added after May 10, 2025, no need to remove "." from model resource names during deployment',
+  8: 'If connecting to upstream compatible relay services, use OpenAI service type unless you understand the configuration',
+  37: 'Dify service channels only support chatflow and agent; the agent mode does not support images',
 }
