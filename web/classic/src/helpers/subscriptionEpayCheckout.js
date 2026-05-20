@@ -42,8 +42,20 @@ export const clearSubscriptionEpayCheckout = (tradeNo) => {
   sessionStorage.removeItem(getStorageKey(tradeNo));
 };
 
+export const markSubscriptionEpayCheckoutOpened = (tradeNo) => {
+  const checkout = readSubscriptionEpayCheckout(tradeNo);
+  if (!checkout) return null;
+
+  const nextCheckout = {
+    ...checkout,
+    openedAt: Date.now(),
+  };
+  sessionStorage.setItem(getStorageKey(tradeNo), JSON.stringify(nextCheckout));
+  return nextCheckout;
+};
+
 export const submitSubscriptionEpayCheckout = (checkout, target) => {
-  if (!checkout?.url) return;
+  if (!checkout?.url) return false;
 
   const form = document.createElement('form');
   form.action = checkout.url;
@@ -61,4 +73,5 @@ export const submitSubscriptionEpayCheckout = (checkout, target) => {
   document.body.appendChild(form);
   form.submit();
   document.body.removeChild(form);
+  return true;
 };

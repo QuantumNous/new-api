@@ -26,6 +26,7 @@ export {
 } from './plan-form'
 export {
   clearSubscriptionEpayCheckout,
+  markSubscriptionEpayCheckoutOpened,
   readSubscriptionEpayCheckout,
   saveSubscriptionEpayCheckout,
   submitSubscriptionEpayCheckout,

@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { z } from 'zod'
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import {
@@ -41,6 +41,7 @@ import { Main } from '@/components/layout'
 import { getSubscriptionOrderStatus } from '@/features/subscriptions/api'
 import {
   clearSubscriptionEpayCheckout,
+  markSubscriptionEpayCheckoutOpened,
   readSubscriptionEpayCheckout,
   submitSubscriptionEpayCheckout,
   type SubscriptionEpayCheckout,
@@ -156,18 +157,14 @@ function SubscriptionPaymentResult(props: { outTradeNo: string }) {
   })
   const [lastMessage, setLastMessage] = useState('')
   const [lastCheckedAt, setLastCheckedAt] = useState<Date | null>(null)
-  const submittedTradeNoRef = useRef('')
+  const checkoutOpeningRef = useRef(false)
   const redirectTimerRef = useRef<number | null>(null)
-  const iframeName = useMemo(
-    () => `subscription-epay-checkout-${props.outTradeNo || 'empty'}`,
-    [props.outTradeNo]
-  )
 
   useEffect(() => {
     setStatus(props.outTradeNo ? 'checking' : 'missing')
     setLastMessage('')
     setLastCheckedAt(null)
-    submittedTradeNoRef.current = ''
+    checkoutOpeningRef.current = false
   }, [props.outTradeNo])
 
   useEffect(() => {
@@ -177,14 +174,6 @@ function SubscriptionPaymentResult(props: { outTradeNo: string }) {
     }
     setCheckout(readSubscriptionEpayCheckout(props.outTradeNo))
   }, [props.outTradeNo])
-
-  useEffect(() => {
-    if (!checkout || submittedTradeNoRef.current === checkout.tradeNo) {
-      return
-    }
-    submitSubscriptionEpayCheckout(checkout, iframeName)
-    submittedTradeNoRef.current = checkout.tradeNo
-  }, [checkout, iframeName])
 
   const pollOrderStatus = useCallback(async () => {
     if (!props.outTradeNo) {
@@ -250,7 +239,27 @@ function SubscriptionPaymentResult(props: { outTradeNo: string }) {
       toast.error(t('Payment checkout unavailable'))
       return
     }
-    submitSubscriptionEpayCheckout(checkout, '_blank')
+    if (checkout.openedAt) {
+      toast.info(t('Payment page has already been opened'))
+      return
+    }
+    if (checkoutOpeningRef.current) {
+      return
+    }
+
+    checkoutOpeningRef.current = true
+    if (!submitSubscriptionEpayCheckout(checkout, '_blank')) {
+      checkoutOpeningRef.current = false
+      toast.error(t('Payment checkout unavailable'))
+      return
+    }
+    const nextCheckout =
+      markSubscriptionEpayCheckoutOpened(checkout.tradeNo) || {
+        ...checkout,
+        openedAt: Date.now(),
+      }
+    setCheckout(nextCheckout)
+    toast.success(t('Payment page opened'))
   }
 
   const handleRefresh = () => {
@@ -264,7 +273,14 @@ function SubscriptionPaymentResult(props: { outTradeNo: string }) {
 
   const statusTitle = getStatusTitle(status, t)
   const statusDescription = getStatusDescription(status, t)
-  const shouldShowCheckout = !!checkout && status !== 'paid'
+  const hasCheckout = !!checkout && status !== 'paid'
+  const checkoutHint = checkout?.openedAt
+    ? t(
+        'The payment page has opened in a new window. Complete payment there and keep this page open.'
+      )
+    : t(
+        'Open the payment page in a new window, then keep this page open to detect completion automatically.'
+      )
 
   return (
     <Main>
@@ -274,45 +290,29 @@ function SubscriptionPaymentResult(props: { outTradeNo: string }) {
             <CardHeader>
               <CardTitle>{t('Subscription payment')}</CardTitle>
               <CardDescription>
-                {shouldShowCheckout
-                  ? t('Payment checkout')
-                  : t('Payment status')}
+                {hasCheckout ? t('Payment checkout') : t('Payment status')}
               </CardDescription>
             </CardHeader>
             <CardContent>
-              {shouldShowCheckout ? (
-                <div className='space-y-3'>
-                  <iframe
-                    className='bg-background h-[min(68vh,680px)] min-h-[420px] w-full rounded-md border'
-                    name={iframeName}
-                    title={t('Payment checkout')}
-                  />
-                  <div className='flex flex-wrap items-center justify-between gap-2 text-sm'>
-                    <span className='text-muted-foreground'>
-                      {t('Checkout page unavailable? Open it in a new window.')}
-                    </span>
-                    <Button
-                      type='button'
-                      variant='outline'
-                      size='sm'
-                      onClick={handleOpenCheckout}
-                    >
-                      <ExternalLink className='h-4 w-4' />
-                      {t('Open checkout in new window')}
-                    </Button>
-                  </div>
-                </div>
-              ) : (
-                <div className='bg-muted/40 flex min-h-[420px] items-center justify-center rounded-md border p-6 text-center'>
-                  <div className='max-w-sm space-y-3'>
+              <div className='bg-muted/40 flex min-h-[420px] items-center justify-center rounded-md border p-6 text-center'>
+                <div className='max-w-sm space-y-4'>
+                  <div className='flex justify-center'>
                     <StatusIcon status={status} />
+                  </div>
+                  <div className='space-y-2'>
                     <h2 className='text-lg font-semibold'>{statusTitle}</h2>
                     <p className='text-muted-foreground text-sm'>
-                      {statusDescription}
+                      {hasCheckout ? checkoutHint : statusDescription}
                     </p>
                   </div>
+                  {hasCheckout && !checkout?.openedAt ? (
+                    <Button type='button' onClick={handleOpenCheckout}>
+                      <ExternalLink className='h-4 w-4' />
+                      {t('Open payment page')}
+                    </Button>
+                  ) : null}
                 </div>
-              )}
+              </div>
             </CardContent>
           </Card>
 
@@ -343,6 +343,12 @@ function SubscriptionPaymentResult(props: { outTradeNo: string }) {
               )}
 
               <div className='grid gap-2'>
+                {hasCheckout && !checkout?.openedAt ? (
+                  <Button type='button' onClick={handleOpenCheckout}>
+                    <ExternalLink className='h-4 w-4' />
+                    {t('Open payment page')}
+                  </Button>
+                ) : null}
                 <Button type='button' onClick={handleRefresh}>
                   <RefreshCw className='h-4 w-4' />
                   {t('Refresh status')}

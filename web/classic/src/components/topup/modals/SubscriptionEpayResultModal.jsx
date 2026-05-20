@@ -1,8 +1,9 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Button, Modal, Space, Spin, Typography } from '@douyinfe/semi-ui';
 import { API, showSuccess } from '../../../helpers';
 import {
   clearSubscriptionEpayCheckout,
+  markSubscriptionEpayCheckoutOpened,
   readSubscriptionEpayCheckout,
   submitSubscriptionEpayCheckout,
 } from '../../../helpers/subscriptionEpayCheckout';
@@ -53,12 +54,8 @@ const SubscriptionEpayResultModal = ({
   const [status, setStatus] = useState('checking');
   const [lastMessage, setLastMessage] = useState('');
   const [lastCheckedAt, setLastCheckedAt] = useState(null);
-  const submittedTradeNoRef = useRef('');
+  const checkoutOpeningRef = useRef(false);
   const closeTimerRef = useRef(null);
-  const iframeName = useMemo(
-    () => `subscription-epay-checkout-${tradeNo || 'empty'}`,
-    [tradeNo],
-  );
 
   useEffect(() => {
     if (!visible || !tradeNo) return;
@@ -66,16 +63,8 @@ const SubscriptionEpayResultModal = ({
     setStatus('checking');
     setLastMessage('');
     setLastCheckedAt(null);
-    submittedTradeNoRef.current = '';
+    checkoutOpeningRef.current = false;
   }, [tradeNo, visible]);
-
-  useEffect(() => {
-    if (!visible || !checkout || submittedTradeNoRef.current === checkout.tradeNo) {
-      return;
-    }
-    submitSubscriptionEpayCheckout(checkout, iframeName);
-    submittedTradeNoRef.current = checkout.tradeNo;
-  }, [checkout, iframeName, visible]);
 
   const pollOrderStatus = useCallback(async () => {
     if (!tradeNo) return;
@@ -136,11 +125,28 @@ const SubscriptionEpayResultModal = ({
 
   const openCheckoutWindow = () => {
     if (!checkout) return;
-    submitSubscriptionEpayCheckout(checkout, '_blank');
+    if (checkout.openedAt) return;
+    if (checkoutOpeningRef.current) return;
+
+    checkoutOpeningRef.current = true;
+    if (!submitSubscriptionEpayCheckout(checkout, '_blank')) {
+      checkoutOpeningRef.current = false;
+      return;
+    }
+    const nextCheckout =
+      markSubscriptionEpayCheckoutOpened(checkout.tradeNo) || {
+        ...checkout,
+        openedAt: Date.now(),
+      };
+    setCheckout(nextCheckout);
   };
 
   const statusText = getStatusText(status, t);
   const statusDescription = getStatusDescription(status, t);
+  const hasCheckout = !!checkout && status !== 'paid';
+  const checkoutDescription = checkout?.openedAt
+    ? t('支付页已在新窗口打开，请在新窗口完成付款，本页面会自动检测')
+    : t('点击打开支付页，在新窗口完成付款，本页面会自动检测');
 
   return (
     <Modal
@@ -154,25 +160,26 @@ const SubscriptionEpayResultModal = ({
     >
       <div className='grid grid-cols-1 lg:grid-cols-[1fr_260px] gap-4'>
         <div>
-          {checkout && status !== 'paid' ? (
-            <iframe
-              className='w-full min-h-[520px] rounded-lg border border-gray-200'
-              name={iframeName}
-              title={t('支付页面')}
-            />
-          ) : (
-            <div className='w-full min-h-[520px] rounded-lg border border-gray-200 flex items-center justify-center'>
-              <Space vertical align='center'>
-                {status === 'checking' || status === 'pending' ? <Spin /> : null}
-                <Title heading={5}>{statusText}</Title>
-                <Text type='tertiary'>{statusDescription}</Text>
-              </Space>
-            </div>
-          )}
+          <div className='w-full min-h-[520px] rounded-lg border border-gray-200 flex items-center justify-center p-6 text-center'>
+            <Space vertical align='center'>
+              {status === 'checking' || status === 'pending' ? <Spin /> : null}
+              <Title heading={5}>{statusText}</Title>
+              <Text type='tertiary'>
+                {hasCheckout ? checkoutDescription : statusDescription}
+              </Text>
+              {hasCheckout && !checkout?.openedAt ? (
+                <Button theme='solid' type='primary' onClick={openCheckoutWindow}>
+                  {t('打开支付页')}
+                </Button>
+              ) : null}
+            </Space>
+          </div>
         </div>
         <Space vertical align='start' className='w-full'>
           <Title heading={5}>{statusText}</Title>
-          <Text type='tertiary'>{statusDescription}</Text>
+          <Text type='tertiary'>
+            {hasCheckout ? checkoutDescription : statusDescription}
+          </Text>
           <Text size='small' copyable>
             {tradeNo || t('无订单号')}
           </Text>
@@ -189,7 +196,7 @@ const SubscriptionEpayResultModal = ({
           <Button theme='solid' type='primary' onClick={pollOrderStatus}>
             {t('刷新状态')}
           </Button>
-          {checkout ? (
+          {hasCheckout && !checkout?.openedAt ? (
             <Button theme='light' onClick={openCheckoutWindow}>
               {t('在新窗口打开支付页')}
             </Button>
