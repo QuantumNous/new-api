@@ -138,6 +138,7 @@ export function useTaskLogsColumns(isAdmin: boolean): ColumnDef<TaskLog>[] {
           <button
             type='button'
             className='flex items-center gap-1.5 text-left'
+            aria-label={t('usageLogs.userDialog.view_account')}
             onClick={(e) => {
               e.stopPropagation()
               setSelectedUserId(log.user_id)

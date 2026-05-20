@@ -5188,6 +5188,21 @@
         "usageLogs.dialog.frt": "First response",
         "usageLogs.dialog.native_format": "Native format",
         "usageLogs.dialog.operator_id": "ID: {{id}}",
-        "usageLogs.dialog.operator_display": "{{name}} (ID: {{id}})"
+        "usageLogs.dialog.operator_display": "{{name}} (ID: {{id}})",
+        "usageLogs.userDialog.title": "Account information",
+        "usageLogs.userDialog.description": "View account profile, token credits, and usage statistics.",
+        "usageLogs.userDialog.username": "Account name",
+        "usageLogs.userDialog.display_name": "Display name",
+        "usageLogs.userDialog.available_quota": "Available token credit",
+        "usageLogs.userDialog.used_quota": "Used token credit",
+        "usageLogs.userDialog.group": "Tenant group",
+        "usageLogs.userDialog.request_count": "Request count",
+        "usageLogs.userDialog.invitation_code": "Invitation code",
+        "usageLogs.userDialog.invited_count": "Invited accounts",
+        "usageLogs.userDialog.invitation_quota": "Invitation reward credit",
+        "usageLogs.userDialog.remark": "Remark",
+        "usageLogs.userDialog.empty": "No account information available",
+        "usageLogs.userDialog.toast.fetch_failed": "Failed to load account information. Please try again.",
+        "usageLogs.userDialog.view_account": "View account information"
     }
 }

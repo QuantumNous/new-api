@@ -5351,6 +5351,21 @@
         "usageLogs.dialog.frt": "首字延迟",
         "usageLogs.dialog.native_format": "原生格式",
         "usageLogs.dialog.operator_id": "ID：{{id}}",
-        "usageLogs.dialog.operator_display": "{{name}}（ID：{{id}}）"
+        "usageLogs.dialog.operator_display": "{{name}}（ID：{{id}}）",
+        "usageLogs.userDialog.title": "账号信息",
+        "usageLogs.userDialog.description": "查看账号基础资料、词元额度与调用统计。",
+        "usageLogs.userDialog.username": "账号名",
+        "usageLogs.userDialog.display_name": "显示名称",
+        "usageLogs.userDialog.available_quota": "可用词元额度",
+        "usageLogs.userDialog.used_quota": "已用词元额度",
+        "usageLogs.userDialog.group": "租户分组",
+        "usageLogs.userDialog.request_count": "调用次数",
+        "usageLogs.userDialog.invitation_code": "邀请码",
+        "usageLogs.userDialog.invited_count": "已邀请账号",
+        "usageLogs.userDialog.invitation_quota": "邀请奖励额度",
+        "usageLogs.userDialog.remark": "备注",
+        "usageLogs.userDialog.empty": "暂无账号信息",
+        "usageLogs.userDialog.toast.fetch_failed": "账号信息加载失败，请稍后重试",
+        "usageLogs.userDialog.view_account": "查看账号信息"
     }
 }

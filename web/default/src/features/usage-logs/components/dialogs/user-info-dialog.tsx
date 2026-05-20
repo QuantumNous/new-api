@@ -21,7 +21,8 @@ import { Loader2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { formatCompactNumber } from '@/lib/format'
-import { formatQuotaForOpsCenter } from '@/lib/ops-billing-display'
+import { formatUsageLogQuotaDisplay } from '@/lib/ops-billing-display'
+import { cn } from '@/lib/utils'
 import {
   Dialog,
   DialogContent,
@@ -30,6 +31,14 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
+import {
+  usageLogsDialogContentPanelClassName,
+  usageLogsDialogContentTextClassName,
+  usageLogsDialogLabelClassName,
+  usageLogsDialogSectionLabelClassName,
+  usageLogsDialogTitleClassName,
+  usageLogsDialogValueClassName,
+} from '../../lib/ops-ui-styles'
 import { getUserInfo } from '../../api'
 import type { UserInfo } from '../../types'
 
@@ -48,26 +57,27 @@ export function UserInfoDialog({
   const [userInfo, setUserInfo] = useState<UserInfo | null>(null)
   const [isLoading, setIsLoading] = useState(false)
 
-  const fetchUserInfo = useCallback(
-    async (id: number) => {
-      setIsLoading(true)
-      try {
-        const result = await getUserInfo(id)
-        if (result.success) {
-          setUserInfo(result.data || null)
-        } else {
-          toast.error(result.message || t('Failed to fetch user information'))
+  const fetchUserInfo = useCallback(async (id: number) => {
+    setIsLoading(true)
+    try {
+      const result = await getUserInfo(id)
+      if (result.success) {
+        setUserInfo(result.data || null)
+      } else {
+        if (result.message) {
+          // eslint-disable-next-line no-console
+          console.warn('getUserInfo failed:', result.message)
         }
-      } catch (error) {
-        // eslint-disable-next-line no-console
-        console.error('Failed to fetch user info:', error)
-        toast.error(t('Failed to fetch user information'))
-      } finally {
-        setIsLoading(false)
+        toast.error(t('usageLogs.userDialog.toast.fetch_failed'))
       }
-    },
-    [t]
-  )
+    } catch (error) {
+      // eslint-disable-next-line no-console
+      console.error('Failed to fetch user info:', error)
+      toast.error(t('usageLogs.userDialog.toast.fetch_failed'))
+    } finally {
+      setIsLoading(false)
+    }
+  }, [t])
 
   useEffect(() => {
     if (open && userId) {
@@ -83,8 +93,10 @@ export function UserInfoDialog({
     value: string | number
   }) => (
     <div className='space-y-1.5'>
-      <Label className='text-muted-foreground text-xs'>{label}</Label>
-      <div className='text-sm font-semibold'>{value}</div>
+      <Label className={usageLogsDialogLabelClassName}>{label}</Label>
+      <div className={cn('font-semibold', usageLogsDialogValueClassName)}>
+        {value}
+      </div>
     </div>
   )
 
@@ -92,55 +104,57 @@ export function UserInfoDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className='sm:max-w-lg'>
         <DialogHeader>
-          <DialogTitle>{t('User Information')}</DialogTitle>
-          <DialogDescription>
-            {t(
-              'View detailed information about this user including balance, usage statistics, and invitation details.'
-            )}
+          <DialogTitle className={usageLogsDialogTitleClassName}>
+            {t('usageLogs.userDialog.title')}
+          </DialogTitle>
+          <DialogDescription className='sr-only'>
+            {t('usageLogs.userDialog.description')}
           </DialogDescription>
         </DialogHeader>
 
         {isLoading ? (
           <div className='flex items-center justify-center py-8'>
-            <Loader2 className='text-muted-foreground size-6 animate-spin' />
+            <Loader2 className='size-6 animate-spin text-slate-500' />
           </div>
         ) : userInfo ? (
           <div className='space-y-4 py-4'>
-            {/* Basic Info */}
             <div className='grid grid-cols-2 gap-4'>
-              <InfoItem label={t('Username')} value={userInfo.username} />
+              <InfoItem
+                label={t('usageLogs.userDialog.username')}
+                value={userInfo.username}
+              />
               {userInfo.display_name && (
                 <InfoItem
-                  label={t('Display Name')}
+                  label={t('usageLogs.userDialog.display_name')}
                   value={userInfo.display_name}
                 />
               )}
             </div>
 
-            {/* Balance Info */}
             <div className='grid grid-cols-2 gap-4'>
               <InfoItem
-                label={t('Balance')}
-                value={formatQuotaForOpsCenter(userInfo.quota)}
+                label={t('usageLogs.userDialog.available_quota')}
+                value={formatUsageLogQuotaDisplay(userInfo.quota)}
               />
               <InfoItem
-                label={t('Used Quota')}
-                value={formatQuotaForOpsCenter(userInfo.used_quota)}
+                label={t('usageLogs.userDialog.used_quota')}
+                value={formatUsageLogQuotaDisplay(userInfo.used_quota)}
               />
             </div>
 
-            {/* Statistics */}
             <div className='grid grid-cols-2 gap-4'>
               <InfoItem
-                label={t('Request Count')}
+                label={t('usageLogs.userDialog.request_count')}
                 value={formatCompactNumber(userInfo.request_count)}
               />
               {userInfo.group && (
-                <InfoItem label={t('User Group')} value={userInfo.group} />
+                <InfoItem
+                  label={t('usageLogs.userDialog.group')}
+                  value={userInfo.group}
+                />
               )}
             </div>
 
-            {/* Invitation Info */}
             {(userInfo.aff_code ||
               userInfo.aff_count !== undefined ||
               (userInfo.aff_quota !== undefined && userInfo.aff_quota > 0)) && (
@@ -148,13 +162,13 @@ export function UserInfoDialog({
                 <div className='grid grid-cols-2 gap-4'>
                   {userInfo.aff_code && (
                     <InfoItem
-                      label={t('Invitation Code')}
+                      label={t('usageLogs.userDialog.invitation_code')}
                       value={userInfo.aff_code}
                     />
                   )}
                   {userInfo.aff_count !== undefined && (
                     <InfoItem
-                      label={t('Invited Users')}
+                      label={t('usageLogs.userDialog.invited_count')}
                       value={formatCompactNumber(userInfo.aff_count)}
                     />
                   )}
@@ -162,28 +176,40 @@ export function UserInfoDialog({
 
                 {userInfo.aff_quota !== undefined && userInfo.aff_quota > 0 && (
                   <InfoItem
-                    label={t('Invitation Quota')}
-                    value={formatQuotaForOpsCenter(userInfo.aff_quota)}
+                    label={t('usageLogs.userDialog.invitation_quota')}
+                    value={formatUsageLogQuotaDisplay(userInfo.aff_quota)}
                   />
                 )}
               </>
             )}
 
-            {/* Remark */}
             {userInfo.remark && (
               <div className='space-y-1.5'>
-                <Label className='text-muted-foreground text-xs'>
-                  {t('Remark')}
+                <Label className={usageLogsDialogSectionLabelClassName}>
+                  {t('usageLogs.userDialog.remark')}
                 </Label>
-                <div className='text-sm leading-relaxed font-semibold break-words'>
-                  {userInfo.remark}
+                <div
+                  className={cn(
+                    usageLogsDialogContentPanelClassName,
+                    'py-2.5'
+                  )}
+                >
+                  <p
+                    className={cn(
+                      'leading-relaxed break-words',
+                      usageLogsDialogContentTextClassName,
+                      'pr-0'
+                    )}
+                  >
+                    {userInfo.remark}
+                  </p>
                 </div>
               </div>
             )}
           </div>
         ) : (
-          <div className='text-muted-foreground py-8 text-center text-sm'>
-            {t('No user information available')}
+          <div className='py-8 text-center text-sm text-slate-600'>
+            {t('usageLogs.userDialog.empty')}
           </div>
         )}
       </DialogContent>

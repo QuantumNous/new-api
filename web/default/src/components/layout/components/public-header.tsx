@@ -20,6 +20,31 @@ import { useCallback, useEffect, useState } from 'react'
 import { Link, useNavigate, useRouterState } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
 import { useAuthStore } from '@/stores/auth-store'
+import {
+  portalHeaderActionsClassName,
+  portalHeaderDefaultActionsClassName,
+  portalHeaderDefaultIconGroupClassName,
+  portalHeaderDefaultNavActionsSeparatorClassName,
+  portalHeaderDefaultNavLinksClassName,
+  portalHeaderIconGroupClassName,
+  portalHeaderIconSlotClassName,
+  portalHeaderMobileCtaClassName,
+  portalHeaderMobileMenuButtonClassName,
+  portalHeaderMobileNavLinkActiveClassName,
+  portalHeaderMobileNavLinkClassName,
+  portalHeaderMobileOverlayClassName,
+  portalHeaderNavActionsSeparatorClassName,
+  portalHeaderNavClusterClassName,
+  portalHeaderNavLinkActiveClassName,
+  portalHeaderNavLinkClassName,
+  portalHeaderNavLinksClassName,
+  portalHeaderNavScrolledClassName,
+  portalHeaderNotificationSlotClassName,
+  portalHeaderProfileSlotClassName,
+  portalHeaderSignInButtonClassName,
+  portalHeaderSiteNameClassName,
+  portalHeaderSkeletonClassName,
+} from '@/lib/ops-ui-styles'
 import { cn } from '@/lib/utils'
 import { useNotifications } from '@/hooks/use-notifications'
 import { useSystemConfig } from '@/hooks/use-system-config'
@@ -65,6 +90,8 @@ export interface PublicHeaderProps {
   showAuthButtons?: boolean
   showNotifications?: boolean
   className?: string
+  /** Light nav text for headers over dark hero (e.g. home portal). */
+  headerTone?: 'portal' | 'default'
 }
 
 export function PublicHeader(props: PublicHeaderProps) {
@@ -77,7 +104,10 @@ export function PublicHeader(props: PublicHeaderProps) {
     homeUrl = '/',
     showAuthButtons = true,
     showNotifications = true,
+    headerTone = 'default',
   } = props
+
+  const isPortalTone = headerTone === 'portal'
 
   const { t } = useTranslation()
   const navigate = useNavigate()
@@ -190,20 +220,30 @@ export function PublicHeader(props: PublicHeaderProps) {
         >
           <nav
             className={cn(
-              'flex items-center justify-between transition-all duration-700 ease-[cubic-bezier(0.16,1,0.3,1)]',
+              'flex flex-nowrap items-center justify-between gap-2 transition-all duration-700 ease-[cubic-bezier(0.16,1,0.3,1)]',
               scrolled
-                ? 'bg-background/60 ring-border/50 h-12 rounded-2xl pr-1.5 pl-4 shadow-[0_2px_16px_-6px_rgba(0,0,0,0.08),0_0_0_0.5px_rgba(0,0,0,0.02)] ring-[0.5px] backdrop-blur-2xl dark:shadow-[0_2px_16px_-6px_rgba(0,0,0,0.4)]'
+                ? isPortalTone
+                  ? portalHeaderNavScrolledClassName
+                  : 'bg-background/60 ring-border/50 h-12 rounded-2xl pr-1.5 pl-4 shadow-[0_2px_16px_-6px_rgba(0,0,0,0.08),0_0_0_0.5px_rgba(0,0,0,0.02)] ring-[0.5px] backdrop-blur-2xl dark:shadow-[0_2px_16px_-6px_rgba(0,0,0,0.4)]'
                 : 'h-16 px-2'
             )}
           >
             {/* Logo */}
             <Link
               to={homeUrl}
-              className='group flex shrink-0 items-center gap-2.5'
+              className={cn(
+                'group flex shrink-0 items-center gap-2.5',
+                isPortalTone && 'hover:opacity-90'
+              )}
             >
               <div className='flex size-7 shrink-0 items-center justify-center transition-all duration-300 group-hover:scale-105'>
                 {loading ? (
-                  <Skeleton className='size-full rounded-lg' />
+                  <Skeleton
+                    className={cn(
+                      'size-full rounded-lg',
+                      isPortalTone && portalHeaderSkeletonClassName
+                    )}
+                  />
                 ) : customLogo ? (
                   customLogo
                 ) : (
@@ -215,13 +255,34 @@ export function PublicHeader(props: PublicHeaderProps) {
                   />
                 )}
               </div>
-              <span className='text-sm font-semibold tracking-tight'>
-                {loading ? <Skeleton className='h-4 w-16' /> : displaySiteName}
+              <span
+                className={cn(
+                  'text-sm font-semibold tracking-tight',
+                  isPortalTone && portalHeaderSiteNameClassName
+                )}
+              >
+                {loading ? (
+                  <Skeleton
+                    className={cn(
+                      'h-4 w-16',
+                      isPortalTone && portalHeaderSkeletonClassName
+                    )}
+                  />
+                ) : (
+                  displaySiteName
+                )}
               </span>
             </Link>
 
-            {/* Desktop nav */}
-            <div className='hidden items-center gap-0.5 sm:flex'>
+            {/* Desktop nav links + right actions */}
+            <div className={portalHeaderNavClusterClassName}>
+              <div
+                className={
+                  isPortalTone
+                    ? portalHeaderNavLinksClassName
+                    : portalHeaderDefaultNavLinksClassName
+                }
+              >
               {links.map((link, i) => {
                 const isActive = pathname === link.href
                 if (link.external) {
@@ -235,7 +296,9 @@ export function PublicHeader(props: PublicHeaderProps) {
                       tabIndex={link.disabled ? -1 : undefined}
                       onClick={(event) => handleNavLinkClick(event, link)}
                       className={cn(
-                        'text-muted-foreground hover:text-foreground rounded-lg px-3 py-1.5 text-[13px] font-medium transition-colors duration-200',
+                        isPortalTone
+                          ? portalHeaderNavLinkClassName
+                          : 'text-muted-foreground hover:text-foreground rounded-lg px-3 py-1.5 text-[13px] font-medium transition-colors duration-200',
                         link.disabled && 'pointer-events-none opacity-50'
                       )}
                     >
@@ -250,10 +313,16 @@ export function PublicHeader(props: PublicHeaderProps) {
                     disabled={link.disabled}
                     onClick={(event) => handleNavLinkClick(event, link)}
                     className={cn(
-                      'rounded-lg px-3 py-1.5 text-[13px] font-medium transition-colors duration-200',
-                      isActive
-                        ? 'text-foreground'
-                        : 'text-muted-foreground hover:text-foreground',
+                      isPortalTone
+                        ? isActive
+                          ? portalHeaderNavLinkActiveClassName
+                          : portalHeaderNavLinkClassName
+                        : cn(
+                            'rounded-lg px-3 py-1.5 text-[13px] font-medium transition-colors duration-200',
+                            isActive
+                              ? 'text-foreground'
+                              : 'text-muted-foreground hover:text-foreground'
+                          ),
                       link.disabled && 'pointer-events-none opacity-50'
                     )}
                   >
@@ -261,44 +330,105 @@ export function PublicHeader(props: PublicHeaderProps) {
                   </Link>
                 )
               })}
+              </div>
 
               {(showLanguageSwitcher ||
                 showThemeSwitch ||
-                showNotifications) && (
-                <div className='bg-border/40 mx-2 h-4 w-px' />
-              )}
-
-              {showLanguageSwitcher && <LanguageSwitcher />}
-              {showThemeSwitch && <ThemeSwitch />}
-              {showNotifications && (
-                <NotificationButton
-                  unreadCount={notifications.unreadCount}
-                  onClick={() => notifications.openDialog()}
-                />
-              )}
-
-              {showAuthButtons && (
+                showNotifications ||
+                showAuthButtons) && (
                 <>
-                  <div className='bg-border/40 mx-1 h-4 w-px' />
-                  {loading ? (
-                    <Skeleton className='h-8 w-20 rounded-lg' />
-                  ) : isAuthenticated ? (
-                    <ProfileDropdown />
-                  ) : (
-                    <Button
-                      size='sm'
-                      className='h-8 rounded-lg px-3.5 text-xs font-medium'
-                      render={<Link to='/sign-in' />}
-                    >
-                      {t('Sign in')}
-                    </Button>
-                  )}
+                  <div
+                    className={
+                      isPortalTone
+                        ? portalHeaderNavActionsSeparatorClassName
+                        : portalHeaderDefaultNavActionsSeparatorClassName
+                    }
+                    aria-hidden
+                  />
+                  <div
+                    className={
+                      isPortalTone
+                        ? portalHeaderActionsClassName
+                        : portalHeaderDefaultActionsClassName
+                    }
+                  >
+                    {(showLanguageSwitcher ||
+                      showThemeSwitch ||
+                      showNotifications) && (
+                      <div
+                        className={
+                          isPortalTone
+                            ? portalHeaderIconGroupClassName
+                            : portalHeaderDefaultIconGroupClassName
+                        }
+                      >
+                        {showLanguageSwitcher && (
+                          <div className={portalHeaderIconSlotClassName}>
+                            <LanguageSwitcher />
+                          </div>
+                        )}
+                        {showThemeSwitch && (
+                          <div className={portalHeaderIconSlotClassName}>
+                            <ThemeSwitch />
+                          </div>
+                        )}
+                        {showNotifications && (
+                          <div className={portalHeaderNotificationSlotClassName}>
+                            <NotificationButton
+                              unreadCount={notifications.unreadCount}
+                              onClick={() => notifications.openDialog()}
+                              className='size-9 shrink-0'
+                            />
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {showAuthButtons &&
+                      (loading ? (
+                        <Skeleton
+                          className={cn(
+                            'h-9 w-20 shrink-0 rounded-lg',
+                            isPortalTone && portalHeaderSkeletonClassName
+                          )}
+                        />
+                      ) : isAuthenticated ? (
+                        <div
+                          className={
+                            isPortalTone
+                              ? portalHeaderProfileSlotClassName
+                              : cn(
+                                  portalHeaderProfileSlotClassName,
+                                  'ml-1'
+                                )
+                          }
+                        >
+                          <ProfileDropdown />
+                        </div>
+                      ) : (
+                        <Button
+                          size='sm'
+                          className={cn(
+                            'h-9 shrink-0 rounded-lg px-3.5 text-xs font-medium',
+                            isPortalTone && portalHeaderSignInButtonClassName
+                          )}
+                          render={<Link to='/sign-in' />}
+                        >
+                          {t('Sign in')}
+                        </Button>
+                      ))}
+                  </div>
                 </>
               )}
             </div>
 
             {/* Mobile: compact actions + hamburger */}
-            <div className='flex items-center gap-2 sm:hidden'>
+            <div
+              className={cn(
+                'flex items-center gap-2 sm:hidden',
+                isPortalTone && portalHeaderIconGroupClassName
+              )}
+            >
               {showThemeSwitch && <ThemeSwitch />}
               {showAuthButtons && !loading && isAuthenticated && (
                 <ProfileDropdown />
@@ -307,7 +437,10 @@ export function PublicHeader(props: PublicHeaderProps) {
                 type='button'
                 variant='ghost'
                 size='icon'
-                className='size-9'
+                className={cn(
+                  'size-9',
+                  isPortalTone && portalHeaderMobileMenuButtonClassName
+                )}
                 onClick={() => setMobileOpen((v) => !v)}
                 aria-label={t('Toggle navigation menu')}
               >
@@ -340,7 +473,10 @@ export function PublicHeader(props: PublicHeaderProps) {
       {/* Mobile full-screen overlay */}
       <div
         className={cn(
-          'bg-background/98 fixed inset-0 z-40 backdrop-blur-2xl transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] sm:pointer-events-none sm:hidden',
+          'fixed inset-0 z-40 transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] sm:pointer-events-none sm:hidden',
+          isPortalTone
+            ? portalHeaderMobileOverlayClassName
+            : 'bg-background/98 backdrop-blur-2xl',
           mobileOpen
             ? 'pointer-events-auto opacity-100'
             : 'pointer-events-none opacity-0'
@@ -351,11 +487,18 @@ export function PublicHeader(props: PublicHeaderProps) {
             {links.map((link, i) => {
               const isActive = pathname === link.href
               const linkClassName = cn(
-                'flex items-center gap-3 py-3 text-base font-medium tracking-tight transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)]',
+                'transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)]',
                 mobileOpen
                   ? 'translate-y-0 opacity-100'
                   : 'translate-y-4 opacity-0',
-                isActive ? 'text-foreground' : 'text-muted-foreground',
+                isPortalTone
+                  ? isActive
+                    ? portalHeaderMobileNavLinkActiveClassName
+                    : portalHeaderMobileNavLinkClassName
+                  : cn(
+                      'flex items-center gap-3 py-3 text-base font-medium tracking-tight',
+                      isActive ? 'text-foreground' : 'text-muted-foreground'
+                    ),
                 link.disabled && 'pointer-events-none opacity-50'
               )
               const transitionStyle = {
@@ -406,7 +549,12 @@ export function PublicHeader(props: PublicHeaderProps) {
               <Link
                 to={isAuthenticated ? '/dashboard' : '/sign-in'}
                 onClick={() => setMobileOpen(false)}
-                className='bg-foreground text-background inline-flex h-10 items-center justify-center rounded-lg text-sm font-medium transition-opacity hover:opacity-90 active:opacity-80'
+                className={cn(
+                  'inline-flex h-10 items-center justify-center rounded-lg text-sm font-medium transition-opacity',
+                  isPortalTone
+                    ? portalHeaderMobileCtaClassName
+                    : 'bg-foreground text-background hover:opacity-90 active:opacity-80'
+                )}
               >
                 {isAuthenticated ? t('Go to Dashboard') : t('Sign in')}
               </Link>

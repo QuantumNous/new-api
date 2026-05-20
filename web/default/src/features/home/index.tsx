@@ -36,7 +36,11 @@ export function Home() {
 
   if (!isLoaded) {
     return (
-      <PublicLayout showMainContainer={false} siteName={DEFAULT_SYSTEM_NAME}>
+      <PublicLayout
+        showMainContainer={false}
+        siteName={DEFAULT_SYSTEM_NAME}
+        headerTone='portal'
+      >
         <main
           className={`${HOME_PORTAL_SHELL} flex min-h-screen items-center justify-center`}
         >
@@ -48,7 +52,11 @@ export function Home() {
 
   if (content) {
     return (
-      <PublicLayout showMainContainer={false} siteName={DEFAULT_SYSTEM_NAME}>
+      <PublicLayout
+        showMainContainer={false}
+        siteName={DEFAULT_SYSTEM_NAME}
+        headerTone='portal'
+      >
         <main className={`${HOME_PORTAL_SHELL} overflow-x-hidden`}>
           {isUrl ? (
             <iframe
@@ -67,7 +75,11 @@ export function Home() {
   }
 
   return (
-    <PublicLayout showMainContainer={false} siteName={DEFAULT_SYSTEM_NAME}>
+    <PublicLayout
+      showMainContainer={false}
+      siteName={DEFAULT_SYSTEM_NAME}
+      headerTone='portal'
+    >
       <div className={HOME_PORTAL_SHELL}>
         <Hero isAuthenticated={isAuthenticated} />
         <Stats />
