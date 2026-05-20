@@ -86,3 +86,41 @@ func TestUpdateChannelOpenAIBalance_SingleBucket(t *testing.T) {
 	require.NoError(t, model.DB.First(&fresh, ch.Id).Error)
 	require.InDelta(t, 10.5, fresh.Balance, 0.001)
 }
+
+func TestUpdateChannelOpenAIBalance_Pagination(t *testing.T) {
+	_ = openTokenControllerTestDB(t)
+
+	callCount := 0
+	var capturedTokenOnSecondCall string
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		callCount++
+		w.Header().Set("Content-Type", "application/json")
+		if callCount == 1 {
+			_, _ = fmt.Fprint(w, `{
+				"object": "page",
+				"data": [{"object": "bucket","start_time": 1747008000,"end_time": 1747094400,
+					"results": [{"object": "organization.costs.result","amount": {"value": 5.0,"currency": "usd"}}]}],
+				"has_more": true,
+				"next_page": "page-token-2"
+			}`)
+			return
+		}
+		capturedTokenOnSecondCall = r.URL.Query().Get("page")
+		_, _ = fmt.Fprint(w, `{
+			"object": "page",
+			"data": [{"object": "bucket","start_time": 1747094400,"end_time": 1747180800,
+				"results": [{"object": "organization.costs.result","amount": {"value": 7.25,"currency": "usd"}}]}],
+			"has_more": false,
+			"next_page": ""
+		}`)
+	}))
+	defer ts.Close()
+
+	ch := buildOpenAIChannelWithAdminKey(t, ts.URL, "sk-admin-test")
+
+	balance, err := updateChannelOpenAIBalance(ch)
+	require.NoError(t, err)
+	require.Equal(t, 2, callCount)
+	require.Equal(t, "page-token-2", capturedTokenOnSecondCall)
+	require.InDelta(t, 12.25, balance, 0.001)
+}
