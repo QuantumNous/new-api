@@ -186,6 +186,61 @@ const BALANCE_QUERY_TEMPLATES = {
   sub2api: BALANCE_QUERY_SUB2API_TEMPLATE,
 };
 
+const GROUP_QUERY_NEWAPI_TEMPLATE = {
+  request: {
+    url: '{{baseUrl}}/api/user/self/groups',
+    method: 'GET',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: 'Bearer {{accessToken}}',
+      'User-Agent': 'cc-switch/1.0',
+      'New-Api-User': '{{userId}}',
+    },
+  },
+  extractor: {
+    data_path: 'data',
+    desc_path: 'desc',
+    ratio_path: 'ratio',
+    success_path: 'success',
+    success_value: 'true',
+    success_optional: false,
+    message_path: 'message',
+  },
+};
+
+const GROUP_QUERY_TEMPLATES = {
+  newapi: GROUP_QUERY_NEWAPI_TEMPLATE,
+};
+
+const getDefaultGroupQueryFormValues = () => ({
+  group_query_enabled: false,
+  group_query_template: 'newapi',
+  group_query_interval_seconds: 300,
+  group_query_source_channel_id: 0,
+  group_query_access_token: '',
+  group_query_user_id: '',
+  group_query_request_url: GROUP_QUERY_NEWAPI_TEMPLATE.request.url,
+  group_query_request_method: GROUP_QUERY_NEWAPI_TEMPLATE.request.method,
+  group_query_request_headers: JSON.stringify(
+    GROUP_QUERY_NEWAPI_TEMPLATE.request.headers,
+    null,
+    2,
+  ),
+  group_query_request_body: '',
+  group_query_data_path: GROUP_QUERY_NEWAPI_TEMPLATE.extractor.data_path,
+  group_query_desc_path: GROUP_QUERY_NEWAPI_TEMPLATE.extractor.desc_path,
+  group_query_ratio_path: GROUP_QUERY_NEWAPI_TEMPLATE.extractor.ratio_path,
+  group_query_success_path: GROUP_QUERY_NEWAPI_TEMPLATE.extractor.success_path,
+  group_query_success_value:
+    GROUP_QUERY_NEWAPI_TEMPLATE.extractor.success_value,
+  group_query_success_optional:
+    GROUP_QUERY_NEWAPI_TEMPLATE.extractor.success_optional,
+  group_query_message_path: GROUP_QUERY_NEWAPI_TEMPLATE.extractor.message_path,
+  group_query_last_check_time: 0,
+  group_query_last_result: null,
+  group_query_last_error: '',
+});
+
 // 支持并且已适配通过接口获取模型列表的渠道类型
 const MODEL_FETCHABLE_TYPES = new Set([
   1, 4, 14, 34, 17, 26, 27, 24, 47, 25, 20, 23, 31, 40, 42, 48, 43,
@@ -307,6 +362,34 @@ const EditChannelModal = (props) => {
     balance_query_last_check_time: 0,
     balance_query_last_result: null,
     balance_query_last_error: '',
+    group_query_enabled: false,
+    group_query_template: 'newapi',
+    group_query_interval_seconds: 300,
+    group_query_source_channel_id: 0,
+    group_query_access_token: '',
+    group_query_user_id: '',
+    group_query_request_url: GROUP_QUERY_NEWAPI_TEMPLATE.request.url,
+    group_query_request_method: GROUP_QUERY_NEWAPI_TEMPLATE.request.method,
+    group_query_request_headers: JSON.stringify(
+      GROUP_QUERY_NEWAPI_TEMPLATE.request.headers,
+      null,
+      2,
+    ),
+    group_query_request_body: '',
+    group_query_data_path: GROUP_QUERY_NEWAPI_TEMPLATE.extractor.data_path,
+    group_query_desc_path: GROUP_QUERY_NEWAPI_TEMPLATE.extractor.desc_path,
+    group_query_ratio_path: GROUP_QUERY_NEWAPI_TEMPLATE.extractor.ratio_path,
+    group_query_success_path:
+      GROUP_QUERY_NEWAPI_TEMPLATE.extractor.success_path,
+    group_query_success_value:
+      GROUP_QUERY_NEWAPI_TEMPLATE.extractor.success_value,
+    group_query_success_optional:
+      GROUP_QUERY_NEWAPI_TEMPLATE.extractor.success_optional,
+    group_query_message_path:
+      GROUP_QUERY_NEWAPI_TEMPLATE.extractor.message_path,
+    group_query_last_check_time: 0,
+    group_query_last_result: null,
+    group_query_last_error: '',
   };
   const [batch, setBatch] = useState(false);
   const [multiToSingle, setMultiToSingle] = useState(false);
@@ -461,6 +544,9 @@ const EditChannelModal = (props) => {
     useState(false);
   const [balanceQueryInstances, setBalanceQueryInstances] = useState([]);
   const [balanceQueryInstancesLoading, setBalanceQueryInstancesLoading] =
+    useState(false);
+  const [groupQueryInstances, setGroupQueryInstances] = useState([]);
+  const [groupQueryInstancesLoading, setGroupQueryInstancesLoading] =
     useState(false);
 
   // 密钥显示状态
@@ -680,6 +766,39 @@ const EditChannelModal = (props) => {
     setInputs((prev) => ({ ...prev, [key]: value }));
   };
 
+  const applyGroupQueryTemplate = (templateKey = 'newapi') => {
+    const template =
+      GROUP_QUERY_TEMPLATES[templateKey] || GROUP_QUERY_NEWAPI_TEMPLATE;
+    const updates = {
+      group_query_template: templateKey,
+      group_query_request_url: template.request.url,
+      group_query_request_method: template.request.method,
+      group_query_request_headers: JSON.stringify(
+        template.request.headers,
+        null,
+        2,
+      ),
+      group_query_request_body: '',
+      group_query_data_path: template.extractor.data_path,
+      group_query_desc_path: template.extractor.desc_path,
+      group_query_ratio_path: template.extractor.ratio_path,
+      group_query_success_path: template.extractor.success_path,
+      group_query_success_value: template.extractor.success_value,
+      group_query_success_optional: template.extractor.success_optional,
+      group_query_message_path: template.extractor.message_path,
+    };
+    Object.entries(updates).forEach(([key, value]) => {
+      formApiRef.current?.setValue(key, value);
+    });
+    setInputs((prev) => ({ ...prev, ...updates }));
+    showSuccess(t('已填入 New API 分组查询模板'));
+  };
+
+  const handleGroupQueryInputChange = (key, value) => {
+    formApiRef.current?.setValue(key, value);
+    setInputs((prev) => ({ ...prev, [key]: value }));
+  };
+
   const loadBalanceQueryInstances = async () => {
     setBalanceQueryInstancesLoading(true);
     try {
@@ -694,6 +813,23 @@ const EditChannelModal = (props) => {
       showError(error?.message || t('余额查询实例加载失败'));
     } finally {
       setBalanceQueryInstancesLoading(false);
+    }
+  };
+
+  const loadGroupQueryInstances = async () => {
+    setGroupQueryInstancesLoading(true);
+    try {
+      const res = await API.get('/api/channel/group_query_instances');
+      const { success, data, message } = res.data;
+      if (success) {
+        setGroupQueryInstances(Array.isArray(data) ? data : []);
+      } else {
+        showError(message);
+      }
+    } catch (error) {
+      showError(error?.message || t('分组查询实例加载失败'));
+    } finally {
+      setGroupQueryInstancesLoading(false);
     }
   };
 
@@ -1119,6 +1255,53 @@ const EditChannelModal = (props) => {
             Number(balanceQuery.last_check_time) || 0;
           data.balance_query_last_result = balanceQuery.last_result || null;
           data.balance_query_last_error = balanceQuery.last_error || '';
+          const groupQuery = parsedSettings.group_query || {};
+          const groupRequest = groupQuery.request || {};
+          const groupExtractor = groupQuery.extractor || {};
+          const groupTemplate =
+            GROUP_QUERY_TEMPLATES[groupQuery.template] ||
+            GROUP_QUERY_NEWAPI_TEMPLATE;
+          data.group_query_enabled = groupQuery.enabled === true;
+          data.group_query_template = groupQuery.template || 'newapi';
+          data.group_query_interval_seconds =
+            typeof groupQuery.interval_seconds === 'number'
+              ? groupQuery.interval_seconds
+              : 300;
+          data.group_query_source_channel_id =
+            Number(groupQuery.source_channel_id) || 0;
+          data.group_query_access_token = groupQuery.access_token || '';
+          data.group_query_user_id = groupQuery.user_id || '';
+          data.group_query_request_url =
+            groupRequest.url || groupTemplate.request.url;
+          data.group_query_request_method =
+            groupRequest.method || groupTemplate.request.method;
+          data.group_query_request_headers = JSON.stringify(
+            groupRequest.headers || groupTemplate.request.headers,
+            null,
+            2,
+          );
+          data.group_query_request_body = groupRequest.body || '';
+          data.group_query_data_path =
+            groupExtractor.data_path || groupTemplate.extractor.data_path;
+          data.group_query_desc_path =
+            groupExtractor.desc_path || groupTemplate.extractor.desc_path;
+          data.group_query_ratio_path =
+            groupExtractor.ratio_path || groupTemplate.extractor.ratio_path;
+          data.group_query_success_path =
+            groupExtractor.success_path || groupTemplate.extractor.success_path;
+          data.group_query_success_value =
+            groupExtractor.success_value ||
+            groupTemplate.extractor.success_value;
+          data.group_query_success_optional =
+            typeof groupExtractor.success_optional === 'boolean'
+              ? groupExtractor.success_optional
+              : groupTemplate.extractor.success_optional;
+          data.group_query_message_path =
+            groupExtractor.message_path || groupTemplate.extractor.message_path;
+          data.group_query_last_check_time =
+            Number(groupQuery.last_check_time) || 0;
+          data.group_query_last_result = groupQuery.last_result || null;
+          data.group_query_last_error = groupQuery.last_error || '';
         } catch (error) {
           console.error('解析其他设置失败:', error);
           data.azure_responses_version = '';
@@ -1179,6 +1362,7 @@ const EditChannelModal = (props) => {
           data.balance_query_last_check_time = 0;
           data.balance_query_last_result = null;
           data.balance_query_last_error = '';
+          Object.assign(data, getDefaultGroupQueryFormValues());
         }
       } else {
         // 兼容历史数据：老渠道没有 settings 时，默认按 json 展示
@@ -1237,6 +1421,7 @@ const EditChannelModal = (props) => {
         data.balance_query_last_check_time = 0;
         data.balance_query_last_result = null;
         data.balance_query_last_error = '';
+        Object.assign(data, getDefaultGroupQueryFormValues());
       }
 
       if (
@@ -1619,6 +1804,7 @@ const EditChannelModal = (props) => {
         } catch {}
       }
       loadBalanceQueryInstances();
+      loadGroupQueryInstances();
       fetchModelGroups();
       // 重置手动输入模式状态
       setUseManualInput(false);
@@ -2169,6 +2355,65 @@ const EditChannelModal = (props) => {
       last_error: settings.balance_query?.last_error || '',
     };
 
+    let groupQueryHeaders = {};
+    const hasGroupQueryHeaders =
+      typeof localInputs.group_query_request_headers === 'string' &&
+      localInputs.group_query_request_headers.trim() !== '';
+    if (hasGroupQueryHeaders) {
+      if (!verifyJSON(localInputs.group_query_request_headers)) {
+        showInfo(t('分组查询请求头必须是合法的 JSON 格式！'));
+        return;
+      }
+      try {
+        groupQueryHeaders = JSON.parse(localInputs.group_query_request_headers);
+      } catch (error) {
+        showInfo(t('分组查询请求头必须是合法的 JSON 格式！'));
+        return;
+      }
+      if (
+        !groupQueryHeaders ||
+        typeof groupQueryHeaders !== 'object' ||
+        Array.isArray(groupQueryHeaders)
+      ) {
+        showInfo(t('分组查询请求头必须是 JSON 对象'));
+        return;
+      }
+    }
+
+    const groupInterval = Number(localInputs.group_query_interval_seconds);
+    settings.group_query = {
+      ...(settings.group_query || {}),
+      enabled: localInputs.group_query_enabled === true,
+      template: localInputs.group_query_template || 'custom',
+      interval_seconds: Number.isFinite(groupInterval)
+        ? Math.max(0, Math.round(groupInterval))
+        : 300,
+      source_channel_id:
+        Number(localInputs.group_query_source_channel_id) > 0
+          ? Math.round(Number(localInputs.group_query_source_channel_id))
+          : 0,
+      access_token: localInputs.group_query_access_token || '',
+      user_id: localInputs.group_query_user_id || '',
+      request: {
+        url: localInputs.group_query_request_url || '',
+        method: localInputs.group_query_request_method || 'GET',
+        headers: groupQueryHeaders,
+        body: localInputs.group_query_request_body || '',
+      },
+      extractor: {
+        data_path: localInputs.group_query_data_path || '',
+        desc_path: localInputs.group_query_desc_path || '',
+        ratio_path: localInputs.group_query_ratio_path || '',
+        success_path: localInputs.group_query_success_path || '',
+        success_value: localInputs.group_query_success_value || '',
+        success_optional: localInputs.group_query_success_optional === true,
+        message_path: localInputs.group_query_message_path || '',
+      },
+      last_result: settings.group_query?.last_result || null,
+      last_check_time: Number(settings.group_query?.last_check_time) || 0,
+      last_error: settings.group_query?.last_error || '',
+    };
+
     localInputs.settings = JSON.stringify(settings);
 
     // 清理不需要发送到后端的字段
@@ -2220,6 +2465,26 @@ const EditChannelModal = (props) => {
     delete localInputs.balance_query_last_check_time;
     delete localInputs.balance_query_last_result;
     delete localInputs.balance_query_last_error;
+    delete localInputs.group_query_enabled;
+    delete localInputs.group_query_template;
+    delete localInputs.group_query_interval_seconds;
+    delete localInputs.group_query_source_channel_id;
+    delete localInputs.group_query_access_token;
+    delete localInputs.group_query_user_id;
+    delete localInputs.group_query_request_url;
+    delete localInputs.group_query_request_method;
+    delete localInputs.group_query_request_headers;
+    delete localInputs.group_query_request_body;
+    delete localInputs.group_query_data_path;
+    delete localInputs.group_query_desc_path;
+    delete localInputs.group_query_ratio_path;
+    delete localInputs.group_query_success_path;
+    delete localInputs.group_query_success_value;
+    delete localInputs.group_query_success_optional;
+    delete localInputs.group_query_message_path;
+    delete localInputs.group_query_last_check_time;
+    delete localInputs.group_query_last_result;
+    delete localInputs.group_query_last_error;
 
     let res;
     localInputs.auto_ban = localInputs.auto_ban ? 1 : 0;
@@ -2486,6 +2751,43 @@ const EditChannelModal = (props) => {
     inputs.balance_query_source_channel_id,
     t,
   ]);
+
+  const groupQueryInstanceOptions = useMemo(() => {
+    const options = [
+      {
+        label: t('使用当前渠道配置'),
+        value: 0,
+      },
+    ];
+    groupQueryInstances.forEach((item) => {
+      if (!item || item.id === channelId) {
+        return;
+      }
+      options.push({
+        label: `#${item.id} ${item.name || t('未命名渠道')}`,
+        value: item.id,
+      });
+    });
+    const selectedId = Number(inputs.group_query_source_channel_id) || 0;
+    if (
+      selectedId > 0 &&
+      !options.some((option) => Number(option.value) === selectedId)
+    ) {
+      options.push({
+        label: `#${selectedId} ${t('当前已选择的实例')}`,
+        value: selectedId,
+      });
+    }
+    return options;
+  }, [groupQueryInstances, channelId, inputs.group_query_source_channel_id, t]);
+
+  const groupQueryLastResultCount = useMemo(() => {
+    const result = inputs.group_query_last_result;
+    if (!result || typeof result !== 'object' || Array.isArray(result)) {
+      return 0;
+    }
+    return Object.keys(result).length;
+  }, [inputs.group_query_last_result]);
 
   const renderChannelOption = (renderProps) => {
     const {
@@ -3220,6 +3522,283 @@ const EditChannelModal = (props) => {
                     {inputs.balance_query_last_error ? (
                       <span className='ml-2 text-red-500'>
                         {inputs.balance_query_last_error}
+                      </span>
+                    ) : null}
+                  </div>
+                </div>
+
+                {/* Group Query Section */}
+                <div className='py-3 border-b border-gray-100'>
+                  <div className='flex items-center justify-between gap-2 mb-3'>
+                    <Text className='text-sm font-medium text-gray-500 block'>
+                      {t('渠道上游分组查询')}
+                    </Text>
+                    <Button
+                      size='small'
+                      type='tertiary'
+                      theme='outline'
+                      onClick={() => applyGroupQueryTemplate('newapi')}
+                    >
+                      {t('填入 New API 模板')}
+                    </Button>
+                  </div>
+                  <Form.Switch
+                    field='group_query_enabled'
+                    label={t('启用分组查询配置')}
+                    checkedText={t('开')}
+                    uncheckedText={t('关')}
+                    onChange={(value) =>
+                      handleGroupQueryInputChange('group_query_enabled', value)
+                    }
+                    extraText={t(
+                      '启用后，后台会按间隔查询上游可用分组并缓存结果',
+                    )}
+                  />
+                  <Row gutter={12}>
+                    <Col span={12}>
+                      <Form.Select
+                        field='group_query_template'
+                        label={t('模板')}
+                        optionList={[
+                          { label: 'New API', value: 'newapi' },
+                          { label: t('自定义'), value: 'custom' },
+                        ]}
+                        onChange={(value) =>
+                          handleGroupQueryInputChange(
+                            'group_query_template',
+                            value,
+                          )
+                        }
+                      />
+                    </Col>
+                    <Col span={12}>
+                      <Form.InputNumber
+                        field='group_query_interval_seconds'
+                        label={t('检测间隔（秒）')}
+                        min={0}
+                        style={{ width: '100%' }}
+                        onNumberChange={(value) =>
+                          handleGroupQueryInputChange(
+                            'group_query_interval_seconds',
+                            value,
+                          )
+                        }
+                        extraText={t('默认 300 秒，0 为不检测')}
+                      />
+                    </Col>
+                  </Row>
+                  <Form.Select
+                    field='group_query_source_channel_id'
+                    label={t('分组查询实例')}
+                    placeholder={t('选择已存在的分组查询实例')}
+                    optionList={groupQueryInstanceOptions}
+                    loading={groupQueryInstancesLoading}
+                    filter
+                    onChange={(value) =>
+                      handleGroupQueryInputChange(
+                        'group_query_source_channel_id',
+                        Number(value) || 0,
+                      )
+                    }
+                    extraText={t(
+                      '选择已存在实例后，将复用该实例的分组查询配置和查询结果；后台检测同一实例只请求一次',
+                    )}
+                  />
+                  <Form.Input
+                    field='group_query_access_token'
+                    label='Access Token'
+                    placeholder={t(
+                      '用于替换 {{accessToken}}，为空时使用渠道密钥',
+                    )}
+                    showClear
+                    onChange={(value) =>
+                      handleGroupQueryInputChange(
+                        'group_query_access_token',
+                        value,
+                      )
+                    }
+                  />
+                  <Form.Input
+                    field='group_query_user_id'
+                    label={t('用户 ID')}
+                    placeholder={t(
+                      '用于替换 {{userId}}，New API 模板会写入 New-Api-User 请求头',
+                    )}
+                    showClear
+                    onChange={(value) =>
+                      handleGroupQueryInputChange('group_query_user_id', value)
+                    }
+                  />
+                  <Form.Input
+                    field='group_query_request_url'
+                    label={t('请求地址')}
+                    placeholder='{{baseUrl}}/api/user/self/groups'
+                    showClear
+                    onChange={(value) =>
+                      handleGroupQueryInputChange(
+                        'group_query_request_url',
+                        value,
+                      )
+                    }
+                    extraText={t(
+                      '支持 {{baseUrl}}、{{accessToken}}、{{apiKey}}、{{userId}} 变量',
+                    )}
+                  />
+                  <Row gutter={12}>
+                    <Col span={8}>
+                      <Form.Select
+                        field='group_query_request_method'
+                        label={t('请求方法')}
+                        optionList={[
+                          { label: 'GET', value: 'GET' },
+                          { label: 'POST', value: 'POST' },
+                          { label: 'PUT', value: 'PUT' },
+                          { label: 'PATCH', value: 'PATCH' },
+                        ]}
+                        onChange={(value) =>
+                          handleGroupQueryInputChange(
+                            'group_query_request_method',
+                            value,
+                          )
+                        }
+                      />
+                    </Col>
+                    <Col span={8}>
+                      <Form.Input
+                        field='group_query_data_path'
+                        label={t('分组数据路径')}
+                        placeholder='data'
+                        onChange={(value) =>
+                          handleGroupQueryInputChange(
+                            'group_query_data_path',
+                            value,
+                          )
+                        }
+                      />
+                    </Col>
+                    <Col span={8}>
+                      <Form.Input
+                        field='group_query_ratio_path'
+                        label={t('倍率路径')}
+                        placeholder='ratio'
+                        onChange={(value) =>
+                          handleGroupQueryInputChange(
+                            'group_query_ratio_path',
+                            value,
+                          )
+                        }
+                      />
+                    </Col>
+                  </Row>
+                  <Form.TextArea
+                    field='group_query_request_headers'
+                    label={t('请求头 JSON')}
+                    autosize
+                    onChange={(value) =>
+                      handleGroupQueryInputChange(
+                        'group_query_request_headers',
+                        value,
+                      )
+                    }
+                  />
+                  <Form.TextArea
+                    field='group_query_request_body'
+                    label={t('请求体')}
+                    autosize
+                    showClear
+                    onChange={(value) =>
+                      handleGroupQueryInputChange(
+                        'group_query_request_body',
+                        value,
+                      )
+                    }
+                  />
+                  <Row gutter={12}>
+                    <Col span={8}>
+                      <Form.Input
+                        field='group_query_desc_path'
+                        label={t('描述路径')}
+                        placeholder='desc'
+                        onChange={(value) =>
+                          handleGroupQueryInputChange(
+                            'group_query_desc_path',
+                            value,
+                          )
+                        }
+                      />
+                    </Col>
+                    <Col span={8}>
+                      <Form.Input
+                        field='group_query_success_path'
+                        label={t('成功状态路径')}
+                        placeholder='success'
+                        showClear
+                        onChange={(value) =>
+                          handleGroupQueryInputChange(
+                            'group_query_success_path',
+                            value,
+                          )
+                        }
+                      />
+                    </Col>
+                    <Col span={8}>
+                      <Form.Input
+                        field='group_query_success_value'
+                        label={t('成功状态值')}
+                        placeholder='true'
+                        showClear
+                        onChange={(value) =>
+                          handleGroupQueryInputChange(
+                            'group_query_success_value',
+                            value,
+                          )
+                        }
+                      />
+                    </Col>
+                  </Row>
+                  <Row gutter={12}>
+                    <Col span={12}>
+                      <Form.Input
+                        field='group_query_message_path'
+                        label={t('错误消息路径')}
+                        placeholder='message'
+                        showClear
+                        onChange={(value) =>
+                          handleGroupQueryInputChange(
+                            'group_query_message_path',
+                            value,
+                          )
+                        }
+                      />
+                    </Col>
+                    <Col span={12}>
+                      <Form.Switch
+                        field='group_query_success_optional'
+                        label={t('成功状态可缺省')}
+                        checkedText={t('是')}
+                        uncheckedText={t('否')}
+                        onChange={(value) =>
+                          handleGroupQueryInputChange(
+                            'group_query_success_optional',
+                            value,
+                          )
+                        }
+                      />
+                    </Col>
+                  </Row>
+                  <div className='text-xs text-gray-500'>
+                    {t('上次检测时间')}:&nbsp;
+                    {formatUnixTime(inputs.group_query_last_check_time)}
+                    {groupQueryLastResultCount > 0 ? (
+                      <span className='ml-2'>
+                        {t('已缓存 {{count}} 个分组', {
+                          count: groupQueryLastResultCount,
+                        })}
+                      </span>
+                    ) : null}
+                    {inputs.group_query_last_error ? (
+                      <span className='ml-2 text-red-500'>
+                        {inputs.group_query_last_error}
                       </span>
                     ) : null}
                   </div>

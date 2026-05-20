@@ -42,6 +42,7 @@ type ChannelOtherSettings struct {
 	UpstreamModelUpdateLastRemovedModels  []string      `json:"upstream_model_update_last_removed_models,omitempty"`  // 上次检测到的可删除模型
 	UpstreamModelUpdateIgnoredModels      []string      `json:"upstream_model_update_ignored_models,omitempty"`       // 手动忽略的模型
 	BalanceQuery                          BalanceQuery  `json:"balance_query,omitempty"`                              // 渠道余额查询配置
+	GroupQuery                            GroupQuery    `json:"group_query,omitempty"`                                // 渠道上游分组查询配置
 }
 
 func (s *ChannelOtherSettings) IsOpenRouterEnterprise() bool {
@@ -95,4 +96,33 @@ type BalanceQueryResult struct {
 	Total          float64 `json:"total,omitempty"`
 	Unit           string  `json:"unit,omitempty"`
 	CheckedAt      int64   `json:"checked_at,omitempty"`
+}
+
+type GroupQuery struct {
+	Enabled         bool                      `json:"enabled,omitempty"`
+	Template        string                    `json:"template,omitempty"`
+	IntervalSeconds *int                      `json:"interval_seconds,omitempty"`
+	SourceChannelID int                       `json:"source_channel_id,omitempty"`
+	AccessToken     string                    `json:"access_token,omitempty"`
+	UserID          string                    `json:"user_id,omitempty"`
+	Request         BalanceQueryRequestConfig `json:"request,omitempty"`
+	Extractor       GroupQueryExtractorConfig `json:"extractor,omitempty"`
+	LastResult      map[string]GroupQueryItem `json:"last_result,omitempty"`
+	LastCheckTime   int64                     `json:"last_check_time,omitempty"`
+	LastError       string                    `json:"last_error,omitempty"`
+}
+
+type GroupQueryExtractorConfig struct {
+	DataPath        string `json:"data_path,omitempty"`
+	DescPath        string `json:"desc_path,omitempty"`
+	RatioPath       string `json:"ratio_path,omitempty"`
+	SuccessPath     string `json:"success_path,omitempty"`
+	SuccessValue    string `json:"success_value,omitempty"`
+	SuccessOptional bool   `json:"success_optional,omitempty"`
+	MessagePath     string `json:"message_path,omitempty"`
+}
+
+type GroupQueryItem struct {
+	Desc  string  `json:"desc"`
+	Ratio float64 `json:"ratio"`
 }

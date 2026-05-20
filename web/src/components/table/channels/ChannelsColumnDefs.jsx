@@ -319,6 +319,136 @@ const getBalanceQueryMeta = (record) => {
   }
 };
 
+const getGroupQueryMeta = (record) => {
+  if (!record || record.children !== undefined || !record.settings) {
+    return null;
+  }
+  try {
+    const parsed =
+      typeof record.settings === 'string'
+        ? JSON.parse(record.settings)
+        : record.settings;
+    return parsed?.group_query || null;
+  } catch (error) {
+    return null;
+  }
+};
+
+const getGroupQueryItems = (groupQuery) => {
+  const result = groupQuery?.last_result;
+  if (!result || typeof result !== 'object' || Array.isArray(result)) {
+    return [];
+  }
+  return Object.entries(result)
+    .map(([name, value]) => ({
+      name,
+      desc:
+        value && typeof value === 'object' && typeof value.desc === 'string'
+          ? value.desc
+          : name,
+      ratio:
+        value && typeof value === 'object' && typeof value.ratio === 'number'
+          ? value.ratio
+          : undefined,
+    }))
+    .sort((a, b) => {
+      if (a.name === 'default' || a.name === 'normal') return -1;
+      if (b.name === 'default' || b.name === 'normal') return 1;
+      return a.name.localeCompare(b.name);
+    });
+};
+
+const formatGroupQueryRatio = (ratio) => {
+  if (typeof ratio !== 'number' || Number.isNaN(ratio)) {
+    return '-';
+  }
+  const value =
+    ratio % 1 === 0
+      ? String(ratio)
+      : ratio.toFixed(2).replace(/0+$/, '').replace(/\.$/, '');
+  return `${value}x`;
+};
+
+const renderUpstreamGroups = (record, t) => {
+  if (record.children !== undefined) {
+    return (
+      <Tag color='grey' type='light' shape='circle'>
+        -
+      </Tag>
+    );
+  }
+
+  const groupQuery = getGroupQueryMeta(record);
+  if (!groupQuery?.enabled) {
+    return (
+      <Tag color='grey' type='light' shape='circle'>
+        {t('未启用')}
+      </Tag>
+    );
+  }
+
+  if (groupQuery.last_error) {
+    return (
+      <Tooltip content={groupQuery.last_error} position='topLeft'>
+        <Tag color='red' type='light' shape='circle'>
+          {t('查询失败')}
+        </Tag>
+      </Tooltip>
+    );
+  }
+
+  const items = getGroupQueryItems(groupQuery);
+  if (items.length === 0) {
+    return (
+      <Tag color='grey' type='light' shape='circle'>
+        {t('未缓存')}
+      </Tag>
+    );
+  }
+
+  const previewItems = items.slice(0, 3);
+  const omittedCount = items.length - previewItems.length;
+  const tooltipContent = (
+    <div className='max-w-xl max-h-96 overflow-y-auto'>
+      <div className='text-xs text-gray-500 mb-2'>
+        {t('上次检测时间')}: {timestamp2string(groupQuery.last_check_time || 0)}
+      </div>
+      <Space spacing={4} wrap>
+        {items.map((item) => (
+          <Tag key={item.name} color='cyan' type='light' shape='circle'>
+            {item.name} · {formatGroupQueryRatio(item.ratio)}
+          </Tag>
+        ))}
+      </Space>
+    </div>
+  );
+
+  return (
+    <Tooltip
+      content={tooltipContent}
+      position='topLeft'
+      trigger='hover'
+      getPopupContainer={() => document.body}
+      showArrow
+    >
+      <div className='inline-flex max-w-full align-middle cursor-help'>
+        <Space spacing={2} wrap>
+          {previewItems.map((item) => (
+            <Tag key={item.name} color='cyan' type='light' shape='circle'>
+              {item.name} · {formatGroupQueryRatio(item.ratio)}
+            </Tag>
+          ))}
+          {omittedCount > 0 ? (
+            <Tag color='grey' type='light' shape='circle'>
+              +{omittedCount}
+            </Tag>
+          ) : null}
+        </Space>
+      </div>
+    </Tooltip>
+  );
+};
+
 export const getChannelsColumns = ({
   t,
   COLUMN_KEYS,
@@ -490,6 +620,12 @@ export const getChannelsColumns = ({
           </Space>
         </div>
       ),
+    },
+    {
+      key: COLUMN_KEYS.UPSTREAM_GROUPS,
+      title: t('上游分组'),
+      dataIndex: 'settings',
+      render: (text, record) => renderUpstreamGroups(record, t),
     },
     {
       key: COLUMN_KEYS.TYPE,
