@@ -49,6 +49,7 @@ import type {
   TopupInfo,
   CreemProduct,
   WaffoPayMethod,
+  AirwallexCurrency,
 } from '../types'
 import { CreemProductsSection } from './creem-products-section'
 
@@ -80,6 +81,10 @@ interface RechargeFormCardProps {
   waffoMinTopup?: number
   onWaffoMethodSelect?: (method: WaffoPayMethod, index: number) => void
   enableWaffoPancakeTopup?: boolean
+  enableAirwallexTopup?: boolean
+  airwallexCurrencies?: AirwallexCurrency[]
+  onAirwallexPay?: (currency: string) => void
+  airwallexLoading?: boolean
 }
 
 export function RechargeFormCard({
@@ -110,6 +115,10 @@ export function RechargeFormCard({
   waffoMinTopup,
   onWaffoMethodSelect,
   enableWaffoPancakeTopup,
+  enableAirwallexTopup,
+  airwallexCurrencies,
+  onAirwallexPay,
+  airwallexLoading,
 }: RechargeFormCardProps) {
   const { t } = useTranslation()
   const [localAmount, setLocalAmount] = useState(topupAmount.toString())
@@ -134,8 +143,36 @@ export function RechargeFormCard({
     topupInfo?.enable_online_topup ||
     topupInfo?.enable_stripe_topup ||
     enableWaffoTopup ||
-    enableWaffoPancakeTopup
+    enableWaffoPancakeTopup ||
+    enableAirwallexTopup
   const hasAnyTopup = hasConfigurableTopup || enableCreemTopup
+  const hasAirwallexCurrencies =
+    Array.isArray(airwallexCurrencies) && airwallexCurrencies.length > 0
+  const defaultAirwallexCurrency = hasAirwallexCurrencies
+    ? airwallexCurrencies![0].currency
+    : 'AUD'
+  const [airwallexCurrency, setAirwallexCurrency] = useState(
+    defaultAirwallexCurrency
+  )
+  useEffect(() => {
+    if (
+      hasAirwallexCurrencies &&
+      !airwallexCurrencies!.some((c) => c.currency === airwallexCurrency)
+    ) {
+      setAirwallexCurrency(defaultAirwallexCurrency)
+    }
+  }, [
+    airwallexCurrencies,
+    airwallexCurrency,
+    defaultAirwallexCurrency,
+    hasAirwallexCurrencies,
+  ])
+  const airwallexMin =
+    (hasAirwallexCurrencies &&
+      airwallexCurrencies!.find((c) => c.currency === airwallexCurrency)
+        ?.min_topup) ||
+    0
+  const airwallexBelowMin = airwallexMin > topupAmount
   const hasStandardPaymentMethods =
     Array.isArray(topupInfo?.pay_methods) && topupInfo.pay_methods.length > 0
   const hasWaffoPaymentMethods =
@@ -390,6 +427,72 @@ export function RechargeFormCard({
                   </Alert>
                 )}
               </div>
+
+              {enableAirwallexTopup &&
+                hasAirwallexCurrencies &&
+                onAirwallexPay && (
+                  <div className='space-y-2.5 sm:space-y-3'>
+                    <Label className='text-muted-foreground text-xs font-medium tracking-wider uppercase'>
+                      {t('Pay with Airwallex')}
+                    </Label>
+                    <div className='flex flex-col gap-2 sm:flex-row sm:items-center'>
+                      <div className='flex gap-1.5 overflow-x-auto'>
+                        {airwallexCurrencies!.map((c) => (
+                          <Button
+                            key={c.currency}
+                            type='button'
+                            size='sm'
+                            variant={
+                              airwallexCurrency === c.currency
+                                ? 'default'
+                                : 'outline'
+                            }
+                            onClick={() => setAirwallexCurrency(c.currency)}
+                            className='h-8 px-3 text-xs font-semibold'
+                          >
+                            {c.currency}
+                          </Button>
+                        ))}
+                      </div>
+                      {(() => {
+                        const cta = (
+                          <Button
+                            type='button'
+                            onClick={() => onAirwallexPay(airwallexCurrency)}
+                            disabled={airwallexBelowMin || airwallexLoading}
+                            className='h-9 sm:ml-auto'
+                          >
+                            {airwallexLoading ? (
+                              <Loader2 className='h-4 w-4 animate-spin' />
+                            ) : (
+                              <WalletCards className='h-4 w-4' />
+                            )}
+                            {t('Pay with Airwallex')}
+                          </Button>
+                        )
+                        return airwallexBelowMin ? (
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger render={cta}></TooltipTrigger>
+                              <TooltipContent>
+                                {t('Minimum topup amount: {{amount}}', {
+                                  amount: airwallexMin,
+                                })}
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                        ) : (
+                          cta
+                        )
+                      })()}
+                    </div>
+                    <p className='text-muted-foreground text-xs'>
+                      {t(
+                        'Card payment via Airwallex hosted checkout. Settlement currency matches the button you picked.'
+                      )}
+                    </p>
+                  </div>
+                )}
 
               {enableWaffoTopup &&
                 hasWaffoPaymentMethods &&

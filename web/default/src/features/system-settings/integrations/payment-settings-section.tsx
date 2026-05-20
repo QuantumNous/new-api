@@ -121,6 +121,30 @@ const paymentSchema = z.object({
       })
     }
   }),
+  AirwallexEnabled: z.boolean(),
+  AirwallexSandbox: z.boolean(),
+  AirwallexClientId: z.string(),
+  AirwallexApiKey: z.string(),
+  AirwallexWebhookSecret: z.string(),
+  AirwallexCurrencies: z.string().superRefine((value, ctx) => {
+    const error = getJsonError(value, (parsed) => Array.isArray(parsed))
+    if (error) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: error,
+      })
+    }
+  }),
+  AirwallexReturnUrl: z.string().refine((value) => {
+    const trimmed = value.trim()
+    if (!trimmed) return true
+    return /^https?:\/\//.test(trimmed)
+  }, 'Provide a valid URL starting with http:// or https://'),
+  AirwallexCancelUrl: z.string().refine((value) => {
+    const trimmed = value.trim()
+    if (!trimmed) return true
+    return /^https?:\/\//.test(trimmed)
+  }, 'Provide a valid URL starting with http:// or https://'),
 })
 
 type PaymentFormValues = z.infer<typeof paymentSchema>
@@ -161,6 +185,7 @@ export function PaymentSettingsSection({
       AmountOptions: formatJsonForEditor(defaultValues.AmountOptions),
       AmountDiscount: formatJsonForEditor(defaultValues.AmountDiscount),
       CreemProducts: formatJsonForEditor(defaultValues.CreemProducts),
+      AirwallexCurrencies: formatJsonForEditor(defaultValues.AirwallexCurrencies),
     },
   })
 
@@ -173,6 +198,7 @@ export function PaymentSettingsSection({
       AmountOptions: formatJsonForEditor(parsedDefaults.AmountOptions),
       AmountDiscount: formatJsonForEditor(parsedDefaults.AmountDiscount),
       CreemProducts: formatJsonForEditor(parsedDefaults.CreemProducts),
+      AirwallexCurrencies: formatJsonForEditor(parsedDefaults.AirwallexCurrencies),
     })
   }, [defaultsSignature, form])
 
@@ -404,6 +430,107 @@ export function PaymentSettingsSection({
       normalizeJsonForComparison(initial.CreemProducts)
     ) {
       updates.push({ key: 'CreemProducts', value: sanitized.CreemProducts })
+    }
+
+    if (updates.length === 0) {
+      return
+    }
+
+    for (const update of updates) {
+      await updateOption.mutateAsync(update)
+    }
+  }
+
+  const saveAirwallexSettings = async () => {
+    const values = form.getValues()
+    const sanitized = {
+      AirwallexEnabled: values.AirwallexEnabled as boolean,
+      AirwallexSandbox: values.AirwallexSandbox as boolean,
+      AirwallexClientId: values.AirwallexClientId.trim(),
+      AirwallexApiKey: values.AirwallexApiKey.trim(),
+      AirwallexWebhookSecret: values.AirwallexWebhookSecret.trim(),
+      AirwallexCurrencies: values.AirwallexCurrencies.trim(),
+      AirwallexReturnUrl: removeTrailingSlash(values.AirwallexReturnUrl),
+      AirwallexCancelUrl: removeTrailingSlash(values.AirwallexCancelUrl),
+    }
+
+    const initial = {
+      AirwallexEnabled: initialRef.current.AirwallexEnabled,
+      AirwallexSandbox: initialRef.current.AirwallexSandbox,
+      AirwallexClientId: initialRef.current.AirwallexClientId.trim(),
+      AirwallexApiKey: initialRef.current.AirwallexApiKey.trim(),
+      AirwallexWebhookSecret:
+        initialRef.current.AirwallexWebhookSecret.trim(),
+      AirwallexCurrencies: initialRef.current.AirwallexCurrencies.trim(),
+      AirwallexReturnUrl: removeTrailingSlash(
+        initialRef.current.AirwallexReturnUrl
+      ),
+      AirwallexCancelUrl: removeTrailingSlash(
+        initialRef.current.AirwallexCancelUrl
+      ),
+    }
+
+    const updates: Array<{ key: string; value: string | boolean }> = []
+
+    if (sanitized.AirwallexEnabled !== initial.AirwallexEnabled) {
+      updates.push({
+        key: 'AirwallexEnabled',
+        value: sanitized.AirwallexEnabled,
+      })
+    }
+    if (sanitized.AirwallexSandbox !== initial.AirwallexSandbox) {
+      updates.push({
+        key: 'AirwallexSandbox',
+        value: sanitized.AirwallexSandbox,
+      })
+    }
+    if (
+      sanitized.AirwallexClientId &&
+      sanitized.AirwallexClientId !== initial.AirwallexClientId
+    ) {
+      updates.push({
+        key: 'AirwallexClientId',
+        value: sanitized.AirwallexClientId,
+      })
+    }
+    if (
+      sanitized.AirwallexApiKey &&
+      sanitized.AirwallexApiKey !== initial.AirwallexApiKey
+    ) {
+      updates.push({
+        key: 'AirwallexApiKey',
+        value: sanitized.AirwallexApiKey,
+      })
+    }
+    if (
+      sanitized.AirwallexWebhookSecret &&
+      sanitized.AirwallexWebhookSecret !== initial.AirwallexWebhookSecret
+    ) {
+      updates.push({
+        key: 'AirwallexWebhookSecret',
+        value: sanitized.AirwallexWebhookSecret,
+      })
+    }
+    if (
+      normalizeJsonForComparison(sanitized.AirwallexCurrencies) !==
+      normalizeJsonForComparison(initial.AirwallexCurrencies)
+    ) {
+      updates.push({
+        key: 'AirwallexCurrencies',
+        value: sanitized.AirwallexCurrencies,
+      })
+    }
+    if (sanitized.AirwallexReturnUrl !== initial.AirwallexReturnUrl) {
+      updates.push({
+        key: 'AirwallexReturnUrl',
+        value: sanitized.AirwallexReturnUrl,
+      })
+    }
+    if (sanitized.AirwallexCancelUrl !== initial.AirwallexCancelUrl) {
+      updates.push({
+        key: 'AirwallexCancelUrl',
+        value: sanitized.AirwallexCancelUrl,
+      })
     }
 
     if (updates.length === 0) {
@@ -1293,6 +1420,243 @@ export function PaymentSettingsSection({
               {updateOption.isPending
                 ? t('Saving...')
                 : t('Save Creem settings')}
+            </Button>
+          </div>
+
+          <Separator />
+
+          <div className='space-y-4'>
+            <div>
+              <h3 className='text-lg font-medium'>{t('Airwallex Gateway')}</h3>
+              <p className='text-muted-foreground text-sm'>
+                {t(
+                  'Hosted Payment Page integration with multi-currency support (AUD, USD, CNY, EUR).'
+                )}
+              </p>
+            </div>
+
+            <div className='rounded-md bg-blue-50 p-4 text-sm text-blue-900 dark:bg-blue-950 dark:text-blue-100'>
+              <p className='mb-2 font-medium'>{t('Webhook Configuration:')}</p>
+              <ul className='list-inside list-disc space-y-1'>
+                <li>
+                  {t('Webhook URL:')}{' '}
+                  <code className='rounded bg-blue-100 px-1 py-0.5 text-xs dark:bg-blue-900'>
+                    {'<ServerAddress>/api/airwallex/webhook'}
+                  </code>
+                </li>
+                <li>
+                  {t(
+                    'Register this URL in your Airwallex Webhooks dashboard, copy the signing secret into the field below.'
+                  )}
+                </li>
+              </ul>
+            </div>
+
+            <div className='grid gap-6 md:grid-cols-2'>
+              <FormField
+                control={form.control}
+                name='AirwallexEnabled'
+                render={({ field }) => (
+                  <FormItem className='flex flex-row items-center justify-between rounded-lg border p-4'>
+                    <div className='space-y-0.5'>
+                      <FormLabel className='text-base'>
+                        {t('Enable Airwallex')}
+                      </FormLabel>
+                      <FormDescription>
+                        {t('Master switch — turn off to hide from /wallet')}
+                      </FormDescription>
+                    </div>
+                    <FormControl>
+                      <Switch
+                        checked={field.value}
+                        onCheckedChange={field.onChange}
+                      />
+                    </FormControl>
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name='AirwallexSandbox'
+                render={({ field }) => (
+                  <FormItem className='flex flex-row items-center justify-between rounded-lg border p-4'>
+                    <div className='space-y-0.5'>
+                      <FormLabel className='text-base'>
+                        {t('Sandbox Mode')}
+                      </FormLabel>
+                      <FormDescription>
+                        {t(
+                          'On → api-demo.airwallex.com. Off → production endpoints.'
+                        )}
+                      </FormDescription>
+                    </div>
+                    <FormControl>
+                      <Switch
+                        checked={field.value}
+                        onCheckedChange={field.onChange}
+                      />
+                    </FormControl>
+                  </FormItem>
+                )}
+              />
+            </div>
+
+            <div className='grid gap-6 md:grid-cols-2'>
+              <FormField
+                control={form.control}
+                name='AirwallexClientId'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t('Client ID')}</FormLabel>
+                    <FormControl>
+                      <Input
+                        type='text'
+                        placeholder={t('Airwallex account client ID')}
+                        autoComplete='off'
+                        {...field}
+                        onChange={(event) => field.onChange(event.target.value)}
+                      />
+                    </FormControl>
+                    <FormDescription>
+                      {t('Found in Airwallex dashboard → Developer → API keys')}
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name='AirwallexApiKey'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t('API Key')}</FormLabel>
+                    <FormControl>
+                      <Input
+                        type='password'
+                        placeholder={t('Enter Airwallex API key')}
+                        autoComplete='new-password'
+                        {...field}
+                        onChange={(event) => field.onChange(event.target.value)}
+                      />
+                    </FormControl>
+                    <FormDescription>
+                      {t('Used for server-to-server auth (leave blank unless updating)')}
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+
+            <FormField
+              control={form.control}
+              name='AirwallexWebhookSecret'
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t('Webhook Secret')}</FormLabel>
+                  <FormControl>
+                    <Input
+                      type='password'
+                      placeholder={t('Enter webhook signing secret')}
+                      autoComplete='new-password'
+                      {...field}
+                      onChange={(event) => field.onChange(event.target.value)}
+                    />
+                  </FormControl>
+                  <FormDescription>
+                    {t(
+                      'Used to verify HMAC-SHA256 signature on webhook callbacks (leave blank unless updating)'
+                    )}
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name='AirwallexCurrencies'
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t('Currencies')}</FormLabel>
+                  <FormControl>
+                    <Textarea
+                      rows={5}
+                      placeholder='[{"currency":"AUD","unit_price":1.5,"min_topup":5},{"currency":"USD","unit_price":1.0,"min_topup":5}]'
+                      {...field}
+                      onChange={(event) => field.onChange(event.target.value)}
+                    />
+                  </FormControl>
+                  <FormDescription>
+                    {t(
+                      'JSON array of enabled currencies. unit_price = currency units per 1 quota unit. min_topup = smallest top-up in that currency. First entry is the default at /wallet.'
+                    )}
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <div className='grid gap-6 md:grid-cols-2'>
+              <FormField
+                control={form.control}
+                name='AirwallexReturnUrl'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t('Success Return URL')}</FormLabel>
+                    <FormControl>
+                      <Input
+                        type='text'
+                        placeholder='https://app.example.com/console/log'
+                        {...field}
+                        onChange={(event) => field.onChange(event.target.value)}
+                      />
+                    </FormControl>
+                    <FormDescription>
+                      {t('Optional. Defaults to ServerAddress/console/log')}
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name='AirwallexCancelUrl'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t('Cancel Return URL')}</FormLabel>
+                    <FormControl>
+                      <Input
+                        type='text'
+                        placeholder='https://app.example.com/console/topup'
+                        {...field}
+                        onChange={(event) => field.onChange(event.target.value)}
+                      />
+                    </FormControl>
+                    <FormDescription>
+                      {t('Optional. Defaults to ServerAddress/console/topup')}
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+
+            <Button
+              type='button'
+              onClick={(e) => {
+                e.preventDefault()
+                e.stopPropagation()
+                saveAirwallexSettings()
+              }}
+              disabled={updateOption.isPending}
+            >
+              {updateOption.isPending
+                ? t('Saving...')
+                : t('Save Airwallex settings')}
             </Button>
           </div>
 

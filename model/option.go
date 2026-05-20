@@ -90,6 +90,14 @@ func InitOptionMap() {
 	common.OptionMap["CreemProducts"] = setting.CreemProducts
 	common.OptionMap["CreemTestMode"] = strconv.FormatBool(setting.CreemTestMode)
 	common.OptionMap["CreemWebhookSecret"] = setting.CreemWebhookSecret
+	common.OptionMap["AirwallexEnabled"] = strconv.FormatBool(setting.AirwallexEnabled)
+	common.OptionMap["AirwallexSandbox"] = strconv.FormatBool(setting.AirwallexSandbox)
+	common.OptionMap["AirwallexClientId"] = setting.AirwallexClientId
+	common.OptionMap["AirwallexApiKey"] = setting.AirwallexApiKey
+	common.OptionMap["AirwallexWebhookSecret"] = setting.AirwallexWebhookSecret
+	common.OptionMap["AirwallexCurrencies"] = setting.AirwallexCurrencies
+	common.OptionMap["AirwallexReturnUrl"] = setting.AirwallexReturnUrl
+	common.OptionMap["AirwallexCancelUrl"] = setting.AirwallexCancelUrl
 	common.OptionMap["WaffoEnabled"] = strconv.FormatBool(setting.WaffoEnabled)
 	common.OptionMap["WaffoApiKey"] = setting.WaffoApiKey
 	common.OptionMap["WaffoPrivateKey"] = setting.WaffoPrivateKey
@@ -389,6 +397,22 @@ func updateOptionMap(key string, value string) (err error) {
 		setting.CreemTestMode = value == "true"
 	case "CreemWebhookSecret":
 		setting.CreemWebhookSecret = value
+	case "AirwallexEnabled":
+		setting.AirwallexEnabled = value == "true"
+	case "AirwallexSandbox":
+		setting.AirwallexSandbox = value == "true"
+	case "AirwallexClientId":
+		setting.AirwallexClientId = value
+	case "AirwallexApiKey":
+		setting.AirwallexApiKey = value
+	case "AirwallexWebhookSecret":
+		setting.AirwallexWebhookSecret = value
+	case "AirwallexCurrencies":
+		setting.AirwallexCurrencies = value
+	case "AirwallexReturnUrl":
+		setting.AirwallexReturnUrl = value
+	case "AirwallexCancelUrl":
+		setting.AirwallexCancelUrl = value
 	case "WaffoEnabled":
 		setting.WaffoEnabled = value == "true"
 	case "WaffoApiKey":

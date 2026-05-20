@@ -38,6 +38,8 @@ import type {
   WaffoPaymentResponse,
   WaffoPancakePaymentRequest,
   WaffoPancakePaymentResponse,
+  AirwallexPaymentRequest,
+  AirwallexPaymentResponse,
 } from './types'
 
 // ============================================================================
@@ -163,6 +165,18 @@ export async function requestWaffoPancakePayment(
   request: WaffoPancakePaymentRequest
 ): Promise<WaffoPancakePaymentResponse> {
   const res = await api.post('/api/user/waffo-pancake/pay', request, {
+    skipBusinessError: true,
+  } as Record<string, unknown>)
+  return res.data
+}
+
+/**
+ * Request Airwallex payment — returns a hosted-checkout URL.
+ */
+export async function requestAirwallexPayment(
+  request: AirwallexPaymentRequest
+): Promise<AirwallexPaymentResponse> {
+  const res = await api.post('/api/user/airwallex/pay', request, {
     skipBusinessError: true,
   } as Record<string, unknown>)
   return res.data

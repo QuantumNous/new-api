@@ -154,6 +154,16 @@ const BILLING_SECTIONS = [
           CreemWebhookSecret: settings.CreemWebhookSecret,
           CreemTestMode: settings.CreemTestMode,
           CreemProducts: settings.CreemProducts,
+          AirwallexEnabled: settings.AirwallexEnabled ?? false,
+          AirwallexSandbox: settings.AirwallexSandbox ?? true,
+          AirwallexClientId: settings.AirwallexClientId ?? '',
+          AirwallexApiKey: settings.AirwallexApiKey ?? '',
+          AirwallexWebhookSecret: settings.AirwallexWebhookSecret ?? '',
+          AirwallexCurrencies:
+            settings.AirwallexCurrencies ??
+            '[{"currency":"AUD","unit_price":1.5,"min_topup":5}]',
+          AirwallexReturnUrl: settings.AirwallexReturnUrl ?? '',
+          AirwallexCancelUrl: settings.AirwallexCancelUrl ?? '',
         }}
         waffoDefaultValues={{
           WaffoEnabled: settings.WaffoEnabled ?? false,

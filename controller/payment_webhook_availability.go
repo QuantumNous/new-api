@@ -89,6 +89,23 @@ func isEpayTopUpEnabled() bool {
 	return isEpayWebhookConfigured() && len(operation_setting.PayMethods) > 0
 }
 
+func isAirwallexTopUpEnabled() bool {
+	if !setting.AirwallexEnabled {
+		return false
+	}
+	return strings.TrimSpace(setting.AirwallexClientId) != "" &&
+		strings.TrimSpace(setting.AirwallexApiKey) != "" &&
+		strings.TrimSpace(setting.AirwallexWebhookSecret) != ""
+}
+
+func isAirwallexWebhookConfigured() bool {
+	return strings.TrimSpace(setting.AirwallexWebhookSecret) != ""
+}
+
+func isAirwallexWebhookEnabled() bool {
+	return isAirwallexTopUpEnabled() && isAirwallexWebhookConfigured()
+}
+
 func isEpayWebhookConfigured() bool {
 	return strings.TrimSpace(operation_setting.PayAddress) != "" &&
 		strings.TrimSpace(operation_setting.EpayId) != "" &&

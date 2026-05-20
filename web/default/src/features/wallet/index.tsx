@@ -39,6 +39,7 @@ import {
   useCreemPayment,
   useWaffoPayment,
   useWaffoPancakePayment,
+  useAirwallexPayment,
 } from './hooks'
 import {
   getDefaultPaymentType,
@@ -102,6 +103,8 @@ export function Wallet(props: WalletProps) {
   const { processWaffoPayment } = useWaffoPayment()
   const { processing: pancakeProcessing, processWaffoPancakePayment } =
     useWaffoPancakePayment()
+  const { processing: airwallexProcessing, processAirwallexPayment } =
+    useAirwallexPayment()
 
   // Fetch and refresh user data
   const fetchUser = useCallback(async () => {
@@ -234,6 +237,14 @@ export function Wallet(props: WalletProps) {
     }
   }
 
+  const handleAirwallexPay = useCallback(
+    async (currency: string) => {
+      if (topupAmount <= 0) return
+      await processAirwallexPayment(topupAmount, currency)
+    },
+    [processAirwallexPayment, topupAmount]
+  )
+
   const handleWaffoMethodSelect = async (_method: unknown, index: number) => {
     const loadingKey = `waffo-${index}`
     setPaymentLoading(loadingKey)
@@ -308,6 +319,10 @@ export function Wallet(props: WalletProps) {
                   enableWaffoPancakeTopup={
                     topupInfo?.enable_waffo_pancake_topup
                   }
+                  enableAirwallexTopup={topupInfo?.enable_airwallex_topup}
+                  airwallexCurrencies={topupInfo?.airwallex_currencies}
+                  onAirwallexPay={handleAirwallexPay}
+                  airwallexLoading={airwallexProcessing}
                 />
               </div>
 

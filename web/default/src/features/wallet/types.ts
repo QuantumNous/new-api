@@ -42,6 +42,21 @@ export type StripePaymentResponse = ApiResponse<{ pay_link: string }>
 export type AffiliateCodeResponse = ApiResponse<string>
 export type AffiliateTransferResponse = ApiResponse
 export type CreemPaymentResponse = ApiResponse<{ checkout_url: string }>
+export type AirwallexPaymentResponse = ApiResponse<{
+  pay_link: string
+  order_id: string
+}>
+
+/**
+ * Airwallex payment request — frontend → /api/user/airwallex/pay.
+ */
+export interface AirwallexPaymentRequest {
+  amount: number
+  currency: string
+  payment_method: 'airwallex'
+  success_url?: string
+  cancel_url?: string
+}
 export type WaffoPaymentResponse = ApiResponse<
   { payment_url?: string } | string
 >
@@ -145,6 +160,19 @@ export interface TopupInfo {
   enable_waffo_pancake_topup?: boolean
   /** Minimum topup amount for Waffo Pancake */
   waffo_pancake_min_topup?: number
+  /** Whether Airwallex topup is enabled */
+  enable_airwallex_topup?: boolean
+  /** Enabled currencies for Airwallex (admin-configured) */
+  airwallex_currencies?: AirwallexCurrency[]
+}
+
+/**
+ * Airwallex per-currency config row.
+ */
+export interface AirwallexCurrency {
+  currency: string
+  unit_price: number
+  min_topup: number
 }
 
 /**

@@ -225,6 +225,14 @@ export type BillingSettings = {
   CreemWebhookSecret: string
   CreemTestMode: boolean
   CreemProducts: string
+  AirwallexEnabled: boolean
+  AirwallexSandbox: boolean
+  AirwallexClientId: string
+  AirwallexApiKey: string
+  AirwallexWebhookSecret: string
+  AirwallexCurrencies: string
+  AirwallexReturnUrl: string
+  AirwallexCancelUrl: string
   WaffoEnabled: boolean
   WaffoApiKey: string
   WaffoPrivateKey: string
