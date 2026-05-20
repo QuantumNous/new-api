@@ -66,6 +66,19 @@ func SetRelayRouter(router *gin.Engine) {
 	{
 		playgroundRouter.POST("/chat/completions", controller.Playground)
 	}
+
+	drawingRouter := router.Group("/pg/drawing")
+	drawingRouter.Use(middleware.RouteTag("relay"))
+	drawingRouter.Use(middleware.SystemPerformanceCheck())
+	drawingRouter.Use(middleware.UserAuth())
+	{
+		drawingRouter.POST("/sessions", controller.CreateDrawingSession)
+		drawingRouter.GET("/sessions", controller.ListDrawingSessions)
+		drawingRouter.GET("/sessions/:session_id", controller.GetDrawingSessionDetail)
+		drawingRouter.DELETE("/sessions/:session_id", controller.DeleteDrawingSessionHandler)
+		drawingRouter.POST("/sessions/:session_id/generate", controller.SubmitDrawingTask)
+		drawingRouter.GET("/tasks/:task_id", controller.GetDrawingTaskStatus)
+	}
 	relayV1Router := router.Group("/v1")
 	relayV1Router.Use(middleware.RouteTag("relay"))
 	relayV1Router.Use(middleware.SystemPerformanceCheck())
