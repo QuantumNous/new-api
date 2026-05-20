@@ -26,6 +26,11 @@ type listModelsResponse struct {
 	Object  string             `json:"object"`
 }
 
+type geminiListModelsResponse struct {
+	Models        []dto.GeminiModel `json:"models"`
+	NextPageToken interface{}       `json:"nextPageToken"`
+}
+
 func setupModelListControllerTestDB(t *testing.T) *gorm.DB {
 	t.Helper()
 
@@ -146,6 +151,26 @@ func decodeListModelsResponse(t *testing.T, recorder *httptest.ResponseRecorder)
 	return ids
 }
 
+func decodeGeminiListModelsResponse(t *testing.T, recorder *httptest.ResponseRecorder) map[string]dto.GeminiModel {
+	t.Helper()
+
+	require.Equal(t, http.StatusOK, recorder.Code)
+	var payload geminiListModelsResponse
+	require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &payload))
+
+	modelsByName := make(map[string]dto.GeminiModel, len(payload.Models))
+	for _, item := range payload.Models {
+		name, ok := item.Name.(string)
+		require.True(t, ok)
+		modelsByName[name] = item
+	}
+	return modelsByName
+}
+
+func geminiMethods(model dto.GeminiModel) []string {
+	return append([]string(nil), model.SupportedGenerationMethods...)
+}
+
 func pricingByModelName(pricings []model.Pricing) map[string]model.Pricing {
 	byName := make(map[string]model.Pricing, len(pricings))
 	for _, pricing := range pricings {
@@ -239,4 +264,45 @@ func TestListModelsTokenLimitIncludesTieredBillingModel(t *testing.T) {
 	require.NotContains(t, ids, "zz-token-tiered-empty-expr-model")
 	require.NotContains(t, ids, "zz-token-tiered-missing-expr-model")
 	require.NotContains(t, ids, "zz-token-unpriced-model")
+}
+
+func TestListModelsGeminiIncludesSupportedGenerationMethods(t *testing.T) {
+	originalSelfUseMode := operation_setting.SelfUseModeEnabled
+	operation_setting.SelfUseModeEnabled = true
+	t.Cleanup(func() {
+		operation_setting.SelfUseModeEnabled = originalSelfUseMode
+		model.InvalidatePricingCache()
+	})
+
+	db := setupModelListControllerTestDB(t)
+	require.NoError(t, db.Create(&model.User{
+		Id:       1002,
+		Username: "gemini-model-list-user",
+		Password: "password",
+		Group:    "default",
+		Status:   common.UserStatusEnabled,
+	}).Error)
+	require.NoError(t, db.Create(&[]model.Channel{
+		{Id: 1, Type: constant.ChannelTypeGemini, Status: common.ChannelStatusEnabled, Models: "gemini-2.5-flash,gemini-embedding-001,imagen-4.0-generate-001", Group: "default"},
+	}).Error)
+	require.NoError(t, db.Create(&[]model.Ability{
+		{Group: "default", Model: "gemini-2.5-flash", ChannelId: 1, Enabled: true},
+		{Group: "default", Model: "gemini-embedding-001", ChannelId: 1, Enabled: true},
+		{Group: "default", Model: "imagen-4.0-generate-001", ChannelId: 1, Enabled: true},
+	}).Error)
+	model.InvalidatePricingCache()
+	model.GetPricing()
+
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = httptest.NewRequest(http.MethodGet, "/v1beta/models", nil)
+	ctx.Set("id", 1002)
+
+	ListModels(ctx, constant.ChannelTypeGemini)
+
+	models := decodeGeminiListModelsResponse(t, recorder)
+
+	require.ElementsMatch(t, []string{"generateContent"}, geminiMethods(models["models/gemini-2.5-flash"]))
+	require.ElementsMatch(t, []string{"embedContent", "batchEmbedContents"}, geminiMethods(models["models/gemini-embedding-001"]))
+	require.ElementsMatch(t, []string{"predict"}, geminiMethods(models["models/imagen-4.0-generate-001"]))
 }

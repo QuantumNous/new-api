@@ -3,6 +3,7 @@ package controller
 import (
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
@@ -220,10 +221,7 @@ func ListModels(c *gin.Context, modelType int) {
 	case constant.ChannelTypeGemini:
 		userGeminiModels := make([]dto.GeminiModel, len(userOpenAiModels))
 		for i, model := range userOpenAiModels {
-			userGeminiModels[i] = dto.GeminiModel{
-				Name:        model.Id,
-				DisplayName: model.Id,
-			}
+			userGeminiModels[i] = buildGeminiModel(model)
 		}
 		c.JSON(200, gin.H{
 			"models":        userGeminiModels,
@@ -236,6 +234,69 @@ func ListModels(c *gin.Context, modelType int) {
 			"object":  "list",
 		})
 	}
+}
+
+func buildGeminiModel(openAIModel dto.OpenAIModels) dto.GeminiModel {
+	return dto.GeminiModel{
+		Name:                       fmt.Sprintf("models/%s", normalizeGeminiModelID(openAIModel.Id)),
+		DisplayName:                openAIModel.Id,
+		SupportedGenerationMethods: getGeminiSupportedGenerationMethods(openAIModel),
+	}
+}
+
+func getGeminiSupportedGenerationMethods(openAIModel dto.OpenAIModels) []string {
+	normalizedModelID := normalizeGeminiModelID(openAIModel.Id)
+	switch {
+	case isGeminiVideoModel(normalizedModelID):
+		return []string{"predictLongRunning"}
+	case isGeminiEmbeddingModel(normalizedModelID):
+		return []string{"embedContent", "batchEmbedContents"}
+	case isGeminiPredictModel(normalizedModelID):
+		return []string{"predict"}
+	}
+
+	methods := make([]string, 0, 2)
+	for _, endpointType := range openAIModel.SupportedEndpointTypes {
+		switch endpointType {
+		case constant.EndpointTypeGemini:
+			methods = appendUniqueGeminiMethod(methods, "generateContent")
+		case constant.EndpointTypeEmbeddings:
+			methods = appendUniqueGeminiMethod(methods, "embedContent")
+			methods = appendUniqueGeminiMethod(methods, "batchEmbedContents")
+		}
+	}
+	if len(methods) > 0 {
+		return methods
+	}
+
+	return []string{"generateContent"}
+}
+
+func normalizeGeminiModelID(modelID string) string {
+	return strings.ToLower(strings.TrimPrefix(modelID, "models/"))
+}
+
+func isGeminiEmbeddingModel(modelID string) bool {
+	return strings.HasPrefix(modelID, "text-embedding") ||
+		strings.HasPrefix(modelID, "embedding") ||
+		strings.HasPrefix(modelID, "gemini-embedding")
+}
+
+func isGeminiPredictModel(modelID string) bool {
+	return strings.HasPrefix(modelID, "imagen")
+}
+
+func isGeminiVideoModel(modelID string) bool {
+	return strings.HasPrefix(modelID, "veo-")
+}
+
+func appendUniqueGeminiMethod(methods []string, method string) []string {
+	for _, existing := range methods {
+		if existing == method {
+			return methods
+		}
+	}
+	return append(methods, method)
 }
 
 func ChannelListModels(c *gin.Context) {
