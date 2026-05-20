@@ -1,4 +1,3 @@
-import { dataScheme as vchartDefaultDataScheme } from '@visactor/vchart/esm/theme/color-scheme/builtin/default'
 import { getCurrencyDisplay } from '@/lib/currency'
 import { formatChartTime, type TimeGranularity } from '@/lib/time'
 import { MAX_CHART_TREND_POINTS } from '@/features/dashboard/constants'
@@ -21,14 +20,6 @@ type TooltipLineItem = {
   shapeSize?: number
 }
 
-const THEME_CHART_COLOR_VARIABLES = [
-  '--chart-1',
-  '--chart-2',
-  '--chart-3',
-  '--chart-4',
-  '--chart-5',
-] as const
-
 const VIBRANT_TOKEN_COLORS = [
   '#6366F1',
   '#F59E0B',
@@ -46,6 +37,18 @@ const VIBRANT_TOKEN_COLORS = [
   '#D946EF',
   '#22C55E',
 ]
+
+/** 根据模型名哈希稳定分配基础色，保证同一模型在所有图表中颜色一致 */
+function getModelBaseColor(modelName: string): string {
+  let hash = 0
+  for (let i = 0; i < modelName.length; i++) {
+    hash = ((hash << 5) - hash) + modelName.charCodeAt(i)
+    hash |= 0
+  }
+  return VIBRANT_TOKEN_COLORS[Math.abs(hash) % VIBRANT_TOKEN_COLORS.length]
+}
+
+const OTHER_MODEL_COLOR = '#94A3B8'
 
 type HSL = { h: number; s: number; l: number }
 
@@ -106,37 +109,6 @@ function generateTokenColorVariants(baseColor: string): [string, string, string]
     ? { h: hsl.h, s: 40, l: Math.max(20, hsl.l - 15) }
     : { h: hsl.h, s: Math.min(100, hsl.s + 10), l: Math.max(18, hsl.l - 12) }
   return [hslToString(cacheHit), hslToString(cacheMiss), hslToString(output)]
-}
-
-function getThemeChartColors(themeKey?: string): string[] {
-  if (typeof document === 'undefined') return []
-  void themeKey
-
-  const bodyStyle = window.getComputedStyle(document.body)
-  const rootStyle = window.getComputedStyle(document.documentElement)
-
-  return THEME_CHART_COLOR_VARIABLES.map((name) => {
-    return (
-      bodyStyle.getPropertyValue(name) || rootStyle.getPropertyValue(name)
-    ).trim()
-  }).filter(Boolean)
-}
-
-function getVChartDefaultColors(domainLength: number, themeKey?: string) {
-  const themeColors = getThemeChartColors(themeKey)
-  if (themeColors.length > 0) {
-    return Array.from(
-      { length: Math.max(domainLength, themeColors.length) },
-      (_, index) => themeColors[index % themeColors.length]
-    )
-  }
-
-  const scheme =
-    vchartDefaultDataScheme.find(
-      (item) => !item.maxDomainLength || domainLength <= item.maxDomainLength
-    ) ?? vchartDefaultDataScheme[vchartDefaultDataScheme.length - 1]
-
-  return scheme.scheme
 }
 
 function renderQuotaCompat(rawQuota: number, digits = 4): string {
@@ -350,19 +322,16 @@ export function processChartData(
   const allModels = Array.from(modelTotalsMap.keys())
   const sortedTimes = Array.from(timeModelMap.keys()).sort()
   const sortedModels = [...allModels].sort()
-  const modelColorDomain = Array.from(new Set([...sortedModels, otherLabel]))
-  const modelColorRange = getVChartDefaultColors(
-    modelColorDomain.length,
-    themeKey
-  )
-  const otherColor = modelColorRange[modelColorDomain.indexOf(otherLabel)]
-  const otherTooltipColor =
-    typeof otherColor === 'string' ? otherColor : '#FF8A00'
-  const modelColor = {
-    type: 'ordinal',
-    domain: modelColorDomain,
-    range: modelColorRange,
-  }
+
+  // 每个模型基于名称哈希稳定分配颜色，保证跨图表一致
+  const specifiedModelColors: Record<string, string> = {}
+  sortedModels.forEach((model) => {
+    specifiedModelColors[model] = getModelBaseColor(model)
+  })
+  specifiedModelColors[otherLabel] = OTHER_MODEL_COLOR
+
+  const otherTooltipColor = OTHER_MODEL_COLOR
+  const modelColor = { specified: specifiedModelColors }
 
   // Pad time points if too few (default 7 points)
   const MAX_TREND_POINTS = MAX_CHART_TREND_POINTS
@@ -779,19 +748,6 @@ export function processChartData(
   }
 }
 
-const USER_COLOR_FALLBACKS = [
-  '#5B8FF9',
-  '#5AD8A6',
-  '#F6BD16',
-  '#E8684A',
-  '#6DC8EC',
-  '#9270CA',
-  '#FF9D4D',
-  '#269A99',
-  '#FF99C3',
-  '#5D7092',
-]
-
 export function processUserChartData(
   data: QuotaDataItem[],
   timeGranularity: TimeGranularity = 'day',
@@ -802,14 +758,7 @@ export function processUserChartData(
   const tt: TFunction = t ?? ((x) => x)
   const { config } = getCurrencyDisplay()
   const quotaPerUnit = config.quotaPerUnit
-  const themeUserColors = getThemeChartColors(themeKey)
-  const userColorRange =
-    themeUserColors.length > 0
-      ? Array.from(
-          { length: Math.max(limit, themeUserColors.length) },
-          (_, index) => themeUserColors[index % themeUserColors.length]
-        )
-      : USER_COLOR_FALLBACKS
+  void themeKey  // 统一走哈希色，不再依赖主题色变量
 
   const formatVal = (raw: number) => renderQuotaCompat(raw, 2)
 
@@ -827,7 +776,7 @@ export function processUserChartData(
         subtext: tt('No data available'),
       },
       legends: { visible: false },
-      color: { type: 'ordinal', range: userColorRange },
+      color: { specified: {} },
       background: { fill: 'transparent' },
     },
     spec_user_trend: {
@@ -842,7 +791,7 @@ export function processUserChartData(
         subtext: tt('No data available'),
       },
       legends: { visible: true, selectMode: 'single' },
-      color: { type: 'ordinal', range: userColorRange },
+      color: { specified: {} },
       point: { visible: false },
       background: { fill: 'transparent' },
     },
@@ -885,9 +834,10 @@ export function processUserChartData(
     Usage: Number((quota / quotaPerUnit).toFixed(4)),
   }))
 
+  // 用户颜色也走哈希，保证同一用户在排名/趋势/Token 三图颜色一致
   const userColorMap = topUsers.reduce<Record<string, string>>(
-    (acc, user, i) => {
-      acc[user] = userColorRange[i % userColorRange.length]
+    (acc, user) => {
+      acc[user] = getModelBaseColor(user)
       return acc
     },
     {}
@@ -989,8 +939,8 @@ export function processUserChartData(
 
   const tokenDomain: string[] = []
   const tokenColorRange: string[] = []
-  sortedUsersByTokens.forEach((user, i) => {
-    const baseColor = VIBRANT_TOKEN_COLORS[i % VIBRANT_TOKEN_COLORS.length]
+  sortedUsersByTokens.forEach((user) => {
+    const baseColor = getModelBaseColor(user)
     const [light, medium, dark] = generateTokenColorVariants(baseColor)
     tokenDomain.push(`${user} - ${cacheHitLabel}`, `${user} - ${cacheMissLabel}`, `${user} - ${outputTokensLabel}`)
     tokenColorRange.push(light, medium, dark)
@@ -1289,17 +1239,16 @@ export function processModelTokenChartData(
   const tokenDomain: string[] = []
   const tokenColorRange: string[] = []
 
-  sortedModels.forEach((model, i) => {
+  sortedModels.forEach((model) => {
     if (!topModels.has(model)) return
-    const baseColor = VIBRANT_TOKEN_COLORS[i % VIBRANT_TOKEN_COLORS.length]
+    const baseColor = getModelBaseColor(model)
     const [light, medium, dark] = generateTokenColorVariants(baseColor)
     tokenDomain.push(`${model} - ${cacheHitLabel}`, `${model} - ${cacheMissLabel}`, `${model} - ${outputTokensLabel}`)
     tokenColorRange.push(light, medium, dark)
   })
 
   if (topModels.size < sortedModels.length) {
-    const otherBase = VIBRANT_TOKEN_COLORS[sortedModels.filter((m) => topModels.has(m)).length % VIBRANT_TOKEN_COLORS.length]
-    const [light, medium, dark] = generateTokenColorVariants(otherBase)
+    const [light, medium, dark] = generateTokenColorVariants(OTHER_MODEL_COLOR)
     tokenDomain.push(`${otherLabel} - ${cacheHitLabel}`, `${otherLabel} - ${cacheMissLabel}`, `${otherLabel} - ${outputTokensLabel}`)
     tokenColorRange.push(light, medium, dark)
   }
