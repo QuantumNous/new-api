@@ -99,9 +99,20 @@ export interface ProcessedUserChartData {
   spec_user_token: VChartSpec
 }
 
+export interface ModelColorEntry {
+  /** base color for solid single-color charts */
+  base: string
+  /** [cacheHit (light), cacheMiss (medium), output (dark)] */
+  variants: [string, string, string]
+}
+
 export interface ProcessedModelTokenChartData {
   spec: VChartSpec
   totalTokensDisplay: string
+  /** ordered list of model names (most-used first) */
+  models: string[]
+  /** model name → color info */
+  modelColorMap: Record<string, ModelColorEntry>
 }
 
 // ============================================================================

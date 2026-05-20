@@ -6,6 +6,7 @@ import type {
   ProcessedChartData,
   ProcessedModelTokenChartData,
   ProcessedUserChartData,
+  ModelColorEntry,
 } from '@/features/dashboard/types'
 
 type TFunction = (key: string) => string
@@ -1151,6 +1152,8 @@ export function processModelTokenChartData(
       background: { fill: 'transparent' },
     },
     totalTokensDisplay: '0',
+    models: [],
+    modelColorMap: {},
   }
 
   if (!data || data.length === 0) return emptyResult
@@ -1238,6 +1241,8 @@ export function processModelTokenChartData(
 
   const tokenDomain: string[] = []
   const tokenColorRange: string[] = []
+  const modelColorMap: Record<string, ModelColorEntry> = {}
+  const orderedModels: string[] = []
 
   sortedModels.forEach((model) => {
     if (!topModels.has(model)) return
@@ -1245,12 +1250,16 @@ export function processModelTokenChartData(
     const [light, medium, dark] = generateTokenColorVariants(baseColor)
     tokenDomain.push(`${model} - ${cacheHitLabel}`, `${model} - ${cacheMissLabel}`, `${model} - ${outputTokensLabel}`)
     tokenColorRange.push(light, medium, dark)
+    modelColorMap[model] = { base: baseColor, variants: [light, medium, dark] }
+    orderedModels.push(model)
   })
 
   if (topModels.size < sortedModels.length) {
     const [light, medium, dark] = generateTokenColorVariants(OTHER_MODEL_COLOR)
     tokenDomain.push(`${otherLabel} - ${cacheHitLabel}`, `${otherLabel} - ${cacheMissLabel}`, `${otherLabel} - ${outputTokensLabel}`)
     tokenColorRange.push(light, medium, dark)
+    modelColorMap[otherLabel] = { base: OTHER_MODEL_COLOR, variants: [light, medium, dark] }
+    orderedModels.push(otherLabel)
   }
 
   const tokenSeries: Array<{ Time: string; Series: string; Tokens: number; Model: string }> = []
@@ -1295,7 +1304,7 @@ export function processModelTokenChartData(
       yField: 'Tokens',
       seriesField: 'Series',
       stack: true,
-      legends: { visible: true, selectMode: 'single' },
+      legends: { visible: false },
       bar: {
         state: { hover: { stroke: '#000', lineWidth: 1 } },
       },
@@ -1313,10 +1322,30 @@ export function processModelTokenChartData(
             },
           ],
         },
+        dimension: {
+          content: [
+            {
+              key: (datum: Record<string, unknown>) => datum?.Series,
+              value: (datum: Record<string, unknown>) => Number(datum?.Tokens) || 0,
+            },
+          ],
+          updateContent: (array: Array<{ key: string; value: string | number }>) => {
+            let sum = 0
+            for (const item of array) {
+              const v = Number(item.value) || 0
+              sum += v
+              item.value = formatInt(v)
+            }
+            array.unshift({ key: tt('Total:'), value: formatInt(sum) })
+            return array
+          },
+        },
       },
       background: { fill: 'transparent' },
       animation: true,
     },
     totalTokensDisplay: formatInt(totalTokens),
+    models: orderedModels,
+    modelColorMap,
   }
 }
