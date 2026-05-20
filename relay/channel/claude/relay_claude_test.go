@@ -2,6 +2,7 @@ package claude
 
 import (
 	"encoding/base64"
+	"encoding/json"
 	"strings"
 	"testing"
 
@@ -379,4 +380,344 @@ func TestRequestOpenAI2ClaudeMessage_ConvertsTextFileContentToText(t *testing.T)
 	require.Equal(t, "text", content[0].Type)
 	require.NotNil(t, content[0].Text)
 	require.Equal(t, "alpha\nbeta", *content[0].Text)
+}
+
+// -----------------------------------------------------------------------------
+// GAP-A: response_format JSON-mode shim
+// -----------------------------------------------------------------------------
+
+func systemTexts(t *testing.T, system any) []string {
+	t.Helper()
+	msgs, ok := system.([]dto.ClaudeMediaMessage)
+	require.True(t, ok, "expected []ClaudeMediaMessage system, got %T", system)
+	out := make([]string, 0, len(msgs))
+	for _, m := range msgs {
+		require.Equal(t, "text", m.Type)
+		require.NotNil(t, m.Text)
+		out = append(out, *m.Text)
+	}
+	return out
+}
+
+func TestRequestOpenAI2ClaudeMessage_ResponseFormat_JsonObject_AppendsSystemShim(t *testing.T) {
+	request := dto.GeneralOpenAIRequest{
+		Model: "claude-3-5-sonnet",
+		Messages: []dto.Message{
+			{Role: "system", Content: "You are helpful."},
+			{Role: "user", Content: "ping"},
+		},
+		ResponseFormat: &dto.ResponseFormat{Type: "json_object"},
+	}
+
+	claudeRequest, err := RequestOpenAI2ClaudeMessage(nil, request)
+	require.NoError(t, err)
+	texts := systemTexts(t, claudeRequest.System)
+	require.Len(t, texts, 2)
+	require.Equal(t, "You are helpful.", texts[0])
+	// Spec §19 / GAP-A: json_object must contain BOTH literal phrases
+	// (exact case, including the article "a" in "a JSON object").
+	require.Contains(t, texts[1], "You must respond with valid JSON")
+	require.Contains(t, texts[1], "Respond ONLY with a JSON object")
+}
+
+func TestRequestOpenAI2ClaudeMessage_ResponseFormat_JsonSchema_AppendsSystemShim(t *testing.T) {
+	schema := json.RawMessage(`{"name":"weather","schema":{"type":"object","properties":{"answer":{"type":"number"}}}}`)
+	request := dto.GeneralOpenAIRequest{
+		Model: "claude-3-5-sonnet",
+		Messages: []dto.Message{
+			{Role: "user", Content: "ping"},
+		},
+		ResponseFormat: &dto.ResponseFormat{Type: "json_schema", JsonSchema: schema},
+	}
+
+	claudeRequest, err := RequestOpenAI2ClaudeMessage(nil, request)
+	require.NoError(t, err)
+	texts := systemTexts(t, claudeRequest.System)
+	require.Len(t, texts, 1)
+	// Spec §19 / GAP-A: json_schema must contain ALL THREE literal phrases.
+	require.Contains(t, texts[0], "You must respond with valid JSON")
+	require.Contains(t, texts[0], "Respond ONLY with the JSON object")
+	// The pretty-printed schema must include the inner property key.
+	require.Contains(t, texts[0], "answer")
+}
+
+func TestRequestOpenAI2ClaudeMessage_ResponseFormat_Nil_NoSystemShim(t *testing.T) {
+	request := dto.GeneralOpenAIRequest{
+		Model: "claude-3-5-sonnet",
+		Messages: []dto.Message{
+			{Role: "system", Content: "You are helpful."},
+			{Role: "user", Content: "ping"},
+		},
+	}
+
+	claudeRequest, err := RequestOpenAI2ClaudeMessage(nil, request)
+	require.NoError(t, err)
+	texts := systemTexts(t, claudeRequest.System)
+	require.Len(t, texts, 1)
+	require.Equal(t, "You are helpful.", texts[0])
+}
+
+// -----------------------------------------------------------------------------
+// GAP-B: cache_control marker on the last tool
+// -----------------------------------------------------------------------------
+
+func TestRequestOpenAI2ClaudeMessage_CacheControl_OnLastTool(t *testing.T) {
+	request := dto.GeneralOpenAIRequest{
+		Model: "claude-3-5-sonnet",
+		Messages: []dto.Message{
+			{Role: "user", Content: "ping"},
+		},
+		Tools: []dto.ToolCallRequest{
+			{
+				Type: "function",
+				Function: dto.FunctionRequest{
+					Name:        "first",
+					Description: "first tool",
+					Parameters:  map[string]any{"type": "object"},
+				},
+			},
+			{
+				Type: "function",
+				Function: dto.FunctionRequest{
+					Name:        "second",
+					Description: "second tool",
+					Parameters:  map[string]any{"type": "object"},
+				},
+			},
+		},
+	}
+
+	claudeRequest, err := RequestOpenAI2ClaudeMessage(nil, request)
+	require.NoError(t, err)
+
+	tools, ok := claudeRequest.Tools.([]any)
+	require.True(t, ok)
+	require.Len(t, tools, 2)
+
+	first, ok := tools[0].(*dto.Tool)
+	require.True(t, ok)
+	require.Nil(t, first.CacheControl, "first tool must NOT carry cache_control")
+
+	last, ok := tools[1].(*dto.Tool)
+	require.True(t, ok)
+	require.NotNil(t, last.CacheControl, "last tool MUST carry cache_control")
+	require.Equal(t, "ephemeral", last.CacheControl.Type)
+	require.Equal(t, "1h", last.CacheControl.TTL)
+}
+
+func TestRequestOpenAI2ClaudeMessage_CacheControl_NoToolsNoChange(t *testing.T) {
+	request := dto.GeneralOpenAIRequest{
+		Model: "claude-3-5-sonnet",
+		Messages: []dto.Message{
+			{Role: "user", Content: "ping"},
+		},
+	}
+
+	claudeRequest, err := RequestOpenAI2ClaudeMessage(nil, request)
+	require.NoError(t, err)
+	tools, ok := claudeRequest.Tools.([]any)
+	require.True(t, ok)
+	require.Len(t, tools, 0)
+}
+
+// -----------------------------------------------------------------------------
+// GAP-C: cache_control on the last assistant message's last eligible block.
+// Spec §22 (lines 581-583): eligible block types are {text, tool_use,
+// tool_result, image}; thinking is NOT eligible. The marker emitted on the
+// assistant side MUST NOT carry a TTL field — emit only {type:"ephemeral"}.
+// -----------------------------------------------------------------------------
+
+// cacheControlHasNoTTL asserts the cache_control marker is exactly the
+// no-TTL ephemeral shape (`{"type":"ephemeral"}`). Spec §22 forbids a TTL
+// field on the assistant-side marker.
+func cacheControlHasNoTTL(t *testing.T, raw json.RawMessage) {
+	t.Helper()
+	require.NotNil(t, raw)
+	var parsed map[string]any
+	require.NoError(t, json.Unmarshal(raw, &parsed))
+	require.Equal(t, "ephemeral", parsed["type"], "marker must be ephemeral")
+	_, hasTTL := parsed["ttl"]
+	require.False(t, hasTTL, "assistant-side cache_control MUST NOT include a ttl field; got %s", string(raw))
+}
+
+func TestRequestOpenAI2ClaudeMessage_CacheControl_OnLastAssistantTextBlock(t *testing.T) {
+	request := dto.GeneralOpenAIRequest{
+		Model: "claude-3-5-sonnet",
+		Messages: []dto.Message{
+			{Role: "user", Content: "hi"},
+			{
+				Role: "assistant",
+				Content: []any{
+					dto.MediaContent{Type: dto.ContentTypeText, Text: "first"},
+					dto.MediaContent{Type: dto.ContentTypeText, Text: "second"},
+				},
+			},
+			{Role: "user", Content: "more"},
+			{
+				Role: "assistant",
+				Content: []any{
+					dto.MediaContent{Type: dto.ContentTypeText, Text: "final-one"},
+					dto.MediaContent{Type: dto.ContentTypeText, Text: "final-two"},
+				},
+			},
+		},
+	}
+
+	claudeRequest, err := RequestOpenAI2ClaudeMessage(nil, request)
+	require.NoError(t, err)
+
+	// The last message should be the second assistant message.
+	require.GreaterOrEqual(t, len(claudeRequest.Messages), 1)
+	lastIdx := len(claudeRequest.Messages) - 1
+	require.Equal(t, "assistant", claudeRequest.Messages[lastIdx].Role)
+	blocks, ok := claudeRequest.Messages[lastIdx].Content.([]dto.ClaudeMediaMessage)
+	require.True(t, ok)
+	require.GreaterOrEqual(t, len(blocks), 1)
+
+	last := blocks[len(blocks)-1]
+	require.NotNil(t, last.CacheControl, "last assistant content block MUST carry cache_control")
+	// Spec §22: the assistant-side marker must NOT carry a TTL field.
+	cacheControlHasNoTTL(t, last.CacheControl)
+	// All earlier blocks of the same assistant must NOT carry the marker.
+	for i := 0; i < len(blocks)-1; i++ {
+		require.Nil(t, blocks[i].CacheControl, "earlier block %d carries unexpected cache_control", i)
+	}
+}
+
+// TestApplyCacheControlToLastAssistantContent_BroadenedEligibility drives the
+// helper directly and asserts the broadened eligibility set: the marker MUST
+// land on text, tool_use, tool_result, or image blocks (whichever is the last
+// non-thinking block of the last assistant message).
+func TestApplyCacheControlToLastAssistantContent_BroadenedEligibility(t *testing.T) {
+	cases := []struct {
+		name      string
+		blockType string
+		extra     func(b *dto.ClaudeMediaMessage)
+	}{
+		{name: "text", blockType: "text", extra: func(b *dto.ClaudeMediaMessage) { b.Text = stringPtr("ok") }},
+		{name: "tool_use", blockType: "tool_use", extra: func(b *dto.ClaudeMediaMessage) { b.Id = "tu_1"; b.Name = "fn" }},
+		{name: "tool_result", blockType: "tool_result", extra: func(b *dto.ClaudeMediaMessage) { b.ToolUseId = "tu_1"; b.Content = "out" }},
+		{name: "image", blockType: "image", extra: func(b *dto.ClaudeMediaMessage) {
+			b.Source = &dto.ClaudeMessageSource{Type: "base64", MediaType: "image/png", Data: "AAA"}
+		}},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			eligible := dto.ClaudeMediaMessage{Type: tc.blockType}
+			tc.extra(&eligible)
+			messages := []dto.ClaudeMessage{
+				{Role: "user", Content: "hi"},
+				{Role: "assistant", Content: []dto.ClaudeMediaMessage{
+					// A trailing thinking block must NOT receive the marker;
+					// the helper should skip past it to find the eligible
+					// block before it.
+					eligible,
+					{Type: "thinking", Thinking: stringPtr("T")},
+				}},
+			}
+			applyCacheControlToLastAssistantContent(messages)
+			blocks, ok := messages[1].Content.([]dto.ClaudeMediaMessage)
+			require.True(t, ok)
+			require.Len(t, blocks, 2)
+
+			// Eligible block (index 0) got the marker.
+			require.NotNil(t, blocks[0].CacheControl, "eligible %s block must receive cache_control", tc.blockType)
+			cacheControlHasNoTTL(t, blocks[0].CacheControl)
+
+			// Trailing thinking block (index 1) must NOT receive the marker.
+			require.Nil(t, blocks[1].CacheControl, "thinking block must not receive cache_control")
+		})
+	}
+}
+
+// TestApplyCacheControlToLastAssistantContent_ThinkingOnlySkipped confirms
+// that an assistant message whose only blocks are non-eligible (e.g. only
+// thinking) receives no marker at all.
+func TestApplyCacheControlToLastAssistantContent_ThinkingOnlySkipped(t *testing.T) {
+	messages := []dto.ClaudeMessage{
+		{Role: "user", Content: "hi"},
+		{Role: "assistant", Content: []dto.ClaudeMediaMessage{
+			{Type: "thinking", Thinking: stringPtr("T1")},
+			{Type: "thinking", Thinking: stringPtr("T2")},
+		}},
+	}
+	applyCacheControlToLastAssistantContent(messages)
+	blocks, ok := messages[1].Content.([]dto.ClaudeMediaMessage)
+	require.True(t, ok)
+	for i, b := range blocks {
+		require.Nil(t, b.CacheControl, "thinking-only assistant block %d must not receive marker", i)
+	}
+}
+
+// -----------------------------------------------------------------------------
+// GAP-D: missing tool_result auto-injection
+// -----------------------------------------------------------------------------
+
+func TestInjectMissingToolResults_AddsEmptyResultWhenNoNextUser(t *testing.T) {
+	use := dto.ClaudeMediaMessage{Type: "tool_use", Id: "tu_abc"}
+	messages := []dto.ClaudeMessage{
+		{Role: "user", Content: "hi"},
+		{Role: "assistant", Content: []dto.ClaudeMediaMessage{use}},
+	}
+
+	out := injectMissingToolResults(messages)
+	require.Len(t, out, 3)
+	require.Equal(t, "user", out[2].Role)
+	blocks, ok := out[2].Content.([]dto.ClaudeMediaMessage)
+	require.True(t, ok)
+	require.Len(t, blocks, 1)
+	require.Equal(t, "tool_result", blocks[0].Type)
+	require.Equal(t, "tu_abc", blocks[0].ToolUseId)
+	require.Equal(t, "", blocks[0].Content)
+}
+
+func TestInjectMissingToolResults_AppendsToExistingNextUser(t *testing.T) {
+	use1 := dto.ClaudeMediaMessage{Type: "tool_use", Id: "tu_1"}
+	use2 := dto.ClaudeMediaMessage{Type: "tool_use", Id: "tu_2"}
+	existing := dto.ClaudeMediaMessage{Type: "tool_result", ToolUseId: "tu_1", Content: "done"}
+	messages := []dto.ClaudeMessage{
+		{Role: "assistant", Content: []dto.ClaudeMediaMessage{use1, use2}},
+		{Role: "user", Content: []dto.ClaudeMediaMessage{existing}},
+	}
+
+	out := injectMissingToolResults(messages)
+	require.Len(t, out, 2)
+	require.Equal(t, "user", out[1].Role)
+	blocks, ok := out[1].Content.([]dto.ClaudeMediaMessage)
+	require.True(t, ok)
+	require.Len(t, blocks, 2)
+	require.Equal(t, "tu_1", blocks[0].ToolUseId)
+	require.Equal(t, "done", blocks[0].Content)
+	require.Equal(t, "tu_2", blocks[1].ToolUseId)
+	require.Equal(t, "", blocks[1].Content)
+}
+
+func TestInjectMissingToolResults_DoesNotDuplicateExistingResults(t *testing.T) {
+	use := dto.ClaudeMediaMessage{Type: "tool_use", Id: "tu_x"}
+	existing := dto.ClaudeMediaMessage{Type: "tool_result", ToolUseId: "tu_x", Content: "result"}
+	messages := []dto.ClaudeMessage{
+		{Role: "assistant", Content: []dto.ClaudeMediaMessage{use}},
+		{Role: "user", Content: []dto.ClaudeMediaMessage{existing}},
+	}
+
+	out := injectMissingToolResults(messages)
+	require.Len(t, out, 2)
+	blocks, ok := out[1].Content.([]dto.ClaudeMediaMessage)
+	require.True(t, ok)
+	require.Len(t, blocks, 1, "must not duplicate existing matched tool_result")
+}
+
+func TestInjectMissingToolResults_NoToolUseLeavesMessagesUntouched(t *testing.T) {
+	messages := []dto.ClaudeMessage{
+		{Role: "user", Content: "hi"},
+		{Role: "assistant", Content: []dto.ClaudeMediaMessage{{Type: "text", Text: stringPtr("ok")}}},
+	}
+
+	out := injectMissingToolResults(messages)
+	require.Len(t, out, 2)
+}
+
+func stringPtr(s string) *string {
+	return &s
 }

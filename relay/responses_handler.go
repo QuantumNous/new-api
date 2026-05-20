@@ -71,6 +71,34 @@ func ResponsesHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *
 		return types.NewError(fmt.Errorf("invalid api type: %d", info.ApiType), types.ErrorCodeInvalidApiType, types.ErrOptionWithSkipRetry())
 	}
 	adaptor.Init(info)
+
+	// Anthropic-typed channels do not natively understand the Responses-API
+	// shape. When the operator hasn't requested a raw pass-through, route the
+	// request through the new Responses → Chat-Completions → Anthropic pivot.
+	// Feature-gated via RESPONSES_TO_ANTHROPIC_ENABLED (default true).
+	passThroughGlobal := model_setting.GetGlobalSettings().PassThroughRequestEnabled
+	if shouldUseResponsesToAnthropicPivot(
+		info.RelayMode,
+		info.ApiType,
+		passThroughGlobal,
+		info.ChannelSetting.PassThroughBodyEnabled,
+		common.GetEnvOrDefaultBool("RESPONSES_TO_ANTHROPIC_ENABLED", true),
+	) {
+		usage, apiErr := responsesViaChatCompletions(c, info, adaptor, request)
+		if apiErr != nil {
+			service.ResetStatusCode(apiErr, c.GetString("status_code_mapping"))
+			return apiErr
+		}
+		if usage != nil {
+			if strings.HasPrefix(info.OriginModelName, "gpt-4o-audio") {
+				service.PostAudioConsumeQuota(c, info, usage, "")
+			} else {
+				service.PostTextConsumeQuota(c, info, usage, nil)
+			}
+		}
+		return nil
+	}
+
 	var requestBody io.Reader
 	if model_setting.GetGlobalSettings().PassThroughRequestEnabled || info.ChannelSetting.PassThroughBodyEnabled {
 		storage, err := common.GetBodyStorage(c)
@@ -157,4 +185,24 @@ func ResponsesHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *
 		service.PostTextConsumeQuota(c, info, usageDto, nil)
 	}
 	return nil
+}
+
+// shouldUseResponsesToAnthropicPivot encodes the branch condition that gates
+// the Responses → Chat-Completions → Anthropic pivot. It is extracted into a
+// pure function so the predicate can be unit-tested without standing up the
+// full ResponsesHelper pipeline (DB, quota, billing, etc.). A change to this
+// predicate — or a flip of the feature flag's default — must be reflected in
+// TestShouldUseResponsesToAnthropicPivot.
+func shouldUseResponsesToAnthropicPivot(
+	relayMode int,
+	apiType int,
+	passThroughGlobal bool,
+	passThroughBody bool,
+	featureFlagEnabled bool,
+) bool {
+	return relayMode == relayconstant.RelayModeResponses &&
+		apiType == appconstant.APITypeAnthropic &&
+		!passThroughGlobal &&
+		!passThroughBody &&
+		featureFlagEnabled
 }
