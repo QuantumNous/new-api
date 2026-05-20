@@ -138,3 +138,24 @@ func TestUpdateChannelOpenAIBalance_NoAdminKey(t *testing.T) {
 	require.NoError(t, model.DB.First(&fresh, ch.Id).Error)
 	require.Equal(t, float64(0), fresh.Balance)
 }
+
+func TestUpdateChannelOpenAIBalance_Upstream403(t *testing.T) {
+	_ = openTokenControllerTestDB(t)
+
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusForbidden)
+		_, _ = fmt.Fprint(w, `{"error":{"message":"missing scope","type":"insufficient_permissions"}}`)
+	}))
+	defer ts.Close()
+
+	ch := buildOpenAIChannelWithAdminKey(t, ts.URL, "sk-admin-test")
+
+	balance, err := updateChannelOpenAIBalance(ch)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "status code: 403")
+	require.Equal(t, float64(0), balance)
+
+	var fresh model.Channel
+	require.NoError(t, model.DB.First(&fresh, ch.Id).Error)
+	require.Equal(t, float64(0), fresh.Balance)
+}
