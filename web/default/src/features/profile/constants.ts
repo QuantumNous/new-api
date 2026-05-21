@@ -34,3 +34,20 @@ export const NOTIFICATION_METHODS = [
   { value: 'bark' as const, label: 'Bark' },
   { value: 'gotify' as const, label: 'Gotify' },
 ] as const
+
+/** Demo UI: only email is shown; other methods remain in settings payload. */
+export const UI_VISIBLE_NOTIFICATION_METHODS = NOTIFICATION_METHODS.filter(
+  (method) => method.value === 'email'
+)
+
+const UI_HIDDEN_NOTIFY_TYPES = new Set(['webhook', 'bark', 'gotify'])
+
+/** Map stored notify_type to the method shown in the demo UI (email only). */
+export function normalizeNotifyTypeForUi(
+  notifyType?: (typeof NOTIFICATION_METHODS)[number]['value']
+): 'email' {
+  if (!notifyType || UI_HIDDEN_NOTIFY_TYPES.has(notifyType)) {
+    return 'email'
+  }
+  return 'email'
+}

@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useState, useEffect, useCallback } from 'react'
-import { Bell, Loader2, Mail, Server, Webhook } from 'lucide-react'
+import { Loader2, Mail } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { ROLE } from '@/lib/roles'
@@ -26,20 +26,17 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Switch } from '@/components/ui/switch'
-import { PasswordInput } from '@/components/password-input'
 import { updateUserSettings } from '../../api'
 import {
   DEFAULT_QUOTA_WARNING_THRESHOLD,
-  NOTIFICATION_METHODS,
+  normalizeNotifyTypeForUi,
+  UI_VISIBLE_NOTIFICATION_METHODS,
 } from '../../constants'
 import { parseUserSettings } from '../../lib'
-import type { UserProfile, UserSettings, NotifyType } from '../../types'
+import type { UserProfile, UserSettings } from '../../types'
 
 const NOTIFICATION_ICONS: Record<string, typeof Mail> = {
   email: Mail,
-  webhook: Webhook,
-  bark: Bell,
-  gotify: Server,
 }
 
 // ============================================================================
@@ -70,7 +67,6 @@ export function NotificationTab({ profile, onUpdate }: NotificationTabProps) {
     upstream_model_update_notify_enabled: false,
   })
 
-  // Update form field helper
   const updateField = useCallback(
     <K extends keyof UserSettings>(field: K, value: UserSettings[K]) => {
       setSettings((prev) => ({ ...prev, [field]: value }))
@@ -82,7 +78,7 @@ export function NotificationTab({ profile, onUpdate }: NotificationTabProps) {
     if (profile?.setting) {
       const parsed = parseUserSettings(profile.setting)
       setSettings({
-        notify_type: parsed.notify_type || 'email',
+        notify_type: normalizeNotifyTypeForUi(parsed.notify_type),
         quota_warning_threshold:
           parsed.quota_warning_threshold ?? DEFAULT_QUOTA_WARNING_THRESHOLD,
         notification_email: parsed.notification_email ?? '',
@@ -121,17 +117,15 @@ export function NotificationTab({ profile, onUpdate }: NotificationTabProps) {
 
   return (
     <div className='space-y-4 sm:space-y-6'>
-      {/* Notification Type */}
+      {/* Notification Type — demo UI shows email only */}
       <div className='space-y-2.5'>
         <Label>{t('Notification Method')}</Label>
         <RadioGroup
           value={settings.notify_type}
-          onValueChange={(value) =>
-            updateField('notify_type', value as NotifyType)
-          }
-          className='grid grid-cols-4 gap-1.5 sm:gap-3'
+          onValueChange={(value) => updateField('notify_type', 'email')}
+          className='grid max-w-xs grid-cols-1 gap-1.5 sm:gap-3'
         >
-          {NOTIFICATION_METHODS.map((method) => {
+          {UI_VISIBLE_NOTIFICATION_METHODS.map((method) => {
             const Icon = NOTIFICATION_ICONS[method.value]
             const isSelected = settings.notify_type === method.value
             return (
@@ -178,136 +172,17 @@ export function NotificationTab({ profile, onUpdate }: NotificationTabProps) {
       </div>
 
       {/* Email Settings */}
-      {settings.notify_type === 'email' && (
-        <div className='space-y-1.5'>
-          <Label htmlFor='notifyEmail'>{t('Notification Email')}</Label>
-          <Input
-            id='notifyEmail'
-            type='email'
-            className='h-9'
-            value={settings.notification_email}
-            onChange={(e) => updateField('notification_email', e.target.value)}
-            placeholder={t('Leave empty to use account email')}
-          />
-        </div>
-      )}
-
-      {/* Webhook Settings */}
-      {settings.notify_type === 'webhook' && (
-        <>
-          <div className='space-y-1.5'>
-            <Label htmlFor='webhookUrl'>{t('Webhook URL')}</Label>
-            <Input
-              id='webhookUrl'
-              type='url'
-              className='h-9'
-              value={settings.webhook_url}
-              onChange={(e) => updateField('webhook_url', e.target.value)}
-              placeholder={t('https://example.com/webhook')}
-            />
-          </div>
-          <div className='space-y-1.5'>
-            <Label htmlFor='webhookSecret'>{t('Webhook Secret')}</Label>
-            <PasswordInput
-              id='webhookSecret'
-              value={settings.webhook_secret}
-              onChange={(e) => updateField('webhook_secret', e.target.value)}
-              placeholder={t('Enter secret key')}
-            />
-          </div>
-        </>
-      )}
-
-      {/* Bark Settings */}
-      {settings.notify_type === 'bark' && (
-        <div className='space-y-1.5'>
-          <Label htmlFor='barkUrl'>{t('Bark Push URL')}</Label>
-          <Input
-            id='barkUrl'
-            type='url'
-            className='h-9'
-            value={settings.bark_url}
-            onChange={(e) => updateField('bark_url', e.target.value)}
-            placeholder={t('https://api.day.app/yourkey/{{title}}/{{content}}')}
-          />
-          <p className='text-muted-foreground text-xs'>
-            {t('Template variables:')} {'{{title}}'}, {'{{content}}'}
-          </p>
-        </div>
-      )}
-
-      {/* Gotify Settings */}
-      {settings.notify_type === 'gotify' && (
-        <>
-          <div className='space-y-1.5'>
-            <Label htmlFor='gotifyUrl'>{t('Gotify Server URL')}</Label>
-            <Input
-              id='gotifyUrl'
-              type='url'
-              className='h-9'
-              value={settings.gotify_url}
-              onChange={(e) => updateField('gotify_url', e.target.value)}
-              placeholder={t('https://gotify.example.com')}
-            />
-            <p className='text-muted-foreground text-xs'>
-              {t('Enter the full URL of your Gotify server')}
-            </p>
-          </div>
-          <div className='space-y-1.5'>
-            <Label htmlFor='gotifyToken'>{t('Gotify Application Token')}</Label>
-            <PasswordInput
-              id='gotifyToken'
-              value={settings.gotify_token}
-              onChange={(e) => updateField('gotify_token', e.target.value)}
-              placeholder={t('Enter application token')}
-            />
-            <p className='text-muted-foreground text-xs'>
-              {t('Token obtained from your Gotify application')}
-            </p>
-          </div>
-          <div className='space-y-1.5'>
-            <Label htmlFor='gotifyPriority'>{t('Message Priority')}</Label>
-            <Input
-              id='gotifyPriority'
-              type='number'
-              className='h-9'
-              min='0'
-              max='10'
-              value={settings.gotify_priority}
-              onChange={(e) =>
-                updateField('gotify_priority', Number(e.target.value))
-              }
-              placeholder='5'
-            />
-            <p className='text-muted-foreground text-xs'>
-              {t(
-                'Priority level from 0 (lowest) to 10 (highest), default is 5'
-              )}
-            </p>
-          </div>
-          <div className='bg-muted/50 rounded-lg border p-3 sm:p-4'>
-            <h5 className='mb-1.5 text-sm font-medium sm:mb-2'>
-              {t('Setup Instructions')}
-            </h5>
-            <ol className='text-muted-foreground space-y-1 text-xs'>
-              <li>{t('1. Create an application in your Gotify server')}</li>
-              <li>{t('2. Copy the application token')}</li>
-              <li>{t('3. Enter your Gotify server URL and token above')}</li>
-            </ol>
-            <p className='text-muted-foreground mt-3 text-xs'>
-              {t('Learn more:')}{' '}
-              <a
-                href='https://gotify.net/'
-                target='_blank'
-                rel='noopener noreferrer'
-                className='text-primary hover:underline'
-              >
-                {t('Gotify Documentation')}
-              </a>
-            </p>
-          </div>
-        </>
-      )}
+      <div className='space-y-1.5'>
+        <Label htmlFor='notifyEmail'>{t('Notification Email')}</Label>
+        <Input
+          id='notifyEmail'
+          type='email'
+          className='h-9'
+          value={settings.notification_email}
+          onChange={(e) => updateField('notification_email', e.target.value)}
+          placeholder={t('Leave empty to use account email')}
+        />
+      </div>
 
       {/* Divider */}
       <div className='border-t' />
@@ -321,7 +196,6 @@ export function NotificationTab({ profile, onUpdate }: NotificationTabProps) {
           </p>
         </div>
 
-        {/* Receive Upstream Model Update Notifications (admin only) */}
         {isAdmin && (
           <div className='flex items-start justify-between gap-3 rounded-lg border p-3 sm:items-center sm:p-4'>
             <div className='space-y-0.5'>
@@ -345,7 +219,6 @@ export function NotificationTab({ profile, onUpdate }: NotificationTabProps) {
           </div>
         )}
 
-        {/* Accept Unset Model Price */}
         <div className='flex items-start justify-between gap-3 rounded-lg border p-3 sm:items-center sm:p-4'>
           <div className='space-y-0.5'>
             <Label htmlFor='acceptUnsetPrice'>
@@ -365,7 +238,6 @@ export function NotificationTab({ profile, onUpdate }: NotificationTabProps) {
           />
         </div>
 
-        {/* Record IP Log */}
         <div className='flex items-start justify-between gap-3 rounded-lg border p-3 sm:items-center sm:p-4'>
           <div className='space-y-0.5'>
             <Label htmlFor='recordIp'>{t('Record IP Address')}</Label>
@@ -382,7 +254,6 @@ export function NotificationTab({ profile, onUpdate }: NotificationTabProps) {
         </div>
       </div>
 
-      {/* Save Button */}
       <div className='flex justify-end'>
         <Button onClick={handleSave} disabled={loading}>
           {loading && <Loader2 className='mr-2 h-4 w-4 animate-spin' />}
