@@ -335,6 +335,7 @@ export function ApiKeysTable() {
         additionalSearch: (
           <Input
             placeholder={t('Filter by API key...')}
+            aria-label={t('Filter by API key...')}
             value={tokenFilterInput}
             onChange={(e) => setTokenFilterInput(e.target.value)}
             className='w-full sm:w-50 lg:w-60'
