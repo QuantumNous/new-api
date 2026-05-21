@@ -27,6 +27,7 @@ import {
 } from '../constants/playground.constants';
 import { TABLE_COMPACT_MODES_KEY } from '../constants';
 import { MOBILE_BREAKPOINT } from '../hooks/common/useIsMobile';
+import { saveLoginRedirectPath } from './auth';
 
 const HTMLToastContent = ({ htmlContent }) => {
   return <div dangerouslySetInnerHTML={{ __html: htmlContent }} />;
@@ -127,6 +128,9 @@ export function showError(error) {
         case 401:
           // 清除用户状态
           localStorage.removeItem('user');
+          saveLoginRedirectPath(
+            `${window.location.pathname}${window.location.search}${window.location.hash}`,
+          );
           // toast.error('错误：未登录或登录已过期，请重新登录！', showErrorOptions);
           window.location.href = '/login?expired=true';
           break;

@@ -44,10 +44,12 @@ func CreateDrawingSession(c *gin.Context) {
 		Title string `json:"title"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
-		req.Title = "新会话"
+		req.Title = ""
 	}
-	if req.Title == "" {
-		req.Title = "新会话"
+	req.Title = strings.TrimSpace(req.Title)
+	if len([]rune(req.Title)) > 200 {
+		common.ApiErrorMsg(c, "title is too long")
+		return
 	}
 
 	session, err := model.CreateDrawingSession(userId, req.Title)

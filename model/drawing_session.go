@@ -2,18 +2,24 @@ package model
 
 import (
 	"encoding/json"
+	"fmt"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
 )
 
+const defaultDrawingSessionTitlePrefix = "新会话"
+
 type DrawingSession struct {
-	ID        int64  `json:"id" gorm:"primary_key;AUTO_INCREMENT"`
-	SessionID string `json:"session_id" gorm:"type:varchar(64);uniqueIndex"`
-	UserId    int    `json:"user_id" gorm:"index"`
-	Title     string `json:"title" gorm:"type:varchar(200)"`
-	CreatedAt int64  `json:"created_at"`
-	UpdatedAt int64  `json:"updated_at"`
+	ID         int64  `json:"id" gorm:"primary_key;AUTO_INCREMENT"`
+	SessionID  string `json:"session_id" gorm:"type:varchar(64);uniqueIndex"`
+	UserId     int    `json:"user_id" gorm:"index"`
+	Title      string `json:"title" gorm:"type:varchar(200)"`
+	CreatedAt  int64  `json:"created_at"`
+	UpdatedAt  int64  `json:"updated_at"`
+	ImageCount int    `json:"image_count" gorm:"-"`
 }
 
 func (DrawingSession) TableName() string {
@@ -47,6 +53,15 @@ func GenerateSessionID() string {
 }
 
 func CreateDrawingSession(userId int, title string) (*DrawingSession, error) {
+	title = strings.TrimSpace(title)
+	if title == "" || title == defaultDrawingSessionTitlePrefix {
+		defaultTitle, err := GetNextDrawingSessionTitle(userId)
+		if err != nil {
+			return nil, err
+		}
+		title = defaultTitle
+	}
+
 	now := time.Now().Unix()
 	session := &DrawingSession{
 		SessionID: GenerateSessionID(),
@@ -59,10 +74,78 @@ func CreateDrawingSession(userId int, title string) (*DrawingSession, error) {
 	return session, err
 }
 
+func GetNextDrawingSessionTitle(userId int) (string, error) {
+	var titles []string
+	err := DB.Model(&DrawingSession{}).Where("user_id = ?", userId).Pluck("title", &titles).Error
+	if err != nil {
+		return "", err
+	}
+	return nextDrawingSessionTitle(titles), nil
+}
+
+func nextDrawingSessionTitle(titles []string) string {
+	used := make(map[int]bool, len(titles))
+	for _, title := range titles {
+		trimmedTitle := strings.TrimSpace(title)
+		suffix := strings.TrimPrefix(trimmedTitle, defaultDrawingSessionTitlePrefix)
+		if suffix == trimmedTitle || suffix == "" {
+			continue
+		}
+
+		index, err := strconv.Atoi(suffix)
+		if err == nil && index > 0 {
+			used[index] = true
+		}
+	}
+
+	for index := 1; ; index++ {
+		if !used[index] {
+			return fmt.Sprintf("%s%d", defaultDrawingSessionTitlePrefix, index)
+		}
+	}
+}
+
 func GetDrawingSessionsByUserId(userId int) ([]*DrawingSession, error) {
 	var sessions []*DrawingSession
 	err := DB.Where("user_id = ?", userId).Order("updated_at DESC").Find(&sessions).Error
-	return sessions, err
+	if err != nil {
+		return nil, err
+	}
+
+	imageCounts, err := GetDrawingSessionImageCountsByUserId(userId)
+	if err != nil {
+		return nil, err
+	}
+	for _, session := range sessions {
+		session.ImageCount = imageCounts[session.SessionID]
+	}
+	return sessions, nil
+}
+
+func GetDrawingSessionImageCountsByUserId(userId int) (map[string]int, error) {
+	type messageResult struct {
+		SessionID  string          `json:"session_id"`
+		ResultData json.RawMessage `json:"result_data"`
+	}
+
+	var results []messageResult
+	err := DB.Model(&DrawingMessage{}).
+		Select("session_id, result_data").
+		Where("user_id = ? AND status = ? AND result_data IS NOT NULL", userId, "success").
+		Find(&results).Error
+	if err != nil {
+		return nil, err
+	}
+
+	counts := make(map[string]int)
+	for _, result := range results {
+		var images []any
+		if err := common.Unmarshal(result.ResultData, &images); err != nil {
+			continue
+		}
+		counts[result.SessionID] += len(images)
+	}
+	return counts, nil
 }
 
 func GetDrawingSession(sessionId string, userId int) (*DrawingSession, error) {

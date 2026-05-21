@@ -22,10 +22,12 @@ export function useDrawingSessions() {
   }, []);
 
   const createSession = useCallback(async (title) => {
+    const nextTitle = String(title || '').trim();
     try {
-      const res = await API.post(DRAWING_API.SESSIONS, {
-        title: title || '新会话',
-      });
+      const res = await API.post(
+        DRAWING_API.SESSIONS,
+        nextTitle ? { title: nextTitle } : {},
+      );
       if (res.data.success) {
         const newSession = res.data.data;
         setSessions((prev) => [newSession, ...prev]);

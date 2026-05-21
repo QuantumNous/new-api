@@ -4,8 +4,10 @@ import { Modal, Popover, Select, Toast } from '@douyinfe/semi-ui';
 import { Send, ImagePlus, X } from 'lucide-react';
 import {
   DEFAULT_DRAWING_MODEL,
-  DRAWING_SIZES,
+  DRAWING_ASPECT_RATIOS,
+  DRAWING_RESOLUTIONS,
   MAX_UPLOAD_IMAGES,
+  resolveDrawingSize,
 } from '../../../constants/drawing.constants';
 
 const DrawingInputBar = ({
@@ -18,7 +20,10 @@ const DrawingInputBar = ({
 }) => {
   const { t } = useTranslation();
   const [prompt, setPrompt] = useState('');
-  const [size, setSize] = useState(DRAWING_SIZES[0].value);
+  const [aspectRatio, setAspectRatio] = useState(
+    DRAWING_ASPECT_RATIOS[0].value,
+  );
+  const [resolution, setResolution] = useState(DRAWING_RESOLUTIONS[0].value);
   const [images, setImages] = useState([]);
   const [submitting, setSubmitting] = useState(false);
   const fileInputRef = useRef(null);
@@ -27,15 +32,37 @@ const DrawingInputBar = ({
   const referenceImageSrc =
     hasPrompt && referenceImage ? resolveDrawingImageUrl(referenceImage) : null;
   const maxUploadImages = MAX_UPLOAD_IMAGES - (referenceImage ? 1 : 0);
-  const sizeSelectWidth = useMemo(() => {
+  const size = useMemo(
+    () => resolveDrawingSize(aspectRatio, resolution),
+    [aspectRatio, resolution],
+  );
+  const aspectRatioOptions = useMemo(
+    () =>
+      DRAWING_ASPECT_RATIOS.map((item) => ({
+        ...item,
+        label: t(item.label),
+      })),
+    [t],
+  );
+  const resolutionOptions = useMemo(
+    () =>
+      DRAWING_RESOLUTIONS.map((item) => ({
+        ...item,
+        label: t(item.label),
+      })),
+    [t],
+  );
+  const aspectRatioSelectWidth = useMemo(() => {
     const selectedLabel =
-      DRAWING_SIZES.find((item) => item.value === size)?.label || '';
-    const visualLength = Array.from(selectedLabel).reduce(
-      (total, char) => total + (char.charCodeAt(0) > 255 ? 1 : 0.56),
-      0,
-    );
-    return Math.max(104, Math.ceil(visualLength * 14 + 58));
-  }, [size]);
+      aspectRatioOptions.find((item) => item.value === aspectRatio)?.label ||
+      '';
+    return getSelectWidth(selectedLabel, 106);
+  }, [aspectRatio, aspectRatioOptions]);
+  const resolutionSelectWidth = useMemo(() => {
+    const selectedLabel =
+      resolutionOptions.find((item) => item.value === resolution)?.label || '';
+    return getSelectWidth(selectedLabel, 72);
+  }, [resolution, resolutionOptions]);
 
   const handleImageUpload = (e) => {
     const files = Array.from(e.target.files);
@@ -78,15 +105,24 @@ const DrawingInputBar = ({
         maxHeight: 'calc(100dvh - 180px)',
         overflow: 'auto',
       },
-      onOk: async () => {
-        setSubmitting(true);
-        try {
-          await onSubmit(requestPayload);
-          setPrompt('');
-          setImages([]);
-        } finally {
-          setSubmitting(false);
-        }
+      onOk: () => {
+        scheduleAfterModalClose(() => {
+          setSubmitting(true);
+          scheduleAfterPaint(() => {
+            void Promise.resolve()
+              .then(() => onSubmit(requestPayload))
+              .then(() => {
+                setPrompt('');
+                setImages([]);
+              })
+              .catch((error) => {
+                console.error('Drawing submit failed', error);
+              })
+              .finally(() => {
+                setSubmitting(false);
+              });
+          }, 120);
+        });
       },
     });
   };
@@ -197,12 +233,23 @@ const DrawingInputBar = ({
           />
 
           <Select
-            value={size}
-            onChange={setSize}
+            value={aspectRatio}
+            onChange={setAspectRatio}
             size='small'
-            style={{ width: sizeSelectWidth }}
-            dropdownStyle={{ minWidth: sizeSelectWidth }}
-            optionList={DRAWING_SIZES}
+            style={{ width: aspectRatioSelectWidth }}
+            dropdownStyle={{ minWidth: aspectRatioSelectWidth }}
+            optionList={aspectRatioOptions}
+            disabled={disabled}
+            className='!rounded-lg'
+          />
+
+          <Select
+            value={resolution}
+            onChange={setResolution}
+            size='small'
+            style={{ width: resolutionSelectWidth }}
+            dropdownStyle={{ minWidth: resolutionSelectWidth }}
+            optionList={resolutionOptions}
             disabled={disabled}
             className='!rounded-lg'
           />
@@ -213,9 +260,7 @@ const DrawingInputBar = ({
             trigger='click'
             position='topRight'
             showArrow
-            content={
-              <BalanceFlyoutContent balanceInfo={balanceInfo} t={t} />
-            }
+            content={<BalanceFlyoutContent balanceInfo={balanceInfo} t={t} />}
           >
             <button
               type='button'
@@ -335,6 +380,31 @@ function BalanceFlyoutContent({ balanceInfo, t }) {
       </div>
     </div>
   );
+}
+
+function scheduleAfterPaint(callback, delay = 0) {
+  const run = () => {
+    Promise.resolve().then(callback);
+  };
+
+  if (typeof requestAnimationFrame === 'function') {
+    requestAnimationFrame(() => setTimeout(run, delay));
+    return;
+  }
+
+  setTimeout(run, delay);
+}
+
+function scheduleAfterModalClose(callback) {
+  scheduleAfterPaint(callback, 320);
+}
+
+function getSelectWidth(label, minWidth) {
+  const visualLength = Array.from(label).reduce(
+    (total, char) => total + (char.charCodeAt(0) > 255 ? 1 : 0.56),
+    0,
+  );
+  return Math.max(minWidth, Math.ceil(visualLength * 14 + 58));
 }
 
 function resolveDrawingImageUrl(url) {

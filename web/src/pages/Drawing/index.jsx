@@ -46,13 +46,16 @@ const Drawing = () => {
   const [statusState] = useContext(StatusContext);
   const [titleEditing, setTitleEditing] = useState(false);
   const [titleDraft, setTitleDraft] = useState('');
+  const [titleDraftEdited, setTitleDraftEdited] = useState(false);
   const [sessionSelectorVisible, setSessionSelectorVisible] = useState(false);
   const [headerToolbarRoot, setHeaderToolbarRoot] = useState(null);
   const [referencePreviewImage, setReferencePreviewImage] = useState('');
   const [drawingPricing, setDrawingPricing] = useState(null);
   const [drawingPricingLoading, setDrawingPricingLoading] = useState(false);
+  const [retrying, setRetrying] = useState(false);
   const sessionSelectorRef = useRef(null);
   const urlMessageTargetRef = useRef('');
+  const newDraftRef = useRef(false);
 
   const {
     sessions,
@@ -62,6 +65,7 @@ const Drawing = () => {
     createSession,
     deleteSession,
     updateSessionTitle,
+    loadSessions,
   } = useDrawingSessions();
 
   const {
@@ -72,6 +76,7 @@ const Drawing = () => {
     loadCurrentMessage,
     loadPreviousMessage,
     loadNextMessage,
+    setMessages,
     addOptimisticMessage,
     updateMessageByTaskId,
   } = useDrawingMessages(activeSessionId);
@@ -88,6 +93,10 @@ const Drawing = () => {
   const urlSessionId = queryParams.get('session');
   const urlMessageId = queryParams.get('message');
   const currentMessage = messages[0] || null;
+  const nextDefaultSessionTitle = useMemo(
+    () => getNextDrawingSessionTitle(sessions),
+    [sessions],
+  );
 
   useEffect(() => {
     let ignore = false;
@@ -152,6 +161,13 @@ const Drawing = () => {
   );
 
   useEffect(() => {
+    if (newDraftRef.current) {
+      if (!urlSessionId) {
+        newDraftRef.current = false;
+      }
+      return;
+    }
+
     if (urlSessionId) {
       setActiveSessionId((prev) =>
         prev === urlSessionId ? prev : urlSessionId,
@@ -242,7 +258,7 @@ const Drawing = () => {
   }, []);
   useEffect(() => {
     if (!activeSessionId) {
-      if (urlSessionId) {
+      if (urlSessionId && !newDraftRef.current) {
         return;
       }
 
@@ -311,6 +327,12 @@ const Drawing = () => {
   }, [currentMessage?.task_id, currentMessage?.status, startPolling]);
 
   useEffect(() => {
+    if (currentMessage?.status === 'success') {
+      loadSessions();
+    }
+  }, [currentMessage?.id, currentMessage?.status, loadSessions]);
+
+  useEffect(() => {
     let ignore = false;
 
     async function loadReferencePreviewImage() {
@@ -345,11 +367,13 @@ const Drawing = () => {
     async (params) => {
       let sessionId = activeSessionId;
       if (!activeSessionId) {
-        const title = titleDraft.trim() || t('新会话');
+        const title = titleDraftEdited ? titleDraft.trim() : '';
         const session = await createSession(title);
         if (!session) return;
+        newDraftRef.current = false;
         sessionId = session.session_id;
-        setTitleDraft(session.title || title);
+        setTitleDraft(session.title || title || nextDefaultSessionTitle);
+        setTitleDraftEdited(false);
         setTitleEditing(false);
       }
 
@@ -368,35 +392,75 @@ const Drawing = () => {
         sessionId,
       );
     },
-    [activeSessionId, createSession, currentMessage, submit, t, titleDraft],
+    [
+      activeSessionId,
+      createSession,
+      currentMessage,
+      nextDefaultSessionTitle,
+      submit,
+      titleDraft,
+      titleDraftEdited,
+    ],
   );
 
   const handleRetry = useCallback(
-    async (message) => {
-      if (!message?.prompt?.trim()) return;
+    (message) => {
+      if (!message?.prompt?.trim() || retrying) return;
 
-      await submit(
-        {
-          prompt: message.prompt.trim(),
-          model: message.model || DEFAULT_DRAWING_MODEL,
-          size: message.size,
-          quality: message.quality || 'auto',
-          images: parseDrawingMessageImages(message.image_urls),
-        },
-        message.session_id || activeSessionId,
-      );
+      setRetrying(true);
+      scheduleAfterPaint(() => {
+        Promise.resolve()
+          .then(() =>
+            submit(
+              {
+                prompt: message.prompt.trim(),
+                model: message.model || DEFAULT_DRAWING_MODEL,
+                size: message.size,
+                quality: message.quality || 'auto',
+                images: parseDrawingMessageImages(message.image_urls),
+              },
+              message.session_id || activeSessionId,
+            ),
+          )
+          .finally(() => {
+            setRetrying(false);
+          });
+      });
     },
-    [activeSessionId, submit],
+    [activeSessionId, retrying, submit],
   );
 
-  const handleNewSession = useCallback(async () => {
-    await createSession(t('新会话'));
+  const handleNewSession = useCallback(() => {
+    newDraftRef.current = true;
+    urlMessageTargetRef.current = '';
+    setActiveSessionId(null);
+    setMessages([]);
+    setTitleDraft(nextDefaultSessionTitle);
+    setTitleDraftEdited(false);
+    setTitleEditing(false);
     setSessionSelectorVisible(false);
-  }, [createSession, t]);
+    if (location.search) {
+      navigate(
+        {
+          pathname: location.pathname,
+          search: '',
+        },
+        { replace: true },
+      );
+    }
+  }, [
+    location.pathname,
+    location.search,
+    navigate,
+    setActiveSessionId,
+    setMessages,
+    nextDefaultSessionTitle,
+  ]);
 
   const handleSelectSession = useCallback(
     (id) => {
       setActiveSessionId(id);
+      setTitleDraftEdited(false);
       setSessionSelectorVisible(false);
     },
     [setActiveSessionId],
@@ -405,6 +469,9 @@ const Drawing = () => {
   const handleDeleteSession = useCallback(
     (session) => {
       if (!session?.session_id) return;
+
+      const sessionId = session.session_id;
+      const isDeletingActiveSession = sessionId === activeSessionId;
 
       Modal.confirm({
         title: t('确认删除'),
@@ -418,13 +485,51 @@ const Drawing = () => {
         okType: 'danger',
         centered: true,
         width: 'min(420px, calc(100vw - 32px))',
-        onOk: async () => {
-          await deleteSession(session.session_id);
+        onOk: () => {
+          scheduleAfterModalClose(() => {
+            if (isDeletingActiveSession) {
+              newDraftRef.current = true;
+              urlMessageTargetRef.current = '';
+              setActiveSessionId(null);
+              setMessages([]);
+              setTitleDraft(
+                getNextDrawingSessionTitle(
+                  sessions.filter((item) => item.session_id !== sessionId),
+                ),
+              );
+              setTitleDraftEdited(false);
+              setTitleEditing(false);
+              if (location.search) {
+                navigate(
+                  {
+                    pathname: location.pathname,
+                    search: '',
+                  },
+                  { replace: true },
+                );
+              }
+            }
+
+            void deleteSession(sessionId);
+            setSessionSelectorVisible(false);
+          });
+        },
+        onCancel: () => {
           setSessionSelectorVisible(false);
         },
       });
     },
-    [deleteSession, t],
+    [
+      activeSessionId,
+      deleteSession,
+      location.pathname,
+      location.search,
+      navigate,
+      sessions,
+      setActiveSessionId,
+      setMessages,
+      t,
+    ],
   );
 
   const isLoading = messages.some(
@@ -435,21 +540,36 @@ const Drawing = () => {
     () => sessions.find((session) => session.session_id === activeSessionId),
     [sessions, activeSessionId],
   );
-  const currentTitle = activeSession?.title || t('新会话');
+  const currentTitle = activeSession?.title || nextDefaultSessionTitle;
   const displayTitle = activeSessionId
     ? currentTitle
-    : titleDraft || currentTitle;
+    : titleDraft || nextDefaultSessionTitle;
 
   useEffect(() => {
-    setTitleDraft(currentTitle);
-    setTitleEditing(false);
-  }, [activeSessionId, currentTitle]);
+    if (activeSessionId) {
+      setTitleDraft(currentTitle);
+      setTitleDraftEdited(false);
+      setTitleEditing(false);
+      return;
+    }
+
+    if (!titleDraftEdited) {
+      setTitleDraft(nextDefaultSessionTitle);
+      setTitleEditing(false);
+    }
+  }, [
+    activeSessionId,
+    currentTitle,
+    nextDefaultSessionTitle,
+    titleDraftEdited,
+  ]);
 
   const handleSaveSessionTitle = useCallback(async () => {
     const nextTitle = titleDraft.trim() || currentTitle;
 
     if (!activeSessionId) {
       setTitleDraft(nextTitle);
+      setTitleDraftEdited(titleDraftEdited && Boolean(titleDraft.trim()));
       setTitleEditing(false);
       return;
     }
@@ -465,10 +585,17 @@ const Drawing = () => {
       setTitleDraft(currentTitle);
     }
     setTitleEditing(false);
-  }, [activeSessionId, currentTitle, titleDraft, updateSessionTitle]);
+  }, [
+    activeSessionId,
+    currentTitle,
+    titleDraft,
+    titleDraftEdited,
+    updateSessionTitle,
+  ]);
 
   const handleCancelSessionTitle = useCallback(() => {
     setTitleDraft(currentTitle);
+    setTitleDraftEdited(false);
     setTitleEditing(false);
   }, [currentTitle]);
 
@@ -496,7 +623,7 @@ const Drawing = () => {
 
   const sessionSelectorContent = (
     <div
-      className='w-[min(86vw,320px)] overflow-hidden rounded-lg'
+      className='w-[min(calc(100vw-32px),320px)] overflow-hidden rounded-lg'
       style={{
         background: 'var(--semi-color-bg-overlay)',
         color: 'var(--semi-color-text-0)',
@@ -560,6 +687,7 @@ const Drawing = () => {
           <div className='space-y-0.5'>
             {sessions.map((item) => {
               const isActive = activeSessionId === item.session_id;
+              const imageCount = Number(item.image_count || 0);
               return (
                 <div
                   key={item.session_id}
@@ -588,6 +716,18 @@ const Drawing = () => {
                   <ImageIcon size={14} className='flex-shrink-0 opacity-60' />
                   <span className='flex-1 truncate text-sm'>
                     {item.title || t('未命名会话')}
+                  </span>
+                  <span
+                    className='inline-flex h-6 min-w-9 flex-shrink-0 items-center justify-center gap-1 rounded-md px-1.5 text-xs'
+                    style={{
+                      color: 'var(--semi-color-text-2)',
+                      background: 'var(--semi-color-fill-0)',
+                    }}
+                    title={t('生成图片数')}
+                    aria-label={t('生成图片数')}
+                  >
+                    <ImageIcon size={12} />
+                    <span>{imageCount}</span>
                   </span>
                   <button
                     className='flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg transition-colors'
@@ -622,13 +762,20 @@ const Drawing = () => {
       <Popover
         trigger='custom'
         position='bottomLeft'
+        autoAdjustOverflow
+        margin={{
+          marginLeft: 8,
+          marginRight: 8,
+          marginTop: 8,
+          marginBottom: 8,
+        }}
         showArrow={false}
         spacing={6}
         visible={sessionSelectorVisible}
         onClickOutSide={() => setSessionSelectorVisible(false)}
         content={sessionSelectorContent}
         contentClassName='!p-0 !rounded-lg !shadow-xl !border !border-semi-color-border'
-        getPopupContainer={() => sessionSelectorRef.current || document.body}
+        getPopupContainer={() => document.body}
       >
         <button
           className='flex h-9 items-center gap-1 rounded-lg px-2 transition-colors'
@@ -659,7 +806,10 @@ const Drawing = () => {
       {titleEditing ? (
         <input
           value={titleDraft}
-          onChange={(e) => setTitleDraft(e.target.value)}
+          onChange={(e) => {
+            setTitleDraft(e.target.value);
+            setTitleDraftEdited(true);
+          }}
           onBlur={handleSaveSessionTitle}
           onKeyDown={(e) => {
             if (e.key === 'Enter') {
@@ -754,7 +904,7 @@ const Drawing = () => {
             onLoadPrevious={loadPreviousMessage}
             onLoadNext={loadNextMessage}
             onRetry={handleRetry}
-            retryDisabled={isLoading}
+            retryDisabled={isLoading || retrying}
           />
         </div>
 
@@ -772,6 +922,48 @@ const Drawing = () => {
     </div>
   );
 };
+
+const DRAWING_SESSION_TITLE_PREFIX = '新会话';
+
+function getNextDrawingSessionTitle(sessions) {
+  const usedIndexes = new Set();
+
+  for (const session of sessions || []) {
+    const title = String(session?.title || '').trim();
+    if (!title.startsWith(DRAWING_SESSION_TITLE_PREFIX)) continue;
+
+    const suffix = title.slice(DRAWING_SESSION_TITLE_PREFIX.length);
+    if (!/^\d+$/.test(suffix)) continue;
+
+    const index = Number(suffix);
+    if (Number.isSafeInteger(index) && index > 0) {
+      usedIndexes.add(index);
+    }
+  }
+
+  for (let index = 1; ; index += 1) {
+    if (!usedIndexes.has(index)) {
+      return `${DRAWING_SESSION_TITLE_PREFIX}${index}`;
+    }
+  }
+}
+
+function scheduleAfterPaint(callback) {
+  const run = () => {
+    Promise.resolve().then(callback);
+  };
+
+  if (typeof requestAnimationFrame === 'function') {
+    requestAnimationFrame(() => setTimeout(run, 0));
+    return;
+  }
+
+  setTimeout(run, 0);
+}
+
+function scheduleAfterModalClose(callback) {
+  scheduleAfterPaint(callback);
+}
 
 function parseDrawingMessageImages(imageUrls) {
   if (!imageUrls) return [];
@@ -795,7 +987,9 @@ async function resolveDrawingReferenceImages(message, sessionId) {
   if (!message.id) return [];
 
   try {
-    const res = await API.get(DRAWING_API.MESSAGE_IMAGES(sessionId, message.id));
+    const res = await API.get(
+      DRAWING_API.MESSAGE_IMAGES(sessionId, message.id),
+    );
     if (!res.data.success) return [];
     return extractDrawingResultImages(res.data.data?.result_data);
   } catch (e) {
@@ -843,11 +1037,7 @@ function buildDrawingBalanceInfo({
   const balanceUSD = quotaToUsdAmount(userQuota, status);
   const balanceText = formatUsdAmount(balanceUSD, 2);
   const tone =
-    balanceUSD < 0.1
-      ? 'danger'
-      : balanceUSD < 1
-        ? 'warning'
-        : 'success';
+    balanceUSD < 0.1 ? 'danger' : balanceUSD < 1 ? 'warning' : 'success';
   const toneColor = {
     danger: 'var(--semi-color-danger)',
     warning: 'var(--semi-color-warning)',

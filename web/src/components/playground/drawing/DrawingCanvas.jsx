@@ -35,6 +35,8 @@ const DrawingCanvas = ({
   const total = pageInfo?.total || 0;
   const currentIndex = pageInfo?.current_index || 0;
   const msg = messages[0] || null;
+  const isGenerating =
+    msg?.status === 'processing' || msg?.status === 'pending';
 
   useEffect(() => {
     if (!msg || msg.status !== 'success') return;
@@ -133,9 +135,13 @@ const DrawingCanvas = ({
         </div>
       )}
 
-      <div className='flex-1 flex flex-col items-center justify-start sm:justify-center px-4 sm:px-6 py-4 min-h-0 gap-4 overflow-auto overscroll-contain'>
-        {(msg.status === 'processing' || msg.status === 'pending') && (
-          <div className='flex flex-col items-center gap-3'>
+      <div
+        className={`flex-1 flex flex-col items-center px-4 sm:px-6 py-4 min-h-0 gap-4 overflow-auto overscroll-contain ${
+          isGenerating ? 'justify-center' : 'justify-start sm:justify-center'
+        }`}
+      >
+        {isGenerating && (
+          <div className='flex flex-col items-center gap-3 text-center'>
             <Loader
               size={28}
               className='animate-spin'
@@ -147,6 +153,14 @@ const DrawingCanvas = ({
             >
               {t('生成图片需要大约4-6分钟，请耐心等待')}
             </span>
+            {msg.prompt && (
+              <p
+                className='text-xs line-clamp-2 max-w-lg'
+                style={{ color: 'var(--semi-color-text-2)' }}
+              >
+                {msg.prompt}
+              </p>
+            )}
           </div>
         )}
 
@@ -218,7 +232,7 @@ const DrawingCanvas = ({
             )
           ))}
 
-        {msg.prompt && (
+        {!isGenerating && msg.prompt && (
           <p
             className='text-xs text-center line-clamp-2 max-w-lg'
             style={{ color: 'var(--semi-color-text-2)' }}

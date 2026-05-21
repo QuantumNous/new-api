@@ -79,6 +79,7 @@ const DrawingImageCard = ({ imageData }) => {
         src={imageUrl}
         visible={previewVisible}
         onVisibleChange={(visible) => setPreviewVisible(visible)}
+        previewCls='drawing-image-preview'
         zoomStep={0.2}
         maxZoom={6}
         minZoom={0.2}

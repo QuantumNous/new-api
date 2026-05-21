@@ -34,8 +34,7 @@ export function useDrawingSubmit(
         try {
           const res = await API.get(DRAWING_API.TASK_STATUS(taskId));
           if (res.data.success) {
-            const { status, result_data, fail_reason, progress } =
-              res.data.data;
+            const { status, result_data, fail_reason } = res.data.data;
 
             if (status === 'SUCCESS') {
               updateMessageByTaskId(taskId, {
@@ -52,8 +51,6 @@ export function useDrawingSubmit(
               delete pollTimersRef.current[taskId];
               return;
             }
-            // Still processing, continue polling
-            updateMessageByTaskId(taskId, { progress });
           }
         } catch (e) {
           console.error('Poll failed', e);
@@ -68,7 +65,7 @@ export function useDrawingSubmit(
   );
 
   const submit = useCallback(
-    async ({ prompt, model, size, quality, images }, sessionId) => {
+    ({ prompt, model, size, quality, images }, sessionId) => {
       const targetSessionId = sessionId || activeSessionId;
       if (!targetSessionId || !prompt.trim()) return null;
 
@@ -80,7 +77,7 @@ export function useDrawingSubmit(
         model,
         size,
         quality,
-        image_urls: images?.length ? JSON.stringify(images) : null,
+        image_urls: null,
         status: 'pending',
         task_id: null,
         optimistic: true,
@@ -88,44 +85,47 @@ export function useDrawingSubmit(
       };
       addOptimisticMessage(optimisticMsg);
 
-      try {
-        const res = await API.post(DRAWING_API.GENERATE(targetSessionId), {
-          prompt,
-          model,
-          size,
-          quality,
-          images: images || [],
-        });
-
-        if (res.data.success) {
-          const { task_id, message_id } = res.data.data;
-          updateMessageByTaskId(null, {
-            id: message_id || optimisticMsg.id,
-            task_id,
-            status: 'processing',
-            optimistic: false,
-          });
-          // Update the optimistic message with real task_id
-          optimisticMsg.id = message_id || optimisticMsg.id;
-          optimisticMsg.task_id = task_id;
-          optimisticMsg.status = 'processing';
-          optimisticMsg.optimistic = false;
-          startPolling(task_id);
-          return task_id;
-        } else {
+      void waitForPaint(80)
+        .then(() =>
+          API.post(DRAWING_API.GENERATE(targetSessionId), {
+            prompt,
+            model,
+            size,
+            quality,
+            images: images || [],
+          }),
+        )
+        .then((res) => {
+          if (res.data.success) {
+            const { task_id, message_id } = res.data.data;
+            updateMessageByTaskId(null, {
+              id: message_id || optimisticMsg.id,
+              task_id,
+              status: 'processing',
+              optimistic: false,
+            });
+            // Update the optimistic message with real task_id
+            optimisticMsg.id = message_id || optimisticMsg.id;
+            optimisticMsg.task_id = task_id;
+            optimisticMsg.status = 'processing';
+            optimisticMsg.optimistic = false;
+            startPolling(task_id);
+          } else {
+            updateMessageByTaskId(null, {
+              status: 'failure',
+              fail_reason: res.data.message,
+            });
+          }
+        })
+        .catch((e) => {
+          console.error('Submit failed', e);
           updateMessageByTaskId(null, {
             status: 'failure',
-            fail_reason: res.data.message,
+            fail_reason: e.message,
           });
-        }
-      } catch (e) {
-        console.error('Submit failed', e);
-        updateMessageByTaskId(null, {
-          status: 'failure',
-          fail_reason: e.message,
         });
-      }
-      return null;
+
+      return optimisticMsg.id;
     },
     [
       activeSessionId,
@@ -141,4 +141,17 @@ export function useDrawingSubmit(
   }, []);
 
   return { submit, startPolling, stopAllPolling };
+}
+
+function waitForPaint(delay = 0) {
+  return new Promise((resolve) => {
+    const done = () => setTimeout(resolve, delay);
+
+    if (typeof requestAnimationFrame === 'function') {
+      requestAnimationFrame(done);
+      return;
+    }
+
+    done();
+  });
 }

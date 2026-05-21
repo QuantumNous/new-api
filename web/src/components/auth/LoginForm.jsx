@@ -46,6 +46,7 @@ import {
   isPasskeySupported,
   clearLoginRedirectPath,
   getLoginRedirectPath,
+  getStoredLoginRedirectPath,
   saveLoginRedirectPath,
 } from '../../helpers';
 import Turnstile from 'react-turnstile';
@@ -126,7 +127,10 @@ const LoginForm = () => {
   const systemName = getSystemName();
 
   const getPostLoginPath = () =>
-    getLoginRedirectPath(location.state?.from, '/console');
+    getLoginRedirectPath(
+      location.state?.from,
+      getStoredLoginRedirectPath('/console'),
+    );
 
   const rememberPostLoginPath = () => {
     saveLoginRedirectPath(getPostLoginPath());
