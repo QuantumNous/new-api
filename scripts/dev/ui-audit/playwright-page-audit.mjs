@@ -6,9 +6,31 @@
  *   node scripts/dev/ui-audit/playwright-page-audit.mjs
  */
 import fs from 'node:fs'
+import os from 'node:os'
 import path from 'node:path'
 import { createRequire } from 'node:module'
 import { fileURLToPath } from 'node:url'
+
+function resolvePlaywrightBrowsersPath() {
+  const candidates = [
+    process.env.PLAYWRIGHT_BROWSERS_PATH,
+    path.join(os.homedir(), '.cache/ms-playwright'),
+  ].filter(Boolean)
+
+  for (const base of candidates) {
+    try {
+      const hasBrowser = fs
+        .readdirSync(base)
+        .some((name) => /^chromium/i.test(name))
+      if (hasBrowser) return base
+    } catch {
+      /* try next */
+    }
+  }
+  return candidates[0] || path.join(os.homedir(), '.cache/ms-playwright')
+}
+
+process.env.PLAYWRIGHT_BROWSERS_PATH = resolvePlaywrightBrowsersPath()
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const ROOT = path.resolve(__dirname, '../../..')
@@ -174,18 +196,88 @@ function buildPageList() {
   return [...byId.values()]
 }
 
-function detectFailure(pageText, pageTitle, finalUrl, errorMessage) {
-  if (errorMessage) return { failed: true, reason: errorMessage.slice(0, 200) }
-  const blob = `${pageTitle}\n${pageText}`.slice(0, 8000)
-  if (/\b500\b|Internal Server Error|服务器错误|Something went wrong/i.test(blob)) {
-    return { failed: true, reason: 'Possible 500 / server error in page text or title' }
+/**
+ * Usage-logs tables often show HTTP status 500, quotas, and timings in cells.
+ * A bare "500" in innerText is not an error page (old heuristic caused false fails).
+ */
+const USAGE_LOGS_POSITIVE_MARKERS = [
+  '词元消耗明细',
+  '调用时间',
+  '应用接入密钥',
+  '模型资源',
+  '词元消耗',
+]
+
+function isErrorPageTitle(pageTitle) {
+  const title = (pageTitle || '').trim()
+  if (title === '500') return true
+  if (/^Internal Server Error\b/i.test(title)) return true
+  return false
+}
+
+/** Body (or title) must match explicit error-page copy — not isolated digits */
+const ERROR_PAGE_BODY_PATTERNS = [
+  /\b500\s+Internal\s+Server\s+Error\b/i,
+  /\bInternal\s+Server\s+Error\b/i,
+  /\bUnexpected\s+Application\s+Error\b/i,
+  /\bApplication\s+Error\b/i,
+  /\bSomething\s+went\s+wrong\b/i,
+  /服务器错误/,
+  /页面加载失败/,
+]
+
+function routeLooksLikeUsageLogs(routePath = '') {
+  return /\/usage-logs(?:\/|$)/i.test(routePath)
+}
+
+function matchesUsageLogsPositive(pageText, routePath = '') {
+  if (!routeLooksLikeUsageLogs(routePath)) return false
+  return USAGE_LOGS_POSITIVE_MARKERS.some((marker) => pageText.includes(marker))
+}
+
+function looksLikeErrorPage(pageText, pageTitle) {
+  const title = (pageTitle || '').trim()
+  if (isErrorPageTitle(title)) {
+    return { failed: true, reason: `Error page title: ${title.slice(0, 80)}` }
   }
-  if (/404|Not Found|页面不存在/i.test(blob) && /404|not found/i.test(pageTitle)) {
-    return { failed: true, reason: '404 Not Found' }
+  const combined = `${title}\n${pageText}`
+  for (const re of ERROR_PAGE_BODY_PATTERNS) {
+    if (re.test(combined)) {
+      return {
+        failed: true,
+        reason: `Error page copy matched: ${re.source.slice(0, 60)}`,
+      }
+    }
   }
+  return { failed: false, reason: '' }
+}
+
+function detectFailure(pageText, pageTitle, finalUrl, errorMessage, routePath = '') {
+  if (errorMessage) {
+    return { failed: true, reason: errorMessage.slice(0, 200) }
+  }
+
   if (finalUrl.includes('/sign-in') || finalUrl.includes('/login')) {
     return { failed: false, reason: '' }
   }
+
+  const pathKey = routePath || finalUrl
+
+  // Positive matcher wins for usage-logs (e.g. /usage-logs/common with status column "500")
+  if (matchesUsageLogsPositive(pageText, pathKey)) {
+    return { failed: false, reason: '' }
+  }
+
+  const errorCheck = looksLikeErrorPage(pageText, pageTitle)
+  if (errorCheck.failed) return errorCheck
+
+  if (
+    /404|Not Found|页面不存在/i.test(pageText) &&
+    /404|not found/i.test(pageTitle)
+  ) {
+    return { failed: true, reason: '404 Not Found' }
+  }
+
   return { failed: false, reason: '' }
 }
 
@@ -202,6 +294,7 @@ async function hasStoredUser(page) {
   })
 }
 
+/** @returns {{ ok: boolean, reason: 'ok' | 'rate_limited' | 'failed' }} */
 async function tryLogin(page) {
   const loginPaths = ['/sign-in', '/login']
   for (const loginPath of loginPaths) {
@@ -243,10 +336,20 @@ async function tryLogin(page) {
         .first()
       if ((await submit.count()) > 0) await submit.click()
       else await pass.press('Enter')
+
+      let loginHttpStatus = null
       try {
-        await loginResponse
+        const response = await loginResponse
+        loginHttpStatus = response?.status() ?? null
       } catch {
         /* SPA may not expose login XHR in dev proxy */
+      }
+
+      if (loginHttpStatus === 429) {
+        console.warn(
+          'WARN login rate limited (HTTP 429); stopping login retries — auth pages → skipped_rate_limited'
+        )
+        return { ok: false, reason: 'rate_limited' }
       }
 
       try {
@@ -269,16 +372,16 @@ async function tryLogin(page) {
 
       if (await hasStoredUser(page)) {
         console.log('OK login', page.url())
-        return true
+        return { ok: true, reason: 'ok' }
       }
     } catch (err) {
       console.warn('WARN login path', loginPath, err.message)
     }
   }
-  return false
+  return { ok: false, reason: 'failed' }
 }
 
-async function auditPage(page, def, loggedIn) {
+async function auditPage(page, def, loggedIn, loginReason = 'failed') {
   const id = pageId(def)
   const pathsToTry = [def.path, ...(def.altPaths || [])]
   const screenshotFile = path.join(OUT_DIR, `${id}.png`)
@@ -288,6 +391,20 @@ async function auditPage(page, def, loggedIn) {
   let p0Hits = []
   let p1Hits = []
   let bodyText = ''
+
+  if (def.auth && loginReason === 'rate_limited') {
+    return {
+      page: id,
+      path: def.path,
+      url: `${BASE_URL}${def.path}`,
+      status: 'skipped_rate_limited',
+      screenshot: '',
+      p0Hits: [],
+      p1Hits: [],
+      matchedTerms: '',
+      error: 'Login rate limited (HTTP 429)',
+    }
+  }
 
   if (def.auth && !loggedIn) {
     return {
@@ -324,7 +441,7 @@ async function auditPage(page, def, loggedIn) {
         status = 'failed'
         error = `HTTP ${response.status()}`
       } else {
-        const fail = detectFailure(bodyText, title, finalUrl, '')
+        const fail = detectFailure(bodyText, title, finalUrl, '', def.path)
         if (fail.failed) {
           status = 'failed'
           error = fail.reason || `HTTP ${response?.status() ?? 'unknown'}`
@@ -415,11 +532,13 @@ function writeReports(results) {
   let p1Visible = 0
   let failedCount = 0
   let skippedAuth = 0
+  let skippedRateLimited = 0
   for (const r of results) {
     p0Visible += r.p0Hits.length
     p1Visible += r.p1Hits.length
     if (r.status === 'failed') failedCount += 1
     if (r.status === 'skipped_auth_required') skippedAuth += 1
+    if (r.status === 'skipped_rate_limited') skippedRateLimited += 1
   }
 
   const md = []
@@ -439,6 +558,7 @@ function writeReports(results) {
   md.push(`| P1 visible term hits | ${p1Visible} |`)
   md.push(`| Failed pages | ${failedCount} |`)
   md.push(`| Skipped (auth required) | ${skippedAuth} |`)
+  md.push(`| Skipped (login rate limited) | ${skippedRateLimited} |`)
   md.push('')
   md.push('## Pages')
   md.push('')
@@ -462,6 +582,15 @@ function writeReports(results) {
   md.push('')
   md.push(P1_RULES.map((r) => `- ${r.term}`).join('\n'))
   md.push('')
+  md.push('## Failure detection notes')
+  md.push('')
+  md.push(
+    'Earlier runs treated any `500` substring in `body.innerText` as a server error. ' +
+      'On `/usage-logs/common`, table cells often contain HTTP status codes (e.g. 500), quotas, or timings — that is normal data, not the `/500` error route or an ErrorBoundary. ' +
+      'Failed now requires explicit error-page copy (e.g. `Internal Server Error`, `Something went wrong`) or an error title of `500` / `Internal Server Error`. ' +
+      'Usage-logs routes pass when expected Chinese column labels are visible (positive matcher).'
+  )
+  md.push('')
   fs.writeFileSync(PAGE_REPORT_MD, `${md.join('\n')}\n`)
 
   const auditStatus =
@@ -472,10 +601,18 @@ function writeReports(results) {
     `PAGE_P1_VISIBLE_HITS=${p1Visible}`,
     `PAGE_FAILED_COUNT=${failedCount}`,
     `PAGE_SKIPPED_AUTH_COUNT=${skippedAuth}`,
+    `PAGE_SKIPPED_RATE_LIMITED_COUNT=${skippedRateLimited}`,
   ]
   fs.writeFileSync(PAGE_META, `${metaLines.join('\n')}\n`)
 
-  return { p0Visible, p1Visible, failedCount, skippedAuth, auditStatus }
+  return {
+    p0Visible,
+    p1Visible,
+    failedCount,
+    skippedAuth,
+    skippedRateLimited,
+    auditStatus,
+  }
 }
 
 async function main() {
@@ -493,9 +630,16 @@ async function main() {
   const page = await context.newPage()
 
   let loggedIn = false
+  let loginReason = 'failed'
   if (HAS_AUTH) {
-    loggedIn = await tryLogin(page)
-    if (!loggedIn) console.warn('WARN: login failed; auth pages → skipped_auth_required')
+    const loginResult = await tryLogin(page)
+    loggedIn = loginResult.ok
+    loginReason = loginResult.reason
+    if (loginReason === 'rate_limited') {
+      console.warn('WARN: login rate limited (429); auth pages → skipped_rate_limited')
+    } else if (!loggedIn) {
+      console.warn('WARN: login failed; auth pages → skipped_auth_required')
+    }
   }
 
   const publicPages = pages.filter((p) => !p.auth)
@@ -507,7 +651,7 @@ async function main() {
 
   const results = []
   for (const def of orderedPages) {
-    const row = await auditPage(page, def, loggedIn)
+    const row = await auditPage(page, def, loggedIn, loginReason)
     results.push(row)
     console.log(
       row.status.padEnd(22),

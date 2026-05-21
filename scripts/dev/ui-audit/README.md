@@ -70,6 +70,14 @@ less scripts/dev/ui-audit/reports/page-audit-report.md
 column -t -s $'\t' scripts/dev/ui-audit/reports/page-audit-full.tsv | less -S
 ```
 
+### 登录限流（HTTP 429）
+
+连续运行带登录的验收（例如先跑 admin 账号、再立刻跑普通用户，或短时间内多次 `run-ui-audit.sh`）可能触发**登录接口限流**，登录 POST 返回 **429**。
+
+- 前端会提示：**请求过于频繁，请稍后再试。**
+- Playwright 脚本检测到 429 后**不再重试登录**，需登录页面记为 **`skipped_rate_limited`**（见 `page-audit-meta.env` 的 `PAGE_SKIPPED_RATE_LIMITED_COUNT`）。
+- **建议**：两次完整验收之间间隔 **5～10 分钟**，或换未触发限流的账号/环境。
+
 ### 已知限制
 
 - 不同账号 / `SidebarModulesAdmin` 配置下，侧栏可见菜单可能不同。
