@@ -216,6 +216,9 @@ func (o *SubscriptionOrder) Insert() error {
 	if o.CreateTime == 0 {
 		o.CreateTime = common.GetTimestamp()
 	}
+	if o.TenantId == 0 {
+		ApplyOwnershipFromUser(o.UserId, o)
+	}
 	return DB.Create(o).Error
 }
 
@@ -444,6 +447,10 @@ func downgradeUserGroupForSubscriptionTx(tx *gorm.DB, sub *UserSubscription, now
 }
 
 func CreateUserSubscriptionFromPlanTx(tx *gorm.DB, userId int, plan *SubscriptionPlan, source string) (*UserSubscription, error) {
+	return createUserSubscriptionFromPlanTx(tx, userId, plan, source, OwnershipByUserId(userId))
+}
+
+func createUserSubscriptionFromPlanTx(tx *gorm.DB, userId int, plan *SubscriptionPlan, source string, ownership OwnershipSnapshot) (*UserSubscription, error) {
 	if tx == nil {
 		return nil, errors.New("tx is nil")
 	}
@@ -507,6 +514,7 @@ func CreateUserSubscriptionFromPlanTx(tx *gorm.DB, userId int, plan *Subscriptio
 		CreatedAt:     common.GetTimestamp(),
 		UpdatedAt:     common.GetTimestamp(),
 	}
+	ownership.ApplyTo(sub)
 	if err := tx.Create(sub).Error; err != nil {
 		return nil, err
 	}
@@ -551,7 +559,7 @@ func CompleteSubscriptionOrder(tradeNo string, providerPayload string, expectedP
 			// still allow completion for already purchased orders
 		}
 		upgradeGroup = strings.TrimSpace(plan.UpgradeGroup)
-		_, err = CreateUserSubscriptionFromPlanTx(tx, order.UserId, plan, "order")
+		_, err = createUserSubscriptionFromPlanTx(tx, order.UserId, plan, "order", ownershipFromSubscriptionOrder(&order))
 		if err != nil {
 			return err
 		}
@@ -597,20 +605,25 @@ func upsertSubscriptionTopUpTx(tx *gorm.DB, order *SubscriptionOrder) error {
 	if err := tx.Where("trade_no = ?", order.TradeNo).First(&topup).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			topup = TopUp{
-				UserId:        order.UserId,
-				Amount:        0,
-				Money:         order.Money,
-				TradeNo:       order.TradeNo,
-				PaymentMethod: order.PaymentMethod,
-				CreateTime:    order.CreateTime,
-				CompleteTime:  now,
-				Status:        common.TopUpStatusSuccess,
+				UserId:                order.UserId,
+				TenantId:              order.TenantId,
+				OrganizationId:        order.OrganizationId,
+				DepartmentId:          order.DepartmentId,
+				DistributionChannelId: order.DistributionChannelId,
+				Amount:                0,
+				Money:                 order.Money,
+				TradeNo:               order.TradeNo,
+				PaymentMethod:         order.PaymentMethod,
+				CreateTime:            order.CreateTime,
+				CompleteTime:          now,
+				Status:                common.TopUpStatusSuccess,
 			}
 			return tx.Create(&topup).Error
 		}
 		return err
 	}
 	topup.Money = order.Money
+	ownershipFromSubscriptionOrder(order).ApplyTo(&topup)
 	if topup.PaymentMethod == "" {
 		topup.PaymentMethod = order.PaymentMethod
 	} else if topup.PaymentMethod != order.PaymentMethod {
@@ -1048,6 +1061,7 @@ func PreConsumeUserSubscription(requestId string, userId int, modelName string, 
 				PreConsumed:        amount,
 				Status:             "consumed",
 			}
+			ownershipFromUserSubscription(&sub).ApplyTo(record)
 			if err := tx.Create(record).Error; err != nil {
 				var dup SubscriptionPreConsumeRecord
 				if err2 := tx.Where("request_id = ?", requestId).First(&dup).Error; err2 == nil {

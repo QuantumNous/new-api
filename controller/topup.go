@@ -246,6 +246,7 @@ func RequestEpay(c *gin.Context) {
 		CreateTime:      time.Now().Unix(),
 		Status:          common.TopUpStatusPending,
 	}
+	model.ApplyOwnershipFromContext(c, topUp)
 	err = topUp.Insert()
 	if err != nil {
 		logger.LogError(c.Request.Context(), fmt.Sprintf("易支付 创建充值订单失败 user_id=%d trade_no=%s payment_method=%s amount=%d error=%q", id, tradeNo, req.PaymentMethod, req.Amount, err.Error()))

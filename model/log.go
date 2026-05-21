@@ -88,6 +88,7 @@ func RecordLog(userId int, logType int, content string) {
 		Type:      logType,
 		Content:   content,
 	}
+	ApplyOwnershipFromUser(userId, log)
 	err := LOG_DB.Create(log).Error
 	if err != nil {
 		common.SysLog("failed to record log: " + err.Error())
@@ -107,6 +108,7 @@ func RecordLogWithAdminInfo(userId int, logType int, content string, adminInfo m
 		Type:      logType,
 		Content:   content,
 	}
+	ApplyOwnershipFromUser(userId, log)
 	if len(adminInfo) > 0 {
 		other := map[string]interface{}{
 			"admin_info": adminInfo,
@@ -140,6 +142,7 @@ func RecordTopupLog(userId int, content string, callerIp string, paymentMethod s
 		Ip:        callerIp,
 		Other:     common.MapToJsonStr(other),
 	}
+	ApplyOwnershipFromUser(userId, log)
 	err := LOG_DB.Create(log).Error
 	if err != nil {
 		common.SysLog("failed to record topup log: " + err.Error())
@@ -184,6 +187,7 @@ func RecordErrorLog(c *gin.Context, userId int, channelId int, modelName string,
 		RequestId: requestId,
 		Other:     otherStr,
 	}
+	OwnershipFromContext(c).ApplyTo(log)
 	err := LOG_DB.Create(log).Error
 	if err != nil {
 		logger.LogError(c, "failed to record log: "+err.Error())
@@ -245,6 +249,7 @@ func RecordConsumeLog(c *gin.Context, userId int, params RecordConsumeLogParams)
 		RequestId: requestId,
 		Other:     otherStr,
 	}
+	OwnershipFromContext(c).ApplyTo(log)
 	err := LOG_DB.Create(log).Error
 	if err != nil {
 		logger.LogError(c, "failed to record log: "+err.Error())
@@ -293,6 +298,7 @@ func RecordTaskBillingLog(params RecordTaskBillingLogParams) {
 		Group:     params.Group,
 		Other:     common.MapToJsonStr(params.Other),
 	}
+	ApplyOwnershipFromUser(params.UserId, log)
 	err := LOG_DB.Create(log).Error
 	if err != nil {
 		common.SysLog("failed to record task billing log: " + err.Error())

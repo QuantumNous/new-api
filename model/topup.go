@@ -51,6 +51,9 @@ var (
 
 func (topUp *TopUp) Insert() error {
 	var err error
+	if topUp.TenantId == 0 {
+		ApplyOwnershipFromUser(topUp.UserId, topUp)
+	}
 	err = DB.Create(topUp).Error
 	return err
 }

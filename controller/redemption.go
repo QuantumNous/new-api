@@ -92,6 +92,7 @@ func AddRedemption(c *gin.Context) {
 			Quota:       redemption.Quota,
 			ExpiredTime: redemption.ExpiredTime,
 		}
+		model.ApplyOwnershipFromContext(c, &cleanRedemption)
 		err = cleanRedemption.Insert()
 		if err != nil {
 			common.SysError("failed to insert redemption: " + err.Error())

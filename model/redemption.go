@@ -161,6 +161,9 @@ func Redeem(key string, userId int) (quota int, err error) {
 
 func (redemption *Redemption) Insert() error {
 	var err error
+	if redemption.TenantId == 0 {
+		ApplyOwnershipFromUser(redemption.UserId, redemption)
+	}
 	err = DB.Create(redemption).Error
 	return err
 }

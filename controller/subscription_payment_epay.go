@@ -90,6 +90,7 @@ func SubscriptionRequestEpay(c *gin.Context) {
 		CreateTime:      time.Now().Unix(),
 		Status:          common.TopUpStatusPending,
 	}
+	model.ApplyOwnershipFromContext(c, order)
 	if err := order.Insert(); err != nil {
 		common.ApiErrorMsg(c, "创建订单失败")
 		return
