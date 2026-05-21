@@ -33,7 +33,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { getCodexUsage, updateChannelBalance } from '../../api'
-import { channelsQueryKeys } from '../../lib'
+import { channelsQueryKeys, formatChannelToastError } from '../../lib'
 import { useChannels } from '../channels-provider'
 import {
   CodexUsageDialog,
@@ -114,11 +114,19 @@ export function BalanceQueryDialog({
           queryKey: channelsQueryKeys.lists(),
         })
       } else {
-        toast.error(response.message || t('Failed to query balance'))
+        toast.error(
+          formatChannelToastError(
+            response.message,
+            t('Failed to query balance')
+          )
+        )
       }
     } catch (error: unknown) {
       toast.error(
-        error instanceof Error ? error.message : t('Failed to query balance')
+        formatChannelToastError(
+          error instanceof Error ? error.message : undefined,
+          t('Failed to query balance')
+        )
       )
     } finally {
       setIsQuerying(false)

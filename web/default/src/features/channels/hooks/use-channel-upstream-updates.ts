@@ -20,6 +20,7 @@ import { useRef, useState, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { api } from '@/lib/api'
+import { formatChannelToastError } from '../lib/channel-error-display'
 import { normalizeModelList } from '../lib/upstream-update-utils'
 
 function getManualIgnoredModelCount(settings: unknown): number {
@@ -121,7 +122,9 @@ export function useChannelUpstreamUpdates(refresh: () => Promise<void>) {
         )
         const { success, message, data } = res.data || {}
         if (!success) {
-          toast.error(message || t('Operation failed'))
+          toast.error(
+            formatChannelToastError(message, t('Operation failed'))
+          )
           return
         }
 
@@ -144,7 +147,10 @@ export function useChannelUpstreamUpdates(refresh: () => Promise<void>) {
           message?: string
         }
         toast.error(
-          err?.response?.data?.message || err?.message || t('Operation failed')
+          formatChannelToastError(
+            err?.response?.data?.message || err?.message,
+            t('Operation failed')
+          )
         )
       } finally {
         applyRef.current = false
@@ -166,7 +172,9 @@ export function useChannelUpstreamUpdates(refresh: () => Promise<void>) {
       )
       const { success, message, data } = res.data || {}
       if (!success) {
-        toast.error(message || t('Batch processing failed'))
+        toast.error(
+          formatChannelToastError(message, t('Batch processing failed'))
+        )
         return
       }
 
@@ -188,9 +196,10 @@ export function useChannelUpstreamUpdates(refresh: () => Promise<void>) {
         message?: string
       }
       toast.error(
-        err?.response?.data?.message ||
-          err?.message ||
+        formatChannelToastError(
+          err?.response?.data?.message || err?.message,
           t('Batch processing failed')
+        )
       )
     } finally {
       applyAllRef.current = false
@@ -210,7 +219,9 @@ export function useChannelUpstreamUpdates(refresh: () => Promise<void>) {
         )
         const { success, message, data } = res.data || {}
         if (!success) {
-          toast.error(message || t('Detection failed'))
+          toast.error(
+            formatChannelToastError(message, t('Detection failed'))
+          )
           return
         }
 
@@ -227,7 +238,10 @@ export function useChannelUpstreamUpdates(refresh: () => Promise<void>) {
           message?: string
         }
         toast.error(
-          err?.response?.data?.message || err?.message || t('Detection failed')
+          formatChannelToastError(
+            err?.response?.data?.message || err?.message,
+            t('Detection failed')
+          )
         )
       } finally {
         detectRef.current = false
@@ -248,7 +262,9 @@ export function useChannelUpstreamUpdates(refresh: () => Promise<void>) {
       )
       const { success, message, data } = res.data || {}
       if (!success) {
-        toast.error(message || t('Batch detection failed'))
+        toast.error(
+          formatChannelToastError(message, t('Batch detection failed'))
+        )
         return
       }
 
@@ -270,9 +286,10 @@ export function useChannelUpstreamUpdates(refresh: () => Promise<void>) {
         message?: string
       }
       toast.error(
-        err?.response?.data?.message ||
-          err?.message ||
+        formatChannelToastError(
+          err?.response?.data?.message || err?.message,
           t('Batch detection failed')
+        )
       )
     } finally {
       detectAllRef.current = false

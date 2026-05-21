@@ -48,6 +48,7 @@ import { fetchUpstreamModels, updateChannel } from '../../api'
 import {
   channelsQueryKeys,
   categorizeModelsWithRedirect,
+  formatChannelToastError,
   normalizeModelName,
   parseModelsString,
 } from '../../lib'
@@ -151,13 +152,21 @@ export function FetchModelsDialog({
           setSelectedModels(existingModels)
           toast.success(t('Fetched {{count}} models', { count: list.length }))
         } else {
-          toast.error(response.message || t('Failed to fetch models'))
+          toast.error(
+            formatChannelToastError(
+              response.message,
+              t('Failed to fetch models')
+            )
+          )
           setFetchedModels([])
         }
       }
     } catch (error: unknown) {
       toast.error(
-        error instanceof Error ? error.message : t('Failed to fetch models')
+        formatChannelToastError(
+          error instanceof Error ? error.message : undefined,
+          t('Failed to fetch models')
+        )
       )
       setFetchedModels([])
     } finally {
@@ -187,11 +196,19 @@ export function FetchModelsDialog({
         queryClient.invalidateQueries({ queryKey: channelsQueryKeys.lists() })
         onOpenChange(false)
       } else {
-        toast.error(response.message || t('Failed to update models'))
+        toast.error(
+          formatChannelToastError(
+            response.message,
+            t('Failed to update models')
+          )
+        )
       }
     } catch (error: unknown) {
       toast.error(
-        error instanceof Error ? error.message : t('Failed to update models')
+        formatChannelToastError(
+          error instanceof Error ? error.message : undefined,
+          t('Failed to update models')
+        )
       )
     } finally {
       setIsSaving(false)

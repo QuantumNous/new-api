@@ -21,6 +21,11 @@ import i18next from 'i18next'
 import { toast } from 'sonner'
 import { formatCurrencyFromUSD } from '@/lib/currency'
 import {
+  formatChannelApiError,
+  formatChannelErrorMessageForOpsCenter,
+  formatChannelToastError,
+} from './channel-error-display'
+import {
   copyChannel,
   deleteChannel,
   testChannel,
@@ -159,7 +164,12 @@ export async function handleUpdateChannelField(
       queryClient?.invalidateQueries({ queryKey: channelsQueryKeys.lists() })
       onSuccess?.()
     } else {
-      toast.error(response.message || i18next.t(ERROR_MESSAGES.UPDATE_FAILED))
+      toast.error(
+        formatChannelToastError(
+          response.message,
+          i18next.t(ERROR_MESSAGES.UPDATE_FAILED)
+        )
+      )
     }
   } catch (_error) {
     toast.error(i18next.t(ERROR_MESSAGES.UPDATE_FAILED))
@@ -193,7 +203,12 @@ export async function handleUpdateTagField(
       queryClient?.invalidateQueries({ queryKey: channelsQueryKeys.lists() })
       onSuccess?.()
     } else {
-      toast.error(response.message || i18next.t(ERROR_MESSAGES.UPDATE_FAILED))
+      toast.error(
+        formatChannelToastError(
+          response.message,
+          i18next.t(ERROR_MESSAGES.UPDATE_FAILED)
+        )
+      )
     }
   } catch (_error) {
     toast.error(i18next.t(ERROR_MESSAGES.UPDATE_FAILED))
@@ -230,13 +245,23 @@ export async function handleTestChannel(
       toast.success(i18next.t(SUCCESS_MESSAGES.TESTED))
       onTestComplete?.(true, response.data?.response_time)
     } else {
-      toast.error(response.message || i18next.t(ERROR_MESSAGES.TEST_FAILED))
-      onTestComplete?.(false, undefined, response.message, response.error_code)
+      const displayMessage = formatChannelToastError(
+        response.message,
+        i18next.t(ERROR_MESSAGES.TEST_FAILED)
+      )
+      toast.error(displayMessage)
+      onTestComplete?.(
+        false,
+        undefined,
+        formatChannelErrorMessageForOpsCenter(response.message ?? ''),
+        response.error_code
+      )
     }
   } catch (_error: unknown) {
-    const err = _error as { response?: { data?: { message?: string } } }
-    const errorMsg =
-      err?.response?.data?.message || i18next.t(ERROR_MESSAGES.TEST_FAILED)
+    const errorMsg = formatChannelApiError(
+      _error,
+      i18next.t(ERROR_MESSAGES.TEST_FAILED)
+    )
     toast.error(errorMsg)
     onTestComplete?.(false, undefined, errorMsg)
   }
@@ -287,13 +312,19 @@ export async function handleUpdateChannelBalance(
       queryClient?.invalidateQueries({ queryKey: channelsQueryKeys.lists() })
       onSuccess?.(balance)
     } else {
-      toast.error(response.message || i18next.t('Failed to update balance'))
+      toast.error(
+        formatChannelToastError(
+          response.message,
+          i18next.t('Failed to update balance')
+        )
+      )
     }
   } catch (_error: unknown) {
     toast.error(
-      _error instanceof Error
-        ? _error.message
-        : i18next.t('Failed to update balance')
+      formatChannelToastError(
+        _error instanceof Error ? _error.message : undefined,
+        i18next.t('Failed to update balance')
+      )
     )
   }
 }
@@ -559,7 +590,10 @@ export async function handleTestAllChannels(
       onSuccess?.()
     } else {
       toast.error(
-        response.message || i18next.t('Failed to start testing all channels')
+        formatChannelToastError(
+          response.message,
+          i18next.t('Failed to start testing all channels')
+        )
       )
     }
   } catch (_error) {
@@ -586,7 +620,10 @@ export async function handleUpdateAllBalances(
       onSuccess?.()
     } else {
       toast.error(
-        response.message || i18next.t('Failed to update all balances')
+        formatChannelToastError(
+          response.message,
+          i18next.t('Failed to update all balances')
+        )
       )
     }
   } catch (_error) {

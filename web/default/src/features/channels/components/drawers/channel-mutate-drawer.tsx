@@ -130,6 +130,8 @@ import {
   CHANNEL_FORM_DEFAULT_VALUES,
   channelFormSchema,
   channelsQueryKeys,
+  formatChannelErrorMessageForOpsCenter,
+  formatChannelToastError,
   transformChannelToFormDefaults,
   transformFormDataToCreatePayload,
   transformFormDataToUpdatePayload,
@@ -179,24 +181,27 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 function getErrorMessage(error: unknown): string | undefined {
+  let raw: string | undefined
+
   if (error instanceof Error && typeof error.message === 'string') {
-    return error.message
-  }
-
-  if (!isRecord(error)) return undefined
-
-  const response = error.response
-  if (isRecord(response)) {
-    const data = response.data
-    if (isRecord(data)) {
-      const message = data.message
-      if (typeof message === 'string') return message
+    raw = error.message
+  } else if (isRecord(error)) {
+    const response = error.response
+    if (isRecord(response)) {
+      const data = response.data
+      if (isRecord(data)) {
+        const message = data.message
+        if (typeof message === 'string') raw = message
+      }
+    }
+    if (!raw) {
+      const message = error.message
+      if (typeof message === 'string') raw = message
     }
   }
 
-  const message = error.message
-  if (typeof message === 'string') return message
-  return undefined
+  if (!raw) return undefined
+  return formatChannelErrorMessageForOpsCenter(raw)
 }
 
 // Helper functions
@@ -722,7 +727,7 @@ export function ChannelMutateDrawer({
       })
     } catch (error) {
       if (error instanceof Error) {
-        toast.error(error.message)
+        toast.error(formatChannelToastError(error.message))
       }
     }
   }, [channelId, withVerification, fetchChannelKey, t])
@@ -740,7 +745,12 @@ export function ChannelMutateDrawer({
         queryKey: channelsQueryKeys.detail(channelId),
       })
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : t('Refresh failed'))
+      toast.error(
+        formatChannelToastError(
+          error instanceof Error ? error.message : undefined,
+          t('Refresh failed')
+        )
+      )
     } finally {
       setIsCodexCredentialRefreshing(false)
     }
