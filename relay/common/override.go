@@ -26,13 +26,20 @@ const (
 
 var errSourceHeaderNotFound = errors.New("source header does not exist")
 
-var paramOverrideKeyAuditPaths = map[string]struct{}{
-	"model":          {},
-	"original_model": {},
-	"upstream_model": {},
-	"service_tier":   {},
-	"inference_geo":  {},
-	"speed":          {},
+var paramOverrideSensitivePathPrefixes = []string{
+	"model",
+	"original_model",
+	"upstream_model",
+	"service_tier",
+	"inference_geo",
+	"speed",
+	"messages",
+	"input",
+	"instructions",
+	"system",
+	"contents",
+	"systemInstruction",
+	"system_instruction",
 }
 
 type paramOverrideAuditRecorder struct {
@@ -206,6 +213,7 @@ func shouldEnableParamOverrideAudit(paramOverride map[string]interface{}) bool {
 	if operations, ok := tryParseOperations(paramOverride); ok {
 		for _, operation := range operations {
 			if shouldAuditParamPath(strings.TrimSpace(operation.Path)) ||
+				shouldAuditParamPath(strings.TrimSpace(operation.From)) ||
 				shouldAuditParamPath(strings.TrimSpace(operation.To)) {
 				return true
 			}
@@ -255,15 +263,19 @@ func shouldAuditParamPath(path string) bool {
 	if common.DebugEnabled {
 		return true
 	}
-	_, ok := paramOverrideKeyAuditPaths[path]
-	return ok
+	for _, prefix := range paramOverrideSensitivePathPrefixes {
+		if path == prefix || strings.HasPrefix(path, prefix+".") {
+			return true
+		}
+	}
+	return false
 }
 
 func shouldAuditOperation(mode, path, from, to string) bool {
 	if common.DebugEnabled {
 		return true
 	}
-	for _, candidate := range []string{path, to} {
+	for _, candidate := range []string{path, from, to} {
 		if shouldAuditParamPath(candidate) {
 			return true
 		}
