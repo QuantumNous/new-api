@@ -101,6 +101,12 @@ func NotifyUser(userId int, userEmail string, userSetting dto.UserSetting, data 
 			return nil
 		}
 		return sendGotifyNotify(gotifyUrl, gotifyToken, userSetting.GotifyPriority, data)
+	case dto.NotifyTypeSms:
+		if userSetting.SmsPhoneNumber == "" {
+			common.SysLog(fmt.Sprintf("user %d has no sms phone number, skip sending sms", userId))
+			return nil
+		}
+		return sendSmsNotify(userSetting.SmsPhoneNumber, data)
 	}
 	return nil
 }
