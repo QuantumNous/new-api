@@ -130,8 +130,8 @@ export function IoNetDeploymentSettingsSection({
 
   return (
     <SettingsSection
-      title={t('io.net Deployments')}
-      description={t('Configure io.net API key for model deployments')}
+      title={t('External compute deployment')}
+      description={t('Configure external compute deployment channel')}
     >
       <Form {...form}>
         <form
@@ -146,10 +146,10 @@ export function IoNetDeploymentSettingsSection({
               <FormItem className='flex flex-row items-center justify-between rounded-lg border p-4'>
                 <div className='space-y-0.5'>
                   <FormLabel className='text-base'>
-                    {t('Enable io.net deployments')}
+                    {t('Enable external compute deployment')}
                   </FormLabel>
                   <FormDescription>
-                    {t('Enable io.net model deployment service in console')}
+                    {t('Enable external compute deployment in console')}
                   </FormDescription>
                 </div>
                 <FormControl>
@@ -170,7 +170,9 @@ export function IoNetDeploymentSettingsSection({
                 name='apiKey'
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>{t('io.net API Key')}</FormLabel>
+                    <FormLabel>
+                      {t('External compute deployment API Key')}
+                    </FormLabel>
                     <div className='flex gap-2'>
                       <FormControl>
                         <Input
@@ -194,7 +196,7 @@ export function IoNetDeploymentSettingsSection({
                       </Button>
                     </div>
                     <FormDescription>
-                      {t('Used to authenticate with io.net deployment API')}
+                      {t('Used to authenticate with external compute deployment API')}
                     </FormDescription>
                     <FormMessage />
                   </FormItem>
@@ -202,11 +204,15 @@ export function IoNetDeploymentSettingsSection({
               />
 
               <Alert variant='default'>
-                <AlertTitle>{t('How to get an io.net API Key')}</AlertTitle>
+                <AlertTitle>
+                  {t('How to get an external compute deployment API Key')}
+                </AlertTitle>
                 <AlertDescription>
                   <div className='space-y-2'>
                     <ul className='list-disc space-y-1 pl-5'>
-                      <li>{t('Open the io.net console API Keys page')}</li>
+                      <li>
+                        {t('Open the provider console API Keys page')}
+                      </li>
                       <li>
                         {t(
                           'Set Project to io.cloud when creating/selecting key'
@@ -221,7 +227,7 @@ export function IoNetDeploymentSettingsSection({
                         window.open('https://ai.io.net/ai/api-keys', '_blank')
                       }
                     >
-                      {t('Go to io.net API Keys')}
+                      {t('Go to provider API keys page')}
                     </Button>
                   </div>
                 </AlertDescription>
@@ -233,7 +239,7 @@ export function IoNetDeploymentSettingsSection({
                   <div>
                     <AlertTitle>{t('Connection successful')}</AlertTitle>
                     <AlertDescription>
-                      {t('Connected to io.net service normally.')}
+                      {t('Connected to external compute deployment service normally.')}
                     </AlertDescription>
                   </div>
                 </Alert>
@@ -260,7 +266,7 @@ export function IoNetDeploymentSettingsSection({
           >
             {updateOption.isPending || isSubmitting
               ? t('Saving...')
-              : t('Save io.net settings')}
+              : t('Save external compute deployment settings')}
           </Button>
         </form>
       </Form>

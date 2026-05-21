@@ -145,8 +145,8 @@ const OPERATIONS_SECTIONS = [
   },
   {
     id: 'update-checker',
-    titleKey: 'System maintenance',
-    descriptionKey: 'Check for system updates',
+    titleKey: 'Platform version',
+    descriptionKey: 'View running platform version and uptime',
     build: (
       _settings: OperationsSettings,
       currentVersion?: string | null,
@@ -175,6 +175,19 @@ const operationsRegistry = createSectionRegistry<
 
 export const OPERATIONS_SECTION_IDS = operationsRegistry.sectionIds
 export const OPERATIONS_DEFAULT_SECTION = operationsRegistry.defaultSection
-export const getOperationsSectionNavItems =
-  operationsRegistry.getSectionNavItems
+/** Hidden from customer-demo navigation; direct URL still resolves. */
+const DEMO_HIDDEN_OPERATIONS_NAV_PATHS = ['/update-checker'] as const
+
+export function getOperationsSectionNavItems(
+  t: Parameters<typeof operationsRegistry.getSectionNavItems>[0]
+) {
+  return operationsRegistry
+    .getSectionNavItems(t)
+    .filter(
+      (item) =>
+        !DEMO_HIDDEN_OPERATIONS_NAV_PATHS.some((hidden) =>
+          item.url.includes(hidden)
+        )
+    )
+}
 export const getOperationsSectionContent = operationsRegistry.getSectionContent

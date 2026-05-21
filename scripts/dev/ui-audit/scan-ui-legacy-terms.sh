@@ -181,8 +181,14 @@ classify_hit() {
     return 0
   fi
 
-  if [[ "$rel" == *update-checker-section.tsx* ]]; then
+  if [[ "$rel" == *update-checker-section.tsx* ]] \
+    || [[ "$rel" == *ionet-deployment-settings-section.tsx* ]]; then
     echo "p2_deep_settings"
+    return 0
+  fi
+
+  if [[ "$line" =~ getElementById\(['\"]fluent-new-api-container['\"] ]]; then
+    echo "likely_internal_contract"
     return 0
   fi
 

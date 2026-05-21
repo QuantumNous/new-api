@@ -35,18 +35,8 @@ import {
 } from '@/components/ui/dropdown-menu'
 
 const providers = {
-  github: {
-    title: 'Open in GitHub',
-    createUrl: (url: string) => url,
-    icon: (
-      <svg fill='currentColor' role='img' viewBox='0 0 24 24'>
-        <title>GitHub</title>
-        <path d='M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12' />
-      </svg>
-    ),
-  },
   scira: {
-    title: 'Open in Scira',
+    titleKey: 'Open in Scira',
     createUrl: (q: string) =>
       `https://scira.ai/?${new URLSearchParams({
         q,
@@ -111,7 +101,7 @@ const providers = {
     ),
   },
   chatgpt: {
-    title: 'Open in ChatGPT',
+    titleKey: 'Open in ChatGPT',
     createUrl: (prompt: string) =>
       `https://chatgpt.com/?${new URLSearchParams({
         hints: 'search',
@@ -130,7 +120,7 @@ const providers = {
     ),
   },
   claude: {
-    title: 'Open in Claude',
+    titleKey: 'Open in Claude',
     createUrl: (q: string) =>
       `https://claude.ai/new?${new URLSearchParams({
         q,
@@ -152,7 +142,7 @@ const providers = {
     ),
   },
   t3: {
-    title: 'Open in T3 Chat',
+    titleKey: 'Open in T3 Chat',
     createUrl: (q: string) =>
       `https://t3.chat/new?${new URLSearchParams({
         q,
@@ -160,7 +150,7 @@ const providers = {
     icon: <MessageCircleIcon />,
   },
   v0: {
-    title: 'Open in v0',
+    titleKey: 'Open in v0',
     createUrl: (q: string) =>
       `https://v0.app?${new URLSearchParams({
         q,
@@ -178,7 +168,7 @@ const providers = {
     ),
   },
   cursor: {
-    title: 'Open in Cursor',
+    titleKey: 'Open in Cursor',
     createUrl: (text: string) => {
       const url = new URL('https://cursor.com/link/prompt')
       url.searchParams.set('text', text)
@@ -259,7 +249,7 @@ export const OpenInTrigger = ({ children, ...props }: OpenInTriggerProps) => {
         <Button type='button' variant='outline'>
           {children ?? (
             <>
-              {t('Open in chat')}
+              {t('Open chat client')}
               <ChevronDownIcon className='ml-2 size-4' />
             </>
           )}
@@ -272,6 +262,7 @@ export const OpenInTrigger = ({ children, ...props }: OpenInTriggerProps) => {
 export type OpenInChatGPTProps = ComponentProps<typeof DropdownMenuItem>
 
 export const OpenInChatGPT = (props: OpenInChatGPTProps) => {
+  const { t } = useTranslation()
   const { query } = useOpenInContext()
   return (
     <DropdownMenuItem
@@ -286,7 +277,7 @@ export const OpenInChatGPT = (props: OpenInChatGPTProps) => {
       }
     >
       <span className='shrink-0'>{providers.chatgpt.icon}</span>
-      <span className='flex-1'>{providers.chatgpt.title}</span>
+      <span className='flex-1'>{t(providers.chatgpt.titleKey)}</span>
       <ExternalLinkIcon className='size-4 shrink-0' />
     </DropdownMenuItem>
   )
@@ -295,6 +286,7 @@ export const OpenInChatGPT = (props: OpenInChatGPTProps) => {
 export type OpenInClaudeProps = ComponentProps<typeof DropdownMenuItem>
 
 export const OpenInClaude = (props: OpenInClaudeProps) => {
+  const { t } = useTranslation()
   const { query } = useOpenInContext()
   return (
     <DropdownMenuItem
@@ -309,7 +301,7 @@ export const OpenInClaude = (props: OpenInClaudeProps) => {
       }
     >
       <span className='shrink-0'>{providers.claude.icon}</span>
-      <span className='flex-1'>{providers.claude.title}</span>
+      <span className='flex-1'>{t(providers.claude.titleKey)}</span>
       <ExternalLinkIcon className='size-4 shrink-0' />
     </DropdownMenuItem>
   )
@@ -318,6 +310,7 @@ export const OpenInClaude = (props: OpenInClaudeProps) => {
 export type OpenInT3Props = ComponentProps<typeof DropdownMenuItem>
 
 export const OpenInT3 = (props: OpenInT3Props) => {
+  const { t } = useTranslation()
   const { query } = useOpenInContext()
   return (
     <DropdownMenuItem
@@ -332,7 +325,7 @@ export const OpenInT3 = (props: OpenInT3Props) => {
       }
     >
       <span className='shrink-0'>{providers.t3.icon}</span>
-      <span className='flex-1'>{providers.t3.title}</span>
+      <span className='flex-1'>{t(providers.t3.titleKey)}</span>
       <ExternalLinkIcon className='size-4 shrink-0' />
     </DropdownMenuItem>
   )
@@ -341,6 +334,7 @@ export const OpenInT3 = (props: OpenInT3Props) => {
 export type OpenInSciraProps = ComponentProps<typeof DropdownMenuItem>
 
 export const OpenInScira = (props: OpenInSciraProps) => {
+  const { t } = useTranslation()
   const { query } = useOpenInContext()
   return (
     <DropdownMenuItem
@@ -355,7 +349,7 @@ export const OpenInScira = (props: OpenInSciraProps) => {
       }
     >
       <span className='shrink-0'>{providers.scira.icon}</span>
-      <span className='flex-1'>{providers.scira.title}</span>
+      <span className='flex-1'>{t(providers.scira.titleKey)}</span>
       <ExternalLinkIcon className='size-4 shrink-0' />
     </DropdownMenuItem>
   )
@@ -364,6 +358,7 @@ export const OpenInScira = (props: OpenInSciraProps) => {
 export type OpenInv0Props = ComponentProps<typeof DropdownMenuItem>
 
 export const OpenInv0 = (props: OpenInv0Props) => {
+  const { t } = useTranslation()
   const { query } = useOpenInContext()
   return (
     <DropdownMenuItem
@@ -378,7 +373,7 @@ export const OpenInv0 = (props: OpenInv0Props) => {
       }
     >
       <span className='shrink-0'>{providers.v0.icon}</span>
-      <span className='flex-1'>{providers.v0.title}</span>
+      <span className='flex-1'>{t(providers.v0.titleKey)}</span>
       <ExternalLinkIcon className='size-4 shrink-0' />
     </DropdownMenuItem>
   )
@@ -387,6 +382,7 @@ export const OpenInv0 = (props: OpenInv0Props) => {
 export type OpenInCursorProps = ComponentProps<typeof DropdownMenuItem>
 
 export const OpenInCursor = (props: OpenInCursorProps) => {
+  const { t } = useTranslation()
   const { query } = useOpenInContext()
   return (
     <DropdownMenuItem
@@ -401,7 +397,7 @@ export const OpenInCursor = (props: OpenInCursorProps) => {
       }
     >
       <span className='shrink-0'>{providers.cursor.icon}</span>
-      <span className='flex-1'>{providers.cursor.title}</span>
+      <span className='flex-1'>{t(providers.cursor.titleKey)}</span>
       <ExternalLinkIcon className='size-4 shrink-0' />
     </DropdownMenuItem>
   )

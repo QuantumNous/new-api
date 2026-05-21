@@ -167,7 +167,7 @@ export function DeploymentAccessGuard({
             <AlertTitle>{t('Configuration required')}</AlertTitle>
             <AlertDescription>
               {t(
-                'Please enable io.net model deployment service and configure an API key in System Settings.'
+                'Please enable external compute deployment and configure an API key in System Settings.'
               )}
             </AlertDescription>
           </Alert>

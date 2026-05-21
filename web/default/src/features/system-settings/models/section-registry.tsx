@@ -147,8 +147,8 @@ const MODELS_SECTIONS = [
   },
   {
     id: 'model-deployment',
-    titleKey: 'Model Deployment',
-    descriptionKey: 'Configure model deployment provider settings',
+    titleKey: 'External compute deployment',
+    descriptionKey: 'Configure external compute deployment channel',
     build: (settings: ModelSettings) => (
       <IoNetDeploymentSettingsSection
         defaultValues={{

@@ -41,6 +41,23 @@ import { type NavGroup } from '../types'
  */
 export const WORKSPACE_SYSTEM_SETTINGS_ID = 'system-settings'
 
+/** Hidden from customer-demo navigation; direct URL still resolves. */
+const DEMO_HIDDEN_SYSTEM_SETTINGS_NAV_PATHS = [
+  '/system-settings/operations/update-checker',
+  '/system-settings/models/model-deployment',
+] as const
+
+function filterDemoHiddenSystemSettingsNavItems<
+  T extends { url: string },
+>(items: T[]): T[] {
+  return items.filter(
+    (item) =>
+      !DEMO_HIDDEN_SYSTEM_SETTINGS_NAV_PATHS.some((hidden) =>
+        item.url.includes(hidden)
+      )
+  )
+}
+
 export function getSystemSettingsNavGroups(t: TFunction): NavGroup[] {
   return [
     {
@@ -65,7 +82,9 @@ export function getSystemSettingsNavGroups(t: TFunction): NavGroup[] {
         {
           title: t('Model Resources & Routing'),
           icon: Box,
-          items: getModelsSectionNavItems(t),
+          items: filterDemoHiddenSystemSettingsNavItems(
+            getModelsSectionNavItems(t)
+          ),
         },
         {
           title: t('Security & Rate Limits'),
@@ -80,7 +99,9 @@ export function getSystemSettingsNavGroups(t: TFunction): NavGroup[] {
         {
           title: t('Operations Monitoring'),
           icon: Wrench,
-          items: getOperationsSectionNavItems(t),
+          items: filterDemoHiddenSystemSettingsNavItems(
+            getOperationsSectionNavItems(t)
+          ),
         },
       ],
     },
