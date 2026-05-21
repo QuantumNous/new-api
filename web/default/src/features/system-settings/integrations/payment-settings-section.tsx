@@ -747,7 +747,7 @@ export function PaymentSettingsSection({
                 name='Price'
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>{t('Price (local currency / USD)')}</FormLabel>
+                    <FormLabel>{t('systemSettings.payment.epay.unitPrice')}</FormLabel>
                     <FormControl>
                       <Input
                         type='number'
@@ -760,9 +760,7 @@ export function PaymentSettingsSection({
                       />
                     </FormControl>
                     <FormDescription>
-                      {t(
-                        'How much to charge for each US dollar of balance (Epay)'
-                      )}
+                      {t('systemSettings.payment.epay.unitPriceDesc')}
                     </FormDescription>
                     <FormMessage />
                   </FormItem>
@@ -774,7 +772,7 @@ export function PaymentSettingsSection({
                 name='MinTopUp'
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>{t('Minimum top-up (USD)')}</FormLabel>
+                    <FormLabel>{t('systemSettings.payment.minTopUpRmb')}</FormLabel>
                     <FormControl>
                       <Input
                         type='number'
@@ -787,7 +785,7 @@ export function PaymentSettingsSection({
                       />
                     </FormControl>
                     <FormDescription>
-                      {t('Smallest USD amount users can recharge (Epay)')}
+                      {t('systemSettings.payment.minTopUpRmbDesc')}
                     </FormDescription>
                     <FormMessage />
                   </FormItem>
@@ -1212,7 +1210,7 @@ export function PaymentSettingsSection({
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>
-                      {t('Unit price (local currency / USD)')}
+                      {t('systemSettings.payment.stripe.unitPrice')}
                     </FormLabel>
                     <FormControl>
                       <Input
@@ -1226,7 +1224,7 @@ export function PaymentSettingsSection({
                       />
                     </FormControl>
                     <FormDescription>
-                      {t('e.g., 8 means 8 local currency per USD')}
+                      {t('systemSettings.payment.stripe.unitPriceDesc')}
                     </FormDescription>
                     <FormMessage />
                   </FormItem>
@@ -1238,7 +1236,7 @@ export function PaymentSettingsSection({
                 name='StripeMinTopUp'
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>{t('Minimum top-up (USD)')}</FormLabel>
+                    <FormLabel>{t('systemSettings.payment.stripe.minTopUp')}</FormLabel>
                     <FormControl>
                       <Input
                         type='number'
@@ -1251,7 +1249,7 @@ export function PaymentSettingsSection({
                       />
                     </FormControl>
                     <FormDescription>
-                      {t('Minimum recharge amount in USD')}
+                      {t('systemSettings.payment.stripe.minTopUpDesc')}
                     </FormDescription>
                     <FormMessage />
                   </FormItem>
@@ -1439,6 +1437,8 @@ export function PaymentSettingsSection({
                   </FormControl>
                   <FormDescription>
                     {t('Configure Creem products. Provide a JSON array.')}
+                    {' '}
+                    {t('systemSettings.payment.creem.jsonCompatNote')}
                   </FormDescription>
                   <FormMessage />
                 </FormItem>

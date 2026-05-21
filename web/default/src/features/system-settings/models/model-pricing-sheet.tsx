@@ -324,14 +324,14 @@ function buildPreviewRows(
     {
       key: 'inputPrice',
       label: t('Input price'),
-      value: promptPrice ? `$${promptPrice}` : t('Empty'),
+      value: promptPrice ? `¥${promptPrice}` : t('Empty'),
     },
     {
       key: 'completion',
       label: t('Completion price'),
       value:
         laneEnabled.completion && lanePrices.completion
-          ? `$${lanePrices.completion}`
+          ? `¥${lanePrices.completion}`
           : t('Empty'),
     },
     {
@@ -339,7 +339,7 @@ function buildPreviewRows(
       label: t('Cache read price'),
       value:
         laneEnabled.cache && lanePrices.cache
-          ? `$${lanePrices.cache}`
+          ? `¥${lanePrices.cache}`
           : t('Empty'),
     },
     {
@@ -347,7 +347,7 @@ function buildPreviewRows(
       label: t('Cache write price'),
       value:
         laneEnabled.createCache && lanePrices.createCache
-          ? `$${lanePrices.createCache}`
+          ? `¥${lanePrices.createCache}`
           : t('Empty'),
     },
     {
@@ -355,7 +355,7 @@ function buildPreviewRows(
       label: t('Image input price'),
       value:
         laneEnabled.image && lanePrices.image
-          ? `$${lanePrices.image}`
+          ? `¥${lanePrices.image}`
           : t('Empty'),
     },
     {
@@ -363,7 +363,7 @@ function buildPreviewRows(
       label: t('Audio input price'),
       value:
         laneEnabled.audioInput && lanePrices.audioInput
-          ? `$${lanePrices.audioInput}`
+          ? `¥${lanePrices.audioInput}`
           : t('Empty'),
     },
     {
@@ -371,7 +371,7 @@ function buildPreviewRows(
       label: t('Audio output price'),
       value:
         laneEnabled.audioOutput && lanePrices.audioOutput
-          ? `$${lanePrices.audioOutput}`
+          ? `¥${lanePrices.audioOutput}`
           : t('Empty'),
     },
   ]
@@ -820,7 +820,7 @@ export function ModelPricingEditorPanel({
                         onChange={handlePromptPriceChange}
                       />
                       <FieldDescription>
-                        {t('USD price per 1M input tokens.')}
+                        {t('systemSettings.pricing.inputPricePerMillionDesc')}
                       </FieldDescription>
                     </Field>
 
@@ -864,7 +864,7 @@ export function ModelPricingEditorPanel({
                         <FormLabel>{t('Fixed price')}</FormLabel>
                         <FormControl>
                           <InputGroup>
-                            <InputGroupAddon>$</InputGroupAddon>
+                            <InputGroupAddon>¥</InputGroupAddon>
                             <InputGroupInput
                               inputMode='decimal'
                               placeholder='0.01'
@@ -882,9 +882,7 @@ export function ModelPricingEditorPanel({
                           </InputGroup>
                         </FormControl>
                         <FormDescription>
-                          {t(
-                            'Cost in USD per request, regardless of tokens used.'
-                          )}
+                          {t('systemSettings.pricing.fixedPricePerRequestDesc')}
                         </FormDescription>
                         <FormMessage />
                       </FormItem>
@@ -981,9 +979,10 @@ function PriceInput(props: {
   disabled?: boolean
   onChange: (value: string) => void
 }) {
+  const { t } = useTranslation()
   return (
     <InputGroup>
-      <InputGroupAddon>$</InputGroupAddon>
+      <InputGroupAddon>¥</InputGroupAddon>
       <InputGroupInput
         inputMode='decimal'
         value={props.value}
@@ -991,7 +990,9 @@ function PriceInput(props: {
         disabled={props.disabled}
         onChange={(event) => props.onChange(event.target.value)}
       />
-      <InputGroupAddon align='inline-end'>$/1M</InputGroupAddon>
+      <InputGroupAddon align='inline-end'>
+        {t('systemSettings.pricing.perMillionTokensSuffix')}
+      </InputGroupAddon>
     </InputGroup>
   )
 }
@@ -1037,7 +1038,7 @@ function PriceLane(props: {
       />
       <FieldDescription>
         {props.enabled
-          ? t('USD price per 1M tokens.')
+          ? t('systemSettings.pricing.lanePricePerMillionDesc')
           : t('Disabled lanes are omitted on save.')}
       </FieldDescription>
     </Field>

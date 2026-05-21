@@ -303,7 +303,7 @@ export function WaffoSettingsSection(props: Props) {
             <Input {...form.register('WaffoCurrency')} disabled />
           </div>
           <div className='grid gap-1.5'>
-            <Label>{t('Unit price (USD)')}</Label>
+            <Label>{t('systemSettings.payment.waffo.unitPrice')}</Label>
             <Input
               type='number'
               step={0.1}

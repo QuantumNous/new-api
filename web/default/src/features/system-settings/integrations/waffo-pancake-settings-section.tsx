@@ -173,9 +173,7 @@ export function WaffoPancakeSettingsSection(props: Props) {
   return (
     <SettingsSection
       title={t('Waffo Pancake Payment Gateway')}
-      description={t(
-        'Configure Waffo Pancake hosted checkout integration for USD-priced top-ups'
-      )}
+      description={t('systemSettings.payment.waffo.pancake.desc')}
     >
       <Alert>
         <AlertDescription className='text-xs'>
@@ -205,8 +203,16 @@ export function WaffoPancakeSettingsSection(props: Props) {
           <Label>{t('Sandbox mode')}</Label>
         </div>
         <div className='grid gap-1.5'>
-          <Label>{t('Currency')}</Label>
-          <Input placeholder='USD' {...form.register('WaffoPancakeCurrency')} />
+          <Label>{t('systemSettings.payment.waffo.pancake.currencyLabel')}</Label>
+          <Input
+            placeholder={t(
+              'systemSettings.payment.waffo.pancake.currencyPlaceholder'
+            )}
+            {...form.register('WaffoPancakeCurrency')}
+          />
+          <p className='text-muted-foreground text-xs'>
+            {t('systemSettings.payment.waffo.pancake.currencyHint')}
+          </p>
         </div>
       </div>
 
@@ -282,7 +288,7 @@ export function WaffoPancakeSettingsSection(props: Props) {
 
       <div className='grid grid-cols-2 gap-4'>
         <div className='grid gap-1.5'>
-          <Label>{t('Unit price (local currency / USD)')}</Label>
+          <Label>{t('systemSettings.payment.waffo.pancake.unitPrice')}</Label>
           <Input
             type='number'
             step={0.01}
@@ -291,7 +297,7 @@ export function WaffoPancakeSettingsSection(props: Props) {
           />
         </div>
         <div className='grid gap-1.5'>
-          <Label>{t('Minimum top-up (USD)')}</Label>
+          <Label>{t('systemSettings.payment.waffo.pancake.minTopUp')}</Label>
           <Input
             type='number'
             min={1}

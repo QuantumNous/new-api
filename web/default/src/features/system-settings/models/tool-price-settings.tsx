@@ -203,9 +203,7 @@ export const ToolPriceSettings = memo(function ToolPriceSettings({
       <Alert>
         <AlertDescription className='space-y-1 text-sm'>
           <div>
-            {t(
-              'Configure per-tool unit prices ($/1K calls). Per-request models do not incur additional tool fees.'
-            )}
+            {t('systemSettings.pricing.toolPrice.alert')}
           </div>
           <div>
             <span className='font-medium'>{t('Format')}:</span>{' '}
@@ -267,7 +265,7 @@ export const ToolPriceSettings = memo(function ToolPriceSettings({
               <TableRow>
                 <TableHead>{t('Tool identifier')}</TableHead>
                 <TableHead className='w-[200px]'>
-                  {t('Price ($/1K calls)')}
+                  {t('systemSettings.pricing.toolPrice.columnPrice')}
                 </TableHead>
                 <TableHead className='w-[80px] text-right'>
                   {t('Actions')}

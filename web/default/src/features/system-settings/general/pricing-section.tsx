@@ -183,10 +183,16 @@ export function PricingSection({ defaultValues }: PricingSectionProps) {
                   <FormLabel>{t('Display Mode')}</FormLabel>
                   <Select
                     items={[
-                      { value: 'USD', label: t('USD') },
+                      {
+                        value: 'USD',
+                        label: t('systemSettings.pricing.displayMode.rmbDisplay'),
+                      },
                       { value: 'CNY', label: t('CNY') },
                       { value: 'CUSTOM', label: t('Custom Currency') },
-                      { value: 'TOKENS', label: t('Tokens Only') },
+                      {
+                        value: 'TOKENS',
+                        label: t('systemSettings.pricing.displayMode.quotaScale'),
+                      },
                     ]}
                     value={field.value}
                     onValueChange={field.onChange}
@@ -198,14 +204,16 @@ export function PricingSection({ defaultValues }: PricingSectionProps) {
                     </FormControl>
                     <SelectContent alignItemWithTrigger={false}>
                       <SelectGroup>
-                        <SelectItem value='USD'>{t('USD')}</SelectItem>
+                        <SelectItem value='USD'>
+                          {t('systemSettings.pricing.displayMode.rmbDisplay')}
+                        </SelectItem>
                         <SelectItem value='CNY'>{t('CNY')}</SelectItem>
                         <SelectItem value='CUSTOM'>
                           {t('Custom Currency')}
                         </SelectItem>
                         {showTokensOnlyOption && (
                           <SelectItem value='TOKENS'>
-                            {t('Tokens Only')}
+                            {t('systemSettings.pricing.displayMode.quotaScale')}
                           </SelectItem>
                         )}
                       </SelectGroup>
@@ -227,10 +235,8 @@ export function PricingSection({ defaultValues }: PricingSectionProps) {
                   <FormItem>
                     <FormLabel>
                       {displayType === 'CNY'
-                        ? t('CNY per USD')
-                        : displayType === 'USD'
-                          ? t('USD Exchange Rate')
-                          : t('USD Exchange Rate')}
+                        ? t('systemSettings.pricing.exchangeRate.cnyToRmb')
+                        : t('systemSettings.pricing.exchangeRate.rmbDisplay')}
                     </FormLabel>
                     <FormControl>
                       <Input
@@ -244,9 +250,7 @@ export function PricingSection({ defaultValues }: PricingSectionProps) {
                       />
                     </FormControl>
                     <FormDescription>
-                      {t(
-                        'Real exchange rate between USD and your payment gateway currency'
-                      )}
+                      {t('systemSettings.pricing.exchangeRate.rmbDisplayDesc')}
                     </FormDescription>
                     <FormMessage />
                   </FormItem>
@@ -286,7 +290,9 @@ export function PricingSection({ defaultValues }: PricingSectionProps) {
                   name='general_setting.custom_currency_exchange_rate'
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>{t('Units per USD')}</FormLabel>
+                      <FormLabel>
+                        {t('systemSettings.pricing.custom.unitsPerRmb')}
+                      </FormLabel>
                       <FormControl>
                         <Input
                           type='number'
@@ -302,11 +308,13 @@ export function PricingSection({ defaultValues }: PricingSectionProps) {
                           name={field.name}
                           onBlur={field.onBlur}
                           ref={field.ref}
-                          placeholder={t('e.g. 8 means 1 USD = 8 units')}
+                          placeholder={t(
+                            'systemSettings.pricing.custom.unitsPerRmbPlaceholder'
+                          )}
                         />
                       </FormControl>
                       <FormDescription>
-                        {t('Conversion rate from USD to your custom currency')}
+                        {t('systemSettings.pricing.custom.unitsPerRmbDesc')}
                       </FormDescription>
                       <FormMessage />
                     </FormItem>
