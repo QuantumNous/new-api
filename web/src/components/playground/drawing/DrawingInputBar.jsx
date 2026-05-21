@@ -16,6 +16,7 @@ const DrawingInputBar = ({ onSubmit, disabled, loading, hasImage }) => {
   const [submitting, setSubmitting] = useState(false);
   const fileInputRef = useRef(null);
   const isSubmitting = loading || submitting;
+  const hasPrompt = prompt.trim().length > 0;
 
   const handleImageUpload = (e) => {
     const files = Array.from(e.target.files);
@@ -44,9 +45,20 @@ const DrawingInputBar = ({ onSubmit, disabled, loading, hasImage }) => {
 
     Modal.confirm({
       title: t('确认发送'),
-      content: t('确认提交当前提示词并开始生成图片？'),
+      content: (
+        <div className='text-sm leading-relaxed break-words'>
+          {t('确认提交当前提示词并开始生成图片？')}
+        </div>
+      ),
       okText: t('确认发送'),
       cancelText: t('取消'),
+      centered: true,
+      className: 'drawing-submit-confirm',
+      width: 'min(420px, calc(100vw - 32px))',
+      bodyStyle: {
+        maxHeight: 'calc(100dvh - 180px)',
+        overflow: 'auto',
+      },
       onOk: async () => {
         setSubmitting(true);
         try {
@@ -62,7 +74,7 @@ const DrawingInputBar = ({ onSubmit, disabled, loading, hasImage }) => {
 
   return (
     <div className='w-full max-w-3xl mx-auto'>
-      {hasImage && prompt && (
+      {hasImage && hasPrompt && (
         <div
           className='mb-2 px-3 py-1.5 rounded-lg text-xs border'
           style={{
@@ -113,10 +125,10 @@ const DrawingInputBar = ({ onSubmit, disabled, loading, hasImage }) => {
           onChange={(e) => setPrompt(e.target.value)}
           placeholder={t('描述你想生成的图片...')}
           disabled={disabled}
-          rows={3}
+          rows={hasPrompt ? 3 : 1}
           className='w-full text-sm px-4 pt-3 pb-2 resize-none outline-none leading-relaxed bg-transparent'
           style={{
-            minHeight: 80,
+            minHeight: hasPrompt ? 80 : 42,
             maxHeight: 200,
             color: 'var(--semi-color-text-0)',
           }}
@@ -164,15 +176,15 @@ const DrawingInputBar = ({ onSubmit, disabled, loading, hasImage }) => {
 
           <button
             onClick={handleSubmit}
-            disabled={!prompt.trim() || disabled || isSubmitting}
+            disabled={!hasPrompt || disabled || isSubmitting}
             className='w-8 h-8 rounded-lg flex items-center justify-center transition-colors cursor-pointer disabled:cursor-default'
             style={{
               background:
-                !prompt.trim() || disabled || isSubmitting
+                !hasPrompt || disabled || isSubmitting
                   ? 'var(--semi-color-fill-1)'
                   : 'var(--semi-color-primary)',
               color:
-                !prompt.trim() || disabled || isSubmitting
+                !hasPrompt || disabled || isSubmitting
                   ? 'var(--semi-color-text-2)'
                   : '#fff',
             }}

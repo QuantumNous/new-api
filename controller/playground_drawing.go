@@ -183,6 +183,13 @@ func GetDrawingSessionMessage(c *gin.Context) {
 	switch direction {
 	case "latest", "":
 		msg, err = model.GetLatestDrawingMessage(sessionId, userId)
+	case "current":
+		currentId, parseErr := strconv.ParseInt(currentIdRaw, 10, 64)
+		if parseErr != nil || currentId <= 0 {
+			common.ApiErrorMsg(c, "current_id is required")
+			return
+		}
+		msg, err = model.GetDrawingMessageById(currentIdRaw, sessionId, userId)
 	case "prev", "next":
 		currentId, parseErr := strconv.ParseInt(currentIdRaw, 10, 64)
 		if parseErr != nil || currentId <= 0 {

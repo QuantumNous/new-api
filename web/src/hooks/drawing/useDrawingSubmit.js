@@ -15,6 +15,10 @@ export function useDrawingSubmit(
 
   const startPolling = useCallback(
     (taskId) => {
+      if (!taskId || pollTimersRef.current[taskId]) {
+        return;
+      }
+
       const startTime = Date.now();
 
       const poll = async () => {
@@ -79,6 +83,7 @@ export function useDrawingSubmit(
         image_urls: images?.length ? JSON.stringify(images) : null,
         status: 'pending',
         task_id: null,
+        optimistic: true,
         created_at: Math.floor(Date.now() / 1000),
       };
       addOptimisticMessage(optimisticMsg);
@@ -93,11 +98,18 @@ export function useDrawingSubmit(
         });
 
         if (res.data.success) {
-          const { task_id } = res.data.data;
-          updateMessageByTaskId(null, { task_id, status: 'processing' });
+          const { task_id, message_id } = res.data.data;
+          updateMessageByTaskId(null, {
+            id: message_id || optimisticMsg.id,
+            task_id,
+            status: 'processing',
+            optimistic: false,
+          });
           // Update the optimistic message with real task_id
+          optimisticMsg.id = message_id || optimisticMsg.id;
           optimisticMsg.task_id = task_id;
           optimisticMsg.status = 'processing';
+          optimisticMsg.optimistic = false;
           startPolling(task_id);
           return task_id;
         } else {

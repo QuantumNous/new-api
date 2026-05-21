@@ -5,13 +5,17 @@ import React, {
   useRef,
   useState,
 } from 'react';
+import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useDrawingSessions } from '../../hooks/drawing/useDrawingSessions';
 import { useDrawingMessages } from '../../hooks/drawing/useDrawingMessages';
 import { useDrawingSubmit } from '../../hooks/drawing/useDrawingSubmit';
 import DrawingCanvas from '../../components/playground/drawing/DrawingCanvas';
 import DrawingInputBar from '../../components/playground/drawing/DrawingInputBar';
-import { Popover, Spin } from '@douyinfe/semi-ui';
+import { DEFAULT_DRAWING_MODEL } from '../../constants/drawing.constants';
+import { useIsMobile } from '../../hooks/common/useIsMobile';
+import { Modal, Popover, Spin } from '@douyinfe/semi-ui';
 import {
   ChevronDown,
   Image as ImageIcon,
@@ -22,9 +26,13 @@ import {
 
 const Drawing = () => {
   const { t } = useTranslation();
+  const isMobile = useIsMobile();
+  const location = useLocation();
+  const navigate = useNavigate();
   const [titleEditing, setTitleEditing] = useState(false);
   const [titleDraft, setTitleDraft] = useState('');
   const [sessionSelectorVisible, setSessionSelectorVisible] = useState(false);
+  const [headerToolbarRoot, setHeaderToolbarRoot] = useState(null);
   const sessionSelectorRef = useRef(null);
 
   const {
@@ -42,6 +50,7 @@ const Drawing = () => {
     pageInfo,
     loading: messagesLoading,
     loadMessages,
+    loadCurrentMessage,
     loadPreviousMessage,
     loadNextMessage,
     addOptimisticMessage,
@@ -53,13 +62,62 @@ const Drawing = () => {
     addOptimisticMessage,
     updateMessageByTaskId,
   );
+  const queryParams = useMemo(
+    () => new URLSearchParams(location.search),
+    [location.search],
+  );
+  const urlSessionId = queryParams.get('session');
+  const urlMessageId = queryParams.get('message');
+  const currentMessage = messages[0] || null;
 
   useEffect(() => {
-    loadMessages();
-  }, [activeSessionId, loadMessages]);
+    if (urlSessionId && urlSessionId !== activeSessionId) {
+      setActiveSessionId(urlSessionId);
+    }
+  }, [activeSessionId, setActiveSessionId, urlSessionId]);
+
+  useEffect(() => {
+    if (!activeSessionId) {
+      loadMessages();
+      return;
+    }
+
+    if (
+      urlSessionId === activeSessionId &&
+      urlMessageId &&
+      String(currentMessage?.id || '') !== urlMessageId
+    ) {
+      loadCurrentMessage(urlMessageId);
+      return;
+    }
+
+    if (!currentMessage || currentMessage.session_id !== activeSessionId) {
+      loadMessages();
+    }
+  }, [
+    activeSessionId,
+    currentMessage,
+    loadCurrentMessage,
+    loadMessages,
+    urlMessageId,
+    urlSessionId,
+  ]);
+
   useEffect(() => {
     return () => stopAllPolling();
   }, [stopAllPolling]);
+
+  useEffect(() => {
+    if (!isMobile) {
+      setHeaderToolbarRoot(null);
+      return;
+    }
+
+    setHeaderToolbarRoot(
+      document.getElementById('drawing-header-toolbar-root'),
+    );
+  }, [isMobile]);
+
   useEffect(() => {
     const previousBodyOverflow = document.body.style.overflow;
     const previousBodyOverscroll = document.body.style.overscrollBehavior;
@@ -77,7 +135,61 @@ const Drawing = () => {
         previousHtmlOverscroll;
     };
   }, []);
-  const currentMessage = messages[0] || null;
+  useEffect(() => {
+    if (!activeSessionId) {
+      if (urlSessionId) {
+        return;
+      }
+
+      if (location.search) {
+        navigate(
+          {
+            pathname: location.pathname,
+            search: '',
+          },
+          { replace: true },
+        );
+      }
+      return;
+    }
+
+    if (
+      urlSessionId === activeSessionId &&
+      urlMessageId &&
+      (!currentMessage || String(currentMessage.id || '') !== urlMessageId)
+    ) {
+      return;
+    }
+
+    const nextParams = new URLSearchParams();
+    nextParams.set('session', activeSessionId);
+    if (
+      currentMessage?.id &&
+      currentMessage.session_id === activeSessionId &&
+      !currentMessage.optimistic
+    ) {
+      nextParams.set('message', String(currentMessage.id));
+    }
+
+    const nextSearch = `?${nextParams.toString()}`;
+    if (location.search !== nextSearch) {
+      navigate(
+        {
+          pathname: location.pathname,
+          search: nextSearch,
+        },
+        { replace: true },
+      );
+    }
+  }, [
+    activeSessionId,
+    currentMessage,
+    location.pathname,
+    location.search,
+    navigate,
+    urlMessageId,
+    urlSessionId,
+  ]);
 
   useEffect(() => {
     if (
@@ -105,6 +217,24 @@ const Drawing = () => {
     [activeSessionId, createSession, submit, t, titleDraft],
   );
 
+  const handleRetry = useCallback(
+    async (message) => {
+      if (!message?.prompt?.trim()) return;
+
+      await submit(
+        {
+          prompt: message.prompt.trim(),
+          model: message.model || DEFAULT_DRAWING_MODEL,
+          size: message.size,
+          quality: message.quality || 'auto',
+          images: parseDrawingMessageImages(message.image_urls),
+        },
+        message.session_id || activeSessionId,
+      );
+    },
+    [activeSessionId, submit],
+  );
+
   const handleNewSession = useCallback(async () => {
     await createSession(t('新会话'));
     setSessionSelectorVisible(false);
@@ -116,6 +246,31 @@ const Drawing = () => {
       setSessionSelectorVisible(false);
     },
     [setActiveSessionId],
+  );
+
+  const handleDeleteSession = useCallback(
+    (session) => {
+      if (!session?.session_id) return;
+
+      Modal.confirm({
+        title: t('确认删除'),
+        content: (
+          <div className='text-sm leading-relaxed break-words'>
+            {t('确认删除会话')}：{session.title || t('未命名会话')}
+          </div>
+        ),
+        okText: t('删除'),
+        cancelText: t('取消'),
+        okType: 'danger',
+        centered: true,
+        width: 'min(420px, calc(100vw - 32px))',
+        onOk: async () => {
+          await deleteSession(session.session_id);
+          setSessionSelectorVisible(false);
+        },
+      });
+    },
+    [deleteSession, t],
   );
 
   const isLoading = messages.some(
@@ -265,7 +420,7 @@ const Drawing = () => {
                     style={{ color: 'var(--semi-color-text-2)' }}
                     onClick={(e) => {
                       e.stopPropagation();
-                      deleteSession(item.session_id);
+                      handleDeleteSession(item);
                     }}
                     aria-label={t('删除会话')}
                     title={t('删除会话')}
@@ -384,6 +539,13 @@ const Drawing = () => {
     </div>
   );
 
+  const headerToolbar = (
+    <div className='flex min-w-0 flex-1 items-center justify-between gap-2 pl-2'>
+      {titleBar}
+      {newSessionButton}
+    </div>
+  );
+
   return (
     <div
       className='flex w-full overflow-hidden'
@@ -393,17 +555,23 @@ const Drawing = () => {
         overscrollBehavior: 'none',
       }}
     >
+      {isMobile &&
+        headerToolbarRoot &&
+        createPortal(headerToolbar, headerToolbarRoot)}
+
       {/* Main content */}
       <div
         className='relative flex-1 flex flex-col min-w-0 min-h-0'
         style={{ background: 'var(--semi-color-bg-1)' }}
       >
-        <div className='absolute left-4 right-4 top-4 z-10 flex items-center justify-between gap-3'>
-          {titleBar}
-          {newSessionButton}
-        </div>
+        {!isMobile && (
+          <div className='z-10 flex flex-shrink-0 items-center justify-between gap-3 px-4 pb-2 pt-4'>
+            {titleBar}
+            {newSessionButton}
+          </div>
+        )}
 
-        <div className='flex-1 min-h-0 overflow-auto'>
+        <div className='flex-1 min-h-0 overflow-auto overscroll-contain'>
           <DrawingCanvas
             messages={messages}
             pageInfo={pageInfo}
@@ -411,6 +579,8 @@ const Drawing = () => {
             activeSessionId={activeSessionId}
             onLoadPrevious={loadPreviousMessage}
             onLoadNext={loadNextMessage}
+            onRetry={handleRetry}
+            retryDisabled={isLoading}
           />
         </div>
 
@@ -419,14 +589,25 @@ const Drawing = () => {
             onSubmit={handleSubmit}
             disabled={false}
             loading={isLoading}
-            hasImage={messages.some(
-              (m) => m.status === 'success' && m.result_data,
-            )}
+            hasImage={messages.some((m) => m.status === 'success')}
           />
         </div>
       </div>
     </div>
   );
 };
+
+function parseDrawingMessageImages(imageUrls) {
+  if (!imageUrls) return [];
+  if (Array.isArray(imageUrls)) return imageUrls;
+  if (typeof imageUrls !== 'string') return [];
+
+  try {
+    const parsed = JSON.parse(imageUrls);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
 
 export default Drawing;

@@ -330,6 +330,28 @@ code {
 }
 
 /* ==================== 组件特定样式 ==================== */
+/* Drawing page submit confirm modal */
+.drawing-submit-confirm {
+  max-width: calc(100vw - 32px) !important;
+}
+
+.drawing-submit-confirm .semi-modal-footer {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.drawing-submit-confirm .semi-modal-footer .semi-button {
+  flex: 0 0 auto;
+  min-width: 0;
+}
+
+@media (max-width: 767px) {
+  .drawing-submit-confirm .semi-modal-content {
+    border-radius: 12px;
+  }
+}
+
 /* SelectableButtonGroup */
 .sbg-button .semi-button-content {
   min-width: 0 !important;
@@ -367,7 +389,9 @@ code {
   line-height: 1;
   background-color: var(--semi-color-fill-0);
   color: var(--semi-color-text-2);
-  transition: background-color 0.15s ease, color 0.15s ease;
+  transition:
+    background-color 0.15s ease,
+    color 0.15s ease;
 }
 
 .sbg-badge-active {
@@ -1005,4 +1029,6 @@ html.dark .with-pastel-balls::before {
   }
 }
 
-.ec-dbcd0a3c01b55203 { forced-color-adjust: auto; }
+.ec-dbcd0a3c01b55203 {
+  forced-color-adjust: auto;
+}

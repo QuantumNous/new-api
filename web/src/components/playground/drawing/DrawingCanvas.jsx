@@ -6,6 +6,7 @@ import {
   Loader,
   ChevronLeft,
   ChevronRight,
+  RotateCcw,
 } from 'lucide-react';
 import { API } from '../../../helpers';
 import { DRAWING_API } from '../../../constants/drawing.constants';
@@ -18,6 +19,8 @@ const DrawingCanvas = ({
   activeSessionId,
   onLoadPrevious,
   onLoadNext,
+  onRetry,
+  retryDisabled = false,
 }) => {
   const { t } = useTranslation();
   const [imageCache, setImageCache] = useState({});
@@ -92,7 +95,7 @@ const DrawingCanvas = ({
   return (
     <div className='flex flex-col h-full min-h-0'>
       {total > 1 && (
-        <div className='flex items-center justify-center gap-3 pb-3 pt-16 flex-shrink-0'>
+        <div className='relative z-10 flex flex-shrink-0 items-center justify-center gap-3 pb-3 pt-1'>
           <button
             className='p-1.5 rounded-lg disabled:opacity-30 cursor-pointer disabled:cursor-default transition-colors'
             style={{ color: 'var(--semi-color-text-2)' }}
@@ -130,7 +133,7 @@ const DrawingCanvas = ({
         </div>
       )}
 
-      <div className='flex-1 flex flex-col items-center justify-center px-6 min-h-0 gap-4'>
+      <div className='flex-1 flex flex-col items-center justify-start sm:justify-center px-4 sm:px-6 py-4 min-h-0 gap-4 overflow-auto overscroll-contain'>
         {(msg.status === 'processing' || msg.status === 'pending') && (
           <div className='flex flex-col items-center gap-3'>
             <Loader
@@ -140,7 +143,7 @@ const DrawingCanvas = ({
             />
             <span
               className='text-xs'
-              style={{ color: 'var(--semi-color-text-2)' }}
+              style={{ color: 'var(--semi-color-primary)' }}
             >
               {t('生成图片需要大约4-6分钟，请耐心等待')}
             </span>
@@ -148,16 +151,45 @@ const DrawingCanvas = ({
         )}
 
         {msg.status === 'failure' && (
-          <div
-            className='flex items-center gap-2 text-sm rounded-xl px-4 py-3 border'
-            style={{
-              color: 'var(--semi-color-danger)',
-              background: 'var(--semi-color-danger-light-default)',
-              borderColor: 'var(--semi-color-danger-light-active)',
-            }}
-          >
-            <AlertCircle size={14} />
-            <span>{msg.fail_reason || t('生成失败')}</span>
+          <div className='flex flex-col items-center gap-3'>
+            <div
+              className='flex items-center gap-2 text-sm rounded-xl px-4 py-3 border'
+              style={{
+                color: 'var(--semi-color-danger)',
+                background: 'var(--semi-color-danger-light-default)',
+                borderColor: 'var(--semi-color-danger-light-active)',
+              }}
+            >
+              <AlertCircle size={14} />
+              <span>{msg.fail_reason || t('生成失败')}</span>
+            </div>
+
+            {onRetry && (
+              <button
+                className='inline-flex h-8 items-center gap-1.5 rounded-lg border px-3 text-xs transition-colors disabled:cursor-default disabled:opacity-50'
+                style={{
+                  color: 'var(--semi-color-text-1)',
+                  background: 'var(--semi-color-bg-0)',
+                  borderColor: 'var(--semi-color-border)',
+                }}
+                onClick={() => onRetry(msg)}
+                disabled={retryDisabled}
+                aria-label={t('重试')}
+                title={t('重试')}
+                onMouseEnter={(e) => {
+                  if (!e.currentTarget.disabled) {
+                    e.currentTarget.style.background =
+                      'var(--semi-color-fill-0)';
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = 'var(--semi-color-bg-0)';
+                }}
+              >
+                <RotateCcw size={13} />
+                <span>{t('重试')}</span>
+              </button>
+            )}
           </div>
         )}
 
@@ -174,7 +206,9 @@ const DrawingCanvas = ({
                 className='w-full max-w-3xl grid gap-3'
                 style={{
                   gridTemplateColumns:
-                    resultImages.length === 1 ? '1fr' : 'repeat(2, 1fr)',
+                    resultImages.length === 1
+                      ? 'minmax(0, 1fr)'
+                      : 'repeat(auto-fit, minmax(min(100%, 240px), 1fr))',
                 }}
               >
                 {resultImages.map((item, i) => (

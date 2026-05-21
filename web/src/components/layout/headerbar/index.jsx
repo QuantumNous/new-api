@@ -43,6 +43,7 @@ const HeaderBar = ({ onMobileMenuToggle, drawerOpen }) => {
     docsLink,
     isDemoSiteMode,
     isConsoleRoute,
+    location,
     theme,
     headerNavModules,
     pricingRequireAuth,
@@ -63,6 +64,8 @@ const HeaderBar = ({ onMobileMenuToggle, drawerOpen }) => {
   } = useNotifications(statusState);
 
   const { mainNavLinks } = useNavigation(t, docsLink, headerNavModules);
+  const isDrawingRoute = location.pathname === '/console/drawing';
+  const isDrawingHeaderMode = isDrawingRoute && isMobile;
 
   return (
     <header className='text-semi-color-text-0 sticky top-0 z-50 transition-colors duration-300 bg-white/75 dark:bg-zinc-900/75 backdrop-blur-lg'>
@@ -76,7 +79,13 @@ const HeaderBar = ({ onMobileMenuToggle, drawerOpen }) => {
 
       <div className='w-full px-2'>
         <div className='flex items-center justify-between h-16'>
-          <div className='flex items-center'>
+          <div
+            className={
+              isDrawingHeaderMode
+                ? 'flex min-w-0 flex-1 items-center'
+                : 'flex items-center'
+            }
+          >
             <MobileMenuButton
               isConsoleRoute={isConsoleRoute}
               isMobile={isMobile}
@@ -84,45 +93,57 @@ const HeaderBar = ({ onMobileMenuToggle, drawerOpen }) => {
               collapsed={collapsed}
               onToggle={handleMobileMenuToggle}
               t={t}
+              forceVisible={isDrawingHeaderMode}
             />
 
-            <HeaderLogo
-              isMobile={isMobile}
-              isConsoleRoute={isConsoleRoute}
-              logo={logo}
-              logoLoaded={logoLoaded}
-              isLoading={isLoading}
-              systemName={systemName}
-              isSelfUseMode={isSelfUseMode}
-              isDemoSiteMode={isDemoSiteMode}
-              t={t}
-            />
+            {isDrawingHeaderMode ? (
+              <div
+                id='drawing-header-toolbar-root'
+                className='min-w-0 flex-1'
+              />
+            ) : (
+              <HeaderLogo
+                isMobile={isMobile}
+                isConsoleRoute={isConsoleRoute}
+                logo={logo}
+                logoLoaded={logoLoaded}
+                isLoading={isLoading}
+                systemName={systemName}
+                isSelfUseMode={isSelfUseMode}
+                isDemoSiteMode={isDemoSiteMode}
+                t={t}
+              />
+            )}
           </div>
 
-          <Navigation
-            mainNavLinks={mainNavLinks}
-            isMobile={isMobile}
-            isLoading={isLoading}
-            userState={userState}
-            pricingRequireAuth={pricingRequireAuth}
-          />
+          {!isDrawingHeaderMode && (
+            <Navigation
+              mainNavLinks={mainNavLinks}
+              isMobile={isMobile}
+              isLoading={isLoading}
+              userState={userState}
+              pricingRequireAuth={pricingRequireAuth}
+            />
+          )}
 
-          <ActionButtons
-            isNewYear={isNewYear}
-            unreadCount={unreadCount}
-            onNoticeOpen={handleNoticeOpen}
-            theme={theme}
-            onThemeToggle={handleThemeToggle}
-            currentLang={currentLang}
-            onLanguageChange={handleLanguageChange}
-            userState={userState}
-            isLoading={isLoading}
-            isMobile={isMobile}
-            isSelfUseMode={isSelfUseMode}
-            logout={logout}
-            navigate={navigate}
-            t={t}
-          />
+          {!isDrawingHeaderMode && (
+            <ActionButtons
+              isNewYear={isNewYear}
+              unreadCount={unreadCount}
+              onNoticeOpen={handleNoticeOpen}
+              theme={theme}
+              onThemeToggle={handleThemeToggle}
+              currentLang={currentLang}
+              onLanguageChange={handleLanguageChange}
+              userState={userState}
+              isLoading={isLoading}
+              isMobile={isMobile}
+              isSelfUseMode={isSelfUseMode}
+              logout={logout}
+              navigate={navigate}
+              t={t}
+            />
+          )}
         </div>
       </div>
     </header>

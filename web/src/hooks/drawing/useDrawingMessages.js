@@ -61,6 +61,14 @@ export function useDrawingMessages(activeSessionId) {
 
   const loadMessages = useCallback(() => loadMessage('latest'), [loadMessage]);
 
+  const loadCurrentMessage = useCallback(
+    (messageId) => {
+      if (!messageId) return;
+      return loadMessage('current', messageId);
+    },
+    [loadMessage],
+  );
+
   const loadPreviousMessage = useCallback(() => {
     if (!currentMessage?.id || !pageInfo.has_prev) return;
     return loadMessage('prev', currentMessage.id);
@@ -87,6 +95,10 @@ export function useDrawingMessages(activeSessionId) {
   const updateMessageByTaskId = useCallback((taskId, updates) => {
     setCurrentMessage((prev) => {
       if (!prev || prev.task_id !== taskId) return prev;
+      const hasChanges = Object.entries(updates).some(
+        ([key, value]) => prev[key] !== value,
+      );
+      if (!hasChanges) return prev;
       return { ...prev, ...updates };
     });
   }, []);
@@ -99,6 +111,7 @@ export function useDrawingMessages(activeSessionId) {
     pageInfo,
     loading,
     loadMessages,
+    loadCurrentMessage,
     loadPreviousMessage,
     loadNextMessage,
     addOptimisticMessage,

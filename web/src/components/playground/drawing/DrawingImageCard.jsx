@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { ImagePreview, Modal } from '@douyinfe/semi-ui';
-import { Download, Maximize2, FileText } from 'lucide-react';
+import { Download, FileText } from 'lucide-react';
 
 const DrawingImageCard = ({ imageData }) => {
   const [previewVisible, setPreviewVisible] = useState(false);
@@ -19,59 +19,56 @@ const DrawingImageCard = ({ imageData }) => {
 
   return (
     <>
-      <div
-        className='relative group rounded-xl overflow-hidden w-full cursor-zoom-in'
-        style={{ border: '1px solid var(--semi-color-border)' }}
-        onClick={() => setPreviewVisible(true)}
-      >
-        <img
-          src={imageUrl}
-          alt={imageData.revised_prompt || 'Generated image'}
-          className='w-full object-cover block'
-        />
-        <div className='absolute inset-0 bg-black/0 group-hover:bg-black/25 transition-colors pointer-events-none' />
-        <div className='absolute top-2 right-2 flex gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity'>
+      <div className='w-full'>
+        <div
+          className='relative group rounded-xl overflow-hidden w-full cursor-zoom-in'
+          style={{ border: '1px solid var(--semi-color-border)' }}
+          onClick={() => setPreviewVisible(true)}
+        >
+          <img
+            src={imageUrl}
+            alt={imageData.revised_prompt || 'Generated image'}
+            className='w-full object-cover block'
+          />
+          <div className='absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors pointer-events-none' />
+        </div>
+
+        <div className='mt-2 flex items-center justify-center gap-2'>
           {imageData.revised_prompt && (
             <button
-              className='p-1.5 rounded-lg shadow cursor-pointer transition-colors'
-              style={{
-                background: 'var(--semi-color-bg-0)',
-                color: 'var(--semi-color-text-0)',
-              }}
+              className='flex h-7 w-7 items-center justify-center rounded-lg cursor-pointer transition-colors'
+              style={{ color: 'var(--semi-color-text-2)' }}
               onClick={(e) => {
                 e.stopPropagation();
                 setPromptVisible(true);
               }}
               aria-label='查看提示词'
+              title='查看提示词'
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = 'var(--semi-color-fill-0)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = 'transparent';
+              }}
             >
               <FileText size={14} />
             </button>
           )}
           <button
-            className='p-1.5 rounded-lg shadow cursor-pointer transition-colors'
-            style={{
-              background: 'var(--semi-color-bg-0)',
-              color: 'var(--semi-color-text-0)',
-            }}
-            onClick={(e) => {
-              e.stopPropagation();
-              setPreviewVisible(true);
-            }}
-            aria-label='放大'
-          >
-            <Maximize2 size={14} />
-          </button>
-          <button
-            className='p-1.5 rounded-lg shadow cursor-pointer transition-colors'
-            style={{
-              background: 'var(--semi-color-bg-0)',
-              color: 'var(--semi-color-text-0)',
-            }}
+            className='flex h-7 w-7 items-center justify-center rounded-lg cursor-pointer transition-colors'
+            style={{ color: 'var(--semi-color-text-2)' }}
             onClick={(e) => {
               e.stopPropagation();
               handleDownload();
             }}
             aria-label='下载'
+            title='下载'
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = 'var(--semi-color-fill-0)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = 'transparent';
+            }}
           >
             <Download size={14} />
           </button>
@@ -94,7 +91,11 @@ const DrawingImageCard = ({ imageData }) => {
         onCancel={() => setPromptVisible(false)}
         footer={null}
         title='Revised Prompt'
-        width={480}
+        width='min(480px, calc(100vw - 32px))'
+        bodyStyle={{
+          maxHeight: 'calc(100dvh - 180px)',
+          overflow: 'auto',
+        }}
       >
         <p
           className='text-sm leading-relaxed'

@@ -28,8 +28,9 @@ const MobileMenuButton = ({
   collapsed,
   onToggle,
   t,
+  forceVisible = false,
 }) => {
-  if (!isConsoleRoute || !isMobile) {
+  if (!isConsoleRoute || (!isMobile && !forceVisible)) {
     return null;
   }
 

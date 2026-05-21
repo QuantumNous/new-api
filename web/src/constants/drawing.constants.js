@@ -10,7 +10,7 @@ export const DRAWING_SIZES = [
 ];
 
 export const MAX_UPLOAD_IMAGES = 4;
-export const POLL_INTERVAL = 3000;
+export const POLL_INTERVAL = 30000;
 export const POLL_TIMEOUT = 300000;
 
 export const DRAWING_STATUS = {
