@@ -36,6 +36,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
+import { calculateAirwallexAmount, isApiSuccess } from '../api'
 import {
   formatCurrency,
   getDiscountLabel,
@@ -173,6 +174,52 @@ export function RechargeFormCard({
         ?.min_topup) ||
     0
   const airwallexBelowMin = airwallexMin > topupAmount
+
+  // Preview the payable amount in the chosen Airwallex currency before the
+  // user clicks "Pay". The shared `paymentAmount` only covers Stripe / Epay /
+  // Waffo, so Airwallex needs its own probe that re-fires on currency switch.
+  const [airwallexPreview, setAirwallexPreview] = useState<number | null>(null)
+  const [airwallexPreviewLoading, setAirwallexPreviewLoading] = useState(false)
+  useEffect(() => {
+    if (
+      !enableAirwallexTopup ||
+      !hasAirwallexCurrencies ||
+      airwallexBelowMin ||
+      topupAmount <= 0
+    ) {
+      setAirwallexPreview(null)
+      return
+    }
+    let cancelled = false
+    setAirwallexPreviewLoading(true)
+    calculateAirwallexAmount({
+      amount: Math.floor(topupAmount),
+      currency: airwallexCurrency,
+    })
+      .then((res) => {
+        if (cancelled) return
+        if (isApiSuccess(res) && res.data) {
+          setAirwallexPreview(parseFloat(res.data))
+        } else {
+          setAirwallexPreview(null)
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setAirwallexPreview(null)
+      })
+      .finally(() => {
+        if (!cancelled) setAirwallexPreviewLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [
+    enableAirwallexTopup,
+    hasAirwallexCurrencies,
+    airwallexBelowMin,
+    airwallexCurrency,
+    topupAmount,
+  ])
   const hasStandardPaymentMethods =
     Array.isArray(topupInfo?.pay_methods) && topupInfo.pay_methods.length > 0
   const hasWaffoPaymentMethods =
@@ -465,7 +512,7 @@ export function RechargeFormCard({
                             {airwallexLoading ? (
                               <Loader2 className='h-4 w-4 animate-spin' />
                             ) : (
-                              <WalletCards className='h-4 w-4' />
+                              getPaymentIcon('airwallex')
                             )}
                             {t('Pay with Airwallex')}
                           </Button>
@@ -485,6 +532,22 @@ export function RechargeFormCard({
                           cta
                         )
                       })()}
+                    </div>
+                    <div className='bg-muted/30 flex items-center justify-between rounded-md border px-3 py-2'>
+                      <span className='text-muted-foreground text-xs'>
+                        {t('Amount to pay:')}
+                      </span>
+                      {airwallexPreviewLoading ? (
+                        <Skeleton className='h-4 w-20' />
+                      ) : airwallexPreview === null ? (
+                        <span className='text-muted-foreground text-xs'>
+                          {t('—')}
+                        </span>
+                      ) : (
+                        <span className='text-sm font-semibold'>
+                          {airwallexPreview.toFixed(2)} {airwallexCurrency}
+                        </span>
+                      )}
                     </div>
                     <p className='text-muted-foreground text-xs'>
                       {t(

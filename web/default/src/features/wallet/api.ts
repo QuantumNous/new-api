@@ -183,6 +183,21 @@ export async function requestAirwallexPayment(
 }
 
 /**
+ * Calculate payable amount for Airwallex (depends on selected currency).
+ */
+export async function calculateAirwallexAmount(request: {
+  amount: number
+  currency: string
+}): Promise<AmountResponse> {
+  const res = await api.post(
+    '/api/user/airwallex/amount',
+    { ...request, payment_method: 'airwallex' },
+    { skipBusinessError: true } as Record<string, unknown>
+  )
+  return res.data
+}
+
+/**
  * Get affiliate code
  */
 export async function getAffiliateCode(): Promise<AffiliateCodeResponse> {

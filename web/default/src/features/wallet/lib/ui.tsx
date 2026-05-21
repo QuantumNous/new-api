@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { type ReactNode } from 'react'
-import { CreditCard, Landmark } from 'lucide-react'
+import { CreditCard, Landmark, WalletCards } from 'lucide-react'
 import { SiAlipay, SiWechat, SiStripe } from 'react-icons/si'
 import { PAYMENT_TYPES, PAYMENT_ICON_COLORS } from '../constants'
 
@@ -125,6 +125,13 @@ export function getPaymentIcon(
         <CreditCard
           className={className}
           style={{ color: PAYMENT_ICON_COLORS[PAYMENT_TYPES.WAFFO_PANCAKE] }}
+        />
+      )
+    case PAYMENT_TYPES.AIRWALLEX:
+      return (
+        <WalletCards
+          className={className}
+          style={{ color: PAYMENT_ICON_COLORS[PAYMENT_TYPES.AIRWALLEX] }}
         />
       )
     default:

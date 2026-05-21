@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -199,6 +200,53 @@ func computeAirwallexPayMoney(amount float64, group string, ccy *AirwallexCurren
 		}
 	}
 	return amount * ccy.UnitPrice * topupGroupRatio * discount
+}
+
+// ---------- /api/user/airwallex/amount ----------
+
+// RequestAirwallexAmount returns the payable amount in the chosen Airwallex
+// currency for a given quota top-up size. Mirrors RequestStripeAmount so the
+// SPA can preview "Amount to pay" before the user lands on the hosted page.
+func RequestAirwallexAmount(c *gin.Context) {
+	var req AirwallexPayRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "参数错误"})
+		return
+	}
+
+	ccy := findAirwallexCurrency(req.Currency)
+	if ccy == nil {
+		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "该币种未启用"})
+		return
+	}
+
+	minTopup := int64(ccy.MinTopUp)
+	if operation_setting.GetQuotaDisplayType() == operation_setting.QuotaDisplayTypeTokens {
+		minTopup = minTopup * int64(common.QuotaPerUnit)
+	}
+	if req.Amount < minTopup {
+		c.JSON(http.StatusOK, gin.H{"message": "error", "data": fmt.Sprintf("充值数量不能小于 %d", minTopup)})
+		return
+	}
+
+	id := c.GetInt("id")
+	group, err := model.GetUserGroup(id, true)
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "获取用户分组失败"})
+		return
+	}
+
+	payMoney := computeAirwallexPayMoney(float64(req.Amount), group, ccy)
+	if payMoney <= 0.01 {
+		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "充值金额过低"})
+		return
+	}
+	payMoney = decimal.NewFromFloat(payMoney).Round(2).InexactFloat64()
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "success",
+		"data":    strconv.FormatFloat(payMoney, 'f', 2, 64),
+	})
 }
 
 // ---------- /api/user/airwallex/pay ----------
