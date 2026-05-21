@@ -54,6 +54,7 @@ function resolveDisplayVersion(
 type SystemBrandProps = {
   defaultName?: string
   defaultVersion?: string
+  className?: string
   /**
    * Visual layout:
    * - 'sidebar': stacked card style (used inside the sidebar header).
@@ -72,13 +73,14 @@ export function SystemBrand(props: SystemBrandProps) {
   const { t } = useTranslation()
   const { status } = useStatus()
   const { logo } = useSystemConfig()
+  const { className, ...rest } = props
 
-  const variant = props.variant ?? 'sidebar'
+  const variant = rest.variant ?? 'sidebar'
   const name = normalizeSystemName(
-    status?.system_name || props.defaultName || DEFAULT_SYSTEM_NAME
+    status?.system_name || rest.defaultName || DEFAULT_SYSTEM_NAME
   )
   const displayVersion = resolveDisplayVersion(
-    status?.version || props.defaultVersion,
+    status?.version || rest.defaultVersion,
     t('Unknown version')
   )
 
@@ -88,17 +90,18 @@ export function SystemBrand(props: SystemBrandProps) {
         to='/'
         aria-label={t('Go to home')}
         className={cn(
-          'inline-flex h-8 max-w-[min(100%,18rem)] items-center gap-2 rounded-lg border px-2 text-sm font-semibold transition-colors outline-none select-none',
+          'inline-flex h-9 max-w-[min(100%,20rem)] shrink-0 items-center gap-2.5 rounded-lg border px-2.5 text-sm font-semibold transition-colors outline-none select-none',
           'border-white/10 bg-white/5 text-slate-100 shadow-sm backdrop-blur-sm',
           'hover:bg-white/10 hover:text-slate-50',
-          'focus-visible:ring-2 focus-visible:ring-indigo-400/40'
+          'focus-visible:ring-2 focus-visible:ring-indigo-400/40',
+          className
         )}
       >
-        <div className='flex size-6 shrink-0 items-center justify-center overflow-hidden rounded-md ring-1 ring-indigo-400/20'>
+        <div className='flex size-8 shrink-0 items-center justify-center'>
           <img
             src={logo}
             alt={t('Logo')}
-            className='size-full rounded-md object-cover'
+            className='max-h-full max-w-full object-contain'
           />
         </div>
         <span className='truncate'>{name}</span>
@@ -117,11 +120,11 @@ export function SystemBrand(props: SystemBrandProps) {
           )}
           render={<div />}
         >
-          <div className='flex aspect-square size-8 items-center justify-center overflow-hidden rounded-lg ring-1 ring-white/15'>
+          <div className='flex size-8 shrink-0 items-center justify-center'>
             <img
               src={logo}
               alt={t('Logo')}
-              className='size-full rounded-lg object-cover'
+              className='max-h-full max-w-full object-contain'
             />
           </div>
           <div

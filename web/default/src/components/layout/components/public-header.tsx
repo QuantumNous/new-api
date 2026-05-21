@@ -45,6 +45,7 @@ import {
   portalHeaderSiteNameClassName,
   portalHeaderSkeletonClassName,
 } from '@/lib/ops-ui-styles'
+import { normalizeBrandLogoUrl } from '@/lib/constants'
 import { cn } from '@/lib/utils'
 import { useNotifications } from '@/hooks/use-notifications'
 import { useSystemConfig } from '@/hooks/use-system-config'
@@ -66,7 +67,6 @@ import { ProfileDropdown } from '@/components/profile-dropdown'
 import { ThemeSwitch } from '@/components/theme-switch'
 import { defaultTopNavLinks } from '../config/top-nav.config'
 import type { TopNavLink } from '../types'
-import { HeaderLogo } from './header-logo'
 
 const AUTH_PROMPT_SECONDS = 5
 
@@ -118,12 +118,8 @@ export function PublicHeader(props: PublicHeaderProps) {
   const [authPromptSecondsLeft, setAuthPromptSecondsLeft] =
     useState(AUTH_PROMPT_SECONDS)
   const { auth } = useAuthStore()
-  const {
-    systemName,
-    logo: systemLogo,
-    loading,
-    logoLoaded,
-  } = useSystemConfig()
+  const { systemName, logo, loading } = useSystemConfig()
+  const displayLogo = normalizeBrandLogoUrl(logo)
   const dynamicLinks = useTopNavLinks()
   const notifications = useNotifications()
   const routerState = useRouterState()
@@ -236,7 +232,7 @@ export function PublicHeader(props: PublicHeaderProps) {
                 isPortalTone && 'hover:opacity-90'
               )}
             >
-              <div className='flex size-7 shrink-0 items-center justify-center transition-all duration-300 group-hover:scale-105'>
+              <div className='flex size-6 shrink-0 items-center justify-center transition-all duration-300 group-hover:scale-105'>
                 {loading ? (
                   <Skeleton
                     className={cn(
@@ -247,11 +243,14 @@ export function PublicHeader(props: PublicHeaderProps) {
                 ) : customLogo ? (
                   customLogo
                 ) : (
-                  <HeaderLogo
-                    src={systemLogo}
-                    loading={loading}
-                    logoLoaded={logoLoaded}
-                    className='size-full rounded-lg object-contain'
+                  <img
+                    key={displayLogo}
+                    src={displayLogo}
+                    alt={t('Logo')}
+                    width={24}
+                    height={24}
+                    className='size-6 shrink-0 object-contain'
+                    decoding='async'
                   />
                 )}
               </div>

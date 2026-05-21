@@ -1,0 +1,19 @@
+{
+  "name": "昀河星泽词元运营中心",
+  "short_name": "昀河星泽",
+  "icons": [
+    {
+      "src": "/brand/favicon.png?v=aioc-logo-20260521",
+      "sizes": "32x32",
+      "type": "image/png"
+    },
+    {
+      "src": "/apple-touch-icon.png?v=aioc-logo-20260521",
+      "sizes": "180x180",
+      "type": "image/png"
+    }
+  ],
+  "theme_color": "#020617",
+  "background_color": "#020617",
+  "display": "standalone"
+}

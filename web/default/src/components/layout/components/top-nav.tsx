@@ -128,7 +128,7 @@ export function TopNav({ className, links, tone = 'default', ...props }: TopNavP
       {/* 桌面端水平导航 */}
       <nav
         className={cn(
-          'hidden items-center space-x-4 lg:flex lg:space-x-4 xl:space-x-6',
+          'hidden min-w-0 items-center space-x-2 lg:flex lg:space-x-3 xl:space-x-4 2xl:space-x-5',
           className
         )}
         {...props}
@@ -144,7 +144,7 @@ export function TopNav({ className, links, tone = 'default', ...props }: TopNavP
               href={link.href}
               target='_blank'
               rel='noopener noreferrer'
-              className={cls}
+              className={cn(cls, 'shrink-0 whitespace-nowrap')}
             >
               {link.title}
             </a>
@@ -153,7 +153,7 @@ export function TopNav({ className, links, tone = 'default', ...props }: TopNavP
               key={`${link.title}-${link.href}`}
               to={link.href}
               disabled={link.disabled}
-              className={cls}
+              className={cn(cls, 'shrink-0 whitespace-nowrap')}
             >
               {link.title}
             </Link>

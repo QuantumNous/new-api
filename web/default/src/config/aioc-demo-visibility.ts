@@ -111,3 +111,10 @@ export function isAiocHeaderNavModuleHidden(
   if (!AIOC_DEMO_MODE) return false
   return isAiocNavHidden(moduleKey)
 }
+
+/**
+ * Sidebar header brand (logo + system name) duplicates the top app bar; hide in demo layout.
+ */
+export function isAiocSidebarBrandHidden(): boolean {
+  return AIOC_DEMO_MODE
+}

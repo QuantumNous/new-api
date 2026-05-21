@@ -4109,6 +4109,7 @@
         "Tokens-only mode will show raw quota values regardless of this toggle.": "Tokens-only 模式将无视此开关显示原始配额值。",
         "Too many files. Some were not added.": "文件过多。部分未添加。",
         "Too many requests": "请求过于频繁",
+        "Too many requests, please try again later.": "请求过于频繁，请稍后再试。",
         "Tool / function declarations the model may call": "模型可调用的工具 / 函数声明",
         "Tool identifier": "工具标识",
         "Tool price settings": "工具价格设置",

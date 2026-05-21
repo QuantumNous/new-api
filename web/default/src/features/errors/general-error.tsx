@@ -45,10 +45,10 @@ export function GeneralError({
   const status = getHttpStatus(error)
   const isRateLimited = status === 429
   const title = isRateLimited
-    ? t('Too many requests')
+    ? t('Too many requests, please try again later.')
     : `${t('Oops! Something went wrong')} ${`:')`}`
   const description = isRateLimited
-    ? t('Please wait a moment before trying again.')
+    ? ''
     : t('Please try again later.')
 
   return (

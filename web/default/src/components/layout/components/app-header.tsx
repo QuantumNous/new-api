@@ -115,34 +115,42 @@ export function AppHeader({
   return (
     <>
       <Header className='border-b border-white/10 bg-slate-950/90 text-slate-100 shadow-sm shadow-black/20 backdrop-blur-md'>
-        <SystemBrand variant='inline' />
+        <SystemBrand variant='inline' className='shrink-0' />
 
         {leftContent ? (
-          <div className='ms-2 flex items-center'>{leftContent}</div>
+          <div className='ms-2 flex shrink-0 items-center'>{leftContent}</div>
         ) : null}
 
         {rightContent ?? (
-          <div
-            className={cn(
-              'ms-auto flex items-center gap-0.5 rounded-lg border border-white/10 bg-white/5 px-1 py-0.5 text-slate-100 sm:gap-1 sm:px-1.5',
-              portalHeaderIconGroupClassName
-            )}
-          >
+          <div className='ms-auto flex min-w-0 flex-1 items-center justify-end gap-2 sm:gap-3'>
             {showTopNav && (
-              <div className='me-2 hidden lg:block'>
+              <div className='hidden min-w-0 shrink overflow-hidden lg:block lg:pe-1'>
                 <TopNav links={links} tone='portal' />
               </div>
             )}
-            {showSearch && <Search />}
-            {showNotifications && (
-              <NotificationButton
-                unreadCount={notifications.unreadCount}
-                onClick={() => notifications.openDialog()}
-              />
+
+            {showSearch && (
+              <div className='hidden min-w-0 shrink lg:block lg:max-w-[9.5rem] xl:max-w-[13.75rem] 2xl:max-w-[20rem]'>
+                <Search className='w-full max-w-full' />
+              </div>
             )}
-            <LanguageSwitcher />
-            {showConfigDrawer && <ConfigDrawer />}
-            {showProfileDropdown && <ProfileDropdown />}
+
+            <div
+              className={cn(
+                'relative z-10 flex shrink-0 items-center gap-0.5 rounded-lg border border-white/10 bg-white/5 px-1 py-0.5 text-slate-100 sm:gap-1 sm:px-1.5',
+                portalHeaderIconGroupClassName
+              )}
+            >
+              {showNotifications && (
+                <NotificationButton
+                  unreadCount={notifications.unreadCount}
+                  onClick={() => notifications.openDialog()}
+                />
+              )}
+              <LanguageSwitcher />
+              {showConfigDrawer && <ConfigDrawer />}
+              {showProfileDropdown && <ProfileDropdown />}
+            </div>
           </div>
         )}
       </Header>

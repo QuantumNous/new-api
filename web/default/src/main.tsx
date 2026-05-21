@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { normalizeSystemName } from '@/lib/constants'
+import { normalizeSystemName, resolveFaviconUrl } from '@/lib/constants'
 import { StrictMode } from 'react'
 import ReactDOM from 'react-dom/client'
 import { AxiosError } from 'axios'
@@ -86,12 +86,8 @@ const queryClient = new QueryClient({
         }
         if (error.response?.status === 500) {
           toast.error(i18next.t('Internal Server Error!'))
-          // Keep user on operations dashboard when overview widgets fail;
-          // redirecting to /500 made the top-nav "Operations Console" look broken.
-          const pathname = router.history.location.pathname
-          if (!pathname.startsWith('/dashboard')) {
-            router.navigate({ to: '/500' })
-          }
+          // Do not auto-navigate to /500: transient widget/API failures during
+          // login bootstrap were flashing the error page before recovery.
         }
       }
     },
@@ -132,11 +128,12 @@ const rootElement = document.getElementById('root')!
       if (saved) {
         const s = JSON.parse(saved)
         if (s?.system_name) apply(s.system_name)
-        if (s?.logo) applyFaviconToDom(s.logo)
+        applyFaviconToDom(resolveFaviconUrl())
       }
     } catch {
       /* empty */
     }
+    applyFaviconToDom(resolveFaviconUrl())
     // Background refresh
     getStatus()
       .then((s) => {
@@ -148,7 +145,7 @@ const rootElement = document.getElementById('root')!
             /* empty */
           }
         }
-        if (s?.logo) applyFaviconToDom(s.logo as string)
+        applyFaviconToDom(resolveFaviconUrl())
       })
       .catch(() => {
         /* empty */

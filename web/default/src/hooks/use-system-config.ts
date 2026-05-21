@@ -24,7 +24,13 @@ import {
   type SystemConfig,
   DEFAULT_CURRENCY_CONFIG,
 } from '@/stores/system-config-store'
-import { DEFAULT_SYSTEM_NAME, DEFAULT_LOGO, normalizeSystemName } from '@/lib/constants'
+import {
+  DEFAULT_SYSTEM_NAME,
+  DEFAULT_LOGO,
+  normalizeBrandLogoUrl,
+  normalizeSystemName,
+  resolveFaviconUrl,
+} from '@/lib/constants'
 import { applyFaviconToDom } from '@/lib/dom-utils'
 
 interface UseSystemConfigOptions {
@@ -93,7 +99,7 @@ export function mapStatusDataToConfig(
 
   return {
     systemName: normalizeSystemName(data.system_name),
-    logo: data.logo || DEFAULT_LOGO,
+    logo: normalizeBrandLogoUrl(data.logo),
     footerHtml: data.footer_html,
     demoSiteEnabled: data.demo_site_enabled,
     displayTokenStatEnabled: data.display_token_stat_enabled,
@@ -169,10 +175,17 @@ export function useSystemConfig(options: UseSystemConfigOptions = {}) {
     if (autoLoad) loadConfig()
   }, [autoLoad, loadConfig])
 
+  const logo = normalizeBrandLogoUrl(config.logo)
+
   // Preload logo image when URL changes
   useEffect(() => {
-    const { logo } = config
+    const normalizedLoaded = normalizeBrandLogoUrl(loadedLogoUrl)
+    if (normalizedLoaded !== logo) {
+      setLoadedLogoUrl('')
+    }
+  }, [logo, loadedLogoUrl, setLoadedLogoUrl])
 
+  useEffect(() => {
     // Skip if logo is already loaded
     if (!logo || logo === loadedLogoUrl) return
 
@@ -181,7 +194,7 @@ export function useSystemConfig(options: UseSystemConfigOptions = {}) {
       logo,
       () => {
         setLoadedLogoUrl(logo)
-        applyFaviconToDom(logo)
+        applyFaviconToDom(resolveFaviconUrl())
       },
       () => {
         if (logo !== DEFAULT_LOGO) {
@@ -193,11 +206,12 @@ export function useSystemConfig(options: UseSystemConfigOptions = {}) {
       }
     )
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [config.logo, loadedLogoUrl, setLoadedLogoUrl])
+  }, [logo, loadedLogoUrl, setLoadedLogoUrl])
 
   return {
     ...config,
+    logo,
     loading,
-    logoLoaded: config.logo === loadedLogoUrl && !!loadedLogoUrl,
+    logoLoaded: logo === loadedLogoUrl && !!loadedLogoUrl,
   }
 }

@@ -19,6 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import { useMemo } from 'react'
 import { useLocation } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
+import { isAiocSidebarBrandHidden } from '@/config/aioc-demo-visibility'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/stores/auth-store'
 import { ROLE } from '@/lib/roles'
@@ -34,6 +35,9 @@ import {
 import { getNavGroupsForPath } from '../lib/workspace-registry'
 import { NavGroup } from './nav-group'
 import { SystemBrand } from './system-brand'
+
+/** Ops layout: hide sidebar header brand (duplicates top app bar). */
+const hideSidebarBrand = isAiocSidebarBrandHidden()
 
 const sidebarShellClassName = cn(
   '[&_[data-slot=sidebar-inner]]:border-white/10',
@@ -101,10 +105,14 @@ export function AppSidebar() {
       variant={variant}
       className={sidebarShellClassName}
     >
-      <SidebarHeader className='border-b border-white/10 px-2 py-3'>
-        <SystemBrand variant='sidebar' />
-      </SidebarHeader>
-      <SidebarContent className={sidebarContentClassName}>
+      {!hideSidebarBrand ? (
+        <SidebarHeader className='border-b border-white/10 px-2 py-3'>
+          <SystemBrand variant='sidebar' />
+        </SidebarHeader>
+      ) : null}
+      <SidebarContent
+        className={cn(sidebarContentClassName, hideSidebarBrand && 'pt-2')}
+      >
         {currentNavGroups.map((props) => {
           const key = props.id || props.title
           return <NavGroup key={key} {...props} />
