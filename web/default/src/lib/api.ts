@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import axios, { type AxiosRequestConfig } from 'axios'
-import i18next from 'i18next'
+import { t } from 'i18next'
 import { toast } from 'sonner'
 import { useAuthStore } from '@/stores/auth-store'
 
@@ -90,7 +90,7 @@ api.interceptors.response.use(
     ) {
       if (!response.data.success) {
         // Show error toast for business failures
-        const msg = response.data.message || 'Request failed'
+        const msg = response.data.message || t('Request failed')
         toast.error(msg)
       }
     }
@@ -108,12 +108,12 @@ api.interceptors.response.use(
       }
 
       if (!skip) {
-        toast.error(i18next.t('Session expired!'))
+        toast.error(t('Session expired!'))
       }
     } else if (!skip) {
       // Other errors: show error message from response or default
       const msg =
-        error?.response?.data?.message || error?.message || 'Request error'
+        error?.response?.data?.message || error?.message || t('Request failed')
       toast.error(msg)
     }
     return Promise.reject(error)
