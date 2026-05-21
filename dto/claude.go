@@ -3,7 +3,6 @@ package dto
 import (
 	"encoding/json"
 	"fmt"
-	"strings"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/types"
@@ -251,22 +250,22 @@ func (c *ClaudeRequest) GetTokenCountMeta() *types.TokenCountMeta {
 		MaxTokens: maxTokens,
 	}
 
-	var texts = make([]string, 0)
 	var fileMeta = make([]*types.FileMeta, 0)
+	var textBuilder tokenTextBuilder
 
 	// system
 	if c.System != nil {
 		if c.IsStringSystem() {
 			sys := c.GetStringSystem()
 			if sys != "" {
-				texts = append(texts, sys)
+				textBuilder.Add(sys)
 			}
 		} else {
 			systemMedia := c.ParseSystem()
 			for _, media := range systemMedia {
 				switch media.Type {
 				case "text":
-					texts = append(texts, media.GetText())
+					textBuilder.Add(media.GetText())
 				case "image":
 					if source := media.ToFileSource(); source != nil {
 						fileMeta = append(fileMeta, &types.FileMeta{
@@ -282,11 +281,11 @@ func (c *ClaudeRequest) GetTokenCountMeta() *types.TokenCountMeta {
 	// messages
 	for _, message := range c.Messages {
 		tokenCountMeta.MessagesCount++
-		texts = append(texts, message.Role)
+		textBuilder.Add(message.Role)
 		if message.IsStringContent() {
 			content := message.GetStringContent()
 			if content != "" {
-				texts = append(texts, content)
+				textBuilder.Add(content)
 			}
 			continue
 		}
@@ -295,7 +294,7 @@ func (c *ClaudeRequest) GetTokenCountMeta() *types.TokenCountMeta {
 		for _, media := range content {
 			switch media.Type {
 			case "text":
-				texts = append(texts, media.GetText())
+				textBuilder.Add(media.GetText())
 			case "image":
 				if source := media.ToFileSource(); source != nil {
 					fileMeta = append(fileMeta, &types.FileMeta{
@@ -305,16 +304,16 @@ func (c *ClaudeRequest) GetTokenCountMeta() *types.TokenCountMeta {
 				}
 			case "tool_use":
 				if media.Name != "" {
-					texts = append(texts, media.Name)
+					textBuilder.Add(media.Name)
 				}
 				if media.Input != nil {
 					b, _ := common.Marshal(media.Input)
-					texts = append(texts, string(b))
+					textBuilder.Add(string(b))
 				}
 			case "tool_result":
 				if media.Content != nil {
 					b, _ := common.Marshal(media.Content)
-					texts = append(texts, string(b))
+					textBuilder.Add(string(b))
 				}
 			}
 		}
@@ -328,14 +327,14 @@ func (c *ClaudeRequest) GetTokenCountMeta() *types.TokenCountMeta {
 			for _, t := range normalTools {
 				tokenCountMeta.ToolsCount++
 				if t.Name != "" {
-					texts = append(texts, t.Name)
+					textBuilder.Add(t.Name)
 				}
 				if t.Description != "" {
-					texts = append(texts, t.Description)
+					textBuilder.Add(t.Description)
 				}
 				if t.InputSchema != nil {
 					b, _ := common.Marshal(t.InputSchema)
-					texts = append(texts, string(b))
+					textBuilder.Add(string(b))
 				}
 			}
 		}
@@ -343,17 +342,17 @@ func (c *ClaudeRequest) GetTokenCountMeta() *types.TokenCountMeta {
 			for _, t := range webSearchTools {
 				tokenCountMeta.ToolsCount++
 				if t.Name != "" {
-					texts = append(texts, t.Name)
+					textBuilder.Add(t.Name)
 				}
 				if t.UserLocation != nil {
 					b, _ := common.Marshal(t.UserLocation)
-					texts = append(texts, string(b))
+					textBuilder.Add(string(b))
 				}
 			}
 		}
 	}
 
-	tokenCountMeta.CombineText = strings.Join(texts, "\n")
+	tokenCountMeta.CombineText = textBuilder.String()
 	tokenCountMeta.Files = fileMeta
 	return &tokenCountMeta
 }

@@ -2,7 +2,6 @@ package dto
 
 import (
 	"fmt"
-	"strings"
 
 	"github.com/QuantumNous/new-api/types"
 	"github.com/gin-gonic/gin"
@@ -23,18 +22,18 @@ func (r *RerankRequest) IsStream(c *gin.Context) bool {
 }
 
 func (r *RerankRequest) GetTokenCountMeta() *types.TokenCountMeta {
-	var texts = make([]string, 0)
+	var textBuilder tokenTextBuilder
 
 	for _, document := range r.Documents {
-		texts = append(texts, fmt.Sprintf("%v", document))
+		textBuilder.Add(fmt.Sprintf("%v", document))
 	}
 
 	if r.Query != "" {
-		texts = append(texts, r.Query)
+		textBuilder.Add(r.Query)
 	}
 
 	return &types.TokenCountMeta{
-		CombineText: strings.Join(texts, "\n"),
+		CombineText: textBuilder.String(),
 	}
 }
 

@@ -20,6 +20,7 @@ import (
 	"github.com/QuantumNous/new-api/types"
 
 	"github.com/gin-gonic/gin"
+	"github.com/tidwall/gjson"
 )
 
 type ModelRequest struct {
@@ -170,12 +171,61 @@ func Distribute() func(c *gin.Context) {
 // - application/x-www-form-urlencoded
 // - multipart/form-data
 func getModelFromRequest(c *gin.Context) (*ModelRequest, error) {
+	if modelRequest, ok, err := extractModelRequestFromJSONBody(c); ok || err != nil {
+		if err != nil {
+			return nil, errors.New(i18n.T(c, i18n.MsgDistributorInvalidRequest, map[string]any{"Error": err.Error()}))
+		}
+		return modelRequest, nil
+	}
+
 	var modelRequest ModelRequest
 	err := common.UnmarshalBodyReusable(c, &modelRequest)
 	if err != nil {
 		return nil, errors.New(i18n.T(c, i18n.MsgDistributorInvalidRequest, map[string]any{"Error": err.Error()}))
 	}
 	return &modelRequest, nil
+}
+
+func extractModelRequestFromJSONBody(c *gin.Context) (*ModelRequest, bool, error) {
+	if c == nil || c.Request == nil {
+		return nil, false, nil
+	}
+	if !strings.HasPrefix(c.ContentType(), gin.MIMEJSON) {
+		return nil, false, nil
+	}
+
+	storage, err := common.GetBodyStorage(c)
+	if err != nil {
+		return nil, false, err
+	}
+
+	bodyBytes, err := storage.Bytes()
+	if err != nil {
+		return nil, false, err
+	}
+	if !gjson.ValidBytes(bodyBytes) {
+		return nil, false, nil
+	}
+
+	root := gjson.ParseBytes(bodyBytes)
+	if !root.IsObject() {
+		return nil, false, nil
+	}
+
+	modelResult := root.Get("model")
+	groupResult := root.Get("group")
+	if !isStringOrMissingJSONField(modelResult) || !isStringOrMissingJSONField(groupResult) {
+		return nil, false, nil
+	}
+
+	return &ModelRequest{
+		Model: modelResult.String(),
+		Group: groupResult.String(),
+	}, true, nil
+}
+
+func isStringOrMissingJSONField(result gjson.Result) bool {
+	return !result.Exists() || result.Type == gjson.String
 }
 
 func getModelRequest(c *gin.Context) (*ModelRequest, bool, error) {

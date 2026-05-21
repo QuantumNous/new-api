@@ -110,16 +110,23 @@ func UnmarshalBodyReusable(c *gin.Context, v any) error {
 	if err != nil {
 		return err
 	}
-	requestBody, err := storage.Bytes()
-	if err != nil {
-		return err
-	}
 	contentType := c.Request.Header.Get("Content-Type")
 	if strings.HasPrefix(contentType, "application/json") {
-		err = Unmarshal(requestBody, v)
+		if _, err = storage.Seek(0, io.SeekStart); err != nil {
+			return err
+		}
+		err = DecodeJson(storage, v)
 	} else if strings.Contains(contentType, gin.MIMEPOSTForm) {
+		requestBody, err := storage.Bytes()
+		if err != nil {
+			return err
+		}
 		err = parseFormData(requestBody, v)
 	} else if strings.Contains(contentType, gin.MIMEMultipartPOSTForm) {
+		requestBody, err := storage.Bytes()
+		if err != nil {
+			return err
+		}
 		err = parseMultipartFormData(c, requestBody, v)
 	} else {
 		// skip for now
