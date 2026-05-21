@@ -7,6 +7,8 @@ import (
 	"sync"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
+	"github.com/QuantumNous/new-api/types"
 
 	"github.com/samber/lo"
 	"gorm.io/gorm"
@@ -103,14 +105,97 @@ func getChannelQuery(group string, model string, retry int) (*gorm.DB, error) {
 	return channelQuery, nil
 }
 
-func GetChannel(group string, model string, retry int) (*Channel, error) {
-	var abilities []Ability
-
-	var err error = nil
+// getChannelQueryWithAPIType returns a query that filters channels by priority,
+// and when multiple channels share the same priority, prefers those whose
+// channel type matches the expected API type (for smart routing).
+func getChannelQueryWithAPIType(group string, model string, retry int, expectedAPIType int) (*gorm.DB, error) {
 	channelQuery, err := getChannelQuery(group, model, retry)
 	if err != nil {
 		return nil, err
 	}
+
+	// Join with channels table to access channel type for filtering
+	var abilities []AbilityWithChannel
+	err = channelQuery.Table("abilities").
+		Select("abilities.*, channels.type as channel_type").
+		Joins("left join channels on abilities.channel_id = channels.id").
+		Scan(&abilities).Error
+	if err != nil {
+		return channelQuery, nil // fall back to original query
+	}
+
+	if len(abilities) <= 1 {
+		return channelQuery, nil
+	}
+
+	// Check if any channel matches the expected API type
+	var hasMatch bool
+	for _, ab := range abilities {
+		channelAPIType, ok := common.ChannelType2APIType(ab.ChannelType)
+		if ok && channelAPIType == expectedAPIType {
+			hasMatch = true
+			break
+		}
+	}
+
+	if hasMatch {
+		// Rebuild query with API type filter
+		// We need to filter by channel type, so we rebuild with join
+		var priority interface{}
+		if retry == 0 {
+			priority = DB.Model(&Ability{}).Select("MAX(priority)").Where(commonGroupCol+" = ? and model = ? and enabled = ?", group, model, true)
+		} else {
+			p, err := getPriority(group, model, retry)
+			if err != nil {
+				return channelQuery, nil
+			}
+			priority = p
+		}
+		filteredQuery := DB.Table("abilities").
+			Joins("left join channels on abilities.channel_id = channels.id").
+			Where(commonGroupCol+" = ? and abilities.model = ? and abilities.enabled = ? and abilities.priority = ?", group, model, true, priority).
+			Where("channels.type IN (?)", getMatchingChannelTypes(expectedAPIType))
+		return filteredQuery, nil
+	}
+
+	return channelQuery, nil
+}
+
+// getMatchingChannelTypes returns channel types that map to the given API type.
+func getMatchingChannelTypes(expectedAPIType int) []int {
+	var types []int
+	for i := 1; i < constant.ChannelTypeDummy; i++ {
+		apiType, ok := common.ChannelType2APIType(i)
+		if ok && apiType == expectedAPIType {
+			types = append(types, i)
+		}
+	}
+	return types
+}
+
+func GetChannel(group string, model string, retry int, relayFormat types.RelayFormat) (*Channel, error) {
+	var abilities []Ability
+
+	var err error = nil
+	var channelQuery *gorm.DB
+
+	// Use smart routing when relayFormat is provided and memory cache is disabled
+	if relayFormat != "" {
+		if expectedAPIType, ok := types.RelayFormatToAPIType(relayFormat); ok {
+			channelQuery, err = getChannelQueryWithAPIType(group, model, retry, expectedAPIType)
+			if err != nil {
+				return nil, err
+			}
+		}
+	}
+
+	if channelQuery == nil {
+		channelQuery, err = getChannelQuery(group, model, retry)
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	if common.UsingSQLite || common.UsingPostgreSQL {
 		err = channelQuery.Order("weight DESC").Find(&abilities).Error
 	} else {
