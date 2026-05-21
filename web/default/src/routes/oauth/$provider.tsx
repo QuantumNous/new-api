@@ -27,7 +27,9 @@ import {
 import i18next from 'i18next'
 import { toast } from 'sonner'
 import { useAuthStore, type AuthUser } from '@/stores/auth-store'
-import { api, getSelf } from '@/lib/api'
+import { api } from '@/lib/api'
+import { bootstrapUserAfterLogin } from '@/features/auth/lib/bootstrap-user'
+import { resolvePostLoginRedirect } from '@/features/auth/lib/post-login-redirect'
 import { OAuthCallbackScreen } from '@/features/auth/components/oauth-callback-screen'
 import { OAUTH_BIND_STORAGE_KEY } from '@/features/auth/constants'
 
@@ -116,35 +118,25 @@ function OAuthCallback() {
         }, 200)
       }
 
-      const finalizeLogin = async (): Promise<boolean> => {
-        try {
-          const selfResponse = (await getSelf()) as {
-            success?: boolean
-            data?: AuthUser | null
-          }
-          if (selfResponse?.success && selfResponse.data) {
-            useAuthStore.getState().auth.setUser(selfResponse.data)
-            try {
-              if (
-                typeof window !== 'undefined' &&
-                selfResponse.data?.id != null
-              ) {
-                window.localStorage.setItem('uid', String(selfResponse.data.id))
-              }
-            } catch (_error) {
-              void _error
-            }
-            return true
-          }
-        } catch (_error) {
-          void _error
-        }
-        return false
+      const finalizeLogin = async (
+        loginPayload?: AuthUser | { id?: number } | null
+      ): Promise<boolean> => {
+        const user = await bootstrapUserAfterLogin(
+          useAuthStore.getState().auth.setUser,
+          loginPayload
+        )
+        return Boolean(user)
       }
 
       const redirectAfterLogin = (target?: string) => {
-        const to = target || search?.redirect || '/dashboard'
-        safeNavigate(to)
+        const destination = resolvePostLoginRedirect(
+          target || search?.redirect
+        )
+        if (destination.kind === 'dashboard') {
+          safeNavigate(`/dashboard/${destination.section}`)
+        } else {
+          safeNavigate(destination.pathname)
+        }
         toast.success(i18next.t('Signed in successfully!'))
       }
 
@@ -185,18 +177,11 @@ function OAuthCallback() {
           }
           // Otherwise it's a login, use payload user if available
           if (loginUser) {
-            useAuthStore.getState().auth.setUser(loginUser)
-            try {
-              if (typeof window !== 'undefined' && loginUser.id != null) {
-                window.localStorage.setItem('uid', String(loginUser.id))
-              }
-            } catch (_error) {
-              void _error
+            if (await finalizeLogin(loginUser)) {
+              redirectAfterLogin()
+              return
             }
-            redirectAfterLogin()
-            return
-          }
-          if (await finalizeLogin()) {
+          } else if (await finalizeLogin()) {
             redirectAfterLogin()
             return
           }

@@ -18,10 +18,14 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { useNavigate } from '@tanstack/react-router'
 import i18n from 'i18next'
+import { toast } from 'sonner'
 import { useAuthStore } from '@/stores/auth-store'
-import { getSelf } from '@/lib/api'
 import type { User } from '@/features/users/types'
-import { saveUserId } from '../lib/storage'
+import { bootstrapUserAfterLogin } from '../lib/bootstrap-user'
+import {
+  resolvePostLoginRedirect,
+  type PostLoginRedirect,
+} from '../lib/post-login-redirect'
 
 function getSavedLanguage(user: User): string | undefined {
   const userData = user as Record<string, unknown>
@@ -41,6 +45,22 @@ function getSavedLanguage(user: User): string | undefined {
   }
 }
 
+async function navigatePostLogin(
+  navigate: ReturnType<typeof useNavigate>,
+  destination: PostLoginRedirect
+) {
+  if (destination.kind === 'dashboard') {
+    await navigate({
+      to: '/dashboard/$section',
+      params: { section: destination.section },
+      replace: true,
+    })
+    return
+  }
+
+  await navigate({ href: destination.pathname, replace: true })
+}
+
 /**
  * Hook for handling authentication redirects and user data management
  */
@@ -52,42 +72,26 @@ export function useAuthRedirect() {
    * Handle successful login
    * @param userData - Optional user data from login response
    * @param redirectTo - Redirect path after login
+   * @returns true when navigation completed
    */
   const handleLoginSuccess = async (
     userData?: { id?: number } | null,
     redirectTo?: string
-  ) => {
-    // Save user ID if available
-    if (userData?.id) {
-      saveUserId(userData.id)
+  ): Promise<boolean> => {
+    const user = await bootstrapUserAfterLogin(auth.setUser, userData)
+    if (!user) {
+      toast.error(i18n.t('Failed to load profile'))
+      return false
     }
 
-    // Fetch and set user data
-    try {
-      const self = await getSelf()
-      if (self?.success && self.data) {
-        const user = self.data as User
-        auth.setUser(user)
-
-        // Update user ID if not already set
-        if (user.id) {
-          saveUserId(user.id)
-        }
-
-        // Restore saved language preference
-        const savedLang = getSavedLanguage(user)
-        if (savedLang && savedLang !== i18n.language) {
-          i18n.changeLanguage(savedLang)
-        }
-      }
-    } catch (error) {
-      // eslint-disable-next-line no-console
-      console.error('Failed to fetch user data:', error)
+    const savedLang = getSavedLanguage(user)
+    if (savedLang && savedLang !== i18n.language) {
+      i18n.changeLanguage(savedLang)
     }
 
-    // Navigate to target page
-    const targetPath = redirectTo || '/dashboard'
-    navigate({ to: targetPath, replace: true })
+    const destination = resolvePostLoginRedirect(redirectTo)
+    await navigatePostLogin(navigate, destination)
+    return true
   }
 
   /**

@@ -16,10 +16,55 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import axios from 'axios'
+import axios, { isAxiosError } from 'axios'
 import i18next from 'i18next'
 import { toast } from 'sonner'
 import { useAuthStore } from '@/stores/auth-store'
+
+const AXIOS_STATUS_MESSAGE_RE = /request failed with status code (\d+)/i
+
+function isAxiosBoilerplateMessage(message: string): boolean {
+  return (
+    AXIOS_STATUS_MESSAGE_RE.test(message) || /^network error$/i.test(message)
+  )
+}
+
+/**
+ * Map HTTP/axios failures to user-facing i18n text (never raw axios English).
+ */
+export function resolveHttpErrorMessage(error: unknown): string {
+  if (isAxiosError(error)) {
+    const status = error.response?.status
+
+    if (status === 429) {
+      return i18next.t('Too many requests, please try again later.')
+    }
+
+    const data = error.response?.data as { message?: string } | undefined
+    const serverMessage =
+      typeof data?.message === 'string' ? data.message.trim() : ''
+    if (serverMessage && !isAxiosBoilerplateMessage(serverMessage)) {
+      return serverMessage
+    }
+
+    const axiosMessage =
+      typeof error.message === 'string' ? error.message.trim() : ''
+    if (isAxiosBoilerplateMessage(axiosMessage)) {
+      const match = axiosMessage.match(AXIOS_STATUS_MESSAGE_RE)
+      const code = status ?? (match ? Number(match[1]) : undefined)
+      if (code === 429) {
+        return i18next.t('Too many requests, please try again later.')
+      }
+      return i18next.t('Something went wrong!')
+    }
+
+    if (axiosMessage) {
+      return axiosMessage
+    }
+  }
+
+  return i18next.t('Something went wrong!')
+}
 
 // ============================================================================
 // Axios Instance Configuration
@@ -104,10 +149,7 @@ api.interceptors.response.use(
           /* empty */
         }
       } else {
-        // Other errors: show error message from response or default
-        const msg =
-          error?.response?.data?.message || error?.message || 'Request error'
-        toast.error(msg)
+        toast.error(resolveHttpErrorMessage(error))
       }
     }
     return Promise.reject(error)

@@ -17,6 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { create } from 'zustand'
+import { resetSessionVerification } from '@/features/auth/lib/session'
 
 export type UserPermissions = {
   sidebar_settings?: boolean
@@ -92,6 +93,7 @@ export const useAuthStore = create<AuthState>()((set) => {
         }),
       reset: () =>
         set((state) => {
+          resetSessionVerification()
           if (typeof window !== 'undefined') {
             window.localStorage.removeItem('user')
           }

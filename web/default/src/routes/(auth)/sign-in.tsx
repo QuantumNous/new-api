@@ -18,8 +18,10 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { z } from 'zod'
 import { createFileRoute, redirect } from '@tanstack/react-router'
-import { useAuthStore } from '@/stores/auth-store'
+import { resolvePostLoginRedirect } from '@/features/auth/lib/post-login-redirect'
+import { isSessionVerified } from '@/features/auth/lib/session'
 import { SignIn } from '@/features/auth/sign-in'
+import { useAuthStore } from '@/stores/auth-store'
 
 const searchSchema = z.object({
   redirect: z.string().optional(),
@@ -31,11 +33,18 @@ export const Route = createFileRoute('/(auth)/sign-in')({
   beforeLoad: async ({ search }) => {
     const { auth } = useAuthStore.getState()
 
-    // 如果已经有用户信息，说明已登录
-    if (auth.user) {
-      // 优先使用 redirect 参数（用户之前想去的地方）
-      // 否则跳转到 dashboard
-      throw redirect({ to: search?.redirect || '/dashboard' })
+    if (!auth.user || !isSessionVerified()) {
+      return
     }
+
+    const destination = resolvePostLoginRedirect(search?.redirect)
+    if (destination.kind === 'dashboard') {
+      throw redirect({
+        to: '/dashboard/$section',
+        params: { section: destination.section },
+      })
+    }
+
+    throw redirect({ href: destination.pathname })
   },
 })

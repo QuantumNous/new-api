@@ -42,14 +42,19 @@ export async function login(payload: LoginPayload) {
     {
       username: payload.username,
       password: payload.password,
-    }
+    },
+    { skipErrorHandler: true } as Record<string, unknown>
   )
   return res.data
 }
 
 // Two-factor authentication login
 export async function login2fa(payload: TwoFAPayload) {
-  const res = await api.post<Login2FAResponse>('/api/user/login/2fa', payload)
+  const res = await api.post<Login2FAResponse>(
+    '/api/user/login/2fa',
+    payload,
+    { skipErrorHandler: true } as Record<string, unknown>
+  )
   return res.data
 }
 

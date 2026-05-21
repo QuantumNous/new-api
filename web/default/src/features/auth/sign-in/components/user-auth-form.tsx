@@ -52,6 +52,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { PasswordInput } from '@/components/password-input'
 import { Turnstile } from '@/components/turnstile'
+import { resolveHttpErrorMessage } from '@/lib/api'
 import { login, wechatLoginByCode } from '@/features/auth/api'
 import { LegalConsent } from '@/features/auth/components/legal-consent'
 import { OAuthProviders } from '@/features/auth/components/oauth-providers'
@@ -157,11 +158,15 @@ export function UserAuthForm({
           return
         }
 
-        await handleLoginSuccess(res.data as { id?: number } | null, redirectTo)
+        const ok = await handleLoginSuccess(
+          res.data as { id?: number } | null,
+          redirectTo
+        )
+        if (!ok) return
         toast.success(t('Welcome back!'))
       }
-    } catch (_error) {
-      // Errors are handled by global interceptor
+    } catch (error) {
+      toast.error(resolveHttpErrorMessage(error))
     } finally {
       setIsLoading(false)
     }
@@ -194,7 +199,11 @@ export function UserAuthForm({
     try {
       const res = await wechatLoginByCode(wechatCode)
       if (res?.success) {
-        await handleLoginSuccess(res.data as { id?: number } | null, redirectTo)
+        const ok = await handleLoginSuccess(
+          res.data as { id?: number } | null,
+          redirectTo
+        )
+        if (!ok) return
         toast.success(t('Signed in via WeChat'))
         handleWeChatDialogChange(false)
       } else {
@@ -257,10 +266,11 @@ export function UserAuthForm({
         throw new Error(t('Missing user data from Passkey login response'))
       }
 
-      await handleLoginSuccess(
+      const ok = await handleLoginSuccess(
         finish.data as { id?: number } | null,
         redirectTo
       )
+      if (!ok) return
       toast.success(t('Signed in with Passkey'))
     } catch (error: unknown) {
       if (error instanceof DOMException && error.name === 'NotAllowedError') {
