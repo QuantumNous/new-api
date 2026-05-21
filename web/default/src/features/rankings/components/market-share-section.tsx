@@ -20,7 +20,9 @@ import { useMemo } from 'react'
 import { VChart } from '@visactor/react-vchart'
 import { PieChart } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import { publicPortalCardClassName } from '@/lib/ops-ui-styles'
 import { useThemeRadiusPx } from '@/lib/theme-radius'
+import { cn } from '@/lib/utils'
 import { useChartTheme } from '@/lib/use-chart-theme'
 import { VCHART_OPTION } from '@/lib/vchart'
 import { useThemeCustomization } from '@/context/theme-customization-provider'
@@ -29,11 +31,11 @@ import type { RankingPeriod, VendorRanking, VendorShareSeries } from '../types'
 import { VendorLink } from './entity-links'
 
 const PERIOD_DESCRIPTIONS: Record<RankingPeriod, string> = {
-  today: 'Token share by model author across the last 24 hours',
-  week: 'Token share by model author across the past few weeks',
-  month: 'Token share by model author across the past month',
-  year: 'Token share by model author across the past year',
-  all: 'Token share by model author since launch',
+  today: 'Service source share by model provider in the last 24 hours',
+  week: 'Service source share by model provider over recent weeks',
+  month: 'Service source share by model provider over the past month',
+  year: 'Service source share by model provider over the past year',
+  all: 'Cumulative service source share since launch',
 }
 
 /** Stable colour palette for vendors, used in both the share chart and the
@@ -210,12 +212,12 @@ export function MarketShareSection(props: MarketShareSectionProps) {
   const right = visible.slice(half)
 
   return (
-    <section className='bg-card overflow-hidden rounded-lg border'>
+    <section className={cn(publicPortalCardClassName)}>
       {/* Chart block ----------------------------------------------------- */}
       <header className='px-5 py-4'>
         <h2 className='text-foreground inline-flex items-center gap-2 text-base font-semibold'>
           <PieChart className='text-primary size-4' />
-          {t('Market Share')}
+          {t('Service source share')}
         </h2>
         <p className='text-muted-foreground mt-1 text-sm'>
           {t(PERIOD_DESCRIPTIONS[props.period])}
@@ -246,10 +248,10 @@ export function MarketShareSection(props: MarketShareSectionProps) {
       <div className='border-t'>
         <header className='px-5 pt-4 pb-2'>
           <h3 className='text-foreground text-sm font-semibold'>
-            {t('By model author')}
+            {t('By service source')}
           </h3>
-          <p className='text-muted-foreground/80 mt-0.5 text-xs'>
-            {t('Vendors ranked by aggregated token volume')}
+          <p className='mt-0.5 text-xs text-slate-400'>
+            {t('Service sources ranked by aggregated token-unit volume')}
           </p>
         </header>
         {visible.length === 0 ? (

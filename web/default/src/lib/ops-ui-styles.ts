@@ -135,3 +135,40 @@ export const portalHeaderMobileCtaClassName = cn(
 )
 
 export const portalHeaderSkeletonClassName = 'bg-white/10'
+
+// —— Public portal page shell (pricing / rankings / about) —— //
+
+export const publicPortalPageShellClassName = cn(
+  'dark relative min-h-svh overflow-x-clip',
+  'bg-gradient-to-b from-slate-950 via-indigo-950/35 to-slate-950 text-slate-100'
+)
+
+/** Card surfaces on dark portal pages. */
+export const publicPortalCardClassName = cn(
+  'overflow-hidden rounded-xl border border-white/10',
+  'bg-slate-900/70 shadow-lg shadow-black/25 backdrop-blur-md'
+)
+
+/** Descendant overrides for legacy light-theme components inside portal pages. */
+export const publicPortalContentScopeClassName = cn(
+  '[&_.text-muted-foreground]:text-slate-400',
+  '[&_.text-muted-foreground\\/80]:text-slate-400/90',
+  '[&_.text-muted-foreground\\/60]:text-slate-500',
+  '[&_.text-muted-foreground\\/50]:text-slate-500',
+  '[&_.text-foreground]:text-slate-100',
+  '[&_.bg-background]:bg-slate-900/60',
+  '[&_.bg-card]:border-white/10 [&_.bg-card]:bg-slate-900/70',
+  '[&_.bg-muted]:bg-white/5',
+  '[&_.bg-muted\\/30]:bg-white/5',
+  '[&_.bg-muted\\/40]:bg-white/5',
+  '[&_.border-border]:border-white/10',
+  '[&_.border-border\\/60]:border-white/10',
+  '[&_.border-dashed]:border-white/15',
+  '[&_input]:border-white/15 [&_input]:bg-slate-950/50 [&_input]:text-slate-100',
+  '[&_input::placeholder]:text-slate-500',
+  '[&_[data-slot=table]]:text-slate-200',
+  '[&_thead]:bg-slate-900/80 [&_thead]:text-slate-300',
+  '[&_tbody_tr:hover]:bg-white/5',
+  '[&_[role=tablist]]:border-white/10',
+  '[&_.prose]:prose-invert [&_.prose]:text-slate-300'
+)

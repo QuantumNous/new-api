@@ -17,12 +17,54 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useQuery } from '@tanstack/react-query'
-import { Construction } from 'lucide-react'
+import {
+  Box,
+  Cloud,
+  KeyRound,
+  Layers,
+  ShieldCheck,
+  Users,
+} from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import { publicPortalCardClassName } from '@/lib/ops-ui-styles'
+import { cn } from '@/lib/utils'
 import { Markdown } from '@/components/ui/markdown'
 import { Skeleton } from '@/components/ui/skeleton'
 import { PublicLayout } from '@/components/layout'
 import { getAboutContent } from './api'
+
+const CAPABILITY_CARDS = [
+  {
+    icon: Layers,
+    titleKey: 'Unified model resource access',
+    descKey:
+      'Connect and govern multiple model services through one operations console.',
+  },
+  {
+    icon: KeyRound,
+    titleKey: 'Quota-unit resource operations',
+    descKey:
+      'Manage quota-unit balance, recharge, settlement, and consumption in one place.',
+  },
+  {
+    icon: Users,
+    titleKey: 'Multi-tenant account management',
+    descKey:
+      'Coordinate tenant groups, accounts, roles, and access policies.',
+  },
+  {
+    icon: ShieldCheck,
+    titleKey: 'Call audit and task tracking',
+    descKey:
+      'Track service calls, quota-unit consumption details, and operational records.',
+  },
+  {
+    icon: Cloud,
+    titleKey: 'Private and edge deployment',
+    descKey:
+      'Works with Xingze AI edge appliances for cloud, private, and edge-side deployment.',
+  },
+] as const
 
 function isValidUrl(value: string) {
   try {
@@ -37,62 +79,85 @@ function isLikelyHtml(value: string) {
   return /<\/?[a-z][\s\S]*>/i.test(value)
 }
 
+function AboutPortalHero() {
+  const { t } = useTranslation()
+
+  return (
+    <header className='mx-auto max-w-3xl space-y-4 pt-8 text-center sm:pt-12'>
+      <p className='text-xs font-medium tracking-widest text-emerald-300/90 uppercase'>
+        {t('About Center')}
+      </p>
+      <h1 className='text-[clamp(1.75rem,4vw,2.75rem)] leading-[1.15] font-bold tracking-tight text-slate-50'>
+        {t('Yunhe Xingze Token Operations Center')}
+      </h1>
+      <p className='text-sm leading-relaxed text-slate-300 sm:text-base'>
+        {t(
+          'An integrated model-service access and quota-unit operations platform for government and enterprise customers — unified governance, auditable usage, and controlled resource delivery.'
+        )}
+      </p>
+    </header>
+  )
+}
+
 function EmptyAboutState() {
   const { t } = useTranslation()
   const currentYear = new Date().getFullYear()
 
   return (
-    <div className='flex min-h-[60vh] items-center justify-center p-8'>
-      <div className='max-w-2xl space-y-6 text-center'>
-        <div className='flex justify-center'>
-          <Construction className='text-muted-foreground h-24 w-24' />
+    <div className='relative mx-auto w-full max-w-5xl px-4 pt-16 pb-16 sm:px-6 sm:pt-20'>
+      <div
+        aria-hidden
+        className='pointer-events-none absolute inset-x-0 top-0 h-[480px] opacity-30'
+        style={{
+          background: [
+            'radial-gradient(ellipse 55% 45% at 15% 10%, oklch(0.55 0.14 195 / 70%) 0%, transparent 70%)',
+            'radial-gradient(ellipse 45% 40% at 85% 20%, oklch(0.5 0.12 280 / 55%) 0%, transparent 70%)',
+          ].join(', '),
+          maskImage: 'linear-gradient(to bottom, black 30%, transparent 100%)',
+          WebkitMaskImage:
+            'linear-gradient(to bottom, black 30%, transparent 100%)',
+        }}
+      />
+      <div className='relative space-y-10'>
+        <AboutPortalHero />
+        <div className='grid gap-4 sm:grid-cols-2'>
+          {CAPABILITY_CARDS.map(({ icon: Icon, titleKey, descKey }) => (
+            <div
+              key={titleKey}
+              className={cn(
+                publicPortalCardClassName,
+                'p-5 transition-colors hover:border-cyan-400/25'
+              )}
+            >
+              <span className='mb-3 inline-flex size-10 items-center justify-center rounded-lg border border-white/10 bg-cyan-500/15 text-cyan-200'>
+                <Icon className='size-5' aria-hidden />
+              </span>
+              <p className='font-semibold text-slate-100'>{t(titleKey)}</p>
+              <p className='mt-2 text-sm leading-relaxed text-slate-400'>
+                {t(descKey)}
+              </p>
+            </div>
+          ))}
         </div>
-        <div className='space-y-2'>
-          <h2 className='text-2xl font-bold'>{t('About Center')}</h2>
-          <p className='text-muted-foreground'>
+        <div
+          className={cn(
+            publicPortalCardClassName,
+            'flex items-start gap-4 p-5 sm:p-6'
+          )}
+        >
+          <span className='inline-flex size-10 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-violet-500/15 text-violet-200'>
+            <Box className='size-5' aria-hidden />
+          </span>
+          <p className='text-sm leading-relaxed text-slate-300'>
             {t(
-              'Yunhe Xingze Token Operations Center provides integrated model service access, token resource operations, tenant management, and call auditing for enterprise scenarios.'
+              'Deploy in the cloud, in a private environment, or alongside Xingze AI edge appliances — one operations experience across deployment models.'
             )}
           </p>
         </div>
-        <div className='mx-auto grid max-w-2xl gap-3 text-left text-sm sm:grid-cols-2'>
-          <div className='bg-muted/30 rounded-lg border p-4'>
-            <p className='font-medium'>{t('Unified Model Service Access')}</p>
-            <p className='text-muted-foreground mt-1'>
-              {t(
-                'Centralized access and governance for multiple model services.'
-              )}
-            </p>
-          </div>
-          <div className='bg-muted/30 rounded-lg border p-4'>
-            <p className='font-medium'>{t('Token Resource Operations')}</p>
-            <p className='text-muted-foreground mt-1'>
-              {t('Manage token quota, recharge, settlement, and consumption.')}
-            </p>
-          </div>
-          <div className='bg-muted/30 rounded-lg border p-4'>
-            <p className='font-medium'>{t('Tenant Account Governance')}</p>
-            <p className='text-muted-foreground mt-1'>
-              {t(
-                'Coordinate tenant groups, accounts, roles, and access policies.'
-              )}
-            </p>
-          </div>
-          <div className='bg-muted/30 rounded-lg border p-4'>
-            <p className='font-medium'>{t('Call Audit Center')}</p>
-            <p className='text-muted-foreground mt-1'>
-              {t(
-                'Track service calls, usage details, and operational records.'
-              )}
-            </p>
-          </div>
-        </div>
-        <div className='text-muted-foreground space-y-2 text-sm'>
-          <p>
-            &copy; {currentYear} {t('Yunhe Xingze Token Operations Center')}.{' '}
-            {t('All rights reserved.')}
-          </p>
-        </div>
+        <p className='text-center text-sm text-slate-500'>
+          &copy; {currentYear} {t('Yunhe Xingze Token Operations Center')}.{' '}
+          {t('All rights reserved.')}
+        </p>
       </div>
     </div>
   )
@@ -112,12 +177,12 @@ export function About() {
 
   if (isLoading) {
     return (
-      <PublicLayout>
-        <div className='mx-auto flex max-w-4xl flex-col gap-4 py-12'>
-          <Skeleton className='h-8 w-[45%]' />
-          <Skeleton className='h-4 w-full' />
-          <Skeleton className='h-4 w-[90%]' />
-          <Skeleton className='h-4 w-[80%]' />
+      <PublicLayout portalShell>
+        <div className='mx-auto flex max-w-4xl flex-col gap-4 px-4 py-16 sm:px-6'>
+          <Skeleton className='h-8 w-[45%] bg-white/10' />
+          <Skeleton className='h-4 w-full bg-white/10' />
+          <Skeleton className='h-4 w-[90%] bg-white/10' />
+          <Skeleton className='h-4 w-[80%] bg-white/10' />
         </div>
       </PublicLayout>
     )
@@ -125,7 +190,7 @@ export function About() {
 
   if (!hasContent) {
     return (
-      <PublicLayout>
+      <PublicLayout showMainContainer={false} portalShell>
         <EmptyAboutState />
       </PublicLayout>
     )
@@ -133,10 +198,10 @@ export function About() {
 
   if (isUrl) {
     return (
-      <PublicLayout showMainContainer={false}>
+      <PublicLayout showMainContainer={false} portalShell>
         <iframe
           src={rawContent}
-          className='h-[calc(100vh-3.5rem)] w-full border-0'
+          className='h-[calc(100vh-3.5rem)] w-full border-0 bg-slate-950'
           title={t('About Center')}
         />
       </PublicLayout>
@@ -144,18 +209,24 @@ export function About() {
   }
 
   return (
-    <PublicLayout>
-      <div className='mx-auto max-w-6xl px-4 py-8'>
-        {isHtml ? (
-          <div
-            className='prose prose-neutral dark:prose-invert max-w-none'
-            dangerouslySetInnerHTML={{ __html: rawContent }}
-          />
-        ) : (
-          <Markdown className='prose-neutral dark:prose-invert max-w-none'>
-            {rawContent}
-          </Markdown>
-        )}
+    <PublicLayout portalShell>
+      <div className='relative mx-auto max-w-6xl px-4 py-8 sm:px-6 sm:py-12'>
+        <AboutPortalHero />
+        <div
+          className={cn(
+            publicPortalCardClassName,
+            'mt-8 p-6 sm:p-8',
+            isHtml ? 'prose prose-invert max-w-none text-slate-300' : ''
+          )}
+        >
+          {isHtml ? (
+            <div dangerouslySetInnerHTML={{ __html: rawContent }} />
+          ) : (
+            <Markdown className='prose-invert max-w-none text-slate-300'>
+              {rawContent}
+            </Markdown>
+          )}
+        </div>
       </div>
     </PublicLayout>
   )

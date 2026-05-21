@@ -16,12 +16,19 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { cn } from '@/lib/utils'
+import {
+  publicPortalContentScopeClassName,
+  publicPortalPageShellClassName,
+} from '@/lib/ops-ui-styles'
 import type { TopNavLink } from '../types'
 import { PublicHeader, type PublicHeaderProps } from './public-header'
 
 type PublicLayoutProps = {
   children: React.ReactNode
   showMainContainer?: boolean
+  /** Dark 昀河星泽 portal shell + bright header nav (pricing / rankings / about). */
+  portalShell?: boolean
   /** Light text on dark hero (home portal shell). */
   headerTone?: PublicHeaderProps['headerTone']
   navContent?: React.ReactNode
@@ -35,10 +42,20 @@ type PublicLayoutProps = {
 }
 
 export function PublicLayout(props: PublicLayoutProps) {
+  const portalShell = props.portalShell === true
+  const headerTone =
+    props.headerTone ?? props.headerProps?.headerTone ?? (portalShell ? 'portal' : 'default')
+
   return (
-    <div className='bg-background text-foreground relative min-h-svh overflow-x-clip'>
+    <div
+      className={cn(
+        portalShell
+          ? publicPortalPageShellClassName
+          : 'bg-background text-foreground relative min-h-svh overflow-x-clip'
+      )}
+    >
       <PublicHeader
-        headerTone={props.headerTone ?? props.headerProps?.headerTone}
+        headerTone={headerTone}
         navContent={props.navContent}
         navLinks={props.navLinks}
         showThemeSwitch={props.showThemeSwitch}
@@ -50,11 +67,18 @@ export function PublicLayout(props: PublicLayoutProps) {
       />
 
       {props.showMainContainer !== false ? (
-        <main className='container px-4 py-6 pt-20 md:px-4'>
+        <main
+          className={cn(
+            'container px-4 py-6 pt-20 md:px-4',
+            portalShell && publicPortalContentScopeClassName
+          )}
+        >
           {props.children}
         </main>
       ) : (
-        props.children
+        <div className={cn(portalShell && publicPortalContentScopeClassName)}>
+          {props.children}
+        </div>
       )}
     </div>
   )

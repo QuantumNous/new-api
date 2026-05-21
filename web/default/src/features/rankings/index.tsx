@@ -18,6 +18,8 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { useNavigate, useSearch } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
+import { publicPortalCardClassName } from '@/lib/ops-ui-styles'
+import { cn } from '@/lib/utils'
 import { Skeleton } from '@/components/ui/skeleton'
 import { PublicLayout } from '@/components/layout'
 import { PageTransition } from '@/components/page-transition'
@@ -54,7 +56,7 @@ export function Rankings() {
   }
 
   return (
-    <PublicLayout showMainContainer={false}>
+    <PublicLayout showMainContainer={false} portalShell>
       <div className='relative'>
         <div
           aria-hidden
@@ -123,11 +125,16 @@ function RankingsLoading() {
 function RankingsError(props: { message: string }) {
   const { t } = useTranslation()
   return (
-    <div className='bg-card rounded-xl border border-dashed px-6 py-12 text-center'>
-      <h2 className='text-foreground text-base font-semibold'>
+    <div
+      className={cn(
+        publicPortalCardClassName,
+        'border-dashed px-6 py-12 text-center'
+      )}
+    >
+      <h2 className='text-base font-semibold text-slate-100'>
         {t('Unable to load rankings')}
       </h2>
-      <p className='text-muted-foreground mx-auto mt-2 max-w-md text-sm'>
+      <p className='mx-auto mt-2 max-w-md text-sm text-slate-400'>
         {props.message}
       </p>
     </div>

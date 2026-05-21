@@ -20,7 +20,9 @@ import { useMemo } from 'react'
 import { VChart } from '@visactor/react-vchart'
 import { BarChart3, Trophy } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import { publicPortalCardClassName } from '@/lib/ops-ui-styles'
 import { useThemeRadiusPx } from '@/lib/theme-radius'
+import { cn } from '@/lib/utils'
 import { useChartTheme } from '@/lib/use-chart-theme'
 import { VCHART_OPTION } from '@/lib/vchart'
 import { useThemeCustomization } from '@/context/theme-customization-provider'
@@ -29,11 +31,11 @@ import type { ModelHistorySeries, ModelRanking, RankingPeriod } from '../types'
 import { ModelLeaderboard } from './model-leaderboard'
 
 const PERIOD_DESCRIPTIONS: Record<RankingPeriod, string> = {
-  today: 'Hourly token usage by model across the last 24 hours',
-  week: 'Weekly token usage by model across the past few weeks',
-  month: 'Daily token usage by model across the past month',
-  year: 'Weekly token usage by model across the past year',
-  all: 'Token usage by model since launch',
+  today: 'Hourly token-unit consumption by model resource in the last 24 hours',
+  week: 'Weekly token-unit consumption by model resource over recent weeks',
+  month: 'Daily token-unit consumption by model resource over the past month',
+  year: 'Weekly token-unit consumption by model resource over the past year',
+  all: 'Cumulative token-unit consumption by model resource since launch',
 }
 
 const TOOLTIP_MAX_ROWS = 10
@@ -162,24 +164,24 @@ export function ModelsSection(props: ModelsSectionProps) {
   }, [barRadius, orderedPoints, t])
 
   return (
-    <section className='bg-card overflow-hidden rounded-lg border'>
+    <section className={cn(publicPortalCardClassName)}>
       {/* Chart block ----------------------------------------------------- */}
       <header className='flex items-start justify-between gap-4 px-5 py-4'>
         <div className='min-w-0 flex-1'>
           <h2 className='text-foreground inline-flex items-center gap-2 text-base font-semibold'>
             <BarChart3 className='text-primary size-4' />
-            {t('Top Models')}
+            {t('Top model resources')}
           </h2>
-          <p className='text-muted-foreground mt-1 text-sm'>
+          <p className='mt-1 text-sm text-slate-400'>
             {t(PERIOD_DESCRIPTIONS[props.period])}
           </p>
         </div>
         <div className='shrink-0 text-right'>
-          <div className='text-foreground font-mono text-2xl font-semibold tabular-nums'>
+          <div className='font-mono text-2xl font-semibold text-slate-100 tabular-nums'>
             {formatTokens(totalTokens)}
           </div>
-          <div className='text-muted-foreground/80 text-[10px] font-medium tracking-widest uppercase'>
-            {t('tokens')}
+          <div className='text-[10px] font-medium tracking-widest text-slate-400 uppercase'>
+            {t('token units')}
           </div>
         </div>
       </header>
@@ -209,10 +211,10 @@ export function ModelsSection(props: ModelsSectionProps) {
         <header className='px-5 pt-4 pb-2'>
           <h3 className='text-foreground inline-flex items-center gap-2 text-sm font-semibold'>
             <Trophy className='size-3.5 text-amber-500' />
-            {t('LLM Leaderboard')}
+            {t('Model resource leaderboard')}
           </h3>
-          <p className='text-muted-foreground/80 mt-0.5 text-xs'>
-            {t('Compare the most popular models on the platform')}
+          <p className='mt-0.5 text-xs text-slate-400'>
+            {t('Compare popular model resources by token consumption and call volume')}
           </p>
         </header>
         {props.rows.length === 0 ? (

@@ -146,7 +146,7 @@ export function Pricing() {
 
   if (isLoading) {
     return (
-      <PublicLayout showMainContainer={false}>
+      <PublicLayout showMainContainer={false} portalShell>
         <div className='mx-auto w-full max-w-[1800px] px-3 pt-16 pb-8 sm:px-6 sm:pt-20 sm:pb-10 xl:px-8'>
           <LoadingSkeleton viewMode={viewMode} />
         </div>
@@ -155,7 +155,7 @@ export function Pricing() {
   }
 
   return (
-    <PublicLayout showMainContainer={false}>
+    <PublicLayout showMainContainer={false} portalShell>
       <div className='relative'>
         <div
           aria-hidden
@@ -174,20 +174,20 @@ export function Pricing() {
         />
         <PageTransition className='relative mx-auto w-full max-w-[1800px] px-3 pt-16 pb-8 sm:px-6 sm:pt-20 sm:pb-10 xl:px-8'>
           <header className='mx-auto mb-5 max-w-3xl pt-5 text-center sm:mb-10 sm:pt-10'>
-            <p className='text-muted-foreground mb-3 text-xs font-medium tracking-widest uppercase'>
-              {t('Models Directory')}
+            <p className='mb-3 text-xs font-medium tracking-widest text-cyan-300/90 uppercase'>
+              {t('Resource billing guide')}
             </p>
-            <h1 className='text-[clamp(2rem,5.5vw,3.5rem)] leading-[1.15] font-bold tracking-tight'>
-              {t('Model Resource Marketplace')}
+            <h1 className='text-[clamp(2rem,5.5vw,3.5rem)] leading-[1.15] font-bold tracking-tight text-slate-50'>
+              {t('Model resource billing overview')}
             </h1>
-            <p className='text-muted-foreground/80 mt-3 text-sm sm:mt-4 sm:text-base'>
-              {t('This site currently has {{count}} models enabled', {
+            <p className='mt-3 text-sm text-slate-300 sm:mt-4 sm:text-base'>
+              {t('This site currently has {{count}} model resources enabled', {
                 count: models?.length || 0,
               })}
             </p>
-            <p className='text-muted-foreground/60 mx-auto mt-2 max-w-2xl text-xs leading-relaxed sm:text-sm'>
+            <p className='mx-auto mt-2 max-w-2xl text-xs leading-relaxed text-slate-400 sm:text-sm'>
               {t(
-                'Discover curated AI models, compare pricing and capabilities, and choose the right model for every scenario.'
+                'Understand billing basis, token units, and RMB unit prices before integration, so teams can estimate call cost with confidence.'
               )}
             </p>
             <SearchBar

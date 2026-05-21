@@ -17,21 +17,41 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { Link } from '@tanstack/react-router'
+import {
+  portalHeaderNavLinkActiveClassName,
+  portalHeaderNavLinkClassName,
+} from '@/lib/ops-ui-styles'
 import { cn } from '@/lib/utils'
 import type { TopNavLink } from '../types'
 
 interface NavLinkItemProps {
   link: TopNavLink
   className?: string
+  tone?: 'portal' | 'default'
+  active?: boolean
 }
 
 /**
  * Renders a single navigation link (internal or external)
  * Handles routing and proper link attributes
  */
-export function NavLinkItem({ link, className }: NavLinkItemProps) {
+export function NavLinkItem({
+  link,
+  className,
+  tone = 'default',
+  active = false,
+}: NavLinkItemProps) {
   const linkClassName = cn(
-    'text-muted-foreground hover:text-foreground transition-colors',
+    tone === 'portal'
+      ? active
+        ? portalHeaderNavLinkActiveClassName
+        : portalHeaderNavLinkClassName
+      : cn(
+          'transition-colors',
+          active
+            ? 'text-foreground font-medium'
+            : 'text-muted-foreground hover:text-foreground'
+        ),
     link.disabled && 'pointer-events-none opacity-50',
     className
   )

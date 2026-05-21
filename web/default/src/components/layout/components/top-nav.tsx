@@ -17,8 +17,12 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useMemo } from 'react'
-import { Link } from '@tanstack/react-router'
+import { Link, useRouterState } from '@tanstack/react-router'
 import { Menu } from 'lucide-react'
+import {
+  portalHeaderNavLinkActiveClassName,
+  portalHeaderNavLinkClassName,
+} from '@/lib/ops-ui-styles'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import {
@@ -31,13 +35,39 @@ import { type TopNavLink } from '../types'
 
 type TopNavProps = React.HTMLAttributes<HTMLElement> & {
   links: TopNavLink[]
+  /** Bright nav on dark app header (matches public portal header). */
+  tone?: 'portal' | 'default'
 }
 
 /**
  * 顶部导航栏组件
  * 在大屏幕显示水平导航，在小屏幕显示下拉菜单
  */
-export function TopNav({ className, links, ...props }: TopNavProps) {
+export function TopNav({ className, links, tone = 'default', ...props }: TopNavProps) {
+  const pathname = useRouterState({ select: (s) => s.location.pathname })
+  const isPortalTone = tone === 'portal'
+
+  const linkClass = (active: boolean) =>
+    isPortalTone
+      ? active
+        ? portalHeaderNavLinkActiveClassName
+        : portalHeaderNavLinkClassName
+      : cn(
+          'text-sm font-medium transition-colors',
+          active
+            ? 'text-foreground font-medium'
+            : 'text-muted-foreground hover:text-foreground'
+        )
+
+  const mobileLinkClass = (active: boolean) =>
+    isPortalTone
+      ? active
+        ? 'font-semibold text-white'
+        : 'text-slate-200'
+      : active
+        ? ''
+        : 'text-muted-foreground'
+
   // 规范化链接，确保所有可选属性都有默认值
   const normalizedLinks = useMemo(
     () =>
@@ -61,33 +91,36 @@ export function TopNav({ className, links, ...props }: TopNavProps) {
             <Menu />
           </DropdownMenuTrigger>
           <DropdownMenuContent side='bottom' align='start'>
-            {normalizedLinks.map(
-              ({ title, href, isActive, disabled, external }) => (
+            {normalizedLinks.map((link) => {
+              const active =
+                link.isActive ||
+                (!link.external && pathname === link.href.split('?')[0])
+              return (
                 <DropdownMenuItem
-                  key={`${title}-${href}`}
+                  key={`${link.title}-${link.href}`}
                   render={
-                    external ? (
+                    link.external ? (
                       <a
-                        href={href}
+                        href={link.href}
                         target='_blank'
                         rel='noopener noreferrer'
-                        className={!isActive ? 'text-muted-foreground' : ''}
+                        className={mobileLinkClass(active)}
                       >
-                        {title}
+                        {link.title}
                       </a>
                     ) : (
                       <Link
-                        to={href}
-                        className={!isActive ? 'text-muted-foreground' : ''}
-                        disabled={disabled}
+                        to={link.href}
+                        className={mobileLinkClass(active)}
+                        disabled={link.disabled}
                       >
-                        {title}
+                        {link.title}
                       </Link>
                     )
                   }
-                ></DropdownMenuItem>
+                />
               )
-            )}
+            })}
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
@@ -100,28 +133,32 @@ export function TopNav({ className, links, ...props }: TopNavProps) {
         )}
         {...props}
       >
-        {normalizedLinks.map(({ title, href, isActive, disabled, external }) =>
-          external ? (
+        {normalizedLinks.map((link) => {
+          const active =
+            link.isActive ||
+            (!link.external && pathname === link.href.split('?')[0])
+          const cls = linkClass(active)
+          return link.external ? (
             <a
-              key={`${title}-${href}`}
-              href={href}
+              key={`${link.title}-${link.href}`}
+              href={link.href}
               target='_blank'
               rel='noopener noreferrer'
-              className={`hover:text-primary text-sm font-medium transition-colors ${isActive ? '' : 'text-muted-foreground'}`}
+              className={cls}
             >
-              {title}
+              {link.title}
             </a>
           ) : (
             <Link
-              key={`${title}-${href}`}
-              to={href}
-              disabled={disabled}
-              className={`hover:text-primary text-sm font-medium transition-colors ${isActive ? '' : 'text-muted-foreground'}`}
+              key={`${link.title}-${link.href}`}
+              to={link.href}
+              disabled={link.disabled}
+              className={cls}
             >
-              {title}
+              {link.title}
             </Link>
           )
-        )}
+        })}
       </nav>
     </>
   )

@@ -22,6 +22,8 @@ import {
   TrendingDown,
   TrendingUp,
 } from 'lucide-react'
+import { publicPortalCardClassName } from '@/lib/ops-ui-styles'
+import { cn } from '@/lib/utils'
 import { useTranslation } from 'react-i18next'
 import { getLobeIcon } from '@/lib/lobe-icon'
 import { cn } from '@/lib/utils'
@@ -43,7 +45,7 @@ export function PulseSection(props: PulseSectionProps) {
     <section className='grid grid-cols-1 gap-4 lg:grid-cols-2'>
       <PulseCard
         title={t('Trending up')}
-        description={t('Models climbing the leaderboard')}
+        description={t('Model resources climbing the rankings')}
         icon={<TrendingUp className='size-4 text-emerald-500' />}
       >
         {props.movers.length === 0 ? (
@@ -59,7 +61,7 @@ export function PulseSection(props: PulseSectionProps) {
 
       <PulseCard
         title={t('Trending down')}
-        description={t('Models losing positions')}
+        description={t('Model resources losing rank')}
         icon={<TrendingDown className='size-4 text-rose-500' />}
       >
         {props.droppers.length === 0 ? (
@@ -83,7 +85,7 @@ function PulseCard(props: {
   children: React.ReactNode
 }) {
   return (
-    <div className='bg-card overflow-hidden rounded-lg border'>
+    <div className={cn(publicPortalCardClassName)}>
       <header className='border-b px-4 py-3'>
         <h3 className='text-foreground inline-flex items-center gap-2 text-sm font-semibold'>
           {props.icon}

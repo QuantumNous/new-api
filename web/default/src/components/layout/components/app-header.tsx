@@ -16,6 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { portalHeaderIconGroupClassName } from '@/lib/ops-ui-styles'
 import { cn } from '@/lib/utils'
 import { useNotifications } from '@/hooks/use-notifications'
 import { useTopNavLinks } from '@/hooks/use-top-nav-links'
@@ -121,10 +122,15 @@ export function AppHeader({
         ) : null}
 
         {rightContent ?? (
-          <div className='ms-auto flex items-center gap-0.5 rounded-lg border border-white/10 bg-white/5 px-1 py-0.5 text-slate-100 sm:gap-1 sm:px-1.5'>
+          <div
+            className={cn(
+              'ms-auto flex items-center gap-0.5 rounded-lg border border-white/10 bg-white/5 px-1 py-0.5 text-slate-100 sm:gap-1 sm:px-1.5',
+              portalHeaderIconGroupClassName
+            )}
+          >
             {showTopNav && (
-              <div className='me-1 hidden lg:block'>
-                <TopNav links={links} />
+              <div className='me-2 hidden lg:block'>
+                <TopNav links={links} tone='portal' />
               </div>
             )}
             {showSearch && <Search />}
