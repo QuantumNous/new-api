@@ -71,6 +71,7 @@ func clearChannelInfo(channel *model.Channel) {
 func GetAllChannels(c *gin.Context) {
 	pageInfo := common.GetPageQuery(c)
 	channelData := make([]*model.Channel, 0)
+	scope := model.TenantScopeFromContext(c)
 	idSort, _ := strconv.ParseBool(c.Query("id_sort"))
 	sortOptions := model.NewChannelSortOptions(c.Query("sort_by"), c.Query("sort_order"), idSort)
 	enableTagMode, _ := strconv.ParseBool(c.Query("tag_mode"))
@@ -89,7 +90,7 @@ func GetAllChannels(c *gin.Context) {
 	var total int64
 
 	if enableTagMode {
-		tags, err := model.GetPaginatedTags(pageInfo.GetStartIdx(), pageInfo.GetPageSize())
+		tags, err := model.GetPaginatedTags(pageInfo.GetStartIdx(), pageInfo.GetPageSize(), scope)
 		if err != nil {
 			common.SysError("failed to get paginated tags: " + err.Error())
 			c.JSON(http.StatusOK, gin.H{"success": false, "message": "获取标签失败，请稍后重试"})
@@ -99,7 +100,7 @@ func GetAllChannels(c *gin.Context) {
 			if tag == nil || *tag == "" {
 				continue
 			}
-			tagChannels, err := model.GetChannelsByTag(*tag, idSort, false, sortOptions)
+			tagChannels, err := model.GetChannelsByTagScoped(*tag, idSort, false, scope, sortOptions)
 			if err != nil {
 				continue
 			}
@@ -118,9 +119,10 @@ func GetAllChannels(c *gin.Context) {
 			}
 			channelData = append(channelData, filtered...)
 		}
-		total, _ = model.CountAllTags()
+		total, _ = model.CountAllTags(scope)
 	} else {
 		baseQuery := model.DB.Model(&model.Channel{})
+		baseQuery = scope.Apply(baseQuery, "channels")
 		if typeFilter >= 0 {
 			baseQuery = baseQuery.Where("type = ?", typeFilter)
 		}
@@ -145,6 +147,7 @@ func GetAllChannels(c *gin.Context) {
 	}
 
 	countQuery := model.DB.Model(&model.Channel{})
+	countQuery = scope.Apply(countQuery, "channels")
 	if statusFilter == common.ChannelStatusEnabled {
 		countQuery = countQuery.Where("status = ?", common.ChannelStatusEnabled)
 	} else if statusFilter == 0 {
@@ -251,8 +254,9 @@ func SearchChannels(c *gin.Context) {
 	sortOptions := model.NewChannelSortOptions(c.Query("sort_by"), c.Query("sort_order"), idSort)
 	enableTagMode, _ := strconv.ParseBool(c.Query("tag_mode"))
 	channelData := make([]*model.Channel, 0)
+	scope := model.TenantScopeFromContext(c)
 	if enableTagMode {
-		tags, err := model.SearchTags(keyword, group, modelKeyword, idSort)
+		tags, err := model.SearchTags(keyword, group, modelKeyword, idSort, scope)
 		if err != nil {
 			c.JSON(http.StatusOK, gin.H{
 				"success": false,
@@ -262,14 +266,14 @@ func SearchChannels(c *gin.Context) {
 		}
 		for _, tag := range tags {
 			if tag != nil && *tag != "" {
-				tagChannel, err := model.GetChannelsByTag(*tag, idSort, false, sortOptions)
+				tagChannel, err := model.GetChannelsByTagScoped(*tag, idSort, false, scope, sortOptions)
 				if err == nil {
 					channelData = append(channelData, tagChannel...)
 				}
 			}
 		}
 	} else {
-		channels, err := model.SearchChannels(keyword, group, modelKeyword, idSort, sortOptions)
+		channels, err := model.SearchChannelsScoped(keyword, group, modelKeyword, idSort, scope, sortOptions)
 		if err != nil {
 			c.JSON(http.StatusOK, gin.H{
 				"success": false,
@@ -1121,7 +1125,7 @@ func GetTagModels(c *gin.Context) {
 		return
 	}
 
-	channels, err := model.GetChannelsByTag(tag, false, false) // idSort=false, selectAll=false
+	channels, err := model.GetChannelsByTagScoped(tag, false, false, model.TenantScopeFromContext(c)) // idSort=false, selectAll=false
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"success": false,

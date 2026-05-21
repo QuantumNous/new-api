@@ -338,9 +338,21 @@ func GetAllChannels(startIdx int, num int, selectAll bool, idSort bool, sortOpti
 }
 
 func GetChannelsByTag(tag string, idSort bool, selectAll bool, sortOptions ...ChannelSortOptions) ([]*Channel, error) {
+	return getChannelsByTag(tag, idSort, selectAll, nil, sortOptions...)
+}
+
+func GetChannelsByTagScoped(tag string, idSort bool, selectAll bool, scope TenantScope, sortOptions ...ChannelSortOptions) ([]*Channel, error) {
+	return getChannelsByTag(tag, idSort, selectAll, &scope, sortOptions...)
+}
+
+func getChannelsByTag(tag string, idSort bool, selectAll bool, scope *TenantScope, sortOptions ...ChannelSortOptions) ([]*Channel, error) {
 	var channels []*Channel
 	order := resolveChannelSortOptions(idSort, sortOptions)
-	query := order.Apply(DB.Where("tag = ?", tag))
+	query := DB.Where("tag = ?", tag)
+	if scope != nil {
+		query = scope.Apply(query, "channels")
+	}
+	query = order.Apply(query)
 	if !selectAll {
 		query = query.Omit("key")
 	}
@@ -349,6 +361,14 @@ func GetChannelsByTag(tag string, idSort bool, selectAll bool, sortOptions ...Ch
 }
 
 func SearchChannels(keyword string, group string, model string, idSort bool, sortOptions ...ChannelSortOptions) ([]*Channel, error) {
+	return searchChannels(keyword, group, model, idSort, nil, sortOptions...)
+}
+
+func SearchChannelsScoped(keyword string, group string, model string, idSort bool, scope TenantScope, sortOptions ...ChannelSortOptions) ([]*Channel, error) {
+	return searchChannels(keyword, group, model, idSort, &scope, sortOptions...)
+}
+
+func searchChannels(keyword string, group string, model string, idSort bool, scope *TenantScope, sortOptions ...ChannelSortOptions) ([]*Channel, error) {
 	var channels []*Channel
 	modelsCol := "`models`"
 
@@ -367,6 +387,9 @@ func SearchChannels(keyword string, group string, model string, idSort bool, sor
 
 	// 构造基础查询
 	baseQuery := DB.Model(&Channel{}).Omit("key")
+	if scope != nil {
+		baseQuery = scope.Apply(baseQuery, "channels")
+	}
 
 	// 构造WHERE子句
 	var whereClause string
@@ -831,13 +854,17 @@ func DeleteDisabledChannel() (int64, error) {
 	return result.RowsAffected, result.Error
 }
 
-func GetPaginatedTags(offset int, limit int) ([]*string, error) {
+func GetPaginatedTags(offset int, limit int, scopes ...TenantScope) ([]*string, error) {
 	var tags []*string
-	err := DB.Model(&Channel{}).Select("DISTINCT tag").Where("tag != ''").Offset(offset).Limit(limit).Find(&tags).Error
+	query := DB.Model(&Channel{})
+	if len(scopes) > 0 {
+		query = scopes[0].Apply(query, "channels")
+	}
+	err := query.Select("DISTINCT tag").Where("tag != ''").Offset(offset).Limit(limit).Find(&tags).Error
 	return tags, err
 }
 
-func SearchTags(keyword string, group string, model string, idSort bool) ([]*string, error) {
+func SearchTags(keyword string, group string, model string, idSort bool, scopes ...TenantScope) ([]*string, error) {
 	var tags []*string
 	modelsCol := "`models`"
 
@@ -859,6 +886,9 @@ func SearchTags(keyword string, group string, model string, idSort bool) ([]*str
 
 	// 构造基础查询
 	baseQuery := DB.Model(&Channel{}).Omit("key")
+	if len(scopes) > 0 {
+		baseQuery = scopes[0].Apply(baseQuery, "channels")
+	}
 
 	// 构造WHERE子句
 	var whereClause string
@@ -1018,9 +1048,13 @@ func CountAllChannels() (int64, error) {
 }
 
 // CountAllTags returns number of non-empty distinct tags
-func CountAllTags() (int64, error) {
+func CountAllTags(scopes ...TenantScope) (int64, error) {
 	var total int64
-	err := DB.Model(&Channel{}).Where("tag is not null AND tag != ''").Distinct("tag").Count(&total).Error
+	query := DB.Model(&Channel{})
+	if len(scopes) > 0 {
+		query = scopes[0].Apply(query, "channels")
+	}
+	err := query.Where("tag is not null AND tag != ''").Distinct("tag").Count(&total).Error
 	return total, err
 }
 

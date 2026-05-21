@@ -30,7 +30,7 @@ type Redemption struct {
 	ExpiredTime           int64          `json:"expired_time" gorm:"bigint"` // 过期时间，0 表示不过期
 }
 
-func GetAllRedemptions(startIdx int, num int) (redemptions []*Redemption, total int64, err error) {
+func GetAllRedemptions(startIdx int, num int, scopes ...TenantScope) (redemptions []*Redemption, total int64, err error) {
 	// 开始事务
 	tx := DB.Begin()
 	if tx.Error != nil {
@@ -42,15 +42,20 @@ func GetAllRedemptions(startIdx int, num int) (redemptions []*Redemption, total 
 		}
 	}()
 
+	query := tx.Model(&Redemption{})
+	if len(scopes) > 0 {
+		query = scopes[0].Apply(query, "redemptions")
+	}
+
 	// 获取总数
-	err = tx.Model(&Redemption{}).Count(&total).Error
+	err = query.Count(&total).Error
 	if err != nil {
 		tx.Rollback()
 		return nil, 0, err
 	}
 
 	// 获取分页数据
-	err = tx.Order("id desc").Limit(num).Offset(startIdx).Find(&redemptions).Error
+	err = query.Order("id desc").Limit(num).Offset(startIdx).Find(&redemptions).Error
 	if err != nil {
 		tx.Rollback()
 		return nil, 0, err
@@ -64,7 +69,7 @@ func GetAllRedemptions(startIdx int, num int) (redemptions []*Redemption, total 
 	return redemptions, total, nil
 }
 
-func SearchRedemptions(keyword string, startIdx int, num int) (redemptions []*Redemption, total int64, err error) {
+func SearchRedemptions(keyword string, startIdx int, num int, scopes ...TenantScope) (redemptions []*Redemption, total int64, err error) {
 	tx := DB.Begin()
 	if tx.Error != nil {
 		return nil, 0, tx.Error
@@ -77,6 +82,9 @@ func SearchRedemptions(keyword string, startIdx int, num int) (redemptions []*Re
 
 	// Build query based on keyword type
 	query := tx.Model(&Redemption{})
+	if len(scopes) > 0 {
+		query = scopes[0].Apply(query, "redemptions")
+	}
 
 	// Only try to convert to ID if the string represents a valid integer
 	if id, err := strconv.Atoi(keyword); err == nil {
