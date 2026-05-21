@@ -18,11 +18,14 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { Info } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import { cn } from '@/lib/utils'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 
 type FormDirtyIndicatorProps = {
   isDirty: boolean
   message?: string
+  /** Dark ops-center surfaces; does not affect default (light-friendly) pages */
+  tone?: 'default' | 'cockpit'
 }
 
 /**
@@ -36,17 +39,37 @@ type FormDirtyIndicatorProps = {
 export function FormDirtyIndicator({
   isDirty,
   message,
+  tone = 'default',
 }: FormDirtyIndicatorProps) {
   const { t } = useTranslation()
   if (!isDirty) return null
 
+  const isCockpit = tone === 'cockpit'
+
   return (
     <Alert
       variant='default'
-      className='border-orange-500/50 bg-orange-50 dark:bg-orange-950/20'
+      className={cn(
+        isCockpit
+          ? 'border-amber-400/30 bg-amber-500/10'
+          : 'border-orange-500/50 bg-orange-50 dark:bg-orange-950/20'
+      )}
     >
-      <Info className='h-4 w-4 text-orange-600 dark:text-orange-500' />
-      <AlertDescription className='text-orange-800 dark:text-orange-400'>
+      <Info
+        className={cn(
+          'h-4 w-4',
+          isCockpit
+            ? 'text-amber-200'
+            : 'text-orange-600 dark:text-orange-500'
+        )}
+      />
+      <AlertDescription
+        className={cn(
+          isCockpit
+            ? 'text-amber-100'
+            : 'text-orange-800 dark:text-orange-400'
+        )}
+      >
         {message ?? t('You have unsaved changes')}
       </AlertDescription>
     </Alert>

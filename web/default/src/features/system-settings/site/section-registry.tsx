@@ -32,8 +32,8 @@ import { createSectionRegistry } from '../utils/section-registry'
 const SITE_SECTIONS = [
   {
     id: 'system-info',
-    titleKey: 'System Information',
-    descriptionKey: 'Configure basic system information and branding',
+    titleKey: 'systemSettings.site.navSection',
+    descriptionKey: 'systemSettings.site.navSectionDescription',
     build: (settings: SiteSettings) => (
       <SystemInfoSection
         defaultValues={{

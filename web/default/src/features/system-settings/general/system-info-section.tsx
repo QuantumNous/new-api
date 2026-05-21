@@ -22,7 +22,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { RotateCcw } from 'lucide-react'
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
-import { DEFAULT_SYSTEM_NAME, normalizeSystemName } from '@/lib/constants'
+import { normalizeSystemName } from '@/lib/constants'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import {
@@ -78,13 +78,19 @@ function normalizeValue(value: unknown): string {
 }
 
 const cockpitFieldClassName =
-  'border-white/10 bg-slate-950/50 text-slate-100 placeholder:text-slate-500'
+  'border border-white/15 bg-slate-950/50 text-slate-100 placeholder:text-slate-400'
 
 const cockpitOutlineButtonClassName = cn(
   'border-white/15 bg-slate-800/70 text-slate-100 shadow-none',
   'hover:border-white/20 hover:bg-white/15 hover:text-slate-50',
   'disabled:opacity-60 disabled:text-slate-300',
   '[&_svg]:text-slate-200'
+)
+
+const cockpitPrimaryButtonClassName = cn(
+  'border-cyan-500/60 bg-cyan-600 text-white shadow-sm',
+  'hover:border-cyan-400/70 hover:bg-cyan-500',
+  'disabled:border-white/10 disabled:bg-white/10 disabled:text-slate-400'
 )
 
 export function SystemInfoSection({ defaultValues }: SystemInfoSectionProps) {
@@ -118,10 +124,15 @@ export function SystemInfoSection({ defaultValues }: SystemInfoSectionProps) {
       frontend: z.enum(['default', 'classic']),
     }),
     SystemName: z.string().min(1, {
-      error: () => t('System name is required'),
+      error: () => t('systemSettings.site.systemName.required'),
     }),
     ServerAddress: z.string().optional(),
-    Logo: z.string().url().optional().or(z.literal('')),
+    Logo: z.union([
+      z.literal(''),
+      z.string().url({
+        error: () => t('systemSettings.site.logo.invalidUrl'),
+      }),
+    ]),
     Footer: z.string().optional(),
     About: z.string().optional(),
     HomePageContent: z.string().optional(),
@@ -157,31 +168,44 @@ export function SystemInfoSection({ defaultValues }: SystemInfoSectionProps) {
     <>
       <FormNavigationGuard when={isDirty} />
 
-      <div className='rounded-2xl border border-violet-500/15 bg-slate-900/40 p-4 shadow-inner shadow-indigo-950/20 backdrop-blur-sm sm:p-6'>
+      <div className='relative z-0 rounded-2xl border border-violet-500/15 bg-slate-900/40 p-4 sm:p-6'>
         <SettingsSection
-          title={t('Site platform basic information')}
-          description={t('Site platform basic information description')}
+          title={t('systemSettings.site.pageTitle')}
+          description={t('systemSettings.site.pageDescription')}
           titleProps={{ className: 'text-slate-50' }}
           descriptionClassName='text-slate-400'
         >
         <Form {...form}>
           <form
             onSubmit={handleSubmit}
-            className='space-y-6 [&_label]:text-slate-200 [&_[data-slot=form-description]]:text-slate-400'
+            className='relative z-0 space-y-6 [&_label]:text-slate-100 [&_[data-slot=form-description]]:text-slate-300 [&_[data-slot=form-message]]:text-rose-300'
           >
-            <FormDirtyIndicator isDirty={isDirty} />
+            <FormDirtyIndicator
+              isDirty={isDirty}
+              tone='cockpit'
+              message={t('systemSettings.site.unsavedChanges')}
+            />
             <FormField
               control={form.control}
               name='theme.frontend'
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>{t('Frontend Theme')}</FormLabel>
+                  <FormLabel>
+                    {t('systemSettings.site.frontendMode.label')}
+                  </FormLabel>
                   <Select
                     items={[
-                      { value: 'default', label: t('Default (New Frontend)') },
+                      {
+                        value: 'default',
+                        label: t(
+                          'systemSettings.site.frontendMode.optionDefault'
+                        ),
+                      },
                       {
                         value: 'classic',
-                        label: t('Classic (Legacy Frontend)'),
+                        label: t(
+                          'systemSettings.site.frontendMode.optionClassic'
+                        ),
                       },
                     ]}
                     onValueChange={field.onChange}
@@ -197,18 +221,16 @@ export function SystemInfoSection({ defaultValues }: SystemInfoSectionProps) {
                     <SelectContent alignItemWithTrigger={false}>
                       <SelectGroup>
                         <SelectItem value='default'>
-                          {t('Default (New Frontend)')}
+                          {t('systemSettings.site.frontendMode.optionDefault')}
                         </SelectItem>
                         <SelectItem value='classic'>
-                          {t('Classic (Legacy Frontend)')}
+                          {t('systemSettings.site.frontendMode.optionClassic')}
                         </SelectItem>
                       </SelectGroup>
                     </SelectContent>
                   </Select>
                   <FormDescription>
-                    {t(
-                      'Switch between the new frontend and the classic frontend. Changes take effect after page reload.'
-                    )}
+                    {t('systemSettings.site.frontendMode.description')}
                   </FormDescription>
                   <FormMessage />
                 </FormItem>
@@ -220,11 +242,15 @@ export function SystemInfoSection({ defaultValues }: SystemInfoSectionProps) {
               name='SystemName'
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>{t('System Name')}</FormLabel>
+                  <FormLabel>
+                    {t('systemSettings.site.systemName.label')}
+                  </FormLabel>
                   <FormControl>
                     <Input
                       className={cockpitFieldClassName}
-                      placeholder={DEFAULT_SYSTEM_NAME}
+                      placeholder={t(
+                        'systemSettings.site.systemName.placeholder'
+                      )}
                       name={field.name}
                       ref={field.ref}
                       onBlur={field.onBlur}
@@ -233,7 +259,7 @@ export function SystemInfoSection({ defaultValues }: SystemInfoSectionProps) {
                     />
                   </FormControl>
                   <FormDescription>
-                    {t('The name displayed across the application')}
+                    {t('systemSettings.site.systemName.description')}
                   </FormDescription>
                   <FormMessage />
                 </FormItem>
@@ -245,18 +271,20 @@ export function SystemInfoSection({ defaultValues }: SystemInfoSectionProps) {
               name='ServerAddress'
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>{t('Server Address')}</FormLabel>
+                  <FormLabel>
+                    {t('systemSettings.site.serverAddress.label')}
+                  </FormLabel>
                   <FormControl>
                     <Input
                       className={cockpitFieldClassName}
-                      placeholder='https://yourdomain.com'
+                      placeholder={t(
+                        'systemSettings.site.serverAddress.placeholder'
+                      )}
                       {...field}
                     />
                   </FormControl>
                   <FormDescription>
-                    {t(
-                      'The public URL of your server, used for OAuth callbacks, webhooks, and other external integrations'
-                    )}
+                    {t('systemSettings.site.serverAddress.description')}
                   </FormDescription>
                   <FormMessage />
                 </FormItem>
@@ -268,16 +296,16 @@ export function SystemInfoSection({ defaultValues }: SystemInfoSectionProps) {
               name='Logo'
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>{t('Logo URL')}</FormLabel>
+                  <FormLabel>{t('systemSettings.site.logo.label')}</FormLabel>
                   <FormControl>
                     <Input
                       className={cockpitFieldClassName}
-                      placeholder={t('https://example.com/logo.png')}
+                      placeholder={t('systemSettings.site.logo.placeholder')}
                       {...field}
                     />
                   </FormControl>
                   <FormDescription>
-                    {t('URL to your logo image (optional)')}
+                    {t('systemSettings.site.logo.description')}
                   </FormDescription>
                   <FormMessage />
                 </FormItem>
@@ -289,18 +317,16 @@ export function SystemInfoSection({ defaultValues }: SystemInfoSectionProps) {
               name='Footer'
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>{t('Footer')}</FormLabel>
+                  <FormLabel>{t('systemSettings.site.footer.label')}</FormLabel>
                   <FormControl>
                     <Textarea
                       className={cockpitFieldClassName}
-                      placeholder={t(
-                        '© 2025 Your Company. All rights reserved.'
-                      )}
+                      placeholder={t('systemSettings.site.footer.placeholder')}
                       {...field}
                     />
                   </FormControl>
                   <FormDescription>
-                    {t('Footer text displayed at the bottom of pages')}
+                    {t('systemSettings.site.footer.description')}
                   </FormDescription>
                   <FormMessage />
                 </FormItem>
@@ -312,21 +338,17 @@ export function SystemInfoSection({ defaultValues }: SystemInfoSectionProps) {
               name='About'
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>{t('About')}</FormLabel>
+                  <FormLabel>{t('systemSettings.site.about.label')}</FormLabel>
                   <FormControl>
                     <Textarea
                       className={cockpitFieldClassName}
-                      placeholder={t(
-                        'Enter HTML code (e.g., <p>About us...</p>) or a URL (e.g., https://example.com) to embed as iframe'
-                      )}
+                      placeholder={t('systemSettings.site.about.placeholder')}
                       rows={4}
                       {...field}
                     />
                   </FormControl>
                   <FormDescription>
-                    {t(
-                      'Supports HTML markup or iframe embedding. Enter HTML code directly, or provide a complete URL to automatically embed it as an iframe.'
-                    )}
+                    {t('systemSettings.site.about.description')}
                   </FormDescription>
                   <FormMessage />
                 </FormItem>
@@ -338,21 +360,19 @@ export function SystemInfoSection({ defaultValues }: SystemInfoSectionProps) {
               name='HomePageContent'
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>{t('Home Page Content')}</FormLabel>
+                  <FormLabel>
+                    {t('systemSettings.site.homeContent.label')}
+                  </FormLabel>
                   <FormControl>
                     <Textarea
                       className={cockpitFieldClassName}
-                      placeholder={t(
-                        'Welcome to Yunhe Xingze Token Operations Center...'
-                      )}
+                      placeholder={t('systemSettings.site.homeContent.placeholder')}
                       rows={6}
                       {...field}
                     />
                   </FormControl>
                   <FormDescription>
-                    {t(
-                      'Content displayed on the home page (supports Markdown)'
-                    )}
+                    {t('systemSettings.site.homeContent.description')}
                   </FormDescription>
                   <FormMessage />
                 </FormItem>
@@ -364,21 +384,21 @@ export function SystemInfoSection({ defaultValues }: SystemInfoSectionProps) {
               name='legal.user_agreement'
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>{t('User Agreement')}</FormLabel>
+                  <FormLabel>
+                    {t('systemSettings.site.userAgreement.label')}
+                  </FormLabel>
                   <FormControl>
                     <Textarea
                       className={cockpitFieldClassName}
                       placeholder={t(
-                        'Provide Markdown, HTML, or an external URL for the user agreement'
+                        'systemSettings.site.userAgreement.placeholder'
                       )}
                       rows={6}
                       {...field}
                     />
                   </FormControl>
                   <FormDescription>
-                    {t(
-                      'Leave empty to disable the agreement requirement. Supports Markdown, HTML, or a full URL to redirect users.'
-                    )}
+                    {t('systemSettings.site.userAgreement.description')}
                   </FormDescription>
                   <FormMessage />
                 </FormItem>
@@ -390,21 +410,21 @@ export function SystemInfoSection({ defaultValues }: SystemInfoSectionProps) {
               name='legal.privacy_policy'
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>{t('Privacy Policy')}</FormLabel>
+                  <FormLabel>
+                    {t('systemSettings.site.privacyPolicy.label')}
+                  </FormLabel>
                   <FormControl>
                     <Textarea
                       className={cockpitFieldClassName}
                       placeholder={t(
-                        'Provide Markdown, HTML, or an external URL for the privacy policy'
+                        'systemSettings.site.privacyPolicy.placeholder'
                       )}
                       rows={6}
                       {...field}
                     />
                   </FormControl>
                   <FormDescription>
-                    {t(
-                      'Leave empty to disable the privacy policy requirement. Supports Markdown, HTML, or a full URL to redirect users.'
-                    )}
+                    {t('systemSettings.site.privacyPolicy.description')}
                   </FormDescription>
                   <FormMessage />
                 </FormItem>
@@ -414,6 +434,7 @@ export function SystemInfoSection({ defaultValues }: SystemInfoSectionProps) {
             <div className='flex gap-2'>
               <Button
                 type='submit'
+                className={cockpitPrimaryButtonClassName}
                 disabled={isSubmitting || updateOption.isPending}
               >
                 {updateOption.isPending ? t('Saving...') : t('Save Changes')}

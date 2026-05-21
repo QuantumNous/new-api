@@ -72,8 +72,8 @@ export function SettingsPage<
 
   return (
     <div className='flex h-full w-full flex-1 flex-col'>
-      <div className='relative h-full w-full overflow-y-auto scroll-smooth pe-4 pb-12 after:pointer-events-none after:absolute after:inset-x-0 after:bottom-0 after:hidden after:h-24 after:bg-[linear-gradient(180deg,transparent_10%,rgb(15_23_42/0.85)_70%)] md:after:block'>
-        <div className='space-y-4'>{sectionContent}</div>
+      <div className='h-full w-full overflow-y-auto scroll-smooth pe-4 pb-16'>
+        <div className='relative z-0 space-y-4'>{sectionContent}</div>
       </div>
     </div>
   )
