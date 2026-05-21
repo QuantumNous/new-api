@@ -4229,7 +4229,7 @@
     "Use Passkey to sign in without entering your password.": "Sử dụng Khóa truy cập để đăng nhập mà không cần nhập mật khẩu của bạn.",
     "Use secure connection when sending emails": "Sử dụng kết nối an toàn khi gửi email",
     "Use sidebar shortcut": "Sử dụng phím tắt thanh bên",
-    "Use streaming between this Claude channel and upstream for non-streaming downstream requests": "Dùng truyền phát giữa kênh Claude này và thượng nguồn cho các yêu cầu phía dưới không truyền phát",
+    "Use streaming between this Claude channel and upstream for non-streaming downstream requests": "Dùng truyền phát giữa kênh Claude này và thượng nguồn cho các yêu cầu hạ nguồn không truyền phát",
     "Use the full-width table to scan prices, then select a row to edit it here.": "Duyệt giá trong bảng, rồi chọn một hàng để chỉnh sửa tại đây.",
     "Use the pricing group table to manage the ratio and whether the group appears in the token creation dropdown.": "Dùng bảng nhóm định giá để quản lý tỷ lệ và việc nhóm có xuất hiện trong danh sách tạo token hay không.",
     "Use this token for API authentication": "Sử dụng token này để xác thực API",
