@@ -22,6 +22,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { RotateCcw } from 'lucide-react'
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
+import { isAiocNavHidden } from '@/config/aioc-demo-visibility'
 import { normalizeSystemName } from '@/lib/constants'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -201,12 +202,16 @@ export function SystemInfoSection({ defaultValues }: SystemInfoSectionProps) {
                           'systemSettings.site.frontendMode.optionDefault'
                         ),
                       },
-                      {
-                        value: 'classic',
-                        label: t(
-                          'systemSettings.site.frontendMode.optionClassic'
-                        ),
-                      },
+                      ...(!isAiocNavHidden('classic-frontend')
+                        ? [
+                            {
+                              value: 'classic' as const,
+                              label: t(
+                                'systemSettings.site.frontendMode.optionClassic'
+                              ),
+                            },
+                          ]
+                        : []),
                     ]}
                     onValueChange={field.onChange}
                     value={field.value}
@@ -223,9 +228,13 @@ export function SystemInfoSection({ defaultValues }: SystemInfoSectionProps) {
                         <SelectItem value='default'>
                           {t('systemSettings.site.frontendMode.optionDefault')}
                         </SelectItem>
-                        <SelectItem value='classic'>
-                          {t('systemSettings.site.frontendMode.optionClassic')}
-                        </SelectItem>
+                        {!isAiocNavHidden('classic-frontend') ? (
+                          <SelectItem value='classic'>
+                            {t(
+                              'systemSettings.site.frontendMode.optionClassic'
+                            )}
+                          </SelectItem>
+                        ) : null}
                       </SelectGroup>
                     </SelectContent>
                   </Select>

@@ -19,6 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import { useMemo } from 'react'
 import { Link } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
+import { isAiocNavUrlHidden } from '@/config/aioc-demo-visibility'
 import { cn } from '@/lib/utils'
 import { useSystemConfig } from '@/hooks/use-system-config'
 
@@ -96,11 +97,14 @@ export function Footer(props: FooterProps) {
   const isDemoSiteMode = Boolean(demoSiteEnabled)
   const currentYear = new Date().getFullYear()
 
+  const filterFooterLinks = (links: FooterLink[]) =>
+    links.filter((link) => !isAiocNavUrlHidden(link.href))
+
   const fallbackColumns = useMemo<FooterColumnProps[]>(
     () => [
       {
         title: t('footer.columns.platform.title'),
-        links: [
+        links: filterFooterLinks([
           {
             text: t('footer.columns.platform.links.aboutCenter'),
             href: '/about',
@@ -113,11 +117,11 @@ export function Footer(props: FooterProps) {
             text: t('footer.columns.platform.links.operationsRankings'),
             href: '/rankings',
           },
-        ],
+        ]),
       },
       {
         title: t('footer.columns.access.title'),
-        links: [
+        links: filterFooterLinks([
           {
             text: t('footer.columns.access.links.integrationDocs'),
             href: '/docs',
@@ -130,7 +134,7 @@ export function Footer(props: FooterProps) {
             text: t('footer.columns.access.links.auditLogs'),
             href: '/usage-logs/common',
           },
-        ],
+        ]),
       },
       {
         title: t('footer.columns.operations.title'),

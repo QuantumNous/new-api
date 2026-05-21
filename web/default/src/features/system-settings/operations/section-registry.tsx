@@ -24,6 +24,7 @@ import { LogSettingsSection } from '../maintenance/log-settings-section'
 import { PerformanceSection } from '../maintenance/performance-section'
 import { UpdateCheckerSection } from '../maintenance/update-checker-section'
 import type { OperationsSettings } from '../types'
+import { filterAiocDemoNavItems } from '@/config/aioc-demo-visibility'
 import { createSectionRegistry } from '../utils/section-registry'
 
 const OPERATIONS_SECTIONS = [
@@ -175,19 +176,10 @@ const operationsRegistry = createSectionRegistry<
 
 export const OPERATIONS_SECTION_IDS = operationsRegistry.sectionIds
 export const OPERATIONS_DEFAULT_SECTION = operationsRegistry.defaultSection
-/** Hidden from customer-demo navigation; direct URL still resolves. */
-const DEMO_HIDDEN_OPERATIONS_NAV_PATHS = ['/update-checker'] as const
 
 export function getOperationsSectionNavItems(
   t: Parameters<typeof operationsRegistry.getSectionNavItems>[0]
 ) {
-  return operationsRegistry
-    .getSectionNavItems(t)
-    .filter(
-      (item) =>
-        !DEMO_HIDDEN_OPERATIONS_NAV_PATHS.some((hidden) =>
-          item.url.includes(hidden)
-        )
-    )
+  return filterAiocDemoNavItems(operationsRegistry.getSectionNavItems(t))
 }
 export const getOperationsSectionContent = operationsRegistry.getSectionContent

@@ -19,6 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import { ChannelAffinitySection } from '../general/channel-affinity'
 import { IoNetDeploymentSettingsSection } from '../integrations/ionet-deployment-settings-section'
 import type { ModelSettings } from '../types'
+import { filterAiocDemoNavItems } from '@/config/aioc-demo-visibility'
 import { createSectionRegistry } from '../utils/section-registry'
 import { ClaudeSettingsCard } from './claude-settings-card'
 import { GeminiSettingsCard } from './gemini-settings-card'
@@ -171,5 +172,10 @@ const modelsRegistry = createSectionRegistry<ModelSectionId, ModelSettings>({
 
 export const MODELS_SECTION_IDS = modelsRegistry.sectionIds
 export const MODELS_DEFAULT_SECTION = modelsRegistry.defaultSection
-export const getModelsSectionNavItems = modelsRegistry.getSectionNavItems
+
+export function getModelsSectionNavItems(
+  t: Parameters<typeof modelsRegistry.getSectionNavItems>[0]
+) {
+  return filterAiocDemoNavItems(modelsRegistry.getSectionNavItems(t))
+}
 export const getModelsSectionContent = modelsRegistry.getSectionContent

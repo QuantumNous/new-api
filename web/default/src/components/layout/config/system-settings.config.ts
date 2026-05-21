@@ -32,6 +32,7 @@ import { getContentSectionNavItems } from '@/features/system-settings/content/se
 import { getModelsSectionNavItems } from '@/features/system-settings/models/section-registry.tsx'
 import { getOperationsSectionNavItems } from '@/features/system-settings/operations/section-registry.tsx'
 import { getSecuritySectionNavItems } from '@/features/system-settings/security/section-registry.tsx'
+import { filterAiocDemoNavItems } from '@/config/aioc-demo-visibility'
 import { getSiteSectionNavItems } from '@/features/system-settings/site/section-registry.tsx'
 import { type NavGroup } from '../types'
 
@@ -40,23 +41,6 @@ import { type NavGroup } from '../types'
  * Displayed when switching to "System Settings" workspace
  */
 export const WORKSPACE_SYSTEM_SETTINGS_ID = 'system-settings'
-
-/** Hidden from customer-demo navigation; direct URL still resolves. */
-const DEMO_HIDDEN_SYSTEM_SETTINGS_NAV_PATHS = [
-  '/system-settings/operations/update-checker',
-  '/system-settings/models/model-deployment',
-] as const
-
-function filterDemoHiddenSystemSettingsNavItems<
-  T extends { url: string },
->(items: T[]): T[] {
-  return items.filter(
-    (item) =>
-      !DEMO_HIDDEN_SYSTEM_SETTINGS_NAV_PATHS.some((hidden) =>
-        item.url.includes(hidden)
-      )
-  )
-}
 
 export function getSystemSettingsNavGroups(t: TFunction): NavGroup[] {
   return [
@@ -82,9 +66,7 @@ export function getSystemSettingsNavGroups(t: TFunction): NavGroup[] {
         {
           title: t('Model Resources & Routing'),
           icon: Box,
-          items: filterDemoHiddenSystemSettingsNavItems(
-            getModelsSectionNavItems(t)
-          ),
+          items: filterAiocDemoNavItems(getModelsSectionNavItems(t)),
         },
         {
           title: t('Security & Rate Limits'),
@@ -99,9 +81,7 @@ export function getSystemSettingsNavGroups(t: TFunction): NavGroup[] {
         {
           title: t('Operations Monitoring'),
           icon: Wrench,
-          items: filterDemoHiddenSystemSettingsNavItems(
-            getOperationsSectionNavItems(t)
-          ),
+          items: filterAiocDemoNavItems(getOperationsSectionNavItems(t)),
         },
       ],
     },

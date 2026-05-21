@@ -16,6 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { filterAiocDemoNavItems } from '@/config/aioc-demo-visibility'
 import type { AuthSettings } from '../types'
 import { createSectionRegistry } from '../utils/section-registry'
 import { BasicAuthSection } from './basic-auth-section'
@@ -141,15 +142,10 @@ const authRegistry = createSectionRegistry<AuthSectionId, AuthSettings>({
 
 export const AUTH_SECTION_IDS = authRegistry.sectionIds
 export const AUTH_DEFAULT_SECTION = authRegistry.defaultSection
-/** Hidden from customer-demo navigation; direct URL still resolves. */
-const DEMO_HIDDEN_AUTH_NAV_PATHS = ['/auth/oauth'] as const
 
 export function getAuthSectionNavItems(
   t: Parameters<typeof authRegistry.getSectionNavItems>[0]
 ) {
-  return authRegistry.getSectionNavItems(t).filter(
-    (item) =>
-      !DEMO_HIDDEN_AUTH_NAV_PATHS.some((hidden) => item.url.includes(hidden))
-  )
+  return filterAiocDemoNavItems(authRegistry.getSectionNavItems(t))
 }
 export const getAuthSectionContent = authRegistry.getSectionContent

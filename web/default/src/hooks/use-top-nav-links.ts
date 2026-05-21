@@ -19,6 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useAuthStore } from '@/stores/auth-store'
+import { isAiocHeaderNavModuleHidden } from '@/config/aioc-demo-visibility'
 import { parseHeaderNavModulesFromStatus } from '@/lib/nav-modules'
 import { useStatus } from '@/hooks/use-status'
 
@@ -94,7 +95,7 @@ export function useTopNavLinks(): TopNavLink[] {
   }
 
   // Docs (supports external links)
-  if (modules?.docs !== false) {
+  if (modules?.docs !== false && !isAiocHeaderNavModuleHidden('docs')) {
     if (docsLink) {
       links.push({
         title: t('Integration Docs'),

@@ -21,6 +21,7 @@ import * as z from 'zod'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useTranslation } from 'react-i18next'
+import { isAiocHeaderNavModuleHidden } from '@/config/aioc-demo-visibility'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import {
@@ -175,6 +176,13 @@ export function HeaderNavigationSection({
     },
   ]
 
+  const visibleSimpleModules = simpleModules.filter(
+    (module) =>
+      !isAiocHeaderNavModuleHidden(
+        module.key as 'home' | 'console' | 'pricing' | 'rankings' | 'docs' | 'about'
+      )
+  )
+
   const accessModules: Array<{
     enabledKey: keyof HeaderNavFormValues
     requireAuthKey: keyof HeaderNavFormValues
@@ -218,7 +226,7 @@ export function HeaderNavigationSection({
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)} className='space-y-6'>
           <div className='grid gap-4 md:grid-cols-2'>
-            {simpleModules.map((module) => (
+            {visibleSimpleModules.map((module) => (
               <FormField
                 key={module.key}
                 control={form.control}

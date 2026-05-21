@@ -17,6 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import type { ContentSettings } from '../types'
+import { filterAiocDemoNavItems } from '@/config/aioc-demo-visibility'
 import { createSectionRegistry } from '../utils/section-registry'
 import { AnnouncementsSection } from './announcements-section'
 import { ApiInfoSection } from './api-info-section'
@@ -139,5 +140,10 @@ const contentRegistry = createSectionRegistry<
 
 export const CONTENT_SECTION_IDS = contentRegistry.sectionIds
 export const CONTENT_DEFAULT_SECTION = contentRegistry.defaultSection
-export const getContentSectionNavItems = contentRegistry.getSectionNavItems
+
+export function getContentSectionNavItems(
+  t: Parameters<typeof contentRegistry.getSectionNavItems>[0]
+) {
+  return filterAiocDemoNavItems(contentRegistry.getSectionNavItems(t))
+}
 export const getContentSectionContent = contentRegistry.getSectionContent
