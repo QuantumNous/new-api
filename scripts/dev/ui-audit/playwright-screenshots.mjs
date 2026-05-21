@@ -5,7 +5,7 @@
  *
  * Run from repo root:
  *   BASE_URL=http://192.168.18.92:3001 \
- *   DEMO_USERNAME=aioc_demo_zhang DEMO_PASSWORD='DevUi@123456' \
+ *   UI_AUDIT_USERNAME=aioc_demo_zhang UI_AUDIT_PASSWORD='DevUi@123456' \
  *   node scripts/dev/ui-audit/playwright-screenshots.mjs
  */
 import { chromium } from '@playwright/test'
@@ -16,8 +16,10 @@ import { fileURLToPath } from 'node:url'
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const OUT_DIR = path.join(__dirname, 'screenshots')
 const BASE_URL = process.env.BASE_URL || 'http://192.168.18.92:3001'
-const DEMO_USERNAME = process.env.DEMO_USERNAME || ''
-const DEMO_PASSWORD = process.env.DEMO_PASSWORD || ''
+const DEMO_USERNAME =
+  process.env.UI_AUDIT_USERNAME || process.env.DEMO_USERNAME || ''
+const DEMO_PASSWORD =
+  process.env.UI_AUDIT_PASSWORD || process.env.DEMO_PASSWORD || ''
 
 const ROUTES = [
   '/',
