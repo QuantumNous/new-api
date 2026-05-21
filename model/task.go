@@ -248,12 +248,15 @@ func TaskGetAllUserTask(userId int, startIdx int, num int, queryParams SyncTaskQ
 	return tasks
 }
 
-func TaskGetAllTasks(startIdx int, num int, queryParams SyncTaskQueryParams) []*Task {
+func TaskGetAllTasks(startIdx int, num int, queryParams SyncTaskQueryParams, scopes ...TenantScope) []*Task {
 	var tasks []*Task
 	var err error
 
 	// 初始化查询构建器
-	query := DB
+	query := DB.Model(&Task{})
+	if len(scopes) > 0 {
+		query = scopes[0].Apply(query, "tasks")
+	}
 
 	// 添加过滤条件
 	if queryParams.ChannelID != "" {
@@ -451,9 +454,12 @@ type TaskQuotaUsage struct {
 }
 
 // TaskCountAllTasks returns total tasks that match the given query params (admin usage)
-func TaskCountAllTasks(queryParams SyncTaskQueryParams) int64 {
+func TaskCountAllTasks(queryParams SyncTaskQueryParams, scopes ...TenantScope) int64 {
 	var total int64
 	query := DB.Model(&Task{})
+	if len(scopes) > 0 {
+		query = scopes[0].Apply(query, "tasks")
+	}
 	if queryParams.ChannelID != "" {
 		query = query.Where("channel_id = ?", queryParams.ChannelID)
 	}

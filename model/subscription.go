@@ -718,12 +718,16 @@ func HasActiveUserSubscription(userId int) (bool, error) {
 }
 
 // GetAllUserSubscriptions returns all subscriptions (active and expired) for a user.
-func GetAllUserSubscriptions(userId int) ([]SubscriptionSummary, error) {
+func GetAllUserSubscriptions(userId int, scopes ...TenantScope) ([]SubscriptionSummary, error) {
 	if userId <= 0 {
 		return nil, errors.New("invalid userId")
 	}
 	var subs []UserSubscription
-	err := DB.Where("user_id = ?", userId).
+	query := DB.Where("user_id = ?", userId)
+	if len(scopes) > 0 {
+		query = scopes[0].Apply(query, "user_subscriptions")
+	}
+	err := query.
 		Order("end_time desc, id desc").
 		Find(&subs).Error
 	if err != nil {
