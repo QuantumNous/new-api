@@ -62,6 +62,7 @@ import { parseTags } from '../lib/filters'
 import { getAvailableGroups, isTokenBasedModel } from '../lib/model-helpers'
 import { inferModelMetadata } from '../lib/model-metadata'
 import { normalizeBillingDisplayString } from '@/lib/ops-billing-display'
+import { getPricingTokenUnitSuffix } from '../lib/pricing-display'
 import { formatFixedPrice, formatGroupPrice } from '../lib/price'
 
 function displayPrice(value: string): string {
@@ -353,7 +354,7 @@ function PriceSection(props: {
 }) {
   const { t } = useTranslation()
   const isTokenBased = isTokenBasedModel(props.model)
-  const tokenUnitLabel = props.tokenUnit === 'K' ? '1K' : '1M'
+  const tokenUnitSuffix = getPricingTokenUnitSuffix(t, props.tokenUnit)
   const baseGroupKey = '_base'
   const baseGroupRatioMap = { [baseGroupKey]: 1 }
   const dynamicSummary = getDynamicPricingSummary(props.model, {
@@ -443,7 +444,7 @@ function PriceSection(props: {
                 <div className='text-foreground mt-1 font-mono text-base font-semibold tabular-nums'>
                   {entry.formatted}
                   <span className='text-muted-foreground/40 ml-1 text-xs font-normal'>
-                    / {tokenUnitLabel}
+                    {tokenUnitSuffix}
                   </span>
                 </div>
               </div>
@@ -468,7 +469,7 @@ function PriceSection(props: {
                   <span className='text-muted-foreground font-mono text-sm tabular-nums'>
                     {entry.formatted}
                     <span className='text-muted-foreground/40 ml-1 text-xs font-normal'>
-                      / {tokenUnitLabel}
+                      {tokenUnitSuffix}
                     </span>
                   </span>
                 </div>
@@ -521,7 +522,7 @@ function PriceSection(props: {
         )
       )}
       <span className='text-muted-foreground/40 ml-1 text-xs font-normal'>
-        / {tokenUnitLabel}
+        {tokenUnitSuffix}
       </span>
     </>
   )
@@ -616,7 +617,7 @@ function GroupPricingSection(props: {
   )
 
   const isTokenBased = isTokenBasedModel(props.model)
-  const tokenUnitLabel = props.tokenUnit === 'K' ? '1K' : '1M'
+  const tokenUnitSuffix = getPricingTokenUnitSuffix(t, props.tokenUnit)
 
   const extraPriceTypes = useMemo(() => {
     const types: { label: string; type: PriceType }[] = []
@@ -768,7 +769,7 @@ function GroupPricingSection(props: {
             )
           })}
           <p className='text-muted-foreground/40 mt-1.5 text-[10px]'>
-            {t('Prices shown per')} {tokenUnitLabel} tokens
+            {t('RMB billing unit price')}{tokenUnitSuffix}
           </p>
         </div>
       </section>
@@ -891,7 +892,7 @@ function GroupPricingSection(props: {
         </Table>
         {isTokenBased && (
           <p className='text-muted-foreground/40 mt-1.5 px-4 text-[10px] sm:px-0'>
-            {t('Prices shown per')} {tokenUnitLabel} tokens
+            {t('RMB billing unit price')}{tokenUnitSuffix}
           </p>
         )}
       </div>

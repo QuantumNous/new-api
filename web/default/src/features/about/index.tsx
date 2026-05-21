@@ -84,9 +84,6 @@ function AboutPortalHero() {
 
   return (
     <header className='mx-auto max-w-3xl space-y-4 pt-8 text-center sm:pt-12'>
-      <p className='text-xs font-medium tracking-widest text-emerald-300/90 uppercase'>
-        {t('About Center')}
-      </p>
       <h1 className='text-[clamp(1.75rem,4vw,2.75rem)] leading-[1.15] font-bold tracking-tight text-slate-50'>
         {t('Yunhe Xingze Token Operations Center')}
       </h1>

@@ -17,6 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { formatBillingCurrencyFromUSD } from '@/lib/currency'
+import { formatPricingDisplayAmount } from './pricing-display'
 import { TOKEN_UNIT_DIVISORS } from '../constants'
 import type { PricingModel, TokenUnit } from '../types'
 import {
@@ -107,11 +108,13 @@ export function formatDynamicUnitPrice(
     usdExchangeRate
   )
 
-  return formatBillingCurrencyFromUSD(displayPrice, {
-    digitsLarge: 4,
-    digitsSmall: 6,
-    abbreviate: false,
-  })
+  return formatPricingDisplayAmount(
+    formatBillingCurrencyFromUSD(displayPrice, {
+      digitsLarge: 4,
+      digitsSmall: 6,
+      abbreviate: false,
+    })
+  )
 }
 
 export function getDynamicPricingTiers(model: PricingModel): ParsedTier[] {

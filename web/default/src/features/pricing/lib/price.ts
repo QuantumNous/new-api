@@ -17,6 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { formatCurrencyFromUSD } from '@/lib/currency'
+import { formatPricingDisplayAmount } from './pricing-display'
 import { QUOTA_TYPE_VALUES, TOKEN_UNIT_DIVISORS } from '../constants'
 import type { PricingModel, TokenUnit, PriceType } from '../types'
 
@@ -187,11 +188,13 @@ export function formatPrice(
   )
 
   const price = priceInUSD / TOKEN_UNIT_DIVISORS[tokenUnit]
-  return formatCurrencyFromUSD(price, {
-    digitsLarge: 4,
-    digitsSmall: 6,
-    abbreviate: false,
-  })
+  return formatPricingDisplayAmount(
+    formatCurrencyFromUSD(price, {
+      digitsLarge: 4,
+      digitsSmall: 6,
+      abbreviate: false,
+    })
+  )
 }
 
 /**
@@ -222,11 +225,13 @@ export function formatGroupPrice(
   )
 
   const price = priceInUSD / TOKEN_UNIT_DIVISORS[tokenUnit]
-  return formatCurrencyFromUSD(price, {
-    digitsLarge: 4,
-    digitsSmall: 6,
-    abbreviate: false,
-  })
+  return formatPricingDisplayAmount(
+    formatCurrencyFromUSD(price, {
+      digitsLarge: 4,
+      digitsSmall: 6,
+      abbreviate: false,
+    })
+  )
 }
 
 /**
@@ -254,11 +259,13 @@ export function formatFixedPrice(
     usdExchangeRate
   )
 
-  return formatCurrencyFromUSD(priceInUSD, {
-    digitsLarge: 4,
-    digitsSmall: 4,
-    abbreviate: false,
-  })
+  return formatPricingDisplayAmount(
+    formatCurrencyFromUSD(priceInUSD, {
+      digitsLarge: 4,
+      digitsSmall: 4,
+      abbreviate: false,
+    })
+  )
 }
 
 /**
@@ -289,9 +296,11 @@ export function formatRequestPrice(
     usdExchangeRate
   )
 
-  return formatCurrencyFromUSD(priceInUSD, {
-    digitsLarge: 4,
-    digitsSmall: 4,
-    abbreviate: false,
-  })
+  return formatPricingDisplayAmount(
+    formatCurrencyFromUSD(priceInUSD, {
+      digitsLarge: 4,
+      digitsSmall: 4,
+      abbreviate: false,
+    })
+  )
 }

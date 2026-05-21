@@ -34,7 +34,7 @@ export type SortOption = (typeof SORT_OPTIONS)[keyof typeof SORT_OPTIONS]
 
 export function getSortLabels(t: TFunction): Record<SortOption, string> {
   return {
-    [SORT_OPTIONS.NAME]: t('Name'),
+    [SORT_OPTIONS.NAME]: t('Sort by name'),
     [SORT_OPTIONS.PRICE_LOW]: t('Price: Low to High'),
     [SORT_OPTIONS.PRICE_HIGH]: t('Price: High to Low'),
   }
@@ -58,8 +58,8 @@ export function getQuotaTypeLabels(
 ): Record<QuotaTypeOption, string> {
   return {
     [QUOTA_TYPES.ALL]: t('All Models'),
-    [QUOTA_TYPES.TOKEN]: t('Token-based'),
-    [QUOTA_TYPES.REQUEST]: t('Per Request'),
+    [QUOTA_TYPES.TOKEN]: t('Token-based billing'),
+    [QUOTA_TYPES.REQUEST]: t('Per-request billing'),
   }
 }
 

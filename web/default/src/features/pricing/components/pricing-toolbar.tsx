@@ -47,6 +47,14 @@ import {
   type ViewMode,
 } from '../constants'
 import type { PricingModel, PricingVendor, TokenUnit } from '../types'
+import { getPricingTokenUnitSegmentLabel } from '../lib/pricing-display'
+import {
+  pricingOutlineButtonClassName,
+  pricingSegmentActiveClassName,
+  pricingSegmentInactiveClassName,
+  pricingSegmentTrackClassName,
+  pricingToolbarClassName,
+} from '../lib/pricing-portal-styles'
 import { PricingSidebar } from './pricing-sidebar'
 
 type SegmentOption = {
@@ -97,7 +105,7 @@ function SegmentedControl(props: {
     <div
       role='group'
       aria-label={props.ariaLabel}
-      className='bg-muted/60 inline-flex h-8 items-center rounded-lg border p-0.5'
+      className={pricingSegmentTrackClassName}
     >
       {props.options.map((option) => {
         const Icon = option.icon
@@ -112,8 +120,8 @@ function SegmentedControl(props: {
               'inline-flex h-full items-center justify-center rounded-md text-xs font-medium transition-all',
               Icon && !option.label ? 'w-7' : 'gap-1.5 px-3',
               isActive
-                ? 'bg-primary text-primary-foreground shadow-sm'
-                : 'text-muted-foreground hover:text-foreground'
+                ? pricingSegmentActiveClassName
+                : pricingSegmentInactiveClassName
             )}
           >
             {Icon && <Icon className='size-3.5' />}
@@ -159,7 +167,7 @@ export function PricingToolbar(props: PricingToolbarProps) {
   )
 
   return (
-    <div className='rounded-xl border p-3'>
+    <div className={pricingToolbarClassName}>
       <div className='flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between'>
         <div className='flex items-center gap-2'>
           <Button
@@ -167,7 +175,7 @@ export function PricingToolbar(props: PricingToolbarProps) {
             variant='outline'
             size='sm'
             onClick={() => setMobileFiltersOpen(true)}
-            className='gap-1.5 xl:hidden'
+            className={cn('gap-1.5 xl:hidden', pricingOutlineButtonClassName)}
           >
             <Filter className='size-4' />
             {t('Filter')}
@@ -178,13 +186,13 @@ export function PricingToolbar(props: PricingToolbarProps) {
             )}
           </Button>
 
-          <div className='text-muted-foreground flex items-baseline gap-1 text-sm'>
-            <span className='text-foreground font-semibold tabular-nums'>
+          <div className='flex items-baseline gap-1 text-sm text-slate-300'>
+            <span className='font-semibold text-slate-100 tabular-nums'>
               {props.filteredCount.toLocaleString()}
             </span>
             <span>{props.filteredCount === 1 ? t('model') : t('models')}</span>
             {props.hasActiveFilters && props.totalCount && (
-              <span className='text-muted-foreground/60 text-xs'>
+              <span className='text-xs text-slate-500'>
                 / {props.totalCount.toLocaleString()}
               </span>
             )}
@@ -204,12 +212,18 @@ export function PricingToolbar(props: PricingToolbarProps) {
             />
             <SegmentedControl
               options={[
-                { value: 'M', label: '/1M' },
-                { value: 'K', label: '/1K' },
+                {
+                  value: 'M',
+                  label: getPricingTokenUnitSegmentLabel(t, 'M'),
+                },
+                {
+                  value: 'K',
+                  label: getPricingTokenUnitSegmentLabel(t, 'K'),
+                },
               ]}
               value={props.tokenUnit}
               onChange={handleTokenUnitChange}
-              ariaLabel={t('Token unit')}
+              ariaLabel={t('Billing unit display')}
             />
           </div>
 
@@ -220,7 +234,7 @@ export function PricingToolbar(props: PricingToolbarProps) {
                   type='button'
                   variant='outline'
                   size='sm'
-                  className='h-8 gap-1.5 px-3 text-xs'
+                  className={cn('h-8 gap-1.5 px-3 text-xs', pricingOutlineButtonClassName)}
                 />
               }
             >

@@ -35,6 +35,7 @@ import {
 } from '../lib/dynamic-price'
 import { parseTags } from '../lib/filters'
 import { isTokenBasedModel } from '../lib/model-helpers'
+import { getPricingTokenUnitSuffix } from '../lib/pricing-display'
 import {
   formatPrice,
   formatRequestPrice,
@@ -110,7 +111,7 @@ export function usePricingColumns(
     showRechargePrice = false,
   } = options
 
-  const tokenUnitLabel = tokenUnit === 'K' ? '1K' : '1M'
+  const tokenUnitSuffix = getPricingTokenUnitSuffix(t, tokenUnit)
 
   return [
     // Model column
@@ -147,7 +148,7 @@ export function usePricingColumns(
         const isTokenBased = row.original.quota_type === QUOTA_TYPE_VALUES.TOKEN
         return (
           <span className='text-muted-foreground text-xs font-medium tracking-wider uppercase'>
-            {isTokenBased ? t('Token unit (quota)') : t('Request')}
+            {isTokenBased ? t('Token-based billing') : t('Per-request billing')}
           </span>
         )
       },
@@ -210,8 +211,8 @@ export function usePricingColumns(
                   </span>
                 ))}
               </span>
-              <div className='text-muted-foreground/50 text-[10px]'>
-                / {tokenUnitLabel} tokens
+              <div className='text-slate-400 text-[10px]'>
+                {tokenUnitSuffix.trim()}
                 {dynamicSummary.tierCount > 1 &&
                   ` · ${t('{{count}} tiers', {
                     count: dynamicSummary.tierCount,
@@ -252,8 +253,8 @@ export function usePricingColumns(
                 <span className='text-muted-foreground/40 mx-1'>/</span>
                 {displayPrice(outputPrice)}
               </span>
-              <div className='text-muted-foreground/50 text-[10px]'>
-                / {tokenUnitLabel} tokens
+              <div className='text-slate-400 text-[10px]'>
+                {tokenUnitSuffix.trim()}
               </div>
             </div>
           )
@@ -319,8 +320,8 @@ export function usePricingColumns(
               <span className='font-mono text-sm tabular-nums'>
                 {displayPrice(stripTrailingZeros(cacheEntry.formatted))}
               </span>
-              <div className='text-muted-foreground/50 text-[10px]'>
-                / {tokenUnitLabel}
+              <div className='text-slate-400 text-[10px]'>
+                {tokenUnitSuffix.trim()}
               </div>
             </div>
           )
@@ -348,8 +349,8 @@ export function usePricingColumns(
             <span className='font-mono text-sm tabular-nums'>
               {displayPrice(cachedPrice)}
             </span>
-            <div className='text-muted-foreground/50 text-[10px]'>
-              / {tokenUnitLabel}
+            <div className='text-slate-400 text-[10px]'>
+              {tokenUnitSuffix.trim()}
             </div>
           </div>
         )
