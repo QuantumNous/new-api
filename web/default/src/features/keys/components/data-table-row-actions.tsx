@@ -29,6 +29,7 @@ import {
   Link,
   Loader2,
   MoreHorizontal as DotsHorizontalIcon,
+  Code2,
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -56,7 +57,18 @@ import { resolveChatUrl, type ChatPreset } from '@/features/chat/lib/chat-links'
 import { sendToFluent } from '@/features/chat/lib/send-to-fluent'
 import { updateApiKeyStatus } from '../api'
 import { API_KEY_STATUS, ERROR_MESSAGES, SUCCESS_MESSAGES } from '../constants'
-import { keysGhostIconButtonClassName } from '../lib/keys-ui-styles'
+import {
+  keysActionsCellClassName,
+  keysDropdownMenuContentClassName,
+  keysDropdownMenuItemClassName,
+  keysDropdownMenuSeparatorClassName,
+  keysDropdownMenuShortcutClassName,
+  keysDropdownMenuSubContentClassName,
+  keysDropdownMenuSubTriggerClassName,
+  keysGhostIconButtonClassName,
+  keysShowDevClientMenu,
+  keysTooltipContentClassName,
+} from '../lib/keys-ui-styles'
 import { apiKeySchema } from '../types'
 import { useApiKeys } from './api-keys-provider'
 
@@ -101,7 +113,7 @@ export function DataTableRowActions<TData>({
   const { chatPresets, serverAddress } = useChatPresets()
   const [isTogglingStatus, setIsTogglingStatus] = useState(false)
 
-  const hasChatPresets = chatPresets.length > 0
+  const showDevClientMenu = keysShowDevClientMenu && chatPresets.length > 0
 
   const handleOpenChatPreset = useCallback(
     async (preset: ChatPreset) => {
@@ -176,7 +188,7 @@ export function DataTableRowActions<TData>({
   }
 
   return (
-    <div className='flex items-center justify-end gap-1'>
+    <div className={keysActionsCellClassName}>
       <Tooltip>
         <TooltipTrigger
           render={
@@ -205,7 +217,7 @@ export function DataTableRowActions<TData>({
             <Power className='size-4' />
           )}
         </TooltipTrigger>
-        <TooltipContent>
+        <TooltipContent className={keysTooltipContentClassName}>
           {isEnabled ? t('keys.action.disable') : t('keys.action.enable')}
         </TooltipContent>
       </Tooltip>
@@ -216,17 +228,21 @@ export function DataTableRowActions<TData>({
             <Button
               variant='ghost'
               className={cn(
-                'data-popup-open:bg-white/10 flex h-8 w-8 p-0',
+                'flex size-8 p-0 data-popup-open:bg-white/10',
                 keysGhostIconButtonClassName
               )}
             />
           }
         >
-          <DotsHorizontalIcon className='h-4 w-4' />
+          <DotsHorizontalIcon className='size-4' />
           <span className='sr-only'>{t('keys.action.open_menu')}</span>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align='end' className='w-[200px]'>
+        <DropdownMenuContent
+          align='end'
+          className={keysDropdownMenuContentClassName}
+        >
           <DropdownMenuItem
+            className={keysDropdownMenuItemClassName}
             onClick={async () => {
               const realKey = await resolveRealKey(apiKey.id)
               if (!realKey) return
@@ -235,11 +251,12 @@ export function DataTableRowActions<TData>({
             }}
           >
             {t('keys.action.copy')}
-            <DropdownMenuShortcut>
+            <DropdownMenuShortcut className={keysDropdownMenuShortcutClassName}>
               <Copy size={16} />
             </DropdownMenuShortcut>
           </DropdownMenuItem>
           <DropdownMenuItem
+            className={keysDropdownMenuItemClassName}
             onClick={async () => {
               const realKey = await resolveRealKey(apiKey.id)
               if (!realKey) return
@@ -252,23 +269,27 @@ export function DataTableRowActions<TData>({
             }}
           >
             {t('keys.action.copy_connection')}
-            <DropdownMenuShortcut>
+            <DropdownMenuShortcut className={keysDropdownMenuShortcutClassName}>
               <Link size={16} />
             </DropdownMenuShortcut>
           </DropdownMenuItem>
-          <DropdownMenuSeparator />
+          <DropdownMenuSeparator
+            className={keysDropdownMenuSeparatorClassName}
+          />
           <DropdownMenuItem
+            className={keysDropdownMenuItemClassName}
             onClick={() => {
               setCurrentRow(apiKey)
               setOpen('update')
             }}
           >
             {t('keys.action.edit')}
-            <DropdownMenuShortcut>
+            <DropdownMenuShortcut className={keysDropdownMenuShortcutClassName}>
               <Edit size={16} />
             </DropdownMenuShortcut>
           </DropdownMenuItem>
           <DropdownMenuItem
+            className={keysDropdownMenuItemClassName}
             onClick={async () => {
               const realKey = await resolveRealKey(apiKey.id)
               if (!realKey) return
@@ -277,41 +298,59 @@ export function DataTableRowActions<TData>({
               setOpen('cc-switch')
             }}
           >
-            {t('CC Switch')}
-            <DropdownMenuShortcut>
+            {t('keys.action.client_import')}
+            <DropdownMenuShortcut className={keysDropdownMenuShortcutClassName}>
               <ArrowRightLeft size={16} />
             </DropdownMenuShortcut>
           </DropdownMenuItem>
-          {hasChatPresets && (
-            <DropdownMenuSub>
-              <DropdownMenuSubTrigger>{t('Chat')}</DropdownMenuSubTrigger>
-              <DropdownMenuSubContent>
-                {chatPresets.map((preset) => (
-                  <DropdownMenuItem
-                    key={preset.id}
-                    onClick={() => handleOpenChatPreset(preset)}
-                  >
-                    {preset.name}
-                    {preset.type !== 'web' && (
-                      <DropdownMenuShortcut>
-                        <ExternalLink size={16} />
-                      </DropdownMenuShortcut>
-                    )}
-                  </DropdownMenuItem>
-                ))}
-              </DropdownMenuSubContent>
-            </DropdownMenuSub>
+          {showDevClientMenu && (
+            <>
+              <DropdownMenuSeparator
+                className={keysDropdownMenuSeparatorClassName}
+              />
+              <DropdownMenuSub>
+                <DropdownMenuSubTrigger
+                  className={keysDropdownMenuSubTriggerClassName}
+                >
+                  <Code2 className='size-4 text-slate-400' />
+                  {t('keys.action.dev_clients')}
+                </DropdownMenuSubTrigger>
+                <DropdownMenuSubContent
+                  className={keysDropdownMenuSubContentClassName}
+                >
+                  {chatPresets.map((preset) => (
+                    <DropdownMenuItem
+                      key={preset.id}
+                      className={keysDropdownMenuItemClassName}
+                      onClick={() => handleOpenChatPreset(preset)}
+                    >
+                      {preset.name}
+                      {preset.type !== 'web' && (
+                        <DropdownMenuShortcut
+                          className={keysDropdownMenuShortcutClassName}
+                        >
+                          <ExternalLink size={16} />
+                        </DropdownMenuShortcut>
+                      )}
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuSubContent>
+              </DropdownMenuSub>
+            </>
           )}
-          <DropdownMenuSeparator />
+          <DropdownMenuSeparator
+            className={keysDropdownMenuSeparatorClassName}
+          />
           <DropdownMenuItem
+            variant='destructive'
+            className={keysDropdownMenuItemClassName}
             onClick={() => {
               setCurrentRow(apiKey)
               setOpen('delete')
             }}
-            className='text-destructive focus:text-destructive'
           >
             {t('keys.action.delete')}
-            <DropdownMenuShortcut>
+            <DropdownMenuShortcut className={keysDropdownMenuShortcutClassName}>
               <Trash2 size={16} />
             </DropdownMenuShortcut>
           </DropdownMenuItem>

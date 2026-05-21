@@ -16,88 +16,63 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useQuery } from '@tanstack/react-query'
 import { type ColumnDef } from '@tanstack/react-table'
 import { useTranslation } from 'react-i18next'
-import { getUserGroups } from '@/lib/api'
 import { formatTimestampToDate } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { Checkbox } from '@/components/ui/checkbox'
-import { Progress } from '@/components/ui/progress'
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from '@/components/ui/tooltip'
 import { DataTableColumnHeader } from '@/components/data-table'
-import { GroupBadge } from '@/components/group-badge'
 import { StatusBadge } from '@/components/status-badge'
 import { API_KEY_STATUSES } from '../constants'
-import { formatKeyQuotaDisplay } from '../lib/format-key-quota'
 import {
+  keysActionsHeaderClassName,
+  keysCellCenterClassName,
   keysCheckboxClassName,
-  keysColumnHeaderClassName,
+  keysHeaderCenterClassName,
+  keysHeaderVisualCenterClassName,
   keysTableEmptyClass,
   keysTableMetaClass,
   keysTablePrimaryClass,
-  keysTooltipContentClassName,
 } from '../lib/keys-ui-styles'
+import { KeysSortableColumnHeader } from './keys-sortable-column-header'
 import { type ApiKey } from '../types'
 import {
   ApiKeyCell,
-  ModelLimitsCell,
+  KeysGroupCell,
+  KeysQuotaCell,
   IpRestrictionsCell,
+  ModelLimitsCell,
 } from './api-keys-cells'
 import { DataTableRowActions } from './data-table-row-actions'
 
-function getQuotaProgressColor(percentage: number): string {
-  if (percentage <= 10) return '[&_[data-slot=progress-indicator]]:bg-rose-500'
-  if (percentage <= 30) return '[&_[data-slot=progress-indicator]]:bg-amber-500'
-  return '[&_[data-slot=progress-indicator]]:bg-emerald-500'
-}
-
-function useGroupRatios(): Record<string, number> {
-  const { data } = useQuery({
-    queryKey: ['user-self-groups'],
-    queryFn: getUserGroups,
-    staleTime: 5 * 60 * 1000,
-    select: (res) => {
-      if (!res.success || !res.data) return {}
-      const ratios: Record<string, number> = {}
-      for (const [group, info] of Object.entries(res.data)) {
-        if (typeof info.ratio === 'number') {
-          ratios[group] = info.ratio
-        }
-      }
-      return ratios
-    },
-  })
-
-  return data ?? {}
-}
-
 export function useApiKeysColumns(): ColumnDef<ApiKey>[] {
   const { t } = useTranslation()
-  const groupRatios = useGroupRatios()
   return [
     {
       id: 'select',
+      size: 42,
+      minSize: 40,
+      maxSize: 44,
       header: ({ table }) => (
-        <Checkbox
-          checked={table.getIsAllPageRowsSelected()}
-          indeterminate={table.getIsSomePageRowsSelected()}
-          onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
-          aria-label={t('keys.col.select')}
-          className={keysCheckboxClassName}
-        />
+        <div className={keysCellCenterClassName}>
+          <Checkbox
+            checked={table.getIsAllPageRowsSelected()}
+            indeterminate={table.getIsSomePageRowsSelected()}
+            onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
+            aria-label={t('keys.col.select')}
+            className={keysCheckboxClassName}
+          />
+        </div>
       ),
       cell: ({ row }) => (
-        <Checkbox
-          checked={row.getIsSelected()}
-          onCheckedChange={(value) => row.toggleSelected(!!value)}
-          aria-label={t('keys.col.select')}
-          className={keysCheckboxClassName}
-        />
+        <div className={keysCellCenterClassName}>
+          <Checkbox
+            checked={row.getIsSelected()}
+            onCheckedChange={(value) => row.toggleSelected(!!value)}
+            aria-label={t('keys.col.select')}
+            className={keysCheckboxClassName}
+          />
+        </div>
       ),
       enableSorting: false,
       enableHiding: false,
@@ -105,44 +80,46 @@ export function useApiKeysColumns(): ColumnDef<ApiKey>[] {
     },
     {
       accessorKey: 'name',
+      size: 180,
+      minSize: 170,
+      maxSize: 190,
       header: ({ column }) => (
-        <DataTableColumnHeader
-          column={column}
-          title={t('keys.col.name')}
-          className={keysColumnHeaderClassName}
-        />
+        <KeysSortableColumnHeader column={column} title={t('keys.col.name')} />
       ),
       cell: ({ row }) => (
-        <div
-          className={cn(
-            'max-w-[200px] truncate font-medium',
-            keysTablePrimaryClass
-          )}
-        >
-          {row.getValue('name')}
+        <div className={keysCellCenterClassName}>
+          <div
+            className={cn(
+              'max-w-full truncate text-center font-semibold',
+              keysTablePrimaryClass
+            )}
+          >
+            {row.getValue('name')}
+          </div>
         </div>
       ),
       meta: { label: t('keys.col.name'), mobileTitle: true },
     },
     {
       accessorKey: 'status',
+      size: 110,
+      minSize: 105,
+      maxSize: 115,
       header: ({ column }) => (
-        <DataTableColumnHeader
-          column={column}
-          title={t('keys.col.status')}
-          className={keysColumnHeaderClassName}
-        />
+        <KeysSortableColumnHeader column={column} title={t('keys.col.status')} />
       ),
       cell: ({ row }) => {
         const statusConfig = API_KEY_STATUSES[row.getValue('status') as number]
         if (!statusConfig) return null
         return (
-          <StatusBadge
-            label={t(statusConfig.label)}
-            variant={statusConfig.variant}
-            showDot={statusConfig.showDot}
-            copyable={false}
-          />
+          <div className={keysCellCenterClassName}>
+            <StatusBadge
+              label={t(statusConfig.label)}
+              variant={statusConfig.variant}
+              showDot={statusConfig.showDot}
+              copyable={false}
+            />
+          </div>
         )
       },
       filterFn: (row, id, value) => value.includes(String(row.getValue(id))),
@@ -151,9 +128,14 @@ export function useApiKeysColumns(): ColumnDef<ApiKey>[] {
     {
       id: 'key',
       accessorKey: 'key',
+      size: 230,
+      minSize: 220,
+      maxSize: 240,
       header: () => (
-        <div className={cn('text-sm font-medium', keysColumnHeaderClassName)}>
-          {t('keys.col.access_key')}
+        <div className={keysHeaderVisualCenterClassName}>
+          <span className='text-center text-sm font-medium text-slate-100'>
+            {t('keys.col.access_key')}
+          </span>
         </div>
       ),
       cell: ({ row }) => <ApiKeyCell apiKey={row.original} />,
@@ -163,224 +145,199 @@ export function useApiKeysColumns(): ColumnDef<ApiKey>[] {
     {
       id: 'quota',
       accessorKey: 'remain_quota',
+      size: 200,
+      minSize: 190,
+      maxSize: 210,
       header: ({ column }) => (
         <DataTableColumnHeader
           column={column}
           title={t('keys.col.quota')}
-          className={keysColumnHeaderClassName}
+          className={keysHeaderCenterClassName}
         />
       ),
-      cell: ({ row }) => {
-        const apiKey = row.original
-        if (apiKey.unlimited_quota) {
-          return (
-            <StatusBadge
-              label={t('keys.quota.unlimited')}
-              variant='neutral'
-              copyable={false}
-            />
-          )
-        }
-
-        const used = apiKey.used_quota
-        const remaining = apiKey.remain_quota
-        const total = used + remaining
-        const percentage = total > 0 ? (remaining / total) * 100 : 0
-
-        return (
-          <Tooltip>
-            <TooltipTrigger render={<div className='w-[150px] space-y-1' />}>
-              <div className='flex justify-between text-xs'>
-                <span
-                  className={cn('font-medium tabular-nums', keysTablePrimaryClass)}
-                >
-                  {formatKeyQuotaDisplay(remaining)}
-                </span>
-                <span className={cn('tabular-nums', keysTableMetaClass)}>
-                  {formatKeyQuotaDisplay(total)}
-                </span>
-              </div>
-              <Progress
-                value={percentage}
-                className={cn('h-1.5', getQuotaProgressColor(percentage))}
-              />
-            </TooltipTrigger>
-            <TooltipContent className={keysTooltipContentClassName}>
-              <div className='space-y-1 text-xs'>
-                <div>
-                  {t('keys.quota.used')}: {formatKeyQuotaDisplay(used)}
-                </div>
-                <div>
-                  {t('keys.quota.remaining')}: {formatKeyQuotaDisplay(remaining)}{' '}
-                  ({percentage.toFixed(1)}%)
-                </div>
-                <div>
-                  {t('keys.quota.total')}: {formatKeyQuotaDisplay(total)}
-                </div>
-              </div>
-            </TooltipContent>
-          </Tooltip>
-        )
-      },
+      cell: ({ row }) => (
+        <div className={keysCellCenterClassName}>
+          <KeysQuotaCell apiKey={row.original} />
+        </div>
+      ),
       meta: { label: t('keys.col.quota') },
     },
     {
       accessorKey: 'group',
+      size: 115,
+      minSize: 110,
+      maxSize: 120,
       header: ({ column }) => (
         <DataTableColumnHeader
           column={column}
           title={t('keys.col.group')}
-          className={keysColumnHeaderClassName}
+          className={keysHeaderCenterClassName}
         />
       ),
-      cell: ({ row }) => {
-        const apiKey = row.original
-        const group = row.getValue('group') as string
-        const ratio = group && group !== 'auto' ? groupRatios[group] : undefined
-
-        if (group === 'auto') {
-          return (
-            <Tooltip>
-              <TooltipTrigger
-                render={
-                  <span className='inline-flex items-center gap-1.5 text-xs' />
-                }
-              >
-                <GroupBadge group='auto' />
-                {apiKey.cross_group_retry && (
-                  <>
-                    <span className={keysTableEmptyClass}>·</span>
-                    <span className={keysTableMetaClass}>
-                      {t('keys.drawer.cross_group')}
-                    </span>
-                  </>
-                )}
-              </TooltipTrigger>
-              <TooltipContent className={keysTooltipContentClassName}>
-                <span className='text-xs'>{t('keys.drawer.auto_group_hint')}</span>
-              </TooltipContent>
-            </Tooltip>
-          )
-        }
-        return <GroupBadge group={group} ratio={ratio} />
-      },
+      cell: ({ row }) => (
+        <div className={keysCellCenterClassName}>
+          <KeysGroupCell apiKey={row.original} />
+        </div>
+      ),
       meta: { label: t('keys.col.group'), mobileHidden: true },
     },
     {
       id: 'model_limits',
       accessorKey: 'model_limits',
+      size: 140,
+      minSize: 130,
+      maxSize: 150,
       header: ({ column }) => (
         <DataTableColumnHeader
           column={column}
           title={t('keys.col.models')}
-          className={keysColumnHeaderClassName}
+          className={keysHeaderCenterClassName}
         />
       ),
-      cell: ({ row }) => <ModelLimitsCell apiKey={row.original} />,
+      cell: ({ row }) => (
+        <div className={keysCellCenterClassName}>
+          <ModelLimitsCell apiKey={row.original} />
+        </div>
+      ),
       enableSorting: false,
       meta: { label: t('keys.col.models'), mobileHidden: true },
     },
     {
       id: 'allow_ips',
       accessorKey: 'allow_ips',
+      size: 118,
+      minSize: 110,
+      maxSize: 125,
       header: ({ column }) => (
         <DataTableColumnHeader
           column={column}
           title={t('keys.col.ip')}
-          className={keysColumnHeaderClassName}
+          className={keysHeaderCenterClassName}
         />
       ),
-      cell: ({ row }) => <IpRestrictionsCell apiKey={row.original} />,
+      cell: ({ row }) => (
+        <div className={keysCellCenterClassName}>
+          <IpRestrictionsCell apiKey={row.original} />
+        </div>
+      ),
       enableSorting: false,
       meta: { label: t('keys.col.ip'), mobileHidden: true },
     },
     {
       accessorKey: 'created_time',
+      size: 162,
+      minSize: 155,
+      maxSize: 170,
       header: ({ column }) => (
         <DataTableColumnHeader
           column={column}
           title={t('keys.col.created')}
-          className={keysColumnHeaderClassName}
+          className={keysHeaderCenterClassName}
         />
       ),
       cell: ({ row }) => (
-        <span
-          className={cn(
-            'font-mono text-xs tabular-nums',
-            keysTableMetaClass
-          )}
-        >
-          {formatTimestampToDate(row.getValue('created_time'))}
-        </span>
+        <div className={keysCellCenterClassName}>
+          <span
+            className={cn(
+              'whitespace-nowrap font-mono text-xs tabular-nums',
+              keysTablePrimaryClass
+            )}
+          >
+            {formatTimestampToDate(row.getValue('created_time'))}
+          </span>
+        </div>
       ),
       meta: { label: t('keys.col.created'), mobileHidden: true },
     },
     {
       accessorKey: 'accessed_time',
+      size: 162,
+      minSize: 155,
+      maxSize: 170,
       header: ({ column }) => (
         <DataTableColumnHeader
           column={column}
           title={t('keys.col.last_used')}
-          className={keysColumnHeaderClassName}
+          className={keysHeaderCenterClassName}
         />
       ),
       cell: ({ row }) => {
         const accessedTime = row.getValue('accessed_time') as number
-        if (!accessedTime) {
-          return <span className={keysTableEmptyClass}>-</span>
-        }
         return (
-          <span
-            className={cn(
-              'font-mono text-xs tabular-nums',
-              keysTableMetaClass
+          <div className={keysCellCenterClassName}>
+            {!accessedTime ? (
+              <span className={keysTableEmptyClass}>-</span>
+            ) : (
+              <span
+                className={cn(
+                  'whitespace-nowrap font-mono text-xs tabular-nums',
+                  keysTablePrimaryClass
+                )}
+              >
+                {formatTimestampToDate(accessedTime)}
+              </span>
             )}
-          >
-            {formatTimestampToDate(accessedTime)}
-          </span>
+          </div>
         )
       },
       meta: { label: t('keys.col.last_used'), mobileHidden: true },
     },
     {
       accessorKey: 'expired_time',
+      size: 120,
+      minSize: 110,
+      maxSize: 130,
       header: ({ column }) => (
         <DataTableColumnHeader
           column={column}
           title={t('keys.col.expires')}
-          className={keysColumnHeaderClassName}
+          className={keysHeaderCenterClassName}
         />
       ),
       cell: ({ row }) => {
         const expiredTime = row.getValue('expired_time') as number
-        if (expiredTime === -1) {
-          return (
-            <StatusBadge
-              label={t('Never')}
-              variant='neutral'
-              copyable={false}
-            />
-          )
-        }
-        const isExpired = expiredTime * 1000 < Date.now()
         return (
-          <span
-            className={cn(
-              'font-mono text-xs tabular-nums',
-              isExpired ? 'text-rose-400' : keysTableMetaClass
+          <div className={keysCellCenterClassName}>
+            {expiredTime === -1 ? (
+              <StatusBadge
+                label={t('Never')}
+                variant='neutral'
+                copyable={false}
+              />
+            ) : (
+              <span
+                className={cn(
+                  'whitespace-nowrap font-mono text-xs tabular-nums',
+                  expiredTime * 1000 < Date.now()
+                    ? 'text-rose-300'
+                    : keysTablePrimaryClass
+                )}
+              >
+                {formatTimestampToDate(expiredTime)}
+              </span>
             )}
-          >
-            {formatTimestampToDate(expiredTime)}
-          </span>
+          </div>
         )
       },
       meta: { label: t('keys.col.expires'), mobileHidden: true },
     },
     {
       id: 'actions',
-      cell: ({ row }) => <DataTableRowActions row={row} />,
+      header: () => (
+        <div className={keysActionsHeaderClassName}>
+          {t('keys.col.actions')}
+        </div>
+      ),
+      cell: ({ row }) => (
+        <div className={keysCellCenterClassName}>
+          <DataTableRowActions row={row} />
+        </div>
+      ),
+      enableSorting: false,
       meta: { label: t('keys.col.actions') },
-      size: 88,
+      size: 68,
+      minSize: 64,
+      maxSize: 72,
     },
   ]
 }

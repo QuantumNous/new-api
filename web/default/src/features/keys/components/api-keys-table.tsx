@@ -22,6 +22,7 @@ import { getRouteApi } from '@tanstack/react-router'
 import {
   type SortingState,
   type VisibilityState,
+  flexRender,
   getCoreRowModel,
   getFacetedRowModel,
   getFacetedUniqueValues,
@@ -43,11 +44,8 @@ import {
   EmptyTitle,
 } from '@/components/ui/empty'
 import { Skeleton } from '@/components/ui/skeleton'
-import {
-  DISABLED_ROW_DESKTOP,
-  DISABLED_ROW_MOBILE,
-  DataTablePage,
-} from '@/components/data-table'
+import { TableCell, TableRow } from '@/components/ui/table'
+import { DataTablePage } from '@/components/data-table'
 import { StatusBadge } from '@/components/status-badge'
 import { getApiKeys, searchApiKeys } from '../api'
 import {
@@ -56,15 +54,20 @@ import {
   API_KEY_STATUSES,
   ERROR_MESSAGES,
 } from '../constants'
-import { formatKeyQuotaDisplay } from '../lib/format-key-quota'
 import {
+  keysActionsStickyCellClassName,
+  keysTableActionsHeaderClassName,
+  keysDisabledRowDesktopClassName,
+  keysDisabledRowMobileClassName,
   keysFilterToolbarClassName,
   keysMobileShellClassName,
   keysTableClassName,
   keysTableHeaderClassName,
   keysTableMetaClass,
   keysTablePrimaryClass,
+  keysTableRowBaseClassName,
 } from '../lib/keys-ui-styles'
+import { KeysQuotaCell } from './api-keys-cells'
 import { type ApiKey } from '../types'
 import { ApiKeyCell } from './api-keys-cells'
 import { useApiKeysColumns } from './api-keys-columns'
@@ -138,19 +141,23 @@ function ApiKeysMobileList({
       {rows.map((row) => {
         const apiKey = row.original
         const statusConfig = API_KEY_STATUSES[apiKey.status]
-        const total = apiKey.used_quota + apiKey.remain_quota
 
         return (
           <div
             key={row.id}
             className={cn(
-              'bg-card space-y-2.5 border-b px-3 py-2.5 last:border-b-0',
-              isDisabledApiKeyRow(apiKey) && DISABLED_ROW_MOBILE
+              'space-y-2.5 border-b border-white/10 bg-slate-900/30 px-3 py-2.5 last:border-b-0',
+              isDisabledApiKeyRow(apiKey) && keysDisabledRowMobileClassName
             )}
           >
             <div className='flex items-start justify-between gap-3'>
               <div className='min-w-0'>
-                <div className='truncate text-sm font-semibold'>
+                <div
+                  className={cn(
+                    'truncate text-sm font-semibold',
+                    keysTablePrimaryClass
+                  )}
+                >
                   {apiKey.name}
                 </div>
                 <div className='text-[11px] text-slate-400'>
@@ -174,23 +181,11 @@ function ApiKeysMobileList({
               <DataTableRowActions row={row} />
             </div>
 
-            <div className='flex items-center justify-between gap-2 text-xs'>
-              <span className={keysTableMetaClass}>{t('keys.col.quota')}</span>
-              {apiKey.unlimited_quota ? (
-                <span className={cn('font-medium', keysTablePrimaryClass)}>
-                  {t('keys.quota.unlimited')}
-                </span>
-              ) : (
-                <span
-                  className={cn('font-medium tabular-nums', keysTablePrimaryClass)}
-                >
-                  {formatKeyQuotaDisplay(apiKey.remain_quota)}
-                  <span className={cn('font-normal', keysTableMetaClass)}>
-                    {' / '}
-                    {formatKeyQuotaDisplay(total)}
-                  </span>
-                </span>
-              )}
+            <div className='text-xs'>
+              <div className={cn('mb-1', keysTableMetaClass)}>
+                {t('keys.col.quota')}
+              </div>
+              <KeysQuotaCell apiKey={apiKey} />
             </div>
           </div>
         )
@@ -341,12 +336,48 @@ export function ApiKeysTable() {
           },
         ],
       }}
-      tableHeaderClassName={keysTableHeaderClassName}
+      applyHeaderSize
+      tableHeaderClassName={cn(
+        keysTableHeaderClassName,
+        keysTableActionsHeaderClassName
+      )}
       tableClassName={keysTableClassName}
       mobile={<ApiKeysMobileList table={table} isLoading={isLoading} />}
-      getRowClassName={(row) =>
-        isDisabledApiKeyRow(row.original) ? DISABLED_ROW_DESKTOP : undefined
-      }
+      renderRow={(row) => {
+        const apiKey = row.original
+        const isDisabled = isDisabledApiKeyRow(apiKey)
+        return (
+          <TableRow
+            key={row.id}
+            data-state={row.getIsSelected() ? 'selected' : undefined}
+            className={cn(
+              keysTableRowBaseClassName,
+              isDisabled && keysDisabledRowDesktopClassName
+            )}
+          >
+            {row.getVisibleCells().map((cell) => {
+              const colDef = cell.column.columnDef
+              const isActions = cell.column.id === 'actions'
+              return (
+                <TableCell
+                  key={cell.id}
+                  style={{
+                    width: cell.column.getSize(),
+                    minWidth: colDef.minSize,
+                    maxWidth: colDef.maxSize,
+                  }}
+                  className={cn(
+                    'align-middle',
+                    isActions && keysActionsStickyCellClassName
+                  )}
+                >
+                  {flexRender(colDef.cell, cell.getContext())}
+                </TableCell>
+              )
+            })}
+          </TableRow>
+        )
+      }}
       bulkActions={<DataTableBulkActions table={table} />}
     />
   )

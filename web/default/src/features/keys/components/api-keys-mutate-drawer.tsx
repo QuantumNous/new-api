@@ -71,7 +71,11 @@ import {
   transformFormDataToPayload,
   transformApiKeyToFormDefaults,
 } from '../lib'
-import { keysSheetSectionClassName } from '../lib/keys-ui-styles'
+import {
+  keysSheetFormDescriptionClassName,
+  keysSheetSectionClassName,
+  keysSheetSectionDescClassName,
+} from '../lib/keys-ui-styles'
 import { type ApiKey } from '../types'
 import {
   ApiKeyGroupCombobox,
@@ -104,9 +108,7 @@ function ApiKeyFormSection(props: ApiKeyFormSectionProps) {
         </div>
         <div className='min-w-0'>
           <h3 className='text-sm leading-none font-medium'>{props.title}</h3>
-          <p className='text-muted-foreground mt-0.5 text-xs sm:mt-1'>
-            {props.description}
-          </p>
+          <p className={keysSheetSectionDescClassName}>{props.description}</p>
         </div>
       </div>
       <div className='space-y-3 p-3 sm:space-y-4 sm:p-4'>{props.children}</div>
@@ -352,7 +354,12 @@ export function ApiKeysMutateDrawer({
                         <FormLabel className='text-sm'>
                           {t('keys.drawer.cross_group')}
                         </FormLabel>
-                        <FormDescription className='line-clamp-2 text-xs sm:line-clamp-none'>
+                        <FormDescription
+                          className={cn(
+                            keysSheetFormDescriptionClassName,
+                            'line-clamp-2 sm:line-clamp-none'
+                          )}
+                        >
                           {t('keys.drawer.cross_group_desc')}
                         </FormDescription>
                       </div>
@@ -444,7 +451,9 @@ export function ApiKeysMutateDrawer({
                           }
                         />
                       </FormControl>
-                      <FormDescription>
+                      <FormDescription
+                        className={keysSheetFormDescriptionClassName}
+                      >
                         {t('keys.drawer.quantity_desc')}
                       </FormDescription>
                       <FormMessage />
@@ -465,20 +474,22 @@ export function ApiKeysMutateDrawer({
                   name='remain_quota_dollars'
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>{t('keys.drawer.quota_label')}</FormLabel>
+                      <FormLabel>{t('keys.drawer.quota_scale.label')}</FormLabel>
                       <FormControl>
                         <Input
                           {...field}
                           type='number'
                           step={tokensOnly ? 1 : 0.01}
-                          placeholder={t('keys.drawer.quota_placeholder')}
+                          placeholder={t('keys.drawer.quota_scale.placeholder')}
                           onChange={(e) =>
                             field.onChange(parseFloat(e.target.value) || 0)
                           }
                         />
                       </FormControl>
-                      <FormDescription>
-                        {t('keys.drawer.quota_hint')}
+                      <FormDescription
+                        className={keysSheetFormDescriptionClassName}
+                      >
+                        {t('keys.drawer.quota_scale.description')}
                       </FormDescription>
                       <FormMessage />
                     </FormItem>
@@ -493,10 +504,12 @@ export function ApiKeysMutateDrawer({
                   <FormItem className='flex min-h-16 flex-row items-center justify-between gap-3 rounded-lg border px-3 py-2.5 sm:min-h-20 sm:gap-4 sm:px-4 sm:py-3'>
                     <div className='space-y-0.5'>
                       <FormLabel className='text-sm'>
-                        {t('keys.drawer.unlimited_quota')}
+                        {t('keys.drawer.unlimited_quota.label')}
                       </FormLabel>
-                      <FormDescription className='text-xs'>
-                        {t('keys.drawer.unlimited_quota_desc')}
+                      <FormDescription
+                        className={keysSheetFormDescriptionClassName}
+                      >
+                        {t('keys.drawer.unlimited_quota.description')}
                       </FormDescription>
                     </div>
                     <FormControl>
@@ -527,7 +540,7 @@ export function ApiKeysMutateDrawer({
                     <h3 className='text-sm leading-none font-medium'>
                       {t('keys.drawer.advanced_title')}
                     </h3>
-                    <p className='text-muted-foreground mt-1 text-xs'>
+                    <p className={cn(keysSheetSectionDescClassName, 'mt-1')}>
                       {t('keys.drawer.advanced_desc')}
                     </p>
                   </div>
@@ -545,7 +558,9 @@ export function ApiKeysMutateDrawer({
                       name='model_limits'
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>{t('keys.drawer.model_limits')}</FormLabel>
+                          <FormLabel>
+                            {t('keys.drawer.model_limits.label')}
+                          </FormLabel>
                           <FormControl>
                             <MultiSelect
                               options={models.map((m) => ({
@@ -555,12 +570,14 @@ export function ApiKeysMutateDrawer({
                               selected={field.value}
                               onChange={field.onChange}
                               placeholder={t(
-                                'keys.drawer.model_limits_placeholder'
+                                'keys.drawer.model_limits.placeholder'
                               )}
                             />
                           </FormControl>
-                          <FormDescription>
-                            {t('keys.drawer.model_limits_desc')}
+                          <FormDescription
+                            className={keysSheetFormDescriptionClassName}
+                          >
+                            {t('keys.drawer.model_limits.description')}
                           </FormDescription>
                           <FormMessage />
                         </FormItem>
@@ -572,17 +589,23 @@ export function ApiKeysMutateDrawer({
                       name='allow_ips'
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>{t('keys.drawer.ip_whitelist')}</FormLabel>
+                          <FormLabel>
+                            {t('keys.drawer.ip_whitelist.label')}
+                          </FormLabel>
                           <FormControl>
                             <Textarea
                               {...field}
                               className='min-h-20 resize-none'
-                              placeholder={t('keys.drawer.ip_placeholder')}
+                              placeholder={t(
+                                'keys.drawer.ip_whitelist.placeholder'
+                              )}
                               rows={3}
                             />
                           </FormControl>
-                          <FormDescription>
-                            {t('keys.drawer.ip_desc')}
+                          <FormDescription
+                            className={keysSheetFormDescriptionClassName}
+                          >
+                            {t('keys.drawer.ip_whitelist.description')}
                           </FormDescription>
                           <FormMessage />
                         </FormItem>
@@ -596,7 +619,12 @@ export function ApiKeysMutateDrawer({
         </Form>
         <SheetFooter className='bg-background grid grid-cols-2 gap-2 border-t px-3 py-3 sm:flex sm:flex-row sm:justify-end sm:px-5 sm:py-4'>
           <SheetClose
-            render={<Button variant='outline' className='w-full sm:w-auto' />}
+            render={
+              <Button
+                variant='outline'
+                className='w-full border-slate-300 text-slate-900 sm:w-auto'
+              />
+            }
           >
             {t('keys.drawer.close')}
           </SheetClose>
