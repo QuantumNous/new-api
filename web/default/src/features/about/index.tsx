@@ -115,11 +115,11 @@ function AboutPortalHero() {
   const { t } = useTranslation()
 
   return (
-    <header className='mx-auto max-w-3xl space-y-4 pt-8 text-center sm:pt-12'>
+    <header className='mx-auto w-full max-w-3xl space-y-4 px-2 pt-8 text-center sm:max-w-4xl sm:pt-12 lg:max-w-6xl xl:max-w-7xl'>
       <h1 className='text-[clamp(1.75rem,4vw,2.75rem)] leading-[1.15] font-bold tracking-tight text-slate-50'>
         {t('Yunhe Xingze Token Operations Center')}
       </h1>
-      <p className='text-sm leading-relaxed text-slate-300 sm:text-base'>
+      <p className='text-pretty mx-auto w-full max-w-none text-sm leading-snug text-slate-300 sm:max-w-4xl sm:text-[15px] lg:max-w-6xl lg:text-sm xl:max-w-7xl'>
         {t(
           'An integrated model-service access and quota-unit operations platform for government and enterprise customers — unified governance, auditable usage, and controlled resource delivery.'
         )}
