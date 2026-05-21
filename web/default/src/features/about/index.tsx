@@ -18,10 +18,10 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { useQuery } from '@tanstack/react-query'
 import {
-  Box,
   Cloud,
   KeyRound,
   Layers,
+  LayoutGrid,
   ShieldCheck,
   Users,
 } from 'lucide-react'
@@ -60,11 +60,43 @@ const CAPABILITY_CARDS = [
   },
   {
     icon: Cloud,
-    titleKey: 'Private and edge deployment',
+    titleKey: 'Multi-form deployment adaptation',
     descKey:
-      'Works with Xingze AI edge appliances for cloud, private, and edge-side deployment.',
+      'Supports unified deployment across cloud, private environments, and edge — one operations experience for every delivery model.',
+  },
+  {
+    icon: LayoutGrid,
+    titleKey: 'Unified operations capabilities',
+    descKey:
+      'Consolidates access, billing, audit, accounts, and resource operations in one place for continuous expansion.',
   },
 ] as const
+
+function CapabilityCard(props: {
+  icon: React.ComponentType<{ className?: string }>
+  titleKey: string
+  descKey: string
+}) {
+  const { t } = useTranslation()
+  const Icon = props.icon
+
+  return (
+    <div
+      className={cn(
+        publicPortalCardClassName,
+        'p-5 transition-colors hover:border-cyan-400/25'
+      )}
+    >
+      <span className='mb-3 inline-flex size-10 items-center justify-center rounded-lg border border-white/10 bg-cyan-500/15 text-cyan-200'>
+        <Icon className='size-5' aria-hidden />
+      </span>
+      <p className='font-semibold text-slate-100'>{t(props.titleKey)}</p>
+      <p className='mt-2 text-sm leading-relaxed text-slate-400'>
+        {t(props.descKey)}
+      </p>
+    </div>
+  )
+}
 
 function isValidUrl(value: string) {
   try {
@@ -118,38 +150,9 @@ function EmptyAboutState() {
       <div className='relative space-y-10'>
         <AboutPortalHero />
         <div className='grid gap-4 sm:grid-cols-2'>
-          {CAPABILITY_CARDS.map(({ icon: Icon, titleKey, descKey }) => (
-            <div
-              key={titleKey}
-              className={cn(
-                publicPortalCardClassName,
-                'p-5 transition-colors hover:border-cyan-400/25'
-              )}
-            >
-              <span className='mb-3 inline-flex size-10 items-center justify-center rounded-lg border border-white/10 bg-cyan-500/15 text-cyan-200'>
-                <Icon className='size-5' aria-hidden />
-              </span>
-              <p className='font-semibold text-slate-100'>{t(titleKey)}</p>
-              <p className='mt-2 text-sm leading-relaxed text-slate-400'>
-                {t(descKey)}
-              </p>
-            </div>
+          {CAPABILITY_CARDS.map((card) => (
+            <CapabilityCard key={card.titleKey} {...card} />
           ))}
-        </div>
-        <div
-          className={cn(
-            publicPortalCardClassName,
-            'flex items-start gap-4 p-5 sm:p-6'
-          )}
-        >
-          <span className='inline-flex size-10 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-violet-500/15 text-violet-200'>
-            <Box className='size-5' aria-hidden />
-          </span>
-          <p className='text-sm leading-relaxed text-slate-300'>
-            {t(
-              'Deploy in the cloud, in a private environment, or alongside Xingze AI edge appliances — one operations experience across deployment models.'
-            )}
-          </p>
         </div>
         <p className='text-center text-sm text-slate-500'>
           &copy; {currentYear} {t('Yunhe Xingze Token Operations Center')}.{' '}
