@@ -152,6 +152,15 @@ func authHelper(c *gin.Context, minRole int) {
 	c.Set("group", session.Get("group"))
 	c.Set("user_group", session.Get("group"))
 	c.Set("use_access_token", useAccessToken)
+	if userCache, err := model.GetUserCache(id.(int)); err == nil {
+		userCache.WriteContext(c)
+	} else {
+		common.SysLog(fmt.Sprintf("authHelper GetUserCache error for user %d: %v", id.(int), err))
+		common.SetContextKey(c, constant.ContextKeyTenantId, 1)
+		common.SetContextKey(c, constant.ContextKeyOrganizationId, 0)
+		common.SetContextKey(c, constant.ContextKeyDepartmentId, 0)
+		common.SetContextKey(c, constant.ContextKeyDistributionChannelId, 0)
+	}
 
 	c.Next()
 }
@@ -269,6 +278,7 @@ func TokenAuthReadOnly() func(c *gin.Context) {
 		c.Set("id", token.UserId)
 		c.Set("token_id", token.Id)
 		c.Set("token_key", token.Key)
+		userCache.WriteContext(c)
 		c.Next()
 	}
 }

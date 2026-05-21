@@ -15,16 +15,28 @@ import (
 
 // UserBase struct remains the same as it represents the cached data structure
 type UserBase struct {
-	Id       int    `json:"id"`
-	Group    string `json:"group"`
-	Email    string `json:"email"`
-	Quota    int    `json:"quota"`
-	Status   int    `json:"status"`
-	Username string `json:"username"`
-	Setting  string `json:"setting"`
+	Id                    int    `json:"id"`
+	TenantId              int    `json:"tenant_id"`
+	OrganizationId        int    `json:"organization_id"`
+	DepartmentId          int    `json:"department_id"`
+	DistributionChannelId int    `json:"distribution_channel_id"`
+	Group                 string `json:"group"`
+	Email                 string `json:"email"`
+	Quota                 int    `json:"quota"`
+	Status                int    `json:"status"`
+	Username              string `json:"username"`
+	Setting               string `json:"setting"`
 }
 
 func (user *UserBase) WriteContext(c *gin.Context) {
+	tenantId := user.TenantId
+	if tenantId == 0 {
+		tenantId = 1
+	}
+	common.SetContextKey(c, constant.ContextKeyTenantId, tenantId)
+	common.SetContextKey(c, constant.ContextKeyOrganizationId, user.OrganizationId)
+	common.SetContextKey(c, constant.ContextKeyDepartmentId, user.DepartmentId)
+	common.SetContextKey(c, constant.ContextKeyDistributionChannelId, user.DistributionChannelId)
 	common.SetContextKey(c, constant.ContextKeyUserGroup, user.Group)
 	common.SetContextKey(c, constant.ContextKeyUserQuota, user.Quota)
 	common.SetContextKey(c, constant.ContextKeyUserStatus, user.Status)
@@ -106,13 +118,17 @@ func GetUserCache(userId int) (userCache *UserBase, err error) {
 
 	// Create cache object from user data
 	userCache = &UserBase{
-		Id:       user.Id,
-		Group:    user.Group,
-		Quota:    user.Quota,
-		Status:   user.Status,
-		Username: user.Username,
-		Setting:  user.Setting,
-		Email:    user.Email,
+		Id:                    user.Id,
+		TenantId:              user.TenantId,
+		OrganizationId:        user.OrganizationId,
+		DepartmentId:          user.DepartmentId,
+		DistributionChannelId: user.DistributionChannelId,
+		Group:                 user.Group,
+		Quota:                 user.Quota,
+		Status:                user.Status,
+		Username:              user.Username,
+		Setting:               user.Setting,
+		Email:                 user.Email,
 	}
 
 	return userCache, nil
