@@ -934,6 +934,7 @@
     "可用分组": "Nhóm khả dụng",
     "可用变量：{{provider}} {{field}} {{op}} {{required}} {{current}} 以及 {{current.path}}": "Biến khả dụng: {{provider}} {{field}} {{op}} {{required}} {{current}} và {{current.path}}",
     "可用数量": "Available Quantity",
+    "预估可用次数": "Estimated available uses",
     "可用模型": "Mô hình khả dụng",
     "可用空间: {{free}} / 总空间: {{total}}": "Dung lượng trống: {{free}} / Tổng: {{total}}",
     "可用端点类型": "Loại điểm cuối được hỗ trợ",

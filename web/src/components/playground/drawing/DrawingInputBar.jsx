@@ -1,6 +1,6 @@
-import React, { useState, useRef } from 'react';
+import React, { useMemo, useState, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Modal, Select, Toast } from '@douyinfe/semi-ui';
+import { Modal, Popover, Select, Toast } from '@douyinfe/semi-ui';
 import { Send, ImagePlus, X } from 'lucide-react';
 import {
   DEFAULT_DRAWING_MODEL,
@@ -8,7 +8,14 @@ import {
   MAX_UPLOAD_IMAGES,
 } from '../../../constants/drawing.constants';
 
-const DrawingInputBar = ({ onSubmit, disabled, loading, hasImage }) => {
+const DrawingInputBar = ({
+  onSubmit,
+  disabled,
+  loading,
+  hasImage,
+  referenceImage,
+  balanceInfo,
+}) => {
   const { t } = useTranslation();
   const [prompt, setPrompt] = useState('');
   const [size, setSize] = useState(DRAWING_SIZES[0].value);
@@ -17,11 +24,23 @@ const DrawingInputBar = ({ onSubmit, disabled, loading, hasImage }) => {
   const fileInputRef = useRef(null);
   const isSubmitting = loading || submitting;
   const hasPrompt = prompt.trim().length > 0;
+  const referenceImageSrc =
+    hasPrompt && referenceImage ? resolveDrawingImageUrl(referenceImage) : null;
+  const maxUploadImages = MAX_UPLOAD_IMAGES - (referenceImage ? 1 : 0);
+  const sizeSelectWidth = useMemo(() => {
+    const selectedLabel =
+      DRAWING_SIZES.find((item) => item.value === size)?.label || '';
+    const visualLength = Array.from(selectedLabel).reduce(
+      (total, char) => total + (char.charCodeAt(0) > 255 ? 1 : 0.56),
+      0,
+    );
+    return Math.max(104, Math.ceil(visualLength * 14 + 58));
+  }, [size]);
 
   const handleImageUpload = (e) => {
     const files = Array.from(e.target.files);
-    if (images.length + files.length > MAX_UPLOAD_IMAGES) {
-      Toast.warning(t('最多上传') + ` ${MAX_UPLOAD_IMAGES} ` + t('张图片'));
+    if (images.length + files.length > maxUploadImages) {
+      Toast.warning(t('最多上传') + ` ${maxUploadImages} ` + t('张图片'));
       return;
     }
     files.forEach((file) => {
@@ -94,8 +113,23 @@ const DrawingInputBar = ({ onSubmit, disabled, loading, hasImage }) => {
           borderColor: 'var(--semi-color-border)',
         }}
       >
-        {images.length > 0 && (
+        {(referenceImageSrc || images.length > 0) && (
           <div className='flex gap-2 px-4 pt-3 flex-wrap'>
+            {referenceImageSrc && (
+              <div
+                className='relative w-14 h-14 rounded-lg overflow-hidden'
+                style={{
+                  border: '2px solid var(--semi-color-primary)',
+                }}
+                title={t('结果图')}
+              >
+                <img
+                  src={referenceImageSrc}
+                  alt={t('结果图')}
+                  className='w-full h-full object-cover'
+                />
+              </div>
+            )}
             {images.map((img, i) => (
               <div key={i} className='relative w-14 h-14'>
                 <img
@@ -140,7 +174,7 @@ const DrawingInputBar = ({ onSubmit, disabled, loading, hasImage }) => {
             style={{ color: 'var(--semi-color-text-2)' }}
             onClick={() => fileInputRef.current?.click()}
             disabled={
-              images.length >= MAX_UPLOAD_IMAGES || disabled || isSubmitting
+              images.length >= maxUploadImages || disabled || isSubmitting
             }
             aria-label={t('上传图片')}
             onMouseEnter={(e) => {
@@ -166,13 +200,46 @@ const DrawingInputBar = ({ onSubmit, disabled, loading, hasImage }) => {
             value={size}
             onChange={setSize}
             size='small'
-            style={{ width: 150 }}
+            style={{ width: sizeSelectWidth }}
+            dropdownStyle={{ minWidth: sizeSelectWidth }}
             optionList={DRAWING_SIZES}
             disabled={disabled}
             className='!rounded-lg'
           />
 
           <div className='flex-1' />
+
+          <Popover
+            trigger='click'
+            position='topRight'
+            showArrow
+            content={
+              <BalanceFlyoutContent balanceInfo={balanceInfo} t={t} />
+            }
+          >
+            <button
+              type='button'
+              className='w-8 h-8 rounded-lg flex items-center justify-center transition-colors cursor-pointer'
+              aria-label={t('当前余额')}
+              title={t('当前余额')}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = 'var(--semi-color-fill-0)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = 'transparent';
+              }}
+            >
+              <span
+                className='block h-4 w-4 rounded-full'
+                style={{
+                  border: `3px solid ${
+                    balanceInfo?.toneColor || 'var(--semi-color-text-2)'
+                  }`,
+                  boxShadow: '0 0 0 2px var(--semi-color-fill-0)',
+                }}
+              />
+            </button>
+          </Popover>
 
           <button
             onClick={handleSubmit}
@@ -201,5 +268,81 @@ const DrawingInputBar = ({ onSubmit, disabled, loading, hasImage }) => {
     </div>
   );
 };
+
+function BalanceFlyoutContent({ balanceInfo, t }) {
+  return (
+    <div
+      className='w-[min(78vw,260px)] py-1 text-xs'
+      style={{ color: 'var(--semi-color-text-1)' }}
+    >
+      <div className='mb-2 flex items-center justify-between gap-3'>
+        <span style={{ color: 'var(--semi-color-text-2)' }}>
+          {t('当前余额')}
+        </span>
+        <span className='font-medium' style={{ color: balanceInfo?.toneColor }}>
+          {balanceInfo?.balanceText || '$0.00'}
+        </span>
+      </div>
+
+      <div
+        className='mb-2 h-px'
+        style={{ background: 'var(--semi-color-border)' }}
+      />
+
+      <div className='mb-1 font-medium'>{balanceInfo?.modelName}</div>
+      <div className='space-y-1'>
+        {balanceInfo?.pricingLoading ? (
+          <div style={{ color: 'var(--semi-color-text-2)' }}>
+            {t('加载中...')}
+          </div>
+        ) : balanceInfo?.priceItems?.length ? (
+          balanceInfo.priceItems.map((item) => (
+            <div key={item.key} className='flex justify-between gap-3'>
+              <span style={{ color: 'var(--semi-color-text-2)' }}>
+                {item.label}
+              </span>
+              <span className='text-right'>
+                {item.value}
+                {item.suffix}
+              </span>
+            </div>
+          ))
+        ) : (
+          <div style={{ color: 'var(--semi-color-text-2)' }}>
+            {balanceInfo?.priceUnavailable || t('未找到模型价格')}
+          </div>
+        )}
+      </div>
+
+      {balanceInfo?.availableGenerationsText && (
+        <div className='mt-2 flex items-center justify-between gap-3'>
+          <span style={{ color: 'var(--semi-color-text-2)' }}>
+            {t('预估可用次数')}
+          </span>
+          <span className='font-medium'>
+            {balanceInfo.availableGenerationsText}
+          </span>
+        </div>
+      )}
+
+      {balanceInfo?.usedGroup && (
+        <div className='mt-2' style={{ color: 'var(--semi-color-text-2)' }}>
+          {t('分组')}：{balanceInfo.usedGroup}
+        </div>
+      )}
+      <div className='mt-2' style={{ color: 'var(--semi-color-text-2)' }}>
+        {t('仅供参考，以实际扣费为准')}
+      </div>
+    </div>
+  );
+}
+
+function resolveDrawingImageUrl(url) {
+  if (!url) return null;
+  if (!url.startsWith('/')) return url;
+  const serverUrl = import.meta.env.VITE_REACT_APP_SERVER_URL;
+  if (!serverUrl) return url;
+  return `${serverUrl.replace(/\/$/, '')}${url}`;
+}
 
 export default DrawingInputBar;

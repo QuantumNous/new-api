@@ -948,6 +948,7 @@
     "可用分组": "Available groups",
     "可用变量：{{provider}} {{field}} {{op}} {{required}} {{current}} 以及 {{current.path}}": "Available variables: {{provider}} {{field}} {{op}} {{required}} {{current}} and {{current.path}}",
     "可用数量": "Available Quantity",
+    "预估可用次数": "Estimated available uses",
     "可用模型": "Available models",
     "可用空间: {{free}} / 总空间: {{total}}": "Free: {{free}} / Total: {{total}}",
     "可用端点类型": "Supported endpoint types",

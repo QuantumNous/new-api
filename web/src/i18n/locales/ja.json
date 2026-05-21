@@ -933,6 +933,7 @@
     "可用分组": "利用可能グループ",
     "可用变量：{{provider}} {{field}} {{op}} {{required}} {{current}} 以及 {{current.path}}": "利用可能な変数：{{provider}} {{field}} {{op}} {{required}} {{current}} および {{current.path}}",
     "可用数量": "Available Quantity",
+    "预估可用次数": "Estimated available uses",
     "可用模型": "利用可能なモデル",
     "可用空间: {{free}} / 总空间: {{total}}": "空き容量: {{free}} / 合計容量: {{total}}",
     "可用端点类型": "利用可能なエンドポイントタイプ",

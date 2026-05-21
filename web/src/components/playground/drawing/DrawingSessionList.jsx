@@ -45,14 +45,15 @@ const DrawingSessionList = ({ sessions, activeSessionId, onSelect, onDelete, onC
                   <ImageIcon size={14} className='flex-shrink-0 opacity-60' />
                   <span className='flex-1 truncate text-sm'>{item.title || t('未命名会话')}</span>
                   <button
-                    className='opacity-0 group-hover:opacity-100 p-1 rounded transition-all cursor-pointer flex-shrink-0'
-                    style={{ color: 'var(--semi-color-text-2)' }}
+                    className='flex h-7 w-7 flex-shrink-0 cursor-pointer items-center justify-center rounded-lg transition-colors'
+                    style={{ color: 'var(--semi-color-danger)' }}
                     onClick={(e) => { e.stopPropagation(); onDelete(item.session_id); }}
                     aria-label={t('删除会话')}
-                    onMouseEnter={e => e.currentTarget.style.background = 'var(--semi-color-fill-1)'}
+                    title={t('删除会话')}
+                    onMouseEnter={e => e.currentTarget.style.background = 'var(--semi-color-danger-light-default)'}
                     onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
                   >
-                    <Trash2 size={13} />
+                    <Trash2 size={14} />
                   </button>
                 </div>
               );

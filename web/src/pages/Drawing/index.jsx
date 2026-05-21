@@ -1,4 +1,5 @@
 import React, {
+  useContext,
   useEffect,
   useCallback,
   useMemo,
@@ -8,12 +9,24 @@ import React, {
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate } from 'react-router-dom';
+import {
+  API,
+  calculateModelPrice,
+  getModelPriceItems,
+  setUserData,
+} from '../../helpers';
+import { UserContext } from '../../context/User';
+import { StatusContext } from '../../context/Status';
 import { useDrawingSessions } from '../../hooks/drawing/useDrawingSessions';
 import { useDrawingMessages } from '../../hooks/drawing/useDrawingMessages';
 import { useDrawingSubmit } from '../../hooks/drawing/useDrawingSubmit';
 import DrawingCanvas from '../../components/playground/drawing/DrawingCanvas';
 import DrawingInputBar from '../../components/playground/drawing/DrawingInputBar';
-import { DEFAULT_DRAWING_MODEL } from '../../constants/drawing.constants';
+import {
+  DEFAULT_DRAWING_MODEL,
+  DRAWING_API,
+  MAX_UPLOAD_IMAGES,
+} from '../../constants/drawing.constants';
 import { useIsMobile } from '../../hooks/common/useIsMobile';
 import { Modal, Popover, Spin } from '@douyinfe/semi-ui';
 import {
@@ -29,11 +42,17 @@ const Drawing = () => {
   const isMobile = useIsMobile();
   const location = useLocation();
   const navigate = useNavigate();
+  const [userState, userDispatch] = useContext(UserContext);
+  const [statusState] = useContext(StatusContext);
   const [titleEditing, setTitleEditing] = useState(false);
   const [titleDraft, setTitleDraft] = useState('');
   const [sessionSelectorVisible, setSessionSelectorVisible] = useState(false);
   const [headerToolbarRoot, setHeaderToolbarRoot] = useState(null);
+  const [referencePreviewImage, setReferencePreviewImage] = useState('');
+  const [drawingPricing, setDrawingPricing] = useState(null);
+  const [drawingPricingLoading, setDrawingPricingLoading] = useState(false);
   const sessionSelectorRef = useRef(null);
+  const urlMessageTargetRef = useRef('');
 
   const {
     sessions,
@@ -71,36 +90,122 @@ const Drawing = () => {
   const currentMessage = messages[0] || null;
 
   useEffect(() => {
-    if (urlSessionId && urlSessionId !== activeSessionId) {
-      setActiveSessionId(urlSessionId);
+    let ignore = false;
+
+    async function loadUserBalance() {
+      try {
+        const res = await API.get('/api/user/self');
+        if (ignore) return;
+        if (res.data.success) {
+          userDispatch({ type: 'login', payload: res.data.data });
+          setUserData(res.data.data);
+        }
+      } catch (e) {
+        console.error('Failed to load drawing user balance', e);
+      }
     }
-  }, [activeSessionId, setActiveSessionId, urlSessionId]);
+
+    async function loadDrawingPricing() {
+      setDrawingPricingLoading(true);
+      try {
+        const res = await API.get('/api/pricing');
+        if (ignore) return;
+        if (res.data.success) {
+          const model = (res.data.data || []).find(
+            (item) => item.model_name === DEFAULT_DRAWING_MODEL,
+          );
+          setDrawingPricing({
+            model,
+            groupRatio: res.data.group_ratio || {},
+          });
+        }
+      } catch (e) {
+        console.error('Failed to load drawing pricing', e);
+      } finally {
+        if (!ignore) setDrawingPricingLoading(false);
+      }
+    }
+
+    loadUserBalance();
+    loadDrawingPricing();
+    return () => {
+      ignore = true;
+    };
+  }, [userDispatch]);
+
+  const balanceInfo = useMemo(
+    () =>
+      buildDrawingBalanceInfo({
+        userQuota: userState?.user?.quota,
+        status: statusState?.status,
+        pricing: drawingPricing,
+        pricingLoading: drawingPricingLoading,
+        t,
+      }),
+    [
+      drawingPricing,
+      drawingPricingLoading,
+      statusState?.status,
+      t,
+      userState?.user?.quota,
+    ],
+  );
+
+  useEffect(() => {
+    if (urlSessionId) {
+      setActiveSessionId((prev) =>
+        prev === urlSessionId ? prev : urlSessionId,
+      );
+    }
+  }, [setActiveSessionId, urlSessionId]);
 
   useEffect(() => {
     if (!activeSessionId) {
+      urlMessageTargetRef.current = '';
       loadMessages();
       return;
     }
 
-    if (
-      urlSessionId === activeSessionId &&
-      urlMessageId &&
-      String(currentMessage?.id || '') !== urlMessageId
-    ) {
-      loadCurrentMessage(urlMessageId);
+    const urlMessageTarget =
+      urlSessionId === activeSessionId && urlMessageId
+        ? `${activeSessionId}:${urlMessageId}`
+        : '';
+
+    if (urlMessageTarget) {
+      if (urlMessageTargetRef.current !== urlMessageTarget) {
+        urlMessageTargetRef.current = urlMessageTarget;
+        loadCurrentMessage(urlMessageId);
+      }
       return;
     }
+
+    urlMessageTargetRef.current = '';
 
     if (!currentMessage || currentMessage.session_id !== activeSessionId) {
       loadMessages();
     }
   }, [
     activeSessionId,
-    currentMessage,
+    currentMessage?.session_id,
     loadCurrentMessage,
     loadMessages,
     urlMessageId,
     urlSessionId,
+  ]);
+
+  useEffect(() => {
+    if (
+      urlMessageTargetRef.current &&
+      currentMessage?.session_id === activeSessionId &&
+      String(currentMessage.id || '') === urlMessageId
+    ) {
+      urlMessageTargetRef.current = '';
+    }
+  }, [
+    activeSessionId,
+    currentMessage?.id,
+    currentMessage?.session_id,
+    urlMessageId,
   ]);
 
   useEffect(() => {
@@ -153,9 +258,13 @@ const Drawing = () => {
       return;
     }
 
+    const pendingUrlMessageTarget =
+      activeSessionId && urlMessageId
+        ? `${activeSessionId}:${urlMessageId}`
+        : '';
     if (
-      urlSessionId === activeSessionId &&
-      urlMessageId &&
+      pendingUrlMessageTarget &&
+      urlMessageTargetRef.current === pendingUrlMessageTarget &&
       (!currentMessage || String(currentMessage.id || '') !== urlMessageId)
     ) {
       return;
@@ -201,6 +310,37 @@ const Drawing = () => {
     }
   }, [currentMessage?.task_id, currentMessage?.status, startPolling]);
 
+  useEffect(() => {
+    let ignore = false;
+
+    async function loadReferencePreviewImage() {
+      const images = await resolveDrawingReferenceImages(
+        currentMessage,
+        activeSessionId,
+      );
+      if (!ignore) {
+        setReferencePreviewImage(images[0] || '');
+      }
+    }
+
+    if (!currentMessage || currentMessage.status !== 'success') {
+      setReferencePreviewImage('');
+      return () => {
+        ignore = true;
+      };
+    }
+
+    loadReferencePreviewImage();
+    return () => {
+      ignore = true;
+    };
+  }, [
+    activeSessionId,
+    currentMessage?.id,
+    currentMessage?.result_data,
+    currentMessage?.status,
+  ]);
+
   const handleSubmit = useCallback(
     async (params) => {
       let sessionId = activeSessionId;
@@ -212,9 +352,23 @@ const Drawing = () => {
         setTitleDraft(session.title || title);
         setTitleEditing(false);
       }
-      await submit(params, sessionId);
+
+      const uploadedImages = Array.isArray(params.images) ? params.images : [];
+      const referenceImages = await resolveDrawingReferenceImages(
+        currentMessage,
+        sessionId,
+      );
+      const images = mergeDrawingImages(referenceImages, uploadedImages);
+
+      await submit(
+        {
+          ...params,
+          images,
+        },
+        sessionId,
+      );
     },
-    [activeSessionId, createSession, submit, t, titleDraft],
+    [activeSessionId, createSession, currentMessage, submit, t, titleDraft],
   );
 
   const handleRetry = useCallback(
@@ -353,21 +507,41 @@ const Drawing = () => {
         style={{ borderColor: 'var(--semi-color-border)' }}
       >
         <span className='text-sm font-medium'>{t('会话')}</span>
-        <button
-          className='flex h-7 w-7 items-center justify-center rounded-lg transition-colors'
-          style={{ color: 'var(--semi-color-text-2)' }}
-          onClick={handleNewSession}
-          aria-label={t('新建会话')}
-          title={t('新建会话')}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.background = 'var(--semi-color-fill-0)';
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.background = 'transparent';
-          }}
-        >
-          <Plus size={15} />
-        </button>
+        <div className='flex items-center gap-1'>
+          {activeSession && (
+            <button
+              className='flex h-7 w-7 items-center justify-center rounded-lg transition-colors'
+              style={{ color: 'var(--semi-color-danger)' }}
+              onClick={() => handleDeleteSession(activeSession)}
+              aria-label={t('删除会话')}
+              title={t('删除会话')}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background =
+                  'var(--semi-color-danger-light-default)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = 'transparent';
+              }}
+            >
+              <Trash2 size={14} />
+            </button>
+          )}
+          <button
+            className='flex h-7 w-7 items-center justify-center rounded-lg transition-colors'
+            style={{ color: 'var(--semi-color-text-2)' }}
+            onClick={handleNewSession}
+            aria-label={t('新建会话')}
+            title={t('新建会话')}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = 'var(--semi-color-fill-0)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = 'transparent';
+            }}
+          >
+            <Plus size={15} />
+          </button>
+        </div>
       </div>
 
       <div className='max-h-[min(60vh,420px)] overflow-auto p-2'>
@@ -416,8 +590,8 @@ const Drawing = () => {
                     {item.title || t('未命名会话')}
                   </span>
                   <button
-                    className='flex-shrink-0 rounded p-1 opacity-0 transition-all group-hover:opacity-100'
-                    style={{ color: 'var(--semi-color-text-2)' }}
+                    className='flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg transition-colors'
+                    style={{ color: 'var(--semi-color-danger)' }}
                     onClick={(e) => {
                       e.stopPropagation();
                       handleDeleteSession(item);
@@ -426,13 +600,13 @@ const Drawing = () => {
                     title={t('删除会话')}
                     onMouseEnter={(e) => {
                       e.currentTarget.style.background =
-                        'var(--semi-color-fill-1)';
+                        'var(--semi-color-danger-light-default)';
                     }}
                     onMouseLeave={(e) => {
                       e.currentTarget.style.background = 'transparent';
                     }}
                   >
-                    <Trash2 size={13} />
+                    <Trash2 size={14} />
                   </button>
                 </div>
               );
@@ -590,6 +764,8 @@ const Drawing = () => {
             disabled={false}
             loading={isLoading}
             hasImage={messages.some((m) => m.status === 'success')}
+            referenceImage={referencePreviewImage}
+            balanceInfo={balanceInfo}
           />
         </div>
       </div>
@@ -608,6 +784,157 @@ function parseDrawingMessageImages(imageUrls) {
   } catch {
     return [];
   }
+}
+
+async function resolveDrawingReferenceImages(message, sessionId) {
+  if (!message || message.status !== 'success' || !sessionId) return [];
+
+  const fromMessage = extractDrawingResultImages(message.result_data);
+  if (fromMessage.length > 0) return fromMessage;
+
+  if (!message.id) return [];
+
+  try {
+    const res = await API.get(DRAWING_API.MESSAGE_IMAGES(sessionId, message.id));
+    if (!res.data.success) return [];
+    return extractDrawingResultImages(res.data.data?.result_data);
+  } catch (e) {
+    console.error('Failed to load drawing reference images', e);
+    return [];
+  }
+}
+
+function extractDrawingResultImages(resultData) {
+  if (!resultData) return [];
+
+  let parsed = resultData;
+  if (typeof parsed === 'string') {
+    try {
+      parsed = JSON.parse(parsed);
+    } catch {
+      return [];
+    }
+  }
+  if (!Array.isArray(parsed)) return [];
+
+  return parsed
+    .map((item) => item?.url || item?.b64_json || '')
+    .filter(Boolean)
+    .slice(0, MAX_UPLOAD_IMAGES);
+}
+
+function mergeDrawingImages(referenceImages, uploadedImages) {
+  const merged = [];
+  for (const image of [...referenceImages, ...uploadedImages]) {
+    if (!image || merged.includes(image)) continue;
+    merged.push(image);
+    if (merged.length >= MAX_UPLOAD_IMAGES) break;
+  }
+  return merged;
+}
+
+function buildDrawingBalanceInfo({
+  userQuota,
+  status,
+  pricing,
+  pricingLoading,
+  t,
+}) {
+  const balanceUSD = quotaToUsdAmount(userQuota, status);
+  const balanceText = formatUsdAmount(balanceUSD, 2);
+  const tone =
+    balanceUSD < 0.1
+      ? 'danger'
+      : balanceUSD < 1
+        ? 'warning'
+        : 'success';
+  const toneColor = {
+    danger: 'var(--semi-color-danger)',
+    warning: 'var(--semi-color-warning)',
+    success: 'var(--semi-color-success)',
+  }[tone];
+
+  const model = pricing?.model;
+  let priceItems = [];
+  let priceUnavailable = '';
+  let usedGroup = 'gpt-image';
+  let availableGenerationsText = '';
+
+  if (model) {
+    const groupRatio = pricing?.groupRatio || {};
+    const selectedGroup =
+      Array.isArray(model.enable_groups) &&
+      model.enable_groups.includes('gpt-image') &&
+      groupRatio['gpt-image'] !== undefined
+        ? 'gpt-image'
+        : 'all';
+
+    const priceData = calculateModelPrice({
+      record: model,
+      selectedGroup,
+      groupRatio,
+      tokenUnit: 'M',
+      currency: 'USD',
+      quotaDisplayType: 'USD',
+      displayPrice: (usdPrice) => formatUsdAmount(usdPrice, 4),
+    });
+    usedGroup = priceData.usedGroup || selectedGroup;
+    priceItems = getModelPriceItems(priceData, t, 'USD');
+
+    const unitPriceUSD =
+      model.quota_type === 1
+        ? Number(model.model_price || 0) * Number(priceData.usedGroupRatio || 1)
+        : 0;
+    if (Number.isFinite(unitPriceUSD) && unitPriceUSD > 0) {
+      availableGenerationsText = `${t('约')} ${Math.max(
+        0,
+        Math.floor(balanceUSD / unitPriceUSD),
+      )} ${t('次')}`;
+    }
+  } else if (!pricingLoading) {
+    priceUnavailable = t('未找到模型价格');
+  }
+
+  return {
+    balanceText,
+    balanceUSD,
+    availableGenerationsText,
+    modelName: DEFAULT_DRAWING_MODEL,
+    priceItems,
+    priceUnavailable,
+    pricingLoading,
+    tone,
+    toneColor,
+    usedGroup,
+  };
+}
+
+function quotaToUsdAmount(quota, status) {
+  const quotaPerUnit = Number(
+    status?.quota_per_unit || localStorage.getItem('quota_per_unit') || 1,
+  );
+  const safeQuotaPerUnit =
+    Number.isFinite(quotaPerUnit) && quotaPerUnit > 0 ? quotaPerUnit : 1;
+  return Number(quota || 0) / safeQuotaPerUnit;
+}
+
+function formatUsdAmount(amount, digits) {
+  const value = Number(amount || 0);
+  if (!Number.isFinite(value) || value <= 0) return '$0.00';
+
+  const fixedValue = value.toFixed(digits);
+  if (Number(fixedValue) > 0) return `$${fixedValue}`;
+
+  const smallFixedValue = value.toFixed(6);
+  if (Number(smallFixedValue) > 0) {
+    return `$${trimTrailingZeros(smallFixedValue)}`;
+  }
+
+  return '<$0.000001';
+}
+
+function trimTrailingZeros(value) {
+  return value.replace(/(\.\d*?)0+$/, '$1').replace(/\.$/, '');
 }
 
 export default Drawing;
