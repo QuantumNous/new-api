@@ -173,7 +173,7 @@ export function AccountBindingsTab({
       },
       {
         id: 'github',
-        label: t('GitHub'),
+        label: t('GitHub account binding'),
         icon: SiGithub,
         value: (profile as unknown as Record<string, unknown>).github_id as
           | string
@@ -299,8 +299,12 @@ export function AccountBindingsTab({
               {binding.isBound
                 ? binding.id === 'email'
                   ? t('Change')
-                  : t('Bound')
-                : t('Bind')}
+                  : binding.id === 'github'
+                    ? t('Bound GitHub account')
+                    : t('Bound')
+                : binding.id === 'github'
+                  ? t('Bind GitHub account')
+                  : t('Bind')}
             </Button>
           </div>
         ))}

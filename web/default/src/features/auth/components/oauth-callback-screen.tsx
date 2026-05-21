@@ -28,27 +28,27 @@ type OAuthCallbackScreenProps = {
 }
 
 type ProviderMeta = {
-  label: string
+  labelKey: string
   Icon: LucideIcon | ((props: { className?: string }) => React.JSX.Element)
 }
 
 const providerDictionary: Record<string, ProviderMeta> = {
   github: {
-    label: 'GitHub',
+    labelKey: 'GitHub account',
     Icon: (props: { className?: string }) => (
       <SiGithub className={props.className} focusable='false' />
     ),
   },
-  oidc: { label: 'OIDC', Icon: Shield },
+  oidc: { labelKey: 'OIDC', Icon: Shield },
   linuxdo: {
-    label: 'LinuxDO',
+    labelKey: 'LinuxDO',
     Icon: (props: { className?: string }) => (
       <SiLinux className={props.className} focusable='false' />
     ),
   },
-  telegram: { label: 'Telegram', Icon: Send },
+  telegram: { labelKey: 'Telegram', Icon: Send },
   wechat: {
-    label: 'WeChat',
+    labelKey: 'WeChat',
     Icon: (props: { className?: string }) => (
       <SiWechat className={props.className} focusable='false' />
     ),
@@ -60,17 +60,17 @@ export function OAuthCallbackScreen({
   mode,
 }: OAuthCallbackScreenProps) {
   const { t } = useTranslation()
-  const { label, Icon } = useMemo(() => {
+  const { labelKey, Icon } = useMemo(() => {
     const normalized = provider?.toLowerCase() ?? ''
     return (
       providerDictionary[normalized] || {
-        label: 'account',
+        labelKey: 'Third-party account',
         Icon: UserRound,
       }
     )
   }, [provider])
 
-  const providerLabel = t(label)
+  const providerLabel = t(labelKey)
   const isBindMode = mode === 'bind'
 
   const headline = isBindMode

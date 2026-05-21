@@ -47,7 +47,7 @@ export function useOAuthLogin(status: SystemStatus | null) {
   const { auth } = useAuthStore()
 
   useEffect(() => {
-    setGithubButtonText(t('Continue with GitHub'))
+    setGithubButtonText(t('Continue with GitHub account'))
 
     return () => {
       if (githubTimeoutRef.current) {
@@ -77,7 +77,7 @@ export function useOAuthLogin(status: SystemStatus | null) {
 
     setIsLoading(true)
     setGithubButtonDisabled(true)
-    setGithubButtonText(t('Redirecting to GitHub...'))
+    setGithubButtonText(t('Redirecting to GitHub account sign-in...'))
 
     if (githubTimeoutRef.current) {
       clearTimeout(githubTimeoutRef.current)
@@ -86,7 +86,9 @@ export function useOAuthLogin(status: SystemStatus | null) {
     githubTimeoutRef.current = setTimeout(() => {
       setIsLoading(false)
       setGithubButtonText(
-        t('Request timed out, please refresh and restart GitHub login')
+        t(
+          'Request timed out, please refresh and retry GitHub account sign-in'
+        )
       )
       setGithubButtonDisabled(true)
     }, 20000)
@@ -100,7 +102,7 @@ export function useOAuthLogin(status: SystemStatus | null) {
           clearTimeout(githubTimeoutRef.current)
         }
         setIsLoading(false)
-        setGithubButtonText(t('Continue with GitHub'))
+        setGithubButtonText(t('Continue with GitHub account'))
         setGithubButtonDisabled(false)
         return
       }
@@ -108,12 +110,12 @@ export function useOAuthLogin(status: SystemStatus | null) {
       const url = buildGitHubOAuthUrl(status.github_client_id, state)
       window.open(url, '_self')
     } catch (_error) {
-      toast.error(t('Failed to start GitHub login'))
+      toast.error(t('Failed to start GitHub account sign-in'))
       if (githubTimeoutRef.current) {
         clearTimeout(githubTimeoutRef.current)
       }
       setIsLoading(false)
-      setGithubButtonText(t('Continue with GitHub'))
+      setGithubButtonText(t('Continue with GitHub account'))
       setGithubButtonDisabled(false)
     }
   }
