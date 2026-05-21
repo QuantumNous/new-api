@@ -1033,6 +1033,8 @@ export function ChannelMutateDrawer({
           if (response.success) {
             toast.success(t(SUCCESS_MESSAGES.UPDATED))
             handleSuccess()
+          } else {
+            throw new Error(response.message || t(ERROR_MESSAGES.UPDATE_FAILED))
           }
         } else {
           // Create new channel(s)
@@ -1041,6 +1043,8 @@ export function ChannelMutateDrawer({
           if (response.success) {
             toast.success(t(SUCCESS_MESSAGES.CREATED))
             handleSuccess()
+          } else {
+            throw new Error(response.message || t(ERROR_MESSAGES.CREATE_FAILED))
           }
         }
       } catch (error: unknown) {
@@ -3381,7 +3385,9 @@ export function ChannelMutateDrawer({
         redirectSourceModels={redirectModelKeyList}
         customFetcher={!isEditing ? createModeFetcher : undefined}
         existingModelsOverride={
-          !isEditing ? parseModelsString(form.getValues('models') || '') : undefined
+          !isEditing
+            ? parseModelsString(form.getValues('models') || '')
+            : undefined
         }
       />
 
