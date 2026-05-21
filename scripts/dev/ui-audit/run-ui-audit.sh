@@ -27,6 +27,14 @@ EXIT_CODE=0
 log() { printf '%s\n' "$*"; }
 warn() { printf 'WARN: %s\n' "$*" >&2; }
 
+# Load env file written with printf %q (see screenshot-ui-acceptance.sh write_meta).
+load_screenshot_meta() {
+  local meta="$1"
+  [[ -f "$meta" ]] || return 0
+  # shellcheck source=/dev/null
+  source "$meta"
+}
+
 mkdir -p "$REPORT_DIR"
 
 GENERATED_AT="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
@@ -101,8 +109,7 @@ else
   export BASE_URL UI_AUDIT_USERNAME UI_AUDIT_PASSWORD
   export DEMO_USERNAME="$UI_AUDIT_USERNAME" DEMO_PASSWORD="$UI_AUDIT_PASSWORD"
   if bash "$AUDIT_DIR/screenshot-ui-acceptance.sh"; then
-    # shellcheck source=/dev/null
-    [[ -f "$AUDIT_DIR/reports/screenshot-meta.env" ]] && source "$AUDIT_DIR/reports/screenshot-meta.env"
+    load_screenshot_meta "$AUDIT_DIR/reports/screenshot-meta.env"
     SCREENSHOT_STATUS="${SCREENSHOT_STATUS:-skipped}"
     SCREENSHOT_REASON="${SCREENSHOT_REASON:-见 screenshot.log}"
     if [[ "$SCREENSHOT_STATUS" == success ]]; then

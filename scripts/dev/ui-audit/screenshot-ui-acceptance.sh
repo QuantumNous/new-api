@@ -21,15 +21,16 @@ mkdir -p "$OUT_DIR" "$REPORT_DIR"
 log() { printf '%s\n' "$*" | tee -a "$LOG"; }
 log_err() { printf '%s\n' "$*" | tee -a "$LOG" >&2; }
 
+# Values are printf %q-quoted so run-ui-audit.sh can safely `source` the file.
 write_meta() {
   local status="$1"
   local reason="$2"
-  cat >"$META" <<EOF
-SCREENSHOT_STATUS=$status
-SCREENSHOT_REASON=$reason
-SCREENSHOT_DIR=$OUT_DIR
-SCREENSHOT_LOG=$LOG
-EOF
+  {
+    printf 'SCREENSHOT_STATUS=%q\n' "$status"
+    printf 'SCREENSHOT_REASON=%q\n' "$reason"
+    printf 'SCREENSHOT_DIR=%q\n' "$OUT_DIR"
+    printf 'SCREENSHOT_LOG=%q\n' "$LOG"
+  } >"$META"
 }
 
 has_playwright() {
@@ -46,11 +47,11 @@ log "UI_AUDIT_USERNAME=${UI_AUDIT_USERNAME:-<unset>}"
 log ""
 
 if ! has_playwright || ! command -v node >/dev/null 2>&1; then
-  reason="未检测到 Playwright 或 node；请在 web/default 安装 @playwright/test 后重试"
+  reason='当前项目未检测到可用 Playwright，按 README 说明安装或手动验收。'
   write_meta "skipped" "$reason"
   log_err "$reason"
   log ""
-  log "截图验收未执行：当前项目未检测到可用 Playwright，按 README 说明安装或手动验收。"
+  log "截图验收未执行：$reason"
   exit 0
 fi
 

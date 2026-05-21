@@ -41,6 +41,7 @@ bash scripts/dev/ui-audit/run-ui-audit.sh
 | `reports/scan-meta.env` | P0/P1/P2 计数 |
 | `reports/ui-audit-summary.md` | 一键汇总 |
 | `reports/screenshot.log` | 截图脚本日志 |
+| `reports/screenshot-meta.env` | 截图状态（`printf %q` 引用，可供 `source`） |
 | `screenshots/*.png` | Playwright 可用且前端可达时 |
 
 ### 前端未启动时
