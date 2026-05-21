@@ -1,3 +1,21 @@
+/*
+Copyright (C) 2025 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
 import React, { useMemo, useState, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Modal, Popover, Select, Toast } from '@douyinfe/semi-ui';
@@ -143,14 +161,13 @@ const DrawingInputBar = ({
       )}
 
       <div
-        className='rounded-2xl border overflow-hidden'
+        className='drawing-input-bar rounded-2xl border overflow-hidden'
         style={{
-          background: 'var(--semi-color-bg-0)',
           borderColor: 'var(--semi-color-border)',
         }}
       >
         {(referenceImageSrc || images.length > 0) && (
-          <div className='flex gap-2 px-4 pt-3 flex-wrap'>
+          <div className='flex gap-2 px-4 pt-3 pb-2 flex-wrap'>
             {referenceImageSrc && (
               <div
                 className='relative w-14 h-14 rounded-lg overflow-hidden'
@@ -196,11 +213,10 @@ const DrawingInputBar = ({
           placeholder={t('描述你想生成的图片...')}
           disabled={disabled}
           rows={hasPrompt ? 3 : 1}
-          className='w-full text-sm px-4 pt-3 pb-2 resize-none outline-none leading-relaxed bg-transparent'
+          className='drawing-input-bar-textarea w-full text-sm px-4 pt-3 pb-2 resize-none outline-none leading-relaxed'
           style={{
             minHeight: hasPrompt ? 80 : 42,
             maxHeight: 200,
-            color: 'var(--semi-color-text-0)',
           }}
         />
 

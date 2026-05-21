@@ -384,6 +384,61 @@ code {
   padding: 0 8px;
 }
 
+/* Drawing input bar */
+.drawing-input-bar {
+  background: var(--semi-color-bg-0);
+  transition:
+    background-color 160ms ease,
+    border-color 160ms ease;
+}
+
+body[theme-mode='dark'] .drawing-input-bar {
+  background: var(--semi-color-fill-0);
+}
+
+.dark .drawing-input-bar {
+  background: var(--semi-color-fill-0);
+}
+
+.drawing-input-bar-textarea {
+  background-color: var(--semi-color-bg-0);
+  color: var(--semi-color-text-0);
+  caret-color: var(--semi-color-primary);
+}
+
+body[theme-mode='dark'] .drawing-input-bar-textarea,
+.dark .drawing-input-bar-textarea {
+  background-color: var(--semi-color-fill-0);
+}
+
+.drawing-input-bar-textarea::placeholder {
+  color: var(--semi-color-text-2);
+  opacity: 1;
+}
+
+.drawing-input-bar-textarea:disabled {
+  color: var(--semi-color-disabled-text);
+  -webkit-text-fill-color: var(--semi-color-disabled-text);
+  cursor: not-allowed;
+}
+
+.drawing-input-bar .semi-select {
+  background-color: var(--semi-color-fill-0);
+  border-color: transparent;
+}
+
+.drawing-input-bar .semi-select:hover {
+  background-color: var(--semi-color-fill-1);
+}
+
+body[theme-mode='dark'] .drawing-input-bar .semi-select {
+  background-color: var(--semi-color-fill-1);
+}
+
+body[theme-mode='dark'] .drawing-input-bar .semi-select:hover {
+  background-color: var(--semi-color-fill-2);
+}
+
 @media (max-width: 480px) {
   .drawing-image-preview .semi-image-preview-footer-wrapper {
     bottom: max(8px, env(safe-area-inset-bottom));

@@ -86,7 +86,10 @@ export const AuthRedirect = ({ children }) => {
   if (user) {
     return (
       <Navigate
-        to={getLoginRedirectPath(location.state?.from, '/console')}
+        to={getLoginRedirectPath(
+          location.state?.from,
+          getStoredLoginRedirectPath('/console'),
+        )}
         replace
       />
     );
@@ -99,7 +102,8 @@ function PrivateRoute({ children }) {
   const location = useLocation();
 
   if (!localStorage.getItem('user')) {
-    return <Navigate to='/login' state={{ from: location }} />;
+    saveLoginRedirectPath(location);
+    return <Navigate to='/login' replace state={{ from: location }} />;
   }
   return children;
 }
@@ -108,7 +112,8 @@ export function AdminRoute({ children }) {
   const location = useLocation();
   const raw = localStorage.getItem('user');
   if (!raw) {
-    return <Navigate to='/login' state={{ from: location }} />;
+    saveLoginRedirectPath(location);
+    return <Navigate to='/login' replace state={{ from: location }} />;
   }
   try {
     const user = JSON.parse(raw);
