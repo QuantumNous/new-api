@@ -108,17 +108,37 @@ func getChannelQuery(group string, model string, retry int) (*gorm.DB, error) {
 // getChannelQueryWithAPIType returns a query that filters channels by priority,
 // and when multiple channels share the same priority, prefers those whose
 // channel type matches the expected API type (for smart routing).
+//
+// Both abilities and channels expose a `group` column, so any reference to
+// `group` inside JOINed queries must be qualified with `abilities.` to avoid
+// "ambiguous column name" errors (notably on SQLite).
 func getChannelQueryWithAPIType(group string, model string, retry int, expectedAPIType int) (*gorm.DB, error) {
 	channelQuery, err := getChannelQuery(group, model, retry)
 	if err != nil {
 		return nil, err
 	}
 
-	// Join with channels table to access channel type for filtering
+	abilitiesGroupCol := "abilities." + commonGroupCol
+
+	// Resolve the priority value once, shared by the probing query and the
+	// final filtered query. Reusing the existing channelQuery here would be
+	// unsafe because its WHERE clause references the bare `group` column.
+	var priorityValue interface{}
+	if retry == 0 {
+		priorityValue = DB.Model(&Ability{}).Select("MAX(priority)").Where(commonGroupCol+" = ? and model = ? and enabled = ?", group, model, true)
+	} else {
+		p, err := getPriority(group, model, retry)
+		if err != nil {
+			return channelQuery, nil
+		}
+		priorityValue = p
+	}
+
 	var abilities []AbilityWithChannel
-	err = channelQuery.Table("abilities").
+	err = DB.Table("abilities").
 		Select("abilities.*, channels.type as channel_type").
 		Joins("left join channels on abilities.channel_id = channels.id").
+		Where(abilitiesGroupCol+" = ? and abilities.model = ? and abilities.enabled = ? and abilities.priority = (?)", group, model, true, priorityValue).
 		Scan(&abilities).Error
 	if err != nil {
 		return channelQuery, nil // fall back to original query
@@ -139,21 +159,10 @@ func getChannelQueryWithAPIType(group string, model string, retry int, expectedA
 	}
 
 	if hasMatch {
-		// Rebuild query with API type filter
-		// We need to filter by channel type, so we rebuild with join
-		var priority interface{}
-		if retry == 0 {
-			priority = DB.Model(&Ability{}).Select("MAX(priority)").Where(commonGroupCol+" = ? and model = ? and enabled = ?", group, model, true)
-		} else {
-			p, err := getPriority(group, model, retry)
-			if err != nil {
-				return channelQuery, nil
-			}
-			priority = p
-		}
 		filteredQuery := DB.Table("abilities").
+			Select("abilities.*").
 			Joins("left join channels on abilities.channel_id = channels.id").
-			Where(commonGroupCol+" = ? and abilities.model = ? and abilities.enabled = ? and abilities.priority = ?", group, model, true, priority).
+			Where(abilitiesGroupCol+" = ? and abilities.model = ? and abilities.enabled = ? and abilities.priority = (?)", group, model, true, priorityValue).
 			Where("channels.type IN (?)", getMatchingChannelTypes(expectedAPIType))
 		return filteredQuery, nil
 	}
@@ -197,9 +206,9 @@ func GetChannel(group string, model string, retry int, relayFormat types.RelayFo
 	}
 
 	if common.UsingSQLite || common.UsingPostgreSQL {
-		err = channelQuery.Order("weight DESC").Find(&abilities).Error
+		err = channelQuery.Order("abilities.weight DESC").Find(&abilities).Error
 	} else {
-		err = channelQuery.Order("weight DESC").Find(&abilities).Error
+		err = channelQuery.Order("abilities.weight DESC").Find(&abilities).Error
 	}
 	if err != nil {
 		return nil, err
