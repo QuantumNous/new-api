@@ -95,8 +95,15 @@ func appendStreamStatus(relayInfo *relaycommon.RelayInfo, other map[string]inter
 	}
 	ss := relayInfo.StreamStatus
 	status := "ok"
-	if !ss.IsNormalEnd() || ss.HasErrors() {
+	if ss.HasErrors() {
 		status = "error"
+	} else if !ss.IsNormalEnd() && ss.EndReason != relaycommon.StreamEndReasonClientGone {
+		status = "error"
+	}
+	if status == "ok" && !ss.IsNormalEnd() && ss.EndReason == relaycommon.StreamEndReasonClientGone {
+		// 客户端主动断开（如 Claude CLI 重试/取消），既不是上游错误也不是服务端错误，
+		// 不应该在使用日志面板里标红。隐藏 stream_status 块即可（UI 仅在 status !== "ok" 时显示）。
+		return
 	}
 	streamInfo := map[string]interface{}{
 		"status":     status,

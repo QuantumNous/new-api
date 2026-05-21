@@ -351,6 +351,7 @@ export function getChannelIcon(channelType) {
     case 34: // Cohere
       return <Cohere.Color size={iconSize} />;
     case 39: // Cloudflare
+    case 58: // Cloudflare AI Gateway
       return <Cloudflare.Color size={iconSize} />;
     case 43: // DeepSeek
       return <DeepSeek.Color size={iconSize} />;

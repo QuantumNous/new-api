@@ -834,6 +834,19 @@ func HandleStreamFinalResponse(c *gin.Context, info *relaycommon.RelayInfo, clau
 	if claudeInfo.Usage.PromptTokens == 0 {
 		//上游出错
 	}
+	// 客户端在收到任何上游字节前就主动断开（received=0 + client_gone），
+	// 视为未发生有效消费，跳过预估兜底，避免对用户产生"幽灵扣费"。
+	if info != nil && info.IsStream && info.ReceivedResponseCount == 0 &&
+		info.StreamStatus != nil && info.StreamStatus.EndReason == relaycommon.StreamEndReasonClientGone {
+		logger.LogInfo(c, "claude stream aborted by client before any data received, skip prompt token fallback")
+		claudeInfo.Usage.PromptTokens = 0
+		claudeInfo.Usage.CompletionTokens = 0
+		claudeInfo.Usage.TotalTokens = 0
+		if claudeInfo.Usage != nil {
+			claudeInfo.Usage.UsageSemantic = "anthropic"
+		}
+		return
+	}
 	if claudeInfo.Usage.CompletionTokens == 0 || !claudeInfo.Done {
 		if common.DebugEnabled {
 			common.SysLog("claude response usage is not complete, maybe upstream error")

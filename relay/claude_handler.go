@@ -104,6 +104,16 @@ func ClaudeHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *typ
 		info.UpstreamModelName = request.Model
 	}
 
+	// Anthropic 在 extended thinking 模式下拒绝 temperature/top_p/top_k:
+	//   "temperature" is deprecated for this model.
+	// 对所有 thinking 已启用的请求,统一剥掉这三个采样参数,避免 400。
+	// 这覆盖了客户端直接发 `claude-opus-4-6` + thinking 的场景(原代码只在 4-7 分支处理)。
+	if request.Thinking != nil {
+		request.Temperature = nil
+		request.TopP = nil
+		request.TopK = nil
+	}
+
 	if info.ChannelSetting.SystemPrompt != "" {
 		if request.System == nil {
 			request.SetStringSystem(info.ChannelSetting.SystemPrompt)

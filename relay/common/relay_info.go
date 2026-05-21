@@ -328,6 +328,7 @@ var streamSupportedChannels = map[int]bool{
 	constant.ChannelTypeMoonshot:    true,
 	constant.ChannelTypeMiniMax:     true,
 	constant.ChannelTypeSiliconFlow: true,
+	constant.ChannelTypeCloudflareAIGateway: true,
 }
 
 func GenRelayInfoWs(c *gin.Context, ws *websocket.Conn) *RelayInfo {
@@ -843,12 +844,44 @@ func RemoveDisabledFields(jsonData []byte, channelOtherSettings dto.ChannelOther
 		}
 	}
 
+	// 默认移除 cache_control.scope（仅 Claude），除非明确允许。
+	// Anthropic 要求 scope:"global" 必须是整个渲染序列(tools→system→messages)的前缀，
+	// 一旦前面有任意 narrower 作用域的块就报 500
+	//   "cache_control.scope: 'global' is only valid when every preceding block is also globally scoped"
+	// 多数客户端（含 Claude CLI 部分版本）无法保证这一点，统一剥离 scope 字段降级为 user cache，
+	// 命中率不变且彻底回避此错误；如需跨账户共享缓存，启用 allow_global_cache_scope 自行处理 layout。
+	if !channelOtherSettings.AllowGlobalCacheScope {
+		stripCacheControlScope(data)
+	}
+
 	jsonDataAfter, err := common.Marshal(data)
 	if err != nil {
 		common.SysError("RemoveDisabledFields Marshal error :" + err.Error())
 		return jsonData, nil
 	}
 	return jsonDataAfter, nil
+}
+
+// stripCacheControlScope walks the JSON tree rooted at v and removes the "scope" key
+// from every cache_control object. This avoids Anthropic 500s caused by
+// scope:"global" not forming a valid prefix across the rendered request
+// (tools → system → messages). User-scoped caching still works normally.
+func stripCacheControlScope(v interface{}) {
+	switch node := v.(type) {
+	case map[string]interface{}:
+		if cc, ok := node["cache_control"]; ok {
+			if ccMap, ok := cc.(map[string]interface{}); ok {
+				delete(ccMap, "scope")
+			}
+		}
+		for _, child := range node {
+			stripCacheControlScope(child)
+		}
+	case []interface{}:
+		for _, child := range node {
+			stripCacheControlScope(child)
+		}
+	}
 }
 
 // RemoveGeminiDisabledFields removes disabled fields from Gemini request JSON data

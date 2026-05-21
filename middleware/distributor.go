@@ -398,6 +398,8 @@ func SetupContextForSelectedChannel(c *gin.Context, channel *model.Channel, mode
 		c.Set("plugin", channel.Other)
 	case constant.ChannelCloudflare:
 		c.Set("api_version", channel.Other)
+	case constant.ChannelTypeCloudflareAIGateway:
+		c.Set("api_version", channel.Other)
 	case constant.ChannelTypeMokaAI:
 		c.Set("api_version", channel.Other)
 	case constant.ChannelTypeCoze:

@@ -3213,6 +3213,18 @@ const EditChannelModal = (props) => {
                       />
                     )}
 
+                    {inputs.type === 58 && (
+                      <Form.Input
+                        field='other'
+                        label='Account ID / Gateway ID'
+                        placeholder={
+                          '格式：{account_id}/{gateway_id}，例如：d6b5da8hk1awo8nap34ube6gh/default'
+                        }
+                        onChange={(value) => handleInputChange('other', value)}
+                        showClear
+                      />
+                    )}
+
                     {inputs.type === 49 && (
                       <Form.Input
                         field='other'
