@@ -21,7 +21,6 @@ export {
   usageLogsColumnHeaderClassName,
   usageLogsDetailSummaryClass,
   usageLogsInlinePillClass,
-  usageLogsLogTypeBadgeClass,
   usageLogsTableEmptyClass,
   usageLogsTableHeaderClassName,
   usageLogsTableMetaClass,

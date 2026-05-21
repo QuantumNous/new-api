@@ -23,7 +23,7 @@ import { useTranslation } from 'react-i18next'
 import { getUserAvatarFallback, getUserAvatarStyle } from '@/lib/avatar'
 import {
   formatBillingAmountForOpsCenter,
-  formatLogQuotaForOpsCenter,
+  formatUsageLogQuotaDisplay,
 } from '@/lib/ops-billing-display'
 import { formatUseTime, formatTimestampToDate } from '@/lib/format'
 import { cn } from '@/lib/utils'
@@ -35,7 +35,7 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip'
 import { DataTableColumnHeader } from '@/components/data-table'
-import { StatusBadge, type StatusBadgeProps } from '@/components/status-badge'
+import { StatusBadge } from '@/components/status-badge'
 import type { UsageLog } from '../../data/schema'
 import {
   formatLogContentSummaryForDisplay,
@@ -47,12 +47,21 @@ import {
   parseLogOther,
   isViolationFeeLog,
 } from '../../lib/format'
+import { LOG_TYPE_ENUM } from '../../constants'
 import {
   isDisplayableLogType,
   isTimingLogType,
   getLogTypeConfig,
   isPerCallBilling,
 } from '../../lib/utils'
+import {
+  usageLogsLogTypeBadgeBaseClassName,
+  usageLogsMaskedAvatarClassName,
+  usageLogsSubscriptionBadgeClassName,
+  usageLogsTableBadgeMaxClassName,
+  usageLogsTableClickableLinkClass,
+  usageLogsTableFailReasonClass,
+} from '../../lib/ops-ui-styles'
 import type { LogOtherData } from '../../types'
 import { DetailsDialog } from '../dialogs/details-dialog'
 import { ModelBadge } from '../model-badge'
@@ -61,7 +70,6 @@ import {
   usageLogsColumnHeaderClassName,
   usageLogsDetailSummaryClass,
   usageLogsInlinePillClass,
-  usageLogsLogTypeBadgeClass,
   usageLogsTableEmptyClass,
   usageLogsTableMetaClass,
   usageLogsTablePrimaryClass,
@@ -71,6 +79,70 @@ interface DetailSegment {
   text: string
   muted?: boolean
   danger?: boolean
+}
+
+const QUOTA_COLUMN_LOG_TYPES = new Set<number>([
+  LOG_TYPE_ENUM.TOPUP,
+  LOG_TYPE_ENUM.MANAGE,
+  LOG_TYPE_ENUM.SYSTEM,
+  LOG_TYPE_ENUM.REFUND,
+])
+
+function shouldShowQuotaColumn(type: number): boolean {
+  return isDisplayableLogType(type) || QUOTA_COLUMN_LOG_TYPES.has(type)
+}
+
+const LOG_TYPE_LABEL_KEYS: Record<number, string> = {
+  [LOG_TYPE_ENUM.UNKNOWN]: 'usageLogs.type.unknown',
+  [LOG_TYPE_ENUM.TOPUP]: 'usageLogs.type.topup',
+  [LOG_TYPE_ENUM.CONSUME]: 'usageLogs.type.consume',
+  [LOG_TYPE_ENUM.MANAGE]: 'usageLogs.type.manage',
+  [LOG_TYPE_ENUM.SYSTEM]: 'usageLogs.type.system',
+  [LOG_TYPE_ENUM.ERROR]: 'usageLogs.type.error',
+  [LOG_TYPE_ENUM.REFUND]: 'usageLogs.type.refund',
+}
+
+function usageLogTypeLabel(
+  type: number,
+  t: (key: string, opts?: Record<string, unknown>) => string
+): string {
+  const key = LOG_TYPE_LABEL_KEYS[type]
+  return key ? t(key) : t(getLogTypeConfig(type).label)
+}
+
+function usageLogTypeBadgeToneClass(type: number): string {
+  switch (type) {
+    case LOG_TYPE_ENUM.ERROR:
+      return 'border border-rose-500/20 bg-rose-500/5 text-rose-400/90'
+    case LOG_TYPE_ENUM.CONSUME:
+      return 'border border-emerald-500/15 bg-emerald-500/5 text-slate-400'
+    case LOG_TYPE_ENUM.MANAGE:
+      return 'border border-amber-500/20 bg-amber-500/5 text-amber-400/80'
+    case LOG_TYPE_ENUM.TOPUP:
+      return 'border border-cyan-500/20 bg-cyan-500/5 text-cyan-400/80'
+    case LOG_TYPE_ENUM.REFUND:
+      return 'border border-sky-500/20 bg-sky-500/5 text-sky-400/80'
+    case LOG_TYPE_ENUM.SYSTEM:
+      return 'border border-violet-500/20 bg-violet-500/5 text-violet-400/80'
+    default:
+      return 'border border-white/10 bg-white/[0.03] text-slate-500'
+  }
+}
+
+function LogTypeBadge(props: {
+  type: number
+  t: (key: string, opts?: Record<string, unknown>) => string
+}) {
+  return (
+    <span
+      className={cn(
+        usageLogsLogTypeBadgeBaseClassName,
+        usageLogTypeBadgeToneClass(props.type)
+      )}
+    >
+      {usageLogTypeLabel(props.type, props.t)}
+    </span>
+  )
 }
 
 function formatRatioCompact(ratio: number | undefined): string {
@@ -104,7 +176,7 @@ function buildDetailSegments(
   t: (key: string, opts?: Record<string, unknown>) => string
 ): DetailSegment[] {
   if (log.type === 6) {
-    return [{ text: t('Async task refund') }]
+    return [{ text: t('usageLogs.label.async_refund') }]
   }
 
   if (log.type !== 2) return []
@@ -112,7 +184,7 @@ function buildDetailSegments(
   const isViolation = isViolationFeeLog(other)
   if (isViolation) {
     const segments: DetailSegment[] = []
-    segments.push({ text: t('Violation Fee'), danger: true })
+    segments.push({ text: t('usageLogs.label.violation_fee'), danger: true })
     if (other?.violation_fee_code) {
       segments.push({
         text: other.violation_fee_code,
@@ -120,7 +192,7 @@ function buildDetailSegments(
       })
     }
     segments.push({
-      text: `${t('usageLogs.label.quota_amount')}: ${formatLogQuotaForOpsCenter(other?.fee_quota ?? log.quota)}`,
+      text: `${t('usageLogs.label.quota_amount')}: ${formatUsageLogQuotaDisplay(other?.fee_quota ?? log.quota)}`,
       muted: true,
     })
     return segments
@@ -147,7 +219,8 @@ function buildDetailSegments(
         .filter((entry) => ['inputPrice', 'outputPrice'].includes(entry.field))
         .map((entry) => formatPriceCompact(entry.price))
       if (baseEntries.length > 0) {
-        const tierLabel = tieredSummary.tier.label || t('Default')
+        const tierLabel =
+          tieredSummary.tier.label || t('usageLogs.dialog.matched_tier')
         segments.push({
           text: `${tierLabel} · ${formatPriceList(baseEntries, true)}`,
         })
@@ -189,7 +262,7 @@ function buildDetailSegments(
       }
     } else {
       segments.push({
-        text: `${t('Dynamic Pricing')} · ${t('No matching results')}`,
+        text: `${t('usageLogs.dialog.dynamic_pricing')} · ${t('usageLogs.dialog.no_matching_tier')}`,
         muted: true,
       })
     }
@@ -197,7 +270,7 @@ function buildDetailSegments(
     const isPerCall = isPerCallBilling(other.model_price)
     if (isPerCall) {
       segments.push({
-        text: `${t('Per-call')} · ${formatBillingAmountForOpsCenter(other.model_price!, priceOpts)}`,
+        text: `${t('usageLogs.dialog.per_call')} · ${formatBillingAmountForOpsCenter(other.model_price!, priceOpts)}`,
       })
     } else if (other.model_ratio != null) {
       const inputPriceUSD = other.model_ratio * 2.0
@@ -208,7 +281,7 @@ function buildDetailSegments(
         )
       }
       segments.push({
-        text: `${t('Standard')} · ${formatPriceList(baseEntries, true)}`,
+        text: `${t('usageLogs.dialog.standard')} · ${formatPriceList(baseEntries, true)}`,
       })
 
       if (hasAnyCacheTokens(other)) {
@@ -241,8 +314,8 @@ function buildDetailSegments(
         userGroupRatio !== -1
       const effectiveRatio = isUserGroup ? userGroupRatio : groupRatio
       const ratioLabel = isUserGroup
-        ? t('User Exclusive Ratio')
-        : t('Group Ratio')
+        ? t('usageLogs.dialog.user_exclusive_ratio')
+        : t('usageLogs.dialog.group_ratio')
 
       if (effectiveRatio != null && Number.isFinite(effectiveRatio)) {
         segments.push({
@@ -277,25 +350,17 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
       cell: ({ row }) => {
         const log = row.original
         const timestamp = row.getValue('created_at') as number
-        const config = getLogTypeConfig(log.type)
-
         return (
-          <div className='flex flex-col gap-0.5'>
+          <div className='flex flex-col gap-px'>
             <span
               className={cn(
-                'font-mono text-xs tabular-nums',
+                'font-mono text-xs leading-tight tabular-nums',
                 usageLogsTablePrimaryClass
               )}
             >
               {formatTimestampToDate(timestamp)}
             </span>
-            <StatusBadge
-              label={t(config.label)}
-              variant={config.color as StatusBadgeProps['variant']}
-              size='sm'
-              copyable={false}
-              className={usageLogsLogTypeBadgeClass}
-            />
+            <LogTypeBadge type={log.type} t={t} />
           </div>
         )
       },
@@ -304,6 +369,8 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
         return value.includes(String(row.original.type))
       },
       enableHiding: false,
+      size: 132,
+      minSize: 120,
       meta: { label: t('usageLogs.col.time') },
     },
   ]
@@ -344,7 +411,7 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
               <Tooltip>
                 <TooltipTrigger
                   render={
-                    <div className='flex max-w-[160px] flex-col gap-0.5' />
+                    <div className='flex max-w-[8.5rem] min-w-0 flex-col gap-px' />
                   }
                 >
                   <div className='relative inline-flex w-fit'>
@@ -390,17 +457,19 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
                     </p>
                     {channelChain && (
                       <p className={usageLogsTableMetaClass}>
-                        {t('Chain')}: {channelChain}
+                        {t('usageLogs.dialog.chain')}: {channelChain}
                       </p>
                     )}
                     {affinity && (
                       <div className='border-t pt-1 text-xs'>
-                        <p className='font-medium'>{t('Channel Affinity')}</p>
-                        <p>
-                          {t('Rule')}: {affinity.rule_name || '-'}
+                        <p className='font-medium'>
+                          {t('usageLogs.dialog.channel_affinity')}
                         </p>
                         <p>
-                          {t('Group')}:{' '}
+                          {t('usageLogs.dialog.rule')}: {affinity.rule_name || '-'}
+                        </p>
+                        <p>
+                          {t('usageLogs.dialog.group')}:{' '}
                           {sensitiveVisible
                             ? affinity.using_group ||
                               affinity.selected_group ||
@@ -415,6 +484,7 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
             </TooltipProvider>
           )
         },
+        size: 120,
         meta: { label: t('usageLogs.col.channel'), mobileHidden: true },
       },
       {
@@ -436,7 +506,7 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
           return (
             <button
               type='button'
-              className='flex items-center gap-1.5 text-left'
+              className='flex min-w-0 items-center gap-1 text-left'
               aria-label={t('usageLogs.userDialog.view_account')}
               onClick={(e) => {
                 e.stopPropagation()
@@ -444,11 +514,11 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
                 setUserInfoDialogOpen(true)
               }}
             >
-              <Avatar className='ring-border/60 size-6 ring-1'>
+              <Avatar className='size-5 shrink-0 ring-1 ring-white/15'>
                 <AvatarFallback
                   className={cn(
                     'text-[11px] font-semibold',
-                    !sensitiveVisible && 'bg-muted text-muted-foreground'
+                    !sensitiveVisible && usageLogsMaskedAvatarClassName
                   )}
                   style={
                     sensitiveVisible
@@ -465,7 +535,7 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
                     render={
                       <span
                         className={cn(
-                          'max-w-[100px] truncate text-sm font-semibold hover:underline',
+                          'min-w-0 max-w-[9.5rem] truncate text-sm font-medium hover:underline',
                           usageLogsTablePrimaryClass
                         )}
                       />
@@ -473,7 +543,7 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
                   >
                     {sensitiveVisible ? log.username : '••••'}
                   </TooltipTrigger>
-                  {sensitiveVisible && log.username.length > 12 && (
+                  {sensitiveVisible && log.username.length > 14 && (
                     <TooltipContent side='top'>
                       {log.username}
                     </TooltipContent>
@@ -483,6 +553,8 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
             </button>
           )
         },
+        size: 168,
+        minSize: 150,
         meta: { label: t('usageLogs.col.account'), mobileHidden: true },
       }
     )
@@ -518,7 +590,7 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
       if (groupRatioText) metaParts.push(groupRatioText)
 
       return (
-        <div className='flex max-w-[200px] flex-col gap-0.5'>
+        <div className='flex max-w-[11rem] min-w-0 flex-col gap-px'>
           <TooltipProvider delay={300}>
             <Tooltip>
               <TooltipTrigger
@@ -534,7 +606,8 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
                   showDot={false}
                   className={cn(
                     'max-w-full overflow-hidden font-medium',
-                    usageLogsInlinePillClass
+                    usageLogsInlinePillClass,
+                    usageLogsTableBadgeMaxClassName
                   )}
                 />
               </TooltipTrigger>
@@ -554,7 +627,8 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
       )
     },
     meta: { label: t('usageLogs.col.access_key') },
-    size: 160,
+    size: 148,
+    minSize: 120,
   })
 
   columns.push(
@@ -574,14 +648,17 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
         const modelInfo = formatModelName(log)
 
         return (
-          <div className='flex max-w-[220px] flex-col gap-0.5'>
+          <div className='flex max-w-[11rem] min-w-0 flex-col gap-px'>
             <ModelBadge
               modelName={modelInfo.name}
               actualModel={modelInfo.actualModel}
+              className='border-white/15 bg-white/5 font-mono text-slate-100'
             />
           </div>
         )
       },
+      size: 152,
+      minSize: 120,
       meta: { label: t('usageLogs.col.model'), mobileTitle: true },
     },
 
@@ -662,7 +739,9 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
             </div>
             <div className='flex items-center gap-1 text-xs'>
               <span className={usageLogsTableMetaClass}>
-                {log.is_stream ? t('Stream') : t('Non-stream')}
+                {log.is_stream
+                  ? t('usageLogs.stream.stream')
+                  : t('usageLogs.stream.non_stream')}
                 {tokensPerSecond != null && (
                   <>
                     {' · '}
@@ -684,12 +763,12 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
                       <TooltipContent>
                         <div className='space-y-0.5 text-xs'>
                           <p>
-                            {t('Stream Status')}: {t('Error')}
+                            {t('usageLogs.stream.status')}: {t('usageLogs.stream.error')}
                           </p>
                           <p>{other.stream_status.end_reason || 'unknown'}</p>
                           {(other.stream_status.error_count ?? 0) > 0 && (
                             <p>
-                              {t('Soft Errors')}:{' '}
+                              {t('usageLogs.stream.soft_errors')}:{' '}
                               {other.stream_status.error_count}
                             </p>
                           )}
@@ -778,7 +857,7 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
       ),
       cell: ({ row }) => {
         const log = row.original
-        if (!isDisplayableLogType(log.type)) return null
+        if (!shouldShowQuotaColumn(log.type)) return null
 
         const quota = row.getValue('quota') as number
         const other = parseLogOther(log.other)
@@ -790,18 +869,19 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
               <Tooltip>
                 <TooltipTrigger
                   render={
-                    <span className='inline-flex items-center gap-1 rounded-md border border-emerald-200 bg-emerald-50 px-1.5 py-0.5 text-xs font-medium text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300' />
+                    <span className={usageLogsSubscriptionBadgeClassName} />
                   }
                 >
                   <span
-                    className='size-1.5 rounded-full bg-emerald-500'
+                    className='size-1.5 rounded-full bg-emerald-400'
                     aria-hidden='true'
                   />
-                  {t('Subscription')}
+                  {t('usageLogs.label.subscription')}
                 </TooltipTrigger>
                 <TooltipContent>
                   <span>
-                    {t('Deducted by subscription')}: {formatLogQuotaForOpsCenter(quota)}
+                    {t('usageLogs.label.deducted_by_subscription')}:{' '}
+                    {formatUsageLogQuotaDisplay(quota)}
                   </span>
                 </TooltipContent>
               </Tooltip>
@@ -809,13 +889,13 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
           )
         }
 
-        const quotaStr = formatLogQuotaForOpsCenter(quota)
+        const quotaStr = formatUsageLogQuotaDisplay(quota)
 
         return (
-          <div className='flex flex-col gap-0.5'>
+          <div className='flex flex-col gap-px'>
             <span
               className={cn(
-                'w-fit font-semibold tabular-nums',
+                'w-fit max-w-full truncate font-semibold tabular-nums',
                 usageLogsInlinePillClass
               )}
             >
@@ -829,7 +909,13 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
 
     {
       accessorKey: 'content',
-      header: t('usageLogs.col.details'),
+      header: ({ column }) => (
+        <DataTableColumnHeader
+          column={column}
+          title={t('usageLogs.col.details')}
+          className={usageLogsColumnHeaderClassName}
+        />
+      ),
       cell: function DetailsCell({ row }) {
         const [dialogOpen, setDialogOpen] = useState(false)
         const log = row.original
@@ -848,17 +934,18 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
           <>
             <button
               type='button'
-              className='group flex max-w-[200px] items-center gap-1 text-left'
+              className='group flex min-w-0 max-w-full items-center gap-1 text-left'
               onClick={() => setDialogOpen(true)}
-              title={t('Click to view full details')}
+              title={t('usageLogs.action.view_details')}
             >
               {summaryText ? (
                 <span
                   className={cn(
-                    'truncate group-hover:underline',
-                    usageLogsDetailSummaryClass,
-                    primary?.muted && 'text-slate-400',
-                    primary?.danger && 'text-red-400'
+                    'block truncate text-sm leading-snug group-hover:underline',
+                    primary?.danger
+                      ? usageLogsTableFailReasonClass
+                      : usageLogsDetailSummaryClass,
+                    !primary?.danger && primary?.muted && 'text-slate-400'
                   )}
                 >
                   {summaryText}
@@ -869,7 +956,14 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
                   )}
                 </span>
               ) : (
-                <span className={usageLogsTableEmptyClass}>—</span>
+                <span
+                  className={cn(
+                    'text-sm group-hover:underline',
+                    usageLogsTableClickableLinkClass
+                  )}
+                >
+                  {t('usageLogs.action.view')}
+                </span>
               )}
             </button>
             <DetailsDialog
@@ -881,9 +975,11 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
           </>
         )
       },
+      enableHiding: false,
       meta: { label: t('usageLogs.col.details') },
-      size: 180,
-      maxSize: 200,
+      size: 168,
+      minSize: 140,
+      maxSize: 240,
     }
   )
 

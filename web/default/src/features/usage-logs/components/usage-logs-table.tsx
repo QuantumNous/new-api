@@ -42,15 +42,20 @@ import { useColumnsByCategory } from '../lib/columns'
 import { fetchLogsByCategory } from '../lib/utils'
 import type { LogCategory } from '../types'
 import { usageLogsTableHeaderClassName } from './columns/column-helpers'
-import { usageLogsTableBodyRowClassName } from '../lib/ops-ui-styles'
+import {
+  usageLogsCommonRowErrorTintClassName,
+  usageLogsCommonRowRefundTintClassName,
+  usageLogsCommonTableCellClassName,
+  usageLogsTableBodyRowClassName,
+} from '../lib/ops-ui-styles'
 import { CommonLogsFilterBar } from './common-logs-filter-bar'
 import { TaskLogsFilterBar } from './task-logs-filter-bar'
 
 const route = getRouteApi('/_authenticated/usage-logs/$section')
 
 const logTypeRowTint: Record<number, string> = {
-  [LOG_TYPE_ENUM.ERROR]: 'bg-rose-50/40 dark:bg-rose-950/20',
-  [LOG_TYPE_ENUM.REFUND]: 'bg-blue-50/30 dark:bg-blue-950/15',
+  [LOG_TYPE_ENUM.ERROR]: usageLogsCommonRowErrorTintClassName,
+  [LOG_TYPE_ENUM.REFUND]: usageLogsCommonRowRefundTintClassName,
 }
 
 interface UsageLogsTableProps {
@@ -177,7 +182,10 @@ export function UsageLogsTable({ logCategory }: UsageLogsTableProps) {
       emptyTitle={t('usageLogs.empty.title')}
       emptyDescription={t('usageLogs.empty.description')}
       skeletonKeyPrefix='usage-log-skeleton'
-      tableClassName='max-h-[calc(100dvh-13rem)] overflow-auto sm:max-h-[calc(100dvh-14rem)]'
+      tableClassName={cn(
+        'max-h-[calc(100dvh-12rem)] overflow-auto sm:max-h-[calc(100dvh-12.5rem)]',
+        isCommon && 'min-w-[1180px]'
+      )}
       tableHeaderClassName={usageLogsTableHeaderClassName}
       toolbar={
         isCommon ? (
@@ -199,11 +207,14 @@ export function UsageLogsTable({ logCategory }: UsageLogsTableProps) {
             className={cn(
               'transition-colors',
               tintClass,
-              isTaskOrDrawing && usageLogsTableBodyRowClassName
+              (isCommon || isTaskOrDrawing) && usageLogsTableBodyRowClassName
             )}
           >
             {row.getVisibleCells().map((cell) => (
-              <TableCell key={cell.id} className={isCommon ? 'py-2' : 'py-3.5'}>
+              <TableCell
+                key={cell.id}
+                className={isCommon ? usageLogsCommonTableCellClassName : 'py-3.5'}
+              >
                 {flexRender(cell.column.columnDef.cell, cell.getContext())}
               </TableCell>
             ))}

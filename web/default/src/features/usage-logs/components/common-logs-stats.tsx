@@ -19,9 +19,10 @@ For commercial licensing, please contact support@quantumnous.com
 import { useQuery } from '@tanstack/react-query'
 import { getRouteApi } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
-import { formatLogQuotaForOpsCenter } from '@/lib/ops-billing-display'
+import { formatUsageLogQuotaDisplay } from '@/lib/ops-billing-display'
 import { cn } from '@/lib/utils'
 import {
+  usageLogsStatBadgeAccentClassName,
   usageLogsStatBadgeClassName,
   usageLogsStatBadgeLabelClassName,
   usageLogsStatBadgeValueClassName,
@@ -43,7 +44,7 @@ function StatBadge(props: {
 }) {
   return (
     <span className={usageLogsStatBadgeClassName} title={props.hint}>
-      <span className={cn('h-3.5 w-0.5 shrink-0 rounded-full', props.accent)} />
+      <span className={cn(usageLogsStatBadgeAccentClassName, props.accent)} />
       <span className={usageLogsStatBadgeLabelClassName}>{props.label}</span>
       <span className={usageLogsStatBadgeValueClassName}>{props.value}</span>
     </span>
@@ -80,33 +81,33 @@ export function CommonLogsStats() {
 
   if (isLoading) {
     return (
-      <div className='flex items-center gap-2'>
-        <Skeleton className='h-8 w-[150px] rounded-md bg-white/10' />
-        <Skeleton className='h-8 w-[100px] rounded-md bg-white/10' />
-        <Skeleton className='h-8 w-[120px] rounded-md bg-white/10' />
+      <div className='flex items-center gap-1.5'>
+        <Skeleton className='h-10 w-[140px] rounded-md bg-white/10' />
+        <Skeleton className='h-10 w-[96px] rounded-md bg-white/10' />
+        <Skeleton className='h-10 w-[112px] rounded-md bg-white/10' />
       </div>
     )
   }
 
   return (
-    <div className='flex flex-wrap items-center gap-2'>
+    <div className='flex flex-wrap items-center gap-1.5'>
       <StatBadge
         label={t('usageLogs.stats.quota_consumption')}
         value={
           sensitiveVisible
-            ? formatLogQuotaForOpsCenter(stats?.quota || 0)
+            ? formatUsageLogQuotaDisplay(stats?.quota || 0)
             : '••••'
         }
         accent='bg-sky-500/80'
       />
       <StatBadge
-        label={t('RPM')}
+        label={t('usageLogs.stats.rpm')}
         value={stats?.rpm || 0}
         hint={t('usageLogs.stats.rpm_hint')}
         accent='bg-rose-500/75'
       />
       <StatBadge
-        label={t('TPM')}
+        label={t('usageLogs.stats.tpm')}
         value={stats?.tpm || 0}
         hint={t('usageLogs.stats.tpm_hint')}
         accent='bg-slate-400/80'

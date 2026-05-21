@@ -21,7 +21,7 @@ import {
   formatCurrencyFromUSD,
   type CurrencyFormatOptions,
 } from '@/lib/currency'
-import { formatLogQuota, formatQuota } from '@/lib/format'
+import { formatQuota } from '@/lib/format'
 
 /** Display-only: normalize currency strings to RMB presentation for ops center UI. */
 export function normalizeBillingDisplayString(value: string): string {
@@ -37,12 +37,8 @@ export function formatQuotaForOpsCenter(quota: number): string {
   return normalizeBillingDisplayString(formatQuota(quota))
 }
 
-export function formatLogQuotaForOpsCenter(quota: number): string {
-  return normalizeBillingDisplayString(formatLogQuota(quota))
-}
-
 /**
- * Usage-logs detail dialog: show raw quota units as 词元额度/消耗 (never as RMB or USD).
+ * Usage-logs: show raw quota units as 词元额度/消耗 (never as RMB or USD).
  * Display-only; does not change quota math or global formatQuotaWithCurrency.
  */
 export function formatUsageLogQuotaDisplay(
@@ -62,6 +58,13 @@ export function formatUsageLogQuotaDisplay(
   }).format(quota)
 
   return normalizeBillingDisplayString(formatted)
+}
+
+/**
+ * Usage-logs quota display alias (raw token units only, never currency).
+ */
+export function formatLogQuotaForOpsCenter(quota: number): string {
+  return formatUsageLogQuotaDisplay(quota)
 }
 
 export function formatBillingAmountForOpsCenter(

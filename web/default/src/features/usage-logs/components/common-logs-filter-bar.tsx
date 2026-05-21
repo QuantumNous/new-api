@@ -38,20 +38,41 @@ import { cn } from '@/lib/utils'
 import {
   usageLogsFilterDateTriggerClassName,
   usageLogsFilterSearchIconClassName,
-  usageLogsFilterSearchInputClassName,
   usageLogsFilterSearchInputFieldClassName,
   usageLogsFilterSelectTriggerClassName,
   usageLogsToolbarExpandButtonClassName,
+  usageLogsToolbarLayoutClassName,
   usageLogsToolbarPlaintextButtonClassName,
   usageLogsToolbarQueryButtonClassName,
+  usageLogsToolbarStatsRowClassName,
 } from '../lib/ops-ui-styles'
-import { LOG_TYPES } from '../constants'
+import { LOG_TYPE_ENUM, LOG_TYPES } from '../constants'
 import { buildSearchParams } from '../lib/filter'
 import { getDefaultTimeRange } from '../lib/utils'
 import type { CommonLogFilters } from '../types'
 import { CommonLogsStats } from './common-logs-stats'
 import { CompactDateTimeRangePicker } from './compact-date-time-range-picker'
 import { useUsageLogsContext } from './usage-logs-provider'
+
+const LOG_TYPE_LABEL_KEYS: Record<number, string> = {
+  [LOG_TYPE_ENUM.UNKNOWN]: 'usageLogs.type.unknown',
+  [LOG_TYPE_ENUM.TOPUP]: 'usageLogs.type.topup',
+  [LOG_TYPE_ENUM.CONSUME]: 'usageLogs.type.consume',
+  [LOG_TYPE_ENUM.MANAGE]: 'usageLogs.type.manage',
+  [LOG_TYPE_ENUM.SYSTEM]: 'usageLogs.type.system',
+  [LOG_TYPE_ENUM.ERROR]: 'usageLogs.type.error',
+  [LOG_TYPE_ENUM.REFUND]: 'usageLogs.type.refund',
+}
+
+function usageLogTypeLabel(
+  type: number,
+  t: (key: string) => string
+): string {
+  const key = LOG_TYPE_LABEL_KEYS[type]
+  return key
+    ? t(key)
+    : t(LOG_TYPES.find((item) => item.value === type)?.label ?? 'Unknown')
+}
 
 const route = getRouteApi('/_authenticated/usage-logs/$section')
 const logTypeValues = ['0', '1', '2', '3', '4', '5', '6'] as const
@@ -195,20 +216,20 @@ export function CommonLogsFilterBar<TData>(
   const hasAdditionalFilters =
     !!filters.model || !!filters.group || !!logType || hasExpandedFilters
 
-  const filterWidth = 'w-full sm:w-[140px] lg:w-[160px]'
-  const searchInputClass = cn(filterWidth, usageLogsFilterSearchInputClassName)
+  const filterWidth = 'w-full sm:w-[132px] lg:w-[148px]'
+  const filterFieldClass = cn(filterWidth, usageLogsFilterSearchInputFieldClassName)
   const selectTriggerClass = cn(
     filterWidth,
     usageLogsFilterSelectTriggerClassName
   )
   const dateTriggerClass = cn(
-    'w-full sm:w-[340px]',
+    'w-full sm:w-[300px] lg:w-[320px]',
     usageLogsFilterDateTriggerClassName
   )
   const sensitiveType = sensitiveVisible ? 'text' : 'password'
 
   const statsBar = (
-    <div className='flex flex-wrap items-center gap-2'>
+    <div className={usageLogsToolbarStatsRowClassName}>
       <CommonLogsStats />
       <Button
         type='button'
@@ -234,6 +255,7 @@ export function CommonLogsFilterBar<TData>(
   return (
     <DataTableToolbar
       table={props.table}
+      className={usageLogsToolbarLayoutClassName}
       leftActions={statsBar}
       customSearch={
         <CompactDateTimeRangePicker
@@ -270,7 +292,7 @@ export function CommonLogsFilterBar<TData>(
               { value: 'all', label: t('usageLogs.filter.all_types') },
               ...LOG_TYPES.map((type) => ({
                 value: String(type.value),
-                label: t(type.label),
+                label: usageLogTypeLabel(type.value, t),
               })),
             ]}
             value={logType}
@@ -286,7 +308,7 @@ export function CommonLogsFilterBar<TData>(
                 <SelectItem value='all'>{t('usageLogs.filter.all_types')}</SelectItem>
                 {LOG_TYPES.map((type) => (
                   <SelectItem key={type.value} value={String(type.value)}>
-                    {t(type.label)}
+                    {usageLogTypeLabel(type.value, t)}
                   </SelectItem>
                 ))}
               </SelectGroup>
@@ -302,7 +324,7 @@ export function CommonLogsFilterBar<TData>(
             value={filters.token || ''}
             onChange={(e) => handleChange('token', e.target.value)}
             onKeyDown={handleKeyDown}
-            className={searchInputClass}
+            className={filterFieldClass}
           />
           {isAdmin && (
             <Input
@@ -311,7 +333,7 @@ export function CommonLogsFilterBar<TData>(
               value={filters.username || ''}
               onChange={(e) => handleChange('username', e.target.value)}
               onKeyDown={handleKeyDown}
-              className={searchInputClass}
+              className={filterFieldClass}
             />
           )}
           {isAdmin && (
@@ -320,24 +342,26 @@ export function CommonLogsFilterBar<TData>(
               value={filters.channel || ''}
               onChange={(e) => handleChange('channel', e.target.value)}
               onKeyDown={handleKeyDown}
-              className={searchInputClass}
+              className={filterFieldClass}
             />
           )}
           <Input
-            placeholder={t('Request ID')}
+            aria-label={t('usageLogs.filter.request_id')}
+            placeholder={t('usageLogs.filter.request_id_placeholder')}
             value={filters.requestId || ''}
             onChange={(e) => handleChange('requestId', e.target.value)}
             onKeyDown={handleKeyDown}
-            className={searchInputClass}
+            className={filterFieldClass}
           />
           <Input
-            placeholder={t('Upstream Request ID')}
+            aria-label={t('usageLogs.filter.upstream_request_id')}
+            placeholder={t('usageLogs.filter.upstream_request_id_placeholder')}
             value={filters.upstreamRequestId || ''}
             onChange={(e) =>
               handleChange('upstreamRequestId', e.target.value)
             }
             onKeyDown={handleKeyDown}
-            className={searchInputClass}
+            className={filterFieldClass}
           />
         </>
       }

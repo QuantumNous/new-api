@@ -24,8 +24,8 @@ import { createSectionRegistry } from '@/features/system-settings/utils/section-
 const USAGE_LOGS_SECTIONS = [
   {
     id: 'common',
-    titleKey: 'Token Consumption Details',
-    descriptionKey: 'View and manage token consumption audit records',
+    titleKey: 'usageLogs.page.common.title',
+    descriptionKey: 'usageLogs.page.common.description',
     build: () => null, // Content is rendered directly in the page component
   },
   {

@@ -87,12 +87,31 @@ import {
   usageLogsDialogValueMutedClassName,
   usageLogsDialogWarningTextClassName,
 } from '../../lib/ops-ui-styles'
+import { LOG_TYPE_ENUM } from '../../constants'
 import {
   getLogTypeConfig,
   isPerCallBilling,
   isTimingLogType,
 } from '../../lib/utils'
 import type { LogOtherData } from '../../types'
+
+const LOG_TYPE_LABEL_KEYS: Record<number, string> = {
+  [LOG_TYPE_ENUM.UNKNOWN]: 'usageLogs.type.unknown',
+  [LOG_TYPE_ENUM.TOPUP]: 'usageLogs.type.topup',
+  [LOG_TYPE_ENUM.CONSUME]: 'usageLogs.type.consume',
+  [LOG_TYPE_ENUM.MANAGE]: 'usageLogs.type.manage',
+  [LOG_TYPE_ENUM.SYSTEM]: 'usageLogs.type.system',
+  [LOG_TYPE_ENUM.ERROR]: 'usageLogs.type.error',
+  [LOG_TYPE_ENUM.REFUND]: 'usageLogs.type.refund',
+}
+
+function usageLogTypeLabel(
+  type: number,
+  t: (key: string, opts?: Record<string, unknown>) => string
+): string {
+  const key = LOG_TYPE_LABEL_KEYS[type]
+  return key ? t(key) : t(getLogTypeConfig(type).label)
+}
 
 function timingTextColorClass(
   variant: 'success' | 'warning' | 'danger'
@@ -182,13 +201,13 @@ function BillingBreakdown(props: {
 
   if (isTieredExpr) {
     rows.push({
-      label: t('Billing Mode'),
-      value: t('Dynamic Pricing'),
+      label: t('usageLogs.dialog.billing_mode'),
+      value: t('usageLogs.dialog.dynamic_pricing'),
     })
     if (tieredSummary) {
       if (tieredSummary.tier.label) {
         rows.push({
-          label: t('Matched Tier'),
+          label: t('usageLogs.dialog.matched_tier'),
           value: tieredSummary.tier.label,
         })
       }
@@ -200,12 +219,15 @@ function BillingBreakdown(props: {
       }
     } else {
       rows.push({
-        label: t('Matched Tier'),
-        value: t('No matching results'),
+        label: t('usageLogs.dialog.matched_tier'),
+        value: t('usageLogs.dialog.no_matching_tier'),
       })
     }
   } else if (isPerCall) {
-    rows.push({ label: t('Billing Mode'), value: t('Per-call') })
+    rows.push({
+      label: t('usageLogs.dialog.billing_mode'),
+      value: t('usageLogs.dialog.per_call'),
+    })
     if (other.model_price != null) {
       rows.push({
         label: t('usageLogs.dialog.model_unit_price'),
@@ -213,7 +235,10 @@ function BillingBreakdown(props: {
       })
     }
   } else {
-    rows.push({ label: t('Billing Mode'), value: t('Per-token') })
+    rows.push({
+      label: t('usageLogs.dialog.billing_mode'),
+      value: t('usageLogs.dialog.per_token'),
+    })
     if (other.model_ratio != null) {
       rows.push({
         label: t('usageLogs.dialog.input_unit_price'),
@@ -233,7 +258,9 @@ function BillingBreakdown(props: {
   const effectiveGR = isUserGR ? userGR : other.group_ratio
   if (effectiveGR != null && Number.isFinite(effectiveGR)) {
     rows.push({
-      label: isUserGR ? t('User Exclusive Ratio') : t('Group Ratio'),
+      label: isUserGR
+        ? t('usageLogs.dialog.user_exclusive_ratio')
+        : t('usageLogs.dialog.group_ratio'),
       value: `${formatRatio(effectiveGR)}x`,
     })
   }
@@ -330,10 +357,10 @@ function BillingBreakdown(props: {
 
   if (isAdmin && other.admin_info) {
     rows.push({
-      label: t('Billing Source'),
+      label: t('usageLogs.dialog.billing_source'),
       value: other.admin_info.local_count_tokens
-        ? t('Local Billing')
-        : t('Upstream Response'),
+        ? t('usageLogs.dialog.local_billing')
+        : t('usageLogs.dialog.upstream_response'),
     })
   }
 
@@ -542,7 +569,7 @@ export function DetailsDialog(props: DetailsDialogProps) {
           >
             {t('usageLogs.dialog.title')}
             <StatusBadge
-              label={t(typeConfig.label)}
+              label={usageLogTypeLabel(props.log.type, t)}
               variant={typeConfig.color as StatusBadgeProps['variant']}
               size='sm'
               copyable={false}
@@ -559,14 +586,14 @@ export function DetailsDialog(props: DetailsDialogProps) {
             <div className='min-w-0 space-y-1'>
               {props.log.request_id && (
                 <DetailRow
-                  label={t('Request ID')}
+                  label={t('usageLogs.dialog.request_id')}
                   value={props.log.request_id}
                   mono
                 />
               )}
               {props.log.upstream_request_id && (
                 <DetailRow
-                  label={t('Upstream Request ID')}
+                  label={t('usageLogs.dialog.upstream_request_id')}
                   value={props.log.upstream_request_id}
                   mono
                 />
@@ -591,7 +618,11 @@ export function DetailsDialog(props: DetailsDialogProps) {
               )}
 
               {channelChain && props.isAdmin && (
-                <DetailRow label={t('Retry Chain')} value={channelChain} mono />
+                <DetailRow
+                  label={t('usageLogs.dialog.retry_chain')}
+                  value={channelChain}
+                  mono
+                />
               )}
 
               {props.log.token_name && (
@@ -604,7 +635,7 @@ export function DetailsDialog(props: DetailsDialogProps) {
 
               {(props.log.group || other?.group) && (
                 <DetailRow
-                  label={t('Group')}
+                  label={t('usageLogs.dialog.group')}
                   value={props.log.group || other?.group || ''}
                   mono
                 />
@@ -612,7 +643,7 @@ export function DetailsDialog(props: DetailsDialogProps) {
 
               {showAdminIp && (
                 <DetailRow
-                  label={t('IP Address')}
+                  label={t('usageLogs.dialog.ip_address')}
                   value={
                     <span className='flex items-center gap-1'>
                       <Globe
@@ -628,7 +659,7 @@ export function DetailsDialog(props: DetailsDialogProps) {
 
               {showTiming && props.log.use_time > 0 && (
                 <DetailRow
-                  label={t('Response Time')}
+                  label={t('usageLogs.dialog.response_time')}
                   value={
                     <span
                       className={cn(
@@ -666,15 +697,15 @@ export function DetailsDialog(props: DetailsDialogProps) {
 
             {/* Request conversion (admin only, not for refund) */}
             {showConversion && (
-              <DetailSection label={t('Request Conversion')}>
+              <DetailSection label={t('usageLogs.dialog.request_conversion')}>
                 <div className='relative min-w-0'>
                   <Button
                     variant='ghost'
                     size='sm'
                     className={usageLogsDialogCopyButtonInlineClassName}
                     onClick={() => copyToClipboard(conversionLabel)}
-                    title={t('Copy to clipboard')}
-                    aria-label={t('Copy to clipboard')}
+                    title={t('usageLogs.action.copy')}
+                    aria-label={t('usageLogs.action.copy')}
                   >
                     {copiedText === conversionLabel ? (
                       <Check className='size-3.5 text-emerald-700' />
@@ -685,7 +716,7 @@ export function DetailsDialog(props: DetailsDialogProps) {
                   <div className='min-w-0 space-y-1 pr-7'>
                     {other?.request_path && (
                       <DetailRow
-                        label={t('Path')}
+                        label={t('usageLogs.dialog.path')}
                         value={other.request_path}
                         mono
                       />
@@ -713,7 +744,7 @@ export function DetailsDialog(props: DetailsDialogProps) {
             {props.isAdmin && other?.reject_reason && (
               <DetailSection
                 icon={<AlertTriangle className='size-3.5' aria-hidden='true' />}
-                label={t('Reject Reason')}
+                label={t('usageLogs.dialog.reject_reason')}
                 variant='danger'
               >
                 <p className={usageLogsDialogBackendTextClassName}>
@@ -726,19 +757,19 @@ export function DetailsDialog(props: DetailsDialogProps) {
             {isViolation && other && (
               <DetailSection
                 icon={<AlertTriangle className='size-3.5' aria-hidden='true' />}
-                label={t('Violation Fee')}
+                label={t('usageLogs.label.violation_fee')}
                 variant='danger'
               >
                 {other.violation_fee_code && (
                   <DetailRow
-                    label={t('Violation Code')}
+                    label={t('usageLogs.dialog.violation_code')}
                     value={other.violation_fee_code}
                     mono
                   />
                 )}
                 {other.violation_fee_marker && (
                   <DetailRow
-                    label={t('Violation Marker')}
+                    label={t('usageLogs.dialog.violation_marker')}
                     value={other.violation_fee_marker}
                   />
                 )}
@@ -756,10 +787,17 @@ export function DetailsDialog(props: DetailsDialogProps) {
             {isRefund && other && (other.task_id || other.reason) && (
               <DetailSection label={t('usageLogs.dialog.refund_details')}>
                 {other.task_id && (
-                  <DetailRow label={t('Task ID')} value={other.task_id} mono />
+                  <DetailRow
+                    label={t('usageLogs.dialog.task_id')}
+                    value={other.task_id}
+                    mono
+                  />
                 )}
                 {other.reason && (
-                  <DetailRow label={t('Reason')} value={other.reason} />
+                  <DetailRow
+                    label={t('usageLogs.dialog.reason')}
+                    value={other.reason}
+                  />
                 )}
               </DetailSection>
             )}
@@ -936,7 +974,7 @@ export function DetailsDialog(props: DetailsDialogProps) {
               props.log.type !== 6 &&
               other?.admin_info && (
                 <DetailRow
-                  label={t('Billing Source')}
+                  label={t('usageLogs.dialog.billing_source')}
                   value={
                     <span className='flex items-center gap-1'>
                       {other.admin_info.local_count_tokens ? (
@@ -946,8 +984,8 @@ export function DetailsDialog(props: DetailsDialogProps) {
                       )}
                       <span className={usageLogsDialogValueClassName}>
                         {other.admin_info.local_count_tokens
-                          ? t('Local Billing')
-                          : t('Upstream Response')}
+                          ? t('usageLogs.dialog.local_billing')
+                          : t('usageLogs.dialog.upstream_response')}
                       </span>
                     </span>
                   }
@@ -958,12 +996,14 @@ export function DetailsDialog(props: DetailsDialogProps) {
             {props.isAdmin &&
               other?.stream_status &&
               other.stream_status.status !== 'ok' && (
-                <DetailSection label={t('Stream Status')}>
+                <DetailSection label={t('usageLogs.stream.status')}>
                   <DetailRow
-                    label={t('Status')}
+                    label={t('usageLogs.dialog.status')}
                     value={
                       <StatusBadge
-                        label={other.stream_status.status || t('Error')}
+                        label={
+                          other.stream_status.status || t('usageLogs.stream.error')
+                        }
                         variant='red'
                         size='sm'
                         copyable={false}
@@ -972,19 +1012,19 @@ export function DetailsDialog(props: DetailsDialogProps) {
                   />
                   {other.stream_status.end_reason && (
                     <DetailRow
-                      label={t('End Reason')}
+                      label={t('usageLogs.stream.end_reason')}
                       value={other.stream_status.end_reason}
                     />
                   )}
                   {(other.stream_status.error_count ?? 0) > 0 && (
                     <DetailRow
-                      label={t('Soft Errors')}
+                      label={t('usageLogs.stream.soft_errors')}
                       value={String(other.stream_status.error_count)}
                     />
                   )}
                   {other.stream_status.end_error && (
                     <DetailRow
-                      label={t('End Error')}
+                      label={t('usageLogs.stream.end_error')}
                       value={other.stream_status.end_error}
                     />
                   )}
@@ -1002,13 +1042,13 @@ export function DetailsDialog(props: DetailsDialogProps) {
               <DetailSection label={t('usageLogs.dialog.subscription_billing')}>
                 {other.subscription_plan_id && (
                   <DetailRow
-                    label={t('Plan')}
+                    label={t('usageLogs.dialog.plan')}
                     value={`#${other.subscription_plan_id} ${other.subscription_plan_title || ''}`.trim()}
                   />
                 )}
                 {other.subscription_id && (
                   <DetailRow
-                    label={t('Instance')}
+                    label={t('usageLogs.dialog.instance')}
                     value={`#${other.subscription_id}`}
                     mono
                   />
@@ -1095,8 +1135,8 @@ export function DetailsDialog(props: DetailsDialogProps) {
                     size='sm'
                     className={usageLogsDialogCopyButtonClassName}
                     onClick={() => copyToClipboard(rawDetails)}
-                    title={t('Copy to clipboard')}
-                    aria-label={t('Copy to clipboard')}
+                    title={t('usageLogs.action.copy')}
+                    aria-label={t('usageLogs.action.copy')}
                   >
                     {copiedText === rawDetails ? (
                       <Check className='size-3.5 text-emerald-700' />

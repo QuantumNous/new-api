@@ -45,8 +45,8 @@ const SECTION_META: Record<
   { titleKey: string; descriptionKey: string }
 > = {
   common: {
-    titleKey: 'Token Consumption Details',
-    descriptionKey: 'View and manage token consumption audit records',
+    titleKey: 'usageLogs.page.common.title',
+    descriptionKey: 'usageLogs.page.common.description',
   },
   drawing: {
     titleKey: 'Drawing Audit Records',
