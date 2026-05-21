@@ -132,7 +132,7 @@ func Distribute() func(c *gin.Context) {
 						Ctx:         c,
 						ModelName:   modelRequest.Model,
 						TokenGroup:  usingGroup,
-						RelayFormat: types.RelayFormatOpenAI, // distributor runs before format detection, default to OpenAI
+						RelayFormat: types.InferRelayFormatFromPath(c.Request.URL.Path),
 						Retry:       common.GetPointer(0),
 					})
 					if err != nil {

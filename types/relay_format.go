@@ -1,5 +1,7 @@
 package types
 
+import "strings"
+
 type RelayFormat string
 
 const (
@@ -38,5 +40,38 @@ func RelayFormatToAPIType(relayFormat RelayFormat) (int, bool) {
 		return 0, true // APITypeOpenAI
 	default:
 		return 0, false
+	}
+}
+
+// InferRelayFormatFromPath returns the RelayFormat that the request to the given URL path will
+// eventually be relayed as. The middleware Distribute() runs before the per-route handler that
+// sets the format explicitly, so smart channel routing has to peek at the path here.
+//
+// Keep this in sync with router/relay-router.go. Unknown paths fall back to RelayFormatOpenAI,
+// which preserves the previous behaviour (no API-type filtering for unknown formats).
+func InferRelayFormatFromPath(path string) RelayFormat {
+	switch {
+	case strings.HasPrefix(path, "/v1/messages"):
+		return RelayFormatClaude
+	case strings.HasPrefix(path, "/v1/responses/compact"):
+		return RelayFormatOpenAIResponsesCompaction
+	case strings.HasPrefix(path, "/v1/responses"):
+		return RelayFormatOpenAIResponses
+	case strings.HasPrefix(path, "/v1/realtime"):
+		return RelayFormatOpenAIRealtime
+	case strings.HasPrefix(path, "/v1/embeddings"):
+		return RelayFormatEmbedding
+	case strings.HasPrefix(path, "/v1/rerank"):
+		return RelayFormatRerank
+	case strings.HasPrefix(path, "/v1/audio/"):
+		return RelayFormatOpenAIAudio
+	case strings.HasPrefix(path, "/v1/images/"), strings.HasPrefix(path, "/v1/edits"):
+		return RelayFormatOpenAIImage
+	case strings.HasPrefix(path, "/v1/engines/") && strings.HasSuffix(path, "/embeddings"):
+		return RelayFormatGemini
+	case strings.HasPrefix(path, "/v1/models/"):
+		return RelayFormatGemini
+	default:
+		return RelayFormatOpenAI
 	}
 }
