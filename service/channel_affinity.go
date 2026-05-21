@@ -30,7 +30,7 @@ const (
 	ginKeyChannelAffinityChannelID  = "channel_affinity_channel_id"
 
 	channelAffinityCacheNamespace           = "new-api:channel_affinity:v2"
-	channelAffinityUsageCacheStatsNamespace = "new-api:channel_affinity_usage_cache_stats:v1"
+	channelAffinityUsageCacheStatsNamespace = "new-api:channel_affinity_usage_cache_stats:v2"
 )
 
 var (
