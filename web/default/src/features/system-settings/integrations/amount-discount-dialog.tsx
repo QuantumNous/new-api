@@ -136,7 +136,7 @@ export function AmountDiscountDialog({
               name='amount'
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>{t('Recharge Amount (USD)')}</FormLabel>
+                  <FormLabel>{t('Recharge amount')}</FormLabel>
                   <FormControl>
                     <Input
                       type='number'
@@ -151,11 +151,12 @@ export function AmountDiscountDialog({
                     />
                   </FormControl>
                   <FormDescription>
+                    {t('Displayed and configured using the RMB billing view')}
                     {isEditMode
-                      ? t('Amount cannot be changed when editing.')
-                      : t(
+                      ? ` ${t('Amount cannot be changed when editing.')}`
+                      : ` ${t(
                           'Minimum recharge amount to qualify for this discount.'
-                        )}
+                        )}`}
                   </FormDescription>
                   <FormMessage />
                 </FormItem>

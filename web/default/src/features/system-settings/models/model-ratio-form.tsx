@@ -175,7 +175,7 @@ export const ModelRatioForm = memo(function ModelRatioForm({
                   </FormControl>
                   <FormDescription>
                     {t(
-                      'JSON map of model → USD cost per request. Takes precedence over ratio based billing.'
+                      'JSON map of model → per-request billing unit price. Takes precedence over ratio-based billing.'
                     )}
                   </FormDescription>
                   <FormMessage />

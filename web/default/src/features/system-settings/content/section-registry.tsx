@@ -109,7 +109,7 @@ const CONTENT_SECTIONS = [
   {
     id: 'drawing',
     titleKey: 'Drawing',
-    descriptionKey: 'Configure drawing and Midjourney settings',
+    descriptionKey: 'Configure drawing service and related task settings',
     build: (settings: ContentSettings) => (
       <DrawingSettingsSection
         defaultValues={{
