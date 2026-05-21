@@ -92,7 +92,7 @@ const DrawingCanvas = ({
   return (
     <div className='flex flex-col h-full min-h-0'>
       {total > 1 && (
-        <div className='flex items-center justify-center gap-3 py-3 flex-shrink-0'>
+        <div className='flex items-center justify-center gap-3 pb-3 pt-16 flex-shrink-0'>
           <button
             className='p-1.5 rounded-lg disabled:opacity-30 cursor-pointer disabled:cursor-default transition-colors'
             style={{ color: 'var(--semi-color-text-2)' }}

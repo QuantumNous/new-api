@@ -142,6 +142,7 @@ func GetDrawingSessionMessages(c *gin.Context) {
 	}
 	result := make([]MessageMeta, len(messages))
 	for i, m := range messages {
+		syncDrawingMessageStatusWithTask(m, nil)
 		result[i] = MessageMeta{
 			ID: m.ID, SessionID: m.SessionID, TaskID: m.TaskID,
 			Prompt: m.Prompt, Model: m.Model, Size: m.Size, Quality: m.Quality,
@@ -203,6 +204,8 @@ func GetDrawingSessionMessage(c *gin.Context) {
 		return
 	}
 
+	syncDrawingMessageStatusWithTask(msg, nil)
+
 	position, err := model.GetDrawingMessagePosition(sessionId, userId, msg.ID)
 	if err != nil {
 		common.ApiError(c, err)
@@ -228,6 +231,7 @@ func GetDrawingMessageImages(c *gin.Context) {
 		common.ApiErrorMsg(c, "消息不存在")
 		return
 	}
+	syncDrawingMessageStatusWithTask(msg, nil)
 	common.ApiSuccess(c, gin.H{
 		"image_urls":  msg.ImageUrls,
 		"result_data": msg.ResultData,
@@ -246,6 +250,35 @@ func buildDrawingMessageMeta(m *model.DrawingMessage) gin.H {
 		"status":      m.Status,
 		"fail_reason": m.FailReason,
 		"created_at":  m.CreatedAt,
+	}
+}
+
+func syncDrawingMessageStatusWithTask(msg *model.DrawingMessage, task *model.Task) {
+	if msg == nil || msg.TaskID == "" || msg.Status == "success" || msg.Status == "failure" {
+		return
+	}
+
+	currentTask := task
+	if currentTask == nil {
+		var foundTask model.Task
+		if err := model.DB.
+			Where("task_id = ? AND user_id = ?", msg.TaskID, msg.UserId).
+			First(&foundTask).Error; err != nil {
+			return
+		}
+		currentTask = &foundTask
+	}
+
+	switch currentTask.Status {
+	case model.TaskStatusFailure:
+		msg.Status = "failure"
+		msg.FailReason = currentTask.FailReason
+		_ = model.UpdateDrawingMessageStatus(msg.TaskID, msg.Status, nil, msg.FailReason)
+	case model.TaskStatusSuccess:
+		if msg.ResultData != nil {
+			msg.Status = "success"
+			_ = model.UpdateDrawingMessageStatus(msg.TaskID, msg.Status, msg.ResultData, "")
+		}
 	}
 }
 
@@ -361,6 +394,9 @@ func GetDrawingTaskStatus(c *gin.Context) {
 		return
 	}
 
+	msg, _ := model.GetDrawingMessageByTaskId(taskId)
+	syncDrawingMessageStatusWithTask(msg, &task)
+
 	result := gin.H{
 		"task_id":     task.TaskID,
 		"status":      task.Status,
@@ -369,8 +405,7 @@ func GetDrawingTaskStatus(c *gin.Context) {
 	}
 
 	if task.Status == model.TaskStatusSuccess {
-		msg, err := model.GetDrawingMessageByTaskId(taskId)
-		if err == nil && msg.ResultData != nil {
+		if msg != nil && msg.ResultData != nil {
 			result["result_data"] = json.RawMessage(msg.ResultData)
 		}
 	}
