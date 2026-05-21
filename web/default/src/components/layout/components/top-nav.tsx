@@ -93,7 +93,7 @@ export function TopNav({ className, links, tone = 'default', ...props }: TopNavP
           <DropdownMenuContent side='bottom' align='start'>
             {normalizedLinks.map((link) => {
               const active =
-                link.isActive ||
+                link.isActive ??
                 (!link.external && pathname === link.href.split('?')[0])
               return (
                 <DropdownMenuItem
@@ -135,7 +135,7 @@ export function TopNav({ className, links, tone = 'default', ...props }: TopNavP
       >
         {normalizedLinks.map((link) => {
           const active =
-            link.isActive ||
+            link.isActive ??
             (!link.external && pathname === link.href.split('?')[0])
           const cls = linkClass(active)
           return link.external ? (

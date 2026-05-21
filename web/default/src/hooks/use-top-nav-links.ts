@@ -17,6 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useMemo } from 'react'
+import { useRouterState } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
 import { useAuthStore } from '@/stores/auth-store'
 import { isAiocHeaderNavModuleHidden } from '@/config/aioc-demo-visibility'
@@ -43,8 +44,12 @@ export type TopNavLink = {
  *   about: true
  * }
  */
+/** Canonical operations overview route (matches sidebar Operations Overview). */
+export const OPERATIONS_CONSOLE_OVERVIEW_PATH = '/dashboard/overview'
+
 export function useTopNavLinks(): TopNavLink[] {
   const { t } = useTranslation()
+  const pathname = useRouterState({ select: (s) => s.location.pathname })
   const { status } = useStatus()
   const { auth } = useAuthStore()
 
@@ -67,9 +72,13 @@ export function useTopNavLinks(): TopNavLink[] {
     links.push({ title: t('Home'), href: '/' })
   }
 
-  // Console -> /dashboard (new console path)
+  // Console -> operations overview (same as sidebar "Operations Overview")
   if (modules?.console !== false) {
-    links.push({ title: t('Operations Console'), href: '/dashboard' })
+    links.push({
+      title: t('Operations Console'),
+      href: OPERATIONS_CONSOLE_OVERVIEW_PATH,
+      isActive: pathname.startsWith('/dashboard'),
+    })
   }
 
   // Pricing

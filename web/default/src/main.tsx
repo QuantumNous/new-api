@@ -86,7 +86,12 @@ const queryClient = new QueryClient({
         }
         if (error.response?.status === 500) {
           toast.error(i18next.t('Internal Server Error!'))
-          router.navigate({ to: '/500' })
+          // Keep user on operations dashboard when overview widgets fail;
+          // redirecting to /500 made the top-nav "Operations Console" look broken.
+          const pathname = router.history.location.pathname
+          if (!pathname.startsWith('/dashboard')) {
+            router.navigate({ to: '/500' })
+          }
         }
       }
     },
