@@ -238,6 +238,7 @@ function hasAdvancedSettingsValues(values: ChannelFormValues): boolean {
     values.force_format ||
     values.thinking_to_content ||
     values.pass_through_body_enabled ||
+    values.force_upstream_stream ||
     values.system_prompt_override ||
     values.claude_beta_query ||
     values.upstream_model_update_check_enabled ||
@@ -395,6 +396,7 @@ export function ChannelMutateDrawer({
   const currentModels = form.watch('models')
   const currentModelMapping = form.watch('model_mapping')
   const awsKeyType = form.watch('aws_key_type')
+  const passThroughBodyEnabled = form.watch('pass_through_body_enabled')
   const upstreamModelUpdateCheckEnabled = form.watch(
     'upstream_model_update_check_enabled'
   )
@@ -416,6 +418,15 @@ export function ChannelMutateDrawer({
       resetDoubaoApiUnlock()
     }
   }, [open, resetDoubaoApiUnlock])
+
+  useEffect(() => {
+    if (passThroughBodyEnabled && form.getValues('force_upstream_stream')) {
+      form.setValue('force_upstream_stream', false, {
+        shouldDirty: true,
+        shouldTouch: true,
+      })
+    }
+  }, [form, passThroughBodyEnabled])
 
   // Helper computed values
   const isBatchMode =
@@ -3146,6 +3157,36 @@ export function ChannelMutateDrawer({
                           </FormItem>
                         )}
                       />
+
+                      {currentType === 14 && (
+                        <FormField
+                          control={form.control}
+                          name='force_upstream_stream'
+                          render={({ field }) => (
+                            <FormItem className='flex items-center justify-between px-4 py-3'>
+                              <div className='space-y-0.5'>
+                                <FormLabel>
+                                  {t('Force Upstream Streaming')}
+                                </FormLabel>
+                                <FormDescription>
+                                  {t(
+                                    passThroughBodyEnabled
+                                      ? 'Disabled while request body pass-through is enabled'
+                                      : 'Use streaming between this Claude channel and upstream for non-streaming downstream requests'
+                                  )}
+                                </FormDescription>
+                              </div>
+                              <FormControl>
+                                <Switch
+                                  checked={field.value}
+                                  onCheckedChange={field.onChange}
+                                  disabled={passThroughBodyEnabled}
+                                />
+                              </FormControl>
+                            </FormItem>
+                          )}
+                        />
+                      )}
                     </div>
 
                     <FormField
@@ -3381,7 +3422,9 @@ export function ChannelMutateDrawer({
         redirectSourceModels={redirectModelKeyList}
         customFetcher={!isEditing ? createModeFetcher : undefined}
         existingModelsOverride={
-          !isEditing ? parseModelsString(form.getValues('models') || '') : undefined
+          !isEditing
+            ? parseModelsString(form.getValues('models') || '')
+            : undefined
         }
       />
 

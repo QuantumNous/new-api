@@ -18,6 +18,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
+	"github.com/tidwall/sjson"
 )
 
 type ThinkingContentInfo struct {
@@ -97,6 +98,7 @@ type RelayInfo struct {
 	isFirstResponse   bool
 	//SendLastReasoningResponse bool
 	IsStream               bool
+	UpstreamStream         bool
 	IsGeminiBatchEmbedding bool
 	IsPlayground           bool
 	UsePrice               bool
@@ -180,6 +182,22 @@ type RelayInfo struct {
 	*TaskRelayInfo
 }
 
+func (info *RelayInfo) ShouldUseUpstreamStream() bool {
+	if info == nil || info.ChannelMeta == nil {
+		return false
+	}
+	if info.IsStream {
+		return false
+	}
+	if !info.ChannelSetting.ForceUpstreamStream {
+		return false
+	}
+	if model_setting.GetGlobalSettings().PassThroughRequestEnabled || info.ChannelSetting.PassThroughBodyEnabled {
+		return false
+	}
+	return info.ChannelType == constant.ChannelTypeAnthropic
+}
+
 func (info *RelayInfo) InitChannelMeta(c *gin.Context) {
 	channelType := common.GetContextKeyInt(c, constant.ContextKeyChannelType)
 	paramOverride := common.GetContextKeyStringMap(c, constant.ContextKeyChannelParamOverride)
@@ -244,6 +262,7 @@ func (info *RelayInfo) ToString() string {
 	fmt.Fprintf(b, "RelayFormat: %s, ", info.RelayFormat)
 	fmt.Fprintf(b, "RelayMode: %d, ", info.RelayMode)
 	fmt.Fprintf(b, "IsStream: %t, ", info.IsStream)
+	fmt.Fprintf(b, "UpstreamStream: %t, ", info.UpstreamStream)
 	fmt.Fprintf(b, "IsPlayground: %t, ", info.IsPlayground)
 	fmt.Fprintf(b, "RequestURLPath: %q, ", info.RequestURLPath)
 	fmt.Fprintf(b, "OriginModelName: %q, ", info.OriginModelName)
@@ -849,6 +868,14 @@ func RemoveDisabledFields(jsonData []byte, channelOtherSettings dto.ChannelOther
 		return jsonData, nil
 	}
 	return jsonDataAfter, nil
+}
+
+func EnsureUpstreamStreamField(jsonData []byte, info *RelayInfo) ([]byte, error) {
+	if info == nil || !info.UpstreamStream {
+		return jsonData, nil
+	}
+
+	return sjson.SetBytes(jsonData, "stream", true)
 }
 
 // RemoveGeminiDisabledFields removes disabled fields from Gemini request JSON data
