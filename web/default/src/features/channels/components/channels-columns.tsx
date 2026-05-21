@@ -975,6 +975,18 @@ export function useChannelsColumns(): ColumnDef<Channel>[] {
       enableSorting: false,
     },
 
+    // Channel billing ratio column
+    {
+      accessorKey: 'channel_ratio',
+      meta: { label: t('Channel Billing Ratio'), mobileHidden: true },
+      header: t('Channel Billing Ratio'),
+      cell: ({ row }) => (
+        <span className='tabular-nums'>{row.original.channel_ratio ?? 1}</span>
+      ),
+      size: 110,
+      enableSorting: false,
+    },
+
     // Balance column (Used/Remaining)
     {
       accessorKey: 'balance',

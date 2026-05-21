@@ -186,6 +186,7 @@ const EditChannelModal = (props) => {
     groups: ['default'],
     priority: 0,
     weight: 0,
+    channel_ratio: 1,
     tag: '',
     multi_key_mode: 'random',
     // 渠道额外设置的默认值
@@ -1031,6 +1032,7 @@ const EditChannelModal = (props) => {
         (data.remark && data.remark.trim()) ||
         (data.priority && data.priority !== 0) ||
         (data.weight && data.weight !== 0) ||
+        (data.channel_ratio ?? 1) !== 1 ||
         (data.proxy && data.proxy.trim()) ||
         (data.system_prompt && data.system_prompt.trim()) ||
         data.thinking_to_content ||
@@ -2481,6 +2483,21 @@ const EditChannelModal = (props) => {
                         min={0}
                         onNumberChange={(value) => handleInputChange('weight', value)}
                         style={{ width: '100%' }}
+                      />
+                    </Col>
+                  </Row>
+
+                  <Row gutter={12}>
+                    <Col span={12}>
+                      <Form.InputNumber
+                        field='channel_ratio'
+                        label={t('渠道计费倍率')}
+                        placeholder={t('默认 1，0 表示该渠道不计成本')}
+                        min={0}
+                        step={0.1}
+                        onNumberChange={(value) => handleInputChange('channel_ratio', value)}
+                        style={{ width: '100%' }}
+                        extraText={t('仅折算渠道维度用量统计（已用额度/数据面板），不影响用户扣费')}
                       />
                     </Col>
                   </Row>
