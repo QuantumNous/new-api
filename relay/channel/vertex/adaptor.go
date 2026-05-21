@@ -1,7 +1,6 @@
 package vertex
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -229,6 +228,7 @@ func (a *Adaptor) SetupRequestHeader(c *gin.Context, req *http.Header, info *rel
 	return nil
 }
 
+// ConvertOpenAIRequest converts OpenAI-compatible requests for Vertex upstreams.
 func (a *Adaptor) ConvertOpenAIRequest(c *gin.Context, info *relaycommon.RelayInfo, request *dto.GeneralOpenAIRequest) (any, error) {
 	if request == nil {
 		return nil, errors.New("request is nil")
@@ -266,7 +266,7 @@ func (a *Adaptor) ConvertOpenAIRequest(c *gin.Context, info *relaycommon.RelayIn
 		}
 		if len(request.ExtraBody) > 0 {
 			var extra map[string]any
-			if err := json.Unmarshal(request.ExtraBody, &extra); err == nil {
+			if err := common.Unmarshal(request.ExtraBody, &extra); err == nil {
 				if n, ok := extra["n"].(float64); ok && n > 0 {
 					imgReq.N = lo.ToPtr(uint(n))
 				}
@@ -327,6 +327,7 @@ func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, request
 	return channel.DoApiRequest(a, c, info, requestBody)
 }
 
+// DoResponse converts Vertex upstream responses into relay usage data.
 func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (usage any, err *types.NewAPIError) {
 	claudeAdaptor := claude.Adaptor{}
 	if info.IsStream {
@@ -348,6 +349,9 @@ func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycom
 			return claudeAdaptor.DoResponse(c, resp, info)
 		case RequestModeGemini:
 			if info.RelayMode == constant.RelayModeGemini {
+				if strings.HasPrefix(info.UpstreamModelName, "imagen") && strings.Contains(info.RequestURLPath, ":predict") {
+					return gemini.GeminiNativeImagePredictHandler(c, info, resp)
+				}
 				return gemini.GeminiTextGenerationHandler(c, info, resp)
 			} else {
 				if strings.HasPrefix(info.UpstreamModelName, "imagen") {

@@ -483,6 +483,29 @@ type GeminiImageRequest struct {
 	Parameters GeminiImageParameters `json:"parameters"`
 }
 
+// GetTokenCountMeta returns prompt text metadata for Gemini image requests.
+func (r *GeminiImageRequest) GetTokenCountMeta() *types.TokenCountMeta {
+	inputTexts := make([]string, 0, len(r.Instances))
+	for _, instance := range r.Instances {
+		if strings.TrimSpace(instance.Prompt) != "" {
+			inputTexts = append(inputTexts, strings.TrimSpace(instance.Prompt))
+		}
+	}
+	return &types.TokenCountMeta{
+		CombineText: strings.Join(inputTexts, "\n"),
+	}
+}
+
+// IsStream reports whether the Gemini image request uses streaming.
+func (r *GeminiImageRequest) IsStream(c *gin.Context) bool {
+	return false
+}
+
+// SetModelName keeps Gemini image model names in the request URL path.
+func (r *GeminiImageRequest) SetModelName(modelName string) {
+	// Gemini image request carries model in URL path, not in body.
+}
+
 type GeminiImageInstance struct {
 	Prompt string `json:"prompt"`
 }

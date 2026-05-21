@@ -57,16 +57,18 @@ func (a *Adaptor) ConvertAudioRequest(c *gin.Context, info *relaycommon.RelayInf
 	return nil, errors.New("not implemented")
 }
 
+// ConvertImageRequest converts OpenAI image requests into Gemini Imagen requests.
 func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.ImageRequest) (any, error) {
 	if !strings.HasPrefix(info.UpstreamModelName, "imagen") {
 		return nil, errors.New("not supported model for image generation, only imagen models are supported")
 	}
-
 	// convert size to aspect ratio but allow user to specify aspect ratio
 	aspectRatio := "1:1" // default aspect ratio
 	size := strings.TrimSpace(request.Size)
 	if size != "" {
-		if strings.Contains(size, ":") {
+		if info.UpstreamModelName == "imagen-4.0-generate-001" {
+			aspectRatio = convertImagen4SizeToAspectRatio(size)
+		} else if strings.Contains(size, ":") {
 			aspectRatio = size
 		} else {
 			switch size {
@@ -121,6 +123,27 @@ func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInf
 	}
 
 	return geminiRequest, nil
+}
+
+// convertImagen4SizeToAspectRatio maps OpenAI image sizes to Imagen 4 aspect ratios.
+func convertImagen4SizeToAspectRatio(size string) string {
+	if strings.Contains(size, ":") {
+		return size
+	}
+	switch strings.ToLower(strings.TrimSpace(size)) {
+	case "1024x1024", "2048x2048":
+		return "1:1"
+	case "896x1280", "1792x2560":
+		return "3:4"
+	case "1280x896", "2560x1792":
+		return "4:3"
+	case "768x1408", "1536x2816", "1024x1792":
+		return "9:16"
+	case "1408x768", "2816x1536", "1792x1024":
+		return "16:9"
+	default:
+		return "1:1"
+	}
 }
 
 func (a *Adaptor) Init(info *relaycommon.RelayInfo) {
@@ -246,8 +269,12 @@ func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, request
 	return channel.DoApiRequest(a, c, info, requestBody)
 }
 
+// DoResponse converts Gemini upstream responses into relay usage data.
 func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (usage any, err *types.NewAPIError) {
 	if info.RelayMode == constant.RelayModeGemini {
+		if strings.HasPrefix(info.UpstreamModelName, "imagen") && strings.Contains(info.RequestURLPath, ":predict") {
+			return GeminiNativeImagePredictHandler(c, info, resp)
+		}
 		if strings.Contains(info.RequestURLPath, ":embedContent") ||
 			strings.Contains(info.RequestURLPath, ":batchEmbedContents") {
 			return NativeGeminiEmbeddingHandler(c, resp, info)

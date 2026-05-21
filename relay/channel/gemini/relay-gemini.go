@@ -1536,6 +1536,7 @@ func GeminiEmbeddingHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *h
 	return usage, nil
 }
 
+// GeminiImageHandler converts Gemini Imagen responses to OpenAI image responses.
 func GeminiImageHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response) (*dto.Usage, *types.NewAPIError) {
 	responseBody, readErr := io.ReadAll(resp.Body)
 	if readErr != nil {
@@ -1576,18 +1577,20 @@ func GeminiImageHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.
 	c.Writer.WriteHeader(resp.StatusCode)
 	_, _ = c.Writer.Write(jsonResponse)
 
+	return buildGeminiImageUsage(len(openAIResponse.Data)), nil
+}
+
+// buildGeminiImageUsage returns usage for generated Gemini images.
+func buildGeminiImageUsage(generatedImages int) *dto.Usage {
 	// https://github.com/google-gemini/cookbook/blob/719a27d752aac33f39de18a8d3cb42a70874917e/quickstarts/Counting_Tokens.ipynb
-	// each image has fixed 258 tokens
+	// each image has fixed 258 tokens.
 	const imageTokens = 258
-	generatedImages := len(openAIResponse.Data)
-
-	usage := &dto.Usage{
-		PromptTokens:     imageTokens * generatedImages, // each generated image has fixed 258 tokens
-		CompletionTokens: 0,                             // image generation does not calculate completion tokens
-		TotalTokens:      imageTokens * generatedImages,
+	imageTokenCount := imageTokens * generatedImages
+	return &dto.Usage{
+		PromptTokens:     imageTokenCount,
+		CompletionTokens: 0,
+		TotalTokens:      imageTokenCount,
 	}
-
-	return usage, nil
 }
 
 type GeminiModelsResponse struct {

@@ -16,6 +16,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// GetAndValidateRequest parses and validates requests for the relay format.
 func GetAndValidateRequest(c *gin.Context, format types.RelayFormat) (request dto.Request, err error) {
 	relayMode := relayconstant.Path2RelayMode(c.Request.URL.Path)
 
@@ -27,6 +28,8 @@ func GetAndValidateRequest(c *gin.Context, format types.RelayFormat) (request dt
 			request, err = GetAndValidateGeminiEmbeddingRequest(c)
 		} else if strings.Contains(c.Request.URL.Path, ":batchEmbedContents") {
 			request, err = GetAndValidateGeminiBatchEmbeddingRequest(c)
+		} else if isGeminiImagePredictPath(c.Request.URL.Path) {
+			request, err = GetAndValidateGeminiImageRequest(c)
 		} else {
 			request, err = GetAndValidateGeminiRequest(c)
 		}
@@ -246,6 +249,33 @@ func GetAndValidateClaudeRequest(c *gin.Context) (textRequest *dto.ClaudeRequest
 	return textRequest, nil
 }
 
+// isGeminiImagePredictPath reports whether a Gemini path targets Imagen predict.
+func isGeminiImagePredictPath(path string) bool {
+	if !strings.Contains(path, ":predict") {
+		return false
+	}
+	modelName := extractGeminiModelNameFromPath(path)
+	return strings.HasPrefix(modelName, "imagen")
+}
+
+// extractGeminiModelNameFromPath extracts the model segment from a Gemini URL path.
+func extractGeminiModelNameFromPath(path string) string {
+	const modelsPrefix = "/models/"
+	modelsIndex := strings.Index(path, modelsPrefix)
+	if modelsIndex == -1 {
+		return ""
+	}
+	startIndex := modelsIndex + len(modelsPrefix)
+	if startIndex >= len(path) {
+		return ""
+	}
+	colonIndex := strings.Index(path[startIndex:], ":")
+	if colonIndex == -1 {
+		return path[startIndex:]
+	}
+	return path[startIndex : startIndex+colonIndex]
+}
+
 func GetAndValidateTextRequest(c *gin.Context, relayMode int) (*dto.GeneralOpenAIRequest, error) {
 	textRequest := &dto.GeneralOpenAIRequest{}
 	err := common.UnmarshalBodyReusable(c, textRequest)
@@ -318,6 +348,18 @@ func GetAndValidateGeminiRequest(c *gin.Context) (*dto.GeminiChatRequest, error)
 	//	relayInfo.IsStream = true
 	//}
 
+	return request, nil
+}
+
+// GetAndValidateGeminiImageRequest parses and validates a native Gemini image request.
+func GetAndValidateGeminiImageRequest(c *gin.Context) (*dto.GeminiImageRequest, error) {
+	request := &dto.GeminiImageRequest{}
+	if err := common.UnmarshalBodyReusable(c, request); err != nil {
+		return nil, err
+	}
+	if len(request.Instances) == 0 {
+		return nil, errors.New("instances is required")
+	}
 	return request, nil
 }
 
