@@ -32,8 +32,13 @@ import {
   SidebarHeader,
   SidebarRail,
 } from '@/components/ui/sidebar'
-import { getNavGroupsForPath } from '../lib/workspace-registry'
+import {
+  getNavGroupsForPath,
+  isInWorkspace,
+  WORKSPACE_IDS,
+} from '../lib/workspace-registry'
 import { NavGroup } from './nav-group'
+import { SidebarBackToOperationsConsole } from './sidebar-back-to-operations-console'
 import { SystemBrand } from './system-brand'
 
 /** Ops layout: hide sidebar header brand (duplicates top app bar). */
@@ -99,6 +104,11 @@ export function AppSidebar() {
     })
   }, [configFilteredNavGroups, userRole])
 
+  const isSystemSettingsWorkspace = isInWorkspace(
+    pathname,
+    WORKSPACE_IDS.SYSTEM_SETTINGS
+  )
+
   return (
     <Sidebar
       collapsible={collapsible}
@@ -113,6 +123,7 @@ export function AppSidebar() {
       <SidebarContent
         className={cn(sidebarContentClassName, hideSidebarBrand && 'pt-2')}
       >
+        {isSystemSettingsWorkspace ? <SidebarBackToOperationsConsole /> : null}
         {currentNavGroups.map((props) => {
           const key = props.id || props.title
           return <NavGroup key={key} {...props} />

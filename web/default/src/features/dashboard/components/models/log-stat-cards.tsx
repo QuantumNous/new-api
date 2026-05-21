@@ -18,7 +18,8 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { useEffect, useState } from 'react'
 import { useAuthStore } from '@/stores/auth-store'
-import { formatNumber, formatQuota } from '@/lib/format'
+import { formatDashboardQuotaDisplay } from '@/lib/ops-billing-display'
+import { formatNumber } from '@/lib/format'
 import { computeTimeRange } from '@/lib/time'
 import { Skeleton } from '@/components/ui/skeleton'
 import { getUserQuotaDates } from '@/features/dashboard/api'
@@ -104,7 +105,9 @@ export function LogStatCards(props: LogStatCardsProps) {
     title: config.title,
     value:
       config.key === 'quota'
-        ? formatQuota(config.getValue(adaptedStats, timeRangeMinutes))
+        ? formatDashboardQuotaDisplay(
+            config.getValue(adaptedStats, timeRangeMinutes)
+          )
         : formatNumber(config.getValue(adaptedStats, timeRangeMinutes)),
     desc: config.description,
     icon: config.icon,

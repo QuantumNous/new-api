@@ -51,15 +51,15 @@ export function useModelStatCardsConfig(): StatCardConfig[] {
     },
     {
       key: 'quota',
-      title: t('Total Quota'),
-      description: t('Statistical quota'),
+      title: t('Dashboard stat total quota'),
+      description: t('Dashboard stat statistical quota'),
       icon: Coins,
       getValue: (stat) => stat?.quota ?? 0,
     },
     {
       key: 'tokens',
-      title: t('Total Tokens'),
-      description: t('Statistical tokens'),
+      title: t('Dashboard stat total yuan units'),
+      description: t('Dashboard stat statistical yuan units'),
       icon: Layers,
       getValue: (stat) => stat?.tpm ?? 0,
     },
@@ -74,7 +74,7 @@ export function useModelStatCardsConfig(): StatCardConfig[] {
     {
       key: 'avgTpm',
       title: t('Average TPM'),
-      description: t('Tokens per minute'),
+      description: t('Dashboard stat yuan units per minute'),
       icon: Zap,
       getValue: (stat, timeRangeMinutes = 1) =>
         safeDivide(stat?.tpm ?? 0, timeRangeMinutes),

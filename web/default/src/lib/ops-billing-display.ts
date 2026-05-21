@@ -67,6 +67,17 @@ export function formatLogQuotaForOpsCenter(quota: number): string {
   return formatUsageLogQuotaDisplay(quota)
 }
 
+/**
+ * Dashboard model analytics: quota/usage as raw 词元 units (never USD/$).
+ * Display-only; does not change chart aggregation math.
+ */
+export function formatDashboardQuotaDisplay(
+  quota: number | null | undefined,
+  options?: { digitsLarge?: number; digitsSmall?: number }
+): string {
+  return formatUsageLogQuotaDisplay(quota, options)
+}
+
 export function formatBillingAmountForOpsCenter(
   amountUSD: number | null | undefined,
   options?: CurrencyFormatOptions

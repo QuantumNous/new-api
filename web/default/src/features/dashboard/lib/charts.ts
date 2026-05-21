@@ -17,6 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { dataScheme as vchartDefaultDataScheme } from '@visactor/vchart/esm/theme/color-scheme/builtin/default'
+import { formatDashboardQuotaDisplay } from '@/lib/ops-billing-display'
 import { getCurrencyDisplay } from '@/lib/currency'
 import { formatChartTime, type TimeGranularity } from '@/lib/time'
 import { MAX_CHART_TREND_POINTS } from '@/features/dashboard/constants'
@@ -77,18 +78,14 @@ function getVChartDefaultColors(domainLength: number, themeKey?: string) {
   return scheme.scheme
 }
 
-function renderQuotaCompat(rawQuota: number, digits = 4): string {
-  const { config, meta } = getCurrencyDisplay()
-  if (meta.kind === 'tokens') return rawQuota.toLocaleString()
-  const usd = rawQuota / config.quotaPerUnit
-  const rate = 'exchangeRate' in meta ? meta.exchangeRate : 1
-  const symbol = 'symbol' in meta ? meta.symbol : '$'
-  const value = usd * rate
-  const fixed = value.toFixed(digits)
-  if (parseFloat(fixed) === 0 && rawQuota > 0 && value > 0) {
-    return symbol + Math.pow(10, -digits).toFixed(digits)
-  }
-  return symbol + fixed
+function formatChartQuotaDisplay(
+  rawQuota: number,
+  digits?: number
+): string {
+  return formatDashboardQuotaDisplay(rawQuota, {
+    digitsLarge: digits ?? 4,
+    digitsSmall: digits ?? 6,
+  })
 }
 
 /**
@@ -106,8 +103,8 @@ export function processChartData(
 
   const formatInt = (value: number) =>
     Intl.NumberFormat(undefined, { maximumFractionDigits: 0 }).format(value)
-  const formatQuotaValue = (value: number) => renderQuotaCompat(value, 4)
-  const formatQuotaTotal = (value: number) => renderQuotaCompat(value, 2)
+  const formatQuotaValue = (value: number) => formatChartQuotaDisplay(value, 4)
+  const formatQuotaTotal = (value: number) => formatChartQuotaDisplay(value, 2)
 
   const MAX_TOOLTIP_MODELS = 15
   const isOtherTooltipKey = (key: string) =>
@@ -751,7 +748,7 @@ export function processUserChartData(
         )
       : USER_COLOR_FALLBACKS
 
-  const formatVal = (raw: number) => renderQuotaCompat(raw, 2)
+  const formatVal = (raw: number) => formatChartQuotaDisplay(raw, 2)
 
   const emptyResult: ProcessedUserChartData = {
     spec_user_rank: {
