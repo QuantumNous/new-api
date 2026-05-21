@@ -12,16 +12,20 @@ import (
 )
 
 type TopUp struct {
-	Id              int     `json:"id"`
-	UserId          int     `json:"user_id" gorm:"index"`
-	Amount          int64   `json:"amount"`
-	Money           float64 `json:"money"`
-	TradeNo         string  `json:"trade_no" gorm:"unique;type:varchar(255);index"`
-	PaymentMethod   string  `json:"payment_method" gorm:"type:varchar(50)"`
-	PaymentProvider string  `json:"payment_provider" gorm:"type:varchar(50);default:''"`
-	CreateTime      int64   `json:"create_time"`
-	CompleteTime    int64   `json:"complete_time"`
-	Status          string  `json:"status"`
+	Id                    int     `json:"id"`
+	TenantId              int     `json:"tenant_id" gorm:"index;default:1"`
+	OrganizationId        int     `json:"organization_id" gorm:"index;default:0"`
+	DepartmentId          int     `json:"department_id" gorm:"index;default:0"`
+	DistributionChannelId int     `json:"distribution_channel_id" gorm:"index;default:0"`
+	UserId                int     `json:"user_id" gorm:"index"`
+	Amount                int64   `json:"amount"`
+	Money                 float64 `json:"money"`
+	TradeNo               string  `json:"trade_no" gorm:"unique;type:varchar(255);index"`
+	PaymentMethod         string  `json:"payment_method" gorm:"type:varchar(50)"`
+	PaymentProvider       string  `json:"payment_provider" gorm:"type:varchar(50);default:''"`
+	CreateTime            int64   `json:"create_time"`
+	CompleteTime          int64   `json:"complete_time"`
+	Status                string  `json:"status"`
 }
 
 const (

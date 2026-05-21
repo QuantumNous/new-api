@@ -193,10 +193,14 @@ func (p *SubscriptionPlan) BeforeUpdate(tx *gorm.DB) error {
 
 // Subscription order (payment -> webhook -> create UserSubscription)
 type SubscriptionOrder struct {
-	Id     int     `json:"id"`
-	UserId int     `json:"user_id" gorm:"index"`
-	PlanId int     `json:"plan_id" gorm:"index"`
-	Money  float64 `json:"money"`
+	Id                    int     `json:"id"`
+	TenantId              int     `json:"tenant_id" gorm:"index;default:1"`
+	OrganizationId        int     `json:"organization_id" gorm:"index;default:0"`
+	DepartmentId          int     `json:"department_id" gorm:"index;default:0"`
+	DistributionChannelId int     `json:"distribution_channel_id" gorm:"index;default:0"`
+	UserId                int     `json:"user_id" gorm:"index"`
+	PlanId                int     `json:"plan_id" gorm:"index"`
+	Money                 float64 `json:"money"`
 
 	TradeNo         string `json:"trade_no" gorm:"unique;type:varchar(255);index"`
 	PaymentMethod   string `json:"payment_method" gorm:"type:varchar(50)"`
@@ -232,9 +236,13 @@ func GetSubscriptionOrderByTradeNo(tradeNo string) *SubscriptionOrder {
 
 // User subscription instance
 type UserSubscription struct {
-	Id     int `json:"id"`
-	UserId int `json:"user_id" gorm:"index;index:idx_user_sub_active,priority:1"`
-	PlanId int `json:"plan_id" gorm:"index"`
+	Id                    int `json:"id"`
+	TenantId              int `json:"tenant_id" gorm:"index;default:1"`
+	OrganizationId        int `json:"organization_id" gorm:"index;default:0"`
+	DepartmentId          int `json:"department_id" gorm:"index;default:0"`
+	DistributionChannelId int `json:"distribution_channel_id" gorm:"index;default:0"`
+	UserId                int `json:"user_id" gorm:"index;index:idx_user_sub_active,priority:1"`
+	PlanId                int `json:"plan_id" gorm:"index"`
 
 	AmountTotal int64 `json:"amount_total" gorm:"type:bigint;not null;default:0"`
 	AmountUsed  int64 `json:"amount_used" gorm:"type:bigint;not null;default:0"`
@@ -908,14 +916,18 @@ func ExpireDueSubscriptions(limit int) (int, error) {
 
 // SubscriptionPreConsumeRecord stores idempotent pre-consume operations per request.
 type SubscriptionPreConsumeRecord struct {
-	Id                 int    `json:"id"`
-	RequestId          string `json:"request_id" gorm:"type:varchar(64);uniqueIndex"`
-	UserId             int    `json:"user_id" gorm:"index"`
-	UserSubscriptionId int    `json:"user_subscription_id" gorm:"index"`
-	PreConsumed        int64  `json:"pre_consumed" gorm:"type:bigint;not null;default:0"`
-	Status             string `json:"status" gorm:"type:varchar(32);index"` // consumed/refunded
-	CreatedAt          int64  `json:"created_at" gorm:"bigint"`
-	UpdatedAt          int64  `json:"updated_at" gorm:"bigint;index"`
+	Id                    int    `json:"id"`
+	TenantId              int    `json:"tenant_id" gorm:"index;default:1"`
+	OrganizationId        int    `json:"organization_id" gorm:"index;default:0"`
+	DepartmentId          int    `json:"department_id" gorm:"index;default:0"`
+	DistributionChannelId int    `json:"distribution_channel_id" gorm:"index;default:0"`
+	RequestId             string `json:"request_id" gorm:"type:varchar(64);uniqueIndex"`
+	UserId                int    `json:"user_id" gorm:"index"`
+	UserSubscriptionId    int    `json:"user_subscription_id" gorm:"index"`
+	PreConsumed           int64  `json:"pre_consumed" gorm:"type:bigint;not null;default:0"`
+	Status                string `json:"status" gorm:"type:varchar(32);index"` // consumed/refunded
+	CreatedAt             int64  `json:"created_at" gorm:"bigint"`
+	UpdatedAt             int64  `json:"updated_at" gorm:"bigint;index"`
 }
 
 func (r *SubscriptionPreConsumeRecord) BeforeCreate(tx *gorm.DB) error {

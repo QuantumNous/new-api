@@ -256,6 +256,10 @@ func migrateDB() error {
 	}
 
 	err := DB.AutoMigrate(
+		&Tenant{},
+		&DistributionChannel{},
+		&Organization{},
+		&Department{},
 		&Channel{},
 		&Token{},
 		&User{},
@@ -305,6 +309,10 @@ func migrateDBFast() error {
 		model interface{}
 		name  string
 	}{
+		{&Tenant{}, "Tenant"},
+		{&DistributionChannel{}, "DistributionChannel"},
+		{&Organization{}, "Organization"},
+		{&Department{}, "Department"},
 		{&Channel{}, "Channel"},
 		{&Token{}, "Token"},
 		{&User{}, "User"},

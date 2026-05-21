@@ -14,13 +14,17 @@ import (
 )
 
 type Ability struct {
-	Group     string  `json:"group" gorm:"type:varchar(64);primaryKey;autoIncrement:false"`
-	Model     string  `json:"model" gorm:"type:varchar(255);primaryKey;autoIncrement:false"`
-	ChannelId int     `json:"channel_id" gorm:"primaryKey;autoIncrement:false;index"`
-	Enabled   bool    `json:"enabled"`
-	Priority  *int64  `json:"priority" gorm:"bigint;default:0;index"`
-	Weight    uint    `json:"weight" gorm:"default:0;index"`
-	Tag       *string `json:"tag" gorm:"index"`
+	TenantId              int     `json:"tenant_id" gorm:"index;default:1"`
+	OrganizationId        int     `json:"organization_id" gorm:"index;default:0"`
+	DepartmentId          int     `json:"department_id" gorm:"index;default:0"`
+	DistributionChannelId int     `json:"distribution_channel_id" gorm:"index;default:0"`
+	Group                 string  `json:"group" gorm:"type:varchar(64);primaryKey;autoIncrement:false"`
+	Model                 string  `json:"model" gorm:"type:varchar(255);primaryKey;autoIncrement:false"`
+	ChannelId             int     `json:"channel_id" gorm:"primaryKey;autoIncrement:false;index"`
+	Enabled               bool    `json:"enabled"`
+	Priority              *int64  `json:"priority" gorm:"bigint;default:0;index"`
+	Weight                uint    `json:"weight" gorm:"default:0;index"`
+	Tag                   *string `json:"tag" gorm:"index"`
 }
 
 type AbilityWithChannel struct {
