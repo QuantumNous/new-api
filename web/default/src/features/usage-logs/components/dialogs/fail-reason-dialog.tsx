@@ -29,6 +29,15 @@ import {
 } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
 import { ScrollArea } from '@/components/ui/scroll-area'
+import {
+  usageLogsContentDialogCopyButtonClassName,
+  usageLogsContentDialogDangerPanelClassName,
+  usageLogsContentDialogDangerTextClassName,
+  usageLogsContentDialogDescClassName,
+  usageLogsContentDialogLabelClassName,
+  usageLogsContentDialogSurfaceClassName,
+  usageLogsContentDialogTitleClassName,
+} from '../../lib/ops-ui-styles'
 
 interface FailReasonDialogProps {
   failReason: string
@@ -46,35 +55,37 @@ export function FailReasonDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className='sm:max-w-lg'>
+      <DialogContent className={usageLogsContentDialogSurfaceClassName}>
         <DialogHeader>
-          <DialogTitle>{t('Fail Reason Details')}</DialogTitle>
-          <DialogDescription>
-            {t('View the complete error message and details')}
+          <DialogTitle className={usageLogsContentDialogTitleClassName}>
+            {t('usageLogs.dialog.fail_reason.title')}
+          </DialogTitle>
+          <DialogDescription className={usageLogsContentDialogDescClassName}>
+            {t('usageLogs.dialog.fail_reason.description')}
           </DialogDescription>
         </DialogHeader>
 
         <ScrollArea className='max-h-[500px] pr-4'>
           <div className='space-y-4 py-4'>
             <div className='space-y-2'>
-              <Label className='text-sm font-semibold'>
-                {t('Error Message')}
+              <Label className={usageLogsContentDialogLabelClassName}>
+                {t('usageLogs.dialog.fail_reason.error_message')}
               </Label>
-              <div className='bg-muted/50 relative rounded-md border border-red-200 p-3'>
+              <div className={usageLogsContentDialogDangerPanelClassName}>
                 <Button
                   variant='ghost'
                   size='sm'
-                  className='absolute top-2 right-2 h-8 w-8 p-0'
+                  className={usageLogsContentDialogCopyButtonClassName}
                   onClick={() => copyToClipboard(failReason)}
-                  title={t('Copy to clipboard')}
+                  title={t('usageLogs.action.copy_content')}
                 >
                   {copiedText === failReason ? (
-                    <Check className='size-4 text-green-600' />
+                    <Check className='text-emerald-400' />
                   ) : (
-                    <Copy className='size-4' />
+                    <Copy />
                   )}
                 </Button>
-                <p className='overflow-wrap-anywhere pr-10 text-sm leading-relaxed break-all whitespace-pre-wrap text-red-600'>
+                <p className={usageLogsContentDialogDangerTextClassName}>
                   {failReason || '-'}
                 </p>
               </div>

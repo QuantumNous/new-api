@@ -247,8 +247,14 @@ export function createFailReasonColumn<T>(config: {
   accessorKey?: string
   headerLabel: string
   cellTitle: string
+  failReasonClassName?: string
 }): ColumnDef<T> {
-  const { accessorKey = 'fail_reason', headerLabel, cellTitle } = config
+  const {
+    accessorKey = 'fail_reason',
+    headerLabel,
+    cellTitle,
+    failReasonClassName = 'truncate text-sm leading-snug text-red-400 group-hover:underline',
+  } = config
 
   return {
     accessorKey,
@@ -271,9 +277,7 @@ export function createFailReasonColumn<T>(config: {
             onClick={() => setDialogOpen(true)}
             title={cellTitle}
           >
-            <span className='truncate leading-snug text-red-400 group-hover:underline'>
-              {failReason}
-            </span>
+            <span className={failReasonClassName}>{failReason}</span>
           </button>
           <FailReasonDialog
             failReason={failReason}

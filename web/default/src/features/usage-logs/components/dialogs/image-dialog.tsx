@@ -17,7 +17,11 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useState } from 'react'
+import { Copy, Check, ExternalLink } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard'
+import { cn } from '@/lib/utils'
+import { Button } from '@/components/ui/button'
 import {
   Dialog,
   DialogContent,
@@ -27,6 +31,16 @@ import {
 } from '@/components/ui/dialog'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Skeleton } from '@/components/ui/skeleton'
+import {
+  usageLogsContentDialogCopyButtonClassName,
+  usageLogsContentDialogDescClassName,
+  usageLogsContentDialogImageErrorClassName,
+  usageLogsContentDialogImageFrameClassName,
+  usageLogsContentDialogSurfaceWideClassName,
+  usageLogsContentDialogTitleClassName,
+  usageLogsContentDialogUrlPanelClassName,
+  usageLogsContentDialogUrlTextClassName,
+} from '../../lib/ops-ui-styles'
 
 interface ImageDialogProps {
   imageUrl: string
@@ -42,10 +56,10 @@ export function ImageDialog({
   onOpenChange,
 }: ImageDialogProps) {
   const { t } = useTranslation()
+  const { copiedText, copyToClipboard } = useCopyToClipboard({ notify: false })
   const [isLoading, setIsLoading] = useState(true)
   const [hasError, setHasError] = useState(false)
 
-  // Reset loading state when dialog opens or image URL changes
   const handleOpenChange = (newOpen: boolean) => {
     if (newOpen) {
       setIsLoading(true)
@@ -66,51 +80,80 @@ export function ImageDialog({
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className='sm:max-w-3xl'>
+      <DialogContent className={usageLogsContentDialogSurfaceWideClassName}>
         <DialogHeader>
-          <DialogTitle>{t('usageLogs.dialog.image.title')}</DialogTitle>
-          <DialogDescription>
+          <DialogTitle className={usageLogsContentDialogTitleClassName}>
+            {t('usageLogs.dialog.image.title')}
+          </DialogTitle>
+          <DialogDescription className={usageLogsContentDialogDescClassName}>
             {taskId
               ? `${t('usageLogs.dialog.image.task_id_label')}: ${taskId}`
               : t('usageLogs.dialog.image.description')}
           </DialogDescription>
         </DialogHeader>
 
+        <div className='flex flex-wrap items-center gap-2'>
+          <Button
+            variant='outline'
+            size='sm'
+            className='border-white/15 bg-slate-950/50 text-slate-100 hover:bg-white/10'
+            render={
+              <a
+                href={imageUrl}
+                target='_blank'
+                rel='noopener noreferrer'
+                className='inline-flex items-center gap-1.5'
+              />
+            }
+          >
+            <ExternalLink className='size-3.5' />
+            {t('usageLogs.dialog.image.open_original')}
+          </Button>
+          <Button
+            variant='outline'
+            size='sm'
+            className='border-white/15 bg-slate-950/50 text-slate-100 hover:bg-white/10'
+            onClick={() => copyToClipboard(imageUrl)}
+          >
+            {copiedText === imageUrl ? (
+              <Check className='size-3.5 text-emerald-400' />
+            ) : (
+              <Copy className='size-3.5' />
+            )}
+            {t('usageLogs.dialog.image.copy_url')}
+          </Button>
+        </div>
+
         <ScrollArea className='max-h-[600px]'>
           <div className='py-4'>
-            <div className='bg-muted/50 relative flex min-h-[300px] items-center justify-center rounded-lg border'>
-              {/* Skeleton - show when loading or error */}
+            <div className={usageLogsContentDialogImageFrameClassName}>
               {(isLoading || hasError) && (
-                <Skeleton className='absolute inset-0 h-full w-full rounded-lg' />
+                <Skeleton className='absolute inset-0 h-full w-full rounded-lg bg-white/5' />
               )}
 
-              {/* Actual Image */}
               <img
                 src={imageUrl}
                 alt={t('usageLogs.dialog.image.alt')}
-                className={`max-h-[550px] w-full rounded-lg object-contain ${
+                className={cn(
+                  'max-h-[550px] w-full rounded-lg object-contain',
                   isLoading || hasError ? 'opacity-0' : 'opacity-100'
-                }`}
+                )}
                 onLoad={handleImageLoad}
                 onError={handleImageError}
                 loading='lazy'
               />
 
-              {/* Error text overlay (shown on skeleton) */}
               {hasError && (
                 <div className='absolute inset-0 flex items-center justify-center'>
-                  <p className='text-muted-foreground text-sm'>
+                  <p className={usageLogsContentDialogImageErrorClassName}>
                     {t('usageLogs.dialog.image.load_failed')}
                   </p>
                 </div>
               )}
             </div>
 
-            {/* Image URL */}
-            <div className='bg-muted mt-4 rounded-md p-3'>
-              <p className='text-muted-foreground font-mono text-xs break-all'>
-                {imageUrl}
-              </p>
+            <div className={usageLogsContentDialogUrlPanelClassName}>
+              <p className={usageLogsContentDialogUrlTextClassName}>{imageUrl}</p>
             </div>
           </div>
         </ScrollArea>

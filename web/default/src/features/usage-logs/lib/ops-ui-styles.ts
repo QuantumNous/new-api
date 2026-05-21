@@ -226,3 +226,55 @@ export const usageLogsDialogParamOverrideContentClassName =
   'min-w-0 font-mono text-xs leading-relaxed break-all text-slate-900 sm:break-words'
 
 export const usageLogsDialogWarningTextClassName = 'text-sm text-amber-800'
+
+// —— H: Drawing / task content dialogs (dark ops-center) —— //
+
+export const usageLogsContentDialogSurfaceClassName =
+  'border-white/15 bg-slate-900 text-slate-100 sm:max-w-lg'
+
+export const usageLogsContentDialogSurfaceWideClassName =
+  'border-white/15 bg-slate-900 text-slate-100 sm:max-w-3xl'
+
+export const usageLogsContentDialogTitleClassName =
+  'text-base font-semibold text-slate-100'
+
+export const usageLogsContentDialogDescClassName = 'text-sm text-slate-400'
+
+export const usageLogsContentDialogLabelClassName =
+  'text-sm font-semibold text-slate-200'
+
+export const usageLogsContentDialogPanelClassName =
+  'relative rounded-md border border-white/15 bg-slate-950/50 p-3'
+
+export const usageLogsContentDialogDangerPanelClassName =
+  'relative rounded-md border border-rose-500/30 bg-rose-950/30 p-3'
+
+export const usageLogsContentDialogTextClassName =
+  'pr-10 text-sm leading-relaxed break-words whitespace-pre-wrap text-slate-100'
+
+export const usageLogsContentDialogDangerTextClassName =
+  'overflow-wrap-anywhere pr-10 text-sm leading-relaxed break-all whitespace-pre-wrap text-rose-300'
+
+export const usageLogsContentDialogCopyButtonClassName = cn(
+  'absolute top-2 right-2 h-8 w-8 p-0 text-slate-300',
+  'hover:bg-white/10 hover:text-slate-100',
+  '[&_svg]:size-4'
+)
+
+export const usageLogsContentDialogImageFrameClassName =
+  'relative flex min-h-[300px] items-center justify-center rounded-lg border border-white/15 bg-slate-950/40'
+
+export const usageLogsContentDialogImageErrorClassName = 'text-sm text-slate-400'
+
+export const usageLogsContentDialogUrlPanelClassName =
+  'mt-4 rounded-md border border-white/15 bg-slate-950/50 p-3'
+
+export const usageLogsContentDialogUrlTextClassName =
+  'font-mono text-xs leading-relaxed break-all text-slate-300'
+
+export const usageLogsDrawingTaskIdBadgeClassName = cn(
+  'max-w-full truncate rounded-md border border-white/15 bg-white/5 px-1.5 py-0.5 font-mono'
+)
+
+export const usageLogsPromptPreviewClassName =
+  'truncate text-xs leading-snug text-slate-300 group-hover:text-slate-100'

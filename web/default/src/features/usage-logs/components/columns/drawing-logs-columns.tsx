@@ -38,6 +38,7 @@ import {
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { formatTimestampToDate } from '@/lib/format'
+import { cn } from '@/lib/utils'
 import { DataTableColumnHeader } from '@/components/data-table'
 import { StatusBadge } from '@/components/status-badge'
 import { MJ_TASK_TYPES } from '../../constants'
@@ -46,6 +47,14 @@ import {
   mjStatusMapper,
   mjSubmitResultMapper,
 } from '../../lib/mappers'
+import {
+  usageLogsDrawingTaskIdBadgeClassName,
+  usageLogsPromptPreviewClassName,
+  usageLogsTableClickableLinkClass,
+  usageLogsTableEmptyClass,
+  usageLogsTableFailReasonClass,
+  usageLogsTablePrimaryClass,
+} from '../../lib/ops-ui-styles'
 import type { MidjourneyLog } from '../../types'
 import { ImageDialog } from '../dialogs/image-dialog'
 import { PromptDialog } from '../dialogs/prompt-dialog'
@@ -88,7 +97,10 @@ export function useDrawingLogsColumns(
     {
       accessorKey: 'submit_time',
       header: ({ column }) => (
-        <DataTableColumnHeader column={column} title={t('Submit Time')} />
+        <DataTableColumnHeader
+          column={column}
+          title={t('usageLogs.col.submit_time')}
+        />
       ),
       cell: ({ row }) => {
         const log = row.original
@@ -96,7 +108,12 @@ export function useDrawingLogsColumns(
 
         return (
           <div className='flex flex-col gap-0.5'>
-            <span className='font-mono text-xs tabular-nums'>
+            <span
+              className={cn(
+                'font-mono text-xs tabular-nums',
+                usageLogsTablePrimaryClass
+              )}
+            >
               {formatTimestampToDate(submitTime)}
             </span>
             <StatusBadge
@@ -108,7 +125,7 @@ export function useDrawingLogsColumns(
           </div>
         )
       },
-      meta: { label: t('Submit Time') },
+      meta: { label: t('usageLogs.col.submit_time') },
     },
   ]
 
@@ -123,7 +140,10 @@ export function useDrawingLogsColumns(
   columns.push({
     accessorKey: 'action',
     header: ({ column }) => (
-      <DataTableColumnHeader column={column} title={t('Type')} />
+      <DataTableColumnHeader
+        column={column}
+        title={t('usageLogs.col.operation_type')}
+      />
     ),
     cell: ({ row }) => {
       const action = row.getValue('action') as string
@@ -138,7 +158,7 @@ export function useDrawingLogsColumns(
         />
       )
     },
-    meta: { label: t('Type') },
+    meta: { label: t('usageLogs.col.operation_type') },
   })
 
   columns.push({
@@ -153,7 +173,7 @@ export function useDrawingLogsColumns(
       const mjId = row.getValue('mj_id') as string
 
       if (!mjId) {
-        return <span className='text-muted-foreground/60 text-xs'>-</span>
+        return <span className={usageLogsTableEmptyClass}>-</span>
       }
 
       return (
@@ -163,7 +183,7 @@ export function useDrawingLogsColumns(
             autoColor={mjId}
             size='sm'
             showDot={false}
-            className='border-border/60 bg-muted/30 max-w-full truncate rounded-md border px-1.5 py-0.5 font-mono'
+            className={usageLogsDrawingTaskIdBadgeClassName}
           />
         </div>
       )
@@ -175,7 +195,7 @@ export function useDrawingLogsColumns(
     createDurationColumn<MidjourneyLog>({
       submitTimeKey: 'submit_time',
       finishTimeKey: 'finish_time',
-      headerLabel: t('Duration'),
+      headerLabel: t('usageLogs.col.duration'),
     })
   )
 
@@ -183,7 +203,10 @@ export function useDrawingLogsColumns(
     columns.push({
       accessorKey: 'code',
       header: ({ column }) => (
-        <DataTableColumnHeader column={column} title={t('Submit Result')} />
+        <DataTableColumnHeader
+          column={column}
+          title={t('usageLogs.col.submit_result')}
+        />
       ),
       cell: ({ row }) => {
         const code = row.getValue('code') as number
@@ -198,16 +221,21 @@ export function useDrawingLogsColumns(
           />
         )
       },
-      meta: { label: t('Submit Result') },
+      meta: { label: t('usageLogs.col.submit_result') },
     })
   }
 
   columns.push(
-    createProgressColumn<MidjourneyLog>({ headerLabel: t('Progress') }),
+    createProgressColumn<MidjourneyLog>({
+      headerLabel: t('usageLogs.col.progress'),
+    }),
     {
       accessorKey: 'image_url',
       header: ({ column }) => (
-        <DataTableColumnHeader column={column} title={t('Image')} />
+        <DataTableColumnHeader
+          column={column}
+          title={t('usageLogs.col.generated_image')}
+        />
       ),
       cell: function ImageCell({ row }) {
         const log = row.original
@@ -215,7 +243,7 @@ export function useDrawingLogsColumns(
         const [dialogOpen, setDialogOpen] = useState(false)
 
         if (!imageUrl) {
-          return <span className='text-muted-foreground/60 text-xs'>-</span>
+          return <span className={usageLogsTableEmptyClass}>-</span>
         }
 
         return (
@@ -224,10 +252,15 @@ export function useDrawingLogsColumns(
               type='button'
               className='group text-left text-xs'
               onClick={() => setDialogOpen(true)}
-              title={t('Click to view image')}
+              title={t('usageLogs.action.view_image')}
             >
-              <span className='text-foreground truncate leading-snug group-hover:underline'>
-                {t('View')}
+              <span
+                className={cn(
+                  usageLogsTableClickableLinkClass,
+                  'truncate leading-snug'
+                )}
+              >
+                {t('usageLogs.action.view')}
               </span>
             </button>
             <ImageDialog
@@ -239,12 +272,15 @@ export function useDrawingLogsColumns(
           </>
         )
       },
-      meta: { label: t('Image'), mobileHidden: true },
+      meta: { label: t('usageLogs.col.generated_image'), mobileHidden: true },
     },
     {
       accessorKey: 'prompt',
       header: ({ column }) => (
-        <DataTableColumnHeader column={column} title={t('Prompt')} />
+        <DataTableColumnHeader
+          column={column}
+          title={t('usageLogs.col.prompt_content')}
+        />
       ),
       cell: function PromptCell({ row }) {
         const log = row.original
@@ -252,7 +288,7 @@ export function useDrawingLogsColumns(
         const [dialogOpen, setDialogOpen] = useState(false)
 
         if (!prompt) {
-          return <span className='text-muted-foreground/60 text-xs'>-</span>
+          return <span className={usageLogsTableEmptyClass}>-</span>
         }
 
         return (
@@ -261,11 +297,9 @@ export function useDrawingLogsColumns(
               type='button'
               className='group flex max-w-[220px] items-center text-left text-xs'
               onClick={() => setDialogOpen(true)}
-              title={t('Click to view full prompt')}
+              title={t('usageLogs.action.view_prompt')}
             >
-              <span className='text-muted-foreground truncate leading-snug group-hover:underline'>
-                {prompt}
-              </span>
+              <span className={usageLogsPromptPreviewClassName}>{prompt}</span>
             </button>
             <PromptDialog
               prompt={prompt}
@@ -276,13 +310,14 @@ export function useDrawingLogsColumns(
           </>
         )
       },
-      meta: { label: t('Prompt'), mobileHidden: true },
+      meta: { label: t('usageLogs.col.prompt_content'), mobileHidden: true },
       size: 200,
       maxSize: 220,
     },
     createFailReasonColumn<MidjourneyLog>({
-      headerLabel: t('Fail Reason'),
-      cellTitle: t('Click to view full error message'),
+      headerLabel: t('usageLogs.col.fail_reason'),
+      cellTitle: t('usageLogs.action.view_fail_reason'),
+      failReasonClassName: usageLogsTableFailReasonClass,
     })
   )
 
