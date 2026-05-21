@@ -518,6 +518,9 @@ func AdminDisable2FA(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
+	if !requireUserTenantAccess(c, targetUser) {
+		return
+	}
 
 	myRole := c.GetInt("role")
 	if myRole <= targetUser.Role && myRole != common.RoleRootUser {

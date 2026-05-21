@@ -609,6 +609,9 @@ func AdminClearUserBinding(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
+	if !requireUserTenantAccess(c, user) {
+		return
+	}
 
 	myRole := c.GetInt("role")
 	if myRole <= user.Role && myRole != common.RoleRootUser {

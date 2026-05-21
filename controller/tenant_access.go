@@ -50,3 +50,11 @@ func requireRedemptionTenantAccess(c *gin.Context, redemption *model.Redemption)
 	}
 	return requireTenantAccess(c, redemption.TenantId)
 }
+
+func requireTopUpTenantAccess(c *gin.Context, topUp *model.TopUp) bool {
+	if topUp == nil {
+		common.ApiErrorMsg(c, tenantAccessDeniedMessage)
+		return false
+	}
+	return requireTenantAccess(c, topUp.TenantId)
+}

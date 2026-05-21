@@ -499,6 +499,9 @@ func GetUserOAuthBindingsByAdmin(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
+	if !requireUserTenantAccess(c, targetUser) {
+		return
+	}
 
 	myRole := c.GetInt("role")
 	if myRole <= targetUser.Role && myRole != common.RoleRootUser {
@@ -556,6 +559,9 @@ func UnbindCustomOAuthByAdmin(c *gin.Context) {
 	targetUser, err := model.GetUserById(userId, false)
 	if err != nil {
 		common.ApiError(c, err)
+		return
+	}
+	if !requireUserTenantAccess(c, targetUser) {
 		return
 	}
 

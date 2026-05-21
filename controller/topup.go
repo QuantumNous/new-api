@@ -496,6 +496,11 @@ func AdminCompleteTopUp(c *gin.Context) {
 	LockOrder(req.TradeNo)
 	defer UnlockOrder(req.TradeNo)
 
+	topUp := model.GetTopUpByTradeNo(req.TradeNo)
+	if !requireTopUpTenantAccess(c, topUp) {
+		return
+	}
+
 	if err := model.ManualCompleteTopUp(req.TradeNo, c.ClientIP()); err != nil {
 		common.ApiError(c, err)
 		return
