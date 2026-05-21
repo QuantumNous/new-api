@@ -15,6 +15,7 @@ import (
 	"github.com/QuantumNous/new-api/relay/helper"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting/model_setting"
+	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/QuantumNous/new-api/types"
 
 	"github.com/gin-gonic/gin"
@@ -148,6 +149,20 @@ func ImageHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *type
 	}
 	if imageN > 0 {
 		logContent = append(logContent, fmt.Sprintf("生成数量 %d", imageN))
+	}
+
+	// If the model is configured for per-size billing, inject the size tier
+	// and image count into the gin context so PostTextConsumeQuota can apply
+	// the flat per-image surcharge instead of token billing.
+	if operation_setting.IsImagePerSizeBilling(info.OriginModelName) {
+		sizeTier, ok := operation_setting.ClassifyImageSizeTier(request.Size)
+		if !ok {
+			sizeTier = operation_setting.ImageSizeTier2K // default to 2K when unknown
+		}
+		c.Set("image_per_size_billing", true)
+		c.Set("image_size_tier", sizeTier)
+		c.Set("image_per_size_count", int(imageN))
+		logContent = append(logContent, fmt.Sprintf("分辨率档位 %s", sizeTier))
 	}
 
 	service.PostTextConsumeQuota(c, info, usage.(*dto.Usage), logContent)

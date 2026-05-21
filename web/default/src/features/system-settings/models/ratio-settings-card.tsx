@@ -130,6 +130,7 @@ const modelSchema = z.object({
       })
     }
   }),
+  ImageModelSetting: z.string(),
 })
 
 const groupSchema = z.object({
@@ -251,6 +252,7 @@ export function RatioSettingsCard({
     ExposeRatioEnabled: modelDefaults.ExposeRatioEnabled,
     BillingMode: normalizeJsonString(modelDefaults.BillingMode),
     BillingExpr: normalizeJsonString(modelDefaults.BillingExpr),
+    ImageModelSetting: modelDefaults.ImageModelSetting ?? '',
   })
 
   const groupNormalizedDefaults = useRef({
@@ -282,6 +284,7 @@ export function RatioSettingsCard({
       ),
       BillingMode: formatJsonForTextarea(modelDefaults.BillingMode),
       BillingExpr: formatJsonForTextarea(modelDefaults.BillingExpr),
+      ImageModelSetting: modelDefaults.ImageModelSetting ?? '',
     },
   })
 
@@ -316,6 +319,7 @@ export function RatioSettingsCard({
       ExposeRatioEnabled: modelDefaults.ExposeRatioEnabled,
       BillingMode: normalizeJsonString(modelDefaults.BillingMode),
       BillingExpr: normalizeJsonString(modelDefaults.BillingExpr),
+      ImageModelSetting: modelDefaults.ImageModelSetting ?? '',
     }
 
     modelForm.reset({
@@ -332,6 +336,7 @@ export function RatioSettingsCard({
       ),
       BillingMode: formatJsonForTextarea(modelDefaults.BillingMode),
       BillingExpr: formatJsonForTextarea(modelDefaults.BillingExpr),
+      ImageModelSetting: modelDefaults.ImageModelSetting ?? '',
     })
   }, [modelDefaults, modelForm])
 
@@ -375,11 +380,13 @@ export function RatioSettingsCard({
         ExposeRatioEnabled: values.ExposeRatioEnabled,
         BillingMode: normalizeJsonString(values.BillingMode),
         BillingExpr: normalizeJsonString(values.BillingExpr),
+        ImageModelSetting: values.ImageModelSetting ?? '',
       }
 
       const apiKeyMap: Record<string, string> = {
         BillingMode: 'billing_setting.billing_mode',
         BillingExpr: 'billing_setting.billing_expr',
+        ImageModelSetting: 'image_model_setting.models',
       }
 
       const updates = (

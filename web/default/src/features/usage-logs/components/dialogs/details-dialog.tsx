@@ -293,6 +293,15 @@ function BillingBreakdown(props: {
     })
   }
 
+  if (other.image_per_size_billing && other.image_per_size_price != null) {
+    const count = other.image_per_size_count ?? 1
+    const tier = other.image_size_tier ?? ''
+    rows.push({
+      label: t('Image Generation'),
+      value: `${tier} × ${count} ${t('image(s)')} (${fmtPrice(other.image_per_size_price)}/${t('image')})`,
+    })
+  }
+
   if (other.audio_input_seperate_price && other.audio_input_price) {
     rows.push({
       label: t('Audio Input Price'),
@@ -986,35 +995,33 @@ export function DetailsDialog(props: DetailsDialogProps) {
             )}
 
             {/* Param override */}
-            {other?.po &&
-              Array.isArray(other.po) &&
-              other.po.length > 0 && (
-                <DetailSection
-                  icon={<Settings2 className='size-3.5' aria-hidden='true' />}
-                  label={`${t('Param Override')} (${other.po.length})`}
-                >
-                  {other.po.filter(Boolean).map((line, idx) => {
-                    const parsed = parseAuditLine(line)
-                    if (!parsed) return null
-                    return (
-                      <div
-                        key={idx}
-                        className='bg-background/60 flex min-w-0 flex-col gap-1.5 rounded border p-2 sm:flex-row sm:items-start sm:gap-2'
-                      >
-                        <StatusBadge
-                          variant='neutral'
-                          label={getParamOverrideActionLabel(parsed.action, t)}
-                          className='shrink-0 font-medium'
-                          copyable={false}
-                        />
-                        <span className='min-w-0 font-mono text-[11px] leading-relaxed break-all sm:break-words'>
-                          {parsed.content}
-                        </span>
-                      </div>
-                    )
-                  })}
-                </DetailSection>
-              )}
+            {other?.po && Array.isArray(other.po) && other.po.length > 0 && (
+              <DetailSection
+                icon={<Settings2 className='size-3.5' aria-hidden='true' />}
+                label={`${t('Param Override')} (${other.po.length})`}
+              >
+                {other.po.filter(Boolean).map((line, idx) => {
+                  const parsed = parseAuditLine(line)
+                  if (!parsed) return null
+                  return (
+                    <div
+                      key={idx}
+                      className='bg-background/60 flex min-w-0 flex-col gap-1.5 rounded border p-2 sm:flex-row sm:items-start sm:gap-2'
+                    >
+                      <StatusBadge
+                        variant='neutral'
+                        label={getParamOverrideActionLabel(parsed.action, t)}
+                        className='shrink-0 font-medium'
+                        copyable={false}
+                      />
+                      <span className='min-w-0 font-mono text-[11px] leading-relaxed break-all sm:break-words'>
+                        {parsed.content}
+                      </span>
+                    </div>
+                  )
+                })}
+              </DetailSection>
+            )}
 
             {/* Content */}
             {details && (
