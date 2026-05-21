@@ -34,11 +34,11 @@ func UpdateQuotaData() {
 var CacheQuotaData = make(map[string]*QuotaData)
 var CacheQuotaDataLock = sync.Mutex{}
 
-func logQuotaDataCache(userId int, username string, modelName string, quota int, createdAt int64, tokenUsed int) {
+func logQuotaDataCache(userId int, username string, modelName string, quota int, createdAt int64, tokenUsed int, countDelta int) {
 	key := fmt.Sprintf("%d-%s-%s-%d", userId, username, modelName, createdAt)
 	quotaData, ok := CacheQuotaData[key]
 	if ok {
-		quotaData.Count += 1
+		quotaData.Count += countDelta
 		quotaData.Quota += quota
 		quotaData.TokenUsed += tokenUsed
 	} else {
@@ -47,7 +47,7 @@ func logQuotaDataCache(userId int, username string, modelName string, quota int,
 			Username:  username,
 			ModelName: modelName,
 			CreatedAt: createdAt,
-			Count:     1,
+			Count:     countDelta,
 			Quota:     quota,
 			TokenUsed: tokenUsed,
 		}
@@ -56,12 +56,17 @@ func logQuotaDataCache(userId int, username string, modelName string, quota int,
 }
 
 func LogQuotaData(userId int, username string, modelName string, quota int, createdAt int64, tokenUsed int) {
+	LogQuotaDataDelta(userId, username, modelName, quota, createdAt, tokenUsed, 1)
+}
+
+// LogQuotaDataDelta 写入数据看板缓存；countDelta 为 0 时不增加请求次数（用于退款/差额结算）。
+func LogQuotaDataDelta(userId int, username string, modelName string, quota int, createdAt int64, tokenUsed int, countDelta int) {
 	// 只精确到小时
 	createdAt = createdAt - (createdAt % 3600)
 
 	CacheQuotaDataLock.Lock()
 	defer CacheQuotaDataLock.Unlock()
-	logQuotaDataCache(userId, username, modelName, quota, createdAt, tokenUsed)
+	logQuotaDataCache(userId, username, modelName, quota, createdAt, tokenUsed, countDelta)
 }
 
 func SaveQuotaDataCache() {

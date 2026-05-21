@@ -303,6 +303,21 @@ func RecordTaskBillingLog(params RecordTaskBillingLogParams) {
 	if err != nil {
 		common.SysLog("failed to record task billing log: " + err.Error())
 	}
+	if common.DataExportEnabled && params.Quota > 0 {
+		userId := params.UserId
+		usernameCopy := username
+		modelName := params.ModelName
+		quota := params.Quota
+		logType := params.LogType
+		tokenUsed := params.PromptTokens + params.CompletionTokens
+		gopool.Go(func() {
+			quotaDelta := quota
+			if logType == LogTypeRefund {
+				quotaDelta = -quota
+			}
+			LogQuotaDataDelta(userId, usernameCopy, modelName, quotaDelta, common.GetTimestamp(), tokenUsed, 0)
+		})
+	}
 }
 
 func logOtherIsTaskFlag(v any) bool {
