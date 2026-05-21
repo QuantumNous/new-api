@@ -266,6 +266,7 @@ func RelaySwapFace(c *gin.Context, info *relaycommon.RelayInfo) *dto.MidjourneyR
 		ChannelId:   c.GetInt("channel_id"),
 		Quota:       priceData.Quota,
 	}
+	model.ApplyOwnershipFromContext(c, midjourneyTask)
 	err = midjourneyTask.Insert()
 	if err != nil {
 		return service.MidjourneyErrorWrapper(constant.MjRequestError, "insert_midjourney_task_failed")
@@ -579,6 +580,7 @@ func RelayMidjourneySubmit(c *gin.Context, relayInfo *relaycommon.RelayInfo) *dt
 		ChannelId:   c.GetInt("channel_id"),
 		Quota:       priceData.Quota,
 	}
+	model.ApplyOwnershipFromContext(c, midjourneyTask)
 	if midjResponse.Code == 3 {
 		//无实例账号自动禁用渠道（No available account instance）
 		channel, err := model.GetChannelById(midjourneyTask.ChannelId, true)

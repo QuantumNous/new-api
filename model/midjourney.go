@@ -1,28 +1,32 @@
 package model
 
 type Midjourney struct {
-	Id          int    `json:"id"`
-	Code        int    `json:"code"`
-	UserId      int    `json:"user_id" gorm:"index"`
-	Action      string `json:"action" gorm:"type:varchar(40);index"`
-	MjId        string `json:"mj_id" gorm:"index"`
-	Prompt      string `json:"prompt"`
-	PromptEn    string `json:"prompt_en"`
-	Description string `json:"description"`
-	State       string `json:"state"`
-	SubmitTime  int64  `json:"submit_time" gorm:"index"`
-	StartTime   int64  `json:"start_time" gorm:"index"`
-	FinishTime  int64  `json:"finish_time" gorm:"index"`
-	ImageUrl    string `json:"image_url"`
-	VideoUrl    string `json:"video_url"`
-	VideoUrls   string `json:"video_urls"`
-	Status      string `json:"status" gorm:"type:varchar(20);index"`
-	Progress    string `json:"progress" gorm:"type:varchar(30);index"`
-	FailReason  string `json:"fail_reason"`
-	ChannelId   int    `json:"channel_id"`
-	Quota       int    `json:"quota"`
-	Buttons     string `json:"buttons"`
-	Properties  string `json:"properties"`
+	Id                    int    `json:"id"`
+	TenantId              int    `json:"tenant_id" gorm:"index;default:1"`
+	OrganizationId        int    `json:"organization_id" gorm:"index;default:0"`
+	DepartmentId          int    `json:"department_id" gorm:"index;default:0"`
+	DistributionChannelId int    `json:"distribution_channel_id" gorm:"index;default:0"`
+	Code                  int    `json:"code"`
+	UserId                int    `json:"user_id" gorm:"index"`
+	Action                string `json:"action" gorm:"type:varchar(40);index"`
+	MjId                  string `json:"mj_id" gorm:"index"`
+	Prompt                string `json:"prompt"`
+	PromptEn              string `json:"prompt_en"`
+	Description           string `json:"description"`
+	State                 string `json:"state"`
+	SubmitTime            int64  `json:"submit_time" gorm:"index"`
+	StartTime             int64  `json:"start_time" gorm:"index"`
+	FinishTime            int64  `json:"finish_time" gorm:"index"`
+	ImageUrl              string `json:"image_url"`
+	VideoUrl              string `json:"video_url"`
+	VideoUrls             string `json:"video_urls"`
+	Status                string `json:"status" gorm:"type:varchar(20);index"`
+	Progress              string `json:"progress" gorm:"type:varchar(30);index"`
+	FailReason            string `json:"fail_reason"`
+	ChannelId             int    `json:"channel_id"`
+	Quota                 int    `json:"quota"`
+	Buttons               string `json:"buttons"`
+	Properties            string `json:"properties"`
 }
 
 // TaskQueryParams 用于包含所有搜索条件的结构体，可以根据需求添加更多字段
@@ -60,12 +64,15 @@ func GetAllUserTask(userId int, startIdx int, num int, queryParams TaskQueryPara
 	return tasks
 }
 
-func GetAllTasks(startIdx int, num int, queryParams TaskQueryParams) []*Midjourney {
+func GetAllTasks(startIdx int, num int, queryParams TaskQueryParams, scopes ...TenantScope) []*Midjourney {
 	var tasks []*Midjourney
 	var err error
 
 	// 初始化查询构建器
-	query := DB
+	query := DB.Model(&Midjourney{})
+	if len(scopes) > 0 {
+		query = scopes[0].Apply(query, "midjourneys")
+	}
 
 	// 添加过滤条件
 	if queryParams.ChannelID != "" {
@@ -147,6 +154,9 @@ func UpdateProgress(id int, progress string) error {
 
 func (midjourney *Midjourney) Insert() error {
 	var err error
+	if midjourney.TenantId == 0 {
+		ApplyOwnershipFromUser(midjourney.UserId, midjourney)
+	}
 	err = DB.Create(midjourney).Error
 	return err
 }
@@ -183,9 +193,12 @@ func MjBulkUpdateByTaskIds(taskIDs []int, params map[string]any) error {
 }
 
 // CountAllTasks returns total midjourney tasks for admin query
-func CountAllTasks(queryParams TaskQueryParams) int64 {
+func CountAllTasks(queryParams TaskQueryParams, scopes ...TenantScope) int64 {
 	var total int64
 	query := DB.Model(&Midjourney{})
+	if len(scopes) > 0 {
+		query = scopes[0].Apply(query, "midjourneys")
+	}
 	if queryParams.ChannelID != "" {
 		query = query.Where("channel_id = ?", queryParams.ChannelID)
 	}
