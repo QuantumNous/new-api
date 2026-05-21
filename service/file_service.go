@@ -270,7 +270,7 @@ func smartDetectMimeType(resp *http.Response, url string, fileBytes []byte) stri
 				if dot := strings.LastIndex(name, "."); dot != -1 && dot+1 < len(name) {
 					ext := strings.ToLower(name[dot+1:])
 					if ext != "" {
-						mt := GetMimeTypeByExtension(ext)
+						mt := common.GetMimeTypeByExtension(ext)
 						if mt != "application/octet-stream" {
 							return mt
 						}
@@ -377,6 +377,16 @@ func loadFromBase64(base64String string, providedMimeType string) (*types.Cached
 			if mimeType == "" {
 				cachedData.MimeType = "image/" + format
 			}
+		}
+	}
+
+	if cachedData.MimeType == "" || cachedData.MimeType == "application/octet-stream" {
+		sniffed := http.DetectContentType(decodedData)
+		if sniffed != "" && sniffed != "application/octet-stream" {
+			if idx := strings.Index(sniffed, ";"); idx != -1 {
+				sniffed = strings.TrimSpace(sniffed[:idx])
+			}
+			cachedData.MimeType = sniffed
 		}
 	}
 
@@ -599,7 +609,7 @@ func guessMimeTypeFromURL(url string) string {
 		last := cleanedURL[slash+1:]
 		if dot := strings.LastIndex(last, "."); dot != -1 && dot+1 < len(last) {
 			ext := strings.ToLower(last[dot+1:])
-			return GetMimeTypeByExtension(ext)
+			return common.GetMimeTypeByExtension(ext)
 		}
 	}
 

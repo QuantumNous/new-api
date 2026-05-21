@@ -12,10 +12,8 @@ import { TIME_RANGE_PRESETS } from '@/features/dashboard/constants'
 import {
   getDefaultDays,
   getSavedGranularity,
-  saveGranularity,
   processTokenChartData,
 } from '@/features/dashboard/lib'
-import type { TimeGranularity } from '@/lib/time'
 
 let themeManagerPromise: Promise<
   (typeof import('@visactor/vchart'))['ThemeManager']
@@ -31,15 +29,12 @@ export function TokenCharts() {
     (typeof import('@visactor/vchart'))['ThemeManager'] | null
   >(null)
 
-  const [timeGranularity, setTimeGranularity] = useState<TimeGranularity>(() =>
-    getSavedGranularity()
-  )
   const [selectedRange, setSelectedRange] = useState<number>(() =>
-    getDefaultDays(timeGranularity)
+    getDefaultDays(getSavedGranularity())
   )
   const [topUserLimit, setTopUserLimit] = useState(10)
   const [timeRange, setTimeRange] = useState(() => {
-    const days = getDefaultDays(timeGranularity)
+    const days = getDefaultDays(getSavedGranularity())
     const { start, end } = getNormalizedDateRange(days)
     return {
       start_timestamp: Math.floor(start.getTime() / 1000),
@@ -55,18 +50,6 @@ export function TokenCharts() {
       end_timestamp: Math.floor(end.getTime() / 1000),
     })
   }, [])
-
-  const handleGranularityChange = useCallback(
-    (g: TimeGranularity) => {
-      setTimeGranularity(g)
-      saveGranularity(g)
-      const days = getDefaultDays(g)
-      if (days !== selectedRange) {
-        handleRangeChange(days)
-      }
-    },
-    [selectedRange, handleRangeChange]
-  )
 
   useEffect(() => {
     const updateTheme = async () => {

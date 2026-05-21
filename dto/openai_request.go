@@ -3,6 +3,7 @@ package dto
 import (
 	"encoding/json"
 	"fmt"
+	"path/filepath"
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
@@ -386,7 +387,14 @@ func (m *MediaContent) ToFileSource() types.FileSource {
 		if file == nil || file.FileData == "" {
 			return nil
 		}
-		return types.NewFileSourceFromData(file.FileData, "")
+		mimeType := ""
+		if file.FileName != "" {
+			ext := filepath.Ext(file.FileName)
+			if ext != "" {
+				mimeType = common.GetMimeTypeByExtension(ext[1:])
+			}
+		}
+		return types.NewFileSourceFromData(file.FileData, mimeType)
 	case ContentTypeVideoUrl:
 		video := m.GetVideoUrl()
 		if video == nil || video.Url == "" {

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, type ReactNode } from 'react'
+import { useState, useCallback, type ReactNode } from 'react'
 import { useNavigate, getRouteApi } from '@tanstack/react-router'
 import { useQueryClient, useIsFetching } from '@tanstack/react-query'
 import { ChevronDown, Eye, EyeOff, Loader2, RotateCcw, Search } from 'lucide-react'
@@ -43,41 +43,26 @@ export function CommonLogsFilterBar({
   const [expanded, setExpanded] = useState(false)
   const [filters, setFilters] = useState<CommonLogFilters>(() => {
     const { start, end } = getDefaultTimeRange()
-    return { startTime: start, endTime: end }
-  })
-  const [logType, setLogType] = useState<string>('')
-
-  useEffect(() => {
-    const next: Partial<CommonLogFilters> = {}
-    if (searchParams.startTime)
-      next.startTime = new Date(searchParams.startTime)
-    if (searchParams.endTime) next.endTime = new Date(searchParams.endTime)
-    if (searchParams.channel) next.channel = String(searchParams.channel)
-    if (searchParams.model) next.model = searchParams.model
-    if (searchParams.token) next.token = searchParams.token
-    if (searchParams.group) next.group = searchParams.group
-    if (searchParams.username) next.username = searchParams.username
-    if (searchParams.requestId) next.requestId = searchParams.requestId
-
-    if (Object.keys(next).length > 0) {
-      setFilters((prev) => ({ ...prev, ...next }))
+    return {
+      startTime: searchParams.startTime
+        ? new Date(searchParams.startTime)
+        : start,
+      endTime: searchParams.endTime ? new Date(searchParams.endTime) : end,
+      channel: searchParams.channel ? String(searchParams.channel) : undefined,
+      model: searchParams.model,
+      token: searchParams.token,
+      group: searchParams.group,
+      username: searchParams.username,
+      requestId: searchParams.requestId,
     }
-
+  })
+  const [logType, setLogType] = useState<string>(() => {
     const typeArr = searchParams.type
     if (Array.isArray(typeArr) && typeArr.length === 1) {
-      setLogType(typeArr[0])
+      return typeArr[0]
     }
-  }, [
-    searchParams.startTime,
-    searchParams.endTime,
-    searchParams.channel,
-    searchParams.model,
-    searchParams.token,
-    searchParams.group,
-    searchParams.username,
-    searchParams.requestId,
-    searchParams.type,
-  ])
+    return ''
+  })
 
   const handleChange = useCallback(
     (field: keyof CommonLogFilters, value: Date | string | undefined) => {
@@ -93,7 +78,7 @@ export function CommonLogsFilterBar({
       params: { section: 'common' },
       search: {
         ...filterParams,
-        ...(logType ? { type: [logType] } : {}),
+        ...(logType ? { type: [logType as '0' | '1' | '2' | '3' | '4' | '5' | '6'] } : {}),
         page: 1,
       },
     })

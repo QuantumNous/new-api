@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { ApiKeysDeleteDialog } from './api-keys-delete-dialog'
 import { ApiKeysMutateDrawer } from './api-keys-mutate-drawer'
 import { useApiKeys } from './api-keys-provider'
@@ -9,16 +9,19 @@ export function ApiKeysDialogs() {
   const [lastMutateSide, setLastMutateSide] = useState<'left' | 'right'>(
     'right'
   )
-  const mutateSide =
-    open === 'create' ? 'left' : open === 'update' ? 'right' : lastMutateSide
+  const [prevOpen, setPrevOpen] = useState(open)
 
-  useEffect(() => {
+  if (open !== prevOpen) {
+    setPrevOpen(open)
     if (open === 'create') {
       setLastMutateSide('left')
     } else if (open === 'update') {
       setLastMutateSide('right')
     }
-  }, [open])
+  }
+
+  const mutateSide =
+    open === 'create' ? 'left' : open === 'update' ? 'right' : lastMutateSide
 
   return (
     <>

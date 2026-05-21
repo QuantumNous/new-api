@@ -63,8 +63,8 @@ export function TokenStatsTable() {
     username: string
   } | null>(null)
 
-  const { data, isLoading, isFetching, refetch } = useQuery({
-    queryKey: ['token-stats', searchParams],
+  const { data, isLoading, isFetching } = useQuery({
+    queryKey: ['token-stats', searchParams, t],
     queryFn: async () => {
       if (!searchParams) return []
       

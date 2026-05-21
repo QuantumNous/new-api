@@ -30,19 +30,38 @@ func extractUserPrompt(request dto.Request) string {
 	if request == nil {
 		return ""
 	}
-	
-	// Try to get messages via type assertion
+
 	var messages []dto.Message
+	var claudeMessages []dto.ClaudeMessage
+
+	// Try to get messages via type assertion
 	if r, ok := request.(*dto.GeneralOpenAIRequest); ok {
 		messages = r.Messages
+	} else if r, ok := request.(*dto.ClaudeRequest); ok {
+		claudeMessages = r.Messages
 	} else {
 		return ""
 	}
-	
+
+	// Handle GeneralOpenAIRequest messages
+	if len(messages) > 0 {
+		return extractUserPromptFromMessages(messages)
+	}
+
+	// Handle ClaudeRequest messages
+	if len(claudeMessages) > 0 {
+		return extractUserPromptFromClaudeMessages(claudeMessages)
+	}
+
+	return ""
+}
+
+// extractUserPromptFromMessages extracts user prompt from OpenAI-style messages
+func extractUserPromptFromMessages(messages []dto.Message) string {
 	if len(messages) == 0 {
 		return ""
 	}
-	
+
 	// Find the last user message
 	for i := len(messages) - 1; i >= 0; i-- {
 		if messages[i].Role == "user" {
@@ -50,12 +69,12 @@ func extractUserPrompt(request dto.Request) string {
 			if content == nil {
 				continue
 			}
-			
+
 			// Handle string content
 			if str, ok := content.(string); ok {
 				return str
 			}
-			
+
 			// Handle array content (multimodal)
 			if arr, ok := content.([]interface{}); ok {
 				var textParts []string
@@ -75,7 +94,26 @@ func extractUserPrompt(request dto.Request) string {
 			}
 		}
 	}
-	
+
+	return ""
+}
+
+// extractUserPromptFromClaudeMessages extracts user prompt from Claude-style messages
+func extractUserPromptFromClaudeMessages(messages []dto.ClaudeMessage) string {
+	if len(messages) == 0 {
+		return ""
+	}
+
+	// Find the last user message
+	for i := len(messages) - 1; i >= 0; i-- {
+		if messages[i].Role == "user" {
+			content := messages[i].GetStringContent()
+			if content != "" {
+				return content
+			}
+		}
+	}
+
 	return ""
 }
 
