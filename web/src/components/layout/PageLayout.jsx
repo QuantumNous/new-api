@@ -59,15 +59,18 @@ const PageLayout = () => {
     '/console/midjourney',
     '/console/task',
     '/console/models',
+    '/console/drawing',
     '/pricing',
   ];
 
   const shouldHideFooter = cardProPages.includes(location.pathname);
+  const isDrawingRoute = location.pathname === '/console/drawing';
 
   const shouldInnerPadding =
     location.pathname.includes('/console') &&
     !location.pathname.startsWith('/console/chat') &&
-    location.pathname !== '/console/playground';
+    location.pathname !== '/console/playground' &&
+    !isDrawingRoute;
 
   const isConsoleRoute = location.pathname.startsWith('/console');
   const showSider = isConsoleRoute && (!isMobile || drawerOpen);
@@ -150,7 +153,7 @@ const PageLayout = () => {
       style={{
         display: 'flex',
         flexDirection: 'column',
-        overflow: isMobile ? 'visible' : 'hidden',
+        overflow: isMobile && !isDrawingRoute ? 'visible' : 'hidden',
       }}
     >
       <Header
@@ -171,7 +174,7 @@ const PageLayout = () => {
       </Header>
       <Layout
         style={{
-          overflow: isMobile ? 'visible' : 'auto',
+          overflow: isMobile && !isDrawingRoute ? 'visible' : 'auto',
           display: 'flex',
           flexDirection: 'column',
         }}
@@ -211,7 +214,7 @@ const PageLayout = () => {
           <Content
             style={{
               flex: '1 0 auto',
-              overflowY: isMobile ? 'visible' : 'hidden',
+              overflowY: isMobile && !isDrawingRoute ? 'visible' : 'hidden',
               WebkitOverflowScrolling: 'touch',
               padding: shouldInnerPadding ? (isMobile ? '5px' : '24px') : '0',
               position: 'relative',

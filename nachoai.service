@@ -1,0 +1,15 @@
+[Unit]
+Description=NachoAI Service
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/root/nachoai
+ExecStart=/root/nachoai/nachoai
+Restart=always
+RestartSec=5
+User=root
+
+[Install]
+WantedBy=multi-user.target

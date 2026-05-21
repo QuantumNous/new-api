@@ -2,6 +2,10 @@ package controller
 
 import (
 	"encoding/json"
+	"errors"
+	"net/http"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
@@ -10,6 +14,7 @@ import (
 	"github.com/QuantumNous/new-api/service"
 
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 )
 
 type DrawingGenerateRequest struct {
@@ -18,6 +23,19 @@ type DrawingGenerateRequest struct {
 	Size    string   `json:"size"`
 	Quality string   `json:"quality"`
 	Images  []string `json:"images"`
+}
+
+func GetDrawingResultFile(c *gin.Context) {
+	filename := c.Param("filename")
+	path, mimeType, err := service.ResolveDrawingImagePath(filename)
+	if err != nil {
+		c.Status(http.StatusNotFound)
+		return
+	}
+
+	c.Header("Content-Type", mimeType)
+	c.Header("Cache-Control", "public, max-age=31536000, immutable")
+	c.File(path)
 }
 
 func CreateDrawingSession(c *gin.Context) {
@@ -62,6 +80,44 @@ func GetDrawingSessionDetail(c *gin.Context) {
 	common.ApiSuccess(c, session)
 }
 
+func UpdateDrawingSessionTitle(c *gin.Context) {
+	userId := c.GetInt("id")
+	sessionId := c.Param("session_id")
+
+	var req struct {
+		Title string `json:"title"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		common.ApiErrorMsg(c, "title is required")
+		return
+	}
+
+	title := strings.TrimSpace(req.Title)
+	if title == "" {
+		common.ApiErrorMsg(c, "title is required")
+		return
+	}
+	if len([]rune(title)) > 200 {
+		common.ApiErrorMsg(c, "title is too long")
+		return
+	}
+
+	if _, err := model.GetDrawingSession(sessionId, userId); err != nil {
+		common.ApiErrorMsg(c, "会话不存在")
+		return
+	}
+
+	if err := model.UpdateDrawingSessionTitle(sessionId, userId, title); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+
+	common.ApiSuccess(c, gin.H{
+		"session_id": sessionId,
+		"title":      title,
+	})
+}
+
 func GetDrawingSessionMessages(c *gin.Context) {
 	userId := c.GetInt("id")
 	sessionId := c.Param("session_id")
@@ -95,6 +151,73 @@ func GetDrawingSessionMessages(c *gin.Context) {
 	common.ApiSuccess(c, result)
 }
 
+func GetDrawingSessionMessage(c *gin.Context) {
+	userId := c.GetInt("id")
+	sessionId := c.Param("session_id")
+	direction := c.DefaultQuery("direction", "latest")
+	currentIdRaw := c.Query("current_id")
+
+	if _, err := model.GetDrawingSession(sessionId, userId); err != nil {
+		common.ApiErrorMsg(c, "会话不存在")
+		return
+	}
+
+	total, err := model.CountDrawingMessagesBySessionId(sessionId, userId)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	if total == 0 {
+		common.ApiSuccess(c, gin.H{
+			"message":       nil,
+			"current_index": 0,
+			"total":         0,
+			"has_prev":      false,
+			"has_next":      false,
+		})
+		return
+	}
+
+	var msg *model.DrawingMessage
+	switch direction {
+	case "latest", "":
+		msg, err = model.GetLatestDrawingMessage(sessionId, userId)
+	case "prev", "next":
+		currentId, parseErr := strconv.ParseInt(currentIdRaw, 10, 64)
+		if parseErr != nil || currentId <= 0 {
+			common.ApiErrorMsg(c, "current_id is required")
+			return
+		}
+		msg, err = model.GetAdjacentDrawingMessage(sessionId, userId, currentId, direction)
+	default:
+		common.ApiErrorMsg(c, "invalid direction")
+		return
+	}
+
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		common.ApiErrorMsg(c, "消息不存在")
+		return
+	}
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+
+	position, err := model.GetDrawingMessagePosition(sessionId, userId, msg.ID)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+
+	common.ApiSuccess(c, gin.H{
+		"message":       buildDrawingMessageMeta(msg),
+		"current_index": position,
+		"total":         total,
+		"has_prev":      position > 1,
+		"has_next":      position < total,
+	})
+}
+
 func GetDrawingMessageImages(c *gin.Context) {
 	userId := c.GetInt("id")
 	sessionId := c.Param("session_id")
@@ -109,6 +232,21 @@ func GetDrawingMessageImages(c *gin.Context) {
 		"image_urls":  msg.ImageUrls,
 		"result_data": msg.ResultData,
 	})
+}
+
+func buildDrawingMessageMeta(m *model.DrawingMessage) gin.H {
+	return gin.H{
+		"id":          m.ID,
+		"session_id":  m.SessionID,
+		"task_id":     m.TaskID,
+		"prompt":      m.Prompt,
+		"model":       m.Model,
+		"size":        m.Size,
+		"quality":     m.Quality,
+		"status":      m.Status,
+		"fail_reason": m.FailReason,
+		"created_at":  m.CreatedAt,
+	}
 }
 
 func DeleteDrawingSessionHandler(c *gin.Context) {

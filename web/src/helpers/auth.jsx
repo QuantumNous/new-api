@@ -18,8 +18,55 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import { Navigate } from 'react-router-dom';
-import { history } from './history';
+import { Navigate, useLocation } from 'react-router-dom';
+
+const LOGIN_REDIRECT_PATH_KEY = 'login_redirect_path';
+
+function isSafeInternalPath(path) {
+  return (
+    typeof path === 'string' &&
+    path.startsWith('/') &&
+    !path.startsWith('//') &&
+    !path.startsWith('/login') &&
+    !path.startsWith('/oauth/')
+  );
+}
+
+export function getLoginRedirectPath(from, fallback = '/console') {
+  if (typeof from === 'string') {
+    return isSafeInternalPath(from) ? from : fallback;
+  }
+
+  if (from?.pathname) {
+    const path = `${from.pathname}${from.search || ''}${from.hash || ''}`;
+    return isSafeInternalPath(path) ? path : fallback;
+  }
+
+  return fallback;
+}
+
+export function saveLoginRedirectPath(path) {
+  const redirectPath = getLoginRedirectPath(path, '');
+  if (!redirectPath) {
+    return;
+  }
+  sessionStorage.setItem(LOGIN_REDIRECT_PATH_KEY, redirectPath);
+}
+
+export function getStoredLoginRedirectPath(fallback = '/console') {
+  const redirectPath = sessionStorage.getItem(LOGIN_REDIRECT_PATH_KEY);
+  return getLoginRedirectPath(redirectPath, fallback);
+}
+
+export function consumeLoginRedirectPath(fallback = '/console') {
+  const redirectPath = getStoredLoginRedirectPath(fallback);
+  sessionStorage.removeItem(LOGIN_REDIRECT_PATH_KEY);
+  return redirectPath;
+}
+
+export function clearLoginRedirectPath() {
+  sessionStorage.removeItem(LOGIN_REDIRECT_PATH_KEY);
+}
 
 export function authHeader() {
   // return authorization header with jwt token
@@ -34,25 +81,34 @@ export function authHeader() {
 
 export const AuthRedirect = ({ children }) => {
   const user = localStorage.getItem('user');
+  const location = useLocation();
 
   if (user) {
-    return <Navigate to='/console' replace />;
+    return (
+      <Navigate
+        to={getLoginRedirectPath(location.state?.from, '/console')}
+        replace
+      />
+    );
   }
 
   return children;
 };
 
 function PrivateRoute({ children }) {
+  const location = useLocation();
+
   if (!localStorage.getItem('user')) {
-    return <Navigate to='/login' state={{ from: history.location }} />;
+    return <Navigate to='/login' state={{ from: location }} />;
   }
   return children;
 }
 
 export function AdminRoute({ children }) {
+  const location = useLocation();
   const raw = localStorage.getItem('user');
   if (!raw) {
-    return <Navigate to='/login' state={{ from: history.location }} />;
+    return <Navigate to='/login' state={{ from: location }} />;
   }
   try {
     const user = JSON.parse(raw);

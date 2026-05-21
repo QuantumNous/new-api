@@ -14,6 +14,7 @@ import (
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/middleware"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/types"
 
 	"github.com/gin-gonic/gin"
@@ -132,7 +133,12 @@ func ProcessImageTask(taskId string) {
 		return
 	}
 
-	resultData, _ := common.Marshal(imageResp.Data)
+	resultImages, err := service.PersistDrawingImageResults(imageResp.Data)
+	if err != nil {
+		failImageTask(&task, "保存图片结果失败: "+err.Error())
+		return
+	}
+	resultData, _ := common.Marshal(resultImages)
 
 	task.Status = model.TaskStatusSuccess
 	task.Progress = "100%"

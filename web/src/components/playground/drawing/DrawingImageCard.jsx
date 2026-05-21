@@ -1,14 +1,12 @@
 import React, { useState } from 'react';
-import { Modal } from '@douyinfe/semi-ui';
+import { ImagePreview, Modal } from '@douyinfe/semi-ui';
 import { Download, Maximize2, FileText } from 'lucide-react';
 
 const DrawingImageCard = ({ imageData }) => {
   const [previewVisible, setPreviewVisible] = useState(false);
   const [promptVisible, setPromptVisible] = useState(false);
 
-  const imageUrl =
-    imageData.url ||
-    (imageData.b64_json ? `data:image/png;base64,${imageData.b64_json}` : null);
+  const imageUrl = resolveDrawingImageUrl(imageData.url);
 
   if (!imageUrl) return null;
 
@@ -21,20 +19,29 @@ const DrawingImageCard = ({ imageData }) => {
 
   return (
     <>
-      <div className='relative group rounded-xl overflow-hidden w-full' style={{ border: '1px solid var(--semi-color-border)' }}>
+      <div
+        className='relative group rounded-xl overflow-hidden w-full cursor-zoom-in'
+        style={{ border: '1px solid var(--semi-color-border)' }}
+        onClick={() => setPreviewVisible(true)}
+      >
         <img
           src={imageUrl}
           alt={imageData.revised_prompt || 'Generated image'}
-          className='w-full object-cover cursor-pointer block'
-          onClick={() => setPreviewVisible(true)}
+          className='w-full object-cover block'
         />
-        <div className='absolute inset-0 bg-black/0 group-hover:bg-black/25 transition-colors' />
+        <div className='absolute inset-0 bg-black/0 group-hover:bg-black/25 transition-colors pointer-events-none' />
         <div className='absolute top-2 right-2 flex gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity'>
           {imageData.revised_prompt && (
             <button
               className='p-1.5 rounded-lg shadow cursor-pointer transition-colors'
-              style={{ background: 'var(--semi-color-bg-0)', color: 'var(--semi-color-text-0)' }}
-              onClick={() => setPromptVisible(true)}
+              style={{
+                background: 'var(--semi-color-bg-0)',
+                color: 'var(--semi-color-text-0)',
+              }}
+              onClick={(e) => {
+                e.stopPropagation();
+                setPromptVisible(true);
+              }}
               aria-label='查看提示词'
             >
               <FileText size={14} />
@@ -42,16 +49,28 @@ const DrawingImageCard = ({ imageData }) => {
           )}
           <button
             className='p-1.5 rounded-lg shadow cursor-pointer transition-colors'
-            style={{ background: 'var(--semi-color-bg-0)', color: 'var(--semi-color-text-0)' }}
-            onClick={() => setPreviewVisible(true)}
+            style={{
+              background: 'var(--semi-color-bg-0)',
+              color: 'var(--semi-color-text-0)',
+            }}
+            onClick={(e) => {
+              e.stopPropagation();
+              setPreviewVisible(true);
+            }}
             aria-label='放大'
           >
             <Maximize2 size={14} />
           </button>
           <button
             className='p-1.5 rounded-lg shadow cursor-pointer transition-colors'
-            style={{ background: 'var(--semi-color-bg-0)', color: 'var(--semi-color-text-0)' }}
-            onClick={handleDownload}
+            style={{
+              background: 'var(--semi-color-bg-0)',
+              color: 'var(--semi-color-text-0)',
+            }}
+            onClick={(e) => {
+              e.stopPropagation();
+              handleDownload();
+            }}
             aria-label='下载'
           >
             <Download size={14} />
@@ -59,21 +78,16 @@ const DrawingImageCard = ({ imageData }) => {
         </div>
       </div>
 
-      <Modal
+      <ImagePreview
+        src={imageUrl}
         visible={previewVisible}
-        onCancel={() => setPreviewVisible(false)}
-        footer={null}
-        width='auto'
-        style={{ maxWidth: '90vw' }}
-        bodyStyle={{ padding: 0 }}
-        closable
-      >
-        <img
-          src={imageUrl}
-          alt={imageData.revised_prompt || 'Generated image'}
-          className='max-w-full max-h-[85vh] object-contain block'
-        />
-      </Modal>
+        onVisibleChange={(visible) => setPreviewVisible(visible)}
+        zoomStep={0.2}
+        maxZoom={6}
+        minZoom={0.2}
+        previewTitle={imageData.revised_prompt || 'Generated image'}
+        setDownloadName={() => `generated-${Date.now()}.png`}
+      />
 
       <Modal
         visible={promptVisible}
@@ -82,12 +96,23 @@ const DrawingImageCard = ({ imageData }) => {
         title='Revised Prompt'
         width={480}
       >
-        <p className='text-sm leading-relaxed' style={{ color: 'var(--semi-color-text-0)' }}>
+        <p
+          className='text-sm leading-relaxed'
+          style={{ color: 'var(--semi-color-text-0)' }}
+        >
           {imageData.revised_prompt}
         </p>
       </Modal>
     </>
   );
 };
+
+function resolveDrawingImageUrl(url) {
+  if (!url) return null;
+  if (!url.startsWith('/')) return url;
+  const serverUrl = import.meta.env.VITE_REACT_APP_SERVER_URL;
+  if (!serverUrl) return url;
+  return `${serverUrl.replace(/\/$/, '')}${url}`;
+}
 
 export default DrawingImageCard;

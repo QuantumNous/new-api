@@ -89,7 +89,10 @@ func UpdateDrawingSessionTime(sessionId string) {
 }
 
 func UpdateDrawingSessionTitle(sessionId string, userId int, title string) error {
-	return DB.Model(&DrawingSession{}).Where("session_id = ? AND user_id = ?", sessionId, userId).Update("title", title).Error
+	return DB.Model(&DrawingSession{}).Where("session_id = ? AND user_id = ?", sessionId, userId).Updates(map[string]interface{}{
+		"title":      title,
+		"updated_at": time.Now().Unix(),
+	}).Error
 }
 
 func CreateDrawingMessage(msg *DrawingMessage) error {
@@ -99,8 +102,40 @@ func CreateDrawingMessage(msg *DrawingMessage) error {
 
 func GetDrawingMessagesBySessionId(sessionId string, userId int) ([]*DrawingMessage, error) {
 	var messages []*DrawingMessage
-	err := DB.Where("session_id = ? AND user_id = ?", sessionId, userId).Order("created_at ASC").Find(&messages).Error
+	err := DB.Where("session_id = ? AND user_id = ?", sessionId, userId).Order("id ASC").Find(&messages).Error
 	return messages, err
+}
+
+func CountDrawingMessagesBySessionId(sessionId string, userId int) (int64, error) {
+	var count int64
+	err := DB.Model(&DrawingMessage{}).Where("session_id = ? AND user_id = ?", sessionId, userId).Count(&count).Error
+	return count, err
+}
+
+func GetLatestDrawingMessage(sessionId string, userId int) (*DrawingMessage, error) {
+	var msg DrawingMessage
+	err := DB.Where("session_id = ? AND user_id = ?", sessionId, userId).Order("id DESC").First(&msg).Error
+	return &msg, err
+}
+
+func GetAdjacentDrawingMessage(sessionId string, userId int, currentId int64, direction string) (*DrawingMessage, error) {
+	var msg DrawingMessage
+	query := DB.Where("session_id = ? AND user_id = ?", sessionId, userId)
+	if direction == "next" {
+		query = query.Where("id > ?", currentId).Order("id ASC")
+	} else {
+		query = query.Where("id < ?", currentId).Order("id DESC")
+	}
+	err := query.First(&msg).Error
+	return &msg, err
+}
+
+func GetDrawingMessagePosition(sessionId string, userId int, messageId int64) (int64, error) {
+	var position int64
+	err := DB.Model(&DrawingMessage{}).
+		Where("session_id = ? AND user_id = ? AND id <= ?", sessionId, userId, messageId).
+		Count(&position).Error
+	return position, err
 }
 
 func GetDrawingMessageById(id string, sessionId string, userId int) (*DrawingMessage, error) {

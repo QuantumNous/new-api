@@ -18,7 +18,12 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { useContext, useEffect, useMemo, useRef, useState } from 'react';
-import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import {
+  Link,
+  useLocation,
+  useNavigate,
+  useSearchParams,
+} from 'react-router-dom';
 import { UserContext } from '../../context/User';
 import { StatusContext } from '../../context/Status';
 import {
@@ -39,6 +44,9 @@ import {
   prepareCredentialRequestOptions,
   buildAssertionResult,
   isPasskeySupported,
+  clearLoginRedirectPath,
+  getLoginRedirectPath,
+  saveLoginRedirectPath,
 } from '../../helpers';
 import Turnstile from 'react-turnstile';
 import {
@@ -69,6 +77,7 @@ import { SiDiscord } from 'react-icons/si';
 
 const LoginForm = () => {
   let navigate = useNavigate();
+  const location = useLocation();
   const { t } = useTranslation();
   const githubButtonTextKeyByState = {
     idle: '使用 GitHub 继续',
@@ -115,6 +124,23 @@ const LoginForm = () => {
 
   const logo = getLogo();
   const systemName = getSystemName();
+
+  const getPostLoginPath = () =>
+    getLoginRedirectPath(location.state?.from, '/console');
+
+  const rememberPostLoginPath = () => {
+    saveLoginRedirectPath(getPostLoginPath());
+  };
+
+  const completeLogin = (data) => {
+    userDispatch({ type: 'login', payload: data });
+    setUserData(data);
+    updateAPI();
+    showSuccess('登录成功！');
+    const redirectPath = getPostLoginPath();
+    clearLoginRedirectPath();
+    navigate(redirectPath, { replace: true });
+  };
 
   let affCode = new URLSearchParams(window.location.search).get('aff');
   if (affCode) {
@@ -172,6 +198,12 @@ const LoginForm = () => {
     }
   }, []);
 
+  useEffect(() => {
+    if (location.state?.from) {
+      rememberPostLoginPath();
+    }
+  }, [location.state]);
+
   const onWeChatLoginClicked = () => {
     if ((hasUserAgreement || hasPrivacyPolicy) && !agreedToTerms) {
       showInfo(t('请先阅读并同意用户协议和隐私政策'));
@@ -194,12 +226,7 @@ const LoginForm = () => {
       );
       const { success, message, data } = res.data;
       if (success) {
-        userDispatch({ type: 'login', payload: data });
-        localStorage.setItem('user', JSON.stringify(data));
-        setUserData(data);
-        updateAPI();
-        navigate('/');
-        showSuccess('登录成功！');
+        completeLogin(data);
         setShowWeChatLoginModal(false);
       } else {
         showError(message);
@@ -244,10 +271,7 @@ const LoginForm = () => {
             return;
           }
 
-          userDispatch({ type: 'login', payload: data });
-          setUserData(data);
-          updateAPI();
-          showSuccess('登录成功！');
+          completeLogin(data);
           if (username === 'root' && password === '123456') {
             Modal.error({
               title: '您正在使用默认密码！',
@@ -255,7 +279,6 @@ const LoginForm = () => {
               centered: true,
             });
           }
-          navigate('/console');
         } else {
           showError(message);
         }
@@ -295,12 +318,7 @@ const LoginForm = () => {
       const res = await API.get(`/api/oauth/telegram/login`, { params });
       const { success, message, data } = res.data;
       if (success) {
-        userDispatch({ type: 'login', payload: data });
-        localStorage.setItem('user', JSON.stringify(data));
-        showSuccess('登录成功！');
-        setUserData(data);
-        updateAPI();
-        navigate('/');
+        completeLogin(data);
       } else {
         showError(message);
       }
@@ -321,6 +339,7 @@ const LoginForm = () => {
     setGithubLoading(true);
     setGithubButtonDisabled(true);
     setGithubButtonState('redirecting');
+    rememberPostLoginPath();
     if (githubTimeoutRef.current) {
       clearTimeout(githubTimeoutRef.current);
     }
@@ -344,6 +363,7 @@ const LoginForm = () => {
       return;
     }
     setDiscordLoading(true);
+    rememberPostLoginPath();
     try {
       onDiscordOAuthClicked(status.discord_client_id, { shouldLogout: true });
     } finally {
@@ -359,6 +379,7 @@ const LoginForm = () => {
       return;
     }
     setOidcLoading(true);
+    rememberPostLoginPath();
     try {
       onOIDCClicked(
         status.oidc_authorization_endpoint,
@@ -379,6 +400,7 @@ const LoginForm = () => {
       return;
     }
     setLinuxdoLoading(true);
+    rememberPostLoginPath();
     try {
       onLinuxDOOAuthClicked(status.linuxdo_client_id, { shouldLogout: true });
     } finally {
@@ -394,6 +416,7 @@ const LoginForm = () => {
       return;
     }
     setCustomOAuthLoading((prev) => ({ ...prev, [provider.slug]: true }));
+    rememberPostLoginPath();
     try {
       onCustomOAuthClicked(provider, { shouldLogout: true });
     } finally {
@@ -452,11 +475,7 @@ const LoginForm = () => {
       );
       const finish = finishRes.data;
       if (finish.success) {
-        userDispatch({ type: 'login', payload: finish.data });
-        setUserData(finish.data);
-        updateAPI();
-        showSuccess('登录成功！');
-        navigate('/console');
+        completeLogin(finish.data);
       } else {
         showError(finish.message || 'Passkey 登录失败，请重试');
       }
@@ -487,11 +506,7 @@ const LoginForm = () => {
 
   // 2FA验证成功处理
   const handle2FASuccess = (data) => {
-    userDispatch({ type: 'login', payload: data });
-    setUserData(data);
-    updateAPI();
-    showSuccess('登录成功！');
-    navigate('/console');
+    completeLogin(data);
   };
 
   // 返回登录页面
