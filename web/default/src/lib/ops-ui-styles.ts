@@ -151,18 +151,12 @@ export const publicPortalCardClassName = cn(
 
 /** Descendant overrides for legacy light-theme components inside portal pages. */
 export const publicPortalContentScopeClassName = cn(
-  '[&_.text-muted-foreground]:text-slate-400',
-  '[&_.text-muted-foreground\\/80]:text-slate-400/90',
-  '[&_.text-muted-foreground\\/60]:text-slate-500',
-  '[&_.text-muted-foreground\\/50]:text-slate-500',
+  '[&_[class*="text-muted-foreground"]]:text-slate-400',
   '[&_.text-foreground]:text-slate-100',
   '[&_.bg-background]:bg-slate-900/60',
   '[&_.bg-card]:border-white/10 [&_.bg-card]:bg-slate-900/70',
-  '[&_.bg-muted]:bg-white/5',
-  '[&_.bg-muted\\/30]:bg-white/5',
-  '[&_.bg-muted\\/40]:bg-white/5',
-  '[&_.border-border]:border-white/10',
-  '[&_.border-border\\/60]:border-white/10',
+  '[&_[class*="bg-muted"]]:bg-white/5',
+  '[&_[class*="border-border"]]:border-white/10',
   '[&_.border-dashed]:border-white/15',
   '[&_input]:border-white/15 [&_input]:bg-slate-950/50 [&_input]:text-slate-100',
   '[&_input::placeholder]:text-slate-500',
