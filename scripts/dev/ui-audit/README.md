@@ -69,8 +69,16 @@ pnpm dev --host 0.0.0.0 --port 3001
 | **source_logic_keep** | 如 `LEGACY_SYSTEM_NAMES` 屏蔽列表 |
 | **comment_or_doc** | 注释/许可证头 |
 | **p2_deep_settings** | P2 深层页（如 GitHub 更新检查） |
+| **p2_upstream_release** | 禁止暴露：GitHub release、Open release、Calcium-Ion/new-api 等 |
+| **oauth_provider_allowed** | 允许的第三方账号服务名（GitHub 登录/OAuth/绑定/Client ID 等） |
 
-匹配规则已收紧：`USD` 不会误报 `useStatus`/`status`；`$` 仅统计用户可见展示；`MJ` 为独立词。
+匹配规则已收紧：
+
+- **USD**：`value: 'USD'`、`currency: 'USD'`、`WaffoCurrency` 默认值、类型联合中的 `'USD'` 等计为 **likely_internal_contract**；仅 Label/placeholder/i18n value/用户可见文案计 actionable。
+- **$**：正则结尾 `$`、`^gpt-4o.*$` 占位符、`e.g. ¥ or HK$` 不计 actionable；用户可见 `$/M` 等仍计 actionable。
+- **GitHub**：OAuth/账号绑定/Client ID 等计 **oauth_provider_allowed**；`github_id`/`github_oauth`/`id: 'github'` 计 internal；release/上游仓库计 **p2_upstream_release**。
+- **Midjourney**：`key: 'midjourney'`、配置对象键、类型名计 internal；title/description/i18n value 计 actionable。
+- **MJ**：独立词匹配。
 
 查看全量：
 

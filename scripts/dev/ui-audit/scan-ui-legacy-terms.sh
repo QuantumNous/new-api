@@ -17,6 +17,9 @@ fi
 
 mkdir -p "$REPORT_DIR"
 
+# ERE: match single or double quote (avoid ['\"] inside [[ ]] — breaks bash parsing)
+_Q_RE='(\"|\047)'
+
 if command -v rg >/dev/null 2>&1; then
   RG=(rg -n --no-heading --color=never
     --glob '!**/node_modules/**' --glob '!**/dist/**'
@@ -64,7 +67,7 @@ match_quantumnous() {
 match_usd_strict() {
   local line="$1"
   [[ "$line" =~ (^|[^A-Za-z0-9_])USD([^A-Za-z0-9_]|$) ]] && return 0
-  [[ "$line" =~ ['\"]USD['\"] ]] && return 0
+  [[ "$line" =~ ${_Q_RE}USD${_Q_RE} ]] && return 0
   [[ "$line" =~ currency[^[:alnum:]]*USD|USD[^[:alnum:]]*currency ]] && return 0
   return 1
 }
@@ -90,15 +93,90 @@ match_user_visible_dollar_sign() {
   local rel="$2"
   [[ "$line" =~ \$\{ ]] && return 1
   [[ "$line" =~ /\.(test|spec)\./ ]] && return 1
+  # Regex end anchors / placeholder patterns (not currency symbols)
+  if [[ "$line" =~ \^\$|'\^|\^gpt|\^claude|\^[-0-9A-Za-z]|\.\*\$|'\^|\"\^ ]]; then
+    return 1
+  fi
+  if [[ "$line" =~ e\.g\.|HK\$|¥ ]]; then
+    return 1
+  fi
   if [[ "$rel" == */locales/*.json ]]; then
     [[ "$line" =~ :[[:space:]]*\"[^\"]*\$[^\"]*\" ]] && return 0
   fi
   if [[ "$rel" == *.tsx ]] || [[ "$rel" == *.ts ]]; then
     [[ "$line" =~ (placeholder|description|title|label|toast|FormDescription|FormLabel) ]] \
       && [[ "$line" =~ \$ ]] && return 0
-    [[ "$line" =~ ['\"]\$['\"] ]] && return 0
-    [[ "$line" =~ InputGroupAddon.*\$|\$[[:space:]]*/(1M|1K|request) ]] && return 0
+    [[ "$line" =~ ${_Q_RE}\$${_Q_RE} ]] && return 0
+    [[ "$line" =~ InputGroupAddon.*\$|\$[[:space:]]*/(1M|1K|request|million) ]] && return 0
   fi
+  return 1
+}
+
+is_usd_internal_contract() {
+  local line="$1"
+  [[ "$line" =~ z\.enum.*USD ]] && return 0
+  match_usd_code_var "$line" && return 0
+  [[ "$line" =~ USD ]] || return 1
+  # Code literals / defaults / enum values — not user-facing copy
+  if [[ "$line" =~ t\( ]]; then
+    return 1
+  fi
+  if [[ "$line" =~ (currency|value|WaffoCurrency|WaffoPancakeCurrency|quotaDisplayType|quota_display_type|displayType|quotaDisplayType|SelectItem|item\.currency) ]]; then
+    return 0
+  fi
+  if [[ "$line" =~ (\|\||\?\?|===|==) ]]; then
+    return 0
+  fi
+  if [[ "$line" =~ (general_setting\.quota_display_type|form\.watch) ]]; then
+    return 0
+  fi
+  return 1
+}
+
+is_github_upstream_forbidden() {
+  local line="$1"
+  [[ "$line" =~ [Oo]pen[[:space:]]+release ]] && return 0
+  [[ "$line" =~ [Gg]it[Hh]ub[[:space:]]+release ]] && return 0
+  [[ "$line" =~ Calcium-Ion/new-api ]] && return 0
+  [[ "$line" =~ new-api[[:space:]]+release ]] && return 0
+  [[ "$line" =~ [Oo]pen[[:space:]]+in[[:space:]]+Git[Hh]ub ]] && return 0
+  [[ "$line" =~ api\.github\.com/repos ]] && return 0
+  return 1
+}
+
+is_github_oauth_allowed() {
+  local line="$1"
+  local rel="$2"
+  [[ "$line" =~ (account|OAuth|Client[[:space:]]+ID|Client[[:space:]]+Secret|ClientId|ClientSecret|binding|sign-in|sign[[:space:]]+in|login|Bind|Bound|Continue[[:space:]]+with|账户) ]] \
+    && [[ "$line" =~ [Gg]it[Hh]ub ]] && return 0
+  [[ "$line" =~ title\>GitHub[[:space:]]+account ]] && return 0
+  if [[ "$rel" == *oauth* ]] && [[ "$line" =~ t\(.*GitHub ]]; then
+    return 0
+  fi
+  return 1
+}
+
+is_github_internal_contract() {
+  local line="$1"
+  [[ "$line" =~ github_oauth|github_id|githubButton|handleGitHub|github\.com|github_client ]] && return 0
+  [[ "$line" =~ GitHub(Client|OAuth|OAuthEnabled|ClientId|ClientSecret) ]] && return 0
+  [[ "$line" =~ useState\(.*github ]] && return 0
+  [[ "$line" =~ (key|id|field|statusKey|provider|value|name|activeTab)[[:space:]:=]*.*github ]] && return 0
+  [[ "$line" =~ provider\?: ]] && [[ "$line" =~ github ]] && return 0
+  [[ "$line" =~ Tabs(Content|Trigger).*github ]] && return 0
+  [[ "$line" =~ label:[[:space:]]*.*GitHub ]] && return 0
+  [[ "$line" =~ github:[[:space:]]*\{ ]] && return 0
+  return 1
+}
+
+is_midjourney_internal_contract() {
+  local line="$1"
+  [[ "$line" =~ key:[[:space:]]*.*midjourney ]] && return 0
+  [[ "$line" =~ midjourney:[[:space:]]*(\{|[[:space:]]*true) ]] && return 0
+  [[ "$line" =~ midjourney\.go|MidjourneyLog|getAllMidjourneyLogs|getUserMidjourneyLogs|GetMidjourneyLogs ]] && return 0
+  [[ "$line" =~ module:[[:space:]]*.*midjourney ]] && return 0
+  [[ "$line" =~ /usage-logs/drawing ]] && return 0
+  [[ "$line" =~ midjourney[[:space:]]*=[[:space:]]*true ]] && return 0
   return 1
 }
 
@@ -110,7 +188,7 @@ match_midjourney() {
 match_mj_strict() {
   local line="$1"
   [[ "$line" =~ (^|[^A-Za-z0-9_])MJ([^A-Za-z0-9_]|$) ]] && return 0
-  [[ "$line" =~ ['\"]MJ['\"] ]] && return 0
+  [[ "$line" =~ ${_Q_RE}MJ${_Q_RE} ]] && return 0
   return 1
 }
 
@@ -187,28 +265,50 @@ classify_hit() {
     return 0
   fi
 
-  if [[ "$line" =~ getElementById\(['\"]fluent-new-api-container['\"] ]]; then
+  if [[ "$line" =~ getElementById.*fluent-new-api-container ]]; then
     echo "likely_internal_contract"
     return 0
   fi
 
-  local _gh_internal='(GitHubOAuth|GitHubClient|github_client|github\.com|TabsTrigger|TabsContent|activeTab)'
-  local _has_t_call='t\('
-  if [[ "$term" == GitHub ]] && [[ "$line" =~ $_gh_internal ]] && [[ ! "$line" =~ $_has_t_call ]]; then
+  if [[ "$term" == GitHub ]]; then
+    if is_github_upstream_forbidden "$line"; then
+      echo "p2_upstream_release"
+      return 0
+    fi
+    if is_github_internal_contract "$line"; then
+      echo "likely_internal_contract"
+      return 0
+    fi
+    if is_github_oauth_allowed "$line" "$rel"; then
+      echo "oauth_provider_allowed"
+      return 0
+    fi
+  fi
+
+  if [[ "$term" == USD ]] && is_usd_internal_contract "$line"; then
     echo "likely_internal_contract"
     return 0
+  fi
+
+  if [[ "$term" == Midjourney ]] && is_midjourney_internal_contract "$line"; then
+    echo "likely_internal_contract"
+    return 0
+  fi
+
+  if [[ "$term" == \$ ]]; then
+    if [[ "$line" =~ placeholder.*\^.*\$ ]] || [[ "$line" =~ \^\[-0-9A-Za-z ]] || [[ "$line" =~ \^\^gpt ]]; then
+      echo "likely_internal_contract"
+      return 0
+    fi
+    if ! match_user_visible_dollar_sign "$line" "$rel"; then
+      echo "likely_internal_contract"
+      return 0
+    fi
   fi
 
   local _wallet_icon='(lucide-react|Wallet className|<Wallet )'
+  local _has_t_call='t\('
   if [[ "$term" == Wallet ]] && [[ "$line" =~ $_wallet_icon ]] && [[ ! "$line" =~ $_has_t_call ]]; then
-    echo "likely_internal_contract"
-    return 0
-  fi
-
-  local _usd_cfg='(z\.enum|quota_display_type|quotaDisplayType|value=.USD.|=== .USD.)'
-  local _usd_ui='(FormLabel|placeholder|description|title)'
-  if [[ "$term" == USD ]] && [[ "$line" =~ $_usd_cfg ]] \
-    && [[ ! "$line" =~ $_has_t_call ]] && [[ ! "$line" =~ $_usd_ui ]]; then
     echo "likely_internal_contract"
     return 0
   fi
@@ -223,8 +323,8 @@ classify_hit() {
     return 0
   fi
 
-  if [[ "$line" =~ (^|[^A-Za-z0-9_])id:[[:space:]]*['\"]new-api['\"] ]] \
-    || [[ "$line" =~ value:[[:space:]]*['\"]new-api['\"] ]]; then
+  if [[ "$line" =~ (^|[^A-Za-z0-9_])id:[[:space:]]*${_Q_RE}new-api${_Q_RE} ]] \
+    || [[ "$line" =~ value:[[:space:]]*${_Q_RE}new-api${_Q_RE} ]]; then
     echo "likely_internal_contract"
     return 0
   fi
@@ -239,7 +339,7 @@ classify_hit() {
     return 0
   fi
 
-  if [[ "$line" =~ /api/|'/api|\"/api ]]; then
+  if [[ "$line" =~ /api/ ]]; then
     echo "likely_internal_contract"
     return 0
   fi
@@ -268,9 +368,8 @@ classify_hit() {
     fi
   fi
 
-  if [[ "$line" =~ t\(['\"] ]]; then
-    local _jsx_text_re='>[[:space:]]*[^<]{0,80}t\('
-    if [[ ! "$line" =~ $_jsx_text_re ]]; then
+  if [[ "$line" =~ t\( ]]; then
+    if [[ ! "$line" =~ \>.{0,80}t\( ]]; then
       echo "i18n_key_only"
       return 0
     fi
@@ -521,6 +620,8 @@ P1_EXTRA=$((P1_ACTIONABLE > P1_MD_LIMIT ? P1_ACTIONABLE - P1_MD_LIMIT : 0))
   echo "| source_logic_keep | 遗留名屏蔽等保留逻辑 |"
   echo "| comment_or_doc | 注释/许可证 |"
   echo "| p2_deep_settings | P2 深层页（如 GitHub 更新检查） |"
+  echo "| p2_upstream_release | 禁止暴露的上游 release/仓库链接 |"
+  echo "| oauth_provider_allowed | 允许的第三方账号服务名（GitHub OAuth 等） |"
 } >"$REPORT"
 
 cat >"$META" <<EOF
