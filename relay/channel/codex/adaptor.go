@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/relay/channel"
 	"github.com/QuantumNous/new-api/relay/channel/openai"
@@ -19,6 +20,18 @@ import (
 )
 
 type Adaptor struct {
+}
+
+func forceCodexResponsesStream(c *gin.Context, info *relaycommon.RelayInfo, request *dto.OpenAIResponsesRequest) {
+	if request != nil {
+		request.Stream = common.GetPointer(true)
+	}
+	if info != nil {
+		info.IsStream = true
+	}
+	if c != nil {
+		c.Set(string(constant.ContextKeyIsStream), true)
+	}
 }
 
 func (a *Adaptor) ConvertGeminiRequest(c *gin.Context, info *relaycommon.RelayInfo, request *dto.GeminiChatRequest) (any, error) {
@@ -101,6 +114,9 @@ func (a *Adaptor) ConvertOpenAIResponsesRequest(c *gin.Context, info *relaycommo
 	}
 	// codex: store must be false
 	request.Store = json.RawMessage("false")
+	// Codex backend requires streaming responses. Keep RelayInfo in sync so
+	// the downstream response is handled as SSE too.
+	forceCodexResponsesStream(c, info, &request)
 	// rm max_output_tokens
 	request.MaxOutputTokens = nil
 	request.Temperature = nil

@@ -77,7 +77,15 @@ func ResponsesHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *
 		if err != nil {
 			return types.NewError(err, types.ErrorCodeReadRequestBodyFailed, types.ErrOptionWithSkipRetry())
 		}
-		requestBody = common.ReaderOnly(storage)
+		if info.ApiType == appconstant.APITypeCodex && info.RelayMode == relayconstant.RelayModeResponses {
+			jsonData, err := normalizeCodexResponsesPassthroughBody(c, info, storage)
+			if err != nil {
+				return types.NewError(err, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
+			}
+			requestBody = bytes.NewBuffer(jsonData)
+		} else {
+			requestBody = common.ReaderOnly(storage)
+		}
 	} else {
 		convertedRequest, err := adaptor.ConvertOpenAIResponsesRequest(c, info, *request)
 		if err != nil {
@@ -157,4 +165,26 @@ func ResponsesHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *
 		service.PostTextConsumeQuota(c, info, usageDto, nil)
 	}
 	return nil
+}
+
+func normalizeCodexResponsesPassthroughBody(c *gin.Context, info *relaycommon.RelayInfo, storage common.BodyStorage) ([]byte, error) {
+	body, err := storage.Bytes()
+	if err != nil {
+		return nil, err
+	}
+	reqBody := make(map[string]interface{})
+	if err := common.Unmarshal(body, &reqBody); err != nil {
+		return nil, err
+	}
+
+	reqBody["stream"] = true
+	reqBody["store"] = false
+	if info != nil {
+		info.IsStream = true
+	}
+	if c != nil {
+		c.Set(string(appconstant.ContextKeyIsStream), true)
+	}
+
+	return common.Marshal(reqBody)
 }
