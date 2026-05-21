@@ -141,5 +141,15 @@ const authRegistry = createSectionRegistry<AuthSectionId, AuthSettings>({
 
 export const AUTH_SECTION_IDS = authRegistry.sectionIds
 export const AUTH_DEFAULT_SECTION = authRegistry.defaultSection
-export const getAuthSectionNavItems = authRegistry.getSectionNavItems
+/** Hidden from customer-demo navigation; direct URL still resolves. */
+const DEMO_HIDDEN_AUTH_NAV_PATHS = ['/auth/oauth'] as const
+
+export function getAuthSectionNavItems(
+  t: Parameters<typeof authRegistry.getSectionNavItems>[0]
+) {
+  return authRegistry.getSectionNavItems(t).filter(
+    (item) =>
+      !DEMO_HIDDEN_AUTH_NAV_PATHS.some((hidden) => item.url.includes(hidden))
+  )
+}
 export const getAuthSectionContent = authRegistry.getSectionContent
