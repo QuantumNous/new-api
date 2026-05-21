@@ -288,6 +288,10 @@ func AdminBindSubscription(c *gin.Context) {
 		common.ApiErrorMsg(c, "参数错误")
 		return
 	}
+	scope := model.TenantScopeFromContext(c)
+	if !ensureAdminTargetUserInTenant(c, req.UserId, scope) {
+		return
+	}
 	msg, err := model.AdminBindSubscription(req.UserId, req.PlanId, "")
 	if err != nil {
 		common.ApiError(c, err)
@@ -311,11 +315,23 @@ func ensureAdminTargetUserInTenant(c *gin.Context, userId int, scope model.Tenan
 		common.ApiErrorMsg(c, "用户不存在或无权访问")
 		return false
 	}
-	userTenantId := user.TenantId
-	if userTenantId == 0 {
-		userTenantId = 1
+	if !scope.AllowsTenant(user.TenantId) {
+		common.ApiErrorMsg(c, "用户不存在或无权访问")
+		return false
 	}
-	if userTenantId != scope.TenantId {
+	return true
+}
+
+func ensureAdminSubscriptionInTenant(c *gin.Context, subId int, scope model.TenantScope) bool {
+	if scope.IsRoot {
+		return true
+	}
+	var sub model.UserSubscription
+	if err := model.DB.Where("id = ?", subId).First(&sub).Error; err != nil {
+		common.ApiErrorMsg(c, "用户不存在或无权访问")
+		return false
+	}
+	if !scope.AllowsTenant(sub.TenantId) {
 		common.ApiErrorMsg(c, "用户不存在或无权访问")
 		return false
 	}
@@ -356,6 +372,10 @@ func AdminCreateUserSubscription(c *gin.Context) {
 		common.ApiErrorMsg(c, "参数错误")
 		return
 	}
+	scope := model.TenantScopeFromContext(c)
+	if !ensureAdminTargetUserInTenant(c, userId, scope) {
+		return
+	}
 	msg, err := model.AdminBindSubscription(userId, req.PlanId, "")
 	if err != nil {
 		common.ApiError(c, err)
@@ -375,6 +395,9 @@ func AdminInvalidateUserSubscription(c *gin.Context) {
 		common.ApiErrorMsg(c, "无效的订阅ID")
 		return
 	}
+	if !ensureAdminSubscriptionInTenant(c, subId, model.TenantScopeFromContext(c)) {
+		return
+	}
 	msg, err := model.AdminInvalidateUserSubscription(subId)
 	if err != nil {
 		common.ApiError(c, err)
@@ -392,6 +415,9 @@ func AdminDeleteUserSubscription(c *gin.Context) {
 	subId, _ := strconv.Atoi(c.Param("id"))
 	if subId <= 0 {
 		common.ApiErrorMsg(c, "无效的订阅ID")
+		return
+	}
+	if !ensureAdminSubscriptionInTenant(c, subId, model.TenantScopeFromContext(c)) {
 		return
 	}
 	msg, err := model.AdminDeleteUserSubscription(subId)

@@ -211,6 +211,9 @@ func FetchUpstreamModels(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
+	if !requireChannelTenantAccess(c, channel) {
+		return
+	}
 
 	ids, err := fetchChannelUpstreamModelIDs(channel)
 	if err != nil {
@@ -370,6 +373,9 @@ func GetChannel(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
+	if !requireChannelTenantAccess(c, channel) {
+		return
+	}
 	if channel != nil {
 		clearChannelInfo(channel)
 	}
@@ -500,6 +506,15 @@ func RefreshCodexChannelCredential(c *gin.Context) {
 		return
 	}
 
+	channel, err := model.GetChannelById(channelId, false)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	if !requireChannelTenantAccess(c, channel) {
+		return
+	}
+
 	ctx, cancel := context.WithTimeout(c.Request.Context(), 10*time.Second)
 	defer cancel()
 
@@ -507,6 +522,9 @@ func RefreshCodexChannelCredential(c *gin.Context) {
 	if err != nil {
 		common.SysError("failed to refresh codex channel credential: " + err.Error())
 		c.JSON(http.StatusOK, gin.H{"success": false, "message": "刷新凭证失败，请稍后重试"})
+		return
+	}
+	if !requireChannelTenantAccess(c, ch) {
 		return
 	}
 
@@ -666,8 +684,15 @@ func AddChannel(c *gin.Context) {
 
 func DeleteChannel(c *gin.Context) {
 	id, _ := strconv.Atoi(c.Param("id"))
-	channel := model.Channel{Id: id}
-	err := channel.Delete()
+	channel, err := model.GetChannelById(id, true)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	if !requireChannelTenantAccess(c, channel) {
+		return
+	}
+	err = channel.Delete()
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -681,7 +706,7 @@ func DeleteChannel(c *gin.Context) {
 }
 
 func DeleteDisabledChannel(c *gin.Context) {
-	rows, err := model.DeleteDisabledChannel()
+	rows, err := model.DeleteDisabledChannel(model.TenantScopeFromContext(c))
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -717,7 +742,7 @@ func DisableTagChannels(c *gin.Context) {
 		})
 		return
 	}
-	err = model.DisableChannelByTag(channelTag.Tag)
+	err = model.DisableChannelByTag(channelTag.Tag, model.TenantScopeFromContext(c))
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -740,7 +765,7 @@ func EnableTagChannels(c *gin.Context) {
 		})
 		return
 	}
-	err = model.EnableChannelByTag(channelTag.Tag)
+	err = model.EnableChannelByTag(channelTag.Tag, model.TenantScopeFromContext(c))
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -792,7 +817,7 @@ func EditTagChannels(c *gin.Context) {
 		}
 		channelTag.HeaderOverride = common.GetPointer[string](trimmed)
 	}
-	err = model.EditChannelByTag(channelTag.Tag, channelTag.NewTag, channelTag.ModelMapping, channelTag.Models, channelTag.Groups, channelTag.Priority, channelTag.Weight, channelTag.ParamOverride, channelTag.HeaderOverride)
+	err = model.EditChannelByTag(channelTag.Tag, channelTag.NewTag, channelTag.ModelMapping, channelTag.Models, channelTag.Groups, channelTag.Priority, channelTag.Weight, channelTag.ParamOverride, channelTag.HeaderOverride, model.TenantScopeFromContext(c))
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -818,6 +843,14 @@ func DeleteChannelBatch(c *gin.Context) {
 			"success": false,
 			"message": "参数错误",
 		})
+		return
+	}
+	channels, err := model.GetChannelsByIds(channelBatch.Ids)
+	if err != nil || len(channels) != len(channelBatch.Ids) {
+		common.ApiErrorMsg(c, tenantAccessDeniedMessage)
+		return
+	}
+	if !requireChannelsTenantAccess(c, channels) {
 		return
 	}
 	err = model.BatchDeleteChannels(channelBatch.Ids)
@@ -863,6 +896,9 @@ func UpdateChannel(c *gin.Context) {
 			"success": false,
 			"message": err.Error(),
 		})
+		return
+	}
+	if !requireChannelTenantAccess(c, originChannel) {
 		return
 	}
 
@@ -1101,6 +1137,14 @@ func BatchSetChannelTag(c *gin.Context) {
 		})
 		return
 	}
+	channels, err := model.GetChannelsByIds(channelBatch.Ids)
+	if err != nil || len(channels) != len(channelBatch.Ids) {
+		common.ApiErrorMsg(c, tenantAccessDeniedMessage)
+		return
+	}
+	if !requireChannelsTenantAccess(c, channels) {
+		return
+	}
 	err = model.BatchSetChannelTag(channelBatch.Ids, channelBatch.Tag)
 	if err != nil {
 		common.ApiError(c, err)
@@ -1184,6 +1228,9 @@ func CopyChannel(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"success": false, "message": "获取渠道信息失败，请稍后重试"})
 		return
 	}
+	if !requireChannelTenantAccess(c, origin) {
+		return
+	}
 
 	// clone channel
 	clone := *origin // shallow copy is sufficient as we will overwrite primitives
@@ -1254,6 +1301,9 @@ func ManageMultiKeys(c *gin.Context) {
 			"success": false,
 			"message": "渠道不存在",
 		})
+		return
+	}
+	if !requireChannelTenantAccess(c, channel) {
 		return
 	}
 
@@ -1730,6 +1780,9 @@ func OllamaPullModel(c *gin.Context) {
 		})
 		return
 	}
+	if !requireChannelTenantAccess(c, channel) {
+		return
+	}
 
 	// 检查是否是 Ollama 渠道
 	if channel.Type != constant.ChannelTypeOllama {
@@ -1791,6 +1844,9 @@ func OllamaPullModelStream(c *gin.Context) {
 			"success": false,
 			"message": "Channel not found",
 		})
+		return
+	}
+	if !requireChannelTenantAccess(c, channel) {
 		return
 	}
 
@@ -1875,6 +1931,9 @@ func OllamaDeleteModel(c *gin.Context) {
 		})
 		return
 	}
+	if !requireChannelTenantAccess(c, channel) {
+		return
+	}
 
 	// 检查是否是 Ollama 渠道
 	if channel.Type != constant.ChannelTypeOllama {
@@ -1923,6 +1982,9 @@ func OllamaVersion(c *gin.Context) {
 			"success": false,
 			"message": "Channel not found",
 		})
+		return
+	}
+	if !requireChannelTenantAccess(c, channel) {
 		return
 	}
 

@@ -50,6 +50,9 @@ func GetRedemption(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
+	if !requireRedemptionTenantAccess(c, redemption) {
+		return
+	}
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",
@@ -115,7 +118,15 @@ func AddRedemption(c *gin.Context) {
 
 func DeleteRedemption(c *gin.Context) {
 	id, _ := strconv.Atoi(c.Param("id"))
-	err := model.DeleteRedemptionById(id)
+	redemption, err := model.GetRedemptionById(id)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	if !requireRedemptionTenantAccess(c, redemption) {
+		return
+	}
+	err = model.DeleteRedemptionById(id)
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -138,6 +149,9 @@ func UpdateRedemption(c *gin.Context) {
 	cleanRedemption, err := model.GetRedemptionById(redemption.Id)
 	if err != nil {
 		common.ApiError(c, err)
+		return
+	}
+	if !requireRedemptionTenantAccess(c, cleanRedemption) {
 		return
 	}
 	if statusOnly == "" {
@@ -167,7 +181,7 @@ func UpdateRedemption(c *gin.Context) {
 }
 
 func DeleteInvalidRedemption(c *gin.Context) {
-	rows, err := model.DeleteInvalidRedemptions()
+	rows, err := model.DeleteInvalidRedemptions(model.TenantScopeFromContext(c))
 	if err != nil {
 		common.ApiError(c, err)
 		return

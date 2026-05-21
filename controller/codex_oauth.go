@@ -83,6 +83,9 @@ func startCodexOAuthWithChannelID(c *gin.Context, channelID int) {
 			c.JSON(http.StatusOK, gin.H{"success": false, "message": "channel not found"})
 			return
 		}
+		if !requireChannelTenantAccess(c, ch) {
+			return
+		}
 		if ch.Type != constant.ChannelTypeCodex {
 			c.JSON(http.StatusOK, gin.H{"success": false, "message": "channel type is not Codex"})
 			return
@@ -154,6 +157,9 @@ func completeCodexOAuthWithChannelID(c *gin.Context, channelID int) {
 		}
 		if ch == nil {
 			c.JSON(http.StatusOK, gin.H{"success": false, "message": "channel not found"})
+			return
+		}
+		if !requireChannelTenantAccess(c, ch) {
 			return
 		}
 		if ch.Type != constant.ChannelTypeCodex {

@@ -699,6 +699,9 @@ func ApplyChannelUpstreamModelUpdates(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
+	if !requireChannelTenantAccess(c, channel) {
+		return
+	}
 	beforeSettings := channel.GetOtherSettings()
 	ignoredModels := intersectModelNames(req.IgnoreModels, beforeSettings.UpstreamModelUpdateLastDetectedModels)
 
@@ -750,6 +753,9 @@ func DetectChannelUpstreamModelUpdates(c *gin.Context) {
 	channel, err := model.GetChannelById(req.ID, true)
 	if err != nil {
 		common.ApiError(c, err)
+		return
+	}
+	if !requireChannelTenantAccess(c, channel) {
 		return
 	}
 
@@ -850,6 +856,7 @@ func ApplyAllChannelUpstreamModelUpdates(c *gin.Context) {
 	refreshNeeded := false
 	addedModelCount := 0
 	removedModelCount := 0
+	scope := model.TenantScopeFromContext(c)
 
 	lastID := 0
 	for {
@@ -865,6 +872,9 @@ func ApplyAllChannelUpstreamModelUpdates(c *gin.Context) {
 
 		for _, channel := range channels {
 			if channel == nil {
+				continue
+			}
+			if !scope.AllowsTenant(channel.TenantId) {
 				continue
 			}
 
@@ -931,6 +941,7 @@ func DetectAllChannelUpstreamModelUpdates(c *gin.Context) {
 	detectedAddCount := 0
 	detectedRemoveCount := 0
 	refreshNeeded := false
+	scope := model.TenantScopeFromContext(c)
 
 	lastID := 0
 	for {
@@ -946,6 +957,9 @@ func DetectAllChannelUpstreamModelUpdates(c *gin.Context) {
 
 		for _, channel := range channels {
 			if channel == nil {
+				continue
+			}
+			if !scope.AllowsTenant(channel.TenantId) {
 				continue
 			}
 			settings := channel.GetOtherSettings()

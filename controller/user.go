@@ -274,6 +274,9 @@ func GetUser(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
+	if !requireUserTenantAccess(c, user) {
+		return
+	}
 	myRole := c.GetInt("role")
 	if myRole <= user.Role && myRole != common.RoleRootUser {
 		common.ApiErrorI18n(c, i18n.MsgUserNoPermissionSameLevel)
@@ -561,6 +564,9 @@ func UpdateUser(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
+	if !requireUserTenantAccess(c, originUser) {
+		return
+	}
 	myRole := c.GetInt("role")
 	if myRole <= originUser.Role && myRole != common.RoleRootUser {
 		common.ApiErrorI18n(c, i18n.MsgUserNoPermissionHigherLevel)
@@ -766,6 +772,9 @@ func DeleteUser(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
+	if !requireUserTenantAccess(c, originUser) {
+		return
+	}
 	myRole := c.GetInt("role")
 	if myRole <= originUser.Role {
 		common.ApiErrorI18n(c, i18n.MsgUserNoPermissionHigherLevel)
@@ -864,6 +873,9 @@ func ManageUser(c *gin.Context) {
 	model.DB.Unscoped().Where(&user).First(&user)
 	if user.Id == 0 {
 		common.ApiErrorI18n(c, i18n.MsgUserNotExists)
+		return
+	}
+	if !requireUserTenantAccess(c, &user) {
 		return
 	}
 	myRole := c.GetInt("role")

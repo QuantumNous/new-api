@@ -206,8 +206,12 @@ func DeleteRedemptionById(id int) (err error) {
 	return redemption.Delete()
 }
 
-func DeleteInvalidRedemptions() (int64, error) {
+func DeleteInvalidRedemptions(scopes ...TenantScope) (int64, error) {
 	now := common.GetTimestamp()
-	result := DB.Where("status IN ? OR (status = ? AND expired_time != 0 AND expired_time < ?)", []int{common.RedemptionCodeStatusUsed, common.RedemptionCodeStatusDisabled}, common.RedemptionCodeStatusEnabled, now).Delete(&Redemption{})
+	query := DB.Where("status IN ? OR (status = ? AND expired_time != 0 AND expired_time < ?)", []int{common.RedemptionCodeStatusUsed, common.RedemptionCodeStatusDisabled}, common.RedemptionCodeStatusEnabled, now)
+	if len(scopes) > 0 {
+		query = scopes[0].Apply(query, "redemptions")
+	}
+	result := query.Delete(&Redemption{})
 	return result.RowsAffected, result.Error
 }

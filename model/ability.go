@@ -268,11 +268,15 @@ func UpdateAbilityStatus(channelId int, status bool) error {
 	return DB.Model(&Ability{}).Where("channel_id = ?", channelId).Select("enabled").Update("enabled", status).Error
 }
 
-func UpdateAbilityStatusByTag(tag string, status bool) error {
-	return DB.Model(&Ability{}).Where("tag = ?", tag).Select("enabled").Update("enabled", status).Error
+func UpdateAbilityStatusByTag(tag string, status bool, scopes ...TenantScope) error {
+	query := DB.Model(&Ability{}).Where("tag = ?", tag)
+	if len(scopes) > 0 {
+		query = scopes[0].Apply(query, "abilities")
+	}
+	return query.Select("enabled").Update("enabled", status).Error
 }
 
-func UpdateAbilityByTag(tag string, newTag *string, priority *int64, weight *uint) error {
+func UpdateAbilityByTag(tag string, newTag *string, priority *int64, weight *uint, scopes ...TenantScope) error {
 	ability := Ability{}
 	if newTag != nil {
 		ability.Tag = newTag
@@ -283,7 +287,11 @@ func UpdateAbilityByTag(tag string, newTag *string, priority *int64, weight *uin
 	if weight != nil {
 		ability.Weight = *weight
 	}
-	return DB.Model(&Ability{}).Where("tag = ?", tag).Updates(ability).Error
+	query := DB.Model(&Ability{}).Where("tag = ?", tag)
+	if len(scopes) > 0 {
+		query = scopes[0].Apply(query, "abilities")
+	}
+	return query.Updates(ability).Error
 }
 
 var fixLock = sync.Mutex{}

@@ -14,24 +14,34 @@ type TenantScope struct {
 	IsRoot   bool
 }
 
+func normalizeTenantId(tenantId int) int {
+	if tenantId == 0 {
+		return 1
+	}
+	return tenantId
+}
+
 func TenantScopeFromContext(c *gin.Context) TenantScope {
 	scope := TenantScope{
 		TenantId: common.GetContextKeyInt(c, constant.ContextKeyTenantId),
 		IsRoot:   c.GetInt("role") == common.RoleRootUser,
 	}
-	if scope.TenantId == 0 {
-		scope.TenantId = 1
-	}
+	scope.TenantId = normalizeTenantId(scope.TenantId)
 	return scope
+}
+
+func (scope TenantScope) AllowsTenant(tenantId int) bool {
+	if scope.IsRoot {
+		return true
+	}
+	return normalizeTenantId(scope.TenantId) == normalizeTenantId(tenantId)
 }
 
 func (scope TenantScope) Apply(db *gorm.DB, tableAliasOrName string) *gorm.DB {
 	if scope.IsRoot {
 		return db
 	}
-	if scope.TenantId == 0 {
-		scope.TenantId = 1
-	}
+	scope.TenantId = normalizeTenantId(scope.TenantId)
 	column := "tenant_id"
 	if tableAliasOrName != "" {
 		column = fmt.Sprintf("%s.tenant_id", tableAliasOrName)

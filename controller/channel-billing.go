@@ -432,6 +432,9 @@ func UpdateChannelBalance(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
+	if !requireChannelTenantAccess(c, channel) {
+		return
+	}
 	if channel.ChannelInfo.IsMultiKey {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
@@ -451,12 +454,19 @@ func UpdateChannelBalance(c *gin.Context) {
 	})
 }
 
-func updateAllChannelsBalance() error {
+func updateAllChannelsBalance(scopes ...model.TenantScope) error {
 	channels, err := model.GetAllChannels(0, 0, true, false)
 	if err != nil {
 		return err
 	}
+	scope := model.TenantScope{IsRoot: true}
+	if len(scopes) > 0 {
+		scope = scopes[0]
+	}
 	for _, channel := range channels {
+		if !scope.AllowsTenant(channel.TenantId) {
+			continue
+		}
 		if channel.Status != common.ChannelStatusEnabled {
 			continue
 		}
@@ -483,7 +493,7 @@ func updateAllChannelsBalance() error {
 
 func UpdateAllChannelsBalance(c *gin.Context) {
 	// TODO: make it async
-	err := updateAllChannelsBalance()
+	err := updateAllChannelsBalance(model.TenantScopeFromContext(c))
 	if err != nil {
 		common.ApiError(c, err)
 		return

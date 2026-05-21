@@ -826,6 +826,9 @@ func TestChannel(c *gin.Context) {
 			return
 		}
 	}
+	if !requireChannelTenantAccess(c, channel) {
+		return
+	}
 	//defer func() {
 	//	if channel.ChannelInfo.IsMultiKey {
 	//		go func() { _ = channel.SaveChannelInfo() }()
@@ -871,7 +874,7 @@ func TestChannel(c *gin.Context) {
 var testAllChannelsLock sync.Mutex
 var testAllChannelsRunning bool = false
 
-func testAllChannels(notify bool) error {
+func testAllChannels(notify bool, scopes ...model.TenantScope) error {
 
 	testAllChannelsLock.Lock()
 	if testAllChannelsRunning {
@@ -883,6 +886,10 @@ func testAllChannels(notify bool) error {
 	channels, getChannelErr := model.GetAllChannels(0, 0, true, false)
 	if getChannelErr != nil {
 		return getChannelErr
+	}
+	scope := model.TenantScope{IsRoot: true}
+	if len(scopes) > 0 {
+		scope = scopes[0]
 	}
 	var disableThreshold = int64(common.ChannelDisableThreshold * 1000)
 	if disableThreshold == 0 {
@@ -897,6 +904,9 @@ func testAllChannels(notify bool) error {
 		}()
 
 		for _, channel := range channels {
+			if !scope.AllowsTenant(channel.TenantId) {
+				continue
+			}
 			if channel.Status == common.ChannelStatusManuallyDisabled {
 				continue
 			}
@@ -944,7 +954,7 @@ func testAllChannels(notify bool) error {
 }
 
 func TestAllChannels(c *gin.Context) {
-	err := testAllChannels(true)
+	err := testAllChannels(true, model.TenantScopeFromContext(c))
 	if err != nil {
 		common.ApiError(c, err)
 		return

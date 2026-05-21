@@ -755,25 +755,33 @@ func UpdateChannelStatus(channelId int, usingKey string, status int, reason stri
 	return true
 }
 
-func EnableChannelByTag(tag string) error {
-	err := DB.Model(&Channel{}).Where("tag = ?", tag).Update("status", common.ChannelStatusEnabled).Error
+func EnableChannelByTag(tag string, scopes ...TenantScope) error {
+	query := DB.Model(&Channel{}).Where("tag = ?", tag)
+	if len(scopes) > 0 {
+		query = scopes[0].Apply(query, "channels")
+	}
+	err := query.Update("status", common.ChannelStatusEnabled).Error
 	if err != nil {
 		return err
 	}
-	err = UpdateAbilityStatusByTag(tag, true)
+	err = UpdateAbilityStatusByTag(tag, true, scopes...)
 	return err
 }
 
-func DisableChannelByTag(tag string) error {
-	err := DB.Model(&Channel{}).Where("tag = ?", tag).Update("status", common.ChannelStatusManuallyDisabled).Error
+func DisableChannelByTag(tag string, scopes ...TenantScope) error {
+	query := DB.Model(&Channel{}).Where("tag = ?", tag)
+	if len(scopes) > 0 {
+		query = scopes[0].Apply(query, "channels")
+	}
+	err := query.Update("status", common.ChannelStatusManuallyDisabled).Error
 	if err != nil {
 		return err
 	}
-	err = UpdateAbilityStatusByTag(tag, false)
+	err = UpdateAbilityStatusByTag(tag, false, scopes...)
 	return err
 }
 
-func EditChannelByTag(tag string, newTag *string, modelMapping *string, models *string, group *string, priority *int64, weight *uint, paramOverride *string, headerOverride *string) error {
+func EditChannelByTag(tag string, newTag *string, modelMapping *string, models *string, group *string, priority *int64, weight *uint, paramOverride *string, headerOverride *string, scopes ...TenantScope) error {
 	updateData := Channel{}
 	shouldReCreateAbilities := false
 	updatedTag := tag
@@ -806,12 +814,22 @@ func EditChannelByTag(tag string, newTag *string, modelMapping *string, models *
 		updateData.HeaderOverride = headerOverride
 	}
 
-	err := DB.Model(&Channel{}).Where("tag = ?", tag).Updates(updateData).Error
+	query := DB.Model(&Channel{}).Where("tag = ?", tag)
+	if len(scopes) > 0 {
+		query = scopes[0].Apply(query, "channels")
+	}
+	err := query.Updates(updateData).Error
 	if err != nil {
 		return err
 	}
 	if shouldReCreateAbilities {
-		channels, err := GetChannelsByTag(updatedTag, false, false)
+		var channels []*Channel
+		var err error
+		if len(scopes) > 0 {
+			channels, err = GetChannelsByTagScoped(updatedTag, false, false, scopes[0])
+		} else {
+			channels, err = GetChannelsByTag(updatedTag, false, false)
+		}
 		if err == nil {
 			for _, channel := range channels {
 				err = channel.UpdateAbilities(nil)
@@ -821,7 +839,7 @@ func EditChannelByTag(tag string, newTag *string, modelMapping *string, models *
 			}
 		}
 	} else {
-		err := UpdateAbilityByTag(tag, newTag, priority, weight)
+		err := UpdateAbilityByTag(tag, newTag, priority, weight, scopes...)
 		if err != nil {
 			return err
 		}
@@ -849,8 +867,12 @@ func DeleteChannelByStatus(status int64) (int64, error) {
 	return result.RowsAffected, result.Error
 }
 
-func DeleteDisabledChannel() (int64, error) {
-	result := DB.Where("status = ? or status = ?", common.ChannelStatusAutoDisabled, common.ChannelStatusManuallyDisabled).Delete(&Channel{})
+func DeleteDisabledChannel(scopes ...TenantScope) (int64, error) {
+	query := DB.Where("status = ? or status = ?", common.ChannelStatusAutoDisabled, common.ChannelStatusManuallyDisabled)
+	if len(scopes) > 0 {
+		query = scopes[0].Apply(query, "channels")
+	}
+	result := query.Delete(&Channel{})
 	return result.RowsAffected, result.Error
 }
 
