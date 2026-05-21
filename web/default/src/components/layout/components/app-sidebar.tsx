@@ -17,8 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useMemo } from 'react'
-import { Link, useLocation } from '@tanstack/react-router'
-import { ArrowLeft } from 'lucide-react'
+import { useLocation } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/stores/auth-store'
@@ -30,17 +29,9 @@ import {
   Sidebar,
   SidebarContent,
   SidebarHeader,
-  SidebarMenu,
-  SidebarMenuButton,
-  SidebarMenuItem,
   SidebarRail,
-  useSidebar,
 } from '@/components/ui/sidebar'
-import {
-  getNavGroupsForPath,
-  isInWorkspace,
-  WORKSPACE_IDS,
-} from '../lib/workspace-registry'
+import { getNavGroupsForPath } from '../lib/workspace-registry'
 import { NavGroup } from './nav-group'
 import { SystemBrand } from './system-brand'
 
@@ -79,34 +70,10 @@ const sidebarContentClassName = cn(
  * Automatically matches workspace configuration for current path through workspace registry system
  * Adding new workspaces only requires registration in workspace-registry.ts
  */
-function SystemSettingsBackNav() {
-  const { t } = useTranslation()
-  const { setOpenMobile } = useSidebar()
-
-  return (
-    <SidebarMenu className='mb-2'>
-      <SidebarMenuItem>
-        <SidebarMenuButton
-          tooltip={t('Back to Operations Console')}
-          render={
-            <Link to='/dashboard' onClick={() => setOpenMobile(false)} />
-          }
-        >
-          <ArrowLeft className='size-4 shrink-0' />
-          <span>{t('Back to Operations Console')}</span>
-        </SidebarMenuButton>
-      </SidebarMenuItem>
-    </SidebarMenu>
-  )
-}
-
 export function AppSidebar() {
+  const { t } = useTranslation()
   const { collapsible, variant } = useLayout()
   const { pathname } = useLocation()
-  const showSystemSettingsBack = isInWorkspace(
-    pathname,
-    WORKSPACE_IDS.SYSTEM_SETTINGS
-  )
   const userRole = useAuthStore((state) => state.auth.user?.role)
   const sidebarData = useSidebarData()
 
@@ -138,7 +105,6 @@ export function AppSidebar() {
         <SystemBrand variant='sidebar' />
       </SidebarHeader>
       <SidebarContent className={sidebarContentClassName}>
-        {showSystemSettingsBack ? <SystemSettingsBackNav /> : null}
         {currentNavGroups.map((props) => {
           const key = props.id || props.title
           return <NavGroup key={key} {...props} />
