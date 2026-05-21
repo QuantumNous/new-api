@@ -89,7 +89,7 @@ func uploadDifyFile(c *gin.Context, info *relaycommon.RelayInfo, user string, me
 		writer.Close()
 
 		// Create HTTP request
-		req, err := http.NewRequestWithContext(armsotel.DetachedContext(c.Request.Context()), "POST", uploadUrl, body)
+		req, err := armsotel.NewRequest(c.Request.Context(), "POST", uploadUrl, body)
 		if err != nil {
 			common.SysLog("failed to create request: " + err.Error())
 			return nil

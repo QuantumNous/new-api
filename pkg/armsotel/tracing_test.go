@@ -24,6 +24,22 @@ func TestDetachedContextKeepsValuesWithoutCancellation(t *testing.T) {
 	}
 }
 
+func TestNewRequestUsesDetachedContext(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.WithValue(context.Background(), contextKey("request_id"), "req-1"))
+	cancel()
+
+	req, err := NewRequest(ctx, http.MethodGet, "https://upstream.example.com/v1/models", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if req.Context().Err() != nil {
+		t.Fatalf("request context err = %v", req.Context().Err())
+	}
+	if got := req.Context().Value(contextKey("request_id")); got != "req-1" {
+		t.Fatalf("request context value = %v", got)
+	}
+}
+
 func TestWrapTransportInjectsTraceparent(t *testing.T) {
 	traceID, err := trace.TraceIDFromHex("0123456789abcdef0123456789abcdef")
 	if err != nil {

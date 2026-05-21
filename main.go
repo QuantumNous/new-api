@@ -59,8 +59,8 @@ func main() {
 	}
 	shutdownTracing, err := armsotel.Init(context.Background())
 	if err != nil {
-		common.FatalLog("failed to initialize opentelemetry: " + err.Error())
-		return
+		common.SysError("failed to initialize opentelemetry, tracing disabled: " + err.Error())
+		shutdownTracing = func(context.Context) error { return nil }
 	}
 	defer func() {
 		if err := shutdownTracing(context.Background()); err != nil {

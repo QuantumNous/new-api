@@ -2,6 +2,7 @@ package hailuo
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"io"
 	"net/http"
@@ -11,6 +12,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/pkg/armsotel"
 	"github.com/gin-gonic/gin"
 	"github.com/pkg/errors"
 
@@ -111,7 +113,7 @@ func (a *TaskAdaptor) DoResponse(c *gin.Context, resp *http.Response, info *rela
 	return hResp.TaskID, responseBody, nil
 }
 
-func (a *TaskAdaptor) FetchTask(baseUrl, key string, body map[string]any, proxy string) (*http.Response, error) {
+func (a *TaskAdaptor) FetchTask(ctx context.Context, baseUrl, key string, body map[string]any, proxy string) (*http.Response, error) {
 	taskID, ok := body["task_id"].(string)
 	if !ok {
 		return nil, fmt.Errorf("invalid task_id")
@@ -119,7 +121,7 @@ func (a *TaskAdaptor) FetchTask(baseUrl, key string, body map[string]any, proxy 
 
 	uri := fmt.Sprintf("%s%s?task_id=%s", baseUrl, QueryTaskEndpoint, taskID)
 
-	req, err := http.NewRequest(http.MethodGet, uri, nil)
+	req, err := armsotel.NewRequest(ctx, http.MethodGet, uri, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -252,7 +254,7 @@ func (a *TaskAdaptor) buildVideoURL(_, fileID string) string {
 
 	url := fmt.Sprintf("%s/v1/files/retrieve?file_id=%s", a.baseURL, fileID)
 
-	req, err := http.NewRequest(http.MethodGet, url, nil)
+	req, err := armsotel.NewRequest(context.Background(), http.MethodGet, url, nil)
 	if err != nil {
 		return ""
 	}

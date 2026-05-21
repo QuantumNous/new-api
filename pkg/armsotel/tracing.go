@@ -3,6 +3,7 @@ package armsotel
 import (
 	"context"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"strconv"
@@ -58,6 +59,10 @@ func DetachedContext(ctx context.Context) context.Context {
 		return context.Background()
 	}
 	return context.WithoutCancel(ctx)
+}
+
+func NewRequest(ctx context.Context, method, url string, body io.Reader) (*http.Request, error) {
+	return http.NewRequestWithContext(DetachedContext(ctx), method, url, body)
 }
 
 func WrapTransport(base http.RoundTripper) http.RoundTripper {

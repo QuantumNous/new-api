@@ -109,7 +109,7 @@ func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, request
 	if err != nil {
 		return nil, fmt.Errorf("get request url failed: %w", err)
 	}
-	req, err := http.NewRequestWithContext(armsotel.DetachedContext(c.Request.Context()), c.Request.Method, fullRequestURL, requestBody)
+	req, err := armsotel.NewRequest(c.Request.Context(), c.Request.Method, fullRequestURL, requestBody)
 	if err != nil {
 		return nil, fmt.Errorf("new request failed: %w", err)
 	}
