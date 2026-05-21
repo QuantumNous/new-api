@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# One-click UI audit: health check → legacy scan → optional screenshots → summary.
+# One-click UI audit: health check → source scan → Playwright page audit → summary.
 set -euo pipefail
 
 AUDIT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -8,6 +8,7 @@ REPORT_DIR="$AUDIT_DIR/reports"
 SUMMARY="$REPORT_DIR/ui-audit-summary.md"
 SCAN_REPORT="$REPORT_DIR/legacy-terms-report.md"
 SCAN_META="$REPORT_DIR/scan-meta.env"
+PAGE_META="$REPORT_DIR/page-audit-meta.env"
 SCREENSHOT_DIR="$AUDIT_DIR/screenshots"
 SCOPE_DOC="$AUDIT_DIR/UI_ACCEPTANCE_SCOPE.md"
 
@@ -19,6 +20,8 @@ UI_AUDIT_STRICT="${UI_AUDIT_STRICT:-0}"
 
 FRONTEND_OK=0
 SCAN_OK=0
+PAGE_AUDIT_STATUS="skipped"
+PAGE_AUDIT_REASON="未执行"
 SCREENSHOT_STATUS="skipped"
 SCREENSHOT_REASON="未执行"
 SCREENSHOT_LOG="$REPORT_DIR/screenshot.log"
@@ -27,8 +30,7 @@ EXIT_CODE=0
 log() { printf '%s\n' "$*"; }
 warn() { printf 'WARN: %s\n' "$*" >&2; }
 
-# Load env file written with printf %q (see screenshot-ui-acceptance.sh write_meta).
-load_screenshot_meta() {
+load_meta_file() {
   local meta="$1"
   [[ -f "$meta" ]] || return 0
   # shellcheck source=/dev/null
@@ -45,7 +47,7 @@ log "Repo root: $ROOT"
 log ""
 
 # --- 1. Project paths ---
-log "[1/5] Checking project paths..."
+log "[1/4] Checking project paths..."
 if [[ ! -d "$ROOT/web/default/src" ]]; then
   echo "ERROR: web/default/src not found. Run from new-api repository root." >&2
   exit 1
@@ -57,7 +59,7 @@ log "  OK: web/default/src"
 log ""
 
 # --- 2. Frontend BASE_URL ---
-log "[2/5] Checking frontend: $BASE_URL"
+log "[2/4] Checking frontend: $BASE_URL"
 if curl -sf -o /dev/null -m 8 --connect-timeout 5 "$BASE_URL" 2>/dev/null \
   || curl -sfI -m 8 --connect-timeout 5 "$BASE_URL" 2>/dev/null | head -1 | grep -qE 'HTTP/[0-9.]+ [23]'; then
   FRONTEND_OK=1
@@ -70,16 +72,15 @@ else
   log "    cd web/default"
   log "    pnpm dev --host 0.0.0.0 --port 3001"
   log ""
-  log "  将继续执行旧词扫描并生成报告（截图可能跳过）。"
+  log "  将继续执行源码扫描；页面截图/可见文本扫描将跳过。"
 fi
 log ""
 
-# --- 3. Legacy term scan ---
-log "[3/5] Running legacy term scan..."
+# --- 3. Legacy term scan (source) ---
+log "[3/4] Running legacy term scan (source)..."
 if bash "$AUDIT_DIR/scan-ui-legacy-terms.sh"; then
   SCAN_OK=1
-  # shellcheck source=/dev/null
-  [[ -f "$SCAN_META" ]] && source "$SCAN_META"
+  load_meta_file "$SCAN_META"
   log "  OK: $SCAN_REPORT"
 else
   SCAN_OK=0
@@ -89,47 +90,62 @@ else
 fi
 log ""
 
-# --- 4. Screenshots ---
-log "[4/5] Screenshot acceptance..."
+# --- 4. Playwright page audit (screenshots + visible text) ---
+log "[4/4] Playwright page audit (screenshots + visible text)..."
 : >"$SCREENSHOT_LOG"
 if [[ "$UI_AUDIT_SKIP_SCREENSHOTS" == 1 ]]; then
+  PAGE_AUDIT_STATUS="skipped"
+  PAGE_AUDIT_REASON="UI_AUDIT_SKIP_SCREENSHOTS=1"
   SCREENSHOT_STATUS="skipped"
-  SCREENSHOT_REASON="UI_AUDIT_SKIP_SCREENSHOTS=1"
+  SCREENSHOT_REASON="$PAGE_AUDIT_REASON"
   echo "Skipped: UI_AUDIT_SKIP_SCREENSHOTS=1" >>"$SCREENSHOT_LOG"
   log "  Skipped (UI_AUDIT_SKIP_SCREENSHOTS=1)"
 elif [[ "$FRONTEND_OK" != 1 ]]; then
+  PAGE_AUDIT_STATUS="skipped"
+  PAGE_AUDIT_REASON="BASE_URL 不可达: $BASE_URL"
   SCREENSHOT_STATUS="skipped"
-  SCREENSHOT_REASON="BASE_URL 不可达: $BASE_URL"
+  SCREENSHOT_REASON="$PAGE_AUDIT_REASON"
   {
-    echo "Screenshot skipped: frontend not reachable"
+    echo "Page audit skipped: frontend not reachable"
     echo "Start: cd web/default && pnpm dev --host 0.0.0.0 --port 3001"
   } >>"$SCREENSHOT_LOG"
-  log "  Skipped: $SCREENSHOT_REASON"
+  log "  Skipped: $PAGE_AUDIT_REASON"
 else
   export BASE_URL UI_AUDIT_USERNAME UI_AUDIT_PASSWORD
   export DEMO_USERNAME="$UI_AUDIT_USERNAME" DEMO_PASSWORD="$UI_AUDIT_PASSWORD"
   if bash "$AUDIT_DIR/screenshot-ui-acceptance.sh"; then
-    load_screenshot_meta "$AUDIT_DIR/reports/screenshot-meta.env"
+    load_meta_file "$REPORT_DIR/screenshot-meta.env"
+    load_meta_file "$PAGE_META"
     SCREENSHOT_STATUS="${SCREENSHOT_STATUS:-skipped}"
     SCREENSHOT_REASON="${SCREENSHOT_REASON:-见 screenshot.log}"
-    if [[ "$SCREENSHOT_STATUS" == success ]]; then
-      log "  OK: screenshots in $SCREENSHOT_DIR"
+    PAGE_AUDIT_STATUS="${PAGE_AUDIT_STATUS:-success}"
+    PAGE_AUDIT_REASON="${SCREENSHOT_REASON}"
+    if [[ -f "$REPORT_DIR/page-audit-report.md" ]]; then
+      log "  OK: page-audit-report.md"
+      log "  Screenshots: $SCREENSHOT_DIR"
     else
-      log "  Screenshot: $SCREENSHOT_STATUS — $SCREENSHOT_REASON"
+      log "  Page audit: $SCREENSHOT_STATUS — $SCREENSHOT_REASON"
     fi
   else
+    PAGE_AUDIT_STATUS="failed"
+    PAGE_AUDIT_REASON="screenshot-ui-acceptance.sh 退出非 0"
     SCREENSHOT_STATUS="failed"
-    SCREENSHOT_REASON="screenshot-ui-acceptance.sh 退出非 0，详见 reports/screenshot.log"
-    warn "$SCREENSHOT_REASON"
+    SCREENSHOT_REASON="$PAGE_AUDIT_REASON"
+    load_meta_file "$PAGE_META"
+    warn "$PAGE_AUDIT_REASON"
   fi
 fi
 log ""
 
-# --- 5. Summary report ---
-log "[5/5] Writing summary: $SUMMARY"
+# --- Summary report ---
+log "Writing summary: $SUMMARY"
 
 P0_ACTIONABLE="${P0_ACTIONABLE:-0}"
 P1_ACTIONABLE="${P1_ACTIONABLE:-0}"
+PAGE_P0_VISIBLE_HITS="${PAGE_P0_VISIBLE_HITS:-0}"
+PAGE_P1_VISIBLE_HITS="${PAGE_P1_VISIBLE_HITS:-0}"
+PAGE_FAILED_COUNT="${PAGE_FAILED_COUNT:-0}"
+PAGE_SKIPPED_AUTH_COUNT="${PAGE_SKIPPED_AUTH_COUNT:-0}"
 
 {
   echo "# UI audit summary"
@@ -143,15 +159,17 @@ P1_ACTIONABLE="${P1_ACTIONABLE:-0}"
   echo ""
   echo "| Item | Path |"
   echo "|------|------|"
-  echo "| Legacy term report | \`reports/legacy-terms-report.md\` |"
+  echo "| Legacy term report (source) | \`reports/legacy-terms-report.md\` |"
   echo "| Scan meta | \`reports/scan-meta.env\` |"
-  echo "| Screenshots | \`screenshots/\`（若已生成） |"
-  echo "| Screenshot log | \`reports/screenshot.log\` |"
+  echo "| **Page audit report** | \`reports/page-audit-report.md\` |"
+  echo "| Page audit TSV | \`reports/page-audit-full.tsv\` |"
+  echo "| Screenshots | \`screenshots/\` |"
+  echo "| Screenshot / page log | \`reports/screenshot.log\` |"
   echo ""
   P0_INTERNAL="${P0_INTERNAL:-0}"
   P1_INTERNAL="${P1_INTERNAL:-0}"
   P2_COUNT="${P2_COUNT:-0}"
-  echo "## Scan counts"
+  echo "## Source scan counts"
   echo ""
   echo "| Tier | Actionable | Internal/Ignored |"
   echo "|------|----------:|-----------------:|"
@@ -161,53 +179,63 @@ P1_ACTIONABLE="${P1_ACTIONABLE:-0}"
   echo ""
   echo "Full TSV: \`reports/legacy-terms-full.tsv\`"
   echo ""
-  echo "## P0 pages (customer-facing)"
+  echo "## Page audit (visible text + screenshots)"
   echo ""
-  echo "See \`UI_ACCEPTANCE_SCOPE.md\`: \`/\`, \`/login\`, \`/dashboard\`, \`/keys\`, \`/usage-logs/*\`, \`/wallet\`, \`/system-settings/site/system-info\`"
+  echo "| Metric | Value |"
+  echo "|--------|------:|"
+  echo "| Status | ${PAGE_AUDIT_STATUS:-skipped} |"
+  echo "| P0 visible hits | ${PAGE_P0_VISIBLE_HITS:-0} |"
+  echo "| P1 visible hits | ${PAGE_P1_VISIBLE_HITS:-0} |"
+  echo "| Failed pages | ${PAGE_FAILED_COUNT:-0} |"
+  echo "| Skipped (auth required) | ${PAGE_SKIPPED_AUTH_COUNT:-0} |"
   echo ""
-  echo "## P1 pages"
-  echo ""
-  echo "\`/redemption-codes\`, \`/subscriptions\`, \`/models/metadata\`, \`/channels\`, \`/users\`, \`/groups\`, \`/system-settings/site/{notice,header-navigation,sidebar-modules}\`"
+  echo "Detail: [\`page-audit-report.md\`](./page-audit-report.md)"
   echo ""
   echo "## Recommended next steps"
   echo ""
-  echo "1. **先修 P0 页面** 用户可见旧词（品牌、USD/\$、Midjourney、GitHub/release、io.net）。"
-  echo "2. **再修 P1 语义**（Token→词元、API Key→应用接入密钥等），勿改字段名。"
-  echo "3. **最后处理 P2**（更新检查、多语言、极端错误弹窗、隐藏部署）。"
-  echo "4. 复验：\`bash scripts/dev/ui-audit/run-ui-audit.sh\`"
-  echo "5. 演示数据：\`DEV_SEED=1 ./scripts/dev/seed-ui-acceptance.sh\`（见 \`scripts/dev/README.md\`）"
+  echo "1. 修复 **页面 P0 可见命中** 与 **failed 页面**（含 500）。"
+  echo "2. 修复 **源码 P0 actionable**（\`legacy-terms-report.md\`）。"
+  echo "3. 复验：\`bash scripts/dev/ui-audit/run-ui-audit.sh\`"
   echo ""
   echo "## Important constraints"
   echo ""
-  echo "- **不要**修改 API、请求路径、payload、数据库、\`routeTree.gen.ts\`。"
-  echo "- **不要**修改表单/API **字段名**、配置 key、枚举值、计费逻辑。"
-  echo "- **不要**改 LICENSE、NOTICE、THIRD-PARTY-LICENSES、源码许可证头。"
-  echo "- **额度**展示用词元额度/词元消耗；**金额/单价**才用人民币（¥）。"
+  echo "- 不要改 API、字段名、\`routeTree.gen.ts\`、计费逻辑。"
+  echo "- 额度用词元；金额/单价用 ¥。"
   echo ""
-  echo "## Screenshot status"
+  echo "## Page / screenshot status"
   echo ""
-  echo "- **Status:** $SCREENSHOT_STATUS"
-  echo "- **Reason:** $SCREENSHOT_REASON"
+  echo "- **Page audit:** ${PAGE_AUDIT_STATUS:-skipped} — ${PAGE_AUDIT_REASON:-—}"
+  echo "- **Screenshot runner:** ${SCREENSHOT_STATUS:-skipped}"
   echo "- **Log:** \`reports/screenshot.log\`"
 } >"$SUMMARY"
 
 log "  OK: $SUMMARY"
 log ""
 log "=== Done ==="
-log "  Legacy report: $SCAN_REPORT"
-log "  Summary:       $SUMMARY"
-log "  P0 actionable: $P0_ACTIONABLE | P1 actionable: $P1_ACTIONABLE"
+log "  Legacy report:     $SCAN_REPORT"
+log "  Page audit report: ${REPORT_DIR}/page-audit-report.md"
+log "  Summary:           $SUMMARY"
+log "  Source P0 actionable: $P0_ACTIONABLE | Page P0 visible: ${PAGE_P0_VISIBLE_HITS:-0} | Failed pages: ${PAGE_FAILED_COUNT:-0}"
 
-# STRICT: only P0 actionable fails the run; P1/internal/P2 do not.
-if [[ "$UI_AUDIT_STRICT" == 1 ]] && [[ "${P0_ACTIONABLE:-0}" -gt 0 ]]; then
-  warn "UI_AUDIT_STRICT=1: P0 actionable=${P0_ACTIONABLE} → exit 1"
-  EXIT_CODE=1
+# STRICT: source P0 actionable OR page P0 visible hits OR page failed (not auth-skipped)
+if [[ "$UI_AUDIT_STRICT" == 1 ]]; then
+  if [[ "${P0_ACTIONABLE:-0}" -gt 0 ]]; then
+    warn "UI_AUDIT_STRICT=1: source P0 actionable=${P0_ACTIONABLE} → exit 1"
+    EXIT_CODE=1
+  fi
+  if [[ "${PAGE_P0_VISIBLE_HITS:-0}" -gt 0 ]]; then
+    warn "UI_AUDIT_STRICT=1: page P0 visible hits=${PAGE_P0_VISIBLE_HITS} → exit 1"
+    EXIT_CODE=1
+  fi
+  if [[ "${PAGE_FAILED_COUNT:-0}" -gt 0 ]]; then
+    warn "UI_AUDIT_STRICT=1: page failed count=${PAGE_FAILED_COUNT} → exit 1"
+    EXIT_CODE=1
+  fi
 fi
 
 if [[ "$FRONTEND_OK" != 1 ]]; then
   log ""
-  log "Note: frontend was not reachable; start dev server before screenshot-based checks."
-  # Do not exit 1 solely for unreachable frontend (per user request).
+  log "Note: frontend was not reachable; start dev server for page audit."
 fi
 
 exit "$EXIT_CODE"

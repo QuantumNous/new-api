@@ -71,11 +71,25 @@
 
 ---
 
+## Playwright 页面验收（自动）
+
+`run-ui-audit.sh` 会调用 `playwright-page-audit.mjs`：
+
+- 视口 1440×900，`fullPage` 截图 → `screenshots/p0-*.png`、`p1-*.png`
+- 读取 `document.body.innerText` 扫描 P0/P1 风险词
+- 报告：`reports/page-audit-report.md`、`reports/page-audit-full.tsv`
+
+登录页实际路径为 **`/sign-in`**（兼容尝试 `/login`）。控制台默认 **`/dashboard/overview`**（兼容 `/dashboard`）。
+
+无账号时仍验收：`/`、`/sign-in`、`/pricing`、`/rankings`、`/about`；需登录页记 `skipped_auth_required`。
+
+---
+
 ## 建议验收顺序
 
 1. 种子数据：`DEV_SEED=1 ./scripts/dev/seed-ui-acceptance.sh`（见 `scripts/dev/README.md`）
-2. P0 路径手动或截图脚本走一遍
-3. 跑 `scan-ui-legacy-terms.sh`，处理 P0 命中（人工过滤许可证头）
+2. `bash scripts/dev/ui-audit/run-ui-audit.sh`（源码扫描 + 页面截图 + 可见文本）
+3. 处理 `page-audit-report.md` 与 `legacy-terms-report.md` 的 P0
 4. P1 → P2
 
 ---
