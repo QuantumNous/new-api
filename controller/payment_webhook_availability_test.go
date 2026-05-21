@@ -140,6 +140,48 @@ func TestWaffoPancakeWebhookEnabledRequiresTopUpAndWebhookConfig(t *testing.T) {
 	require.True(t, isWaffoPancakeWebhookEnabled())
 }
 
+func TestAirwallexWebhookEnabledRequiresTopUpAndWebhookConfig(t *testing.T) {
+	originalEnabled := setting.AirwallexEnabled
+	originalClientId := setting.AirwallexClientId
+	originalApiKey := setting.AirwallexApiKey
+	originalWebhookSecret := setting.AirwallexWebhookSecret
+	t.Cleanup(func() {
+		setting.AirwallexEnabled = originalEnabled
+		setting.AirwallexClientId = originalClientId
+		setting.AirwallexApiKey = originalApiKey
+		setting.AirwallexWebhookSecret = originalWebhookSecret
+	})
+
+	// Master switch off → never enabled even with full creds.
+	setting.AirwallexEnabled = false
+	setting.AirwallexClientId = "client"
+	setting.AirwallexApiKey = "key"
+	setting.AirwallexWebhookSecret = "secret"
+	require.False(t, isAirwallexTopUpEnabled())
+	require.False(t, isAirwallexWebhookEnabled())
+
+	// Switch on, but each credential missing in turn → still disabled.
+	setting.AirwallexEnabled = true
+	setting.AirwallexClientId = ""
+	require.False(t, isAirwallexTopUpEnabled())
+	setting.AirwallexClientId = "client"
+	setting.AirwallexApiKey = ""
+	require.False(t, isAirwallexTopUpEnabled())
+	setting.AirwallexApiKey = "key"
+	setting.AirwallexWebhookSecret = ""
+	require.False(t, isAirwallexTopUpEnabled())
+	require.False(t, isAirwallexWebhookEnabled())
+
+	// All creds present + switch on → enabled.
+	setting.AirwallexWebhookSecret = "secret"
+	require.True(t, isAirwallexTopUpEnabled())
+	require.True(t, isAirwallexWebhookEnabled())
+
+	// Whitespace-only counts as missing.
+	setting.AirwallexClientId = "   "
+	require.False(t, isAirwallexTopUpEnabled())
+}
+
 func TestEpayWebhookEnabledRequiresTopUpAndWebhookConfig(t *testing.T) {
 	originalPayAddress := operation_setting.PayAddress
 	originalEpayID := operation_setting.EpayId
