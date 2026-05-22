@@ -96,9 +96,6 @@ func getWaffoPancakeBuyerEmail(user *model.User) string {
 	if user != nil && strings.TrimSpace(user.Email) != "" {
 		return user.Email
 	}
-	if user != nil {
-		return fmt.Sprintf("%d@new-api.local", user.Id)
-	}
 	return ""
 }
 
