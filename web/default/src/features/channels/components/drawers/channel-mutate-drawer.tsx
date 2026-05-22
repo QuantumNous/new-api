@@ -234,6 +234,7 @@ function hasAdvancedSettingsValues(values: ChannelFormValues): boolean {
     values.priority ||
     values.weight ||
     values.proxy?.trim() ||
+    values.daily_token_limit ||
     values.system_prompt?.trim() ||
     values.force_format ||
     values.thinking_to_content ||
@@ -3163,6 +3164,34 @@ export function ChannelMutateDrawer({
                           <FormDescription>
                             {t(
                               'Network proxy for this channel (supports socks5 protocol)'
+                            )}
+                          </FormDescription>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name='daily_token_limit'
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>{t('Daily Token Limit')}</FormLabel>
+                          <FormControl>
+                            <Input
+                              type='number'
+                              min={0}
+                              step={1000}
+                              placeholder='0'
+                              {...field}
+                              onChange={(e) =>
+                                field.onChange(Number(e.target.value) || 0)
+                              }
+                            />
+                          </FormControl>
+                          <FormDescription>
+                            {t(
+                              '0 means unlimited. Resets at server local midnight.'
                             )}
                           </FormDescription>
                           <FormMessage />

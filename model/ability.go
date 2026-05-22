@@ -105,42 +105,100 @@ func getChannelQuery(group string, model string, retry int) (*gorm.DB, error) {
 
 func GetChannel(group string, model string, retry int) (*Channel, error) {
 	var abilities []Ability
-
-	var err error = nil
-	channelQuery, err := getChannelQuery(group, model, retry)
+	err := DB.Where(commonGroupCol+" = ? and model = ? and enabled = ?", group, model, true).
+		Order("priority DESC").
+		Order("weight DESC").
+		Find(&abilities).Error
 	if err != nil {
 		return nil, err
 	}
-	if common.UsingSQLite || common.UsingPostgreSQL {
-		err = channelQuery.Order("weight DESC").Find(&abilities).Error
-	} else {
-		err = channelQuery.Order("weight DESC").Find(&abilities).Error
-	}
-	if err != nil {
-		return nil, err
-	}
-	channel := Channel{}
-	if len(abilities) > 0 {
-		// Randomly choose one
-		weightSum := uint(0)
-		for _, ability_ := range abilities {
-			weightSum += ability_.Weight + 10
-		}
-		// Randomly choose one
-		weight := common.GetRandomInt(int(weightSum))
-		for _, ability_ := range abilities {
-			weight -= int(ability_.Weight) + 10
-			//log.Printf("weight: %d, ability weight: %d", weight, *ability_.Weight)
-			if weight <= 0 {
-				channel.Id = ability_.ChannelId
-				break
-			}
-		}
-	} else {
+	if len(abilities) == 0 {
 		return nil, nil
 	}
-	err = DB.First(&channel, "id = ?", channel.Id).Error
-	return &channel, err
+
+	channelIDs := make([]int, 0, len(abilities))
+	seenChannelIDs := make(map[int]bool)
+	for _, ability := range abilities {
+		if !seenChannelIDs[ability.ChannelId] {
+			seenChannelIDs[ability.ChannelId] = true
+			channelIDs = append(channelIDs, ability.ChannelId)
+		}
+	}
+
+	var channels []Channel
+	if err = DB.Where("id IN ?", channelIDs).Find(&channels).Error; err != nil {
+		return nil, err
+	}
+	channelByID := make(map[int]*Channel, len(channels))
+	for i := range channels {
+		channelByID[channels[i].Id] = &channels[i]
+	}
+
+	availableAbilities := make([]Ability, 0, len(abilities))
+	priorities := make([]int64, 0)
+	seenPriorities := make(map[int64]bool)
+	for _, ability := range abilities {
+		channel, ok := channelByID[ability.ChannelId]
+		if !ok {
+			return nil, fmt.Errorf("数据库一致性错误，渠道# %d 不存在，请联系管理员修复", ability.ChannelId)
+		}
+		if !IsChannelDailyTokenAvailable(channel) {
+			continue
+		}
+		availableAbilities = append(availableAbilities, ability)
+		priority := int64(0)
+		if ability.Priority != nil {
+			priority = *ability.Priority
+		}
+		if !seenPriorities[priority] {
+			seenPriorities[priority] = true
+			priorities = append(priorities, priority)
+		}
+	}
+
+	if len(availableAbilities) == 0 {
+		return nil, nil
+	}
+
+	if retry >= len(priorities) {
+		retry = len(priorities) - 1
+	}
+	targetPriority := priorities[retry]
+
+	targetAbilities := make([]Ability, 0)
+	weightSum := uint(0)
+	for _, ability := range availableAbilities {
+		priority := int64(0)
+		if ability.Priority != nil {
+			priority = *ability.Priority
+		}
+		if priority == targetPriority {
+			targetAbilities = append(targetAbilities, ability)
+			weightSum += ability.Weight + 10
+		}
+	}
+	if len(targetAbilities) == 0 {
+		return nil, nil
+	}
+
+	weight := common.GetRandomInt(int(weightSum))
+	selectedChannelID := 0
+	for _, ability := range targetAbilities {
+		weight -= int(ability.Weight) + 10
+		if weight <= 0 {
+			selectedChannelID = ability.ChannelId
+			break
+		}
+	}
+	if selectedChannelID == 0 {
+		selectedChannelID = targetAbilities[len(targetAbilities)-1].ChannelId
+	}
+
+	channel, ok := channelByID[selectedChannelID]
+	if !ok {
+		return nil, fmt.Errorf("数据库一致性错误，渠道# %d 不存在，请联系管理员修复", selectedChannelID)
+	}
+	return channel, nil
 }
 
 func (channel *Channel) AddAbilities(tx *gorm.DB) error {

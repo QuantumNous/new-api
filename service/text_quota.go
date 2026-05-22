@@ -368,6 +368,9 @@ func PostTextConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, us
 	} else {
 		model.UpdateUserUsedQuotaAndRequestCount(relayInfo.UserId, summary.Quota)
 		model.UpdateChannelUsedQuota(relayInfo.ChannelId, summary.Quota)
+		if err := IncreaseChannelDailyTokenUsage(relayInfo.ChannelId, int64(summary.TotalTokens)); err != nil {
+			logger.LogError(ctx, err.Error())
+		}
 	}
 
 	if err := SettleBilling(ctx, relayInfo, summary.Quota); err != nil {

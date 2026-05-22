@@ -1075,6 +1075,8 @@
     "Customize sidebar display content": "Customize sidebar display content",
     "Daily": "Daily",
     "Daily Check-in": "Daily Check-in",
+    "Daily Token Limit": "Daily Token Limit",
+    "0 means unlimited. Resets at server local midnight.": "0 means unlimited. Resets at server local midnight.",
     "Daily token usage by model across the past few weeks": "Daily token usage by model across the past few weeks",
     "Daily token usage by model across the past month": "Daily token usage by model across the past month",
     "Daily token usage by model over the past month": "Daily token usage by model over the past month",

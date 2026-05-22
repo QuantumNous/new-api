@@ -272,6 +272,19 @@ func RedisIncr(key string, delta int64) error {
 	return nil
 }
 
+func RedisIncrByWithExpireAt(key string, delta int64, expireAt time.Time) (int64, error) {
+	if DebugEnabled {
+		SysLog(fmt.Sprintf("Redis INCRBY EXPIREAT: key=%s, delta=%d, expireAt=%s", key, delta, expireAt.Format(time.RFC3339)))
+	}
+	ctx := context.Background()
+	script := redis.NewScript(`
+local current = redis.call("INCRBY", KEYS[1], ARGV[1])
+redis.call("EXPIREAT", KEYS[1], ARGV[2])
+return current
+`)
+	return script.Run(ctx, RDB, []string{key}, delta, expireAt.Unix()).Int64()
+}
+
 func RedisHIncrBy(key, field string, delta int64) error {
 	if DebugEnabled {
 		SysLog(fmt.Sprintf("Redis HINCRBY: key=%s, field=%s, delta=%d", key, field, delta))
