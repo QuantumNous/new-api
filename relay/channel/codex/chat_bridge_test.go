@@ -183,6 +183,10 @@ func TestRelayChatOverCodex_NonStream_AggregatesAndReturnsJSON(t *testing.T) {
 	assert.NotContains(t, body, "data: ")
 	assert.Contains(t, body, `"choices"`)
 	assert.Contains(t, body, "Hello world")
+	// usage 必须出现在非流式 chat 响应体里
+	assert.Contains(t, body, `"usage"`)
+	assert.Contains(t, body, `"prompt_tokens"`)
+	assert.Contains(t, body, `"completion_tokens"`)
 }
 
 func TestApplyCodexConstraints_DoesNotChangeBehaviorOnResponsesPath(t *testing.T) {

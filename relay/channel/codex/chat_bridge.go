@@ -183,6 +183,9 @@ func RelayChatOverCodex(c *gin.Context, info *relaycommon.RelayInfo, resp *http.
 		full := &apicompat.ResponsesResponse{}
 		acc.SupplementResponseOutput(full)
 		full.Status = "completed"
+		// 上游通过 SSE 增量返回 usage，聚合在 lastUsage 里；
+		// ResponsesToChatCompletions 依赖 ResponsesResponse.Usage 才能在 JSON body 中输出 usage 字段。
+		full.Usage = lastUsage
 		upstreamModel := ""
 		if info != nil && info.ChannelMeta != nil {
 			upstreamModel = info.UpstreamModelName
