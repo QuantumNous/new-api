@@ -112,8 +112,7 @@ jobs:
           echo '```' >> $GITHUB_STEP_SUMMARY
           echo "${{ env.IMAGE_NAME }}:${TAG}-${{ matrix.arch }}" >> $GITHUB_STEP_SUMMARY
           echo "${{ steps.build.outputs.digest }}" >> $GITHUB_STEP_SUMMARY
-          echo '
-```' >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
 
   create_manifests:
     name: Create multi-arch manifests
