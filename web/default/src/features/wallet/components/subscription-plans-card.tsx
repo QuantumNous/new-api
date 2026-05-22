@@ -111,6 +111,7 @@ export function SubscriptionPlansCard({
 
   const enableStripe = !!topupInfo?.enable_stripe_topup
   const enableCreem = !!topupInfo?.enable_creem_topup
+  const enableWaffoPancake = !!topupInfo?.enable_waffo_pancake_topup
   const enableOnlineTopUp = !!topupInfo?.enable_online_topup
   const epayMethods = useMemo(
     () => getEpayMethods(topupInfo?.pay_methods),
@@ -254,7 +255,7 @@ export function SubscriptionPlansCard({
     <>
       <TitledCard
         title={t('Subscription Plans')}
-        description={t('Purchase a plan to enjoy model benefits')}
+        description={t('Subscribe to a plan for model access')}
         icon={<Crown className='h-4 w-4' />}
         contentClassName='space-y-4 sm:space-y-5'
       >
@@ -499,7 +500,7 @@ export function SubscriptionPlansCard({
 
           {!hasAny && (
             <p className='text-muted-foreground mt-2 text-xs'>
-              {t('Purchase a plan to enjoy model benefits')}
+              {t('Subscribe to a plan for model access')}
             </p>
           )}
         </div>
@@ -629,6 +630,7 @@ export function SubscriptionPlansCard({
         plan={selectedPlan}
         enableStripe={enableStripe}
         enableCreem={enableCreem}
+        enableWaffoPancake={enableWaffoPancake}
         enableOnlineTopUp={enableOnlineTopUp}
         epayMethods={epayMethods}
         purchaseLimit={

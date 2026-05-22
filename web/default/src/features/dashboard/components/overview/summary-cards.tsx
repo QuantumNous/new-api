@@ -19,12 +19,18 @@ For commercial licensing, please contact support@quantumnous.com
 import { useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
-import { ArrowRight, CreditCard } from 'lucide-react'
+import {
+  ArrowRight,
+  Flame,
+  ShieldCheck,
+  TrendingDown,
+} from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { useAuthStore } from '@/stores/auth-store'
 import { getCurrencyLabel, isCurrencyDisplayEnabled } from '@/lib/currency'
 import { formatNumber, formatQuota } from '@/lib/format'
 import { computeTimeRange } from '@/lib/time'
+import { cn } from '@/lib/utils'
 import { useStatus } from '@/hooks/use-status'
 import { Button } from '@/components/ui/button'
 import { StaggerContainer, StaggerItem } from '@/components/page-transition'
@@ -87,12 +93,62 @@ function buildSummarySparklines(
   }
 }
 
+function getSummarySparkline(
+  key: string,
+  sparklineData: Record<SummarySparklineKey, number[]>
+): number[] | undefined {
+  if (key === 'usage') return sparklineData.usage
+  if (key === 'requests') return sparklineData.requests
+  return undefined
+}
+
+function getRunwayDays(remainQuota: number, recentUsage: number): number | null {
+  if (remainQuota <= 0 || recentUsage <= 0) return null
+  const days = remainQuota / recentUsage
+  if (!Number.isFinite(days)) return null
+  return days
+}
+
+type HealthLevel = 'healthy' | 'caution' | 'critical'
+
+function getHealthLevel(
+  remainQuota: number,
+  recentUsage: number
+): HealthLevel {
+  if (remainQuota <= 0) return 'critical'
+  const days = getRunwayDays(remainQuota, recentUsage)
+  if (days !== null && days < 3) return 'caution'
+  return 'healthy'
+}
+
+const HEALTH_CONFIG: Record<
+  HealthLevel,
+  { dotClass: string; labelKey: string }
+> = {
+  healthy: {
+    dotClass: 'bg-success',
+    labelKey: 'Healthy',
+  },
+  caution: {
+    dotClass: 'bg-warning',
+    labelKey: 'Low balance',
+  },
+  critical: {
+    dotClass: 'bg-destructive',
+    labelKey: 'Balance depleted',
+  },
+}
+
+
 export function SummaryCards() {
   const { t } = useTranslation()
   const user = useAuthStore((state) => state.auth.user)
   const { status, loading } = useStatus()
 
   const summaryTimeRange = useMemo(() => computeTimeRange(1), [])
+  const remainQuota = Number(user?.quota ?? 0)
+  const usedQuota = Number(user?.used_quota ?? 0)
+  const requestCount = Number(user?.request_count ?? 0)
 
   const usageTrendQuery = useQuery({
     queryKey: [
@@ -112,16 +168,11 @@ export function SummaryCards() {
   })
 
   const summaryValues = useMemo(() => {
-    const remainQuota = Number(user?.quota ?? 0)
-    const usedQuota = Number(user?.used_quota ?? 0)
-    const requestCount = Number(user?.request_count ?? 0)
-
     return {
-      remainDisplay: formatQuota(remainQuota),
       usedDisplay: formatQuota(usedQuota),
       requestCountDisplay: formatNumber(requestCount),
     }
-  }, [user])
+  }, [requestCount, usedQuota])
 
   const currencyEnabledFromStore = isCurrencyDisplayEnabled()
   const statusCurrencyFlag =
@@ -138,37 +189,53 @@ export function SummaryCards() {
     () =>
       buildSummarySparklines(
         usageTrendQuery.data?.data ?? [],
-        Number(user?.quota ?? 0),
+        remainQuota,
         summaryTimeRange.start_timestamp,
         summaryTimeRange.end_timestamp
       ),
     [
+      remainQuota,
       summaryTimeRange.end_timestamp,
       summaryTimeRange.start_timestamp,
       usageTrendQuery.data?.data,
-      user?.quota,
     ]
   )
 
+  const recentUsage = useMemo(
+    () =>
+      (usageTrendQuery.data?.data ?? []).reduce(
+        (total, item) => total + (Number(item.quota) || 0),
+        0
+      ),
+    [usageTrendQuery.data?.data]
+  )
+
+  const healthLevel = getHealthLevel(remainQuota, recentUsage)
+  const healthCfg = HEALTH_CONFIG[healthLevel]
+  const runwayDays = getRunwayDays(remainQuota, recentUsage)
+
+  const todayUsageDisplay = formatQuota(recentUsage)
+
   const items = useSummaryCardsConfig({
     ...summaryValues,
+    todayUsageDisplay,
     currencyEnabled,
     currencyLabel,
   }).map((config, index) => {
     const tones = ['rose', 'teal', 'gray'] as const
 
     return {
+      key: config.key,
       title: config.title,
       value: config.value,
       desc: config.description,
       icon: config.icon,
       tone: tones[index] ?? 'gray',
       sparkline:
-        config.key === 'balance'
-          ? sparklineData.balance
-          : config.key === 'usage'
-            ? sparklineData.usage
-            : sparklineData.requests,
+        config.key === 'todayUsage'
+          ? sparklineData.usage
+          : getSummarySparkline(config.key, sparklineData),
+      sparklineVariant: 'line' as const,
     }
   })
 
@@ -189,7 +256,7 @@ export function SummaryCards() {
           <StaggerContainer className='grid gap-3 md:grid-cols-3'>
             {items.map((it) => (
               <StaggerItem
-                key={it.title}
+                key={it.key}
                 className='bg-background/60 rounded-xl border p-3'
               >
                 <StatCard
@@ -199,6 +266,7 @@ export function SummaryCards() {
                   icon={it.icon}
                   tone={it.tone}
                   sparkline={it.sparkline}
+                  sparklineVariant={it.sparklineVariant}
                   loading={loading}
                 />
               </StaggerItem>
@@ -206,28 +274,78 @@ export function SummaryCards() {
           </StaggerContainer>
         </div>
 
-        <div className='bg-warning/10 flex flex-col justify-between gap-5 border-t p-4 sm:p-5 xl:border-t-0 xl:border-l'>
-          <div className='flex flex-col gap-2'>
-            <div className='text-muted-foreground text-sm'>
-              {t('Credit remaining')}
-            </div>
-            <div className='flex items-center gap-2'>
-              <span className='font-mono text-2xl font-semibold tracking-tight'>
-                {summaryValues.remainDisplay}
+        <div className='bg-warning/10 flex flex-col justify-between gap-4 border-t p-4 sm:p-5 xl:border-t-0 xl:border-l'>
+          <div className='flex flex-col gap-3'>
+            <div className='flex items-center justify-between'>
+              <span className='text-muted-foreground text-xs font-medium'>
+                {t('Credit remaining')}
               </span>
-              <CreditCard
-                className='text-muted-foreground size-4'
-                aria-hidden='true'
-              />
+              <span className='flex items-center gap-1.5'>
+                <span
+                  className={cn('size-1.5 rounded-full', healthCfg.dotClass)}
+                  aria-hidden='true'
+                />
+                <span className='text-muted-foreground text-[11px] font-medium'>
+                  {t(healthCfg.labelKey)}
+                </span>
+              </span>
             </div>
-            <p className='text-muted-foreground text-sm leading-relaxed'>
-              {currencyEnabled
-                ? `${t('Displayed in')} ${currencyLabel}`
-                : t('Balance is shown in quota units')}
-            </p>
+
+            <div className='font-mono text-2xl font-semibold tracking-tight'>
+              {formatQuota(remainQuota)}
+            </div>
+
+            <div className='grid grid-cols-2 gap-2'>
+              <div className='bg-background/60 rounded-lg px-2.5 py-2'>
+                <div className='text-muted-foreground flex items-center gap-1 text-[11px] leading-none font-medium'>
+                  <Flame className='size-3 shrink-0' aria-hidden='true' />
+                  <span className='truncate'>{t('Last 24h usage')}</span>
+                </div>
+                <div className='text-foreground mt-1.5 truncate text-xs font-semibold tabular-nums'>
+                  {formatQuota(recentUsage)}
+                </div>
+              </div>
+              <div className='bg-background/60 rounded-lg px-2.5 py-2'>
+                <div className='text-muted-foreground flex items-center gap-1 text-[11px] leading-none font-medium'>
+                  {runwayDays !== null && runwayDays < 3 ? (
+                    <TrendingDown
+                      className='size-3 shrink-0'
+                      aria-hidden='true'
+                    />
+                  ) : (
+                    <ShieldCheck
+                      className='size-3 shrink-0'
+                      aria-hidden='true'
+                    />
+                  )}
+                  <span className='truncate'>{t('Runway')}</span>
+                </div>
+                <div
+                  className={cn(
+                    'mt-1.5 truncate text-xs font-semibold tabular-nums',
+                    healthLevel === 'critical' && 'text-destructive',
+                    healthLevel === 'caution' && 'text-warning'
+                  )}
+                >
+                  {runwayDays !== null
+                    ? runwayDays < 1
+                      ? t('Less than 1 day left')
+                      : runwayDays > 999
+                        ? `999+ ${t('days')}`
+                        : `~${formatNumber(Math.floor(runwayDays))} ${t('days')}`
+                    : remainQuota <= 0
+                      ? t('Balance depleted')
+                      : t('No recent usage')}
+                </div>
+              </div>
+            </div>
           </div>
-          <Button className='justify-between' render={<Link to='/wallet' />}>
-            <span>{t('Recharge')}</span>
+
+          <Button
+            className='justify-between'
+            render={<Link to='/wallet' />}
+          >
+            <span>{t('Wallet')}</span>
             <ArrowRight data-icon='inline-end' />
           </Button>
         </div>
