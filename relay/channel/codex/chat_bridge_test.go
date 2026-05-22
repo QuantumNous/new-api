@@ -1,11 +1,18 @@
 package codex
 
 import (
+	"bytes"
 	"encoding/json"
+	"io"
+	"net/http"
+	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/pkg/apicompat"
+	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -77,4 +84,48 @@ func TestApplyCodexConstraints_StripsBannedFields(t *testing.T) {
 	assert.True(t, req.Stream)
 	// Instructions: 空 info 时应保持空字符串
 	assert.Equal(t, "", req.Instructions)
+}
+
+func TestRelayChatOverCodex_StreamPath_BasicText(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	upstreamSSE := strings.Join([]string{
+		`event: response.created`,
+		`data: {"type":"response.created","response":{"id":"resp_1"}}`,
+		``,
+		`event: response.output_text.delta`,
+		`data: {"type":"response.output_text.delta","output_index":0,"delta":"Hello"}`,
+		``,
+		`event: response.output_text.delta`,
+		`data: {"type":"response.output_text.delta","output_index":0,"delta":" world"}`,
+		``,
+		`event: response.completed`,
+		`data: {"type":"response.completed","response":{"id":"resp_1","usage":{"input_tokens":3,"output_tokens":2}}}`,
+		``,
+	}, "\n")
+
+	resp := &http.Response{
+		StatusCode: 200,
+		Header:     make(http.Header),
+		Body:       io.NopCloser(bytes.NewReader([]byte(upstreamSSE))),
+	}
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
+
+	info := &relaycommon.RelayInfo{
+		UserWantsStream: true,
+		IsStream:        true,
+		ChannelMeta:     &relaycommon.ChannelMeta{UpstreamModelName: "gpt-5"},
+	}
+
+	_, apiErr := RelayChatOverCodex(c, info, resp)
+	require.Nil(t, apiErr)
+
+	body := rec.Body.String()
+	assert.Contains(t, body, `"role":"assistant"`)
+	assert.Contains(t, body, "Hello")
+	assert.Contains(t, body, "world")
+	assert.Contains(t, body, `"finish_reason":"stop"`)
+	assert.Contains(t, body, "[DONE]")
 }
