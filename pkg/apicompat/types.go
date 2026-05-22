@@ -4,7 +4,11 @@
 // formats can be served through a unified gateway.
 package apicompat
 
-import "encoding/json"
+import (
+	"encoding/json"
+
+	"github.com/QuantumNous/new-api/common"
+)
 
 // ---------------------------------------------------------------------------
 // OpenAI Responses API types
@@ -160,7 +164,7 @@ func (u *ResponsesUsage) UnmarshalJSON(data []byte) error {
 		PromptTokensDetails     *ResponsesInputTokensDetails  `json:"prompt_tokens_details,omitempty"`
 		CompletionTokensDetails *ResponsesOutputTokensDetails `json:"completion_tokens_details,omitempty"`
 	}
-	if err := json.Unmarshal(data, &aux); err != nil {
+	if err := common.Unmarshal(data, &aux); err != nil {
 		return err
 	}
 	*u = ResponsesUsage(aux.responsesUsageAlias)

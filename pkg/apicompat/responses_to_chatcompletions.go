@@ -3,10 +3,11 @@ package apicompat
 import (
 	"crypto/rand"
 	"encoding/hex"
-	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
+
+	"github.com/QuantumNous/new-api/common"
 )
 
 // ---------------------------------------------------------------------------
@@ -66,7 +67,7 @@ func ResponsesToChatCompletions(resp *ResponsesResponse, model string) *ChatComp
 		msg.ToolCalls = toolCalls
 	}
 	if contentText != "" {
-		raw, _ := json.Marshal(contentText)
+		raw, _ := common.Marshal(contentText)
 		msg.Content = raw
 	}
 	if reasoningText != "" {
@@ -202,7 +203,7 @@ func FinalizeResponsesChatStream(state *ResponsesEventToChatState) []ChatComplet
 
 // ChatChunkToSSE formats a ChatCompletionsChunk as an SSE data line.
 func ChatChunkToSSE(chunk ChatCompletionsChunk) (string, error) {
-	data, err := json.Marshal(chunk)
+	data, err := common.Marshal(chunk)
 	if err != nil {
 		return "", err
 	}

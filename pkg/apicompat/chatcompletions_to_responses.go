@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+
+	"github.com/QuantumNous/new-api/common"
 )
 
 type chatMessageContent struct {
@@ -21,7 +23,7 @@ func ChatCompletionsToResponses(req *ChatCompletionsRequest) (*ResponsesRequest,
 		return nil, err
 	}
 
-	inputJSON, err := json.Marshal(input)
+	inputJSON, err := common.Marshal(input)
 	if err != nil {
 		return nil, err
 	}
@@ -176,7 +178,7 @@ func chatAssistantToResponses(m ChatMessage) ([]ResponsesInputItem, error) {
 
 	if content != "" {
 		parts := []ResponsesContentPart{{Type: "output_text", Text: content}}
-		partsJSON, err := json.Marshal(parts)
+		partsJSON, err := common.Marshal(parts)
 		if err != nil {
 			return nil, err
 		}
@@ -214,12 +216,12 @@ func parseAssistantContent(raw json.RawMessage) (string, error) {
 	}
 
 	var s string
-	if err := json.Unmarshal(raw, &s); err == nil {
+	if err := common.Unmarshal(raw, &s); err == nil {
 		return s, nil
 	}
 
 	var parts []map[string]any
-	if err := json.Unmarshal(raw, &parts); err != nil {
+	if err := common.Unmarshal(raw, &parts); err != nil {
 		// Keep compatibility with prior behavior: unsupported assistant content
 		// formats are ignored instead of failing the whole request conversion.
 		return "", nil
@@ -325,12 +327,12 @@ func parseChatMessageContent(raw json.RawMessage) (chatMessageContent, error) {
 	}
 
 	var s string
-	if err := json.Unmarshal(raw, &s); err == nil {
+	if err := common.Unmarshal(raw, &s); err == nil {
 		return chatMessageContent{Text: &s}, nil
 	}
 
 	var parts []ChatContentPart
-	if err := json.Unmarshal(raw, &parts); err == nil {
+	if err := common.Unmarshal(raw, &parts); err == nil {
 		return chatMessageContent{Parts: parts}, nil
 	}
 
@@ -339,16 +341,16 @@ func parseChatMessageContent(raw json.RawMessage) (chatMessageContent, error) {
 
 func marshalChatInputContent(content chatMessageContent) (json.RawMessage, error) {
 	if content.Text != nil {
-		return json.Marshal(*content.Text)
+		return common.Marshal(*content.Text)
 	}
 	parts := convertChatContentPartsToResponses(content.Parts)
 	if len(parts) == 0 {
 		// A nil slice marshals to JSON null, which the upstream Responses API
 		// rejects ("expected an array of objects or string, but got null").
 		// Fall back to an empty string when no usable parts remain.
-		return json.Marshal("")
+		return common.Marshal("")
 	}
-	return json.Marshal(parts)
+	return common.Marshal(parts)
 }
 
 func convertChatContentPartsToResponses(parts []ChatContentPart) []ResponsesContentPart {
@@ -447,18 +449,18 @@ func convertChatToolsToResponses(tools []ChatTool, functions []ChatFunction) []R
 func convertChatFunctionCallToToolChoice(raw json.RawMessage) (json.RawMessage, error) {
 	// Try string first ("auto", "none", etc.) — pass through as-is.
 	var s string
-	if err := json.Unmarshal(raw, &s); err == nil {
-		return json.Marshal(s)
+	if err := common.Unmarshal(raw, &s); err == nil {
+		return common.Marshal(s)
 	}
 
 	// Object form: {"name":"X"}
 	var obj struct {
 		Name string `json:"name"`
 	}
-	if err := json.Unmarshal(raw, &obj); err != nil {
+	if err := common.Unmarshal(raw, &obj); err != nil {
 		return nil, err
 	}
-	return json.Marshal(map[string]any{
+	return common.Marshal(map[string]any{
 		"type": "function",
 		"name": obj.Name,
 	})
