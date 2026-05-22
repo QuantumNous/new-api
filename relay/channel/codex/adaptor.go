@@ -2,6 +2,7 @@ package codex
 
 import (
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"strings"
@@ -41,7 +42,25 @@ func (a *Adaptor) Init(info *relaycommon.RelayInfo) {
 }
 
 func (a *Adaptor) ConvertOpenAIRequest(c *gin.Context, info *relaycommon.RelayInfo, request *dto.GeneralOpenAIRequest) (any, error) {
-	return nil, errors.New("codex channel: /v1/chat/completions endpoint not supported")
+	// 记录客户端 stream 意图（上游强制流式，与此解耦）
+	if info != nil {
+		if request != nil && request.Stream != nil {
+			info.UserWantsStream = *request.Stream
+		} else {
+			info.UserWantsStream = false
+		}
+	}
+
+	compatChat, err := ToCompatChatRequest(request)
+	if err != nil {
+		return nil, fmt.Errorf("codex chat→responses: %w", err)
+	}
+	compatResp, err := apicompat.ChatCompletionsToResponses(compatChat)
+	if err != nil {
+		return nil, fmt.Errorf("codex chat→responses: %w", err)
+	}
+	applyCodexConstraints(compatResp, info)
+	return ensureInstructionsField(compatResp)
 }
 
 func (a *Adaptor) ConvertRerankRequest(c *gin.Context, relayMode int, request dto.RerankRequest) (any, error) {
@@ -115,14 +134,17 @@ func (a *Adaptor) GetChannelName() string {
 }
 
 func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
-	if info.RelayMode != relayconstant.RelayModeResponses && info.RelayMode != relayconstant.RelayModeResponsesCompact {
-		return "", errors.New("codex channel: only /v1/responses and /v1/responses/compact are supported")
+	switch info.RelayMode {
+	case relayconstant.RelayModeResponses:
+		return relaycommon.GetFullRequestURL(info.ChannelBaseUrl, "/backend-api/codex/responses", info.ChannelType), nil
+	case relayconstant.RelayModeResponsesCompact:
+		return relaycommon.GetFullRequestURL(info.ChannelBaseUrl, "/backend-api/codex/responses/compact", info.ChannelType), nil
+	case relayconstant.RelayModeChatCompletions:
+		// chat completions 入口与 responses 共用同一上游端点（上游协议是 Responses）
+		return relaycommon.GetFullRequestURL(info.ChannelBaseUrl, "/backend-api/codex/responses", info.ChannelType), nil
+	default:
+		return "", errors.New("codex channel: only /v1/responses, /v1/responses/compact and /v1/chat/completions are supported")
 	}
-	path := "/backend-api/codex/responses"
-	if info.RelayMode == relayconstant.RelayModeResponsesCompact {
-		path = "/backend-api/codex/responses/compact"
-	}
-	return relaycommon.GetFullRequestURL(info.ChannelBaseUrl, path, info.ChannelType), nil
 }
 
 func (a *Adaptor) SetupRequestHeader(c *gin.Context, req *http.Header, info *relaycommon.RelayInfo) error {
