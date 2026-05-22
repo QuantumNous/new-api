@@ -210,7 +210,14 @@ func RelayChatOverCodex(c *gin.Context, info *relaycommon.RelayInfo, resp *http.
 		evt := &apicompat.ResponsesStreamEvent{}
 		if err := common.Unmarshal([]byte(payload), evt); err == nil {
 			acc.ProcessEvent(evt)
-			if (evt.Type == "response.completed" || evt.Type == "response.done") && evt.Response != nil && evt.Response.Usage != nil {
+			// Fix 5 (Finding B): response.failed / response.incomplete 同样会携带 usage
+			// （例如 length 截断时上游通过 response.incomplete 返回 usage），
+			// 必须一起捕获，否则结算阶段会漏算 tokens。
+			isTerminal := evt.Type == "response.completed" ||
+				evt.Type == "response.done" ||
+				evt.Type == "response.failed" ||
+				evt.Type == "response.incomplete"
+			if isTerminal && evt.Response != nil && evt.Response.Usage != nil {
 				lastUsage = evt.Response.Usage
 			}
 			if streamToClient {

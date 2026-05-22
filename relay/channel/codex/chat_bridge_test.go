@@ -578,6 +578,52 @@ func TestConvertOpenAIResponsesRequest_NonCompactAcceptsNonStringInstructions(t 
 	}
 }
 
+// Fix 5 (Finding B): response.incomplete 也必须捕获上游 usage。
+// 例如 length 截断时上游不会触发 response.completed，只会发 response.incomplete，
+// 之前只判断 completed/done 会导致这一类截断的 usage 全部漏算。
+func TestRelayChatOverCodex_CapturesUsageFromIncompleteEvent(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	upstreamSSE := strings.Join([]string{
+		`event: response.incomplete`,
+		`data: {"type":"response.incomplete","response":{"id":"resp_1","status":"incomplete","incomplete_details":{"reason":"max_output_tokens"},"usage":{"input_tokens":11,"output_tokens":7}}}`,
+		``,
+	}, "\n")
+	resp := &http.Response{StatusCode: 200, Header: make(http.Header), Body: io.NopCloser(bytes.NewReader([]byte(upstreamSSE)))}
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
+	usage, apiErr := RelayChatOverCodex(c, &relaycommon.RelayInfo{
+		ChannelMeta: &relaycommon.ChannelMeta{UpstreamModelName: "gpt-5"},
+	}, resp)
+	require.Nil(t, apiErr)
+	dtoUsage, ok := usage.(*dto.Usage)
+	require.True(t, ok)
+	assert.Equal(t, 11, dtoUsage.PromptTokens)
+	assert.Equal(t, 7, dtoUsage.CompletionTokens)
+}
+
+// Fix 5 (Finding B): response.failed 也必须捕获 usage。
+func TestRelayChatOverCodex_CapturesUsageFromFailedEvent(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	upstreamSSE := strings.Join([]string{
+		`event: response.failed`,
+		`data: {"type":"response.failed","response":{"id":"resp_1","status":"failed","error":{"code":"server_error","message":"upstream blew up"},"usage":{"input_tokens":5,"output_tokens":1}}}`,
+		``,
+	}, "\n")
+	resp := &http.Response{StatusCode: 200, Header: make(http.Header), Body: io.NopCloser(bytes.NewReader([]byte(upstreamSSE)))}
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
+	usage, apiErr := RelayChatOverCodex(c, &relaycommon.RelayInfo{
+		ChannelMeta: &relaycommon.ChannelMeta{UpstreamModelName: "gpt-5"},
+	}, resp)
+	require.Nil(t, apiErr)
+	dtoUsage, ok := usage.(*dto.Usage)
+	require.True(t, ok)
+	assert.Equal(t, 5, dtoUsage.PromptTokens)
+	assert.Equal(t, 1, dtoUsage.CompletionTokens)
+}
+
 // compact 路径同样要保留 dto 独有字段（Conversation / Truncation 等）。
 func TestConvertOpenAIResponsesRequest_CompactPreservesDtoOnlyFields(t *testing.T) {
 	a := &Adaptor{}
