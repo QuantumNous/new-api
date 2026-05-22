@@ -17,6 +17,11 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 export type AffiliateCommissionStatus = 'pending' | 'settled'
+export type AffiliateCommissionSettlementType =
+  | ''
+  | 'wallet'
+  | 'offline'
+  | 'offline_cashback'
 
 export interface AffiliateCommission {
   id: number
@@ -39,10 +44,18 @@ export interface AffiliateCommission {
   base_amount_micros: number
   commission_rate_bps: number
   commission_amount_micros: number
+  base_quota: number
+  reward_points: number
+  settled_points: number
+  wallet_redeemed_points: number
+  offline_settled_points: number
+  offline_cashback_points?: number
+  pending_points: number
   currency: string
   payment_provider: string
   payment_method: string
   status: AffiliateCommissionStatus
+  settlement_type?: AffiliateCommissionSettlementType
   settled_at?: number
   settled_by?: number
   settled_by_username?: string
@@ -50,6 +63,16 @@ export interface AffiliateCommission {
   settled_payout_method?: string
   settled_payout_account?: string
   settled_payout_account_name?: string
+  settled_cash_value_micros?: number
+  settled_wallet_quota?: number
+  settled_wallet_amount_micros?: number
+  settled_price_per_wallet_unit_micros?: number
+  settled_points_per_amount_unit?: number
+  settled_offline_amount_per_point_micros?: number
+  cash_value_micros?: number
+  wallet_quota?: number
+  wallet_amount_micros?: number
+  price_per_wallet_unit_micros?: number
   created_at: number
   updated_at: number
 }
@@ -58,9 +81,24 @@ export interface AffiliateCommissionSummary {
   pending_amount_micros: number
   settled_amount_micros: number
   total_amount_micros: number
+  pending_points: number
+  wallet_redeemed_points: number
+  offline_settled_points: number
+  offline_cashback_points?: number
+  settled_points: number
+  redeemed_points?: number
+  total_points: number
   pending_count: number
   settled_count: number
+  wallet_redeemed_count: number
+  offline_settled_count: number
+  offline_cashback_count?: number
+  redeemed_count?: number
   total_count: number
+  pending_cash_value_micros?: number
+  pending_wallet_quota?: number
+  pending_wallet_amount_micros?: number
+  price_per_wallet_unit_micros?: number
   currency: string
 }
 
@@ -71,26 +109,38 @@ export interface AffiliateCommissionListResponse {
   items: AffiliateCommission[]
 }
 
+export interface AffiliateRewardPointSettlement {
+  id: number
+  commission_id: number
+  promoter_id: number
+  promoter_username?: string
+  settlement_type: AffiliateCommissionSettlementType
+  points: number
+  wallet_quota: number
+  wallet_amount_micros: number
+  settled_by: number
+  settled_by_username?: string
+  settled_at: number
+  remark?: string
+  trade_no?: string
+  buyer_id?: number
+  buyer_username?: string
+  level?: 1 | 2
+  created_at: number
+  updated_at: number
+}
+
+export interface AffiliateRewardPointSettlementListResponse {
+  page: number
+  page_size: number
+  total: number
+  items: AffiliateRewardPointSettlement[]
+}
+
 export interface ApiResponse<T = unknown> {
   success: boolean
   message?: string
   data?: T
-}
-
-export interface AffiliatePayoutProfile {
-  id?: number
-  user_id: number
-  method: 'paypal'
-  account: string
-  account_name?: string
-  created_at?: number
-  updated_at?: number
-}
-
-export interface AffiliatePayoutProfileRequest {
-  method: 'paypal'
-  account: string
-  account_name?: string
 }
 
 export interface AffiliateCommissionFilters {
@@ -103,7 +153,57 @@ export interface AffiliateCommissionFilters {
   end_time?: string
 }
 
+export interface AffiliateRewardPointSettlementFilters {
+  settlement_type?: AffiliateCommissionSettlementType | ''
+  promoter_id?: string
+  start_time?: string
+  end_time?: string
+}
+
 export interface AffiliateCommissionQuery extends AffiliateCommissionFilters {
   p?: number
   page_size?: number
+}
+
+export interface AffiliateRewardPointSettlementQuery
+  extends AffiliateRewardPointSettlementFilters {
+  p?: number
+  page_size?: number
+}
+
+export interface RedeemAffiliateRewardPointsRequest {
+  points?: number
+}
+
+export interface RedeemAffiliateRewardPointsResponse {
+  redeemed_points: number
+  redeemed_quota: number
+  redeemed_wallet_amount: number
+  redeemed_wallet_amount_micros: number
+  cash_value_micros: number
+  price_per_wallet_unit_micros: number
+}
+
+export interface QuoteAffiliateRewardPointsRequest {
+  points: number
+}
+
+export interface QuoteAffiliateRewardPointsResponse {
+  redeemable_points: number
+  redeemed_quota: number
+  redeemed_wallet_amount: number
+  redeemed_wallet_amount_micros: number
+  cash_value_micros: number
+  price_per_wallet_unit_micros: number
+}
+
+export interface OfflineCashbackAffiliateRewardPointsRequest {
+  promoter_id: number
+  points: number
+  remark?: string
+}
+
+export interface OfflineCashbackAffiliateRewardPointsResponse {
+  promoter_id: number
+  points: number
 }

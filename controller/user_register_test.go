@@ -127,6 +127,7 @@ func TestRegisterAcceptsAffAliasFromInviteLink(t *testing.T) {
 	var invitee model.User
 	require.NoError(t, db.Where("username = ?", "invitee_aff").First(&invitee).Error)
 	require.Equal(t, inviter.Id, invitee.InviterId)
+	require.False(t, invitee.DistributionEnabled)
 }
 
 func TestRegisterAcceptsAffCodeFromClassicClient(t *testing.T) {
@@ -143,4 +144,5 @@ func TestRegisterAcceptsAffCodeFromClassicClient(t *testing.T) {
 	var invitee model.User
 	require.NoError(t, db.Where("username = ?", "invitee_code").First(&invitee).Error)
 	require.Equal(t, inviter.Id, invitee.InviterId)
+	require.False(t, invitee.DistributionEnabled)
 }

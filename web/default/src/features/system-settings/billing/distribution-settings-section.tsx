@@ -41,12 +41,11 @@ const schema = z
     enabled: z.boolean(),
     level1RatePercent: z.coerce.number().min(0).max(100),
     level2RatePercent: z.coerce.number().min(0).max(100),
-    currency: z.string().trim().min(1),
   })
   .refine(
     (values) => values.level1RatePercent + values.level2RatePercent <= 100,
     {
-      message: 'Total commission rate cannot exceed 100%',
+      message: 'Total reward rate cannot exceed 100%',
       path: ['level2RatePercent'],
     }
   )
@@ -58,7 +57,6 @@ type Props = {
     enabled: boolean
     level1RateBps: number
     level2RateBps: number
-    currency: string
   }
   complianceConfirmed: boolean
 }
@@ -112,7 +110,6 @@ export function DistributionSettingsSection({
     enabled: defaultValues.enabled,
     level1RatePercent: bpsToPercent(defaultValues.level1RateBps),
     level2RatePercent: bpsToPercent(defaultValues.level2RateBps),
-    currency: defaultValues.currency || 'CNY',
   }
 
   const form = useForm<Values>({
@@ -148,13 +145,6 @@ export function DistributionSettingsSection({
         value: String(values.enabled),
       })
     }
-    if (values.currency !== (defaultValues.currency || 'CNY')) {
-      updates.push({
-        key: 'distribution_setting.currency',
-        value: values.currency,
-      })
-    }
-
     if (updates.length === 0) {
       toast.info(t('No changes to save'))
       return
@@ -170,7 +160,7 @@ export function DistributionSettingsSection({
   return (
     <SettingsSection
       title={t('Distribution')}
-      description={t('Configure two-level wallet top-up affiliate commissions')}
+      description={t('Configure two-level wallet top-up reward points')}
     >
       <Form {...form}>
         <form
@@ -189,7 +179,7 @@ export function DistributionSettingsSection({
                   </FormLabel>
                   <FormDescription>
                     {t(
-                      'When enabled, users are eligible to earn commissions from qualified invitee wallet top-ups.'
+                      'When enabled, users can earn reward points from qualified invitee credited wallet units.'
                     )}
                   </FormDescription>
                 </div>
@@ -216,13 +206,13 @@ export function DistributionSettingsSection({
             </p>
           )}
 
-          <div className='grid gap-6 sm:grid-cols-3'>
+          <div className='grid gap-6 sm:grid-cols-2'>
             <FormField
               control={form.control}
               name='level1RatePercent'
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>{t('Level 1 commission (%)')}</FormLabel>
+                  <FormLabel>{t('Level 1 reward rate (%)')}</FormLabel>
                   <FormControl>
                     <Input
                       type='number'
@@ -233,7 +223,7 @@ export function DistributionSettingsSection({
                     />
                   </FormControl>
                   <FormDescription>
-                    {t("Buyer inviter's commission rate")}
+                    {t("Buyer inviter's reward point rate based on credited wallet units")}
                   </FormDescription>
                   <FormMessage />
                 </FormItem>
@@ -245,7 +235,7 @@ export function DistributionSettingsSection({
               name='level2RatePercent'
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>{t('Level 2 commission (%)')}</FormLabel>
+                  <FormLabel>{t('Level 2 reward rate (%)')}</FormLabel>
                   <FormControl>
                     <Input
                       type='number'
@@ -256,24 +246,7 @@ export function DistributionSettingsSection({
                     />
                   </FormControl>
                   <FormDescription>
-                    {t("Inviter's inviter commission rate")}
-                  </FormDescription>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name='currency'
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>{t('Commission currency')}</FormLabel>
-                  <FormControl>
-                    <Input {...field} placeholder='CNY' />
-                  </FormControl>
-                  <FormDescription>
-                    {t('Currency label used for offline settlement')}
+                    {t("Inviter's inviter reward point rate based on credited wallet units")}
                   </FormDescription>
                   <FormMessage />
                 </FormItem>

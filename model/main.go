@@ -267,6 +267,7 @@ func migrateDB() error {
 		&Midjourney{},
 		&TopUp{},
 		&AffiliateCommission{},
+		&AffiliateCommissionSettlement{},
 		&AffiliatePayoutProfile{},
 		&QuotaData{},
 		&Task{},
@@ -299,6 +300,18 @@ func migrateDB() error {
 	if err := migrateSubscriptionPlanCurrencyToCNY(); err != nil {
 		return err
 	}
+	if err := migrateDisableExistingUserDistribution(); err != nil {
+		return err
+	}
+	if err := migrateAffiliateCommissionRewardPoints(); err != nil {
+		return err
+	}
+	if err := migrateLegacyAffiliateWalletRedemptions(); err != nil {
+		return err
+	}
+	if err := migrateAffiliateCommissionSettlements(); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -321,6 +334,7 @@ func migrateDBFast() error {
 		{&Midjourney{}, "Midjourney"},
 		{&TopUp{}, "TopUp"},
 		{&AffiliateCommission{}, "AffiliateCommission"},
+		{&AffiliateCommissionSettlement{}, "AffiliateCommissionSettlement"},
 		{&AffiliatePayoutProfile{}, "AffiliatePayoutProfile"},
 		{&QuotaData{}, "QuotaData"},
 		{&Task{}, "Task"},
@@ -371,6 +385,18 @@ func migrateDBFast() error {
 		}
 	}
 	if err := migrateSubscriptionPlanCurrencyToCNY(); err != nil {
+		return err
+	}
+	if err := migrateDisableExistingUserDistribution(); err != nil {
+		return err
+	}
+	if err := migrateAffiliateCommissionRewardPoints(); err != nil {
+		return err
+	}
+	if err := migrateLegacyAffiliateWalletRedemptions(); err != nil {
+		return err
+	}
+	if err := migrateAffiliateCommissionSettlements(); err != nil {
 		return err
 	}
 	common.SysLog("database migrated")

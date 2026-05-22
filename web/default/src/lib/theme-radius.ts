@@ -44,7 +44,10 @@ export function useThemeRadiusPx(
   const [radius, setRadius] = useState<number | undefined>()
 
   useEffect(() => {
-    setRadius(resolveThemeRadiusPx(cssVariable))
+    const frameId = window.requestAnimationFrame(() => {
+      setRadius(resolveThemeRadiusPx(cssVariable))
+    })
+    return () => window.cancelAnimationFrame(frameId)
   }, [cssVariable, refreshKey])
 
   return radius

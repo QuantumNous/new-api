@@ -18,6 +18,7 @@ import (
 )
 
 const UserNameMaxLength = 20
+const disableExistingUserDistributionMigrationKey = "migration:disable_existing_user_distribution:v1"
 
 // User if you add sensitive fields, don't forget to clean them in setupLogin function.
 // Otherwise, the sensitive information will be saved on local storage in plain text!
@@ -46,7 +47,7 @@ type User struct {
 	AffQuota            int            `json:"aff_quota" gorm:"type:int;default:0;column:aff_quota"`           // 邀请剩余额度
 	AffHistoryQuota     int            `json:"aff_history_quota" gorm:"type:int;default:0;column:aff_history"` // 邀请历史额度
 	InviterId           int            `json:"inviter_id" gorm:"type:int;column:inviter_id;index"`
-	DistributionEnabled bool           `json:"distribution_enabled" gorm:"default:true;column:distribution_enabled"`
+	DistributionEnabled bool           `json:"distribution_enabled" gorm:"default:false;column:distribution_enabled"`
 	DeletedAt           gorm.DeletedAt `gorm:"index"`
 	LinuxDOId           string         `json:"linux_do_id" gorm:"column:linux_do_id;index"`
 	Setting             string         `json:"setting" gorm:"type:text;column:setting"`
@@ -407,6 +408,11 @@ func (user *User) Insert(inviterId int) error {
 	if result.Error != nil {
 		return result.Error
 	}
+	if err := DB.Model(&User{}).
+		Where("id = ?", user.Id).
+		Updates(map[string]interface{}{"distribution_enabled": user.DistributionEnabled}).Error; err != nil {
+		return err
+	}
 
 	// 用户创建成功后，根据角色初始化边栏配置
 	// 需要重新获取用户以确保有正确的ID和Role
@@ -464,8 +470,41 @@ func (user *User) InsertWithTx(tx *gorm.DB, inviterId int) error {
 	if result.Error != nil {
 		return result.Error
 	}
+	if err := tx.Model(&User{}).
+		Where("id = ?", user.Id).
+		Updates(map[string]interface{}{"distribution_enabled": user.DistributionEnabled}).Error; err != nil {
+		return err
+	}
 
 	return nil
+}
+
+func migrateDisableExistingUserDistribution() error {
+	if !DB.Migrator().HasTable(&User{}) ||
+		!DB.Migrator().HasTable(&Option{}) ||
+		!DB.Migrator().HasColumn(&User{}, "distribution_enabled") {
+		return nil
+	}
+
+	var marker Option
+	if err := DB.Where("key = ?", disableExistingUserDistributionMigrationKey).First(&marker).Error; err == nil {
+		return nil
+	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
+		return err
+	}
+
+	return DB.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Unscoped().
+			Model(&User{}).
+			Where("distribution_enabled = ?", true).
+			Updates(map[string]interface{}{"distribution_enabled": false}).Error; err != nil {
+			return err
+		}
+		return tx.Create(&Option{
+			Key:   disableExistingUserDistributionMigrationKey,
+			Value: "done",
+		}).Error
+	})
 }
 
 // FinalizeOAuthUserCreation performs post-transaction tasks for OAuth user creation.

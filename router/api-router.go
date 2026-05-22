@@ -66,8 +66,9 @@ func SetApiRouter(router *gin.Engine) {
 		{
 			affiliateSelfRoute.GET("/summary", controller.GetSelfAffiliateSummary)
 			affiliateSelfRoute.GET("/commissions", controller.GetSelfAffiliateCommissions)
-			affiliateSelfRoute.GET("/payout-profile", controller.GetSelfAffiliatePayoutProfile)
-			affiliateSelfRoute.PUT("/payout-profile", controller.UpdateSelfAffiliatePayoutProfile)
+			affiliateSelfRoute.GET("/redemptions", controller.GetSelfAffiliateRewardPointSettlements)
+			affiliateSelfRoute.POST("/rewards/quote", controller.QuoteSelfAffiliateRewardPoints)
+			affiliateSelfRoute.POST("/rewards/redeem", controller.RedeemSelfAffiliateRewardPoints)
 		}
 
 		affiliateAdminRoute := apiRouter.Group("/affiliate/admin")
@@ -75,7 +76,8 @@ func SetApiRouter(router *gin.Engine) {
 		{
 			affiliateAdminRoute.GET("/summary", controller.AdminAffiliateSummary)
 			affiliateAdminRoute.GET("/commissions", controller.AdminListAffiliateCommissions)
-			affiliateAdminRoute.POST("/commissions/settle", controller.AdminSettleAffiliateCommissions)
+			affiliateAdminRoute.GET("/redemptions", controller.AdminListAffiliateRewardPointSettlements)
+			affiliateAdminRoute.POST("/rewards/offline-cashback", controller.AdminOfflineCashbackAffiliateRewardPoints)
 			affiliateAdminRoute.GET("/commissions/export", controller.AdminExportAffiliateCommissions)
 		}
 

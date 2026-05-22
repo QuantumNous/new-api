@@ -235,6 +235,8 @@ export type BillingSettings = {
   'distribution_setting.level1_rate_bps': number
   'distribution_setting.level2_rate_bps': number
   'distribution_setting.currency': string
+  'distribution_setting.points_per_amount_unit': number
+  'distribution_setting.offline_amount_per_point_micros': number
   StripeApiSecret: string
   StripeWebhookSecret: string
   StripePriceId: string

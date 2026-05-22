@@ -70,7 +70,9 @@ export async function sendPasswordResetEmail(
 ): Promise<ApiResponse> {
   const res = await api.get('/api/reset_password', {
     params: { email, turnstile },
-  })
+    skipBusinessError: true,
+    skipErrorHandler: true,
+  } as Record<string, unknown>)
   return res.data
 }
 

@@ -75,6 +75,8 @@ const defaultBillingSettings: BillingSettings = {
   'distribution_setting.level1_rate_bps': 0,
   'distribution_setting.level2_rate_bps': 0,
   'distribution_setting.currency': 'CNY',
+  'distribution_setting.points_per_amount_unit': 100,
+  'distribution_setting.offline_amount_per_point_micros': 10000,
   StripeApiSecret: '',
   StripeWebhookSecret: '',
   StripePriceId: '',

@@ -116,9 +116,7 @@ export function SidebarModulesSection({
       },
       affiliate: {
         title: t('Affiliate'),
-        description: t(
-          'Manage PayPal payout account and top-up commission ledger.'
-        ),
+        description: t('Manage top-up reward points and redemption history.'),
       },
       personal: {
         title: t('Profile'),
@@ -153,7 +151,7 @@ export function SidebarModulesSection({
       affiliate: {
         title: t('Affiliate Management'),
         description: t(
-          'Manage wallet top-up affiliate commissions and offline settlement.'
+          'Manage wallet redemptions and offline cashback point deductions.'
         ),
       },
     },

@@ -50,7 +50,7 @@ export const USER_FORM_DEFAULT_VALUES: UserFormValues = {
   quota_dollars: 0,
   group: DEFAULT_GROUP,
   remark: '',
-  distribution_enabled: true,
+  distribution_enabled: false,
 }
 
 // ============================================================================
@@ -77,7 +77,7 @@ export function transformFormDataToPayload(
     // For update: quota is adjusted atomically via /api/user/manage, not sent here
     payload.group = data.group
     payload.remark = data.remark || undefined
-    payload.distribution_enabled = data.distribution_enabled ?? true
+    payload.distribution_enabled = data.distribution_enabled ?? false
     payload.id = userId
   }
 
@@ -96,6 +96,6 @@ export function transformUserToFormDefaults(user: User): UserFormValues {
     quota_dollars: quotaUnitsToDollars(user.quota),
     group: user.group || DEFAULT_GROUP,
     remark: user.remark || '',
-    distribution_enabled: user.distribution_enabled ?? true,
+    distribution_enabled: user.distribution_enabled ?? false,
   }
 }

@@ -123,7 +123,7 @@ func completeTopUpSuccessWithTx(tx *gorm.DB, topUp *TopUp, quotaToAdd int, userU
 		return err
 	}
 
-	return CreateTopUpCommissionsWithTx(tx, topUp)
+	return CreateTopUpCommissionsWithTx(tx, topUp, quotaToAdd)
 }
 
 func calculateQuotaFromAmount(amount int64) int {
@@ -132,6 +132,20 @@ func calculateQuotaFromAmount(amount int64) int {
 
 func calculateQuotaFromMoney(money float64) int {
 	return int(decimal.NewFromFloat(money).Mul(decimal.NewFromFloat(common.QuotaPerUnit)).IntPart())
+}
+
+func creditedQuotaFromTopUp(topUp *TopUp) int {
+	if topUp == nil {
+		return 0
+	}
+	switch topUp.PaymentProvider {
+	case PaymentProviderStripe:
+		return calculateQuotaFromMoney(topUp.Money)
+	case PaymentProviderCreem:
+		return int(topUp.Amount)
+	default:
+		return calculateQuotaFromAmount(topUp.Amount)
+	}
 }
 
 func Recharge(referenceId string, customerId string, callerIp string) (err error) {

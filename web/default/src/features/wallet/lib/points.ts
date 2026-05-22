@@ -16,24 +16,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useTranslation } from 'react-i18next'
-import { SectionPageLayout } from '@/components/layout'
-import { AffiliateCommissionsCard } from '@/features/wallet/components/affiliate-commissions-card'
-
-export function Affiliate() {
-  const { t } = useTranslation()
-
-  return (
-    <SectionPageLayout>
-      <SectionPageLayout.Title>{t('Affiliate')}</SectionPageLayout.Title>
-      <SectionPageLayout.Description>
-        {t('Manage top-up reward points and redemption history')}
-      </SectionPageLayout.Description>
-      <SectionPageLayout.Content>
-        <div className='mx-auto flex w-full max-w-7xl flex-col gap-4 sm:gap-5'>
-          <AffiliateCommissionsCard />
-        </div>
-      </SectionPageLayout.Content>
-    </SectionPageLayout>
+export function formatRewardPoints(points: number | null | undefined): string {
+  return Intl.NumberFormat(undefined, { maximumFractionDigits: 0 }).format(
+    Math.max(0, Math.round(points || 0))
   )
 }

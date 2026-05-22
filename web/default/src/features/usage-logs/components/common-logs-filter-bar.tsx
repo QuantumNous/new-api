@@ -78,26 +78,37 @@ export function CommonLogsFilterBar<TData>(
   const [logType, setLogType] = useState<LogTypeValue | ''>('')
 
   useEffect(() => {
-    const next: Partial<CommonLogFilters> = {}
-    if (searchParams.startTime)
-      next.startTime = new Date(searchParams.startTime)
-    if (searchParams.endTime) next.endTime = new Date(searchParams.endTime)
-    if (searchParams.channel) next.channel = String(searchParams.channel)
-    if (searchParams.model) next.model = searchParams.model
-    if (searchParams.token) next.token = searchParams.token
-    if (searchParams.group) next.group = searchParams.group
-    if (searchParams.username) next.username = searchParams.username
-    if (searchParams.requestId) next.requestId = searchParams.requestId
-    if (searchParams.upstreamRequestId)
-      next.upstreamRequestId = searchParams.upstreamRequestId
+    let cancelled = false
+    queueMicrotask(() => {
+      if (cancelled) return
+      const next: Partial<CommonLogFilters> = {}
+      if (searchParams.startTime)
+        next.startTime = new Date(searchParams.startTime)
+      if (searchParams.endTime) next.endTime = new Date(searchParams.endTime)
+      if (searchParams.channel) next.channel = String(searchParams.channel)
+      if (searchParams.model) next.model = searchParams.model
+      if (searchParams.token) next.token = searchParams.token
+      if (searchParams.group) next.group = searchParams.group
+      if (searchParams.username) next.username = searchParams.username
+      if (searchParams.requestId) next.requestId = searchParams.requestId
+      if (searchParams.upstreamRequestId)
+        next.upstreamRequestId = searchParams.upstreamRequestId
 
-    if (Object.keys(next).length > 0) {
-      setFilters((prev) => ({ ...prev, ...next }))
-    }
+      if (Object.keys(next).length > 0) {
+        setFilters((prev) => ({ ...prev, ...next }))
+      }
 
-    const typeArr = searchParams.type
-    if (Array.isArray(typeArr) && typeArr.length === 1) {
-      setLogType(typeArr[0])
+      const typeArr = searchParams.type
+      if (
+        Array.isArray(typeArr) &&
+        typeArr.length === 1 &&
+        isLogTypeValue(typeArr[0])
+      ) {
+        setLogType(typeArr[0])
+      }
+    })
+    return () => {
+      cancelled = true
     }
   }, [
     searchParams.startTime,
