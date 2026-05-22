@@ -194,6 +194,15 @@ func RelayChatOverCodex(c *gin.Context, info *relaycommon.RelayInfo, resp *http.
 	if info != nil {
 		state.IncludeUsage = info.ShouldIncludeUsage
 	}
+	// Fix 8 (Finding J): 给流式 chunk 一个稳定的 model 名称。
+	// Codex 上游 response.created 通常不携带 "model" 字段（与官方 Responses 不同），
+	// 导致 state.Model 一直为空，每个 chat chunk 的 "model" 字段也是空字符串，破坏
+	// OpenAI 兼容性。用 info.UpstreamModelName 作为起始值；若上游后续真的下发了 model
+	// 仍然会被 resToChatHandleCreated 中的 "state.Model == "" " 守卫保留我们的值，
+	// 但显式赋值是为了即便上游不发也始终有值。
+	if info != nil && info.ChannelMeta != nil && info.UpstreamModelName != "" {
+		state.Model = info.UpstreamModelName
+	}
 	acc := apicompat.NewBufferedResponseAccumulator()
 	var lastUsage *apicompat.ResponsesUsage
 	// Fix 7 (Sweep-2): 缓存最后一个 terminal 事件的 Response，便于非流式分支

@@ -578,6 +578,39 @@ func TestConvertOpenAIResponsesRequest_NonCompactAcceptsNonStringInstructions(t 
 	}
 }
 
+// Fix 8 (Finding J): 流式 chunk 的 "model" 字段必须非空。
+// Codex 上游 response.created 不带 model，需要从 info.UpstreamModelName 兜底。
+func TestRelayChatOverCodex_Stream_ChunksHaveModelName(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	// 故意让 response.created 不携带 model 字段。
+	upstreamSSE := strings.Join([]string{
+		`event: response.created`,
+		`data: {"type":"response.created","response":{"id":"resp_1"}}`,
+		``,
+		`event: response.output_text.delta`,
+		`data: {"type":"response.output_text.delta","output_index":0,"delta":"hi"}`,
+		``,
+		`event: response.completed`,
+		`data: {"type":"response.completed","response":{"id":"resp_1","status":"completed","usage":{"input_tokens":3,"output_tokens":2}}}`,
+		``,
+	}, "\n")
+	resp := &http.Response{StatusCode: 200, Header: make(http.Header), Body: io.NopCloser(bytes.NewReader([]byte(upstreamSSE)))}
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
+	info := &relaycommon.RelayInfo{
+		UserWantsStream: true,
+		ChannelMeta:     &relaycommon.ChannelMeta{UpstreamModelName: "gpt-5"},
+	}
+	_, apiErr := RelayChatOverCodex(c, info, resp)
+	require.Nil(t, apiErr)
+	body := rec.Body.String()
+	assert.Contains(t, body, `"model":"gpt-5"`,
+		"chat chunk 必须从 info.UpstreamModelName 取到 model 名称")
+	// 也不应该出现空 model 字段
+	assert.NotContains(t, body, `"model":""`)
+}
+
 // Fix 7 (Sweep-2): 非流式分支必须透传上游真实的 status / incomplete_details，
 // 否则 length 截断时 finish_reason 会被压成 "stop"。
 // 验证：incomplete + max_output_tokens 必须映射成 finish_reason:"length"。
