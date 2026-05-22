@@ -65,6 +65,7 @@ import {
   ModelPricingSheet,
   type ModelRatioData,
 } from './model-pricing-sheet'
+import { formatPricingNumber } from './pricing-format'
 
 type ModelRatioVisualEditorProps = {
   modelPrice: string
@@ -106,15 +107,11 @@ const toNumberOrNull = (value?: string) => {
   return Number.isFinite(num) ? num : null
 }
 
-const formatPrice = (value: number) => {
-  return Number.parseFloat(value.toFixed(12)).toString()
-}
-
 const ratioToPrice = (ratio?: string, denominator?: string) => {
   const ratioNumber = toNumberOrNull(ratio)
   const denominatorNumber = denominator ? toNumberOrNull(denominator) : 2
   if (ratioNumber === null || denominatorNumber === null) return ''
-  return formatPrice(ratioNumber * denominatorNumber)
+  return formatPricingNumber(ratioNumber * denominatorNumber)
 }
 
 const filterBySelectedValues = (
