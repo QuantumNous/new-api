@@ -418,3 +418,38 @@ func TestChatBridge_StripsAllCodexBannedFields(t *testing.T) {
 	assert.Contains(t, bodyStr, `"store":false`)
 	assert.Contains(t, bodyStr, `"stream":true`)
 }
+
+// 锁定 SSE 规范行为：一个事件内的多条 data: 行必须按 "\n" 拼接，
+// 而不是被后一条覆盖。Codex 实测是单行，但留出防御能力。
+func TestRelayChatOverCodex_MultiLineDataLinesAreJoined(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	// 把一个 output_text.delta 事件的 JSON 强行拆成两行 data:，
+	// 拼接后是一个合法 JSON。
+	upstreamSSE := strings.Join([]string{
+		`event: response.output_text.delta`,
+		`data: {"type":"response.output_text.delta","output_index":0,`,
+		`data: "delta":"chunked"}`,
+		``,
+		`event: response.completed`,
+		`data: {"type":"response.completed","response":{"id":"resp_1","status":"completed","usage":{"input_tokens":1,"output_tokens":1}}}`,
+		``,
+	}, "\n")
+
+	resp := &http.Response{
+		StatusCode: 200,
+		Header:     make(http.Header),
+		Body:       io.NopCloser(bytes.NewReader([]byte(upstreamSSE))),
+	}
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
+
+	_, apiErr := RelayChatOverCodex(c, &relaycommon.RelayInfo{
+		UserWantsStream: true,
+		ChannelMeta:     &relaycommon.ChannelMeta{UpstreamModelName: "gpt-5"},
+	}, resp)
+	require.Nil(t, apiErr)
+	assert.Contains(t, rec.Body.String(), "chunked",
+		"多行 data: 必须按 SSE 规范拼接为完整 JSON 并交付内容")
+}

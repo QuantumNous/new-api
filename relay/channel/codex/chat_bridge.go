@@ -140,13 +140,16 @@ func RelayChatOverCodex(c *gin.Context, info *relaycommon.RelayInfo, resp *http.
 	scanner := bufio.NewScanner(resp.Body)
 	scanner.Buffer(make([]byte, 0, 64*1024), 1024*1024)
 
-	var dataLine string
+	// 按 SSE 规范累积一个事件内的多行 data:，事件之间以空行分隔
+	var dataLines []string
 	flushEvent := func() {
-		if dataLine == "" {
+		if len(dataLines) == 0 {
 			return
 		}
+		payload := strings.Join(dataLines, "\n")
+		dataLines = dataLines[:0]
 		evt := &apicompat.ResponsesStreamEvent{}
-		if err := common.Unmarshal([]byte(dataLine), evt); err == nil {
+		if err := common.Unmarshal([]byte(payload), evt); err == nil {
 			acc.ProcessEvent(evt)
 			if (evt.Type == "response.completed" || evt.Type == "response.done") && evt.Response != nil && evt.Response.Usage != nil {
 				lastUsage = evt.Response.Usage
@@ -159,7 +162,6 @@ func RelayChatOverCodex(c *gin.Context, info *relaycommon.RelayInfo, resp *http.
 				}
 			}
 		}
-		dataLine = ""
 	}
 
 	for scanner.Scan() {
@@ -169,11 +171,16 @@ func RelayChatOverCodex(c *gin.Context, info *relaycommon.RelayInfo, resp *http.
 			continue
 		}
 		if strings.HasPrefix(line, "data:") {
-			dataLine = strings.TrimSpace(strings.TrimPrefix(line, "data:"))
+			dataLines = append(dataLines, strings.TrimSpace(strings.TrimPrefix(line, "data:")))
 		}
 		// event: 行忽略——事件类型同样存在于 data JSON 里
 	}
 	flushEvent()
+
+	// 扫描错误（包括单行超过 1MB 缓冲、上游中断等）需要落日志，避免静默丢数据
+	if err := scanner.Err(); err != nil {
+		common.SysError(fmt.Sprintf("codex chat bridge: SSE scan error: %v", err))
+	}
 
 	if streamToClient {
 		for _, chunk := range apicompat.FinalizeResponsesChatStream(state) {
