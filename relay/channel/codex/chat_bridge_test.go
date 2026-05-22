@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/QuantumNous/new-api/dto"
+	"github.com/QuantumNous/new-api/pkg/apicompat"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -52,4 +53,28 @@ func TestToCompatChatRequest_StreamNilTreatedAsFalse(t *testing.T) {
 	out, err := ToCompatChatRequest(req)
 	require.NoError(t, err)
 	assert.False(t, out.Stream)
+}
+
+func TestApplyCodexConstraints_StripsBannedFields(t *testing.T) {
+	temp := 0.7
+	topP := 0.9
+	maxOut := 1024
+
+	req := &apicompat.ResponsesRequest{
+		Model:           "gpt-5",
+		MaxOutputTokens: &maxOut,
+		Temperature:     &temp,
+		TopP:            &topP,
+	}
+
+	applyCodexConstraints(req, nil)
+
+	assert.Nil(t, req.MaxOutputTokens)
+	assert.Nil(t, req.Temperature)
+	assert.Nil(t, req.TopP)
+	require.NotNil(t, req.Store)
+	assert.False(t, *req.Store)
+	assert.True(t, req.Stream)
+	// Instructions: 空 info 时应保持空字符串
+	assert.Equal(t, "", req.Instructions)
 }
