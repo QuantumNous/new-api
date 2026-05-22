@@ -294,8 +294,8 @@ function BillingBreakdown(props: {
   }
 
   if (other.image_per_size_billing && other.image_per_size_price != null) {
-    const count = other.image_per_size_count ?? 1
-    const tier = other.image_size_tier ?? ''
+    const count = Math.max(1, other.image_per_size_count ?? 1)
+    const tier = other.image_size_tier || '2K'
     rows.push({
       label: t('Image Generation'),
       value: `${tier} × ${count} ${t('image(s)')} (${fmtPrice(other.image_per_size_price)}/${t('image')})`,
