@@ -13,6 +13,7 @@ import (
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/pkg/apicompat"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -452,4 +453,22 @@ func TestRelayChatOverCodex_MultiLineDataLinesAreJoined(t *testing.T) {
 	require.Nil(t, apiErr)
 	assert.Contains(t, rec.Body.String(), "chunked",
 		"多行 data: 必须按 SSE 规范拼接为完整 JSON 并交付内容")
+}
+
+// Fix 1 (Finding E): compact 路径必须保证 "instructions" 键存在。
+// 之前 compact 走 dto roundtrip 时，apicompat.ResponsesRequest.Instructions 是
+// string+omitempty，空值会被丢弃，Codex 后端会因为缺 key 直接拒绝。
+func TestConvertOpenAIResponsesRequest_CompactGuaranteesInstructionsKey(t *testing.T) {
+	a := &Adaptor{}
+	info := &relaycommon.RelayInfo{
+		ChannelMeta: &relaycommon.ChannelMeta{},
+	}
+	info.RelayMode = relayconstant.RelayModeResponsesCompact
+	req := dto.OpenAIResponsesRequest{Model: "gpt-5"}
+	out, err := a.ConvertOpenAIResponsesRequest(nil, info, req)
+	require.NoError(t, err)
+	body, err := common.Marshal(out)
+	require.NoError(t, err)
+	assert.Contains(t, string(body), `"instructions"`,
+		"compact 路径必须保证 instructions 键出现（Codex 后端硬性要求）")
 }

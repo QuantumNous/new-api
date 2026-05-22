@@ -90,16 +90,10 @@ func (a *Adaptor) ConvertOpenAIResponsesRequest(c *gin.Context, info *relaycommo
 		// compact 模式上游不接受 store/stream 字段
 		compatReq.Store = nil
 		compatReq.Stream = false
-		// compact 路径返回 dto 类型，保持现有 handler 类型契约
-		out, err := common.Marshal(compatReq)
-		if err != nil {
-			return nil, err
-		}
-		result := dto.OpenAIResponsesRequest{}
-		if err := common.Unmarshal(out, &result); err != nil {
-			return nil, err
-		}
-		return result, nil
+		// compact 路径同样必须保证 "instructions" 键存在（Codex 后端硬性要求）。
+		// OaiResponsesCompactionHandler 只是把 raw bytes 直接转发到上游，对返回结构无要求，
+		// 因此这里改回返回 map[string]any，由 ensureInstructionsField 注入空字符串补位。
+		return ensureInstructionsField(compatReq)
 	}
 
 	// /v1/responses (非 compact) 必须保留客户端原始 stream 意图：
