@@ -47,8 +47,9 @@ func RelayFormatToAPIType(relayFormat RelayFormat) (int, bool) {
 // eventually be relayed as. The middleware Distribute() runs before the per-route handler that
 // sets the format explicitly, so smart channel routing has to peek at the path here.
 //
-// Keep this in sync with router/relay-router.go. Unknown paths fall back to RelayFormatOpenAI,
-// which preserves the previous behaviour (no API-type filtering for unknown formats).
+// Keep this in sync with router/relay-router.go. Unknown paths return an empty RelayFormat,
+// which downstream callers (e.g. model.GetChannel) treat as "no API-type hint" and fall back
+// to the original priority/weight-based selection.
 func InferRelayFormatFromPath(path string) RelayFormat {
 	switch {
 	case strings.HasPrefix(path, "/v1/messages"):
@@ -68,10 +69,10 @@ func InferRelayFormatFromPath(path string) RelayFormat {
 	case strings.HasPrefix(path, "/v1/images/"), strings.HasPrefix(path, "/v1/edits"):
 		return RelayFormatOpenAIImage
 	case strings.HasPrefix(path, "/v1/engines/") && strings.HasSuffix(path, "/embeddings"):
-		return RelayFormatGemini
-	case strings.HasPrefix(path, "/v1/models/"):
+		return RelayFormatEmbedding
+	case strings.HasPrefix(path, "/v1beta/models/"), strings.HasPrefix(path, "/v1/models/"):
 		return RelayFormatGemini
 	default:
-		return RelayFormatOpenAI
+		return ""
 	}
 }
