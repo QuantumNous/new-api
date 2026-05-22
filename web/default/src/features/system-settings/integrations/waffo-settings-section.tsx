@@ -43,7 +43,6 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { Textarea } from '@/components/ui/textarea'
-import { SettingsSection } from '../components/settings-section'
 import { useUpdateOption } from '../hooks/use-update-option'
 
 export interface WaffoSettingsValues {
@@ -212,12 +211,17 @@ export function WaffoSettingsSection(props: Props) {
 
   return (
     <>
-      <SettingsSection
-        title={t('Waffo Payment Gateway')}
-        description={t(
-          'Configure Waffo payment aggregation platform integration'
-        )}
-      >
+      <div className='space-y-4 pt-4'>
+        <div>
+          <h3 className='text-lg font-medium'>
+            {t('Waffo Aggregator Gateway')}
+          </h3>
+          <p className='text-muted-foreground text-sm'>
+            {t(
+              'Payment aggregator mode — onboard with your own registered company (offshore entity). Built for Enterprise.'
+            )}
+          </p>
+        </div>
         <Alert>
           <AlertDescription className='text-xs'>
             {t(
@@ -416,7 +420,7 @@ export function WaffoSettingsSection(props: Props) {
         <Button onClick={handleSave} disabled={loading}>
           {loading ? t('Saving...') : t('Save Changes')}
         </Button>
-      </SettingsSection>
+      </div>
 
       <Dialog open={methodDialogOpen} onOpenChange={setMethodDialogOpen}>
         <DialogContent>

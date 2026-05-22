@@ -122,6 +122,42 @@ export async function paySubscriptionCreem(
   return res.data
 }
 
+export async function paySubscriptionWaffoPancake(
+  data: SubscriptionPayRequest
+): Promise<SubscriptionPayResponse> {
+  const res = await api.post('/api/subscription/waffo-pancake/pay', data)
+  return res.data
+}
+
+// Mints a Pancake OnetimeProduct (see controller for the OnetimeProduct vs
+// SubscriptionProduct rationale) using persisted creds + StoreID.
+export async function createWaffoPancakeSubscriptionProduct(data: {
+  name: string
+  amount: string
+}): Promise<
+  ApiResponse<{ product_id: string; product_name: string; store_id: string }>
+> {
+  const res = await api.post(
+    '/api/option/waffo-pancake/subscription-product',
+    data
+  )
+  return res.data
+}
+
+// Returns the OnetimeProducts in the saved Pancake store; empty when the
+// gateway isn't fully configured.
+export async function listWaffoPancakeSubscriptionProductOptions(): Promise<
+  ApiResponse<{
+    store_id: string
+    products: { id: string; name: string; status: string }[]
+  }>
+> {
+  const res = await api.post(
+    '/api/option/waffo-pancake/subscription-product-options'
+  )
+  return res.data
+}
+
 export async function paySubscriptionEpay(
   data: SubscriptionPayRequest & { payment_method: string }
 ): Promise<SubscriptionPayResponse & { url?: string }> {
