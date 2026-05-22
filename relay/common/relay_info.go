@@ -98,6 +98,10 @@ type RelayInfo struct {
 	isFirstResponse   bool
 	//SendLastReasoningResponse bool
 	IsStream               bool
+	// UserWantsStream 记录客户端原始请求中的 stream 意图，
+	// 与 IsStream 解耦：用于 codex 渠道在内部把上游强制设为 stream=true 时，
+	// 仍能在响应侧根据客户端意图决定是流式回写还是聚合后一次性回写。
+	UserWantsStream        bool
 	IsGeminiBatchEmbedding bool
 	IsPlayground           bool
 	UsePrice               bool
