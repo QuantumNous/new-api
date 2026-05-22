@@ -78,6 +78,24 @@ func applyCodexConstraints(req *apicompat.ResponsesRequest, info *relaycommon.Re
 	// 在序列化之后做 raw JSON 注入或迁就上游约定。
 }
 
+// ensureInstructionsField 保证上游 JSON body 包含 "instructions" key（Codex 后端硬性要求）。
+// 由于 apicompat.ResponsesRequest.Instructions 是 string + omitempty，空字符串会被直接省略，
+// 因此在序列化为 JSON 之后通过 map 注入空字符串。返回的 map 由 relay 层做最终序列化。
+func ensureInstructionsField(req *apicompat.ResponsesRequest) (map[string]any, error) {
+	raw, err := common.Marshal(req)
+	if err != nil {
+		return nil, fmt.Errorf("marshal ResponsesRequest: %w", err)
+	}
+	m := map[string]any{}
+	if err := common.Unmarshal(raw, &m); err != nil {
+		return nil, fmt.Errorf("unmarshal to map: %w", err)
+	}
+	if _, ok := m["instructions"]; !ok {
+		m["instructions"] = ""
+	}
+	return m, nil
+}
+
 // writeSSE 将 apicompat.ChatChunkToSSE 生成的整段 SSE 数据原样写到客户端。
 // 不能用 helper.StringData：后者会再追加一次 "data: " 前缀。
 func writeSSE(c *gin.Context, sse string) {

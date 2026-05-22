@@ -86,6 +86,22 @@ func TestApplyCodexConstraints_StripsBannedFields(t *testing.T) {
 	assert.Equal(t, "", req.Instructions)
 }
 
+func TestEnsureInstructionsField_AddsEmptyWhenAbsent(t *testing.T) {
+	req := &apicompat.ResponsesRequest{Model: "gpt-5"}
+	m, err := ensureInstructionsField(req)
+	require.NoError(t, err)
+	v, ok := m["instructions"]
+	require.True(t, ok, "instructions key must be present")
+	assert.Equal(t, "", v)
+}
+
+func TestEnsureInstructionsField_PreservesNonEmpty(t *testing.T) {
+	req := &apicompat.ResponsesRequest{Model: "gpt-5", Instructions: "you are helpful"}
+	m, err := ensureInstructionsField(req)
+	require.NoError(t, err)
+	assert.Equal(t, "you are helpful", m["instructions"])
+}
+
 func TestRelayChatOverCodex_StreamPath_BasicText(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
