@@ -51,6 +51,7 @@ var defaultImageModels = map[string]ImageModelConfig{
 	"gpt-image-1":          {BillingMode: ImageBillingModeToken},
 	"gpt-image-1-mini":     {BillingMode: ImageBillingModeToken},
 	"gpt-image-1.5":        {BillingMode: ImageBillingModeToken},
+	"gpt-image-2":          {BillingMode: ImageBillingModeToken},
 	"chatgpt-image-latest": {BillingMode: ImageBillingModeToken},
 	"dall-e-2":             {BillingMode: ImageBillingModeToken},
 	"dall-e-3":             {BillingMode: ImageBillingModeToken},
