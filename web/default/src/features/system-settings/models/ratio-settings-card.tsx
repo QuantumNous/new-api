@@ -130,7 +130,16 @@ const modelSchema = z.object({
       })
     }
   }),
-  ImageModelSetting: z.string(),
+  ImageModelSetting: z.string().superRefine((value, ctx) => {
+    if (value === '' || value === null || value === undefined) return
+    const result = validateJsonString(value)
+    if (!result.valid) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: result.message || 'Invalid JSON',
+      })
+    }
+  }),
 })
 
 const groupSchema = z.object({
@@ -250,7 +259,7 @@ export function RatioSettingsCard({
     ExposeRatioEnabled: modelDefaults.ExposeRatioEnabled,
     BillingMode: normalizeJsonString(modelDefaults.BillingMode),
     BillingExpr: normalizeJsonString(modelDefaults.BillingExpr),
-    ImageModelSetting: modelDefaults.ImageModelSetting ?? '',
+    ImageModelSetting: normalizeJsonString(modelDefaults.ImageModelSetting ?? ''),
   })
 
   const groupNormalizedDefaults = useRef({
@@ -317,7 +326,7 @@ export function RatioSettingsCard({
       ExposeRatioEnabled: modelDefaults.ExposeRatioEnabled,
       BillingMode: normalizeJsonString(modelDefaults.BillingMode),
       BillingExpr: normalizeJsonString(modelDefaults.BillingExpr),
-      ImageModelSetting: modelDefaults.ImageModelSetting ?? '',
+      ImageModelSetting: normalizeJsonString(modelDefaults.ImageModelSetting ?? ''),
     }
 
     modelForm.reset({
@@ -378,7 +387,7 @@ export function RatioSettingsCard({
         ExposeRatioEnabled: values.ExposeRatioEnabled,
         BillingMode: normalizeJsonString(values.BillingMode),
         BillingExpr: normalizeJsonString(values.BillingExpr),
-        ImageModelSetting: values.ImageModelSetting ?? '',
+        ImageModelSetting: normalizeJsonString(values.ImageModelSetting ?? ''),
       }
 
       const apiKeyMap: Record<string, string> = {

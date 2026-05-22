@@ -324,20 +324,20 @@ function buildPreviewRows(
   if (mode === 'per-request') {
     if (perRequestSubMode === 'per-resolution') {
       return [
-        { key: 'submode', label: 'Sub-mode', value: 'per-resolution' },
+        { key: 'submode', label: t('Sub-mode'), value: 'per-resolution' },
         {
           key: 'p1k',
-          label: '1K price',
+          label: t('1K price'),
           value: price1k ? `$${price1k}` : t('Default'),
         },
         {
           key: 'p2k',
-          label: '2K price',
+          label: t('2K price'),
           value: price2k ? `$${price2k}` : t('Default'),
         },
         {
           key: 'p4k',
-          label: '4K price',
+          label: t('4K price'),
           value: price4k ? `$${price4k}` : t('Default'),
         },
       ]
@@ -537,6 +537,10 @@ export function ModelPricingEditorPanel({
       setPricingMode('per-token')
       setBillingExpr('')
       setRequestRuleExpr('')
+      setPerRequestSubMode('fixed')
+      setPrice1k('')
+      setPrice2k('')
+      setPrice4k('')
     }
 
     setPromptPrice(nextLaneState.promptPrice)
@@ -1006,27 +1010,27 @@ export function ModelPricingEditorPanel({
                         {(
                           [
                             {
-                              label: '1K (≤ 1024px)',
+                              labelKey: '1K (≤ 1024px)',
                               value: price1k,
                               setter: setPrice1k,
                               placeholder: '0.011',
                             },
                             {
-                              label: '2K (≤ 2048px)',
+                              labelKey: '2K (≤ 2048px)',
                               value: price2k,
                               setter: setPrice2k,
                               placeholder: '0.042',
                             },
                             {
-                              label: '4K (> 2048px)',
+                              labelKey: '4K (> 2048px)',
                               value: price4k,
                               setter: setPrice4k,
                               placeholder: '0.167',
                             },
                           ] as const
-                        ).map(({ label, value, setter, placeholder }) => (
-                          <Field key={label}>
-                            <FieldLabel>{label}</FieldLabel>
+                        ).map(({ labelKey, value, setter, placeholder }) => (
+                          <Field key={labelKey}>
+                            <FieldLabel>{t(labelKey)}</FieldLabel>
                             <FieldContent>
                               <InputGroup>
                                 <InputGroupAddon>$</InputGroupAddon>

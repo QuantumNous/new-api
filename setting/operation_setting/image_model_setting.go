@@ -225,10 +225,14 @@ func ClassifyImageSizeTier(size string) (string, bool) {
 
 func parsePositiveInt(s string) int {
 	s = strings.TrimSpace(s)
+	const maxDim = 65536 // image dimensions realistically never exceed this
 	n := 0
 	for _, c := range s {
 		if c < '0' || c > '9' {
 			return -1
+		}
+		if n > (maxDim-9)/10 {
+			return -1 // overflow guard
 		}
 		n = n*10 + int(c-'0')
 	}
