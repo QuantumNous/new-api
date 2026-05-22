@@ -162,7 +162,15 @@ func RelayChatOverCodex(c *gin.Context, info *relaycommon.RelayInfo, resp *http.
 		// 终止行也是 "data: [DONE]\n\n"
 		writeSSE(c, "data: [DONE]\n\n")
 	} else {
-		// Task 8 将在此实现非流式聚合
+		full := &apicompat.ResponsesResponse{}
+		acc.SupplementResponseOutput(full)
+		full.Status = "completed"
+		upstreamModel := ""
+		if info != nil && info.ChannelMeta != nil {
+			upstreamModel = info.UpstreamModelName
+		}
+		chatResp := apicompat.ResponsesToChatCompletions(full, upstreamModel)
+		c.JSON(http.StatusOK, chatResp)
 	}
 
 	return buildUsage(lastUsage, info), nil
