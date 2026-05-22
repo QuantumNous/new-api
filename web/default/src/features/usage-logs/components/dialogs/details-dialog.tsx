@@ -985,9 +985,8 @@ export function DetailsDialog(props: DetailsDialogProps) {
               </DetailSection>
             )}
 
-            {/* Param override (admin only) */}
-            {props.isAdmin &&
-              other?.po &&
+            {/* Param override */}
+            {other?.po &&
               Array.isArray(other.po) &&
               other.po.length > 0 && (
                 <DetailSection
