@@ -49,6 +49,10 @@ export function ForgotPasswordForm({
 }: React.HTMLAttributes<HTMLFormElement>) {
   const { t } = useTranslation()
   const [isLoading, setIsLoading] = useState(false)
+  const [message, setMessage] = useState<{
+    type: 'success' | 'error'
+    text: string
+  } | null>(null)
 
   const {
     isTurnstileEnabled,
@@ -72,15 +76,25 @@ export function ForgotPasswordForm({
     if (!validateTurnstile()) return
 
     setIsLoading(true)
+    setMessage(null)
     try {
       const res = await sendPasswordResetEmail(data.email, turnstileToken)
       if (res?.success) {
         form.reset()
         startCountdown()
-        toast.success(t('Reset email sent, please check your inbox'))
+        const successMessage = t('Reset email sent, please check your inbox')
+        setMessage({ type: 'success', text: successMessage })
+        toast.success(successMessage)
+      } else {
+        const errorMessage = res?.message || t('Failed to send reset email')
+        setMessage({ type: 'error', text: errorMessage })
+        toast.error(errorMessage)
       }
-    } catch (_error) {
-      // Errors are handled by global interceptor
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : t('Failed to send reset email')
+      setMessage({ type: 'error', text: errorMessage })
+      toast.error(errorMessage)
     } finally {
       setIsLoading(false)
     }
@@ -108,9 +122,25 @@ export function ForgotPasswordForm({
         />
 
         <Button type='submit' className='mt-2' disabled={isLoading || isActive}>
-          {isActive ? `Resend (${secondsLeft}s)` : 'Send reset email'}
+          {isActive
+            ? t('Resend ({{seconds}}s)', { seconds: secondsLeft })
+            : t('Send reset email')}
           {isLoading ? <Loader2 className='animate-spin' /> : <ArrowRight />}
         </Button>
+
+        {message ? (
+          <p
+            className={cn(
+              'text-sm',
+              message.type === 'success'
+                ? 'text-emerald-600 dark:text-emerald-400'
+                : 'text-destructive'
+            )}
+            role={message.type === 'error' ? 'alert' : 'status'}
+          >
+            {message.text}
+          </p>
+        ) : null}
 
         {isTurnstileEnabled && (
           <div className='mt-2'>

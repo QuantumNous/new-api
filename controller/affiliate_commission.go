@@ -11,12 +11,21 @@ import (
 	"github.com/QuantumNous/new-api/model"
 
 	"github.com/gin-gonic/gin"
-	"github.com/shopspring/decimal"
 )
 
 type settleAffiliateCommissionsRequest struct {
 	Ids    []int  `json:"ids"`
 	Remark string `json:"remark"`
+}
+
+type offlineCashbackAffiliateRewardPointsRequest struct {
+	PromoterId int    `json:"promoter_id"`
+	Points     int    `json:"points"`
+	Remark     string `json:"remark"`
+}
+
+type redeemAffiliateRewardPointsRequest struct {
+	Points *int `json:"points"`
 }
 
 type affiliatePayoutProfileRequest struct {
@@ -33,7 +42,7 @@ func parseAffiliateCommissionQuery(c *gin.Context) (model.AffiliateCommissionQue
 	if query.Status != "" &&
 		query.Status != model.AffiliateCommissionStatusPending &&
 		query.Status != model.AffiliateCommissionStatusSettled {
-		return query, fmt.Errorf("无效的佣金状态")
+		return query, fmt.Errorf("无效的奖励积分状态")
 	}
 
 	if value := c.Query("level"); value != "" {
@@ -74,7 +83,56 @@ func parseAffiliateCommissionQuery(c *gin.Context) (model.AffiliateCommissionQue
 	return query, nil
 }
 
+func parseAffiliateRewardPointSettlementQuery(c *gin.Context) (model.AffiliateRewardPointSettlementQuery, error) {
+	query := model.AffiliateRewardPointSettlementQuery{
+		SettlementType: c.Query("settlement_type"),
+	}
+	if query.SettlementType != "" &&
+		query.SettlementType != model.AffiliateCommissionSettlementTypeWallet &&
+		query.SettlementType != model.AffiliateCommissionSettlementTypeOfflineCashback {
+		return query, fmt.Errorf("无效的积分处理方式")
+	}
+	if value := c.Query("promoter_id"); value != "" {
+		promoterId, err := strconv.Atoi(value)
+		if err != nil || promoterId < 0 {
+			return query, fmt.Errorf("无效的推广人 ID")
+		}
+		query.PromoterId = promoterId
+	}
+	if value := c.Query("start_time"); value != "" {
+		startTime, err := strconv.ParseInt(value, 10, 64)
+		if err != nil || startTime < 0 {
+			return query, fmt.Errorf("无效的开始时间")
+		}
+		query.StartTime = startTime
+	}
+	if value := c.Query("end_time"); value != "" {
+		endTime, err := strconv.ParseInt(value, 10, 64)
+		if err != nil || endTime < 0 {
+			return query, fmt.Errorf("无效的结束时间")
+		}
+		query.EndTime = endTime
+	}
+	return query, nil
+}
+
+func requireSelfAffiliatePermission(c *gin.Context) bool {
+	user, err := model.GetUserById(c.GetInt("id"), false)
+	if err != nil {
+		common.ApiError(c, err)
+		return false
+	}
+	if !user.DistributionEnabled {
+		common.ApiErrorMsg(c, "未开通代理分销权限")
+		return false
+	}
+	return true
+}
+
 func GetSelfAffiliateSummary(c *gin.Context) {
+	if !requireSelfAffiliatePermission(c) {
+		return
+	}
 	query, err := parseAffiliateCommissionQuery(c)
 	if err != nil {
 		common.ApiError(c, err)
@@ -90,6 +148,9 @@ func GetSelfAffiliateSummary(c *gin.Context) {
 }
 
 func GetSelfAffiliateCommissions(c *gin.Context) {
+	if !requireSelfAffiliatePermission(c) {
+		return
+	}
 	query, err := parseAffiliateCommissionQuery(c)
 	if err != nil {
 		common.ApiError(c, err)
@@ -107,7 +168,31 @@ func GetSelfAffiliateCommissions(c *gin.Context) {
 	common.ApiSuccess(c, pageInfo)
 }
 
+func GetSelfAffiliateRewardPointSettlements(c *gin.Context) {
+	if !requireSelfAffiliatePermission(c) {
+		return
+	}
+	query, err := parseAffiliateRewardPointSettlementQuery(c)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	query.PromoterId = c.GetInt("id")
+	pageInfo := common.GetPageQuery(c)
+	records, total, err := model.ListAffiliateRewardPointSettlements(query, pageInfo)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	pageInfo.SetTotal(int(total))
+	pageInfo.SetItems(records)
+	common.ApiSuccess(c, pageInfo)
+}
+
 func GetSelfAffiliatePayoutProfile(c *gin.Context) {
+	if !requireSelfAffiliatePermission(c) {
+		return
+	}
 	profile, err := model.GetAffiliatePayoutProfile(c.GetInt("id"))
 	if err != nil {
 		common.ApiError(c, err)
@@ -117,6 +202,9 @@ func GetSelfAffiliatePayoutProfile(c *gin.Context) {
 }
 
 func UpdateSelfAffiliatePayoutProfile(c *gin.Context) {
+	if !requireSelfAffiliatePermission(c) {
+		return
+	}
 	var req affiliatePayoutProfileRequest
 	if err := common.DecodeJson(c.Request.Body, &req); err != nil {
 		common.ApiErrorMsg(c, "参数错误")
@@ -128,6 +216,50 @@ func UpdateSelfAffiliatePayoutProfile(c *gin.Context) {
 		return
 	}
 	common.ApiSuccess(c, profile)
+}
+
+func RedeemSelfAffiliateRewardPoints(c *gin.Context) {
+	if !requireSelfAffiliatePermission(c) {
+		return
+	}
+	var req redeemAffiliateRewardPointsRequest
+	if err := common.DecodeJson(c.Request.Body, &req); err != nil {
+		common.ApiErrorMsg(c, "参数错误")
+		return
+	}
+	var redemption model.AffiliateRewardPointRedemptionResult
+	var err error
+	if req.Points != nil {
+		redemption, err = model.RedeemAffiliateRewardPoints(c.GetInt("id"), nil, *req.Points)
+	} else {
+		redemption, err = model.RedeemAffiliateRewardPoints(c.GetInt("id"), nil)
+	}
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	common.ApiSuccess(c, redemption)
+}
+
+func QuoteSelfAffiliateRewardPoints(c *gin.Context) {
+	if !requireSelfAffiliatePermission(c) {
+		return
+	}
+	var req redeemAffiliateRewardPointsRequest
+	if err := common.DecodeJson(c.Request.Body, &req); err != nil {
+		common.ApiErrorMsg(c, "参数错误")
+		return
+	}
+	if req.Points == nil {
+		common.ApiErrorMsg(c, "兑换积分不能为空")
+		return
+	}
+	quote, err := model.QuoteAffiliateRewardPointRedemption(c.GetInt("id"), *req.Points)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	common.ApiSuccess(c, quote)
 }
 
 func AdminListAffiliateCommissions(c *gin.Context) {
@@ -161,6 +293,37 @@ func AdminAffiliateSummary(c *gin.Context) {
 	common.ApiSuccess(c, summary)
 }
 
+func AdminListAffiliateRewardPointSettlements(c *gin.Context) {
+	query, err := parseAffiliateRewardPointSettlementQuery(c)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	pageInfo := common.GetPageQuery(c)
+	records, total, err := model.ListAffiliateRewardPointSettlements(query, pageInfo)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	pageInfo.SetTotal(int(total))
+	pageInfo.SetItems(records)
+	common.ApiSuccess(c, pageInfo)
+}
+
+func AdminOfflineCashbackAffiliateRewardPoints(c *gin.Context) {
+	var req offlineCashbackAffiliateRewardPointsRequest
+	if err := common.DecodeJson(c.Request.Body, &req); err != nil {
+		common.ApiErrorMsg(c, "参数错误")
+		return
+	}
+	result, err := model.OfflineCashbackAffiliateRewardPoints(req.PromoterId, req.Points, c.GetInt("id"), req.Remark)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	common.ApiSuccess(c, result)
+}
+
 func AdminSettleAffiliateCommissions(c *gin.Context) {
 	var req settleAffiliateCommissionsRequest
 	if err := common.DecodeJson(c.Request.Body, &req); err != nil {
@@ -172,12 +335,6 @@ func AdminSettleAffiliateCommissions(c *gin.Context) {
 		return
 	}
 	common.ApiSuccess(c, nil)
-}
-
-func formatMicrosForCSV(micros int64) string {
-	return decimal.NewFromInt(micros).
-		Div(decimal.NewFromInt(1000000)).
-		StringFixed(6)
 }
 
 func AdminExportAffiliateCommissions(c *gin.Context) {
@@ -192,7 +349,7 @@ func AdminExportAffiliateCommissions(c *gin.Context) {
 		return
 	}
 
-	filename := fmt.Sprintf("affiliate-commissions-%s.csv", time.Now().Format("20060102150405"))
+	filename := fmt.Sprintf("affiliate-reward-points-%s.csv", time.Now().Format("20060102150405"))
 	c.Header("Content-Type", "text/csv; charset=utf-8")
 	c.Header("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"`, filename))
 	c.Status(http.StatusOK)
@@ -202,30 +359,27 @@ func AdminExportAffiliateCommissions(c *gin.Context) {
 	defer writer.Flush()
 
 	_ = writer.Write([]string{
-		"佣金 ID",
+		"奖励 ID",
 		"订单号",
 		"买家 ID",
 		"买家用户名",
 		"推广人 ID",
 		"推广人用户名",
-		"推广人当前收款方式",
-		"推广人当前收款账号",
-		"推广人当前收款人",
 		"层级",
-		"返佣基数",
+		"到账 Token",
+		"奖励积分",
+		"已处理积分",
+		"待处理积分",
+		"钱包到账额度",
 		"费率 BPS",
-		"佣金金额",
-		"币种",
 		"支付提供方",
 		"支付方式",
 		"状态",
+		"处理方式",
 		"创建时间",
-		"结算时间",
-		"结算人",
-		"结算备注",
-		"结算收款方式",
-		"结算收款账号",
-		"结算收款人",
+		"处理时间",
+		"操作人",
+		"备注",
 	})
 	for _, record := range records {
 		settledAt := ""
@@ -239,24 +393,21 @@ func AdminExportAffiliateCommissions(c *gin.Context) {
 			record.BuyerUsername,
 			strconv.Itoa(record.PromoterId),
 			record.PromoterUsername,
-			record.PromoterPayoutMethod,
-			record.PromoterPayoutAccount,
-			record.PromoterPayoutAccountName,
 			strconv.Itoa(record.Level),
-			formatMicrosForCSV(record.BaseAmountMicros),
+			strconv.Itoa(record.BaseQuota),
+			strconv.Itoa(record.RewardPoints),
+			strconv.Itoa(record.SettledPoints),
+			strconv.Itoa(record.PendingPoints),
+			strconv.FormatInt(record.WalletQuota, 10),
 			strconv.Itoa(record.CommissionRateBps),
-			formatMicrosForCSV(record.CommissionAmountMicros),
-			record.Currency,
 			record.PaymentProvider,
 			record.PaymentMethod,
 			record.Status,
+			record.SettlementType,
 			strconv.FormatInt(record.CreatedAt, 10),
 			settledAt,
 			record.SettledByUsername,
 			record.SettleRemark,
-			record.SettledPayoutMethod,
-			record.SettledPayoutAccount,
-			record.SettledPayoutAccountName,
 		})
 	}
 }

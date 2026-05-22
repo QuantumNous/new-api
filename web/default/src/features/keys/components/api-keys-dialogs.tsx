@@ -16,7 +16,6 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useEffect, useState } from 'react'
 import { ApiKeysDeleteDialog } from './api-keys-delete-dialog'
 import { ApiKeysMutateDrawer } from './api-keys-mutate-drawer'
 import { useApiKeys } from './api-keys-provider'
@@ -24,19 +23,7 @@ import { CCSwitchDialog } from './dialogs/cc-switch-dialog'
 
 export function ApiKeysDialogs() {
   const { open, setOpen, currentRow, resolvedKey } = useApiKeys()
-  const [lastMutateSide, setLastMutateSide] = useState<'left' | 'right'>(
-    'right'
-  )
-  const mutateSide =
-    open === 'create' ? 'left' : open === 'update' ? 'right' : lastMutateSide
-
-  useEffect(() => {
-    if (open === 'create') {
-      setLastMutateSide('left')
-    } else if (open === 'update') {
-      setLastMutateSide('right')
-    }
-  }, [open])
+  const mutateSide = open === 'create' ? 'left' : 'right'
 
   return (
     <>

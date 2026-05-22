@@ -74,28 +74,35 @@ export function TaskLogsFilterBar<TData>(props: TaskLogsFilterBarProps<TData>) {
   })
 
   useEffect(() => {
-    const { start, end } = getDefaultTimeRange()
-    const baseFilters = {
-      startTime: searchParams.startTime
-        ? new Date(searchParams.startTime)
-        : start,
-      endTime: searchParams.endTime ? new Date(searchParams.endTime) : end,
-      ...(searchParams.channel
-        ? { channel: String(searchParams.channel) }
-        : {}),
-    }
-    const next: TaskLogsFilters =
-      props.logCategory === 'drawing'
-        ? {
-            ...baseFilters,
-            ...(searchParams.filter ? { mjId: searchParams.filter } : {}),
-          }
-        : {
-            ...baseFilters,
-            ...(searchParams.filter ? { taskId: searchParams.filter } : {}),
-          }
+    let cancelled = false
+    queueMicrotask(() => {
+      if (cancelled) return
+      const { start, end } = getDefaultTimeRange()
+      const baseFilters = {
+        startTime: searchParams.startTime
+          ? new Date(searchParams.startTime)
+          : start,
+        endTime: searchParams.endTime ? new Date(searchParams.endTime) : end,
+        ...(searchParams.channel
+          ? { channel: String(searchParams.channel) }
+          : {}),
+      }
+      const next: TaskLogsFilters =
+        props.logCategory === 'drawing'
+          ? {
+              ...baseFilters,
+              ...(searchParams.filter ? { mjId: searchParams.filter } : {}),
+            }
+          : {
+              ...baseFilters,
+              ...(searchParams.filter ? { taskId: searchParams.filter } : {}),
+            }
 
-    setFilters(next)
+      setFilters(next)
+    })
+    return () => {
+      cancelled = true
+    }
   }, [
     props.logCategory,
     searchParams.startTime,

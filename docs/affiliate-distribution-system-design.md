@@ -1,193 +1,305 @@
-# 二级分销系统设计方案
+# 二级分销积分系统设计方案
 
 ## 背景与目标
 
 当前项目已经有一层邀请体系，主要能力包括用户邀请码 `aff_code`、邀请关系字段 `inviter_id`、邀请人数 `aff_count`、邀请奖励额度 `aff_quota` 与历史邀请奖励 `aff_history_quota`。这些字段主要服务于“注册邀请奖励”和用户侧的邀请额度转余额。
 
-本方案新增的是“钱包充值成功后的二级分销佣金账本”。它不替换现有注册邀请奖励，也不改变现有充值到账逻辑，而是在钱包充值订单完成后，按邀请链路生成一级、二级推广人的待结算佣金明细，供管理员线下打款和对账。
+本方案描述的是“钱包充值成功后的二级分销积分账本”。它不替换现有注册邀请奖励，也不改变充值到账逻辑，而是在钱包充值订单完成后，按照邀请链路生成一级、二级推广人的待处理奖励积分。奖励积分可由用户自主兑换到钱包，也可由管理员在后台记录线下返现并扣除积分。
 
-第一版目标：
+核心目标：
 
-- 按钱包充值实付金额自动计算一级、二级佣金。
-- 支持全局总开关控制分销系统是否生效。
+- 按被邀请用户实际充值到账额度生成一级、二级奖励积分。
+- 支持全局总开关控制分销积分系统是否生效。
 - 支持针对单个用户开启或关闭代理资格。
-- 生成可查询、可汇总、可导出的待结算佣金账本。
-- 管理员线下打款后，可在系统内标记佣金为已结算。
+- 用户可自主选择整数积分兑换到钱包。
+- 管理员可在后台记录某用户通过多少积分完成线下返现，并扣除用户待处理积分。
+- 统一通过积分处理流水查询用户兑换和管理员线下返现记录。
+- 用户侧页面保持简洁，只展示待处理积分、已兑换积分、累计积分和积分处理记录。
 
-第一版不做：
+不做的事情：
 
-- 不做线上提现、银行卡、付款接口或提现审核流。
-- 不做退款冲正、佣金撤销或负向账单。
-- 不追溯历史订单，只处理功能上线后的新成功订单。
+- 不做线上提现、银行卡、第三方付款接口或提现审核流。
+- 不计算、不保存、不展示线下现金价值。
+- 不要求用户维护 PayPal 或其他线下收款资料。
+- 不追溯历史订单，只处理功能上线后的新成功订单；兼容迁移只补齐必要审计字段。
 - 不覆盖订阅订单，只覆盖钱包充值订单。
+- 不改变现有注册邀请奖励 `aff_quota`、`QuotaForInviter`、`QuotaForInvitee` 的口径。
 
 ## 已确认业务口径
 
-佣金只在钱包充值成功后生成，不覆盖订阅订单。
+奖励积分只在钱包充值成功后生成，不覆盖订阅订单。
 
-返佣基数使用 `TopUp.Money` 实付金额。该金额已经反映用户实际支付口径、充值折扣、分组充值倍率和支付通道计算结果，适合作为线下财务对账基数。
+返积分基数使用被邀请用户本次实际到账的钱包额度，而不是支付金额。项目内统一按 raw quota 存储钱包额度，因此实际到账额度定义为：
+
+```text
+credited_wallet_units = baseQuota / common.QuotaPerUnit
+```
+
+其中当前 `common.QuotaPerUnit = 500000`，也就是 `1` 个钱包额度单位等于 `500000` token。
 
 分销层级为两级：
 
 - 一级推广人：充值用户的 `inviter_id` 对应用户。
 - 二级推广人：一级推广人的 `inviter_id` 对应用户。
 
-佣金费率采用后台全局两档配置：
+奖励积分比例采用后台全局两档配置：
 
-- 一级佣金比例。
-- 二级佣金比例。
+- 一级积分比例。
+- 二级积分比例。
 
-佣金先进入待结算账本。管理员完成线下打款后，在后台将对应佣金明细标记为已结算，并可记录结算备注。
+积分处理方式只有两类：
 
-佣金币种使用后台统一配置的币种标签，默认 `CNY`。第一版不按支付通道拆分多币种账本。
+- `wallet`：用户自主兑换到钱包。
+- `offline_cashback`：管理员后台记录线下返现并扣除积分。
 
-## 总开关与单用户代理资格开关
+管理员线下返现只记录“用户通过多少积分完成了线下返现”和备注，不增加用户钱包余额，不计算现金金额，不展示线下打款金额。
 
-二级分销系统需要一个全局总开关。
+## 积分生成逻辑
+
+充值成功后，`CreateTopUpCommissionsWithTx` 使用充值事务中的实际到账 `baseQuota` 作为计算基数。`TopUp.Money` 不再参与分销积分生成。
+
+计算公式：
+
+```text
+credited_wallet_units = baseQuota / common.QuotaPerUnit
+reward_points = round(credited_wallet_units * rate_bps / 10000)
+```
+
+示例：
+
+```text
+common.QuotaPerUnit = 500000
+baseQuota = 50000000
+credited_wallet_units = 100
+
+level1_rate_bps = 1000
+level2_rate_bps = 300
+
+level1_reward_points = round(100 * 1000 / 10000) = 10
+level2_reward_points = round(100 * 300 / 10000) = 3
+```
+
+因此，如果被邀请用户支付 20 元但实际购买/到账 100 美刀额度，就按 100 个钱包额度单位计算奖励积分。只要 `baseQuota` 相同，即使 `TopUp.Money` 改变，生成的奖励积分也不变。
+
+原始积分记录保存本次充值的审计信息：
+
+- `base_quota`：本次充值实际到账 token 数。
+- `base_amount_micros`：由 `base_quota / common.QuotaPerUnit` 换算出的钱包额度单位 micros，用于展示和历史兼容。
+- `reward_points`：本层级生成的奖励积分。
+- `commission_rate_bps`：本层级比例快照。
+
+## 积分兑换到钱包
+
+用户可在用户侧页面输入正整数积分进行兑换。兑换固定为：
+
+```text
+1 积分 = 1 钱包额度单位 = 500000 token
+redeemed_quota = redeemed_points * common.QuotaPerUnit
+redeemed_wallet_amount = redeemed_points
+```
+
+兑换不再读取 `operation_setting.Price`，也不再使用线下价值或现金价值字段换算。
+
+处理规则：
+
+- 用户只能兑换自己的待处理积分。
+- 兑换积分必须为正整数。
+- 兑换积分不得超过当前待处理积分。
+- 系统按当前用户全部待处理积分记录的 `created_at asc, id asc` FIFO 消耗。
+- 一条原始积分记录可以被部分兑换；剩余积分继续保持待处理。
+- 兑换成功后增加用户钱包 `quota`。
+- 兑换成功后写入 `AffiliateCommissionSettlement`，`settlement_type = wallet`。
+
+示例：
+
+```text
+redeemed_points = 1
+redeemed_quota = 1 * 500000 = 500000
+
+redeemed_points = 10
+redeemed_quota = 10 * 500000 = 5000000
+```
+
+## 管理员线下返现扣积分
+
+管理员后台保留线下返现操作，但语义为“记录某用户通过多少积分线下返现了，并扣除该用户待处理积分”。
+
+接口：
+
+```text
+POST /api/affiliate/admin/rewards/offline-cashback
+```
+
+请求体：
+
+```json
+{
+  "promoter_id": 1002,
+  "points": 10,
+  "remark": "2026-05-22 offline cashback"
+}
+```
+
+处理规则：
+
+- `promoter_id` 必须存在。
+- `points` 必须为正整数。
+- 用户待处理积分必须大于等于本次返现积分。
+- 按该用户待处理积分记录的 `created_at asc, id asc` FIFO 扣除。
+- 更新原始 `AffiliateCommission` 的累计处理进度。
+- 写入 `AffiliateCommissionSettlement` 流水，`settlement_type = offline_cashback`。
+- 不增加用户钱包余额。
+- 不计算、不保存、不展示现金价值。
+- 操作人使用当前管理员用户 ID 写入 `settled_by`。
+
+数据库兼容上继续复用旧的 `offline_settled_points` 列保存线下返现扣除积分，并在响应中通过 `offline_cashback_points` 明确当前业务语义。
+
+## 积分处理进度
+
+原始积分记录 `AffiliateCommission` 表示“某笔充值给某个推广人产生了多少积分”。每次用户兑换或管理员线下返现都会累计处理进度。
+
+核心字段：
+
+- `reward_points`：累计生成积分。
+- `settled_points`：累计已处理积分总数。
+- `wallet_redeemed_points`：累计已兑换到钱包的积分。
+- `offline_settled_points`：兼容旧列，当前语义为累计线下返现扣除积分。
+- `offline_cashback_points`：响应层别名，等于 `offline_settled_points`。
+
+待处理积分：
+
+```text
+pending_points = reward_points - settled_points
+```
+
+状态：
+
+- `pending`：仍有待处理积分。
+- `settled`：本条积分已全部处理完。
+
+一条积分记录可能先部分兑换到钱包，再由管理员把剩余积分记录为线下返现；也可能反过来，只要仍有待处理积分即可继续处理。
+
+## 汇总口径
+
+汇总接口统一返回积分维度字段：
+
+```json
+{
+  "pending_points": 90,
+  "wallet_redeemed_points": 10,
+  "offline_cashback_points": 20,
+  "redeemed_points": 30,
+  "settled_points": 30,
+  "total_points": 120
+}
+```
+
+字段含义：
+
+- `pending_points`：未处理积分。
+- `wallet_redeemed_points`：用户兑换到钱包的积分。
+- `offline_cashback_points`：管理员后台线下返现扣除的积分。
+- `redeemed_points`：已处理积分总数，等于钱包兑换积分 + 线下返现积分。
+- `settled_points`：兼容旧命名，等于已处理积分总数。
+- `total_points`：累计生成积分。
+
+用户侧“已兑换积分”展示已处理积分总数，不单独强调线下返现；管理员侧单独展示线下返现积分，便于运营对账。
+
+## 积分处理流水
+
+`AffiliateCommissionSettlement` 是积分处理流水表。每条流水表示一次积分处理：
+
+- 用户自主兑换到钱包。
+- 管理员线下返现扣积分。
+
+核心字段：
+
+- `commission_id`：原始积分记录 ID。
+- `promoter_id`：积分所属用户 ID。
+- `settlement_type`：`wallet` 或 `offline_cashback`。
+- `settled_points`：本次处理积分数量。
+- `wallet_quota`：钱包兑换实际到账 raw quota；线下返现为 `0`。
+- `wallet_amount_micros`：钱包兑换额度单位 micros；线下返现为 `0`。
+- `settled_by`：执行处理的用户 ID。钱包兑换为用户本人，线下返现为管理员。
+- `settled_at`：处理时间。
+- `remark`：备注。
+
+历史兼容字段如 `cash_value_micros`、`price_per_wallet_unit_micros`、`points_per_amount_unit`、`offline_amount_per_point_micros` 保留用于数据库兼容，新流程写入 `0`，前端不展示。
+
+## 总开关与代理资格
+
+分销积分系统有一个全局总开关：
 
 - 全局总开关默认关闭。
-- 全局总开关关闭时，所有钱包充值成功订单都不生成分销佣金。
-- 全局总开关开启后，才按费率和邀请链路生成佣金。
+- 全局总开关关闭时，钱包充值成功订单不生成分销积分。
+- 全局总开关开启后，才按比例和邀请链路生成积分。
 
-同时需要支持针对单个用户开启或关闭代理资格。
+同时支持针对单个用户开启或关闭代理资格：
 
-- 全局开启后，用户默认具备代理资格。
-- 单用户开关控制“该用户能否作为推广人获得佣金”。
-- 单用户代理资格关闭后，不影响该用户作为购买者充值触发合格上级返佣。
-- 被关闭的推广人只跳过对应层级佣金，另一层级独立判断。
+- 用户默认具备或不具备代理资格以当前项目用户创建逻辑为准。
+- 单用户开关控制“该用户能否作为推广人获得分销积分”。
+- 单用户代理资格关闭后，不影响该用户作为购买者充值触发合格上级获得积分。
+- 被关闭的推广人只跳过对应层级积分，另一层级独立判断。
 
 示例：
 
 - 用户 C 充值，用户 B 是 C 的一级推广人，用户 A 是 B 的一级推广人。
-- 若 B 的代理资格关闭，A 的代理资格开启，则跳过 B 的一级佣金，仍给 A 生成二级佣金。
-- 若 A 的代理资格关闭，B 的代理资格开启，则给 B 生成一级佣金，跳过 A 的二级佣金。
-- 若 C 的代理资格关闭，但 B 和 A 的代理资格开启，C 充值时仍可给 B 和 A 生成佣金，因为 C 此时是购买者，不是推广人。
+- 若 B 的代理资格关闭，A 的代理资格开启，则跳过 B 的一级积分，仍可给 A 生成二级积分。
+- 若 A 的代理资格关闭，B 的代理资格开启，则给 B 生成一级积分，跳过 A 的二级积分。
+- 若 C 的代理资格关闭，但 B 和 A 的代理资格开启，C 充值时仍可给 B 和 A 生成积分，因为 C 此时是购买者，不是推广人。
 
-## 后端配置设计
+## 后端配置
 
-新增 `distribution_setting` 配置模块，注册到现有 `setting/config` 配置体系。
+`distribution_setting` 配置模块保留三个业务配置：
 
-建议字段：
-
-- `enabled`: `bool`，全局总开关，默认 `false`。
-- `level1_rate_bps`: `int`，一级佣金万分比，默认 `0`。例如 `1000` 表示 `10%`。
-- `level2_rate_bps`: `int`，二级佣金万分比，默认 `0`。例如 `300` 表示 `3%`。
-- `currency`: `string`，佣金币种标签，默认 `CNY`。
+- `enabled`：`bool`，全局总开关，默认 `false`。
+- `level1_rate_bps`：`int`，一级积分比例万分比，默认 `0`。例如 `1000` 表示 `10%`。
+- `level2_rate_bps`：`int`，二级积分比例万分比，默认 `0`。例如 `300` 表示 `3%`。
 
 配置校验规则：
 
 - `level1_rate_bps` 和 `level2_rate_bps` 范围为 `0..10000`。
-- 两级费率之和不得超过 `10000`。
-- 开启全局分销或设置正数佣金费率时，必须已完成现有支付合规确认。
+- 两级比例之和不得超过 `10000`。
+- 开启全局分销或设置正数比例时，必须已完成现有支付合规确认。
 - 配置仍通过 `/api/option/` 修改，并沿用 Root 用户权限要求。
 
-新增用户字段：
+为兼容历史配置，后端结构中可保留旧字段；默认前端设置页面不再展示每支付单位积分基数、每积分线下价值、币种或线下价值说明。
 
-- Go 字段：`DistributionEnabled bool`
-- JSON 字段：`distribution_enabled`
-- DB 字段：`distribution_enabled`
-- 默认值：`true`
-- 含义：该用户是否有资格作为推广人获得分销佣金。
+## 后端生成流程
 
-用户管理接口需要返回并支持更新该字段，供管理员针对单个用户开启或关闭代理资格。
+积分生成放在 model 层的钱包充值成功事务中，避免不同支付通道重复实现或漏接。
 
-## 数据模型设计
-
-新增佣金明细表 `AffiliateCommission`，用于记录每一笔充值订单对每个推广层级产生的应付佣金。
-
-建议字段：
-
-- `id`: 主键。
-- `trade_no`: 钱包充值订单号。
-- `top_up_id`: 充值订单 ID。
-- `buyer_id`: 充值用户 ID。
-- `promoter_id`: 推广人用户 ID。
-- `level`: 佣金层级，取值为 `1` 或 `2`。
-- `base_amount_micros`: 返佣基数，使用 `TopUp.Money * 1_000_000` 后的整数。
-- `commission_rate_bps`: 佣金费率，万分比。
-- `commission_amount_micros`: 佣金金额，使用整数 micros 存储。
-- `currency`: 佣金币种标签。
-- `payment_provider`: 支付提供方，例如 `epay`、`stripe`、`creem`、`waffo`。
-- `payment_method`: 支付方式。
-- `status`: 结算状态，取值为 `pending` 或 `settled`。
-- `settled_at`: 结算时间。
-- `settled_by`: 执行结算标记的管理员 ID。
-- `settle_remark`: 结算备注。
-- `created_at`: 创建时间。
-- `updated_at`: 更新时间。
-
-索引建议：
-
-- `trade_no + level` 唯一索引，用于保证支付回调重试、管理员重复补单等场景不会重复入账。
-- `promoter_id + status + created_at` 普通索引，用于代理佣金列表和后台待结算查询。
-- `buyer_id` 普通索引，用于按购买者追踪佣金来源。
-- `trade_no` 普通索引，用于按订单号排查。
-
-数据库兼容要求：
-
-- 使用 GORM `AutoMigrate` 新增表。
-- 同时加入普通迁移和 fast 迁移列表。
-- 兼容 SQLite、MySQL 和 PostgreSQL。
-- 不使用数据库特有 JSON/JSONB 类型。
-- 如需 raw SQL，必须遵守项目已有跨数据库兼容规则。
-
-## 充值成功佣金生成流程
-
-佣金生成应放在 model 层的钱包充值成功事务中，避免不同支付通道重复实现或漏接。
-
-建议流程：
+流程：
 
 1. 支付回调或管理员补单确认钱包充值订单成功。
 2. 在同一个数据库事务中锁定并校验 `TopUp` 订单。
-3. 标记订单为成功，并给购买者增加充值额度。
-4. 判断 `distribution_setting.enabled` 是否开启。
-5. 查询购买者用户信息，取 `inviter_id` 作为一级推广人 ID。
-6. 查询一级推广人，取其 `inviter_id` 作为二级推广人 ID。
-7. 对一级、二级分别独立判断是否可以生成佣金。
-8. 使用 `TopUp.Money` 作为返佣基数，按对应层级费率计算佣金。
-9. 在同一事务内写入 `AffiliateCommission` 明细。
-10. 事务提交后，原有充值日志照常记录。
+3. 标记订单为成功，并给购买者增加实际充值额度。
+4. 将本次实际到账 `quotaToAdd` 作为 `baseQuota` 调用 `CreateTopUpCommissionsWithTx`。
+5. 判断 `distribution_setting.enabled` 是否开启。
+6. 查询购买者用户信息，取 `inviter_id` 作为一级推广人 ID。
+7. 查询一级推广人，取其 `inviter_id` 作为二级推广人 ID。
+8. 对一级、二级分别独立判断是否可以生成积分。
+9. 使用 `baseQuota / common.QuotaPerUnit` 作为返积分基数，按对应层级比例计算积分。
+10. 在同一事务内写入 `AffiliateCommission` 明细。
+11. 事务提交后，原有充值日志照常记录。
 
-每个层级的佣金生成条件：
+每个层级的积分生成条件：
 
 - 全局总开关已开启。
-- 对应层级费率大于 `0`。
+- 对应层级比例大于 `0`。
 - 推广人 ID 不为空。
 - 推广人存在且未软删除。
 - 推广人状态为 enabled。
 - 推广人的 `distribution_enabled` 为 `true`。
 - 推广人不是购买者本人。
 - 二级推广人与一级推广人不重复。
-- 计算出的佣金金额大于 `0`。
+- 计算出的奖励积分大于 `0`。
 
 幂等要求：
 
-- 同一 `trade_no + level` 只能生成一条佣金记录。
-- 支付回调重试、重复通知、管理员重复补单不能重复生成佣金。
-- 若订单已经是成功状态，充值路径应保持现有幂等行为，并不得重复创建佣金。
-
-金额计算要求：
-
-- 使用 `shopspring/decimal` 进行金额计算。
-- `TopUp.Money` 转为 `base_amount_micros` 后再按 bps 计算。
-- 存储使用整数 micros，前端展示时再格式化为常规金额。
-
-接入范围：
-
-- Epay 钱包充值。
-- Stripe 钱包充值。
-- Creem 钱包充值。
-- Waffo 钱包充值。
-- Waffo Pancake 钱包充值。
-- 管理员手动补单。
-
-不接入范围：
-
-- 订阅订单支付。
-- 兑换码充值。
-- 签到奖励。
-- 注册邀请奖励。
-- 管理员手动加减额度。
+- 同一 `trade_no + level` 只能生成一条积分记录。
+- 支付回调重试、重复通知、管理员重复补单不能重复生成积分。
+- 若订单已经是成功状态，充值路径保持现有幂等行为，并不得重复创建积分。
 
 ## API 设计
 
@@ -195,23 +307,28 @@
 
 `GET /api/affiliate/self/summary`
 
-用途：查询当前用户作为推广人的佣金汇总。
+用途：查询当前用户作为推广人的积分汇总。
 
 权限：`UserAuth`
 
-返回建议：
+返回重点字段：
 
-- `pending_amount_micros`
-- `settled_amount_micros`
-- `total_amount_micros`
-- `pending_count`
-- `settled_count`
-- `total_count`
-- `currency`
+- `pending_points`
+- `wallet_redeemed_points`
+- `offline_cashback_points`
+- `redeemed_points`
+- `settled_points`
+- `total_points`
 
 `GET /api/affiliate/self/commissions`
 
-用途：查询当前用户自己的佣金明细。
+用途：兼容查询当前用户自己的原始积分来源记录。
+
+权限：`UserAuth`
+
+`GET /api/affiliate/self/redemptions`
+
+用途：查询当前用户自己的积分处理流水。
 
 权限：`UserAuth`
 
@@ -219,18 +336,49 @@
 
 - `p`
 - `page_size`
-- `status`
+- `settlement_type`
+- `start_time`
+- `end_time`
 
-返回建议：
+`POST /api/affiliate/self/rewards/quote`
 
-- 分页数据。
-- 每条明细包含订单号、购买者、层级、返佣基数、费率、佣金金额、币种、状态、创建时间、结算时间。
+用途：按用户输入积分预估钱包到账 token。
+
+权限：`UserAuth`
+
+请求体：
+
+```json
+{
+  "points": 10
+}
+```
+
+`POST /api/affiliate/self/rewards/redeem`
+
+用途：用户自主兑换积分到钱包。
+
+权限：`UserAuth`
+
+请求体：
+
+```json
+{
+  "points": 10
+}
+```
 
 ### 管理员侧接口
 
+`GET /api/affiliate/admin/summary`
+
+用途：管理员按筛选条件查询全站积分汇总。
+
+权限：`AdminAuth`
+
 `GET /api/affiliate/admin/commissions`
 
-用途：管理员查询全站佣金明细。
+用途：兼容查询全站原始积分来源记录。
 
 权限：`AdminAuth`
 
@@ -246,125 +394,125 @@
 - `p`
 - `page_size`
 
-`GET /api/affiliate/admin/summary`
+`GET /api/affiliate/admin/redemptions`
 
-用途：管理员按筛选条件查询全站佣金汇总。
-
-权限：`AdminAuth`
-
-`POST /api/affiliate/admin/commissions/settle`
-
-用途：管理员批量标记佣金为已结算。
+用途：管理员查询全站积分处理流水。
 
 权限：`AdminAuth`
 
-请求体建议：
+筛选参数：
+
+- `settlement_type`
+- `promoter_id`
+- `start_time`
+- `end_time`
+- `p`
+- `page_size`
+
+`POST /api/affiliate/admin/rewards/offline-cashback`
+
+用途：管理员记录线下返现并扣除用户待处理积分。
+
+权限：`AdminAuth`
+
+请求体：
 
 ```json
 {
-  "ids": [1, 2, 3],
-  "remark": "2026-05-19 offline payout"
+  "promoter_id": 1002,
+  "points": 10,
+  "remark": "2026-05-22 offline cashback"
 }
 ```
 
-处理规则：
-
-- 事务内批量处理。
-- 所有 ID 必须存在。
-- 所有记录必须为 `pending`。
-- 任一记录不满足条件则整批失败。
-- 成功后写入 `settled`、`settled_at`、`settled_by` 和 `settle_remark`。
-
 `GET /api/affiliate/admin/commissions/export`
 
-用途：管理员导出 CSV，用于线下打款和财务对账。
+用途：管理员导出原始积分来源记录 CSV，用于运营对账。
 
 权限：`AdminAuth`
 
-导出字段建议：
+### 下线接口
 
-- 佣金 ID
-- 订单号
-- 买家 ID
-- 买家用户名
-- 推广人 ID
-- 推广人用户名
-- 层级
-- 返佣基数
-- 费率
-- 佣金金额
-- 币种
-- 支付提供方
-- 支付方式
-- 状态
-- 创建时间
-- 结算时间
-- 结算人
-- 结算备注
+以下接口不再注册或不再由前端使用：
 
-### 用户管理接口
+- `GET /api/affiliate/self/payout-profile`
+- `PUT /api/affiliate/self/payout-profile`
+- `POST /api/affiliate/admin/commissions/settle`
 
-用户列表、用户详情和用户更新接口需要包含：
-
-- `distribution_enabled`
-
-管理员可以在用户管理中开启或关闭该用户的代理资格。
+用户侧不再维护线下收款资料；旧的批量结算语义不再作为后台入口暴露。
 
 ## 前端设计
 
 ### 系统设置
 
-在默认前端的系统设置 `Billing & Payment` 中新增 `Distribution` 小节。
+默认前端的系统设置 `Billing & Payment` 中保留 `Distribution` 小节。
 
-控件建议：
+控件：
 
-- 使用开关控件控制全局总开关。
-- 使用数字输入或百分比输入配置一级佣金比例。
-- 使用数字输入或百分比输入配置二级佣金比例。
-- 使用文本输入配置佣金币种标签。
+- 全局分销开关。
+- 一级积分比例。
+- 二级积分比例。
 
-交互要求：
+说明文案强调：比例应用于被邀请用户充值到账额度。
 
-- 未完成支付合规确认时，禁止开启分销或保存正数佣金费率。
-- 前端展示百分比，后端保存 bps。
-- 保存后刷新页面能正确回填配置。
+页面不展示：
 
-### Wallet 页面
+- 每支付单位积分基数。
+- 每积分线下价值。
+- 币种或线下价值说明。
 
-保留现有 `Referral Program` 邀请卡片。
+### 用户分销页
 
-新增佣金账本展示区域：
+用户侧分销页面保持简洁：
 
-- 待结算佣金。
-- 已结算佣金。
-- 累计佣金。
-- 最近佣金明细。
+- `Pending Points` / 待处理积分。
+- `Redeemed Points` / 已兑换积分。
+- `Total Points` / 累计积分。
+- 积分处理流水列表。
 
-注意：
+流水列表展示：
 
-- 佣金不显示“转入余额”。
-- 佣金不提供线上提现按钮。
-- 文案明确该佣金由管理员线下结算。
+- 处理时间。
+- 积分数量。
+- 钱包兑换记录展示到账 token。
+- 管理员线下返现记录展示为已处理积分。
 
-### Admin 佣金管理页面
+页面不展示：
 
-新增后台佣金管理页面，例如 `/affiliate-commissions`。
+- PayPal。
+- 线下结算联系人。
+- 线下价值。
+- 结算金额。
+- 线下返现操作入口。
 
-页面能力：
+### 管理员分销页
 
-- 查看佣金汇总。
-- 查询佣金明细。
-- 按状态、层级、推广人、购买者、订单号、时间范围筛选。
-- 分页。
-- 批量选择待结算记录。
-- 批量标记已结算。
-- 导出 CSV。
+管理员分销页展示全站积分处理情况：
 
-导航：
+- 待处理积分。
+- 已处理积分。
+- 线下返现积分。
+- 累计积分。
+- 积分处理流水表。
+- 线下返现扣积分操作。
 
-- 在 Admin 侧边栏中新增佣金管理入口。
-- 新增 admin 模块键 `affiliate`，供侧边栏配置控制显示。
-- 更新 URL 到模块键映射，确保侧边栏权限过滤正常。
+线下返现操作字段：
+
+- 用户 ID。
+- 返现积分数量。
+- 备注。
+
+处理流水表展示：
+
+- 用户。
+- 处理方式：钱包兑换 / 线下返现。
+- 积分数量。
+- 到账 token，仅钱包兑换有值。
+- 操作人，仅线下返现由管理员产生。
+- 备注。
+- 处理时间。
+
+页面不展示现金金额、线下价值、PayPal 或结算联系人。
 
 ### 用户管理页面
 
@@ -374,8 +522,8 @@
 
 建议展示：
 
-- 开启：可获得分销佣金。
-- 关闭：不能作为推广人获得佣金。
+- 开启：可获得分销积分。
+- 关闭：不能作为推广人获得分销积分。
 
 ### 国际化
 
@@ -397,77 +545,44 @@ bun run i18n:sync
 
 ## 测试计划
 
-后端测试：
+后端模型测试：
 
-- 全局总开关关闭时，钱包充值成功不生成任何佣金。
-- 全局总开关开启且两级推广人均开启时，生成一级和二级佣金。
-- 一级推广人 `distribution_enabled=false` 时，只跳过一级佣金。
-- 二级推广人 `distribution_enabled=false` 时，只跳过二级佣金。
-- 购买者本人 `distribution_enabled=false` 不影响其充值给合格上级返佣。
-- 新用户默认 `distribution_enabled=true`。
-- 一级费率为 `0` 时，不生成一级佣金。
-- 二级费率为 `0` 时，不生成二级佣金。
-- 两级费率合计超过 `100%` 时配置保存失败。
-- 支付回调重试不会重复生成佣金。
-- 管理员重复补单不会重复生成佣金。
-- Epay、Stripe、Creem、Waffo、Waffo Pancake、管理员补单路径均覆盖。
-- 订阅订单成功不生成佣金。
-- 兑换码、签到、注册邀请奖励、管理员加减额度不生成佣金。
-- 批量结算只能处理 `pending` 记录。
-- 批量结算混入已结算或不存在记录时整批失败。
-- 用户侧接口只能查看自己的佣金。
-- 管理员接口需要 Admin 权限。
-- 分销配置修改需要 Root 权限。
-- 未完成支付合规确认时，不能开启分销或设置正佣金费率。
+- 用户支付 20 元但到账 100 钱包额度单位时，积分按 100 计算。
+- 一级 10%、二级 3% 时，100 钱包额度单位到账分别生成 10 和 3 积分。
+- `TopUp.Money` 改变但 `baseQuota` 相同，生成积分不变。
+- 兑换 1 积分到账 `500000` token。
+- 兑换 10 积分到账 `5000000` token。
+- 修改 `operation_setting.Price` 不影响积分兑换结果。
+- 用户部分兑换后，剩余积分保持 pending。
+- 管理员线下返现 10 积分后，用户待处理积分减少 10，钱包余额不增加。
+- 管理员线下返现超过用户待处理积分时失败。
+- 管理员线下返现按 FIFO 扣除多条积分来源记录。
+- 钱包兑换流水类型为 `wallet`。
+- 管理员线下返现流水类型为 `offline_cashback`。
+- 汇总中的待处理、钱包兑换、线下返现、已处理、累计积分都正确。
+
+后端 controller/router 测试：
+
+- 用户只能查询自己的积分处理流水。
+- 管理员可查询全站积分处理流水。
+- 管理员线下返现接口需要 Admin 权限。
+- 线下返现请求缺少用户、积分为 0、积分超额时返回错误。
+- payout profile 接口不再注册或不再被前端使用。
+- 旧线下结算接口不再暴露旧语义。
 
 前端验证：
 
 - `cd web/default && bun run typecheck`
 - `cd web/default && bun run lint`
 - `cd web/default && bun run i18n:sync`
-- Wallet 页面在桌面和移动端展示正常。
-- Admin 佣金管理页面筛选、分页、批量结算、导出入口可用。
-- 用户管理页面能查看和修改单用户代理资格。
-- 系统设置保存后刷新能正确回填总开关、比例和币种。
+- 用户分销页只展示待处理积分、已兑换积分、累计积分。
+- 用户分销页没有 PayPal、线下结算联系人、线下价值、结算金额等内容。
+- 管理员分销页可以给指定用户记录线下返现积分。
+- 管理员线下返现成功后列表新增流水，用户待处理积分减少。
+- 管理员页面列表能区分钱包兑换和线下返现。
+- 中英法日俄越 locale 补齐新增文案。
 
-最终回归：
+回归：
 
-```bash
-go test ./model ./controller
-```
-
-如时间允许，执行：
-
-```bash
-go test ./...
-```
-
-## 注意事项
-
-新增 Go 代码中，JSON 编解码必须遵守项目约定：
-
-- 使用 `common.Marshal`
-- 使用 `common.Unmarshal`
-- 使用 `common.UnmarshalJsonStr`
-- 使用 `common.DecodeJson`
-
-不要在业务代码中直接调用 `encoding/json` 的 marshal 或 unmarshal。
-
-数据库实现必须同时兼容：
-
-- SQLite
-- MySQL 5.7.8+
-- PostgreSQL 9.6+
-
-迁移应优先使用 GORM 抽象。必须写 raw SQL 时，要遵守项目已有跨数据库差异处理规则。
-
-不得修改、删除、替换或移除项目受保护的品牌、版权、作者、模块路径、README、许可证、元数据和相关标识。
-
-二级分销账本与现有注册邀请奖励保持分离：
-
-- 不改变 `QuotaForInviter`
-- 不改变 `QuotaForInvitee`
-- 不改变现有 `aff_quota` 转余额逻辑
-- 不把充值佣金自动转入用户余额
-
-第一版只负责把账算清楚，供管理员线下结算。
+- `go test ./model ./controller`
+- 如时间允许，执行 `go test ./...`

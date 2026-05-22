@@ -205,14 +205,13 @@ const BILLING_SECTIONS = [
   {
     id: 'distribution',
     titleKey: 'Distribution',
-    descriptionKey: 'Configure two-level wallet top-up affiliate commissions',
+    descriptionKey: 'Configure two-level wallet top-up reward points',
     build: (settings: BillingSettings) => (
       <DistributionSettingsSection
         defaultValues={{
           enabled: settings['distribution_setting.enabled'],
           level1RateBps: settings['distribution_setting.level1_rate_bps'],
           level2RateBps: settings['distribution_setting.level2_rate_bps'],
-          currency: settings['distribution_setting.currency'],
         }}
         complianceConfirmed={
           (settings['payment_setting.compliance_confirmed'] ?? false) &&

@@ -22,9 +22,15 @@ import type {
   ApiResponse,
   AffiliateCommissionListResponse,
   AffiliateCommissionQuery,
-  AffiliatePayoutProfile,
-  AffiliatePayoutProfileRequest,
+  AffiliateRewardPointSettlementListResponse,
+  AffiliateRewardPointSettlementQuery,
   AffiliateCommissionSummary,
+  OfflineCashbackAffiliateRewardPointsRequest,
+  OfflineCashbackAffiliateRewardPointsResponse,
+  QuoteAffiliateRewardPointsRequest,
+  QuoteAffiliateRewardPointsResponse,
+  RedeemAffiliateRewardPointsRequest,
+  RedeemAffiliateRewardPointsResponse,
 } from './types'
 
 function buildQueryString(query: AffiliateCommissionQuery = {}) {
@@ -36,8 +42,19 @@ function buildQueryString(query: AffiliateCommissionQuery = {}) {
   return params.toString()
 }
 
+function buildSettlementQueryString(
+  query: AffiliateRewardPointSettlementQuery = {}
+) {
+  const params = new URLSearchParams()
+  Object.entries(query).forEach(([key, value]) => {
+    if (value === undefined || value === null || value === '') return
+    params.set(key, String(value))
+  })
+  return params.toString()
+}
+
 function getCsvFilename(contentDisposition?: string) {
-  const fallback = 'affiliate-commissions.csv'
+  const fallback = 'affiliate-reward-points.csv'
   if (!contentDisposition) return fallback
 
   const encodedFilename = contentDisposition.match(/filename\*=UTF-8''([^;]+)/i)
@@ -94,17 +111,27 @@ export async function getSelfAffiliateCommissions(
   return res.data
 }
 
-export async function getSelfAffiliatePayoutProfile(): Promise<
-  ApiResponse<AffiliatePayoutProfile>
-> {
-  const res = await api.get('/api/affiliate/self/payout-profile')
+export async function getSelfAffiliateRewardPointSettlements(
+  query: AffiliateRewardPointSettlementQuery = {}
+): Promise<ApiResponse<AffiliateRewardPointSettlementListResponse>> {
+  const qs = buildSettlementQueryString(query)
+  const res = await api.get(
+    `/api/affiliate/self/redemptions${qs ? `?${qs}` : ''}`
+  )
   return res.data
 }
 
-export async function updateSelfAffiliatePayoutProfile(
-  payload: AffiliatePayoutProfileRequest
-): Promise<ApiResponse<AffiliatePayoutProfile>> {
-  const res = await api.put('/api/affiliate/self/payout-profile', payload)
+export async function redeemSelfAffiliateRewardPoints(
+  payload: RedeemAffiliateRewardPointsRequest = {}
+): Promise<ApiResponse<RedeemAffiliateRewardPointsResponse>> {
+  const res = await api.post('/api/affiliate/self/rewards/redeem', payload)
+  return res.data
+}
+
+export async function quoteSelfAffiliateRewardPoints(
+  payload: QuoteAffiliateRewardPointsRequest
+): Promise<ApiResponse<QuoteAffiliateRewardPointsResponse>> {
+  const res = await api.post('/api/affiliate/self/rewards/quote', payload)
   return res.data
 }
 
@@ -126,13 +153,22 @@ export async function getAdminAffiliateCommissions(
   return res.data
 }
 
-export async function settleAffiliateCommissions(
-  ids: number[],
-  remark: string
-): Promise<ApiResponse> {
-  const res = await api.post('/api/affiliate/admin/commissions/settle', {
-    ids,
-    remark,
-  })
+export async function getAdminAffiliateRewardPointSettlements(
+  query: AffiliateRewardPointSettlementQuery = {}
+): Promise<ApiResponse<AffiliateRewardPointSettlementListResponse>> {
+  const qs = buildSettlementQueryString(query)
+  const res = await api.get(
+    `/api/affiliate/admin/redemptions${qs ? `?${qs}` : ''}`
+  )
+  return res.data
+}
+
+export async function offlineCashbackAffiliateRewardPoints(
+  payload: OfflineCashbackAffiliateRewardPointsRequest
+): Promise<ApiResponse<OfflineCashbackAffiliateRewardPointsResponse>> {
+  const res = await api.post(
+    '/api/affiliate/admin/rewards/offline-cashback',
+    payload
+  )
   return res.data
 }

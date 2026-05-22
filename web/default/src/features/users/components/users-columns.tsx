@@ -274,7 +274,7 @@ export function useUsersColumns(): ColumnDef<User>[] {
         const affCount = user.aff_count || 0
         const affHistoryQuota = user.aff_history_quota || 0
         const inviterId = user.inviter_id || 0
-        const distributionEnabled = user.distribution_enabled !== false
+        const distributionEnabled = user.distribution_enabled === true
 
         return (
           <div className='flex flex-wrap items-center gap-1.5 text-xs font-medium'>

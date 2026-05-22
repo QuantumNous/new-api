@@ -23,4 +23,5 @@ For commercial licensing, please contact support@quantumnous.com
 export * from './affiliate'
 export * from './format'
 export * from './payment'
+export * from './points'
 export * from './ui'
