@@ -185,6 +185,47 @@ func TestRelayChatOverCodex_NonStream_AggregatesAndReturnsJSON(t *testing.T) {
 	assert.Contains(t, body, "Hello world")
 }
 
+func TestApplyCodexConstraints_DoesNotChangeBehaviorOnResponsesPath(t *testing.T) {
+	// 该函数本身确实强制 Stream=true；调用方负责按需还原。
+	req := &apicompat.ResponsesRequest{}
+	applyCodexConstraints(req, nil)
+	assert.True(t, req.Stream, "applyCodexConstraints forces stream=true (callers may override)")
+}
+
+func TestConvertOpenAIResponsesRequest_NonCompactPreservesClientStreamFalse(t *testing.T) {
+	streamFalse := false
+	req := dto.OpenAIResponsesRequest{
+		Model:  "gpt-5",
+		Stream: &streamFalse,
+	}
+	a := &Adaptor{}
+	out, err := a.ConvertOpenAIResponsesRequest(nil, &relaycommon.RelayInfo{ChannelMeta: &relaycommon.ChannelMeta{}}, req)
+	require.NoError(t, err)
+	m, ok := out.(map[string]any)
+	require.True(t, ok, "ConvertOpenAIResponsesRequest non-compact returns map[string]any")
+	streamVal, hasStream := m["stream"]
+	if hasStream {
+		assert.Equal(t, false, streamVal, "client stream:false must survive applyCodexConstraints")
+	}
+	// 若 omitempty 把 false 丢掉也可接受——上游缺省即为 non-stream。
+	// 这条测试关键点是 stream 不能被错误地置为 true。
+	assert.NotEqual(t, true, streamVal, "client stream:false must NOT be flipped to true")
+}
+
+func TestConvertOpenAIResponsesRequest_NonCompactPreservesClientStreamTrue(t *testing.T) {
+	streamTrue := true
+	req := dto.OpenAIResponsesRequest{
+		Model:  "gpt-5",
+		Stream: &streamTrue,
+	}
+	a := &Adaptor{}
+	out, err := a.ConvertOpenAIResponsesRequest(nil, &relaycommon.RelayInfo{ChannelMeta: &relaycommon.ChannelMeta{}}, req)
+	require.NoError(t, err)
+	m, ok := out.(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, true, m["stream"], "client stream:true must reach upstream")
+}
+
 func TestRelayChatOverCodex_NoUsageEvent_ReturnsNonNilZeroUsage(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 

@@ -102,6 +102,16 @@ func (a *Adaptor) ConvertOpenAIResponsesRequest(c *gin.Context, info *relaycommo
 		return result, nil
 	}
 
+	// /v1/responses (非 compact) 必须保留客户端原始 stream 意图：
+	// applyCodexConstraints 出于 ChatCompletions bridge 的需要会强制 Stream=true，
+	// 但 Responses 路径会按 info.IsStream 分派 OaiResponsesHandler / OaiResponsesStreamHandler，
+	// 若此处强行改为 stream:true 会导致非流式 handler 解析流式 body 出错（回归）。
+	if request.Stream != nil {
+		compatReq.Stream = *request.Stream
+	} else {
+		compatReq.Stream = false
+	}
+
 	// 非 compact：使用 ensureInstructionsField 确保 "instructions" 键存在（Codex 后端硬性要求）
 	return ensureInstructionsField(compatReq)
 }
