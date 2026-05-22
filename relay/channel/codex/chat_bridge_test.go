@@ -230,6 +230,22 @@ func TestConvertOpenAIResponsesRequest_NonCompactPreservesClientStreamTrue(t *te
 	assert.Equal(t, true, m["stream"], "client stream:true must reach upstream")
 }
 
+func TestRelayChatOverCodex_Non200_PropagatesUpstreamError(t *testing.T) {
+	resp := &http.Response{
+		StatusCode: 429,
+		Header:     make(http.Header),
+		Body:       io.NopCloser(bytes.NewReader([]byte(`{"error":{"message":"rate limit"}}`))),
+	}
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
+	usage, apiErr := RelayChatOverCodex(c, &relaycommon.RelayInfo{ChannelMeta: &relaycommon.ChannelMeta{}}, resp)
+	assert.Nil(t, usage)
+	require.NotNil(t, apiErr)
+	assert.Contains(t, apiErr.Error(), "429")
+	assert.Contains(t, apiErr.Error(), "rate limit")
+}
+
 func TestRelayChatOverCodex_NoUsageEvent_ReturnsNonNilZeroUsage(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 

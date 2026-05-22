@@ -3,6 +3,7 @@ package codex
 import (
 	"bufio"
 	"fmt"
+	"io"
 	"net/http"
 	"strings"
 
@@ -117,8 +118,11 @@ func RelayChatOverCodex(c *gin.Context, info *relaycommon.RelayInfo, resp *http.
 		return nil, types.NewError(fmt.Errorf("codex upstream: nil response"), types.ErrorCodeBadResponse)
 	}
 	if resp.StatusCode != http.StatusOK {
+		// 上层一般会预过滤非 2xx，但本函数仍需带上 body 以便排障。
+		body, _ := io.ReadAll(resp.Body)
+		_ = resp.Body.Close()
 		return nil, types.NewError(
-			fmt.Errorf("codex upstream status %d", resp.StatusCode),
+			fmt.Errorf("codex upstream status %d: %s", resp.StatusCode, string(body)),
 			types.ErrorCodeBadResponse,
 		)
 	}
