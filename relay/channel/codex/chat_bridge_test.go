@@ -185,6 +185,33 @@ func TestRelayChatOverCodex_NonStream_AggregatesAndReturnsJSON(t *testing.T) {
 	assert.Contains(t, body, "Hello world")
 }
 
+func TestRelayChatOverCodex_NoUsageEvent_ReturnsNonNilZeroUsage(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	// upstream stream with deltas but no response.completed/usage
+	upstreamSSE := strings.Join([]string{
+		`event: response.output_text.delta`,
+		`data: {"type":"response.output_text.delta","output_index":0,"delta":"hi"}`,
+		``,
+	}, "\n")
+	resp := &http.Response{
+		StatusCode: 200, Header: make(http.Header),
+		Body: io.NopCloser(bytes.NewReader([]byte(upstreamSSE))),
+	}
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
+
+	usage, apiErr := RelayChatOverCodex(c, &relaycommon.RelayInfo{UserWantsStream: true, ChannelMeta: &relaycommon.ChannelMeta{UpstreamModelName: "gpt-5"}}, resp)
+	require.Nil(t, apiErr)
+	require.NotNil(t, usage, "usage interface must be non-nil")
+	dtoUsage, ok := usage.(*dto.Usage)
+	require.True(t, ok)
+	require.NotNil(t, dtoUsage, "*dto.Usage must be non-nil to avoid caller panic")
+	assert.Equal(t, 0, dtoUsage.PromptTokens)
+	assert.Equal(t, 0, dtoUsage.CompletionTokens)
+}
+
 func TestRelayChatOverCodex_UsageReturnedToBilling(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	upstreamSSE := "event: response.completed\n" +

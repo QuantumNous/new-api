@@ -191,23 +191,22 @@ func RelayChatOverCodex(c *gin.Context, info *relaycommon.RelayInfo, resp *http.
 		c.JSON(http.StatusOK, chatResp)
 	}
 
-	return buildUsage(lastUsage, info), nil
+	return buildUsage(lastUsage), nil
 }
 
 // buildUsage 把 Responses API 返回的 usage 翻译成 new-api 的 *dto.Usage。
-// 返回值会被 BillingSettler 用于结算；缺失上游 usage 时返回 nil 让上层走兜底。
-func buildUsage(u *apicompat.ResponsesUsage, info *relaycommon.RelayInfo) any {
-	_ = info
+// 始终返回 non-nil *dto.Usage：上游缺失 usage 事件时返回零值占位，避免调用方
+// （relay/compatible_handler.go 等）对 nil 接口做类型断言时 panic。
+func buildUsage(u *apicompat.ResponsesUsage) any {
+	out := &dto.Usage{}
 	if u == nil {
-		return nil
+		return out
 	}
-	out := &dto.Usage{
-		PromptTokens:     u.InputTokens,
-		CompletionTokens: u.OutputTokens,
-		TotalTokens:      u.TotalTokens,
-		InputTokens:      u.InputTokens,
-		OutputTokens:     u.OutputTokens,
-	}
+	out.PromptTokens = u.InputTokens
+	out.CompletionTokens = u.OutputTokens
+	out.TotalTokens = u.TotalTokens
+	out.InputTokens = u.InputTokens
+	out.OutputTokens = u.OutputTokens
 	if out.TotalTokens == 0 && (out.PromptTokens != 0 || out.CompletionTokens != 0) {
 		out.TotalTokens = out.PromptTokens + out.CompletionTokens
 	}
