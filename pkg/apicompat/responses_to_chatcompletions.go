@@ -385,7 +385,11 @@ func generateChatCmplID() string {
 type bufferedFuncCall struct {
 	CallID string
 	Name   string
-	Args   strings.Builder
+	// Args is a pointer so that re-slicing/growth of the containing
+	// []bufferedFuncCall slice does not copy a non-zero strings.Builder by
+	// value, which would violate its noCopy invariant and panic on the next
+	// WriteString. See Wave 6-B Finding C.
+	Args *strings.Builder
 }
 
 // BufferedResponseAccumulator collects content from Responses SSE delta events
@@ -421,6 +425,7 @@ func (a *BufferedResponseAccumulator) ProcessEvent(event *ResponsesStreamEvent) 
 			a.funcCalls = append(a.funcCalls, bufferedFuncCall{
 				CallID: event.Item.CallID,
 				Name:   event.Item.Name,
+				Args:   &strings.Builder{},
 			})
 		}
 	case "response.function_call_arguments.delta":

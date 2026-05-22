@@ -308,6 +308,8 @@ func TestRelayChatOverCodex_Non200_PropagatesUpstreamError(t *testing.T) {
 	require.NotNil(t, apiErr)
 	assert.Contains(t, apiErr.Error(), "429")
 	assert.Contains(t, apiErr.Error(), "rate limit")
+	// Fix 4 (Finding O): 必须保留上游 HTTP 状态码，避免上层重试 / 限流策略失去信号。
+	assert.Equal(t, 429, apiErr.StatusCode, "must preserve upstream HTTP status code")
 }
 
 func TestRelayChatOverCodex_NoUsageEvent_ReturnsNonNilZeroUsage(t *testing.T) {

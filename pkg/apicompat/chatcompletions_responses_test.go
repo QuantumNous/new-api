@@ -1250,3 +1250,75 @@ func TestBufferedResponseAccumulator_IgnoresNonFunctionCallItems(t *testing.T) {
 
 	assert.False(t, acc.HasContent())
 }
+
+// TestBufferedResponseAccumulator_MultipleToolCallsNoPanic reproduces Wave 6-B
+// Finding C: bufferedFuncCall used to embed strings.Builder by value, so when
+// the funcCalls slice grew via append the Builder's internal self-pointer
+// (set on first WriteString) was copied to a new backing array entry. The
+// next WriteString then panicked with
+// "strings: illegal use of non-zero Builder copied by value".
+//
+// To trigger the panic with the OLD code, we must:
+//  1. Add tool call #0 and write some arguments to it (sets Builder.addr).
+//  2. Add tool call #1, forcing the funcCalls slice to grow — this copies
+//     entry 0's non-zero Builder to the new backing array.
+//  3. Write more arguments to tool call #0 — Builder.addr now points to the
+//     old backing array, so copyCheck panics.
+//
+// With the pointer-Builder fix this sequence completes cleanly.
+func TestBufferedResponseAccumulator_MultipleToolCallsNoPanic(t *testing.T) {
+	acc := NewBufferedResponseAccumulator()
+
+	// Tool call #0: add and write a partial argument fragment so the
+	// underlying Builder records its self-pointer.
+	acc.ProcessEvent(&ResponsesStreamEvent{
+		Type:        "response.output_item.added",
+		OutputIndex: 0,
+		Item:        &ResponsesOutput{Type: "function_call", CallID: "call_1", Name: "tool_a"},
+	})
+	require.NotPanics(t, func() {
+		acc.ProcessEvent(&ResponsesStreamEvent{
+			Type:        "response.function_call_arguments.delta",
+			OutputIndex: 0,
+			Delta:       `{"a":`,
+		})
+	}, "first WriteString on tool call #0 must not panic")
+
+	// Tool call #1: forces []bufferedFuncCall to grow from cap=1 to cap=2,
+	// which reallocates and value-copies entry 0 (the non-zero Builder).
+	acc.ProcessEvent(&ResponsesStreamEvent{
+		Type:        "response.output_item.added",
+		OutputIndex: 1,
+		Item:        &ResponsesOutput{Type: "function_call", CallID: "call_2", Name: "tool_b"},
+	})
+
+	// Second write to tool call #0 — this is the call that panics under the
+	// old value-Builder implementation. The pointer-Builder fix avoids the
+	// value copy and lets this succeed.
+	require.NotPanics(t, func() {
+		acc.ProcessEvent(&ResponsesStreamEvent{
+			Type:        "response.function_call_arguments.delta",
+			OutputIndex: 0,
+			Delta:       `1}`,
+		})
+	}, "strings.Builder copied by value should not panic after slice grow")
+
+	acc.ProcessEvent(&ResponsesStreamEvent{
+		Type:        "response.function_call_arguments.delta",
+		OutputIndex: 1,
+		Delta:       `{"b":2}`,
+	})
+
+	out := acc.BuildOutput()
+	require.Len(t, out, 2)
+	assert.Equal(t, "function_call", out[0].Type)
+	assert.Equal(t, "call_1", out[0].CallID)
+	assert.Equal(t, "tool_a", out[0].Name)
+	assert.Equal(t, `{"a":1}`, out[0].Arguments)
+	assert.Equal(t, "function_call", out[1].Type)
+	assert.Equal(t, "call_2", out[1].CallID)
+	assert.Equal(t, "tool_b", out[1].Name)
+	assert.Equal(t, `{"b":2}`, out[1].Arguments)
+}
+
+// PATCH2_TESTS_PLACEHOLDER — restored after commit 1

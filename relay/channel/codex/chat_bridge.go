@@ -177,9 +177,12 @@ func RelayChatOverCodex(c *gin.Context, info *relaycommon.RelayInfo, resp *http.
 		// 上层一般会预过滤非 2xx，但本函数仍需带上 body 以便排障。
 		body, _ := io.ReadAll(resp.Body)
 		_ = resp.Body.Close()
-		return nil, types.NewError(
+		// 必须同时保留 HTTP 状态码，否则上层重试 / 限流策略会失去信号
+		// （如 429/5xx 不再触发应有的退避或切换上游）。
+		return nil, types.NewErrorWithStatusCode(
 			fmt.Errorf("codex upstream status %d: %s", resp.StatusCode, string(body)),
 			types.ErrorCodeBadResponse,
+			resp.StatusCode,
 		)
 	}
 	defer func() { _ = resp.Body.Close() }()
