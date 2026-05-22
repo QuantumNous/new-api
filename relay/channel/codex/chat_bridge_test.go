@@ -168,3 +168,34 @@ func TestRelayChatOverCodex_NonStream_AggregatesAndReturnsJSON(t *testing.T) {
 	assert.Contains(t, body, `"choices"`)
 	assert.Contains(t, body, "Hello world")
 }
+
+func TestRelayChatOverCodex_UsageReturnedToBilling(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	upstreamSSE := "event: response.completed\n" +
+		`data: {"type":"response.completed","response":{"id":"resp_1","usage":{"input_tokens":11,"output_tokens":7,"input_tokens_details":{"cached_tokens":3},"output_tokens_details":{"reasoning_tokens":2}}}}` +
+		"\n\n"
+	resp := &http.Response{
+		StatusCode: 200,
+		Header:     make(http.Header),
+		Body:       io.NopCloser(bytes.NewReader([]byte(upstreamSSE))),
+	}
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
+
+	info := &relaycommon.RelayInfo{
+		UserWantsStream: false,
+		ChannelMeta:     &relaycommon.ChannelMeta{UpstreamModelName: "gpt-5"},
+	}
+	usage, apiErr := RelayChatOverCodex(c, info, resp)
+	require.Nil(t, apiErr)
+	require.NotNil(t, usage)
+
+	dtoUsage, ok := usage.(*dto.Usage)
+	require.True(t, ok, "usage should be *dto.Usage")
+	assert.Equal(t, 11, dtoUsage.PromptTokens)
+	assert.Equal(t, 7, dtoUsage.CompletionTokens)
+	assert.Equal(t, 18, dtoUsage.TotalTokens)
+	assert.Equal(t, 3, dtoUsage.PromptTokensDetails.CachedTokens)
+	assert.Equal(t, 2, dtoUsage.CompletionTokenDetails.ReasoningTokens)
+}

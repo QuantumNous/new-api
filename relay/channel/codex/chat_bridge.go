@@ -176,9 +176,39 @@ func RelayChatOverCodex(c *gin.Context, info *relaycommon.RelayInfo, resp *http.
 	return buildUsage(lastUsage, info), nil
 }
 
-// buildUsage placeholder; Task 9 将替换为 *dto.Usage 映射
+// buildUsage 把 Responses API 返回的 usage 翻译成 new-api 的 *dto.Usage。
+// 返回值会被 BillingSettler 用于结算；缺失上游 usage 时返回 nil 让上层走兜底。
 func buildUsage(u *apicompat.ResponsesUsage, info *relaycommon.RelayInfo) any {
-	_ = u
 	_ = info
-	return nil
+	if u == nil {
+		return nil
+	}
+	out := &dto.Usage{
+		PromptTokens:     u.InputTokens,
+		CompletionTokens: u.OutputTokens,
+		TotalTokens:      u.TotalTokens,
+		InputTokens:      u.InputTokens,
+		OutputTokens:     u.OutputTokens,
+	}
+	if out.TotalTokens == 0 && (out.PromptTokens != 0 || out.CompletionTokens != 0) {
+		out.TotalTokens = out.PromptTokens + out.CompletionTokens
+	}
+	if u.InputTokensDetails != nil {
+		out.PromptTokensDetails = dto.InputTokenDetails{
+			CachedTokens: u.InputTokensDetails.CachedTokens,
+		}
+		// 同步指针字段，方便下游 reasoning/responses 链路读取
+		out.InputTokensDetails = &dto.InputTokenDetails{
+			CachedTokens: u.InputTokensDetails.CachedTokens,
+		}
+		if u.InputTokensDetails.CachedTokens > 0 {
+			out.PromptCacheHitTokens = u.InputTokensDetails.CachedTokens
+		}
+	}
+	if u.OutputTokensDetails != nil {
+		out.CompletionTokenDetails = dto.OutputTokenDetails{
+			ReasoningTokens: u.OutputTokensDetails.ReasoningTokens,
+		}
+	}
+	return out
 }
