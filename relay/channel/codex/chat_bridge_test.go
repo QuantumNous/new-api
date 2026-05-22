@@ -230,6 +230,68 @@ func TestConvertOpenAIResponsesRequest_NonCompactPreservesClientStreamTrue(t *te
 	assert.Equal(t, true, m["stream"], "client stream:true must reach upstream")
 }
 
+func TestRelayChatOverCodex_StreamPath_ToolCalls(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	// upstream SSE: function_call item added, 2 args deltas, then completed
+	upstreamSSE := strings.Join([]string{
+		`event: response.output_item.added`,
+		`data: {"type":"response.output_item.added","output_index":0,"item":{"type":"function_call","call_id":"call_abc","name":"calc"}}`,
+		``,
+		`event: response.function_call_arguments.delta`,
+		`data: {"type":"response.function_call_arguments.delta","output_index":0,"delta":"{\"a\":"}`,
+		``,
+		`event: response.function_call_arguments.delta`,
+		`data: {"type":"response.function_call_arguments.delta","output_index":0,"delta":"1}"}`,
+		``,
+		`event: response.completed`,
+		`data: {"type":"response.completed","response":{"id":"resp_1","status":"completed","usage":{"input_tokens":3,"output_tokens":2}}}`,
+		``,
+	}, "\n")
+	resp := &http.Response{StatusCode: 200, Header: make(http.Header), Body: io.NopCloser(bytes.NewReader([]byte(upstreamSSE)))}
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
+
+	_, apiErr := RelayChatOverCodex(c, &relaycommon.RelayInfo{UserWantsStream: true, ChannelMeta: &relaycommon.ChannelMeta{UpstreamModelName: "gpt-5"}}, resp)
+	require.Nil(t, apiErr)
+	body := rec.Body.String()
+	assert.Contains(t, body, `"tool_calls"`)
+	assert.Contains(t, body, `"call_abc"`)
+	assert.Contains(t, body, `"calc"`)
+	// arguments arrive as fragments; concatenated must form the full JSON
+	assert.Contains(t, body, "{\\\"a\\\":")
+	assert.Contains(t, body, "1}")
+	assert.Contains(t, body, `"finish_reason":"tool_calls"`)
+}
+
+func TestRelayChatOverCodex_StreamPath_ReasoningSummary(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	upstreamSSE := strings.Join([]string{
+		`event: response.reasoning_summary_text.delta`,
+		`data: {"type":"response.reasoning_summary_text.delta","output_index":0,"summary_index":0,"delta":"Thinking..."}`,
+		``,
+		`event: response.output_text.delta`,
+		`data: {"type":"response.output_text.delta","output_index":1,"delta":"Answer"}`,
+		``,
+		`event: response.completed`,
+		`data: {"type":"response.completed","response":{"id":"resp_1","usage":{"input_tokens":3,"output_tokens":2}}}`,
+		``,
+	}, "\n")
+	resp := &http.Response{StatusCode: 200, Header: make(http.Header), Body: io.NopCloser(bytes.NewReader([]byte(upstreamSSE)))}
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
+
+	_, apiErr := RelayChatOverCodex(c, &relaycommon.RelayInfo{UserWantsStream: true, ChannelMeta: &relaycommon.ChannelMeta{UpstreamModelName: "gpt-5"}}, resp)
+	require.Nil(t, apiErr)
+	body := rec.Body.String()
+	assert.Contains(t, body, `"reasoning_content"`)
+	assert.Contains(t, body, "Thinking...")
+	assert.Contains(t, body, "Answer")
+}
+
 func TestRelayChatOverCodex_Non200_PropagatesUpstreamError(t *testing.T) {
 	resp := &http.Response{
 		StatusCode: 429,
