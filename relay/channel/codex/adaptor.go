@@ -111,18 +111,19 @@ func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, request
 }
 
 func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (usage any, err *types.NewAPIError) {
-	if info.RelayMode != relayconstant.RelayModeResponses && info.RelayMode != relayconstant.RelayModeResponsesCompact {
+	switch info.RelayMode {
+	case relayconstant.RelayModeResponsesCompact:
+		return openai.OaiResponsesCompactionHandler(c, resp)
+	case relayconstant.RelayModeResponses:
+		if info.IsStream {
+			return openai.OaiResponsesStreamHandler(c, info, resp)
+		}
+		return openai.OaiResponsesHandler(c, info, resp)
+	case relayconstant.RelayModeChatCompletions:
+		return RelayChatOverCodex(c, info, resp)
+	default:
 		return nil, types.NewError(errors.New("codex channel: endpoint not supported"), types.ErrorCodeInvalidRequest)
 	}
-
-	if info.RelayMode == relayconstant.RelayModeResponsesCompact {
-		return openai.OaiResponsesCompactionHandler(c, resp)
-	}
-
-	if info.IsStream {
-		return openai.OaiResponsesStreamHandler(c, info, resp)
-	}
-	return openai.OaiResponsesHandler(c, info, resp)
 }
 
 func (a *Adaptor) GetModelList() []string {
