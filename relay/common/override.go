@@ -514,19 +514,22 @@ func checkConditions(jsonStr, contextJSON string, conditions []ConditionOperatio
 	if len(conditions) == 0 {
 		return true, nil // 没有条件，直接通过
 	}
-	results := make([]bool, len(conditions))
-	for i, condition := range conditions {
+
+	isAND := strings.ToUpper(logic) == "AND"
+	for _, condition := range conditions {
 		result, err := checkSingleCondition(jsonStr, contextJSON, condition)
 		if err != nil {
 			return false, err
 		}
-		results[i] = result
+		if isAND && !result {
+			return false, nil
+		}
+		if !isAND && result {
+			return true, nil
+		}
 	}
 
-	if strings.ToUpper(logic) == "AND" {
-		return lo.EveryBy(results, func(item bool) bool { return item }), nil
-	}
-	return lo.SomeBy(results, func(item bool) bool { return item }), nil
+	return isAND, nil
 }
 
 func checkSingleCondition(jsonStr, contextJSON string, condition ConditionOperation) (bool, error) {
