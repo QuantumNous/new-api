@@ -578,6 +578,32 @@ func TestConvertOpenAIResponsesRequest_NonCompactAcceptsNonStringInstructions(t 
 	}
 }
 
+// Fix 7 (Sweep-2): 非流式分支必须透传上游真实的 status / incomplete_details，
+// 否则 length 截断时 finish_reason 会被压成 "stop"。
+// 验证：incomplete + max_output_tokens 必须映射成 finish_reason:"length"。
+func TestRelayChatOverCodex_NonStream_PreservesLengthFinishReason(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	upstreamSSE := strings.Join([]string{
+		`event: response.incomplete`,
+		`data: {"type":"response.incomplete","response":{"id":"resp_1","status":"incomplete","incomplete_details":{"reason":"max_output_tokens"},"usage":{"input_tokens":3,"output_tokens":2}}}`,
+		``,
+	}, "\n")
+	resp := &http.Response{StatusCode: 200, Header: make(http.Header), Body: io.NopCloser(bytes.NewReader([]byte(upstreamSSE)))}
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
+
+	info := &relaycommon.RelayInfo{
+		UserWantsStream: false,
+		ChannelMeta:     &relaycommon.ChannelMeta{UpstreamModelName: "gpt-5"},
+	}
+	_, apiErr := RelayChatOverCodex(c, info, resp)
+	require.Nil(t, apiErr)
+	body := rec.Body.String()
+	assert.Contains(t, body, `"finish_reason":"length"`,
+		"incomplete + max_output_tokens 必须映射成 finish_reason=length")
+}
+
 // Fix 5 (Finding B): response.incomplete 也必须捕获上游 usage。
 // 例如 length 截断时上游不会触发 response.completed，只会发 response.incomplete，
 // 之前只判断 completed/done 会导致这一类截断的 usage 全部漏算。

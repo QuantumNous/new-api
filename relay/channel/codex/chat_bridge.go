@@ -196,6 +196,9 @@ func RelayChatOverCodex(c *gin.Context, info *relaycommon.RelayInfo, resp *http.
 	}
 	acc := apicompat.NewBufferedResponseAccumulator()
 	var lastUsage *apicompat.ResponsesUsage
+	// Fix 7 (Sweep-2): 缓存最后一个 terminal 事件的 Response，便于非流式分支
+	// 把真实的 status / incomplete_details 透传给上层，而不是硬编码 "completed"。
+	var lastTerminal *apicompat.ResponsesResponse
 
 	streamToClient := info != nil && info.UserWantsStream
 	if streamToClient {
@@ -223,8 +226,11 @@ func RelayChatOverCodex(c *gin.Context, info *relaycommon.RelayInfo, resp *http.
 				evt.Type == "response.done" ||
 				evt.Type == "response.failed" ||
 				evt.Type == "response.incomplete"
-			if isTerminal && evt.Response != nil && evt.Response.Usage != nil {
-				lastUsage = evt.Response.Usage
+			if isTerminal && evt.Response != nil {
+				if evt.Response.Usage != nil {
+					lastUsage = evt.Response.Usage
+				}
+				lastTerminal = evt.Response
 			}
 			if streamToClient {
 				for _, chunk := range apicompat.ResponsesEventToChatChunks(evt, state) {
@@ -265,7 +271,16 @@ func RelayChatOverCodex(c *gin.Context, info *relaycommon.RelayInfo, resp *http.
 	} else {
 		full := &apicompat.ResponsesResponse{}
 		acc.SupplementResponseOutput(full)
-		full.Status = "completed"
+		// Fix 7 (Sweep-2): 把真实的上游 status / incomplete_details 透传给
+		// ResponsesToChatCompletions，让 finish_reason 能正确反映 length 截断等场景
+		// （否则 incomplete + max_output_tokens 永远被压成 stop）。
+		if lastTerminal != nil {
+			full.Status = lastTerminal.Status
+			full.IncompleteDetails = lastTerminal.IncompleteDetails
+			full.Error = lastTerminal.Error
+		} else {
+			full.Status = "completed"
+		}
 		// 上游通过 SSE 增量返回 usage，聚合在 lastUsage 里；
 		// ResponsesToChatCompletions 依赖 ResponsesResponse.Usage 才能在 JSON body 中输出 usage 字段。
 		full.Usage = lastUsage
