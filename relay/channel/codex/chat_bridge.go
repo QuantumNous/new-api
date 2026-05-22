@@ -188,6 +188,12 @@ func RelayChatOverCodex(c *gin.Context, info *relaycommon.RelayInfo, resp *http.
 	defer func() { _ = resp.Body.Close() }()
 
 	state := apicompat.NewResponsesEventToChatState()
+	// Fix 6 (Sweep-1): 把客户端的 stream_options.include_usage 透传到流式 chunk 发生器；
+	// 没有这一行时即使客户端要求 usage chunk，bridge 也只会发普通 delta，结算上游需要的
+	// usage payload 永远不会作为额外 chunk 抵达客户端。
+	if info != nil {
+		state.IncludeUsage = info.ShouldIncludeUsage
+	}
 	acc := apicompat.NewBufferedResponseAccumulator()
 	var lastUsage *apicompat.ResponsesUsage
 

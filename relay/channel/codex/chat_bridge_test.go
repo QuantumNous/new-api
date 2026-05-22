@@ -602,6 +602,65 @@ func TestRelayChatOverCodex_CapturesUsageFromIncompleteEvent(t *testing.T) {
 	assert.Equal(t, 7, dtoUsage.CompletionTokens)
 }
 
+// Fix 6 (Sweep-1): 客户端通过 stream_options.include_usage:true 要求 usage chunk 时，
+// chat bridge 必须把 info.ShouldIncludeUsage 透传给 state，否则 FinalizeResponsesChatStream
+// 不会发 usage chunk。验证：开启 IncludeUsage 时 SSE 流里能看到 "usage":{...} chunk。
+func TestRelayChatOverCodex_StreamPath_EmitsUsageChunkWhenIncludeUsage(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	upstreamSSE := strings.Join([]string{
+		`event: response.output_text.delta`,
+		`data: {"type":"response.output_text.delta","output_index":0,"delta":"hi"}`,
+		``,
+		`event: response.completed`,
+		`data: {"type":"response.completed","response":{"id":"resp_1","status":"completed","usage":{"input_tokens":3,"output_tokens":2}}}`,
+		``,
+	}, "\n")
+	resp := &http.Response{StatusCode: 200, Header: make(http.Header), Body: io.NopCloser(bytes.NewReader([]byte(upstreamSSE)))}
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
+
+	info := &relaycommon.RelayInfo{
+		UserWantsStream:    true,
+		ShouldIncludeUsage: true,
+		ChannelMeta:        &relaycommon.ChannelMeta{UpstreamModelName: "gpt-5"},
+	}
+	_, apiErr := RelayChatOverCodex(c, info, resp)
+	require.Nil(t, apiErr)
+	body := rec.Body.String()
+	assert.Contains(t, body, `"usage"`, "include_usage:true 时必须发 usage chunk")
+	assert.Contains(t, body, `"prompt_tokens":3`)
+	assert.Contains(t, body, `"completion_tokens":2`)
+}
+
+// 反例：未要求 include_usage 时不应该出现额外的 usage chunk。
+func TestRelayChatOverCodex_StreamPath_OmitsUsageChunkWhenNotRequested(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	upstreamSSE := strings.Join([]string{
+		`event: response.output_text.delta`,
+		`data: {"type":"response.output_text.delta","output_index":0,"delta":"hi"}`,
+		``,
+		`event: response.completed`,
+		`data: {"type":"response.completed","response":{"id":"resp_1","status":"completed","usage":{"input_tokens":3,"output_tokens":2}}}`,
+		``,
+	}, "\n")
+	resp := &http.Response{StatusCode: 200, Header: make(http.Header), Body: io.NopCloser(bytes.NewReader([]byte(upstreamSSE)))}
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
+
+	info := &relaycommon.RelayInfo{
+		UserWantsStream:    true,
+		ShouldIncludeUsage: false,
+		ChannelMeta:        &relaycommon.ChannelMeta{UpstreamModelName: "gpt-5"},
+	}
+	_, apiErr := RelayChatOverCodex(c, info, resp)
+	require.Nil(t, apiErr)
+	body := rec.Body.String()
+	assert.NotContains(t, body, `"prompt_tokens":3`,
+		"include_usage:false 时不应发 usage chunk（计费已通过 lastUsage 走旁路）")
+}
+
 // Fix 5 (Finding B): response.failed 也必须捕获 usage。
 func TestRelayChatOverCodex_CapturesUsageFromFailedEvent(t *testing.T) {
 	gin.SetMode(gin.TestMode)
