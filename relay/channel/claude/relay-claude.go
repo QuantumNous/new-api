@@ -435,17 +435,20 @@ func RequestOpenAI2ClaudeMessage(c *gin.Context, textRequest dto.GeneralOpenAIRe
 }
 
 func StreamResponseClaude2OpenAI(claudeResponse *dto.ClaudeResponse) *dto.ChatCompletionsStreamResponse {
+	return streamResponseClaude2OpenAI(claudeResponse, nil)
+}
+
+func streamResponseClaude2OpenAI(claudeResponse *dto.ClaudeResponse, claudeInfo *ClaudeResponseInfo) *dto.ChatCompletionsStreamResponse {
 	var response dto.ChatCompletionsStreamResponse
 	response.Object = "chat.completion.chunk"
 	response.Model = claudeResponse.Model
 	response.Choices = make([]dto.ChatCompletionsStreamResponseChoice, 0)
 	tools := make([]dto.ToolCallResponse, 0)
-	fcIdx := 0
-	if claudeResponse.Index != nil {
-		fcIdx = *claudeResponse.Index - 1
-		if fcIdx < 0 {
-			fcIdx = 0
+	toolCallIdx := func() int {
+		if claudeResponse.Index == nil {
+			return 0
 		}
+		return claudeInfo.getOpenAIToolCallIndex(*claudeResponse.Index)
 	}
 	var choice dto.ChatCompletionsStreamResponseChoice
 	if claudeResponse.Type == "message_start" {
@@ -464,7 +467,7 @@ func StreamResponseClaude2OpenAI(claudeResponse *dto.ClaudeResponse) *dto.ChatCo
 			}
 			if claudeResponse.ContentBlock.Type == "tool_use" {
 				tools = append(tools, dto.ToolCallResponse{
-					Index: common.GetPointer(fcIdx),
+					Index: common.GetPointer(toolCallIdx()),
 					ID:    claudeResponse.ContentBlock.Id,
 					Type:  "function",
 					Function: dto.FunctionResponse{
@@ -481,11 +484,15 @@ func StreamResponseClaude2OpenAI(claudeResponse *dto.ClaudeResponse) *dto.ChatCo
 			choice.Delta.Content = claudeResponse.Delta.Text
 			switch claudeResponse.Delta.Type {
 			case "input_json_delta":
+				arguments := ""
+				if claudeResponse.Delta.PartialJson != nil {
+					arguments = *claudeResponse.Delta.PartialJson
+				}
 				tools = append(tools, dto.ToolCallResponse{
 					Type:  "function",
-					Index: common.GetPointer(fcIdx),
+					Index: common.GetPointer(toolCallIdx()),
 					Function: dto.FunctionResponse{
-						Arguments: *claudeResponse.Delta.PartialJson,
+						Arguments: arguments,
 					},
 				})
 			case "signature_delta":
@@ -516,6 +523,25 @@ func StreamResponseClaude2OpenAI(claudeResponse *dto.ClaudeResponse) *dto.ChatCo
 	response.Choices = append(response.Choices, choice)
 
 	return &response
+}
+
+func (c *ClaudeResponseInfo) getOpenAIToolCallIndex(contentBlockIndex int) int {
+	if c == nil {
+		if contentBlockIndex <= 0 {
+			return 0
+		}
+		return contentBlockIndex - 1
+	}
+	if c.toolCallIndexByContentBlock == nil {
+		c.toolCallIndexByContentBlock = make(map[int]int)
+	}
+	if index, ok := c.toolCallIndexByContentBlock[contentBlockIndex]; ok {
+		return index
+	}
+	index := c.nextToolCallIndex
+	c.toolCallIndexByContentBlock[contentBlockIndex] = index
+	c.nextToolCallIndex++
+	return index
 }
 
 func ResponseClaude2OpenAI(claudeResponse *dto.ClaudeResponse) *dto.OpenAITextResponse {
@@ -582,12 +608,14 @@ func ResponseClaude2OpenAI(claudeResponse *dto.ClaudeResponse) *dto.OpenAITextRe
 }
 
 type ClaudeResponseInfo struct {
-	ResponseId   string
-	Created      int64
-	Model        string
-	ResponseText strings.Builder
-	Usage        *dto.Usage
-	Done         bool
+	ResponseId                  string
+	Created                     int64
+	Model                       string
+	ResponseText                strings.Builder
+	Usage                       *dto.Usage
+	Done                        bool
+	toolCallIndexByContentBlock map[int]int
+	nextToolCallIndex           int
 }
 
 func cacheCreationTokensForOpenAIUsage(usage *dto.Usage) int {
@@ -816,7 +844,7 @@ func HandleStreamResponseData(c *gin.Context, info *relaycommon.RelayInfo, claud
 		}
 		helper.ClaudeChunkData(c, claudeResponse, data)
 	} else if info.RelayFormat == types.RelayFormatOpenAI {
-		response := StreamResponseClaude2OpenAI(&claudeResponse)
+		response := streamResponseClaude2OpenAI(&claudeResponse, claudeInfo)
 
 		if !FormatClaudeResponseInfo(&claudeResponse, response, claudeInfo) {
 			return nil
