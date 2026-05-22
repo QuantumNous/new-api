@@ -1,6 +1,7 @@
 package dto
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -945,6 +946,58 @@ func (r *OpenAIResponsesRequest) GetToolsMap() []map[string]any {
 		_ = common.Unmarshal(r.Tools, &toolsMap)
 	}
 	return toolsMap
+}
+
+// NormalizeInputNullContent rewrites Responses API message input items whose
+// `content` is explicitly null into an empty string. Some OpenAI-compatible
+// chat clients emit empty assistant messages as null, while Responses-compatible
+// upstreams reject null content. Non-message input items such as reasoning and
+// function_call use different schemas and must be preserved.
+func (r *OpenAIResponsesRequest) NormalizeInputNullContent() error {
+	if r == nil || len(r.Input) == 0 {
+		return nil
+	}
+	if common.GetJsonType(r.Input) != "array" {
+		return nil
+	}
+
+	var items []any
+	if err := common.Unmarshal(r.Input, &items); err != nil {
+		return err
+	}
+
+	changed := false
+	for _, rawItem := range items {
+		item, ok := rawItem.(map[string]any)
+		if !ok || item == nil {
+			continue
+		}
+		itemType := strings.TrimSpace(common.Interface2String(item["type"]))
+		role := strings.TrimSpace(common.Interface2String(item["role"]))
+		if itemType != "" && itemType != "message" {
+			continue
+		}
+		if itemType == "" && role == "" {
+			continue
+		}
+		content, exists := item["content"]
+		if !exists || content != nil {
+			continue
+		}
+		item["content"] = ""
+		changed = true
+	}
+
+	if !changed {
+		return nil
+	}
+
+	normalized, err := common.Marshal(items)
+	if err != nil {
+		return err
+	}
+	r.Input = json.RawMessage(bytes.TrimSpace(normalized))
+	return nil
 }
 
 type Reasoning struct {

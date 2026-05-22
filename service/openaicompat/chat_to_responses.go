@@ -398,5 +398,9 @@ func ChatCompletionsRequestToResponsesRequest(req *dto.GeneralOpenAIRequest) (*d
 		}
 	}
 
+	if err := out.NormalizeInputNullContent(); err != nil {
+		return nil, err
+	}
+
 	return out, nil
 }

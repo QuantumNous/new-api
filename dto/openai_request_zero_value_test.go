@@ -71,3 +71,27 @@ func TestOpenAIResponsesRequestPreserveExplicitZeroValues(t *testing.T) {
 	require.True(t, gjson.GetBytes(encoded, "stream").Exists())
 	require.True(t, gjson.GetBytes(encoded, "top_p").Exists())
 }
+
+func TestOpenAIResponsesRequestNormalizeInputNullContent(t *testing.T) {
+	raw := []byte(`{
+		"model":"gpt-5.4",
+		"input":[
+			{"role":"user","content":"hello"},
+			{"role":"assistant","content":null},
+			{"type":"function_call","call_id":"call_1","name":"demo","arguments":"{}"},
+			{"type":"reasoning","summary":[],"content":null,"encrypted_content":"secret"}
+		]
+	}`)
+
+	var req OpenAIResponsesRequest
+	err := common.Unmarshal(raw, &req)
+	require.NoError(t, err)
+
+	err = req.NormalizeInputNullContent()
+	require.NoError(t, err)
+
+	require.Equal(t, "\"\"", gjson.GetBytes(req.Input, "1.content").Raw)
+	require.Equal(t, "", gjson.GetBytes(req.Input, "1.content").String())
+	require.Equal(t, "hello", gjson.GetBytes(req.Input, "0.content").String())
+	require.Equal(t, "null", gjson.GetBytes(req.Input, "3.content").Raw)
+}
