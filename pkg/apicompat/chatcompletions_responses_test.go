@@ -1321,4 +1321,52 @@ func TestBufferedResponseAccumulator_MultipleToolCallsNoPanic(t *testing.T) {
 	assert.Equal(t, `{"b":2}`, out[1].Arguments)
 }
 
-// PATCH2_TESTS_PLACEHOLDER — restored after commit 1
+// TestResponsesEventToChatChunks_ResponseFailedEmitsErrorFinishReason verifies
+// Wave 6-B Finding N: a terminal response.failed event must NOT surface as a
+// normal "stop" finish_reason. Clients need to be able to distinguish a
+// successful completion from an upstream policy/error failure.
+func TestResponsesEventToChatChunks_ResponseFailedEmitsErrorFinishReason(t *testing.T) {
+	state := NewResponsesEventToChatState()
+	// First emit a created event so state has ID/Model
+	ResponsesEventToChatChunks(&ResponsesStreamEvent{
+		Type:     "response.created",
+		Response: &ResponsesResponse{ID: "resp_1", Model: "gpt-5"},
+	}, state)
+
+	chunks := ResponsesEventToChatChunks(&ResponsesStreamEvent{
+		Type: "response.failed",
+		Response: &ResponsesResponse{
+			ID:     "resp_1",
+			Status: "failed",
+			Error:  &ResponsesError{Code: "policy_violation", Message: "refused"},
+		},
+	}, state)
+
+	require.NotEmpty(t, chunks)
+	last := chunks[len(chunks)-1]
+	require.NotEmpty(t, last.Choices)
+	require.NotNil(t, last.Choices[0].FinishReason)
+	// finish_reason must NOT be "stop" — must indicate failure.
+	assert.NotEqual(t, "stop", *last.Choices[0].FinishReason)
+	// Settled on "content_filter" as a portable signal in the Chat schema.
+	assert.Contains(t, []string{"content_filter", "error"}, *last.Choices[0].FinishReason)
+
+	// The upstream error message should be surfaced somewhere in the chunks
+	// (best-effort: ChatCompletionsChunk has no Error field, so we emit a
+	// delta.content chunk carrying the message).
+	var sawErrMsg bool
+	for _, c := range chunks {
+		for _, ch := range c.Choices {
+			if ch.Delta.Content != nil && *ch.Delta.Content == "refused" {
+				sawErrMsg = true
+			}
+		}
+	}
+	assert.True(t, sawErrMsg, "upstream error message should be embedded in delta.content of one chunk")
+}
+
+// TestResponsesStatusToChatFinishReason_Failed locks in the status→reason map
+// for the "failed" branch independent of the streaming handler.
+func TestResponsesStatusToChatFinishReason_Failed(t *testing.T) {
+	assert.Equal(t, "content_filter", responsesStatusToChatFinishReason("failed", nil, nil))
+}

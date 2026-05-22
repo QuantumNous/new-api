@@ -111,6 +111,11 @@ func responsesStatusToChatFinishReason(status string, details *ResponsesIncomple
 			return "tool_calls"
 		}
 		return "stop"
+	case "failed":
+		// response.failed: upstream rejected or aborted the response (policy
+		// violations, model errors, etc.). Surface as "content_filter" so the
+		// client SDK does not treat it as a normal "stop" completion.
+		return "content_filter"
 	default:
 		return "stop"
 	}
@@ -294,6 +299,13 @@ func resToChatHandleCompleted(evt *ResponsesStreamEvent, state *ResponsesEventTo
 	state.Finalized = true
 	finishReason := "stop"
 
+	// failedErrMsg is set when the terminal event is response.failed (or carries
+	// status="failed") and an upstream error payload is present. It is emitted
+	// as a final assistant delta so SDK clients can surface the reason — the
+	// Chat Completions chunk schema has no dedicated error field, so embedding
+	// in delta.content is the most portable fallback.
+	var failedErrMsg string
+
 	if evt.Response != nil {
 		if evt.Response.Usage != nil {
 			u := evt.Response.Usage
@@ -319,12 +331,30 @@ func resToChatHandleCompleted(evt *ResponsesStreamEvent, state *ResponsesEventTo
 			if state.SawToolCall {
 				finishReason = "tool_calls"
 			}
+		case "failed":
+			finishReason = "content_filter"
+			if evt.Response.Error != nil {
+				if evt.Response.Error.Message != "" {
+					failedErrMsg = evt.Response.Error.Message
+				} else if evt.Response.Error.Code != "" {
+					failedErrMsg = evt.Response.Error.Code
+				}
+			}
 		}
 	} else if state.SawToolCall {
 		finishReason = "tool_calls"
 	}
 
+	// response.failed event type itself (with no Response or Response.Status set
+	// to something other than "failed") should still be reported as failure.
+	if evt.Type == "response.failed" && finishReason == "stop" {
+		finishReason = "content_filter"
+	}
+
 	var chunks []ChatCompletionsChunk
+	if failedErrMsg != "" {
+		chunks = append(chunks, makeChatDeltaChunk(state, ChatDelta{Content: &failedErrMsg}))
+	}
 	chunks = append(chunks, makeChatFinishChunk(state, finishReason))
 
 	if state.IncludeUsage && state.Usage != nil {
