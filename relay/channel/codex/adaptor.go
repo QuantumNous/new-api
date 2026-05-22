@@ -1,7 +1,6 @@
 package codex
 
 import (
-	"encoding/json"
 	"errors"
 	"io"
 	"net/http"
@@ -9,6 +8,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/dto"
+	"github.com/QuantumNous/new-api/pkg/apicompat"
 	"github.com/QuantumNous/new-api/relay/channel"
 	"github.com/QuantumNous/new-api/relay/channel/openai"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
@@ -55,56 +55,36 @@ func (a *Adaptor) ConvertEmbeddingRequest(c *gin.Context, info *relaycommon.Rela
 func (a *Adaptor) ConvertOpenAIResponsesRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.OpenAIResponsesRequest) (any, error) {
 	isCompact := info != nil && info.RelayMode == relayconstant.RelayModeResponsesCompact
 
-	if info != nil && info.ChannelSetting.SystemPrompt != "" {
-		systemPrompt := info.ChannelSetting.SystemPrompt
+	// Roundtrip dto.OpenAIResponsesRequest -> apicompat.ResponsesRequest, apply shared constraints, then roundtrip back.
+	raw, err := common.Marshal(&request)
+	if err != nil {
+		return nil, err
+	}
+	compatReq := &apicompat.ResponsesRequest{}
+	if err := common.Unmarshal(raw, compatReq); err != nil {
+		return nil, err
+	}
 
-		if len(request.Instructions) == 0 {
-			if b, err := common.Marshal(systemPrompt); err == nil {
-				request.Instructions = b
-			} else {
-				return nil, err
-			}
-		} else if info.ChannelSetting.SystemPromptOverride {
-			var existing string
-			if err := common.Unmarshal(request.Instructions, &existing); err == nil {
-				existing = strings.TrimSpace(existing)
-				if existing == "" {
-					if b, err := common.Marshal(systemPrompt); err == nil {
-						request.Instructions = b
-					} else {
-						return nil, err
-					}
-				} else {
-					if b, err := common.Marshal(systemPrompt + "\n" + existing); err == nil {
-						request.Instructions = b
-					} else {
-						return nil, err
-					}
-				}
-			} else {
-				if b, err := common.Marshal(systemPrompt); err == nil {
-					request.Instructions = b
-				} else {
-					return nil, err
-				}
-			}
-		}
-	}
-	// Codex backend requires the `instructions` field to be present.
-	// Keep it consistent with Codex CLI behavior by defaulting to an empty string.
-	if len(request.Instructions) == 0 {
-		request.Instructions = json.RawMessage(`""`)
-	}
+	applyCodexConstraints(compatReq, info)
 
 	if isCompact {
-		return request, nil
+		// compact 模式上游不接受 store/stream 字段
+		compatReq.Store = nil
+		compatReq.Stream = false
+		// compact 路径返回 dto 类型，保持现有 handler 类型契约
+		out, err := common.Marshal(compatReq)
+		if err != nil {
+			return nil, err
+		}
+		result := dto.OpenAIResponsesRequest{}
+		if err := common.Unmarshal(out, &result); err != nil {
+			return nil, err
+		}
+		return result, nil
 	}
-	// codex: store must be false
-	request.Store = json.RawMessage("false")
-	// rm max_output_tokens
-	request.MaxOutputTokens = nil
-	request.Temperature = nil
-	return request, nil
+
+	// 非 compact：使用 ensureInstructionsField 确保 "instructions" 键存在（Codex 后端硬性要求）
+	return ensureInstructionsField(compatReq)
 }
 
 func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, requestBody io.Reader) (any, error) {
