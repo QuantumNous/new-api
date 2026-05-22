@@ -27,6 +27,7 @@ import {
   Cloud,
   Globe,
   ShieldCheck,
+  User,
   UserCog,
   Info,
 } from 'lucide-react'
@@ -524,6 +525,30 @@ export function DetailsDialog(props: DetailsDialogProps) {
                   label={t('Upstream Request ID')}
                   value={props.log.upstream_request_id}
                   mono
+                />
+              )}
+
+              {(props.log.username || props.log.user_id > 0) && (
+                <DetailRow
+                  label={
+                    <span className='flex items-center gap-1.5'>
+                      <User
+                        className='text-muted-foreground size-3.5'
+                        aria-hidden='true'
+                      />
+                      {t('User')}
+                    </span>
+                  }
+                  value={
+                    <span className='flex items-center gap-1.5'>
+                      {props.log.username || '-'}
+                      {props.log.user_id > 0 && (
+                        <span className='text-muted-foreground font-mono text-[11px]'>
+                          #{props.log.user_id}
+                        </span>
+                      )}
+                    </span>
+                  }
                 />
               )}
 
