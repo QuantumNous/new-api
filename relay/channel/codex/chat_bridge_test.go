@@ -472,3 +472,29 @@ func TestConvertOpenAIResponsesRequest_CompactGuaranteesInstructionsKey(t *testi
 	assert.Contains(t, string(body), `"instructions"`,
 		"compact 路径必须保证 instructions 键出现（Codex 后端硬性要求）")
 }
+
+// Fix 2 (Finding F): compact 路径必须保留客户端 sampling 参数。
+// 重构前 compact 直接转发这三个字段；applyCodexConstraints 把它们清空后丢失，
+// 需在 compact 分支显式恢复。
+func TestConvertOpenAIResponsesRequest_CompactPreservesTemperatureTopPMaxOutputTokens(t *testing.T) {
+	temp := 0.2
+	topP := 0.9
+	maxOut := uint(256)
+	a := &Adaptor{}
+	info := &relaycommon.RelayInfo{ChannelMeta: &relaycommon.ChannelMeta{}}
+	info.RelayMode = relayconstant.RelayModeResponsesCompact
+	req := dto.OpenAIResponsesRequest{
+		Model:           "gpt-5",
+		Temperature:     &temp,
+		TopP:            &topP,
+		MaxOutputTokens: &maxOut,
+	}
+	out, err := a.ConvertOpenAIResponsesRequest(nil, info, req)
+	require.NoError(t, err)
+	body, err := common.Marshal(out)
+	require.NoError(t, err)
+	s := string(body)
+	assert.Contains(t, s, `"temperature":0.2`)
+	assert.Contains(t, s, `"top_p":0.9`)
+	assert.Contains(t, s, `"max_output_tokens":256`)
+}

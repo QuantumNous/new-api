@@ -90,6 +90,15 @@ func (a *Adaptor) ConvertOpenAIResponsesRequest(c *gin.Context, info *relaycommo
 		// compact 模式上游不接受 store/stream 字段
 		compatReq.Store = nil
 		compatReq.Stream = false
+		// compact 路径保留客户端 sampling 参数（与重构前行为对齐）：
+		// applyCodexConstraints 会无条件清空 Temperature/TopP/MaxOutputTokens，
+		// 但 compact 后端实际接受这些字段，恢复以兼容上游 sub2api 行为。
+		compatReq.Temperature = request.Temperature
+		compatReq.TopP = request.TopP
+		if request.MaxOutputTokens != nil {
+			v := int(*request.MaxOutputTokens)
+			compatReq.MaxOutputTokens = &v
+		}
 		// compact 路径同样必须保证 "instructions" 键存在（Codex 后端硬性要求）。
 		// OaiResponsesCompactionHandler 只是把 raw bytes 直接转发到上游，对返回结构无要求，
 		// 因此这里改回返回 map[string]any，由 ensureInstructionsField 注入空字符串补位。
