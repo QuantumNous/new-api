@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/pkg/apicompat"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
@@ -364,4 +365,56 @@ func TestRelayChatOverCodex_UsageReturnedToBilling(t *testing.T) {
 	assert.Equal(t, 18, dtoUsage.TotalTokens)
 	assert.Equal(t, 3, dtoUsage.PromptTokensDetails.CachedTokens)
 	assert.Equal(t, 2, dtoUsage.CompletionTokenDetails.ReasoningTokens)
+}
+
+func TestChatBridge_StripsAllCodexBannedFields(t *testing.T) {
+	temp := 0.7
+	topP := 0.9
+	maxTok := uint(1024)
+	maxComp := uint(2048)
+	freq := 0.1
+	pres := 0.1
+	stream := false
+
+	req := &dto.GeneralOpenAIRequest{
+		Model:               "gpt-5",
+		Stream:              &stream,
+		Temperature:         &temp,
+		TopP:                &topP,
+		MaxTokens:           &maxTok,
+		MaxCompletionTokens: &maxComp,
+		FrequencyPenalty:    &freq,
+		PresencePenalty:     &pres,
+		User:                json.RawMessage(`"alice"`),
+		Metadata:            json.RawMessage(`{"k":"v"}`),
+		Messages:            []dto.Message{{Role: "user", Content: json.RawMessage(`"hi"`)}},
+	}
+
+	compatChat, err := ToCompatChatRequest(req)
+	require.NoError(t, err)
+	compatResp, err := apicompat.ChatCompletionsToResponses(compatChat)
+	require.NoError(t, err)
+	applyCodexConstraints(compatResp, nil)
+
+	// serialize via ensureInstructionsField (chat path)
+	body, err := ensureInstructionsField(compatResp)
+	require.NoError(t, err)
+	bodyJSON, err := common.Marshal(body)
+	require.NoError(t, err)
+	bodyStr := string(bodyJSON)
+
+	// 用 `"key":` 作为匹配判据，避免与 message role 等 value 中的 "user" 子串冲突。
+	for _, banned := range []string{
+		`"max_output_tokens":`, `"max_completion_tokens":`, `"max_tokens":`,
+		`"temperature":`, `"top_p":`,
+		`"frequency_penalty":`, `"presence_penalty":`,
+		`"user":`, `"metadata":`,
+		`"stream_options":`, `"prompt_cache_retention":`, `"safety_identifier":`,
+	} {
+		assert.NotContains(t, bodyStr, banned, "banned key %s must not reach upstream", banned)
+	}
+	// 必须包含的关键字段
+	assert.Contains(t, bodyStr, `"instructions"`)
+	assert.Contains(t, bodyStr, `"store":false`)
+	assert.Contains(t, bodyStr, `"stream":true`)
 }
