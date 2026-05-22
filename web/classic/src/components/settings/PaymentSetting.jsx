@@ -24,7 +24,6 @@ import SettingsPaymentGateway from '../../pages/Setting/Payment/SettingsPaymentG
 import SettingsPaymentGatewayStripe from '../../pages/Setting/Payment/SettingsPaymentGatewayStripe';
 import SettingsPaymentGatewayCreem from '../../pages/Setting/Payment/SettingsPaymentGatewayCreem';
 import SettingsPaymentGatewayWaffo from '../../pages/Setting/Payment/SettingsPaymentGatewayWaffo';
-import SettingsPaymentGatewayWaffoPancake from '../../pages/Setting/Payment/SettingsPaymentGatewayWaffoPancake';
 import { API, showError, showSuccess, toBoolean } from '../../helpers';
 import { useTranslation } from 'react-i18next';
 import RiskAcknowledgementModal from '../common/modals/RiskAcknowledgementModal';
@@ -300,13 +299,6 @@ const PaymentSetting = () => {
               </Tabs.TabPane>
               <Tabs.TabPane tab={t('Creem 设置')} itemKey='creem'>
                 <SettingsPaymentGatewayCreem
-                  options={inputs}
-                  refresh={onRefresh}
-                  hideSectionTitle
-                />
-              </Tabs.TabPane>
-              <Tabs.TabPane tab={t('Waffo Pancake 设置')} itemKey='waffo-pancake'>
-                <SettingsPaymentGatewayWaffoPancake
                   options={inputs}
                   refresh={onRefresh}
                   hideSectionTitle
