@@ -50,11 +50,25 @@ import PersonalSetting from './components/settings/PersonalSetting';
 import Setup from './pages/Setup';
 import SetupCheck from './components/layout/SetupCheck';
 
-const Home = lazy(() => import('./pages/Home'));
-const Dashboard = lazy(() => import('./pages/Dashboard'));
-const About = lazy(() => import('./pages/About'));
-const UserAgreement = lazy(() => import('./pages/UserAgreement'));
-const PrivacyPolicy = lazy(() => import('./pages/PrivacyPolicy'));
+// Retry wrapper for lazy imports (fixes WebView chunk loading failures)
+function lazyWithRetry(factory, retries = 3, delay = 1000) {
+  return lazy(() => {
+    const attempt = (remaining) =>
+      factory().catch((err) => {
+        if (remaining <= 0) throw err;
+        return new Promise((resolve) =>
+          setTimeout(() => resolve(attempt(remaining - 1)), delay)
+        );
+      });
+    return attempt(retries);
+  });
+}
+
+const Home = lazyWithRetry(() => import('./pages/Home'));
+const Dashboard = lazyWithRetry(() => import('./pages/Dashboard'));
+const About = lazyWithRetry(() => import('./pages/About'));
+const UserAgreement = lazyWithRetry(() => import('./pages/UserAgreement'));
+const PrivacyPolicy = lazyWithRetry(() => import('./pages/PrivacyPolicy'));
 
 function DynamicOAuth2Callback() {
   const { provider } = useParams();
