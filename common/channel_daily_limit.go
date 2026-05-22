@@ -34,14 +34,13 @@ func channelDailyTokenFallbackKey(channelID int, t time.Time) string {
 	return fmt.Sprintf("%d:%s", channelID, channelDailyTokenDate(t))
 }
 
-func logChannelDailyTokenFallback() {
+func logChannelDailyTokenFallbackRedisDisabled() {
 	channelDailyTokenFallbackLogOnce.Do(func() {
 		SysLog("Redis is disabled; channel daily token usage falls back to in-process memory and is not consistent across multiple instances")
 	})
 }
 
 func startChannelDailyTokenFallbackCleanup() {
-	logChannelDailyTokenFallback()
 	channelDailyTokenFallbackCleanupOnce.Do(func() {
 		go func() {
 			ticker := time.NewTicker(time.Minute)
@@ -60,30 +59,43 @@ func startChannelDailyTokenFallbackCleanup() {
 	})
 }
 
-func GetChannelDailyTokenUsage(channelID int) int64 {
-	now := time.Now()
-	if RedisEnabled && RDB != nil {
-		value, err := RedisGet(channelDailyTokenRedisKey(channelID, now))
-		if errors.Is(err, redis.Nil) {
-			return 0
-		}
-		if err != nil {
-			SysError(fmt.Sprintf("failed to get channel daily token usage from Redis: channel_id=%d, error=%v", channelID, err))
-			return 0
-		}
-		usage, err := strconv.ParseInt(value, 10, 64)
-		if err != nil {
-			SysError(fmt.Sprintf("failed to parse channel daily token usage: channel_id=%d, value=%s, error=%v", channelID, value, err))
-			return 0
-		}
-		return usage
-	}
-
-	startChannelDailyTokenFallbackCleanup()
+func getChannelDailyTokenFallbackUsage(channelID int, now time.Time) int64 {
 	key := channelDailyTokenFallbackKey(channelID, now)
 	channelDailyTokenFallbackMu.Lock()
 	defer channelDailyTokenFallbackMu.Unlock()
 	return channelDailyTokenFallbackUsage[key]
+}
+
+func addChannelDailyTokenFallbackUsage(channelID int, tokens int64, now time.Time) {
+	key := channelDailyTokenFallbackKey(channelID, now)
+	channelDailyTokenFallbackMu.Lock()
+	channelDailyTokenFallbackUsage[key] += tokens
+	channelDailyTokenFallbackMu.Unlock()
+}
+
+func GetChannelDailyTokenUsage(channelID int) int64 {
+	now := time.Now()
+	fallbackUsage := getChannelDailyTokenFallbackUsage(channelID, now)
+	if RedisEnabled && RDB != nil {
+		value, err := RedisGet(channelDailyTokenRedisKey(channelID, now))
+		if errors.Is(err, redis.Nil) {
+			return fallbackUsage
+		}
+		if err != nil {
+			SysError(fmt.Sprintf("failed to get channel daily token usage from Redis: channel_id=%d, error=%v", channelID, err))
+			return fallbackUsage
+		}
+		usage, err := strconv.ParseInt(value, 10, 64)
+		if err != nil {
+			SysError(fmt.Sprintf("failed to parse channel daily token usage: channel_id=%d, value=%s, error=%v", channelID, value, err))
+			return fallbackUsage
+		}
+		return usage + fallbackUsage
+	}
+
+	logChannelDailyTokenFallbackRedisDisabled()
+	startChannelDailyTokenFallbackCleanup()
+	return fallbackUsage
 }
 
 func IsChannelDailyTokenUsageAvailable(channelID int, limit int64) bool {
@@ -103,15 +115,17 @@ func IncreaseChannelDailyTokenUsage(channelID int, tokens int64) error {
 		expireAt := channelDailyTokenNextMidnight(now)
 		_, err := RedisIncrByWithExpireAt(channelDailyTokenRedisKey(channelID, now), tokens, expireAt)
 		if err != nil {
-			return fmt.Errorf("failed to increase channel daily token usage in Redis: %w", err)
+			startChannelDailyTokenFallbackCleanup()
+			addChannelDailyTokenFallbackUsage(channelID, tokens, now)
+			fallbackErr := fmt.Errorf("channel daily token usage NOT recorded in Redis, daily limit may not take effect across instances: channel_id=%d, tokens=%d, error=%w", channelID, tokens, err)
+			SysError(fallbackErr.Error())
+			return fallbackErr
 		}
 		return nil
 	}
 
+	logChannelDailyTokenFallbackRedisDisabled()
 	startChannelDailyTokenFallbackCleanup()
-	key := channelDailyTokenFallbackKey(channelID, now)
-	channelDailyTokenFallbackMu.Lock()
-	channelDailyTokenFallbackUsage[key] += tokens
-	channelDailyTokenFallbackMu.Unlock()
+	addChannelDailyTokenFallbackUsage(channelID, tokens, now)
 	return nil
 }

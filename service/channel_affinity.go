@@ -707,6 +707,35 @@ func RecordChannelAffinity(c *gin.Context, channelID int) {
 	}
 }
 
+func ClearChannelAffinityCacheForRequest(c *gin.Context) bool {
+	if c == nil {
+		return false
+	}
+	cacheKey, _, ok := getChannelAffinityContext(c)
+	if !ok {
+		return false
+	}
+	cache := getChannelAffinityCache()
+	deleted, err := cache.DeleteMany([]string{cacheKey})
+	if err != nil {
+		common.SysError(fmt.Sprintf("channel affinity cache delete failed: key=%s, err=%v", cacheKey, err))
+		return false
+	}
+	fullKey := cacheKey
+	if len(deleted) == 0 {
+		return false
+	}
+	if ok, exists := deleted[fullKey]; exists {
+		return ok
+	}
+	for _, ok := range deleted {
+		if ok {
+			return true
+		}
+	}
+	return false
+}
+
 type ChannelAffinityUsageCacheStats struct {
 	RuleName            string `json:"rule_name"`
 	UsingGroup          string `json:"using_group"`

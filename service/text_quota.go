@@ -368,8 +368,9 @@ func PostTextConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, us
 	} else {
 		model.UpdateUserUsedQuotaAndRequestCount(relayInfo.UserId, summary.Quota)
 		model.UpdateChannelUsedQuota(relayInfo.ChannelId, summary.Quota)
-		if err := IncreaseChannelDailyTokenUsage(relayInfo.ChannelId, int64(summary.TotalTokens)); err != nil {
-			logger.LogError(ctx, err.Error())
+		dailyTokenUsage := int64(summary.PromptTokens + summary.CompletionTokens)
+		if err := IncreaseChannelDailyTokenUsage(relayInfo.ChannelId, dailyTokenUsage); err != nil {
+			logger.LogError(ctx, "channel daily token usage NOT recorded, daily limit may not take effect: "+err.Error())
 		}
 	}
 
