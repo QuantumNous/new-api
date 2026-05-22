@@ -74,49 +74,46 @@ func (a *Adaptor) ConvertEmbeddingRequest(c *gin.Context, info *relaycommon.Rela
 func (a *Adaptor) ConvertOpenAIResponsesRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.OpenAIResponsesRequest) (any, error) {
 	isCompact := info != nil && info.RelayMode == relayconstant.RelayModeResponsesCompact
 
-	// Roundtrip dto.OpenAIResponsesRequest -> apicompat.ResponsesRequest, apply shared constraints, then roundtrip back.
+	// 关键设计：/v1/responses 路径不再走 apicompat.ResponsesRequest 的 typed roundtrip。
+	// apicompat 类型只是 dto.OpenAIResponsesRequest 的严格子集；走 typed 中转会：
+	//   1) 丢掉 ~13 个 dto 独有字段（Conversation/ContextManagement/Truncation/User/
+	//      Metadata/MaxToolCalls/Prompt/EnableThinking/Preset/PromptCacheRetention/
+	//      SafetyIdentifier/StreamOptions/TopLogProbs），
+	//   2) 当客户端把 instructions 写成数组/对象/null 时 unmarshal 直接报错（dto 是
+	//      json.RawMessage，apicompat 是 string）。
+	// 改为序列化成 map[string]any 后直接 mutate，未知字段透传。
 	raw, err := common.Marshal(&request)
 	if err != nil {
 		return nil, err
 	}
-	compatReq := &apicompat.ResponsesRequest{}
-	if err := common.Unmarshal(raw, compatReq); err != nil {
+	body := map[string]any{}
+	if err := common.Unmarshal(raw, &body); err != nil {
 		return nil, err
 	}
 
-	applyCodexConstraints(compatReq, info)
+	// compact 保留 sampling；非 compact 仍按 Codex 后端要求剥除。
+	applyCodexConstraintsToMap(body, info, isCompact)
 
 	if isCompact {
 		// compact 模式上游不接受 store/stream 字段
-		compatReq.Store = nil
-		compatReq.Stream = false
-		// compact 路径保留客户端 sampling 参数（与重构前行为对齐）：
-		// applyCodexConstraints 会无条件清空 Temperature/TopP/MaxOutputTokens，
-		// 但 compact 后端实际接受这些字段，恢复以兼容上游 sub2api 行为。
-		compatReq.Temperature = request.Temperature
-		compatReq.TopP = request.TopP
-		if request.MaxOutputTokens != nil {
-			v := int(*request.MaxOutputTokens)
-			compatReq.MaxOutputTokens = &v
-		}
-		// compact 路径同样必须保证 "instructions" 键存在（Codex 后端硬性要求）。
-		// OaiResponsesCompactionHandler 只是把 raw bytes 直接转发到上游，对返回结构无要求，
-		// 因此这里改回返回 map[string]any，由 ensureInstructionsField 注入空字符串补位。
-		return ensureInstructionsField(compatReq)
+		delete(body, "store")
+		delete(body, "stream")
+		return body, nil
 	}
 
-	// /v1/responses (非 compact) 必须保留客户端原始 stream 意图：
-	// applyCodexConstraints 出于 ChatCompletions bridge 的需要会强制 Stream=true，
-	// 但 Responses 路径会按 info.IsStream 分派 OaiResponsesHandler / OaiResponsesStreamHandler，
-	// 若此处强行改为 stream:true 会导致非流式 handler 解析流式 body 出错（回归）。
+	// /v1/responses（非 compact）：
+	//   - store: Codex 后端硬性要求 false
+	//   - stream: 必须保留客户端原始意图（OaiResponsesHandler / StreamHandler 按 info.IsStream 分派）
+	body["store"] = false
 	if request.Stream != nil {
-		compatReq.Stream = *request.Stream
+		body["stream"] = *request.Stream
 	} else {
-		compatReq.Stream = false
+		// 客户端未指定 stream 字段时，让 omitempty 自然丢弃；
+		// 上游缺省为非流式。
+		delete(body, "stream")
 	}
 
-	// 非 compact：使用 ensureInstructionsField 确保 "instructions" 键存在（Codex 后端硬性要求）
-	return ensureInstructionsField(compatReq)
+	return body, nil
 }
 
 func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, requestBody io.Reader) (any, error) {

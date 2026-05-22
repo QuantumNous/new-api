@@ -97,6 +97,62 @@ func ensureInstructionsField(req *apicompat.ResponsesRequest) (map[string]any, e
 	return m, nil
 }
 
+// applyCodexConstraintsToMap 在已解析的 map 请求体上套用 Codex 后端约束。
+// 走 map 而不是 apicompat.ResponsesRequest 的原因是：apicompat 类型是
+// dto.OpenAIResponsesRequest 的严格子集，如果走 typed roundtrip，会丢掉 ~13 个
+// dto 独有字段（Conversation/ContextManagement/Truncation/MaxToolCalls/Prompt/...），
+// 同时还会因 dto.Instructions 是 json.RawMessage 而上游 apicompat 是 string 而炸掉。
+//
+// preserveSampling=true 时（compact 路径）保留 Temperature/TopP/MaxOutputTokens，
+// 但仍会移除 user/metadata/stream_options 等 Codex 后端禁字段。
+//
+// 注：本函数不修改 store/stream。store 由调用方决定（compact 删除整个键），
+// stream 在非 compact 路径必须保留客户端原意图。
+func applyCodexConstraintsToMap(body map[string]any, info *relaycommon.RelayInfo, preserveSampling bool) {
+	if body == nil {
+		return
+	}
+
+	// 1) 禁字段（与 sub2api 对齐的完整名单）。
+	bannedAlways := []string{
+		"frequency_penalty", "presence_penalty",
+		"user", "metadata", "stream_options",
+		"prompt_cache_retention", "safety_identifier",
+	}
+	for _, k := range bannedAlways {
+		delete(body, k)
+	}
+	if !preserveSampling {
+		// chat bridge / 非 compact /v1/responses 都不接受 sampling 字段。
+		for _, k := range []string{
+			"max_output_tokens", "max_completion_tokens",
+			"temperature", "top_p",
+		} {
+			delete(body, k)
+		}
+	}
+
+	// 2) instructions 注入（与 applyCodexConstraints 行为对齐）。
+	systemPrompt := ""
+	override := false
+	if info != nil {
+		systemPrompt = info.ChannelSetting.SystemPrompt
+		override = info.ChannelSetting.SystemPromptOverride
+	}
+	if systemPrompt != "" {
+		existing, _ := body["instructions"].(string)
+		switch {
+		case strings.TrimSpace(existing) == "":
+			body["instructions"] = systemPrompt
+		case override:
+			body["instructions"] = systemPrompt + "\n" + existing
+		}
+	}
+	if _, ok := body["instructions"]; !ok {
+		body["instructions"] = ""
+	}
+}
+
 // writeSSE 将 apicompat.ChatChunkToSSE 生成的整段 SSE 数据原样写到客户端。
 // 不能用 helper.StringData：后者会再追加一次 "data: " 前缀。
 func writeSSE(c *gin.Context, sse string) {

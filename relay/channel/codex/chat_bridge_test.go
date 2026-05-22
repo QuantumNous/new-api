@@ -498,3 +498,102 @@ func TestConvertOpenAIResponsesRequest_CompactPreservesTemperatureTopPMaxOutputT
 	assert.Contains(t, s, `"top_p":0.9`)
 	assert.Contains(t, s, `"max_output_tokens":256`)
 }
+
+// Fix 3 (Findings D+H): /v1/responses 路径必须保留所有 dto.OpenAIResponsesRequest
+// 独有字段，不再走 typed apicompat roundtrip 丢字段。
+func TestConvertOpenAIResponsesRequest_NonCompactPreservesDtoOnlyFields(t *testing.T) {
+	a := &Adaptor{}
+	info := &relaycommon.RelayInfo{ChannelMeta: &relaycommon.ChannelMeta{}}
+	// 非 compact RelayMode 默认 zero
+	maxToolCalls := uint(7)
+	req := dto.OpenAIResponsesRequest{
+		Model:             "gpt-5",
+		Conversation:      json.RawMessage(`{"id":"conv_1"}`),
+		ContextManagement: json.RawMessage(`{"strategy":"summary"}`),
+		Truncation:        json.RawMessage(`"auto"`),
+		MaxToolCalls:      &maxToolCalls,
+		Prompt:            json.RawMessage(`{"id":"p_1"}`),
+	}
+	out, err := a.ConvertOpenAIResponsesRequest(nil, info, req)
+	require.NoError(t, err)
+	body, err := common.Marshal(out)
+	require.NoError(t, err)
+	s := string(body)
+	assert.Contains(t, s, `"conversation":{"id":"conv_1"}`)
+	assert.Contains(t, s, `"context_management":{"strategy":"summary"}`)
+	assert.Contains(t, s, `"truncation":"auto"`)
+	assert.Contains(t, s, `"max_tool_calls":7`)
+	assert.Contains(t, s, `"prompt":{"id":"p_1"}`)
+}
+
+// /v1/responses 非 compact 必须剥除 Temperature/TopP/MaxOutputTokens
+// （Codex 后端硬性要求），但保留 dto 独有的非 sampling 字段。
+func TestConvertOpenAIResponsesRequest_NonCompactStripsSamplingFields(t *testing.T) {
+	a := &Adaptor{}
+	info := &relaycommon.RelayInfo{ChannelMeta: &relaycommon.ChannelMeta{}}
+	temp := 0.5
+	topP := 0.8
+	maxOut := uint(512)
+	req := dto.OpenAIResponsesRequest{
+		Model:           "gpt-5",
+		Temperature:     &temp,
+		TopP:            &topP,
+		MaxOutputTokens: &maxOut,
+	}
+	out, err := a.ConvertOpenAIResponsesRequest(nil, info, req)
+	require.NoError(t, err)
+	body, err := common.Marshal(out)
+	require.NoError(t, err)
+	s := string(body)
+	assert.NotContains(t, s, `"temperature"`)
+	assert.NotContains(t, s, `"top_p"`)
+	assert.NotContains(t, s, `"max_output_tokens"`)
+}
+
+// /v1/responses 必须接受 instructions 为非 string（array/object/null），
+// 不再因 apicompat.Instructions 是 string 而 unmarshal 失败。
+func TestConvertOpenAIResponsesRequest_NonCompactAcceptsNonStringInstructions(t *testing.T) {
+	a := &Adaptor{}
+	info := &relaycommon.RelayInfo{ChannelMeta: &relaycommon.ChannelMeta{}}
+	cases := []struct {
+		name string
+		raw  json.RawMessage
+	}{
+		{"array", json.RawMessage(`["sys1","sys2"]`)},
+		{"object", json.RawMessage(`{"role":"system","content":"sys"}`)},
+		{"null", json.RawMessage(`null`)},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			req := dto.OpenAIResponsesRequest{Model: "gpt-5", Instructions: tc.raw}
+			out, err := a.ConvertOpenAIResponsesRequest(nil, info, req)
+			require.NoError(t, err, "%s instructions must not break conversion", tc.name)
+			body, err := common.Marshal(out)
+			require.NoError(t, err)
+			assert.Contains(t, string(body), `"instructions"`,
+				"instructions 键必须始终出现")
+		})
+	}
+}
+
+// compact 路径同样要保留 dto 独有字段（Conversation / Truncation 等）。
+func TestConvertOpenAIResponsesRequest_CompactPreservesDtoOnlyFields(t *testing.T) {
+	a := &Adaptor{}
+	info := &relaycommon.RelayInfo{ChannelMeta: &relaycommon.ChannelMeta{}}
+	info.RelayMode = relayconstant.RelayModeResponsesCompact
+	req := dto.OpenAIResponsesRequest{
+		Model:        "gpt-5",
+		Conversation: json.RawMessage(`{"id":"conv_1"}`),
+		Truncation:   json.RawMessage(`"auto"`),
+	}
+	out, err := a.ConvertOpenAIResponsesRequest(nil, info, req)
+	require.NoError(t, err)
+	body, err := common.Marshal(out)
+	require.NoError(t, err)
+	s := string(body)
+	assert.Contains(t, s, `"conversation":{"id":"conv_1"}`)
+	assert.Contains(t, s, `"truncation":"auto"`)
+	// compact 不能带 store/stream 字段
+	assert.NotContains(t, s, `"store"`)
+	assert.NotContains(t, s, `"stream"`)
+}
