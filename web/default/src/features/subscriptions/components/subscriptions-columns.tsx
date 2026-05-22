@@ -162,6 +162,13 @@ export function useSubscriptionsColumns(): ColumnDef<PlanRecord>[] {
               {plan.creem_product_id && (
                 <StatusBadge label='Creem' variant='neutral' copyable={false} />
               )}
+              {plan.waffo_pancake_product_id && (
+                <StatusBadge
+                  label='Waffo Pancake'
+                  variant='neutral'
+                  copyable={false}
+                />
+              )}
             </div>
           )
         },
