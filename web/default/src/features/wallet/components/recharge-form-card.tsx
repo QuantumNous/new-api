@@ -40,6 +40,7 @@ import {
   calculatePresetPricing,
   formatLocalPaymentAmount,
   formatUsdCreditAmount,
+  resolveAmountDiscount,
 } from '../lib'
 import type {
   PaymentMethod,
@@ -217,18 +218,14 @@ export function RechargeFormCard({
                   <div className='grid grid-cols-2 gap-1.5 sm:gap-3 md:grid-cols-4'>
                     {presetAmounts.map((preset, index) => {
                       const discount =
-                        preset.discount ||
-                        topupInfo?.discount?.[preset.value] ||
-                        1.0
-                      const {
-                        actualPrice,
-                        savedAmount,
-                        hasDiscount,
-                      } = calculatePresetPricing(
-                        preset.value,
-                        priceRatio,
-                        discount
-                      )
+                        preset.discount ??
+                        resolveAmountDiscount(preset.value, topupInfo?.discount)
+                      const { actualPrice, savedAmount, hasDiscount } =
+                        calculatePresetPricing(
+                          preset.value,
+                          priceRatio,
+                          discount
+                        )
                       return (
                         <Button
                           key={index}

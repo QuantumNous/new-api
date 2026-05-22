@@ -48,6 +48,8 @@ func TestGetWaffoPancakePayMoney(t *testing.T) {
 		10:                           0.8,
 		int(common.QuotaPerUnit * 3): 0.5,
 		20:                           0,
+		500:                          0.93,
+		1000:                         0.9,
 	}
 	require.NoError(t, common.UpdateTopupGroupRatioByJSONString(`{"default":1,"vip":1.2}`))
 
@@ -73,11 +75,25 @@ func TestGetWaffoPancakePayMoney(t *testing.T) {
 			expected:         4.5,
 		},
 		{
-			name:             "non-positive discount falls back to no discount",
+			name:             "non-positive exact discount falls back to lower eligible tier",
 			amount:           20,
 			group:            "default",
 			quotaDisplayType: operation_setting.QuotaDisplayTypeUSD,
-			expected:         50,
+			expected:         40,
+		},
+		{
+			name:             "custom amount between tiers uses lower tier",
+			amount:           700,
+			group:            "default",
+			quotaDisplayType: operation_setting.QuotaDisplayTypeUSD,
+			expected:         1627.5,
+		},
+		{
+			name:             "custom amount above highest tier keeps highest discount",
+			amount:           2000,
+			group:            "default",
+			quotaDisplayType: operation_setting.QuotaDisplayTypeUSD,
+			expected:         4500,
 		},
 	}
 

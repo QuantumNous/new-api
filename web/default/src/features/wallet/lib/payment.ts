@@ -21,6 +21,7 @@ import {
   DEFAULT_PRESET_MULTIPLIERS,
   DEFAULT_PAYMENT_TYPE,
   DEFAULT_MIN_TOPUP,
+  DEFAULT_DISCOUNT_RATE,
 } from '../constants'
 import type { PresetAmount, TopupInfo } from '../types'
 
@@ -151,6 +152,42 @@ export function generatePresetAmounts(minAmount: number): PresetAmount[] {
 }
 
 /**
+ * Resolve the discount tier for a topup amount.
+ *
+ * Discounts are configured as minimum amount thresholds. The active discount is
+ * the highest configured threshold that does not exceed the requested amount.
+ */
+export function resolveAmountDiscount(
+  amount: number,
+  discounts: Record<number, number> | undefined
+): number {
+  let discount = DEFAULT_DISCOUNT_RATE
+  let matchedThreshold = 0
+
+  Object.entries(discounts || {}).forEach(([thresholdKey, rateValue]) => {
+    const threshold = Number(thresholdKey)
+    const rate = Number(rateValue)
+
+    if (
+      !Number.isFinite(threshold) ||
+      !Number.isFinite(rate) ||
+      threshold <= 0 ||
+      threshold > amount ||
+      rate <= 0
+    ) {
+      return
+    }
+
+    if (threshold > matchedThreshold) {
+      matchedThreshold = threshold
+      discount = rate
+    }
+  })
+
+  return discount
+}
+
+/**
  * Merge custom preset amounts with discounts
  */
 export function mergePresetAmounts(
@@ -163,6 +200,6 @@ export function mergePresetAmounts(
 
   return amountOptions.map((amount) => ({
     value: amount,
-    discount: discounts[amount] || 1.0,
+    discount: resolveAmountDiscount(amount, discounts),
   }))
 }
