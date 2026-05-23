@@ -42,9 +42,30 @@ import {
 } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
+import { useSystemConfig } from '@/hooks/use-system-config'
 import { SettingsSection } from '../components/settings-section'
 import { useResetForm } from '../hooks/use-reset-form'
 import { useUpdateOption } from '../hooks/use-update-option'
+
+const LEGACY_RP_DISPLAY_NAMES = new Set(['new api', 'new-api', 'newapi'])
+
+function normalizeRpDisplayName(
+  raw: string | undefined,
+  platformName: string | undefined,
+  fallbackLabel: string
+): string {
+  const trimmed = raw?.trim() ?? ''
+  const normalized = trimmed.toLowerCase()
+  if (!trimmed || LEGACY_RP_DISPLAY_NAMES.has(normalized)) {
+    const platform = platformName?.trim() ?? ''
+    const platformNorm = platform.toLowerCase()
+    if (platform && !LEGACY_RP_DISPLAY_NAMES.has(platformNorm)) {
+      return platform
+    }
+    return fallbackLabel
+  }
+  return trimmed
+}
 
 const passkeySchema = z.object({
   'passkey.enabled': z.boolean(),
@@ -69,10 +90,17 @@ interface PasskeySectionProps {
 export function PasskeySection({ defaultValues }: PasskeySectionProps) {
   const { t } = useTranslation()
   const updateOption = useUpdateOption()
+  const { systemName } = useSystemConfig()
+  const rpDisplayFallback = t('systemSettings.passkey.rpDisplayFallback')
 
   const formDefaults = useMemo<PasskeyFormValues>(
     () => ({
       ...defaultValues,
+      'passkey.rp_display_name': normalizeRpDisplayName(
+        defaultValues['passkey.rp_display_name'] as string,
+        systemName,
+        rpDisplayFallback
+      ),
       'passkey.origins': (defaultValues['passkey.origins'] as string)
         .split(',')
         .map((origin: string) => origin.trim())
@@ -85,7 +113,7 @@ export function PasskeySection({ defaultValues }: PasskeySectionProps) {
               | 'platform'
               | 'cross-platform'),
     }),
-    [defaultValues]
+    [defaultValues, rpDisplayFallback, systemName]
   )
 
   const form = useForm<PasskeyFormValues>({
@@ -201,9 +229,7 @@ export function PasskeySection({ defaultValues }: PasskeySectionProps) {
                   />
                 </FormControl>
                 <FormDescription>
-                  {t(
-                    'Human-readable name shown to users during Passkey prompts.'
-                  )}
+                  {t('systemSettings.passkey.rpDisplayNameDesc')}
                 </FormDescription>
                 <FormMessage />
               </FormItem>

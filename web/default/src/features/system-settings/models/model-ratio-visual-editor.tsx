@@ -38,6 +38,7 @@ import { useMediaQuery } from '@/hooks'
 import { Copy, Pencil, Plus, Trash2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import {
@@ -945,11 +946,13 @@ export const ModelRatioVisualEditor = memo(
                         data-state={
                           row.getIsSelected() ? 'selected' : undefined
                         }
-                        className={
-                          editData?.name === row.original.name
-                            ? 'bg-muted/45'
-                            : undefined
-                        }
+                        className={cn(
+                          'cursor-pointer',
+                          row.getIsSelected() &&
+                            'border-cyan-400/25 bg-cyan-500/12 text-slate-50',
+                          editData?.name === row.original.name &&
+                            'ring-1 ring-cyan-400/35 bg-cyan-500/10'
+                        )}
                         onClick={(event) => {
                           const target = event.target as HTMLElement
                           if (target.closest('button, [role="checkbox"]'))

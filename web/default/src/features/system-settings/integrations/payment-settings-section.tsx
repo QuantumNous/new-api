@@ -742,30 +742,7 @@ export function PaymentSettingsSection({
             </div>
 
             <div className='grid gap-6 md:grid-cols-2'>
-              <FormField
-                control={form.control}
-                name='Price'
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>{t('systemSettings.payment.epay.unitPrice')}</FormLabel>
-                    <FormControl>
-                      <Input
-                        type='number'
-                        step='0.01'
-                        min={0}
-                        value={(field.value ?? 0) as number}
-                        onChange={(event) =>
-                          field.onChange(event.target.valueAsNumber)
-                        }
-                      />
-                    </FormControl>
-                    <FormDescription>
-                      {t('systemSettings.payment.epay.unitPriceDesc')}
-                    </FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+              {/* Price: hidden for demo — internal top-up unit; value kept in form & save */}
 
               <FormField
                 control={form.control}
@@ -978,9 +955,11 @@ export function PaymentSettingsSection({
 
           <div className='space-y-4'>
             <div>
-              <h3 className='text-lg font-medium'>{t('Epay Gateway')}</h3>
+              <h3 className='text-lg font-medium'>
+                {t('systemSettings.payment.gateway.title')}
+              </h3>
               <p className='text-muted-foreground text-sm'>
-                {t('Configuration for Epay payment integration')}
+                {t('systemSettings.payment.gateway.desc')}
               </p>
             </div>
 
@@ -990,7 +969,7 @@ export function PaymentSettingsSection({
                 name='PayAddress'
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>{t('Epay endpoint')}</FormLabel>
+                    <FormLabel>{t('systemSettings.payment.gateway.endpoint')}</FormLabel>
                     <FormControl>
                       <Input
                         placeholder={t('https://pay.example.com')}
@@ -999,7 +978,7 @@ export function PaymentSettingsSection({
                       />
                     </FormControl>
                     <FormDescription>
-                      {t('Base address provided by your Epay service')}
+                      {t('systemSettings.payment.gateway.endpointDesc')}
                     </FormDescription>
                     <FormMessage />
                   </FormItem>
@@ -1036,7 +1015,7 @@ export function PaymentSettingsSection({
                 name='EpayId'
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>{t('Epay merchant ID')}</FormLabel>
+                    <FormLabel>{t('systemSettings.payment.gateway.merchantId')}</FormLabel>
                     <FormControl>
                       <Input
                         placeholder='10001'
@@ -1055,7 +1034,7 @@ export function PaymentSettingsSection({
                 name='EpayKey'
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>{t('Epay secret key')}</FormLabel>
+                    <FormLabel>{t('systemSettings.payment.gateway.serviceSecret')}</FormLabel>
                     <FormControl>
                       <Input
                         type='password'
@@ -1085,7 +1064,7 @@ export function PaymentSettingsSection({
             >
               {updateOption.isPending
                 ? t('Saving...')
-                : t('Save Epay settings')}
+                : t('systemSettings.payment.gateway.save')}
             </Button>
           </div>
 

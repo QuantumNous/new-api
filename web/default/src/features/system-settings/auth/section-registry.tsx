@@ -111,8 +111,8 @@ const AUTH_SECTIONS = [
   },
   {
     id: 'bot-protection',
-    titleKey: 'Bot Protection',
-    descriptionKey: 'Protect login and registration with Cloudflare Turnstile',
+    titleKey: 'systemSettings.botProtection.title',
+    descriptionKey: 'systemSettings.botProtection.sectionDesc',
     build: (settings: AuthSettings) => (
       <BotProtectionSection
         defaultValues={{

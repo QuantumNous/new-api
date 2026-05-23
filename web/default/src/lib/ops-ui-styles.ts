@@ -199,3 +199,57 @@ export const publicPortalContentScopeClassName = cn(
   '[&_[role=tablist]]:border-white/10',
   '[&_.prose]:prose-invert [&_.prose]:text-slate-200'
 )
+
+// —— System settings (platform config center) —— //
+
+export const systemSettingsShellClassName =
+  'dark min-h-full text-slate-100'
+
+/** Descendant overrides inside /system-settings (forms, tables, sheets). */
+export const systemSettingsContentScopeClassName = cn(
+  '[&_[class*="text-muted-foreground"]]:text-slate-300',
+  '[&_.text-foreground]:text-slate-50',
+  '[&_h3]:text-slate-50 [&_h4]:text-slate-100',
+  '[&_[data-slot=form-label]]:text-slate-200',
+  '[&_[data-slot=form-description]]:text-slate-400',
+  '[&_.bg-card]:border-white/12 [&_.bg-card]:bg-slate-900/90 [&_.bg-card]:text-slate-100',
+  '[&_.rounded-lg.border]:border-white/12',
+  '[&_.bg-background]:bg-slate-900/90',
+  '[&_.bg-muted]:bg-white/[0.06]',
+  '[&_input:not(:disabled)]:border-white/15 [&_input:not(:disabled)]:bg-slate-950/85 [&_input:not(:disabled)]:text-slate-50',
+  '[&_input:disabled]:cursor-not-allowed [&_input:disabled]:border-white/10 [&_input:disabled]:bg-slate-900/55 [&_input:disabled]:text-slate-300',
+  '[&_textarea:not(:disabled)]:border-white/15 [&_textarea:not(:disabled)]:bg-slate-950/85 [&_textarea:not(:disabled)]:text-slate-50',
+  '[&_textarea:disabled]:cursor-not-allowed [&_textarea:disabled]:border-white/10 [&_textarea:disabled]:bg-slate-900/55 [&_textarea:disabled]:text-slate-300',
+  '[&_[data-slot=input-group]]:border-white/15 [&_[data-slot=input-group]]:bg-slate-950/85',
+  '[&_[data-slot=input-group-input]:not(:disabled)]:text-slate-50',
+  '[&_[data-slot=input-group-input]:disabled]:text-slate-300',
+  '[&_[data-slot=input-group-addon]]:text-slate-300',
+  '[&_[data-slot=table]]:text-slate-100',
+  '[&_thead]:bg-slate-900/95 [&_thead]:text-slate-200',
+  '[&_tbody_tr:hover]:bg-white/[0.05]',
+  '[&_tr[data-state=selected]]:border-cyan-400/20 [&_tr[data-state=selected]]:bg-cyan-500/12 [&_tr[data-state=selected]]:text-slate-50',
+  '[&_tr[data-state=selected]_.text-muted-foreground]:text-slate-200',
+  '[&_[data-slot=tabs-list]]:gap-1 [&_[data-slot=tabs-list]]:rounded-xl [&_[data-slot=tabs-list]]:border [&_[data-slot=tabs-list]]:border-white/10 [&_[data-slot=tabs-list]]:bg-slate-900/70 [&_[data-slot=tabs-list]]:p-1',
+  '[&_[data-slot=tabs-trigger]]:text-slate-300',
+  '[&_[data-slot=tabs-trigger][data-active]]:border [&_[data-slot=tabs-trigger][data-active]]:border-cyan-300/40 [&_[data-slot=tabs-trigger][data-active]]:bg-cyan-400/15 [&_[data-slot=tabs-trigger][data-active]]:text-white',
+  '[&_[data-slot=sheet-footer]]:border-white/10 [&_[data-slot=sheet-footer]]:bg-slate-900/95'
+)
+
+export const systemSettingsOutlineButtonClassName = cn(
+  'border-white/20 bg-slate-900/65 text-slate-100 shadow-sm',
+  'hover:border-white/30 hover:bg-white/10 hover:text-white',
+  'disabled:pointer-events-none disabled:border-white/10 disabled:bg-slate-900/45 disabled:text-slate-400 disabled:opacity-100'
+)
+
+export const systemSettingsPricingPanelClassName = cn(
+  'border-white/12 bg-slate-900/90 text-slate-100',
+  '[&_[data-slot=sheet-footer]]:bg-slate-900/95'
+)
+
+export const systemSettingsPricingTabsListClassName = cn(
+  'grid w-full grid-cols-3 gap-1 rounded-xl border border-white/10 bg-slate-900/70 p-1'
+)
+
+export const systemSettingsPricingTabsTriggerClassName = cn(
+  'text-slate-300 data-active:border data-active:border-cyan-300/40 data-active:bg-cyan-400/15 data-active:text-white'
+)

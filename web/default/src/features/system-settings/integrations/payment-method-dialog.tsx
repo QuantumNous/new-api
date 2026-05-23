@@ -207,7 +207,7 @@ export function PaymentMethodDialog({
               name='type'
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>{t('Type')}</FormLabel>
+                  <FormLabel>{t('systemSettings.payment.method.channelType')}</FormLabel>
                   <FormControl>
                     <Combobox
                       options={PAYMENT_TYPES}
@@ -231,7 +231,7 @@ export function PaymentMethodDialog({
               name='color'
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>{t('Color')}</FormLabel>
+                  <FormLabel>{t('systemSettings.payment.method.displayColor')}</FormLabel>
                   <FormControl>
                     <div className='flex items-center gap-2'>
                       <Combobox

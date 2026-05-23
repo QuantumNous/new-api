@@ -296,8 +296,8 @@ export function PaymentMethodsVisualEditor({
               <TableHeader>
                 <TableRow>
                   <TableHead>{t('Name')}</TableHead>
-                  <TableHead>{t('Type')}</TableHead>
-                  <TableHead>{t('Color')}</TableHead>
+                  <TableHead>{t('systemSettings.payment.method.channelType')}</TableHead>
+                  <TableHead>{t('systemSettings.payment.method.displayColor')}</TableHead>
                   <TableHead>{t('Min Top-up')}</TableHead>
                   <TableHead className='text-right'>{t('Actions')}</TableHead>
                 </TableRow>

@@ -45,8 +45,12 @@ import { Switch } from '@/components/ui/switch'
 import { FormDirtyIndicator } from '../components/form-dirty-indicator'
 import { FormNavigationGuard } from '../components/form-navigation-guard'
 import { SettingsSection } from '../components/settings-section'
+import { systemSettingsOutlineButtonClassName } from '@/lib/ops-ui-styles'
 import { useSettingsForm } from '../hooks/use-settings-form'
 import { useUpdateOption } from '../hooks/use-update-option'
+
+/** Demo: hide internal RMB display exchange field (config key unchanged). */
+const SHOW_RMB_DISPLAY_EXCHANGE_FIELD = false
 
 const createPricingSchema = (t: (key: string) => string) =>
   z
@@ -227,7 +231,7 @@ export function PricingSection({ defaultValues }: PricingSectionProps) {
               )}
             />
 
-            {displayType !== 'TOKENS' && (
+            {SHOW_RMB_DISPLAY_EXCHANGE_FIELD && displayType !== 'TOKENS' && (
               <FormField
                 control={form.control}
                 name='USDExchangeRate'
@@ -385,6 +389,7 @@ export function PricingSection({ defaultValues }: PricingSectionProps) {
               <Button
                 type='button'
                 variant='outline'
+                className={systemSettingsOutlineButtonClassName}
                 onClick={handleReset}
                 disabled={!isDirty || updateOption.isPending || isSubmitting}
               >

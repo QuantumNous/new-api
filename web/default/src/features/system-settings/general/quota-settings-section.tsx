@@ -255,25 +255,7 @@ export function QuotaSettingsSection({
             )}
           />
 
-          <FormField
-            control={form.control}
-            name='general_setting.docs_link'
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>{t('Documentation Link')}</FormLabel>
-                <FormControl>
-                  <Input
-                    placeholder={t('https://docs.example.com')}
-                    {...field}
-                  />
-                </FormControl>
-                <FormDescription>
-                  {t('Link to your documentation site')}
-                </FormDescription>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
+          {/* docs_link: hidden for demo — value preserved in form state & save payload */}
 
           <Button
             type='submit'

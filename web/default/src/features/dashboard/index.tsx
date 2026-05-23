@@ -23,6 +23,10 @@ import { useAuthStore } from '@/stores/auth-store'
 import { ROLE } from '@/lib/roles'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import {
+  dashboardSectionTabsListClassName,
+  dashboardSectionTabsTriggerClassName,
+} from './lib/section-tabs-styles'
 import { SectionPageLayout } from '@/components/layout'
 import { FadeIn } from '@/components/page-transition'
 import { ModelsChartPreferences } from './components/models/models-chart-preferences'
@@ -246,9 +250,16 @@ export function Dashboard() {
             <div className='flex flex-wrap items-center justify-between gap-1.5 sm:gap-2'>
               {showSectionTabs ? (
                 <Tabs value={activeSection} onValueChange={handleSectionChange}>
-                  <TabsList className='group-data-horizontal/tabs:h-auto max-w-full flex-wrap justify-start'>
+                  <TabsList
+                    variant='line'
+                    className={dashboardSectionTabsListClassName}
+                  >
                     {visibleSections.map((section) => (
-                      <TabsTrigger key={section} value={section}>
+                      <TabsTrigger
+                        key={section}
+                        value={section}
+                        className={dashboardSectionTabsTriggerClassName}
+                      >
                         {t(SECTION_META[section].titleKey)}
                       </TabsTrigger>
                     ))}

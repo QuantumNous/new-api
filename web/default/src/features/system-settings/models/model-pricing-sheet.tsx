@@ -22,6 +22,12 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { AlertTriangle, ChevronDown } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import {
+  systemSettingsOutlineButtonClassName,
+  systemSettingsPricingPanelClassName,
+  systemSettingsPricingTabsListClassName,
+  systemSettingsPricingTabsTriggerClassName,
+} from '@/lib/ops-ui-styles'
 import { cn } from '@/lib/utils'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
@@ -737,7 +743,8 @@ export function ModelPricingEditorPanel({
   return (
     <div
       className={cn(
-        'bg-card flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border',
+        systemSettingsPricingPanelClassName,
+        'flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl',
         className
       )}
     >
@@ -800,12 +807,23 @@ export function ModelPricingEditorPanel({
               />
 
               <Tabs value={pricingMode} onValueChange={handleModeChange}>
-                <TabsList className='grid w-full grid-cols-3'>
-                  <TabsTrigger value='per-token'>{t('Per-token')}</TabsTrigger>
-                  <TabsTrigger value='per-request'>
+                <TabsList className={systemSettingsPricingTabsListClassName}>
+                  <TabsTrigger
+                    value='per-token'
+                    className={systemSettingsPricingTabsTriggerClassName}
+                  >
+                    {t('Per-token')}
+                  </TabsTrigger>
+                  <TabsTrigger
+                    value='per-request'
+                    className={systemSettingsPricingTabsTriggerClassName}
+                  >
                     {t('Per-request')}
                   </TabsTrigger>
-                  <TabsTrigger value='tiered_expr'>
+                  <TabsTrigger
+                    value='tiered_expr'
+                    className={systemSettingsPricingTabsTriggerClassName}
+                  >
                     {t('Expression')}
                   </TabsTrigger>
                 </TabsList>
@@ -910,7 +928,10 @@ export function ModelPricingEditorPanel({
                     <Button
                       type='button'
                       variant='outline'
-                      className='flex w-full justify-between'
+                      className={cn(
+                        systemSettingsOutlineButtonClassName,
+                        'flex w-full justify-between'
+                      )}
                     />
                   }
                 >
@@ -950,7 +971,7 @@ export function ModelPricingEditorPanel({
             </FieldGroup>
           </div>
 
-          <SheetFooter className='bg-background/95 border-t sm:flex-row sm:items-center sm:justify-between'>
+          <SheetFooter className='border-t border-white/10 bg-slate-900/95 sm:flex-row sm:items-center sm:justify-between'>
             <div className='text-muted-foreground text-xs'>
               {selectedTargetCount > 0
                 ? t('{{count}} selected targets available for bulk copy.', {
@@ -959,7 +980,12 @@ export function ModelPricingEditorPanel({
                 : t('Changes are written to the settings draft on save.')}
             </div>
             <div className='flex justify-end gap-2'>
-              <Button type='button' variant='outline' onClick={onCancel}>
+              <Button
+                type='button'
+                variant='outline'
+                className={systemSettingsOutlineButtonClassName}
+                onClick={onCancel}
+              >
                 {t('Cancel')}
               </Button>
               <Button type='submit'>
@@ -1014,7 +1040,8 @@ function PriceLane(props: {
     <Field
       className={cn(
         'rounded-lg border p-3',
-        effectiveDisabled && 'bg-muted/35'
+        effectiveDisabled &&
+          'border-white/10 bg-slate-900/55 [&_input]:text-slate-300'
       )}
       data-disabled={effectiveDisabled || undefined}
     >

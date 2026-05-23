@@ -23,6 +23,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
+import { systemSettingsOutlineButtonClassName } from '@/lib/ops-ui-styles'
 import { Button } from '@/components/ui/button'
 import {
   Form,
@@ -243,6 +244,7 @@ export function GlobalSettingsCard({ defaultValues }: GlobalSettingsCardProps) {
                     type='button'
                     variant='outline'
                     size='sm'
+                    className={systemSettingsOutlineButtonClassName}
                     onClick={() =>
                       formatJsonField('global.thinking_model_blacklist')
                     }
@@ -300,6 +302,7 @@ export function GlobalSettingsCard({ defaultValues }: GlobalSettingsCardProps) {
                       type='button'
                       variant='outline'
                       size='sm'
+                      className={systemSettingsOutlineButtonClassName}
                       onClick={() =>
                         form.setValue(
                           'global.chat_completions_to_responses_policy',
@@ -314,6 +317,7 @@ export function GlobalSettingsCard({ defaultValues }: GlobalSettingsCardProps) {
                       type='button'
                       variant='outline'
                       size='sm'
+                      className={systemSettingsOutlineButtonClassName}
                       onClick={() =>
                         form.setValue(
                           'global.chat_completions_to_responses_policy',
@@ -327,6 +331,7 @@ export function GlobalSettingsCard({ defaultValues }: GlobalSettingsCardProps) {
                     <Button
                       type='button'
                       variant='outline'
+                      className={systemSettingsOutlineButtonClassName}
                       size='sm'
                       onClick={() =>
                         formatJsonField(

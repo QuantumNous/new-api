@@ -76,10 +76,8 @@ export function BotProtectionSection({
 
   return (
     <SettingsSection
-      title={t('Bot Protection')}
-      description={t(
-        'Protect login and registration with Cloudflare Turnstile'
-      )}
+      title={t('systemSettings.botProtection.title')}
+      description={t('systemSettings.botProtection.sectionDesc')}
     >
       <Form {...form}>
         <form
@@ -94,12 +92,10 @@ export function BotProtectionSection({
               <FormItem className='flex flex-row items-center justify-between rounded-lg border p-4'>
                 <div className='space-y-0.5'>
                   <FormLabel className='text-base'>
-                    {t('Enable Turnstile')}
+                    {t('systemSettings.botProtection.enable')}
                   </FormLabel>
                   <FormDescription>
-                    {t(
-                      'Protect login and registration with Cloudflare Turnstile'
-                    )}
+                    {t('systemSettings.botProtection.enableDesc')}
                   </FormDescription>
                 </div>
                 <FormControl>
@@ -117,10 +113,10 @@ export function BotProtectionSection({
             name='TurnstileSiteKey'
             render={({ field }) => (
               <FormItem>
-                <FormLabel>{t('Site Key')}</FormLabel>
+                <FormLabel>{t('systemSettings.botProtection.siteKey')}</FormLabel>
                 <FormControl>
                   <Input
-                    placeholder={t('Your Turnstile site key')}
+                    placeholder={t('systemSettings.botProtection.siteKeyPlaceholder')}
                     autoComplete='off'
                     {...field}
                   />
@@ -135,11 +131,11 @@ export function BotProtectionSection({
             name='TurnstileSecretKey'
             render={({ field }) => (
               <FormItem>
-                <FormLabel>{t('Secret Key')}</FormLabel>
+                <FormLabel>{t('systemSettings.botProtection.secretKey')}</FormLabel>
                 <FormControl>
                   <Input
                     type='password'
-                    placeholder={t('Your Turnstile secret key')}
+                    placeholder={t('systemSettings.botProtection.secretKeyPlaceholder')}
                     autoComplete='new-password'
                     {...field}
                   />
