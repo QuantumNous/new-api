@@ -260,7 +260,8 @@ func validateUptimeKumaGroups(groupsStr string) error {
 			return fmt.Errorf("第%d个分组缺少URL字段", i+1)
 		}
 		slug, ok := group["slug"].(string)
-		if !ok || slug == "" {
+		directHeartbeatURL := isUptimeKumaHeartbeatURL(urlStr)
+		if (!ok || slug == "") && !directHeartbeatURL {
 			return fmt.Errorf("第%d个分组缺少Slug字段", i+1)
 		}
 		description, ok := group["description"].(string)
@@ -285,7 +286,7 @@ func validateUptimeKumaGroups(groupsStr string) error {
 			return fmt.Errorf("第%d个分组的描述长度不能超过200字符", i+1)
 		}
 
-		if !slugRegex.MatchString(slug) {
+		if slug != "" && !slugRegex.MatchString(slug) {
 			return fmt.Errorf("第%d个分组的Slug只能包含字母、数字、下划线和连字符", i+1)
 		}
 
@@ -297,6 +298,20 @@ func validateUptimeKumaGroups(groupsStr string) error {
 		}
 	}
 	return nil
+}
+
+func isUptimeKumaHeartbeatURL(urlStr string) bool {
+	parsed, err := url.Parse(urlStr)
+	if err != nil {
+		return false
+	}
+	const heartbeatPath = "/api/status-page/heartbeat/"
+	idx := strings.LastIndex(parsed.Path, heartbeatPath)
+	if idx < 0 {
+		return false
+	}
+	slug := strings.TrimPrefix(parsed.Path[idx:], heartbeatPath)
+	return slug != "" && !strings.Contains(slug, "/")
 }
 
 func GetUptimeKumaGroups() []map[string]interface{} {

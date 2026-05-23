@@ -65,11 +65,47 @@ func fetchGroupData(ctx context.Context, client *http.Client, groupConfig map[st
 	}
 
 	if url == "" || slug == "" {
+		statusURL, heartbeatURL := resolveStatusPageURLs(url, slug)
+		if statusURL == "" || heartbeatURL == "" {
+			return result
+		}
+		return fetchResolvedGroupData(ctx, client, statusURL, heartbeatURL, result)
+	}
+
+	statusURL, heartbeatURL := resolveStatusPageURLs(url, slug)
+	if statusURL == "" || heartbeatURL == "" {
 		return result
 	}
 
-	baseURL := strings.TrimSuffix(url, "/")
+	return fetchResolvedGroupData(ctx, client, statusURL, heartbeatURL, result)
+}
 
+func resolveStatusPageURLs(rawURL string, slug string) (string, string) {
+	rawURL = strings.TrimRight(strings.TrimSpace(rawURL), "/")
+	slug = strings.Trim(strings.TrimSpace(slug), "/")
+	if rawURL == "" {
+		return "", ""
+	}
+
+	if idx := strings.LastIndex(rawURL, apiHeartbeatPath); idx >= 0 {
+		baseURL := strings.TrimRight(rawURL[:idx], "/")
+		if slug == "" {
+			slug = strings.Trim(strings.TrimPrefix(rawURL[idx+len(apiHeartbeatPath):], "/"), "/")
+		}
+		if baseURL == "" || slug == "" {
+			return "", ""
+		}
+		return baseURL + apiStatusPath + slug, baseURL + apiHeartbeatPath + slug
+	}
+
+	if slug == "" {
+		return "", ""
+	}
+	baseURL := strings.TrimSuffix(rawURL, "/")
+	return baseURL + apiStatusPath + slug, baseURL + apiHeartbeatPath + slug
+}
+
+func fetchResolvedGroupData(ctx context.Context, client *http.Client, statusURL string, heartbeatURL string, result UptimeGroupResult) UptimeGroupResult {
 	var statusData struct {
 		PublicGroupList []struct {
 			ID          int    `json:"id"`
@@ -90,10 +126,10 @@ func fetchGroupData(ctx context.Context, client *http.Client, groupConfig map[st
 
 	g, gCtx := errgroup.WithContext(ctx)
 	g.Go(func() error {
-		return getAndDecode(gCtx, client, baseURL+apiStatusPath+slug, &statusData)
+		return getAndDecode(gCtx, client, statusURL, &statusData)
 	})
 	g.Go(func() error {
-		return getAndDecode(gCtx, client, baseURL+apiHeartbeatPath+slug, &heartbeatData)
+		return getAndDecode(gCtx, client, heartbeatURL, &heartbeatData)
 	})
 
 	if g.Wait() != nil {
