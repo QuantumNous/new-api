@@ -16,7 +16,14 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { portalHeaderIconGroupClassName } from '@/lib/ops-ui-styles'
+import {
+  portalHeaderIconGroupClassName,
+  topNavBarRowClassName,
+  topNavBrandZoneClassName,
+  topNavCenterZoneClassName,
+  topNavRightZoneClassName,
+  topNavSearchSlotClassName,
+} from '@/lib/ops-ui-styles'
 import { cn } from '@/lib/utils'
 import { useNotifications } from '@/hooks/use-notifications'
 import { useTopNavLinks } from '@/hooks/use-top-nav-links'
@@ -28,9 +35,10 @@ import { ProfileDropdown } from '@/components/profile-dropdown'
 import { Search } from '@/components/search'
 import { defaultTopNavLinks } from '../config/top-nav.config'
 import { type TopNavLink } from '../types'
+import { SidebarTrigger } from '@/components/ui/sidebar'
 import { Header } from './header'
 import { SystemBrand } from './system-brand'
-import { TopNav } from './top-nav'
+import { TopNavDesktop } from './top-nav-desktop'
 
 /**
  * General application Header component
@@ -115,44 +123,53 @@ export function AppHeader({
   return (
     <>
       <Header className='border-b border-white/10 bg-slate-950/90 text-slate-100 shadow-sm shadow-black/20 backdrop-blur-md'>
-        <SystemBrand variant='inline' className='shrink-0' />
-
-        {leftContent ? (
-          <div className='ms-2 flex shrink-0 items-center'>{leftContent}</div>
-        ) : null}
-
-        {rightContent ?? (
-          <div className='ms-auto flex min-w-0 flex-1 items-center justify-end gap-2 sm:gap-3'>
-            {showTopNav && (
-              <div className='hidden min-w-0 shrink overflow-hidden lg:block lg:pe-1'>
-                <TopNav links={links} tone='portal' />
-              </div>
-            )}
-
-            {showSearch && (
-              <div className='hidden min-w-0 shrink lg:block lg:max-w-[9.5rem] xl:max-w-[13.75rem] 2xl:max-w-[20rem]'>
-                <Search className='w-full max-w-full' />
-              </div>
-            )}
-
-            <div
-              className={cn(
-                'relative z-10 flex shrink-0 items-center gap-0.5 rounded-lg border border-white/10 bg-white/5 px-1 py-0.5 text-slate-100 sm:gap-1 sm:px-1.5',
-                portalHeaderIconGroupClassName
-              )}
-            >
-              {showNotifications && (
-                <NotificationButton
-                  unreadCount={notifications.unreadCount}
-                  onClick={() => notifications.openDialog()}
-                />
-              )}
-              <LanguageSwitcher />
-              {showConfigDrawer && <ConfigDrawer />}
-              {showProfileDropdown && <ProfileDropdown />}
-            </div>
+        <div className={cn(topNavBarRowClassName, 'h-full')}>
+          <div className={cn(topNavBrandZoneClassName, 'gap-1.5')}>
+            <SidebarTrigger
+              variant='ghost'
+              className='size-8 shrink-0 text-slate-200 hover:bg-white/10 hover:text-slate-50'
+            />
+            <SystemBrand variant='inline' className='shrink-0' />
+            {leftContent ? (
+              <div className='flex shrink-0 items-center'>{leftContent}</div>
+            ) : null}
           </div>
-        )}
+
+          {showTopNav && (
+            <TopNavDesktop
+              links={links}
+              tone='portal'
+              className={topNavCenterZoneClassName}
+            />
+          )}
+
+          {rightContent ?? (
+            <div className={topNavRightZoneClassName}>
+              {showSearch && (
+                <div className={topNavSearchSlotClassName}>
+                  <Search className='w-full' />
+                </div>
+              )}
+
+              <div
+                className={cn(
+                  'flex shrink-0 items-center gap-0.5 rounded-lg border border-white/10 bg-white/5 px-1 py-0.5 text-slate-100 sm:gap-1 sm:px-1.5',
+                  portalHeaderIconGroupClassName
+                )}
+              >
+                {showNotifications && (
+                  <NotificationButton
+                    unreadCount={notifications.unreadCount}
+                    onClick={() => notifications.openDialog()}
+                  />
+                )}
+                <LanguageSwitcher />
+                {showConfigDrawer && <ConfigDrawer />}
+                {showProfileDropdown && <ProfileDropdown />}
+              </div>
+            </div>
+          )}
+        </div>
       </Header>
 
       {/* Notification Dialog */}

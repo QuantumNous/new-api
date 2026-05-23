@@ -26,10 +26,46 @@ import { cn } from '@/lib/utils'
 export const portalHeaderSiteNameClassName = 'text-sm font-semibold text-slate-100'
 
 export const portalHeaderNavLinkClassName =
-  'inline-flex shrink-0 items-center whitespace-nowrap rounded-lg px-2.5 py-1.5 text-[13px] font-medium text-slate-200 transition-colors duration-200 hover:text-white lg:px-3'
+  'inline-flex shrink-0 items-center whitespace-nowrap rounded-lg px-2 py-1.5 text-xs font-medium text-slate-200 transition-colors duration-200 hover:text-white sm:px-2.5 sm:text-[13px] lg:px-3'
 
+/** Same metrics as inactive — avoids nav group shifting when route changes. */
 export const portalHeaderNavLinkActiveClassName =
-  'inline-flex shrink-0 items-center whitespace-nowrap rounded-lg px-2.5 py-1.5 text-[13px] font-semibold text-white transition-colors duration-200 lg:px-3'
+  'inline-flex shrink-0 items-center whitespace-nowrap rounded-lg px-2 py-1.5 text-xs font-medium text-white transition-colors duration-200 sm:px-2.5 sm:text-[13px] lg:px-3'
+
+// —— Shared top nav bar layout (public header + app header) —— //
+
+/** Full-width row; horizontal scroll before any label truncates. */
+export const topNavBarRowClassName =
+  'relative flex h-full w-full min-w-0 flex-nowrap items-center overflow-x-auto overflow-y-visible'
+
+/** Left brand cluster — never shrink, never truncate platform name. */
+export const topNavBrandZoneClassName =
+  'relative z-20 flex shrink-0 flex-nowrap items-center gap-1.5 sm:gap-2.5'
+
+export const topNavBrandSiteNameClassName =
+  'text-sm font-semibold tracking-tight whitespace-nowrap'
+
+/** Middle nav column (flex center; may shift when viewport is tight). */
+export const topNavCenterZoneClassName =
+  'relative z-10 hidden min-w-0 flex-1 justify-center overflow-visible px-1 sm:flex sm:px-2'
+
+/** @deprecated Use topNavCenterZoneClassName */
+export const topNavCenterAbsoluteClassName = topNavCenterZoneClassName
+
+/** Five primary links: no clip, no ellipsis. */
+export const topNavLinksListClassName =
+  'flex shrink-0 flex-nowrap items-center justify-center gap-2 md:gap-3 xl:gap-4'
+
+export const topNavDesktopNavClassName =
+  'flex w-full min-w-0 items-center justify-center'
+
+/** Right toolbar (icons, optional search). */
+export const topNavRightZoneClassName =
+  'relative z-20 ms-auto flex shrink-0 flex-nowrap items-center justify-end gap-2 sm:gap-2.5'
+
+/** Header search: only on very wide viewports; never competes with brand/nav. */
+export const topNavSearchSlotClassName =
+  'hidden w-[11rem] shrink-0 3xl:block 3xl:w-[12rem]'
 
 /** Between primary nav links and right toolbar (portal). */
 export const portalHeaderNavActionsSeparatorClassName =
@@ -38,16 +74,13 @@ export const portalHeaderNavActionsSeparatorClassName =
 export const portalHeaderDefaultNavActionsSeparatorClassName =
   'mx-2 h-6 w-px shrink-0 self-center bg-border/40 md:mx-3'
 
-/** Desktop nav link row. */
-export const portalHeaderNavLinksClassName =
-  'flex min-w-0 flex-1 flex-nowrap items-center gap-1.5 overflow-x-auto sm:gap-2 md:gap-2.5 lg:gap-3'
+/** @deprecated Use topNavLinksListClassName — kept for callers migrating off flex-end clusters. */
+export const portalHeaderNavLinksClassName = topNavLinksListClassName
 
-export const portalHeaderDefaultNavLinksClassName =
-  'flex min-w-0 flex-1 flex-nowrap items-center gap-1.5 overflow-x-auto sm:gap-2 md:gap-2.5 lg:gap-3'
+export const portalHeaderDefaultNavLinksClassName = topNavLinksListClassName
 
-/** Logo + nav + actions cluster on the right half. */
-export const portalHeaderNavClusterClassName =
-  'hidden min-w-0 flex-1 flex-nowrap items-center justify-end gap-1 sm:flex'
+/** @deprecated Use topNavBarRowClassName + topNavRightZoneClassName. */
+export const portalHeaderNavClusterClassName = topNavRightZoneClassName
 
 /** Right-side toolbar: language, theme, notifications, profile. */
 export const portalHeaderActionsClassName =

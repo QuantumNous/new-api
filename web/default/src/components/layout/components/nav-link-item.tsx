@@ -47,7 +47,7 @@ export function NavLinkItem({
         ? portalHeaderNavLinkActiveClassName
         : portalHeaderNavLinkClassName
       : cn(
-          'transition-colors',
+          'inline-flex shrink-0 items-center whitespace-nowrap transition-colors',
           active
             ? 'text-foreground font-medium'
             : 'text-muted-foreground hover:text-foreground'

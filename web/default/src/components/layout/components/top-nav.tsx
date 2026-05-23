@@ -19,10 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import { useMemo } from 'react'
 import { Link, useRouterState } from '@tanstack/react-router'
 import { Menu } from 'lucide-react'
-import {
-  portalHeaderNavLinkActiveClassName,
-  portalHeaderNavLinkClassName,
-} from '@/lib/ops-ui-styles'
+import { topNavCenterZoneClassName } from '@/lib/ops-ui-styles'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import {
@@ -32,6 +29,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { type TopNavLink } from '../types'
+import { TopNavDesktop } from './top-nav-desktop'
 
 type TopNavProps = React.HTMLAttributes<HTMLElement> & {
   links: TopNavLink[]
@@ -46,18 +44,6 @@ type TopNavProps = React.HTMLAttributes<HTMLElement> & {
 export function TopNav({ className, links, tone = 'default', ...props }: TopNavProps) {
   const pathname = useRouterState({ select: (s) => s.location.pathname })
   const isPortalTone = tone === 'portal'
-
-  const linkClass = (active: boolean) =>
-    isPortalTone
-      ? active
-        ? portalHeaderNavLinkActiveClassName
-        : portalHeaderNavLinkClassName
-      : cn(
-          'text-sm font-medium transition-colors',
-          active
-            ? 'text-foreground font-medium'
-            : 'text-muted-foreground hover:text-foreground'
-        )
 
   const mobileLinkClass = (active: boolean) =>
     isPortalTone
@@ -125,41 +111,12 @@ export function TopNav({ className, links, tone = 'default', ...props }: TopNavP
         </DropdownMenu>
       </div>
 
-      {/* 桌面端水平导航 */}
-      <nav
-        className={cn(
-          'hidden min-w-0 items-center space-x-2 lg:flex lg:space-x-3 xl:space-x-4 2xl:space-x-5',
-          className
-        )}
+      <TopNavDesktop
+        links={links}
+        tone={tone}
+        className={cn(topNavCenterZoneClassName, className)}
         {...props}
-      >
-        {normalizedLinks.map((link) => {
-          const active =
-            link.isActive ??
-            (!link.external && pathname === link.href.split('?')[0])
-          const cls = linkClass(active)
-          return link.external ? (
-            <a
-              key={`${link.title}-${link.href}`}
-              href={link.href}
-              target='_blank'
-              rel='noopener noreferrer'
-              className={cn(cls, 'shrink-0 whitespace-nowrap')}
-            >
-              {link.title}
-            </a>
-          ) : (
-            <Link
-              key={`${link.title}-${link.href}`}
-              to={link.href}
-              disabled={link.disabled}
-              className={cn(cls, 'shrink-0 whitespace-nowrap')}
-            >
-              {link.title}
-            </Link>
-          )
-        })}
-      </nav>
+      />
     </>
   )
 }

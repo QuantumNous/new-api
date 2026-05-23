@@ -17,7 +17,6 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { cn } from '@/lib/utils'
-import { SidebarTrigger } from '@/components/ui/sidebar'
 
 type HeaderProps = React.HTMLAttributes<HTMLElement>
 
@@ -30,11 +29,7 @@ export function Header({ className, children, ...props }: HeaderProps) {
       )}
       {...props}
     >
-      <div className='flex h-full min-w-0 items-center gap-1.5 px-2 sm:gap-2 sm:px-3'>
-        <SidebarTrigger
-          variant='ghost'
-          className='size-8 text-slate-200 hover:bg-white/10 hover:text-slate-50'
-        />
+      <div className='relative flex h-full w-full min-w-0 items-center px-2 sm:px-3'>
         {children}
       </div>
     </header>
