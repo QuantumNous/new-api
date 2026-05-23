@@ -1,7 +1,6 @@
 package relay
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -31,14 +30,14 @@ import (
 const responsesWSEventTypeResponseCreate = "response.create"
 
 type responsesWSCreateEvent struct {
-	Type    string          `json:"type"`
-	EventID string          `json:"event_id,omitempty"`
-	Request json.RawMessage `json:"response,omitempty"`
+	Type    string            `json:"type"`
+	EventID string            `json:"event_id,omitempty"`
+	Request common.RawMessage `json:"response,omitempty"`
 }
 
 type responsesWSCreateRequest struct {
 	Request  dto.OpenAIResponsesRequest
-	Generate json.RawMessage
+	Generate common.RawMessage
 }
 
 type responsesWSErrorEvent struct {
@@ -93,7 +92,7 @@ func ResponsesWebSocketHelper(c *gin.Context, client *websocket.Conn) *types.New
 		}
 
 		if eventType != responsesWSEventTypeResponseCreate {
-			if session.target == nil {
+			if !session.hasTarget() {
 				session.sendError("", newResponsesWSInvalidRequestError(errors.New("first responses websocket event must be response.create")))
 				continue
 			}
@@ -144,8 +143,8 @@ func normalizeResponsesWSCreateEvent(message []byte) (responsesWSCreateRequest, 
 		return responsesWSCreateRequest{}, event.EventID, fmt.Errorf("unsupported event type %q", event.Type)
 	}
 
-	var generate json.RawMessage
-	var raw map[string]json.RawMessage
+	var generate common.RawMessage
+	var raw map[string]common.RawMessage
 	if err := common.Unmarshal(message, &raw); err == nil {
 		if generateRaw, ok := raw["generate"]; ok {
 			generate = generateRaw
@@ -169,7 +168,7 @@ func normalizeResponsesWSCreateEvent(message []byte) (responsesWSCreateRequest, 
 			return responsesWSCreateRequest{}, event.EventID, err
 		}
 	} else {
-		var responseMap map[string]json.RawMessage
+		var responseMap map[string]common.RawMessage
 		if err := common.Unmarshal(payload, &responseMap); err == nil {
 			if len(generate) == 0 {
 				if generateRaw, ok := responseMap["generate"]; ok {
@@ -222,7 +221,7 @@ func (s *responsesWSSession) handleResponseCreate(create responsesWSCreateReques
 		return apiErr
 	}
 
-	if s.target == nil {
+	if !s.hasTarget() {
 		return s.connectAndSendFirst(create, commitRate)
 	}
 
@@ -330,18 +329,16 @@ func (s *responsesWSSession) connectAndSendFirst(create responsesWSCreateRequest
 			continue
 		}
 
-		s.target = target
+		s.setTarget(target)
 		if !s.tryReserveCurrent(state) {
-			_ = target.Close()
-			s.target = nil
+			s.closeTarget()
 			state.refund(s.c)
 			commitRate(false)
 			return types.NewErrorWithStatusCode(errors.New("another response.create is already in progress on this websocket connection"), types.ErrorCodeInvalidRequest, http.StatusConflict, types.ErrOptionWithSkipRetry())
 		}
 		if err := s.writeTarget(websocket.TextMessage, payload); err != nil {
 			s.finishCall(state, false)
-			_ = target.Close()
-			s.target = nil
+			s.closeTarget()
 			apiErr = types.NewError(err, types.ErrorCodeBadResponse)
 			var shouldRetry bool
 			lastErr, shouldRetry = s.processChannelError(channel, apiErr, retryParam)
@@ -437,7 +434,7 @@ func (s *responsesWSSession) prepareCall(create responsesWSCreateRequest, commit
 	}, payload, nil
 }
 
-func buildResponsesWSCreatePayload(c *gin.Context, relayInfo *relaycommon.RelayInfo, req dto.OpenAIResponsesRequest, generate json.RawMessage) ([]byte, *types.NewAPIError) {
+func buildResponsesWSCreatePayload(c *gin.Context, relayInfo *relaycommon.RelayInfo, req dto.OpenAIResponsesRequest, generate common.RawMessage) ([]byte, *types.NewAPIError) {
 	relayInfo.InitChannelMeta(c)
 	request, err := common.DeepCopy(&req)
 	if err != nil {
@@ -483,8 +480,8 @@ func buildResponsesWSCreatePayload(c *gin.Context, relayInfo *relaycommon.RelayI
 	return event, nil
 }
 
-func buildResponsesWSCreateEvent(jsonData []byte, generate json.RawMessage) ([]byte, error) {
-	var event map[string]json.RawMessage
+func buildResponsesWSCreateEvent(jsonData []byte, generate common.RawMessage) ([]byte, error) {
+	var event map[string]common.RawMessage
 	if err := common.Unmarshal(jsonData, &event); err != nil {
 		return nil, err
 	}
@@ -556,7 +553,10 @@ func toWebSocketURL(raw string) string {
 }
 
 func (s *responsesWSSession) startTargetReader() {
-	target := s.target
+	target := s.getTarget()
+	if target == nil {
+		return
+	}
 	go func() {
 		for {
 			messageType, message, err := target.ReadMessage()
@@ -716,6 +716,24 @@ func (s *responsesWSSession) writeClient(messageType int, message []byte) error 
 	return s.client.WriteMessage(messageType, message)
 }
 
+func (s *responsesWSSession) hasTarget() bool {
+	s.targetWriteMu.Lock()
+	defer s.targetWriteMu.Unlock()
+	return s.target != nil
+}
+
+func (s *responsesWSSession) getTarget() *websocket.Conn {
+	s.targetWriteMu.Lock()
+	defer s.targetWriteMu.Unlock()
+	return s.target
+}
+
+func (s *responsesWSSession) setTarget(target *websocket.Conn) {
+	s.targetWriteMu.Lock()
+	defer s.targetWriteMu.Unlock()
+	s.target = target
+}
+
 func (s *responsesWSSession) writeTarget(messageType int, message []byte) error {
 	s.targetWriteMu.Lock()
 	defer s.targetWriteMu.Unlock()
@@ -754,6 +772,8 @@ func buildResponsesWSErrorPayload(eventID string, apiErr *types.NewAPIError) ([]
 }
 
 func (s *responsesWSSession) closeTarget() {
+	s.targetWriteMu.Lock()
+	defer s.targetWriteMu.Unlock()
 	if s.target != nil {
 		_ = s.target.Close()
 		s.target = nil

@@ -28,6 +28,7 @@ func ApplyResponsesUsage(dst *dto.Usage, src *dto.Usage) {
 	}
 	if !isZeroOutputTokenDetails(outputDetails) {
 		dst.CompletionTokenDetails = outputDetails
+		dst.OutputTokensDetails = &outputDetails
 	}
 	dst.PromptCacheHitTokens = src.PromptCacheHitTokens
 	dst.UsageSemantic = src.UsageSemantic
