@@ -73,7 +73,7 @@ export function useModelStatCardsConfig(): StatCardConfig[] {
     },
     {
       key: 'avgTpm',
-      title: t('Average TPM'),
+      title: t('Dashboard stat average TPM'),
       description: t('Dashboard stat yuan units per minute'),
       icon: Zap,
       getValue: (stat, timeRangeMinutes = 1) =>

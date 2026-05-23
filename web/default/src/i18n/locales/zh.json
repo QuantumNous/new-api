@@ -4159,6 +4159,7 @@
         "Dashboard stat total yuan units": "总词元数",
         "Dashboard stat statistical yuan units": "统计词元数",
         "Dashboard stat yuan units per minute": "每分钟词元数",
+        "Dashboard stat average TPM": "平均 TPM（词元/分钟）",
         "Total requests allowed per period. 0 = unlimited.": "每周期允许的总请求数。0 = 无限制。",
         "Total requests made": "总请求数",
         "Total tokens": "总 Token",
