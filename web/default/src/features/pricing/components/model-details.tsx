@@ -299,28 +299,43 @@ function ModelHeader(props: { model: PricingModel }) {
           <span className='text-muted-foreground'>{model.vendor_name}</span>
         )}
         <span className='text-muted-foreground/30'>·</span>
-        <span className='text-muted-foreground/70'>
-          {model.quota_type === QUOTA_TYPE_VALUES.TOKEN
-            ? t('Token-based')
-            : t('Per Request')}
-        </span>
-        {model.billing_mode === 'tiered_expr' && model.billing_expr && (
-          <>
-            <span className='text-muted-foreground/30'>·</span>
-            <span className='rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-700 dark:bg-amber-500/20 dark:text-amber-300'>
-              {isSpecialExpression
-                ? t('Special billing expression')
-                : t('Dynamic Pricing')}
-            </span>
-          </>
+        {/* Billing type badge */}
+        {model.image_billing_mode === 'per_size' ? (
+          <span className='rounded bg-blue-100 px-1.5 py-0.5 text-[10px] font-medium text-blue-700 dark:bg-blue-500/20 dark:text-blue-300'>
+            {t('Per-resolution')}
+          </span>
+        ) : model.quota_type === QUOTA_TYPE_VALUES.TOKEN ? (
+          <span className='bg-muted text-muted-foreground rounded px-1.5 py-0.5 text-[10px] font-medium'>
+            {t('Token-based')}
+          </span>
+        ) : (
+          <span className='bg-muted text-muted-foreground rounded px-1.5 py-0.5 text-[10px] font-medium'>
+            {t('Per Request')}
+          </span>
         )}
-        {model.image_billing_mode === 'per_size' && (
-          <>
-            <span className='text-muted-foreground/30'>·</span>
-            <span className='rounded bg-blue-100 px-1.5 py-0.5 text-[10px] font-medium text-blue-700 dark:bg-blue-500/20 dark:text-blue-300'>
-              {t('Per-resolution')}
-            </span>
-          </>
+        {/* Dynamic pricing badge */}
+        {model.billing_mode === 'tiered_expr' && model.billing_expr && (
+          <span className='rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-700 dark:bg-amber-500/20 dark:text-amber-300'>
+            {isSpecialExpression
+              ? t('Special billing expression')
+              : t('Dynamic Pricing')}
+          </span>
+        )}
+        {/* Capability badges */}
+        {model.cache_ratio != null && (
+          <span className='rounded bg-emerald-100 px-1.5 py-0.5 text-[10px] font-medium text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300'>
+            {t('Cached')}
+          </span>
+        )}
+        {model.audio_ratio != null && (
+          <span className='rounded bg-purple-100 px-1.5 py-0.5 text-[10px] font-medium text-purple-700 dark:bg-purple-500/20 dark:text-purple-300'>
+            {t('Audio')}
+          </span>
+        )}
+        {model.image_ratio != null && (
+          <span className='rounded bg-orange-100 px-1.5 py-0.5 text-[10px] font-medium text-orange-700 dark:bg-orange-500/20 dark:text-orange-300'>
+            {t('Image input')}
+          </span>
         )}
       </div>
       {description && (
