@@ -54,7 +54,10 @@ const OPERATIONS_SECTIONS = [
           AutomaticDisableChannelEnabled:
             settings.AutomaticDisableChannelEnabled,
           AutomaticEnableChannelEnabled: settings.AutomaticEnableChannelEnabled,
+          AutomaticDeleteChannelEnabled:
+            settings.AutomaticDeleteChannelEnabled,
           AutomaticDisableKeywords: settings.AutomaticDisableKeywords,
+          AutomaticDeleteKeywords: settings.AutomaticDeleteKeywords,
           AutomaticDisableStatusCodes: settings.AutomaticDisableStatusCodes,
           AutomaticRetryStatusCodes: settings.AutomaticRetryStatusCodes,
           'monitor_setting.auto_test_channel_enabled':

@@ -52,7 +52,9 @@ const monitoringSchema = z
     QuotaRemindThreshold: numericString,
     AutomaticDisableChannelEnabled: z.boolean(),
     AutomaticEnableChannelEnabled: z.boolean(),
+    AutomaticDeleteChannelEnabled: z.boolean(),
     AutomaticDisableKeywords: z.string(),
+    AutomaticDeleteKeywords: z.string(),
     AutomaticDisableStatusCodes: z.string(),
     AutomaticRetryStatusCodes: z.string(),
     monitor_setting: z.object({
@@ -100,7 +102,9 @@ type MonitoringSettingsSectionProps = {
     QuotaRemindThreshold: string
     AutomaticDisableChannelEnabled: boolean
     AutomaticEnableChannelEnabled: boolean
+    AutomaticDeleteChannelEnabled: boolean
     AutomaticDisableKeywords: string
+    AutomaticDeleteKeywords: string
     AutomaticDisableStatusCodes: string
     AutomaticRetryStatusCodes: string
     'monitor_setting.auto_test_channel_enabled': boolean
@@ -117,7 +121,9 @@ type NormalizedMonitoringValues = {
   QuotaRemindThreshold: string
   AutomaticDisableChannelEnabled: boolean
   AutomaticEnableChannelEnabled: boolean
+  AutomaticDeleteChannelEnabled: boolean
   AutomaticDisableKeywords: string
+  AutomaticDeleteKeywords: string
   AutomaticDisableStatusCodes: string
   AutomaticRetryStatusCodes: string
   'monitor_setting.auto_test_channel_enabled': boolean
@@ -131,8 +137,12 @@ const buildFormDefaults = (
   QuotaRemindThreshold: defaults.QuotaRemindThreshold ?? '',
   AutomaticDisableChannelEnabled: defaults.AutomaticDisableChannelEnabled,
   AutomaticEnableChannelEnabled: defaults.AutomaticEnableChannelEnabled,
+  AutomaticDeleteChannelEnabled: defaults.AutomaticDeleteChannelEnabled,
   AutomaticDisableKeywords: normalizeLineEndings(
     defaults.AutomaticDisableKeywords ?? ''
+  ),
+  AutomaticDeleteKeywords: normalizeLineEndings(
+    defaults.AutomaticDeleteKeywords ?? ''
   ),
   AutomaticDisableStatusCodes: defaults.AutomaticDisableStatusCodes ?? '',
   AutomaticRetryStatusCodes: defaults.AutomaticRetryStatusCodes ?? '',
@@ -151,8 +161,12 @@ const normalizeDefaults = (
   QuotaRemindThreshold: (defaults.QuotaRemindThreshold ?? '').trim(),
   AutomaticDisableChannelEnabled: defaults.AutomaticDisableChannelEnabled,
   AutomaticEnableChannelEnabled: defaults.AutomaticEnableChannelEnabled,
+  AutomaticDeleteChannelEnabled: defaults.AutomaticDeleteChannelEnabled,
   AutomaticDisableKeywords: normalizeLineEndings(
     defaults.AutomaticDisableKeywords ?? ''
+  ),
+  AutomaticDeleteKeywords: normalizeLineEndings(
+    defaults.AutomaticDeleteKeywords ?? ''
   ),
   AutomaticDisableStatusCodes: parseHttpStatusCodeRules(
     defaults.AutomaticDisableStatusCodes ?? ''
@@ -173,8 +187,12 @@ const normalizeFormValues = (
   QuotaRemindThreshold: values.QuotaRemindThreshold.trim(),
   AutomaticDisableChannelEnabled: values.AutomaticDisableChannelEnabled,
   AutomaticEnableChannelEnabled: values.AutomaticEnableChannelEnabled,
+  AutomaticDeleteChannelEnabled: values.AutomaticDeleteChannelEnabled,
   AutomaticDisableKeywords: normalizeLineEndings(
     values.AutomaticDisableKeywords
+  ),
+  AutomaticDeleteKeywords: normalizeLineEndings(
+    values.AutomaticDeleteKeywords
   ),
   AutomaticDisableStatusCodes: parseHttpStatusCodeRules(
     values.AutomaticDisableStatusCodes
@@ -407,6 +425,31 @@ export function MonitoringSettingsSection({
             />
           </div>
 
+          <div className='grid gap-6 md:grid-cols-1'>
+            <FormField
+              control={form.control}
+              name='AutomaticDeleteChannelEnabled'
+              render={({ field }) => (
+                <FormItem className='flex flex-row items-center justify-between rounded-lg border p-4'>
+                  <div className='space-y-0.5'>
+                    <FormLabel className='text-base'>
+                      {t('Delete on keyword match')}
+                    </FormLabel>
+                    <FormDescription>
+                      {t('Automatically delete channels when failure keywords match')}
+                    </FormDescription>
+                  </div>
+                  <FormControl>
+                    <Switch
+                      checked={field.value}
+                      onCheckedChange={field.onChange}
+                    />
+                  </FormControl>
+                </FormItem>
+              )}
+            />
+          </div>
+
           <FormField
             control={form.control}
             name='AutomaticDisableKeywords'
@@ -424,6 +467,30 @@ export function MonitoringSettingsSection({
                 <FormDescription>
                   {t(
                     'If an upstream error contains any of these keywords (case insensitive), the channel will be disabled automatically.'
+                  )}
+                </FormDescription>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name='AutomaticDeleteKeywords'
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>{t('Deletion keywords')}</FormLabel>
+                <FormControl>
+                  <Textarea
+                    rows={6}
+                    placeholder={t('one keyword per line')}
+                    {...field}
+                    onChange={(event) => field.onChange(event.target.value)}
+                  />
+                </FormControl>
+                <FormDescription>
+                  {t(
+                    'If an upstream error contains any of these keywords (case insensitive), the channel will be deleted automatically. This takes priority over disabling.'
                   )}
                 </FormDescription>
                 <FormMessage />

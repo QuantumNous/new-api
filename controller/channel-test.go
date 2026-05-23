@@ -913,6 +913,16 @@ func testAllChannels(notify bool) error {
 				shouldBanChannel = service.ShouldDisableChannel(result.newAPIError)
 			}
 
+			// check auto-delete first (takes priority over disable)
+			if newAPIError != nil && service.ShouldDeleteChannel(result.newAPIError) {
+				if isChannelEnabled && channel.GetAutoBan() {
+					processChannelError(result.context, *types.NewChannelError(channel.Id, channel.Type, channel.Name, channel.ChannelInfo.IsMultiKey, common.GetContextKeyString(result.context, constant.ContextKeyChannelKey), channel.GetAutoBan()), newAPIError)
+				}
+				if shouldBanChannel {
+					shouldBanChannel = false
+				}
+			}
+
 			// 当错误检查通过，才检查响应时间
 			if common.AutomaticDisableChannelEnabled && !shouldBanChannel {
 				if milliseconds > disableThreshold {

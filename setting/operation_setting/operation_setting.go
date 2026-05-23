@@ -30,3 +30,21 @@ func AutomaticDisableKeywordsFromString(s string) {
 		}
 	}
 }
+
+var AutomaticDeleteKeywords = []string{}
+
+func AutomaticDeleteKeywordsToString() string {
+	return strings.Join(AutomaticDeleteKeywords, "\n")
+}
+
+func AutomaticDeleteKeywordsFromString(s string) {
+	AutomaticDeleteKeywords = []string{}
+	ak := strings.Split(s, "\n")
+	for _, k := range ak {
+		k = strings.TrimSpace(k)
+		k = strings.ToLower(k)
+		if k != "" {
+			AutomaticDeleteKeywords = append(AutomaticDeleteKeywords, k)
+		}
+	}
+}

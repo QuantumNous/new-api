@@ -76,3 +76,37 @@ func ShouldEnableChannel(newAPIError *types.NewAPIError, status int) bool {
 	}
 	return true
 }
+
+func ShouldDeleteChannel(err *types.NewAPIError) bool {
+	if !common.AutomaticDeleteChannelEnabled {
+		return false
+	}
+	if err == nil {
+		return false
+	}
+	if types.IsSkipRetryError(err) {
+		return false
+	}
+
+	lowerMessage := strings.ToLower(err.Error())
+	search, _ := AcSearch(lowerMessage, operation_setting.AutomaticDeleteKeywords, true)
+	return search
+}
+
+func DeleteChannel(channelError types.ChannelError, reason string) {
+	common.SysLog(fmt.Sprintf("通道「%s」（#%d）发生错误，准备删除，原因：%s", channelError.ChannelName, channelError.ChannelId, reason))
+
+	if !channelError.AutoBan {
+		common.SysLog(fmt.Sprintf("通道「%s」（#%d）未启用自动禁用功能，跳过删除操作", channelError.ChannelName, channelError.ChannelId))
+		return
+	}
+
+	err := model.DeleteChannelByStatusAndId(channelError.ChannelId)
+	if err != nil {
+		common.SysLog(fmt.Sprintf("删除渠道失败（#%d）: %v", channelError.ChannelId, err))
+		return
+	}
+	subject := fmt.Sprintf("通道「%s」（#%d）已被自动删除", channelError.ChannelName, channelError.ChannelId)
+	content := fmt.Sprintf("通道「%s」（#%d）已被自动删除，原因：%s", channelError.ChannelName, channelError.ChannelId, reason)
+	NotifyRootUser(formatNotifyType(channelError.ChannelId, common.ChannelStatusUnknown), subject, content)
+}

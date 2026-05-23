@@ -38,7 +38,9 @@ export default function SettingsMonitoring(props) {
     QuotaRemindThreshold: '',
     AutomaticDisableChannelEnabled: false,
     AutomaticEnableChannelEnabled: false,
+    AutomaticDeleteChannelEnabled: false,
     AutomaticDisableKeywords: '',
+    AutomaticDeleteKeywords: '',
     AutomaticDisableStatusCodes: '401',
     AutomaticRetryStatusCodes:
       '100-199,300-399,401-407,409-499,500-503,505-523,525-599',
@@ -234,6 +236,21 @@ export default function SettingsMonitoring(props) {
                   }
                 />
               </Col>
+              <Col xs={24} sm={12} md={8} lg={8} xl={8}>
+                <Form.Switch
+                  field={'AutomaticDeleteChannelEnabled'}
+                  label={t('匹配关键词时自动删除通道')}
+                  size='default'
+                  checkedText='｜'
+                  uncheckedText='〇'
+                  onChange={(value) =>
+                    setInputs({
+                      ...inputs,
+                      AutomaticDeleteChannelEnabled: value,
+                    })
+                  }
+                />
+              </Col>
             </Row>
             <Row gutter={16}>
               <Col xs={24} sm={16}>
@@ -273,6 +290,30 @@ export default function SettingsMonitoring(props) {
                   autosize={{ minRows: 6, maxRows: 12 }}
                   onChange={(value) =>
                     setInputs({ ...inputs, AutomaticDisableKeywords: value })
+                  }
+                />
+                <Form.TextArea
+                  label={t('自动删除关键词')}
+                  placeholder={t('一行一个，不区分大小写')}
+                  extraText={t(
+                    '当上游通道返回错误中包含这些关键词时（不区分大小写），自动删除通道，删除优先级高于禁用',
+                  )}
+                  field={'AutomaticDeleteKeywords'}
+                  autosize={{ minRows: 6, maxRows: 12 }}
+                  onChange={(value) =>
+                    setInputs({ ...inputs, AutomaticDeleteKeywords: value })
+                  }
+                />
+                <Form.TextArea
+                  label={t('自动删除关键词')}
+                  placeholder={t('一行一个，不区分大小写')}
+                  extraText={t(
+                    '当上游通道返回错误中包含这些关键词时（不区分大小写），自动删除通道，删除优先级高于禁用',
+                  )}
+                  field={'AutomaticDeleteKeywords'}
+                  autosize={{ minRows: 6, maxRows: 12 }}
+                  onChange={(value) =>
+                    setInputs({ ...inputs, AutomaticDeleteKeywords: value })
                   }
                 />
               </Col>
