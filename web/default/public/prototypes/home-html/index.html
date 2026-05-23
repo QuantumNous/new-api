@@ -1,0 +1,1112 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>AiApi114 - 多模型聚合 API 中转服务 | 静态首页原型</title>
+    <meta
+      name="description"
+      content="AiApi114 提供 OpenAI、Claude、Gemini、通义千问、智谱等主流大模型 API 聚合与中转服务，支持统一管理、快速接入、稳定可用和低成本按量付费。"
+    />
+    <link rel="icon" type="image/png" href="/assets/brand/aiapi114-logo-transparent.png" />
+    <link rel="stylesheet" href="./styles.css?v=20260523-light-polish-scroll-final7" />
+  </head>
+  <body>
+    <svg class="prototype-home__icon-sprite" aria-hidden="true" focusable="false">
+      <symbol id="icon-bell" viewBox="0 0 24 24"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></symbol>
+      <symbol id="icon-globe" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M2 12h20"/><path d="M12 2a15.3 15.3 0 0 1 0 20"/><path d="M12 2a15.3 15.3 0 0 0 0 20"/></symbol>
+      <symbol id="icon-chevron-down" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
+      <symbol id="icon-link" viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7.1 0l2-2a5 5 0 0 0-7.1-7.1l-1.2 1.2"/><path d="M14 11a5 5 0 0 0-7.1 0l-2 2A5 5 0 0 0 12 20.1l1.2-1.2"/></symbol>
+      <symbol id="icon-send" viewBox="0 0 24 24"><path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/></symbol>
+      <symbol id="icon-yen" viewBox="0 0 24 24"><path d="m6 4 6 8 6-8"/><path d="M12 12v8"/><path d="M8 12h8"/><path d="M8 16h8"/></symbol>
+      <symbol id="icon-safe" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10"/><path d="m9 12 2 2 4-5"/></symbol>
+      <symbol id="icon-app" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y="3" width="7" height="7" rx="2"/><rect x="3" y="14" width="7" height="7" rx="2"/><rect x="14" y="14" width="7" height="7" rx="2"/></symbol>
+      <symbol id="icon-route" viewBox="0 0 24 24"><circle cx="6" cy="19" r="3"/><circle cx="18" cy="5" r="3"/><path d="M6 16V8a3 3 0 0 1 3-3h6"/></symbol>
+      <symbol id="icon-price-tag" viewBox="0 0 24 24"><path d="M20.6 13.1 13.1 20.6a2 2 0 0 1-2.8 0l-7-7V3h10.6l6.7 6.7a2 2 0 0 1 0 2.8Z"/><circle cx="7.5" cy="7.5" r="1.5"/></symbol>
+      <symbol id="icon-code" viewBox="0 0 24 24"><path d="m16 18 6-6-6-6"/><path d="m8 6-6 6 6 6"/></symbol>
+      <symbol id="icon-grid" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></symbol>
+      <symbol id="icon-book" viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M4 4.5A2.5 2.5 0 0 1 6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5z"/></symbol>
+      <symbol id="icon-chart" viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-4 4"/></symbol>
+      <symbol id="icon-support" viewBox="0 0 24 24"><path d="M4 12a8 8 0 0 1 16 0"/><path d="M4 12v4a2 2 0 0 0 2 2h1v-6H4Z"/><path d="M20 12v4a2 2 0 0 1-2 2h-1v-6h3Z"/><path d="M8 21h4a4 4 0 0 0 4-4"/></symbol>
+      <symbol id="icon-help" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M9.1 9a3 3 0 1 1 5.8 1c-.5 1.5-2.9 1.7-2.9 4"/><path d="M12 18h.01"/></symbol>
+      <symbol id="icon-gift" viewBox="0 0 24 24"><rect x="3" y="8" width="18" height="4" rx="1"/><path d="M12 8v13"/><path d="M19 12v7a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2v-7"/><path d="M7.5 8A2.5 2.5 0 1 1 12 6.5 2.5 2.5 0 1 1 16.5 8"/></symbol>
+      <symbol id="icon-github" viewBox="0 0 24 24"><path d="M15 22v-3.9a3.4 3.4 0 0 0-1-2.6c3.2-.4 6.5-1.6 6.5-7A5.4 5.4 0 0 0 19 4.7 5 5 0 0 0 18.9 1S17.7.6 15 2.5a13.4 13.4 0 0 0-7 0C5.3.6 4.1 1 4.1 1A5 5 0 0 0 4 4.7a5.4 5.4 0 0 0-1.5 3.8c0 5.4 3.3 6.6 6.5 7a3.4 3.4 0 0 0-1 2.6V22"/><path d="M9 18c-4.5 2-4.5-2-6-2"/></symbol>
+      <symbol id="icon-mail" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/></symbol>
+      <symbol id="icon-copy" viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></symbol>
+      <symbol id="icon-users" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></symbol>
+      <symbol id="icon-activity" viewBox="0 0 24 24"><path d="M22 12h-4l-3 8L9 4l-3 8H2"/></symbol>
+      <symbol id="icon-uptime" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/><path d="M21 12a9 9 0 1 1-2.64-6.36"/></symbol>
+      <symbol id="icon-layers" viewBox="0 0 24 24"><path d="m12 2 10 5-10 5L2 7Z"/><path d="m2 17 10 5 10-5"/><path d="m2 12 10 5 10-5"/></symbol>
+      <symbol id="logo-openai" viewBox="0 0 24 24"><path fill="currentColor" d="M21.55 10.004a5.416 5.416 0 00-.478-4.501c-1.217-2.09-3.662-3.166-6.05-2.66A5.59 5.59 0 0010.831 1C8.39.995 6.224 2.546 5.473 4.838A5.553 5.553 0 001.76 7.496a5.487 5.487 0 00.691 6.5 5.416 5.416 0 00.477 4.502c1.217 2.09 3.662 3.165 6.05 2.66A5.586 5.586 0 0013.168 23c2.443.006 4.61-1.546 5.361-3.84a5.553 5.553 0 003.715-2.66 5.488 5.488 0 00-.693-6.497v.001zm-8.381 11.558a4.199 4.199 0 01-2.675-.954l4.572-2.604a.71.71 0 00.364-.623v-6.176l1.877 1.069c.02.01.033.029.036.05v5.115c-.003 2.274-1.87 4.118-4.174 4.123zM4.192 17.78a4.059 4.059 0 01-.498-2.763l4.571 2.608c.225.13.504.13.73 0l5.42-3.088v2.138a.068.068 0 01-.027.057L9.9 19.288c-1.999 1.136-4.552.46-5.707-1.51h-.001zM3.023 8.216A4.15 4.15 0 015.198 6.41v5.211a.711.711 0 00.364.624l5.42 3.087-1.876 1.07a.067.067 0 01-.063.005l-4.489-2.559c-1.995-1.14-2.679-3.658-1.53-5.63h-.001zm15.417 3.54l-5.42-3.088L14.896 7.6a.067.067 0 01.063-.006l4.489 2.557c1.998 1.14 2.683 3.662 1.529 5.633a4.163 4.163 0 01-2.174 1.807V12.38a.71.71 0 00-.363-.623zm1.867-2.773l-4.572-2.608a.731.731 0 00-.729 0l-5.42 3.088V7.325a.068.068 0 01.027-.057L14.1 4.713c2-1.137 4.555-.46 5.707 1.513.487.833.664 1.809.499 2.757h.001zm-11.741 3.81l-1.877-1.068a.065.065 0 01-.036-.051V6.559c.001-2.277 1.873-4.122 4.181-4.12.976 0 1.92.338 2.671.954l-4.571 2.603a.71.71 0 00-.365.623l-.003 6.173v.002zm1.02-2.168L12 9.25l2.414 1.375v2.75L12 14.75l-2.415-1.375v-2.75z"/></symbol>
+      <symbol id="logo-claude" viewBox="0 0 24 24"><path fill="currentColor" d="M4.709 15.955l4.72-2.647.08-.23-.08-.128H9.2L0 11.784l.055-.352.48-.321 8.974.673.055-.157-7.575-5.404-.158-1.008.656-.722.881.06 5.877 4.36.145-.103-3.625-6.307-.17-.619A2.97 2.97 0 015.491.729L6.283.134 6.696 0l.996.134.42.364 3.633 7.571.243.832.091.255h.158l.365-3.947.31-3.455.376-.91.747-.492.584.28.48.685-.067.444-1.195 6.696h.212l4.018-5.336.547-.431h1.033l.76 1.129-.34 1.166-4.073 5.549.073.11 6.283-1.326.833.388.091.395-.328.807-6.755 1.701-.042.03.049.061 6.831.407.79.522.474.638-.079.485-1.215.62-5.141-1.299h-.182v.11l5.735 5.208.127.578-.322.455-.34-.049-6.125-4.024h-.128v.17l2.91 4.17.122 1.08-.17.353-.608.213-.668-.122-3.932-6.035-.14.08-.674 7.254-.316.37-.729.28-.607-.461-.322-.747 1.482-5.962-.012-.042-.14.018-5.34 6.812-.414.164-.717-.37.067-.662.401-.589 4.758-5.998-.006-.158h-.055l-6.89 4.474-1.13.146-.487-.456.061-.746.231-.243 1.908-1.312-.006.006z"/></symbol>
+      <symbol id="logo-gemini" viewBox="0 0 24 24"><path fill="#3186FF" d="M20.616 10.835a14.147 14.147 0 01-4.45-3.001 14.111 14.111 0 01-3.678-6.452.503.503 0 00-.975 0 14.134 14.134 0 01-3.679 6.452 14.155 14.155 0 01-4.45 3.001c-.65.28-1.318.505-2.002.678a.502.502 0 000 .975c.684.172 1.35.397 2.002.677a14.147 14.147 0 014.45 3.001 14.112 14.112 0 013.679 6.453.502.502 0 00.975 0c.172-.685.397-1.351.677-2.003a14.145 14.145 0 013.001-4.45 14.113 14.113 0 016.453-3.678.503.503 0 000-.975 13.245 13.245 0 01-2.003-.678z"/></symbol>
+      <symbol id="logo-qwen" viewBox="0 0 24 24"><path fill="currentColor" d="M12.604 1.34c.393.69.784 1.382 1.174 2.075a.18.18 0 00.157.091h5.552c.174 0 .322.11.446.327l1.454 2.57c.19.337.24.478.024.837-.26.43-.513.864-.76 1.3l-.367.658c-.106.196-.223.28-.04.512l2.652 4.637c.172.301.111.494-.043.77-.437.785-.882 1.564-1.335 2.34-.159.272-.352.375-.68.37-.777-.016-1.552-.01-2.327.016a.099.099 0 00-.081.05 575.097 575.097 0 01-2.705 4.74c-.169.293-.38.363-.725.364-.997.003-2.002.004-3.017.002a.537.537 0 01-.465-.271l-1.335-2.323a.09.09 0 00-.083-.049H4.982c-.285.03-.553-.001-.805-.092l-1.603-2.77a.543.543 0 01-.002-.54l1.207-2.12a.198.198 0 000-.197 550.951 550.951 0 01-1.875-3.272l-.79-1.395c-.16-.31-.173-.496.095-.965.465-.813.927-1.625 1.387-2.436.132-.234.304-.334.584-.335a338.3 338.3 0 012.589-.001.124.124 0 00.107-.063l2.806-4.895a.488.488 0 01.422-.246c.524-.001 1.053 0 1.583-.006L11.704 1c.341-.003.724.032.9.34z"/></symbol>
+      <symbol id="logo-zhipu" viewBox="0 0 24 24"><path fill="currentColor" d="M11.991 23.503a.24.24 0 00-.244.248.24.24 0 00.244.249.24.24 0 00.245-.249.24.24 0 00-.245-.248zM9.671 5.365a1.697 1.697 0 011.099 2.132l-.087.226c-.07.16-.104.32-.104.498-.035.71.47 1.279 1.186 1.314h.366c1.309.053 2.338 1.173 2.286 2.523-.052 1.332-1.152 2.38-2.478 2.327h-.174c-.715.018-1.274.64-1.239 1.368 0 .124.018.23.053.337.209.373.54.658.96.8.75.23 1.517-.125 1.9-.782l.018-.035c.402-.64 1.17-.96 1.92-.711.854.284 1.378 1.226 1.099 2.167a1.661 1.661 0 01-2.077 1.102 1.711 1.711 0 01-.907-.711l-.017-.035c-.2-.323-.463-.58-.851-.711l-.056-.018a1.646 1.646 0 00-1.954.746 1.66 1.66 0 01-1.065.764 1.677 1.677 0 01-1.989-1.279c-.209-.906.332-1.83 1.257-2.043.096-.018.198-.031.314-.035.68-.071 1.151-.622 1.116-1.333a1.307 1.307 0 00-.227-.693 2.515 2.515 0 01-.366-1.403 2.39 2.39 0 01.366-1.208c.14-.195.21-.444.227-.693.018-.71-.506-1.261-1.186-1.332l-.07-.018a1.7 1.7 0 01-1.396-2.203 1.68 1.68 0 012.094-1.101z"/></symbol>
+      <symbol id="logo-moonshot" viewBox="0 0 24 24"><path fill="currentColor" d="M1.052 16.916l9.539 2.552a21.007 21.007 0 00.06 2.033l5.956 1.593a11.997 11.997 0 01-5.586.865A11.99 11.99 0 011.052 16.916zm-1.02-5.794l11.353 3.037a20.468 20.468 0 00-.469 2.011l10.817 2.894a12.076 12.076 0 01-1.845 2.005L.657 15.923a11.896 11.896 0 01-.625-4.801zm1.593-5.15l11.948 3.196c-.368.605-.705 1.231-1.01 1.875l11.295 3.022c-.142.82-.368 1.612-.668 2.365L.124 10.26a11.896 11.896 0 011.501-4.288zm4.442-4.4L17.352 4.59a20.77 20.77 0 00-1.688 1.721l7.823 2.093c.267.852.442 1.744.513 2.665L2.106 5.213a12.084 12.084 0 013.961-3.641zM12.017 0a12.05 12.05 0 0110.03 5.274L7.222.994A11.9 11.9 0 0112.017 0z"/></symbol>
+      <symbol id="logo-wenxin" viewBox="0 0 24 24"><path fill="currentColor" d="M12 2.4c3.6 0 6.5 2.1 6.5 4.8 0 1.4-.8 2.7-2.1 3.6 2 .8 3.3 2.4 3.3 4.2 0 3.1-3.5 5.6-7.7 5.6S4.3 18.1 4.3 15c0-1.8 1.3-3.4 3.3-4.2-1.3-.9-2.1-2.2-2.1-3.6 0-2.7 2.9-4.8 6.5-4.8zm0 10.1c-2.4 0-4.3 1.1-4.3 2.5s1.9 2.5 4.3 2.5 4.3-1.1 4.3-2.5-1.9-2.5-4.3-2.5zm0-7c-1.9 0-3.4.8-3.4 1.9s1.5 1.9 3.4 1.9 3.4-.8 3.4-1.9-1.5-1.9-3.4-1.9z"/></symbol>
+      <symbol id="logo-seedream" viewBox="0 0 24 24"><path fill="currentColor" d="M12 2.1c3.8 0 7.3 2.1 9.1 5.5-2.9-.8-5.9-.4-8.4 1.2A11.5 11.5 0 0 0 7.5 16c-1.8-1.2-3.3-3-4.3-5.1A9.95 9.95 0 0 1 12 2.1Zm9.8 8.6a10 10 0 0 1-13.9 9.2c.4-3.8 2.4-7.2 5.5-9.1 2.6-1.6 5.7-1.7 8.4-.1ZM2.5 13.1c1.1 1.9 2.7 3.5 4.7 4.6-.1.5-.2 1-.3 1.5a10 10 0 0 1-4.4-6.1Z"/></symbol>
+    </svg>
+    <main class="prototype-home" id="top" data-theme="dark">
+      <span class="prototype-home__theme-reveal" data-theme-reveal aria-hidden="true"></span>
+      <header class="prototype-home__nav">
+        <div class="prototype-home__nav-inner">
+          <a class="prototype-home__brand" href="#top" aria-label="AiApi114 首页">
+            <img class="prototype-home__brand-logo" src="/assets/brand/aiapi114-logo-transparent.png" alt="AiApi114 品牌标识" width="96" height="96" decoding="async" />
+          </a>
+
+          <nav class="prototype-home__nav-links" aria-label="主导航">
+            <a href="#top">首页</a>
+            <a href="/login">控制台</a>
+            <span class="prototype-home__nav-link-disabled" aria-disabled="true">模型广场</span>
+            <a href="https://docs.aiapi114.com">文档</a>
+            <span class="prototype-home__nav-link-disabled" aria-disabled="true">邀请有礼</span>
+            <span class="prototype-home__nav-link-disabled" aria-disabled="true">关于我们</span>
+          </nav>
+
+          <div class="prototype-home__nav-actions">
+            <button type="button" class="prototype-home__notice-link" data-open-notice><span class="prototype-home__plain-icon" aria-hidden="true"><svg class="prototype-home__svg-icon" aria-hidden="true"><use href="#icon-bell"></use></svg></span> 系统公告 <span class="prototype-home__new-badge">NEW</span></button>
+            <button type="button" class="prototype-home__theme-toggle" data-theme-toggle aria-label="切换到白天模式" title="切换主题">
+              <span class="prototype-home__theme-toggle-icon" aria-hidden="true"></span>
+              <span class="prototype-home__theme-toggle-label" data-theme-label>黑色</span>
+            </button>
+            <div class="prototype-home__language" data-language>
+              <button type="button" class="prototype-home__language-button" aria-expanded="false" aria-haspopup="listbox" data-language-toggle>
+                <span class="prototype-home__plain-icon" aria-hidden="true"><svg class="prototype-home__svg-icon" aria-hidden="true"><use href="#icon-globe"></use></svg></span>
+                <span data-language-label>中文</span>
+                <span aria-hidden="true" class="prototype-home__caret-icon"><svg class="prototype-home__svg-icon" aria-hidden="true"><use href="#icon-chevron-down"></use></svg></span>
+              </button>
+              <div class="prototype-home__language-menu" role="listbox" aria-label="选择语言" hidden>
+                <button type="button" role="option" aria-selected="true" data-lang="zh-CN">中文</button>
+                <button type="button" role="option" aria-selected="false" data-lang="en-US">English</button>
+              </div>
+            </div>
+            <a class="prototype-home__nav-button" href="https://www.aiapi114.com/login">登录</a>
+            <a class="prototype-home__nav-button prototype-home__nav-button--solid" href="https://www.aiapi114.com/login">注册</a>
+          </div>
+
+          <button
+            type="button"
+            class="prototype-home__mobile-menu-button"
+            aria-expanded="false"
+            aria-controls="prototype-mobile-menu"
+            data-menu-toggle
+          >
+            菜单
+          </button>
+        </div>
+        <nav class="prototype-home__mobile-menu" id="prototype-mobile-menu" aria-label="移动端主导航" hidden>
+          <a href="#top">首页</a>
+          <a href="/login">控制台</a>
+          <span class="prototype-home__mobile-menu-disabled" aria-disabled="true">模型广场</span>
+          <a href="https://docs.aiapi114.com">文档</a>
+          <button type="button" class="prototype-home__mobile-theme-toggle" data-theme-toggle-mobile>
+            <span class="prototype-home__theme-toggle-icon" aria-hidden="true"></span>
+            <span data-theme-label>黑色</span>
+          </button>
+          <span class="prototype-home__mobile-menu-disabled" aria-disabled="true">邀请有礼</span>
+          <span class="prototype-home__mobile-menu-disabled" aria-disabled="true">关于我们</span>
+        </nav>
+      </header>
+
+      <div class="prototype-home__frame">
+        <section class="prototype-home__announcement" aria-label="系统公告">
+          <div class="prototype-home__announcement-copy">
+            <span class="prototype-home__announcement-label">系统公告</span>
+            <p>📢 AWS 官方 Anthropic 渠道正式上线，Claude Opus 4.7 全面支持</p>
+          </div>
+          <button type="button" class="prototype-home__announcement-button" data-open-notice>查看全部</button>
+        </section>
+
+        <section class="prototype-home__hero">
+          <div class="prototype-home__hero-copy">
+            <h1>
+              <span class="prototype-home__hero-title-line">多模型聚合 · 一站式 API</span>
+              <span class="prototype-home__hero-title-line prototype-home__hero-title-line--accent">中转服务</span>
+            </h1>
+            <p class="prototype-home__hero-text">
+              AiApi114 提供 OpenAI、Claude、Gemini、通义千问、智谱等主流大模型 API 中转服务，统一管理，灵活调用，低至官方价格的 50%，助力开发者专注创造。
+            </p>
+            <div class="prototype-home__hero-actions">
+              <a href="https://www.aiapi114.com/login" class="prototype-home__hero-cta prototype-home__hero-cta--solid">免费注册体验</a>
+              <a href="https://docs.aiapi114.com" class="prototype-home__hero-cta">查看文档</a>
+            </div>
+            <div class="prototype-home__hero-features">
+              <article class="prototype-home__hero-feature">
+                <span class="prototype-home__hero-feature-icon" aria-hidden="true"><svg class="prototype-home__svg-icon" aria-hidden="true"><use href="#icon-link"></use></svg></span>
+                <div class="prototype-home__hero-feature-copy"><strong>稳定可靠</strong><span>99.9% 可用性</span></div>
+              </article>
+              <article class="prototype-home__hero-feature">
+                <span class="prototype-home__hero-feature-icon" aria-hidden="true"><svg class="prototype-home__svg-icon" aria-hidden="true"><use href="#icon-send"></use></svg></span>
+                <div class="prototype-home__hero-feature-copy"><strong>极速响应</strong><span>毫秒级延迟</span></div>
+              </article>
+              <article class="prototype-home__hero-feature">
+                <span class="prototype-home__hero-feature-icon" aria-hidden="true"><svg class="prototype-home__svg-icon" aria-hidden="true"><use href="#icon-yen"></use></svg></span>
+                <div class="prototype-home__hero-feature-copy"><strong>价格低廉</strong><span>低至官方 50%</span></div>
+              </article>
+              <article class="prototype-home__hero-feature">
+                <span class="prototype-home__hero-feature-icon" aria-hidden="true"><svg class="prototype-home__svg-icon" aria-hidden="true"><use href="#icon-bell"></use></svg></span>
+                <div class="prototype-home__hero-feature-copy"><strong>安全保障</strong><span>企业级安全</span></div>
+              </article>
+            </div>
+          </div>
+
+          <div class="prototype-home__hero-device prototype-home__hero-device--motion">
+            <section class="aiapi-hero-visual prototype-home__hero-motion" aria-label="AiApi114 Hero dynamic illustration">
+              <picture>
+                <img class="aiapi-hero-visual__base" src="/assets/hero/hero-base-custom.png" alt="AiApi114 platform base" decoding="async" />
+              </picture>
+              <div class="aiapi-hero-ripples" aria-hidden="true">
+                <span class="aiapi-hero-ripple"></span>
+                <span class="aiapi-hero-ripple"></span>
+                <span class="aiapi-hero-ripple"></span>
+                <span class="aiapi-hero-ripple"></span>
+              </div>
+              <div class="aiapi-hero-beam" aria-hidden="true"></div>
+              <div class="aiapi-hero-beam-softcap" aria-hidden="true"></div>
+              <div class="aiapi-hero-badge" aria-hidden="true">
+                <div class="aiapi-hero-badge__halo"></div>
+                <div class="aiapi-hero-badge__orbit">
+                  <div class="aiapi-hero-badge__face">
+                    <img src="/assets/hero/hero-badge-custom.png" alt="" decoding="async" />
+                    <span class="aiapi-hero-badge__shine"></span>
+                  </div>
+                </div>
+              </div>
+              <div class="aiapi-hero-icon aiapi-hero-icon--circle aiapi-hero-icon--lt" aria-hidden="true"><img src="/assets/hero/icon-gear.svg" alt="" /></div>
+              <div class="aiapi-hero-icon aiapi-hero-icon--tile aiapi-hero-icon--lb" aria-hidden="true"><img src="/assets/hero/icon-cloud-gear.svg" alt="" /></div>
+              <div class="aiapi-hero-icon aiapi-hero-icon--circle aiapi-hero-icon--rt" aria-hidden="true"><img src="/assets/hero/icon-chart.svg" alt="" /></div>
+              <div class="aiapi-hero-icon aiapi-hero-icon--tile aiapi-hero-icon--rb" aria-hidden="true"><img src="/assets/hero/icon-code.svg" alt="" /></div>
+              <div class="aiapi-hero-particles" aria-hidden="true">
+                <span class="aiapi-hero-particle"></span>
+                <span class="aiapi-hero-particle"></span>
+                <span class="aiapi-hero-particle"></span>
+                <span class="aiapi-hero-particle"></span>
+                <span class="aiapi-hero-particle"></span>
+              </div>
+            </section>
+          </div>
+        </section>
+
+        <section class="prototype-home__section prototype-home__why" aria-labelledby="why-choose-title">
+          <div class="prototype-home__section-head prototype-home__section-head--center prototype-home__why-head">
+            <h2 id="why-choose-title">为什么选择 AiApi114？</h2>
+            <p>我们致力于为开发者提供最优质的大模型中转服务体验</p>
+          </div>
+          <div class="prototype-home__why-grid">
+            <article class="prototype-home__glass-card prototype-home__why-card"><span class="prototype-home__why-icon" aria-hidden="true"><svg class="prototype-home__svg-icon" aria-hidden="true"><use href="#icon-app"></use></svg></span><h3>丰富的模型支持</h3><p><span>聚合多家主流大模型</span><span>持续接入更多优质模型</span></p></article>
+            <article class="prototype-home__glass-card prototype-home__why-card"><span class="prototype-home__why-icon" aria-hidden="true"><svg class="prototype-home__svg-icon" aria-hidden="true"><use href="#icon-route"></use></svg></span><h3>统一的调用方式</h3><p><span>标准 OpenAI API 格式</span><span>无需切换不同模型接口</span></p></article>
+            <article class="prototype-home__glass-card prototype-home__why-card"><span class="prototype-home__why-icon" aria-hidden="true"><svg class="prototype-home__svg-icon" aria-hidden="true"><use href="#icon-price-tag"></use></svg></span><h3>极具竞争力的价格</h3><p><span>低至官方价格 50%</span><span>按量计费，透明无隐藏消费</span></p></article>
+            <article class="prototype-home__glass-card prototype-home__why-card"><span class="prototype-home__why-icon" aria-hidden="true"><svg class="prototype-home__svg-icon" aria-hidden="true"><use href="#icon-safe"></use></svg></span><h3>稳定可靠的服务</h3><p><span>多节点部署，智能路由</span><span>99.9% 服务可用性保障</span></p></article>
+          </div>
+        </section>
+
+        <section class="prototype-home__section prototype-home__endpoints" id="docs">
+          <div class="prototype-home__endpoint-strip">
+            <article class="prototype-home__glass-card prototype-home__endpoint-card">
+              <div class="prototype-home__endpoint-card-meta"><span class="prototype-home__endpoint-mark" aria-hidden="true"></span><p class="prototype-home__card-label">API 接入地址</p></div>
+              <div class="prototype-home__endpoint-card-value"><code>https://aiapi114.com</code><button type="button" data-copy="https://aiapi114.com" aria-label="复制 API 接入地址"><svg class="prototype-home__svg-icon prototype-home__copy-glyph" aria-hidden="true"><use href="#icon-copy"></use></svg></button></div>
+            </article>
+            <article class="prototype-home__glass-card prototype-home__endpoint-card">
+              <div class="prototype-home__endpoint-card-meta"><span class="prototype-home__endpoint-mark" aria-hidden="true"></span><p class="prototype-home__card-label">文档地址</p></div>
+              <div class="prototype-home__endpoint-card-value"><code>https://docs.aiapi114.com</code><button type="button" data-copy="https://docs.aiapi114.com" aria-label="复制文档地址"><svg class="prototype-home__svg-icon prototype-home__copy-glyph" aria-hidden="true"><use href="#icon-copy"></use></svg></button></div>
+            </article>
+          </div>
+        </section>
+
+        <section class="prototype-home__section prototype-home__models" id="models">
+          <div class="prototype-home__section-head prototype-home__section-head--split">
+            <div><p class="prototype-home__eyebrow">Model Status</p><h2>模型运行状态</h2></div>
+            <div class="prototype-home__legend-row">
+              <div class="prototype-home__legend">
+                <span><i class="prototype-home__status-dot prototype-home__status-dot--running"></i>运行中</span>
+                <span><i class="prototype-home__status-dot prototype-home__status-dot--busy"></i>繁忙</span>
+                <span><i class="prototype-home__status-dot prototype-home__status-dot--degraded"></i>降级</span>
+                <span><i class="prototype-home__status-dot prototype-home__status-dot--maintenance"></i>维护中</span>
+                <span><i class="prototype-home__status-dot prototype-home__status-dot--offline"></i>不可用</span>
+              </div>
+            </div>
+          </div>
+          <div class="prototype-home__model-grid">
+            <article class="prototype-home__glass-card prototype-home__model-card"><div class="prototype-home__model-card-head"><div class="prototype-home__model-identity"><span class="prototype-home__model-logo prototype-home__model-logo--claude" aria-hidden="true"><svg class="prototype-home__svg-icon" aria-hidden="true"><use href="#logo-claude"></use></svg></span><div class="prototype-home__model-copy" data-model-name="claude-sonnet-4-6-thinking"><h3 title="claude-sonnet-4-6-thinking">claude-sonnet-4-6-thinking</h3><p>Anthropic</p></div></div><span class="prototype-home__status-badge prototype-home__status-badge--running">运行中</span></div><dl><div><dt>可用性</dt><dd>99.9%</dd></div><div><dt>延迟</dt><dd>132ms</dd></div></dl></article>
+            <article class="prototype-home__glass-card prototype-home__model-card"><div class="prototype-home__model-card-head"><div class="prototype-home__model-identity"><span class="prototype-home__model-logo prototype-home__model-logo--openai" aria-hidden="true"><svg class="prototype-home__svg-icon" aria-hidden="true"><use href="#logo-openai"></use></svg></span><div class="prototype-home__model-copy" data-model-name="gpt-5.4"><h3 title="gpt-5.4">gpt-5.4</h3><p>OpenAI</p></div></div><span class="prototype-home__status-badge prototype-home__status-badge--running">运行中</span></div><dl><div><dt>可用性</dt><dd>99.9%</dd></div><div><dt>延迟</dt><dd>118ms</dd></div></dl></article>
+            <article class="prototype-home__glass-card prototype-home__model-card"><div class="prototype-home__model-card-head"><div class="prototype-home__model-identity"><span class="prototype-home__model-logo prototype-home__model-logo--gemini" aria-hidden="true"><svg class="prototype-home__svg-icon" aria-hidden="true"><use href="#logo-gemini"></use></svg></span><div class="prototype-home__model-copy" data-model-name="gemini-3.1-pro-preview"><h3 title="gemini-3.1-pro-preview">gemini-3.1-pro-preview</h3><p>Google</p></div></div><span class="prototype-home__status-badge prototype-home__status-badge--busy">繁忙</span></div><dl><div><dt>可用性</dt><dd>99.2%</dd></div><div><dt>延迟</dt><dd>248ms</dd></div></dl></article>
+            <article class="prototype-home__glass-card prototype-home__model-card"><div class="prototype-home__model-card-head"><div class="prototype-home__model-identity"><span class="prototype-home__model-logo prototype-home__model-logo--openai" aria-hidden="true"><svg class="prototype-home__svg-icon" aria-hidden="true"><use href="#logo-openai"></use></svg></span><div class="prototype-home__model-copy" data-model-name="gpt-5.2"><h3 title="gpt-5.2">gpt-5.2</h3><p>OpenAI</p></div></div><span class="prototype-home__status-badge prototype-home__status-badge--running">运行中</span></div><dl><div><dt>可用性</dt><dd>99.8%</dd></div><div><dt>延迟</dt><dd>121ms</dd></div></dl></article>
+            <article class="prototype-home__glass-card prototype-home__model-card"><div class="prototype-home__model-card-head"><div class="prototype-home__model-identity"><span class="prototype-home__model-logo prototype-home__model-logo--claude" aria-hidden="true"><svg class="prototype-home__svg-icon" aria-hidden="true"><use href="#logo-claude"></use></svg></span><div class="prototype-home__model-copy" data-model-name="claude-opus-4-7-thinking"><h3 title="claude-opus-4-7-thinking">claude-opus-4-7-thinking</h3><p>Anthropic</p></div></div><span class="prototype-home__status-badge prototype-home__status-badge--running">运行中</span></div><dl><div><dt>可用性</dt><dd>99.7%</dd></div><div><dt>延迟</dt><dd>156ms</dd></div></dl></article>
+            <article class="prototype-home__glass-card prototype-home__model-card"><div class="prototype-home__model-card-head"><div class="prototype-home__model-identity"><span class="prototype-home__model-logo prototype-home__model-logo--openai" aria-hidden="true"><svg class="prototype-home__svg-icon" aria-hidden="true"><use href="#logo-openai"></use></svg></span><div class="prototype-home__model-copy" data-model-name="gpt-image-2"><h3 title="gpt-image-2">gpt-image-2</h3><p>OpenAI</p></div></div><span class="prototype-home__status-badge prototype-home__status-badge--running">运行中</span></div><dl><div><dt>可用性</dt><dd>99.6%</dd></div><div><dt>延迟</dt><dd>210ms</dd></div></dl></article>
+            <article class="prototype-home__glass-card prototype-home__model-card"><div class="prototype-home__model-card-head"><div class="prototype-home__model-identity"><span class="prototype-home__model-logo prototype-home__model-logo--gemini" aria-hidden="true"><svg class="prototype-home__svg-icon" aria-hidden="true"><use href="#logo-gemini"></use></svg></span><div class="prototype-home__model-copy" data-model-name="gemini-3.1-flash-image-preview"><h3 title="gemini-3.1-flash-image-preview">gemini-3.1-flash-image-preview</h3><p>Google</p></div></div><span class="prototype-home__status-badge prototype-home__status-badge--running">运行中</span></div><dl><div><dt>可用性</dt><dd>99.5%</dd></div><div><dt>延迟</dt><dd>184ms</dd></div></dl></article>
+            <article class="prototype-home__glass-card prototype-home__model-card"><div class="prototype-home__model-card-head"><div class="prototype-home__model-identity"><span class="prototype-home__model-logo prototype-home__model-logo--seedream" aria-hidden="true"><svg class="prototype-home__svg-icon" aria-hidden="true"><use href="#logo-seedream"></use></svg></span><div class="prototype-home__model-copy" data-model-name="seedream-4-5-251128"><h3 title="seedream-4-5-251128">seedream-4-5-251128</h3><p>ByteDance</p></div></div><span class="prototype-home__status-badge prototype-home__status-badge--running">运行中</span></div><dl><div><dt>可用性</dt><dd>99.4%</dd></div><div><dt>延迟</dt><dd>226ms</dd></div></dl></article>
+            <article class="prototype-home__glass-card prototype-home__model-card is-extra" hidden><div class="prototype-home__model-card-head"><div class="prototype-home__model-identity"><span class="prototype-home__model-logo prototype-home__model-logo--claude" aria-hidden="true"><svg class="prototype-home__svg-icon" aria-hidden="true"><use href="#logo-claude"></use></svg></span><div class="prototype-home__model-copy" data-model-name="claude-haiku-4-5-20251001"><h3 title="claude-haiku-4-5-20251001">claude-haiku-4-5-20251001</h3><p>Anthropic</p></div></div><span class="prototype-home__status-badge prototype-home__status-badge--running">运行中</span></div><dl><div><dt>可用性</dt><dd>99.8%</dd></div><div><dt>延迟</dt><dd>96ms</dd></div></dl></article>
+            <article class="prototype-home__glass-card prototype-home__model-card is-extra" hidden><div class="prototype-home__model-card-head"><div class="prototype-home__model-identity"><span class="prototype-home__model-logo prototype-home__model-logo--claude" aria-hidden="true"><svg class="prototype-home__svg-icon" aria-hidden="true"><use href="#logo-claude"></use></svg></span><div class="prototype-home__model-copy" data-model-name="claude-opus-4-6"><h3 title="claude-opus-4-6">claude-opus-4-6</h3><p>Anthropic</p></div></div><span class="prototype-home__status-badge prototype-home__status-badge--running">运行中</span></div><dl><div><dt>可用性</dt><dd>99.8%</dd></div><div><dt>延迟</dt><dd>148ms</dd></div></dl></article>
+            <article class="prototype-home__glass-card prototype-home__model-card is-extra" hidden><div class="prototype-home__model-card-head"><div class="prototype-home__model-identity"><span class="prototype-home__model-logo prototype-home__model-logo--claude" aria-hidden="true"><svg class="prototype-home__svg-icon" aria-hidden="true"><use href="#logo-claude"></use></svg></span><div class="prototype-home__model-copy" data-model-name="claude-opus-4-6-thinking"><h3 title="claude-opus-4-6-thinking">claude-opus-4-6-thinking</h3><p>Anthropic</p></div></div><span class="prototype-home__status-badge prototype-home__status-badge--running">运行中</span></div><dl><div><dt>可用性</dt><dd>99.7%</dd></div><div><dt>延迟</dt><dd>160ms</dd></div></dl></article>
+            <article class="prototype-home__glass-card prototype-home__model-card is-extra" hidden><div class="prototype-home__model-card-head"><div class="prototype-home__model-identity"><span class="prototype-home__model-logo prototype-home__model-logo--claude" aria-hidden="true"><svg class="prototype-home__svg-icon" aria-hidden="true"><use href="#logo-claude"></use></svg></span><div class="prototype-home__model-copy" data-model-name="claude-opus-4-7"><h3 title="claude-opus-4-7">claude-opus-4-7</h3><p>Anthropic</p></div></div><span class="prototype-home__status-badge prototype-home__status-badge--busy">繁忙</span></div><dl><div><dt>可用性</dt><dd>99.1%</dd></div><div><dt>延迟</dt><dd>188ms</dd></div></dl></article>
+            <article class="prototype-home__glass-card prototype-home__model-card is-extra" hidden><div class="prototype-home__model-card-head"><div class="prototype-home__model-identity"><span class="prototype-home__model-logo prototype-home__model-logo--claude" aria-hidden="true"><svg class="prototype-home__svg-icon" aria-hidden="true"><use href="#logo-claude"></use></svg></span><div class="prototype-home__model-copy" data-model-name="claude-sonnet-4-6"><h3 title="claude-sonnet-4-6">claude-sonnet-4-6</h3><p>Anthropic</p></div></div><span class="prototype-home__status-badge prototype-home__status-badge--running">运行中</span></div><dl><div><dt>可用性</dt><dd>99.9%</dd></div><div><dt>延迟</dt><dd>130ms</dd></div></dl></article>
+            <article class="prototype-home__glass-card prototype-home__model-card is-extra" hidden><div class="prototype-home__model-card-head"><div class="prototype-home__model-identity"><span class="prototype-home__model-logo prototype-home__model-logo--gemini" aria-hidden="true"><svg class="prototype-home__svg-icon" aria-hidden="true"><use href="#logo-gemini"></use></svg></span><div class="prototype-home__model-copy" data-model-name="gemini-3.1-flash-lite-preview"><h3 title="gemini-3.1-flash-lite-preview">gemini-3.1-flash-lite-preview</h3><p>Google</p></div></div><span class="prototype-home__status-badge prototype-home__status-badge--running">运行中</span></div><dl><div><dt>可用性</dt><dd>99.8%</dd></div><div><dt>延迟</dt><dd>102ms</dd></div></dl></article>
+            <article class="prototype-home__glass-card prototype-home__model-card is-extra" hidden><div class="prototype-home__model-card-head"><div class="prototype-home__model-identity"><span class="prototype-home__model-logo prototype-home__model-logo--gemini" aria-hidden="true"><svg class="prototype-home__svg-icon" aria-hidden="true"><use href="#logo-gemini"></use></svg></span><div class="prototype-home__model-copy" data-model-name="gemini-3-flash-preview"><h3 title="gemini-3-flash-preview">gemini-3-flash-preview</h3><p>Google</p></div></div><span class="prototype-home__status-badge prototype-home__status-badge--running">运行中</span></div><dl><div><dt>可用性</dt><dd>99.6%</dd></div><div><dt>延迟</dt><dd>120ms</dd></div></dl></article>
+            <article class="prototype-home__glass-card prototype-home__model-card is-extra" hidden><div class="prototype-home__model-card-head"><div class="prototype-home__model-identity"><span class="prototype-home__model-logo prototype-home__model-logo--gemini" aria-hidden="true"><svg class="prototype-home__svg-icon" aria-hidden="true"><use href="#logo-gemini"></use></svg></span><div class="prototype-home__model-copy" data-model-name="gemini-3-pro-image-preview"><h3 title="gemini-3-pro-image-preview">gemini-3-pro-image-preview</h3><p>Google</p></div></div><span class="prototype-home__status-badge prototype-home__status-badge--busy">繁忙</span></div><dl><div><dt>可用性</dt><dd>99.0%</dd></div><div><dt>延迟</dt><dd>246ms</dd></div></dl></article>
+            <article class="prototype-home__glass-card prototype-home__model-card is-extra" hidden><div class="prototype-home__model-card-head"><div class="prototype-home__model-identity"><span class="prototype-home__model-logo prototype-home__model-logo--gemini" aria-hidden="true"><svg class="prototype-home__svg-icon" aria-hidden="true"><use href="#logo-gemini"></use></svg></span><div class="prototype-home__model-copy" data-model-name="gemini-3-pro-preview"><h3 title="gemini-3-pro-preview">gemini-3-pro-preview</h3><p>Google</p></div></div><span class="prototype-home__status-badge prototype-home__status-badge--running">运行中</span></div><dl><div><dt>可用性</dt><dd>99.3%</dd></div><div><dt>延迟</dt><dd>232ms</dd></div></dl></article>
+            <article class="prototype-home__glass-card prototype-home__model-card is-extra" hidden><div class="prototype-home__model-card-head"><div class="prototype-home__model-identity"><span class="prototype-home__model-logo prototype-home__model-logo--openai" aria-hidden="true"><svg class="prototype-home__svg-icon" aria-hidden="true"><use href="#logo-openai"></use></svg></span><div class="prototype-home__model-copy" data-model-name="text-embedding-3-large"><h3 title="text-embedding-3-large">text-embedding-3-large</h3><p>OpenAI</p></div></div><span class="prototype-home__status-badge prototype-home__status-badge--running">运行中</span></div><dl><div><dt>可用性</dt><dd>99.9%</dd></div><div><dt>延迟</dt><dd>72ms</dd></div></dl></article>
+            <article class="prototype-home__glass-card prototype-home__model-card is-extra" hidden><div class="prototype-home__model-card-head"><div class="prototype-home__model-identity"><span class="prototype-home__model-logo prototype-home__model-logo--openai" aria-hidden="true"><svg class="prototype-home__svg-icon" aria-hidden="true"><use href="#logo-openai"></use></svg></span><div class="prototype-home__model-copy" data-model-name="text-embedding-3-small"><h3 title="text-embedding-3-small">text-embedding-3-small</h3><p>OpenAI</p></div></div><span class="prototype-home__status-badge prototype-home__status-badge--running">运行中</span></div><dl><div><dt>可用性</dt><dd>99.9%</dd></div><div><dt>延迟</dt><dd>68ms</dd></div></dl></article>
+            <article class="prototype-home__glass-card prototype-home__model-card is-extra" hidden><div class="prototype-home__model-card-head"><div class="prototype-home__model-identity"><span class="prototype-home__model-logo prototype-home__model-logo--openai" aria-hidden="true"><svg class="prototype-home__svg-icon" aria-hidden="true"><use href="#logo-openai"></use></svg></span><div class="prototype-home__model-copy" data-model-name="text-embedding-ada-002"><h3 title="text-embedding-ada-002">text-embedding-ada-002</h3><p>OpenAI</p></div></div><span class="prototype-home__status-badge prototype-home__status-badge--running">运行中</span></div><dl><div><dt>可用性</dt><dd>99.8%</dd></div><div><dt>延迟</dt><dd>70ms</dd></div></dl></article>
+            <article class="prototype-home__glass-card prototype-home__model-card is-extra" hidden><div class="prototype-home__model-card-head"><div class="prototype-home__model-identity"><span class="prototype-home__model-logo prototype-home__model-logo--openai" aria-hidden="true"><svg class="prototype-home__svg-icon" aria-hidden="true"><use href="#logo-openai"></use></svg></span><div class="prototype-home__model-copy" data-model-name="gpt-5.2-chat-latest"><h3 title="gpt-5.2-chat-latest">gpt-5.2-chat-latest</h3><p>OpenAI</p></div></div><span class="prototype-home__status-badge prototype-home__status-badge--running">运行中</span></div><dl><div><dt>可用性</dt><dd>99.8%</dd></div><div><dt>延迟</dt><dd>124ms</dd></div></dl></article>
+            <article class="prototype-home__glass-card prototype-home__model-card is-extra" hidden><div class="prototype-home__model-card-head"><div class="prototype-home__model-identity"><span class="prototype-home__model-logo prototype-home__model-logo--openai" aria-hidden="true"><svg class="prototype-home__svg-icon" aria-hidden="true"><use href="#logo-openai"></use></svg></span><div class="prototype-home__model-copy" data-model-name="gpt-5.2-pro"><h3 title="gpt-5.2-pro">gpt-5.2-pro</h3><p>OpenAI</p></div></div><span class="prototype-home__status-badge prototype-home__status-badge--busy">繁忙</span></div><dl><div><dt>可用性</dt><dd>98.5%</dd></div><div><dt>延迟</dt><dd>310ms</dd></div></dl></article>
+            <article class="prototype-home__glass-card prototype-home__model-card is-extra" hidden><div class="prototype-home__model-card-head"><div class="prototype-home__model-identity"><span class="prototype-home__model-logo prototype-home__model-logo--openai" aria-hidden="true"><svg class="prototype-home__svg-icon" aria-hidden="true"><use href="#logo-openai"></use></svg></span><div class="prototype-home__model-copy" data-model-name="sora-2"><h3 title="sora-2">sora-2</h3><p>OpenAI</p></div></div><span class="prototype-home__status-badge prototype-home__status-badge--busy">繁忙</span></div><dl><div><dt>可用性</dt><dd>-</dd></div><div><dt>延迟</dt><dd>-</dd></div></dl></article>
+            <article class="prototype-home__glass-card prototype-home__model-card is-extra" hidden><div class="prototype-home__model-card-head"><div class="prototype-home__model-identity"><span class="prototype-home__model-logo prototype-home__model-logo--gemini" aria-hidden="true"><svg class="prototype-home__svg-icon" aria-hidden="true"><use href="#logo-gemini"></use></svg></span><div class="prototype-home__model-copy" data-model-name="veo-3.1-fast-generate-001"><h3 title="veo-3.1-fast-generate-001">veo-3.1-fast-generate-001</h3><p>Google</p></div></div><span class="prototype-home__status-badge prototype-home__status-badge--busy">繁忙</span></div><dl><div><dt>可用性</dt><dd>98.7%</dd></div><div><dt>延迟</dt><dd>340ms</dd></div></dl></article>
+            <article class="prototype-home__glass-card prototype-home__model-card is-extra" hidden><div class="prototype-home__model-card-head"><div class="prototype-home__model-identity"><span class="prototype-home__model-logo prototype-home__model-logo--gemini" aria-hidden="true"><svg class="prototype-home__svg-icon" aria-hidden="true"><use href="#logo-gemini"></use></svg></span><div class="prototype-home__model-copy" data-model-name="veo-3.1-generate-001"><h3 title="veo-3.1-generate-001">veo-3.1-generate-001</h3><p>Google</p></div></div><span class="prototype-home__status-badge prototype-home__status-badge--busy">繁忙</span></div><dl><div><dt>可用性</dt><dd>-</dd></div><div><dt>延迟</dt><dd>-</dd></div></dl></article>
+          </div>
+          <div class="prototype-home__model-more"><button type="button" class="prototype-home__model-more-button" data-toggle-models>查看全部模型 <span aria-hidden="true" class="prototype-home__arrow-icon"><svg class="prototype-home__svg-icon" aria-hidden="true"><use href="#icon-send"></use></svg></span></button></div>
+        </section>
+
+        <section class="prototype-home__section prototype-home__developer" id="developer">
+          <div class="prototype-home__glass-card prototype-home__developer-panel">
+            <div class="prototype-home__developer-column">
+              <div class="prototype-home__developer-column-head"><h3>开发者友好</h3></div>
+              <div class="prototype-home__developer-column-body prototype-home__code-panel">
+                <div class="prototype-home__feature-list">
+                  <article><span class="prototype-home__icon-badge" aria-hidden="true"><svg class="prototype-home__svg-icon" aria-hidden="true"><use href="#icon-code"></use></svg></span><div><h3>OpenAI 兼容 API</h3><p>完全兼容 OpenAI API 格式，无需修改代码即可接入</p></div></article>
+                  <article><span class="prototype-home__icon-badge" aria-hidden="true"><svg class="prototype-home__svg-icon" aria-hidden="true"><use href="#icon-grid"></use></svg></span><div><h3>多种编程语言支持</h3><p>提供多种语言的 SDK 和示例代码</p></div></article>
+                  <article><span class="prototype-home__icon-badge" aria-hidden="true"><svg class="prototype-home__svg-icon" aria-hidden="true"><use href="#icon-book"></use></svg></span><div><h3>详细的使用文档</h3><p>完善的文档和示例，快速上手</p></div></article>
+                  <article><span class="prototype-home__icon-badge" aria-hidden="true"><svg class="prototype-home__svg-icon" aria-hidden="true"><use href="#icon-chart"></use></svg></span><div><h3>监控统计</h3><p>实时查看调用统计和使用情况</p></div></article>
+                </div>
+              </div>
+            </div>
+
+            <div class="prototype-home__developer-column">
+              <div class="prototype-home__developer-column-head"><h3>API 接入地址</h3></div>
+              <div class="prototype-home__developer-column-body">
+                <div class="prototype-home__endpoint-input">
+                  <span>接口地址</span>
+                  <code>https://aiapi114.com</code>
+                  <button type="button" data-copy="https://aiapi114.com" aria-label="复制 API 接入地址"><svg class="prototype-home__svg-icon prototype-home__copy-glyph" aria-hidden="true"><use href="#icon-copy"></use></svg></button>
+                </div>
+                <div class="prototype-home__code-toolbar">
+                  <div class="prototype-home__code-tabs" role="tablist" aria-label="代码示例切换">
+                    <button type="button" role="tab" id="tab-curl" class="is-active" aria-selected="true" aria-controls="code-panel" data-tab="curl">cURL</button>
+                    <button type="button" role="tab" id="tab-python" aria-selected="false" aria-controls="code-panel" tabindex="-1" data-tab="python">Python</button>
+                    <button type="button" role="tab" id="tab-javascript" aria-selected="false" aria-controls="code-panel" tabindex="-1" data-tab="javascript">JavaScript</button>
+                    <button type="button" role="tab" id="tab-go" aria-selected="false" aria-controls="code-panel" tabindex="-1" data-tab="go">Go</button>
+                    <button type="button" role="tab" id="tab-java" aria-selected="false" aria-controls="code-panel" tabindex="-1" data-tab="java">Java</button>
+                  </div>
+                  <button type="button" class="prototype-home__copy-code-button" data-copy-code><svg class="prototype-home__svg-icon prototype-home__copy-glyph" aria-hidden="true"><use href="#icon-copy"></use></svg>复制代码</button>
+                </div>
+                <pre class="prototype-home__code-block" id="code-panel" role="tabpanel" aria-labelledby="tab-curl" tabindex="0"><code data-code></code></pre>
+              </div>
+            </div>
+
+            <div class="prototype-home__developer-column">
+              <div class="prototype-home__developer-column-head"><h3>社区 &amp; 支持</h3></div>
+              <div class="prototype-home__developer-column-body">
+                <div class="prototype-home__support-list">
+                  <article class="prototype-home__support-card"><span class="prototype-home__icon-badge" aria-hidden="true"><svg class="prototype-home__svg-icon" aria-hidden="true"><use href="#icon-send"></use></svg></span><div><h3>Telegram 群组</h3><p><a class="prototype-home__support-contact" href="https://t.me/aiapi114kf" target="_blank" rel="noopener noreferrer" aria-label="Telegram 联系方式 @aiapi114kf">@aiapi114kf</a></p></div></article>
+                  <article class="prototype-home__support-card"><span class="prototype-home__icon-badge" aria-hidden="true"><svg class="prototype-home__svg-icon" aria-hidden="true"><use href="#icon-gift"></use></svg></span><div><h3>邀请奖励</h3><p>邀请好友，获得奖励</p></div></article>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="prototype-home__section prototype-home__pricing" id="pricing">
+          <div class="prototype-home__section-head prototype-home__section-head--center">
+            <p class="prototype-home__eyebrow">Pricing</p><h2>定价方案</h2><p class="prototype-home__pricing-subtitle">简单透明的按量付费，无隐藏费用</p>
+          </div>
+          <div class="prototype-home__pricing-grid">
+            <article class="prototype-home__glass-card prototype-home__pricing-card prototype-home__pricing-card--featured"><span class="prototype-home__badge">推荐</span><h3>开发者接入</h3><p class="prototype-home__pricing-price prototype-home__pricing-price--split"><span class="prototype-home__pricing-price-prefix">低至</span><span class="prototype-home__pricing-price-value">¥0.002</span><span class="prototype-home__pricing-price-unit">/ 1K tokens</span></p><p class="prototype-home__pricing-summary prototype-home__pricing-summary--accent">按量计费</p><ul><li>无月费，无最低消费</li><li>按实际使用量计费</li><li>价格低至官方 50%</li><li>支持多种支付方式</li></ul><a class="prototype-home__pricing-cta prototype-home__pricing-cta--solid" href="https://www.aiapi114.com/login">立即使用</a></article>
+            <article class="prototype-home__glass-card prototype-home__pricing-card"><h3>API 中转服务</h3><p class="prototype-home__pricing-price prototype-home__pricing-price--text prototype-home__pricing-price--neutral">统一 API 网关</p><ul><li>兼容 OpenAI API 格式</li><li>多模型统一管理</li><li>国内优化线路，稳定可靠</li><li>实时用量统计与监控</li></ul><a class="prototype-home__pricing-cta prototype-home__pricing-cta--ghost" href="https://docs.aiapi114.com">查看文档</a></article>
+            <article class="prototype-home__glass-card prototype-home__pricing-card prototype-home__pricing-card--contact"><h3>企业定制</h3><p class="prototype-home__pricing-price prototype-home__pricing-price--text prototype-home__pricing-price--neutral">专属服务</p><ul><li>专属价格方案</li><li>独立部署支持</li><li>专属技术支持</li><li>定制化开发</li></ul><a class="prototype-home__pricing-cta prototype-home__pricing-cta--ghost" href="https://t.me/aiapi114kf" target="_blank" rel="noopener noreferrer">联系商务</a></article>
+          </div>
+        </section>
+
+        <section class="prototype-home__metrics" aria-label="平台指标">
+          <article class="prototype-home__glass-card prototype-home__metric-card"><span class="prototype-home__metric-icon" aria-hidden="true"><svg class="prototype-home__svg-icon" aria-hidden="true"><use href="#icon-users"></use></svg></span><span class="prototype-home__metric-copy"><strong>50,000+</strong><span>注册开发者</span></span></article>
+          <article class="prototype-home__glass-card prototype-home__metric-card"><span class="prototype-home__metric-icon" aria-hidden="true"><svg class="prototype-home__svg-icon" aria-hidden="true"><use href="#icon-activity"></use></svg></span><span class="prototype-home__metric-copy"><strong>10亿+</strong><span>API 调用次数</span></span></article>
+          <article class="prototype-home__glass-card prototype-home__metric-card"><span class="prototype-home__metric-icon" aria-hidden="true"><svg class="prototype-home__svg-icon" aria-hidden="true"><use href="#icon-uptime"></use></svg></span><span class="prototype-home__metric-copy"><strong>99.9%</strong><span>服务可用性</span></span></article>
+          <article class="prototype-home__glass-card prototype-home__metric-card"><span class="prototype-home__metric-icon" aria-hidden="true"><svg class="prototype-home__svg-icon" aria-hidden="true"><use href="#icon-layers"></use></svg></span><span class="prototype-home__metric-copy"><strong>25+</strong><span>支持模型数</span></span></article>
+        </section>
+
+        <section class="prototype-home__section prototype-home__start-journey" id="invite">
+          <div class="prototype-home__glass-card prototype-home__start-journey-card">
+            <div class="prototype-home__start-journey-copy"><h2>立即开始您的 AI 开发之旅</h2><p>加入数万名开发者，共同构建智能未来</p></div>
+            <div class="prototype-home__start-journey-actions">
+              <a class="prototype-home__start-journey-button" href="https://www.aiapi114.com/login">免费注册</a>
+              <a href="https://docs.aiapi114.com" class="prototype-home__start-journey-button prototype-home__start-journey-button--ghost">查看文档</a>
+            </div>
+          </div>
+        </section>
+
+        <footer class="prototype-home__footer" id="footer">
+          <div class="prototype-home__footer-main">
+            <div class="prototype-home__footer-intro">
+              <div class="prototype-home__brand prototype-home__brand--footer"><img class="prototype-home__brand-logo" src="/assets/brand/aiapi114-logo-transparent.png" alt="AiApi114 品牌标识" width="96" height="96" decoding="async" /></div>
+              <p>专注为大模型 API 中转服务提供稳定供给，让 AI 技术触手可及。</p>
+              <div class="prototype-home__footer-socials"><a class="prototype-home__footer-social" href="mailto:support@aiapi114.com" aria-label="邮箱"><svg class="prototype-home__svg-icon" aria-hidden="true"><use href="#icon-mail"></use></svg></a><a class="prototype-home__footer-social" href="https://t.me/aiapi114kf" target="_blank" rel="noopener noreferrer" aria-label="Telegram 联系方式 @aiapi114kf"><svg class="prototype-home__svg-icon" aria-hidden="true"><use href="#icon-send"></use></svg></a></div>
+            </div>
+            <div class="prototype-home__footer-columns">
+              <section class="prototype-home__footer-column"><h3>产品</h3><ul><li><a href="/login">控制台</a></li><li><a href="#pricing">定价方案</a></li></ul></section>
+              <section class="prototype-home__footer-column"><h3>支持</h3><ul><li><a href="https://docs.aiapi114.com">文档中心</a></li><li><a href="https://docs.aiapi114.com/#api-reference">API 参考</a></li><li><a href="https://docs.aiapi114.com/#faq">常见问题</a></li></ul></section>
+              <section class="prototype-home__footer-column"><h3>资源</h3><ul><li><a href="https://docs.aiapi114.com/#integration-guide">接入指南</a></li></ul></section>
+              <section class="prototype-home__footer-column"><h3>社区</h3><ul><li><a href="https://t.me/aiapi114kf" target="_blank" rel="noopener noreferrer">Telegram @aiapi114kf</a></li></ul></section>
+            </div>
+          </div>
+          <div class="prototype-home__footer-bottom">
+            <div class="prototype-home__footer-language-wrap" data-footer-language-root>
+              <button type="button" class="prototype-home__footer-language" aria-expanded="false" aria-haspopup="listbox" data-footer-language-toggle><svg class="prototype-home__svg-icon" aria-hidden="true"><use href="#icon-globe"></use></svg> <span data-footer-language-label>中文</span> <span class="prototype-home__footer-language-caret"><svg class="prototype-home__svg-icon" aria-hidden="true"><use href="#icon-chevron-down"></use></svg></span></button>
+              <div class="prototype-home__language-menu prototype-home__footer-language-menu" role="listbox" aria-label="选择语言" hidden>
+                <button type="button" role="option" aria-selected="true" data-footer-lang="zh-CN">中文</button>
+                <button type="button" role="option" aria-selected="false" data-footer-lang="en-US">English</button>
+              </div>
+            </div>
+            <p class="prototype-home__footer-copyright">© 2026 AiApi114. All rights reserved.</p>
+            <a href="#models" class="prototype-home__footer-status"><span class="prototype-home__footer-status-dot"></span> API 状态</a>
+          </div>
+        </footer>
+      </div>
+
+      <div class="prototype-home__modal-backdrop" role="presentation" data-notice-modal hidden>
+        <section class="prototype-home__modal" role="dialog" aria-modal="true" aria-labelledby="prototype-notice-modal-title" tabindex="-1">
+          <div class="prototype-home__modal-head"><h2 id="prototype-notice-modal-title">系统公告</h2><button type="button" data-close-modal>关闭</button></div>
+          <div class="prototype-home__modal-body">
+            <div class="prototype-home__announcement-list">
+              <article><time datetime="2026-05-19">2026-05-19</time><h3>AWS 官方 Anthropic 渠道正式上线，支持 Claude Opus 4.7</h3><p>📢 AWS 官方 Anthropic 渠道正式上线，Claude Opus 4.7 全面支持</p></article>
+              <article><time datetime="2026-05-19">2026-05-19</time><h3>微软 GPT 渠道正式上线，支持 GPT-Image-2 高清生图</h3><p>🎨 微软 GPT 渠道正式上线，GPT-Image-2 生图能力开放</p></article>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <div class="prototype-home__toast" role="status" aria-live="polite" data-toast hidden>已复制</div>
+    </main>
+
+    <script>
+      const codeExamples = {
+        curl: `curl https://aiapi114.com/v1/chat/completions \\
+  -H "Authorization: Bearer YOUR_API_KEY" \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "model": "gpt-4o",
+    "messages": [
+      { "role": "user", "content": "Hello!" }
+    ]
+  }'`,
+        python: `from openai import OpenAI
+
+client = OpenAI(
+    base_url="https://aiapi114.com/v1",
+    api_key="YOUR_API_KEY",
+)
+
+response = client.chat.completions.create(
+    model="gpt-4o",
+    messages=[{"role": "user", "content": "Hello!"}],
+)
+print(response.choices[0].message.content)`,
+        javascript: `import OpenAI from "openai";
+
+const client = new OpenAI({
+  baseURL: "https://aiapi114.com/v1",
+  apiKey: "YOUR_API_KEY",
+});
+
+const response = await client.chat.completions.create({
+  model: "gpt-4o",
+  messages: [{ role: "user", content: "Hello!" }],
+});
+
+console.log(response.choices[0].message.content);`,
+        go: `package main
+
+import (
+  "context"
+  "fmt"
+  "os"
+
+  "github.com/sashabaranov/go-openai"
+)
+
+func main() {
+  config := openai.DefaultConfig(os.Getenv("YOUR_API_KEY"))
+  config.BaseURL = "https://aiapi114.com/v1"
+  client := openai.NewClientWithConfig(config)
+
+  resp, _ := client.CreateChatCompletion(
+    context.Background(),
+    openai.ChatCompletionRequest{
+      Model: "gpt-4o",
+      Messages: []openai.ChatCompletionMessage{
+        {Role: "user", Content: "Hello!"},
+      },
+    },
+  )
+
+  fmt.Println(resp.Choices[0].Message.Content)
+}`,
+        java: `import com.theokanning.openai.service.OpenAiService;
+import com.theokanning.openai.completion.chat.ChatCompletionRequest;
+import com.theokanning.openai.completion.chat.ChatMessage;
+
+import java.util.List;
+
+public class Main {
+  public static void main(String[] args) {
+    OpenAiService service = new OpenAiService("YOUR_API_KEY", "https://aiapi114.com/v1");
+
+    ChatCompletionRequest request = ChatCompletionRequest.builder()
+        .model("gpt-4o")
+        .messages(List.of(new ChatMessage("user", "Hello!")))
+        .build();
+
+    System.out.println(service.createChatCompletion(request));
+  }
+}`,
+      };
+
+      const root = document.querySelector(".prototype-home");
+      let themeSwitchTimer = null;
+      let themeRevealTimer = null;
+      let themeCommitTimer = null;
+      const themeReveal = document.querySelector("[data-theme-reveal]");
+      const themeControls = Array.from(document.querySelectorAll("[data-theme-toggle], [data-theme-toggle-mobile]"));
+      const themeParam = new URLSearchParams(window.location.search).get("theme");
+      const themeMotionMs = 900;
+      const themeToggleMotionMs = 840;
+      const normalizeTheme = (value) => value === "light" ? "light" : "dark";
+      const getInitialTheme = () => {
+        if (themeParam === "light" || themeParam === "dark") return themeParam;
+        const savedTheme = localStorage.getItem("aiapi114-home-theme");
+        if (savedTheme === "light" || savedTheme === "dark") return savedTheme;
+        return "dark";
+      };
+      const commitTheme = (nextTheme) => {
+        root.dataset.theme = nextTheme;
+        document.documentElement.dataset.theme = nextTheme;
+        document.documentElement.style.colorScheme = nextTheme === "dark" ? "dark" : "light";
+        themeControls.forEach((control) => {
+          control.dataset.themeState = nextTheme;
+          control.setAttribute("aria-label", nextTheme === "dark" ? "切换到白天模式" : "切换到黑色模式");
+          control.setAttribute("title", nextTheme === "dark" ? "切换到白天模式" : "切换到黑色模式");
+          control.querySelectorAll("[data-theme-label]").forEach((label) => {
+            label.textContent = nextTheme === "dark" ? "黑色" : "白天";
+          });
+        });
+      };
+      const startThemeSwitchAnimation = (nextTheme, trigger, onCovered) => {
+        if (!themeReveal || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return false;
+        root.classList.remove("is-theme-switching", "is-theme-revealing");
+        void root.offsetWidth;
+        const triggerRect = trigger?.getBoundingClientRect?.();
+        const x = triggerRect ? triggerRect.left + triggerRect.width / 2 : window.innerWidth - 48;
+        const y = triggerRect ? triggerRect.top + triggerRect.height / 2 : 32;
+        const radius = Math.ceil(Math.hypot(
+          Math.max(x, window.innerWidth - x),
+          Math.max(y, window.innerHeight - y)
+        ));
+        const revealProperties = {
+          "--theme-reveal-x": `${x}px`,
+          "--theme-reveal-y": `${y}px`,
+          "--theme-reveal-radius": `${radius}px`,
+          "--theme-reveal-diameter": `${radius * 2}px`,
+          "--theme-reveal-color": nextTheme === "light" ? "rgba(248, 250, 251, 0.98)" : "rgba(17, 19, 21, 0.98)"
+        };
+        Object.entries(revealProperties).forEach(([name, value]) => {
+          root.style.setProperty(name, value);
+          document.documentElement.style.setProperty(name, value);
+        });
+        root.classList.add("is-theme-switching");
+        if (themeSwitchTimer) window.clearTimeout(themeSwitchTimer);
+        if (themeRevealTimer) window.clearTimeout(themeRevealTimer);
+        if (themeCommitTimer) window.clearTimeout(themeCommitTimer);
+        themeSwitchTimer = window.setTimeout(() => {
+          root.classList.remove("is-theme-switching");
+        }, themeToggleMotionMs);
+        if (document.startViewTransition) {
+          document.startViewTransition(onCovered);
+          return true;
+        }
+        root.classList.add("is-theme-revealing");
+        themeCommitTimer = window.setTimeout(onCovered, Math.round(themeMotionMs * 0.58));
+        themeRevealTimer = window.setTimeout(() => {
+          root.classList.remove("is-theme-revealing");
+        }, themeMotionMs);
+        return true;
+      };
+      const applyTheme = (theme, options = {}) => {
+        const nextTheme = normalizeTheme(theme);
+        if (options.animate && startThemeSwitchAnimation(nextTheme, options.trigger, () => commitTheme(nextTheme))) {
+          return;
+        }
+        commitTheme(nextTheme);
+      };
+      applyTheme(getInitialTheme());
+      const toast = document.querySelector("[data-toast]");
+      const codeNode = document.querySelector("[data-code]");
+      const codePanel = document.querySelector("#code-panel");
+      let toastTimer = 0;
+      let modalOpener = null;
+
+      const i18nDictionary = {
+        "en-US": {
+          pageTitle: "AiApi114 - Multi-model API Relay Service | Static Homepage",
+          description:
+            "AiApi114 provides aggregated and relay access for OpenAI, Claude, Gemini, Qwen, Zhipu and other mainstream model APIs, with unified management, fast integration, stable availability and low-cost pay-as-you-go billing.",
+          copy: {
+            selected: "Switched to English",
+            menuOpen: "Menu",
+            menuClose: "Close",
+            copiedSuffix: " copied",
+            copyUnsupported: "This browser does not support automatic copy",
+            contentLabel: "Content",
+            exampleCodeLabel: "Code sample",
+            viewAllModels: "View all models",
+            collapseModels: "Collapse models",
+          },
+          text: {
+            "首页": "Home",
+            "控制台": "Console",
+            "模型广场": "Model Hub",
+            "文档": "Docs",
+            "邀请有礼": "Referral Rewards",
+            "关于我们": "About us",
+            "系统公告": "Announcements",
+            "中文": "Chinese",
+            "登录": "Log in",
+            "注册": "Sign up",
+            "菜单": "Menu",
+            "关闭": "Close",
+            "📢 AWS 官方 Anthropic 渠道正式上线，Claude Opus 4.7 全面支持": "AWS official Anthropic channel is now live with full Claude Opus 4.7 support.",
+            "🎨 微软 GPT 渠道正式上线，GPT-Image-2 生图能力开放": "Microsoft GPT channel is now live with GPT-Image-2 high-definition image generation.",
+            "查看全部": "View all",
+            "多模型聚合 · 一站式 API": "Multi-model aggregation · One API",
+            "中转服务": "Relay service",
+            "AiApi114 提供 OpenAI、Claude、Gemini、通义千问、智谱等主流大模型 API 中转服务，统一管理，灵活调用，低至官方价格的 50%，助力开发者专注创造。": "AiApi114 provides relay access for OpenAI, Claude, Gemini, Qwen, Zhipu and other leading model APIs, with unified management, flexible calls and pricing as low as 50% of official rates so developers can focus on building.",
+            "免费注册体验": "Start for free",
+            "查看文档": "View docs",
+            "稳定可靠": "Stable",
+            "99.9% 可用性": "99.9% uptime",
+            "极速响应": "Fast response",
+            "毫秒级延迟": "Millisecond latency",
+            "价格低廉": "Lower cost",
+            "低至官方 50%": "From 50% of official pricing",
+            "安全保障": "Secure",
+            "企业级安全": "Enterprise-grade security",
+            "为什么选择 AiApi114？": "Why choose AiApi114?",
+            "我们致力于为开发者提供最优质的大模型中转服务体验": "We help developers access large-model relay services with a stable, efficient experience.",
+            "丰富的模型支持": "Broad model coverage",
+            "聚合多家主流大模型": "Aggregates leading model providers",
+            "持续接入更多优质模型": "Continuously adds more high-quality models",
+            "统一的调用方式": "Unified calling pattern",
+            "标准 OpenAI API 格式": "Standard OpenAI API format",
+            "无需切换不同模型接口": "No need to switch between provider APIs",
+            "极具竞争力的价格": "Competitive pricing",
+            "低至官方价格 50%": "As low as 50% of official pricing",
+            "按量计费，透明无隐藏消费": "Pay as you go with transparent billing",
+            "稳定可靠的服务": "Reliable service",
+            "多节点部署，智能路由": "Multi-node deployment and smart routing",
+            "99.9% 服务可用性保障": "99.9% service availability target",
+            "API 接入地址": "API endpoint",
+            "文档地址": "Docs URL",
+            "模型运行状态": "Model status",
+            "运行中": "Operational",
+            "繁忙": "Busy",
+            "降级": "Degraded",
+            "维护中": "Maintenance",
+            "不可用": "Unavailable",
+            "可用性": "Availability",
+            "延迟": "Latency",
+            "查看全部模型": "View all models",
+            "开发者友好": "Developer friendly",
+            "OpenAI 兼容 API": "OpenAI-compatible API",
+            "完全兼容 OpenAI API 格式，无需修改代码即可接入": "Fully compatible with the OpenAI API format, so existing code can connect with minimal changes.",
+            "多种编程语言支持": "Multi-language support",
+            "提供多种语言的 SDK 和示例代码": "SDKs and examples for common programming languages",
+            "详细的使用文档": "Detailed documentation",
+            "完善的文档和示例，快速上手": "Clear guides and examples for fast onboarding",
+            "监控统计": "Monitoring and analytics",
+            "实时查看调用统计和使用情况": "Track usage and call statistics in real time",
+            "接口地址": "Endpoint",
+            "复制代码": "Copy code",
+            "社区 & 支持": "Community & Support",
+            "Telegram 群组": "Telegram group",
+            "邀请奖励": "Referral rewards",
+            "邀请好友，获得奖励": "Invite friends and earn rewards",
+            "定价方案": "Pricing",
+            "简单透明的按量付费，无隐藏费用": "Simple, transparent pay-as-you-go pricing with no hidden fees",
+            "推荐": "Recommended",
+            "开发者接入": "Developer access",
+            "低至": "From",
+            "按量计费": "Pay as you go",
+            "无月费，无最低消费": "No monthly fee or minimum spend",
+            "按实际使用量计费": "Billed by actual usage",
+            "价格低至官方 50%": "Pricing from 50% of official rates",
+            "支持多种支付方式": "Multiple payment methods supported",
+            "立即使用": "Start now",
+            "API 中转服务": "API relay service",
+            "统一 API 网关": "Unified API gateway",
+            "兼容 OpenAI API 格式": "OpenAI API compatible",
+            "多模型统一管理": "Unified multi-model management",
+            "国内优化线路，稳定可靠": "Optimized domestic routes with stable access",
+            "实时用量统计与监控": "Real-time usage statistics and monitoring",
+            "企业定制": "Enterprise custom plan",
+            "专属服务": "Dedicated service",
+            "专属价格方案": "Dedicated pricing plan",
+            "独立部署支持": "Private deployment support",
+            "专属技术支持": "Dedicated technical support",
+            "定制化开发": "Custom development",
+            "联系商务": "Contact sales",
+            "注册开发者": "Registered developers",
+            "10亿+": "1B+",
+            "API 调用次数": "API calls",
+            "服务可用性": "Service availability",
+            "支持模型数": "Supported models",
+            "立即开始您的 AI 开发之旅": "Start your AI development journey",
+            "加入数万名开发者，共同构建智能未来": "Join tens of thousands of developers building the intelligent future.",
+            "免费注册": "Sign up for free",
+            "专注为大模型 API 中转服务提供稳定供给，让 AI 技术触手可及。": "Stable relay access for large-model APIs, making AI technology easier to reach.",
+            "产品": "Product",
+            "支持": "Support",
+            "文档中心": "Documentation",
+            "API 参考": "API reference",
+            "常见问题": "FAQ",
+            "联系我们": "Contact us",
+            "资源": "Resources",
+            "接入指南": "Integration guide",
+            "社区": "Community",
+            "API 状态": "API status",
+            "AWS 官方 Anthropic 渠道正式上线，支持 Claude Opus 4.7": "AWS official Anthropic channel is now live with Claude Opus 4.7 support",
+            "微软 GPT 渠道正式上线，支持 GPT-Image-2 高清生图": "Microsoft GPT channel is now live with GPT-Image-2 HD image generation",
+
+            "注册后即可体验 AiApi114 多模型 API 中转服务。": "Sign up to try the AiApi114 multi-model API relay service.",
+            "我知道了": "Got it",
+            "已复制": "Copied"
+          },
+          attrs: {
+            "AiApi114 首页": "AiApi114 home",
+            "AiApi114 品牌标识": "AiApi114 brand logo",
+            "主导航": "Primary navigation",
+            "选择语言": "Select language",
+            "Telegram 联系方式 @aiapi114kf": "Telegram contact @aiapi114kf",
+            "移动端主导航": "Mobile primary navigation",
+            "系统公告": "Announcements",
+            "复制 API 接入地址": "Copy API endpoint",
+            "复制文档地址": "Copy docs URL",
+            "代码示例切换": "Code sample tabs",
+            "平台指标": "Platform metrics",
+            "邮箱": "Email",
+            "社区": "Community"
+          }
+        },
+        "zh-CN": {
+          copy: {
+            selected: "已切换到中文",
+            menuOpen: "菜单",
+            menuClose: "关闭",
+            copiedSuffix: " 已复制",
+            copyUnsupported: "当前浏览器不支持自动复制",
+            contentLabel: "内容",
+            exampleCodeLabel: "示例代码",
+            viewAllModels: "查看全部模型",
+            collapseModels: "收起模型",
+          }
+        }
+      };
+
+      const supportedLocales = new Set(["zh-CN", "en-US"]);
+      const originalMetaDescription = document.querySelector('meta[name="description"]')?.getAttribute("content") || "";
+      const originalPageTitle = document.title;
+      const localeState = { current: "zh-CN", textNodes: [], attrs: [] };
+
+      const getLocaleCopy = () => i18nDictionary[localeState.current]?.copy || i18nDictionary["zh-CN"].copy;
+
+      const normalizeLocale = (value) => {
+        if (!value) return "zh-CN";
+        if (value.toLowerCase().startsWith("en")) return "en-US";
+        return supportedLocales.has(value) ? value : "zh-CN";
+      };
+
+      const getInitialLocale = () => {
+        const params = new URLSearchParams(window.location.search);
+        const explicitLocale = normalizeLocale(params.get("lang"));
+        if (params.has("lang")) return explicitLocale;
+        const storedLocale = localStorage.getItem("aiapi114-home-locale");
+        if (supportedLocales.has(storedLocale)) return storedLocale;
+        return normalizeLocale(navigator.language);
+      };
+
+      const captureI18nTargets = () => {
+        if (localeState.textNodes.length) return;
+
+        const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, {
+          acceptNode(node) {
+            const parent = node.parentElement;
+            if (!parent || parent.closest("script, style, code, pre")) return NodeFilter.FILTER_REJECT;
+            return node.textContent.trim() ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT;
+          },
+        });
+
+        let node = walker.nextNode();
+        while (node) {
+          localeState.textNodes.push({ node, source: node.textContent });
+          node = walker.nextNode();
+        }
+
+        document.querySelectorAll("[aria-label], [alt]").forEach((element) => {
+          ["aria-label", "alt"].forEach((attr) => {
+            if (element.hasAttribute(attr)) {
+              localeState.attrs.push({ element, attr, source: element.getAttribute(attr) });
+            }
+          });
+        });
+      };
+
+      const translateTextValue = (source, locale) => {
+        if (locale !== "en-US") return source;
+        const textMap = i18nDictionary["en-US"].text;
+        const trimmed = source.trim();
+        const translated = textMap[trimmed];
+        if (!translated) return source;
+        const leading = source.match(/^\s*/)?.[0] || "";
+        const trailing = source.match(/\s*$/)?.[0] || "";
+        return leading + translated + trailing;
+      };
+
+      const translateAttrValue = (source, locale) => {
+        if (locale !== "en-US") return source;
+        return i18nDictionary["en-US"].attrs[source] || source;
+      };
+
+      const updateUrlLocale = (locale) => {
+        const url = new URL(window.location.href);
+        url.searchParams.set("lang", locale);
+        window.history.replaceState(null, "", url);
+      };
+
+      const renderModelToggle = () => {
+        const button = document.querySelector("[data-toggle-models]");
+        if (!button) return;
+        const extras = Array.from(document.querySelectorAll(".prototype-home__model-card.is-extra"));
+        const hasExpandedModels = extras.some((card) => !card.hidden);
+        const label = hasExpandedModels ? getLocaleCopy().collapseModels : getLocaleCopy().viewAllModels;
+        button.innerHTML = label + ' <span aria-hidden="true" class="prototype-home__arrow-icon"><svg class="prototype-home__svg-icon" aria-hidden="true"><use href="#icon-send"></use></svg></span>';
+      };
+
+      const updateModelNameOverflow = () => {
+        document.querySelectorAll(".prototype-home__model-copy").forEach((item) => {
+          const name = item.querySelector("h3");
+          if (!name) return;
+          item.classList.toggle("is-overflowing", name.scrollWidth > name.clientWidth + 1);
+        });
+      };
+
+      const applyLanguage = (locale, options = {}) => {
+        const nextLocale = normalizeLocale(locale);
+        localeState.current = nextLocale;
+        captureI18nTargets();
+
+        localeState.textNodes.forEach(({ node, source }) => {
+          node.textContent = translateTextValue(source, nextLocale);
+        });
+        localeState.attrs.forEach(({ element, attr, source }) => {
+          element.setAttribute(attr, translateAttrValue(source, nextLocale));
+        });
+
+        document.documentElement.lang = nextLocale;
+        document.title = nextLocale === "en-US" ? i18nDictionary["en-US"].pageTitle : originalPageTitle;
+        const metaDescription = document.querySelector('meta[name="description"]');
+        if (metaDescription) {
+          metaDescription.setAttribute("content", nextLocale === "en-US" ? i18nDictionary["en-US"].description : originalMetaDescription);
+        }
+
+        document.querySelectorAll("[data-lang]").forEach((item) => {
+          item.setAttribute("aria-selected", String(item.dataset.lang === nextLocale));
+        });
+        document.querySelectorAll("[data-footer-lang]").forEach((item) => {
+          item.setAttribute("aria-selected", String(item.dataset.footerLang === nextLocale));
+        });
+
+        const activeLanguageLabel = nextLocale === "en-US" ? "English" : "中文";
+        document.querySelector("[data-language-label]").textContent = activeLanguageLabel;
+        document.querySelector("[data-footer-language-label]").textContent = activeLanguageLabel;
+
+        const menuToggle = document.querySelector("[data-menu-toggle]");
+        if (menuToggle) {
+          const isOpen = menuToggle.getAttribute("aria-expanded") === "true";
+          menuToggle.textContent = isOpen ? getLocaleCopy().menuClose : getLocaleCopy().menuOpen;
+        }
+
+        renderModelToggle();
+        updateModelNameOverflow();
+        localStorage.setItem("aiapi114-home-locale", nextLocale);
+        if (!options.silent) {
+          updateUrlLocale(nextLocale);
+        }
+      };
+
+      codeNode.textContent = codeExamples.curl;
+
+      const showToast = (message) => {
+        toast.textContent = message;
+        toast.hidden = false;
+        clearTimeout(toastTimer);
+        toastTimer = setTimeout(() => {
+          toast.hidden = true;
+        }, 1800);
+      };
+
+      const copyText = async (value, label = "内容") => {
+        try {
+          await navigator.clipboard.writeText(value);
+          showToast(`${label}${getLocaleCopy().copiedSuffix}`);
+        } catch {
+          showToast(getLocaleCopy().copyUnsupported);
+        }
+      };
+
+      themeControls.forEach((control) => {
+        control.addEventListener("click", (event) => {
+          const nextTheme = root.dataset.theme === "dark" ? "light" : "dark";
+          applyTheme(nextTheme, { animate: true, trigger: event.currentTarget });
+          localStorage.setItem("aiapi114-home-theme", nextTheme);
+        });
+      });
+
+      const setPointerGlow = (x, y, active) => {
+        root.style.setProperty("--pointer-x", `${x}px`);
+        root.style.setProperty("--pointer-y", `${y}px`);
+        root.style.setProperty("--pointer-active", `${active}`);
+      };
+
+      setPointerGlow(window.innerWidth * 0.52, window.innerHeight * 0.18, 0.38);
+      window.addEventListener("mousemove", (event) => {
+        setPointerGlow(event.clientX, event.clientY, 0.78);
+      }, { passive: true });
+
+      window.addEventListener("mouseleave", () => {
+        setPointerGlow(window.innerWidth * 0.52, window.innerHeight * 0.18, 0.38);
+      });
+
+      document.querySelector("[data-menu-toggle]").addEventListener("click", (event) => {
+        const menu = document.querySelector("#prototype-mobile-menu");
+        const open = menu.hidden;
+        menu.hidden = !open;
+        event.currentTarget.setAttribute("aria-expanded", String(open));
+        event.currentTarget.textContent = open ? getLocaleCopy().menuClose : getLocaleCopy().menuOpen;
+      });
+
+      document.querySelectorAll("#prototype-mobile-menu a").forEach((link) => {
+        link.addEventListener("click", () => {
+          document.querySelector("#prototype-mobile-menu").hidden = true;
+          const toggle = document.querySelector("[data-menu-toggle]");
+          toggle.setAttribute("aria-expanded", "false");
+          toggle.textContent = getLocaleCopy().menuOpen;
+        });
+      });
+
+
+      const languageRoot = document.querySelector("[data-language]");
+      const languageButton = document.querySelector("[data-language-toggle]");
+      const languageMenu = languageRoot.querySelector(".prototype-home__language-menu");
+      const footerLanguageRoot = document.querySelector("[data-footer-language-root]");
+      const footerLanguageButton = document.querySelector("[data-footer-language-toggle]");
+      const footerLanguageMenu = footerLanguageRoot.querySelector(".prototype-home__footer-language-menu");
+      const languageLabel = document.querySelector("[data-language-label]");
+      const footerLanguageLabel = document.querySelector("[data-footer-language-label]");
+
+      const closeLanguageMenus = () => {
+        languageMenu.hidden = true;
+        languageButton.setAttribute("aria-expanded", "false");
+        footerLanguageMenu.hidden = true;
+        footerLanguageButton.setAttribute("aria-expanded", "false");
+      };
+
+      const setLanguage = (lang) => {
+        applyLanguage(lang);
+        closeLanguageMenus();
+      };
+
+      languageButton.addEventListener("click", () => {
+        const open = languageMenu.hidden;
+        footerLanguageMenu.hidden = true;
+        footerLanguageButton.setAttribute("aria-expanded", "false");
+        languageMenu.hidden = !open;
+        languageButton.setAttribute("aria-expanded", String(open));
+      });
+
+      document.querySelectorAll("[data-lang]").forEach((item) => {
+        item.addEventListener("click", () => setLanguage(item.dataset.lang));
+      });
+
+      footerLanguageButton.addEventListener("click", () => {
+        const open = footerLanguageMenu.hidden;
+        languageMenu.hidden = true;
+        languageButton.setAttribute("aria-expanded", "false");
+        footerLanguageMenu.hidden = !open;
+        footerLanguageButton.setAttribute("aria-expanded", String(open));
+      });
+
+      document.querySelectorAll("[data-footer-lang]").forEach((item) => {
+        item.addEventListener("click", () => setLanguage(item.dataset.footerLang));
+      });
+
+      document.addEventListener("click", (event) => {
+        if (!languageRoot.contains(event.target) && !footerLanguageRoot.contains(event.target)) {
+          closeLanguageMenus();
+        }
+      });
+
+      document.addEventListener("keydown", (event) => {
+        if (event.key === "Escape") {
+          closeLanguageMenus();
+        }
+      });
+
+      document.querySelectorAll("[data-copy]").forEach((button) => {
+        button.addEventListener("click", () => copyText(button.dataset.copy, button.getAttribute("aria-label") || getLocaleCopy().contentLabel));
+      });
+
+      const codeTabButtons = Array.from(document.querySelectorAll("[data-tab]"));
+      const activateCodeTab = (button, options = {}) => {
+        codeTabButtons.forEach((item) => {
+          item.classList.remove("is-active");
+          item.setAttribute("aria-selected", "false");
+          item.tabIndex = -1;
+        });
+        button.classList.add("is-active");
+        button.setAttribute("aria-selected", "true");
+        button.tabIndex = 0;
+        codeNode.textContent = codeExamples[button.dataset.tab];
+        codePanel.setAttribute("aria-labelledby", button.id);
+        if (options.focus) button.focus();
+      };
+
+      codeTabButtons.forEach((button, index) => {
+        button.addEventListener("click", () => activateCodeTab(button));
+        button.addEventListener("keydown", (event) => {
+          const keyMap = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 };
+          if (event.key === "Home") {
+            event.preventDefault();
+            activateCodeTab(codeTabButtons[0], { focus: true });
+            return;
+          }
+          if (event.key === "End") {
+            event.preventDefault();
+            activateCodeTab(codeTabButtons[codeTabButtons.length - 1], { focus: true });
+            return;
+          }
+          const direction = keyMap[event.key];
+          if (!direction) return;
+          event.preventDefault();
+          const nextIndex = (index + direction + codeTabButtons.length) % codeTabButtons.length;
+          activateCodeTab(codeTabButtons[nextIndex], { focus: true });
+        });
+      });
+
+      document.querySelector("[data-copy-code]").addEventListener("click", () => {
+        copyText(codeNode.textContent, getLocaleCopy().exampleCodeLabel);
+      });
+
+      document.querySelector("[data-toggle-models]").addEventListener("click", (event) => {
+        const extras = Array.from(document.querySelectorAll(".prototype-home__model-card.is-extra"));
+        const shouldShow = extras.some((card) => card.hidden);
+        extras.forEach((card) => {
+          card.hidden = !shouldShow;
+        });
+        renderModelToggle();
+        updateModelNameOverflow();
+      });
+
+      const closeModal = () => {
+        document.querySelectorAll(".prototype-home__modal-backdrop").forEach((modal) => {
+          modal.hidden = true;
+        });
+        if (modalOpener) modalOpener.focus();
+        modalOpener = null;
+      };
+
+      const openModal = (selector, opener) => {
+        modalOpener = opener;
+        const modal = document.querySelector(selector);
+        modal.hidden = false;
+        modal.querySelector("[data-close-modal]").focus();
+      };
+
+      document.querySelectorAll("[data-open-notice]").forEach((button) => {
+        button.addEventListener("click", () => openModal("[data-notice-modal]", button));
+      });
+      document.querySelectorAll("[data-close-modal]").forEach((button) => {
+        button.addEventListener("click", closeModal);
+      });
+      document.querySelectorAll(".prototype-home__modal-backdrop").forEach((modal) => {
+        modal.addEventListener("click", (event) => {
+          if (event.target === modal) closeModal();
+        });
+      });
+      window.addEventListener("keydown", (event) => {
+        if (event.key === "Escape") closeModal();
+      });
+      window.addEventListener("resize", updateModelNameOverflow, { passive: true });
+      window.addEventListener("load", updateModelNameOverflow);
+
+      const setupScrollMotion = () => {
+        const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+        const revealTargets = Array.from(document.querySelectorAll([
+          ".prototype-home__announcement",
+          ".prototype-home__hero-copy",
+          ".prototype-home__hero-device",
+          ".prototype-home__why-card",
+          ".prototype-home__endpoint-card",
+          ".prototype-home__model-card",
+          ".prototype-home__developer-panel",
+          ".prototype-home__pricing-card",
+          ".prototype-home__metrics",
+          ".prototype-home__start-journey-card",
+          ".prototype-home__footer-main",
+          ".prototype-home__footer-bottom"
+        ].join(",")));
+
+        const updateScrollState = () => {
+          const scrollY = root.scrollTop || 0;
+          root.classList.toggle("is-scrolled", scrollY > 18);
+          root.style.setProperty("--prototype-scroll-y", String(Math.min(scrollY, 960)));
+        };
+
+        if (reducedMotion) {
+          revealTargets.forEach((target) => target.classList.add("is-visible"));
+          updateScrollState();
+          root.addEventListener("scroll", updateScrollState, { passive: true });
+          return;
+        }
+
+        root.classList.add("is-scroll-motion-ready");
+        revealTargets.forEach((target) => {
+          target.classList.add("prototype-home__scroll-reveal");
+          target.style.setProperty("--reveal-delay", "0ms");
+        });
+
+        const revealObserver = new IntersectionObserver((entries) => {
+          const visibleEntries = entries
+            .filter((entry) => entry.isIntersecting)
+            .sort((current, next) => {
+              const topDelta = current.boundingClientRect.top - next.boundingClientRect.top;
+              if (Math.abs(topDelta) > 12) return topDelta;
+              return current.boundingClientRect.left - next.boundingClientRect.left;
+            });
+
+          visibleEntries.forEach((entry, index) => {
+            entry.target.style.setProperty("--reveal-delay", `${index * 72}ms`);
+            entry.target.classList.add("is-visible");
+            revealObserver.unobserve(entry.target);
+          });
+        }, {
+          root,
+          threshold: 0.14,
+          rootMargin: "0px 0px -8% 0px"
+        });
+
+        revealTargets.forEach((target) => revealObserver.observe(target));
+        updateScrollState();
+        root.addEventListener("scroll", updateScrollState, { passive: true });
+      };
+
+      applyLanguage(getInitialLocale(), { silent: true });
+      updateModelNameOverflow();
+      setupScrollMotion();
+    </script>
+  </body>
+</html>
