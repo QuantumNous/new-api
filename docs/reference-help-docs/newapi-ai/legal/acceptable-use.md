@@ -1,51 +1,97 @@
 # 合规与可接受使用政策
 
-> 来源：https://www.newapi.ai/zh/docs/legal/acceptable-use
->
-> 抓取时间：2026-05-23T07:09:46.142Z
+> 来源：https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/legal/acceptable-use.mdx
+> 抓取时间：2026-05-23T07:43:21.476Z
+> 源文件：content/docs/zh/legal/acceptable-use.mdx
 
 ## 页面大纲
 
-    - 关于我们
-    - 文档
-    - 相关项目
-    - 友情链接
+  - 项目定位
+  - 合法授权要求
+  - 使用边界
+  - 公众服务义务
+  - 密钥与渠道要求
+  - 支付与账务管理
+  - 内容安全
+  - 社区治理
+  - 维护者立场
 
 ## 原文内容
 
-[![New API](https://www.newapi.ai/assets/newapi.svg)New API](https://www.newapi.ai/)
+---
+title: 合规与可接受使用政策
+description: New API 项目的合规声明与可接受使用政策
+---
+import { Callout } from 'fumadocs-ui/components/callout';
 
-[](https://github.com/QuantumNous/new-api)[](https://atomgit.com/QuantumNous/new-api)
+<Callout type="error">
+  在使用 New API 之前，请仔细阅读并理解本政策。
+</Callout>
 
-⚠️合规提示：本项目仅用于合法授权的 API 网关、内部管理和私有化部署场景。请遵守上游服务条款、平台规则、监管要求和内容安全要求。
+## 项目定位
 
-### 关于我们
+New API 是面向合法授权场景的 AI API 网关与用量管理系统，默认面向自用、团队内部和企业私有化部署。核心能力包括：
 
--   [关于项目](https://www.newapi.ai/zh/docs/guide/wiki/basic-concepts/project-introduction)
--   [联系我们](https://www.newapi.ai/zh/docs/support/community-interaction)
--   [功能特性](https://www.newapi.ai/zh/docs/guide/wiki/basic-concepts/features-introduction)
+- 企业内部统一鉴权与多模型路由
+- 组织内用量统计与权限控制
+- 成本分摊与企业客户账务管理
+- 私有化部署与开发测试
 
-### 文档
+## 合法授权要求
 
--   [安装部署](https://www.newapi.ai/zh/docs/installation)
--   [使用指南](https://www.newapi.ai/zh/docs/guide/home)
--   [API 文档](https://www.newapi.ai/zh/docs/api)
+用户在使用 New API 时，必须满足以下要求：
 
-### 相关项目
+- 合法取得上游 API Key、模型服务、支付服务和其他第三方服务授权
+- 遵守上游服务条款和平台规则
+- 遵守所在地法律法规和监管要求
+- 遵守适用的 AI 治理框架和内容安全要求
 
--   [One API](https://github.com/songquanpeng/one-api)
--   [Midjourney-Proxy](https://github.com/novicezk/midjourney-proxy)
--   [new-api-key-tool](https://github.com/Calcium-Ion/new-api-key-tool)
+## 使用边界
 
-### 友情链接
+使用本项目时，应确保相关场景合法授权、合规可审计，并符合以下要求：
 
--   [CoAI](https://github.com/coaidev/coai)
--   [new-api-horizon](https://github.com/Calcium-Ion/new-api-horizon)
--   [GPT-Load](https://www.gpt-load.com/)
--   [LangBot](https://langbot.app/)
+- 遵守上游服务条款和平台规则
+- 遵守所在地法律法规和监管要求
+- 遵守内容安全、公共安全、网络安全和权益保护要求
+- 遵守上游内容政策和适用的 AI 治理要求
 
-© 2025 锟腾科技. All Rights Reserved.
+## 公众服务义务
 
-[浙ICP备2025190188号-2](https://beian.miit.gov.cn/)[浙公网安备33010602014019号](http://www.beian.gov.cn/portal/registerSystemInfo?recordcode=33010602014019)
+如用户面向不特定公众提供生成式 AI 服务，应自行完成所在地法律法规要求的合规义务，包括但不限于：
 
-[](https://github.com/QuantumNous/new-api)[](https://atomgit.com/QuantumNous/new-api)[](https://hub.docker.com/r/calciumion/new-api)[](https://www.newapi.ai/zh/docs/support/community-interaction)[](https://www.producthunt.com/products/new-api)
+- 备案与资质要求
+- 内容安全审核与治理机制
+- 身份管理与日志留存
+- 税务与支付合规
+- 消费者保护
+- 上游授权与服务条款遵循
+
+<Callout type="warn">
+  本项目默认面向自用、团队内部和企业私有化部署场景。对外提供服务所涉及的合规义务，由部署方自行承担。
+</Callout>
+
+## 密钥与渠道要求
+
+- 上游渠道必须是部署方合法拥有或已获授权的账号、API Key、模型服务或企业合约
+- 多密钥管理、负载均衡、故障切换等功能仅用于高可用和企业多账号管理
+- 使用上述能力时，应遵守上游服务条款、平台规则和监管要求
+
+## 支付与账务管理
+
+支付、充值、兑换码、邀请等功能仅用于合法授权场景下的内部结算、企业客户账务或合规服务收费。部署方应确保相关服务、收费、推广和上游授权均符合所在地法律法规、上游服务条款和平台规则。
+
+收款主体的税务、发票、消费者保护、支付风控等合规义务由部署方自行承担。
+
+## 内容安全
+
+部署方有义务确保通过本项目提供的服务符合内容安全要求。屏蔽词、日志记录、监控等功能应服务于内容安全、滥用治理和合规审计。面向公众服务应建立滥用举报、日志审计和处置机制。
+
+## 社区治理
+
+本项目社区讨论应围绕合法授权、合规部署和正当工程问题展开。issue、PR、discussion 应符合项目合规要求和社区规则，维护者将按规则处理不符合要求的内容。
+
+## 维护者立场
+
+<Callout type="error">
+  New API 按"原样"提供，不提供任何形式的保证。维护者仅为合法合规使用场景提供技术讨论和社区支持，并可按社区规则处理不符合项目合规要求的 issue、PR、讨论和教程链接。开发者和维护者对使用本软件产生的任何损害或法律问题不承担责任。
+</Callout>

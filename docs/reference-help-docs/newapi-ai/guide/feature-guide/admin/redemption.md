@@ -1,51 +1,50 @@
 # 兑换码管理
 
-> 来源：https://www.newapi.ai/zh/docs/guide/feature-guide/admin/redemption
->
-> 抓取时间：2026-05-23T07:09:46.142Z
+> 来源：https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/guide/feature-guide/admin/redemption.mdx
+> 抓取时间：2026-05-23T07:43:21.476Z
+> 源文件：content/docs/zh/guide/feature-guide/admin/redemption.mdx
 
 ## 页面大纲
 
-    - 关于我们
-    - 文档
-    - 相关项目
-    - 友情链接
+  - 批量生成兑换码
+    - 打开生成弹窗
+    - 设置生成参数
+    - 生成兑换码
+    - 导出兑换码
 
 ## 原文内容
 
-[![New API](https://www.newapi.ai/assets/newapi.svg)New API](https://www.newapi.ai/)
+---
+title: 兑换码管理
+description: 批量生成和管理配额兑换码
+---
+批量生成和管理配额兑换码，用于活动赠送或用户充值。使用管理员账号登录后，左侧导航点击「兑换码」，或直接访问 `/console/redemption`。
 
-[](https://github.com/QuantumNous/new-api)[](https://atomgit.com/QuantumNous/new-api)
+![兑换码列表页](/assets/guide/feature-guide/redemption-list.png)
 
-⚠️合规提示：本项目仅用于合法授权的 API 网关、内部管理和私有化部署场景。请遵守上游服务条款、平台规则、监管要求和内容安全要求。
+兑换码列表展示所有已生成的兑换码，包含码值（部分遮挡）、面值、使用状态（未使用 / 已使用）、创建时间。
 
-### 关于我们
+## 批量生成兑换码
 
--   [关于项目](https://www.newapi.ai/zh/docs/guide/wiki/basic-concepts/project-introduction)
--   [联系我们](https://www.newapi.ai/zh/docs/support/community-interaction)
--   [功能特性](https://www.newapi.ai/zh/docs/guide/wiki/basic-concepts/features-introduction)
+### 打开生成弹窗
 
-### 文档
+在兑换码列表页点击「生成兑换码」按钮，弹出生成弹窗
 
--   [安装部署](https://www.newapi.ai/zh/docs/installation)
--   [使用指南](https://www.newapi.ai/zh/docs/guide/home)
--   [API 文档](https://www.newapi.ai/zh/docs/api)
+![生成兑换码弹窗](/assets/guide/feature-guide/redemption-create.png)
 
-### 相关项目
+### 设置生成参数
 
--   [One API](https://github.com/songquanpeng/one-api)
--   [Midjourney-Proxy](https://github.com/novicezk/midjourney-proxy)
--   [new-api-key-tool](https://github.com/Calcium-Ion/new-api-key-tool)
+填写以下参数：
+- **名称**：便于识别的批次名称
+- **面值**：每张兑换码对应的配额数量
+- **数量**：本次生成的兑换码张数
 
-### 友情链接
+### 生成兑换码
 
--   [CoAI](https://github.com/coaidev/coai)
--   [new-api-horizon](https://github.com/Calcium-Ion/new-api-horizon)
--   [GPT-Load](https://www.gpt-load.com/)
--   [LangBot](https://langbot.app/)
+点击「生成」，系统批量创建兑换码并显示在列表中
 
-© 2025 锟腾科技. All Rights Reserved.
+![生成完成后的兑换码列表](/assets/guide/feature-guide/redemption-created.png)
 
-[浙ICP备2025190188号-2](https://beian.miit.gov.cn/)[浙公网安备33010602014019号](http://www.beian.gov.cn/portal/registerSystemInfo?recordcode=33010602014019)
+### 导出兑换码
 
-[](https://github.com/QuantumNous/new-api)[](https://atomgit.com/QuantumNous/new-api)[](https://hub.docker.com/r/calciumion/new-api)[](https://www.newapi.ai/zh/docs/support/community-interaction)[](https://www.producthunt.com/products/new-api)
+可点击列表中的「导出」按钮，将兑换码导出为文件，方便批量分发

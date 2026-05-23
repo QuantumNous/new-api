@@ -1,261 +1,304 @@
 # New API 帮助文档
 
 > 来源入口：https://www.newapi.ai/zh/docs
-> 抓取时间：2026-05-23T07:09:46.142Z
-> 文档页数：250
+> 抓取时间：2026-05-23T07:43:21.476Z
+> 文档页数：293
 
 ## 目录大纲
 
-- [快速开始](index.md) — https://www.newapi.ai/zh/docs
-- [项目介绍](guide/wiki/basic-concepts/project-introduction.md) — https://www.newapi.ai/zh/docs/guide/wiki/basic-concepts/project-introduction
-- [特性说明](guide/wiki/basic-concepts/features-introduction.md) — https://www.newapi.ai/zh/docs/guide/wiki/basic-concepts/features-introduction
-- [技术架构](guide/wiki/basic-concepts/technical-architecture.md) — https://www.newapi.ai/zh/docs/guide/wiki/basic-concepts/technical-architecture
-- [分析工具设置指南](guide/wiki/basic-concepts/analytics-setup.md) — https://www.newapi.ai/zh/docs/guide/wiki/basic-concepts/analytics-setup
-- [性能分析设置指南](guide/wiki/basic-concepts/performance-analysis.md) — https://www.newapi.ai/zh/docs/guide/wiki/basic-concepts/performance-analysis
-- [更新日志](guide/wiki/changelog.md) — https://www.newapi.ai/zh/docs/guide/wiki/changelog
-- [功能指南概述](guide/feature-guide.md) — https://www.newapi.ai/zh/docs/guide/feature-guide
-- [安装部署](installation.md) — https://www.newapi.ai/zh/docs/installation
-- [API 参考](api.md) — https://www.newapi.ai/zh/docs/api
-- [AI 应用](apps.md) — https://www.newapi.ai/zh/docs/apps
-- [Skills](skills.md) — https://www.newapi.ai/zh/docs/skills
-- [帮助支持](support.md) — https://www.newapi.ai/zh/docs/support
-- [商务合作](business.md) — https://www.newapi.ai/zh/docs/business
-- [合规与可接受使用政策](legal/acceptable-use.md) — https://www.newapi.ai/zh/docs/legal/acceptable-use
-- [Docker Compose 部署](installation/deployment-methods/docker-compose-installation.md) — https://www.newapi.ai/zh/docs/installation/deployment-methods/docker-compose-installation
-- [Docker 部署](installation/deployment-methods/docker-installation.md) — https://www.newapi.ai/zh/docs/installation/deployment-methods/docker-installation
-- [1Panel 面板部署](installation/deployment-methods/1panel-installation.md) — https://www.newapi.ai/zh/docs/installation/deployment-methods/1panel-installation
-- [宝塔面板部署](installation/deployment-methods/bt-docker-installation.md) — https://www.newapi.ai/zh/docs/installation/deployment-methods/bt-docker-installation
-- [集群部署](installation/deployment-methods/cluster-deployment.md) — https://www.newapi.ai/zh/docs/installation/deployment-methods/cluster-deployment
-- [本地开发部署](installation/deployment-methods/local-development.md) — https://www.newapi.ai/zh/docs/installation/deployment-methods/local-development
-- [社区互动](support/community-interaction.md) — https://www.newapi.ai/zh/docs/support/community-interaction
-- [首页](guide/home.md) — https://www.newapi.ai/zh/docs/guide/home
-- [注册与登录](guide/feature-guide/user/auth.md) — https://www.newapi.ai/zh/docs/guide/feature-guide/user/auth
-- [个人设置](guide/feature-guide/user/personal-setting.md) — https://www.newapi.ai/zh/docs/guide/feature-guide/user/personal-setting
-- [令牌管理](guide/feature-guide/user/token.md) — https://www.newapi.ai/zh/docs/guide/feature-guide/user/token
-- [使用 API](guide/feature-guide/user/api.md) — https://www.newapi.ai/zh/docs/guide/feature-guide/user/api
-- [聊天应用集成](guide/feature-guide/user/chat-apps.md) — https://www.newapi.ai/zh/docs/guide/feature-guide/user/chat-apps
-- [使用记录](guide/feature-guide/user/log.md) — https://www.newapi.ai/zh/docs/guide/feature-guide/user/log
-- [配额与充值](guide/feature-guide/user/topup.md) — https://www.newapi.ai/zh/docs/guide/feature-guide/user/topup
-- [订阅计划](guide/feature-guide/user/subscription.md) — https://www.newapi.ai/zh/docs/guide/feature-guide/user/subscription
-- [定价](guide/feature-guide/user/pricing.md) — https://www.newapi.ai/zh/docs/guide/feature-guide/user/pricing
-- [任务管理](guide/feature-guide/user/task.md) — https://www.newapi.ai/zh/docs/guide/feature-guide/user/task
-- [渠道管理](guide/feature-guide/admin/channel.md) — https://www.newapi.ai/zh/docs/guide/feature-guide/admin/channel
-- [用户管理](guide/feature-guide/admin/user.md) — https://www.newapi.ai/zh/docs/guide/feature-guide/admin/user
-- [兑换码管理](guide/feature-guide/admin/redemption.md) — https://www.newapi.ai/zh/docs/guide/feature-guide/admin/redemption
-- [日志与统计](guide/feature-guide/admin/log.md) — https://www.newapi.ai/zh/docs/guide/feature-guide/admin/log
-- [订阅计划管理](guide/feature-guide/admin/subscription.md) — https://www.newapi.ai/zh/docs/guide/feature-guide/admin/subscription
-- [模型管理](guide/feature-guide/admin/model.md) — https://www.newapi.ai/zh/docs/guide/feature-guide/admin/model
-- [分组管理](guide/feature-guide/admin/group.md) — https://www.newapi.ai/zh/docs/guide/feature-guide/admin/group
-- [系统设置](guide/feature-guide/admin/system-setting.md) — https://www.newapi.ai/zh/docs/guide/feature-guide/admin/system-setting
-- [系统设置详细配置](guide/feature-guide/admin/system-setting-advanced.md) — https://www.newapi.ai/zh/docs/guide/feature-guide/admin/system-setting-advanced
-- [自定义 OAuth 提供商](guide/feature-guide/admin/custom-oauth.md) — https://www.newapi.ai/zh/docs/guide/feature-guide/admin/custom-oauth
-- [性能监控](guide/feature-guide/admin/performance.md) — https://www.newapi.ai/zh/docs/guide/feature-guide/admin/performance
-- [文档与关于页配置](guide/feature-guide/admin/docs-config.md) — https://www.newapi.ai/zh/docs/guide/feature-guide/admin/docs-config
-- [系统更新指南](installation/config-maintenance/system-update.md) — https://www.newapi.ai/zh/docs/installation/config-maintenance/system-update
-- [环境变量配置指南](installation/config-maintenance/environment-variables.md) — https://www.newapi.ai/zh/docs/installation/config-maintenance/environment-variables
-- [Docker Compose 配置说明](installation/config-maintenance/docker-compose-yml.md) — https://www.newapi.ai/zh/docs/installation/config-maintenance/docker-compose-yml
-- [原生OpenAI格式](api/ai-model/models/list/listmodels.md) — https://www.newapi.ai/zh/docs/api/ai-model/models/list/listmodels
-- [ChatCompletions格式](api/ai-model/chat/openai/createchatcompletion.md) — https://www.newapi.ai/zh/docs/api/ai-model/chat/openai/createchatcompletion
-- [原生OpenAI格式](api/ai-model/completions/createcompletion.md) — https://www.newapi.ai/zh/docs/api/ai-model/completions/createcompletion
-- [原生OpenAI格式](api/ai-model/embeddings/createembedding.md) — https://www.newapi.ai/zh/docs/api/ai-model/embeddings/createembedding
-- [文档重排序](api/ai-model/rerank/creatererank.md) — https://www.newapi.ai/zh/docs/api/ai-model/rerank/creatererank
-- [原生OpenAI格式](api/ai-model/moderations/createmoderation.md) — https://www.newapi.ai/zh/docs/api/ai-model/moderations/createmoderation
-- [文本转语音](api/ai-model/audio/openai/createspeech.md) — https://www.newapi.ai/zh/docs/api/ai-model/audio/openai/createspeech
-- [原生OpenAI格式](api/ai-model/realtime/createrealtimesession.md) — https://www.newapi.ai/zh/docs/api/ai-model/realtime/createrealtimesession
-- [生成图像](api/ai-model/images/openai/post-v1-images-generations.md) — https://www.newapi.ai/zh/docs/api/ai-model/images/openai/post-v1-images-generations
-- [创建视频](api/ai-model/videos/sora/createvideo.md) — https://www.newapi.ai/zh/docs/api/ai-model/videos/sora/createvideo
-- [列出文件 (未实现)](api/ai-model/unimplemented/files/listfiles.md) — https://www.newapi.ai/zh/docs/api/ai-model/unimplemented/files/listfiles
-- [获取系统状态](api/management/system/status-get.md) — https://www.newapi.ai/zh/docs/api/management/system/status-get
-- [获取系统选项](api/management/system-settings/option-get.md) — https://www.newapi.ai/zh/docs/api/management/system-settings/option-get
-- [用户登录](api/management/user-auth/user-login-post.md) — https://www.newapi.ai/zh/docs/api/management/user-auth/user-login-post
-- [获取当前用户信息](api/management/user-management/user-self-get.md) — https://www.newapi.ai/zh/docs/api/management/user-management/user-self-get
-- [获取2FA状态](api/management/two-factor-auth/user-2fa-status-get.md) — https://www.newapi.ai/zh/docs/api/management/two-factor-auth/user-2fa-status-get
-- [GitHub OAuth登录](api/management/oauth/oauth-github-get.md) — https://www.newapi.ai/zh/docs/api/management/oauth/oauth-github-get
-- [获取所有渠道](api/management/channel-management/channel-get.md) — https://www.newapi.ai/zh/docs/api/management/channel-management/channel-get
-- [获取所有模型元数据](api/management/model-management/models-get.md) — https://www.newapi.ai/zh/docs/api/management/model-management/models-get
-- [获取所有令牌](api/management/token-management/token-get.md) — https://www.newapi.ai/zh/docs/api/management/token-management/token-get
-- [获取所有兑换码](api/management/redemption/redemption-get.md) — https://www.newapi.ai/zh/docs/api/management/redemption/redemption-get
-- [获取充值信息](api/management/payment/user-topup-info-get.md) — https://www.newapi.ai/zh/docs/api/management/payment/user-topup-info-get
-- [获取所有日志](api/management/logs/log-get.md) — https://www.newapi.ai/zh/docs/api/management/logs/log-get
-- [获取所有额度数据](api/management/statistics/data-get.md) — https://www.newapi.ai/zh/docs/api/management/statistics/data-get
-- [获取所有任务](api/management/tasks/task-get.md) — https://www.newapi.ai/zh/docs/api/management/tasks/task-get
-- [获取所有分组](api/management/groups/group-get.md) — https://www.newapi.ai/zh/docs/api/management/groups/group-get
-- [获取所有供应商](api/management/vendors/vendors-get.md) — https://www.newapi.ai/zh/docs/api/management/vendors/vendors-get
-- [获取验证状态](api/management/security-verification/verify-status-get.md) — https://www.newapi.ai/zh/docs/api/management/security-verification/verify-status-get
-- [AionUi](apps/aionui.md) — https://www.newapi.ai/zh/docs/apps/aionui
-- [CC Switch](apps/cc-switch.md) — https://www.newapi.ai/zh/docs/apps/cc-switch
-- [Cherry Studio](apps/cherry-studio.md) — https://www.newapi.ai/zh/docs/apps/cherry-studio
-- [DeepChat](apps/deepchat.md) — https://www.newapi.ai/zh/docs/apps/deepchat
-- [Memoh](apps/memoh.md) — https://www.newapi.ai/zh/docs/apps/memoh
-- [流畅阅读 (FluentRead)](apps/fluent-read.md) — https://www.newapi.ai/zh/docs/apps/fluent-read
-- [OpenClaw](apps/openclaw.md) — https://www.newapi.ai/zh/docs/apps/openclaw
-- [LangBot](apps/langbot.md) — https://www.newapi.ai/zh/docs/apps/langbot
-- [AstrBot](apps/astrbot.md) — https://www.newapi.ai/zh/docs/apps/astrbot
-- [LunaTranslator](apps/luna-translator.md) — https://www.newapi.ai/zh/docs/apps/luna-translator
-- [Claude Code](apps/claude-code.md) — https://www.newapi.ai/zh/docs/apps/claude-code
-- [OpenAI Codex CLI](apps/codex-cli.md) — https://www.newapi.ai/zh/docs/apps/codex-cli
-- [Factory Droid CLI](apps/factory-droid-cli.md) — https://www.newapi.ai/zh/docs/apps/factory-droid-cli
-- [newapi](skills/newapi.md) — https://www.newapi.ai/zh/docs/skills/newapi
-- [newapi](skills/newapi-admin.md) — https://www.newapi.ai/zh/docs/skills/newapi-admin
-- [常见问题](support/faq.md) — https://www.newapi.ai/zh/docs/support/faq
-- [问题反馈](support/feedback-issues.md) — https://www.newapi.ai/zh/docs/support/feedback-issues
-- [原生Gemini格式](api/ai-model/models/list/listmodelsgemini.md) — https://www.newapi.ai/zh/docs/api/ai-model/models/list/listmodelsgemini
-- [原生Claude格式](api/ai-model/chat/createmessage.md) — https://www.newapi.ai/zh/docs/api/ai-model/chat/createmessage
-- [Responses格式](api/ai-model/chat/openai/createresponse.md) — https://www.newapi.ai/zh/docs/api/ai-model/chat/openai/createresponse
-- [原生Gemini格式](api/ai-model/embeddings/createengineembedding.md) — https://www.newapi.ai/zh/docs/api/ai-model/embeddings/createengineembedding
-- [原生Gemini格式](api/ai-model/audio/geminirelayv1beta-383836364.md) — https://www.newapi.ai/zh/docs/api/ai-model/audio/geminirelayv1beta-383836364
-- [音频转录](api/ai-model/audio/openai/createtranscription.md) — https://www.newapi.ai/zh/docs/api/ai-model/audio/openai/createtranscription
-- [音频翻译](api/ai-model/audio/openai/createtranslation.md) — https://www.newapi.ai/zh/docs/api/ai-model/audio/openai/createtranslation
-- [编辑图像](api/ai-model/images/openai/post-v1-images-edits.md) — https://www.newapi.ai/zh/docs/api/ai-model/images/openai/post-v1-images-edits
-- [创建视频生成任务](api/ai-model/videos/createvideogeneration.md) — https://www.newapi.ai/zh/docs/api/ai-model/videos/createvideogeneration
-- [获取视频生成任务状态](api/ai-model/videos/getvideogeneration.md) — https://www.newapi.ai/zh/docs/api/ai-model/videos/getvideogeneration
-- [获取视频任务状态](api/ai-model/videos/sora/getvideo.md) — https://www.newapi.ai/zh/docs/api/ai-model/videos/sora/getvideo
-- [获取视频内容](api/ai-model/videos/sora/getvideocontent.md) — https://www.newapi.ai/zh/docs/api/ai-model/videos/sora/getvideocontent
-- [上传文件 (未实现)](api/ai-model/unimplemented/files/createfile.md) — https://www.newapi.ai/zh/docs/api/ai-model/unimplemented/files/createfile
-- [删除文件 (未实现)](api/ai-model/unimplemented/files/deletefile.md) — https://www.newapi.ai/zh/docs/api/ai-model/unimplemented/files/deletefile
-- [获取文件内容 (未实现)](api/ai-model/unimplemented/files/downloadfile.md) — https://www.newapi.ai/zh/docs/api/ai-model/unimplemented/files/downloadfile
-- [获取文件信息 (未实现)](api/ai-model/unimplemented/files/retrievefile.md) — https://www.newapi.ai/zh/docs/api/ai-model/unimplemented/files/retrievefile
-- [鉴权体系说明（Auth）](api/management/auth.md) — https://www.newapi.ai/zh/docs/api/management/auth
-- [获取关于信息](api/management/system/about-get.md) — https://www.newapi.ai/zh/docs/api/management/system/about-get
-- [获取首页内容](api/management/system/home_page_content-get.md) — https://www.newapi.ai/zh/docs/api/management/system/home_page_content-get
-- [获取模型列表](api/management/system/models-get.md) — https://www.newapi.ai/zh/docs/api/management/system/models-get
-- [获取公告](api/management/system/notice-get.md) — https://www.newapi.ai/zh/docs/api/management/system/notice-get
-- [获取定价信息](api/management/system/pricing-get.md) — https://www.newapi.ai/zh/docs/api/management/system/pricing-get
-- [获取隐私政策](api/management/system/privacy-policy-get.md) — https://www.newapi.ai/zh/docs/api/management/system/privacy-policy-get
-- [获取倍率配置](api/management/system/ratio_config-get.md) — https://www.newapi.ai/zh/docs/api/management/system/ratio_config-get
-- [获取初始化状态](api/management/system/setup-get.md) — https://www.newapi.ai/zh/docs/api/management/system/setup-get
-- [初始化系统](api/management/system/setup-post.md) — https://www.newapi.ai/zh/docs/api/management/system/setup-post
-- [测试系统状态](api/management/system/status-test-get.md) — https://www.newapi.ai/zh/docs/api/management/system/status-test-get
-- [获取Uptime Kuma状态](api/management/system/uptime-status-get.md) — https://www.newapi.ai/zh/docs/api/management/system/uptime-status-get
-- [获取用户协议](api/management/system/user-agreement-get.md) — https://www.newapi.ai/zh/docs/api/management/system/user-agreement-get
-- [迁移控制台设置](api/management/system-settings/option-migrate_console_setting-post.md) — https://www.newapi.ai/zh/docs/api/management/system-settings/option-migrate_console_setting-post
-- [更新系统选项](api/management/system-settings/option-put.md) — https://www.newapi.ai/zh/docs/api/management/system-settings/option-put
-- [重置模型倍率](api/management/system-settings/option-rest_model_ratio-post.md) — https://www.newapi.ai/zh/docs/api/management/system-settings/option-rest_model_ratio-post
-- [获取可同步渠道](api/management/system-settings/ratio_sync-channels-get.md) — https://www.newapi.ai/zh/docs/api/management/system-settings/ratio_sync-channels-get
-- [获取上游倍率](api/management/system-settings/ratio_sync-fetch-post.md) — https://www.newapi.ai/zh/docs/api/management/system-settings/ratio_sync-fetch-post
-- [发送密码重置邮件](api/management/user-auth/reset_password-get.md) — https://www.newapi.ai/zh/docs/api/management/user-auth/reset_password-get
-- [获取用户分组列表](api/management/user-auth/user-groups-get.md) — https://www.newapi.ai/zh/docs/api/management/user-auth/user-groups-get
-- [两步验证登录](api/management/user-auth/user-login-2fa-post.md) — https://www.newapi.ai/zh/docs/api/management/user-auth/user-login-2fa-post
-- [用户登出](api/management/user-auth/user-logout-get.md) — https://www.newapi.ai/zh/docs/api/management/user-auth/user-logout-get
-- [开始Passkey登录](api/management/user-auth/user-passkey-login-begin-post.md) — https://www.newapi.ai/zh/docs/api/management/user-auth/user-passkey-login-begin-post
-- [完成Passkey登录](api/management/user-auth/user-passkey-login-finish-post.md) — https://www.newapi.ai/zh/docs/api/management/user-auth/user-passkey-login-finish-post
-- [用户注册](api/management/user-auth/user-register-post.md) — https://www.newapi.ai/zh/docs/api/management/user-auth/user-register-post
-- [重置密码](api/management/user-auth/user-reset-post.md) — https://www.newapi.ai/zh/docs/api/management/user-auth/user-reset-post
-- [发送邮箱验证码](api/management/user-auth/verification-get.md) — https://www.newapi.ai/zh/docs/api/management/user-auth/verification-get
-- [转换邀请额度](api/management/user-management/user-aff_transfer-post.md) — https://www.newapi.ai/zh/docs/api/management/user-management/user-aff_transfer-post
-- [获取邀请码](api/management/user-management/user-aff-get.md) — https://www.newapi.ai/zh/docs/api/management/user-management/user-aff-get
-- [获取所有用户](api/management/user-management/user-get.md) — https://www.newapi.ai/zh/docs/api/management/user-management/user-get
-- [管理员禁用用户2FA](api/management/user-management/user-id-2fa-delete.md) — https://www.newapi.ai/zh/docs/api/management/user-management/user-id-2fa-delete
-- [删除用户](api/management/user-management/user-id-delete.md) — https://www.newapi.ai/zh/docs/api/management/user-management/user-id-delete
-- [获取指定用户](api/management/user-management/user-id-get.md) — https://www.newapi.ai/zh/docs/api/management/user-management/user-id-get
-- [管理员重置用户Passkey](api/management/user-management/user-id-reset_passkey-delete.md) — https://www.newapi.ai/zh/docs/api/management/user-management/user-id-reset_passkey-delete
-- [管理用户状态](api/management/user-management/user-manage-post.md) — https://www.newapi.ai/zh/docs/api/management/user-management/user-manage-post
-- [获取用户可用模型](api/management/user-management/user-models-get.md) — https://www.newapi.ai/zh/docs/api/management/user-management/user-models-get
-- [删除Passkey](api/management/user-management/user-passkey-delete.md) — https://www.newapi.ai/zh/docs/api/management/user-management/user-passkey-delete
-- [获取Passkey状态](api/management/user-management/user-passkey-get.md) — https://www.newapi.ai/zh/docs/api/management/user-management/user-passkey-get
-- [开始注册Passkey](api/management/user-management/user-passkey-register-begin-post.md) — https://www.newapi.ai/zh/docs/api/management/user-management/user-passkey-register-begin-post
-- [完成注册Passkey](api/management/user-management/user-passkey-register-finish-post.md) — https://www.newapi.ai/zh/docs/api/management/user-management/user-passkey-register-finish-post
-- [开始验证Passkey](api/management/user-management/user-passkey-verify-begin-post.md) — https://www.newapi.ai/zh/docs/api/management/user-management/user-passkey-verify-begin-post
-- [完成验证Passkey](api/management/user-management/user-passkey-verify-finish-post.md) — https://www.newapi.ai/zh/docs/api/management/user-management/user-passkey-verify-finish-post
-- [创建用户](api/management/user-management/user-post.md) — https://www.newapi.ai/zh/docs/api/management/user-management/user-post
-- [更新用户](api/management/user-management/user-put.md) — https://www.newapi.ai/zh/docs/api/management/user-management/user-put
-- [搜索用户](api/management/user-management/user-search-get.md) — https://www.newapi.ai/zh/docs/api/management/user-management/user-search-get
-- [注销当前用户](api/management/user-management/user-self-delete.md) — https://www.newapi.ai/zh/docs/api/management/user-management/user-self-delete
-- [获取当前用户分组](api/management/user-management/user-self-groups-get.md) — https://www.newapi.ai/zh/docs/api/management/user-management/user-self-groups-get
-- [更新当前用户信息](api/management/user-management/user-self-put.md) — https://www.newapi.ai/zh/docs/api/management/user-management/user-self-put
-- [更新用户设置](api/management/user-management/user-setting-put.md) — https://www.newapi.ai/zh/docs/api/management/user-management/user-setting-put
-- [生成访问令牌](api/management/user-management/user-token-get.md) — https://www.newapi.ai/zh/docs/api/management/user-management/user-token-get
-- [管理员完成充值](api/management/user-management/user-topup-complete-post.md) — https://www.newapi.ai/zh/docs/api/management/user-management/user-topup-complete-post
-- [获取所有充值记录](api/management/user-management/user-topup-get.md) — https://www.newapi.ai/zh/docs/api/management/user-management/user-topup-get
-- [重新生成备用码](api/management/two-factor-auth/user-2fa-backup_codes-post.md) — https://www.newapi.ai/zh/docs/api/management/two-factor-auth/user-2fa-backup_codes-post
-- [禁用2FA](api/management/two-factor-auth/user-2fa-disable-post.md) — https://www.newapi.ai/zh/docs/api/management/two-factor-auth/user-2fa-disable-post
-- [启用2FA](api/management/two-factor-auth/user-2fa-enable-post.md) — https://www.newapi.ai/zh/docs/api/management/two-factor-auth/user-2fa-enable-post
-- [设置2FA](api/management/two-factor-auth/user-2fa-setup-post.md) — https://www.newapi.ai/zh/docs/api/management/two-factor-auth/user-2fa-setup-post
-- [获取2FA统计](api/management/two-factor-auth/user-2fa-stats-get.md) — https://www.newapi.ai/zh/docs/api/management/two-factor-auth/user-2fa-stats-get
-- [Discord OAuth登录](api/management/oauth/oauth-discord-get.md) — https://www.newapi.ai/zh/docs/api/management/oauth/oauth-discord-get
-- [绑定邮箱](api/management/oauth/oauth-email-bind-get.md) — https://www.newapi.ai/zh/docs/api/management/oauth/oauth-email-bind-get
-- [LinuxDO OAuth登录](api/management/oauth/oauth-linuxdo-get.md) — https://www.newapi.ai/zh/docs/api/management/oauth/oauth-linuxdo-get
-- [OIDC登录](api/management/oauth/oauth-oidc-get.md) — https://www.newapi.ai/zh/docs/api/management/oauth/oauth-oidc-get
-- [生成OAuth State](api/management/oauth/oauth-state-get.md) — https://www.newapi.ai/zh/docs/api/management/oauth/oauth-state-get
-- [绑定Telegram](api/management/oauth/oauth-telegram-bind-get.md) — https://www.newapi.ai/zh/docs/api/management/oauth/oauth-telegram-bind-get
-- [Telegram登录](api/management/oauth/oauth-telegram-login-get.md) — https://www.newapi.ai/zh/docs/api/management/oauth/oauth-telegram-login-get
-- [绑定微信](api/management/oauth/oauth-wechat-bind-get.md) — https://www.newapi.ai/zh/docs/api/management/oauth/oauth-wechat-bind-get
-- [微信OAuth登录](api/management/oauth/oauth-wechat-get.md) — https://www.newapi.ai/zh/docs/api/management/oauth/oauth-wechat-get
-- [批量删除渠道](api/management/channel-management/channel-batch-post.md) — https://www.newapi.ai/zh/docs/api/management/channel-management/channel-batch-post
-- [批量设置渠道标签](api/management/channel-management/channel-batch-tag-post.md) — https://www.newapi.ai/zh/docs/api/management/channel-management/channel-batch-tag-post
-- [复制渠道](api/management/channel-management/channel-copy-id-post.md) — https://www.newapi.ai/zh/docs/api/management/channel-management/channel-copy-id-post
-- [删除已禁用渠道](api/management/channel-management/channel-disabled-delete.md) — https://www.newapi.ai/zh/docs/api/management/channel-management/channel-disabled-delete
-- [获取上游模型列表](api/management/channel-management/channel-fetch_models-id-get.md) — https://www.newapi.ai/zh/docs/api/management/channel-management/channel-fetch_models-id-get
-- [获取模型列表](api/management/channel-management/channel-fetch_models-post.md) — https://www.newapi.ai/zh/docs/api/management/channel-management/channel-fetch_models-post
-- [修复渠道能力](api/management/channel-management/channel-fix-post.md) — https://www.newapi.ai/zh/docs/api/management/channel-management/channel-fix-post
-- [删除渠道](api/management/channel-management/channel-id-delete.md) — https://www.newapi.ai/zh/docs/api/management/channel-management/channel-id-delete
-- [获取指定渠道](api/management/channel-management/channel-id-get.md) — https://www.newapi.ai/zh/docs/api/management/channel-management/channel-id-get
-- [获取渠道密钥](api/management/channel-management/channel-id-key-post.md) — https://www.newapi.ai/zh/docs/api/management/channel-management/channel-id-key-post
-- [获取已启用模型列表](api/management/channel-management/channel-models_enabled-get.md) — https://www.newapi.ai/zh/docs/api/management/channel-management/channel-models_enabled-get
-- [获取渠道模型列表](api/management/channel-management/channel-models-get.md) — https://www.newapi.ai/zh/docs/api/management/channel-management/channel-models-get
-- [管理多密钥](api/management/channel-management/channel-multi_key-manage-post.md) — https://www.newapi.ai/zh/docs/api/management/channel-management/channel-multi_key-manage-post
-- [添加渠道](api/management/channel-management/channel-post.md) — https://www.newapi.ai/zh/docs/api/management/channel-management/channel-post
-- [更新渠道](api/management/channel-management/channel-put.md) — https://www.newapi.ai/zh/docs/api/management/channel-management/channel-put
-- [搜索渠道](api/management/channel-management/channel-search-get.md) — https://www.newapi.ai/zh/docs/api/management/channel-management/channel-search-get
-- [禁用标签渠道](api/management/channel-management/channel-tag-disabled-post.md) — https://www.newapi.ai/zh/docs/api/management/channel-management/channel-tag-disabled-post
-- [启用标签渠道](api/management/channel-management/channel-tag-enabled-post.md) — https://www.newapi.ai/zh/docs/api/management/channel-management/channel-tag-enabled-post
-- [获取标签模型](api/management/channel-management/channel-tag-models-get.md) — https://www.newapi.ai/zh/docs/api/management/channel-management/channel-tag-models-get
-- [编辑标签渠道](api/management/channel-management/channel-tag-put.md) — https://www.newapi.ai/zh/docs/api/management/channel-management/channel-tag-put
-- [测试所有渠道](api/management/channel-management/channel-test-get.md) — https://www.newapi.ai/zh/docs/api/management/channel-management/channel-test-get
-- [测试指定渠道](api/management/channel-management/channel-test-id-get.md) — https://www.newapi.ai/zh/docs/api/management/channel-management/channel-test-id-get
-- [更新所有渠道余额](api/management/channel-management/channel-update_balance-get.md) — https://www.newapi.ai/zh/docs/api/management/channel-management/channel-update_balance-get
-- [更新指定渠道余额](api/management/channel-management/channel-update_balance-id-get.md) — https://www.newapi.ai/zh/docs/api/management/channel-management/channel-update_balance-id-get
-- [删除模型](api/management/model-management/models-id-delete.md) — https://www.newapi.ai/zh/docs/api/management/model-management/models-id-delete
-- [获取指定模型](api/management/model-management/models-id-get.md) — https://www.newapi.ai/zh/docs/api/management/model-management/models-id-get
-- [获取缺失模型](api/management/model-management/models-missing-get.md) — https://www.newapi.ai/zh/docs/api/management/model-management/models-missing-get
-- [创建模型元数据](api/management/model-management/models-post.md) — https://www.newapi.ai/zh/docs/api/management/model-management/models-post
-- [更新模型元数据](api/management/model-management/models-put.md) — https://www.newapi.ai/zh/docs/api/management/model-management/models-put
-- [搜索模型](api/management/model-management/models-search-get.md) — https://www.newapi.ai/zh/docs/api/management/model-management/models-search-get
-- [同步上游模型](api/management/model-management/models-sync_upstream-post.md) — https://www.newapi.ai/zh/docs/api/management/model-management/models-sync_upstream-post
-- [预览上游模型同步](api/management/model-management/models-sync_upstream-preview-get.md) — https://www.newapi.ai/zh/docs/api/management/model-management/models-sync_upstream-preview-get
-- [批量删除令牌](api/management/token-management/token-batch-post.md) — https://www.newapi.ai/zh/docs/api/management/token-management/token-batch-post
-- [删除令牌](api/management/token-management/token-id-delete.md) — https://www.newapi.ai/zh/docs/api/management/token-management/token-id-delete
-- [获取指定令牌](api/management/token-management/token-id-get.md) — https://www.newapi.ai/zh/docs/api/management/token-management/token-id-get
-- [创建令牌](api/management/token-management/token-post.md) — https://www.newapi.ai/zh/docs/api/management/token-management/token-post
-- [更新令牌](api/management/token-management/token-put.md) — https://www.newapi.ai/zh/docs/api/management/token-management/token-put
-- [搜索令牌](api/management/token-management/token-search-get.md) — https://www.newapi.ai/zh/docs/api/management/token-management/token-search-get
-- [获取令牌使用情况](api/management/token-management/usage-token-get.md) — https://www.newapi.ai/zh/docs/api/management/token-management/usage-token-get
-- [删除兑换码](api/management/redemption/redemption-id-delete.md) — https://www.newapi.ai/zh/docs/api/management/redemption/redemption-id-delete
-- [获取指定兑换码](api/management/redemption/redemption-id-get.md) — https://www.newapi.ai/zh/docs/api/management/redemption/redemption-id-get
-- [删除无效兑换码](api/management/redemption/redemption-invalid-delete.md) — https://www.newapi.ai/zh/docs/api/management/redemption/redemption-invalid-delete
-- [创建兑换码](api/management/redemption/redemption-post.md) — https://www.newapi.ai/zh/docs/api/management/redemption/redemption-post
-- [更新兑换码](api/management/redemption/redemption-put.md) — https://www.newapi.ai/zh/docs/api/management/redemption/redemption-put
-- [搜索兑换码](api/management/redemption/redemption-search-get.md) — https://www.newapi.ai/zh/docs/api/management/redemption/redemption-search-get
-- [Creem Webhook](api/management/payment/creem-webhook-post.md) — https://www.newapi.ai/zh/docs/api/management/payment/creem-webhook-post
-- [Stripe Webhook](api/management/payment/stripe-webhook-post.md) — https://www.newapi.ai/zh/docs/api/management/payment/stripe-webhook-post
-- [获取支付金额](api/management/payment/user-amount-post.md) — https://www.newapi.ai/zh/docs/api/management/payment/user-amount-post
-- [发起Creem支付](api/management/payment/user-creem-pay-post.md) — https://www.newapi.ai/zh/docs/api/management/payment/user-creem-pay-post
-- [易支付回调](api/management/payment/user-epay-notify-get.md) — https://www.newapi.ai/zh/docs/api/management/payment/user-epay-notify-get
-- [发起易支付](api/management/payment/user-pay-post.md) — https://www.newapi.ai/zh/docs/api/management/payment/user-pay-post
-- [获取Stripe支付金额](api/management/payment/user-stripe-amount-post.md) — https://www.newapi.ai/zh/docs/api/management/payment/user-stripe-amount-post
-- [发起Stripe支付](api/management/payment/user-stripe-pay-post.md) — https://www.newapi.ai/zh/docs/api/management/payment/user-stripe-pay-post
-- [获取用户充值记录](api/management/payment/user-topup-self-get.md) — https://www.newapi.ai/zh/docs/api/management/payment/user-topup-self-get
-- [删除历史日志](api/management/logs/log-delete.md) — https://www.newapi.ai/zh/docs/api/management/logs/log-delete
-- [搜索日志](api/management/logs/log-search-get.md) — https://www.newapi.ai/zh/docs/api/management/logs/log-search-get
-- [获取个人日志](api/management/logs/log-self-get.md) — https://www.newapi.ai/zh/docs/api/management/logs/log-self-get
-- [搜索个人日志](api/management/logs/log-self-search-get.md) — https://www.newapi.ai/zh/docs/api/management/logs/log-self-search-get
-- [获取个人日志统计](api/management/logs/log-self-stat-get.md) — https://www.newapi.ai/zh/docs/api/management/logs/log-self-stat-get
-- [获取日志统计](api/management/logs/log-stat-get.md) — https://www.newapi.ai/zh/docs/api/management/logs/log-stat-get
-- [通过令牌获取日志](api/management/logs/log-token-get.md) — https://www.newapi.ai/zh/docs/api/management/logs/log-token-get
-- [获取个人额度数据](api/management/statistics/data-self-get.md) — https://www.newapi.ai/zh/docs/api/management/statistics/data-self-get
-- [获取所有Midjourney任务](api/management/tasks/mj-get.md) — https://www.newapi.ai/zh/docs/api/management/tasks/mj-get
-- [获取个人Midjourney任务](api/management/tasks/mj-self-get.md) — https://www.newapi.ai/zh/docs/api/management/tasks/mj-self-get
-- [获取个人任务](api/management/tasks/task-self-get.md) — https://www.newapi.ai/zh/docs/api/management/tasks/task-self-get
-- [获取预填分组](api/management/groups/prefill_group-get.md) — https://www.newapi.ai/zh/docs/api/management/groups/prefill_group-get
-- [删除预填分组](api/management/groups/prefill_group-id-delete.md) — https://www.newapi.ai/zh/docs/api/management/groups/prefill_group-id-delete
-- [创建预填分组](api/management/groups/prefill_group-post.md) — https://www.newapi.ai/zh/docs/api/management/groups/prefill_group-post
-- [更新预填分组](api/management/groups/prefill_group-put.md) — https://www.newapi.ai/zh/docs/api/management/groups/prefill_group-put
-- [删除供应商](api/management/vendors/vendors-id-delete.md) — https://www.newapi.ai/zh/docs/api/management/vendors/vendors-id-delete
-- [获取指定供应商](api/management/vendors/vendors-id-get.md) — https://www.newapi.ai/zh/docs/api/management/vendors/vendors-id-get
-- [创建供应商](api/management/vendors/vendors-post.md) — https://www.newapi.ai/zh/docs/api/management/vendors/vendors-post
-- [更新供应商](api/management/vendors/vendors-put.md) — https://www.newapi.ai/zh/docs/api/management/vendors/vendors-put
-- [搜索供应商](api/management/vendors/vendors-search-get.md) — https://www.newapi.ai/zh/docs/api/management/vendors/vendors-search-get
-- [通用安全验证](api/management/security-verification/verify-post.md) — https://www.newapi.ai/zh/docs/api/management/security-verification/verify-post
+- [原生Gemini格式](api/ai-model/audio/geminirelayv1beta-383836364.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/api/ai-model/audio/geminirelayv1beta-383836364.mdx
+- [文本转语音](api/ai-model/audio/openai/createspeech.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/api/ai-model/audio/openai/createspeech.mdx
+- [音频转录](api/ai-model/audio/openai/createtranscription.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/api/ai-model/audio/openai/createtranscription.mdx
+- [音频翻译](api/ai-model/audio/openai/createtranslation.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/api/ai-model/audio/openai/createtranslation.mdx
+- [原生Claude格式](api/ai-model/chat/createmessage.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/api/ai-model/chat/createmessage.mdx
+- [Gemini媒体识别](api/ai-model/chat/gemini/geminirelayv1beta-391536411.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/api/ai-model/chat/gemini/geminirelayv1beta-391536411.mdx
+- [Gemini文本聊天](api/ai-model/chat/gemini/geminirelayv1beta.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/api/ai-model/chat/gemini/geminirelayv1beta.mdx
+- [ChatCompletions格式](api/ai-model/chat/openai/createchatcompletion.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/api/ai-model/chat/openai/createchatcompletion.mdx
+- [Responses格式](api/ai-model/chat/openai/createresponse.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/api/ai-model/chat/openai/createresponse.mdx
+- [原生OpenAI格式](api/ai-model/completions/createcompletion.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/api/ai-model/completions/createcompletion.mdx
+- [原生OpenAI格式](api/ai-model/embeddings/createembedding.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/api/ai-model/embeddings/createembedding.mdx
+- [原生Gemini格式](api/ai-model/embeddings/createengineembedding.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/api/ai-model/embeddings/createengineembedding.mdx
+- [Gemini原生格式](api/ai-model/images/gemini/geminirelayv1beta-383837589.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/api/ai-model/images/gemini/geminirelayv1beta-383837589.mdx
+- [OpenAI聊天格式](api/ai-model/images/gemini/geminirelayv1beta-389846313.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/api/ai-model/images/gemini/geminirelayv1beta-389846313.mdx
+- [编辑图像](api/ai-model/images/openai/post-v1-images-edits.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/api/ai-model/images/openai/post-v1-images-edits.mdx
+- [生成图像](api/ai-model/images/openai/post-v1-images-generations.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/api/ai-model/images/openai/post-v1-images-generations.mdx
+- [生成图像](api/ai-model/images/qwen/createimage.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/api/ai-model/images/qwen/createimage.mdx
+- [编辑图像](api/ai-model/images/qwen/editimage.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/api/ai-model/images/qwen/editimage.mdx
+- [原生OpenAI格式](api/ai-model/models/list/listmodels.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/api/ai-model/models/list/listmodels.mdx
+- [原生Gemini格式](api/ai-model/models/list/listmodelsgemini.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/api/ai-model/models/list/listmodelsgemini.mdx
+- [原生OpenAI格式](api/ai-model/moderations/createmoderation.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/api/ai-model/moderations/createmoderation.mdx
+- [原生OpenAI格式](api/ai-model/realtime/createrealtimesession.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/api/ai-model/realtime/createrealtimesession.mdx
+- [文档重排序](api/ai-model/rerank/creatererank.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/api/ai-model/rerank/creatererank.mdx
+- [上传文件 (未实现)](api/ai-model/unimplemented/files/createfile.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/api/ai-model/unimplemented/files/createfile.mdx
+- [删除文件 (未实现)](api/ai-model/unimplemented/files/deletefile.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/api/ai-model/unimplemented/files/deletefile.mdx
+- [获取文件内容 (未实现)](api/ai-model/unimplemented/files/downloadfile.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/api/ai-model/unimplemented/files/downloadfile.mdx
+- [列出文件 (未实现)](api/ai-model/unimplemented/files/listfiles.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/api/ai-model/unimplemented/files/listfiles.mdx
+- [获取文件信息 (未实现)](api/ai-model/unimplemented/files/retrievefile.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/api/ai-model/unimplemented/files/retrievefile.mdx
+- [取消微调任务 (未实现)](api/ai-model/unimplemented/fine-tuning/cancelfinetune.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/api/ai-model/unimplemented/fine-tuning/cancelfinetune.mdx
+- [创建微调任务 (未实现)](api/ai-model/unimplemented/fine-tuning/createfinetune.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/api/ai-model/unimplemented/fine-tuning/createfinetune.mdx
+- [获取微调任务事件 (未实现)](api/ai-model/unimplemented/fine-tuning/listfinetuneevents.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/api/ai-model/unimplemented/fine-tuning/listfinetuneevents.mdx
+- [列出微调任务 (未实现)](api/ai-model/unimplemented/fine-tuning/listfinetunes.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/api/ai-model/unimplemented/fine-tuning/listfinetunes.mdx
+- [获取微调任务详情 (未实现)](api/ai-model/unimplemented/fine-tuning/retrievefinetune.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/api/ai-model/unimplemented/fine-tuning/retrievefinetune.mdx
+- [创建视频生成任务](api/ai-model/videos/createvideogeneration.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/api/ai-model/videos/createvideogeneration.mdx
+- [获取视频生成任务状态](api/ai-model/videos/getvideogeneration.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/api/ai-model/videos/getvideogeneration.mdx
+- [即梦视频生成](api/ai-model/videos/jimeng/createjimengvideo.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/api/ai-model/videos/jimeng/createjimengvideo.mdx
+- [Kling 图生视频](api/ai-model/videos/kling/createklingimage2video.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/api/ai-model/videos/kling/createklingimage2video.mdx
+- [Kling 文生视频](api/ai-model/videos/kling/createklingtext2video.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/api/ai-model/videos/kling/createklingtext2video.mdx
+- [获取 Kling 图生视频任务状态](api/ai-model/videos/kling/getklingimage2video.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/api/ai-model/videos/kling/getklingimage2video.mdx
+- [获取 Kling 文生视频任务状态](api/ai-model/videos/kling/getklingtext2video.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/api/ai-model/videos/kling/getklingtext2video.mdx
+- [创建视频](api/ai-model/videos/sora/createvideo.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/api/ai-model/videos/sora/createvideo.mdx
+- [获取视频任务状态](api/ai-model/videos/sora/getvideo.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/api/ai-model/videos/sora/getvideo.mdx
+- [获取视频内容](api/ai-model/videos/sora/getvideocontent.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/api/ai-model/videos/sora/getvideocontent.mdx
+- [API 参考](api/index.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/api/index.mdx
+- [鉴权体系说明（Auth）](api/management/auth.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/api/management/auth.mdx
+- [批量删除渠道](api/management/channel-management/channel-batch-post.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/api/management/channel-management/channel-batch-post.mdx
+- [批量设置渠道标签](api/management/channel-management/channel-batch-tag-post.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/api/management/channel-management/channel-batch-tag-post.mdx
+- [复制渠道](api/management/channel-management/channel-copy-id-post.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/api/management/channel-management/channel-copy-id-post.mdx
+- [删除已禁用渠道](api/management/channel-management/channel-disabled-delete.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/api/management/channel-management/channel-disabled-delete.mdx
+- [获取上游模型列表](api/management/channel-management/channel-fetch_models-id-get.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/api/management/channel-management/channel-fetch_models-id-get.mdx
+- [获取模型列表](api/management/channel-management/channel-fetch_models-post.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/api/management/channel-management/channel-fetch_models-post.mdx
+- [修复渠道能力](api/management/channel-management/channel-fix-post.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/api/management/channel-management/channel-fix-post.mdx
+- [获取所有渠道](api/management/channel-management/channel-get.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/api/management/channel-management/channel-get.mdx
+- [删除渠道](api/management/channel-management/channel-id-delete.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/api/management/channel-management/channel-id-delete.mdx
+- [获取指定渠道](api/management/channel-management/channel-id-get.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/api/management/channel-management/channel-id-get.mdx
+- [获取渠道密钥](api/management/channel-management/channel-id-key-post.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/api/management/channel-management/channel-id-key-post.mdx
+- [获取渠道模型列表](api/management/channel-management/channel-models-get.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/api/management/channel-management/channel-models-get.mdx
+- [获取已启用模型列表](api/management/channel-management/channel-models_enabled-get.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/api/management/channel-management/channel-models_enabled-get.mdx
+- [管理多密钥](api/management/channel-management/channel-multi_key-manage-post.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/api/management/channel-management/channel-multi_key-manage-post.mdx
+- [添加渠道](api/management/channel-management/channel-post.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/api/management/channel-management/channel-post.mdx
+- [更新渠道](api/management/channel-management/channel-put.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/api/management/channel-management/channel-put.mdx
+- [搜索渠道](api/management/channel-management/channel-search-get.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/api/management/channel-management/channel-search-get.mdx
+- [禁用标签渠道](api/management/channel-management/channel-tag-disabled-post.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/api/management/channel-management/channel-tag-disabled-post.mdx
+- [启用标签渠道](api/management/channel-management/channel-tag-enabled-post.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/api/management/channel-management/channel-tag-enabled-post.mdx
+- [获取标签模型](api/management/channel-management/channel-tag-models-get.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/api/management/channel-management/channel-tag-models-get.mdx
+- [编辑标签渠道](api/management/channel-management/channel-tag-put.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/api/management/channel-management/channel-tag-put.mdx
+- [测试所有渠道](api/management/channel-management/channel-test-get.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/api/management/channel-management/channel-test-get.mdx
+- [测试指定渠道](api/management/channel-management/channel-test-id-get.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/api/management/channel-management/channel-test-id-get.mdx
+- [更新所有渠道余额](api/management/channel-management/channel-update_balance-get.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/api/management/channel-management/channel-update_balance-get.mdx
+- [更新指定渠道余额](api/management/channel-management/channel-update_balance-id-get.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/api/management/channel-management/channel-update_balance-id-get.mdx
+- [使用兑换码](api/management/default/user-topup-post.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/api/management/default/user-topup-post.mdx
+- [获取所有分组](api/management/groups/group-get.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/api/management/groups/group-get.mdx
+- [获取预填分组](api/management/groups/prefill_group-get.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/api/management/groups/prefill_group-get.mdx
+- [删除预填分组](api/management/groups/prefill_group-id-delete.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/api/management/groups/prefill_group-id-delete.mdx
+- [创建预填分组](api/management/groups/prefill_group-post.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/api/management/groups/prefill_group-post.mdx
+- [更新预填分组](api/management/groups/prefill_group-put.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/api/management/groups/prefill_group-put.mdx
+- [删除历史日志](api/management/logs/log-delete.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/api/management/logs/log-delete.mdx
+- [获取所有日志](api/management/logs/log-get.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/api/management/logs/log-get.mdx
+- [搜索日志](api/management/logs/log-search-get.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/api/management/logs/log-search-get.mdx
+- [获取个人日志](api/management/logs/log-self-get.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/api/management/logs/log-self-get.mdx
+- [搜索个人日志](api/management/logs/log-self-search-get.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/api/management/logs/log-self-search-get.mdx
+- [获取个人日志统计](api/management/logs/log-self-stat-get.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/api/management/logs/log-self-stat-get.mdx
+- [获取日志统计](api/management/logs/log-stat-get.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/api/management/logs/log-stat-get.mdx
+- [通过令牌获取日志](api/management/logs/log-token-get.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/api/management/logs/log-token-get.mdx
+- [获取所有模型元数据](api/management/model-management/models-get.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/api/management/model-management/models-get.mdx
+- [删除模型](api/management/model-management/models-id-delete.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/api/management/model-management/models-id-delete.mdx
+- [获取指定模型](api/management/model-management/models-id-get.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/api/management/model-management/models-id-get.mdx
+- [获取缺失模型](api/management/model-management/models-missing-get.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/api/management/model-management/models-missing-get.mdx
+- [创建模型元数据](api/management/model-management/models-post.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/api/management/model-management/models-post.mdx
+- [更新模型元数据](api/management/model-management/models-put.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/api/management/model-management/models-put.mdx
+- [搜索模型](api/management/model-management/models-search-get.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/api/management/model-management/models-search-get.mdx
+- [同步上游模型](api/management/model-management/models-sync_upstream-post.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/api/management/model-management/models-sync_upstream-post.mdx
+- [预览上游模型同步](api/management/model-management/models-sync_upstream-preview-get.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/api/management/model-management/models-sync_upstream-preview-get.mdx
+- [Discord OAuth登录](api/management/oauth/oauth-discord-get.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/api/management/oauth/oauth-discord-get.mdx
+- [绑定邮箱](api/management/oauth/oauth-email-bind-get.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/api/management/oauth/oauth-email-bind-get.mdx
+- [GitHub OAuth登录](api/management/oauth/oauth-github-get.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/api/management/oauth/oauth-github-get.mdx
+- [LinuxDO OAuth登录](api/management/oauth/oauth-linuxdo-get.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/api/management/oauth/oauth-linuxdo-get.mdx
+- [OIDC登录](api/management/oauth/oauth-oidc-get.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/api/management/oauth/oauth-oidc-get.mdx
+- [生成OAuth State](api/management/oauth/oauth-state-get.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/api/management/oauth/oauth-state-get.mdx
+- [绑定Telegram](api/management/oauth/oauth-telegram-bind-get.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/api/management/oauth/oauth-telegram-bind-get.mdx
+- [Telegram登录](api/management/oauth/oauth-telegram-login-get.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/api/management/oauth/oauth-telegram-login-get.mdx
+- [绑定微信](api/management/oauth/oauth-wechat-bind-get.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/api/management/oauth/oauth-wechat-bind-get.mdx
+- [微信OAuth登录](api/management/oauth/oauth-wechat-get.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/api/management/oauth/oauth-wechat-get.mdx
+- [Creem Webhook](api/management/payment/creem-webhook-post.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/api/management/payment/creem-webhook-post.mdx
+- [Stripe Webhook](api/management/payment/stripe-webhook-post.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/api/management/payment/stripe-webhook-post.mdx
+- [获取支付金额](api/management/payment/user-amount-post.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/api/management/payment/user-amount-post.mdx
+- [发起Creem支付](api/management/payment/user-creem-pay-post.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/api/management/payment/user-creem-pay-post.mdx
+- [易支付回调](api/management/payment/user-epay-notify-get.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/api/management/payment/user-epay-notify-get.mdx
+- [发起易支付](api/management/payment/user-pay-post.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/api/management/payment/user-pay-post.mdx
+- [获取Stripe支付金额](api/management/payment/user-stripe-amount-post.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/api/management/payment/user-stripe-amount-post.mdx
+- [发起Stripe支付](api/management/payment/user-stripe-pay-post.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/api/management/payment/user-stripe-pay-post.mdx
+- [获取充值信息](api/management/payment/user-topup-info-get.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/api/management/payment/user-topup-info-get.mdx
+- [获取用户充值记录](api/management/payment/user-topup-self-get.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/api/management/payment/user-topup-self-get.mdx
+- [获取所有兑换码](api/management/redemption/redemption-get.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/api/management/redemption/redemption-get.mdx
+- [删除兑换码](api/management/redemption/redemption-id-delete.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/api/management/redemption/redemption-id-delete.mdx
+- [获取指定兑换码](api/management/redemption/redemption-id-get.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/api/management/redemption/redemption-id-get.mdx
+- [删除无效兑换码](api/management/redemption/redemption-invalid-delete.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/api/management/redemption/redemption-invalid-delete.mdx
+- [创建兑换码](api/management/redemption/redemption-post.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/api/management/redemption/redemption-post.mdx
+- [更新兑换码](api/management/redemption/redemption-put.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/api/management/redemption/redemption-put.mdx
+- [搜索兑换码](api/management/redemption/redemption-search-get.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/api/management/redemption/redemption-search-get.mdx
+- [通用安全验证](api/management/security-verification/verify-post.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/api/management/security-verification/verify-post.mdx
+- [获取验证状态](api/management/security-verification/verify-status-get.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/api/management/security-verification/verify-status-get.mdx
+- [获取所有额度数据](api/management/statistics/data-get.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/api/management/statistics/data-get.mdx
+- [获取个人额度数据](api/management/statistics/data-self-get.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/api/management/statistics/data-self-get.mdx
+- [获取系统选项](api/management/system-settings/option-get.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/api/management/system-settings/option-get.mdx
+- [迁移控制台设置](api/management/system-settings/option-migrate_console_setting-post.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/api/management/system-settings/option-migrate_console_setting-post.mdx
+- [更新系统选项](api/management/system-settings/option-put.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/api/management/system-settings/option-put.mdx
+- [重置模型倍率](api/management/system-settings/option-rest_model_ratio-post.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/api/management/system-settings/option-rest_model_ratio-post.mdx
+- [获取可同步渠道](api/management/system-settings/ratio_sync-channels-get.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/api/management/system-settings/ratio_sync-channels-get.mdx
+- [获取上游倍率](api/management/system-settings/ratio_sync-fetch-post.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/api/management/system-settings/ratio_sync-fetch-post.mdx
+- [获取关于信息](api/management/system/about-get.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/api/management/system/about-get.mdx
+- [获取首页内容](api/management/system/home_page_content-get.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/api/management/system/home_page_content-get.mdx
+- [获取模型列表](api/management/system/models-get.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/api/management/system/models-get.mdx
+- [获取公告](api/management/system/notice-get.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/api/management/system/notice-get.mdx
+- [获取定价信息](api/management/system/pricing-get.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/api/management/system/pricing-get.mdx
+- [获取隐私政策](api/management/system/privacy-policy-get.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/api/management/system/privacy-policy-get.mdx
+- [获取倍率配置](api/management/system/ratio_config-get.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/api/management/system/ratio_config-get.mdx
+- [获取初始化状态](api/management/system/setup-get.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/api/management/system/setup-get.mdx
+- [初始化系统](api/management/system/setup-post.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/api/management/system/setup-post.mdx
+- [获取系统状态](api/management/system/status-get.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/api/management/system/status-get.mdx
+- [测试系统状态](api/management/system/status-test-get.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/api/management/system/status-test-get.mdx
+- [获取Uptime Kuma状态](api/management/system/uptime-status-get.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/api/management/system/uptime-status-get.mdx
+- [获取用户协议](api/management/system/user-agreement-get.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/api/management/system/user-agreement-get.mdx
+- [获取所有Midjourney任务](api/management/tasks/mj-get.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/api/management/tasks/mj-get.mdx
+- [获取个人Midjourney任务](api/management/tasks/mj-self-get.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/api/management/tasks/mj-self-get.mdx
+- [获取所有任务](api/management/tasks/task-get.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/api/management/tasks/task-get.mdx
+- [获取个人任务](api/management/tasks/task-self-get.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/api/management/tasks/task-self-get.mdx
+- [批量删除令牌](api/management/token-management/token-batch-post.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/api/management/token-management/token-batch-post.mdx
+- [获取所有令牌](api/management/token-management/token-get.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/api/management/token-management/token-get.mdx
+- [删除令牌](api/management/token-management/token-id-delete.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/api/management/token-management/token-id-delete.mdx
+- [获取指定令牌](api/management/token-management/token-id-get.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/api/management/token-management/token-id-get.mdx
+- [创建令牌](api/management/token-management/token-post.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/api/management/token-management/token-post.mdx
+- [更新令牌](api/management/token-management/token-put.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/api/management/token-management/token-put.mdx
+- [搜索令牌](api/management/token-management/token-search-get.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/api/management/token-management/token-search-get.mdx
+- [获取令牌使用情况](api/management/token-management/usage-token-get.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/api/management/token-management/usage-token-get.mdx
+- [重新生成备用码](api/management/two-factor-auth/user-2fa-backup_codes-post.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/api/management/two-factor-auth/user-2fa-backup_codes-post.mdx
+- [禁用2FA](api/management/two-factor-auth/user-2fa-disable-post.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/api/management/two-factor-auth/user-2fa-disable-post.mdx
+- [启用2FA](api/management/two-factor-auth/user-2fa-enable-post.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/api/management/two-factor-auth/user-2fa-enable-post.mdx
+- [设置2FA](api/management/two-factor-auth/user-2fa-setup-post.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/api/management/two-factor-auth/user-2fa-setup-post.mdx
+- [获取2FA统计](api/management/two-factor-auth/user-2fa-stats-get.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/api/management/two-factor-auth/user-2fa-stats-get.mdx
+- [获取2FA状态](api/management/two-factor-auth/user-2fa-status-get.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/api/management/two-factor-auth/user-2fa-status-get.mdx
+- [发送密码重置邮件](api/management/user-auth/reset_password-get.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/api/management/user-auth/reset_password-get.mdx
+- [获取用户分组列表](api/management/user-auth/user-groups-get.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/api/management/user-auth/user-groups-get.mdx
+- [两步验证登录](api/management/user-auth/user-login-2fa-post.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/api/management/user-auth/user-login-2fa-post.mdx
+- [用户登录](api/management/user-auth/user-login-post.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/api/management/user-auth/user-login-post.mdx
+- [用户登出](api/management/user-auth/user-logout-get.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/api/management/user-auth/user-logout-get.mdx
+- [开始Passkey登录](api/management/user-auth/user-passkey-login-begin-post.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/api/management/user-auth/user-passkey-login-begin-post.mdx
+- [完成Passkey登录](api/management/user-auth/user-passkey-login-finish-post.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/api/management/user-auth/user-passkey-login-finish-post.mdx
+- [用户注册](api/management/user-auth/user-register-post.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/api/management/user-auth/user-register-post.mdx
+- [重置密码](api/management/user-auth/user-reset-post.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/api/management/user-auth/user-reset-post.mdx
+- [发送邮箱验证码](api/management/user-auth/verification-get.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/api/management/user-auth/verification-get.mdx
+- [获取邀请码](api/management/user-management/user-aff-get.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/api/management/user-management/user-aff-get.mdx
+- [转换邀请额度](api/management/user-management/user-aff_transfer-post.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/api/management/user-management/user-aff_transfer-post.mdx
+- [获取所有用户](api/management/user-management/user-get.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/api/management/user-management/user-get.mdx
+- [管理员禁用用户2FA](api/management/user-management/user-id-2fa-delete.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/api/management/user-management/user-id-2fa-delete.mdx
+- [删除用户](api/management/user-management/user-id-delete.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/api/management/user-management/user-id-delete.mdx
+- [获取指定用户](api/management/user-management/user-id-get.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/api/management/user-management/user-id-get.mdx
+- [管理员重置用户Passkey](api/management/user-management/user-id-reset_passkey-delete.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/api/management/user-management/user-id-reset_passkey-delete.mdx
+- [管理用户状态](api/management/user-management/user-manage-post.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/api/management/user-management/user-manage-post.mdx
+- [获取用户可用模型](api/management/user-management/user-models-get.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/api/management/user-management/user-models-get.mdx
+- [删除Passkey](api/management/user-management/user-passkey-delete.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/api/management/user-management/user-passkey-delete.mdx
+- [获取Passkey状态](api/management/user-management/user-passkey-get.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/api/management/user-management/user-passkey-get.mdx
+- [开始注册Passkey](api/management/user-management/user-passkey-register-begin-post.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/api/management/user-management/user-passkey-register-begin-post.mdx
+- [完成注册Passkey](api/management/user-management/user-passkey-register-finish-post.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/api/management/user-management/user-passkey-register-finish-post.mdx
+- [开始验证Passkey](api/management/user-management/user-passkey-verify-begin-post.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/api/management/user-management/user-passkey-verify-begin-post.mdx
+- [完成验证Passkey](api/management/user-management/user-passkey-verify-finish-post.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/api/management/user-management/user-passkey-verify-finish-post.mdx
+- [创建用户](api/management/user-management/user-post.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/api/management/user-management/user-post.mdx
+- [更新用户](api/management/user-management/user-put.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/api/management/user-management/user-put.mdx
+- [搜索用户](api/management/user-management/user-search-get.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/api/management/user-management/user-search-get.mdx
+- [注销当前用户](api/management/user-management/user-self-delete.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/api/management/user-management/user-self-delete.mdx
+- [获取当前用户信息](api/management/user-management/user-self-get.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/api/management/user-management/user-self-get.mdx
+- [获取当前用户分组](api/management/user-management/user-self-groups-get.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/api/management/user-management/user-self-groups-get.mdx
+- [更新当前用户信息](api/management/user-management/user-self-put.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/api/management/user-management/user-self-put.mdx
+- [更新用户设置](api/management/user-management/user-setting-put.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/api/management/user-management/user-setting-put.mdx
+- [生成访问令牌](api/management/user-management/user-token-get.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/api/management/user-management/user-token-get.mdx
+- [管理员完成充值](api/management/user-management/user-topup-complete-post.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/api/management/user-management/user-topup-complete-post.mdx
+- [获取所有充值记录](api/management/user-management/user-topup-get.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/api/management/user-management/user-topup-get.mdx
+- [获取所有供应商](api/management/vendors/vendors-get.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/api/management/vendors/vendors-get.mdx
+- [删除供应商](api/management/vendors/vendors-id-delete.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/api/management/vendors/vendors-id-delete.mdx
+- [获取指定供应商](api/management/vendors/vendors-id-get.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/api/management/vendors/vendors-id-get.mdx
+- [创建供应商](api/management/vendors/vendors-post.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/api/management/vendors/vendors-post.mdx
+- [更新供应商](api/management/vendors/vendors-put.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/api/management/vendors/vendors-put.mdx
+- [搜索供应商](api/management/vendors/vendors-search-get.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/api/management/vendors/vendors-search-get.mdx
+- [AionUi - 免费开源的桌面办公Agent](apps/aionui.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/apps/aionui.mdx
+- [AstrBot - Agent 聊天机器人](apps/astrbot.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/apps/astrbot.mdx
+- [CC Switch - AI CLI 统一管理工具](apps/cc-switch.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/apps/cc-switch.mdx
+- [Cherry Studio - 桌面 AI 客户端](apps/cherry-studio.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/apps/cherry-studio.mdx
+- [Claude Code](apps/claude-code.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/apps/claude-code.mdx
+- [OpenAI Codex CLI](apps/codex-cli.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/apps/codex-cli.mdx
+- [DeepChat - 全功能AI Agent客户端](apps/deepchat.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/apps/deepchat.mdx
+- [Factory Droid CLI](apps/factory-droid-cli.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/apps/factory-droid-cli.mdx
+- [流畅阅读 (FluentRead) - 开源翻译插件](apps/fluent-read.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/apps/fluent-read.mdx
+- [AI 应用](apps/index.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/apps/index.mdx
+- [LangBot - 即时通信机器人开发平台](apps/langbot.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/apps/langbot.mdx
+- [LunaTranslator - 开源 GalGame 翻译器](apps/luna-translator.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/apps/luna-translator.mdx
+- [Memoh - 容器化 AI 智能体平台](apps/memoh.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/apps/memoh.mdx
+- [OpenClaw - 自托管 AI 智能助手平台](apps/openclaw.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/apps/openclaw.mdx
+- [商务合作](business/index.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/business/index.mdx
+- [关于](guide/about.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/guide/about.mdx
+- [API 令牌](guide/console/api-token.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/guide/console/api-token.mdx
+- [渠道](guide/console/channel-management.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/guide/console/channel-management.mdx
+- [聊天](guide/console/chat.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/guide/console/chat.mdx
+- [数据看板](guide/console/dashboard.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/guide/console/dashboard.mdx
+- [绘图日志](guide/console/drawing-log.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/guide/console/drawing-log.mdx
+- [操练场](guide/console/playground.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/guide/console/playground.mdx
+- [个人设置](guide/console/profile.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/guide/console/profile.mdx
+- [兑换码](guide/console/redeem-code-management.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/guide/console/redeem-code-management.mdx
+- [聊天设置](guide/console/settings/chat-settings.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/guide/console/settings/chat-settings.mdx
+- [数据看板](guide/console/settings/dashboard-settings.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/guide/console/settings/dashboard-settings.mdx
+- [绘图设置](guide/console/settings/drawing-settings.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/guide/console/settings/drawing-settings.mdx
+- [模型相关设置](guide/console/settings/model-settings.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/guide/console/settings/model-settings.mdx
+- [运营设置](guide/console/settings/operation-settings.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/guide/console/settings/operation-settings.mdx
+- [其它设置](guide/console/settings/other-settings.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/guide/console/settings/other-settings.mdx
+- [支付设置](guide/console/settings/payment-settings.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/guide/console/settings/payment-settings.mdx
+- [速率限制设置](guide/console/settings/rate-limit-settings.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/guide/console/settings/rate-limit-settings.mdx
+- [倍率设置](guide/console/settings/rate-settings.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/guide/console/settings/rate-settings.mdx
+- [系统设置](guide/console/settings/system-settings.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/guide/console/settings/system-settings.mdx
+- [任务日志](guide/console/task-log.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/guide/console/task-log.mdx
+- [使用日志](guide/console/usage-log.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/guide/console/usage-log.mdx
+- [用户管理](guide/console/user-management.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/guide/console/user-management.mdx
+- [钱包](guide/console/wallet.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/guide/console/wallet.mdx
+- [文档](guide/document.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/guide/document.mdx
+- [渠道管理](guide/feature-guide/admin/channel.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/guide/feature-guide/admin/channel.mdx
+- [自定义 OAuth 提供商](guide/feature-guide/admin/custom-oauth.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/guide/feature-guide/admin/custom-oauth.mdx
+- [文档与关于页配置](guide/feature-guide/admin/docs-config.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/guide/feature-guide/admin/docs-config.mdx
+- [分组管理](guide/feature-guide/admin/group.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/guide/feature-guide/admin/group.mdx
+- [日志与统计](guide/feature-guide/admin/log.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/guide/feature-guide/admin/log.mdx
+- [模型管理](guide/feature-guide/admin/model.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/guide/feature-guide/admin/model.mdx
+- [性能监控](guide/feature-guide/admin/performance.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/guide/feature-guide/admin/performance.mdx
+- [兑换码管理](guide/feature-guide/admin/redemption.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/guide/feature-guide/admin/redemption.mdx
+- [订阅计划管理](guide/feature-guide/admin/subscription.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/guide/feature-guide/admin/subscription.mdx
+- [系统设置详细配置](guide/feature-guide/admin/system-setting-advanced.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/guide/feature-guide/admin/system-setting-advanced.mdx
+- [系统设置](guide/feature-guide/admin/system-setting.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/guide/feature-guide/admin/system-setting.mdx
+- [用户管理](guide/feature-guide/admin/user.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/guide/feature-guide/admin/user.mdx
+- [功能指南概述](guide/feature-guide/index.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/guide/feature-guide/index.mdx
+- [使用 API](guide/feature-guide/user/api.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/guide/feature-guide/user/api.mdx
+- [注册与登录](guide/feature-guide/user/auth.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/guide/feature-guide/user/auth.mdx
+- [聊天应用集成](guide/feature-guide/user/chat-apps.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/guide/feature-guide/user/chat-apps.mdx
+- [使用记录](guide/feature-guide/user/log.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/guide/feature-guide/user/log.mdx
+- [个人设置](guide/feature-guide/user/personal-setting.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/guide/feature-guide/user/personal-setting.mdx
+- [定价](guide/feature-guide/user/pricing.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/guide/feature-guide/user/pricing.mdx
+- [订阅计划](guide/feature-guide/user/subscription.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/guide/feature-guide/user/subscription.mdx
+- [任务管理](guide/feature-guide/user/task.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/guide/feature-guide/user/task.mdx
+- [令牌管理](guide/feature-guide/user/token.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/guide/feature-guide/user/token.mdx
+- [配额与充值](guide/feature-guide/user/topup.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/guide/feature-guide/user/topup.mdx
+- [首页](guide/home.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/guide/home.mdx
+- [定价](guide/pricing.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/guide/pricing.mdx
+- [分析工具设置指南](guide/wiki/basic-concepts/analytics-setup.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/guide/wiki/basic-concepts/analytics-setup.mdx
+- [特性说明](guide/wiki/basic-concepts/features-introduction.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/guide/wiki/basic-concepts/features-introduction.mdx
+- [性能分析设置指南](guide/wiki/basic-concepts/performance-analysis.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/guide/wiki/basic-concepts/performance-analysis.mdx
+- [项目介绍](guide/wiki/basic-concepts/project-introduction.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/guide/wiki/basic-concepts/project-introduction.mdx
+- [技术架构](guide/wiki/basic-concepts/technical-architecture.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/guide/wiki/basic-concepts/technical-architecture.mdx
+- [更新日志](guide/wiki/changelog.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/guide/wiki/changelog.mdx
+- [更新日志](guide/wiki/project-records/changelog.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/guide/wiki/project-records/changelog.mdx
+- [快速开始](index.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/index.mdx
+- [Docker Compose 配置说明](installation/config-maintenance/docker-compose-yml.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/installation/config-maintenance/docker-compose-yml.mdx
+- [环境变量配置指南](installation/config-maintenance/environment-variables.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/installation/config-maintenance/environment-variables.mdx
+- [系统更新指南](installation/config-maintenance/system-update.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/installation/config-maintenance/system-update.mdx
+- [1Panel 面板部署](installation/deployment-methods/1panel-installation.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/installation/deployment-methods/1panel-installation.mdx
+- [宝塔面板部署](installation/deployment-methods/bt-docker-installation.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/installation/deployment-methods/bt-docker-installation.mdx
+- [集群部署](installation/deployment-methods/cluster-deployment.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/installation/deployment-methods/cluster-deployment.mdx
+- [Docker Compose 部署](installation/deployment-methods/docker-compose-installation.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/installation/deployment-methods/docker-compose-installation.mdx
+- [Docker 部署](installation/deployment-methods/docker-installation.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/installation/deployment-methods/docker-installation.mdx
+- [本地开发部署](installation/deployment-methods/local-development.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/installation/deployment-methods/local-development.mdx
+- [安装部署](installation/index.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/installation/index.mdx
+- [合规与可接受使用政策](legal/acceptable-use.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/legal/acceptable-use.mdx
+- [Skills](skills/index.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/skills/index.mdx
+- [newapi-admin（敬请期待）](skills/newapi-admin.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/skills/newapi-admin.mdx
+- [newapi](skills/newapi.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/skills/newapi.mdx
+- [社区互动](support/community-interaction.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/support/community-interaction.mdx
+- [常见问题](support/faq.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/support/faq.mdx
+- [问题反馈](support/feedback-issues.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/support/feedback-issues.mdx
+- [帮助支持](support/index.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/support/index.mdx
 
 ## 抓取异常
 

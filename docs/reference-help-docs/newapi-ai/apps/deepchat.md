@@ -1,51 +1,73 @@
-# DeepChat
+# DeepChat - 全功能AI Agent客户端
 
-> 来源：https://www.newapi.ai/zh/docs/apps/deepchat
->
-> 抓取时间：2026-05-23T07:09:46.142Z
+> 来源：https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/apps/deepchat.mdx
+> 抓取时间：2026-05-23T07:43:21.476Z
+> 源文件：content/docs/zh/apps/deepchat.mdx
 
 ## 页面大纲
 
-    - 关于我们
-    - 文档
-    - 相关项目
-    - 友情链接
+  - NewAPI 接入方法
+    - 方式一：一键导入
+    - 方式二：手动导入
+  - 相关链接
 
 ## 原文内容
 
-[![New API](https://www.newapi.ai/assets/newapi.svg)New API](https://www.newapi.ai/)
+---
+title: DeepChat - 全功能AI Agent客户端
+description: DeepChat 教程 — 将全功能AI Agent客户端对接 New API，并通过 DeepLink 一键导入 DeepChat 配置。
+---
+<Callout type="info" title="聊天设置选项">
+  在 New API
+  控制台的系统设置->聊天设置中，可添加如下快捷选项，便于在令牌管理页一键填充到
+  DeepChat：
+</Callout>
 
-[](https://github.com/QuantumNous/new-api)[](https://atomgit.com/QuantumNous/new-api)
+    ```json
+    { "DeepChat": "deepchat://provider/install?v=1&data={deepchatConfig}" }
+    ```
 
-⚠️合规提示：本项目仅用于合法授权的 API 网关、内部管理和私有化部署场景。请遵守上游服务条款、平台规则、监管要求和内容安全要求。
+<Callout type="info">
+  DeepChat 是一款开源、跨平台的商业化友好全功能AI Agent客户端，支持云端与本地模型、MCP
+  工具调用、Skills、ACP、Agent 集成和远程控制等工作流，适合需要统一管理多个
+  Provider 与高级 AI Agent的用户。
+</Callout>
 
-### 关于我们
+- 官网地址：[https://deepchat.thinkinai.xyz](https://deepchat.thinkinai.xyz)
+- GitHub 仓库：[https://github.com/ThinkInAIXYZ/deepchat](https://github.com/ThinkInAIXYZ/deepchat)
+- 下载地址：[https://deepchat.thinkinai.xyz/#/download](https://deepchat.thinkinai.xyz/#/download)
 
--   [关于项目](https://www.newapi.ai/zh/docs/guide/wiki/basic-concepts/project-introduction)
--   [联系我们](https://www.newapi.ai/zh/docs/support/community-interaction)
--   [功能特性](https://www.newapi.ai/zh/docs/guide/wiki/basic-concepts/features-introduction)
+## NewAPI 接入方法
 
-### 文档
+### 方式一：一键导入
 
--   [安装部署](https://www.newapi.ai/zh/docs/installation)
--   [使用指南](https://www.newapi.ai/zh/docs/guide/home)
--   [API 文档](https://www.newapi.ai/zh/docs/api)
+1. 在 New API 控制台侧边栏进入「令牌管理」，找到需要使用的令牌
+   <img src="/assets/deepchat/1-Enter-API-key.png" alt="进入令牌管理" width="240" />
 
-### 相关项目
+2. 在令牌操作中选择 **DeepChat**
+   <img src="/assets/deepchat/2-API-key-deepchat.png" alt="选择 DeepChat" width="360" />
 
--   [One API](https://github.com/songquanpeng/one-api)
--   [Midjourney-Proxy](https://github.com/novicezk/midjourney-proxy)
--   [new-api-key-tool](https://github.com/Calcium-Ion/new-api-key-tool)
+3. 浏览器唤起 DeepChat，确认打开应用
+   ![打开 DeepChat](/assets/deepchat/3-open-deepchat.png)
 
-### 友情链接
+4. 在 DeepChat 的 Provider 导入预览中确认配置
+   ![确认 DeepChat 配置](/assets/deepchat/4-deepchat-ok.png)
 
--   [CoAI](https://github.com/coaidev/coai)
--   [new-api-horizon](https://github.com/Calcium-Ion/new-api-horizon)
--   [GPT-Load](https://www.gpt-load.com/)
--   [LangBot](https://langbot.app/)
+5. 打开模型列表，选择 New API 模型开始使用
+   ![打开模型列表](/assets/deepchat/5-open-models.png)
 
-© 2025 锟腾科技. All Rights Reserved.
+### 方式二：手动导入
 
-[浙ICP备2025190188号-2](https://beian.miit.gov.cn/)[浙公网安备33010602014019号](http://www.beian.gov.cn/portal/registerSystemInfo?recordcode=33010602014019)
+1. 在 New API 控制台复制 API Key 和站点地址
+   ![New API 手动配置指引](/assets/deepchat/7-new-api-manual-guidance.png)
 
-[](https://github.com/QuantumNous/new-api)[](https://atomgit.com/QuantumNous/new-api)[](https://hub.docker.com/r/calciumion/new-api)[](https://www.newapi.ai/zh/docs/support/community-interaction)[](https://www.producthunt.com/products/new-api)
+2. 在 DeepChat 设置中添加或编辑 New API Provider，填写 API 地址和 API Key
+   ![DeepChat 手动配置指引](/assets/deepchat/6-deepchat-manual-guidance.png)
+
+3. 打开模型列表，选择 New API 模型开始使用
+   ![打开模型列表](/assets/deepchat/5-open-models.png)
+
+## 相关链接
+
+- [DeepChat GitHub 仓库](https://github.com/ThinkInAIXYZ/deepchat)
+- [DeepChat 下载页面](https://deepchatai.cn/#/download)

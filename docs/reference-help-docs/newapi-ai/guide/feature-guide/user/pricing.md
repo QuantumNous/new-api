@@ -1,51 +1,49 @@
 # 定价
 
-> 来源：https://www.newapi.ai/zh/docs/guide/feature-guide/user/pricing
->
-> 抓取时间：2026-05-23T07:09:46.142Z
+> 来源：https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/guide/feature-guide/user/pricing.mdx
+> 抓取时间：2026-05-23T07:43:21.476Z
+> 源文件：content/docs/zh/guide/feature-guide/user/pricing.mdx
 
 ## 页面大纲
 
-    - 关于我们
-    - 文档
-    - 相关项目
-    - 友情链接
+  - 查看定价
+    - 访问定价页
+    - 浏览模型价格
+    - 搜索模型
+  - 价格说明
+    - 计费规则
+    - 分组差异
 
 ## 原文内容
 
-[![New API](https://www.newapi.ai/assets/newapi.svg)New API](https://www.newapi.ai/)
+---
+title: 定价
+description: 查看全站模型定价及计费说明
+---
+## 查看定价
 
-[](https://github.com/QuantumNous/new-api)[](https://atomgit.com/QuantumNous/new-api)
+### 访问定价页
 
-⚠️合规提示：本项目仅用于合法授权的 API 网关、内部管理和私有化部署场景。请遵守上游服务条款、平台规则、监管要求和内容安全要求。
+点击左侧导航栏的「定价」，或直接访问 `/pricing`
 
-### 关于我们
+![定价页全貌](/assets/guide/feature-guide/pricing.png)
 
--   [关于项目](https://www.newapi.ai/zh/docs/guide/wiki/basic-concepts/project-introduction)
--   [联系我们](https://www.newapi.ai/zh/docs/support/community-interaction)
--   [功能特性](https://www.newapi.ai/zh/docs/guide/wiki/basic-concepts/features-introduction)
+### 浏览模型价格
 
-### 文档
+页面列出所有可用模型，每行显示模型名称、输入价格和输出价格
 
--   [安装部署](https://www.newapi.ai/zh/docs/installation)
--   [使用指南](https://www.newapi.ai/zh/docs/guide/home)
--   [API 文档](https://www.newapi.ai/zh/docs/api)
+### 搜索模型
 
-### 相关项目
+可在页面顶部搜索框输入模型名称关键词，快速定位特定模型的价格
 
--   [One API](https://github.com/songquanpeng/one-api)
--   [Midjourney-Proxy](https://github.com/novicezk/midjourney-proxy)
--   [new-api-key-tool](https://github.com/Calcium-Ion/new-api-key-tool)
+## 价格说明
 
-### 友情链接
+### 计费规则
 
--   [CoAI](https://github.com/coaidev/coai)
--   [new-api-horizon](https://github.com/Calcium-Ion/new-api-horizon)
--   [GPT-Load](https://www.gpt-load.com/)
--   [LangBot](https://langbot.app/)
+- **输入价格**：每 1K 输入 Token 消耗的配额
+- **输出价格**：每 1K 输出 Token 消耗的配额
+- 实际消耗 = Token 数量 ÷ 1000 × 对应单价
 
-© 2025 锟腾科技. All Rights Reserved.
+### 分组差异
 
-[浙ICP备2025190188号-2](https://beian.miit.gov.cn/)[浙公网安备33010602014019号](http://www.beian.gov.cn/portal/registerSystemInfo?recordcode=33010602014019)
-
-[](https://github.com/QuantumNous/new-api)[](https://atomgit.com/QuantumNous/new-api)[](https://hub.docker.com/r/calciumion/new-api)[](https://www.newapi.ai/zh/docs/support/community-interaction)[](https://www.producthunt.com/products/new-api)
+不同分组的用户可能享有不同的计费倍率，具体以实际扣减为准，可在充值页查看当前余额变化

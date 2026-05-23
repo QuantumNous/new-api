@@ -1,51 +1,60 @@
 # 用户管理
 
-> 来源：https://www.newapi.ai/zh/docs/guide/feature-guide/admin/user
->
-> 抓取时间：2026-05-23T07:09:46.142Z
+> 来源：https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/guide/feature-guide/admin/user.mdx
+> 抓取时间：2026-05-23T07:43:21.476Z
+> 源文件：content/docs/zh/guide/feature-guide/admin/user.mdx
 
 ## 页面大纲
 
-    - 关于我们
-    - 文档
-    - 相关项目
-    - 友情链接
+  - 编辑用户
+    - 打开编辑弹窗
+    - 修改用户信息
+    - 保存修改
+  - 搜索用户
+    - 使用搜索功能
+    - 查看搜索结果
 
 ## 原文内容
 
-[![New API](https://www.newapi.ai/assets/newapi.svg)New API](https://www.newapi.ai/)
+---
+title: 用户管理
+description: 查看和管理平台所有注册用户
+---
+查看和管理平台所有注册用户，包括修改角色、配额、分组，以及账号状态控制。使用管理员账号登录后，左侧导航点击「用户」，或直接访问 `/console/user`。
 
-[](https://github.com/QuantumNous/new-api)[](https://atomgit.com/QuantumNous/new-api)
+![用户列表页](/assets/guide/feature-guide/user-list.png)
 
-⚠️合规提示：本项目仅用于合法授权的 API 网关、内部管理和私有化部署场景。请遵守上游服务条款、平台规则、监管要求和内容安全要求。
+用户列表展示平台所有注册用户，包含用户名、邮箱、角色、分组、配额余额、状态等信息。
 
-### 关于我们
+## 编辑用户
 
--   [关于项目](https://www.newapi.ai/zh/docs/guide/wiki/basic-concepts/project-introduction)
--   [联系我们](https://www.newapi.ai/zh/docs/support/community-interaction)
--   [功能特性](https://www.newapi.ai/zh/docs/guide/wiki/basic-concepts/features-introduction)
+### 打开编辑弹窗
 
-### 文档
+在用户列表中找到目标用户，点击右侧「编辑」按钮，弹出编辑弹窗
 
--   [安装部署](https://www.newapi.ai/zh/docs/installation)
--   [使用指南](https://www.newapi.ai/zh/docs/guide/home)
--   [API 文档](https://www.newapi.ai/zh/docs/api)
+![编辑用户弹窗](/assets/guide/feature-guide/user-edit.png)
 
-### 相关项目
+### 修改用户信息
 
--   [One API](https://github.com/songquanpeng/one-api)
--   [Midjourney-Proxy](https://github.com/novicezk/midjourney-proxy)
--   [new-api-key-tool](https://github.com/Calcium-Ion/new-api-key-tool)
+可修改以下信息：
+- **角色**：普通用户 / 管理员，修改后立即生效
+- **分组**：指定用户所属的渠道分组
+- **配额余额**：直接设置用户的配额数值
+- **状态**：启用或禁用账号，禁用后该用户无法登录
 
-### 友情链接
+### 保存修改
 
--   [CoAI](https://github.com/coaidev/coai)
--   [new-api-horizon](https://github.com/Calcium-Ion/new-api-horizon)
--   [GPT-Load](https://www.gpt-load.com/)
--   [LangBot](https://langbot.app/)
+修改完成后点击「保存」
 
-© 2025 锟腾科技. All Rights Reserved.
+## 搜索用户
 
-[浙ICP备2025190188号-2](https://beian.miit.gov.cn/)[浙公网安备33010602014019号](http://www.beian.gov.cn/portal/registerSystemInfo?recordcode=33010602014019)
+### 使用搜索功能
 
-[](https://github.com/QuantumNous/new-api)[](https://atomgit.com/QuantumNous/new-api)[](https://hub.docker.com/r/calciumion/new-api)[](https://www.newapi.ai/zh/docs/support/community-interaction)[](https://www.producthunt.com/products/new-api)
+1. 在用户列表顶部找到搜索框
+2. 输入用户名或邮箱关键词
+
+![搜索框输入关键词后的过滤结果](/assets/guide/feature-guide/user-search.png)
+
+### 查看搜索结果
+
+列表实时过滤，显示匹配的用户记录

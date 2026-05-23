@@ -1,51 +1,53 @@
 # 订阅计划
 
-> 来源：https://www.newapi.ai/zh/docs/guide/feature-guide/user/subscription
->
-> 抓取时间：2026-05-23T07:09:46.142Z
+> 来源：https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/guide/feature-guide/user/subscription.mdx
+> 抓取时间：2026-05-23T07:43:21.476Z
+> 源文件：content/docs/zh/guide/feature-guide/user/subscription.mdx
 
 ## 页面大纲
 
-    - 关于我们
-    - 文档
-    - 相关项目
-    - 友情链接
+  - 查看订阅套餐
+  - 订阅详情
+    - 浏览套餐信息
+  - 查看当前订阅状态
+    - 订阅信息
+    - 自动续费设置
 
 ## 原文内容
 
-[![New API](https://www.newapi.ai/assets/newapi.svg)New API](https://www.newapi.ai/)
+---
+title: 订阅计划
+description: 按周期购买的套餐,适合有稳定用量需求的用户
+---
+订阅是按周期购买的套餐,购买后在有效期内享受套餐内的配额或特权,适合有稳定用量需求的用户。左侧导航点击「订阅」,或直接访问 `/console/subscription`。
 
-[](https://github.com/QuantumNous/new-api)[](https://atomgit.com/QuantumNous/new-api)
+## 查看订阅套餐
 
-⚠️合规提示：本项目仅用于合法授权的 API 网关、内部管理和私有化部署场景。请遵守上游服务条款、平台规则、监管要求和内容安全要求。
+![订阅计划列表](/assets/guide/feature-guide/subscription-plans.png)
 
-### 关于我们
+订阅套餐列表展示所有可购买的套餐,包含套餐名称、价格、有效期、包含配额等信息。
 
--   [关于项目](https://www.newapi.ai/zh/docs/guide/wiki/basic-concepts/project-introduction)
--   [联系我们](https://www.newapi.ai/zh/docs/support/community-interaction)
--   [功能特性](https://www.newapi.ai/zh/docs/guide/wiki/basic-concepts/features-introduction)
+订阅套餐提供按周期计费的配额包,可选择日、周、月等不同周期的套餐。
 
-### 文档
+## 订阅详情
 
--   [安装部署](https://www.newapi.ai/zh/docs/installation)
--   [使用指南](https://www.newapi.ai/zh/docs/guide/home)
--   [API 文档](https://www.newapi.ai/zh/docs/api)
+### 浏览套餐信息
 
-### 相关项目
+在订阅页浏览可用套餐,查看各套餐的价格、有效期和包含配额
 
--   [One API](https://github.com/songquanpeng/one-api)
--   [Midjourney-Proxy](https://github.com/novicezk/midjourney-proxy)
--   [new-api-key-tool](https://github.com/Calcium-Ion/new-api-key-tool)
+![选择套餐并点击购买](/assets/guide/feature-guide/subscription-buy.png)
 
-### 友情链接
+## 查看当前订阅状态
 
--   [CoAI](https://github.com/coaidev/coai)
--   [new-api-horizon](https://github.com/Calcium-Ion/new-api-horizon)
--   [GPT-Load](https://www.gpt-load.com/)
--   [LangBot](https://langbot.app/)
+### 订阅信息
 
-© 2025 锟腾科技. All Rights Reserved.
+购买订阅后,在订阅页顶部可查看当前套餐的详细信息:
 
-[浙ICP备2025190188号-2](https://beian.miit.gov.cn/)[浙公网安备33010602014019号](http://www.beian.gov.cn/portal/registerSystemInfo?recordcode=33010602014019)
+![当前订阅状态](/assets/guide/feature-guide/subscription-status.png)
 
-[](https://github.com/QuantumNous/new-api)[](https://atomgit.com/QuantumNous/new-api)[](https://hub.docker.com/r/calciumion/new-api)[](https://www.newapi.ai/zh/docs/support/community-interaction)[](https://www.producthunt.com/products/new-api)
+- 套餐名称和有效期截止日期
+- 套餐内剩余配额
+
+### 自动续费设置
+
+可在此设置到期后是否自动续费

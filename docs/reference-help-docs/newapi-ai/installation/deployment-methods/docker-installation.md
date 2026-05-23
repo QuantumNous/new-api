@@ -1,51 +1,67 @@
 # Docker 部署
 
-> 来源：https://www.newapi.ai/zh/docs/installation/deployment-methods/docker-installation
->
-> 抓取时间：2026-05-23T07:09:46.142Z
+> 来源：https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/installation/deployment-methods/docker-installation.mdx
+> 抓取时间：2026-05-23T07:43:21.476Z
+> 源文件：content/docs/zh/installation/deployment-methods/docker-installation.mdx
 
 ## 页面大纲
 
-    - 关于我们
-    - 文档
-    - 相关项目
-    - 友情链接
+  - 基本要求
+  - 直接使用Docker镜像部署
+    - 使用SQLite数据库（不推荐）
+    - 使用MySQL数据库
+  - 访问系统
 
 ## 原文内容
 
-[![New API](https://www.newapi.ai/assets/newapi.svg)New API](https://www.newapi.ai/)
+---
+title: Docker 部署
+---
+本文档提供了使用Docker部署New API的详细步骤。
 
-[](https://github.com/QuantumNous/new-api)[](https://atomgit.com/QuantumNous/new-api)
+<Callout type="warn" title="强烈推荐">
+  我们强烈推荐使用 [Docker Compose
+  安装方式](/zh/docs/installation/deployment-methods/docker-compose-installation)
+  而不是手动启动Docker容器。Docker
+  Compose方式提供了更好的配置管理、服务编排和部署体验。
+</Callout>
 
-⚠️合规提示：本项目仅用于合法授权的 API 网关、内部管理和私有化部署场景。请遵守上游服务条款、平台规则、监管要求和内容安全要求。
+## 基本要求
 
-### 关于我们
+- 已安装Docker环境
+- 端口: 默认使用3000端口
 
--   [关于项目](https://www.newapi.ai/zh/docs/guide/wiki/basic-concepts/project-introduction)
--   [联系我们](https://www.newapi.ai/zh/docs/support/community-interaction)
--   [功能特性](https://www.newapi.ai/zh/docs/guide/wiki/basic-concepts/features-introduction)
+## 直接使用Docker镜像部署
 
-### 文档
+### 使用SQLite数据库（不推荐）
 
--   [安装部署](https://www.newapi.ai/zh/docs/installation)
--   [使用指南](https://www.newapi.ai/zh/docs/guide/home)
--   [API 文档](https://www.newapi.ai/zh/docs/api)
+```shell
+docker run --name new-api -d --restart always \
+  -p 3000:3000 \
+  -e TZ=Asia/Shanghai \
+  -v /your/data/path:/data \
+  calciumion/new-api:latest
+```
 
-### 相关项目
+<Callout type="warn" title="注意">
+  请将 `/your/data/path` 替换为您想要存储数据的本地路径。
+</Callout>
 
--   [One API](https://github.com/songquanpeng/one-api)
--   [Midjourney-Proxy](https://github.com/novicezk/midjourney-proxy)
--   [new-api-key-tool](https://github.com/Calcium-Ion/new-api-key-tool)
+### 使用MySQL数据库
 
-### 友情链接
+```shell
+docker run --name new-api -d --restart always \
+  -p 3000:3000 \
+  -e SQL_DSN="用户名:密码@tcp(数据库地址:3306)/数据库名" \
+  -e TZ=Asia/Shanghai \
+  -v /your/data/path:/data \
+  calciumion/new-api:latest
+```
 
--   [CoAI](https://github.com/coaidev/coai)
--   [new-api-horizon](https://github.com/Calcium-Ion/new-api-horizon)
--   [GPT-Load](https://www.gpt-load.com/)
--   [LangBot](https://langbot.app/)
+<Callout type="warn" title="注意">
+  请替换参数中的数据库连接信息。
+</Callout>
 
-© 2025 锟腾科技. All Rights Reserved.
+## 访问系统
 
-[浙ICP备2025190188号-2](https://beian.miit.gov.cn/)[浙公网安备33010602014019号](http://www.beian.gov.cn/portal/registerSystemInfo?recordcode=33010602014019)
-
-[](https://github.com/QuantumNous/new-api)[](https://atomgit.com/QuantumNous/new-api)[](https://hub.docker.com/r/calciumion/new-api)[](https://www.newapi.ai/zh/docs/support/community-interaction)[](https://www.producthunt.com/products/new-api)
+部署完成后，访问 `http://服务器IP:3000` 将自动引导到初始化页面。按照页面指引手动设置管理员账号和密码（仅首次安装需要），完成后即可使用新设置的管理员账号登录系统。

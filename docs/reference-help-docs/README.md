@@ -6,7 +6,7 @@
 
 ## 来源汇总
 
-- [New API 帮助文档](newapi-ai/README.md)：250 页，入口 https://www.newapi.ai/zh/docs
+- [New API 帮助文档](newapi-ai/README.md)：293 页，入口 https://www.newapi.ai/zh/docs（源文件来自 QuantumNous/new-api-docs-v1）
 - [iKunCode 使用文档](ikuncode/README.md)：28 页，入口 https://docs.ikuncode.cc/zh/
 - [CodexZh AI HUB API 文档](codexzh-ai-hub-api/README.md)：14 页，入口 https://docs.codexzh.com/ai-hub-api/
 
@@ -315,6 +315,7 @@
 
 ## 说明
 
+- New API 文档改为从 QuantumNous/new-api-docs-v1 仓库的 content/docs/zh/*.mdx 直接拉取，保留更完整的原始内容。
 - 抓取前已清理本目录旧内容，避免历史竞品文档重复。
 - 图片与外部链接保留为原站绝对地址。
 - 若来源站点后续更新，需要重新运行抓取流程刷新。

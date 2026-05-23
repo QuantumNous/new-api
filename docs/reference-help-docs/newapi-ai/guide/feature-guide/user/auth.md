@@ -1,51 +1,52 @@
 # 注册与登录
 
-> 来源：https://www.newapi.ai/zh/docs/guide/feature-guide/user/auth
->
-> 抓取时间：2026-05-23T07:09:46.142Z
+> 来源：https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/guide/feature-guide/user/auth.mdx
+> 抓取时间：2026-05-23T07:43:21.476Z
+> 源文件：content/docs/zh/guide/feature-guide/user/auth.mdx
 
 ## 页面大纲
 
-    - 关于我们
-    - 文档
-    - 相关项目
-    - 友情链接
+  - 登录
+    - 账号密码登录
+    - 第三方 OAuth 登录
+    - 忘记密码
+  - 注册
+    - 注册流程
 
 ## 原文内容
 
-[![New API](https://www.newapi.ai/assets/newapi.svg)New API](https://www.newapi.ai/)
+---
+title: 注册与登录
+description: 支持账号密码注册,以及多种第三方 OAuth 一键登录
+---
+支持账号密码注册,以及多种第三方 OAuth 一键登录。首次使用请先完成注册。
 
-[](https://github.com/QuantumNous/new-api)[](https://atomgit.com/QuantumNous/new-api)
+## 登录
 
-⚠️合规提示：本项目仅用于合法授权的 API 网关、内部管理和私有化部署场景。请遵守上游服务条款、平台规则、监管要求和内容安全要求。
+### 账号密码登录
 
-### 关于我们
+1. 打开平台首页,点击右上角「登录」按钮,或直接访问 `/login`
 
--   [关于项目](https://www.newapi.ai/zh/docs/guide/wiki/basic-concepts/project-introduction)
--   [联系我们](https://www.newapi.ai/zh/docs/support/community-interaction)
--   [功能特性](https://www.newapi.ai/zh/docs/guide/wiki/basic-concepts/features-introduction)
+![登录页](/assets/guide/feature-guide/login.png)
 
-### 文档
+2. 在登录页输入用户名和密码,点击「登录」完成登录
 
--   [安装部署](https://www.newapi.ai/zh/docs/installation)
--   [使用指南](https://www.newapi.ai/zh/docs/guide/home)
--   [API 文档](https://www.newapi.ai/zh/docs/api)
+### 第三方 OAuth 登录
 
-### 相关项目
+如需使用第三方账号登录,点击页面下方对应平台的图标(GitHub、Discord、LinuxDO 等),跳转至第三方授权页面完成授权后自动登录
 
--   [One API](https://github.com/songquanpeng/one-api)
--   [Midjourney-Proxy](https://github.com/novicezk/midjourney-proxy)
--   [new-api-key-tool](https://github.com/Calcium-Ion/new-api-key-tool)
+### 忘记密码
 
-### 友情链接
+忘记密码时,点击登录页的「忘记密码」链接,输入注册邮箱后系统会发送重置链接,点击链接设置新密码,原密码随即失效。
 
--   [CoAI](https://github.com/coaidev/coai)
--   [new-api-horizon](https://github.com/Calcium-Ion/new-api-horizon)
--   [GPT-Load](https://www.gpt-load.com/)
--   [LangBot](https://langbot.app/)
+## 注册
 
-© 2025 锟腾科技. All Rights Reserved.
+### 注册流程
 
-[浙ICP备2025190188号-2](https://beian.miit.gov.cn/)[浙公网安备33010602014019号](http://www.beian.gov.cn/portal/registerSystemInfo?recordcode=33010602014019)
+1. 在登录页点击「注册」链接,或直接访问 `/register`
 
-[](https://github.com/QuantumNous/new-api)[](https://atomgit.com/QuantumNous/new-api)[](https://hub.docker.com/r/calciumion/new-api)[](https://www.newapi.ai/zh/docs/support/community-interaction)[](https://www.producthunt.com/products/new-api)
+![注册页](/assets/guide/feature-guide/register.png)
+
+2. 填写用户名、密码
+3. 填写邮箱地址,点击「发送验证码」,将收到的验证码填入输入框
+4. 点击「注册」完成账号创建,注册成功后自动跳转至首页

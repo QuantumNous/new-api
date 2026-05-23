@@ -1,51 +1,31 @@
 # 分组管理
 
-> 来源：https://www.newapi.ai/zh/docs/guide/feature-guide/admin/group
->
-> 抓取时间：2026-05-23T07:09:46.142Z
+> 来源：https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/guide/feature-guide/admin/group.mdx
+> 抓取时间：2026-05-23T07:43:21.476Z
+> 源文件：content/docs/zh/guide/feature-guide/admin/group.mdx
 
 ## 页面大纲
 
-    - 关于我们
-    - 文档
-    - 相关项目
-    - 友情链接
+  - 分组的使用方式
 
 ## 原文内容
 
-[![New API](https://www.newapi.ai/assets/newapi.svg)New API](https://www.newapi.ai/)
+---
+title: 分组管理
+description: 分组用于隔离不同用户的渠道访问权限和计费倍率
+---
+import { Callout } from 'fumadocs-ui/components/callout';
 
-[](https://github.com/QuantumNous/new-api)[](https://atomgit.com/QuantumNous/new-api)
+分组用于隔离不同用户的渠道访问权限和计费倍率，不同分组的用户只能使用分配给该分组的渠道。使用管理员账号登录后，在系统设置或管理面板中找到「分组」入口。
 
-⚠️合规提示：本项目仅用于合法授权的 API 网关、内部管理和私有化部署场景。请遵守上游服务条款、平台规则、监管要求和内容安全要求。
+分组列表展示平台所有已配置的分组名称。用户和令牌均可指定所属分组，渠道也可限定只对特定分组开放。
 
-### 关于我们
+## 分组的使用方式
 
--   [关于项目](https://www.newapi.ai/zh/docs/guide/wiki/basic-concepts/project-introduction)
--   [联系我们](https://www.newapi.ai/zh/docs/support/community-interaction)
--   [功能特性](https://www.newapi.ai/zh/docs/guide/wiki/basic-concepts/features-introduction)
+- **用户分组**：在用户管理页编辑用户时，可为用户指定所属分组
+- **令牌分组**：创建令牌时可指定该令牌使用的渠道分组
+- **渠道分组**：添加渠道时可在「分组」字段填写允许访问该渠道的分组名称
 
-### 文档
-
--   [安装部署](https://www.newapi.ai/zh/docs/installation)
--   [使用指南](https://www.newapi.ai/zh/docs/guide/home)
--   [API 文档](https://www.newapi.ai/zh/docs/api)
-
-### 相关项目
-
--   [One API](https://github.com/songquanpeng/one-api)
--   [Midjourney-Proxy](https://github.com/novicezk/midjourney-proxy)
--   [new-api-key-tool](https://github.com/Calcium-Ion/new-api-key-tool)
-
-### 友情链接
-
--   [CoAI](https://github.com/coaidev/coai)
--   [new-api-horizon](https://github.com/Calcium-Ion/new-api-horizon)
--   [GPT-Load](https://www.gpt-load.com/)
--   [LangBot](https://langbot.app/)
-
-© 2025 锟腾科技. All Rights Reserved.
-
-[浙ICP备2025190188号-2](https://beian.miit.gov.cn/)[浙公网安备33010602014019号](http://www.beian.gov.cn/portal/registerSystemInfo?recordcode=33010602014019)
-
-[](https://github.com/QuantumNous/new-api)[](https://atomgit.com/QuantumNous/new-api)[](https://hub.docker.com/r/calciumion/new-api)[](https://www.newapi.ai/zh/docs/support/community-interaction)[](https://www.producthunt.com/products/new-api)
+<Callout type="info">
+  令牌分组设为 `auto` 时，系统按优先级顺序自动选择一个可用分组，适合需要跨分组容灾的场景。
+</Callout>

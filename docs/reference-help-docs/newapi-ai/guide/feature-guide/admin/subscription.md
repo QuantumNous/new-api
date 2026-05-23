@@ -1,51 +1,50 @@
 # 订阅计划管理
 
-> 来源：https://www.newapi.ai/zh/docs/guide/feature-guide/admin/subscription
->
-> 抓取时间：2026-05-23T07:09:46.142Z
+> 来源：https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/guide/feature-guide/admin/subscription.mdx
+> 抓取时间：2026-05-23T07:43:21.476Z
+> 源文件：content/docs/zh/guide/feature-guide/admin/subscription.mdx
 
 ## 页面大纲
 
-    - 关于我们
-    - 文档
-    - 相关项目
-    - 友情链接
+  - 创建套餐
+  - 上架 / 下架套餐
+  - 为用户手动开通订阅
 
 ## 原文内容
 
-[![New API](https://www.newapi.ai/assets/newapi.svg)New API](https://www.newapi.ai/)
+---
+title: 订阅计划管理
+description: 创建和管理订阅套餐
+---
+创建和管理订阅套餐，控制哪些套餐对用户可见，以及为用户手动开通订阅。使用管理员账号登录后，直接访问 `/console/subscription`（管理员视角与用户购买界面不同）。
 
-[](https://github.com/QuantumNous/new-api)[](https://atomgit.com/QuantumNous/new-api)
+![订阅计划管理列表](/assets/guide/feature-guide/sub-admin-list.png)
 
-⚠️合规提示：本项目仅用于合法授权的 API 网关、内部管理和私有化部署场景。请遵守上游服务条款、平台规则、监管要求和内容安全要求。
+套餐列表展示所有已创建的订阅套餐，包含名称、价格、有效期、状态（上架 / 下架）等信息。
 
-### 关于我们
+## 创建套餐
 
--   [关于项目](https://www.newapi.ai/zh/docs/guide/wiki/basic-concepts/project-introduction)
--   [联系我们](https://www.newapi.ai/zh/docs/support/community-interaction)
--   [功能特性](https://www.newapi.ai/zh/docs/guide/wiki/basic-concepts/features-introduction)
+1. 在订阅管理页点击「创建套餐」按钮，弹出创建弹窗
 
-### 文档
+![创建订阅套餐弹窗](/assets/guide/feature-guide/sub-create.png)
 
--   [安装部署](https://www.newapi.ai/zh/docs/installation)
--   [使用指南](https://www.newapi.ai/zh/docs/guide/home)
--   [API 文档](https://www.newapi.ai/zh/docs/api)
+2. 填写以下信息：
+   - **套餐名称**：用户购买时看到的名称
+   - **价格**：套餐售价
+   - **有效期类型**：选择日 / 周 / 月 / 自定义天数
+   - **包含配额**：套餐内包含的配额数量
+3. 点击「提交」，套餐创建完成并默认处于下架状态
 
-### 相关项目
+## 上架 / 下架套餐
 
--   [One API](https://github.com/songquanpeng/one-api)
--   [Midjourney-Proxy](https://github.com/novicezk/midjourney-proxy)
--   [new-api-key-tool](https://github.com/Calcium-Ion/new-api-key-tool)
+1. 在套餐列表中找到目标套餐，点击右侧「上架」或「下架」按钮
 
-### 友情链接
+![套餐上架/下架操作](/assets/guide/feature-guide/sub-publish.png)
 
--   [CoAI](https://github.com/coaidev/coai)
--   [new-api-horizon](https://github.com/Calcium-Ion/new-api-horizon)
--   [GPT-Load](https://www.gpt-load.com/)
--   [LangBot](https://langbot.app/)
+2. 上架后用户在订阅页可看到并购买该套餐；下架后套餐对用户不可见，但已购买的订阅不受影响
 
-© 2025 锟腾科技. All Rights Reserved.
+## 为用户手动开通订阅
 
-[浙ICP备2025190188号-2](https://beian.miit.gov.cn/)[浙公网安备33010602014019号](http://www.beian.gov.cn/portal/registerSystemInfo?recordcode=33010602014019)
-
-[](https://github.com/QuantumNous/new-api)[](https://atomgit.com/QuantumNous/new-api)[](https://hub.docker.com/r/calciumion/new-api)[](https://www.newapi.ai/zh/docs/support/community-interaction)[](https://www.producthunt.com/products/new-api)
+1. 在订阅管理页点击「手动绑定」按钮
+2. 输入目标用户名或邮箱，选择要开通的套餐
+3. 点击「确认」，系统为该用户创建订阅记录，立即生效

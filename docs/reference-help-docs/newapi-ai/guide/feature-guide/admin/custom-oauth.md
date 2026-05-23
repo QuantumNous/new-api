@@ -1,51 +1,33 @@
 # 自定义 OAuth 提供商
 
-> 来源：https://www.newapi.ai/zh/docs/guide/feature-guide/admin/custom-oauth
->
-> 抓取时间：2026-05-23T07:09:46.142Z
+> 来源：https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/guide/feature-guide/admin/custom-oauth.mdx
+> 抓取时间：2026-05-23T07:43:21.476Z
+> 源文件：content/docs/zh/guide/feature-guide/admin/custom-oauth.mdx
 
 ## 页面大纲
 
-    - 关于我们
-    - 文档
-    - 相关项目
-    - 友情链接
+  - 添加自定义 OAuth 提供商
 
 ## 原文内容
 
-[![New API](https://www.newapi.ai/assets/newapi.svg)New API](https://www.newapi.ai/)
+---
+title: 自定义 OAuth 提供商
+description: 添加任意符合 OIDC 标准的自定义登录方式
+---
+除内置的 OAuth 提供商外,Root 可以添加任意符合 OIDC 标准的自定义登录方式。使用 Root 账号登录后,进入系统设置页(`/console/setting`),找到「自定义 OAuth」区域。
 
-[](https://github.com/QuantumNous/new-api)[](https://atomgit.com/QuantumNous/new-api)
+![自定义 OAuth 提供商列表](/assets/guide/feature-guide/custom-oauth-list.png)
 
-⚠️合规提示：本项目仅用于合法授权的 API 网关、内部管理和私有化部署场景。请遵守上游服务条款、平台规则、监管要求和内容安全要求。
+## 添加自定义 OAuth 提供商
 
-### 关于我们
+1. 点击「添加提供商」按钮,弹出配置弹窗
 
--   [关于项目](https://www.newapi.ai/zh/docs/guide/wiki/basic-concepts/project-introduction)
--   [联系我们](https://www.newapi.ai/zh/docs/support/community-interaction)
--   [功能特性](https://www.newapi.ai/zh/docs/guide/wiki/basic-concepts/features-introduction)
+![添加自定义 OAuth 弹窗](/assets/guide/feature-guide/custom-oauth-add.png)
 
-### 文档
+2. 在「Discovery URL」输入框中填写 OIDC 提供商的 Discovery 地址(通常以 `/.well-known/openid-configuration` 结尾),点击「自动发现」,系统自动填充 Authorization Endpoint、Token Endpoint 等配置
 
--   [安装部署](https://www.newapi.ai/zh/docs/installation)
--   [使用指南](https://www.newapi.ai/zh/docs/guide/home)
--   [API 文档](https://www.newapi.ai/zh/docs/api)
+![自动发现填充后的配置项](/assets/guide/feature-guide/custom-oauth-filled.png)
 
-### 相关项目
-
--   [One API](https://github.com/songquanpeng/one-api)
--   [Midjourney-Proxy](https://github.com/novicezk/midjourney-proxy)
--   [new-api-key-tool](https://github.com/Calcium-Ion/new-api-key-tool)
-
-### 友情链接
-
--   [CoAI](https://github.com/coaidev/coai)
--   [new-api-horizon](https://github.com/Calcium-Ion/new-api-horizon)
--   [GPT-Load](https://www.gpt-load.com/)
--   [LangBot](https://langbot.app/)
-
-© 2025 锟腾科技. All Rights Reserved.
-
-[浙ICP备2025190188号-2](https://beian.miit.gov.cn/)[浙公网安备33010602014019号](http://www.beian.gov.cn/portal/registerSystemInfo?recordcode=33010602014019)
-
-[](https://github.com/QuantumNous/new-api)[](https://atomgit.com/QuantumNous/new-api)[](https://hub.docker.com/r/calciumion/new-api)[](https://www.newapi.ai/zh/docs/support/community-interaction)[](https://www.producthunt.com/products/new-api)
+3. 填写 Client ID 和 Client Secret(从 OAuth 提供商的应用管理页面获取)
+4. 填写显示名称(用户在登录页看到的按钮文字)
+5. 点击「保存」,配置完成后用户登录页出现该提供商的登录入口

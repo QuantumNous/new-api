@@ -1,51 +1,60 @@
 # 使用记录
 
-> 来源：https://www.newapi.ai/zh/docs/guide/feature-guide/user/log
->
-> 抓取时间：2026-05-23T07:09:46.142Z
+> 来源：https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/guide/feature-guide/user/log.mdx
+> 抓取时间：2026-05-23T07:43:21.476Z
+> 源文件：content/docs/zh/guide/feature-guide/user/log.mdx
 
 ## 页面大纲
 
-    - 关于我们
-    - 文档
-    - 相关项目
-    - 友情链接
+  - 查看使用记录
+  - 搜索与过滤
+    - 设置过滤条件
+    - 查看过滤结果
+  - 数据统计
+    - 访问数据看板
+    - 查看统计图表
 
 ## 原文内容
 
-[![New API](https://www.newapi.ai/assets/newapi.svg)New API](https://www.newapi.ai/)
+---
+title: 使用记录
+description: 查看每次 API 调用的详细信息，支持按时间、模型、令牌等条件过滤
+---
+查看每次 API 调用的详细信息，支持按时间、模型、令牌等条件过滤。左侧导航点击「日志」，或直接访问 `/console/log`。普通用户只能看到自己的调用记录。
 
-[](https://github.com/QuantumNous/new-api)[](https://atomgit.com/QuantumNous/new-api)
+## 查看使用记录
 
-⚠️合规提示：本项目仅用于合法授权的 API 网关、内部管理和私有化部署场景。请遵守上游服务条款、平台规则、监管要求和内容安全要求。
+![个人日志页](/assets/guide/feature-guide/log-list.png)
 
-### 关于我们
+日志列表每行展示一次调用记录，包含调用时间、使用的模型、消耗的 Token 数量和配额、调用状态等信息。
 
--   [关于项目](https://www.newapi.ai/zh/docs/guide/wiki/basic-concepts/project-introduction)
--   [联系我们](https://www.newapi.ai/zh/docs/support/community-interaction)
--   [功能特性](https://www.newapi.ai/zh/docs/guide/wiki/basic-concepts/features-introduction)
+## 搜索与过滤
 
-### 文档
+### 设置过滤条件
 
--   [安装部署](https://www.newapi.ai/zh/docs/installation)
--   [使用指南](https://www.newapi.ai/zh/docs/guide/home)
--   [API 文档](https://www.newapi.ai/zh/docs/api)
+1. 在日志页顶部点击「筛选」按钮，展开过滤条件区域
 
-### 相关项目
+![日志筛选条件展开状态](/assets/guide/feature-guide/log-filter-open.png)
 
--   [One API](https://github.com/songquanpeng/one-api)
--   [Midjourney-Proxy](https://github.com/novicezk/midjourney-proxy)
--   [new-api-key-tool](https://github.com/Calcium-Ion/new-api-key-tool)
+2. 可设置以下过滤条件：
+   - **时间范围**：选择开始和结束日期
+   - **模型**：输入模型名称关键词
+   - **令牌名**：选择或输入令牌名称
 
-### 友情链接
+### 查看过滤结果
 
--   [CoAI](https://github.com/coaidev/coai)
--   [new-api-horizon](https://github.com/Calcium-Ion/new-api-horizon)
--   [GPT-Load](https://www.gpt-load.com/)
--   [LangBot](https://langbot.app/)
+设置完成后点击「查询」，列表自动刷新显示过滤结果
 
-© 2025 锟腾科技. All Rights Reserved.
+![过滤后的日志列表](/assets/guide/feature-guide/log-filtered.png)
 
-[浙ICP备2025190188号-2](https://beian.miit.gov.cn/)[浙公网安备33010602014019号](http://www.beian.gov.cn/portal/registerSystemInfo?recordcode=33010602014019)
+## 数据统计
 
-[](https://github.com/QuantumNous/new-api)[](https://atomgit.com/QuantumNous/new-api)[](https://hub.docker.com/r/calciumion/new-api)[](https://www.newapi.ai/zh/docs/support/community-interaction)[](https://www.producthunt.com/products/new-api)
+### 访问数据看板
+
+左侧导航点击「数据看板」，或直接访问 `/console`
+
+![个人数据统计图表](/assets/guide/feature-guide/dashboard-chart.png)
+
+### 查看统计图表
+
+数据看板页面以折线图或柱状图展示每日 API 调用量和配额消耗趋势。将鼠标悬停在图表上可查看具体日期的详细数据。
