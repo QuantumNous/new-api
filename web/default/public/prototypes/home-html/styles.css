@@ -7544,18 +7544,18 @@ body {
 }
 
 .prototype-home [data-theme-state="light"] .prototype-home__theme-toggle-icon::before {
-  inset: 3px;
-  background: currentColor;
-  box-shadow: none;
-  transform: none;
+  inset: 2px;
+  background: transparent;
+  box-shadow: inset -5px -2px 0 0 currentColor;
+  transform: rotate(-18deg);
 }
 
 .prototype-home [data-theme-state="light"] .prototype-home__theme-toggle-icon::after {
-  inset: 1px 1px 1px 7px;
-  opacity: 1;
-  background: rgba(255, 255, 255, 0.84);
+  inset: 2px;
+  opacity: 0;
+  background: transparent;
   box-shadow: none;
-  transform: rotate(-10deg);
+  transform: rotate(-18deg) scale(0.82);
 }
 
 .prototype-home [data-theme-state="dark"] .prototype-home__theme-toggle-icon::before {
