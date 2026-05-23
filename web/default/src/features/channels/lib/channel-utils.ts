@@ -17,7 +17,6 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { formatCurrencyFromUSD, formatQuotaWithCurrency } from '@/lib/currency'
-import dayjs from '@/lib/dayjs'
 import { formatTimestampToDate } from '@/lib/format'
 import {
   CHANNEL_STATUS_CONFIG,
@@ -327,7 +326,10 @@ export function getBalanceVariant(
 // ============================================================================
 
 /** Optional i18n: (key, options) => string, e.g. useTranslation().t */
-type TFunction = (key: string, options?: { value?: number | string }) => string
+type TFunction = (
+  key: string,
+  options?: { value?: number | string; count?: number }
+) => string
 
 /**
  * Format response time in milliseconds to human-readable.
@@ -360,16 +362,98 @@ export function getResponseTimeConfig(timeMs: number) {
 // ============================================================================
 
 /**
- * Format Unix timestamp to relative time
- * e.g., "2 hours ago", "3 days ago"
+ * Format Unix timestamp to localized relative time for channel tables.
+ * Pass `t` from useTranslation() for i18n (e.g. 刚刚, 5 秒前, 1 分钟前).
  */
-export function formatRelativeTime(timestamp: number): string {
-  if (!timestamp || timestamp === 0) return 'Never'
+export function formatRelativeTime(
+  timestamp: number,
+  t?: TFunction
+): string {
+  if (!timestamp || timestamp === 0) {
+    return t ? t('Not tested') : 'Never'
+  }
+
+  const now = Date.now()
+  const time = timestamp * 1000
+  const diffMs = now - time
+
+  if (diffMs < 0) {
+    try {
+      return formatTimestampToDate(timestamp)
+    } catch {
+      return t ? t('Unknown') : 'Unknown'
+    }
+  }
+
+  const diffSeconds = Math.floor(diffMs / 1000)
+  const diffMinutes = Math.floor(diffSeconds / 60)
+  const diffHours = Math.floor(diffMinutes / 60)
+  const diffDays = Math.floor(diffHours / 24)
+  const diffWeeks = Math.floor(diffDays / 7)
+  const diffMonths = Math.floor(diffDays / 30)
+  const diffYears = Math.floor(diffDays / 365)
+
+  if (diffSeconds < 60) {
+    if (diffSeconds < 10) {
+      return t ? t('Just now') : 'Just now'
+    }
+    return t
+      ? t('{{count}} seconds ago', { count: diffSeconds })
+      : `${diffSeconds} seconds ago`
+  }
+  if (diffMinutes < 60) {
+    return diffMinutes === 1
+      ? t
+        ? t('1 minute ago')
+        : '1 minute ago'
+      : t
+        ? t('{{count}} minutes ago', { count: diffMinutes })
+        : `${diffMinutes} minutes ago`
+  }
+  if (diffHours < 24) {
+    return diffHours === 1
+      ? t
+        ? t('1 hour ago')
+        : '1 hour ago'
+      : t
+        ? t('{{count}} hours ago', { count: diffHours })
+        : `${diffHours} hours ago`
+  }
+  if (diffDays < 7) {
+    return diffDays === 1
+      ? t
+        ? t('1 day ago')
+        : '1 day ago'
+      : t
+        ? t('{{count}} days ago', { count: diffDays })
+        : `${diffDays} days ago`
+  }
+  if (diffWeeks < 4) {
+    return diffWeeks === 1
+      ? t
+        ? t('1 week ago')
+        : '1 week ago'
+      : t
+        ? t('{{count}} weeks ago', { count: diffWeeks })
+        : `${diffWeeks} weeks ago`
+  }
+  if (diffMonths < 12) {
+    return diffMonths === 1
+      ? t
+        ? t('1 month ago')
+        : '1 month ago'
+      : t
+        ? t('{{count}} months ago', { count: diffMonths })
+        : `${diffMonths} months ago`
+  }
+  if (diffYears < 2) {
+    return t ? t('1 year ago') : '1 year ago'
+  }
 
   try {
-    return dayjs(timestamp * 1000).fromNow()
+    return formatTimestampToDate(timestamp)
   } catch {
-    return 'Unknown'
+    return t ? t('Unknown') : 'Unknown'
   }
 }
 

@@ -16,11 +16,12 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useState } from 'react'
+import { useState, useCallback } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { type Table } from '@tanstack/react-table'
 import { Power, PowerOff, Tag, Trash2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -44,6 +45,13 @@ import {
   handleBatchEnable,
   handleBatchSetTag,
 } from '../lib'
+import {
+  channelsBulkClearButtonClassName,
+  channelsBulkCountTextClassName,
+  channelsBulkDeleteButtonClassName,
+  channelsBulkIconButtonClassName,
+  channelsBulkPanelClassName,
+} from '../lib/channels-ui-styles'
 import type { Channel } from '../types'
 
 interface DataTableBulkActionsProps<TData> {
@@ -97,9 +105,22 @@ export function DataTableBulkActions<TData>({
     })
   }
 
+  const selectionSummary = useCallback(
+    (count: number) => t('{{count}} service channels selected', { count }),
+    [t]
+  )
+
   return (
     <>
-      <BulkActionsToolbar table={table} entityName='channel'>
+      <BulkActionsToolbar
+        table={table}
+        entityName='channel'
+        selectionSummary={selectionSummary}
+        panelClassName={channelsBulkPanelClassName}
+        countTextClassName={channelsBulkCountTextClassName}
+        clearButtonClassName={channelsBulkClearButtonClassName}
+        separatorClassName='bg-white/15'
+      >
         <Tooltip>
           <TooltipTrigger
             render={
@@ -107,7 +128,7 @@ export function DataTableBulkActions<TData>({
                 variant='outline'
                 size='icon'
                 onClick={handleEnableAll}
-                className='size-8'
+                className={cn('size-8', channelsBulkIconButtonClassName)}
                 aria-label={t('Enable selected channels')}
                 title={t('Enable selected channels')}
               />
@@ -128,7 +149,7 @@ export function DataTableBulkActions<TData>({
                 variant='outline'
                 size='icon'
                 onClick={handleDisableAll}
-                className='size-8'
+                className={cn('size-8', channelsBulkIconButtonClassName)}
                 aria-label={t('Disable selected channels')}
                 title={t('Disable selected channels')}
               />
@@ -149,7 +170,7 @@ export function DataTableBulkActions<TData>({
                 variant='outline'
                 size='icon'
                 onClick={() => setShowTagDialog(true)}
-                className='size-8'
+                className={cn('size-8', channelsBulkIconButtonClassName)}
                 aria-label={t('Set tag for selected channels')}
                 title={t('Set tag for selected channels')}
               />
@@ -172,7 +193,7 @@ export function DataTableBulkActions<TData>({
                 variant='destructive'
                 size='icon'
                 onClick={() => setShowDeleteConfirm(true)}
-                className='size-8'
+                className={cn('size-8', channelsBulkDeleteButtonClassName)}
                 aria-label={t('Delete selected channels')}
                 title={t('Delete selected channels')}
               />

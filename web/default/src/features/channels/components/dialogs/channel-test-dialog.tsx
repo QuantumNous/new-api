@@ -28,6 +28,7 @@ import {
 } from '@tanstack/react-table'
 import { Loader2, Settings } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import {
@@ -65,7 +66,19 @@ import {
 import { DataTableBulkActions as BulkActionsToolbar } from '@/components/data-table'
 import { DataTablePagination } from '@/components/data-table/pagination'
 import { StatusBadge } from '@/components/status-badge'
+import {
+  formatChannelErrorMessageForOpsCenter,
+  CHANNEL_BILLING_MODEL_PRICING_PATH,
+} from '../../lib/channel-error-display'
 import { formatResponseTime, handleTestChannel } from '../../lib'
+import {
+  channelTestDialogContentClassName,
+  channelTestDialogOutlineButtonClassName,
+  channelTestDialogTableScopeClassName,
+  channelsBulkClearButtonClassName,
+  channelsBulkCountTextClassName,
+  channelsBulkPanelClassName,
+} from '../../lib/channels-ui-styles'
 import { useChannels } from '../channels-provider'
 
 type ChannelTestDialogProps = {
@@ -299,17 +312,17 @@ export function ChannelTestDialog({
       },
       {
         accessorKey: 'model',
-        header: 'Model',
+        header: () => t('Model'),
         cell: ({ row }) => {
           const model = row.original.model
           const isDefault = defaultTestModel === model
 
           return (
-            <div className='flex items-center gap-2'>
+            <div className='flex items-center gap-2 text-slate-100'>
               <span className='font-medium'>{model}</span>
               {isDefault && (
                 <StatusBadge
-                  label='Default'
+                  label={t('Default')}
                   variant='info'
                   size='sm'
                   copyable={false}
@@ -321,7 +334,7 @@ export function ChannelTestDialog({
       },
       {
         id: 'status',
-        header: 'Status',
+        header: () => t('Connectivity test status'),
         cell: ({ row }) => {
           const model = row.original.model
           const result = testResults[model]
@@ -338,9 +351,9 @@ export function ChannelTestDialog({
 
           if (result.status === 'testing') {
             return (
-              <div className='text-muted-foreground flex items-center gap-2 text-sm'>
-                <Loader2 className='h-4 w-4 animate-spin' />
-                Testing...
+              <div className='flex items-center gap-2 text-sm text-slate-300'>
+                <Loader2 className='h-4 w-4 animate-spin text-slate-300' />
+                {t('Testing...')}
               </div>
             )
           }
@@ -349,12 +362,12 @@ export function ChannelTestDialog({
             return (
               <div className='flex flex-col gap-1 text-xs'>
                 <StatusBadge
-                  label='Success'
+                  label={t('Success')}
                   variant='success'
                   copyable={false}
                 />
                 {typeof result.responseTime === 'number' && (
-                  <span className='text-muted-foreground'>
+                  <span className='text-slate-300'>
                     {formatResponseTime(result.responseTime, t)}
                   </span>
                 )}
@@ -362,25 +375,27 @@ export function ChannelTestDialog({
             )
           }
 
+          const formattedError = result.error
+            ? formatChannelErrorMessageForOpsCenter(result.error)
+            : undefined
+
           return (
             <div className='flex flex-col gap-1 text-xs'>
-              <StatusBadge label='Failed' variant='danger' copyable={false} />
-              {result.error && (
-                <span className='text-muted-foreground break-all'>
-                  {result.error}
-                </span>
+              <StatusBadge label={t('Failed')} variant='danger' copyable={false} />
+              {formattedError && (
+                <span className='break-all text-slate-300'>{formattedError}</span>
               )}
               {result.errorCode === 'model_price_error' && (
                 <Button
                   variant='outline'
                   size='sm'
-                  className='w-fit'
+                  className={cn('w-fit', channelTestDialogOutlineButtonClassName)}
                   onClick={() =>
-                    window.open('/console/setting?tab=ratio', '_blank')
+                    window.open(CHANNEL_BILLING_MODEL_PRICING_PATH, '_blank')
                   }
                 >
                   <Settings className='mr-1 h-3 w-3' />
-                  {t('Go to Settings')}
+                  {t('Go to Model Pricing')}
                 </Button>
               )}
             </div>
@@ -391,7 +406,7 @@ export function ChannelTestDialog({
       },
       {
         id: 'actions',
-        header: 'Actions',
+        header: () => t('Actions'),
         cell: ({ row }) => {
           const model = row.original.model
           const isTestingModel = testingModels.has(model)
@@ -400,13 +415,14 @@ export function ChannelTestDialog({
             <Button
               variant='outline'
               size='sm'
+              className={channelTestDialogOutlineButtonClassName}
               onClick={() => testSingleModel(model)}
               disabled={isTestingModel || isBatchTesting}
             >
               {isTestingModel && (
                 <Loader2 className='mr-2 h-4 w-4 animate-spin' />
               )}
-              Test
+              {t('Test Connection')}
             </Button>
           )
         },
@@ -444,7 +460,12 @@ export function ChannelTestDialog({
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className='max-h-[90vh] overflow-hidden sm:max-w-3xl'>
+      <DialogContent
+        className={cn(
+          'max-h-[90vh] overflow-hidden sm:max-w-3xl',
+          channelTestDialogContentClassName
+        )}
+      >
         <DialogHeader>
           <DialogTitle>{t('Test Channel Connection')}</DialogTitle>
           <DialogDescription>
@@ -510,8 +531,10 @@ export function ChannelTestDialog({
           <div className='space-y-3 max-sm:has-[div[role="toolbar"]]:pb-16'>
             <div className='flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between'>
               <div>
-                <p className='text-sm font-medium'>{t('Channel models')}</p>
-                <p className='text-muted-foreground text-xs'>
+                <p className='text-sm font-medium text-slate-100'>
+                  {t('Channel models')}
+                </p>
+                <p className='text-xs text-slate-300'>
                   {t('Select models to run batch tests.')}
                 </p>
               </div>
@@ -519,12 +542,15 @@ export function ChannelTestDialog({
                 placeholder={t('Filter models...')}
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className='sm:w-64'
+                className='border-white/15 bg-slate-900/80 text-slate-100 placeholder:text-slate-400 sm:w-64'
               />
             </div>
 
             <div className='space-y-3'>
-              <div className='overflow-hidden rounded-md border' role='region'>
+              <div
+                className={channelTestDialogTableScopeClassName}
+                role='region'
+              >
                 <div className='max-h-[360px] overflow-y-auto'>
                   <Table>
                     <TableHeader>
@@ -551,6 +577,7 @@ export function ChannelTestDialog({
                             data-state={
                               row.getIsSelected() ? 'selected' : undefined
                             }
+                            className='border-white/10 text-slate-100 hover:bg-white/[0.05] data-[state=selected]:bg-cyan-500/10 data-[state=selected]:text-slate-100'
                           >
                             {row.getVisibleCells().map((cell) => (
                               <TableCell key={cell.id}>
@@ -566,11 +593,11 @@ export function ChannelTestDialog({
                         <TableRow>
                           <TableCell
                             colSpan={table.getVisibleLeafColumns().length}
-                            className='text-muted-foreground h-16 text-center text-sm'
+                            className='h-16 text-center text-sm text-slate-300'
                           >
                             {models.length
-                              ? 'No models matched your search.'
-                              : 'This channel has no configured models.'}
+                              ? t('No models matched your search.')
+                              : t('This channel has no configured models.')}
                           </TableCell>
                         </TableRow>
                       )}
@@ -591,7 +618,11 @@ export function ChannelTestDialog({
         </div>
 
         <DialogFooter>
-          <Button variant='outline' onClick={handleClose}>
+          <Button
+            variant='outline'
+            className={channelTestDialogOutlineButtonClassName}
+            onClick={handleClose}
+          >
             {t('Close')}
           </Button>
         </DialogFooter>
@@ -618,13 +649,30 @@ function TestModelsBulkActions({
       ? t('Test {{count}} selected', { count: selectedModels.length })
       : t('Test selected models')
 
+  const selectionSummary = useCallback(
+    (count: number) =>
+      count === 1
+        ? t('{{count}} model resource selected', { count })
+        : t('{{count}} model resources selected', { count }),
+    [t]
+  )
+
   return (
-    <BulkActionsToolbar table={table} entityName='model'>
+    <BulkActionsToolbar
+      table={table}
+      entityName='model'
+      selectionSummary={selectionSummary}
+      panelClassName={channelsBulkPanelClassName}
+      countTextClassName={channelsBulkCountTextClassName}
+      clearButtonClassName={channelsBulkClearButtonClassName}
+      separatorClassName='bg-white/15'
+    >
       <Tooltip>
         <TooltipTrigger
           render={
             <Button
               size='sm'
+              className={channelTestDialogOutlineButtonClassName}
               onClick={() => onTestSelected(selectedModels)}
               disabled={disabled || selectedModels.length === 0}
             />

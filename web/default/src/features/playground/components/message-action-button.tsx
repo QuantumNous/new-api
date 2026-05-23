@@ -24,6 +24,10 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip'
 import { MESSAGE_ACTION_BUTTON_STYLES } from '../constants'
+import {
+  playgroundMessageActionButtonClassName,
+  playgroundMessageActionDeleteClassName,
+} from '../lib/playground-ui-styles'
 
 interface MessageActionButtonProps {
   icon: LucideIcon
@@ -44,8 +48,8 @@ export function MessageActionButton({
 }: MessageActionButtonProps) {
   const baseStyle =
     variant === 'destructive'
-      ? MESSAGE_ACTION_BUTTON_STYLES.DELETE
-      : MESSAGE_ACTION_BUTTON_STYLES.BASE
+      ? playgroundMessageActionDeleteClassName
+      : playgroundMessageActionButtonClassName
 
   return (
     <Tooltip>

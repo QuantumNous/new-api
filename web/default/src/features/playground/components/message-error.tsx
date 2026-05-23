@@ -24,6 +24,7 @@ import { cn } from '@/lib/utils'
 import { MESSAGE_STATUS } from '../constants'
 import {
   PLAYGROUND_BILLING_MODEL_PRICING_PATH,
+  getPlaygroundErrorTitle,
   parsePlaygroundErrorDisplay,
 } from '../lib/playground-error-display'
 import type { Message } from '../types'
@@ -59,8 +60,9 @@ export function MessageError({ message, className = '' }: MessageErrorProps) {
   }
 
   const errorContent =
-    message.versions[0]?.content || t('Playground generic request error')
+    message.versions[0]?.content || t('Playground generic service error body')
   const { paragraphs, requestId } = parsePlaygroundErrorDisplay(errorContent)
+  const errorTitle = getPlaygroundErrorTitle(message.errorCode)
 
   if (message.errorCode === 'model_price_error') {
     return (
@@ -71,9 +73,7 @@ export function MessageError({ message, className = '' }: MessageErrorProps) {
         <div className='flex gap-2'>
           <AlertTriangle className='mt-0.5 size-4 shrink-0 text-amber-400' />
           <div className='min-w-0 flex-1 space-y-2'>
-            <p className='font-medium text-amber-200/95'>
-              {t('Model Price Not Configured')}
-            </p>
+            <p className='font-medium text-amber-200/95'>{errorTitle}</p>
             <div className='space-y-2 text-slate-300'>
               {(paragraphs.length > 0 ? paragraphs : [errorContent]).map(
                 (paragraph) => (
@@ -112,7 +112,7 @@ export function MessageError({ message, className = '' }: MessageErrorProps) {
       <div className='flex gap-2'>
         <AlertCircle className='mt-0.5 size-4 shrink-0 text-red-400' />
         <div className='min-w-0 flex-1 space-y-2'>
-          <p className='font-medium text-slate-100'>{t('Error')}</p>
+          <p className='font-medium text-slate-100'>{errorTitle}</p>
           <div className='space-y-2 text-slate-300'>
             {(paragraphs.length > 0 ? paragraphs : [errorContent]).map(
               (paragraph) => (

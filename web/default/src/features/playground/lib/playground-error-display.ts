@@ -34,6 +34,30 @@ const REQUEST_ID_RE =
 const EN_MODEL_PRICE_TAIL_RE =
   /\bModel\s+.+\s+price not configured[\s\S]*$/i
 
+const UPSTREAM_REQUEST_ERROR_MARKERS = [
+  /upstream\s+error/i,
+  /do\s+request\s+failed/i,
+  /upstream.*request.*failed/i,
+  /failed to call upstream/i,
+  /dial\s+tcp/i,
+  /connection\s+refused/i,
+  /no\s+such\s+host/i,
+  /context\s+deadline\s+exceeded/i,
+  /i\/o\s+timeout/i,
+] as const
+
+export type PlaygroundErrorCode =
+  | 'model_price_error'
+  | 'upstream_request_error'
+  | string
+  | undefined
+
+export function isUpstreamRequestErrorMessage(message: string): boolean {
+  const trimmed = (message ?? '').trim()
+  if (!trimmed) return false
+  return UPSTREAM_REQUEST_ERROR_MARKERS.some((pattern) => pattern.test(trimmed))
+}
+
 export function extractPlaygroundRequestId(message: string): string | null {
   const match = message.match(REQUEST_ID_RE)
   return match?.[1]?.trim() ?? null
@@ -53,9 +77,11 @@ export function stripLegacyPlaygroundErrorNoise(raw: string): string {
 export function resolvePlaygroundErrorCode(
   message: string,
   errorCode?: string
-): string | undefined {
+): PlaygroundErrorCode {
   if (errorCode === 'model_price_error') return errorCode
+  if (errorCode === 'upstream_request_error') return errorCode
   if (isModelPriceNotConfiguredMessage(message)) return 'model_price_error'
+  if (isUpstreamRequestErrorMessage(message)) return 'upstream_request_error'
   return errorCode
 }
 
@@ -63,6 +89,17 @@ export function resolvePlaygroundErrorCode(
  * Maps API/stream errors to productized Chinese copy for the chat UI.
  * Does not change API payloads or error codes.
  */
+function appendPlaygroundRequestId(
+  bodyLines: string[],
+  requestId: string | null
+): string {
+  const lines = [...bodyLines]
+  if (requestId) {
+    lines.push(i18next.t('Playground request id label', { id: requestId }))
+  }
+  return lines.join('\n\n')
+}
+
 export function formatPlaygroundChatErrorMessage(
   rawMessage: string,
   errorCode?: string
@@ -71,27 +108,47 @@ export function formatPlaygroundChatErrorMessage(
   const code = resolvePlaygroundErrorCode(noiseStripped || rawMessage, errorCode)
   const requestId = extractPlaygroundRequestId(rawMessage)
 
+  if (import.meta.env.DEV && rawMessage.trim()) {
+    // eslint-disable-next-line no-console
+    console.debug('[playground] Chat error (raw):', rawMessage, {
+      errorCode: code ?? errorCode,
+      requestId,
+    })
+  }
+
   if (code === 'model_price_error') {
     const model = extractModelNameFromPriceNotConfiguredMessage(
       noiseStripped || rawMessage
     )
-    const lines: string[] = [
-      model
-        ? i18next.t('Playground model price error body with model', { model })
-        : i18next.t('Playground model price error body'),
-      i18next.t('Playground model price error self-use note'),
-    ]
-    if (requestId) {
-      lines.push(i18next.t('Playground request id label', { id: requestId }))
-    }
-    return lines.join('\n\n')
+    return appendPlaygroundRequestId(
+      [
+        model
+          ? i18next.t('Playground model price error body with model', { model })
+          : i18next.t('Playground model price error body'),
+        i18next.t('Playground model price error self-use note'),
+      ],
+      requestId
+    )
   }
 
-  const body = noiseStripped || i18next.t('Playground generic request error')
-  if (requestId && !body.includes(requestId)) {
-    return `${body}\n\n${i18next.t('Playground request id label', { id: requestId })}`
+  if (code === 'upstream_request_error') {
+    return appendPlaygroundRequestId(
+      [i18next.t('Playground upstream request error body')],
+      requestId
+    )
   }
-  return body
+
+  return appendPlaygroundRequestId(
+    [i18next.t('Playground generic service error body')],
+    requestId
+  )
+}
+
+export function getPlaygroundErrorTitle(errorCode?: string | null): string {
+  if (errorCode === 'model_price_error') {
+    return i18next.t('Model Price Not Configured')
+  }
+  return i18next.t('Playground service request error title')
 }
 
 export type PlaygroundErrorDisplayParts = {

@@ -32,6 +32,14 @@ const MODEL_PRICE_NOT_CONFIGURED_MARKERS = [
 const MODEL_NAME_ZH_RE = /模型\s+(.+?)\s+的价格未配置/
 const MODEL_NAME_EN_RE = /Model\s+(.+?)\s+price not configured/i
 
+/** Platform configuration center → Billing & Settlement → Model Pricing */
+export const CHANNEL_BILLING_MODEL_PRICING_PATH =
+  '/system-settings/billing/model-pricing'
+
+/** Platform configuration center → Billing & Settlement → Group Pricing */
+export const CHANNEL_BILLING_GROUP_PRICING_PATH =
+  '/system-settings/billing/group-pricing'
+
 export function isModelPriceNotConfiguredMessage(message: string): boolean {
   const trimmed = message.trim()
   if (!trimmed) return false

@@ -31,6 +31,7 @@ import {
 } from '@/components/ui/table'
 import { safeJsonParseWithValidation } from '../utils/json-parser'
 import { isArray } from '../utils/json-validators'
+import { isHiddenExternalChatClient } from '@/features/chat/lib/hidden-external-chat-clients'
 import { ChatDialog, type ChatEntryData } from './chat-dialog'
 
 type ChatSettingsVisualEditorProps = {
@@ -69,6 +70,7 @@ export function ChatSettingsVisualEditor({
         return null
       })
       .filter((item): item is ChatEntry => item !== null)
+      .filter((chat) => !isHiddenExternalChatClient(chat.name, chat.url))
   }, [value])
 
   const filteredChats = useMemo(() => {

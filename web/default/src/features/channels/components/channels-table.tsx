@@ -35,11 +35,7 @@ import { getLobeIcon } from '@/lib/lobe-icon'
 import { cn } from '@/lib/utils'
 import { useTableUrlState } from '@/hooks/use-table-url-state'
 import { Input } from '@/components/ui/input'
-import {
-  DISABLED_ROW_DESKTOP,
-  DISABLED_ROW_MOBILE,
-  DataTablePage,
-} from '@/components/data-table'
+import { DataTablePage } from '@/components/data-table'
 import { getChannels, searchChannels, getGroups } from '../api'
 import {
   DEFAULT_PAGE_SIZE,
@@ -54,31 +50,19 @@ import {
   getChannelTypeLabel,
 } from '../lib'
 import type { Channel, ChannelSortBy } from '../types'
+import {
+  channelsDisabledRowDesktopClassName,
+  channelsDisabledRowMobileClassName,
+  channelsSelectedRowClassName,
+  channelsTableClassName,
+  channelsTableHeaderClassName,
+  channelsToolbarClassName,
+} from '../lib/channels-ui-styles'
 import { useChannelsColumns } from './channels-columns'
 import { useChannels } from './channels-provider'
 import { DataTableBulkActions } from './data-table-bulk-actions'
 
 const route = getRouteApi('/_authenticated/channels/')
-
-const channelsToolbarClassName = cn(
-  '[&_input]:border-white/15 [&_input]:bg-slate-950/50 [&_input]:text-slate-100',
-  '[&_input::placeholder]:text-slate-500'
-)
-
-const channelsTableHeaderClassName = cn(
-  'bg-slate-900/80 text-slate-200',
-  '[&_th]:border-white/10 [&_th]:text-slate-200',
-  '[&_button]:text-slate-200',
-  '[&_svg]:text-slate-400',
-  '[&_[data-slot=checkbox]]:border-white/25'
-)
-
-const channelsTableClassName = cn(
-  'border-white/10 bg-slate-900/40',
-  '[&_[data-slot=empty-title]]:text-slate-100',
-  '[&_[data-slot=empty-description]]:text-slate-400',
-  '[&_[data-slot=empty-icon]]:text-slate-300'
-)
 
 const CHANNEL_SORTABLE_COLUMNS = new Set<ChannelSortBy>([
   'id',
@@ -438,13 +422,20 @@ export function ChannelsTable() {
           },
         ],
       }}
-      getRowClassName={(row, { isMobile }) =>
-        isDisabledChannelRow(row.original)
-          ? isMobile
-            ? DISABLED_ROW_MOBILE
-            : DISABLED_ROW_DESKTOP
+      getRowClassName={(row, { isMobile }) => {
+        const selectedClass = row.getIsSelected()
+          ? channelsSelectedRowClassName
           : undefined
-      }
+        if (isDisabledChannelRow(row.original)) {
+          return cn(
+            isMobile
+              ? channelsDisabledRowMobileClassName
+              : channelsDisabledRowDesktopClassName,
+            selectedClass
+          )
+        }
+        return selectedClass
+      }}
       bulkActions={<DataTableBulkActions table={table} />}
     />
   )

@@ -288,21 +288,6 @@ export function DataTableRowActions<TData>({
               <Edit size={16} />
             </DropdownMenuShortcut>
           </DropdownMenuItem>
-          <DropdownMenuItem
-            className={keysDropdownMenuItemClassName}
-            onClick={async () => {
-              const realKey = await resolveRealKey(apiKey.id)
-              if (!realKey) return
-              setResolvedKey(realKey)
-              setCurrentRow(apiKey)
-              setOpen('cc-switch')
-            }}
-          >
-            {t('keys.action.client_import')}
-            <DropdownMenuShortcut className={keysDropdownMenuShortcutClassName}>
-              <ArrowRightLeft size={16} />
-            </DropdownMenuShortcut>
-          </DropdownMenuItem>
           {showDevClientMenu && (
             <>
               <DropdownMenuSeparator

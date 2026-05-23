@@ -17,6 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { API_KEY_STATUS } from '@/features/keys/constants'
+import { filterVisibleChatPresets } from './hidden-external-chat-clients'
 
 export type ChatLinkType = 'web' | 'custom-protocol' | 'fluent'
 
@@ -108,7 +109,7 @@ export function parseChatConfig(raw: RawChatConfig): ChatPreset[] {
     return []
   }
 
-  return parsed
+  const presets = parsed
     .map((entry, index) => {
       if (
         !entry ||
@@ -137,6 +138,8 @@ export function parseChatConfig(raw: RawChatConfig): ChatPreset[] {
       } satisfies ChatPreset
     })
     .filter((item): item is ChatPreset => item !== null)
+
+  return filterVisibleChatPresets(presets)
 }
 
 function replaceToken(source: string, token: string, value: string) {

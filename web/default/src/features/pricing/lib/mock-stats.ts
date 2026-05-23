@@ -15,7 +15,8 @@ You should have received a copy of the GNU Affero General Public License
 along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
-*/
+ */
+import { isHiddenExternalChatClient } from '@/features/chat/lib/hidden-external-chat-clients'
 import type { PricingModel } from '../types'
 import {
   hashStringToSeed,
@@ -434,7 +435,9 @@ export function buildAppRankings(
 ): AppRanking[] {
   const baseSeed = hashStringToSeed(`${model.model_name}:apps`)
   const rand = seededRandom(baseSeed)
-  const candidates = [...APP_TEMPLATES]
+  const candidates = APP_TEMPLATES.filter(
+    (app) => !isHiddenExternalChatClient(app.name)
+  )
   // Fisher–Yates shuffle.
   for (let i = candidates.length - 1; i > 0; i--) {
     const j = Math.floor(rand() * (i + 1))

@@ -20,7 +20,7 @@ import { useState, useCallback } from 'react'
 import i18next from 'i18next'
 import { toast } from 'sonner'
 import { getSelf } from '@/lib/api'
-import { formatQuota } from '@/lib/format'
+import { formatQuotaForOpsCenter } from '@/lib/ops-billing-display'
 import { redeemTopupCode } from '../api'
 
 // ============================================================================
@@ -44,7 +44,7 @@ export function useRedemption() {
         const quotaAdded = response.data
         toast.success(
           i18next.t('wallet.toast.redeem_success', {
-            quota: formatQuota(quotaAdded),
+            quota: formatQuotaForOpsCenter(quotaAdded),
           })
         )
         await getSelf()

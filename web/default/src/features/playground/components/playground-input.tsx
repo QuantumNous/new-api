@@ -34,6 +34,7 @@ import {
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+import { cn } from '@/lib/utils'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -51,6 +52,13 @@ import {
 import { Suggestion, Suggestions } from '@/components/ai-elements/suggestion'
 import { ModelGroupSelector } from '@/components/model-group-selector'
 import { PLAYGROUND_PROMPT_SUGGESTIONS_VISIBLE } from '../constants'
+import {
+  playgroundPromptInputGroupClassName,
+  playgroundPromptOutlineButtonClassName,
+  playgroundPromptSendButtonClassName,
+  playgroundPromptTextareaClassName,
+  playgroundShellClassName,
+} from '../lib/playground-ui-styles'
 import type { ModelOption, GroupOption } from '../types'
 
 interface PlaygroundInputProps {
@@ -113,14 +121,17 @@ export function PlaygroundInput({
   }
 
   return (
-    <div className='grid shrink-0 gap-4 px-1 md:pb-4'>
-      <PromptInput groupClassName='rounded-xl' onSubmit={handleSubmit}>
+    <div className={cn('grid shrink-0 gap-4 px-1 md:pb-4', playgroundShellClassName)}>
+      <PromptInput
+        groupClassName={playgroundPromptInputGroupClassName}
+        onSubmit={handleSubmit}
+      >
         <PromptInputTextarea
           autoComplete='off'
           autoCorrect='off'
           autoCapitalize='off'
           spellCheck={false}
-          className='px-5 md:text-base'
+          className={cn('px-5 md:text-base', playgroundPromptTextareaClassName)}
           disabled={disabled}
           onChange={(event) => setText(event.target.value)}
           placeholder={t('Ask anything')}
@@ -133,7 +144,7 @@ export function PlaygroundInput({
               <DropdownMenuTrigger
                 render={
                   <PromptInputButton
-                    className='border font-medium'
+                    className={cn('border font-medium', playgroundPromptOutlineButtonClassName)}
                     disabled={disabled}
                     variant='outline'
                   />
@@ -172,7 +183,7 @@ export function PlaygroundInput({
             </DropdownMenu>
 
             <PromptInputButton
-              className='border font-medium'
+              className={cn('border font-medium', playgroundPromptOutlineButtonClassName)}
               disabled={disabled}
               onClick={() => toast.info(t('Search feature in development'))}
               variant='outline'
@@ -196,7 +207,7 @@ export function PlaygroundInput({
 
             {isGenerating && onStop ? (
               <PromptInputButton
-                className='text-foreground font-medium'
+                className={playgroundPromptSendButtonClassName}
                 onClick={onStop}
                 variant='secondary'
               >
@@ -206,7 +217,7 @@ export function PlaygroundInput({
               </PromptInputButton>
             ) : (
               <PromptInputButton
-                className='text-foreground font-medium'
+                className={playgroundPromptSendButtonClassName}
                 disabled={disabled || !text.trim()}
                 type='submit'
                 variant='secondary'

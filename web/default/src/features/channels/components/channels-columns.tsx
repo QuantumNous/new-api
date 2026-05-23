@@ -1022,26 +1022,30 @@ export function useChannelsColumns(): ColumnDef<Channel>[] {
       accessorKey: 'test_time',
       meta: { label: t('Last Tested'), mobileHidden: true },
       header: ({ column }) => (
-        <DataTableColumnHeader column={column} title={t('Last Tested')} />
+        <DataTableColumnHeader
+          column={column}
+          title={t('Last Tested')}
+          className='text-slate-100'
+        />
       ),
       cell: ({ row }) => {
         const testTime = row.getValue('test_time') as number
 
-        // For invalid timestamps, show "Never" badge
         if (!testTime || testTime === 0) {
-          return <span className='text-muted-foreground text-xs'>-</span>
+          return (
+            <span className='text-sm text-slate-300'>{t('Not tested')}</span>
+          )
         }
 
-        const timeText = formatRelativeTime(testTime)
+        const timeText = formatRelativeTime(testTime, t)
         const fullDate = formatTimestampToDate(testTime)
 
-        // For valid timestamps, show tooltip with full date
         return (
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger
                 render={
-                  <span className='text-muted-foreground cursor-pointer font-mono text-sm' />
+                  <span className='cursor-pointer font-mono text-sm text-slate-200' />
                 }
               >
                 {timeText}

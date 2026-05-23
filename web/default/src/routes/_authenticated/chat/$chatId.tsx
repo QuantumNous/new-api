@@ -16,8 +16,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useMemo } from 'react'
-import { Link, createFileRoute, redirect } from '@tanstack/react-router'
+import { useEffect, useMemo } from 'react'
+import { Link, createFileRoute, redirect, useNavigate } from '@tanstack/react-router'
 import { Loader2, MessageCircleWarning } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
@@ -28,11 +28,12 @@ import {
   chatLinkRequiresApiKey,
   resolveChatUrl,
 } from '@/features/chat/lib/chat-links'
+import { isHiddenExternalChatClient } from '@/features/chat/lib/hidden-external-chat-clients'
 
 export const Route = createFileRoute('/_authenticated/chat/$chatId')({
   loader: async ({ params }) => {
     if (!Number.isInteger(Number(params.chatId))) {
-      throw redirect({ to: '/dashboard' })
+      throw redirect({ to: '/playground' })
     }
   },
   component: ChatRouteComponent,
@@ -40,13 +41,24 @@ export const Route = createFileRoute('/_authenticated/chat/$chatId')({
 
 function ChatRouteComponent() {
   const { t } = useTranslation()
+  const navigate = useNavigate()
   const { chatId } = Route.useParams()
   const { chatPresets, serverAddress } = useChatPresets()
-  const preset = useMemo(() => {
-    const index = Number(chatId)
-    if (!Number.isInteger(index)) return undefined
-    return chatPresets[index]
-  }, [chatId, chatPresets])
+  const preset = useMemo(
+    () => chatPresets.find((item) => item.id === chatId),
+    [chatId, chatPresets]
+  )
+
+  const isHiddenPreset = useMemo(() => {
+    if (!preset) return true
+    return isHiddenExternalChatClient(preset.name, preset.url)
+  }, [preset])
+
+  useEffect(() => {
+    if (!preset || isHiddenPreset) {
+      navigate({ to: '/playground', replace: true })
+    }
+  }, [isHiddenPreset, navigate, preset])
 
   const isWebLink = preset?.type === 'web'
 
@@ -60,35 +72,27 @@ function ChatRouteComponent() {
     isPending,
     isError,
     error,
-  } = useActiveChatKey(Boolean(preset && requiresActiveKey))
+  } = useActiveChatKey(Boolean(preset && requiresActiveKey && !isHiddenPreset))
 
   const iframeSrc = useMemo(() => {
-    if (!preset || !isWebLink) return ''
+    if (!preset || !isWebLink || isHiddenPreset) return ''
     if (requiresActiveKey && !activeKey) return ''
     return resolveChatUrl({
       template: preset.url,
       apiKey: requiresActiveKey ? activeKey : undefined,
       serverAddress,
     })
-  }, [activeKey, isWebLink, preset, requiresActiveKey, serverAddress])
+  }, [
+    activeKey,
+    isHiddenPreset,
+    isWebLink,
+    preset,
+    requiresActiveKey,
+    serverAddress,
+  ])
 
-  if (!preset) {
-    return (
-      <div className='flex h-full flex-col items-center justify-center gap-4 p-6 text-center'>
-        <MessageCircleWarning className='text-muted-foreground h-12 w-12' />
-        <div className='space-y-1'>
-          <h2 className='text-lg font-semibold'>
-            {t('Chat preset not found')}
-          </h2>
-          <p className='text-muted-foreground'>
-            {t('The requested chat preset does not exist or has been removed.')}
-          </p>
-        </div>
-        <Button variant='outline' render={<Link to='/dashboard' />}>
-          {t('Return to dashboard')}
-        </Button>
-      </div>
-    )
+  if (!preset || isHiddenPreset) {
+    return null
   }
 
   if (!isWebLink) {
@@ -104,8 +108,8 @@ function ChatRouteComponent() {
             )}
           </p>
         </div>
-        <Button variant='outline' render={<Link to='/dashboard' />}>
-          {t('Return to dashboard')}
+        <Button variant='outline' render={<Link to='/dashboard/overview' />}>
+          {t('Back to Operations Console')}
         </Button>
       </div>
     )

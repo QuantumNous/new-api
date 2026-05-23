@@ -487,7 +487,7 @@ export function RechargeFormCard({
             />
             <Button
               onClick={onRedeem}
-              disabled={redeeming}
+              disabled={redeeming || !redemptionCode.trim()}
               variant='outline'
               className={cn('h-9 px-4', WALLET_OUTLINE_BTN)}
             >
@@ -511,8 +511,8 @@ export function RechargeFormCard({
           )}
         </div>
       ) : (
-        <Alert className='border-t'>
-          <AlertDescription>
+        <Alert className='border-amber-500/30 bg-amber-500/10 dark:border-amber-400/30 dark:bg-amber-500/10'>
+          <AlertDescription className='text-foreground dark:text-slate-100'>
             {t(
               'Redemption codes are disabled until the administrator confirms compliance terms.'
             )}

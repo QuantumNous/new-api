@@ -50,6 +50,15 @@ import {
 } from '@/components/ai-elements/sources'
 import { MESSAGE_ROLES } from '../constants'
 import { getMessageContentStyles } from '../lib/message-styles'
+import {
+  playgroundAssistantMessageClassName,
+  playgroundCancelButtonClassName,
+  playgroundEditTextareaClassName,
+  playgroundSaveButtonClassName,
+  playgroundSaveSubmitButtonClassName,
+  playgroundShellClassName,
+  playgroundUserMessageClassName,
+} from '../lib/playground-ui-styles'
 import { parseThinkTags } from '../lib/message-utils'
 import type { Message as MessageType } from '../types'
 import { MessageActions } from './message-actions'
@@ -100,7 +109,7 @@ export function PlaygroundChat({
     [editText, originalText]
   )
   return (
-    <Conversation>
+    <Conversation className={playgroundShellClassName}>
       {/* Remove outer padding; apply padding to inner centered container to align with input */}
       <ConversationContent className='p-0'>
         <div className='mx-auto w-full max-w-4xl px-4 py-4'>
@@ -124,7 +133,7 @@ export function PlaygroundChat({
                             <Textarea
                               value={editText}
                               onChange={(e) => setEditText(e.target.value)}
-                              className='font-mono text-sm'
+                              className={playgroundEditTextareaClassName}
                               rows={8}
                             />
                             <div className='flex gap-2'>
@@ -132,6 +141,7 @@ export function PlaygroundChat({
                               {message.from === MESSAGE_ROLES.USER && (
                                 <Button
                                   size='sm'
+                                  className={playgroundSaveSubmitButtonClassName}
                                   onClick={() =>
                                     onSaveEditAndSubmit?.(editText)
                                   }
@@ -142,6 +152,7 @@ export function PlaygroundChat({
                               )}
                               <Button
                                 size='sm'
+                                className={playgroundSaveButtonClassName}
                                 onClick={() => onSaveEdit?.(editText)}
                                 disabled={isEmpty || !isChanged}
                               >
@@ -150,6 +161,7 @@ export function PlaygroundChat({
                               <Button
                                 size='sm'
                                 variant='outline'
+                                className={playgroundCancelButtonClassName}
                                 onClick={() => onCancelEdit?.(false)}
                               >
                                 Cancel
@@ -253,7 +265,10 @@ export function PlaygroundChat({
                                         <MessageContent
                                           variant='flat'
                                           className={cn(
-                                            getMessageContentStyles()
+                                            getMessageContentStyles(),
+                                            message.from === MESSAGE_ROLES.ASSISTANT
+                                              ? playgroundAssistantMessageClassName
+                                              : playgroundUserMessageClassName
                                           )}
                                         >
                                           <Response>{displayContent}</Response>

@@ -164,7 +164,7 @@ export function Playground() {
   }
 
   return (
-    <div className='relative flex size-full flex-col overflow-hidden'>
+    <div className='relative flex size-full flex-col overflow-hidden dark:bg-slate-950'>
       {/* Full-width scroll container: scrolling works even over side whitespace */}
       <div className='flex flex-1 flex-col overflow-hidden'>
         <PlaygroundChat
