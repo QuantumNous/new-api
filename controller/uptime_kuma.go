@@ -4,11 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
 	"time"
 
+	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/service"
 
 	"github.com/gin-gonic/gin"
@@ -170,6 +172,7 @@ func GetUptimeKumaStatus(c *gin.Context) {
 
 	payload, err := service.BuildPublicUpstreamStatus(ctx)
 	if err != nil {
+		logger.LogError(c.Request.Context(), fmt.Sprintf("build upstream status failed: %v", err))
 		c.JSON(http.StatusOK, gin.H{"success": true, "message": "", "data": []service.PublicUpstreamStatusGroup{}})
 		return
 	}

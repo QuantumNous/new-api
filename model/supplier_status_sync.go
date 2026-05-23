@@ -24,12 +24,19 @@ type SupplierStatusSync struct {
 	CreatedAt    int64   `json:"created_at" gorm:"bigint;not null;default:0"`
 }
 
+func EnsureSupplierStatusSyncTable() error {
+	if DB == nil {
+		return errors.New("database is not initialized")
+	}
+	return DB.AutoMigrate(&SupplierStatusSync{})
+}
+
 func BatchUpsertSupplierStatusSync(records []SupplierStatusSync) error {
 	if len(records) == 0 {
 		return nil
 	}
-	if DB == nil {
-		return errors.New("database is not initialized")
+	if err := EnsureSupplierStatusSyncTable(); err != nil {
+		return err
 	}
 	return DB.Clauses(clause.OnConflict{
 		Columns: []clause.Column{
@@ -53,8 +60,8 @@ func BatchUpsertSupplierStatusSync(records []SupplierStatusSync) error {
 
 func GetRecentSupplierStatusSync(since int64) ([]SupplierStatusSync, error) {
 	var records []SupplierStatusSync
-	if DB == nil {
-		return records, errors.New("database is not initialized")
+	if err := EnsureSupplierStatusSyncTable(); err != nil {
+		return records, err
 	}
 	err := DB.
 		Where("checked_at >= ?", since).

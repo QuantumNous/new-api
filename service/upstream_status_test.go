@@ -170,3 +170,16 @@ func TestBuildPublicUpstreamStatusGroupsRecentHistoryByGroupAndModel(t *testing.
 	require.Equal(t, 100.0, monitor.Availability)
 	require.Len(t, monitor.History, 2)
 }
+
+func TestBuildPublicUpstreamStatusEnsuresMissingTable(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open("file:"+t.Name()+"?mode=memory&cache=shared"), &gorm.Config{})
+	require.NoError(t, err)
+	model.DB = db
+
+	payload, err := BuildPublicUpstreamStatus(context.Background())
+
+	require.NoError(t, err)
+	require.True(t, payload.Success)
+	require.Empty(t, payload.Data)
+	require.True(t, model.DB.Migrator().HasTable(&model.SupplierStatusSync{}))
+}

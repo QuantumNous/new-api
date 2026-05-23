@@ -75,6 +75,10 @@ func StartUpstreamStatusSyncTask() {
 		common.SysLog("upstream status sync task disabled")
 		return
 	}
+	if err := model.EnsureSupplierStatusSyncTable(); err != nil {
+		logger.LogError(context.Background(), fmt.Sprintf("ensure upstream status sync table failed: %v", err))
+		return
+	}
 	interval := common.GetEnvOrDefault("UPSTREAM_STATUS_SYNC_INTERVAL_SECONDS", 180)
 	if interval < 60 {
 		interval = 60

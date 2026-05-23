@@ -1,27 +1,21 @@
 # 恢复快照
 
 ## 主线目标
-启用并改造 aiapi114 的上游状态展示链路：定时同步 Ikun 与 Foxcode 状态数据入库，公共接口基于同步数据和 Redis 缓存展示最近 5 小时的分组+模型状态，并记录生产启用步骤与动态调度预案。
+修复 aiapi114 `/api/uptime/status` 返回空数据的问题，确保上游状态同步表缺失时可自动补建，定时同步能写入 Ikun 和 Foxcode 数据，公共接口能返回按供应商、分组、模型组织的最近 5 小时状态数据。
 
 ## 正在做什么
-实现、文档和针对性验证已完成，进入提交与最终汇报。
+已定位根因并完成修复、验证和本地接口复测，准备提交本次修复并汇报。
 
 ## 关键上下文
-- 新增同步表模型 `SupplierStatusSync`，表名 `supplier_status_syncs`，唯一键为 `provider + monitor_id + checked_at`。
-- 新增 `service/upstream_status*.go`：默认同步 Ikun 与 Foxcode；同步任务仅主节点启动，默认 180 秒，可用 `UPSTREAM_STATUS_SYNC_ENABLED=false` 关闭。
-- `/api/uptime/status` 已改为读取同步数据，经 Redis key `upstream_status:public:v1` 缓存 60 秒后返回。
-- 展示窗口为最近 5 小时，按供应商、分组、模型/线路聚合，返回 `history` 点位。
-- 生产步骤和环境需求记录在 `docs/channel/upstream-status-sync-production.md`。
-- 动态调度本轮仅记录方案，不执行自动禁用/启用/调权重。
+- 根因：本地运行服务未创建 `supplier_status_syncs` 表，公共接口读表失败后静默返回空数组。
+- 修复：新增 `model.EnsureSupplierStatusSyncTable()`，读写同步表前自动执行 `AutoMigrate(&SupplierStatusSync{})`。
+- 修复：`StartUpstreamStatusSyncTask()` 启动时先确保同步表存在，失败时记录错误并停止任务。
+- 修复：`controller.GetUptimeKumaStatus` 在构建公共状态失败时写入错误日志，避免服务端静默吞错。
+- 验证：本地重启后访问 `http://localhost:3001/api/uptime/status` 已返回 Ikun/Foxcode 聚合状态数据。
+- 本地 SQLite 当前 `supplier_status_syncs` 数据量：1340 条，其中 `foxcode=800`、`ikun=540`。
 
 ## 下一步
-提交本次变更并向用户汇报验证结果、生产操作步骤和未覆盖范围。
+提交本次四个相关文件的修复变更，并向用户汇报根因、修改内容、验证结果和本地恢复动作。
 
 ## 阻塞项
 无。
-
-## 方案
-不改动既有手动渠道配置；先建立状态同步与展示基础设施，后续动态调度通过映射表和覆盖层接入。
-
-## 已标记技能
-hello-data、hello-api、hello-perf、hello-arch、hello-errors、hello-test、hello-write、hello-verify、test-driven-development。
