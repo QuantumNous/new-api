@@ -37,6 +37,7 @@ import { TableSkeleton, TableEmpty } from '@/components/data-table'
 import { DataTablePagination } from '@/components/data-table/pagination'
 import { DEFAULT_PRICING_PAGE_SIZE, DEFAULT_TOKEN_UNIT } from '../constants'
 import type { PricingModel, TokenUnit } from '../types'
+import { pricingTableShellClassName } from '../lib/pricing-portal-styles'
 import { usePricingColumns } from './pricing-columns'
 
 export interface PricingTableProps {
@@ -92,8 +93,8 @@ export function PricingTable(props: PricingTableProps) {
   )
 
   return (
-    <div className='space-y-4'>
-      <div className='overflow-hidden rounded-lg border'>
+    <div className='space-y-4 [&_.text-muted-foreground]:text-slate-300 [&_button]:text-slate-200'>
+      <div className={pricingTableShellClassName}>
         <Table>
           <TableHeader>
             {table.getHeaderGroups().map((headerGroup) => (
@@ -102,7 +103,7 @@ export function PricingTable(props: PricingTableProps) {
                   <TableHead
                     key={header.id}
                     style={{ width: header.getSize() }}
-                    className='text-muted-foreground text-[10px] font-medium tracking-wider uppercase'
+                    className='text-[10px] font-semibold tracking-wider text-slate-200 uppercase'
                   >
                     {header.isPlaceholder
                       ? null
@@ -129,7 +130,7 @@ export function PricingTable(props: PricingTableProps) {
                 <TableRow
                   key={row.id}
                   onClick={() => handleRowClick(row.original)}
-                  className='hover:bg-muted/30 cursor-pointer transition-colors'
+                  className='cursor-pointer transition-colors hover:bg-white/[0.06]'
                 >
                   {row.getVisibleCells().map((cell) => (
                     <TableCell key={cell.id}>

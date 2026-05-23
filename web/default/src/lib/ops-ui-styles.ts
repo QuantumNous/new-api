@@ -26,28 +26,28 @@ import { cn } from '@/lib/utils'
 export const portalHeaderSiteNameClassName = 'text-sm font-semibold text-slate-100'
 
 export const portalHeaderNavLinkClassName =
-  'rounded-lg px-3 py-1.5 text-[13px] font-medium text-slate-200 transition-colors duration-200 hover:text-white'
+  'inline-flex shrink-0 items-center whitespace-nowrap rounded-lg px-2.5 py-1.5 text-[13px] font-medium text-slate-200 transition-colors duration-200 hover:text-white lg:px-3'
 
 export const portalHeaderNavLinkActiveClassName =
-  'rounded-lg px-3 py-1.5 text-[13px] font-semibold text-white transition-colors duration-200'
+  'inline-flex shrink-0 items-center whitespace-nowrap rounded-lg px-2.5 py-1.5 text-[13px] font-semibold text-white transition-colors duration-200 lg:px-3'
 
 /** Between primary nav links and right toolbar (portal). */
 export const portalHeaderNavActionsSeparatorClassName =
-  'mx-3 h-6 w-px shrink-0 self-center bg-white/15 md:mx-4'
+  'mx-2 h-6 w-px shrink-0 self-center bg-white/15 md:mx-2.5'
 
 export const portalHeaderDefaultNavActionsSeparatorClassName =
   'mx-2 h-6 w-px shrink-0 self-center bg-border/40 md:mx-3'
 
 /** Desktop nav link row. */
 export const portalHeaderNavLinksClassName =
-  'flex min-w-0 shrink flex-nowrap items-center gap-4 overflow-x-auto md:gap-5 lg:gap-6'
+  'flex min-w-0 flex-1 flex-nowrap items-center gap-1.5 overflow-x-auto sm:gap-2 md:gap-2.5 lg:gap-3'
 
 export const portalHeaderDefaultNavLinksClassName =
-  'flex min-w-0 shrink flex-nowrap items-center gap-4 overflow-x-auto md:gap-5 lg:gap-6'
+  'flex min-w-0 flex-1 flex-nowrap items-center gap-1.5 overflow-x-auto sm:gap-2 md:gap-2.5 lg:gap-3'
 
 /** Logo + nav + actions cluster on the right half. */
 export const portalHeaderNavClusterClassName =
-  'hidden min-w-0 flex-1 flex-nowrap items-center justify-end sm:flex'
+  'hidden min-w-0 flex-1 flex-nowrap items-center justify-end gap-1 sm:flex'
 
 /** Right-side toolbar: language, theme, notifications, profile. */
 export const portalHeaderActionsClassName =
@@ -151,18 +151,18 @@ export const publicPortalCardClassName = cn(
 
 /** Descendant overrides for legacy light-theme components inside portal pages. */
 export const publicPortalContentScopeClassName = cn(
-  '[&_[class*="text-muted-foreground"]]:text-slate-400',
-  '[&_.text-foreground]:text-slate-100',
-  '[&_.bg-background]:bg-slate-900/60',
-  '[&_.bg-card]:border-white/10 [&_.bg-card]:bg-slate-900/70',
-  '[&_[class*="bg-muted"]]:bg-white/5',
-  '[&_[class*="border-border"]]:border-white/10',
+  '[&_[class*="text-muted-foreground"]]:text-slate-300',
+  '[&_.text-foreground]:text-slate-50',
+  '[&_.bg-background]:bg-slate-900/75',
+  '[&_.bg-card]:border-white/10 [&_.bg-card]:bg-slate-900/85',
+  '[&_[class*="bg-muted"]]:bg-white/[0.06]',
+  '[&_[class*="border-border"]]:border-white/12',
   '[&_.border-dashed]:border-white/15',
-  '[&_input]:border-white/15 [&_input]:bg-slate-950/50 [&_input]:text-slate-100',
-  '[&_input::placeholder]:text-slate-500',
-  '[&_[data-slot=table]]:text-slate-200',
-  '[&_thead]:bg-slate-900/80 [&_thead]:text-slate-300',
-  '[&_tbody_tr:hover]:bg-white/5',
+  '[&_input]:border-white/15 [&_input]:bg-slate-950/70 [&_input]:text-slate-50',
+  '[&_input::placeholder]:text-slate-400',
+  '[&_[data-slot=table]]:text-slate-100',
+  '[&_thead]:bg-slate-900/90 [&_thead]:text-slate-200',
+  '[&_tbody_tr:hover]:bg-white/[0.06]',
   '[&_[role=tablist]]:border-white/10',
-  '[&_.prose]:prose-invert [&_.prose]:text-slate-300'
+  '[&_.prose]:prose-invert [&_.prose]:text-slate-200'
 )

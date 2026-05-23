@@ -117,7 +117,7 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
                     <span className='font-medium text-amber-200'>
                       {t('Special billing expression')}
                     </span>
-                    <code className='mt-0.5 line-clamp-1 block font-mono text-[11px] text-slate-400 break-all'>
+                    <code className='mt-0.5 line-clamp-1 block font-mono text-[11px] text-slate-300 break-all'>
                       {dynamicSummary.rawExpression}
                     </code>
                   </span>
@@ -135,7 +135,7 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
                     </span>
                   ))
                 ) : (
-                  <span className='text-slate-400'>{t('Dynamic Pricing')}</span>
+                  <span className='text-slate-300'>{t('Dynamic Pricing')}</span>
                 )
               ) : isTokenBased ? (
                 <>
@@ -175,7 +175,7 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
                     <span
                       className={cn(
                         pricingCardPriceLabelClassName,
-                        'whitespace-nowrap text-slate-400'
+                        'whitespace-nowrap text-slate-300'
                       )}
                     >
                       {t('Cached')}{' '}
@@ -232,7 +232,7 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
         </div>
       </div>
 
-      <p className='mt-2 line-clamp-1 flex-1 text-[13px] leading-relaxed text-slate-400 sm:mt-4 sm:line-clamp-2 sm:min-h-[2.5rem]'>
+      <p className='mt-2 line-clamp-1 flex-1 text-[13px] leading-relaxed text-slate-300 sm:mt-4 sm:line-clamp-2 sm:min-h-[2.5rem]'>
         {props.model.description || t('No description available.')}
       </p>
 
@@ -270,7 +270,7 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
             </span>
           ))}
           {hiddenCount > 0 && (
-            <span className='text-xs text-slate-500'>+{hiddenCount}</span>
+            <span className='text-xs text-slate-400'>+{hiddenCount}</span>
           )}
         </div>
       </div>

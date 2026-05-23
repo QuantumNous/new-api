@@ -125,7 +125,7 @@ function FilterChip(props: {
             'rounded-md px-1.5 py-0.5 text-[10px]',
             props.active
               ? 'bg-slate-950/80 text-cyan-100'
-              : 'bg-slate-900/60 text-slate-400'
+              : 'bg-slate-900/70 text-slate-300'
           )}
         >
           {props.option.suffix ?? props.option.count}
@@ -145,7 +145,7 @@ function FilterSection(props: FilterSectionProps) {
         <span className={pricingFilterSectionTitleClassName}>
           {props.title}
         </span>
-        <ChevronDown className='size-4 text-slate-400 transition-transform group-data-[panel-open]:rotate-180' />
+        <ChevronDown className='size-4 text-slate-300 transition-transform group-data-[panel-open]:rotate-180' />
       </CollapsibleTrigger>
       <CollapsibleContent>
         <div className='flex flex-wrap gap-1.5'>

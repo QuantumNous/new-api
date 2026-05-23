@@ -51,7 +51,7 @@ export function SearchBar(props: SearchBarProps) {
 
   return (
     <div className={cn('relative', props.className)}>
-      <Search className='pointer-events-none absolute top-1/2 left-3.5 size-4 -translate-y-1/2 text-slate-400' />
+      <Search className='pointer-events-none absolute top-1/2 left-3.5 size-4 -translate-y-1/2 text-slate-300' />
       <input
         ref={inputRef}
         type='text'
@@ -67,13 +67,13 @@ export function SearchBar(props: SearchBarProps) {
             variant='ghost'
             size='icon'
             onClick={props.onClear}
-            className='size-7 text-slate-400 hover:text-slate-100'
+            className='size-7 text-slate-300 hover:text-slate-50'
             aria-label={t('Clear search')}
           >
             <X className='size-4' />
           </Button>
         ) : (
-          <kbd className='pointer-events-none hidden rounded border border-white/10 bg-slate-900/80 px-1.5 py-0.5 font-mono text-[10px] text-slate-400 sm:inline-block'>
+          <kbd className='pointer-events-none hidden rounded border border-white/10 bg-slate-900/80 px-1.5 py-0.5 font-mono text-[10px] text-slate-300 sm:inline-block'>
             ⌘K
           </kbd>
         )}

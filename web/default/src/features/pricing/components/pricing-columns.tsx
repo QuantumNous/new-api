@@ -211,7 +211,7 @@ export function usePricingColumns(
                   </span>
                 ))}
               </span>
-              <div className='text-slate-400 text-[10px]'>
+              <div className='text-[10px] text-slate-300'>
                 {tokenUnitSuffix.trim()}
                 {dynamicSummary.tierCount > 1 &&
                   ` · ${t('{{count}} tiers', {
@@ -253,7 +253,7 @@ export function usePricingColumns(
                 <span className='text-muted-foreground/40 mx-1'>/</span>
                 {displayPrice(outputPrice)}
               </span>
-              <div className='text-slate-400 text-[10px]'>
+              <div className='text-[10px] text-slate-300'>
                 {tokenUnitSuffix.trim()}
               </div>
             </div>
@@ -320,7 +320,7 @@ export function usePricingColumns(
               <span className='font-mono text-sm tabular-nums'>
                 {displayPrice(stripTrailingZeros(cacheEntry.formatted))}
               </span>
-              <div className='text-slate-400 text-[10px]'>
+              <div className='text-[10px] text-slate-300'>
                 {tokenUnitSuffix.trim()}
               </div>
             </div>
@@ -349,7 +349,7 @@ export function usePricingColumns(
             <span className='font-mono text-sm tabular-nums'>
               {displayPrice(cachedPrice)}
             </span>
-            <div className='text-slate-400 text-[10px]'>
+            <div className='text-[10px] text-slate-300'>
               {tokenUnitSuffix.trim()}
             </div>
           </div>

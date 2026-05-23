@@ -168,25 +168,22 @@ export function Pricing() {
               'radial-gradient(ellipse 40% 35% at 50% 70%, oklch(0.70 0.12 280 / 40%) 0%, transparent 70%)',
             ].join(', '),
             maskImage:
-              'linear-gradient(to bottom, black 40%, transparent 100%)',
+              'linear-gradient(to bottom, black 20%, transparent 72%)',
             WebkitMaskImage:
-              'linear-gradient(to bottom, black 40%, transparent 100%)',
+              'linear-gradient(to bottom, black 20%, transparent 72%)',
           }}
         />
-        <PageTransition className='relative mx-auto w-full max-w-[1800px] px-3 pt-16 pb-8 sm:px-6 sm:pt-20 sm:pb-10 xl:px-8'>
-          <header className='mx-auto mb-5 max-w-3xl pt-5 text-center sm:mb-10 sm:pt-10'>
-            <p className='mb-3 text-xs font-medium tracking-widest text-cyan-300/90 uppercase'>
-              {t('Resource billing guide')}
-            </p>
+        <PageTransition className='relative z-10 mx-auto w-full max-w-[1800px] px-3 pt-16 pb-8 sm:px-6 sm:pt-20 sm:pb-10 xl:px-8'>
+          <header className='relative z-10 mx-auto mb-5 max-w-3xl pt-5 text-center sm:mb-10 sm:pt-10'>
             <h1 className='text-[clamp(2rem,5.5vw,3.5rem)] leading-[1.15] font-bold tracking-tight text-slate-50'>
               {t('Model resource billing overview')}
             </h1>
-            <p className='mt-3 text-sm text-slate-300 sm:mt-4 sm:text-base'>
+            <p className='mt-3 text-sm font-medium text-slate-200 sm:mt-4 sm:text-base'>
               {t('This site currently has {{count}} model resources enabled', {
                 count: models?.length || 0,
               })}
             </p>
-            <p className='mx-auto mt-2 max-w-2xl text-xs leading-relaxed text-slate-400 sm:text-sm'>
+            <p className='mx-auto mt-2 max-w-2xl text-xs leading-relaxed text-slate-300 sm:text-sm'>
               {t(
                 'Understand billing basis, token units, and RMB unit prices before integration, so teams can estimate call cost with confidence.'
               )}

@@ -89,7 +89,7 @@ export function ModelCardGrid(props: ModelCardGridProps) {
 
       {totalPages > 1 && (
         <div className='flex flex-col items-center justify-between gap-3 border-t border-white/10 px-4 py-3 text-sm text-slate-300 sm:flex-row'>
-          <p className='text-slate-400'>
+          <p className='text-slate-300'>
             {t('Page {{current}} of {{total}}', {
               current: currentPage,
               total: totalPages,

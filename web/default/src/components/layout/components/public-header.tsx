@@ -211,7 +211,7 @@ export function PublicHeader(props: PublicHeaderProps) {
         <div
           className={cn(
             'pointer-events-auto mx-auto transition-all duration-700 ease-[cubic-bezier(0.16,1,0.3,1)]',
-            scrolled ? 'max-w-[52rem] px-3 pt-3' : 'max-w-7xl px-4 pt-0 md:px-6'
+            scrolled ? 'max-w-[min(100%,56rem)] px-2 pt-3 sm:px-3' : 'max-w-7xl px-3 pt-0 md:px-5'
           )}
         >
           <nav
@@ -256,7 +256,7 @@ export function PublicHeader(props: PublicHeaderProps) {
               </div>
               <span
                 className={cn(
-                  'text-sm font-semibold tracking-tight',
+                  'max-w-[7.5rem] truncate text-sm font-semibold tracking-tight sm:max-w-[9rem] md:max-w-[11rem]',
                   isPortalTone && portalHeaderSiteNameClassName
                 )}
               >
@@ -297,7 +297,7 @@ export function PublicHeader(props: PublicHeaderProps) {
                       className={cn(
                         isPortalTone
                           ? portalHeaderNavLinkClassName
-                          : 'text-muted-foreground hover:text-foreground rounded-lg px-3 py-1.5 text-[13px] font-medium transition-colors duration-200',
+                          : 'text-muted-foreground hover:text-foreground inline-flex shrink-0 items-center whitespace-nowrap rounded-lg px-2.5 py-1.5 text-[13px] font-medium transition-colors duration-200',
                         link.disabled && 'pointer-events-none opacity-50'
                       )}
                     >
@@ -317,7 +317,7 @@ export function PublicHeader(props: PublicHeaderProps) {
                           ? portalHeaderNavLinkActiveClassName
                           : portalHeaderNavLinkClassName
                         : cn(
-                            'rounded-lg px-3 py-1.5 text-[13px] font-medium transition-colors duration-200',
+                            'inline-flex shrink-0 items-center whitespace-nowrap rounded-lg px-2.5 py-1.5 text-[13px] font-medium transition-colors duration-200',
                             isActive
                               ? 'text-foreground'
                               : 'text-muted-foreground hover:text-foreground'
