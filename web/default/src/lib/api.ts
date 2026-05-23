@@ -245,19 +245,30 @@ export async function getUserGroups(): Promise<{
 // System APIs
 // ----------------------------------------------------------------------------
 
+type OptionalApiRequestFlags = {
+  skipErrorHandler?: boolean
+  skipBusinessError?: boolean
+}
+
 // Get system status
-export async function getStatus() {
-  const res = await api.get('/api/status')
+export async function getStatus(options?: OptionalApiRequestFlags) {
+  const res = await api.get('/api/status', {
+    ...(options?.skipErrorHandler ? { skipErrorHandler: true } : {}),
+    ...(options?.skipBusinessError ? { skipBusinessError: true } : {}),
+  } as Record<string, unknown>)
   return res.data?.data as Record<string, unknown>
 }
 
 // Get system notice
-export async function getNotice(): Promise<{
+export async function getNotice(options?: OptionalApiRequestFlags): Promise<{
   success: boolean
   message?: string
   data?: string
 }> {
-  const res = await api.get('/api/notice')
+  const res = await api.get('/api/notice', {
+    ...(options?.skipErrorHandler ? { skipErrorHandler: true } : {}),
+    ...(options?.skipBusinessError ? { skipBusinessError: true } : {}),
+  } as Record<string, unknown>)
   return res.data
 }
 

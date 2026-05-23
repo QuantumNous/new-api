@@ -18,8 +18,10 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { useState, useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import { useRouterState } from '@tanstack/react-router'
 import { useNotificationStore } from '@/stores/notification-store'
 import { getNotice } from '@/lib/api'
+import { isHomePortalPath } from '@/lib/public-portal'
 import { useStatus } from '@/hooks/use-status'
 
 function hashString(input: string): string {
@@ -66,6 +68,8 @@ export function useNotifications() {
   const [activeTab, setActiveTab] = useState<'notice' | 'announcements'>(
     'notice'
   )
+  const pathname = useRouterState({ select: (s) => s.location.pathname })
+  const silentOptionalErrors = isHomePortalPath(pathname)
 
   // Fetch Notice from API
   const {
@@ -74,12 +78,19 @@ export function useNotifications() {
     refetch: refetchNotice,
   } = useQuery({
     queryKey: ['notice'],
-    queryFn: getNotice,
+    queryFn: () =>
+      getNotice(
+        silentOptionalErrors
+          ? { skipErrorHandler: true, skipBusinessError: true }
+          : undefined
+      ),
     staleTime: 1000 * 60 * 5, // 5 minutes
   })
 
   // Fetch Announcements from status
-  const { status, loading: statusLoading } = useStatus()
+  const { status, loading: statusLoading } = useStatus({
+    silentErrors: silentOptionalErrors,
+  })
   const announcementsEnabled = status?.announcements_enabled ?? false
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const announcements: Record<string, unknown>[] = announcementsEnabled

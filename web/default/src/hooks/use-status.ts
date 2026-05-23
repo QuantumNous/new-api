@@ -22,6 +22,11 @@ import { getStatus } from '@/lib/api'
 import type { SystemStatus } from '@/features/auth/types'
 import { mapStatusDataToConfig } from './use-system-config'
 
+type UseStatusOptions = {
+  /** Suppress global axios toasts for optional portal/status reads (e.g. public home). */
+  silentErrors?: boolean
+}
+
 // Get initial cache from localStorage
 function getInitialStatus(): SystemStatus | undefined {
   try {
@@ -35,11 +40,14 @@ function getInitialStatus(): SystemStatus | undefined {
   return undefined
 }
 
-export function useStatus() {
+export function useStatus(options: UseStatusOptions = {}) {
+  const { silentErrors = false } = options
   const { data, isLoading, error } = useQuery({
     queryKey: ['status'],
     queryFn: async () => {
-      const status = await getStatus()
+      const status = await getStatus(
+        silentErrors ? { skipErrorHandler: true, skipBusinessError: true } : undefined
+      )
       try {
         if (status) {
           const { setConfig } = useSystemConfigStore.getState()

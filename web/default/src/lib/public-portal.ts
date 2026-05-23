@@ -16,21 +16,9 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { api } from '@/lib/api'
-import type { HomePageContentResponse } from './types'
 
-// ============================================================================
-// Home Page APIs
-// ============================================================================
-
-/**
- * Get custom home page content
- * Returns Markdown/HTML content or iframe URL
- */
-export async function getHomePageContent(): Promise<HomePageContentResponse> {
-  const res = await api.get('/api/home_page_content', {
-    skipErrorHandler: true,
-    skipBusinessError: true,
-  } as Record<string, unknown>)
-  return res.data
+/** Public marketing home (`/`) where optional APIs should degrade without toasts. */
+export function isHomePortalPath(pathname: string): boolean {
+  const path = pathname.split('?')[0]?.replace(/\/+$/, '') || '/'
+  return path === '/'
 }

@@ -21,6 +21,7 @@ import { useRouterState } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
 import { useAuthStore } from '@/stores/auth-store'
 import { isAiocHeaderNavModuleHidden } from '@/config/aioc-demo-visibility'
+import { isHomePortalPath } from '@/lib/public-portal'
 import { parseHeaderNavModulesFromStatus } from '@/lib/nav-modules'
 import { useStatus } from '@/hooks/use-status'
 
@@ -50,7 +51,8 @@ export const OPERATIONS_CONSOLE_OVERVIEW_PATH = '/dashboard/overview'
 export function useTopNavLinks(): TopNavLink[] {
   const { t } = useTranslation()
   const pathname = useRouterState({ select: (s) => s.location.pathname })
-  const { status } = useStatus()
+  const silentStatusErrors = isHomePortalPath(pathname)
+  const { status } = useStatus({ silentErrors: silentStatusErrors })
   const { auth } = useAuthStore()
 
   // Parse HeaderNavModules

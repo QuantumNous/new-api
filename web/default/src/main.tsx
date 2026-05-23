@@ -135,7 +135,7 @@ const rootElement = document.getElementById('root')!
     }
     applyFaviconToDom(resolveFaviconUrl())
     // Background refresh
-    getStatus()
+    getStatus({ skipErrorHandler: true })
       .then((s) => {
         if (s?.system_name) {
           apply(s.system_name as string)

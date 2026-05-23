@@ -17,8 +17,6 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useEffect, useState } from 'react'
-import i18next from 'i18next'
-import { toast } from 'sonner'
 import { getHomePageContent } from '../api'
 import type { HomePageContentResult } from '../types'
 
@@ -58,9 +56,11 @@ export function useHomePageContent(): HomePageContentResult {
         }
       } catch (error) {
         if (!mounted) return
-        // eslint-disable-next-line no-console
-        console.error('Failed to load home page content:', error)
-        toast.error(i18next.t('Failed to load home page content'))
+        // Optional CMS content: keep cached markdown/URL or fall back to static portal.
+        if (import.meta.env.DEV) {
+          // eslint-disable-next-line no-console
+          console.warn('[home] Optional home page content unavailable', error)
+        }
       } finally {
         if (mounted) {
           setIsLoaded(true)
