@@ -45,6 +45,7 @@ func (rl *RedisLimiter) Allow(ctx context.Context, key string, opts ...Option) (
 		Capacity:  10,
 		Rate:      1,
 		Requested: 1,
+		TTL:       0,
 	}
 
 	// 应用选项模式
@@ -60,6 +61,7 @@ func (rl *RedisLimiter) Allow(ctx context.Context, key string, opts ...Option) (
 		config.Requested,
 		config.Rate,
 		config.Capacity,
+		config.TTL,
 	).Int()
 
 	if err != nil {
@@ -73,6 +75,7 @@ type Config struct {
 	Capacity  int64
 	Rate      int64
 	Requested int64
+	TTL       int64
 }
 
 type Option func(*Config)
@@ -87,4 +90,8 @@ func WithRate(r int64) Option {
 
 func WithRequested(n int64) Option {
 	return func(cfg *Config) { cfg.Requested = n }
+}
+
+func WithTTL(seconds int64) Option {
+	return func(cfg *Config) { cfg.TTL = seconds }
 }
