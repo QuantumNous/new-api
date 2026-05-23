@@ -1,0 +1,262 @@
+# New API 帮助文档
+
+> 来源入口：https://www.newapi.ai/zh/docs
+> 抓取时间：2026-05-23T07:09:46.142Z
+> 文档页数：250
+
+## 目录大纲
+
+- [快速开始](index.md) — https://www.newapi.ai/zh/docs
+- [项目介绍](guide/wiki/basic-concepts/project-introduction.md) — https://www.newapi.ai/zh/docs/guide/wiki/basic-concepts/project-introduction
+- [特性说明](guide/wiki/basic-concepts/features-introduction.md) — https://www.newapi.ai/zh/docs/guide/wiki/basic-concepts/features-introduction
+- [技术架构](guide/wiki/basic-concepts/technical-architecture.md) — https://www.newapi.ai/zh/docs/guide/wiki/basic-concepts/technical-architecture
+- [分析工具设置指南](guide/wiki/basic-concepts/analytics-setup.md) — https://www.newapi.ai/zh/docs/guide/wiki/basic-concepts/analytics-setup
+- [性能分析设置指南](guide/wiki/basic-concepts/performance-analysis.md) — https://www.newapi.ai/zh/docs/guide/wiki/basic-concepts/performance-analysis
+- [更新日志](guide/wiki/changelog.md) — https://www.newapi.ai/zh/docs/guide/wiki/changelog
+- [功能指南概述](guide/feature-guide.md) — https://www.newapi.ai/zh/docs/guide/feature-guide
+- [安装部署](installation.md) — https://www.newapi.ai/zh/docs/installation
+- [API 参考](api.md) — https://www.newapi.ai/zh/docs/api
+- [AI 应用](apps.md) — https://www.newapi.ai/zh/docs/apps
+- [Skills](skills.md) — https://www.newapi.ai/zh/docs/skills
+- [帮助支持](support.md) — https://www.newapi.ai/zh/docs/support
+- [商务合作](business.md) — https://www.newapi.ai/zh/docs/business
+- [合规与可接受使用政策](legal/acceptable-use.md) — https://www.newapi.ai/zh/docs/legal/acceptable-use
+- [Docker Compose 部署](installation/deployment-methods/docker-compose-installation.md) — https://www.newapi.ai/zh/docs/installation/deployment-methods/docker-compose-installation
+- [Docker 部署](installation/deployment-methods/docker-installation.md) — https://www.newapi.ai/zh/docs/installation/deployment-methods/docker-installation
+- [1Panel 面板部署](installation/deployment-methods/1panel-installation.md) — https://www.newapi.ai/zh/docs/installation/deployment-methods/1panel-installation
+- [宝塔面板部署](installation/deployment-methods/bt-docker-installation.md) — https://www.newapi.ai/zh/docs/installation/deployment-methods/bt-docker-installation
+- [集群部署](installation/deployment-methods/cluster-deployment.md) — https://www.newapi.ai/zh/docs/installation/deployment-methods/cluster-deployment
+- [本地开发部署](installation/deployment-methods/local-development.md) — https://www.newapi.ai/zh/docs/installation/deployment-methods/local-development
+- [社区互动](support/community-interaction.md) — https://www.newapi.ai/zh/docs/support/community-interaction
+- [首页](guide/home.md) — https://www.newapi.ai/zh/docs/guide/home
+- [注册与登录](guide/feature-guide/user/auth.md) — https://www.newapi.ai/zh/docs/guide/feature-guide/user/auth
+- [个人设置](guide/feature-guide/user/personal-setting.md) — https://www.newapi.ai/zh/docs/guide/feature-guide/user/personal-setting
+- [令牌管理](guide/feature-guide/user/token.md) — https://www.newapi.ai/zh/docs/guide/feature-guide/user/token
+- [使用 API](guide/feature-guide/user/api.md) — https://www.newapi.ai/zh/docs/guide/feature-guide/user/api
+- [聊天应用集成](guide/feature-guide/user/chat-apps.md) — https://www.newapi.ai/zh/docs/guide/feature-guide/user/chat-apps
+- [使用记录](guide/feature-guide/user/log.md) — https://www.newapi.ai/zh/docs/guide/feature-guide/user/log
+- [配额与充值](guide/feature-guide/user/topup.md) — https://www.newapi.ai/zh/docs/guide/feature-guide/user/topup
+- [订阅计划](guide/feature-guide/user/subscription.md) — https://www.newapi.ai/zh/docs/guide/feature-guide/user/subscription
+- [定价](guide/feature-guide/user/pricing.md) — https://www.newapi.ai/zh/docs/guide/feature-guide/user/pricing
+- [任务管理](guide/feature-guide/user/task.md) — https://www.newapi.ai/zh/docs/guide/feature-guide/user/task
+- [渠道管理](guide/feature-guide/admin/channel.md) — https://www.newapi.ai/zh/docs/guide/feature-guide/admin/channel
+- [用户管理](guide/feature-guide/admin/user.md) — https://www.newapi.ai/zh/docs/guide/feature-guide/admin/user
+- [兑换码管理](guide/feature-guide/admin/redemption.md) — https://www.newapi.ai/zh/docs/guide/feature-guide/admin/redemption
+- [日志与统计](guide/feature-guide/admin/log.md) — https://www.newapi.ai/zh/docs/guide/feature-guide/admin/log
+- [订阅计划管理](guide/feature-guide/admin/subscription.md) — https://www.newapi.ai/zh/docs/guide/feature-guide/admin/subscription
+- [模型管理](guide/feature-guide/admin/model.md) — https://www.newapi.ai/zh/docs/guide/feature-guide/admin/model
+- [分组管理](guide/feature-guide/admin/group.md) — https://www.newapi.ai/zh/docs/guide/feature-guide/admin/group
+- [系统设置](guide/feature-guide/admin/system-setting.md) — https://www.newapi.ai/zh/docs/guide/feature-guide/admin/system-setting
+- [系统设置详细配置](guide/feature-guide/admin/system-setting-advanced.md) — https://www.newapi.ai/zh/docs/guide/feature-guide/admin/system-setting-advanced
+- [自定义 OAuth 提供商](guide/feature-guide/admin/custom-oauth.md) — https://www.newapi.ai/zh/docs/guide/feature-guide/admin/custom-oauth
+- [性能监控](guide/feature-guide/admin/performance.md) — https://www.newapi.ai/zh/docs/guide/feature-guide/admin/performance
+- [文档与关于页配置](guide/feature-guide/admin/docs-config.md) — https://www.newapi.ai/zh/docs/guide/feature-guide/admin/docs-config
+- [系统更新指南](installation/config-maintenance/system-update.md) — https://www.newapi.ai/zh/docs/installation/config-maintenance/system-update
+- [环境变量配置指南](installation/config-maintenance/environment-variables.md) — https://www.newapi.ai/zh/docs/installation/config-maintenance/environment-variables
+- [Docker Compose 配置说明](installation/config-maintenance/docker-compose-yml.md) — https://www.newapi.ai/zh/docs/installation/config-maintenance/docker-compose-yml
+- [原生OpenAI格式](api/ai-model/models/list/listmodels.md) — https://www.newapi.ai/zh/docs/api/ai-model/models/list/listmodels
+- [ChatCompletions格式](api/ai-model/chat/openai/createchatcompletion.md) — https://www.newapi.ai/zh/docs/api/ai-model/chat/openai/createchatcompletion
+- [原生OpenAI格式](api/ai-model/completions/createcompletion.md) — https://www.newapi.ai/zh/docs/api/ai-model/completions/createcompletion
+- [原生OpenAI格式](api/ai-model/embeddings/createembedding.md) — https://www.newapi.ai/zh/docs/api/ai-model/embeddings/createembedding
+- [文档重排序](api/ai-model/rerank/creatererank.md) — https://www.newapi.ai/zh/docs/api/ai-model/rerank/creatererank
+- [原生OpenAI格式](api/ai-model/moderations/createmoderation.md) — https://www.newapi.ai/zh/docs/api/ai-model/moderations/createmoderation
+- [文本转语音](api/ai-model/audio/openai/createspeech.md) — https://www.newapi.ai/zh/docs/api/ai-model/audio/openai/createspeech
+- [原生OpenAI格式](api/ai-model/realtime/createrealtimesession.md) — https://www.newapi.ai/zh/docs/api/ai-model/realtime/createrealtimesession
+- [生成图像](api/ai-model/images/openai/post-v1-images-generations.md) — https://www.newapi.ai/zh/docs/api/ai-model/images/openai/post-v1-images-generations
+- [创建视频](api/ai-model/videos/sora/createvideo.md) — https://www.newapi.ai/zh/docs/api/ai-model/videos/sora/createvideo
+- [列出文件 (未实现)](api/ai-model/unimplemented/files/listfiles.md) — https://www.newapi.ai/zh/docs/api/ai-model/unimplemented/files/listfiles
+- [获取系统状态](api/management/system/status-get.md) — https://www.newapi.ai/zh/docs/api/management/system/status-get
+- [获取系统选项](api/management/system-settings/option-get.md) — https://www.newapi.ai/zh/docs/api/management/system-settings/option-get
+- [用户登录](api/management/user-auth/user-login-post.md) — https://www.newapi.ai/zh/docs/api/management/user-auth/user-login-post
+- [获取当前用户信息](api/management/user-management/user-self-get.md) — https://www.newapi.ai/zh/docs/api/management/user-management/user-self-get
+- [获取2FA状态](api/management/two-factor-auth/user-2fa-status-get.md) — https://www.newapi.ai/zh/docs/api/management/two-factor-auth/user-2fa-status-get
+- [GitHub OAuth登录](api/management/oauth/oauth-github-get.md) — https://www.newapi.ai/zh/docs/api/management/oauth/oauth-github-get
+- [获取所有渠道](api/management/channel-management/channel-get.md) — https://www.newapi.ai/zh/docs/api/management/channel-management/channel-get
+- [获取所有模型元数据](api/management/model-management/models-get.md) — https://www.newapi.ai/zh/docs/api/management/model-management/models-get
+- [获取所有令牌](api/management/token-management/token-get.md) — https://www.newapi.ai/zh/docs/api/management/token-management/token-get
+- [获取所有兑换码](api/management/redemption/redemption-get.md) — https://www.newapi.ai/zh/docs/api/management/redemption/redemption-get
+- [获取充值信息](api/management/payment/user-topup-info-get.md) — https://www.newapi.ai/zh/docs/api/management/payment/user-topup-info-get
+- [获取所有日志](api/management/logs/log-get.md) — https://www.newapi.ai/zh/docs/api/management/logs/log-get
+- [获取所有额度数据](api/management/statistics/data-get.md) — https://www.newapi.ai/zh/docs/api/management/statistics/data-get
+- [获取所有任务](api/management/tasks/task-get.md) — https://www.newapi.ai/zh/docs/api/management/tasks/task-get
+- [获取所有分组](api/management/groups/group-get.md) — https://www.newapi.ai/zh/docs/api/management/groups/group-get
+- [获取所有供应商](api/management/vendors/vendors-get.md) — https://www.newapi.ai/zh/docs/api/management/vendors/vendors-get
+- [获取验证状态](api/management/security-verification/verify-status-get.md) — https://www.newapi.ai/zh/docs/api/management/security-verification/verify-status-get
+- [AionUi](apps/aionui.md) — https://www.newapi.ai/zh/docs/apps/aionui
+- [CC Switch](apps/cc-switch.md) — https://www.newapi.ai/zh/docs/apps/cc-switch
+- [Cherry Studio](apps/cherry-studio.md) — https://www.newapi.ai/zh/docs/apps/cherry-studio
+- [DeepChat](apps/deepchat.md) — https://www.newapi.ai/zh/docs/apps/deepchat
+- [Memoh](apps/memoh.md) — https://www.newapi.ai/zh/docs/apps/memoh
+- [流畅阅读 (FluentRead)](apps/fluent-read.md) — https://www.newapi.ai/zh/docs/apps/fluent-read
+- [OpenClaw](apps/openclaw.md) — https://www.newapi.ai/zh/docs/apps/openclaw
+- [LangBot](apps/langbot.md) — https://www.newapi.ai/zh/docs/apps/langbot
+- [AstrBot](apps/astrbot.md) — https://www.newapi.ai/zh/docs/apps/astrbot
+- [LunaTranslator](apps/luna-translator.md) — https://www.newapi.ai/zh/docs/apps/luna-translator
+- [Claude Code](apps/claude-code.md) — https://www.newapi.ai/zh/docs/apps/claude-code
+- [OpenAI Codex CLI](apps/codex-cli.md) — https://www.newapi.ai/zh/docs/apps/codex-cli
+- [Factory Droid CLI](apps/factory-droid-cli.md) — https://www.newapi.ai/zh/docs/apps/factory-droid-cli
+- [newapi](skills/newapi.md) — https://www.newapi.ai/zh/docs/skills/newapi
+- [newapi](skills/newapi-admin.md) — https://www.newapi.ai/zh/docs/skills/newapi-admin
+- [常见问题](support/faq.md) — https://www.newapi.ai/zh/docs/support/faq
+- [问题反馈](support/feedback-issues.md) — https://www.newapi.ai/zh/docs/support/feedback-issues
+- [原生Gemini格式](api/ai-model/models/list/listmodelsgemini.md) — https://www.newapi.ai/zh/docs/api/ai-model/models/list/listmodelsgemini
+- [原生Claude格式](api/ai-model/chat/createmessage.md) — https://www.newapi.ai/zh/docs/api/ai-model/chat/createmessage
+- [Responses格式](api/ai-model/chat/openai/createresponse.md) — https://www.newapi.ai/zh/docs/api/ai-model/chat/openai/createresponse
+- [原生Gemini格式](api/ai-model/embeddings/createengineembedding.md) — https://www.newapi.ai/zh/docs/api/ai-model/embeddings/createengineembedding
+- [原生Gemini格式](api/ai-model/audio/geminirelayv1beta-383836364.md) — https://www.newapi.ai/zh/docs/api/ai-model/audio/geminirelayv1beta-383836364
+- [音频转录](api/ai-model/audio/openai/createtranscription.md) — https://www.newapi.ai/zh/docs/api/ai-model/audio/openai/createtranscription
+- [音频翻译](api/ai-model/audio/openai/createtranslation.md) — https://www.newapi.ai/zh/docs/api/ai-model/audio/openai/createtranslation
+- [编辑图像](api/ai-model/images/openai/post-v1-images-edits.md) — https://www.newapi.ai/zh/docs/api/ai-model/images/openai/post-v1-images-edits
+- [创建视频生成任务](api/ai-model/videos/createvideogeneration.md) — https://www.newapi.ai/zh/docs/api/ai-model/videos/createvideogeneration
+- [获取视频生成任务状态](api/ai-model/videos/getvideogeneration.md) — https://www.newapi.ai/zh/docs/api/ai-model/videos/getvideogeneration
+- [获取视频任务状态](api/ai-model/videos/sora/getvideo.md) — https://www.newapi.ai/zh/docs/api/ai-model/videos/sora/getvideo
+- [获取视频内容](api/ai-model/videos/sora/getvideocontent.md) — https://www.newapi.ai/zh/docs/api/ai-model/videos/sora/getvideocontent
+- [上传文件 (未实现)](api/ai-model/unimplemented/files/createfile.md) — https://www.newapi.ai/zh/docs/api/ai-model/unimplemented/files/createfile
+- [删除文件 (未实现)](api/ai-model/unimplemented/files/deletefile.md) — https://www.newapi.ai/zh/docs/api/ai-model/unimplemented/files/deletefile
+- [获取文件内容 (未实现)](api/ai-model/unimplemented/files/downloadfile.md) — https://www.newapi.ai/zh/docs/api/ai-model/unimplemented/files/downloadfile
+- [获取文件信息 (未实现)](api/ai-model/unimplemented/files/retrievefile.md) — https://www.newapi.ai/zh/docs/api/ai-model/unimplemented/files/retrievefile
+- [鉴权体系说明（Auth）](api/management/auth.md) — https://www.newapi.ai/zh/docs/api/management/auth
+- [获取关于信息](api/management/system/about-get.md) — https://www.newapi.ai/zh/docs/api/management/system/about-get
+- [获取首页内容](api/management/system/home_page_content-get.md) — https://www.newapi.ai/zh/docs/api/management/system/home_page_content-get
+- [获取模型列表](api/management/system/models-get.md) — https://www.newapi.ai/zh/docs/api/management/system/models-get
+- [获取公告](api/management/system/notice-get.md) — https://www.newapi.ai/zh/docs/api/management/system/notice-get
+- [获取定价信息](api/management/system/pricing-get.md) — https://www.newapi.ai/zh/docs/api/management/system/pricing-get
+- [获取隐私政策](api/management/system/privacy-policy-get.md) — https://www.newapi.ai/zh/docs/api/management/system/privacy-policy-get
+- [获取倍率配置](api/management/system/ratio_config-get.md) — https://www.newapi.ai/zh/docs/api/management/system/ratio_config-get
+- [获取初始化状态](api/management/system/setup-get.md) — https://www.newapi.ai/zh/docs/api/management/system/setup-get
+- [初始化系统](api/management/system/setup-post.md) — https://www.newapi.ai/zh/docs/api/management/system/setup-post
+- [测试系统状态](api/management/system/status-test-get.md) — https://www.newapi.ai/zh/docs/api/management/system/status-test-get
+- [获取Uptime Kuma状态](api/management/system/uptime-status-get.md) — https://www.newapi.ai/zh/docs/api/management/system/uptime-status-get
+- [获取用户协议](api/management/system/user-agreement-get.md) — https://www.newapi.ai/zh/docs/api/management/system/user-agreement-get
+- [迁移控制台设置](api/management/system-settings/option-migrate_console_setting-post.md) — https://www.newapi.ai/zh/docs/api/management/system-settings/option-migrate_console_setting-post
+- [更新系统选项](api/management/system-settings/option-put.md) — https://www.newapi.ai/zh/docs/api/management/system-settings/option-put
+- [重置模型倍率](api/management/system-settings/option-rest_model_ratio-post.md) — https://www.newapi.ai/zh/docs/api/management/system-settings/option-rest_model_ratio-post
+- [获取可同步渠道](api/management/system-settings/ratio_sync-channels-get.md) — https://www.newapi.ai/zh/docs/api/management/system-settings/ratio_sync-channels-get
+- [获取上游倍率](api/management/system-settings/ratio_sync-fetch-post.md) — https://www.newapi.ai/zh/docs/api/management/system-settings/ratio_sync-fetch-post
+- [发送密码重置邮件](api/management/user-auth/reset_password-get.md) — https://www.newapi.ai/zh/docs/api/management/user-auth/reset_password-get
+- [获取用户分组列表](api/management/user-auth/user-groups-get.md) — https://www.newapi.ai/zh/docs/api/management/user-auth/user-groups-get
+- [两步验证登录](api/management/user-auth/user-login-2fa-post.md) — https://www.newapi.ai/zh/docs/api/management/user-auth/user-login-2fa-post
+- [用户登出](api/management/user-auth/user-logout-get.md) — https://www.newapi.ai/zh/docs/api/management/user-auth/user-logout-get
+- [开始Passkey登录](api/management/user-auth/user-passkey-login-begin-post.md) — https://www.newapi.ai/zh/docs/api/management/user-auth/user-passkey-login-begin-post
+- [完成Passkey登录](api/management/user-auth/user-passkey-login-finish-post.md) — https://www.newapi.ai/zh/docs/api/management/user-auth/user-passkey-login-finish-post
+- [用户注册](api/management/user-auth/user-register-post.md) — https://www.newapi.ai/zh/docs/api/management/user-auth/user-register-post
+- [重置密码](api/management/user-auth/user-reset-post.md) — https://www.newapi.ai/zh/docs/api/management/user-auth/user-reset-post
+- [发送邮箱验证码](api/management/user-auth/verification-get.md) — https://www.newapi.ai/zh/docs/api/management/user-auth/verification-get
+- [转换邀请额度](api/management/user-management/user-aff_transfer-post.md) — https://www.newapi.ai/zh/docs/api/management/user-management/user-aff_transfer-post
+- [获取邀请码](api/management/user-management/user-aff-get.md) — https://www.newapi.ai/zh/docs/api/management/user-management/user-aff-get
+- [获取所有用户](api/management/user-management/user-get.md) — https://www.newapi.ai/zh/docs/api/management/user-management/user-get
+- [管理员禁用用户2FA](api/management/user-management/user-id-2fa-delete.md) — https://www.newapi.ai/zh/docs/api/management/user-management/user-id-2fa-delete
+- [删除用户](api/management/user-management/user-id-delete.md) — https://www.newapi.ai/zh/docs/api/management/user-management/user-id-delete
+- [获取指定用户](api/management/user-management/user-id-get.md) — https://www.newapi.ai/zh/docs/api/management/user-management/user-id-get
+- [管理员重置用户Passkey](api/management/user-management/user-id-reset_passkey-delete.md) — https://www.newapi.ai/zh/docs/api/management/user-management/user-id-reset_passkey-delete
+- [管理用户状态](api/management/user-management/user-manage-post.md) — https://www.newapi.ai/zh/docs/api/management/user-management/user-manage-post
+- [获取用户可用模型](api/management/user-management/user-models-get.md) — https://www.newapi.ai/zh/docs/api/management/user-management/user-models-get
+- [删除Passkey](api/management/user-management/user-passkey-delete.md) — https://www.newapi.ai/zh/docs/api/management/user-management/user-passkey-delete
+- [获取Passkey状态](api/management/user-management/user-passkey-get.md) — https://www.newapi.ai/zh/docs/api/management/user-management/user-passkey-get
+- [开始注册Passkey](api/management/user-management/user-passkey-register-begin-post.md) — https://www.newapi.ai/zh/docs/api/management/user-management/user-passkey-register-begin-post
+- [完成注册Passkey](api/management/user-management/user-passkey-register-finish-post.md) — https://www.newapi.ai/zh/docs/api/management/user-management/user-passkey-register-finish-post
+- [开始验证Passkey](api/management/user-management/user-passkey-verify-begin-post.md) — https://www.newapi.ai/zh/docs/api/management/user-management/user-passkey-verify-begin-post
+- [完成验证Passkey](api/management/user-management/user-passkey-verify-finish-post.md) — https://www.newapi.ai/zh/docs/api/management/user-management/user-passkey-verify-finish-post
+- [创建用户](api/management/user-management/user-post.md) — https://www.newapi.ai/zh/docs/api/management/user-management/user-post
+- [更新用户](api/management/user-management/user-put.md) — https://www.newapi.ai/zh/docs/api/management/user-management/user-put
+- [搜索用户](api/management/user-management/user-search-get.md) — https://www.newapi.ai/zh/docs/api/management/user-management/user-search-get
+- [注销当前用户](api/management/user-management/user-self-delete.md) — https://www.newapi.ai/zh/docs/api/management/user-management/user-self-delete
+- [获取当前用户分组](api/management/user-management/user-self-groups-get.md) — https://www.newapi.ai/zh/docs/api/management/user-management/user-self-groups-get
+- [更新当前用户信息](api/management/user-management/user-self-put.md) — https://www.newapi.ai/zh/docs/api/management/user-management/user-self-put
+- [更新用户设置](api/management/user-management/user-setting-put.md) — https://www.newapi.ai/zh/docs/api/management/user-management/user-setting-put
+- [生成访问令牌](api/management/user-management/user-token-get.md) — https://www.newapi.ai/zh/docs/api/management/user-management/user-token-get
+- [管理员完成充值](api/management/user-management/user-topup-complete-post.md) — https://www.newapi.ai/zh/docs/api/management/user-management/user-topup-complete-post
+- [获取所有充值记录](api/management/user-management/user-topup-get.md) — https://www.newapi.ai/zh/docs/api/management/user-management/user-topup-get
+- [重新生成备用码](api/management/two-factor-auth/user-2fa-backup_codes-post.md) — https://www.newapi.ai/zh/docs/api/management/two-factor-auth/user-2fa-backup_codes-post
+- [禁用2FA](api/management/two-factor-auth/user-2fa-disable-post.md) — https://www.newapi.ai/zh/docs/api/management/two-factor-auth/user-2fa-disable-post
+- [启用2FA](api/management/two-factor-auth/user-2fa-enable-post.md) — https://www.newapi.ai/zh/docs/api/management/two-factor-auth/user-2fa-enable-post
+- [设置2FA](api/management/two-factor-auth/user-2fa-setup-post.md) — https://www.newapi.ai/zh/docs/api/management/two-factor-auth/user-2fa-setup-post
+- [获取2FA统计](api/management/two-factor-auth/user-2fa-stats-get.md) — https://www.newapi.ai/zh/docs/api/management/two-factor-auth/user-2fa-stats-get
+- [Discord OAuth登录](api/management/oauth/oauth-discord-get.md) — https://www.newapi.ai/zh/docs/api/management/oauth/oauth-discord-get
+- [绑定邮箱](api/management/oauth/oauth-email-bind-get.md) — https://www.newapi.ai/zh/docs/api/management/oauth/oauth-email-bind-get
+- [LinuxDO OAuth登录](api/management/oauth/oauth-linuxdo-get.md) — https://www.newapi.ai/zh/docs/api/management/oauth/oauth-linuxdo-get
+- [OIDC登录](api/management/oauth/oauth-oidc-get.md) — https://www.newapi.ai/zh/docs/api/management/oauth/oauth-oidc-get
+- [生成OAuth State](api/management/oauth/oauth-state-get.md) — https://www.newapi.ai/zh/docs/api/management/oauth/oauth-state-get
+- [绑定Telegram](api/management/oauth/oauth-telegram-bind-get.md) — https://www.newapi.ai/zh/docs/api/management/oauth/oauth-telegram-bind-get
+- [Telegram登录](api/management/oauth/oauth-telegram-login-get.md) — https://www.newapi.ai/zh/docs/api/management/oauth/oauth-telegram-login-get
+- [绑定微信](api/management/oauth/oauth-wechat-bind-get.md) — https://www.newapi.ai/zh/docs/api/management/oauth/oauth-wechat-bind-get
+- [微信OAuth登录](api/management/oauth/oauth-wechat-get.md) — https://www.newapi.ai/zh/docs/api/management/oauth/oauth-wechat-get
+- [批量删除渠道](api/management/channel-management/channel-batch-post.md) — https://www.newapi.ai/zh/docs/api/management/channel-management/channel-batch-post
+- [批量设置渠道标签](api/management/channel-management/channel-batch-tag-post.md) — https://www.newapi.ai/zh/docs/api/management/channel-management/channel-batch-tag-post
+- [复制渠道](api/management/channel-management/channel-copy-id-post.md) — https://www.newapi.ai/zh/docs/api/management/channel-management/channel-copy-id-post
+- [删除已禁用渠道](api/management/channel-management/channel-disabled-delete.md) — https://www.newapi.ai/zh/docs/api/management/channel-management/channel-disabled-delete
+- [获取上游模型列表](api/management/channel-management/channel-fetch_models-id-get.md) — https://www.newapi.ai/zh/docs/api/management/channel-management/channel-fetch_models-id-get
+- [获取模型列表](api/management/channel-management/channel-fetch_models-post.md) — https://www.newapi.ai/zh/docs/api/management/channel-management/channel-fetch_models-post
+- [修复渠道能力](api/management/channel-management/channel-fix-post.md) — https://www.newapi.ai/zh/docs/api/management/channel-management/channel-fix-post
+- [删除渠道](api/management/channel-management/channel-id-delete.md) — https://www.newapi.ai/zh/docs/api/management/channel-management/channel-id-delete
+- [获取指定渠道](api/management/channel-management/channel-id-get.md) — https://www.newapi.ai/zh/docs/api/management/channel-management/channel-id-get
+- [获取渠道密钥](api/management/channel-management/channel-id-key-post.md) — https://www.newapi.ai/zh/docs/api/management/channel-management/channel-id-key-post
+- [获取已启用模型列表](api/management/channel-management/channel-models_enabled-get.md) — https://www.newapi.ai/zh/docs/api/management/channel-management/channel-models_enabled-get
+- [获取渠道模型列表](api/management/channel-management/channel-models-get.md) — https://www.newapi.ai/zh/docs/api/management/channel-management/channel-models-get
+- [管理多密钥](api/management/channel-management/channel-multi_key-manage-post.md) — https://www.newapi.ai/zh/docs/api/management/channel-management/channel-multi_key-manage-post
+- [添加渠道](api/management/channel-management/channel-post.md) — https://www.newapi.ai/zh/docs/api/management/channel-management/channel-post
+- [更新渠道](api/management/channel-management/channel-put.md) — https://www.newapi.ai/zh/docs/api/management/channel-management/channel-put
+- [搜索渠道](api/management/channel-management/channel-search-get.md) — https://www.newapi.ai/zh/docs/api/management/channel-management/channel-search-get
+- [禁用标签渠道](api/management/channel-management/channel-tag-disabled-post.md) — https://www.newapi.ai/zh/docs/api/management/channel-management/channel-tag-disabled-post
+- [启用标签渠道](api/management/channel-management/channel-tag-enabled-post.md) — https://www.newapi.ai/zh/docs/api/management/channel-management/channel-tag-enabled-post
+- [获取标签模型](api/management/channel-management/channel-tag-models-get.md) — https://www.newapi.ai/zh/docs/api/management/channel-management/channel-tag-models-get
+- [编辑标签渠道](api/management/channel-management/channel-tag-put.md) — https://www.newapi.ai/zh/docs/api/management/channel-management/channel-tag-put
+- [测试所有渠道](api/management/channel-management/channel-test-get.md) — https://www.newapi.ai/zh/docs/api/management/channel-management/channel-test-get
+- [测试指定渠道](api/management/channel-management/channel-test-id-get.md) — https://www.newapi.ai/zh/docs/api/management/channel-management/channel-test-id-get
+- [更新所有渠道余额](api/management/channel-management/channel-update_balance-get.md) — https://www.newapi.ai/zh/docs/api/management/channel-management/channel-update_balance-get
+- [更新指定渠道余额](api/management/channel-management/channel-update_balance-id-get.md) — https://www.newapi.ai/zh/docs/api/management/channel-management/channel-update_balance-id-get
+- [删除模型](api/management/model-management/models-id-delete.md) — https://www.newapi.ai/zh/docs/api/management/model-management/models-id-delete
+- [获取指定模型](api/management/model-management/models-id-get.md) — https://www.newapi.ai/zh/docs/api/management/model-management/models-id-get
+- [获取缺失模型](api/management/model-management/models-missing-get.md) — https://www.newapi.ai/zh/docs/api/management/model-management/models-missing-get
+- [创建模型元数据](api/management/model-management/models-post.md) — https://www.newapi.ai/zh/docs/api/management/model-management/models-post
+- [更新模型元数据](api/management/model-management/models-put.md) — https://www.newapi.ai/zh/docs/api/management/model-management/models-put
+- [搜索模型](api/management/model-management/models-search-get.md) — https://www.newapi.ai/zh/docs/api/management/model-management/models-search-get
+- [同步上游模型](api/management/model-management/models-sync_upstream-post.md) — https://www.newapi.ai/zh/docs/api/management/model-management/models-sync_upstream-post
+- [预览上游模型同步](api/management/model-management/models-sync_upstream-preview-get.md) — https://www.newapi.ai/zh/docs/api/management/model-management/models-sync_upstream-preview-get
+- [批量删除令牌](api/management/token-management/token-batch-post.md) — https://www.newapi.ai/zh/docs/api/management/token-management/token-batch-post
+- [删除令牌](api/management/token-management/token-id-delete.md) — https://www.newapi.ai/zh/docs/api/management/token-management/token-id-delete
+- [获取指定令牌](api/management/token-management/token-id-get.md) — https://www.newapi.ai/zh/docs/api/management/token-management/token-id-get
+- [创建令牌](api/management/token-management/token-post.md) — https://www.newapi.ai/zh/docs/api/management/token-management/token-post
+- [更新令牌](api/management/token-management/token-put.md) — https://www.newapi.ai/zh/docs/api/management/token-management/token-put
+- [搜索令牌](api/management/token-management/token-search-get.md) — https://www.newapi.ai/zh/docs/api/management/token-management/token-search-get
+- [获取令牌使用情况](api/management/token-management/usage-token-get.md) — https://www.newapi.ai/zh/docs/api/management/token-management/usage-token-get
+- [删除兑换码](api/management/redemption/redemption-id-delete.md) — https://www.newapi.ai/zh/docs/api/management/redemption/redemption-id-delete
+- [获取指定兑换码](api/management/redemption/redemption-id-get.md) — https://www.newapi.ai/zh/docs/api/management/redemption/redemption-id-get
+- [删除无效兑换码](api/management/redemption/redemption-invalid-delete.md) — https://www.newapi.ai/zh/docs/api/management/redemption/redemption-invalid-delete
+- [创建兑换码](api/management/redemption/redemption-post.md) — https://www.newapi.ai/zh/docs/api/management/redemption/redemption-post
+- [更新兑换码](api/management/redemption/redemption-put.md) — https://www.newapi.ai/zh/docs/api/management/redemption/redemption-put
+- [搜索兑换码](api/management/redemption/redemption-search-get.md) — https://www.newapi.ai/zh/docs/api/management/redemption/redemption-search-get
+- [Creem Webhook](api/management/payment/creem-webhook-post.md) — https://www.newapi.ai/zh/docs/api/management/payment/creem-webhook-post
+- [Stripe Webhook](api/management/payment/stripe-webhook-post.md) — https://www.newapi.ai/zh/docs/api/management/payment/stripe-webhook-post
+- [获取支付金额](api/management/payment/user-amount-post.md) — https://www.newapi.ai/zh/docs/api/management/payment/user-amount-post
+- [发起Creem支付](api/management/payment/user-creem-pay-post.md) — https://www.newapi.ai/zh/docs/api/management/payment/user-creem-pay-post
+- [易支付回调](api/management/payment/user-epay-notify-get.md) — https://www.newapi.ai/zh/docs/api/management/payment/user-epay-notify-get
+- [发起易支付](api/management/payment/user-pay-post.md) — https://www.newapi.ai/zh/docs/api/management/payment/user-pay-post
+- [获取Stripe支付金额](api/management/payment/user-stripe-amount-post.md) — https://www.newapi.ai/zh/docs/api/management/payment/user-stripe-amount-post
+- [发起Stripe支付](api/management/payment/user-stripe-pay-post.md) — https://www.newapi.ai/zh/docs/api/management/payment/user-stripe-pay-post
+- [获取用户充值记录](api/management/payment/user-topup-self-get.md) — https://www.newapi.ai/zh/docs/api/management/payment/user-topup-self-get
+- [删除历史日志](api/management/logs/log-delete.md) — https://www.newapi.ai/zh/docs/api/management/logs/log-delete
+- [搜索日志](api/management/logs/log-search-get.md) — https://www.newapi.ai/zh/docs/api/management/logs/log-search-get
+- [获取个人日志](api/management/logs/log-self-get.md) — https://www.newapi.ai/zh/docs/api/management/logs/log-self-get
+- [搜索个人日志](api/management/logs/log-self-search-get.md) — https://www.newapi.ai/zh/docs/api/management/logs/log-self-search-get
+- [获取个人日志统计](api/management/logs/log-self-stat-get.md) — https://www.newapi.ai/zh/docs/api/management/logs/log-self-stat-get
+- [获取日志统计](api/management/logs/log-stat-get.md) — https://www.newapi.ai/zh/docs/api/management/logs/log-stat-get
+- [通过令牌获取日志](api/management/logs/log-token-get.md) — https://www.newapi.ai/zh/docs/api/management/logs/log-token-get
+- [获取个人额度数据](api/management/statistics/data-self-get.md) — https://www.newapi.ai/zh/docs/api/management/statistics/data-self-get
+- [获取所有Midjourney任务](api/management/tasks/mj-get.md) — https://www.newapi.ai/zh/docs/api/management/tasks/mj-get
+- [获取个人Midjourney任务](api/management/tasks/mj-self-get.md) — https://www.newapi.ai/zh/docs/api/management/tasks/mj-self-get
+- [获取个人任务](api/management/tasks/task-self-get.md) — https://www.newapi.ai/zh/docs/api/management/tasks/task-self-get
+- [获取预填分组](api/management/groups/prefill_group-get.md) — https://www.newapi.ai/zh/docs/api/management/groups/prefill_group-get
+- [删除预填分组](api/management/groups/prefill_group-id-delete.md) — https://www.newapi.ai/zh/docs/api/management/groups/prefill_group-id-delete
+- [创建预填分组](api/management/groups/prefill_group-post.md) — https://www.newapi.ai/zh/docs/api/management/groups/prefill_group-post
+- [更新预填分组](api/management/groups/prefill_group-put.md) — https://www.newapi.ai/zh/docs/api/management/groups/prefill_group-put
+- [删除供应商](api/management/vendors/vendors-id-delete.md) — https://www.newapi.ai/zh/docs/api/management/vendors/vendors-id-delete
+- [获取指定供应商](api/management/vendors/vendors-id-get.md) — https://www.newapi.ai/zh/docs/api/management/vendors/vendors-id-get
+- [创建供应商](api/management/vendors/vendors-post.md) — https://www.newapi.ai/zh/docs/api/management/vendors/vendors-post
+- [更新供应商](api/management/vendors/vendors-put.md) — https://www.newapi.ai/zh/docs/api/management/vendors/vendors-put
+- [搜索供应商](api/management/vendors/vendors-search-get.md) — https://www.newapi.ai/zh/docs/api/management/vendors/vendors-search-get
+- [通用安全验证](api/management/security-verification/verify-post.md) — https://www.newapi.ai/zh/docs/api/management/security-verification/verify-post
+
+## 抓取异常
+
+- 无。
