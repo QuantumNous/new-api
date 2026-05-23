@@ -24,7 +24,7 @@ This fork adds 4 Airbotix-specific things on top of upstream:
 | `internal/smart_router_client/` | HTTP client that calls the `smart-router` sidecar for `deeprouter-auto` virtual-model routing. |
 | `internal/billing/` | HMAC-signed per-request billing webhook dispatcher. Implemented + tested, **not yet wired into the relay path** (Phase 2 work). |
 | `relay/airbotix_policy.go` | The one upstream-adjacent file — stitches policy + kids enforcement into the relay request lifecycle for OpenAI / Claude / Gemini / Responses request shapes. |
-| `model/user.go` | Extended with 4 columns: `kids_mode`, `policy_profile`, `billing_webhook_url`, `custom_pricing_id`. |
+| `model/user.go` | Extended with 5 columns: `kids_mode`, `policy_profile`, `billing_webhook_url`, `custom_pricing_id`, `webhook_secret`. |
 | `middleware/smart_router.go` | Detects `deeprouter-auto`, calls smart_router_client, rewrites the model name before relay. |
 
 Each `internal/` subpackage has its own README — read it before editing.

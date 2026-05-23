@@ -26,10 +26,10 @@ We minimise core changes to keep upstream cherry-picking sustainable. All Airbot
 | `internal/billing/` | HMAC-signed per-request billing webhook dispatcher with retry policy | ✅ Implemented (119 LOC + tests) — **NOT yet wired into relay path (Phase 2 in PLAN.md)** |
 | `relay/airbotix_policy.go` + test | Stitches policy + kids enforcement into OpenAI / Claude / Gemini / Responses request shapes | ✅ Wired |
 | `middleware/smart_router.go` | Detects `deeprouter-auto` virtual model, calls smart_router_client, rewrites model name | ✅ Wired |
-| `model/user.go` | Extended with 4 columns: `kids_mode`, `policy_profile`, `billing_webhook_url`, `custom_pricing_id` | ✅ Migration applies on boot |
+| `model/user.go` | Extended with 5 columns: `kids_mode`, `policy_profile`, `billing_webhook_url`, `custom_pricing_id`, `webhook_secret` | ✅ Migration applies on boot |
 | `web/default/` | Admin UI — needs fields added for the 4 new User columns (Phase 1 work) | 🟡 Backend ready, UI pending |
 
-**Database changes**: extend NewAPI's existing `users` table with 4 columns. No new tables, no schema rewrite.
+**Database changes**: extend NewAPI's existing `users` table with 5 columns. No new tables, no schema rewrite.
 
 ## Local development
 
@@ -84,7 +84,7 @@ git cherry-pick <commit>      # for individual bugfix
 
 If divergence > 30% triggers D-DR9 (independent fork decision) — see PRD.
 
-**Rebase-safe zone**: anything under `internal/`, `relay/airbotix_policy.go`, `middleware/smart_router.go`, and the 4 new columns on `model/user.go`. Upstream rarely touches these; conflicts here usually mean upstream renamed something we depend on.
+**Rebase-safe zone**: anything under `internal/`, `relay/airbotix_policy.go`, `middleware/smart_router.go`, and the 5 new columns on `model/user.go`. Upstream rarely touches these; conflicts here usually mean upstream renamed something we depend on.
 
 ## Sister docs
 

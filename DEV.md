@@ -125,7 +125,7 @@ docker compose -f docker-compose.dev.yml up -d --build new-api
 
 ## 5. Airbotix-specific 改造现状
 
-> 状态：Phase 0 ✅ 完成 (2026-05-12)。`internal/*` 4 个包 + `model/user.go` 4 个字段 + `relay/airbotix_policy.go` + `middleware/smart_router.go` 都已实现并接入。Phase 1-2 工作详见 [`PLAN.md`](./PLAN.md)。
+> 状态：Phase 0 ✅ 完成 (2026-05-12)。`internal/*` 4 个包 + `model/user.go` 5 个字段 + `relay/airbotix_policy.go` + `middleware/smart_router.go` 都已实现并接入。Phase 1-2 工作详见 [`PLAN.md`](./PLAN.md)。
 
 ```
 deeprouter/
@@ -135,19 +135,20 @@ deeprouter/
 ├─ internal/smart_router_client/   ← ✅ smart-router sidecar 的 HTTP 客户端
 ├─ relay/airbotix_policy.go        ← ✅ 在 relay 流程中把 policy + kids 串起来（OpenAI / Claude / Gemini / Responses 四种 request shape）
 ├─ middleware/smart_router.go      ← ✅ 检测 deeprouter-auto 虚拟模型并改写
-├─ model/user.go                   ← ✅ 已加 4 个字段（GORM 自动 migrate）
+├─ model/user.go                   ← ✅ 已加 5 个字段（GORM 自动 migrate）
 └─ web/default/...                 ← 🟡 admin UI 字段待加（Phase 1）
 ```
 
-User 表已扩展的 4 个字段（`model/user.go`）：
+User 表已扩展的 5 个字段（`model/user.go:60-66`）：
 
 ```go
 type User struct {
     // ... 上游已有字段
-    KidsMode             bool   `gorm:"default:false"`
-    PolicyProfile        string `gorm:"size:32;default:'passthrough'"`  // kid-safe | adult | passthrough
-    BillingWebhookURL    string `gorm:"size:255"`
-    CustomPricingID      string `gorm:"size:64"`
+    KidsMode             bool   `gorm:"type:boolean;default:false;column:kids_mode"`
+    PolicyProfile        string `gorm:"type:varchar(32);default:'passthrough';column:policy_profile"`  // kid-safe | adult | passthrough
+    BillingWebhookURL    string `gorm:"type:varchar(512);column:billing_webhook_url"`
+    CustomPricingID      string `gorm:"type:varchar(64);column:custom_pricing_id"`
+    WebhookSecret        string `gorm:"type:varchar(128);column:webhook_secret"`  // 用作 billing webhook 的 HMAC 签名密钥（明文存）
 }
 ```
 

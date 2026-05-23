@@ -106,7 +106,7 @@ When working on tiered/dynamic billing (expression-based pricing), you MUST read
 This repo is a fork of `QuantumNous/new-api`. To keep upstream cherry-picks sustainable, all Airbotix-specific code MUST live under `internal/` (currently: `billing/`, `kids/`, `policy/`, `smart_router_client/`) or in clearly-named upstream-adjacent files (`relay/airbotix_policy.go`).
 
 Do NOT scatter custom logic into upstream files (`controller/`, `model/`, `service/`, `web/`) when a dedicated `internal/` subpackage is the right home. The only sanctioned upstream edits are:
-- `model/user.go` — extended with 4 Airbotix columns (`kids_mode`, `policy_profile`, `billing_webhook_url`, `custom_pricing_id`)
+- `model/user.go` — extended with 5 Airbotix columns (`kids_mode`, `policy_profile`, `billing_webhook_url`, `custom_pricing_id`, `webhook_secret`)
 - `middleware/smart_router.go` — wires `internal/smart_router_client/` into the request pipeline
 
 See `AIRBOTIX.md` for the upstream-sync workflow.

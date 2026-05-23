@@ -49,18 +49,21 @@ Zero imports from other `internal/` packages.
 
 ```go
 // in the relay completion path (where tokens are tallied / log row is written)
-if user.BillingWebhookURL != "" {
+if user.BillingWebhookURL != "" && user.WebhookSecret != "" {
     go billing.NewDispatcher().Send(
         user.BillingWebhookURL,
-        []byte(user.WebhookSecret),    // ⚠ field does not exist yet — Phase 2 decides where to store it
+        []byte(user.WebhookSecret),
         &billing.Event{ /* ... */ },
     )
 }
 ```
 
+`User.WebhookSecret` is a `varchar(128)` column already on the user table (`model/user.go:66`). It's stored plaintext, same as `channel.key` — see `docs/adr/0004-channel-key-plaintext.md` for the trade-off.
+
 Open decisions before wiring:
-- Where does the per-tenant webhook secret live? Options: new `User.WebhookSecret` column (encrypted), or piggyback on `CustomPricingID`. Pick one in Phase 2.
-- Do we bill on success only, or bill-then-refund-on-failure? PLAN.md Phase 4 prefers "bill on success only" — simpler reconciliation.
+- Bill on success only, or bill-then-refund-on-failure? `PLAN.md` Phase 4 prefers "bill on success only" — simpler reconciliation.
+- Where exactly in the relay completion path to fire — coordinate with the quota-deduct write so we don't double-charge on retries.
+- Per-request idempotency: receiver must dedupe by `RequestID`. Make sure `request_id` is propagated through the relay pipeline before flipping this on.
 
 ## Tests
 

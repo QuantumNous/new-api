@@ -89,7 +89,7 @@ Business logic that doesn't fit in a single controller/model:
 
 ### `model/`
 GORM models. Important files:
-- `user.go` — User table (extended with 4 Airbotix columns: `kids_mode`, `policy_profile`, `billing_webhook_url`, `custom_pricing_id`).
+- `user.go` — User table (extended with 5 Airbotix columns: `kids_mode`, `policy_profile`, `billing_webhook_url`, `custom_pricing_id`, `webhook_secret`).
 - `channel.go` — Channel table. **`channels.key` is stored plaintext** (no AES anywhere in the codebase).
 - `channel_cache.go` — Layer-2 channel routing. `GetRandomSatisfiedChannel` does priority-tier stratification then weight-based random selection within the tier. On retry N, jumps to the Nth priority tier. Health/retry orchestration sits at the controller layer, not here.
 - `token.go` — API tokens (user-facing). Cache layer uses HMAC keys to avoid plaintext tokens in Redis.
@@ -186,7 +186,7 @@ Layer 1 (model routing) is what the smart-router sidecar adds on top of upstream
 - Raw SQL is rare; when used, branch on `common.UsingPostgreSQL` / `UsingMySQL` / `UsingSQLite` and use the `commonGroupCol` / `commonKeyCol` / `commonTrueVal` helpers.
 
 ### Multi-tenancy
-- Single `User` table. Tenancy is per-User via the 4 Airbotix columns.
+- Single `User` table. Tenancy is per-User via the 5 Airbotix columns (see `docs/data-model.md`).
 - Quota / rate-limit / billing are all per-user.
 - Group membership (`ability` table) gates which models a user can see.
 

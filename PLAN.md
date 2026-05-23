@@ -97,7 +97,7 @@ Weekly: this engineer updates the checkboxes; un-checked items become carry-over
     4. If `decision.InjectChildSafePrompt` → prepend `{"role":"system","content":kids.ChildSafeSystemPrompt()}` to messages array (only if no other system message already present, OR replace if Anthropic-style top-level system field)
 - [ ] Billing dispatch on success
   - In the relay completion path (where token counts are tallied and logged): if `user.BillingWebhookURL != ""`, build `billing.Event` and call `billing.NewDispatcher().Send(...)` in goroutine
-  - Use the per-tenant webhook secret stored in... TBD: a new `User.WebhookSecret` field (encrypted) or reuse `CustomPricingID` etc. Pick one in Phase 1 if not yet decided.
+  - Per-tenant webhook secret: `User.WebhookSecret` column exists (`varchar(128)`, plaintext) — use that. NOTE: it's stored plaintext like `channel.key`; if SOC 2 / compliance demands later, see ADR-0004 for the column-encryption follow-up.
 - [ ] Integration test
   - `controller/relay/relay_kids_mode_test.go`: spin up `httptest` mock provider, call relay with kids_mode tenant, assert (a) `store:false` in captured request, (b) no `user` field, (c) child-safe prompt prepended, (d) webhook called with correct payload + HMAC
 
