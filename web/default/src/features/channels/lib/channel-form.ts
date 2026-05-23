@@ -74,6 +74,9 @@ export const channelFormSchema = z.object({
   allow_inference_geo: z.boolean().optional(), // OpenAI/Anthropic: inference geography
   allow_speed: z.boolean().optional(), // Anthropic: speed mode control
   claude_beta_query: z.boolean().optional(), // Anthropic: beta query passthrough
+  volcengine_video_api_style: z
+    .enum(['auto', 'official', 'openai'])
+    .optional(), // VolcEngine/DoubaoVideo: video API path style
   // Upstream model update settings (stored in settings JSON)
   upstream_model_update_check_enabled: z.boolean().optional(),
   upstream_model_update_auto_sync_enabled: z.boolean().optional(),
@@ -132,6 +135,7 @@ export const CHANNEL_FORM_DEFAULT_VALUES: ChannelFormValues = {
   allow_inference_geo: false,
   allow_speed: false,
   claude_beta_query: false,
+  volcengine_video_api_style: 'auto',
   upstream_model_update_check_enabled: false,
   upstream_model_update_auto_sync_enabled: false,
   upstream_model_update_ignored_models: '',
@@ -186,6 +190,7 @@ export function transformChannelToFormDefaults(
   let allowInferenceGeo = false
   let allowSpeed = false
   let claudeBetaQuery = false
+  let volcengineVideoApiStyle: 'auto' | 'official' | 'openai' = 'auto'
   let upstreamModelUpdateCheckEnabled = false
   let upstreamModelUpdateAutoSyncEnabled = false
   let upstreamModelUpdateIgnoredModels = ''
@@ -204,6 +209,12 @@ export function transformChannelToFormDefaults(
       allowInferenceGeo = parsed.allow_inference_geo === true
       allowSpeed = parsed.allow_speed === true
       claudeBetaQuery = parsed.claude_beta_query === true
+      if (
+        parsed.volcengine_video_api_style === 'official' ||
+        parsed.volcengine_video_api_style === 'openai'
+      ) {
+        volcengineVideoApiStyle = parsed.volcengine_video_api_style
+      }
       upstreamModelUpdateCheckEnabled =
         parsed.upstream_model_update_check_enabled === true
       upstreamModelUpdateAutoSyncEnabled =
@@ -258,6 +269,7 @@ export function transformChannelToFormDefaults(
     allow_inference_geo: allowInferenceGeo,
     allow_speed: allowSpeed,
     claude_beta_query: claudeBetaQuery,
+    volcengine_video_api_style: volcengineVideoApiStyle,
     allow_safety_identifier: allowSafetyIdentifier,
     upstream_model_update_check_enabled: upstreamModelUpdateCheckEnabled,
     upstream_model_update_auto_sync_enabled: upstreamModelUpdateAutoSyncEnabled,
@@ -358,6 +370,18 @@ function buildSettingsJSON(formData: ChannelFormValues): string {
   } else {
     if ('allow_speed' in settingsObj) delete settingsObj.allow_speed
     if ('claude_beta_query' in settingsObj) delete settingsObj.claude_beta_query
+  }
+
+  // VolcEngine (type 45) and DoubaoVideo (type 54): video API path style
+  if (formData.type === 45 || formData.type === 54) {
+    const style = formData.volcengine_video_api_style || 'auto'
+    if (style === 'official' || style === 'openai') {
+      settingsObj.volcengine_video_api_style = style
+    } else if ('volcengine_video_api_style' in settingsObj) {
+      delete settingsObj.volcengine_video_api_style
+    }
+  } else if ('volcengine_video_api_style' in settingsObj) {
+    delete settingsObj.volcengine_video_api_style
   }
 
   // Upstream model update settings (for model-fetchable channel types)

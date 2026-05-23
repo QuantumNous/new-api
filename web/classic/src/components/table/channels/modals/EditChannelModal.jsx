@@ -210,6 +210,7 @@ const EditChannelModal = (props) => {
     allow_inference_geo: false,
     allow_speed: false,
     claude_beta_query: false,
+    volcengine_video_api_style: 'auto',
     upstream_model_update_check_enabled: false,
     upstream_model_update_auto_sync_enabled: false,
     upstream_model_update_last_check_time: 0,
@@ -911,6 +912,15 @@ const EditChannelModal = (props) => {
             parsedSettings.allow_inference_geo || false;
           data.allow_speed = parsedSettings.allow_speed || false;
           data.claude_beta_query = parsedSettings.claude_beta_query || false;
+          if (
+            parsedSettings.volcengine_video_api_style === 'official' ||
+            parsedSettings.volcengine_video_api_style === 'openai'
+          ) {
+            data.volcengine_video_api_style =
+              parsedSettings.volcengine_video_api_style;
+          } else {
+            data.volcengine_video_api_style = 'auto';
+          }
           data.upstream_model_update_check_enabled =
             parsedSettings.upstream_model_update_check_enabled === true;
           data.upstream_model_update_auto_sync_enabled =
@@ -941,6 +951,7 @@ const EditChannelModal = (props) => {
           data.allow_inference_geo = false;
           data.allow_speed = false;
           data.claude_beta_query = false;
+          data.volcengine_video_api_style = 'auto';
           data.upstream_model_update_check_enabled = false;
           data.upstream_model_update_auto_sync_enabled = false;
           data.upstream_model_update_last_check_time = 0;
@@ -959,6 +970,7 @@ const EditChannelModal = (props) => {
         data.allow_inference_geo = false;
         data.allow_speed = false;
         data.claude_beta_query = false;
+        data.volcengine_video_api_style = 'auto';
         data.upstream_model_update_check_enabled = false;
         data.upstream_model_update_auto_sync_enabled = false;
         data.upstream_model_update_last_check_time = 0;
@@ -1037,6 +1049,8 @@ const EditChannelModal = (props) => {
         data.pass_through_body_enabled ||
         data.force_format ||
         data.claude_beta_query ||
+        (data.volcengine_video_api_style &&
+          data.volcengine_video_api_style !== 'auto') ||
         data.system_prompt_override;
       if (hasAdvancedValues) {
         setAdvancedSettingsOpen(true);
@@ -1803,6 +1817,18 @@ const EditChannelModal = (props) => {
       }
     }
 
+    // type === 45 (VolcEngine) / 54 (DoubaoVideo): video API path style
+    if (localInputs.type === 45 || localInputs.type === 54) {
+      const style = localInputs.volcengine_video_api_style || 'auto';
+      if (style === 'official' || style === 'openai') {
+        settings.volcengine_video_api_style = style;
+      } else if ('volcengine_video_api_style' in settings) {
+        delete settings.volcengine_video_api_style;
+      }
+    } else if ('volcengine_video_api_style' in settings) {
+      delete settings.volcengine_video_api_style;
+    }
+
     settings.upstream_model_update_check_enabled =
       localInputs.upstream_model_update_check_enabled === true;
     settings.upstream_model_update_auto_sync_enabled =
@@ -1848,6 +1874,7 @@ const EditChannelModal = (props) => {
     delete localInputs.allow_inference_geo;
     delete localInputs.allow_speed;
     delete localInputs.claude_beta_query;
+    delete localInputs.volcengine_video_api_style;
     delete localInputs.upstream_model_update_check_enabled;
     delete localInputs.upstream_model_update_auto_sync_enabled;
     delete localInputs.upstream_model_update_last_check_time;
@@ -3442,6 +3469,39 @@ const EditChannelModal = (props) => {
                               },
                             ]}
                             defaultValue='https://ark.cn-beijing.volces.com'
+                            disabled={isIonetLocked}
+                          />
+                        </div>
+                      )}
+
+                      {(inputs.type === 45 || inputs.type === 54) && (
+                        <div>
+                          <Form.Select
+                            field='volcengine_video_api_style'
+                            label={t('视频 API 协议')}
+                            placeholder={t('自动检测')}
+                            optionList={[
+                              { label: t('自动检测'), value: 'auto' },
+                              {
+                                label: t('火山官方 API'),
+                                value: 'official',
+                              },
+                              {
+                                label: t('OpenAI 兼容 API'),
+                                value: 'openai',
+                              },
+                            ]}
+                            style={{ width: '100%' }}
+                            value={inputs.volcengine_video_api_style || 'auto'}
+                            onChange={(value) => {
+                              handleChannelOtherSettingsChange(
+                                'volcengine_video_api_style',
+                                value,
+                              );
+                            }}
+                            extraText={t(
+                              '第三方中转站若走火山官方协议，请选择「火山官方 API」，或在 API 地址末尾加上 /api/v3；OpenAI 兼容模式使用 /v1/video/generations。',
+                            )}
                             disabled={isIonetLocked}
                           />
                         </div>

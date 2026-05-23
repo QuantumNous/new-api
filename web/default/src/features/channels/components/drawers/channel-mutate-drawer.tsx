@@ -240,6 +240,8 @@ function hasAdvancedSettingsValues(values: ChannelFormValues): boolean {
     values.pass_through_body_enabled ||
     values.system_prompt_override ||
     values.claude_beta_query ||
+    (values.volcengine_video_api_style &&
+      values.volcengine_video_api_style !== 'auto') ||
     values.upstream_model_update_check_enabled ||
     values.upstream_model_update_auto_sync_enabled ||
     values.upstream_model_update_ignored_models?.trim()
@@ -1775,6 +1777,59 @@ export function ChannelMutateDrawer({
                         </FormControl>
                         <FormDescription>
                           {t('Enter custom API endpoint URL')}
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                )}
+
+                {/* VolcEngine / DoubaoVideo video API style */}
+                {(currentType === 45 || currentType === 54) && (
+                  <FormField
+                    control={form.control}
+                    name='volcengine_video_api_style'
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>{t('Video API Protocol')}</FormLabel>
+                        <Select
+                          items={[
+                            { value: 'auto', label: t('Auto detect') },
+                            {
+                              value: 'official',
+                              label: t('VolcEngine official API'),
+                            },
+                            {
+                              value: 'openai',
+                              label: t('OpenAI-compatible API'),
+                            },
+                          ]}
+                          onValueChange={field.onChange}
+                          value={field.value || 'auto'}
+                        >
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent alignItemWithTrigger={false}>
+                            <SelectGroup>
+                              <SelectItem value='auto'>
+                                {t('Auto detect')}
+                              </SelectItem>
+                              <SelectItem value='official'>
+                                {t('VolcEngine official API')}
+                              </SelectItem>
+                              <SelectItem value='openai'>
+                                {t('OpenAI-compatible API')}
+                              </SelectItem>
+                            </SelectGroup>
+                          </SelectContent>
+                        </Select>
+                        <FormDescription>
+                          {t(
+                            'For third-party proxies using VolcEngine protocol, choose official API or append /api/v3 to the base URL. OpenAI-compatible uses /v1/video/generations.'
+                          )}
                         </FormDescription>
                         <FormMessage />
                       </FormItem>

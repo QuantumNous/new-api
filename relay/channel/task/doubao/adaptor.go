@@ -6,7 +6,6 @@ import (
 	"io"
 	"net/http"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
@@ -23,10 +22,6 @@ import (
 	"github.com/pkg/errors"
 	"github.com/samber/lo"
 )
-
-func isVolcEngineOfficial(baseURL string) bool {
-	return strings.HasPrefix(baseURL, "https://ark.") || strings.HasPrefix(baseURL, "https://visual.")
-}
 
 // ============================
 // Request / Response structures
@@ -107,15 +102,17 @@ type responseTask struct {
 
 type TaskAdaptor struct {
 	taskcommon.BaseBilling
-	ChannelType int
-	apiKey      string
-	baseURL     string
+	ChannelType   int
+	apiKey        string
+	baseURL       string
+	videoAPIStyle string
 }
 
 func (a *TaskAdaptor) Init(info *relaycommon.RelayInfo) {
 	a.ChannelType = info.ChannelType
 	a.baseURL = info.ChannelBaseUrl
 	a.apiKey = info.ApiKey
+	a.videoAPIStyle = info.ChannelOtherSettings.VolcengineVideoAPIStyle
 }
 
 // ValidateRequestAndSetAction parses body, validates fields and sets default action.
@@ -126,10 +123,7 @@ func (a *TaskAdaptor) ValidateRequestAndSetAction(c *gin.Context, info *relaycom
 
 // BuildRequestURL constructs the upstream URL.
 func (a *TaskAdaptor) BuildRequestURL(_ *relaycommon.RelayInfo) (string, error) {
-	if isVolcEngineOfficial(a.baseURL) {
-		return fmt.Sprintf("%s/api/v3/contents/generations/tasks", a.baseURL), nil
-	}
-	return fmt.Sprintf("%s/v1/video/generations", a.baseURL), nil
+	return BuildVideoSubmitURL(a.baseURL, a.videoAPIStyle), nil
 }
 
 // BuildRequestHeader sets required headers.
@@ -249,12 +243,7 @@ func (a *TaskAdaptor) FetchTask(baseUrl, key string, body map[string]any, proxy 
 		return nil, fmt.Errorf("invalid task_id")
 	}
 
-	var uri string
-	if isVolcEngineOfficial(baseUrl) {
-		uri = fmt.Sprintf("%s/api/v3/contents/generations/tasks/%s", baseUrl, taskID)
-	} else {
-		uri = fmt.Sprintf("%s/v1/video/generations/%s", baseUrl, taskID)
-	}
+	uri := BuildVideoFetchURL(baseUrl, a.videoAPIStyle, taskID)
 
 	req, err := http.NewRequest(http.MethodGet, uri, nil)
 	if err != nil {
