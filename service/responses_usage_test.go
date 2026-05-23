@@ -51,6 +51,15 @@ func TestApplyResponsesUsageCopiesTokenDetails(t *testing.T) {
 		dst.CompletionTokenDetails.ReasoningTokens != 4 {
 		t.Fatalf("completion details = %#v", dst.CompletionTokenDetails)
 	}
+	if dst.OutputTokensDetails == nil {
+		t.Fatal("OutputTokensDetails is nil")
+	}
+	if dst.OutputTokensDetails.TextTokens != 1 ||
+		dst.OutputTokensDetails.AudioTokens != 2 ||
+		dst.OutputTokensDetails.ImageTokens != 3 ||
+		dst.OutputTokensDetails.ReasoningTokens != 4 {
+		t.Fatalf("output details = %#v", dst.OutputTokensDetails)
+	}
 	if dst.UsageSemantic != "openai" || dst.UsageSource != "upstream" {
 		t.Fatalf("usage metadata = %#v", dst)
 	}
