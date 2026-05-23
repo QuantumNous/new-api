@@ -1665,6 +1665,7 @@
     "按次：{{symbol}}{{price}} * {{ratioType}}：{{ratio}} = {{symbol}}{{total}}": "За запрос: {{symbol}}{{price}} * {{ratioType}}: {{ratio}} = {{symbol}}{{total}}",
     "按次计费": "Оплата за запрос",
     "按照如下格式输入：AccessKey|SecretAccessKey|Region": "Введите в формате: AccessKey|SecretAccessKey|Region",
+    "按照如下格式输入：AccessKeyID|SecretAccessKey 或 AK|SK|SessionToken": "Введите в формате: AccessKeyID|SecretAccessKey или AK|SK|SessionToken",
     "按量计费": "Оплата по объему",
     "按量计费下需要先填写输入价格，才能保存其它价格项。": "При тарификации по объему сначала нужно указать входную цену, чтобы сохранить остальные ценовые поля.",
     "按顺序替换content中的变量占位符": "Последовательно заменять переменные-заполнители в content",

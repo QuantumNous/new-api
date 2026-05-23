@@ -55,6 +55,7 @@ export function getChannelTypeIcon(type: number): string {
 
     // Anthropic
     14: 'Claude', // Anthropic
+    58: 'Claude', // Claude Platform on AWS
 
     // Google family
     24: 'Gemini', // Gemini

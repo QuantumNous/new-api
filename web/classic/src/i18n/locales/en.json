@@ -1643,6 +1643,7 @@
     "按次：{{symbol}}{{price}} * {{ratioType}}：{{ratio}} = {{symbol}}{{total}}": "Per request: {{symbol}}{{price}} * {{ratioType}}: {{ratio}} = {{symbol}}{{total}}",
     "按次计费": "Pay per request",
     "按照如下格式输入：AccessKey|SecretAccessKey|Region": "Enter in the format: AccessKey|SecretAccessKey|Region",
+    "按照如下格式输入：AccessKeyID|SecretAccessKey 或 AK|SK|SessionToken": "Enter in the format: AccessKeyID|SecretAccessKey or AK|SK|SessionToken",
     "按量计费": "Pay as you go",
     "按量计费下需要先填写输入价格，才能保存其它价格项。": "For per-token billing, fill in the input price before saving other price fields.",
     "按顺序替换content中的变量占位符": "Replace variable placeholders in content in order",

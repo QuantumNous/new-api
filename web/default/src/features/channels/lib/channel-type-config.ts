@@ -83,6 +83,16 @@ export const CHANNEL_TYPE_CONFIGS: Record<number, ChannelTypeConfig> = {
       models: 'claude-3-opus,claude-3-sonnet,claude-3-haiku',
     },
   },
+  58: {
+    id: 58,
+    name: CHANNEL_TYPES[58],
+    icon: 'anthropic',
+    requiresRegion: true,
+    hints: {
+      key: 'API Key from AWS Console, or AK|SK / AK|SK|SessionToken for SigV4',
+      models: 'claude-sonnet-4-6,claude-opus-4-7,claude-haiku-4-5-20251001',
+    },
+  },
   24: {
     id: 24,
     name: CHANNEL_TYPES[24],

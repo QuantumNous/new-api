@@ -1618,6 +1618,7 @@
     "按次：{{symbol}}{{price}} * {{ratioType}}：{{ratio}} = {{symbol}}{{total}}": "リクエストごと：{{symbol}}{{price}} * {{ratioType}}：{{ratio}} = {{symbol}}{{total}}",
     "按次计费": "リクエストごとの課金",
     "按照如下格式输入：AccessKey|SecretAccessKey|Region": "Enter in the format: AccessKey|SecretAccessKey|Region",
+    "按照如下格式输入：AccessKeyID|SecretAccessKey 或 AK|SK|SessionToken": "次の形式で入力してください: AccessKeyID|SecretAccessKey または AK|SK|SessionToken",
     "按量计费": "従量課金",
     "按量计费下需要先填写输入价格，才能保存其它价格项。": "従量課金では、他の価格項目を保存する前に入力価格を設定する必要があります。",
     "按顺序替换content中的变量占位符": "content内の変数プレースホルダーを順番に置換します",

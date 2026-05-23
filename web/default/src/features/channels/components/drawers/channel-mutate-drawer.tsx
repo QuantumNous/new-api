@@ -1421,6 +1421,106 @@ export function ChannelMutateDrawer({
                   />
                 )}
 
+                {/* Claude Platform on AWS (type 58) */}
+                {currentType === 58 && (
+                  <>
+                    <FormField
+                      control={form.control}
+                      name='claude_on_aws_auth_type'
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>{t('Authentication Method')}</FormLabel>
+                          <Select
+                            items={[
+                              { value: 'api_key', label: t('API Key') },
+                              {
+                                value: 'sigv4',
+                                label: t('AWS SigV4 (IAM)'),
+                              },
+                            ]}
+                            onValueChange={field.onChange}
+                            value={field.value}
+                          >
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue
+                                  placeholder={t('Select auth method')}
+                                />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent alignItemWithTrigger={false}>
+                              <SelectGroup>
+                                <SelectItem value='api_key'>
+                                  {t('API Key')}
+                                </SelectItem>
+                                <SelectItem value='sigv4'>
+                                  {t('AWS SigV4 (IAM)')}
+                                </SelectItem>
+                              </SelectGroup>
+                            </SelectContent>
+                          </Select>
+                          <FormDescription>
+                            {field.value === 'sigv4'
+                              ? t(
+                                  'SigV4 mode: paste credentials in format AK|SK or AK|SK|SessionToken'
+                                )
+                              : t(
+                                  'API Key mode: paste the key generated in AWS Console → Claude Platform on AWS → API keys'
+                                )}
+                          </FormDescription>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name='claude_on_aws_region'
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>{t('AWS Region *')}</FormLabel>
+                          <FormControl>
+                            <Input
+                              placeholder={t(
+                                'e.g., us-east-1, us-west-2, eu-west-1'
+                              )}
+                              {...field}
+                            />
+                          </FormControl>
+                          <FormDescription>
+                            {t(
+                              'Region of the Claude Platform on AWS endpoint, used in URL aws-external-anthropic.{region}.api.aws'
+                            )}
+                          </FormDescription>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name='claude_on_aws_workspace_id'
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>{t('Workspace ID *')}</FormLabel>
+                          <FormControl>
+                            <Input
+                              placeholder={t('e.g., wrkspc_01abcdefghij')}
+                              {...field}
+                            />
+                          </FormControl>
+                          <FormDescription>
+                            {t(
+                              'Required anthropic-workspace-id header. Find it in AWS Console → Claude Platform on AWS → Workspaces.'
+                            )}
+                          </FormDescription>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </>
+                )}
+
                 {/* AI Proxy Library (type 21) */}
                 {currentType === 21 && (
                   <FormField
@@ -3381,7 +3481,9 @@ export function ChannelMutateDrawer({
         redirectSourceModels={redirectModelKeyList}
         customFetcher={!isEditing ? createModeFetcher : undefined}
         existingModelsOverride={
-          !isEditing ? parseModelsString(form.getValues('models') || '') : undefined
+          !isEditing
+            ? parseModelsString(form.getValues('models') || '')
+            : undefined
         }
       />
 

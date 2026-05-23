@@ -65,6 +65,10 @@ export const channelFormSchema = z.object({
   is_enterprise_account: z.boolean().optional(), // OpenRouter specific
   vertex_key_type: z.enum(['json', 'api_key']).optional(), // Vertex AI specific
   aws_key_type: z.enum(['ak_sk', 'api_key']).optional(), // AWS specific
+  // Claude Platform on AWS specific (type 58)
+  claude_on_aws_auth_type: z.enum(['sigv4', 'api_key']).optional(),
+  claude_on_aws_region: z.string().optional(),
+  claude_on_aws_workspace_id: z.string().optional(),
   azure_responses_version: z.string().optional(), // Azure specific
   // Field passthrough controls (stored in settings JSON)
   allow_service_tier: z.boolean().optional(), // OpenAI/Anthropic
@@ -78,6 +82,31 @@ export const channelFormSchema = z.object({
   upstream_model_update_check_enabled: z.boolean().optional(),
   upstream_model_update_auto_sync_enabled: z.boolean().optional(),
   upstream_model_update_ignored_models: z.string().optional(),
+}).superRefine((data, ctx) => {
+  // Claude Platform on AWS (type 58): require region and workspace ID,
+  // and constrain the auth type so the form cannot submit invalid configs.
+  if (data.type !== 58) return
+  if (!data.claude_on_aws_auth_type) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['claude_on_aws_auth_type'],
+      message: 'Authentication method is required',
+    })
+  }
+  if (!data.claude_on_aws_region?.trim()) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['claude_on_aws_region'],
+      message: 'AWS region is required',
+    })
+  }
+  if (!data.claude_on_aws_workspace_id?.trim()) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['claude_on_aws_workspace_id'],
+      message: 'Workspace ID is required',
+    })
+  }
 })
 
 export type ChannelFormValues = z.infer<typeof channelFormSchema>
@@ -123,6 +152,10 @@ export const CHANNEL_FORM_DEFAULT_VALUES: ChannelFormValues = {
   is_enterprise_account: false,
   vertex_key_type: 'json',
   aws_key_type: 'ak_sk',
+  // Claude Platform on AWS specific
+  claude_on_aws_auth_type: 'sigv4',
+  claude_on_aws_region: '',
+  claude_on_aws_workspace_id: '',
   azure_responses_version: '',
   // Field passthrough controls
   allow_service_tier: false,
@@ -179,6 +212,9 @@ export function transformChannelToFormDefaults(
   let azureResponsesVersion = ''
   let isEnterpriseAccount = false
   let awsKeyType: 'ak_sk' | 'api_key' = 'ak_sk'
+  let claudeOnAwsAuthType: 'sigv4' | 'api_key' = 'sigv4'
+  let claudeOnAwsRegion = ''
+  let claudeOnAwsWorkspaceId = ''
   let allowServiceTier = false
   let disableStore = false
   let allowSafetyIdentifier = false
@@ -197,6 +233,9 @@ export function transformChannelToFormDefaults(
       azureResponsesVersion = parsed.azure_responses_version || ''
       isEnterpriseAccount = parsed.openrouter_enterprise === true
       awsKeyType = parsed.aws_key_type || 'ak_sk'
+      claudeOnAwsAuthType = parsed.claude_on_aws_auth_type || 'sigv4'
+      claudeOnAwsRegion = parsed.claude_on_aws_region || ''
+      claudeOnAwsWorkspaceId = parsed.claude_on_aws_workspace_id || ''
       allowServiceTier = parsed.allow_service_tier === true
       disableStore = parsed.disable_store === true
       allowSafetyIdentifier = parsed.allow_safety_identifier === true
@@ -252,6 +291,9 @@ export function transformChannelToFormDefaults(
     vertex_key_type: vertexKeyType,
     azure_responses_version: azureResponsesVersion,
     aws_key_type: awsKeyType,
+    claude_on_aws_auth_type: claudeOnAwsAuthType,
+    claude_on_aws_region: claudeOnAwsRegion,
+    claude_on_aws_workspace_id: claudeOnAwsWorkspaceId,
     allow_service_tier: allowServiceTier,
     disable_store: disableStore,
     allow_include_obfuscation: allowIncludeObfuscation,
@@ -322,6 +364,22 @@ function buildSettingsJSON(formData: ChannelFormValues): string {
     settingsObj.aws_key_type = formData.aws_key_type || 'ak_sk'
   } else if ('aws_key_type' in settingsObj) {
     delete settingsObj.aws_key_type
+  }
+
+  // Claude Platform on AWS (type 58): auth type, region, workspace id
+  if (formData.type === 58) {
+    settingsObj.claude_on_aws_auth_type =
+      formData.claude_on_aws_auth_type || 'sigv4'
+    settingsObj.claude_on_aws_region = formData.claude_on_aws_region || ''
+    settingsObj.claude_on_aws_workspace_id =
+      formData.claude_on_aws_workspace_id || ''
+  } else {
+    if ('claude_on_aws_auth_type' in settingsObj)
+      delete settingsObj.claude_on_aws_auth_type
+    if ('claude_on_aws_region' in settingsObj)
+      delete settingsObj.claude_on_aws_region
+    if ('claude_on_aws_workspace_id' in settingsObj)
+      delete settingsObj.claude_on_aws_workspace_id
   }
 
   // Field passthrough controls:
