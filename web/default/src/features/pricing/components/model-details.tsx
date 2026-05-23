@@ -484,30 +484,9 @@ function PriceSection(props: {
     )
   }
 
-  if (!isTokenBased) {
-    return (
-      <section>
-        <SectionTitle>{t('Base Price')}</SectionTitle>
-        <div className='flex items-baseline justify-between'>
-          <span className='text-muted-foreground text-sm'>
-            {t('Per request')}
-          </span>
-          <span className='text-foreground font-mono text-sm font-semibold tabular-nums'>
-            {formatFixedPrice(
-              props.model,
-              baseGroupKey,
-              props.showRechargePrice,
-              props.priceRate,
-              props.usdExchangeRate,
-              baseGroupRatioMap
-            )}
-          </span>
-        </div>
-      </section>
-    )
-  }
-
-  // Per-resolution image billing
+  // Per-resolution image billing — must be checked before the generic
+  // !isTokenBased branch, because per_size models have quota_type=1 (per-request)
+  // and would otherwise fall into the "Per request $0" display.
   if (props.model.image_billing_mode === 'per_size' && props.model.image_per_size_prices) {
     const prices = props.model.image_per_size_prices
     const tiers = [
@@ -543,6 +522,29 @@ function PriceSection(props: {
               </div>
             </div>
           ))}
+        </div>
+      </section>
+    )
+  }
+
+  if (!isTokenBased) {
+    return (
+      <section>
+        <SectionTitle>{t('Base Price')}</SectionTitle>
+        <div className='flex items-baseline justify-between'>
+          <span className='text-muted-foreground text-sm'>
+            {t('Per request')}
+          </span>
+          <span className='text-foreground font-mono text-sm font-semibold tabular-nums'>
+            {formatFixedPrice(
+              props.model,
+              baseGroupKey,
+              props.showRechargePrice,
+              props.priceRate,
+              props.usdExchangeRate,
+              baseGroupRatioMap
+            )}
+          </span>
         </div>
       </section>
     )
