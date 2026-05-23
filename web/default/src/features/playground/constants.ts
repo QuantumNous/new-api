@@ -72,6 +72,9 @@ export const STORAGE_KEYS = {
   PARAMETER_ENABLED: 'playground_parameter_enabled',
 } as const
 
+/** Demo / product UI: hide example prompt chips under the chat input. */
+export const PLAYGROUND_PROMPT_SUGGESTIONS_VISIBLE = false
+
 // Error messages
 export const ERROR_MESSAGES = {
   API_REQUEST_ERROR: 'Request error occurred',

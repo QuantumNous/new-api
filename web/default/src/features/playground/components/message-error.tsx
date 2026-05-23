@@ -19,9 +19,13 @@ For commercial licensing, please contact support@quantumnous.com
 import { AlertCircle, AlertTriangle, Settings } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { useAuthStore } from '@/stores/auth-store'
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
+import { cn } from '@/lib/utils'
 import { MESSAGE_STATUS } from '../constants'
+import {
+  PLAYGROUND_BILLING_MODEL_PRICING_PATH,
+  parsePlaygroundErrorDisplay,
+} from '../lib/playground-error-display'
 import type { Message } from '../types'
 
 interface MessageErrorProps {
@@ -29,9 +33,21 @@ interface MessageErrorProps {
   className?: string
 }
 
+const chatErrorCardClassName =
+  'rounded-lg border px-4 py-3 text-sm shadow-inner shadow-black/20'
+
+const chatErrorModelPriceClassName = cn(
+  chatErrorCardClassName,
+  'border-amber-300/20 bg-slate-950/80 text-slate-100'
+)
+
+const chatErrorGenericClassName = cn(
+  chatErrorCardClassName,
+  'border-red-400/20 bg-slate-950/80 text-slate-100'
+)
+
 /**
- * Display error messages using Alert component
- * Following ai-elements pattern for error handling
+ * Chat-only error card (dark theme). Does not use the global Alert card styles.
  */
 export function MessageError({ message, className = '' }: MessageErrorProps) {
   const { t } = useTranslation()
@@ -43,37 +59,76 @@ export function MessageError({ message, className = '' }: MessageErrorProps) {
   }
 
   const errorContent =
-    message.versions[0]?.content || 'An unknown error occurred'
+    message.versions[0]?.content || t('Playground generic request error')
+  const { paragraphs, requestId } = parsePlaygroundErrorDisplay(errorContent)
 
   if (message.errorCode === 'model_price_error') {
     return (
-      <Alert variant='default' className={className}>
-        <AlertTriangle className='text-orange-500' />
-        <AlertTitle>{t('Model Price Not Configured')}</AlertTitle>
-        <AlertDescription className='space-y-2'>
-          <p>{errorContent}</p>
-          {isAdmin && (
-            <Button
-              variant='outline'
-              size='sm'
-              onClick={() =>
-                window.open('/console/setting?tab=ratio', '_blank')
-              }
-            >
-              <Settings className='mr-1 h-3.5 w-3.5' />
-              {t('Go to Settings')}
-            </Button>
-          )}
-        </AlertDescription>
-      </Alert>
+      <div
+        role='alert'
+        className={cn(chatErrorModelPriceClassName, className)}
+      >
+        <div className='flex gap-2'>
+          <AlertTriangle className='mt-0.5 size-4 shrink-0 text-amber-400' />
+          <div className='min-w-0 flex-1 space-y-2'>
+            <p className='font-medium text-amber-200/95'>
+              {t('Model Price Not Configured')}
+            </p>
+            <div className='space-y-2 text-slate-300'>
+              {(paragraphs.length > 0 ? paragraphs : [errorContent]).map(
+                (paragraph) => (
+                  <p key={paragraph} className='leading-relaxed'>
+                    {paragraph}
+                  </p>
+                )
+              )}
+            </div>
+            {requestId ? (
+              <p className='text-xs text-slate-400'>
+                {t('Playground request id label', { id: requestId })}
+              </p>
+            ) : null}
+            {isAdmin ? (
+              <Button
+                variant='outline'
+                size='sm'
+                className='border-white/15 bg-slate-900/85 text-slate-100 hover:bg-slate-800 hover:text-slate-50'
+                onClick={() =>
+                  window.open(PLAYGROUND_BILLING_MODEL_PRICING_PATH, '_blank')
+                }
+              >
+                <Settings className='mr-1 h-3.5 w-3.5' />
+                {t('Go to Settings')}
+              </Button>
+            ) : null}
+          </div>
+        </div>
+      </div>
     )
   }
 
   return (
-    <Alert variant='destructive' className={className}>
-      <AlertCircle />
-      <AlertTitle>{t('Error')}</AlertTitle>
-      <AlertDescription>{errorContent}</AlertDescription>
-    </Alert>
+    <div role='alert' className={cn(chatErrorGenericClassName, className)}>
+      <div className='flex gap-2'>
+        <AlertCircle className='mt-0.5 size-4 shrink-0 text-red-400' />
+        <div className='min-w-0 flex-1 space-y-2'>
+          <p className='font-medium text-slate-100'>{t('Error')}</p>
+          <div className='space-y-2 text-slate-300'>
+            {(paragraphs.length > 0 ? paragraphs : [errorContent]).map(
+              (paragraph) => (
+                <p key={paragraph} className='leading-relaxed'>
+                  {paragraph}
+                </p>
+              )
+            )}
+          </div>
+          {requestId ? (
+            <p className='text-xs text-slate-400'>
+              {t('Playground request id label', { id: requestId })}
+            </p>
+          ) : null}
+        </div>
+      </div>
+    </div>
   )
 }

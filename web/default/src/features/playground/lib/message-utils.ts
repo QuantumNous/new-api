@@ -18,6 +18,10 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { nanoid } from 'nanoid'
 import { MESSAGE_ROLES, MESSAGE_STATUS, ERROR_MESSAGES } from '../constants'
+import {
+  formatPlaygroundChatErrorMessage,
+  resolvePlaygroundErrorCode,
+} from './playground-error-display'
 import type {
   Message,
   MessageVersion,
@@ -221,16 +225,18 @@ export function updateAssistantMessageWithError(
   errorMessage: string,
   errorCode?: string
 ): Message[] {
+  const resolvedCode = resolvePlaygroundErrorCode(errorMessage, errorCode)
+  const displayMessage = formatPlaygroundChatErrorMessage(
+    errorMessage,
+    resolvedCode
+  )
   return updateLastAssistantMessage(messages, (message) => {
-    const updatedMessage = updateCurrentVersionContent(
-      message,
-      `${ERROR_MESSAGES.API_REQUEST_ERROR}: ${errorMessage}`
-    )
+    const updatedMessage = updateCurrentVersionContent(message, displayMessage)
     return {
       ...updatedMessage,
       status: MESSAGE_STATUS.ERROR,
       isReasoningStreaming: false,
-      errorCode: errorCode || null,
+      errorCode: resolvedCode || null,
     }
   })
 }

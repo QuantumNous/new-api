@@ -27,6 +27,7 @@ import {
   processStreamingContent,
   finalizeMessage,
 } from '../lib'
+import { formatPlaygroundChatErrorMessage } from '../lib/playground-error-display'
 import type { Message, PlaygroundConfig, ParameterEnabled } from '../types'
 import { useStreamRequest } from './use-stream-request'
 
@@ -92,7 +93,8 @@ export function useChatHandler({
   // Handle stream error
   const handleStreamError = useCallback(
     (error: string, errorCode?: string) => {
-      toast.error(error)
+      const displayError = formatPlaygroundChatErrorMessage(error, errorCode)
+      toast.error(displayError)
       onMessageUpdate((prev) =>
         updateAssistantMessageWithError(prev, error, errorCode)
       )

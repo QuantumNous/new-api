@@ -17,6 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 export * from './message-utils'
+export * from './playground-error-display'
 export * from './payload-builder'
 export * from './storage'
 export * from './message-styles'

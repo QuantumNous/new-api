@@ -50,6 +50,7 @@ import {
 } from '@/components/ai-elements/prompt-input'
 import { Suggestion, Suggestions } from '@/components/ai-elements/suggestion'
 import { ModelGroupSelector } from '@/components/model-group-selector'
+import { PLAYGROUND_PROMPT_SUGGESTIONS_VISIBLE } from '../constants'
 import type { ModelOption, GroupOption } from '../types'
 
 interface PlaygroundInputProps {
@@ -219,21 +220,23 @@ export function PlaygroundInput({
         </PromptInputFooter>
       </PromptInput>
 
-      <Suggestions>
-        {suggestions.map(({ icon: Icon, text, color }) => (
-          <Suggestion
-            className={`text-xs font-normal sm:text-sm ${
-              text === 'More' ? 'hidden sm:flex' : ''
-            }`}
-            key={text}
-            onClick={() => handleSuggestionClick(text)}
-            suggestion={text}
-          >
-            {Icon && <Icon size={16} style={{ color }} />}
-            {text}
-          </Suggestion>
-        ))}
-      </Suggestions>
+      {PLAYGROUND_PROMPT_SUGGESTIONS_VISIBLE ? (
+        <Suggestions>
+          {suggestions.map(({ icon: Icon, text, color }) => (
+            <Suggestion
+              className={`text-xs font-normal sm:text-sm ${
+                text === 'More' ? 'hidden sm:flex' : ''
+              }`}
+              key={text}
+              onClick={() => handleSuggestionClick(text)}
+              suggestion={text}
+            >
+              {Icon && <Icon size={16} style={{ color }} />}
+              {text}
+            </Suggestion>
+          ))}
+        </Suggestions>
+      ) : null}
     </div>
   )
 }
