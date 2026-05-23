@@ -23,6 +23,9 @@ func ShouldRetryRelayError(c *gin.Context, openaiErr *types.NewAPIError, retryTi
 	if ShouldSkipRetryAfterChannelAffinityFailure(c) {
 		return false
 	}
+	if GetChannelConstraints(c).SuppressesRetry() {
+		return false
+	}
 	if types.IsChannelError(openaiErr) {
 		return true
 	}
@@ -30,9 +33,6 @@ func ShouldRetryRelayError(c *gin.Context, openaiErr *types.NewAPIError, retryTi
 		return false
 	}
 	if retryTimes <= 0 {
-		return false
-	}
-	if GetChannelConstraints(c).SuppressesRetry() {
 		return false
 	}
 	code := openaiErr.StatusCode

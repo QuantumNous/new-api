@@ -42,6 +42,9 @@ func TestApplyResponsesUsageCopiesTokenDetails(t *testing.T) {
 	assert.Equal(t, src.InputTokensDetails, dst.InputTokensDetails)
 	assert.NotSame(t, src.InputTokensDetails, dst.InputTokensDetails)
 	assert.Equal(t, *src.OutputTokensDetails, dst.CompletionTokenDetails)
+	require.NotNil(t, dst.OutputTokensDetails)
+	assert.Equal(t, *src.OutputTokensDetails, *dst.OutputTokensDetails)
+	assert.NotSame(t, src.OutputTokensDetails, dst.OutputTokensDetails)
 	assert.Equal(t, 3, dst.PromptCacheHitTokens)
 	assert.Equal(t, "openai", dst.UsageSemantic)
 	assert.Equal(t, "upstream", dst.UsageSource)
@@ -58,6 +61,8 @@ func TestApplyResponsesUsageFallsBackToCompletionTokenDetails(t *testing.T) {
 	ApplyResponsesUsage(dst, src)
 
 	assert.Equal(t, 9, dst.CompletionTokenDetails.ReasoningTokens)
+	require.NotNil(t, dst.OutputTokensDetails)
+	assert.Equal(t, 9, dst.OutputTokensDetails.ReasoningTokens)
 }
 
 func TestApplyResponsesUsagePreservesBillingSnapshotAcrossPartialUpdates(t *testing.T) {
@@ -89,6 +94,8 @@ func TestApplyResponsesUsagePreservesBillingSnapshotAcrossPartialUpdates(t *test
 	assert.Equal(t, 2, dst.PromptTokensDetails.AudioTokens)
 	assert.Equal(t, 4, dst.CompletionTokenDetails.AudioTokens)
 	assert.Equal(t, 5, dst.CompletionTokenDetails.ReasoningTokens)
+	require.NotNil(t, dst.OutputTokensDetails)
+	assert.Equal(t, dst.CompletionTokenDetails, *dst.OutputTokensDetails)
 	assert.Equal(t, "openai", dst.UsageSemantic)
 	assert.Equal(t, "upstream", dst.UsageSource)
 	require.NotNil(t, dst.BillingUsage)

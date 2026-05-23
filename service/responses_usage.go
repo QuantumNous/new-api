@@ -19,4 +19,8 @@ func ApplyResponsesUsage(dst *dto.Usage, src *dto.Usage) {
 	}
 	incoming.PromptCacheHitTokens = src.PromptCacheHitTokens
 	dto.MergeUsageNonZero(dst, incoming)
+	outputDetails := dst.CompletionTokenDetails
+	if outputDetails != (dto.OutputTokenDetails{}) {
+		dst.OutputTokensDetails = &outputDetails
+	}
 }
