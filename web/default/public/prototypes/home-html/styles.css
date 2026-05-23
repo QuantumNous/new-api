@@ -7694,37 +7694,19 @@ body {
 
 .prototype-home[data-theme="light"] .prototype-home__hero-device--motion::before {
   z-index: 0;
-  inset: 2% -2% -2%;
-  opacity: 0.88;
-  border-radius: 44% 56% 42% 58%;
+  inset: -12% -18% -8%;
+  opacity: 0.58;
+  border-radius: 50%;
   background:
-    radial-gradient(ellipse at 52% 33%, rgba(197, 249, 85, 0.18), transparent 34%),
-    radial-gradient(ellipse at 52% 62%, rgba(117, 214, 132, 0.12), transparent 42%),
-    radial-gradient(ellipse at 50% 74%, rgba(15, 25, 17, 0.045), transparent 52%);
-  filter: blur(22px);
+    radial-gradient(ellipse at 52% 33%, rgba(197, 249, 85, 0.13), transparent 38%),
+    radial-gradient(ellipse at 52% 62%, rgba(117, 214, 132, 0.09), transparent 48%),
+    radial-gradient(ellipse at 50% 74%, rgba(15, 25, 17, 0.032), transparent 58%);
+  filter: blur(38px);
   transform: translateZ(0);
 }
 
 .prototype-home[data-theme="light"] .prototype-home__hero-device--motion::after {
-  content: "";
-  display: block;
-  position: absolute;
-  left: 16%;
-  right: 10%;
-  bottom: 10%;
-  height: 24%;
-  z-index: 1;
-  pointer-events: none;
-  border: 1px solid rgba(92, 124, 47, 0.10);
-  border-radius: 50%;
-  background:
-    radial-gradient(ellipse at 50% 48%, rgba(255, 255, 255, 0.86) 0%, rgba(245, 249, 242, 0.58) 42%, transparent 72%),
-    radial-gradient(ellipse at 50% 54%, rgba(197, 249, 85, 0.11) 0%, rgba(197, 249, 85, 0.04) 50%, transparent 78%);
-  box-shadow:
-    0 18px 44px -38px rgba(18, 28, 12, 0.42),
-    inset 0 1px 0 rgba(255, 255, 255, 0.72);
-  filter: blur(0.2px);
-  transform: rotate(-4deg) translate3d(0, 0, 0);
+  content: none;
 }
 
 .prototype-home[data-theme="light"] .prototype-home__hero-motion {
@@ -7771,15 +7753,14 @@ body {
   position: absolute;
   inset: 7% 3% 3%;
   z-index: 0;
-  opacity: 0.78;
+  opacity: 0.68;
   border-radius: 50%;
   background:
     radial-gradient(circle at 50% 29%, rgba(244, 255, 218, 0.68) 0 8%, rgba(197, 249, 85, 0.18) 9% 25%, transparent 43%),
-    repeating-conic-gradient(from 12deg at 50% 58%, rgba(111, 160, 42, 0.05) 0deg 7deg, transparent 7deg 22deg),
-    radial-gradient(ellipse at 50% 66%, rgba(96, 143, 42, 0.10) 0%, rgba(96, 143, 42, 0.035) 44%, transparent 66%);
-  -webkit-mask-image: radial-gradient(ellipse at 50% 55%, #000 0%, rgba(0, 0, 0, 0.72) 44%, transparent 72%);
-  mask-image: radial-gradient(ellipse at 50% 55%, #000 0%, rgba(0, 0, 0, 0.72) 44%, transparent 72%);
-  filter: blur(10px);
+    radial-gradient(ellipse at 50% 66%, rgba(96, 143, 42, 0.08) 0%, rgba(96, 143, 42, 0.026) 44%, transparent 66%);
+  -webkit-mask-image: none;
+  mask-image: none;
+  filter: blur(20px);
 }
 
 .prototype-home[data-theme="light"] .aiapi-hero-visual::after {
@@ -7912,9 +7893,6 @@ body {
     animation: aiapiHeroDayAura 8.4s ease-in-out infinite;
   }
 
-  .prototype-home[data-theme="light"] .prototype-home__hero-device--motion::after {
-    animation: aiapiHeroDayPlate 9.6s ease-in-out infinite;
-  }
 }
 
 @keyframes aiapiHeroDayAura {
@@ -7928,23 +7906,7 @@ body {
   }
 }
 
-@keyframes aiapiHeroDayPlate {
-  0%, 100% {
-    transform: rotate(-4deg) translate3d(0, 0, 0);
-  }
-  50% {
-    transform: rotate(-4deg) translate3d(0, -4px, 0);
-  }
-}
-
 @media (max-width: 680px) {
-  .prototype-home[data-theme="light"] .prototype-home__hero-device--motion::after {
-    left: 13%;
-    right: 13%;
-    bottom: 8%;
-    height: 20%;
-  }
-
   .prototype-home[data-theme="light"] .aiapi-hero-visual::before {
     inset: 3% -3% 1%;
     opacity: 0.72;
@@ -7961,6 +7923,101 @@ body {
 @media (prefers-reduced-motion: reduce) {
   .prototype-home[data-theme="light"] .prototype-home__hero-device--motion::before,
   .prototype-home[data-theme="light"] .prototype-home__hero-device--motion::after {
+    animation: none !important;
+  }
+}
+
+/* Hero environmental light field:
+   let the illustration tint the daylight canvas instead of sitting on a
+   neutral white background. The gradient starts from the visual center and
+   diffuses into the page color without lowering text contrast. */
+.prototype-home[data-theme="light"] {
+  --prototype-hero-field-lime: rgba(197, 249, 85, 0.102);
+  --prototype-hero-field-mint: rgba(46, 225, 137, 0.062);
+  --prototype-hero-field-cyan: rgba(128, 244, 218, 0.036);
+  --prototype-hero-field-wash: rgba(244, 255, 218, 0.32);
+  background:
+    radial-gradient(900px 520px at 74% 34%, var(--prototype-hero-field-lime), transparent 62%),
+    radial-gradient(760px 460px at 69% 48%, var(--prototype-hero-field-mint), transparent 66%),
+    radial-gradient(620px 340px at 83% 29%, var(--prototype-hero-field-cyan), transparent 70%),
+    radial-gradient(760px 420px at 20% 9%, rgba(197, 249, 85, 0.07), transparent 60%),
+    linear-gradient(180deg, #fbfcfd 0%, #f8fafb 46%, #f2f4f6 100%);
+}
+
+.prototype-home[data-theme="light"] .prototype-home__hero {
+  isolation: isolate;
+  overflow: visible;
+}
+
+.prototype-home[data-theme="light"] .prototype-home__hero::before,
+.prototype-home[data-theme="light"] .prototype-home__hero::after {
+  content: "";
+  position: absolute;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.prototype-home[data-theme="light"] .prototype-home__hero::before {
+  inset: -118px -156px -96px 34%;
+  border-radius: 50%;
+  opacity: 0.72;
+  background:
+    radial-gradient(ellipse at 61% 39%, rgba(255, 255, 255, 0.72) 0%, rgba(244, 255, 218, 0.34) 14%, transparent 30%),
+    radial-gradient(ellipse at 62% 45%, rgba(197, 249, 85, 0.17) 0%, rgba(197, 249, 85, 0.072) 36%, transparent 65%),
+    radial-gradient(ellipse at 54% 58%, rgba(36, 220, 130, 0.095) 0%, rgba(36, 220, 130, 0.032) 48%, transparent 74%);
+  filter: blur(14px);
+  transform: translateZ(0);
+}
+
+.prototype-home[data-theme="light"] .prototype-home__hero::after {
+  content: none;
+}
+
+.prototype-home[data-theme="light"] .prototype-home__hero-copy,
+.prototype-home[data-theme="light"] .prototype-home__hero-device--motion {
+  z-index: 1;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .prototype-home[data-theme="light"] .prototype-home__hero::before {
+    animation: prototypeHeroLightFieldBreath 11s ease-in-out infinite;
+  }
+
+}
+
+@keyframes prototypeHeroLightFieldBreath {
+  0%, 100% {
+    opacity: 0.62;
+    transform: translate3d(0, 0, 0) scale(0.985);
+  }
+  50% {
+    opacity: 0.82;
+    transform: translate3d(-8px, -5px, 0) scale(1.025);
+  }
+}
+
+@media (max-width: 820px) {
+  .prototype-home[data-theme="light"] {
+    background:
+      radial-gradient(540px 420px at 50% 62%, rgba(197, 249, 85, 0.095), transparent 66%),
+      radial-gradient(460px 360px at 50% 70%, rgba(46, 225, 137, 0.052), transparent 70%),
+      linear-gradient(180deg, #fbfcfd 0%, #f8fafb 46%, #f2f4f6 100%);
+  }
+
+  .prototype-home[data-theme="light"] .prototype-home__hero::before {
+    inset: 42% -18% -10%;
+    opacity: 0.64;
+    background:
+      radial-gradient(ellipse at 50% 43%, rgba(255, 255, 255, 0.72) 0%, rgba(244, 255, 218, 0.28) 18%, transparent 34%),
+      radial-gradient(ellipse at 50% 50%, rgba(197, 249, 85, 0.15) 0%, rgba(197, 249, 85, 0.06) 42%, transparent 70%),
+      radial-gradient(ellipse at 50% 58%, rgba(36, 220, 130, 0.076) 0%, rgba(36, 220, 130, 0.026) 52%, transparent 78%);
+  }
+
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .prototype-home[data-theme="light"] .prototype-home__hero::before,
+  .prototype-home[data-theme="light"] .prototype-home__hero::after {
     animation: none !important;
   }
 }
