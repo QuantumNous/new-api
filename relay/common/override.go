@@ -21,6 +21,7 @@ var negativeIndexRegexp = regexp.MustCompile(`\.(-\d+)`)
 const (
 	paramOverrideContextRequestHeaders = "request_headers"
 	paramOverrideContextHeaderOverride = "header_override"
+	paramOverrideContextHeaderDeleted  = "header_deleted"
 	paramOverrideContextAuditRecorder  = "__param_override_audit_recorder"
 )
 
@@ -186,6 +187,7 @@ func ApplyParamOverrideWithRelayInfo(jsonData []byte, info *RelayInfo) ([]byte, 
 		return nil, err
 	}
 	syncRuntimeHeaderOverrideFromContext(info, overrideCtx)
+	syncRuntimeHeaderDeletedFromContext(info, overrideCtx)
 	if info != nil {
 		if recorder != nil {
 			info.ParamOverrideAudit = recorder.lines
@@ -1217,7 +1219,24 @@ func deleteHeaderOverrideInContext(context map[string]interface{}, headerName st
 	}
 	rawHeaders := ensureMapKeyInContext(context, paramOverrideContextHeaderOverride)
 	delete(rawHeaders, headerName)
+	recordHeaderDeletedInContext(context, headerName)
 	return nil
+}
+
+func recordHeaderDeletedInContext(context map[string]interface{}, headerName string) {
+	if context == nil {
+		return
+	}
+	headerName = normalizeHeaderContextKey(headerName)
+	if headerName == "" {
+		return
+	}
+	raw, _ := context[paramOverrideContextHeaderDeleted].(map[string]struct{})
+	if raw == nil {
+		raw = make(map[string]struct{})
+		context[paramOverrideContextHeaderDeleted] = raw
+	}
+	raw[headerName] = struct{}{}
 }
 
 func parseHeaderPassThroughNames(value interface{}) ([]string, error) {
@@ -1489,6 +1508,31 @@ func syncRuntimeHeaderOverrideFromContext(info *RelayInfo, context map[string]in
 	}
 	info.RuntimeHeadersOverride = sanitizeHeaderOverrideMap(rawMap)
 	info.UseRuntimeHeadersOverride = true
+}
+
+func syncRuntimeHeaderDeletedFromContext(info *RelayInfo, context map[string]interface{}) {
+	if info == nil || context == nil {
+		return
+	}
+	deleted := extractDeletedHeadersFromContext(context)
+	if len(deleted) == 0 {
+		return
+	}
+	info.RuntimeHeadersDeleted = deleted
+	info.UseRuntimeHeadersOverride = true
+}
+
+func extractDeletedHeadersFromContext(context map[string]interface{}) []string {
+	raw, ok := context[paramOverrideContextHeaderDeleted].(map[string]struct{})
+	if !ok || len(raw) == 0 {
+		return nil
+	}
+	keys := make([]string, 0, len(raw))
+	for key := range raw {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	return keys
 }
 
 func moveValue(jsonStr, fromPath, toPath string) (string, error) {

@@ -150,6 +150,7 @@ type RelayInfo struct {
 	RetryIndex                            int
 	LastError                             *types.NewAPIError
 	RuntimeHeadersOverride                map[string]interface{}
+	RuntimeHeadersDeleted                 []string
 	UseRuntimeHeadersOverride             bool
 	ParamOverrideAudit                    []string
 

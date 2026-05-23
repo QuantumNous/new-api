@@ -274,16 +274,34 @@ func ResolveHeaderOverride(info *common.RelayInfo, c *gin.Context) (map[string]s
 	return processHeaderOverride(info, c)
 }
 
-func applyHeaderOverrideToRequest(req *http.Request, headerOverride map[string]string) {
-	if req == nil {
+func ApplyResolvedHeaderOverrides(dst *http.Header, info *common.RelayInfo, headerOverride map[string]string) {
+	if dst == nil {
 		return
 	}
 	for key, value := range headerOverride {
-		req.Header.Set(key, value)
-		// set Host in req
+		dst.Set(key, value)
+	}
+	removeRuntimeDeletedHeaders(dst, info)
+}
+
+func applyHeaderOverrideToRequest(req *http.Request, info *common.RelayInfo, headerOverride map[string]string) {
+	if req == nil {
+		return
+	}
+	ApplyResolvedHeaderOverrides(&req.Header, info, headerOverride)
+	for key, value := range headerOverride {
 		if strings.EqualFold(key, "Host") {
 			req.Host = value
 		}
+	}
+}
+
+func removeRuntimeDeletedHeaders(headers *http.Header, info *common.RelayInfo) {
+	if headers == nil || info == nil || !info.UseRuntimeHeadersOverride {
+		return
+	}
+	for _, key := range info.RuntimeHeadersDeleted {
+		headers.Del(key)
 	}
 }
 
@@ -310,7 +328,7 @@ func DoApiRequest(a Adaptor, c *gin.Context, info *common.RelayInfo, requestBody
 	if err != nil {
 		return nil, err
 	}
-	applyHeaderOverrideToRequest(req, headerOverride)
+	applyHeaderOverrideToRequest(req, info, headerOverride)
 	resp, err := doRequest(c, req, info)
 	if err != nil {
 		return nil, fmt.Errorf("do request failed: %w", err)
@@ -343,7 +361,7 @@ func DoFormRequest(a Adaptor, c *gin.Context, info *common.RelayInfo, requestBod
 	if err != nil {
 		return nil, err
 	}
-	applyHeaderOverrideToRequest(req, headerOverride)
+	applyHeaderOverrideToRequest(req, info, headerOverride)
 	resp, err := doRequest(c, req, info)
 	if err != nil {
 		return nil, fmt.Errorf("do request failed: %w", err)
@@ -367,9 +385,7 @@ func DoWssRequest(a Adaptor, c *gin.Context, info *common.RelayInfo, requestBody
 	if err != nil {
 		return nil, err
 	}
-	for key, value := range headerOverride {
-		targetHeader.Set(key, value)
-	}
+	ApplyResolvedHeaderOverrides(&targetHeader, info, headerOverride)
 	targetHeader.Set("Content-Type", c.Request.Header.Get("Content-Type"))
 	targetConn, _, err := websocket.DefaultDialer.Dial(fullRequestURL, targetHeader)
 	if err != nil {

@@ -186,8 +186,28 @@ func TestProcessHeaderOverride_PassHeadersTemplateSetsRuntimeHeaders(t *testing.
 	require.False(t, exists)
 
 	upstreamReq := httptest.NewRequest(http.MethodPost, "https://example.com/v1/responses", nil)
-	applyHeaderOverrideToRequest(upstreamReq, headers)
+	applyHeaderOverrideToRequest(upstreamReq, info, headers)
 	require.Equal(t, "Codex CLI", upstreamReq.Header.Get("Originator"))
 	require.Equal(t, "sess-123", upstreamReq.Header.Get("Session_id"))
 	require.Empty(t, upstreamReq.Header.Get("X-Codex-Beta-Features"))
+}
+
+func TestApplyResolvedHeaderOverrides_RemovesRuntimeDeletedHeaders(t *testing.T) {
+	t.Parallel()
+
+	headers := http.Header{}
+	headers.Set("anthropic-beta", "computer-use-2025-01-24")
+	headers.Set("x-api-key", "secret")
+
+	info := &relaycommon.RelayInfo{
+		UseRuntimeHeadersOverride: true,
+		RuntimeHeadersDeleted:     []string{"anthropic-beta"},
+	}
+
+	ApplyResolvedHeaderOverrides(&headers, info, map[string]string{
+		"x-api-key": "secret",
+	})
+
+	require.Empty(t, headers.Get("anthropic-beta"))
+	require.Equal(t, "secret", headers.Get("x-api-key"))
 }

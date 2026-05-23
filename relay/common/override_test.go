@@ -1861,6 +1861,9 @@ func TestApplyParamOverrideWithRelayInfoSyncRuntimeHeaders(t *testing.T) {
 	if _, exists := info.RuntimeHeadersOverride["x-delete-me"]; exists {
 		t.Fatalf("expected x-delete-me header to be deleted")
 	}
+	if len(info.RuntimeHeadersDeleted) != 1 || info.RuntimeHeadersDeleted[0] != "x-delete-me" {
+		t.Fatalf("expected x-delete-me to be tracked as deleted, got: %v", info.RuntimeHeadersDeleted)
+	}
 }
 
 func TestApplyParamOverrideWithRelayInfoMixedLegacyAndOperations(t *testing.T) {
