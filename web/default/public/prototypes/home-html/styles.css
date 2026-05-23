@@ -8354,3 +8354,16 @@ body {
   background: transparent;
   box-shadow: none;
 }
+
+.prototype-home[data-theme="dark"] .prototype-home__notice-link {
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+}
+
+.prototype-home[data-theme="dark"] .prototype-home__notice-link:hover,
+.prototype-home[data-theme="dark"] .prototype-home__notice-link:focus-visible {
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+}
