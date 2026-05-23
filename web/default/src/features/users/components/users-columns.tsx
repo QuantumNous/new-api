@@ -109,7 +109,7 @@ export function useUsersColumns(): ColumnDef<User>[] {
             </div>
             {displayName && displayName !== username && (
               <LongText className='text-muted-foreground max-w-[180px] text-xs'>
-                {displayName}
+                {t(displayName)}
               </LongText>
             )}
           </div>

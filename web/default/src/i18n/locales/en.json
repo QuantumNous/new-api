@@ -4853,6 +4853,7 @@
         "Account role": "Account role",
         "Token quota": "Token quota",
         "Platform administrator": "Platform administrator",
+        "Root User": "Super administrator",
         "Super administrator": "Super administrator",
         "Update account": "Update account",
         "Add a new account with roles, tenant group, and token quota": "Create a tenant account with basic info, account role, tenant group, and token quota.",
