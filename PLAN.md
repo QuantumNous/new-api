@@ -24,7 +24,7 @@ Weekly: this engineer updates the checkboxes; un-checked items become carry-over
 
 ---
 
-## Phase 0 — Foundation ✅ DONE (2026-05-12)
+## Phase 0 — Foundation ✅ DONE (2026-05-12, extended 2026-05-18)
 
 **Goal**: Fork running locally, schema extended, leaf packages compile + test + CI green.
 
@@ -34,10 +34,13 @@ Weekly: this engineer updates the checkboxes; un-checked items become carry-over
 - [x] `internal/kids/` — pure helpers (whitelist / metadata strip / ZDR / system prompt)
 - [x] `internal/policy/` — DecisionFor combines KidsMode + Profile into single decision
 - [x] `internal/billing/` — HMAC sign + retry-aware Dispatcher
+- [x] `internal/smart_router_client/` — HTTP client + 5-failure/30s circuit breaker + graceful degradation (added 2026-05-18 for smart-router Phase 2 integration)
+- [x] `relay/airbotix_policy.go` (+ test) — wires `internal/policy` + `internal/kids` into OpenAI / Claude / Gemini / Responses request shapes
+- [x] `middleware/smart_router.go` — wires `internal/smart_router_client` into the relay path; handles `deeprouter-auto` virtual model
 - [x] `.github/workflows/airbotix-internal.yml` — path-filtered CI (vet + build + test -race)
-- [x] All 12 unit tests green on CI
+- [x] All unit tests green on CI; smart-router end-to-end probe via `docker-compose.smart-router.yml` passes
 
-**Output**: 3 leaf packages ready to be wired. No upstream behaviour changed yet.
+**Output**: 4 leaf packages implemented + tested. Three of four (`kids`, `policy`, `smart_router_client`) are already wired into the request pipeline. `internal/billing/` is implemented but not yet wired — that's Phase 2.
 
 ---
 

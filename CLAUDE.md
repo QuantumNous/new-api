@@ -1,107 +1,149 @@
-# CLAUDE.md — Project Conventions for new-api
+# CLAUDE.md — Codebase map for Claude (deeprouter gateway)
 
-## Overview
+This file orients Claude before edits. Read top-to-bottom before working in this repo.
 
-This is an AI API gateway/proxy built with Go. It aggregates 40+ upstream AI providers (OpenAI, Claude, Gemini, Azure, AWS Bedrock, etc.) behind a unified API, with user management, billing, rate limiting, and an admin dashboard.
+**Sister files**:
+- `AGENTS.md` — coding rules (JSON wrapper, cross-DB, branding lock, billing expression, pointer omitempty). Treat those rules as mandatory; this file does not repeat them.
+- `ARCHITECTURE.md` — upstream-derived module tour (`router/` → `controller/` → `service/` → `model/`).
+- `AIRBOTIX.md` — what the fork customises vs upstream + upstream-sync workflow.
+- `DEV.md` — 5-minute local quickstart.
+- `PLAN.md` — phase plan to V0 launch.
+- `docs/PRD.md` — engineering PRD.
+- `../CLAUDE.md` — umbrella file covering the AGPL/Apache process boundary between this repo and `../smart-router/`.
 
-## Tech Stack
+## 1. What this codebase is
 
-- **Backend**: Go 1.22+, Gin web framework, GORM v2 ORM
-- **Frontend**: React 19, TypeScript, Rsbuild, Base UI, Tailwind CSS
-- **Databases**: SQLite, MySQL, PostgreSQL (all three must be supported)
-- **Cache**: Redis (go-redis) + in-memory cache
-- **Auth**: JWT, WebAuthn/Passkeys, OAuth (GitHub, Discord, OIDC, etc.)
-- **Frontend package manager**: Bun (preferred over npm/yarn/pnpm)
+OpenAI-compatible multi-tenant LLM gateway, **fork of `QuantumNous/new-api`** (AGPL v3). Routes incoming requests to one of **37 upstream providers** (`relay/channel/`) via an admin-managed pool of API keys with priority/weight selection, per-key health, and retry. Embedded React admin UI under `web/default/`.
 
-## Architecture
+This fork adds 4 Airbotix-specific things on top of upstream:
 
-Layered architecture: Router -> Controller -> Service -> Model
+| Lives in | What it adds |
+|---|---|
+| `internal/policy/` | Per-tenant policy decision engine (kids_mode / passthrough / adult). Pure function. |
+| `internal/kids/` | Hard constraints for kids_mode (model whitelist, metadata stripping, OpenAI ZDR, child-safe system prompt). |
+| `internal/smart_router_client/` | HTTP client that calls the `smart-router` sidecar for `deeprouter-auto` virtual-model routing. |
+| `internal/billing/` | HMAC-signed per-request billing webhook dispatcher. Implemented + tested, **not yet wired into the relay path** (Phase 2 work). |
+| `relay/airbotix_policy.go` | The one upstream-adjacent file — stitches policy + kids enforcement into the relay request lifecycle for OpenAI / Claude / Gemini / Responses request shapes. |
+| `model/user.go` | Extended with 4 columns: `kids_mode`, `policy_profile`, `billing_webhook_url`, `custom_pricing_id`. |
+| `middleware/smart_router.go` | Detects `deeprouter-auto`, calls smart_router_client, rewrites the model name before relay. |
+
+Each `internal/` subpackage has its own README — read it before editing.
+
+## 2. Key facts (things that bite if you get them wrong)
+
+- **`channels.key` is stored plaintext in Postgres.** No symmetric encryption in this codebase — grep `AES`, `cipher`, `EncryptKey` returns nothing. API keys to upstream providers (OpenAI/Anthropic/Bedrock/…) round-trip plaintext.
+- **`CRYPTO_SECRET` does NOT encrypt channel keys.** It's only used for HMAC of user access tokens to form Redis cache keys (`model/token_cache.go`, `service/file_service.go`). Treat it as an HMAC secret, not a master key.
+- **Reading `channel.key` plaintext via API requires `RootAuth()` + `SecureVerificationRequired()`** (`router/api-router.go:230` — `POST /api/channel/:id/key`). Regular admins see masked values only. Adding/updating channels works with `AdminAuth()`.
+- **AWS Bedrock channel does NOT support IAM role / instance profile.** `relay/channel/aws/` only implements `ApiKey` (`key|region` bearer) and `AKSK` (`ak|sk|region` static). Don't promise users that EC2 IAM role works for Bedrock — file a feature request instead.
+- **Provider count is 37**, not "40+". Subdirectories under `relay/channel/`.
+- **`internal/billing/` compiles + tests pass, but no relay code calls it yet.** Wiring is Phase 2 in `PLAN.md`. Don't claim billing webhooks fire today.
+- **Channel selection (`model/channel_cache.go:GetRandomSatisfiedChannel`)**: priority-tier stratification → weight-based random within tier. On retry N, jump to Nth priority tier. Health/retry orchestration is at the controller layer, not in this function.
+
+## 3. Where things live
 
 ```
-router/        — HTTP routing (API, relay, dashboard, web)
-controller/    — Request handlers
-service/       — Business logic
-model/         — Data models and DB access (GORM)
-relay/         — AI API relay/proxy with provider adapters
-  relay/channel/ — Provider-specific adapters (openai/, claude/, gemini/, aws/, etc.)
-middleware/    — Auth, rate limiting, CORS, logging, distribution
-setting/       — Configuration management (ratio, model, operation, system, performance)
-common/        — Shared utilities (JSON, crypto, Redis, env, rate-limit, etc.)
-dto/           — Data transfer objects (request/response structs)
-constant/      — Constants (API types, channel types, context keys)
-types/         — Type definitions (relay formats, file sources, errors)
-i18n/          — Backend internationalization (go-i18n, en/zh)
-oauth/         — OAuth provider implementations
-pkg/           — Internal packages (cachex, ionet)
-web/             — Frontend themes container
- web/default/   — Default frontend (React 19, Rsbuild, Base UI, Tailwind)
-  web/classic/   — Classic frontend (React 18, Vite, Semi Design)
-  web/default/src/i18n/ — Frontend internationalization (i18next, zh/en/fr/ru/ja/vi)
+deeprouter/
+├── main.go                       — Go entry; ParseConfig + StartServer
+├── router/                       — Gin route registration (api-router.go = admin API, relay-router.go = /v1/* upstream relay)
+├── controller/                   — Gin handlers (auth, channel CRUD, billing pages, relay dispatch)
+├── service/                      — Business logic (quota, log aggregation, push notifications)
+├── model/                        — GORM models + DB access (user, channel, token, ability, log, …)
+│   └── channel_cache.go          — Layer-2 channel routing: GetRandomSatisfiedChannel
+├── relay/                        — Upstream LLM relay layer; see relay/README.md
+│   ├── airbotix_policy.go        — fork-specific: applies policy + kids enforcement per request shape
+│   ├── chat_completions_via_responses.go, claude_handler.go, ... — top-level dispatchers
+│   └── channel/                  — 37 provider adapters; see relay/channel/README.md
+├── middleware/                   — Auth, rate-limit, distributor, CORS, log, smart_router (Airbotix)
+├── internal/                     — Airbotix-private packages (clean-keep zone for upstream rebase)
+│   ├── billing/                  — HMAC webhook dispatcher (NOT yet wired)
+│   ├── kids/                     — kids_mode constraint helpers
+│   ├── policy/                   — DecisionFor(kidsMode, profile) → Decision
+│   └── smart_router_client/      — HTTP client for ../smart-router
+├── setting/                      — Runtime config (ratio, model, operation, system, performance)
+├── common/                       — JSON wrapper, crypto helpers, env, redis, rate-limit, …
+├── dto/                          — Request/response structs (upstream + airbotix)
+├── constant/                     — Channel types, API types, context keys
+├── types/                        — Relay formats, errors, file sources
+├── i18n/                         — Backend i18n (go-i18n, en/zh)
+├── oauth/                        — OAuth providers (GitHub, Discord, OIDC, WeCom, …)
+├── pkg/                          — Internal libs (cachex, ionet, billingexpr)
+└── web/                          — Embedded frontends
+    ├── default/                  — React 19 + Rsbuild + Base UI + Tailwind (production)
+    └── classic/                  — React 18 + Vite + Semi Design (legacy)
 ```
 
-## Internationalization (i18n)
+## 4. Working flows (where to start when…)
 
-### Backend (`i18n/`)
-- Library: `nicksnyder/go-i18n/v2`
-- Languages: en, zh
+**Adding a new upstream provider** → see `relay/channel/README.md`. Procedure: create `relay/channel/<name>/`, implement `channel.Adaptor`, register in `relay/relay_adaptor.go`, declare channel type in `constant/channel.go`. Check whether the provider supports `StreamOptions.include_usage`; if yes, add to `streamSupportedChannels` (AGENTS.md Rule 4).
 
-### Frontend (`web/default/src/i18n/`)
-- Library: `i18next` + `react-i18next` + `i18next-browser-languagedetector`
-- Languages: en (base), zh (fallback), fr, ru, ja, vi
-- Translation files: `web/default/src/i18n/locales/{lang}.json` — flat JSON, keys are English source strings
-- Usage: `useTranslation()` hook, call `t('English key')` in components
-- CLI tools: `bun run i18n:sync` (from `web/default/`)
+**Adding a new tenant-level field** (similar to `kids_mode`):
+1. Add column on `model/user.go` (GORM tag; let GORM migrate)
+2. Add admin UI field under `web/default/src/pages/User/`
+3. Update `controller/user.go` PUT/PATCH handlers to accept the field
+4. Update `dto/user.go` if request DTO is separate from `model.User`
+5. Use the field in `internal/policy/` (Decision) or `middleware/` as appropriate
 
-## Rules
+**Adding kids_mode-style enforcement to a new request shape**:
+- Decide which `relay/*_handler.go` (or `relay/channel/<provider>/adaptor.go`'s convert function) receives that shape
+- Extend `relay/airbotix_policy.go` with a new `Apply<Shape>` variant
+- Add test in `relay/airbotix_policy_test.go`
 
-### Rule 1: JSON Package — Use `common/json.go`
+**Wiring `internal/billing/` into relay completion** (Phase 2):
+- Find the relay completion path where tokens are tallied (search for log-write / quota-deduct)
+- Build `billing.Event`, call `billing.NewDispatcher().Send(...)` in a goroutine
+- Need a per-tenant webhook secret — currently no field for it; coordinate with `model/user.go` change
 
-All JSON marshal/unmarshal operations MUST use the wrapper functions in `common/json.go`:
+**Changing the smart-router contract**:
+- This is a cross-repo change. Touch BOTH `internal/smart_router_client/client.go` (deeprouter side) AND `smart-router/internal/api/handler.go` (smart-router side).
+- Update `smart-router/docs/PRD.md` §6.1 + this repo's `internal/smart_router_client/README.md`.
 
-- `common.Marshal(v any) ([]byte, error)`
-- `common.Unmarshal(data []byte, v any) error`
-- `common.UnmarshalJsonStr(data string, v any) error`
-- `common.DecodeJson(reader io.Reader, v any) error`
-- `common.GetJsonType(data json.RawMessage) string`
+## 5. Build / test commands
 
-Do NOT directly import or call `encoding/json` in business code. These wrappers exist for consistency and future extensibility (e.g., swapping to a faster JSON library).
+Run from `deeprouter/` root.
 
-Note: `json.RawMessage`, `json.Number`, and other type definitions from `encoding/json` may still be referenced as types, but actual marshal/unmarshal calls must go through `common.*`.
+```bash
+# Full stack (production-shape image)
+docker compose up -d
+docker compose logs -f new-api
+docker compose down -v                                            # reset (wipes PG + Redis)
 
-### Rule 2: Database Compatibility — SQLite, MySQL >= 5.7.8, PostgreSQL >= 9.6
+# Dev compose (builds Go from local source)
+docker compose -f docker-compose.dev.yml up -d
+docker compose -f docker-compose.dev.yml up -d --build new-api    # rebuild after Go change
 
-All database code MUST be fully compatible with all three databases simultaneously.
+# Full stack + smart-router sidecar (tests the deeprouter-auto path)
+export DEEPROUTER_INTERNAL_TOKEN=$(openssl rand -hex 32)
+docker compose -f docker-compose.smart-router.yml up -d --build
 
-**Use GORM abstractions:**
-- Prefer GORM methods (`Create`, `Find`, `Where`, `Updates`, etc.) over raw SQL.
-- Let GORM handle primary key generation — do not use `AUTO_INCREMENT` or `SERIAL` directly.
+# Native (after frontend is built once)
+make dev                          # dev-api + dev-web
+make dev-web                      # frontend hot-reload only (web/default, port :3001)
+make build-frontend               # build web/default for prod embed
+go run main.go                    # backend only
+go test ./...                     # all Go tests
+go test ./internal/...            # only Airbotix-internal packages
+go test -run TestName ./path/to/pkg
 
-**When raw SQL is unavoidable:**
-- Column quoting differs: PostgreSQL uses `"column"`, MySQL/SQLite uses `` `column` ``.
-- Use `commonGroupCol`, `commonKeyCol` variables from `model/main.go` for reserved-word columns like `group` and `key`.
-- Boolean values differ: PostgreSQL uses `true`/`false`, MySQL/SQLite uses `1`/`0`. Use `commonTrueVal`/`commonFalseVal`.
-- Use `common.UsingPostgreSQL`, `common.UsingSQLite`, `common.UsingMySQL` flags to branch DB-specific logic.
+# Frontend
+cd web/default && bun install && bun run dev    # :3001
+cd web/default && bun run i18n:sync             # sync translation strings
+```
 
-**Forbidden without cross-DB fallback:**
-- MySQL-only functions (e.g., `GROUP_CONCAT` without PostgreSQL `STRING_AGG` equivalent)
-- PostgreSQL-only operators (e.g., `@>`, `?`, `JSONB` operators)
-- `ALTER COLUMN` in SQLite (unsupported — use column-add workaround)
-- Database-specific column types without fallback — use `TEXT` instead of `JSONB` for JSON storage
+Bun is the frontend package manager (AGENTS.md Rule 3) — don't switch to npm/yarn/pnpm.
 
-**Migrations:**
-- Ensure all migrations work on all three databases.
-- For SQLite, use `ALTER TABLE ... ADD COLUMN` instead of `ALTER COLUMN` (see `model/main.go` for patterns).
+## 6. Tech stack snapshot
 
-### Rule 3: Frontend — Prefer Bun
+- Backend: Go 1.22+, Gin, GORM v2
+- Frontend: React 19, TypeScript, Rsbuild, Base UI, Tailwind (`web/default/`); React 18 + Vite + Semi Design legacy (`web/classic/`)
+- Databases: SQLite, MySQL ≥ 5.7.8, PostgreSQL ≥ 9.6 — code must work on **all three** (AGENTS.md Rule 2)
+- Cache: Redis (go-redis) + in-memory layer
+- Auth: JWT, WebAuthn/Passkeys, OAuth (GitHub, Discord, OIDC, WeCom, Lark, …)
 
-Use `bun` as the preferred package manager and script runner for the frontend (`web/default/` directory):
-- `bun install` for dependency installation
-- `bun run dev` for development server
-- `bun run build` for production build
-- `bun run i18n:*` for i18n tooling
+## 7. Internationalisation
 
-### Rule 4: New Channel StreamOptions Support
+- Backend (`i18n/`): `nicksnyder/go-i18n/v2`, en + zh
+- Frontend (`web/default/src/i18n/`): `i18next` + `react-i18next`, en (base) / zh (fallback) / fr / ru / ja / vi. Translation files are flat JSON keyed by English source strings. CLI: `bun run i18n:sync`.
 
-When implementing a new channel:
-- Confirm whether the provider supports `StreamOptions`.
-- If supported, add the channel to `streamSupportedChannels`.
+## 8. Upstream sync etiquette
+
+Custom logic belongs in `internal/`. The only acceptable upstream-adjacent fork file is `relay/airbotix_policy.go` (+ test) — named so rebase conflicts are obvious. Avoid editing upstream files (`controller/`, `model/`, `web/`) when an `internal/` subpackage is the right home. See `AIRBOTIX.md` for the cherry-pick / merge workflow.

@@ -123,23 +123,25 @@ docker compose -f docker-compose.dev.yml up -d --build new-api
 
 ---
 
-## 5. Airbotix-specific 改造 — Week 3-4 工作目标
+## 5. Airbotix-specific 改造现状
 
-按 PRD §6.4-pre，我们需要给 NewAPI 的 `User` 表加 4 个字段。**改造目录约定**（避免污染 upstream）：
+> 状态：Phase 0 ✅ 完成 (2026-05-12)。`internal/*` 4 个包 + `model/user.go` 4 个字段 + `relay/airbotix_policy.go` + `middleware/smart_router.go` 都已实现并接入。Phase 1-2 工作详见 [`PLAN.md`](./PLAN.md)。
 
 ```
 deeprouter/
-├─ internal/policy/     ← 新建。kid-safe 注入、prompt/output 过滤
-├─ internal/billing/    ← 新建。计费 webhook 调用 + 重试 + 死信队列
-├─ internal/kids/       ← 新建。kids_mode 硬约束执行（strip metadata / ZDR / 模型白名单）
-├─ model/user.go        ← 上游文件，加 4 个字段（migration 在 model/db.go）
-└─ web/default/...      ← 上游 admin UI，加 4 个字段的编辑入口
+├─ internal/policy/                ← ✅ DecisionFor(kidsMode, profile) → Decision (6 个 boolean 开关)
+├─ internal/kids/                  ← ✅ 硬约束执行（strip metadata / ZDR / 模型白名单 / child-safe prompt）
+├─ internal/billing/               ← ✅ 实现 (HMAC + retry)，🟡 尚未接入 relay completion 路径
+├─ internal/smart_router_client/   ← ✅ smart-router sidecar 的 HTTP 客户端
+├─ relay/airbotix_policy.go        ← ✅ 在 relay 流程中把 policy + kids 串起来（OpenAI / Claude / Gemini / Responses 四种 request shape）
+├─ middleware/smart_router.go      ← ✅ 检测 deeprouter-auto 虚拟模型并改写
+├─ model/user.go                   ← ✅ 已加 4 个字段（GORM 自动 migrate）
+└─ web/default/...                 ← 🟡 admin UI 字段待加（Phase 1）
 ```
 
-要加的字段：
+User 表已扩展的 4 个字段（`model/user.go`）：
 
 ```go
-// model/user.go 扩展
 type User struct {
     // ... 上游已有字段
     KidsMode             bool   `gorm:"default:false"`
@@ -149,10 +151,27 @@ type User struct {
 }
 ```
 
-测试：在 admin UI 给一个 user 开 `kids_mode = true`，调用 OpenAI 端点时验证：
-- ✅ 请求自动加 `store: false`
-- ✅ 输出 NSFW 等过滤启用
-- ✅ 请求 metadata 里没有 user_id
+本地端到端验证 kids_mode（需要前置：admin UI 字段就绪，或直接 `psql` 改 DB）：
+
+```bash
+# 1. 把某 user 的 kids_mode 置 true
+psql -h localhost -U root -d new-api -c "UPDATE users SET kids_mode = true, policy_profile = 'kid-safe' WHERE id = 1;"
+
+# 2. 用该 user 的 token 调用，断言：
+#    - 请求 body 里加了 store: false
+#    - upstream 请求里 user/metadata.user_id 被剥离
+#    - messages 开头被注入了 child-safe system prompt
+#    - 非白名单模型 → 400 model_not_eligible_for_kids_mode
+```
+
+测 smart-router 联调（`deeprouter-auto` 虚拟模型）：
+
+```bash
+docker compose -f docker-compose.smart-router.yml up -d --build
+curl -i -X POST http://localhost:3000/v1/chat/completions \
+  -H "Authorization: Bearer <token>" \
+  -d '{"model":"deeprouter-auto","messages":[{"role":"user","content":"hi"}]}'
+# 响应头 X-DeepRouter-Routed-Model 显示 smart-router 实际选的模型
 
 ---
 

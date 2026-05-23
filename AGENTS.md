@@ -1,45 +1,10 @@
-# AGENTS.md — Project Conventions for new-api
+# AGENTS.md — Mandatory rules for any agent editing this repo
 
-## Overview
+This file is the **rule book**. Every change must comply.
 
-This is an AI API gateway/proxy built with Go. It aggregates 40+ upstream AI providers (OpenAI, Claude, Gemini, Azure, AWS Bedrock, etc.) behind a unified API, with user management, billing, rate limiting, and an admin dashboard.
+For everything else (where things live, what each `internal/` package does, key facts that aren't rules but bite if forgotten), read **`CLAUDE.md`** first. For the layered-architecture tour (router → controller → service → model), read **`ARCHITECTURE.md`**. This file deliberately does not repeat that material.
 
-## Tech Stack
-
-- **Backend**: Go 1.22+, Gin web framework, GORM v2 ORM
-- **Frontend**: React 19, TypeScript, Rsbuild, Base UI, Tailwind CSS
-- **Databases**: SQLite, MySQL, PostgreSQL (all three must be supported)
-- **Cache**: Redis (go-redis) + in-memory cache
-- **Auth**: JWT, WebAuthn/Passkeys, OAuth (GitHub, Discord, OIDC, etc.)
-- **Frontend package manager**: Bun (preferred over npm/yarn/pnpm)
-
-## Architecture
-
-Layered architecture: Router -> Controller -> Service -> Model
-
-```
-router/        — HTTP routing (API, relay, dashboard, web)
-controller/    — Request handlers
-service/       — Business logic
-model/         — Data models and DB access (GORM)
-relay/         — AI API relay/proxy with provider adapters
-  relay/channel/ — Provider-specific adapters (openai/, claude/, gemini/, aws/, etc.)
-middleware/    — Auth, rate limiting, CORS, logging, distribution
-setting/       — Configuration management (ratio, model, operation, system, performance)
-common/        — Shared utilities (JSON, crypto, Redis, env, rate-limit, etc.)
-dto/           — Data transfer objects (request/response structs)
-constant/      — Constants (API types, channel types, context keys)
-types/         — Type definitions (relay formats, file sources, errors)
-i18n/          — Backend internationalization (go-i18n, en/zh)
-oauth/         — OAuth provider implementations
-pkg/           — Internal packages (cachex, ionet)
-web/             — Frontend themes container
- web/default/   — Default frontend (React 19, Rsbuild, Base UI, Tailwind)
-  web/classic/   — Classic frontend (React 18, Vite, Semi Design)
-  web/default/src/i18n/ — Frontend internationalization (i18next, zh/en/fr/ru/ja/vi)
-```
-
-## Internationalization (i18n)
+## Internationalisation
 
 ### Backend (`i18n/`)
 - Library: `nicksnyder/go-i18n/v2`
@@ -135,3 +100,13 @@ For request structs that are parsed from client JSON and then re-marshaled to up
 ### Rule 7: Billing Expression System — Read `pkg/billingexpr/expr.md`
 
 When working on tiered/dynamic billing (expression-based pricing), you MUST read `pkg/billingexpr/expr.md` first. It documents the design philosophy, expression language (variables, functions, examples), full system architecture (editor → storage → pre-consume → settlement → log display), token normalization rules (`p`/`c` auto-exclusion), quota conversion, and expression versioning. All code changes to the billing expression system must follow the patterns described in that document.
+
+### Rule 8: Airbotix Fork — Custom Logic Goes in `internal/`
+
+This repo is a fork of `QuantumNous/new-api`. To keep upstream cherry-picks sustainable, all Airbotix-specific code MUST live under `internal/` (currently: `billing/`, `kids/`, `policy/`, `smart_router_client/`) or in clearly-named upstream-adjacent files (`relay/airbotix_policy.go`).
+
+Do NOT scatter custom logic into upstream files (`controller/`, `model/`, `service/`, `web/`) when a dedicated `internal/` subpackage is the right home. The only sanctioned upstream edits are:
+- `model/user.go` — extended with 4 Airbotix columns (`kids_mode`, `policy_profile`, `billing_webhook_url`, `custom_pricing_id`)
+- `middleware/smart_router.go` — wires `internal/smart_router_client/` into the request pipeline
+
+See `AIRBOTIX.md` for the upstream-sync workflow.
