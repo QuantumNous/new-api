@@ -48,11 +48,8 @@ func TestShouldUseResponsesTranscriptReplayIgnoresNormalOpenAIResponsesChannel(t
 	require.False(t, shouldUseResponsesTranscriptReplay(info))
 }
 
-func TestShouldRetryResponsesTranscriptReplayForPayloadTooLargeWithEncryptedContent(t *testing.T) {
-	require.True(t, shouldRetryResponsesTranscriptReplay(413, []byte(`<html>too large</html>`), []byte(`{
-		"input":[{"type":"reasoning","encrypted_content":"bad-ciphertext","summary":[]}]
-	}`)))
+func TestShouldRetryResponsesTranscriptReplayIgnoresPayloadTooLarge(t *testing.T) {
 	require.False(t, shouldRetryResponsesTranscriptReplay(413, []byte(`<html>too large</html>`), []byte(`{
-		"input":[{"type":"reasoning","summary":[]}]
+		"input":[{"type":"reasoning","encrypted_content":"bad-ciphertext","summary":[]}]
 	}`)))
 }

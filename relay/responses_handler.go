@@ -269,11 +269,7 @@ func retryCodexResponsesTranscriptReplay(
 }
 
 func shouldRetryResponsesTranscriptReplay(statusCode int, responseBody []byte, requestBody []byte) bool {
-	if relaycommon.IsResponsesTranscriptReplayError(statusCode, responseBody) {
-		return true
-	}
-	return statusCode == http.StatusRequestEntityTooLarge &&
-		relaycommon.ResponsesTranscriptReplayRequestHasEncryptedContent(requestBody)
+	return relaycommon.IsResponsesTranscriptReplayError(statusCode, responseBody)
 }
 
 func captureHTTPErrorBody(resp *http.Response) ([]byte, error) {
