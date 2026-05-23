@@ -102,15 +102,20 @@ func BuildResponsesTranscriptReplayRequest(info *RelayInfo, requestBody []byte) 
 		reason = "using cached transcript"
 	}
 
-	strippedInput, strippedEncryptedContent, err := stripResponsesEncryptedContentFromJSONArrayRaw(mergedInput)
+	sanitizedInput, err := sanitizeResponsesTranscriptReplayInputRaw(mergedInput)
 	if err != nil {
 		return nil, false, fmt.Sprintf("strip encrypted_content failed: %v", err)
 	}
-	if strippedEncryptedContent {
-		mergedInput = strippedInput
+	if sanitizedInput.StrippedEncryptedContent || sanitizedInput.RemovedReasoningItems {
+		mergedInput = sanitizedInput.InputRaw
+	}
+	if sanitizedInput.StrippedEncryptedContent {
 		reason += "; stripped encrypted_content"
 	}
-	if !hasPreviousResponseID && !strippedEncryptedContent {
+	if sanitizedInput.RemovedReasoningItems {
+		reason += "; removed reasoning items"
+	}
+	if !hasPreviousResponseID && !sanitizedInput.StrippedEncryptedContent {
 		return nil, false, "request has no previous_response_id and no encrypted_content to strip"
 	}
 
@@ -223,6 +228,9 @@ func CommitResponsesTranscriptReplay(info *RelayInfo) bool {
 	merged, err := mergeResponsesJSONArrayRaw(inputRaw, outputRaw)
 	if err != nil {
 		return false
+	}
+	if sanitized, err := sanitizeResponsesTranscriptReplayInputRaw(merged); err == nil {
+		merged = sanitized.InputRaw
 	}
 	setResponsesTranscriptReplayCachedInput(state.CacheKey, merged)
 	return true
@@ -347,20 +355,56 @@ func normalizeResponsesJSONArrayRaw(raw string) string {
 }
 
 func stripResponsesEncryptedContentFromJSONArrayRaw(raw string) (string, bool, error) {
-	raw = normalizeResponsesJSONArrayRaw(raw)
-	var items []any
-	if err := json.Unmarshal([]byte(raw), &items); err != nil {
-		return "", false, err
-	}
-	stripped := stripResponsesEncryptedContentValue(items)
-	if !stripped {
-		return raw, false, nil
-	}
-	out, err := json.Marshal(items)
+	sanitized, err := sanitizeResponsesTranscriptReplayInputRaw(raw)
 	if err != nil {
 		return "", false, err
 	}
-	return string(out), true, nil
+	return sanitized.InputRaw, sanitized.StrippedEncryptedContent, nil
+}
+
+type responsesTranscriptReplaySanitizedInput struct {
+	InputRaw                 string
+	StrippedEncryptedContent bool
+	RemovedReasoningItems    bool
+}
+
+func sanitizeResponsesTranscriptReplayInputRaw(raw string) (responsesTranscriptReplaySanitizedInput, error) {
+	raw = normalizeResponsesJSONArrayRaw(raw)
+	var items []any
+	if err := json.Unmarshal([]byte(raw), &items); err != nil {
+		return responsesTranscriptReplaySanitizedInput{}, err
+	}
+	stripped := stripResponsesEncryptedContentValue(items)
+	items, removedReasoningItems := removeTopLevelResponsesReasoningItems(items)
+	if !stripped && !removedReasoningItems {
+		return responsesTranscriptReplaySanitizedInput{InputRaw: raw}, nil
+	}
+	out, err := json.Marshal(items)
+	if err != nil {
+		return responsesTranscriptReplaySanitizedInput{}, err
+	}
+	return responsesTranscriptReplaySanitizedInput{
+		InputRaw:                 string(out),
+		StrippedEncryptedContent: stripped,
+		RemovedReasoningItems:    removedReasoningItems,
+	}, nil
+}
+
+func removeTopLevelResponsesReasoningItems(items []any) ([]any, bool) {
+	if len(items) == 0 {
+		return items, false
+	}
+	removed := false
+	out := items[:0]
+	for _, item := range items {
+		typed, ok := item.(map[string]any)
+		if ok && strings.TrimSpace(fmt.Sprint(typed["type"])) == "reasoning" {
+			removed = true
+			continue
+		}
+		out = append(out, item)
+	}
+	return out, removed
 }
 
 func stripResponsesEncryptedContentValue(value any) bool {

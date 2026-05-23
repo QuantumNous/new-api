@@ -102,8 +102,9 @@ func TestResponsesTranscriptReplayFullTranscriptDeletesPreviousResponseID(t *tes
 	}`))
 	require.True(t, ok, reason)
 	require.False(t, gjson.GetBytes(replayBody, "previous_response_id").Exists())
-	require.False(t, gjson.GetBytes(replayBody, "input.1.encrypted_content").Exists())
-	require.Len(t, gjson.GetBytes(replayBody, "input").Array(), 4)
+	require.Len(t, gjson.GetBytes(replayBody, "input").Array(), 3)
+	require.Equal(t, "message", gjson.GetBytes(replayBody, "input.1.type").String())
+	require.Contains(t, reason, "removed reasoning items")
 }
 
 func TestResponsesTranscriptReplayWithoutPreviousResponseIDStripsEncryptedContent(t *testing.T) {
@@ -118,8 +119,47 @@ func TestResponsesTranscriptReplayWithoutPreviousResponseIDStripsEncryptedConten
 	}`))
 	require.True(t, ok, reason)
 	require.False(t, gjson.GetBytes(replayBody, "previous_response_id").Exists())
-	require.False(t, gjson.GetBytes(replayBody, "input.1.encrypted_content").Exists())
+	require.Len(t, gjson.GetBytes(replayBody, "input").Array(), 3)
+	require.Equal(t, "message", gjson.GetBytes(replayBody, "input.1.type").String())
 	require.Contains(t, reason, "stripped encrypted_content")
+	require.Contains(t, reason, "removed reasoning items")
+}
+
+func TestResponsesTranscriptReplayCacheDropsReasoningItems(t *testing.T) {
+	resetResponsesTranscriptReplayCacheForTest(t)
+
+	info := &RelayInfo{ChannelMeta: &ChannelMeta{ChannelId: 12, UpstreamModelName: "gpt-5"}}
+	firstRequest := []byte(`{
+		"model":"gpt-5",
+		"prompt_cache_key":"sess-reasoning",
+		"input":[{"type":"message","role":"user","content":"first"}]
+	}`)
+	PrepareResponsesTranscriptReplay(info, firstRequest)
+	ObserveResponsesTranscriptReplayResponseBody(info, []byte(`{
+		"output":[
+			{"type":"reasoning","encrypted_content":"large-ciphertext","summary":[]},
+			{"type":"message","role":"assistant","content":[{"type":"output_text","text":"first answer"}]}
+		]
+	}`))
+	require.True(t, CommitResponsesTranscriptReplay(info))
+
+	secondRequest := []byte(`{
+		"model":"gpt-5",
+		"prompt_cache_key":"sess-reasoning",
+		"previous_response_id":"resp_1",
+		"input":[{"type":"message","role":"user","content":"second"}]
+	}`)
+	PrepareResponsesTranscriptReplay(info, secondRequest)
+	replayBody, ok, reason := BuildResponsesTranscriptReplayRequest(info, secondRequest)
+	require.True(t, ok, reason)
+	require.Len(t, gjson.GetBytes(replayBody, "input").Array(), 3)
+	require.Equal(t, "first", gjson.GetBytes(replayBody, "input.0.content").String())
+	require.Equal(t, "first answer", gjson.GetBytes(replayBody, "input.1.content.0.text").String())
+	require.Equal(t, "second", gjson.GetBytes(replayBody, "input.2.content").String())
+	for _, item := range gjson.GetBytes(replayBody, "input").Array() {
+		require.NotEqual(t, "reasoning", item.Get("type").String())
+		require.False(t, item.Get("encrypted_content").Exists())
+	}
 }
 
 func TestResponsesTranscriptReplayRequestHasEncryptedContent(t *testing.T) {
