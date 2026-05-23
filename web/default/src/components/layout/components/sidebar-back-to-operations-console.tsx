@@ -19,7 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import { Link } from '@tanstack/react-router'
 import { ArrowLeft } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { OPERATIONS_CONSOLE_OVERVIEW_PATH } from '@/hooks/use-top-nav-links'
+import { DASHBOARD_DEFAULT_SECTION } from '@/features/dashboard/section-registry'
 import { cn } from '@/lib/utils'
 import {
   SidebarMenu,
@@ -52,7 +52,8 @@ export function SidebarBackToOperationsConsole() {
           tooltip={label}
           render={
             <Link
-              to={OPERATIONS_CONSOLE_OVERVIEW_PATH}
+              to='/dashboard/$section'
+              params={{ section: DASHBOARD_DEFAULT_SECTION }}
               onClick={() => setOpenMobile(false)}
             />
           }
