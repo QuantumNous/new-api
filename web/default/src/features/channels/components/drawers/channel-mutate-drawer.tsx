@@ -284,6 +284,7 @@ const SENSITIVE_FORM_FIELDS = [
   'disable_store',
   'allow_safety_identifier',
   'allow_include_obfuscation',
+  'responses_transcript_replay_enabled',
   'allow_inference_geo',
   'allow_speed',
   'claude_beta_query',
@@ -331,6 +332,7 @@ function hasAdvancedSettingsValues(values: ChannelFormValues): boolean {
     values.force_format ||
     values.thinking_to_content ||
     values.pass_through_body_enabled ||
+    values.responses_transcript_replay_enabled ||
     values.system_prompt_override ||
     values.claude_beta_query ||
     values.upstream_model_update_check_enabled ||
@@ -720,6 +722,9 @@ export function ChannelMutateDrawer({
   const currentForceFormat = form.watch('force_format')
   const currentThinkingToContent = form.watch('thinking_to_content')
   const currentPassThroughBodyEnabled = form.watch('pass_through_body_enabled')
+  const currentResponsesTranscriptReplayEnabled = form.watch(
+    'responses_transcript_replay_enabled'
+  )
   const currentDisableTaskPollingSleep = form.watch(
     'disable_task_polling_sleep'
   )
@@ -926,6 +931,7 @@ export function ChannelMutateDrawer({
     currentForceFormat ||
     currentThinkingToContent ||
     currentPassThroughBodyEnabled ||
+    currentResponsesTranscriptReplayEnabled ||
     currentDisableTaskPollingSleep ||
     currentProxy?.trim() ||
     currentSystemPrompt?.trim() ||
@@ -3991,6 +3997,31 @@ export function ChannelMutateDrawer({
                                       <FormDescription>
                                         {t(
                                           'Pass request body directly to upstream'
+                                        )}
+                                      </FormDescription>
+                                    </div>
+                                    <FormControl>
+                                      <Switch
+                                        checked={field.value}
+                                        onCheckedChange={field.onChange}
+                                      />
+                                    </FormControl>
+                                  </FormItem>
+                                )}
+                              />
+
+                              <FormField
+                                control={form.control}
+                                name='responses_transcript_replay_enabled'
+                                render={({ field }) => (
+                                  <FormItem className='flex items-center justify-between px-4 py-3'>
+                                    <div className='space-y-0.5'>
+                                      <FormLabel>
+                                        {t('响应会话重放')}
+                                      </FormLabel>
+                                      <FormDescription>
+                                        {t(
+                                          '遇到 encrypted_content 校验失败时，移除 previous_response_id 并重放完整会话记录'
                                         )}
                                       </FormDescription>
                                     </div>

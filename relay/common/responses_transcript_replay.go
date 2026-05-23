@@ -1,0 +1,391 @@
+package common
+
+import (
+	"encoding/json"
+	"fmt"
+	"strings"
+	"sync"
+	"time"
+
+	"github.com/tidwall/gjson"
+	"github.com/tidwall/sjson"
+)
+
+const responsesTranscriptReplayTTL = time.Hour
+
+type ResponsesTranscriptReplayState struct {
+	CacheKey     string
+	RequestBody  []byte
+	BaseInputRaw string
+	OutputRaw    string
+	OutputItems  []string
+	Replayed     bool
+}
+
+type responsesTranscriptReplayCacheEntry struct {
+	InputRaw string
+	Expire   time.Time
+}
+
+var (
+	responsesTranscriptReplayMu    sync.RWMutex
+	responsesTranscriptReplayCache = map[string]responsesTranscriptReplayCacheEntry{}
+)
+
+func PrepareResponsesTranscriptReplay(info *RelayInfo, requestBody []byte) {
+	if info == nil || len(requestBody) == 0 {
+		return
+	}
+	cacheKey := responsesTranscriptReplayCacheKey(info, requestBody)
+	if cacheKey == "" {
+		info.ResponsesTranscriptReplay = nil
+		return
+	}
+	baseInputRaw := ""
+	if input := gjson.GetBytes(requestBody, "input"); input.Exists() && input.IsArray() &&
+		gjson.GetBytes(requestBody, "previous_response_id").Exists() &&
+		!responsesInputLooksFullTranscript(input) {
+		if cachedInput, ok := getResponsesTranscriptReplayCachedInput(cacheKey); ok {
+			baseInputRaw = cachedInput
+		}
+	}
+	info.ResponsesTranscriptReplay = &ResponsesTranscriptReplayState{
+		CacheKey:     cacheKey,
+		RequestBody:  append([]byte(nil), requestBody...),
+		BaseInputRaw: baseInputRaw,
+	}
+}
+
+func UpdateResponsesTranscriptReplayRequest(info *RelayInfo, requestBody []byte, replayed bool) {
+	if info == nil || len(requestBody) == 0 {
+		return
+	}
+	if info.ResponsesTranscriptReplay == nil {
+		PrepareResponsesTranscriptReplay(info, requestBody)
+		if info.ResponsesTranscriptReplay == nil {
+			return
+		}
+	}
+	info.ResponsesTranscriptReplay.RequestBody = append([]byte(nil), requestBody...)
+	info.ResponsesTranscriptReplay.BaseInputRaw = ""
+	info.ResponsesTranscriptReplay.OutputRaw = ""
+	info.ResponsesTranscriptReplay.OutputItems = nil
+	info.ResponsesTranscriptReplay.Replayed = replayed
+}
+
+func BuildResponsesTranscriptReplayRequest(info *RelayInfo, requestBody []byte) ([]byte, bool, string) {
+	if info == nil || len(requestBody) == 0 {
+		return nil, false, "missing request body"
+	}
+	hasPreviousResponseID := gjson.GetBytes(requestBody, "previous_response_id").Exists()
+	input := gjson.GetBytes(requestBody, "input")
+	if !input.Exists() || !input.IsArray() {
+		return nil, false, "request input is not an array"
+	}
+
+	mergedInput := input.Raw
+	reason := "using full input transcript"
+	if !responsesInputLooksFullTranscript(input) {
+		state := info.ResponsesTranscriptReplay
+		if state == nil || state.CacheKey == "" {
+			return nil, false, "missing transcript replay cache key"
+		}
+		cachedInput, ok := getResponsesTranscriptReplayCachedInput(state.CacheKey)
+		if !ok {
+			return nil, false, "missing cached transcript"
+		}
+		var err error
+		mergedInput, err = mergeResponsesJSONArrayRaw(cachedInput, input.Raw)
+		if err != nil {
+			return nil, false, fmt.Sprintf("merge transcript failed: %v", err)
+		}
+		reason = "using cached transcript"
+	}
+
+	strippedInput, strippedEncryptedContent, err := stripResponsesEncryptedContentFromJSONArrayRaw(mergedInput)
+	if err != nil {
+		return nil, false, fmt.Sprintf("strip encrypted_content failed: %v", err)
+	}
+	if strippedEncryptedContent {
+		mergedInput = strippedInput
+		reason += "; stripped encrypted_content"
+	}
+	if !hasPreviousResponseID && !strippedEncryptedContent {
+		return nil, false, "request has no previous_response_id and no encrypted_content to strip"
+	}
+
+	out, err := sjson.DeleteBytes(append([]byte(nil), requestBody...), "previous_response_id")
+	if err != nil {
+		out = append([]byte(nil), requestBody...)
+	}
+	out, err = sjson.SetRawBytes(out, "input", []byte(mergedInput))
+	if err != nil {
+		return nil, false, fmt.Sprintf("set replay input failed: %v", err)
+	}
+	return out, true, reason
+}
+
+func IsResponsesTranscriptReplayError(statusCode int, body []byte) bool {
+	if statusCode < 400 || len(body) == 0 {
+		return false
+	}
+	lower := strings.ToLower(strings.TrimSpace(string(body)))
+	code := strings.ToLower(strings.TrimSpace(gjson.GetBytes(body, "error.code").String()))
+	message := strings.ToLower(strings.TrimSpace(gjson.GetBytes(body, "error.message").String()))
+	if message == "" {
+		message = strings.ToLower(strings.TrimSpace(gjson.GetBytes(body, "message").String()))
+	}
+	return strings.Contains(lower, "invalid_encrypted_content") ||
+		strings.Contains(lower, "invalid signature in thinking block") ||
+		strings.Contains(lower, "encrypted_content") && (strings.Contains(lower, "invalid") || strings.Contains(lower, "decrypt") || strings.Contains(lower, "signature")) ||
+		code == "invalid_encrypted_content" ||
+		strings.Contains(message, "encrypted_content") && (strings.Contains(message, "invalid") || strings.Contains(message, "decrypt") || strings.Contains(message, "signature"))
+}
+
+func ResponsesTranscriptReplayRequestHasEncryptedContent(requestBody []byte) bool {
+	if len(requestBody) == 0 {
+		return false
+	}
+	input := gjson.GetBytes(requestBody, "input")
+	if !input.Exists() || !input.IsArray() {
+		return false
+	}
+	_, stripped, err := stripResponsesEncryptedContentFromJSONArrayRaw(input.Raw)
+	return err == nil && stripped
+}
+
+func ObserveResponsesTranscriptReplayResponseBody(info *RelayInfo, responseBody []byte) {
+	state := responsesTranscriptReplayState(info)
+	if state == nil || len(responseBody) == 0 {
+		return
+	}
+	if output := gjson.GetBytes(responseBody, "output"); output.Exists() && output.IsArray() {
+		state.OutputRaw = normalizeResponsesJSONArrayRaw(output.Raw)
+		return
+	}
+	if output := gjson.GetBytes(responseBody, "response.output"); output.Exists() && output.IsArray() {
+		state.OutputRaw = normalizeResponsesJSONArrayRaw(output.Raw)
+	}
+}
+
+func ObserveResponsesTranscriptReplayStreamEvent(info *RelayInfo, data string) {
+	state := responsesTranscriptReplayState(info)
+	if state == nil || strings.TrimSpace(data) == "" {
+		return
+	}
+	event := gjson.Parse(data)
+	if output := event.Get("response.output"); output.Exists() && output.IsArray() {
+		state.OutputRaw = normalizeResponsesJSONArrayRaw(output.Raw)
+		return
+	}
+	if event.Get("type").String() != "response.output_item.done" {
+		return
+	}
+	item := event.Get("item")
+	if item.Exists() && item.IsObject() {
+		state.OutputItems = append(state.OutputItems, item.Raw)
+	}
+}
+
+func CommitResponsesTranscriptReplay(info *RelayInfo) bool {
+	state := responsesTranscriptReplayState(info)
+	if state == nil || state.CacheKey == "" || len(state.RequestBody) == 0 {
+		return false
+	}
+	input := gjson.GetBytes(state.RequestBody, "input")
+	if !input.Exists() || !input.IsArray() {
+		return false
+	}
+	inputRaw := input.Raw
+	if !state.Replayed &&
+		gjson.GetBytes(state.RequestBody, "previous_response_id").Exists() &&
+		!responsesInputLooksFullTranscript(input) {
+		baseInputRaw := state.BaseInputRaw
+		if baseInputRaw == "" {
+			if cachedInput, ok := getResponsesTranscriptReplayCachedInput(state.CacheKey); ok {
+				baseInputRaw = cachedInput
+			}
+		}
+		if baseInputRaw != "" {
+			mergedInput, err := mergeResponsesJSONArrayRaw(baseInputRaw, input.Raw)
+			if err == nil {
+				inputRaw = mergedInput
+			}
+		}
+	}
+	outputRaw := state.OutputRaw
+	if outputRaw == "" && len(state.OutputItems) > 0 {
+		outputRaw = "[" + strings.Join(state.OutputItems, ",") + "]"
+	}
+	if outputRaw == "" {
+		outputRaw = "[]"
+	}
+	merged, err := mergeResponsesJSONArrayRaw(inputRaw, outputRaw)
+	if err != nil {
+		return false
+	}
+	setResponsesTranscriptReplayCachedInput(state.CacheKey, merged)
+	return true
+}
+
+func responsesTranscriptReplayState(info *RelayInfo) *ResponsesTranscriptReplayState {
+	if info == nil {
+		return nil
+	}
+	return info.ResponsesTranscriptReplay
+}
+
+func responsesTranscriptReplayCacheKey(info *RelayInfo, requestBody []byte) string {
+	sessionID := strings.TrimSpace(gjson.GetBytes(requestBody, "prompt_cache_key").String())
+	if sessionID == "" {
+		for _, name := range []string{"Session_id", "session_id", "X-Session-ID", "x-session-id", "Conversation_id", "conversation_id"} {
+			if v := requestHeaderValueCaseInsensitive(info.RequestHeaders, name); v != "" {
+				sessionID = v
+				break
+			}
+		}
+	}
+	if sessionID == "" {
+		return ""
+	}
+	model := strings.TrimSpace(gjson.GetBytes(requestBody, "model").String())
+	if model == "" {
+		model = strings.TrimSpace(info.UpstreamModelName)
+	}
+	return fmt.Sprintf("channel:%d:model:%s:session:%s", info.ChannelId, model, sessionID)
+}
+
+func requestHeaderValueCaseInsensitive(headers map[string]string, name string) string {
+	if len(headers) == 0 || strings.TrimSpace(name) == "" {
+		return ""
+	}
+	if v := strings.TrimSpace(headers[name]); v != "" {
+		return v
+	}
+	for key, value := range headers {
+		if strings.EqualFold(key, name) {
+			return strings.TrimSpace(value)
+		}
+	}
+	return ""
+}
+
+func responsesInputLooksFullTranscript(input gjson.Result) bool {
+	if !input.IsArray() {
+		return false
+	}
+	for _, item := range input.Array() {
+		switch strings.TrimSpace(item.Get("type").String()) {
+		case "compaction", "compaction_summary", "function_call", "custom_tool_call", "reasoning":
+			return true
+		case "message":
+			if strings.TrimSpace(item.Get("role").String()) == "assistant" {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func getResponsesTranscriptReplayCachedInput(cacheKey string) (string, bool) {
+	now := time.Now()
+	responsesTranscriptReplayMu.RLock()
+	entry, ok := responsesTranscriptReplayCache[cacheKey]
+	responsesTranscriptReplayMu.RUnlock()
+	if !ok || entry.Expire.Before(now) {
+		if ok {
+			responsesTranscriptReplayMu.Lock()
+			delete(responsesTranscriptReplayCache, cacheKey)
+			responsesTranscriptReplayMu.Unlock()
+		}
+		return "", false
+	}
+	return entry.InputRaw, true
+}
+
+func setResponsesTranscriptReplayCachedInput(cacheKey string, inputRaw string) {
+	if strings.TrimSpace(cacheKey) == "" || strings.TrimSpace(inputRaw) == "" {
+		return
+	}
+	responsesTranscriptReplayMu.Lock()
+	responsesTranscriptReplayCache[cacheKey] = responsesTranscriptReplayCacheEntry{
+		InputRaw: normalizeResponsesJSONArrayRaw(inputRaw),
+		Expire:   time.Now().Add(responsesTranscriptReplayTTL),
+	}
+	responsesTranscriptReplayMu.Unlock()
+}
+
+func mergeResponsesJSONArrayRaw(existingRaw string, appendRaw string) (string, error) {
+	existingRaw = normalizeResponsesJSONArrayRaw(existingRaw)
+	appendRaw = normalizeResponsesJSONArrayRaw(appendRaw)
+
+	var existing []json.RawMessage
+	if err := json.Unmarshal([]byte(existingRaw), &existing); err != nil {
+		return "", err
+	}
+	var appendItems []json.RawMessage
+	if err := json.Unmarshal([]byte(appendRaw), &appendItems); err != nil {
+		return "", err
+	}
+	merged := append(existing, appendItems...)
+	out, err := json.Marshal(merged)
+	if err != nil {
+		return "", err
+	}
+	return string(out), nil
+}
+
+func normalizeResponsesJSONArrayRaw(raw string) string {
+	trimmed := strings.TrimSpace(raw)
+	if trimmed == "" {
+		return "[]"
+	}
+	if strings.HasPrefix(trimmed, "[") {
+		return trimmed
+	}
+	return "[]"
+}
+
+func stripResponsesEncryptedContentFromJSONArrayRaw(raw string) (string, bool, error) {
+	raw = normalizeResponsesJSONArrayRaw(raw)
+	var items []any
+	if err := json.Unmarshal([]byte(raw), &items); err != nil {
+		return "", false, err
+	}
+	stripped := stripResponsesEncryptedContentValue(items)
+	if !stripped {
+		return raw, false, nil
+	}
+	out, err := json.Marshal(items)
+	if err != nil {
+		return "", false, err
+	}
+	return string(out), true, nil
+}
+
+func stripResponsesEncryptedContentValue(value any) bool {
+	switch typed := value.(type) {
+	case []any:
+		stripped := false
+		for _, item := range typed {
+			if stripResponsesEncryptedContentValue(item) {
+				stripped = true
+			}
+		}
+		return stripped
+	case map[string]any:
+		stripped := false
+		if _, ok := typed["encrypted_content"]; ok {
+			delete(typed, "encrypted_content")
+			stripped = true
+		}
+		for _, item := range typed {
+			if stripResponsesEncryptedContentValue(item) {
+				stripped = true
+			}
+		}
+		return stripped
+	default:
+		return false
+	}
+}

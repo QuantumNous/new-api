@@ -206,6 +206,7 @@ const EditChannelModal = (props) => {
     disable_store: false, // false = 允许透传（默认开启）
     allow_safety_identifier: false,
     allow_include_obfuscation: false,
+    responses_transcript_replay_enabled: false,
     allow_inference_geo: false,
     allow_speed: false,
     claude_beta_query: false,
@@ -514,6 +515,7 @@ const EditChannelModal = (props) => {
     thinking_to_content: false,
     proxy: '',
     pass_through_body_enabled: false,
+    responses_transcript_replay_enabled: false,
     system_prompt: '',
   });
   const showApiConfigCard = true; // 控制是否显示 API 配置卡片
@@ -905,6 +907,8 @@ const EditChannelModal = (props) => {
             parsedSettings.allow_safety_identifier || false;
           data.allow_include_obfuscation =
             parsedSettings.allow_include_obfuscation || false;
+          data.responses_transcript_replay_enabled =
+            parsedSettings.responses_transcript_replay_enabled === true;
           data.allow_inference_geo =
             parsedSettings.allow_inference_geo || false;
           data.allow_speed = parsedSettings.allow_speed || false;
@@ -936,6 +940,7 @@ const EditChannelModal = (props) => {
           data.disable_store = false;
           data.allow_safety_identifier = false;
           data.allow_include_obfuscation = false;
+          data.responses_transcript_replay_enabled = false;
           data.allow_inference_geo = false;
           data.allow_speed = false;
           data.claude_beta_query = false;
@@ -954,6 +959,7 @@ const EditChannelModal = (props) => {
         data.disable_store = false;
         data.allow_safety_identifier = false;
         data.allow_include_obfuscation = false;
+        data.responses_transcript_replay_enabled = false;
         data.allow_inference_geo = false;
         data.allow_speed = false;
         data.claude_beta_query = false;
@@ -991,6 +997,8 @@ const EditChannelModal = (props) => {
         thinking_to_content: data.thinking_to_content,
         proxy: data.proxy,
         pass_through_body_enabled: data.pass_through_body_enabled,
+        responses_transcript_replay_enabled:
+          data.responses_transcript_replay_enabled,
         system_prompt: data.system_prompt,
         system_prompt_override: data.system_prompt_override || false,
       });
@@ -1033,6 +1041,7 @@ const EditChannelModal = (props) => {
         (data.system_prompt && data.system_prompt.trim()) ||
         data.thinking_to_content ||
         data.pass_through_body_enabled ||
+        data.responses_transcript_replay_enabled ||
         data.force_format ||
         data.claude_beta_query ||
         data.system_prompt_override;
@@ -1375,6 +1384,7 @@ const EditChannelModal = (props) => {
       thinking_to_content: false,
       proxy: '',
       pass_through_body_enabled: false,
+      responses_transcript_replay_enabled: false,
       system_prompt: '',
       system_prompt_override: false,
     });
@@ -1796,6 +1806,12 @@ const EditChannelModal = (props) => {
       }
     }
 
+    if (localInputs.responses_transcript_replay_enabled === true) {
+      settings.responses_transcript_replay_enabled = true;
+    } else if ('responses_transcript_replay_enabled' in settings) {
+      delete settings.responses_transcript_replay_enabled;
+    }
+
     settings.upstream_model_update_check_enabled =
       localInputs.upstream_model_update_check_enabled === true;
     settings.upstream_model_update_auto_sync_enabled =
@@ -1838,6 +1854,7 @@ const EditChannelModal = (props) => {
     delete localInputs.disable_store;
     delete localInputs.allow_safety_identifier;
     delete localInputs.allow_include_obfuscation;
+    delete localInputs.responses_transcript_replay_enabled;
     delete localInputs.allow_inference_geo;
     delete localInputs.allow_speed;
     delete localInputs.claude_beta_query;
@@ -2518,6 +2535,7 @@ const EditChannelModal = (props) => {
 
                   <Form.Switch field='thinking_to_content' label={t('思考内容转换')} checkedText={t('开')} uncheckedText={t('关')} onChange={(value) => handleChannelSettingsChange('thinking_to_content', value)} extraText={t('将 reasoning_content 转换为 <think> 标签拼接到内容中')} />
                   <Form.Switch field='pass_through_body_enabled' label={t('透传请求体')} checkedText={t('开')} uncheckedText={t('关')} onChange={(value) => handleChannelSettingsChange('pass_through_body_enabled', value)} extraText={t('启用请求体透传功能')} />
+                  <Form.Switch field='responses_transcript_replay_enabled' label={t('响应会话重放')} checkedText={t('开')} uncheckedText={t('关')} onChange={(value) => handleChannelOtherSettingsChange('responses_transcript_replay_enabled', value)} extraText={t('遇到 encrypted_content 校验失败时，移除 previous_response_id 并重放完整会话记录')} />
 
                   <Form.Input field='proxy' label={t('代理地址')} placeholder={t('例如: socks5://user:pass@host:port')} onChange={(value) => handleChannelSettingsChange('proxy', value)} showClear extraText={t('用于配置网络代理，支持 socks5 协议')} />
 

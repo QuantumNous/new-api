@@ -101,10 +101,39 @@ func (a *Adaptor) ConvertOpenAIResponsesRequest(c *gin.Context, info *relaycommo
 	}
 	// codex: store must be false
 	request.Store = json.RawMessage("false")
+	request.Include = ensureCodexResponsesInclude(request.Include, "reasoning.encrypted_content")
 	// rm max_output_tokens
 	request.MaxOutputTokens = nil
 	request.Temperature = nil
 	return request, nil
+}
+
+func ensureCodexResponsesInclude(include json.RawMessage, value string) json.RawMessage {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return include
+	}
+	trimmed := strings.TrimSpace(string(include))
+	if trimmed == "" || trimmed == "null" {
+		raw, _ := json.Marshal([]string{value})
+		return raw
+	}
+
+	var items []string
+	if err := json.Unmarshal(include, &items); err != nil {
+		return include
+	}
+	for _, item := range items {
+		if item == value {
+			return include
+		}
+	}
+	items = append(items, value)
+	raw, err := json.Marshal(items)
+	if err != nil {
+		return include
+	}
+	return raw
 }
 
 func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, requestBody io.Reader) (any, error) {
