@@ -106,6 +106,7 @@ func DeleteChannel(channelError types.ChannelError, reason string) {
 		common.SysLog(fmt.Sprintf("删除渠道失败（#%d）: %v", channelError.ChannelId, err))
 		return
 	}
+	model.InitChannelCache()
 	subject := fmt.Sprintf("通道「%s」（#%d）已被自动删除", channelError.ChannelName, channelError.ChannelId)
 	content := fmt.Sprintf("通道「%s」（#%d）已被自动删除，原因：%s", channelError.ChannelName, channelError.ChannelId, reason)
 	NotifyRootUser(formatNotifyType(channelError.ChannelId, common.ChannelStatusUnknown), subject, content)
