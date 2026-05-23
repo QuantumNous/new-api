@@ -314,6 +314,14 @@ function ModelHeader(props: { model: PricingModel }) {
             </span>
           </>
         )}
+        {model.image_billing_mode === 'per_size' && (
+          <>
+            <span className='text-muted-foreground/30'>·</span>
+            <span className='rounded bg-blue-100 px-1.5 py-0.5 text-[10px] font-medium text-blue-700 dark:bg-blue-500/20 dark:text-blue-300'>
+              {t('Per-resolution')}
+            </span>
+          </>
+        )}
       </div>
       {description && (
         <p className='text-muted-foreground mt-2 text-sm leading-relaxed'>
@@ -494,6 +502,47 @@ function PriceSection(props: {
               baseGroupRatioMap
             )}
           </span>
+        </div>
+      </section>
+    )
+  }
+
+  // Per-resolution image billing
+  if (props.model.image_billing_mode === 'per_size' && props.model.image_per_size_prices) {
+    const prices = props.model.image_per_size_prices
+    const tiers = [
+      { label: '1K', key: 'price_1k' as const, desc: '≤ 1024px' },
+      { label: '2K', key: 'price_2k' as const, desc: '≤ 2048px' },
+      { label: '4K', key: 'price_4k' as const, desc: '> 2048px' },
+    ]
+    return (
+      <section>
+        <SectionTitle>{t('Base Price')}</SectionTitle>
+        <div className='mb-2 flex items-center gap-2'>
+          <span className='rounded bg-blue-100 px-1.5 py-0.5 text-[10px] font-medium text-blue-700 dark:bg-blue-500/20 dark:text-blue-300'>
+            {t('Per-resolution')}
+          </span>
+          <span className='text-muted-foreground text-xs'>
+            {t('Flat price per image by output resolution')}
+          </span>
+        </div>
+        <div className='grid grid-cols-3 gap-2'>
+          {tiers.map((tier) => (
+            <div key={tier.label} className='bg-muted/20 rounded-lg border p-3'>
+              <div className='text-muted-foreground text-xs font-medium'>
+                {tier.label}
+                <span className='text-muted-foreground/50 ml-1 text-[10px]'>
+                  ({tier.desc})
+                </span>
+              </div>
+              <div className='text-foreground mt-1 font-mono text-base font-semibold tabular-nums'>
+                ${prices[tier.key].toFixed(3)}
+                <span className='text-muted-foreground/40 ml-1 text-xs font-normal'>
+                  / {t('image')}
+                </span>
+              </div>
+            </div>
+          ))}
         </div>
       </section>
     )

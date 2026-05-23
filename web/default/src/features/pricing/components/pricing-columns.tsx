@@ -209,6 +209,24 @@ export function usePricingColumns(
 
         const isTokenBased = isTokenBasedModel(model)
 
+        if (model.image_billing_mode === 'per_size' && model.image_per_size_prices) {
+          const p = model.image_per_size_prices
+          return (
+            <div className='min-w-[160px]'>
+              <span className='font-mono text-sm tabular-nums'>
+                ${p.price_1k.toFixed(3)}
+                <span className='text-muted-foreground/40 mx-1'>/</span>
+                ${p.price_2k.toFixed(3)}
+                <span className='text-muted-foreground/40 mx-1'>/</span>
+                ${p.price_4k.toFixed(3)}
+              </span>
+              <div className='text-muted-foreground/50 text-[10px]'>
+                1K / 2K / 4K · {t('Per-resolution')}
+              </div>
+            </div>
+          )
+        }
+
         if (isTokenBased) {
           const inputPrice = stripTrailingZeros(
             formatPrice(

@@ -63,6 +63,7 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
   const isDynamicPricing =
     props.model.billing_mode === 'tiered_expr' &&
     Boolean(props.model.billing_expr)
+  const isImagePerSize = props.model.image_billing_mode === 'per_size'
   const hasCachedPrice = isTokenBased && props.model.cache_ratio != null
   const dynamicSummary = isDynamicPricing
     ? getDynamicPricingSummary(props.model, {
@@ -138,6 +139,27 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
                     {t('Dynamic Pricing')}
                   </span>
                 )
+              ) : isImagePerSize && props.model.image_per_size_prices ? (
+                <>
+                  <span className='text-muted-foreground whitespace-nowrap'>
+                    <span className='text-foreground font-mono font-semibold'>
+                      ${props.model.image_per_size_prices.price_1k.toFixed(3)}
+                    </span>{' '}
+                    / 1K
+                  </span>
+                  <span className='text-muted-foreground whitespace-nowrap'>
+                    <span className='text-foreground font-mono font-semibold'>
+                      ${props.model.image_per_size_prices.price_2k.toFixed(3)}
+                    </span>{' '}
+                    / 2K
+                  </span>
+                  <span className='text-muted-foreground whitespace-nowrap'>
+                    <span className='text-foreground font-mono font-semibold'>
+                      ${props.model.image_per_size_prices.price_4k.toFixed(3)}
+                    </span>{' '}
+                    / 4K
+                  </span>
+                </>
               ) : isTokenBased ? (
                 <>
                   <span className='text-muted-foreground whitespace-nowrap'>
@@ -237,6 +259,11 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
           <span className='text-muted-foreground text-xs font-medium'>
             {isTokenBased ? t('Token-based') : t('Per Request')}
           </span>
+          {isImagePerSize && (
+            <span className='text-muted-foreground text-xs font-medium'>
+              {t('Per-resolution')}
+            </span>
+          )}
           {isDynamicPricing && (
             <StatusBadge
               label={t('Dynamic Pricing')}
