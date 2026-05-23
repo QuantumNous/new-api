@@ -41,9 +41,9 @@ description: Claude Code 教程 — 将 Anthropic 的终端编程助手对接 Ne
 
 ## 效果演示
 
-![introduce-01.webp](/assets/claude_code/introduce-01.webp)
+![introduce-01.webp](../assets/claude_code/introduce-01.webp)
 
-![introduce-02.webp](/assets/claude_code/introduce-02.webp)
+![introduce-02.webp](../assets/claude_code/introduce-02.webp)
 
 ### 特性
 
@@ -90,15 +90,15 @@ Claude Code 需要 Node.js 环境才能运行。
   - 某些杀毒软件可能会误报，需要添加白名单
 </Callout>
 
-![windows-img-01.webp](/assets/claude_code/windows-img-01.webp)
+![windows-img-01.webp](../assets/claude_code/windows-img-01.webp)
 
-![windows-img-02.webp](/assets/claude_code/windows-img-02.webp)
+![windows-img-02.webp](../assets/claude_code/windows-img-02.webp)
 
-![windows-img-03.webp](/assets/claude_code/windows-img-03.webp)
+![windows-img-03.webp](../assets/claude_code/windows-img-03.webp)
 
-![windows-img-04.webp](/assets/claude_code/windows-img-04.webp)
+![windows-img-04.webp](../assets/claude_code/windows-img-04.webp)
 
-![windows-img-05.webp](/assets/claude_code/windows-img-05.webp)
+![windows-img-05.webp](../assets/claude_code/windows-img-05.webp)
 
 <Callout type="info" title="验证安装是否成功">
   安装完成后，打开 PowerShell 或 CMD，输入以下命令：
@@ -124,11 +124,11 @@ Claude Code 需要 Node.js 环境才能运行。
   - 在安装过程中保持默认设置，直接点击 "Next" 完成安装
 </Callout>
 
-![windows-img-06.webp](/assets/claude_code/windows-img-06.webp)
+![windows-img-06.webp](../assets/claude_code/windows-img-06.webp)
 
-![windows-img-07.webp](/assets/claude_code/windows-img-07.webp)
+![windows-img-07.webp](../assets/claude_code/windows-img-07.webp)
 
-![windows-img-08.webp](/assets/claude_code/windows-img-08.webp)
+![windows-img-08.webp](../assets/claude_code/windows-img-08.webp)
 
 <Callout type="info" title="验证 Git Bash 安装">
   安装完成后，打开 Git Bash，输入以下命令验证：
@@ -152,7 +152,7 @@ Claude Code 需要 Node.js 环境才能运行。
   这个命令会从 npm 官方仓库下载并安装最新版本的 Claude Code。
 </Callout>
 
-![windows-img-09.webp](/assets/claude_code/windows-img-09.webp)
+![windows-img-09.webp](../assets/claude_code/windows-img-09.webp)
 
 <Callout type="info" title="将 ~/.local/bin 加入 PATH（仅当提示要求时）">
   ```powershell
@@ -180,7 +180,7 @@ Claude Code 需要 Node.js 环境才能运行。
 iex (irm 'https://raw.githubusercontent.com/QuantumNous/new-api-docs/refs/heads/main/helper/claude-cli-setup.ps1')
 ```
 
-![windows-configure](/assets/claude_code/windows_configure.png)
+![windows-configure](../assets/claude_code/windows_configure.png)
 
 #### 5.开始使用 Claude Code
 
@@ -204,15 +204,15 @@ iex (irm 'https://raw.githubusercontent.com/QuantumNous/new-api-docs/refs/heads/
   ```
 </Callout>
 
-![windows-img-11.webp](/assets/claude_code/windows-img-11.webp)
+![windows-img-11.webp](../assets/claude_code/windows-img-11.webp)
 
-![windows-img-12.webp](/assets/claude_code/windows-img-12.webp)
+![windows-img-12.webp](../assets/claude_code/windows-img-12.webp)
 
-![windows-img-13.webp](/assets/claude_code/windows-img-13.webp)
+![windows-img-13.webp](../assets/claude_code/windows-img-13.webp)
 
-![windows-img-14.webp](/assets/claude_code/windows-img-14.webp)
+![windows-img-14.webp](../assets/claude_code/windows-img-14.webp)
 
-![windows-img-15.webp](/assets/claude_code/windows-img-15.webp)
+![windows-img-15.webp](../assets/claude_code/windows-img-15.webp)
 
 <Callout type="info" title="选择模型">
   输入命令：
@@ -224,9 +224,9 @@ iex (irm 'https://raw.githubusercontent.com/QuantumNous/new-api-docs/refs/heads/
   按 Enter 进入，选择模型，通常使用默认设置即可。
 </Callout>
 
-![windows-img-16.webp](/assets/claude_code/windows-img-16.webp)
+![windows-img-16.webp](../assets/claude_code/windows-img-16.webp)
 
-![windows-img-17.webp](/assets/claude_code/windows-img-17.webp)
+![windows-img-17.webp](../assets/claude_code/windows-img-17.webp)
 
 > 注意：设置环境变量修改后，使用所有模型（包括官方预设模型）均调用自定义接入点，而不使用官方账号额度。
 
@@ -236,7 +236,7 @@ iex (irm 'https://raw.githubusercontent.com/QuantumNous/new-api-docs/refs/heads/
 
 打开终端
 
-![macos-img-01.webp](/assets/claude_code/macos-img-01.webp)
+![macos-img-01.webp](../assets/claude_code/macos-img-01.webp)
 
 <Callout type="info" title="安装 Claude Code">
   打开终端，运行以下命令：
@@ -252,7 +252,7 @@ iex (irm 'https://raw.githubusercontent.com/QuantumNous/new-api-docs/refs/heads/
   ```
 </Callout>
 
-![macos-img-02.webp](/assets/claude_code/macos-img-02.webp)
+![macos-img-02.webp](../assets/claude_code/macos-img-02.webp)
 
 #### 2.设置环境变量
 
@@ -266,7 +266,7 @@ iex (irm 'https://raw.githubusercontent.com/QuantumNous/new-api-docs/refs/heads/
   ```
 </Callout>
 
-![macos-configure](/assets/claude_code/macos_configure.png)
+![macos-configure](../assets/claude_code/macos_configure.png)
 
 <Callout type="info" title="验证 Claude Code 安装">
   安装完成后，输入以下命令检查是否安装成功：
@@ -300,15 +300,15 @@ iex (irm 'https://raw.githubusercontent.com/QuantumNous/new-api-docs/refs/heads/
   ```
 </Callout>
 
-![macos-img-04.webp](/assets/claude_code/macos-img-04.webp)
+![macos-img-04.webp](../assets/claude_code/macos-img-04.webp)
 
-![macos-img-05.webp](/assets/claude_code/macos-img-05.webp)
+![macos-img-05.webp](../assets/claude_code/macos-img-05.webp)
 
-![macos-img-06.webp](/assets/claude_code/macos-img-06.webp)
+![macos-img-06.webp](../assets/claude_code/macos-img-06.webp)
 
-![macos-img-07.webp](/assets/claude_code/macos-img-07.webp)
+![macos-img-07.webp](../assets/claude_code/macos-img-07.webp)
 
-![macos-img-08.webp](/assets/claude_code/macos-img-08.webp)
+![macos-img-08.webp](../assets/claude_code/macos-img-08.webp)
 
 <Callout type="info" title="选择模型 (可选)">
   输入命令：
@@ -320,11 +320,11 @@ iex (irm 'https://raw.githubusercontent.com/QuantumNous/new-api-docs/refs/heads/
   按 Enter 进入，选择官方模型，通常使用默认模型即可。
 </Callout>
 
-![macos-img-09.webp](/assets/claude_code/macos-img-09.webp)
+![macos-img-09.webp](../assets/claude_code/macos-img-09.webp)
 
-![macos-img-10.webp](/assets/claude_code/macos-img-10.webp)
+![macos-img-10.webp](../assets/claude_code/macos-img-10.webp)
 
-![macos-img-11.webp](/assets/claude_code/macos-img-11.webp)
+![macos-img-11.webp](../assets/claude_code/macos-img-11.webp)
 
 > 注意：设置环境变量修改 `ANTHROPIC_BASE_URL` 后，使用所有模型（包括官方预设模型）均调用自定义接入点，而不使用官方账号额度。
 
@@ -342,7 +342,7 @@ iex (irm 'https://raw.githubusercontent.com/QuantumNous/new-api-docs/refs/heads/
 
 #### 1.安装 Claude Code
 
-![linux-img-01.webp](/assets/claude_code/linux-img-01.webp)
+![linux-img-01.webp](../assets/claude_code/linux-img-01.webp)
 
 <Callout type="info" title="安装 Claude Code">
   打开终端，运行以下命令：
@@ -358,7 +358,7 @@ iex (irm 'https://raw.githubusercontent.com/QuantumNous/new-api-docs/refs/heads/
   ```
 </Callout>
 
-![linux-img-03.webp](/assets/claude_code/linux-img-03.webp)
+![linux-img-03.webp](../assets/claude_code/linux-img-03.webp)
 
 <Callout type="info" title="验证 Claude Code 安装">
   安装完成后，输入以下命令检查是否安装成功：
@@ -382,7 +382,7 @@ iex (irm 'https://raw.githubusercontent.com/QuantumNous/new-api-docs/refs/heads/
   ```
 </Callout>
 
-![macos-configure](/assets/claude_code/macos_configure.png)
+![macos-configure](../assets/claude_code/macos_configure.png)
 
 #### 3.开始使用 Claude Code
 
@@ -406,11 +406,11 @@ iex (irm 'https://raw.githubusercontent.com/QuantumNous/new-api-docs/refs/heads/
   ```
 </Callout>
 
-![linux-img-03.webp](/assets/claude_code/linux-img-03.webp)
+![linux-img-03.webp](../assets/claude_code/linux-img-03.webp)
 
-![linux-img-04.webp](/assets/claude_code/linux-img-04.webp)
+![linux-img-04.webp](../assets/claude_code/linux-img-04.webp)
 
-![linux-img-05.webp](/assets/claude_code/linux-img-05.webp)
+![linux-img-05.webp](../assets/claude_code/linux-img-05.webp)
 
 <Callout type="info" title="选择模型">
   输入命令：
@@ -422,13 +422,13 @@ iex (irm 'https://raw.githubusercontent.com/QuantumNous/new-api-docs/refs/heads/
   按 Enter 进入，选择官方模型，通常使用默认模型即可。
 </Callout>
 
-![linux-img-06.webp](/assets/claude_code/linux-img-06.webp)
+![linux-img-06.webp](../assets/claude_code/linux-img-06.webp)
 
-![linux-img-07.webp](/assets/claude_code/linux-img-07.webp)
+![linux-img-07.webp](../assets/claude_code/linux-img-07.webp)
 
-![linux-img-08.webp](/assets/claude_code/linux-img-08.webp)
+![linux-img-08.webp](../assets/claude_code/linux-img-08.webp)
 
-![linux-img-09.webp](/assets/claude_code/linux-img-09.webp)
+![linux-img-09.webp](../assets/claude_code/linux-img-09.webp)
 
 > 注意：设置环境变量修改 `ANTHROPIC_BASE_URL` 后，使用所有模型（包括官方预设模型）均调用自定义接入点，而不使用官方账号额度。
 

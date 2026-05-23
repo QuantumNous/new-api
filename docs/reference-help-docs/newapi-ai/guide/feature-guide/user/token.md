@@ -23,7 +23,7 @@ import { Callout } from 'fumadocs-ui/components/callout';
 
 令牌是调用 API 的凭证，每个令牌可独立配置权限范围和配额上限。左侧导航点击「令牌」，或直接访问 `/console/token`。
 
-![令牌列表页](/assets/guide/feature-guide/token-list.png)
+![令牌列表页](../../../assets/guide/feature-guide/token-list.png)
 
 令牌列表展示所有已创建的令牌，包含名称、状态、已用配额、剩余配额、过期时间等信息。
 
@@ -34,7 +34,7 @@ import { Callout } from 'fumadocs-ui/components/callout';
 1. 在令牌列表页点击右上角「创建令牌」按钮，弹出创建弹窗
 2. 填写令牌名称（建议按用途命名，如「生产环境」「测试用」）
 
-![创建令牌弹窗](/assets/guide/feature-guide/token-create.png)
+![创建令牌弹窗](../../../assets/guide/feature-guide/token-create.png)
 
 ### 高级配置选项
 
@@ -53,7 +53,7 @@ import { Callout } from 'fumadocs-ui/components/callout';
 
 点击「提交」，弹窗显示完整的令牌 Key，**立即复制保存**，关闭弹窗后无法再次查看完整 Key
 
-![令牌创建成功，显示完整 Key](/assets/guide/feature-guide/token-created-key.png)
+![令牌创建成功，显示完整 Key](../../../assets/guide/feature-guide/token-created-key.png)
 
 <Callout type="warn">
   令牌 Key 仅在创建时完整显示一次，请立即复制保存。令牌 Key 具有完整的 API 调用权限，请勿泄露给他人，不要提交到代码仓库。

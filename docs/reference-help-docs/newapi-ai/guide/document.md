@@ -15,4 +15,4 @@ title: 文档
 ---
 点击顶部导航栏的文档会跳转到文档网页（文档地址在系统设置->运营设置中配置）
 
-![文档](/assets/guide/document.png)
+![文档](../assets/guide/document.png)

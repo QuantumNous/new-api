@@ -24,13 +24,13 @@ import { Callout } from 'fumadocs-ui/components/callout';
 1. 在系统设置页点击「运营设置」标签页
 2. 找到「文档地址」输入框
 
-![文档地址输入框](/assets/guide/feature-guide/setting-docs-url.png)
+![文档地址输入框](../../../assets/guide/feature-guide/setting-docs-url.png)
 
 3. 在输入框中填写文档网站的完整 URL（如 `https://docs.example.com`）
 4. 点击「保存」
 5. 返回首页，左侧导航栏出现「文档」按钮，点击后跳转到填写的地址
 
-![首页左侧导航出现「文档」按钮的效果](/assets/guide/feature-guide/setting-docs-effect.png)
+![首页左侧导航出现「文档」按钮的效果](../../../assets/guide/feature-guide/setting-docs-effect.png)
 
 <Callout type="info">
   文档地址留空时，左侧导航不会显示「文档」按钮。
@@ -41,10 +41,10 @@ import { Callout } from 'fumadocs-ui/components/callout';
 1. 在系统设置页点击「其它设置」标签页
 2. 找到「关于」内容编辑区域
 
-![关于内容编辑区](/assets/guide/feature-guide/setting-about-editor.png)
+![关于内容编辑区](../../../assets/guide/feature-guide/setting-about-editor.png)
 
 3. 在文本框中填写 Markdown 格式的内容（支持标题、链接、图片、列表等）
 4. 点击「保存」
 5. 用户点击左侧导航「关于」后将看到配置的内容
 
-![关于页展示效果](/assets/guide/feature-guide/setting-about-effect.png)
+![关于页展示效果](../../../assets/guide/feature-guide/setting-about-effect.png)

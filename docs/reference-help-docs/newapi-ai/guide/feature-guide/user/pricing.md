@@ -26,7 +26,7 @@ description: 查看全站模型定价及计费说明
 
 点击左侧导航栏的「定价」，或直接访问 `/pricing`
 
-![定价页全貌](/assets/guide/feature-guide/pricing.png)
+![定价页全貌](../../../assets/guide/feature-guide/pricing.png)
 
 ### 浏览模型价格
 

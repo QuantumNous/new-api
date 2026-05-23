@@ -21,4 +21,4 @@ import { Callout } from 'fumadocs-ui/components/callout';
   充值、兑换码和邀请链接适用于合法授权场景。使用时应符合授权范围、上游服务条款、平台规则和所在地法律法规要求。
 </Callout>
 
-![钱包](/assets/guide/wallet.png)
+![钱包](../../assets/guide/wallet.png)

@@ -22,7 +22,7 @@ description: 查看和管理平台所有注册用户
 ---
 查看和管理平台所有注册用户，包括修改角色、配额、分组，以及账号状态控制。使用管理员账号登录后，左侧导航点击「用户」，或直接访问 `/console/user`。
 
-![用户列表页](/assets/guide/feature-guide/user-list.png)
+![用户列表页](../../../assets/guide/feature-guide/user-list.png)
 
 用户列表展示平台所有注册用户，包含用户名、邮箱、角色、分组、配额余额、状态等信息。
 
@@ -32,7 +32,7 @@ description: 查看和管理平台所有注册用户
 
 在用户列表中找到目标用户，点击右侧「编辑」按钮，弹出编辑弹窗
 
-![编辑用户弹窗](/assets/guide/feature-guide/user-edit.png)
+![编辑用户弹窗](../../../assets/guide/feature-guide/user-edit.png)
 
 ### 修改用户信息
 
@@ -53,7 +53,7 @@ description: 查看和管理平台所有注册用户
 1. 在用户列表顶部找到搜索框
 2. 输入用户名或邮箱关键词
 
-![搜索框输入关键词后的过滤结果](/assets/guide/feature-guide/user-search.png)
+![搜索框输入关键词后的过滤结果](../../../assets/guide/feature-guide/user-search.png)
 
 ### 查看搜索结果
 

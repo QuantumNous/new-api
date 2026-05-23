@@ -25,7 +25,7 @@ import { Callout } from 'fumadocs-ui/components/callout';
 
 <div className="my-8 text-center">
   <img
-    src="/assets/logo.png"
+    src="../../../assets/logo.png"
     alt="New API Logo"
     className="mx-auto"
     width="120"
@@ -33,7 +33,7 @@ import { Callout } from 'fumadocs-ui/components/callout';
   />
   <h1 className="mt-4 mb-2 text-4xl font-bold">New API</h1>
   <img
-    src="/assets/trendshift.svg"
+    src="../../../assets/trendshift.svg"
     alt="NewAPI Trendshift Badge"
     className="mx-auto mt-4"
     style={{ width: '250px', height: '55px' }}

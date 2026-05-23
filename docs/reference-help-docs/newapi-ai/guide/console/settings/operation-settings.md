@@ -21,6 +21,6 @@ import { Callout } from 'fumadocs-ui/components/callout';
   屏蔽词、日志记录和监控功能应服务于内容安全、滥用治理和合规审计。部署方应确保这些功能用于保障服务安全合规，追踪或治理能力。
 </Callout>
 
-![运营1](/assets/guide/operation-1.png)
-![运营2](/assets/guide/operation-2.png)
-![运营3](/assets/guide/operation-3.png)
+![运营1](../../../assets/guide/operation-1.png)
+![运营2](../../../assets/guide/operation-2.png)
+![运营3](../../../assets/guide/operation-3.png)

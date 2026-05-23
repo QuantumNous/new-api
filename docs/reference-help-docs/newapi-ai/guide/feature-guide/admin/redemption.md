@@ -20,7 +20,7 @@ description: 批量生成和管理配额兑换码
 ---
 批量生成和管理配额兑换码，用于活动赠送或用户充值。使用管理员账号登录后，左侧导航点击「兑换码」，或直接访问 `/console/redemption`。
 
-![兑换码列表页](/assets/guide/feature-guide/redemption-list.png)
+![兑换码列表页](../../../assets/guide/feature-guide/redemption-list.png)
 
 兑换码列表展示所有已生成的兑换码，包含码值（部分遮挡）、面值、使用状态（未使用 / 已使用）、创建时间。
 
@@ -30,7 +30,7 @@ description: 批量生成和管理配额兑换码
 
 在兑换码列表页点击「生成兑换码」按钮，弹出生成弹窗
 
-![生成兑换码弹窗](/assets/guide/feature-guide/redemption-create.png)
+![生成兑换码弹窗](../../../assets/guide/feature-guide/redemption-create.png)
 
 ### 设置生成参数
 
@@ -43,7 +43,7 @@ description: 批量生成和管理配额兑换码
 
 点击「生成」，系统批量创建兑换码并显示在列表中
 
-![生成完成后的兑换码列表](/assets/guide/feature-guide/redemption-created.png)
+![生成完成后的兑换码列表](../../../assets/guide/feature-guide/redemption-created.png)
 
 ### 导出兑换码
 

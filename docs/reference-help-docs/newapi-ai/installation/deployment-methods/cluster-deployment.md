@@ -51,7 +51,7 @@ New API 集群采用主从架构设计：
 1. **主节点**：负责处理所有写操作和部分读操作
 2. **从节点**：主要负责处理读操作，提高系统整体吞吐量
 
-![集群架构](/assets/cluster-architecture.svg)
+![集群架构](../../assets/cluster-architecture.svg)
 
 ## 集群部署关键配置
 

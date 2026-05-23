@@ -68,7 +68,7 @@ import { Callout } from 'fumadocs-ui/components/callout';
 
 渠道是平台对接 AI 服务商的核心配置单元,每条渠道对应一个服务商的 API Key。使用管理员账号登录后,左侧导航点击「渠道」,或直接访问 `/console/channel`。
 
-![渠道列表页](/assets/guide/feature-guide/channel-list.png)
+![渠道列表页](../../../assets/guide/feature-guide/channel-list.png)
 
 渠道列表展示所有已配置的 AI 服务商渠道,包含名称、类型、状态(绿色=正常 / 红色=禁用)、响应时间、已用配额等信息。
 
@@ -80,7 +80,7 @@ import { Callout } from 'fumadocs-ui/components/callout';
 2. 在弹窗中选择服务商类型(如 OpenAI、Claude、Gemini 等)
 3. 填写渠道名称和 API Key
 
-![添加渠道弹窗(基础信息)](/assets/guide/feature-guide/channel-add-basic.png)
+![添加渠道弹窗(基础信息)](../../../assets/guide/feature-guide/channel-add-basic.png)
 
 ### 选择模型
 
@@ -90,7 +90,7 @@ import { Callout } from 'fumadocs-ui/components/callout';
 
 按需展开高级配置,填写以下可选项:
 
-![添加渠道弹窗(高级配置)](/assets/guide/feature-guide/channel-add-advanced.png)
+![添加渠道弹窗(高级配置)](../../../assets/guide/feature-guide/channel-add-advanced.png)
 
 | 配置项 | 说明 |
 | --- | --- |
@@ -112,7 +112,7 @@ import { Callout } from 'fumadocs-ui/components/callout';
 1. 在渠道列表中找到目标渠道,点击右侧操作栏中的「测试」按钮
 2. 等待测试请求完成,弹窗显示响应时间和成功/失败状态
 
-![渠道测试结果弹窗](/assets/guide/feature-guide/channel-test.png)
+![渠道测试结果弹窗](../../../assets/guide/feature-guide/channel-test.png)
 
 响应时间越短说明该渠道速度越快。
 
@@ -127,7 +127,7 @@ import { Callout } from 'fumadocs-ui/components/callout';
 1. 在渠道列表左侧勾选多条渠道的复选框
 2. 页面顶部出现批量操作工具栏
 
-![勾选多条渠道后的批量操作栏](/assets/guide/feature-guide/channel-batch.png)
+![勾选多条渠道后的批量操作栏](../../../assets/guide/feature-guide/channel-batch.png)
 
 ### 执行批量操作
 
@@ -145,7 +145,7 @@ import { Callout } from 'fumadocs-ui/components/callout';
 1. 在渠道列表中点击目标渠道右侧的「编辑」按钮
 2. 在编辑弹窗中找到「多 Key 管理」区域
 
-![多 Key 模式配置区域](/assets/guide/feature-guide/channel-multikey.png)
+![多 Key 模式配置区域](../../../assets/guide/feature-guide/channel-multikey.png)
 
 3. 点击「添加 Key」逐条输入多个 API Key
 

@@ -18,4 +18,4 @@ title: 聊天设置
 - `{key}`：替换为密钥
 - `{address}`：替换为服务器地址（末尾不带 / 和 /v1）
 
-![聊天设置](/assets/guide/chat-setting.png)
+![聊天设置](../../../assets/guide/chat-setting.png)

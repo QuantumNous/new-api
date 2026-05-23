@@ -75,7 +75,7 @@ CC Switch 支持 `ccswitch://` Deep Link 协议，可从 New API 令牌管理页
    在菜单中选择 **CC Switch** 选项，系统会自动唤起 CC Switch 应用并弹出配置弹窗。
 
 2. **在弹窗中完成配置**
-   ![填入 CC Switch 弹窗](/assets/cc_switch/fill_dialog.png)
+   ![填入 CC Switch 弹窗](../assets/cc_switch/fill_dialog.png)
 
    弹窗各字段说明：
    - **应用**：顶部切换应用类型 — **Claude** / **Codex** / **Gemini**，根据需要选择目标应用

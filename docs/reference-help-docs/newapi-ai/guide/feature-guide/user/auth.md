@@ -27,7 +27,7 @@ description: 支持账号密码注册,以及多种第三方 OAuth 一键登录
 
 1. 打开平台首页,点击右上角「登录」按钮,或直接访问 `/login`
 
-![登录页](/assets/guide/feature-guide/login.png)
+![登录页](../../../assets/guide/feature-guide/login.png)
 
 2. 在登录页输入用户名和密码,点击「登录」完成登录
 
@@ -45,7 +45,7 @@ description: 支持账号密码注册,以及多种第三方 OAuth 一键登录
 
 1. 在登录页点击「注册」链接,或直接访问 `/register`
 
-![注册页](/assets/guide/feature-guide/register.png)
+![注册页](../../../assets/guide/feature-guide/register.png)
 
 2. 填写用户名、密码
 3. 填写邮箱地址,点击「发送验证码」,将收到的验证码填入输入框

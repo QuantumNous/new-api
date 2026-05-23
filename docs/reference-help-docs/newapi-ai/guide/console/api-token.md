@@ -18,8 +18,8 @@ title: API 令牌
 
 ## 查看令牌
 
-![查看令牌](/assets/guide/api-token.png)
+![查看令牌](../../assets/guide/api-token.png)
 
 ## 添加令牌
 
-![添加令牌](/assets/guide/create-api-token.png)
+![添加令牌](../../assets/guide/create-api-token.png)

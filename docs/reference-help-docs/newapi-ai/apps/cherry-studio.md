@@ -49,24 +49,24 @@ API 地址：NewAPI 站点地址
 ### 图文指引
 
 1. 在 NewAPI 中复制 API key
-   ![复制 API 密钥](/assets/cherry_studio/copy_api_key.png)
+   ![复制 API 密钥](../assets/cherry_studio/copy_api_key.png)
 
 2. 添加提供商
-   ![添加供应商](/assets/cherry_studio/add_provider.png)
+   ![添加供应商](../assets/cherry_studio/add_provider.png)
 
 3. 添加模型
-   ![添加模型](/assets/cherry_studio/add_models.png)
+   ![添加模型](../assets/cherry_studio/add_models.png)
 
 4. 返回聊天页面
-   ![切换聊天页面](/assets/cherry_studio/back_to_chat.png)
+   ![切换聊天页面](../assets/cherry_studio/back_to_chat.png)
 
 5. 切换 NewAPI 模型
-   ![切换模型](/assets/cherry_studio/switch_model.png)
+   ![切换模型](../assets/cherry_studio/switch_model.png)
 
 ## 在 Cherry Studio 中画图
 
 1. 首先添加支持画图的模型
-   ![画图模型](/assets/cherry_studio/add_paint_models.png)
+   ![画图模型](../assets/cherry_studio/add_paint_models.png)
 
 2. 画图
-   ![画图](/assets/cherry_studio/paint.png)
+   ![画图](../assets/cherry_studio/paint.png)

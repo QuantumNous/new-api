@@ -244,7 +244,7 @@ OpenAI image editing is more reliable: image edit requests now preserve referenc
 ### Gallery
 | Model availability rankings | Refreshed pricing and settings UI |
 | --- | --- |
-|<img width="3644" height="2160" alt="" src="https://github.com/user-attachments/assets/03e974ba-4605-4bfd-83ef-dd32a30974de" />| <img width="3618" height="2156" alt="" src="https://github.com/user-attachments/assets/db5bb31a-ef40-4914-989f-b7a6fd569a85" />|
+|<img width="3644" height="2160" alt="" src="../../assets/external/github-user-attachments/03e974ba-4605-4bfd-83ef-dd32a30974de.png" />| <img width="3618" height="2156" alt="" src="../../assets/external/github-user-attachments/db5bb31a-ef40-4914-989f-b7a6fd569a85.png" />|
 
 ---
 
@@ -292,7 +292,7 @@ v1.0.0-rc.3 adds a new model rankings experience with model availability and per
 ### Gallery
 | Model availability rankings | Refreshed pricing and settings UI |
 | --- | --- |
-|<img width="3644" height="2160" alt="" src="https://github.com/user-attachments/assets/03e974ba-4605-4bfd-83ef-dd32a30974de" />| <img width="3618" height="2156" alt="" src="https://github.com/user-attachments/assets/db5bb31a-ef40-4914-989f-b7a6fd569a85" />|
+|<img width="3644" height="2160" alt="" src="../../assets/external/github-user-attachments/03e974ba-4605-4bfd-83ef-dd32a30974de.png" />| <img width="3618" height="2156" alt="" src="../../assets/external/github-user-attachments/db5bb31a-ef40-4914-989f-b7a6fd569a85.png" />|
 
 ---
 
@@ -344,7 +344,7 @@ v1.0.0-rc.2 officially opens up switching between the new and classic frontend, 
 
 | Refreshed pricing page | Dashboard and analytics controls |
 | --- | --- |
-| <img width="100%" alt="Refreshed pricing page" src="https://github.com/user-attachments/assets/8d403155-27ac-407d-b0ae-8815034c66a7" /> | <img width="100%" alt="Dashboard and analytics controls" src="https://github.com/user-attachments/assets/caa73f0a-13d2-47fc-ab7d-0ffb4e7b6194" /> |
+| <img width="100%" alt="Refreshed pricing page" src="../../assets/external/github-user-attachments/8d403155-27ac-407d-b0ae-8815034c66a7.png" /> | <img width="100%" alt="Dashboard and analytics controls" src="../../assets/external/github-user-attachments/caa73f0a-13d2-47fc-ab7d-0ffb4e7b6194.png" /> |
 
 ### What's Changed
 * fix: 修复默认主题 API 密钥分组行为 by @Micah-Zheng in https://github.com/QuantumNous/new-api/pull/4548
@@ -382,7 +382,7 @@ v1.0.0-rc.1 is the first release candidate for the upcoming 1.0 release, and its
 
 This RC refreshes the interface across navigation, configuration, analytics, and logs, making day-to-day management much easier as the project moves toward the final v1 launch.
 
-<img width="3544" height="2166" alt="" src="https://github.com/user-attachments/assets/f3f8ed32-e0c5-4cfb-94a3-da0f357b62ab" />
+<img width="3544" height="2166" alt="" src="../../assets/external/github-user-attachments/f3f8ed32-e0c5-4cfb-94a3-da0f357b62ab.png" />
 
 ### New Features
 - Introduced the rebuilt v1 frontend with modern navigation and layouts, a visual channel editor for parameter overrides, and easier access to system settings and theme switching (#4265).
@@ -1052,7 +1052,7 @@ This release introduces comprehensive support for **tiered billing (阶梯计费
 **Docker image:** `calciumion/new-api:nightly`
 **Docker 镜像:** `calciumion/new-api:nightly`
 
-<img width="500" alt="" src="https://github.com/user-attachments/assets/893d5789-64b3-414d-8e71-cc178b724ac6" />
+<img width="500" alt="" src="../../assets/external/github-user-attachments/893d5789-64b3-414d-8e71-cc178b724ac6.png" />
 
 #### New Features
 * Added comprehensive support for tiered billing, including flexible expression evaluation, tool pricing settings UI, and channel test support (#4145).
@@ -1110,7 +1110,7 @@ This release introduces comprehensive support for **tiered billing (阶梯计费
 #### Bug Fixes
 * Resolve email delivery issues for Outlook and similar providers (#4112).
 
-<img width="2848" height="966" alt="" src="https://github.com/user-attachments/assets/8cfdd943-3b2a-4e2a-9f7f-301468d64ce2" />
+<img width="2848" height="966" alt="" src="../../assets/external/github-user-attachments/8cfdd943-3b2a-4e2a-9f7f-301468d64ce2.png" />
 
 
 ---

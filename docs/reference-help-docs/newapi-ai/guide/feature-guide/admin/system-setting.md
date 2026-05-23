@@ -24,7 +24,7 @@ import { Callout } from 'fumadocs-ui/components/callout';
 
 Root 专属的全局配置中心，涵盖站点基础信息、计费规则、支付配置等所有系统级参数。使用 Root 账号登录后，左侧导航点击「设置」，或直接访问 `/console/setting`。
 
-![系统设置页标签页导航总览](/assets/guide/feature-guide/setting-tabs.png)
+![系统设置页标签页导航总览](../../../assets/guide/feature-guide/setting-tabs.png)
 
 系统设置页顶部有多个标签页，点击对应标签切换到不同配置区域。
 
@@ -32,7 +32,7 @@ Root 专属的全局配置中心，涵盖站点基础信息、计费规则、支
 
 1. 点击「通用设置」标签页
 
-![通用设置标签页](/assets/guide/feature-guide/setting-general.png)
+![通用设置标签页](../../../assets/guide/feature-guide/setting-general.png)
 
 2. 可配置以下内容：
    - **站点名称**：显示在浏览器标签和页面顶部的名称
@@ -49,7 +49,7 @@ Root 专属的全局配置中心，涵盖站点基础信息、计费规则、支
 
 1. 点击「计费设置」或「倍率设置」标签页
 
-![计费与倍率设置标签页](/assets/guide/feature-guide/setting-ratio.png)
+![计费与倍率设置标签页](../../../assets/guide/feature-guide/setting-ratio.png)
 
 2. 在模型倍率列表中找到目标模型，修改输入/输出倍率数值
 3. 在分组倍率区域可为不同分组设置差异化的计费倍率
@@ -59,7 +59,7 @@ Root 专属的全局配置中心，涵盖站点基础信息、计费规则、支
 
 1. 点击「安全设置」或「注册设置」标签页
 
-![注册与安全设置标签页](/assets/guide/feature-guide/setting-security.png)
+![注册与安全设置标签页](../../../assets/guide/feature-guide/setting-security.png)
 
 2. 可配置以下内容：
    - **开放注册**：开关控制是否允许新用户自行注册
@@ -71,7 +71,7 @@ Root 专属的全局配置中心，涵盖站点基础信息、计费规则、支
 
 1. 点击「OAuth 设置」标签页
 
-![OAuth 设置标签页](/assets/guide/feature-guide/setting-oauth.png)
+![OAuth 设置标签页](../../../assets/guide/feature-guide/setting-oauth.png)
 
 2. 为需要启用的第三方登录平台填写对应的 Client ID 和 Client Secret
 3. 修改完成后点击「保存」，用户登录页即可看到对应的第三方登录按钮
@@ -86,7 +86,7 @@ Root 专属的全局配置中心，涵盖站点基础信息、计费规则、支
 
 配置邮件服务器用于发送验证码、通知等邮件。
 
-![系统设置 - 邮件服务器](/assets/guide/system-setting-2.png)
+![系统设置 - 邮件服务器](../../../assets/guide/system-setting-2.png)
 
 1. 在系统设置页找到「邮件服务器」配置区域
 2. 填写以下信息：
@@ -107,7 +107,7 @@ Root 专属的全局配置中心，涵盖站点基础信息、计费规则、支
 
 配置 New API Worker 相关参数。
 
-![系统设置 - Worker 配置](/assets/guide/system-setting-1.png)
+![系统设置 - Worker 配置](../../../assets/guide/system-setting-1.png)
 
 Worker 用于处理异步任务，如：
 - 邮件发送

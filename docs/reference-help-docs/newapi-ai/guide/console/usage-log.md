@@ -15,4 +15,4 @@ title: 使用日志
 ---
 在这里可以查看调用API的日志，查看所使用的令牌分组、模型和花费。普通用户可以看见自己的日志，管理员可以看见其它用户的日志。
 
-![使用日志](/assets/guide/usage-log.png)
+![使用日志](../../assets/guide/usage-log.png)

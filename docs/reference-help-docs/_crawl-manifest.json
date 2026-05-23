@@ -6469,7 +6469,12 @@
           ]
         }
       ],
-      "failures": []
+      "failures": [],
+      "assets": {
+        "localDir": "newapi-ai/assets",
+        "files": 264,
+        "imageRefs": 304
+      }
     },
     {
       "key": "ikuncode",

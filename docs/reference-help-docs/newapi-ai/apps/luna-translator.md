@@ -70,50 +70,50 @@ LunaTranslator 支持接入本地部署的 NewAPI。请使用您自己部署的 
    { "LunaTranslator": "lunatranslator://llmapi/base64?data={cheryConfig}" }
    ```
 
-   ![add_config](/assets/luna_translator/add_config.png)
+   ![add_config](../assets/luna_translator/add_config.png)
 
 2. 在 **`NewAPI`** -> `控制台` -> `令牌管理` 选项卡中选择要使用在 LunaTranslator 的令牌，点击聊天按钮旁的下拉选项，选择 `LunaTranslator`,将会跳转到 LunaTranslator 并自动配置 API 地址与 API Key
 
-   ![跳转到 LunaTranslator](/assets/luna_translator/jump_to_app.png)
+   ![跳转到 LunaTranslator](../assets/luna_translator/jump_to_app.png)
 
 3. 在 **`LunaTranslator`** -> `设置` -> `翻译设置` -> `大模型` 中将出现一个新增的大模型接口配置，点击编辑
 
-   ![设置api](/assets/luna_translator/api_setting.png)
+   ![设置api](../assets/luna_translator/api_setting.png)
 
 4. 点击 **model** 下拉框旁的刷新按钮，获取 NewAPI 平台的模型列表，选择或输入模型名称，完成后点击确定保存
 
-   ![设置模型](/assets/luna_translator/setting_model.png)
+   ![设置模型](../assets/luna_translator/setting_model.png)
 
 5. 检查 **new_api** 大模型接口配置旁边的开关按钮是否打开，若未启用则启用接口即可开始使用
 
-   ![开启配置](/assets/luna_translator/open_config.png)
+   ![开启配置](../assets/luna_translator/open_config.png)
 
 ### 手动配置
 
 1. 在 **`NewAPI`** -> `控制台` -> `令牌管理` 选项卡中获取 API Key
 
-   ![获取 API Key](/assets/luna_translator/copy_api_key.png)
+   ![获取 API Key](../assets/luna_translator/copy_api_key.png)
 
 2. 在 **`LunaTranslator`** -> `设置` - `翻译设置` -> `大模型` 中选择添加
 
-   ![添加 API](/assets/luna_translator/add_api.png)
+   ![添加 API](../assets/luna_translator/add_api.png)
 
 3. 复制 **大模型通用接口** 模板，新增接口
 
-   ![添加 API2](/assets/luna_translator/add_api_2.png)
+   ![添加 API2](../assets/luna_translator/add_api_2.png)
 
 4. 在 **新增的接口** 中，填写对应的 API 地址和 API Key
 
-   ![设置 API1](/assets/luna_translator/setting_api.png)
+   ![设置 API1](../assets/luna_translator/setting_api.png)
 
-   ![设置 API2](/assets/luna_translator/setting_api2.png)
+   ![设置 API2](../assets/luna_translator/setting_api2.png)
 
 5. 点击 **model** 下拉框旁的刷新按钮，获取 NewAPI 平台的模型列表，选择或输入模型名称，完成后点击确定保存
 
-   ![设置 API3](/assets/luna_translator/setting_api3.png)
+   ![设置 API3](../assets/luna_translator/setting_api3.png)
 
 6. 点击 **NewAPI** 旁边的开关按钮，启用接口即可开始使用
 
-   ![打开API](/assets/luna_translator/open_api.png)
+   ![打开API](../assets/luna_translator/open_api.png)
 
 更多使用方式请查看 LunaTranslator 官方文档:[LunaTranslator 文档 - 大模型翻译接口](https://docs.lunatranslator.org/zh/guochandamoxing.html)

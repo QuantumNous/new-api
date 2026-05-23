@@ -27,9 +27,9 @@ import { Callout } from 'fumadocs-ui/components/callout';
 
 这里可以配置充值功能相关的设置
 
-![支付设置](/assets/guide/payment-setting.png)
+![支付设置](../../../assets/guide/payment-setting.png)
 
-![Stripe](/assets/guide/stripe.png)
+![Stripe](../../../assets/guide/stripe.png)
 
 ## 支持的支付网关
 

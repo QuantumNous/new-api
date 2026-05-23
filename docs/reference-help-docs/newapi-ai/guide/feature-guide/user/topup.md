@@ -27,7 +27,7 @@ description: 配额是平台内部计费单位，支持多种方式充值
 
 ## 充值方式
 
-![充值页面](/assets/guide/feature-guide/topup.png)
+![充值页面](../../../assets/guide/feature-guide/topup.png)
 
 支持在线支付充值和兑换码两种方式增加账户配额。
 
@@ -48,7 +48,7 @@ description: 配额是平台内部计费单位，支持多种方式充值
 
 1. 选择支付方式（EPay / Stripe / Creem / Waffo）
 
-![选择支付方式](/assets/guide/feature-guide/topup-payment.png)
+![选择支付方式](../../../assets/guide/feature-guide/topup-payment.png)
 
 2. 点击「充值」按钮，页面跳转至对应支付平台
 3. 在支付平台完成付款后，自动跳回平台，账户余额更新
@@ -60,7 +60,7 @@ description: 配额是平台内部计费单位，支持多种方式充值
 1. 在充值页找到「兑换码」输入区域
 2. 在输入框中粘贴或输入管理员提供的兑换码
 
-![兑换码输入区域](/assets/guide/feature-guide/topup-redeem.png)
+![兑换码输入区域](../../../assets/guide/feature-guide/topup-redeem.png)
 
 ### 完成兑换
 
@@ -75,7 +75,7 @@ description: 配额是平台内部计费单位，支持多种方式充值
 
 在充值页或个人设置页找到「邀请」区域，复制你的专属邀请码
 
-![邀请码与返利区域](/assets/guide/feature-guide/topup-invite.png)
+![邀请码与返利区域](../../../assets/guide/feature-guide/topup-invite.png)
 
 ### 使用返利配额
 

@@ -33,7 +33,7 @@ description: AionUi 教程 — 免费开源桌面办公 Agent，支持 Gemini CL
 - GitHub 仓库：[https://github.com/iOfficeAI/AionUi](https://github.com/iOfficeAI/AionUi)
 - 下载地址：[https://github.com/iOfficeAI/AionUi/releases](https://github.com/iOfficeAI/AionUi/releases)
 
-![AionUi Logo](/assets/aionui/aionui—logo.png)
+![AionUi Logo](../assets/aionui/aionui—logo.png)
 
 ## 核心特性
 
@@ -84,18 +84,18 @@ API 地址：NewAPI 站点地址（例如：`https://<your-newapi-domain>/v1`）
 ### 配置步骤
 
 1. **在 NewAPI 中复制 API key**
-   ![复制 API 密钥](/assets/aionui/copy_apikey.png)
+   ![复制 API 密钥](../assets/aionui/copy_apikey.png)
 
 2. **打开 AionUi 设置**
    - 在 AionUi 中进入设置页面
    - 找到 模型配置 Tab
    - 点击"添加模型"
-   ![打开设置](/assets/aionui/add-model-1.png)
+   ![打开设置](../assets/aionui/add-model-1.png)
 
 3. **添加新的提供商**
    - 点击"添加模型"
    - 选择 NewAPI
-   ![添加 NewAPI 提供商](/assets/aionui/newapi_provider.png)
+   ![添加 NewAPI 提供商](../assets/aionui/newapi_provider.png)
 
 4. **配置 API 信息**
    - API 地址：填写您的 NewAPI 站点地址（格式：`https://<your-newapi-domain>/v1`）

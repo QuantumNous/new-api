@@ -21,6 +21,6 @@ import { Callout } from 'fumadocs-ui/components/callout';
   兑换码使用应符合授权范围、平台规则和所在地法律法规要求。
 </Callout>
 
-![兑换码1](/assets/guide/redemption-code-1.png)
+![兑换码1](../../assets/guide/redemption-code-1.png)
 
-![兑换码2](/assets/guide/redemption-code-2.png)
+![兑换码2](../../assets/guide/redemption-code-2.png)

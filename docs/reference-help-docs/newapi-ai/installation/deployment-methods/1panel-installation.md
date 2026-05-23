@@ -49,7 +49,7 @@ title: 1Panel 面板部署
   在完成了 1Panel 的安装部署后，根据提示网址打开浏览器进入 1Panel 面板
 </Callout>
 
-![1panel](/assets/1panel/1panel.jpg)
+![1panel](../../assets/1panel/1panel.jpg)
 
 ## 步骤二：安装 New API
 
@@ -59,7 +59,7 @@ title: 1Panel 面板部署
   进入应用商店应用列表，在【AI】分类下找到 New API 应用进行安装
 </Callout>
 
-![1panel-newapi](/assets/1panel/1panel-newapi.jpg)
+![1panel-newapi](../../assets/1panel/1panel-newapi.jpg)
 
 ### 配置参数
 
@@ -73,7 +73,7 @@ title: 1Panel 面板部署
 - **时区**：输入服务器所在时区（默认 Asia/Shanghai）
 - **高级设置**：务必勾选端口外部访问
 
-![newapi-setting](/assets/1panel/newapi-setting.jpg)
+![newapi-setting](../../assets/1panel/newapi-setting.jpg)
 
 ### 确认安装
 
@@ -81,7 +81,7 @@ title: 1Panel 面板部署
   点击确认开始安装，页面将自动跳转到已安装应用列表，等待 New API 应用状态变为已启动
 </Callout>
 
-![newapi-start](/assets/1panel/newapi-start.jpg)
+![newapi-start](../../assets/1panel/newapi-start.jpg)
 
 ## 步骤三：配置环境变量（重要）
 
@@ -120,7 +120,7 @@ head -c 16 /dev/urandom | xxd -p
   - 使用前建议在 `面板设置` 页面设置好 `默认访问地址`
 </Callout>
 
-![newapi-visit](/assets/1panel/newapi-visit.jpg)
+![newapi-visit](../../assets/1panel/newapi-visit.jpg)
 
 首次访问将自动引导到初始化页面，按照页面指引设置管理员账号与密码。
 

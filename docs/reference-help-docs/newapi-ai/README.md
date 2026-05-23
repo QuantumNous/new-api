@@ -4,6 +4,10 @@
 > 抓取时间：2026-05-23T07:43:21.476Z
 > 文档页数：293
 
+## 图片资源
+
+本目录已同步 New API 文档引用的图片资源到 `assets/`，页面内图片链接已改为本地相对路径。
+
 ## 目录大纲
 
 - [原生Gemini格式](api/ai-model/audio/geminirelayv1beta-383836364.md) — https://raw.githubusercontent.com/QuantumNous/new-api-docs-v1/main/content/docs/zh/api/ai-model/audio/geminirelayv1beta-383836364.mdx

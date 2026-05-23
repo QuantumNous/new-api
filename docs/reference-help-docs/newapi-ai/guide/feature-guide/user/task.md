@@ -16,7 +16,7 @@ description: 管理 Midjourney 绘图、Suno 音乐生成等异步任务
 ---
 管理 Midjourney 绘图、Suno 音乐生成等异步任务的状态与结果。左侧导航点击「任务」，或直接访问 `/console/task`。
 
-![任务列表页](/assets/guide/feature-guide/task-list.png)
+![任务列表页](../../../assets/guide/feature-guide/task-list.png)
 
 任务列表展示所有已提交的异步生成任务，包含任务 ID、类型、状态、提交时间和完成时间。
 

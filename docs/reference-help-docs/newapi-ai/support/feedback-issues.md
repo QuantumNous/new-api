@@ -30,7 +30,7 @@ title: 问题反馈
     2. 确保使用的是最新版本
     3. 检查 [常见问题文档](/zh/docs/support/faq) 中是否已有相关解答
 
-![feedback-issues](/assets/issues.png)
+![feedback-issues](../assets/issues.png)
 
 ## 💡 问题反馈模板
 

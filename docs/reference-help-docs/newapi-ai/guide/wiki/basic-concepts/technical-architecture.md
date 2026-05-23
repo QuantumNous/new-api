@@ -13,4 +13,4 @@
 ---
 title: 技术架构
 ---
-![technical-architecture.svg](/assets/technical-architecture.svg)
+![technical-architecture.svg](../../../assets/technical-architecture.svg)

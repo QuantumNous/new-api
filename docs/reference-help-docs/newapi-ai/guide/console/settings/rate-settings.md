@@ -118,7 +118,7 @@ New API 采用预消费和后消费的双重计费机制：
 1. JSON格式设置：直接编辑模型倍率JSON配置
 2. 可视化编辑器：通过图形界面设置倍率
 
-![倍率1](/assets/guide/rate-setting-1.png)
+![倍率1](../../../assets/guide/rate-setting-1.png)
 
 ## 补全倍率设置
 
@@ -161,7 +161,7 @@ New API 采用预消费和后消费的双重计费机制：
 2. 分组倍率：用户所属分组的倍率
 3. 默认倍率：系统默认倍率（通常为1.0）
 
-![倍率2](/assets/guide/rate-setting-2.png)
+![倍率2](../../../assets/guide/rate-setting-2.png)
 
 ## 可视化倍率设置
 
@@ -172,7 +172,7 @@ New API 采用预消费和后消费的双重计费机制：
 - 冲突检测和提示
 - 一键同步上游倍率
 
-![倍率3](/assets/guide/rate-setting-3.png)
+![倍率3](../../../assets/guide/rate-setting-3.png)
 
 ## 未设置倍率模型
 
@@ -182,7 +182,7 @@ New API 采用预消费和后消费的双重计费机制：
 2. 计费模式：提示"倍率或价格未配置"错误
 3. 自动检测：在管理界面显示未配置的模型
 
-![倍率4](/assets/guide/rate-setting-4.png)
+![倍率4](../../../assets/guide/rate-setting-4.png)
 
 ## 上游倍率同步
 
@@ -193,7 +193,7 @@ New API 采用预消费和后消费的双重计费机制：
 - 保持与上游价格同步
 - 支持手动调整和覆盖
 
-![倍率5](/assets/guide/rate-setting-5.png)
+![倍率5](../../../assets/guide/rate-setting-5.png)
 
 ## 常见问题
 

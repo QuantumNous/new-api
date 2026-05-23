@@ -24,4 +24,4 @@ title: 速率限制设置
 }
 ```
 
-![速率限制设置](/assets/guide/rate-limit-setting.png)
+![速率限制设置](../../../assets/guide/rate-limit-setting.png)

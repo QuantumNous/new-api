@@ -46,7 +46,7 @@ import { User, Shield, Crown, Key, BarChart2, CreditCard, Bot, Settings } from '
 
 New API 是一个统一的 LLM 网关平台，将多个 AI 服务商的接口聚合为标准的 OpenAI 兼容 API，让你通过一个地址访问数十种模型。本指南按角色分为用户指南与管理员指南两部分。
 
-![系统首页](/assets/guide/home.png)
+![系统首页](../../assets/guide/home.png)
 
 ## 角色说明
 
