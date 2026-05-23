@@ -211,14 +211,16 @@ export function usePricingColumns(
 
         if (model.image_billing_mode === 'per_size' && model.image_per_size_prices) {
           const p = model.image_per_size_prices
+          const fmt = (base: number) =>
+            '$' + (base * priceRate * usdExchangeRate).toFixed(3)
           return (
             <div className='min-w-[160px]'>
               <span className='font-mono text-sm tabular-nums'>
-                ${p.price_1k.toFixed(3)}
+                {fmt(p.price_1k)}
                 <span className='text-muted-foreground/40 mx-1'>/</span>
-                ${p.price_2k.toFixed(3)}
+                {fmt(p.price_2k)}
                 <span className='text-muted-foreground/40 mx-1'>/</span>
-                ${p.price_4k.toFixed(3)}
+                {fmt(p.price_4k)}
               </span>
               <div className='text-muted-foreground/50 text-[10px]'>
                 1K / 2K / 4K · {t('Per-resolution')}

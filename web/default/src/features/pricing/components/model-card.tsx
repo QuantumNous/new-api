@@ -141,24 +141,27 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
                 )
               ) : isImagePerSize && props.model.image_per_size_prices ? (
                 <>
-                  <span className='text-muted-foreground whitespace-nowrap'>
-                    <span className='text-foreground font-mono font-semibold'>
-                      ${props.model.image_per_size_prices.price_1k.toFixed(3)}
-                    </span>{' '}
-                    / 1K
-                  </span>
-                  <span className='text-muted-foreground whitespace-nowrap'>
-                    <span className='text-foreground font-mono font-semibold'>
-                      ${props.model.image_per_size_prices.price_2k.toFixed(3)}
-                    </span>{' '}
-                    / 2K
-                  </span>
-                  <span className='text-muted-foreground whitespace-nowrap'>
-                    <span className='text-foreground font-mono font-semibold'>
-                      ${props.model.image_per_size_prices.price_4k.toFixed(3)}
-                    </span>{' '}
-                    / 4K
-                  </span>
+                  {(['price_1k', 'price_2k', 'price_4k'] as const).map(
+                    (key, i) => {
+                      const label = ['1K', '2K', '4K'][i]
+                      const val = (
+                        props.model.image_per_size_prices![key] *
+                        priceRate *
+                        usdExchangeRate
+                      ).toFixed(3)
+                      return (
+                        <span
+                          key={key}
+                          className='text-muted-foreground whitespace-nowrap'
+                        >
+                          <span className='text-foreground font-mono font-semibold'>
+                            ${val}
+                          </span>{' '}
+                          / {label}
+                        </span>
+                      )
+                    }
+                  )}
                 </>
               ) : isTokenBased ? (
                 <>

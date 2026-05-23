@@ -505,9 +505,9 @@ function PriceSection(props: {
   if (props.model.image_billing_mode === 'per_size' && props.model.image_per_size_prices) {
     const prices = props.model.image_per_size_prices
     const tiers = [
-      { label: '1K', key: 'price_1k' as const, desc: '≤ 1024px' },
-      { label: '2K', key: 'price_2k' as const, desc: '≤ 2048px' },
-      { label: '4K', key: 'price_4k' as const, desc: '> 2048px' },
+      { label: '1K', key: 'price_1k' as const, desc: t('≤ 1024px') },
+      { label: '2K', key: 'price_2k' as const, desc: t('≤ 2048px') },
+      { label: '4K', key: 'price_4k' as const, desc: t('> 2048px') },
     ]
     return (
       <section>
@@ -843,7 +843,8 @@ function GroupPricingSection(props: {
             <TableRow className='hover:bg-transparent'>
               <TableHead className={thClass}>{t('Group')}</TableHead>
               <TableHead className={thClass}>{t('Ratio')}</TableHead>
-              {props.model.image_billing_mode === 'per_size' ? (
+              {props.model.image_billing_mode === 'per_size' &&
+              props.model.image_per_size_prices ? (
                 <>
                   <TableHead className={`${thClass} text-right`}>1K</TableHead>
                   <TableHead className={`${thClass} text-right`}>2K</TableHead>
