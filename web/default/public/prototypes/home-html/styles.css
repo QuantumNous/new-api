@@ -8347,3 +8347,10 @@ body {
     0 18px 34px -24px rgba(0, 120, 64, 0.5),
     inset 0 1px 0 rgba(255, 255, 255, 0.68);
 }
+
+.prototype-home[data-theme="light"] .prototype-home__announcement-label {
+  color: var(--brand-day-forest);
+  border-color: transparent;
+  background: transparent;
+  box-shadow: none;
+}
