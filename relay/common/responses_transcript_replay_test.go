@@ -271,7 +271,8 @@ func TestInspectResponsesTranscriptRequestShape(t *testing.T) {
 
 func TestIsResponsesTranscriptReplayError(t *testing.T) {
 	require.True(t, IsResponsesTranscriptReplayError(400, []byte(`{"error":{"code":"invalid_encrypted_content","message":"bad encrypted_content"}}`)))
-	require.True(t, IsResponsesTranscriptReplayError(400, []byte(`{"error":{"message":"Invalid signature in thinking block"}}`)))
+	require.True(t, IsResponsesTranscriptReplayError(400, []byte(`{"error":{"code":"thinking_signature_invalid","message":"The encrypted content gAAA...as53 could not be verified. Reason: Encrypted content could not be decrypted or parsed."}}`)))
+	require.False(t, IsResponsesTranscriptReplayError(400, []byte(`{"error":{"message":"Invalid signature in thinking block"}}`)))
 	require.False(t, IsResponsesTranscriptReplayError(404, []byte(`{"error":{"code":"previous_response_not_found","message":"missing"}}`)))
 	require.False(t, IsResponsesTranscriptReplayError(429, []byte(`{"error":{"code":"rate_limit_exceeded","message":"slow down"}}`)))
 }

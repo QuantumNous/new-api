@@ -12,7 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestShouldUseResponsesTranscriptReplayForCodexAPI(t *testing.T) {
+func TestShouldUseResponsesTranscriptReplayForCodexAPIRequiresChannelSwitch(t *testing.T) {
 	info := &relaycommon.RelayInfo{
 		RelayMode: relayconstant.RelayModeResponses,
 		ChannelMeta: &relaycommon.ChannelMeta{
@@ -20,7 +20,7 @@ func TestShouldUseResponsesTranscriptReplayForCodexAPI(t *testing.T) {
 		},
 	}
 
-	require.True(t, shouldUseResponsesTranscriptReplay(info))
+	require.False(t, shouldUseResponsesTranscriptReplay(info))
 }
 
 func TestShouldUseResponsesTranscriptReplayWhenChannelSwitchEnabled(t *testing.T) {
@@ -28,6 +28,20 @@ func TestShouldUseResponsesTranscriptReplayWhenChannelSwitchEnabled(t *testing.T
 		RelayMode: relayconstant.RelayModeResponses,
 		ChannelMeta: &relaycommon.ChannelMeta{
 			ApiType: constant.APITypeOpenAI,
+			ChannelOtherSettings: dto.ChannelOtherSettings{
+				ResponsesTranscriptReplayEnabled: true,
+			},
+		},
+	}
+
+	require.True(t, shouldUseResponsesTranscriptReplay(info))
+}
+
+func TestShouldUseResponsesTranscriptReplayForCodexAPIWhenChannelSwitchEnabled(t *testing.T) {
+	info := &relaycommon.RelayInfo{
+		RelayMode: relayconstant.RelayModeResponses,
+		ChannelMeta: &relaycommon.ChannelMeta{
+			ApiType: constant.APITypeCodex,
 			ChannelOtherSettings: dto.ChannelOtherSettings{
 				ResponsesTranscriptReplayEnabled: true,
 			},

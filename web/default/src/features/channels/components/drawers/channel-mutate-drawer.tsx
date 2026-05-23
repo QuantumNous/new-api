@@ -4017,11 +4017,11 @@ export function ChannelMutateDrawer({
                                   <FormItem className='flex items-center justify-between px-4 py-3'>
                                     <div className='space-y-0.5'>
                                       <FormLabel>
-                                        {t('响应会话重放')}
+                                        {t('加密内容校验重试')}
                                       </FormLabel>
                                       <FormDescription>
                                         {t(
-                                          '遇到 encrypted_content 校验失败时，优先保留 previous_response_id 并清理无效推理内容'
+                                          '遇到加密内容校验失败时，自动清理无效推理内容并重试'
                                         )}
                                       </FormDescription>
                                     </div>

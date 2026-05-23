@@ -260,17 +260,11 @@ func IsResponsesTranscriptReplayError(statusCode int, body []byte) bool {
 	if statusCode < 400 || len(body) == 0 {
 		return false
 	}
-	lower := strings.ToLower(strings.TrimSpace(string(body)))
 	code := strings.ToLower(strings.TrimSpace(gjson.GetBytes(body, "error.code").String()))
-	message := strings.ToLower(strings.TrimSpace(gjson.GetBytes(body, "error.message").String()))
-	if message == "" {
-		message = strings.ToLower(strings.TrimSpace(gjson.GetBytes(body, "message").String()))
+	if code == "" {
+		code = strings.ToLower(strings.TrimSpace(gjson.GetBytes(body, "code").String()))
 	}
-	return strings.Contains(lower, "invalid_encrypted_content") ||
-		strings.Contains(lower, "invalid signature in thinking block") ||
-		strings.Contains(lower, "encrypted_content") && (strings.Contains(lower, "invalid") || strings.Contains(lower, "decrypt") || strings.Contains(lower, "signature")) ||
-		code == "invalid_encrypted_content" ||
-		strings.Contains(message, "encrypted_content") && (strings.Contains(message, "invalid") || strings.Contains(message, "decrypt") || strings.Contains(message, "signature"))
+	return code == "invalid_encrypted_content" || code == "thinking_signature_invalid"
 }
 
 func ResponsesTranscriptReplayRequestHasEncryptedContent(requestBody []byte) bool {

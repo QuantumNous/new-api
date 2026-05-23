@@ -216,9 +216,6 @@ func shouldUseResponsesTranscriptReplay(info *relaycommon.RelayInfo) bool {
 	if info == nil || info.RelayMode != relayconstant.RelayModeResponses {
 		return false
 	}
-	if info.ApiType == appconstant.APITypeCodex {
-		return true
-	}
 	return info.ChannelOtherSettings.ResponsesTranscriptReplayEnabled
 }
 
