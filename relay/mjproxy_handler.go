@@ -15,6 +15,7 @@ import (
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/logger"
+	"github.com/QuantumNous/new-api/middleware"
 	"github.com/QuantumNous/new-api/model"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
@@ -292,7 +293,7 @@ func RelaySwapFace(c *gin.Context, info *relaycommon.RelayInfo) *dto.MidjourneyR
 	return nil
 }
 
-func RelayMidjourneyTaskImageSeed(c *gin.Context) *dto.MidjourneyResponse {
+func RelayMidjourneyTaskImageSeed(c *gin.Context, relayInfo *relaycommon.RelayInfo) *dto.MidjourneyResponse {
 	taskId := c.Param("id")
 	userId := c.GetInt("id")
 	originTask := model.GetByMJId(userId, taskId)
@@ -306,11 +307,12 @@ func RelayMidjourneyTaskImageSeed(c *gin.Context) *dto.MidjourneyResponse {
 	if channel.Status != common.ChannelStatusEnabled {
 		return service.MidjourneyErrorWrapper(constant.MjRequestError, "该任务所属渠道已被禁用")
 	}
-	c.Set("channel_id", originTask.ChannelId)
-	c.Request.Header.Set("Authorization", fmt.Sprintf("Bearer %s", channel.Key))
+	if mjErr := setupMidjourneyTaskChannel(c, relayInfo, channel); mjErr != nil {
+		return mjErr
+	}
 
 	requestURL := getMjRequestPath(c.Request.URL.String())
-	fullRequestURL := fmt.Sprintf("%s%s", channel.GetBaseURL(), requestURL)
+	fullRequestURL := fmt.Sprintf("%s%s", c.GetString("base_url"), requestURL)
 	midjResponseWithStatus, _, err := service.DoMidjourneyHttpRequest(c, time.Second*30, fullRequestURL)
 	if err != nil {
 		return &midjResponseWithStatus.Response
@@ -322,6 +324,41 @@ func RelayMidjourneyTaskImageSeed(c *gin.Context) *dto.MidjourneyResponse {
 		return service.MidjourneyErrorWrapper(constant.MjRequestError, "unmarshal_response_body_failed")
 	}
 	service.IOCopyBytesGracefully(c, nil, respBody)
+	return nil
+}
+
+func setupMidjourneyTaskChannel(c *gin.Context, relayInfo *relaycommon.RelayInfo, channel *model.Channel) *dto.MidjourneyResponse {
+	modelName := ""
+	tokenGroup := ""
+	if relayInfo != nil {
+		modelName = relayInfo.OriginModelName
+		tokenGroup = relayInfo.TokenGroup
+	}
+
+	if setupErr := middleware.SetupContextForSelectedChannel(c, channel, modelName); setupErr != nil {
+		return service.MidjourneyErrorWrapper(constant.MjRequestError, setupErr.Error())
+	}
+
+	retryParam := &service.RetryParam{
+		Ctx:        c,
+		TokenGroup: tokenGroup,
+		ModelName:  modelName,
+		Retry:      common.GetPointer(0),
+	}
+	if rateLimitErr := middleware.CheckSelectedChannelRateLimit(c, channel, retryParam, modelName); rateLimitErr != nil {
+		code := constant.MjErrorUnknown
+		if rateLimitErr.StatusCode == http.StatusTooManyRequests {
+			code = 30
+		}
+		return &dto.MidjourneyResponse{
+			Code:        code,
+			Description: rateLimitErr.Error(),
+		}
+	}
+
+	if relayInfo != nil {
+		relayInfo.InitChannelMeta(c)
+	}
 	return nil
 }
 
@@ -480,9 +517,9 @@ func RelayMidjourneySubmit(c *gin.Context, relayInfo *relaycommon.RelayInfo) *dt
 			if channel.Status != common.ChannelStatusEnabled {
 				return service.MidjourneyErrorWrapper(constant.MjRequestError, "该任务所属渠道已被禁用")
 			}
-			c.Set("base_url", channel.GetBaseURL())
-			c.Set("channel_id", originTask.ChannelId)
-			c.Request.Header.Set("Authorization", fmt.Sprintf("Bearer %s", channel.Key))
+			if mjErr := setupMidjourneyTaskChannel(c, relayInfo, channel); mjErr != nil {
+				return mjErr
+			}
 			logger.LogDebug(c, "Midjourney action uses origin channel: id=%s, base_url=%s", strconv.Itoa(originTask.ChannelId), channel.GetBaseURL())
 		}
 		midjRequest.Prompt = originTask.Prompt

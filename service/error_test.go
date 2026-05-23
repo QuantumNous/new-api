@@ -3,6 +3,7 @@ package service
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -62,6 +63,22 @@ func TestResetStatusCode(t *testing.T) {
 			require.Equal(t, tc.expectedCode, newAPIError.StatusCode)
 		})
 	}
+}
+
+func TestShouldDisableChannelIgnoresLocalRateLimit(t *testing.T) {
+	old := common.AutomaticDisableChannelEnabled
+	common.AutomaticDisableChannelEnabled = true
+	defer func() {
+		common.AutomaticDisableChannelEnabled = old
+	}()
+
+	err := types.NewErrorWithStatusCode(
+		errors.New("channel #1 rate limit reached"),
+		types.ErrorCodeChannelRateLimited,
+		http.StatusTooManyRequests,
+	)
+
+	require.False(t, ShouldDisableChannel(err))
 }
 
 func TestRelayErrorHandlerTruncatesInvalidJSONBodyInLog(t *testing.T) {

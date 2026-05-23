@@ -104,6 +104,21 @@ const REGION_EXAMPLE = {
 const UPSTREAM_DETECTED_MODEL_PREVIEW_LIMIT = 8;
 const ADVANCED_SETTINGS_EXPANDED_KEY = 'channel-advanced-settings-expanded';
 
+const numberOrDefault = (value, defaultValue) => {
+  if (value === undefined || value === null || value === '') {
+    return defaultValue;
+  }
+  const numberValue = Number(value);
+  return Number.isFinite(numberValue) ? numberValue : defaultValue;
+};
+
+const integerOrDefault = (value, defaultValue) => {
+  const numberValue = numberOrDefault(value, defaultValue);
+  return Number.isFinite(numberValue)
+    ? Math.trunc(numberValue)
+    : defaultValue;
+};
+
 const PARAM_OVERRIDE_LEGACY_TEMPLATE = {
   temperature: 0,
 };
@@ -214,6 +229,10 @@ const EditChannelModal = (props) => {
     upstream_model_update_last_check_time: 0,
     upstream_model_update_last_detected_models: [],
     upstream_model_update_ignored_models: '',
+    channel_rate_limit_enabled: false,
+    channel_rate_limit_count: 0,
+    channel_rate_limit_period_seconds: 60,
+    channel_rate_limit_scope: 'channel',
   };
   const [batch, setBatch] = useState(false);
   const [multiToSingle, setMultiToSingle] = useState(false);
@@ -925,6 +944,20 @@ const EditChannelModal = (props) => {
           )
             ? parsedSettings.upstream_model_update_ignored_models.join(',')
             : '';
+          data.channel_rate_limit_enabled =
+            parsedSettings.channel_rate_limit_enabled === true;
+          data.channel_rate_limit_count = integerOrDefault(
+            parsedSettings.channel_rate_limit_count,
+            0,
+          );
+          data.channel_rate_limit_period_seconds = integerOrDefault(
+            parsedSettings.channel_rate_limit_period_seconds,
+            60,
+          );
+          data.channel_rate_limit_scope =
+            parsedSettings.channel_rate_limit_scope === 'key'
+              ? 'key'
+              : 'channel';
         } catch (error) {
           console.error('解析其他设置失败:', error);
           data.azure_responses_version = '';
@@ -944,6 +977,10 @@ const EditChannelModal = (props) => {
           data.upstream_model_update_last_check_time = 0;
           data.upstream_model_update_last_detected_models = [];
           data.upstream_model_update_ignored_models = '';
+          data.channel_rate_limit_enabled = false;
+          data.channel_rate_limit_count = 0;
+          data.channel_rate_limit_period_seconds = 60;
+          data.channel_rate_limit_scope = 'channel';
         }
       } else {
         // 兼容历史数据：老渠道没有 settings 时，默认按 json 展示
@@ -962,6 +999,10 @@ const EditChannelModal = (props) => {
         data.upstream_model_update_last_check_time = 0;
         data.upstream_model_update_last_detected_models = [];
         data.upstream_model_update_ignored_models = '';
+        data.channel_rate_limit_enabled = false;
+        data.channel_rate_limit_count = 0;
+        data.channel_rate_limit_period_seconds = 60;
+        data.channel_rate_limit_scope = 'channel';
       }
 
       if (
@@ -1823,6 +1864,19 @@ const EditChannelModal = (props) => {
       settings.upstream_model_update_last_check_time = 0;
     }
 
+    settings.channel_rate_limit_enabled =
+      localInputs.channel_rate_limit_enabled === true;
+    settings.channel_rate_limit_count = integerOrDefault(
+      localInputs.channel_rate_limit_count,
+      0,
+    );
+    settings.channel_rate_limit_period_seconds = integerOrDefault(
+      localInputs.channel_rate_limit_period_seconds,
+      60,
+    );
+    settings.channel_rate_limit_scope =
+      localInputs.channel_rate_limit_scope === 'key' ? 'key' : 'channel';
+
     localInputs.settings = JSON.stringify(settings);
 
     // 清理不需要发送到后端的字段
@@ -1850,6 +1904,10 @@ const EditChannelModal = (props) => {
     delete localInputs.upstream_model_update_last_check_time;
     delete localInputs.upstream_model_update_last_detected_models;
     delete localInputs.upstream_model_update_ignored_models;
+    delete localInputs.channel_rate_limit_enabled;
+    delete localInputs.channel_rate_limit_count;
+    delete localInputs.channel_rate_limit_period_seconds;
+    delete localInputs.channel_rate_limit_scope;
 
     let res;
     localInputs.auto_ban = localInputs.auto_ban ? 1 : 0;
@@ -2477,6 +2535,77 @@ const EditChannelModal = (props) => {
                         placeholder={t('渠道权重')}
                         min={0}
                         onNumberChange={(value) => handleInputChange('weight', value)}
+                        style={{ width: '100%' }}
+                      />
+                    </Col>
+                  </Row>
+
+                  <div className='mt-4 mb-2 text-sm font-medium text-gray-700'>
+                    {t('渠道限流')}
+                  </div>
+                  <Form.Switch
+                    field='channel_rate_limit_enabled'
+                    label={t('启用渠道限流')}
+                    checkedText={t('开')}
+                    uncheckedText={t('关')}
+                    onChange={(value) =>
+                      handleChannelOtherSettingsChange(
+                        'channel_rate_limit_enabled',
+                        value,
+                      )
+                    }
+                    extraText={t(
+                      '渠道限流使用令牌桶：单个用户在该渠道平均每周期 N 次，最多允许 N 次突发。',
+                    )}
+                  />
+                  <Row gutter={12}>
+                    <Col span={8}>
+                      <Form.InputNumber
+                        field='channel_rate_limit_count'
+                        label={t('每周期请求数')}
+                        min={0}
+                        precision={0}
+                        disabled={!inputs.channel_rate_limit_enabled}
+                        onNumberChange={(value) =>
+                          handleChannelOtherSettingsChange(
+                            'channel_rate_limit_count',
+                            value,
+                          )
+                        }
+                        style={{ width: '100%' }}
+                      />
+                    </Col>
+                    <Col span={8}>
+                      <Form.InputNumber
+                        field='channel_rate_limit_period_seconds'
+                        label={t('周期秒数')}
+                        min={1}
+                        precision={0}
+                        disabled={!inputs.channel_rate_limit_enabled}
+                        onNumberChange={(value) =>
+                          handleChannelOtherSettingsChange(
+                            'channel_rate_limit_period_seconds',
+                            value,
+                          )
+                        }
+                        style={{ width: '100%' }}
+                      />
+                    </Col>
+                    <Col span={8}>
+                      <Form.Select
+                        field='channel_rate_limit_scope'
+                        label={t('限流范围')}
+                        disabled={!inputs.channel_rate_limit_enabled}
+                        optionList={[
+                          { label: t('按渠道'), value: 'channel' },
+                          { label: t('按渠道内密钥'), value: 'key' },
+                        ]}
+                        onChange={(value) =>
+                          handleChannelOtherSettingsChange(
+                            'channel_rate_limit_scope',
+                            value,
+                          )
+                        }
                         style={{ width: '100%' }}
                       />
                     </Col>

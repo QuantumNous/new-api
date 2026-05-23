@@ -106,6 +106,10 @@ export interface ChannelOtherSettings {
   upstream_model_update_ignored_models?: string[]
   upstream_model_update_last_check_time?: number
   upstream_model_update_last_detected_models?: string[]
+  channel_rate_limit_enabled?: boolean
+  channel_rate_limit_count?: number
+  channel_rate_limit_period_seconds?: number
+  channel_rate_limit_scope?: 'channel' | 'key'
   advanced_custom?: AdvancedCustomConfig
 }
 

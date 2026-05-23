@@ -45,6 +45,11 @@ function isJsonObjectValue(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
+function integerOrDefault(value: unknown, defaultValue: number): number {
+  const numberValue = Number(value)
+  return Number.isFinite(numberValue) ? Math.trunc(numberValue) : defaultValue
+}
+
 function isOptionalJsonObject(value: string | undefined): boolean {
   try {
     const parsed = parseOptionalJson(value)
@@ -209,6 +214,10 @@ export const channelFormSchema = z
     upstream_model_update_check_enabled: z.boolean().optional(),
     upstream_model_update_auto_sync_enabled: z.boolean().optional(),
     upstream_model_update_ignored_models: z.string().optional(),
+    channel_rate_limit_enabled: z.boolean().optional(),
+    channel_rate_limit_count: z.number().int().min(0).optional(),
+    channel_rate_limit_period_seconds: z.number().int().min(1).optional(),
+    channel_rate_limit_scope: z.enum(['channel', 'key']).optional(),
   })
   .superRefine((data, ctx) => {
     if ([3, 8, 36, 45].includes(data.type) && !data.base_url?.trim()) {
@@ -348,6 +357,10 @@ export const CHANNEL_FORM_DEFAULT_VALUES: ChannelFormValues = {
   upstream_model_update_check_enabled: false,
   upstream_model_update_auto_sync_enabled: false,
   upstream_model_update_ignored_models: '',
+  channel_rate_limit_enabled: false,
+  channel_rate_limit_count: 0,
+  channel_rate_limit_period_seconds: 60,
+  channel_rate_limit_scope: 'channel',
   advanced_custom: '',
 }
 
@@ -404,6 +417,10 @@ export function transformChannelToFormDefaults(
   let upstreamModelUpdateCheckEnabled = false
   let upstreamModelUpdateAutoSyncEnabled = false
   let upstreamModelUpdateIgnoredModels = ''
+  let channelRateLimitEnabled = false
+  let channelRateLimitCount = 0
+  let channelRateLimitPeriodSeconds = 60
+  let channelRateLimitScope: 'channel' | 'key' = 'channel'
   let advancedCustom = ''
 
   if (channel.settings) {
@@ -430,6 +447,17 @@ export function transformChannelToFormDefaults(
       )
         ? parsed.upstream_model_update_ignored_models.join(',')
         : ''
+      channelRateLimitEnabled = parsed.channel_rate_limit_enabled === true
+      channelRateLimitCount = integerOrDefault(
+        parsed.channel_rate_limit_count,
+        0
+      )
+      channelRateLimitPeriodSeconds = integerOrDefault(
+        parsed.channel_rate_limit_period_seconds,
+        60
+      )
+      channelRateLimitScope =
+        parsed.channel_rate_limit_scope === 'key' ? 'key' : 'channel'
       if (parsed.advanced_custom) {
         advancedCustom = stringifyAdvancedCustomConfig(parsed.advanced_custom)
       }
@@ -483,6 +511,10 @@ export function transformChannelToFormDefaults(
     upstream_model_update_check_enabled: upstreamModelUpdateCheckEnabled,
     upstream_model_update_auto_sync_enabled: upstreamModelUpdateAutoSyncEnabled,
     upstream_model_update_ignored_models: upstreamModelUpdateIgnoredModels,
+    channel_rate_limit_enabled: channelRateLimitEnabled,
+    channel_rate_limit_count: channelRateLimitCount,
+    channel_rate_limit_period_seconds: channelRateLimitPeriodSeconds,
+    channel_rate_limit_scope: channelRateLimitScope,
     advanced_custom: advancedCustom,
   }
 }
@@ -564,12 +596,15 @@ function buildSettingsJSON(formData: ChannelFormValues): string {
     settingsObj.allow_inference_geo = formData.allow_inference_geo === true
   } else {
     if ('disable_store' in settingsObj) delete settingsObj.disable_store
-    if ('allow_safety_identifier' in settingsObj)
+    if ('allow_safety_identifier' in settingsObj) {
       delete settingsObj.allow_safety_identifier
-    if ('allow_include_obfuscation' in settingsObj)
+    }
+    if ('allow_include_obfuscation' in settingsObj) {
       delete settingsObj.allow_include_obfuscation
-    if (formData.type !== 14 && 'allow_inference_geo' in settingsObj)
+    }
+    if (formData.type !== 14 && 'allow_inference_geo' in settingsObj) {
       delete settingsObj.allow_inference_geo
+    }
   }
 
   // Anthropic (type 14): claude_beta_query, allow_inference_geo, allow_speed
@@ -592,14 +627,14 @@ function buildSettingsJSON(formData: ChannelFormValues): string {
     settingsObj.upstream_model_update_auto_sync_enabled =
       settingsObj.upstream_model_update_check_enabled === true &&
       formData.upstream_model_update_auto_sync_enabled === true
-    settingsObj.upstream_model_update_ignored_models = Array.from(
-      new Set(
+    settingsObj.upstream_model_update_ignored_models = [
+      ...new Set(
         String(formData.upstream_model_update_ignored_models || '')
           .split(',')
           .map((model) => model.trim())
           .filter(Boolean)
-      )
-    )
+      ),
+    ]
     if (
       !Array.isArray(settingsObj.upstream_model_update_last_detected_models) ||
       settingsObj.upstream_model_update_check_enabled !== true
@@ -621,6 +656,19 @@ function buildSettingsJSON(formData: ChannelFormValues): string {
   } else if ('advanced_custom' in settingsObj) {
     delete settingsObj.advanced_custom
   }
+
+  settingsObj.channel_rate_limit_enabled =
+    formData.channel_rate_limit_enabled === true
+  settingsObj.channel_rate_limit_count = integerOrDefault(
+    formData.channel_rate_limit_count,
+    0
+  )
+  settingsObj.channel_rate_limit_period_seconds = Math.max(
+    1,
+    integerOrDefault(formData.channel_rate_limit_period_seconds, 60)
+  )
+  settingsObj.channel_rate_limit_scope =
+    formData.channel_rate_limit_scope === 'key' ? 'key' : 'channel'
 
   return JSON.stringify(settingsObj)
 }

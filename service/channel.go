@@ -49,6 +49,9 @@ func ShouldDisableChannel(err *types.NewAPIError) bool {
 	if err == nil {
 		return false
 	}
+	if types.IsChannelRateLimited(err) {
+		return false
+	}
 	if types.IsChannelError(err) {
 		return true
 	}

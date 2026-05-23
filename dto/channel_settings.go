@@ -52,8 +52,17 @@ type ChannelOtherSettings struct {
 	UpstreamModelUpdateLastDetectedModels []string              `json:"upstream_model_update_last_detected_models,omitempty"` // 上次检测到的可加入模型
 	UpstreamModelUpdateLastRemovedModels  []string              `json:"upstream_model_update_last_removed_models,omitempty"`  // 上次检测到的可删除模型
 	UpstreamModelUpdateIgnoredModels      []string              `json:"upstream_model_update_ignored_models,omitempty"`       // 手动忽略的模型
+	ChannelRateLimitEnabled               bool                  `json:"channel_rate_limit_enabled,omitempty"`                 // 是否启用渠道级请求限流
+	ChannelRateLimitCount                 int                   `json:"channel_rate_limit_count,omitempty"`                   // 每周期平均允许请求数
+	ChannelRateLimitPeriodSeconds         int                   `json:"channel_rate_limit_period_seconds,omitempty"`          // 限流周期（秒）
+	ChannelRateLimitScope                 string                `json:"channel_rate_limit_scope,omitempty"`                   // "channel" or "key"
 	AdvancedCustom                        *AdvancedCustomConfig `json:"advanced_custom,omitempty"`
 }
+
+const (
+	ChannelRateLimitScopeChannel = "channel"
+	ChannelRateLimitScopeKey     = "key"
+)
 
 func (s *ChannelOtherSettings) IsOpenRouterEnterprise() bool {
 	if s == nil || s.OpenRouterEnterprise == nil {

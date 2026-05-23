@@ -106,32 +106,57 @@ func getChannelQuery(group string, model string, retry int) (*gorm.DB, error) {
 }
 
 func GetChannel(group string, model string, retry int, requestPath string) (*Channel, error) {
+	return GetChannelWithExclusions(group, model, retry, requestPath, nil)
+}
+
+func GetChannelWithExclusions(group string, model string, retry int, requestPath string, excluded map[int]bool) (*Channel, error) {
 	var abilities []Ability
 
-	var err error = nil
-	channelQuery, err := getChannelQuery(group, model, retry)
+	var priorities []int
+	err := DB.Model(&Ability{}).
+		Select("DISTINCT(priority)").
+		Where(commonGroupCol+" = ? and model = ? and enabled = ?", group, model, true).
+		Order("priority DESC").
+		Pluck("priority", &priorities).Error
 	if err != nil {
 		return nil, err
 	}
-	if common.UsingMainDatabase(common.DatabaseTypeSQLite) || common.UsingMainDatabase(common.DatabaseTypePostgreSQL) {
-		err = channelQuery.Order("weight DESC").Find(&abilities).Error
-	} else {
-		err = channelQuery.Order("weight DESC").Find(&abilities).Error
+	if len(priorities) == 0 {
+		return nil, nil
 	}
-	if err != nil {
-		return nil, err
+	if retry >= len(priorities) {
+		retry = len(priorities) - 1
 	}
-	abilities = filterAbilitiesByRequestPathAndModel(abilities, requestPath, model)
-	channel := Channel{}
-	if len(abilities) > 0 {
+
+	for priorityIdx := retry; priorityIdx < len(priorities); priorityIdx++ {
+		abilities = abilities[:0]
+		err = DB.Where(commonGroupCol+" = ? and model = ? and enabled = ? and priority = ?", group, model, true, priorities[priorityIdx]).
+			Order("weight DESC").
+			Find(&abilities).Error
+		if err != nil {
+			return nil, err
+		}
+		abilities = filterAbilitiesByRequestPathAndModel(abilities, requestPath, model)
+		candidates := make([]Ability, 0, len(abilities))
+		for _, ability := range abilities {
+			if excluded != nil && excluded[ability.ChannelId] {
+				continue
+			}
+			candidates = append(candidates, ability)
+		}
+		if len(candidates) == 0 {
+			continue
+		}
+
 		// Randomly choose one
 		weightSum := uint(0)
-		for _, ability_ := range abilities {
+		for _, ability_ := range candidates {
 			weightSum += ability_.Weight + 10
 		}
 		// Randomly choose one
 		weight := common.GetRandomInt(int(weightSum))
-		for _, ability_ := range abilities {
+		channel := Channel{}
+		for _, ability_ := range candidates {
 			weight -= int(ability_.Weight) + 10
 			//log.Printf("weight: %d, ability weight: %d", weight, *ability_.Weight)
 			if weight <= 0 {
@@ -139,11 +164,10 @@ func GetChannel(group string, model string, retry int, requestPath string) (*Cha
 				break
 			}
 		}
-	} else {
-		return nil, nil
+		err = DB.First(&channel, "id = ?", channel.Id).Error
+		return &channel, err
 	}
-	err = DB.First(&channel, "id = ?", channel.Id).Error
-	return &channel, err
+	return nil, nil
 }
 
 // filterAbilitiesByRequestPathAndModel restricts candidates by request path and

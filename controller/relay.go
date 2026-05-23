@@ -197,6 +197,15 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 			break
 		}
 
+		if rateLimitErr := middleware.CheckSelectedChannelRateLimit(c, channel, retryParam, relayInfo.OriginModelName); rateLimitErr != nil {
+			newAPIError = rateLimitErr
+			relayInfo.LastError = rateLimitErr
+			if rateLimitErr.StatusCode != http.StatusTooManyRequests || !canRetryAfterLocalChannelRateLimit(c) {
+				break
+			}
+			continue
+		}
+
 		addUsedChannel(c, channel.Id)
 		bodyStorage, bodyErr := common.GetBodyStorage(c)
 		if bodyErr != nil {
@@ -261,6 +270,11 @@ func addUsedChannel(c *gin.Context, channelId int) {
 	c.Set("use_channel", useChannel)
 }
 
+func canRetryAfterLocalChannelRateLimit(c *gin.Context) bool {
+	_, specificChannel := c.Get("specific_channel_id")
+	return !specificChannel
+}
+
 func fastTokenCountMetaForPricing(request dto.Request) *types.TokenCountMeta {
 	if request == nil {
 		return &types.TokenCountMeta{}
@@ -291,14 +305,20 @@ func fastTokenCountMetaForPricing(request dto.Request) *types.TokenCountMeta {
 }
 
 func getChannel(c *gin.Context, info *relaycommon.RelayInfo, retryParam *service.RetryParam) (*model.Channel, *types.NewAPIError) {
-	if info.ChannelMeta == nil {
+	if info.ChannelMeta == nil && !retryParam.HasExcludedChannels() {
+		channelId := c.GetInt("channel_id")
+		if channelId != 0 {
+			if channel, err := model.CacheGetChannel(channelId); err == nil && channel != nil {
+				return channel, nil
+			}
+		}
 		autoBan := c.GetBool("auto_ban")
 		autoBanInt := 1
 		if !autoBan {
 			autoBanInt = 0
 		}
 		return &model.Channel{
-			Id:      c.GetInt("channel_id"),
+			Id:      channelId,
 			Type:    c.GetInt("channel_type"),
 			Name:    c.GetString("channel_name"),
 			AutoBan: &autoBanInt,
@@ -309,6 +329,9 @@ func getChannel(c *gin.Context, info *relaycommon.RelayInfo, retryParam *service
 	info.PriceData.GroupRatioInfo = helper.HandleGroupRatio(c, info)
 
 	if err != nil {
+		if errors.Is(err, service.ErrAllChannelsRateLimited) {
+			return nil, types.NewErrorWithStatusCode(err, types.ErrorCodeChannelRateLimited, http.StatusTooManyRequests, types.ErrOptionWithNoRecordErrorLog())
+		}
 		return nil, types.NewError(fmt.Errorf("获取分组 %s 下模型 %s 的可用渠道失败（retry）: %s", selectGroup, info.OriginModelName, err.Error()), types.ErrorCodeGetChannelFailed, types.ErrOptionWithSkipRetry())
 	}
 	if channel == nil {
@@ -413,20 +436,7 @@ func RelayMidjourney(c *gin.Context) {
 		return
 	}
 
-	var mjErr *dto.MidjourneyResponse
-	switch relayInfo.RelayMode {
-	case relayconstant.RelayModeMidjourneyNotify:
-		mjErr = relay.RelayMidjourneyNotify(c)
-	case relayconstant.RelayModeMidjourneyTaskFetch, relayconstant.RelayModeMidjourneyTaskFetchByCondition:
-		mjErr = relay.RelayMidjourneyTask(c, relayInfo.RelayMode)
-	case relayconstant.RelayModeMidjourneyTaskImageSeed:
-		mjErr = relay.RelayMidjourneyTaskImageSeed(c)
-	case relayconstant.RelayModeSwapFace:
-		mjErr = relay.RelaySwapFace(c, relayInfo)
-	default:
-		mjErr = relay.RelayMidjourneySubmit(c, relayInfo)
-	}
-	//err = relayMidjourneySubmit(c, relayMode)
+	mjErr := relayMidjourneyWithChannelRateLimit(c, relayInfo)
 	log.Println(mjErr)
 	if mjErr != nil {
 		statusCode := http.StatusBadRequest
@@ -441,6 +451,89 @@ func RelayMidjourney(c *gin.Context) {
 		})
 		channelId := c.GetInt("channel_id")
 		logger.LogError(c, fmt.Sprintf("relay error (channel #%d, status code %d): %s", channelId, statusCode, fmt.Sprintf("%s %s", mjErr.Description, mjErr.Result)))
+	}
+}
+
+func relayMidjourneyWithChannelRateLimit(c *gin.Context, relayInfo *relaycommon.RelayInfo) *dto.MidjourneyResponse {
+	if !midjourneyRelayUsesSelectedChannel(c, relayInfo.RelayMode) {
+		return relayMidjourneyDispatch(c, relayInfo)
+	}
+
+	retryParam := &service.RetryParam{
+		Ctx:        c,
+		TokenGroup: relayInfo.TokenGroup,
+		ModelName:  relayInfo.OriginModelName,
+		Retry:      common.GetPointer(0),
+	}
+
+	for ; retryParam.GetRetry() <= common.RetryTimes; retryParam.IncreaseRetry() {
+		channel, channelErr := getChannel(c, relayInfo, retryParam)
+		if channelErr != nil {
+			logger.LogError(c, channelErr.Error())
+			return midjourneyLocalChannelError(channelErr)
+		}
+
+		if rateLimitErr := middleware.CheckSelectedChannelRateLimit(c, channel, retryParam, relayInfo.OriginModelName); rateLimitErr != nil {
+			if rateLimitErr.StatusCode != http.StatusTooManyRequests || !canRetryAfterLocalChannelRateLimit(c) {
+				return midjourneyLocalChannelError(rateLimitErr)
+			}
+			continue
+		}
+
+		addUsedChannel(c, channel.Id)
+		return relayMidjourneyDispatch(c, relayInfo)
+	}
+
+	return &dto.MidjourneyResponse{
+		Code:        30,
+		Description: "channel rate limit reached",
+	}
+}
+
+func midjourneyRelayUsesSelectedChannel(c *gin.Context, relayMode int) bool {
+	switch relayMode {
+	case relayconstant.RelayModeMidjourneyNotify,
+		relayconstant.RelayModeMidjourneyTaskFetch,
+		relayconstant.RelayModeMidjourneyTaskFetchByCondition,
+		relayconstant.RelayModeMidjourneyTaskImageSeed,
+		relayconstant.RelayModeMidjourneyChange,
+		relayconstant.RelayModeMidjourneySimpleChange,
+		relayconstant.RelayModeMidjourneyModal:
+		return false
+	case relayconstant.RelayModeMidjourneyVideo:
+		var midjRequest dto.MidjourneyRequest
+		if err := common.UnmarshalBodyReusable(c, &midjRequest); err != nil {
+			return false
+		}
+		return midjRequest.TaskId == ""
+	default:
+		return true
+	}
+}
+
+func midjourneyLocalChannelError(err *types.NewAPIError) *dto.MidjourneyResponse {
+	code := constant.MjErrorUnknown
+	if types.IsChannelRateLimited(err) && err.StatusCode == http.StatusTooManyRequests {
+		code = 30
+	}
+	return &dto.MidjourneyResponse{
+		Code:        code,
+		Description: err.Error(),
+	}
+}
+
+func relayMidjourneyDispatch(c *gin.Context, relayInfo *relaycommon.RelayInfo) *dto.MidjourneyResponse {
+	switch relayInfo.RelayMode {
+	case relayconstant.RelayModeMidjourneyNotify:
+		return relay.RelayMidjourneyNotify(c)
+	case relayconstant.RelayModeMidjourneyTaskFetch, relayconstant.RelayModeMidjourneyTaskFetchByCondition:
+		return relay.RelayMidjourneyTask(c, relayInfo.RelayMode)
+	case relayconstant.RelayModeMidjourneyTaskImageSeed:
+		return relay.RelayMidjourneyTaskImageSeed(c, relayInfo)
+	case relayconstant.RelayModeSwapFace:
+		return relay.RelaySwapFace(c, relayInfo)
+	default:
+		return relay.RelayMidjourneySubmit(c, relayInfo)
 	}
 }
 
@@ -517,9 +610,11 @@ func RelayTask(c *gin.Context) {
 
 	for ; retryParam.GetRetry() <= common.RetryTimes; retryParam.IncreaseRetry() {
 		var channel *model.Channel
+		lockedChannel := false
 
 		if lockedCh, ok := relayInfo.LockedChannel.(*model.Channel); ok && lockedCh != nil {
 			channel = lockedCh
+			lockedChannel = true
 			if retryParam.GetRetry() > 0 {
 				if setupErr := middleware.SetupContextForSelectedChannel(c, channel, relayInfo.OriginModelName); setupErr != nil {
 					taskErr = service.TaskErrorWrapperLocal(setupErr.Err, "setup_locked_channel_failed", http.StatusInternalServerError)
@@ -531,9 +626,21 @@ func RelayTask(c *gin.Context) {
 			channel, channelErr = getChannel(c, relayInfo, retryParam)
 			if channelErr != nil {
 				logger.LogError(c, channelErr.Error())
-				taskErr = service.TaskErrorWrapperLocal(channelErr.Err, "get_channel_failed", http.StatusInternalServerError)
+				if types.IsChannelRateLimited(channelErr) {
+					taskErr = service.TaskErrorWrapperLocal(channelErr.Err, string(types.ErrorCodeChannelRateLimited), http.StatusTooManyRequests)
+				} else {
+					taskErr = service.TaskErrorWrapperLocal(channelErr.Err, "get_channel_failed", http.StatusInternalServerError)
+				}
 				break
 			}
+		}
+
+		if rateLimitErr := middleware.CheckSelectedChannelRateLimit(c, channel, retryParam, relayInfo.OriginModelName); rateLimitErr != nil {
+			taskErr = service.TaskErrorWrapperLocal(rateLimitErr.Err, string(types.ErrorCodeChannelRateLimited), rateLimitErr.StatusCode)
+			if rateLimitErr.StatusCode != http.StatusTooManyRequests || lockedChannel || !canRetryAfterLocalChannelRateLimit(c) {
+				break
+			}
+			continue
 		}
 
 		addUsedChannel(c, channel.Id)

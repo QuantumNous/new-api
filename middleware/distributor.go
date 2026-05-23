@@ -441,6 +441,14 @@ func getTaskOriginModelName(c *gin.Context) string {
 }
 
 func SetupContextForSelectedChannel(c *gin.Context, channel *model.Channel, modelName string) *types.NewAPIError {
+	return setupContextForSelectedChannel(c, channel, modelName, nil)
+}
+
+func SetupContextForSelectedChannelWithKeyExclusions(c *gin.Context, channel *model.Channel, modelName string, excludedKeyIndexes map[int]bool) *types.NewAPIError {
+	return setupContextForSelectedChannel(c, channel, modelName, excludedKeyIndexes)
+}
+
+func setupContextForSelectedChannel(c *gin.Context, channel *model.Channel, modelName string, excludedKeyIndexes map[int]bool) *types.NewAPIError {
 	c.Set("original_model", modelName) // for retry
 	if channel == nil {
 		return types.NewError(errors.New("channel is nil"), types.ErrorCodeGetChannelFailed, types.ErrOptionWithSkipRetry())
@@ -465,7 +473,7 @@ func SetupContextForSelectedChannel(c *gin.Context, channel *model.Channel, mode
 	common.SetContextKey(c, constant.ContextKeyChannelModelMapping, channel.GetModelMapping())
 	common.SetContextKey(c, constant.ContextKeyChannelStatusCodeMapping, channel.GetStatusCodeMapping())
 
-	key, index, newAPIError := channel.GetNextEnabledKey()
+	key, index, newAPIError := channel.GetNextEnabledKeyExcluding(excludedKeyIndexes)
 	if newAPIError != nil {
 		return newAPIError
 	}

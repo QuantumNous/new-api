@@ -33,6 +33,7 @@ import {
   Trash2,
   Copy,
   FileText,
+  Gauge,
   Eraser,
   Plus,
   Eye,
@@ -256,6 +257,7 @@ const ADVANCED_SETTINGS_SECTION_IDS = {
   internalNotes: 'channel-section-advanced-internal-notes',
   overrideRules: 'channel-section-advanced-override-rules',
   extraSettings: 'channel-section-advanced-extra-settings',
+  rateLimit: 'channel-section-advanced-rate-limit',
   fieldPassthrough: 'channel-section-advanced-field-passthrough',
   upstreamModelDetection: 'channel-section-advanced-upstream-model-detection',
 } as const
@@ -297,6 +299,10 @@ const SENSITIVE_FORM_FIELDS = [
   'upstream_model_update_check_enabled',
   'upstream_model_update_auto_sync_enabled',
   'upstream_model_update_ignored_models',
+  'channel_rate_limit_enabled',
+  'channel_rate_limit_count',
+  'channel_rate_limit_period_seconds',
+  'channel_rate_limit_scope',
 ] satisfies (keyof ChannelFormValues)[]
 
 function readAdvancedSettingsPreference(): boolean {
@@ -339,6 +345,7 @@ function hasAdvancedSettingsValues(values: ChannelFormValues): boolean {
     values.pass_through_body_enabled ||
     values.system_prompt_override ||
     values.claude_beta_query ||
+    values.channel_rate_limit_enabled ||
     values.upstream_model_update_check_enabled ||
     values.upstream_model_update_auto_sync_enabled ||
     values.upstream_model_update_ignored_models?.trim()
@@ -726,6 +733,7 @@ export function ChannelMutateDrawer({
   const upstreamModelUpdateCheckEnabled = form.watch(
     'upstream_model_update_check_enabled'
   )
+  const channelRateLimitEnabled = form.watch('channel_rate_limit_enabled')
   const currentSettings = form.watch('settings')
   const currentAdvancedCustom = form.watch('advanced_custom')
   const currentPriority = form.watch('priority')
@@ -1034,11 +1042,13 @@ export function ChannelMutateDrawer({
     currentUpstreamModelUpdateAutoSyncEnabled ||
     currentUpstreamModelUpdateIgnoredModels?.trim()
   )
+  const rateLimitConfigured = channelRateLimitEnabled === true
   const advancedConfigured = Boolean(
     routingStrategyConfigured ||
     internalNotesConfigured ||
     overrideRulesConfigured ||
     extraSettingsConfigured ||
+    rateLimitConfigured ||
     fieldPassthroughConfigured ||
     upstreamModelDetectionConfigured
   )
@@ -1062,6 +1072,11 @@ export function ChannelMutateDrawer({
       id: ADVANCED_SETTINGS_SECTION_IDS.extraSettings,
       title: t('Channel Extra Settings'),
       configured: extraSettingsConfigured,
+    },
+    {
+      id: ADVANCED_SETTINGS_SECTION_IDS.rateLimit,
+      title: t('Channel Rate Limit'),
+      configured: rateLimitConfigured,
     },
   ]
   if (currentType === 1 || currentType === 14 || currentType === 57) {
@@ -4231,6 +4246,142 @@ export function ChannelMutateDrawer({
                                 </FormItem>
                               )}
                             />
+                          </fieldset>
+                        </div>
+
+                        <div
+                          id={ADVANCED_SETTINGS_SECTION_IDS.rateLimit}
+                          className={sideDrawerSectionClassName(
+                            configuredAdvancedSectionClassName(
+                              'scroll-mt-4',
+                              rateLimitConfigured
+                            )
+                          )}
+                        >
+                          <CardHeading
+                            title={t('Channel Rate Limit')}
+                            icon={<Gauge className='h-4 w-4' />}
+                            iconTone='warning'
+                          />
+                          <fieldset
+                            disabled={sensitiveLocked}
+                            className='space-y-4 disabled:opacity-60'
+                          >
+                            <FormField
+                              control={form.control}
+                              name='channel_rate_limit_enabled'
+                              render={({ field }) => (
+                                <FormItem className='flex items-center justify-between gap-3 border-y px-4 py-3'>
+                                  <div className='space-y-0.5'>
+                                    <FormLabel>
+                                      {t('Enable Channel Rate Limit')}
+                                    </FormLabel>
+                                    <FormDescription>
+                                      {t(
+                                        'Limit each user on this channel with a token bucket.'
+                                      )}
+                                    </FormDescription>
+                                  </div>
+                                  <FormControl>
+                                    <Switch
+                                      checked={field.value === true}
+                                      onCheckedChange={field.onChange}
+                                    />
+                                  </FormControl>
+                                </FormItem>
+                              )}
+                            />
+                            <div className='grid gap-4 sm:grid-cols-3'>
+                              <FormField
+                                control={form.control}
+                                name='channel_rate_limit_count'
+                                render={({ field }) => (
+                                  <FormItem>
+                                    <FormLabel>
+                                      {t('Requests per Period')}
+                                    </FormLabel>
+                                    <FormControl>
+                                      <Input
+                                        type='number'
+                                        min={0}
+                                        step={1}
+                                        disabled={!channelRateLimitEnabled}
+                                        placeholder='0'
+                                        {...field}
+                                        value={field.value ?? 0}
+                                        onChange={(event) =>
+                                          field.onChange(
+                                            Number(event.target.value)
+                                          )
+                                        }
+                                      />
+                                    </FormControl>
+                                    <FormMessage />
+                                  </FormItem>
+                                )}
+                              />
+                              <FormField
+                                control={form.control}
+                                name='channel_rate_limit_period_seconds'
+                                render={({ field }) => (
+                                  <FormItem>
+                                    <FormLabel>{t('Period Seconds')}</FormLabel>
+                                    <FormControl>
+                                      <Input
+                                        type='number'
+                                        min={1}
+                                        step={1}
+                                        disabled={!channelRateLimitEnabled}
+                                        placeholder='60'
+                                        {...field}
+                                        value={field.value ?? 60}
+                                        onChange={(event) =>
+                                          field.onChange(
+                                            Number(event.target.value)
+                                          )
+                                        }
+                                      />
+                                    </FormControl>
+                                    <FormMessage />
+                                  </FormItem>
+                                )}
+                              />
+                              <FormField
+                                control={form.control}
+                                name='channel_rate_limit_scope'
+                                render={({ field }) => (
+                                  <FormItem>
+                                    <FormLabel>
+                                      {t('Rate Limit Scope')}
+                                    </FormLabel>
+                                    <Select
+                                      disabled={!channelRateLimitEnabled}
+                                      onValueChange={field.onChange}
+                                      value={field.value || 'channel'}
+                                    >
+                                      <FormControl>
+                                        <SelectTrigger className='w-full'>
+                                          <SelectValue />
+                                        </SelectTrigger>
+                                      </FormControl>
+                                      <SelectContent
+                                        alignItemWithTrigger={false}
+                                      >
+                                        <SelectGroup>
+                                          <SelectItem value='channel'>
+                                            {t('Per Channel')}
+                                          </SelectItem>
+                                          <SelectItem value='key'>
+                                            {t('Per Channel Key')}
+                                          </SelectItem>
+                                        </SelectGroup>
+                                      </SelectContent>
+                                    </Select>
+                                    <FormMessage />
+                                  </FormItem>
+                                )}
+                              />
+                            </div>
                           </fieldset>
                         </div>
 
