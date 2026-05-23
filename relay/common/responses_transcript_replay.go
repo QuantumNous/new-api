@@ -13,6 +13,8 @@ import (
 
 const responsesTranscriptReplayTTL = time.Hour
 const responsesTranscriptPreflightSanitizeMinBytes = 900 * 1024
+const responsesTranscriptPreflightSanitizeTargetBytes = responsesTranscriptPreflightSanitizeMinBytes - 64*1024
+const responsesTranscriptOmittedImageText = "[image omitted from oversized transcript replay]"
 
 type ResponsesTranscriptReplayState struct {
 	CacheKey     string
@@ -38,6 +40,7 @@ type ResponsesTranscriptRequestShape struct {
 	CustomToolCallItems   int
 	ReasoningItems        int
 	EncryptedContentItems int
+	InlineImageItems      int
 }
 
 type responsesTranscriptReplayCacheEntry struct {
@@ -140,10 +143,11 @@ func SanitizeResponsesTranscriptInitialRequest(requestBody []byte) ([]byte, bool
 	if len(requestBody) < responsesTranscriptPreflightSanitizeMinBytes {
 		return nil, false, "request body below transcript preflight sanitize threshold"
 	}
-	if gjson.GetBytes(requestBody, "previous_response_id").Exists() {
+	hasPreviousResponseID := gjson.GetBytes(requestBody, "previous_response_id").Exists()
+	input := gjson.GetBytes(requestBody, "input")
+	if hasPreviousResponseID && !responsesInputLooksFullTranscript(input) && !responsesInputLooksTranscriptReplacement(input) {
 		return nil, false, "incremental request keeps previous_response_id"
 	}
-	input := gjson.GetBytes(requestBody, "input")
 	if !input.Exists() || !input.IsArray() {
 		return nil, false, "request input is not an array"
 	}
@@ -152,21 +156,78 @@ func SanitizeResponsesTranscriptInitialRequest(requestBody []byte) ([]byte, bool
 	if err != nil {
 		return nil, false, fmt.Sprintf("strip encrypted_content failed: %v", err)
 	}
-	if !sanitizedInput.StrippedEncryptedContent && !sanitizedInput.RemovedReasoningItems {
-		return nil, false, "request has no encrypted_content or reasoning items to strip"
-	}
 
 	out, err := sjson.SetRawBytes(append([]byte(nil), requestBody...), "input", []byte(sanitizedInput.InputRaw))
 	if err != nil {
 		return nil, false, fmt.Sprintf("set sanitized input failed: %v", err)
 	}
 
+	inputRaw := sanitizedInput.InputRaw
+	strippedHistoricalImages := 0
+	strippedLatestImages := 0
+	trimmedItems := 0
+	if len(out) > responsesTranscriptPreflightSanitizeTargetBytes {
+		var items []any
+		if err := json.Unmarshal([]byte(inputRaw), &items); err != nil {
+			return nil, false, fmt.Sprintf("parse sanitized input failed: %v", err)
+		}
+
+		strippedHistoricalImages = stripResponsesInlineImageItems(items, true)
+		if strippedHistoricalImages > 0 {
+			out, _, err = marshalResponsesTranscriptInputIntoRequest(requestBody, items)
+			if err != nil {
+				return nil, false, fmt.Sprintf("set image-stripped input failed: %v", err)
+			}
+		}
+
+		if len(out) > responsesTranscriptPreflightSanitizeTargetBytes {
+			strippedLatestImages = stripResponsesInlineImageItems(items, false)
+			if strippedLatestImages > 0 {
+				out, _, err = marshalResponsesTranscriptInputIntoRequest(requestBody, items)
+				if err != nil {
+					return nil, false, fmt.Sprintf("set fully image-stripped input failed: %v", err)
+				}
+			}
+		}
+
+		if len(out) > responsesTranscriptPreflightSanitizeTargetBytes {
+			var trimmed bool
+			items, trimmedItems, trimmed = trimResponsesTranscriptHistoryToRequestBudget(requestBody, items, responsesTranscriptPreflightSanitizeTargetBytes)
+			if trimmed {
+				out, _, err = marshalResponsesTranscriptInputIntoRequest(requestBody, items)
+				if err != nil {
+					return nil, false, fmt.Sprintf("set trimmed input failed: %v", err)
+				}
+			}
+		}
+	}
+
+	if !sanitizedInput.StrippedEncryptedContent &&
+		!sanitizedInput.RemovedReasoningItems &&
+		strippedHistoricalImages == 0 &&
+		strippedLatestImages == 0 &&
+		trimmedItems == 0 {
+		return nil, false, "request has no oversized transcript fields to strip"
+	}
+
 	reason := "sanitized oversized full input transcript"
+	if hasPreviousResponseID {
+		reason = "sanitized oversized previous_response_id transcript fallback"
+	}
 	if sanitizedInput.StrippedEncryptedContent {
 		reason += "; stripped encrypted_content"
 	}
 	if sanitizedInput.RemovedReasoningItems {
 		reason += "; removed reasoning items"
+	}
+	if strippedHistoricalImages > 0 {
+		reason += fmt.Sprintf("; stripped historical inline_images=%d", strippedHistoricalImages)
+	}
+	if strippedLatestImages > 0 {
+		reason += fmt.Sprintf("; stripped latest inline_images=%d", strippedLatestImages)
+	}
+	if trimmedItems > 0 {
+		reason += fmt.Sprintf("; trimmed history_items=%d", trimmedItems)
 	}
 	return out, true, reason
 }
@@ -259,6 +320,7 @@ func InspectResponsesTranscriptRequestShape(requestBody []byte) ResponsesTranscr
 		if responsesItemHasEncryptedContent(item) {
 			shape.EncryptedContentItems++
 		}
+		shape.InlineImageItems += countResponsesInlineImageItems(item)
 	}
 	return shape
 }
@@ -512,6 +574,7 @@ type responsesTranscriptReplaySanitizedInput struct {
 	InputRaw                 string
 	StrippedEncryptedContent bool
 	RemovedReasoningItems    bool
+	RemovedReasoningCount    int
 }
 
 func sanitizeResponsesTranscriptReplayInputRaw(raw string) (responsesTranscriptReplaySanitizedInput, error) {
@@ -521,7 +584,8 @@ func sanitizeResponsesTranscriptReplayInputRaw(raw string) (responsesTranscriptR
 		return responsesTranscriptReplaySanitizedInput{}, err
 	}
 	stripped := stripResponsesEncryptedContentValue(items)
-	items, removedReasoningItems := removeTopLevelResponsesReasoningItems(items)
+	items, removedReasoningCount := removeTopLevelResponsesReasoningItems(items)
+	removedReasoningItems := removedReasoningCount > 0
 	if !stripped && !removedReasoningItems {
 		return responsesTranscriptReplaySanitizedInput{InputRaw: raw}, nil
 	}
@@ -533,19 +597,20 @@ func sanitizeResponsesTranscriptReplayInputRaw(raw string) (responsesTranscriptR
 		InputRaw:                 string(out),
 		StrippedEncryptedContent: stripped,
 		RemovedReasoningItems:    removedReasoningItems,
+		RemovedReasoningCount:    removedReasoningCount,
 	}, nil
 }
 
-func removeTopLevelResponsesReasoningItems(items []any) ([]any, bool) {
+func removeTopLevelResponsesReasoningItems(items []any) ([]any, int) {
 	if len(items) == 0 {
-		return items, false
+		return items, 0
 	}
-	removed := false
+	removed := 0
 	out := items[:0]
 	for _, item := range items {
 		typed, ok := item.(map[string]any)
 		if ok && strings.TrimSpace(fmt.Sprint(typed["type"])) == "reasoning" {
-			removed = true
+			removed++
 			continue
 		}
 		out = append(out, item)
@@ -575,6 +640,247 @@ func stripResponsesEncryptedContentValue(value any) bool {
 			}
 		}
 		return stripped
+	default:
+		return false
+	}
+}
+
+func marshalResponsesTranscriptInputIntoRequest(requestBody []byte, items []any) ([]byte, string, error) {
+	inputJSON, err := json.Marshal(items)
+	if err != nil {
+		return nil, "", err
+	}
+	out, err := sjson.SetRawBytes(append([]byte(nil), requestBody...), "input", inputJSON)
+	if err != nil {
+		return nil, "", err
+	}
+	return out, string(inputJSON), nil
+}
+
+func stripResponsesInlineImageItems(items []any, preserveLatestUserMessageImages bool) int {
+	latestUserIndex := -1
+	if preserveLatestUserMessageImages {
+		for i, item := range items {
+			if responsesTranscriptItemIsUserMessage(item) {
+				latestUserIndex = i
+			}
+		}
+	}
+
+	stripped := 0
+	for i, item := range items {
+		if preserveLatestUserMessageImages && i == latestUserIndex {
+			continue
+		}
+		stripped += stripResponsesInlineImageValue(item)
+	}
+	return stripped
+}
+
+func stripResponsesInlineImageValue(value any) int {
+	switch typed := value.(type) {
+	case []any:
+		stripped := 0
+		for _, item := range typed {
+			stripped += stripResponsesInlineImageValue(item)
+		}
+		return stripped
+	case map[string]any:
+		if strings.TrimSpace(fmt.Sprint(typed["type"])) == "input_image" &&
+			isResponsesInlineImageDataURL(fmt.Sprint(typed["image_url"])) {
+			for key := range typed {
+				delete(typed, key)
+			}
+			typed["type"] = "input_text"
+			typed["text"] = responsesTranscriptOmittedImageText
+			return 1
+		}
+		stripped := 0
+		for _, item := range typed {
+			stripped += stripResponsesInlineImageValue(item)
+		}
+		return stripped
+	default:
+		return 0
+	}
+}
+
+func countResponsesInlineImageItems(item gjson.Result) int {
+	if !item.Exists() {
+		return 0
+	}
+	if item.IsArray() {
+		count := 0
+		for _, child := range item.Array() {
+			count += countResponsesInlineImageItems(child)
+		}
+		return count
+	}
+	if item.IsObject() {
+		if strings.TrimSpace(item.Get("type").String()) == "input_image" &&
+			isResponsesInlineImageDataURL(item.Get("image_url").String()) {
+			return 1
+		}
+		count := 0
+		item.ForEach(func(_, child gjson.Result) bool {
+			count += countResponsesInlineImageItems(child)
+			return true
+		})
+		return count
+	}
+	return 0
+}
+
+func isResponsesInlineImageDataURL(value string) bool {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return false
+	}
+	lower := strings.ToLower(value)
+	if !strings.HasPrefix(lower, "data:image/") {
+		return false
+	}
+	comma := strings.IndexByte(lower, ',')
+	if comma < 0 {
+		return false
+	}
+	return strings.Contains(lower[:comma], ";base64")
+}
+
+func trimResponsesTranscriptHistoryToRequestBudget(requestBody []byte, items []any, targetBytes int) ([]any, int, bool) {
+	if len(items) == 0 {
+		return items, 0, false
+	}
+	if body, _, err := marshalResponsesTranscriptInputIntoRequest(requestBody, items); err != nil || len(body) <= targetBytes {
+		return items, 0, false
+	}
+
+	trimmed := 0
+	for len(items) > 1 {
+		removeIndex := oldestResponsesTranscriptTrimCandidate(items)
+		if removeIndex < 0 {
+			break
+		}
+		before := len(items)
+		items = removeResponsesTranscriptItemWithCounterpart(items, removeIndex)
+		trimmed += before - len(items)
+
+		body, _, err := marshalResponsesTranscriptInputIntoRequest(requestBody, items)
+		if err != nil {
+			break
+		}
+		if len(body) <= targetBytes {
+			return items, trimmed, true
+		}
+	}
+	return items, trimmed, trimmed > 0
+}
+
+func oldestResponsesTranscriptTrimCandidate(items []any) int {
+	latestUserIndex := -1
+	for i, item := range items {
+		if responsesTranscriptItemIsUserMessage(item) {
+			latestUserIndex = i
+		}
+	}
+	if latestUserIndex < 0 {
+		latestUserIndex = len(items) - 1
+	}
+	for i := 0; i < latestUserIndex; i++ {
+		if responsesTranscriptItemIsTrimProtected(items[i]) {
+			continue
+		}
+		return i
+	}
+	return -1
+}
+
+func responsesTranscriptItemIsUserMessage(item any) bool {
+	typed, ok := item.(map[string]any)
+	if !ok {
+		return false
+	}
+	return strings.TrimSpace(fmt.Sprint(typed["type"])) == "message" &&
+		strings.TrimSpace(fmt.Sprint(typed["role"])) == "user"
+}
+
+func responsesTranscriptItemIsTrimProtected(item any) bool {
+	typed, ok := item.(map[string]any)
+	if !ok {
+		return false
+	}
+	itemType := strings.TrimSpace(fmt.Sprint(typed["type"]))
+	if itemType == "compaction" || itemType == "compaction_summary" {
+		return true
+	}
+	return itemType == "message" && strings.TrimSpace(fmt.Sprint(typed["role"])) == "developer"
+}
+
+func removeResponsesTranscriptItemWithCounterpart(items []any, index int) []any {
+	if index < 0 || index >= len(items) {
+		return items
+	}
+	if responsesTranscriptItemIsUserMessage(items[index]) {
+		remove := map[int]struct{}{}
+		for i := index; i < len(items); i++ {
+			if i > index && responsesTranscriptItemIsUserMessage(items[i]) {
+				break
+			}
+			remove[i] = struct{}{}
+		}
+		out := items[:0]
+		for i, item := range items {
+			if _, ok := remove[i]; ok {
+				continue
+			}
+			out = append(out, item)
+		}
+		return out
+	}
+	callID := responsesTranscriptItemCallID(items[index])
+	itemType := responsesTranscriptItemType(items[index])
+	remove := map[int]struct{}{index: {}}
+	if callID != "" && responsesTranscriptItemHasCallCounterpart(itemType) {
+		for i, item := range items {
+			if i == index {
+				continue
+			}
+			if responsesTranscriptItemCallID(item) == callID && responsesTranscriptItemHasCallCounterpart(responsesTranscriptItemType(item)) {
+				remove[i] = struct{}{}
+			}
+		}
+	}
+
+	out := items[:0]
+	for i, item := range items {
+		if _, ok := remove[i]; ok {
+			continue
+		}
+		out = append(out, item)
+	}
+	return out
+}
+
+func responsesTranscriptItemType(item any) string {
+	typed, ok := item.(map[string]any)
+	if !ok {
+		return ""
+	}
+	return strings.TrimSpace(fmt.Sprint(typed["type"]))
+}
+
+func responsesTranscriptItemCallID(item any) string {
+	typed, ok := item.(map[string]any)
+	if !ok {
+		return ""
+	}
+	return strings.TrimSpace(fmt.Sprint(typed["call_id"]))
+}
+
+func responsesTranscriptItemHasCallCounterpart(itemType string) bool {
+	switch itemType {
+	case "function_call", "function_call_output", "custom_tool_call", "custom_tool_call_output":
+		return true
 	default:
 		return false
 	}

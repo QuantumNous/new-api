@@ -172,6 +172,48 @@ func TestSanitizeResponsesTranscriptInitialRequestStripsOversizedFullInput(t *te
 	require.Less(t, len(sanitized), len(body)/10)
 }
 
+func TestSanitizeResponsesTranscriptInitialRequestStripsHistoricalImagesBeforeLatestUserImage(t *testing.T) {
+	historicalImage := "data:image/png;base64," + strings.Repeat("a", responsesTranscriptPreflightSanitizeMinBytes)
+	latestImage := "data:image/png;base64," + strings.Repeat("b", 1024)
+	body := []byte(`{
+		"model":"gpt-5",
+		"prompt_cache_key":"sess-large-images",
+		"input":[
+			{"type":"message","role":"user","content":[{"type":"input_text","text":"first"},{"type":"input_image","image_url":"` + historicalImage + `"}]},
+			{"type":"message","role":"assistant","content":[{"type":"output_text","text":"answer"}]},
+			{"type":"message","role":"user","content":[{"type":"input_text","text":"second"},{"type":"input_image","image_url":"` + latestImage + `"}]}
+		]
+	}`)
+
+	sanitized, ok, reason := SanitizeResponsesTranscriptInitialRequest(body)
+	require.True(t, ok, reason)
+	require.Contains(t, reason, "stripped historical inline_images=1")
+	require.Less(t, len(sanitized), responsesTranscriptPreflightSanitizeMinBytes)
+	require.Equal(t, "input_text", gjson.GetBytes(sanitized, "input.0.content.1.type").String())
+	require.Equal(t, responsesTranscriptOmittedImageText, gjson.GetBytes(sanitized, "input.0.content.1.text").String())
+	require.Equal(t, "input_image", gjson.GetBytes(sanitized, "input.2.content.1.type").String())
+	require.Equal(t, latestImage, gjson.GetBytes(sanitized, "input.2.content.1.image_url").String())
+}
+
+func TestSanitizeResponsesTranscriptInitialRequestTrimsOldHistoryWhenImagesAreNotEnough(t *testing.T) {
+	body := []byte(`{
+		"model":"gpt-5",
+		"prompt_cache_key":"sess-large-text",
+		"input":[
+			{"type":"message","role":"user","content":"` + strings.Repeat("old", responsesTranscriptPreflightSanitizeMinBytes/3) + `"},
+			{"type":"message","role":"assistant","content":[{"type":"output_text","text":"answer"}]},
+			{"type":"message","role":"user","content":"latest"}
+		]
+	}`)
+
+	sanitized, ok, reason := SanitizeResponsesTranscriptInitialRequest(body)
+	require.True(t, ok, reason)
+	require.Contains(t, reason, "trimmed history_items=")
+	require.Less(t, len(sanitized), responsesTranscriptPreflightSanitizeMinBytes)
+	require.Len(t, gjson.GetBytes(sanitized, "input").Array(), 1)
+	require.Equal(t, "latest", gjson.GetBytes(sanitized, "input.0.content").String())
+}
+
 func TestSanitizeResponsesTranscriptInitialRequestKeepsIncrementalRequest(t *testing.T) {
 	largeEncryptedContent := strings.Repeat("x", responsesTranscriptPreflightSanitizeMinBytes)
 	body := []byte(`{
@@ -224,6 +266,7 @@ func TestInspectResponsesTranscriptRequestShape(t *testing.T) {
 	require.Equal(t, 1, shape.CustomToolCallItems)
 	require.Equal(t, 1, shape.ReasoningItems)
 	require.Equal(t, 3, shape.EncryptedContentItems)
+	require.Equal(t, 0, shape.InlineImageItems)
 }
 
 func TestIsResponsesTranscriptReplayError(t *testing.T) {

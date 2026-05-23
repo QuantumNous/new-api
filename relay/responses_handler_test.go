@@ -1,8 +1,6 @@
 package relay
 
 import (
-	"bytes"
-	"compress/gzip"
 	"io"
 	"strings"
 	"testing"
@@ -58,24 +56,8 @@ func TestShouldRetryResponsesTranscriptReplayIgnoresPayloadTooLarge(t *testing.T
 	}`)))
 }
 
-func TestGzipResponsesOutboundBodyRoundTrip(t *testing.T) {
-	original := []byte(strings.Repeat(`{"type":"message","role":"user","content":"hello"}`, 20000))
-
-	gzipBody, err := gzipResponsesOutboundBody(original)
-	require.NoError(t, err)
-	require.Less(t, len(gzipBody), len(original))
-
-	reader, err := gzip.NewReader(bytes.NewReader(gzipBody))
-	require.NoError(t, err)
-	defer reader.Close()
-
-	decompressed, err := io.ReadAll(reader)
-	require.NoError(t, err)
-	require.Equal(t, original, decompressed)
-}
-
-func TestNewResponsesOutboundJSONBodyGzipsLargeReplayEnabledBody(t *testing.T) {
-	original := []byte(`{"input":"` + strings.Repeat("x", responsesOutboundGzipMinBytes) + `"}`)
+func TestNewResponsesOutboundJSONBodyKeepsLargeReplayBodyAsJSON(t *testing.T) {
+	original := []byte(`{"input":"` + strings.Repeat("x", 900*1024) + `"}`)
 	info := &relaycommon.RelayInfo{
 		RelayMode: relayconstant.RelayModeResponses,
 		ChannelMeta: &relaycommon.ChannelMeta{
@@ -84,28 +66,18 @@ func TestNewResponsesOutboundJSONBodyGzipsLargeReplayEnabledBody(t *testing.T) {
 		},
 	}
 
-	body, closer, newAPIError := newResponsesOutboundJSONBody(nil, info, original)
+	body, closer, newAPIError := newResponsesOutboundJSONBody(info, original)
 	require.Nil(t, newAPIError)
 	defer closer.Close()
 
-	require.Equal(t, "gzip", info.UpstreamRequestBodyEncoding)
-	require.Less(t, info.UpstreamRequestBodySize, int64(len(original)))
-
-	gzipBody, err := io.ReadAll(body)
+	outboundBody, err := io.ReadAll(body)
 	require.NoError(t, err)
-	require.Equal(t, info.UpstreamRequestBodySize, int64(len(gzipBody)))
-
-	reader, err := gzip.NewReader(bytes.NewReader(gzipBody))
-	require.NoError(t, err)
-	defer reader.Close()
-
-	decompressed, err := io.ReadAll(reader)
-	require.NoError(t, err)
-	require.Equal(t, original, decompressed)
+	require.Equal(t, int64(len(original)), info.UpstreamRequestBodySize)
+	require.Equal(t, original, outboundBody)
 }
 
 func TestNewResponsesOutboundJSONBodyDoesNotGzipNormalOpenAIResponses(t *testing.T) {
-	original := []byte(`{"input":"` + strings.Repeat("x", responsesOutboundGzipMinBytes) + `"}`)
+	original := []byte(`{"input":"` + strings.Repeat("x", 900*1024) + `"}`)
 	info := &relaycommon.RelayInfo{
 		RelayMode: relayconstant.RelayModeResponses,
 		ChannelMeta: &relaycommon.ChannelMeta{
@@ -114,11 +86,10 @@ func TestNewResponsesOutboundJSONBodyDoesNotGzipNormalOpenAIResponses(t *testing
 		},
 	}
 
-	body, closer, newAPIError := newResponsesOutboundJSONBody(nil, info, original)
+	body, closer, newAPIError := newResponsesOutboundJSONBody(info, original)
 	require.Nil(t, newAPIError)
 	defer closer.Close()
 
-	require.Empty(t, info.UpstreamRequestBodyEncoding)
 	require.Equal(t, int64(len(original)), info.UpstreamRequestBodySize)
 
 	outboundBody, err := io.ReadAll(body)

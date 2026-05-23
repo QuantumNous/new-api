@@ -191,25 +191,3 @@ func TestProcessHeaderOverride_PassHeadersTemplateSetsRuntimeHeaders(t *testing.
 	require.Equal(t, "sess-123", upstreamReq.Header.Get("Session_id"))
 	require.Empty(t, upstreamReq.Header.Get("X-Codex-Beta-Features"))
 }
-
-func TestApplyUpstreamBodyEncodingSetsContentEncoding(t *testing.T) {
-	t.Parallel()
-
-	req := httptest.NewRequest(http.MethodPost, "https://example.com/v1/responses", nil)
-	info := &relaycommon.RelayInfo{UpstreamRequestBodyEncoding: " gzip "}
-
-	applyUpstreamBodyEncoding(req, info)
-
-	require.Equal(t, "gzip", req.Header.Get("Content-Encoding"))
-}
-
-func TestApplyUpstreamBodyEncodingIgnoresEmptyEncoding(t *testing.T) {
-	t.Parallel()
-
-	req := httptest.NewRequest(http.MethodPost, "https://example.com/v1/responses", nil)
-	req.Header.Set("Content-Encoding", "identity")
-
-	applyUpstreamBodyEncoding(req, &relaycommon.RelayInfo{})
-
-	require.Equal(t, "identity", req.Header.Get("Content-Encoding"))
-}

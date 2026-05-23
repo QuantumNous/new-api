@@ -2,7 +2,6 @@ package relay
 
 import (
 	"bytes"
-	"compress/gzip"
 	"fmt"
 	"io"
 	"net/http"
@@ -22,8 +21,6 @@ import (
 
 	"github.com/gin-gonic/gin"
 )
-
-const responsesOutboundGzipMinBytes = 900 * 1024
 
 func ResponsesHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types.NewAPIError) {
 	info.InitChannelMeta(c)
@@ -99,8 +96,8 @@ func ResponsesHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *
 					requestBodyBytes = sanitizedBody
 					shouldRewriteBody = true
 				}
-				if shouldRewriteBody || shouldGzipResponsesOutboundBody(info, requestBodyBytes) {
-					body, closer, newAPIError := newResponsesOutboundJSONBody(c, info, requestBodyBytes)
+				if shouldRewriteBody {
+					body, closer, newAPIError := newResponsesOutboundJSONBody(info, requestBodyBytes)
 					if newAPIError != nil {
 						return newAPIError
 					}
@@ -144,7 +141,7 @@ func ResponsesHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *
 				requestBodyBytes = sanitizedBody
 			}
 		}
-		body, closer, newAPIError := newResponsesOutboundJSONBody(c, info, requestBodyBytes)
+		body, closer, newAPIError := newResponsesOutboundJSONBody(info, requestBodyBytes)
 		if newAPIError != nil {
 			return newAPIError
 		}
@@ -225,23 +222,8 @@ func shouldUseResponsesTranscriptReplay(info *relaycommon.RelayInfo) bool {
 	return info.ChannelOtherSettings.ResponsesTranscriptReplayEnabled
 }
 
-func newResponsesOutboundJSONBody(c *gin.Context, info *relaycommon.RelayInfo, requestBody []byte) (io.Reader, io.Closer, *types.NewAPIError) {
-	bodyData := requestBody
-	if info != nil {
-		info.UpstreamRequestBodyEncoding = ""
-	}
-	if shouldGzipResponsesOutboundBody(info, requestBody) {
-		gzipData, err := gzipResponsesOutboundBody(requestBody)
-		if err != nil {
-			return nil, nil, types.NewError(err, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
-		}
-		if len(gzipData) < len(requestBody) {
-			bodyData = gzipData
-			info.UpstreamRequestBodyEncoding = "gzip"
-			logResponsesInfo(c, fmt.Sprintf("codex responses outbound body gzip on channel #%d: original_body_bytes=%d gzip_body_bytes=%d", info.ChannelId, len(requestBody), len(gzipData)))
-		}
-	}
-	body, size, closer, err := relaycommon.NewOutboundJSONBody(bodyData)
+func newResponsesOutboundJSONBody(info *relaycommon.RelayInfo, requestBody []byte) (io.Reader, io.Closer, *types.NewAPIError) {
+	body, size, closer, err := relaycommon.NewOutboundJSONBody(requestBody)
 	if err != nil {
 		return nil, nil, types.NewError(err, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
 	}
@@ -249,23 +231,6 @@ func newResponsesOutboundJSONBody(c *gin.Context, info *relaycommon.RelayInfo, r
 		info.UpstreamRequestBodySize = size
 	}
 	return body, closer, nil
-}
-
-func shouldGzipResponsesOutboundBody(info *relaycommon.RelayInfo, requestBody []byte) bool {
-	return shouldUseResponsesTranscriptReplay(info) && len(requestBody) >= responsesOutboundGzipMinBytes
-}
-
-func gzipResponsesOutboundBody(requestBody []byte) ([]byte, error) {
-	var buf bytes.Buffer
-	writer := gzip.NewWriter(&buf)
-	if _, err := writer.Write(requestBody); err != nil {
-		_ = writer.Close()
-		return nil, err
-	}
-	if err := writer.Close(); err != nil {
-		return nil, err
-	}
-	return buf.Bytes(), nil
 }
 
 func sanitizeResponsesTranscriptInitialRequest(c *gin.Context, info *relaycommon.RelayInfo, requestBodyBytes []byte) ([]byte, bool) {
@@ -318,7 +283,7 @@ func retryCodexResponsesTranscriptReplay(
 	}
 
 	relaycommon.UpdateResponsesTranscriptReplayRequest(info, replayBody, true)
-	replayRequestBody, replayCloser, newAPIError := newResponsesOutboundJSONBody(c, info, replayBody)
+	replayRequestBody, replayCloser, newAPIError := newResponsesOutboundJSONBody(info, replayBody)
 	if newAPIError != nil {
 		return nil, markResponsesTranscriptReplaySkipRetry(newAPIError)
 	}
@@ -357,7 +322,7 @@ func logResponsesTranscriptRequestShape(c *gin.Context, info *relaycommon.RelayI
 		channelID = info.ChannelId
 	}
 	logger.LogWarn(c, fmt.Sprintf(
-		"codex responses request diagnostics on channel #%d: phase=%s status=%d body_bytes=%d input_exists=%t input_array=%t input_items=%d previous_response_id=%t prompt_cache_key=%t full_transcript=%t replacement_input=%t compaction_items=%d assistant_messages=%d function_calls=%d custom_tool_calls=%d reasoning_items=%d encrypted_content_items=%d",
+		"codex responses request diagnostics on channel #%d: phase=%s status=%d body_bytes=%d input_exists=%t input_array=%t input_items=%d previous_response_id=%t prompt_cache_key=%t full_transcript=%t replacement_input=%t compaction_items=%d assistant_messages=%d function_calls=%d custom_tool_calls=%d reasoning_items=%d encrypted_content_items=%d inline_image_items=%d",
 		channelID,
 		phase,
 		statusCode,
@@ -375,6 +340,7 @@ func logResponsesTranscriptRequestShape(c *gin.Context, info *relaycommon.RelayI
 		shape.CustomToolCallItems,
 		shape.ReasoningItems,
 		shape.EncryptedContentItems,
+		shape.InlineImageItems,
 	))
 }
 

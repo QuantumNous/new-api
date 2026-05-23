@@ -161,9 +161,6 @@ type RelayInfo struct {
 	// http.Request.ContentLength manually (net/http only auto-detects it for
 	// *bytes.Reader/Buffer/strings.Reader). 0 means "let net/http decide".
 	UpstreamRequestBodySize int64
-	// UpstreamRequestBodyEncoding is set when the outbound body is encoded
-	// before it is sent upstream, for example "gzip".
-	UpstreamRequestBodyEncoding string
 
 	PriceData types.PriceData
 

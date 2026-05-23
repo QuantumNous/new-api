@@ -2,8 +2,6 @@ package relay
 
 import (
 	"bufio"
-	"bytes"
-	"compress/gzip"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -18,7 +16,9 @@ import (
 	"github.com/tidwall/gjson"
 )
 
-func TestVerifySession019eOutboundGzip(t *testing.T) {
+const responsesSessionVerifyGatewayLimit = 900 * 1024
+
+func TestVerifySession019eSanitizedUnderGatewayLimit(t *testing.T) {
 	sessionPath := strings.TrimSpace(os.Getenv("CODEX_VERIFY_SESSION_JSONL"))
 	if sessionPath == "" {
 		t.Skip("set CODEX_VERIFY_SESSION_JSONL to run this session-derived verification")
@@ -26,7 +26,7 @@ func TestVerifySession019eOutboundGzip(t *testing.T) {
 
 	requestBody := buildLargestSessionResponsesRequest(t, sessionPath, 286)
 	shape := relaycommon.InspectResponsesTranscriptRequestShape(requestBody)
-	require.Greater(t, len(requestBody), responsesOutboundGzipMinBytes)
+	require.Greater(t, len(requestBody), responsesSessionVerifyGatewayLimit)
 	require.Equal(t, 286, shape.InputItems)
 	require.True(t, shape.LooksReplacementInput)
 
@@ -35,7 +35,7 @@ func TestVerifySession019eOutboundGzip(t *testing.T) {
 	sanitizedShape := relaycommon.InspectResponsesTranscriptRequestShape(sanitizedBody)
 	require.Equal(t, 0, sanitizedShape.ReasoningItems)
 	require.Equal(t, 0, sanitizedShape.EncryptedContentItems)
-	require.Greater(t, len(sanitizedBody), responsesOutboundGzipMinBytes)
+	require.Less(t, len(sanitizedBody), responsesSessionVerifyGatewayLimit)
 
 	info := &relaycommon.RelayInfo{
 		RelayMode: relayconstant.RelayModeResponses,
@@ -47,35 +47,27 @@ func TestVerifySession019eOutboundGzip(t *testing.T) {
 	relaycommon.PrepareResponsesTranscriptReplay(info, requestBody)
 	relaycommon.UpdateResponsesTranscriptReplayRequest(info, sanitizedBody, false)
 
-	body, closer, newAPIError := newResponsesOutboundJSONBody(nil, info, sanitizedBody)
+	body, closer, newAPIError := newResponsesOutboundJSONBody(info, sanitizedBody)
 	require.Nil(t, newAPIError)
 	defer closer.Close()
 
-	gzipBody, err := io.ReadAll(body)
+	outboundBody, err := io.ReadAll(body)
 	require.NoError(t, err)
-	require.Equal(t, "gzip", info.UpstreamRequestBodyEncoding)
-	require.Equal(t, int64(len(gzipBody)), info.UpstreamRequestBodySize)
-	require.Less(t, len(gzipBody), responsesOutboundGzipMinBytes)
-
-	reader, err := gzip.NewReader(bytes.NewReader(gzipBody))
-	require.NoError(t, err)
-	defer reader.Close()
-
-	decompressed, err := io.ReadAll(reader)
-	require.NoError(t, err)
-	require.Equal(t, sanitizedBody, decompressed)
+	require.Equal(t, int64(len(sanitizedBody)), info.UpstreamRequestBodySize)
+	require.Equal(t, sanitizedBody, outboundBody)
 
 	t.Logf(
-		"original_body_bytes=%d sanitized_body_bytes=%d gzip_body_bytes=%d original_items=%d sanitized_items=%d original_reasoning=%d sanitized_reasoning=%d original_encrypted=%d sanitized_encrypted=%d reason=%q",
+		"original_body_bytes=%d sanitized_body_bytes=%d original_items=%d sanitized_items=%d original_reasoning=%d sanitized_reasoning=%d original_encrypted=%d sanitized_encrypted=%d original_inline_images=%d sanitized_inline_images=%d reason=%q",
 		len(requestBody),
 		len(sanitizedBody),
-		len(gzipBody),
 		shape.InputItems,
 		sanitizedShape.InputItems,
 		shape.ReasoningItems,
 		sanitizedShape.ReasoningItems,
 		shape.EncryptedContentItems,
 		sanitizedShape.EncryptedContentItems,
+		shape.InlineImageItems,
+		sanitizedShape.InlineImageItems,
 		reason,
 	)
 }
