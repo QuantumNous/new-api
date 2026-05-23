@@ -36,6 +36,7 @@ const defaultContentSettings: ContentSettings = {
   'console_setting.faq_enabled': true,
   'console_setting.uptime_kuma_enabled': false,
   DataExportEnabled: false,
+  ApiKeyStatsEnabled: false,
   DataExportDefaultTime: 'hour',
   DataExportInterval: 5,
   Chats: '[]',

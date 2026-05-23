@@ -50,6 +50,7 @@ const CONTENT_SECTIONS = [
           DataExportDefaultTime: validateDataExportDefaultTime(
             settings.DataExportDefaultTime
           ),
+          ApiKeyStatsEnabled: settings.ApiKeyStatsEnabled,
         }}
       />
     ),

@@ -6,6 +6,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/setting/operation_setting"
 
 	"github.com/gin-gonic/gin"
 )
@@ -148,6 +149,58 @@ func GetLogsSelfStat(c *gin.Context) {
 		},
 	})
 	return
+}
+
+// GetLogStatsByToken returns API key usage statistics for admins.
+func GetLogStatsByToken(c *gin.Context) {
+	if !isApiKeyStatsEnabled(c) {
+		return
+	}
+
+	startTimestamp, _ := strconv.ParseInt(c.Query("start_timestamp"), 10, 64)
+	endTimestamp, _ := strconv.ParseInt(c.Query("end_timestamp"), 10, 64)
+	data, err := model.GetLogStatsByToken(0, startTimestamp, endTimestamp)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "",
+		"data":    data,
+	})
+}
+
+// GetUserLogStatsByToken returns API key usage statistics for the current user.
+func GetUserLogStatsByToken(c *gin.Context) {
+	if !isApiKeyStatsEnabled(c) {
+		return
+	}
+
+	userId := c.GetInt("id")
+	startTimestamp, _ := strconv.ParseInt(c.Query("start_timestamp"), 10, 64)
+	endTimestamp, _ := strconv.ParseInt(c.Query("end_timestamp"), 10, 64)
+	data, err := model.GetLogStatsByToken(userId, startTimestamp, endTimestamp)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "",
+		"data":    data,
+	})
+}
+
+func isApiKeyStatsEnabled(c *gin.Context) bool {
+	if operation_setting.SelfUseModeEnabled && common.ApiKeyStatsEnabled {
+		return true
+	}
+	c.JSON(http.StatusForbidden, gin.H{
+		"success": false,
+		"message": "api key statistics is disabled",
+	})
+	return false
 }
 
 func DeleteHistoryLogs(c *gin.Context) {

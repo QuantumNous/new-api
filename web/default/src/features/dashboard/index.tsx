@@ -24,6 +24,7 @@ import { ROLE } from '@/lib/roles'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { SectionPageLayout } from '@/components/layout'
+import { useStatus } from '@/hooks/use-status'
 import { FadeIn } from '@/components/page-transition'
 import { ModelsChartPreferences } from './components/models/models-chart-preferences'
 import { ModelsFilter } from './components/models/models-filter-dialog'
@@ -74,6 +75,12 @@ const LazyPerformanceOverview = lazy(() =>
 const LazyUserCharts = lazy(() =>
   import('./components/users/user-charts').then((m) => ({
     default: m.UserCharts,
+  }))
+)
+
+const LazyKeyCharts = lazy(() =>
+  import('./components/keys/key-charts').then((m) => ({
+    default: m.KeyCharts,
   }))
 )
 
@@ -146,6 +153,10 @@ const SECTION_META: Record<
     titleKey: 'User Analytics',
     descriptionKey: 'View user consumption statistics and charts',
   },
+  keys: {
+    titleKey: 'API Key Analytics',
+    descriptionKey: 'View API key consumption statistics and charts',
+  },
 }
 
 export function Dashboard() {
@@ -153,6 +164,7 @@ export function Dashboard() {
   const navigate = useNavigate()
   const params = route.useParams()
   const userRole = useAuthStore((state) => state.auth.user?.role)
+  const { status } = useStatus()
   const activeSection = (params.section ??
     DASHBOARD_DEFAULT_SECTION) as DashboardSectionId
 
@@ -191,12 +203,16 @@ export function Dashboard() {
 
   const meta = SECTION_META[activeSection] ?? SECTION_META.overview
   const isAdmin = Boolean(userRole && userRole >= ROLE.ADMIN)
+  const apiKeyStatsEnabled = status?.api_key_stats_enabled ?? false
   const visibleSections = useMemo(
     () =>
       DASHBOARD_SECTION_IDS.filter(
-        (section) => section !== 'overview' && (section !== 'users' || isAdmin)
+        (section) =>
+          section !== 'overview' &&
+          (section !== 'users' || isAdmin) &&
+          (section !== 'keys' || apiKeyStatsEnabled)
       ),
-    [isAdmin]
+    [isAdmin, apiKeyStatsEnabled]
   )
   const handleSectionChange = useCallback(
     (section: string) => {
@@ -304,6 +320,13 @@ export function Dashboard() {
             <FadeIn>
               <Suspense fallback={<ModelChartsFallback />}>
                 <LazyUserCharts />
+              </Suspense>
+            </FadeIn>
+          )}
+          {activeSection === 'keys' && apiKeyStatsEnabled && (
+            <FadeIn>
+              <Suspense fallback={<ModelChartsFallback />}>
+                <LazyKeyCharts />
               </Suspense>
             </FadeIn>
           )}
