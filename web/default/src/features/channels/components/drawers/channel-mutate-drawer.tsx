@@ -4021,7 +4021,7 @@ export function ChannelMutateDrawer({
                                       </FormLabel>
                                       <FormDescription>
                                         {t(
-                                          '遇到 encrypted_content 校验失败时，移除 previous_response_id 并重放完整会话记录'
+                                          '遇到 encrypted_content 校验失败时，优先保留 previous_response_id 并清理无效推理内容'
                                         )}
                                       </FormDescription>
                                     </div>

@@ -2535,7 +2535,7 @@ const EditChannelModal = (props) => {
 
                   <Form.Switch field='thinking_to_content' label={t('思考内容转换')} checkedText={t('开')} uncheckedText={t('关')} onChange={(value) => handleChannelSettingsChange('thinking_to_content', value)} extraText={t('将 reasoning_content 转换为 <think> 标签拼接到内容中')} />
                   <Form.Switch field='pass_through_body_enabled' label={t('透传请求体')} checkedText={t('开')} uncheckedText={t('关')} onChange={(value) => handleChannelSettingsChange('pass_through_body_enabled', value)} extraText={t('启用请求体透传功能')} />
-                  <Form.Switch field='responses_transcript_replay_enabled' label={t('响应会话重放')} checkedText={t('开')} uncheckedText={t('关')} onChange={(value) => handleChannelOtherSettingsChange('responses_transcript_replay_enabled', value)} extraText={t('遇到 encrypted_content 校验失败时，移除 previous_response_id 并重放完整会话记录')} />
+                  <Form.Switch field='responses_transcript_replay_enabled' label={t('响应会话重放')} checkedText={t('开')} uncheckedText={t('关')} onChange={(value) => handleChannelOtherSettingsChange('responses_transcript_replay_enabled', value)} extraText={t('遇到 encrypted_content 校验失败时，优先保留 previous_response_id 并清理无效推理内容')} />
 
                   <Form.Input field='proxy' label={t('代理地址')} placeholder={t('例如: socks5://user:pass@host:port')} onChange={(value) => handleChannelSettingsChange('proxy', value)} showClear extraText={t('用于配置网络代理，支持 socks5 协议')} />
 

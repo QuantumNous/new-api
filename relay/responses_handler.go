@@ -233,6 +233,9 @@ func retryCodexResponsesTranscriptReplay(
 	}
 
 	if !shouldRetryResponsesTranscriptReplay(httpResp.StatusCode, responseBody, requestBodyBytes) {
+		if httpResp.StatusCode == http.StatusRequestEntityTooLarge {
+			logResponsesTranscriptRequestShape(c, info, "upstream_413_before_retry", requestBodyBytes, httpResp.StatusCode)
+		}
 		return nil, newAPIErrorFromCapturedHTTPError(c, httpResp, responseBody, statusCodeMappingStr, false)
 	}
 
@@ -249,7 +252,7 @@ func retryCodexResponsesTranscriptReplay(
 	}
 	defer replayCloser.Close()
 
-	logger.LogInfo(c, fmt.Sprintf("codex responses transcript replay on channel #%d: %s", info.ChannelId, reason))
+	logger.LogInfo(c, fmt.Sprintf("codex responses transcript replay on channel #%d: %s; original_body_bytes=%d retry_body_bytes=%d", info.ChannelId, reason, len(requestBodyBytes), len(replayBody)))
 	resp, err := adaptor.DoRequest(c, info, replayRequestBody)
 	if err != nil {
 		return nil, types.NewOpenAIError(err, types.ErrorCodeDoRequestFailed, http.StatusInternalServerError, types.ErrOptionWithSkipRetry())
@@ -257,6 +260,9 @@ func retryCodexResponsesTranscriptReplay(
 	replayResp := resp.(*http.Response)
 	if replayResp.StatusCode == http.StatusOK {
 		return replayResp, nil
+	}
+	if replayResp.StatusCode == http.StatusRequestEntityTooLarge {
+		logResponsesTranscriptRequestShape(c, info, "upstream_413_after_retry", replayBody, replayResp.StatusCode)
 	}
 
 	replayResponseBody, readErr := captureHTTPErrorBody(replayResp)
@@ -270,6 +276,33 @@ func retryCodexResponsesTranscriptReplay(
 
 func shouldRetryResponsesTranscriptReplay(statusCode int, responseBody []byte, requestBody []byte) bool {
 	return relaycommon.IsResponsesTranscriptReplayError(statusCode, responseBody)
+}
+
+func logResponsesTranscriptRequestShape(c *gin.Context, info *relaycommon.RelayInfo, phase string, requestBody []byte, statusCode int) {
+	shape := relaycommon.InspectResponsesTranscriptRequestShape(requestBody)
+	channelID := 0
+	if info != nil {
+		channelID = info.ChannelId
+	}
+	logger.LogWarn(c, fmt.Sprintf(
+		"codex responses request diagnostics on channel #%d: phase=%s status=%d body_bytes=%d input_exists=%t input_array=%t input_items=%d previous_response_id=%t prompt_cache_key=%t full_transcript=%t compaction_items=%d assistant_messages=%d function_calls=%d custom_tool_calls=%d reasoning_items=%d encrypted_content_items=%d",
+		channelID,
+		phase,
+		statusCode,
+		shape.BodyBytes,
+		shape.InputExists,
+		shape.InputIsArray,
+		shape.InputItems,
+		shape.HasPreviousResponseID,
+		shape.HasPromptCacheKey,
+		shape.LooksFullTranscript,
+		shape.CompactionItems,
+		shape.AssistantMessageItems,
+		shape.FunctionCallItems,
+		shape.CustomToolCallItems,
+		shape.ReasoningItems,
+		shape.EncryptedContentItems,
+	))
 }
 
 func captureHTTPErrorBody(resp *http.Response) ([]byte, error) {

@@ -22,6 +22,22 @@ type ResponsesTranscriptReplayState struct {
 	Replayed     bool
 }
 
+type ResponsesTranscriptRequestShape struct {
+	BodyBytes             int
+	HasPreviousResponseID bool
+	HasPromptCacheKey     bool
+	InputExists           bool
+	InputIsArray          bool
+	InputItems            int
+	LooksFullTranscript   bool
+	CompactionItems       int
+	AssistantMessageItems int
+	FunctionCallItems     int
+	CustomToolCallItems   int
+	ReasoningItems        int
+	EncryptedContentItems int
+}
+
 type responsesTranscriptReplayCacheEntry struct {
 	InputRaw string
 	Expire   time.Time
@@ -83,24 +99,12 @@ func BuildResponsesTranscriptReplayRequest(info *RelayInfo, requestBody []byte) 
 		return nil, false, "request input is not an array"
 	}
 
+	if hasPreviousResponseID {
+		return buildResponsesIncrementalTranscriptRetryRequest(requestBody, input)
+	}
+
 	mergedInput := input.Raw
 	reason := "using full input transcript"
-	if !responsesInputLooksFullTranscript(input) {
-		state := info.ResponsesTranscriptReplay
-		if state == nil || state.CacheKey == "" {
-			return nil, false, "missing transcript replay cache key"
-		}
-		cachedInput, ok := getResponsesTranscriptReplayCachedInput(state.CacheKey)
-		if !ok {
-			return nil, false, "missing cached transcript"
-		}
-		var err error
-		mergedInput, err = mergeResponsesJSONArrayRaw(cachedInput, input.Raw)
-		if err != nil {
-			return nil, false, fmt.Sprintf("merge transcript failed: %v", err)
-		}
-		reason = "using cached transcript"
-	}
 
 	sanitizedInput, err := sanitizeResponsesTranscriptReplayInputRaw(mergedInput)
 	if err != nil {
@@ -115,8 +119,8 @@ func BuildResponsesTranscriptReplayRequest(info *RelayInfo, requestBody []byte) 
 	if sanitizedInput.RemovedReasoningItems {
 		reason += "; removed reasoning items"
 	}
-	if !hasPreviousResponseID && !sanitizedInput.StrippedEncryptedContent {
-		return nil, false, "request has no previous_response_id and no encrypted_content to strip"
+	if !sanitizedInput.StrippedEncryptedContent && !sanitizedInput.RemovedReasoningItems {
+		return nil, false, "request has no encrypted_content or reasoning items to strip"
 	}
 
 	out, err := sjson.DeleteBytes(append([]byte(nil), requestBody...), "previous_response_id")
@@ -126,6 +130,30 @@ func BuildResponsesTranscriptReplayRequest(info *RelayInfo, requestBody []byte) 
 	out, err = sjson.SetRawBytes(out, "input", []byte(mergedInput))
 	if err != nil {
 		return nil, false, fmt.Sprintf("set replay input failed: %v", err)
+	}
+	return out, true, reason
+}
+
+func buildResponsesIncrementalTranscriptRetryRequest(requestBody []byte, input gjson.Result) ([]byte, bool, string) {
+	sanitizedInput, err := sanitizeResponsesTranscriptReplayInputRaw(input.Raw)
+	if err != nil {
+		return nil, false, fmt.Sprintf("strip encrypted_content failed: %v", err)
+	}
+	if !sanitizedInput.StrippedEncryptedContent && !sanitizedInput.RemovedReasoningItems {
+		return nil, false, "incremental request has no encrypted_content or reasoning items to strip"
+	}
+
+	out, err := sjson.SetRawBytes(append([]byte(nil), requestBody...), "input", []byte(sanitizedInput.InputRaw))
+	if err != nil {
+		return nil, false, fmt.Sprintf("set retry input failed: %v", err)
+	}
+
+	reason := "using incremental previous_response_id"
+	if sanitizedInput.StrippedEncryptedContent {
+		reason += "; stripped encrypted_content"
+	}
+	if sanitizedInput.RemovedReasoningItems {
+		reason += "; removed reasoning items"
 	}
 	return out, true, reason
 }
@@ -157,6 +185,44 @@ func ResponsesTranscriptReplayRequestHasEncryptedContent(requestBody []byte) boo
 	}
 	_, stripped, err := stripResponsesEncryptedContentFromJSONArrayRaw(input.Raw)
 	return err == nil && stripped
+}
+
+func InspectResponsesTranscriptRequestShape(requestBody []byte) ResponsesTranscriptRequestShape {
+	shape := ResponsesTranscriptRequestShape{
+		BodyBytes:             len(requestBody),
+		HasPreviousResponseID: gjson.GetBytes(requestBody, "previous_response_id").Exists(),
+		HasPromptCacheKey:     strings.TrimSpace(gjson.GetBytes(requestBody, "prompt_cache_key").String()) != "",
+	}
+	input := gjson.GetBytes(requestBody, "input")
+	shape.InputExists = input.Exists()
+	shape.InputIsArray = input.IsArray()
+	if !input.IsArray() {
+		return shape
+	}
+
+	items := input.Array()
+	shape.InputItems = len(items)
+	shape.LooksFullTranscript = responsesInputLooksFullTranscript(input)
+	for _, item := range items {
+		switch strings.TrimSpace(item.Get("type").String()) {
+		case "compaction", "compaction_summary":
+			shape.CompactionItems++
+		case "function_call":
+			shape.FunctionCallItems++
+		case "custom_tool_call":
+			shape.CustomToolCallItems++
+		case "reasoning":
+			shape.ReasoningItems++
+		case "message":
+			if strings.TrimSpace(item.Get("role").String()) == "assistant" {
+				shape.AssistantMessageItems++
+			}
+		}
+		if responsesItemHasEncryptedContent(item) {
+			shape.EncryptedContentItems++
+		}
+	}
+	return shape
 }
 
 func ObserveResponsesTranscriptReplayResponseBody(info *RelayInfo, responseBody []byte) {
@@ -284,13 +350,38 @@ func responsesInputLooksFullTranscript(input gjson.Result) bool {
 	}
 	for _, item := range input.Array() {
 		switch strings.TrimSpace(item.Get("type").String()) {
-		case "compaction", "compaction_summary", "function_call", "custom_tool_call", "reasoning":
+		case "compaction", "compaction_summary":
 			return true
-		case "message":
-			if strings.TrimSpace(item.Get("role").String()) == "assistant" {
+		}
+	}
+	return false
+}
+
+func responsesItemHasEncryptedContent(item gjson.Result) bool {
+	if !item.Exists() {
+		return false
+	}
+	if item.IsArray() {
+		for _, child := range item.Array() {
+			if responsesItemHasEncryptedContent(child) {
 				return true
 			}
 		}
+		return false
+	}
+	if item.IsObject() {
+		if item.Get("encrypted_content").Exists() {
+			return true
+		}
+		found := false
+		item.ForEach(func(_, child gjson.Result) bool {
+			if responsesItemHasEncryptedContent(child) {
+				found = true
+				return false
+			}
+			return true
+		})
+		return found
 	}
 	return false
 }
