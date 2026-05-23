@@ -392,67 +392,108 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
             </TooltipProvider>
           )
         },
-        meta: { label: t('Channel'), mobileHidden: true },
-      },
-      {
-        id: 'user',
-        header: ({ column }) => (
-          <DataTableColumnHeader column={column} title={t('User')} />
-        ),
-        cell: function UserCell({ row }) {
-          const { sensitiveVisible, setSelectedUserId, setUserInfoDialogOpen } =
-            useUsageLogsContext()
-          const log = row.original
-
-          if (!log.username) return null
-
-          return (
-            <button
-              type='button'
-              className='flex items-center gap-1.5 text-left'
-              onClick={(e) => {
-                e.stopPropagation()
-                setSelectedUserId(log.user_id)
-                setUserInfoDialogOpen(true)
-              }}
-            >
-              <Avatar className='ring-border/60 size-6 ring-1'>
-                <AvatarFallback
-                  className={cn(
-                    'text-[11px] font-semibold',
-                    !sensitiveVisible && 'bg-muted text-muted-foreground'
-                  )}
-                  style={
-                    sensitiveVisible
-                      ? getUserAvatarStyle(log.username)
-                      : undefined
-                  }
-                >
-                  {sensitiveVisible ? getUserAvatarFallback(log.username) : '•'}
-                </AvatarFallback>
-              </Avatar>
-              <TooltipProvider delay={300}>
-                <Tooltip>
-                  <TooltipTrigger
-                    render={
-                      <span className='text-muted-foreground max-w-[100px] truncate text-sm hover:underline' />
-                    }
-                  >
-                    {sensitiveVisible ? log.username : '••••'}
-                  </TooltipTrigger>
-                  {sensitiveVisible && log.username.length > 12 && (
-                    <TooltipContent side='top'>
-                      {log.username}
-                    </TooltipContent>
-                  )}
-                </Tooltip>
-              </TooltipProvider>
-            </button>
-          )
-        },
-        meta: { label: t('User'), mobileHidden: true },
+        meta: { label: t('Channel') },
       }
     )
+  }
+
+  columns.push({
+    id: 'user',
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title={t('User')} />
+    ),
+    cell: function UserCell({ row }) {
+      const { sensitiveVisible, setSelectedUserId, setUserInfoDialogOpen } =
+        useUsageLogsContext()
+      const log = row.original
+
+      if (!log.username) return null
+
+      return (
+        <button
+          type='button'
+          className='flex items-center gap-1.5 text-left'
+          onClick={(e) => {
+            e.stopPropagation()
+            setSelectedUserId(log.user_id)
+            setUserInfoDialogOpen(true)
+          }}
+        >
+          <Avatar className='ring-border/60 size-6 ring-1'>
+            <AvatarFallback
+              className={cn(
+                'text-[11px] font-semibold',
+                !sensitiveVisible && 'bg-muted text-muted-foreground'
+              )}
+              style={
+                sensitiveVisible
+                  ? getUserAvatarStyle(log.username)
+                  : undefined
+              }
+            >
+              {sensitiveVisible ? getUserAvatarFallback(log.username) : '•'}
+            </AvatarFallback>
+          </Avatar>
+          <div className='flex min-w-0 flex-col'>
+            <TooltipProvider delay={300}>
+              <Tooltip>
+                <TooltipTrigger
+                  render={
+                    <span className='text-muted-foreground max-w-[100px] truncate text-sm hover:underline' />
+                  }
+                >
+                  {sensitiveVisible ? log.username : '••••'}
+                </TooltipTrigger>
+                {sensitiveVisible && log.username.length > 12 && (
+                  <TooltipContent side='top'>
+                    {log.username}
+                  </TooltipContent>
+                )}
+              </Tooltip>
+            </TooltipProvider>
+            {log.user_id > 0 && (
+              <span className='text-muted-foreground/70 font-mono text-[10px]'>
+                #{log.user_id}
+              </span>
+            )}
+          </div>
+        </button>
+      )
+    },
+    meta: { label: t('User') },
+  })
+
+  if (isAdmin) {
+    columns.push({
+      id: 'ip',
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title={t('IP')} />
+      ),
+      cell: function IpCell({ row }) {
+        const { sensitiveVisible } = useUsageLogsContext()
+        const log = row.original
+
+        if (!log.ip) return null
+
+        return (
+          <TooltipProvider delay={300}>
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <span className='text-muted-foreground max-w-[120px] truncate font-mono text-xs' />
+                }
+              >
+                {sensitiveVisible ? log.ip : '••••'}
+              </TooltipTrigger>
+              {sensitiveVisible && (
+                <TooltipContent side='top'>{log.ip}</TooltipContent>
+              )}
+            </Tooltip>
+          </TooltipProvider>
+        )
+      },
+      meta: { label: t('IP Address') },
+    })
   }
 
   columns.push({
@@ -657,7 +698,7 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
           </div>
         )
       },
-      meta: { label: t('Timing'), mobileHidden: true },
+      meta: { label: t('Timing') },
     },
 
     {
@@ -708,7 +749,7 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
           </div>
         )
       },
-      meta: { label: 'Tokens', mobileHidden: true },
+      meta: { label: 'Tokens' },
     },
 
     {
