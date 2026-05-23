@@ -1,6 +1,10 @@
 package relay
 
 import (
+	"bytes"
+	"compress/gzip"
+	"io"
+	"strings"
 	"testing"
 
 	"github.com/QuantumNous/new-api/constant"
@@ -52,4 +56,72 @@ func TestShouldRetryResponsesTranscriptReplayIgnoresPayloadTooLarge(t *testing.T
 	require.False(t, shouldRetryResponsesTranscriptReplay(413, []byte(`<html>too large</html>`), []byte(`{
 		"input":[{"type":"reasoning","encrypted_content":"bad-ciphertext","summary":[]}]
 	}`)))
+}
+
+func TestGzipResponsesOutboundBodyRoundTrip(t *testing.T) {
+	original := []byte(strings.Repeat(`{"type":"message","role":"user","content":"hello"}`, 20000))
+
+	gzipBody, err := gzipResponsesOutboundBody(original)
+	require.NoError(t, err)
+	require.Less(t, len(gzipBody), len(original))
+
+	reader, err := gzip.NewReader(bytes.NewReader(gzipBody))
+	require.NoError(t, err)
+	defer reader.Close()
+
+	decompressed, err := io.ReadAll(reader)
+	require.NoError(t, err)
+	require.Equal(t, original, decompressed)
+}
+
+func TestNewResponsesOutboundJSONBodyGzipsLargeReplayEnabledBody(t *testing.T) {
+	original := []byte(`{"input":"` + strings.Repeat("x", responsesOutboundGzipMinBytes) + `"}`)
+	info := &relaycommon.RelayInfo{
+		RelayMode: relayconstant.RelayModeResponses,
+		ChannelMeta: &relaycommon.ChannelMeta{
+			ChannelId: 5,
+			ApiType:   constant.APITypeCodex,
+		},
+	}
+
+	body, closer, newAPIError := newResponsesOutboundJSONBody(nil, info, original)
+	require.Nil(t, newAPIError)
+	defer closer.Close()
+
+	require.Equal(t, "gzip", info.UpstreamRequestBodyEncoding)
+	require.Less(t, info.UpstreamRequestBodySize, int64(len(original)))
+
+	gzipBody, err := io.ReadAll(body)
+	require.NoError(t, err)
+	require.Equal(t, info.UpstreamRequestBodySize, int64(len(gzipBody)))
+
+	reader, err := gzip.NewReader(bytes.NewReader(gzipBody))
+	require.NoError(t, err)
+	defer reader.Close()
+
+	decompressed, err := io.ReadAll(reader)
+	require.NoError(t, err)
+	require.Equal(t, original, decompressed)
+}
+
+func TestNewResponsesOutboundJSONBodyDoesNotGzipNormalOpenAIResponses(t *testing.T) {
+	original := []byte(`{"input":"` + strings.Repeat("x", responsesOutboundGzipMinBytes) + `"}`)
+	info := &relaycommon.RelayInfo{
+		RelayMode: relayconstant.RelayModeResponses,
+		ChannelMeta: &relaycommon.ChannelMeta{
+			ChannelId: 5,
+			ApiType:   constant.APITypeOpenAI,
+		},
+	}
+
+	body, closer, newAPIError := newResponsesOutboundJSONBody(nil, info, original)
+	require.Nil(t, newAPIError)
+	defer closer.Close()
+
+	require.Empty(t, info.UpstreamRequestBodyEncoding)
+	require.Equal(t, int64(len(original)), info.UpstreamRequestBodySize)
+
+	outboundBody, err := io.ReadAll(body)
+	require.NoError(t, err)
+	require.Equal(t, original, outboundBody)
 }

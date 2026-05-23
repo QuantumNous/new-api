@@ -1,6 +1,7 @@
 package common
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -147,6 +148,43 @@ func TestResponsesTranscriptReplayRequestHasEncryptedContent(t *testing.T) {
 	}`)))
 }
 
+func TestSanitizeResponsesTranscriptInitialRequestStripsOversizedFullInput(t *testing.T) {
+	largeEncryptedContent := strings.Repeat("x", responsesTranscriptPreflightSanitizeMinBytes)
+	body := []byte(`{
+		"model":"gpt-5",
+		"prompt_cache_key":"sess-large",
+		"input":[
+			{"type":"message","role":"user","content":"first"},
+			{"type":"reasoning","encrypted_content":"` + largeEncryptedContent + `","summary":[]},
+			{"type":"message","role":"assistant","content":[{"type":"output_text","text":"answer"}]},
+			{"type":"function_call","call_id":"call-1","name":"tool","arguments":"{}"},
+			{"type":"message","role":"user","content":"second"}
+		]
+	}`)
+
+	sanitized, ok, reason := SanitizeResponsesTranscriptInitialRequest(body)
+	require.True(t, ok, reason)
+	require.False(t, gjson.GetBytes(sanitized, "previous_response_id").Exists())
+	require.Len(t, gjson.GetBytes(sanitized, "input").Array(), 4)
+	require.False(t, ResponsesTranscriptReplayRequestHasEncryptedContent(sanitized))
+	require.Contains(t, reason, "sanitized oversized full input transcript")
+	require.Contains(t, reason, "removed reasoning items")
+	require.Less(t, len(sanitized), len(body)/10)
+}
+
+func TestSanitizeResponsesTranscriptInitialRequestKeepsIncrementalRequest(t *testing.T) {
+	largeEncryptedContent := strings.Repeat("x", responsesTranscriptPreflightSanitizeMinBytes)
+	body := []byte(`{
+		"model":"gpt-5",
+		"previous_response_id":"resp_1",
+		"input":[{"type":"reasoning","encrypted_content":"` + largeEncryptedContent + `","summary":[]}]
+	}`)
+
+	sanitized, ok, reason := SanitizeResponsesTranscriptInitialRequest(body)
+	require.False(t, ok, reason)
+	require.Nil(t, sanitized)
+}
+
 func TestResponsesInputLooksFullTranscriptMatchesCompactionMarkers(t *testing.T) {
 	require.False(t, responsesInputLooksFullTranscript(gjson.Parse(`[
 		{"type":"message","role":"user","content":"hello"},
@@ -179,6 +217,7 @@ func TestInspectResponsesTranscriptRequestShape(t *testing.T) {
 	require.True(t, shape.InputIsArray)
 	require.Equal(t, 6, shape.InputItems)
 	require.True(t, shape.LooksFullTranscript)
+	require.True(t, shape.LooksReplacementInput)
 	require.Equal(t, 1, shape.CompactionItems)
 	require.Equal(t, 1, shape.AssistantMessageItems)
 	require.Equal(t, 1, shape.FunctionCallItems)

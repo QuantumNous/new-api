@@ -12,6 +12,7 @@ import (
 )
 
 const responsesTranscriptReplayTTL = time.Hour
+const responsesTranscriptPreflightSanitizeMinBytes = 900 * 1024
 
 type ResponsesTranscriptReplayState struct {
 	CacheKey     string
@@ -30,6 +31,7 @@ type ResponsesTranscriptRequestShape struct {
 	InputIsArray          bool
 	InputItems            int
 	LooksFullTranscript   bool
+	LooksReplacementInput bool
 	CompactionItems       int
 	AssistantMessageItems int
 	FunctionCallItems     int
@@ -134,6 +136,41 @@ func BuildResponsesTranscriptReplayRequest(info *RelayInfo, requestBody []byte) 
 	return out, true, reason
 }
 
+func SanitizeResponsesTranscriptInitialRequest(requestBody []byte) ([]byte, bool, string) {
+	if len(requestBody) < responsesTranscriptPreflightSanitizeMinBytes {
+		return nil, false, "request body below transcript preflight sanitize threshold"
+	}
+	if gjson.GetBytes(requestBody, "previous_response_id").Exists() {
+		return nil, false, "incremental request keeps previous_response_id"
+	}
+	input := gjson.GetBytes(requestBody, "input")
+	if !input.Exists() || !input.IsArray() {
+		return nil, false, "request input is not an array"
+	}
+
+	sanitizedInput, err := sanitizeResponsesTranscriptReplayInputRaw(input.Raw)
+	if err != nil {
+		return nil, false, fmt.Sprintf("strip encrypted_content failed: %v", err)
+	}
+	if !sanitizedInput.StrippedEncryptedContent && !sanitizedInput.RemovedReasoningItems {
+		return nil, false, "request has no encrypted_content or reasoning items to strip"
+	}
+
+	out, err := sjson.SetRawBytes(append([]byte(nil), requestBody...), "input", []byte(sanitizedInput.InputRaw))
+	if err != nil {
+		return nil, false, fmt.Sprintf("set sanitized input failed: %v", err)
+	}
+
+	reason := "sanitized oversized full input transcript"
+	if sanitizedInput.StrippedEncryptedContent {
+		reason += "; stripped encrypted_content"
+	}
+	if sanitizedInput.RemovedReasoningItems {
+		reason += "; removed reasoning items"
+	}
+	return out, true, reason
+}
+
 func buildResponsesIncrementalTranscriptRetryRequest(requestBody []byte, input gjson.Result) ([]byte, bool, string) {
 	sanitizedInput, err := sanitizeResponsesTranscriptReplayInputRaw(input.Raw)
 	if err != nil {
@@ -203,6 +240,7 @@ func InspectResponsesTranscriptRequestShape(requestBody []byte) ResponsesTranscr
 	items := input.Array()
 	shape.InputItems = len(items)
 	shape.LooksFullTranscript = responsesInputLooksFullTranscript(input)
+	shape.LooksReplacementInput = responsesInputLooksTranscriptReplacement(input)
 	for _, item := range items {
 		switch strings.TrimSpace(item.Get("type").String()) {
 		case "compaction", "compaction_summary":
@@ -352,6 +390,23 @@ func responsesInputLooksFullTranscript(input gjson.Result) bool {
 		switch strings.TrimSpace(item.Get("type").String()) {
 		case "compaction", "compaction_summary":
 			return true
+		}
+	}
+	return false
+}
+
+func responsesInputLooksTranscriptReplacement(input gjson.Result) bool {
+	if !input.IsArray() {
+		return false
+	}
+	for _, item := range input.Array() {
+		switch strings.TrimSpace(item.Get("type").String()) {
+		case "function_call", "custom_tool_call":
+			return true
+		case "message":
+			if strings.TrimSpace(item.Get("role").String()) == "assistant" {
+				return true
+			}
 		}
 	}
 	return false
