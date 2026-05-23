@@ -992,6 +992,20 @@ func (channel *Channel) SetOtherSettings(setting dto.ChannelOtherSettings) {
 	channel.OtherSettings = string(settingBytes)
 }
 
+// Clean strips sensitive fields from the channel so it is safe to serialize back to API clients.
+// Currently masks the inference Key and the OpenAIAdminKey nested in OtherSettings.
+// Callers should invoke Clean (or controller-layer helpers that wrap it) before JSON-encoding
+// a channel in any response that is not an explicit "reveal secret" endpoint.
+func (channel *Channel) Clean() {
+	channel.Key = ""
+	// Also strip admin keys from other_settings JSON so they're never exposed in API responses.
+	other := channel.GetOtherSettings()
+	if other.OpenAIAdminKey != "" {
+		other.OpenAIAdminKey = ""
+		channel.SetOtherSettings(other)
+	}
+}
+
 func (channel *Channel) GetParamOverride() map[string]interface{} {
 	paramOverride := make(map[string]interface{})
 	if channel.ParamOverride != nil && *channel.ParamOverride != "" {

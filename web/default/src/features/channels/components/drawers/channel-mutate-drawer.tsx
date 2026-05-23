@@ -2005,6 +2005,88 @@ export function ChannelMutateDrawer({
                   }}
                 />
 
+                {currentType === 1 && (
+                  <FormField
+                    control={form.control}
+                    name='openai_admin_key'
+                    render={({ field }) => {
+                      const adminKeyPlaceholder = isEditing
+                        ? t('Leave empty to keep existing admin key')
+                        : 'sk-admin-...'
+                      return (
+                        <FormItem>
+                          <FormLabel>{t('OpenAI Admin Key')}</FormLabel>
+                          <FormControl>
+                            <Textarea
+                              placeholder={adminKeyPlaceholder}
+                              rows={2}
+                              {...field}
+                            />
+                          </FormControl>
+                          <FormDescription>
+                            {t(
+                              'Admin key (sk-admin-...) used for fetching usage statistics. Not used for inference.'
+                            )}
+                          </FormDescription>
+                        </FormItem>
+                      )
+                    }}
+                  />
+                )}
+
+                {currentType === 1 && (
+                  <FormField
+                    control={form.control}
+                    name='openai_prepaid_amount'
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>
+                          {t('OpenAI Prepaid Amount (USD)')}
+                        </FormLabel>
+                        <FormControl>
+                          <Input
+                            type='number'
+                            step='0.01'
+                            placeholder='20.00'
+                            {...field}
+                          />
+                        </FormControl>
+                        <FormDescription>
+                          {t(
+                            'Total USD prepaid into the OpenAI account. Used together with "Prepaid since" to compute remaining balance.'
+                          )}
+                        </FormDescription>
+                      </FormItem>
+                    )}
+                  />
+                )}
+
+                {currentType === 1 && (
+                  <FormField
+                    control={form.control}
+                    name='openai_prepaid_since'
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>
+                          {t('OpenAI Prepaid Since (Unix timestamp)')}
+                        </FormLabel>
+                        <FormControl>
+                          <Input
+                            type='number'
+                            placeholder='1700000000'
+                            {...field}
+                          />
+                        </FormControl>
+                        <FormDescription>
+                          {t(
+                            'Unix timestamp when the prepaid period started. If 0, balance shows month-to-date spend instead.'
+                          )}
+                        </FormDescription>
+                      </FormItem>
+                    )}
+                  />
+                )}
+
                 {currentType === 57 && (
                   <div className='bg-muted/20 space-y-3 rounded-lg border p-4'>
                     <div className='flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between'>

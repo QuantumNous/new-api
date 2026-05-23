@@ -6,7 +6,9 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
@@ -356,6 +358,118 @@ func updateChannelMoonshotBalance(channel *model.Channel) (float64, error) {
 	return availableBalanceUsd, nil
 }
 
+// Costs API response structures (https://platform.openai.com/docs/api-reference/usage/costs)
+
+const openAICostsMaxPages = 50 // safety cap for pagination; daily buckets over a month never exceed this
+
+type openAICostsResponse struct {
+	Object   string             `json:"object"`
+	Data     []openAICostBucket `json:"data"`
+	HasMore  bool               `json:"has_more"`
+	NextPage string             `json:"next_page"`
+}
+
+type openAICostBucket struct {
+	Object    string             `json:"object"`
+	StartTime int64              `json:"start_time"`
+	EndTime   int64              `json:"end_time"`
+	Results   []openAICostResult `json:"results"`
+}
+
+type openAICostResult struct {
+	Object string           `json:"object"`
+	Amount openAICostAmount `json:"amount"`
+}
+
+type openAICostAmount struct {
+	Value    float64 `json:"value"`
+	Currency string  `json:"currency"`
+}
+
+// updateChannelOpenAIBalance fetches OpenAI usage via the Costs API and writes a balance
+// value into channel.Balance. Requires an admin-scoped key (sk-admin-...) stored in
+// channel.other_settings.openai_admin_key. The legacy /v1/dashboard/billing endpoints were
+// deprecated by OpenAI; this function is their replacement.
+//
+// Two modes are supported:
+//   - Prepaid remaining: if both OpenAIPrepaidAmount > 0 and OpenAIPrepaidSince > 0 are set,
+//     costs are summed from OpenAIPrepaidSince to now, and the returned balance is
+//     OpenAIPrepaidAmount - total_costs (clamped to 0).
+//   - Month-to-date spend (fallback): otherwise, costs are summed from the 1st of the current
+//     UTC month to now and returned as-is.
+func updateChannelOpenAIBalance(channel *model.Channel) (float64, error) {
+	settings := channel.GetOtherSettings()
+	adminKey := strings.TrimSpace(settings.OpenAIAdminKey)
+	if adminKey == "" {
+		return 0, errors.New("openai admin key is not set; configure channel.other_settings.openai_admin_key")
+	}
+
+	baseURL := channel.GetBaseURL()
+	if baseURL == "" {
+		baseURL = constant.ChannelBaseURLs[channel.Type]
+	}
+
+	now := time.Now().UTC()
+	prepaidMode := settings.OpenAIPrepaidAmount > 0 && settings.OpenAIPrepaidSince > 0
+	var start int64
+	if prepaidMode {
+		start = settings.OpenAIPrepaidSince
+	} else {
+		start = time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, time.UTC).Unix()
+	}
+	end := now.Unix()
+
+	var total float64
+	pageToken := ""
+	exhausted := true
+	for iter := 0; iter < openAICostsMaxPages; iter++ {
+		query := url.Values{}
+		query.Set("start_time", strconv.FormatInt(start, 10))
+		query.Set("end_time", strconv.FormatInt(end, 10))
+		query.Set("limit", "31")
+		if pageToken != "" {
+			query.Set("page", pageToken)
+		}
+		fullURL := fmt.Sprintf("%s/v1/organization/costs?%s", baseURL, query.Encode())
+
+		body, err := GetResponseBody("GET", fullURL, channel, GetAuthHeader(adminKey))
+		if err != nil {
+			return 0, fmt.Errorf("fetch openai usage: %w", err)
+		}
+
+		var resp openAICostsResponse
+		if err := common.Unmarshal(body, &resp); err != nil {
+			return 0, fmt.Errorf("parse openai usage: %w", err)
+		}
+
+		for _, bucket := range resp.Data {
+			for _, result := range bucket.Results {
+				total += result.Amount.Value
+			}
+		}
+
+		if !resp.HasMore || resp.NextPage == "" {
+			exhausted = false
+			break
+		}
+		pageToken = resp.NextPage
+	}
+	if exhausted {
+		return total, fmt.Errorf("openai costs pagination did not terminate after %d pages", openAICostsMaxPages)
+	}
+
+	balance := total
+	if prepaidMode {
+		balance = settings.OpenAIPrepaidAmount - total
+		if balance < 0 {
+			balance = 0
+		}
+	}
+
+	channel.UpdateBalance(balance)
+	return balance, nil
+}
+
 func updateChannelBalance(channel *model.Channel) (float64, error) {
 	baseURL := constant.ChannelBaseURLs[channel.Type]
 	if channel.GetBaseURL() == "" {
@@ -363,9 +477,7 @@ func updateChannelBalance(channel *model.Channel) (float64, error) {
 	}
 	switch channel.Type {
 	case constant.ChannelTypeOpenAI:
-		if channel.GetBaseURL() != "" {
-			baseURL = channel.GetBaseURL()
-		}
+		return updateChannelOpenAIBalance(channel)
 	case constant.ChannelTypeAzure:
 		return 0, errors.New("尚未实现")
 	case constant.ChannelTypeCustom:

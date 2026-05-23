@@ -67,6 +67,13 @@ func clearChannelInfo(channel *model.Channel) {
 		channel.ChannelInfo.MultiKeyDisabledReason = nil
 		channel.ChannelInfo.MultiKeyDisabledTime = nil
 	}
+	// Strip secrets embedded in OtherSettings JSON (e.g. OpenAIAdminKey) before serializing
+	// the channel back to API clients. The inference Key column is already cleared either via
+	// gorm Omit("key") at the query layer or by explicit channel.Key = "" in the caller.
+	if other := channel.GetOtherSettings(); other.OpenAIAdminKey != "" {
+		other.OpenAIAdminKey = ""
+		channel.SetOtherSettings(other)
+	}
 }
 
 func applyChannelStatusFilter(query *gorm.DB, statusFilter int) *gorm.DB {
@@ -888,6 +895,19 @@ func UpdateChannel(c *gin.Context) {
 
 	// Always copy the original ChannelInfo so that fields like IsMultiKey and MultiKeySize are retained.
 	channel.ChannelInfo = originChannel.ChannelInfo
+
+	// Preserve secrets embedded in OtherSettings when the client sends an empty value.
+	// The form masks OpenAIAdminKey on edit (the GET endpoint never returns it), so an empty
+	// admin_key in the PUT payload means "keep existing", not "clear". Without this merge,
+	// gorm's struct-based Updates(channel) would overwrite settings JSON wholesale.
+	incomingOther := channel.GetOtherSettings()
+	if incomingOther.OpenAIAdminKey == "" {
+		originOther := originChannel.GetOtherSettings()
+		if originOther.OpenAIAdminKey != "" {
+			incomingOther.OpenAIAdminKey = originOther.OpenAIAdminKey
+			channel.SetOtherSettings(incomingOther)
+		}
+	}
 
 	// If the request explicitly specifies a new MultiKeyMode, apply it on top of the original info.
 	if channel.MultiKeyMode != nil && *channel.MultiKeyMode != "" {
