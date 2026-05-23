@@ -828,7 +828,13 @@ function GroupPricingSection(props: {
             <TableRow className='hover:bg-transparent'>
               <TableHead className={thClass}>{t('Group')}</TableHead>
               <TableHead className={thClass}>{t('Ratio')}</TableHead>
-              {isTokenBased ? (
+              {props.model.image_billing_mode === 'per_size' ? (
+                <>
+                  <TableHead className={`${thClass} text-right`}>1K</TableHead>
+                  <TableHead className={`${thClass} text-right`}>2K</TableHead>
+                  <TableHead className={`${thClass} text-right`}>4K</TableHead>
+                </>
+              ) : isTokenBased ? (
                 <>
                   <TableHead className={`${thClass} text-right`}>
                     {t('Input')}
@@ -863,7 +869,29 @@ function GroupPricingSection(props: {
                   <TableCell className='text-muted-foreground py-2.5 font-mono'>
                     {ratio}x
                   </TableCell>
-                  {isTokenBased ? (
+                  {props.model.image_billing_mode === 'per_size' &&
+                  props.model.image_per_size_prices ? (
+                    (() => {
+                      const p = props.model.image_per_size_prices
+                      const fmt = (base: number) => {
+                        const val = base * ratio * props.priceRate * props.usdExchangeRate
+                        return `$${val.toFixed(3)}`
+                      }
+                      return (
+                        <>
+                          <TableCell className='py-2.5 text-right font-mono'>
+                            {fmt(p.price_1k)}
+                          </TableCell>
+                          <TableCell className='py-2.5 text-right font-mono'>
+                            {fmt(p.price_2k)}
+                          </TableCell>
+                          <TableCell className='py-2.5 text-right font-mono'>
+                            {fmt(p.price_4k)}
+                          </TableCell>
+                        </>
+                      )
+                    })()
+                  ) : isTokenBased ? (
                     <>
                       <TableCell className='py-2.5 text-right font-mono'>
                         {formatGroupPrice(
