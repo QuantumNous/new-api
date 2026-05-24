@@ -61,6 +61,10 @@ import {
   SheetTitle,
 } from '@/components/ui/sheet'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import {
+  sideDrawerContentClassName,
+  sideDrawerFooterClassName,
+} from '@/components/drawer-layout'
 import { combineBillingExpr } from '@/features/pricing/lib/billing-expr'
 import {
   SettingsControlGroup,
@@ -387,7 +391,10 @@ export function ModelPricingSheet({
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side='right' className='w-full gap-0 p-0 sm:max-w-2xl'>
+      <SheetContent
+        side='right'
+        className={sideDrawerContentClassName('sm:max-w-2xl')}
+      >
         <SheetHeader className='sr-only'>
           <SheetTitle>{title}</SheetTitle>
           <SheetDescription>{description}</SheetDescription>
@@ -733,7 +740,7 @@ export function ModelPricingEditorPanel({
   return (
     <div
       className={cn(
-        'bg-card flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border',
+        'bg-background flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border',
         className
       )}
     >
@@ -948,7 +955,11 @@ export function ModelPricingEditorPanel({
             </FieldGroup>
           </div>
 
-          <SheetFooter className='bg-background/95 border-t sm:flex-row sm:items-center sm:justify-between'>
+          <SheetFooter
+            className={sideDrawerFooterClassName(
+              'grid-cols-1 sm:items-center sm:justify-between'
+            )}
+          >
             <div className='text-muted-foreground text-xs'>
               {selectedTargetCount > 0
                 ? t('{{count}} selected targets available for bulk copy.', {

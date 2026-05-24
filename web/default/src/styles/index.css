@@ -136,6 +136,18 @@ For commercial licensing, please contact support@quantumnous.com
   scrollbar-width: none; /* Firefox */
 }
 
+/* Tooltip content can still scroll, but should not show a distracting axis. */
+[data-slot='tooltip-content'],
+[data-slot='tooltip-content'] * {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+[data-slot='tooltip-content']::-webkit-scrollbar,
+[data-slot='tooltip-content'] *::-webkit-scrollbar {
+  display: none;
+}
+
 @utility hover-scrollbar {
   /* Hide scrollbar by default */
   scrollbar-width: thin;

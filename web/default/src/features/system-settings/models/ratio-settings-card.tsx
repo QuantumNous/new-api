@@ -386,12 +386,17 @@ export function RatioSettingsCard({
         (key) => normalized[key] !== modelNormalizedDefaults.current[key]
       )
 
+      if (updates.length === 0) {
+        toast.info(t('No model price changes to save'))
+        return
+      }
+
       for (const key of updates) {
         const apiKey = apiKeyMap[key as string] || (key as string)
         await updateOption.mutateAsync({ key: apiKey, value: normalized[key] })
       }
     },
-    [updateOption]
+    [t, updateOption]
   )
 
   const saveGroupRatios = useCallback(

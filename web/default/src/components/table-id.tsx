@@ -16,22 +16,22 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import z from 'zod'
-import { createFileRoute } from '@tanstack/react-router'
-import { ApiKeys } from '@/features/keys'
-import { API_KEY_STATUS_OPTIONS } from '@/features/keys/constants'
+import { cn } from '@/lib/utils'
 
-const apiKeySearchSchema = z.object({
-  page: z.number().optional().catch(1),
-  pageSize: z.number().optional().catch(undefined),
-  status: z
-    .array(z.enum(API_KEY_STATUS_OPTIONS.map((s) => s.value as `${number}`)))
-    .optional()
-    .catch([]),
-  filter: z.string().optional().catch(''),
-})
+type TableIdProps = {
+  className?: string
+  value: number | string
+}
 
-export const Route = createFileRoute('/_authenticated/keys/')({
-  validateSearch: apiKeySearchSchema,
-  component: ApiKeys,
-})
+export function TableId(props: TableIdProps) {
+  return (
+    <span
+      className={cn(
+        'text-muted-foreground inline-block font-mono tabular-nums',
+        props.className
+      )}
+    >
+      {props.value}
+    </span>
+  )
+}

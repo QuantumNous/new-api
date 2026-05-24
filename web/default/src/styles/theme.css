@@ -78,8 +78,10 @@ For commercial licensing, please contact support@quantumnous.com
 }
 
 :root {
-  --radius: 0.5rem;
+  --radius: 1rem;
   --app-header-height: 3rem;
+  /* Static build-channel fallback consumed when JS hasn't booted yet. */
+  --app-rev: '2k6e8r7p';
   --background: oklch(1 0 0);
   --foreground: oklch(0.145 0 0);
   --card: oklch(1 0 0);
