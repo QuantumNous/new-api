@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import { Card, Tabs, TabPane } from '@douyinfe/semi-ui';
+import { Card, Select, Tabs, TabPane } from '@douyinfe/semi-ui';
 import { PieChart } from 'lucide-react';
 import { VChart } from '@visactor/react-vchart';
 
@@ -32,6 +32,9 @@ const ChartsPanel = ({
   spec_user_rank,
   spec_user_trend,
   isAdminUser,
+  dataExportDefaultTime,
+  timeOptions,
+  onTimeGranularityChange,
   CARD_PROPS,
   CHART_CONFIG,
   FLEX_CENTER_GAP2,
@@ -47,6 +50,14 @@ const ChartsPanel = ({
           <div className={FLEX_CENTER_GAP2}>
             <PieChart size={16} />
             {t('模型数据分析')}
+            <Select
+              size='small'
+              value={dataExportDefaultTime}
+              optionList={timeOptions}
+              onChange={onTimeGranularityChange}
+              className='w-24'
+              aria-label={t('时间粒度')}
+            />
           </div>
           <Tabs
             type='slash'
@@ -70,22 +81,46 @@ const ChartsPanel = ({
     >
       <div className='h-96 p-2'>
         {activeChartTab === '1' && (
-          <VChart spec={spec_line} option={CHART_CONFIG} />
+          <VChart
+            key={`token-distribution-${dataExportDefaultTime}`}
+            spec={spec_line}
+            option={CHART_CONFIG}
+          />
         )}
         {activeChartTab === '2' && (
-          <VChart spec={spec_model_line} option={CHART_CONFIG} />
+          <VChart
+            key={`model-trend-${dataExportDefaultTime}`}
+            spec={spec_model_line}
+            option={CHART_CONFIG}
+          />
         )}
         {activeChartTab === '3' && (
-          <VChart spec={spec_pie} option={CHART_CONFIG} />
+          <VChart
+            key={`model-ratio-${dataExportDefaultTime}`}
+            spec={spec_pie}
+            option={CHART_CONFIG}
+          />
         )}
         {activeChartTab === '4' && (
-          <VChart spec={spec_rank_bar} option={CHART_CONFIG} />
+          <VChart
+            key={`model-rank-${dataExportDefaultTime}`}
+            spec={spec_rank_bar}
+            option={CHART_CONFIG}
+          />
         )}
         {activeChartTab === '5' && isAdminUser && (
-          <VChart spec={spec_user_rank} option={CHART_CONFIG} />
+          <VChart
+            key={`user-rank-${dataExportDefaultTime}`}
+            spec={spec_user_rank}
+            option={CHART_CONFIG}
+          />
         )}
         {activeChartTab === '6' && isAdminUser && (
-          <VChart spec={spec_user_trend} option={CHART_CONFIG} />
+          <VChart
+            key={`user-trend-${dataExportDefaultTime}`}
+            spec={spec_user_trend}
+            option={CHART_CONFIG}
+          />
         )}
       </div>
     </Card>

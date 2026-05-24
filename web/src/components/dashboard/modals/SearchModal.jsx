@@ -79,6 +79,7 @@ const SearchModal = ({
           field: 'data_export_default_time',
           label: t('时间粒度'),
           initValue: dataExportDefaultTime,
+          value: dataExportDefaultTime,
           placeholder: t('时间粒度'),
           name: 'data_export_default_time',
           optionList: timeOptions,

@@ -40,6 +40,7 @@ func TestMain(m *testing.M) {
 		&Log{},
 		&Channel{},
 		&TopUp{},
+		&QuotaData{},
 		&SubscriptionPlan{},
 		&SubscriptionOrder{},
 		&UserSubscription{},
@@ -52,17 +53,20 @@ func TestMain(m *testing.M) {
 
 func truncateTables(t *testing.T) {
 	t.Helper()
-	t.Cleanup(func() {
+	cleanup := func() {
 		DB.Exec("DELETE FROM tasks")
 		DB.Exec("DELETE FROM users")
 		DB.Exec("DELETE FROM tokens")
 		DB.Exec("DELETE FROM logs")
 		DB.Exec("DELETE FROM channels")
 		DB.Exec("DELETE FROM top_ups")
+		DB.Exec("DELETE FROM quota_data")
 		DB.Exec("DELETE FROM subscription_orders")
 		DB.Exec("DELETE FROM subscription_plans")
 		DB.Exec("DELETE FROM user_subscriptions")
-	})
+	}
+	cleanup()
+	t.Cleanup(cleanup)
 }
 
 func insertTask(t *testing.T, task *Task) {

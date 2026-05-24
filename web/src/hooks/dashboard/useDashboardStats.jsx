@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import { useMemo } from 'react';
-import { Wallet, Activity, Zap, Gauge } from 'lucide-react';
+import { Wallet, Activity, Zap, Gauge, Package } from 'lucide-react';
 import {
   IconMoneyExchangeStroked,
   IconHistogram,
@@ -36,12 +36,26 @@ export const useDashboardStats = (
   userState,
   consumeQuota,
   consumeTokens,
+  consumePromptTokens,
+  consumeCacheReadTokens,
   times,
   trendData,
   performanceMetrics,
   navigate,
   t,
 ) => {
+  const cacheHitRate =
+    consumePromptTokens + consumeCacheReadTokens > 0
+      ? Math.round(
+          (consumeCacheReadTokens /
+            (consumePromptTokens + consumeCacheReadTokens)) *
+            100,
+        )
+      : 0;
+  const consumeTokensValue = isNaN(consumeTokens)
+    ? '0'
+    : consumeTokens.toLocaleString();
+
   const groupedStatsData = useMemo(
     () => [
       {
@@ -102,7 +116,18 @@ export const useDashboardStats = (
           },
           {
             title: t('统计Tokens'),
-            value: isNaN(consumeTokens) ? 0 : consumeTokens.toLocaleString(),
+            value: (
+              <span className='inline-flex items-baseline gap-1.5'>
+                <span>{consumeTokensValue}</span>
+                <span
+                  className='inline-flex items-center gap-0.5 text-xs font-medium text-orange-500'
+                  aria-label={`${t('缓存命中')}${cacheHitRate}%`}
+                >
+                  <Package size={12} strokeWidth={2} />
+                  <span>{cacheHitRate}%</span>
+                </span>
+              </span>
+            ),
             icon: <IconTextStroked />,
             avatarColor: 'pink',
             trendData: trendData.tokens,
@@ -140,6 +165,8 @@ export const useDashboardStats = (
       times,
       consumeQuota,
       consumeTokens,
+      consumeTokensValue,
+      cacheHitRate,
       trendData,
       performanceMetrics,
       navigate,

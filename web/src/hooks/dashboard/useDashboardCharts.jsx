@@ -38,8 +38,16 @@ import {
 } from '../../helpers/dashboard';
 
 const USER_COLORS = [
-  '#3b82f6', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6',
-  '#ec4899', '#06b6d4', '#f97316', '#6366f1', '#14b8a6',
+  '#3b82f6',
+  '#ef4444',
+  '#10b981',
+  '#f59e0b',
+  '#8b5cf6',
+  '#ec4899',
+  '#06b6d4',
+  '#f97316',
+  '#6366f1',
+  '#14b8a6',
 ];
 
 export const useDashboardCharts = (
@@ -48,6 +56,8 @@ export const useDashboardCharts = (
   setConsumeQuota,
   setTimes,
   setConsumeTokens,
+  setConsumePromptTokens,
+  setConsumeCacheReadTokens,
   setPieData,
   setLineData,
   setModelColors,
@@ -129,8 +139,8 @@ export const useDashboardCharts = (
     },
     title: {
       visible: true,
-      text: t('模型消耗分布'),
-      subtext: `${t('总计')}：${renderQuota(0, 2)}`,
+      text: t('模型Tokens分布'),
+      subtext: `${t('总Tokens')}：${renderNumber(0)} / ${t('总花费金额')}：${renderQuota(0, 2)}`,
     },
     bar: {
       state: {
@@ -145,39 +155,29 @@ export const useDashboardCharts = (
         content: [
           {
             key: (datum) => datum['Model'],
+            value: (datum) => renderNumber(datum['Tokens'] || 0),
+          },
+          {
+            key: () => t('输入tokens'),
+            value: (datum) => renderNumber(datum['PromptTokens'] || 0),
+          },
+          {
+            key: () => t('输入tokens(缓存命中)'),
+            value: (datum) => renderNumber(datum['CacheReadTokens'] || 0),
+          },
+          {
+            key: () => t('输出tokens'),
+            value: (datum) => renderNumber(datum['CompletionTokens'] || 0),
+          },
+          {
+            key: () => t('输出tokens(缓存写入)'),
+            value: (datum) => renderNumber(datum['CacheWriteTokens'] || 0),
+          },
+          {
+            key: () => t('总花费金额'),
             value: (datum) => renderQuota(datum['rawQuota'] || 0, 4),
           },
         ],
-      },
-      dimension: {
-        content: [
-          {
-            key: (datum) => datum['Model'],
-            value: (datum) => datum['rawQuota'] || 0,
-          },
-        ],
-        updateContent: (array) => {
-          array.sort((a, b) => b.value - a.value);
-          let sum = 0;
-          for (let i = 0; i < array.length; i++) {
-            if (array[i].key == '其他') {
-              continue;
-            }
-            let value = parseFloat(array[i].value);
-            if (isNaN(value)) {
-              value = 0;
-            }
-            if (array[i].datum && array[i].datum.TimeSum) {
-              sum = array[i].datum.TimeSum;
-            }
-            array[i].value = renderQuota(value, 4);
-          }
-          array.unshift({
-            key: t('总计'),
-            value: renderQuota(sum, 4),
-          });
-          return array;
-        },
       },
     },
     color: {
@@ -308,21 +308,26 @@ export const useDashboardCharts = (
       position: 'outside',
       formatMethod: (value, datum) => renderQuota(datum['rawQuota'] || 0, 2),
     },
-    axes: [{
-      orient: 'left',
-      type: 'band',
-      label: { visible: true },
-    }, {
-      orient: 'bottom',
-      type: 'linear',
-      visible: false,
-    }],
+    axes: [
+      {
+        orient: 'left',
+        type: 'band',
+        label: { visible: true },
+      },
+      {
+        orient: 'bottom',
+        type: 'linear',
+        visible: false,
+      },
+    ],
     tooltip: {
       mark: {
-        content: [{
-          key: (datum) => datum['User'],
-          value: (datum) => renderQuota(datum['rawQuota'] || 0, 4),
-        }],
+        content: [
+          {
+            key: (datum) => datum['User'],
+            value: (datum) => renderQuota(datum['rawQuota'] || 0, 4),
+          },
+        ],
       },
     },
     color: { type: 'ordinal', range: USER_COLORS },
@@ -342,27 +347,33 @@ export const useDashboardCharts = (
       text: t('用户消耗趋势'),
       subtext: '',
     },
-    axes: [{
-      orient: 'left',
-      label: {
-        formatMethod: (value) => renderQuota(value, 2),
+    axes: [
+      {
+        orient: 'left',
+        label: {
+          formatMethod: (value) => renderQuota(value, 2),
+        },
       },
-    }],
+    ],
     area: { style: { fillOpacity: 0.15 } },
     line: { style: { lineWidth: 2 } },
     point: { visible: false },
     tooltip: {
       mark: {
-        content: [{
-          key: (datum) => datum['User'],
-          value: (datum) => renderQuota(datum['rawQuota'] || 0, 4),
-        }],
+        content: [
+          {
+            key: (datum) => datum['User'],
+            value: (datum) => renderQuota(datum['rawQuota'] || 0, 4),
+          },
+        ],
       },
       dimension: {
-        content: [{
-          key: (datum) => datum['User'],
-          value: (datum) => datum['rawQuota'] || 0,
-        }],
+        content: [
+          {
+            key: (datum) => datum['User'],
+            value: (datum) => datum['rawQuota'] || 0,
+          },
+        ],
         updateContent: (array) => {
           array.sort((a, b) => b.value - a.value);
           let sum = 0;
@@ -396,10 +407,10 @@ export const useDashboardCharts = (
   }, []);
 
   const updateChartData = useCallback(
-    (data) => {
+    (data, timeGranularity = dataExportDefaultTime) => {
       const processedData = processRawData(
         data,
-        dataExportDefaultTime,
+        timeGranularity,
         initializeMaps,
         updateMapValue,
       );
@@ -408,6 +419,8 @@ export const useDashboardCharts = (
         totalQuota,
         totalTimes,
         totalTokens,
+        totalPromptTokens,
+        totalCacheReadTokens,
         uniqueModels,
         timePoints,
         timeQuotaMap,
@@ -420,17 +433,14 @@ export const useDashboardCharts = (
         timeQuotaMap,
         timeTokensMap,
         timeCountMap,
-        dataExportDefaultTime,
+        timeGranularity,
       );
       setTrendData(trendDataResult);
 
       const newModelColors = generateModelColors(uniqueModels, {});
       setModelColors(newModelColors);
 
-      const aggregatedData = aggregateDataByTimeAndModel(
-        data,
-        dataExportDefaultTime,
-      );
+      const aggregatedData = aggregateDataByTimeAndModel(data, timeGranularity);
 
       const modelTotals = new Map();
       for (let [_, value] of aggregatedData) {
@@ -447,32 +457,37 @@ export const useDashboardCharts = (
       const chartTimePoints = generateChartTimePoints(
         aggregatedData,
         data,
-        dataExportDefaultTime,
+        timeGranularity,
       );
 
       let newLineData = [];
-
       chartTimePoints.forEach((time) => {
-        let timeData = Array.from(uniqueModels).map((model) => {
+        Array.from(uniqueModels).forEach((model) => {
           const key = `${time}-${model}`;
           const aggregated = aggregatedData.get(key);
-          return {
+          const promptTokens = aggregated?.promptTokens || 0;
+          const completionTokens = aggregated?.completionTokens || 0;
+          const cacheReadTokens = aggregated?.cacheReadTokens || 0;
+          const cacheWriteTokens = aggregated?.cacheWriteTokens || 0;
+          const modelTokenSum =
+            promptTokens +
+            cacheReadTokens +
+            completionTokens +
+            cacheWriteTokens;
+
+          newLineData.push({
             Time: time,
             Model: model,
+            Tokens: modelTokenSum,
+            Usage: modelTokenSum,
+            PromptTokens: promptTokens,
+            CompletionTokens: completionTokens,
+            CacheReadTokens: cacheReadTokens,
+            CacheWriteTokens: cacheWriteTokens,
             rawQuota: aggregated?.quota || 0,
-            Usage: aggregated?.quota
-              ? getQuotaWithUnit(aggregated.quota, 4)
-              : 0,
-          };
+          });
         });
-
-        const timeSum = timeData.reduce((sum, item) => sum + item.rawQuota, 0);
-        timeData.sort((a, b) => b.rawQuota - a.rawQuota);
-        timeData = timeData.map((item) => ({ ...item, TimeSum: timeSum }));
-        newLineData.push(...timeData);
       });
-
-      newLineData.sort((a, b) => a.Time.localeCompare(b.Time));
 
       updateChartSpec(
         setSpecPie,
@@ -485,7 +500,7 @@ export const useDashboardCharts = (
       updateChartSpec(
         setSpecLine,
         newLineData,
-        `${t('总计')}：${renderQuota(totalQuota, 2)}`,
+        `${t('总Tokens')}：${renderNumber(totalTokens)} / ${t('总花费金额')}：${renderQuota(totalQuota, 2)}`,
         newModelColors,
         'barData',
       );
@@ -547,6 +562,8 @@ export const useDashboardCharts = (
       setConsumeQuota(totalQuota);
       setTimes(totalTimes);
       setConsumeTokens(totalTokens);
+      setConsumePromptTokens(totalPromptTokens);
+      setConsumeCacheReadTokens(totalCacheReadTokens);
     },
     [
       dataExportDefaultTime,
@@ -558,24 +575,28 @@ export const useDashboardCharts = (
       setConsumeQuota,
       setTimes,
       setConsumeTokens,
+      setConsumePromptTokens,
+      setConsumeCacheReadTokens,
       t,
     ],
   );
 
   // ========== 用户维度图表数据处理 ==========
   const updateUserChartData = useCallback(
-    (data) => {
+    (data, timeGranularity = dataExportDefaultTime) => {
       const { rankingData, trendData: userTrend } = processUserData(
         data,
-        dataExportDefaultTime,
+        timeGranularity,
         10,
       );
 
-      const userRankValues = rankingData.map((item) => ({
-        User: item.User,
-        rawQuota: item.Quota,
-        Quota: getQuotaWithUnit(item.Quota, 4),
-      })).sort((a, b) => b.rawQuota - a.rawQuota);
+      const userRankValues = rankingData
+        .map((item) => ({
+          User: item.User,
+          rawQuota: item.Quota,
+          Quota: getQuotaWithUnit(item.Quota, 4),
+        }))
+        .sort((a, b) => b.rawQuota - a.rawQuota);
 
       const totalUserQuota = rankingData.reduce((s, i) => s + i.Quota, 0);
 

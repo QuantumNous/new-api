@@ -39,7 +39,7 @@ import {
 
 // ========== 时间相关工具函数 ==========
 export const getDefaultTime = () => {
-  return localStorage.getItem(STORAGE_KEYS.DATA_EXPORT_DEFAULT_TIME) || 'hour';
+  return localStorage.getItem(STORAGE_KEYS.DATA_EXPORT_DEFAULT_TIME) || 'day';
 };
 
 export const getTimeInterval = (timeType, isSeconds = false) => {
@@ -253,6 +253,10 @@ export const processRawData = (
     totalQuota: 0,
     totalTimes: 0,
     totalTokens: 0,
+    totalPromptTokens: 0,
+    totalCompletionTokens: 0,
+    totalCacheReadTokens: 0,
+    totalCacheWriteTokens: 0,
     uniqueModels: new Set(),
     timePoints: [],
     timeQuotaMap: new Map(),
@@ -265,7 +269,23 @@ export const processRawData = (
 
   data.forEach((item) => {
     result.uniqueModels.add(item.model_name);
-    result.totalTokens += item.token_used;
+    let promptTokens = Number(item.prompt_tokens || 0);
+    const completionTokens = Number(item.completion_tokens || 0);
+    const cacheReadTokens = Number(item.cache_read_tokens || 0);
+    const cacheWriteTokens = Number(item.cache_write_tokens || 0);
+    const rawTokenUsed = Number(item.token_used || 0);
+    const breakdownTotal =
+      promptTokens + completionTokens + cacheReadTokens + cacheWriteTokens;
+    const tokenUsed = rawTokenUsed || breakdownTotal;
+    if (breakdownTotal === 0 && rawTokenUsed > 0) {
+      promptTokens = rawTokenUsed;
+    }
+
+    result.totalTokens += tokenUsed;
+    result.totalPromptTokens += promptTokens;
+    result.totalCompletionTokens += completionTokens;
+    result.totalCacheReadTokens += cacheReadTokens;
+    result.totalCacheWriteTokens += cacheWriteTokens;
     result.totalQuota += item.quota;
     result.totalTimes += item.count;
 
@@ -285,7 +305,7 @@ export const processRawData = (
       result.timeCountMap,
     );
     updateMapValue(result.timeQuotaMap, timeKey, item.quota);
-    updateMapValue(result.timeTokensMap, timeKey, item.token_used);
+    updateMapValue(result.timeTokensMap, timeKey, tokenUsed);
     updateMapValue(result.timeCountMap, timeKey, item.count);
   });
 
@@ -349,12 +369,34 @@ export const aggregateDataByTimeAndModel = (data, dataExportDefaultTime) => {
         model: modelKey,
         quota: 0,
         count: 0,
+        promptTokens: 0,
+        completionTokens: 0,
+        cacheReadTokens: 0,
+        cacheWriteTokens: 0,
+        tokenUsed: 0,
       });
     }
 
     const existing = aggregatedData.get(key);
-    existing.quota += item.quota;
-    existing.count += item.count;
+    let promptTokens = Number(item.prompt_tokens || 0);
+    const completionTokens = Number(item.completion_tokens || 0);
+    const cacheReadTokens = Number(item.cache_read_tokens || 0);
+    const cacheWriteTokens = Number(item.cache_write_tokens || 0);
+    const rawTokenUsed = Number(item.token_used || 0);
+    const breakdownTotal =
+      promptTokens + completionTokens + cacheReadTokens + cacheWriteTokens;
+    const tokenUsed = rawTokenUsed || breakdownTotal;
+    if (breakdownTotal === 0 && rawTokenUsed > 0) {
+      promptTokens = rawTokenUsed;
+    }
+
+    existing.quota += Number(item.quota || 0);
+    existing.count += Number(item.count || 0);
+    existing.promptTokens += promptTokens;
+    existing.completionTokens += completionTokens;
+    existing.cacheReadTokens += cacheReadTokens;
+    existing.cacheWriteTokens += cacheWriteTokens;
+    existing.tokenUsed += tokenUsed;
   });
 
   return aggregatedData;

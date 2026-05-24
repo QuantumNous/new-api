@@ -67,6 +67,8 @@ const Dashboard = () => {
     dashboardData.setConsumeQuota,
     dashboardData.setTimes,
     dashboardData.setConsumeTokens,
+    dashboardData.setConsumePromptTokens,
+    dashboardData.setConsumeCacheReadTokens,
     dashboardData.setPieData,
     dashboardData.setLineData,
     dashboardData.setModelColors,
@@ -78,6 +80,8 @@ const Dashboard = () => {
     userState,
     dashboardData.consumeQuota,
     dashboardData.consumeTokens,
+    dashboardData.consumePromptTokens,
+    dashboardData.consumeCacheReadTokens,
     dashboardData.times,
     dashboardData.trendData,
     dashboardData.performanceMetrics,
@@ -86,36 +90,55 @@ const Dashboard = () => {
   );
 
   // ========== 数据处理 ==========
-  const loadUserData = async () => {
+  const loadUserData = async (
+    timeGranularity = dashboardData.dataExportDefaultTime,
+  ) => {
     if (dashboardData.isAdminUser) {
       const userData = await dashboardData.loadUserQuotaData();
       if (userData && userData.length > 0) {
-        dashboardCharts.updateUserChartData(userData);
+        dashboardCharts.updateUserChartData(userData, timeGranularity);
       }
     }
   };
 
   const initChart = async () => {
-    await dashboardData.loadQuotaData().then((data) => {
+    const timeGranularity = dashboardData.dataExportDefaultTime;
+    await dashboardData.loadQuotaData(timeGranularity).then((data) => {
       if (data && data.length > 0) {
-        dashboardCharts.updateChartData(data);
+        dashboardCharts.updateChartData(data, timeGranularity);
       }
     });
-    await loadUserData();
+    await loadUserData(timeGranularity);
     await dashboardData.loadUptimeData();
   };
 
   const handleRefresh = async () => {
-    const data = await dashboardData.refresh();
+    const timeGranularity = dashboardData.dataExportDefaultTime;
+    const data = await dashboardData.refresh(timeGranularity);
     if (data && data.length > 0) {
-      dashboardCharts.updateChartData(data);
+      dashboardCharts.updateChartData(data, timeGranularity);
     }
-    await loadUserData();
+    await loadUserData(timeGranularity);
   };
 
   const handleSearchConfirm = async () => {
-    await dashboardData.handleSearchConfirm(dashboardCharts.updateChartData);
-    await loadUserData();
+    const timeGranularity = dashboardData.dataExportDefaultTime;
+    await dashboardData.handleSearchConfirm(
+      dashboardCharts.updateChartData,
+      timeGranularity,
+    );
+    await loadUserData(timeGranularity);
+  };
+
+  const handleChartTimeGranularityChange = async (value) => {
+    dashboardData.handleInputChange(value, 'data_export_default_time');
+    const data = await dashboardData.loadQuotaData(value);
+    if (data && data.length > 0) {
+      dashboardCharts.updateChartData(data, value);
+    }
+    if (dashboardData.isAdminUser) {
+      await loadUserData(value);
+    }
   };
 
   // ========== 数据准备 ==========
@@ -197,6 +220,9 @@ const Dashboard = () => {
             spec_user_rank={dashboardCharts.spec_user_rank}
             spec_user_trend={dashboardCharts.spec_user_trend}
             isAdminUser={dashboardData.isAdminUser}
+            dataExportDefaultTime={dashboardData.dataExportDefaultTime}
+            timeOptions={dashboardData.timeOptions}
+            onTimeGranularityChange={handleChartTimeGranularityChange}
             CARD_PROPS={CARD_PROPS}
             CHART_CONFIG={CHART_CONFIG}
             FLEX_CENTER_GAP2={FLEX_CENTER_GAP2}

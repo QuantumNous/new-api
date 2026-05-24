@@ -56,6 +56,8 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
   const [quotaData, setQuotaData] = useState([]);
   const [consumeQuota, setConsumeQuota] = useState(0);
   const [consumeTokens, setConsumeTokens] = useState(0);
+  const [consumePromptTokens, setConsumePromptTokens] = useState(0);
+  const [consumeCacheReadTokens, setConsumeCacheReadTokens] = useState(0);
   const [times, setTimes] = useState(0);
   const [pieData, setPieData] = useState([{ type: 'null', value: '0' }]);
   const [lineData, setLineData] = useState([]);
@@ -156,42 +158,45 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
   }, []);
 
   // ========== API 调用函数 ==========
-  const loadQuotaData = useCallback(async () => {
-    setLoading(true);
-    try {
-      let url = '';
-      const { start_timestamp, end_timestamp, username } = inputs;
-      let localStartTimestamp = Date.parse(start_timestamp) / 1000;
-      let localEndTimestamp = Date.parse(end_timestamp) / 1000;
+  const loadQuotaData = useCallback(
+    async (timeGranularity = dataExportDefaultTime) => {
+      setLoading(true);
+      try {
+        let url = '';
+        const { start_timestamp, end_timestamp, username } = inputs;
+        let localStartTimestamp = Date.parse(start_timestamp) / 1000;
+        let localEndTimestamp = Date.parse(end_timestamp) / 1000;
 
-      if (isAdminUser) {
-        url = `/api/data/?username=${username}&start_timestamp=${localStartTimestamp}&end_timestamp=${localEndTimestamp}&default_time=${dataExportDefaultTime}`;
-      } else {
-        url = `/api/data/self/?start_timestamp=${localStartTimestamp}&end_timestamp=${localEndTimestamp}&default_time=${dataExportDefaultTime}`;
-      }
-
-      const res = await API.get(url);
-      const { success, message, data } = res.data;
-      if (success) {
-        setQuotaData(data);
-        if (data.length === 0) {
-          data.push({
-            count: 0,
-            model_name: '无数据',
-            quota: 0,
-            created_at: now.getTime() / 1000,
-          });
+        if (isAdminUser) {
+          url = `/api/data/?username=${username}&start_timestamp=${localStartTimestamp}&end_timestamp=${localEndTimestamp}&default_time=${timeGranularity}`;
+        } else {
+          url = `/api/data/self/?start_timestamp=${localStartTimestamp}&end_timestamp=${localEndTimestamp}&default_time=${timeGranularity}`;
         }
-        data.sort((a, b) => a.created_at - b.created_at);
-        return data;
-      } else {
-        showError(message);
-        return [];
+
+        const res = await API.get(url);
+        const { success, message, data } = res.data;
+        if (success) {
+          setQuotaData(data);
+          if (data.length === 0) {
+            data.push({
+              count: 0,
+              model_name: '无数据',
+              quota: 0,
+              created_at: now.getTime() / 1000,
+            });
+          }
+          data.sort((a, b) => a.created_at - b.created_at);
+          return data;
+        } else {
+          showError(message);
+          return [];
+        }
+      } finally {
+        setLoading(false);
       }
-    } finally {
-      setLoading(false);
-    }
-  }, [inputs, dataExportDefaultTime, isAdminUser, now]);
+    },
+    [inputs, dataExportDefaultTime, isAdminUser, now],
+  );
 
   const loadUptimeData = useCallback(async () => {
     setUptimeLoading(true);
@@ -244,21 +249,27 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
     }
   }, [userDispatch]);
 
-  const refresh = useCallback(async () => {
-    const data = await loadQuotaData();
-    await loadUptimeData();
-    return data;
-  }, [loadQuotaData, loadUptimeData]);
+  const refresh = useCallback(
+    async (timeGranularity = dataExportDefaultTime) => {
+      const data = await loadQuotaData(timeGranularity);
+      await loadUptimeData();
+      return data;
+    },
+    [dataExportDefaultTime, loadQuotaData, loadUptimeData],
+  );
 
   const handleSearchConfirm = useCallback(
-    async (updateChartDataCallback) => {
-      const data = await refresh();
+    async (
+      updateChartDataCallback,
+      timeGranularity = dataExportDefaultTime,
+    ) => {
+      const data = await refresh(timeGranularity);
       if (data && data.length > 0 && updateChartDataCallback) {
-        updateChartDataCallback(data);
+        updateChartDataCallback(data, timeGranularity);
       }
       setSearchModalVisible(false);
     },
-    [refresh],
+    [dataExportDefaultTime, refresh],
   );
 
   // ========== Effects ==========
@@ -292,6 +303,10 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
     setConsumeQuota,
     consumeTokens,
     setConsumeTokens,
+    consumePromptTokens,
+    setConsumePromptTokens,
+    consumeCacheReadTokens,
+    setConsumeCacheReadTokens,
     times,
     setTimes,
     pieData,
