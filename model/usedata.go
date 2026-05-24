@@ -38,34 +38,45 @@ func UpdateQuotaData() {
 var CacheQuotaData = make(map[string]*QuotaData)
 var CacheQuotaDataLock = sync.Mutex{}
 
-func logQuotaDataCache(userId int, username string, modelName string, quota int, createdAt int64, tokenUsed int) {
+func logQuotaDataCache(userId int, username string, modelName string, quota int, createdAt int64, tokenUsed int,
+	cacheTokens int, cacheCreationTokens int, cacheCreationTokens5m int, cacheCreationTokens1h int) {
 	key := fmt.Sprintf("%d-%s-%s-%d", userId, username, modelName, createdAt)
 	quotaData, ok := CacheQuotaData[key]
 	if ok {
 		quotaData.Count += 1
 		quotaData.Quota += quota
 		quotaData.TokenUsed += tokenUsed
+		quotaData.CacheTokens += cacheTokens
+		quotaData.CacheCreationTokens += cacheCreationTokens
+		quotaData.CacheCreationTokens5m += cacheCreationTokens5m
+		quotaData.CacheCreationTokens1h += cacheCreationTokens1h
 	} else {
 		quotaData = &QuotaData{
-			UserID:    userId,
-			Username:  username,
-			ModelName: modelName,
-			CreatedAt: createdAt,
-			Count:     1,
-			Quota:     quota,
-			TokenUsed: tokenUsed,
+			UserID:                userId,
+			Username:              username,
+			ModelName:             modelName,
+			CreatedAt:             createdAt,
+			Count:                 1,
+			Quota:                 quota,
+			TokenUsed:             tokenUsed,
+			CacheTokens:           cacheTokens,
+			CacheCreationTokens:   cacheCreationTokens,
+			CacheCreationTokens5m: cacheCreationTokens5m,
+			CacheCreationTokens1h: cacheCreationTokens1h,
 		}
 	}
 	CacheQuotaData[key] = quotaData
 }
 
-func LogQuotaData(userId int, username string, modelName string, quota int, createdAt int64, tokenUsed int) {
+func LogQuotaData(userId int, username string, modelName string, quota int, createdAt int64, tokenUsed int,
+	cacheTokens int, cacheCreationTokens int, cacheCreationTokens5m int, cacheCreationTokens1h int) {
 	// 只精确到小时
 	createdAt = createdAt - (createdAt % 3600)
 
 	CacheQuotaDataLock.Lock()
 	defer CacheQuotaDataLock.Unlock()
-	logQuotaDataCache(userId, username, modelName, quota, createdAt, tokenUsed)
+	logQuotaDataCache(userId, username, modelName, quota, createdAt, tokenUsed,
+		cacheTokens, cacheCreationTokens, cacheCreationTokens5m, cacheCreationTokens1h)
 }
 
 func SaveQuotaDataCache() {
