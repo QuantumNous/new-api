@@ -11,14 +11,18 @@ import (
 
 // QuotaData 柱状图数据
 type QuotaData struct {
-	Id        int    `json:"id"`
-	UserID    int    `json:"user_id" gorm:"index"`
-	Username  string `json:"username" gorm:"index:idx_qdt_model_user_name,priority:2;size:64;default:''"`
-	ModelName string `json:"model_name" gorm:"index:idx_qdt_model_user_name,priority:1;size:64;default:''"`
-	CreatedAt int64  `json:"created_at" gorm:"bigint;index:idx_qdt_created_at,priority:2"`
-	TokenUsed int    `json:"token_used" gorm:"default:0"`
-	Count     int    `json:"count" gorm:"default:0"`
-	Quota     int    `json:"quota" gorm:"default:0"`
+	Id                    int    `json:"id"`
+	UserID                int    `json:"user_id" gorm:"index"`
+	Username              string `json:"username" gorm:"index:idx_qdt_model_user_name,priority:2;size:64;default:''"`
+	ModelName             string `json:"model_name" gorm:"index:idx_qdt_model_user_name,priority:1;size:64;default:''"`
+	CreatedAt             int64  `json:"created_at" gorm:"bigint;index:idx_qdt_created_at,priority:2"`
+	TokenUsed             int    `json:"token_used" gorm:"default:0"`
+	Count                 int    `json:"count" gorm:"default:0"`
+	Quota                 int    `json:"quota" gorm:"default:0"`
+	CacheTokens           int    `json:"cache_tokens" gorm:"default:0"`
+	CacheCreationTokens   int    `json:"cache_creation_tokens" gorm:"default:0"`
+	CacheCreationTokens5m int    `json:"cache_creation_tokens_5m" gorm:"default:0"`
+	CacheCreationTokens1h int    `json:"cache_creation_tokens_1h" gorm:"default:0"`
 }
 
 func UpdateQuotaData() {
