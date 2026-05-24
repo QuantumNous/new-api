@@ -95,7 +95,8 @@ func SaveQuotaDataCache() {
 			//quotaDataDB.Count += quotaData.Count
 			//quotaDataDB.Quota += quotaData.Quota
 			//DB.Table("quota_data").Save(quotaDataDB)
-			increaseQuotaData(quotaData.UserID, quotaData.Username, quotaData.ModelName, quotaData.Count, quotaData.Quota, quotaData.CreatedAt, quotaData.TokenUsed)
+			increaseQuotaData(quotaData.UserID, quotaData.Username, quotaData.ModelName, quotaData.Count, quotaData.Quota, quotaData.CreatedAt, quotaData.TokenUsed,
+				quotaData.CacheTokens, quotaData.CacheCreationTokens, quotaData.CacheCreationTokens5m, quotaData.CacheCreationTokens1h)
 		} else {
 			DB.Table("quota_data").Create(quotaData)
 		}
@@ -104,12 +105,17 @@ func SaveQuotaDataCache() {
 	common.SysLog(fmt.Sprintf("保存数据看板数据成功，共保存%d条数据", size))
 }
 
-func increaseQuotaData(userId int, username string, modelName string, count int, quota int, createdAt int64, tokenUsed int) {
+func increaseQuotaData(userId int, username string, modelName string, count int, quota int, createdAt int64, tokenUsed int,
+	cacheTokens int, cacheCreationTokens int, cacheCreationTokens5m int, cacheCreationTokens1h int) {
 	err := DB.Table("quota_data").Where("user_id = ? and username = ? and model_name = ? and created_at = ?",
 		userId, username, modelName, createdAt).Updates(map[string]interface{}{
-		"count":      gorm.Expr("count + ?", count),
-		"quota":      gorm.Expr("quota + ?", quota),
-		"token_used": gorm.Expr("token_used + ?", tokenUsed),
+		"count":                    gorm.Expr("count + ?", count),
+		"quota":                    gorm.Expr("quota + ?", quota),
+		"token_used":               gorm.Expr("token_used + ?", tokenUsed),
+		"cache_tokens":             gorm.Expr("cache_tokens + ?", cacheTokens),
+		"cache_creation_tokens":    gorm.Expr("cache_creation_tokens + ?", cacheCreationTokens),
+		"cache_creation_tokens_5m": gorm.Expr("cache_creation_tokens_5m + ?", cacheCreationTokens5m),
+		"cache_creation_tokens_1h": gorm.Expr("cache_creation_tokens_1h + ?", cacheCreationTokens1h),
 	}).Error
 	if err != nil {
 		common.SysLog(fmt.Sprintf("increaseQuotaData error: %s", err))
