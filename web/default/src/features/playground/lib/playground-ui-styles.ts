@@ -95,3 +95,9 @@ export const playgroundMessageActionDeleteClassName = cn(
   'size-7 text-slate-400 hover:bg-rose-500/15 hover:text-rose-300',
   'disabled:text-slate-600'
 )
+
+export const playgroundDialogTitleClassName = cn(
+  'text-base font-semibold text-slate-100'
+)
+
+export const playgroundDialogDescriptionClassName = cn('text-sm text-slate-400')

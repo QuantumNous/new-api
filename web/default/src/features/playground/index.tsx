@@ -21,6 +21,7 @@ import { useQuery } from '@tanstack/react-query'
 import { getUserModels, getUserGroups } from './api'
 import { PlaygroundChat } from './components/playground-chat'
 import { PlaygroundInput } from './components/playground-input'
+import { PlaygroundModelSwitchDialog } from './components/playground-model-switch-dialog'
 import { usePlaygroundState, useChatHandler } from './hooks'
 import { createUserMessage, createLoadingAssistantMessage } from './lib'
 import type { Message as MessageType } from './types'
@@ -36,6 +37,7 @@ export function Playground() {
     setModels,
     setGroups,
     updateConfig,
+    clearMessages,
   } = usePlaygroundState()
 
   const { sendChat, stopGeneration, isGenerating } = useChatHandler({
@@ -48,6 +50,9 @@ export function Playground() {
   const [editingMessageKey, setEditingMessageKey] = useState<string | null>(
     null
   )
+
+  const [modelSwitchDialogOpen, setModelSwitchDialogOpen] = useState(false)
+  const [pendingModel, setPendingModel] = useState<string | null>(null)
 
   // Load models
   const { data: modelsData, isLoading: isLoadingModels } = useQuery({
@@ -163,6 +168,62 @@ export function Playground() {
     updateMessages(newMessages)
   }
 
+  const handleNewChat = useCallback(() => {
+    if (isGenerating) {
+      stopGeneration()
+    }
+    setEditingMessageKey(null)
+    clearMessages()
+  }, [clearMessages, isGenerating, stopGeneration])
+
+  const handleModelChange = useCallback(
+    (value: string) => {
+      if (value === config.model) return
+
+      if (messages.length === 0) {
+        updateConfig('model', value)
+        return
+      }
+
+      setPendingModel(value)
+      setModelSwitchDialogOpen(true)
+    },
+    [config.model, messages.length, updateConfig]
+  )
+
+  const closeModelSwitchDialog = useCallback(() => {
+    setModelSwitchDialogOpen(false)
+    setPendingModel(null)
+  }, [])
+
+  const handleKeepConversation = useCallback(() => {
+    if (pendingModel) {
+      updateConfig('model', pendingModel)
+    }
+    closeModelSwitchDialog()
+  }, [closeModelSwitchDialog, pendingModel, updateConfig])
+
+  const handleModelSwitchNewChat = useCallback(() => {
+    if (pendingModel) {
+      handleNewChat()
+      updateConfig('model', pendingModel)
+    }
+    closeModelSwitchDialog()
+  }, [closeModelSwitchDialog, handleNewChat, pendingModel, updateConfig])
+
+  const handleModelSwitchDialogOpenChange = useCallback(
+    (open: boolean) => {
+      if (!open) {
+        closeModelSwitchDialog()
+      }
+    },
+    [closeModelSwitchDialog]
+  )
+
+  const pendingModelLabel = pendingModel
+    ? models.find((model) => model.value === pendingModel)?.label
+    : undefined
+
   return (
     <div className='relative flex size-full flex-col overflow-hidden dark:bg-slate-950'>
       {/* Full-width scroll container: scrolling works even over side whitespace */}
@@ -187,16 +248,26 @@ export function Playground() {
           disabled={isGenerating}
           groups={groups}
           groupValue={config.group}
+          hasMessages={messages.length > 0}
           isGenerating={isGenerating}
           isModelLoading={isLoadingModels}
           modelValue={config.model}
           models={models}
           onGroupChange={(value) => updateConfig('group', value)}
-          onModelChange={(value) => updateConfig('model', value)}
+          onModelChange={handleModelChange}
+          onNewChat={handleNewChat}
           onStop={stopGeneration}
           onSubmit={handleSendMessage}
         />
       </div>
+
+      <PlaygroundModelSwitchDialog
+        open={modelSwitchDialogOpen}
+        pendingModelLabel={pendingModelLabel}
+        onOpenChange={handleModelSwitchDialogOpenChange}
+        onKeepConversation={handleKeepConversation}
+        onStartNewChat={handleModelSwitchNewChat}
+      />
     </div>
   )
 }

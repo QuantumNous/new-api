@@ -31,6 +31,7 @@ import {
   NotepadTextIcon,
   CodeSquareIcon,
   GraduationCapIcon,
+  MessageSquarePlusIcon,
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -68,8 +69,10 @@ import type { ModelOption, GroupOption } from '../types'
 interface PlaygroundInputProps {
   onSubmit: (text: string) => void
   onStop?: () => void
+  onNewChat?: () => void
   disabled?: boolean
   isGenerating?: boolean
+  hasMessages?: boolean
   models: ModelOption[]
   modelValue: string
   onModelChange: (value: string) => void
@@ -91,8 +94,10 @@ const suggestions = [
 export function PlaygroundInput({
   onSubmit,
   onStop,
+  onNewChat,
   disabled,
   isGenerating,
+  hasMessages = false,
   models,
   modelValue,
   onModelChange,
@@ -146,6 +151,23 @@ export function PlaygroundInput({
         />
 
         <PromptInputFooter className='p-2.5'>
+          <div className='flex items-center gap-1.5'>
+            <PromptInputButton
+              className={cn(
+                'border font-medium',
+                playgroundPromptOutlineButtonClassName
+              )}
+              disabled={disabled || !hasMessages}
+              onClick={onNewChat}
+              type='button'
+              variant='outline'
+            >
+              <MessageSquarePlusIcon size={16} />
+              <span className='hidden sm:inline'>{t('New chat')}</span>
+              <span className='sr-only sm:hidden'>{t('New chat')}</span>
+            </PromptInputButton>
+          </div>
+
           {showInputToolbarTools ? (
             <PromptInputTools>
               {PLAYGROUND_ATTACHMENT_TOOLS_VISIBLE ? (
