@@ -130,6 +130,8 @@ export function RechargeFormCard({
     enableWaffoTopup ||
     enableWaffoPancakeTopup
   const hasAnyTopup = hasConfigurableTopup || enableCreemTopup
+  const walletTopupEnabled = topupInfo?.features?.wallet_topup !== false
+  const showWalletTopup = walletTopupEnabled && hasAnyTopup
   const hasStandardPaymentMethods =
     Array.isArray(topupInfo?.pay_methods) && topupInfo.pay_methods.length > 0
   const hasWaffoPaymentMethods =
@@ -207,7 +209,7 @@ export function RechargeFormCard({
       contentClassName='space-y-4 sm:space-y-6'
     >
       {/* Online Topup Section */}
-      {hasAnyTopup ? (
+      {showWalletTopup ? (
         <div className='space-y-4 sm:space-y-6'>
           {hasConfigurableTopup && (
             <>
@@ -419,7 +421,7 @@ export function RechargeFormCard({
             </>
           )}
         </div>
-      ) : (
+      ) : walletTopupEnabled && !redemptionEnabled ? (
         <Alert>
           <AlertDescription>
             {t(
@@ -427,7 +429,7 @@ export function RechargeFormCard({
             )}
           </AlertDescription>
         </Alert>
-      )}
+      ) : null}
 
       {/* Creem Products Section */}
       {enableCreemTopup &&
@@ -490,15 +492,7 @@ export function RechargeFormCard({
             </p>
           )}
         </div>
-      ) : (
-        <Alert className='border-t'>
-          <AlertDescription>
-            {t(
-              'Redemption codes are disabled until the administrator confirms compliance terms.'
-            )}
-          </AlertDescription>
-        </Alert>
-      )}
+      ) : null}
     </TitledCard>
   )
 }
