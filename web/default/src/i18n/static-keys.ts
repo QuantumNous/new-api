@@ -27,9 +27,9 @@ export const STATIC_I18N_KEYS = [
   'Docs',
   'About',
 
-  // Workspace
+  // Sidebar views (drill-in workspaces)
   'System Settings',
-  'Manage and configure',
+  'Back to Dashboard',
 
   // System settings sidebar
   'System Administration',

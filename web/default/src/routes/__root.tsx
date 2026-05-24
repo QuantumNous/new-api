@@ -29,10 +29,10 @@ import { ThemeCustomizationProvider } from '@/context/theme-customization-provid
 import { useSystemConfig } from '@/hooks/use-system-config'
 import { Toaster } from '@/components/ui/sonner'
 import { NavigationProgress } from '@/components/navigation-progress'
+import { saveAffiliateCode } from '@/features/auth/lib/storage'
 import { GeneralError } from '@/features/errors/general-error'
 import { NotFoundError } from '@/features/errors/not-found-error'
 import { getSetupStatus } from '@/features/setup/api'
-import { saveAffiliateCode } from '@/features/auth/lib/storage'
 
 function RootComponent() {
   // Load system configuration (logo, system name, etc.) from backend

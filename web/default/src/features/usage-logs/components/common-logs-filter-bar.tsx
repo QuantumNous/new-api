@@ -297,9 +297,7 @@ export function CommonLogsFilterBar<TData>(
           <Input
             placeholder={t('Upstream Request ID')}
             value={filters.upstreamRequestId || ''}
-            onChange={(e) =>
-              handleChange('upstreamRequestId', e.target.value)
-            }
+            onChange={(e) => handleChange('upstreamRequestId', e.target.value)}
             onKeyDown={handleKeyDown}
             className={inputClass}
           />

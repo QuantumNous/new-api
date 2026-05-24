@@ -168,7 +168,9 @@ export function ApiKeysMutateDrawer({
         }
       })
     } else if (open && !isUpdate) {
-      form.reset(getApiKeyFormDefaultValues(defaultUseAutoGroup && backendHasAuto))
+      form.reset(
+        getApiKeyFormDefaultValues(defaultUseAutoGroup && backendHasAuto)
+      )
     }
   }, [open, isUpdate, currentRow, form, defaultUseAutoGroup, backendHasAuto])
 
@@ -177,7 +179,10 @@ export function ApiKeysMutateDrawer({
     if (groups.length === 0) return
     const currentGroup = form.getValues('group')
     if (currentGroup && !groups.some((g) => g.value === currentGroup)) {
-      const fallback = groups.find((g) => g.value === 'default')?.value ?? groups[0]?.value ?? ''
+      const fallback =
+        groups.find((g) => g.value === 'default')?.value ??
+        groups[0]?.value ??
+        ''
       form.setValue('group', fallback)
       if (currentGroup === 'auto') {
         form.setValue('cross_group_retry', false)

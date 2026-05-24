@@ -65,7 +65,9 @@ export function Hero(props: HeroProps) {
           className='landing-animate-fade-up text-muted-foreground/80 mt-5 max-w-lg text-base leading-relaxed opacity-0 md:text-lg'
           style={{ animationDelay: '80ms' }}
         >
-          {t('Power AI applications, manage digital assets, connect the Future')}
+          {t(
+            'Power AI applications, manage digital assets, connect the Future'
+          )}
         </p>
         <div
           className='landing-animate-fade-up mt-8 flex items-center gap-3 opacity-0'

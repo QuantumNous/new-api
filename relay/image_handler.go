@@ -77,7 +77,14 @@ func ImageHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *type
 			}
 
 			logger.LogDebug(c, "image request body: %s", jsonData)
-			requestBody = bytes.NewBuffer(jsonData)
+			body, size, closer, err := relaycommon.NewOutboundJSONBody(jsonData)
+			if err != nil {
+				return types.NewError(err, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
+			}
+			defer closer.Close()
+			jsonData = nil
+			info.UpstreamRequestBodySize = size
+			requestBody = body
 		}
 	}
 

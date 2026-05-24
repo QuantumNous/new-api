@@ -236,7 +236,7 @@ export function Dashboard() {
             <div className='flex flex-wrap items-center justify-between gap-1.5 sm:gap-2'>
               {showSectionTabs ? (
                 <Tabs value={activeSection} onValueChange={handleSectionChange}>
-                  <TabsList className='group-data-horizontal/tabs:h-auto max-w-full flex-wrap justify-start'>
+                  <TabsList className='max-w-full flex-wrap justify-start group-data-horizontal/tabs:h-auto'>
                     {visibleSections.map((section) => (
                       <TabsTrigger key={section} value={section}>
                         {t(SECTION_META[section].titleKey)}
