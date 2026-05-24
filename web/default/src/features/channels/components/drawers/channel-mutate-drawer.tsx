@@ -229,6 +229,7 @@ function hasAdvancedSettingsValues(values: ChannelFormValues): boolean {
     values.param_override?.trim() ||
     values.header_override?.trim() ||
     values.status_code_mapping?.trim() ||
+    values.error_message_mapping?.trim() ||
     values.tag?.trim() ||
     values.remark?.trim() ||
     values.priority ||
@@ -2637,6 +2638,48 @@ export function ChannelMutateDrawer({
                                   'No status code mappings configured.'
                                 )}
                                 template={{ '400': '500', '429': '503' }}
+                                valueType='string'
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+
+                      <FormField
+                        control={form.control}
+                        name='error_message_mapping'
+                        render={({ field }) => (
+                          <FormItem className='space-y-3 border-t pt-4'>
+                            <div className='space-y-1'>
+                              <FormLabel>
+                                {t('Error Message Mapping')}
+                              </FormLabel>
+                              <FormDescription>
+                                {t(
+                                  'Map upstream error messages by status code'
+                                )}
+                              </FormDescription>
+                            </div>
+                            <FormControl>
+                              <JsonEditor
+                                value={field.value || ''}
+                                onChange={field.onChange}
+                                disabled={isSubmitting}
+                                keyPlaceholder='400'
+                                valuePlaceholder={t(
+                                  'The upstream service is temporarily unavailable'
+                                )}
+                                keyLabel={t('Original Code')}
+                                valueLabel={t('Mapped Message')}
+                                emptyMessage={t(
+                                  'No error message mappings configured.'
+                                )}
+                                template={{
+                                  '400':
+                                    'The upstream service is temporarily unavailable',
+                                  '429': 'The channel is busy, please retry later',
+                                }}
                                 valueType='string'
                               />
                             </FormControl>

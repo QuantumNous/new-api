@@ -96,6 +96,10 @@ const STATUS_CODE_MAPPING_EXAMPLE = {
   400: '500',
 };
 
+const ERROR_MESSAGE_MAPPING_EXAMPLE = {
+  400: 'The upstream service is temporarily unavailable',
+};
+
 const REGION_EXAMPLE = {
   default: 'global',
   'gemini-1.5-pro-002': 'europe-west2',
@@ -180,6 +184,7 @@ const EditChannelModal = (props) => {
     model_mapping: '',
     param_override: '',
     status_code_mapping: '',
+    error_message_mapping: '',
     models: [],
     auto_ban: 1,
     test_model: '',
@@ -1026,6 +1031,7 @@ const EditChannelModal = (props) => {
         (data.model_mapping && data.model_mapping.trim()) ||
         (data.param_override && data.param_override.trim()) ||
         (data.status_code_mapping && data.status_code_mapping.trim()) ||
+        (data.error_message_mapping && data.error_message_mapping.trim()) ||
         (data.header_override && data.header_override.trim()) ||
         (data.tag && data.tag.trim()) ||
         (data.remark && data.remark.trim()) ||
@@ -2437,6 +2443,25 @@ const EditChannelModal = (props) => {
                     editorType='keyValue'
                     formApi={formApiRef.current}
                     extraText={t('键为原状态码，值为要复写的状态码，仅影响本地判断')}
+                  />
+                  <JSONEditor
+                    key={`error_message_mapping-${isEdit ? channelId : 'new'}`}
+                    field='error_message_mapping'
+                    label={t('报错信息复写')}
+                    placeholder={
+                      t('此项可选，用于按状态码复写返回给调用方的报错信息，键为原状态码，值为要复写的内容，例如：') +
+                      '\n' +
+                      JSON.stringify(ERROR_MESSAGE_MAPPING_EXAMPLE, null, 2)
+                    }
+                    value={inputs.error_message_mapping || ''}
+                    onChange={(value) =>
+                      handleInputChange('error_message_mapping', value)
+                    }
+                    template={ERROR_MESSAGE_MAPPING_EXAMPLE}
+                    templateLabel={t('填入模板')}
+                    editorType='keyValue'
+                    formApi={formApiRef.current}
+                    extraText={t('键为原状态码，值为要复写的报错信息')}
                   />
                 </div>
 

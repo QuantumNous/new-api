@@ -1,5 +1,13 @@
 {
   "translation": {
+    "原始状态码": "Ma trang thai goc",
+    "原始错误信息": "Thong bao loi goc",
+    "状态码是否复写": "Ma trang thai da duoc ghi de",
+    "错误信息是否复写": "Thong bao loi da duoc ghi de",
+    "键为原状态码，值为要复写的报错信息": "Khoa la ma trang thai goc, gia tri la thong bao loi can ghi de",
+    "此项可选，用于按状态码复写返回给调用方的报错信息，键为原状态码，值为要复写的内容，例如：": "Tuy chon. Ghi de thong bao loi tra ve cho ben goi theo ma trang thai. Khoa la ma trang thai goc, gia tri la noi dung thay the, vi du:",
+    "修改后状态码": "Ma trang thai sau khi sua",
+    "修改后错误信息": "Thong bao loi sau khi sua",
     " + Web搜索 {{count}}次 / 1K 次 * {{symbol}}{{price}} * {{ratioType}} {{ratio}}_one": " + Tìm kiếm Web {{count}} lần / 1K lần * {{symbol}}{{price}} * {{ratioType}} {{ratio}}",
     " + Web搜索 {{count}}次 / 1K 次 * {{symbol}}{{price}} * {{ratioType}} {{ratio}}_other": " + Tìm kiếm Web {{count}} lần / 1K lần * {{symbol}}{{price}} * {{ratioType}} {{ratio}}",
     " + 图片生成调用 {{symbol}}{{price}} / 1次 * {{ratioType}} {{ratio}}": " + Gọi tạo hình ảnh {{symbol}}{{price}} / 1 lần * {{ratioType}} {{ratio}}",

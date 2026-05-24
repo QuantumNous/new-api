@@ -348,6 +348,8 @@ export const FIELD_PLACEHOLDERS = {
   PARAM_OVERRIDE: '{"temperature": 0.7}',
   HEADER_OVERRIDE: '{"X-Custom-Header": "value"}',
   STATUS_CODE_MAPPING: '{"400": "500"}',
+  ERROR_MESSAGE_MAPPING:
+    '{"400": "The upstream service is temporarily unavailable"}',
 } as const
 
 export const FIELD_DESCRIPTIONS = {
@@ -365,6 +367,7 @@ export const FIELD_DESCRIPTIONS = {
   TEST_MODEL: 'Model to use when testing channel connectivity',
   AUTO_BAN: 'Automatically disable channel on repeated failures',
   STATUS_CODE_MAPPING: 'Map response status codes (JSON format)',
+  ERROR_MESSAGE_MAPPING: 'Map response error messages by status code',
   TAG: 'Group channels by tag for batch operations',
   REMARK: 'Internal notes (not shown to users)',
   SETTING: 'Channel-specific settings (JSON format)',

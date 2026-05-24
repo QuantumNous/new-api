@@ -55,3 +55,49 @@ func TestResetStatusCode(t *testing.T) {
 		})
 	}
 }
+
+func TestApplyChannelErrorOverrides(t *testing.T) {
+	t.Parallel()
+
+	newAPIError := types.NewOpenAIError(
+		require.AnError,
+		types.ErrorCodeBadResponseStatusCode,
+		429,
+	)
+
+	summary := ApplyChannelErrorOverrides(
+		newAPIError,
+		`{"429":"503"}`,
+		`{"429":"channel is busy, please retry later"}`,
+	)
+
+	require.Equal(t, 503, newAPIError.StatusCode)
+	require.Equal(t, "channel is busy, please retry later", newAPIError.Error())
+	require.Equal(t, "channel is busy, please retry later", newAPIError.ToOpenAIError().Message)
+	require.NotNil(t, summary)
+	require.Equal(t, 429, summary.OriginalStatusCode)
+	require.Equal(t, 503, summary.FinalStatusCode)
+	require.True(t, summary.StatusCodeRewritten)
+	require.True(t, summary.MessageRewritten)
+}
+
+func TestApplyChannelErrorOverridesFallsBackToRewrittenStatusCode(t *testing.T) {
+	t.Parallel()
+
+	newAPIError := types.NewOpenAIError(
+		require.AnError,
+		types.ErrorCodeBadResponseStatusCode,
+		429,
+	)
+
+	summary := ApplyChannelErrorOverrides(
+		newAPIError,
+		`{"429":"503"}`,
+		`{"503":"upstream temporarily unavailable"}`,
+	)
+
+	require.Equal(t, 503, newAPIError.StatusCode)
+	require.Equal(t, "upstream temporarily unavailable", newAPIError.Error())
+	require.NotNil(t, summary)
+	require.Equal(t, "upstream temporarily unavailable", summary.FinalMessage)
+}

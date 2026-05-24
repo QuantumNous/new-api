@@ -479,6 +479,16 @@ export function DetailsDialog(props: DetailsDialogProps) {
     props.isAdmin &&
     props.log.type !== 6 &&
     (other?.request_path || conversionChain.length > 0)
+  const showErrorOverrideDetails =
+    props.isAdmin &&
+    props.log.type === 5 &&
+    other &&
+    (other.status_code_rewritten ||
+      other.error_message_rewritten ||
+      other.original_status_code != null ||
+      other.final_status_code != null ||
+      other.original_error_message ||
+      other.final_error_message)
 
   const useChannel = other?.admin_info?.use_channel
   const channelChain =
@@ -666,6 +676,40 @@ export function DetailsDialog(props: DetailsDialogProps) {
                 variant='danger'
               >
                 <p className='text-xs break-words'>{other.reject_reason}</p>
+              </DetailSection>
+            )}
+
+            {showErrorOverrideDetails && (
+              <DetailSection
+                icon={<AlertTriangle className='size-3.5' aria-hidden='true' />}
+                label={t('Error Override Details')}
+              >
+                {other.original_status_code != null && (
+                  <DetailRow
+                    label={t('Original Status Code')}
+                    value={String(other.original_status_code)}
+                    mono
+                  />
+                )}
+                {other.final_status_code != null && (
+                  <DetailRow
+                    label={t('Final Status Code')}
+                    value={String(other.final_status_code)}
+                    mono
+                  />
+                )}
+                {other.original_error_message && (
+                  <DetailRow
+                    label={t('Original Error Message')}
+                    value={other.original_error_message}
+                  />
+                )}
+                {other.final_error_message && (
+                  <DetailRow
+                    label={t('Final Error Message')}
+                    value={other.final_error_message}
+                  />
+                )}
               </DetailSection>
             )}
 

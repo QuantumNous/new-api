@@ -17,6 +17,15 @@ import (
 	"github.com/QuantumNous/new-api/types"
 )
 
+type ChannelErrorOverrideSummary struct {
+	OriginalStatusCode  int
+	FinalStatusCode     int
+	OriginalMessage     string
+	FinalMessage        string
+	StatusCodeRewritten bool
+	MessageRewritten    bool
+}
+
 func MidjourneyErrorWrapper(code int, desc string) *dto.MidjourneyResponse {
 	return &dto.MidjourneyResponse{
 		Code:        code,
@@ -153,6 +162,71 @@ func ResetStatusCode(newApiErr *types.NewAPIError, statusCodeMappingStr string) 
 	}
 }
 
+func ApplyChannelErrorOverrides(newApiErr *types.NewAPIError, statusCodeMappingStr string, errorMessageMappingStr string) *ChannelErrorOverrideSummary {
+	if newApiErr == nil {
+		return nil
+	}
+	summary := &ChannelErrorOverrideSummary{
+		OriginalStatusCode: newApiErr.StatusCode,
+		FinalStatusCode:    newApiErr.StatusCode,
+		OriginalMessage:    newApiErr.Error(),
+		FinalMessage:       newApiErr.Error(),
+	}
+	originalStatusCode := newApiErr.StatusCode
+	ResetStatusCode(newApiErr, statusCodeMappingStr)
+	if newApiErr.StatusCode != originalStatusCode {
+		summary.StatusCodeRewritten = true
+	}
+	if !resetErrorMessageByStatusCode(newApiErr, originalStatusCode, errorMessageMappingStr) && newApiErr.StatusCode != originalStatusCode {
+		resetErrorMessageByStatusCode(newApiErr, newApiErr.StatusCode, errorMessageMappingStr)
+	}
+	summary.FinalStatusCode = newApiErr.StatusCode
+	summary.FinalMessage = newApiErr.Error()
+	summary.MessageRewritten = summary.OriginalMessage != summary.FinalMessage
+	return summary
+}
+
+func resetErrorMessageByStatusCode(newApiErr *types.NewAPIError, statusCode int, errorMessageMappingStr string) bool {
+	if newApiErr == nil {
+		return false
+	}
+	if errorMessageMappingStr == "" || errorMessageMappingStr == "{}" {
+		return false
+	}
+	errorMessageMapping := make(map[string]any)
+	err := common.Unmarshal([]byte(errorMessageMappingStr), &errorMessageMapping)
+	if err != nil {
+		return false
+	}
+	value, ok := errorMessageMapping[strconv.Itoa(statusCode)]
+	if !ok {
+		return false
+	}
+	message, ok := parseErrorMessageMappingValue(value)
+	if !ok {
+		return false
+	}
+	newApiErr.SetMessage(message)
+	return true
+}
+
+func parseErrorMessageMappingValue(value any) (string, bool) {
+	switch v := value.(type) {
+	case string:
+		return v, true
+	case json.Number:
+		return v.String(), true
+	case float64:
+		return strconv.FormatFloat(v, 'f', -1, 64), true
+	case int:
+		return strconv.Itoa(v), true
+	case bool:
+		return strconv.FormatBool(v), true
+	default:
+		return "", false
+	}
+}
+
 func parseStatusCodeMappingValue(value any) (int, bool) {
 	switch v := value.(type) {
 	case string:
@@ -218,4 +292,29 @@ func TaskErrorFromAPIError(apiErr *types.NewAPIError) *dto.TaskError {
 		StatusCode: apiErr.StatusCode,
 		Error:      apiErr.Err,
 	}
+}
+
+func ApplyChannelTaskErrorMessageOverride(taskErr *dto.TaskError, errorMessageMappingStr string) {
+	if taskErr == nil {
+		return
+	}
+	if message, ok := lookupErrorMessageOverride(taskErr.StatusCode, errorMessageMappingStr); ok {
+		taskErr.Message = message
+	}
+}
+
+func lookupErrorMessageOverride(statusCode int, errorMessageMappingStr string) (string, bool) {
+	if errorMessageMappingStr == "" || errorMessageMappingStr == "{}" {
+		return "", false
+	}
+	errorMessageMapping := make(map[string]any)
+	err := common.Unmarshal([]byte(errorMessageMappingStr), &errorMessageMapping)
+	if err != nil {
+		return "", false
+	}
+	value, ok := errorMessageMapping[strconv.Itoa(statusCode)]
+	if !ok {
+		return "", false
+	}
+	return parseErrorMessageMappingValue(value)
 }

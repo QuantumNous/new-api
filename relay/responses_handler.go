@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 	appconstant "github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/logger"
@@ -120,6 +121,7 @@ func ResponsesHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *
 	}
 
 	statusCodeMappingStr := c.GetString("status_code_mapping")
+	errorMessageMappingStr := c.GetString("error_message_mapping")
 
 	if resp != nil {
 		httpResp = resp.(*http.Response)
@@ -127,7 +129,7 @@ func ResponsesHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *
 		if httpResp.StatusCode != http.StatusOK {
 			newAPIError = service.RelayErrorHandler(c.Request.Context(), httpResp, false)
 			// reset status code 重置状态码
-			service.ResetStatusCode(newAPIError, statusCodeMappingStr)
+			common.SetContextKey(c, constant.ContextKeyChannelErrorOverrideSummary, service.ApplyChannelErrorOverrides(newAPIError, statusCodeMappingStr, errorMessageMappingStr))
 			return newAPIError
 		}
 	}
@@ -135,7 +137,7 @@ func ResponsesHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *
 	usage, newAPIError := adaptor.DoResponse(c, httpResp, info)
 	if newAPIError != nil {
 		// reset status code 重置状态码
-		service.ResetStatusCode(newAPIError, statusCodeMappingStr)
+		common.SetContextKey(c, constant.ContextKeyChannelErrorOverrideSummary, service.ApplyChannelErrorOverrides(newAPIError, statusCodeMappingStr, errorMessageMappingStr))
 		return newAPIError
 	}
 

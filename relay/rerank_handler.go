@@ -6,6 +6,7 @@ import (
 	"net/http"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/logger"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
@@ -84,13 +85,14 @@ func RerankHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *typ
 	}
 
 	statusCodeMappingStr := c.GetString("status_code_mapping")
+	errorMessageMappingStr := c.GetString("error_message_mapping")
 	var httpResp *http.Response
 	if resp != nil {
 		httpResp = resp.(*http.Response)
 		if httpResp.StatusCode != http.StatusOK {
 			newAPIError = service.RelayErrorHandler(c.Request.Context(), httpResp, false)
 			// reset status code 重置状态码
-			service.ResetStatusCode(newAPIError, statusCodeMappingStr)
+			common.SetContextKey(c, constant.ContextKeyChannelErrorOverrideSummary, service.ApplyChannelErrorOverrides(newAPIError, statusCodeMappingStr, errorMessageMappingStr))
 			return newAPIError
 		}
 	}
@@ -98,7 +100,7 @@ func RerankHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *typ
 	usage, newAPIError := adaptor.DoResponse(c, httpResp, info)
 	if newAPIError != nil {
 		// reset status code 重置状态码
-		service.ResetStatusCode(newAPIError, statusCodeMappingStr)
+		common.SetContextKey(c, constant.ContextKeyChannelErrorOverrideSummary, service.ApplyChannelErrorOverrides(newAPIError, statusCodeMappingStr, errorMessageMappingStr))
 		return newAPIError
 	}
 	service.PostTextConsumeQuota(c, info, usage.(*dto.Usage), nil)

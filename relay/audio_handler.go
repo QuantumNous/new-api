@@ -6,6 +6,7 @@ import (
 	"net/http"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relay/helper"
@@ -49,6 +50,7 @@ func AudioHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *type
 		return types.NewOpenAIError(err, types.ErrorCodeDoRequestFailed, http.StatusInternalServerError)
 	}
 	statusCodeMappingStr := c.GetString("status_code_mapping")
+	errorMessageMappingStr := c.GetString("error_message_mapping")
 
 	var httpResp *http.Response
 	if resp != nil {
@@ -56,7 +58,7 @@ func AudioHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *type
 		if httpResp.StatusCode != http.StatusOK {
 			newAPIError = service.RelayErrorHandler(c.Request.Context(), httpResp, false)
 			// reset status code 重置状态码
-			service.ResetStatusCode(newAPIError, statusCodeMappingStr)
+			common.SetContextKey(c, constant.ContextKeyChannelErrorOverrideSummary, service.ApplyChannelErrorOverrides(newAPIError, statusCodeMappingStr, errorMessageMappingStr))
 			return newAPIError
 		}
 	}
@@ -64,7 +66,7 @@ func AudioHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *type
 	usage, newAPIError := adaptor.DoResponse(c, httpResp, info)
 	if newAPIError != nil {
 		// reset status code 重置状态码
-		service.ResetStatusCode(newAPIError, statusCodeMappingStr)
+		common.SetContextKey(c, constant.ContextKeyChannelErrorOverrideSummary, service.ApplyChannelErrorOverrides(newAPIError, statusCodeMappingStr, errorMessageMappingStr))
 		return newAPIError
 	}
 	if usage.(*dto.Usage).CompletionTokenDetails.AudioTokens > 0 || usage.(*dto.Usage).PromptTokensDetails.AudioTokens > 0 {

@@ -93,6 +93,12 @@ export interface ChannelAffinityInfo {
 }
 
 export interface LogOtherData {
+  original_status_code?: number
+  final_status_code?: number
+  original_error_message?: string
+  final_error_message?: string
+  status_code_rewritten?: boolean
+  error_message_rewritten?: boolean
   admin_info?: {
     is_multi_key?: boolean
     multi_key_index?: number

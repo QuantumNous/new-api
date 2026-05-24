@@ -39,6 +39,7 @@ export const channelFormSchema = z.object({
   auto_ban: z.number().optional(),
   status: z.number(),
   status_code_mapping: z.string().optional(),
+  error_message_mapping: z.string().optional(),
   tag: z.string().optional(),
   remark: z
     .string()
@@ -101,6 +102,7 @@ export const CHANNEL_FORM_DEFAULT_VALUES: ChannelFormValues = {
   auto_ban: 1,
   status: CHANNEL_STATUS.ENABLED,
   status_code_mapping: '',
+  error_message_mapping: '',
   tag: '',
   remark: '',
   setting: '',
@@ -234,6 +236,7 @@ export function transformChannelToFormDefaults(
     auto_ban: channel.auto_ban ?? 1,
     status: channel.status,
     status_code_mapping: channel.status_code_mapping || '',
+    error_message_mapping: channel.error_message_mapping || '',
     tag: channel.tag || '',
     remark: channel.remark || '',
     setting: channel.setting || '',
@@ -415,6 +418,7 @@ export function transformFormDataToCreatePayload(formData: ChannelFormValues): {
     auto_ban: formData.auto_ban ?? 1,
     status: formData.status,
     status_code_mapping: formData.status_code_mapping || null,
+    error_message_mapping: formData.error_message_mapping || null,
     tag: formData.tag || null,
     remark: formData.remark || '',
     setting: buildSettingJSON(formData),
@@ -463,6 +467,7 @@ export function transformFormDataToUpdatePayload(
     auto_ban: formData.auto_ban ?? 1,
     status: formData.status,
     status_code_mapping: formData.status_code_mapping || null,
+    error_message_mapping: formData.error_message_mapping || null,
     tag: formData.tag || null,
     remark: formData.remark || '',
     setting: buildSettingJSON(formData),
@@ -492,6 +497,7 @@ export function transformFormDataToUpdatePayload(
   payload.remark = formData.remark || ''
   payload.model_mapping = formData.model_mapping || ''
   payload.status_code_mapping = formData.status_code_mapping || ''
+  payload.error_message_mapping = formData.error_message_mapping || ''
   payload.param_override = formData.param_override || ''
   payload.header_override = formData.header_override || ''
 

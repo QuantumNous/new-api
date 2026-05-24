@@ -1,5 +1,13 @@
 {
   "translation": {
+    "原始状态码": "Code de statut d'origine",
+    "原始错误信息": "Message d'erreur d'origine",
+    "状态码是否复写": "Code de statut réécrit",
+    "错误信息是否复写": "Message d'erreur réécrit",
+    "键为原状态码，值为要复写的报错信息": "La clé est le code de statut d'origine et la valeur est le message d'erreur à remplacer",
+    "此项可选，用于按状态码复写返回给调用方的报错信息，键为原状态码，值为要复写的内容，例如：": "Optionnel. Remplace le message d'erreur renvoyé à l'appelant selon le code de statut. La clé est le code de statut d'origine et la valeur est le message de remplacement, par exemple :",
+    "修改后状态码": "Code de statut final",
+    "修改后错误信息": "Message d'erreur final",
     " + Web搜索 {{count}}次 / 1K 次 * {{symbol}}{{price}} * {{ratioType}} {{ratio}}_one": " + Recherche Web {{count}} fois / 1K fois * {{symbol}}{{price}} * {{ratioType}} {{ratio}}",
     " + Web搜索 {{count}}次 / 1K 次 * {{symbol}}{{price}} * {{ratioType}} {{ratio}}_many": " + Recherche Web {{count}} fois / 1K fois * {{symbol}}{{price}} * {{ratioType}} {{ratio}}",
     " + Web搜索 {{count}}次 / 1K 次 * {{symbol}}{{price}} * {{ratioType}} {{ratio}}_other": " + Recherche Web {{count}} fois / 1K fois * {{symbol}}{{price}} * {{ratioType}} {{ratio}}",

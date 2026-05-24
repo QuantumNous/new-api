@@ -378,6 +378,16 @@ func processChannelError(c *gin.Context, channelError types.ChannelError, err *t
 		other["error_type"] = err.GetErrorType()
 		other["error_code"] = err.GetErrorCode()
 		other["status_code"] = err.StatusCode
+		if overrideSummary, ok := c.Get(string(constant.ContextKeyChannelErrorOverrideSummary)); ok {
+			if summary, ok := overrideSummary.(*service.ChannelErrorOverrideSummary); ok && summary != nil {
+				other["original_status_code"] = summary.OriginalStatusCode
+				other["final_status_code"] = summary.FinalStatusCode
+				other["original_error_message"] = summary.OriginalMessage
+				other["final_error_message"] = summary.FinalMessage
+				other["status_code_rewritten"] = summary.StatusCodeRewritten
+				other["error_message_rewritten"] = summary.MessageRewritten
+			}
+		}
 		other["channel_id"] = channelId
 		other["channel_name"] = c.GetString("channel_name")
 		other["channel_type"] = c.GetInt("channel_type")
@@ -607,6 +617,7 @@ func respondTaskError(c *gin.Context, taskErr *dto.TaskError) {
 	if taskErr.StatusCode == http.StatusTooManyRequests {
 		taskErr.Message = "当前分组上游负载已饱和，请稍后再试"
 	}
+	service.ApplyChannelTaskErrorMessageOverride(taskErr, c.GetString("error_message_mapping"))
 	c.JSON(taskErr.StatusCode, taskErr)
 }
 

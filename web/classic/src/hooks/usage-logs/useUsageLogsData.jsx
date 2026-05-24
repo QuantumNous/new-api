@@ -447,6 +447,47 @@ export const useLogsData = () => {
           });
         }
       }
+      if (isAdminUser && logs[i].type === 5) {
+        const hasErrorOverrideDetails =
+          other?.original_status_code !== undefined ||
+          other?.final_status_code !== undefined ||
+          other?.original_error_message ||
+          other?.final_error_message;
+        if (hasErrorOverrideDetails) {
+          if (other?.original_status_code !== undefined) {
+            expandDataLocal.push({
+              key: t('原始状态码'),
+              value: String(other.original_status_code),
+            });
+          }
+          if (other?.final_status_code !== undefined) {
+            expandDataLocal.push({
+              key: t('修改后状态码'),
+              value: String(other.final_status_code),
+            });
+          }
+          if (other?.original_error_message) {
+            expandDataLocal.push({
+              key: t('原始错误信息'),
+              value: (
+                <div style={{ maxWidth: 600, whiteSpace: 'normal', wordBreak: 'break-word', lineHeight: 1.6 }}>
+                  {other.original_error_message}
+                </div>
+              ),
+            });
+          }
+          if (other?.final_error_message) {
+            expandDataLocal.push({
+              key: t('修改后错误信息'),
+              value: (
+                <div style={{ maxWidth: 600, whiteSpace: 'normal', wordBreak: 'break-word', lineHeight: 1.6 }}>
+                  {other.final_error_message}
+                </div>
+              ),
+            });
+          }
+        }
+      }
       if (logs[i].type === 2) {
         let modelMapped =
           other?.is_model_mapped &&

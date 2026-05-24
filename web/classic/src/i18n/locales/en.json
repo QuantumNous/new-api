@@ -1,5 +1,13 @@
 {
   "translation": {
+    "原始状态码": "Original Status Code",
+    "原始错误信息": "Original Error Message",
+    "状态码是否复写": "Status Code Rewritten",
+    "错误信息是否复写": "Error Message Rewritten",
+    "键为原状态码，值为要复写的报错信息": "The key is the original status code, and the value is the error message to override",
+    "此项可选，用于按状态码复写返回给调用方的报错信息，键为原状态码，值为要复写的内容，例如：": "Optional. Override the error message returned to callers by status code. The key is the original status code, and the value is the replacement message, for example:",
+    "修改后状态码": "Final Status Code",
+    "修改后错误信息": "Final Error Message",
     " + Web搜索 {{count}}次 / 1K 次 * {{symbol}}{{price}} * {{ratioType}} {{ratio}}_one": " + Web search {{count}} time / 1K times * {{symbol}}{{price}} * {{ratioType}} {{ratio}}",
     " + Web搜索 {{count}}次 / 1K 次 * {{symbol}}{{price}} * {{ratioType}} {{ratio}}_other": " + Web search {{count}} times / 1K times * {{symbol}}{{price}} * {{ratioType}} {{ratio}}",
     " + 图片生成调用 {{symbol}}{{price}} / 1次 * {{ratioType}} {{ratio}}": " + Image generation call {{symbol}}{{price}} / 1 time * {{ratioType}} {{ratio}}",

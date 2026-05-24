@@ -192,6 +192,7 @@ func TextHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types
 	}
 
 	statusCodeMappingStr := c.GetString("status_code_mapping")
+	errorMessageMappingStr := c.GetString("error_message_mapping")
 
 	if resp != nil {
 		httpResp = resp.(*http.Response)
@@ -199,7 +200,7 @@ func TextHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types
 		if httpResp.StatusCode != http.StatusOK {
 			newApiErr := service.RelayErrorHandler(c.Request.Context(), httpResp, false)
 			// reset status code 重置状态码
-			service.ResetStatusCode(newApiErr, statusCodeMappingStr)
+			common.SetContextKey(c, constant.ContextKeyChannelErrorOverrideSummary, service.ApplyChannelErrorOverrides(newApiErr, statusCodeMappingStr, errorMessageMappingStr))
 			return newApiErr
 		}
 	}
@@ -207,7 +208,7 @@ func TextHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types
 	usage, newApiErr := adaptor.DoResponse(c, httpResp, info)
 	if newApiErr != nil {
 		// reset status code 重置状态码
-		service.ResetStatusCode(newApiErr, statusCodeMappingStr)
+		common.SetContextKey(c, constant.ContextKeyChannelErrorOverrideSummary, service.ApplyChannelErrorOverrides(newApiErr, statusCodeMappingStr, errorMessageMappingStr))
 		return newApiErr
 	}
 

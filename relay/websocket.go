@@ -3,6 +3,8 @@ package relay
 import (
 	"fmt"
 
+	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/service"
@@ -25,6 +27,7 @@ func WssHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types.
 	//requestBody = bytes.NewBuffer(firstWssRequest.([]byte))
 
 	statusCodeMappingStr := c.GetString("status_code_mapping")
+	errorMessageMappingStr := c.GetString("error_message_mapping")
 	resp, err := adaptor.DoRequest(c, info, nil)
 	if err != nil {
 		return types.NewError(err, types.ErrorCodeDoRequestFailed)
@@ -38,7 +41,7 @@ func WssHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types.
 	usage, newAPIError := adaptor.DoResponse(c, nil, info)
 	if newAPIError != nil {
 		// reset status code 重置状态码
-		service.ResetStatusCode(newAPIError, statusCodeMappingStr)
+		common.SetContextKey(c, constant.ContextKeyChannelErrorOverrideSummary, service.ApplyChannelErrorOverrides(newAPIError, statusCodeMappingStr, errorMessageMappingStr))
 		return newAPIError
 	}
 	service.PostWssConsumeQuota(c, info, info.UpstreamModelName, usage.(*dto.RealtimeUsage), "")
