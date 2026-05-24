@@ -64,11 +64,13 @@ const usersToolbarClassName = cn(
 )
 
 const usersTableHeaderClassName = cn(
-  'bg-slate-900/80 text-slate-200',
-  '[&_th]:border-white/10 [&_th]:text-slate-200',
-  '[&_button]:text-slate-200',
-  '[&_svg]:text-slate-400',
-  '[&_[data-slot=checkbox]]:border-white/25'
+  'bg-slate-900/95 text-slate-50',
+  '[&_th]:border-white/10 [&_th]:text-slate-50',
+  '[&_button]:font-semibold [&_button]:text-slate-50',
+  '[&_button:hover]:text-white',
+  '[&_svg]:text-slate-300',
+  '[&_button:hover_svg]:text-white',
+  '[&_[data-slot=checkbox]]:border-white/30'
 )
 
 const usersDisabledRowClassName = cn(

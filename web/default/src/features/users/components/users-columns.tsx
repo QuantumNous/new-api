@@ -19,7 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import { type ColumnDef } from '@tanstack/react-table'
 import { useTranslation } from 'react-i18next'
 import { formatTimestamp } from '@/lib/format'
-import { formatQuotaForOpsCenter } from '@/lib/ops-billing-display'
+import { formatTokenQuotaDisplay } from '@/lib/ops-billing-display'
 import { cn } from '@/lib/utils'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Progress } from '@/components/ui/progress'
@@ -187,12 +187,9 @@ export function useUsersColumns(): ColumnDef<User>[] {
             <TooltipTrigger
               render={<div className='w-[150px] cursor-help space-y-1' />}
             >
-              <div className='flex justify-between text-xs'>
+              <div className='text-xs'>
                 <span className='font-medium tabular-nums'>
-                  {formatQuotaForOpsCenter(remaining)}
-                </span>
-                <span className='text-muted-foreground tabular-nums'>
-                  {formatQuotaForOpsCenter(total)}
+                  {formatTokenQuotaDisplay(remaining, { digitsLarge: 0 })}
                 </span>
               </div>
               <Progress
@@ -203,13 +200,14 @@ export function useUsersColumns(): ColumnDef<User>[] {
             <TooltipContent>
               <div className='space-y-1 text-xs'>
                 <div>
-                  {t('Used:')} {formatQuotaForOpsCenter(used)}
+                  {t('Used:')} {formatTokenQuotaDisplay(used, { digitsLarge: 0 })}
                 </div>
                 <div>
-                  {t('Remaining:')} {formatQuotaForOpsCenter(remaining)}
+                  {t('Remaining:')}{' '}
+                  {formatTokenQuotaDisplay(remaining, { digitsLarge: 0 })}
                 </div>
                 <div>
-                  {t('Total:')} {formatQuotaForOpsCenter(total)}
+                  {t('Total:')} {formatTokenQuotaDisplay(total, { digitsLarge: 0 })}
                 </div>
                 <div>
                   {t('Percentage:')} {percentage.toFixed(1)}%
@@ -300,7 +298,7 @@ export function useUsersColumns(): ColumnDef<User>[] {
               <TooltipTrigger
                 render={<span className='text-muted-foreground cursor-help' />}
               >
-                {t('Revenue')}: {formatQuotaForOpsCenter(affHistoryQuota)}
+                {t('Revenue')}: {formatTokenQuotaDisplay(affHistoryQuota)}
               </TooltipTrigger>
               <TooltipContent>
                 <p className='text-xs'>{t('Total invitation revenue')}</p>

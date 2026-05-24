@@ -23,9 +23,7 @@ import { useQuery } from '@tanstack/react-query'
 import { Pencil } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { getCurrencyDisplay } from '@/lib/currency'
-import { parseQuotaFromDollars } from '@/lib/format'
-import { formatQuotaForOpsCenter } from '@/lib/ops-billing-display'
+import { formatTokenQuotaDisplay } from '@/lib/ops-billing-display'
 import { Button } from '@/components/ui/button'
 import {
   Form,
@@ -121,9 +119,6 @@ export function UsersMutateDrawer({
       form.reset(USER_FORM_DEFAULT_VALUES)
     }
   }, [open, isUpdate, currentRow, form])
-
-  const { meta: currencyMeta } = getCurrencyDisplay()
-  const tokensOnly = currencyMeta.kind === 'tokens'
 
   const currentQuotaRaw = form.watch('quota_dollars') || 0
 
@@ -374,6 +369,11 @@ export function UsersMutateDrawer({
                             </SelectGroup>
                           </SelectContent>
                         </Select>
+                        <FormDescription>
+                          {t(
+                            'Tenant groups control channel access, access key grouping, and call billing. Use the same names in group pricing and top-up settings.'
+                          )}
+                        </FormDescription>
                         <FormMessage />
                       </FormItem>
                     )}
@@ -388,11 +388,7 @@ export function UsersMutateDrawer({
                         <div className='flex gap-2'>
                           <FormControl>
                             <Input
-                              value={
-                                tokensOnly
-                                  ? String(field.value || 0)
-                                  : (field.value || 0).toFixed(6)
-                              }
+                              value={formatTokenQuotaDisplay(field.value || 0)}
                               readOnly
                               className='flex-1'
                             />
@@ -406,11 +402,6 @@ export function UsersMutateDrawer({
                             {t('Adjust token quota')}
                           </Button>
                         </div>
-                        <FormDescription>
-                          {formatQuotaForOpsCenter(
-                            parseQuotaFromDollars(field.value || 0)
-                          )}
-                        </FormDescription>
                         <FormMessage />
                       </FormItem>
                     )}
@@ -487,7 +478,7 @@ export function UsersMutateDrawer({
           open={quotaDialogOpen}
           onOpenChange={setQuotaDialogOpen}
           userId={currentRow.id}
-          currentQuota={parseQuotaFromDollars(currentQuotaRaw || 0)}
+          currentQuota={Math.round(currentQuotaRaw || 0)}
           onSuccess={refreshUserData}
         />
       )}

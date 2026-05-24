@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { Share2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { formatQuotaForOpsCenter } from '@/lib/ops-billing-display'
+import { formatTokenQuotaDisplay } from '@/lib/ops-billing-display'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -86,10 +86,10 @@ export function AffiliateRewardsCard({
 
         <div className='grid grid-cols-3 gap-2 text-center'>
           {[
-            [t('Pending'), formatQuotaForOpsCenter(user?.aff_quota ?? 0)],
+            [t('Pending'), formatTokenQuotaDisplay(user?.aff_quota ?? 0)],
             [
               t('Total Earned'),
-              formatQuotaForOpsCenter(user?.aff_history_quota ?? 0),
+              formatTokenQuotaDisplay(user?.aff_history_quota ?? 0),
             ],
             [t('Invites'), String(user?.aff_count ?? 0)],
           ].map(([label, value]) => (

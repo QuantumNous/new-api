@@ -21,7 +21,7 @@ import { Crown, RefreshCw, Sparkles, Check } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import {
-  formatQuotaForOpsCenter,
+  formatTokenQuotaDisplay,
   formatSubscriptionPriceDisplay,
 } from '@/lib/ops-billing-display'
 import { cn } from '@/lib/utils'
@@ -484,10 +484,10 @@ export function SubscriptionPlansCard({
                             <TooltipTrigger
                               render={<span className='cursor-help' />}
                             >
-                              {formatQuotaForOpsCenter(usedAmount)}/
-                              {formatQuotaForOpsCenter(totalAmount)} ·{' '}
+                              {formatTokenQuotaDisplay(usedAmount)}/
+                              {formatTokenQuotaDisplay(totalAmount)} ·{' '}
                               {t('wallet.subscription.remaining')}{' '}
-                              {formatQuotaForOpsCenter(remainAmount)}
+                              {formatTokenQuotaDisplay(remainAmount)}
                             </TooltipTrigger>
                             <TooltipContent>
                               {t('wallet.subscription.raw_quota')}:{' '}
@@ -542,7 +542,7 @@ export function SubscriptionPlansCard({
                   ? `${t('Quota Reset')}: ${formatResetPeriod(plan, t)}`
                   : null,
                 totalAmount > 0
-                  ? `${t('wallet.subscription.total_quota')}: ${formatQuotaForOpsCenter(totalAmount)}`
+                  ? `${t('wallet.subscription.total_quota')}: ${formatTokenQuotaDisplay(totalAmount)}`
                   : `${t('wallet.subscription.total_quota')}: ${t('Unlimited')}`,
                 limit > 0
                   ? `${t('wallet.subscription.purchase_limit', { limit })}`

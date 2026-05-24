@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { Activity, BarChart3, WalletCards } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { formatQuotaForOpsCenter } from '@/lib/ops-billing-display'
+import { formatTokenQuotaDisplay } from '@/lib/ops-billing-display'
 import { Skeleton } from '@/components/ui/skeleton'
 import type { UserWalletData } from '../types'
 
@@ -48,13 +48,13 @@ export function WalletStatsCard(props: WalletStatsCardProps) {
   const stats = [
     {
       label: t('wallet.stats.current_quota'),
-      value: formatQuotaForOpsCenter(props.user?.quota ?? 0),
+      value: formatTokenQuotaDisplay(props.user?.quota ?? 0),
       description: t('wallet.stats.remaining_desc'),
       icon: WalletCards,
     },
     {
       label: t('wallet.stats.total_usage'),
-      value: formatQuotaForOpsCenter(props.user?.used_quota ?? 0),
+      value: formatTokenQuotaDisplay(props.user?.used_quota ?? 0),
       description: t('wallet.stats.usage_desc'),
       icon: BarChart3,
     },

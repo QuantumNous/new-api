@@ -19,9 +19,10 @@ For commercial licensing, please contact support@quantumnous.com
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { getCurrencyDisplay } from '@/lib/currency'
-import { parseQuotaFromDollars } from '@/lib/format'
-import { formatQuotaForOpsCenter } from '@/lib/ops-billing-display'
+import {
+  formatTokenQuotaDisplay,
+  parseTokenQuotaInput,
+} from '@/lib/ops-billing-display'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import {
@@ -52,23 +53,20 @@ export function UserQuotaDialog(props: UserQuotaDialogProps) {
   const [amount, setAmount] = useState('')
   const [loading, setLoading] = useState(false)
 
-  const { meta: currencyMeta } = getCurrencyDisplay()
-  const tokensOnly = currencyMeta.kind === 'tokens'
-
   const amountValue = parseFloat(amount) || 0
-  const quotaValue = parseQuotaFromDollars(Math.abs(amountValue))
+  const quotaValue = parseTokenQuotaInput(Math.abs(amountValue))
 
   const getPreviewText = () => {
     const current = props.currentQuota
     const val = quotaValue
     switch (mode) {
       case 'add':
-        return `${t('Current token quota')}: ${formatQuotaForOpsCenter(current)}  +${formatQuotaForOpsCenter(val)} = ${formatQuotaForOpsCenter(current + val)}`
+        return `${t('Current token quota')}: ${formatTokenQuotaDisplay(current)}  +${formatTokenQuotaDisplay(val)} = ${formatTokenQuotaDisplay(current + val)}`
       case 'subtract':
-        return `${t('Current token quota')}: ${formatQuotaForOpsCenter(current)}  -${formatQuotaForOpsCenter(val)} = ${formatQuotaForOpsCenter(current - val)}`
+        return `${t('Current token quota')}: ${formatTokenQuotaDisplay(current)}  -${formatTokenQuotaDisplay(val)} = ${formatTokenQuotaDisplay(current - val)}`
       case 'override': {
-        const overrideQuota = parseQuotaFromDollars(amountValue)
-        return `${t('Current token quota')}: ${formatQuotaForOpsCenter(current)} → ${formatQuotaForOpsCenter(overrideQuota)}`
+        const overrideQuota = parseTokenQuotaInput(amountValue)
+        return `${t('Current token quota')}: ${formatTokenQuotaDisplay(current)} → ${formatTokenQuotaDisplay(overrideQuota)}`
       }
       default:
         return ''
@@ -82,7 +80,9 @@ export function UserQuotaDialog(props: UserQuotaDialogProps) {
     setLoading(true)
     try {
       const value =
-        mode === 'override' ? parseQuotaFromDollars(amountValue) : quotaValue
+        mode === 'override'
+          ? parseTokenQuotaInput(amountValue)
+          : quotaValue
       const result = await adjustUserQuota({
         id: props.userId,
         action: 'add_quota',
@@ -163,9 +163,9 @@ export function UserQuotaDialog(props: UserQuotaDialogProps) {
             <Label>{t('Adjustment amount')}</Label>
             <Input
               type='number'
-              step={tokensOnly ? 1 : 0.000001}
+              step={1}
               min={mode === 'override' ? undefined : 0}
-              placeholder={t('Enter adjustment amount')}
+              placeholder={t('Enter amount in tokens')}
               value={amount}
               onChange={(e) => setAmount(e.target.value)}
               onKeyDown={(e) => {

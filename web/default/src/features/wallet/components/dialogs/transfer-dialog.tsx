@@ -19,7 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import { useState, useEffect } from 'react'
 import { Loader2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { formatQuotaForOpsCenter } from '@/lib/ops-billing-display'
+import { formatTokenQuotaDisplay } from '@/lib/ops-billing-display'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -87,7 +87,7 @@ export function TransferDialog({
               {t('wallet.transfer.available_rewards')}
             </Label>
             <div className='text-2xl font-semibold'>
-              {formatQuotaForOpsCenter(availableQuota)}
+              {formatTokenQuotaDisplay(availableQuota)}
             </div>
           </div>
 
@@ -110,7 +110,7 @@ export function TransferDialog({
             />
             <p className='text-muted-foreground text-xs dark:text-slate-400'>
               {t('wallet.transfer.minimum_line', {
-                amount: formatQuotaForOpsCenter(QUOTA_PER_DOLLAR),
+                amount: formatTokenQuotaDisplay(QUOTA_PER_DOLLAR),
               })}
             </p>
           </div>

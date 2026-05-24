@@ -38,6 +38,26 @@ export function formatQuotaForOpsCenter(quota: number): string {
 }
 
 /**
+ * Display raw internal quota units as 词元额度 (no currency symbol).
+ * Alias for formatUsageLogQuotaDisplay — use for all user/admin 词元额度 surfaces.
+ */
+export function formatTokenQuotaDisplay(
+  quota: number | null | undefined,
+  options?: { digitsLarge?: number; digitsSmall?: number }
+): string {
+  return formatUsageLogQuotaDisplay(quota, options)
+}
+
+/**
+ * Parse user-entered 词元额度 into raw internal quota units (integer).
+ * Ops-center admin input is always in raw quota units, not currency amounts.
+ */
+export function parseTokenQuotaInput(amount: number): number {
+  if (!Number.isFinite(amount)) return 0
+  return Math.max(0, Math.round(amount))
+}
+
+/**
  * Usage-logs: show raw quota units as 词元额度/消耗 (never as RMB or USD).
  * Display-only; does not change quota math or global formatQuotaWithCurrency.
  */

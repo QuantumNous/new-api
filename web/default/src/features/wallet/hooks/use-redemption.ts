@@ -19,8 +19,9 @@ For commercial licensing, please contact support@quantumnous.com
 import { useState, useCallback } from 'react'
 import i18next from 'i18next'
 import { toast } from 'sonner'
+import { resolveComplianceErrorMessage } from '@/lib/compliance-display'
 import { getSelf } from '@/lib/api'
-import { formatQuotaForOpsCenter } from '@/lib/ops-billing-display'
+import { formatTokenQuotaDisplay } from '@/lib/ops-billing-display'
 import { redeemTopupCode } from '../api'
 
 // ============================================================================
@@ -44,7 +45,7 @@ export function useRedemption() {
         const quotaAdded = response.data
         toast.success(
           i18next.t('wallet.toast.redeem_success', {
-            quota: formatQuotaForOpsCenter(quotaAdded),
+            quota: formatTokenQuotaDisplay(quotaAdded),
           })
         )
         await getSelf()
@@ -55,12 +56,16 @@ export function useRedemption() {
         // eslint-disable-next-line no-console
         console.warn('[redeem]', response.message)
       }
-      toast.error(i18next.t('wallet.toast.redeem_failed'))
+      toast.error(
+        resolveComplianceErrorMessage(response.message, 'redemption')
+      )
       return false
     } catch (error) {
       // eslint-disable-next-line no-console
       console.warn('[redeem]', error)
-      toast.error(i18next.t('wallet.toast.redeem_failed'))
+      const message =
+        error instanceof Error ? error.message : i18next.t('wallet.toast.redeem_failed')
+      toast.error(resolveComplianceErrorMessage(message, 'redemption'))
       return false
     } finally {
       setRedeeming(false)

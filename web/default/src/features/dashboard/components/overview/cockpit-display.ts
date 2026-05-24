@@ -16,15 +16,11 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { formatQuota } from '@/lib/format'
+import { formatTokenQuotaDisplay } from '@/lib/ops-billing-display'
 
-/** Dashboard display-only: normalize quota/currency strings to RMB presentation. */
+/** Dashboard display-only: raw 词元额度 (no currency symbol). */
 export function formatQuotaForCockpit(value: number): string {
-  return formatQuota(value)
-    .replace(/\$/g, '¥')
-    .replace(/\bUSD\b/gi, 'CNY')
-    .replace(/美元/g, '人民币')
-    .replace(/\bdollars?\b/gi, '人民币')
+  return formatTokenQuotaDisplay(value, { digitsLarge: 0 })
 }
 
 export const COCKPIT_PANEL_CLASS =
