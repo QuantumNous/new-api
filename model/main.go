@@ -285,6 +285,8 @@ func migrateDB() error {
 	if err != nil {
 		return err
 	}
+	// Backfill cache tokens in quota_data from usage logs
+	go MigrateCacheTokens()
 	if common.UsingSQLite {
 		if err := ensureSubscriptionPlanTableSQLite(); err != nil {
 			return err
