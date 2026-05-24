@@ -31,6 +31,10 @@ export interface QuotaDataItem {
   token_used?: number
   count?: number
   quota?: number
+  cache_tokens?: number
+  cache_creation_tokens?: number
+  cache_creation_tokens_5m?: number
+  cache_creation_tokens_1h?: number
 }
 
 // ============================================================================
