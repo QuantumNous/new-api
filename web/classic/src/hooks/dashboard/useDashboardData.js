@@ -56,6 +56,8 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
   const [quotaData, setQuotaData] = useState([]);
   const [consumeQuota, setConsumeQuota] = useState(0);
   const [consumeTokens, setConsumeTokens] = useState(0);
+  const [consumeCacheRead, setConsumeCacheRead] = useState(0);
+  const [consumeCacheCreation, setConsumeCacheCreation] = useState(0);
   const [times, setTimes] = useState(0);
   const [pieData, setPieData] = useState([{ type: 'null', value: '0' }]);
   const [lineData, setLineData] = useState([]);
@@ -292,6 +294,10 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
     setConsumeQuota,
     consumeTokens,
     setConsumeTokens,
+    consumeCacheRead,
+    setConsumeCacheRead,
+    consumeCacheCreation,
+    setConsumeCacheCreation,
     times,
     setTimes,
     pieData,
