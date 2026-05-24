@@ -3648,6 +3648,11 @@
     "并确认自行承担部署": "confirm that I bear legal responsibility arising from deployment",
     "运营和收费行为产生的法律责任": "operation and charging behavior",
     "，": ", ",
-    "、": ", "
+    "、": ", ",
+    "兑换类型": "引き換えタイプ",
+    "权益": "特典",
+    "权益设置": "特典設定",
+    "设置兑换码的权益和数量": "引き換えコードの特典と数量を設定",
+    "成功兑换套餐：": "サブスクリプションプランを引き換えました: "
   }
 }

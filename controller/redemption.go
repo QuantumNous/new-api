@@ -83,6 +83,20 @@ func AddRedemption(c *gin.Context) {
 		common.ApiErrorI18n(c, i18n.MsgRedemptionCountMax)
 		return
 	}
+	redemption.RedemptionType = model.NormalizeRedemptionType(redemption.RedemptionType)
+	if redemption.RedemptionType == model.RedemptionTypeSubscription {
+		if redemption.SubscriptionPlanId <= 0 {
+			common.ApiErrorI18n(c, i18n.MsgSubscriptionInvalidId)
+			return
+		}
+		if _, err := model.GetSubscriptionPlanById(redemption.SubscriptionPlanId); err != nil {
+			common.ApiErrorI18n(c, i18n.MsgSubscriptionInvalidId)
+			return
+		}
+		redemption.Quota = 0
+	} else {
+		redemption.SubscriptionPlanId = 0
+	}
 	if valid, msg := validateExpiredTime(c, redemption.ExpiredTime); !valid {
 		c.JSON(http.StatusOK, gin.H{"success": false, "message": msg})
 		return
@@ -91,12 +105,14 @@ func AddRedemption(c *gin.Context) {
 	for i := 0; i < redemption.Count; i++ {
 		key := common.GetUUID()
 		cleanRedemption := model.Redemption{
-			UserId:      c.GetInt("id"),
-			Name:        redemption.Name,
-			Key:         key,
-			CreatedTime: common.GetTimestamp(),
-			Quota:       redemption.Quota,
-			ExpiredTime: redemption.ExpiredTime,
+			UserId:             c.GetInt("id"),
+			Name:               redemption.Name,
+			Key:                key,
+			CreatedTime:        common.GetTimestamp(),
+			Quota:              redemption.Quota,
+			RedemptionType:     redemption.RedemptionType,
+			SubscriptionPlanId: redemption.SubscriptionPlanId,
+			ExpiredTime:        redemption.ExpiredTime,
 		}
 		err = cleanRedemption.Insert()
 		if err != nil {
@@ -152,7 +168,22 @@ func UpdateRedemption(c *gin.Context) {
 		}
 		// If you add more fields, please also update redemption.Update()
 		cleanRedemption.Name = redemption.Name
-		cleanRedemption.Quota = redemption.Quota
+		cleanRedemption.RedemptionType = model.NormalizeRedemptionType(redemption.RedemptionType)
+		if cleanRedemption.RedemptionType == model.RedemptionTypeSubscription {
+			if redemption.SubscriptionPlanId <= 0 {
+				common.ApiErrorI18n(c, i18n.MsgSubscriptionInvalidId)
+				return
+			}
+			if _, err := model.GetSubscriptionPlanById(redemption.SubscriptionPlanId); err != nil {
+				common.ApiErrorI18n(c, i18n.MsgSubscriptionInvalidId)
+				return
+			}
+			cleanRedemption.Quota = 0
+			cleanRedemption.SubscriptionPlanId = redemption.SubscriptionPlanId
+		} else {
+			cleanRedemption.Quota = redemption.Quota
+			cleanRedemption.SubscriptionPlanId = 0
+		}
 		cleanRedemption.ExpiredTime = redemption.ExpiredTime
 	}
 	if statusOnly != "" {
