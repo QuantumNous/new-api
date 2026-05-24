@@ -48,6 +48,40 @@ func TestFormatClaudeResponseInfo_MessageStart(t *testing.T) {
 	}
 }
 
+func TestStreamResponseClaude2OpenAIUsesClaudeBlockIndexForToolCalls(t *testing.T) {
+	firstIndex := 0
+	first := StreamResponseClaude2OpenAI(&dto.ClaudeResponse{
+		Type:  "content_block_start",
+		Index: &firstIndex,
+		ContentBlock: &dto.ClaudeMediaMessage{
+			Id:   "toolu_1",
+			Type: "tool_use",
+			Name: "first_tool",
+		},
+	})
+	require.NotNil(t, first)
+	require.Len(t, first.Choices, 1)
+	require.Len(t, first.Choices[0].Delta.ToolCalls, 1)
+	require.NotNil(t, first.Choices[0].Delta.ToolCalls[0].Index)
+	require.Equal(t, 0, *first.Choices[0].Delta.ToolCalls[0].Index)
+
+	secondIndex := 1
+	second := StreamResponseClaude2OpenAI(&dto.ClaudeResponse{
+		Type:  "content_block_start",
+		Index: &secondIndex,
+		ContentBlock: &dto.ClaudeMediaMessage{
+			Id:   "toolu_2",
+			Type: "tool_use",
+			Name: "second_tool",
+		},
+	})
+	require.NotNil(t, second)
+	require.Len(t, second.Choices, 1)
+	require.Len(t, second.Choices[0].Delta.ToolCalls, 1)
+	require.NotNil(t, second.Choices[0].Delta.ToolCalls[0].Index)
+	require.Equal(t, 1, *second.Choices[0].Delta.ToolCalls[0].Index)
+}
+
 func TestFormatClaudeResponseInfo_MessageDelta_FullUsage(t *testing.T) {
 	// message_start 先积累 usage
 	claudeInfo := &ClaudeResponseInfo{
