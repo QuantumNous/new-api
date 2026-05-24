@@ -1,6 +1,7 @@
 package common
 
 import (
+	"encoding/json"
 	"strings"
 	"testing"
 
@@ -228,13 +229,13 @@ func TestSanitizeResponsesTranscriptInitialRequestKeepsIncrementalRequest(t *tes
 }
 
 func TestResponsesInputLooksFullTranscriptMatchesCompactionMarkers(t *testing.T) {
-	require.False(t, responsesInputLooksFullTranscript(gjson.Parse(`[
+	require.False(t, responsesInputLooksFullTranscript(json.RawMessage(`[
 		{"type":"message","role":"user","content":"hello"},
 		{"type":"message","role":"assistant","content":"hi there"},
 		{"type":"function_call","call_id":"call-1"},
 		{"type":"reasoning","encrypted_content":"summary"}
 	]`)))
-	require.True(t, responsesInputLooksFullTranscript(gjson.Parse(`[
+	require.True(t, responsesInputLooksFullTranscript(json.RawMessage(`[
 		{"type":"message","role":"user","content":"hello"},
 		{"type":"compaction","encrypted_content":"summary"}
 	]`)))
@@ -270,9 +271,65 @@ func TestInspectResponsesTranscriptRequestShape(t *testing.T) {
 }
 
 func TestIsResponsesTranscriptReplayError(t *testing.T) {
-	require.True(t, IsResponsesTranscriptReplayError(400, []byte(`{"error":{"code":"invalid_encrypted_content","message":"bad encrypted_content"}}`)))
-	require.True(t, IsResponsesTranscriptReplayError(400, []byte(`{"error":{"code":"thinking_signature_invalid","message":"The encrypted content gAAA...as53 could not be verified. Reason: Encrypted content could not be decrypted or parsed."}}`)))
-	require.False(t, IsResponsesTranscriptReplayError(400, []byte(`{"error":{"message":"Invalid signature in thinking block"}}`)))
-	require.False(t, IsResponsesTranscriptReplayError(404, []byte(`{"error":{"code":"previous_response_not_found","message":"missing"}}`)))
-	require.False(t, IsResponsesTranscriptReplayError(429, []byte(`{"error":{"code":"rate_limit_exceeded","message":"slow down"}}`)))
+	tests := []struct {
+		name       string
+		statusCode int
+		body       string
+		want       bool
+	}{
+		{
+			name:       "nested invalid encrypted content code",
+			statusCode: 400,
+			body:       `{"error":{"code":"invalid_encrypted_content"}}`,
+			want:       true,
+		},
+		{
+			name:       "nested thinking signature code",
+			statusCode: 400,
+			body:       `{"error":{"code":"thinking_signature_invalid"}}`,
+			want:       true,
+		},
+		{
+			name:       "top level invalid encrypted content code",
+			statusCode: 400,
+			body:       `{"code":"invalid_encrypted_content"}`,
+			want:       true,
+		},
+		{
+			name:       "message only is ignored",
+			statusCode: 400,
+			body:       `{"error":{"message":"invalid_encrypted_content"}}`,
+			want:       false,
+		},
+		{
+			name:       "empty nested code falls back to top level code",
+			statusCode: 400,
+			body:       `{"error":{},"code":"thinking_signature_invalid"}`,
+			want:       true,
+		},
+		{
+			name:       "string error falls back to top level code",
+			statusCode: 400,
+			body:       `{"error":"bad request","code":"invalid_encrypted_content"}`,
+			want:       true,
+		},
+		{
+			name:       "previous response error is unrelated",
+			statusCode: 404,
+			body:       `{"error":{"code":"previous_response_not_found"}}`,
+			want:       false,
+		},
+		{
+			name:       "rate limit error is unrelated",
+			statusCode: 429,
+			body:       `{"error":{"code":"rate_limit_exceeded"}}`,
+			want:       false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require.Equal(t, tt.want, IsResponsesTranscriptReplayError(tt.statusCode, []byte(tt.body)))
+		})
+	}
 }

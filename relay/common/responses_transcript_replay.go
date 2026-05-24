@@ -7,7 +7,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/tidwall/gjson"
 	"github.com/tidwall/sjson"
 )
 
@@ -15,6 +14,11 @@ const responsesTranscriptReplayTTL = time.Hour
 const responsesTranscriptPreflightSanitizeMinBytes = 900 * 1024
 const responsesTranscriptPreflightSanitizeTargetBytes = responsesTranscriptPreflightSanitizeMinBytes - 64*1024
 const responsesTranscriptOmittedImageText = "[image omitted from oversized transcript replay]"
+
+const (
+	openAIInvalidEncryptedContentCode  = "invalid_encrypted_content"
+	openAIThinkingSignatureInvalidCode = "thinking_signature_invalid"
+)
 
 type ResponsesTranscriptReplayState struct {
 	CacheKey     string
@@ -43,6 +47,107 @@ type ResponsesTranscriptRequestShape struct {
 	InlineImageItems      int
 }
 
+type responsesTranscriptRequestEnvelope struct {
+	Model              string          `json:"model,omitempty"`
+	PromptCacheKey     json.RawMessage `json:"prompt_cache_key,omitempty"`
+	PreviousResponseID json.RawMessage `json:"previous_response_id,omitempty"`
+	Input              json.RawMessage `json:"input,omitempty"`
+}
+
+type responsesTranscriptInput struct {
+	Raw   string
+	Items []responsesTranscriptItem
+}
+
+type responsesTranscriptItem struct {
+	Type     string `json:"type,omitempty"`
+	Role     string `json:"role,omitempty"`
+	CallID   string `json:"call_id,omitempty"`
+	ImageURL string `json:"image_url,omitempty"`
+
+	object map[string]any
+	value  any
+}
+
+func (item *responsesTranscriptItem) UnmarshalJSON(data []byte) error {
+	var object map[string]any
+	if err := json.Unmarshal(data, &object); err == nil && object != nil {
+		item.object = object
+		item.value = object
+		item.Type = stringFromAny(object["type"])
+		item.Role = stringFromAny(object["role"])
+		item.CallID = stringFromAny(object["call_id"])
+		item.ImageURL = stringFromAny(object["image_url"])
+		return nil
+	}
+
+	var value any
+	if err := json.Unmarshal(data, &value); err != nil {
+		return err
+	}
+	item.value = value
+	return nil
+}
+
+func (item responsesTranscriptItem) MarshalJSON() ([]byte, error) {
+	if item.object != nil {
+		return json.Marshal(item.object)
+	}
+	return json.Marshal(item.value)
+}
+
+func (item responsesTranscriptItem) mutableValue() any {
+	if item.object != nil {
+		return item.object
+	}
+	return item.value
+}
+
+func (item responsesTranscriptItem) typeValue() string {
+	if item.object != nil {
+		return stringFromAny(item.object["type"])
+	}
+	return strings.TrimSpace(item.Type)
+}
+
+func (item responsesTranscriptItem) roleValue() string {
+	if item.object != nil {
+		return stringFromAny(item.object["role"])
+	}
+	return strings.TrimSpace(item.Role)
+}
+
+func (item responsesTranscriptItem) callIDValue() string {
+	if item.object != nil {
+		return stringFromAny(item.object["call_id"])
+	}
+	return strings.TrimSpace(item.CallID)
+}
+
+type responsesTranscriptResponseEnvelope struct {
+	Output   json.RawMessage                    `json:"output,omitempty"`
+	Response responsesTranscriptResponsePayload `json:"response,omitempty"`
+}
+
+type responsesTranscriptResponsePayload struct {
+	Output json.RawMessage `json:"output,omitempty"`
+}
+
+type responsesTranscriptStreamEvent struct {
+	Type     string                             `json:"type,omitempty"`
+	Item     json.RawMessage                    `json:"item,omitempty"`
+	Response responsesTranscriptResponsePayload `json:"response,omitempty"`
+}
+
+type openAIErrorCodeResponse struct {
+	Code  any             `json:"code,omitempty"`
+	Error json.RawMessage `json:"error,omitempty"`
+}
+
+type openAIErrorCodeObject struct {
+	Code any `json:"code,omitempty"`
+}
+
 type responsesTranscriptReplayCacheEntry struct {
 	InputRaw string
 	Expire   time.Time
@@ -57,15 +162,18 @@ func PrepareResponsesTranscriptReplay(info *RelayInfo, requestBody []byte) {
 	if info == nil || len(requestBody) == 0 {
 		return
 	}
+	envelope, ok := parseResponsesTranscriptRequestEnvelope(requestBody)
+	if !ok {
+		info.ResponsesTranscriptReplay = nil
+		return
+	}
 	cacheKey := responsesTranscriptReplayCacheKey(info, requestBody)
 	if cacheKey == "" {
 		info.ResponsesTranscriptReplay = nil
 		return
 	}
 	baseInputRaw := ""
-	if input := gjson.GetBytes(requestBody, "input"); input.Exists() && input.IsArray() &&
-		gjson.GetBytes(requestBody, "previous_response_id").Exists() &&
-		!responsesInputLooksFullTranscript(input) {
+	if envelope.hasPreviousResponseID() && !responsesInputLooksFullTranscript(envelope.Input) {
 		if cachedInput, ok := getResponsesTranscriptReplayCachedInput(cacheKey); ok {
 			baseInputRaw = cachedInput
 		}
@@ -98,17 +206,16 @@ func BuildResponsesTranscriptReplayRequest(info *RelayInfo, requestBody []byte) 
 	if info == nil || len(requestBody) == 0 {
 		return nil, false, "missing request body"
 	}
-	hasPreviousResponseID := gjson.GetBytes(requestBody, "previous_response_id").Exists()
-	input := gjson.GetBytes(requestBody, "input")
-	if !input.Exists() || !input.IsArray() {
+	envelope, ok := parseResponsesTranscriptRequestEnvelope(requestBody)
+	if !ok {
 		return nil, false, "request input is not an array"
 	}
 
-	if hasPreviousResponseID {
-		return buildResponsesIncrementalTranscriptRetryRequest(requestBody, input)
+	if envelope.hasPreviousResponseID() {
+		return buildResponsesIncrementalTranscriptRetryRequest(requestBody, envelope.Input)
 	}
 
-	mergedInput := input.Raw
+	mergedInput := string(envelope.Input)
 	reason := "using full input transcript"
 
 	sanitizedInput, err := sanitizeResponsesTranscriptReplayInputRaw(mergedInput)
@@ -143,16 +250,16 @@ func SanitizeResponsesTranscriptInitialRequest(requestBody []byte) ([]byte, bool
 	if len(requestBody) < responsesTranscriptPreflightSanitizeMinBytes {
 		return nil, false, "request body below transcript preflight sanitize threshold"
 	}
-	hasPreviousResponseID := gjson.GetBytes(requestBody, "previous_response_id").Exists()
-	input := gjson.GetBytes(requestBody, "input")
-	if hasPreviousResponseID && !responsesInputLooksFullTranscript(input) && !responsesInputLooksTranscriptReplacement(input) {
-		return nil, false, "incremental request keeps previous_response_id"
-	}
-	if !input.Exists() || !input.IsArray() {
+	envelope, ok := parseResponsesTranscriptRequestEnvelope(requestBody)
+	if !ok {
 		return nil, false, "request input is not an array"
 	}
+	hasPreviousResponseID := envelope.hasPreviousResponseID()
+	if hasPreviousResponseID && !responsesInputLooksFullTranscript(envelope.Input) && !responsesInputLooksTranscriptReplacement(envelope.Input) {
+		return nil, false, "incremental request keeps previous_response_id"
+	}
 
-	sanitizedInput, err := sanitizeResponsesTranscriptReplayInputRaw(input.Raw)
+	sanitizedInput, err := sanitizeResponsesTranscriptReplayInputRaw(string(envelope.Input))
 	if err != nil {
 		return nil, false, fmt.Sprintf("strip encrypted_content failed: %v", err)
 	}
@@ -167,8 +274,8 @@ func SanitizeResponsesTranscriptInitialRequest(requestBody []byte) ([]byte, bool
 	strippedLatestImages := 0
 	trimmedItems := 0
 	if len(out) > responsesTranscriptPreflightSanitizeTargetBytes {
-		var items []any
-		if err := json.Unmarshal([]byte(inputRaw), &items); err != nil {
+		items, err := parseResponsesTranscriptInputItems(inputRaw)
+		if err != nil {
 			return nil, false, fmt.Sprintf("parse sanitized input failed: %v", err)
 		}
 
@@ -232,8 +339,8 @@ func SanitizeResponsesTranscriptInitialRequest(requestBody []byte) ([]byte, bool
 	return out, true, reason
 }
 
-func buildResponsesIncrementalTranscriptRetryRequest(requestBody []byte, input gjson.Result) ([]byte, bool, string) {
-	sanitizedInput, err := sanitizeResponsesTranscriptReplayInputRaw(input.Raw)
+func buildResponsesIncrementalTranscriptRetryRequest(requestBody []byte, input json.RawMessage) ([]byte, bool, string) {
+	sanitizedInput, err := sanitizeResponsesTranscriptReplayInputRaw(string(input))
 	if err != nil {
 		return nil, false, fmt.Sprintf("strip encrypted_content failed: %v", err)
 	}
@@ -260,44 +367,46 @@ func IsResponsesTranscriptReplayError(statusCode int, body []byte) bool {
 	if statusCode < 400 || len(body) == 0 {
 		return false
 	}
-	code := strings.ToLower(strings.TrimSpace(gjson.GetBytes(body, "error.code").String()))
-	if code == "" {
-		code = strings.ToLower(strings.TrimSpace(gjson.GetBytes(body, "code").String()))
-	}
-	return code == "invalid_encrypted_content" || code == "thinking_signature_invalid"
+	code := parseOpenAIErrorCode(body)
+	return code == openAIInvalidEncryptedContentCode || code == openAIThinkingSignatureInvalidCode
 }
 
 func ResponsesTranscriptReplayRequestHasEncryptedContent(requestBody []byte) bool {
 	if len(requestBody) == 0 {
 		return false
 	}
-	input := gjson.GetBytes(requestBody, "input")
-	if !input.Exists() || !input.IsArray() {
+	envelope, ok := parseResponsesTranscriptRequestEnvelope(requestBody)
+	if !ok {
 		return false
 	}
-	_, stripped, err := stripResponsesEncryptedContentFromJSONArrayRaw(input.Raw)
+	_, stripped, err := stripResponsesEncryptedContentFromJSONArrayRaw(string(envelope.Input))
 	return err == nil && stripped
 }
 
 func InspectResponsesTranscriptRequestShape(requestBody []byte) ResponsesTranscriptRequestShape {
 	shape := ResponsesTranscriptRequestShape{
-		BodyBytes:             len(requestBody),
-		HasPreviousResponseID: gjson.GetBytes(requestBody, "previous_response_id").Exists(),
-		HasPromptCacheKey:     strings.TrimSpace(gjson.GetBytes(requestBody, "prompt_cache_key").String()) != "",
+		BodyBytes: len(requestBody),
 	}
-	input := gjson.GetBytes(requestBody, "input")
-	shape.InputExists = input.Exists()
-	shape.InputIsArray = input.IsArray()
-	if !input.IsArray() {
+	envelope, ok := parseResponsesTranscriptRequestEnvelope(requestBody)
+	if !ok {
+		shape.InputExists = envelope.inputExists()
 		return shape
 	}
+	shape.HasPreviousResponseID = envelope.hasPreviousResponseID()
+	shape.HasPromptCacheKey = envelope.promptCacheKey() != ""
+	shape.InputExists = true
+	shape.InputIsArray = true
 
-	items := input.Array()
-	shape.InputItems = len(items)
-	shape.LooksFullTranscript = responsesInputLooksFullTranscript(input)
-	shape.LooksReplacementInput = responsesInputLooksTranscriptReplacement(input)
-	for _, item := range items {
-		switch strings.TrimSpace(item.Get("type").String()) {
+	input, err := parseResponsesTranscriptInput(envelope.Input)
+	if err != nil {
+		return shape
+	}
+	shape.InputItems = len(input.Items)
+	shape.LooksFullTranscript = responsesInputLooksFullTranscript(envelope.Input)
+	shape.LooksReplacementInput = responsesInputLooksTranscriptReplacement(envelope.Input)
+	for _, item := range input.Items {
+		itemType := item.typeValue()
+		switch itemType {
 		case "compaction", "compaction_summary":
 			shape.CompactionItems++
 		case "function_call":
@@ -307,14 +416,14 @@ func InspectResponsesTranscriptRequestShape(requestBody []byte) ResponsesTranscr
 		case "reasoning":
 			shape.ReasoningItems++
 		case "message":
-			if strings.TrimSpace(item.Get("role").String()) == "assistant" {
+			if item.roleValue() == "assistant" {
 				shape.AssistantMessageItems++
 			}
 		}
-		if responsesItemHasEncryptedContent(item) {
+		if responsesValueHasEncryptedContent(item.mutableValue()) {
 			shape.EncryptedContentItems++
 		}
-		shape.InlineImageItems += countResponsesInlineImageItems(item)
+		shape.InlineImageItems += countResponsesInlineImageItems(item.mutableValue())
 	}
 	return shape
 }
@@ -324,12 +433,16 @@ func ObserveResponsesTranscriptReplayResponseBody(info *RelayInfo, responseBody 
 	if state == nil || len(responseBody) == 0 {
 		return
 	}
-	if output := gjson.GetBytes(responseBody, "output"); output.Exists() && output.IsArray() {
-		state.OutputRaw = normalizeResponsesJSONArrayRaw(output.Raw)
+	var envelope responsesTranscriptResponseEnvelope
+	if err := json.Unmarshal(responseBody, &envelope); err != nil {
 		return
 	}
-	if output := gjson.GetBytes(responseBody, "response.output"); output.Exists() && output.IsArray() {
-		state.OutputRaw = normalizeResponsesJSONArrayRaw(output.Raw)
+	if isJSONArrayRaw(envelope.Output) {
+		state.OutputRaw = normalizeResponsesJSONArrayRaw(string(envelope.Output))
+		return
+	}
+	if isJSONArrayRaw(envelope.Response.Output) {
+		state.OutputRaw = normalizeResponsesJSONArrayRaw(string(envelope.Response.Output))
 	}
 }
 
@@ -338,17 +451,19 @@ func ObserveResponsesTranscriptReplayStreamEvent(info *RelayInfo, data string) {
 	if state == nil || strings.TrimSpace(data) == "" {
 		return
 	}
-	event := gjson.Parse(data)
-	if output := event.Get("response.output"); output.Exists() && output.IsArray() {
-		state.OutputRaw = normalizeResponsesJSONArrayRaw(output.Raw)
+	var event responsesTranscriptStreamEvent
+	if err := json.Unmarshal([]byte(data), &event); err != nil {
 		return
 	}
-	if event.Get("type").String() != "response.output_item.done" {
+	if isJSONArrayRaw(event.Response.Output) {
+		state.OutputRaw = normalizeResponsesJSONArrayRaw(string(event.Response.Output))
 		return
 	}
-	item := event.Get("item")
-	if item.Exists() && item.IsObject() {
-		state.OutputItems = append(state.OutputItems, item.Raw)
+	if event.Type != "response.output_item.done" {
+		return
+	}
+	if isJSONObjectRaw(event.Item) {
+		state.OutputItems = append(state.OutputItems, string(event.Item))
 	}
 }
 
@@ -357,14 +472,14 @@ func CommitResponsesTranscriptReplay(info *RelayInfo) bool {
 	if state == nil || state.CacheKey == "" || len(state.RequestBody) == 0 {
 		return false
 	}
-	input := gjson.GetBytes(state.RequestBody, "input")
-	if !input.Exists() || !input.IsArray() {
+	envelope, ok := parseResponsesTranscriptRequestEnvelope(state.RequestBody)
+	if !ok {
 		return false
 	}
-	inputRaw := input.Raw
+	inputRaw := string(envelope.Input)
 	if !state.Replayed &&
-		gjson.GetBytes(state.RequestBody, "previous_response_id").Exists() &&
-		!responsesInputLooksFullTranscript(input) {
+		envelope.hasPreviousResponseID() &&
+		!responsesInputLooksFullTranscript(envelope.Input) {
 		baseInputRaw := state.BaseInputRaw
 		if baseInputRaw == "" {
 			if cachedInput, ok := getResponsesTranscriptReplayCachedInput(state.CacheKey); ok {
@@ -372,7 +487,7 @@ func CommitResponsesTranscriptReplay(info *RelayInfo) bool {
 			}
 		}
 		if baseInputRaw != "" {
-			mergedInput, err := mergeResponsesJSONArrayRaw(baseInputRaw, input.Raw)
+			mergedInput, err := mergeResponsesJSONArrayRaw(baseInputRaw, inputRaw)
 			if err == nil {
 				inputRaw = mergedInput
 			}
@@ -404,7 +519,8 @@ func responsesTranscriptReplayState(info *RelayInfo) *ResponsesTranscriptReplayS
 }
 
 func responsesTranscriptReplayCacheKey(info *RelayInfo, requestBody []byte) string {
-	sessionID := strings.TrimSpace(gjson.GetBytes(requestBody, "prompt_cache_key").String())
+	envelope, _ := parseResponsesTranscriptRequestEnvelope(requestBody)
+	sessionID := envelope.promptCacheKey()
 	if sessionID == "" {
 		for _, name := range []string{"Session_id", "session_id", "X-Session-ID", "x-session-id", "Conversation_id", "conversation_id"} {
 			if v := requestHeaderValueCaseInsensitive(info.RequestHeaders, name); v != "" {
@@ -416,7 +532,7 @@ func responsesTranscriptReplayCacheKey(info *RelayInfo, requestBody []byte) stri
 	if sessionID == "" {
 		return ""
 	}
-	model := strings.TrimSpace(gjson.GetBytes(requestBody, "model").String())
+	model := strings.TrimSpace(envelope.Model)
 	if model == "" {
 		model = strings.TrimSpace(info.UpstreamModelName)
 	}
@@ -438,12 +554,53 @@ func requestHeaderValueCaseInsensitive(headers map[string]string, name string) s
 	return ""
 }
 
-func responsesInputLooksFullTranscript(input gjson.Result) bool {
-	if !input.IsArray() {
+func parseResponsesTranscriptRequestEnvelope(body []byte) (responsesTranscriptRequestEnvelope, bool) {
+	var envelope responsesTranscriptRequestEnvelope
+	if len(body) == 0 {
+		return envelope, false
+	}
+	if err := json.Unmarshal(body, &envelope); err != nil {
+		return envelope, false
+	}
+	return envelope, isJSONArrayRaw(envelope.Input)
+}
+
+func (envelope responsesTranscriptRequestEnvelope) inputExists() bool {
+	return len(envelope.Input) > 0
+}
+
+func (envelope responsesTranscriptRequestEnvelope) hasPreviousResponseID() bool {
+	return rawJSONHasValue(envelope.PreviousResponseID)
+}
+
+func (envelope responsesTranscriptRequestEnvelope) promptCacheKey() string {
+	return stringFromRawJSON(envelope.PromptCacheKey)
+}
+
+func parseResponsesTranscriptInput(raw json.RawMessage) (responsesTranscriptInput, error) {
+	normalized := normalizeResponsesJSONArrayRaw(string(raw))
+	var items []responsesTranscriptItem
+	if err := json.Unmarshal([]byte(normalized), &items); err != nil {
+		return responsesTranscriptInput{}, err
+	}
+	return responsesTranscriptInput{Raw: normalized, Items: items}, nil
+}
+
+func parseResponsesTranscriptInputItems(raw string) ([]responsesTranscriptItem, error) {
+	input, err := parseResponsesTranscriptInput(json.RawMessage(raw))
+	if err != nil {
+		return nil, err
+	}
+	return input.Items, nil
+}
+
+func responsesInputLooksFullTranscript(inputRaw json.RawMessage) bool {
+	input, err := parseResponsesTranscriptInput(inputRaw)
+	if err != nil {
 		return false
 	}
-	for _, item := range input.Array() {
-		switch strings.TrimSpace(item.Get("type").String()) {
+	for _, item := range input.Items {
+		switch item.typeValue() {
 		case "compaction", "compaction_summary":
 			return true
 		}
@@ -451,16 +608,17 @@ func responsesInputLooksFullTranscript(input gjson.Result) bool {
 	return false
 }
 
-func responsesInputLooksTranscriptReplacement(input gjson.Result) bool {
-	if !input.IsArray() {
+func responsesInputLooksTranscriptReplacement(inputRaw json.RawMessage) bool {
+	input, err := parseResponsesTranscriptInput(inputRaw)
+	if err != nil {
 		return false
 	}
-	for _, item := range input.Array() {
-		switch strings.TrimSpace(item.Get("type").String()) {
+	for _, item := range input.Items {
+		switch item.typeValue() {
 		case "function_call", "custom_tool_call":
 			return true
 		case "message":
-			if strings.TrimSpace(item.Get("role").String()) == "assistant" {
+			if item.roleValue() == "assistant" {
 				return true
 			}
 		}
@@ -468,31 +626,23 @@ func responsesInputLooksTranscriptReplacement(input gjson.Result) bool {
 	return false
 }
 
-func responsesItemHasEncryptedContent(item gjson.Result) bool {
-	if !item.Exists() {
-		return false
-	}
-	if item.IsArray() {
-		for _, child := range item.Array() {
-			if responsesItemHasEncryptedContent(child) {
+func responsesValueHasEncryptedContent(value any) bool {
+	switch typed := value.(type) {
+	case []any:
+		for _, child := range typed {
+			if responsesValueHasEncryptedContent(child) {
 				return true
 			}
 		}
-		return false
-	}
-	if item.IsObject() {
-		if item.Get("encrypted_content").Exists() {
+	case map[string]any:
+		if _, ok := typed["encrypted_content"]; ok {
 			return true
 		}
-		found := false
-		item.ForEach(func(_, child gjson.Result) bool {
-			if responsesItemHasEncryptedContent(child) {
-				found = true
-				return false
+		for _, child := range typed {
+			if responsesValueHasEncryptedContent(child) {
+				return true
 			}
-			return true
-		})
-		return found
+		}
 	}
 	return false
 }
@@ -573,8 +723,8 @@ type responsesTranscriptReplaySanitizedInput struct {
 
 func sanitizeResponsesTranscriptReplayInputRaw(raw string) (responsesTranscriptReplaySanitizedInput, error) {
 	raw = normalizeResponsesJSONArrayRaw(raw)
-	var items []any
-	if err := json.Unmarshal([]byte(raw), &items); err != nil {
+	items, err := parseResponsesTranscriptInputItems(raw)
+	if err != nil {
 		return responsesTranscriptReplaySanitizedInput{}, err
 	}
 	stripped := stripResponsesEncryptedContentValue(items)
@@ -595,15 +745,14 @@ func sanitizeResponsesTranscriptReplayInputRaw(raw string) (responsesTranscriptR
 	}, nil
 }
 
-func removeTopLevelResponsesReasoningItems(items []any) ([]any, int) {
+func removeTopLevelResponsesReasoningItems(items []responsesTranscriptItem) ([]responsesTranscriptItem, int) {
 	if len(items) == 0 {
 		return items, 0
 	}
 	removed := 0
 	out := items[:0]
 	for _, item := range items {
-		typed, ok := item.(map[string]any)
-		if ok && strings.TrimSpace(fmt.Sprint(typed["type"])) == "reasoning" {
+		if item.typeValue() == "reasoning" {
 			removed++
 			continue
 		}
@@ -618,6 +767,14 @@ func stripResponsesEncryptedContentValue(value any) bool {
 		stripped := false
 		for _, item := range typed {
 			if stripResponsesEncryptedContentValue(item) {
+				stripped = true
+			}
+		}
+		return stripped
+	case []responsesTranscriptItem:
+		stripped := false
+		for _, item := range typed {
+			if stripResponsesEncryptedContentValue(item.mutableValue()) {
 				stripped = true
 			}
 		}
@@ -639,7 +796,7 @@ func stripResponsesEncryptedContentValue(value any) bool {
 	}
 }
 
-func marshalResponsesTranscriptInputIntoRequest(requestBody []byte, items []any) ([]byte, string, error) {
+func marshalResponsesTranscriptInputIntoRequest(requestBody []byte, items []responsesTranscriptItem) ([]byte, string, error) {
 	inputJSON, err := json.Marshal(items)
 	if err != nil {
 		return nil, "", err
@@ -651,7 +808,7 @@ func marshalResponsesTranscriptInputIntoRequest(requestBody []byte, items []any)
 	return out, string(inputJSON), nil
 }
 
-func stripResponsesInlineImageItems(items []any, preserveLatestUserMessageImages bool) int {
+func stripResponsesInlineImageItems(items []responsesTranscriptItem, preserveLatestUserMessageImages bool) int {
 	latestUserIndex := -1
 	if preserveLatestUserMessageImages {
 		for i, item := range items {
@@ -666,7 +823,7 @@ func stripResponsesInlineImageItems(items []any, preserveLatestUserMessageImages
 		if preserveLatestUserMessageImages && i == latestUserIndex {
 			continue
 		}
-		stripped += stripResponsesInlineImageValue(item)
+		stripped += stripResponsesInlineImageValue(item.mutableValue())
 	}
 	return stripped
 }
@@ -699,30 +856,27 @@ func stripResponsesInlineImageValue(value any) int {
 	}
 }
 
-func countResponsesInlineImageItems(item gjson.Result) int {
-	if !item.Exists() {
-		return 0
-	}
-	if item.IsArray() {
+func countResponsesInlineImageItems(value any) int {
+	switch typed := value.(type) {
+	case []any:
 		count := 0
-		for _, child := range item.Array() {
+		for _, child := range typed {
 			count += countResponsesInlineImageItems(child)
 		}
 		return count
-	}
-	if item.IsObject() {
-		if strings.TrimSpace(item.Get("type").String()) == "input_image" &&
-			isResponsesInlineImageDataURL(item.Get("image_url").String()) {
+	case map[string]any:
+		if stringFromAny(typed["type"]) == "input_image" &&
+			isResponsesInlineImageDataURL(stringFromAny(typed["image_url"])) {
 			return 1
 		}
 		count := 0
-		item.ForEach(func(_, child gjson.Result) bool {
+		for _, child := range typed {
 			count += countResponsesInlineImageItems(child)
-			return true
-		})
+		}
 		return count
+	default:
+		return 0
 	}
-	return 0
 }
 
 func isResponsesInlineImageDataURL(value string) bool {
@@ -741,7 +895,7 @@ func isResponsesInlineImageDataURL(value string) bool {
 	return strings.Contains(lower[:comma], ";base64")
 }
 
-func trimResponsesTranscriptHistoryToRequestBudget(requestBody []byte, items []any, targetBytes int) ([]any, int, bool) {
+func trimResponsesTranscriptHistoryToRequestBudget(requestBody []byte, items []responsesTranscriptItem, targetBytes int) ([]responsesTranscriptItem, int, bool) {
 	if len(items) == 0 {
 		return items, 0, false
 	}
@@ -770,7 +924,7 @@ func trimResponsesTranscriptHistoryToRequestBudget(requestBody []byte, items []a
 	return items, trimmed, trimmed > 0
 }
 
-func oldestResponsesTranscriptTrimCandidate(items []any) int {
+func oldestResponsesTranscriptTrimCandidate(items []responsesTranscriptItem) int {
 	latestUserIndex := -1
 	for i, item := range items {
 		if responsesTranscriptItemIsUserMessage(item) {
@@ -789,28 +943,19 @@ func oldestResponsesTranscriptTrimCandidate(items []any) int {
 	return -1
 }
 
-func responsesTranscriptItemIsUserMessage(item any) bool {
-	typed, ok := item.(map[string]any)
-	if !ok {
-		return false
-	}
-	return strings.TrimSpace(fmt.Sprint(typed["type"])) == "message" &&
-		strings.TrimSpace(fmt.Sprint(typed["role"])) == "user"
+func responsesTranscriptItemIsUserMessage(item responsesTranscriptItem) bool {
+	return item.typeValue() == "message" && item.roleValue() == "user"
 }
 
-func responsesTranscriptItemIsTrimProtected(item any) bool {
-	typed, ok := item.(map[string]any)
-	if !ok {
-		return false
-	}
-	itemType := strings.TrimSpace(fmt.Sprint(typed["type"]))
+func responsesTranscriptItemIsTrimProtected(item responsesTranscriptItem) bool {
+	itemType := item.typeValue()
 	if itemType == "compaction" || itemType == "compaction_summary" {
 		return true
 	}
-	return itemType == "message" && strings.TrimSpace(fmt.Sprint(typed["role"])) == "developer"
+	return itemType == "message" && item.roleValue() == "developer"
 }
 
-func removeResponsesTranscriptItemWithCounterpart(items []any, index int) []any {
+func removeResponsesTranscriptItemWithCounterpart(items []responsesTranscriptItem, index int) []responsesTranscriptItem {
 	if index < 0 || index >= len(items) {
 		return items
 	}
@@ -855,20 +1000,12 @@ func removeResponsesTranscriptItemWithCounterpart(items []any, index int) []any 
 	return out
 }
 
-func responsesTranscriptItemType(item any) string {
-	typed, ok := item.(map[string]any)
-	if !ok {
-		return ""
-	}
-	return strings.TrimSpace(fmt.Sprint(typed["type"]))
+func responsesTranscriptItemType(item responsesTranscriptItem) string {
+	return item.typeValue()
 }
 
-func responsesTranscriptItemCallID(item any) string {
-	typed, ok := item.(map[string]any)
-	if !ok {
-		return ""
-	}
-	return strings.TrimSpace(fmt.Sprint(typed["call_id"]))
+func responsesTranscriptItemCallID(item responsesTranscriptItem) string {
+	return item.callIDValue()
 }
 
 func responsesTranscriptItemHasCallCounterpart(itemType string) bool {
@@ -878,4 +1015,72 @@ func responsesTranscriptItemHasCallCounterpart(itemType string) bool {
 	default:
 		return false
 	}
+}
+
+func parseOpenAIErrorCode(body []byte) string {
+	var response openAIErrorCodeResponse
+	if err := json.Unmarshal(body, &response); err != nil {
+		return ""
+	}
+	if rawJSONHasValue(response.Error) && isJSONObjectRaw(response.Error) {
+		var nested openAIErrorCodeObject
+		if err := json.Unmarshal(response.Error, &nested); err == nil {
+			if code := errorCodeString(nested.Code); code != "" {
+				return code
+			}
+		}
+	}
+	return errorCodeString(response.Code)
+}
+
+func errorCodeString(value any) string {
+	switch typed := value.(type) {
+	case string:
+		return strings.ToLower(strings.TrimSpace(typed))
+	case json.RawMessage:
+		return strings.ToLower(strings.TrimSpace(stringFromRawJSON(typed)))
+	case nil:
+		return ""
+	default:
+		return strings.ToLower(strings.TrimSpace(fmt.Sprint(value)))
+	}
+}
+
+func rawJSONHasValue(raw json.RawMessage) bool {
+	trimmed := strings.TrimSpace(string(raw))
+	return trimmed != "" && trimmed != "null"
+}
+
+func stringFromRawJSON(raw json.RawMessage) string {
+	if !rawJSONHasValue(raw) {
+		return ""
+	}
+	var value string
+	if err := json.Unmarshal(raw, &value); err == nil {
+		return strings.TrimSpace(value)
+	}
+	return strings.TrimSpace(string(raw))
+}
+
+func stringFromAny(value any) string {
+	switch typed := value.(type) {
+	case string:
+		return strings.TrimSpace(typed)
+	case json.RawMessage:
+		return stringFromRawJSON(typed)
+	case nil:
+		return ""
+	default:
+		return strings.TrimSpace(fmt.Sprint(typed))
+	}
+}
+
+func isJSONArrayRaw(raw json.RawMessage) bool {
+	trimmed := strings.TrimSpace(string(raw))
+	return strings.HasPrefix(trimmed, "[")
+}
+
+func isJSONObjectRaw(raw json.RawMessage) bool {
+	trimmed := strings.TrimSpace(string(raw))
+	return strings.HasPrefix(trimmed, "{")
 }
