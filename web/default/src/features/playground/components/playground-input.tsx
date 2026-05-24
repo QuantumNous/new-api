@@ -51,7 +51,11 @@ import {
 } from '@/components/ai-elements/prompt-input'
 import { Suggestion, Suggestions } from '@/components/ai-elements/suggestion'
 import { ModelGroupSelector } from '@/components/model-group-selector'
-import { PLAYGROUND_PROMPT_SUGGESTIONS_VISIBLE } from '../constants'
+import {
+  PLAYGROUND_ATTACHMENT_TOOLS_VISIBLE,
+  PLAYGROUND_PROMPT_SUGGESTIONS_VISIBLE,
+  PLAYGROUND_SEARCH_VISIBLE,
+} from '../constants'
 import {
   playgroundPromptInputGroupClassName,
   playgroundPromptOutlineButtonClassName,
@@ -120,6 +124,9 @@ export function PlaygroundInput({
     onSubmit(suggestion)
   }
 
+  const showInputToolbarTools =
+    PLAYGROUND_ATTACHMENT_TOOLS_VISIBLE || PLAYGROUND_SEARCH_VISIBLE
+
   return (
     <div className={cn('grid shrink-0 gap-4 px-1 md:pb-4', playgroundShellClassName)}>
       <PromptInput
@@ -139,62 +146,74 @@ export function PlaygroundInput({
         />
 
         <PromptInputFooter className='p-2.5'>
-          <PromptInputTools>
-            <DropdownMenu>
-              <DropdownMenuTrigger
-                render={
-                  <PromptInputButton
-                    className={cn('border font-medium', playgroundPromptOutlineButtonClassName)}
-                    disabled={disabled}
-                    variant='outline'
-                  />
-                }
-              >
-                <PaperclipIcon size={16} />
-                <span className='hidden sm:inline'>{t('Attach')}</span>
-                <span className='sr-only sm:hidden'>{t('Attach')}</span>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align='start'>
-                <DropdownMenuItem
-                  onClick={() => handleFileAction('upload-file')}
-                >
-                  <FileIcon className='mr-2' size={16} />
-                  {t('Upload file')}
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  onClick={() => handleFileAction('upload-photo')}
-                >
-                  <ImageIcon className='mr-2' size={16} />
-                  {t('Upload photo')}
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  onClick={() => handleFileAction('take-screenshot')}
-                >
-                  <ScreenShareIcon className='mr-2' size={16} />
-                  {t('Take screenshot')}
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  onClick={() => handleFileAction('take-photo')}
-                >
-                  <CameraIcon className='mr-2' size={16} />
-                  {t('Take photo')}
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+          {showInputToolbarTools ? (
+            <PromptInputTools>
+              {PLAYGROUND_ATTACHMENT_TOOLS_VISIBLE ? (
+                <DropdownMenu>
+                  <DropdownMenuTrigger
+                    render={
+                      <PromptInputButton
+                        className={cn(
+                          'border font-medium',
+                          playgroundPromptOutlineButtonClassName
+                        )}
+                        disabled={disabled}
+                        variant='outline'
+                      />
+                    }
+                  >
+                    <PaperclipIcon size={16} />
+                    <span className='hidden sm:inline'>{t('Attach')}</span>
+                    <span className='sr-only sm:hidden'>{t('Attach')}</span>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align='start'>
+                    <DropdownMenuItem
+                      onClick={() => handleFileAction('upload-file')}
+                    >
+                      <FileIcon className='mr-2' size={16} />
+                      {t('Upload file')}
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={() => handleFileAction('upload-photo')}
+                    >
+                      <ImageIcon className='mr-2' size={16} />
+                      {t('Upload photo')}
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={() => handleFileAction('take-screenshot')}
+                    >
+                      <ScreenShareIcon className='mr-2' size={16} />
+                      {t('Take screenshot')}
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={() => handleFileAction('take-photo')}
+                    >
+                      <CameraIcon className='mr-2' size={16} />
+                      {t('Take photo')}
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              ) : null}
 
-            <PromptInputButton
-              className={cn('border font-medium', playgroundPromptOutlineButtonClassName)}
-              disabled={disabled}
-              onClick={() => toast.info(t('Search feature in development'))}
-              variant='outline'
-            >
-              <GlobeIcon size={16} />
-              <span className='hidden sm:inline'>{t('Search')}</span>
-              <span className='sr-only sm:hidden'>{t('Search')}</span>
-            </PromptInputButton>
-          </PromptInputTools>
+              {PLAYGROUND_SEARCH_VISIBLE ? (
+                <PromptInputButton
+                  className={cn(
+                    'border font-medium',
+                    playgroundPromptOutlineButtonClassName
+                  )}
+                  disabled={disabled}
+                  onClick={() => toast.info(t('Search feature in development'))}
+                  variant='outline'
+                >
+                  <GlobeIcon size={16} />
+                  <span className='hidden sm:inline'>{t('Search')}</span>
+                  <span className='sr-only sm:hidden'>{t('Search')}</span>
+                </PromptInputButton>
+              ) : null}
+            </PromptInputTools>
+          ) : null}
 
-          <div className='flex items-center gap-1.5 md:gap-2'>
+          <div className='ml-auto flex items-center gap-1.5 md:gap-2'>
             <ModelGroupSelector
               selectedModel={modelValue}
               models={models}

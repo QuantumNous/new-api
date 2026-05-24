@@ -75,6 +75,12 @@ export const STORAGE_KEYS = {
 /** Demo / product UI: hide example prompt chips under the chat input. */
 export const PLAYGROUND_PROMPT_SUGGESTIONS_VISIBLE = false
 
+/** Demo / product UI: hide attach / upload placeholder tools in the chat input bar. */
+export const PLAYGROUND_ATTACHMENT_TOOLS_VISIBLE = false
+
+/** Demo / product UI: hide web search placeholder button in the chat input bar. */
+export const PLAYGROUND_SEARCH_VISIBLE = false
+
 // Error messages
 export const ERROR_MESSAGES = {
   API_REQUEST_ERROR: 'Request error occurred',
