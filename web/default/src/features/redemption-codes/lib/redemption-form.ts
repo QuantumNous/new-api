@@ -39,7 +39,7 @@ export function getRedemptionFormSchema(t: TFunction) {
         .string()
         .min(REDEMPTION_VALIDATION.NAME_MIN_LENGTH, msg.NAME_LENGTH_INVALID)
         .max(REDEMPTION_VALIDATION.NAME_MAX_LENGTH, msg.NAME_LENGTH_INVALID),
-      quota_dollars: z.number().min(1, t('Quota must be a positive number')),
+      quota_dollars: z.number().min(0, t('Quota must be a positive number')),
       expired_time: z.date().optional(),
       count: z
         .number()
@@ -48,6 +48,13 @@ export function getRedemptionFormSchema(t: TFunction) {
         .optional(),
     })
     .superRefine((data, ctx) => {
+      if (data.redemption_type === 'quota' && data.quota_dollars < 1) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['quota_dollars'],
+          message: t('Quota must be a positive number'),
+        })
+      }
       if (
         data.redemption_type === 'subscription' &&
         data.subscription_plan_id <= 0
