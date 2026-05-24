@@ -246,11 +246,26 @@ export function processChartData(
   // Aggregate all metrics by time and model
   const timeModelMap = new Map<
     string,
-    Map<string, { quota: number; count: number; tokens: number }>
+    Map<
+      string,
+      {
+        quota: number
+        count: number
+        tokens: number
+        cacheRead: number
+        cacheCreation: number
+      }
+    >
   >()
   const modelTotalsMap = new Map<
     string,
-    { quota: number; count: number; tokens: number }
+    {
+      quota: number
+      count: number
+      tokens: number
+      cacheRead: number
+      cacheCreation: number
+    }
   >()
 
   data.forEach((item) => {
@@ -260,17 +275,30 @@ export function processChartData(
     const quota = Number(item.quota) || 0
     const count = Number(item.count) || 0
     const tokens = Number(item.token_used) || 0
+    const cacheRead = Number(item.cache_tokens) || 0
+    const cacheCreation =
+      (Number(item.cache_creation_tokens) || 0) +
+      (Number(item.cache_creation_tokens_5m) || 0) +
+      (Number(item.cache_creation_tokens_1h) || 0)
 
     // Aggregate by time and model
     if (!timeModelMap.has(timeKey)) {
       timeModelMap.set(timeKey, new Map())
     }
     const modelMap = timeModelMap.get(timeKey)!
-    const existing = modelMap.get(model) || { quota: 0, count: 0, tokens: 0 }
+    const existing = modelMap.get(model) || {
+      quota: 0,
+      count: 0,
+      tokens: 0,
+      cacheRead: 0,
+      cacheCreation: 0,
+    }
     modelMap.set(model, {
       quota: existing.quota + quota,
       count: existing.count + count,
       tokens: existing.tokens + tokens,
+      cacheRead: existing.cacheRead + cacheRead,
+      cacheCreation: existing.cacheCreation + cacheCreation,
     })
 
     // Calculate totals
@@ -278,11 +306,15 @@ export function processChartData(
       quota: 0,
       count: 0,
       tokens: 0,
+      cacheRead: 0,
+      cacheCreation: 0,
     }
     modelTotalsMap.set(model, {
       quota: totalExisting.quota + quota,
       count: totalExisting.count + count,
       tokens: totalExisting.tokens + tokens,
+      cacheRead: totalExisting.cacheRead + cacheRead,
+      cacheCreation: totalExisting.cacheCreation + cacheCreation,
     })
   })
 
@@ -350,6 +382,8 @@ export function processChartData(
     rawQuota: number
     Usage: number
     TimeSum: number
+    cacheRead: number
+    cacheCreation: number
   }> = []
 
   chartTimes.forEach((time) => {
@@ -365,6 +399,8 @@ export function processChartData(
         rawQuota,
         Usage: usage,
         TimeSum: 0,
+        cacheRead: Number(stats?.cacheRead) || 0,
+        cacheCreation: Number(stats?.cacheCreation) || 0,
       }
     })
 
@@ -389,7 +425,15 @@ export function processChartData(
 
   const areaValues: typeof lineValues = []
   chartTimes.forEach((time) => {
-    const buckets = new Map<string, { rawQuota: number; usage: number }>()
+    const buckets = new Map<
+      string,
+      {
+        rawQuota: number
+        usage: number
+        cacheRead: number
+        cacheCreation: number
+      }
+    >()
     const modelMap = timeModelMap.get(time)
     let timeSum = 0
     sortedModels.forEach((model) => {
@@ -397,12 +441,21 @@ export function processChartData(
       const rawQuota = Number(stats?.quota) || 0
       const usd = rawQuota ? rawQuota / quotaPerUnit : 0
       const usage = usd ? Number(usd.toFixed(4)) : 0
+      const cacheRead = Number(stats?.cacheRead) || 0
+      const cacheCreation = Number(stats?.cacheCreation) || 0
       timeSum += rawQuota
       const key = topAreaModels.has(model) ? model : otherLabel
-      const prev = buckets.get(key) || { rawQuota: 0, usage: 0 }
+      const prev = buckets.get(key) || {
+        rawQuota: 0,
+        usage: 0,
+        cacheRead: 0,
+        cacheCreation: 0,
+      }
       buckets.set(key, {
         rawQuota: prev.rawQuota + rawQuota,
         usage: Number((prev.usage + usage).toFixed(4)),
+        cacheRead: prev.cacheRead + cacheRead,
+        cacheCreation: prev.cacheCreation + cacheCreation,
       })
     })
     for (const [model, vals] of buckets) {
@@ -412,6 +465,8 @@ export function processChartData(
         rawQuota: vals.rawQuota,
         Usage: vals.usage,
         TimeSum: timeSum,
+        cacheRead: vals.cacheRead,
+        cacheCreation: vals.cacheCreation,
       })
     }
   })
