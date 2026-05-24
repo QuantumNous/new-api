@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useTheme } from '@/context/theme-provider'
 import { useNotifications } from '@/hooks/use-notifications'
@@ -29,28 +29,83 @@ export function useStaticHomeTheme() {
   const { resolvedTheme, setTheme } = useTheme()
   const [animating, setAnimating] = useState(false)
   const [revealTheme, setRevealTheme] = useState(resolvedTheme)
+  const commitTimer = useRef<number | null>(null)
+  const revealTimer = useRef<number | null>(null)
+  const switchTimer = useRef<number | null>(null)
+  const supportsViewTransition =
+    typeof document !== 'undefined' && 'startViewTransition' in document
 
-  const toggleTheme = useCallback(() => {
-    const nextTheme = resolvedTheme === 'dark' ? 'light' : 'dark'
-    const reduceMotion = window.matchMedia(
-      '(prefers-reduced-motion: reduce)'
-    ).matches
+  const clearTimers = useCallback(() => {
+    if (commitTimer.current !== null) window.clearTimeout(commitTimer.current)
+    if (revealTimer.current !== null) window.clearTimeout(revealTimer.current)
+    if (switchTimer.current !== null) window.clearTimeout(switchTimer.current)
+    commitTimer.current = null
+    revealTimer.current = null
+    switchTimer.current = null
+  }, [])
 
-    setRevealTheme(nextTheme)
-    if (!reduceMotion) {
+  const applyRevealVars = useCallback(
+    (nextTheme: 'dark' | 'light', trigger?: HTMLElement | null) => {
+      const rect = trigger?.getBoundingClientRect()
+      const x = rect ? rect.left + rect.width / 2 : window.innerWidth - 48
+      const y = rect ? rect.top + rect.height / 2 : 32
+      const radius = Math.ceil(
+        Math.hypot(
+          Math.max(x, window.innerWidth - x),
+          Math.max(y, window.innerHeight - y)
+        )
+      )
+      const root = document.documentElement
+      const color = nextTheme === 'light' ? 'rgba(248, 250, 251, 0.98)' : 'rgba(17, 19, 21, 0.98)'
+
+      root.style.setProperty('--home-theme-reveal-x', `${x}px`)
+      root.style.setProperty('--home-theme-reveal-y', `${y}px`)
+      root.style.setProperty('--home-theme-reveal-radius', `${radius}px`)
+      root.style.setProperty('--home-theme-reveal-diameter', `${radius * 2}px`)
+      root.style.setProperty('--home-theme-reveal-color', color)
+    },
+    []
+  )
+
+  const toggleTheme = useCallback(
+    (trigger?: HTMLElement | null) => {
+      clearTimers()
+
+      const nextTheme = resolvedTheme === 'dark' ? 'light' : 'dark'
+      const reduceMotion = window.matchMedia(
+        '(prefers-reduced-motion: reduce)'
+      ).matches
+
+      setRevealTheme(nextTheme)
+      applyRevealVars(nextTheme, trigger)
+
+      if (reduceMotion) {
+        setTheme(nextTheme)
+        return
+      }
+
       setAnimating(true)
-      window.setTimeout(() => setAnimating(false), 960)
-      window.setTimeout(() => setTheme(nextTheme), 260)
-      return
-    }
+      switchTimer.current = window.setTimeout(() => setAnimating(false), 840)
 
-    setTheme(nextTheme)
-  }, [resolvedTheme, setTheme])
+      if (supportsViewTransition) {
+        document.startViewTransition(() => setTheme(nextTheme))
+        return
+      }
+
+      commitTimer.current = window.setTimeout(() => setTheme(nextTheme), 522)
+      revealTimer.current = window.setTimeout(() => setAnimating(false), 900)
+    },
+    [applyRevealVars, clearTimers, resolvedTheme, setTheme, supportsViewTransition]
+  )
+
+  useEffect(() => () => clearTimers(), [clearTimers])
 
   return {
     animating,
     isDark: resolvedTheme === 'dark',
     revealTheme,
+    supportsViewTransition,
+    transitionMode: supportsViewTransition ? 'view' : 'fallback',
     theme: resolvedTheme,
     toggleTheme,
   }

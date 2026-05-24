@@ -28,7 +28,7 @@ type HomeNavProps = {
   mobileOpen: boolean
   setMobileOpen: (open: boolean | ((open: boolean) => boolean)) => void
   t: StaticHomeText
-  toggleTheme: () => void
+  toggleTheme: (trigger?: HTMLElement | null) => void
 }
 
 export function HomeNav({
@@ -75,7 +75,7 @@ export function HomeNav({
           <button
             type='button'
             className='static-home__theme-toggle'
-            onClick={toggleTheme}
+            onClick={(event) => toggleTheme(event.currentTarget)}
             aria-label={
               isDark ? t('home.static.theme.toLight') : t('home.static.theme.toDark')
             }
@@ -110,7 +110,7 @@ export function HomeNav({
               {t(link.labelKey)}
             </a>
           ))}
-          <button type='button' onClick={toggleTheme}>
+          <button type='button' onClick={(event) => toggleTheme(event.currentTarget)}>
             {isDark ? <Sun className='size-4' /> : <Moon className='size-4' />}
             {isDark ? t('home.static.theme.toLight') : t('home.static.theme.toDark')}
           </button>

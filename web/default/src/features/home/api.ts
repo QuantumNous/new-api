@@ -28,9 +28,11 @@ import type { HomePageContentResponse } from './types'
  * Returns Markdown/HTML content or iframe URL
  */
 export async function getHomePageContent(): Promise<HomePageContentResponse> {
-  const res = await api.get('/api/home_page_content', {
+  const config = {
     skipBusinessError: true,
     skipErrorHandler: true,
-  })
+  } as Parameters<typeof api.get>[1]
+
+  const res = await api.get('/api/home_page_content', config)
   return res.data
 }

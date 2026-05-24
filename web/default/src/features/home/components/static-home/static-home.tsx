@@ -59,12 +59,19 @@ export function StaticHomePage() {
   const primaryHref = auth.user ? '/console' : '/sign-up'
 
   return (
-    <main className='static-home' data-theme={theme.theme} id='top'>
-      <span
-        className={cn('static-home__theme-reveal', theme.animating && 'is-active')}
-        data-reveal-theme={theme.revealTheme}
-        aria-hidden='true'
-      />
+    <main
+      className={cn('static-home', theme.animating && 'is-theme-switching')}
+      data-theme={theme.theme}
+      data-theme-transition-mode={theme.transitionMode}
+      id='top'
+    >
+      {theme.transitionMode === 'fallback' && (
+        <span
+          className={cn('static-home__theme-reveal', theme.animating && 'is-active')}
+          data-reveal-theme={theme.revealTheme}
+          aria-hidden='true'
+        />
+      )}
       <HomeNav
         announcement={announcement}
         isDark={theme.isDark}

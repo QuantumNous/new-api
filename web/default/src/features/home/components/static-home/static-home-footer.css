@@ -74,17 +74,72 @@
 
 @keyframes staticHomeThemeReveal {
   0% {
-    opacity: 0;
-    transform: scale(0.02);
-  }
-  46% {
-    opacity: 1;
-    transform: scale(1);
+    opacity: 0.86;
+    transform: translate(-50%, -50%) scale(0);
   }
   100% {
-    opacity: 0;
+    opacity: 0.92;
+    transform: translate(-50%, -50%) scale(1);
+  }
+}
+
+@keyframes staticHomeThemeTogglePulse {
+  0% {
+    transform: scale(0.94);
+  }
+  38% {
     transform: scale(1.08);
   }
+  100% {
+    transform: scale(1);
+  }
+}
+
+@keyframes staticHomeThemeIconPop {
+  0% {
+    opacity: 0.25;
+    transform: scale(0.72) rotate(-20deg);
+  }
+  56% {
+    opacity: 1;
+    transform: scale(1.16) rotate(14deg);
+  }
+  100% {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes staticHomeThemeViewReveal {
+  0% {
+    clip-path: circle(28px at var(--home-theme-reveal-x, 100vw) var(--home-theme-reveal-y, 32px));
+  }
+  100% {
+    clip-path: circle(
+      var(--home-theme-reveal-radius, 140vmax) at var(--home-theme-reveal-x, 100vw)
+      var(--home-theme-reveal-y, 32px)
+    );
+  }
+}
+
+::view-transition-old(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+
+::view-transition-new(root) {
+  animation: staticHomeThemeViewReveal 900ms linear;
+  mix-blend-mode: normal;
+}
+
+.static-home.is-theme-switching .static-home__theme-toggle,
+.static-home.is-theme-switching .static-home__mobile-menu button {
+  animation: staticHomeThemeTogglePulse 840ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.static-home.is-theme-switching .static-home__theme-toggle svg,
+.static-home.is-theme-switching .static-home__mobile-menu button svg {
+  animation: staticHomeThemeIconPop 840ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 @keyframes homePulse {
@@ -215,6 +270,11 @@
   .static-home__theme-reveal {
     animation: none !important;
     transition: none !important;
+  }
+
+  ::view-transition-old(root),
+  ::view-transition-new(root) {
+    animation: none !important;
   }
 
   [data-home-reveal] {
