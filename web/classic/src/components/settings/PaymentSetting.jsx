@@ -52,9 +52,6 @@ const PaymentSetting = () => {
     StripeMinTopUp: 1,
     StripePromotionCodesEnabled: false,
 
-    WaffoPancakeMerchantID: '',
-    WaffoPancakePrivateKey: '',
-    WaffoPancakeReturnURL: '',
     'payment_setting.compliance_confirmed': false,
     'payment_setting.compliance_terms_version': '',
     'payment_setting.compliance_confirmed_at': 0,
@@ -164,11 +161,6 @@ const PaymentSetting = () => {
           case 'StripeUnitPrice':
           case 'StripeMinTopUp':
             newInputs[item.key] = parseFloat(item.value);
-            break;
-          case 'WaffoPancakeMerchantID':
-          case 'WaffoPancakePrivateKey':
-          case 'WaffoPancakeReturnURL':
-            newInputs[item.key] = item.value;
             break;
           default:
             if (item.key.endsWith('Enabled')) {
@@ -299,13 +291,6 @@ const PaymentSetting = () => {
               </Tabs.TabPane>
               <Tabs.TabPane tab={t('Creem 设置')} itemKey='creem'>
                 <SettingsPaymentGatewayCreem
-                  options={inputs}
-                  refresh={onRefresh}
-                  hideSectionTitle
-                />
-              </Tabs.TabPane>
-              <Tabs.TabPane tab={t('Waffo Pancake 设置')} itemKey='waffo-pancake'>
-                <SettingsPaymentGatewayWaffoPancake
                   options={inputs}
                   refresh={onRefresh}
                   hideSectionTitle
