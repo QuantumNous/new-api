@@ -46,6 +46,8 @@ export function LogStatCards(props: LogStatCardsProps) {
     totalQuota: number
     totalCount: number
     totalTokens: number
+    totalCacheRead: number
+    totalCacheCreation: number
   } | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(false)
@@ -98,6 +100,8 @@ export function LogStatCards(props: LogStatCardsProps) {
     rpm: stats?.totalCount ?? 0,
     quota: stats?.totalQuota ?? 0,
     tpm: stats?.totalTokens ?? 0,
+    cacheRead: stats?.totalCacheRead ?? 0,
+    cacheCreation: stats?.totalCacheCreation ?? 0,
   }
 
   const items = statCardsConfig.map((config) => ({
