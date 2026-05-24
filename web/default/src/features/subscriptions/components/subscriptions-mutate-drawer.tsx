@@ -673,9 +673,7 @@ export function SubscriptionsMutateDrawer({
                           disabled={items.length === 0}
                         >
                           <SelectTrigger className='w-full flex-1'>
-                            <SelectValue
-                              placeholder={t('Select a product')}
-                            />
+                            <SelectValue placeholder={t('Select a product')} />
                           </SelectTrigger>
                           <SelectContent>
                             {items.map((item) => (
@@ -689,7 +687,9 @@ export function SubscriptionsMutateDrawer({
                           type='button'
                           variant='outline'
                           onClick={handleCreatePancakeProduct}
-                          disabled={creatingPancakeProduct || !pancakeCreateReady}
+                          disabled={
+                            creatingPancakeProduct || !pancakeCreateReady
+                          }
                           className='shrink-0'
                         >
                           {creatingPancakeProduct

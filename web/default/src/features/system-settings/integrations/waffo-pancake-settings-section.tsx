@@ -75,9 +75,7 @@ const DEFAULT_NEW_PAIR_NAME = `${DEFAULT_NEW_STORE_NAME} + ${DEFAULT_NEW_PRODUCT
 export function WaffoPancakeSettingsSection(props: Props) {
   const { t } = useTranslation()
 
-  const [storeID, setStoreID] = React.useState(
-    props.provisionedStoreID ?? ''
-  )
+  const [storeID, setStoreID] = React.useState(props.provisionedStoreID ?? '')
   const [productID, setProductID] = React.useState(
     props.provisionedProductID ?? ''
   )
@@ -283,9 +281,7 @@ export function WaffoPancakeSettingsSection(props: Props) {
   // returning admins (saved merchant ID but empty key field) would send
   // a mixed-state body that the backend rejects.
   const readCreds = () => {
-    const formMerchant = (
-      form.getValues('WaffoPancakeMerchantID') || ''
-    ).trim()
+    const formMerchant = (form.getValues('WaffoPancakeMerchantID') || '').trim()
     const formKey = (form.getValues('WaffoPancakePrivateKey') || '').trim()
     const saved = (props.defaultValues.WaffoPancakeMerchantID || '').trim()
     const edited = formMerchant !== saved || formKey.length > 0
@@ -370,12 +366,8 @@ export function WaffoPancakeSettingsSection(props: Props) {
     // Sends raw form values (not readCreds): SaveWaffoPancakeConfig already
     // treats a blank PrivateKey as "keep existing", and MerchantID stays
     // populated from props for returning admins.
-    const merchantID = (
-      form.getValues('WaffoPancakeMerchantID') || ''
-    ).trim()
-    const privateKey = (
-      form.getValues('WaffoPancakePrivateKey') || ''
-    ).trim()
+    const merchantID = (form.getValues('WaffoPancakeMerchantID') || '').trim()
+    const privateKey = (form.getValues('WaffoPancakePrivateKey') || '').trim()
     if (!merchantID) {
       toast.error(t('Merchant ID is required'))
       return

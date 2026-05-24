@@ -89,9 +89,7 @@ export function FetchModelsDialog({
 
   // Parse existing models
   const existingModels = useMemo(
-    () =>
-      existingModelsOverride ??
-      parseModelsString(currentRow?.models || ''),
+    () => existingModelsOverride ?? parseModelsString(currentRow?.models || ''),
     [existingModelsOverride, currentRow?.models]
   )
 
@@ -369,12 +367,14 @@ export function FetchModelsDialog({
         <DialogHeader>
           <DialogTitle>{t('Fetch Models')}</DialogTitle>
           <DialogDescription>
-            {currentRow
-              ? <>
-                  {t('Fetch available models for:')}{' '}
-                  <strong>{currentRow.name}</strong>
-                </>
-              : t('Fetch available models from upstream')}
+            {currentRow ? (
+              <>
+                {t('Fetch available models for:')}{' '}
+                <strong>{currentRow.name}</strong>
+              </>
+            ) : (
+              t('Fetch available models from upstream')
+            )}
           </DialogDescription>
         </DialogHeader>
 
