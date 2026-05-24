@@ -35,6 +35,7 @@ import {
   Trash2,
   Copy,
   FileText,
+  Gauge,
   Eraser,
   Plus,
   Eye,
@@ -240,6 +241,8 @@ function hasAdvancedSettingsValues(values: ChannelFormValues): boolean {
     values.pass_through_body_enabled ||
     values.system_prompt_override ||
     values.claude_beta_query ||
+    values.channel_rate_limit_enabled ||
+    values.channel_rate_limit_count ||
     values.upstream_model_update_check_enabled ||
     values.upstream_model_update_auto_sync_enabled ||
     values.upstream_model_update_ignored_models?.trim()
@@ -398,6 +401,7 @@ export function ChannelMutateDrawer({
   const upstreamModelUpdateCheckEnabled = form.watch(
     'upstream_model_update_check_enabled'
   )
+  const channelRateLimitEnabled = form.watch('channel_rate_limit_enabled')
   const currentSettings = form.watch('settings')
   const {
     unlocked: doubaoApiEditUnlocked,
@@ -3217,6 +3221,120 @@ export function ChannelMutateDrawer({
                         </FormItem>
                       )}
                     />
+
+                    <div className='space-y-3 rounded-lg border p-4'>
+                      <SubHeading
+                        title={t('Channel Rate Limit')}
+                        icon={<Gauge className='h-3.5 w-3.5' />}
+                      />
+                      <FormField
+                        control={form.control}
+                        name='channel_rate_limit_enabled'
+                        render={({ field }) => (
+                          <FormItem className='flex items-center justify-between'>
+                            <div className='space-y-0.5'>
+                              <FormLabel>
+                                {t('Enable Channel Rate Limit')}
+                              </FormLabel>
+                              <FormDescription>
+                                {t(
+                                  'Limit each user on this channel with a token bucket.'
+                                )}
+                              </FormDescription>
+                            </div>
+                            <FormControl>
+                              <Switch
+                                checked={field.value === true}
+                                onCheckedChange={field.onChange}
+                              />
+                            </FormControl>
+                          </FormItem>
+                        )}
+                      />
+                      <div className='grid gap-4 sm:grid-cols-3'>
+                        <FormField
+                          control={form.control}
+                          name='channel_rate_limit_count'
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>{t('Requests per Period')}</FormLabel>
+                              <FormControl>
+                                <Input
+                                  type='number'
+                                  min={0}
+                                  step={1}
+                                  disabled={!channelRateLimitEnabled}
+                                  placeholder='0'
+                                  {...field}
+                                  value={field.value ?? 0}
+                                  onChange={(e) =>
+                                    field.onChange(Number(e.target.value))
+                                  }
+                                />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+
+                        <FormField
+                          control={form.control}
+                          name='channel_rate_limit_period_seconds'
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>{t('Period Seconds')}</FormLabel>
+                              <FormControl>
+                                <Input
+                                  type='number'
+                                  min={1}
+                                  step={1}
+                                  disabled={!channelRateLimitEnabled}
+                                  placeholder='60'
+                                  {...field}
+                                  value={field.value ?? 60}
+                                  onChange={(e) =>
+                                    field.onChange(Number(e.target.value))
+                                  }
+                                />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+
+                        <FormField
+                          control={form.control}
+                          name='channel_rate_limit_scope'
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>{t('Rate Limit Scope')}</FormLabel>
+                              <Select
+                                disabled={!channelRateLimitEnabled}
+                                onValueChange={field.onChange}
+                                value={field.value || 'channel'}
+                              >
+                                <FormControl>
+                                  <SelectTrigger className='w-full'>
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                </FormControl>
+                                <SelectContent alignItemWithTrigger={false}>
+                                  <SelectGroup>
+                                    <SelectItem value='channel'>
+                                      {t('Per Channel')}
+                                    </SelectItem>
+                                    <SelectItem value='key'>
+                                      {t('Per Channel Key')}
+                                    </SelectItem>
+                                  </SelectGroup>
+                                </SelectContent>
+                              </Select>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      </div>
+                    </div>
 
                     {MODEL_FETCHABLE_TYPES.has(currentType) && (
                       <div className='space-y-3 rounded-lg border p-4'>

@@ -1,8 +1,11 @@
 package service
 
 import (
+	"errors"
+	"net/http"
 	"testing"
 
+	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/types"
 	"github.com/stretchr/testify/require"
 )
@@ -54,4 +57,20 @@ func TestResetStatusCode(t *testing.T) {
 			require.Equal(t, tc.expectedCode, newAPIError.StatusCode)
 		})
 	}
+}
+
+func TestShouldDisableChannelIgnoresLocalRateLimit(t *testing.T) {
+	old := common.AutomaticDisableChannelEnabled
+	common.AutomaticDisableChannelEnabled = true
+	defer func() {
+		common.AutomaticDisableChannelEnabled = old
+	}()
+
+	err := types.NewErrorWithStatusCode(
+		errors.New("channel #1 rate limit reached"),
+		types.ErrorCodeChannelRateLimited,
+		http.StatusTooManyRequests,
+	)
+
+	require.False(t, ShouldDisableChannel(err))
 }

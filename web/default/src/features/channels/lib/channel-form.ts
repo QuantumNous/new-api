@@ -78,6 +78,10 @@ export const channelFormSchema = z.object({
   upstream_model_update_check_enabled: z.boolean().optional(),
   upstream_model_update_auto_sync_enabled: z.boolean().optional(),
   upstream_model_update_ignored_models: z.string().optional(),
+  channel_rate_limit_enabled: z.boolean().optional(),
+  channel_rate_limit_count: z.number().int().min(0).optional(),
+  channel_rate_limit_period_seconds: z.number().int().min(1).optional(),
+  channel_rate_limit_scope: z.enum(['channel', 'key']).optional(),
 })
 
 export type ChannelFormValues = z.infer<typeof channelFormSchema>
@@ -135,11 +139,25 @@ export const CHANNEL_FORM_DEFAULT_VALUES: ChannelFormValues = {
   upstream_model_update_check_enabled: false,
   upstream_model_update_auto_sync_enabled: false,
   upstream_model_update_ignored_models: '',
+  channel_rate_limit_enabled: false,
+  channel_rate_limit_count: 0,
+  channel_rate_limit_period_seconds: 60,
+  channel_rate_limit_scope: 'channel',
 }
 
 // ============================================================================
 // Transform Functions
 // ============================================================================
+
+function numberOrDefault(value: unknown, defaultValue: number): number {
+  if (value === undefined || value === null || value === '') return defaultValue
+  const numberValue = Number(value)
+  return Number.isFinite(numberValue) ? numberValue : defaultValue
+}
+
+function integerOrDefault(value: unknown, defaultValue: number): number {
+  return Math.trunc(numberOrDefault(value, defaultValue))
+}
 
 /**
  * Transform Channel from API to Form default values
@@ -189,6 +207,10 @@ export function transformChannelToFormDefaults(
   let upstreamModelUpdateCheckEnabled = false
   let upstreamModelUpdateAutoSyncEnabled = false
   let upstreamModelUpdateIgnoredModels = ''
+  let channelRateLimitEnabled = false
+  let channelRateLimitCount = 0
+  let channelRateLimitPeriodSeconds = 60
+  let channelRateLimitScope: 'channel' | 'key' = 'channel'
 
   if (channel.settings) {
     try {
@@ -213,6 +235,17 @@ export function transformChannelToFormDefaults(
       )
         ? parsed.upstream_model_update_ignored_models.join(',')
         : ''
+      channelRateLimitEnabled = parsed.channel_rate_limit_enabled === true
+      channelRateLimitCount = integerOrDefault(
+        parsed.channel_rate_limit_count,
+        0
+      )
+      channelRateLimitPeriodSeconds = integerOrDefault(
+        parsed.channel_rate_limit_period_seconds,
+        60
+      )
+      channelRateLimitScope =
+        parsed.channel_rate_limit_scope === 'key' ? 'key' : 'channel'
     } catch (error) {
       // eslint-disable-next-line no-console
       console.error('Failed to parse channel settings:', error)
@@ -262,6 +295,10 @@ export function transformChannelToFormDefaults(
     upstream_model_update_check_enabled: upstreamModelUpdateCheckEnabled,
     upstream_model_update_auto_sync_enabled: upstreamModelUpdateAutoSyncEnabled,
     upstream_model_update_ignored_models: upstreamModelUpdateIgnoredModels,
+    channel_rate_limit_enabled: channelRateLimitEnabled,
+    channel_rate_limit_count: channelRateLimitCount,
+    channel_rate_limit_period_seconds: channelRateLimitPeriodSeconds,
+    channel_rate_limit_scope: channelRateLimitScope,
   }
 }
 
@@ -385,6 +422,19 @@ function buildSettingsJSON(formData: ChannelFormValues): string {
       settingsObj.upstream_model_update_last_check_time = 0
     }
   }
+
+  settingsObj.channel_rate_limit_enabled =
+    formData.channel_rate_limit_enabled === true
+  settingsObj.channel_rate_limit_count = integerOrDefault(
+    formData.channel_rate_limit_count,
+    0
+  )
+  settingsObj.channel_rate_limit_period_seconds = Math.max(
+    1,
+    integerOrDefault(formData.channel_rate_limit_period_seconds, 60)
+  )
+  settingsObj.channel_rate_limit_scope =
+    formData.channel_rate_limit_scope === 'key' ? 'key' : 'channel'
 
   return JSON.stringify(settingsObj)
 }
