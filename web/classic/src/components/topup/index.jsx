@@ -189,6 +189,7 @@ const TopUp = () => {
             content: `${t('成功兑换套餐：')}${planLabel}`,
             centered: true,
           });
+          await getSubscriptionSelf();
         } else {
           const quota = typeof data === 'number' ? data : data?.quota || 0;
           showSuccess(t('兑换成功！'));

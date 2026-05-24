@@ -379,8 +379,18 @@ func RequestOpenAI2ClaudeMessage(c *gin.Context, textRequest dto.GeneralOpenAIRe
 						}
 					case dto.ContentTypeFile:
 						file := mediaMessage.GetFile()
-						if file == nil || file.FileData == "" {
-							continue
+						if file == nil {
+							return nil, fmt.Errorf("claude file content is missing")
+						}
+						if file.FileData == "" {
+							fileLabel := file.FileName
+							if fileLabel == "" {
+								fileLabel = file.FileId
+							}
+							if fileLabel == "" {
+								fileLabel = "unknown file"
+							}
+							return nil, fmt.Errorf("claude file content is empty: %s", fileLabel)
 						}
 						mimeType := mimeTypeFromMessageFile(file)
 						if strings.HasPrefix(mimeType, "text/") {
@@ -395,7 +405,14 @@ func RequestOpenAI2ClaudeMessage(c *gin.Context, textRequest dto.GeneralOpenAIRe
 							continue
 						}
 						if mimeType != "application/pdf" {
-							continue
+							fileLabel := file.FileName
+							if fileLabel == "" {
+								fileLabel = file.FileId
+							}
+							if fileLabel == "" {
+								fileLabel = "unknown file"
+							}
+							return nil, fmt.Errorf("unsupported claude file mime type %s for %s", mimeType, fileLabel)
 						}
 						claudeMediaMessages = append(claudeMediaMessages, dto.ClaudeMediaMessage{
 							Type: "document",

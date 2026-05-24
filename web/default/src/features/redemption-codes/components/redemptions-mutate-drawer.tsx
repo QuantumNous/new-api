@@ -107,13 +107,17 @@ export function RedemptionsMutateDrawer({
     if (!open) {
       return
     }
-    getAdminPlans().then((result) => {
-      if (result.success && result.data) {
-        setPlans(result.data)
-      } else {
+    getAdminPlans()
+      .then((result) => {
+        if (result.success && result.data) {
+          setPlans(result.data)
+        } else {
+          setPlans([])
+        }
+      })
+      .catch(() => {
         setPlans([])
-      }
-    })
+      })
   }, [open])
 
   const onSubmit = async (data: RedemptionFormValues) => {

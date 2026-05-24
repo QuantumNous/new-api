@@ -284,6 +284,7 @@ func attachRedemptionPlanTitles(redemptions []*Redemption) {
 	}
 	var plans []SubscriptionPlan
 	if err := DB.Select("id", "title").Where("id IN ?", planIDs).Find(&plans).Error; err != nil {
+		common.SysError(fmt.Sprintf("failed to attach redemption subscription plan titles, plan_ids=%v: %s", planIDs, err.Error()))
 		return
 	}
 	planTitleMap := make(map[int]string, len(plans))
@@ -304,6 +305,7 @@ func attachRedemptionPlanTitle(redemption *Redemption) {
 	}
 	var plan SubscriptionPlan
 	if err := DB.Select("id", "title").Where("id = ?", redemption.SubscriptionPlanId).First(&plan).Error; err != nil {
+		common.SysError(fmt.Sprintf("failed to attach redemption subscription plan title, plan_id=%d: %s", redemption.SubscriptionPlanId, err.Error()))
 		return
 	}
 	redemption.SubscriptionPlanTitle = plan.Title

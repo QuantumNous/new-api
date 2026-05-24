@@ -42,6 +42,7 @@ export function useRedemption() {
 
       if (response.success && response.data !== undefined) {
         if (
+          response.data !== null &&
           typeof response.data === 'object' &&
           response.data.redemption_type === 'subscription'
         ) {
@@ -56,7 +57,7 @@ export function useRedemption() {
           const quotaAdded =
             typeof response.data === 'number'
               ? response.data
-              : response.data.quota
+              : response.data?.quota || 0
           toast.success(
             i18next.t('Redemption successful! Added: {{quota}}', {
               quota: formatQuota(quotaAdded),
