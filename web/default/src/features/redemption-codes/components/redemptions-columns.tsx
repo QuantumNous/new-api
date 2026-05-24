@@ -28,7 +28,7 @@ import {
 import { DataTableColumnHeader } from '@/components/data-table'
 import { MaskedValueDisplay } from '@/components/masked-value-display'
 import { StatusBadge } from '@/components/status-badge'
-import { REDEMPTION_FILTER_EXPIRED, REDEMPTION_STATUSES } from '../constants'
+import { REDEMPTION_FILTER_EXPIRED, REDEMPTION_STATUS, REDEMPTION_STATUSES } from '../constants'
 import { isRedemptionExpired, isTimestampExpired } from '../lib'
 import { type Redemption } from '../types'
 import { DataTableRowActions } from './data-table-row-actions'
