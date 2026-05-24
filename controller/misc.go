@@ -258,7 +258,7 @@ func SendEmailVerification(c *gin.Context) {
 		if !allowed {
 			c.JSON(http.StatusOK, gin.H{
 				"success": false,
-				"message": "The administrator has enabled the email domain name whitelist, and your email address is not allowed due to special symbols or it's not in the whitelist.",
+				"message": "请使用QQ邮箱注册或者Github注册",
 			})
 			return
 		}
