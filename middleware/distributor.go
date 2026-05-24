@@ -53,6 +53,10 @@ func Distribute() func(c *gin.Context) {
 				abortWithOpenAiMessage(c, http.StatusForbidden, i18n.T(c, i18n.MsgDistributorChannelDisabled))
 				return
 			}
+			if !service.IsChannelDailyTokenAvailable(channel) {
+				abortWithOpenAiMessage(c, http.StatusTooManyRequests, i18n.T(c, i18n.MsgDistributorChannelDailyTokenLimitExceeded), types.ErrorCodeChannelDailyTokenLimitExceeded)
+				return
+			}
 		} else {
 			// Select a channel for the user
 			// check token model mapping
@@ -109,6 +113,9 @@ func Distribute() func(c *gin.Context) {
 								abortWithOpenAiMessage(c, http.StatusForbidden, i18n.T(c, i18n.MsgDistributorAffinityChannelDisabled))
 								return
 							}
+						} else if !service.IsChannelDailyTokenAvailable(preferred) {
+							cleared := service.ClearChannelAffinityCacheForRequest(c)
+							common.SysLog(fmt.Sprintf("channel affinity ignored because preferred channel reached daily token limit: channel_id=%d, model=%s, group=%s, affinity_cache_cleared=%t", preferred.Id, modelRequest.Model, usingGroup, cleared))
 						} else if usingGroup == "auto" {
 							userGroup := common.GetContextKeyString(c, constant.ContextKeyUserGroup)
 							autoGroups := service.GetUserAutoGroup(userGroup)

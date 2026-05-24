@@ -57,8 +57,9 @@ const (
 	ErrorCodeChannelHeaderOverrideInvalid ErrorCode = "channel:header_override_invalid"
 	ErrorCodeChannelModelMappedError      ErrorCode = "channel:model_mapped_error"
 	ErrorCodeChannelAwsClientError        ErrorCode = "channel:aws_client_error"
-	ErrorCodeChannelInvalidKey            ErrorCode = "channel:invalid_key"
-	ErrorCodeChannelResponseTimeExceeded  ErrorCode = "channel:response_time_exceeded"
+	ErrorCodeChannelInvalidKey              ErrorCode = "channel:invalid_key"
+	ErrorCodeChannelResponseTimeExceeded    ErrorCode = "channel:response_time_exceeded"
+	ErrorCodeChannelDailyTokenLimitExceeded ErrorCode = "channel:daily_token_limit_exceeded"
 
 	// client request error
 	ErrorCodeReadRequestBodyFailed ErrorCode = "read_request_body_failed"

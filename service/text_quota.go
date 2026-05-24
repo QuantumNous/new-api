@@ -368,6 +368,18 @@ func PostTextConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, us
 	} else {
 		model.UpdateUserUsedQuotaAndRequestCount(relayInfo.UserId, summary.Quota)
 		model.UpdateChannelUsedQuota(relayInfo.ChannelId, summary.Quota)
+		// Daily token limit counts billable input + output only.
+		// Cache hits and cache-creation tokens are intentionally excluded so that
+		// the cap reflects what providers actually charge against free-tier
+		// allowances (e.g. OpenAI's daily quota does not count cached prompt
+		// tokens). On the OpenRouter Claude billing path summary.PromptTokens has
+		// already been reduced by CacheTokens / CacheCreationTokens earlier in
+		// calculateTextQuotaSummary, so reading prompt + completion here keeps
+		// the same "billable tokens" semantics across all channel types.
+		dailyTokenUsage := int64(summary.PromptTokens + summary.CompletionTokens)
+		if err := IncreaseChannelDailyTokenUsage(relayInfo.ChannelId, dailyTokenUsage); err != nil {
+			logger.LogError(ctx, "channel daily token usage NOT recorded, daily limit may not take effect: "+err.Error())
+		}
 	}
 
 	if err := SettleBilling(ctx, relayInfo, summary.Quota); err != nil {

@@ -1083,6 +1083,8 @@
     "Customize sidebar display content": "个性化设置左侧边栏的显示内容",
     "Daily": "每天",
     "Daily Check-in": "每日签到",
+    "Daily Token Limit": "每日 Token 限制",
+    "0 means unlimited. Resets at server local midnight.": "0 表示不限。将在服务器本地时间 0 点重置。",
     "Daily token usage by model across the past few weeks": "过去几周内按模型分布的每日 Token 使用量",
     "Daily token usage by model across the past month": "过去一个月内各模型的每日 Token 用量",
     "Daily token usage by model over the past month": "过去一个月内按模型分布的每日 Token 使用量",

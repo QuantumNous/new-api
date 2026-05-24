@@ -224,6 +224,10 @@ func PostWssConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, mod
 	} else {
 		model.UpdateUserUsedQuotaAndRequestCount(relayInfo.UserId, quota)
 		model.UpdateChannelUsedQuota(relayInfo.ChannelId, quota)
+		dailyTokenUsage := int64(usage.InputTokens + usage.OutputTokens)
+		if err := IncreaseChannelDailyTokenUsage(relayInfo.ChannelId, dailyTokenUsage); err != nil {
+			logger.LogError(ctx, "channel daily token usage NOT recorded, daily limit may not take effect: "+err.Error())
+		}
 	}
 
 	if err := SettleBilling(ctx, relayInfo, quota); err != nil {
@@ -345,6 +349,10 @@ func PostAudioConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, u
 	} else {
 		model.UpdateUserUsedQuotaAndRequestCount(relayInfo.UserId, quota)
 		model.UpdateChannelUsedQuota(relayInfo.ChannelId, quota)
+		dailyTokenUsage := int64(usage.PromptTokens + usage.CompletionTokens)
+		if err := IncreaseChannelDailyTokenUsage(relayInfo.ChannelId, dailyTokenUsage); err != nil {
+			logger.LogError(ctx, "channel daily token usage NOT recorded, daily limit may not take effect: "+err.Error())
+		}
 	}
 
 	if err := SettleBilling(ctx, relayInfo, quota); err != nil {
