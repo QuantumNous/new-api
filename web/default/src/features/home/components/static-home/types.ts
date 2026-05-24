@@ -16,21 +16,10 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { api } from '@/lib/api'
-import type { HomePageContentResponse } from './types'
+import type { useCopyToast, useHomeAnnouncement, useHomeModelStatus } from './hooks'
+import type { useStaticHomeText } from './translations'
 
-// ============================================================================
-// Home Page APIs
-// ============================================================================
-
-/**
- * Get custom home page content
- * Returns Markdown/HTML content or iframe URL
- */
-export async function getHomePageContent(): Promise<HomePageContentResponse> {
-  const res = await api.get('/api/home_page_content', {
-    skipBusinessError: true,
-    skipErrorHandler: true,
-  })
-  return res.data
-}
+export type StaticHomeText = ReturnType<typeof useStaticHomeText>
+export type CopyToast = ReturnType<typeof useCopyToast>
+export type HomeAnnouncement = ReturnType<typeof useHomeAnnouncement>
+export type HomeModelStatus = ReturnType<typeof useHomeModelStatus>

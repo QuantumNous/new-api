@@ -1,0 +1,224 @@
+﻿.static-home__footer-main > div:first-child > div {
+  display: flex;
+  gap: 10px;
+  margin-top: 18px;
+}
+
+.static-home__footer-main > div:first-child a {
+  align-items: center;
+  border: 1px solid var(--home-border);
+  border-radius: 999px;
+  display: flex;
+  height: 38px;
+  justify-content: center;
+  width: 38px;
+}
+
+.static-home__footer-columns {
+  display: grid;
+  gap: 22px;
+  grid-template-columns: repeat(4, 1fr);
+}
+
+.static-home__footer-columns a {
+  display: block;
+  margin: 10px 0;
+  text-decoration: none;
+}
+
+.static-home__footer-bottom {
+  align-items: center;
+  border-top: 1px solid var(--home-border);
+  display: flex;
+  justify-content: space-between;
+  margin-top: 34px;
+  padding-top: 22px;
+}
+
+.static-home__footer-bottom button,
+.static-home__footer-bottom a {
+  align-items: center;
+  background: transparent;
+  border: 1px solid var(--home-border);
+  border-radius: 999px;
+  display: inline-flex;
+  gap: 8px;
+  padding: 8px 12px;
+  text-decoration: none;
+}
+
+.static-home__toast {
+  background: var(--home-surface-strong);
+  border: 1px solid var(--home-border);
+  border-radius: 999px;
+  bottom: 28px;
+  box-shadow: var(--home-shadow);
+  left: 50%;
+  padding: 10px 18px;
+  position: fixed;
+  transform: translateX(-50%);
+  z-index: 80;
+}
+
+[data-home-reveal] {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  [data-home-reveal] {
+    animation: staticHomeReveal 620ms cubic-bezier(0.16, 1, 0.3, 1) both;
+    animation-delay: var(--home-reveal-delay, 0ms);
+  }
+}
+
+@keyframes staticHomeThemeReveal {
+  0% {
+    opacity: 0;
+    transform: scale(0.02);
+  }
+  46% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.08);
+  }
+}
+
+@keyframes homePulse {
+  0%,
+  100% {
+    transform: scale(0.9);
+  }
+  50% {
+    transform: scale(1.14);
+  }
+}
+
+@keyframes homeFloat {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+@keyframes staticHomeReveal {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (max-width: 980px) {
+  .static-home__nav {
+    padding-inline: 18px;
+  }
+
+  .static-home__nav-links,
+  .static-home__nav-actions {
+    display: none;
+  }
+
+  .static-home__mobile-button {
+    align-items: center;
+    background: var(--home-surface);
+    border: 1px solid var(--home-border);
+    border-radius: 12px;
+    display: flex;
+    height: 40px;
+    justify-content: center;
+    margin-left: auto;
+    width: 40px;
+  }
+
+  .static-home__mobile-menu {
+    align-items: stretch;
+    background: var(--home-surface-strong);
+    border: 1px solid var(--home-border);
+    border-radius: 18px;
+    display: grid;
+    gap: 8px;
+    margin-top: 10px;
+    padding: 14px;
+  }
+
+  .static-home__mobile-menu a,
+  .static-home__mobile-menu button {
+    align-items: center;
+    display: flex;
+    gap: 8px;
+    padding: 10px;
+    text-decoration: none;
+  }
+
+  .static-home__frame {
+    width: min(92vw, 720px);
+  }
+
+  .static-home__hero,
+  .static-home__developer-panel,
+  .static-home__footer-main,
+  .static-home__start > div {
+    grid-template-columns: 1fr;
+  }
+
+  .static-home__hero {
+    padding-top: 52px;
+  }
+
+  .static-home__why-grid,
+  .static-home__model-grid,
+  .static-home__pricing-grid,
+  .static-home__metrics,
+  .static-home__endpoint-strip,
+  .static-home__footer-columns {
+    grid-template-columns: 1fr;
+  }
+
+  .static-home__hero-features {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .static-home__hero-features article:nth-child(2n) {
+    border-right: 0;
+  }
+
+  .static-home__section-head--split,
+  .static-home__footer-bottom,
+  .static-home__start > div {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .static-home__announcement {
+    align-items: flex-start;
+    gap: 12px;
+  }
+
+  .static-home__announcement p {
+    white-space: normal;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .static-home *,
+  .static-home__theme-reveal {
+    animation: none !important;
+    transition: none !important;
+  }
+
+  [data-home-reveal] {
+    opacity: 1;
+    transform: none;
+  }
+}

@@ -1,0 +1,58 @@
+{
+  "updatedAt": "2026-05-24T16:01:22.678Z",
+  "version": 1,
+  "source": "~plan",
+  "originCommand": "plan",
+  "verifyMode": "test-first",
+  "reviewerFocus": [
+    "Keep static SEO page /prototypes/home-html/ available and unaffected by React home migration",
+    "Keep home feature boundaries clear; do not copy the whole static CSS file into React",
+    "Reuse existing announcement, theme, i18n, and model-status capabilities with fallback states",
+    "Validate dark/light themes, scroll motion, theme transition, accessibility, and reduced-motion behavior"
+  ],
+  "testerFocus": [
+    "React home / shows all core static-page content on desktop and mobile",
+    "Announcement success, empty, and error states work without blocking home rendering",
+    "Model status summary success, empty, and error states work and link to /status",
+    "Chinese and English language switching updates main home copy and aria labels",
+    "Dark/light theme transition is visible, recoverable, and respects prefers-reduced-motion",
+    "Static SEO page /prototypes/home-html/ remains reachable"
+  ],
+  "ui": {
+    "required": true,
+    "designContract": true,
+    "sourcePriority": [
+      "C:\\work\\aiapi114\\.helloagents\\plans\\202605242358_static_home_react_migration\\plan.md",
+      "C:\\work\\aiapi114\\.helloagents\\DESIGN.md",
+      "hello-ui"
+    ],
+    "styleAdvisor": {
+      "required": false,
+      "reason": "",
+      "focus": []
+    },
+    "visualValidation": {
+      "required": true,
+      "reason": "Full-page visual migration needs screenshot validation across static and React pages, themes, and key viewports.",
+      "screens": [
+        "React home / desktop 1440px dark mode",
+        "React home / desktop 1440px light mode",
+        "React home / mobile 390px dark mode",
+        "React home / mobile 390px light mode",
+        "Static SEO page /prototypes/home-html/ regression screenshot"
+      ],
+      "states": [
+        "Theme transition intermediate state",
+        "Announcement empty and error fallback states",
+        "Model status empty and error fallback states",
+        "Scrolled middle sections after entrance motion"
+      ]
+    }
+  },
+  "advisor": {
+    "required": false,
+    "reason": "",
+    "focus": [],
+    "preferredSources": []
+  }
+}
