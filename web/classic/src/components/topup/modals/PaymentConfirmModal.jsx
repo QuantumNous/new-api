@@ -21,6 +21,7 @@ import React from 'react';
 import { Modal, Typography, Card, Skeleton } from '@douyinfe/semi-ui';
 import { SiAlipay, SiWechat, SiStripe } from 'react-icons/si';
 import { CreditCard } from 'lucide-react';
+import { getBillingDisplayText } from '../../../helpers/billingDisplay';
 
 const { Text } = Typography;
 
@@ -39,6 +40,7 @@ const PaymentConfirmModal = ({
   // 新增：用于显示折扣明细
   amountNumber,
   discountRate,
+  publicWelfareTextEnabled = false,
 }) => {
   const hasDiscount =
     discountRate && discountRate > 0 && discountRate < 1 && amountNumber > 0;
@@ -49,7 +51,11 @@ const PaymentConfirmModal = ({
       title={
         <div className='flex items-center'>
           <CreditCard className='mr-2' size={18} />
-          {t('充值确认')}
+          {getBillingDisplayText(
+            'topupConfirm',
+            t,
+            publicWelfareTextEnabled,
+          )}
         </div>
       }
       visible={open}
@@ -65,7 +71,12 @@ const PaymentConfirmModal = ({
           <div className='space-y-3'>
             <div className='flex justify-between items-center'>
               <Text strong className='text-slate-700 dark:text-slate-200'>
-                {t('充值数量')}：
+                {getBillingDisplayText(
+                  'topupAmount',
+                  t,
+                  publicWelfareTextEnabled,
+                )}
+                ：
               </Text>
               <Text className='text-slate-900 dark:text-slate-100'>
                 {renderQuotaWithAmount(topUpCount)}

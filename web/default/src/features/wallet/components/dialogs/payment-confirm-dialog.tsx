@@ -19,6 +19,8 @@ For commercial licensing, please contact support@quantumnous.com
 import { Loader2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { formatLocalCurrencyAmount } from '@/lib/currency'
+import type { BillingDisplayMode } from '@/lib/billing-display'
+import { getBillingDisplayText } from '@/lib/billing-display'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -45,6 +47,7 @@ interface PaymentConfirmDialogProps {
   processing: boolean
   discountRate?: number
   usdExchangeRate?: number
+  billingDisplayMode?: BillingDisplayMode
 }
 
 export function PaymentConfirmDialog({
@@ -58,6 +61,7 @@ export function PaymentConfirmDialog({
   processing,
   discountRate = DEFAULT_DISCOUNT_RATE,
   usdExchangeRate = 1,
+  billingDisplayMode,
 }: PaymentConfirmDialogProps) {
   const { t } = useTranslation()
   const hasDiscount = discountRate > 0 && discountRate < 1 && paymentAmount > 0
@@ -69,7 +73,7 @@ export function PaymentConfirmDialog({
       <AlertDialogContent className='max-sm:w-[calc(100vw-1.5rem)] sm:max-w-md'>
         <AlertDialogHeader>
           <AlertDialogTitle className='text-xl font-semibold'>
-            {t('Confirm Payment')}
+            {getBillingDisplayText('topupConfirm', t, billingDisplayMode)}
           </AlertDialogTitle>
           <AlertDialogDescription>
             {t('Review your payment details')}
@@ -79,7 +83,7 @@ export function PaymentConfirmDialog({
         <div className='space-y-3 py-3 sm:space-y-4 sm:py-4'>
           <div className='flex items-center justify-between'>
             <span className='text-muted-foreground text-sm'>
-              {t('Topup Amount')}
+              {getBillingDisplayText('topupAmount', t, billingDisplayMode)}
             </span>
             <span className='text-lg font-semibold'>
               {formatLocalCurrencyAmount(topupAmount * usdExchangeRate, {

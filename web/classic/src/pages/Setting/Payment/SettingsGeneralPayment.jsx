@@ -203,10 +203,21 @@ const normalizeBusinessFeaturesValue = (value) =>
 const normalizeProviderSceneScopesValue = (value) =>
   writeProviderSceneScopes(readProviderSceneScopes(value));
 
-const visualOnlyInputKeys = ['BusinessFeatures', 'ProviderSceneScopes'];
+const visualOnlyInputKeys = [
+  'BusinessFeatures',
+  'ProviderSceneScopes',
+  'PublicWelfareTextEnabled',
+  'InvitationPanelEnabled',
+];
 
 const getFormInputs = (values) => {
-  const { BusinessFeatures, ProviderSceneScopes, ...formInputs } = values;
+  const {
+    BusinessFeatures,
+    ProviderSceneScopes,
+    PublicWelfareTextEnabled,
+    InvitationPanelEnabled,
+    ...formInputs
+  } = values;
   return formInputs;
 };
 
@@ -223,6 +234,8 @@ export default function SettingsGeneralPayment(props) {
     AmountDiscount: '',
     BusinessFeatures: '',
     ProviderSceneScopes: '',
+    PublicWelfareTextEnabled: false,
+    InvitationPanelEnabled: true,
   });
   const [originInputs, setOriginInputs] = useState({});
   const formApiRef = useRef(null);
@@ -242,6 +255,9 @@ export default function SettingsGeneralPayment(props) {
         ProviderSceneScopes: normalizeProviderSceneScopesValue(
           props.options.ProviderSceneScopes || '',
         ),
+        PublicWelfareTextEnabled:
+          props.options.PublicWelfareTextEnabled ?? false,
+        InvitationPanelEnabled: props.options.InvitationPanelEnabled ?? true,
       };
       setInputs(currentInputs);
       setOriginInputs({ ...currentInputs });
@@ -371,6 +387,23 @@ export default function SettingsGeneralPayment(props) {
         options.push({
           key: 'payment_setting.provider_scene_scopes',
           value: inputs.ProviderSceneScopes,
+        });
+      }
+      if (
+        originInputs.PublicWelfareTextEnabled !==
+        inputs.PublicWelfareTextEnabled
+      ) {
+        options.push({
+          key: 'billing_display_setting.public_welfare_text_enabled',
+          value: String(inputs.PublicWelfareTextEnabled),
+        });
+      }
+      if (
+        originInputs.InvitationPanelEnabled !== inputs.InvitationPanelEnabled
+      ) {
+        options.push({
+          key: 'billing_display_setting.invitation_panel_enabled',
+          value: String(inputs.InvitationPanelEnabled),
         });
       }
 
@@ -595,6 +628,51 @@ export default function SettingsGeneralPayment(props) {
                       </div>
                     );
                   })}
+                </div>
+              </Form.Slot>
+            </Col>
+          </Row>
+          <Row style={{ marginTop: 16 }}>
+            <Col span={24}>
+              <Form.Slot label={t('用户侧显示')}>
+                <div style={panelStyle}>
+                  <div style={switchRowStyle}>
+                    <div>
+                      <Text strong>{t('公益性显示模式')}</Text>
+                      <br />
+                      <Text type='tertiary' size='small'>
+                        {t(
+                          '开启后，用户侧将使用支持中心、项目支持、点数等中性文案。',
+                        )}
+                      </Text>
+                    </div>
+                    <Switch
+                      checked={inputs.PublicWelfareTextEnabled}
+                      onChange={(checked) =>
+                        updateInputValue('PublicWelfareTextEnabled', checked)
+                      }
+                    />
+                  </div>
+                  <div style={{ ...switchRowStyle, borderBottom: 'none' }}>
+                    <div>
+                      <Text strong>{t('邀请面板')}</Text>
+                      <br />
+                      <Text type='tertiary' size='small'>
+                        {t('控制用户侧是否显示邀请返利面板。')}
+                      </Text>
+                    </div>
+                    <Switch
+                      checked={inputs.InvitationPanelEnabled}
+                      onChange={(checked) =>
+                        updateInputValue('InvitationPanelEnabled', checked)
+                      }
+                    />
+                  </div>
+                  <Text type='tertiary' size='small'>
+                    {t(
+                      '该配置仅影响用户侧文案和入口展示，不改变模型计费、订单、额度计算和订阅扣费逻辑。',
+                    )}
+                  </Text>
                 </div>
               </Form.Slot>
             </Col>

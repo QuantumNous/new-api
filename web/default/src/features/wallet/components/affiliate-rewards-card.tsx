@@ -18,6 +18,8 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { Share2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import type { BillingDisplayMode } from '@/lib/billing-display'
+import { getBillingDisplayText } from '@/lib/billing-display'
 import { formatQuota } from '@/lib/format'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -32,6 +34,7 @@ interface AffiliateRewardsCardProps {
   onTransfer: () => void
   complianceConfirmed?: boolean
   loading?: boolean
+  billingDisplayMode?: BillingDisplayMode
 }
 
 export function AffiliateRewardsCard({
@@ -40,6 +43,7 @@ export function AffiliateRewardsCard({
   onTransfer,
   complianceConfirmed = true,
   loading,
+  billingDisplayMode,
 }: AffiliateRewardsCardProps) {
   const { t } = useTranslation()
   if (loading) {
@@ -71,9 +75,13 @@ export function AffiliateRewardsCard({
               {t('Referral Program')}
             </h3>
             <p className='text-muted-foreground line-clamp-1 text-xs'>
-              {t(
-                'Earn rewards when your referrals add funds. Transfer accumulated rewards to your balance anytime.'
-              )}
+              {billingDisplayMode?.publicWelfareTextEnabled
+                ? t(
+                    'Earn rewards when your referrals support the project. Transfer accumulated rewards to your available points anytime.'
+                  )
+                : t(
+                    'Earn rewards when your referrals add funds. Transfer accumulated rewards to your balance anytime.'
+                  )}
             </p>
           </div>
         </div>
@@ -116,7 +124,11 @@ export function AffiliateRewardsCard({
               className='h-9 shrink-0 px-3'
               size='sm'
             >
-              {t('Transfer to Balance')}
+              {getBillingDisplayText(
+                'transferToBalance',
+                t,
+                billingDisplayMode
+              )}
             </Button>
           )}
         </div>

@@ -35,11 +35,18 @@ import {
   Settings,
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import { getBillingDisplayText } from '@/lib/billing-display'
+import { useSystemConfig } from '@/hooks/use-system-config'
 import { WORKSPACE_IDS } from '@/components/layout/lib/workspace-registry'
 import { type SidebarData } from '@/components/layout/types'
 
 export function useSidebarData(): SidebarData {
   const { t } = useTranslation()
+  const { billingDisplay } = useSystemConfig()
+  const billingDisplayMode = {
+    publicWelfareTextEnabled:
+      billingDisplay?.publicWelfareTextEnabled ?? false,
+  }
 
   return {
     workspaces: [
@@ -105,7 +112,7 @@ export function useSidebarData(): SidebarData {
         title: t('Personal'),
         items: [
           {
-            title: t('Wallet'),
+            title: getBillingDisplayText('wallet', t, billingDisplayMode),
             url: '/wallet',
             icon: Wallet,
           },

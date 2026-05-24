@@ -228,6 +228,8 @@ export type BillingSettings = {
   'payment_setting.amount_discount': string
   'payment_setting.business_features': string
   'payment_setting.provider_scene_scopes': string
+  'billing_display_setting.public_welfare_text_enabled': boolean
+  'billing_display_setting.invitation_panel_enabled': boolean
   'payment_setting.compliance_confirmed': boolean
   'payment_setting.compliance_terms_version': string
   'payment_setting.compliance_confirmed_at': number

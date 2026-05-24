@@ -39,6 +39,10 @@ import InvitationCard from './InvitationCard';
 import TransferModal from './modals/TransferModal';
 import PaymentConfirmModal from './modals/PaymentConfirmModal';
 import TopupHistoryModal from './modals/TopupHistoryModal';
+import {
+  getBillingDisplayText,
+  isPublicWelfareBillingDisplay,
+} from '../../helpers/billingDisplay';
 
 const parseJsonArray = (value) => {
   if (Array.isArray(value)) {
@@ -197,10 +201,21 @@ const TopUp = () => {
   const [topupInfo, setTopupInfo] = useState({
     amount_options: [],
     discount: {},
+    display: {
+      public_welfare_text_enabled: false,
+      invitation_panel_enabled: true,
+    },
     enable_redemption: true,
     features: {},
     payment_compliance_confirmed: true,
   });
+  const [topupInfoLoaded, setTopupInfoLoaded] = useState(false);
+  const invitationPanelEnabled =
+    topupInfo.display?.invitation_panel_enabled !== false;
+  const publicWelfareTextEnabled = isPublicWelfareBillingDisplay(
+    topupInfo.display,
+  );
+  const walletTopupEnabled = topupInfo.features?.wallet_topup !== false;
 
   const confirmPayMethods = [
     ...payMethods,
@@ -211,6 +226,14 @@ const TopUp = () => {
       color: method.color || 'rgba(var(--semi-primary-5), 1)',
     })),
   ];
+  const hasWalletPaymentMethods = confirmPayMethods.length > 0;
+  const canCalculateWalletAmount =
+    walletTopupEnabled &&
+    hasWalletPaymentMethods &&
+    (enableOnlineTopUp ||
+      enableStripeTopUp ||
+      enableWaffoTopUp ||
+      enableWaffoPancakeTopUp);
 
   const getPayMethodConfig = (payment) =>
     confirmPayMethods.find((method) => method.type === payment);
@@ -250,7 +273,14 @@ const TopUp = () => {
         showSuccess(t('兑换成功！'));
         Modal.success({
           title: t('兑换成功！'),
-          content: t('成功兑换额度：') + renderQuota(data),
+          content:
+            getBillingDisplayText(
+              'redeemQuota',
+              t,
+              publicWelfareTextEnabled,
+            ) +
+            '：' +
+            renderQuota(data),
           centered: true,
         });
         if (userState.user) {
@@ -273,7 +303,7 @@ const TopUp = () => {
 
   const openTopUpLink = () => {
     if (!topUpLink) {
-      showError(t('超级管理员未设置充值链接！'));
+      showError(t('超级管理员未设置支持链接！'));
       return;
     }
     window.open(topUpLink, '_blank');
@@ -282,22 +312,22 @@ const TopUp = () => {
   const preTopUp = async (payment) => {
     if (payment === 'stripe') {
       if (!enableStripeTopUp) {
-        showError(t('管理员未开启Stripe充值！'));
+        showError(t('管理员未开启 Stripe 支付！'));
         return;
       }
     } else if (payment === 'waffo_pancake') {
       if (!enableWaffoPancakeTopUp) {
-        showError(t('管理员未开启 Waffo Pancake 充值！'));
+        showError(t('管理员未开启 Waffo Pancake 支付！'));
         return;
       }
     } else if (payment.startsWith('waffo:')) {
       if (!enableWaffoTopUp) {
-        showError(t('管理员未开启 Waffo 充值！'));
+        showError(t('管理员未开启 Waffo 支付！'));
         return;
       }
     } else {
       if (!enableOnlineTopUp) {
-        showError(t('管理员未开启在线充值！'));
+        showError(t('管理员未开启在线支付！'));
         return;
       }
     }
@@ -309,7 +339,15 @@ const TopUp = () => {
       await requestAmountByPayment(payment);
 
       if (topUpCount < selectedMinTopUp) {
-        showError(t('充值数量不能小于') + selectedMinTopUp);
+        showError(
+          getBillingDisplayText(
+            'topupAmount',
+            t,
+            publicWelfareTextEnabled,
+          ) +
+            t('不能小于') +
+            selectedMinTopUp,
+        );
         return;
       }
       setOpen(true);
@@ -357,7 +395,15 @@ const TopUp = () => {
     }
 
     if (topUpCount < minTopUp) {
-      showError('充值数量不能小于' + minTopUp);
+      showError(
+        getBillingDisplayText(
+          'topupAmount',
+          t,
+          publicWelfareTextEnabled,
+        ) +
+          t('不能小于') +
+          minTopUp,
+      );
       return;
     }
     setConfirmLoading(true);
@@ -425,7 +471,7 @@ const TopUp = () => {
 
   const creemPreTopUp = async (product) => {
     if (!enableCreemTopUp) {
-      showError(t('管理员未开启 Creem 充值！'));
+      showError(t('管理员未开启 Creem 支付！'));
       return;
     }
     setSelectedCreemProduct(product);
@@ -471,7 +517,15 @@ const TopUp = () => {
   const waffoTopUp = async (payMethodIndex) => {
     try {
       if (topUpCount < waffoMinTopUp) {
-        showError(t('充值数量不能小于') + waffoMinTopUp);
+        showError(
+          getBillingDisplayText(
+            'topupAmount',
+            t,
+            publicWelfareTextEnabled,
+          ) +
+            t('不能小于') +
+            waffoMinTopUp,
+        );
         return;
       }
       setPaymentLoading(true);
@@ -529,7 +583,15 @@ const TopUp = () => {
   const waffoPancakeTopUp = async () => {
     const minTopUpValue = Number(waffoPancakeMinTopUp || 1);
     if (topUpCount < minTopUpValue) {
-      showError(t('充值数量不能小于') + minTopUpValue);
+      showError(
+        getBillingDisplayText(
+          'topupAmount',
+          t,
+          publicWelfareTextEnabled,
+        ) +
+          t('不能小于') +
+          minTopUpValue,
+      );
       return;
     }
 
@@ -681,6 +743,7 @@ const TopUp = () => {
           data,
         );
         const features = parseJsonObject(data.features);
+        const walletTopUpFeatureEnabled = features.wallet_topup !== false;
         const amountOptions = parseJsonArray(data.amount_options)
           .map((item) => Number(item))
           .filter((item) => Number.isFinite(item) && item > 0);
@@ -721,6 +784,12 @@ const TopUp = () => {
         setTopupInfo({
           amount_options: amountOptions,
           discount,
+          display: {
+            public_welfare_text_enabled:
+              data.display?.public_welfare_text_enabled === true,
+            invitation_panel_enabled:
+              data.display?.invitation_panel_enabled !== false,
+          },
           enable_redemption: data.enable_redemption !== false,
           enable_subscription_purchase: subscriptionPurchaseEnabled,
           features,
@@ -759,21 +828,32 @@ const TopUp = () => {
           setPresetAmounts(generatePresetAmounts(minTopUpValue));
         }
 
-        const defaultWalletMethod = walletPayMethods[0]?.type;
-        if (defaultWalletMethod === 'stripe') {
-          getStripeAmount(minTopUpValue);
-        } else if (defaultWalletMethod === 'waffo_pancake') {
-          getWaffoPancakeAmount(minTopUpValue);
-        } else if (walletPayMethods.length > 0) {
-          getAmount(minTopUpValue);
+        const standardWalletEnabled =
+          walletTopUpFeatureEnabled &&
+          walletPayMethods.length > 0 &&
+          (enableOnlineTopUp ||
+            enableStripeTopUp ||
+            enableWaffoTopUp ||
+            enableWaffoPancakeTopUp);
+        if (standardWalletEnabled) {
+          const defaultWalletMethod = walletPayMethods[0]?.type;
+          if (defaultWalletMethod === 'stripe') {
+            getStripeAmount(minTopUpValue);
+          } else if (defaultWalletMethod === 'waffo_pancake') {
+            getWaffoPancakeAmount(minTopUpValue);
+          } else {
+            getAmount(minTopUpValue);
+          }
         } else {
           setAmount(0);
         }
       } else {
-        showError(data || t('获取充值配置失败'));
+        showError(data || t('获取支付配置失败'));
       }
     } catch (error) {
-      showError(t('获取充值配置异常'));
+      showError(t('获取支付配置异常'));
+    } finally {
+      setTopupInfoLoaded(true);
     }
   };
 
@@ -830,10 +910,18 @@ const TopUp = () => {
   }, []);
 
   useEffect(() => {
-    if (affFetchedRef.current) return;
+    if (!topupInfoLoaded || !invitationPanelEnabled || affFetchedRef.current) {
+      return;
+    }
     affFetchedRef.current = true;
     getAffLink().then();
-  }, []);
+  }, [topupInfoLoaded, invitationPanelEnabled]);
+
+  useEffect(() => {
+    if (!invitationPanelEnabled && openTransfer) {
+      setOpenTransfer(false);
+    }
+  }, [invitationPanelEnabled, openTransfer]);
 
   // 在 statusState 可用时获取充值信息
   useEffect(() => {
@@ -936,6 +1024,11 @@ const TopUp = () => {
     setTopUpCount(preset.value);
     setSelectedPreset(preset.value);
 
+    if (!canCalculateWalletAmount) {
+      setAmount(0);
+      return;
+    }
+
     // 计算实际支付金额，考虑折扣
     const discount = preset.discount || topupInfo.discount[preset.value] || 1.0;
     const discountedAmount = preset.value * priceRatio * discount;
@@ -958,19 +1051,22 @@ const TopUp = () => {
   return (
     <div className='w-full max-w-7xl mx-auto relative min-h-screen lg:min-h-0 mt-[60px] px-2'>
       {/* 划转模态框 */}
-      <TransferModal
-        t={t}
-        openTransfer={openTransfer}
-        transfer={transfer}
-        handleTransferCancel={handleTransferCancel}
-        userState={userState}
-        renderQuota={renderQuota}
-        getQuotaPerUnit={getQuotaPerUnit}
-        transferAmount={transferAmount}
-        setTransferAmount={setTransferAmount}
-      />
+      {invitationPanelEnabled && (
+        <TransferModal
+          t={t}
+          openTransfer={openTransfer}
+          transfer={transfer}
+          handleTransferCancel={handleTransferCancel}
+          userState={userState}
+          renderQuota={renderQuota}
+          getQuotaPerUnit={getQuotaPerUnit}
+          transferAmount={transferAmount}
+          setTransferAmount={setTransferAmount}
+          publicWelfareTextEnabled={publicWelfareTextEnabled}
+        />
+      )}
 
-      {/* 充值确认模态框 */}
+      {/* 支付确认模态框 */}
       <PaymentConfirmModal
         t={t}
         open={open}
@@ -985,18 +1081,20 @@ const TopUp = () => {
         payMethods={confirmPayMethods}
         amountNumber={amount}
         discountRate={topupInfo?.discount?.[topUpCount] || 1.0}
+        publicWelfareTextEnabled={publicWelfareTextEnabled}
       />
 
-      {/* 充值账单模态框 */}
+      {/* 支持记录模态框 */}
       <TopupHistoryModal
         visible={openHistory}
         onCancel={handleHistoryCancel}
         t={t}
+        publicWelfareTextEnabled={publicWelfareTextEnabled}
       />
 
-      {/* Creem 充值确认模态框 */}
+      {/* Creem 支付确认模态框 */}
       <Modal
-        title={t('确定要充值 $')}
+        title={t('确认支付 $')}
         visible={creemOpen}
         onOk={onlineCreemTopUp}
         onCancel={handleCreemCancel}
@@ -1015,15 +1113,22 @@ const TopUp = () => {
               {selectedCreemProduct.price}
             </p>
             <p>
-              {t('充值额度')}：{selectedCreemProduct.quota}
+              {getBillingDisplayText('quota', t, publicWelfareTextEnabled)}：
+              {selectedCreemProduct.quota}
             </p>
-            <p>{t('是否确认充值？')}</p>
+            <p>{t('是否确认支付？')}</p>
           </>
         )}
       </Modal>
 
       {/* 主布局区域 */}
-      <div className='grid grid-cols-1 lg:grid-cols-2 gap-6'>
+      <div
+        className={
+          invitationPanelEnabled
+            ? 'grid grid-cols-1 lg:grid-cols-2 gap-6'
+            : 'grid grid-cols-1 gap-6'
+        }
+      >
         <RechargeCard
           t={t}
           enableOnlineTopUp={enableOnlineTopUp}
@@ -1074,18 +1179,22 @@ const TopUp = () => {
           enableStripeSubscription={enableStripeSubscription}
           enableCreemSubscription={enableCreemSubscription}
           enableRedemption={topupInfo.enable_redemption !== false}
+          publicWelfareTextEnabled={publicWelfareTextEnabled}
         />
-        <InvitationCard
-          t={t}
-          userState={userState}
-          renderQuota={renderQuota}
-          setOpenTransfer={setOpenTransfer}
-          affLink={affLink}
-          handleAffLinkClick={handleAffLinkClick}
-          complianceConfirmed={
-            topupInfo.payment_compliance_confirmed !== false
-          }
-        />
+        {invitationPanelEnabled && (
+          <InvitationCard
+            t={t}
+            userState={userState}
+            renderQuota={renderQuota}
+            setOpenTransfer={setOpenTransfer}
+            affLink={affLink}
+            handleAffLinkClick={handleAffLinkClick}
+            complianceConfirmed={
+              topupInfo.payment_compliance_confirmed !== false
+            }
+            publicWelfareTextEnabled={publicWelfareTextEnabled}
+          />
+        )}
       </div>
     </div>
   );

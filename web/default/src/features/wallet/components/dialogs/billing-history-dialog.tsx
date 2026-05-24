@@ -20,6 +20,8 @@ import { useState } from 'react'
 import { Search, Copy, Check, ChevronLeft, ChevronRight } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { formatCurrencyFromUSD } from '@/lib/currency'
+import type { BillingDisplayMode } from '@/lib/billing-display'
+import { getBillingDisplayText } from '@/lib/billing-display'
 import { formatNumber } from '@/lib/format'
 import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard'
 import {
@@ -63,11 +65,13 @@ import {
 interface BillingHistoryDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
+  billingDisplayMode?: BillingDisplayMode
 }
 
 export function BillingHistoryDialog({
   open,
   onOpenChange,
+  billingDisplayMode,
 }: BillingHistoryDialogProps) {
   const { t } = useTranslation()
   const {
@@ -104,7 +108,9 @@ export function BillingHistoryDialog({
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent className='flex max-h-[calc(100dvh-2rem)] flex-col max-sm:h-dvh max-sm:w-screen max-sm:max-w-none max-sm:rounded-none max-sm:p-4 sm:max-w-4xl'>
           <DialogHeader>
-            <DialogTitle>{t('Billing History')}</DialogTitle>
+            <DialogTitle>
+              {getBillingDisplayText('topupBill', t, billingDisplayMode)}
+            </DialogTitle>
             <DialogDescription>
               {t('View your topup transaction records and payment history')}
             </DialogDescription>
@@ -172,7 +178,11 @@ export function BillingHistoryDialog({
               ) : records.length === 0 ? (
                 <div className='text-muted-foreground flex h-[320px] flex-col items-center justify-center text-center sm:h-[400px]'>
                   <p className='text-sm font-medium'>
-                    {t('No billing records found')}
+                    {getBillingDisplayText(
+                      'noTopupRecords',
+                      t,
+                      billingDisplayMode
+                    )}
                   </p>
                   <p className='mt-1 text-xs'>
                     {keyword

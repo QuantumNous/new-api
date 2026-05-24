@@ -20,6 +20,7 @@ For commercial licensing, please contact support@quantumnous.com
 import React from 'react';
 import { Modal, Typography, Input, InputNumber } from '@douyinfe/semi-ui';
 import { CreditCard } from 'lucide-react';
+import { getBillingDisplayText } from '../../../helpers/billingDisplay';
 
 const TransferModal = ({
   t,
@@ -31,13 +32,18 @@ const TransferModal = ({
   getQuotaPerUnit,
   transferAmount,
   setTransferAmount,
+  publicWelfareTextEnabled = false,
 }) => {
   return (
     <Modal
       title={
         <div className='flex items-center'>
           <CreditCard className='mr-2' size={18} />
-          {t('划转邀请额度')}
+          {getBillingDisplayText(
+            'transferToBalance',
+            t,
+            publicWelfareTextEnabled,
+          )}
         </div>
       }
       visible={openTransfer}
@@ -49,7 +55,11 @@ const TransferModal = ({
       <div className='space-y-4'>
         <div>
           <Typography.Text strong className='block mb-2'>
-            {t('可用邀请额度')}
+            {getBillingDisplayText(
+              'availableInvitationQuota',
+              t,
+              publicWelfareTextEnabled,
+            )}
           </Typography.Text>
           <Input
             value={renderQuota(userState?.user?.aff_quota)}
@@ -59,7 +69,12 @@ const TransferModal = ({
         </div>
         <div>
           <Typography.Text strong className='block mb-2'>
-            {t('划转额度')} · {t('最低') + renderQuota(getQuotaPerUnit())}
+            {getBillingDisplayText(
+              'transferInvitationQuota',
+              t,
+              publicWelfareTextEnabled,
+            )}{' '}
+            · {t('最低') + renderQuota(getQuotaPerUnit())}
           </Typography.Text>
           <InputNumber
             min={getQuotaPerUnit()}

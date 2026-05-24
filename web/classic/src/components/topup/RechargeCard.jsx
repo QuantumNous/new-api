@@ -49,6 +49,7 @@ import { IconGift } from '@douyinfe/semi-icons';
 import { useMinimumLoadingTime } from '../../hooks/common/useMinimumLoadingTime';
 import { getCurrencyConfig } from '../../helpers/render';
 import SubscriptionPlansCard from './SubscriptionPlansCard';
+import { getBillingDisplayText } from '../../helpers/billingDisplay';
 
 const { Text } = Typography;
 
@@ -102,6 +103,7 @@ const RechargeCard = ({
   enableStripeSubscription,
   enableCreemSubscription,
   enableRedemption = true,
+  publicWelfareTextEnabled = false,
 }) => {
   const onlineFormApiRef = useRef(null);
   const redeemFormApiRef = useRef(null);
@@ -109,21 +111,55 @@ const RechargeCard = ({
   const showAmountSkeleton = useMinimumLoadingTime(amountLoading);
   const [activeTab, setActiveTab] = useState('topup');
   const shouldShowSubscription =
-    !subscriptionLoading && subscriptionPlans.length > 0;
+    !subscriptionLoading &&
+    (subscriptionPlans.length > 0 ||
+      activeSubscriptions.length > 0 ||
+      allSubscriptions.length > 0);
   const regularPayMethods = payMethods || [];
+  const hasStandardPaymentMethods = regularPayMethods.length > 0;
+  const hasCreemProducts =
+    enableCreemTopUp && Array.isArray(creemProducts) && creemProducts.length > 0;
+  const walletTopupEnabled = topupInfo?.features?.wallet_topup !== false;
+  const hasConfigurableTopup =
+    enableOnlineTopUp ||
+    enableStripeTopUp ||
+    enableWaffoTopUp ||
+    enableWaffoPancakeTopUp;
+  const hasAnyTopup = hasConfigurableTopup || enableCreemTopUp;
+  const showStandardTopup =
+    (enableOnlineTopUp ||
+      enableStripeTopUp ||
+      enableWaffoTopUp ||
+      enableWaffoPancakeTopUp) &&
+    hasStandardPaymentMethods;
+  const showWalletTopup =
+    walletTopupEnabled && (showStandardTopup || hasCreemProducts);
+  const showPaymentMisconfigured =
+    walletTopupEnabled &&
+    ((hasAnyTopup && !showWalletTopup) || (!hasAnyTopup && !enableRedemption));
+  const showTopupContent =
+    showWalletTopup || enableRedemption || showPaymentMisconfigured;
 
   useEffect(() => {
     if (initialTabSetRef.current) return;
     if (subscriptionLoading) return;
-    setActiveTab(shouldShowSubscription ? 'subscription' : 'topup');
+    setActiveTab(
+      shouldShowSubscription && !showTopupContent ? 'subscription' : 'topup',
+    );
     initialTabSetRef.current = true;
-  }, [shouldShowSubscription, subscriptionLoading]);
+  }, [shouldShowSubscription, showTopupContent, subscriptionLoading]);
 
   useEffect(() => {
     if (!shouldShowSubscription && activeTab !== 'topup') {
       setActiveTab('topup');
     }
   }, [shouldShowSubscription, activeTab]);
+
+  useEffect(() => {
+    if (!showTopupContent && activeTab === 'topup' && shouldShowSubscription) {
+      setActiveTab('subscription');
+    }
+  }, [showTopupContent, activeTab, shouldShowSubscription]);
   const topupContent = (
     <Space vertical style={{ width: '100%' }}>
       {/* 统计数据 */}
@@ -169,7 +205,11 @@ const RechargeCard = ({
                         fontSize: '12px',
                       }}
                     >
-                      {t('当前余额')}
+                      {getBillingDisplayText(
+                        'currentBalance',
+                        t,
+                        publicWelfareTextEnabled,
+                      )}
                     </Text>
                   </div>
                 </div>
@@ -233,25 +273,22 @@ const RechargeCard = ({
           <div className='py-8 flex justify-center'>
             <Spin size='large' />
           </div>
-        ) : enableOnlineTopUp ||
-          enableStripeTopUp ||
-          enableCreemTopUp ||
-          enableWaffoTopUp ||
-          enableWaffoPancakeTopUp ? (
+        ) : showWalletTopup ? (
           <Form
             getFormApi={(api) => (onlineFormApiRef.current = api)}
             initValues={{ topUpCount: topUpCount }}
           >
             <div className='space-y-6'>
-              {(enableOnlineTopUp ||
-                enableStripeTopUp ||
-                enableWaffoTopUp ||
-                enableWaffoPancakeTopUp) && (
+              {showStandardTopup && (
                 <Row gutter={12}>
                   <Col xs={24} sm={24} md={24} lg={10} xl={10}>
                     <Form.InputNumber
                       field='topUpCount'
-                      label={t('充值数量')}
+                      label={getBillingDisplayText(
+                        'topupAmount',
+                        t,
+                        publicWelfareTextEnabled,
+                      )}
                       disabled={
                         !enableOnlineTopUp &&
                         !enableStripeTopUp &&
@@ -259,7 +296,13 @@ const RechargeCard = ({
                         !enableWaffoPancakeTopUp
                       }
                       placeholder={
-                        t('充值数量，最低 ') + renderQuotaWithAmount(minTopUp)
+                        getBillingDisplayText(
+                          'topupAmount',
+                          t,
+                          publicWelfareTextEnabled,
+                        ) +
+                        t('，最低 ') +
+                        renderQuotaWithAmount(minTopUp)
                       }
                       value={topUpCount}
                       min={minTopUp}
@@ -384,7 +427,7 @@ const RechargeCard = ({
                               minTopupVal > Number(topUpCount || 0) ? (
                               <Tooltip
                                 content={
-                                  t('此支付方式最低充值金额为') +
+                                  t('此支付方式最低支持金额为') +
                                   ' ' +
                                   minTopupVal
                                 }
@@ -405,11 +448,17 @@ const RechargeCard = ({
                 </Row>
               )}
 
-              {(enableOnlineTopUp || enableStripeTopUp || enableWaffoTopUp) && (
+              {showStandardTopup && presetAmounts.length > 0 && (
                 <Form.Slot
                   label={
                     <div className='flex items-center gap-2'>
-                      <span>{t('选择充值额度')}</span>
+                      <span>
+                        {getBillingDisplayText(
+                          'selectTopupAmount',
+                          t,
+                          publicWelfareTextEnabled,
+                        )}
+                      </span>
                       {(() => {
                         const { symbol, rate, type } = getCurrencyConfig();
                         if (type === 'USD') return null;
@@ -531,9 +580,9 @@ const RechargeCard = ({
                 </Form.Slot>
               )}
 
-              {/* Creem 充值区域 */}
-              {enableCreemTopUp && creemProducts.length > 0 && (
-                <Form.Slot label={t('Creem 充值')}>
+              {/* Creem 支付区域 */}
+              {hasCreemProducts && (
+                <Form.Slot label={t('Creem 支付')}>
                   <div className='grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3'>
                     {creemProducts.map((product, index) => (
                       <Card
@@ -546,7 +595,12 @@ const RechargeCard = ({
                           {product.name}
                         </div>
                         <div className='text-sm text-gray-600 mb-2'>
-                          {t('充值额度')}: {product.quota}
+                          {getBillingDisplayText(
+                            'quota',
+                            t,
+                            publicWelfareTextEnabled,
+                          )}
+                          : {product.quota}
                         </div>
                         <div className='text-lg font-semibold text-blue-600'>
                           {product.currency === 'EUR' ? '€' : '$'}
@@ -559,25 +613,27 @@ const RechargeCard = ({
               )}
             </div>
           </Form>
-        ) : (
+        ) : showPaymentMisconfigured ? (
           <Banner
             type='info'
-            description={t(
-              '管理员未开启在线充值功能，请联系管理员开启或使用兑换码充值。',
-            )}
+            description={t('暂无可用支付方式，请联系管理员。')}
             className='!rounded-xl'
             closeIcon={null}
           />
-        )}
+        ) : null}
       </Card>
 
-      {/* 兑换码充值 */}
+      {/* 兑换码入口 */}
       {enableRedemption ? (
         <Card
           className='!rounded-xl w-full'
           title={
             <Text type='tertiary' strong>
-              {t('兑换码充值')}
+              {getBillingDisplayText(
+                'redemptionTopup',
+                t,
+                publicWelfareTextEnabled,
+              )}
             </Text>
           }
         >
@@ -600,7 +656,11 @@ const RechargeCard = ({
                     onClick={topUp}
                     loading={isSubmitting}
                   >
-                    {t('兑换额度')}
+                    {getBillingDisplayText(
+                      'redeemQuota',
+                      t,
+                      publicWelfareTextEnabled,
+                    )}
                   </Button>
                 </div>
               }
@@ -624,14 +684,7 @@ const RechargeCard = ({
             />
           </Form>
         </Card>
-      ) : (
-        <Banner
-          type='warning'
-          description={t('兑换码功能已禁用，管理员需先确认合规声明。')}
-          closeIcon={null}
-          className='!rounded-xl'
-        />
-      )}
+      ) : null}
     </Space>
   );
 
@@ -645,9 +698,13 @@ const RechargeCard = ({
           </Avatar>
           <div>
             <Typography.Text className='text-lg font-medium'>
-              {t('账户充值')}
+              {getBillingDisplayText(
+                'addFunds',
+                t,
+                publicWelfareTextEnabled,
+              )}
             </Typography.Text>
-            <div className='text-xs'>{t('多种充值方式，安全便捷')}</div>
+            <div className='text-xs'>{t('多种支付方式，安全便捷')}</div>
           </div>
         </div>
         <Button
@@ -659,7 +716,13 @@ const RechargeCard = ({
         </Button>
       </div>
 
-      {shouldShowSubscription ? (
+      {!shouldShowSubscription && !showTopupContent ? (
+        <div className='py-8 text-center'>
+          <Text type='tertiary'>
+            {t('当前暂无可用的自助支持入口，请联系管理员。')}
+          </Text>
+        </div>
+      ) : shouldShowSubscription ? (
         <Tabs type='card' activeKey={activeTab} onChange={setActiveTab}>
           <TabPane
             tab={
@@ -690,14 +753,20 @@ const RechargeCard = ({
                 allSubscriptions={allSubscriptions}
                 reloadSubscriptionSelf={reloadSubscriptionSelf}
                 withCard={false}
+                publicWelfareTextEnabled={publicWelfareTextEnabled}
               />
             </div>
           </TabPane>
           <TabPane
+            disabled={!showTopupContent}
             tab={
               <div className='flex items-center gap-2'>
                 <Wallet size={16} />
-                {t('额度充值')}
+                {getBillingDisplayText(
+                  'addFunds',
+                  t,
+                  publicWelfareTextEnabled,
+                )}
               </div>
             }
             itemKey='topup'

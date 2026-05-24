@@ -140,6 +140,8 @@ const paymentSchema = z.object({
       })
     }
   }),
+  PublicWelfareTextEnabled: z.boolean(),
+  InvitationPanelEnabled: z.boolean(),
   StripeApiSecret: z.string(),
   StripeWebhookSecret: z.string(),
   StripePriceId: z.string(),
@@ -612,6 +614,8 @@ export function PaymentSettingsSection({
       AmountDiscount: values.AmountDiscount.trim(),
       BusinessFeatures: values.BusinessFeatures.trim(),
       ProviderSceneScopes: values.ProviderSceneScopes.trim(),
+      PublicWelfareTextEnabled: values.PublicWelfareTextEnabled,
+      InvitationPanelEnabled: values.InvitationPanelEnabled,
     }
 
     const initial = {
@@ -622,9 +626,11 @@ export function PaymentSettingsSection({
       AmountDiscount: initialRef.current.AmountDiscount.trim(),
       BusinessFeatures: initialRef.current.BusinessFeatures.trim(),
       ProviderSceneScopes: initialRef.current.ProviderSceneScopes.trim(),
+      PublicWelfareTextEnabled: initialRef.current.PublicWelfareTextEnabled,
+      InvitationPanelEnabled: initialRef.current.InvitationPanelEnabled,
     }
 
-    const updates: Array<{ key: string; value: string | number }> = []
+    const updates: Array<{ key: string; value: string | number | boolean }> = []
 
     if (sanitized.Price !== initial.Price) {
       updates.push({ key: 'Price', value: sanitized.Price })
@@ -678,6 +684,22 @@ export function PaymentSettingsSection({
       updates.push({
         key: 'payment_setting.provider_scene_scopes',
         value: sanitized.ProviderSceneScopes,
+      })
+    }
+
+    if (
+      sanitized.PublicWelfareTextEnabled !== initial.PublicWelfareTextEnabled
+    ) {
+      updates.push({
+        key: 'billing_display_setting.public_welfare_text_enabled',
+        value: sanitized.PublicWelfareTextEnabled,
+      })
+    }
+
+    if (sanitized.InvitationPanelEnabled !== initial.InvitationPanelEnabled) {
+      updates.push({
+        key: 'billing_display_setting.invitation_panel_enabled',
+        value: sanitized.InvitationPanelEnabled,
       })
     }
 
@@ -878,6 +900,8 @@ export function PaymentSettingsSection({
       AmountDiscount: values.AmountDiscount.trim(),
       BusinessFeatures: values.BusinessFeatures.trim(),
       ProviderSceneScopes: values.ProviderSceneScopes.trim(),
+      PublicWelfareTextEnabled: values.PublicWelfareTextEnabled,
+      InvitationPanelEnabled: values.InvitationPanelEnabled,
       StripeApiSecret: values.StripeApiSecret.trim(),
       StripeWebhookSecret: values.StripeWebhookSecret.trim(),
       StripePriceId: values.StripePriceId.trim(),
@@ -900,6 +924,8 @@ export function PaymentSettingsSection({
       AmountDiscount: initialRef.current.AmountDiscount.trim(),
       BusinessFeatures: initialRef.current.BusinessFeatures.trim(),
       ProviderSceneScopes: initialRef.current.ProviderSceneScopes.trim(),
+      PublicWelfareTextEnabled: initialRef.current.PublicWelfareTextEnabled,
+      InvitationPanelEnabled: initialRef.current.InvitationPanelEnabled,
       StripeApiSecret: initialRef.current.StripeApiSecret.trim(),
       StripeWebhookSecret: initialRef.current.StripeWebhookSecret.trim(),
       StripePriceId: initialRef.current.StripePriceId.trim(),
@@ -982,6 +1008,22 @@ export function PaymentSettingsSection({
       updates.push({
         key: 'payment_setting.provider_scene_scopes',
         value: sanitized.ProviderSceneScopes,
+      })
+    }
+
+    if (
+      sanitized.PublicWelfareTextEnabled !== initial.PublicWelfareTextEnabled
+    ) {
+      updates.push({
+        key: 'billing_display_setting.public_welfare_text_enabled',
+        value: sanitized.PublicWelfareTextEnabled,
+      })
+    }
+
+    if (sanitized.InvitationPanelEnabled !== initial.InvitationPanelEnabled) {
+      updates.push({
+        key: 'billing_display_setting.invitation_panel_enabled',
+        value: sanitized.InvitationPanelEnabled,
       })
     }
 
@@ -1377,6 +1419,71 @@ export function PaymentSettingsSection({
                   </FormItem>
                 )}
               />
+            </div>
+
+            <div className='space-y-4'>
+              <div>
+                <h3 className='text-lg font-medium'>
+                  {t('User-facing display')}
+                </h3>
+                <p className='text-muted-foreground text-sm'>
+                  {t(
+                    'Only changes user-facing wording and panels. Billing, orders, quota calculation, and subscriptions are unchanged.'
+                  )}
+                </p>
+              </div>
+
+              <div className='grid gap-4 md:grid-cols-2'>
+                <FormField
+                  control={form.control}
+                  name='PublicWelfareTextEnabled'
+                  render={({ field }) => (
+                    <FormItem className='flex flex-row items-center justify-between rounded-lg border p-4'>
+                      <div className='space-y-0.5'>
+                        <FormLabel className='text-base'>
+                          {t('Public welfare text mode')}
+                        </FormLabel>
+                        <FormDescription>
+                          {t(
+                            'Use neutral user-facing wording such as support center and points.'
+                          )}
+                        </FormDescription>
+                      </div>
+                      <FormControl>
+                        <Switch
+                          checked={field.value}
+                          onCheckedChange={field.onChange}
+                        />
+                      </FormControl>
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name='InvitationPanelEnabled'
+                  render={({ field }) => (
+                    <FormItem className='flex flex-row items-center justify-between rounded-lg border p-4'>
+                      <div className='space-y-0.5'>
+                        <FormLabel className='text-base'>
+                          {t('Invitation panel')}
+                        </FormLabel>
+                        <FormDescription>
+                          {t(
+                            'Show the referral invitation panel on the user billing page.'
+                          )}
+                        </FormDescription>
+                      </div>
+                      <FormControl>
+                        <Switch
+                          checked={field.value}
+                          onCheckedChange={field.onChange}
+                        />
+                      </FormControl>
+                    </FormItem>
+                  )}
+                />
+              </div>
             </div>
 
             <Button

@@ -151,6 +151,10 @@ const BILLING_SECTIONS = [
           BusinessFeatures: settings['payment_setting.business_features'],
           ProviderSceneScopes:
             settings['payment_setting.provider_scene_scopes'],
+          PublicWelfareTextEnabled:
+            settings['billing_display_setting.public_welfare_text_enabled'],
+          InvitationPanelEnabled:
+            settings['billing_display_setting.invitation_panel_enabled'],
           StripeApiSecret: settings.StripeApiSecret,
           StripeWebhookSecret: settings.StripeWebhookSecret,
           StripePriceId: settings.StripePriceId,

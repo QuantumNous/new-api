@@ -47,6 +47,8 @@ const PaymentSetting = () => {
     AmountDiscount: '',
     BusinessFeatures: '',
     ProviderSceneScopes: '',
+    PublicWelfareTextEnabled: false,
+    InvitationPanelEnabled: true,
 
     StripeApiSecret: '',
     StripeWebhookSecret: '',
@@ -180,6 +182,12 @@ const PaymentSetting = () => {
             } catch (error) {
               newInputs['ProviderSceneScopes'] = item.value;
             }
+            break;
+          case 'billing_display_setting.public_welfare_text_enabled':
+            newInputs['PublicWelfareTextEnabled'] = toBoolean(item.value);
+            break;
+          case 'billing_display_setting.invitation_panel_enabled':
+            newInputs['InvitationPanelEnabled'] = toBoolean(item.value);
             break;
           case 'payment_setting.compliance_confirmed':
             newInputs[item.key] = toBoolean(item.value);

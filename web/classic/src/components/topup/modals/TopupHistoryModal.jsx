@@ -35,6 +35,7 @@ import {
 import { Coins } from 'lucide-react';
 import { IconSearch } from '@douyinfe/semi-icons';
 import { API, timestamp2string } from '../../../helpers';
+import { getBillingDisplayText } from '../../../helpers/billingDisplay';
 import { isAdmin } from '../../../helpers/utils';
 import { useIsMobile } from '../../../hooks/common/useIsMobile';
 const { Text } = Typography;
@@ -56,7 +57,12 @@ const PAYMENT_METHOD_MAP = {
   wxpay: '微信',
 };
 
-const TopupHistoryModal = ({ visible, onCancel, t }) => {
+const TopupHistoryModal = ({
+  visible,
+  onCancel,
+  t,
+  publicWelfareTextEnabled = false,
+}) => {
   const [loading, setLoading] = useState(false);
   const [topups, setTopups] = useState([]);
   const [total, setTotal] = useState(0);
@@ -184,7 +190,11 @@ const TopupHistoryModal = ({ visible, onCancel, t }) => {
         render: renderPaymentMethod,
       },
       {
-        title: t('充值额度'),
+        title: getBillingDisplayText(
+          'quota',
+          t,
+          publicWelfareTextEnabled,
+        ),
         dataIndex: 'amount',
         key: 'amount',
         render: (amount, record) => {
@@ -254,7 +264,11 @@ const TopupHistoryModal = ({ visible, onCancel, t }) => {
 
   return (
     <Modal
-      title={t('充值账单')}
+      title={getBillingDisplayText(
+        'topupBill',
+        t,
+        publicWelfareTextEnabled,
+      )}
       visible={visible}
       onCancel={onCancel}
       footer={null}
@@ -290,7 +304,11 @@ const TopupHistoryModal = ({ visible, onCancel, t }) => {
             darkModeImage={
               <IllustrationNoResultDark style={{ width: 150, height: 150 }} />
             }
-            description={t('暂无充值记录')}
+            description={getBillingDisplayText(
+              'noTopupRecords',
+              t,
+              publicWelfareTextEnabled,
+            )}
             style={{ padding: 30 }}
           />
         }

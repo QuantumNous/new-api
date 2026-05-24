@@ -20,6 +20,8 @@ import { useState, useEffect, useMemo, useCallback } from 'react'
 import { Crown, RefreshCw, Sparkles, Check } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+import type { BillingDisplayMode } from '@/lib/billing-display'
+import { getBillingDisplayText } from '@/lib/billing-display'
 import { formatQuota } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -62,6 +64,7 @@ import type { PaymentMethod, TopupInfo } from '../types'
 interface SubscriptionPlansCardProps {
   topupInfo: TopupInfo | null
   onAvailabilityChange?: (available: boolean) => void
+  billingDisplayMode?: BillingDisplayMode
 }
 
 function getEpayMethods(payMethods: PaymentMethod[] = []): PaymentMethod[] {
@@ -72,17 +75,18 @@ function getEpayMethods(payMethods: PaymentMethod[] = []): PaymentMethod[] {
 
 function getBillingPreferenceLabel(
   preference: string,
-  t: (key: string) => string
+  t: (key: string) => string,
+  billingDisplayMode?: BillingDisplayMode
 ): string {
   switch (preference) {
     case 'subscription_first':
       return t('Subscription First')
     case 'wallet_first':
-      return t('Wallet First')
+      return getBillingDisplayText('walletFirst', t, billingDisplayMode)
     case 'subscription_only':
       return t('Subscription Only')
     case 'wallet_only':
-      return t('Wallet Only')
+      return getBillingDisplayText('walletOnly', t, billingDisplayMode)
     default:
       return preference
   }
@@ -91,6 +95,7 @@ function getBillingPreferenceLabel(
 export function SubscriptionPlansCard({
   topupInfo,
   onAvailabilityChange,
+  billingDisplayMode,
 }: SubscriptionPlansCardProps) {
   const { t } = useTranslation()
 
@@ -317,27 +322,43 @@ export function SubscriptionPlansCard({
                     value: 'subscription_first',
                     label: (
                       <>
-                        {getBillingPreferenceLabel('subscription_first', t)}
+                        {getBillingPreferenceLabel(
+                          'subscription_first',
+                          t,
+                          billingDisplayMode
+                        )}
                         {disablePref ? ` (${t('No Active')})` : ''}
                       </>
                     ),
                   },
                   {
                     value: 'wallet_first',
-                    label: getBillingPreferenceLabel('wallet_first', t),
+                    label: getBillingPreferenceLabel(
+                      'wallet_first',
+                      t,
+                      billingDisplayMode
+                    ),
                   },
                   {
                     value: 'subscription_only',
                     label: (
                       <>
-                        {getBillingPreferenceLabel('subscription_only', t)}
+                        {getBillingPreferenceLabel(
+                          'subscription_only',
+                          t,
+                          billingDisplayMode
+                        )}
                         {disablePref ? ` (${t('No Active')})` : ''}
                       </>
                     ),
                   },
                   {
                     value: 'wallet_only',
-                    label: getBillingPreferenceLabel('wallet_only', t),
+                    label: getBillingPreferenceLabel(
+                      'wallet_only',
+                      t,
+                      billingDisplayMode
+                    ),
                   },
                 ]}
                 value={displayPref}
@@ -345,7 +366,11 @@ export function SubscriptionPlansCard({
               >
                 <SelectTrigger className='h-8 flex-1 text-xs sm:w-[140px] sm:flex-none'>
                   <SelectValue>
-                    {getBillingPreferenceLabel(displayPref, t)}
+                    {getBillingPreferenceLabel(
+                      displayPref,
+                      t,
+                      billingDisplayMode
+                    )}
                   </SelectValue>
                 </SelectTrigger>
                 <SelectContent alignItemWithTrigger={false}>
@@ -354,21 +379,37 @@ export function SubscriptionPlansCard({
                       value='subscription_first'
                       disabled={disablePref}
                     >
-                      {getBillingPreferenceLabel('subscription_first', t)}
+                      {getBillingPreferenceLabel(
+                        'subscription_first',
+                        t,
+                        billingDisplayMode
+                      )}
                       {disablePref ? ` (${t('No Active')})` : ''}
                     </SelectItem>
                     <SelectItem value='wallet_first'>
-                      {getBillingPreferenceLabel('wallet_first', t)}
+                      {getBillingPreferenceLabel(
+                        'wallet_first',
+                        t,
+                        billingDisplayMode
+                      )}
                     </SelectItem>
                     <SelectItem
                       value='subscription_only'
                       disabled={disablePref}
                     >
-                      {getBillingPreferenceLabel('subscription_only', t)}
+                      {getBillingPreferenceLabel(
+                        'subscription_only',
+                        t,
+                        billingDisplayMode
+                      )}
                       {disablePref ? ` (${t('No Active')})` : ''}
                     </SelectItem>
                     <SelectItem value='wallet_only'>
-                      {getBillingPreferenceLabel('wallet_only', t)}
+                      {getBillingPreferenceLabel(
+                        'wallet_only',
+                        t,
+                        billingDisplayMode
+                      )}
                     </SelectItem>
                   </SelectGroup>
                 </SelectContent>
@@ -480,7 +521,12 @@ export function SubscriptionPlansCard({
                         </div>
                       )}
                       <div className='text-muted-foreground mt-1'>
-                        {t('Total Quota')}:{' '}
+                        {getBillingDisplayText(
+                          'totalQuota',
+                          t,
+                          billingDisplayMode
+                        )}
+                        :{' '}
                         {totalAmount > 0 ? (
                           <Tooltip>
                             <TooltipTrigger
@@ -491,7 +537,12 @@ export function SubscriptionPlansCard({
                               {formatQuota(remainAmount)}
                             </TooltipTrigger>
                             <TooltipContent>
-                              {t('Raw Quota')}: {usedAmount}/{totalAmount} ·{' '}
+                              {getBillingDisplayText(
+                                'rawQuota',
+                                t,
+                                billingDisplayMode
+                              )}
+                              : {usedAmount}/{totalAmount} ·{' '}
                               {t('Remaining')} {remainAmount}
                             </TooltipContent>
                           </Tooltip>
@@ -537,11 +588,11 @@ export function SubscriptionPlansCard({
               const benefits = [
                 `${t('Validity Period')}: ${formatDuration(plan, t)}`,
                 formatResetPeriod(plan, t) !== t('No Reset')
-                  ? `${t('Quota Reset')}: ${formatResetPeriod(plan, t)}`
+                  ? `${getBillingDisplayText('quotaReset', t, billingDisplayMode)}: ${formatResetPeriod(plan, t)}`
                   : null,
                 totalAmount > 0
-                  ? `${t('Total Quota')}: ${formatQuota(totalAmount)}`
-                  : `${t('Total Quota')}: ${t('Unlimited')}`,
+                  ? `${getBillingDisplayText('totalQuota', t, billingDisplayMode)}: ${formatQuota(totalAmount)}`
+                  : `${getBillingDisplayText('totalQuota', t, billingDisplayMode)}: ${t('Unlimited')}`,
                 limit > 0 ? `${t('Purchase Limit')}: ${limit}` : null,
                 plan.upgrade_group
                   ? `${t('Upgrade Group')}: ${plan.upgrade_group}`
@@ -661,6 +712,7 @@ export function SubscriptionPlansCard({
             ? planPurchaseCountMap.get(selectedPlan.plan.id)
             : undefined
         }
+        billingDisplayMode={billingDisplayMode}
       />
     </>
   )

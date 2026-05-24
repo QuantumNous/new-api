@@ -21,6 +21,8 @@ import { useNavigate } from '@tanstack/react-router'
 import { Crown, CalendarClock, Package } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+import type { BillingDisplayMode } from '@/lib/billing-display'
+import { getBillingDisplayText } from '@/lib/billing-display'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import {
@@ -66,6 +68,7 @@ interface Props {
   epayMethods?: PaymentMethod[]
   purchaseLimit?: number
   purchaseCount?: number
+  billingDisplayMode?: BillingDisplayMode
 }
 
 export function SubscriptionPurchaseDialog(props: Props) {
@@ -229,7 +232,11 @@ export function SubscriptionPurchaseDialog(props: Props) {
             )}
             <div className='flex items-center justify-between'>
               <span className='text-muted-foreground text-sm'>
-                {t('Total Quota')}
+                {getBillingDisplayText(
+                  'totalQuota',
+                  t,
+                  props.billingDisplayMode
+                )}
               </span>
               <span className='flex items-center gap-1 text-sm'>
                 <Package className='h-3.5 w-3.5' />

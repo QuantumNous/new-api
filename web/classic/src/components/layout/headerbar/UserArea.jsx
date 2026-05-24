@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React, { useRef } from 'react';
+import React, { useContext, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { Avatar, Button, Dropdown, Typography } from '@douyinfe/semi-ui';
 import { ChevronDown } from 'lucide-react';
@@ -28,6 +28,11 @@ import {
   IconKey,
 } from '@douyinfe/semi-icons';
 import { stringToColor } from '../../../helpers';
+import { StatusContext } from '../../../context/Status';
+import {
+  getBillingDisplayText,
+  isPublicWelfareBillingDisplay,
+} from '../../../helpers/billingDisplay';
 import SkeletonWrapper from '../components/SkeletonWrapper';
 
 const UserArea = ({
@@ -40,6 +45,10 @@ const UserArea = ({
   t,
 }) => {
   const dropdownRef = useRef(null);
+  const [statusState] = useContext(StatusContext);
+  const publicWelfareTextEnabled = isPublicWelfareBillingDisplay(
+    statusState?.status?.billing_display,
+  );
   if (isLoading) {
     return (
       <SkeletonWrapper
@@ -98,7 +107,13 @@ const UserArea = ({
                     size='small'
                     className='text-gray-500 dark:text-gray-400'
                   />
-                  <span>{t('钱包管理')}</span>
+                  <span>
+                    {getBillingDisplayText(
+                      'walletManagement',
+                      t,
+                      publicWelfareTextEnabled,
+                    )}
+                  </span>
                 </div>
               </Dropdown.Item>
               <Dropdown.Item

@@ -121,6 +121,10 @@ export interface SystemStatus {
     usd_exchange_rate?: number
     custom_currency_symbol?: string
     custom_currency_exchange_rate?: number
+    billing_display?: {
+      public_welfare_text_enabled?: boolean
+      invitation_panel_enabled?: boolean
+    }
     demo_site_enabled?: boolean
     user_agreement_enabled?: boolean
     privacy_policy_enabled?: boolean
@@ -163,6 +167,10 @@ export interface SystemStatus {
   usd_exchange_rate?: number
   custom_currency_symbol?: string
   custom_currency_exchange_rate?: number
+  billing_display?: {
+    public_welfare_text_enabled?: boolean
+    invitation_panel_enabled?: boolean
+  }
   demo_site_enabled?: boolean
   user_agreement_enabled?: boolean
   privacy_policy_enabled?: boolean

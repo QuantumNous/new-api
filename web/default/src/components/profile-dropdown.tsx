@@ -21,9 +21,11 @@ import { useNavigate } from '@tanstack/react-router'
 import { User, Wallet, LogOut, Settings } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { useAuthStore } from '@/stores/auth-store'
+import { getBillingDisplayText } from '@/lib/billing-display'
 import { getUserAvatarFallback, getUserAvatarStyle } from '@/lib/avatar'
 import { ROLE } from '@/lib/roles'
 import useDialogState from '@/hooks/use-dialog'
+import { useSystemConfig } from '@/hooks/use-system-config'
 import { useUserDisplay } from '@/hooks/use-user-display'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
@@ -42,6 +44,7 @@ export function ProfileDropdown() {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const [open, setOpen] = useDialogState()
+  const { billingDisplay } = useSystemConfig()
   const user = useAuthStore((state) => state.auth.user)
   const { displayName, roleLabel } = useUserDisplay(user)
   const isSuperAdmin = user?.role === ROLE.SUPER_ADMIN
@@ -51,6 +54,10 @@ export function ProfileDropdown() {
     () => getUserAvatarStyle(avatarName),
     [avatarName]
   )
+  const billingDisplayMode = {
+    publicWelfareTextEnabled:
+      billingDisplay?.publicWelfareTextEnabled ?? false,
+  }
 
   return (
     <>
@@ -106,7 +113,7 @@ export function ProfileDropdown() {
 
           <DropdownMenuItem onClick={() => navigate({ to: '/wallet' })}>
             <Wallet className='size-4' />
-            {t('Wallet')}
+            {getBillingDisplayText('wallet', t, billingDisplayMode)}
           </DropdownMenuItem>
 
           {isSuperAdmin && (

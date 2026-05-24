@@ -19,6 +19,8 @@ For commercial licensing, please contact support@quantumnous.com
 import { useState, useEffect } from 'react'
 import { Gift, ExternalLink, Loader2, Receipt, WalletCards } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import type { BillingDisplayMode } from '@/lib/billing-display'
+import { getBillingDisplayText } from '@/lib/billing-display'
 import { formatNumber } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { Alert, AlertDescription } from '@/components/ui/alert'
@@ -78,6 +80,7 @@ interface RechargeFormCardProps {
   waffoMinTopup?: number
   onWaffoMethodSelect?: (method: WaffoPayMethod, index: number) => void
   enableWaffoPancakeTopup?: boolean
+  billingDisplayMode?: BillingDisplayMode
 }
 
 export function RechargeFormCard({
@@ -108,6 +111,7 @@ export function RechargeFormCard({
   waffoMinTopup,
   onWaffoMethodSelect,
   enableWaffoPancakeTopup,
+  billingDisplayMode,
 }: RechargeFormCardProps) {
   const { t } = useTranslation()
   const [localAmount, setLocalAmount] = useState(topupAmount.toString())
@@ -131,13 +135,24 @@ export function RechargeFormCard({
     enableWaffoPancakeTopup
   const hasAnyTopup = hasConfigurableTopup || enableCreemTopup
   const walletTopupEnabled = topupInfo?.features?.wallet_topup !== false
-  const showWalletTopup = walletTopupEnabled && hasAnyTopup
   const hasStandardPaymentMethods =
     Array.isArray(topupInfo?.pay_methods) && topupInfo.pay_methods.length > 0
   const hasWaffoPaymentMethods =
     Array.isArray(waffoPayMethods) && waffoPayMethods.length > 0
+  const showWaffoTopup = enableWaffoTopup && hasWaffoPaymentMethods
+  const showAmountTopup =
+    hasConfigurableTopup && (hasStandardPaymentMethods || showWaffoTopup)
+  const hasCreemProducts =
+    enableCreemTopup &&
+    Array.isArray(creemProducts) &&
+    creemProducts.length > 0
+  const showWalletTopup =
+    walletTopupEnabled && (showAmountTopup || hasCreemProducts)
   const minTopup = getMinTopupAmount(topupInfo)
   const redemptionEnabled = topupInfo?.enable_redemption !== false
+  const showPaymentMisconfigured =
+    walletTopupEnabled &&
+    ((hasAnyTopup && !showWalletTopup) || (!hasAnyTopup && !redemptionEnabled))
 
   if (loading) {
     return (
@@ -190,7 +205,7 @@ export function RechargeFormCard({
 
   return (
     <TitledCard
-      title={t('Add Funds')}
+      title={getBillingDisplayText('addFunds', t, billingDisplayMode)}
       description={t('Choose an amount and payment method')}
       icon={<WalletCards className='h-4 w-4' />}
       action={
@@ -202,7 +217,7 @@ export function RechargeFormCard({
             className='w-full gap-2 sm:w-auto'
           >
             <Receipt className='h-4 w-4' />
-            {t('Order History')}
+            {getBillingDisplayText('orderHistory', t, billingDisplayMode)}
           </Button>
         ) : null
       }
@@ -211,7 +226,7 @@ export function RechargeFormCard({
       {/* Online Topup Section */}
       {showWalletTopup ? (
         <div className='space-y-4 sm:space-y-6'>
-          {hasConfigurableTopup && (
+          {showAmountTopup && (
             <>
               {presetAmounts.length > 0 && (
                 <div className='space-y-2.5 sm:space-y-3'>
@@ -364,9 +379,7 @@ export function RechargeFormCard({
                 )}
               </div>
 
-              {enableWaffoTopup &&
-                hasWaffoPaymentMethods &&
-                onWaffoMethodSelect && (
+              {showWaffoTopup && onWaffoMethodSelect && (
                   <div className='space-y-2.5 sm:space-y-3'>
                     <Label className='text-muted-foreground text-xs font-medium tracking-wider uppercase'>
                       {t('Waffo Payment')}
@@ -421,20 +434,17 @@ export function RechargeFormCard({
             </>
           )}
         </div>
-      ) : walletTopupEnabled && !redemptionEnabled ? (
+      ) : showPaymentMisconfigured ? (
         <Alert>
           <AlertDescription>
-            {t(
-              'Online topup is not enabled. Please use redemption code or contact administrator.'
-            )}
+            {t('No payment methods available. Please contact administrator.')}
           </AlertDescription>
         </Alert>
       ) : null}
 
       {/* Creem Products Section */}
       {enableCreemTopup &&
-        Array.isArray(creemProducts) &&
-        creemProducts.length > 0 &&
+        hasCreemProducts &&
         onCreemProductSelect && (
           <div className='space-y-2.5 border-t pt-4 sm:space-y-3 sm:pt-6'>
             <Label className='text-muted-foreground text-xs font-medium tracking-wider uppercase'>
@@ -443,6 +453,7 @@ export function RechargeFormCard({
             <CreemProductsSection
               products={creemProducts}
               onProductSelect={onCreemProductSelect}
+              billingDisplayMode={billingDisplayMode}
             />
           </div>
         )}

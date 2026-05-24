@@ -17,6 +17,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useTranslation } from 'react-i18next'
+import type { BillingDisplayMode } from '@/lib/billing-display'
+import { getBillingDisplayText } from '@/lib/billing-display'
 import { formatNumber } from '@/lib/format'
 import { Card, CardContent } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -27,12 +29,14 @@ interface CreemProductsSectionProps {
   products: CreemProduct[]
   onProductSelect: (product: CreemProduct) => void
   loading?: boolean
+  billingDisplayMode?: BillingDisplayMode
 }
 
 export function CreemProductsSection({
   products,
   onProductSelect,
   loading,
+  billingDisplayMode,
 }: CreemProductsSectionProps) {
   const { t } = useTranslation()
 
@@ -61,7 +65,8 @@ export function CreemProductsSection({
           <CardContent className='p-3 text-center sm:p-4'>
             <div className='mb-2 text-lg font-medium'>{product.name}</div>
             <div className='text-muted-foreground mb-2 text-sm'>
-              {t('Quota')}: {formatNumber(product.quota)}
+              {getBillingDisplayText('quota', t, billingDisplayMode)}:{' '}
+              {formatNumber(product.quota)}
             </div>
             <div className='text-lg font-semibold text-indigo-600'>
               {formatCreemPrice(product.price, product.currency)}

@@ -21,7 +21,9 @@ import { X, User, Wallet, LogOut } from 'lucide-react'
 import { AnimatePresence, motion, type Variants } from 'motion/react'
 import { useTranslation } from 'react-i18next'
 import type { AuthUser } from '@/stores/auth-store'
+import { getBillingDisplayText } from '@/lib/billing-display'
 import useDialogState from '@/hooks/use-dialog'
+import { useSystemConfig } from '@/hooks/use-system-config'
 import { useUserDisplay } from '@/hooks/use-user-display'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
@@ -78,7 +80,12 @@ interface MobileUserProfileProps {
 function MobileUserProfile({ user, onNavigate }: MobileUserProfileProps) {
   const { t } = useTranslation()
   const [signOutOpen, setSignOutOpen] = useDialogState()
+  const { billingDisplay } = useSystemConfig()
   const { displayName, initials, roleLabel } = useUserDisplay(user)
+  const billingDisplayMode = {
+    publicWelfareTextEnabled:
+      billingDisplay?.publicWelfareTextEnabled ?? false,
+  }
 
   if (!user) return null
 
@@ -126,7 +133,7 @@ function MobileUserProfile({ user, onNavigate }: MobileUserProfileProps) {
           className='text-primary/60 hover:text-primary/80 border-border flex items-center gap-2.5 border-b p-2.5 transition-colors'
         >
           <Wallet className='size-4' />
-          {t('Wallet')}
+          {getBillingDisplayText('wallet', t, billingDisplayMode)}
         </Link>
 
         {/* Sign out - consistent style */}

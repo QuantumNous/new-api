@@ -18,6 +18,8 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { Activity, BarChart3, WalletCards } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import type { BillingDisplayMode } from '@/lib/billing-display'
+import { getBillingDisplayText } from '@/lib/billing-display'
 import { formatQuota } from '@/lib/format'
 import { Skeleton } from '@/components/ui/skeleton'
 import type { UserWalletData } from '../types'
@@ -25,6 +27,7 @@ import type { UserWalletData } from '../types'
 interface WalletStatsCardProps {
   user: UserWalletData | null
   loading?: boolean
+  billingDisplayMode?: BillingDisplayMode
 }
 
 export function WalletStatsCard(props: WalletStatsCardProps) {
@@ -47,15 +50,27 @@ export function WalletStatsCard(props: WalletStatsCardProps) {
 
   const stats = [
     {
-      label: t('Current Balance'),
+      label: getBillingDisplayText(
+        'currentBalance',
+        t,
+        props.billingDisplayMode
+      ),
       value: formatQuota(props.user?.quota ?? 0),
-      description: t('Remaining quota'),
+      description: getBillingDisplayText(
+        'remainingQuota',
+        t,
+        props.billingDisplayMode
+      ),
       icon: WalletCards,
     },
     {
       label: t('Total Usage'),
       value: formatQuota(props.user?.used_quota ?? 0),
-      description: t('Total consumed quota'),
+      description: getBillingDisplayText(
+        'totalConsumedQuota',
+        t,
+        props.billingDisplayMode
+      ),
       icon: BarChart3,
     },
     {

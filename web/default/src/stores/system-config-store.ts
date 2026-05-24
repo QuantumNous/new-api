@@ -43,7 +43,16 @@ export interface SystemConfig {
   footerHtml?: string
   demoSiteEnabled?: boolean
   displayTokenStatEnabled?: boolean
+  billingDisplay?: {
+    publicWelfareTextEnabled: boolean
+    invitationPanelEnabled: boolean
+  }
   currency: CurrencyConfig
+}
+
+export const DEFAULT_BILLING_DISPLAY_CONFIG = {
+  publicWelfareTextEnabled: false,
+  invitationPanelEnabled: true,
 }
 
 export const DEFAULT_CURRENCY_CONFIG: CurrencyConfig = {
@@ -74,6 +83,7 @@ export const useSystemConfigStore = create<SystemConfigState>()(
       config: {
         systemName: DEFAULT_SYSTEM_NAME,
         logo: DEFAULT_LOGO,
+        billingDisplay: { ...DEFAULT_BILLING_DISPLAY_CONFIG },
         currency: { ...DEFAULT_CURRENCY_CONFIG },
       },
       loading: true,
@@ -86,6 +96,11 @@ export const useSystemConfigStore = create<SystemConfigState>()(
             currency: {
               ...state.config.currency,
               ...(newConfig.currency ?? {}),
+            },
+            billingDisplay: {
+              ...DEFAULT_BILLING_DISPLAY_CONFIG,
+              ...state.config.billingDisplay,
+              ...(newConfig.billingDisplay ?? {}),
             },
           },
         })),

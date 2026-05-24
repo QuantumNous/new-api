@@ -19,6 +19,8 @@ For commercial licensing, please contact support@quantumnous.com
 import { useState, useEffect } from 'react'
 import { Loader2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import type { BillingDisplayMode } from '@/lib/billing-display'
+import { getBillingDisplayText } from '@/lib/billing-display'
 import { formatQuota } from '@/lib/format'
 import { Button } from '@/components/ui/button'
 import {
@@ -39,6 +41,7 @@ interface TransferDialogProps {
   onConfirm: (amount: number) => Promise<boolean>
   availableQuota: number
   transferring: boolean
+  billingDisplayMode?: BillingDisplayMode
 }
 
 export function TransferDialog({
@@ -47,6 +50,7 @@ export function TransferDialog({
   onConfirm,
   availableQuota,
   transferring,
+  billingDisplayMode,
 }: TransferDialogProps) {
   const { t } = useTranslation()
   const [amount, setAmount] = useState(QUOTA_PER_DOLLAR)
@@ -70,17 +74,27 @@ export function TransferDialog({
       <DialogContent className='max-sm:w-[calc(100vw-1.5rem)] sm:max-w-md'>
         <DialogHeader>
           <DialogTitle className='text-xl font-semibold'>
-            {t('Transfer Rewards')}
+            {getBillingDisplayText(
+              'transferToBalance',
+              t,
+              billingDisplayMode
+            )}
           </DialogTitle>
           <DialogDescription>
-            {t('Move affiliate rewards to your main balance')}
+            {billingDisplayMode?.publicWelfareTextEnabled
+              ? t('Move affiliate rewards to your available points')
+              : t('Move affiliate rewards to your main balance')}
           </DialogDescription>
         </DialogHeader>
 
         <div className='space-y-4 py-3 sm:space-y-6 sm:py-4'>
           <div className='space-y-2'>
             <Label className='text-muted-foreground text-xs font-medium tracking-wider uppercase'>
-              {t('Available Rewards')}
+              {getBillingDisplayText(
+                'availableInvitationQuota',
+                t,
+                billingDisplayMode
+              )}
             </Label>
             <div className='text-2xl font-semibold'>
               {formatQuota(availableQuota)}
@@ -92,7 +106,11 @@ export function TransferDialog({
               htmlFor='transfer-amount'
               className='text-muted-foreground text-xs font-medium tracking-wider uppercase'
             >
-              {t('Transfer Amount')}
+              {getBillingDisplayText(
+                'transferInvitationQuota',
+                t,
+                billingDisplayMode
+              )}
             </Label>
             <Input
               id='transfer-amount'

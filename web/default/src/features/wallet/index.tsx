@@ -19,6 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { getSelf } from '@/lib/api'
+import { getBillingDisplayText } from '@/lib/billing-display'
 import { useStatus } from '@/hooks/use-status'
 import { useSystemConfig } from '@/hooks/use-system-config'
 import { SectionPageLayout } from '@/components/layout'
@@ -71,13 +72,32 @@ export function Wallet(props: WalletProps) {
   const [showSubscriptionPanel, setShowSubscriptionPanel] = useState(true)
 
   const { status } = useStatus()
-  const { currency } = useSystemConfig()
+  const { billingDisplay, currency } = useSystemConfig()
   const { topupInfo, presetAmounts, loading: topupLoading } = useTopupInfo()
+  const billingDisplayMode = useMemo(
+    () => ({
+      publicWelfareTextEnabled:
+        topupInfo?.display?.public_welfare_text_enabled ??
+        billingDisplay?.publicWelfareTextEnabled ??
+        false,
+    }),
+    [
+      billingDisplay?.publicWelfareTextEnabled,
+      topupInfo?.display?.public_welfare_text_enabled,
+    ]
+  )
   const hasCalculableWalletPayment = useMemo(() => {
     if (!topupInfo || topupInfo.features?.wallet_topup === false) {
       return false
     }
-    return Array.isArray(topupInfo.pay_methods) && topupInfo.pay_methods.length > 0
+    const hasWalletPayment =
+      Array.isArray(topupInfo.pay_methods) && topupInfo.pay_methods.length > 0
+    const hasWalletProvider =
+      topupInfo.enable_online_topup ||
+      topupInfo.enable_stripe_topup ||
+      topupInfo.enable_waffo_pancake_topup
+
+    return hasWalletPayment && Boolean(hasWalletProvider)
   }, [topupInfo])
   const showRechargePanel = useMemo(() => {
     if (topupLoading || !topupInfo) return true
@@ -166,14 +186,18 @@ export function Wallet(props: WalletProps) {
   const handleSelectPreset = (preset: PresetAmount) => {
     setTopupAmount(preset.value)
     setSelectedPreset(preset.value)
-    calculatePaymentAmount(preset.value, getCurrentPaymentType())
+    if (hasCalculableWalletPayment) {
+      calculatePaymentAmount(preset.value, getCurrentPaymentType())
+    }
   }
 
   // Handle topup amount change
   const handleTopupAmountChange = (amount: number) => {
     setTopupAmount(amount)
     setSelectedPreset(null)
-    calculatePaymentAmount(amount, getCurrentPaymentType())
+    if (hasCalculableWalletPayment) {
+      calculatePaymentAmount(amount, getCurrentPaymentType())
+    }
   }
 
   // Handle payment method selection
@@ -266,13 +290,19 @@ export function Wallet(props: WalletProps) {
   return (
     <>
       <SectionPageLayout>
-        <SectionPageLayout.Title>{t('Wallet')}</SectionPageLayout.Title>
+        <SectionPageLayout.Title>
+          {getBillingDisplayText('wallet', t, billingDisplayMode)}
+        </SectionPageLayout.Title>
         <SectionPageLayout.Description>
-          {t('Manage your balance and payment methods')}
+          {getBillingDisplayText('walletDescription', t, billingDisplayMode)}
         </SectionPageLayout.Description>
         <SectionPageLayout.Content>
           <div className='mx-auto flex w-full max-w-7xl flex-col gap-4 sm:gap-5'>
-            <WalletStatsCard user={user} loading={userLoading} />
+            <WalletStatsCard
+              user={user}
+              loading={userLoading}
+              billingDisplayMode={billingDisplayMode}
+            />
 
             <div
               className={
@@ -313,6 +343,7 @@ export function Wallet(props: WalletProps) {
                     enableWaffoPancakeTopup={
                       topupInfo?.enable_waffo_pancake_topup
                     }
+                    billingDisplayMode={billingDisplayMode}
                   />
                 </div>
               )}
@@ -320,6 +351,7 @@ export function Wallet(props: WalletProps) {
               <SubscriptionPlansCard
                 topupInfo={topupInfo}
                 onAvailabilityChange={handleSubscriptionAvailabilityChange}
+                billingDisplayMode={billingDisplayMode}
               />
             </div>
           </div>
@@ -337,11 +369,13 @@ export function Wallet(props: WalletProps) {
         processing={processing || pancakeProcessing}
         discountRate={getDiscountRate()}
         usdExchangeRate={effectiveUsdExchangeRate}
+        billingDisplayMode={billingDisplayMode}
       />
 
       <BillingHistoryDialog
         open={billingDialogOpen}
         onOpenChange={setBillingDialogOpen}
+        billingDisplayMode={billingDisplayMode}
       />
 
       <CreemConfirmDialog
@@ -350,6 +384,7 @@ export function Wallet(props: WalletProps) {
         onConfirm={handleCreemConfirm}
         product={selectedCreemProduct}
         processing={creemProcessing}
+        billingDisplayMode={billingDisplayMode}
       />
     </>
   )

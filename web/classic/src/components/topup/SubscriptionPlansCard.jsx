@@ -38,6 +38,7 @@ import {
   formatSubscriptionDuration,
   formatSubscriptionResetPeriod,
 } from '../../helpers/subscriptionFormat';
+import { getBillingDisplayText } from '../../helpers/billingDisplay';
 
 const { Text } = Typography;
 
@@ -84,6 +85,7 @@ const SubscriptionPlansCard = ({
   allSubscriptions = [],
   reloadSubscriptionSelf,
   withCard = true,
+  publicWelfareTextEnabled = false,
 }) => {
   const [open, setOpen] = useState(false);
   const [selectedPlan, setSelectedPlan] = useState(null);
@@ -345,7 +347,14 @@ const SubscriptionPlansCard = ({
                         : t('优先订阅'),
                       disabled: disableSubscriptionPreference,
                     },
-                    { value: 'wallet_first', label: t('优先钱包') },
+                    {
+                      value: 'wallet_first',
+                      label: getBillingDisplayText(
+                        'walletFirst',
+                        t,
+                        publicWelfareTextEnabled,
+                      ),
+                    },
                     {
                       value: 'subscription_only',
                       label: disableSubscriptionPreference
@@ -353,7 +362,14 @@ const SubscriptionPlansCard = ({
                         : t('仅用订阅'),
                       disabled: disableSubscriptionPreference,
                     },
-                    { value: 'wallet_only', label: t('仅用钱包') },
+                    {
+                      value: 'wallet_only',
+                      label: getBillingDisplayText(
+                        'walletOnly',
+                        t,
+                        publicWelfareTextEnabled,
+                      ),
+                    },
                   ]}
                 />
                 <Button
@@ -375,7 +391,8 @@ const SubscriptionPlansCard = ({
               <Text type='tertiary' size='small'>
                 {t('已保存偏好为')}
                 {subscriptionPreferenceLabel}
-                {t('，当前无生效订阅，将自动使用钱包')}
+                {t('，当前无生效订阅，将自动使用')}
+                {getBillingDisplayText('wallet', t, publicWelfareTextEnabled)}
               </Text>
             )}
 
@@ -456,10 +473,19 @@ const SubscriptionPlansCard = ({
                           </div>
                         )}
                         <div className='text-xs text-gray-500 mb-2'>
-                          {t('总额度')}:{' '}
+                          {getBillingDisplayText(
+                            'totalQuota',
+                            t,
+                            publicWelfareTextEnabled,
+                          )}
+                          :{' '}
                           {totalAmount > 0 ? (
                             <Tooltip
-                              content={`${t('原生额度')}：${usedAmount}/${totalAmount} · ${t('剩余')} ${remainAmount}`}
+                              content={`${getBillingDisplayText(
+                                'rawQuota',
+                                t,
+                                publicWelfareTextEnabled,
+                              )}：${usedAmount}/${totalAmount} · ${t('剩余')} ${remainAmount}`}
                             >
                               <span>
                                 {renderQuota(usedAmount)}/
@@ -506,15 +532,27 @@ const SubscriptionPlansCard = ({
                 const limitLabel = limit > 0 ? `${t('限购')} ${limit}` : null;
                 const totalLabel =
                   totalAmount > 0
-                    ? `${t('总额度')}: ${renderQuota(totalAmount)}`
-                    : `${t('总额度')}: ${t('不限')}`;
+                    ? `${getBillingDisplayText(
+                        'totalQuota',
+                        t,
+                        publicWelfareTextEnabled,
+                      )}: ${renderQuota(totalAmount)}`
+                    : `${getBillingDisplayText(
+                        'totalQuota',
+                        t,
+                        publicWelfareTextEnabled,
+                      )}: ${t('不限')}`;
                 const upgradeLabel = plan?.upgrade_group
                   ? `${t('升级分组')}: ${plan.upgrade_group}`
                   : null;
                 const resetLabel =
                   formatSubscriptionResetPeriod(plan, t) === t('不重置')
                     ? null
-                    : `${t('额度重置')}: ${formatSubscriptionResetPeriod(plan, t)}`;
+                    : `${getBillingDisplayText(
+                        'quotaReset',
+                        t,
+                        publicWelfareTextEnabled,
+                      )}: ${formatSubscriptionResetPeriod(plan, t)}`;
                 const planBenefits = [
                   {
                     label: `${t('有效期')}: ${formatSubscriptionDuration(plan, t)}`,
@@ -523,7 +561,11 @@ const SubscriptionPlansCard = ({
                   totalAmount > 0
                     ? {
                         label: totalLabel,
-                        tooltip: `${t('原生额度')}：${totalAmount}`,
+                        tooltip: `${getBillingDisplayText(
+                          'rawQuota',
+                          t,
+                          publicWelfareTextEnabled,
+                        )}：${totalAmount}`,
                       }
                     : { label: totalLabel },
                   limitLabel ? { label: limitLabel } : null,
@@ -692,6 +734,7 @@ const SubscriptionPlansCard = ({
         onPayStripe={payStripe}
         onPayCreem={payCreem}
         onPayEpay={payEpay}
+        publicWelfareTextEnabled={publicWelfareTextEnabled}
       />
     </>
   );

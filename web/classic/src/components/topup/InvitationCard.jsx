@@ -28,6 +28,7 @@ import {
   Space,
 } from '@douyinfe/semi-ui';
 import { Copy, Users, BarChart2, TrendingUp, Gift, Zap } from 'lucide-react';
+import { getBillingDisplayText } from '../../helpers/billingDisplay';
 
 const { Text } = Typography;
 
@@ -39,6 +40,7 @@ const InvitationCard = ({
   affLink,
   handleAffLinkClick,
   complianceConfirmed = true,
+  publicWelfareTextEnabled = false,
 }) => {
   return (
     <Card className='!rounded-2xl shadow-sm border-0'>
@@ -90,7 +92,11 @@ const InvitationCard = ({
                     className='!rounded-lg'
                   >
                     <Zap size={12} className='mr-1' />
-                    {t('划转到余额')}
+                    {getBillingDisplayText(
+                      'transferToBalance',
+                      t,
+                      publicWelfareTextEnabled,
+                    )}
                   </Button>
                 </div>
                 {!complianceConfirmed && (
@@ -214,14 +220,18 @@ const InvitationCard = ({
             <div className='flex items-start gap-2'>
               <Badge dot type='success' />
               <Text type='tertiary' className='text-sm'>
-                {t('邀请好友注册，好友充值后您可获得相应奖励')}
+                {publicWelfareTextEnabled
+                  ? t('邀请好友注册，好友支持项目后您可获得相应奖励')
+                  : t('邀请好友注册，好友充值后您可获得相应奖励')}
               </Text>
             </div>
 
             <div className='flex items-start gap-2'>
               <Badge dot type='success' />
               <Text type='tertiary' className='text-sm'>
-                {t('通过划转功能将奖励额度转入到您的账户余额中')}
+                {publicWelfareTextEnabled
+                  ? t('通过划转功能将奖励点数转入到您的可用点数中')
+                  : t('通过划转功能将奖励额度转入到您的账户余额中')}
               </Text>
             </div>
 

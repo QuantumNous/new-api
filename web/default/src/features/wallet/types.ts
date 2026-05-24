@@ -167,6 +167,11 @@ export interface TopupInfo {
   payment_compliance_confirmed?: boolean
   /** Current compliance terms version */
   payment_compliance_terms_version?: string
+  /** User-facing billing display settings */
+  display?: {
+    public_welfare_text_enabled?: boolean
+    invitation_panel_enabled?: boolean
+  }
 }
 
 /**

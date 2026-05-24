@@ -37,6 +37,7 @@ import {
   formatSubscriptionDuration,
   formatSubscriptionResetPeriod,
 } from '../../../helpers/subscriptionFormat';
+import { getBillingDisplayText } from '../../../helpers/billingDisplay';
 
 const { Text } = Typography;
 
@@ -57,6 +58,7 @@ const SubscriptionPurchaseModal = ({
   onPayStripe,
   onPayCreem,
   onPayEpay,
+  publicWelfareTextEnabled = false,
 }) => {
   const plan = selectedPlan?.plan;
   const totalAmount = Number(plan?.total_amount || 0);
@@ -133,12 +135,23 @@ const SubscriptionPurchaseModal = ({
               )}
               <div className='flex justify-between items-center'>
                 <Text strong className='text-slate-700 dark:text-slate-200'>
-                  {t('总额度')}：
+                  {getBillingDisplayText(
+                    'totalQuota',
+                    t,
+                    publicWelfareTextEnabled,
+                  )}
+                  ：
                 </Text>
                 <div className='flex items-center'>
                   <Package size={14} className='mr-1 text-slate-500' />
                   {totalAmount > 0 ? (
-                    <Tooltip content={`${t('原生额度')}：${totalAmount}`}>
+                    <Tooltip
+                      content={`${getBillingDisplayText(
+                        'rawQuota',
+                        t,
+                        publicWelfareTextEnabled,
+                      )}：${totalAmount}`}
+                    >
                       <Text className='text-slate-900 dark:text-slate-100'>
                         {renderQuota(totalAmount)}
                       </Text>

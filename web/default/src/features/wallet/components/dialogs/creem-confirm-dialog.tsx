@@ -18,6 +18,8 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { Loader2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import type { BillingDisplayMode } from '@/lib/billing-display'
+import { getBillingDisplayText } from '@/lib/billing-display'
 import { formatNumber } from '@/lib/format'
 import { Button } from '@/components/ui/button'
 import {
@@ -37,6 +39,7 @@ interface CreemConfirmDialogProps {
   onConfirm: () => void
   product: CreemProduct | null
   processing: boolean
+  billingDisplayMode?: BillingDisplayMode
 }
 
 export function CreemConfirmDialog({
@@ -45,6 +48,7 @@ export function CreemConfirmDialog({
   onConfirm,
   product,
   processing,
+  billingDisplayMode,
 }: CreemConfirmDialogProps) {
   const { t } = useTranslation()
 
@@ -72,7 +76,9 @@ export function CreemConfirmDialog({
             </span>
           </div>
           <div className='flex items-center justify-between'>
-            <span className='text-muted-foreground'>{t('Quota')}</span>
+            <span className='text-muted-foreground'>
+              {getBillingDisplayText('quota', t, billingDisplayMode)}
+            </span>
             <span className='font-medium'>{formatNumber(product.quota)}</span>
           </div>
         </div>

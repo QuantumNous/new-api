@@ -17,10 +17,15 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useContext, useEffect, useMemo, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { getLucideIcon } from '../../helpers/render';
+import { StatusContext } from '../../context/Status';
+import {
+  getBillingDisplayText,
+  isPublicWelfareBillingDisplay,
+} from '../../helpers/billingDisplay';
 import { ChevronLeft } from 'lucide-react';
 import { useSidebarCollapsed } from '../../hooks/common/useSidebarCollapsed';
 import { useSidebar } from '../../hooks/common/useSidebar';
@@ -59,6 +64,10 @@ const SiderBar = ({ onNavigate = () => {} }) => {
     hasSectionVisibleModules,
     loading: sidebarLoading,
   } = useSidebar();
+  const [statusState] = useContext(StatusContext);
+  const publicWelfareTextEnabled = isPublicWelfareBillingDisplay(
+    statusState?.status?.billing_display,
+  );
 
   const showSkeleton = useMinimumLoadingTime(sidebarLoading, 200);
 
@@ -125,7 +134,11 @@ const SiderBar = ({ onNavigate = () => {} }) => {
   const financeItems = useMemo(() => {
     const items = [
       {
-        text: t('钱包管理'),
+        text: getBillingDisplayText(
+          'walletManagement',
+          t,
+          publicWelfareTextEnabled,
+        ),
         itemKey: 'topup',
         to: '/topup',
       },
@@ -143,7 +156,7 @@ const SiderBar = ({ onNavigate = () => {} }) => {
     });
 
     return filteredItems;
-  }, [t, isModuleVisible]);
+  }, [t, isModuleVisible, publicWelfareTextEnabled]);
 
   const adminItems = useMemo(() => {
     const items = [

@@ -118,6 +118,7 @@ func GetTopUpInfo(c *gin.Context) {
 		"payment_compliance_confirmed":     complianceConfirmed,
 		"payment_compliance_terms_version": operation_setting.CurrentComplianceTermsVersion,
 		"features":                         features,
+		"display":                          buildBillingDisplayData(),
 		"provider_scene_scopes":            operation_setting.CopyProviderSceneScopes(paymentSetting.ProviderSceneScopes),
 		"payment_methods_by_scene":         paymentMethodsByScene,
 		"subscription_payment_methods":     subscriptionPayMethods,
