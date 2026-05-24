@@ -204,7 +204,6 @@ type RatioSettingsCardProps = {
   groupDefaults: GroupFormValues
   toolPricesDefault: string
   titleKey?: string
-  descriptionKey?: string
   visibleTabs?: RatioTabId[]
 }
 
@@ -213,7 +212,6 @@ export function RatioSettingsCard({
   groupDefaults,
   toolPricesDefault,
   titleKey = 'Pricing Ratios',
-  descriptionKey = 'Configure model, caching, and group ratios used for billing',
   visibleTabs = ['models', 'groups', 'tool-prices', 'upstream-sync'],
 }: RatioSettingsCardProps) {
   const { t } = useTranslation()
@@ -497,7 +495,7 @@ export function RatioSettingsCard({
   }
 
   return (
-    <SettingsSection title={t(titleKey)} description={t(descriptionKey)}>
+    <SettingsSection title={t(titleKey)}>
       {visibleTabs.length === 1 ? (
         renderTabContent(defaultTab)
       ) : (

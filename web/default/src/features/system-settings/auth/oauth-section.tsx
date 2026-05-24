@@ -21,10 +21,8 @@ import * as z from 'zod'
 import axios from 'axios'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { RotateCcw } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { Button } from '@/components/ui/button'
 import {
   Form,
   FormControl,
@@ -39,6 +37,12 @@ import { Switch } from '@/components/ui/switch'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { FormDirtyIndicator } from '../components/form-dirty-indicator'
 import { FormNavigationGuard } from '../components/form-navigation-guard'
+import {
+  SettingsForm,
+  SettingsSwitchContent,
+  SettingsSwitchItem,
+} from '../components/settings-form-layout'
+import { SettingsPageFormActions } from '../components/settings-page-context'
 import { SettingsSection } from '../components/settings-section'
 import { useUpdateOption } from '../hooks/use-update-option'
 
@@ -68,6 +72,9 @@ const oauthSchema = z.object({
   WeChatServerToken: z.string().optional(),
   WeChatAccountQRCodeImageURL: z.string().optional(),
 })
+
+const oauthTabContentClassName =
+  'grid min-w-0 gap-x-5 gap-y-6 lg:grid-cols-2 [&>[data-slot=form-item]]:min-w-0 lg:[&>[data-slot=form-item]:has([data-slot=switch])]:col-span-2'
 
 type OAuthFormValues = z.infer<typeof oauthSchema>
 
@@ -250,12 +257,15 @@ export function OAuthSection({ defaultValues }: OAuthSectionProps) {
     <>
       <FormNavigationGuard when={form.formState.isDirty} />
 
-      <SettingsSection
-        title={t('OAuth Integrations')}
-        description={t('Configure third-party authentication providers')}
-      >
+      <SettingsSection title={t('OAuth Integrations')}>
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className='space-y-6'>
+          <SettingsForm onSubmit={form.handleSubmit(onSubmit)}>
+            <SettingsPageFormActions
+              onSave={form.handleSubmit(onSubmit)}
+              onReset={handleReset}
+              isSaving={updateOption.isPending}
+              isResetDisabled={!form.formState.isDirty}
+            />
             <FormDirtyIndicator isDirty={form.formState.isDirty} />
 
             <Tabs value={activeTab} onValueChange={setActiveTab}>
@@ -268,27 +278,25 @@ export function OAuthSection({ defaultValues }: OAuthSectionProps) {
                 <TabsTrigger value='wechat'>{t('WeChat')}</TabsTrigger>
               </TabsList>
 
-              <TabsContent value='github' className='space-y-4'>
+              <TabsContent value='github' className={oauthTabContentClassName}>
                 <FormField
                   control={form.control}
                   name='GitHubOAuthEnabled'
                   render={({ field }) => (
-                    <FormItem className='flex flex-row items-center justify-between rounded-lg border p-4'>
-                      <div className='space-y-0.5'>
-                        <FormLabel className='text-base'>
-                          {t('Enable GitHub OAuth')}
-                        </FormLabel>
+                    <SettingsSwitchItem>
+                      <SettingsSwitchContent>
+                        <FormLabel>{t('Enable GitHub OAuth')}</FormLabel>
                         <FormDescription>
                           {t('Allow users to sign in with GitHub')}
                         </FormDescription>
-                      </div>
+                      </SettingsSwitchContent>
                       <FormControl>
                         <Switch
                           checked={field.value}
                           onCheckedChange={field.onChange}
                         />
                       </FormControl>
-                    </FormItem>
+                    </SettingsSwitchItem>
                   )}
                 />
 
@@ -330,27 +338,25 @@ export function OAuthSection({ defaultValues }: OAuthSectionProps) {
                 />
               </TabsContent>
 
-              <TabsContent value='discord' className='space-y-4'>
+              <TabsContent value='discord' className={oauthTabContentClassName}>
                 <FormField
                   control={form.control}
                   name='discord.enabled'
                   render={({ field }) => (
-                    <FormItem className='flex flex-row items-center justify-between rounded-lg border p-4'>
-                      <div className='space-y-0.5'>
-                        <FormLabel className='text-base'>
-                          {t('Enable Discord OAuth')}
-                        </FormLabel>
+                    <SettingsSwitchItem>
+                      <SettingsSwitchContent>
+                        <FormLabel>{t('Enable Discord OAuth')}</FormLabel>
                         <FormDescription>
                           {t('Allow users to sign in with Discord')}
                         </FormDescription>
-                      </div>
+                      </SettingsSwitchContent>
                       <FormControl>
                         <Switch
                           checked={field.value}
                           onCheckedChange={field.onChange}
                         />
                       </FormControl>
-                    </FormItem>
+                    </SettingsSwitchItem>
                   )}
                 />
 
@@ -393,27 +399,25 @@ export function OAuthSection({ defaultValues }: OAuthSectionProps) {
                 />
               </TabsContent>
 
-              <TabsContent value='oidc' className='space-y-4'>
+              <TabsContent value='oidc' className={oauthTabContentClassName}>
                 <FormField
                   control={form.control}
                   name='oidc.enabled'
                   render={({ field }) => (
-                    <FormItem className='flex flex-row items-center justify-between rounded-lg border p-4'>
-                      <div className='space-y-0.5'>
-                        <FormLabel className='text-base'>
-                          {t('Enable OIDC')}
-                        </FormLabel>
+                    <SettingsSwitchItem>
+                      <SettingsSwitchContent>
+                        <FormLabel>{t('Enable OIDC')}</FormLabel>
                         <FormDescription>
                           {t('Allow users to sign in with OpenID Connect')}
                         </FormDescription>
-                      </div>
+                      </SettingsSwitchContent>
                       <FormControl>
                         <Switch
                           checked={field.value}
                           onCheckedChange={field.onChange}
                         />
                       </FormControl>
-                    </FormItem>
+                    </SettingsSwitchItem>
                   )}
                 />
 
@@ -537,27 +541,28 @@ export function OAuthSection({ defaultValues }: OAuthSectionProps) {
                 />
               </TabsContent>
 
-              <TabsContent value='telegram' className='space-y-4'>
+              <TabsContent
+                value='telegram'
+                className={oauthTabContentClassName}
+              >
                 <FormField
                   control={form.control}
                   name='TelegramOAuthEnabled'
                   render={({ field }) => (
-                    <FormItem className='flex flex-row items-center justify-between rounded-lg border p-4'>
-                      <div className='space-y-0.5'>
-                        <FormLabel className='text-base'>
-                          {t('Enable Telegram OAuth')}
-                        </FormLabel>
+                    <SettingsSwitchItem>
+                      <SettingsSwitchContent>
+                        <FormLabel>{t('Enable Telegram OAuth')}</FormLabel>
                         <FormDescription>
                           {t('Allow users to sign in with Telegram')}
                         </FormDescription>
-                      </div>
+                      </SettingsSwitchContent>
                       <FormControl>
                         <Switch
                           checked={field.value}
                           onCheckedChange={field.onChange}
                         />
                       </FormControl>
-                    </FormItem>
+                    </SettingsSwitchItem>
                   )}
                 />
 
@@ -599,27 +604,25 @@ export function OAuthSection({ defaultValues }: OAuthSectionProps) {
                 />
               </TabsContent>
 
-              <TabsContent value='linuxdo' className='space-y-4'>
+              <TabsContent value='linuxdo' className={oauthTabContentClassName}>
                 <FormField
                   control={form.control}
                   name='LinuxDOOAuthEnabled'
                   render={({ field }) => (
-                    <FormItem className='flex flex-row items-center justify-between rounded-lg border p-4'>
-                      <div className='space-y-0.5'>
-                        <FormLabel className='text-base'>
-                          {t('Enable LinuxDO OAuth')}
-                        </FormLabel>
+                    <SettingsSwitchItem>
+                      <SettingsSwitchContent>
+                        <FormLabel>{t('Enable LinuxDO OAuth')}</FormLabel>
                         <FormDescription>
                           {t('Allow users to sign in with LinuxDO')}
                         </FormDescription>
-                      </div>
+                      </SettingsSwitchContent>
                       <FormControl>
                         <Switch
                           checked={field.value}
                           onCheckedChange={field.onChange}
                         />
                       </FormControl>
-                    </FormItem>
+                    </SettingsSwitchItem>
                   )}
                 />
 
@@ -678,27 +681,25 @@ export function OAuthSection({ defaultValues }: OAuthSectionProps) {
                 />
               </TabsContent>
 
-              <TabsContent value='wechat' className='space-y-4'>
+              <TabsContent value='wechat' className={oauthTabContentClassName}>
                 <FormField
                   control={form.control}
                   name='WeChatAuthEnabled'
                   render={({ field }) => (
-                    <FormItem className='flex flex-row items-center justify-between rounded-lg border p-4'>
-                      <div className='space-y-0.5'>
-                        <FormLabel className='text-base'>
-                          {t('Enable WeChat Auth')}
-                        </FormLabel>
+                    <SettingsSwitchItem>
+                      <SettingsSwitchContent>
+                        <FormLabel>{t('Enable WeChat Auth')}</FormLabel>
                         <FormDescription>
                           {t('Allow users to sign in with WeChat')}
                         </FormDescription>
-                      </div>
+                      </SettingsSwitchContent>
                       <FormControl>
                         <Switch
                           checked={field.value}
                           onCheckedChange={field.onChange}
                         />
                       </FormControl>
-                    </FormItem>
+                    </SettingsSwitchItem>
                   )}
                 />
 
@@ -758,22 +759,7 @@ export function OAuthSection({ defaultValues }: OAuthSectionProps) {
                 />
               </TabsContent>
             </Tabs>
-
-            <div className='flex gap-2'>
-              <Button type='submit' disabled={updateOption.isPending}>
-                {updateOption.isPending ? t('Saving...') : t('Save Changes')}
-              </Button>
-              <Button
-                type='button'
-                variant='outline'
-                onClick={handleReset}
-                disabled={!form.formState.isDirty || updateOption.isPending}
-              >
-                <RotateCcw className='mr-2 h-4 w-4' />
-                {t('Reset')}
-              </Button>
-            </div>
-          </form>
+          </SettingsForm>
         </Form>
       </SettingsSection>
     </>

@@ -31,7 +31,6 @@ import {
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Separator } from '@/components/ui/separator'
-import { Switch } from '@/components/ui/switch'
 import {
   Table,
   TableBody,
@@ -43,6 +42,8 @@ import {
 import { Textarea } from '@/components/ui/textarea'
 import { ConfirmDialog } from '@/components/confirm-dialog'
 import { StatusBadge } from '@/components/status-badge'
+import { SettingsSwitchField } from '../../components/settings-form-layout'
+import { SettingsPageActionsPortal } from '../../components/settings-page-context'
 import { SettingsSection } from '../../components/settings-section'
 import { useUpdateOption } from '../../hooks/use-update-option'
 import { getCacheStats, clearAllCache, clearRuleCache } from './api'
@@ -333,12 +334,7 @@ export function ChannelAffinitySection(props: Props) {
 
   return (
     <>
-      <SettingsSection
-        title={t('Channel Affinity')}
-        description={t(
-          'Prioritize reusing the last successful channel based on keys extracted from request context (sticky routing)'
-        )}
-      >
+      <SettingsSection title={t('Channel Affinity')}>
         <Alert>
           <AlertDescription className='text-xs'>
             {t(
@@ -349,10 +345,12 @@ export function ChannelAffinitySection(props: Props) {
 
         {/* Basic Settings */}
         <div className='grid grid-cols-1 gap-4 md:grid-cols-3'>
-          <div className='flex items-center gap-2'>
-            <Switch checked={enabled} onCheckedChange={setEnabled} />
-            <Label>{t('Enable')}</Label>
-          </div>
+          <SettingsSwitchField
+            checked={enabled}
+            onCheckedChange={setEnabled}
+            label={t('Enable')}
+            className='border-b-0 py-0'
+          />
           <div className='grid gap-1.5'>
             <Label>{t('Max Entries')}</Label>
             <Input
@@ -373,23 +371,18 @@ export function ChannelAffinitySection(props: Props) {
           </div>
         </div>
 
-        <div className='flex items-center gap-2'>
-          <Switch
-            checked={switchOnSuccess}
-            onCheckedChange={setSwitchOnSuccess}
-          />
-          <Label>{t('Switch affinity on success')}</Label>
-          <span className='text-muted-foreground text-xs'>
-            {t(
-              'If the affinity channel fails and retry succeeds on another channel, update affinity to the successful channel.'
-            )}
-          </span>
-        </div>
+        <SettingsSwitchField
+          checked={switchOnSuccess}
+          onCheckedChange={setSwitchOnSuccess}
+          label={t('Switch affinity on success')}
+          description={t(
+            'If the affinity channel fails and retry succeeds on another channel, update affinity to the successful channel.'
+          )}
+        />
 
         <Separator />
 
-        {/* Toolbar */}
-        <div className='flex flex-wrap items-center gap-2'>
+        <SettingsPageActionsPortal>
           <Button
             variant={editMode === 'visual' ? 'default' : 'outline'}
             size='sm'
@@ -472,7 +465,7 @@ export function ChannelAffinitySection(props: Props) {
               {cacheStats.cache_capacity}
             </span>
           )}
-        </div>
+        </SettingsPageActionsPortal>
 
         {/* Rules Table or JSON Editor */}
         {editMode === 'visual' ? (

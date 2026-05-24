@@ -33,11 +33,9 @@ import {
 } from '@/components/ui/collapsible'
 import {
   Field,
-  FieldContent,
   FieldDescription,
   FieldGroup,
   FieldLabel,
-  FieldTitle,
 } from '@/components/ui/field'
 import {
   Form,
@@ -62,9 +60,12 @@ import {
   SheetHeader,
   SheetTitle,
 } from '@/components/ui/sheet'
-import { Switch } from '@/components/ui/switch'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { combineBillingExpr } from '@/features/pricing/lib/billing-expr'
+import {
+  SettingsControlGroup,
+  SettingsSwitchField,
+} from '../components/settings-form-layout'
 import { formatPricingNumber } from './pricing-format'
 import { TieredPricingEditor } from './tiered-pricing-editor'
 
@@ -1005,36 +1006,29 @@ function PriceLane(props: {
   const effectiveDisabled = props.disabled || !props.enabled
 
   return (
-    <Field
-      className={cn(
-        'rounded-lg border p-3',
-        effectiveDisabled && 'bg-muted/35'
-      )}
+    <SettingsControlGroup
+      className={cn('space-y-3', effectiveDisabled && 'opacity-75')}
       data-disabled={effectiveDisabled || undefined}
     >
-      <div className='flex items-start justify-between gap-3'>
-        <FieldContent>
-          <FieldTitle>{props.title}</FieldTitle>
-          <FieldDescription>{props.description}</FieldDescription>
-        </FieldContent>
-        <Switch
-          checked={props.enabled}
-          disabled={props.disabled}
-          onCheckedChange={props.onEnabledChange}
-          aria-label={props.title}
-        />
-      </div>
+      <SettingsSwitchField
+        checked={props.enabled}
+        disabled={props.disabled}
+        onCheckedChange={props.onEnabledChange}
+        label={props.title}
+        description={props.description}
+        aria-label={props.title}
+      />
       <PriceInput
         value={props.value}
         placeholder={props.placeholder}
         disabled={effectiveDisabled}
         onChange={props.onChange}
       />
-      <FieldDescription>
+      <p className='text-muted-foreground text-xs'>
         {props.enabled
           ? t('USD price per 1M tokens.')
           : t('Disabled lanes are omitted on save.')}
-      </FieldDescription>
-    </Field>
+      </p>
+    </SettingsControlGroup>
   )
 }
