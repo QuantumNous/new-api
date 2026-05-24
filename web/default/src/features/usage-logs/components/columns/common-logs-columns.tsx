@@ -441,9 +441,7 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
                     {sensitiveVisible ? log.username : '••••'}
                   </TooltipTrigger>
                   {sensitiveVisible && log.username.length > 12 && (
-                    <TooltipContent side='top'>
-                      {log.username}
-                    </TooltipContent>
+                    <TooltipContent side='top'>{log.username}</TooltipContent>
                   )}
                 </Tooltip>
               </TooltipProvider>
@@ -484,11 +482,7 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
         <div className='flex max-w-[200px] flex-col gap-0.5'>
           <TooltipProvider delay={300}>
             <Tooltip>
-              <TooltipTrigger
-                render={
-                  <div className='max-w-full' />
-                }
-              >
+              <TooltipTrigger render={<div className='max-w-full' />}>
                 <StatusBadge
                   label={displayName}
                   icon={KeyRound}

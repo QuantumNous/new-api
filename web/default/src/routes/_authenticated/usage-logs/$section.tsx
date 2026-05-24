@@ -28,7 +28,7 @@ const logTypeValues = ['0', '1', '2', '3', '4', '5', '6'] as const
 
 const usageLogsSearchSchema = z.object({
   page: z.number().optional().catch(1),
-  pageSize: z.number().optional().catch(20),
+  pageSize: z.number().optional().catch(undefined),
   type: z.array(z.enum(logTypeValues)).optional().catch([]),
   filter: z.string().optional().catch(''),
   model: z.string().optional().catch(''),

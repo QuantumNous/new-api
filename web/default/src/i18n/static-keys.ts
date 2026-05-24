@@ -27,9 +27,9 @@ export const STATIC_I18N_KEYS = [
   'Docs',
   'About',
 
-  // Workspace
+  // Sidebar views (drill-in workspaces)
   'System Settings',
-  'Manage and configure',
+  'Back to Dashboard',
 
   // System settings sidebar
   'System Administration',
@@ -202,7 +202,6 @@ export const STATIC_I18N_KEYS = [
 
   // Channel Affinity section
   'Channel Affinity',
-  'Configure channel affinity (sticky routing) rules',
 
   // Models constants
   'Exact Match',
@@ -340,7 +339,6 @@ export const STATIC_I18N_KEYS = [
 
   // Subscription management
   'Subscription Management',
-  'Manage subscription plan creation, pricing and status',
   'Stripe/Creem requires creating products on the third-party platform and entering the ID',
   'Create Plan',
   'Active',
@@ -457,7 +455,6 @@ export const STATIC_I18N_KEYS = [
 
   // Grok settings
   'Grok Settings',
-  'Configure xAI Grok model specific settings',
   'Enable violation deduction',
   'When enabled, violation requests will incur additional charges.',
   'Official documentation',

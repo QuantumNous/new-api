@@ -36,7 +36,6 @@ import {
 } from '@/lib/format'
 import { getLobeIcon } from '@/lib/lobe-icon'
 import { cn, truncateText } from '@/lib/utils'
-import { TruncatedText } from '@/components/truncated-text'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import {
@@ -53,6 +52,7 @@ import {
   dotColorMap,
   textColorMap,
 } from '@/components/status-badge'
+import { TruncatedText } from '@/components/truncated-text'
 import { getCodexUsage } from '../api'
 import { CHANNEL_STATUS_CONFIG, MODEL_FETCHABLE_TYPES } from '../constants'
 import {
@@ -689,7 +689,7 @@ export function useChannelsColumns(): ColumnDef<Channel>[] {
                         onClick={(e) => {
                           e.stopPropagation()
                           if (!deploymentId) return
-                          const targetUrl = `/console/deployment?deployment_id=${deploymentId}`
+                          const targetUrl = `/models/deployments?dFilter=${encodeURIComponent(String(deploymentId))}`
                           window.open(targetUrl, '_blank', 'noopener')
                         }}
                       />

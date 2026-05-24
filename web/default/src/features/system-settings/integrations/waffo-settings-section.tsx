@@ -33,7 +33,6 @@ import {
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Separator } from '@/components/ui/separator'
-import { Switch } from '@/components/ui/switch'
 import {
   Table,
   TableBody,
@@ -43,7 +42,8 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { Textarea } from '@/components/ui/textarea'
-import { SettingsSection } from '../components/settings-section'
+import { SettingsSwitchField } from '../components/settings-form-layout'
+import { SettingsPageActionsPortal } from '../components/settings-page-context'
 import { useUpdateOption } from '../hooks/use-update-option'
 
 export interface WaffoSettingsValues {
@@ -212,12 +212,27 @@ export function WaffoSettingsSection(props: Props) {
 
   return (
     <>
-      <SettingsSection
-        title={t('Waffo Payment Gateway')}
-        description={t(
-          'Configure Waffo payment aggregation platform integration'
-        )}
-      >
+      <div className='space-y-4 pt-4'>
+        <SettingsPageActionsPortal>
+          <Button
+            type='button'
+            size='sm'
+            onClick={handleSave}
+            disabled={loading}
+          >
+            {loading ? t('Saving...') : t('Save Waffo settings')}
+          </Button>
+        </SettingsPageActionsPortal>
+        <div>
+          <h3 className='text-lg font-medium'>
+            {t('Waffo Aggregator Gateway')}
+          </h3>
+          <p className='text-muted-foreground text-sm'>
+            {t(
+              'Payment aggregator mode — onboard with your own registered company (offshore entity). Built for Enterprise.'
+            )}
+          </p>
+        </div>
         <Alert>
           <AlertDescription className='text-xs'>
             {t(
@@ -226,21 +241,19 @@ export function WaffoSettingsSection(props: Props) {
           </AlertDescription>
         </Alert>
 
-        <div className='grid grid-cols-2 gap-4'>
-          <div className='flex items-center gap-2'>
-            <Switch
-              checked={form.watch('WaffoEnabled')}
-              onCheckedChange={(v) => form.setValue('WaffoEnabled', v)}
-            />
-            <Label>{t('Enable Waffo')}</Label>
-          </div>
-          <div className='flex items-center gap-2'>
-            <Switch
-              checked={form.watch('WaffoSandbox')}
-              onCheckedChange={(v) => form.setValue('WaffoSandbox', v)}
-            />
-            <Label>{t('Sandbox mode')}</Label>
-          </div>
+        <div className='grid gap-4 sm:grid-cols-2'>
+          <SettingsSwitchField
+            checked={form.watch('WaffoEnabled')}
+            onCheckedChange={(v) => form.setValue('WaffoEnabled', v)}
+            label={t('Enable Waffo')}
+            className='border-b-0 py-0'
+          />
+          <SettingsSwitchField
+            checked={form.watch('WaffoSandbox')}
+            onCheckedChange={(v) => form.setValue('WaffoSandbox', v)}
+            label={t('Sandbox mode')}
+            className='border-b-0 py-0'
+          />
         </div>
 
         <div className='grid grid-cols-2 gap-4'>
@@ -412,11 +425,7 @@ export function WaffoSettingsSection(props: Props) {
             </TableBody>
           </Table>
         </div>
-
-        <Button onClick={handleSave} disabled={loading}>
-          {loading ? t('Saving...') : t('Save Changes')}
-        </Button>
-      </SettingsSection>
+      </div>
 
       <Dialog open={methodDialogOpen} onOpenChange={setMethodDialogOpen}>
         <DialogContent>
