@@ -9,6 +9,7 @@ import (
 func buildPublicUpstreamStatusFromRecords(records []model.SupplierStatusSync) PublicUpstreamStatusPayload {
 	groupIndex := make(map[string]int)
 	monitorIndex := make(map[string]int)
+	groupResolver := newPlatformStatusGroupResolver()
 	payload := PublicUpstreamStatusPayload{
 		Success: true,
 		Message: "",
@@ -16,16 +17,14 @@ func buildPublicUpstreamStatusFromRecords(records []model.SupplierStatusSync) Pu
 	}
 
 	for _, record := range records {
-		categoryName := record.DisplayName
-		if categoryName == "" {
-			categoryName = record.Provider
-		}
 		monitor := timelinePointFromRecord(record)
-		groupPos := ensurePublicGroup(&payload, groupIndex, categoryName)
-		monitorPos := ensurePublicMonitor(&payload.Data[groupPos], monitorIndex, record)
-		payload.Data[groupPos].Monitors[monitorPos].History = append(payload.Data[groupPos].Monitors[monitorPos].History, monitor)
-		if record.CheckedAt >= payload.Data[groupPos].Monitors[monitorPos].UpdatedAt {
-			updatePublicMonitorLatest(&payload.Data[groupPos].Monitors[monitorPos], record)
+		for _, categoryName := range groupResolver.groupsForRecord(record) {
+			groupPos := ensurePublicGroup(&payload, groupIndex, categoryName)
+			monitorPos := ensurePublicMonitor(&payload.Data[groupPos], monitorIndex, categoryName, record)
+			payload.Data[groupPos].Monitors[monitorPos].History = append(payload.Data[groupPos].Monitors[monitorPos].History, monitor)
+			if record.CheckedAt >= payload.Data[groupPos].Monitors[monitorPos].UpdatedAt {
+				updatePublicMonitorLatest(&payload.Data[groupPos].Monitors[monitorPos], categoryName, record)
+			}
 		}
 	}
 
@@ -36,6 +35,16 @@ func buildPublicUpstreamStatusFromRecords(records []model.SupplierStatusSync) Pu
 	}
 	sortPublicPayload(&payload)
 	return payload
+}
+
+func upstreamCategoryName(record model.SupplierStatusSync) string {
+	if record.GroupName != "" {
+		return record.GroupName
+	}
+	if record.DisplayName != "" {
+		return record.DisplayName
+	}
+	return record.Provider
 }
 
 func ensurePublicGroup(payload *PublicUpstreamStatusPayload, groupIndex map[string]int, categoryName string) int {
@@ -51,15 +60,15 @@ func ensurePublicGroup(payload *PublicUpstreamStatusPayload, groupIndex map[stri
 	return pos
 }
 
-func ensurePublicMonitor(group *PublicUpstreamStatusGroup, monitorIndex map[string]int, record model.SupplierStatusSync) int {
-	key := monitorKey(record.Provider, record.GroupName, record.ModelName)
+func ensurePublicMonitor(group *PublicUpstreamStatusGroup, monitorIndex map[string]int, categoryName string, record model.SupplierStatusSync) int {
+	key := monitorKey(record.Provider, categoryName, record.ModelName)
 	if pos, ok := monitorIndex[key]; ok {
 		return pos
 	}
 	group.Monitors = append(group.Monitors, PublicUpstreamStatusMonitor{
 		Name:    firstNonEmpty(record.MonitorName, record.ModelName),
 		Model:   record.ModelName,
-		Group:   record.GroupName,
+		Group:   categoryName,
 		History: []PublicUpstreamStatusTimeline{},
 	})
 	pos := len(group.Monitors) - 1
@@ -67,10 +76,10 @@ func ensurePublicMonitor(group *PublicUpstreamStatusGroup, monitorIndex map[stri
 	return pos
 }
 
-func updatePublicMonitorLatest(monitor *PublicUpstreamStatusMonitor, record model.SupplierStatusSync) {
+func updatePublicMonitorLatest(monitor *PublicUpstreamStatusMonitor, categoryName string, record model.SupplierStatusSync) {
 	monitor.Name = firstNonEmpty(record.MonitorName, record.ModelName)
 	monitor.Model = record.ModelName
-	monitor.Group = record.GroupName
+	monitor.Group = categoryName
 	monitor.Status = record.Status
 	monitor.Availability = record.Availability
 	monitor.Latency = record.Latency

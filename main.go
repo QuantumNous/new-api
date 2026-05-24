@@ -112,6 +112,7 @@ func main() {
 	}
 
 	go controller.AutomaticallyTestChannels()
+	controller.StartPlatformProbeTask()
 
 	// Codex credential auto-refresh check every 10 minutes, refresh when expires within 1 day
 	service.StartCodexCredentialAutoRefreshTask()
@@ -133,6 +134,7 @@ func main() {
 
 	if common.IsMasterNode {
 		service.StartUpstreamStatusSyncTask()
+		service.StartChannelDynamicAdjustmentTask()
 	}
 
 	if common.IsMasterNode && constant.UpdateTask {

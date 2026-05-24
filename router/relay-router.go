@@ -39,6 +39,7 @@ func SetRelayRouter(router *gin.Engine) {
 				controller.RetrieveModel(c, constant.ChannelTypeOpenAI)
 			}
 		})
+		modelsRouter.GET("/:model/status", controller.GetModelStatus)
 	}
 
 	geminiRouter := router.Group("/v1beta/models")

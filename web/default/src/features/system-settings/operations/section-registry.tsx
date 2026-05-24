@@ -25,6 +25,7 @@ import { PerformanceSection } from '../maintenance/performance-section'
 import { UpdateCheckerSection } from '../maintenance/update-checker-section'
 import type { OperationsSettings } from '../types'
 import { createSectionRegistry } from '../utils/section-registry'
+import { DynamicAdjustmentSection } from './dynamic-adjustment-section'
 
 const OPERATIONS_SECTIONS = [
   {
@@ -64,6 +65,12 @@ const OPERATIONS_SECTIONS = [
         }}
       />
     ),
+  },
+  {
+    id: 'dynamic-adjustment',
+    titleKey: 'Dynamic Adjustment',
+    descriptionKey: 'Dry-run switch and audit data for channel adjustment',
+    build: () => <DynamicAdjustmentSection />,
   },
   {
     id: 'email',

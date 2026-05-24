@@ -19,6 +19,11 @@ For commercial licensing, please contact support@quantumnous.com
 import { api } from '@/lib/api'
 import type {
   ConfirmPaymentComplianceResponse,
+  ChannelDynamicListResponse,
+  ChannelDynamicLog,
+  ChannelDynamicOverride,
+  ChannelDynamicSettingsResponse,
+  ChannelProbeResult,
   DeleteLogsResponse,
   FetchUpstreamRatiosRequest,
   SystemOptionsResponse,
@@ -71,6 +76,49 @@ export async function fetchUpstreamRatios(request: FetchUpstreamRatiosRequest) {
   const res = await api.post<UpstreamRatiosResponse>(
     '/api/ratio_sync/fetch',
     request
+  )
+  return res.data
+}
+
+export async function getChannelDynamicSettings() {
+  const res = await api.get<ChannelDynamicSettingsResponse>(
+    '/api/channel/dynamic/settings'
+  )
+  return res.data
+}
+
+export async function updateChannelDynamicSettings(request: {
+  enabled?: boolean
+  dry_run?: boolean
+  platform_probe_enabled?: boolean
+}) {
+  const res = await api.put<ChannelDynamicSettingsResponse>(
+    '/api/channel/dynamic/settings',
+    request
+  )
+  return res.data
+}
+
+export async function getChannelDynamicOverrides() {
+  const res = await api.get<ChannelDynamicListResponse<ChannelDynamicOverride>>(
+    '/api/channel/dynamic/overrides',
+    { params: { page: 1, limit: 8 } }
+  )
+  return res.data
+}
+
+export async function getChannelDynamicLogs() {
+  const res = await api.get<ChannelDynamicListResponse<ChannelDynamicLog>>(
+    '/api/channel/dynamic/logs',
+    { params: { page: 1, limit: 8 } }
+  )
+  return res.data
+}
+
+export async function getChannelDynamicProbes() {
+  const res = await api.get<ChannelDynamicListResponse<ChannelProbeResult>>(
+    '/api/channel/dynamic/probes',
+    { params: { page: 1, limit: 8 } }
   )
   return res.data
 }

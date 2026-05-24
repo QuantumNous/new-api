@@ -38,8 +38,7 @@ func GetEndpointTypesByChannelType(channelType int, modelName string) []constant
 		}
 	}
 	if IsImageGenerationModel(modelName) {
-		// add to first
-		endpointTypes = append([]constant.EndpointType{constant.EndpointTypeImageGeneration}, endpointTypes...)
+		endpointTypes = []constant.EndpointType{constant.EndpointTypeImageGeneration}
 	}
 	return endpointTypes
 }

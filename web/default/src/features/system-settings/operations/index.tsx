@@ -91,6 +91,7 @@ export function OperationsSettings() {
   const activeSection = (params?.section ?? OPERATIONS_DEFAULT_SECTION) as
     | 'behavior'
     | 'monitoring'
+    | 'dynamic-adjustment'
     | 'email'
     | 'worker'
     | 'logs'

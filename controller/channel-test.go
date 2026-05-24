@@ -851,6 +851,7 @@ func TestChannel(c *gin.Context) {
 	tok := time.Now()
 	milliseconds := tok.Sub(tik).Milliseconds()
 	go channel.UpdateResponseTime(milliseconds)
+	go recordPlatformProbeResult(channel, testModel, int(milliseconds), result)
 	consumedTime := float64(milliseconds) / 1000.0
 	if result.newAPIError != nil {
 		c.JSON(http.StatusOK, gin.H{
@@ -866,6 +867,56 @@ func TestChannel(c *gin.Context) {
 		"message": "",
 		"time":    consumedTime,
 	})
+}
+
+func resolvePlatformProbeModel(channel *model.Channel) string {
+	if channel == nil {
+		return ""
+	}
+	if channel.TestModel != nil && strings.TrimSpace(*channel.TestModel) != "" {
+		return strings.TrimSpace(*channel.TestModel)
+	}
+	models := channel.GetModels()
+	if len(models) == 0 {
+		return "gpt-4o-mini"
+	}
+	return strings.TrimSpace(models[0])
+}
+
+func recordPlatformProbeResult(channel *model.Channel, modelName string, latency int, result testResult) {
+	if channel == nil || !operation_setting.GetChannelDynamicAdjustmentSetting().PlatformProbeEnabled {
+		return
+	}
+	modelName = strings.TrimSpace(modelName)
+	if modelName == "" {
+		modelName = resolvePlatformProbeModel(channel)
+	}
+	status := service.DynamicHealthHealthy
+	errorMessage := ""
+	if result.localErr != nil {
+		status = service.DynamicHealthUnhealthy
+		errorMessage = result.localErr.Error()
+	} else if result.newAPIError != nil {
+		status = service.DynamicHealthUnhealthy
+		errorMessage = result.newAPIError.Error()
+	} else if latency >= operation_setting.GetChannelDynamicAdjustmentSetting().PriorityDowngradeLatencyMS {
+		status = service.DynamicHealthDegraded
+	}
+	now := common.GetTimestamp()
+	for _, group := range channel.GetGroups() {
+		_ = model.UpsertChannelProbeResult(model.ChannelProbeResult{
+			ChannelID:    channel.Id,
+			Group:        group,
+			Model:        modelName,
+			ProbeType:    "model_inference",
+			Status:       status,
+			Latency:      latency,
+			ErrorMessage: errorMessage,
+			CheckedAt:    now,
+			CreatedAt:    now,
+			UpdatedAt:    now,
+		})
+	}
 }
 
 var testAllChannelsLock sync.Mutex
@@ -902,7 +953,8 @@ func testAllChannels(notify bool) error {
 			}
 			isChannelEnabled := channel.Status == common.ChannelStatusEnabled
 			tik := time.Now()
-			result := testChannel(channel, "", "", shouldUseStreamForAutomaticChannelTest(channel))
+			testModel := resolvePlatformProbeModel(channel)
+			result := testChannel(channel, testModel, "", shouldUseStreamForAutomaticChannelTest(channel))
 			tok := time.Now()
 			milliseconds := tok.Sub(tik).Milliseconds()
 
@@ -933,6 +985,7 @@ func testAllChannels(notify bool) error {
 			}
 
 			channel.UpdateResponseTime(milliseconds)
+			recordPlatformProbeResult(channel, testModel, int(milliseconds), result)
 			time.Sleep(common.RequestInterval)
 		}
 
@@ -956,6 +1009,7 @@ func TestAllChannels(c *gin.Context) {
 }
 
 var autoTestChannelsOnce sync.Once
+var platformProbeChannelsOnce sync.Once
 
 func AutomaticallyTestChannels() {
 	// 只在Master节点定时测试渠道
@@ -981,4 +1035,52 @@ func AutomaticallyTestChannels() {
 			}
 		}
 	})
+}
+
+func StartPlatformProbeTask() {
+	if !common.IsMasterNode {
+		return
+	}
+	platformProbeChannelsOnce.Do(func() {
+		go func() {
+			for {
+				setting := operation_setting.GetChannelDynamicAdjustmentSetting()
+				if !setting.PlatformProbeEnabled {
+					time.Sleep(1 * time.Minute)
+					continue
+				}
+				interval := setting.PlatformProbeIntervalSeconds
+				if interval < 60 {
+					interval = 60
+				}
+				runPlatformProbeOnce()
+				time.Sleep(time.Duration(interval) * time.Second)
+			}
+		}()
+	})
+}
+
+func runPlatformProbeOnce() {
+	channels, err := model.GetAllChannels(0, 0, true, false)
+	if err != nil {
+		common.SysLog("platform probe failed to load channels: " + err.Error())
+		return
+	}
+	for _, channel := range channels {
+		if channel == nil {
+			continue
+		}
+		if channel.Status == common.ChannelStatusManuallyDisabled {
+			continue
+		}
+		if !service.ShouldUsePlatformProbe(channel) {
+			continue
+		}
+		testModel := resolvePlatformProbeModel(channel)
+		tik := time.Now()
+		result := testChannel(channel, testModel, "", shouldUseStreamForAutomaticChannelTest(channel))
+		latency := int(time.Since(tik).Milliseconds())
+		recordPlatformProbeResult(channel, testModel, latency, result)
+		time.Sleep(common.RequestInterval)
+	}
 }

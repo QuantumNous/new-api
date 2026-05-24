@@ -63,6 +63,13 @@ function RootComponent() {
 // 缓存 setup 状态检查结果，避免每次导航都重复调用 API
 // 使用 localStorage 持久化，避免页面刷新后重复检查
 const SETUP_CHECKED_KEY = 'setup_status_checked'
+const SETUP_CHECK_BYPASS_PATHS = ['/setup', '/status']
+
+function shouldBypassSetupCheck(pathname: string): boolean {
+  return SETUP_CHECK_BYPASS_PATHS.some(
+    (path) => pathname === path || pathname.startsWith(`${path}/`),
+  )
+}
 
 function getSetupStatusFromCache(): boolean {
   try {
@@ -99,7 +106,7 @@ export const Route = createRootRouteWithContext<{
   beforeLoad: async ({ location }) => {
     const pathname = location?.pathname || ''
     const needsSetupCheck =
-      !setupStatusChecked && !pathname.startsWith('/setup')
+      !setupStatusChecked && !shouldBypassSetupCheck(pathname)
 
     // 用户信息已通过 auth-store 从 localStorage 恢复
     // 如果 auth.user 存在，说明用户已登录（有缓存的用户数据）

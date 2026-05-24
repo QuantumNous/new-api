@@ -157,7 +157,7 @@ func invalidatePublicUpstreamStatusCache() {
 
 func parseFoxcodeTime(value string) int64 {
 	for _, layout := range []string{"2006-01-02 15:04:05.000", "2006-01-02 15:04:05"} {
-		if parsed, err := time.ParseInLocation(layout, value, time.Local); err == nil {
+		if parsed, err := time.ParseInLocation(layout, value, time.UTC); err == nil {
 			return parsed.Unix()
 		}
 	}

@@ -37,6 +37,75 @@ export type UpdateOptionRequest = {
 export type UpdateOptionResponse = {
   success: boolean
   message: string
+  data?: unknown
+}
+
+export type ChannelDynamicSettings = {
+  enabled: boolean
+  dry_run: boolean
+  interval_seconds: number
+  platform_probe_enabled: boolean
+  platform_probe_interval_seconds: number
+  degraded_weight_multiplier: number
+  protected_unhealthy_multiplier: number
+  priority_downgrade_latency_ms: number
+  last_available_protection_enabled: boolean
+}
+
+export type ChannelDynamicOverride = {
+  id: number
+  channel_id: number
+  group: string
+  model: string
+  provider: string
+  source: string
+  state: string
+  applied_enabled: boolean
+  applied_weight: number
+  dry_run: boolean
+  active: boolean
+  last_reason: string
+  updated_at: number
+}
+
+export type ChannelDynamicLog = {
+  id: number
+  channel_id: number
+  group: string
+  model: string
+  provider: string
+  source: string
+  state: string
+  action: string
+  dry_run: boolean
+  protected: boolean
+  reason: string
+  created_at: number
+}
+
+export type ChannelProbeResult = {
+  id: number
+  channel_id: number
+  group: string
+  model: string
+  probe_type: string
+  status: string
+  latency: number
+  error_message: string
+  checked_at: number
+}
+
+export type ChannelDynamicListResponse<T> = {
+  success: boolean
+  message: string
+  data: T[]
+  total: number
+}
+
+export type ChannelDynamicSettingsResponse = {
+  success: boolean
+  message: string
+  data: ChannelDynamicSettings
 }
 
 export type ConfirmPaymentComplianceResponse = {

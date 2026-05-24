@@ -8,6 +8,7 @@
     "build": "rsbuild build",
     "build:check": "tsc -b && rsbuild build",
     "typecheck": "tsc -b",
+    "test:model-status": "node --test --experimental-strip-types src/features/model-status/lib/status-view.test.ts",
     "lint": "eslint .",
     "preview": "rsbuild preview",
     "format:check": "prettier --check .",
