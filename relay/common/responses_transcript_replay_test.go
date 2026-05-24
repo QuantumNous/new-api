@@ -270,84 +270,25 @@ func TestInspectResponsesTranscriptRequestShape(t *testing.T) {
 	require.Equal(t, 0, shape.InlineImageItems)
 }
 
-func TestIsResponsesTranscriptReplayError(t *testing.T) {
-	tests := []struct {
-		name       string
-		statusCode int
-		body       string
-		want       bool
-	}{
-		{
-			name:       "nested invalid encrypted content code",
-			statusCode: 400,
-			body:       `{"error":{"code":"invalid_encrypted_content"}}`,
-			want:       true,
-		},
-		{
-			name:       "nested thinking signature code",
-			statusCode: 400,
-			body:       `{"error":{"code":"thinking_signature_invalid"}}`,
-			want:       true,
-		},
-		{
-			name:       "top level invalid encrypted content code",
-			statusCode: 400,
-			body:       `{"code":"invalid_encrypted_content"}`,
-			want:       true,
-		},
-		{
-			name:       "message only is ignored",
-			statusCode: 400,
-			body:       `{"error":{"message":"invalid_encrypted_content"}}`,
-			want:       false,
-		},
-		{
-			name:       "wrapped invalid encrypted content code in message",
-			statusCode: 400,
-			body:       `{"error":{"message":"code: invalid_encrypted_content; message: The encrypted content gAAA...V2ln could not be verified. Reason: Encrypted content could not be decrypted or parsed.","type":"invalid_request_error","param":"","code":"-4003"}}`,
-			want:       true,
-		},
-		{
-			name:       "wrapped thinking signature code in message",
-			statusCode: 400,
-			body:       `{"error":{"message":"code: thinking_signature_invalid; message: encrypted content rejected","type":"invalid_request_error","code":"-4003"}}`,
-			want:       true,
-		},
-		{
-			name:       "plain message text with target code is ignored",
-			statusCode: 400,
-			body:       `{"error":{"message":"upstream returned invalid_encrypted_content","code":"-4003"}}`,
-			want:       false,
-		},
-		{
-			name:       "empty nested code falls back to top level code",
-			statusCode: 400,
-			body:       `{"error":{},"code":"thinking_signature_invalid"}`,
-			want:       true,
-		},
-		{
-			name:       "string error falls back to top level code",
-			statusCode: 400,
-			body:       `{"error":"bad request","code":"invalid_encrypted_content"}`,
-			want:       true,
-		},
-		{
-			name:       "previous response error is unrelated",
-			statusCode: 404,
-			body:       `{"error":{"code":"previous_response_not_found"}}`,
-			want:       false,
-		},
-		{
-			name:       "rate limit error is unrelated",
-			statusCode: 429,
-			body:       `{"error":{"code":"rate_limit_exceeded"}}`,
-			want:       false,
-		},
-	}
+func TestIsResponsesTranscriptReplayErrorMatchesStructuredCodes(t *testing.T) {
+	require.True(t, IsResponsesTranscriptReplayError(400, []byte(`{"error":{"code":"invalid_encrypted_content"}}`)))
+	require.True(t, IsResponsesTranscriptReplayError(400, []byte(`{"error":{"code":"thinking_signature_invalid"}}`)))
+	require.True(t, IsResponsesTranscriptReplayError(400, []byte(`{"code":"invalid_encrypted_content"}`)))
+	require.True(t, IsResponsesTranscriptReplayError(400, []byte(`{"error":{},"code":"thinking_signature_invalid"}`)))
+	require.True(t, IsResponsesTranscriptReplayError(400, []byte(`{"error":"bad request","code":"invalid_encrypted_content"}`)))
+}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			require.Equal(t, tt.want, IsResponsesTranscriptReplayError(tt.statusCode, []byte(tt.body)))
-		})
-	}
+func TestIsResponsesTranscriptReplayErrorMatchesWrappedCodes(t *testing.T) {
+	require.True(t, IsResponsesTranscriptReplayError(400, []byte(`{"error":{"message":"code: invalid_encrypted_content; message: The encrypted content gAAA...V2ln could not be verified. Reason: Encrypted content could not be decrypted or parsed.","type":"invalid_request_error","param":"","code":"-4003"}}`)))
+	require.True(t, IsResponsesTranscriptReplayError(400, []byte(`{"error":{"message":"code: thinking_signature_invalid; message: encrypted content rejected","type":"invalid_request_error","code":"-4003"}}`)))
+}
+
+func TestIsResponsesTranscriptReplayErrorIgnoresMessageOnlyCodes(t *testing.T) {
+	require.False(t, IsResponsesTranscriptReplayError(400, []byte(`{"error":{"message":"invalid_encrypted_content"}}`)))
+	require.False(t, IsResponsesTranscriptReplayError(400, []byte(`{"error":{"message":"upstream returned invalid_encrypted_content","code":"-4003"}}`)))
+}
+
+func TestIsResponsesTranscriptReplayErrorIgnoresUnrelatedErrors(t *testing.T) {
+	require.False(t, IsResponsesTranscriptReplayError(404, []byte(`{"error":{"code":"previous_response_not_found"}}`)))
+	require.False(t, IsResponsesTranscriptReplayError(429, []byte(`{"error":{"code":"rate_limit_exceeded"}}`)))
 }
