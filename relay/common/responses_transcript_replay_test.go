@@ -302,6 +302,24 @@ func TestIsResponsesTranscriptReplayError(t *testing.T) {
 			want:       false,
 		},
 		{
+			name:       "wrapped invalid encrypted content code in message",
+			statusCode: 400,
+			body:       `{"error":{"message":"code: invalid_encrypted_content; message: The encrypted content gAAA...V2ln could not be verified. Reason: Encrypted content could not be decrypted or parsed.","type":"invalid_request_error","param":"","code":"-4003"}}`,
+			want:       true,
+		},
+		{
+			name:       "wrapped thinking signature code in message",
+			statusCode: 400,
+			body:       `{"error":{"message":"code: thinking_signature_invalid; message: encrypted content rejected","type":"invalid_request_error","code":"-4003"}}`,
+			want:       true,
+		},
+		{
+			name:       "plain message text with target code is ignored",
+			statusCode: 400,
+			body:       `{"error":{"message":"upstream returned invalid_encrypted_content","code":"-4003"}}`,
+			want:       false,
+		},
+		{
 			name:       "empty nested code falls back to top level code",
 			statusCode: 400,
 			body:       `{"error":{},"code":"thinking_signature_invalid"}`,

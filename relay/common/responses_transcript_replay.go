@@ -145,7 +145,8 @@ type openAIErrorCodeResponse struct {
 }
 
 type openAIErrorCodeObject struct {
-	Code any `json:"code,omitempty"`
+	Code    any    `json:"code,omitempty"`
+	Message string `json:"message,omitempty"`
 }
 
 type responsesTranscriptReplayCacheEntry struct {
@@ -367,8 +368,12 @@ func IsResponsesTranscriptReplayError(statusCode int, body []byte) bool {
 	if statusCode < 400 || len(body) == 0 {
 		return false
 	}
-	code := parseOpenAIErrorCode(body)
-	return code == openAIInvalidEncryptedContentCode || code == openAIThinkingSignatureInvalidCode
+	for _, code := range parseOpenAIErrorCodes(body) {
+		if isResponsesTranscriptReplayErrorCode(code) {
+			return true
+		}
+	}
+	return false
 }
 
 func ResponsesTranscriptReplayRequestHasEncryptedContent(requestBody []byte) bool {
@@ -1017,20 +1022,44 @@ func responsesTranscriptItemHasCallCounterpart(itemType string) bool {
 	}
 }
 
-func parseOpenAIErrorCode(body []byte) string {
+func parseOpenAIErrorCodes(body []byte) []string {
 	var response openAIErrorCodeResponse
 	if err := json.Unmarshal(body, &response); err != nil {
-		return ""
+		return nil
 	}
+	codes := make([]string, 0, 3)
 	if rawJSONHasValue(response.Error) && isJSONObjectRaw(response.Error) {
 		var nested openAIErrorCodeObject
 		if err := json.Unmarshal(response.Error, &nested); err == nil {
-			if code := errorCodeString(nested.Code); code != "" {
-				return code
-			}
+			codes = appendErrorCode(codes, errorCodeString(nested.Code))
+			codes = appendErrorCode(codes, parseWrappedOpenAIErrorCode(nested.Message))
 		}
 	}
-	return errorCodeString(response.Code)
+	codes = appendErrorCode(codes, errorCodeString(response.Code))
+	return codes
+}
+
+func appendErrorCode(codes []string, code string) []string {
+	if code == "" {
+		return codes
+	}
+	return append(codes, code)
+}
+
+func isResponsesTranscriptReplayErrorCode(code string) bool {
+	return code == openAIInvalidEncryptedContentCode || code == openAIThinkingSignatureInvalidCode
+}
+
+func parseWrappedOpenAIErrorCode(message string) string {
+	message = strings.TrimSpace(message)
+	if message == "" || !strings.HasPrefix(strings.ToLower(message), "code:") {
+		return ""
+	}
+	codeText := strings.TrimSpace(message[len("code:"):])
+	if code, _, ok := strings.Cut(codeText, ";"); ok {
+		codeText = code
+	}
+	return strings.ToLower(strings.TrimSpace(codeText))
 }
 
 func errorCodeString(value any) string {
