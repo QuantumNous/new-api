@@ -153,7 +153,6 @@ function ApiKeysMobileList({
                 <StatusBadge
                   label={t(statusConfig.label)}
                   variant={statusConfig.variant}
-                  showDot={statusConfig.showDot}
                   copyable={false}
                 />
               )}

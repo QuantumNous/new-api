@@ -46,6 +46,11 @@ import {
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import {
+  sideDrawerContentClassName,
+  sideDrawerFormClassName,
+  sideDrawerHeaderClassName,
+} from '@/components/drawer-layout'
+import {
   SettingsForm,
   SettingsSwitchContent,
   SettingsSwitchItem,
@@ -337,8 +342,11 @@ function GroupPricingGuide({ open, onOpenChange }: GroupPricingGuideProps) {
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side='right' className='w-full gap-0 p-0 sm:max-w-2xl'>
-        <SheetHeader className='border-b p-4'>
+      <SheetContent
+        side='right'
+        className={sideDrawerContentClassName('sm:max-w-2xl')}
+      >
+        <SheetHeader className={sideDrawerHeaderClassName()}>
           <SheetTitle>{t('Group pricing usage guide')}</SheetTitle>
           <SheetDescription>
             {t(
@@ -347,7 +355,7 @@ function GroupPricingGuide({ open, onOpenChange }: GroupPricingGuideProps) {
           </SheetDescription>
         </SheetHeader>
 
-        <div className='space-y-5 overflow-y-auto p-4'>
+        <div className={sideDrawerFormClassName('gap-5')}>
           <section className='space-y-2'>
             <h3 className='text-sm font-semibold'>{t('Core concepts')}</h3>
             <div className='text-muted-foreground space-y-2 text-sm leading-6'>

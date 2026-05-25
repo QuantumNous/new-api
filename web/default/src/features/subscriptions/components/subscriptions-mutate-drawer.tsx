@@ -52,6 +52,14 @@ import {
 } from '@/components/ui/sheet'
 import { Switch } from '@/components/ui/switch'
 import {
+  SideDrawerSection,
+  sideDrawerContentClassName,
+  sideDrawerFooterClassName,
+  sideDrawerFormClassName,
+  sideDrawerHeaderClassName,
+  sideDrawerSwitchItemClassName,
+} from '@/components/drawer-layout'
+import {
   createPlan,
   updatePlan,
   getGroups,
@@ -243,8 +251,8 @@ export function SubscriptionsMutateDrawer({
         }
       }}
     >
-      <SheetContent className='flex h-dvh w-full flex-col gap-0 overflow-hidden p-0 sm:max-w-[600px]'>
-        <SheetHeader className='border-b px-4 py-3 text-start sm:px-6 sm:py-4'>
+      <SheetContent className={sideDrawerContentClassName('sm:max-w-[600px]')}>
+        <SheetHeader className={sideDrawerHeaderClassName()}>
           <SheetTitle>
             {isEdit ? t('Update plan info') : t('Create new subscription plan')}
           </SheetTitle>
@@ -260,10 +268,10 @@ export function SubscriptionsMutateDrawer({
           <form
             id='subscription-form'
             onSubmit={form.handleSubmit(onSubmit)}
-            className='flex-1 space-y-4 overflow-y-auto px-3 py-3 pb-4 sm:space-y-6 sm:px-4'
+            className={sideDrawerFormClassName()}
           >
             {/* Basic Info */}
-            <div className='space-y-4'>
+            <SideDrawerSection>
               <h3 className='flex items-center gap-2 text-sm font-medium'>
                 <Settings2 className='h-4 w-4' />
                 {t('Basic Info')}
@@ -440,24 +448,24 @@ export function SubscriptionsMutateDrawer({
                   control={form.control}
                   name='enabled'
                   render={({ field }) => (
-                    <FormItem className='flex flex-row items-center gap-2 pt-8'>
+                    <FormItem className={sideDrawerSwitchItemClassName()}>
+                      <FormLabel className='!mt-0'>
+                        {t('Enabled Status')}
+                      </FormLabel>
                       <FormControl>
                         <Switch
                           checked={field.value}
                           onCheckedChange={field.onChange}
                         />
                       </FormControl>
-                      <FormLabel className='!mt-0'>
-                        {t('Enabled Status')}
-                      </FormLabel>
                     </FormItem>
                   )}
                 />
               </div>
-            </div>
+            </SideDrawerSection>
 
             {/* Duration Settings */}
-            <div className='space-y-4'>
+            <SideDrawerSection>
               <h3 className='flex items-center gap-2 text-sm font-medium'>
                 <CalendarClock className='h-4 w-4' />
                 {t('Duration Settings')}
@@ -544,10 +552,10 @@ export function SubscriptionsMutateDrawer({
                   />
                 )}
               </div>
-            </div>
+            </SideDrawerSection>
 
             {/* Quota Reset */}
-            <div className='space-y-4'>
+            <SideDrawerSection>
               <h3 className='flex items-center gap-2 text-sm font-medium'>
                 <RefreshCw className='h-4 w-4' />
                 {t('Quota Reset')}
@@ -612,10 +620,10 @@ export function SubscriptionsMutateDrawer({
                   )}
                 />
               </div>
-            </div>
+            </SideDrawerSection>
 
             {/* Payment Config */}
-            <div className='space-y-4'>
+            <SideDrawerSection>
               <h3 className='flex items-center gap-2 text-sm font-medium'>
                 <CreditCard className='h-4 w-4' />
                 {t('Third-party Payment Config')}
@@ -709,10 +717,10 @@ export function SubscriptionsMutateDrawer({
                   )
                 }}
               />
-            </div>
+            </SideDrawerSection>
           </form>
         </Form>
-        <SheetFooter className='grid grid-cols-2 gap-2 border-t px-4 py-3 sm:flex sm:px-6 sm:py-4'>
+        <SheetFooter className={sideDrawerFooterClassName()}>
           <SheetClose render={<Button variant='outline' />}>
             {t('Close')}
           </SheetClose>

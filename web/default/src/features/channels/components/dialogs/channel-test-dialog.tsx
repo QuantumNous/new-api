@@ -75,6 +75,12 @@ import {
 } from '@/components/ui/tooltip'
 import { DataTableBulkActions as BulkActionsToolbar } from '@/components/data-table'
 import { DataTablePagination } from '@/components/data-table/pagination'
+import {
+  sideDrawerContentClassName,
+  sideDrawerFooterClassName,
+  sideDrawerFormClassName,
+  sideDrawerHeaderClassName,
+} from '@/components/drawer-layout'
 import { StatusBadge } from '@/components/status-badge'
 import { formatResponseTime, handleTestChannel } from '../../lib'
 import { useChannels } from '../channels-provider'
@@ -833,19 +839,19 @@ function FailureDetailsSheet({
         side={isMobile ? 'bottom' : 'right'}
         className={
           isMobile
-            ? 'max-h-[85dvh] gap-0 overflow-hidden rounded-t-xl p-0'
-            : 'h-dvh w-full gap-0 overflow-hidden p-0 sm:max-w-lg'
+            ? sideDrawerContentClassName('h-auto max-h-[85dvh] rounded-t-xl')
+            : sideDrawerContentClassName('sm:max-w-lg')
         }
       >
         {details && (
           <>
-            <SheetHeader className='border-b px-4 py-3 text-start sm:px-5 sm:py-4'>
+            <SheetHeader className={sideDrawerHeaderClassName('sm:px-5')}>
               <SheetTitle className='pr-10'>{t('Details')}</SheetTitle>
               <SheetDescription className='pr-10 wrap-break-word'>
                 {details.model}
               </SheetDescription>
             </SheetHeader>
-            <div className='min-h-0 flex-1 space-y-4 overflow-y-auto px-4 py-3 sm:px-5 sm:py-4'>
+            <div className={sideDrawerFormClassName('gap-4 sm:px-5')}>
               <section className='space-y-1'>
                 <div className='text-muted-foreground text-xs font-medium'>
                   {t('Model')}
@@ -869,7 +875,7 @@ function FailureDetailsSheet({
                 </pre>
               </section>
             </div>
-            <SheetFooter className='border-t px-4 py-3 sm:flex-row sm:justify-end sm:px-5'>
+            <SheetFooter className={sideDrawerFooterClassName('sm:px-5')}>
               <Button
                 variant='outline'
                 className='w-full sm:w-auto'

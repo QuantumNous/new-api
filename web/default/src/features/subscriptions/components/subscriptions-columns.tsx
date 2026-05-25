@@ -23,6 +23,7 @@ import { formatQuota } from '@/lib/format'
 import { DataTableColumnHeader } from '@/components/data-table'
 import { GroupBadge } from '@/components/group-badge'
 import { StatusBadge } from '@/components/status-badge'
+import { TableId } from '@/components/table-id'
 import { formatDuration, formatResetPeriod } from '../lib'
 import type { PlanRecord } from '../types'
 import { DataTableRowActions } from './data-table-row-actions'
@@ -39,9 +40,7 @@ export function useSubscriptionsColumns(): ColumnDef<PlanRecord>[] {
         header: ({ column }) => (
           <DataTableColumnHeader column={column} title='ID' />
         ),
-        cell: ({ row }) => (
-          <span className='text-muted-foreground'>#{row.original.plan.id}</span>
-        ),
+        cell: ({ row }) => <TableId value={row.original.plan.id} />,
         size: 60,
       },
       {

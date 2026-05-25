@@ -180,9 +180,17 @@ export function buildApiParams(config: {
   const { page, pageSize, searchParams, columnFilters = [], isAdmin } = config
 
   // Helper to process type parameter (single value from array)
-  const processType = (value: unknown) => {
+  const processType = (value: unknown): number | undefined => {
+    const parseType = (raw: unknown): number | undefined => {
+      const type = Number(raw)
+      return Number.isFinite(type) ? type : undefined
+    }
+
     if (Array.isArray(value) && value.length === 1) {
-      return Number(value[0])
+      return parseType(value[0])
+    }
+    if (typeof value === 'string' && value !== '') {
+      return parseType(value)
     }
     return undefined
   }
