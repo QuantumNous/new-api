@@ -6,6 +6,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/logger"
+	"github.com/QuantumNous/new-api/setting/operation_setting"
 
 	"github.com/shopspring/decimal"
 	"gorm.io/gorm"
@@ -44,6 +45,81 @@ var (
 	ErrTopUpNotFound         = errors.New("topup not found")
 	ErrTopUpStatusInvalid    = errors.New("topup status invalid")
 )
+
+type InviteTopupRebateResult struct {
+	InviterId   int
+	RebateQuota int
+}
+
+func calculateInviteTopupRebate(creditedQuota int) int {
+	return int(decimal.NewFromInt(int64(creditedQuota)).
+		Mul(decimal.NewFromFloat(common.InviteTopupRebateRatio)).
+		Div(decimal.NewFromInt(100)).
+		IntPart())
+}
+
+func applyInviteTopupRebateWithTx(tx *gorm.DB, userId int, creditedQuota int, completedAt int64) (*InviteTopupRebateResult, error) {
+	if !common.InviteTopupRebateEnabled ||
+		common.InviteTopupRebateRatio <= 0 ||
+		creditedQuota <= 0 ||
+		!operation_setting.IsPaymentComplianceConfirmed() {
+		return nil, nil
+	}
+
+	if completedAt <= 0 {
+		completedAt = common.GetTimestamp()
+	}
+
+	var user User
+	if err := tx.Select("id", "inviter_id", "created_at").Where("id = ?", userId).First(&user).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	if user.InviterId == 0 || user.InviterId == user.Id {
+		return nil, nil
+	}
+
+	if common.InviteTopupRebateValidDays > 0 {
+		expiredAt := user.CreatedAt + int64(common.InviteTopupRebateValidDays)*24*60*60
+		if user.CreatedAt <= 0 || completedAt > expiredAt {
+			return nil, nil
+		}
+	}
+
+	rebateQuota := calculateInviteTopupRebate(creditedQuota)
+	if rebateQuota <= 0 {
+		return nil, nil
+	}
+
+	result := tx.Model(&User{}).Where("id = ?", user.InviterId).Updates(map[string]interface{}{
+		"aff_quota":   gorm.Expr("aff_quota + ?", rebateQuota),
+		"aff_history": gorm.Expr("aff_history + ?", rebateQuota),
+	})
+	if result.Error != nil {
+		return nil, result.Error
+	}
+	if result.RowsAffected == 0 {
+		return nil, nil
+	}
+
+	return &InviteTopupRebateResult{
+		InviterId:   user.InviterId,
+		RebateQuota: rebateQuota,
+	}, nil
+}
+
+func ApplyInviteTopupRebate(userId int, creditedQuota int, completedAt int64) (*InviteTopupRebateResult, error) {
+	return applyInviteTopupRebateWithTx(DB, userId, creditedQuota, completedAt)
+}
+
+func RecordInviteTopupRebateLog(result *InviteTopupRebateResult, invitedUserId int) {
+	if result == nil || result.InviterId == 0 || result.RebateQuota <= 0 {
+		return
+	}
+	RecordLog(result.InviterId, LogTypeSystem, fmt.Sprintf("邀请用户 %d 充值返利 %s", invitedUserId, logger.LogQuota(result.RebateQuota)))
+}
 
 func (topUp *TopUp) Insert() error {
 	var err error
@@ -109,7 +185,8 @@ func Recharge(referenceId string, customerId string, callerIp string) (err error
 		return errors.New("未提供支付单号")
 	}
 
-	var quota float64
+	var quotaToAdd int
+	var rebateResult *InviteTopupRebateResult
 	topUp := &TopUp{}
 
 	refCol := "`trade_no`"
@@ -131,15 +208,24 @@ func Recharge(referenceId string, customerId string, callerIp string) (err error
 			return errors.New("充值订单状态错误")
 		}
 
-		topUp.CompleteTime = common.GetTimestamp()
+		completeTime := common.GetTimestamp()
+		topUp.CompleteTime = completeTime
 		topUp.Status = common.TopUpStatusSuccess
 		err = tx.Save(topUp).Error
 		if err != nil {
 			return err
 		}
 
-		quota = topUp.Money * common.QuotaPerUnit
-		err = tx.Model(&User{}).Where("id = ?", topUp.UserId).Updates(map[string]interface{}{"stripe_customer": customerId, "quota": gorm.Expr("quota + ?", quota)}).Error
+		quotaToAdd = int(decimal.NewFromFloat(topUp.Money).Mul(decimal.NewFromFloat(common.QuotaPerUnit)).IntPart())
+		if quotaToAdd <= 0 {
+			return errors.New("无效的充值额度")
+		}
+		err = tx.Model(&User{}).Where("id = ?", topUp.UserId).Updates(map[string]interface{}{"stripe_customer": customerId, "quota": gorm.Expr("quota + ?", quotaToAdd)}).Error
+		if err != nil {
+			return err
+		}
+
+		rebateResult, err = applyInviteTopupRebateWithTx(tx, topUp.UserId, quotaToAdd, completeTime)
 		if err != nil {
 			return err
 		}
@@ -152,7 +238,8 @@ func Recharge(referenceId string, customerId string, callerIp string) (err error
 		return errors.New("充值失败，请稍后重试")
 	}
 
-	RecordTopupLog(topUp.UserId, fmt.Sprintf("使用在线充值成功，充值金额: %v，支付金额：%d", logger.FormatQuota(int(quota)), topUp.Amount), callerIp, topUp.PaymentMethod, PaymentMethodStripe)
+	RecordTopupLog(topUp.UserId, fmt.Sprintf("使用在线充值成功，充值金额: %v，支付金额：%d", logger.FormatQuota(quotaToAdd), topUp.Amount), callerIp, topUp.PaymentMethod, PaymentMethodStripe)
+	RecordInviteTopupRebateLog(rebateResult, topUp.UserId)
 
 	return nil
 }
@@ -329,6 +416,7 @@ func ManualCompleteTopUp(tradeNo string, callerIp string) error {
 	var quotaToAdd int
 	var payMoney float64
 	var paymentMethod string
+	var rebateResult *InviteTopupRebateResult
 
 	err := DB.Transaction(func(tx *gorm.DB) error {
 		topUp := &TopUp{}
@@ -362,7 +450,8 @@ func ManualCompleteTopUp(tradeNo string, callerIp string) error {
 		}
 
 		// 标记完成
-		topUp.CompleteTime = common.GetTimestamp()
+		completeTime := common.GetTimestamp()
+		topUp.CompleteTime = completeTime
 		topUp.Status = common.TopUpStatusSuccess
 		if err := tx.Save(topUp).Error; err != nil {
 			return err
@@ -370,6 +459,12 @@ func ManualCompleteTopUp(tradeNo string, callerIp string) error {
 
 		// 增加用户额度（立即写库，保持一致性）
 		if err := tx.Model(&User{}).Where("id = ?", topUp.UserId).Update("quota", gorm.Expr("quota + ?", quotaToAdd)).Error; err != nil {
+			return err
+		}
+
+		var err error
+		rebateResult, err = applyInviteTopupRebateWithTx(tx, topUp.UserId, quotaToAdd, completeTime)
+		if err != nil {
 			return err
 		}
 
@@ -384,7 +479,10 @@ func ManualCompleteTopUp(tradeNo string, callerIp string) error {
 	}
 
 	// 事务外记录日志，避免阻塞
-	RecordTopupLog(userId, fmt.Sprintf("管理员补单成功，充值金额: %v，支付金额：%f", logger.FormatQuota(quotaToAdd), payMoney), callerIp, paymentMethod, "admin")
+	if quotaToAdd > 0 {
+		RecordTopupLog(userId, fmt.Sprintf("管理员补单成功，充值金额: %v，支付金额：%f", logger.FormatQuota(quotaToAdd), payMoney), callerIp, paymentMethod, "admin")
+		RecordInviteTopupRebateLog(rebateResult, userId)
+	}
 	return nil
 }
 func RechargeCreem(referenceId string, customerEmail string, customerName string, callerIp string) (err error) {
@@ -392,7 +490,8 @@ func RechargeCreem(referenceId string, customerEmail string, customerName string
 		return errors.New("未提供支付单号")
 	}
 
-	var quota int64
+	var quotaToAdd int
+	var rebateResult *InviteTopupRebateResult
 	topUp := &TopUp{}
 
 	refCol := "`trade_no`"
@@ -414,7 +513,8 @@ func RechargeCreem(referenceId string, customerEmail string, customerName string
 			return errors.New("充值订单状态错误")
 		}
 
-		topUp.CompleteTime = common.GetTimestamp()
+		completeTime := common.GetTimestamp()
+		topUp.CompleteTime = completeTime
 		topUp.Status = common.TopUpStatusSuccess
 		err = tx.Save(topUp).Error
 		if err != nil {
@@ -422,11 +522,14 @@ func RechargeCreem(referenceId string, customerEmail string, customerName string
 		}
 
 		// Creem 直接使用 Amount 作为充值额度（整数）
-		quota = topUp.Amount
+		quotaToAdd = int(topUp.Amount)
+		if quotaToAdd <= 0 {
+			return errors.New("无效的充值额度")
+		}
 
 		// 构建更新字段，优先使用邮箱，如果邮箱为空则使用用户名
 		updateFields := map[string]interface{}{
-			"quota": gorm.Expr("quota + ?", quota),
+			"quota": gorm.Expr("quota + ?", quotaToAdd),
 		}
 
 		// 如果有客户邮箱，尝试更新用户邮箱（仅当用户邮箱为空时）
@@ -449,6 +552,11 @@ func RechargeCreem(referenceId string, customerEmail string, customerName string
 			return err
 		}
 
+		rebateResult, err = applyInviteTopupRebateWithTx(tx, topUp.UserId, quotaToAdd, completeTime)
+		if err != nil {
+			return err
+		}
+
 		return nil
 	})
 
@@ -457,7 +565,8 @@ func RechargeCreem(referenceId string, customerEmail string, customerName string
 		return errors.New("充值失败，请稍后重试")
 	}
 
-	RecordTopupLog(topUp.UserId, fmt.Sprintf("使用Creem充值成功，充值额度: %v，支付金额：%.2f", quota, topUp.Money), callerIp, topUp.PaymentMethod, PaymentMethodCreem)
+	RecordTopupLog(topUp.UserId, fmt.Sprintf("使用Creem充值成功，充值额度: %v，支付金额：%.2f", logger.FormatQuota(quotaToAdd), topUp.Money), callerIp, topUp.PaymentMethod, PaymentMethodCreem)
+	RecordInviteTopupRebateLog(rebateResult, topUp.UserId)
 
 	return nil
 }
@@ -468,6 +577,7 @@ func RechargeWaffo(tradeNo string, callerIp string) (err error) {
 	}
 
 	var quotaToAdd int
+	var rebateResult *InviteTopupRebateResult
 	topUp := &TopUp{}
 
 	refCol := "`trade_no`"
@@ -500,13 +610,19 @@ func RechargeWaffo(tradeNo string, callerIp string) (err error) {
 			return errors.New("无效的充值额度")
 		}
 
-		topUp.CompleteTime = common.GetTimestamp()
+		completeTime := common.GetTimestamp()
+		topUp.CompleteTime = completeTime
 		topUp.Status = common.TopUpStatusSuccess
 		if err := tx.Save(topUp).Error; err != nil {
 			return err
 		}
 
 		if err := tx.Model(&User{}).Where("id = ?", topUp.UserId).Update("quota", gorm.Expr("quota + ?", quotaToAdd)).Error; err != nil {
+			return err
+		}
+
+		rebateResult, err = applyInviteTopupRebateWithTx(tx, topUp.UserId, quotaToAdd, completeTime)
+		if err != nil {
 			return err
 		}
 
@@ -520,6 +636,7 @@ func RechargeWaffo(tradeNo string, callerIp string) (err error) {
 
 	if quotaToAdd > 0 {
 		RecordTopupLog(topUp.UserId, fmt.Sprintf("Waffo充值成功，充值额度: %v，支付金额: %.2f", logger.FormatQuota(quotaToAdd), topUp.Money), callerIp, topUp.PaymentMethod, PaymentMethodWaffo)
+		RecordInviteTopupRebateLog(rebateResult, topUp.UserId)
 	}
 
 	return nil
@@ -531,6 +648,7 @@ func RechargeWaffoPancake(tradeNo string) (err error) {
 	}
 
 	var quotaToAdd int
+	var rebateResult *InviteTopupRebateResult
 	topUp := &TopUp{}
 
 	refCol := "`trade_no`"
@@ -561,13 +679,19 @@ func RechargeWaffoPancake(tradeNo string) (err error) {
 			return errors.New("无效的充值额度")
 		}
 
-		topUp.CompleteTime = common.GetTimestamp()
+		completeTime := common.GetTimestamp()
+		topUp.CompleteTime = completeTime
 		topUp.Status = common.TopUpStatusSuccess
 		if err := tx.Save(topUp).Error; err != nil {
 			return err
 		}
 
 		if err := tx.Model(&User{}).Where("id = ?", topUp.UserId).Update("quota", gorm.Expr("quota + ?", quotaToAdd)).Error; err != nil {
+			return err
+		}
+
+		rebateResult, err = applyInviteTopupRebateWithTx(tx, topUp.UserId, quotaToAdd, completeTime)
+		if err != nil {
 			return err
 		}
 
@@ -581,6 +705,7 @@ func RechargeWaffoPancake(tradeNo string) (err error) {
 
 	if quotaToAdd > 0 {
 		RecordLog(topUp.UserId, LogTypeTopup, fmt.Sprintf("Waffo Pancake充值成功，充值额度: %v，支付金额: %.2f", logger.FormatQuota(quotaToAdd), topUp.Money))
+		RecordInviteTopupRebateLog(rebateResult, topUp.UserId)
 	}
 
 	return nil

@@ -52,6 +52,9 @@ const quotaSchema = z.object({
   PreConsumedQuota: z.coerce.number().min(0),
   QuotaForInviter: z.coerce.number().min(0),
   QuotaForInvitee: z.coerce.number().min(0),
+  InviteTopupRebateEnabled: z.boolean(),
+  InviteTopupRebateRatio: z.coerce.number().min(0).max(100),
+  InviteTopupRebateValidDays: z.coerce.number().int().min(0),
   TopUpLink: z.string(),
   general_setting: z.object({
     docs_link: z.string(),
@@ -99,6 +102,7 @@ export function QuotaSettingsSection({
         }
       },
     })
+  const inviteTopupRebateEnabled = form.watch('InviteTopupRebateEnabled')
 
   return (
     <SettingsSection title={t('Quota Settings')}>
@@ -108,7 +112,7 @@ export function QuotaSettingsSection({
         <Alert variant='destructive'>
           <AlertDescription>
             {t(
-              'Non-zero invitation rewards require compliance confirmation in Payment Gateway settings.'
+              'Non-zero invitation rewards and top-up rebates require compliance confirmation in Payment Gateway settings.'
             )}
           </AlertDescription>
         </Alert>
@@ -212,6 +216,91 @@ export function QuotaSettingsSection({
                   </FormControl>
                   <FormDescription>
                     {t('Quota given to invited users')}
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <SettingsFormGridItem span='full'>
+              <FormField
+                control={form.control}
+                name='InviteTopupRebateEnabled'
+                render={({ field }) => (
+                  <SettingsSwitchItem>
+                    <SettingsSwitchContent>
+                      <FormLabel>{t('Invite Top-Up Rebate')}</FormLabel>
+                      <FormDescription>
+                        {t(
+                          'Give inviters a percentage of successful top-ups from invited users as affiliate rewards.'
+                        )}
+                      </FormDescription>
+                    </SettingsSwitchContent>
+                    <FormControl>
+                      <Switch
+                        checked={field.value}
+                        onCheckedChange={field.onChange}
+                        disabled={updateOption.isPending}
+                      />
+                    </FormControl>
+                  </SettingsSwitchItem>
+                )}
+              />
+            </SettingsFormGridItem>
+
+            <FormField
+              control={form.control}
+              name='InviteTopupRebateRatio'
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t('Invite Top-Up Rebate Ratio (%)')}</FormLabel>
+                  <FormControl>
+                    <Input
+                      type='number'
+                      min={0}
+                      max={100}
+                      step='0.01'
+                      value={field.value ?? ''}
+                      onChange={handleNumberChange(field.onChange)}
+                      name={field.name}
+                      onBlur={field.onBlur}
+                      ref={field.ref}
+                      disabled={!inviteTopupRebateEnabled}
+                    />
+                  </FormControl>
+                  <FormDescription>
+                    {t(
+                      'Percentage of credited top-up quota granted to the inviter.'
+                    )}
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name='InviteTopupRebateValidDays'
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t('Invite Top-Up Rebate Valid Days')}</FormLabel>
+                  <FormControl>
+                    <Input
+                      type='number'
+                      min={0}
+                      step={1}
+                      value={field.value ?? ''}
+                      onChange={handleNumberChange(field.onChange)}
+                      name={field.name}
+                      onBlur={field.onBlur}
+                      ref={field.ref}
+                      disabled={!inviteTopupRebateEnabled}
+                    />
+                  </FormControl>
+                  <FormDescription>
+                    {t(
+                      'Only top-ups completed within this many days after registration are eligible. Set 0 for no time limit.'
+                    )}
                   </FormDescription>
                   <FormMessage />
                 </FormItem>
