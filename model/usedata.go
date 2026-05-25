@@ -116,7 +116,7 @@ func aggregateQuotaDataByModel(query *gorm.DB, tokenId int, includeUserFields bo
 		userFields = "min(id) as id, max(user_id) as user_id, max(username) as username, "
 	}
 	if tokenId > 0 {
-		query = query.Select(userFields+"model_name, created_at, ? as token_id, max(token_name) as token_name, sum(count) as count, sum(quota) as quota, sum(token_used) as token_used", tokenId)
+		query = query.Select(userFields + "model_name, created_at, max(token_id) as token_id, max(token_name) as token_name, sum(count) as count, sum(quota) as quota, sum(token_used) as token_used")
 	} else {
 		query = query.Select(userFields + "model_name, created_at, sum(count) as count, sum(quota) as quota, sum(token_used) as token_used")
 	}
