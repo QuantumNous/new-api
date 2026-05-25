@@ -79,4 +79,11 @@ jobs:
             docker compose -f docker-compose.yml -f docker-compose.prod.yml pull new-api
             docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
             docker compose -f docker-compose.yml -f docker-compose.prod.yml ps
-            curl -fsS http://127.0.0.1:3000/api/status >/dev/null
+            for i in $(seq 1 30); do
+              if curl -fsS http://127.0.0.1:3000/api/status >/dev/null; then
+                exit 0
+              fi
+              sleep 2
+            done
+            docker compose -f docker-compose.yml -f docker-compose.prod.yml logs --tail=120 new-api
+            exit 1
