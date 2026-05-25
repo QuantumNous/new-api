@@ -55,6 +55,14 @@ const Dashboard = lazy(() => import('./pages/Dashboard'));
 const About = lazy(() => import('./pages/About'));
 const UserAgreement = lazy(() => import('./pages/UserAgreement'));
 const PrivacyPolicy = lazy(() => import('./pages/PrivacyPolicy'));
+const DocsRedirect = lazy(() => import('./pages/Docs/Redirect'));
+const IntegrationHome = lazy(() => import('./pages/Docs/IntegrationHome'));
+const IntegrationClaudeCode = lazy(() => import('./pages/Docs/IntegrationClaudeCode'));
+const IntegrationCodex = lazy(() => import('./pages/Docs/IntegrationCodex'));
+const IntegrationGeminiCli = lazy(() => import('./pages/Docs/IntegrationGeminiCli'));
+const IntegrationOpenCode = lazy(() => import('./pages/Docs/IntegrationOpenCode'));
+const IntegrationTrace = lazy(() => import('./pages/Docs/IntegrationTrace'));
+const IntegrationCodeBuddy = lazy(() => import('./pages/Docs/IntegrationCodeBuddy'));
 
 function DynamicOAuth2Callback() {
   const { provider } = useParams();
@@ -355,6 +363,70 @@ function App() {
           element={
             <Suspense fallback={<Loading></Loading>} key={location.pathname}>
               <PrivacyPolicy />
+            </Suspense>
+          }
+        />
+        <Route
+          path='/docs'
+          element={
+            <Suspense fallback={<Loading></Loading>} key={location.pathname}>
+              <DocsRedirect />
+            </Suspense>
+          }
+        />
+        <Route
+          path='/docs/integration'
+          element={
+            <Suspense fallback={<Loading></Loading>} key={location.pathname}>
+              <IntegrationHome />
+            </Suspense>
+          }
+        />
+        <Route
+          path='/docs/integration/claude-code'
+          element={
+            <Suspense fallback={<Loading></Loading>} key={location.pathname}>
+              <IntegrationClaudeCode />
+            </Suspense>
+          }
+        />
+        <Route
+          path='/docs/integration/codex'
+          element={
+            <Suspense fallback={<Loading></Loading>} key={location.pathname}>
+              <IntegrationCodex />
+            </Suspense>
+          }
+        />
+        <Route
+          path='/docs/integration/gemini-cli'
+          element={
+            <Suspense fallback={<Loading></Loading>} key={location.pathname}>
+              <IntegrationGeminiCli />
+            </Suspense>
+          }
+        />
+        <Route
+          path='/docs/integration/open-code'
+          element={
+            <Suspense fallback={<Loading></Loading>} key={location.pathname}>
+              <IntegrationOpenCode />
+            </Suspense>
+          }
+        />
+        <Route
+          path='/docs/integration/trace'
+          element={
+            <Suspense fallback={<Loading></Loading>} key={location.pathname}>
+              <IntegrationTrace />
+            </Suspense>
+          }
+        />
+        <Route
+          path='/docs/integration/code-buddy'
+          element={
+            <Suspense fallback={<Loading></Loading>} key={location.pathname}>
+              <IntegrationCodeBuddy />
             </Suspense>
           }
         />

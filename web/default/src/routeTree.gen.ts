@@ -16,6 +16,7 @@ import { Route as authRouteRouteImport } from './routes/(auth)/route'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as SetupIndexRouteImport } from './routes/setup/index'
 import { Route as PricingIndexRouteImport } from './routes/pricing/index'
+import { Route as DocsIndexRouteImport } from './routes/docs/index'
 import { Route as AboutIndexRouteImport } from './routes/about/index'
 import { Route as OauthProviderRouteImport } from './routes/oauth/$provider'
 import { Route as AuthenticatedChat2linkRouteImport } from './routes/_authenticated/chat2link'
@@ -30,8 +31,10 @@ import { Route as authResetRouteImport } from './routes/(auth)/reset'
 import { Route as authOtpRouteImport } from './routes/(auth)/otp'
 import { Route as authOauthRouteImport } from './routes/(auth)/oauth'
 import { Route as authForgotPasswordRouteImport } from './routes/(auth)/forgot-password'
+import { Route as DocsIntegrationRouteRouteImport } from './routes/docs/integration/route'
 import { Route as AuthenticatedSystemSettingsRouteRouteImport } from './routes/_authenticated/system-settings/route'
 import { Route as PricingModelIdIndexRouteImport } from './routes/pricing/$modelId/index'
+import { Route as DocsIntegrationIndexRouteImport } from './routes/docs/integration/index'
 import { Route as AuthenticatedWalletIndexRouteImport } from './routes/_authenticated/wallet/index'
 import { Route as AuthenticatedUsersIndexRouteImport } from './routes/_authenticated/users/index'
 import { Route as AuthenticatedUsageLogsIndexRouteImport } from './routes/_authenticated/usage-logs/index'
@@ -44,6 +47,12 @@ import { Route as AuthenticatedModelsIndexRouteImport } from './routes/_authenti
 import { Route as AuthenticatedKeysIndexRouteImport } from './routes/_authenticated/keys/index'
 import { Route as AuthenticatedDashboardIndexRouteImport } from './routes/_authenticated/dashboard/index'
 import { Route as AuthenticatedChannelsIndexRouteImport } from './routes/_authenticated/channels/index'
+import { Route as DocsIntegrationTraceRouteImport } from './routes/docs/integration/trace'
+import { Route as DocsIntegrationOpenCodeRouteImport } from './routes/docs/integration/open-code'
+import { Route as DocsIntegrationGeminiCliRouteImport } from './routes/docs/integration/gemini-cli'
+import { Route as DocsIntegrationCodexRouteImport } from './routes/docs/integration/codex'
+import { Route as DocsIntegrationCodeBuddyRouteImport } from './routes/docs/integration/code-buddy'
+import { Route as DocsIntegrationClaudeCodeRouteImport } from './routes/docs/integration/claude-code'
 import { Route as AuthenticatedUsageLogsSectionRouteImport } from './routes/_authenticated/usage-logs/$section'
 import { Route as AuthenticatedModelsSectionRouteImport } from './routes/_authenticated/models/$section'
 import { Route as AuthenticatedErrorsErrorRouteImport } from './routes/_authenticated/errors/$error'
@@ -96,6 +105,11 @@ const SetupIndexRoute = SetupIndexRouteImport.update({
 const PricingIndexRoute = PricingIndexRouteImport.update({
   id: '/pricing/',
   path: '/pricing/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DocsIndexRoute = DocsIndexRouteImport.update({
+  id: '/docs/',
+  path: '/docs/',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AboutIndexRoute = AboutIndexRouteImport.update({
@@ -168,6 +182,11 @@ const authForgotPasswordRoute = authForgotPasswordRouteImport.update({
   path: '/forgot-password',
   getParentRoute: () => authRouteRoute,
 } as any)
+const DocsIntegrationRouteRoute = DocsIntegrationRouteRouteImport.update({
+  id: '/docs/integration',
+  path: '/docs/integration',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AuthenticatedSystemSettingsRouteRoute =
   AuthenticatedSystemSettingsRouteRouteImport.update({
     id: '/system-settings',
@@ -178,6 +197,11 @@ const PricingModelIdIndexRoute = PricingModelIdIndexRouteImport.update({
   id: '/pricing/$modelId/',
   path: '/pricing/$modelId/',
   getParentRoute: () => rootRouteImport,
+} as any)
+const DocsIntegrationIndexRoute = DocsIntegrationIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => DocsIntegrationRouteRoute,
 } as any)
 const AuthenticatedWalletIndexRoute =
   AuthenticatedWalletIndexRouteImport.update({
@@ -248,6 +272,39 @@ const AuthenticatedChannelsIndexRoute =
     id: '/channels/',
     path: '/channels/',
     getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const DocsIntegrationTraceRoute = DocsIntegrationTraceRouteImport.update({
+  id: '/trace',
+  path: '/trace',
+  getParentRoute: () => DocsIntegrationRouteRoute,
+} as any)
+const DocsIntegrationOpenCodeRoute = DocsIntegrationOpenCodeRouteImport.update({
+  id: '/open-code',
+  path: '/open-code',
+  getParentRoute: () => DocsIntegrationRouteRoute,
+} as any)
+const DocsIntegrationGeminiCliRoute =
+  DocsIntegrationGeminiCliRouteImport.update({
+    id: '/gemini-cli',
+    path: '/gemini-cli',
+    getParentRoute: () => DocsIntegrationRouteRoute,
+  } as any)
+const DocsIntegrationCodexRoute = DocsIntegrationCodexRouteImport.update({
+  id: '/codex',
+  path: '/codex',
+  getParentRoute: () => DocsIntegrationRouteRoute,
+} as any)
+const DocsIntegrationCodeBuddyRoute =
+  DocsIntegrationCodeBuddyRouteImport.update({
+    id: '/code-buddy',
+    path: '/code-buddy',
+    getParentRoute: () => DocsIntegrationRouteRoute,
+  } as any)
+const DocsIntegrationClaudeCodeRoute =
+  DocsIntegrationClaudeCodeRouteImport.update({
+    id: '/claude-code',
+    path: '/claude-code',
+    getParentRoute: () => DocsIntegrationRouteRoute,
   } as any)
 const AuthenticatedUsageLogsSectionRoute =
   AuthenticatedUsageLogsSectionRouteImport.update({
@@ -373,6 +430,7 @@ export interface FileRoutesByFullPath {
   '/privacy-policy': typeof PrivacyPolicyRoute
   '/user-agreement': typeof UserAgreementRoute
   '/system-settings': typeof AuthenticatedSystemSettingsRouteRouteWithChildren
+  '/docs/integration': typeof DocsIntegrationRouteRouteWithChildren
   '/forgot-password': typeof authForgotPasswordRoute
   '/oauth': typeof authOauthRoute
   '/otp': typeof authOtpRoute
@@ -387,6 +445,7 @@ export interface FileRoutesByFullPath {
   '/chat2link': typeof AuthenticatedChat2linkRoute
   '/oauth/$provider': typeof OauthProviderRoute
   '/about/': typeof AboutIndexRoute
+  '/docs/': typeof DocsIndexRoute
   '/pricing/': typeof PricingIndexRoute
   '/setup/': typeof SetupIndexRoute
   '/user/reset': typeof authUserResetRoute
@@ -395,6 +454,12 @@ export interface FileRoutesByFullPath {
   '/errors/$error': typeof AuthenticatedErrorsErrorRoute
   '/models/$section': typeof AuthenticatedModelsSectionRoute
   '/usage-logs/$section': typeof AuthenticatedUsageLogsSectionRoute
+  '/docs/integration/claude-code': typeof DocsIntegrationClaudeCodeRoute
+  '/docs/integration/code-buddy': typeof DocsIntegrationCodeBuddyRoute
+  '/docs/integration/codex': typeof DocsIntegrationCodexRoute
+  '/docs/integration/gemini-cli': typeof DocsIntegrationGeminiCliRoute
+  '/docs/integration/open-code': typeof DocsIntegrationOpenCodeRoute
+  '/docs/integration/trace': typeof DocsIntegrationTraceRoute
   '/channels/': typeof AuthenticatedChannelsIndexRoute
   '/dashboard/': typeof AuthenticatedDashboardIndexRoute
   '/keys/': typeof AuthenticatedKeysIndexRoute
@@ -407,6 +472,7 @@ export interface FileRoutesByFullPath {
   '/usage-logs/': typeof AuthenticatedUsageLogsIndexRoute
   '/users/': typeof AuthenticatedUsersIndexRoute
   '/wallet/': typeof AuthenticatedWalletIndexRoute
+  '/docs/integration/': typeof DocsIntegrationIndexRoute
   '/pricing/$modelId/': typeof PricingModelIdIndexRoute
   '/system-settings/auth/$section': typeof AuthenticatedSystemSettingsAuthSectionRoute
   '/system-settings/content/$section': typeof AuthenticatedSystemSettingsContentSectionRoute
@@ -441,6 +507,7 @@ export interface FileRoutesByTo {
   '/chat2link': typeof AuthenticatedChat2linkRoute
   '/oauth/$provider': typeof OauthProviderRoute
   '/about': typeof AboutIndexRoute
+  '/docs': typeof DocsIndexRoute
   '/pricing': typeof PricingIndexRoute
   '/setup': typeof SetupIndexRoute
   '/user/reset': typeof authUserResetRoute
@@ -449,6 +516,12 @@ export interface FileRoutesByTo {
   '/errors/$error': typeof AuthenticatedErrorsErrorRoute
   '/models/$section': typeof AuthenticatedModelsSectionRoute
   '/usage-logs/$section': typeof AuthenticatedUsageLogsSectionRoute
+  '/docs/integration/claude-code': typeof DocsIntegrationClaudeCodeRoute
+  '/docs/integration/code-buddy': typeof DocsIntegrationCodeBuddyRoute
+  '/docs/integration/codex': typeof DocsIntegrationCodexRoute
+  '/docs/integration/gemini-cli': typeof DocsIntegrationGeminiCliRoute
+  '/docs/integration/open-code': typeof DocsIntegrationOpenCodeRoute
+  '/docs/integration/trace': typeof DocsIntegrationTraceRoute
   '/channels': typeof AuthenticatedChannelsIndexRoute
   '/dashboard': typeof AuthenticatedDashboardIndexRoute
   '/keys': typeof AuthenticatedKeysIndexRoute
@@ -461,6 +534,7 @@ export interface FileRoutesByTo {
   '/usage-logs': typeof AuthenticatedUsageLogsIndexRoute
   '/users': typeof AuthenticatedUsersIndexRoute
   '/wallet': typeof AuthenticatedWalletIndexRoute
+  '/docs/integration': typeof DocsIntegrationIndexRoute
   '/pricing/$modelId': typeof PricingModelIdIndexRoute
   '/system-settings/auth/$section': typeof AuthenticatedSystemSettingsAuthSectionRoute
   '/system-settings/content/$section': typeof AuthenticatedSystemSettingsContentSectionRoute
@@ -485,6 +559,7 @@ export interface FileRoutesById {
   '/privacy-policy': typeof PrivacyPolicyRoute
   '/user-agreement': typeof UserAgreementRoute
   '/_authenticated/system-settings': typeof AuthenticatedSystemSettingsRouteRouteWithChildren
+  '/docs/integration': typeof DocsIntegrationRouteRouteWithChildren
   '/(auth)/forgot-password': typeof authForgotPasswordRoute
   '/(auth)/oauth': typeof authOauthRoute
   '/(auth)/otp': typeof authOtpRoute
@@ -499,6 +574,7 @@ export interface FileRoutesById {
   '/_authenticated/chat2link': typeof AuthenticatedChat2linkRoute
   '/oauth/$provider': typeof OauthProviderRoute
   '/about/': typeof AboutIndexRoute
+  '/docs/': typeof DocsIndexRoute
   '/pricing/': typeof PricingIndexRoute
   '/setup/': typeof SetupIndexRoute
   '/(auth)/user/reset': typeof authUserResetRoute
@@ -507,6 +583,12 @@ export interface FileRoutesById {
   '/_authenticated/errors/$error': typeof AuthenticatedErrorsErrorRoute
   '/_authenticated/models/$section': typeof AuthenticatedModelsSectionRoute
   '/_authenticated/usage-logs/$section': typeof AuthenticatedUsageLogsSectionRoute
+  '/docs/integration/claude-code': typeof DocsIntegrationClaudeCodeRoute
+  '/docs/integration/code-buddy': typeof DocsIntegrationCodeBuddyRoute
+  '/docs/integration/codex': typeof DocsIntegrationCodexRoute
+  '/docs/integration/gemini-cli': typeof DocsIntegrationGeminiCliRoute
+  '/docs/integration/open-code': typeof DocsIntegrationOpenCodeRoute
+  '/docs/integration/trace': typeof DocsIntegrationTraceRoute
   '/_authenticated/channels/': typeof AuthenticatedChannelsIndexRoute
   '/_authenticated/dashboard/': typeof AuthenticatedDashboardIndexRoute
   '/_authenticated/keys/': typeof AuthenticatedKeysIndexRoute
@@ -519,6 +601,7 @@ export interface FileRoutesById {
   '/_authenticated/usage-logs/': typeof AuthenticatedUsageLogsIndexRoute
   '/_authenticated/users/': typeof AuthenticatedUsersIndexRoute
   '/_authenticated/wallet/': typeof AuthenticatedWalletIndexRoute
+  '/docs/integration/': typeof DocsIntegrationIndexRoute
   '/pricing/$modelId/': typeof PricingModelIdIndexRoute
   '/_authenticated/system-settings/auth/$section': typeof AuthenticatedSystemSettingsAuthSectionRoute
   '/_authenticated/system-settings/content/$section': typeof AuthenticatedSystemSettingsContentSectionRoute
@@ -542,6 +625,7 @@ export interface FileRouteTypes {
     | '/privacy-policy'
     | '/user-agreement'
     | '/system-settings'
+    | '/docs/integration'
     | '/forgot-password'
     | '/oauth'
     | '/otp'
@@ -556,6 +640,7 @@ export interface FileRouteTypes {
     | '/chat2link'
     | '/oauth/$provider'
     | '/about/'
+    | '/docs/'
     | '/pricing/'
     | '/setup/'
     | '/user/reset'
@@ -564,6 +649,12 @@ export interface FileRouteTypes {
     | '/errors/$error'
     | '/models/$section'
     | '/usage-logs/$section'
+    | '/docs/integration/claude-code'
+    | '/docs/integration/code-buddy'
+    | '/docs/integration/codex'
+    | '/docs/integration/gemini-cli'
+    | '/docs/integration/open-code'
+    | '/docs/integration/trace'
     | '/channels/'
     | '/dashboard/'
     | '/keys/'
@@ -576,6 +667,7 @@ export interface FileRouteTypes {
     | '/usage-logs/'
     | '/users/'
     | '/wallet/'
+    | '/docs/integration/'
     | '/pricing/$modelId/'
     | '/system-settings/auth/$section'
     | '/system-settings/content/$section'
@@ -610,6 +702,7 @@ export interface FileRouteTypes {
     | '/chat2link'
     | '/oauth/$provider'
     | '/about'
+    | '/docs'
     | '/pricing'
     | '/setup'
     | '/user/reset'
@@ -618,6 +711,12 @@ export interface FileRouteTypes {
     | '/errors/$error'
     | '/models/$section'
     | '/usage-logs/$section'
+    | '/docs/integration/claude-code'
+    | '/docs/integration/code-buddy'
+    | '/docs/integration/codex'
+    | '/docs/integration/gemini-cli'
+    | '/docs/integration/open-code'
+    | '/docs/integration/trace'
     | '/channels'
     | '/dashboard'
     | '/keys'
@@ -630,6 +729,7 @@ export interface FileRouteTypes {
     | '/usage-logs'
     | '/users'
     | '/wallet'
+    | '/docs/integration'
     | '/pricing/$modelId'
     | '/system-settings/auth/$section'
     | '/system-settings/content/$section'
@@ -653,6 +753,7 @@ export interface FileRouteTypes {
     | '/privacy-policy'
     | '/user-agreement'
     | '/_authenticated/system-settings'
+    | '/docs/integration'
     | '/(auth)/forgot-password'
     | '/(auth)/oauth'
     | '/(auth)/otp'
@@ -667,6 +768,7 @@ export interface FileRouteTypes {
     | '/_authenticated/chat2link'
     | '/oauth/$provider'
     | '/about/'
+    | '/docs/'
     | '/pricing/'
     | '/setup/'
     | '/(auth)/user/reset'
@@ -675,6 +777,12 @@ export interface FileRouteTypes {
     | '/_authenticated/errors/$error'
     | '/_authenticated/models/$section'
     | '/_authenticated/usage-logs/$section'
+    | '/docs/integration/claude-code'
+    | '/docs/integration/code-buddy'
+    | '/docs/integration/codex'
+    | '/docs/integration/gemini-cli'
+    | '/docs/integration/open-code'
+    | '/docs/integration/trace'
     | '/_authenticated/channels/'
     | '/_authenticated/dashboard/'
     | '/_authenticated/keys/'
@@ -687,6 +795,7 @@ export interface FileRouteTypes {
     | '/_authenticated/usage-logs/'
     | '/_authenticated/users/'
     | '/_authenticated/wallet/'
+    | '/docs/integration/'
     | '/pricing/$modelId/'
     | '/_authenticated/system-settings/auth/$section'
     | '/_authenticated/system-settings/content/$section'
@@ -710,6 +819,7 @@ export interface RootRouteChildren {
   AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
   PrivacyPolicyRoute: typeof PrivacyPolicyRoute
   UserAgreementRoute: typeof UserAgreementRoute
+  DocsIntegrationRouteRoute: typeof DocsIntegrationRouteRouteWithChildren
   errors401Route: typeof errors401Route
   errors403Route: typeof errors403Route
   errors404Route: typeof errors404Route
@@ -717,6 +827,7 @@ export interface RootRouteChildren {
   errors503Route: typeof errors503Route
   OauthProviderRoute: typeof OauthProviderRoute
   AboutIndexRoute: typeof AboutIndexRoute
+  DocsIndexRoute: typeof DocsIndexRoute
   PricingIndexRoute: typeof PricingIndexRoute
   SetupIndexRoute: typeof SetupIndexRoute
   PricingModelIdIndexRoute: typeof PricingModelIdIndexRoute
@@ -771,6 +882,13 @@ declare module '@tanstack/react-router' {
       path: '/pricing'
       fullPath: '/pricing/'
       preLoaderRoute: typeof PricingIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/docs/': {
+      id: '/docs/'
+      path: '/docs'
+      fullPath: '/docs/'
+      preLoaderRoute: typeof DocsIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/about/': {
@@ -871,6 +989,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof authForgotPasswordRouteImport
       parentRoute: typeof authRouteRoute
     }
+    '/docs/integration': {
+      id: '/docs/integration'
+      path: '/docs/integration'
+      fullPath: '/docs/integration'
+      preLoaderRoute: typeof DocsIntegrationRouteRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/_authenticated/system-settings': {
       id: '/_authenticated/system-settings'
       path: '/system-settings'
@@ -884,6 +1009,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/pricing/$modelId/'
       preLoaderRoute: typeof PricingModelIdIndexRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/docs/integration/': {
+      id: '/docs/integration/'
+      path: '/'
+      fullPath: '/docs/integration/'
+      preLoaderRoute: typeof DocsIntegrationIndexRouteImport
+      parentRoute: typeof DocsIntegrationRouteRoute
     }
     '/_authenticated/wallet/': {
       id: '/_authenticated/wallet/'
@@ -968,6 +1100,48 @@ declare module '@tanstack/react-router' {
       fullPath: '/channels/'
       preLoaderRoute: typeof AuthenticatedChannelsIndexRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/docs/integration/trace': {
+      id: '/docs/integration/trace'
+      path: '/trace'
+      fullPath: '/docs/integration/trace'
+      preLoaderRoute: typeof DocsIntegrationTraceRouteImport
+      parentRoute: typeof DocsIntegrationRouteRoute
+    }
+    '/docs/integration/open-code': {
+      id: '/docs/integration/open-code'
+      path: '/open-code'
+      fullPath: '/docs/integration/open-code'
+      preLoaderRoute: typeof DocsIntegrationOpenCodeRouteImport
+      parentRoute: typeof DocsIntegrationRouteRoute
+    }
+    '/docs/integration/gemini-cli': {
+      id: '/docs/integration/gemini-cli'
+      path: '/gemini-cli'
+      fullPath: '/docs/integration/gemini-cli'
+      preLoaderRoute: typeof DocsIntegrationGeminiCliRouteImport
+      parentRoute: typeof DocsIntegrationRouteRoute
+    }
+    '/docs/integration/codex': {
+      id: '/docs/integration/codex'
+      path: '/codex'
+      fullPath: '/docs/integration/codex'
+      preLoaderRoute: typeof DocsIntegrationCodexRouteImport
+      parentRoute: typeof DocsIntegrationRouteRoute
+    }
+    '/docs/integration/code-buddy': {
+      id: '/docs/integration/code-buddy'
+      path: '/code-buddy'
+      fullPath: '/docs/integration/code-buddy'
+      preLoaderRoute: typeof DocsIntegrationCodeBuddyRouteImport
+      parentRoute: typeof DocsIntegrationRouteRoute
+    }
+    '/docs/integration/claude-code': {
+      id: '/docs/integration/claude-code'
+      path: '/claude-code'
+      fullPath: '/docs/integration/claude-code'
+      preLoaderRoute: typeof DocsIntegrationClaudeCodeRouteImport
+      parentRoute: typeof DocsIntegrationRouteRoute
     }
     '/_authenticated/usage-logs/$section': {
       id: '/_authenticated/usage-logs/$section'
@@ -1240,12 +1414,36 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
 const AuthenticatedRouteRouteWithChildren =
   AuthenticatedRouteRoute._addFileChildren(AuthenticatedRouteRouteChildren)
 
+interface DocsIntegrationRouteRouteChildren {
+  DocsIntegrationClaudeCodeRoute: typeof DocsIntegrationClaudeCodeRoute
+  DocsIntegrationCodeBuddyRoute: typeof DocsIntegrationCodeBuddyRoute
+  DocsIntegrationCodexRoute: typeof DocsIntegrationCodexRoute
+  DocsIntegrationGeminiCliRoute: typeof DocsIntegrationGeminiCliRoute
+  DocsIntegrationOpenCodeRoute: typeof DocsIntegrationOpenCodeRoute
+  DocsIntegrationTraceRoute: typeof DocsIntegrationTraceRoute
+  DocsIntegrationIndexRoute: typeof DocsIntegrationIndexRoute
+}
+
+const DocsIntegrationRouteRouteChildren: DocsIntegrationRouteRouteChildren = {
+  DocsIntegrationClaudeCodeRoute: DocsIntegrationClaudeCodeRoute,
+  DocsIntegrationCodeBuddyRoute: DocsIntegrationCodeBuddyRoute,
+  DocsIntegrationCodexRoute: DocsIntegrationCodexRoute,
+  DocsIntegrationGeminiCliRoute: DocsIntegrationGeminiCliRoute,
+  DocsIntegrationOpenCodeRoute: DocsIntegrationOpenCodeRoute,
+  DocsIntegrationTraceRoute: DocsIntegrationTraceRoute,
+  DocsIntegrationIndexRoute: DocsIntegrationIndexRoute,
+}
+
+const DocsIntegrationRouteRouteWithChildren =
+  DocsIntegrationRouteRoute._addFileChildren(DocsIntegrationRouteRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   authRouteRoute: authRouteRouteWithChildren,
   AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
   PrivacyPolicyRoute: PrivacyPolicyRoute,
   UserAgreementRoute: UserAgreementRoute,
+  DocsIntegrationRouteRoute: DocsIntegrationRouteRouteWithChildren,
   errors401Route: errors401Route,
   errors403Route: errors403Route,
   errors404Route: errors404Route,
@@ -1253,6 +1451,7 @@ const rootRouteChildren: RootRouteChildren = {
   errors503Route: errors503Route,
   OauthProviderRoute: OauthProviderRoute,
   AboutIndexRoute: AboutIndexRoute,
+  DocsIndexRoute: DocsIndexRoute,
   PricingIndexRoute: PricingIndexRoute,
   SetupIndexRoute: SetupIndexRoute,
   PricingModelIdIndexRoute: PricingModelIdIndexRoute,
