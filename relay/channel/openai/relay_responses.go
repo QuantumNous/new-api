@@ -78,6 +78,7 @@ func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 
 	var usage = &dto.Usage{}
 	var responseTextBuilder strings.Builder
+	streamCtx := newResponsesStreamCtx()
 
 	helper.StreamScannerHandler(c, resp, info, func(data string, sr *helper.StreamResult) {
 
@@ -88,6 +89,7 @@ func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 			sr.Error(err)
 			return
 		}
+		streamCtx.observe(streamResponse)
 		sendResponsesStreamData(c, streamResponse, data)
 		switch streamResponse.Type {
 		case "response.completed":
@@ -130,6 +132,20 @@ func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 		}
 	})
 
+	// Synthesize a terminal event if upstream never emitted one. This prevents
+	// the Codex CLI (and similar clients) from raising
+	// "stream disconnected before completion: stream closed before response.completed"
+	// and entering a retry loop. The synthesizer decides between
+	// response.completed (graceful EOF with partial output) and
+	// response.failed (timeout / scanner error / no output) based on
+	// info.StreamStatus.
+	if streamCtx.shouldSynthesize(c, info) {
+		if synthUsage := streamCtx.emitTerminal(c, info); synthUsage != nil {
+			usage = synthUsage
+		}
+		logger.LogInfo(c, fmt.Sprintf("synthesized responses terminal event (status=%s)", streamStatusSummary(info)))
+	}
+
 	if usage.CompletionTokens == 0 {
 		// 计算输出文本的 token 数量
 		tempStr := responseTextBuilder.String()
@@ -147,4 +163,11 @@ func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 	usage.TotalTokens = usage.PromptTokens + usage.CompletionTokens
 
 	return usage, nil
+}
+
+func streamStatusSummary(info *relaycommon.RelayInfo) string {
+	if info == nil || info.StreamStatus == nil {
+		return "unknown"
+	}
+	return info.StreamStatus.Summary()
 }
