@@ -134,17 +134,8 @@
         border-color: rgba(15, 23, 42, 0.08);
       }
 
-      html.light .gradient-text {
-        background: linear-gradient(
-          110deg,
-          #6d28d9,
-          #7c3aed 35%,
-          #0369a1 72%,
-          #0e7490
-        );
-        -webkit-background-clip: text;
-        background-clip: text;
-        color: transparent;
+      html.light .hero-title-sub {
+        color: rgba(71, 85, 105, 0.88);
       }
 
       html.light .btn-primary {
@@ -349,23 +340,21 @@
 
       h1 {
         margin: 0;
-        font-size: clamp(2rem, 5.5vw, 3.25rem);
-        line-height: 1.12;
-        letter-spacing: -0.03em;
-        font-weight: 800;
+        font-size: clamp(2.05rem, 5.2vw, 3.1rem);
+        line-height: 1.16;
+        letter-spacing: -0.022em;
+        font-weight: 700;
+        color: var(--text);
       }
 
-      .gradient-text {
-        background: linear-gradient(
-          110deg,
-          #c4b5fd,
-          #a78bfa 30%,
-          #38bdf8 70%,
-          #22d3ee
-        );
-        -webkit-background-clip: text;
-        background-clip: text;
-        color: transparent;
+      h1 .hero-title-sub {
+        display: block;
+        margin-top: 0.45rem;
+        font-size: 0.88em;
+        font-weight: 500;
+        line-height: 1.4;
+        letter-spacing: 0.02em;
+        color: rgba(148, 163, 184, 0.92);
       }
 
       .hero-lead {
@@ -715,7 +704,7 @@
           </p>
           <h1>
             一站式 AI 接口聚合<br />
-            <span class="gradient-text">让调用大模型像调用 HTTP 一样简单</span>
+            <span class="hero-title-sub">让调用大模型像调用 HTTP 一样简单</span>
           </h1>
           <p class="hero-lead">
             <strong>企业级 AI 平台</strong>定位：提供快速、便捷的 大模型 API
