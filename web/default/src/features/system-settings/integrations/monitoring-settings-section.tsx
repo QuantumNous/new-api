@@ -23,7 +23,6 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { parseHttpStatusCodeRules } from '@/lib/http-status-code-rules'
-import { Button } from '@/components/ui/button'
 import {
   Form,
   FormControl,
@@ -36,6 +35,12 @@ import {
 import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
+import {
+  SettingsForm,
+  SettingsSwitchContent,
+  SettingsSwitchItem,
+} from '../components/settings-form-layout'
+import { SettingsPageFormActions } from '../components/settings-page-context'
 import { SettingsSection } from '../components/settings-section'
 import { useResetForm } from '../hooks/use-reset-form'
 import { useUpdateOption } from '../hooks/use-update-option'
@@ -243,35 +248,33 @@ export function MonitoringSettingsSection({
   }
 
   return (
-    <SettingsSection
-      title={t('Monitoring & Alerts')}
-      description={t(
-        'Automatically test channels and notify users when limits are hit'
-      )}
-    >
+    <SettingsSection title={t('Monitoring & Alerts')}>
       <Form {...form}>
-        <form onSubmit={form.handleSubmit(onSubmit)} className='space-y-6'>
+        <SettingsForm onSubmit={form.handleSubmit(onSubmit)}>
+          <SettingsPageFormActions
+            onSave={form.handleSubmit(onSubmit)}
+            isSaving={updateOption.isPending}
+            saveLabel='Save monitoring rules'
+          />
           <div className='grid gap-6 md:grid-cols-2'>
             <FormField
               control={form.control}
               name='monitor_setting.auto_test_channel_enabled'
               render={({ field }) => (
-                <FormItem className='flex flex-row items-center justify-between rounded-lg border p-4'>
-                  <div className='space-y-0.5'>
-                    <FormLabel className='text-base'>
-                      {t('Scheduled channel tests')}
-                    </FormLabel>
+                <SettingsSwitchItem>
+                  <SettingsSwitchContent>
+                    <FormLabel>{t('Scheduled channel tests')}</FormLabel>
                     <FormDescription>
                       {t('Automatically probe all channels in the background')}
                     </FormDescription>
-                  </div>
+                  </SettingsSwitchContent>
                   <FormControl>
                     <Switch
                       checked={field.value}
                       onCheckedChange={field.onChange}
                     />
                   </FormControl>
-                </FormItem>
+                </SettingsSwitchItem>
               )}
             />
 
@@ -364,22 +367,20 @@ export function MonitoringSettingsSection({
               control={form.control}
               name='AutomaticDisableChannelEnabled'
               render={({ field }) => (
-                <FormItem className='flex flex-row items-center justify-between rounded-lg border p-4'>
-                  <div className='space-y-0.5'>
-                    <FormLabel className='text-base'>
-                      {t('Disable on failure')}
-                    </FormLabel>
+                <SettingsSwitchItem>
+                  <SettingsSwitchContent>
+                    <FormLabel>{t('Disable on failure')}</FormLabel>
                     <FormDescription>
                       {t('Automatically disable channels when tests fail')}
                     </FormDescription>
-                  </div>
+                  </SettingsSwitchContent>
                   <FormControl>
                     <Switch
                       checked={field.value}
                       onCheckedChange={field.onChange}
                     />
                   </FormControl>
-                </FormItem>
+                </SettingsSwitchItem>
               )}
             />
 
@@ -387,22 +388,20 @@ export function MonitoringSettingsSection({
               control={form.control}
               name='AutomaticEnableChannelEnabled'
               render={({ field }) => (
-                <FormItem className='flex flex-row items-center justify-between rounded-lg border p-4'>
-                  <div className='space-y-0.5'>
-                    <FormLabel className='text-base'>
-                      {t('Re-enable on success')}
-                    </FormLabel>
+                <SettingsSwitchItem>
+                  <SettingsSwitchContent>
+                    <FormLabel>{t('Re-enable on success')}</FormLabel>
                     <FormDescription>
                       {t('Bring channels back online after successful checks')}
                     </FormDescription>
-                  </div>
+                  </SettingsSwitchContent>
                   <FormControl>
                     <Switch
                       checked={field.value}
                       onCheckedChange={field.onChange}
                     />
                   </FormControl>
-                </FormItem>
+                </SettingsSwitchItem>
               )}
             />
           </div>
@@ -492,13 +491,7 @@ export function MonitoringSettingsSection({
               )}
             />
           </div>
-
-          <Button type='submit' disabled={updateOption.isPending}>
-            {updateOption.isPending
-              ? t('Saving...')
-              : t('Save monitoring rules')}
-          </Button>
-        </form>
+        </SettingsForm>
       </Form>
     </SettingsSection>
   )

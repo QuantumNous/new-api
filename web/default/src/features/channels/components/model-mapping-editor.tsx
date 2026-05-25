@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Code, Table, Plus, Trash2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { cn } from '@/lib/utils'
@@ -45,6 +45,12 @@ export function ModelMappingEditor({
   const [mode, setMode] = useState<'visual' | 'json'>('visual')
   const [rows, setRows] = useState<MappingRow[]>([])
   const [jsonValue, setJsonValue] = useState(value)
+  const nextRowIdRef = useRef(0)
+
+  const createRowId = () => {
+    nextRowIdRef.current += 1
+    return `mapping-${nextRowIdRef.current}`
+  }
 
   const parseJsonToRows = (json: string) => {
     try {
@@ -53,14 +59,32 @@ export function ModelMappingEditor({
         return
       }
       const parsed = JSON.parse(json)
-      const newRows: MappingRow[] = Object.entries(parsed).map(
-        ([from, to], index) => ({
-          id: `${Date.now()}-${index}`,
-          from,
-          to: String(to),
+      const entries = Object.entries(parsed)
+      setRows((previousRows) => {
+        const remainingRows = [...previousRows]
+        return entries.map(([from, to], index) => {
+          const toString = String(to)
+          const existingIndex = remainingRows.findIndex(
+            (row) =>
+              row.from === from ||
+              (row.from === from && row.to === toString) ||
+              previousRows[index]?.id === row.id
+          )
+          if (existingIndex >= 0) {
+            const [existing] = remainingRows.splice(existingIndex, 1)
+            return {
+              id: existing.id,
+              from,
+              to: toString,
+            }
+          }
+          return {
+            id: createRowId(),
+            from,
+            to: toString,
+          }
         })
-      )
-      setRows(newRows)
+      })
     } catch (_error) {
       // Invalid JSON, keep current rows
     }
@@ -88,7 +112,7 @@ export function ModelMappingEditor({
 
   const handleAddRow = () => {
     const newRow: MappingRow = {
-      id: `${Date.now()}`,
+      id: createRowId(),
       from: '',
       to: '',
     }

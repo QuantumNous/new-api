@@ -130,21 +130,15 @@ function PerformanceOverviewFallback() {
   )
 }
 
-const SECTION_META: Record<
-  DashboardSectionId,
-  { titleKey: string; descriptionKey: string }
-> = {
+const SECTION_META: Record<DashboardSectionId, { titleKey: string }> = {
   overview: {
     titleKey: 'Overview',
-    descriptionKey: 'View dashboard overview and statistics',
   },
   models: {
     titleKey: 'Model Call Analytics',
-    descriptionKey: 'View model call count analytics and charts',
   },
   users: {
     titleKey: 'User Analytics',
-    descriptionKey: 'View user consumption statistics and charts',
   },
 }
 
@@ -227,9 +221,6 @@ export function Dashboard() {
   return (
     <SectionPageLayout>
       <SectionPageLayout.Title>{t(meta.titleKey)}</SectionPageLayout.Title>
-      <SectionPageLayout.Description>
-        {t(meta.descriptionKey)}
-      </SectionPageLayout.Description>
       <SectionPageLayout.Content>
         <div className='space-y-3 sm:space-y-4'>
           {activeSection !== 'overview' && (
