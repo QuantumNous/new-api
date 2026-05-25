@@ -18,6 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import { opsLiveDataQueryOptions } from '@/lib/query-polling'
 import { Activity } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { formatNumber } from '@/lib/format'
@@ -73,6 +74,7 @@ export function CockpitCallTrend() {
         default_time: 'hour',
       }),
     staleTime: 60 * 1000,
+    ...opsLiveDataQueryOptions,
   })
 
   const sparkline = useMemo(

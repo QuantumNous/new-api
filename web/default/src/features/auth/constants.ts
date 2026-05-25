@@ -79,3 +79,21 @@ export const PASSWORD_RESET_COUNTDOWN = 30 // seconds
 // ============================================================================
 
 export const OAUTH_BIND_STORAGE_KEY = 'oauth:binding:result'
+
+// ============================================================================
+// Session idle timeout (frontend-only)
+// ============================================================================
+
+/** Sign out after this period without user activity. */
+export const SESSION_IDLE_TIMEOUT_MS = 3 * 60 * 1000
+
+/** How often to evaluate idle timeout while authenticated. */
+export const SESSION_ACTIVITY_CHECK_INTERVAL_MS = 15 * 1000
+
+/** Throttle high-frequency pointer events when recording activity. */
+export const SESSION_ACTIVITY_THROTTLE_MS = 1000
+
+export const SESSION_ACTIVITY_STORAGE_KEY = 'auth:lastActivityAt'
+
+/** Set when any tab performs an idle logout (cross-tab sync). */
+export const SESSION_IDLE_LOGOUT_STORAGE_KEY = 'auth:idleLogoutAt'

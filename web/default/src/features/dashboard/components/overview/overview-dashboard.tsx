@@ -18,6 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import { opsLiveDataQueryOptions } from '@/lib/query-polling'
 import { Link } from '@tanstack/react-router'
 import {
   ArrowRight,
@@ -446,6 +447,7 @@ export function OverviewDashboard() {
       return result.success ? (result.data?.items ?? []) : []
     },
     staleTime: 60 * 1000,
+    ...opsLiveDataQueryOptions,
   })
 
   const modelsQuery = useQuery({

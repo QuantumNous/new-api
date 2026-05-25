@@ -18,6 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import { opsLiveDataQueryOptions } from '@/lib/query-polling'
 import { getRouteApi } from '@tanstack/react-router'
 import {
   type ColumnDef,
@@ -31,7 +32,6 @@ import {
 } from '@tanstack/react-table'
 import { useMediaQuery } from '@/hooks'
 import { useTranslation } from 'react-i18next'
-import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import { useIsAdmin } from '@/hooks/use-admin'
 import { useTableUrlState } from '@/hooks/use-table-url-state'
@@ -127,12 +127,12 @@ export function UsageLogsTable({ logCategory }: UsageLogsTableProps) {
           // eslint-disable-next-line no-console
           console.warn('[usage-logs]', result.message)
         }
-        toast.error(t('usageLogs.toast.load_failed'))
         return DEFAULT_LOGS_DATA
       }
 
       return result.data || DEFAULT_LOGS_DATA
     },
+    ...opsLiveDataQueryOptions,
     placeholderData: (previousData, previousQuery) => {
       if (previousQuery?.queryKey[1] === logCategory) {
         return previousData

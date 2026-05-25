@@ -18,6 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { useState, useMemo, useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import { opsLiveDataQueryOptions } from '@/lib/query-polling'
 import { getRouteApi } from '@tanstack/react-router'
 import {
   getCoreRowModel,
@@ -264,6 +265,7 @@ export function ChannelsTable() {
       }
     },
     placeholderData: (previousData) => previousData,
+    ...opsLiveDataQueryOptions,
   })
 
   // Apply tag aggregation if tag mode is enabled

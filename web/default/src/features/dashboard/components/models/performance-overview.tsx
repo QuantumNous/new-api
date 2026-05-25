@@ -18,6 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import { opsLiveDataQueryOptions } from '@/lib/query-polling'
 import { Gauge, HeartPulse, Timer } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { cn } from '@/lib/utils'
@@ -100,6 +101,7 @@ export function PerformanceOverview() {
     queryFn: () => getPerfMetricsSummary(PERFORMANCE_WINDOW_HOURS),
     staleTime: 60 * 1000,
     retry: false,
+    ...opsLiveDataQueryOptions,
   })
 
   const models = useMemo(

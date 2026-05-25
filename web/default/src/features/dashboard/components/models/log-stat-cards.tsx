@@ -17,6 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useEffect, useState } from 'react'
+import { OPS_DATA_REFETCH_INTERVAL_MS } from '@/lib/query-polling'
 import { useAuthStore } from '@/stores/auth-store'
 import { formatDashboardQuotaDisplay } from '@/lib/ops-billing-display'
 import { formatNumber } from '@/lib/format'
@@ -57,41 +58,79 @@ export function LogStatCards(props: LogStatCardsProps) {
 
   useEffect(() => {
     const abortController = new AbortController()
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setLoading(true)
+    let intervalId: ReturnType<typeof setInterval> | undefined
 
-    setError(false)
-    onDataUpdate?.([], true)
+    const loadStats = (options?: { silent?: boolean }) => {
+      const silent = options?.silent ?? false
+      if (!silent) {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        setLoading(true)
+        setError(false)
+        onDataUpdate?.([], true)
+      }
 
-    const timeRange = computeTimeRange(
-      getDefaultDays(filters?.time_granularity),
-      filters?.start_timestamp,
-      filters?.end_timestamp
-    )
-    const timeDiff = (timeRange.end_timestamp - timeRange.start_timestamp) / 60
-    setTimeRangeMinutes(timeDiff)
+      const timeRange = computeTimeRange(
+        getDefaultDays(filters?.time_granularity),
+        filters?.start_timestamp,
+        filters?.end_timestamp
+      )
+      const timeDiff = (timeRange.end_timestamp - timeRange.start_timestamp) / 60
+      setTimeRangeMinutes(timeDiff)
 
-    getUserQuotaDates(buildQueryParams(timeRange, filters), isAdmin)
-      .then((res) => {
-        if (abortController.signal.aborted) return
-        const data = res?.data || []
-        setStats(calculateDashboardStats(data))
-        onDataUpdate?.(data, false)
-      })
-      .catch(() => {
-        if (abortController.signal.aborted) return
-        setStats(null)
-        setError(true)
-        onDataUpdate?.([], false)
-      })
-      .finally(() => {
-        if (!abortController.signal.aborted) {
-          setLoading(false)
-        }
-      })
+      getUserQuotaDates(buildQueryParams(timeRange, filters), isAdmin)
+        .then((res) => {
+          if (abortController.signal.aborted) return
+          const data = res?.data || []
+          setStats(calculateDashboardStats(data))
+          onDataUpdate?.(data, false)
+        })
+        .catch(() => {
+          if (abortController.signal.aborted) return
+          if (!silent) {
+            setStats(null)
+            setError(true)
+          }
+          onDataUpdate?.([], false)
+        })
+        .finally(() => {
+          if (!abortController.signal.aborted && !silent) {
+            setLoading(false)
+          }
+        })
+    }
+
+    loadStats()
+
+    const startPolling = () => {
+      if (intervalId != null || document.hidden) return
+      intervalId = window.setInterval(
+        () => loadStats({ silent: true }),
+        OPS_DATA_REFETCH_INTERVAL_MS
+      )
+    }
+
+    const stopPolling = () => {
+      if (intervalId == null) return
+      window.clearInterval(intervalId)
+      intervalId = undefined
+    }
+
+    const onVisibilityChange = () => {
+      if (document.hidden) {
+        stopPolling()
+        return
+      }
+      loadStats({ silent: true })
+      startPolling()
+    }
+
+    startPolling()
+    document.addEventListener('visibilitychange', onVisibilityChange)
 
     return () => {
       abortController.abort()
+      stopPolling()
+      document.removeEventListener('visibilitychange', onVisibilityChange)
     }
   }, [filters, isAdmin, onDataUpdate])
 

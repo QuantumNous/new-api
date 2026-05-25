@@ -45,3 +45,29 @@ export function calculateDashboardStats(data: QuotaDataItem[]) {
     { totalQuota: 0, totalCount: 0, totalTokens: 0 }
   )
 }
+
+/** Count distinct usernames with at least one API call in quota_data rows. */
+export function countActiveAccountsFromQuotaData(data: QuotaDataItem[]): number {
+  const activeUsernames = new Set<string>()
+
+  for (const item of data) {
+    if ((Number(item.count) || 0) <= 0) continue
+
+    const username = item.username?.trim()
+    if (username) {
+      activeUsernames.add(username)
+      continue
+    }
+
+    if (item.user_id != null) {
+      activeUsernames.add(String(item.user_id))
+    }
+  }
+
+  return activeUsernames.size
+}
+
+/** Whether the current account had any calls in the given quota_data rows. */
+export function isAccountActiveInQuotaData(data: QuotaDataItem[]): boolean {
+  return data.some((item) => (Number(item.count) || 0) > 0)
+}

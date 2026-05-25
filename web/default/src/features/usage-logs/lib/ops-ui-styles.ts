@@ -21,6 +21,7 @@ For commercial licensing, please contact support@quantumnous.com
  * Do not use light-theme text (slate-700/800/900) — default to bright text on dark surfaces.
  */
 import { cn } from '@/lib/utils'
+import { opsDarkOutlineTriggerStateClassName } from '@/lib/ops-form-controls'
 
 // —— A/B/C: Filter toolbar controls (40px row, text-sm) —— //
 
@@ -49,19 +50,17 @@ export const usageLogsFilterSearchInputClassName = cn(
 export const usageLogsFilterSelectTriggerClassName = cn(
   'w-full min-w-[7.5rem] justify-between gap-1.5 px-3 py-0 text-sm font-normal',
   usageLogsFilterControlBaseClassName,
+  opsDarkOutlineTriggerStateClassName,
   'data-placeholder:text-slate-400',
-  '[&_[data-slot=select-value]]:min-w-0 [&_[data-slot=select-value]]:truncate [&_[data-slot=select-value]]:text-sm [&_[data-slot=select-value]]:text-slate-100',
-  '[&_svg]:pointer-events-none [&_svg]:!size-4 [&_svg]:shrink-0 [&_svg]:!text-slate-400 [&_svg]:!opacity-100',
-  'hover:[&_svg]:!text-slate-300',
-  'aria-expanded:border-cyan-300/50 aria-expanded:ring-1 aria-expanded:ring-cyan-400/40'
+  '[&_[data-slot=select-value]]:min-w-0 [&_[data-slot=select-value]]:truncate [&_[data-slot=select-value]]:text-sm',
+  '[&_svg]:pointer-events-none [&_svg]:!size-4 [&_svg]:shrink-0'
 )
 
-/** Date-range popover trigger. */
+/** Date-range popover trigger (outline Button — override variant hover/focus/open). */
 export const usageLogsFilterDateTriggerClassName = cn(
-  'w-full justify-start gap-2 px-3 font-mono text-sm font-normal text-slate-100',
+  'w-full justify-start gap-2 px-3 font-mono text-sm font-normal',
   usageLogsFilterControlBaseClassName,
-  '[&_svg]:!size-4 [&_svg]:!text-slate-400 [&_svg]:!opacity-100',
-  'hover:[&_svg]:!text-slate-300'
+  opsDarkOutlineTriggerStateClassName
 )
 
 /** Right-aligned search icon inside filter text inputs. */

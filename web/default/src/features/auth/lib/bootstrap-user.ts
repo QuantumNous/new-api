@@ -19,6 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import { getSelf } from '@/lib/api'
 import type { User } from '@/features/users/types'
 import { saveUserId } from './storage'
+import { resetSessionActivityTracking } from './idle-session'
 import { markSessionVerified } from './session'
 
 const BOOTSTRAP_RETRY_DELAYS_MS = [0, 250, 600] as const
@@ -56,6 +57,7 @@ export async function bootstrapUserAfterLogin(
           saveUserId(user.id)
         }
         markSessionVerified()
+        resetSessionActivityTracking()
         return user
       }
     } catch {

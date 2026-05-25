@@ -19,6 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import { useQuery } from '@tanstack/react-query'
 import { getRouteApi } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
+import { opsLiveDataQueryOptions } from '@/lib/query-polling'
 import { formatUsageLogQuotaDisplay } from '@/lib/ops-billing-display'
 import { cn } from '@/lib/utils'
 import {
@@ -77,6 +78,7 @@ export function CommonLogsStats() {
         : DEFAULT_LOG_STATS
     },
     placeholderData: (previousData) => previousData,
+    ...opsLiveDataQueryOptions,
   })
 
   if (isLoading) {

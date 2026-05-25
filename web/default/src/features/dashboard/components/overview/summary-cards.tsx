@@ -18,6 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import { opsLiveDataQueryOptions } from '@/lib/query-polling'
 import { Link } from '@tanstack/react-router'
 import {
   Activity,
@@ -39,8 +40,15 @@ import { cn } from '@/lib/utils'
 import { useStatus } from '@/hooks/use-status'
 import { Button } from '@/components/ui/button'
 import { StaggerContainer, StaggerItem } from '@/components/page-transition'
-import { getUserQuotaDates } from '@/features/dashboard/api'
-import { useApiInfo } from '@/features/dashboard/hooks/use-status-data'
+import { getChannels } from '@/features/channels/api'
+import {
+  getUserQuotaDataByUsers,
+  getUserQuotaDates,
+} from '@/features/dashboard/api'
+import {
+  countActiveAccountsFromQuotaData,
+  isAccountActiveInQuotaData,
+} from '@/features/dashboard/lib/stats'
 import type { QuotaDataItem } from '@/features/dashboard/types'
 import { getPerfMetricsSummary } from '@/features/performance-metrics/api'
 import {
@@ -159,10 +167,50 @@ export function SummaryCards() {
   const { t } = useTranslation()
   const user = useAuthStore((state) => state.auth.user)
   const { loading: statusLoading } = useStatus()
-  const { items: apiInfoItems } = useApiInfo()
   const isAdmin = Boolean(user?.role && user.role >= ROLE.ADMIN)
 
   const summaryTimeRange = useMemo(() => computeTimeRange(1), [])
+
+  const enabledChannelsQuery = useQuery({
+    queryKey: ['dashboard', 'overview', 'enabled-channels-count'],
+    queryFn: async () => {
+      const response = await getChannels({
+        status: 'enabled',
+        p: 1,
+        page_size: 1,
+      })
+      if (!response.success) {
+        throw new Error(response.message || 'Failed to load channels')
+      }
+      return response
+    },
+    enabled: isAdmin,
+    staleTime: 60 * 1000,
+    ...opsLiveDataQueryOptions,
+  })
+
+  const activeAccountsQuery = useQuery({
+    queryKey: [
+      'dashboard',
+      'overview',
+      'active-accounts',
+      summaryTimeRange.start_timestamp,
+      summaryTimeRange.end_timestamp,
+    ],
+    queryFn: async () => {
+      const response = await getUserQuotaDataByUsers({
+        start_timestamp: summaryTimeRange.start_timestamp,
+        end_timestamp: summaryTimeRange.end_timestamp,
+      })
+      if (!response.success) {
+        throw new Error('Failed to load active account stats')
+      }
+      return response
+    },
+    enabled: isAdmin,
+    staleTime: 60 * 1000,
+    ...opsLiveDataQueryOptions,
+  })
   const remainQuota = Number(user?.quota ?? 0)
   const usedQuota = Number(user?.used_quota ?? 0)
 
@@ -181,6 +229,7 @@ export function SummaryCards() {
         default_time: 'hour',
       }),
     staleTime: 60 * 1000,
+    ...opsLiveDataQueryOptions,
   })
 
   const metricsQuery = useQuery({
@@ -188,6 +237,7 @@ export function SummaryCards() {
     queryFn: () => getPerfMetricsSummary(PERFORMANCE_WINDOW_HOURS),
     staleTime: 60 * 1000,
     retry: false,
+    ...opsLiveDataQueryOptions,
   })
 
   const perfModels = metricsQuery.data?.data.models ?? []
@@ -235,6 +285,29 @@ export function SummaryCards() {
   const successRate = simpleAverageSuccessRate(perfModels)
   const avgLatencyMs = simpleAverageLatency(perfModels)
 
+  const selfQuotaItems = usageTrendQuery.data?.data ?? []
+  const selfActiveAccountValue = usageTrendQuery.isSuccess
+    ? isAccountActiveInQuotaData(selfQuotaItems)
+      ? '1'
+      : '0'
+    : '—'
+
+  const adminActiveAccountCount = countActiveAccountsFromQuotaData(
+    activeAccountsQuery.data?.data ?? []
+  )
+  const adminActiveAccountValue = activeAccountsQuery.isSuccess
+    ? formatNumber(adminActiveAccountCount)
+    : '—'
+
+  const adminEnabledChannelsTotal = enabledChannelsQuery.data?.data?.total
+  const adminChannelsValue = enabledChannelsQuery.isSuccess
+    ? formatNumber(
+        typeof adminEnabledChannelsTotal === 'number'
+          ? adminEnabledChannelsTotal
+          : 0
+      )
+    : '—'
+
   const kpiItems = [
     {
       key: 'calls',
@@ -255,25 +328,32 @@ export function SummaryCards() {
       sparkline: sparklineData.usage,
     },
     {
-      key: 'tenants',
-      title: t('Dashboard KPI active tenants'),
-      value: isAdmin ? '—' : '1',
+      key: 'accounts',
+      title: t('Dashboard KPI active accounts'),
+      value: isAdmin ? adminActiveAccountValue : selfActiveAccountValue,
       description: isAdmin
-        ? t('Dashboard KPI tenants admin hint')
-        : t('Dashboard KPI tenants self hint'),
+        ? t('Dashboard KPI active accounts admin hint')
+        : t('Dashboard KPI active accounts self hint'),
       icon: Building2,
       tone: 'gray' as const,
+      loading: isAdmin
+        ? activeAccountsQuery.isLoading
+        : usageTrendQuery.isLoading,
     },
     {
       key: 'channels',
-      title: t('Dashboard KPI online channels'),
-      value:
-        apiInfoItems.length > 0
-          ? formatNumber(apiInfoItems.length)
-          : '—',
-      description: t('Dashboard KPI channels hint'),
+      title: t('Dashboard KPI model channels'),
+      value: isAdmin ? adminChannelsValue : '—',
+      description: isAdmin
+        ? enabledChannelsQuery.isSuccess
+          ? t('Dashboard KPI channels enabled hint')
+          : enabledChannelsQuery.isError
+            ? t('Dashboard KPI channels load failed hint')
+            : t('Dashboard KPI channels placeholder hint')
+        : t('Dashboard KPI channels admin only hint'),
       icon: RadioTower,
       tone: 'gray' as const,
+      loading: isAdmin ? enabledChannelsQuery.isLoading : false,
     },
     {
       key: 'success',
@@ -324,7 +404,7 @@ export function SummaryCards() {
                   tone={it.tone}
                   sparkline={it.sparkline}
                   sparklineVariant='line'
-                  loading={kpiLoading}
+                  loading={'loading' in it ? it.loading : kpiLoading}
                   variant='cockpit'
                 />
               </StaggerItem>

@@ -21,6 +21,7 @@ import { CalendarDays } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import dayjs from '@/lib/dayjs'
 import { cn } from '@/lib/utils'
+import { opsDarkFilterDateInputClassName } from '@/lib/ops-form-controls'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
@@ -122,16 +123,16 @@ export function CompactDateTimeRangePicker({
           <Button
             type='button'
             variant='outline'
+            data-empty={!start && !end ? true : undefined}
             className={cn(
               'w-full justify-start gap-2 font-mono text-sm font-normal shadow-none',
-              !start && !end && 'text-slate-400',
               className
             )}
           />
         }
       >
-        <CalendarDays className='size-4 shrink-0 text-slate-400' aria-hidden='true' />
-        <span className='truncate text-sm leading-none'>{label}</span>
+        <CalendarDays className='size-4 shrink-0' aria-hidden='true' />
+        <span>{label}</span>
       </PopoverTrigger>
       <PopoverContent
         align='start'
@@ -147,7 +148,7 @@ export function CompactDateTimeRangePicker({
                 type='datetime-local'
                 value={draftStart}
                 onChange={(e) => setDraftStart(e.target.value)}
-                className='h-8 font-mono text-xs'
+                className={opsDarkFilterDateInputClassName}
               />
             </div>
             <span className='text-muted-foreground hidden pb-2 text-xs sm:block'>
@@ -161,7 +162,7 @@ export function CompactDateTimeRangePicker({
                 type='datetime-local'
                 value={draftEnd}
                 onChange={(e) => setDraftEnd(e.target.value)}
-                className='h-8 font-mono text-xs'
+                className={opsDarkFilterDateInputClassName}
               />
             </div>
           </div>
