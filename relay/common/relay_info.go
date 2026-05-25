@@ -148,6 +148,10 @@ type RelayInfo struct {
 	SubscriptionAmountUsedAfterPreConsume int64
 	IsClaudeBetaQuery                     bool // /v1/messages?beta=true
 	IsChannelTest                         bool // channel test request
+	// VolcTTSOverride is set when the client provides a per-request override
+	// (via OpenAI metadata.volc_tts_*) for Volcengine TTS protocol selection.
+	// Nil means "fall back to channel-level ChannelOtherSettings.VolcTTS".
+	VolcTTSOverride                       *dto.VolcTTSConfig
 	RetryIndex                            int
 	LastError                             *types.NewAPIError
 	RuntimeHeadersOverride                map[string]interface{}

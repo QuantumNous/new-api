@@ -378,9 +378,12 @@ func (m *Message) writeEvent(buf *bytes.Buffer) error {
 }
 
 func (m *Message) writeSessionID(buf *bytes.Buffer) error {
+	// Connection-class events do NOT carry a session ID. Keep this list aligned
+	// with readSessionID() to preserve marshal/unmarshal symmetry.
 	switch m.EventType {
 	case EventType_StartConnection, EventType_FinishConnection,
-		EventType_ConnectionStarted, EventType_ConnectionFailed:
+		EventType_ConnectionStarted, EventType_ConnectionFailed,
+		EventType_ConnectionFinished:
 		return nil
 	}
 
@@ -420,6 +423,12 @@ func (m *Message) writePayload(buf *bytes.Buffer) error {
 }
 
 func (m *Message) readers() (readers []func(*bytes.Buffer) error, _ error) {
+	// Order must mirror writers(): event/sessionID/connectID first (when WithEvent),
+	// then sequence/errorCode (when applicable), then payload.
+	if m.MsgTypeFlag == MsgTypeFlagWithEvent {
+		readers = append(readers, m.readEvent, m.readSessionID, m.readConnectID)
+	}
+
 	switch m.MsgType {
 	case MsgTypeFullClientRequest, MsgTypeFullServerResponse, MsgTypeFrontEndResultServer, MsgTypeAudioOnlyClient, MsgTypeAudioOnlyServer:
 		if m.MsgTypeFlag == MsgTypeFlagPositiveSeq || m.MsgTypeFlag == MsgTypeFlagNegativeSeq {
@@ -429,10 +438,6 @@ func (m *Message) readers() (readers []func(*bytes.Buffer) error, _ error) {
 		readers = append(readers, m.readErrorCode)
 	default:
 		return nil, fmt.Errorf("unsupported message type: %d", m.MsgType)
-	}
-
-	if m.MsgTypeFlag == MsgTypeFlagWithEvent {
-		readers = append(readers, m.readEvent, m.readSessionID, m.readConnectID)
 	}
 
 	readers = append(readers, m.readPayload)
@@ -530,4 +535,33 @@ func FullClientRequest(conn *websocket.Conn, payload []byte) error {
 		return err
 	}
 	return conn.WriteMessage(websocket.BinaryMessage, frame)
+}
+
+// EventClientRequest sends an event-tagged Full-client request frame for the
+// Volcengine v3 bidirectional/unidirectional TTS protocol.
+// Connection-class events (StartConnection/FinishConnection) should pass an
+// empty sessionID; session/data-class events MUST pass the session UUID.
+func EventClientRequest(conn *websocket.Conn, event EventType, sessionID string, payload []byte) error {
+	msg, err := NewMessage(MsgTypeFullClientRequest, MsgTypeFlagWithEvent)
+	if err != nil {
+		return err
+	}
+	msg.EventType = event
+	msg.SessionID = sessionID
+	if len(payload) == 0 {
+		payload = []byte("{}")
+	}
+	msg.Payload = payload
+	frame, err := msg.Marshal()
+	if err != nil {
+		return err
+	}
+	return conn.WriteMessage(websocket.BinaryMessage, frame)
+}
+
+// ParseFrame parses a full Volcengine binary frame from raw bytes — useful for
+// HTTP Chunked transport where the response body is a stream of independent
+// frames sharing the same wire format as WebSocket.
+func ParseFrame(data []byte) (*Message, error) {
+	return NewMessageFromBytes(data)
 }

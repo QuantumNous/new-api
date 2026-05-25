@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/QuantumNous/new-api/common"
 	channelconstant "github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/relay/channel"
@@ -89,11 +90,14 @@ func (a *Adaptor) ConvertAudioRequest(c *gin.Context, info *relaycommon.RelayInf
 		if err = json.Unmarshal(request.Metadata, &volcRequest); err != nil {
 			return nil, fmt.Errorf("error unmarshalling metadata to volcengine request: %w", err)
 		}
+		// Optional v3 protocol overrides — non-fatal if absent / malformed.
+		applyV3MetadataOverride(info, request.Metadata)
 	}
 
 	c.Set(contextKeyTTSRequest, volcRequest)
 
-	if volcRequest.Request.Operation == "submit" {
+	cfg := resolveVolcTTSConfig(info)
+	if volcRequest.Request.Operation == "submit" || cfg.IsV3() {
 		info.IsStream = true
 	}
 
@@ -275,7 +279,19 @@ func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 			return fmt.Sprintf("%s/api/v3/responses", baseUrl), nil
 		case constant.RelayModeAudioSpeech:
 			if baseUrl == channelconstant.ChannelBaseURLs[channelconstant.ChannelTypeVolcEngine] {
-				return "wss://openspeech.bytedance.com/api/v1/tts/ws_binary", nil
+				cfg := resolveVolcTTSConfig(info)
+				switch cfg.Protocol {
+				case dto.VolcTTSProtocolV3WsBidir:
+					return "wss://openspeech.bytedance.com/api/v3/tts/bidirection", nil
+				case dto.VolcTTSProtocolV3WsUni:
+					return "wss://openspeech.bytedance.com/api/v3/tts/unidirectional/stream", nil
+				case dto.VolcTTSProtocolV3HTTPChunked:
+					return "https://openspeech.bytedance.com/api/v3/tts/unidirectional", nil
+				case dto.VolcTTSProtocolV3HTTPSSE:
+					return "https://openspeech.bytedance.com/api/v3/tts/unidirectional/sse", nil
+				default:
+					return "wss://openspeech.bytedance.com/api/v1/tts/ws_binary", nil
+				}
 			}
 			return fmt.Sprintf("%s/v1/audio/speech", baseUrl), nil
 		default:
@@ -337,7 +353,10 @@ func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, request
 		}
 
 		if baseUrl == channelconstant.ChannelBaseURLs[channelconstant.ChannelTypeVolcEngine] {
-			if info.IsStream {
+			// v1 streaming and ALL v3 transports are handled inside DoResponse —
+			// the connection is established there directly, so skip the generic
+			// HTTP relay step.
+			if info.IsStream || resolveVolcTTSConfig(info).IsV3() {
 				return nil, nil
 			}
 		}
@@ -355,7 +374,9 @@ func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycom
 
 	if info.RelayMode == constant.RelayModeAudioSpeech {
 		encoding := mapEncoding(c.GetString(contextKeyResponseFormat))
-		if info.IsStream {
+		cfg := resolveVolcTTSConfig(info)
+
+		if info.IsStream || cfg.IsV3() {
 			volcRequestInterface, exists := c.Get(contextKeyTTSRequest)
 			if !exists {
 				return nil, types.NewErrorWithStatusCode(
@@ -374,7 +395,7 @@ func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycom
 				)
 			}
 
-			// Get the WebSocket URL
+			// Get the upstream URL (v1 ws_binary OR one of the four v3 endpoints).
 			requestURL, urlErr := a.GetRequestURL(info)
 			if urlErr != nil {
 				return nil, types.NewErrorWithStatusCode(
@@ -383,7 +404,17 @@ func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycom
 					http.StatusInternalServerError,
 				)
 			}
-			return handleTTSWebSocketResponse(c, requestURL, volcRequest, info, encoding)
+
+			switch cfg.Protocol {
+			case dto.VolcTTSProtocolV3WsBidir, dto.VolcTTSProtocolV3WsUni:
+				return handleTTSV3WSResponse(c, requestURL, volcRequest, info, encoding, cfg)
+			case dto.VolcTTSProtocolV3HTTPChunked:
+				return handleTTSV3HTTPChunked(c, requestURL, volcRequest, info, encoding, cfg)
+			case dto.VolcTTSProtocolV3HTTPSSE:
+				return handleTTSV3HTTPSSE(c, requestURL, volcRequest, info, cfg)
+			default:
+				return handleTTSWebSocketResponse(c, requestURL, volcRequest, info, encoding)
+			}
 		}
 		return handleTTSResponse(c, resp, info, encoding)
 	}
@@ -399,4 +430,66 @@ func (a *Adaptor) GetModelList() []string {
 
 func (a *Adaptor) GetChannelName() string {
 	return ChannelName
+}
+
+// resolveVolcTTSConfig returns the effective Volcengine TTS protocol config.
+// Per-request metadata override (info.VolcTTSOverride) wins over the channel
+// setting (info.ChannelOtherSettings.VolcTTS); both empty falls back to v1.
+func resolveVolcTTSConfig(info *relaycommon.RelayInfo) dto.VolcTTSConfig {
+	if info == nil {
+		return dto.VolcTTSConfig{}
+	}
+	if info.VolcTTSOverride != nil {
+		return *info.VolcTTSOverride
+	}
+	if info.ChannelMeta == nil {
+		return dto.VolcTTSConfig{}
+	}
+	return info.ChannelOtherSettings.ResolvedVolcTTS()
+}
+
+// applyV3MetadataOverride parses optional volc_tts_* keys from the OpenAI
+// metadata blob and stashes them on info.VolcTTSOverride so DoResponse and
+// GetRequestURL can route to the right v3 handler. Channel-level fields are
+// inherited when the override leaves them blank.
+func applyV3MetadataOverride(info *relaycommon.RelayInfo, raw json.RawMessage) {
+	if info == nil || len(raw) == 0 {
+		return
+	}
+	var probe struct {
+		Protocol     string `json:"volc_tts_protocol,omitempty"`
+		ResourceID   string `json:"volc_tts_resource_id,omitempty"`
+		AuthMode     string `json:"volc_tts_auth_mode,omitempty"`
+		RequireUsage *bool  `json:"volc_tts_require_usage,omitempty"`
+	}
+	if err := common.Unmarshal(raw, &probe); err != nil {
+		return
+	}
+	if probe.Protocol == "" && probe.ResourceID == "" && probe.AuthMode == "" && probe.RequireUsage == nil {
+		return
+	}
+
+	override := dto.VolcTTSConfig{
+		Protocol:     probe.Protocol,
+		ResourceID:   probe.ResourceID,
+		AuthMode:     probe.AuthMode,
+		RequireUsage: probe.RequireUsage,
+	}
+	// Inherit unspecified fields from the channel-level config.
+	if info.ChannelMeta != nil {
+		base := info.ChannelOtherSettings.ResolvedVolcTTS()
+		if override.Protocol == "" {
+			override.Protocol = base.Protocol
+		}
+		if override.ResourceID == "" {
+			override.ResourceID = base.ResourceID
+		}
+		if override.AuthMode == "" {
+			override.AuthMode = base.AuthMode
+		}
+		if override.RequireUsage == nil {
+			override.RequireUsage = base.RequireUsage
+		}
+	}
+	info.VolcTTSOverride = &override
 }

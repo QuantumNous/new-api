@@ -175,6 +175,11 @@ type ChannelMutateDrawerProps = {
   currentRow?: Channel | null
 }
 
+// Sentinel for "default / unselected" Select items. Base UI Select treats "" as
+// a filled value, so we use a non-empty string for the UI option and translate
+// it back to "" when persisting form state.
+const VOLC_TTS_DEFAULT_SENTINEL = '__default__'
+
 type ModelMappingGuardrail = {
   invalidJson: boolean
   entries: Array<{ source: string; target: string }>
@@ -1774,6 +1779,144 @@ export function ChannelMutateDrawer({
                       </FormItem>
                     )}
                   />
+                )}
+
+                {/* VolcEngine (type 45) - TTS v3 protocol overrides */}
+                {currentType === 45 && (
+                  <>
+                    <FormField
+                      control={form.control}
+                      name='volc_tts_protocol'
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>{t('TTS Protocol')}</FormLabel>
+                          <Select
+                            // Base UI Select treats "" as a filled value, breaking
+                            // placeholder semantics. Map blank schema values to a
+                            // non-empty sentinel for the UI and translate back.
+                            value={field.value ? field.value : VOLC_TTS_DEFAULT_SENTINEL}
+                            onValueChange={(v) =>
+                              field.onChange(v === VOLC_TTS_DEFAULT_SENTINEL ? '' : v)
+                            }
+                          >
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue
+                                  placeholder={t('Auto / WS Binary (v1)')}
+                                />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              <SelectItem value={VOLC_TTS_DEFAULT_SENTINEL}>
+                                {t('Auto / WS Binary (v1)')}
+                              </SelectItem>
+                              <SelectItem value='v3_ws_bidir'>
+                                {t('WS Bidirectional (v3)')}
+                              </SelectItem>
+                              <SelectItem value='v3_ws_uni'>
+                                {t('WS Unidirectional (v3)')}
+                              </SelectItem>
+                              <SelectItem value='v3_http_chunked'>
+                                {t('HTTP Chunked (v3)')}
+                              </SelectItem>
+                              <SelectItem value='v3_http_sse'>
+                                {t('HTTP SSE (v3, passthrough)')}
+                              </SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <FormDescription>
+                            {t(
+                              'Select the Volcengine TTS upstream transport. SSE forwards raw text/event-stream to the client; clients must handle SSE parsing themselves.'
+                            )}
+                          </FormDescription>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name='volc_tts_resource_id'
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>{t('TTS Resource ID')}</FormLabel>
+                          <FormControl>
+                            <Input
+                              placeholder={t('seed-tts-1.0-concurr')}
+                              {...field}
+                              value={field.value || ''}
+                            />
+                          </FormControl>
+                          <FormDescription>
+                            {t(
+                              'X-Api-Resource-Id header value. Defaults to seed-tts-1.0-concurr (matches the default *_mars_bigtts v1.0 voice map). Use seed-tts-2.0 / seed-icl-2.0 only when the request voice is a v2.0 speaker (*_uranus_bigtts, saturn_*). Common values: seed-tts-1.0-concurr, seed-tts-1.0, seed-tts-2.0, seed-icl-2.0, seed-icl-1.0, seed-icl-1.0-concurr.'
+                            )}
+                          </FormDescription>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name='volc_tts_auth_mode'
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>{t('TTS Auth Mode')}</FormLabel>
+                          <Select
+                            value={field.value ? field.value : VOLC_TTS_DEFAULT_SENTINEL}
+                            onValueChange={(v) =>
+                              field.onChange(v === VOLC_TTS_DEFAULT_SENTINEL ? '' : v)
+                            }
+                          >
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue
+                                  placeholder={t('New console (X-Api-Key)')}
+                                />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              <SelectItem value={VOLC_TTS_DEFAULT_SENTINEL}>
+                                {t('New console (X-Api-Key)')}
+                              </SelectItem>
+                              <SelectItem value='legacy'>
+                                {t('Legacy (X-Api-App-Id + X-Api-Access-Key)')}
+                              </SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <FormDescription>
+                            {t(
+                              'New console: the API Key is sent as X-Api-Key. Single-segment keys are sent verbatim; multi-segment keys (legacy AppId|AccessToken format) take the second segment for backwards compatibility. Legacy: AppId + AccessToken are sent as X-Api-App-Id + X-Api-Access-Key.'
+                            )}
+                          </FormDescription>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name='volc_tts_require_usage'
+                      render={({ field }) => (
+                        <FormItem className='flex flex-row items-center justify-between rounded-lg border p-3'>
+                          <div className='space-y-0.5'>
+                            <FormLabel>
+                              {t('Return token usage from server')}
+                            </FormLabel>
+                            <FormDescription>
+                              {t(
+                                'Adds X-Control-Require-Usage-Tokens-Return so SessionFinished payload carries usage.text_words for billing.'
+                              )}
+                            </FormDescription>
+                          </div>
+                          <FormControl>
+                            <Switch
+                              checked={field.value !== false}
+                              onCheckedChange={field.onChange}
+                            />
+                          </FormControl>
+                        </FormItem>
+                      )}
+                    />
+                  </>
                 )}
 
                 {/* Coze (type 49) */}

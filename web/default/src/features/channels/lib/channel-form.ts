@@ -74,6 +74,20 @@ export const channelFormSchema = z.object({
   allow_inference_geo: z.boolean().optional(), // OpenAI/Anthropic: inference geography
   allow_speed: z.boolean().optional(), // Anthropic: speed mode control
   claude_beta_query: z.boolean().optional(), // Anthropic: beta query passthrough
+  // Volcengine TTS v3 settings (stored under settings.volc_tts)
+  volc_tts_protocol: z
+    .enum([
+      '',
+      'v1_ws_binary',
+      'v3_ws_bidir',
+      'v3_ws_uni',
+      'v3_http_chunked',
+      'v3_http_sse',
+    ])
+    .optional(),
+  volc_tts_resource_id: z.string().optional(),
+  volc_tts_auth_mode: z.enum(['', 'new_console', 'legacy']).optional(),
+  volc_tts_require_usage: z.boolean().optional(),
   // Upstream model update settings (stored in settings JSON)
   upstream_model_update_check_enabled: z.boolean().optional(),
   upstream_model_update_auto_sync_enabled: z.boolean().optional(),
@@ -132,6 +146,11 @@ export const CHANNEL_FORM_DEFAULT_VALUES: ChannelFormValues = {
   allow_inference_geo: false,
   allow_speed: false,
   claude_beta_query: false,
+  // Volcengine TTS v3 defaults
+  volc_tts_protocol: '',
+  volc_tts_resource_id: '',
+  volc_tts_auth_mode: '',
+  volc_tts_require_usage: true,
   upstream_model_update_check_enabled: false,
   upstream_model_update_auto_sync_enabled: false,
   upstream_model_update_ignored_models: '',
@@ -186,6 +205,10 @@ export function transformChannelToFormDefaults(
   let allowInferenceGeo = false
   let allowSpeed = false
   let claudeBetaQuery = false
+  let volcTTSProtocol = ''
+  let volcTTSResourceID = ''
+  let volcTTSAuthMode = ''
+  let volcTTSRequireUsage = true
   let upstreamModelUpdateCheckEnabled = false
   let upstreamModelUpdateAutoSyncEnabled = false
   let upstreamModelUpdateIgnoredModels = ''
@@ -204,6 +227,15 @@ export function transformChannelToFormDefaults(
       allowInferenceGeo = parsed.allow_inference_geo === true
       allowSpeed = parsed.allow_speed === true
       claudeBetaQuery = parsed.claude_beta_query === true
+      if (parsed.volc_tts && typeof parsed.volc_tts === 'object') {
+        volcTTSProtocol = parsed.volc_tts.protocol || ''
+        volcTTSResourceID = parsed.volc_tts.resource_id || ''
+        volcTTSAuthMode = parsed.volc_tts.auth_mode || ''
+        volcTTSRequireUsage =
+          parsed.volc_tts.require_usage === undefined
+            ? true
+            : parsed.volc_tts.require_usage === true
+      }
       upstreamModelUpdateCheckEnabled =
         parsed.upstream_model_update_check_enabled === true
       upstreamModelUpdateAutoSyncEnabled =
@@ -259,6 +291,10 @@ export function transformChannelToFormDefaults(
     allow_speed: allowSpeed,
     claude_beta_query: claudeBetaQuery,
     allow_safety_identifier: allowSafetyIdentifier,
+    volc_tts_protocol: volcTTSProtocol as ChannelFormValues['volc_tts_protocol'],
+    volc_tts_resource_id: volcTTSResourceID,
+    volc_tts_auth_mode: volcTTSAuthMode as ChannelFormValues['volc_tts_auth_mode'],
+    volc_tts_require_usage: volcTTSRequireUsage,
     upstream_model_update_check_enabled: upstreamModelUpdateCheckEnabled,
     upstream_model_update_auto_sync_enabled: upstreamModelUpdateAutoSyncEnabled,
     upstream_model_update_ignored_models: upstreamModelUpdateIgnoredModels,
@@ -348,6 +384,34 @@ function buildSettingsJSON(formData: ChannelFormValues): string {
       delete settingsObj.allow_include_obfuscation
     if (formData.type !== 14 && 'allow_inference_geo' in settingsObj)
       delete settingsObj.allow_inference_geo
+  }
+
+  // VolcEngine (type 45): TTS v3 protocol overrides
+  if (formData.type === 45) {
+    const volcTTS: Record<string, unknown> = {}
+    if (
+      formData.volc_tts_protocol &&
+      formData.volc_tts_protocol !== '' &&
+      formData.volc_tts_protocol !== 'v1_ws_binary'
+    ) {
+      volcTTS.protocol = formData.volc_tts_protocol
+    }
+    if (formData.volc_tts_resource_id) {
+      volcTTS.resource_id = formData.volc_tts_resource_id
+    }
+    if (formData.volc_tts_auth_mode && formData.volc_tts_auth_mode !== '') {
+      volcTTS.auth_mode = formData.volc_tts_auth_mode
+    }
+    if (formData.volc_tts_require_usage === false) {
+      volcTTS.require_usage = false
+    }
+    if (Object.keys(volcTTS).length > 0) {
+      settingsObj.volc_tts = volcTTS
+    } else if ('volc_tts' in settingsObj) {
+      delete settingsObj.volc_tts
+    }
+  } else if ('volc_tts' in settingsObj) {
+    delete settingsObj.volc_tts
   }
 
   // Anthropic (type 14): claude_beta_query, allow_inference_geo, allow_speed
