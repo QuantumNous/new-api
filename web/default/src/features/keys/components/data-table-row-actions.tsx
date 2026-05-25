@@ -26,6 +26,7 @@ import {
   ExternalLink,
   ArrowRightLeft,
   Copy,
+  CircleHelp,
   Link,
   Loader2,
   MoreHorizontal as DotsHorizontalIcon,
@@ -55,21 +56,9 @@ import { resolveChatUrl, type ChatPreset } from '@/features/chat/lib/chat-links'
 import { sendToFluent } from '@/features/chat/lib/send-to-fluent'
 import { updateApiKeyStatus } from '../api'
 import { API_KEY_STATUS, ERROR_MESSAGES, SUCCESS_MESSAGES } from '../constants'
+import { getServerAddress } from '../lib/usage-guide-templates'
 import { apiKeySchema } from '../types'
 import { useApiKeys } from './api-keys-provider'
-
-function getServerAddress(): string {
-  try {
-    const raw = localStorage.getItem('status')
-    if (raw) {
-      const status = JSON.parse(raw)
-      if (status.server_address) return status.server_address as string
-    }
-  } catch {
-    /* empty */
-  }
-  return window.location.origin
-}
 
 function encodeConnectionString(key: string, url: string): string {
   return JSON.stringify({
@@ -262,6 +251,20 @@ export function DataTableRowActions<TData>({
             {t('Copy Connection Info')}
             <DropdownMenuShortcut>
               <Link size={16} />
+            </DropdownMenuShortcut>
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            onClick={async () => {
+              const realKey = await resolveRealKey(apiKey.id)
+              if (!realKey) return
+              setResolvedKey(realKey)
+              setCurrentRow(apiKey)
+              setOpen('usage-guide')
+            }}
+          >
+            {t('API KEY Usage Tips')}
+            <DropdownMenuShortcut>
+              <CircleHelp size={16} />
             </DropdownMenuShortcut>
           </DropdownMenuItem>
           <DropdownMenuSeparator />

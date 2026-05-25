@@ -8,6 +8,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/QuantumNous/new-api/common"
 )
 
 var (
@@ -67,6 +69,8 @@ func ValidateConsoleSettings(settingsStr string, settingType string) error {
 	switch settingType {
 	case "ApiInfo":
 		return validateApiInfo(settingsStr)
+	case "ApiKeyUsageTips":
+		return validateApiKeyUsageTips(settingsStr)
 	case "Announcements":
 		return validateAnnouncements(settingsStr)
 	case "FAQ":
@@ -76,6 +80,175 @@ func ValidateConsoleSettings(settingsStr string, settingType string) error {
 	default:
 		return fmt.Errorf("未知的设置类型：%s", settingType)
 	}
+}
+
+type apiKeyUsageTipsFile struct {
+	ID       string `json:"id"`
+	Title    string `json:"title"`
+	Path     string `json:"path"`
+	Language string `json:"language"`
+	Content  string `json:"content"`
+}
+
+type apiKeyUsageTipsPlatform struct {
+	ID    string                `json:"id"`
+	Name  string                `json:"name"`
+	Note  string                `json:"note"`
+	Files []apiKeyUsageTipsFile `json:"files"`
+}
+
+type apiKeyUsageTipsSection struct {
+	ID          string                    `json:"id"`
+	Name        string                    `json:"name"`
+	Description string                    `json:"description"`
+	Note        string                    `json:"note"`
+	Files       []apiKeyUsageTipsFile     `json:"files"`
+	Platforms   []apiKeyUsageTipsPlatform `json:"platforms"`
+}
+
+type apiKeyUsageTipsConfig struct {
+	Sections []apiKeyUsageTipsSection `json:"sections"`
+}
+
+func validateUsageTipsFile(file apiKeyUsageTipsFile, sectionIndex int, fileIndex int) error {
+	if strings.TrimSpace(file.Path) == "" {
+		return fmt.Errorf("第%d个栏目第%d个文件缺少路径字段", sectionIndex, fileIndex)
+	}
+	if strings.TrimSpace(file.Content) == "" {
+		return fmt.Errorf("第%d个栏目第%d个文件缺少内容字段", sectionIndex, fileIndex)
+	}
+	if len(file.Title) > 100 {
+		return fmt.Errorf("第%d个栏目第%d个文件标题长度不能超过100字符", sectionIndex, fileIndex)
+	}
+	if len(file.Path) > 300 {
+		return fmt.Errorf("第%d个栏目第%d个文件路径长度不能超过300字符", sectionIndex, fileIndex)
+	}
+	if len(file.Language) > 30 {
+		return fmt.Errorf("第%d个栏目第%d个文件语言长度不能超过30字符", sectionIndex, fileIndex)
+	}
+	if len(file.Content) > 50000 {
+		return fmt.Errorf("第%d个栏目第%d个文件内容长度不能超过50000字符", sectionIndex, fileIndex)
+	}
+	if err := checkDangerousContent(file.Title, fileIndex, "文件标题"); err != nil {
+		return err
+	}
+	if err := checkDangerousContent(file.Path, fileIndex, "文件路径"); err != nil {
+		return err
+	}
+	return nil
+}
+
+func validateApiKeyUsageTips(settingsStr string) error {
+	if len(settingsStr) > 200000 {
+		return fmt.Errorf("API KEY使用提示长度不能超过200000字符")
+	}
+
+	var cfg apiKeyUsageTipsConfig
+	if err := common.Unmarshal([]byte(settingsStr), &cfg); err != nil {
+		return fmt.Errorf("API KEY使用提示格式错误：%s", err.Error())
+	}
+	if len(cfg.Sections) == 0 {
+		return fmt.Errorf("API KEY使用提示至少需要一个栏目")
+	}
+	if len(cfg.Sections) > 30 {
+		return fmt.Errorf("API KEY使用提示栏目数量不能超过30个")
+	}
+
+	sectionIDs := make(map[string]bool, len(cfg.Sections))
+	for i, section := range cfg.Sections {
+		sectionIndex := i + 1
+		if strings.TrimSpace(section.ID) == "" {
+			return fmt.Errorf("第%d个栏目缺少ID字段", sectionIndex)
+		}
+		if strings.TrimSpace(section.Name) == "" {
+			return fmt.Errorf("第%d个栏目缺少名称字段", sectionIndex)
+		}
+		if sectionIDs[section.ID] {
+			return fmt.Errorf("第%d个栏目的ID与其他栏目重复", sectionIndex)
+		}
+		sectionIDs[section.ID] = true
+		if len(section.ID) > 80 {
+			return fmt.Errorf("第%d个栏目ID长度不能超过80字符", sectionIndex)
+		}
+		if len(section.Name) > 100 {
+			return fmt.Errorf("第%d个栏目名称长度不能超过100字符", sectionIndex)
+		}
+		if len(section.Description) > 1000 {
+			return fmt.Errorf("第%d个栏目说明长度不能超过1000字符", sectionIndex)
+		}
+		if len(section.Note) > 1000 {
+			return fmt.Errorf("第%d个栏目备注长度不能超过1000字符", sectionIndex)
+		}
+		if err := checkDangerousContent(section.Name, sectionIndex, "栏目名称"); err != nil {
+			return err
+		}
+		if err := checkDangerousContent(section.Description, sectionIndex, "栏目说明"); err != nil {
+			return err
+		}
+		if err := checkDangerousContent(section.Note, sectionIndex, "栏目备注"); err != nil {
+			return err
+		}
+
+		hasFiles := len(section.Files) > 0
+		hasPlatforms := len(section.Platforms) > 0
+		if !hasFiles && !hasPlatforms {
+			return fmt.Errorf("第%d个栏目至少需要配置文件或平台", sectionIndex)
+		}
+		if len(section.Files) > 20 {
+			return fmt.Errorf("第%d个栏目文件数量不能超过20个", sectionIndex)
+		}
+		for j, file := range section.Files {
+			if err := validateUsageTipsFile(file, sectionIndex, j+1); err != nil {
+				return err
+			}
+		}
+
+		if len(section.Platforms) > 10 {
+			return fmt.Errorf("第%d个栏目平台数量不能超过10个", sectionIndex)
+		}
+		platformIDs := make(map[string]bool, len(section.Platforms))
+		for j, platform := range section.Platforms {
+			platformIndex := j + 1
+			if strings.TrimSpace(platform.ID) == "" {
+				return fmt.Errorf("第%d个栏目第%d个平台缺少ID字段", sectionIndex, platformIndex)
+			}
+			if strings.TrimSpace(platform.Name) == "" {
+				return fmt.Errorf("第%d个栏目第%d个平台缺少名称字段", sectionIndex, platformIndex)
+			}
+			if platformIDs[platform.ID] {
+				return fmt.Errorf("第%d个栏目第%d个平台ID重复", sectionIndex, platformIndex)
+			}
+			platformIDs[platform.ID] = true
+			if len(platform.ID) > 80 {
+				return fmt.Errorf("第%d个栏目第%d个平台ID长度不能超过80字符", sectionIndex, platformIndex)
+			}
+			if len(platform.Name) > 100 {
+				return fmt.Errorf("第%d个栏目第%d个平台名称长度不能超过100字符", sectionIndex, platformIndex)
+			}
+			if len(platform.Note) > 1000 {
+				return fmt.Errorf("第%d个栏目第%d个平台备注长度不能超过1000字符", sectionIndex, platformIndex)
+			}
+			if len(platform.Files) == 0 {
+				return fmt.Errorf("第%d个栏目第%d个平台至少需要一个文件", sectionIndex, platformIndex)
+			}
+			if len(platform.Files) > 20 {
+				return fmt.Errorf("第%d个栏目第%d个平台文件数量不能超过20个", sectionIndex, platformIndex)
+			}
+			if err := checkDangerousContent(platform.Name, platformIndex, "平台名称"); err != nil {
+				return err
+			}
+			if err := checkDangerousContent(platform.Note, platformIndex, "平台备注"); err != nil {
+				return err
+			}
+			for k, file := range platform.Files {
+				if err := validateUsageTipsFile(file, sectionIndex, k+1); err != nil {
+					return err
+				}
+			}
+		}
+	}
+
+	return nil
 }
 
 func validateApiInfo(apiInfoStr string) error {

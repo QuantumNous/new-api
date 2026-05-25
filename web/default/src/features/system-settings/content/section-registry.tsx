@@ -20,6 +20,7 @@ import type { ContentSettings } from '../types'
 import { createSectionRegistry } from '../utils/section-registry'
 import { AnnouncementsSection } from './announcements-section'
 import { ApiInfoSection } from './api-info-section'
+import { ApiKeyUsageTipsSection } from './api-key-usage-tips-section'
 import { ChatSettingsSection } from './chat-settings-section'
 import { DashboardSection } from './dashboard-section'
 import { DrawingSettingsSection } from './drawing-settings-section'
@@ -70,6 +71,15 @@ const CONTENT_SECTIONS = [
       <ApiInfoSection
         enabled={settings['console_setting.api_info_enabled']}
         data={settings['console_setting.api_info']}
+      />
+    ),
+  },
+  {
+    id: 'api-key-usage-tips',
+    titleKey: 'API KEY Usage Tips',
+    build: (settings: ContentSettings) => (
+      <ApiKeyUsageTipsSection
+        defaultValue={settings['console_setting.api_key_usage_tips']}
       />
     ),
   },

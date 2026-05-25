@@ -26,6 +26,7 @@ import {
 
 const defaultContentSettings: ContentSettings = {
   'console_setting.api_info': '[]',
+  'console_setting.api_key_usage_tips': '',
   'console_setting.announcements': '[]',
   'console_setting.faq': '[]',
   'console_setting.uptime_kuma_groups': '[]',

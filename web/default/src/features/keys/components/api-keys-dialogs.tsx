@@ -19,6 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import { ApiKeysDeleteDialog } from './api-keys-delete-dialog'
 import { ApiKeysMutateDrawer } from './api-keys-mutate-drawer'
 import { useApiKeys } from './api-keys-provider'
+import { ApiKeyUsageGuideDialog } from './dialogs/api-key-usage-guide-dialog'
 import { CCSwitchDialog } from './dialogs/cc-switch-dialog'
 
 export function ApiKeysDialogs() {
@@ -36,6 +37,12 @@ export function ApiKeysDialogs() {
         open={open === 'cc-switch'}
         onOpenChange={(isOpen) => !isOpen && setOpen(null)}
         tokenKey={resolvedKey}
+      />
+      <ApiKeyUsageGuideDialog
+        open={open === 'usage-guide'}
+        onOpenChange={(isOpen) => !isOpen && setOpen(null)}
+        tokenKey={resolvedKey}
+        keyName={currentRow?.name}
       />
     </>
   )

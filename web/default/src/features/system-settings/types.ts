@@ -119,6 +119,7 @@ export type AuthSettings = {
 
 export type ContentSettings = {
   'console_setting.api_info': string
+  'console_setting.api_key_usage_tips': string
   'console_setting.announcements': string
   'console_setting.faq': string
   'console_setting.uptime_kuma_groups': string
