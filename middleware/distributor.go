@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 	"slices"
 	"strconv"
 	"strings"
@@ -391,7 +392,17 @@ func getModelRequest(c *gin.Context) (*ModelRequest, bool, error) {
 	}
 
 	if strings.HasPrefix(c.Request.URL.Path, "/v1/responses/compact") && modelRequest.Model != "" {
-		modelRequest.Model = ratio_setting.WithCompactModelSuffix(modelRequest.Model)
+		// Codex CLI's /v1/responses/compact endpoint sends `model: <base>` and
+		// new-api conventionally rewrites it to `<base>-openai-compact` so
+		// admins can route compact traffic to a different channel and bill it
+		// separately. Set COMPACT_USE_BASE_MODEL=true to skip the rewrite —
+		// useful when the upstream relay does not differentiate compact from
+		// regular Responses calls (e.g. xtokenmirror, hostcentral), removing
+		// the need to declare `*-openai-compact` in every channel's model
+		// list and price table.
+		if os.Getenv("COMPACT_USE_BASE_MODEL") != "true" {
+			modelRequest.Model = ratio_setting.WithCompactModelSuffix(modelRequest.Model)
+		}
 	}
 	return &modelRequest, shouldSelectChannel, nil
 }
