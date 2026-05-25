@@ -16,15 +16,13 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useMemo, useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
-import { Filter, RotateCcw, Calendar, Search, KeyRound } from 'lucide-react'
+import { useState } from 'react'
+import { Filter, RotateCcw, Calendar, Search } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { useAuthStore } from '@/stores/auth-store'
 import { getRollingDateRange, type TimeGranularity } from '@/lib/time'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
-import { Combobox } from '@/components/ui/combobox'
 import {
   Dialog,
   DialogContent,
@@ -58,8 +56,6 @@ import type {
   DashboardChartPreferences,
   DashboardFilters,
 } from '@/features/dashboard/types'
-import { getApiKeyOptions } from '@/features/keys/api'
-import { API_KEY_STATUSES } from '@/features/keys/constants'
 
 interface ModelsFilterProps {
   filters?: DashboardFilters
@@ -96,35 +92,6 @@ export function ModelsFilter(props: ModelsFilterProps) {
     () => props.preferences.defaultTimeRangeDays
   )
 
-  const tokenOptionsQuery = useQuery({
-    queryKey: ['dashboard', 'api-key-options'],
-    queryFn: async () => {
-      const result = await getApiKeyOptions()
-      if (!result.success) {
-        throw new Error(result.message || t('Failed to load API keys'))
-      }
-      return result.data ?? []
-    },
-    enabled: open,
-    staleTime: 5 * 60 * 1000,
-  })
-
-  const apiKeyOptions = tokenOptionsQuery.data ?? []
-  const apiKeySelectOptions = useMemo(
-    () => [
-      { value: 'all', label: t('All API Keys') },
-      ...apiKeyOptions.map((apiKey) => {
-        const status = API_KEY_STATUSES[apiKey.status]
-        const statusLabel = status ? t(status.label) : String(apiKey.status)
-        return {
-          value: String(apiKey.id),
-          label: `${apiKey.name} · ${apiKey.key} · ${statusLabel}`,
-        }
-      }),
-    ],
-    [apiKeyOptions, t]
-  )
-
   const resetFiltersFromPreferences = () => {
     setFilters(props.filters ?? buildDefaultDashboardFilters(props.preferences))
     setSelectedRange(props.preferences.defaultTimeRangeDays)
@@ -159,30 +126,11 @@ export function ModelsFilter(props: ModelsFilterProps) {
 
   const handleChange = (
     field: keyof DashboardFilters,
-    value: Date | string | number | undefined
+    value: Date | string | undefined
   ) => {
     setFilters((prev) => ({ ...prev, [field]: value }))
     if (field === 'start_timestamp' || field === 'end_timestamp')
       setSelectedRange(null)
-  }
-
-  const handleTokenChange = (value: string | null) => {
-    if (!value || value === 'all') {
-      setFilters((prev) => ({
-        ...prev,
-        token_id: undefined,
-        token_name: undefined,
-      }))
-      return
-    }
-
-    const tokenId = Number(value)
-    const token = apiKeyOptions.find((item) => item.id === tokenId)
-    setFilters((prev) => ({
-      ...prev,
-      token_id: Number.isFinite(tokenId) ? tokenId : undefined,
-      token_name: token?.name,
-    }))
   }
 
   const handleQuickRange = (days: number) => {
@@ -298,27 +246,6 @@ export function ModelsFilter(props: ModelsFilterProps) {
                   </SelectGroup>
                 </SelectContent>
               </Select>
-            </div>
-
-            <SectionDivider label={t('API Key Filter')} />
-
-            <div className='grid gap-2'>
-              <Label htmlFor='token_id' className='flex items-center gap-2'>
-                <KeyRound className='h-4 w-4' />
-                {t('API Key')}
-              </Label>
-              <Combobox
-                id='token_id'
-                options={apiKeySelectOptions}
-                value={filters.token_id ? String(filters.token_id) : 'all'}
-                onValueChange={handleTokenChange}
-                placeholder={
-                  tokenOptionsQuery.isLoading
-                    ? t('Loading API keys...')
-                    : t('Select API key')
-                }
-                emptyText='No API keys found'
-              />
             </div>
 
             {/* Admin-only fields */}

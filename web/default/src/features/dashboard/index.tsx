@@ -25,6 +25,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { SectionPageLayout } from '@/components/layout'
 import { FadeIn } from '@/components/page-transition'
+import { ModelsApiKeyFilter } from './components/models/models-api-key-filter'
 import { ModelsChartPreferences } from './components/models/models-chart-preferences'
 import { ModelsFilter } from './components/models/models-filter-dialog'
 import { OverviewDashboard } from './components/overview/overview-dashboard'
@@ -183,7 +184,11 @@ export function Dashboard() {
   const handleChartPreferencesChange = useCallback(
     (preferences: DashboardChartPreferences) => {
       setChartPreferences(preferences)
-      setModelFilters(buildDefaultDashboardFilters(preferences))
+      setModelFilters((prev) => ({
+        ...buildDefaultDashboardFilters(preferences),
+        token_id: prev.token_id,
+        token_name: prev.token_name,
+      }))
       saveChartPreferences(preferences)
     },
     []
@@ -212,6 +217,10 @@ export function Dashboard() {
   const modelActions =
     activeSection === 'models' ? (
       <>
+        <ModelsApiKeyFilter
+          filters={modelFilters}
+          onFilterChange={handleFilterChange}
+        />
         <ModelsChartPreferences
           preferences={chartPreferences}
           onPreferencesChange={handleChartPreferencesChange}
@@ -249,7 +258,7 @@ export function Dashboard() {
                 <div />
               )}
               {modelActions != null && (
-                <div className='flex shrink-0 flex-wrap items-center gap-1.5 sm:gap-2'>
+                <div className='flex min-w-0 flex-wrap items-center justify-end gap-1.5 max-sm:w-full sm:gap-2'>
                   {modelActions}
                 </div>
               )}
