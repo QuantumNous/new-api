@@ -68,6 +68,85 @@ terraform apply -refresh-only
 
 ---
 
+## `gcp-infra.yml` apply currently does not work (IAM gap)
+
+**Symptom**: `workflow_dispatch` on `gcp-infra.yml` fails at the very first `terraform apply` step with errors like:
+
+```
+Error 403: Permission denied to list services for consumer container [projects/528088078482]
+reason: AUTH_PERMISSION_DENIED on serviceusage.googleapis.com
+  with module.apis.google_project_service.this["serviceusage.googleapis.com"]
+```
+
+**Cause**: the CI service account `newapi-ci-deployer@vocai-gemini-prod.iam.gserviceaccount.com` only has the three minimum roles needed for **app deploy** (`run.developer`, `artifactregistry.writer`, `iam.serviceAccountUser`). `terraform apply` does a full state refresh that reads every module's GCP state — needing read perms across serviceusage, IAM, secretmanager, compute, cloudsql, redis, monitoring, etc. Until those are granted, **infra apply via CI will never succeed**. The PR plan step works because it runs in `pull_request` context, which doesn't gate on the same `production` environment WIF binding (and historically every infra change was reviewed via plan and not applied through this workflow).
+
+**Workaround (works today, no Terraform drift)**: when the Terraform code on `main` is already merged with the desired state, just apply via `gcloud` using a user account with Owner / `roles/run.admin`. Terraform's `desired` and reality will reconverge — no drift, no refresh-only needed.
+
+Worked example (2026-05-25 scaling tune, PR #22):
+
+```bash
+gcloud run services update newapi \
+  --region=us-west1 \
+  --project=vocai-gemini-prod \
+  --min-instances=4 \
+  --concurrency=50
+
+# Then redirect traffic to the new revision — see next section.
+```
+
+**Long-term fix** (separate PR): grant the deployer SA the full set of read + write roles in `modules/service-accounts/main.tf`. Minimum starter list:
+
+```
+roles/serviceusage.serviceUsageAdmin
+roles/iam.securityReviewer            # read IAM policies across resources
+roles/secretmanager.viewer
+roles/compute.viewer                  # network/LB
+roles/cloudsql.viewer
+roles/redis.viewer
+roles/monitoring.viewer
+roles/iam.workloadIdentityPoolViewer
+roles/artifactregistry.reader
+# plus admin roles per module for the write side: secretmanager.admin, cloudsql.admin, redis.admin, compute.networkAdmin, compute.loadBalancerAdmin, monitoring.admin
+```
+
+This is a meaningful blast radius (broad cross-resource admin) — review carefully and consider splitting into a separate `infra-deployer` SA instead of upgrading the existing `ci-deployer`.
+
+---
+
+## Cloud Run traffic is revision-pinned — gcloud-only scaling tweaks don't auto-receive traffic
+
+When CI/CD deploys a new image, the workflow pins traffic to that specific revision name (the LATEST block in Terraform is only for first bring-up). After such a deploy, `spec.traffic[*].latestRevision == false` and traffic = 100% on the explicit revision name.
+
+**Consequence**: if you then run `gcloud run services update newapi --min-instances=X --concurrency=Y` to tweak scaling, gcloud creates a **brand-new revision** (with auto-generated name like `newapi-00021-zxs`) carrying the new scaling. But **traffic stays on the previously-pinned revision**, which keeps the old scaling values. You'll see `spec.template.containerConcurrency = 50` in `services describe` (that's the next revision's template), but in reality 100% of traffic is still served by the old revision at conc=80.
+
+To make the new scaling take effect immediately:
+
+```bash
+gcloud run services update-traffic newapi \
+  --region=us-west1 \
+  --project=vocai-gemini-prod \
+  --to-revisions=newapi-00021-zxs=100
+```
+
+Verify with:
+
+```bash
+gcloud run services describe newapi --region=us-west1 --project=vocai-gemini-prod \
+  --format='value(status.traffic)'
+# Want: status.traffic[0].revisionName=newapi-00021-zxs, percent=100
+```
+
+After traffic flips, the next CI/CD app deploy still works normally — it creates yet another revision (with commit-hash suffix), inherits the *current* `spec.template` (so new scaling carries over), and re-pins traffic to itself.
+
+To roll back to the prior revision quickly:
+
+```bash
+gcloud run services update-traffic newapi --region=us-west1 --project=vocai-gemini-prod \
+  --to-revisions=<previous-revision-name>=100
+```
+
+---
+
 ## HTTPS LB cert rotation has a downtime window
 
 The managed SSL cert is recreated whenever `lb_domains` changes (via `random_id.cert_suffix` keepers). With `create_before_destroy`, Terraform creates the new cert and points the HTTPS proxy at it **before** destroying the old one. That sounds safe but isn't:
