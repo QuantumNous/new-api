@@ -3204,6 +3204,7 @@
     "Register each URL into the matching Test Mode / Production Mode webhook slot in the Pancake dashboard. Separate endpoints prevent test traffic from accidentally crediting production accounts.": "Enregistrez chaque URL dans l’emplacement webhook correspondant au mode test ou production dans le tableau de bord Pancake. Des points de terminaison séparés évitent que le trafic de test crédite accidentellement les comptes de production.",
     "Register Passkey": "Enregistrer un Passkey",
     "Registration Enabled": "Inscription activée",
+    "Registration token": "Jeton d'inscription",
     "Registry (optional)": "Registre (optionnel)",
     "Registry secret": "Secret du registre",
     "Registry username": "Nom d'utilisateur du registre",

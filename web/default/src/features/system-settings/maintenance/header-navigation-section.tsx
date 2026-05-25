@@ -53,8 +53,6 @@ const headerNavSchema = z.object({
   pricingRequireAuth: z.boolean(),
   rankingsEnabled: z.boolean(),
   rankingsRequireAuth: z.boolean(),
-  docs: z.boolean(),
-  about: z.boolean(),
 })
 
 type HeaderNavFormValues = z.infer<typeof headerNavSchema>
@@ -87,12 +85,6 @@ const toFormValues = (config: HeaderNavModulesConfig): HeaderNavFormValues => ({
     config.rankings?.requireAuth === undefined
       ? HEADER_NAV_DEFAULT.rankings.requireAuth
       : Boolean(config.rankings.requireAuth),
-  docs:
-    config.docs === undefined ? HEADER_NAV_DEFAULT.docs : Boolean(config.docs),
-  about:
-    config.about === undefined
-      ? HEADER_NAV_DEFAULT.about
-      : Boolean(config.about),
 })
 
 export function HeaderNavigationSection({
@@ -114,11 +106,8 @@ export function HeaderNavigationSection({
 
   const onSubmit = async (values: HeaderNavFormValues) => {
     const payload: HeaderNavModulesConfig = {
-      ...config,
       home: values.home,
       console: values.console,
-      docs: values.docs,
-      about: values.about,
       pricing: {
         ...(config.pricing ?? HEADER_NAV_DEFAULT.pricing),
         enabled: values.pricingEnabled,
@@ -160,16 +149,6 @@ export function HeaderNavigationSection({
       key: 'console',
       title: t('Console'),
       description: t('User dashboard and quota controls.'),
-    },
-    {
-      key: 'docs',
-      title: t('Docs'),
-      description: t('Documentation or external knowledge base.'),
-    },
-    {
-      key: 'about',
-      title: t('About'),
-      description: t('Static page describing the platform.'),
     },
   ]
 

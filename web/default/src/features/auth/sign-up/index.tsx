@@ -23,7 +23,11 @@ import { AuthLayout } from '../auth-layout'
 import { TermsFooter } from '../components/terms-footer'
 import { SignUpForm } from './components/sign-up-form'
 
-export function SignUp() {
+type SignUpProps = {
+  registrationToken: string
+}
+
+export function SignUp({ registrationToken }: SignUpProps) {
   const { t } = useTranslation()
   const { status } = useStatus()
 
@@ -46,7 +50,7 @@ export function SignUp() {
           </p>
         </div>
 
-        <SignUpForm />
+        <SignUpForm registrationToken={registrationToken} />
 
         <TermsFooter
           variant='sign-up'

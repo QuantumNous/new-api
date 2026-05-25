@@ -16,31 +16,20 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { z } from 'zod'
 import { createFileRoute, redirect } from '@tanstack/react-router'
 import { SignUp } from '@/features/auth/sign-up'
 
-const defaultRegistrationToken = 'reg_b789b3f5a312d8a3e6581f1e7125cb11'
-
-const expectedRegistrationToken =
-  import.meta.env.VITE_REACT_APP_REGISTRATION_TOKEN || defaultRegistrationToken
-
-const searchSchema = z.object({
-  token: z.string().optional(),
-})
-
-export const Route = createFileRoute('/(auth)/register')({
-  component: Register,
-  validateSearch: searchSchema,
-  beforeLoad: ({ search }) => {
-    if (search.token?.trim() !== expectedRegistrationToken) {
+export const Route = createFileRoute('/(auth)/register/$token')({
+  component: TokenRegister,
+  beforeLoad: ({ params }) => {
+    if (!params.token.trim()) {
       throw redirect({ to: '/sign-in' })
     }
   },
 })
 
-function Register() {
-  const { token } = Route.useSearch()
+function TokenRegister() {
+  const { token } = Route.useParams()
 
-  return <SignUp registrationToken={token?.trim() ?? ''} />
+  return <SignUp registrationToken={token} />
 }

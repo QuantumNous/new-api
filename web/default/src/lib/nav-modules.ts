@@ -27,8 +27,6 @@ export type HeaderNavModules = {
   console: boolean
   pricing: ModuleAccess
   rankings: ModuleAccess
-  docs: boolean
-  about: boolean
   [key: string]: boolean | ModuleAccess
 }
 
@@ -37,8 +35,6 @@ const DEFAULT_HEADER_NAV_MODULES: HeaderNavModules = {
   console: true,
   pricing: { enabled: true, requireAuth: false },
   rankings: { enabled: true, requireAuth: false },
-  docs: true,
-  about: true,
 }
 
 const DEFAULTS: Record<HeaderNavModule, ModuleAccess> = {
@@ -119,16 +115,13 @@ export function parseHeaderNavModules(raw: unknown): HeaderNavModules {
       return
     }
 
-    const fallback = result[key]
     if (
-      typeof fallback === 'boolean' ||
-      typeof value === 'boolean' ||
-      typeof value === 'number' ||
-      typeof value === 'string'
+      (key === 'home' || key === 'console') &&
+      typeof result[key] === 'boolean'
     ) {
       result[key] = parseHeaderNavBoolean(
         value,
-        typeof fallback === 'boolean' ? fallback : true
+        typeof result[key] === 'boolean' ? result[key] : true
       )
     }
   })

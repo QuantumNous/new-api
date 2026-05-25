@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"os"
 	"strconv"
 	"strings"
 	"sync"
@@ -154,6 +155,10 @@ func Register(c *gin.Context) {
 		common.ApiErrorI18n(c, i18n.MsgUserInputInvalid, map[string]any{"Error": err.Error()})
 		return
 	}
+	if err := validateRegistrationToken(user.AffCode); err != nil {
+		common.ApiError(c, err)
+		return
+	}
 	if common.EmailVerificationEnabled {
 		if user.Email == "" || user.VerificationCode == "" {
 			common.ApiErrorI18n(c, i18n.MsgUserEmailVerificationRequired)
@@ -174,19 +179,16 @@ func Register(c *gin.Context) {
 		common.ApiErrorI18n(c, i18n.MsgUserExists)
 		return
 	}
-	affCode := user.AffCode // this code is the inviter's code, not the user's own code
-	inviterId, _ := model.GetUserIdByAffCode(affCode)
 	cleanUser := model.User{
 		Username:    user.Username,
 		Password:    user.Password,
 		DisplayName: user.Username,
-		InviterId:   inviterId,
 		Role:        common.RoleCommonUser, // 明确设置角色为普通用户
 	}
 	if common.EmailVerificationEnabled {
 		cleanUser.Email = user.Email
 	}
-	if err := cleanUser.Insert(inviterId); err != nil {
+	if err := cleanUser.Insert(0); err != nil {
 		common.ApiError(c, err)
 		return
 	}
@@ -642,6 +644,32 @@ func AdminClearUserBinding(c *gin.Context) {
 		"success": true,
 		"message": "success",
 	})
+}
+
+const defaultRegistrationToken = "reg_b789b3f5a312d8a3e6581f1e7125cb11"
+
+func getRegistrationToken() string {
+	token := strings.TrimSpace(os.Getenv("REGISTRATION_TOKEN"))
+	if token == "" {
+		return defaultRegistrationToken
+	}
+	return token
+}
+
+func validateRegistrationToken(token string) error {
+	token = strings.TrimSpace(token)
+	if token == "" {
+		return errors.New("registration token is required")
+	}
+	if token != getRegistrationToken() {
+		return errors.New("registration token is invalid")
+	}
+	return nil
+}
+
+func validateRegistrationTokenFromSession(session sessions.Session) error {
+	token, _ := session.Get("aff").(string)
+	return validateRegistrationToken(token)
 }
 
 func UpdateSelf(c *gin.Context) {

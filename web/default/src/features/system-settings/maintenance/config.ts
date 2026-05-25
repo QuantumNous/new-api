@@ -26,8 +26,6 @@ export type HeaderNavModulesConfig = {
   console: boolean
   pricing: HeaderNavAccessConfig
   rankings: HeaderNavAccessConfig
-  docs: boolean
-  about: boolean
   [key: string]: boolean | HeaderNavAccessConfig
 }
 
@@ -49,16 +47,9 @@ export const HEADER_NAV_DEFAULT: HeaderNavModulesConfig = {
     enabled: true,
     requireAuth: false,
   },
-  docs: true,
-  about: true,
 }
 
 export const SIDEBAR_MODULES_DEFAULT: SidebarModulesAdminConfig = {
-  chat: {
-    enabled: true,
-    playground: true,
-    chat: true,
-  },
   console: {
     enabled: true,
     detail: true,
@@ -158,11 +149,14 @@ export function parseHeaderNavModules(
         return
       }
 
-      if (typeof raw === 'boolean') {
+      if ((key === 'home' || key === 'console') && typeof raw === 'boolean') {
         result[key] = raw
         return
       }
-      if (typeof raw === 'string' || typeof raw === 'number') {
+      if (
+        (key === 'home' || key === 'console') &&
+        (typeof raw === 'string' || typeof raw === 'number')
+      ) {
         result[key] = toBoolean(raw, Boolean(base[key]))
         return
       }
@@ -193,6 +187,7 @@ export function parseSidebarModulesAdmin(
 
     Object.entries(parsed).forEach(([sectionKey, raw]) => {
       if (!raw || typeof raw !== 'object') return
+      if (!defaults[sectionKey]) return
 
       const defaultSection = defaults[sectionKey] ?? { enabled: true }
       const sectionConfig: SidebarSectionConfig = {

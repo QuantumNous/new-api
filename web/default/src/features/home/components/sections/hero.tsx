@@ -85,7 +85,7 @@ export function Hero(props: HeroProps) {
             <>
               <Button
                 className='group rounded-lg'
-                render={<Link to='/sign-up' />}
+                render={<Link to='/sign-in' />}
               >
                 {t('Get Started')}
                 <ArrowRight className='ml-1 size-3.5 transition-transform duration-200 group-hover:translate-x-0.5' />

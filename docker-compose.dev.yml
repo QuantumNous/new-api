@@ -2,8 +2,8 @@
 #
 # Usage:
 #   1. docker compose -f docker-compose.dev.yml up -d
-#   2. cd web && bun install && bun run dev
-#   3. Open http://localhost:3001 (Rsbuild dev server, API auto-proxied to :3000)
+#   2. cd web/default && bun install && VITE_REACT_APP_SERVER_URL=http://localhost:3000 bun run dev
+#   3. Open the Rsbuild dev server URL printed in the terminal; API requests proxy to :3000
 #
 # Rebuild backend after Go code changes:
 #   docker compose -f docker-compose.dev.yml up -d --build new-api
@@ -29,6 +29,7 @@ services:
     environment:
       - SQL_DSN=postgresql://root:123456@postgres:5432/new-api
       - REDIS_CONN_STRING=redis://redis
+      - REGISTRATION_TOKEN=reg_b789b3f5a312d8a3e6581f1e7125cb11
       - TZ=Asia/Shanghai
       - BATCH_UPDATE_ENABLED=true
     depends_on:

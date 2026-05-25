@@ -45,6 +45,7 @@ import { ROLE } from '@/lib/roles'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { CopyButton } from '@/components/copy-button'
+import { useStatus } from '@/hooks/use-status'
 import {
   CardStaggerContainer,
   CardStaggerItem,
@@ -431,6 +432,7 @@ export function OverviewDashboard() {
     faq: showFAQPanel,
     uptimeKuma: showUptimePanel,
   } = useDashboardContentVisibility()
+  const { status } = useStatus()
   const [manualSetupGuideExpanded, setManualSetupGuideExpanded] = useState<
     boolean | null
   >(() => getSavedSetupGuideExpanded())
@@ -559,7 +561,10 @@ export function OverviewDashboard() {
   )
 
   const requestExample = useMemo<RequestExample>(() => {
-    const endpoint = normalizeEndpoint(apiInfoItems[0]?.url)
+    const serverAddress =
+      (status?.server_address as string | undefined) ??
+      status?.data?.server_address
+    const endpoint = normalizeEndpoint(apiInfoItems[0]?.url ?? serverAddress)
     const model = modelsQuery.data?.[0] ?? 'gpt-4o-mini'
     const apiKey = realKeyQuery.data ?? ''
     const keyName = preferredKey?.name ?? t('No API key yet')
@@ -577,7 +582,14 @@ export function OverviewDashboard() {
         model,
       }),
     }
-  }, [apiInfoItems, modelsQuery.data, preferredKey, realKeyQuery.data, t])
+  }, [
+    apiInfoItems,
+    modelsQuery.data,
+    preferredKey,
+    realKeyQuery.data,
+    status,
+    t,
+  ])
 
   const completedStepCount = startSteps.filter((step) => step.completed).length
   const setupComplete = completedStepCount === startSteps.length

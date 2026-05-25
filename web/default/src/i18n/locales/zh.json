@@ -3204,6 +3204,7 @@
     "Register each URL into the matching Test Mode / Production Mode webhook slot in the Pancake dashboard. Separate endpoints prevent test traffic from accidentally crediting production accounts.": "请在 Pancake 控制台中将每个 URL 注册到对应的测试模式/生产模式 webhook 槽位。分离端点可以避免测试流量误入生产账户。",
     "Register Passkey": "注册 Passkey",
     "Registration Enabled": "注册已启用",
+    "Registration token": "注册 Token",
     "Registry (optional)": "注册表 (可选)",
     "Registry secret": "注册表密钥",
     "Registry username": "注册表用户名",
