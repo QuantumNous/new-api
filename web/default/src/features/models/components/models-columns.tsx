@@ -264,6 +264,34 @@ export function useModelsColumns(vendors: Vendor[] = []): ColumnDef<Model>[] {
       minSize: 200,
     },
 
+    // Pinned column
+    {
+      accessorKey: 'pinned',
+      meta: { label: t('Pinned'), mobileHidden: true },
+      header: t('Pinned'),
+      cell: ({ row }) => {
+        return <PinnedCell model={row.original} queryClient={queryClient} />
+      },
+      size: 80,
+      enableSorting: false,
+    },
+
+    // Display Order column
+    {
+      accessorKey: 'display_order',
+      meta: { label: t('Display Order'), mobileHidden: true },
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title={t('Display Order')} />
+      ),
+      cell: ({ row }) => {
+        return (
+          <DisplayOrderCell model={row.original} queryClient={queryClient} />
+        )
+      },
+      size: 120,
+      enableSorting: false,
+    },
+
     // Name Rule column
     {
       accessorKey: 'name_rule',
@@ -353,34 +381,6 @@ export function useModelsColumns(vendors: Vendor[] = []): ColumnDef<Model>[] {
         if (value.includes('enabled')) return status === 1
         if (value.includes('disabled')) return status !== 1
         return false
-      },
-      size: 120,
-      enableSorting: false,
-    },
-
-    // Pinned column
-    {
-      accessorKey: 'pinned',
-      meta: { label: t('Pinned'), mobileHidden: true },
-      header: t('Pinned'),
-      cell: ({ row }) => {
-        return <PinnedCell model={row.original} queryClient={queryClient} />
-      },
-      size: 80,
-      enableSorting: false,
-    },
-
-    // Display Order column
-    {
-      accessorKey: 'display_order',
-      meta: { label: t('Display Order'), mobileHidden: true },
-      header: ({ column }) => (
-        <DataTableColumnHeader column={column} title={t('Display Order')} />
-      ),
-      cell: ({ row }) => {
-        return (
-          <DisplayOrderCell model={row.original} queryClient={queryClient} />
-        )
       },
       size: 120,
       enableSorting: false,

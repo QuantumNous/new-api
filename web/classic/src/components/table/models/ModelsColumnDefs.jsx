@@ -24,12 +24,17 @@ import {
   Tag,
   Typography,
   Modal,
+  InputNumber,
+  Switch,
   Tooltip,
 } from '@douyinfe/semi-ui';
 import {
   timestamp2string,
   getLobeHubIcon,
   stringToColor,
+  API,
+  showError,
+  showSuccess,
 } from '../../../helpers';
 import {
   renderLimitedItems,
@@ -37,6 +42,26 @@ import {
 } from '../../common/ui/RenderUtils';
 
 const { Text } = Typography;
+
+const updateModelOrdering = async (record, changes, refresh, t) => {
+  try {
+    const res = await API.put('/api/models/?order_only=true', {
+      id: record.id,
+      pinned: record.pinned ? 1 : 0,
+      display_order: record.display_order ?? 0,
+      ...changes,
+    });
+    const { success, message } = res.data;
+    if (success) {
+      showSuccess(t('操作成功完成！'));
+      await refresh();
+    } else {
+      showError(t(message));
+    }
+  } catch (error) {
+    showError(error.response?.data?.message || t('操作失败'));
+  }
+};
 
 // Render timestamp
 function renderTimestamp(timestamp) {
@@ -296,6 +321,53 @@ export const getModelsColumns = ({
         <Text copyable onClick={(e) => e.stopPropagation()}>
           {text}
         </Text>
+      ),
+    },
+    {
+      title: t('置顶'),
+      dataIndex: 'pinned',
+      align: 'center',
+      width: 90,
+      render: (value, record) => (
+        <div onClick={(e) => e.stopPropagation()}>
+          <Switch
+            size='small'
+            checked={Boolean(value)}
+            onChange={(checked) =>
+              updateModelOrdering(
+                record,
+                { pinned: checked ? 1 : 0 },
+                refresh,
+                t,
+              )
+            }
+          />
+        </div>
+      ),
+    },
+    {
+      title: t('展示顺序'),
+      dataIndex: 'display_order',
+      width: 130,
+      render: (value, record) => (
+        <div onClick={(e) => e.stopPropagation()}>
+          <InputNumber
+            size='small'
+            defaultValue={value ?? 0}
+            step={1}
+            onBlur={(event) => {
+              const nextValue = Number(event.target.value || 0);
+              if (nextValue === (record.display_order ?? 0)) return;
+              updateModelOrdering(
+                record,
+                { display_order: nextValue },
+                refresh,
+                t,
+              );
+            }}
+            style={{ width: 96 }}
+          />
+        </div>
       ),
     },
     {

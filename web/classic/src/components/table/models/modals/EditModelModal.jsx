@@ -124,6 +124,8 @@ const EditModelModal = (props) => {
     name_rule: props.editingModel?.model_name ? 0 : undefined, // 通过未配置模型过来的固定为精确匹配
     status: true,
     sync_official: true,
+    pinned: false,
+    display_order: 0,
   });
 
   const handleCancel = () => {
@@ -151,6 +153,8 @@ const EditModelModal = (props) => {
         // 处理status/sync_official，将数字转为布尔值
         data.status = data.status === 1;
         data.sync_official = (data.sync_official ?? 1) === 1;
+        data.pinned = Boolean(data.pinned);
+        data.display_order = data.display_order ?? 0;
         if (formApiRef.current) {
           formApiRef.current.setValues({ ...getInitValues(), ...data });
         }
@@ -198,6 +202,8 @@ const EditModelModal = (props) => {
         endpoints: values.endpoints || '',
         status: values.status ? 1 : 0,
         sync_official: values.sync_official ? 1 : 0,
+        pinned: values.pinned ? 1 : 0,
+        display_order: values.display_order ?? 0,
       };
 
       if (isEdit) {
@@ -522,6 +528,23 @@ const EditModelModal = (props) => {
                           </Space>
                         )
                       }
+                    />
+                  </Col>
+                  <Col span={24}>
+                    <Form.Switch
+                      field='pinned'
+                      label={t('置顶')}
+                      extraText={t('置顶模型会优先展示在模型广场和用户模型列表中')}
+                      size='large'
+                    />
+                  </Col>
+                  <Col span={24}>
+                    <Form.InputNumber
+                      field='display_order'
+                      label={t('展示顺序')}
+                      step={1}
+                      extraText={t('默认排序时数值越小越靠前')}
+                      style={{ width: '100%' }}
                     />
                   </Col>
                   <Col span={24}>
