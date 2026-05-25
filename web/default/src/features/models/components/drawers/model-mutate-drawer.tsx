@@ -89,6 +89,8 @@ const extendedModelFormSchema = z.object({
   name_rule: z.number(),
   status: z.boolean(),
   sync_official: z.boolean(),
+  display_order: z.number(),
+  pinned: z.boolean(),
   price: z.string().optional(),
   ratio: z.string().optional(),
   cacheRatio: z.string().optional(),
@@ -210,6 +212,8 @@ export function ModelMutateDrawer({
       name_rule: 0,
       status: true,
       sync_official: true,
+      display_order: 0,
+      pinned: false,
       price: '',
       ratio: '',
       cacheRatio: '',
@@ -269,6 +273,8 @@ export function ModelMutateDrawer({
         name_rule: model.name_rule || 0,
         status: model.status === 1,
         sync_official: model.sync_official === 1,
+        display_order: model.display_order ?? 0,
+        pinned: !!model.pinned,
         price: '',
         ratio: '',
         cacheRatio: '',
@@ -373,6 +379,8 @@ export function ModelMutateDrawer({
         name_rule: 0,
         status: true,
         sync_official: true,
+        display_order: 0,
+        pinned: false,
         price: '',
         ratio: '',
         cacheRatio: '',
@@ -1276,6 +1284,56 @@ export function ModelMutateDrawer({
                         onCheckedChange={field.onChange}
                       />
                     </FormControl>
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name='pinned'
+                render={({ field }) => (
+                  <FormItem className='flex items-center justify-between rounded-lg border p-4'>
+                    <div className='space-y-0.5'>
+                      <FormLabel className='text-base'>
+                        {t('Pinned')}
+                      </FormLabel>
+                      <FormDescription>
+                        {t('Pin this model to the top of listings')}
+                      </FormDescription>
+                    </div>
+                    <FormControl>
+                      <Switch
+                        checked={field.value}
+                        onCheckedChange={field.onChange}
+                      />
+                    </FormControl>
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name='display_order'
+                render={({ field }) => (
+                  <FormItem className='rounded-lg border p-4'>
+                    <FormLabel>{t('Display Order')}</FormLabel>
+                    <FormControl>
+                      <Input
+                        type='number'
+                        placeholder='0'
+                        {...field}
+                        onChange={(e) =>
+                          field.onChange(Number(e.target.value))
+                        }
+                        value={field.value}
+                      />
+                    </FormControl>
+                    <FormDescription>
+                      {t(
+                        'Lower values appear first when default sort is used'
+                      )}
+                    </FormDescription>
+                    <FormMessage />
                   </FormItem>
                 )}
               />

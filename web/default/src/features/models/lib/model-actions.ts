@@ -19,7 +19,11 @@ For commercial licensing, please contact support@quantumnous.com
 import { type QueryClient } from '@tanstack/react-query'
 import i18next from 'i18next'
 import { toast } from 'sonner'
-import { updateModelStatus, deleteModel as deleteModelAPI } from '../api'
+import {
+  updateModelStatus,
+  deleteModel as deleteModelAPI,
+  updateModelOrdering,
+} from '../api'
 import { modelsQueryKeys } from './query-keys'
 
 // ============================================================================
@@ -267,5 +271,51 @@ export async function handleBatchDisableModels(
     }
   } catch (error: unknown) {
     toast.error((error as Error)?.message || i18next.t('Batch disable failed'))
+  }
+}
+
+// ============================================================================
+// Model Field Update Actions
+// ============================================================================
+
+/**
+ * Update a specific model field (e.g., display_order, pinned)
+ */
+export async function handleUpdateModelField(
+  id: number,
+  fieldName: 'display_order' | 'pinned',
+  value: number,
+  queryClient?: QueryClient,
+  onSuccess?: () => void
+): Promise<void> {
+  try {
+    const response = await updateModelOrdering(
+      id,
+      fieldName === 'display_order'
+        ? { display_order: value }
+        : { pinned: value }
+    )
+    if (response.success) {
+      const fieldLabel =
+        fieldName === 'display_order'
+          ? i18next.t('Display Order')
+          : i18next.t('Pinned')
+      toast.success(
+        i18next.t('{{field}} updated to {{value}}', {
+          field: fieldLabel,
+          value,
+        })
+      )
+      queryClient?.invalidateQueries({ queryKey: modelsQueryKeys.lists() })
+      onSuccess?.()
+    } else {
+      toast.error(
+        response.message || i18next.t('Failed to update model')
+      )
+    }
+  } catch (error: unknown) {
+    toast.error(
+      (error as Error)?.message || i18next.t('Failed to update model')
+    )
   }
 }

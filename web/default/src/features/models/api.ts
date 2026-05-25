@@ -101,6 +101,17 @@ export async function updateModelStatus(
 }
 
 /**
+ * Update model ordering fields only.
+ */
+export async function updateModelOrdering(
+  id: number,
+  data: Partial<Pick<Model, 'display_order' | 'pinned'>>
+): Promise<{ success: boolean; message?: string; data?: { id: number } }> {
+  const res = await api.put('/api/models/?order_only=true', { id, ...data })
+  return res.data
+}
+
+/**
  * Delete model
  */
 export async function deleteModel(

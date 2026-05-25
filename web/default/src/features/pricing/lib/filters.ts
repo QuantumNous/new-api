@@ -115,6 +115,18 @@ export function sortModels(
   const sorted = [...models]
 
   switch (sortBy) {
+    case SORT_OPTIONS.DEFAULT:
+      // Preserve backend order: pinned DESC first, then display_order ASC, then id DESC
+      sorted.sort((a, b) => {
+        const pinnedA = a.pinned ? 1 : 0
+        const pinnedB = b.pinned ? 1 : 0
+        if (pinnedA !== pinnedB) return pinnedB - pinnedA
+        const orderA = a.display_order ?? 0
+        const orderB = b.display_order ?? 0
+        if (orderA !== orderB) return orderA - orderB
+        return (b.id ?? 0) - (a.id ?? 0)
+      })
+      break
     case SORT_OPTIONS.NAME:
       sorted.sort((a, b) =>
         (a.model_name || '').localeCompare(b.model_name || '')

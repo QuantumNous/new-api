@@ -3,6 +3,7 @@ package model
 import (
 	"encoding/json"
 	"fmt"
+	"sort"
 	"strings"
 
 	"sync"
@@ -16,11 +17,14 @@ import (
 )
 
 type Pricing struct {
+	Id                     int                     `json:"id"`
 	ModelName              string                  `json:"model_name"`
 	Description            string                  `json:"description,omitempty"`
 	Icon                   string                  `json:"icon,omitempty"`
 	Tags                   string                  `json:"tags,omitempty"`
 	VendorID               int                     `json:"vendor_id,omitempty"`
+	DisplayOrder           int                     `json:"display_order"`
+	Pinned                 int                     `json:"pinned"`
 	QuotaType              int                     `json:"quota_type"`
 	ModelRatio             float64                 `json:"model_ratio"`
 	ModelPrice             float64                 `json:"model_price"`
@@ -299,10 +303,13 @@ func updatePricing() {
 			if meta.Status != 1 {
 				continue
 			}
+			pricing.Id = meta.Id
 			pricing.Description = meta.Description
 			pricing.Icon = meta.Icon
 			pricing.Tags = meta.Tags
 			pricing.VendorID = meta.VendorID
+			pricing.DisplayOrder = meta.DisplayOrder
+			pricing.Pinned = meta.Pinned
 		}
 		modelPrice, findPrice := ratio_setting.GetModelPrice(model, false)
 		if findPrice {
@@ -339,6 +346,17 @@ func updatePricing() {
 		}
 		pricingMap = append(pricingMap, pricing)
 	}
+
+	// 按 pinned DESC, display_order ASC, id DESC 排序，确保输出顺序稳定一致
+	sort.Slice(pricingMap, func(i, j int) bool {
+		if pricingMap[i].Pinned != pricingMap[j].Pinned {
+			return pricingMap[i].Pinned > pricingMap[j].Pinned
+		}
+		if pricingMap[i].DisplayOrder != pricingMap[j].DisplayOrder {
+			return pricingMap[i].DisplayOrder < pricingMap[j].DisplayOrder
+		}
+		return pricingMap[i].Id > pricingMap[j].Id
+	})
 
 	// 防止大更新后数据不通用
 	if len(pricingMap) > 0 {

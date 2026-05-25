@@ -39,6 +39,8 @@ type Model struct {
 	EnableGroups  []string       `json:"enable_groups,omitempty" gorm:"-"`
 	QuotaTypes    []int          `json:"quota_types,omitempty" gorm:"-"`
 	NameRule      int            `json:"name_rule" gorm:"default:0"`
+	DisplayOrder  int            `json:"display_order" gorm:"default:0;index:idx_models_order,priority:2"`
+	Pinned        int            `json:"pinned" gorm:"default:0;index:idx_models_order,priority:1"`
 
 	MatchedModels []string `json:"matched_models,omitempty" gorm:"-"`
 	MatchedCount  int      `json:"matched_count,omitempty" gorm:"-"`
@@ -48,6 +50,7 @@ func (mi *Model) Insert() error {
 	now := common.GetTimestamp()
 	mi.CreatedTime = now
 	mi.UpdatedTime = now
+	mi.NormalizeOrdering()
 
 	// 保存原始值（因为 Create 后可能被 GORM 的 default 标签覆盖为 1）
 	originalStatus := mi.Status
@@ -62,6 +65,8 @@ func (mi *Model) Insert() error {
 	return DB.Model(&Model{}).Where("id = ?", mi.Id).Updates(map[string]interface{}{
 		"status":        originalStatus,
 		"sync_official": originalSyncOfficial,
+		"display_order": mi.DisplayOrder,
+		"pinned":        mi.Pinned,
 	}).Error
 }
 
@@ -76,10 +81,20 @@ func IsModelNameDuplicated(id int, name string) (bool, error) {
 
 func (mi *Model) Update() error {
 	mi.UpdatedTime = common.GetTimestamp()
+	mi.NormalizeOrdering()
 	// 使用 Select 强制更新所有字段，包括零值
 	return DB.Model(&Model{}).Where("id = ?", mi.Id).
-		Select("model_name", "description", "icon", "tags", "vendor_id", "endpoints", "status", "sync_official", "name_rule", "updated_time").
+		Select("model_name", "description", "icon", "tags", "vendor_id", "endpoints", "status", "sync_official", "name_rule", "display_order", "pinned", "updated_time").
 		Updates(mi).Error
+}
+
+func (mi *Model) NormalizeOrdering() {
+	if mi.DisplayOrder < 0 {
+		mi.DisplayOrder = 0
+	}
+	if mi.Pinned != 0 {
+		mi.Pinned = 1
+	}
 }
 
 func (mi *Model) Delete() error {
@@ -106,7 +121,8 @@ func GetVendorModelCounts() (map[int64]int64, error) {
 
 func GetAllModels(offset int, limit int) ([]*Model, error) {
 	var models []*Model
-	err := DB.Order("id DESC").Offset(offset).Limit(limit).Find(&models).Error
+	// No JOIN here, so unqualified column names are safe across supported DBs.
+	err := DB.Order("pinned DESC, display_order ASC, id DESC").Offset(offset).Limit(limit).Find(&models).Error
 	return models, err
 }
 
@@ -210,7 +226,7 @@ func SearchModels(keyword string, vendor string, offset int, limit int) ([]*Mode
 	if err := db.Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
-	if err := db.Order("models.id DESC").Offset(offset).Limit(limit).Find(&models).Error; err != nil {
+	if err := db.Order("models.pinned DESC, models.display_order ASC, models.id DESC").Offset(offset).Limit(limit).Find(&models).Error; err != nil {
 		return nil, 0, err
 	}
 	return models, total, nil

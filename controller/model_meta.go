@@ -108,6 +108,51 @@ func CreateModelMeta(c *gin.Context) {
 // UpdateModelMeta 更新模型
 func UpdateModelMeta(c *gin.Context) {
 	statusOnly := c.Query("status_only") == "true"
+	orderOnly := c.Query("order_only") == "true"
+
+	if orderOnly {
+		var req struct {
+			Id           int  `json:"id"`
+			DisplayOrder *int `json:"display_order"`
+			Pinned       *int `json:"pinned"`
+		}
+		if err := c.ShouldBindJSON(&req); err != nil {
+			common.ApiError(c, err)
+			return
+		}
+		if req.Id == 0 {
+			common.ApiErrorMsg(c, "缺少模型 ID")
+			return
+		}
+		updates := map[string]interface{}{
+			"updated_time": common.GetTimestamp(),
+		}
+		if req.DisplayOrder != nil {
+			displayOrder := *req.DisplayOrder
+			if displayOrder < 0 {
+				displayOrder = 0
+			}
+			updates["display_order"] = displayOrder
+		}
+		if req.Pinned != nil {
+			pinned := 0
+			if *req.Pinned != 0 {
+				pinned = 1
+			}
+			updates["pinned"] = pinned
+		}
+		if len(updates) == 1 {
+			common.ApiErrorMsg(c, "缺少排序字段")
+			return
+		}
+		if err := model.DB.Model(&model.Model{}).Where("id = ?", req.Id).Updates(updates).Error; err != nil {
+			common.ApiError(c, err)
+			return
+		}
+		model.RefreshPricing()
+		common.ApiSuccess(c, gin.H{"id": req.Id})
+		return
+	}
 
 	var m model.Model
 	if err := c.ShouldBindJSON(&m); err != nil {

@@ -543,10 +543,37 @@ func GetUserModels(c *gin.Context) {
 			}
 		}
 	}
+	// Sort by pinned and display_order from the models metadata table.
+	// Keep models that only exist in abilities as a fallback, so legacy/custom
+	// configurations are not hidden if their metadata row is missing.
+	var orderedModels []string
+	if len(models) > 0 {
+		var metaList []model.Model
+		if err := model.DB.Where("model_name IN ?", models).Order("pinned DESC, display_order ASC, id DESC").Find(&metaList).Error; err == nil {
+			orderedSet := make(map[string]bool, len(models))
+			for _, m := range metaList {
+				if _, ok := orderedSet[m.ModelName]; !ok {
+					orderedModels = append(orderedModels, m.ModelName)
+					orderedSet[m.ModelName] = true
+				}
+			}
+			// Append any models that were not found in metadata (shouldn't happen, but safe)
+			for _, nm := range models {
+				if !orderedSet[nm] {
+					orderedModels = append(orderedModels, nm)
+					orderedSet[nm] = true
+				}
+			}
+		} else {
+			orderedModels = models
+		}
+	} else {
+		orderedModels = models
+	}
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",
-		"data":    models,
+		"data":    orderedModels,
 	})
 	return
 }

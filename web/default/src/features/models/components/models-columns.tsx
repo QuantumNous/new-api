@@ -16,11 +16,15 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { useState } from 'react'
 import { type ColumnDef } from '@tanstack/react-table'
+import { useQueryClient, type QueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { formatTimestampToDate } from '@/lib/format'
 import { getLobeIcon } from '@/lib/lobe-icon'
 import { Checkbox } from '@/components/ui/checkbox'
+import { Input } from '@/components/ui/input'
+import { Switch } from '@/components/ui/switch'
 import {
   Tooltip,
   TooltipContent,
@@ -35,7 +39,11 @@ import {
   getNameRuleConfig,
   getQuotaTypeConfig,
 } from '../constants'
-import { parseModelTags, formatEndpointsDisplay } from '../lib'
+import {
+  parseModelTags,
+  formatEndpointsDisplay,
+  handleUpdateModelField,
+} from '../lib'
 import type { Model, Vendor } from '../types'
 import { DataTableRowActions } from './data-table-row-actions'
 import { DescriptionCell } from './description-cell'
@@ -69,11 +77,94 @@ function renderLimitedItems(
   )
 }
 
+function PinnedCell(props: { model: Model; queryClient: QueryClient }) {
+  const { t } = useTranslation()
+  const isPinned = !!props.model.pinned
+
+  return (
+    <Switch
+      checked={isPinned}
+      onCheckedChange={(checked) => {
+        handleUpdateModelField(
+          props.model.id,
+          'pinned',
+          checked ? 1 : 0,
+          props.queryClient
+        )
+      }}
+      aria-label={isPinned ? t('Unpin model') : t('Pin model')}
+    />
+  )
+}
+
+function DisplayOrderCell(props: { model: Model; queryClient: QueryClient }) {
+  const [localValue, setLocalValue] = useState(
+    String(props.model.display_order ?? 0)
+  )
+  const [editing, setEditing] = useState(false)
+
+  const commitValue = () => {
+    setEditing(false)
+    const num = Number(localValue)
+    if (Number.isNaN(num) || localValue === '') {
+      setLocalValue(String(props.model.display_order ?? 0))
+      return
+    }
+    const val = Math.max(0, num)
+    setLocalValue(String(val))
+    if (val !== (props.model.display_order ?? 0)) {
+      handleUpdateModelField(
+        props.model.id,
+        'display_order',
+        val,
+        props.queryClient
+      )
+    }
+  }
+
+  return (
+    <div className='inline-flex items-center'>
+      {editing ? (
+        <Input
+          type='number'
+          min={0}
+          value={localValue}
+          onChange={(e) => setLocalValue(e.target.value)}
+          onBlur={commitValue}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.preventDefault()
+              commitValue()
+            } else if (e.key === 'Escape') {
+              setEditing(false)
+              setLocalValue(String(props.model.display_order ?? 0))
+            }
+          }}
+          className='h-7 w-16 text-center font-mono text-sm'
+          autoFocus
+        />
+      ) : (
+        <button
+          type='button'
+          onClick={() => {
+            setEditing(true)
+            setLocalValue(String(props.model.display_order ?? 0))
+          }}
+          className='text-muted-foreground hover:text-foreground hover:bg-muted h-7 min-w-[2.5rem] cursor-text rounded-md px-1 text-center font-mono text-sm tabular-nums transition-colors'
+        >
+          {props.model.display_order ?? 0}
+        </button>
+      )}
+    </div>
+  )
+}
+
 /**
  * Generate models columns configuration
  */
 export function useModelsColumns(vendors: Vendor[] = []): ColumnDef<Model>[] {
   const { t } = useTranslation()
+  const queryClient = useQueryClient()
 
   // Get translated configs
   const NAME_RULE_CONFIG = getNameRuleConfig(t)
@@ -262,6 +353,34 @@ export function useModelsColumns(vendors: Vendor[] = []): ColumnDef<Model>[] {
         if (value.includes('enabled')) return status === 1
         if (value.includes('disabled')) return status !== 1
         return false
+      },
+      size: 120,
+      enableSorting: false,
+    },
+
+    // Pinned column
+    {
+      accessorKey: 'pinned',
+      meta: { label: t('Pinned'), mobileHidden: true },
+      header: t('Pinned'),
+      cell: ({ row }) => {
+        return <PinnedCell model={row.original} queryClient={queryClient} />
+      },
+      size: 80,
+      enableSorting: false,
+    },
+
+    // Display Order column
+    {
+      accessorKey: 'display_order',
+      meta: { label: t('Display Order'), mobileHidden: true },
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title={t('Display Order')} />
+      ),
+      cell: ({ row }) => {
+        return (
+          <DisplayOrderCell model={row.original} queryClient={queryClient} />
+        )
       },
       size: 120,
       enableSorting: false,

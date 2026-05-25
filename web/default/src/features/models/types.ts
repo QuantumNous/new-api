@@ -46,6 +46,8 @@ export interface Model {
   created_time: number
   updated_time: number
   name_rule: number
+  display_order?: number
+  pinned?: number
   // Runtime fields
   bound_channels?: BoundChannel[]
   enable_groups?: string[]
