@@ -145,8 +145,13 @@ func UpdateModelMeta(c *gin.Context) {
 			common.ApiErrorMsg(c, "缺少排序字段")
 			return
 		}
-		if err := model.DB.Model(&model.Model{}).Where("id = ?", req.Id).Updates(updates).Error; err != nil {
-			common.ApiError(c, err)
+		res := model.DB.Model(&model.Model{}).Where("id = ?", req.Id).Updates(updates)
+		if res.Error != nil {
+			common.ApiError(c, res.Error)
+			return
+		}
+		if res.RowsAffected == 0 {
+			common.ApiErrorMsg(c, "模型不存在")
 			return
 		}
 		model.RefreshPricing()

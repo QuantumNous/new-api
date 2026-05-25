@@ -298,8 +298,8 @@ export async function handleUpdateModelField(
     if (response.success) {
       const fieldLabel =
         fieldName === 'display_order'
-          ? i18next.t('Display Order')
-          : i18next.t('Pinned')
+          ? i18next.t('models.ordering.displayOrder')
+          : i18next.t('models.pin.pinned')
       toast.success(
         i18next.t('{{field}} updated to {{value}}', {
           field: fieldLabel,
@@ -310,12 +310,12 @@ export async function handleUpdateModelField(
       onSuccess?.()
     } else {
       toast.error(
-        response.message || i18next.t('Failed to update model')
+        response.message || i18next.t('models.ordering.updateFailed')
       )
     }
   } catch (error: unknown) {
     toast.error(
-      (error as Error)?.message || i18next.t('Failed to update model')
+      (error as Error)?.message || i18next.t('models.ordering.updateFailed')
     )
   }
 }

@@ -543,6 +543,7 @@ const EditModelModal = (props) => {
                       field='display_order'
                       label={t('展示顺序')}
                       step={1}
+                      min={0}
                       extraText={t('默认排序时数值越小越靠前')}
                       style={{ width: '100%' }}
                     />

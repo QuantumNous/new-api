@@ -89,7 +89,7 @@ const extendedModelFormSchema = z.object({
   name_rule: z.number(),
   status: z.boolean(),
   sync_official: z.boolean(),
-  display_order: z.number(),
+  display_order: z.number().int().min(0).default(0),
   pinned: z.boolean(),
   price: z.string().optional(),
   ratio: z.string().optional(),
@@ -1295,10 +1295,10 @@ export function ModelMutateDrawer({
                   <FormItem className='flex items-center justify-between rounded-lg border p-4'>
                     <div className='space-y-0.5'>
                       <FormLabel className='text-base'>
-                        {t('Pinned')}
+                        {t('models.pin.pinned')}
                       </FormLabel>
                       <FormDescription>
-                        {t('Pin this model to the top of listings')}
+                        {t('models.pin.helpText')}
                       </FormDescription>
                     </div>
                     <FormControl>
@@ -1316,7 +1316,7 @@ export function ModelMutateDrawer({
                 name='display_order'
                 render={({ field }) => (
                   <FormItem className='rounded-lg border p-4'>
-                    <FormLabel>{t('Display Order')}</FormLabel>
+                    <FormLabel>{t('models.ordering.displayOrder')}</FormLabel>
                     <FormControl>
                       <Input
                         type='number'

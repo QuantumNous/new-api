@@ -40,7 +40,7 @@ export const modelFormSchema = z.object({
   sync_official: z.boolean().default(true),
   enable_groups: z.array(z.string()).default([]),
   quota_types: z.array(z.number()).default([]),
-  display_order: z.number().default(0),
+  display_order: z.number().int().min(0).default(0),
   pinned: z.boolean().default(false),
 })
 

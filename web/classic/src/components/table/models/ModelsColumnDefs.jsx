@@ -350,9 +350,11 @@ export const getModelsColumns = ({
       render: (value, record) => (
         <div onClick={(e) => e.stopPropagation()}>
           <InputNumber
+            key={`${record.id}-${value ?? 0}`}
             size='small'
             defaultValue={value ?? 0}
             step={1}
+            min={0}
             onBlur={(event) => {
               const nextValue = Number(event.target.value || 0);
               if (nextValue === (record.display_order ?? 0)) return;

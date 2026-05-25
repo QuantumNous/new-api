@@ -92,7 +92,7 @@ function PinnedCell(props: { model: Model; queryClient: QueryClient }) {
           props.queryClient
         )
       }}
-      aria-label={isPinned ? t('Unpin model') : t('Pin model')}
+      aria-label={isPinned ? t('models.pin.unpinLabel') : t('models.pin.label')}
     />
   )
 }
@@ -267,8 +267,8 @@ export function useModelsColumns(vendors: Vendor[] = []): ColumnDef<Model>[] {
     // Pinned column
     {
       accessorKey: 'pinned',
-      meta: { label: t('Pinned'), mobileHidden: true },
-      header: t('Pinned'),
+      meta: { label: t('models.pin.pinned'), mobileHidden: true },
+      header: t('models.pin.pinned'),
       cell: ({ row }) => {
         return <PinnedCell model={row.original} queryClient={queryClient} />
       },
@@ -279,9 +279,9 @@ export function useModelsColumns(vendors: Vendor[] = []): ColumnDef<Model>[] {
     // Display Order column
     {
       accessorKey: 'display_order',
-      meta: { label: t('Display Order'), mobileHidden: true },
+      meta: { label: t('models.ordering.displayOrder'), mobileHidden: true },
       header: ({ column }) => (
-        <DataTableColumnHeader column={column} title={t('Display Order')} />
+        <DataTableColumnHeader column={column} title={t('models.ordering.displayOrder')} />
       ),
       cell: ({ row }) => {
         return (

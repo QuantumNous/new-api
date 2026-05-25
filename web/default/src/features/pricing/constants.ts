@@ -35,7 +35,7 @@ export type SortOption = (typeof SORT_OPTIONS)[keyof typeof SORT_OPTIONS]
 
 export function getSortLabels(t: TFunction): Record<SortOption, string> {
   return {
-    [SORT_OPTIONS.DEFAULT]: t('Default Order'),
+    [SORT_OPTIONS.DEFAULT]: t('models.ordering.defaultOrder'),
     [SORT_OPTIONS.NAME]: t('Name'),
     [SORT_OPTIONS.PRICE_LOW]: t('Price: Low to High'),
     [SORT_OPTIONS.PRICE_HIGH]: t('Price: High to Low'),
