@@ -47,8 +47,6 @@ const updateModelOrdering = async (record, changes, refresh, t) => {
   try {
     const res = await API.put('/api/models/?order_only=true', {
       id: record.id,
-      pinned: record.pinned ? 1 : 0,
-      display_order: record.display_order ?? 0,
       ...changes,
     });
     const { success, message } = res.data;
