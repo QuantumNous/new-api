@@ -28,6 +28,7 @@ services:
         condition: service_healthy
     networks:
       - new-api-network
+      - sub2api-network
     healthcheck:
       test: ["CMD-SHELL", "wget -q -O - http://localhost:3000/api/status | grep -q '\"success\"[[:space:]]*:[[:space:]]*true'"]
       interval: 30s
@@ -89,3 +90,6 @@ services:
 networks:
   new-api-network:
     driver: bridge
+  sub2api-network:
+    external: true
+    name: sub2api_sub2api-network

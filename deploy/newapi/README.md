@@ -44,4 +44,6 @@ curl -fsS http://127.0.0.1:3000/api/status
 - `api.dstopology.com` 反代到 `127.0.0.1:3000`，作为用户访问的 `new-api`。
 - `llmback.dstopology.com` 反代到 `127.0.0.1:8080`，作为 `sub2api` 管理入口。
 
-当前证书只覆盖 `api.dstopology.com`，新增 `llmback.dstopology.com` 前需要补证书，或者在 Cloudflare 使用覆盖对应主机名的 Origin Certificate。
+`new-api` 和 `sub2api` 都使用 Docker 部署时，`new-api` 渠道上游地址应填 `http://sub2api:8080`。这是容器网络内的服务名，不会经过 Cloudflare 或 Nginx。
+
+当前部署使用 Cloudflare Origin Certificate，需覆盖 `*.dstopology.com`，以便 Cloudflare Full Strict 模式访问 `api.dstopology.com` 和 `llmback.dstopology.com`。
