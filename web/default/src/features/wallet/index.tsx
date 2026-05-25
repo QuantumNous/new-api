@@ -28,6 +28,7 @@ import { CreemConfirmDialog } from './components/dialogs/creem-confirm-dialog'
 import { PaymentConfirmDialog } from './components/dialogs/payment-confirm-dialog'
 import { TransferDialog } from './components/dialogs/transfer-dialog'
 import { RechargeFormCard } from './components/recharge-form-card'
+import { InviteCodesHistoryCard } from './components/invite-codes-history-card'
 import { SubscriptionPlansCard } from './components/subscription-plans-card'
 import { WalletStatsCard } from './components/wallet-stats-card'
 import { DEFAULT_DISCOUNT_RATE } from './constants'
@@ -39,6 +40,7 @@ import {
   useCreemPayment,
   useWaffoPayment,
   useWaffoPancakePayment,
+  useInviteCodes,
 } from './hooks'
 import {
   getDefaultPaymentType,
@@ -101,6 +103,16 @@ export function Wallet(props: WalletProps) {
     createdInviteCodes,
   } = useAffiliate()
   const { redeeming, redeemCode } = useRedemption()
+  const {
+    inviteCodes,
+    total: inviteCodesTotal,
+    page: inviteCodesPage,
+    pageSize: inviteCodesPageSize,
+    loading: inviteCodesLoading,
+    handlePageChange: handleInviteCodesPageChange,
+    refresh: refreshInviteCodes,
+    refreshFirstPage: refreshInviteCodesFirstPage,
+  } = useInviteCodes()
   const { processing: creemProcessing, processCreemPayment } = useCreemPayment()
   const { processWaffoPayment } = useWaffoPayment()
   const { processing: pancakeProcessing, processWaffoPancakePayment } =
@@ -259,6 +271,15 @@ export function Wallet(props: WalletProps) {
     },
     []
   )
+  const handleCreateInviteCode = useCallback(
+    async (count?: number) => {
+      const success = await createInviteCode(count)
+      if (success) {
+        await refreshInviteCodesFirstPage()
+      }
+    },
+    [createInviteCode, refreshInviteCodesFirstPage]
+  )
   const inviteCodeDailyLimit = Number(
     status?.invite_code_daily_limit ?? status?.data?.invite_code_daily_limit ?? 5
   )
@@ -332,7 +353,7 @@ export function Wallet(props: WalletProps) {
               user={user}
               affiliateLink={affiliateLink}
               onTransfer={() => setTransferDialogOpen(true)}
-              onCreateInviteCode={createInviteCode}
+              onCreateInviteCode={handleCreateInviteCode}
               creatingInviteCode={creatingInviteCode}
               createdInviteCodes={createdInviteCodes}
               inviteCodeMaxCount={inviteCodeMaxCount}
@@ -340,6 +361,16 @@ export function Wallet(props: WalletProps) {
                 topupInfo?.payment_compliance_confirmed !== false
               }
               loading={affiliateLoading}
+            />
+
+            <InviteCodesHistoryCard
+              inviteCodes={inviteCodes}
+              total={inviteCodesTotal}
+              page={inviteCodesPage}
+              pageSize={inviteCodesPageSize}
+              loading={inviteCodesLoading}
+              onPageChange={handleInviteCodesPageChange}
+              onRefresh={refreshInviteCodes}
             />
           </div>
         </SectionPageLayout.Content>

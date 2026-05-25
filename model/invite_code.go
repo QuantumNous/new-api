@@ -18,18 +18,19 @@ var (
 )
 
 type InviteCode struct {
-	Id          int    `json:"id"`
-	Code        string `json:"code" gorm:"type:varchar(32);uniqueIndex"`
-	Name        string `json:"name" gorm:"type:varchar(64);index"`
-	CreatorId   int    `json:"creator_id" gorm:"type:int;index"`
-	InviterId   int    `json:"inviter_id" gorm:"type:int;index"`
-	Status      int    `json:"status" gorm:"type:int;default:1;index"`
-	MaxUses     int    `json:"max_uses" gorm:"type:int;default:1"`
-	UsedCount   int    `json:"used_count" gorm:"type:int;default:0"`
-	UsedUserId  int    `json:"used_user_id" gorm:"type:int;index"`
-	CreatedTime int64  `json:"created_time" gorm:"type:bigint;index"`
-	UsedTime    int64  `json:"used_time" gorm:"type:bigint"`
-	ExpiredTime int64  `json:"expired_time" gorm:"type:bigint;index"`
+	Id           int    `json:"id"`
+	Code         string `json:"code" gorm:"type:varchar(32);uniqueIndex"`
+	Name         string `json:"name" gorm:"type:varchar(64);index"`
+	CreatorId    int    `json:"creator_id" gorm:"type:int;index"`
+	InviterId    int    `json:"inviter_id" gorm:"type:int;index"`
+	Status       int    `json:"status" gorm:"type:int;default:1;index"`
+	MaxUses      int    `json:"max_uses" gorm:"type:int;default:1"`
+	UsedCount    int    `json:"used_count" gorm:"type:int;default:0"`
+	UsedUserId   int    `json:"used_user_id" gorm:"type:int;index"`
+	UsedUsername string `json:"used_username,omitempty" gorm:"-:all"`
+	CreatedTime  int64  `json:"created_time" gorm:"type:bigint;index"`
+	UsedTime     int64  `json:"used_time" gorm:"type:bigint"`
+	ExpiredTime  int64  `json:"expired_time" gorm:"type:bigint;index"`
 }
 
 type InviteCodeCreateParams struct {
@@ -140,6 +141,10 @@ func GetInviteCodes(startIdx int, num int, creatorId int) (codes []*InviteCode, 
 		return nil, 0, err
 	}
 	err = query.Order("id desc").Limit(num).Offset(startIdx).Find(&codes).Error
+	if err != nil {
+		return nil, 0, err
+	}
+	err = fillInviteCodeUsedUsers(codes)
 	return codes, total, err
 }
 
@@ -157,7 +162,45 @@ func SearchInviteCodes(keyword string, startIdx int, num int, creatorId int) (co
 		return nil, 0, err
 	}
 	err = query.Order("id desc").Limit(num).Offset(startIdx).Find(&codes).Error
+	if err != nil {
+		return nil, 0, err
+	}
+	err = fillInviteCodeUsedUsers(codes)
 	return codes, total, err
+}
+
+func fillInviteCodeUsedUsers(codes []*InviteCode) error {
+	userIds := make([]int, 0)
+	seen := make(map[int]struct{})
+	for _, code := range codes {
+		if code == nil || code.UsedUserId == 0 {
+			continue
+		}
+		if _, ok := seen[code.UsedUserId]; ok {
+			continue
+		}
+		seen[code.UsedUserId] = struct{}{}
+		userIds = append(userIds, code.UsedUserId)
+	}
+	if len(userIds) == 0 {
+		return nil
+	}
+
+	var users []User
+	if err := DB.Model(&User{}).Select("id", "username").Where("id IN ?", userIds).Find(&users).Error; err != nil {
+		return err
+	}
+	usernames := make(map[int]string, len(users))
+	for _, user := range users {
+		usernames[user.Id] = user.Username
+	}
+	for _, code := range codes {
+		if code == nil || code.UsedUserId == 0 {
+			continue
+		}
+		code.UsedUsername = usernames[code.UsedUserId]
+	}
+	return nil
 }
 
 func GetInviteCodeById(id int) (*InviteCode, error) {

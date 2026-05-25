@@ -42,6 +42,7 @@ export type StripePaymentResponse = ApiResponse<{ pay_link: string }>
 export type AffiliateCodeResponse = ApiResponse<string>
 export type AffiliateTransferResponse = ApiResponse
 export type InviteCodeCreateResponse = ApiResponse<string[]>
+export type InviteCodeListResponse = ApiResponse<PageResponse<InviteCode>>
 export type CreemPaymentResponse = ApiResponse<{ checkout_url: string }>
 export type WaffoPaymentResponse = ApiResponse<
   { payment_url?: string } | string
@@ -233,6 +234,48 @@ export interface InviteCodeCreateRequest {
   max_uses?: number
   /** Optional expiration timestamp */
   expired_time?: number
+}
+
+/**
+ * Paginated API response
+ */
+export interface PageResponse<T> {
+  page: number
+  page_size: number
+  total: number
+  items: T[]
+}
+
+/**
+ * Invitation code record
+ */
+export interface InviteCode {
+  /** Record ID */
+  id: number
+  /** Invitation code value */
+  code: string
+  /** Display name */
+  name: string
+  /** Creator user ID */
+  creator_id: number
+  /** Inviter user ID credited by this code */
+  inviter_id: number
+  /** Current status */
+  status: number
+  /** Maximum uses allowed */
+  max_uses: number
+  /** Number of times used */
+  used_count: number
+  /** Last user ID that used this code */
+  used_user_id: number
+  /** Last username that used this code */
+  used_username?: string
+  /** Creation timestamp */
+  created_time: number
+  /** Last used timestamp */
+  used_time: number
+  /** Expiration timestamp */
+  expired_time: number
 }
 
 /**

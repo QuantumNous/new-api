@@ -32,6 +32,7 @@ import type {
   AffiliateTransferResponse,
   InviteCodeCreateRequest,
   InviteCodeCreateResponse,
+  InviteCodeListResponse,
   BillingHistoryResponse,
   CompleteOrderRequest,
   CreemPaymentRequest,
@@ -195,6 +196,21 @@ export async function createInviteCodes(
   request: InviteCodeCreateRequest
 ): Promise<InviteCodeCreateResponse> {
   const res = await api.post('/api/user/invite_codes', request)
+  return res.data
+}
+
+/**
+ * Get invite codes for current user
+ */
+export async function getInviteCodes(
+  page: number,
+  pageSize: number
+): Promise<InviteCodeListResponse> {
+  const params = new URLSearchParams({
+    p: page.toString(),
+    page_size: pageSize.toString(),
+  })
+  const res = await api.get(`/api/user/invite_codes?${params.toString()}`)
   return res.data
 }
 
