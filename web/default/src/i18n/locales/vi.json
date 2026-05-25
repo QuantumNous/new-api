@@ -704,7 +704,7 @@
     "Choose the bundle type and define the items inside it.": "Chọn loại gói và định nghĩa các mục bên trong nó.",
     "Choose the default charts, range, and time granularity for model analytics.": "Chọn biểu đồ, khoảng thời gian và độ chi tiết thời gian mặc định cho phân tích mô hình.",
     "Choose where to fetch upstream metadata.": "Chọn nơi để tìm nạp siêu dữ liệu thượng nguồn.",
-    "Choose whether this code grants quota or a plan": "Chọn mã này cấp hạn mức hay gói đăng ký",
+    "Choose whether this code grants quota or a plan": "Chọn xem mã này cấp hạn mức hay gói đăng ký",
     "Choose which charts are selected by default when opening model analytics.": "Chọn biểu đồ được chọn mặc định khi mở phân tích mô hình.",
     "Classic (Legacy Frontend)": "Cổ điển (Frontend cũ)",
     "Claude": "Claude",
