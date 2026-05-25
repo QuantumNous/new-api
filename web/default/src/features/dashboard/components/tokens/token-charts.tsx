@@ -19,14 +19,16 @@ For commercial licensing, please contact support@quantumnous.com
 import { useEffect, useMemo, useState, useRef, useCallback } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { VChart } from '@visactor/react-vchart'
-import { Users, Loader2 } from 'lucide-react'
+import { KeyRound, Loader2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import { useAuthStore } from '@/stores/auth-store'
+import { ROLE } from '@/lib/roles'
 import { getRollingDateRange, type TimeGranularity } from '@/lib/time'
 import { VCHART_OPTION } from '@/lib/vchart'
 import { useThemeCustomization } from '@/context/theme-customization-provider'
 import { useTheme } from '@/context/theme-provider'
 import { Skeleton } from '@/components/ui/skeleton'
-import { getUserQuotaDataByUsers } from '@/features/dashboard/api'
+import { getTokenQuotaDates } from '@/features/dashboard/api'
 import {
   TIME_GRANULARITY_OPTIONS,
   TIME_RANGE_PRESETS,
@@ -35,37 +37,39 @@ import {
   getDefaultDays,
   getSavedGranularity,
   saveGranularity,
-  processUserChartData,
+  processTokenChartData,
 } from '@/features/dashboard/lib'
-import type { ProcessedUserChartData } from '@/features/dashboard/types'
+import type { ProcessedTokenChartData } from '@/features/dashboard/types'
 
 let themeManagerPromise: Promise<
   (typeof import('@visactor/vchart'))['ThemeManager']
 > | null = null
 
-const USER_CHARTS: {
+const TOKEN_CHARTS: {
   value: string
   labelKey: string
-  specKey: keyof ProcessedUserChartData
+  specKey: keyof ProcessedTokenChartData
 }[] = [
   {
     value: 'rank',
-    labelKey: 'User Consumption Ranking',
-    specKey: 'spec_user_rank',
+    labelKey: 'Token Consumption Ranking',
+    specKey: 'spec_token_rank',
   },
   {
     value: 'trend',
-    labelKey: 'User Consumption Trend',
-    specKey: 'spec_user_trend',
+    labelKey: 'Token Consumption Trend',
+    specKey: 'spec_token_trend',
   },
 ]
 
-const TOP_USER_LIMIT_OPTIONS = [5, 10, 20, 50]
+const TOP_TOKEN_LIMIT_OPTIONS = [5, 10, 20, 50]
 
-export function UserCharts() {
+export function TokenCharts() {
   const { t } = useTranslation()
   const { resolvedTheme } = useTheme()
   const { customization } = useThemeCustomization()
+  const userRole = useAuthStore((state) => state.auth.user?.role)
+  const isAdmin = Boolean(userRole && userRole >= ROLE.ADMIN)
   const [themeReady, setThemeReady] = useState(false)
   const themeManagerRef = useRef<
     (typeof import('@visactor/vchart'))['ThemeManager'] | null
@@ -77,7 +81,7 @@ export function UserCharts() {
   const [selectedRange, setSelectedRange] = useState<number>(() =>
     getDefaultDays(timeGranularity)
   )
-  const [topUserLimit, setTopUserLimit] = useState(10)
+  const [topLimit, setTopLimit] = useState(10)
   const [timeRange, setTimeRange] = useState(() => {
     const days = getDefaultDays(timeGranularity)
     const { start, end } = getRollingDateRange(days)
@@ -124,31 +128,23 @@ export function UserCharts() {
     updateTheme()
   }, [resolvedTheme])
 
-  const { data: userData, isLoading } = useQuery({
-    queryKey: ['dashboard', 'user-quota', timeRange],
-    queryFn: () => getUserQuotaDataByUsers(timeRange),
+  const { data: tokenData, isLoading } = useQuery({
+    queryKey: ['dashboard', 'token-quota', isAdmin, timeRange],
+    queryFn: () => getTokenQuotaDates(timeRange, isAdmin),
     select: (res) => (res.success ? res.data : []),
     staleTime: 60_000,
   })
 
   const chartData = useMemo(
     () =>
-      processUserChartData(
-        isLoading ? [] : (userData ?? []),
+      processTokenChartData(
+        isLoading ? [] : (tokenData ?? []),
         timeGranularity,
         t,
-        topUserLimit,
+        topLimit,
         customization.preset
       ),
-    [
-      userData,
-      isLoading,
-      timeGranularity,
-      t,
-      topUserLimit,
-      customization.preset,
-      customization.radius,
-    ]
+    [tokenData, isLoading, timeGranularity, t, topLimit, customization.preset]
   )
 
   return (
@@ -192,15 +188,15 @@ export function UserCharts() {
 
         <div className='flex shrink-0 items-center gap-1.5 rounded-lg border p-0.5'>
           <span className='text-muted-foreground px-2 text-xs font-medium'>
-            {t('Top Users')}
+            {t('Top Tokens')}
           </span>
-          {TOP_USER_LIMIT_OPTIONS.map((limit) => (
+          {TOP_TOKEN_LIMIT_OPTIONS.map((limit) => (
             <button
               key={limit}
               type='button'
-              onClick={() => setTopUserLimit(limit)}
+              onClick={() => setTopLimit(limit)}
               className={`rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${
-                topUserLimit === limit
+                topLimit === limit
                   ? 'bg-primary text-primary-foreground shadow-sm'
                   : 'text-muted-foreground hover:bg-muted hover:text-foreground'
               }`}
@@ -216,7 +212,7 @@ export function UserCharts() {
       </div>
 
       <div className='grid gap-3'>
-        {USER_CHARTS.map((chart) => {
+        {TOKEN_CHARTS.map((chart) => {
           const spec = chartData[chart.specKey]
 
           return (
@@ -225,7 +221,7 @@ export function UserCharts() {
               className='overflow-hidden rounded-lg border'
             >
               <div className='flex w-full items-center gap-2 border-b px-3 py-2 sm:px-5 sm:py-3'>
-                <Users className='text-muted-foreground/60 size-4' />
+                <KeyRound className='text-muted-foreground/60 size-4' />
                 <div className='text-sm font-semibold'>{t(chart.labelKey)}</div>
               </div>
 
@@ -236,7 +232,7 @@ export function UserCharts() {
                   themeReady &&
                   spec && (
                     <VChart
-                      key={`user-${chart.value}-${topUserLimit}-${timeGranularity}-${resolvedTheme}-${customization.preset}`}
+                      key={`token-${chart.value}-${topLimit}-${timeGranularity}-${resolvedTheme}-${customization.preset}`}
                       spec={{
                         ...spec,
                         theme: resolvedTheme === 'dark' ? 'dark' : 'light',
