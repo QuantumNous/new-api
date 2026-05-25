@@ -1,0 +1,91 @@
+services:
+  new-api:
+    image: ${NEW_API_IMAGE:-calciumion/new-api:latest}
+    container_name: new-api
+    restart: unless-stopped
+    command: --log-dir /app/logs
+    ports:
+      - "${NEW_API_BIND_HOST:-127.0.0.1}:${NEW_API_PORT:-3000}:3000"
+    volumes:
+      - ./data:/data
+      - ./logs:/app/logs
+    environment:
+      - SQL_DSN=postgresql://${POSTGRES_USER:-newapi}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}@postgres:5432/${POSTGRES_DB:-newapi}
+      - REDIS_CONN_STRING=redis://:${REDIS_PASSWORD:?REDIS_PASSWORD is required}@redis:6379/0
+      - SESSION_SECRET=${SESSION_SECRET:?SESSION_SECRET is required}
+      - CRYPTO_SECRET=${CRYPTO_SECRET:?CRYPTO_SECRET is required}
+      - TZ=${TZ:-Asia/Shanghai}
+      - ERROR_LOG_ENABLED=${ERROR_LOG_ENABLED:-true}
+      - BATCH_UPDATE_ENABLED=${BATCH_UPDATE_ENABLED:-true}
+      - NODE_NAME=${NODE_NAME:-new-api-node-1}
+      - STREAMING_TIMEOUT=${STREAMING_TIMEOUT:-300}
+      - MAX_REQUEST_BODY_MB=${MAX_REQUEST_BODY_MB:-128}
+      - STREAM_SCANNER_MAX_BUFFER_MB=${STREAM_SCANNER_MAX_BUFFER_MB:-128}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - new-api-network
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O - http://localhost:3000/api/status | grep -q '\"success\"[[:space:]]*:[[:space:]]*true'"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  postgres:
+    image: postgres:18-alpine
+    container_name: new-api-postgres
+    restart: unless-stopped
+    volumes:
+      - ./postgres_data:/var/lib/postgresql/data
+    environment:
+      - PGDATA=/var/lib/postgresql/data
+      - POSTGRES_USER=${POSTGRES_USER:-newapi}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      - POSTGRES_DB=${POSTGRES_DB:-newapi}
+      - TZ=${TZ:-Asia/Shanghai}
+    networks:
+      - new-api-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-newapi} -d ${POSTGRES_DB:-newapi}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  redis:
+    image: redis:8-alpine
+    container_name: new-api-redis
+    restart: unless-stopped
+    volumes:
+      - ./redis_data:/data
+    command:
+      - redis-server
+      - --save
+      - "60"
+      - "1"
+      - --appendonly
+      - "yes"
+      - --appendfsync
+      - everysec
+      - --requirepass
+      - ${REDIS_PASSWORD:?REDIS_PASSWORD is required}
+    environment:
+      - REDIS_PASSWORD=${REDIS_PASSWORD:?REDIS_PASSWORD is required}
+      - REDISCLI_AUTH=${REDIS_PASSWORD:?REDIS_PASSWORD is required}
+      - TZ=${TZ:-Asia/Shanghai}
+    networks:
+      - new-api-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+
+networks:
+  new-api-network:
+    driver: bridge
