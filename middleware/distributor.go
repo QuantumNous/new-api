@@ -14,6 +14,7 @@ import (
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/i18n"
+	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/model"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/service"
@@ -198,6 +199,14 @@ func getModelFromJSONBody(c *gin.Context) (*ModelRequest, error) {
 		return nil, err
 	}
 	if !gjson.ValidBytes(requestBody) {
+		// TEMPORARY: dump first 512 bytes of the offending body so we can see
+		// what clients are actually sending. Remove once diagnosed.
+		head := requestBody
+		if len(head) > 512 {
+			head = head[:512]
+		}
+		logger.LogError(c, fmt.Sprintf("invalid JSON body: ct=%q len=%d head=%q",
+			c.Request.Header.Get("Content-Type"), len(requestBody), string(head)))
 		return nil, errors.New("invalid JSON request body")
 	}
 
