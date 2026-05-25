@@ -30,7 +30,6 @@ import {
   FileText,
   KeyRound,
   ListChecks,
-  Play,
   RadioTower,
   ShieldCheck,
   TerminalSquare,
@@ -505,10 +504,10 @@ export function OverviewDashboard() {
   const quickActions = useMemo<QuickAction[]>(
     () => [
       {
-        title: t('Playground'),
-        description: t('Test models and prompts from the browser'),
-        to: '/playground',
-        icon: Play,
+        title: t('API Keys'),
+        description: t('Create a key for your app or service'),
+        to: '/keys',
+        icon: KeyRound,
       },
       {
         title: t('Channels'),

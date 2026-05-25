@@ -99,6 +99,14 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
+import {
+  sideDrawerContentClassName,
+  sideDrawerFooterClassName,
+  sideDrawerFormClassName,
+  sideDrawerHeaderClassName,
+  sideDrawerSectionClassName,
+  sideDrawerSwitchItemClassName,
+} from '@/components/drawer-layout'
 import { JsonEditor } from '@/components/json-editor'
 import { MultiSelect } from '@/components/multi-select'
 import {
@@ -269,9 +277,9 @@ function formatUnixTime(timestamp: unknown): string {
 
 function CardHeading({ title, icon }: { title: string; icon?: ReactNode }) {
   return (
-    <div className='flex items-center gap-2.5'>
+    <div className='flex items-center gap-3'>
       {icon && (
-        <span className='bg-primary/10 text-primary flex h-8 w-8 items-center justify-center rounded-lg'>
+        <span className='bg-muted text-muted-foreground flex size-8 shrink-0 items-center justify-center rounded-md'>
           {icon}
         </span>
       )}
@@ -393,6 +401,7 @@ export function ChannelMutateDrawer({
   const currentType = form.watch('type')
   const currentBaseUrl = form.watch('base_url')
   const currentModels = form.watch('models')
+  const currentName = form.watch('name')
   const currentModelMapping = form.watch('model_mapping')
   const awsKeyType = form.watch('aws_key_type')
   const upstreamModelUpdateCheckEnabled = form.watch(
@@ -1086,10 +1095,10 @@ export function ChannelMutateDrawer({
   return (
     <>
       <Sheet open={open} onOpenChange={handleOpenChange}>
-        <SheetContent className='flex h-dvh w-full flex-col gap-0 overflow-hidden p-0 sm:max-w-3xl'>
-          <SheetHeader className='border-b px-4 py-3 text-start sm:px-6 sm:py-4'>
+        <SheetContent className={sideDrawerContentClassName('sm:max-w-3xl')}>
+          <SheetHeader className={sideDrawerHeaderClassName()}>
             <SheetTitle className='flex items-center gap-3'>
-              <span className='bg-muted flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border'>
+              <span className='bg-muted flex size-9 shrink-0 items-center justify-center rounded-md'>
                 {getLobeIcon(`${getChannelTypeIcon(currentType)}.Color`, 22)}
               </span>
               <span>
@@ -1114,10 +1123,10 @@ export function ChannelMutateDrawer({
             <form
               id='channel-form'
               onSubmit={form.handleSubmit(onSubmit)}
-              className='flex-1 space-y-4 overflow-y-auto px-3 py-3 pb-4 sm:space-y-5 sm:px-4'
+              className={sideDrawerFormClassName('gap-5')}
             >
               {/* ── Basic Information ── */}
-              <div className='bg-card space-y-4 rounded-xl border p-3 sm:p-5'>
+              <div className={sideDrawerSectionClassName()}>
                 <CardHeading
                   title={t('Basic Information')}
                   icon={<Server className='h-4 w-4' />}
@@ -1172,8 +1181,8 @@ export function ChannelMutateDrawer({
                   control={form.control}
                   name='status'
                   render={({ field }) => (
-                    <FormItem className='flex items-center justify-between rounded-lg border px-4 py-3'>
-                      <div className='space-y-0.5'>
+                    <FormItem className={sideDrawerSwitchItemClassName()}>
+                      <div className='flex flex-col gap-0.5'>
                         <FormLabel>{t('Enabled')}</FormLabel>
                         <FormDescription className='text-xs'>
                           {t('Enable or disable this channel')}
@@ -1212,7 +1221,7 @@ export function ChannelMutateDrawer({
               </div>
 
               {/* ── API Access ── */}
-              <div className='bg-card space-y-4 rounded-xl border p-5'>
+              <div className={sideDrawerSectionClassName()}>
                 <CardHeading
                   title={t('API Access')}
                   icon={<Link2 className='h-4 w-4' />}
@@ -1944,7 +1953,7 @@ export function ChannelMutateDrawer({
                           </div>
                         </FormDescription>
                         {isEditing && (
-                          <div className='mt-4 space-y-3 rounded-lg border border-dashed p-4'>
+                          <div className='border-border/60 mt-4 flex flex-col gap-3 border-y border-dashed py-4'>
                             <div className='flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between'>
                               <div>
                                 <p className='text-sm font-medium'>
@@ -2006,9 +2015,9 @@ export function ChannelMutateDrawer({
                 />
 
                 {currentType === 57 && (
-                  <div className='bg-muted/20 space-y-3 rounded-lg border p-4'>
+                  <div className='border-border/60 flex flex-col gap-3 border-y py-4'>
                     <div className='flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between'>
-                      <div className='space-y-0.5'>
+                      <div className='flex flex-col gap-0.5'>
                         <div className='text-sm font-semibold'>
                           {t('Codex Authorization')}
                         </div>
@@ -2170,7 +2179,7 @@ export function ChannelMutateDrawer({
               </div>
 
               {/* ── Models & Groups ── */}
-              <div className='bg-card space-y-4 rounded-xl border p-5'>
+              <div className={sideDrawerSectionClassName()}>
                 <CardHeading
                   title={t('Models & Groups')}
                   icon={<Boxes className='h-4 w-4' />}
@@ -2428,11 +2437,11 @@ export function ChannelMutateDrawer({
                   render={
                     <button
                       type='button'
-                      className='bg-card hover:bg-accent/50 flex w-full items-center justify-between rounded-xl border px-5 py-4 text-left transition-colors'
+                      className='hover:bg-muted/40 flex w-full items-center justify-between rounded-md py-2 text-left transition-colors'
                     />
                   }
                 >
-                  <div className='space-y-0.5'>
+                  <div className='flex flex-col gap-0.5'>
                     <div className='text-[13px] font-semibold'>
                       {t('Advanced Settings')}
                     </div>
@@ -2450,14 +2459,14 @@ export function ChannelMutateDrawer({
                   />
                 </CollapsibleTrigger>
 
-                <CollapsibleContent className='mt-5 space-y-5'>
+                <CollapsibleContent className='mt-5 flex flex-col gap-5'>
                   {/* ── Routing & Overrides ── */}
-                  <div className='bg-card space-y-4 rounded-xl border p-5'>
+                  <div className={sideDrawerSectionClassName()}>
                     <CardHeading
                       title={t('Routing & Overrides')}
                       icon={<Route className='h-4 w-4' />}
                     />
-                    <div className='space-y-4'>
+                    <div className='flex flex-col gap-4'>
                       <SubHeading
                         title={t('Routing Strategy')}
                         icon={<Route className='h-3.5 w-3.5' />}
@@ -2556,7 +2565,7 @@ export function ChannelMutateDrawer({
                       />
                     </div>
 
-                    <div className='space-y-4 border-t pt-4'>
+                    <div className='flex flex-col gap-4 border-t pt-4'>
                       <SubHeading
                         title={t('Internal Notes')}
                         icon={<FileText className='h-3.5 w-3.5' />}
@@ -2605,7 +2614,7 @@ export function ChannelMutateDrawer({
                       </div>
                     </div>
 
-                    <div className='space-y-4 border-t pt-4'>
+                    <div className='flex flex-col gap-4 border-t pt-4'>
                       <SubHeading
                         title={t('Override Rules')}
                         icon={<Code className='h-3.5 w-3.5' />}
@@ -2847,13 +2856,13 @@ export function ChannelMutateDrawer({
                   </div>
 
                   {/* ── Extra Settings ── */}
-                  <div className='bg-card space-y-4 rounded-xl border p-5'>
+                  <div className={sideDrawerSectionClassName()}>
                     <CardHeading
                       title={t('Channel Extra Settings')}
                       icon={<Settings className='h-4 w-4' />}
                     />
                     {(currentType === 1 || currentType === 14) && (
-                      <div className='space-y-3 rounded-lg border p-4'>
+                      <div className='border-border/60 flex flex-col gap-3 border-y py-4'>
                         <SubHeading
                           title={t('Field passthrough controls')}
                           icon={<SlidersHorizontal className='h-3.5 w-3.5' />}
@@ -3219,7 +3228,7 @@ export function ChannelMutateDrawer({
                     />
 
                     {MODEL_FETCHABLE_TYPES.has(currentType) && (
-                      <div className='space-y-3 rounded-lg border p-4'>
+                      <div className='border-border/60 flex flex-col gap-3 border-y py-4'>
                         <SubHeading
                           title={t('Upstream Model Detection Settings')}
                           icon={<RefreshCw className='h-3.5 w-3.5' />}
@@ -3340,7 +3349,7 @@ export function ChannelMutateDrawer({
             </form>
           </Form>
 
-          <SheetFooter className='grid grid-cols-2 gap-2 border-t px-4 py-3 sm:flex sm:px-6 sm:py-4'>
+          <SheetFooter className={sideDrawerFooterClassName()}>
             <SheetClose
               render={<Button variant='outline' disabled={isSubmitting} />}
             >
@@ -3380,8 +3389,11 @@ export function ChannelMutateDrawer({
         redirectModels={redirectModelList}
         redirectSourceModels={redirectModelKeyList}
         customFetcher={!isEditing ? createModeFetcher : undefined}
+        channelName={!isEditing ? currentName?.trim() : undefined}
         existingModelsOverride={
-          !isEditing ? parseModelsString(form.getValues('models') || '') : undefined
+          !isEditing
+            ? parseModelsString(form.getValues('models') || '')
+            : undefined
         }
       />
 

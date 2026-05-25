@@ -59,6 +59,12 @@ import {
 import { Separator } from '@/components/ui/separator'
 import { Switch } from '@/components/ui/switch'
 import { StatusBadge } from '@/components/status-badge'
+import {
+  SettingsForm,
+  SettingsSwitchContent,
+  SettingsSwitchItem,
+} from '../components/settings-form-layout'
+import { SettingsPageFormActions } from '../components/settings-page-context'
 import { SettingsSection } from '../components/settings-section'
 import { useResetForm } from '../hooks/use-reset-form'
 import { useUpdateOption } from '../hooks/use-update-option'
@@ -294,14 +300,13 @@ export function PerformanceSection(props: Props) {
       : 0
 
   return (
-    <SettingsSection
-      title={t('Performance Settings')}
-      description={t(
-        'Disk cache, system performance monitoring, and operation statistics'
-      )}
-    >
+    <SettingsSection title={t('Performance Settings')}>
       <Form {...form}>
-        <form onSubmit={form.handleSubmit(onSubmit)} className='space-y-6'>
+        <SettingsForm onSubmit={form.handleSubmit(onSubmit)}>
+          <SettingsPageFormActions
+            onSave={form.handleSubmit(onSubmit)}
+            isSaving={updateOption.isPending}
+          />
           {/* Disk Cache Settings */}
           <div>
             <h4 className='font-medium'>{t('Disk Cache Settings')}</h4>
@@ -317,15 +322,17 @@ export function PerformanceSection(props: Props) {
               control={form.control}
               name='performance_setting.disk_cache_enabled'
               render={({ field }) => (
-                <FormItem className='flex items-center gap-2'>
+                <SettingsSwitchItem>
+                  <SettingsSwitchContent>
+                    <FormLabel>{t('Enable Disk Cache')}</FormLabel>
+                  </SettingsSwitchContent>
                   <FormControl>
                     <Switch
                       checked={field.value}
                       onCheckedChange={field.onChange}
                     />
                   </FormControl>
-                  <FormLabel>{t('Enable Disk Cache')}</FormLabel>
-                </FormItem>
+                </SettingsSwitchItem>
               )}
             />
             <FormField
@@ -415,15 +422,17 @@ export function PerformanceSection(props: Props) {
               control={form.control}
               name='performance_setting.monitor_enabled'
               render={({ field }) => (
-                <FormItem className='flex items-center gap-2'>
+                <SettingsSwitchItem>
+                  <SettingsSwitchContent>
+                    <FormLabel>{t('Enable Performance Monitoring')}</FormLabel>
+                  </SettingsSwitchContent>
                   <FormControl>
                     <Switch
                       checked={field.value}
                       onCheckedChange={field.onChange}
                     />
                   </FormControl>
-                  <FormLabel>{t('Enable Performance Monitoring')}</FormLabel>
-                </FormItem>
+                </SettingsSwitchItem>
               )}
             />
             <FormField
@@ -492,15 +501,19 @@ export function PerformanceSection(props: Props) {
               control={form.control}
               name='perf_metrics_setting.enabled'
               render={({ field }) => (
-                <FormItem className='flex items-center gap-2'>
+                <SettingsSwitchItem>
+                  <SettingsSwitchContent>
+                    <FormLabel>
+                      {t('Enable model performance metrics')}
+                    </FormLabel>
+                  </SettingsSwitchContent>
                   <FormControl>
                     <Switch
                       checked={field.value}
                       onCheckedChange={field.onChange}
                     />
                   </FormControl>
-                  <FormLabel>{t('Enable model performance metrics')}</FormLabel>
-                </FormItem>
+                </SettingsSwitchItem>
               )}
             />
             <FormField
@@ -573,11 +586,7 @@ export function PerformanceSection(props: Props) {
               )}
             />
           </div>
-
-          <Button type='submit' disabled={updateOption.isPending}>
-            {updateOption.isPending ? t('Saving...') : t('Save Changes')}
-          </Button>
-        </form>
+        </SettingsForm>
       </Form>
 
       <Separator />
