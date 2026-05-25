@@ -54,6 +54,9 @@ export const ENDPOINT_OPTIONS = [
   { label: 'custom', value: 'custom' },
 ] as const
 
+/** Demo UI: hide special usable group rules on the group pricing page. */
+export const GROUP_SPECIAL_USABLE_RULES_VISIBLE = false
+
 // Labels reuse the existing sentence-case i18n keys defined for form fields
 // (e.g. `Model ratio`, `Audio completion ratio`). Do NOT switch to Title Case
 // here without updating the i18n catalog; otherwise we end up with two keys per

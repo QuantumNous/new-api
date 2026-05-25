@@ -40,6 +40,9 @@ export const UI_VISIBLE_NOTIFICATION_METHODS = NOTIFICATION_METHODS.filter(
   (method) => method.value === 'email'
 )
 
+/** Demo UI: hide third-party OAuth bindings on the account profile page. */
+export const PROFILE_THIRD_PARTY_BINDINGS_VISIBLE = false
+
 const UI_HIDDEN_NOTIFY_TYPES = new Set(['webhook', 'bark', 'gotify'])
 
 /** Map stored notify_type to the method shown in the demo UI (email only). */

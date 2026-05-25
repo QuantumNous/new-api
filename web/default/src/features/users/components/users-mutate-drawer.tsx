@@ -56,7 +56,7 @@ import {
 import { Textarea } from '@/components/ui/textarea'
 import { createUser, updateUser, getUser, getGroups } from '../api'
 import {
-  BINDING_FIELDS,
+  ADMIN_VISIBLE_BINDING_FIELDS,
   ERROR_MESSAGES,
   PASSWORD_LENGTH_MESSAGE_KEY,
   SUCCESS_MESSAGES,
@@ -429,34 +429,34 @@ export function UsersMutateDrawer({
                 </div>
               )}
 
-              {/* Binding Information (Read-only) */}
+              {/* Email binding (read-only) */}
               {isUpdate && (
-                <div className='space-y-4'>
-                  <h3 className='text-sm font-medium'>
-                    {t('Binding Information')}
-                  </h3>
-                  <p className='text-muted-foreground text-xs'>
-                    {t(
-                      'Third-party bindings (read-only, managed in account profile)'
-                    )}
-                  </p>
-
-                  <div className='space-y-3'>
-                    {BINDING_FIELDS.map(({ key, label }) => (
-                      <div key={key}>
-                        <Label className='text-muted-foreground text-xs'>
-                          {t(label)}
-                        </Label>
-                        <Input
-                          value={
-                            (currentRow?.[key as keyof User] as string) || '-'
-                          }
-                          disabled
-                          className='mt-1'
-                        />
-                      </div>
-                    ))}
+                <div className='space-y-3'>
+                  <div>
+                    <h3 className='text-sm font-medium'>
+                      {t('Email binding information')}
+                    </h3>
+                    <p className='text-muted-foreground mt-1 text-xs'>
+                      {t(
+                        'Email binding is used for account notifications and identity verification.'
+                      )}
+                    </p>
                   </div>
+
+                  {ADMIN_VISIBLE_BINDING_FIELDS.map(({ key, label }) => (
+                    <div key={key}>
+                      <Label className='text-muted-foreground text-xs'>
+                        {t(label)}
+                      </Label>
+                      <Input
+                        value={
+                          (currentRow?.[key as keyof User] as string) || '-'
+                        }
+                        disabled
+                        className='mt-1'
+                      />
+                    </div>
+                  ))}
                 </div>
               )}
             </form>

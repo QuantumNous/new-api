@@ -22,6 +22,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { getCurrencyDisplay } from '@/lib/currency'
+import { resolveComplianceErrorMessage } from '@/lib/compliance-display'
 import { addTimeToDate } from '@/lib/time'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -114,28 +115,53 @@ export function RedemptionsMutateDrawer({
           onOpenChange(false)
           triggerRefresh()
         } else {
-          toast.error(t(ERROR_MESSAGES.UPDATE_FAILED))
+          toast.error(
+            resolveComplianceErrorMessage(
+              typeof result.message === 'string' ? result.message : undefined,
+              'redemption'
+            )
+          )
         }
       } else {
         // Create mode
         const result = await createRedemption(basePayload)
         if (result.success) {
-          const count = result.data?.length || 0
-          toast.success(
-            count > 1
-              ? t('Redemption successfully created count', {
-                  count,
+          const keys = Array.isArray(result.data)
+            ? result.data.filter((key): key is string => Boolean(key?.trim()))
+            : []
+          if (keys.length === 1) {
+            try {
+              await navigator.clipboard.writeText(keys[0])
+              toast.success(
+                t('Redemption code created and copied to clipboard', {
+                  code: keys[0],
                 })
-              : t(SUCCESS_MESSAGES.REDEMPTION_CREATED)
-          )
+              )
+            } catch {
+              toast.success(
+                t('Redemption code created successfully with code', {
+                  code: keys[0],
+                })
+              )
+            }
+          } else if (keys.length > 1) {
+            toast.success(
+              t('Redemption successfully created count', {
+                count: keys.length,
+              })
+            )
+          } else {
+            toast.success(t(SUCCESS_MESSAGES.REDEMPTION_CREATED))
+          }
           onOpenChange(false)
           triggerRefresh()
         } else {
-          const message = typeof result.message === 'string' ? result.message : ''
-          const hasChineseContent = /[\u4e00-\u9fff]/.test(message)
-          toast.error(t(ERROR_MESSAGES.CREATE_FAILED), {
-            description: hasChineseContent ? message : undefined,
-          })
+          toast.error(
+            resolveComplianceErrorMessage(
+              typeof result.message === 'string' ? result.message : undefined,
+              'redemption'
+            )
+          )
         }
       }
     } finally {

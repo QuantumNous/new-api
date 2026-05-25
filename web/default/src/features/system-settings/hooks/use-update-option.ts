@@ -19,6 +19,10 @@ For commercial licensing, please contact support@quantumnous.com
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import i18next from 'i18next'
 import { toast } from 'sonner'
+import {
+  resolveComplianceErrorMessage,
+  type ComplianceToastContext,
+} from '@/lib/compliance-display'
 import { updateSystemOption } from '../api'
 import type { UpdateOptionRequest } from '../types'
 
@@ -38,6 +42,20 @@ const STATUS_RELATED_KEYS = [
   'general_setting.custom_currency_exchange_rate',
 ]
 
+function resolveOptionUpdateErrorMessage(
+  key: string,
+  message?: string
+): string {
+  const context: ComplianceToastContext =
+    key === 'QuotaForInviter' || key === 'QuotaForInvitee'
+      ? 'quota'
+      : key.startsWith('payment_setting.') || key === 'PayAddress'
+        ? 'payment'
+        : 'general'
+
+  return resolveComplianceErrorMessage(message, context)
+}
+
 export function useUpdateOption() {
   const queryClient = useQueryClient()
 
@@ -55,11 +73,13 @@ export function useUpdateOption() {
 
         toast.success(i18next.t('Setting updated successfully'))
       } else {
-        toast.error(data.message || i18next.t('Failed to update setting'))
+        toast.error(
+          resolveOptionUpdateErrorMessage(variables.key, data.message)
+        )
       }
     },
     onError: (error: Error) => {
-      toast.error(error.message || i18next.t('Failed to update setting'))
+      toast.error(resolveComplianceErrorMessage(error.message))
     },
   })
 }

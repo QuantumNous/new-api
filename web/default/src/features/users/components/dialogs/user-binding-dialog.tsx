@@ -49,7 +49,7 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip'
 import { ConfirmDialog } from '@/components/confirm-dialog'
-import { resolveUserToastMessage } from '../../constants'
+import { resolveUserToastMessage, ADMIN_USER_THIRD_PARTY_BINDINGS_VISIBLE } from '../../constants'
 import { StatusBadge } from '@/components/status-badge'
 import {
   getUser,
@@ -221,8 +221,11 @@ export function UserBindingDialog(props: Props) {
 
   const allBindings = useMemo<BindingItem[]>(() => {
     const items: BindingItem[] = []
+    const builtinFields = ADMIN_USER_THIRD_PARTY_BINDINGS_VISIBLE
+      ? BUILTIN_BINDINGS
+      : BUILTIN_BINDINGS.filter((field) => field.key === 'email')
 
-    for (const field of BUILTIN_BINDINGS) {
+    for (const field of builtinFields) {
       const value = user
         ? String((user as Record<string, unknown>)[field.field] || '')
         : ''
@@ -244,6 +247,10 @@ export function UserBindingDialog(props: Props) {
     const oauthBindingMap = new Map(
       oauthBindings.map((b) => [String(b.provider_id), b])
     )
+
+    if (!ADMIN_USER_THIRD_PARTY_BINDINGS_VISIBLE) {
+      return items
+    }
 
     const customProviders = statusInfo.custom_oauth_providers || []
     const seenProviderIds = new Set<string>()
@@ -326,10 +333,16 @@ export function UserBindingDialog(props: Props) {
           <DialogHeader>
             <DialogTitle className='flex items-center gap-2'>
               <Link2 className='h-5 w-5' />
-              {t('Account Binding Management')}
+              {ADMIN_USER_THIRD_PARTY_BINDINGS_VISIBLE
+                ? t('Account Binding Management')
+                : t('Email binding information')}
             </DialogTitle>
-            <DialogDescription className='sr-only'>
-              {t('Manage third-party bindings for this account')}
+            <DialogDescription>
+              {ADMIN_USER_THIRD_PARTY_BINDINGS_VISIBLE
+                ? t('Manage third-party bindings for this account')
+                : t(
+                    'Email binding is used for account notifications and identity verification.'
+                  )}
             </DialogDescription>
           </DialogHeader>
 

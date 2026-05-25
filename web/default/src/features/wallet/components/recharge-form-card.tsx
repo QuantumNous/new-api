@@ -138,7 +138,7 @@ export function RechargeFormCard({
   const hasWaffoPaymentMethods =
     Array.isArray(waffoPayMethods) && waffoPayMethods.length > 0
   const minTopup = getMinTopupAmount(topupInfo)
-  const redemptionEnabled = topupInfo?.enable_redemption !== false
+  const redemptionEnabled = topupInfo?.enable_redemption === true
 
   if (loading) {
     return (
@@ -514,7 +514,7 @@ export function RechargeFormCard({
         <Alert className='border-amber-500/30 bg-amber-500/10 dark:border-amber-400/30 dark:bg-amber-500/10'>
           <AlertDescription className='text-foreground dark:text-slate-100'>
             {t(
-              'Redemption codes are disabled until the administrator confirms compliance terms.'
+              'Redemption feature is disabled until the administrator completes compliance confirmation to enable resource redemption.'
             )}
           </AlertDescription>
         </Alert>

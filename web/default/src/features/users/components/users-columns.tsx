@@ -368,7 +368,7 @@ export function useUsersColumns(): ColumnDef<User>[] {
     {
       id: 'actions',
       header: () => (
-        <span className='text-slate-200'>{t('Actions')}</span>
+        <span className='font-semibold text-slate-50'>{t('Actions')}</span>
       ),
       cell: ({ row }) => <DataTableRowActions row={row} />,
       enableHiding: false,

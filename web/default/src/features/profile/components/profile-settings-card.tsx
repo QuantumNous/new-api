@@ -23,6 +23,7 @@ import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { TitledCard } from '@/components/ui/titled-card'
+import { PROFILE_THIRD_PARTY_BINDINGS_VISIBLE } from '../constants'
 import type { UserProfile } from '../types'
 import { AccountBindingsTab } from './tabs/account-bindings-tab'
 import { NotificationTab } from './tabs/notification-tab'
@@ -75,8 +76,16 @@ export function ProfileSettingsCard({
             className='h-full gap-2 rounded-lg px-3 py-0 leading-none'
           >
             <Link2 className='h-4 w-4' />
-            <span className='hidden sm:inline'>{t('Account Bindings')}</span>
-            <span className='sm:hidden'>{t('Bindings')}</span>
+            <span className='hidden sm:inline'>
+              {PROFILE_THIRD_PARTY_BINDINGS_VISIBLE
+                ? t('Account Bindings')
+                : t('Email binding information')}
+            </span>
+            <span className='sm:hidden'>
+              {PROFILE_THIRD_PARTY_BINDINGS_VISIBLE
+                ? t('Bindings')
+                : t('Email')}
+            </span>
           </TabsTrigger>
           <TabsTrigger
             value='settings'

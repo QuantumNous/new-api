@@ -421,7 +421,9 @@ export const GroupRatioVisualEditor = memo(function GroupRatioVisualEditor({
         <CardHeader className={sectionHeaderClassName}>
           <CardTitle>{t('Top-up group ratios')}</CardTitle>
           <CardDescription>
-            {t('Multipliers for recharge pricing based on user groups.')}
+            {t(
+              'Top-up group ratios apply when recharging, redeeming codes, or purchasing quota. They are separate from model-call group pricing; keep names aligned with tenant groups.'
+            )}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -850,6 +852,9 @@ function GroupPricingTable({
             <CardDescription>
               {t(
                 'Edit billing ratios and user-selectable groups in one table.'
+              )}{' '}
+              {t(
+                'Ratio is the quota conversion factor: actual model usage is unchanged; account quota consumption is calculated with this coefficient.'
               )}
             </CardDescription>
           </div>
@@ -866,7 +871,12 @@ function GroupPricingTable({
               <TableHeader>
                 <TableRow>
                   <TableHead className='min-w-40'>{t('Group name')}</TableHead>
-                  <TableHead className='w-28'>{t('Ratio')}</TableHead>
+                  <TableHead className='w-28'>
+                    <span>{t('Ratio')}</span>
+                    <span className='text-muted-foreground block text-[10px] font-normal leading-tight'>
+                      {t('Quota conversion factor')}
+                    </span>
+                  </TableHead>
                   <TableHead className='w-28 text-center'>
                     {t('User selectable')}
                   </TableHead>

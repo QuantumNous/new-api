@@ -67,6 +67,7 @@ export async function redeemTopupCode(
 ): Promise<RedemptionResponse> {
   const res = await api.post('/api/user/topup', request, {
     skipBusinessError: true,
+    skipErrorHandler: true,
   } as Record<string, unknown>)
   return res.data
 }

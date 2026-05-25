@@ -19,6 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import { type ColumnDef } from '@tanstack/react-table'
 import { useTranslation } from 'react-i18next'
 import { formatTimestampToDate } from '@/lib/format'
+import { formatTokenQuotaDisplay } from '@/lib/ops-billing-display'
 import { Checkbox } from '@/components/ui/checkbox'
 import {
   Tooltip,
@@ -181,7 +182,7 @@ export function useRedemptionsColumns(): ColumnDef<Redemption>[] {
         const quota = row.getValue('quota') as number
         return (
           <StatusBadge
-            label={formatQuotaForOpsCenter(quota)}
+            label={formatTokenQuotaDisplay(quota, { digitsLarge: 0 })}
             variant='neutral'
             copyable={false}
           />

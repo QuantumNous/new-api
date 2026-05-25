@@ -40,6 +40,7 @@ import {
   unbindCustomOAuth,
   type CustomOAuthBinding,
 } from '../../api'
+import { PROFILE_THIRD_PARTY_BINDINGS_VISIBLE } from '../../constants'
 import type { UserProfile, BindingItem } from '../../types'
 import { EmailBindDialog } from '../dialogs/email-bind-dialog'
 import { TelegramBindDialog } from '../dialogs/telegram-bind-dialog'
@@ -86,6 +87,7 @@ export function AccountBindingsTab({
   }, [customProviders])
 
   useEffect(() => {
+    if (!PROFILE_THIRD_PARTY_BINDINGS_VISIBLE) return
     fetchCustomBindings()
   }, [fetchCustomBindings])
 
@@ -150,7 +152,7 @@ export function AccountBindingsTab({
   const bindings: BindingItem[] = useMemo(() => {
     if (!profile || !status) return []
 
-    return [
+    const allBindings: BindingItem[] = [
       {
         id: 'email',
         label: t('Email'),
@@ -255,7 +257,13 @@ export function AccountBindingsTab({
           }
         },
       },
-    ].filter((binding) => binding.isEnabled)
+    ]
+
+    if (!PROFILE_THIRD_PARTY_BINDINGS_VISIBLE) {
+      return allBindings.filter((binding) => binding.id === 'email')
+    }
+
+    return allBindings.filter((binding) => binding.isEnabled)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [profile, status, t])
 
@@ -263,6 +271,17 @@ export function AccountBindingsTab({
 
   return (
     <>
+      {!PROFILE_THIRD_PARTY_BINDINGS_VISIBLE ? (
+        <div className='mb-3 space-y-1'>
+          <p className='text-sm font-medium'>{t('Email binding information')}</p>
+          <p className='text-muted-foreground text-sm'>
+            {t(
+              'Email binding is used for account notifications and identity verification.'
+            )}
+          </p>
+        </div>
+      ) : null}
+
       <div className='grid grid-cols-1 gap-2.5 sm:grid-cols-2 sm:gap-3'>
         {bindings.map((binding) => (
           <div
@@ -311,7 +330,9 @@ export function AccountBindingsTab({
       </div>
 
       {/* Custom OAuth Bindings */}
-      {customProviders && customProviders.length > 0 && (
+      {PROFILE_THIRD_PARTY_BINDINGS_VISIBLE &&
+      customProviders &&
+      customProviders.length > 0 ? (
         <>
           <Separator className='my-4' />
           <p className='text-muted-foreground mb-3 text-sm font-medium'>
@@ -375,24 +396,26 @@ export function AccountBindingsTab({
             })}
           </div>
         </>
-      )}
+      ) : null}
 
       {/* Custom OAuth Unbind Confirmation */}
-      <ConfirmDialog
-        open={!!unbindTarget}
-        onOpenChange={(open) => !open && setUnbindTarget(null)}
-        title={t('Confirm Unbind')}
-        desc={t(
-          'Are you sure you want to unbind {{provider}}? You will no longer be able to log in via this method.',
-          {
-            provider: unbindTarget?.provider_name || '',
-          }
-        )}
-        confirmText={t('Confirm Unbind')}
-        destructive
-        handleConfirm={handleUnbindCustom}
-        isLoading={unbinding}
-      />
+      {PROFILE_THIRD_PARTY_BINDINGS_VISIBLE ? (
+        <ConfirmDialog
+          open={!!unbindTarget}
+          onOpenChange={(open) => !open && setUnbindTarget(null)}
+          title={t('Confirm Unbind')}
+          desc={t(
+            'Are you sure you want to unbind {{provider}}? You will no longer be able to log in via this method.',
+            {
+              provider: unbindTarget?.provider_name || '',
+            }
+          )}
+          confirmText={t('Confirm Unbind')}
+          destructive
+          handleConfirm={handleUnbindCustom}
+          isLoading={unbinding}
+        />
+      ) : null}
 
       {/* Email Bind Dialog */}
       <EmailBindDialog
@@ -404,26 +427,30 @@ export function AccountBindingsTab({
         onSuccess={onUpdate}
       />
 
-      {/* WeChat Bind Dialog */}
-      <WeChatBindDialog
-        open={dialogs.isOpen('wechat')}
-        onOpenChange={(open) =>
-          open ? dialogs.open('wechat') : dialogs.close('wechat')
-        }
-        onSuccess={onUpdate}
-      />
+      {PROFILE_THIRD_PARTY_BINDINGS_VISIBLE ? (
+        <>
+          {/* WeChat Bind Dialog */}
+          <WeChatBindDialog
+            open={dialogs.isOpen('wechat')}
+            onOpenChange={(open) =>
+              open ? dialogs.open('wechat') : dialogs.close('wechat')
+            }
+            onSuccess={onUpdate}
+          />
 
-      {/* Telegram Bind Dialog */}
-      {status?.telegram_bot_name && (
-        <TelegramBindDialog
-          open={dialogs.isOpen('telegram')}
-          onOpenChange={(open) =>
-            open ? dialogs.open('telegram') : dialogs.close('telegram')
-          }
-          botName={status.telegram_bot_name as string}
-          onSuccess={onUpdate}
-        />
-      )}
+          {/* Telegram Bind Dialog */}
+          {status?.telegram_bot_name ? (
+            <TelegramBindDialog
+              open={dialogs.isOpen('telegram')}
+              onOpenChange={(open) =>
+                open ? dialogs.open('telegram') : dialogs.close('telegram')
+              }
+              botName={status.telegram_bot_name as string}
+              onSuccess={onUpdate}
+            />
+          ) : null}
+        </>
+      ) : null}
     </>
   )
 }

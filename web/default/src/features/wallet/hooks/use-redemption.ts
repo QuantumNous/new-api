@@ -22,6 +22,7 @@ import { toast } from 'sonner'
 import { resolveComplianceErrorMessage } from '@/lib/compliance-display'
 import { getSelf } from '@/lib/api'
 import { formatTokenQuotaDisplay } from '@/lib/ops-billing-display'
+import { useAuthStore, type AuthUser } from '@/stores/auth-store'
 import { redeemTopupCode } from '../api'
 
 // ============================================================================
@@ -41,14 +42,17 @@ export function useRedemption() {
       setRedeeming(true)
       const response = await redeemTopupCode({ key: code })
 
-      if (response.success && response.data) {
+      if (response.success && response.data != null) {
         const quotaAdded = response.data
         toast.success(
           i18next.t('wallet.toast.redeem_success', {
             quota: formatTokenQuotaDisplay(quotaAdded),
           })
         )
-        await getSelf()
+        const selfRes = await getSelf()
+        if (selfRes.success && selfRes.data) {
+          useAuthStore.getState().auth.setUser(selfRes.data as AuthUser)
+        }
         return true
       }
 

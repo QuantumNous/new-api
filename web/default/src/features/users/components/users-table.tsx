@@ -66,10 +66,12 @@ const usersToolbarClassName = cn(
 const usersTableHeaderClassName = cn(
   'bg-slate-900/95 text-slate-50',
   '[&_th]:border-white/10 [&_th]:text-slate-50',
-  '[&_button]:font-semibold [&_button]:text-slate-50',
-  '[&_button:hover]:text-white',
+  '[&_[data-slot=table-head]_div]:!font-semibold [&_[data-slot=table-head]_div]:!text-slate-50',
+  '[&_[data-slot=table-head]_span]:!font-semibold [&_[data-slot=table-head]_span]:!text-slate-50',
+  '[&_button]:font-semibold [&_button]:!text-slate-50',
+  '[&_button:hover]:!text-white',
   '[&_svg]:text-slate-300',
-  '[&_button:hover_svg]:text-white',
+  '[&_button:hover_svg]:!text-white',
   '[&_[data-slot=checkbox]]:border-white/30'
 )
 

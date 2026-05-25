@@ -123,6 +123,11 @@ export const BINDING_FIELDS = [
   { key: 'telegram_id', label: 'Telegram ID' },
 ] as const
 
+/** Demo UI: admin user edit surfaces show email binding only. */
+export const ADMIN_USER_THIRD_PARTY_BINDINGS_VISIBLE = false
+
+export const ADMIN_VISIBLE_BINDING_FIELDS = [{ key: 'email', label: 'Email' }] as const
+
 // ============================================================================
 // Error Messages (i18n keys: use t(ERROR_MESSAGES.xxx) when displaying)
 // ============================================================================

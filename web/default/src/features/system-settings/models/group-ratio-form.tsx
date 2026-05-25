@@ -20,6 +20,7 @@ import { memo, useCallback, useState } from 'react'
 import { type UseFormReturn } from 'react-hook-form'
 import { Code2, Eye, HelpCircle } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import { Alert, AlertDescription } from '@/components/ui/alert'
 import {
   Accordion,
   AccordionContent,
@@ -47,6 +48,7 @@ import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import { GroupRatioVisualEditor } from './group-ratio-visual-editor'
 import { GroupSpecialUsableRulesEditor } from './group-special-usable-editor'
+import { GROUP_SPECIAL_USABLE_RULES_VISIBLE } from './constants'
 
 type GroupFormValues = {
   GroupRatio: string
@@ -111,6 +113,14 @@ export const GroupRatioForm = memo(function GroupRatioForm({
 
       <GroupPricingGuide open={guideOpen} onOpenChange={setGuideOpen} />
 
+      <Alert className='border-border/80 bg-muted/30'>
+        <AlertDescription className='text-muted-foreground text-sm leading-6'>
+          {t(
+            'Group pricing converts quota consumption for model calls. Configure matching names in top-up group ratios to align recharge with the same customer group.'
+          )}
+        </AlertDescription>
+      </Alert>
+
       <Form {...form}>
         {editMode === 'visual' ? (
           <div className='space-y-6'>
@@ -125,12 +135,14 @@ export const GroupRatioForm = memo(function GroupRatioForm({
               }
             />
 
-            <GroupSpecialUsableRulesEditor
-              value={form.watch('GroupSpecialUsableGroup')}
-              onChange={(value) =>
-                handleFieldChange('GroupSpecialUsableGroup', value)
-              }
-            />
+            {GROUP_SPECIAL_USABLE_RULES_VISIBLE ? (
+              <GroupSpecialUsableRulesEditor
+                value={form.watch('GroupSpecialUsableGroup')}
+                onChange={(value) =>
+                  handleFieldChange('GroupSpecialUsableGroup', value)
+                }
+              />
+            ) : null}
 
             <FormField
               control={form.control}
@@ -261,24 +273,26 @@ export const GroupRatioForm = memo(function GroupRatioForm({
               )}
             />
 
-            <FormField
-              control={form.control}
-              name='GroupSpecialUsableGroup'
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>{t('Special usable group rules')}</FormLabel>
-                  <FormControl>
-                    <Textarea rows={8} {...field} />
-                  </FormControl>
-                  <FormDescription>
-                    {t(
-                      'Nested JSON defining per-group rules for adding (+:), removing (-:), or appending usable groups.'
-                    )}
-                  </FormDescription>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+            {GROUP_SPECIAL_USABLE_RULES_VISIBLE ? (
+              <FormField
+                control={form.control}
+                name='GroupSpecialUsableGroup'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t('Special usable group rules')}</FormLabel>
+                    <FormControl>
+                      <Textarea rows={8} {...field} />
+                    </FormControl>
+                    <FormDescription>
+                      {t(
+                        'Nested JSON defining per-group rules for adding (+:), removing (-:), or appending usable groups.'
+                      )}
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            ) : null}
 
             <FormField
               control={form.control}

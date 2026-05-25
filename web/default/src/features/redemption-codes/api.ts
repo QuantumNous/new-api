@@ -62,7 +62,10 @@ export async function getRedemption(
 export async function createRedemption(
   data: RedemptionFormData
 ): Promise<ApiResponse<string[]>> {
-  const res = await api.post('/api/redemption/', data)
+  const res = await api.post('/api/redemption/', data, {
+    skipBusinessError: true,
+    skipErrorHandler: true,
+  } as Record<string, unknown>)
   return res.data
 }
 
@@ -70,7 +73,9 @@ export async function createRedemption(
 export async function updateRedemption(
   data: RedemptionFormData & { id: number }
 ): Promise<ApiResponse<Redemption>> {
-  const res = await api.put('/api/redemption/', data)
+  const res = await api.put('/api/redemption/', data, {
+    skipBusinessError: true,
+  } as Record<string, unknown>)
   return res.data
 }
 

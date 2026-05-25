@@ -339,6 +339,13 @@ export function ApiKeysMutateDrawer({
                         placeholder={t('keys.drawer.group_placeholder')}
                       />
                     </FormControl>
+                    <FormDescription
+                      className={keysSheetFormDescriptionClassName}
+                    >
+                      {t(
+                        'Tenant groups control channel access, access key grouping, and call billing. Use the same names in group pricing and top-up settings.'
+                      )}
+                    </FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -468,7 +475,32 @@ export function ApiKeysMutateDrawer({
               description={t('keys.drawer.quota_desc')}
               icon={WalletCards}
             >
-              {!unlimitedQuota && (
+              <FormField
+                control={form.control}
+                name='unlimited_quota'
+                render={({ field }) => (
+                  <FormItem className='flex min-h-16 flex-row items-center justify-between gap-3 rounded-lg border px-3 py-2.5 sm:min-h-20 sm:gap-4 sm:px-4 sm:py-3'>
+                    <div className='space-y-0.5'>
+                      <FormLabel className='text-sm'>
+                        {t('keys.drawer.unlimited_quota.label')}
+                      </FormLabel>
+                      <FormDescription
+                        className={keysSheetFormDescriptionClassName}
+                      >
+                        {t('keys.drawer.unlimited_quota.description')}
+                      </FormDescription>
+                    </div>
+                    <FormControl>
+                      <Switch
+                        checked={field.value}
+                        onCheckedChange={field.onChange}
+                      />
+                    </FormControl>
+                  </FormItem>
+                )}
+              />
+
+              {!unlimitedQuota ? (
                 <FormField
                   control={form.control}
                   name='remain_quota_dollars'
@@ -495,32 +527,7 @@ export function ApiKeysMutateDrawer({
                     </FormItem>
                   )}
                 />
-              )}
-
-              <FormField
-                control={form.control}
-                name='unlimited_quota'
-                render={({ field }) => (
-                  <FormItem className='flex min-h-16 flex-row items-center justify-between gap-3 rounded-lg border px-3 py-2.5 sm:min-h-20 sm:gap-4 sm:px-4 sm:py-3'>
-                    <div className='space-y-0.5'>
-                      <FormLabel className='text-sm'>
-                        {t('keys.drawer.unlimited_quota.label')}
-                      </FormLabel>
-                      <FormDescription
-                        className={keysSheetFormDescriptionClassName}
-                      >
-                        {t('keys.drawer.unlimited_quota.description')}
-                      </FormDescription>
-                    </div>
-                    <FormControl>
-                      <Switch
-                        checked={field.value}
-                        onCheckedChange={field.onChange}
-                      />
-                    </FormControl>
-                  </FormItem>
-                )}
-              />
+              ) : null}
             </ApiKeyFormSection>
 
             <Collapsible open={advancedOpen} onOpenChange={setAdvancedOpen}>
