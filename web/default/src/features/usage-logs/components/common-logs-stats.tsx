@@ -28,7 +28,7 @@ import { DEFAULT_LOG_STATS } from '../constants'
 import { buildApiParams } from '../lib/utils'
 import { useUsageLogsContext } from './usage-logs-provider'
 
-const route = getRouteApi('/_authenticated/usage-logs/$section')
+const route = getRouteApi('/_authenticated/console/usage-logs/$section')
 
 function StatBadge(props: {
   label: string

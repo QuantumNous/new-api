@@ -18,6 +18,11 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { type TFunction } from 'i18next'
 import {
+  getAdminNavGroups,
+  getChatNavGroups,
+  getConsoleNavGroups,
+} from '../config/platform-nav.config'
+import {
   getSystemSettingsNavGroups,
   WORKSPACE_SYSTEM_SETTINGS_ID,
 } from '../config/system-settings.config'
@@ -25,6 +30,9 @@ import type { NavGroup } from '../types'
 
 export const WORKSPACE_IDS = {
   SYSTEM_SETTINGS: WORKSPACE_SYSTEM_SETTINGS_ID,
+  ADMIN: 'admin',
+  CHAT: 'chat',
+  CONSOLE: 'console',
   DEFAULT: 'default',
 } as const
 
@@ -64,8 +72,26 @@ const workspaceRegistry: WorkspaceConfig[] = [
   {
     id: WORKSPACE_IDS.SYSTEM_SETTINGS,
     name: 'System Settings',
-    pathPattern: /^\/system-settings/,
+    pathPattern: /^\/admin\/system-settings/,
     getNavGroups: getSystemSettingsNavGroups,
+  },
+  {
+    id: WORKSPACE_IDS.ADMIN,
+    name: 'Admin',
+    pathPattern: /^\/admin/,
+    getNavGroups: getAdminNavGroups,
+  },
+  {
+    id: WORKSPACE_IDS.CHAT,
+    name: 'Chat',
+    pathPattern: /^\/chat/,
+    getNavGroups: getChatNavGroups,
+  },
+  {
+    id: WORKSPACE_IDS.CONSOLE,
+    name: 'Console',
+    pathPattern: /^\/console/,
+    getNavGroups: getConsoleNavGroups,
   },
   // Default workspace (must be last)
   {

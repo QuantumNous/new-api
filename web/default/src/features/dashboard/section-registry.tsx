@@ -55,7 +55,7 @@ const dashboardRegistry = createSectionRegistry<
 >({
   sections: DASHBOARD_SECTIONS,
   defaultSection: 'overview',
-  basePath: '/dashboard',
+  basePath: '/console/dashboard',
   urlStyle: 'path',
 })
 

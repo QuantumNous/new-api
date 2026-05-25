@@ -133,7 +133,7 @@ const contentRegistry = createSectionRegistry<
 >({
   sections: CONTENT_SECTIONS,
   defaultSection: 'dashboard',
-  basePath: '/system-settings/content',
+  basePath: '/admin/system-settings/content',
   urlStyle: 'path',
 })
 

@@ -41,7 +41,7 @@ const defaultSiteSettings: SiteSettings = {
 export function SiteSettings() {
   return (
     <SettingsPage
-      routePath='/_authenticated/system-settings/site/$section'
+      routePath='/_authenticated/admin/system-settings/site/$section'
       defaultSettings={defaultSiteSettings}
       defaultSection={SITE_DEFAULT_SECTION}
       getSectionContent={getSiteSectionContent}

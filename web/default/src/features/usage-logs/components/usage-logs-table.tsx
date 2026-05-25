@@ -44,7 +44,7 @@ import type { LogCategory } from '../types'
 import { CommonLogsFilterBar } from './common-logs-filter-bar'
 import { TaskLogsFilterBar } from './task-logs-filter-bar'
 
-const route = getRouteApi('/_authenticated/usage-logs/$section')
+const route = getRouteApi('/_authenticated/console/usage-logs/$section')
 
 const logTypeRowTint: Record<number, string> = {
   [LOG_TYPE_ENUM.ERROR]: 'bg-rose-50/40 dark:bg-rose-950/20',

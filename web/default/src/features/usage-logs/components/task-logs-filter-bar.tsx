@@ -29,7 +29,7 @@ import { getDefaultTimeRange } from '../lib/utils'
 import type { DrawingLogFilters, LogCategory, TaskLogFilters } from '../types'
 import { CompactDateTimeRangePicker } from './compact-date-time-range-picker'
 
-const route = getRouteApi('/_authenticated/usage-logs/$section')
+const route = getRouteApi('/_authenticated/console/usage-logs/$section')
 
 type TaskLikeLogCategory = Extract<LogCategory, 'drawing' | 'task'>
 type TaskLogsFilters = DrawingLogFilters | TaskLogFilters
@@ -114,7 +114,7 @@ export function TaskLogsFilterBar<TData>(props: TaskLogsFilterBarProps<TData>) {
   const handleApply = useCallback(() => {
     const filterParams = buildSearchParams(filters, props.logCategory)
     navigate({
-      to: '/usage-logs/$section',
+      to: '/console/usage-logs/$section',
       params: { section: props.logCategory },
       search: {
         ...filterParams,
@@ -130,7 +130,7 @@ export function TaskLogsFilterBar<TData>(props: TaskLogsFilterBarProps<TData>) {
     setFilters(resetFilters)
 
     navigate({
-      to: '/usage-logs/$section',
+      to: '/console/usage-logs/$section',
       params: { section: props.logCategory },
       search: {
         page: 1,

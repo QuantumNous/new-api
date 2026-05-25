@@ -35,7 +35,7 @@ export const Route = createFileRoute('/(auth)/sign-in')({
     if (auth.user) {
       // 优先使用 redirect 参数（用户之前想去的地方）
       // 否则跳转到 dashboard
-      throw redirect({ to: search?.redirect || '/dashboard' })
+      throw redirect({ to: search?.redirect || '/console' })
     }
   },
 })

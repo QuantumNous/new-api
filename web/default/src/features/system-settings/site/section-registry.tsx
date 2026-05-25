@@ -101,7 +101,7 @@ export type SiteSectionId = (typeof SITE_SECTIONS)[number]['id']
 const siteRegistry = createSectionRegistry<SiteSectionId, SiteSettings>({
   sections: SITE_SECTIONS,
   defaultSection: 'system-info',
-  basePath: '/system-settings/site',
+  basePath: '/admin/system-settings/site',
   urlStyle: 'path',
 })
 

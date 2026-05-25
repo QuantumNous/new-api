@@ -40,7 +40,7 @@ import {
   MODELS_SECTION_IDS,
 } from './section-registry'
 
-const route = getRouteApi('/_authenticated/models/$section')
+const route = getRouteApi('/_authenticated/admin/models/$section')
 
 const SECTION_META: Record<
   ModelsSectionId,
@@ -113,7 +113,7 @@ function ModelsContent() {
   const handleSectionChange = useCallback(
     (section: string) => {
       void navigate({
-        to: '/models/$section',
+        to: '/admin/models/$section',
         params: { section: section as ModelsSectionId },
       })
     },

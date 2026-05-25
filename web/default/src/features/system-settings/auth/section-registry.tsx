@@ -135,7 +135,7 @@ export type AuthSectionId = (typeof AUTH_SECTIONS)[number]['id']
 const authRegistry = createSectionRegistry<AuthSectionId, AuthSettings>({
   sections: AUTH_SECTIONS,
   defaultSection: 'basic-auth',
-  basePath: '/system-settings/auth',
+  basePath: '/admin/system-settings/auth',
   urlStyle: 'path',
 })
 

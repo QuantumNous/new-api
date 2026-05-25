@@ -47,7 +47,7 @@ import { CommonLogsStats } from './common-logs-stats'
 import { CompactDateTimeRangePicker } from './compact-date-time-range-picker'
 import { useUsageLogsContext } from './usage-logs-provider'
 
-const route = getRouteApi('/_authenticated/usage-logs/$section')
+const route = getRouteApi('/_authenticated/console/usage-logs/$section')
 const logTypeValues = ['0', '1', '2', '3', '4', '5', '6'] as const
 
 type LogTypeValue = (typeof logTypeValues)[number]
@@ -122,7 +122,7 @@ export function CommonLogsFilterBar<TData>(
   const handleApply = useCallback(() => {
     const filterParams = buildSearchParams(filters, 'common')
     navigate({
-      to: '/usage-logs/$section',
+      to: '/console/usage-logs/$section',
       params: { section: 'common' },
       search: {
         ...filterParams,
@@ -141,7 +141,7 @@ export function CommonLogsFilterBar<TData>(
     setLogType('')
 
     navigate({
-      to: '/usage-logs/$section',
+      to: '/console/usage-logs/$section',
       params: { section: 'common' },
       search: {
         page: 1,

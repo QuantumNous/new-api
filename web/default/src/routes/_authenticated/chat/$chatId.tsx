@@ -32,7 +32,7 @@ import {
 export const Route = createFileRoute('/_authenticated/chat/$chatId')({
   loader: async ({ params }) => {
     if (!Number.isInteger(Number(params.chatId))) {
-      throw redirect({ to: '/dashboard' })
+      throw redirect({ to: '/chat' })
     }
   },
   component: ChatRouteComponent,
@@ -84,8 +84,8 @@ function ChatRouteComponent() {
             {t('The requested chat preset does not exist or has been removed.')}
           </p>
         </div>
-        <Button variant='outline' render={<Link to='/dashboard' />}>
-          {t('Return to dashboard')}
+        <Button variant='outline' render={<Link to='/chat' />}>
+          {t('Return to chat')}
         </Button>
       </div>
     )
@@ -104,8 +104,8 @@ function ChatRouteComponent() {
             )}
           </p>
         </div>
-        <Button variant='outline' render={<Link to='/dashboard' />}>
-          {t('Return to dashboard')}
+        <Button variant='outline' render={<Link to='/chat' />}>
+          {t('Return to chat')}
         </Button>
       </div>
     )
@@ -116,7 +116,7 @@ function ChatRouteComponent() {
       <div className='flex h-full flex-col items-center justify-center gap-4'>
         <Loader2 className='text-muted-foreground h-8 w-8 animate-spin' />
         <p className='text-muted-foreground text-sm'>
-          {t('Preparing your chat link…')}
+          {t('Preparing your chat link...')}
         </p>
       </div>
     )

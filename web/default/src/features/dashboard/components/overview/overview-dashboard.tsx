@@ -78,11 +78,11 @@ const SETUP_GUIDE_CODE_PATTERN = [
 ].join('\n')
 
 type DashboardActionPath =
-  | '/keys'
-  | '/wallet'
-  | '/playground'
-  | '/channels'
-  | '/usage-logs'
+  | '/console/keys'
+  | '/console/wallet'
+  | '/console/playground'
+  | '/admin/channels'
+  | '/console/usage-logs'
   | '/pricing'
 
 interface StartStep {
@@ -328,7 +328,11 @@ function RequestPreview(props: {
             {t('Copy')}
           </CopyButton>
         ) : (
-          <Button size='sm' variant='outline' render={<Link to='/keys' />}>
+          <Button
+            size='sm'
+            variant='outline'
+            render={<Link to='/console/keys' />}
+          >
             {t('Create API Key')}
           </Button>
         )}
@@ -480,21 +484,21 @@ export function OverviewDashboard() {
       {
         title: t('Create API Key'),
         description: t('Create a key for your app or service'),
-        to: '/keys',
+        to: '/console/keys',
         icon: KeyRound,
         completed: Boolean(preferredKey),
       },
       {
         title: t('Add credits'),
         description: t('Keep enough balance before production traffic'),
-        to: '/wallet',
+        to: '/console/wallet',
         icon: CreditCard,
         completed: remainQuota > 0 || usedQuota > 0,
       },
       {
         title: t('Send a request'),
         description: t('Verify routing with Playground or your client'),
-        to: '/playground',
+        to: '/console/playground',
         icon: TerminalSquare,
         completed: requestCount > 0,
       },
@@ -507,20 +511,20 @@ export function OverviewDashboard() {
       {
         title: t('Playground'),
         description: t('Test models and prompts from the browser'),
-        to: '/playground',
+        to: '/console/playground',
         icon: Play,
       },
       {
         title: t('Channels'),
         description: t('Configure upstream providers and routing.'),
-        to: '/channels',
+        to: '/admin/channels',
         icon: RadioTower,
         adminOnly: true,
       },
       {
         title: t('Usage Logs'),
         description: t('Inspect requests, errors, and billing details'),
-        to: '/usage-logs',
+        to: '/console/usage-logs',
         icon: FileText,
       },
       {
@@ -626,7 +630,10 @@ export function OverviewDashboard() {
                         <ChevronUp data-icon='inline-start' />
                         {t('Hide setup guide')}
                       </Button>
-                      <Button size='sm' render={<Link to='/keys' />}>
+                      <Button
+                        size='sm'
+                        render={<Link to='/console/keys' />}
+                      >
                         <KeyRound data-icon='inline-start' />
                         {t('Create API Key')}
                       </Button>

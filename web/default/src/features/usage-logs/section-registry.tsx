@@ -51,7 +51,7 @@ const usageLogsRegistry = createSectionRegistry<
 >({
   sections: USAGE_LOGS_SECTIONS,
   defaultSection: 'common',
-  basePath: '/usage-logs',
+  basePath: '/console/usage-logs',
   urlStyle: 'path',
 })
 

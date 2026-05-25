@@ -40,7 +40,7 @@ import { DataTableBulkActions } from './data-table-bulk-actions'
 import { useModelsColumns } from './models-columns'
 import { useModels } from './models-provider'
 
-const route = getRouteApi('/_authenticated/models/$section')
+const route = getRouteApi('/_authenticated/admin/models/$section')
 
 export function ModelsTable() {
   const { t } = useTranslation()

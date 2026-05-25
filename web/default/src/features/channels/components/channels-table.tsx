@@ -57,7 +57,7 @@ import { useChannelsColumns } from './channels-columns'
 import { useChannels } from './channels-provider'
 import { DataTableBulkActions } from './data-table-bulk-actions'
 
-const route = getRouteApi('/_authenticated/channels/')
+const route = getRouteApi('/_authenticated/admin/channels/')
 
 const CHANNEL_SORTABLE_COLUMNS = new Set<ChannelSortBy>([
   'id',

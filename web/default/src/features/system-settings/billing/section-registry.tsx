@@ -217,7 +217,7 @@ const billingRegistry = createSectionRegistry<
 >({
   sections: BILLING_SECTIONS,
   defaultSection: 'quota',
-  basePath: '/system-settings/billing',
+  basePath: '/admin/system-settings/billing',
   urlStyle: 'path',
 })
 

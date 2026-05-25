@@ -51,7 +51,7 @@ import { DataTableBulkActions } from './data-table-bulk-actions'
 import { useUsersColumns } from './users-columns'
 import { useUsers } from './users-provider'
 
-const route = getRouteApi('/_authenticated/users/')
+const route = getRouteApi('/_authenticated/admin/users/')
 
 function isDisabledUserRow(user: User) {
   return isUserDeleted(user) || user.status === USER_STATUS.DISABLED

@@ -51,7 +51,7 @@ export function ContentSettings() {
   const { t } = useTranslation()
   const { data, isLoading } = useSystemOptions()
   const params = useParams({
-    from: '/_authenticated/system-settings/content/$section',
+    from: '/_authenticated/admin/system-settings/content/$section',
   })
 
   const settings = useMemo(() => {

@@ -46,7 +46,7 @@ import { DataTableBulkActions } from './data-table-bulk-actions'
 import { useRedemptionsColumns } from './redemptions-columns'
 import { useRedemptions } from './redemptions-provider'
 
-const route = getRouteApi('/_authenticated/redemption-codes/')
+const route = getRouteApi('/_authenticated/admin/redemption-codes/')
 
 function isDisabledRedemptionRow(redemption: Redemption) {
   return (

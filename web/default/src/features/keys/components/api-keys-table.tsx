@@ -64,7 +64,7 @@ import { useApiKeys } from './api-keys-provider'
 import { DataTableBulkActions } from './data-table-bulk-actions'
 import { DataTableRowActions } from './data-table-row-actions'
 
-const route = getRouteApi('/_authenticated/keys/')
+const route = getRouteApi('/_authenticated/console/keys/')
 
 function isDisabledApiKeyRow(apiKey: ApiKey) {
   return apiKey.status !== API_KEY_STATUS.ENABLED

@@ -72,7 +72,7 @@ export function OperationsSettings() {
   const { data, isLoading } = useSystemOptions()
   const { status } = useStatus()
   const params = useParams({
-    from: '/_authenticated/system-settings/operations/$section',
+    from: '/_authenticated/admin/system-settings/operations/$section',
   })
 
   const settings = useMemo(

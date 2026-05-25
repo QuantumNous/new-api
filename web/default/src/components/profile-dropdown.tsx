@@ -99,12 +99,12 @@ export function ProfileDropdown() {
 
           <DropdownMenuSeparator />
 
-          <DropdownMenuItem onClick={() => navigate({ to: '/profile' })}>
+          <DropdownMenuItem onClick={() => navigate({ to: '/console/profile' })}>
             <User className='size-4' />
             {t('Profile')}
           </DropdownMenuItem>
 
-          <DropdownMenuItem onClick={() => navigate({ to: '/wallet' })}>
+          <DropdownMenuItem onClick={() => navigate({ to: '/console/wallet' })}>
             <Wallet className='size-4' />
             {t('Wallet')}
           </DropdownMenuItem>
@@ -113,7 +113,7 @@ export function ProfileDropdown() {
             <DropdownMenuItem
               onClick={() =>
                 navigate({
-                  to: '/system-settings/site/$section',
+                  to: '/admin/system-settings/site/$section',
                   params: { section: 'system-info' },
                 })
               }

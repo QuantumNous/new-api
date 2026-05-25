@@ -45,7 +45,7 @@ import {
   type QuotaDataItem,
 } from './types'
 
-const route = getRouteApi('/_authenticated/dashboard/$section')
+const route = getRouteApi('/_authenticated/console/dashboard/$section')
 
 const LazyLogStatCards = lazy(() =>
   import('./components/models/log-stat-cards').then((m) => ({
@@ -201,7 +201,7 @@ export function Dashboard() {
   const handleSectionChange = useCallback(
     (section: string) => {
       void navigate({
-        to: '/dashboard/$section',
+        to: '/console/dashboard/$section',
         params: { section: section as DashboardSectionId },
       })
     },

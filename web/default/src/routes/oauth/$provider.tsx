@@ -111,7 +111,7 @@ function OAuthCallback() {
         window.close()
         setTimeout(() => {
           if (!window.closed) {
-            window.location.replace('/_authenticated/profile/')
+            window.location.replace('/console/profile')
           }
         }, 200)
       }
@@ -143,7 +143,7 @@ function OAuthCallback() {
       }
 
       const redirectAfterLogin = (target?: string) => {
-        const to = target || search?.redirect || '/dashboard'
+        const to = target || search?.redirect || '/console'
         safeNavigate(to)
         toast.success(i18next.t('Signed in successfully!'))
       }
@@ -179,7 +179,7 @@ function OAuthCallback() {
               // Close the callback window if we opened a new tab for binding
               closeBindingWindow()
             } else {
-              safeNavigate('/_authenticated/profile/')
+              safeNavigate('/console/profile')
             }
             return
           }

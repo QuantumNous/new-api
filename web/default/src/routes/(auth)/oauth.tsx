@@ -42,7 +42,7 @@ function OAuthComponent() {
         const res = await getSelf()
         if (res?.success) {
           useAuthStore.getState().auth.setUser(res.data as AuthUser)
-          const target = search?.redirect || '/dashboard'
+          const target = search?.redirect || '/console'
           navigate({ to: target, replace: true })
           return
         }

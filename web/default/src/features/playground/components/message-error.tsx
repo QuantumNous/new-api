@@ -57,7 +57,10 @@ export function MessageError({ message, className = '' }: MessageErrorProps) {
               variant='outline'
               size='sm'
               onClick={() =>
-                window.open('/system-settings/billing/model-pricing', '_blank')
+                window.open(
+                  '/admin/system-settings/billing/model-pricing',
+                  '_blank'
+                )
               }
             >
               <Settings className='mr-1 h-3.5 w-3.5' />

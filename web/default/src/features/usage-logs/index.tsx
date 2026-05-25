@@ -36,7 +36,7 @@ import {
   type UsageLogsSectionId,
 } from './section-registry'
 
-const route = getRouteApi('/_authenticated/usage-logs/$section')
+const route = getRouteApi('/_authenticated/console/usage-logs/$section')
 const TASK_LOG_SECTIONS = ['drawing', 'task'] as const
 
 const SECTION_META: Record<
@@ -79,7 +79,7 @@ function UsageLogsContent() {
         title: 'Task Logs',
         items: TASK_LOG_SECTIONS.map((section) => ({
           title: SECTION_META[section].titleKey,
-          url: `/usage-logs/${section}`,
+          url: `/console/usage-logs/${section}`,
         })),
       },
     ],
@@ -102,7 +102,7 @@ function UsageLogsContent() {
   const handleSectionChange = useCallback(
     (section: string) => {
       void navigate({
-        to: '/usage-logs/$section',
+        to: '/console/usage-logs/$section',
         params: { section: section as UsageLogsSectionId },
       })
     },

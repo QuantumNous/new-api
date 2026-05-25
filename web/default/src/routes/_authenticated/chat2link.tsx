@@ -59,7 +59,7 @@ function Chat2LinkPage() {
           ? keyError.message
           : t('No enabled tokens available')
       toast.error(message)
-      navigate({ to: '/keys' })
+      navigate({ to: '/console/keys' })
       return
     }
 

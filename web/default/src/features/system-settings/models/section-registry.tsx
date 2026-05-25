@@ -165,7 +165,7 @@ export type ModelSectionId = (typeof MODELS_SECTIONS)[number]['id']
 const modelsRegistry = createSectionRegistry<ModelSectionId, ModelSettings>({
   sections: MODELS_SECTIONS,
   defaultSection: 'global',
-  basePath: '/system-settings/models',
+  basePath: '/admin/system-settings/models',
   urlStyle: 'path',
 })
 
