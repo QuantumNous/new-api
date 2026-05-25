@@ -48,21 +48,21 @@ type sqliteColumnInfo struct {
 }
 
 type legacyToken struct {
-	Id                 int            `gorm:"primaryKey"`
-	UserId             int            `gorm:"index"`
-	Key                string         `gorm:"column:key;type:char(48);uniqueIndex"`
-	Status             int            `gorm:"default:1"`
-	Name               string         `gorm:"index"`
-	CreatedTime        int64          `gorm:"bigint"`
-	AccessedTime       int64          `gorm:"bigint"`
-	ExpiredTime        int64          `gorm:"bigint;default:-1"`
-	RemainQuota        int            `gorm:"default:0"`
+	Id                 int    `gorm:"primaryKey"`
+	UserId             int    `gorm:"index"`
+	Key                string `gorm:"column:key;type:char(48);uniqueIndex"`
+	Status             int    `gorm:"default:1"`
+	Name               string `gorm:"index"`
+	CreatedTime        int64  `gorm:"bigint"`
+	AccessedTime       int64  `gorm:"bigint"`
+	ExpiredTime        int64  `gorm:"bigint;default:-1"`
+	RemainQuota        int    `gorm:"default:0"`
 	UnlimitedQuota     bool
 	ModelLimitsEnabled bool
-	ModelLimits        string         `gorm:"type:text"`
-	AllowIps           *string        `gorm:"default:''"`
-	UsedQuota          int            `gorm:"default:0"`
-	Group              string         `gorm:"column:group;default:''"`
+	ModelLimits        string  `gorm:"type:text"`
+	AllowIps           *string `gorm:"default:''"`
+	UsedQuota          int     `gorm:"default:0"`
+	Group              string  `gorm:"column:group;default:''"`
 	CrossGroupRetry    bool
 	DeletedAt          gorm.DeletedAt `gorm:"index"`
 }
@@ -442,6 +442,62 @@ func TestSearchTokensMasksKeyInResponse(t *testing.T) {
 	}
 	if strings.Contains(recorder.Body.String(), token.Key) {
 		t.Fatalf("search response leaked raw token key: %s", recorder.Body.String())
+	}
+}
+
+func TestGetTokenOptionsReturnsMaskedCurrentUserTokens(t *testing.T) {
+	db := setupTokenControllerTestDB(t)
+	enabledToken := seedToken(t, db, 1, "enabled-token", "enabled1234token5678")
+	disabledToken := seedToken(t, db, 1, "disabled-token", "disabled1234token5678")
+	expiredToken := seedToken(t, db, 1, "expired-token", "expired1234token5678")
+	exhaustedToken := seedToken(t, db, 1, "exhausted-token", "exhausted1234token5678")
+	seedToken(t, db, 2, "other-user-token", "other1234token5678")
+	if err := db.Model(disabledToken).Update("status", common.TokenStatusDisabled).Error; err != nil {
+		t.Fatalf("failed to disable token: %v", err)
+	}
+	if err := db.Model(expiredToken).Update("status", common.TokenStatusExpired).Error; err != nil {
+		t.Fatalf("failed to expire token: %v", err)
+	}
+	if err := db.Model(exhaustedToken).Update("status", common.TokenStatusExhausted).Error; err != nil {
+		t.Fatalf("failed to exhaust token: %v", err)
+	}
+
+	ctx, recorder := newAuthenticatedContext(t, http.MethodGet, "/api/token/options", nil, 1)
+	GetTokenOptions(ctx)
+
+	response := decodeAPIResponse(t, recorder)
+	if !response.Success {
+		t.Fatalf("expected success response, got message: %s", response.Message)
+	}
+
+	var options []tokenResponseItem
+	if err := common.Unmarshal(response.Data, &options); err != nil {
+		t.Fatalf("failed to decode token options response: %v", err)
+	}
+	if len(options) != 4 {
+		t.Fatalf("expected four current-user token options, got %d", len(options))
+	}
+
+	seen := map[int]tokenResponseItem{}
+	for _, option := range options {
+		seen[option.ID] = option
+	}
+	if seen[enabledToken.Id].Key != enabledToken.GetMaskedKey() {
+		t.Fatalf("expected masked enabled token key %q, got %q", enabledToken.GetMaskedKey(), seen[enabledToken.Id].Key)
+	}
+	if seen[disabledToken.Id].Status != common.TokenStatusDisabled {
+		t.Fatalf("expected disabled token status, got %d", seen[disabledToken.Id].Status)
+	}
+	if seen[expiredToken.Id].Status != common.TokenStatusExpired {
+		t.Fatalf("expected expired token status, got %d", seen[expiredToken.Id].Status)
+	}
+	if seen[exhaustedToken.Id].Status != common.TokenStatusExhausted {
+		t.Fatalf("expected exhausted token status, got %d", seen[exhaustedToken.Id].Status)
+	}
+	for _, rawKey := range []string{enabledToken.Key, disabledToken.Key, expiredToken.Key, exhaustedToken.Key, "other1234token5678"} {
+		if strings.Contains(recorder.Body.String(), rawKey) {
+			t.Fatalf("token options response leaked raw token key %q: %s", rawKey, recorder.Body.String())
+		}
 	}
 }
 

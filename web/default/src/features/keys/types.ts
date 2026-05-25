@@ -59,6 +59,14 @@ export interface ApiResponse<T = unknown> {
   data?: T
 }
 
+export interface ApiKeyOption {
+  id: number
+  name: string
+  key: string
+  status: number
+  group?: string
+}
+
 export interface GetApiKeysParams {
   p?: number
   size?: number

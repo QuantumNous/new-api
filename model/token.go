@@ -81,7 +81,14 @@ func (token *Token) GetIpLimits() []string {
 func GetAllUserTokens(userId int, startIdx int, num int) ([]*Token, error) {
 	var tokens []*Token
 	var err error
-	err = DB.Where("user_id = ?", userId).Order("id desc").Limit(num).Offset(startIdx).Find(&tokens).Error
+	query := DB.Where("user_id = ?", userId).Order("id desc")
+	if num > 0 {
+		query = query.Limit(num)
+	}
+	if startIdx > 0 {
+		query = query.Offset(startIdx)
+	}
+	err = query.Find(&tokens).Error
 	return tokens, err
 }
 
