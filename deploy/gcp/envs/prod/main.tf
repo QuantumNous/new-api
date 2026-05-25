@@ -166,6 +166,15 @@ module "cloud_run" {
   frontend_base_url = var.frontend_base_url
   custom_domains    = var.custom_domains
 
+  // Scaling override（2026-05-25）：
+  //   - 当前 ~2% 5xx 基线，监控显示高峰仅 2 个实例运行（远低于 maxScale=10）
+  //   - 503 是 autoscaler 反应不够快 + 流式 LLM 单实例瞬时并发饱和导致
+  //   - 提高 min_instances 让突发到来时已有更多温实例；
+  //   - 降低 concurrency 让 autoscaler 在更低阈值触发扩容
+  //   - max_instances 保持 10（峰值远未及）
+  min_instances = 4
+  concurrency   = 50
+
   depends_on = [
     module.apis,
     google_secret_manager_secret_version.sql_dsn,
