@@ -1,0 +1,262 @@
+.static-home__hero {
+  isolation: isolate;
+  overflow: visible;
+  position: relative;
+}
+
+.static-home__hero-copy,
+.static-home__hero-art--motion {
+  position: relative;
+  z-index: 1;
+}
+
+.static-home__hero-art--motion {
+  align-items: center;
+  display: flex;
+  justify-content: flex-end;
+  min-height: min(45vw, 500px);
+  overflow: visible;
+  position: relative;
+}
+
+.static-home__hero-motion {
+  --visual-size: min(40vw, 438px);
+  margin: -12px -12px -18px 0;
+  transform: translate3d(12px, 0, 0);
+}
+
+.aiapi-hero-visual {
+  --visual-size: min(48vw, 640px);
+  aspect-ratio: 1 / 1;
+  background: transparent;
+  contain: layout paint;
+  isolation: isolate;
+  max-width: 100%;
+  overflow: visible;
+  position: relative;
+  transform: translateZ(0);
+  width: var(--visual-size);
+}
+
+.aiapi-hero-visual *,
+.aiapi-hero-visual *::before,
+.aiapi-hero-visual *::after {
+  box-sizing: border-box;
+}
+
+.aiapi-hero-visual::before {
+  display: none;
+}
+
+.aiapi-hero-visual__base {
+  height: 100%;
+  inset: 0;
+  object-fit: contain;
+  pointer-events: none;
+  position: absolute;
+  user-select: none;
+  width: 100%;
+  z-index: 2;
+  filter: drop-shadow(0 26px 34px rgba(0, 0, 0, 0.24));
+  transform: scale(1.015);
+  -webkit-mask-image: radial-gradient(
+    ellipse at 50% 55%,
+    #000 62%,
+    rgba(0, 0, 0, 0.92) 78%,
+    rgba(0, 0, 0, 0.42) 92%,
+    transparent 100%
+  );
+  mask-image: radial-gradient(
+    ellipse at 50% 55%,
+    #000 62%,
+    rgba(0, 0, 0, 0.92) 78%,
+    rgba(0, 0, 0, 0.42) 92%,
+    transparent 100%
+  );
+}
+
+.aiapi-hero-ripples {
+  height: 31%;
+  left: 50%;
+  mix-blend-mode: screen;
+  overflow: visible;
+  pointer-events: none;
+  position: absolute;
+  top: 66.6%;
+  transform: translate(-50%, -50%);
+  width: 91%;
+  z-index: 3;
+}
+
+.aiapi-hero-ripples::before {
+  background: radial-gradient(
+    ellipse at center,
+    rgba(116, 255, 202, 0.2),
+    rgba(35, 255, 150, 0.08) 48%,
+    transparent 74%
+  );
+  border-radius: 50%;
+  content: "";
+  filter: blur(4px);
+  height: 16%;
+  left: 50%;
+  opacity: 0.8;
+  position: absolute;
+  top: 47%;
+  transform: translate(-50%, -50%);
+  width: 18%;
+}
+
+.aiapi-hero-ripple {
+  animation: aiapiRippleExpand 4.8s cubic-bezier(0.16, 0.72, 0.16, 1) infinite;
+  border: 1px solid rgba(76, 255, 177, 0.34);
+  border-radius: 50%;
+  box-shadow: 0 0 18px rgba(35, 255, 150, 0.1);
+  height: 25%;
+  left: 50%;
+  opacity: 0;
+  position: absolute;
+  top: 52%;
+  transform: translate(-50%, -50%) scale(0.74);
+  width: 43%;
+  will-change: transform, opacity;
+}
+
+.aiapi-hero-ripple:nth-child(2) {
+  animation-delay: 1.2s;
+  border-color: rgba(115, 255, 198, 0.27);
+}
+
+.aiapi-hero-ripple:nth-child(3) {
+  animation-delay: 2.4s;
+  border-color: rgba(38, 255, 145, 0.22);
+}
+
+.aiapi-hero-ripple:nth-child(4) {
+  animation-delay: 3.6s;
+  border-color: rgba(165, 255, 214, 0.16);
+}
+
+.aiapi-hero-beam {
+  animation: aiapiBeamBreath 4.8s ease-in-out infinite;
+  background: linear-gradient(
+    180deg,
+    rgba(183, 255, 225, 0) 0%,
+    rgba(103, 255, 190, 0.08) 34%,
+    rgba(123, 255, 202, 0.24) 66%,
+    rgba(209, 255, 236, 0.38) 100%
+  );
+  clip-path: polygon(38% 0%, 62% 0%, 56% 100%, 44% 100%);
+  filter: blur(6px);
+  height: 31%;
+  left: 50%;
+  mix-blend-mode: screen;
+  opacity: 0.74;
+  pointer-events: none;
+  position: absolute;
+  top: 44.4%;
+  transform: translate(-50%, -50%);
+  width: 18%;
+  z-index: 4;
+}
+
+.static-home__hero-motion .aiapi-hero-beam {
+  background:
+    radial-gradient(ellipse at 50% 78%, rgba(230, 255, 241, 0.24) 0%, rgba(84, 255, 176, 0.11) 38%, transparent 70%),
+    radial-gradient(ellipse at 50% 48%, rgba(211, 255, 232, 0.16) 0%, rgba(61, 255, 164, 0.07) 42%, transparent 76%),
+    linear-gradient(90deg, transparent 0%, rgba(108, 255, 196, 0.04) 28%, rgba(234, 255, 244, 0.18) 50%, rgba(40, 240, 127, 0.045) 72%, transparent 100%),
+    linear-gradient(180deg, transparent 0%, rgba(44, 255, 150, 0.055) 50%, rgba(31, 242, 126, 0.13) 100%);
+  border-radius: 46% 46% 38% 38%;
+  clip-path: none;
+  filter: blur(13px);
+  height: 32%;
+  opacity: 0.34;
+  top: 43.2%;
+  -webkit-mask-image: radial-gradient(ellipse at 50% 60%, #000 0%, rgba(0, 0, 0, 0.86) 38%, rgba(0, 0, 0, 0.28) 64%, transparent 86%);
+  mask-image: radial-gradient(ellipse at 50% 60%, #000 0%, rgba(0, 0, 0, 0.86) 38%, rgba(0, 0, 0, 0.28) 64%, transparent 86%);
+  width: 17%;
+}
+
+.static-home__hero-motion .aiapi-hero-beam::before {
+  background:
+    radial-gradient(ellipse at 50% 78%, rgba(244, 255, 248, 0.28), rgba(112, 255, 188, 0.12) 46%, transparent 78%),
+    linear-gradient(180deg, transparent 0%, rgba(226, 255, 239, 0.06) 30%, rgba(244, 255, 248, 0.22) 78%, transparent 100%);
+  border-radius: 999px;
+  clip-path: none;
+  filter: blur(10px);
+  inset: -10% 28% -2%;
+  opacity: 0.42;
+}
+
+.static-home__hero-motion .aiapi-hero-beam::after {
+  background: radial-gradient(ellipse at center, rgba(225, 255, 238, 0.42) 0%, rgba(71, 255, 164, 0.24) 42%, rgba(0, 255, 122, 0.08) 70%, transparent 84%);
+  bottom: -14%;
+  filter: blur(18px);
+  height: 32%;
+  opacity: 0.52;
+  width: 108%;
+}
+
+.aiapi-hero-beam::before,
+.aiapi-hero-beam::after {
+  content: "";
+  position: absolute;
+}
+
+.aiapi-hero-beam::before {
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0) 0%,
+    rgba(211, 255, 236, 0.12) 32%,
+    rgba(232, 255, 245, 0.52) 76%,
+    rgba(255, 255, 255, 0.78) 100%
+  );
+  clip-path: polygon(25% 0%, 75% 0%, 58% 100%, 42% 100%);
+  filter: blur(3px);
+  inset: 1% 41%;
+  opacity: 0.72;
+}
+
+.aiapi-hero-beam::after {
+  background: radial-gradient(
+    ellipse at center,
+    rgba(245, 255, 252, 0.52) 0%,
+    rgba(115, 255, 198, 0.28) 44%,
+    transparent 82%
+  );
+  border-radius: 50%;
+  bottom: 4.5%;
+  filter: blur(9px);
+  height: 12%;
+  left: 50%;
+  opacity: 0.58;
+  transform: translateX(-50%);
+  width: 62%;
+}
+
+.aiapi-hero-beam-softcap {
+  animation: aiapiSoftCapBreath 4.6s ease-in-out infinite;
+  background:
+    radial-gradient(ellipse at 50% 70%, rgba(122, 255, 202, 0.3), rgba(44, 255, 166, 0.12) 45%, transparent 76%),
+    linear-gradient(180deg, transparent 0%, rgba(48, 255, 166, 0.1) 48%, transparent 100%);
+  filter: blur(10px);
+  height: 18%;
+  left: 50%;
+  mix-blend-mode: screen;
+  opacity: 0.58;
+  pointer-events: none;
+  position: absolute;
+  top: 36.5%;
+  transform: translate(-50%, -50%);
+  width: 26%;
+  will-change: opacity, transform;
+  z-index: 4;
+}
+
+.static-home__hero-motion .aiapi-hero-beam-softcap {
+  filter: blur(28px);
+  height: 22%;
+  opacity: 0.24;
+  top: 33%;
+  width: 32%;
+}

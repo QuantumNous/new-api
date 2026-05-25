@@ -1,0 +1,349 @@
+.aiapi-hero-badge {
+  aspect-ratio: 1 / 1;
+  left: 50%;
+  perspective: 1100px;
+  pointer-events: none;
+  position: absolute;
+  top: 9.2%;
+  transform: translateX(-50%);
+  width: 33.5%;
+  z-index: 8;
+}
+
+.aiapi-hero-badge__halo {
+  animation: aiapiBadgeHaloBreath 4.8s ease-in-out infinite;
+  background: radial-gradient(circle, rgba(95, 255, 193, 0.2) 0%, rgba(44, 255, 166, 0.1) 38%, transparent 72%);
+  border-radius: 50%;
+  filter: blur(14px);
+  inset: 12% 8% 4%;
+  opacity: 0.75;
+  position: absolute;
+  transform: translateZ(0);
+}
+
+.aiapi-hero-badge__orbit {
+  animation: aiapiBadgeOrbit 6.2s ease-in-out infinite;
+  display: grid;
+  inset: 0;
+  place-items: center;
+  position: absolute;
+  transform-style: preserve-3d;
+  will-change: transform;
+}
+
+.aiapi-hero-badge__face {
+  aspect-ratio: 1 / 1;
+  display: grid;
+  place-items: center;
+  position: relative;
+  transform: translateZ(1px);
+  width: 86%;
+}
+
+.aiapi-hero-badge__face img {
+  filter:
+    drop-shadow(0 0 16px rgba(34, 255, 145, 0.3))
+    drop-shadow(0 12px 24px rgba(0, 0, 0, 0.2));
+  height: 100%;
+  inset: 0;
+  object-fit: contain;
+  pointer-events: none;
+  position: absolute;
+  user-select: none;
+  width: 100%;
+}
+
+.aiapi-hero-badge__face::after {
+  background: radial-gradient(ellipse at 50% 48%, rgba(122, 255, 202, 0.12), transparent 62%);
+  clip-path: polygon(50% 6.86%, 83.33% 28.71%, 83.49% 63.8%, 50% 84.53%, 17.07% 63.8%, 17.22% 28.71%);
+  content: "";
+  inset: 0;
+  mix-blend-mode: screen;
+  opacity: 0.78;
+  position: absolute;
+}
+
+.aiapi-hero-badge__shine {
+  clip-path: polygon(50% 6.86%, 83.33% 28.71%, 83.49% 63.8%, 50% 84.53%, 17.07% 63.8%, 17.22% 28.71%);
+  inset: 0;
+  mix-blend-mode: screen;
+  opacity: 0.72;
+  overflow: hidden;
+  position: absolute;
+  -webkit-mask: var(--aiapi-hero-badge-mask) center / 100% 100% no-repeat;
+  mask: var(--aiapi-hero-badge-mask) center / 100% 100% no-repeat;
+}
+
+.aiapi-hero-badge__shine::before {
+  animation: aiapiBadgeShine 5.8s ease-in-out infinite;
+  background: linear-gradient(115deg, transparent 0%, rgba(183, 255, 225, 0.04) 24%, rgba(183, 255, 225, 0.22) 50%, rgba(183, 255, 225, 0.04) 76%, transparent 100%);
+  border-radius: 999px;
+  content: "";
+  filter: blur(1px);
+  height: 77.75%;
+  left: 17.07%;
+  position: absolute;
+  top: 6.86%;
+  transform: translateX(-130%) rotate(15deg);
+  width: 14%;
+  will-change: transform, opacity;
+}
+
+.aiapi-hero-icon {
+  --float-y: -10px;
+  --tilt: 0deg;
+  animation: aiapiIconFloat 5.6s ease-in-out infinite;
+  aspect-ratio: 1 / 1;
+  background:
+    radial-gradient(circle at 50% 38%, rgba(105, 255, 194, 0.15), transparent 46%),
+    rgba(0, 82, 54, 0.14);
+  backdrop-filter: blur(3px);
+  border: 1px solid rgba(76, 255, 177, 0.36);
+  box-shadow:
+    inset 0 0 18px rgba(95, 255, 188, 0.13),
+    0 0 16px rgba(42, 255, 156, 0.16);
+  display: grid;
+  place-items: center;
+  position: absolute;
+  transform: translate3d(0, 0, 0) rotate(var(--tilt));
+  transform-origin: center;
+  width: 10.8%;
+  will-change: transform, opacity;
+  z-index: 7;
+}
+
+.aiapi-hero-icon::before {
+  border: 1px solid rgba(140, 255, 210, 0.16);
+  border-radius: inherit;
+  content: "";
+  inset: 12%;
+  position: absolute;
+}
+
+.aiapi-hero-icon img {
+  display: block;
+  filter: drop-shadow(0 0 5px rgba(80, 255, 178, 0.38));
+  height: 47%;
+  pointer-events: none;
+  user-select: none;
+  width: 47%;
+}
+
+.aiapi-hero-icon--circle {
+  border-radius: 50%;
+}
+
+.aiapi-hero-icon--tile {
+  border-radius: 22%;
+}
+
+.aiapi-hero-icon--lt {
+  animation-delay: -0.2s;
+  left: 16.3%;
+  top: 23.4%;
+}
+
+.aiapi-hero-icon--lb {
+  --float-y: -8px;
+  --tilt: -11deg;
+  animation-delay: -1.8s;
+  left: 16.6%;
+  top: 39.6%;
+}
+
+.aiapi-hero-icon--rt {
+  animation-delay: -1s;
+  right: 16.3%;
+  top: 23.4%;
+}
+
+.aiapi-hero-icon--rb {
+  --float-y: -8px;
+  --tilt: 11deg;
+  animation-delay: -2.6s;
+  right: 16.6%;
+  top: 39.6%;
+}
+
+.aiapi-hero-particles {
+  inset: 18% 12% 25%;
+  pointer-events: none;
+  position: absolute;
+  z-index: 6;
+}
+
+.static-home__hero-motion .aiapi-hero-particles {
+  inset: 12% 22% 25%;
+  opacity: 1;
+}
+
+.static-home__hero-motion .aiapi-hero-particles::before,
+.static-home__hero-motion .aiapi-hero-particles::after {
+  animation: aiapiHeroDustRise 7.6s ease-in-out infinite;
+  background: rgba(193, 255, 226, 0.58);
+  border-radius: 50%;
+  box-shadow:
+    -42px 34px 0 rgba(96, 255, 180, 0.28),
+    -28px 4px 0 rgba(153, 255, 210, 0.18),
+    -18px -22px 0 rgba(185, 255, 224, 0.3),
+    18px 36px 0 rgba(108, 255, 190, 0.22),
+    30px 10px 0 rgba(116, 255, 194, 0.28),
+    46px -30px 0 rgba(207, 255, 234, 0.2);
+  content: "";
+  filter: blur(1px);
+  height: 4px;
+  left: 50%;
+  position: absolute;
+  top: 47%;
+  transform-origin: 50% 72%;
+  width: 4px;
+}
+
+.static-home__hero-motion .aiapi-hero-particles::after {
+  animation-delay: -3.1s;
+  opacity: 0.64;
+  top: 54%;
+  transform: scale(0.72);
+}
+
+.aiapi-hero-particle {
+  animation: aiapiParticleDrift 8s ease-in-out infinite;
+  background: rgba(112, 255, 197, 0.78);
+  border-radius: 50%;
+  box-shadow: 0 0 8px rgba(112, 255, 197, 0.42);
+  height: 3px;
+  opacity: 0.42;
+  position: absolute;
+  width: 3px;
+  will-change: transform, opacity;
+}
+
+.static-home__hero-motion .aiapi-hero-particle {
+  animation-duration: 7.2s;
+  background: rgba(190, 255, 225, 0.68);
+  box-shadow: 0 0 16px rgba(118, 255, 195, 0.46);
+  height: 3.5px;
+  opacity: 0.5;
+  width: 3.5px;
+}
+
+.aiapi-hero-particle:nth-child(1) {
+  animation-delay: -0.8s;
+  left: 24%;
+  top: 45%;
+}
+
+.aiapi-hero-particle:nth-child(2) {
+  animation-delay: -2.2s;
+  left: 32%;
+  top: 56%;
+}
+
+.aiapi-hero-particle:nth-child(3) {
+  animation-delay: -1.4s;
+  right: 24%;
+  top: 44%;
+}
+
+.aiapi-hero-particle:nth-child(4) {
+  animation-delay: -3.4s;
+  right: 32%;
+  top: 56%;
+}
+
+.aiapi-hero-particle:nth-child(5) {
+  animation-delay: -4.8s;
+  left: 50%;
+  opacity: 0.24;
+  top: 34%;
+}
+
+.static-home__hero-motion .aiapi-hero-particle:nth-child(1) {
+  left: 36%;
+  top: 58%;
+}
+
+.static-home__hero-motion .aiapi-hero-particle:nth-child(2) {
+  left: 46%;
+  top: 47%;
+}
+
+.static-home__hero-motion .aiapi-hero-particle:nth-child(3) {
+  right: 36%;
+  top: 57%;
+}
+
+.static-home__hero-motion .aiapi-hero-particle:nth-child(4) {
+  opacity: 0.42;
+  right: 44%;
+  top: 40%;
+}
+
+.static-home__hero-motion .aiapi-hero-particle:nth-child(5) {
+  left: 56%;
+  opacity: 0.34;
+  top: 33%;
+}
+
+@keyframes aiapiBadgeOrbit {
+  0%, 100% { transform: translate3d(0, 0, 0) rotateY(-8deg) rotateX(2deg) rotateZ(-0.3deg); }
+  25% { transform: translate3d(0, -2px, 0) rotateY(-3deg) rotateX(1deg) rotateZ(0deg); }
+  50% { transform: translate3d(0, -5px, 0) rotateY(7deg) rotateX(-1.5deg) rotateZ(0.35deg); }
+  75% { transform: translate3d(0, -2px, 0) rotateY(2deg) rotateX(0.5deg) rotateZ(0deg); }
+}
+
+@keyframes aiapiBadgeHaloBreath {
+  0%, 100% { opacity: 0.58; transform: scale(0.98); }
+  50% { opacity: 0.92; transform: scale(1.08); }
+}
+
+@keyframes aiapiBadgeShine {
+  0%, 56% { opacity: 0; transform: translateX(-130%) rotate(15deg); }
+  66% { opacity: 0.68; }
+  82%, 100% { opacity: 0; transform: translateX(480%) rotate(15deg); }
+}
+
+@keyframes aiapiIconFloat {
+  0%, 100% { opacity: 0.84; transform: translate3d(0, 0, 0) rotate(var(--tilt)); }
+  50% { opacity: 1; transform: translate3d(0, var(--float-y), 0) rotate(var(--tilt)); }
+}
+
+@keyframes aiapiRippleExpand {
+  0% { opacity: 0; transform: translate(-50%, -50%) scale(0.66); }
+  14% { opacity: 0.48; }
+  58% { opacity: 0.2; }
+  100% { opacity: 0; transform: translate(-50%, -50%) scale(2.18); }
+}
+
+@keyframes aiapiSoftCapBreath {
+  0%, 100% { opacity: 0.46; transform: translate(-50%, -50%) scale(0.94); }
+  50% { opacity: 0.72; transform: translate(-50%, -50%) scale(1.04); }
+}
+
+@keyframes aiapiBeamBreath {
+  0%, 100% { opacity: 0.76; transform: translate(-50%, -50%) scaleY(0.98); }
+  50% { opacity: 0.96; transform: translate(-50%, -50%) scaleY(1.03); }
+}
+
+@keyframes aiapiParticleDrift {
+  0%, 100% { opacity: 0.18; transform: translate3d(0, 0, 0) scale(0.8); }
+  45% { opacity: 0.62; transform: translate3d(0, -10px, 0) scale(1.05); }
+  72% { opacity: 0.34; transform: translate3d(5px, -15px, 0) scale(0.9); }
+}
+
+@keyframes aiapiHeroDustRise {
+  0%, 100% {
+    opacity: 0.18;
+    transform: translate3d(-50%, 14px, 0) scale(0.78);
+  }
+
+  42% {
+    opacity: 0.72;
+    transform: translate3d(-50%, -12px, 0) scale(1);
+  }
+
+  74% {
+    opacity: 0.3;
+    transform: translate3d(-50%, -32px, 0) scale(0.88);
+  }
+}

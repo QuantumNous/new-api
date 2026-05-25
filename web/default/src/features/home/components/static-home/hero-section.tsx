@@ -59,7 +59,7 @@ export function HeroSection({
           })}
         </div>
       </div>
-      <div className='static-home__hero-art' data-home-reveal>
+      <div className='static-home__hero-art static-home__hero-art--motion' data-home-reveal>
         <HeroVisual label={t('home.static.hero.visual')} />
       </div>
     </section>

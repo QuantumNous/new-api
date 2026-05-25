@@ -16,42 +16,79 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { Cpu, Hexagon, RadioTower } from 'lucide-react'
-import { heroOrbitItems } from './content'
-
+import type { CSSProperties } from 'react'
 type HeroVisualProps = {
   label: string
 }
 
 export function HeroVisual({ label }: HeroVisualProps) {
+  const maskAssets = {
+    '--aiapi-hero-badge-mask': 'url("/assets/hero/hero-badge-custom.png")',
+    '--aiapi-hero-base-mask': 'url("/assets/hero/hero-base-custom.png")',
+  } as CSSProperties
+
   return (
-    <section className='home-hero-visual' aria-label={label}>
-      <div className='home-hero-visual__aura' aria-hidden='true' />
-      <div className='home-hero-visual__token' aria-hidden='true'>
-        <Hexagon className='size-16' />
-        <strong>AiApi114</strong>
+    <section
+      className='aiapi-hero-visual static-home__hero-motion'
+      style={maskAssets}
+      aria-label={label}
+    >
+      <picture>
+        <img
+          className='aiapi-hero-visual__base'
+          src='/assets/hero/hero-base-custom.png'
+          alt='AiApi114 platform base'
+          decoding='async'
+        />
+      </picture>
+      <div className='aiapi-hero-ripples' aria-hidden='true'>
+        <span className='aiapi-hero-ripple' />
+        <span className='aiapi-hero-ripple' />
+        <span className='aiapi-hero-ripple' />
+        <span className='aiapi-hero-ripple' />
       </div>
-      <div className='home-hero-visual__platform' aria-hidden='true'>
-        <div className='home-hero-visual__chip'>
-          <Cpu className='size-8' />
+      <div className='aiapi-hero-beam' aria-hidden='true' />
+      <div className='aiapi-hero-beam-softcap' aria-hidden='true' />
+      <div className='aiapi-hero-badge' aria-hidden='true'>
+        <div className='aiapi-hero-badge__halo' />
+        <div className='aiapi-hero-badge__orbit'>
+          <div className='aiapi-hero-badge__face'>
+            <img src='/assets/hero/hero-badge-custom.png' alt='' decoding='async' />
+            <span className='aiapi-hero-badge__shine' />
+          </div>
         </div>
-        <span className='home-hero-visual__pulse' />
-        <span className='home-hero-visual__ring home-hero-visual__ring--one' />
-        <span className='home-hero-visual__ring home-hero-visual__ring--two' />
       </div>
-      <RadioTower className='home-hero-visual__beam' aria-hidden='true' />
-      {heroOrbitItems.map((item) => {
-        const Icon = item.icon
-        return (
-          <span
-            className={`home-hero-orbit-item ${item.className}`}
-            key={item.className}
-            aria-hidden='true'
-          >
-            <Icon className='size-5' />
-          </span>
-        )
-      })}
+      <div
+        className='aiapi-hero-icon aiapi-hero-icon--circle aiapi-hero-icon--lt'
+        aria-hidden='true'
+      >
+        <img src='/assets/hero/icon-gear.svg' alt='' />
+      </div>
+      <div
+        className='aiapi-hero-icon aiapi-hero-icon--tile aiapi-hero-icon--lb'
+        aria-hidden='true'
+      >
+        <img src='/assets/hero/icon-cloud-gear.svg' alt='' />
+      </div>
+      <div
+        className='aiapi-hero-icon aiapi-hero-icon--circle aiapi-hero-icon--rt'
+        aria-hidden='true'
+      >
+        <img src='/assets/hero/icon-chart.svg' alt='' />
+      </div>
+      <div
+        className='aiapi-hero-icon aiapi-hero-icon--tile aiapi-hero-icon--rb'
+        aria-hidden='true'
+      >
+        <img src='/assets/hero/icon-code.svg' alt='' />
+      </div>
+      <div className='aiapi-hero-particles' aria-hidden='true'>
+        <span className='aiapi-hero-particle' />
+        <span className='aiapi-hero-particle' />
+        <span className='aiapi-hero-particle' />
+        <span className='aiapi-hero-particle' />
+        <span className='aiapi-hero-particle' />
+      </div>
     </section>
   )
 }
