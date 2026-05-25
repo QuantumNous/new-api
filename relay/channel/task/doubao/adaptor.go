@@ -353,6 +353,9 @@ func (a *TaskAdaptor) convertToRequestPayload(req *relaycommon.TaskSubmitReq) (*
 	if req.Watermark != nil {
 		r.Watermark = lo.ToPtr(dto.BoolValue(*req.Watermark))
 	}
+	if req.Draft != nil {
+		r.Draft = lo.ToPtr(dto.BoolValue(*req.Draft))
+	}
 
 	return &r, nil
 }

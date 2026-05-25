@@ -689,6 +689,7 @@ type TaskSubmitReq struct {
 	AspectRatio    string                   `json:"aspect_ratio,omitempty"`
 	Resolution     string                   `json:"resolution,omitempty"`
 	Watermark      *bool                    `json:"watermark,omitempty"`
+	Draft          *bool                    `json:"draft,omitempty"`
 }
 
 func (t *TaskSubmitReq) GetPrompt() string {
