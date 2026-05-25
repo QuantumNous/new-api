@@ -7,6 +7,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 // QuotaData 柱状图数据
@@ -26,6 +27,7 @@ func UpdateQuotaData() {
 		if common.DataExportEnabled {
 			common.SysLog("正在更新数据看板数据...")
 			SaveQuotaDataCache()
+			SaveQuotaDataTokenCache()
 		}
 		time.Sleep(time.Duration(common.DataExportInterval) * time.Minute)
 	}
@@ -135,4 +137,141 @@ func GetAllQuotaDates(startTime int64, endTime int64, username string) (quotaDat
 	//err = DB.Table("quota_data").Where("created_at >= ? and created_at <= ?", startTime, endTime).Find(&quotaDatas).Error
 	err = DB.Table("quota_data").Select("model_name, sum(count) as count, sum(quota) as quota, sum(token_used) as token_used, created_at").Where("created_at >= ? and created_at <= ?", startTime, endTime).Group("model_name, created_at").Find(&quotaDatas).Error
 	return quotaDatas, err
+}
+
+// QuotaDataToken 令牌维度聚合数据
+// 与 QuotaData 并行存在；自然键为 (user_id, token_id, model_name, created_at-小时)。
+// token_name / username 仅作为展示用标签，会随每次 upsert 刷新为最新值。
+type QuotaDataToken struct {
+	Id        int    `json:"id"`
+	UserID    int    `json:"user_id" gorm:"uniqueIndex:uniq_qdtk,priority:1"`
+	Username  string `json:"username" gorm:"size:64;default:''"`
+	TokenID   int    `json:"token_id" gorm:"uniqueIndex:uniq_qdtk,priority:2;default:0"`
+	TokenName string `json:"token_name" gorm:"index;size:64;default:''"`
+	ModelName string `json:"model_name" gorm:"uniqueIndex:uniq_qdtk,priority:3;size:64;default:''"`
+	CreatedAt int64  `json:"created_at" gorm:"uniqueIndex:uniq_qdtk,priority:4;index:idx_qdtk_created"`
+	TokenUsed int    `json:"token_used" gorm:"default:0"`
+	Count     int    `json:"count" gorm:"default:0"`
+	Quota     int    `json:"quota" gorm:"default:0"`
+}
+
+var CacheQuotaDataToken = make(map[string]*QuotaDataToken)
+var CacheQuotaDataTokenLock = sync.Mutex{}
+
+// 缓存键只用自然键，避免 username/token_name 变更时产生重复桶。
+func tokenCacheKey(userId, tokenId int, modelName string, createdAt int64) string {
+	return fmt.Sprintf("%d-%d-%s-%d", userId, tokenId, modelName, createdAt)
+}
+
+func logQuotaDataTokenCache(userId int, username string, tokenId int, tokenName string, modelName string, quota int, createdAt int64, tokenUsed int) {
+	key := tokenCacheKey(userId, tokenId, modelName, createdAt)
+	row, ok := CacheQuotaDataToken[key]
+	if ok {
+		row.Count += 1
+		row.Quota += quota
+		row.TokenUsed += tokenUsed
+		// 标签字段刷新为最新值，避免历史改名导致 stale label
+		row.Username = username
+		row.TokenName = tokenName
+	} else {
+		row = &QuotaDataToken{
+			UserID:    userId,
+			Username:  username,
+			TokenID:   tokenId,
+			TokenName: tokenName,
+			ModelName: modelName,
+			CreatedAt: createdAt,
+			Count:     1,
+			Quota:     quota,
+			TokenUsed: tokenUsed,
+		}
+	}
+	CacheQuotaDataToken[key] = row
+}
+
+// LogQuotaDataToken 记录令牌维度聚合（小时粒度）。
+// tokenId<=0（系统/管理员渠道测试 / violation_fee 等没有实际令牌的调用）直接丢弃，
+// 防止 caller 漏判时污染令牌看板。
+func LogQuotaDataToken(userId int, username string, tokenId int, tokenName string, modelName string, quota int, createdAt int64, tokenUsed int) {
+	if tokenId <= 0 {
+		return
+	}
+	createdAt = createdAt - (createdAt % 3600)
+	CacheQuotaDataTokenLock.Lock()
+	defer CacheQuotaDataTokenLock.Unlock()
+	logQuotaDataTokenCache(userId, username, tokenId, tokenName, modelName, quota, createdAt, tokenUsed)
+}
+
+// SaveQuotaDataTokenCache 落盘逻辑：先 swap 出快照释放锁，再做 IO，避免阻塞 LogQuotaDataToken。
+// 每行使用 ON CONFLICT DO NOTHING 占位 + UPDATE 累加，保证并发安全（多副本部署不重复）。
+func SaveQuotaDataTokenCache() {
+	CacheQuotaDataTokenLock.Lock()
+	snapshot := CacheQuotaDataToken
+	CacheQuotaDataToken = make(map[string]*QuotaDataToken)
+	CacheQuotaDataTokenLock.Unlock()
+
+	size := len(snapshot)
+	if size == 0 {
+		return
+	}
+	for _, row := range snapshot {
+		// 单行事务：seed + accumulate 必须同时成功，否则一并回滚，
+		// 避免出现 count=0 的孤儿行被后续 OnConflict DoNothing 永久保留。
+		err := DB.Transaction(func(tx *gorm.DB) error {
+			seed := &QuotaDataToken{
+				UserID:    row.UserID,
+				Username:  row.Username,
+				TokenID:   row.TokenID,
+				TokenName: row.TokenName,
+				ModelName: row.ModelName,
+				CreatedAt: row.CreatedAt,
+			}
+			if e := tx.Table("quota_data_tokens").
+				Clauses(clause.OnConflict{DoNothing: true}).
+				Create(seed).Error; e != nil {
+				return e
+			}
+			return tx.Table("quota_data_tokens").Where(
+				"user_id = ? and token_id = ? and model_name = ? and created_at = ?",
+				row.UserID, row.TokenID, row.ModelName, row.CreatedAt,
+			).Updates(map[string]interface{}{
+				"count":      gorm.Expr("count + ?", row.Count),
+				"quota":      gorm.Expr("quota + ?", row.Quota),
+				"token_used": gorm.Expr("token_used + ?", row.TokenUsed),
+				"username":   row.Username,
+				"token_name": row.TokenName,
+			}).Error
+		})
+		if err != nil {
+			common.SysLog(fmt.Sprintf("SaveQuotaDataTokenCache upsert error: %s", err))
+		}
+	}
+	common.SysLog(fmt.Sprintf("保存令牌维度数据看板数据成功，共保存%d条数据", size))
+}
+
+// GetTokenQuotaDates 管理员查询所有用户的令牌维度数据。可选过滤 username / token_name。
+// uniqueIndex 已保证 (user_id, token_id, model_name, created_at) 唯一，故直接 SELECT，
+// 不做聚合 —— 前端会根据 (token_id, token_name) 二次聚合呈现。
+func GetTokenQuotaDates(startTime int64, endTime int64, username string, tokenName string) (rows []*QuotaDataToken, err error) {
+	tx := DB.Table("quota_data_tokens").
+		Where("created_at >= ? and created_at <= ?", startTime, endTime)
+	if username != "" {
+		tx = tx.Where("username = ?", username)
+	}
+	if tokenName != "" {
+		tx = tx.Where("token_name = ?", tokenName)
+	}
+	err = tx.Find(&rows).Error
+	return rows, err
+}
+
+// GetUserTokenQuotaDates 普通用户查询自己的令牌维度数据。
+func GetUserTokenQuotaDates(userId int, startTime int64, endTime int64, tokenName string) (rows []*QuotaDataToken, err error) {
+	tx := DB.Table("quota_data_tokens").
+		Where("user_id = ? and created_at >= ? and created_at <= ?", userId, startTime, endTime)
+	if tokenName != "" {
+		tx = tx.Where("token_name = ?", tokenName)
+	}
+	err = tx.Find(&rows).Error
+	return rows, err
 }

@@ -253,7 +253,14 @@ func RecordConsumeLog(c *gin.Context, userId int, params RecordConsumeLogParams)
 	}
 	if common.DataExportEnabled {
 		gopool.Go(func() {
-			LogQuotaData(userId, username, params.ModelName, params.Quota, common.GetTimestamp(), params.PromptTokens+params.CompletionTokens)
+			ts := common.GetTimestamp()
+			totalTokens := params.PromptTokens + params.CompletionTokens
+			LogQuotaData(userId, username, params.ModelName, params.Quota, ts, totalTokens)
+			// 仅对真实令牌请求记录令牌维度，避免管理员渠道测试 / 内部 violation_fee 等
+			// TokenId=0 调用污染令牌看板。
+			if params.TokenId > 0 {
+				LogQuotaDataToken(userId, username, params.TokenId, params.TokenName, params.ModelName, params.Quota, ts, totalTokens)
+			}
 		})
 	}
 }

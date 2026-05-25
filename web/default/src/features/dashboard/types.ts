@@ -33,6 +33,26 @@ export interface QuotaDataItem {
   quota?: number
 }
 
+export interface TokenQuotaDataItem {
+  id?: number
+  user_id?: number
+  username?: string
+  token_id?: number
+  token_name?: string
+  model_name?: string
+  created_at: number
+  token_used?: number
+  count?: number
+  quota?: number
+}
+
+export interface ProcessedTokenChartData {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  spec_token_rank: Record<string, any>
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  spec_token_trend: Record<string, any>
+}
+
 // ============================================================================
 // Uptime Monitoring Types
 // ============================================================================

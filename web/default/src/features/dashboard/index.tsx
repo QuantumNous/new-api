@@ -77,6 +77,12 @@ const LazyUserCharts = lazy(() =>
   }))
 )
 
+const LazyTokenCharts = lazy(() =>
+  import('./components/tokens/token-charts').then((m) => ({
+    default: m.TokenCharts,
+  }))
+)
+
 function LogStatCardsFallback() {
   return (
     <div className='overflow-hidden rounded-lg border'>
@@ -141,6 +147,10 @@ const SECTION_META: Record<
   models: {
     titleKey: 'Model Call Analytics',
     descriptionKey: 'View model call count analytics and charts',
+  },
+  tokens: {
+    titleKey: 'Token Analytics',
+    descriptionKey: 'View consumption statistics grouped by token',
   },
   users: {
     titleKey: 'User Analytics',
@@ -299,6 +309,13 @@ export function Dashboard() {
                 </Suspense>
               </FadeIn>
             </>
+          )}
+          {activeSection === 'tokens' && (
+            <FadeIn>
+              <Suspense fallback={<ModelChartsFallback />}>
+                <LazyTokenCharts />
+              </Suspense>
+            </FadeIn>
           )}
           {activeSection === 'users' && (
             <FadeIn>
