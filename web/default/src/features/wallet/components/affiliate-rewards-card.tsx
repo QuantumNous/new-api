@@ -16,13 +16,15 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { Share2 } from 'lucide-react'
+import { Plus, Share2 } from 'lucide-react'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { formatQuota } from '@/lib/format'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
+import { Textarea } from '@/components/ui/textarea'
 import { CopyButton } from '@/components/copy-button'
 import type { UserWalletData } from '../types'
 
@@ -30,6 +32,10 @@ interface AffiliateRewardsCardProps {
   user: UserWalletData | null
   affiliateLink: string
   onTransfer: () => void
+  onCreateInviteCode?: (count?: number) => void
+  createdInviteCodes?: string[]
+  creatingInviteCode?: boolean
+  inviteCodeMaxCount?: number
   complianceConfirmed?: boolean
   loading?: boolean
 }
@@ -38,10 +44,27 @@ export function AffiliateRewardsCard({
   user,
   affiliateLink,
   onTransfer,
+  onCreateInviteCode,
+  createdInviteCodes = [],
+  creatingInviteCode = false,
+  inviteCodeMaxCount = 100,
   complianceConfirmed = true,
   loading,
 }: AffiliateRewardsCardProps) {
   const { t } = useTranslation()
+  const [inviteCodeCount, setInviteCodeCount] = useState(1)
+  const normalizedInviteCodeMaxCount = Math.max(
+    1,
+    Math.min(
+      100,
+      Number.isFinite(inviteCodeMaxCount) ? Math.trunc(inviteCodeMaxCount) : 100
+    )
+  )
+  const clampInviteCodeCount = (value: number) => {
+    const nextCount = Number.isFinite(value) ? Math.trunc(value) : 1
+    return Math.max(1, Math.min(normalizedInviteCodeMaxCount, nextCount))
+  }
+
   if (loading) {
     return (
       <Card className='bg-muted/20 py-0'>
@@ -58,6 +81,7 @@ export function AffiliateRewardsCard({
   }
 
   const hasRewards = (user?.aff_quota ?? 0) > 0
+  const inviteCodesText = createdInviteCodes.join('\n')
 
   return (
     <Card className='bg-muted/20 py-0'>
@@ -95,7 +119,7 @@ export function AffiliateRewardsCard({
           ))}
         </div>
 
-        <div className='flex items-center gap-2'>
+        <div className='flex flex-wrap items-center gap-2'>
           <Input
             value={affiliateLink}
             readOnly
@@ -119,7 +143,67 @@ export function AffiliateRewardsCard({
               {t('Transfer to Balance')}
             </Button>
           )}
+          {onCreateInviteCode ? (
+            <>
+              <Input
+                type='number'
+                min={1}
+                max={normalizedInviteCodeMaxCount}
+                value={inviteCodeCount}
+                onChange={(event) =>
+                  setInviteCodeCount(
+                    clampInviteCodeCount(Number(event.target.value))
+                  )
+                }
+                aria-label={t('Quantity')}
+                className='border-muted bg-background/70 h-9 w-20 shrink-0 text-xs'
+              />
+              <Button
+                type='button'
+                variant='outline'
+                size='sm'
+                onClick={() =>
+                  onCreateInviteCode(clampInviteCodeCount(inviteCodeCount))
+                }
+                disabled={creatingInviteCode}
+                className='bg-background h-9 shrink-0 gap-1.5 px-3'
+              >
+                <Plus className='size-4' />
+                {t('Create Invite Code')}
+              </Button>
+            </>
+          ) : null}
         </div>
+        {createdInviteCodes.length > 0 ? (
+          <div className='grid gap-2 lg:col-span-3'>
+            <div className='flex items-center justify-between gap-2'>
+              <label className='text-sm font-medium'>
+                {t('Created Invite Code')}
+              </label>
+              <CopyButton
+                value={inviteCodesText}
+                variant='outline'
+                size='sm'
+                tooltip={t('Copy invitation code')}
+                aria-label={t('Copy invitation code')}
+              />
+            </div>
+            {createdInviteCodes.length === 1 ? (
+              <Input
+                readOnly
+                value={createdInviteCodes[0]}
+                className='border-muted bg-background/70 font-mono text-xs'
+              />
+            ) : (
+              <Textarea
+                readOnly
+                rows={Math.min(5, createdInviteCodes.length)}
+                value={inviteCodesText}
+                className='border-muted bg-background/70 font-mono text-xs'
+              />
+            )}
+          </div>
+        ) : null}
         {!complianceConfirmed ? (
           <p className='text-muted-foreground text-xs lg:col-span-3'>
             {t(

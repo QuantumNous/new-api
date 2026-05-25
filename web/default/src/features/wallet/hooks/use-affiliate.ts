@@ -21,7 +21,11 @@ import i18next from 'i18next'
 import { toast } from 'sonner'
 import { getSelf } from '@/lib/api'
 import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard'
-import { getAffiliateCode, transferAffiliateQuota } from '../api'
+import {
+  createInviteCodes,
+  getAffiliateCode,
+  transferAffiliateQuota,
+} from '../api'
 import { generateAffiliateLink } from '../lib'
 
 // ============================================================================
@@ -31,8 +35,10 @@ import { generateAffiliateLink } from '../lib'
 export function useAffiliate() {
   const [affiliateCode, setAffiliateCode] = useState<string>('')
   const [affiliateLink, setAffiliateLink] = useState<string>('')
+  const [createdInviteCodes, setCreatedInviteCodes] = useState<string[]>([])
   const [loading, setLoading] = useState(true)
   const [transferring, setTransferring] = useState(false)
+  const [creatingInviteCode, setCreatingInviteCode] = useState(false)
   const { copyToClipboard } = useCopyToClipboard()
 
   // Fetch affiliate code
@@ -81,6 +87,41 @@ export function useAffiliate() {
     }
   }, [])
 
+  const createInviteCode = useCallback(async (count = 1): Promise<boolean> => {
+    const normalizedCount = Math.max(1, Math.min(100, Number(count) || 1))
+    try {
+      setCreatingInviteCode(true)
+      const response = await createInviteCodes({
+        name: 'invite',
+        count: normalizedCount,
+        max_uses: 1,
+      })
+
+      if (response.success && response.data?.length) {
+        setCreatedInviteCodes(response.data)
+        toast.success(
+          response.message ||
+            i18next.t(
+              normalizedCount > 1
+                ? 'Invitation codes created successfully'
+                : 'Invitation code created successfully'
+            )
+        )
+        return true
+      }
+
+      toast.error(
+        response.message || i18next.t('Failed to create invitation code')
+      )
+      return false
+    } catch (_error) {
+      toast.error(i18next.t('Failed to create invitation code'))
+      return false
+    } finally {
+      setCreatingInviteCode(false)
+    }
+  }, [])
+
   useEffect(() => {
     fetchAffiliateCode()
   }, [fetchAffiliateCode])
@@ -90,8 +131,11 @@ export function useAffiliate() {
     affiliateLink,
     loading,
     transferring,
+    creatingInviteCode,
+    createdInviteCodes,
     copyAffiliateLink,
     transferQuota,
+    createInviteCode,
     refetch: fetchAffiliateCode,
   }
 }

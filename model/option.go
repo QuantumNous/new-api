@@ -38,6 +38,8 @@ func InitOptionMap() {
 	common.OptionMap["ImageDownloadPermission"] = strconv.Itoa(common.ImageDownloadPermission)
 	common.OptionMap["PasswordLoginEnabled"] = strconv.FormatBool(common.PasswordLoginEnabled)
 	common.OptionMap["PasswordRegisterEnabled"] = strconv.FormatBool(common.PasswordRegisterEnabled)
+	common.OptionMap["InviteOnlyRegisterEnabled"] = strconv.FormatBool(common.InviteOnlyRegisterEnabled)
+	common.OptionMap["InviteCodeDailyLimit"] = strconv.Itoa(common.InviteCodeDailyLimit)
 	common.OptionMap["EmailVerificationEnabled"] = strconv.FormatBool(common.EmailVerificationEnabled)
 	common.OptionMap["GitHubOAuthEnabled"] = strconv.FormatBool(common.GitHubOAuthEnabled)
 	common.OptionMap["LinuxDOOAuthEnabled"] = strconv.FormatBool(common.LinuxDOOAuthEnabled)
@@ -280,6 +282,8 @@ func updateOptionMap(key string, value string) (err error) {
 		switch key {
 		case "PasswordRegisterEnabled":
 			common.PasswordRegisterEnabled = boolValue
+		case "InviteOnlyRegisterEnabled":
+			common.InviteOnlyRegisterEnabled = boolValue
 		case "PasswordLoginEnabled":
 			common.PasswordLoginEnabled = boolValue
 		case "EmailVerificationEnabled":
@@ -496,6 +500,8 @@ func updateOptionMap(key string, value string) (err error) {
 		common.TurnstileSecretKey = value
 	case "QuotaForNewUser":
 		common.QuotaForNewUser, _ = strconv.Atoi(value)
+	case "InviteCodeDailyLimit":
+		common.InviteCodeDailyLimit, _ = strconv.Atoi(value)
 	case "QuotaForInviter":
 		common.QuotaForInviter, _ = strconv.Atoi(value)
 	case "QuotaForInvitee":

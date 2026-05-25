@@ -151,12 +151,12 @@ func DiscordOAuth(c *gin.Context) {
 			} else {
 				user.DisplayName = "Discord User"
 			}
-			err := user.Insert(0)
-			if err != nil {
-				c.JSON(http.StatusOK, gin.H{
-					"success": false,
-					"message": err.Error(),
-				})
+			registrationInviteCode := getRegistrationInviteCodeFromSession(session)
+			if _, err := createUserWithRegistrationInviteCode(&user, registrationInviteCode); err != nil {
+				if respondInviteCodeError(c, err) {
+					return
+				}
+				common.ApiError(c, err)
 				return
 			}
 		} else {

@@ -141,17 +141,12 @@ func GitHubOAuth(c *gin.Context) {
 			user.Email = githubUser.Email
 			user.Role = common.RoleCommonUser
 			user.Status = common.UserStatusEnabled
-			affCode := session.Get("aff")
-			inviterId := 0
-			if affCode != nil {
-				inviterId, _ = model.GetUserIdByAffCode(affCode.(string))
-			}
-
-			if err := user.Insert(inviterId); err != nil {
-				c.JSON(http.StatusOK, gin.H{
-					"success": false,
-					"message": err.Error(),
-				})
+			registrationInviteCode := getRegistrationInviteCodeFromSession(session)
+			if _, err := createUserWithRegistrationInviteCode(&user, registrationInviteCode); err != nil {
+				if respondInviteCodeError(c, err) {
+					return
+				}
+				common.ApiError(c, err)
 				return
 			}
 		} else {

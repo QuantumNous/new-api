@@ -36,6 +36,7 @@ type User struct {
 	WeChatId         string         `json:"wechat_id" gorm:"column:wechat_id;index"`
 	TelegramId       string         `json:"telegram_id" gorm:"column:telegram_id;index"`
 	VerificationCode string         `json:"verification_code" gorm:"-:all"`                         // this field is only for Email verification, don't save it to database!
+	InviteCode       string         `json:"invite_code" gorm:"-:all"`                               // 注册时填写的邀请码，不保存到用户表
 	AccessToken      *string        `json:"-" gorm:"type:char(32);column:access_token;uniqueIndex"` // this token is for system management
 	Quota            int            `json:"quota" gorm:"type:int;default:0"`
 	UsedQuota        int            `json:"used_quota" gorm:"type:int;default:0;column:used_quota"` // used quota
@@ -384,6 +385,7 @@ func (user *User) Insert(inviterId int) error {
 			return err
 		}
 	}
+	user.InviterId = inviterId
 	user.Quota = common.QuotaForNewUser
 	//user.SetAccessToken(common.GetUUID())
 	user.AffCode = common.GetRandomString(4)
@@ -443,6 +445,7 @@ func (user *User) InsertWithTx(tx *gorm.DB, inviterId int) error {
 			return err
 		}
 	}
+	user.InviterId = inviterId
 	user.Quota = common.QuotaForNewUser
 	user.AffCode = common.GetRandomString(4)
 

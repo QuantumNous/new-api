@@ -27,6 +27,8 @@ import {
 const defaultAuthSettings: AuthSettings = {
   PasswordLoginEnabled: true,
   PasswordRegisterEnabled: true,
+  InviteOnlyRegisterEnabled: false,
+  InviteCodeDailyLimit: 5,
   EmailVerificationEnabled: false,
   RegisterEnabled: true,
   EmailDomainRestrictionEnabled: false,

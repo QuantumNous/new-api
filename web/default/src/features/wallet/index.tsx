@@ -96,6 +96,9 @@ export function Wallet(props: WalletProps) {
     loading: affiliateLoading,
     transferQuota,
     transferring,
+    createInviteCode,
+    creatingInviteCode,
+    createdInviteCodes,
   } = useAffiliate()
   const { redeeming, redeemCode } = useRedemption()
   const { processing: creemProcessing, processCreemPayment } = useCreemPayment()
@@ -256,6 +259,19 @@ export function Wallet(props: WalletProps) {
     },
     []
   )
+  const inviteCodeDailyLimit = Number(
+    status?.invite_code_daily_limit ?? status?.data?.invite_code_daily_limit ?? 5
+  )
+  const inviteCodeMaxCount =
+    (user?.role ?? 0) >= 10
+      ? 100
+      : Math.min(
+          100,
+          Math.max(
+            1,
+            Number.isFinite(inviteCodeDailyLimit) ? inviteCodeDailyLimit : 5
+          )
+        )
 
   return (
     <>
@@ -316,6 +332,10 @@ export function Wallet(props: WalletProps) {
               user={user}
               affiliateLink={affiliateLink}
               onTransfer={() => setTransferDialogOpen(true)}
+              onCreateInviteCode={createInviteCode}
+              creatingInviteCode={creatingInviteCode}
+              createdInviteCodes={createdInviteCodes}
+              inviteCodeMaxCount={inviteCodeMaxCount}
               complianceConfirmed={
                 topupInfo?.payment_compliance_confirmed !== false
               }

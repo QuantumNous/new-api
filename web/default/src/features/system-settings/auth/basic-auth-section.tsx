@@ -16,11 +16,14 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import * as z from 'zod'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useTranslation } from 'react-i18next'
+import { toast } from 'sonner'
+import { api } from '@/lib/api'
+import { Button } from '@/components/ui/button'
 import {
   Form,
   FormControl,
@@ -31,7 +34,9 @@ import {
   FormMessage,
 } from '@/components/ui/form'
 import { Switch } from '@/components/ui/switch'
+import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
+import { CopyButton } from '@/components/copy-button'
 import {
   SettingsForm,
   SettingsSwitchContent,
@@ -45,6 +50,8 @@ import { useUpdateOption } from '../hooks/use-update-option'
 const basicAuthSchema = z.object({
   PasswordLoginEnabled: z.boolean(),
   PasswordRegisterEnabled: z.boolean(),
+  InviteOnlyRegisterEnabled: z.boolean(),
+  InviteCodeDailyLimit: z.number().min(0),
   EmailVerificationEnabled: z.boolean(),
   RegisterEnabled: z.boolean(),
   EmailDomainRestrictionEnabled: z.boolean(),
@@ -56,6 +63,92 @@ type BasicAuthFormValues = z.infer<typeof basicAuthSchema>
 
 type BasicAuthSectionProps = {
   defaultValues: BasicAuthFormValues
+}
+
+function AdminInviteCodeCreator() {
+  const { t } = useTranslation()
+  const [name, setName] = useState('invite')
+  const [count, setCount] = useState(10)
+  const [isCreating, setIsCreating] = useState(false)
+  const [createdCodes, setCreatedCodes] = useState<string[]>([])
+  const createdText = createdCodes.join('\n')
+
+  const handleCreate = async () => {
+    const normalizedCount = Math.max(1, Math.min(100, Number(count) || 1))
+    setIsCreating(true)
+    try {
+      const res = await api.post('/api/user/admin/invite_codes', {
+        name: name.trim() || 'invite',
+        count: normalizedCount,
+        max_uses: 1,
+      })
+      if (res.data?.success) {
+        setCreatedCodes(res.data.data ?? [])
+        toast.success(t('Invitation codes created successfully'))
+      } else {
+        toast.error(res.data?.message || t('Failed to create invitation codes'))
+      }
+    } catch (_error) {
+      toast.error(t('Failed to create invitation codes'))
+    } finally {
+      setIsCreating(false)
+    }
+  }
+
+  return (
+    <div className='border-border mt-6 grid gap-4 border-t pt-6'>
+      <div>
+        <h3 className='text-sm font-medium'>{t('Invitation Code Batch')}</h3>
+        <p className='text-muted-foreground mt-1 text-sm'>
+          {t(
+            'Administrators can create invitation codes without the daily limit.'
+          )}
+        </p>
+      </div>
+      <div className='grid gap-3 sm:grid-cols-[1fr_140px_auto] sm:items-end'>
+        <div className='grid gap-2'>
+          <label className='text-sm font-medium'>{t('Batch Name')}</label>
+          <Input
+            value={name}
+            onChange={(event) => setName(event.target.value)}
+          />
+        </div>
+        <div className='grid gap-2'>
+          <label className='text-sm font-medium'>{t('Quantity')}</label>
+          <Input
+            type='number'
+            min={1}
+            max={100}
+            value={count}
+            onChange={(event) => setCount(Number(event.target.value))}
+          />
+        </div>
+        <Button type='button' onClick={handleCreate} disabled={isCreating}>
+          {t('Create Codes')}
+        </Button>
+      </div>
+      {createdCodes.length > 0 ? (
+        <div className='grid gap-2'>
+          <div className='flex items-center justify-between gap-2'>
+            <label className='text-sm font-medium'>{t('Created Codes')}</label>
+            <CopyButton
+              value={createdText}
+              variant='outline'
+              size='sm'
+              tooltip={t('Copy invitation codes')}
+              aria-label={t('Copy invitation codes')}
+            />
+          </div>
+          <Textarea
+            readOnly
+            rows={5}
+            value={createdText}
+            className='font-mono'
+          />
+        </div>
+      ) : null}
+    </div>
+  )
 }
 
 export function BasicAuthSection({ defaultValues }: BasicAuthSectionProps) {
@@ -81,7 +174,8 @@ export function BasicAuthSection({ defaultValues }: BasicAuthSectionProps) {
   useResetForm(form, formDefaults)
 
   const onSubmit = async (data: BasicAuthFormValues) => {
-    const updates: Array<{ key: string; value: string | boolean }> = []
+    const updates: Array<{ key: string; value: string | boolean | number }> =
+      []
 
     Object.entries(data).forEach(([key, value]) => {
       if (key === 'EmailDomainWhitelist') {
@@ -177,6 +271,53 @@ export function BasicAuthSection({ defaultValues }: BasicAuthSectionProps) {
 
           <FormField
             control={form.control}
+            name='InviteOnlyRegisterEnabled'
+            render={({ field }) => (
+              <SettingsSwitchItem>
+                <SettingsSwitchContent>
+                  <FormLabel>{t('Invite-only Registration')}</FormLabel>
+                  <FormDescription>
+                    {t('Require a valid invitation code for new accounts')}
+                  </FormDescription>
+                </SettingsSwitchContent>
+                <FormControl>
+                  <Switch
+                    checked={field.value}
+                    onCheckedChange={field.onChange}
+                  />
+                </FormControl>
+              </SettingsSwitchItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name='InviteCodeDailyLimit'
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>{t('Daily Invitation Code Limit')}</FormLabel>
+                <FormControl>
+                  <Input
+                    type='number'
+                    min={0}
+                    value={field.value}
+                    onChange={(event) =>
+                      field.onChange(Number(event.target.value))
+                    }
+                  />
+                </FormControl>
+                <FormDescription>
+                  {t(
+                    'Maximum invitation codes a regular user can create per day. Administrators are unlimited.'
+                  )}
+                </FormDescription>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
             name='EmailVerificationEnabled'
             render={({ field }) => (
               <SettingsSwitchItem>
@@ -262,6 +403,7 @@ export function BasicAuthSection({ defaultValues }: BasicAuthSectionProps) {
           />
         </SettingsForm>
       </Form>
+      <AdminInviteCodeCreator />
     </SettingsSection>
   )
 }

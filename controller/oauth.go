@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/i18n"
@@ -23,9 +24,17 @@ func providerParams(name string) map[string]any {
 func GenerateOAuthCode(c *gin.Context) {
 	session := sessions.Default(c)
 	state := common.GetRandomString(12)
-	affCode := c.Query("aff")
+	inviteCode := strings.TrimSpace(c.Query("invite_code"))
+	affCode := strings.TrimSpace(c.Query("aff"))
+	if inviteCode != "" {
+		session.Set("invite_code", inviteCode)
+	} else {
+		session.Delete("invite_code")
+	}
 	if affCode != "" {
 		session.Set("aff", affCode)
+	} else {
+		session.Delete("aff")
 	}
 	session.Set("oauth_state", state)
 	err := session.Save()
@@ -106,6 +115,9 @@ func HandleOAuth(c *gin.Context) {
 	// 7. Find or create user
 	user, err := findOrCreateOAuthUser(c, provider, oauthUser, session)
 	if err != nil {
+		if respondInviteCodeError(c, err) {
+			return
+		}
 		switch err.(type) {
 		case *OAuthUserDeletedError:
 			common.ApiErrorI18n(c, i18n.MsgOAuthUserDeleted)
@@ -262,17 +274,18 @@ func findOrCreateOAuthUser(c *gin.Context, provider oauth.Provider, oauthUser *o
 	user.Role = common.RoleCommonUser
 	user.Status = common.UserStatusEnabled
 
-	// Handle affiliate code
-	affCode := session.Get("aff")
+	registrationInviteCode := getRegistrationInviteCodeFromSession(session)
 	inviterId := 0
-	if affCode != nil {
-		inviterId, _ = model.GetUserIdByAffCode(affCode.(string))
-	}
 
 	// Use transaction to ensure user creation and OAuth binding are atomic
 	if genericProvider, ok := provider.(*oauth.GenericOAuthProvider); ok {
 		// Custom provider: create user and binding in a transaction
 		err := model.DB.Transaction(func(tx *gorm.DB) error {
+			var err error
+			inviterId, err = getInviterIdForRegistrationWithTx(tx, registrationInviteCode)
+			if err != nil {
+				return err
+			}
 			// Create user
 			if err := user.InsertWithTx(tx, inviterId); err != nil {
 				return err
@@ -288,7 +301,7 @@ func findOrCreateOAuthUser(c *gin.Context, provider oauth.Provider, oauthUser *o
 				return err
 			}
 
-			return nil
+			return model.ConsumeRegistrationInviteCodeWithTx(tx, registrationInviteCode, user.Id)
 		})
 		if err != nil {
 			return nil, err
@@ -299,6 +312,11 @@ func findOrCreateOAuthUser(c *gin.Context, provider oauth.Provider, oauthUser *o
 	} else {
 		// Built-in provider: create user and update provider ID in a transaction
 		err := model.DB.Transaction(func(tx *gorm.DB) error {
+			var err error
+			inviterId, err = getInviterIdForRegistrationWithTx(tx, registrationInviteCode)
+			if err != nil {
+				return err
+			}
 			// Create user
 			if err := user.InsertWithTx(tx, inviterId); err != nil {
 				return err
@@ -317,7 +335,7 @@ func findOrCreateOAuthUser(c *gin.Context, provider oauth.Provider, oauthUser *o
 				return err
 			}
 
-			return nil
+			return model.ConsumeRegistrationInviteCodeWithTx(tx, registrationInviteCode, user.Id)
 		})
 		if err != nil {
 			return nil, err

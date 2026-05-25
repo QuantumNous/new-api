@@ -30,6 +30,8 @@ import type {
   StripePaymentResponse,
   AffiliateCodeResponse,
   AffiliateTransferResponse,
+  InviteCodeCreateRequest,
+  InviteCodeCreateResponse,
   BillingHistoryResponse,
   CompleteOrderRequest,
   CreemPaymentRequest,
@@ -183,6 +185,16 @@ export async function transferAffiliateQuota(
   request: AffiliateTransferRequest
 ): Promise<AffiliateTransferResponse> {
   const res = await api.post('/api/user/aff_transfer', request)
+  return res.data
+}
+
+/**
+ * Create invite codes for current user
+ */
+export async function createInviteCodes(
+  request: InviteCodeCreateRequest
+): Promise<InviteCodeCreateResponse> {
+  const res = await api.post('/api/user/invite_codes', request)
   return res.data
 }
 
