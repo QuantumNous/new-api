@@ -66,4 +66,6 @@ export const EMPTY_DASHBOARD_FILTERS: DashboardFilters = {
   end_timestamp: undefined,
   time_granularity: 'hour',
   username: '',
+  token_id: undefined,
+  token_name: undefined,
 }

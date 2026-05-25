@@ -45,6 +45,38 @@ func GetAllTokens(c *gin.Context) {
 	common.ApiSuccess(c, pageInfo)
 }
 
+type tokenOptionResponse struct {
+	Id     int    `json:"id"`
+	Name   string `json:"name"`
+	Key    string `json:"key"`
+	Status int    `json:"status"`
+	Group  string `json:"group"`
+}
+
+func buildTokenOptionResponses(tokens []*model.Token) []tokenOptionResponse {
+	options := make([]tokenOptionResponse, 0, len(tokens))
+	for _, token := range tokens {
+		options = append(options, tokenOptionResponse{
+			Id:     token.Id,
+			Name:   token.Name,
+			Key:    token.GetMaskedKey(),
+			Status: token.Status,
+			Group:  token.Group,
+		})
+	}
+	return options
+}
+
+func GetTokenOptions(c *gin.Context) {
+	userId := c.GetInt("id")
+	tokens, err := model.GetAllUserTokens(userId, 0, 0)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	common.ApiSuccess(c, buildTokenOptionResponses(tokens))
+}
+
 func SearchTokens(c *gin.Context) {
 	userId := c.GetInt("id")
 	keyword := c.Query("keyword")
