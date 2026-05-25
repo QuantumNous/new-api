@@ -151,8 +151,11 @@ func UpdateModelMeta(c *gin.Context) {
 			return
 		}
 		if res.RowsAffected == 0 {
-			common.ApiErrorMsg(c, "模型不存在")
-			return
+			var count int64
+			if err := model.DB.Model(&model.Model{}).Where("id = ?", req.Id).Count(&count).Error; err != nil || count == 0 {
+				common.ApiErrorMsg(c, "模型不存在")
+				return
+			}
 		}
 		model.RefreshPricing()
 		common.ApiSuccess(c, gin.H{"id": req.Id})
