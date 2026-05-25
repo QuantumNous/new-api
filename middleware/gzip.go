@@ -8,6 +8,7 @@ import (
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/andybalholm/brotli"
 	"github.com/gin-gonic/gin"
+	"github.com/klauspost/compress/zstd"
 )
 
 type readCloser struct {
@@ -61,6 +62,25 @@ func DecompressRequestMiddleware() gin.HandlerFunc {
 			c.Request.Body = wrapMaxBytes(&readCloser{
 				Reader: reader,
 				closeFn: func() error {
+					return origBody.Close()
+				},
+			})
+			c.Request.Header.Del("Content-Encoding")
+		case "zstd":
+			// Codex CLI 0.133+ sends Responses API request bodies with
+			// Content-Encoding: zstd. Without this branch the raw compressed
+			// bytes reach the JSON parser and the request 400s with
+			// "invalid JSON request body".
+			zstdReader, err := zstd.NewReader(origBody)
+			if err != nil {
+				_ = origBody.Close()
+				c.AbortWithStatus(http.StatusBadRequest)
+				return
+			}
+			c.Request.Body = wrapMaxBytes(&readCloser{
+				Reader: zstdReader,
+				closeFn: func() error {
+					zstdReader.Close()
 					return origBody.Close()
 				},
 			})
