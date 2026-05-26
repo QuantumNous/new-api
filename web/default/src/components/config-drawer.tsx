@@ -490,6 +490,7 @@ function ScaleConfig() {
     { value: 'sm', label: t('Compact'), rows: 4, rowGap: '3px' },
     { value: 'default', label: t('Default'), rows: 3, rowGap: '6px' },
     { value: 'lg', label: t('Comfortable'), rows: 2, rowGap: '10px' },
+    { value: 'xl', label: t('Super Large'), rows: 1, rowGap: '14px' },
   ]
   return (
     <div>
@@ -501,7 +502,7 @@ function ScaleConfig() {
       <Radio
         value={customization.scale}
         onValueChange={(v) => setScale(v as ThemeScale)}
-        className='grid w-full grid-cols-3 gap-4'
+        className='grid w-full grid-cols-4 gap-3'
         aria-label={t('Select interface density')}
       >
         {scaleOptions.map((option) => (
