@@ -19,8 +19,13 @@ For commercial licensing, please contact support@quantumnous.com
 import { useRef, useState, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { api } from '@/lib/api'
+import { api, type ApiRequestConfig } from '@/lib/api'
 import { normalizeModelList } from '../lib/upstream-update-utils'
+
+const upstreamUpdateRequestConfig = {
+  skipBusinessError: true,
+  skipErrorHandler: true,
+} satisfies ApiRequestConfig
 
 function getManualIgnoredModelCount(settings: unknown): number {
   let parsed: Record<string, unknown> | null = null
@@ -117,7 +122,7 @@ export function useChannelUpstreamUpdates(refresh: () => Promise<void>) {
             ignore_models: ignoreModels,
             remove_models: normalizeModelList(selectedRemove),
           },
-          { skipErrorHandler: true } as Record<string, unknown>
+          upstreamUpdateRequestConfig
         )
         const { success, message, data } = res.data || {}
         if (!success) {
@@ -162,7 +167,7 @@ export function useChannelUpstreamUpdates(refresh: () => Promise<void>) {
       const res = await api.post(
         '/api/channel/upstream_updates/apply_all',
         {},
-        { skipErrorHandler: true } as Record<string, unknown>
+        upstreamUpdateRequestConfig
       )
       const { success, message, data } = res.data || {}
       if (!success) {
@@ -206,7 +211,7 @@ export function useChannelUpstreamUpdates(refresh: () => Promise<void>) {
         const res = await api.post(
           '/api/channel/upstream_updates/detect',
           { id: ch.id },
-          { skipErrorHandler: true } as Record<string, unknown>
+          upstreamUpdateRequestConfig
         )
         const { success, message, data } = res.data || {}
         if (!success) {
@@ -244,7 +249,7 @@ export function useChannelUpstreamUpdates(refresh: () => Promise<void>) {
       const res = await api.post(
         '/api/channel/upstream_updates/detect_all',
         {},
-        { skipErrorHandler: true } as Record<string, unknown>
+        upstreamUpdateRequestConfig
       )
       const { success, message, data } = res.data || {}
       if (!success) {

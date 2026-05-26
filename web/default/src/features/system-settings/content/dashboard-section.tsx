@@ -48,6 +48,7 @@ import {
 import { SettingsPageFormActions } from '../components/settings-page-context'
 import { SettingsSection } from '../components/settings-section'
 import { useUpdateOption } from '../hooks/use-update-option'
+import { safeNumberFieldProps } from '../utils/numeric-field'
 
 const dataDashboardSchema = z.object({
   DataExportEnabled: z.boolean(),
@@ -132,9 +133,8 @@ export function DashboardSection({ defaultValues }: DashboardSectionProps) {
                       min={1}
                       max={1440}
                       step={1}
+                      {...safeNumberFieldProps(field)}
                       disabled={!isEnabled}
-                      value={field.value}
-                      onChange={(e) => field.onChange(e.target.valueAsNumber)}
                     />
                   </FormControl>
                   <FormDescription>

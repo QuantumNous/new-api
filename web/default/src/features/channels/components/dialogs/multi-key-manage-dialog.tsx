@@ -135,6 +135,8 @@ export function MultiKeyManageDialog({
         setEnabledCount(response.data.enabled_count || 0)
         setManualDisabledCount(response.data.manual_disabled_count || 0)
         setAutoDisabledCount(response.data.auto_disabled_count || 0)
+      } else {
+        toast.error(response.message || t('Failed to load key status'))
       }
     } catch (error: unknown) {
       toast.error(
