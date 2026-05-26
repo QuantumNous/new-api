@@ -64,7 +64,7 @@ type requestPayload struct {
 }
 
 type responseTask struct {
-	ID      string `json:"id"`
+	ID      dto.StringValue `json:"id"`
 	Model   string `json:"model"`
 	Status  string `json:"status"`
 	Content struct {
@@ -387,9 +387,19 @@ func (a *TaskAdaptor) convertToRequestPayload(req *relaycommon.TaskSubmitReq) (*
 	return &r, nil
 }
 
+// normalizeTaskPollBody unwraps gateway poll responses that nest the Volc payload under
+// upstream_response, and leaves native Volc bodies unchanged.
+func normalizeTaskPollBody(respBody []byte) []byte {
+	raw := string(respBody)
+	if upstream := gjson.Get(raw, "upstream_response"); upstream.Exists() && upstream.IsObject() {
+		return []byte(upstream.Raw)
+	}
+	return respBody
+}
+
 func (a *TaskAdaptor) ParseTaskResult(respBody []byte) (*relaycommon.TaskInfo, error) {
 	resTask := responseTask{}
-	if err := common.Unmarshal(respBody, &resTask); err != nil {
+	if err := common.Unmarshal(normalizeTaskPollBody(respBody), &resTask); err != nil {
 		return nil, errors.Wrap(err, "unmarshal task result failed")
 	}
 
@@ -427,7 +437,7 @@ func (a *TaskAdaptor) ParseTaskResult(respBody []byte) (*relaycommon.TaskInfo, e
 
 func (a *TaskAdaptor) ConvertToOpenAIVideo(originTask *model.Task) ([]byte, error) {
 	var dResp responseTask
-	if err := common.Unmarshal(originTask.Data, &dResp); err != nil {
+	if err := common.Unmarshal(normalizeTaskPollBody(originTask.Data), &dResp); err != nil {
 		return nil, errors.Wrap(err, "unmarshal doubao task data failed")
 	}
 

@@ -1,6 +1,10 @@
 package doubao
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/QuantumNous/new-api/model"
+)
 
 func TestParseCreateTaskID(t *testing.T) {
 	t.Parallel()
@@ -50,5 +54,34 @@ func TestParseCreateTaskID(t *testing.T) {
 				t.Fatalf("got %q, want %q", got, tt.want)
 			}
 		})
+	}
+}
+
+func TestParseTaskResultNumericID(t *testing.T) {
+	t.Parallel()
+
+	body := `{"id":33,"upstream_task_id":"cgt-20260526194039-p5wmw","status":"running","content":{}}`
+	ti, err := (&TaskAdaptor{}).ParseTaskResult([]byte(body))
+	if err != nil {
+		t.Fatalf("ParseTaskResult: %v", err)
+	}
+	if ti.Status != model.TaskStatusInProgress {
+		t.Fatalf("got status %q, want in_progress", ti.Status)
+	}
+}
+
+func TestParseTaskResultGatewayWrapper(t *testing.T) {
+	t.Parallel()
+
+	body := `{"id":33,"upstream_response":{"id":"cgt-abc","status":"succeeded","content":{"video_url":"https://example.com/v.mp4"},"usage":{"completion_tokens":1,"total_tokens":2}}}`
+	ti, err := (&TaskAdaptor{}).ParseTaskResult([]byte(body))
+	if err != nil {
+		t.Fatalf("ParseTaskResult: %v", err)
+	}
+	if ti.Status != model.TaskStatusSuccess {
+		t.Fatalf("got status %q, want success", ti.Status)
+	}
+	if ti.Url != "https://example.com/v.mp4" {
+		t.Fatalf("got url %q", ti.Url)
 	}
 }
