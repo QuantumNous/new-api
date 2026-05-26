@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
@@ -21,6 +22,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/pkg/errors"
 	"github.com/samber/lo"
+	"github.com/tidwall/gjson"
 )
 
 // ============================
@@ -59,10 +61,6 @@ type requestPayload struct {
 	Seed        *dto.IntValue  `json:"seed,omitempty"`
 	CameraFixed *dto.BoolValue `json:"camera_fixed,omitempty"`
 	Watermark   *dto.BoolValue `json:"watermark,omitempty"`
-}
-
-type responsePayload struct {
-	ID string `json:"id"` // task_id
 }
 
 type responseTask struct {
@@ -214,15 +212,9 @@ func (a *TaskAdaptor) DoResponse(c *gin.Context, resp *http.Response, info *rela
 	}
 	_ = resp.Body.Close()
 
-	// Parse Doubao response
-	var dResp responsePayload
-	if err := common.Unmarshal(responseBody, &dResp); err != nil {
+	upstreamID, err := parseCreateTaskID(responseBody)
+	if err != nil {
 		taskErr = service.TaskErrorWrapper(errors.Wrapf(err, "body: %s", responseBody), "unmarshal_response_body_failed", http.StatusInternalServerError)
-		return
-	}
-
-	if dResp.ID == "" {
-		taskErr = service.TaskErrorWrapper(fmt.Errorf("task_id is empty"), "invalid_response", http.StatusInternalServerError)
 		return
 	}
 
@@ -233,7 +225,42 @@ func (a *TaskAdaptor) DoResponse(c *gin.Context, resp *http.Response, info *rela
 	ov.Model = info.OriginModelName
 
 	c.JSON(http.StatusOK, ov)
-	return dResp.ID, responseBody, nil
+	return upstreamID, responseBody, nil
+}
+
+// parseCreateTaskID extracts the upstream Volc task id from create responses.
+// Native Volc returns {"id":"cgt-..."}; some gateways wrap it as
+// {"id":33,"upstream_task_id":"cgt-...","upstream_response":{"id":"cgt-..."}}.
+func parseCreateTaskID(respBody []byte) (string, error) {
+	raw := string(respBody)
+	for _, path := range []string{
+		"upstream_task_id",
+		"upstream_response.id",
+		"data.id",
+		"data.task_id",
+		"id",
+	} {
+		id := strings.TrimSpace(gjson.Get(raw, path).String())
+		if id == "" {
+			continue
+		}
+		if path == "id" && !isLikelyVolcTaskID(id) {
+			continue
+		}
+		return id, nil
+	}
+	return "", fmt.Errorf("task id not found in create response")
+}
+
+func isLikelyVolcTaskID(id string) bool {
+	if strings.HasPrefix(id, "cgt-") {
+		return true
+	}
+	// Skip bare numeric gateway record ids (e.g. 33).
+	if _, err := strconv.ParseInt(id, 10, 64); err == nil {
+		return false
+	}
+	return id != ""
 }
 
 // FetchTask fetch task status
