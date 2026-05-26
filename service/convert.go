@@ -149,6 +149,10 @@ func ClaudeToOpenAIRequest(claudeRequest dto.ClaudeRequest, info *relaycommon.Re
 
 			for _, mediaMsg := range contents {
 				switch mediaMsg.Type {
+				case "thinking":
+					if mediaMsg.Thinking != nil {
+						openAIMessage.ReasoningContent = mediaMsg.Thinking
+					}
 				case "text", "input_text":
 					message := dto.MediaContent{
 						Type:         "text",

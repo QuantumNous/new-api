@@ -134,6 +134,7 @@ export function formatMessageForAPI(message: Message): ChatCompletionMessage {
   return {
     role: message.from,
     content: currentVersion.content,
+    reasoning_content: message.reasoning?.content,
   }
 }
 

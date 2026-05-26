@@ -40,6 +40,7 @@ export const useSyncMessageAndCustomBody = (
         id: msg.id,
         role: msg.role,
         content: msg.content,
+        reasoning_content: msg.reasoningContent || undefined,
       })),
     );
   }, []);
@@ -77,6 +78,7 @@ export const useSyncMessageAndCustomBody = (
       customPayload.messages = message.map((msg) => ({
         role: msg.role,
         content: msg.content,
+        reasoning_content: msg.reasoningContent || undefined,
       }));
 
       const newCustomBody = JSON.stringify(customPayload, null, 2);

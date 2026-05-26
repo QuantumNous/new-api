@@ -469,6 +469,7 @@ export const formatMessageForAPI = (message) => {
   return {
     role: message.role,
     content: message.content,
+    reasoning_content: message.reasoningContent || undefined,
   };
 };
 

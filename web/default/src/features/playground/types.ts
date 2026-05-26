@@ -46,6 +46,7 @@ export interface Message {
 export interface ChatCompletionMessage {
   role: MessageRole
   content: string | ContentPart[]
+  reasoning_content?: string
 }
 
 export interface ContentPart {
