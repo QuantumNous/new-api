@@ -74,34 +74,11 @@ export const textColorMap = {
 export type StatusVariant = keyof typeof dotColorMap
 
 const sizeMap = {
-  sm: 'h-6 gap-1 px-2 text-sm leading-none',
-  md: 'h-6 gap-1 px-2 text-sm leading-none',
-  lg: 'h-7 gap-1.5 px-2.5 text-sm leading-none',
+  sm: 'h-5 gap-1 px-1.5 text-xs leading-none',
+  md: 'h-5 gap-1 px-1.5 text-xs leading-none',
+  lg: 'h-6 gap-1.5 px-2 text-xs leading-none',
 } as const
 
-const badgeSurfaceMap = {
-  success: 'bg-success/10 text-success',
-  warning: 'bg-warning/10 text-warning',
-  danger: 'bg-destructive/10 text-destructive',
-  info: 'bg-info/10 text-info',
-  neutral: 'bg-muted text-muted-foreground',
-  purple: 'bg-chart-4/10 text-chart-4',
-  amber: 'bg-warning/10 text-warning',
-  blue: 'bg-chart-1/10 text-chart-1',
-  cyan: 'bg-chart-2/10 text-chart-2',
-  green: 'bg-success/10 text-success',
-  grey: 'bg-muted text-muted-foreground',
-  indigo: 'bg-chart-1/10 text-chart-1',
-  'light-blue': 'bg-info/10 text-info',
-  'light-green': 'bg-success/10 text-success',
-  lime: 'bg-chart-3/10 text-chart-3',
-  orange: 'bg-warning/10 text-warning',
-  pink: 'bg-chart-5/10 text-chart-5',
-  red: 'bg-destructive/10 text-destructive',
-  teal: 'bg-chart-2/10 text-chart-2',
-  violet: 'bg-chart-4/10 text-chart-4',
-  yellow: 'bg-warning/10 text-warning',
-} as const
 
 export interface StatusBadgeProps extends Omit<
   React.HTMLAttributes<HTMLSpanElement>,
@@ -127,7 +104,7 @@ export function StatusBadge({
   variant,
   size = 'sm',
   pulse = false,
-  showDot = false,
+  showDot = true,
   copyable = true,
   copyText,
   autoColor,
@@ -136,7 +113,6 @@ export function StatusBadge({
   ...props
 }: StatusBadgeProps) {
   const { copyToClipboard } = useCopyToClipboard()
-  void showDot
 
   const computedVariant: StatusVariant = autoColor
     ? (stringToColor(autoColor) as StatusVariant)
@@ -158,7 +134,7 @@ export function StatusBadge({
       className={cn(
         'inline-flex w-fit max-w-full shrink-0 items-center rounded-full font-medium tracking-normal whitespace-nowrap transition-colors',
         sizeMap[size ?? 'sm'],
-        badgeSurfaceMap[computedVariant],
+        textColorMap[computedVariant],
         pulse && 'animate-pulse',
         copyable &&
           'cursor-copy hover:brightness-95 active:scale-95 dark:hover:brightness-110',
@@ -168,6 +144,15 @@ export function StatusBadge({
       title={copyable ? `Click to copy: ${copyText || label || ''}` : undefined}
       {...props}
     >
+      {showDot && (
+        <span
+          className={cn(
+            'inline-block size-1.5 shrink-0 rounded-full',
+            dotColorMap[computedVariant]
+          )}
+          aria-hidden='true'
+        />
+      )}
       {Icon && <Icon className='size-3.5 shrink-0' />}
       {content}
     </span>

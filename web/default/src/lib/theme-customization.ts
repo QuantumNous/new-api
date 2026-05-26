@@ -30,6 +30,14 @@ export const THEME_PRESETS = [
     swatches: ['oklch(0.13 0 0)', 'oklch(0.95 0 0)'],
   },
   {
+    // Inspired by Anthropic's official brand language: warm cream canvas
+    // (#faf9f5) paired with clay/coral (#d97757) as the single accent.
+    // Swatches preview the canvas → accent gradient that defines the system.
+    value: 'anthropic',
+    name: 'Anthropic',
+    swatches: ['oklch(0.984 0.005 95)', 'oklch(0.685 0.142 38)'],
+  },
+  {
     value: 'underground',
     name: 'Underground',
     swatches: ['oklch(0.5315 0.0694 156.19)', 'oklch(0.5748 0.0862 336.52)'],
@@ -71,8 +79,32 @@ export type ThemeRadius = 'default' | 'none' | 'sm' | 'md' | 'lg' | 'xl'
 export type ThemeScale = 'default' | 'sm' | 'lg'
 export type ContentLayout = 'full' | 'centered'
 
+/**
+ * Font axis for the theme.
+ *
+ * - `default` — resolve at runtime from the active preset
+ *   (see `PRESET_DEFAULT_FONT`). The shipped `default` and `anthropic`
+ *   presets resolve to serif; other named color presets fall back to
+ *   sans unless they list a different choice. Mirrors how
+ *   `radius: 'default'` defers to a per-preset hint.
+ * - `sans` — humanist sans (Public Sans), the project's UI fallback.
+ * - `serif` — editorial serif (Lora + CJK fallbacks), the project's
+ *   "soul" typography. Inherits across the whole UI; monospace contexts
+ *   keep their own family via Tailwind preflight and `.font-mono`.
+ */
+export type ThemeFont = 'default' | 'sans' | 'serif'
+
+/**
+ * The resolved (non-`default`) font value applied to the DOM. The provider
+ * always sets `data-theme-font` to one of these concrete values so CSS only
+ * needs simple attribute selectors (no `:not()` gymnastics, no per-preset
+ * font branches).
+ */
+export type ResolvedThemeFont = Exclude<ThemeFont, 'default'>
+
 export type ThemeCustomization = {
   preset: ThemePreset
+  font: ThemeFont
   radius: ThemeRadius
   scale: ThemeScale
   contentLayout: ContentLayout
@@ -80,6 +112,7 @@ export type ThemeCustomization = {
 
 export const DEFAULT_THEME_CUSTOMIZATION: ThemeCustomization = {
   preset: 'default',
+  font: 'default',
   radius: 'default',
   scale: 'default',
   contentLayout: 'full',
@@ -88,6 +121,12 @@ export const DEFAULT_THEME_CUSTOMIZATION: ThemeCustomization = {
 export const THEME_PRESET_VALUES = new Set(
   THEME_PRESETS.map((p) => p.value)
 ) as ReadonlySet<ThemePreset>
+
+export const THEME_FONT_VALUES: ReadonlySet<ThemeFont> = new Set([
+  'default',
+  'sans',
+  'serif',
+])
 
 export const THEME_RADIUS_VALUES: ReadonlySet<ThemeRadius> = new Set([
   'default',
@@ -111,7 +150,42 @@ export const CONTENT_LAYOUT_VALUES: ReadonlySet<ContentLayout> = new Set([
 
 export const THEME_COOKIE_KEYS = {
   preset: 'theme_preset',
+  font: 'theme_font',
   radius: 'theme_radius',
   scale: 'theme_scale',
   contentLayout: 'theme_content_layout',
 } as const
+
+/**
+ * Preset → default font mapping. Used by the provider to resolve the user's
+ * `font: 'default'` preference against the active preset.
+ *
+ * Co-located with the preset registry so a preset's signature typography
+ * is declared in one place. Presets not listed here fall back to the
+ * `resolveThemeFont` default of `sans`. The shipped `default` preset
+ * opts into serif so the editorial Lora voice is the out-of-the-box
+ * experience; vivid color presets stay on the humanist sans so their
+ * accents read clearly without competing with the body type.
+ */
+export const PRESET_DEFAULT_FONT: Partial<
+  Record<ThemePreset, ResolvedThemeFont>
+> = {
+  default: 'sans',
+  anthropic: 'serif',
+}
+
+/**
+ * Resolve a user font preference + active preset into the concrete font that
+ * should drive the DOM. Pure function so it's safe to call inside both the
+ * effect that applies the attribute and the UI preview that hints at what
+ * `default` will render as.
+ */
+export function resolveThemeFont(
+  font: ThemeFont,
+  preset: ThemePreset
+): ResolvedThemeFont {
+  if (font === 'default') {
+    return PRESET_DEFAULT_FONT[preset] ?? 'sans'
+  }
+  return font
+}

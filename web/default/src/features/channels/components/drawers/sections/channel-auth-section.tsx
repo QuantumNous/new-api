@@ -16,23 +16,29 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import z from 'zod'
-import { createFileRoute } from '@tanstack/react-router'
-import { ApiKeys } from '@/features/keys'
-import { API_KEY_STATUS_OPTIONS } from '@/features/keys/constants'
+import type { ReactNode } from 'react'
+import { KeyRound } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 
-const apiKeySearchSchema = z.object({
-  page: z.number().optional().catch(1),
-  pageSize: z.number().optional().catch(undefined),
-  status: z
-    .array(z.enum(API_KEY_STATUS_OPTIONS.map((s) => s.value as `${number}`)))
-    .optional()
-    .catch([]),
-  filter: z.string().optional().catch(''),
-  token: z.string().optional().catch(''),
-})
+type ChannelAuthSectionProps = {
+  children: ReactNode
+}
 
-export const Route = createFileRoute('/_authenticated/keys/')({
-  validateSearch: apiKeySearchSchema,
-  component: ApiKeys,
-})
+export function ChannelAuthSection(props: ChannelAuthSectionProps) {
+  const { t } = useTranslation()
+
+  return (
+    <div className='border-border/60 flex flex-col gap-4 border-t pt-4'>
+      <div className='flex items-center gap-2'>
+        <KeyRound
+          className='text-muted-foreground h-3.5 w-3.5'
+          aria-hidden='true'
+        />
+        <h4 className='text-muted-foreground text-xs font-medium tracking-wide uppercase'>
+          {t('Authentication')}
+        </h4>
+      </div>
+      {props.children}
+    </div>
+  )
+}

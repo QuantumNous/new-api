@@ -19,6 +19,7 @@
   },
   "dependencies": {
     "@base-ui/react": "^1.5.0",
+    "@fontsource-variable/lora": "^5.2.8",
     "@fontsource-variable/public-sans": "^5.2.7",
     "@hookform/resolvers": "^5.4.0",
     "@hugeicons/core-free-icons": "^4.1.4",
@@ -98,7 +99,7 @@
     "typescript-eslint": "^8.59.4"
   },
   "overrides": {
-    "brace-expansion": "5.0.6",
+    "brace-expansion": "2.1.1",
     "dompurify": "3.4.5",
     "fast-uri": "3.1.2",
     "hono": "4.12.22",
