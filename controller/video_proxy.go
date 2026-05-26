@@ -109,12 +109,27 @@ func VideoProxy(c *gin.Context) {
 	case constant.ChannelTypeOpenAI, constant.ChannelTypeSora:
 		videoURL = fmt.Sprintf("%s/v1/videos/%s/content", baseURL, task.GetUpstreamTaskID())
 		req.Header.Set("Authorization", "Bearer "+channel.Key)
+	case constant.ChannelTypeOpenAIVideo:
+		videoURL = task.GetResultURL()
+		if isHongniaoVideoChannel(baseURL, channel.Other) {
+			req.Header.Set("X-API-Key", channel.Key)
+		}
 	default:
 		// Video URL is stored in PrivateData.ResultURL (fallback to FailReason for old data)
 		videoURL = task.GetResultURL()
 	}
 
 	videoURL = strings.TrimSpace(videoURL)
+	skipSSRFValidation := false
+	if channel.Type == constant.ChannelTypeOpenAIVideo && strings.HasPrefix(videoURL, "runway:") {
+		filePath := strings.TrimSpace(strings.TrimPrefix(videoURL, "runway:"))
+		if !strings.HasPrefix(filePath, "/files/") {
+			videoProxyError(c, http.StatusBadGateway, "server_error", "Invalid Runway file URL")
+			return
+		}
+		videoURL = strings.TrimRight(baseURL, "/") + filePath
+		skipSSRFValidation = true
+	}
 	if videoURL == "" {
 		logger.LogError(c.Request.Context(), fmt.Sprintf("Video URL is empty for task %s", taskID))
 		videoProxyError(c, http.StatusBadGateway, "server_error", "Failed to fetch video content")
@@ -130,10 +145,12 @@ func VideoProxy(c *gin.Context) {
 	}
 
 	fetchSetting := system_setting.GetFetchSetting()
-	if err := common.ValidateURLWithFetchSetting(videoURL, fetchSetting.EnableSSRFProtection, fetchSetting.AllowPrivateIp, fetchSetting.DomainFilterMode, fetchSetting.IpFilterMode, fetchSetting.DomainList, fetchSetting.IpList, fetchSetting.AllowedPorts, fetchSetting.ApplyIPFilterForDomain); err != nil {
-		logger.LogError(c.Request.Context(), fmt.Sprintf("Video URL blocked for task %s: %v", taskID, err))
-		videoProxyError(c, http.StatusForbidden, "server_error", fmt.Sprintf("request blocked: %v", err))
-		return
+	if !skipSSRFValidation {
+		if err := common.ValidateURLWithFetchSetting(videoURL, fetchSetting.EnableSSRFProtection, fetchSetting.AllowPrivateIp, fetchSetting.DomainFilterMode, fetchSetting.IpFilterMode, fetchSetting.DomainList, fetchSetting.IpList, fetchSetting.AllowedPorts, fetchSetting.ApplyIPFilterForDomain); err != nil {
+			logger.LogError(c.Request.Context(), fmt.Sprintf("Video URL blocked for task %s: %v", taskID, err))
+			videoProxyError(c, http.StatusForbidden, "server_error", fmt.Sprintf("request blocked: %v", err))
+			return
+		}
 	}
 
 	req.URL, err = url.Parse(videoURL)
@@ -169,6 +186,15 @@ func VideoProxy(c *gin.Context) {
 	if _, err = io.Copy(c.Writer, resp.Body); err != nil {
 		logger.LogError(c.Request.Context(), fmt.Sprintf("Failed to stream video content: %s", err.Error()))
 	}
+}
+
+func isHongniaoVideoChannel(baseURL, channelOther string) bool {
+	baseURL = strings.ToLower(strings.TrimSpace(baseURL))
+	channelOther = strings.ToLower(strings.TrimSpace(channelOther))
+	return strings.Contains(baseURL, "open.hongniaoai.com") ||
+		strings.Contains(channelOther, "hongniao") ||
+		strings.Contains(channelOther, "xb-sora") ||
+		strings.Contains(channelOther, "xbsora")
 }
 
 func writeVideoDataURL(c *gin.Context, dataURL string) error {

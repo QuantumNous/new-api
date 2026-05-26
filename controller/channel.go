@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"strconv"
 	"strings"
@@ -174,6 +175,13 @@ func buildFetchModelsHeaders(channel *model.Channel, key string) (http.Header, e
 	switch channel.Type {
 	case constant.ChannelTypeAnthropic:
 		headers = GetClaudeAuthHeader(key)
+	case constant.ChannelTypeOpenAIVideo:
+		if isXBSoraModelsAPI(channel.GetBaseURL()) {
+			headers = http.Header{}
+			headers.Set("X-API-Key", key)
+		} else {
+			headers = GetAuthHeader(key)
+		}
 	default:
 		headers = GetAuthHeader(key)
 	}
@@ -194,6 +202,93 @@ func buildFetchModelsHeaders(channel *model.Channel, key string) (http.Header, e
 	}
 
 	return headers, nil
+}
+
+func isXBSoraModelsAPI(baseURL string) bool {
+	baseURL = strings.ToLower(strings.TrimRight(strings.TrimSpace(baseURL), "/"))
+	return strings.Contains(baseURL, "xb-sora2") ||
+		strings.Contains(baseURL, "xbsora2") ||
+		strings.Contains(baseURL, "xb-sora") ||
+		strings.Contains(baseURL, "xbsora") ||
+		strings.HasSuffix(baseURL, "/api/v1") ||
+		strings.HasSuffix(baseURL, "/v1")
+}
+
+func xbSoraModelsURL(baseURL string) string {
+	baseURL = strings.TrimRight(strings.TrimSpace(baseURL), "/")
+	if strings.HasSuffix(baseURL, "/api/v1") || strings.HasSuffix(baseURL, "/v1") {
+		return baseURL + "/models"
+	}
+	return baseURL + "/api/v1/models"
+}
+
+func parseXBSoraModelIDs(body []byte) ([]string, error) {
+	var result map[string]any
+	if err := common.Unmarshal(body, &result); err != nil {
+		return nil, err
+	}
+	if !xbSoraFetchCodeOK(result["code"]) {
+		return nil, fmt.Errorf("xb-sora2 models fetch failed: %s", xbSoraFetchMessage(result))
+	}
+	models := findXBSoraModelIDs(result, 0)
+	if len(models) == 0 {
+		return nil, fmt.Errorf("xb-sora2 models response contains no models")
+	}
+	return models, nil
+}
+
+func findXBSoraModelIDs(value any, depth int) []string {
+	if depth > 4 {
+		return nil
+	}
+	switch v := value.(type) {
+	case map[string]any:
+		if models, ok := v["models"].([]any); ok {
+			ids := make([]string, 0, len(models))
+			for _, item := range models {
+				model, ok := item.(map[string]any)
+				if !ok {
+					continue
+				}
+				id, _ := model["id"].(string)
+				if strings.TrimSpace(id) != "" {
+					ids = append(ids, id)
+				}
+			}
+			return ids
+		}
+		if data, ok := v["data"]; ok {
+			return findXBSoraModelIDs(data, depth+1)
+		}
+	}
+	return nil
+}
+
+func xbSoraFetchCodeOK(code any) bool {
+	switch v := code.(type) {
+	case nil:
+		return true
+	case int:
+		return v == 0 || v == http.StatusOK
+	case int64:
+		return v == 0 || v == http.StatusOK
+	case float64:
+		return v == 0 || v == http.StatusOK
+	case string:
+		v = strings.TrimSpace(v)
+		return v == "" || v == "0" || v == "0000" || v == "200"
+	default:
+		return false
+	}
+}
+
+func xbSoraFetchMessage(result map[string]any) string {
+	for _, key := range []string{"message", "msg", "error"} {
+		if message, ok := result[key].(string); ok && strings.TrimSpace(message) != "" {
+			return message
+		}
+	}
+	return "unknown error"
 }
 
 func FetchUpstreamModels(c *gin.Context) {
@@ -1032,6 +1127,10 @@ func FetchModels(c *gin.Context) {
 
 	client := &http.Client{}
 	url := fmt.Sprintf("%s/v1/models", baseURL)
+	useXBSoraModelsAPI := req.Type == constant.ChannelTypeOpenAIVideo && isXBSoraModelsAPI(baseURL)
+	if useXBSoraModelsAPI {
+		url = xbSoraModelsURL(baseURL)
+	}
 
 	request, err := http.NewRequest("GET", url, nil)
 	if err != nil {
@@ -1042,7 +1141,11 @@ func FetchModels(c *gin.Context) {
 		return
 	}
 
-	request.Header.Set("Authorization", "Bearer "+key)
+	if useXBSoraModelsAPI {
+		request.Header.Set("X-API-Key", key)
+	} else {
+		request.Header.Set("Authorization", "Bearer "+key)
+	}
 
 	response, err := client.Do(request)
 	if err != nil {
@@ -1061,6 +1164,30 @@ func FetchModels(c *gin.Context) {
 		return
 	}
 	defer response.Body.Close()
+
+	if useXBSoraModelsAPI {
+		body, err := io.ReadAll(response.Body)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"success": false,
+				"message": err.Error(),
+			})
+			return
+		}
+		models, err := parseXBSoraModelIDs(body)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"success": false,
+				"message": err.Error(),
+			})
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{
+			"success": true,
+			"data":    models,
+		})
+		return
+	}
 
 	var result struct {
 		Data []struct {

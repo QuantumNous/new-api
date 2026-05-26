@@ -52,6 +52,10 @@ export default defineConfig({
     },
     react(),
     vitePluginSemi({
+      theme: path.resolve(
+        __dirname,
+        './node_modules/@douyinfe/semi-theme-default',
+      ),
       cssLayer: true,
     }),
   ],

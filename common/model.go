@@ -13,7 +13,10 @@ var (
 		"dall-e-3",
 		"dall-e-2",
 		"gpt-image-1",
+		"gpt-image-2",
 		"prefix:imagen-",
+		"gemini_3.0_pro_image_preview",
+		"gemini_3.1_flash_image_preview",
 		"flux-",
 		"flux.1-",
 	}

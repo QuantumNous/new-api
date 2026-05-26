@@ -221,7 +221,7 @@ func RelayTaskSubmit(c *gin.Context, info *relaycommon.RelayInfo) (*TaskSubmitRe
 	if err != nil {
 		return nil, service.TaskErrorWrapper(err, "do_request_failed", http.StatusInternalServerError)
 	}
-	if resp != nil && resp.StatusCode != http.StatusOK {
+	if resp != nil && resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusAccepted {
 		responseBody, _ := io.ReadAll(resp.Body)
 		return nil, service.TaskErrorWrapper(fmt.Errorf("%s", string(responseBody)), "fail_to_fetch_task", resp.StatusCode)
 	}
@@ -438,8 +438,11 @@ func tryRealtimeFetch(task *model.Task, isOpenAIVideoAPI bool) []byte {
 	}
 
 	resp, err := adaptor.FetchTask(baseURL, channelModel.Key, map[string]any{
-		"task_id": task.GetUpstreamTaskID(),
-		"action":  task.Action,
+		"task_id":             task.GetUpstreamTaskID(),
+		"action":              task.Action,
+		"channel_other":       channelModel.Other,
+		"origin_model_name":   task.Properties.OriginModelName,
+		"upstream_model_name": task.Properties.UpstreamModelName,
 	}, proxy)
 	if err != nil || resp == nil {
 		return nil

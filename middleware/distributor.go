@@ -36,6 +36,7 @@ func Distribute() func(c *gin.Context) {
 			abortWithOpenAiMessage(c, http.StatusBadRequest, i18n.T(c, i18n.MsgDistributorInvalidRequest, map[string]any{"Error": err.Error()}))
 			return
 		}
+		requiredEndpointType := getRequiredEndpointType(c)
 		if ok {
 			id, err := strconv.Atoi(channelId.(string))
 			if err != nil {
@@ -49,6 +50,10 @@ func Distribute() func(c *gin.Context) {
 			}
 			if channel.Status != common.ChannelStatusEnabled {
 				abortWithOpenAiMessage(c, http.StatusForbidden, i18n.T(c, i18n.MsgDistributorChannelDisabled))
+				return
+			}
+			if requiredEndpointType != "" && !channelSupportsEndpointType(channel, modelRequest.Model, requiredEndpointType) {
+				abortWithOpenAiMessage(c, http.StatusForbidden, i18n.T(c, i18n.MsgDistributorInvalidChannelId))
 				return
 			}
 		} else {
@@ -112,14 +117,17 @@ func Distribute() func(c *gin.Context) {
 							autoGroups := service.GetUserAutoGroup(userGroup)
 							for _, g := range autoGroups {
 								if model.IsChannelEnabledForGroupModel(g, modelRequest.Model, preferred.Id) {
-									selectGroup = g
-									common.SetContextKey(c, constant.ContextKeyAutoGroup, g)
-									channel = preferred
-									service.MarkChannelAffinityUsed(c, g, preferred.Id)
-									break
+									if requiredEndpointType == "" || channelSupportsEndpointType(preferred, modelRequest.Model, requiredEndpointType) {
+										selectGroup = g
+										common.SetContextKey(c, constant.ContextKeyAutoGroup, g)
+										channel = preferred
+										service.MarkChannelAffinityUsed(c, g, preferred.Id)
+										break
+									}
 								}
 							}
-						} else if model.IsChannelEnabledForGroupModel(usingGroup, modelRequest.Model, preferred.Id) {
+						} else if model.IsChannelEnabledForGroupModel(usingGroup, modelRequest.Model, preferred.Id) &&
+							(requiredEndpointType == "" || channelSupportsEndpointType(preferred, modelRequest.Model, requiredEndpointType)) {
 							channel = preferred
 							selectGroup = usingGroup
 							service.MarkChannelAffinityUsed(c, usingGroup, preferred.Id)
@@ -128,12 +136,7 @@ func Distribute() func(c *gin.Context) {
 				}
 
 				if channel == nil {
-					channel, selectGroup, err = service.CacheGetRandomSatisfiedChannel(&service.RetryParam{
-						Ctx:        c,
-						ModelName:  modelRequest.Model,
-						TokenGroup: usingGroup,
-						Retry:      common.GetPointer(0),
-					})
+					channel, selectGroup, err = getRandomSatisfiedEndpointChannel(c, usingGroup, modelRequest.Model, requiredEndpointType)
 					if err != nil {
 						showGroup := usingGroup
 						if usingGroup == "auto" {
@@ -342,6 +345,63 @@ func getModelRequest(c *gin.Context) (*ModelRequest, bool, error) {
 	return &modelRequest, shouldSelectChannel, nil
 }
 
+func getRequiredEndpointType(c *gin.Context) constant.EndpointType {
+	relayMode, ok := c.Get("relay_mode")
+	if !ok {
+		return ""
+	}
+	mode, ok := relayMode.(int)
+	if !ok {
+		return ""
+	}
+	switch mode {
+	case relayconstant.RelayModeGemini:
+		return constant.EndpointTypeGemini
+	default:
+		return ""
+	}
+}
+
+func channelSupportsEndpointType(channel *model.Channel, modelName string, endpointType constant.EndpointType) bool {
+	if endpointType == "" || channel == nil {
+		return true
+	}
+	endpointTypes := common.GetEndpointTypesByChannelType(channel.Type, modelName)
+	for _, candidate := range endpointTypes {
+		if candidate == endpointType {
+			return true
+		}
+	}
+	return false
+}
+
+func getRandomSatisfiedEndpointChannel(c *gin.Context, usingGroup string, modelName string, endpointType constant.EndpointType) (*model.Channel, string, error) {
+	maxRetry := common.RetryTimes
+	if endpointType != "" && maxRetry < 5 {
+		maxRetry = 5
+	}
+	var lastSelectGroup string
+	for retry := 0; retry <= maxRetry; retry++ {
+		channel, selectGroup, err := service.CacheGetRandomSatisfiedChannel(&service.RetryParam{
+			Ctx:        c,
+			ModelName:  modelName,
+			TokenGroup: usingGroup,
+			Retry:      common.GetPointer(retry),
+		})
+		lastSelectGroup = selectGroup
+		if err != nil {
+			return nil, selectGroup, err
+		}
+		if channel == nil {
+			return nil, selectGroup, nil
+		}
+		if channelSupportsEndpointType(channel, modelName, endpointType) {
+			return channel, selectGroup, nil
+		}
+	}
+	return nil, lastSelectGroup, nil
+}
+
 func SetupContextForSelectedChannel(c *gin.Context, channel *model.Channel, modelName string) *types.NewAPIError {
 	c.Set("original_model", modelName) // for retry
 	if channel == nil {
@@ -350,6 +410,7 @@ func SetupContextForSelectedChannel(c *gin.Context, channel *model.Channel, mode
 	common.SetContextKey(c, constant.ContextKeyChannelId, channel.Id)
 	common.SetContextKey(c, constant.ContextKeyChannelName, channel.Name)
 	common.SetContextKey(c, constant.ContextKeyChannelType, channel.Type)
+	common.SetContextKey(c, constant.ContextKeyChannelOther, channel.Other)
 	common.SetContextKey(c, constant.ContextKeyChannelCreateTime, channel.CreatedTime)
 	common.SetContextKey(c, constant.ContextKeyChannelSetting, channel.GetSetting())
 	common.SetContextKey(c, constant.ContextKeyChannelOtherSetting, channel.GetOtherSettings())

@@ -139,10 +139,10 @@ export const CHANNEL_TYPE_CONFIGS: Record<number, ChannelTypeConfig> = {
     name: CHANNEL_TYPES[58],
     icon: 'openai',
     hints: {
-      baseUrl: 'e.g., https://api.bltcy.ai, https://api.ablai.top, https://xgapi.top',
+      baseUrl: 'e.g., https://api.bltcy.ai, https://api.ablai.top, https://xgapi.top, https://your-domain.com/api/v1',
       key: 'API Key from relay provider',
-      models: 'veo3.1-fast,veo3.1,veo3.1-pro,sora-2,sora-2-pro',
-      other: 'OpenAI-compatible video generation relay (Veo/Sora via third-party API)',
+      models: 'veo3.1-fast,veo3.1,veo3.1-pro,sora-2,sora-2-pro,xb-sora2,openai-sora-2,sora-2-pro-text-to-video,sora-2-image-to-video',
+      other: 'OpenAI-compatible video generation relay (Veo/Sora via third-party API; xb-sora2 API uses X-API-Key)',
     },
   },
 }

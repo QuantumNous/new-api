@@ -35,7 +35,7 @@ func (a *TaskAdaptor) Init(info *relaycommon.RelayInfo) {
 	a.ChannelType = info.ChannelType
 	a.baseURL = info.ChannelBaseUrl
 	a.apiKey = info.ApiKey
-	a.prov = getProviderByBaseURL(info.ChannelBaseUrl)
+	a.prov = getProviderForRelayInfo(info)
 }
 
 func (a *TaskAdaptor) ValidateRequestAndSetAction(c *gin.Context, info *relaycommon.RelayInfo) (taskErr *dto.TaskError) {
@@ -74,6 +74,9 @@ func (a *TaskAdaptor) EstimateBilling(c *gin.Context, info *relaycommon.RelayInf
 	if seconds <= 0 {
 		seconds = 8
 	}
+	if _, ok := a.prov.(*xbSoraProvider); ok {
+		seconds = normalizeXBSoraDuration(seconds, info.UpstreamModelName)
+	}
 
 	ratios := map[string]float64{
 		"seconds": float64(seconds),
@@ -91,7 +94,11 @@ func (a *TaskAdaptor) BuildRequestURL(info *relaycommon.RelayInfo) (string, erro
 }
 
 func (a *TaskAdaptor) BuildRequestHeader(c *gin.Context, req *http.Request, info *relaycommon.RelayInfo) error {
-	req.Header.Set("Authorization", "Bearer "+a.apiKey)
+	if headerSetter, ok := a.prov.(requestHeaderSetter); ok {
+		headerSetter.setupRequestHeader(req, a.apiKey)
+	} else {
+		req.Header.Set("Authorization", "Bearer "+a.apiKey)
+	}
 	req.Header.Set("Content-Type", c.Request.Header.Get("Content-Type"))
 	return nil
 }
@@ -110,13 +117,12 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 	if strings.HasPrefix(contentType, "application/json") {
 		var bodyMap map[string]interface{}
 		if err := common.Unmarshal(cachedBody, &bodyMap); err == nil {
-			hasImages := false
-			if imgs, ok := bodyMap["images"]; ok {
-				if arr, ok := imgs.([]interface{}); ok && len(arr) > 0 {
-					hasImages = true
-				}
-			}
+			imageCount := countRequestImages(bodyMap)
+			hasImages := imageCount > 0
 			bodyMap["model"] = a.prov.mapModelForImages(info.UpstreamModelName, hasImages)
+			if normalizer, ok := a.prov.(requestNormalizer); ok {
+				normalizer.normalizeJSONRequest(bodyMap, info.OriginModelName, info.UpstreamModelName, imageCount)
+			}
 
 			if a.prov.needsMultipart() {
 				return a.jsonToMultipart(c, bodyMap)
@@ -135,7 +141,28 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 			return bytes.NewReader(cachedBody), nil
 		}
 		hasImages := len(formData.Value["images"]) > 0 || len(formData.Value["image"]) > 0 || len(formData.File["images"]) > 0 || len(formData.File["image"]) > 0
+		imageCount := len(formData.Value["images"]) + len(formData.Value["image"]) + len(formData.File["images"]) + len(formData.File["image"])
 		mappedModel := a.prov.mapModelForImages(info.UpstreamModelName, hasImages)
+		if normalizer, ok := a.prov.(requestNormalizer); ok {
+			formData.Value["model"] = []string{mappedModel}
+			normalizer.normalizeMultipartRequest(formData.Value, info.OriginModelName, mappedModel, imageCount)
+			if modelValue := firstValue(formData.Value["model"]); modelValue != "" {
+				mappedModel = modelValue
+			}
+		}
+		if jsonProvider, ok := a.prov.(jsonBodyProvider); ok && jsonProvider.forceJSONBody() {
+			if len(formData.File) > 0 {
+				return nil, fmt.Errorf("multipart file upload is not supported by this video provider; use image URLs")
+			}
+			bodyMap := multipartValuesToMap(formData.Value)
+			bodyMap["model"] = mappedModel
+			newBody, err := common.Marshal(bodyMap)
+			if err != nil {
+				return nil, err
+			}
+			c.Request.Header.Set("Content-Type", "application/json")
+			return bytes.NewReader(newBody), nil
+		}
 		var buf bytes.Buffer
 		writer := multipart.NewWriter(&buf)
 		writer.WriteField("model", mappedModel)
@@ -182,6 +209,54 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 	}
 
 	return common.ReaderOnly(storage), nil
+}
+
+func countRequestImages(bodyMap map[string]interface{}) int {
+	count := 0
+	for _, key := range []string{"images", "image", "image_urls", "reference_images", "reference_image_urls", "image_url", "file_paths"} {
+		if value, ok := bodyMap[key]; ok {
+			count += countImageValue(value)
+		}
+	}
+	if refs, ok := bodyMap["image_reference"]; ok {
+		count += countImageValue(refs)
+	}
+	return count
+}
+
+func countImageValue(value interface{}) int {
+	switch v := value.(type) {
+	case []interface{}:
+		count := 0
+		for _, item := range v {
+			if countImageValue(item) > 0 {
+				count++
+			}
+		}
+		return count
+	case []string:
+		count := 0
+		for _, item := range v {
+			if strings.TrimSpace(item) != "" {
+				count++
+			}
+		}
+		return count
+	case map[string]interface{}:
+		if imageURL, ok := v["image_url"].(map[string]interface{}); ok {
+			if url, ok := imageURL["url"].(string); ok && strings.TrimSpace(url) != "" {
+				return 1
+			}
+		}
+		if url, ok := v["url"].(string); ok && strings.TrimSpace(url) != "" {
+			return 1
+		}
+	case string:
+		if strings.TrimSpace(v) != "" {
+			return 1
+		}
+	}
+	return 0
 }
 
 func (a *TaskAdaptor) jsonToMultipart(c *gin.Context, bodyMap map[string]interface{}) (io.Reader, error) {
@@ -235,7 +310,7 @@ func (a *TaskAdaptor) FetchTask(baseUrl, key string, body map[string]any, proxy 
 		return nil, fmt.Errorf("invalid task_id")
 	}
 
-	prov := getProviderByBaseURL(baseUrl)
+	prov := getProviderForTaskFetch(baseUrl, body)
 	uri := prov.queryURL(baseUrl, taskID)
 
 	req, err := http.NewRequest(http.MethodGet, uri, nil)
@@ -243,13 +318,34 @@ func (a *TaskAdaptor) FetchTask(baseUrl, key string, body map[string]any, proxy 
 		return nil, err
 	}
 
-	req.Header.Set("Authorization", "Bearer "+key)
+	if headerSetter, ok := prov.(requestHeaderSetter); ok {
+		headerSetter.setupRequestHeader(req, key)
+	} else {
+		req.Header.Set("Authorization", "Bearer "+key)
+	}
 
 	client, err := service.GetHttpClientWithProxy(proxy)
 	if err != nil {
 		return nil, fmt.Errorf("new proxy http client failed: %w", err)
 	}
 	return client.Do(req)
+}
+
+func multipartValuesToMap(values map[string][]string) map[string]interface{} {
+	bodyMap := make(map[string]interface{}, len(values))
+	for key, vals := range values {
+		if len(vals) == 0 {
+			continue
+		}
+		if len(vals) == 1 {
+			bodyMap[key] = vals[0]
+			continue
+		}
+		copied := make([]string, len(vals))
+		copy(copied, vals)
+		bodyMap[key] = copied
+	}
+	return bodyMap
 }
 
 func (a *TaskAdaptor) GetModelList() []string {
@@ -273,6 +369,10 @@ func (a *TaskAdaptor) ConvertToOpenAIVideo(task *model.Task) ([]byte, error) {
 	}
 	video.Status = task.Status.ToVideoStatus()
 	video.SetProgressStr(task.Progress)
+	video.VideoURL = task.GetResultURL()
+	if strings.HasPrefix(video.VideoURL, "runway:") || isXBSoraProtectedResultURL(video.VideoURL) || isLK888ResultURL(video.VideoURL) {
+		video.VideoURL = taskcommon.BuildProxyURL(task.TaskID)
+	}
 	video.CreatedAt = task.CreatedAt
 	if task.FinishTime > 0 {
 		video.CompletedAt = task.FinishTime
