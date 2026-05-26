@@ -101,7 +101,7 @@ export function useSidebarData(): SidebarData {
         title: t('Personal'),
         items: [
           {
-            title: t('Wallet'),
+            title: t('Wallet / Invite Codes'),
             url: '/wallet',
             icon: Wallet,
           },
