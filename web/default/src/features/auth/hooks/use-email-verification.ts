@@ -61,6 +61,9 @@ export function useEmailVerification(options?: UseEmailVerificationOptions) {
         toast.success(i18next.t('Verification email sent'))
         return true
       }
+      toast.error(
+        res?.message || i18next.t('Failed to send verification email')
+      )
       return false
     } catch (_error) {
       // Errors are handled by global interceptor

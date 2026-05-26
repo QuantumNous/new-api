@@ -20,7 +20,6 @@ import * as z from 'zod'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useTranslation } from 'react-i18next'
-import { Button } from '@/components/ui/button'
 import {
   Form,
   FormControl,
@@ -31,6 +30,12 @@ import {
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
+import {
+  SettingsForm,
+  SettingsSwitchContent,
+  SettingsSwitchItem,
+} from '../components/settings-form-layout'
+import { SettingsPageFormActions } from '../components/settings-page-context'
 import { SettingsSection } from '../components/settings-section'
 import { useResetForm } from '../hooks/use-reset-form'
 import { useUpdateOption } from '../hooks/use-update-option'
@@ -79,24 +84,19 @@ export function GrokSettingsCard(props: Props) {
   const enabled = form.watch('grok.violation_deduction_enabled')
 
   return (
-    <SettingsSection
-      title={t('Grok Settings')}
-      description={t('Configure xAI Grok model specific settings')}
-    >
+    <SettingsSection title={t('Grok Settings')}>
       <Form {...form}>
-        <form onSubmit={form.handleSubmit(onSubmit)} className='space-y-6'>
+        <SettingsForm onSubmit={form.handleSubmit(onSubmit)}>
+          <SettingsPageFormActions
+            onSave={form.handleSubmit(onSubmit)}
+            isSaving={updateOption.isPending}
+          />
           <FormField
             control={form.control}
             name='grok.violation_deduction_enabled'
             render={({ field }) => (
-              <FormItem className='flex items-center gap-2'>
-                <FormControl>
-                  <Switch
-                    checked={field.value}
-                    onCheckedChange={field.onChange}
-                  />
-                </FormControl>
-                <div>
+              <SettingsSwitchItem>
+                <SettingsSwitchContent>
                   <FormLabel>{t('Enable violation deduction')}</FormLabel>
                   <FormDescription>
                     {t(
@@ -111,8 +111,14 @@ export function GrokSettingsCard(props: Props) {
                       {t('Official documentation')}
                     </a>
                   </FormDescription>
-                </div>
-              </FormItem>
+                </SettingsSwitchContent>
+                <FormControl>
+                  <Switch
+                    checked={field.value}
+                    onCheckedChange={field.onChange}
+                  />
+                </FormControl>
+              </SettingsSwitchItem>
             )}
           />
 
@@ -139,11 +145,7 @@ export function GrokSettingsCard(props: Props) {
               </FormItem>
             )}
           />
-
-          <Button type='submit' disabled={updateOption.isPending}>
-            {updateOption.isPending ? t('Saving...') : t('Save Changes')}
-          </Button>
-        </form>
+        </SettingsForm>
       </Form>
     </SettingsSection>
   )
