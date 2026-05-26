@@ -26,15 +26,15 @@ import {
   Loading03Icon,
 } from '@hugeicons/core-free-icons'
 import { HugeiconsIcon } from '@hugeicons/react'
-import { useTheme } from 'next-themes'
 import { Toaster as Sonner, type ToasterProps } from 'sonner'
+import { useTheme } from '@/context/theme-provider'
 
-const Toaster = ({ ...props }: ToasterProps) => {
-  const { theme = 'system' } = useTheme()
+const Toaster = (props: ToasterProps) => {
+  const { resolvedTheme } = useTheme()
 
   return (
     <Sonner
-      theme={theme as ToasterProps['theme']}
+      theme={resolvedTheme}
       className='toaster group'
       icons={{
         success: (
@@ -78,14 +78,28 @@ const Toaster = ({ ...props }: ToasterProps) => {
           '--normal-bg': 'var(--popover)',
           '--normal-text': 'var(--popover-foreground)',
           '--normal-border': 'var(--border)',
+          '--success-bg':
+            'color-mix(in oklch, var(--success) 16%, var(--popover))',
+          '--success-border':
+            'color-mix(in oklch, var(--success) 35%, var(--border))',
+          '--success-text': 'var(--success)',
+          '--info-bg': 'color-mix(in oklch, var(--info) 16%, var(--popover))',
+          '--info-border':
+            'color-mix(in oklch, var(--info) 35%, var(--border))',
+          '--info-text': 'var(--info)',
+          '--warning-bg':
+            'color-mix(in oklch, var(--warning) 18%, var(--popover))',
+          '--warning-border':
+            'color-mix(in oklch, var(--warning) 38%, var(--border))',
+          '--warning-text': 'var(--warning)',
+          '--error-bg':
+            'color-mix(in oklch, var(--destructive) 16%, var(--popover))',
+          '--error-border':
+            'color-mix(in oklch, var(--destructive) 35%, var(--border))',
+          '--error-text': 'var(--destructive)',
           '--border-radius': 'var(--radius)',
         } as React.CSSProperties
       }
-      toastOptions={{
-        classNames: {
-          toast: 'cn-toast',
-        },
-      }}
       {...props}
     />
   )

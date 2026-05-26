@@ -3,6 +3,7 @@ package middleware
 import (
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"slices"
 	"strconv"
@@ -20,6 +21,7 @@ import (
 	"github.com/QuantumNous/new-api/types"
 
 	"github.com/gin-gonic/gin"
+	"github.com/tidwall/gjson"
 )
 
 type ModelRequest struct {
@@ -171,12 +173,64 @@ func Distribute() func(c *gin.Context) {
 // - application/x-www-form-urlencoded
 // - multipart/form-data
 func getModelFromRequest(c *gin.Context) (*ModelRequest, error) {
+	if strings.HasPrefix(c.Request.Header.Get("Content-Type"), "application/json") {
+		modelRequest, err := getModelFromJSONBody(c)
+		if err != nil {
+			return nil, errors.New(i18n.T(c, i18n.MsgDistributorInvalidRequest, map[string]any{"Error": err.Error()}))
+		}
+		return modelRequest, nil
+	}
+
 	var modelRequest ModelRequest
 	err := common.UnmarshalBodyReusable(c, &modelRequest)
 	if err != nil {
 		return nil, errors.New(i18n.T(c, i18n.MsgDistributorInvalidRequest, map[string]any{"Error": err.Error()}))
 	}
 	return &modelRequest, nil
+}
+
+func getModelFromJSONBody(c *gin.Context) (*ModelRequest, error) {
+	storage, err := common.GetBodyStorage(c)
+	if err != nil {
+		return nil, err
+	}
+	requestBody, err := storage.Bytes()
+	if err != nil {
+		return nil, err
+	}
+	if !gjson.ValidBytes(requestBody) {
+		return nil, errors.New("invalid JSON request body")
+	}
+
+	values := gjson.GetManyBytes(requestBody, "model", "group")
+	model, err := getJSONStringValue(values[0], "model")
+	if err != nil {
+		return nil, err
+	}
+	group, err := getJSONStringValue(values[1], "group")
+	if err != nil {
+		return nil, err
+	}
+
+	if _, seekErr := storage.Seek(0, io.SeekStart); seekErr != nil {
+		return nil, seekErr
+	}
+	c.Request.Body = io.NopCloser(storage)
+
+	return &ModelRequest{
+		Model: model,
+		Group: group,
+	}, nil
+}
+
+func getJSONStringValue(result gjson.Result, field string) (string, error) {
+	if !result.Exists() || result.Type == gjson.Null {
+		return "", nil
+	}
+	if result.Type != gjson.String {
+		return "", fmt.Errorf("field %s must be a string", field)
+	}
+	return result.String(), nil
 }
 
 func getModelRequest(c *gin.Context) (*ModelRequest, bool, error) {
