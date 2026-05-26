@@ -49,6 +49,7 @@ import {
 const headerNavSchema = z.object({
   home: z.boolean(),
   console: z.boolean(),
+  docs: z.boolean(),
   pricingEnabled: z.boolean(),
   pricingRequireAuth: z.boolean(),
   rankingsEnabled: z.boolean(),
@@ -69,6 +70,8 @@ const toFormValues = (config: HeaderNavModulesConfig): HeaderNavFormValues => ({
     config.console === undefined
       ? HEADER_NAV_DEFAULT.console
       : Boolean(config.console),
+  docs:
+    config.docs === undefined ? HEADER_NAV_DEFAULT.docs : Boolean(config.docs),
   pricingEnabled:
     config.pricing?.enabled === undefined
       ? HEADER_NAV_DEFAULT.pricing.enabled
@@ -108,6 +111,7 @@ export function HeaderNavigationSection({
     const payload: HeaderNavModulesConfig = {
       home: values.home,
       console: values.console,
+      docs: values.docs,
       pricing: {
         ...(config.pricing ?? HEADER_NAV_DEFAULT.pricing),
         enabled: values.pricingEnabled,
@@ -149,6 +153,13 @@ export function HeaderNavigationSection({
       key: 'console',
       title: t('Console'),
       description: t('User dashboard and quota controls.'),
+    },
+    {
+      key: 'docs',
+      title: t('Docs'),
+      description: t(
+        'Complete API documentation with multi-language SDK support'
+      ),
     },
   ]
 

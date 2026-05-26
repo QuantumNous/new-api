@@ -25,6 +25,7 @@ export type HeaderNavModule = 'rankings' | 'pricing'
 export type HeaderNavModules = {
   home: boolean
   console: boolean
+  docs: boolean
   pricing: ModuleAccess
   rankings: ModuleAccess
   [key: string]: boolean | ModuleAccess
@@ -33,6 +34,7 @@ export type HeaderNavModules = {
 const DEFAULT_HEADER_NAV_MODULES: HeaderNavModules = {
   home: true,
   console: true,
+  docs: true,
   pricing: { enabled: true, requireAuth: false },
   rankings: { enabled: true, requireAuth: false },
 }
@@ -116,7 +118,7 @@ export function parseHeaderNavModules(raw: unknown): HeaderNavModules {
     }
 
     if (
-      (key === 'home' || key === 'console') &&
+      (key === 'home' || key === 'console' || key === 'docs') &&
       typeof result[key] === 'boolean'
     ) {
       result[key] = parseHeaderNavBoolean(

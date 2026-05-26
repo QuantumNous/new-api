@@ -24,6 +24,7 @@ export type HeaderNavAccessConfig = {
 export type HeaderNavModulesConfig = {
   home: boolean
   console: boolean
+  docs: boolean
   pricing: HeaderNavAccessConfig
   rankings: HeaderNavAccessConfig
   [key: string]: boolean | HeaderNavAccessConfig
@@ -39,6 +40,7 @@ export type SidebarModulesAdminConfig = Record<string, SidebarSectionConfig>
 export const HEADER_NAV_DEFAULT: HeaderNavModulesConfig = {
   home: true,
   console: true,
+  docs: true,
   pricing: {
     enabled: true,
     requireAuth: false,
@@ -149,12 +151,15 @@ export function parseHeaderNavModules(
         return
       }
 
-      if ((key === 'home' || key === 'console') && typeof raw === 'boolean') {
+      if (
+        (key === 'home' || key === 'console' || key === 'docs') &&
+        typeof raw === 'boolean'
+      ) {
         result[key] = raw
         return
       }
       if (
-        (key === 'home' || key === 'console') &&
+        (key === 'home' || key === 'console' || key === 'docs') &&
         (typeof raw === 'string' || typeof raw === 'number')
       ) {
         result[key] = toBoolean(raw, Boolean(base[key]))
