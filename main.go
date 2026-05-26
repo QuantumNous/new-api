@@ -20,6 +20,7 @@ import (
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/oauth"
 	perfmetrics "github.com/QuantumNous/new-api/pkg/perf_metrics"
+	"github.com/QuantumNous/new-api/pkg/requestaudit"
 	"github.com/QuantumNous/new-api/relay"
 	"github.com/QuantumNous/new-api/router"
 	"github.com/QuantumNous/new-api/service"
@@ -300,6 +301,11 @@ func InitResources() error {
 	if err != nil {
 		return err
 	}
+	// FORK:BEGIN requestaudit
+	if err = requestaudit.Init(model.LOG_DB); err != nil {
+		return err
+	}
+	// FORK:END requestaudit
 
 	// Initialize Redis
 	err = common.InitRedisClient()
