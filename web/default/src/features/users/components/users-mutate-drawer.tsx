@@ -92,14 +92,14 @@ export function UsersMutateDrawer({
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [quotaDialogOpen, setQuotaDialogOpen] = useState(false)
 
-  // Fetch groups
-  const { data: groupsData } = useQuery({
+  const groupsQuery = useQuery({
     queryKey: ['groups'],
     queryFn: getGroups,
     staleTime: 5 * 60 * 1000,
+    enabled: false,
   })
 
-  const groups = groupsData?.data || []
+  const groups = groupsQuery.data?.data || []
 
   const form = useForm<UserFormValues>({
     resolver: zodResolver(userFormSchema),
@@ -335,6 +335,11 @@ export function UsersMutateDrawer({
                           ]}
                           onValueChange={field.onChange}
                           value={field.value}
+                          onOpenChange={(isOpen) => {
+                            if (isOpen) {
+                              void groupsQuery.refetch()
+                            }
+                          }}
                         >
                           <FormControl>
                             <SelectTrigger>
