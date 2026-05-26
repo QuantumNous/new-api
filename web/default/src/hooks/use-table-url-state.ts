@@ -27,7 +27,6 @@ type SearchRecord = Record<string, unknown>
 
 export type NavigateFn = (opts: {
   search:
-    | true
     | SearchRecord
     | ((prev: SearchRecord) => Partial<SearchRecord> | SearchRecord)
   replace?: boolean
@@ -151,8 +150,7 @@ export function useTableUrlState(
       search: (prev) => ({
         ...(prev as SearchRecord),
         [pageKey]: nextPage <= defaultPage ? undefined : nextPage,
-        [pageSizeKey]:
-          nextPageSize === defaultPageSize ? undefined : nextPageSize,
+        [pageSizeKey]: nextPageSize,
       }),
     })
   }

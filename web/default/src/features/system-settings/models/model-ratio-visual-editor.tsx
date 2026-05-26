@@ -841,8 +841,13 @@ export const ModelRatioVisualEditor = memo(
         persistPricingData(data)
         setEditData(data)
         setEditorOpen(true)
+        toast.success(
+          t(
+            'Pricing changes saved to draft. Click "Save model prices" to apply.'
+          )
+        )
       },
-      [persistPricingData]
+      [persistPricingData, t]
     )
 
     const handleBatchCopy = useCallback(() => {

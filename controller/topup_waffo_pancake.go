@@ -96,9 +96,6 @@ func getWaffoPancakeBuyerEmail(user *model.User) string {
 	if user != nil && strings.TrimSpace(user.Email) != "" {
 		return user.Email
 	}
-	if user != nil {
-		return fmt.Sprintf("%d@new-api.local", user.Id)
-	}
 	return ""
 }
 
@@ -408,8 +405,9 @@ func RequestWaffoPancakePay(c *gin.Context) {
 			Amount:      formatWaffoPancakeAmount(payMoney),
 			TaxCategory: "saas",
 		},
-		BuyerEmail:       getWaffoPancakeBuyerEmail(user),
-		ExpiresInSeconds: &expiresInSeconds,
+		BuyerEmail:              getWaffoPancakeBuyerEmail(user),
+		ExpiresInSeconds:        &expiresInSeconds,
+		OrderMerchantExternalID: tradeNo,
 	})
 	if err != nil {
 		logger.LogError(c.Request.Context(), fmt.Sprintf("Waffo Pancake 创建结账会话失败 user_id=%d trade_no=%s error=%q", id, tradeNo, err.Error()))
@@ -485,9 +483,9 @@ func WaffoPancakeWebhook(c *gin.Context) {
 		return
 	}
 
-	// Subscription vs top-up dispatch by trade_no prefix (written at
-	// session-creation time): WAFFO_PANCAKE_SUB- vs WAFFO_PANCAKE-.
-	rawTradeNo := strings.TrimSpace(event.Data.OrderID)
+	// Dispatch by trade_no prefix. OrderMerchantExternalID = our trade_no;
+	// OrderID is Pancake's internal ORD_* (logs only).
+	rawTradeNo := strings.TrimSpace(event.Data.OrderMerchantExternalID)
 	isSubscription := strings.HasPrefix(rawTradeNo, "WAFFO_PANCAKE_SUB-")
 
 	if isSubscription {

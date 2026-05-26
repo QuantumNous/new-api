@@ -31,7 +31,6 @@ import {
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Separator } from '@/components/ui/separator'
-import { Switch } from '@/components/ui/switch'
 import {
   Table,
   TableBody,
@@ -42,7 +41,9 @@ import {
 } from '@/components/ui/table'
 import { Textarea } from '@/components/ui/textarea'
 import { ConfirmDialog } from '@/components/confirm-dialog'
-import { StatusBadge } from '@/components/status-badge'
+import { StatusBadge, StatusBadgeList } from '@/components/status-badge'
+import { SettingsSwitchField } from '../../components/settings-form-layout'
+import { SettingsPageActionsPortal } from '../../components/settings-page-context'
 import { SettingsSection } from '../../components/settings-section'
 import { useUpdateOption } from '../../hooks/use-update-option'
 import { getCacheStats, clearAllCache, clearRuleCache } from './api'
@@ -61,6 +62,24 @@ function parseRules(jsonStr: string): AffinityRule[] {
   } catch {
     return []
   }
+}
+
+function RuleBadgeList(props: { items: string[] }) {
+  return (
+    <StatusBadgeList
+      items={props.items}
+      max={2}
+      getKey={(item) => item}
+      renderItem={(item) => (
+        <StatusBadge
+          label={item}
+          variant='neutral'
+          size='sm'
+          copyable={false}
+        />
+      )}
+    />
+  )
 }
 
 function serializeRules(rules: AffinityRule[]): string {
@@ -333,12 +352,7 @@ export function ChannelAffinitySection(props: Props) {
 
   return (
     <>
-      <SettingsSection
-        title={t('Channel Affinity')}
-        description={t(
-          'Prioritize reusing the last successful channel based on keys extracted from request context (sticky routing)'
-        )}
-      >
+      <SettingsSection title={t('Channel Affinity')}>
         <Alert>
           <AlertDescription className='text-xs'>
             {t(
@@ -349,10 +363,12 @@ export function ChannelAffinitySection(props: Props) {
 
         {/* Basic Settings */}
         <div className='grid grid-cols-1 gap-4 md:grid-cols-3'>
-          <div className='flex items-center gap-2'>
-            <Switch checked={enabled} onCheckedChange={setEnabled} />
-            <Label>{t('Enable')}</Label>
-          </div>
+          <SettingsSwitchField
+            checked={enabled}
+            onCheckedChange={setEnabled}
+            label={t('Enable')}
+            className='border-b-0 py-0'
+          />
           <div className='grid gap-1.5'>
             <Label>{t('Max Entries')}</Label>
             <Input
@@ -373,23 +389,18 @@ export function ChannelAffinitySection(props: Props) {
           </div>
         </div>
 
-        <div className='flex items-center gap-2'>
-          <Switch
-            checked={switchOnSuccess}
-            onCheckedChange={setSwitchOnSuccess}
-          />
-          <Label>{t('Switch affinity on success')}</Label>
-          <span className='text-muted-foreground text-xs'>
-            {t(
-              'If the affinity channel fails and retry succeeds on another channel, update affinity to the successful channel.'
-            )}
-          </span>
-        </div>
+        <SettingsSwitchField
+          checked={switchOnSuccess}
+          onCheckedChange={setSwitchOnSuccess}
+          label={t('Switch affinity on success')}
+          description={t(
+            'If the affinity channel fails and retry succeeds on another channel, update affinity to the successful channel.'
+          )}
+        />
 
         <Separator />
 
-        {/* Toolbar */}
-        <div className='flex flex-wrap items-center gap-2'>
+        <SettingsPageActionsPortal>
           <Button
             variant={editMode === 'visual' ? 'default' : 'outline'}
             size='sm'
@@ -472,7 +483,7 @@ export function ChannelAffinitySection(props: Props) {
               {cacheStats.cache_capacity}
             </span>
           )}
-        </div>
+        </SettingsPageActionsPortal>
 
         {/* Rules Table or JSON Editor */}
         {editMode === 'visual' ? (
@@ -507,65 +518,15 @@ export function ChannelAffinitySection(props: Props) {
                         {rule.name || '-'}
                       </TableCell>
                       <TableCell>
-                        <div className='text-muted-foreground flex items-center gap-1.5 text-xs font-medium'>
-                          {(rule.model_regex || []).length > 0 && (
-                            <span
-                              className='size-1.5 shrink-0 rounded-full bg-slate-400'
-                              aria-hidden='true'
-                            />
-                          )}
-                          {(rule.model_regex || [])
-                            .slice(0, 2)
-                            .map((r, i, arr) => (
-                              <span
-                                key={i}
-                                className='flex items-center gap-1.5'
-                              >
-                                {r}
-                                {i < arr.length - 1 && (
-                                  <span className='text-muted-foreground/30'>
-                                    ·
-                                  </span>
-                                )}
-                              </span>
-                            ))}
-                          {(rule.model_regex || []).length > 2 && (
-                            <span className='text-muted-foreground/50'>
-                              +{(rule.model_regex || []).length - 2}
-                            </span>
-                          )}
-                        </div>
+                        <RuleBadgeList items={rule.model_regex || []} />
                       </TableCell>
                       <TableCell>
-                        <div className='text-muted-foreground flex items-center gap-1.5 text-xs font-medium'>
-                          {(rule.key_sources || []).length > 0 && (
-                            <span
-                              className='size-1.5 shrink-0 rounded-full bg-slate-400'
-                              aria-hidden='true'
-                            />
+                        <RuleBadgeList
+                          items={(rule.key_sources || []).map(
+                            (src) =>
+                              `${src.type}:${src.type === 'gjson' ? src.path : src.key}`
                           )}
-                          {(rule.key_sources || [])
-                            .slice(0, 2)
-                            .map((src, i, arr) => (
-                              <span
-                                key={i}
-                                className='flex items-center gap-1.5'
-                              >
-                                {src.type}:
-                                {src.type === 'gjson' ? src.path : src.key}
-                                {i < arr.length - 1 && (
-                                  <span className='text-muted-foreground/30'>
-                                    ·
-                                  </span>
-                                )}
-                              </span>
-                            ))}
-                          {(rule.key_sources || []).length > 2 && (
-                            <span className='text-muted-foreground/50'>
-                              +{(rule.key_sources || []).length - 2}
-                            </span>
-                          )}
-                        </div>
+                        />
                       </TableCell>
                       <TableCell>{rule.ttl_seconds || '-'}</TableCell>
                       <TableCell>
@@ -589,27 +550,7 @@ export function ChannelAffinitySection(props: Props) {
                             rule.include_rule_name && t('Rule'),
                           ].filter(Boolean) as string[]
                           if (scopeItems.length === 0) return '-'
-                          return (
-                            <div className='text-muted-foreground flex items-center gap-1.5 text-xs font-medium'>
-                              <span
-                                className='size-1.5 shrink-0 rounded-full bg-slate-400'
-                                aria-hidden='true'
-                              />
-                              {scopeItems.map((item, idx, arr) => (
-                                <span
-                                  key={idx}
-                                  className='flex items-center gap-1.5'
-                                >
-                                  {item}
-                                  {idx < arr.length - 1 && (
-                                    <span className='text-muted-foreground/30'>
-                                      ·
-                                    </span>
-                                  )}
-                                </span>
-                              ))}
-                            </div>
-                          )
+                          return <RuleBadgeList items={scopeItems} />
                         })()}
                       </TableCell>
                       <TableCell>

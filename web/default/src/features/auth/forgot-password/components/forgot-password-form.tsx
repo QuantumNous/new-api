@@ -67,6 +67,7 @@ export function ForgotPasswordForm({
     resolver: zodResolver(forgotPasswordFormSchema),
     defaultValues: { email: '' },
   })
+  const turnstileReady = !isTurnstileEnabled || Boolean(turnstileToken)
 
   async function onSubmit(data: z.infer<typeof forgotPasswordFormSchema>) {
     if (!validateTurnstile()) return
@@ -78,6 +79,8 @@ export function ForgotPasswordForm({
         form.reset()
         startCountdown()
         toast.success(t('Reset email sent, please check your inbox'))
+      } else {
+        toast.error(res?.message || t('Failed to send reset email'))
       }
     } catch (_error) {
       // Errors are handled by global interceptor
@@ -107,8 +110,14 @@ export function ForgotPasswordForm({
           )}
         />
 
-        <Button type='submit' className='mt-2' disabled={isLoading || isActive}>
-          {isActive ? `Resend (${secondsLeft}s)` : 'Send reset email'}
+        <Button
+          type='submit'
+          className='mt-2'
+          disabled={isLoading || isActive || !turnstileReady}
+        >
+          {isActive
+            ? t('Resend ({{seconds}}s)', { seconds: secondsLeft })
+            : t('Send reset email')}
           {isLoading ? <Loader2 className='animate-spin' /> : <ArrowRight />}
         </Button>
 
