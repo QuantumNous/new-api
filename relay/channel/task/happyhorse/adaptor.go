@@ -51,9 +51,27 @@ type MediaURL struct {
 
 // HappyHorseParameters 视频生成参数
 type HappyHorseParameters struct {
-	Resolution   string `json:"resolution,omitempty"`     // 分辨率: 480P/720P/1080P
-	Duration     *int   `json:"duration,omitempty"`       // 时长: 3-10秒
-	PromptExtend *bool  `json:"prompt_extend,omitempty"`  // 是否开启prompt智能改写
+	Resolution   string `json:"resolution,omitempty"`    // 分辨率: 720P/1080P
+	Duration     *int   `json:"duration,omitempty"`      // 时长: 2-15秒
+	PromptExtend *bool  `json:"prompt_extend,omitempty"` // 是否开启prompt智能改写
+	Seed         *int   `json:"seed,omitempty"`          // 随机种子，0 或 nil 表示不指定
+	Watermark    *bool  `json:"watermark,omitempty"`     // 是否添加水印
+}
+
+// HappyHorseMetadata 用户通过 metadata 字段传入的额外参数
+// 优先级最高: Metadata > 直接字段(Size/Duration) > 默认值
+type HappyHorseMetadata struct {
+	Resolution   *string `json:"resolution,omitempty"`
+	Duration     *int    `json:"duration,omitempty"`
+	PromptExtend *bool   `json:"prompt_extend,omitempty"`
+	Seed         *int    `json:"seed,omitempty"`
+	Watermark    *bool   `json:"watermark,omitempty"`
+}
+
+// HappyHorseUsage 上游返回的用量信息
+type HappyHorseUsage struct {
+	Duration   int `json:"duration,omitempty"`
+	VideoCount int `json:"video_count,omitempty"`
 }
 
 // HappyHorseResponse 百炼乘风响应
@@ -62,6 +80,7 @@ type HappyHorseResponse struct {
 	RequestID string           `json:"request_id"`
 	Code      string           `json:"code,omitempty"`
 	Message   string           `json:"message,omitempty"`
+	Usage     *HappyHorseUsage `json:"usage,omitempty"`
 }
 
 // HappyHorseOutput 输出信息
@@ -89,7 +108,54 @@ func (a *TaskAdaptor) Init(info *relaycommon.RelayInfo) {
 }
 
 func (a *TaskAdaptor) ValidateRequestAndSetAction(c *gin.Context, info *relaycommon.RelayInfo) *dto.TaskError {
-	return relaycommon.ValidateMultipartDirect(c, info)
+	if taskErr := relaycommon.ValidateMultipartDirect(c, info); taskErr != nil {
+		return taskErr
+	}
+
+	// 模型特定验证
+	taskReq, err := relaycommon.GetTaskRequest(c)
+	if err != nil {
+		return &dto.TaskError{
+			Code:       "get_task_request_failed",
+			Message:    err.Error(),
+			StatusCode: http.StatusBadRequest,
+			LocalError: true,
+		}
+	}
+
+	model := taskReq.Model
+	hasImage := taskReq.InputReference != "" || len(taskReq.Images) > 0
+
+	switch {
+	case strings.Contains(model, "i2v"), strings.Contains(model, "r2v"):
+		if !hasImage {
+			return &dto.TaskError{
+				Code:       "missing_image_input",
+				Message:    fmt.Sprintf("images or input_reference is required for %s model", model),
+				StatusCode: http.StatusBadRequest,
+				LocalError: true,
+			}
+		}
+	case strings.Contains(model, "video-edit"):
+		if taskReq.InputReference == "" {
+			hasVideoInMeta := false
+			if taskReq.Metadata != nil {
+				if _, ok := taskReq.Metadata["video_url"]; ok {
+					hasVideoInMeta = true
+				}
+			}
+			if !hasVideoInMeta && !hasImage {
+				return &dto.TaskError{
+					Code:       "missing_video_input",
+					Message:    fmt.Sprintf("video input (input_reference or images) is required for %s model", model),
+					StatusCode: http.StatusBadRequest,
+					LocalError: true,
+				}
+			}
+		}
+	}
+
+	return nil
 }
 
 func (a *TaskAdaptor) BuildRequestURL(info *relaycommon.RelayInfo) (string, error) {
@@ -200,6 +266,35 @@ func convertToHappyHorseRequest(info *relaycommon.RelayInfo, req relaycommon.Tas
 		}
 	}
 
+	// 解析 metadata
+	var meta HappyHorseMetadata
+	if req.Metadata != nil {
+		if err := taskcommon.UnmarshalMetadata(req.Metadata, &meta); err != nil {
+			return nil, errors.Wrap(err, "unmarshal happyhorse metadata failed")
+		}
+	}
+
+	// Metadata 覆盖（最高优先级）
+	if meta.Resolution != nil {
+		resolution := strings.ToUpper(*meta.Resolution)
+		if !strings.HasSuffix(resolution, "P") {
+			resolution = resolution + "P"
+		}
+		hhReq.Parameters.Resolution = resolution
+	}
+	if meta.Duration != nil {
+		hhReq.Parameters.Duration = meta.Duration
+	}
+	if meta.PromptExtend != nil {
+		hhReq.Parameters.PromptExtend = meta.PromptExtend
+	}
+	if meta.Seed != nil {
+		hhReq.Parameters.Seed = meta.Seed
+	}
+	if meta.Watermark != nil {
+		hhReq.Parameters.Watermark = meta.Watermark
+	}
+
 	return hhReq, nil
 }
 
@@ -239,7 +334,14 @@ func (a *TaskAdaptor) DoResponse(c *gin.Context, resp *http.Response, info *rela
 	}
 
 	if hhResp.Code != "" {
-		taskErr = service.TaskErrorWrapper(fmt.Errorf("%s: %s", hhResp.Code, hhResp.Message), "happyhorse_api_error", resp.StatusCode)
+		errStatusCode := resp.StatusCode
+		if errStatusCode == http.StatusOK {
+			errStatusCode = http.StatusBadRequest
+		}
+		taskErr = service.TaskErrorWrapper(
+			fmt.Errorf("%s: %s", hhResp.Code, hhResp.Message),
+			"happyhorse_api_error", errStatusCode,
+		)
 		return
 	}
 
@@ -251,10 +353,7 @@ func (a *TaskAdaptor) DoResponse(c *gin.Context, resp *http.Response, info *rela
 	openAIResp := dto.NewOpenAIVideo()
 	openAIResp.ID = info.PublicTaskID
 	openAIResp.TaskID = info.PublicTaskID
-	openAIResp.Model = c.GetString("model")
-	if openAIResp.Model == "" && info != nil {
-		openAIResp.Model = info.OriginModelName
-	}
+	openAIResp.Model = info.OriginModelName
 	openAIResp.Status = convertHappyHorseStatus(hhResp.Output.TaskStatus)
 	openAIResp.CreatedAt = common.GetTimestamp()
 
@@ -312,6 +411,9 @@ func (a *TaskAdaptor) ParseTaskResult(respBody []byte) (*relaycommon.TaskInfo, e
 	case "SUCCEEDED":
 		taskResult.Status = model.TaskStatusSuccess
 		taskResult.Url = hhResp.Output.VideoURL
+		if hhResp.Usage != nil && hhResp.Usage.Duration > 0 {
+			taskResult.TotalTokens = hhResp.Usage.Duration
+		}
 	case "FAILED", "CANCELED", "UNKNOWN":
 		taskResult.Status = model.TaskStatusFailure
 		if hhResp.Message != "" {
