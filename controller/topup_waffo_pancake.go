@@ -103,7 +103,7 @@ func getWaffoPancakeReturnURL() string {
 	if strings.TrimSpace(setting.WaffoPancakeReturnURL) != "" {
 		return setting.WaffoPancakeReturnURL
 	}
-	return paymentReturnPath("/console/topup?show_history=true")
+	return paymentResultPath("topup", "pending")
 }
 
 func RequestWaffoPancakePay(c *gin.Context) {

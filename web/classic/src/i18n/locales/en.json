@@ -3824,6 +3824,22 @@
     "并确认自行承担部署": "confirm that I bear legal responsibility arising from deployment",
     "运营和收费行为产生的法律责任": "operation and charging behavior",
     "，": ", ",
-    "、": ", "
+    "、": ", ",
+    "Back to Home": "Back to Home",
+    "If you paid from a mobile wallet, you can return to the original browser to continue using your account.": "If you paid from a mobile wallet, you can return to the original browser to continue using your account.",
+    "No sensitive order details are shown on this page.": "No sensitive order details are shown on this page.",
+    "Payment confirmation is in progress": "Payment confirmation is in progress",
+    "Payment confirmed": "Payment confirmed",
+    "Payment has been confirmed": "Payment has been confirmed",
+    "Payment is being confirmed": "Payment is being confirmed",
+    "Payment not confirmed": "Payment not confirmed",
+    "Payment result": "Payment result",
+    "Subscription payment": "Subscription payment",
+    "The payment result could not be verified. Please return to your account later to check the final status.": "The payment result could not be verified. Please return to your account later to check the final status.",
+    "View wallet": "View wallet",
+    "Wallet top-up": "Wallet top-up",
+    "We could not confirm this payment": "We could not confirm this payment",
+    "We have received confirmation from the payment provider. Your balance or subscription may take a few seconds to sync.": "We have received confirmation from the payment provider. Your balance or subscription may take a few seconds to sync.",
+    "Your payment has been submitted. We are waiting for the payment provider to finish confirmation.": "Your payment has been submitted. We are waiting for the payment provider to finish confirmation."
   }
 }

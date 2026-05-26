@@ -4213,6 +4213,22 @@
     "并确认自行承担部署": "confirm that I bear legal responsibility arising from deployment",
     "运营和收费行为产生的法律责任": "operation and charging behavior",
     "，": ", ",
-    "、": ", "
+    "、": ", ",
+    "Back to Home": "Về trang chủ",
+    "If you paid from a mobile wallet, you can return to the original browser to continue using your account.": "Nếu bạn thanh toán bằng ví di động, bạn có thể quay lại trình duyệt ban đầu để tiếp tục sử dụng tài khoản.",
+    "No sensitive order details are shown on this page.": "Trang này không hiển thị thông tin đơn hàng nhạy cảm.",
+    "Payment confirmation is in progress": "Đang xác nhận thanh toán",
+    "Payment confirmed": "Thanh toán đã được xác nhận",
+    "Payment has been confirmed": "Thanh toán đã được xác nhận",
+    "Payment is being confirmed": "Thanh toán đang được xác nhận",
+    "Payment not confirmed": "Thanh toán chưa được xác nhận",
+    "Payment result": "Kết quả thanh toán",
+    "Subscription payment": "Thanh toán gói đăng ký",
+    "The payment result could not be verified. Please return to your account later to check the final status.": "Không thể xác minh kết quả thanh toán. Vui lòng quay lại tài khoản sau để kiểm tra trạng thái cuối cùng.",
+    "View wallet": "Xem ví",
+    "Wallet top-up": "Nạp ví",
+    "We could not confirm this payment": "Chúng tôi chưa thể xác nhận thanh toán này",
+    "We have received confirmation from the payment provider. Your balance or subscription may take a few seconds to sync.": "Chúng tôi đã nhận được xác nhận từ nhà cung cấp thanh toán. Số dư hoặc gói đăng ký của bạn có thể mất vài giây để đồng bộ.",
+    "Your payment has been submitted. We are waiting for the payment provider to finish confirmation.": "Thanh toán của bạn đã được gửi. Chúng tôi đang chờ nhà cung cấp thanh toán hoàn tất xác nhận."
   }
 }

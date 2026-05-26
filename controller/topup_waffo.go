@@ -231,9 +231,11 @@ func RequestWaffoPay(c *gin.Context) {
 	if setting.WaffoNotifyUrl != "" {
 		notifyUrl = setting.WaffoNotifyUrl
 	}
-	returnUrl := paymentReturnPath("/console/topup?show_history=true")
+	successReturnUrl := paymentResultPath("topup", "pending")
+	failedReturnUrl := paymentResultPath("topup", "fail")
 	if setting.WaffoReturnUrl != "" {
-		returnUrl = setting.WaffoReturnUrl
+		successReturnUrl = setting.WaffoReturnUrl
+		failedReturnUrl = setting.WaffoReturnUrl
 	}
 
 	currency := getWaffoCurrency()
@@ -258,8 +260,8 @@ func RequestWaffoPay(c *gin.Context) {
 			PayMethodType: resolvedPayMethodType,
 			PayMethodName: resolvedPayMethodName,
 		},
-		SuccessRedirectURL: returnUrl,
-		FailedRedirectURL:  returnUrl,
+		SuccessRedirectURL: successReturnUrl,
+		FailedRedirectURL:  failedReturnUrl,
 	}
 	resp, err := sdk.Order().Create(c.Request.Context(), createParams, nil)
 	if err != nil {

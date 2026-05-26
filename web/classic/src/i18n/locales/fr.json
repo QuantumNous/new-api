@@ -3679,6 +3679,22 @@
     "并确认自行承担部署": "confirm that I bear legal responsibility arising from deployment",
     "运营和收费行为产生的法律责任": "operation and charging behavior",
     "，": ", ",
-    "、": ", "
+    "、": ", ",
+    "Back to Home": "Retour à l’accueil",
+    "If you paid from a mobile wallet, you can return to the original browser to continue using your account.": "Si vous avez payé depuis un portefeuille mobile, vous pouvez revenir au navigateur d’origine pour continuer à utiliser votre compte.",
+    "No sensitive order details are shown on this page.": "Aucun détail sensible de commande n’est affiché sur cette page.",
+    "Payment confirmation is in progress": "La confirmation du paiement est en cours",
+    "Payment confirmed": "Paiement confirmé",
+    "Payment has been confirmed": "Le paiement a été confirmé",
+    "Payment is being confirmed": "Paiement en cours de confirmation",
+    "Payment not confirmed": "Paiement non confirmé",
+    "Payment result": "Résultat du paiement",
+    "Subscription payment": "Paiement de l’abonnement",
+    "The payment result could not be verified. Please return to your account later to check the final status.": "Le résultat du paiement n’a pas pu être vérifié. Revenez plus tard dans votre compte pour consulter le statut final.",
+    "View wallet": "Voir le portefeuille",
+    "Wallet top-up": "Recharge du portefeuille",
+    "We could not confirm this payment": "Nous n’avons pas pu confirmer ce paiement",
+    "We have received confirmation from the payment provider. Your balance or subscription may take a few seconds to sync.": "Nous avons reçu la confirmation du fournisseur de paiement. Votre solde ou votre abonnement peut prendre quelques secondes à se synchroniser.",
+    "Your payment has been submitted. We are waiting for the payment provider to finish confirmation.": "Votre paiement a été soumis. Nous attendons que le fournisseur de paiement termine la confirmation."
   }
 }

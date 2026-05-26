@@ -209,7 +209,7 @@ func RequestEpay(c *gin.Context) {
 	}
 
 	callBackAddress := service.GetCallbackAddress()
-	returnUrl, _ := url.Parse(paymentReturnPath("/console/log"))
+	returnUrl, _ := url.Parse(callBackAddress + "/api/user/epay/return")
 	notifyUrl, _ := url.Parse(callBackAddress + "/api/user/epay/notify")
 	tradeNo := fmt.Sprintf("%s%d", common.GetRandomString(6), time.Now().Unix())
 	tradeNo = fmt.Sprintf("USR%dNO%s", id, tradeNo)
@@ -300,6 +300,75 @@ func UnlockOrder(tradeNo string) {
 	createLock.Unlock()
 }
 
+func readEpayCallbackParams(c *gin.Context) (map[string]string, error) {
+	if c.Request.Method == "POST" {
+		if err := c.Request.ParseForm(); err != nil {
+			return nil, err
+		}
+		return lo.Reduce(lo.Keys(c.Request.PostForm), func(r map[string]string, t string, i int) map[string]string {
+			r[t] = c.Request.PostForm.Get(t)
+			return r
+		}, map[string]string{}), nil
+	}
+
+	return lo.Reduce(lo.Keys(c.Request.URL.Query()), func(r map[string]string, t string, i int) map[string]string {
+		r[t] = c.Request.URL.Query().Get(t)
+		return r
+	}, map[string]string{}), nil
+}
+
+func EpayReturn(c *gin.Context) {
+	params, err := readEpayCallbackParams(c)
+	if err != nil {
+		logger.LogError(c.Request.Context(), fmt.Sprintf("易支付 return 参数解析失败 path=%q client_ip=%s error=%q", c.Request.RequestURI, c.ClientIP(), err.Error()))
+		c.Redirect(http.StatusFound, paymentResultPath("topup", "fail"))
+		return
+	}
+	logger.LogInfo(c.Request.Context(), fmt.Sprintf("易支付 return 收到请求 path=%q client_ip=%s method=%s params=%q", c.Request.RequestURI, c.ClientIP(), c.Request.Method, common.GetJsonString(params)))
+
+	if len(params) == 0 {
+		logger.LogWarn(c.Request.Context(), fmt.Sprintf("易支付 return 参数为空 path=%q client_ip=%s", c.Request.RequestURI, c.ClientIP()))
+		c.Redirect(http.StatusFound, paymentResultPath("topup", "fail"))
+		return
+	}
+
+	client := GetEpayClient()
+	if client == nil {
+		logger.LogError(c.Request.Context(), fmt.Sprintf("易支付 return client 未初始化 path=%q client_ip=%s", c.Request.RequestURI, c.ClientIP()))
+		c.Redirect(http.StatusFound, paymentResultPath("topup", "fail"))
+		return
+	}
+
+	verifyInfo, err := client.Verify(params)
+	if err != nil || !verifyInfo.VerifyStatus {
+		if err != nil {
+			logger.LogWarn(c.Request.Context(), fmt.Sprintf("易支付 return 验签失败 path=%q client_ip=%s verify_error=%q", c.Request.RequestURI, c.ClientIP(), err.Error()))
+		} else {
+			logger.LogWarn(c.Request.Context(), fmt.Sprintf("易支付 return 验签失败 path=%q client_ip=%s verify_status=false", c.Request.RequestURI, c.ClientIP()))
+		}
+		c.Redirect(http.StatusFound, paymentResultPath("topup", "fail"))
+		return
+	}
+
+	if verifyInfo.TradeStatus == epay.StatusTradeSuccess {
+		LockOrder(verifyInfo.ServiceTradeNo)
+		defer UnlockOrder(verifyInfo.ServiceTradeNo)
+
+		completed, err := model.CompleteEpayTopUp(verifyInfo.ServiceTradeNo, verifyInfo.Type, c.ClientIP())
+		if err != nil {
+			logger.LogError(c.Request.Context(), fmt.Sprintf("易支付 return 完成充值订单失败 trade_no=%s client_ip=%s error=%q verify_info=%q", verifyInfo.ServiceTradeNo, c.ClientIP(), err.Error(), common.GetJsonString(verifyInfo)))
+			c.Redirect(http.StatusFound, paymentResultPath("topup", "fail"))
+			return
+		}
+		logger.LogInfo(c.Request.Context(), fmt.Sprintf("易支付 return 支付确认 trade_no=%s client_ip=%s completed=%t verify_info=%q", verifyInfo.ServiceTradeNo, c.ClientIP(), completed, common.GetJsonString(verifyInfo)))
+		c.Redirect(http.StatusFound, paymentResultPath("topup", "success"))
+		return
+	}
+
+	logger.LogInfo(c.Request.Context(), fmt.Sprintf("易支付 return 支付未完成 trade_no=%s trade_status=%s client_ip=%s verify_info=%q", verifyInfo.ServiceTradeNo, verifyInfo.TradeStatus, c.ClientIP(), common.GetJsonString(verifyInfo)))
+	c.Redirect(http.StatusFound, paymentResultPath("topup", "pending"))
+}
+
 func EpayNotify(c *gin.Context) {
 	if !isEpayWebhookEnabled() {
 		logger.LogWarn(c.Request.Context(), fmt.Sprintf("易支付 webhook 被拒绝 reason=webhook_disabled path=%q client_ip=%s", c.Request.RequestURI, c.ClientIP()))
@@ -307,25 +376,11 @@ func EpayNotify(c *gin.Context) {
 		return
 	}
 
-	var params map[string]string
-
-	if c.Request.Method == "POST" {
-		// POST 请求：从 POST body 解析参数
-		if err := c.Request.ParseForm(); err != nil {
-			logger.LogError(c.Request.Context(), fmt.Sprintf("易支付 webhook POST 表单解析失败 path=%q client_ip=%s error=%q", c.Request.RequestURI, c.ClientIP(), err.Error()))
-			_, _ = c.Writer.Write([]byte("fail"))
-			return
-		}
-		params = lo.Reduce(lo.Keys(c.Request.PostForm), func(r map[string]string, t string, i int) map[string]string {
-			r[t] = c.Request.PostForm.Get(t)
-			return r
-		}, map[string]string{})
-	} else {
-		// GET 请求：从 URL Query 解析参数
-		params = lo.Reduce(lo.Keys(c.Request.URL.Query()), func(r map[string]string, t string, i int) map[string]string {
-			r[t] = c.Request.URL.Query().Get(t)
-			return r
-		}, map[string]string{})
+	params, err := readEpayCallbackParams(c)
+	if err != nil {
+		logger.LogError(c.Request.Context(), fmt.Sprintf("易支付 webhook 参数解析失败 path=%q client_ip=%s error=%q", c.Request.RequestURI, c.ClientIP(), err.Error()))
+		_, _ = c.Writer.Write([]byte("fail"))
+		return
 	}
 	logger.LogInfo(c.Request.Context(), fmt.Sprintf("易支付 webhook 收到请求 path=%q client_ip=%s method=%s params=%q", c.Request.RequestURI, c.ClientIP(), c.Request.Method, common.GetJsonString(params)))
 

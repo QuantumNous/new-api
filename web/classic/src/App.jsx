@@ -35,6 +35,7 @@ import Channel from './pages/Channel';
 import Token from './pages/Token';
 import Redemption from './pages/Redemption';
 import TopUp from './pages/TopUp';
+import PaymentResult from './pages/PaymentResult';
 import Log from './pages/Log';
 import Chat from './pages/Chat';
 import Chat2Link from './pages/Chat2Link';
@@ -107,6 +108,7 @@ function App() {
           }
         />
         <Route path='/forbidden' element={<Forbidden />} />
+        <Route path='/payment/result' element={<PaymentResult />} />
         <Route
           path='/console/models'
           element={

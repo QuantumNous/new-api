@@ -3648,6 +3648,22 @@
     "并确认自行承担部署": "confirm that I bear legal responsibility arising from deployment",
     "运营和收费行为产生的法律责任": "operation and charging behavior",
     "，": ", ",
-    "、": ", "
+    "、": ", ",
+    "Back to Home": "ホームに戻る",
+    "If you paid from a mobile wallet, you can return to the original browser to continue using your account.": "モバイルウォレットで支払った場合は、元のブラウザに戻ってアカウントの利用を続けられます。",
+    "No sensitive order details are shown on this page.": "このページには機密性の高い注文情報は表示されません。",
+    "Payment confirmation is in progress": "支払い確認が進行中です",
+    "Payment confirmed": "支払いが確認されました",
+    "Payment has been confirmed": "支払いは確認済みです",
+    "Payment is being confirmed": "支払いを確認中です",
+    "Payment not confirmed": "支払いを確認できませんでした",
+    "Payment result": "支払い結果",
+    "Subscription payment": "サブスクリプション支払い",
+    "The payment result could not be verified. Please return to your account later to check the final status.": "支払い結果を検証できませんでした。後ほどアカウントに戻って最終ステータスを確認してください。",
+    "View wallet": "ウォレットを見る",
+    "Wallet top-up": "ウォレットチャージ",
+    "We could not confirm this payment": "この支払いを確認できませんでした",
+    "We have received confirmation from the payment provider. Your balance or subscription may take a few seconds to sync.": "決済事業者から確認を受け取りました。残高またはサブスクリプションの反映には数秒かかる場合があります。",
+    "Your payment has been submitted. We are waiting for the payment provider to finish confirmation.": "支払いは送信されました。決済事業者の確認完了を待っています。"
   }
 }

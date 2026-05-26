@@ -2624,6 +2624,22 @@
     "并确认自行承担部署": "并确认自行承担部署",
     "运营和收费行为产生的法律责任": "运营和收费行为产生的法律责任",
     "，": "，",
-    "、": "、"
+    "、": "、",
+    "Back to Home": "返回首页",
+    "If you paid from a mobile wallet, you can return to the original browser to continue using your account.": "如果你是从手机钱包完成支付，可以回到原浏览器继续使用账号。",
+    "No sensitive order details are shown on this page.": "此页面不会显示敏感订单信息。",
+    "Payment confirmation is in progress": "正在确认支付结果",
+    "Payment confirmed": "支付已确认",
+    "Payment has been confirmed": "支付已确认",
+    "Payment is being confirmed": "支付正在确认",
+    "Payment not confirmed": "支付未能确认",
+    "Payment result": "支付结果",
+    "Subscription payment": "订阅支付",
+    "The payment result could not be verified. Please return to your account later to check the final status.": "支付结果未能通过验证。请稍后返回账号查看最终状态。",
+    "View wallet": "查看钱包",
+    "Wallet top-up": "钱包充值",
+    "We could not confirm this payment": "暂时无法确认这笔支付",
+    "We have received confirmation from the payment provider. Your balance or subscription may take a few seconds to sync.": "我们已收到支付平台的确认。余额或订阅状态可能还需要几秒钟同步。",
+    "Your payment has been submitted. We are waiting for the payment provider to finish confirmation.": "你的支付已提交，我们正在等待支付平台完成确认。"
   }
 }
