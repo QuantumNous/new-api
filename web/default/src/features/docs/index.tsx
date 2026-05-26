@@ -447,7 +447,7 @@ function GuideSection() {
         <div className='max-w-3xl'>
           <p className='text-primary text-sm font-semibold'>入门</p>
           <h1 className='mt-2 text-3xl font-semibold tracking-tight md:text-4xl'>
-            TokenFun AI 网关文档
+            TokenFun API Doc
           </h1>
           <p className='text-muted-foreground mt-4 leading-7'>
             这里整理了 OpenAI、Anthropic、Google 三类原生 Relay Mode
@@ -622,12 +622,6 @@ export function Docs() {
                   入门
                 </div>
                 <div className='space-y-1'>
-                  <a
-                    href='#getting-started'
-                    className='text-muted-foreground hover:bg-muted hover:text-foreground block rounded-md px-2 py-1.5 text-sm transition-colors'
-                  >
-                    入门
-                  </a>
                   <a
                     href='#authentication'
                     className='text-muted-foreground hover:bg-muted hover:text-foreground block rounded-md px-2 py-1.5 text-sm transition-colors'
