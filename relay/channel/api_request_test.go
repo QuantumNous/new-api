@@ -1,10 +1,14 @@
 package channel
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
+	"net/http/httptrace"
 	"testing"
+	"time"
 
+	common2 "github.com/QuantumNous/new-api/common"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
@@ -190,4 +194,80 @@ func TestProcessHeaderOverride_PassHeadersTemplateSetsRuntimeHeaders(t *testing.
 	require.Equal(t, "Codex CLI", upstreamReq.Header.Get("Originator"))
 	require.Equal(t, "sess-123", upstreamReq.Header.Get("Session_id"))
 	require.Empty(t, upstreamReq.Header.Get("X-Codex-Beta-Features"))
+}
+
+func TestNewFirstResponseTimeoutControlRequiresStreamAndTimeout(t *testing.T) {
+	oldTimeout := common2.RelayResponseHeaderTimeout
+	t.Cleanup(func() {
+		common2.RelayResponseHeaderTimeout = oldTimeout
+	})
+
+	req := httptest.NewRequest(http.MethodPost, "https://example.com/v1/responses", nil)
+
+	common2.RelayResponseHeaderTimeout = 0
+	require.Nil(t, newFirstResponseTimeoutControl(req, &relaycommon.RelayInfo{IsStream: true}))
+
+	common2.RelayResponseHeaderTimeout = 1
+	require.Nil(t, newFirstResponseTimeoutControl(req, &relaycommon.RelayInfo{IsStream: false}))
+
+	control := newFirstResponseTimeoutControl(req, &relaycommon.RelayInfo{IsStream: true})
+	require.NotNil(t, control)
+	t.Cleanup(control.Cancel)
+
+	trace := httptrace.ContextClientTrace(control.request.Context())
+	require.NotNil(t, trace)
+	require.NotNil(t, trace.GotFirstResponseByte)
+}
+
+func TestFirstResponseTimeoutControlMarksTimedOut(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+	control := &firstResponseTimeoutControl{
+		cancel:  cancel,
+		timeout: 10 * time.Millisecond,
+	}
+
+	control.Start()
+
+	require.Eventually(t, control.TimedOut, 200*time.Millisecond, 5*time.Millisecond)
+	require.Eventually(t, func() bool {
+		return ctx.Err() != nil
+	}, 200*time.Millisecond, 5*time.Millisecond)
+	require.ErrorIs(t, ctx.Err(), context.Canceled)
+	require.True(t, isFirstResponseTimeout(control, context.Background(), nil))
+}
+
+func TestFirstResponseTimeoutControlCompleteStopsTimeout(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+	control := &firstResponseTimeoutControl{
+		cancel:  cancel,
+		timeout: 20 * time.Millisecond,
+	}
+
+	control.Start()
+	control.CompleteAt(time.Now())
+	time.Sleep(30 * time.Millisecond)
+
+	require.False(t, control.TimedOut())
+	require.NoError(t, ctx.Err())
+}
+
+func TestIsFirstResponseTimeoutIgnoresClientCancellation(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	recorder := httptest.NewRecorder()
+	ginCtx, _ := gin.CreateTestContext(recorder)
+
+	parent, parentCancel := context.WithCancel(context.Background())
+	ginCtx.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", nil).WithContext(parent)
+	control := &firstResponseTimeoutControl{
+		timeout: 1 * time.Millisecond,
+		cancel:  func() {},
+	}
+	control.Start()
+	require.Eventually(t, control.TimedOut, 200*time.Millisecond, 5*time.Millisecond)
+
+	parentCancel()
+
+	require.False(t, isFirstResponseTimeout(control, parent, ginCtx))
 }
