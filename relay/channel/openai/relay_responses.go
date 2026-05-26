@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/logger"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
@@ -129,6 +130,22 @@ func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 			}
 		}
 	})
+
+	// FRT watchdog: upstream accepted the request but never produced a data
+	// event within constant.StreamingFirstResponseTimeout seconds. Surface as
+	// a channel-class error so controller/relay.go retry loop tries the next
+	// channel. Safe to retry only when nothing has been written to the client
+	// yet (no SetFirstResponseTime + no PingData) — by default
+	// PingIntervalEnabled is false, so we satisfy this when FirstResponseTime
+	// is still zero.
+	if info.StreamStatus != nil &&
+		info.StreamStatus.EndReason == relaycommon.StreamEndReasonFirstResponseTimeout &&
+		!info.HasSendResponse() {
+		return nil, types.NewError(
+			fmt.Errorf("upstream did not send first response token within %ds", constant.StreamingFirstResponseTimeout),
+			types.ErrorCodeChannelResponseTimeExceeded,
+		)
+	}
 
 	if usage.CompletionTokens == 0 {
 		// 计算输出文本的 token 数量

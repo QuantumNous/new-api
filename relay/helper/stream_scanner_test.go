@@ -688,3 +688,95 @@ func TestStreamScannerHandler_PingInterleavesWithSlowUpstream(t *testing.T) {
 	assert.GreaterOrEqual(t, pingCount, 3,
 		"expected at least 3 pings during 5s stream with 1s ping interval; got %d", pingCount)
 }
+
+// ---------- First-response watchdog ----------
+
+// TestStreamScannerHandler_FRTTimeoutOnSilentUpstream verifies that when
+// upstream accepts the request but sends nothing within
+// StreamingFirstResponseTimeout, the watchdog fires and the stream ends
+// with StreamEndReasonFirstResponseTimeout (not the per-chunk timeout reason).
+func TestStreamScannerHandler_FRTTimeoutOnSilentUpstream(t *testing.T) {
+	oldFRT := constant.StreamingFirstResponseTimeout
+	constant.StreamingFirstResponseTimeout = 1
+	t.Cleanup(func() { constant.StreamingFirstResponseTimeout = oldFRT })
+
+	// Reader that delivers nothing then EOFs after 2s — so the FRT watchdog
+	// (1s) fires before the body is exhausted.
+	slow := &slowReader{r: strings.NewReader(""), delay: 2 * time.Second}
+	c, resp, info := setupStreamTest(t, slow)
+
+	start := time.Now()
+	StreamScannerHandler(c, resp, info, func(data string, sr *StreamResult) {
+		t.Fatalf("data handler should not be called when upstream is silent")
+	})
+	elapsed := time.Since(start)
+
+	require.NotNil(t, info.StreamStatus)
+	assert.Equal(t,
+		relaycommon.StreamEndReasonFirstResponseTimeout,
+		info.StreamStatus.EndReason,
+		"FRT watchdog should set first_response_timeout",
+	)
+	assert.False(t, info.HasSendResponse(),
+		"FirstResponseTime must remain unset on silent upstream")
+	assert.Less(t, elapsed, 8*time.Second, "should exit promptly after FRT fires")
+}
+
+// TestStreamScannerHandler_FRTStopsOnFirstData verifies that the FRT watchdog
+// is stood down as soon as the first real data event arrives — even when the
+// watchdog window is much shorter than the total stream duration.
+func TestStreamScannerHandler_FRTStopsOnFirstData(t *testing.T) {
+	// Generous FRT to avoid racing the in-memory body on slow CI.
+	oldFRT := constant.StreamingFirstResponseTimeout
+	constant.StreamingFirstResponseTimeout = 10
+	t.Cleanup(func() { constant.StreamingFirstResponseTimeout = oldFRT })
+
+	c, resp, info := setupStreamTest(t, strings.NewReader(buildSSEBody(10)))
+
+	var count atomic.Int64
+	StreamScannerHandler(c, resp, info, func(data string, sr *StreamResult) {
+		count.Add(1)
+	})
+
+	// All 10 chunks must have been delivered through the data handler,
+	// which proves the scanner ran to completion without FRT firing.
+	assert.Equal(t, int64(10), count.Load())
+	require.NotNil(t, info.StreamStatus)
+	assert.NotEqual(t,
+		relaycommon.StreamEndReasonFirstResponseTimeout,
+		info.StreamStatus.EndReason,
+		"FRT should be stood down once first data arrived",
+	)
+	// Note: HasSendResponse() relies on the unexported `isFirstResponse` flag
+	// being initialized by GenRelayInfo* constructors. The bare RelayInfo{}
+	// used here cannot exercise it; the count.Load==10 assertion above is
+	// the equivalent proof that real data flowed.
+}
+
+// TestStreamScannerHandler_FRTDisabled verifies that setting
+// StreamingFirstResponseTimeout=0 fully disables the watchdog: a silent
+// upstream times out via the existing per-chunk ticker, never via FRT.
+func TestStreamScannerHandler_FRTDisabled(t *testing.T) {
+	slow := &slowReader{r: strings.NewReader(""), delay: 3 * time.Second}
+	c, resp, info := setupStreamTest(t, slow)
+
+	// Note: setupStreamTest already touches StreamingTimeout, so override
+	// FRT and per-chunk AFTER it to ensure our values stick during the call.
+	oldFRT := constant.StreamingFirstResponseTimeout
+	oldChunk := constant.StreamingTimeout
+	constant.StreamingFirstResponseTimeout = 0
+	constant.StreamingTimeout = 1
+	t.Cleanup(func() {
+		constant.StreamingFirstResponseTimeout = oldFRT
+		constant.StreamingTimeout = oldChunk
+	})
+
+	StreamScannerHandler(c, resp, info, func(data string, sr *StreamResult) {})
+
+	require.NotNil(t, info.StreamStatus)
+	assert.NotEqual(t,
+		relaycommon.StreamEndReasonFirstResponseTimeout,
+		info.StreamStatus.EndReason,
+		"FRT must not fire when disabled",
+	)
+}

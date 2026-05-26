@@ -61,6 +61,33 @@ func StreamScannerHandler(c *gin.Context, resp *http.Response, info *relaycommon
 		wg         sync.WaitGroup // 用于等待所有 goroutine 退出
 	)
 
+	// First-response watchdog: catches "alive but silent" upstream where
+	// keep-alive comments/blank lines keep the per-chunk ticker reset
+	// indefinitely. Disabled (nil channel) when StreamingFirstResponseTimeout
+	// is <= 0 or when info already has a first response time (rare retry case).
+	var (
+		frtTimer  *time.Timer
+		frtTimerC <-chan time.Time
+		frtStopOnce sync.Once
+	)
+	if constant.StreamingFirstResponseTimeout > 0 && !info.HasSendResponse() {
+		frtTimer = time.NewTimer(time.Duration(constant.StreamingFirstResponseTimeout) * time.Second)
+		frtTimerC = frtTimer.C
+	}
+	stopFRTTimer := func() {
+		if frtTimer == nil {
+			return
+		}
+		frtStopOnce.Do(func() {
+			if !frtTimer.Stop() {
+				select {
+				case <-frtTimer.C:
+				default:
+				}
+			}
+		})
+	}
+
 	generalSettings := operation_setting.GetGeneralSetting()
 	pingEnabled := generalSettings.PingIntervalEnabled && !info.DisablePing
 	pingInterval := time.Duration(generalSettings.PingIntervalSeconds) * time.Second
@@ -84,6 +111,7 @@ func StreamScannerHandler(c *gin.Context, resp *http.Response, info *relaycommon
 		common.SafeSendBool(stopChan, true)
 
 		ticker.Stop()
+		stopFRTTimer()
 		if pingTicker != nil {
 			pingTicker.Stop()
 		}
@@ -243,6 +271,8 @@ func StreamScannerHandler(c *gin.Context, resp *http.Response, info *relaycommon
 			}
 			if !strings.HasPrefix(data, "[DONE]") {
 				info.SetFirstResponseTime()
+				// First real data event arrived; stand down the FRT watchdog.
+				stopFRTTimer()
 				info.ReceivedResponseCount++
 
 				select {
@@ -272,6 +302,16 @@ func StreamScannerHandler(c *gin.Context, resp *http.Response, info *relaycommon
 	select {
 	case <-ticker.C:
 		info.StreamStatus.SetEndReason(relaycommon.StreamEndReasonTimeout, nil)
+	case <-frtTimerC:
+		// FRT watchdog fired before first upstream data event. Re-check to
+		// avoid the race where data arrived but the goroutine hadn't yet
+		// stopped this timer; only treat as FRT timeout when truly silent.
+		if !info.HasSendResponse() {
+			info.StreamStatus.SetEndReason(
+				relaycommon.StreamEndReasonFirstResponseTimeout,
+				fmt.Errorf("upstream did not send first response token within %ds", constant.StreamingFirstResponseTimeout),
+			)
+		}
 	case <-stopChan:
 		// EndReason already set by the goroutine that triggered stopChan
 	case <-c.Request.Context().Done():
