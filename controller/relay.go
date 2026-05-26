@@ -73,8 +73,9 @@ func ResponsesWebSocket(c *gin.Context) {
 	defer ws.Close()
 
 	if newAPIError := relay.ResponsesWebSocketHelper(c, ws); newAPIError != nil {
-		logger.LogError(c, fmt.Sprintf("responses websocket relay error: %s", newAPIError.Error()))
-		newAPIError.SetMessage(common.MessageWithRequestId(newAPIError.Error(), requestId))
+		errorPreview := common.LocalLogPreview(newAPIError.Error())
+		logger.LogError(c, fmt.Sprintf("responses websocket relay error: %s", errorPreview))
+		newAPIError.SetMessage(common.MessageWithRequestId(errorPreview, requestId))
 		helper.WssError(c, ws, newAPIError.ToOpenAIError())
 	}
 }
