@@ -585,7 +585,10 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
                     size='sm'
                     showDot={false}
                     copyable={false}
-                    className={cn('font-mono', timingBgMap[frtVariant])}
+                    className={cn(
+                      'font-mono',
+                      timingBgMap[frtVariant ?? 'neutral']
+                    )}
                   />
                 ) : (
                   <StatusBadge
