@@ -45,7 +45,13 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { ConfirmDialog } from '@/components/confirm-dialog'
+import {
+  sideDrawerContentClassName,
+  sideDrawerFormClassName,
+  sideDrawerHeaderClassName,
+} from '@/components/drawer-layout'
 import { StatusBadge } from '@/components/status-badge'
+import { TableId } from '@/components/table-id'
 import {
   getAdminPlans,
   getUserSubscriptions,
@@ -191,15 +197,15 @@ export function UserSubscriptionsDialog(props: Props) {
   return (
     <>
       <Sheet open={props.open} onOpenChange={props.onOpenChange}>
-        <SheetContent className='overflow-y-auto sm:max-w-2xl'>
-          <SheetHeader>
+        <SheetContent className={sideDrawerContentClassName('sm:max-w-2xl')}>
+          <SheetHeader className={sideDrawerHeaderClassName()}>
             <SheetTitle>{t('User Subscription Management')}</SheetTitle>
             <SheetDescription>
               {props.user?.username || '-'} (ID: {props.user?.id || '-'})
             </SheetDescription>
           </SheetHeader>
 
-          <div className='mt-4 space-y-4'>
+          <div className={sideDrawerFormClassName()}>
             <div className='flex gap-2'>
               <Select
                 items={[
@@ -279,14 +285,16 @@ export function UserSubscriptionsDialog(props: Props) {
 
                       return (
                         <TableRow key={sub.id}>
-                          <TableCell>#{sub.id}</TableCell>
+                          <TableCell>
+                            <TableId value={sub.id} />
+                          </TableCell>
                           <TableCell>
                             <div>
                               <div className='font-medium'>
                                 {planTitleMap.get(sub.plan_id) ||
                                   `#${sub.plan_id}`}
                               </div>
-                              <div className='text-muted-foreground text-xs'>
+                              <div className='text-muted-foreground text-sm'>
                                 {t('Source')}: {sub.source || '-'}
                               </div>
                             </div>
@@ -295,7 +303,7 @@ export function UserSubscriptionsDialog(props: Props) {
                             <SubscriptionStatusBadge sub={sub} t={t} />
                           </TableCell>
                           <TableCell>
-                            <div className='text-xs'>
+                            <div className='text-sm'>
                               <div>
                                 {t('Start')}: {formatTimestamp(sub.start_time)}
                               </div>
