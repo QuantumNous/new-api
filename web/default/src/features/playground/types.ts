@@ -140,3 +140,72 @@ export interface GroupOption {
   ratio: number
   desc?: string
 }
+
+// ========== Video generation types ==========
+
+export type VideoTaskStatus = 'queued' | 'in_progress' | 'completed' | 'failed'
+
+export interface TokenOption {
+  id: number
+  name: string
+  key: string
+}
+
+export interface VideoGenerationRequest {
+  model: string
+  prompt: string
+  size?: string
+  duration?: number
+  images?: string[]
+  input_reference?: string
+  metadata?: {
+    prompt_extend?: boolean
+    seed?: number
+    watermark?: boolean
+  }
+}
+
+export interface VideoTaskResponse {
+  id: string
+  task_id?: string
+  object: string
+  model: string
+  status: VideoTaskStatus
+  progress: number
+  created_at: number
+  completed_at?: number
+  error?: { message: string; code: string }
+  metadata?: Record<string, unknown>
+}
+
+export interface VideoTaskItem {
+  id: string
+  model: string
+  prompt: string
+  status: VideoTaskStatus
+  progress: number
+  createdAt: number
+  completedAt?: number
+  videoUrl?: string
+  error?: string
+  size?: string
+  duration?: number
+  type?: VideoModelType
+  tokenId?: number
+}
+
+export type VideoModelType =
+  | 'text-to-video'
+  | 'image-to-video'
+  | 'reference-to-video'
+  | 'video-edit'
+
+export interface VideoModelConfig {
+  model: string
+  label: string
+  type: VideoModelType
+  requiresImage: boolean
+  requiresVideo: boolean
+  supportedSizes: string[]
+  durationRange: [number, number]
+}

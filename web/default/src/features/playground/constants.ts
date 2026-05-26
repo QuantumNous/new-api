@@ -89,6 +89,77 @@ export const MESSAGE_ACTION_BUTTON_STYLES = {
   ICON: 'size-4',
 } as const
 
+// ========== Video generation constants ==========
+
+export const VIDEO_API_ENDPOINTS = {
+  SUBMIT: '/v1/video/generations',
+  STATUS: (taskId: string) => `/v1/video/generations/${taskId}`,
+} as const
+
+export const VIDEO_TASK_STATUS = {
+  QUEUED: 'queued',
+  IN_PROGRESS: 'in_progress',
+  COMPLETED: 'completed',
+  FAILED: 'failed',
+} as const
+
+export const HAPPYHORSE_MODEL_PREFIX = 'happyhorse-'
+
+import type { VideoModelConfig, VideoModelType } from './types'
+
+export const HAPPYHORSE_MODELS: VideoModelConfig[] = [
+  {
+    model: 'happyhorse-1.0-t2v',
+    label: '文生视频 (Text-to-Video)',
+    type: 'text-to-video',
+    requiresImage: false,
+    requiresVideo: false,
+    supportedSizes: ['720P', '1080P'],
+    durationRange: [2, 15],
+  },
+  {
+    model: 'happyhorse-1.0-i2v',
+    label: '图生视频 (Image-to-Video)',
+    type: 'image-to-video',
+    requiresImage: true,
+    requiresVideo: false,
+    supportedSizes: ['720P', '1080P'],
+    durationRange: [2, 15],
+  },
+  {
+    model: 'happyhorse-1.0-r2v',
+    label: '首尾帧生视频 (Reference-to-Video)',
+    type: 'reference-to-video',
+    requiresImage: true,
+    requiresVideo: false,
+    supportedSizes: ['720P', '1080P'],
+    durationRange: [2, 15],
+  },
+  {
+    model: 'happyhorse-1.0-video-edit',
+    label: '视频编辑 (Video Edit)',
+    type: 'video-edit',
+    requiresImage: false,
+    requiresVideo: true,
+    supportedSizes: ['720P', '1080P'],
+    durationRange: [2, 15],
+  },
+]
+
+export const VIDEO_MODEL_TYPE_LABELS: Record<VideoModelType, string> = {
+  'text-to-video': 'T2V',
+  'image-to-video': 'I2V',
+  'reference-to-video': 'R2V',
+  'video-edit': 'Edit',
+}
+
+export const VIDEO_POLLING_INTERVAL = 5000
+
+export const STORAGE_KEYS_VIDEO = {
+  TASK_QUEUE: 'playground_video_tasks',
+  TOKEN_ID: 'playground_video_token_id',
+} as const
+
 // Message action labels
 export const MESSAGE_ACTION_LABELS = {
   COPY: 'Copy',
