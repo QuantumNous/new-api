@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>aiapi114 帮助中心</title>
+    <meta
+      name="description"
+      content="aiapi114 帮助中心：账号注册、API Key、工具配置、模型计费和错误排查。"
+    />
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%239ee35b'/%3E%3Ctext x='32' y='43' text-anchor='middle' font-family='Arial' font-size='34' font-weight='900' fill='%2313200d'%3Ea%3C/text%3E%3C/svg%3E"
+    />
+    <link rel="stylesheet" href="assets/help.css" />
+  </head>
+  <body>
+    <header class="help-topbar">
+      <a class="help-brand" href="#quick-start" aria-label="aiapi114 帮助中心首页">
+        <span class="help-brand__mark">a</span>
+        <span>
+          <strong>aiapi114</strong>
+          <small>帮助中心</small>
+        </span>
+      </a>
+      <div class="help-topbar__search">
+        <label class="sr-only" for="help-search">搜索帮助文档</label>
+        <input id="help-search" type="search" placeholder="搜索 Key、Codex、充值、报错..." />
+      </div>
+      <button class="help-menu-button" type="button" data-menu-button aria-label="打开目录">
+        目录
+      </button>
+    </header>
+
+    <div class="help-shell">
+      <aside class="help-sidebar" data-sidebar>
+        <div class="help-sidebar__title">文档目录</div>
+        <nav id="help-nav" class="help-nav" aria-label="帮助文档目录"></nav>
+      </aside>
+
+      <main class="help-main">
+        <section class="help-hero">
+          <p class="help-eyebrow">aiapi114 docs</p>
+          <h1>按真实接入路径整理的静态帮助中心</h1>
+          <p>
+            第一版覆盖账号、充值、API Key、常用工具配置、模型计费和错误排查。图片位置已用占位块标出，后续替换为 aiapi114 实际截图。
+          </p>
+        </section>
+
+        <article id="help-article" class="help-article" aria-live="polite"></article>
+
+        <nav class="help-pager" aria-label="上一篇和下一篇">
+          <a id="help-prev" class="help-pager__link" href="#"></a>
+          <a id="help-next" class="help-pager__link" href="#"></a>
+        </nav>
+      </main>
+
+      <aside class="help-outline">
+        <div class="help-outline__title">本文目录</div>
+        <nav id="help-outline" aria-label="本文目录"></nav>
+      </aside>
+    </div>
+
+    <div class="help-overlay" data-overlay></div>
+
+    <script src="assets/content.js"></script>
+    <script src="assets/help.js"></script>
+  </body>
+</html>
