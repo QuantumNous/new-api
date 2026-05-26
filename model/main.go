@@ -257,6 +257,7 @@ func migrateDB() error {
 
 	err := DB.AutoMigrate(
 		&Channel{},
+		&ChannelProvider{},
 		&Token{},
 		&User{},
 		&PasskeyCredential{},
@@ -296,6 +297,9 @@ func migrateDB() error {
 			return err
 		}
 	}
+	if err := MigrateChannelProviders(); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -308,6 +312,7 @@ func migrateDBFast() error {
 		name  string
 	}{
 		{&Channel{}, "Channel"},
+		{&ChannelProvider{}, "ChannelProvider"},
 		{&Token{}, "Token"},
 		{&User{}, "User"},
 		{&PasskeyCredential{}, "PasskeyCredential"},
@@ -365,6 +370,9 @@ func migrateDBFast() error {
 		if err := DB.AutoMigrate(&SubscriptionPlan{}); err != nil {
 			return err
 		}
+	}
+	if err := MigrateChannelProviders(); err != nil {
+		return err
 	}
 	common.SysLog("database migrated")
 	return nil

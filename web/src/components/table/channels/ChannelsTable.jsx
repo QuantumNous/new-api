@@ -152,7 +152,9 @@ const ChannelsTable = (channelsData) => {
         enableBatchDelete
           ? {
               onChange: (selectedRowKeys, selectedRows) => {
-                setSelectedChannels(selectedRows);
+                setSelectedChannels(
+                  selectedRows.filter((row) => row.children === undefined),
+                );
               },
             }
           : null

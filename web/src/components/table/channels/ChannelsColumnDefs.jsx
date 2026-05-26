@@ -148,6 +148,14 @@ const renderTagType = (t) => {
   );
 };
 
+const renderProviderType = (t) => {
+  return (
+    <Tag color='cyan' shape='circle' type='light'>
+      {t('供应商')}
+    </Tag>
+  );
+};
+
 const renderStatus = (status, channelInfo = undefined, t) => {
   if (channelInfo) {
     if (channelInfo.is_multi_key) {
@@ -529,7 +537,20 @@ export const getChannelsColumns = ({
           );
 
         if (!passThroughEnabled && !showUpstreamUpdateTag) {
-          return nameNode;
+          if (!record.is_provider) {
+            return nameNode;
+          }
+        }
+
+        if (record.is_provider) {
+          return (
+            <Space spacing={6} vertical align='start'>
+              <span>{text}</span>
+              <Typography.Text size='small' type='tertiary' copyable>
+                {record.base_url}
+              </Typography.Text>
+            </Space>
+          );
         }
 
         return (
@@ -632,7 +653,9 @@ export const getChannelsColumns = ({
       title: t('类型'),
       dataIndex: 'type',
       render: (text, record, index) => {
-        if (record.children === undefined) {
+        if (record.is_provider) {
+          return <>{renderProviderType(t)}</>;
+        } else if (record.children === undefined) {
           return <>{renderType(text, record, t)}</>;
         } else {
           return <>{renderTagType(t)}</>;
@@ -765,6 +788,12 @@ export const getChannelsColumns = ({
               />
             </div>
           );
+        } else if (record.is_provider) {
+          return (
+            <Tag color='white' type='ghost' shape='circle'>
+              {text ?? '-'}
+            </Tag>
+          );
         } else {
           return (
             <InputNumber
@@ -819,6 +848,12 @@ export const getChannelsColumns = ({
                 size='small'
               />
             </div>
+          );
+        } else if (record.is_provider) {
+          return (
+            <Tag color='white' type='ghost' shape='circle'>
+              {text ?? '-'}
+            </Tag>
           );
         } else {
           return (
@@ -1038,6 +1073,15 @@ export const getChannelsColumns = ({
               >
                 <Button icon={<IconMore />} type='tertiary' size='small' />
               </Dropdown>
+            </Space>
+          );
+        } else if (record.is_provider) {
+          return (
+            <Space wrap>
+              <Tag color='cyan' type='light' shape='circle'>
+                {t('子渠道')} {record.enabled_count || 0}/
+                {record.channel_count || 0}
+              </Tag>
             </Space>
           );
         } else {

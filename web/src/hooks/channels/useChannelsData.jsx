@@ -244,6 +244,13 @@ export const useChannelsData = () => {
       );
       channels[i].key = '' + channels[i].id;
       if (!enableTagMode) {
+        if (Array.isArray(channels[i].children)) {
+          channels[i].children = channels[i].children.map((child) => ({
+            ...child,
+            key: '' + child.id,
+            upstreamUpdateMeta: parseUpstreamUpdateMeta(child.settings),
+          }));
+        }
         channelDates.push(channels[i]);
       } else {
         let tag = channels[i].tag ? channels[i].tag : '';
@@ -348,8 +355,9 @@ export const useChannelsData = () => {
     setLoading(true);
     const typeParam = typeKey !== 'all' ? `&type=${typeKey}` : '';
     const statusParam = statusF !== 'all' ? `&status=${statusF}` : '';
+    const providerModeParam = !enableTagMode ? '&provider_mode=true' : '';
     const res = await API.get(
-      `/api/channel/?p=${page}&page_size=${pageSize}&id_sort=${idSort}&tag_mode=${enableTagMode}${typeParam}${statusParam}`,
+      `/api/channel/?p=${page}&page_size=${pageSize}&id_sort=${idSort}&tag_mode=${enableTagMode}${providerModeParam}${typeParam}${statusParam}`,
     );
 
     if (res === undefined || reqId !== requestCounter.current) {
@@ -400,8 +408,9 @@ export const useChannelsData = () => {
 
       const typeParam = typeKey !== 'all' ? `&type=${typeKey}` : '';
       const statusParam = statusF !== 'all' ? `&status=${statusF}` : '';
+      const providerModeParam = !enableTagMode ? '&provider_mode=true' : '';
       const res = await API.get(
-        `/api/channel/search?keyword=${searchKeyword}&group=${searchGroup}&model=${searchModel}&id_sort=${sortFlag}&tag_mode=${enableTagMode}&p=${page}&page_size=${pageSz}${typeParam}${statusParam}`,
+        `/api/channel/search?keyword=${searchKeyword}&group=${searchGroup}&model=${searchModel}&id_sort=${sortFlag}&tag_mode=${enableTagMode}${providerModeParam}&p=${page}&page_size=${pageSz}${typeParam}${statusParam}`,
       );
       const { success, message, data } = res.data;
       if (success) {

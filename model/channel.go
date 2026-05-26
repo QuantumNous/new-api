@@ -20,6 +20,7 @@ import (
 
 type Channel struct {
 	Id                 int     `json:"id"`
+	ProviderID         int     `json:"provider_id" gorm:"index;default:0"`
 	Type               int     `json:"type" gorm:"default:0"`
 	Key                string  `json:"key" gorm:"not null"`
 	OpenAIOrganization *string `json:"openai_organization"`
@@ -54,7 +55,8 @@ type Channel struct {
 	OtherSettings string `json:"settings" gorm:"column:settings"` // 其他设置，存储azure版本等不需要检索的信息，详见dto.ChannelOtherSettings
 
 	// cache info
-	Keys []string `json:"-" gorm:"-"`
+	Keys     []string                `json:"-" gorm:"-"`
+	Provider *ChannelProviderSummary `json:"provider,omitempty" gorm:"-"`
 }
 
 type ChannelInfo struct {
@@ -368,6 +370,13 @@ func BatchInsertChannels(channels []Channel) error {
 			tx.Rollback()
 		}
 	}()
+
+	for i := range channels {
+		if _, err := EnsureProviderForChannel(tx, &channels[i]); err != nil {
+			tx.Rollback()
+			return err
+		}
+	}
 
 	for _, chunk := range lo.Chunk(channels, 50) {
 		if err := tx.Create(&chunk).Error; err != nil {

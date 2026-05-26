@@ -283,6 +283,7 @@ const EditChannelModal = (props) => {
   };
   const originInputs = {
     name: '',
+    provider_id: 0,
     type: 1,
     key: '',
     openai_organization: '',
@@ -422,6 +423,7 @@ const EditChannelModal = (props) => {
   const vertexErroredNames = useRef(new Set()); // 避免重复报错
   const [isMultiKeyChannel, setIsMultiKeyChannel] = useState(false);
   const [channelSearchValue, setChannelSearchValue] = useState('');
+  const [channelProviders, setChannelProviders] = useState([]);
   const [useManualInput, setUseManualInput] = useState(false); // 是否使用手动输入模式
   const [keyMode, setKeyMode] = useState('append'); // 密钥模式：replace（覆盖）或 append（追加）
   const [isEnterpriseAccount, setIsEnterpriseAccount] = useState(false); // 是否为企业账户
@@ -1084,6 +1086,17 @@ const EditChannelModal = (props) => {
 
   const clearParamOverride = () => {
     handleInputChange('param_override', '');
+  };
+
+  const fetchChannelProviders = async () => {
+    try {
+      const res = await API.get('/api/channel/providers?page_size=1000');
+      if (res?.data?.success) {
+        setChannelProviders(res.data.data?.items || []);
+      }
+    } catch (error) {
+      console.error('Failed to fetch channel providers:', error);
+    }
   };
 
   const loadChannel = async () => {
@@ -1805,6 +1818,7 @@ const EditChannelModal = (props) => {
       }
       loadBalanceQueryInstances();
       loadGroupQueryInstances();
+      fetchChannelProviders();
       fetchModelGroups();
       // 重置手动输入模式状态
       setUseManualInput(false);
@@ -2716,6 +2730,16 @@ const EditChannelModal = (props) => {
         label: opt.label,
       })),
     [],
+  );
+
+  const providerOptionList = useMemo(
+    () =>
+      channelProviders.map((provider) => ({
+        label: `${provider.name || provider.base_url} (${provider.base_url})`,
+        value: provider.id,
+        base_url: provider.base_url,
+      })),
+    [channelProviders],
   );
 
   const balanceQueryInstanceOptions = useMemo(() => {
@@ -4180,6 +4204,33 @@ const EditChannelModal = (props) => {
                         renderOptionItem={renderChannelOption}
                         onChange={(value) => handleInputChange('type', value)}
                         disabled={isIonetLocked}
+                      />
+
+                      <Form.Select
+                        field='provider_id'
+                        label={t('供应商 API 地址')}
+                        placeholder={t('选择已有供应商，或在下方 API 地址中填写新地址')}
+                        optionList={providerOptionList}
+                        style={{ width: '100%' }}
+                        filter={selectFilter}
+                        showClear
+                        disabled={isIonetLocked}
+                        onChange={(value) => {
+                          const provider = channelProviders.find(
+                            (item) => item.id === value,
+                          );
+                          handleInputChange('provider_id', value || 0);
+                          if (provider?.base_url) {
+                            formApiRef.current?.setValue(
+                              'base_url',
+                              provider.base_url,
+                            );
+                            handleInputChange('base_url', provider.base_url);
+                          }
+                        }}
+                        extraText={t(
+                          '同一供应商地址下可以挂多个密钥子渠道，并分别设置类型、优先级、权重和分组',
+                        )}
                       />
 
                       {inputs.type === 57 && (

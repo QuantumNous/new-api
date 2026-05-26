@@ -73,6 +73,7 @@ func GetAllChannels(c *gin.Context) {
 	channelData := make([]*model.Channel, 0)
 	idSort, _ := strconv.ParseBool(c.Query("id_sort"))
 	enableTagMode, _ := strconv.ParseBool(c.Query("tag_mode"))
+	enableProviderMode, _ := strconv.ParseBool(c.Query("provider_mode"))
 	statusParam := c.Query("status")
 	// statusFilter: -1 all, 1 enabled, 0 disabled (include auto & manual)
 	statusFilter := parseStatusFilter(statusParam)
@@ -136,7 +137,11 @@ func GetAllChannels(c *gin.Context) {
 			order = "id desc"
 		}
 
-		err := baseQuery.Order(order).Limit(pageInfo.GetPageSize()).Offset(pageInfo.GetStartIdx()).Omit("key").Find(&channelData).Error
+		query := baseQuery.Order(order).Omit("key")
+		if !enableProviderMode {
+			query = query.Limit(pageInfo.GetPageSize()).Offset(pageInfo.GetStartIdx())
+		}
+		err := query.Find(&channelData).Error
 		if err != nil {
 			common.SysError("failed to get channels: " + err.Error())
 			c.JSON(http.StatusOK, gin.H{"success": false, "message": "获取渠道列表失败，请稍后重试"})
@@ -144,9 +149,29 @@ func GetAllChannels(c *gin.Context) {
 		}
 	}
 
+	if enableProviderMode && !enableTagMode {
+		for _, datum := range channelData {
+			clearChannelInfo(datum)
+		}
+		typeCounts := make(map[int64]int64)
+		for _, channel := range channelData {
+			typeCounts[int64(channel.Type)]++
+		}
+		items, providerTotal := model.BuildChannelProviderTrees(channelData, pageInfo.GetStartIdx(), pageInfo.GetPageSize())
+		common.ApiSuccess(c, gin.H{
+			"items":       items,
+			"total":       providerTotal,
+			"page":        pageInfo.GetPage(),
+			"page_size":   pageInfo.GetPageSize(),
+			"type_counts": typeCounts,
+		})
+		return
+	}
+
 	for _, datum := range channelData {
 		clearChannelInfo(datum)
 	}
+	model.AttachChannelProviderSummaries(channelData)
 
 	countQuery := model.DB.Model(&model.Channel{})
 	if statusFilter == common.ChannelStatusEnabled {
@@ -253,6 +278,7 @@ func SearchChannels(c *gin.Context) {
 	statusFilter := parseStatusFilter(statusParam)
 	idSort, _ := strconv.ParseBool(c.Query("id_sort"))
 	enableTagMode, _ := strconv.ParseBool(c.Query("tag_mode"))
+	enableProviderMode, _ := strconv.ParseBool(c.Query("provider_mode"))
 	channelData := make([]*model.Channel, 0)
 	if enableTagMode {
 		tags, err := model.SearchTags(keyword, group, modelKeyword, idSort)
@@ -321,6 +347,31 @@ func SearchChannels(c *gin.Context) {
 		channelData = filtered
 	}
 
+	if enableProviderMode && !enableTagMode {
+		for _, datum := range channelData {
+			clearChannelInfo(datum)
+		}
+		page, _ := strconv.Atoi(c.DefaultQuery("p", "1"))
+		pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
+		if page < 1 {
+			page = 1
+		}
+		if pageSize <= 0 {
+			pageSize = 20
+		}
+		items, providerTotal := model.BuildChannelProviderTrees(channelData, (page-1)*pageSize, pageSize)
+		c.JSON(http.StatusOK, gin.H{
+			"success": true,
+			"message": "",
+			"data": gin.H{
+				"items":       items,
+				"total":       providerTotal,
+				"type_counts": typeCounts,
+			},
+		})
+		return
+	}
+
 	page, _ := strconv.Atoi(c.DefaultQuery("p", "1"))
 	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
 	if page < 1 {
@@ -345,6 +396,7 @@ func SearchChannels(c *gin.Context) {
 	for _, datum := range pagedData {
 		clearChannelInfo(datum)
 	}
+	model.AttachChannelProviderSummaries(pagedData)
 
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
@@ -371,6 +423,7 @@ func GetChannel(c *gin.Context) {
 	}
 	if channel != nil {
 		clearChannelInfo(channel)
+		model.AttachChannelProviderSummaries([]*model.Channel{channel})
 	}
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
@@ -871,6 +924,19 @@ func UpdateChannel(c *gin.Context) {
 	// If the request explicitly specifies a new MultiKeyMode, apply it on top of the original info.
 	if channel.MultiKeyMode != nil && *channel.MultiKeyMode != "" {
 		channel.ChannelInfo.MultiKeyMode = constant.MultiKeyMode(*channel.MultiKeyMode)
+	}
+
+	if channel.ProviderID > 0 || channel.BaseURL != nil {
+		if channel.Type == 0 {
+			channel.Type = originChannel.Type
+		}
+		if _, err := model.EnsureProviderForChannel(nil, &channel.Channel); err != nil {
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"message": err.Error(),
+			})
+			return
+		}
 	}
 
 	// 处理多key模式下的密钥追加/覆盖逻辑

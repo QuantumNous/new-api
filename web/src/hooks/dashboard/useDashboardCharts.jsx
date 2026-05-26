@@ -158,19 +158,19 @@ export const useDashboardCharts = (
             value: (datum) => renderNumber(datum['Tokens'] || 0),
           },
           {
-            key: () => t('输入tokens'),
+            key: () => t('输入(未缓存)'),
             value: (datum) => renderNumber(datum['PromptTokens'] || 0),
           },
           {
-            key: () => t('输入tokens(缓存命中)'),
+            key: () => t('输入(缓存)'),
             value: (datum) => renderNumber(datum['CacheReadTokens'] || 0),
           },
           {
-            key: () => t('输出tokens'),
+            key: () => t('输出(未缓存)'),
             value: (datum) => renderNumber(datum['CompletionTokens'] || 0),
           },
           {
-            key: () => t('输出tokens(缓存写入)'),
+            key: () => t('输出(缓存)'),
             value: (datum) => renderNumber(datum['CacheWriteTokens'] || 0),
           },
           {

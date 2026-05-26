@@ -54,6 +54,7 @@ export const useLogsData = () => {
     GROUP: 'group',
     TYPE: 'type',
     MODEL: 'model',
+    REASONING_EFFORT: 'reasoning_effort',
     USE_TIME: 'use_time',
     PROMPT: 'prompt',
     COST: 'cost',
@@ -116,6 +117,7 @@ export const useLogsData = () => {
       [COLUMN_KEYS.GROUP]: true,
       [COLUMN_KEYS.TYPE]: true,
       [COLUMN_KEYS.MODEL]: true,
+      [COLUMN_KEYS.REASONING_EFFORT]: true,
       [COLUMN_KEYS.USE_TIME]: true,
       [COLUMN_KEYS.PROMPT]: true,
       [COLUMN_KEYS.COST]: true,
@@ -727,7 +729,7 @@ export const useLogsData = () => {
         }
         if (other?.reasoning_effort) {
           expandDataLocal.push({
-            key: t('Reasoning Effort'),
+            key: t('推理强度'),
             value: other.reasoning_effort,
           });
         }

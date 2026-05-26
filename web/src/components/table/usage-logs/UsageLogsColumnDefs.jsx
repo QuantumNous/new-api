@@ -198,6 +198,27 @@ function renderType(type, t) {
   }
 }
 
+function renderReasoningEffort(effort, t) {
+  if (!effort) {
+    return <></>;
+  }
+
+  const colorMap = {
+    none: 'grey',
+    minimal: 'teal',
+    low: 'green',
+    medium: 'blue',
+    high: 'orange',
+    xhigh: 'red',
+  };
+
+  return (
+    <Tag color={colorMap[effort] || 'violet'} shape='circle'>
+      {t(effort)}
+    </Tag>
+  );
+}
+
 function buildStreamStatusTooltip(ss, t) {
   if (!ss) return null;
   const lines = [t('流状态') + '：' + t('异常'), ss.end_reason || 'unknown'];
@@ -1151,6 +1172,25 @@ export const getLogsColumns = ({
         ) : (
           <></>
         );
+      },
+    },
+    {
+      key: COLUMN_KEYS.REASONING_EFFORT,
+      title: t('推理强度'),
+      dataIndex: 'other',
+      render: (text, record) => {
+        if (
+          !(
+            record.type === 0 ||
+            record.type === 2 ||
+            record.type === 5 ||
+            record.type === 6
+          )
+        ) {
+          return <></>;
+        }
+        const other = getLogOther(text);
+        return renderReasoningEffort(other?.reasoning_effort, t);
       },
     },
     {
