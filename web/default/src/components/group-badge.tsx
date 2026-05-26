@@ -94,7 +94,7 @@ export function GroupBadge(props: GroupBadgeProps) {
       {badge}
       <span
         className={cn(
-          'inline-flex h-6 items-center rounded-full px-2 font-mono text-sm leading-none font-medium tabular-nums',
+          'inline-flex h-5 items-center rounded-full px-1.5 font-mono text-xs leading-none font-medium tabular-nums',
           getGroupRatioClassName(ratio)
         )}
       >
