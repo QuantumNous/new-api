@@ -23,6 +23,7 @@ import (
 
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 )
 
 type LoginRequest struct {
@@ -88,6 +89,71 @@ func Login(c *gin.Context) {
 	}
 
 	setupLogin(&user, c)
+}
+
+// LoginByEmail is the JINN desktop passwordless beta entrypoint.
+// First sign-in with a given email auto-creates the user with QuotaForNewUser
+// trial credits; subsequent sign-ins log the existing user in.
+// No verification step: anyone who knows the email can sign in as that user.
+// Disable via EmailOnlyLoginEnabled once a real verification path lands.
+type LoginByEmailRequest struct {
+	Email string `json:"email"`
+}
+
+func LoginByEmail(c *gin.Context) {
+	if !common.EmailOnlyLoginEnabled {
+		common.ApiErrorI18n(c, i18n.MsgUserEmailOnlyLoginDisabled)
+		return
+	}
+	var req LoginByEmailRequest
+	if err := common.DecodeJson(c.Request.Body, &req); err != nil {
+		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+		return
+	}
+	req.Email = strings.TrimSpace(req.Email)
+	if req.Email == "" || !strings.Contains(req.Email, "@") {
+		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+		return
+	}
+
+	var user model.User
+	err := model.DB.Where("email = ?", req.Email).First(&user).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		randomPassword := common.GetRandomString(24)
+		cleanUser := model.User{
+			Username:    "u_" + common.GetRandomString(8),
+			Password:    randomPassword,
+			Email:       req.Email,
+			DisplayName: emailLocalPart(req.Email),
+			Role:        common.RoleCommonUser,
+		}
+		if err := cleanUser.Insert(0); err != nil {
+			common.ApiError(c, err)
+			return
+		}
+		if err := model.DB.Where("email = ?", req.Email).First(&user).Error; err != nil {
+			common.SysLog(fmt.Sprintf("LoginByEmail post-insert lookup failed for %s: %v", req.Email, err))
+			common.ApiErrorI18n(c, i18n.MsgDatabaseError)
+			return
+		}
+	} else if err != nil {
+		common.SysLog(fmt.Sprintf("LoginByEmail database error: %v", err))
+		common.ApiErrorI18n(c, i18n.MsgDatabaseError)
+		return
+	}
+	if user.Status != common.UserStatusEnabled {
+		common.ApiErrorI18n(c, i18n.MsgUserDisabled)
+		return
+	}
+
+	setupLogin(&user, c)
+}
+
+func emailLocalPart(email string) string {
+	if i := strings.IndexByte(email, '@'); i > 0 {
+		return email[:i]
+	}
+	return email
 }
 
 // setup session & cookies and then return user info
