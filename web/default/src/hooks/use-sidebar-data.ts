@@ -33,6 +33,7 @@ import {
   CreditCard,
   ListTodo,
   Settings,
+  Columns3,
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { WORKSPACE_IDS } from '@/components/layout/lib/workspace-registry'
@@ -64,6 +65,11 @@ export function useSidebarData(): SidebarData {
             title: t('Chat'),
             icon: MessageSquare,
             type: 'chat-presets',
+          },
+          {
+            title: t('Model Compare'),
+            url: '/dashboard/model-compare',
+            icon: Columns3,
           },
         ],
       },

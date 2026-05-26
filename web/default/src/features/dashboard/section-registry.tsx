@@ -36,6 +36,12 @@ const DASHBOARD_SECTIONS = [
     build: () => null,
   },
   {
+    id: 'model-compare',
+    titleKey: 'Model Compare',
+    descriptionKey: 'Compare outputs and costs across selected AI models',
+    build: () => null,
+  },
+  {
     id: 'users',
     titleKey: 'User Analytics',
     descriptionKey: 'View user consumption statistics and charts',

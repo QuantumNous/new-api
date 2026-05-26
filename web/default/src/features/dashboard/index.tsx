@@ -28,6 +28,7 @@ import { FadeIn } from '@/components/page-transition'
 import { ModelsChartPreferences } from './components/models/models-chart-preferences'
 import { ModelsFilter } from './components/models/models-filter-dialog'
 import { OverviewDashboard } from './components/overview/overview-dashboard'
+import { ModelComparePanel } from '@/features/model-compare'
 import { DEFAULT_TIME_GRANULARITY } from './constants'
 import {
   buildDefaultDashboardFilters,
@@ -145,6 +146,10 @@ const SECTION_META: Record<
   users: {
     titleKey: 'User Analytics',
     descriptionKey: 'View user consumption statistics and charts',
+  },
+  'model-compare': {
+    titleKey: 'Model Compare',
+    descriptionKey: 'Compare outputs and costs across selected AI models',
   },
 }
 
@@ -305,6 +310,11 @@ export function Dashboard() {
               <Suspense fallback={<ModelChartsFallback />}>
                 <LazyUserCharts />
               </Suspense>
+            </FadeIn>
+          )}
+          {activeSection === 'model-compare' && (
+            <FadeIn>
+              <ModelComparePanel />
             </FadeIn>
           )}
         </div>
