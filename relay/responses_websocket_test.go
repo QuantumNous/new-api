@@ -1,7 +1,6 @@
 package relay
 
 import (
-	"encoding/json"
 	"errors"
 	"net/http"
 	"net/http/httptest"
@@ -101,7 +100,7 @@ func TestBuildResponsesWSCreateEventIsFlat(t *testing.T) {
 		"stream_options": {"include_usage": true}
 	}`)
 
-	got, err := buildResponsesWSCreateEvent(payload, json.RawMessage(`false`))
+	got, err := buildResponsesWSCreateEvent(payload, common.RawMessage(`false`))
 	if err != nil {
 		t.Fatalf("buildResponsesWSCreateEvent() error = %v", err)
 	}

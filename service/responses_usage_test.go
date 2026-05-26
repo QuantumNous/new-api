@@ -78,4 +78,10 @@ func TestApplyResponsesUsageFallsBackToCompletionTokenDetails(t *testing.T) {
 	if dst.CompletionTokenDetails.ReasoningTokens != 9 {
 		t.Fatalf("reasoning tokens = %d, want 9", dst.CompletionTokenDetails.ReasoningTokens)
 	}
+	if dst.OutputTokensDetails == nil {
+		t.Fatal("OutputTokensDetails is nil")
+	}
+	if dst.OutputTokensDetails.ReasoningTokens != 9 {
+		t.Fatalf("output reasoning tokens = %d, want 9", dst.OutputTokensDetails.ReasoningTokens)
+	}
 }
