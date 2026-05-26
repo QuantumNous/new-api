@@ -1204,6 +1204,41 @@ function renderPriceSimpleCore({
   return result;
 }
 
+function formatBillingDisplayPrice(usdAmount, rate, digits = 6) {
+  return (usdAmount * rate).toFixed(digits);
+}
+
+function buildBillingText(key, vars) {
+  return i18next.t(key, vars);
+}
+
+function buildBillingPriceText(
+  key,
+  { symbol, usdAmount, rate, amountKey = 'price', digits = 6, ...vars },
+) {
+  return buildBillingText(key, {
+    symbol,
+    [amountKey]: formatBillingDisplayPrice(usdAmount, rate, digits),
+    ...vars,
+  });
+}
+
+function renderBillingArticle(lines, { showReferenceNote = true } = {}) {
+  const articleLines = lines.filter(Boolean);
+
+  if (showReferenceNote) {
+    articleLines.push(buildBillingText('仅供参考，以实际扣费为准'));
+  }
+
+  return (
+    <article>
+      {articleLines.map((line, index) => (
+        <p key={index}>{line}</p>
+      ))}
+    </article>
+  );
+}
+
 export function renderTaskBillingProcess(other, content) {
   if (other?.task_id != null) {
     return renderBillingArticle(
