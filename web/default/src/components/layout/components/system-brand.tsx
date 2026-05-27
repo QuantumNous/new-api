@@ -20,7 +20,7 @@ import { Link } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
 import { cn } from '@/lib/utils'
 import { useStatus } from '@/hooks/use-status'
-import { useSystemConfig } from '@/hooks/use-system-config'
+import { FlatkeyBrandLogo } from '@/components/brand/flatkey-brand-logo'
 import {
   SidebarMenu,
   SidebarMenuButton,
@@ -47,7 +47,6 @@ type SystemBrandProps = {
 export function SystemBrand(props: SystemBrandProps) {
   const { t } = useTranslation()
   const { status } = useStatus()
-  const { logo } = useSystemConfig()
 
   const variant = props.variant ?? 'sidebar'
   const name = status?.system_name || props.defaultName || 'New API'
@@ -64,14 +63,10 @@ export function SystemBrand(props: SystemBrandProps) {
           'hover:bg-accent focus-visible:ring-ring/40 focus-visible:ring-2'
         )}
       >
-        <div className='flex size-5 items-center justify-center overflow-hidden rounded-md'>
-          <img
-            src={logo}
-            alt={t('Logo')}
-            className='size-full rounded-md object-cover'
-          />
+        <div className='flex h-9 items-center justify-center'>
+          <FlatkeyBrandLogo alt={t('Logo')} className='h-9 scale-[0.88]' />
         </div>
-        <span className='max-w-[12rem] truncate'>{name}</span>
+        <span className='sr-only'>{name}</span>
       </Link>
     )
   }
@@ -84,12 +79,8 @@ export function SystemBrand(props: SystemBrandProps) {
           className='hover:text-sidebar-foreground active:text-sidebar-foreground cursor-default hover:bg-transparent active:bg-transparent'
           render={<div />}
         >
-          <div className='flex aspect-square size-8 items-center justify-center overflow-hidden rounded-lg'>
-            <img
-              src={logo}
-              alt={t('Logo')}
-              className='size-full rounded-lg object-cover'
-            />
+          <div className='flex h-10 items-center justify-center group-data-[collapsible=icon]:aspect-square group-data-[collapsible=icon]:size-8'>
+            <FlatkeyBrandLogo alt={t('Logo')} className='h-10 scale-[0.88] origin-left group-data-[collapsible=icon]:scale-75' />
           </div>
           <div className='grid flex-1 text-start text-sm leading-tight group-data-[collapsible=icon]:hidden'>
             <span className='truncate font-semibold'>{name}</span>

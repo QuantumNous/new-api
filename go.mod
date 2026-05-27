@@ -60,7 +60,7 @@ require (
 	gorm.io/gorm v1.25.2
 )
 
-require github.com/waffo-com/waffo-pancake-sdk-go v0.2.0
+require github.com/waffo-com/waffo-pancake-sdk-go v0.3.1
 
 require (
 	github.com/BlockRunAI/blockrun-llm-go v0.7.0 // indirect

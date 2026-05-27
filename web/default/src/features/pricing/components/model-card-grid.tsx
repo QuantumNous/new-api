@@ -86,8 +86,8 @@ export function ModelCardGrid(props: ModelCardGridProps) {
       </div>
 
       {totalPages > 1 && (
-        <div className='text-muted-foreground flex flex-col items-center justify-between gap-3 border-t px-4 py-3 text-sm sm:flex-row'>
-          <p className='text-muted-foreground'>
+        <div className='flex flex-col items-center justify-between gap-3 rounded-3xl border border-violet-300/30 bg-white/50 px-4 py-3 text-sm text-slate-500 shadow-[0_18px_60px_rgba(91,33,182,0.08)] backdrop-blur-xl sm:flex-row dark:border-violet-300/15 dark:bg-white/[0.035] dark:text-white/50'>
+          <p>
             {t('Page {{current}} of {{total}}', {
               current: currentPage,
               total: totalPages,
@@ -100,7 +100,7 @@ export function ModelCardGrid(props: ModelCardGridProps) {
               size='sm'
               onClick={() => setPage((current) => Math.max(1, current - 1))}
               disabled={currentPage <= 1}
-              className='gap-1.5'
+              className='gap-1.5 rounded-full border-violet-300/30 bg-white/60 hover:bg-violet-500/10 dark:border-white/10 dark:bg-white/[0.04] dark:hover:bg-violet-300/10'
             >
               <ChevronLeft className='size-4' />
               {t('Previous page')}
@@ -113,7 +113,7 @@ export function ModelCardGrid(props: ModelCardGridProps) {
                 setPage((current) => Math.min(totalPages, current + 1))
               }
               disabled={currentPage >= totalPages}
-              className='gap-1.5'
+              className='gap-1.5 rounded-full border-violet-300/30 bg-white/60 hover:bg-violet-500/10 dark:border-white/10 dark:bg-white/[0.04] dark:hover:bg-violet-300/10'
             >
               {t('Next page')}
               <ChevronRight className='size-4' />

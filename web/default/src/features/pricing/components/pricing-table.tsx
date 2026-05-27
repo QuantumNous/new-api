@@ -93,7 +93,7 @@ export function PricingTable(props: PricingTableProps) {
 
   return (
     <div className='space-y-4'>
-      <div className='overflow-hidden rounded-lg border'>
+      <div className='overflow-hidden rounded-3xl border border-violet-300/30 bg-white/58 shadow-[0_22px_70px_rgba(91,33,182,0.09)] backdrop-blur-xl dark:border-violet-300/15 dark:bg-white/[0.035] dark:shadow-[0_22px_80px_rgba(88,28,135,0.24)]'>
         <Table>
           <TableHeader>
             {table.getHeaderGroups().map((headerGroup) => (
@@ -102,7 +102,7 @@ export function PricingTable(props: PricingTableProps) {
                   <TableHead
                     key={header.id}
                     style={{ width: header.getSize() }}
-                    className='text-muted-foreground text-[10px] font-medium tracking-wider uppercase'
+                    className='bg-violet-500/5 font-bold text-slate-500 dark:bg-violet-300/5 dark:text-white/50'
                   >
                     {header.isPlaceholder
                       ? null
@@ -129,7 +129,7 @@ export function PricingTable(props: PricingTableProps) {
                 <TableRow
                   key={row.id}
                   onClick={() => handleRowClick(row.original)}
-                  className='hover:bg-muted/30 cursor-pointer transition-colors'
+                  className='cursor-pointer transition-colors hover:bg-violet-500/10 dark:hover:bg-violet-300/10'
                 >
                   {row.getVisibleCells().map((cell) => (
                     <TableCell key={cell.id}>

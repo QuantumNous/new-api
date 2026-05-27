@@ -32,21 +32,22 @@ export function SignIn() {
     <AuthLayout>
       <div className='w-full space-y-8'>
         <div className='space-y-2'>
-          <h2 className='text-center text-2xl font-semibold tracking-tight sm:text-left'>
+          <h2 className='bg-gradient-to-r from-slate-950 via-violet-950 to-violet-700 bg-clip-text text-center text-3xl font-semibold tracking-normal text-transparent sm:text-left dark:from-white dark:via-violet-100 dark:to-fuchsia-200'>
             {t('Sign in')}
           </h2>
-          {!status?.self_use_mode_enabled && status?.register_enabled !== false && (
-            <p className='text-muted-foreground text-left text-sm sm:text-base'>
-              {t("Don't have an account?")}{' '}
-              <Link
-                to='/sign-up'
-                className='hover:text-primary font-medium underline underline-offset-4'
-              >
-                {t('Sign up')}
-              </Link>
-              .
-            </p>
-          )}
+          {!status?.self_use_mode_enabled &&
+            status?.register_enabled !== false && (
+              <p className='text-muted-foreground text-left text-sm sm:text-base dark:text-white/58'>
+                {t("Don't have an account?")}{' '}
+                <Link
+                  to='/sign-up'
+                  className='font-medium text-violet-700 underline underline-offset-4 hover:text-fuchsia-700 dark:text-violet-200 dark:hover:text-fuchsia-200'
+                >
+                  {t('Sign up')}
+                </Link>
+                .
+              </p>
+            )}
         </div>
 
         <UserAuthForm redirectTo={redirect} />

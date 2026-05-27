@@ -41,6 +41,11 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip'
 import {
+  sideDrawerContentClassName,
+  sideDrawerFormClassName,
+  sideDrawerHeaderClassName,
+} from '@/components/drawer-layout'
+import {
   VIEW_MODES,
   getSortLabels,
   type SortOption,
@@ -97,7 +102,7 @@ function SegmentedControl(props: {
     <div
       role='group'
       aria-label={props.ariaLabel}
-      className='bg-muted/60 inline-flex h-8 items-center rounded-lg border p-0.5'
+      className='inline-flex h-9 items-center rounded-full border border-violet-300/30 bg-white/65 p-0.5 shadow-sm backdrop-blur-xl dark:border-white/10 dark:bg-white/[0.045]'
     >
       {props.options.map((option) => {
         const Icon = option.icon
@@ -109,11 +114,11 @@ function SegmentedControl(props: {
             onClick={() => props.onChange(option.value)}
             aria-pressed={isActive}
             className={cn(
-              'inline-flex h-full items-center justify-center rounded-md text-xs font-medium transition-all',
+              'inline-flex h-full items-center justify-center rounded-full text-xs font-bold transition-all',
               Icon && !option.label ? 'w-7' : 'gap-1.5 px-3',
               isActive
-                ? 'bg-primary text-primary-foreground shadow-sm'
-                : 'text-muted-foreground hover:text-foreground'
+                ? 'bg-slate-950 text-white shadow-[0_8px_24px_rgba(15,23,42,0.18)] dark:bg-white dark:text-slate-950'
+                : 'text-slate-500 hover:text-slate-950 dark:text-white/55 dark:hover:text-white'
             )}
           >
             {Icon && <Icon className='size-3.5' />}
@@ -159,7 +164,7 @@ export function PricingToolbar(props: PricingToolbarProps) {
   )
 
   return (
-    <div className='rounded-xl border p-3'>
+    <div className='rounded-3xl border border-violet-300/35 bg-white/60 p-3 shadow-[0_20px_70px_rgba(91,33,182,0.10)] backdrop-blur-xl dark:border-violet-300/15 dark:bg-white/[0.035] dark:shadow-[0_22px_70px_rgba(88,28,135,0.22)]'>
       <div className='flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between'>
         <div className='flex items-center gap-2'>
           <Button
@@ -167,7 +172,7 @@ export function PricingToolbar(props: PricingToolbarProps) {
             variant='outline'
             size='sm'
             onClick={() => setMobileFiltersOpen(true)}
-            className='gap-1.5 xl:hidden'
+            className='gap-1.5 rounded-full border-violet-300/30 bg-white/65 text-slate-700 hover:bg-violet-500/10 xl:hidden dark:border-white/10 dark:bg-white/[0.045] dark:text-white/75 dark:hover:bg-violet-300/10'
           >
             <Filter className='size-4' />
             {t('Filter')}
@@ -178,13 +183,13 @@ export function PricingToolbar(props: PricingToolbarProps) {
             )}
           </Button>
 
-          <div className='text-muted-foreground flex items-baseline gap-1 text-sm'>
-            <span className='text-foreground font-semibold tabular-nums'>
+          <div className='flex items-baseline gap-1 text-sm text-slate-500 dark:text-white/50'>
+            <span className='font-black tabular-nums text-slate-950 dark:text-white'>
               {props.filteredCount.toLocaleString()}
             </span>
             <span>{props.filteredCount === 1 ? t('model') : t('models')}</span>
             {props.hasActiveFilters && props.totalCount && (
-              <span className='text-muted-foreground/60 text-xs'>
+              <span className='text-xs text-slate-400 dark:text-white/35'>
                 / {props.totalCount.toLocaleString()}
               </span>
             )}
@@ -220,7 +225,7 @@ export function PricingToolbar(props: PricingToolbarProps) {
                   type='button'
                   variant='outline'
                   size='sm'
-                  className='h-8 gap-1.5 px-3 text-xs'
+                  className='h-9 gap-1.5 rounded-full border-violet-300/30 bg-white/65 px-3 text-xs font-bold text-slate-700 hover:bg-violet-500/10 dark:border-white/10 dark:bg-white/[0.045] dark:text-white/75 dark:hover:bg-violet-300/10'
                 />
               }
             >
@@ -269,15 +274,15 @@ export function PricingToolbar(props: PricingToolbarProps) {
       <Sheet open={mobileFiltersOpen} onOpenChange={setMobileFiltersOpen}>
         <SheetContent
           side='right'
-          className='flex h-dvh w-full flex-col overflow-hidden p-0 sm:max-w-md'
+          className={sideDrawerContentClassName('sm:max-w-md')}
         >
-          <SheetHeader className='border-b px-4 py-3 sm:px-6 sm:py-4'>
+          <SheetHeader className={sideDrawerHeaderClassName()}>
             <SheetTitle>{t('Filter')}</SheetTitle>
             <SheetDescription>
               {t('Filter models by provider, group, type, endpoint, and tags.')}
             </SheetDescription>
           </SheetHeader>
-          <div className='flex-1 overflow-y-auto p-3 sm:p-4'>
+          <div className={sideDrawerFormClassName('gap-0')}>
             <PricingSidebar
               quotaTypeFilter={props.quotaTypeFilter}
               endpointTypeFilter={props.endpointTypeFilter}

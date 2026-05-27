@@ -19,6 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import { Link } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
 import { useSystemConfig } from '@/hooks/use-system-config'
+import { FlatkeyBrandLogo } from '@/components/brand/flatkey-brand-logo'
 import { Skeleton } from '@/components/ui/skeleton'
 
 type AuthLayoutProps = {
@@ -27,33 +28,39 @@ type AuthLayoutProps = {
 
 export function AuthLayout({ children }: AuthLayoutProps) {
   const { t } = useTranslation()
-  const { systemName, logo, loading } = useSystemConfig()
+  const { systemName, loading } = useSystemConfig()
 
   return (
-    <div className='relative grid h-svh max-w-none'>
+    <div className='auth-landing relative grid min-h-svh max-w-none overflow-hidden bg-[linear-gradient(180deg,#fbfbff_0%,#f6f3ff_44%,#ffffff_100%)] text-foreground dark:bg-[linear-gradient(180deg,#050712_0%,#080b18_44%,#03040b_100%)] dark:text-white'>
+      <div
+        aria-hidden
+        className='pointer-events-none absolute inset-0 bg-[linear-gradient(to_right,rgba(109,40,217,0.09)_1px,transparent_1px),linear-gradient(to_bottom,rgba(109,40,217,0.07)_1px,transparent_1px)] bg-[size:4.5rem_4.5rem] opacity-50 dark:bg-[linear-gradient(to_right,rgba(167,139,250,0.09)_1px,transparent_1px),linear-gradient(to_bottom,rgba(167,139,250,0.07)_1px,transparent_1px)] dark:opacity-45'
+      />
+      <div
+        aria-hidden
+        className='pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_62%_42%_at_50%_14%,rgba(124,58,237,0.12),transparent_72%),radial-gradient(ellipse_42%_34%_at_78%_32%,rgba(217,70,239,0.08),transparent_70%),radial-gradient(ellipse_36%_28%_at_18%_72%,rgba(99,102,241,0.1),transparent_76%)] dark:bg-[radial-gradient(ellipse_62%_42%_at_50%_14%,rgba(124,58,237,0.28),transparent_72%),radial-gradient(ellipse_42%_34%_at_78%_32%,rgba(217,70,239,0.16),transparent_70%),radial-gradient(ellipse_36%_28%_at_18%_72%,rgba(99,102,241,0.18),transparent_76%)]'
+      />
       <Link
         to='/'
-        className='absolute top-4 left-4 z-10 flex items-center gap-2 transition-opacity hover:opacity-80 sm:top-8 sm:left-8'
+        className='absolute top-4 left-4 z-10 flex items-center rounded-full transition-opacity hover:opacity-90 sm:top-8 sm:left-8'
       >
-        <div className='relative h-8 w-8'>
+        <div className='relative h-11'>
           {loading ? (
-            <Skeleton className='absolute inset-0 rounded-full' />
+            <Skeleton className='absolute inset-y-1 left-0 w-32 rounded-full' />
           ) : (
-            <img
-              src={logo}
-              alt={t('Logo')}
-              className='h-8 w-8 rounded-full object-cover'
-            />
+            <FlatkeyBrandLogo alt={t('Logo')} className='h-11' />
           )}
         </div>
         {loading ? (
           <Skeleton className='h-6 w-24' />
         ) : (
-          <h1 className='text-xl font-medium'>{systemName}</h1>
+          <h1 className='sr-only text-xl font-semibold tracking-normal'>
+            {systemName}
+          </h1>
         )}
       </Link>
-      <div className='container flex items-center pt-16 sm:pt-0'>
-        <div className='mx-auto flex w-full flex-col justify-center space-y-2 px-4 py-8 sm:w-[480px] sm:p-8'>
+      <div className='relative z-10 container flex items-center pt-20 sm:pt-0'>
+        <div className='mx-auto flex w-full flex-col justify-center space-y-2 rounded-3xl border border-violet-200/60 bg-white/82 px-5 py-8 shadow-[0_28px_100px_-54px_rgba(91,33,182,0.42)] backdrop-blur-xl sm:w-[520px] sm:p-10 dark:border-violet-300/12 dark:bg-white/[0.035] dark:shadow-[0_28px_100px_-48px_rgba(124,58,237,0.62)]'>
           {children}
         </div>
       </div>

@@ -55,6 +55,13 @@ import {
   SheetTitle,
 } from '@/components/ui/sheet'
 import { Textarea } from '@/components/ui/textarea'
+import {
+  SideDrawerSection,
+  sideDrawerContentClassName,
+  sideDrawerFooterClassName,
+  sideDrawerFormClassName,
+  sideDrawerHeaderClassName,
+} from '@/components/drawer-layout'
 import { createUser, updateUser, getUser, getGroups } from '../api'
 import { BINDING_FIELDS, ERROR_MESSAGES, SUCCESS_MESSAGES } from '../constants'
 import {
@@ -182,8 +189,10 @@ export function UsersMutateDrawer({
           }
         }}
       >
-        <SheetContent className='flex h-dvh w-full flex-col gap-0 overflow-hidden p-0 sm:max-w-[600px]'>
-          <SheetHeader className='border-b px-4 py-3 text-start sm:px-6 sm:py-4'>
+        <SheetContent
+          className={sideDrawerContentClassName('sm:max-w-[600px]')}
+        >
+          <SheetHeader className={sideDrawerHeaderClassName()}>
             <SheetTitle>
               {isUpdate ? t('Update') : t('Create')} {t('User')}
             </SheetTitle>
@@ -197,10 +206,10 @@ export function UsersMutateDrawer({
             <form
               id='user-form'
               onSubmit={form.handleSubmit(onSubmit)}
-              className='flex-1 space-y-4 overflow-y-auto px-3 py-3 pb-4 sm:space-y-6 sm:px-4'
+              className={sideDrawerFormClassName()}
             >
               {/* Basic Information */}
-              <div className='space-y-4'>
+              <SideDrawerSection>
                 <h3 className='text-sm font-medium'>
                   {t('Basic Information')}
                 </h3>
@@ -304,11 +313,11 @@ export function UsersMutateDrawer({
                     </FormItem>
                   )}
                 />
-              </div>
+              </SideDrawerSection>
 
               {/* Group & Quota Settings (Update only) */}
               {isUpdate && (
-                <div className='space-y-4'>
+                <SideDrawerSection>
                   <h3 className='text-sm font-medium'>{t('Group & Quota')}</h3>
 
                   <FormField
@@ -405,12 +414,12 @@ export function UsersMutateDrawer({
                       </FormItem>
                     )}
                   />
-                </div>
+                </SideDrawerSection>
               )}
 
               {/* Binding Information (Read-only) */}
               {isUpdate && (
-                <div className='space-y-4'>
+                <SideDrawerSection>
                   <h3 className='text-sm font-medium'>
                     {t('Binding Information')}
                   </h3>
@@ -420,7 +429,7 @@ export function UsersMutateDrawer({
                     )}
                   </p>
 
-                  <div className='space-y-3'>
+                  <div className='flex flex-col gap-3'>
                     {BINDING_FIELDS.map(({ key, label }) => (
                       <div key={key}>
                         <Label className='text-muted-foreground text-xs'>
@@ -436,11 +445,11 @@ export function UsersMutateDrawer({
                       </div>
                     ))}
                   </div>
-                </div>
+                </SideDrawerSection>
               )}
             </form>
           </Form>
-          <SheetFooter className='grid grid-cols-2 gap-2 border-t px-4 py-3 sm:flex sm:px-6 sm:py-4'>
+          <SheetFooter className={sideDrawerFooterClassName()}>
             <SheetClose render={<Button variant='outline' />}>
               {t('Close')}
             </SheetClose>

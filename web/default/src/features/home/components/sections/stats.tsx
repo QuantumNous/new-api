@@ -98,14 +98,14 @@ export function Stats(_props: StatsProps) {
   const { t } = useTranslation()
 
   const stats: StatItem[] = [
-    { end: 50, suffix: '+', label: t('upstream services integrated') },
-    { end: 100, suffix: '+', label: t('model billing support') },
-    { end: 50, suffix: '+', label: t('compatible API routes') },
-    { end: 10, suffix: '+', label: t('scheduling controls') },
+    { end: 200, suffix: '+', label: t('models behind one key') },
+    { end: 1, suffix: '', label: t('OpenAI-compatible base URL') },
+    { end: 24, suffix: '/7', label: t('usage and billing visibility') },
+    { end: 1, suffix: '', label: t('dashboard for keys and routing') },
   ]
 
   return (
-    <div className='border-border/40 bg-muted/10 relative z-10 border-y'>
+    <div className='relative z-10 border-y border-violet-500/10 bg-white/45 backdrop-blur-sm dark:border-violet-300/10 dark:bg-white/[0.025]'>
       <div className='mx-auto max-w-6xl px-6 py-10 md:py-12'>
         <div className='grid grid-cols-2 gap-8 md:grid-cols-4 md:gap-12'>
           {stats.map((s) => (
@@ -113,7 +113,7 @@ export function Stats(_props: StatsProps) {
               key={s.label}
               className='flex flex-col items-center text-center'
             >
-              <span className='text-2xl font-bold tracking-tight md:text-3xl'>
+              <span className='bg-gradient-to-r from-violet-600 to-fuchsia-600 bg-clip-text text-2xl font-bold tracking-tight text-transparent md:text-3xl dark:from-violet-200 dark:to-fuchsia-200'>
                 <Counter end={s.end} suffix={s.suffix} decimals={s.decimals} />
               </span>
               <span className='text-muted-foreground mt-1.5 text-xs'>

@@ -183,7 +183,6 @@ export function useTaskLogsColumns(isAdmin: boolean): ColumnDef<TaskLog>[] {
               label={taskId}
               autoColor={taskId}
               size='sm'
-              showDot={false}
               className='border-border/60 bg-muted/30 max-w-full truncate rounded-md border px-1.5 py-0.5 font-mono'
             />
             <span className='text-muted-foreground/60 truncate text-[11px]'>
@@ -214,7 +213,6 @@ export function useTaskLogsColumns(isAdmin: boolean): ColumnDef<TaskLog>[] {
             variant={taskStatusMapper.getVariant(status)}
             size='sm'
             copyable={false}
-            showDot
           />
         )
       },

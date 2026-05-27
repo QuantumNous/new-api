@@ -42,8 +42,8 @@ export function CTA(props: CTAProps) {
         className='absolute inset-0 -z-10 opacity-20 dark:opacity-[0.08]'
         style={{
           background: [
-            'radial-gradient(ellipse 50% 50% at 30% 50%, oklch(0.7 0.15 250 / 70%) 0%, transparent 70%)',
-            'radial-gradient(ellipse 40% 40% at 70% 40%, oklch(0.65 0.12 200 / 50%) 0%, transparent 70%)',
+            'radial-gradient(ellipse 55% 45% at 30% 50%, rgba(124,58,237,0.28) 0%, transparent 70%)',
+            'radial-gradient(ellipse 42% 38% at 70% 40%, rgba(217,70,239,0.2) 0%, transparent 70%)',
           ].join(', '),
         }}
       />
@@ -53,25 +53,28 @@ export function CTA(props: CTAProps) {
         animation='scale-in'
       >
         <h2 className='text-2xl leading-tight font-bold tracking-tight md:text-4xl'>
-          {t('Ready to simplify')}
+          {t('Ready to replace')}
           <br />
-          <span className='bg-gradient-to-r from-blue-400 via-violet-400 to-purple-500 bg-clip-text text-transparent'>
-            {t('your AI integration?')}
+          <span className='bg-gradient-to-r from-violet-500 via-fuchsia-500 to-indigo-500 bg-clip-text text-transparent dark:from-violet-200 dark:via-fuchsia-300 dark:to-indigo-300'>
+            {t('model chaos with one key?')}
           </span>
         </h2>
         <p className='text-muted-foreground/80 mx-auto mt-5 max-w-md text-sm leading-relaxed md:text-base'>
           {t(
-            'Deploy your own gateway and start routing requests through your configured upstream services.'
+            'Start from the flatkey homepage, manage your product dashboard, and keep router.flatkey.ai as the stable API endpoint.'
           )}
         </p>
         <div className='mt-8 flex items-center justify-center gap-3'>
-          <Button className='group rounded-lg' render={<Link to='/sign-up' />}>
-            {t('Get Started')}
+          <Button
+            className='group rounded-lg bg-violet-600 text-white shadow-[0_16px_34px_-18px_rgba(124,58,237,0.85)] hover:bg-violet-500'
+            render={<Link to='/sign-up' />}
+          >
+            {t('Get a key')}
             <ArrowRight className='ml-1 size-3.5 transition-transform duration-200 group-hover:translate-x-0.5' />
           </Button>
           <Button
             variant='outline'
-            className='border-border/50 hover:border-border hover:bg-muted/50 rounded-lg'
+            className='rounded-lg border-violet-500/20 bg-white/65 hover:border-violet-500/35 hover:bg-violet-500/10 dark:bg-white/[0.04] dark:hover:bg-violet-300/10'
             render={<Link to='/pricing' />}
           >
             {t('View Pricing')}
