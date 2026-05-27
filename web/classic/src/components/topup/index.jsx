@@ -124,6 +124,23 @@ const normalizePaymentMethodsByScene = (rawMethodsByScene, data = {}) => {
 const isEnabled = (value, fallback = false) =>
   value === undefined || value === null ? fallback : value !== false;
 
+// Reject non-navigable schemes (e.g. javascript:, data:) and relative URLs.
+// Only http / https are allowed for backend-provided redirect targets.
+// Mirrors isSafeHttpCheckoutUrl in the default frontend's
+// features/wallet/hooks/use-waffo-pancake-payment.ts.
+function isSafeHttpCheckoutUrl(value) {
+  const trimmed = (value || '').trim();
+  if (!trimmed) {
+    return false;
+  }
+  try {
+    const u = new URL(trimmed);
+    return u.protocol === 'http:' || u.protocol === 'https:';
+  } catch {
+    return false;
+  }
+}
+
 const TopUp = () => {
   const { t } = useTranslation();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -604,8 +621,12 @@ const TopUp = () => {
         const { message, data } = res.data;
         if (message === 'success') {
           const checkoutUrl = data?.checkout_url || '';
-          if (checkoutUrl) {
-            window.open(checkoutUrl, '_blank');
+          if (checkoutUrl && isSafeHttpCheckoutUrl(checkoutUrl)) {
+            // In-tab redirect (not window.open) — popup blocker fires after
+            // the await loses user-gesture context.
+            window.location.href = checkoutUrl;
+          } else if (checkoutUrl) {
+            showError(t('支付跳转地址不安全'));
           } else {
             showError(t('支付请求失败'));
           }

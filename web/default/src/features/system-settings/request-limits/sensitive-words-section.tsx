@@ -313,10 +313,7 @@ export function SensitiveWordsSection({
   }
 
   return (
-    <SettingsSection
-      title={t('Sensitive Words')}
-      description={t('Configure keyword filtering for prompts and responses.')}
-    >
+    <SettingsSection title={t('Sensitive Words')}>
       <Form {...form}>
         <form
           onSubmit={form.handleSubmit(onSubmit)}

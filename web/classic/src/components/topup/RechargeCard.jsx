@@ -47,6 +47,7 @@ import {
 } from 'lucide-react';
 import { IconGift } from '@douyinfe/semi-icons';
 import { useMinimumLoadingTime } from '../../hooks/common/useMinimumLoadingTime';
+import { useActualTheme } from '../../context/Theme';
 import { getCurrencyConfig } from '../../helpers/render';
 import SubscriptionPlansCard from './SubscriptionPlansCard';
 import { getBillingDisplayText } from '../../helpers/billingDisplay';
@@ -109,6 +110,7 @@ const RechargeCard = ({
   const redeemFormApiRef = useRef(null);
   const initialTabSetRef = useRef(false);
   const showAmountSkeleton = useMinimumLoadingTime(amountLoading);
+  const actualTheme = useActualTheme();
   const [activeTab, setActiveTab] = useState('topup');
   const shouldShowSubscription =
     !subscriptionLoading &&
@@ -403,9 +405,18 @@ const RechargeCard = ({
                                       }}
                                     />
                                   ) : payMethod.type === 'waffo_pancake' ? (
-                                    <CreditCard
-                                      size={18}
-                                      color='var(--semi-color-primary)'
+                                    <img
+                                      src={
+                                        actualTheme === 'dark'
+                                          ? '/waffo-logo-dark.svg'
+                                          : '/waffo-logo-light.svg'
+                                      }
+                                      alt='Waffo'
+                                      style={{
+                                        width: 18,
+                                        height: 18,
+                                        objectFit: 'contain',
+                                      }}
                                     />
                                   ) : (
                                     <CreditCard

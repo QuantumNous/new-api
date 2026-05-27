@@ -185,30 +185,21 @@ func TestWaffoSceneAvailabilityAndWebhookAreSeparated(t *testing.T) {
 
 func TestWaffoPancakeSceneAvailabilityAndWebhookAreSeparated(t *testing.T) {
 	paymentSetting := confirmPaymentComplianceForTest(t)
-	originalEnabled := setting.WaffoPancakeEnabled
-	originalSandbox := setting.WaffoPancakeSandbox
 	originalMerchantID := setting.WaffoPancakeMerchantID
 	originalPrivateKey := setting.WaffoPancakePrivateKey
-	originalWebhookPublicKey := setting.WaffoPancakeWebhookPublicKey
 	originalStoreID := setting.WaffoPancakeStoreID
 	originalProductID := setting.WaffoPancakeProductID
 	t.Cleanup(func() {
-		setting.WaffoPancakeEnabled = originalEnabled
-		setting.WaffoPancakeSandbox = originalSandbox
 		setting.WaffoPancakeMerchantID = originalMerchantID
 		setting.WaffoPancakePrivateKey = originalPrivateKey
-		setting.WaffoPancakeWebhookPublicKey = originalWebhookPublicKey
 		setting.WaffoPancakeStoreID = originalStoreID
 		setting.WaffoPancakeProductID = originalProductID
 	})
 
-	setting.WaffoPancakeEnabled = true
-	setting.WaffoPancakeSandbox = false
 	setting.WaffoPancakeMerchantID = "merchant"
 	setting.WaffoPancakePrivateKey = "private"
 	setting.WaffoPancakeStoreID = "store"
 	setting.WaffoPancakeProductID = "product"
-	setting.WaffoPancakeWebhookPublicKey = "public"
 	require.True(t, isWaffoPancakeTopUpEnabled())
 	require.True(t, isWaffoPancakeWebhookEnabled())
 
@@ -219,9 +210,10 @@ func TestWaffoPancakeSceneAvailabilityAndWebhookAreSeparated(t *testing.T) {
 	paymentSetting.ProviderSceneScopes[operation_setting.PaymentProviderWaffoPancake][operation_setting.PaymentSceneWalletTopUp] = true
 	setting.WaffoPancakeStoreID = ""
 	require.False(t, isWaffoPancakeTopUpEnabled())
-	require.True(t, isWaffoPancakeWebhookEnabled())
+	require.False(t, isWaffoPancakeWebhookEnabled())
 
-	setting.WaffoPancakeEnabled = false
+	setting.WaffoPancakeStoreID = "store"
+	setting.WaffoPancakeProductID = ""
 	require.False(t, isWaffoPancakeTopUpEnabled())
 	require.False(t, isWaffoPancakeWebhookEnabled())
 }

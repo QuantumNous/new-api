@@ -119,9 +119,9 @@ func isWaffoWebhookEnabled() bool {
 }
 
 func isWaffoPancakeTopUpConfigured() bool {
-	return setting.WaffoPancakeEnabled &&
-		isWaffoPancakeWebhookConfigured() &&
-		strings.TrimSpace(setting.WaffoPancakeMerchantID) != "" &&
+	// Waffo Pancake top-up needs credentials plus the bound Store/Product pair.
+	// Webhook public keys ship inside the SDK; mode is read from each event.
+	return strings.TrimSpace(setting.WaffoPancakeMerchantID) != "" &&
 		strings.TrimSpace(setting.WaffoPancakePrivateKey) != "" &&
 		strings.TrimSpace(setting.WaffoPancakeStoreID) != "" &&
 		strings.TrimSpace(setting.WaffoPancakeProductID) != ""
@@ -136,11 +136,7 @@ func isWaffoPancakeTopUpEnabled() bool {
 }
 
 func isWaffoPancakeWebhookConfigured() bool {
-	currentWebhookKey := strings.TrimSpace(setting.WaffoPancakeWebhookPublicKey)
-	if setting.WaffoPancakeSandbox {
-		currentWebhookKey = strings.TrimSpace(setting.WaffoPancakeWebhookTestKey)
-	}
-	return setting.WaffoPancakeEnabled && currentWebhookKey != ""
+	return isWaffoPancakeTopUpConfigured()
 }
 
 func isWaffoPancakeWebhookEnabled() bool {

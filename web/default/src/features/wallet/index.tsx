@@ -293,11 +293,11 @@ export function Wallet(props: WalletProps) {
         <SectionPageLayout.Title>
           {getBillingDisplayText('wallet', t, billingDisplayMode)}
         </SectionPageLayout.Title>
-        <SectionPageLayout.Description>
-          {getBillingDisplayText('walletDescription', t, billingDisplayMode)}
-        </SectionPageLayout.Description>
         <SectionPageLayout.Content>
           <div className='mx-auto flex w-full max-w-7xl flex-col gap-4 sm:gap-5'>
+            <p className='text-muted-foreground text-sm'>
+              {getBillingDisplayText('walletDescription', t, billingDisplayMode)}
+            </p>
             <WalletStatsCard
               user={user}
               loading={userLoading}
@@ -352,6 +352,8 @@ export function Wallet(props: WalletProps) {
                 topupInfo={topupInfo}
                 onAvailabilityChange={handleSubscriptionAvailabilityChange}
                 billingDisplayMode={billingDisplayMode}
+                userQuota={user?.quota}
+                onPurchaseSuccess={fetchUser}
               />
             </div>
           </div>

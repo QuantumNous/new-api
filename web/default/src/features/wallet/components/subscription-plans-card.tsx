@@ -65,6 +65,8 @@ interface SubscriptionPlansCardProps {
   topupInfo: TopupInfo | null
   onAvailabilityChange?: (available: boolean) => void
   billingDisplayMode?: BillingDisplayMode
+  userQuota?: number
+  onPurchaseSuccess?: () => void | Promise<void>
 }
 
 function getEpayMethods(payMethods: PaymentMethod[] = []): PaymentMethod[] {
@@ -96,6 +98,8 @@ export function SubscriptionPlansCard({
   topupInfo,
   onAvailabilityChange,
   billingDisplayMode,
+  userQuota,
+  onPurchaseSuccess,
 }: SubscriptionPlansCardProps) {
   const { t } = useTranslation()
 
@@ -122,6 +126,8 @@ export function SubscriptionPlansCard({
   const enableCreem =
     subscriptionPurchaseEnabled &&
     !!(topupInfo?.enable_creem_subscription ?? topupInfo?.enable_creem_topup)
+  const enableWaffoPancake =
+    subscriptionPurchaseEnabled && !!topupInfo?.enable_waffo_pancake_topup
   const enableOnlineTopUp =
     subscriptionPurchaseEnabled &&
     !!(topupInfo?.enable_epay_subscription ?? topupInfo?.enable_online_topup)
@@ -713,6 +719,9 @@ export function SubscriptionPlansCard({
             : undefined
         }
         billingDisplayMode={billingDisplayMode}
+        enableWaffoPancake={enableWaffoPancake}
+        userQuota={userQuota}
+        onPurchaseSuccess={onPurchaseSuccess}
       />
     </>
   )
