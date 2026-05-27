@@ -20,13 +20,13 @@
 }
 
 .static-home__hero-motion {
-  --visual-size: min(40vw, 438px);
-  margin: -12px -12px -18px 0;
-  transform: translate3d(12px, 0, 0);
+  --visual-size: min(40vw, 382px);
+  margin: -28px -12px -18px 0;
+  transform: translate3d(-32px, 0, 0);
 }
 
 .aiapi-hero-visual {
-  --visual-size: min(48vw, 640px);
+  --visual-size: min(40vw, 382px);
   aspect-ratio: 1 / 1;
   background: transparent;
   contain: layout paint;
@@ -57,8 +57,9 @@
   user-select: none;
   width: 100%;
   z-index: 2;
-  filter: drop-shadow(0 26px 34px rgba(0, 0, 0, 0.24));
-  transform: scale(1.015);
+  filter: drop-shadow(0 18px 24px rgba(0, 0, 0, 0.2));
+  transform: translateY(34px) scale(0.78);
+  transform-origin: 50% 76%;
   -webkit-mask-image: radial-gradient(
     ellipse at 50% 55%,
     #000 62%,
@@ -76,15 +77,15 @@
 }
 
 .aiapi-hero-ripples {
-  height: 31%;
+  height: 23%;
   left: 50%;
   mix-blend-mode: screen;
   overflow: visible;
   pointer-events: none;
   position: absolute;
-  top: 66.6%;
+  top: 70.4%;
   transform: translate(-50%, -50%);
-  width: 91%;
+  width: 74%;
   z-index: 3;
 }
 
@@ -98,13 +99,13 @@
   border-radius: 50%;
   content: "";
   filter: blur(4px);
-  height: 16%;
+  height: 12%;
   left: 50%;
   opacity: 0.8;
   position: absolute;
   top: 47%;
   transform: translate(-50%, -50%);
-  width: 18%;
+  width: 13%;
 }
 
 .aiapi-hero-ripple {
@@ -112,13 +113,13 @@
   border: 1px solid rgba(76, 255, 177, 0.34);
   border-radius: 50%;
   box-shadow: 0 0 18px rgba(35, 255, 150, 0.1);
-  height: 25%;
+  height: 19%;
   left: 50%;
   opacity: 0;
   position: absolute;
   top: 52%;
   transform: translate(-50%, -50%) scale(0.74);
-  width: 43%;
+  width: 33%;
   will-change: transform, opacity;
 }
 

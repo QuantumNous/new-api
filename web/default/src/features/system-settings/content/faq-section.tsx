@@ -65,6 +65,7 @@ import {
 import { Textarea } from '@/components/ui/textarea'
 import { SettingsSection } from '../components/settings-section'
 import { useUpdateOption } from '../hooks/use-update-option'
+import { getNextItemId, removeItemsById, upsertItem } from './list-state'
 
 type FAQ = {
   id: number
@@ -178,13 +179,11 @@ export function FAQSection({ enabled, data }: FAQSectionProps) {
 
   const confirmDelete = () => {
     if (deleteTarget === 'single' && editingFaq) {
-      setFaqList((prev) => prev.filter((item) => item.id !== editingFaq.id))
+      setFaqList((prev) => removeItemsById(prev, [editingFaq.id]))
       setHasChanges(true)
       toast.success(t('FAQ deleted. Click "Save Settings" to apply.'))
     } else if (deleteTarget === 'batch') {
-      setFaqList((prev) =>
-        prev.filter((item) => !selectedIds.includes(item.id))
-      )
+      setFaqList((prev) => removeItemsById(prev, selectedIds))
       setSelectedIds([])
       setHasChanges(true)
       toast.success(
@@ -199,15 +198,12 @@ export function FAQSection({ enabled, data }: FAQSectionProps) {
 
   const handleSubmitForm = (values: FAQFormValues) => {
     if (editingFaq) {
-      setFaqList((prev) =>
-        prev.map((item) =>
-          item.id === editingFaq.id ? { ...item, ...values } : item
-        )
-      )
+      setFaqList((prev) => upsertItem(prev, { ...editingFaq, ...values }))
       toast.success(t('FAQ updated. Click "Save Settings" to apply.'))
     } else {
-      const newId = Math.max(...faqList.map((item) => item.id), 0) + 1
-      setFaqList((prev) => [...prev, { id: newId, ...values }])
+      setFaqList((prev) =>
+        upsertItem(prev, { id: getNextItemId(prev), ...values })
+      )
       toast.success(t('FAQ added. Click "Save Settings" to apply.'))
     }
     setHasChanges(true)

@@ -28,17 +28,18 @@ export function AnnouncementStrip({
   const latest = announcement.announcement
   const text =
     latest?.title ||
-    (announcement.loading ? t('Loading...') : t('home.static.notice.fallback'))
+    (announcement.loading ? t('home.static.common.loading') : t('home.static.notice.fallback'))
 
   return (
     <section className='static-home__announcement' aria-label={t('home.static.notice.title')}>
-      <div>
-        <span>{t('home.static.notice.title')}</span>
+      <div className='static-home__announcement-copy'>
+        <span className='static-home__announcement-label'>{t('home.static.notice.title')}</span>
         <i />
         <p>{text}</p>
       </div>
       <button
         type='button'
+        className='static-home__announcement-button'
         onClick={() => announcement.notifications.openDialog('announcements')}
       >
         {t('home.static.notice.viewAll')}

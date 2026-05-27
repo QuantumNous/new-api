@@ -22,6 +22,7 @@ import type {
   ChannelDynamicListResponse,
   ChannelDynamicLog,
   ChannelDynamicOverride,
+  ChannelDynamicSettingsUpdate,
   ChannelDynamicSettingsResponse,
   ChannelProbeResult,
   DeleteLogsResponse,
@@ -87,11 +88,9 @@ export async function getChannelDynamicSettings() {
   return res.data
 }
 
-export async function updateChannelDynamicSettings(request: {
-  enabled?: boolean
-  dry_run?: boolean
-  platform_probe_enabled?: boolean
-}) {
+export async function updateChannelDynamicSettings(
+  request: ChannelDynamicSettingsUpdate
+) {
   const res = await api.put<ChannelDynamicSettingsResponse>(
     '/api/channel/dynamic/settings',
     request

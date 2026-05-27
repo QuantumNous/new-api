@@ -28,6 +28,11 @@ import type {
   SelfSubscriptionData,
 } from './types'
 
+const optionalReadConfig = {
+  skipBusinessError: true,
+  skipErrorHandler: true,
+} as Record<string, unknown>
+
 // ============================================================================
 // Admin Plan Management
 // ============================================================================
@@ -175,19 +180,19 @@ export async function paySubscriptionEpay(
 export async function getSelfSubscriptions(): Promise<
   ApiResponse<UserSubscriptionRecord[]>
 > {
-  const res = await api.get('/api/subscription/self')
+  const res = await api.get('/api/subscription/self', optionalReadConfig)
   return res.data
 }
 
 export async function getSelfSubscriptionFull(): Promise<
   ApiResponse<SelfSubscriptionData>
 > {
-  const res = await api.get('/api/subscription/self')
+  const res = await api.get('/api/subscription/self', optionalReadConfig)
   return res.data
 }
 
 export async function getPublicPlans(): Promise<ApiResponse<PlanRecord[]>> {
-  const res = await api.get('/api/subscription/plans')
+  const res = await api.get('/api/subscription/plans', optionalReadConfig)
   return res.data
 }
 

@@ -76,6 +76,7 @@ import { DateTimePicker } from '@/components/datetime-picker'
 import { StatusBadge } from '@/components/status-badge'
 import { SettingsSection } from '../components/settings-section'
 import { useUpdateOption } from '../hooks/use-update-option'
+import { getNextItemId, removeItemsById, upsertItem } from './list-state'
 
 type Announcement = {
   id: number
@@ -237,14 +238,12 @@ export function AnnouncementsSection({
   const confirmDelete = () => {
     if (deleteTarget === 'single' && editingAnnouncement) {
       setAnnouncements((prev) =>
-        prev.filter((item) => item.id !== editingAnnouncement.id)
+        removeItemsById(prev, [editingAnnouncement.id])
       )
       setHasChanges(true)
       toast.success(t('Announcement deleted. Click "Save Settings" to apply.'))
     } else if (deleteTarget === 'batch') {
-      setAnnouncements((prev) =>
-        prev.filter((item) => !selectedIds.includes(item.id))
-      )
+      setAnnouncements((prev) => removeItemsById(prev, selectedIds))
       setSelectedIds([])
       setHasChanges(true)
       toast.success(
@@ -260,14 +259,13 @@ export function AnnouncementsSection({
   const handleSubmitForm = (values: AnnouncementFormValues) => {
     if (editingAnnouncement) {
       setAnnouncements((prev) =>
-        prev.map((item) =>
-          item.id === editingAnnouncement.id ? { ...item, ...values } : item
-        )
+        upsertItem(prev, { ...editingAnnouncement, ...values })
       )
       toast.success(t('Announcement updated. Click "Save Settings" to apply.'))
     } else {
-      const newId = Math.max(...announcements.map((item) => item.id), 0) + 1
-      setAnnouncements((prev) => [...prev, { id: newId, ...values }])
+      setAnnouncements((prev) =>
+        upsertItem(prev, { id: getNextItemId(prev), ...values })
+      )
       toast.success(t('Announcement added. Click "Save Settings" to apply.'))
     }
     setHasChanges(true)

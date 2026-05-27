@@ -353,6 +353,17 @@ a {
   padding: 12px 16px;
 }
 
+.help-doc img {
+  background: var(--help-surface-soft);
+  border: 1px solid var(--help-border);
+  border-radius: 8px;
+  box-shadow: 0 18px 44px -36px rgba(17, 24, 12, 0.32);
+  display: block;
+  height: auto;
+  margin: 18px 0;
+  max-width: 100%;
+}
+
 .help-doc .image-placeholder {
   background:
     repeating-linear-gradient(135deg, rgba(0, 120, 64, 0.06) 0 10px, transparent 10px 20px),

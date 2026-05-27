@@ -17,18 +17,19 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import type { ReactNode } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Search } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import type { ModelStatusFilter, ModelStatusHealth } from '../types'
 
-const statusOptions: Array<{ value: ModelStatusFilter; label: string }> = [
-  { value: 'all', label: '全部' },
-  { value: 'up', label: '正常' },
-  { value: 'degraded', label: '波动' },
-  { value: 'down', label: '不可用' },
-  { value: 'unknown', label: '未知' },
+const statusOptions: Array<{ value: ModelStatusFilter; labelKey: string }> = [
+  { value: 'all', labelKey: 'All' },
+  { value: 'up', labelKey: 'Healthy' },
+  { value: 'degraded', labelKey: 'Degraded' },
+  { value: 'down', labelKey: 'Unavailable' },
+  { value: 'unknown', labelKey: 'Unknown' },
 ]
 
 export function StatusFilterBar(props: {
@@ -40,32 +41,34 @@ export function StatusFilterBar(props: {
   onStatusChange: (value: ModelStatusFilter) => void
   onSearchChange: (value: string) => void
 }) {
+  const { t } = useTranslation()
+
   return (
     <section
       className='bg-card/90 rounded-2xl border p-3 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-card/75'
-      aria-label='模型状态筛选'
+      aria-label={t('Model status filters')}
     >
       <div className='grid gap-3 xl:grid-cols-[minmax(260px,0.9fr)_minmax(0,1.6fr)_auto] xl:items-center'>
         <label className='relative min-w-0'>
-          <span className='sr-only'>搜索模型</span>
+          <span className='sr-only'>{t('Search models')}</span>
           <Search className='text-muted-foreground pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2' />
           <Input
             value={props.search}
             onChange={(event) => props.onSearchChange(event.target.value)}
-            placeholder='搜索模型名称'
+            placeholder={t('Search models...')}
             className='h-10 pl-9'
           />
         </label>
 
         <div
           className='scrollbar-thin flex min-w-0 gap-2 overflow-x-auto pb-1'
-          aria-label='按分组筛选'
+          aria-label={t('Filter by group')}
         >
           <FilterButton
             active={props.selectedGroup === 'all'}
             onClick={() => props.onGroupChange('all')}
           >
-            全部分组
+            {t('All Groups')}
           </FilterButton>
           {props.groupNames.map((group) => (
             <FilterButton
@@ -80,7 +83,7 @@ export function StatusFilterBar(props: {
 
         <div
           className='scrollbar-thin flex gap-2 overflow-x-auto pb-1 xl:justify-end'
-          aria-label='按状态筛选'
+          aria-label={t('Filter by status')}
         >
           {statusOptions.map((option) => (
             <FilterButton
@@ -89,7 +92,7 @@ export function StatusFilterBar(props: {
               tone={option.value === 'all' ? undefined : option.value}
               onClick={() => props.onStatusChange(option.value)}
             >
-              {option.label}
+              {t(option.labelKey)}
             </FilterButton>
           ))}
         </div>

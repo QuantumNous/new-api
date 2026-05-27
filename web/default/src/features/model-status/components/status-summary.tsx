@@ -17,6 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import type { ReactNode } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Activity, Clock, Layers3, ShieldCheck } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { formatRelativeTime, healthDescription } from '../lib/format'
@@ -28,20 +29,20 @@ export function StatusSummary(props: {
   refreshing: boolean
   onRefresh: () => void
 }) {
+  const { t } = useTranslation()
   const unstableModels = props.summary.degradedModels + props.summary.downModels
 
   return (
     <section className='relative overflow-hidden rounded-3xl border bg-[radial-gradient(circle_at_20%_0%,oklch(0.78_0.16_145/.16),transparent_34%),linear-gradient(135deg,hsl(var(--card)),hsl(var(--card)))] px-5 py-6 shadow-sm sm:px-8 sm:py-8'>
       <div className='relative z-10 flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between'>
         <div className='max-w-2xl space-y-4'>
-          <StatusPill health={props.summary.overallStatus} />
+          <StatusPill health={props.summary.overallStatus} t={t} />
           <div>
             <h1 className='text-3xl font-bold tracking-tight sm:text-4xl'>
-              模型状态
+              {t('Model Status')}
             </h1>
             <p className='text-muted-foreground mt-3 text-sm leading-6 sm:text-base'>
-              {healthDescription(props.summary.overallStatus)}
-              ，展示已接入状态同步的模型可用性，数据每 60 秒缓存更新。
+              {healthDescription(props.summary.overallStatus, t)}
             </p>
           </div>
         </div>
@@ -52,30 +53,30 @@ export function StatusSummary(props: {
           disabled={props.refreshing}
           className='w-fit'
         >
-          {props.refreshing ? '刷新中' : '立即刷新'}
+          {props.refreshing ? t('Refreshing...') : t('Refresh')}
         </Button>
       </div>
 
       <div className='relative z-10 mt-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-4'>
         <SummaryMetric
           icon={<ShieldCheck className='size-4' />}
-          label='正常模型'
+          label={t('Healthy models')}
           value={props.summary.upModels}
         />
         <SummaryMetric
           icon={<Activity className='size-4' />}
-          label='异常 / 波动'
+          label={t('Issues / degraded')}
           value={unstableModels}
         />
         <SummaryMetric
           icon={<Layers3 className='size-4' />}
-          label='接入分组'
+          label={t('Status groups')}
           value={props.summary.totalGroups}
         />
         <SummaryMetric
           icon={<Clock className='size-4' />}
-          label='最近更新'
-          value={formatRelativeTime(props.summary.updatedAt)}
+          label={t('Updated')}
+          value={formatRelativeTime(props.summary.updatedAt, t)}
         />
       </div>
     </section>

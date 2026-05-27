@@ -35,6 +35,10 @@ export const defaultSources = [
     title: '注册和登录 aiapi114',
     summary: '完成账号注册、邮箱验证、登录和密码找回。',
     sourcePath: 'docs/reference-help-docs/newapi-ai/guide/feature-guide/user/auth.md',
+    imageMap: {
+      '../../../assets/guide/feature-guide/login.png': 'assets/images/account-login-aiapi114.png',
+      '../../../assets/guide/feature-guide/register.png': 'assets/images/account-register-aiapi114.png',
+    },
   },
   {
     category: 'start',
@@ -42,6 +46,11 @@ export const defaultSources = [
     title: '从充值到第一次调用',
     summary: '按顺序完成余额充值、令牌创建和基础调用配置。',
     sourcePath: 'docs/reference-help-docs/codexzh-ai-hub-api/quick-start.md',
+    imageMap: {
+      'https://doc.aiapi114.com/assets/1.BnqWLpa7.jpg': 'assets/images/quick-start-wallet-aiapi114.png',
+      'https://doc.aiapi114.com/assets/2.60F2g-2c.jpg': 'assets/images/quick-start-keys-aiapi114.png',
+      'https://doc.aiapi114.com/assets/3.Cm5gFkwX.jpg': 'assets/images/quick-start-token-form-aiapi114.png',
+    },
   },
   {
     category: 'start',
@@ -56,6 +65,9 @@ export const defaultSources = [
     title: '修改令牌设置',
     summary: '调整令牌名称、额度限制、速率限制和启用状态。',
     sourcePath: 'docs/reference-help-docs/ikuncode/guide/modify-token.md',
+    imageMap: {
+      'https://doc.aiapi114.com/images/tu3_new.png': 'assets/images/api-key-edit-aiapi114.png',
+    },
   },
   {
     category: 'tools',
@@ -63,6 +75,9 @@ export const defaultSources = [
     title: '配置 Cherry Studio',
     summary: '在 Cherry Studio 中添加 aiapi114 提供商、模型和图像模型。',
     sourcePath: 'docs/reference-help-docs/newapi-ai/apps/cherry-studio.md',
+    imageMap: {
+      '../assets/cherry_studio/copy_api_key.png': 'assets/images/cherry-copy-api-key-aiapi114.png',
+    },
   },
   {
     category: 'tools',
@@ -98,6 +113,12 @@ export const defaultSources = [
     title: '查看使用记录',
     summary: '通过日志核对请求、模型、消耗、错误和响应时间。',
     sourcePath: 'docs/reference-help-docs/newapi-ai/guide/feature-guide/user/log.md',
+    imageMap: {
+      '../../../assets/guide/feature-guide/log-list.png': 'assets/images/usage-logs-list-aiapi114.png',
+      '../../../assets/guide/feature-guide/log-filter-open.png': 'assets/images/usage-logs-filter-open-aiapi114.png',
+      '../../../assets/guide/feature-guide/log-filtered.png': 'assets/images/usage-logs-filtered-aiapi114.png',
+      '../../../assets/guide/feature-guide/dashboard-chart.png': 'assets/images/usage-dashboard-overview-aiapi114.png',
+    },
   },
   {
     category: 'troubleshooting',
@@ -142,6 +163,11 @@ const urlReplacements = [
   [/https:\/\/docs\.codexzh\.com/g, 'https://doc.aiapi114.com'],
 ]
 
+const routeReplacements = [
+  [/`\/login`/g, '`/sign-in`'],
+  [/`\/register`/g, '`/sign-up`'],
+]
+
 export function shouldIncludeSource(sourcePath) {
   const normalized = sourcePath.replaceAll('\\', '/').toLowerCase()
   const blockedSegments = [
@@ -157,7 +183,7 @@ export function shouldIncludeSource(sourcePath) {
   return !blockedSegments.some((segment) => normalized.includes(segment))
 }
 
-export function normalizeMarkdown(markdown, { sourceTitle, sourcePath }) {
+export function normalizeMarkdown(markdown, { sourceTitle, sourcePath, imageMap = {} }) {
   let body = extractOriginalBody(markdown)
   body = stripFrontmatter(body)
   body = body.replace(/<Callout[^>]*>/g, '> ')
@@ -166,6 +192,10 @@ export function normalizeMarkdown(markdown, { sourceTitle, sourcePath }) {
   body = body.replace(/^#\s+.+$/m, `# ${sourceTitle}`)
   body = body.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, (_, alt, url) => {
     const label = alt?.trim() || '未命名图片'
+    const mappedUrl = imageMap[url] || imageMap[replaceKnownUrls(url)]
+    if (mappedUrl) {
+      return `![${label}](${mappedUrl})`
+    }
     return `> [图片待替换：${label}；来源 ${sourcePath}；原图 ${url}]`
   })
 
@@ -173,6 +203,9 @@ export function normalizeMarkdown(markdown, { sourceTitle, sourcePath }) {
     body = body.replace(pattern, replacement)
   }
   for (const [pattern, replacement] of urlReplacements) {
+    body = body.replace(pattern, replacement)
+  }
+  for (const [pattern, replacement] of routeReplacements) {
     body = body.replace(pattern, replacement)
   }
   body = body.replace(
@@ -200,6 +233,7 @@ export async function buildHelpContent({
     const markdown = normalizeMarkdown(raw, {
       sourceTitle: source.title,
       sourcePath: source.sourcePath,
+      imageMap: source.imageMap,
     })
     articles.push({
       category: source.category,
@@ -240,6 +274,14 @@ export async function buildHelpContent({
     categoryCount: availableCategories.length,
     outputFile,
   }
+}
+
+function replaceKnownUrls(value) {
+  let result = value
+  for (const [pattern, replacement] of urlReplacements) {
+    result = result.replace(pattern, replacement)
+  }
+  return result
 }
 
 function extractOriginalBody(markdown) {

@@ -1,0 +1,121 @@
+﻿.static-home[data-theme='light'] .static-home__glass-card,
+.static-home[data-theme='light'] .static-home__endpoint-strip,
+.static-home[data-theme='light'] .static-home__developer-panel,
+.static-home[data-theme='light'] .static-home__metrics,
+.static-home[data-theme='light'] .static-home__start-journey-card {
+  border-color: var(--home-border);
+  background:
+    linear-gradient(180deg, rgba(255, 254, 247, 0.94), rgba(255, 253, 247, 0.78)),
+    #fffdf7;
+  box-shadow: var(--home-shadow);
+}
+
+.static-home[data-theme='light'] .static-home__hero-features {
+  background: rgba(255, 254, 247, 0.76);
+  border-color: rgba(0, 120, 64, 0.18);
+  box-shadow: 0 18px 44px -36px rgba(17, 24, 12, 0.28);
+}
+
+.static-home[data-theme='light'] .static-home__hero-features article {
+  background: transparent;
+  border-right-color: rgba(0, 120, 64, 0.1);
+}
+
+.static-home[data-theme='light'] .static-home__hero-features strong {
+  color: var(--home-text);
+}
+
+.static-home[data-theme='light'] .static-home__hero-features span {
+  color: var(--home-muted);
+}
+
+.static-home[data-theme='light'] .static-home__hero-feature,
+.static-home[data-theme='light'] .static-home__endpoint-input,
+.static-home[data-theme='light'] .static-home__endpoint-card-value,
+.static-home[data-theme='light'] .static-home__code-block,
+.static-home[data-theme='light'] .static-home__feature-list article,
+.static-home[data-theme='light'] .static-home__support-card,
+.static-home[data-theme='light'] .static-home__footer-language,
+.static-home[data-theme='light'] .static-home__footer-status {
+  background:
+    linear-gradient(180deg, rgba(255, 254, 247, 0.96), rgba(250, 252, 244, 0.9)),
+    #fffdf7;
+  border-color: rgba(0, 120, 64, 0.09);
+  box-shadow: 0 14px 34px -28px rgba(35, 75, 45, 0.22);
+}
+
+.static-home[data-theme='light'] .static-home__endpoint-card-value,
+.static-home[data-theme='light'] .static-home__endpoint-input,
+.static-home[data-theme='light'] .static-home__code-tabs {
+  background: rgba(0, 120, 64, 0.035);
+  border-color: rgba(0, 120, 64, 0.09);
+  box-shadow: none;
+}
+
+.static-home[data-theme='light'] .static-home__endpoint-strip {
+  background:
+    linear-gradient(90deg, rgba(158, 227, 91, 0.1), transparent 38%),
+    #fffdf7;
+}
+
+.static-home[data-theme='light'] .static-home__why-card {
+  background:
+    linear-gradient(180deg, rgba(255, 254, 247, 0.98), rgba(255, 253, 247, 0.9)),
+    #fffdf7;
+}
+
+.static-home[data-theme='light'] .static-home__card-label,
+.static-home[data-theme='light'] .static-home__endpoint-card-value code,
+.static-home[data-theme='light'] .static-home__pricing-price,
+.static-home[data-theme='light'] .static-home__eyebrow,
+.static-home[data-theme='light'] .static-home__announcement-label {
+  color: var(--home-accent-2);
+}
+
+.static-home[data-theme='light'] .static-home__hero-feature-icon,
+.static-home[data-theme='light'] .static-home__icon-badge,
+.static-home[data-theme='light'] .static-home__endpoint-mark,
+.static-home[data-theme='light'] .static-home__metric-icon {
+  background: var(--home-accent);
+  box-shadow: 0 10px 24px rgba(126, 166, 48, 0.12);
+  color: #111418;
+}
+
+.static-home[data-theme='light'] .static-home__code-block {
+  background: #fffdf7;
+  color: #37473d;
+}
+
+.static-home[data-theme='light'] .static-home__code-tabs button {
+  color: #68717d;
+}
+
+.static-home[data-theme='light'] .static-home__code-tabs .is-active {
+  background: var(--home-accent);
+  border-color: transparent;
+  color: #111418;
+}
+
+.static-home[data-theme='light'] .static-home__pricing-card.is-featured {
+  background:
+    linear-gradient(180deg, rgba(255, 254, 247, 0.99), rgba(255, 253, 247, 0.93)),
+    #fffdf7;
+  border-color: rgba(0, 120, 64, 0.18);
+  box-shadow:
+    0 22px 54px -38px rgba(35, 75, 45, 0.28),
+    0 0 0 1px rgba(158, 227, 91, 0.22);
+}
+
+.static-home[data-theme='light'] .static-home__pricing-badge,
+.static-home[data-theme='light'] .static-home__pricing-summary--accent {
+  color: var(--home-accent-2);
+}
+
+.static-home[data-theme='light'] .static-home__pricing-price-prefix,
+.static-home[data-theme='light'] .static-home__pricing-price-unit {
+  color: var(--home-muted);
+}
+
+.static-home[data-theme='light'] .static-home__pricing-price-value {
+  color: var(--home-accent-2);
+}

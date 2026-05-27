@@ -17,26 +17,81 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { api } from '@/lib/api'
+import {
+  isCachedPerfMetricsFeatureAvailable,
+  isMissingPerfMetricsEndpoint,
+  isPerfMetricsEndpointUnavailable,
+  markPerfMetricsEndpointUnavailable,
+} from './compat'
 import type { PerformanceMetricsData, PerfSummaryAllData } from './types'
+
+const emptyPerfSummary: PerfSummaryAllData = {
+  success: true,
+  data: {
+    models: [],
+  },
+}
+
+function emptyPerfMetrics(modelName: string): PerformanceMetricsData {
+  return {
+    success: true,
+    data: {
+      model_name: modelName,
+      groups: [],
+    },
+  }
+}
 
 export async function getPerfMetricsSummary(
   hours = 24
 ): Promise<PerfSummaryAllData> {
-  const res = await api.get<PerfSummaryAllData>('/api/perf-metrics/summary', {
-    params: { hours },
-  })
-  return res.data
+  if (
+    !isCachedPerfMetricsFeatureAvailable() ||
+    isPerfMetricsEndpointUnavailable()
+  ) {
+    return emptyPerfSummary
+  }
+
+  try {
+    const res = await api.get<PerfSummaryAllData>('/api/perf-metrics/summary', {
+      params: { hours },
+      skipErrorHandler: true,
+    } as Record<string, unknown>)
+    return res.data
+  } catch (error: unknown) {
+    if (isMissingPerfMetricsEndpoint(error)) {
+      markPerfMetricsEndpointUnavailable()
+      return emptyPerfSummary
+    }
+    throw error
+  }
 }
 
 export async function getPerfMetrics(
   modelName: string,
   hours = 24
 ): Promise<PerformanceMetricsData> {
-  const res = await api.get<PerformanceMetricsData>('/api/perf-metrics', {
-    params: {
-      model: modelName,
-      hours,
-    },
-  })
-  return res.data
+  if (
+    !isCachedPerfMetricsFeatureAvailable() ||
+    isPerfMetricsEndpointUnavailable()
+  ) {
+    return emptyPerfMetrics(modelName)
+  }
+
+  try {
+    const res = await api.get<PerformanceMetricsData>('/api/perf-metrics', {
+      params: {
+        model: modelName,
+        hours,
+      },
+      skipErrorHandler: true,
+    } as Record<string, unknown>)
+    return res.data
+  } catch (error: unknown) {
+    if (isMissingPerfMetricsEndpoint(error)) {
+      markPerfMetricsEndpointUnavailable()
+      return emptyPerfMetrics(modelName)
+    }
+    throw error
+  }
 }

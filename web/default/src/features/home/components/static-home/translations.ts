@@ -18,216 +18,50 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
+import { en } from './translations.en.ts'
+import { fr } from './translations.fr.ts'
+import { ja } from './translations.ja.ts'
+import { ru } from './translations.ru.ts'
+import { vi } from './translations.vi.ts'
+import { zh } from './translations.zh.ts'
 
-const zh = {
-  'home.static.nav.home': '首页',
-  'home.static.nav.console': '控制台',
-  'home.static.nav.docs': '文档',
-  'home.static.nav.models': '模型广场',
-  'home.static.nav.invite': '邀请有礼',
-  'home.static.nav.about': '关于我们',
-  'home.static.nav.pricing': '定价方案',
-  'home.static.auth.signIn': '登录',
-  'home.static.auth.signUp': '注册',
-  'home.static.notice.title': '系统公告',
-  'home.static.notice.fallback': 'AWS 官方 Anthropic 渠道正式上线，Claude Opus 4.7 全面支持',
-  'home.static.notice.viewAll': '查看全部',
-  'home.static.notice.empty': '暂无系统公告',
-  'home.static.notice.error': '公告暂不可用',
-  'home.static.theme.toLight': '切换到白天模式',
-  'home.static.theme.toDark': '切换到黑夜模式',
-  'home.static.language.select': '选择语言',
-  'home.static.hero.title1': '多模型聚合 · 一站式 API',
-  'home.static.hero.title2': '中转服务',
-  'home.static.hero.text': 'AiApi114 提供 OpenAI、Claude、Gemini、通义千问、智谱等主流大模型 API 中转服务，统一管理，灵活调用，低至官方价格的 50%，助力开发者专注创造。',
-  'home.static.hero.freeTrial': '免费注册体验',
-  'home.static.hero.viewDocs': '查看文档',
-  'home.static.hero.visual': 'AiApi114 动态模型网关插图',
-  'home.static.hero.feature.stable.title': '稳定可靠',
-  'home.static.hero.feature.stable.text': '99.9% 可用性',
-  'home.static.hero.feature.fast.title': '极速响应',
-  'home.static.hero.feature.fast.text': '毫秒级延迟',
-  'home.static.hero.feature.price.title': '价格低廉',
-  'home.static.hero.feature.price.text': '低至官方 50%',
-  'home.static.hero.feature.security.title': '安全保障',
-  'home.static.hero.feature.security.text': '企业级安全',
-  'home.static.why.title': '为什么选择 AiApi114？',
-  'home.static.why.subtitle': '我们致力于为开发者提供最优质的大模型中转服务体验',
-  'home.static.why.models.title': '丰富的模型支持',
-  'home.static.why.models.line1': '聚合多家主流大模型',
-  'home.static.why.models.line2': '持续接入更多优质模型',
-  'home.static.why.api.title': '统一的调用方式',
-  'home.static.why.api.line1': '标准 OpenAI API 格式',
-  'home.static.why.api.line2': '无需切换不同模型接口',
-  'home.static.why.price.title': '极具竞争力的价格',
-  'home.static.why.price.line1': '低至官方价格 50%',
-  'home.static.why.price.line2': '按量计费，透明无隐藏消费',
-  'home.static.why.reliable.title': '稳定可靠的服务',
-  'home.static.why.reliable.line1': '多节点部署，智能路由',
-  'home.static.why.reliable.line2': '99.9% 服务可用性保障',
-  'home.static.endpoint.api': 'API 接入地址',
-  'home.static.endpoint.docs': '文档地址',
-  'home.static.endpoint.copyApi': '复制 API 接入地址',
-  'home.static.endpoint.copyDocs': '复制文档地址',
-  'home.static.models.eyebrow': 'Model Status',
-  'home.static.models.title': '模型运行状态',
-  'home.static.models.up': '运行中',
-  'home.static.models.degraded': '繁忙',
-  'home.static.models.down': '不可用',
-  'home.static.models.unknown': '未知',
-  'home.static.models.empty': '暂无模型状态数据',
-  'home.static.models.error': '模型状态暂不可用',
-  'home.static.models.viewAll': '查看全部模型',
-  'home.static.models.availability': '可用性',
-  'home.static.models.latency': '延迟',
-  'home.static.developer.title': '开发者友好',
-  'home.static.developer.apiTitle': 'API 接入地址',
-  'home.static.developer.supportTitle': '社区 & 支持',
-  'home.static.developer.openai.title': 'OpenAI 兼容 API',
-  'home.static.developer.openai.text': '完全兼容 OpenAI API 格式，无需修改代码即可接入',
-  'home.static.developer.languages.title': '多种编程语言支持',
-  'home.static.developer.languages.text': '提供多种语言的 SDK 和示例代码',
-  'home.static.developer.docs.title': '详细的使用文档',
-  'home.static.developer.docs.text': '完善的文档和示例，快速上手',
-  'home.static.developer.monitor.title': '监控统计',
-  'home.static.developer.monitor.text': '实时查看调用统计和使用情况',
-  'home.static.developer.copyCode': '复制代码',
-  'home.static.developer.endpointLabel': '接口地址',
-  'home.static.pricing.eyebrow': 'Pricing',
-  'home.static.pricing.title': '定价方案',
-  'home.static.pricing.subtitle': '简单透明的按量付费，无隐藏费用',
-  'home.static.pricing.recommended': '推荐',
-  'home.static.pricing.developer.title': '开发者接入',
-  'home.static.pricing.developer.price': '低至 ¥0.002 / 1K tokens',
-  'home.static.pricing.developer.summary': '按量计费',
-  'home.static.pricing.developer.f1': '无月费，无最低消费',
-  'home.static.pricing.developer.f2': '按实际使用量计费',
-  'home.static.pricing.developer.f3': '价格低至官方 50%',
-  'home.static.pricing.developer.f4': '支持多种支付方式',
-  'home.static.pricing.gateway.title': 'API 中转服务',
-  'home.static.pricing.gateway.price': '统一 API 网关',
-  'home.static.pricing.gateway.f1': '兼容 OpenAI API 格式',
-  'home.static.pricing.gateway.f2': '多模型统一管理',
-  'home.static.pricing.gateway.f3': '国内优化线路，稳定可靠',
-  'home.static.pricing.gateway.f4': '实时用量统计与监控',
-  'home.static.pricing.enterprise.title': '企业定制',
-  'home.static.pricing.enterprise.price': '专属服务',
-  'home.static.pricing.enterprise.f1': '专属价格方案',
-  'home.static.pricing.enterprise.f2': '独立部署支持',
-  'home.static.pricing.enterprise.f3': '专属技术支持',
-  'home.static.pricing.enterprise.f4': '定制化开发',
-  'home.static.pricing.useNow': '立即使用',
-  'home.static.pricing.viewDocs': '查看文档',
-  'home.static.pricing.contact': '联系商务',
-  'home.static.metrics.developers': '注册开发者',
-  'home.static.metrics.callsValue': '10亿+',
-  'home.static.metrics.calls': 'API 调用次数',
-  'home.static.metrics.uptime': '服务可用性',
-  'home.static.metrics.models': '支持模型数',
-  'home.static.support.telegram.title': 'Telegram 群组',
-  'home.static.support.invite.title': '邀请奖励',
-  'home.static.support.invite.text': '邀请好友，获得奖励',
-  'home.static.cta.title': '立即开始您的 AI 开发之旅',
-  'home.static.cta.text': '加入数万名开发者，共同构建智能未来',
-  'home.static.cta.free': '免费注册',
-  'home.static.footer.text': '专注为大模型 API 中转服务提供稳定供给，让 AI 技术触手可及。',
-  'home.static.footer.product': '产品',
-  'home.static.footer.support': '支持',
-  'home.static.footer.resources': '资源',
-  'home.static.footer.community': '社区',
-  'home.static.footer.docs': '文档中心',
-  'home.static.footer.apiRef': 'API 参考',
-  'home.static.footer.faq': '常见问题',
-  'home.static.footer.integration': '接入指南',
-  'home.static.footer.telegram': 'Telegram @aiapi114kf',
-  'home.static.footer.mail': '邮箱',
-  'home.static.footer.status': 'API 状态',
-  'home.static.toast.copied': '已复制',
+export const STATIC_HOME_LANGUAGES = ['en', 'zh', 'fr', 'ru', 'ja', 'vi'] as const
+
+export const STATIC_HOME_LANGUAGE_LABELS = {
+  en: 'English',
+  zh: '中文',
+  fr: 'Français',
+  ru: 'Русский',
+  ja: '日本語',
+  vi: 'Tiếng Việt',
 } as const
 
-const en: Record<keyof typeof zh, string> = {
-  ...zh,
-  'home.static.nav.home': 'Home',
-  'home.static.nav.console': 'Console',
-  'home.static.nav.docs': 'Docs',
-  'home.static.nav.models': 'Models',
-  'home.static.nav.invite': 'Invite',
-  'home.static.nav.about': 'About',
-  'home.static.nav.pricing': 'Pricing',
-  'home.static.auth.signIn': 'Sign in',
-  'home.static.auth.signUp': 'Sign up',
-  'home.static.notice.title': 'System Notice',
-  'home.static.notice.fallback': 'AWS official Anthropic channel is online, with Claude Opus 4.7 supported.',
-  'home.static.notice.viewAll': 'View all',
-  'home.static.notice.empty': 'No announcements',
-  'home.static.notice.error': 'Announcements unavailable',
-  'home.static.theme.toLight': 'Switch to light mode',
-  'home.static.theme.toDark': 'Switch to dark mode',
-  'home.static.language.select': 'Select language',
-  'home.static.hero.title1': 'Multi-model aggregation · One API',
-  'home.static.hero.title2': 'Gateway service',
-  'home.static.hero.text': 'AiApi114 provides API gateway services for OpenAI, Claude, Gemini, Qwen, Zhipu and other mainstream models, with unified management, flexible access, and pricing as low as 50% of official rates.',
-  'home.static.hero.freeTrial': 'Start free',
-  'home.static.hero.viewDocs': 'View docs',
-  'home.static.hero.visual': 'AiApi114 animated model gateway illustration',
-  'home.static.why.title': 'Why choose AiApi114?',
-  'home.static.why.subtitle': 'We deliver a stable, efficient model gateway experience for developers.',
-  'home.static.endpoint.api': 'API base URL',
-  'home.static.endpoint.docs': 'Docs URL',
-  'home.static.models.title': 'Model status',
-  'home.static.models.up': 'Operational',
-  'home.static.models.degraded': 'Busy',
-  'home.static.models.down': 'Unavailable',
-  'home.static.models.unknown': 'Unknown',
-  'home.static.models.empty': 'No model status data',
-  'home.static.models.error': 'Model status unavailable',
-  'home.static.models.viewAll': 'View all models',
-  'home.static.models.availability': 'Availability',
-  'home.static.models.latency': 'Latency',
-  'home.static.developer.title': 'Developer friendly',
-  'home.static.developer.apiTitle': 'API access',
-  'home.static.developer.supportTitle': 'Community & support',
-  'home.static.developer.endpointLabel': 'Endpoint',
-  'home.static.developer.copyCode': 'Copy code',
-  'home.static.pricing.title': 'Pricing',
-  'home.static.pricing.subtitle': 'Simple pay-as-you-go pricing with no hidden fees.',
-  'home.static.pricing.recommended': 'Recommended',
-  'home.static.pricing.useNow': 'Use now',
-  'home.static.pricing.viewDocs': 'View docs',
-  'home.static.pricing.contact': 'Contact sales',
-  'home.static.metrics.callsValue': '1B+',
-  'home.static.metrics.developers': 'Registered developers',
-  'home.static.metrics.calls': 'API calls',
-  'home.static.metrics.uptime': 'Service availability',
-  'home.static.metrics.models': 'Supported models',
-  'home.static.support.telegram.title': 'Telegram group',
-  'home.static.support.invite.title': 'Invite rewards',
-  'home.static.support.invite.text': 'Invite friends and earn rewards',
-  'home.static.cta.title': 'Start your AI development journey',
-  'home.static.cta.text': 'Join tens of thousands of developers building with AI.',
-  'home.static.cta.free': 'Sign up free',
-  'home.static.footer.text': 'Stable model API gateway infrastructure that makes AI technology easier to access.',
-  'home.static.footer.product': 'Product',
-  'home.static.footer.support': 'Support',
-  'home.static.footer.resources': 'Resources',
-  'home.static.footer.community': 'Community',
-  'home.static.footer.docs': 'Docs',
-  'home.static.footer.apiRef': 'API reference',
-  'home.static.footer.faq': 'FAQ',
-  'home.static.footer.integration': 'Integration guide',
-  'home.static.footer.status': 'API status',
-  'home.static.toast.copied': 'Copied',
+const dictionaries = { en, zh, fr, ru, ja, vi } as const
+
+type StaticHomeLanguage = keyof typeof dictionaries
+
+export function getStaticHomeText(language?: string | null) {
+  const normalized = normalizeStaticHomeLanguage(language)
+  const dictionary = dictionaries[normalized]
+
+  return (key: keyof typeof zh | string) =>
+    dictionary[key as keyof typeof zh] || en[key as keyof typeof zh] || key
 }
 
-const dictionaries = { en, zh } as const
+export function getStaticHomeLanguageLabel(language?: string | null) {
+  return STATIC_HOME_LANGUAGE_LABELS[normalizeStaticHomeLanguage(language)]
+}
+
+export function normalizeStaticHomeLanguage(language?: string | null): StaticHomeLanguage {
+  if (!language) return 'en'
+  const normalized = language.trim().replace(/_/g, '-').toLowerCase()
+  if (normalized.startsWith('zh')) return 'zh'
+  return normalized in dictionaries ? (normalized as StaticHomeLanguage) : 'en'
+}
 
 export function useStaticHomeText() {
   const { i18n } = useTranslation()
-  const language = i18n.language?.startsWith('zh') ? 'zh' : 'en'
+  const language = normalizeStaticHomeLanguage(i18n.resolvedLanguage || i18n.language)
 
-  return useMemo(() => {
-    const dictionary = dictionaries[language]
-    return (key: keyof typeof zh | string) =>
-      dictionary[key as keyof typeof zh] || en[key as keyof typeof zh] || key
-  }, [language])
+  return useMemo(() => getStaticHomeText(language), [language])
 }

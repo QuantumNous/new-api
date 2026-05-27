@@ -22,7 +22,9 @@ import { Gauge, HeartPulse, Timer } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { cn } from '@/lib/utils'
 import { Skeleton } from '@/components/ui/skeleton'
+import { useStatus } from '@/hooks/use-status'
 import { getPerfMetricsSummary } from '@/features/performance-metrics/api'
+import { isPerfMetricsFeatureAvailable } from '@/features/performance-metrics/compat'
 import {
   formatLatency,
   formatThroughput,
@@ -67,9 +69,12 @@ function rateDotClass(rate: number): string {
 
 export function PerformanceHealthPanel() {
   const { t } = useTranslation()
+  const { status } = useStatus()
+  const perfMetricsEnabled = isPerfMetricsFeatureAvailable(status)
   const metricsQuery = useQuery({
     queryKey: ['perf-metrics-summary', PERFORMANCE_WINDOW_HOURS],
     queryFn: () => getPerfMetricsSummary(PERFORMANCE_WINDOW_HOURS),
+    enabled: perfMetricsEnabled,
     staleTime: 60 * 1000,
     retry: false,
   })
@@ -90,7 +95,7 @@ export function PerformanceHealthPanel() {
   }, [models])
 
   const topModels = useMemo(() => models.slice(0, TOP_MODEL_LIMIT), [models])
-  const loading = metricsQuery.isLoading
+  const loading = perfMetricsEnabled && metricsQuery.isLoading
   const hasData = models.length > 0
 
   return (

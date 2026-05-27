@@ -49,6 +49,8 @@ import { RiskAcknowledgementDialog } from '@/components/risk-acknowledgement-dia
 import { confirmPaymentCompliance } from '../api'
 import { SettingsSection } from '../components/settings-section'
 import { useUpdateOption } from '../hooks/use-update-option'
+import type { AirwallexSettingsValues } from './airwallex-settings'
+import { AirwallexSettingsSection } from './airwallex-settings-section'
 import { AmountDiscountVisualEditor } from './amount-discount-visual-editor'
 import { AmountOptionsVisualEditor } from './amount-options-visual-editor'
 import { CreemProductsVisualEditor } from './creem-products-visual-editor'
@@ -101,6 +103,7 @@ const paymentSchema = z.object({
       })
     }
   }),
+  AmountOptionsByCurrency: z.string(),
   AmountDiscount: z.string().superRefine((value, ctx) => {
     const error = getJsonError(
       value,
@@ -114,6 +117,7 @@ const paymentSchema = z.object({
       })
     }
   }),
+  PriceByCurrency: z.string(),
   StripeApiSecret: z.string(),
   StripeWebhookSecret: z.string(),
   StripePriceId: z.string(),
@@ -151,6 +155,7 @@ type PaymentSettingsSectionProps = {
   waffoPancakeDefaultValues: WaffoPancakeSettingsValues
   waffoPancakeProvisionedStoreID?: string
   waffoPancakeProvisionedProductID?: string
+  airwallexValues: AirwallexSettingsValues
   complianceDefaults: PaymentComplianceDefaults
 }
 
@@ -160,6 +165,7 @@ export function PaymentSettingsSection({
   waffoPancakeDefaultValues,
   waffoPancakeProvisionedStoreID,
   waffoPancakeProvisionedProductID,
+  airwallexValues,
   complianceDefaults,
 }: PaymentSettingsSectionProps) {
   const { t } = useTranslation()
@@ -261,7 +267,11 @@ export function PaymentSettingsSection({
       ...defaultValues,
       PayMethods: formatJsonForEditor(defaultValues.PayMethods),
       AmountOptions: formatJsonForEditor(defaultValues.AmountOptions),
+      AmountOptionsByCurrency: formatJsonForEditor(
+        defaultValues.AmountOptionsByCurrency
+      ),
       AmountDiscount: formatJsonForEditor(defaultValues.AmountDiscount),
+      PriceByCurrency: formatJsonForEditor(defaultValues.PriceByCurrency),
       CreemProducts: formatJsonForEditor(defaultValues.CreemProducts),
     },
   })
@@ -273,7 +283,11 @@ export function PaymentSettingsSection({
       ...parsedDefaults,
       PayMethods: formatJsonForEditor(parsedDefaults.PayMethods),
       AmountOptions: formatJsonForEditor(parsedDefaults.AmountOptions),
+      AmountOptionsByCurrency: formatJsonForEditor(
+        parsedDefaults.AmountOptionsByCurrency
+      ),
       AmountDiscount: formatJsonForEditor(parsedDefaults.AmountDiscount),
+      PriceByCurrency: formatJsonForEditor(parsedDefaults.PriceByCurrency),
       CreemProducts: formatJsonForEditor(parsedDefaults.CreemProducts),
     })
   }, [defaultsSignature, form])
@@ -1469,6 +1483,10 @@ export function PaymentSettingsSection({
           </Button>
         </form>
       </Form>
+
+      <Separator />
+
+      <AirwallexSettingsSection defaultValues={airwallexValues} />
 
       <Separator />
 

@@ -21,6 +21,7 @@ import type { ModelStatusPayload } from './types'
 
 export async function getModelStatus(): Promise<ModelStatusPayload> {
   const res = await api.get('/api/uptime/status', {
+    disableDuplicate: true,
     skipBusinessError: true,
   } as Record<string, unknown>)
   return res.data

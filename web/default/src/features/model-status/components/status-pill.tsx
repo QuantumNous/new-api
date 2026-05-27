@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { cn } from '@/lib/utils'
-import { healthText } from '../lib/format'
+import { healthText, type ModelStatusTranslator } from '../lib/format'
 import type { ModelStatusHealth } from '../types'
 
 const healthClassName: Record<ModelStatusHealth, string> = {
@@ -29,7 +29,10 @@ const healthClassName: Record<ModelStatusHealth, string> = {
     'bg-slate-500/10 text-slate-600 ring-slate-500/20 dark:text-slate-300',
 }
 
-export function StatusPill(props: { health: ModelStatusHealth }) {
+export function StatusPill(props: {
+  health: ModelStatusHealth
+  t?: ModelStatusTranslator
+}) {
   return (
     <span
       className={cn(
@@ -38,7 +41,7 @@ export function StatusPill(props: { health: ModelStatusHealth }) {
       )}
     >
       <span className='size-1.5 rounded-full bg-current' aria-hidden />
-      {healthText(props.health)}
+      {healthText(props.health, props.t)}
     </span>
   )
 }

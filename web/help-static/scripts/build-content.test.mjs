@@ -23,18 +23,27 @@ describe('static help content builder', () => {
       '',
       '登录 IKunCode 平台并打开 New API 控制台。',
       '',
+      '直接访问 `/login` 或 `/register`。',
+      '',
       '![注册页面](https://docs.ikuncode.cc/images/tu1.png)',
     ].join('\n')
 
     const result = normalizeMarkdown(markdown, {
       sourceTitle: '注册账号',
       sourcePath: 'docs/reference-help-docs/ikuncode/guide/registration.md',
+      imageMap: {
+        'https://docs.ikuncode.cc/images/tu1.png': 'assets/images/account-login-aiapi114.png',
+      },
     })
 
     assert.equal(result.includes('IKunCode'), false)
     assert.equal(result.includes('New API'), false)
     assert.equal(result.includes('aiapi114 平台'), true)
-    assert.match(result, /> \[图片待替换：注册页面；来源 docs\/reference-help-docs\/ikuncode\/guide\/registration.md；原图 https:\/\/doc\.aiapi114\.com\/images\/tu1\.png\]/)
+    assert.equal(result.includes('`/login`'), false)
+    assert.equal(result.includes('`/register`'), false)
+    assert.match(result, /`\/sign-in`/)
+    assert.match(result, /`\/sign-up`/)
+    assert.match(result, /!\[注册页面\]\(assets\/images\/account-login-aiapi114\.png\)/)
   })
 
   test('builds content.js with selected user-facing articles', async () => {
@@ -70,6 +79,9 @@ describe('static help content builder', () => {
           title: '账号注册',
           summary: '完成 aiapi114 账号注册。',
           sourcePath: 'docs/reference-help-docs/ikuncode/guide/registration.md',
+          imageMap: {
+            'https://example.com/register.png': 'assets/images/account-login-aiapi114.png',
+          },
         },
       ],
     })
@@ -78,7 +90,7 @@ describe('static help content builder', () => {
     assert.equal(result.articleCount, 1)
     assert.match(output, /window\.AIAPI114_HELP_CONTENT = /)
     assert.match(output, /account-registration/)
-    assert.match(output, /图片待替换/)
+    assert.match(output, /assets\/images\/account-login-aiapi114\.png/)
     assert.equal(output.includes('IKunCode'), false)
     assert.equal(output.includes('docs.ikuncode.cc'), false)
     assert.equal(output.includes('docs.codexzh.com'), false)

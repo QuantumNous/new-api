@@ -19,6 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import { Link } from '@tanstack/react-router'
 import { ChevronDown, Globe2 } from 'lucide-react'
 import { footerColumns, footerSocials, HeadsetIcon } from './content'
+import { getStaticHomeLanguageLabel } from './translations'
 import type { StaticHomeText } from './types'
 
 export function HomeFooter({
@@ -31,15 +32,26 @@ export function HomeFooter({
   return (
     <footer className='static-home__footer' id='footer'>
       <div className='static-home__footer-main'>
-        <div>
-          <img src='/assets/brand/aiapi114-logo-transparent.png' alt='AiApi114' />
+        <div className='static-home__footer-intro'>
+          <div className='static-home__brand static-home__brand--footer'>
+            <img
+              className='static-home__brand-logo'
+              src='/assets/brand/aiapi114-logo-transparent.png'
+              alt='AiApi114'
+            />
+          </div>
           <p>{t('home.static.footer.text')}</p>
-          <div>
+          <div className='static-home__footer-socials'>
             {footerSocials.map((social) => {
               const Icon = social.icon
               return (
-                <a href={social.href} key={social.href} aria-label={t(social.labelKey)}>
-                  <Icon className='size-5' />
+                <a
+                  className='static-home__footer-social'
+                  href={social.href}
+                  key={social.href}
+                  aria-label={t(social.labelKey)}
+                >
+                  <Icon className='size-4' />
                 </a>
               )
             })}
@@ -47,30 +59,34 @@ export function HomeFooter({
         </div>
         <div className='static-home__footer-columns'>
           {footerColumns.map((column) => (
-            <section key={column.titleKey}>
+            <section className='static-home__footer-column' key={column.titleKey}>
               <h3>{t(column.titleKey)}</h3>
-              {column.links.map((link) => (
-                <a
-                  href={link.href}
-                  key={link.labelKey}
-                  target={'external' in link && link.external ? '_blank' : undefined}
-                  rel={'external' in link && link.external ? 'noreferrer' : undefined}
-                >
-                  {t(link.labelKey)}
-                </a>
-              ))}
+              <ul>
+                {column.links.map((link) => (
+                  <li key={link.labelKey}>
+                    <a
+                      href={link.href}
+                      target={'external' in link && link.external ? '_blank' : undefined}
+                      rel={'external' in link && link.external ? 'noreferrer' : undefined}
+                    >
+                      {t(link.labelKey)}
+                    </a>
+                  </li>
+                ))}
+              </ul>
             </section>
           ))}
         </div>
       </div>
       <div className='static-home__footer-bottom'>
-        <button type='button'>
+        <button type='button' className='static-home__footer-language'>
           <Globe2 className='size-4' />
-          {language?.startsWith('zh') ? '??' : 'English'}
+          {getStaticHomeLanguageLabel(language)}
           <ChevronDown className='size-4' />
         </button>
-        <p>? 2026 AiApi114. All rights reserved.</p>
-        <Link to='/status'>
+        <p className='static-home__footer-copyright'>© 2026 AiApi114. All rights reserved.</p>
+        <Link to='/status' className='static-home__footer-status'>
+          <span className='static-home__footer-status-dot' />
           <HeadsetIcon className='size-4' />
           {t('home.static.footer.status')}
         </Link>

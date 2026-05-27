@@ -5,6 +5,7 @@
 upload
 *.exe
 *.db
+*.pyc
 build
 *.db-journal
 logs
@@ -25,6 +26,14 @@ tiktoken_cache
 plans
 .claude
 .cursor
+.helloagents/
+.hermes/
+.playwright-cli/
+.runlogs/
+.tmp/
+.worktrees/
+.tmp_dynamic_issue.md
+__pycache__/
 
 electron/node_modules
 electron/dist
@@ -35,3 +44,4 @@ data/
 .test
 token_estimator_test.go
 skills-lock.json
+web/default/.playwright-cli/

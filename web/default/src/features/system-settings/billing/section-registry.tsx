@@ -148,6 +148,9 @@ const BILLING_SECTIONS = [
           PayMethods: settings.PayMethods,
           AmountOptions: settings['payment_setting.amount_options'],
           AmountDiscount: settings['payment_setting.amount_discount'],
+          AmountOptionsByCurrency:
+            settings['payment_setting.amount_options_by_currency'] ?? '{}',
+          PriceByCurrency: settings['payment_setting.price_by_currency'] ?? '{}',
           StripeApiSecret: settings.StripeApiSecret,
           StripeWebhookSecret: settings.StripeWebhookSecret,
           StripePriceId: settings.StripePriceId,
@@ -183,6 +186,18 @@ const BILLING_SECTIONS = [
         }}
         waffoPancakeProvisionedStoreID={settings.WaffoPancakeStoreID ?? ''}
         waffoPancakeProvisionedProductID={settings.WaffoPancakeProductID ?? ''}
+        airwallexValues={{
+          enabled: settings['airwallex_setting.enabled'] ?? false,
+          accounts: settings['airwallex_setting.accounts'] ?? '{}',
+          allowedPaymentMethods:
+            settings['airwallex_setting.allowed_payment_methods'] ?? '[]',
+          paymentMethodsCacheTTLSeconds:
+            settings['airwallex_setting.payment_methods_cache_ttl_seconds'] ??
+            600,
+          opsEnabled: settings['airwallex_setting.ops_enabled'] ?? false,
+          httpTimeoutSeconds:
+            settings['airwallex_setting.http_timeout_seconds'] ?? 15,
+        }}
         complianceDefaults={{
           confirmed: settings['payment_setting.compliance_confirmed'] ?? false,
           termsVersion:

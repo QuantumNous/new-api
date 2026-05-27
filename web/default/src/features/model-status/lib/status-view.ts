@@ -33,9 +33,12 @@ type MutableModel = Omit<ModelStatusViewModel, 'healthLabel'> & {
 }
 
 const DEFAULT_GROUP_NAME = '默认分组'
+const HISTORY_WINDOW_SECONDS = 5 * 60 * 60
+const HISTORY_BUCKET_SECONDS = 5 * 60
 
 export function buildModelStatusView(
-  payload?: ModelStatusPayload
+  payload?: ModelStatusPayload,
+  nowSeconds = Math.floor(Date.now() / 1000)
 ): ModelStatusView {
   const modelMap = new Map<string, MutableModel>()
 
@@ -45,7 +48,7 @@ export function buildModelStatusView(
     }
   }
 
-  const groups = buildGroups([...modelMap.values()])
+  const groups = buildGroups([...modelMap.values()], nowSeconds)
   return {
     groups,
     summary: buildSummary(groups),
@@ -74,9 +77,7 @@ function mergeMonitor(
   const group = normalizeText(monitor.group || categoryName, DEFAULT_GROUP_NAME)
   const model = normalizeText(monitor.model || monitor.name, '未知模型')
   const key = `${group}\u0000${model}`
-  const current =
-    modelMap.get(key) ??
-    createMutableModel(group, model, normalizeText(monitor.name, model))
+  const current = modelMap.get(key) ?? createMutableModel(group, model, model)
 
   current.status = compareStatusSeverity(current.status, monitor.status)
   current.updatedAt = Math.max(current.updatedAt, monitor.updated_at || 0)
@@ -148,9 +149,12 @@ function mergeTimelinePoint(
   })
 }
 
-function buildGroups(models: MutableModel[]): ModelStatusViewGroup[] {
+function buildGroups(
+  models: MutableModel[],
+  nowSeconds: number
+): ModelStatusViewGroup[] {
   const groupMap = new Map<string, ModelStatusViewGroup>()
-  for (const model of models.map(finalizeModel)) {
+  for (const model of models.map((item) => finalizeModel(item, nowSeconds))) {
     const group = groupMap.get(model.group) ?? createGroup(model.group)
     group.models.push(model)
     group.totalModels += 1
@@ -167,9 +171,13 @@ function buildGroups(models: MutableModel[]): ModelStatusViewGroup[] {
     .sort(compareGroups)
 }
 
-function finalizeModel(model: MutableModel): ModelStatusViewModel {
-  const history = [...model.historyByTimestamp.values()].sort(
-    (left, right) => left.timestamp - right.timestamp
+function finalizeModel(
+  model: MutableModel,
+  nowSeconds: number
+): ModelStatusViewModel {
+  const history = aggregateTimelineHistory(
+    [...model.historyByTimestamp.values()],
+    nowSeconds
   )
   const upPoints = history.filter((point) => point.status === 1).length
   const uptime = history.length > 0 ? upPoints / history.length : model.uptime
@@ -232,7 +240,8 @@ function resolveOverallStatus(
 ): ModelStatusHealth {
   if (summary.totalModels === 0) return 'unknown'
   if (summary.downModels > 0) return 'down'
-  if (summary.degradedModels > 0 || summary.unknownModels > 0) return 'degraded'
+  if (summary.degradedModels > 0 || summary.unknownModels > 0)
+    return 'degraded'
   return 'up'
 }
 
@@ -293,4 +302,68 @@ function statusSeverity(status: ModelStatusCode): number {
 function normalizeText(value: string | undefined, fallback: string) {
   const trimmed = value?.trim()
   return trimmed || fallback
+}
+
+function aggregateTimelineHistory(
+  history: ModelStatusTimelinePoint[],
+  nowSeconds: number
+): ModelStatusTimelinePoint[] {
+  const latest = history.reduce((value, point) => {
+    if (point.timestamp > nowSeconds) return value
+    return Math.max(value, point.timestamp)
+  }, 0)
+  if (latest === 0) return []
+  const recentSince = nowSeconds - HISTORY_WINDOW_SECONDS
+  const hasRecentPoint = history.some(
+    (point) => point.timestamp >= recentSince && point.timestamp <= nowSeconds
+  )
+  const anchor = hasRecentPoint ? nowSeconds : latest
+  const since = anchor - HISTORY_WINDOW_SECONDS
+  const buckets = new Map<number, TimelineBucket>()
+  for (const point of history) {
+    if (point.timestamp < since || point.timestamp > latest) continue
+
+    const timestamp = bucketTimestamp(point.timestamp)
+    const bucket = buckets.get(timestamp) ?? createTimelineBucket(timestamp)
+    bucket.count += 1
+    bucket.status = compareStatusSeverity(bucket.status, point.status)
+    bucket.availability += point.availability
+    bucket.latency += point.latency
+    buckets.set(timestamp, bucket)
+  }
+
+  return [...buckets.values()]
+    .sort((left, right) => left.timestamp - right.timestamp)
+    .map((bucket) => ({
+      timestamp: bucket.timestamp,
+      status: bucket.status,
+      availability: roundToTwo(bucket.availability / bucket.count),
+      latency: Math.round(bucket.latency / bucket.count),
+    }))
+}
+
+type TimelineBucket = {
+  timestamp: number
+  count: number
+  status: ModelStatusCode
+  availability: number
+  latency: number
+}
+
+function createTimelineBucket(timestamp: number): TimelineBucket {
+  return {
+    timestamp,
+    count: 0,
+    status: 1,
+    availability: 0,
+    latency: 0,
+  }
+}
+
+function bucketTimestamp(timestamp: number) {
+  return timestamp - (timestamp % HISTORY_BUCKET_SECONDS)
+}
+
+function roundToTwo(value: number) {
+  return Math.round(value * 100) / 100
 }

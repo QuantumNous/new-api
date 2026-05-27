@@ -16,12 +16,15 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { useTranslation } from 'react-i18next'
 import { formatLatency, formatPercent, formatRelativeTime } from '../lib/format'
 import type { ModelStatusViewGroup, ModelStatusViewModel } from '../types'
 import { StatusPill } from './status-pill'
 import { StatusTimeline } from './status-timeline'
 
 export function StatusGroupSection(props: { group: ModelStatusViewGroup }) {
+  const { t } = useTranslation()
+
   return (
     <section className='bg-card flex min-h-[340px] max-h-[620px] flex-col overflow-hidden rounded-2xl border shadow-sm'>
       <header className='bg-card/95 shrink-0 border-b px-4 py-3 backdrop-blur sm:px-5'>
@@ -31,30 +34,37 @@ export function StatusGroupSection(props: { group: ModelStatusViewGroup }) {
               {props.group.name}
             </h2>
             <p className='text-muted-foreground mt-1 text-sm'>
-              已接入 {props.group.totalModels} 个模型 · 最近更新{' '}
-              {formatRelativeTime(props.group.updatedAt)}
+              {t('{{count}} models', { count: props.group.totalModels })} ·{' '}
+              {t('Updated')} {formatRelativeTime(props.group.updatedAt, t)}
             </p>
           </div>
           <p className='text-muted-foreground text-sm'>
-            当前 {props.group.upModels} 正常
+            {t('Current')} {props.group.upModels} {t('Healthy').toLowerCase()}
             {props.group.degradedModels > 0 &&
-              ` / ${props.group.degradedModels} 波动`}
+              ` / ${props.group.degradedModels} ${t('Degraded').toLowerCase()}`}
             {props.group.downModels > 0 &&
-              ` / ${props.group.downModels} 不可用`}
+              ` / ${props.group.downModels} ${t('Unavailable').toLowerCase()}`}
           </p>
         </div>
       </header>
 
       <div className='min-h-0 flex-1 divide-y overflow-y-auto'>
         {props.group.models.map((model) => (
-          <ModelStatusRow key={`${model.group}-${model.model}`} model={model} />
+          <ModelStatusRow
+            key={`${model.group}-${model.model}`}
+            model={model}
+            t={t}
+          />
         ))}
       </div>
     </section>
   )
 }
 
-function ModelStatusRow(props: { model: ModelStatusViewModel }) {
+function ModelStatusRow(props: {
+  model: ModelStatusViewModel
+  t: (key: string, options?: Record<string, unknown>) => string
+}) {
   return (
     <article className='grid gap-3 px-4 py-3 transition-colors hover:bg-muted/30 sm:px-5 md:grid-cols-[minmax(160px,1fr)_76px_76px] md:items-center 2xl:grid-cols-[minmax(150px,1fr)_70px_70px]'>
       <div className='min-w-0'>
@@ -62,17 +72,17 @@ function ModelStatusRow(props: { model: ModelStatusViewModel }) {
           <h3 className='truncate text-sm font-semibold'>
             {props.model.model}
           </h3>
-          <StatusPill health={props.model.healthLabel} />
+          <StatusPill health={props.model.healthLabel} t={props.t} />
         </div>
         <p className='text-muted-foreground mt-1 text-xs'>
-          最近更新 {formatRelativeTime(props.model.updatedAt)}
+          {props.t('Updated')} {formatRelativeTime(props.model.updatedAt, props.t)}
         </p>
       </div>
 
-      <Metric label='可用率' value={formatPercent(props.model.uptime)} />
-      <Metric label='延迟' value={formatLatency(props.model.latency)} />
-      <div className='md:col-span-3'>
-        <StatusTimeline history={props.model.history} />
+      <Metric label={props.t('Availability')} value={formatPercent(props.model.uptime)} />
+      <Metric label={props.t('Latency')} value={formatLatency(props.model.latency)} />
+      <div className='min-w-0 md:col-span-3'>
+        <StatusTimeline history={props.model.history} t={props.t} />
       </div>
     </article>
   )

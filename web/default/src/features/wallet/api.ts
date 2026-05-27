@@ -38,6 +38,9 @@ import type {
   WaffoPaymentResponse,
   WaffoPancakePaymentRequest,
   WaffoPancakePaymentResponse,
+  AirwallexPaymentMethodsResponse,
+  AirwallexPaymentRequest,
+  AirwallexPaymentResponse,
 } from './types'
 
 // ============================================================================
@@ -163,6 +166,32 @@ export async function requestWaffoPancakePayment(
   request: WaffoPancakePaymentRequest
 ): Promise<WaffoPancakePaymentResponse> {
   const res = await api.post('/api/user/waffo-pancake/pay', request, {
+    skipBusinessError: true,
+  } as Record<string, unknown>)
+  return res.data
+}
+
+export async function getAirwallexPaymentMethods(params: {
+  biz: string
+  currency: string
+  countryCode: string
+}): Promise<AirwallexPaymentMethodsResponse> {
+  const query = new URLSearchParams({
+    biz: params.biz,
+    currency: params.currency,
+    country_code: params.countryCode,
+  })
+  const res = await api.get(
+    `/api/user/topup/airwallex/methods?${query.toString()}`,
+    { skipBusinessError: true } as Record<string, unknown>
+  )
+  return res.data
+}
+
+export async function requestAirwallexPayment(
+  request: AirwallexPaymentRequest
+): Promise<AirwallexPaymentResponse> {
+  const res = await api.post('/api/user/topup/airwallex/pay', request, {
     skipBusinessError: true,
   } as Record<string, unknown>)
   return res.data

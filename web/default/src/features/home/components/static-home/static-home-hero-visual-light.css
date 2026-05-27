@@ -86,13 +86,13 @@
 }
 
 .static-home[data-theme='light'] .aiapi-hero-visual__base {
-  opacity: 0.92;
+  opacity: 0.94;
   filter:
-    brightness(1.16)
-    contrast(0.96)
-    saturate(1.08)
-    drop-shadow(0 16px 20px rgba(17, 24, 12, 0.06))
-    drop-shadow(0 0 10px rgba(93, 196, 104, 0.05));
+    brightness(1.13)
+    contrast(0.98)
+    saturate(1.06)
+    drop-shadow(0 14px 18px rgba(35, 75, 45, 0.052))
+    drop-shadow(0 0 10px rgba(80, 200, 72, 0.052));
 }
 
 .static-home[data-theme='light'] .aiapi-hero-beam {

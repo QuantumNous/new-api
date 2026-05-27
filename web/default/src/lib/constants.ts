@@ -21,8 +21,8 @@ For commercial licensing, please contact support@quantumnous.com
  */
 
 // System Configuration Defaults
-export const DEFAULT_SYSTEM_NAME = 'New API'
-export const DEFAULT_LOGO = '/logo.png'
+export const DEFAULT_SYSTEM_NAME = 'aiapi114'
+export const DEFAULT_LOGO = '/assets/brand/aiapi114-logo-transparent.png'
 
 // LocalStorage Keys
 export const STORAGE_KEYS = {

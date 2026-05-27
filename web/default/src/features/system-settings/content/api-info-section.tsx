@@ -74,6 +74,7 @@ import {
 import { StatusBadge } from '@/components/status-badge'
 import { SettingsSection } from '../components/settings-section'
 import { useUpdateOption } from '../hooks/use-update-option'
+import { getNextItemId, removeItemsById, upsertItem } from './list-state'
 
 type ApiInfo = {
   id: number
@@ -210,15 +211,11 @@ export function ApiInfoSection({ enabled, data }: ApiInfoSectionProps) {
 
   const confirmDelete = () => {
     if (deleteTarget === 'single' && editingApiInfo) {
-      setApiInfoList((prev) =>
-        prev.filter((item) => item.id !== editingApiInfo.id)
-      )
+      setApiInfoList((prev) => removeItemsById(prev, [editingApiInfo.id]))
       setHasChanges(true)
       toast.success(t('API info deleted. Click "Save Settings" to apply.'))
     } else if (deleteTarget === 'batch') {
-      setApiInfoList((prev) =>
-        prev.filter((item) => !selectedIds.includes(item.id))
-      )
+      setApiInfoList((prev) => removeItemsById(prev, selectedIds))
       setSelectedIds([])
       setHasChanges(true)
       toast.success(
@@ -234,14 +231,13 @@ export function ApiInfoSection({ enabled, data }: ApiInfoSectionProps) {
   const handleSubmitForm = (values: ApiInfoFormValues) => {
     if (editingApiInfo) {
       setApiInfoList((prev) =>
-        prev.map((item) =>
-          item.id === editingApiInfo.id ? { ...item, ...values } : item
-        )
+        upsertItem(prev, { ...editingApiInfo, ...values })
       )
       toast.success(t('API info updated. Click "Save Settings" to apply.'))
     } else {
-      const newId = Math.max(...apiInfoList.map((item) => item.id), 0) + 1
-      setApiInfoList((prev) => [...prev, { id: newId, ...values }])
+      setApiInfoList((prev) =>
+        upsertItem(prev, { id: getNextItemId(prev), ...values })
+      )
       toast.success(t('API info added. Click "Save Settings" to apply.'))
     }
     setHasChanges(true)

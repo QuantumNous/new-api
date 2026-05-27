@@ -19,6 +19,7 @@
     "knip": "knip"
   },
   "dependencies": {
+    "@airwallex/components-sdk": "1.28.3",
     "@base-ui/react": "^1.4.1",
     "@fontsource-variable/public-sans": "^5.2.7",
     "@hookform/resolvers": "^5.2.2",

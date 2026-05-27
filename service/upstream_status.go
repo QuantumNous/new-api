@@ -34,6 +34,8 @@ func DefaultUpstreamStatusProviders() []UpstreamStatusProvider {
 	}
 }
 
+var upstreamStatusProviderSource = DefaultUpstreamStatusProviders
+
 func SyncUpstreamStatusProvider(ctx context.Context, client *http.Client, provider UpstreamStatusProvider) UpstreamStatusSyncResult {
 	records, err := fetchUpstreamStatusRecords(ctx, client, provider)
 	if err != nil {
@@ -61,11 +63,24 @@ func BuildPublicUpstreamStatus(ctx context.Context) (PublicUpstreamStatusPayload
 	if cached, ok := getCachedPublicUpstreamStatus(ctx); ok {
 		return cached, nil
 	}
-	records, err := model.GetRecentSupplierStatusSync(time.Now().Add(-upstreamStatusHistoryWindow).Unix())
+	since := time.Now().Add(-upstreamStatusHistoryWindow).Unix()
+	records, err := model.GetRecentSupplierStatusSync(since)
 	if err != nil {
 		return PublicUpstreamStatusPayload{}, err
 	}
-	payload := buildPublicUpstreamStatusFromRecords(records)
+	probes, err := model.GetRecentChannelProbeResults(since)
+	if err != nil {
+		return PublicUpstreamStatusPayload{}, err
+	}
+	if len(records) == 0 && len(probes) == 0 {
+		liveRecords := loadLiveUpstreamStatusRecords(ctx)
+		if len(liveRecords) > 0 {
+			payload := buildPublicUpstreamStatus(liveRecords, nil)
+			cachePublicUpstreamStatus(ctx, payload)
+			return payload, nil
+		}
+	}
+	payload := buildPublicUpstreamStatus(records, probes)
 	cachePublicUpstreamStatus(ctx, payload)
 	return payload, nil
 }
@@ -97,8 +112,9 @@ func upstreamStatusSyncLoop(interval time.Duration) {
 }
 
 func syncAllUpstreamStatus(ctx context.Context, client *http.Client) []UpstreamStatusSyncResult {
-	results := make([]UpstreamStatusSyncResult, 0, len(DefaultUpstreamStatusProviders()))
-	for _, provider := range DefaultUpstreamStatusProviders() {
+	providers := upstreamStatusProviderSource()
+	results := make([]UpstreamStatusSyncResult, 0, len(providers))
+	for _, provider := range providers {
 		result := SyncUpstreamStatusProvider(ctx, client, provider)
 		if result.Error != nil {
 			logger.LogError(ctx, fmt.Sprintf("sync upstream status failed: provider=%s error=%v", provider.Name, result.Error))
@@ -106,6 +122,20 @@ func syncAllUpstreamStatus(ctx context.Context, client *http.Client) []UpstreamS
 		results = append(results, result)
 	}
 	return results
+}
+
+func loadLiveUpstreamStatusRecords(ctx context.Context) []model.SupplierStatusSync {
+	client := &http.Client{Timeout: 10 * time.Second}
+	records := make([]model.SupplierStatusSync, 0)
+	for _, provider := range upstreamStatusProviderSource() {
+		providerRecords, err := fetchUpstreamStatusRecords(ctx, client, provider)
+		if err != nil {
+			logger.LogError(ctx, fmt.Sprintf("load live upstream status failed: provider=%s error=%v", provider.Name, err))
+			continue
+		}
+		records = append(records, providerRecords...)
+	}
+	return records
 }
 
 func getAndDecodeUpstreamStatus(ctx context.Context, client *http.Client, url string, dest any) error {

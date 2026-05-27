@@ -232,6 +232,7 @@ export const pricingCards = [
   {
     featured: true,
     badgeKey: 'home.static.pricing.recommended',
+    priceVariant: 'split',
     titleKey: 'home.static.pricing.developer.title',
     priceKey: 'home.static.pricing.developer.price',
     summaryKey: 'home.static.pricing.developer.summary',
@@ -245,6 +246,8 @@ export const pricingCards = [
     href: '/sign-up',
   },
   {
+    priceVariant: 'text',
+    priceTone: 'neutral',
     titleKey: 'home.static.pricing.gateway.title',
     priceKey: 'home.static.pricing.gateway.price',
     features: [
@@ -257,6 +260,8 @@ export const pricingCards = [
     href: DOCS_URL,
   },
   {
+    priceVariant: 'text',
+    priceTone: 'neutral',
     titleKey: 'home.static.pricing.enterprise.title',
     priceKey: 'home.static.pricing.enterprise.price',
     features: [
@@ -305,6 +310,81 @@ export const supportCards = [
     icon: Gift,
     titleKey: 'home.static.support.invite.title',
     textKey: 'home.static.support.invite.text',
+  },
+] as const
+
+export const homeModelShowcase = [
+  {
+    availability: 99.9,
+    brand: 'Anthropic',
+    healthLabel: 'up',
+    latency: 132,
+    logoClass: 'static-home__model-logo--claude',
+    logoText: '✳',
+    model: 'claude-sonnet-4-6-thinking',
+  },
+  {
+    availability: 99.9,
+    brand: 'OpenAI',
+    healthLabel: 'up',
+    latency: 118,
+    logoClass: 'static-home__model-logo--openai',
+    logoText: '◎',
+    model: 'gpt-5.4',
+  },
+  {
+    availability: 99.2,
+    brand: 'Google',
+    healthLabel: 'degraded',
+    latency: 248,
+    logoClass: 'static-home__model-logo--gemini',
+    logoText: '✦',
+    model: 'gemini-3.1-pro-preview',
+  },
+  {
+    availability: 99.8,
+    brand: 'OpenAI',
+    healthLabel: 'up',
+    latency: 121,
+    logoClass: 'static-home__model-logo--openai',
+    logoText: '◎',
+    model: 'gpt-5.2',
+  },
+  {
+    availability: 99.7,
+    brand: 'Anthropic',
+    healthLabel: 'up',
+    latency: 156,
+    logoClass: 'static-home__model-logo--claude',
+    logoText: '✳',
+    model: 'claude-opus-4-7-thinking',
+  },
+  {
+    availability: 99.6,
+    brand: 'OpenAI',
+    healthLabel: 'up',
+    latency: 210,
+    logoClass: 'static-home__model-logo--openai',
+    logoText: '◎',
+    model: 'gpt-image-2',
+  },
+  {
+    availability: 99.5,
+    brand: 'Google',
+    healthLabel: 'up',
+    latency: 184,
+    logoClass: 'static-home__model-logo--gemini',
+    logoText: '✦',
+    model: 'gemini-3.1-flash-image-preview',
+  },
+  {
+    availability: 99.4,
+    brand: 'ByteDance',
+    healthLabel: 'up',
+    latency: 226,
+    logoClass: 'static-home__model-logo--seedream',
+    logoText: '◓',
+    model: 'seedream-4-5-251128',
   },
 ] as const
 

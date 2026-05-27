@@ -21,7 +21,6 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Switch } from '@/components/ui/switch'
 import {
   Table,
   TableBody,
@@ -43,6 +42,8 @@ import type {
   ChannelDynamicOverride,
   ChannelProbeResult,
 } from '../types'
+import { DynamicAdjustmentSettingsForm } from './dynamic-adjustment-settings-form'
+import { isDynamicSettingsFormDisabled } from './dynamic-adjustment-settings'
 
 function formatTime(timestamp?: number) {
   if (!timestamp) return '-'
@@ -188,6 +189,9 @@ export function DynamicAdjustmentSection() {
       toast.success(t('Setting updated successfully'))
       queryClient.invalidateQueries({ queryKey: ['channel-dynamic-settings'] })
     },
+    onError: () => {
+      toast.error(t('Failed to update setting'))
+    },
   })
 
   const settings = settingsQuery.data?.data
@@ -199,55 +203,20 @@ export function DynamicAdjustmentSection() {
         'Control dry-run mode and inspect automatic channel adjustment data.'
       )}
     >
-      <div className='grid gap-4 md:grid-cols-3'>
-        <div className='rounded-lg border p-4'>
-          <div className='flex items-center justify-between gap-4'>
-            <div>
-              <div className='font-medium'>{t('Dynamic adjustment')}</div>
-              <p className='text-muted-foreground text-sm'>
-                {t('Evaluate probe results and status data periodically.')}
-              </p>
-            </div>
-            <Switch
-              checked={Boolean(settings?.enabled)}
-              disabled={!settings}
-              onCheckedChange={(enabled) => updateSettings.mutate({ enabled })}
-            />
-          </div>
-        </div>
-        <div className='rounded-lg border p-4'>
-          <div className='flex items-center justify-between gap-4'>
-            <div>
-              <div className='font-medium'>{t('Dry-run mode')}</div>
-              <p className='text-muted-foreground text-sm'>
-                {t('Record suggested actions without changing routing.')}
-              </p>
-            </div>
-            <Switch
-              checked={Boolean(settings?.dry_run)}
-              disabled={!settings}
-              onCheckedChange={(dry_run) => updateSettings.mutate({ dry_run })}
-            />
-          </div>
-        </div>
-        <div className='rounded-lg border p-4'>
-          <div className='flex items-center justify-between gap-4'>
-            <div>
-              <div className='font-medium'>{t('Platform probes')}</div>
-              <p className='text-muted-foreground text-sm'>
-                {t('Allow aiapi114 probe unmapped channel models.')}
-              </p>
-            </div>
-            <Switch
-              checked={Boolean(settings?.platform_probe_enabled)}
-              disabled={!settings}
-              onCheckedChange={(platform_probe_enabled) =>
-                updateSettings.mutate({ platform_probe_enabled })
-              }
-            />
-          </div>
-        </div>
-      </div>
+      <DynamicAdjustmentSettingsForm
+        settings={settings}
+        disabled={isDynamicSettingsFormDisabled({
+          loading: settingsQuery.isLoading,
+        })}
+        saving={updateSettings.isPending}
+        onSave={async (updates) => {
+          if (Object.keys(updates).length === 0) {
+            toast.info(t('No changes to save'))
+            return
+          }
+          await updateSettings.mutateAsync(updates)
+        }}
+      />
 
       <div className='flex items-center justify-between'>
         <div className='text-muted-foreground text-sm'>

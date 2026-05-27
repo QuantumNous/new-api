@@ -17,7 +17,12 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { cn } from '@/lib/utils'
-import { formatAbsoluteTime, formatLatency, healthText } from '../lib/format'
+import {
+  formatAbsoluteTime,
+  formatLatency,
+  healthText,
+  type ModelStatusTranslator,
+} from '../lib/format'
 import { statusToHealth } from '../lib/status-view'
 import type { ModelStatusTimelinePoint } from '../types'
 
@@ -28,24 +33,35 @@ const pointClassName = {
   unknown: 'bg-slate-400',
 }
 
-export function StatusTimeline(props: { history: ModelStatusTimelinePoint[] }) {
+export function StatusTimeline(props: {
+  history: ModelStatusTimelinePoint[]
+  t: ModelStatusTranslator
+}) {
   if (props.history.length === 0) {
-    return <div className='text-muted-foreground text-xs'>暂无最近状态采样</div>
+    return (
+      <div className='text-muted-foreground text-xs'>
+        {props.t('No recent status samples')}
+      </div>
+    )
   }
 
   return (
-    <div className='space-y-1.5'>
-      <div className='flex h-6 items-end gap-0.5' aria-label='最近 5 小时状态'>
+    <div className='w-full min-w-0 space-y-1.5 overflow-hidden'>
+      <div
+        className='flex h-6 min-w-0 items-end gap-0.5 overflow-hidden'
+        aria-label={props.t('Last 5 hours status')}
+      >
         {props.history.map((point) => {
           const health = statusToHealth(point.status)
+          const label = `${formatAbsoluteTime(point.timestamp, props.t)} · ${healthText(health, props.t)} · ${props.t('Latency')} ${formatLatency(point.latency)}`
           return (
             <span
               key={`${point.timestamp}-${point.status}`}
               role='img'
-              aria-label={`${formatAbsoluteTime(point.timestamp)}，${healthText(health)}，延迟 ${formatLatency(point.latency)}`}
-              title={`${formatAbsoluteTime(point.timestamp)} · ${healthText(health)} · ${formatLatency(point.latency)}`}
+              aria-label={label}
+              title={label}
               className={cn(
-                'h-5 min-w-1 flex-1 rounded-[2px] transition-transform hover:-translate-y-0.5 motion-reduce:transition-none motion-reduce:hover:translate-y-0',
+                'h-5 min-w-0 flex-1 rounded-[2px] transition-transform hover:-translate-y-0.5 motion-reduce:transition-none motion-reduce:hover:translate-y-0',
                 pointClassName[health]
               )}
             />
@@ -54,7 +70,7 @@ export function StatusTimeline(props: { history: ModelStatusTimelinePoint[] }) {
       </div>
       <div className='text-muted-foreground flex justify-between text-[11px]'>
         <span>5h</span>
-        <span>现在</span>
+        <span>{props.t('Now')}</span>
       </div>
     </div>
   )

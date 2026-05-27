@@ -18,6 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { useTranslation } from 'react-i18next'
 import { cn } from '@/lib/utils'
+import { getLegalConsentItems } from '../lib/legal-status'
 import type { SystemStatus } from '../types'
 
 interface TermsFooterProps {
@@ -37,55 +38,26 @@ export function TermsFooter({
       ? 'By clicking sign in, you agree to our'
       : 'By creating an account, you agree to our'
 
-  const hasUserAgreement = Boolean(status?.user_agreement_enabled)
-  const hasPrivacyPolicy = Boolean(status?.privacy_policy_enabled)
-
-  if (!hasUserAgreement && !hasPrivacyPolicy) {
-    return null
-  }
-
-  const agreementLink = {
-    label: 'User Agreement',
-    href: '/user-agreement',
-  }
-  const privacyLink = {
-    label: 'Privacy Policy',
-    href: '/privacy-policy',
-  }
-
-  const activeLinks =
-    hasUserAgreement || hasPrivacyPolicy
-      ? ([
-          hasUserAgreement ? agreementLink : null,
-          hasPrivacyPolicy ? privacyLink : null,
-        ].filter(Boolean) as Array<{ label: string; href: string }>)
-      : [agreementLink, privacyLink]
-
-  const [firstLink, secondLink] = activeLinks
+  const consentItems = getLegalConsentItems(status ?? null)
 
   return (
     <p className={cn('text-muted-foreground text-center text-xs', className)}>
       {text}{' '}
-      {firstLink && (
-        <a
-          href={firstLink.href}
-          className='hover:text-primary underline underline-offset-4'
-        >
-          {firstLink.label}
-        </a>
-      )}
-      {secondLink && (
-        <>
-          {' '}
-          {t('and')}{' '}
-          <a
-            href={secondLink.href}
-            className='hover:text-primary underline underline-offset-4'
-          >
-            {secondLink.label}
-          </a>
-        </>
-      )}
+      {consentItems.map((item, index) => (
+        <span key={item.label}>
+          {index > 0 && ` ${t('and')} `}
+          {item.href ? (
+            <a
+              href={item.href}
+              className='hover:text-primary underline underline-offset-4'
+            >
+              {t(item.label)}
+            </a>
+          ) : (
+            <span>{t(item.label)}</span>
+          )}
+        </span>
+      ))}
       .
     </p>
   )

@@ -32,10 +32,12 @@ export function HeroSection({
     <section className='static-home__hero'>
       <div className='static-home__hero-copy' data-home-reveal>
         <h1>
-          <span>{t('home.static.hero.title1')}</span>
-          <span>{t('home.static.hero.title2')}</span>
+          <span className='static-home__hero-title-line'>{t('home.static.hero.title1')}</span>
+          <span className='static-home__hero-title-line static-home__hero-title-line--accent'>
+            {t('home.static.hero.title2')}
+          </span>
         </h1>
-        <p>{t('home.static.hero.text')}</p>
+        <p className='static-home__hero-text'>{t('home.static.hero.text')}</p>
         <div className='static-home__hero-actions'>
           <Link to={primaryHref} className='static-home__cta static-home__cta--solid'>
             {t('home.static.hero.freeTrial')}

@@ -3,6 +3,7 @@ package model
 import (
 	"errors"
 	"fmt"
+	"math"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/logger"
@@ -22,6 +23,13 @@ type TopUp struct {
 	CreateTime      int64   `json:"create_time"`
 	CompleteTime    int64   `json:"complete_time"`
 	Status          string  `json:"status"`
+
+	BizLine                 *string `json:"-" gorm:"type:varchar(32);index"`
+	PayCurrency             *string `json:"-" gorm:"type:char(3);index"`
+	ProviderPaymentIntentID *string `json:"-" gorm:"type:varchar(255);index"`
+	ProviderRequestID       *string `json:"-" gorm:"type:varchar(64);index"`
+	ProviderEventID         *string `json:"-" gorm:"type:varchar(64);uniqueIndex"`
+	ProviderRaw             *string `json:"-" gorm:"type:text"`
 }
 
 const (
@@ -29,6 +37,7 @@ const (
 	PaymentMethodCreem        = "creem"
 	PaymentMethodWaffo        = "waffo"
 	PaymentMethodWaffoPancake = "waffo_pancake"
+	PaymentMethodAirwallex    = "airwallex"
 )
 
 const (
@@ -37,6 +46,7 @@ const (
 	PaymentProviderCreem        = "creem"
 	PaymentProviderWaffo        = "waffo"
 	PaymentProviderWaffoPancake = "waffo_pancake"
+	PaymentProviderAirwallex    = "airwallex"
 )
 
 var (
@@ -44,6 +54,131 @@ var (
 	ErrTopUpNotFound         = errors.New("topup not found")
 	ErrTopUpStatusInvalid    = errors.New("topup status invalid")
 )
+
+type QuotaCalcMode string
+
+const (
+	QuotaCalcAmountTimesQuotaPerUnit QuotaCalcMode = "amount_times_quota_per_unit"
+	QuotaCalcMoneyTimesQuotaPerUnit  QuotaCalcMode = "money_times_quota_per_unit"
+	QuotaCalcAmountDirect            QuotaCalcMode = "amount_direct"
+)
+
+type CompleteTopUpAndAddQuotaResult struct {
+	Credited   bool
+	TopUpID    int
+	UserID     int
+	PayMoney   float64
+	QuotaAdded int
+}
+
+type CompleteTopUpAndAddQuotaParams struct {
+	QuotaCalcMode QuotaCalcMode
+	TopUpUpdates  map[string]any
+	UserUpdates   map[string]any
+	Result        *CompleteTopUpAndAddQuotaResult
+	PreValidate   func(topUp *TopUp) error
+}
+
+func calcQuotaToAdd(topUp *TopUp, mode QuotaCalcMode) (int, error) {
+	switch mode {
+	case QuotaCalcAmountTimesQuotaPerUnit:
+		return int(decimal.NewFromInt(topUp.Amount).Mul(decimal.NewFromFloat(common.QuotaPerUnit)).IntPart()), nil
+	case QuotaCalcMoneyTimesQuotaPerUnit:
+		return int(decimal.NewFromFloat(topUp.Money).Mul(decimal.NewFromFloat(common.QuotaPerUnit)).IntPart()), nil
+	case QuotaCalcAmountDirect:
+		if topUp.Amount > int64(math.MaxInt) {
+			return 0, errors.New("quota overflow")
+		}
+		return int(topUp.Amount), nil
+	default:
+		return 0, errors.New("unknown quota calc mode")
+	}
+}
+
+func CompleteTopUpAndAddQuota(tradeNo string, params CompleteTopUpAndAddQuotaParams) (int, error) {
+	if tradeNo == "" {
+		return 0, errors.New("未提供支付单号")
+	}
+
+	var quotaToAdd int
+	var credited bool
+	var topUpID int
+	var userID int
+	var payMoney float64
+
+	refCol := "`trade_no`"
+	if common.UsingPostgreSQL {
+		refCol = `"trade_no"`
+	}
+
+	err := DB.Transaction(func(tx *gorm.DB) error {
+		var topUp TopUp
+		if err := tx.Set("gorm:query_option", "FOR UPDATE").Where(refCol+" = ?", tradeNo).First(&topUp).Error; err != nil {
+			return errors.New("充值订单不存在")
+		}
+
+		topUpID = topUp.Id
+		userID = topUp.UserId
+		payMoney = topUp.Money
+		q, err := calcQuotaToAdd(&topUp, params.QuotaCalcMode)
+		if err != nil {
+			return err
+		}
+		quotaToAdd = q
+
+		if topUp.Status == common.TopUpStatusSuccess {
+			return nil
+		}
+		if topUp.Status != common.TopUpStatusPending {
+			return errors.New("充值订单状态错误")
+		}
+		if params.PreValidate != nil {
+			if err := params.PreValidate(&topUp); err != nil {
+				return err
+			}
+		}
+		if quotaToAdd <= 0 {
+			return errors.New("无效的充值额度")
+		}
+
+		topUpUpdates := map[string]any{
+			"status":        common.TopUpStatusSuccess,
+			"complete_time": common.GetTimestamp(),
+		}
+		for k, v := range params.TopUpUpdates {
+			topUpUpdates[k] = v
+		}
+		res := tx.Model(&TopUp{}).Where("id = ? AND status = ?", topUp.Id, common.TopUpStatusPending).Updates(topUpUpdates)
+		if res.Error != nil {
+			return res.Error
+		}
+		if res.RowsAffected == 0 {
+			return nil
+		}
+
+		userUpdates := map[string]any{"quota": gorm.Expr("quota + ?", quotaToAdd)}
+		for k, v := range params.UserUpdates {
+			userUpdates[k] = v
+		}
+		if err := tx.Model(&User{}).Where("id = ?", topUp.UserId).Updates(userUpdates).Error; err != nil {
+			return err
+		}
+		credited = true
+		return nil
+	})
+	if err != nil {
+		return 0, err
+	}
+
+	if params.Result != nil {
+		params.Result.Credited = credited
+		params.Result.TopUpID = topUpID
+		params.Result.UserID = userID
+		params.Result.PayMoney = payMoney
+		params.Result.QuotaAdded = quotaToAdd
+	}
+	return quotaToAdd, nil
+}
 
 func (topUp *TopUp) Insert() error {
 	var err error

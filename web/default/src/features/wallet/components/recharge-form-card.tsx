@@ -47,6 +47,7 @@ import type {
   TopupInfo,
   CreemProduct,
   WaffoPayMethod,
+  AirwallexMethod,
 } from '../types'
 import { CreemProductsSection } from './creem-products-section'
 
@@ -78,6 +79,10 @@ interface RechargeFormCardProps {
   waffoMinTopup?: number
   onWaffoMethodSelect?: (method: WaffoPayMethod, index: number) => void
   enableWaffoPancakeTopup?: boolean
+  enableAirwallexTopup?: boolean
+  airwallexPaymentMethods?: AirwallexMethod[]
+  airwallexMethodsLoading?: boolean
+  onAirwallexMethodSelect?: (method: AirwallexMethod) => void
 }
 
 export function RechargeFormCard({
@@ -108,6 +113,10 @@ export function RechargeFormCard({
   waffoMinTopup,
   onWaffoMethodSelect,
   enableWaffoPancakeTopup,
+  enableAirwallexTopup,
+  airwallexPaymentMethods,
+  airwallexMethodsLoading,
+  onAirwallexMethodSelect,
 }: RechargeFormCardProps) {
   const { t } = useTranslation()
   const [localAmount, setLocalAmount] = useState(topupAmount.toString())
@@ -128,14 +137,18 @@ export function RechargeFormCard({
     topupInfo?.enable_online_topup ||
     topupInfo?.enable_stripe_topup ||
     enableWaffoTopup ||
-    enableWaffoPancakeTopup
+    enableWaffoPancakeTopup ||
+    enableAirwallexTopup
   const hasAnyTopup = hasConfigurableTopup || enableCreemTopup
   const hasStandardPaymentMethods =
     Array.isArray(topupInfo?.pay_methods) && topupInfo.pay_methods.length > 0
   const hasWaffoPaymentMethods =
     Array.isArray(waffoPayMethods) && waffoPayMethods.length > 0
+  const hasAirwallexPaymentMethods =
+    Array.isArray(airwallexPaymentMethods) && airwallexPaymentMethods.length > 0
   const minTopup = getMinTopupAmount(topupInfo)
   const redemptionEnabled = topupInfo?.enable_redemption !== false
+  const complianceConfirmed = topupInfo?.payment_compliance_confirmed !== false
 
   if (loading) {
     return (
@@ -351,7 +364,7 @@ export function RechargeFormCard({
                       )
                     })}
                   </div>
-                ) : hasWaffoPaymentMethods ? null : (
+                ) : hasWaffoPaymentMethods || enableAirwallexTopup ? null : (
                   <Alert>
                     <AlertDescription>
                       {t(
@@ -361,6 +374,53 @@ export function RechargeFormCard({
                   </Alert>
                 )}
               </div>
+
+              {enableAirwallexTopup && (
+                <div className='space-y-2.5 sm:space-y-3'>
+                  <Label className='text-muted-foreground text-xs font-medium tracking-wider uppercase'>
+                    {t('Airwallex Payment')}
+                  </Label>
+                  {airwallexMethodsLoading ? (
+                    <div className='grid grid-cols-2 gap-1.5 sm:gap-3 lg:grid-cols-3'>
+                      {Array.from({ length: 3 }).map((_, index) => (
+                        <Skeleton key={index} className='h-9 rounded-lg' />
+                      ))}
+                    </div>
+                  ) : hasAirwallexPaymentMethods && onAirwallexMethodSelect ? (
+                    <div className='grid grid-cols-2 gap-1.5 sm:gap-3 lg:grid-cols-3'>
+                      {airwallexPaymentMethods?.map((method) => {
+                        const loadingKey = `airwallex-${method.type}`
+                        return (
+                          <Button
+                            key={method.type}
+                            variant='outline'
+                            onClick={() => onAirwallexMethodSelect(method)}
+                            disabled={!!paymentLoading}
+                            className='h-9 min-w-0 justify-start gap-2 rounded-lg px-3'
+                          >
+                            {paymentLoading === loadingKey ? (
+                              <Loader2 className='h-4 w-4 animate-spin' />
+                            ) : (
+                              getPaymentIcon(method.type)
+                            )}
+                            <span className='truncate'>
+                              {method.display_name || method.type}
+                            </span>
+                          </Button>
+                        )
+                      })}
+                    </div>
+                  ) : (
+                    <Alert>
+                      <AlertDescription>
+                        {t(
+                          'No payment methods available for the current currency.'
+                        )}
+                      </AlertDescription>
+                    </Alert>
+                  )}
+                </div>
+              )}
 
               {enableWaffoTopup &&
                 hasWaffoPaymentMethods &&
@@ -422,9 +482,13 @@ export function RechargeFormCard({
       ) : (
         <Alert>
           <AlertDescription>
-            {t(
-              'Online topup is not enabled. Please use redemption code or contact administrator.'
-            )}
+            {complianceConfirmed
+              ? t(
+                  'Payment compliance has been confirmed, but no payment gateway or payment method is configured yet. Please finish gateway setup in system settings or contact administrator.'
+                )
+              : t(
+                  'Online topup is not enabled. Please use redemption code or contact administrator.'
+                )}
           </AlertDescription>
         </Alert>
       )}

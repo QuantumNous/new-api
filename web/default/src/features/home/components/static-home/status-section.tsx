@@ -19,7 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import { Link } from '@tanstack/react-router'
 import { Copy } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { endpointCards } from './content'
+import { endpointCards, homeModelShowcase } from './content'
 import { healthLabelClass } from './hooks'
 import type { CopyToast, HomeModelStatus, StaticHomeText } from './types'
 
@@ -38,8 +38,11 @@ export function EndpointStrip({
           key={card.value}
           data-home-reveal
         >
-          <p>{t(card.labelKey)}</p>
-          <div>
+          <div className='static-home__endpoint-card-meta'>
+            <span className='static-home__endpoint-mark' aria-hidden='true' />
+            <p className='static-home__card-label'>{t(card.labelKey)}</p>
+          </div>
+          <div className='static-home__endpoint-card-value'>
             <code>{card.value}</code>
             <button
               type='button'
@@ -56,63 +59,66 @@ export function EndpointStrip({
 }
 
 export function ModelStatusSection({
-  models,
+  models: _models,
   t,
 }: {
   models: HomeModelStatus
   t: StaticHomeText
 }) {
-  const summaryText = models.error
-    ? t('home.static.models.error')
-    : `${models.summary.upModels}/${models.summary.totalModels || 0} ${t('home.static.models.up')}`
-
   return (
     <section className='static-home__section static-home__models' id='models'>
       <div className='static-home__section-head static-home__section-head--split' data-home-reveal>
         <div>
-          <p>{t('home.static.models.eyebrow')}</p>
+          <p className='static-home__eyebrow'>{t('home.static.models.eyebrow')}</p>
           <h2>{t('home.static.models.title')}</h2>
         </div>
-        <span className={cn('static-home__status-summary', healthLabelClass(models.summary.overallStatus))}>
-          {summaryText}
-        </span>
+        <div className='static-home__legend-row'>
+          <div className='static-home__legend'>
+            <span><i className='static-home__status-dot static-home__status-dot--running' />{t('home.static.models.up')}</span>
+            <span><i className='static-home__status-dot static-home__status-dot--busy' />{t('home.static.models.degraded')}</span>
+            <span><i className='static-home__status-dot static-home__status-dot--degraded' />{t('home.static.models.legend.degraded')}</span>
+            <span><i className='static-home__status-dot static-home__status-dot--maintenance' />{t('home.static.models.legend.maintenance')}</span>
+            <span><i className='static-home__status-dot static-home__status-dot--offline' />{t('home.static.models.down')}</span>
+          </div>
+        </div>
       </div>
       <div className='static-home__model-grid'>
-        {models.models.map((model) => (
+        {homeModelShowcase.map((model) => (
           <article
             className='static-home__glass-card static-home__model-card'
-            key={`${model.group}-${model.model}`}
+            key={model.model}
             data-home-reveal
           >
-            <div>
-              <div>
-                <span>{model.model.slice(0, 1).toUpperCase()}</span>
-                <div>
+            <div className='static-home__model-card-head'>
+              <div className='static-home__model-identity'>
+                <span className={cn('static-home__model-logo', model.logoClass)}>{model.logoText}</span>
+                <div className='static-home__model-copy'>
                   <h3 title={model.model}>{model.model}</h3>
-                  <p>{model.group}</p>
+                  <p>{model.brand}</p>
                 </div>
               </div>
-              <span className={cn('static-home__status-badge', healthLabelClass(model.healthLabel))}>
+              <span
+                className={cn(
+                  'static-home__status-badge',
+                  'static-home__status-badge--compact',
+                  healthLabelClass(model.healthLabel)
+                )}
+              >
                 {t(`home.static.models.${model.healthLabel === 'up' ? 'up' : model.healthLabel}`)}
               </span>
             </div>
             <dl>
               <div>
                 <dt>{t('home.static.models.availability')}</dt>
-                <dd>{model.availability ? `${model.availability.toFixed(1)}%` : '-'}</dd>
+                <dd>{`${model.availability.toFixed(1)}%`}</dd>
               </div>
               <div>
                 <dt>{t('home.static.models.latency')}</dt>
-                <dd>{model.latency ? `${Math.round(model.latency)}ms` : '-'}</dd>
+                <dd>{`${Math.round(model.latency)}ms`}</dd>
               </div>
             </dl>
           </article>
         ))}
-        {!models.loading && models.models.length === 0 && (
-          <article className='static-home__glass-card static-home__empty-card'>
-            {models.error ? t('home.static.models.error') : t('home.static.models.empty')}
-          </article>
-        )}
       </div>
       <div className='static-home__model-more'>
         <Link to='/status'>{t('home.static.models.viewAll')}</Link>

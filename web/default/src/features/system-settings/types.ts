@@ -52,6 +52,8 @@ export type ChannelDynamicSettings = {
   last_available_protection_enabled: boolean
 }
 
+export type ChannelDynamicSettingsUpdate = Partial<ChannelDynamicSettings>
+
 export type ChannelDynamicOverride = {
   id: number
   channel_id: number
@@ -294,7 +296,9 @@ export type BillingSettings = {
   CustomCallbackAddress: string
   PayMethods: string
   'payment_setting.amount_options': string
+  'payment_setting.amount_options_by_currency': string
   'payment_setting.amount_discount': string
+  'payment_setting.price_by_currency': string
   'payment_setting.compliance_confirmed': boolean
   'payment_setting.compliance_terms_version': string
   'payment_setting.compliance_confirmed_at': number
@@ -332,6 +336,12 @@ export type BillingSettings = {
   // section (saved via /api/option/waffo-pancake/save).
   WaffoPancakeStoreID: string
   WaffoPancakeProductID: string
+  'airwallex_setting.enabled': boolean
+  'airwallex_setting.accounts': string
+  'airwallex_setting.allowed_payment_methods': string
+  'airwallex_setting.payment_methods_cache_ttl_seconds': number
+  'airwallex_setting.ops_enabled': boolean
+  'airwallex_setting.http_timeout_seconds': number
   'checkin_setting.enabled': boolean
   'checkin_setting.min_quota': number
   'checkin_setting.max_quota': number

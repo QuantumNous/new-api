@@ -4,37 +4,43 @@
 
 .static-home__hero p {
   color: var(--home-muted);
-  font-size: 17px;
-  line-height: 1.9;
-  margin: 22px 0 0;
-  max-width: 620px;
+  font-size: 0.94rem;
+  line-height: 1.75;
+  margin: 0;
+  max-width: 58ch;
 }
 
 .static-home__hero-actions,
-.static-home__start div:last-child {
+.static-home__start-journey-actions {
   display: flex;
   flex-wrap: wrap;
   gap: 16px;
-  margin-top: 28px;
+  margin-top: 22px;
 }
 
 .static-home__cta,
-.static-home__start a,
-.static-home__pricing-card a {
+.static-home__start-journey-button {
   align-items: center;
-  border: 1px solid var(--home-border);
-  border-radius: 10px;
+  border: 1px solid rgba(118, 255, 190, 0.28);
+  border-radius: 6px;
   display: inline-flex;
+  font-size: 0.92rem;
   font-weight: 700;
   justify-content: center;
-  min-height: 44px;
-  padding: 0 28px;
+  min-height: 42px;
+  min-width: 142px;
+  padding: 0 24px;
   text-decoration: none;
 }
 
+.static-home__cta {
+  background: rgba(2, 17, 15, 0.46);
+}
+
 .static-home__hero-features {
+  background: rgba(3, 18, 16, 0.62);
   border: 1px solid var(--home-border);
-  border-radius: 10px;
+  border-radius: 8px;
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   margin-top: 24px;
@@ -44,9 +50,11 @@
 .static-home__hero-features article {
   align-items: center;
   border-right: 1px solid var(--home-border);
-  display: flex;
-  gap: 12px;
-  padding: 14px;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: 28px minmax(0, 1fr);
+  min-height: 56px;
+  padding: 10px 14px;
 }
 
 .static-home__hero-features article:last-child {
@@ -59,17 +67,27 @@
   color: var(--home-accent);
 }
 
+.static-home__hero-feature-icon {
+  align-items: center;
+  border-radius: 6px;
+  display: inline-flex;
+  height: 25px;
+  justify-content: center;
+  width: 25px;
+}
+
 .static-home__hero-features strong,
 .static-home__hero-features span {
   display: block;
-  font-size: 13px;
+  font-size: 0.84rem;
 }
 
 .static-home__hero-features span {
   color: var(--home-muted);
+  font-size: 0.68rem;
   margin-top: 2px;
 }
 
 .static-home__hero-art {
-  min-height: 420px;
+  min-height: 330px;
 }

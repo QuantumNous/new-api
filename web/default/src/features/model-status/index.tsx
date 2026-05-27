@@ -17,6 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { PublicLayout } from '@/components/layout'
@@ -54,7 +55,17 @@ export function ModelStatusPage() {
   )
 
   return (
-    <PublicLayout showMainContainer={false}>
+    <PublicLayout
+      showMainContainer={false}
+      siteName='aiapi114'
+      logo={
+        <img
+          src='/assets/brand/aiapi114-logo-transparent.png'
+          alt='aiapi114'
+          className='size-full rounded-lg object-contain'
+        />
+      }
+    >
       <div className='relative min-h-svh overflow-hidden'>
         <div
           aria-hidden
@@ -101,7 +112,7 @@ export function ModelStatusPage() {
                     <StatusGroupSection key={group.name} group={group} />
                   ))}
                 </div>
-              ) : (
+             ) : (
                 <ModelStatusNoMatches />
               )}
             </>
@@ -159,36 +170,42 @@ function ModelStatusLoading() {
 }
 
 function ModelStatusError(props: { onRetry: () => void }) {
+  const { t } = useTranslation()
+
   return (
     <div className='bg-card rounded-2xl border border-dashed px-6 py-12 text-center shadow-sm'>
-      <h2 className='text-lg font-semibold'>状态数据加载失败</h2>
+      <h2 className='text-lg font-semibold'>{t('Status data failed to load')}</h2>
       <p className='text-muted-foreground mx-auto mt-2 max-w-md text-sm'>
-        服务暂时无法读取模型状态缓存，请稍后重试。
+        {t('The service cannot read the model status cache right now. Please try again later.')}
       </p>
       <Button className='mt-5' variant='outline' onClick={props.onRetry}>
-        重新加载
+        {t('Refresh')}
       </Button>
     </div>
   )
 }
 
 function ModelStatusEmpty() {
+  const { t } = useTranslation()
+
   return (
     <div className='bg-card rounded-2xl border border-dashed px-6 py-12 text-center shadow-sm'>
-      <h2 className='text-lg font-semibold'>暂无模型状态数据</h2>
+      <h2 className='text-lg font-semibold'>{t('No model status data')}</h2>
       <p className='text-muted-foreground mx-auto mt-2 max-w-md text-sm'>
-        当前还没有完成模型状态同步。请稍后刷新，或联系管理员确认状态同步任务是否已启用。
+        {t('No model status sync has completed yet. Refresh later or contact an administrator to confirm status sync is enabled.')}
       </p>
     </div>
   )
 }
 
 function ModelStatusNoMatches() {
+  const { t } = useTranslation()
+
   return (
     <div className='bg-card rounded-2xl border border-dashed px-6 py-10 text-center shadow-sm'>
-      <h2 className='text-base font-semibold'>没有匹配的模型</h2>
+      <h2 className='text-base font-semibold'>{t('No models match the selected filters')}</h2>
       <p className='text-muted-foreground mt-2 text-sm'>
-        请调整分组、状态或模型名称筛选条件。
+        {t('No records found. Try adjusting your filters.')}
       </p>
     </div>
   )

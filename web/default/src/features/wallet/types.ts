@@ -59,6 +59,38 @@ export type WaffoPancakePaymentResponse = ApiResponse<
     }
   | string
 >
+export type AirwallexPaymentMethodsResponse = ApiResponse<{
+  available_methods: AirwallexMethod[]
+}>
+export type AirwallexPaymentResponse = ApiResponse<AirwallexPaymentResult>
+
+export interface AirwallexMethod {
+  type: string
+  ui_group?: 'scan' | 'wallet' | 'redirect' | 'card' | 'other' | string
+  flow?: 'qrcode' | 'redirect' | 'wallet' | 'card' | string
+  display_name?: string
+}
+
+export interface AirwallexPaymentRequest {
+  biz: string
+  currency: string
+  country_code: string
+  payment_method_type: string
+  amount: number
+}
+
+export interface AirwallexNextAction {
+  type?: string
+  qrcode?: string
+  url?: string
+}
+
+export interface AirwallexPaymentResult {
+  trade_no: string
+  payment_intent_id?: string
+  client_secret?: string
+  next_action?: AirwallexNextAction
+}
 
 /**
  * Creem product configuration
@@ -150,6 +182,18 @@ export interface TopupInfo {
   enable_waffo_pancake_topup?: boolean
   /** Minimum topup amount for Waffo Pancake */
   waffo_pancake_min_topup?: number
+  /** Whether Airwallex topup is enabled */
+  enable_airwallex_topup?: boolean
+  /** Default Airwallex business line */
+  airwallex_default_biz?: string
+  /** Enabled Airwallex business lines */
+  airwallex_available_biz?: string[]
+  /** Supported payment currencies */
+  supported_currencies?: string[]
+  /** Preset amounts grouped by currency */
+  amount_options_by_currency?: Record<string, number[]>
+  /** Unit price grouped by currency */
+  price_by_currency?: Record<string, number>
   /** Whether redemption code usage is enabled */
   enable_redemption?: boolean
   /** Whether compliance confirmation has been completed */

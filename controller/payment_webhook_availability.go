@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"sort"
 	"strings"
 
 	"github.com/QuantumNous/new-api/setting"
@@ -90,6 +91,52 @@ func isWaffoPancakeWebhookConfigured() bool {
 
 func isWaffoPancakeWebhookEnabled() bool {
 	return isWaffoPancakeTopUpEnabled()
+}
+
+func isAirwallexAccountReady(acct operation_setting.AirwallexAccount) bool {
+	return acct.Enabled &&
+		strings.TrimSpace(acct.BaseURL) != "" &&
+		strings.TrimSpace(acct.ClientID) != "" &&
+		strings.TrimSpace(acct.APIKey) != "" &&
+		strings.TrimSpace(acct.WebhookSecret) != ""
+}
+
+func getEnabledAirwallexBizLines() []string {
+	if !isPaymentComplianceConfirmed() {
+		return nil
+	}
+	cfg := operation_setting.GetAirwallexSetting()
+	if cfg == nil || !cfg.Enabled {
+		return nil
+	}
+
+	bizLines := make([]string, 0, len(cfg.Accounts))
+	for biz, acct := range cfg.Accounts {
+		biz = strings.TrimSpace(biz)
+		if biz == "" || !isAirwallexAccountReady(acct) {
+			continue
+		}
+		bizLines = append(bizLines, biz)
+	}
+	sort.Strings(bizLines)
+	return bizLines
+}
+
+func isAirwallexTopUpEnabled() bool {
+	return len(getEnabledAirwallexBizLines()) > 0
+}
+
+func getDefaultAirwallexBiz() string {
+	bizLines := getEnabledAirwallexBizLines()
+	if len(bizLines) == 0 {
+		return ""
+	}
+	for _, biz := range bizLines {
+		if biz == "b2c" {
+			return biz
+		}
+	}
+	return bizLines[0]
 }
 
 func isEpayTopUpEnabled() bool {

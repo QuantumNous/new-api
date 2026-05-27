@@ -26,6 +26,7 @@ export const STATIC_I18N_KEYS = [
   'Rankings',
   'Docs',
   'About',
+  'Platform Terms',
 
   // Workspace
   'System Settings',
@@ -454,6 +455,31 @@ export const STATIC_I18N_KEYS = [
   'Collapse',
   'No models available in this category',
   'Copied: {{model}}',
+
+  // Public model status page
+  'Model Status',
+  'Some models are degraded',
+  'Some models are unavailable',
+  'No status data',
+  'No updates yet',
+  'No timestamp',
+  'Unavailable',
+  'Degraded',
+  'Healthy models',
+  'Issues / degraded',
+  'Status groups',
+  'Model status filters',
+  'Filter by group',
+  'Filter by status',
+  'Current',
+  'No recent status samples',
+  'Last 5 hours status',
+  'Now',
+  'Status data failed to load',
+  'The service cannot read the model status cache right now. Please try again later.',
+  'No model status data',
+  'No model status sync has completed yet. Refresh later or contact an administrator to confirm status sync is enabled.',
+  'Availability',
 
   // Grok settings
   'Grok Settings',

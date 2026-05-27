@@ -43,6 +43,8 @@ import './static-home-hero-visual.css'
 import './static-home-hero-visual-elements.css'
 import './static-home-hero-visual-light.css'
 import './static-home-sections.css'
+import './static-home-lower-sections.css'
+import './static-home-light.css'
 import './static-home-footer.css'
 
 export { healthLabelClass }

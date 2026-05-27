@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -27,6 +28,54 @@ var completionRatioMetaOptionKeys = []string{
 	"ImageRatio",
 	"AudioRatio",
 	"AudioCompletionRatio",
+}
+
+const configuredSecretPlaceholder = "***configured***"
+
+func sanitizeAirwallexAccountsOption(raw string) string {
+	var accounts map[string]map[string]any
+	if err := json.Unmarshal([]byte(raw), &accounts); err != nil {
+		return raw
+	}
+	for biz, account := range accounts {
+		if account == nil {
+			continue
+		}
+		for _, key := range []string{"api_key", "webhook_secret"} {
+			if value, ok := account[key]; ok && strings.TrimSpace(fmt.Sprintf("%v", value)) != "" {
+				account[key] = configuredSecretPlaceholder
+			}
+		}
+		accounts[biz] = account
+	}
+	data, err := json.Marshal(accounts)
+	if err != nil {
+		return raw
+	}
+	return string(data)
+}
+
+func mergeAirwallexAccountsOption(raw string, current map[string]operation_setting.AirwallexAccount) (map[string]operation_setting.AirwallexAccount, error) {
+	var next map[string]operation_setting.AirwallexAccount
+	if err := common.Unmarshal([]byte(raw), &next); err != nil {
+		return nil, err
+	}
+	if next == nil {
+		next = map[string]operation_setting.AirwallexAccount{}
+	}
+
+	for biz, account := range next {
+		existing := current[biz]
+		if strings.TrimSpace(account.APIKey) == configuredSecretPlaceholder {
+			account.APIKey = existing.APIKey
+		}
+		if strings.TrimSpace(account.WebhookSecret) == configuredSecretPlaceholder {
+			account.WebhookSecret = existing.WebhookSecret
+		}
+		next[biz] = account
+	}
+
+	return next, nil
 }
 
 func isPaymentComplianceOptionKey(key string) bool {
@@ -81,6 +130,9 @@ func GetOptions(c *gin.Context) {
 	common.OptionMapRWMutex.Lock()
 	for k, v := range common.OptionMap {
 		value := common.Interface2String(v)
+		if k == "airwallex_setting.accounts" {
+			value = sanitizeAirwallexAccountsOption(value)
+		}
 		isSensitiveKey := strings.HasSuffix(k, "Token") ||
 			strings.HasSuffix(k, "Secret") ||
 			strings.HasSuffix(k, "Key") ||
@@ -136,6 +188,22 @@ func UpdateOption(c *gin.Context) {
 		option.Value = common.Interface2String(option.Value.(int))
 	default:
 		option.Value = fmt.Sprintf("%v", option.Value)
+	}
+	if option.Key == "airwallex_setting.accounts" {
+		mergedAccounts, err := mergeAirwallexAccountsOption(
+			option.Value.(string),
+			operation_setting.GetAirwallexSetting().Accounts,
+		)
+		if err != nil {
+			common.ApiErrorMsg(c, "invalid Airwallex accounts configuration")
+			return
+		}
+		data, err := common.Marshal(mergedAccounts)
+		if err != nil {
+			common.ApiError(c, err)
+			return
+		}
+		option.Value = string(data)
 	}
 	switch option.Key {
 	case "QuotaForInviter", "QuotaForInvitee":

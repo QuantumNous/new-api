@@ -202,6 +202,24 @@ func ListChannelProbeResults(query ChannelProbeResultQuery) ([]ChannelProbeResul
 	return records, total, err
 }
 
+func GetRecentChannelProbeResults(since int64) ([]ChannelProbeResult, error) {
+	var records []ChannelProbeResult
+	if err := EnsureChannelDynamicAdjustmentTables(); err != nil {
+		return records, err
+	}
+	groupCol := commonGroupCol
+	if groupCol == "" {
+		groupCol = "`group`"
+	}
+	err := DB.
+		Where("checked_at >= ?", since).
+		Order(groupCol + " asc").
+		Order("model asc").
+		Order("checked_at asc").
+		Find(&records).Error
+	return records, err
+}
+
 func buildChannelDynamicOverrideQuery(query ChannelDynamicOverrideQuery) *gorm.DB {
 	db := DB.Model(&ChannelDynamicOverride{})
 	if query.ChannelID > 0 {

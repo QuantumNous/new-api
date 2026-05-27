@@ -24,10 +24,14 @@ import (
 func GetTopUpInfo(c *gin.Context) {
 	complianceConfirmed := operation_setting.IsPaymentComplianceConfirmed()
 
-	// 获取支付方式
-	payMethods := operation_setting.PayMethods
-	if !complianceConfirmed {
-		payMethods = []map[string]string{}
+	enableEpay := isEpayTopUpEnabled()
+
+	// Only expose Epay methods when the Epay gateway itself is usable. This
+	// prevents default or stale PayMethods (for example alipay/wxpay) from
+	// leaking into wallet pages that are using another gateway such as Airwallex.
+	payMethods := []map[string]string{}
+	if enableEpay {
+		payMethods = append(payMethods, operation_setting.PayMethods...)
 	}
 
 	// 如果启用了 Stripe 支付，添加到支付方法列表
@@ -95,12 +99,16 @@ func GetTopUpInfo(c *gin.Context) {
 		}
 	}
 
+	enableAirwallex := isAirwallexTopUpEnabled()
 	data := gin.H{
-		"enable_online_topup":              isEpayTopUpEnabled(),
+		"enable_online_topup":              enableEpay,
 		"enable_stripe_topup":              isStripeTopUpEnabled(),
 		"enable_creem_topup":               isCreemTopUpEnabled(),
 		"enable_waffo_topup":               enableWaffo,
 		"enable_waffo_pancake_topup":       enableWaffoPancake,
+		"enable_airwallex_topup":           enableAirwallex,
+		"airwallex_default_biz":            getDefaultAirwallexBiz(),
+		"airwallex_available_biz":          getEnabledAirwallexBizLines(),
 		"enable_redemption":                complianceConfirmed,
 		"payment_compliance_confirmed":     complianceConfirmed,
 		"payment_compliance_terms_version": operation_setting.CurrentComplianceTermsVersion,
@@ -110,15 +118,18 @@ func GetTopUpInfo(c *gin.Context) {
 			}
 			return nil
 		}(),
-		"creem_products":          setting.CreemProducts,
-		"pay_methods":             payMethods,
-		"min_topup":               operation_setting.MinTopUp,
-		"stripe_min_topup":        setting.StripeMinTopUp,
-		"waffo_min_topup":         setting.WaffoMinTopUp,
-		"waffo_pancake_min_topup": setting.WaffoPancakeMinTopUp,
-		"amount_options":          operation_setting.GetPaymentSetting().AmountOptions,
-		"discount":                operation_setting.GetPaymentSetting().AmountDiscount,
-		"topup_link":              common.TopUpLink,
+		"creem_products":             setting.CreemProducts,
+		"pay_methods":                payMethods,
+		"min_topup":                  operation_setting.MinTopUp,
+		"stripe_min_topup":           setting.StripeMinTopUp,
+		"waffo_min_topup":            setting.WaffoMinTopUp,
+		"waffo_pancake_min_topup":    setting.WaffoPancakeMinTopUp,
+		"amount_options":             operation_setting.GetPaymentSetting().AmountOptions,
+		"amount_options_by_currency": operation_setting.GetPaymentSetting().AmountOptionsByCurrency,
+		"price_by_currency":          operation_setting.GetPaymentSetting().PriceByCurrency,
+		"supported_currencies":       operation_setting.GetPaymentSetting().GetSupportedCurrencies(),
+		"discount":                   operation_setting.GetPaymentSetting().AmountDiscount,
+		"topup_link":                 common.TopUpLink,
 	}
 	common.ApiSuccess(c, data)
 }
@@ -146,7 +157,7 @@ func GetEpayClient() *epay.Client {
 	return withUrl
 }
 
-func getPayMoney(amount int64, group string) float64 {
+func getPayMoney(amount int64, group string, currency ...string) float64 {
 	dAmount := decimal.NewFromInt(amount)
 	// 充值金额以“展示类型”为准：
 	// - USD/CNY: 前端传 amount 为金额单位；TOKENS: 前端传 tokens，需要换成 USD 金额
@@ -161,7 +172,11 @@ func getPayMoney(amount int64, group string) float64 {
 	}
 
 	dTopupGroupRatio := decimal.NewFromFloat(topupGroupRatio)
-	dPrice := decimal.NewFromFloat(operation_setting.Price)
+	price := operation_setting.Price
+	if len(currency) > 0 && currency[0] != "" {
+		price = operation_setting.GetPaymentSetting().GetPriceByCurrency(currency[0])
+	}
+	dPrice := decimal.NewFromFloat(price)
 	// apply optional preset discount by the original request amount (if configured), default 1.0
 	discount := 1.0
 	if ds, ok := operation_setting.GetPaymentSetting().AmountDiscount[int(amount)]; ok {

@@ -22,6 +22,7 @@ import { getSelf } from '@/lib/api'
 import { useStatus } from '@/hooks/use-status'
 import { useSystemConfig } from '@/hooks/use-system-config'
 import { SectionPageLayout } from '@/components/layout'
+import { getAirwallexPaymentMethods, isApiSuccess } from './api'
 import { AffiliateRewardsCard } from './components/affiliate-rewards-card'
 import { BillingHistoryDialog } from './components/dialogs/billing-history-dialog'
 import { CreemConfirmDialog } from './components/dialogs/creem-confirm-dialog'
@@ -39,6 +40,7 @@ import {
   useCreemPayment,
   useWaffoPayment,
   useWaffoPancakePayment,
+  useAirwallexPayment,
 } from './hooks'
 import {
   getDefaultPaymentType,
@@ -50,10 +52,34 @@ import type {
   PaymentMethod,
   PresetAmount,
   CreemProduct,
+  AirwallexMethod,
 } from './types'
 
 interface WalletProps {
   initialShowHistory?: boolean
+}
+
+const AIRWALLEX_DEFAULT_CURRENCY = 'CNY'
+const AIRWALLEX_COUNTRY_BY_CURRENCY: Record<string, string> = {
+  CNY: 'CN',
+  USD: 'US',
+  HKD: 'HK',
+}
+
+function normalizeCurrency(value: string | undefined) {
+  return String(value || '')
+    .trim()
+    .toUpperCase()
+}
+
+function getPreferredAirwallexCurrency(currencies: string[] | undefined) {
+  const normalized = (currencies || [])
+    .map(normalizeCurrency)
+    .filter((item) => item.length === 3)
+  if (normalized.includes(AIRWALLEX_DEFAULT_CURRENCY)) {
+    return AIRWALLEX_DEFAULT_CURRENCY
+  }
+  return normalized[0] || AIRWALLEX_DEFAULT_CURRENCY
 }
 
 export function Wallet(props: WalletProps) {
@@ -73,6 +99,12 @@ export function Wallet(props: WalletProps) {
   const [selectedCreemProduct, setSelectedCreemProduct] =
     useState<CreemProduct | null>(null)
   const [showSubscriptionPanel, setShowSubscriptionPanel] = useState(true)
+  const [airwallexMethods, setAirwallexMethods] = useState<AirwallexMethod[]>(
+    []
+  )
+  const [airwallexMethodsLoading, setAirwallexMethodsLoading] = useState(false)
+  const [selectedAirwallexMethod, setSelectedAirwallexMethod] =
+    useState<AirwallexMethod | null>(null)
 
   const { status } = useStatus()
   const { currency } = useSystemConfig()
@@ -102,6 +134,20 @@ export function Wallet(props: WalletProps) {
   const { processWaffoPayment } = useWaffoPayment()
   const { processing: pancakeProcessing, processWaffoPancakePayment } =
     useWaffoPancakePayment()
+  const { processing: airwallexProcessing, processAirwallexPayment } =
+    useAirwallexPayment()
+
+  const airwallexBiz = useMemo(() => {
+    return topupInfo?.airwallex_default_biz || 'b2c'
+  }, [topupInfo?.airwallex_default_biz])
+  const airwallexCurrency = useMemo(
+    () => getPreferredAirwallexCurrency(topupInfo?.supported_currencies),
+    [topupInfo?.supported_currencies]
+  )
+  const airwallexCountryCode = useMemo(
+    () => AIRWALLEX_COUNTRY_BY_CURRENCY[airwallexCurrency] || 'US',
+    [airwallexCurrency]
+  )
 
   // Fetch and refresh user data
   const fetchUser = useCallback(async () => {
@@ -122,6 +168,52 @@ export function Wallet(props: WalletProps) {
   useEffect(() => {
     fetchUser()
   }, [fetchUser])
+
+  useEffect(() => {
+    if (!topupInfo?.enable_airwallex_topup || !airwallexBiz) {
+      setAirwallexMethods([])
+      return
+    }
+
+    let cancelled = false
+
+    async function fetchAirwallexMethods() {
+      setAirwallexMethodsLoading(true)
+      try {
+        const response = await getAirwallexPaymentMethods({
+          biz: airwallexBiz,
+          currency: airwallexCurrency,
+          countryCode: airwallexCountryCode,
+        })
+        if (cancelled) return
+        if (isApiSuccess(response)) {
+          setAirwallexMethods(response.data?.available_methods || [])
+        } else {
+          setAirwallexMethods([])
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setAirwallexMethods([])
+          console.error('Failed to fetch Airwallex payment methods:', error)
+        }
+      } finally {
+        if (!cancelled) {
+          setAirwallexMethodsLoading(false)
+        }
+      }
+    }
+
+    fetchAirwallexMethods()
+
+    return () => {
+      cancelled = true
+    }
+  }, [
+    topupInfo?.enable_airwallex_topup,
+    airwallexBiz,
+    airwallexCurrency,
+    airwallexCountryCode,
+  ])
 
   useEffect(() => {
     if (props.initialShowHistory) {
@@ -163,6 +255,7 @@ export function Wallet(props: WalletProps) {
 
   // Handle payment method selection
   const handlePaymentMethodSelect = async (method: PaymentMethod) => {
+    setSelectedAirwallexMethod(null)
     setSelectedPaymentMethod(method)
     setPaymentLoading(method.type)
 
@@ -181,17 +274,46 @@ export function Wallet(props: WalletProps) {
     }
   }
 
+  const handleAirwallexMethodSelect = async (method: AirwallexMethod) => {
+    const loadingKey = `airwallex-${method.type}`
+    setSelectedPaymentMethod({
+      type: method.type,
+      name: method.display_name || method.type,
+    })
+    setSelectedAirwallexMethod(method)
+    setPaymentLoading(loadingKey)
+
+    try {
+      const minTopup = getMinTopupAmount(topupInfo)
+      if (topupAmount < minTopup) {
+        return
+      }
+      setConfirmDialogOpen(true)
+    } finally {
+      setPaymentLoading(null)
+    }
+  }
+
   // Handle payment confirmation
   const handlePaymentConfirm = async () => {
     if (!selectedPaymentMethod) return
 
     const isPancake = isWaffoPancakePayment(selectedPaymentMethod.type)
-    const success = isPancake
-      ? await processWaffoPancakePayment(topupAmount)
-      : await processPayment(topupAmount, selectedPaymentMethod.type)
+    const success = selectedAirwallexMethod
+      ? await processAirwallexPayment({
+          amount: topupAmount,
+          biz: airwallexBiz,
+          currency: airwallexCurrency,
+          countryCode: airwallexCountryCode,
+          method: selectedAirwallexMethod,
+        })
+      : isPancake
+        ? await processWaffoPancakePayment(topupAmount)
+        : await processPayment(topupAmount, selectedPaymentMethod.type)
 
     if (success) {
       setConfirmDialogOpen(false)
+      setSelectedAirwallexMethod(null)
       await fetchUser()
     }
   }
@@ -306,6 +428,10 @@ export function Wallet(props: WalletProps) {
                   enableWaffoPancakeTopup={
                     topupInfo?.enable_waffo_pancake_topup
                   }
+                  enableAirwallexTopup={topupInfo?.enable_airwallex_topup}
+                  airwallexPaymentMethods={airwallexMethods}
+                  airwallexMethodsLoading={airwallexMethodsLoading}
+                  onAirwallexMethodSelect={handleAirwallexMethodSelect}
                 />
               </div>
 
@@ -336,7 +462,7 @@ export function Wallet(props: WalletProps) {
         paymentAmount={paymentAmount}
         paymentMethod={selectedPaymentMethod}
         calculating={calculating}
-        processing={processing || pancakeProcessing}
+        processing={processing || pancakeProcessing || airwallexProcessing}
         discountRate={getDiscountRate()}
         usdExchangeRate={effectiveUsdExchangeRate}
       />
