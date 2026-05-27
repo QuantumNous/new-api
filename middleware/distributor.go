@@ -312,6 +312,16 @@ func getModelRequest(c *gin.Context) (*ModelRequest, bool, error) {
 		} else if c.Request.Method == http.MethodGet {
 			relayMode = relayconstant.RelayModeVideoFetchByID
 			shouldSelectChannel = false
+			// 修复 #4834: GET /v1/video/generations/:task_id 此前不解析 model，
+			// 当 token 启用「可用模型限制」时，下游 modelLimitEnable 校验会因
+			// modelRequest.Model 为空而误报 "This token has no access to model"。
+			// 从已存储的任务记录中回填 OriginModelName 即可让校验走在正确的模型上。
+			if taskId := c.Param("task_id"); taskId != "" {
+				userId := c.GetInt("id")
+				if task, exist, err := model.GetByTaskId(userId, taskId); err == nil && exist && task != nil {
+					modelRequest.Model = task.Properties.OriginModelName
+				}
+			}
 		}
 		if _, ok := c.Get("relay_mode"); !ok {
 			c.Set("relay_mode", relayMode)
