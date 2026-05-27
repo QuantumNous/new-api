@@ -28,6 +28,14 @@
 | 内存 | 约 5.8GiB + 3GiB swap |
 | 服务端口 | `3001 -> 3000` |
 
+SSH 连接：
+
+```bash
+ssh root@192.129.209.36
+```
+
+本地私有连接备忘录存放在 `docs/deployment.local.md`，该文件已通过 `.gitignore` 排除，不提交到远端。
+
 ### Coolify 管理的运行架构
 
 ```
