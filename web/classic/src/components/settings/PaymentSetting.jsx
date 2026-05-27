@@ -24,7 +24,6 @@ import SettingsPaymentGateway from '../../pages/Setting/Payment/SettingsPaymentG
 import SettingsPaymentGatewayStripe from '../../pages/Setting/Payment/SettingsPaymentGatewayStripe';
 import SettingsPaymentGatewayCreem from '../../pages/Setting/Payment/SettingsPaymentGatewayCreem';
 import SettingsPaymentGatewayWaffo from '../../pages/Setting/Payment/SettingsPaymentGatewayWaffo';
-import SettingsPaymentGatewayWaffoPancake from '../../pages/Setting/Payment/SettingsPaymentGatewayWaffoPancake';
 import { API, showError, showSuccess, toBoolean } from '../../helpers';
 import { useTranslation } from 'react-i18next';
 import RiskAcknowledgementModal from '../common/modals/RiskAcknowledgementModal';
@@ -53,16 +52,6 @@ const PaymentSetting = () => {
     StripeMinTopUp: 1,
     StripePromotionCodesEnabled: false,
 
-    WaffoPancakeEnabled: false,
-    WaffoPancakeSandbox: false,
-    WaffoPancakeMerchantID: '',
-    WaffoPancakePrivateKey: '',
-    WaffoPancakeStoreID: '',
-    WaffoPancakeProductID: '',
-    WaffoPancakeReturnURL: '',
-    WaffoPancakeCurrency: 'USD',
-    WaffoPancakeUnitPrice: 1.0,
-    WaffoPancakeMinTopUp: 1,
     'payment_setting.compliance_confirmed': false,
     'payment_setting.compliance_terms_version': '',
     'payment_setting.compliance_confirmed_at': 0,
@@ -171,20 +160,7 @@ const PaymentSetting = () => {
           case 'MinTopUp':
           case 'StripeUnitPrice':
           case 'StripeMinTopUp':
-          case 'WaffoPancakeUnitPrice':
-          case 'WaffoPancakeMinTopUp':
             newInputs[item.key] = parseFloat(item.value);
-            break;
-          case 'WaffoPancakeMerchantID':
-          case 'WaffoPancakePrivateKey':
-          case 'WaffoPancakeStoreID':
-          case 'WaffoPancakeProductID':
-          case 'WaffoPancakeReturnURL':
-          case 'WaffoPancakeCurrency':
-            newInputs[item.key] = item.value;
-            break;
-          case 'WaffoPancakeSandbox':
-            newInputs[item.key] = toBoolean(item.value);
             break;
           default:
             if (item.key.endsWith('Enabled')) {
@@ -327,13 +303,6 @@ const PaymentSetting = () => {
                   hideSectionTitle
                 />
               </Tabs.TabPane>
-              {/*<Tabs.TabPane tab={t('Waffo Pancake 设置')} itemKey='waffo-pancake'>*/}
-              {/*  <SettingsPaymentGatewayWaffoPancake*/}
-              {/*    options={inputs}*/}
-              {/*    refresh={onRefresh}*/}
-              {/*    hideSectionTitle*/}
-              {/*  />*/}
-              {/*</Tabs.TabPane>*/}
             </Tabs>
           </div>
         </Card>

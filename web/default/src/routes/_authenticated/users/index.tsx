@@ -24,7 +24,7 @@ import { Users } from '@/features/users'
 
 const usersSearchSchema = z.object({
   page: z.number().optional().catch(1),
-  pageSize: z.number().optional().catch(10),
+  pageSize: z.number().optional().catch(undefined),
   filter: z.string().optional().catch(''),
   status: z
     .array(z.enum(['1', '2']))

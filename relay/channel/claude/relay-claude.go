@@ -442,10 +442,7 @@ func StreamResponseClaude2OpenAI(claudeResponse *dto.ClaudeResponse) *dto.ChatCo
 	tools := make([]dto.ToolCallResponse, 0)
 	fcIdx := 0
 	if claudeResponse.Index != nil {
-		fcIdx = *claudeResponse.Index - 1
-		if fcIdx < 0 {
-			fcIdx = 0
-		}
+		fcIdx = *claudeResponse.Index
 	}
 	var choice dto.ChatCompletionsStreamResponseChoice
 	if claudeResponse.Type == "message_start" {
@@ -949,9 +946,7 @@ func ClaudeHandler(c *gin.Context, resp *http.Response, info *relaycommon.RelayI
 	if err != nil {
 		return nil, types.NewError(err, types.ErrorCodeBadResponseBody)
 	}
-	if common.DebugEnabled {
-		println("responseBody: ", string(responseBody))
-	}
+	logger.LogDebug(c, "responseBody: %s", responseBody)
 	handleErr := HandleClaudeResponseData(c, info, claudeInfo, resp, responseBody)
 	if handleErr != nil {
 		return nil, handleErr

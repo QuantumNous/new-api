@@ -6,6 +6,7 @@
     "lib": ["ES2022", "DOM", "DOM.Iterable"],
     "module": "ESNext",
     "skipLibCheck": true,
+    "types": ["node"],
 
     /* Bundler mode */
     "moduleResolution": "Bundler",
@@ -17,7 +18,6 @@
     "jsx": "react-jsx",
 
     /* Alias */
-    "baseUrl": ".",
     "paths": {
       "@/*": ["./src/*"]
     },
