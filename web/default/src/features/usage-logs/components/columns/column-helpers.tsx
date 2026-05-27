@@ -150,7 +150,7 @@ export function createDurationColumn<T>(config: {
           variant={variant}
           size='sm'
           copyable={false}
-          className={cn('font-mono', durationBgMap[variant])}
+          className={cn('rounded-md font-mono', durationBgMap[variant])}
         />
       )
     },
@@ -183,6 +183,7 @@ export function createChannelColumn<T>(config: {
           autoColor={String(channelId)}
           copyText={String(channelId)}
           size='sm'
+          showDot={false}
           className='font-mono'
         />
       )

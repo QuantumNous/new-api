@@ -291,23 +291,136 @@ For commercial licensing, please contact support@quantumnous.com
   --sidebar-ring: oklch(0.6359 0.1699 307.95);
 }
 
+/* ── Simple Large-font ────────────────────────────────────────────────── */
+[data-theme-preset='simple-large'] {
+  --background: oklch(0.99 0 0);
+  --foreground: oklch(0.15 0 0);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.15 0 0);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.15 0 0);
+
+  --primary: oklch(0.22 0 0);
+  --primary-foreground: oklch(1 0 0);
+  --secondary: oklch(0.93 0 0);
+  --secondary-foreground: oklch(0.15 0 0);
+  --muted: oklch(0.95 0 0);
+  --muted-foreground: oklch(0.36 0 0);
+  --accent: oklch(0.91 0 0);
+  --accent-foreground: oklch(0.15 0 0);
+
+  --destructive: oklch(0.55 0.2 28);
+  --destructive-foreground: oklch(1 0 0);
+  --success: oklch(0.45 0.12 145);
+  --success-foreground: oklch(1 0 0);
+  --warning: oklch(0.72 0.14 75);
+  --warning-foreground: oklch(0.15 0 0);
+  --info: oklch(0.48 0.13 250);
+  --info-foreground: oklch(1 0 0);
+  --neutral: oklch(0.36 0 0);
+  --neutral-foreground: oklch(1 0 0);
+
+  --border: oklch(0.82 0 0);
+  --input: oklch(0.82 0 0);
+  --ring: oklch(0.22 0 0);
+
+  --chart-1: oklch(0.22 0 0);
+  --chart-2: oklch(0.45 0.12 145);
+  --chart-3: oklch(0.48 0.13 250);
+  --chart-4: oklch(0.72 0.14 75);
+  --chart-5: oklch(0.55 0.2 28);
+
+  --sidebar: oklch(0.96 0 0);
+  --sidebar-foreground: oklch(0.15 0 0);
+  --sidebar-primary: oklch(0.22 0 0);
+  --sidebar-primary-foreground: oklch(1 0 0);
+  --sidebar-accent: oklch(0.9 0 0);
+  --sidebar-accent-foreground: oklch(0.15 0 0);
+  --sidebar-border: oklch(0.82 0 0);
+  --sidebar-ring: oklch(0.22 0 0);
+
+  --skeleton-base: oklch(0.9 0 0);
+  --skeleton-highlight: oklch(0.97 0 0);
+
+  --radius: 0.5rem;
+  --text-xs: 0.9rem;
+  --text-sm: 1rem;
+  --text-base: 1.125rem;
+  --text-lg: 1.25rem;
+  --text-xl: 1.45rem;
+  --text-2xl: 1.75rem;
+  --text-3xl: 2.15rem;
+  --spacing: 0.3rem;
+}
+.dark [data-theme-preset='simple-large'] {
+  --background: oklch(0.12 0 0);
+  --foreground: oklch(0.98 0 0);
+  --card: oklch(0.18 0 0);
+  --card-foreground: oklch(0.98 0 0);
+  --popover: oklch(0.2 0 0);
+  --popover-foreground: oklch(0.98 0 0);
+
+  --primary: oklch(0.94 0 0);
+  --primary-foreground: oklch(0.12 0 0);
+  --secondary: oklch(0.24 0 0);
+  --secondary-foreground: oklch(0.98 0 0);
+  --muted: oklch(0.24 0 0);
+  --muted-foreground: oklch(0.82 0 0);
+  --accent: oklch(0.3 0 0);
+  --accent-foreground: oklch(0.98 0 0);
+
+  --destructive: oklch(0.68 0.19 25);
+  --destructive-foreground: oklch(0.98 0 0);
+  --success: oklch(0.72 0.13 145);
+  --success-foreground: oklch(0.12 0 0);
+  --warning: oklch(0.82 0.13 75);
+  --warning-foreground: oklch(0.12 0 0);
+  --info: oklch(0.72 0.12 250);
+  --info-foreground: oklch(0.12 0 0);
+  --neutral: oklch(0.82 0 0);
+  --neutral-foreground: oklch(0.12 0 0);
+
+  --border: oklch(1 0 0 / 18%);
+  --input: oklch(1 0 0 / 24%);
+  --ring: oklch(0.94 0 0);
+
+  --chart-1: oklch(0.94 0 0);
+  --chart-2: oklch(0.72 0.13 145);
+  --chart-3: oklch(0.72 0.12 250);
+  --chart-4: oklch(0.82 0.13 75);
+  --chart-5: oklch(0.68 0.19 25);
+
+  --sidebar: oklch(0.16 0 0);
+  --sidebar-foreground: oklch(0.98 0 0);
+  --sidebar-primary: oklch(0.94 0 0);
+  --sidebar-primary-foreground: oklch(0.12 0 0);
+  --sidebar-accent: oklch(0.28 0 0);
+  --sidebar-accent-foreground: oklch(0.98 0 0);
+  --sidebar-border: oklch(1 0 0 / 18%);
+  --sidebar-ring: oklch(0.94 0 0);
+
+  --skeleton-base: oklch(0.24 0 0);
+  --skeleton-highlight: oklch(0.34 0 0);
+}
+
 /* ── Semantic surface bridge ──────────────────────────────────────────── */
 /* Color presets should tint the surfaces most components actually use, not
  * only primary buttons. These derived tokens keep the app theme-aware without
  * duplicating per-component dark-mode overrides.
  *
  * NOTE: `:not()` contributes its argument's specificity, so this selector
- * resolves to (0,2,0). Presets that define bespoke surfaces below need to
+ * resolves to (0,3,0). Presets that define bespoke surfaces below need to
  * either match that specificity or opt out here — the latter is cleaner.
  *
  * Opt-outs:
  *   - `default`: keeps neutral surfaces from :root.
  *   - `anthropic`: warm cream surfaces are a brand choice, NOT a primary-mix
  *     derivation (the Anthropic system deliberately uses warm neutrals for
- *     cards/borders rather than tinting them with the clay accent). */
+ *     cards/borders rather than tinting them with the clay accent).
+ *   - `simple-large`: keeps intentionally neutral, high-contrast surfaces. */
 [data-theme-preset]:not([data-theme-preset='default']):not(
     [data-theme-preset='anthropic']
-  ) {
+  ):not([data-theme-preset='simple-large']) {
   --card: color-mix(in oklch, var(--primary) 3%, var(--background));
   --popover: color-mix(in oklch, var(--primary) 5%, var(--background));
   --muted: color-mix(in oklch, var(--primary) 7%, var(--background));
@@ -332,7 +445,7 @@ For commercial licensing, please contact support@quantumnous.com
 .dark
   [data-theme-preset]:not([data-theme-preset='default']):not(
     [data-theme-preset='anthropic']
-  ) {
+  ):not([data-theme-preset='simple-large']) {
   --card: color-mix(in oklch, var(--primary) 8%, var(--background));
   --popover: color-mix(in oklch, var(--primary) 12%, var(--background));
   --muted: color-mix(in oklch, var(--primary) 12%, var(--background));
@@ -362,7 +475,7 @@ For commercial licensing, please contact support@quantumnous.com
  *
  * Anthropic is opted out of the semantic surface bridge above so these
  * bespoke warm-neutral surface tokens win the cascade. Without the opt-out,
- * the bridge selector (specificity 0,2,0 because of `:not()`) would override
+ * the bridge selector (specificity 0,3,0 because of `:not()`) would override
  * this block (specificity 0,1,0) and tint every surface with the clay
  * accent — producing the peach/pink look that doesn't match Anthropic.
  *
@@ -574,7 +687,7 @@ For commercial licensing, please contact support@quantumnous.com
 }
 
 /* ── Density scale ────────────────────────────────────────────────────── */
-/* `sm` = compact UI; `lg` = comfortable. Default (no attribute) keeps Tailwind defaults. */
+/* `sm` = compact UI; `lg` = comfortable; `xl` = extra readable. Default keeps Tailwind defaults. */
 [data-theme-scale='sm'] {
   --text-xs: 0.7rem;
   --text-sm: 0.78rem;
@@ -594,6 +707,16 @@ For commercial licensing, please contact support@quantumnous.com
   --text-2xl: 1.65rem;
   --text-3xl: 2rem;
   --spacing: 0.28rem;
+}
+[data-theme-scale='xl'] {
+  --text-xs: 0.9rem;
+  --text-sm: 1rem;
+  --text-base: 1.125rem;
+  --text-lg: 1.25rem;
+  --text-xl: 1.45rem;
+  --text-2xl: 1.75rem;
+  --text-3xl: 2.15rem;
+  --spacing: 0.3rem;
 }
 
 /* ── Content layout ───────────────────────────────────────────────────── */

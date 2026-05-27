@@ -123,6 +123,7 @@ export function useTaskLogsColumns(isAdmin: boolean): ColumnDef<TaskLog>[] {
   if (isAdmin) {
     columns.push(createChannelColumn<TaskLog>({ headerLabel: t('Channel') }), {
       id: 'user',
+      accessorFn: (row) => row.username || row.user_id,
       header: ({ column }) => (
         <DataTableColumnHeader column={column} title={t('User')} />
       ),
@@ -142,7 +143,7 @@ export function useTaskLogsColumns(isAdmin: boolean): ColumnDef<TaskLog>[] {
               setUserInfoDialogOpen(true)
             }}
           >
-            <Avatar className='ring-border/60 size-6 ring-1'>
+            <Avatar className='ring-border/60 size-6 ring-1 max-sm:hidden'>
               <AvatarFallback
                 className={cn(
                   'text-[11px] font-semibold',
@@ -161,7 +162,7 @@ export function useTaskLogsColumns(isAdmin: boolean): ColumnDef<TaskLog>[] {
           </button>
         )
       },
-      meta: { label: t('User'), mobileHidden: true },
+      meta: { label: t('User') },
     })
   }
 

@@ -38,6 +38,11 @@ export const THEME_PRESETS = [
     swatches: ['oklch(0.984 0.005 95)', 'oklch(0.685 0.142 38)'],
   },
   {
+    value: 'simple-large',
+    name: 'Simple Large-font',
+    swatches: ['oklch(0.15 0 0)', 'oklch(0.99 0 0)'],
+  },
+  {
     value: 'underground',
     name: 'Underground',
     swatches: ['oklch(0.5315 0.0694 156.19)', 'oklch(0.5748 0.0862 336.52)'],
@@ -76,7 +81,7 @@ export const THEME_PRESETS = [
 
 export type ThemePreset = (typeof THEME_PRESETS)[number]['value']
 export type ThemeRadius = 'default' | 'none' | 'sm' | 'md' | 'lg' | 'xl'
-export type ThemeScale = 'default' | 'sm' | 'lg'
+export type ThemeScale = 'default' | 'sm' | 'lg' | 'xl'
 export type ContentLayout = 'full' | 'centered'
 
 /**
@@ -141,6 +146,7 @@ export const THEME_SCALE_VALUES: ReadonlySet<ThemeScale> = new Set([
   'default',
   'sm',
   'lg',
+  'xl',
 ])
 
 export const CONTENT_LAYOUT_VALUES: ReadonlySet<ContentLayout> = new Set([
