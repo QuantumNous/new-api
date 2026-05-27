@@ -28,6 +28,7 @@ const Navigation = ({
   isLoading,
   userState,
   pricingRequireAuth,
+  rankingsRequireAuth,
 }) => {
   if (isConsoleRoute) {
     return <div className='flex-1' />;
@@ -65,6 +66,13 @@ const Navigation = ({
         targetPath = '/login';
       }
       if (link.itemKey === 'pricing' && pricingRequireAuth && !userState.user) {
+        targetPath = '/login';
+      }
+      if (
+        link.itemKey === 'rankings' &&
+        rankingsRequireAuth &&
+        !userState.user
+      ) {
         targetPath = '/login';
       }
 

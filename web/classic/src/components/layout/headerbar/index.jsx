@@ -52,6 +52,7 @@ const HeaderBar = ({
     theme,
     headerNavModules,
     pricingRequireAuth,
+    rankingsRequireAuth,
     logout,
     handleLanguageChange,
     handleThemeToggle,
@@ -121,6 +122,7 @@ const HeaderBar = ({
             isLoading={isLoading}
             userState={userState}
             pricingRequireAuth={pricingRequireAuth}
+            rankingsRequireAuth={rankingsRequireAuth}
           />
 
           <div className='app-header-actions'>

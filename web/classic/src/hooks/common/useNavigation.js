@@ -26,12 +26,18 @@ export const useNavigation = (t, docsLink, headerNavModules) => {
       home: true,
       console: true,
       pricing: true,
+      rankings: true,
       docs: true,
       about: true,
     };
 
     // 使用传入的配置或默认配置
-    const modules = headerNavModules || defaultModules;
+    const modules = {
+      ...defaultModules,
+      ...(headerNavModules || {}),
+      pricing: headerNavModules?.pricing ?? defaultModules.pricing,
+      rankings: headerNavModules?.rankings ?? defaultModules.rankings,
+    };
 
     const allLinks = [
       // {
@@ -49,6 +55,11 @@ export const useNavigation = (t, docsLink, headerNavModules) => {
         itemKey: 'pricing',
         to: '/pricing',
       },
+      // {
+      //   text: t('排行榜'),
+      //   itemKey: 'rankings',
+      //   to: '/rankings',
+      // },
       ...(docsLink
         ? [
             {
@@ -76,6 +87,11 @@ export const useNavigation = (t, docsLink, headerNavModules) => {
         return typeof modules.pricing === 'object'
           ? modules.pricing.enabled
           : modules.pricing;
+      }
+      if (link.itemKey === 'rankings') {
+        return typeof modules.rankings === 'object'
+          ? modules.rankings.enabled
+          : modules.rankings;
       }
       return modules[link.itemKey] === true;
     });

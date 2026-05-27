@@ -1,0 +1,690 @@
+/*
+Copyright (C) 2025 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
+
+.rankings-page {
+  width: 100%;
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 80px 0 40px;
+}
+
+.rankings-sections {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.rankings-loading {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.rankings-hero-card {
+  position: relative;
+  overflow: hidden;
+  border-radius: 28px;
+  border: 1px solid var(--app-panel-border);
+  background: var(--app-panel-bg-solid);
+  box-shadow: var(--app-panel-shadow-soft);
+  margin-bottom: 16px;
+}
+
+.rankings-hero-content {
+  position: relative;
+  z-index: 1;
+  padding: 28px;
+}
+
+.rankings-hero-glow {
+  position: absolute;
+  border-radius: 999px;
+  filter: blur(16px);
+  opacity: 0.8;
+}
+
+.rankings-hero-glow-a {
+  top: -48px;
+  left: -24px;
+  width: 240px;
+  height: 240px;
+  background: rgba(37, 99, 235, 0.16);
+}
+
+.rankings-hero-glow-b {
+  right: -32px;
+  top: 24px;
+  width: 220px;
+  height: 220px;
+  background: rgba(6, 182, 212, 0.14);
+}
+
+.rankings-title.semi-typography {
+  color: var(--app-text-primary);
+}
+
+.rankings-subtitle {
+  display: block;
+  max-width: 680px;
+  color: var(--app-text-secondary);
+  font-size: 14px;
+  line-height: 1.7;
+}
+
+.rankings-period-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 22px;
+}
+
+.rankings-period-btn {
+  border-radius: 999px !important;
+  min-width: 88px;
+  backdrop-filter: blur(8px);
+}
+
+.rankings-period-btn:not(.is-active) {
+  background: var(--app-pill-bg) !important;
+  border: 1px solid var(--app-pill-border) !important;
+  color: var(--app-text-secondary) !important;
+}
+
+.rankings-card.semi-card {
+  overflow: hidden;
+  border-radius: 24px;
+  border: 1px solid var(--app-panel-border);
+  background: var(--app-panel-bg-solid);
+  box-shadow: var(--app-panel-shadow-soft);
+}
+
+.rankings-skeleton-card {
+  position: relative;
+}
+
+.rankings-skeleton-card::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.16) 48%,
+    transparent 100%
+  );
+  transform: translateX(-100%);
+  animation: rankings-skeleton-shimmer 2s ease-in-out infinite;
+  pointer-events: none;
+}
+
+.rankings-card-header,
+.rankings-subheader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 22px 22px 0;
+}
+
+.rankings-subheader {
+  padding-top: 18px;
+  padding-bottom: 8px;
+}
+
+.rankings-subheader.pulse {
+  padding-bottom: 16px;
+}
+
+.rankings-card-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--app-text-primary);
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.rankings-card-title.is-small {
+  font-size: 14px;
+}
+
+.rankings-card-title.pulse-up {
+  color: #0f9f6e;
+}
+
+.rankings-card-title.pulse-down {
+  color: #db4c67;
+}
+
+.rankings-card-desc,
+.rankings-subdesc {
+  display: block;
+  margin-top: 8px;
+  color: var(--app-text-secondary);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.rankings-subdesc {
+  margin-top: 4px;
+}
+
+.rankings-metric-block {
+  flex-shrink: 0;
+  text-align: right;
+}
+
+.rankings-metric-value {
+  color: var(--app-text-primary);
+  font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New', monospace;
+  font-size: 28px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.rankings-metric-label {
+  margin-top: 6px;
+  color: var(--app-text-muted);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.rankings-chart-shell {
+  height: 320px;
+  padding: 16px 10px 12px;
+}
+
+.rankings-skeleton-chart-shell {
+  padding-left: 22px;
+  padding-right: 22px;
+  padding-bottom: 20px;
+}
+
+.rankings-skeleton-chart {
+  position: relative;
+  height: 100%;
+  border-radius: 18px;
+  background:
+    linear-gradient(
+      to bottom,
+      rgba(148, 163, 184, 0.08),
+      rgba(148, 163, 184, 0.04)
+    );
+  border: 1px solid rgba(148, 163, 184, 0.10);
+  overflow: hidden;
+}
+
+.rankings-skeleton-axis {
+  position: absolute;
+  background: rgba(148, 163, 184, 0.18);
+}
+
+.rankings-skeleton-axis.y {
+  left: 20px;
+  top: 20px;
+  bottom: 28px;
+  width: 1px;
+}
+
+.rankings-skeleton-axis.x {
+  left: 20px;
+  right: 20px;
+  bottom: 28px;
+  height: 1px;
+}
+
+.rankings-skeleton-bars {
+  position: absolute;
+  left: 36px;
+  right: 20px;
+  bottom: 29px;
+  top: 22px;
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  gap: 10px;
+  align-items: end;
+}
+
+.rankings-skeleton-bar {
+  border-radius: 12px 12px 4px 4px;
+  background: linear-gradient(
+    180deg,
+    rgba(37, 99, 235, 0.42),
+    rgba(14, 165, 233, 0.22)
+  );
+}
+
+.rankings-chart-empty {
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--app-text-muted);
+  font-size: 13px;
+}
+
+.rankings-card-divider {
+  height: 1px;
+  margin: 0 22px;
+  background: var(--app-panel-border);
+}
+
+.rankings-grid-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0 28px;
+  padding: 4px 22px 18px;
+}
+
+.rankings-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.rankings-pulse-list {
+  padding: 0 22px 16px;
+}
+
+.rankings-list-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 0;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.12);
+}
+
+.rankings-rank-index {
+  width: 28px;
+  flex-shrink: 0;
+  text-align: right;
+  color: var(--app-text-muted);
+  font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New', monospace;
+  font-size: 12px;
+}
+
+.ranking-icon-wrap {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+}
+
+.rankings-list-main {
+  min-width: 0;
+  flex: 1;
+}
+
+.rankings-list-title {
+  color: var(--app-text-primary);
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.4;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.rankings-list-subline {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 4px;
+  color: var(--app-text-muted);
+  font-size: 12px;
+}
+
+.rankings-list-metric {
+  flex-shrink: 0;
+  text-align: right;
+}
+
+.rankings-list-metric-value {
+  color: var(--app-text-primary);
+  font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New', monospace;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.rankings-list-metric-sub,
+.rankings-growth {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  justify-content: flex-end;
+  margin-top: 4px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.rankings-skeleton-block {
+  border-radius: 999px;
+  background: rgba(148, 163, 184, 0.16);
+}
+
+.rankings-skeleton-copy {
+  flex: 1;
+  min-width: 0;
+}
+
+.rankings-skeleton-eyebrow {
+  width: 96px;
+  height: 12px;
+  margin-bottom: 14px;
+}
+
+.rankings-skeleton-title {
+  width: min(320px, 72%);
+  height: 38px;
+}
+
+.rankings-skeleton-subtitle {
+  width: min(620px, 92%);
+  height: 14px;
+  margin-top: 14px;
+}
+
+.rankings-skeleton-subtitle.short {
+  width: min(520px, 78%);
+}
+
+.rankings-skeleton-pill-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 22px;
+}
+
+.rankings-skeleton-pill {
+  width: 82px;
+  height: 34px;
+}
+
+.rankings-skeleton-card-title {
+  width: 168px;
+  height: 18px;
+}
+
+.rankings-skeleton-card-desc {
+  width: min(420px, 90%);
+  height: 12px;
+  margin-top: 12px;
+}
+
+.rankings-skeleton-card-desc.short {
+  width: min(320px, 68%);
+}
+
+.rankings-skeleton-metric {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+}
+
+.rankings-skeleton-metric-value {
+  width: 118px;
+  height: 30px;
+}
+
+.rankings-skeleton-metric-label {
+  width: 52px;
+  height: 10px;
+  margin-top: 10px;
+}
+
+.rankings-skeleton-subheader-title {
+  width: 128px;
+  height: 16px;
+}
+
+.rankings-skeleton-subheader-desc {
+  width: min(260px, 70%);
+  height: 12px;
+  margin-top: 10px;
+}
+
+.rankings-skeleton-list-grid {
+  padding-top: 8px;
+}
+
+.rankings-skeleton-list-item {
+  align-items: center;
+}
+
+.rankings-skeleton-rank {
+  width: 24px;
+  height: 12px;
+  flex-shrink: 0;
+}
+
+.rankings-skeleton-avatar {
+  width: 24px;
+  height: 24px;
+  border-radius: 999px;
+  flex-shrink: 0;
+}
+
+.rankings-skeleton-line {
+  width: min(220px, 92%);
+  height: 13px;
+}
+
+.rankings-skeleton-line.short {
+  width: min(160px, 64%);
+  margin-top: 8px;
+}
+
+.rankings-skeleton-value {
+  width: 82px;
+  height: 13px;
+  margin-left: auto;
+}
+
+.rankings-skeleton-value-sub {
+  width: 64px;
+  height: 11px;
+  margin-top: 8px;
+  margin-left: auto;
+}
+
+.rankings-skeleton-value-sub.short {
+  width: 48px;
+}
+
+.rankings-growth.is-positive,
+.rankings-rank-shift.up {
+  color: #0f9f6e;
+}
+
+.rankings-growth.is-negative,
+.rankings-rank-shift.down {
+  color: #db4c67;
+}
+
+.rankings-rank-shift {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 2px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.rankings-vendor-dot {
+  width: 10px;
+  height: 10px;
+  flex-shrink: 0;
+  border-radius: 999px;
+}
+
+.rankings-empty-wrap {
+  padding: 32px 16px;
+}
+
+.rankings-empty-text {
+  color: var(--app-text-muted);
+}
+
+.rankings-list-empty {
+  padding: 28px 22px;
+  color: var(--app-text-muted);
+  text-align: center;
+  font-size: 13px;
+}
+
+html.dark .rankings-card-title.pulse-up {
+  color: #34d399;
+}
+
+html.dark .rankings-skeleton-card::after {
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(148, 163, 184, 0.08) 48%,
+    transparent 100%
+  );
+}
+
+html.dark .rankings-skeleton-block {
+  background: rgba(148, 163, 184, 0.14);
+}
+
+html.dark .rankings-skeleton-chart {
+  background:
+    linear-gradient(
+      to bottom,
+      rgba(30, 41, 59, 0.44),
+      rgba(15, 23, 42, 0.28)
+    );
+  border-color: rgba(148, 163, 184, 0.12);
+}
+
+html.dark .rankings-skeleton-axis {
+  background: rgba(148, 163, 184, 0.22);
+}
+
+html.dark .rankings-skeleton-bar {
+  background: linear-gradient(
+    180deg,
+    rgba(96, 165, 250, 0.48),
+    rgba(34, 211, 238, 0.22)
+  );
+}
+
+@keyframes rankings-skeleton-shimmer {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+html.dark .rankings-card-title.pulse-down {
+  color: #fb7185;
+}
+
+html.dark .rankings-growth.is-positive,
+html.dark .rankings-rank-shift.up {
+  color: #34d399;
+}
+
+html.dark .rankings-growth.is-negative,
+html.dark .rankings-rank-shift.down {
+  color: #fb7185;
+}
+
+@media (max-width: 767px) {
+  .rankings-page {
+    padding: 76px 0 24px;
+  }
+
+  .rankings-hero-content {
+    padding: 20px;
+  }
+
+  .rankings-card-header,
+  .rankings-subheader {
+    flex-direction: column;
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+
+  .rankings-chart-shell {
+    height: 260px;
+    padding-left: 4px;
+    padding-right: 4px;
+  }
+
+  .rankings-grid-list {
+    grid-template-columns: 1fr;
+    gap: 0;
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+
+  .rankings-pulse-list {
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+
+  .rankings-card-divider {
+    margin-left: 16px;
+    margin-right: 16px;
+  }
+
+  .rankings-metric-block {
+    text-align: left;
+  }
+
+  .rankings-period-btn {
+    min-width: 72px;
+  }
+
+  .rankings-skeleton-title {
+    width: 78%;
+    height: 30px;
+  }
+
+  .rankings-skeleton-subtitle,
+  .rankings-skeleton-subtitle.short,
+  .rankings-skeleton-card-desc,
+  .rankings-skeleton-card-desc.short,
+  .rankings-skeleton-subheader-desc {
+    width: 100%;
+  }
+
+  .rankings-skeleton-chart-shell {
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+
+  .rankings-skeleton-bars {
+    gap: 6px;
+  }
+
+  .rankings-skeleton-metric {
+    align-items: flex-start;
+  }
+}
