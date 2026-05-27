@@ -2,6 +2,7 @@ package service
 
 import (
 	"errors"
+	"strings"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
@@ -45,6 +46,23 @@ func (p *RetryParam) ResetRetryNextTry() {
 	p.resetNextTry = true
 }
 
+func endpointTypesFromRequestPath(path string) []constant.EndpointType {
+	switch {
+	case strings.HasPrefix(path, "/v1/messages"):
+		return []constant.EndpointType{constant.EndpointTypeAnthropic}
+	case strings.HasPrefix(path, "/v1beta/models/") || strings.HasPrefix(path, "/v1/models/"):
+		return []constant.EndpointType{constant.EndpointTypeGemini}
+	case strings.HasPrefix(path, "/v1/chat/completions") ||
+		strings.HasPrefix(path, "/v1/completions") ||
+		strings.HasPrefix(path, "/pg/chat/completions"):
+		return []constant.EndpointType{constant.EndpointTypeOpenAI}
+	case strings.HasPrefix(path, "/v1/images/generations"):
+		return []constant.EndpointType{constant.EndpointTypeImageGeneration}
+	default:
+		return nil
+	}
+}
+
 // CacheGetRandomSatisfiedChannel tries to get a random channel that satisfies the requirements.
 // 尝试获取一个满足要求的随机渠道。
 //
@@ -85,6 +103,10 @@ func CacheGetRandomSatisfiedChannel(param *RetryParam) (*model.Channel, string, 
 	var err error
 	selectGroup := param.TokenGroup
 	userGroup := common.GetContextKeyString(param.Ctx, constant.ContextKeyUserGroup)
+	var requestEndpointTypes []constant.EndpointType
+	if param.Ctx != nil && param.Ctx.Request != nil && param.Ctx.Request.URL != nil {
+		requestEndpointTypes = endpointTypesFromRequestPath(param.Ctx.Request.URL.Path)
+	}
 
 	if param.TokenGroup == "auto" {
 		if len(setting.GetAutoGroups()) == 0 {
@@ -115,7 +137,7 @@ func CacheGetRandomSatisfiedChannel(param *RetryParam) (*model.Channel, string, 
 			}
 			logger.LogDebug(param.Ctx, "Auto selecting group: %s, priorityRetry: %d", autoGroup, priorityRetry)
 
-			channel, _ = model.GetRandomSatisfiedChannel(autoGroup, param.ModelName, priorityRetry)
+			channel, _ = model.GetRandomSatisfiedChannel(autoGroup, param.ModelName, priorityRetry, requestEndpointTypes)
 			if channel == nil {
 				// Current group has no available channel for this model, try next group
 				// 当前分组没有该模型的可用渠道，尝试下一个分组
@@ -153,7 +175,7 @@ func CacheGetRandomSatisfiedChannel(param *RetryParam) (*model.Channel, string, 
 			break
 		}
 	} else {
-		channel, err = model.GetRandomSatisfiedChannel(param.TokenGroup, param.ModelName, param.GetRetry())
+		channel, err = model.GetRandomSatisfiedChannel(param.TokenGroup, param.ModelName, param.GetRetry(), requestEndpointTypes)
 		if err != nil {
 			return nil, param.TokenGroup, err
 		}
