@@ -126,15 +126,15 @@ function LegalLinks(props: { leadingSeparator?: boolean }) {
 function ProjectAttribution(props: { currentYear: number; inline?: boolean }) {
   const { t } = useTranslation()
   const content = (
-    <span className='text-muted-foreground/45'>
+    <span className='text-muted-foreground/32 text-[10px] leading-relaxed'>
       &copy; {props.currentYear}{' '}
       <a
-        href='https://github.com/QuantumNous/new-api'
+        href='https://flatkey.ai/'
         target='_blank'
         rel='noopener noreferrer'
-        className='text-foreground/70 hover:text-foreground font-medium transition-colors'
+        className='text-muted-foreground/45 hover:text-muted-foreground/70 font-normal transition-colors'
       >
-        {t('New API')}
+        Flatkey AI
       </a>
       . {t(NEW_API_FOOTER_ATTRIBUTION_KEY)}
     </span>
@@ -143,7 +143,7 @@ function ProjectAttribution(props: { currentYear: number; inline?: boolean }) {
     return content
   }
   return (
-    <div className='text-muted-foreground/45 text-center text-xs sm:text-right'>
+    <div className='text-muted-foreground/32 text-center text-[10px] leading-relaxed sm:text-right'>
       {content}
     </div>
   )

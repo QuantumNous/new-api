@@ -529,7 +529,16 @@ func updateOptionMap(key string, value string) (err error) {
 	case "ModelRatio":
 		err = ratio_setting.UpdateModelRatioByJSONString(value)
 	case "GroupRatio":
-		err = ratio_setting.UpdateGroupRatioByJSONString(value)
+		oldGroupRatio := ratio_setting.GetGroupRatioCopy()
+		newGroupRatio := make(map[string]float64)
+		err = common.UnmarshalJsonStr(value, &newGroupRatio)
+		if err == nil {
+			renames := inferGroupRatioRenames(oldGroupRatio, newGroupRatio)
+			err = ratio_setting.UpdateGroupRatioByJSONString(value)
+			if err == nil && len(renames) > 0 {
+				err = syncRenamedGroupsToChannels(renames)
+			}
+		}
 	case "GroupGroupRatio":
 		err = ratio_setting.UpdateGroupGroupRatioByJSONString(value)
 	case "UserUsableGroups":
@@ -613,4 +622,88 @@ func handleConfigUpdate(key, value string) bool {
 	}
 
 	return true // 已处理
+}
+
+func inferGroupRatioRenames(oldGroupRatio, newGroupRatio map[string]float64) map[string]string {
+	removed := make([]string, 0)
+	added := make([]string, 0)
+	for oldName := range oldGroupRatio {
+		if _, ok := newGroupRatio[oldName]; !ok {
+			removed = append(removed, oldName)
+		}
+	}
+	for newName := range newGroupRatio {
+		if _, ok := oldGroupRatio[newName]; !ok {
+			added = append(added, newName)
+		}
+	}
+	if len(removed) != 1 || len(added) != 1 {
+		return nil
+	}
+	oldName := strings.TrimSpace(removed[0])
+	newName := strings.TrimSpace(added[0])
+	if oldName == "" || newName == "" || oldName == newName {
+		return nil
+	}
+	return map[string]string{oldName: newName}
+}
+
+func syncRenamedGroupsToChannels(renames map[string]string) error {
+	changed := false
+	err := DB.Transaction(func(tx *gorm.DB) error {
+		for oldName, newName := range renames {
+			var channels []*Channel
+			if err := ApplyChannelGroupFilter(tx.Model(&Channel{}), oldName).Find(&channels).Error; err != nil {
+				return err
+			}
+			for _, channel := range channels {
+				updatedGroup, didChange := replaceChannelGroupName(channel.Group, oldName, newName)
+				if !didChange {
+					continue
+				}
+				channel.Group = updatedGroup
+				if err := tx.Model(&Channel{}).Where("id = ?", channel.Id).Update("group", updatedGroup).Error; err != nil {
+					return err
+				}
+				if err := channel.UpdateAbilities(tx); err != nil {
+					return err
+				}
+				changed = true
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+	if changed {
+		publishChannelsChanged()
+	}
+	return nil
+}
+
+func replaceChannelGroupName(groupList, oldName, newName string) (string, bool) {
+	groups := strings.Split(groupList, ",")
+	seen := make(map[string]struct{}, len(groups))
+	updated := make([]string, 0, len(groups))
+	changed := false
+	for _, group := range groups {
+		group = strings.TrimSpace(group)
+		if group == "" {
+			continue
+		}
+		if group == oldName {
+			group = newName
+			changed = true
+		}
+		if _, ok := seen[group]; ok {
+			continue
+		}
+		seen[group] = struct{}{}
+		updated = append(updated, group)
+	}
+	if !changed {
+		return groupList, false
+	}
+	return strings.Join(updated, ","), true
 }
