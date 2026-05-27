@@ -19,6 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import { ChevronLeft, ChevronRight, RefreshCw, Ticket } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { formatTimestampToDate } from '@/lib/format'
+import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -27,17 +28,28 @@ import {
   StatusBadge,
   type StatusBadgeProps,
 } from '@/components/status-badge'
-import type { InviteCode } from '../types'
+import type { InviteCode, InviteCodeUsageFilter } from '../types'
 
 interface InviteCodesHistoryCardProps {
   inviteCodes: InviteCode[]
   total: number
   page: number
   pageSize: number
+  usageFilter: InviteCodeUsageFilter
   loading: boolean
   onPageChange: (page: number) => void
+  onUsageFilterChange: (usageFilter: InviteCodeUsageFilter) => void
   onRefresh: () => void
 }
+
+const inviteCodeUsageFilterOptions: {
+  value: InviteCodeUsageFilter
+  label: string
+}[] = [
+  { value: 'all', label: 'All' },
+  { value: 'unused', label: 'Unused' },
+  { value: 'used', label: 'Used' },
+]
 
 function getInviteCodeStatus(inviteCode: InviteCode): {
   label: string
@@ -99,8 +111,10 @@ export function InviteCodesHistoryCard({
   total,
   page,
   pageSize,
+  usageFilter,
   loading,
   onPageChange,
+  onUsageFilterChange,
   onRefresh,
 }: InviteCodesHistoryCardProps) {
   const { t } = useTranslation()
@@ -111,7 +125,7 @@ export function InviteCodesHistoryCard({
   return (
     <Card className='py-0'>
       <CardContent className='grid gap-4 p-3 sm:p-4'>
-        <div className='flex items-center justify-between gap-3'>
+        <div className='flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between'>
           <div className='flex min-w-0 items-center gap-2.5'>
             <div className='bg-background flex size-8 shrink-0 items-center justify-center rounded-lg border'>
               <Ticket className='text-muted-foreground size-4' />
@@ -125,17 +139,46 @@ export function InviteCodesHistoryCard({
               </p>
             </div>
           </div>
-          <Button
-            type='button'
-            variant='outline'
-            size='icon'
-            onClick={onRefresh}
-            disabled={loading}
-            aria-label={t('Refresh')}
-            className='bg-background size-9 shrink-0'
-          >
-            <RefreshCw className='size-4' />
-          </Button>
+          <div className='flex shrink-0 flex-wrap items-center gap-2 self-start sm:self-auto'>
+            <div
+              role='group'
+              aria-label={t('Filter')}
+              className='bg-muted/40 flex rounded-lg border p-0.5'
+            >
+              {inviteCodeUsageFilterOptions.map((option) => {
+                const active = usageFilter === option.value
+                return (
+                  <Button
+                    key={option.value}
+                    type='button'
+                    variant='ghost'
+                    size='sm'
+                    aria-pressed={active}
+                    onClick={() => onUsageFilterChange(option.value)}
+                    disabled={loading}
+                    className={cn(
+                      'h-7 rounded-md px-2 text-xs',
+                      active &&
+                        'bg-background text-foreground shadow-sm hover:bg-background'
+                    )}
+                  >
+                    {t(option.label)}
+                  </Button>
+                )
+              })}
+            </div>
+            <Button
+              type='button'
+              variant='outline'
+              size='icon'
+              onClick={onRefresh}
+              disabled={loading}
+              aria-label={t('Refresh')}
+              className='bg-background size-9 shrink-0'
+            >
+              <RefreshCw className='size-4' />
+            </Button>
+          </div>
         </div>
 
         {loading ? (

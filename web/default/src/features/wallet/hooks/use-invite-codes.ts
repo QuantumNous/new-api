@@ -20,25 +20,32 @@ import { useCallback, useEffect, useState } from 'react'
 import i18next from 'i18next'
 import { toast } from 'sonner'
 import { getInviteCodes, isApiSuccess } from '../api'
-import type { InviteCode } from '../types'
+import type { InviteCode, InviteCodeUsageFilter } from '../types'
 
 interface UseInviteCodesOptions {
   initialPage?: number
   initialPageSize?: number
+  initialUsageFilter?: InviteCodeUsageFilter
 }
 
 export function useInviteCodes(options: UseInviteCodesOptions = {}) {
-  const { initialPage = 1, initialPageSize = 10 } = options
+  const {
+    initialPage = 1,
+    initialPageSize = 10,
+    initialUsageFilter = 'all',
+  } = options
   const [inviteCodes, setInviteCodes] = useState<InviteCode[]>([])
   const [total, setTotal] = useState(0)
   const [page, setPage] = useState(initialPage)
   const [pageSize] = useState(initialPageSize)
+  const [usageFilter, setUsageFilter] =
+    useState<InviteCodeUsageFilter>(initialUsageFilter)
   const [loading, setLoading] = useState(false)
 
   const fetchInviteCodes = useCallback(async () => {
     setLoading(true)
     try {
-      const response = await getInviteCodes(page, pageSize)
+      const response = await getInviteCodes(page, pageSize, usageFilter)
       if (isApiSuccess(response) && response.data) {
         setInviteCodes(response.data.items || [])
         setTotal(response.data.total || 0)
@@ -58,11 +65,19 @@ export function useInviteCodes(options: UseInviteCodesOptions = {}) {
     } finally {
       setLoading(false)
     }
-  }, [page, pageSize])
+  }, [page, pageSize, usageFilter])
 
   const handlePageChange = useCallback((newPage: number) => {
     setPage(Math.max(1, newPage))
   }, [])
+
+  const handleUsageFilterChange = useCallback(
+    (newUsageFilter: InviteCodeUsageFilter) => {
+      setUsageFilter(newUsageFilter)
+      setPage(1)
+    },
+    []
+  )
 
   const refreshFirstPage = useCallback(async () => {
     if (page === 1) {
@@ -73,7 +88,7 @@ export function useInviteCodes(options: UseInviteCodesOptions = {}) {
   }, [fetchInviteCodes, page])
 
   useEffect(() => {
-    fetchInviteCodes()
+    void Promise.resolve().then(fetchInviteCodes)
   }, [fetchInviteCodes])
 
   return {
@@ -81,8 +96,10 @@ export function useInviteCodes(options: UseInviteCodesOptions = {}) {
     total,
     page,
     pageSize,
+    usageFilter,
     loading,
     handlePageChange,
+    handleUsageFilterChange,
     refresh: fetchInviteCodes,
     refreshFirstPage,
   }

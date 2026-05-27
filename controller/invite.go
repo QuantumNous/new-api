@@ -171,7 +171,7 @@ func CreateSelfInviteCodes(c *gin.Context) {
 
 func GetSelfInviteCodes(c *gin.Context) {
 	pageInfo := common.GetPageQuery(c)
-	codes, total, err := model.GetInviteCodes(pageInfo.GetStartIdx(), pageInfo.GetPageSize(), c.GetInt("id"))
+	codes, total, err := model.GetInviteCodes(pageInfo.GetStartIdx(), pageInfo.GetPageSize(), c.GetInt("id"), c.Query("usage_status"))
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -183,7 +183,7 @@ func GetSelfInviteCodes(c *gin.Context) {
 
 func GetAllInviteCodes(c *gin.Context) {
 	pageInfo := common.GetPageQuery(c)
-	codes, total, err := model.GetInviteCodes(pageInfo.GetStartIdx(), pageInfo.GetPageSize(), 0)
+	codes, total, err := model.GetInviteCodes(pageInfo.GetStartIdx(), pageInfo.GetPageSize(), 0, c.Query("usage_status"))
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -195,7 +195,7 @@ func GetAllInviteCodes(c *gin.Context) {
 
 func SearchInviteCodes(c *gin.Context) {
 	pageInfo := common.GetPageQuery(c)
-	codes, total, err := model.SearchInviteCodes(c.Query("keyword"), pageInfo.GetStartIdx(), pageInfo.GetPageSize(), 0)
+	codes, total, err := model.SearchInviteCodes(c.Query("keyword"), pageInfo.GetStartIdx(), pageInfo.GetPageSize(), 0, c.Query("usage_status"))
 	if err != nil {
 		common.ApiError(c, err)
 		return

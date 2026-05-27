@@ -132,11 +132,23 @@ func CountInviteCodesCreatedToday(userId int) (int64, error) {
 	return count, err
 }
 
-func GetInviteCodes(startIdx int, num int, creatorId int) (codes []*InviteCode, total int64, err error) {
+func applyInviteCodeUsageFilter(query *gorm.DB, usageStatus string) *gorm.DB {
+	switch strings.ToLower(strings.TrimSpace(usageStatus)) {
+	case "used":
+		return query.Where("used_count > ?", 0)
+	case "unused":
+		return query.Where("used_count = ?", 0)
+	default:
+		return query
+	}
+}
+
+func GetInviteCodes(startIdx int, num int, creatorId int, usageStatus string) (codes []*InviteCode, total int64, err error) {
 	query := DB.Model(&InviteCode{})
 	if creatorId != 0 {
 		query = query.Where("creator_id = ?", creatorId)
 	}
+	query = applyInviteCodeUsageFilter(query, usageStatus)
 	if err = query.Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
@@ -148,12 +160,13 @@ func GetInviteCodes(startIdx int, num int, creatorId int) (codes []*InviteCode, 
 	return codes, total, err
 }
 
-func SearchInviteCodes(keyword string, startIdx int, num int, creatorId int) (codes []*InviteCode, total int64, err error) {
+func SearchInviteCodes(keyword string, startIdx int, num int, creatorId int, usageStatus string) (codes []*InviteCode, total int64, err error) {
 	keyword = strings.TrimSpace(keyword)
 	query := DB.Model(&InviteCode{})
 	if creatorId != 0 {
 		query = query.Where("creator_id = ?", creatorId)
 	}
+	query = applyInviteCodeUsageFilter(query, usageStatus)
 	if keyword != "" {
 		like := keyword + "%"
 		query = query.Where("code LIKE ? OR name LIKE ?", like, like)

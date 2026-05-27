@@ -106,8 +106,10 @@ export function Wallet(props: WalletProps) {
     total: inviteCodesTotal,
     page: inviteCodesPage,
     pageSize: inviteCodesPageSize,
+    usageFilter: inviteCodesUsageFilter,
     loading: inviteCodesLoading,
     handlePageChange: handleInviteCodesPageChange,
+    handleUsageFilterChange: handleInviteCodesUsageFilterChange,
     refresh: refreshInviteCodes,
     refreshFirstPage: refreshInviteCodesFirstPage,
   } = useInviteCodes()
@@ -364,8 +366,10 @@ export function Wallet(props: WalletProps) {
               total={inviteCodesTotal}
               page={inviteCodesPage}
               pageSize={inviteCodesPageSize}
+              usageFilter={inviteCodesUsageFilter}
               loading={inviteCodesLoading}
               onPageChange={handleInviteCodesPageChange}
+              onUsageFilterChange={handleInviteCodesUsageFilterChange}
               onRefresh={refreshInviteCodes}
             />
           </div>

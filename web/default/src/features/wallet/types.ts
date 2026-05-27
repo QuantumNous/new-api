@@ -43,6 +43,7 @@ export type AffiliateCodeResponse = ApiResponse<string>
 export type AffiliateTransferResponse = ApiResponse
 export type InviteCodeCreateResponse = ApiResponse<string[]>
 export type InviteCodeListResponse = ApiResponse<PageResponse<InviteCode>>
+export type InviteCodeUsageFilter = 'all' | 'used' | 'unused'
 export type CreemPaymentResponse = ApiResponse<{ checkout_url: string }>
 export type WaffoPaymentResponse = ApiResponse<
   { payment_url?: string } | string

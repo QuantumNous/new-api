@@ -41,6 +41,7 @@ import type {
   WaffoPaymentResponse,
   WaffoPancakePaymentRequest,
   WaffoPancakePaymentResponse,
+  InviteCodeUsageFilter,
 } from './types'
 
 // ============================================================================
@@ -204,12 +205,16 @@ export async function createInviteCodes(
  */
 export async function getInviteCodes(
   page: number,
-  pageSize: number
+  pageSize: number,
+  usageFilter: InviteCodeUsageFilter = 'all'
 ): Promise<InviteCodeListResponse> {
   const params = new URLSearchParams({
     p: page.toString(),
     page_size: pageSize.toString(),
   })
+  if (usageFilter !== 'all') {
+    params.append('usage_status', usageFilter)
+  }
   const res = await api.get(`/api/user/invite_codes?${params.toString()}`)
   return res.data
 }
