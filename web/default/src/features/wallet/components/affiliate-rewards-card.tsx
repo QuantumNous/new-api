@@ -23,42 +23,28 @@ import { formatQuota } from '@/lib/format'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
-import { Skeleton } from '@/components/ui/skeleton'
 import { Textarea } from '@/components/ui/textarea'
 import { CopyButton } from '@/components/copy-button'
 import type { UserWalletData } from '../types'
 
 interface AffiliateRewardsCardProps {
   user: UserWalletData | null
-  affiliateLink: string
   onTransfer: () => void
   onCreateInviteCode?: (count?: number) => void
   createdInviteCodes?: string[]
   creatingInviteCode?: boolean
   inviteCodeMaxCount?: number
   complianceConfirmed?: boolean
-  loading?: boolean
-}
-
-function getInviteCodeFromAffiliateLink(affiliateLink: string): string {
-  if (!affiliateLink) return ''
-  try {
-    return new URL(affiliateLink).searchParams.get('aff') || affiliateLink
-  } catch (_error) {
-    return affiliateLink
-  }
 }
 
 export function AffiliateRewardsCard({
   user,
-  affiliateLink,
   onTransfer,
   onCreateInviteCode,
   createdInviteCodes = [],
   creatingInviteCode = false,
   inviteCodeMaxCount = 100,
   complianceConfirmed = true,
-  loading,
 }: AffiliateRewardsCardProps) {
   const { t } = useTranslation()
   const [inviteCodeCount, setInviteCodeCount] = useState(1)
@@ -74,24 +60,8 @@ export function AffiliateRewardsCard({
     return Math.max(1, Math.min(normalizedInviteCodeMaxCount, nextCount))
   }
 
-  if (loading) {
-    return (
-      <Card className='bg-muted/20 py-0'>
-        <CardContent className='grid gap-4 p-3 sm:p-4 lg:grid-cols-[minmax(220px,1fr)_minmax(220px,0.72fr)_minmax(320px,1.15fr)] lg:items-center'>
-          <div>
-            <Skeleton className='h-5 w-32' />
-            <Skeleton className='mt-2 h-4 w-48' />
-          </div>
-          <Skeleton className='h-14 rounded-lg' />
-          <Skeleton className='h-10 rounded-lg' />
-        </CardContent>
-      </Card>
-    )
-  }
-
   const hasRewards = (user?.aff_quota ?? 0) > 0
   const inviteCodesText = createdInviteCodes.join('\n')
-  const displayedInviteCode = getInviteCodeFromAffiliateLink(affiliateLink)
 
   return (
     <Card className='bg-muted/20 py-0'>
@@ -102,11 +72,11 @@ export function AffiliateRewardsCard({
           </div>
           <div className='min-w-0'>
             <h3 className='truncate text-sm font-semibold'>
-              {t('Referral Program')}
+              {t('Invitation Code')}
             </h3>
             <p className='text-muted-foreground line-clamp-1 text-xs'>
               {t(
-                'Earn rewards when your referrals add funds. Transfer accumulated rewards to your balance anytime.'
+                'Earn rewards when invited users add funds. Transfer accumulated rewards to your balance anytime.'
               )}
             </p>
           </div>
@@ -130,20 +100,6 @@ export function AffiliateRewardsCard({
         </div>
 
         <div className='flex flex-wrap items-center gap-2'>
-          <Input
-            value={displayedInviteCode}
-            readOnly
-            aria-label={t('Invitation Code')}
-            className='border-muted bg-background/70 h-9 min-w-0 flex-1 font-mono text-xs'
-          />
-          <CopyButton
-            value={displayedInviteCode}
-            variant='outline'
-            className='bg-background size-9 shrink-0'
-            iconClassName='size-4'
-            tooltip={t('Copy invitation code')}
-            aria-label={t('Copy invitation code')}
-          />
           {hasRewards && (
             <Button
               onClick={onTransfer}

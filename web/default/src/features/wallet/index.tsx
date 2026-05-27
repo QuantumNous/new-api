@@ -94,8 +94,6 @@ export function Wallet(props: WalletProps) {
     processPayment,
   } = usePayment()
   const {
-    affiliateLink,
-    loading: affiliateLoading,
     transferQuota,
     transferring,
     createInviteCode,
@@ -351,7 +349,6 @@ export function Wallet(props: WalletProps) {
 
             <AffiliateRewardsCard
               user={user}
-              affiliateLink={affiliateLink}
               onTransfer={() => setTransferDialogOpen(true)}
               onCreateInviteCode={handleCreateInviteCode}
               creatingInviteCode={creatingInviteCode}
@@ -360,7 +357,6 @@ export function Wallet(props: WalletProps) {
               complianceConfirmed={
                 topupInfo?.payment_compliance_confirmed !== false
               }
-              loading={affiliateLoading}
             />
 
             <InviteCodesHistoryCard
