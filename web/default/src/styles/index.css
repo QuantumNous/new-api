@@ -383,6 +383,24 @@ For commercial licensing, please contact support@quantumnous.com
   .scroll-container:hover .animate-scroll-down {
     animation-play-state: paused;
   }
+
+  @keyframes home-model-marquee {
+    from {
+      transform: translateX(0);
+    }
+    to {
+      transform: translateX(-50%);
+    }
+  }
+
+  .home-model-marquee-track {
+    animation: home-model-marquee 26s linear infinite;
+    will-change: transform;
+  }
+
+  .home-model-marquee:hover .home-model-marquee-track {
+    animation-play-state: paused;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -390,6 +408,7 @@ For commercial licensing, please contact support@quantumnous.com
   .animate-appear-zoom,
   .animate-scroll-up,
   .animate-scroll-down,
+  .home-model-marquee-track,
   [data-slot='table'] tbody tr {
     animation: none !important;
     opacity: 1;
@@ -398,6 +417,135 @@ For commercial licensing, please contact support@quantumnous.com
 }
 
 /* ── Landing page scroll-triggered animations ── */
+.home-landing {
+  font-family:
+    Inter, 'SF Pro Display', 'SF Pro Text', 'Public Sans', 'PingFang SC',
+    'Hiragino Sans GB', 'Microsoft YaHei UI', 'Microsoft YaHei', Arial,
+    sans-serif;
+  font-optical-sizing: auto;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: geometricPrecision;
+}
+
+.home-landing :is(h1, h2, h3, h4) {
+  font-family:
+    Inter, 'SF Pro Display', 'SF Pro Text', 'Public Sans', 'PingFang SC',
+    'Hiragino Sans GB', 'Microsoft YaHei UI', 'Microsoft YaHei', Arial,
+    sans-serif;
+  font-weight: 620;
+  letter-spacing: 0;
+}
+
+.home-landing h1 {
+  font-weight: 650;
+}
+
+.home-landing :is(p, span, a, button) {
+  letter-spacing: 0;
+}
+
+.home-landing p {
+  font-weight: 400;
+}
+
+.home-landing :is(button, a) {
+  font-weight: 540;
+}
+
+.auth-landing {
+  font-family:
+    Inter, 'SF Pro Display', 'SF Pro Text', 'Public Sans', 'PingFang SC',
+    'Hiragino Sans GB', 'Microsoft YaHei UI', 'Microsoft YaHei', Arial,
+    sans-serif;
+  font-optical-sizing: auto;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: geometricPrecision;
+}
+
+.auth-landing :is(h1, h2, h3, label, p, a, button) {
+  letter-spacing: 0;
+}
+
+.auth-landing label {
+  color: color-mix(in oklch, var(--foreground) 88%, transparent);
+  font-weight: 560;
+}
+
+.auth-landing input,
+.auth-landing [data-slot='input'],
+.auth-landing .auth-field-wrapper input,
+.auth-landing .auth-field-wrapper [data-slot='input'] {
+  height: 2.65rem;
+  border-color: color-mix(in oklch, var(--border) 72%, rgb(124 58 237) 28%);
+  background: color-mix(in oklch, var(--background) 92%, white 8%);
+  color: var(--foreground);
+  box-shadow: 0 18px 42px -36px rgb(124 58 237 / 0.3);
+}
+
+.auth-landing input::placeholder,
+.auth-landing [data-slot='input']::placeholder,
+.auth-landing .auth-field-wrapper input::placeholder,
+.auth-landing .auth-field-wrapper [data-slot='input']::placeholder {
+  color: color-mix(in oklch, var(--muted-foreground) 78%, transparent);
+}
+
+.auth-landing input:focus-visible,
+.auth-landing [data-slot='input']:focus-visible,
+.auth-landing .auth-field-wrapper input:focus-visible,
+.auth-landing .auth-field-wrapper [data-slot='input']:focus-visible {
+  border-color: rgb(124 58 237 / 0.58);
+  box-shadow:
+    0 0 0 3px rgb(124 58 237 / 0.16),
+    0 20px 52px -38px rgb(124 58 237 / 0.48);
+}
+
+.auth-landing a {
+  color: rgb(109 40 217 / 0.9);
+}
+
+.auth-landing a:hover {
+  color: rgb(162 28 175 / 0.96);
+}
+
+.dark .auth-landing label {
+  color: rgb(255 255 255 / 0.86);
+}
+
+.dark .auth-landing input,
+.dark .auth-landing [data-slot='input'],
+.dark .auth-landing .auth-field-wrapper input,
+.dark .auth-landing .auth-field-wrapper [data-slot='input'] {
+  border-color: rgb(196 181 253 / 0.22);
+  background: rgb(255 255 255 / 0.055);
+  color: rgb(255 255 255 / 0.92);
+  box-shadow: 0 18px 42px -34px rgb(124 58 237 / 0.78);
+}
+
+.dark .auth-landing input::placeholder,
+.dark .auth-landing [data-slot='input']::placeholder,
+.dark .auth-landing .auth-field-wrapper input::placeholder,
+.dark .auth-landing .auth-field-wrapper [data-slot='input']::placeholder {
+  color: rgb(255 255 255 / 0.42);
+}
+
+.dark .auth-landing input:focus-visible,
+.dark .auth-landing [data-slot='input']:focus-visible,
+.dark .auth-landing .auth-field-wrapper input:focus-visible,
+.dark .auth-landing .auth-field-wrapper [data-slot='input']:focus-visible {
+  border-color: rgb(196 181 253 / 0.62);
+  box-shadow:
+    0 0 0 3px rgb(124 58 237 / 0.22),
+    0 20px 52px -36px rgb(124 58 237 / 0.9);
+}
+
+.dark .auth-landing a {
+  color: rgb(221 214 254 / 0.86);
+}
+
+.dark .auth-landing a:hover {
+  color: rgb(245 208 254 / 0.96);
+}
+
 @keyframes landing-fade-up {
   from {
     opacity: 0;

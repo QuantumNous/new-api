@@ -58,10 +58,11 @@ export function SearchBar(props: SearchBarProps) {
         value={props.value}
         onChange={(e) => props.onChange(e.target.value)}
         className={cn(
-          'border-border/60 bg-background placeholder:text-muted-foreground/50',
-          'hover:border-border',
-          'focus:border-primary/50 focus:ring-primary/20 focus:ring-2',
-          'h-10 w-full rounded-lg border pr-16 pl-10 text-sm transition-all outline-none'
+          'border-violet-300/50 bg-white/70 text-slate-900 placeholder:text-slate-500/60 shadow-[0_18px_60px_rgba(91,33,182,0.10)] backdrop-blur-xl',
+          'hover:border-violet-400/70 hover:bg-white/85',
+          'focus:border-violet-400/80 focus:ring-violet-400/20 focus:ring-2',
+          'dark:border-violet-300/15 dark:bg-white/[0.035] dark:text-white dark:placeholder:text-white/35 dark:shadow-[0_22px_70px_rgba(88,28,135,0.24)] dark:hover:border-violet-300/30 dark:hover:bg-white/[0.06]',
+          'h-12 w-full rounded-2xl border pr-16 pl-10 text-sm transition-all outline-none'
         )}
         aria-label={t('Search models')}
       />
@@ -77,7 +78,7 @@ export function SearchBar(props: SearchBarProps) {
             <X className='size-4' />
           </Button>
         ) : (
-          <kbd className='bg-muted text-muted-foreground pointer-events-none hidden rounded border px-1.5 py-0.5 font-mono text-[10px] sm:inline-block'>
+          <kbd className='pointer-events-none hidden rounded-md border border-violet-300/30 bg-violet-500/10 px-1.5 py-0.5 font-mono text-[10px] text-violet-700 sm:inline-block dark:text-violet-100/70'>
             ⌘K
           </kbd>
         )}

@@ -17,6 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { cn } from '@/lib/utils'
+import { FlatkeyBrandLogo } from '@/components/brand/flatkey-brand-logo'
 
 interface HeaderLogoProps {
   src: string
@@ -37,6 +38,22 @@ export function HeaderLogo({
   logoLoaded,
   className,
 }: HeaderLogoProps) {
+  const shouldUseFlatkeyLogo =
+    src === '/logo.png' || src.includes('flatkey-logo')
+
+  if (shouldUseFlatkeyLogo) {
+    return (
+      <FlatkeyBrandLogo
+        alt={alt}
+        className={cn(
+          'transition-opacity duration-200',
+          !loading && logoLoaded ? 'opacity-100' : 'opacity-0',
+          className
+        )}
+      />
+    )
+  }
+
   return (
     <img
       src={src}

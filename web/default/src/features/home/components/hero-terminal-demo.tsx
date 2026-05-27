@@ -44,22 +44,22 @@ const ACCENT_CLASSES: Record<
   }
 > = {
   emerald: {
-    activeText: 'text-emerald-600 dark:text-emerald-400',
-    activeBorder: 'border-emerald-500 dark:border-emerald-400',
+    activeText: 'text-violet-600 dark:text-violet-300',
+    activeBorder: 'border-violet-500 dark:border-violet-300',
     badge:
-      'bg-emerald-500/10 text-emerald-600 dark:bg-emerald-400/10 dark:text-emerald-400',
+      'bg-violet-500/10 text-violet-600 dark:bg-violet-300/10 dark:text-violet-200',
   },
   amber: {
-    activeText: 'text-amber-600 dark:text-amber-400',
-    activeBorder: 'border-amber-500 dark:border-amber-400',
+    activeText: 'text-fuchsia-600 dark:text-fuchsia-300',
+    activeBorder: 'border-fuchsia-500 dark:border-fuchsia-300',
     badge:
-      'bg-amber-500/10 text-amber-600 dark:bg-amber-400/10 dark:text-amber-400',
+      'bg-fuchsia-500/10 text-fuchsia-600 dark:bg-fuchsia-300/10 dark:text-fuchsia-200',
   },
   blue: {
-    activeText: 'text-blue-600 dark:text-blue-400',
-    activeBorder: 'border-blue-500 dark:border-blue-400',
+    activeText: 'text-indigo-600 dark:text-indigo-300',
+    activeBorder: 'border-indigo-500 dark:border-indigo-300',
     badge:
-      'bg-blue-500/10 text-blue-600 dark:bg-blue-400/10 dark:text-blue-400',
+      'bg-indigo-500/10 text-indigo-600 dark:bg-indigo-300/10 dark:text-indigo-200',
   },
   violet: {
     activeText: 'text-violet-600 dark:text-violet-400',
@@ -74,8 +74,8 @@ const API_DEMOS: ApiDemoConfig[] = [
     id: 'gpt-chat',
     label: 'Chat',
     method: 'POST',
-    endpoint: '/v1/chat/completions',
-    headers: ['"Authorization: Bearer sk-••••"'],
+    endpoint: 'https://router.flatkey.ai/v1/chat/completions',
+    headers: ['"Authorization: Bearer sk-fk-••••"'],
     request: [
       '"model": "your-model",',
       '"messages": [',
@@ -97,8 +97,8 @@ const API_DEMOS: ApiDemoConfig[] = [
     id: 'responses',
     label: 'Responses',
     method: 'POST',
-    endpoint: '/v1/responses',
-    headers: ['"Authorization: Bearer sk-••••"'],
+    endpoint: 'https://router.flatkey.ai/v1/responses',
+    headers: ['"Authorization: Bearer sk-fk-••••"'],
     request: ['"model": "your-model",', '"input": "..."'],
     response: [
       '{',
@@ -115,8 +115,8 @@ const API_DEMOS: ApiDemoConfig[] = [
     id: 'claude',
     label: 'Claude',
     method: 'POST',
-    endpoint: '/v1/messages',
-    headers: ['"x-api-key: sk-••••"', '"anthropic-version: 2023-06-01"'],
+    endpoint: 'https://router.flatkey.ai/v1/messages',
+    headers: ['"x-api-key: sk-fk-••••"', '"anthropic-version: 2023-06-01"'],
     request: [
       '"model": "your-model",',
       '"max_tokens": 1024,',
@@ -139,8 +139,8 @@ const API_DEMOS: ApiDemoConfig[] = [
     id: 'gemini',
     label: 'Gemini',
     method: 'POST',
-    endpoint: '/v1beta/models/{model}:generateContent',
-    headers: ['"x-goog-api-key: sk-••••"'],
+    endpoint: 'https://router.flatkey.ai/v1beta/models/{model}:generateContent',
+    headers: ['"x-goog-api-key: sk-fk-••••"'],
     request: [
       '"contents": [',
       '  { "role": "user",',
@@ -210,15 +210,15 @@ export function HeroTerminalDemo(props: HeroTerminalDemoProps) {
       <div
         className={cn(
           'overflow-hidden rounded-2xl border backdrop-blur-sm',
-          'border-border/60 bg-white/95 shadow-[0_20px_50px_-25px_rgba(15,23,42,0.18)]',
-          'dark:border-white/[0.06] dark:bg-[#0b0f17]/95 dark:shadow-[0_20px_60px_-25px_rgba(0,0,0,0.7)]'
+          'border-violet-500/15 bg-white/90 shadow-[0_28px_80px_-48px_rgba(91,33,182,0.65)]',
+          'dark:border-violet-300/10 dark:bg-[#080a14]/90 dark:shadow-[0_24px_90px_-36px_rgba(124,58,237,0.45)]'
         )}
       >
         {/* Tab strip */}
         <div
           className={cn(
             'flex items-center gap-1 border-b px-2 sm:gap-1.5 sm:px-3',
-            'border-border/50 dark:border-white/[0.05]'
+            'border-violet-500/10 bg-white/55 dark:border-violet-300/10 dark:bg-white/[0.025]'
           )}
         >
           {API_DEMOS.map((item, index) => {
@@ -240,8 +240,8 @@ export function HeroTerminalDemo(props: HeroTerminalDemoProps) {
             )
           })}
           <div className='ml-auto flex items-center gap-2 pr-2 sm:pr-3'>
-            <span className='inline-block size-1.5 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.45)]' />
-            <span className='text-foreground/40 font-mono text-[10px] tracking-wider uppercase'>
+            <span className='inline-block size-1.5 rounded-full bg-violet-500 shadow-[0_0_10px_rgba(124,58,237,0.65)] dark:bg-violet-300' />
+            <span className='text-foreground/45 font-mono text-[10px] tracking-wider uppercase'>
               200 ok
             </span>
           </div>
@@ -251,7 +251,7 @@ export function HeroTerminalDemo(props: HeroTerminalDemoProps) {
         <div
           className={cn(
             'flex items-center gap-2.5 border-b px-5 py-3',
-            'border-border/40 dark:border-white/[0.04]'
+            'border-violet-500/10 bg-violet-500/[0.025] dark:border-violet-300/10 dark:bg-violet-300/[0.025]'
           )}
         >
           <span
@@ -285,7 +285,7 @@ export function HeroTerminalDemo(props: HeroTerminalDemoProps) {
         <div
           className={cn(
             'flex items-center justify-between border-t px-5 py-2.5',
-            'border-border/40 bg-muted/30 dark:border-white/[0.05] dark:bg-white/[0.02]'
+            'border-violet-500/10 bg-violet-500/[0.035] dark:border-violet-300/10 dark:bg-violet-300/[0.035]'
           )}
         >
           <div className='text-foreground/40 flex items-center gap-3 text-[10px] tabular-nums'>
@@ -361,7 +361,7 @@ function ResponseBlock(props: { demo: ApiDemoConfig; transitioning: boolean }) {
     <div
       className={cn(
         'relative border-t px-5 py-4',
-        'border-border/40 bg-muted/20 dark:border-white/[0.05] dark:bg-white/[0.015]'
+        'border-violet-500/10 bg-violet-500/[0.025] dark:border-violet-300/10 dark:bg-violet-300/[0.025]'
       )}
     >
       <SectionLabel>Response</SectionLabel>
@@ -503,27 +503,25 @@ function CodeLine(props: { children: ReactNode; indent?: number }) {
 
 function Command(props: { children: ReactNode }) {
   return (
-    <span className='font-medium text-emerald-600 dark:text-emerald-400'>
+    <span className='font-medium text-violet-600 dark:text-violet-300'>
       {props.children}
     </span>
   )
 }
 
 function Flag(props: { children: ReactNode }) {
-  return (
-    <span className='text-blue-600 dark:text-blue-400'>{props.children}</span>
-  )
+  return <span className='text-indigo-600 dark:text-indigo-300'>{props.children}</span>
 }
 
 function Key(props: { children: ReactNode }) {
   return (
-    <span className='text-sky-700 dark:text-sky-300'>{props.children}</span>
+    <span className='text-violet-700 dark:text-violet-200'>{props.children}</span>
   )
 }
 
 function StringText(props: { children: ReactNode }) {
   return (
-    <span className='text-amber-700 dark:text-amber-300'>{props.children}</span>
+    <span className='text-fuchsia-700 dark:text-fuchsia-200'>{props.children}</span>
   )
 }
 

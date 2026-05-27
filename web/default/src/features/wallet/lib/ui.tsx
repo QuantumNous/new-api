@@ -122,25 +122,12 @@ export function getPaymentIcon(
         />
       )
     case PAYMENT_TYPES.WAFFO_PANCAKE:
-      // The W glyph fills only ~40% of its viewBox vertically (wide and
-      // short letterform); scale(2) brings its rendered height in line
-      // with Stripe's S and Creem's Landmark.
       return (
-        <span
-          className={`inline-flex items-center justify-center leading-none ${className}`}
-          style={{ transform: 'scale(2)' }}
-        >
-          <img
-            src='/waffo-logo-light.svg'
-            alt={i18next.t('Waffo')}
-            className='block h-full w-full object-contain dark:hidden'
-          />
-          <img
-            src='/waffo-logo-dark.svg'
-            alt={i18next.t('Waffo')}
-            className='hidden h-full w-full object-contain dark:block'
-          />
-        </span>
+        <CreditCard
+          className={className}
+          style={{ color: PAYMENT_ICON_COLORS[PAYMENT_TYPES.WAFFO] }}
+          aria-label={i18next.t('Waffo')}
+        />
       )
     default:
       return <CreditCard className={className} />

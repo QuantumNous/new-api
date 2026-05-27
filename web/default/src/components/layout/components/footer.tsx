@@ -22,6 +22,7 @@ import { useTranslation } from 'react-i18next'
 import { cn } from '@/lib/utils'
 import { useStatus } from '@/hooks/use-status'
 import { useSystemConfig } from '@/hooks/use-system-config'
+import { FlatkeyBrandLogo } from '@/components/brand/flatkey-brand-logo'
 
 interface FooterLink {
   text: string
@@ -152,12 +153,10 @@ export function Footer(props: FooterProps) {
   const { t } = useTranslation()
   const {
     systemName,
-    logo: systemLogo,
     footerHtml,
     demoSiteEnabled,
   } = useSystemConfig()
 
-  const displayLogo = systemLogo || props.logo || '/logo.png'
   const displayName = systemName || props.name || 'New API'
   const isDemoSiteMode = Boolean(demoSiteEnabled)
   const currentYear = new Date().getFullYear()
@@ -254,12 +253,13 @@ export function Footer(props: FooterProps) {
           {/* Brand column */}
           <div className='shrink-0'>
             <Link to='/' className='group flex items-center gap-2.5'>
-              <img
-                src={displayLogo}
+              <FlatkeyBrandLogo
                 alt={displayName}
-                className='size-7 rounded-lg object-contain'
+                variant='full'
+                className='h-20 w-40 -translate-x-5 transition-transform duration-300 group-hover:scale-[1.02]'
+                imageClassName='scale-[1.65]'
               />
-              <span className='text-sm font-semibold tracking-tight'>
+              <span className='sr-only text-sm font-semibold tracking-tight'>
                 {displayName}
               </span>
             </Link>

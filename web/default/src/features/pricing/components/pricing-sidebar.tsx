@@ -99,10 +99,10 @@ function FilterChip(props: {
       type='button'
       onClick={props.onClick}
       className={cn(
-        'group inline-flex max-w-full items-center gap-1.5 rounded-md border px-2 py-1 text-xs font-medium transition-all',
+        'group inline-flex max-w-full items-center gap-1.5 rounded-full border px-2.5 py-1.5 text-xs font-semibold transition-all',
         props.active
-          ? 'border-foreground/30 bg-foreground/5 text-foreground shadow-sm'
-          : 'border-border/70 bg-background text-muted-foreground hover:border-border hover:bg-muted/50 hover:text-foreground'
+          ? 'border-violet-400/50 bg-violet-500/15 text-violet-900 shadow-[0_0_24px_rgba(168,85,247,0.14)] dark:border-violet-300/35 dark:bg-violet-300/15 dark:text-white'
+          : 'border-violet-300/25 bg-white/55 text-slate-600 hover:border-violet-400/45 hover:bg-violet-500/10 hover:text-slate-950 dark:border-white/10 dark:bg-white/[0.035] dark:text-white/55 dark:hover:border-violet-300/30 dark:hover:bg-violet-300/10 dark:hover:text-white'
       )}
       title={props.option.label}
     >
@@ -115,8 +115,8 @@ function FilterChip(props: {
           className={cn(
             'rounded-md px-1.5 py-0.5 text-[10px]',
             props.active
-              ? 'bg-background text-foreground'
-              : 'bg-muted text-muted-foreground'
+              ? 'bg-white/80 text-violet-900 dark:bg-white/15 dark:text-white'
+              : 'bg-violet-500/10 text-violet-700 dark:text-violet-100/65'
           )}
         >
           {props.option.suffix ?? props.option.count}
@@ -130,13 +130,13 @@ function FilterSection(props: FilterSectionProps) {
   return (
     <Collapsible
       defaultOpen
-      className='border-border/70 border-b pb-3 last:border-b-0'
+      className='border-violet-300/25 border-b pb-3 last:border-b-0 dark:border-white/10'
     >
       <CollapsibleTrigger className='group flex w-full items-center justify-between py-2.5 text-left'>
-        <span className='text-foreground text-sm font-semibold'>
+        <span className='text-sm font-bold text-slate-950 dark:text-white'>
           {props.title}
         </span>
-        <ChevronDown className='text-muted-foreground size-4 transition-transform group-data-[panel-open]:rotate-180' />
+        <ChevronDown className='size-4 text-violet-700/65 transition-transform group-data-[panel-open]:rotate-180 dark:text-violet-100/55' />
       </CollapsibleTrigger>
       <CollapsibleContent>
         <div className='flex flex-wrap gap-1.5'>
@@ -244,11 +244,18 @@ export function PricingSidebar(props: PricingSidebarProps) {
   ]
 
   return (
-    <aside className={cn('rounded-xl border p-3', props.className)}>
+    <aside
+      className={cn(
+        'rounded-3xl border border-violet-300/35 bg-white/60 p-4 shadow-[0_24px_80px_rgba(91,33,182,0.10)] backdrop-blur-xl dark:border-violet-300/15 dark:bg-white/[0.035] dark:shadow-[0_24px_80px_rgba(88,28,135,0.22)]',
+        props.className
+      )}
+    >
       <div className='mb-2.5 flex items-center justify-between gap-2'>
         <div>
-          <h2 className='text-foreground text-sm font-bold'>{t('Filter')}</h2>
-          <p className='text-muted-foreground mt-1 text-xs'>
+          <h2 className='text-sm font-black text-slate-950 dark:text-white'>
+            {t('Filter')}
+          </h2>
+          <p className='mt-1 text-xs leading-relaxed text-slate-500 dark:text-white/45'>
             {t('Refine models by provider, group, type, and tags.')}
           </p>
         </div>
@@ -258,7 +265,7 @@ export function PricingSidebar(props: PricingSidebarProps) {
           size='sm'
           onClick={props.onClearFilters}
           disabled={!props.hasActiveFilters}
-          className='h-7 gap-1.5 px-2 text-xs'
+          className='h-7 gap-1.5 rounded-full px-2 text-xs text-violet-700 hover:bg-violet-500/10 dark:text-violet-100/70 dark:hover:bg-violet-300/10'
         >
           <RotateCcw className='size-3.5' />
           {t('Reset')}
