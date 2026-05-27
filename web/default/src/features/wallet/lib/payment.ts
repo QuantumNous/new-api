@@ -38,15 +38,32 @@ function isSafariBrowser(): boolean {
   )
 }
 
+function parseSafeHttpUrl(value: string): string | null {
+  try {
+    const url = new URL(value)
+    if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+      return null
+    }
+    return url.toString()
+  } catch {
+    return null
+  }
+}
+
 /**
  * Submit payment form (for non-Stripe payments)
  */
 export function submitPaymentForm(
   url: string,
   params: Record<string, unknown>
-): void {
+): boolean {
+  const checkoutUrl = parseSafeHttpUrl(url)
+  if (!checkoutUrl) {
+    return false
+  }
+
   const form = document.createElement('form')
-  form.action = url
+  form.action = checkoutUrl
   form.method = 'POST'
 
   // Don't open in new tab for Safari
@@ -66,6 +83,7 @@ export function submitPaymentForm(
   document.body.appendChild(form)
   form.submit()
   document.body.removeChild(form)
+  return true
 }
 
 /**

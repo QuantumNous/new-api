@@ -1,9 +1,10 @@
 package operation_setting
 
 import (
-	"encoding/json"
 	"fmt"
 	"strings"
+
+	"github.com/QuantumNous/new-api/common"
 )
 
 const (
@@ -232,7 +233,7 @@ func ValidateProviderSceneScopes(scopes map[string]map[string]bool) error {
 
 func ValidateBusinessFeaturesJSON(raw string) error {
 	var features map[string]bool
-	if err := json.Unmarshal([]byte(strings.TrimSpace(raw)), &features); err != nil {
+	if err := common.UnmarshalJsonStr(strings.TrimSpace(raw), &features); err != nil {
 		return err
 	}
 	return ValidateBusinessFeatures(features)
@@ -240,14 +241,14 @@ func ValidateBusinessFeaturesJSON(raw string) error {
 
 func NormalizeBusinessFeaturesJSON(raw string) (string, error) {
 	var features map[string]bool
-	if err := json.Unmarshal([]byte(strings.TrimSpace(raw)), &features); err != nil {
+	if err := common.UnmarshalJsonStr(strings.TrimSpace(raw), &features); err != nil {
 		return "", err
 	}
 	if err := ValidateBusinessFeatures(features); err != nil {
 		return "", err
 	}
 	normalizeBusinessFeatures(&features)
-	bytes, err := json.Marshal(features)
+	bytes, err := common.Marshal(features)
 	if err != nil {
 		return "", err
 	}
@@ -256,7 +257,7 @@ func NormalizeBusinessFeaturesJSON(raw string) (string, error) {
 
 func ValidateProviderSceneScopesJSON(raw string) error {
 	var scopes map[string]map[string]bool
-	if err := json.Unmarshal([]byte(strings.TrimSpace(raw)), &scopes); err != nil {
+	if err := common.UnmarshalJsonStr(strings.TrimSpace(raw), &scopes); err != nil {
 		return err
 	}
 	return ValidateProviderSceneScopes(scopes)
@@ -264,14 +265,14 @@ func ValidateProviderSceneScopesJSON(raw string) error {
 
 func NormalizeProviderSceneScopesJSON(raw string) (string, error) {
 	var scopes map[string]map[string]bool
-	if err := json.Unmarshal([]byte(strings.TrimSpace(raw)), &scopes); err != nil {
+	if err := common.UnmarshalJsonStr(strings.TrimSpace(raw), &scopes); err != nil {
 		return "", err
 	}
 	if err := ValidateProviderSceneScopes(scopes); err != nil {
 		return "", err
 	}
 	normalizeProviderSceneScopes(&scopes)
-	bytes, err := json.Marshal(scopes)
+	bytes, err := common.Marshal(scopes)
 	if err != nil {
 		return "", err
 	}

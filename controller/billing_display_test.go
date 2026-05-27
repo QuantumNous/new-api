@@ -1,9 +1,9 @@
 package controller
 
 import (
-	"encoding/json"
 	"testing"
 
+	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/setting/config"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/stretchr/testify/require"
@@ -14,7 +14,7 @@ func TestBillingDisplayDataDefaultsAndDoesNotExposeSecrets(t *testing.T) {
 	require.Equal(t, false, data["public_welfare_text_enabled"])
 	require.Equal(t, true, data["invitation_panel_enabled"])
 
-	payload, err := json.Marshal(data)
+	payload, err := common.Marshal(data)
 	require.NoError(t, err)
 	require.NotContains(t, string(payload), "secret")
 	require.NotContains(t, string(payload), "key")

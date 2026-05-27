@@ -137,8 +137,7 @@ const RechargeCard = ({
   const showWalletTopup =
     walletTopupEnabled && (showStandardTopup || hasCreemProducts);
   const showPaymentMisconfigured =
-    walletTopupEnabled &&
-    ((hasAnyTopup && !showWalletTopup) || (!hasAnyTopup && !enableRedemption));
+    walletTopupEnabled && hasAnyTopup && !showWalletTopup;
   const showTopupContent =
     showWalletTopup || enableRedemption || showPaymentMisconfigured;
 

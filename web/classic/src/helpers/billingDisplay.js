@@ -84,7 +84,7 @@ const publicWelfareText = {
 
 export function getBillingDisplayText(key, t, publicWelfareTextEnabled) {
   if (publicWelfareTextEnabled) {
-    return publicWelfareText[key] || defaultText[key] || key;
+    return t(publicWelfareText[key] || defaultText[key] || key);
   }
   return t(defaultText[key] || key);
 }

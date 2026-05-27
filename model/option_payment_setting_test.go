@@ -1,7 +1,6 @@
 package model
 
 import (
-	"encoding/json"
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
@@ -46,7 +45,7 @@ func TestUpdateOptionMapNormalizesPaymentBusinessFeatures(t *testing.T) {
 	common.OptionMapRWMutex.RUnlock()
 
 	var features map[string]bool
-	if err := json.Unmarshal([]byte(raw), &features); err != nil {
+	if err := common.UnmarshalJsonStr(raw, &features); err != nil {
 		t.Fatalf("stored business features should be valid JSON: %v", err)
 	}
 	if features[operation_setting.BillingFeatureWalletTopUp] {
@@ -79,7 +78,7 @@ func TestUpdateOptionMapNormalizesPaymentProviderSceneScopes(t *testing.T) {
 	common.OptionMapRWMutex.RUnlock()
 
 	var scopes map[string]map[string]bool
-	if err := json.Unmarshal([]byte(raw), &scopes); err != nil {
+	if err := common.UnmarshalJsonStr(raw, &scopes); err != nil {
 		t.Fatalf("stored provider scene scopes should be valid JSON: %v", err)
 	}
 	if scopes[operation_setting.PaymentProviderEpay][operation_setting.PaymentSceneWalletTopUp] {
@@ -93,5 +92,42 @@ func TestUpdateOptionMapNormalizesPaymentProviderSceneScopes(t *testing.T) {
 		operation_setting.PaymentSceneWalletTopUp,
 	) {
 		t.Fatal("runtime payment setting should preserve epay wallet_topup=false")
+	}
+}
+
+func TestUpdateOptionsBulkNormalizesPaymentSettingsBeforePersist(t *testing.T) {
+	defer restoreOptionMapAndPaymentSetting(t)()
+
+	if err := DB.AutoMigrate(&Option{}); err != nil {
+		t.Fatalf("failed to migrate options table: %v", err)
+	}
+	t.Cleanup(func() {
+		DB.Exec("DELETE FROM options")
+	})
+
+	err := UpdateOptionsBulk(map[string]string{
+		"payment_setting.business_features": `{"wallet_topup":false,"redemption_manage":true}`,
+	})
+	if err != nil {
+		t.Fatalf("UpdateOptionsBulk should accept legacy business feature JSON: %v", err)
+	}
+
+	var option Option
+	if err := DB.First(&option, "key = ?", "payment_setting.business_features").Error; err != nil {
+		t.Fatalf("stored option should exist: %v", err)
+	}
+
+	var features map[string]bool
+	if err := common.UnmarshalJsonStr(option.Value, &features); err != nil {
+		t.Fatalf("stored business features should be valid JSON: %v", err)
+	}
+	if features[operation_setting.BillingFeatureWalletTopUp] {
+		t.Fatal("explicit wallet_topup=false should be preserved")
+	}
+	if _, ok := features[operation_setting.BillingFeatureRedemptionManage]; ok {
+		t.Fatal("legacy redemption_manage should not be persisted")
+	}
+	if !features[operation_setting.BillingFeatureSubscriptionPurchase] {
+		t.Fatal("missing subscription_purchase should be filled from defaults")
 	}
 }

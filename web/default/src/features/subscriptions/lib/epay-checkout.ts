@@ -30,6 +30,18 @@ function getStorageKey(tradeNo: string): string {
   return `${CHECKOUT_STORAGE_PREFIX}${tradeNo}`
 }
 
+function parseSafeHttpUrl(value: string): string | null {
+  try {
+    const url = new URL(value)
+    if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+      return null
+    }
+    return url.toString()
+  } catch {
+    return null
+  }
+}
+
 export function saveSubscriptionEpayCheckout(
   checkout: Omit<SubscriptionEpayCheckout, 'createdAt'>
 ): void {
@@ -85,9 +97,14 @@ export function clearSubscriptionEpayCheckout(tradeNo: string): void {
 export function submitSubscriptionEpayCheckout(
   checkout: SubscriptionEpayCheckout,
   target: string
-): void {
+): boolean {
+  const checkoutUrl = parseSafeHttpUrl(checkout.url)
+  if (!checkoutUrl) {
+    return false
+  }
+
   const form = document.createElement('form')
-  form.action = checkout.url
+  form.action = checkoutUrl
   form.method = 'POST'
   form.target = target
 
@@ -102,4 +119,5 @@ export function submitSubscriptionEpayCheckout(
   document.body.appendChild(form)
   form.submit()
   document.body.removeChild(form)
+  return true
 }

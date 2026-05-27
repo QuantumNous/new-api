@@ -84,11 +84,25 @@ function parsePaymentMethodsByScene(
   data: unknown,
   stripeMinTopup: number
 ): Record<string, PaymentMethod[]> {
-  if (!data || typeof data !== 'object' || Array.isArray(data)) {
+  let parsedData = data
+
+  if (typeof parsedData === 'string') {
+    try {
+      parsedData = JSON.parse(parsedData)
+    } catch {
+      return {}
+    }
+  }
+
+  if (
+    !parsedData ||
+    typeof parsedData !== 'object' ||
+    Array.isArray(parsedData)
+  ) {
     return {}
   }
 
-  return Object.entries(data).reduce<Record<string, PaymentMethod[]>>(
+  return Object.entries(parsedData).reduce<Record<string, PaymentMethod[]>>(
     (result, [scene, methods]) => {
       result[scene] = parsePaymentMethods(methods, stripeMinTopup)
       return result

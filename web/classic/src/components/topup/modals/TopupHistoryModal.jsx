@@ -260,7 +260,7 @@ const TopupHistoryModal = ({
     });
 
     return baseColumns;
-  }, [t, userIsAdmin]);
+  }, [t, userIsAdmin, publicWelfareTextEnabled]);
 
   return (
     <Modal

@@ -1,5 +1,3 @@
-import i18next from 'i18next'
-
 export type BillingDisplayMode = {
   publicWelfareTextEnabled?: boolean
 }
@@ -53,32 +51,7 @@ const DEFAULT_KEYS: Record<BillingDisplayTextKey, string> = {
   transferInvitationQuota: 'Transfer Amount',
 }
 
-const PUBLIC_WELFARE_ZH: Record<BillingDisplayTextKey, string> = {
-  wallet: '支持中心',
-  walletManagement: '支持中心',
-  walletDescription: '项目支持和个人偏好设置。',
-  addFunds: '项目支持',
-  orderHistory: '支持记录',
-  balance: '可用点数',
-  currentBalance: '当前可用点数',
-  remainingQuota: '剩余模型点数',
-  totalConsumedQuota: '总消耗点数',
-  quota: '模型点数',
-  totalQuota: '总点数',
-  rawQuota: '系统原生点数',
-  quotaReset: '点数重置',
-  walletFirst: '优先可用点数',
-  walletOnly: '仅用可用点数',
-  transferToBalance: '转入可用点数',
-  topupAmount: '支持数量',
-  topupConfirm: '支持确认',
-  topupBill: '支持记录',
-  noTopupRecords: '暂无支持记录',
-  availableInvitationQuota: '可用邀请点数',
-  transferInvitationQuota: '转入点数',
-}
-
-const PUBLIC_WELFARE_EN: Record<BillingDisplayTextKey, string> = {
+const PUBLIC_WELFARE_KEYS: Record<BillingDisplayTextKey, string> = {
   wallet: 'Support Center',
   walletManagement: 'Support Center',
   walletDescription: 'Project support and personal preferences.',
@@ -103,12 +76,6 @@ const PUBLIC_WELFARE_EN: Record<BillingDisplayTextKey, string> = {
   transferInvitationQuota: 'Transfer Points',
 }
 
-function isChineseLanguage() {
-  return (i18next.resolvedLanguage || i18next.language || '')
-    .toLowerCase()
-    .startsWith('zh')
-}
-
 export function getBillingDisplayText(
   key: BillingDisplayTextKey,
   t: (key: string) => string,
@@ -118,8 +85,7 @@ export function getBillingDisplayText(
     return t(DEFAULT_KEYS[key])
   }
 
-  const publicTexts = isChineseLanguage() ? PUBLIC_WELFARE_ZH : PUBLIC_WELFARE_EN
-  return publicTexts[key]
+  return t(PUBLIC_WELFARE_KEYS[key])
 }
 
 export function isPublicWelfareBillingDisplay(mode?: BillingDisplayMode) {

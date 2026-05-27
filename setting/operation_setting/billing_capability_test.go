@@ -1,8 +1,9 @@
 package operation_setting
 
 import (
-	"encoding/json"
 	"testing"
+
+	"github.com/QuantumNous/new-api/common"
 )
 
 func restorePaymentSetting(t *testing.T) func() {
@@ -124,7 +125,7 @@ func TestNormalizeBusinessFeaturesJSONDropsLegacyKeys(t *testing.T) {
 	}
 
 	var features map[string]bool
-	if err := json.Unmarshal([]byte(normalized), &features); err != nil {
+	if err := common.UnmarshalJsonStr(normalized, &features); err != nil {
 		t.Fatalf("normalized features should be valid JSON: %v", err)
 	}
 	if features[BillingFeatureWalletTopUp] {
@@ -147,7 +148,7 @@ func TestNormalizeProviderSceneScopesJSONFillsDefaults(t *testing.T) {
 	}
 
 	var scopes map[string]map[string]bool
-	if err := json.Unmarshal([]byte(normalized), &scopes); err != nil {
+	if err := common.UnmarshalJsonStr(normalized, &scopes); err != nil {
 		t.Fatalf("normalized scopes should be valid JSON: %v", err)
 	}
 	if scopes[PaymentProviderEpay][PaymentSceneWalletTopUp] {

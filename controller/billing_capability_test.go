@@ -1,9 +1,9 @@
 package controller
 
 import (
-	"encoding/json"
 	"testing"
 
+	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/setting"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/stretchr/testify/require"
@@ -48,7 +48,7 @@ func TestBillingCapabilitiesRespectBusinessFeaturesAndDoNotExposeSecrets(t *test
 	require.Empty(t, paymentMethods[operation_setting.PaymentSceneWalletTopUp])
 	require.NotEmpty(t, paymentMethods[operation_setting.PaymentSceneSubscriptionPurchase])
 
-	payload, err := json.Marshal(data)
+	payload, err := common.Marshal(data)
 	require.NoError(t, err)
 	require.NotContains(t, string(payload), "epay_key_should_not_leak")
 	require.NotContains(t, string(payload), "sk_test_should_not_leak")

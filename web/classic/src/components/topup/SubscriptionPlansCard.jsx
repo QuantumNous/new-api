@@ -51,6 +51,9 @@ function getEpayMethods(payMethods = []) {
 
 // 提交易支付表单
 function submitEpayForm({ url, params }) {
+  if (!isSafeHttpCheckoutUrl(url)) {
+    return false;
+  }
   const form = document.createElement('form');
   form.action = url;
   form.method = 'POST';
@@ -68,6 +71,20 @@ function submitEpayForm({ url, params }) {
   document.body.appendChild(form);
   form.submit();
   document.body.removeChild(form);
+  return true;
+}
+
+function isSafeHttpCheckoutUrl(value) {
+  const trimmed = (value || '').trim();
+  if (!trimmed) {
+    return false;
+  }
+  try {
+    const url = new URL(trimmed);
+    return url.protocol === 'http:' || url.protocol === 'https:';
+  } catch {
+    return false;
+  }
 }
 
 const SubscriptionPlansCard = ({
@@ -188,7 +205,10 @@ const SubscriptionPlansCard = ({
         payment_method: selectedEpayMethod,
       });
       if (res.data?.message === 'success') {
-        submitEpayForm({ url: res.data.url, params: res.data.data });
+        if (!submitEpayForm({ url: res.data.url, params: res.data.data })) {
+          showError(t('支付跳转地址不安全'));
+          return;
+        }
         showSuccess(t('已发起支付'));
         closeBuy();
       } else {

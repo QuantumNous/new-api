@@ -203,7 +203,11 @@ function SubscriptionPaymentResult(props: { outTradeNo: string }) {
       return
     }
     clearCheckoutFallbackTimer()
-    submitSubscriptionEpayCheckout(checkout, iframeName)
+    if (!submitSubscriptionEpayCheckout(checkout, iframeName)) {
+      setCheckoutFallbackVisible(false)
+      toast.error(t('Invalid payment redirect URL'))
+      return
+    }
     submittedTradeNoRef.current = checkout.tradeNo
     checkoutFallbackTimerRef.current = window.setTimeout(() => {
       setCheckoutFallbackVisible(true)
@@ -293,7 +297,9 @@ function SubscriptionPaymentResult(props: { outTradeNo: string }) {
       toast.error(t('Payment checkout unavailable'))
       return
     }
-    submitSubscriptionEpayCheckout(checkout, '_blank')
+    if (!submitSubscriptionEpayCheckout(checkout, '_blank')) {
+      toast.error(t('Invalid payment redirect URL'))
+    }
   }
 
   const handleRefresh = () => {

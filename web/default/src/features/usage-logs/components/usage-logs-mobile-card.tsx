@@ -176,13 +176,16 @@ function MobileLogTimeStatus({
 
 function CommonLogsCard<TData>({
   cells,
+  rowData,
 }: {
   cells: Map<string, Cell<TData, unknown>>
+  rowData: TData
 }) {
   const { t } = useTranslation()
 
   const modelCell = cells.get('model_name')
   const quotaCell = cells.get('quota')
+  const original = rowData as Record<string, unknown>
 
   return (
     <div className='space-y-2.5'>
@@ -200,18 +203,8 @@ function CommonLogsCard<TData>({
             {t('Time')}
           </div>
           <MobileLogTimeStatus
-            createdAt={
-              (cells.get('created_at')?.row.original as Record<
-                string,
-                unknown
-              > | undefined)?.created_at
-            }
-            type={
-              (cells.get('created_at')?.row.original as Record<
-                string,
-                unknown
-              > | undefined)?.type
-            }
+            createdAt={original.created_at}
+            type={original.type}
           />
         </div>
         <SummaryField
@@ -396,7 +389,7 @@ export function UsageLogsMobileList<TData>({
             )}
           >
             {logCategory === 'common' && (
-              <CommonLogsCard cells={cells} />
+              <CommonLogsCard cells={cells} rowData={row.original} />
             )}
             {logCategory === 'task' && (
               <TaskLogsCard cells={cells} />

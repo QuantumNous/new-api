@@ -1,7 +1,6 @@
 package controller
 
 import (
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -35,7 +34,7 @@ func isPaymentComplianceOptionKey(key string) bool {
 }
 
 func marshalPaymentSettingDefault(value any) string {
-	bytes, err := json.Marshal(value)
+	bytes, err := common.Marshal(value)
 	if err != nil {
 		return "{}"
 	}

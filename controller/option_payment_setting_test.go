@@ -1,9 +1,9 @@
 package controller
 
 import (
-	"encoding/json"
 	"testing"
 
+	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/stretchr/testify/require"
 )
@@ -13,14 +13,14 @@ func TestNormalizePaymentSettingOptionValueUsesDefaultsForBlankStructuredValues(
 	require.NoError(t, err)
 
 	var features map[string]bool
-	require.NoError(t, json.Unmarshal([]byte(value), &features))
+	require.NoError(t, common.UnmarshalJsonStr(value, &features))
 	require.Equal(t, operation_setting.DefaultBusinessFeatures(), features)
 
 	value, err = normalizePaymentSettingOptionValue("payment_setting.provider_scene_scopes", "")
 	require.NoError(t, err)
 
 	var scopes map[string]map[string]bool
-	require.NoError(t, json.Unmarshal([]byte(value), &scopes))
+	require.NoError(t, common.UnmarshalJsonStr(value, &scopes))
 	require.Equal(t, operation_setting.DefaultProviderSceneScopes(), scopes)
 }
 
@@ -46,7 +46,7 @@ func TestNormalizePaymentSettingOptionValueDropsLegacyBusinessFeatureKeys(t *tes
 	require.NoError(t, err)
 
 	var features map[string]bool
-	require.NoError(t, json.Unmarshal([]byte(value), &features))
+	require.NoError(t, common.UnmarshalJsonStr(value, &features))
 	require.False(t, features[operation_setting.BillingFeatureWalletTopUp])
 	require.NotContains(t, features, operation_setting.BillingFeatureInvitationReward)
 	require.NotContains(t, features, operation_setting.BillingFeatureRedemptionManage)

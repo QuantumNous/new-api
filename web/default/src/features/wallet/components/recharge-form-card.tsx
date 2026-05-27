@@ -151,8 +151,7 @@ export function RechargeFormCard({
   const minTopup = getMinTopupAmount(topupInfo)
   const redemptionEnabled = topupInfo?.enable_redemption !== false
   const showPaymentMisconfigured =
-    walletTopupEnabled &&
-    ((hasAnyTopup && !showWalletTopup) || (!hasAnyTopup && !redemptionEnabled))
+    walletTopupEnabled && hasAnyTopup && !showWalletTopup
 
   if (loading) {
     return (

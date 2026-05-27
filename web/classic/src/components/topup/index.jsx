@@ -450,6 +450,10 @@ const TopUp = () => {
             // 普通支付表单提交
             let params = data;
             let url = res.data.url;
+            if (!isSafeHttpCheckoutUrl(url)) {
+              showError(t('支付跳转地址不安全'));
+              return;
+            }
             let form = document.createElement('form');
             form.action = url;
             form.method = 'POST';
