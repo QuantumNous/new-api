@@ -118,10 +118,16 @@ export function AccountBindingsTab({
   const handleBindCustomOAuth = async (
     provider: CustomOAuthProviderInfo
   ) => {
-    if (!provider.authorization_endpoint || !provider.client_id) return
+    if (!provider.authorization_endpoint || !provider.client_id) {
+      toast.error(t('OAuth provider is not configured correctly'))
+      return
+    }
 
     const state = await getOAuthState()
-    if (!state) return
+    if (!state) {
+      toast.error(t('Failed to start OAuth binding'))
+      return
+    }
 
     const redirectUri = `${window.location.origin}/oauth/${provider.slug}`
     const url = new URL(provider.authorization_endpoint)
