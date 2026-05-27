@@ -41,7 +41,6 @@ type Log struct {
 	TokenName         string `json:"token_name" gorm:"index;default:''"`
 	ModelName         string `json:"model_name" gorm:"index;index:index_username_model_name,priority:1;default:''"`
 	Quota             int64  `json:"quota" gorm:"type:bigint;default:0"`
-	Quota             int    `json:"quota" gorm:"default:0"`
 	PromptTokens      int    `json:"prompt_tokens" gorm:"default:0"`
 	CompletionTokens  int    `json:"completion_tokens" gorm:"default:0"`
 	UseTime           int    `json:"use_time" gorm:"default:0"`
@@ -451,8 +450,8 @@ func GetUserLogs(userId int, logType int, startTimestamp int64, endTimestamp int
 
 type Stat struct {
 	Quota int64 `json:"quota"`
-	Rpm   int `json:"rpm"`
-	Tpm   int `json:"tpm"`
+	Rpm   int   `json:"rpm"`
+	Tpm   int   `json:"tpm"`
 }
 
 func SumUsedQuota(logType int, startTimestamp int64, endTimestamp int64, modelName string, username string, tokenName string, channel int, group string) (stat Stat, err error) {

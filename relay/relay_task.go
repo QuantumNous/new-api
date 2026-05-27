@@ -20,6 +20,7 @@ import (
 	"github.com/QuantumNous/new-api/relay/helper"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/gin-gonic/gin"
+	"github.com/shopspring/decimal"
 )
 
 type TaskSubmitResult struct {
@@ -197,7 +198,7 @@ func RelayTaskSubmit(c *gin.Context, info *relaycommon.RelayInfo) (*TaskSubmitRe
 	if !common.StringsContains(constant.TaskPricePatches, modelName) {
 		for _, ra := range info.PriceData.OtherRatios {
 			if ra != 1.0 {
-				info.PriceData.Quota = int64(float64(info.PriceData.Quota) * ra)
+				info.PriceData.Quota = scaleQuotaByRatio(info.PriceData.Quota, ra)
 			}
 		}
 	}
@@ -265,17 +266,24 @@ func recalcQuotaFromRatios(info *relaycommon.RelayInfo, ratios map[string]float6
 	// 先除掉原有的 OtherRatios 恢复基础额度
 	for _, ra := range info.PriceData.OtherRatios {
 		if ra != 1.0 && ra > 0 {
-			baseQuota = int64(float64(baseQuota) / ra)
+			baseQuota = scaleQuotaByInverseRatio(baseQuota, ra)
 		}
 	}
-	// 应用新的 ratios
-	result := float64(baseQuota)
+	result := baseQuota
 	for _, ra := range ratios {
 		if ra != 1.0 {
-			result *= ra
+			result = scaleQuotaByRatio(result, ra)
 		}
 	}
-	return int64(result)
+	return result
+}
+
+func scaleQuotaByRatio(quota int64, ratio float64) int64 {
+	return decimal.NewFromInt(quota).Mul(decimal.NewFromFloat(ratio)).IntPart()
+}
+
+func scaleQuotaByInverseRatio(quota int64, ratio float64) int64 {
+	return decimal.NewFromInt(quota).Div(decimal.NewFromFloat(ratio)).IntPart()
 }
 
 var fetchRespBuilders = map[int]func(c *gin.Context) (respBody []byte, taskResp *dto.TaskError){
