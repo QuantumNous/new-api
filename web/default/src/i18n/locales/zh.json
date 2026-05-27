@@ -2766,6 +2766,7 @@
     "Operator Admin": "操作管理员",
     "Optimize system for self-hosted single-user usage": "优化系统以适应自托管单用户使用",
     "Optimized network architecture ensures millisecond response times": "优化的网络架构，确保毫秒级响应时间",
+    "Optional": "可选",
     "Optional callback override. Leave blank to use server address": "可选的回调覆盖。留空以使用服务器地址",
     "Optional icon identifier for the login button": "登录按钮的可选图标标识符",
     "Optional JSON policy to restrict access based on user info fields": "可选的 JSON 策略，用于基于用户信息字段限制访问",

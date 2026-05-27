@@ -2766,6 +2766,7 @@
     "Operator Admin": "Оператор-администратор",
     "Optimize system for self-hosted single-user usage": "Оптимизировать систему для самостоятельного использования одним пользователем",
     "Optimized network architecture ensures millisecond response times": "Оптимизированная сетевая архитектура обеспечивает время отклика в миллисекунды",
+    "Optional": "Необязательно",
     "Optional callback override. Leave blank to use server address": "Необязательное переопределение обратного вызова. Оставьте пустым, чтобы использовать адрес сервера",
     "Optional icon identifier for the login button": "Необязательный идентификатор иконки для кнопки входа",
     "Optional JSON policy to restrict access based on user info fields": "Необязательная политика JSON для ограничения доступа на основе полей информации о пользователе",

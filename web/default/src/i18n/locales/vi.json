@@ -2766,6 +2766,7 @@
     "Operator Admin": "Quản trị viên vận hành",
     "Optimize system for self-hosted single-user usage": "Tối ưu hóa hệ thống cho việc sử dụng đơn người dùng tự lưu trữ",
     "Optimized network architecture ensures millisecond response times": "Kiến trúc mạng tối ưu đảm bảo thời gian phản hồi mili giây",
+    "Optional": "Tùy chọn",
     "Optional callback override. Leave blank to use server address": "Tùy chọn ghi đè callback. Để trống để sử dụng địa chỉ máy chủ",
     "Optional icon identifier for the login button": "Định danh biểu tượng tùy chọn cho nút đăng nhập",
     "Optional JSON policy to restrict access based on user info fields": "Chính sách JSON tùy chọn để hạn chế truy cập dựa trên các trường thông tin người dùng",

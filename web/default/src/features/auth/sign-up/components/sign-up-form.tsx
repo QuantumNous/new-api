@@ -144,8 +144,9 @@ export function SignUpForm({
     const aff = new URLSearchParams(window.location.search).get('aff')?.trim()
     if (aff) {
       saveAffiliateCode(aff)
+      form.setValue('inviteCode', aff, { shouldDirty: true })
     }
-  }, [])
+  }, [form])
 
   async function onSubmit(data: z.infer<typeof registerFormSchema>) {
     if (requiresLegalConsent && !agreedToLegal) {
@@ -358,25 +359,30 @@ export function SignUpForm({
         )}
 
         {/* Invitation Code Field */}
-        {inviteOnlyRegisterEnabled && (
-          <FormField
-            control={form.control}
-            name='inviteCode'
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>{t('Invitation Code')}</FormLabel>
-                <FormControl>
-                  <Input
-                    placeholder={t('Enter your invitation code')}
-                    autoComplete='off'
-                    {...field}
-                  />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-        )}
+        <FormField
+          control={form.control}
+          name='inviteCode'
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>
+                {t('Invitation Code')}
+                {!inviteOnlyRegisterEnabled ? (
+                  <span className='text-muted-foreground ml-1 text-xs font-normal'>
+                    ({t('Optional')})
+                  </span>
+                ) : null}
+              </FormLabel>
+              <FormControl>
+                <Input
+                  placeholder={t('Enter your invitation code')}
+                  autoComplete='off'
+                  {...field}
+                />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
 
         {/* Turnstile */}
         {isTurnstileEnabled && (

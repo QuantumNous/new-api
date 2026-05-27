@@ -2766,6 +2766,7 @@
     "Operator Admin": "Operator Admin",
     "Optimize system for self-hosted single-user usage": "Optimize system for self-hosted single-user usage",
     "Optimized network architecture ensures millisecond response times": "Optimized network architecture ensures millisecond response times",
+    "Optional": "Optional",
     "Optional callback override. Leave blank to use server address": "Optional callback override. Leave blank to use server address",
     "Optional icon identifier for the login button": "Optional icon identifier for the login button",
     "Optional JSON policy to restrict access based on user info fields": "Optional JSON policy to restrict access based on user info fields",

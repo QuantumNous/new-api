@@ -40,6 +40,15 @@ interface AffiliateRewardsCardProps {
   loading?: boolean
 }
 
+function getInviteCodeFromAffiliateLink(affiliateLink: string): string {
+  if (!affiliateLink) return ''
+  try {
+    return new URL(affiliateLink).searchParams.get('aff') || affiliateLink
+  } catch (_error) {
+    return affiliateLink
+  }
+}
+
 export function AffiliateRewardsCard({
   user,
   affiliateLink,
@@ -82,6 +91,7 @@ export function AffiliateRewardsCard({
 
   const hasRewards = (user?.aff_quota ?? 0) > 0
   const inviteCodesText = createdInviteCodes.join('\n')
+  const displayedInviteCode = getInviteCodeFromAffiliateLink(affiliateLink)
 
   return (
     <Card className='bg-muted/20 py-0'>
@@ -121,17 +131,18 @@ export function AffiliateRewardsCard({
 
         <div className='flex flex-wrap items-center gap-2'>
           <Input
-            value={affiliateLink}
+            value={displayedInviteCode}
             readOnly
+            aria-label={t('Invitation Code')}
             className='border-muted bg-background/70 h-9 min-w-0 flex-1 font-mono text-xs'
           />
           <CopyButton
-            value={affiliateLink}
+            value={displayedInviteCode}
             variant='outline'
             className='bg-background size-9 shrink-0'
             iconClassName='size-4'
-            tooltip={t('Copy referral link')}
-            aria-label={t('Copy referral link')}
+            tooltip={t('Copy invitation code')}
+            aria-label={t('Copy invitation code')}
           />
           {hasRewards && (
             <Button

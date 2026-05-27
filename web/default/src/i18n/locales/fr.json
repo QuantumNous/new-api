@@ -2766,6 +2766,7 @@
     "Operator Admin": "Admin opérateur",
     "Optimize system for self-hosted single-user usage": "Optimiser le système pour une utilisation auto-hébergée par un seul utilisateur",
     "Optimized network architecture ensures millisecond response times": "Architecture réseau optimisée garantissant des temps de réponse en millisecondes",
+    "Optional": "Facultatif",
     "Optional callback override. Leave blank to use server address": "Remplacement optionnel du callback. Laisser vide pour utiliser l'adresse du serveur",
     "Optional icon identifier for the login button": "Identifiant d'icône optionnel pour le bouton de connexion",
     "Optional JSON policy to restrict access based on user info fields": "Politique JSON optionnelle pour restreindre l'accès en fonction des champs d'informations utilisateur",

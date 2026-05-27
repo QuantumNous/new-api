@@ -2766,6 +2766,7 @@
     "Operator Admin": "オペレーター管理",
     "Optimize system for self-hosted single-user usage": "セルフホスト型の単一ユーザー使用向けにシステムを最適化する",
     "Optimized network architecture ensures millisecond response times": "最適化されたネットワークアーキテクチャによりミリ秒単位の応答時間を保証",
+    "Optional": "任意",
     "Optional callback override. Leave blank to use server address": "オプションのコールバック上書き。サーバーアドレスを使用するには空欄のままにします",
     "Optional icon identifier for the login button": "ログインボタン用のオプションのアイコン識別子",
     "Optional JSON policy to restrict access based on user info fields": "ユーザー情報フィールドに基づいてアクセスを制限するためのオプションのJSONポリシー",
