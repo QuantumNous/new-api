@@ -36,7 +36,7 @@ func TestSettleTestQuotaUsesTieredBilling(t *testing.T) {
 		PromptTokens: 1000,
 	})
 
-	require.Equal(t, 1500, quota)
+	require.Equal(t, int64(1500), quota)
 	require.NotNil(t, result)
 	require.Equal(t, "stream", result.MatchedTier)
 }

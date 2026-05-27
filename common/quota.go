@@ -1,5 +1,5 @@
 package common
 
-func GetTrustQuota() int {
-	return int(10 * QuotaPerUnit)
+func GetTrustQuota() int64 {
+	return int64(10 * QuotaPerUnit)
 }

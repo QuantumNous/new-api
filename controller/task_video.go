@@ -179,7 +179,7 @@ func updateVideoSingleTask(ctx context.Context, adaptor channel.TaskAdaptor, cha
 							}
 
 							// 计算实际应扣费额度: totalTokens * modelRatio * groupRatio
-							actualQuota := int(float64(taskResult.TotalTokens) * modelRatio * finalGroupRatio)
+							actualQuota := int64(float64(taskResult.TotalTokens) * modelRatio * finalGroupRatio)
 
 							// 计算差额
 							preConsumedQuota := task.Quota
