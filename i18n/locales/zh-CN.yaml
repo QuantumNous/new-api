@@ -45,7 +45,7 @@ token.exhausted_cannot_enable: "令牌可用额度已用尽，无法启用，请
 token.invalid: "无效的令牌"
 token.not_provided: "未提供令牌"
 token.expired: "该令牌已过期"
-token.exhausted: "该令牌额度已用尽 TokenStatusExhausted[sk-{{.Prefix}}***{{.Suffix}}]"
+token.exhausted: "This token has insufficient quota"
 token.status_unavailable: "该令牌状态不可用"
 token.db_error: "无效的令牌，数据库查询出错，请联系管理员"
 

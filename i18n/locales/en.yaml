@@ -44,7 +44,7 @@ token.exhausted_cannot_enable: "Token quota is exhausted and cannot be enabled. 
 token.invalid: "Invalid token"
 token.not_provided: "Token not provided"
 token.expired: "This token has expired"
-token.exhausted: "This token quota is exhausted TokenStatusExhausted[sk-{{.Prefix}}***{{.Suffix}}]"
+token.exhausted: "This token has insufficient quota"
 token.status_unavailable: "This token status is unavailable"
 token.db_error: "Invalid token, database query error, please contact administrator"
 
