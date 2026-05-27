@@ -131,7 +131,7 @@ export function StatusBadge({
   return (
     <span
       className={cn(
-        'inline-flex w-fit max-w-full shrink-0 items-center rounded-full font-medium tracking-normal whitespace-nowrap transition-colors',
+        'inline-flex w-fit max-w-full shrink-0 items-center rounded-4xl font-medium tracking-normal whitespace-nowrap transition-colors',
         sizeMap[size ?? 'sm'],
         textColorMap[computedVariant],
         pulse && 'animate-pulse',
