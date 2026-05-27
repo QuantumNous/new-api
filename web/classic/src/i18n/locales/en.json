@@ -120,7 +120,6 @@
     "Codex 授权": "Codex Authorization",
     "Codex 渠道不支持批量创建": "Codex channel does not support batch creation",
     "common.changeLanguage": "Change Language",
-    "common.visitWebsite": "Visit Website",
     "Completion tokens": "Completion tokens",
     "Configuration": "Configuration",
     "context_int/context_string 从请求上下文读取；gjson 从入口请求的 JSON body 按 gjson path 读取。": "context_int/context_string reads from request context; gjson reads from the entry request JSON body using gjson path.",

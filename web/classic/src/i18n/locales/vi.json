@@ -116,7 +116,6 @@
     "Codex 授权": "Xác thực Codex",
     "Codex 渠道不支持批量创建": "Kênh Codex không hỗ trợ tạo hàng loạt",
     "common.changeLanguage": "Thay đổi ngôn ngữ",
-    "common.visitWebsite": "Mo trang web",
     "Completion tokens": "Completion tokens",
     "Configuration": "Cấu hình",
     "context_int/context_string 从请求上下文读取；gjson 从入口请求的 JSON body 按 gjson path 读取。": "context_int/context_string đọc từ context yêu cầu; gjson đọc từ JSON body yêu cầu đầu vào theo gjson path.",

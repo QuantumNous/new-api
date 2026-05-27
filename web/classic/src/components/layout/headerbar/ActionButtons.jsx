@@ -22,7 +22,6 @@ import NewYearButton from './NewYearButton';
 import NotificationButton from './NotificationButton';
 import ThemeToggle from './ThemeToggle';
 import LanguageSelector from './LanguageSelector';
-import WebsiteButton from './WebsiteButton';
 import UserArea from './UserArea';
 
 const ActionButtons = ({
@@ -58,8 +57,6 @@ const ActionButtons = ({
         onLanguageChange={onLanguageChange}
         t={t}
       />
-
-      <WebsiteButton t={t} />
 
       <UserArea
         userState={userState}
