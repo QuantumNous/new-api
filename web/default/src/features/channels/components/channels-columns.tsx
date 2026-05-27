@@ -26,6 +26,7 @@ import {
   ChevronRight,
   ListOrdered,
   Shuffle,
+  SlidersHorizontal,
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -301,15 +302,18 @@ function BalanceCell({ channel }: { channel: Channel }) {
 
   const usedDisplay = withSuffix(formatQuotaValue(usedQuota))
   const remainingDisplay = withSuffix(formatBalance(balance))
+  const usedLabel = `${t('Used:')} ${usedDisplay}`
+  const remainingLabel = `${t('Remaining:')} ${remainingDisplay}`
 
   // Tag row: only show cumulative used quota
   if (isTagRow) {
     return (
       <StatusBadge
-        label={`Used: ${usedDisplay}`}
+        label={usedLabel}
         variant='neutral'
         size='sm'
         copyable={false}
+        showDot={false}
       />
     )
   }
@@ -354,14 +358,13 @@ function BalanceCell({ channel }: { channel: Channel }) {
                 variant='neutral'
                 size='sm'
                 copyable={false}
+                showDot={false}
                 className='cursor-help'
               />
             }
           />
           <TooltipContent>
-            <p>
-              {t('Used:')} {usedDisplay}
-            </p>
+            <p>{usedLabel}</p>
           </TooltipContent>
         </Tooltip>
         <Tooltip>
@@ -384,6 +387,7 @@ function BalanceCell({ channel }: { channel: Channel }) {
                 }
                 size='sm'
                 copyable={false}
+                showDot={false}
                 className='cursor-pointer'
                 onClick={handleClickUpdate}
               />
@@ -393,7 +397,7 @@ function BalanceCell({ channel }: { channel: Channel }) {
             <p>
               {channel.type === 57
                 ? t('Click to view Codex usage')
-                : `${t('Remaining:')} ${remainingDisplay}`}
+                : remainingLabel}
             </p>
             {channel.type !== 57 && <p>{t('Click to update balance')}</p>}
           </TooltipContent>
@@ -494,7 +498,6 @@ export function useChannelsColumns(): ColumnDef<Channel>[] {
         const isTagRow = isTagAggregateRow(row.original)
         const name = row.getValue('name') as string
         const channel = row.original
-        const isMultiKey = isMultiKeyChannel(channel)
 
         // Tag row with expand/collapse
         if (isTagRow) {
@@ -531,6 +534,7 @@ export function useChannelsColumns(): ColumnDef<Channel>[] {
         // Regular channel row
         const settings = parseChannelSettings(channel.setting)
         const isPassThrough = settings.pass_through_body_enabled === true
+        const hasParamOverride = Boolean(channel.param_override?.trim())
 
         return (
           <div className='flex items-center gap-2'>
@@ -557,13 +561,19 @@ export function useChannelsColumns(): ColumnDef<Channel>[] {
                     </Tooltip>
                   </TooltipProvider>
                 )}
-                {isMultiKey && (
-                  <StatusBadge
-                    label={`${channel.channel_info.multi_key_size} keys`}
-                    variant='purple'
-                    size='sm'
-                    copyable={false}
-                  />
+                {hasParamOverride && (
+                  <TooltipProvider delay={100}>
+                    <Tooltip>
+                      <TooltipTrigger
+                        render={
+                          <SlidersHorizontal className='text-info h-3.5 w-3.5 flex-shrink-0' />
+                        }
+                      ></TooltipTrigger>
+                      <TooltipContent side='top'>
+                        {t('Override request parameters')}
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
                 )}
                 <UpstreamUpdateTags channel={channel} />
               </div>
@@ -638,14 +648,12 @@ export function useChannelsColumns(): ColumnDef<Channel>[] {
                 <Tooltip>
                   <TooltipTrigger
                     render={
-                      <span className='border-border bg-muted text-primary inline-flex h-5 w-5 items-center justify-center rounded-md border shrink-0' />
+                      <span className='border-border bg-muted text-primary inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-md border' />
                     }
                   >
                     <MultiKeyModeIcon className='h-3 w-3' />
                   </TooltipTrigger>
-                  <TooltipContent side='top'>
-                    {multiKeyTooltip}
-                  </TooltipContent>
+                  <TooltipContent side='top'>{multiKeyTooltip}</TooltipContent>
                 </Tooltip>
               </TooltipProvider>
             )}
@@ -654,7 +662,7 @@ export function useChannelsColumns(): ColumnDef<Channel>[] {
               size='sm'
               copyable={false}
               showDot={false}
-              className='pl-1 gap-1'
+              className='gap-1 pl-1'
             >
               {icon}
               <span className='truncate'>{typeName}</span>

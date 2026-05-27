@@ -2754,23 +2754,15 @@ export function ChannelMutateDrawer({
                                 </div>
                               </div>
                               <FormControl>
-                                <JsonEditor
+                                <Textarea
                                   value={field.value || ''}
                                   onChange={field.onChange}
                                   disabled={isSubmitting}
-                                  keyPlaceholder='temperature'
-                                  valuePlaceholder='0.7'
-                                  keyLabel='Parameter'
-                                  valueLabel='Value'
-                                  emptyMessage={t(
-                                    'No parameter overrides configured.'
+                                  rows={8}
+                                  placeholder={t(
+                                    'Override request parameters. Cannot override stream parameter.'
                                   )}
-                                  template={{
-                                    temperature: 0.7,
-                                    max_tokens: 2000,
-                                    top_p: 1,
-                                  }}
-                                  valueType='any'
+                                  className='max-h-72 min-h-40 resize-y overflow-auto font-mono text-xs'
                                 />
                               </FormControl>
                               <FormMessage />

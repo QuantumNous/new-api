@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import * as z from 'zod'
 import axios from 'axios'
 import { useForm } from 'react-hook-form'
@@ -46,129 +46,197 @@ import { SettingsPageFormActions } from '../components/settings-page-context'
 import { SettingsSection } from '../components/settings-section'
 import { useUpdateOption } from '../hooks/use-update-option'
 
+/**
+ * react-hook-form 7 treats dotted `name` strings as nested paths. To keep
+ * form state, schema validation, and dirty tracking aligned, the
+ * `discord.*` and `oidc.*` fields are modeled as nested objects here and
+ * flattened back to dotted server keys only when persisting.
+ */
 const oauthSchema = z.object({
   GitHubOAuthEnabled: z.boolean(),
-  GitHubClientId: z.string().optional(),
-  GitHubClientSecret: z.string().optional(),
-  'discord.enabled': z.boolean(),
-  'discord.client_id': z.string().optional(),
-  'discord.client_secret': z.string().optional(),
-  'oidc.enabled': z.boolean(),
-  'oidc.client_id': z.string().optional(),
-  'oidc.client_secret': z.string().optional(),
-  'oidc.well_known': z.string().optional(),
-  'oidc.authorization_endpoint': z.string().optional(),
-  'oidc.token_endpoint': z.string().optional(),
-  'oidc.user_info_endpoint': z.string().optional(),
+  GitHubClientId: z.string(),
+  GitHubClientSecret: z.string(),
+  discord: z.object({
+    enabled: z.boolean(),
+    client_id: z.string(),
+    client_secret: z.string(),
+  }),
+  oidc: z.object({
+    enabled: z.boolean(),
+    client_id: z.string(),
+    client_secret: z.string(),
+    well_known: z.string(),
+    authorization_endpoint: z.string(),
+    token_endpoint: z.string(),
+    user_info_endpoint: z.string(),
+  }),
   TelegramOAuthEnabled: z.boolean(),
-  TelegramBotToken: z.string().optional(),
-  TelegramBotName: z.string().optional(),
+  TelegramBotToken: z.string(),
+  TelegramBotName: z.string(),
   LinuxDOOAuthEnabled: z.boolean(),
-  LinuxDOClientId: z.string().optional(),
-  LinuxDOClientSecret: z.string().optional(),
-  LinuxDOMinimumTrustLevel: z.string().optional(),
+  LinuxDOClientId: z.string(),
+  LinuxDOClientSecret: z.string(),
+  LinuxDOMinimumTrustLevel: z.string(),
   WeChatAuthEnabled: z.boolean(),
-  WeChatServerAddress: z.string().optional(),
-  WeChatServerToken: z.string().optional(),
-  WeChatAccountQRCodeImageURL: z.string().optional(),
+  WeChatServerAddress: z.string(),
+  WeChatServerToken: z.string(),
+  WeChatAccountQRCodeImageURL: z.string(),
 })
+
+type OAuthFormValues = z.infer<typeof oauthSchema>
+
+type FlatOAuthDefaults = {
+  GitHubOAuthEnabled: boolean
+  GitHubClientId: string
+  GitHubClientSecret: string
+  'discord.enabled': boolean
+  'discord.client_id': string
+  'discord.client_secret': string
+  'oidc.enabled': boolean
+  'oidc.client_id': string
+  'oidc.client_secret': string
+  'oidc.well_known': string
+  'oidc.authorization_endpoint': string
+  'oidc.token_endpoint': string
+  'oidc.user_info_endpoint': string
+  TelegramOAuthEnabled: boolean
+  TelegramBotToken: string
+  TelegramBotName: string
+  LinuxDOOAuthEnabled: boolean
+  LinuxDOClientId: string
+  LinuxDOClientSecret: string
+  LinuxDOMinimumTrustLevel: string
+  WeChatAuthEnabled: boolean
+  WeChatServerAddress: string
+  WeChatServerToken: string
+  WeChatAccountQRCodeImageURL: string
+}
 
 const oauthTabContentClassName =
   'grid min-w-0 gap-x-5 gap-y-6 lg:grid-cols-2 [&>[data-slot=form-item]]:min-w-0 lg:[&>[data-slot=form-item]:has([data-slot=switch])]:col-span-2'
 
-type OAuthFormValues = z.infer<typeof oauthSchema>
+const buildFormDefaults = (defaults: FlatOAuthDefaults): OAuthFormValues => ({
+  GitHubOAuthEnabled: defaults.GitHubOAuthEnabled,
+  GitHubClientId: defaults.GitHubClientId ?? '',
+  GitHubClientSecret: defaults.GitHubClientSecret ?? '',
+  discord: {
+    enabled: defaults['discord.enabled'],
+    client_id: defaults['discord.client_id'] ?? '',
+    client_secret: defaults['discord.client_secret'] ?? '',
+  },
+  oidc: {
+    enabled: defaults['oidc.enabled'],
+    client_id: defaults['oidc.client_id'] ?? '',
+    client_secret: defaults['oidc.client_secret'] ?? '',
+    well_known: defaults['oidc.well_known'] ?? '',
+    authorization_endpoint: defaults['oidc.authorization_endpoint'] ?? '',
+    token_endpoint: defaults['oidc.token_endpoint'] ?? '',
+    user_info_endpoint: defaults['oidc.user_info_endpoint'] ?? '',
+  },
+  TelegramOAuthEnabled: defaults.TelegramOAuthEnabled,
+  TelegramBotToken: defaults.TelegramBotToken ?? '',
+  TelegramBotName: defaults.TelegramBotName ?? '',
+  LinuxDOOAuthEnabled: defaults.LinuxDOOAuthEnabled,
+  LinuxDOClientId: defaults.LinuxDOClientId ?? '',
+  LinuxDOClientSecret: defaults.LinuxDOClientSecret ?? '',
+  LinuxDOMinimumTrustLevel: defaults.LinuxDOMinimumTrustLevel ?? '',
+  WeChatAuthEnabled: defaults.WeChatAuthEnabled,
+  WeChatServerAddress: defaults.WeChatServerAddress ?? '',
+  WeChatServerToken: defaults.WeChatServerToken ?? '',
+  WeChatAccountQRCodeImageURL: defaults.WeChatAccountQRCodeImageURL ?? '',
+})
+
+const normalizeFormValues = (values: OAuthFormValues): FlatOAuthDefaults => ({
+  GitHubOAuthEnabled: values.GitHubOAuthEnabled,
+  GitHubClientId: values.GitHubClientId,
+  GitHubClientSecret: values.GitHubClientSecret,
+  'discord.enabled': values.discord.enabled,
+  'discord.client_id': values.discord.client_id,
+  'discord.client_secret': values.discord.client_secret,
+  'oidc.enabled': values.oidc.enabled,
+  'oidc.client_id': values.oidc.client_id,
+  'oidc.client_secret': values.oidc.client_secret,
+  'oidc.well_known': values.oidc.well_known,
+  'oidc.authorization_endpoint': values.oidc.authorization_endpoint,
+  'oidc.token_endpoint': values.oidc.token_endpoint,
+  'oidc.user_info_endpoint': values.oidc.user_info_endpoint,
+  TelegramOAuthEnabled: values.TelegramOAuthEnabled,
+  TelegramBotToken: values.TelegramBotToken,
+  TelegramBotName: values.TelegramBotName,
+  LinuxDOOAuthEnabled: values.LinuxDOOAuthEnabled,
+  LinuxDOClientId: values.LinuxDOClientId,
+  LinuxDOClientSecret: values.LinuxDOClientSecret,
+  LinuxDOMinimumTrustLevel: values.LinuxDOMinimumTrustLevel,
+  WeChatAuthEnabled: values.WeChatAuthEnabled,
+  WeChatServerAddress: values.WeChatServerAddress,
+  WeChatServerToken: values.WeChatServerToken,
+  WeChatAccountQRCodeImageURL: values.WeChatAccountQRCodeImageURL,
+})
 
 type OAuthSectionProps = {
-  defaultValues: OAuthFormValues
+  defaultValues: FlatOAuthDefaults
 }
 
-export function OAuthSection({ defaultValues }: OAuthSectionProps) {
+export function OAuthSection(props: OAuthSectionProps) {
   const { t } = useTranslation()
   const updateOption = useUpdateOption()
   const [activeTab, setActiveTab] = useState('github')
 
-  // Normalize empty strings for optional fields (only at mount)
-  const normalizedDefaults: OAuthFormValues = {
-    ...defaultValues,
-    GitHubClientId: defaultValues.GitHubClientId ?? '',
-    GitHubClientSecret: defaultValues.GitHubClientSecret ?? '',
-    'discord.client_id': defaultValues['discord.client_id'] ?? '',
-    'discord.client_secret': defaultValues['discord.client_secret'] ?? '',
-    'oidc.client_id': defaultValues['oidc.client_id'] ?? '',
-    'oidc.client_secret': defaultValues['oidc.client_secret'] ?? '',
-    'oidc.well_known': defaultValues['oidc.well_known'] ?? '',
-    'oidc.authorization_endpoint':
-      defaultValues['oidc.authorization_endpoint'] ?? '',
-    'oidc.token_endpoint': defaultValues['oidc.token_endpoint'] ?? '',
-    'oidc.user_info_endpoint': defaultValues['oidc.user_info_endpoint'] ?? '',
-    TelegramBotToken: defaultValues.TelegramBotToken ?? '',
-    TelegramBotName: defaultValues.TelegramBotName ?? '',
-    LinuxDOClientId: defaultValues.LinuxDOClientId ?? '',
-    LinuxDOClientSecret: defaultValues.LinuxDOClientSecret ?? '',
-    LinuxDOMinimumTrustLevel: defaultValues.LinuxDOMinimumTrustLevel ?? '',
-    WeChatServerAddress: defaultValues.WeChatServerAddress ?? '',
-    WeChatServerToken: defaultValues.WeChatServerToken ?? '',
-    WeChatAccountQRCodeImageURL:
-      defaultValues.WeChatAccountQRCodeImageURL ?? '',
-  }
+  const formDefaults = useMemo(
+    () => buildFormDefaults(props.defaultValues),
+    [props.defaultValues]
+  )
 
   const form = useForm<OAuthFormValues>({
     resolver: zodResolver(oauthSchema),
-    defaultValues: normalizedDefaults,
+    defaultValues: formDefaults,
   })
 
-  const onSubmit = async () => {
-    // Get raw form values directly
-    // React Hook Form treats "oidc.xxx" as nested paths, so we need to flatten
-    const rawData = form.getValues() as Record<string, unknown>
+  const baselineRef = useRef<FlatOAuthDefaults>(props.defaultValues)
+  const baselineSerializedRef = useRef<string>(
+    JSON.stringify(props.defaultValues)
+  )
 
-    // Flatten nested oidc object back to dot notation keys
-    const flattenedData: Record<string, unknown> = {}
+  useEffect(() => {
+    const serialized = JSON.stringify(props.defaultValues)
+    if (serialized === baselineSerializedRef.current) return
+    baselineRef.current = props.defaultValues
+    baselineSerializedRef.current = serialized
+    form.reset(buildFormDefaults(props.defaultValues))
+  }, [props.defaultValues, form])
 
-    Object.entries(rawData).forEach(([key, value]) => {
+  const onSubmit = async (values: OAuthFormValues) => {
+    let finalValues = values
+
+    if (values.oidc.well_known && values.oidc.well_known.trim() !== '') {
+      const wellKnown = values.oidc.well_known.trim()
       if (
-        (key === 'oidc' || key === 'discord') &&
-        typeof value === 'object' &&
-        value !== null
-      ) {
-        // React Hook Form auto-nested these fields, flatten them back
-        Object.entries(value as Record<string, unknown>).forEach(
-          ([nestedKey, nestedValue]) => {
-            flattenedData[`${key}.${nestedKey}`] = nestedValue
-          }
-        )
-      } else {
-        flattenedData[key] = value
-      }
-    })
-
-    const finalData = flattenedData as OAuthFormValues
-
-    if (finalData['oidc.well_known'] && finalData['oidc.well_known'] !== '') {
-      if (
-        !finalData['oidc.well_known'].startsWith('http://') &&
-        !finalData['oidc.well_known'].startsWith('https://')
+        !wellKnown.startsWith('http://') &&
+        !wellKnown.startsWith('https://')
       ) {
         toast.error(t('Well-Known URL must start with http:// or https://'))
         return
       }
 
       try {
-        const res = await axios.create().get(finalData['oidc.well_known'])
+        const res = await axios.create().get(wellKnown)
         const authEndpoint = res.data['authorization_endpoint'] || ''
         const tokenEndpoint = res.data['token_endpoint'] || ''
         const userInfoEndpoint = res.data['userinfo_endpoint'] || ''
 
-        finalData['oidc.authorization_endpoint'] = authEndpoint
-        finalData['oidc.token_endpoint'] = tokenEndpoint
-        finalData['oidc.user_info_endpoint'] = userInfoEndpoint
+        finalValues = {
+          ...values,
+          oidc: {
+            ...values.oidc,
+            authorization_endpoint: authEndpoint,
+            token_endpoint: tokenEndpoint,
+            user_info_endpoint: userInfoEndpoint,
+          },
+        }
 
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        form.setValue('oidc.authorization_endpoint' as any, authEndpoint)
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        form.setValue('oidc.token_endpoint' as any, tokenEndpoint)
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        form.setValue('oidc.user_info_endpoint' as any, userInfoEndpoint)
+        form.setValue('oidc.authorization_endpoint', authEndpoint)
+        form.setValue('oidc.token_endpoint', tokenEndpoint)
+        form.setValue('oidc.user_info_endpoint', userInfoEndpoint)
 
         toast.success(t('OIDC configuration fetched successfully'))
       } catch (err) {
@@ -183,73 +251,30 @@ export function OAuthSection({ defaultValues }: OAuthSectionProps) {
       }
     }
 
-    // Find changed fields by comparing to initial values
-    const updates = Object.entries(finalData).filter(
-      ([key, value]) =>
-        value !== normalizedDefaults[key as keyof OAuthFormValues]
-    )
+    const normalized = normalizeFormValues(finalValues)
+    const changedKeys = (
+      Object.keys(normalized) as Array<keyof FlatOAuthDefaults>
+    ).filter((key) => normalized[key] !== baselineRef.current[key])
 
-    if (updates.length === 0) {
+    if (changedKeys.length === 0) {
       toast.info(t('No changes to save'))
       return
     }
 
-    // Save all changed fields
-    for (const [key, value] of updates) {
-      await updateOption.mutateAsync({ key, value: value ?? '' })
+    for (const key of changedKeys) {
+      await updateOption.mutateAsync({
+        key,
+        value: normalized[key],
+      })
     }
 
-    // Reset form dirty state after successful save
-    form.reset(finalData)
+    baselineRef.current = normalized
+    baselineSerializedRef.current = JSON.stringify(normalized)
+    form.reset(buildFormDefaults(normalized))
   }
 
   const handleReset = () => {
-    // React Hook Form auto-nests 'oidc.xxx' fields into { oidc: { xxx: value } }
-    // So we need to pass the same structure when resetting
-    const currentValues = form.getValues() as Record<string, unknown>
-
-    // Create reset values matching RHF's internal structure
-    const resetValues = { ...currentValues }
-
-    // Update nested oidc fields
-    if (resetValues.oidc && typeof resetValues.oidc === 'object') {
-      Object.keys(resetValues.oidc as Record<string, unknown>).forEach(
-        (key) => {
-          const flatKey = `oidc.${key}` as keyof typeof normalizedDefaults
-          if (flatKey in normalizedDefaults) {
-            ;(resetValues.oidc as Record<string, unknown>)[key] =
-              normalizedDefaults[flatKey]
-          }
-        }
-      )
-    }
-
-    // Update nested discord fields
-    if (resetValues.discord && typeof resetValues.discord === 'object') {
-      Object.keys(resetValues.discord as Record<string, unknown>).forEach(
-        (key) => {
-          const flatKey = `discord.${key}` as keyof typeof normalizedDefaults
-          if (flatKey in normalizedDefaults) {
-            ;(resetValues.discord as Record<string, unknown>)[key] =
-              normalizedDefaults[flatKey]
-          }
-        }
-      )
-    }
-
-    // Update top-level fields
-    Object.keys(resetValues).forEach((key) => {
-      if (key !== 'oidc' && key in normalizedDefaults) {
-        resetValues[key] =
-          normalizedDefaults[key as keyof typeof normalizedDefaults]
-      }
-    })
-
-    form.reset(resetValues, {
-      keepDirty: false,
-      keepDirtyValues: false,
-      keepErrors: false,
-    })
+    form.reset(buildFormDefaults(baselineRef.current))
     toast.success(t('Form reset to saved values'))
   }
 
@@ -310,7 +335,13 @@ export function OAuthSection({ defaultValues }: OAuthSectionProps) {
                         <Input
                           placeholder={t('Your GitHub OAuth Client ID')}
                           autoComplete='off'
-                          {...field}
+                          value={field.value ?? ''}
+                          onChange={(event) =>
+                            field.onChange(event.target.value)
+                          }
+                          name={field.name}
+                          onBlur={field.onBlur}
+                          ref={field.ref}
                         />
                       </FormControl>
                       <FormMessage />
@@ -329,7 +360,13 @@ export function OAuthSection({ defaultValues }: OAuthSectionProps) {
                           type='password'
                           placeholder={t('Your GitHub OAuth Client Secret')}
                           autoComplete='new-password'
-                          {...field}
+                          value={field.value ?? ''}
+                          onChange={(event) =>
+                            field.onChange(event.target.value)
+                          }
+                          name={field.name}
+                          onBlur={field.onBlur}
+                          ref={field.ref}
                         />
                       </FormControl>
                       <FormMessage />
@@ -362,8 +399,7 @@ export function OAuthSection({ defaultValues }: OAuthSectionProps) {
 
                 <FormField
                   control={form.control}
-                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                  name={'discord.client_id' as any}
+                  name='discord.client_id'
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>{t('Client ID')}</FormLabel>
@@ -371,7 +407,13 @@ export function OAuthSection({ defaultValues }: OAuthSectionProps) {
                         <Input
                           placeholder={t('Your Discord OAuth Client ID')}
                           autoComplete='off'
-                          {...field}
+                          value={field.value ?? ''}
+                          onChange={(event) =>
+                            field.onChange(event.target.value)
+                          }
+                          name={field.name}
+                          onBlur={field.onBlur}
+                          ref={field.ref}
                         />
                       </FormControl>
                       <FormMessage />
@@ -390,7 +432,13 @@ export function OAuthSection({ defaultValues }: OAuthSectionProps) {
                           type='password'
                           placeholder={t('Your Discord OAuth Client Secret')}
                           autoComplete='new-password'
-                          {...field}
+                          value={field.value ?? ''}
+                          onChange={(event) =>
+                            field.onChange(event.target.value)
+                          }
+                          name={field.name}
+                          onBlur={field.onBlur}
+                          ref={field.ref}
                         />
                       </FormControl>
                       <FormMessage />
@@ -423,8 +471,7 @@ export function OAuthSection({ defaultValues }: OAuthSectionProps) {
 
                 <FormField
                   control={form.control}
-                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                  name={'oidc.client_id' as any}
+                  name='oidc.client_id'
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>{t('Client ID')}</FormLabel>
@@ -432,7 +479,13 @@ export function OAuthSection({ defaultValues }: OAuthSectionProps) {
                         <Input
                           placeholder={t('OIDC Client ID')}
                           autoComplete='off'
-                          {...field}
+                          value={field.value ?? ''}
+                          onChange={(event) =>
+                            field.onChange(event.target.value)
+                          }
+                          name={field.name}
+                          onBlur={field.onBlur}
+                          ref={field.ref}
                         />
                       </FormControl>
                       <FormMessage />
@@ -451,7 +504,13 @@ export function OAuthSection({ defaultValues }: OAuthSectionProps) {
                           type='password'
                           placeholder={t('OIDC Client Secret')}
                           autoComplete='new-password'
-                          {...field}
+                          value={field.value ?? ''}
+                          onChange={(event) =>
+                            field.onChange(event.target.value)
+                          }
+                          name={field.name}
+                          onBlur={field.onBlur}
+                          ref={field.ref}
                         />
                       </FormControl>
                       <FormMessage />
@@ -471,7 +530,13 @@ export function OAuthSection({ defaultValues }: OAuthSectionProps) {
                             'https://provider.com/.well-known/openid-configuration'
                           )}
                           autoComplete='off'
-                          {...field}
+                          value={field.value ?? ''}
+                          onChange={(event) =>
+                            field.onChange(event.target.value)
+                          }
+                          name={field.name}
+                          onBlur={field.onBlur}
+                          ref={field.ref}
                         />
                       </FormControl>
                       <FormDescription>
@@ -494,7 +559,13 @@ export function OAuthSection({ defaultValues }: OAuthSectionProps) {
                         <Input
                           placeholder={t('Override auto-discovered endpoint')}
                           autoComplete='off'
-                          {...field}
+                          value={field.value ?? ''}
+                          onChange={(event) =>
+                            field.onChange(event.target.value)
+                          }
+                          name={field.name}
+                          onBlur={field.onBlur}
+                          ref={field.ref}
                         />
                       </FormControl>
                       <FormMessage />
@@ -512,7 +583,13 @@ export function OAuthSection({ defaultValues }: OAuthSectionProps) {
                         <Input
                           placeholder={t('Override auto-discovered endpoint')}
                           autoComplete='off'
-                          {...field}
+                          value={field.value ?? ''}
+                          onChange={(event) =>
+                            field.onChange(event.target.value)
+                          }
+                          name={field.name}
+                          onBlur={field.onBlur}
+                          ref={field.ref}
                         />
                       </FormControl>
                       <FormMessage />
@@ -532,7 +609,13 @@ export function OAuthSection({ defaultValues }: OAuthSectionProps) {
                         <Input
                           placeholder={t('Override auto-discovered endpoint')}
                           autoComplete='off'
-                          {...field}
+                          value={field.value ?? ''}
+                          onChange={(event) =>
+                            field.onChange(event.target.value)
+                          }
+                          name={field.name}
+                          onBlur={field.onBlur}
+                          ref={field.ref}
                         />
                       </FormControl>
                       <FormMessage />
@@ -577,7 +660,13 @@ export function OAuthSection({ defaultValues }: OAuthSectionProps) {
                           type='password'
                           placeholder={t('Your Telegram Bot Token')}
                           autoComplete='new-password'
-                          {...field}
+                          value={field.value ?? ''}
+                          onChange={(event) =>
+                            field.onChange(event.target.value)
+                          }
+                          name={field.name}
+                          onBlur={field.onBlur}
+                          ref={field.ref}
                         />
                       </FormControl>
                       <FormMessage />
@@ -595,7 +684,13 @@ export function OAuthSection({ defaultValues }: OAuthSectionProps) {
                         <Input
                           placeholder={t('Your Bot Name')}
                           autoComplete='off'
-                          {...field}
+                          value={field.value ?? ''}
+                          onChange={(event) =>
+                            field.onChange(event.target.value)
+                          }
+                          name={field.name}
+                          onBlur={field.onBlur}
+                          ref={field.ref}
                         />
                       </FormControl>
                       <FormMessage />
@@ -636,7 +731,13 @@ export function OAuthSection({ defaultValues }: OAuthSectionProps) {
                         <Input
                           placeholder={t('LinuxDO Client ID')}
                           autoComplete='off'
-                          {...field}
+                          value={field.value ?? ''}
+                          onChange={(event) =>
+                            field.onChange(event.target.value)
+                          }
+                          name={field.name}
+                          onBlur={field.onBlur}
+                          ref={field.ref}
                         />
                       </FormControl>
                       <FormMessage />
@@ -655,7 +756,13 @@ export function OAuthSection({ defaultValues }: OAuthSectionProps) {
                           type='password'
                           placeholder={t('LinuxDO Client Secret')}
                           autoComplete='new-password'
-                          {...field}
+                          value={field.value ?? ''}
+                          onChange={(event) =>
+                            field.onChange(event.target.value)
+                          }
+                          name={field.name}
+                          onBlur={field.onBlur}
+                          ref={field.ref}
                         />
                       </FormControl>
                       <FormMessage />
@@ -670,7 +777,17 @@ export function OAuthSection({ defaultValues }: OAuthSectionProps) {
                     <FormItem>
                       <FormLabel>{t('Minimum Trust Level')}</FormLabel>
                       <FormControl>
-                        <Input placeholder='0' autoComplete='off' {...field} />
+                        <Input
+                          placeholder='0'
+                          autoComplete='off'
+                          value={field.value ?? ''}
+                          onChange={(event) =>
+                            field.onChange(event.target.value)
+                          }
+                          name={field.name}
+                          onBlur={field.onBlur}
+                          ref={field.ref}
+                        />
                       </FormControl>
                       <FormDescription>
                         {t('Minimum LinuxDO trust level required')}
@@ -713,7 +830,13 @@ export function OAuthSection({ defaultValues }: OAuthSectionProps) {
                         <Input
                           placeholder={t('https://wechat-server.example.com')}
                           autoComplete='off'
-                          {...field}
+                          value={field.value ?? ''}
+                          onChange={(event) =>
+                            field.onChange(event.target.value)
+                          }
+                          name={field.name}
+                          onBlur={field.onBlur}
+                          ref={field.ref}
                         />
                       </FormControl>
                       <FormMessage />
@@ -732,7 +855,13 @@ export function OAuthSection({ defaultValues }: OAuthSectionProps) {
                           type='password'
                           placeholder={t('Server Token')}
                           autoComplete='new-password'
-                          {...field}
+                          value={field.value ?? ''}
+                          onChange={(event) =>
+                            field.onChange(event.target.value)
+                          }
+                          name={field.name}
+                          onBlur={field.onBlur}
+                          ref={field.ref}
                         />
                       </FormControl>
                       <FormMessage />
@@ -750,7 +879,13 @@ export function OAuthSection({ defaultValues }: OAuthSectionProps) {
                         <Input
                           placeholder={t('https://example.com/qr-code.png')}
                           autoComplete='off'
-                          {...field}
+                          value={field.value ?? ''}
+                          onChange={(event) =>
+                            field.onChange(event.target.value)
+                          }
+                          name={field.name}
+                          onBlur={field.onBlur}
+                          ref={field.ref}
                         />
                       </FormControl>
                       <FormMessage />
