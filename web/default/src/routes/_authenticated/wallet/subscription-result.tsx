@@ -16,7 +16,14 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type SyntheticEvent,
+} from 'react'
 import { z } from 'zod'
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import {
@@ -49,6 +56,7 @@ import type { SubscriptionOrderPaymentStatus } from '@/features/subscriptions/ty
 
 const POLL_INTERVAL_MS = 2500
 const POLL_TIMEOUT_MS = 5 * 60 * 1000
+const CHECKOUT_FALLBACK_DELAY_MS = 6000
 
 const paymentResultSearchSchema = z.object({
   out_trade_no: z.string().optional(),
@@ -80,7 +88,12 @@ function RouteComponent() {
     search.mchOrderNo ||
     ''
 
-  return <SubscriptionPaymentResult outTradeNo={outTradeNo} />
+  return (
+    <SubscriptionPaymentResult
+      key={outTradeNo || 'missing-order'}
+      outTradeNo={outTradeNo}
+    />
+  )
 }
 
 function getStatusTitle(
@@ -144,47 +157,59 @@ function StatusIcon(props: { status: PageStatus }) {
   return <Loader2 className='text-primary h-10 w-10 animate-spin' />
 }
 
+function hasCheckoutFrameNavigated(iframe: HTMLIFrameElement): boolean {
+  try {
+    const href = iframe.contentWindow?.location.href
+    return !!href && href !== 'about:blank'
+  } catch {
+    return true
+  }
+}
+
 function SubscriptionPaymentResult(props: { outTradeNo: string }) {
   const { t } = useTranslation()
   const navigate = useNavigate()
-  const [checkout, setCheckout] = useState<SubscriptionEpayCheckout | null>(
-    null
-  )
+  const [checkout] = useState<SubscriptionEpayCheckout | null>(() => {
+    if (!props.outTradeNo) {
+      return null
+    }
+    return readSubscriptionEpayCheckout(props.outTradeNo)
+  })
   const [status, setStatus] = useState<PageStatus>(() => {
     if (!props.outTradeNo) return 'missing'
     return 'checking'
   })
   const [lastMessage, setLastMessage] = useState('')
   const [lastCheckedAt, setLastCheckedAt] = useState<Date | null>(null)
+  const [checkoutFrameLoaded, setCheckoutFrameLoaded] = useState(false)
+  const [checkoutFallbackVisible, setCheckoutFallbackVisible] = useState(false)
   const submittedTradeNoRef = useRef('')
   const redirectTimerRef = useRef<number | null>(null)
+  const checkoutFallbackTimerRef = useRef<number | null>(null)
   const iframeName = useMemo(
     () => `subscription-epay-checkout-${props.outTradeNo || 'empty'}`,
     [props.outTradeNo]
   )
 
-  useEffect(() => {
-    setStatus(props.outTradeNo ? 'checking' : 'missing')
-    setLastMessage('')
-    setLastCheckedAt(null)
-    submittedTradeNoRef.current = ''
-  }, [props.outTradeNo])
-
-  useEffect(() => {
-    if (!props.outTradeNo) {
-      setCheckout(null)
-      return
+  const clearCheckoutFallbackTimer = useCallback(() => {
+    if (checkoutFallbackTimerRef.current !== null) {
+      window.clearTimeout(checkoutFallbackTimerRef.current)
+      checkoutFallbackTimerRef.current = null
     }
-    setCheckout(readSubscriptionEpayCheckout(props.outTradeNo))
-  }, [props.outTradeNo])
+  }, [])
 
   useEffect(() => {
     if (!checkout || submittedTradeNoRef.current === checkout.tradeNo) {
       return
     }
+    clearCheckoutFallbackTimer()
     submitSubscriptionEpayCheckout(checkout, iframeName)
     submittedTradeNoRef.current = checkout.tradeNo
-  }, [checkout, iframeName])
+    checkoutFallbackTimerRef.current = window.setTimeout(() => {
+      setCheckoutFallbackVisible(true)
+      checkoutFallbackTimerRef.current = null
+    }, CHECKOUT_FALLBACK_DELAY_MS)
+  }, [checkout, clearCheckoutFallbackTimer, iframeName])
 
   const pollOrderStatus = useCallback(async () => {
     if (!props.outTradeNo) {
@@ -222,7 +247,9 @@ function SubscriptionPaymentResult(props: { outTradeNo: string }) {
     }
 
     const startedAt = Date.now()
-    void pollOrderStatus()
+    const initialPollTimerId = window.setTimeout(() => {
+      void pollOrderStatus()
+    }, 0)
     const intervalId = window.setInterval(() => {
       if (Date.now() - startedAt >= POLL_TIMEOUT_MS) {
         setStatus('timeout')
@@ -233,17 +260,33 @@ function SubscriptionPaymentResult(props: { outTradeNo: string }) {
     }, POLL_INTERVAL_MS)
 
     return () => {
+      window.clearTimeout(initialPollTimerId)
       window.clearInterval(intervalId)
     }
   }, [pollOrderStatus, props.outTradeNo, status])
 
   useEffect(() => {
     return () => {
+      clearCheckoutFallbackTimer()
       if (redirectTimerRef.current !== null) {
         window.clearTimeout(redirectTimerRef.current)
       }
     }
-  }, [])
+  }, [clearCheckoutFallbackTimer])
+
+  const handleCheckoutFrameLoad = (
+    event: SyntheticEvent<HTMLIFrameElement>
+  ) => {
+    if (!checkout || submittedTradeNoRef.current !== checkout.tradeNo) {
+      return
+    }
+    if (!hasCheckoutFrameNavigated(event.currentTarget)) {
+      return
+    }
+    setCheckoutFrameLoaded(true)
+    setCheckoutFallbackVisible(false)
+    clearCheckoutFallbackTimer()
+  }
 
   const handleOpenCheckout = () => {
     if (!checkout) {
@@ -265,6 +308,8 @@ function SubscriptionPaymentResult(props: { outTradeNo: string }) {
   const statusTitle = getStatusTitle(status, t)
   const statusDescription = getStatusDescription(status, t)
   const shouldShowCheckout = !!checkout && status !== 'paid'
+  const shouldShowCheckoutFallback =
+    shouldShowCheckout && checkoutFallbackVisible && !checkoutFrameLoaded
 
   return (
     <Main>
@@ -285,22 +330,27 @@ function SubscriptionPaymentResult(props: { outTradeNo: string }) {
                   <iframe
                     className='bg-background h-[min(68vh,680px)] min-h-[420px] w-full rounded-md border'
                     name={iframeName}
+                    onLoad={handleCheckoutFrameLoad}
                     title={t('Payment checkout')}
                   />
-                  <div className='flex flex-wrap items-center justify-between gap-2 text-sm'>
-                    <span className='text-muted-foreground'>
-                      {t('Checkout page unavailable? Open it in a new window.')}
-                    </span>
-                    <Button
-                      type='button'
-                      variant='outline'
-                      size='sm'
-                      onClick={handleOpenCheckout}
-                    >
-                      <ExternalLink className='h-4 w-4' />
-                      {t('Open checkout in new window')}
-                    </Button>
-                  </div>
+                  {shouldShowCheckoutFallback && (
+                    <div className='flex flex-wrap items-center justify-between gap-2 text-sm'>
+                      <span className='text-muted-foreground'>
+                        {t(
+                          'Checkout page unavailable? Open it in a new window.'
+                        )}
+                      </span>
+                      <Button
+                        type='button'
+                        variant='outline'
+                        size='sm'
+                        onClick={handleOpenCheckout}
+                      >
+                        <ExternalLink className='h-4 w-4' />
+                        {t('Open checkout in new window')}
+                      </Button>
+                    </div>
+                  )}
                 </div>
               ) : (
                 <div className='bg-muted/40 flex min-h-[420px] items-center justify-center rounded-md border p-6 text-center'>
