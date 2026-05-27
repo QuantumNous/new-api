@@ -30,6 +30,7 @@ import {
 } from '@douyinfe/semi-ui';
 import { API, showSuccess, showError } from '../../../helpers';
 import { StatusContext } from '../../../context/Status';
+import { normalizeSidebarConfig } from '../../../hooks/common/useSidebar';
 
 const { Text } = Typography;
 
@@ -45,6 +46,7 @@ export default function SettingsSidebarModulesAdmin(props) {
       playground: true,
       onlineExperience: true,
       chat: true,
+      pricing: true,
     },
     console: {
       enabled: true,
@@ -53,6 +55,7 @@ export default function SettingsSidebarModulesAdmin(props) {
       log: true,
       midjourney: true,
       task: true,
+      pricing: true,
     },
     personal: {
       enabled: true,
@@ -108,6 +111,7 @@ export default function SettingsSidebarModulesAdmin(props) {
         playground: true,
         onlineExperience: true,
         chat: true,
+        pricing: true,
       },
       console: {
         enabled: true,
@@ -116,6 +120,7 @@ export default function SettingsSidebarModulesAdmin(props) {
         log: true,
         midjourney: true,
         task: true,
+        pricing: true,
       },
       personal: {
         enabled: true,
@@ -177,7 +182,9 @@ export default function SettingsSidebarModulesAdmin(props) {
     // 从 props.options 中获取配置
     if (props.options && props.options.SidebarModulesAdmin) {
       try {
-        const modules = JSON.parse(props.options.SidebarModulesAdmin);
+        const modules = normalizeSidebarConfig(
+          JSON.parse(props.options.SidebarModulesAdmin),
+        );
         setSidebarModulesAdmin(modules);
       } catch (error) {
         // 使用默认配置
@@ -187,6 +194,7 @@ export default function SettingsSidebarModulesAdmin(props) {
             playground: true,
             onlineExperience: true,
             chat: true,
+            pricing: true,
           },
           console: {
             enabled: true,
@@ -195,6 +203,7 @@ export default function SettingsSidebarModulesAdmin(props) {
             log: true,
             midjourney: true,
             task: true,
+            pricing: true,
           },
           personal: {
             enabled: true,
@@ -222,7 +231,7 @@ export default function SettingsSidebarModulesAdmin(props) {
   const sectionConfigs = [
     {
       key: 'chat',
-      title: t('聊天区域'),
+      title: t('工作台'),
       description: t('操练场和聊天功能'),
       modules: [
         {
@@ -234,6 +243,11 @@ export default function SettingsSidebarModulesAdmin(props) {
           key: 'onlineExperience',
           title: t('在线体验'),
           description: t('在线体验页面'),
+        },
+        {
+          key: 'pricing',
+          title: t('模型广场'),
+          description: t('公开模型与价格展示'),
         },
         { key: 'chat', title: t('聊天'), description: t('聊天会话管理') },
       ],

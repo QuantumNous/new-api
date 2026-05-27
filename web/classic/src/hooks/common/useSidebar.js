@@ -31,6 +31,7 @@ export const DEFAULT_ADMIN_CONFIG = {
     playground: true,
     onlineExperience: true,
     chat: true,
+    pricing: true,
   },
   console: {
     enabled: true,
@@ -60,11 +61,33 @@ export const DEFAULT_ADMIN_CONFIG = {
 
 const deepClone = (value) => JSON.parse(JSON.stringify(value));
 
+export const normalizeSidebarConfig = (config) => {
+  if (!config || typeof config !== 'object') return config;
+
+  const normalized = deepClone(config);
+  const legacyPricing = normalized.console?.pricing;
+
+  if (legacyPricing !== undefined) {
+    normalized.chat = normalized.chat || {};
+    if (normalized.chat.pricing === undefined) {
+      normalized.chat.pricing = legacyPricing;
+    }
+    delete normalized.console.pricing;
+  }
+
+  return normalized;
+};
+
 export const mergeAdminConfig = (savedConfig) => {
   const merged = deepClone(DEFAULT_ADMIN_CONFIG);
-  if (!savedConfig || typeof savedConfig !== 'object') return merged;
+  const normalizedSavedConfig = normalizeSidebarConfig(savedConfig);
+  if (!normalizedSavedConfig || typeof normalizedSavedConfig !== 'object') {
+    return merged;
+  }
 
-  for (const [sectionKey, sectionConfig] of Object.entries(savedConfig)) {
+  for (const [sectionKey, sectionConfig] of Object.entries(
+    normalizedSavedConfig,
+  )) {
     if (!sectionConfig || typeof sectionConfig !== 'object') continue;
 
     if (!merged[sectionKey]) {
@@ -124,7 +147,7 @@ export const useSidebar = () => {
         } else {
           config = res.data.data.sidebar_modules;
         }
-        setUserConfig(config);
+        setUserConfig(normalizeSidebarConfig(config));
       } else {
         // 当用户没有配置时，生成一个基于管理员配置的默认用户配置
         // 这样可以确保权限控制正确生效

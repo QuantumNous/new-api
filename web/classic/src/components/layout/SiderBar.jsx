@@ -229,6 +229,11 @@ const SiderBar = ({
         itemKey: 'playground',
         to: '/playground',
       },
+      {
+        text: t('模型广场'),
+        itemKey: 'pricing',
+        to: '/pricing',
+      },
       // {
       //   text: t('在线体验'),
       //   itemKey: 'onlineExperience',
@@ -476,11 +481,11 @@ const SiderBar = ({
             setOpenedKeys(data.openKeys);
           }}
         >
-          {/* 聊天区域 */}
+          {/* 工作台区域 */}
           {hasSectionVisibleModules('chat') && (
             <div className='sidebar-section'>
               {!collapsed && (
-                <div className='sidebar-group-label'>{t('聊天')}</div>
+                <div className='sidebar-group-label'>{t('工作台')}</div>
               )}
               {chatMenuItems.map((item) => renderSubItem(item))}
             </div>

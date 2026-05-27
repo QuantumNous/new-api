@@ -72,6 +72,7 @@
     "AGPL v3.0协议": "AGPL v3.0ライセンス",
     "AI 对话": "AIチャット",
     "AI模型测试环境": "AIモデルテスト環境",
+    "工作台": "ワークスペース",
     "AI模型配置": "AIモデル設定",
     "AK/SK 模式：使用 AccessKey 和 SecretAccessKey；API Key 模式：使用 API Key": "AK/SK mode uses AccessKey and SecretAccessKey; API Key mode uses an API Key",
     "anthropic-beta JSON 示例": "",

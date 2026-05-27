@@ -32,7 +32,11 @@ import { API, showSuccess, showError } from '../../../helpers';
 import { StatusContext } from '../../../context/Status';
 import { UserContext } from '../../../context/User';
 import { useUserPermissions } from '../../../hooks/common/useUserPermissions';
-import { mergeAdminConfig, useSidebar } from '../../../hooks/common/useSidebar';
+import {
+  mergeAdminConfig,
+  normalizeSidebarConfig,
+  useSidebar,
+} from '../../../hooks/common/useSidebar';
 import { Settings } from 'lucide-react';
 
 const { Text } = Typography;
@@ -73,6 +77,7 @@ export default function SettingsSidebarModulesUser() {
       defaultConfig.chat = {
         enabled: true,
         playground: isSidebarModuleAllowed('chat', 'playground'),
+        pricing: isSidebarModuleAllowed('chat', 'pricing'),
         chat: isSidebarModuleAllowed('chat', 'chat'),
       };
     }
@@ -225,9 +230,13 @@ export default function SettingsSidebarModulesUser() {
           let userConf;
           // 检查sidebar_modules是字符串还是对象
           if (typeof userRes.data.data.sidebar_modules === 'string') {
-            userConf = JSON.parse(userRes.data.data.sidebar_modules);
+            userConf = normalizeSidebarConfig(
+              JSON.parse(userRes.data.data.sidebar_modules),
+            );
           } else {
-            userConf = userRes.data.data.sidebar_modules;
+            userConf = normalizeSidebarConfig(
+              userRes.data.data.sidebar_modules,
+            );
           }
           console.log('从API加载的用户配置:', userConf);
 
@@ -292,13 +301,18 @@ export default function SettingsSidebarModulesUser() {
   const sectionConfigs = [
     {
       key: 'chat',
-      title: t('聊天区域'),
+      title: t('工作台'),
       description: t('操练场和聊天功能'),
       modules: [
         {
           key: 'playground',
           title: t('操练场'),
           description: t('AI模型测试环境'),
+        },
+        {
+          key: 'pricing',
+          title: t('模型广场'),
+          description: t('公开模型与价格展示'),
         },
         { key: 'chat', title: t('聊天'), description: t('聊天会话管理') },
       ],

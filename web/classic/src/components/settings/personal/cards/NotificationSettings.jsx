@@ -50,6 +50,7 @@ import { UserContext } from '../../../../context/User';
 import { useUserPermissions } from '../../../../hooks/common/useUserPermissions';
 import {
   mergeAdminConfig,
+  normalizeSidebarConfig,
   useSidebar,
 } from '../../../../hooks/common/useSidebar';
 
@@ -73,6 +74,7 @@ const NotificationSettings = ({
       playground: true,
       onlineExperience: true,
       chat: true,
+      pricing: true,
     },
     console: {
       enabled: true,
@@ -167,6 +169,7 @@ const NotificationSettings = ({
         playground: true,
         onlineExperience: true,
         chat: true,
+        pricing: true,
       },
       console: {
         enabled: true,
@@ -214,9 +217,13 @@ const NotificationSettings = ({
         if (userRes.data.success && userRes.data.data.sidebar_modules) {
           let userConf;
           if (typeof userRes.data.data.sidebar_modules === 'string') {
-            userConf = JSON.parse(userRes.data.data.sidebar_modules);
+            userConf = normalizeSidebarConfig(
+              JSON.parse(userRes.data.data.sidebar_modules),
+            );
           } else {
-            userConf = userRes.data.data.sidebar_modules;
+            userConf = normalizeSidebarConfig(
+              userRes.data.data.sidebar_modules,
+            );
           }
           setSidebarModulesUser(userConf);
         }
@@ -257,7 +264,7 @@ const NotificationSettings = ({
   const sectionConfigs = [
     {
       key: 'chat',
-      title: t('聊天区域'),
+      title: t('工作台'),
       description: t('操练场和聊天功能'),
       modules: [
         {
@@ -269,6 +276,11 @@ const NotificationSettings = ({
           key: 'onlineExperience',
           title: t('在线体验'),
           description: t('在线体验页面'),
+        },
+        {
+          key: 'pricing',
+          title: t('模型广场'),
+          description: t('公开模型与价格展示'),
         },
         { key: 'chat', title: t('聊天'), description: t('聊天会话管理') },
       ],
