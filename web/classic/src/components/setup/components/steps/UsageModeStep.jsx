@@ -50,7 +50,9 @@ const UsageModeStep = ({
         </Radio>
         <Radio
           value='self'
-          extra={t('适用于个人使用的场景，不需要设置模型价格')}
+          extra={t(
+            '适用于个人使用，无需设置模型价格；初始化默认关闭注册，可在设置中开启',
+          )}
           style={{ width: '30%', minWidth: 200 }}
         >
           {t('自用模式')}
