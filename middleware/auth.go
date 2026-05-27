@@ -342,8 +342,8 @@ func TokenAuth() func(c *gin.Context) {
 				abortWithOpenAiMessage(c, http.StatusInternalServerError,
 					common.TranslateMessage(c, i18n.MsgDatabaseError))
 			} else {
-				abortWithOpenAiMessage(c, http.StatusUnauthorized,
-					common.TranslateMessage(c, i18n.MsgTokenInvalid))
+				statusCode, message, code := tokenAuthErrorResponse(c, err)
+				abortWithOpenAiMessage(c, statusCode, message, code...)
 			}
 			return
 		}
@@ -403,6 +403,21 @@ func TokenAuth() func(c *gin.Context) {
 			return
 		}
 		c.Next()
+	}
+}
+
+func tokenAuthErrorResponse(c *gin.Context, err error) (int, string, []types.ErrorCode) {
+	switch {
+	case errors.Is(err, model.ErrTokenNotProvided):
+		return http.StatusUnauthorized, common.TranslateMessage(c, i18n.MsgTokenNotProvided), nil
+	case errors.Is(err, model.ErrTokenExpired):
+		return http.StatusUnauthorized, common.TranslateMessage(c, i18n.MsgTokenExpired), nil
+	case errors.Is(err, model.ErrTokenExhausted):
+		return http.StatusForbidden, common.TranslateMessage(c, i18n.MsgTokenExhausted), []types.ErrorCode{types.ErrorCodeInsufficientUserQuota}
+	case errors.Is(err, model.ErrTokenUnavailable):
+		return http.StatusForbidden, common.TranslateMessage(c, i18n.MsgTokenStatusUnavailable), []types.ErrorCode{types.ErrorCodeAccessDenied}
+	default:
+		return http.StatusUnauthorized, common.TranslateMessage(c, i18n.MsgTokenInvalid), nil
 	}
 }
 
