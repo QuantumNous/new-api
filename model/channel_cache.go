@@ -118,6 +118,9 @@ func GetRandomSatisfiedChannel(group string, model string, retry int) (*Channel,
 
 	if len(channels) == 1 {
 		if channel, ok := channelsIDM[channels[0]]; ok {
+			if IsChannelCoolingDown(channel.Id) {
+				return nil, nil
+			}
 			return channel, nil
 		}
 		return nil, fmt.Errorf("数据库一致性错误，渠道# %d 不存在，请联系管理员修复", channels[0])
@@ -126,11 +129,18 @@ func GetRandomSatisfiedChannel(group string, model string, retry int) (*Channel,
 	uniquePriorities := make(map[int]bool)
 	for _, channelId := range channels {
 		if channel, ok := channelsIDM[channelId]; ok {
+			if IsChannelCoolingDown(channel.Id) {
+				continue
+			}
 			uniquePriorities[int(channel.GetPriority())] = true
 		} else {
 			return nil, fmt.Errorf("数据库一致性错误，渠道# %d 不存在，请联系管理员修复", channelId)
 		}
 	}
+	if len(uniquePriorities) == 0 {
+		return nil, nil
+	}
+
 	var sortedUniquePriorities []int
 	for priority := range uniquePriorities {
 		sortedUniquePriorities = append(sortedUniquePriorities, priority)
@@ -147,6 +157,9 @@ func GetRandomSatisfiedChannel(group string, model string, retry int) (*Channel,
 	var targetChannels []*Channel
 	for _, channelId := range channels {
 		if channel, ok := channelsIDM[channelId]; ok {
+			if IsChannelCoolingDown(channel.Id) {
+				continue
+			}
 			if channel.GetPriority() == targetPriority {
 				sumWeight += channel.GetWeight()
 				targetChannels = append(targetChannels, channel)
@@ -189,6 +202,20 @@ func GetRandomSatisfiedChannel(group string, model string, retry int) (*Channel,
 	}
 	// return null if no channel is not found
 	return nil, errors.New("channel not found")
+}
+
+func SetChannelCacheForTest(channels map[int]*Channel, groupModelChannels map[string]map[string][]int) {
+	channelSyncLock.Lock()
+	defer channelSyncLock.Unlock()
+	channelsIDM = channels
+	group2model2channels = groupModelChannels
+}
+
+func ClearChannelCacheForTest() {
+	channelSyncLock.Lock()
+	defer channelSyncLock.Unlock()
+	channelsIDM = nil
+	group2model2channels = nil
 }
 
 func CacheGetChannel(id int) (*Channel, error) {

@@ -788,10 +788,13 @@ func FailTaskInfo(reason string) *TaskInfo {
 // speed: Claude 推理速度模式字段（仅 Claude 支持，默认过滤）
 // store: 数据存储授权字段，涉及用户隐私（仅 OpenAI、Responses API 支持，默认允许透传，禁用后可能导致 Codex 无法使用）
 // safety_identifier: 安全标识符，用于向 OpenAI 报告违规用户（仅 OpenAI 支持，涉及用户隐私）
-// stream_options.include_obfuscation: 响应流混淆控制字段（仅 OpenAI Responses API 支持）
+// max_output_tokens: Responses 输出上限字段，部分 OpenAI-compatible 上游不支持，可按渠道禁用
 func RemoveDisabledFields(jsonData []byte, channelOtherSettings dto.ChannelOtherSettings, channelPassThroughEnabled bool) ([]byte, error) {
 	if model_setting.GetGlobalSettings().PassThroughRequestEnabled || channelPassThroughEnabled {
-		return jsonData, nil
+		if !channelOtherSettings.DisableMaxOutputTokens || !gjson.GetBytes(jsonData, "max_output_tokens").Exists() {
+			return jsonData, nil
+		}
+		return removeDisabledField(jsonData, "max_output_tokens")
 	}
 	if !hasRemovableDisabledField(jsonData, channelOtherSettings) {
 		return jsonData, nil
@@ -854,6 +857,27 @@ func RemoveDisabledFields(jsonData []byte, channelOtherSettings dto.ChannelOther
 		}
 	}
 
+	if channelOtherSettings.DisableMaxOutputTokens {
+		if _, exists := data["max_output_tokens"]; exists {
+			delete(data, "max_output_tokens")
+		}
+	}
+
+	jsonDataAfter, err := common.Marshal(data)
+	if err != nil {
+		common.SysError("RemoveDisabledFields Marshal error :" + err.Error())
+		return jsonData, nil
+	}
+	return jsonDataAfter, nil
+}
+
+func removeDisabledField(jsonData []byte, field string) ([]byte, error) {
+	var data map[string]interface{}
+	if err := common.Unmarshal(jsonData, &data); err != nil {
+		common.SysError("RemoveDisabledFields Unmarshal error :" + err.Error())
+		return jsonData, nil
+	}
+	delete(data, field)
 	jsonDataAfter, err := common.Marshal(data)
 	if err != nil {
 		common.SysError("RemoveDisabledFields Marshal error :" + err.Error())
@@ -871,6 +895,7 @@ func hasRemovableDisabledField(jsonData []byte, channelOtherSettings dto.Channel
 		"store",
 		"safety_identifier",
 		"stream_options.include_obfuscation",
+		"max_output_tokens",
 	)
 
 	return (!channelOtherSettings.AllowServiceTier && values[0].Exists()) ||
@@ -878,7 +903,8 @@ func hasRemovableDisabledField(jsonData []byte, channelOtherSettings dto.Channel
 		(!channelOtherSettings.AllowSpeed && values[2].Exists()) ||
 		(channelOtherSettings.DisableStore && values[3].Exists()) ||
 		(!channelOtherSettings.AllowSafetyIdentifier && values[4].Exists()) ||
-		(!channelOtherSettings.AllowIncludeObfuscation && values[5].Exists())
+		(!channelOtherSettings.AllowIncludeObfuscation && values[5].Exists()) ||
+		(channelOtherSettings.DisableMaxOutputTokens && values[6].Exists())
 }
 
 // RemoveGeminiDisabledFields removes disabled fields from Gemini request JSON data

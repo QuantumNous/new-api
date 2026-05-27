@@ -547,6 +547,14 @@ func ApplyChannelAffinityOverrideTemplate(c *gin.Context, paramOverride map[stri
 	return mergedParam, true
 }
 
+func GetChannelAffinityCacheForTest() *cachex.HybridCache[int] {
+	return getChannelAffinityCache()
+}
+
+func BuildChannelAffinityCacheKeySuffixForTest(rule operation_setting.ChannelAffinityRule, modelName string, usingGroup string, affinityValue string) string {
+	return buildChannelAffinityCacheKeySuffix(rule, modelName, usingGroup, affinityValue)
+}
+
 func GetPreferredChannelByAffinity(c *gin.Context, modelName string, usingGroup string) (int, bool) {
 	setting := operation_setting.GetChannelAffinitySetting()
 	if setting == nil || !setting.Enabled {
