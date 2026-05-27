@@ -27,6 +27,7 @@ import {
   handleOIDCOAuth,
   handleDiscordOAuth,
   handleLinuxDOOAuth,
+  getOAuthState,
 } from '@/lib/oauth'
 import { useDialogs } from '@/hooks/use-dialog'
 import { useStatus } from '@/hooks/use-status'
@@ -41,6 +42,7 @@ import {
   type CustomOAuthBinding,
 } from '../../api'
 import type { UserProfile, BindingItem } from '../../types'
+import type { CustomOAuthProviderInfo } from '@/features/auth/types'
 import { EmailBindDialog } from '../dialogs/email-bind-dialog'
 import { TelegramBindDialog } from '../dialogs/telegram-bind-dialog'
 import { WeChatBindDialog } from '../dialogs/wechat-bind-dialog'
@@ -70,7 +72,7 @@ export function AccountBindingsTab({
   const [unbinding, setUnbinding] = useState(false)
 
   const customProviders = status?.custom_oauth_providers as
-    | Array<{ id: string; name: string }>
+    | CustomOAuthProviderInfo[]
     | undefined
 
   const fetchCustomBindings = useCallback(async () => {
@@ -113,9 +115,25 @@ export function AccountBindingsTab({
     }
   }
 
-  const handleBindCustomOAuth = (provider: { id: string; name: string }) => {
-    const redirectUrl = `${window.location.origin}/oauth/${provider.id}?bind=true`
-    window.location.href = `/api/oauth/${provider.id}?redirect=${encodeURIComponent(redirectUrl)}`
+  const handleBindCustomOAuth = async (
+    provider: CustomOAuthProviderInfo
+  ) => {
+    if (!provider.authorization_endpoint || !provider.client_id) return
+
+    const state = await getOAuthState()
+    if (!state) return
+
+    const redirectUri = `${window.location.origin}/oauth/${provider.slug}`
+    const url = new URL(provider.authorization_endpoint)
+    url.searchParams.set('client_id', provider.client_id)
+    url.searchParams.set('redirect_uri', redirectUri)
+    url.searchParams.set('response_type', 'code')
+    url.searchParams.set('state', state)
+    if (provider.scopes) {
+      url.searchParams.set('scope', provider.scopes)
+    }
+
+    window.open(url.toString(), '_blank')
   }
 
   useEffect(() => {
@@ -316,7 +334,7 @@ export function AccountBindingsTab({
           <div className='grid grid-cols-1 gap-2.5 sm:grid-cols-2 sm:gap-3'>
             {customProviders.map((provider) => {
               const binding = customBindings.find(
-                (b) => b.provider_id === provider.id
+                (b) => b.provider_id === String(provider.id)
               )
               const isBound = !!binding
               return (
