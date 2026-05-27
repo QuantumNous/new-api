@@ -304,18 +304,6 @@ export default function SettingsMonitoring(props) {
                     setInputs({ ...inputs, AutomaticDeleteKeywords: value })
                   }
                 />
-                <Form.TextArea
-                  label={t('自动删除关键词')}
-                  placeholder={t('一行一个，不区分大小写')}
-                  extraText={t(
-                    '当上游通道返回错误中包含这些关键词时（不区分大小写），自动删除通道，删除优先级高于禁用',
-                  )}
-                  field={'AutomaticDeleteKeywords'}
-                  autosize={{ minRows: 6, maxRows: 12 }}
-                  onChange={(value) =>
-                    setInputs({ ...inputs, AutomaticDeleteKeywords: value })
-                  }
-                />
               </Col>
             </Row>
             <Row>
