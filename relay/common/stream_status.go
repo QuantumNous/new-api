@@ -19,6 +19,12 @@ const (
 	StreamEndReasonEOF         StreamEndReason = "eof"
 	StreamEndReasonPanic       StreamEndReason = "panic"
 	StreamEndReasonPingFail    StreamEndReason = "ping_fail"
+	// StreamEndReasonFirstResponseTimeout: upstream accepted the request but
+	// failed to send the first SSE data event within the configured window
+	// (see constant.StreamingFirstResponseTimeout). This is distinct from
+	// StreamEndReasonTimeout which is the per-chunk idle ticker firing AFTER
+	// at least one data event has been received.
+	StreamEndReasonFirstResponseTimeout StreamEndReason = "first_response_timeout"
 )
 
 const maxStreamErrorEntries = 20

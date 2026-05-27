@@ -1,6 +1,14 @@
 package constant
 
 var StreamingTimeout int
+
+// StreamingFirstResponseTimeout limits how long upstream may take to deliver
+// the first SSE data event after the request reached the backend. Unlike
+// StreamingTimeout (the per-chunk idle ticker, which gets reset on every
+// scanner read — including upstream keep-alive comments), this watchdog never
+// resets and is the only reliable way to abort streams where upstream is
+// "alive but silent". 0 disables the watchdog. Defaults to 180 seconds.
+var StreamingFirstResponseTimeout int
 var DifyDebug bool
 var MaxFileDownloadMB int
 var StreamScannerMaxBufferMB int
