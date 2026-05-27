@@ -11,7 +11,7 @@ export default defineConfig(({ envMode }) => {
   const serverUrl =
     process.env.VITE_REACT_APP_SERVER_URL ||
     env.rawPublicVars.VITE_REACT_APP_SERVER_URL ||
-    'https://one.flatkey.ai'
+    'http://localhost:3000'
 
   const isProd = envMode === 'production'
   const devProxy = Object.fromEntries(
