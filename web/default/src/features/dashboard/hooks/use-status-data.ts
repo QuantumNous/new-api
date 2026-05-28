@@ -27,7 +27,7 @@ export function useStatusData<T = unknown>(
   dataKey: string
 ): { items: T[]; loading: boolean } {
   const { status, loading } = useStatus()
-  const enabled = status?.[enabledKey] ?? false
+  const enabled = status ? status[enabledKey] !== false : false
   const items = (enabled ? status?.[dataKey] || [] : []) as T[]
 
   return { items, loading }
@@ -55,4 +55,19 @@ export function useAnnouncements() {
  */
 export function useFAQ() {
   return useStatusData<FAQItem>('faq_enabled', 'faq')
+}
+
+/**
+ * Get dashboard content panel visibility
+ */
+export function useDashboardContentVisibility() {
+  const { status } = useStatus()
+  const hasStatus = Boolean(status)
+
+  return {
+    apiInfo: hasStatus && status?.api_info_enabled !== false,
+    announcements: hasStatus && status?.announcements_enabled !== false,
+    faq: hasStatus && status?.faq_enabled !== false,
+    uptimeKuma: hasStatus && status?.uptime_kuma_enabled !== false,
+  }
 }

@@ -50,7 +50,7 @@ func LoadFileSource(c *gin.Context, source types.FileSource, reason ...string) (
 	}
 
 	if common.DebugEnabled {
-		logger.LogDebug(c, fmt.Sprintf("LoadFileSource starting for: %s", source.GetIdentifier()))
+		logger.LogDebug(c, "LoadFileSource starting for: %s", source.GetIdentifier())
 	}
 
 	// 1. 快速检查内部缓存
@@ -208,7 +208,7 @@ func loadFromURL(c *gin.Context, url string, reason ...string) (*types.CachedFil
 			}
 			common.IncrementDiskFiles(base64Size)
 			if common.DebugEnabled {
-				logger.LogDebug(c, fmt.Sprintf("File cached to disk: %s, size: %d bytes", diskPath, base64Size))
+				logger.LogDebug(c, "File cached to disk: %s, size: %d bytes", diskPath, base64Size)
 			}
 		}
 	} else {

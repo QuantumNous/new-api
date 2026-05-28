@@ -135,10 +135,12 @@ export function MultiKeyManageDialog({
         setEnabledCount(response.data.enabled_count || 0)
         setManualDisabledCount(response.data.manual_disabled_count || 0)
         setAutoDisabledCount(response.data.auto_disabled_count || 0)
+      } else {
+        toast.error(response.message || t('Failed to load key status'))
       }
     } catch (error: unknown) {
       toast.error(
-        error instanceof Error ? error.message : 'Failed to load key status'
+        error instanceof Error ? error.message : t('Failed to load key status')
       )
     } finally {
       setIsLoading(false)
@@ -181,7 +183,7 @@ export function MultiKeyManageDialog({
       }
 
       if (response?.success) {
-        toast.success(response.message || 'Operation successful')
+        toast.success(response.message || t('Operation successful'))
         queryClient.invalidateQueries({ queryKey: channelsQueryKeys.lists() })
 
         // Reload data - reset to page 1 for bulk actions
@@ -193,10 +195,12 @@ export function MultiKeyManageDialog({
           loadKeyStatus(currentPage, pageSize)
         }
       } else {
-        toast.error(response?.message || 'Operation failed')
+        toast.error(response?.message || t('Operation failed'))
       }
     } catch (error: unknown) {
-      toast.error(error instanceof Error ? error.message : 'Operation failed')
+      toast.error(
+        error instanceof Error ? error.message : t('Operation failed')
+      )
     } finally {
       setIsPerformingAction(false)
       setConfirmAction(null)

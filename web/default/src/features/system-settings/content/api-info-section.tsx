@@ -23,6 +23,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { Plus, Edit, Trash2, Save } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+import { getBgColorClass } from '@/lib/colors'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -61,7 +62,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { Switch } from '@/components/ui/switch'
 import {
   Table,
   TableBody,
@@ -71,6 +71,7 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { StatusBadge } from '@/components/status-badge'
+import { SettingsSwitchField } from '../components/settings-form-layout'
 import { SettingsSection } from '../components/settings-section'
 import { useUpdateOption } from '../hooks/use-update-option'
 
@@ -98,20 +99,20 @@ const createApiInfoSchema = (t: (key: string) => string) =>
 type ApiInfoFormValues = z.infer<ReturnType<typeof createApiInfoSchema>>
 
 const colorOptions = [
-  { value: 'blue', label: 'Blue', bgClass: 'bg-blue-500' },
-  { value: 'green', label: 'Green', bgClass: 'bg-green-500' },
-  { value: 'cyan', label: 'Cyan', bgClass: 'bg-cyan-500' },
-  { value: 'purple', label: 'Purple', bgClass: 'bg-purple-500' },
-  { value: 'pink', label: 'Pink', bgClass: 'bg-pink-500' },
-  { value: 'red', label: 'Red', bgClass: 'bg-red-500' },
-  { value: 'orange', label: 'Orange', bgClass: 'bg-orange-500' },
-  { value: 'amber', label: 'Amber', bgClass: 'bg-amber-500' },
-  { value: 'yellow', label: 'Yellow', bgClass: 'bg-yellow-500' },
-  { value: 'lime', label: 'Lime', bgClass: 'bg-lime-500' },
-  { value: 'teal', label: 'Teal', bgClass: 'bg-teal-500' },
-  { value: 'indigo', label: 'Indigo', bgClass: 'bg-indigo-500' },
-  { value: 'violet', label: 'Violet', bgClass: 'bg-violet-500' },
-  { value: 'slate', label: 'Slate', bgClass: 'bg-slate-500' },
+  { value: 'blue', label: 'Blue' },
+  { value: 'green', label: 'Green' },
+  { value: 'cyan', label: 'Cyan' },
+  { value: 'purple', label: 'Purple' },
+  { value: 'pink', label: 'Pink' },
+  { value: 'red', label: 'Red' },
+  { value: 'orange', label: 'Orange' },
+  { value: 'amber', label: 'Amber' },
+  { value: 'yellow', label: 'Yellow' },
+  { value: 'lime', label: 'Lime' },
+  { value: 'teal', label: 'Teal' },
+  { value: 'indigo', label: 'Indigo' },
+  { value: 'violet', label: 'Violet' },
+  { value: 'slate', label: 'Slate' },
 ]
 
 export function ApiInfoSection({ enabled, data }: ApiInfoSectionProps) {
@@ -249,12 +250,13 @@ export function ApiInfoSection({ enabled, data }: ApiInfoSectionProps) {
 
   const handleSaveAll = async () => {
     try {
-      await updateOption.mutateAsync({
+      const result = await updateOption.mutateAsync({
         key: 'console_setting.api_info',
         value: JSON.stringify(apiInfoList),
       })
-      setHasChanges(false)
-      toast.success(t('API info saved successfully'))
+      if (result.success) {
+        setHasChanges(false)
+      }
     } catch {
       toast.error(t('Failed to save API info'))
     }
@@ -270,17 +272,10 @@ export function ApiInfoSection({ enabled, data }: ApiInfoSectionProps) {
     )
   }
 
-  const getColorClass = (color: string) => {
-    return (
-      colorOptions.find((opt) => opt.value === color)?.bgClass || 'bg-blue-500'
-    )
-  }
+  const getColorClass = (color: string) => getBgColorClass(color)
 
   return (
-    <SettingsSection
-      title={t('API Addresses')}
-      description={t('Curate quick links to your different Domains')}
-    >
+    <SettingsSection title={t('API Addresses')}>
       <div className='space-y-4'>
         <div className='flex flex-wrap items-center justify-between gap-2'>
           <div className='flex flex-wrap items-center gap-2'>
@@ -308,12 +303,12 @@ export function ApiInfoSection({ enabled, data }: ApiInfoSectionProps) {
               {updateOption.isPending ? t('Saving...') : t('Save Settings')}
             </Button>
           </div>
-          <div className='flex items-center gap-2'>
-            <span className='text-muted-foreground text-sm'>
-              {t('Enabled')}
-            </span>
-            <Switch checked={isEnabled} onCheckedChange={handleToggleEnabled} />
-          </div>
+          <SettingsSwitchField
+            checked={isEnabled}
+            onCheckedChange={handleToggleEnabled}
+            label={t('Enabled')}
+            className='border-b-0 py-0'
+          />
         </div>
 
         <div className='rounded-md border'>
@@ -488,7 +483,7 @@ export function ApiInfoSection({ enabled, data }: ApiInfoSectionProps) {
                           label: (
                             <div className='flex items-center gap-2'>
                               <div
-                                className={`h-4 w-4 rounded-full ${option.bgClass}`}
+                                className={`h-4 w-4 rounded-full ${getBgColorClass(option.value)}`}
                               />
                               {option.label}
                             </div>
@@ -509,7 +504,7 @@ export function ApiInfoSection({ enabled, data }: ApiInfoSectionProps) {
                             <SelectItem key={option.value} value={option.value}>
                               <div className='flex items-center gap-2'>
                                 <div
-                                  className={`h-4 w-4 rounded-full ${option.bgClass}`}
+                                  className={`h-4 w-4 rounded-full ${getBgColorClass(option.value)}`}
                                 />
                                 {option.label}
                               </div>

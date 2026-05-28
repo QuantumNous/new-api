@@ -96,8 +96,7 @@ function buildLineSparkline(values?: number[]) {
       sanitized.length === 1
         ? width / 2
         : (index / (sanitized.length - 1)) * width
-    const normalized =
-      range > 0 ? (value - min) / range : max > 0 ? 0.5 : 0
+    const normalized = range > 0 ? (value - min) / range : max > 0 ? 0.5 : 0
     const y = height - padding - normalized * (height - padding * 2)
 
     return { x, y }
