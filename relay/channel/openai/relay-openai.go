@@ -166,9 +166,18 @@ func OaiStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Re
 
 	// 处理最后的响应
 	shouldSendLastResp := true
-	if err := handleLastResponse(lastStreamData, &responseId, &createAt, &systemFingerprint, &model, &usage,
-		&containStreamUsage, info, &shouldSendLastResp); err != nil {
-		logger.LogError(c, fmt.Sprintf("error handling last response: %s, lastStreamData: [%s]", err.Error(), lastStreamData))
+	lastResponseErr := handleLastResponse(lastStreamData, &responseId, &createAt, &systemFingerprint, &model, &usage,
+		&containStreamUsage, info, &shouldSendLastResp)
+	if lastResponseErr != nil {
+		logger.LogError(c, fmt.Sprintf("error handling last response: %s, lastStreamData: [%s]", lastResponseErr.Error(), lastStreamData))
+		if info.RelayFormat != types.RelayFormatOpenAI {
+			if responseTextBuilder.Len() == 0 && toolCount == 0 {
+				return nil, types.NewOpenAIError(lastResponseErr, types.ErrorCodeBadResponseBody, http.StatusBadGateway)
+			}
+		}
+	}
+	if lastResponseErr == nil && info.RelayFormat != types.RelayFormatOpenAI && !isOpenAIStreamTerminalChunk(lastStreamData) {
+		return nil, types.NewOpenAIError(fmt.Errorf("upstream stream ended without a terminal response event"), types.ErrorCodeBadResponseBody, http.StatusBadGateway)
 	}
 
 	if info.RelayFormat == types.RelayFormatOpenAI {
@@ -180,6 +189,11 @@ func OaiStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Re
 	if !containStreamUsage {
 		usage = service.ResponseText2Usage(c, responseTextBuilder.String(), info.UpstreamModelName, info.GetEstimatePromptTokens())
 		usage.CompletionTokens += toolCount * 7
+	}
+
+	if lastResponseErr != nil && info.RelayFormat != types.RelayFormatOpenAI {
+		lastStreamData = synthesizeOpenAIStreamTerminalChunk(c, responseId, createAt, model, usage)
+		containStreamUsage = true
 	}
 
 	applyUsagePostProcessing(info, usage, common.StringToByteSlice(lastStreamData))

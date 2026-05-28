@@ -359,6 +359,8 @@ func processChannelError(c *gin.Context, channelError types.ChannelError, err *t
 	// do not use context to get channel info, there may be inconsistent channel info when processing asynchronously
 	if service.ShouldCooldownChannel(err) {
 		service.CooldownChannel(channelError, err)
+	} else if service.ShouldCooldownChannelForUpstreamError(err) {
+		service.CooldownChannelForUpstreamError(channelError, err)
 	}
 
 	if service.ShouldDisableChannel(err) && channelError.AutoBan {

@@ -115,6 +115,39 @@ func processCompletionsStreamResponse(streamResponse dto.CompletionsStreamRespon
 	}
 }
 
+func isOpenAIStreamTerminalChunk(data string) bool {
+	var streamResponse dto.ChatCompletionsStreamResponse
+	if err := common.Unmarshal(common.StringToByteSlice(data), &streamResponse); err != nil {
+		return false
+	}
+	return streamResponse.IsFinished() || service.ValidUsage(streamResponse.Usage)
+}
+
+func synthesizeOpenAIStreamTerminalChunk(c *gin.Context, responseId string, createdAt int64, model string, usage *dto.Usage) string {
+	if responseId == "" {
+		responseId = helper.GetResponseID(c)
+	}
+	if usage == nil {
+		usage = &dto.Usage{}
+	}
+	finishReason := "stop"
+	response := dto.ChatCompletionsStreamResponse{
+		Id:      responseId,
+		Object:  "chat.completion.chunk",
+		Created: createdAt,
+		Model:   model,
+		Choices: []dto.ChatCompletionsStreamResponseChoice{
+			{Index: 0, FinishReason: &finishReason},
+		},
+		Usage: usage,
+	}
+	data, err := common.Marshal(response)
+	if err != nil {
+		return ""
+	}
+	return string(data)
+}
+
 func handleLastResponse(lastStreamData string, responseId *string, createAt *int64,
 	systemFingerprint *string, model *string, usage **dto.Usage,
 	containStreamUsage *bool, info *relaycommon.RelayInfo,

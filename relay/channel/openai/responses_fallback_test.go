@@ -295,6 +295,52 @@ func TestResponsesStreamCtx_EmitTerminal_ReasoningCountsAsOutput(t *testing.T) {
 	assert.Equal(t, "response.completed", eventName)
 }
 
+func TestResponsesStream_EnsureTerminalOutputFieldAddsMissingOutput(t *testing.T) {
+	t.Parallel()
+
+	data := `{"type":"response.completed","response":{"id":"resp_test","status":"completed","usage":{"input_tokens":1,"output_tokens":2,"total_tokens":3}}}`
+	patched := ensureResponsesTerminalOutputField(dto.ResponsesStreamResponse{
+		Type:     "response.completed",
+		Response: &dto.OpenAIResponsesResponse{},
+	}, data)
+
+	var payload map[string]any
+	require.NoError(t, common.UnmarshalJsonStr(patched, &payload))
+	response := payload["response"].(map[string]any)
+	output, ok := response["output"].([]any)
+	require.True(t, ok)
+	assert.Empty(t, output)
+}
+
+func TestResponsesStream_EnsureTerminalOutputFieldPreservesExistingOutput(t *testing.T) {
+	t.Parallel()
+
+	data := `{"type":"response.completed","response":{"id":"resp_test","status":"completed","output":[{"type":"message"}]}}`
+	patched := ensureResponsesTerminalOutputField(dto.ResponsesStreamResponse{
+		Type:     "response.completed",
+		Response: &dto.OpenAIResponsesResponse{},
+	}, data)
+
+	var payload map[string]any
+	require.NoError(t, common.UnmarshalJsonStr(patched, &payload))
+	response := payload["response"].(map[string]any)
+	output, ok := response["output"].([]any)
+	require.True(t, ok)
+	assert.Len(t, output, 1)
+}
+
+func TestResponsesStream_EnsureTerminalOutputFieldIgnoresNonTerminalEvents(t *testing.T) {
+	t.Parallel()
+
+	data := `{"type":"response.in_progress","response":{"id":"resp_test","status":"in_progress"}}`
+	patched := ensureResponsesTerminalOutputField(dto.ResponsesStreamResponse{
+		Type:     "response.in_progress",
+		Response: &dto.OpenAIResponsesResponse{},
+	}, data)
+
+	assert.Equal(t, data, patched)
+}
+
 // -------- Usage payload shape (matches Codex's ResponseCompletedUsage) --------
 
 func TestUsageToResponsesPayload_AllFieldsForCodex(t *testing.T) {

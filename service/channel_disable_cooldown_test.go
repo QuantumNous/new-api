@@ -22,3 +22,43 @@ func TestShouldDisableChannelIgnoresCooldownBalanceError(t *testing.T) {
 		t.Fatalf("expected balance error to cooldown without permanent auto-disable")
 	}
 }
+
+func TestShouldCooldownChannelForUpstreamErrorCoolsMalformedResponses(t *testing.T) {
+	err := types.NewErrorWithStatusCode(errors.New("API returned an empty or malformed response (HTTP 200)"), types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
+
+	if !ShouldCooldownChannelForUpstreamError(err) {
+		t.Fatalf("expected malformed upstream response to cooldown")
+	}
+}
+
+func TestShouldCooldownChannelForUpstreamErrorCoolsSkipRetryMalformedResponses(t *testing.T) {
+	err := types.NewErrorWithStatusCode(errors.New("API returned an empty or malformed response (HTTP 200)"), types.ErrorCodeBadResponseBody, http.StatusInternalServerError, types.ErrOptionWithSkipRetry())
+
+	if !ShouldCooldownChannelForUpstreamError(err) {
+		t.Fatalf("expected malformed upstream response to cooldown even when retry is skipped")
+	}
+}
+
+func TestShouldCooldownChannelForUpstreamErrorCoolsBadGateway(t *testing.T) {
+	err := types.WithOpenAIError(types.OpenAIError{Message: "openai_error", Type: "openai_error", Code: "openai_error"}, http.StatusBadGateway)
+
+	if !ShouldCooldownChannelForUpstreamError(err) {
+		t.Fatalf("expected upstream 502 to cooldown")
+	}
+}
+
+func TestShouldCooldownChannelForUpstreamErrorIgnoresClientErrors(t *testing.T) {
+	err := types.NewErrorWithStatusCode(errors.New("invalid request"), types.ErrorCodeInvalidRequest, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
+
+	if ShouldCooldownChannelForUpstreamError(err) {
+		t.Fatalf("expected client validation error to avoid cooldown")
+	}
+}
+
+func TestShouldCooldownChannelForUpstreamErrorIgnoresAuthErrors(t *testing.T) {
+	err := types.NewErrorWithStatusCode(errors.New("invalid token"), types.ErrorCodeAccessDenied, http.StatusUnauthorized)
+
+	if ShouldCooldownChannelForUpstreamError(err) {
+		t.Fatalf("expected auth error to avoid cooldown")
+	}
+}

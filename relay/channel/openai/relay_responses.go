@@ -90,7 +90,7 @@ func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 			return
 		}
 		streamCtx.observe(streamResponse)
-		sendResponsesStreamData(c, streamResponse, data)
+		sendResponsesStreamData(c, streamResponse, ensureResponsesTerminalOutputField(streamResponse, data))
 		switch streamResponse.Type {
 		case "response.completed":
 			if streamResponse.Response != nil {

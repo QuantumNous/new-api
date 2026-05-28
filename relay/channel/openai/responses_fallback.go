@@ -246,6 +246,35 @@ func (ctx *responsesStreamCtx) writeSyntheticEvent(c *gin.Context, eventType str
 	sendResponsesStreamData(c, syntheticEvent, string(data))
 }
 
+func ensureResponsesTerminalOutputField(streamResponse dto.ResponsesStreamResponse, data string) string {
+	switch streamResponse.Type {
+	case "response.completed", "response.failed", "response.incomplete":
+	default:
+		return data
+	}
+	if streamResponse.Response == nil || streamResponse.Response.Output != nil {
+		return data
+	}
+
+	var payload map[string]any
+	if err := common.UnmarshalJsonStr(data, &payload); err != nil {
+		return data
+	}
+	response, ok := payload["response"].(map[string]any)
+	if !ok {
+		return data
+	}
+	if _, ok := response["output"]; ok {
+		return data
+	}
+	response["output"] = []any{}
+	patched, err := common.Marshal(payload)
+	if err != nil {
+		return data
+	}
+	return string(patched)
+}
+
 // usageToResponsesPayload converts an internal dto.Usage into the JSON shape
 // the Responses API uses (input_tokens / output_tokens / total_tokens with
 // nested details), which is what Codex's ResponseCompletedUsage deserializer

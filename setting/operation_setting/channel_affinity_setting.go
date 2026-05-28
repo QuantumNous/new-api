@@ -96,7 +96,7 @@ var channelAffinitySetting = ChannelAffinitySetting{
 		},
 		{
 			Name:       "claude cli trace",
-			ModelRegex: []string{"^claude-.*$"},
+			ModelRegex: []string{"^claude-.*$", "^gpt-.*$"},
 			PathRegex:  []string{"/v1/messages"},
 			KeySources: []ChannelAffinityKeySource{
 				{Type: "gjson", Path: "metadata.user_id"},
