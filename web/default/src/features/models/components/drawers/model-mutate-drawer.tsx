@@ -25,6 +25,7 @@ import { ChevronDown, Loader2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
 import {
   Collapsible,
   CollapsibleContent,
@@ -82,7 +83,11 @@ import { safeJsonParse } from '@/features/system-settings/utils/json-parser'
 import { createModel, updateModel, getModel, getVendors } from '../../api'
 import { getNameRuleOptions, ENDPOINT_TEMPLATES } from '../../constants'
 import { modelsQueryKeys, vendorsQueryKeys, parseModelTags } from '../../lib'
-import type { Model } from '../../types'
+import type {
+  Model,
+  ModelDetailCapability,
+  ModelDetailModality,
+} from '../../types'
 
 // Extended schema for ratio configuration (internal form state only)
 const extendedModelFormSchema = z.object({
@@ -96,6 +101,14 @@ const extendedModelFormSchema = z.object({
   name_rule: z.number(),
   status: z.boolean(),
   sync_official: z.boolean(),
+  context_length: z.string().optional(),
+  max_output_tokens: z.string().optional(),
+  knowledge_cutoff: z.string(),
+  release_date: z.string(),
+  parameter_count: z.string(),
+  input_modalities: z.array(z.string()),
+  output_modalities: z.array(z.string()),
+  capabilities: z.array(z.string()),
   price: z.string().optional(),
   ratio: z.string().optional(),
   cacheRatio: z.string().optional(),
@@ -110,10 +123,98 @@ type ExtendedModelFormValues = z.infer<typeof extendedModelFormSchema>
 type PricingMode = 'per-token' | 'per-request'
 type PricingSubMode = 'ratio' | 'price'
 
+type MetadataOption = {
+  value: string
+  labelKey: string
+}
+
+const MODALITY_OPTIONS: Array<MetadataOption & { value: ModelDetailModality }> =
+  [
+    { value: 'text', labelKey: 'Text' },
+    { value: 'image', labelKey: 'Image' },
+    { value: 'audio', labelKey: 'Audio' },
+    { value: 'video', labelKey: 'Video' },
+    { value: 'file', labelKey: 'File' },
+  ]
+
+const CAPABILITY_OPTIONS: Array<
+  MetadataOption & { value: ModelDetailCapability }
+> = [
+  { value: 'streaming', labelKey: 'Streaming' },
+  { value: 'function_calling', labelKey: 'Function calling' },
+  { value: 'tools', labelKey: 'Tools' },
+  { value: 'json_mode', labelKey: 'JSON mode' },
+  { value: 'structured_output', labelKey: 'Structured output' },
+  { value: 'vision', labelKey: 'Vision' },
+  { value: 'reasoning', labelKey: 'Reasoning' },
+  { value: 'caching', labelKey: 'Prompt caching' },
+  { value: 'system_prompt', labelKey: 'System prompt' },
+  { value: 'web_search', labelKey: 'Web search' },
+  { value: 'code_interpreter', labelKey: 'Code interpreter' },
+  { value: 'embeddings', labelKey: 'Embeddings' },
+]
+
 type ModelMutateDrawerProps = {
   open: boolean
   onOpenChange: (open: boolean) => void
   currentRow?: Model | null
+}
+
+function normalizeStringArray<T extends string>(values?: readonly T[]): T[] {
+  return Array.isArray(values) ? [...values] : []
+}
+
+function parseOptionalPositiveInteger(value?: string): number {
+  const trimmed = value?.trim() ?? ''
+  if (!trimmed) return 0
+  const parsed = Number.parseInt(trimmed, 10)
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 0
+}
+
+function MetadataCheckboxGrid(props: {
+  name: string
+  value: string[]
+  options: MetadataOption[]
+  onChange: (value: string[]) => void
+}) {
+  const { t } = useTranslation()
+  const selected = new Set(props.value || [])
+
+  const toggleValue = (optionValue: string, checked: boolean) => {
+    const next = new Set(selected)
+    if (checked) {
+      next.add(optionValue)
+    } else {
+      next.delete(optionValue)
+    }
+    props.onChange(
+      props.options.map((option) => option.value).filter((v) => next.has(v))
+    )
+  }
+
+  return (
+    <div className='grid grid-cols-2 gap-2 sm:grid-cols-3'>
+      {props.options.map((option) => {
+        const id = `${props.name}-${option.value}`
+        return (
+          <label
+            key={option.value}
+            htmlFor={id}
+            className='hover:bg-muted/30 flex min-w-0 cursor-pointer items-center gap-2 rounded-md border px-3 py-2 text-sm transition-colors'
+          >
+            <Checkbox
+              id={id}
+              checked={selected.has(option.value)}
+              onCheckedChange={(checked) =>
+                toggleValue(option.value, !!checked)
+              }
+            />
+            <span className='truncate'>{t(option.labelKey)}</span>
+          </label>
+        )
+      })}
+    </div>
+  )
 }
 
 export function ModelMutateDrawer({
@@ -217,6 +318,14 @@ export function ModelMutateDrawer({
       name_rule: 0,
       status: true,
       sync_official: true,
+      context_length: '',
+      max_output_tokens: '',
+      knowledge_cutoff: '',
+      release_date: '',
+      parameter_count: '',
+      input_modalities: [],
+      output_modalities: [],
+      capabilities: [],
       price: '',
       ratio: '',
       cacheRatio: '',
@@ -230,6 +339,11 @@ export function ModelMutateDrawer({
   const validateNumber = (value: string) => {
     if (value === '') return true
     return !isNaN(parseFloat(value))
+  }
+
+  const validateInteger = (value: string) => {
+    if (value === '') return true
+    return /^\d+$/.test(value)
   }
 
   const handlePromptPriceChange = (value: string) => {
@@ -276,6 +390,18 @@ export function ModelMutateDrawer({
         name_rule: model.name_rule || 0,
         status: model.status === 1,
         sync_official: model.sync_official === 1,
+        context_length: model.context_length
+          ? String(model.context_length)
+          : '',
+        max_output_tokens: model.max_output_tokens
+          ? String(model.max_output_tokens)
+          : '',
+        knowledge_cutoff: model.knowledge_cutoff || '',
+        release_date: model.release_date || '',
+        parameter_count: model.parameter_count || '',
+        input_modalities: normalizeStringArray(model.input_modalities),
+        output_modalities: normalizeStringArray(model.output_modalities),
+        capabilities: normalizeStringArray(model.capabilities),
         price: '',
         ratio: '',
         cacheRatio: '',
@@ -380,6 +506,14 @@ export function ModelMutateDrawer({
         name_rule: 0,
         status: true,
         sync_official: true,
+        context_length: '',
+        max_output_tokens: '',
+        knowledge_cutoff: '',
+        release_date: '',
+        parameter_count: '',
+        input_modalities: [],
+        output_modalities: [],
+        capabilities: [],
         price: '',
         ratio: '',
         cacheRatio: '',
@@ -401,6 +535,22 @@ export function ModelMutateDrawer({
           tags: Array.isArray(values.tags) ? values.tags.join(',') : '',
           status: values.status ? 1 : 0,
           sync_official: values.sync_official ? 1 : 0,
+          context_length: parseOptionalPositiveInteger(values.context_length),
+          max_output_tokens: parseOptionalPositiveInteger(
+            values.max_output_tokens
+          ),
+          knowledge_cutoff: values.knowledge_cutoff.trim(),
+          release_date: values.release_date.trim(),
+          parameter_count: values.parameter_count.trim(),
+          input_modalities: normalizeStringArray(
+            values.input_modalities
+          ) as ModelDetailModality[],
+          output_modalities: normalizeStringArray(
+            values.output_modalities
+          ) as ModelDetailModality[],
+          capabilities: normalizeStringArray(
+            values.capabilities
+          ) as ModelDetailCapability[],
         }
 
         // Remove ratio fields from model data (they're stored in system settings)
@@ -881,6 +1031,195 @@ export function ModelMutateDrawer({
                     </FormControl>
                     <FormDescription>
                       {t('Define API endpoints for this model (JSON format)')}
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </SideDrawerSection>
+
+            {/* Detail Metadata */}
+            <SideDrawerSection>
+              <div className='space-y-1'>
+                <h3 className='text-sm font-semibold'>{t('Model Metadata')}</h3>
+                <p className='text-muted-foreground text-xs'>
+                  {t(
+                    'Override model detail values shown in the pricing directory.'
+                  )}
+                </p>
+              </div>
+
+              <div className='grid gap-4 sm:grid-cols-2'>
+                <FormField
+                  control={form.control}
+                  name='context_length'
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t('Context length')}</FormLabel>
+                      <FormControl>
+                        <Input
+                          type='text'
+                          inputMode='numeric'
+                          placeholder='128000'
+                          {...field}
+                          onChange={(e) => {
+                            const value = e.target.value
+                            if (validateInteger(value)) {
+                              field.onChange(value)
+                            }
+                          }}
+                        />
+                      </FormControl>
+                      <FormDescription>
+                        {t('Maximum input window')}.{' '}
+                        {t('Leave blank to keep automatic inference.')}
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name='max_output_tokens'
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t('Max output tokens')}</FormLabel>
+                      <FormControl>
+                        <Input
+                          type='text'
+                          inputMode='numeric'
+                          placeholder='16384'
+                          {...field}
+                          onChange={(e) => {
+                            const value = e.target.value
+                            if (validateInteger(value)) {
+                              field.onChange(value)
+                            }
+                          }}
+                        />
+                      </FormControl>
+                      <FormDescription>
+                        {t('Maximum tokens per response')}.{' '}
+                        {t('Leave blank to keep automatic inference.')}
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name='knowledge_cutoff'
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t('Knowledge cutoff')}</FormLabel>
+                      <FormControl>
+                        <Input type='month' {...field} />
+                      </FormControl>
+                      <FormDescription>
+                        {t('Leave blank to keep automatic inference.')}
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name='release_date'
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t('Release date')}</FormLabel>
+                      <FormControl>
+                        <Input type='month' {...field} />
+                      </FormControl>
+                      <FormDescription>
+                        {t('Leave blank to keep automatic inference.')}
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+
+              <FormField
+                control={form.control}
+                name='parameter_count'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t('Parameter count')}</FormLabel>
+                    <FormControl>
+                      <Input placeholder='70B' {...field} />
+                    </FormControl>
+                    <FormDescription>
+                      {t('Leave blank to keep automatic inference.')}
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name='input_modalities'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t('Input modalities')}</FormLabel>
+                    <FormControl>
+                      <MetadataCheckboxGrid
+                        name='input-modalities'
+                        value={field.value || []}
+                        options={MODALITY_OPTIONS}
+                        onChange={field.onChange}
+                      />
+                    </FormControl>
+                    <FormDescription>
+                      {t('Leave blank to keep automatic inference.')}
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name='output_modalities'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t('Output modalities')}</FormLabel>
+                    <FormControl>
+                      <MetadataCheckboxGrid
+                        name='output-modalities'
+                        value={field.value || []}
+                        options={MODALITY_OPTIONS}
+                        onChange={field.onChange}
+                      />
+                    </FormControl>
+                    <FormDescription>
+                      {t('Leave blank to keep automatic inference.')}
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name='capabilities'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t('Capability overrides')}</FormLabel>
+                    <FormControl>
+                      <MetadataCheckboxGrid
+                        name='capabilities'
+                        value={field.value || []}
+                        options={CAPABILITY_OPTIONS}
+                        onChange={field.onChange}
+                      />
+                    </FormControl>
+                    <FormDescription>
+                      {t('Leave blank to keep automatic inference.')}
                     </FormDescription>
                     <FormMessage />
                   </FormItem>
