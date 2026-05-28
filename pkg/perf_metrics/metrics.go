@@ -122,7 +122,7 @@ func Query(params QueryParams) (QueryResult, error) {
 	return buildQueryResult(params.Model, merged), nil
 }
 
-func QuerySummaryAll(hours int) (SummaryAllResult, error) {
+func QuerySummaryAll(hours int, groups []string) (SummaryAllResult, error) {
 	if hours <= 0 {
 		hours = 24
 	}
@@ -131,8 +131,9 @@ func QuerySummaryAll(hours int) (SummaryAllResult, error) {
 	}
 	endTs := time.Now().Unix()
 	startTs := endTs - int64(hours)*3600
+	allowedGroups := allowedGroupSet(groups)
 
-	rows, err := model.GetPerfMetricsSummaryAll(startTs, endTs)
+	rows, err := model.GetPerfMetricsSummaryAll(startTs, endTs, groups)
 	if err != nil {
 		return SummaryAllResult{}, err
 	}
@@ -152,6 +153,11 @@ func QuerySummaryAll(hours int) (SummaryAllResult, error) {
 		k := key.(bucketKey)
 		if k.bucketTs < startTs || k.bucketTs > endTs {
 			return true
+		}
+		if allowedGroups != nil {
+			if _, ok := allowedGroups[k.group]; !ok {
+				return true
+			}
 		}
 		snap := value.(*atomicBucket).snapshot()
 		if snap.requestCount == 0 {
@@ -191,6 +197,17 @@ func QuerySummaryAll(hours int) (SummaryAllResult, error) {
 	})
 
 	return SummaryAllResult{Models: models}, nil
+}
+
+func allowedGroupSet(groups []string) map[string]struct{} {
+	if groups == nil {
+		return nil
+	}
+	allowed := make(map[string]struct{}, len(groups))
+	for _, group := range groups {
+		allowed[group] = struct{}{}
+	}
+	return allowed
 }
 
 func bucketStart(ts int64) int64 {

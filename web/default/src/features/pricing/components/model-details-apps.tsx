@@ -199,13 +199,13 @@ export function ModelDetailsApps(props: { model: PricingModel }) {
                       <div className='text-sm font-medium'>
                         <AppLink app={app} />
                       </div>
-                      <p className='text-muted-foreground line-clamp-1 text-xs'>
+                      <p className='text-muted-foreground line-clamp-1 text-sm'>
                         {app.description}
                       </p>
                     </div>
                   </div>
                 </TableCell>
-                <TableCell className='text-muted-foreground hidden py-2.5 text-xs md:table-cell'>
+                <TableCell className='text-muted-foreground hidden py-2.5 md:table-cell'>
                   {app.category}
                 </TableCell>
                 <TableCell className='py-2.5 text-right font-mono tabular-nums'>
