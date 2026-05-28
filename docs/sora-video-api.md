@@ -1,6 +1,8 @@
 # Sora 视频生成渠道调用文档
 
-最后更新：2026-05-24
+最后更新：2026-05-28
+
+> **2026-05-28 回归验证**：`xb-sora2` 重新通过真实验证（task `task_AnRb9zA2TNPKnUl3WjK0ep2yvbBgdaoD`，约 3.5 分钟完成，产出 6.4MB MP4）。`ss-sora-2` 首次通过真实验证（task `task_s4H8Mwn0LwsUMviZTWviEH2GVBHvC7V4`，约 3 分钟完成，产出 7.8MB MP4）。`openai-sora-2` 仍因 seconds 归一化问题不可用。
 
 本文档描述通过本服务调用 Sora/Hongniao 视频生成渠道。调用方只需要使用本项目统一的 OpenAI Video 兼容入口，不需要感知 Hongniao 的下游 API Key、接口路径和响应包装。
 

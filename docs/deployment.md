@@ -75,6 +75,11 @@ Coolify 使用的 Compose 由 Coolify 资源生成，核心配置如下：
 | 2026-05-26 | Coolify 管理状态 | `service_applications.status=running:healthy`，容器 label `coolify.managed=true` |
 | 2026-05-26 | 真实视频生成 | `grok-video-3` 任务 `task_kTOu1dhTCYZvSYtynESiQQz0rEqlHOjO` 完成 |
 | 2026-05-26 | 视频下载 | `/v1/videos/task_kTOu1dhTCYZvSYtynESiQQz0rEqlHOjO/content` 返回 `200 video/mp4`，大小 `868422` 字节 |
+| 2026-05-28 | upstream 合并 | 合并 origin/main 78 commits（channel 重构、gjson 优化、Claude fcIdx 修复、前端依赖升级等），仅 package.json 有冲突 |
+| 2026-05-28 | Docker 重建 | `docker build -t new-api-local:coolify .` 成功，前端 (bun) + 后端 (go) 均编译通过 |
+| 2026-05-28 | 容器重启 | Coolify service `running:healthy`，API status `success=true` |
+| 2026-05-28 | 全模型回归 | 5 个视频模型真实验证完成（veo3.1-fast, xb-sora2, grok-imagine-1.0-video, ss-sora-2, veo3.1-4k），详见 [api-usage.md](./api-usage.md) |
+| 2026-05-28 | Runway 状态 | 确认 Runway 渠道当前未配置，kling-3.0/o3 等新模型已注册在 constants.go 但未暴露给上游 |
 
 ### 新服务器常用命令
 
@@ -329,6 +334,8 @@ df -h /
 LK888 的媒体生成协议与 OpenAI Video 不同：创建任务走 `POST /v1/media/generate`，模型特定参数必须放入 `params` 对象；状态轮询走 `GET /v1/skills/task-status?task_id=...`，以 `is_final` / `state` 判断终态。当前 Provider 会把调用方常见的 `duration` / `seconds`、`orientation` / `aspect_ratio`、`images` / `image` / `input_reference` 转为 LK888 所需的 `params` 格式。
 
 ### Runway API 适配器验证记录
+
+> **2026-05-28 状态**：Runway 渠道当前未在 Coolify 新服务器上配置。`constants.go` 中已注册 Kling 3.0/O3 系列模型（`kling-3.0-pro`、`kling-3.0-standard`、`kling-3.0-4k`、`kling-o3-pro`、`kling-o3-standard`、`kling-o3-4k`、`kling-2.6-motion-control`、`qilin-video-storyboard-pro`）但 Runway 适配器未就绪，模型列表未暴露给上游。
 
 2026-05-19 已部署 `runway-api` 为同机私有 systemd 服务：
 

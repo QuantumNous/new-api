@@ -11,15 +11,15 @@
 | Base URL | `http://192.129.209.36:3001/v1` |
 | 认证方式 | HTTP Header `Authorization: Bearer <api-key>` |
 | 兼容协议 | OpenAI API (Chat Completions, Models, Video Generations) |
-| 测试 API Key | `sk-qZ9riqHVLChWVgVJXEkgYht3kVvVnnXS9xx9hVjzlcG7nKe9` |
-| 测试 Key 额度 | 500,000,000 单位（约 $500） |
+| 测试 API Key | `EW93ybOP6Zr1axAPYNEu8VpehQzdTkZBTATszAGYEDiwpCmJ` |
+| 测试 Key 额度 | 无限额度（unlimited_quota） |
 
-当前入口运行在 2026-05-26 迁移后的新服务器上，由 Coolify 资源 `new-api-video-gateway` 管理。迁移后已用 `grok-video-3` 重新完成真实生成验证，任务 `task_kTOu1dhTCYZvSYtynESiQQz0rEqlHOjO` 已完成，`/content` 下载返回 `200 video/mp4`。
+当前入口运行在 2026-05-26 迁移后的新服务器上，由 Coolify 资源 `new-api-video-gateway` 管理。2026-05-28 完成 upstream 合并（78 commits）后重新部署并完成全模型回归测试，所有推荐模型均通过真实创建、轮询完成和 `/content` 视频下载验证。
 
 所有请求必须在 HTTP Header 中携带 API Key：
 
 ```
-Authorization: Bearer sk-qZ9riqHVLChWVgVJXEkgYht3kVvVnnXS9xx9hVjzlcG7nKe9
+Authorization: Bearer EW93ybOP6Zr1axAPYNEu8VpehQzdTkZBTATszAGYEDiwpCmJ
 ```
 
 ---
@@ -42,7 +42,7 @@ Authorization: Bearer <api-key>
 
 Sora/Hongniao 渠道的专项说明见 [Sora 视频生成渠道调用文档](./sora-video-api.md)。AI 聚合站 / LK888 的 `grok-video-3` 线路说明见 [AI 聚合站 / LK888 视频渠道接入文档](./lk888-video-api.md)。
 
-> **2026-05-24 真实生成验证结论**：当前推荐上游使用 `veo3.1-fast`、`xb-sora2`、`grok-imagine-1.0-video`、`grok-video-3`。这 4 个模型已通过真实创建、轮询完成和 `/content` 视频下载验证。Runway 系列暂不可用，不建议调用；`openai-sora-2`、`sora-2(线路BF)`、`grok-video-3(线路W)`、`veo3.1-lite` 虽然可能出现在模型列表中，但本次真实创建失败，见 [1.3 可用视频模型](#13-可用视频模型)。
+> **2026-05-28 全模型回归验证结论**：当前推荐上游使用 `veo3.1-fast`、`xb-sora2`、`grok-imagine-1.0-video`、`ss-sora-2`、`veo3.1-4k`。这 5 个模型已通过真实创建、轮询完成和 `/content` 视频下载验证。`grok-video-3` 在 2026-05-24 可用但今天 LK888 上游参数验证失败，暂降级为"尝试"状态。Runway 系列（seedance/gen4/wan/kling/happyhorse/runway）均未就绪。`openai-sora-2`、`sora-2(线路BF)`、`grok-video-3(线路W)`、`veo3.1-lite`、`全能视频2.0` 虽然可能出现在模型列表中，但真实创建失败，见 [1.3 可用视频模型](#13-可用视频模型)。
 
 #### 1.1.1 文生视频
 
@@ -196,23 +196,25 @@ Grok 渠道注意事项：
 
 #### 真实验证可用模型（推荐上游使用）
 
-以下模型在 2026-05-24 做过真实生成测试：提交任务成功、轮询到 `completed`、并且 `GET /v1/videos/{task_id}/content` 返回 `200 video/mp4`。
+以下模型在 2026-05-28 做过真实生成测试：提交任务成功、轮询到 `completed`、并且 `GET /v1/videos/{task_id}/content` 返回 `200 video/mp4`。
 
 | 推荐模型 | 下游链路 | 本次验证 task_id | 结果 | 说明 |
 |----------|----------|------------------|------|------|
-| `veo3.1-fast` | Apexer / Veo | `task_7i6PaCEyjrUnHrdgyrxrpA2OOhXKtBwx` | ✅ 完成并可下载 | 当前推荐的 Veo 快速模型 |
-| `xb-sora2` | Hongniao / Sora | `task_DT2laJX2fCTBFeg8VvIx7DxTCllJZpOG` | ✅ 完成并可下载 | 当前推荐的 Sora 主路径；本次约 9-10 分钟完成 |
-| `grok-imagine-1.0-video` | 937qq / Qilin Grok | `task_pzEqZbQB0C3pt6PSwjk5ah9qaPzg7ckE` | ✅ 完成并可下载 | 推荐的 Grok Imagine 路径 |
-| `grok-video-3` | LK888 / AI 聚合站 | `task_nnSSlWrA4eQA9WhwdcfvsgfryjgeVI11` | ✅ 完成并可下载 | 推荐的 LK888 Grok 路径 |
+| `veo3.1-fast` | Apexer / Veo | `task_kPRJVkUnFmkznGZbKaUAY8UAy5daQTaS` | ✅ 完成并可下载 | 当前推荐的 Veo 快速模型，约 1.5 分钟完成 |
+| `xb-sora2` | Hongniao / Sora | `task_AnRb9zA2TNPKnUl3WjK0ep2yvbBgdaoD` | ✅ 完成并可下载 | 当前推荐的 Sora 主路径，约 3.5 分钟完成 |
+| `grok-imagine-1.0-video` | 937qq / Qilin Grok | `task_0N4mwgTkQS8mlV8iYiTa1D385u2o2CRf` | ✅ 完成并可下载 | 推荐的 Grok Imagine 路径；注意仅支持 `720x1280`/`1280x720`/`1024x1024`/`1024x1792`/`1792x1024` 尺寸 |
+| `ss-sora-2` | Hongniao / Sora | `task_s4H8Mwn0LwsUMviZTWviEH2GVBHvC7V4` | ✅ 完成并可下载 | Sora 2 备用路径，约 3 分钟完成 |
+| `veo3.1-4k` | Apexer / Veo 4K | `task_mDFMyYk4fXPREqIZad9ZFTSNvEhQ46Wz` | ✅ 完成并可下载 | 4K 高质量，约 4 分钟完成，$15/次 |
 
 下载抽查结果：
 
 | 模型 | `/content` 状态 | Content-Type | 下载大小 |
 |------|-----------------|--------------|----------|
-| `veo3.1-fast` | `200` | `video/mp4` | 约 1.95 MB |
-| `xb-sora2` | `200` | `video/mp4` | 约 3.81 MB |
-| `grok-imagine-1.0-video` | `200` | `video/mp4` | 约 798 KB |
-| `grok-video-3` | `200` | `video/mp4` | 约 910 KB |
+| `veo3.1-fast` | `200` | `video/mp4` | 约 3.3 MB |
+| `xb-sora2` | `200` | `video/mp4` | 约 6.4 MB |
+| `grok-imagine-1.0-video` | `200` | `video/mp4` | 约 3.8 MB |
+| `ss-sora-2` | `200` | `video/mp4` | 约 7.8 MB |
+| `veo3.1-4k` | `200` | `video/mp4` | 约 23 MB |
 
 #### 可尝试但未逐一真实验证的同族模型
 
@@ -222,21 +224,24 @@ Grok 渠道注意事项：
 |--------|------|------|
 | `veo3.1`、`veo3.1-pro`、`veo3.1-4k`、`veo3.1-fast-4k`、`veo3.1-pro-4k` | Apexer / Veo | 同属 Veo/Apexer 链路；高质量和 4K 成本更高 |
 | `veo3.1-components`、`veo3.1-fast-components`、`veo3.1-components-4k`、`veo3.1-fast-components-4k` | Apexer / Veo | 多图参考/Components 模式，本次未做真实生成 |
-| `ss-sora-2`、`je-grok`、`全能视频2.0` | Hongniao | 远端模型列表暴露，但本次未逐个真实生成 |
-| `grok-imagine-1.0-video-20s`、`grok-imagine-1.0-video-30s` | 937qq / Qilin Grok | 长时长 Grok 模型，成本按秒增加，本次未重复验证 |
+| `ss-sora-2`、`je-grok`、`全能视频2.0` | Hongniao | `ss-sora-2` 已升级为验证模型；`je-grok` 今天 429 限流；`全能视频2.0` 今天上游返回模型不存在 |
+| `grok-imagine-1.0-video-20s`、`grok-imagine-1.0-video-30s` | 937qq / Qilin Grok | 长时长 Grok 模型，成本按秒增加，但今天 `20s` 返回 `model_not_found`（渠道未注册） |
 
 #### 暴露但当前不建议上游调用的模型
 
 | 模型名 | 本次真实结果 | 处理建议 |
 |--------|--------------|----------|
 | `openai-sora-2` | 创建失败：请求 8 秒仍被兼容层归一化成 10 秒，下游返回“仅支持 8 秒、12 秒” | 不建议上游使用；请直接用 `xb-sora2` |
-| `sora-2-image-to-video` | 与 `openai-sora-2` 属同一兼容映射链路，本次不建议继续消耗额度 | 不建议上游使用；请直接用 `xb-sora2` |
+| `sora-2-image-to-video` | 与 `openai-sora-2` 属同一兼容映射链路 | 不建议上游使用；请直接用 `xb-sora2` |
 | `sora-2-pro-text-to-video` | 兼容映射到 Hongniao BF 线路；BF 线路本次创建被下游拒绝 | 暂不建议上游使用 |
 | `sora-2(线路BF)` | 创建失败：下游返回“当前未开放给 OpenAPI 使用” | 不要直接调用 |
 | `grok-video-3(线路W)` | 创建失败：下游返回“当前未开放给 OpenAPI 使用” | 不要直接调用；需要 Grok 请用 `grok-video-3` 或 `grok-imagine-1.0-video` |
 | `veo3.1-lite` | 创建失败：`multipart: NextPart: EOF` | 暂不建议上游使用 |
-| `seedance-2`、`gen4-turbo`、`gen4.5`、`wan-2.6*`、`kling-2.5*`、`kling-2.6`、`happyhorse-1` | 属 Runway 私有适配器系列，当前暂不可用，本次按运维结论跳过测试 | 不要推荐给上游 |
+| `全能视频2.0` | 创建失败：上游返回"Model does not exist or is not available" | 不要推荐给上游 |
+| `seedance-2`、`gen4-turbo`、`gen4.5`、`wan-2.6*`、`kling-*`、`happyhorse-1`、`pixverse`、`vidu` | Runway 私有适配器系列，当前未部署，不具备可用性 | 不要推荐给上游 |
 | `香蕉2(线路V)`、`香蕉pro(线路G)` | 模型列表暴露，但未完成真实 OpenAPI 生成验证 | 不要推荐给上游 |
+
+> **2026-05-28 补充**：Runway 渠道当前未配置。代码中已注册的新 Kling 3.0/O3 系列模型（`kling-3.0-pro`、`kling-3.0-standard`、`kling-3.0-4k`、`kling-3.0-motion-control`、`kling-o3-pro`、`kling-o3-standard`、`kling-o3-4k`、`kling-2.6-motion-control`）以及 `qilin-video-storyboard-pro` 均在 `constants.go` 注册了但模型列表未暴露，待 Runway 就绪后统一上线。
 
 ### 1.4 模型自动映射规则
 
@@ -371,7 +376,7 @@ import requests
 import time
 
 BASE_URL = "http://192.129.209.36:3001/v1"
-API_KEY = "sk-qZ9riqHVLChWVgVJXEkgYht3kVvVnnXS9xx9hVjzlcG7nKe9"
+API_KEY = "EW93ybOP6Zr1axAPYNEu8VpehQzdTkZBTATszAGYEDiwpCmJ"
 
 headers = {
     "Authorization": f"Bearer {API_KEY}",
@@ -485,7 +490,7 @@ video_url = generate_video(
 
 ```bash
 #!/bin/bash
-API_KEY="sk-qZ9riqHVLChWVgVJXEkgYht3kVvVnnXS9xx9hVjzlcG7nKe9"
+API_KEY="EW93ybOP6Zr1axAPYNEu8VpehQzdTkZBTATszAGYEDiwpCmJ"
 BASE_URL="http://192.129.209.36:3001/v1"
 
 # 文生视频
@@ -647,7 +652,7 @@ import requests
 import re
 
 BASE_URL = "http://192.129.209.36:3001/v1"
-API_KEY = "sk-qZ9riqHVLChWVgVJXEkgYht3kVvVnnXS9xx9hVjzlcG7nKe9"
+API_KEY = "EW93ybOP6Zr1axAPYNEu8VpehQzdTkZBTATszAGYEDiwpCmJ"
 
 headers = {
     "Authorization": f"Bearer {API_KEY}",
@@ -849,14 +854,16 @@ Authorization: Bearer <api-key>
 | xgapi.top | xgapi | 10（兜底） | `veo3.1-lite`, `sora-2` | 当前不可作为主路径；2026-05-24 `veo3.1-lite` 创建失败 |
 | runway-api | runway | 暂不启用 | seedance/gen4/wan/kling/happyhorse 系列 | 当前暂不可用，不推荐给上游 |
 
-> **路由实务（2026-05-24 验证）**:
+> **路由实务（2026-05-28 验证）**:
 > - `veo3.1-fast` 请求 → Apexer/Veo 链路真实生成完成，`/content` 返回 `200 video/mp4` ✅
 > - `xb-sora2` 请求 → Hongniao（90）真实生成完成，`/content` 返回 `200 video/mp4` ✅
-> - `MiniMax-Hailuo-02` / `doubao-seedance-*` 等无点号模型 → 直接 bltcy ✅
-> - `grok-imagine-1.0-video` → 937qq / Qilin（80）真实生成完成，`/content` 返回 `200 video/mp4` ✅
-> - `grok-video-3` → AI 聚合站 / LK888（35）真实生成完成，`/content` 返回 `200 video/mp4` ✅
+> - `ss-sora-2` 请求 → Hongniao（90）真实生成完成，`/content` 返回 `200 video/mp4` ✅
+> - `veo3.1-4k` 请求 → Apexer/Veo 4K 链路真实生成完成，`/content` 返回 `200 video/mp4` ✅
+> - `grok-imagine-1.0-video` → 937qq / Qilin（80）真实生成完成，注意仅支持 `720x1280`/`1280x720`/`1024x1024`/`1024x1792`/`1792x1024` ✅
+> - `grok-video-3` → AI 聚合站 / LK888（35）今天上游返回"参数验证失败"，2026-05-24 曾可用，疑似上游临时问题 ⚠️
+> - `je-grok` → Hongniao 今天上游返回 429（限流），路由正常但高峰期不可用 ⚠️
 > - `openai-sora-2` 当前不要推荐给上游：真实创建失败，兼容层 duration 映射仍需修复 ⚠️
-> - `sora-2(线路BF)` / `grok-video-3(线路W)` 虽出现在模型列表，但真实创建返回“当前未开放给 OpenAPI 使用” ⚠️
+> - `sora-2(线路BF)` / `grok-video-3(线路W)` / `全能视频2.0` 虽出现在模型列表，但真实创建失败 ⚠️
 > - xgapi 与 Runway 暂不在主路径上，不推荐给上游
 
 ### 渠道优先级与自动故障转移
