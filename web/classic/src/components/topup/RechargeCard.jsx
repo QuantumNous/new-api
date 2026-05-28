@@ -43,7 +43,7 @@ import {
   Wallet,
 } from 'lucide-react';
 import { copy as copyText, showSuccess } from '../../helpers';
-import { useMinimumLoadingTime } from '../../hooks/common/useMinimumLoadingTime';
+// import { useMinimumLoadingTime } from '../../hooks/common/useMinimumLoadingTime';
 import { getCurrencyConfig } from '../../helpers/render';
 import SubscriptionPlansCard from './SubscriptionPlansCard';
 
@@ -99,7 +99,8 @@ const RechargeCard = ({
   const initialTabSetRef = useRef(false);
   const [activeTab, setActiveTab] = useState('topup');
   const [selectedPayment, setSelectedPayment] = useState('');
-  const showAmountSkeleton = useMinimumLoadingTime(amountLoading, 200);
+  // const showAmountSkeleton = useMinimumLoadingTime(amountLoading, 200);
+  const showAmountSkeleton = false;
 
   const shouldShowSubscription =
     !subscriptionLoading && subscriptionPlans.length > 0;
