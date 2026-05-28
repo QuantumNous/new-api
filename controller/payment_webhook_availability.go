@@ -155,12 +155,9 @@ func isPaddleAPIKeyConfigured() bool {
 func isPaddleClientTokenConfigured() bool {
 	clientToken := strings.TrimSpace(setting.PaddleClientToken)
 	if clientToken == "" {
-		return false
+		return ensurePaddleClientTokenConfigured()
 	}
-	if setting.EffectivePaddleSandbox() {
-		return paddleSandboxTokenPattern.MatchString(clientToken)
-	}
-	return paddleLiveTokenPattern.MatchString(clientToken)
+	return isPaddleClientTokenMatched(clientToken)
 }
 
 func isPaddleProductIDConfigured() bool {

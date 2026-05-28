@@ -1,6 +1,7 @@
 package setting
 
 import (
+	"os"
 	"strings"
 	"testing"
 
@@ -51,4 +52,120 @@ func TestEffectivePaddleSandboxPrefersCredentialEnvironment(t *testing.T) {
 
 	PaddleSandbox = true
 	require.True(t, EffectivePaddleSandbox())
+}
+
+func TestEffectivePaddleSandboxPrefersExplicitEnvironment(t *testing.T) {
+	original := snapshotPaddleSettings()
+	t.Cleanup(func() {
+		restorePaddleSettings(original)
+	})
+
+	PaddleApiKey = testPaddleSandboxAPIKey
+	PaddleClientToken = "test_" + strings.Repeat("b", 27)
+	PaddleSandbox = true
+	t.Setenv("PADDLE_ENVIRONMENT", "live")
+	require.False(t, EffectivePaddleSandbox())
+
+	t.Setenv("PADDLE_ENVIRONMENT", "sandbox")
+	PaddleApiKey = testPaddleAPIKey
+	PaddleClientToken = "live_" + strings.Repeat("a", 27)
+	PaddleSandbox = false
+	require.True(t, EffectivePaddleSandbox())
+}
+
+func TestApplyPaddleEnvOverridesSelectsLiveConfig(t *testing.T) {
+	original := snapshotPaddleSettings()
+	t.Cleanup(func() {
+		restorePaddleSettings(original)
+	})
+	t.Setenv("PADDLE_ENVIRONMENT", "live")
+	t.Setenv("PADDLE_LIVE_API_KEY", testPaddleAPIKey)
+	t.Setenv("PADDLE_LIVE_CLIENT_TOKEN", "live_"+strings.Repeat("z", 27))
+	t.Setenv("PADDLE_LIVE_WEBHOOK_SECRET", testPaddleWebhookSecret)
+	t.Setenv("PADDLE_LIVE_PRODUCT_ID", "pro_"+strings.Repeat("p", 26))
+	t.Setenv("PADDLE_LIVE_CURRENCY", "usd")
+	t.Setenv("PADDLE_LIVE_UNIT_PRICE", "1.25")
+	t.Setenv("PADDLE_LIVE_MIN_TOPUP", "12")
+
+	PaddleSandbox = true
+	ApplyPaddleEnvOverrides()
+
+	require.False(t, PaddleSandbox)
+	require.False(t, EffectivePaddleSandbox())
+	require.Equal(t, testPaddleAPIKey, PaddleApiKey)
+	require.Equal(t, "live_"+strings.Repeat("z", 27), PaddleClientToken)
+	require.Equal(t, testPaddleWebhookSecret, PaddleWebhookSecret)
+	require.Equal(t, "pro_"+strings.Repeat("p", 26), PaddleProductId)
+	require.Equal(t, "USD", PaddleCurrency)
+	require.Equal(t, 1.25, PaddleUnitPrice)
+	require.Equal(t, 12, PaddleMinTopUp)
+}
+
+func TestApplyPaddleEnvOverridesSelectsSandboxConfig(t *testing.T) {
+	original := snapshotPaddleSettings()
+	t.Cleanup(func() {
+		restorePaddleSettings(original)
+	})
+	t.Setenv("PADDLE_ENVIRONMENT", "sandbox")
+	t.Setenv("PADDLE_SANDBOX_API_KEY", testPaddleSandboxAPIKey)
+	t.Setenv("PADDLE_SANDBOX_CLIENT_TOKEN", "test_"+strings.Repeat("y", 27))
+	t.Setenv("PADDLE_SANDBOX_WEBHOOK_SECRET", testPaddleWebhookSecret)
+	t.Setenv("PADDLE_SANDBOX_PRODUCT_ID", "pro_"+strings.Repeat("s", 26))
+
+	PaddleSandbox = false
+	ApplyPaddleEnvOverrides()
+
+	require.True(t, PaddleSandbox)
+	require.True(t, EffectivePaddleSandbox())
+	require.Equal(t, testPaddleSandboxAPIKey, PaddleApiKey)
+	require.Equal(t, "test_"+strings.Repeat("y", 27), PaddleClientToken)
+	require.Equal(t, "pro_"+strings.Repeat("s", 26), PaddleProductId)
+}
+
+func TestApplyPaddleEnvOverridesIgnoresUnsetEnvironment(t *testing.T) {
+	original := snapshotPaddleSettings()
+	t.Cleanup(func() {
+		restorePaddleSettings(original)
+	})
+	require.NoError(t, os.Unsetenv("PADDLE_ENVIRONMENT"))
+	PaddleApiKey = "db-value"
+
+	ApplyPaddleEnvOverrides()
+
+	require.Equal(t, "db-value", PaddleApiKey)
+}
+
+type paddleSettingsSnapshot struct {
+	apiKey        string
+	clientToken   string
+	webhookSecret string
+	sandbox       bool
+	productID     string
+	currency      string
+	unitPrice     float64
+	minTopUp      int
+}
+
+func snapshotPaddleSettings() paddleSettingsSnapshot {
+	return paddleSettingsSnapshot{
+		apiKey:        PaddleApiKey,
+		clientToken:   PaddleClientToken,
+		webhookSecret: PaddleWebhookSecret,
+		sandbox:       PaddleSandbox,
+		productID:     PaddleProductId,
+		currency:      PaddleCurrency,
+		unitPrice:     PaddleUnitPrice,
+		minTopUp:      PaddleMinTopUp,
+	}
+}
+
+func restorePaddleSettings(snapshot paddleSettingsSnapshot) {
+	PaddleApiKey = snapshot.apiKey
+	PaddleClientToken = snapshot.clientToken
+	PaddleWebhookSecret = snapshot.webhookSecret
+	PaddleSandbox = snapshot.sandbox
+	PaddleProductId = snapshot.productID
+	PaddleCurrency = snapshot.currency
+	PaddleUnitPrice = snapshot.unitPrice
+	PaddleMinTopUp = snapshot.minTopUp
 }

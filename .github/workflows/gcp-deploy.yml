@@ -94,15 +94,50 @@ jobs:
 
       - name: Deploy new revision with NO traffic
         id: deploy
+        env:
+          PADDLE_ENVIRONMENT: ${{ vars.PADDLE_ENVIRONMENT }}
+          PADDLE_SANDBOX_PRODUCT_ID: ${{ vars.PADDLE_SANDBOX_PRODUCT_ID }}
+          PADDLE_SANDBOX_CURRENCY: ${{ vars.PADDLE_SANDBOX_CURRENCY }}
+          PADDLE_SANDBOX_UNIT_PRICE: ${{ vars.PADDLE_SANDBOX_UNIT_PRICE }}
+          PADDLE_SANDBOX_MIN_TOPUP: ${{ vars.PADDLE_SANDBOX_MIN_TOPUP }}
+          PADDLE_SANDBOX_API_KEY: ${{ secrets.PADDLE_SANDBOX_API_KEY }}
+          PADDLE_SANDBOX_CLIENT_TOKEN: ${{ secrets.PADDLE_SANDBOX_CLIENT_TOKEN }}
+          PADDLE_SANDBOX_WEBHOOK_SECRET: ${{ secrets.PADDLE_SANDBOX_WEBHOOK_SECRET }}
+          PADDLE_LIVE_PRODUCT_ID: ${{ vars.PADDLE_LIVE_PRODUCT_ID }}
+          PADDLE_LIVE_CURRENCY: ${{ vars.PADDLE_LIVE_CURRENCY }}
+          PADDLE_LIVE_UNIT_PRICE: ${{ vars.PADDLE_LIVE_UNIT_PRICE }}
+          PADDLE_LIVE_MIN_TOPUP: ${{ vars.PADDLE_LIVE_MIN_TOPUP }}
+          PADDLE_LIVE_API_KEY: ${{ secrets.PADDLE_LIVE_API_KEY }}
+          PADDLE_LIVE_CLIENT_TOKEN: ${{ secrets.PADDLE_LIVE_CLIENT_TOKEN }}
+          PADDLE_LIVE_WEBHOOK_SECRET: ${{ secrets.PADDLE_LIVE_WEBHOOK_SECRET }}
         run: |
           set -euo pipefail
           revision_suffix="$(date -u +%Y%m%d-%H%M%S)-${{ needs.build.outputs.short_sha }}"
+          env_vars=()
+          for name in \
+            PADDLE_ENVIRONMENT \
+            PADDLE_SANDBOX_PRODUCT_ID PADDLE_SANDBOX_CURRENCY PADDLE_SANDBOX_UNIT_PRICE PADDLE_SANDBOX_MIN_TOPUP \
+            PADDLE_SANDBOX_API_KEY PADDLE_SANDBOX_CLIENT_TOKEN PADDLE_SANDBOX_WEBHOOK_SECRET \
+            PADDLE_LIVE_PRODUCT_ID PADDLE_LIVE_CURRENCY PADDLE_LIVE_UNIT_PRICE PADDLE_LIVE_MIN_TOPUP \
+            PADDLE_LIVE_API_KEY PADDLE_LIVE_CLIENT_TOKEN PADDLE_LIVE_WEBHOOK_SECRET; do
+            value="${!name:-}"
+            if [[ -n "${value}" ]]; then
+              env_vars+=("${name}=${value}")
+            fi
+          done
+          env_args=()
+          if (( ${#env_vars[@]} > 0 )); then
+            IFS=,
+            env_args=(--update-env-vars="${env_vars[*]}")
+            unset IFS
+          fi
           gcloud run services update "${RUN_SERVICE}" \
             --project="${PROJECT_ID}" \
             --region="${REGION}" \
             --image="${{ needs.build.outputs.image_uri }}" \
             --revision-suffix="${revision_suffix}" \
             --no-traffic \
+            "${env_args[@]}" \
             --quiet
           new_rev="$(gcloud run services describe "${RUN_SERVICE}" \
             --project="${PROJECT_ID}" --region="${REGION}" \

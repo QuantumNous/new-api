@@ -31,6 +31,9 @@ import type { PresetAmount, TopupInfo } from '../types'
 // Payment Processing Functions
 // ============================================================================
 
+const PADDLE_CHECKOUT_URL_FALLBACK_STORAGE_PREFIX =
+  'new-api:paddle-checkout-url:'
+
 /**
  * Check if browser is Safari
  */
@@ -119,6 +122,101 @@ export function buildPaddleWalletCheckoutUrlWithOrder(
     url.searchParams.set(PADDLE_ORDER_SEARCH_PARAM, normalizedOrderId)
   }
   return `${url.pathname}${url.search}`
+}
+
+function getPaddleCheckoutUrlFallbackStorageKey(transactionId: string): string {
+  return `${PADDLE_CHECKOUT_URL_FALLBACK_STORAGE_PREFIX}${transactionId.trim()}`
+}
+
+function normalizePaymentRedirectUrl(url: string): string | null {
+  const normalizedUrl = url.trim()
+  if (!normalizedUrl) {
+    return null
+  }
+
+  const isAbsoluteHttpUrl = /^https?:\/\//i.test(normalizedUrl)
+  const isRootRelativeUrl =
+    normalizedUrl.startsWith('/') && !normalizedUrl.startsWith('//')
+  if (!isAbsoluteHttpUrl && !isRootRelativeUrl) {
+    return null
+  }
+
+  try {
+    const parsedUrl = new URL(normalizedUrl, window.location.origin)
+    if (parsedUrl.protocol === 'http:' || parsedUrl.protocol === 'https:') {
+      return parsedUrl.href
+    }
+  } catch (_error) {
+    return null
+  }
+
+  return null
+}
+
+export function rememberPaddleCheckoutUrlFallback(
+  transactionId: string,
+  checkoutUrl: string
+): void {
+  const normalizedTransactionId = transactionId.trim()
+  const normalizedCheckoutUrl = normalizePaymentRedirectUrl(checkoutUrl)
+  if (!normalizedTransactionId || !normalizedCheckoutUrl) {
+    return
+  }
+
+  try {
+    window.sessionStorage.setItem(
+      getPaddleCheckoutUrlFallbackStorageKey(normalizedTransactionId),
+      normalizedCheckoutUrl
+    )
+  } catch (_error) {
+    // Checkout still works through Paddle.js; this fallback is best effort.
+  }
+}
+
+export function getPaddleCheckoutUrlFallback(
+  transactionId: string
+): string | undefined {
+  const normalizedTransactionId = transactionId.trim()
+  if (!normalizedTransactionId) {
+    return undefined
+  }
+
+  try {
+    const storedUrl = window.sessionStorage.getItem(
+      getPaddleCheckoutUrlFallbackStorageKey(normalizedTransactionId)
+    )
+    if (!storedUrl) {
+      return undefined
+    }
+
+    const normalizedCheckoutUrl = normalizePaymentRedirectUrl(storedUrl)
+    if (normalizedCheckoutUrl) {
+      return normalizedCheckoutUrl
+    }
+
+    window.sessionStorage.removeItem(
+      getPaddleCheckoutUrlFallbackStorageKey(normalizedTransactionId)
+    )
+  } catch (_error) {
+    return undefined
+  }
+
+  return undefined
+}
+
+export function clearPaddleCheckoutUrlFallback(transactionId: string): void {
+  const normalizedTransactionId = transactionId.trim()
+  if (!normalizedTransactionId) {
+    return
+  }
+
+  try {
+    window.sessionStorage.removeItem(
+      getPaddleCheckoutUrlFallbackStorageKey(normalizedTransactionId)
+    )
+  } catch (_error) {
+    // Ignore storage errors; cleanup is not required for checkout correctness.
+  }
 }
 
 /**

@@ -201,6 +201,22 @@ func LoadOptionsFromDatabase() {
 			common.SysLog("failed to update option map: " + err.Error())
 		}
 	}
+	setting.ApplyPaddleEnvOverrides()
+	syncPaddleOptionMap()
+}
+
+func syncPaddleOptionMap() {
+	common.OptionMapRWMutex.Lock()
+	defer common.OptionMapRWMutex.Unlock()
+
+	common.OptionMap["PaddleApiKey"] = setting.PaddleApiKey
+	common.OptionMap["PaddleClientToken"] = setting.PaddleClientToken
+	common.OptionMap["PaddleWebhookSecret"] = setting.PaddleWebhookSecret
+	common.OptionMap["PaddleSandbox"] = strconv.FormatBool(setting.EffectivePaddleSandbox())
+	common.OptionMap["PaddleProductId"] = setting.PaddleProductId
+	common.OptionMap["PaddleCurrency"] = setting.PaddleCurrency
+	common.OptionMap["PaddleUnitPrice"] = strconv.FormatFloat(setting.PaddleUnitPrice, 'f', -1, 64)
+	common.OptionMap["PaddleMinTopUp"] = strconv.Itoa(setting.PaddleMinTopUp)
 }
 
 func SyncOptions(frequency int) {
@@ -227,6 +243,10 @@ func UpdateOption(key string, value string) error {
 	// Update local OptionMap
 	if err := updateOptionMap(key, value); err != nil {
 		return err
+	}
+	if isPaddleOptionKey(key) {
+		setting.ApplyPaddleEnvOverrides()
+		syncPaddleOptionMap()
 	}
 
 	// Notify peer replicas via pubsub. Pubsub failures are logged but do not
@@ -273,7 +293,31 @@ func UpdateOptionsBulk(values map[string]string) error {
 			return err
 		}
 	}
+	if hasPaddleOptionKey(values) {
+		setting.ApplyPaddleEnvOverrides()
+		syncPaddleOptionMap()
+	}
 	return nil
+}
+
+func isPaddleOptionKey(key string) bool {
+	return key == "PaddleApiKey" ||
+		key == "PaddleClientToken" ||
+		key == "PaddleWebhookSecret" ||
+		key == "PaddleSandbox" ||
+		key == "PaddleProductId" ||
+		key == "PaddleCurrency" ||
+		key == "PaddleUnitPrice" ||
+		key == "PaddleMinTopUp"
+}
+
+func hasPaddleOptionKey(values map[string]string) bool {
+	for key := range values {
+		if isPaddleOptionKey(key) {
+			return true
+		}
+	}
+	return false
 }
 
 func updateOptionMap(key string, value string) (err error) {

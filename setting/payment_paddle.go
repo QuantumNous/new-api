@@ -3,6 +3,7 @@ package setting
 import (
 	"errors"
 	"math"
+	"os"
 	"regexp"
 	"strconv"
 	"strings"
@@ -27,7 +28,50 @@ var (
 	paddleCurrencyPattern      = regexp.MustCompile(`^[A-Z]{3}$`)
 )
 
+func ApplyPaddleEnvOverrides() {
+	if sandbox, ok := paddleSandboxFromEnv(); ok {
+		if !sandbox {
+			applyPaddleEnv("PADDLE_LIVE_", false)
+			return
+		}
+		applyPaddleEnv("PADDLE_SANDBOX_", true)
+	}
+}
+
+func applyPaddleEnv(prefix string, sandbox bool) {
+	PaddleSandbox = sandbox
+	if value := strings.TrimSpace(os.Getenv(prefix + "API_KEY")); value != "" {
+		PaddleApiKey = value
+	}
+	if value := strings.TrimSpace(os.Getenv(prefix + "CLIENT_TOKEN")); value != "" {
+		PaddleClientToken = value
+	}
+	if value := strings.TrimSpace(os.Getenv(prefix + "WEBHOOK_SECRET")); value != "" {
+		PaddleWebhookSecret = value
+	}
+	if value := strings.TrimSpace(os.Getenv(prefix + "PRODUCT_ID")); value != "" {
+		PaddleProductId = value
+	}
+	if value := strings.ToUpper(strings.TrimSpace(os.Getenv(prefix + "CURRENCY"))); value != "" {
+		PaddleCurrency = value
+	}
+	if value := strings.TrimSpace(os.Getenv(prefix + "UNIT_PRICE")); value != "" {
+		if parsed, err := strconv.ParseFloat(value, 64); err == nil && !math.IsNaN(parsed) && !math.IsInf(parsed, 0) {
+			PaddleUnitPrice = parsed
+		}
+	}
+	if value := strings.TrimSpace(os.Getenv(prefix + "MIN_TOPUP")); value != "" {
+		if parsed, err := strconv.Atoi(value); err == nil {
+			PaddleMinTopUp = parsed
+		}
+	}
+}
+
 func EffectivePaddleSandbox() bool {
+	if sandbox, ok := paddleSandboxFromEnv(); ok {
+		return sandbox
+	}
+
 	apiKey := strings.TrimSpace(PaddleApiKey)
 	if strings.HasPrefix(apiKey, "pdl_live_apikey_") {
 		return false
@@ -45,6 +89,18 @@ func EffectivePaddleSandbox() bool {
 	}
 
 	return PaddleSandbox
+}
+
+func paddleSandboxFromEnv() (bool, bool) {
+	environment := strings.ToLower(strings.TrimSpace(os.Getenv("PADDLE_ENVIRONMENT")))
+	switch environment {
+	case "live", "prod", "production":
+		return false, true
+	case "sandbox", "test":
+		return true, true
+	default:
+		return false, false
+	}
 }
 
 func ValidatePaddleOption(key, value string) error {

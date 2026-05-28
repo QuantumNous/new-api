@@ -1,6 +1,8 @@
 package controller
 
 import (
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 
@@ -23,6 +25,54 @@ var (
 
 func syntheticPaddleAPIKey(prefix string) string {
 	return prefix + strings.Repeat("d", 26) + "_" + strings.Repeat("E", 22) + "_" + strings.Repeat("F", 3)
+}
+
+func TestEnsurePaddleClientTokenConfiguredAutoProvisionsMissingToken(t *testing.T) {
+	confirmPaymentComplianceForTest(t)
+	originalAPIKey := setting.PaddleApiKey
+	originalClientToken := setting.PaddleClientToken
+	originalSandbox := setting.PaddleSandbox
+	originalAPIBase := paddleClientTokenAPIBase
+	originalHTTPClient := paddleClientTokenHTTPClient
+	originalSaveOption := paddleClientTokenSaveOption
+	t.Cleanup(func() {
+		setting.PaddleApiKey = originalAPIKey
+		setting.PaddleClientToken = originalClientToken
+		setting.PaddleSandbox = originalSandbox
+		paddleClientTokenAPIBase = originalAPIBase
+		paddleClientTokenHTTPClient = originalHTTPClient
+		paddleClientTokenSaveOption = originalSaveOption
+	})
+
+	requestCount := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requestCount++
+		require.Equal(t, http.MethodPost, r.Method)
+		require.Equal(t, "/client-tokens", r.URL.Path)
+		require.Equal(t, "Bearer "+testPaddleLiveAPIKey, r.Header.Get("Authorization"))
+		require.Equal(t, paddleAPIVersion, r.Header.Get("Paddle-Version"))
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"data":{"id":"ctkn_test","token":"` + testPaddleLiveClientToken + `","status":"active"}}`))
+	}))
+	defer server.Close()
+
+	setting.PaddleSandbox = false
+	setting.PaddleApiKey = testPaddleLiveAPIKey
+	setting.PaddleClientToken = ""
+	paddleClientTokenAPIBase = server.URL
+	paddleClientTokenHTTPClient = server.Client()
+	paddleClientTokenSaveOption = func(key string, value string) error {
+		require.Equal(t, "PaddleClientToken", key)
+		setting.PaddleClientToken = value
+		return nil
+	}
+
+	require.True(t, ensurePaddleClientTokenConfigured())
+	require.Equal(t, testPaddleLiveClientToken, setting.PaddleClientToken)
+	require.Equal(t, 1, requestCount)
+
+	require.True(t, ensurePaddleClientTokenConfigured())
+	require.Equal(t, 1, requestCount)
 }
 
 func confirmPaymentComplianceForTest(t *testing.T) {

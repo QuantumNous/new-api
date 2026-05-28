@@ -48,8 +48,10 @@ import {
   useWaffoPancakePayment,
 } from './hooks'
 import {
+  clearPaddleCheckoutUrlFallback,
   getDefaultPaymentType,
   getMinTopupAmount,
+  getPaddleCheckoutUrlFallback,
   isWaffoPancakePayment,
 } from './lib'
 import { openPaddleCheckoutForTransaction } from './lib/paddle-checkout'
@@ -173,6 +175,9 @@ export function Wallet(props: WalletProps) {
           })
           if (isApiSuccess(response) && response.data) {
             if (response.data.status === 'success') {
+              if (transactionId) {
+                clearPaddleCheckoutUrlFallback(transactionId)
+              }
               setPaddleCheckoutNotice({
                 title: t('Paddle payment completed'),
                 description: t('Your wallet balance has been refreshed.'),
@@ -185,6 +190,9 @@ export function Wallet(props: WalletProps) {
               response.data.status === 'failed' ||
               response.data.status === 'expired'
             ) {
+              if (transactionId) {
+                clearPaddleCheckoutUrlFallback(transactionId)
+              }
               setPaddleCheckoutNotice({
                 variant: 'destructive',
                 title: t('Paddle payment failed'),
@@ -280,8 +288,23 @@ export function Wallet(props: WalletProps) {
         ),
       })
 
+      const openHostedCheckoutFallback = (): boolean => {
+        const checkoutUrl = getPaddleCheckoutUrlFallback(checkoutTransactionId)
+        if (!checkoutUrl) {
+          return false
+        }
+
+        window.location.assign(checkoutUrl)
+        toast.success(t('Redirecting to payment page...'))
+        return true
+      }
+
       const clientToken = topupInfo.paddle_client_token?.trim()
       if (!clientToken) {
+        if (openHostedCheckoutFallback()) {
+          return
+        }
+
         const message = t(
           'Paddle client-side token is missing. Please configure it in System Settings.'
         )
@@ -346,6 +369,10 @@ export function Wallet(props: WalletProps) {
           error instanceof Error && error.message
             ? error.message
             : t('Failed to open Paddle checkout')
+        if (openHostedCheckoutFallback()) {
+          return
+        }
+
         setPaddleCheckoutNotice({
           variant: 'destructive',
           title: t('Unable to open Paddle checkout'),
@@ -364,6 +391,11 @@ export function Wallet(props: WalletProps) {
         if (isApiSuccess(response) && response.data) {
           if (response.data.status === 'success') {
             paddleCheckoutCompletedRef.current = true
+            if (response.data.transaction_id || transactionId) {
+              clearPaddleCheckoutUrlFallback(
+                response.data.transaction_id || transactionId
+              )
+            }
             setPaddleCheckoutNotice({
               title: t('Paddle payment completed'),
               description: t('Your wallet balance is being refreshed.'),
@@ -376,6 +408,11 @@ export function Wallet(props: WalletProps) {
             response.data.status === 'failed' ||
             response.data.status === 'expired'
           ) {
+            if (response.data.transaction_id || transactionId) {
+              clearPaddleCheckoutUrlFallback(
+                response.data.transaction_id || transactionId
+              )
+            }
             setPaddleCheckoutNotice({
               variant: 'destructive',
               title: t('Paddle payment failed'),

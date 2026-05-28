@@ -35,6 +35,7 @@ import {
   isWaffoPancakePayment,
   submitPaymentForm,
   buildPaddleWalletCheckoutUrlWithOrder,
+  rememberPaddleCheckoutUrlFallback,
 } from '../lib'
 import type { ApiResponse, PaddlePaymentResponse } from '../types'
 
@@ -73,21 +74,55 @@ function navigateToPaymentPage(url: string): void {
   toast.success(i18next.t('Redirecting to payment page...'))
 }
 
+function normalizeCheckoutUrl(url: string | undefined): string | undefined {
+  if (!url) {
+    return undefined
+  }
+
+  const normalizedUrl = url.trim()
+  const isAbsoluteHttpUrl = /^https?:\/\//i.test(normalizedUrl)
+  const isRootRelativeUrl =
+    normalizedUrl.startsWith('/') && !normalizedUrl.startsWith('//')
+  if (!isAbsoluteHttpUrl && !isRootRelativeUrl) {
+    return undefined
+  }
+
+  try {
+    const parsedUrl = new URL(normalizedUrl, window.location.origin)
+    if (parsedUrl.protocol === 'http:' || parsedUrl.protocol === 'https:') {
+      return parsedUrl.href
+    }
+  } catch (_error) {
+    return undefined
+  }
+
+  return undefined
+}
+
 function getPaddleCheckoutUrl(response: PaddlePaymentResponse): string | null {
-  if (typeof response.data === 'string' && response.data.trim()) {
-    return response.data.trim()
-  }
-
   const paddleData = getObjectData(response.data)
-  const transactionId = getStringField(paddleData, 'transaction_id')
+  const responseData = getObjectData(response)
+  const checkoutUrl = normalizeCheckoutUrl(
+    typeof response.data === 'string'
+      ? response.data.trim()
+      : getStringField(paddleData, 'checkout_url') ||
+          getStringField(responseData, 'checkout_url')
+  )
+  const transactionId =
+    getStringField(paddleData, 'transaction_id') ||
+    getStringField(responseData, 'transaction_id')
+  const orderId =
+    getStringField(paddleData, 'order_id') ||
+    getStringField(responseData, 'order_id')
+
   if (transactionId) {
-    return buildPaddleWalletCheckoutUrlWithOrder(
-      transactionId,
-      getStringField(paddleData, 'order_id')
-    )
+    if (checkoutUrl) {
+      rememberPaddleCheckoutUrlFallback(transactionId, checkoutUrl)
+    }
+
+    return buildPaddleWalletCheckoutUrlWithOrder(transactionId, orderId)
   }
 
-  const checkoutUrl = getStringField(paddleData, 'checkout_url')
   if (checkoutUrl) {
     return checkoutUrl
   }
