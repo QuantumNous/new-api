@@ -153,6 +153,19 @@ export function SubscriptionPlansCard({
     init()
   }, [fetchPlans, fetchSelfSubscription])
 
+  useEffect(() => {
+    const handleSubscriptionRedeemed = () => {
+      fetchSelfSubscription()
+    }
+    window.addEventListener('subscription-redeemed', handleSubscriptionRedeemed)
+    return () => {
+      window.removeEventListener(
+        'subscription-redeemed',
+        handleSubscriptionRedeemed
+      )
+    }
+  }, [fetchSelfSubscription])
+
   const handleRefresh = async () => {
     setRefreshing(true)
     try {

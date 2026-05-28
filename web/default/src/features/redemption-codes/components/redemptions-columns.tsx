@@ -161,16 +161,29 @@ export function useRedemptionsColumns(): ColumnDef<Redemption>[] {
       enableSorting: false,
     },
     {
-      accessorKey: 'quota',
-      meta: { label: t('Quota') },
+      id: 'benefit',
+      meta: { label: t('Benefit') },
       header: ({ column }) => (
-        <DataTableColumnHeader column={column} title={t('Quota')} />
+        <DataTableColumnHeader column={column} title={t('Benefit')} />
       ),
       cell: ({ row }) => {
-        const quota = row.getValue('quota') as number
+        const redemption = row.original
+        const redemptionType = redemption.type || 'quota'
+        if (redemptionType === 'subscription') {
+          return (
+            <StatusBadge
+              label={t('Subscription Plan #{{id}}', {
+                id: redemption.plan_id || '-',
+              })}
+              variant='neutral'
+              copyable={false}
+            />
+          )
+        }
+
         return (
           <StatusBadge
-            label={formatQuota(quota)}
+            label={formatQuota(redemption.quota)}
             variant='neutral'
             copyable={false}
           />
