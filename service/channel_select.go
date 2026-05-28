@@ -41,9 +41,12 @@ func EndpointTypeFromRelayMode(relayMode int) constant.EndpointType {
 		return constant.EndpointTypeGemini
 	case relayconstant.RelayModeChatCompletions, relayconstant.RelayModeCompletions, relayconstant.RelayModeModerations,
 		relayconstant.RelayModeEmbeddings, relayconstant.RelayModeImagesGenerations, relayconstant.RelayModeImagesEdits,
+		relayconstant.RelayModeEdits,
 		relayconstant.RelayModeAudioSpeech, relayconstant.RelayModeAudioTranscription, relayconstant.RelayModeAudioTranslation,
 		relayconstant.RelayModeRealtime:
 		return constant.EndpointTypeOpenAI
+	case relayconstant.RelayModeVideoSubmit, relayconstant.RelayModeVideoFetchByID:
+		return constant.EndpointTypeOpenAIVideo
 	default:
 		return ""
 	}
@@ -52,6 +55,9 @@ func EndpointTypeFromRelayMode(relayMode int) constant.EndpointType {
 func EndpointTypeFromPath(path string) constant.EndpointType {
 	if strings.HasPrefix(path, "/v1/messages") {
 		return constant.EndpointTypeAnthropic
+	}
+	if strings.HasPrefix(path, "/v1/videos") || strings.HasPrefix(path, "/v1/video/generations") {
+		return constant.EndpointTypeOpenAIVideo
 	}
 	return EndpointTypeFromRelayMode(relayconstant.Path2RelayMode(path))
 }

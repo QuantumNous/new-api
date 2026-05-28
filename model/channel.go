@@ -490,17 +490,23 @@ func BatchDeleteChannels(ids []int) error {
 	if tx.Error != nil {
 		return tx.Error
 	}
+	if err := batchDeleteChannels(tx, ids); err != nil {
+		tx.Rollback()
+		return err
+	}
+	return tx.Commit().Error
+}
+
+func batchDeleteChannels(tx *gorm.DB, ids []int) error {
 	for _, chunk := range lo.Chunk(ids, 200) {
-		if err := tx.Where("id in (?)", chunk).Delete(&Channel{}).Error; err != nil {
-			tx.Rollback()
+		if err := tx.Where("channel_id IN ?", chunk).Delete(&Ability{}).Error; err != nil {
 			return err
 		}
-		if err := tx.Where("channel_id in (?)", chunk).Delete(&Ability{}).Error; err != nil {
-			tx.Rollback()
+		if err := tx.Where("id IN ?", chunk).Delete(&Channel{}).Error; err != nil {
 			return err
 		}
 	}
-	return tx.Commit().Error
+	return nil
 }
 
 func (channel *Channel) GetPriority() int64 {
@@ -622,13 +628,10 @@ func (channel *Channel) UpdateBalance(balance float64) {
 }
 
 func (channel *Channel) Delete() error {
-	var err error
-	err = DB.Delete(channel).Error
-	if err != nil {
-		return err
+	if channel.Id == 0 {
+		return errors.New("channel ID is 0")
 	}
-	err = channel.DeleteAbilities()
-	return err
+	return BatchDeleteChannels([]int{channel.Id})
 }
 
 var channelStatusLock sync.Mutex
@@ -897,13 +900,34 @@ func updateChannelUsedQuota(id int, quota int) {
 }
 
 func DeleteChannelByStatus(status int64) (int64, error) {
-	result := DB.Where("status = ?", status).Delete(&Channel{})
-	return result.RowsAffected, result.Error
+	return deleteChannelsByStatus(status)
 }
 
 func DeleteDisabledChannel() (int64, error) {
-	result := DB.Where("status = ? or status = ?", common.ChannelStatusAutoDisabled, common.ChannelStatusManuallyDisabled).Delete(&Channel{})
-	return result.RowsAffected, result.Error
+	return deleteChannelsByStatus(common.ChannelStatusAutoDisabled, common.ChannelStatusManuallyDisabled)
+}
+
+func deleteChannelsByStatus(statuses ...int64) (int64, error) {
+	if len(statuses) == 0 {
+		return 0, nil
+	}
+	tx := DB.Begin()
+	if tx.Error != nil {
+		return 0, tx.Error
+	}
+	var ids []int
+	if err := tx.Model(&Channel{}).Where("status IN ?", statuses).Pluck("id", &ids).Error; err != nil {
+		tx.Rollback()
+		return 0, err
+	}
+	if len(ids) == 0 {
+		return 0, tx.Commit().Error
+	}
+	if err := batchDeleteChannels(tx, ids); err != nil {
+		tx.Rollback()
+		return 0, err
+	}
+	return int64(len(ids)), tx.Commit().Error
 }
 
 func GetPaginatedTags(offset int, limit int) ([]*string, error) {

@@ -2138,6 +2138,15 @@ const EditChannelModal = (props) => {
     [],
   );
 
+  const endpointOptionList = useMemo(
+    () =>
+      CHANNEL_ENDPOINT_OPTIONS.map((opt) => ({
+        ...opt,
+        label: t(opt.label),
+      })),
+    [t],
+  );
+
   const renderChannelOption = (renderProps) => {
     const {
       disabled,
@@ -2684,7 +2693,7 @@ const EditChannelModal = (props) => {
                       field='supported_endpoints'
                       label={t('支持端点')}
                       placeholder={t('不选择表示不限制')}
-                      optionList={CHANNEL_ENDPOINT_OPTIONS}
+                      optionList={endpointOptionList}
                       multiple
                       showClear
                       style={{ width: '100%' }}

@@ -4213,6 +4213,17 @@
     "并确认自行承担部署": "confirm that I bear legal responsibility arising from deployment",
     "运营和收费行为产生的法律责任": "operation and charging behavior",
     "，": ", ",
-    "、": ", "
+    "、": ", ",
+    "OpenAI": "OpenAI",
+    "OpenAI Responses": "OpenAI Responses",
+    "OpenAI Responses Compact": "OpenAI Responses Compact",
+    "Anthropic Messages": "Anthropic Messages",
+    "Gemini": "Gemini",
+    "Rerank": "Rerank",
+    "支持端点": "Endpoint được hỗ trợ",
+    "不选择表示不限制": "Để trống nếu không giới hạn",
+    "用于限制该渠道可处理的请求端点；留空时所有端点均可使用。": "Giới hạn endpoint mà kênh này có thể xử lý. Để trống để cho phép tất cả endpoint.",
+    "仅支持这些端点": "Chỉ hỗ trợ các endpoint này",
+    "端点受限": "Endpoint bị giới hạn"
   }
 }

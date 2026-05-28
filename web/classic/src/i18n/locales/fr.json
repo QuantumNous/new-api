@@ -3679,6 +3679,17 @@
     "并确认自行承担部署": "confirm that I bear legal responsibility arising from deployment",
     "运营和收费行为产生的法律责任": "operation and charging behavior",
     "，": ", ",
-    "、": ", "
+    "、": ", ",
+    "OpenAI": "OpenAI",
+    "OpenAI Responses": "OpenAI Responses",
+    "OpenAI Responses Compact": "OpenAI Responses Compact",
+    "Anthropic Messages": "Anthropic Messages",
+    "Gemini": "Gemini",
+    "Rerank": "Rerank",
+    "支持端点": "Points de terminaison pris en charge",
+    "不选择表示不限制": "Laissez vide pour ne pas restreindre",
+    "用于限制该渠道可处理的请求端点；留空时所有端点均可使用。": "Limite les points de terminaison que ce canal peut traiter. Laissez vide pour tout autoriser.",
+    "仅支持这些端点": "Seuls ces points de terminaison sont pris en charge",
+    "端点受限": "Point de terminaison restreint"
   }
 }

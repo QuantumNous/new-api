@@ -55,7 +55,7 @@ func Distribute() func(c *gin.Context) {
 				return
 			}
 			if !channel.SupportsEndpointType(endpointType) {
-				abortWithOpenAiMessage(c, http.StatusForbidden, fmt.Sprintf("channel #%d does not support endpoint %s", channel.Id, endpointType))
+				abortWithOpenAiMessage(c, http.StatusForbidden, fmt.Sprintf("selected channel does not support endpoint %s", endpointType))
 				return
 			}
 		} else {
@@ -116,7 +116,7 @@ func Distribute() func(c *gin.Context) {
 							}
 						} else if !preferred.SupportsEndpointType(endpointType) {
 							if service.ShouldSkipRetryAfterChannelAffinityFailure(c) {
-								abortWithOpenAiMessage(c, http.StatusForbidden, fmt.Sprintf("channel #%d does not support endpoint %s", preferred.Id, endpointType))
+								abortWithOpenAiMessage(c, http.StatusForbidden, fmt.Sprintf("selected channel does not support endpoint %s", endpointType))
 								return
 							}
 						} else if usingGroup == "auto" {

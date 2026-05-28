@@ -92,8 +92,8 @@ const renderEndpointRestrictions = (record = {}, t) => {
   if (endpointValues.length === 0) {
     return null;
   }
-  const endpointLabels = endpointValues.map(
-    (endpoint) => endpointOptionByValue[endpoint]?.label || endpoint,
+  const endpointLabels = endpointValues.map((endpoint) =>
+    t(endpointOptionByValue[endpoint]?.label || endpoint),
   );
   return (
     <Tooltip

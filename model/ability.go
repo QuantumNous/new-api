@@ -120,41 +120,49 @@ func GetChannel(group string, model string, retry int, endpointType constant.End
 	if err != nil {
 		return nil, err
 	}
-	channel := Channel{}
-	if endpointType != "" && len(abilities) > 0 {
-		filteredAbilities := make([]Ability, 0, len(abilities))
-		for _, ability := range abilities {
-			ch := Channel{}
-			if err := DB.First(&ch, "id = ?", ability.ChannelId).Error; err != nil {
-				return nil, err
-			}
-			if ch.SupportsEndpointType(endpointType) {
-				filteredAbilities = append(filteredAbilities, ability)
-			}
-		}
-		abilities = filteredAbilities
-	}
-	if len(abilities) > 0 {
-		// Randomly choose one
-		weightSum := uint(0)
-		for _, ability_ := range abilities {
-			weightSum += ability_.Weight + 10
-		}
-		// Randomly choose one
-		weight := common.GetRandomInt(int(weightSum))
-		for _, ability_ := range abilities {
-			weight -= int(ability_.Weight) + 10
-			//log.Printf("weight: %d, ability weight: %d", weight, *ability_.Weight)
-			if weight <= 0 {
-				channel.Id = ability_.ChannelId
-				break
-			}
-		}
-	} else {
+	if len(abilities) == 0 {
 		return nil, nil
 	}
-	err = DB.First(&channel, "id = ?", channel.Id).Error
-	return &channel, err
+
+	var channels []Channel
+	channelIDs := lo.UniqMap(abilities, func(ability Ability, _ int) int {
+		return ability.ChannelId
+	})
+	if err := DB.Where("id IN ?", channelIDs).Find(&channels).Error; err != nil {
+		return nil, err
+	}
+	channelsByID := lo.SliceToMap(channels, func(channel Channel) (int, Channel) {
+		return channel.Id, channel
+	})
+
+	filteredAbilities := make([]Ability, 0, len(abilities))
+	for _, ability := range abilities {
+		channel, ok := channelsByID[ability.ChannelId]
+		if !ok {
+			continue
+		}
+		if endpointType != "" && !channel.SupportsEndpointType(endpointType) {
+			continue
+		}
+		filteredAbilities = append(filteredAbilities, ability)
+	}
+	if len(filteredAbilities) == 0 {
+		return nil, nil
+	}
+
+	weightSum := uint(0)
+	for _, ability := range filteredAbilities {
+		weightSum += ability.Weight + 10
+	}
+	weight := common.GetRandomInt(int(weightSum))
+	for _, ability := range filteredAbilities {
+		weight -= int(ability.Weight) + 10
+		if weight <= 0 {
+			channel := channelsByID[ability.ChannelId]
+			return &channel, nil
+		}
+	}
+	return nil, nil
 }
 
 func (channel *Channel) AddAbilities(tx *gorm.DB) error {
