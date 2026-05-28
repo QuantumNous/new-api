@@ -4112,6 +4112,7 @@
     "过去一年按模型统计的每周 Token 用量": "Weekly token usage by model over the past year",
     "过去一年按模型厂商统计的 Token 份额": "Token share by model vendor over the past year",
     "自上线以来按模型统计的 Token 用量": "Token usage by model since launch",
-    "自上线以来按模型厂商统计的 Token 份额": "Token share by model vendor since launch"
+    "自上线以来按模型厂商统计的 Token 份额": "Token share by model vendor since launch",
+    "已登录用户": "Logged in user"
   }
 }

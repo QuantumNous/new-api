@@ -3998,6 +3998,7 @@
     "当前暂无明显上升的模型": "Aucune hausse notable pour le moment",
     "自上线以来按模型统计的 Token 用量": "Utilisation des tokens par modèle depuis le lancement",
     "自上线以来按模型厂商统计的 Token 份额": "Part des tokens par fournisseur depuis le lancement",
-    "下降中": "En baisse"
+    "下降中": "En baisse",
+    "已登录用户": "Utilisateur connecté"
   }
 }

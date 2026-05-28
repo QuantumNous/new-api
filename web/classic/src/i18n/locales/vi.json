@@ -4520,6 +4520,7 @@
     "当前暂无明显上升的模型": "Hiện chưa có mô hình nào tăng hạng rõ rệt",
     "自上线以来按模型统计的 Token 用量": "Lượng Token theo mô hình kể từ khi ra mắt",
     "自上线以来按模型厂商统计的 Token 份额": "Tỷ lệ Token theo nhà cung cấp kể từ khi ra mắt",
-    "下降中": "Đang giảm"
+    "下降中": "Đang giảm",
+    "已登录用户": "Người dùng đã đăng nhập"
   }
 }
