@@ -192,10 +192,8 @@ export function DataTableBulkActions<TData>({
           <DialogHeader>
             <DialogTitle>{t('Delete Models?')}</DialogTitle>
             <DialogDescription>
-              {t(
-                'Are you sure you want to delete {{count}} model(s)? This action cannot be undone.',
-                { count: selectedIds.length }
-              )}
+              {t('Are you sure you want to delete')} {selectedIds.length}{' '}
+              {t('model(s)? This action cannot be undone.')}
             </DialogDescription>
           </DialogHeader>
 

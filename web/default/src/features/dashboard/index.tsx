@@ -28,6 +28,7 @@ import { FadeIn } from '@/components/page-transition'
 import { ModelsChartPreferences } from './components/models/models-chart-preferences'
 import { ModelsFilter } from './components/models/models-filter-dialog'
 import { OverviewDashboard } from './components/overview/overview-dashboard'
+import { ModelComparePanel } from '@/features/model-compare'
 import { DEFAULT_TIME_GRANULARITY } from './constants'
 import {
   buildDefaultDashboardFilters,
@@ -130,15 +131,25 @@ function PerformanceOverviewFallback() {
   )
 }
 
-const SECTION_META: Record<DashboardSectionId, { titleKey: string }> = {
+const SECTION_META: Record<
+  DashboardSectionId,
+  { titleKey: string; descriptionKey: string }
+> = {
   overview: {
     titleKey: 'Overview',
+    descriptionKey: 'View dashboard overview and statistics',
   },
   models: {
     titleKey: 'Model Call Analytics',
+    descriptionKey: 'View model call count analytics and charts',
   },
   users: {
     titleKey: 'User Analytics',
+    descriptionKey: 'View user consumption statistics and charts',
+  },
+  'model-compare': {
+    titleKey: 'Model Compare',
+    descriptionKey: 'Compare outputs and costs across selected AI models',
   },
 }
 
@@ -202,7 +213,9 @@ export function Dashboard() {
     [navigate]
   )
   const showSectionTabs =
-    activeSection !== 'overview' && visibleSections.length > 1
+    activeSection !== 'overview' &&
+    activeSection !== 'model-compare' &&
+    visibleSections.length > 1
   const modelActions =
     activeSection === 'models' ? (
       <>
@@ -221,13 +234,16 @@ export function Dashboard() {
   return (
     <SectionPageLayout>
       <SectionPageLayout.Title>{t(meta.titleKey)}</SectionPageLayout.Title>
+      <SectionPageLayout.Description>
+        {t(meta.descriptionKey)}
+      </SectionPageLayout.Description>
       <SectionPageLayout.Content>
-        <div className='space-y-3 sm:space-y-4'>
-          {activeSection !== 'overview' && (
+        <div className={activeSection === 'model-compare' ? 'h-full' : 'space-y-3 sm:space-y-4'}>
+          {activeSection !== 'overview' && activeSection !== 'model-compare' && (
             <div className='flex flex-wrap items-center justify-between gap-1.5 sm:gap-2'>
               {showSectionTabs ? (
                 <Tabs value={activeSection} onValueChange={handleSectionChange}>
-                  <TabsList className='max-w-full flex-wrap justify-start group-data-horizontal/tabs:h-auto'>
+                  <TabsList className='h-auto max-w-full flex-wrap justify-start'>
                     {visibleSections.map((section) => (
                       <TabsTrigger key={section} value={section}>
                         {t(SECTION_META[section].titleKey)}
@@ -296,6 +312,11 @@ export function Dashboard() {
               <Suspense fallback={<ModelChartsFallback />}>
                 <LazyUserCharts />
               </Suspense>
+            </FadeIn>
+          )}
+          {activeSection === 'model-compare' && (
+            <FadeIn className='h-full'>
+              <ModelComparePanel />
             </FadeIn>
           )}
         </div>

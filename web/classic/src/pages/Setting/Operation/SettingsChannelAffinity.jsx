@@ -69,7 +69,6 @@ const KEY_RULES = 'channel_affinity_setting.rules';
 const KEY_SOURCE_TYPES = [
   { label: 'context_int', value: 'context_int' },
   { label: 'context_string', value: 'context_string' },
-  { label: 'request_header', value: 'request_header' },
   { label: 'gjson', value: 'gjson' },
 ];
 
@@ -660,11 +659,7 @@ export default function SettingsChannelAffinity(props) {
     const xs = (keySources || []).map(normalizeKeySource).filter((x) => x.type);
     if (xs.length === 0) return { ok: false, message: 'Key 来源不能为空' };
     for (const x of xs) {
-      if (
-        x.type === 'context_int' ||
-        x.type === 'context_string' ||
-        x.type === 'request_header'
-      ) {
+      if (x.type === 'context_int' || x.type === 'context_string') {
         if (!x.key) return { ok: false, message: 'Key 不能为空' };
       } else if (x.type === 'gjson') {
         if (!x.path) return { ok: false, message: 'Path 不能为空' };
@@ -1321,7 +1316,7 @@ export default function SettingsChannelAffinity(props) {
           </Space>
           <Text type='tertiary' size='small'>
             {t(
-              'context_int/context_string 从请求上下文读取；request_header 从用户请求头读取；gjson 从入口请求的 JSON body 按 gjson path 读取。',
+              'context_int/context_string 从请求上下文读取；gjson 从入口请求的 JSON body 按 gjson path 读取。',
             )}
           </Text>
           <div style={{ marginTop: 8, marginBottom: 8 }}>
@@ -1363,7 +1358,7 @@ export default function SettingsChannelAffinity(props) {
                   return (
                     <Input
                       placeholder={
-                        isGjson ? 'metadata.conversation_id' : 'X-Affinity-Key'
+                        isGjson ? 'metadata.conversation_id' : 'user_id'
                       }
                       aria-label={t('Key 或 Path')}
                       value={isGjson ? src.path : src.key}

@@ -21,7 +21,6 @@ import type { SecuritySettings } from '../types'
 import {
   SECURITY_DEFAULT_SECTION,
   getSecuritySectionContent,
-  getSecuritySectionMeta,
 } from './section-registry.tsx'
 
 const defaultSecuritySettings: SecuritySettings = {
@@ -50,7 +49,6 @@ export function SecuritySettings() {
       defaultSettings={defaultSecuritySettings}
       defaultSection={SECURITY_DEFAULT_SECTION}
       getSectionContent={getSecuritySectionContent}
-      getSectionMeta={getSecuritySectionMeta}
     />
   )
 }

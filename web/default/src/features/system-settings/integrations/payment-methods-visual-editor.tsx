@@ -311,7 +311,7 @@ export function PaymentMethodsVisualEditor({
                         {method.name}
                       </TableCell>
                       <TableCell>
-                        <code className='bg-muted rounded px-1.5 py-0.5 text-sm'>
+                        <code className='bg-muted rounded px-1.5 py-0.5 text-xs'>
                           {method.type}
                         </code>
                       </TableCell>
@@ -323,7 +323,7 @@ export function PaymentMethodsVisualEditor({
                               style={{ backgroundColor: colorPreview }}
                             />
                           )}
-                          <span className='text-muted-foreground truncate font-mono text-sm'>
+                          <span className='text-muted-foreground truncate font-mono text-xs'>
                             {method.color}
                           </span>
                         </div>

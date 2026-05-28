@@ -65,7 +65,6 @@ import {
 } from '@/components/ui/table'
 import { ConfirmDialog } from '@/components/confirm-dialog'
 import { StatusBadge } from '@/components/status-badge'
-import { TableId } from '@/components/table-id'
 import { deletePrefillGroup, getPrefillGroups } from '../../api'
 import { prefillGroupsQueryKeys } from '../../lib'
 import type { PrefillGroup } from '../../types'
@@ -406,7 +405,13 @@ export function PrefillGroupManagementDialog({
                                         <span className='font-medium'>
                                           {group.name}
                                         </span>
-                                        <TableId value={group.id} />
+                                        <StatusBadge
+                                          label={`#${group.id}`}
+                                          variant='neutral'
+                                          size='sm'
+                                          copyable={false}
+                                          className='font-mono'
+                                        />
                                       </div>
                                       {group.description ? (
                                         <p className='text-muted-foreground text-xs'>

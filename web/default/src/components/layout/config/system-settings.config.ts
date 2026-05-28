@@ -33,16 +33,15 @@ import { getModelsSectionNavItems } from '@/features/system-settings/models/sect
 import { getOperationsSectionNavItems } from '@/features/system-settings/operations/section-registry.tsx'
 import { getSecuritySectionNavItems } from '@/features/system-settings/security/section-registry.tsx'
 import { getSiteSectionNavItems } from '@/features/system-settings/site/section-registry.tsx'
-import type { NavGroup, SidebarView } from '../types'
+import { type NavGroup } from '../types'
 
 /**
- * Sidebar nav groups for the System Settings nested view.
- *
- * Kept as a single group because the workspace title in the sidebar
- * header already provides top-level context — the inner group label
- * scopes the items as "administration" actions.
+ * System settings sidebar configuration
+ * Displayed when switching to "System Settings" workspace
  */
-function getSystemSettingsNavGroups(t: TFunction): NavGroup[] {
+export const WORKSPACE_SYSTEM_SETTINGS_ID = 'system-settings'
+
+export function getSystemSettingsNavGroups(t: TFunction): NavGroup[] {
   return [
     {
       id: 'system-administration',
@@ -86,21 +85,4 @@ function getSystemSettingsNavGroups(t: TFunction): NavGroup[] {
       ],
     },
   ]
-}
-
-/**
- * Nested sidebar view for `/system-settings/*`.
- *
- * Activates the Vercel / Cloudflare-style drill-in sidebar:
- * the root navigation is replaced by the system administration
- * groups, with a "Back to Dashboard" affordance in the header.
- */
-export const SYSTEM_SETTINGS_VIEW: SidebarView = {
-  id: 'system-settings',
-  pathPattern: /^\/system-settings(\/|$)/,
-  parent: {
-    to: '/dashboard/overview',
-    label: 'Back to Dashboard',
-  },
-  getNavGroups: getSystemSettingsNavGroups,
 }

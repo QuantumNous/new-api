@@ -28,7 +28,6 @@ import {
 import { DataTableColumnHeader } from '@/components/data-table'
 import { MaskedValueDisplay } from '@/components/masked-value-display'
 import { StatusBadge } from '@/components/status-badge'
-import { TableId } from '@/components/table-id'
 import { REDEMPTION_FILTER_EXPIRED, REDEMPTION_STATUSES } from '../constants'
 import { isRedemptionExpired, isTimestampExpired } from '../lib'
 import { type Redemption } from '../types'
@@ -67,9 +66,7 @@ export function useRedemptionsColumns(): ColumnDef<Redemption>[] {
         <DataTableColumnHeader column={column} title={t('ID')} />
       ),
       cell: ({ row }) => {
-        return (
-          <TableId value={row.getValue('id') as number} className='w-[60px]' />
-        )
+        return <div className='w-[60px]'>{row.getValue('id')}</div>
       },
     },
     {
@@ -102,6 +99,7 @@ export function useRedemptionsColumns(): ColumnDef<Redemption>[] {
             <StatusBadge
               label={t('Expired')}
               variant='warning'
+              showDot={true}
               copyable={false}
             />
           )
@@ -117,6 +115,7 @@ export function useRedemptionsColumns(): ColumnDef<Redemption>[] {
           <StatusBadge
             label={t(statusConfig.labelKey)}
             variant={statusConfig.variant}
+            showDot={statusConfig.showDot}
             copyable={false}
           />
         )

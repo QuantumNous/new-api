@@ -17,35 +17,39 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import {
-  Activity,
-  Box,
-  CreditCard,
-  FileText,
-  FlaskConical,
-  Key,
   LayoutDashboard,
-  ListTodo,
-  MessageSquare,
-  Radio,
-  Settings,
+  Activity,
+  Key,
+  FileText,
+  Wallet,
+  Box,
+  Users,
   Ticket,
   User,
-  Users,
-  Wallet,
+  Command,
+  Radio,
+  FlaskConical,
+  CreditCard,
+  ListTodo,
+  Settings,
+  Columns3,
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import { WORKSPACE_IDS } from '@/components/layout/lib/workspace-registry'
 import { type SidebarData } from '@/components/layout/types'
 
-/**
- * Root navigation groups for the application sidebar.
- *
- * These are shown when the URL does not match any nested sidebar view
- * registered in `layout/lib/sidebar-view-registry.ts`.
- */
 export function useSidebarData(): SidebarData {
   const { t } = useTranslation()
 
   return {
+    workspaces: [
+      {
+        id: WORKSPACE_IDS.DEFAULT,
+        name: '', // Dynamically fetches system name
+        logo: Command,
+        plan: '', // Dynamically fetches system version
+      },
+    ],
     navGroups: [
       {
         id: 'chat',
@@ -57,9 +61,9 @@ export function useSidebarData(): SidebarData {
             icon: FlaskConical,
           },
           {
-            title: t('Chat'),
-            icon: MessageSquare,
-            type: 'chat-presets',
+            title: t('Model Compare'),
+            url: '/dashboard/model-compare',
+            icon: Columns3,
           },
         ],
       },

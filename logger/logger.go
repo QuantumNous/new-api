@@ -95,11 +95,9 @@ func LogDebug(ctx context.Context, msg string, args ...any) {
 }
 
 func logHelper(ctx context.Context, level string, msg string) {
-	var id any = "SYSTEM"
-	if ctx != nil {
-		if requestID := ctx.Value(common.RequestIdKey); requestID != nil {
-			id = requestID
-		}
+	id := ctx.Value(common.RequestIdKey)
+	if id == nil {
+		id = "SYSTEM"
 	}
 	now := time.Now()
 	common.LogWriterMu.RLock()
@@ -174,13 +172,10 @@ func FormatQuota(quota int) string {
 
 // LogJson 仅供测试使用 only for test
 func LogJson(ctx context.Context, msg string, obj any) {
-	if !common.DebugEnabled {
-		return
-	}
 	jsonStr, err := common.Marshal(obj)
 	if err != nil {
 		LogError(ctx, fmt.Sprintf("json marshal failed: %s", err.Error()))
 		return
 	}
-	LogDebug(ctx, "%s | %s", msg, jsonStr)
+	LogDebug(ctx, fmt.Sprintf("%s | %s", msg, string(jsonStr)))
 }

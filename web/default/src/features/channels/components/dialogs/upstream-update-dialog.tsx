@@ -107,7 +107,7 @@ export function UpstreamUpdateDialog(props: UpstreamUpdateDialogProps) {
     const anyAdd = selectedAddArr.length > 0
     const anyRemove = selectedRemoveArr.length > 0
 
-    if (hasAdd && hasRemove && anyAdd !== anyRemove) {
+    if (hasAdd && hasRemove && (!anyAdd || !anyRemove)) {
       setPartialConfirmOpen(true)
       return
     }
@@ -278,8 +278,7 @@ export function UpstreamUpdateDialog(props: UpstreamUpdateDialogProps) {
               onClick={handleConfirm}
               disabled={
                 props.confirmLoading ||
-                (props.addModels.length === 0 &&
-                  props.removeModels.length === 0)
+                (selectedAdd.size === 0 && selectedRemove.size === 0)
               }
             >
               {t('Confirm')}

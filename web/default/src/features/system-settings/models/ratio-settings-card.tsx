@@ -204,6 +204,7 @@ type RatioSettingsCardProps = {
   groupDefaults: GroupFormValues
   toolPricesDefault: string
   titleKey?: string
+  descriptionKey?: string
   visibleTabs?: RatioTabId[]
 }
 
@@ -212,6 +213,7 @@ export function RatioSettingsCard({
   groupDefaults,
   toolPricesDefault,
   titleKey = 'Pricing Ratios',
+  descriptionKey = 'Configure model, caching, and group ratios used for billing',
   visibleTabs = ['models', 'groups', 'tool-prices', 'upstream-sync'],
 }: RatioSettingsCardProps) {
   const { t } = useTranslation()
@@ -386,17 +388,12 @@ export function RatioSettingsCard({
         (key) => normalized[key] !== modelNormalizedDefaults.current[key]
       )
 
-      if (updates.length === 0) {
-        toast.info(t('No model price changes to save'))
-        return
-      }
-
       for (const key of updates) {
         const apiKey = apiKeyMap[key as string] || (key as string)
         await updateOption.mutateAsync({ key: apiKey, value: normalized[key] })
       }
     },
-    [t, updateOption]
+    [updateOption]
   )
 
   const saveGroupRatios = useCallback(
@@ -500,7 +497,7 @@ export function RatioSettingsCard({
   }
 
   return (
-    <SettingsSection title={t(titleKey)}>
+    <SettingsSection title={t(titleKey)} description={t(descriptionKey)}>
       {visibleTabs.length === 1 ? (
         renderTabContent(defaultTab)
       ) : (

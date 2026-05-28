@@ -16,7 +16,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { type ChangeEvent, useRef, type SetStateAction, useState } from 'react'
+import { type ChangeEvent, useEffect, useRef, useState } from 'react'
+import { useForm } from 'react-hook-form'
 import { Plus, Pencil, Trash2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -32,6 +33,7 @@ import {
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Separator } from '@/components/ui/separator'
+import { Switch } from '@/components/ui/switch'
 import {
   Table,
   TableBody,
@@ -41,7 +43,8 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { Textarea } from '@/components/ui/textarea'
-import { SettingsSwitchField } from '../components/settings-form-layout'
+import { SettingsSection } from '../components/settings-section'
+import { useUpdateOption } from '../hooks/use-update-option'
 
 export interface WaffoSettingsValues {
   WaffoEnabled: boolean
@@ -61,33 +64,34 @@ export interface WaffoSettingsValues {
   WaffoPayMethods: string
 }
 
-export interface PayMethod {
+interface PayMethod {
   name: string
   icon: string
   payMethodType: string
   payMethodName: string
 }
 
-type WaffoFieldValues = Omit<WaffoSettingsValues, 'WaffoPayMethods'>
-
 interface Props {
-  values: WaffoSettingsValues
-  onValueChange: <K extends keyof WaffoFieldValues>(
-    key: K,
-    value: WaffoFieldValues[K]
-  ) => void
-  payMethods: PayMethod[]
-  onPayMethodsChange: (value: SetStateAction<PayMethod[]>) => void
+  defaultValues: WaffoSettingsValues
 }
 
-export function WaffoSettingsSection({
-  values,
-  onValueChange,
-  payMethods,
-  onPayMethodsChange,
-}: Props) {
+export function WaffoSettingsSection(props: Props) {
   const { t } = useTranslation()
+  const updateOption = useUpdateOption()
+  const [loading, setLoading] = useState(false)
   const iconFileInputRef = useRef<HTMLInputElement | null>(null)
+
+  const form = useForm<Omit<WaffoSettingsValues, 'WaffoPayMethods'>>({
+    defaultValues: props.defaultValues,
+  })
+
+  const [payMethods, setPayMethods] = useState<PayMethod[]>(() => {
+    try {
+      return JSON.parse(props.defaultValues.WaffoPayMethods || '[]')
+    } catch {
+      return []
+    }
+  })
   const [methodDialogOpen, setMethodDialogOpen] = useState(false)
   const [editingIdx, setEditingIdx] = useState(-1)
   const [methodForm, setMethodForm] = useState<PayMethod>({
@@ -96,6 +100,61 @@ export function WaffoSettingsSection({
     payMethodType: '',
     payMethodName: '',
   })
+
+  useEffect(() => {
+    form.reset(props.defaultValues)
+    try {
+      setPayMethods(JSON.parse(props.defaultValues.WaffoPayMethods || '[]'))
+    } catch {
+      setPayMethods([])
+    }
+  }, [props.defaultValues, form])
+
+  const handleSave = async () => {
+    setLoading(true)
+    try {
+      const values = form.getValues()
+      const options: { key: string; value: string }[] = [
+        { key: 'WaffoEnabled', value: String(values.WaffoEnabled) },
+        { key: 'WaffoSandbox', value: String(values.WaffoSandbox) },
+        { key: 'WaffoMerchantId', value: values.WaffoMerchantId || '' },
+        { key: 'WaffoCurrency', value: values.WaffoCurrency || 'USD' },
+        { key: 'WaffoUnitPrice', value: String(values.WaffoUnitPrice || 1) },
+        { key: 'WaffoMinTopUp', value: String(values.WaffoMinTopUp || 1) },
+        { key: 'WaffoNotifyUrl', value: values.WaffoNotifyUrl || '' },
+        { key: 'WaffoReturnUrl', value: values.WaffoReturnUrl || '' },
+        { key: 'WaffoPublicCert', value: values.WaffoPublicCert || '' },
+        {
+          key: 'WaffoSandboxPublicCert',
+          value: values.WaffoSandboxPublicCert || '',
+        },
+        { key: 'WaffoPayMethods', value: JSON.stringify(payMethods) },
+      ]
+      if (values.WaffoApiKey)
+        options.push({ key: 'WaffoApiKey', value: values.WaffoApiKey })
+      if (values.WaffoPrivateKey)
+        options.push({ key: 'WaffoPrivateKey', value: values.WaffoPrivateKey })
+      if (values.WaffoSandboxApiKey)
+        options.push({
+          key: 'WaffoSandboxApiKey',
+          value: values.WaffoSandboxApiKey,
+        })
+      if (values.WaffoSandboxPrivateKey)
+        options.push({
+          key: 'WaffoSandboxPrivateKey',
+          value: values.WaffoSandboxPrivateKey,
+        })
+
+      for (const opt of options) {
+        await updateOption.mutateAsync(opt)
+      }
+      toast.success(t('Updated successfully'))
+    } catch {
+      toast.error(t('Update failed'))
+    } finally {
+      setLoading(false)
+    }
+  }
 
   const openAdd = () => {
     setEditingIdx(-1)
@@ -113,9 +172,9 @@ export function WaffoSettingsSection({
     if (!methodForm.name.trim())
       return toast.error(t('Payment method name is required'))
     if (editingIdx === -1) {
-      onPayMethodsChange((prev) => [...prev, methodForm])
+      setPayMethods((prev) => [...prev, methodForm])
     } else {
-      onPayMethodsChange((prev) =>
+      setPayMethods((prev) =>
         prev.map((m, i) => (i === editingIdx ? methodForm : m))
       )
     }
@@ -153,17 +212,12 @@ export function WaffoSettingsSection({
 
   return (
     <>
-      <div className='space-y-4 pt-4'>
-        <div>
-          <h3 className='text-lg font-medium'>
-            {t('Waffo Aggregator Gateway')}
-          </h3>
-          <p className='text-muted-foreground text-sm'>
-            {t(
-              'Payment aggregator mode — onboard with your own registered company (offshore entity). Built for Enterprise.'
-            )}
-          </p>
-        </div>
+      <SettingsSection
+        title={t('Waffo Payment Gateway')}
+        description={t(
+          'Configure Waffo payment aggregation platform integration'
+        )}
+      >
         <Alert>
           <AlertDescription className='text-xs'>
             {t(
@@ -172,52 +226,37 @@ export function WaffoSettingsSection({
           </AlertDescription>
         </Alert>
 
-        <div className='grid gap-4 sm:grid-cols-2'>
-          <SettingsSwitchField
-            checked={values.WaffoEnabled}
-            onCheckedChange={(v) => onValueChange('WaffoEnabled', v)}
-            label={t('Enable Waffo')}
-            className='border-b-0 py-0'
-          />
-          <SettingsSwitchField
-            checked={values.WaffoSandbox}
-            onCheckedChange={(v) => onValueChange('WaffoSandbox', v)}
-            label={t('Sandbox mode')}
-            className='border-b-0 py-0'
-          />
+        <div className='grid grid-cols-2 gap-4'>
+          <div className='flex items-center gap-2'>
+            <Switch
+              checked={form.watch('WaffoEnabled')}
+              onCheckedChange={(v) => form.setValue('WaffoEnabled', v)}
+            />
+            <Label>{t('Enable Waffo')}</Label>
+          </div>
+          <div className='flex items-center gap-2'>
+            <Switch
+              checked={form.watch('WaffoSandbox')}
+              onCheckedChange={(v) => form.setValue('WaffoSandbox', v)}
+            />
+            <Label>{t('Sandbox mode')}</Label>
+          </div>
         </div>
 
         <div className='grid grid-cols-2 gap-4'>
           <div className='grid gap-1.5'>
             <Label>{t('API Key (Production)')}</Label>
-            <Input
-              type='password'
-              value={values.WaffoApiKey}
-              onChange={(event) =>
-                onValueChange('WaffoApiKey', event.target.value)
-              }
-            />
+            <Input type='password' {...form.register('WaffoApiKey')} />
           </div>
           <div className='grid gap-1.5'>
             <Label>{t('API Key (Sandbox)')}</Label>
-            <Input
-              type='password'
-              value={values.WaffoSandboxApiKey}
-              onChange={(event) =>
-                onValueChange('WaffoSandboxApiKey', event.target.value)
-              }
-            />
+            <Input type='password' {...form.register('WaffoSandboxApiKey')} />
           </div>
         </div>
 
         <div className='grid gap-1.5'>
           <Label>{t('Merchant ID')}</Label>
-          <Input
-            value={values.WaffoMerchantId}
-            onChange={(event) =>
-              onValueChange('WaffoMerchantId', event.target.value)
-            }
-          />
+          <Input {...form.register('WaffoMerchantId')} />
         </div>
 
         <div className='grid grid-cols-2 gap-4'>
@@ -225,10 +264,7 @@ export function WaffoSettingsSection({
             <Label>{t('RSA Private Key (Production)')}</Label>
             <Textarea
               rows={3}
-              value={values.WaffoPrivateKey}
-              onChange={(event) =>
-                onValueChange('WaffoPrivateKey', event.target.value)
-              }
+              {...form.register('WaffoPrivateKey')}
               className='font-mono text-xs'
             />
           </div>
@@ -236,10 +272,7 @@ export function WaffoSettingsSection({
             <Label>{t('RSA Private Key (Sandbox)')}</Label>
             <Textarea
               rows={3}
-              value={values.WaffoSandboxPrivateKey}
-              onChange={(event) =>
-                onValueChange('WaffoSandboxPrivateKey', event.target.value)
-              }
+              {...form.register('WaffoSandboxPrivateKey')}
               className='font-mono text-xs'
             />
           </div>
@@ -250,10 +283,7 @@ export function WaffoSettingsSection({
             <Label>{t('Waffo Public Key (Production)')}</Label>
             <Textarea
               rows={3}
-              value={values.WaffoPublicCert}
-              onChange={(event) =>
-                onValueChange('WaffoPublicCert', event.target.value)
-              }
+              {...form.register('WaffoPublicCert')}
               className='font-mono text-xs'
             />
           </div>
@@ -261,10 +291,7 @@ export function WaffoSettingsSection({
             <Label>{t('Waffo Public Key (Sandbox)')}</Label>
             <Textarea
               rows={3}
-              value={values.WaffoSandboxPublicCert}
-              onChange={(event) =>
-                onValueChange('WaffoSandboxPublicCert', event.target.value)
-              }
+              {...form.register('WaffoSandboxPublicCert')}
               className='font-mono text-xs'
             />
           </div>
@@ -273,7 +300,7 @@ export function WaffoSettingsSection({
         <div className='grid grid-cols-3 gap-4'>
           <div className='grid gap-1.5'>
             <Label>{t('Currency')}</Label>
-            <Input value={values.WaffoCurrency} disabled />
+            <Input {...form.register('WaffoCurrency')} disabled />
           </div>
           <div className='grid gap-1.5'>
             <Label>{t('Unit price (USD)')}</Label>
@@ -281,28 +308,12 @@ export function WaffoSettingsSection({
               type='number'
               step={0.1}
               min={0}
-              value={values.WaffoUnitPrice}
-              onChange={(event) =>
-                onValueChange(
-                  'WaffoUnitPrice',
-                  event.target.value === '' ? 0 : event.target.valueAsNumber
-                )
-              }
+              {...form.register('WaffoUnitPrice')}
             />
           </div>
           <div className='grid gap-1.5'>
             <Label>{t('Minimum top-up quantity')}</Label>
-            <Input
-              type='number'
-              min={1}
-              value={values.WaffoMinTopUp}
-              onChange={(event) =>
-                onValueChange(
-                  'WaffoMinTopUp',
-                  event.target.value === '' ? 1 : event.target.valueAsNumber
-                )
-              }
-            />
+            <Input type='number' min={1} {...form.register('WaffoMinTopUp')} />
           </div>
         </div>
 
@@ -311,20 +322,14 @@ export function WaffoSettingsSection({
             <Label>{t('Callback notification URL')}</Label>
             <Input
               placeholder='https://example.com/api/waffo/webhook'
-              value={values.WaffoNotifyUrl}
-              onChange={(event) =>
-                onValueChange('WaffoNotifyUrl', event.target.value)
-              }
+              {...form.register('WaffoNotifyUrl')}
             />
           </div>
           <div className='grid gap-1.5'>
             <Label>{t('Payment return URL')}</Label>
             <Input
               placeholder='https://example.com/console/topup'
-              value={values.WaffoReturnUrl}
-              onChange={(event) =>
-                onValueChange('WaffoReturnUrl', event.target.value)
-              }
+              {...form.register('WaffoReturnUrl')}
             />
           </div>
         </div>
@@ -333,7 +338,7 @@ export function WaffoSettingsSection({
 
         <div className='flex items-center justify-between'>
           <h4 className='font-medium'>{t('Payment Methods')}</h4>
-          <Button type='button' variant='outline' size='sm' onClick={openAdd}>
+          <Button variant='outline' size='sm' onClick={openAdd}>
             <Plus className='mr-1 h-3 w-3' />
             {t('Add payment method')}
           </Button>
@@ -380,7 +385,6 @@ export function WaffoSettingsSection({
                     <TableCell className='text-right'>
                       <div className='flex justify-end gap-1'>
                         <Button
-                          type='button'
                           variant='ghost'
                           size='icon'
                           className='h-7 w-7'
@@ -389,12 +393,11 @@ export function WaffoSettingsSection({
                           <Pencil className='h-3 w-3' />
                         </Button>
                         <Button
-                          type='button'
                           variant='ghost'
                           size='icon'
                           className='h-7 w-7'
                           onClick={() =>
-                            onPayMethodsChange((prev) =>
+                            setPayMethods((prev) =>
                               prev.filter((_, i) => i !== idx)
                             )
                           }
@@ -409,7 +412,11 @@ export function WaffoSettingsSection({
             </TableBody>
           </Table>
         </div>
-      </div>
+
+        <Button onClick={handleSave} disabled={loading}>
+          {loading ? t('Saving...') : t('Save Changes')}
+        </Button>
+      </SettingsSection>
 
       <Dialog open={methodDialogOpen} onOpenChange={setMethodDialogOpen}>
         <DialogContent>
@@ -507,15 +514,12 @@ export function WaffoSettingsSection({
           </div>
           <DialogFooter>
             <Button
-              type='button'
               variant='outline'
               onClick={() => setMethodDialogOpen(false)}
             >
               {t('Cancel')}
             </Button>
-            <Button type='button' onClick={saveMethod}>
-              {t('Confirm')}
-            </Button>
+            <Button onClick={saveMethod}>{t('Confirm')}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

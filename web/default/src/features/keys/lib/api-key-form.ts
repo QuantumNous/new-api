@@ -17,7 +17,6 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { z } from 'zod'
-import type { TFunction } from 'i18next'
 import { parseQuotaFromDollars, quotaUnitsToDollars } from '@/lib/format'
 import { DEFAULT_GROUP } from '../constants'
 import { type ApiKeyFormData, type ApiKey } from '../types'
@@ -26,38 +25,19 @@ import { type ApiKeyFormData, type ApiKey } from '../types'
 // Form Schema
 // ============================================================================
 
-export function getApiKeyFormSchema(t: TFunction) {
-  return z
-    .object({
-      name: z.string().min(1, t('Please enter a name')),
-      remain_quota_dollars: z.number().optional(),
-      expired_time: z.date().optional(),
-      unlimited_quota: z.boolean(),
-      model_limits: z.array(z.string()),
-      allow_ips: z.string().optional(),
-      group: z.string().optional(),
-      cross_group_retry: z.boolean().optional(),
-      tokenCount: z.number().min(1).optional(),
-    })
-    .superRefine((data, ctx) => {
-      if (data.unlimited_quota) {
-        return
-      }
+export const apiKeyFormSchema = z.object({
+  name: z.string().min(1, 'Name is required'),
+  remain_quota_dollars: z.number().min(0).optional(),
+  expired_time: z.date().optional(),
+  unlimited_quota: z.boolean(),
+  model_limits: z.array(z.string()),
+  allow_ips: z.string().optional(),
+  group: z.string().optional(),
+  cross_group_retry: z.boolean().optional(),
+  tokenCount: z.number().min(1).optional(),
+})
 
-      if (
-        data.remain_quota_dollars === undefined ||
-        data.remain_quota_dollars < 0
-      ) {
-        ctx.addIssue({
-          code: 'custom',
-          path: ['remain_quota_dollars'],
-          message: t('Quota must be zero or greater'),
-        })
-      }
-    })
-}
-
-export type ApiKeyFormValues = z.infer<ReturnType<typeof getApiKeyFormSchema>>
+export type ApiKeyFormValues = z.infer<typeof apiKeyFormSchema>
 
 // ============================================================================
 // Form Defaults
@@ -120,9 +100,7 @@ export function transformApiKeyToFormDefaults(
 ): ApiKeyFormValues {
   return {
     name: apiKey.name,
-    remain_quota_dollars: apiKey.unlimited_quota
-      ? 0
-      : quotaUnitsToDollars(apiKey.remain_quota),
+    remain_quota_dollars: quotaUnitsToDollars(apiKey.remain_quota),
     expired_time:
       apiKey.expired_time > 0
         ? new Date(apiKey.expired_time * 1000)

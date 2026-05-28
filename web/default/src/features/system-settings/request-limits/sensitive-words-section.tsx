@@ -21,6 +21,7 @@ import * as z from 'zod'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useTranslation } from 'react-i18next'
+import { Button } from '@/components/ui/button'
 import {
   Form,
   FormControl,
@@ -32,12 +33,6 @@ import {
 } from '@/components/ui/form'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
-import {
-  SettingsForm,
-  SettingsSwitchContent,
-  SettingsSwitchItem,
-} from '../components/settings-form-layout'
-import { SettingsPageFormActions } from '../components/settings-page-context'
 import { SettingsSection } from '../components/settings-section'
 import { useUpdateOption } from '../hooks/use-update-option'
 
@@ -79,35 +74,35 @@ export function SensitiveWordsSection({
   }
 
   return (
-    <SettingsSection title={t('Sensitive Words')}>
+    <SettingsSection
+      title={t('Sensitive Words')}
+      description={t('Configure keyword filtering for prompts and responses.')}
+    >
       <Form {...form}>
-        <SettingsForm onSubmit={form.handleSubmit(onSubmit)}>
-          <SettingsPageFormActions
-            onSave={form.handleSubmit(onSubmit)}
-            isSaving={updateOption.isPending}
-            saveLabel='Save sensitive words'
-          />
+        <form onSubmit={form.handleSubmit(onSubmit)} className='space-y-6'>
           <div className='space-y-4'>
             <FormField
               control={form.control}
               name='CheckSensitiveEnabled'
               render={({ field }) => (
-                <SettingsSwitchItem>
-                  <SettingsSwitchContent>
-                    <FormLabel>{t('Enable filtering')}</FormLabel>
+                <FormItem className='flex flex-row items-center justify-between rounded-lg border p-4'>
+                  <div className='space-y-0.5'>
+                    <FormLabel className='text-base'>
+                      {t('Enable filtering')}
+                    </FormLabel>
                     <FormDescription>
                       {t(
                         'Blocks messages when sensitive keywords are detected.'
                       )}
                     </FormDescription>
-                  </SettingsSwitchContent>
+                  </div>
                   <FormControl>
                     <Switch
                       checked={field.value}
                       onCheckedChange={field.onChange}
                     />
                   </FormControl>
-                </SettingsSwitchItem>
+                </FormItem>
               )}
             />
 
@@ -115,22 +110,24 @@ export function SensitiveWordsSection({
               control={form.control}
               name='CheckSensitiveOnPromptEnabled'
               render={({ field }) => (
-                <SettingsSwitchItem>
-                  <SettingsSwitchContent>
-                    <FormLabel>{t('Inspect user prompts')}</FormLabel>
+                <FormItem className='flex flex-row items-center justify-between rounded-lg border p-4'>
+                  <div className='space-y-0.5'>
+                    <FormLabel className='text-base'>
+                      {t('Inspect user prompts')}
+                    </FormLabel>
                     <FormDescription>
                       {t(
                         'When enabled, prompts are scanned before reaching upstream models.'
                       )}
                     </FormDescription>
-                  </SettingsSwitchContent>
+                  </div>
                   <FormControl>
                     <Switch
                       checked={field.value}
                       onCheckedChange={field.onChange}
                     />
                   </FormControl>
-                </SettingsSwitchItem>
+                </FormItem>
               )}
             />
           </div>
@@ -157,7 +154,13 @@ export function SensitiveWordsSection({
               </FormItem>
             )}
           />
-        </SettingsForm>
+
+          <Button type='submit' disabled={updateOption.isPending}>
+            {updateOption.isPending
+              ? t('Saving...')
+              : t('Save sensitive words')}
+          </Button>
+        </form>
       </Form>
     </SettingsSection>
   )
