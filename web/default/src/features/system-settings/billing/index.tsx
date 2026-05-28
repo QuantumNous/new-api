@@ -21,6 +21,7 @@ import type { BillingSettings } from '../types'
 import {
   BILLING_DEFAULT_SECTION,
   getBillingSectionContent,
+  getBillingSectionMeta,
 } from './section-registry.tsx'
 
 const defaultBillingSettings: BillingSettings = {
@@ -96,18 +97,11 @@ const defaultBillingSettings: BillingSettings = {
   WaffoNotifyUrl: '',
   WaffoReturnUrl: '',
   WaffoPayMethods: '[]',
-  WaffoPancakeEnabled: false,
-  WaffoPancakeSandbox: false,
   WaffoPancakeMerchantID: '',
   WaffoPancakePrivateKey: '',
-  WaffoPancakeWebhookPublicKey: '',
-  WaffoPancakeWebhookTestKey: '',
+  WaffoPancakeReturnURL: '',
   WaffoPancakeStoreID: '',
   WaffoPancakeProductID: '',
-  WaffoPancakeReturnURL: '',
-  WaffoPancakeCurrency: 'USD',
-  WaffoPancakeUnitPrice: 1,
-  WaffoPancakeMinTopUp: 1,
   'checkin_setting.enabled': false,
   'checkin_setting.min_quota': 1000,
   'checkin_setting.max_quota': 10000,
@@ -120,6 +114,7 @@ export function BillingSettings() {
       defaultSettings={defaultBillingSettings}
       defaultSection={BILLING_DEFAULT_SECTION}
       getSectionContent={getBillingSectionContent}
+      getSectionMeta={getBillingSectionMeta}
     />
   )
 }
