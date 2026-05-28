@@ -8,6 +8,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/i18n"
+	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 
@@ -288,6 +289,9 @@ func UpdateToken(c *gin.Context) {
 			return
 		}
 	}
+	oldRemainQuota := cleanToken.RemainQuota
+	oldUnlimitedQuota := cleanToken.UnlimitedQuota
+
 	if statusOnly != "" {
 		cleanToken.Status = token.Status
 	} else {
@@ -306,6 +310,43 @@ func UpdateToken(c *gin.Context) {
 	if err != nil {
 		common.ApiError(c, err)
 		return
+	}
+
+	if statusOnly == "" && (oldRemainQuota != cleanToken.RemainQuota || oldUnlimitedQuota != cleanToken.UnlimitedQuota) {
+		actor := "用户"
+		if model.IsAdmin(userId) {
+			actor = "管理员"
+		}
+		tokenLabel := cleanToken.Name
+		if tokenLabel == "" {
+			tokenLabel = fmt.Sprintf("ID %d", cleanToken.Id)
+		}
+		content := fmt.Sprintf("%s手工调整令牌「%s」剩余额度：%s → %s",
+			actor, tokenLabel,
+			logger.LogQuota(oldRemainQuota), logger.LogQuota(cleanToken.RemainQuota))
+		if oldUnlimitedQuota != cleanToken.UnlimitedQuota {
+			content += fmt.Sprintf("；无限额度：%v → %v", oldUnlimitedQuota, cleanToken.UnlimitedQuota)
+		}
+		if delta := cleanToken.RemainQuota - oldRemainQuota; delta != 0 {
+			if delta > 0 {
+				content += fmt.Sprintf("（增加 %s）", logger.LogQuota(delta))
+			} else {
+				content += fmt.Sprintf("（减少 %s）", logger.LogQuota(-delta))
+			}
+		}
+		model.RecordTokenQuotaManageLog(model.RecordTokenQuotaManageLogParams{
+			TokenOwnerUserId: cleanToken.UserId,
+			OperatorUserId:   userId,
+			OperatorUsername: c.GetString("username"),
+			TokenId:          cleanToken.Id,
+			TokenName:        cleanToken.Name,
+			OldRemainQuota:   oldRemainQuota,
+			NewRemainQuota:   cleanToken.RemainQuota,
+			OldUnlimited:     oldUnlimitedQuota,
+			NewUnlimited:     cleanToken.UnlimitedQuota,
+			UsedQuota:        cleanToken.UsedQuota,
+			Content:          content,
+		})
 	}
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,

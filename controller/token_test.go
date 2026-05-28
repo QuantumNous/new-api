@@ -101,7 +101,7 @@ func openTokenControllerTestDB(t *testing.T) *gorm.DB {
 func migrateTokenControllerTestDB(t *testing.T, db *gorm.DB) {
 	t.Helper()
 
-	if err := db.AutoMigrate(&model.Token{}); err != nil {
+	if err := db.AutoMigrate(&model.Token{}, &model.Log{}); err != nil {
 		t.Fatalf("failed to migrate token table: %v", err)
 	}
 }
@@ -467,6 +467,50 @@ func TestGetTokenMasksKeyInResponse(t *testing.T) {
 	}
 	if strings.Contains(recorder.Body.String(), token.Key) {
 		t.Fatalf("detail response leaked raw token key: %s", recorder.Body.String())
+	}
+}
+
+func TestUpdateTokenRecordsManageLogWhenRemainQuotaChanges(t *testing.T) {
+	db := setupTokenControllerTestDB(t)
+	token := seedToken(t, db, 1, "quota-audit-token", "audit1234token5678")
+	token.RemainQuota = 500_000
+	token.UsedQuota = 100_000
+	if err := db.Save(token).Error; err != nil {
+		t.Fatalf("failed to seed token quota: %v", err)
+	}
+
+	body := map[string]any{
+		"id":                   token.Id,
+		"name":                 "quota-audit-token",
+		"expired_time":         -1,
+		"remain_quota":         800_000,
+		"unlimited_quota":      false,
+		"model_limits_enabled": false,
+		"model_limits":         "",
+		"group":                "default",
+		"cross_group_retry":    false,
+	}
+
+	ctx, recorder := newAuthenticatedContext(t, http.MethodPut, "/api/token/", body, 1)
+	UpdateToken(ctx)
+
+	response := decodeAPIResponse(t, recorder)
+	if !response.Success {
+		t.Fatalf("expected success response, got message: %s", response.Message)
+	}
+
+	var log model.Log
+	if err := db.Where("token_id = ? AND type = ?", token.Id, model.LogTypeManage).Order("id desc").First(&log).Error; err != nil {
+		t.Fatalf("expected manage log for token quota edit: %v", err)
+	}
+	if log.Quota != 300_000 {
+		t.Fatalf("expected log quota delta 300000, got %d", log.Quota)
+	}
+	if log.TokenName != "quota-audit-token" {
+		t.Fatalf("expected token name on log, got %q", log.TokenName)
+	}
+	if log.Content == "" {
+		t.Fatal("expected non-empty manage log content")
 	}
 }
 

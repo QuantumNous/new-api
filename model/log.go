@@ -144,6 +144,60 @@ func RecordTopupLog(userId int, content string, callerIp string, paymentMethod s
 	}
 }
 
+// RecordTokenQuotaManageLogParams 手工修改令牌额度（PUT /api/token/）时的审计日志。
+type RecordTokenQuotaManageLogParams struct {
+	TokenOwnerUserId int
+	OperatorUserId   int
+	OperatorUsername string
+	TokenId          int
+	TokenName        string
+	OldRemainQuota   int
+	NewRemainQuota   int
+	OldUnlimited     bool
+	NewUnlimited     bool
+	UsedQuota        int
+	Content          string
+}
+
+// RecordTokenQuotaManageLog 将令牌额度手工调整写入 logs（type=Manage），便于按 token_id 检索。
+func RecordTokenQuotaManageLog(params RecordTokenQuotaManageLogParams) {
+	if params.OldRemainQuota == params.NewRemainQuota && params.OldUnlimited == params.NewUnlimited {
+		return
+	}
+	username, _ := GetUsernameById(params.TokenOwnerUserId, false)
+	quotaDelta := params.NewRemainQuota - params.OldRemainQuota
+	logQuota := quotaDelta
+	if logQuota < 0 {
+		logQuota = -logQuota
+	}
+	other := map[string]interface{}{
+		"token_id":            params.TokenId,
+		"token_name":          params.TokenName,
+		"old_remain_quota":    params.OldRemainQuota,
+		"new_remain_quota":    params.NewRemainQuota,
+		"remain_quota_delta":  quotaDelta,
+		"old_unlimited_quota": params.OldUnlimited,
+		"new_unlimited_quota": params.NewUnlimited,
+		"used_quota_at_edit":   params.UsedQuota,
+		"operator_id":         params.OperatorUserId,
+		"operator_username":   params.OperatorUsername,
+	}
+	log := &Log{
+		UserId:    params.TokenOwnerUserId,
+		Username:  username,
+		CreatedAt: common.GetTimestamp(),
+		Type:      LogTypeManage,
+		Content:   params.Content,
+		TokenId:   params.TokenId,
+		TokenName: params.TokenName,
+		Quota:     logQuota,
+		Other:     common.MapToJsonStr(other),
+	}
+	if err := LOG_DB.Create(log).Error; err != nil {
+		common.SysLog("failed to record token manage log: " + err.Error())
+	}
+}
+
 func RecordErrorLog(c *gin.Context, userId int, channelId int, modelName string, tokenName string, content string, tokenId int, useTimeSeconds int,
 	isStream bool, group string, other map[string]interface{}) {
 	logger.LogInfo(c, fmt.Sprintf("record error log: userId=%d, channelId=%d, modelName=%s, tokenName=%s, content=%s", userId, channelId, modelName, tokenName, content))
