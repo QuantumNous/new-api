@@ -79,6 +79,8 @@ const HomePage = () => {
   const isChinese = i18n.language.startsWith('zh');
   const docsLink = statusState?.status?.docs_link || '';
 
+  const quotaDisplayType = localStorage.getItem('quota_display_type') || 'USD';
+
   useEffect(() => {
     const scrollContainer = document.getElementById('app-scroll-shell');
     const syncScroll = () => {
@@ -1115,7 +1117,9 @@ response = client.chat.completions.create(
               {t('准备好开始了吗？')}
             </h2>
             <p className='home-cta-description mb-10 text-xl'>
-              {t('免费注册，即刻获得 $1 体验额度。无需绑定信用卡。')}
+              {quotaDisplayType === 'CNY'
+                ? t('免费注册，即刻获得 ￥1 体验额度。无需绑定信用卡。')
+                : t('免费注册，即刻获得 $1 体验额度。无需绑定信用卡。')}
             </p>
             <div className='flex flex-wrap items-center justify-center gap-4'>
               <button
