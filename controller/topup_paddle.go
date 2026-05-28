@@ -147,9 +147,9 @@ func RequestPaddleAmount(c *gin.Context) {
 
 func RequestPaddlePay(c *gin.Context) {
 	if configError := paddleTopUpConfigError(); configError != "" {
-		logger.LogWarn(c.Request.Context(), fmt.Sprintf("Paddle 创建交易被拒绝 reason=%q sandbox=%t user_id=%d", configError, setting.PaddleSandbox, c.GetInt("id")))
+		logger.LogWarn(c.Request.Context(), fmt.Sprintf("Paddle 创建交易被拒绝 reason=%q sandbox=%t user_id=%d", configError, setting.EffectivePaddleSandbox(), c.GetInt("id")))
 		errorMessage := "Paddle 配置不完整"
-		if setting.PaddleSandbox || c.GetInt("role") >= common.RoleAdminUser {
+		if setting.EffectivePaddleSandbox() || c.GetInt("role") >= common.RoleAdminUser {
 			errorMessage = fmt.Sprintf("Paddle 配置不完整：%s", configError)
 		}
 		c.JSON(http.StatusOK, gin.H{"message": "error", "data": errorMessage})
@@ -206,11 +206,11 @@ func RequestPaddlePay(c *gin.Context) {
 
 	transaction, err := createPaddleTransaction(c, tradeNo, user, req.Amount, payMoney)
 	if err != nil {
-		logger.LogError(c.Request.Context(), fmt.Sprintf("Paddle 创建交易失败 user_id=%d trade_no=%s sandbox=%t amount=%d money=%.2f error=%q", id, tradeNo, setting.PaddleSandbox, req.Amount, payMoney, err.Error()))
+		logger.LogError(c.Request.Context(), fmt.Sprintf("Paddle 创建交易失败 user_id=%d trade_no=%s sandbox=%t amount=%d money=%.2f error=%q", id, tradeNo, setting.EffectivePaddleSandbox(), req.Amount, payMoney, err.Error()))
 		topUp.Status = common.TopUpStatusFailed
 		_ = topUp.Update()
 		errorMessage := "拉起支付失败"
-		if setting.PaddleSandbox || c.GetInt("role") >= common.RoleAdminUser {
+		if setting.EffectivePaddleSandbox() || c.GetInt("role") >= common.RoleAdminUser {
 			errorMessage = fmt.Sprintf("Paddle 创建交易失败：%s", err.Error())
 		}
 		c.JSON(http.StatusOK, gin.H{"message": "error", "data": errorMessage})
@@ -232,14 +232,14 @@ func RequestPaddlePay(c *gin.Context) {
 		return
 	}
 
-	logger.LogInfo(c.Request.Context(), fmt.Sprintf("Paddle 充值订单创建成功 user_id=%d trade_no=%s transaction_id=%s sandbox=%t amount=%d money=%.2f", id, tradeNo, transaction.Data.ID, setting.PaddleSandbox, req.Amount, payMoney))
+	logger.LogInfo(c.Request.Context(), fmt.Sprintf("Paddle 充值订单创建成功 user_id=%d trade_no=%s transaction_id=%s sandbox=%t amount=%d money=%.2f", id, tradeNo, transaction.Data.ID, setting.EffectivePaddleSandbox(), req.Amount, payMoney))
 	c.JSON(http.StatusOK, gin.H{
 		"message": "success",
 		"data": gin.H{
 			"checkout_url":   checkoutURL,
 			"transaction_id": transaction.Data.ID,
 			"order_id":       tradeNo,
-			"sandbox":        setting.PaddleSandbox,
+			"sandbox":        setting.EffectivePaddleSandbox(),
 		},
 	})
 }
@@ -410,10 +410,10 @@ func createPaddleTransaction(c *gin.Context, tradeNo string, user *model.User, a
 	}
 	var result paddleCreateTransactionResponse
 	if err := common.Unmarshal(respBody, &result); err != nil {
-		logger.LogWarn(c.Request.Context(), fmt.Sprintf("Paddle API 创建交易响应解析失败 trade_no=%s sandbox=%t status_code=%d body_size=%d error=%q", tradeNo, setting.PaddleSandbox, resp.StatusCode, len(respBody), err.Error()))
+		logger.LogWarn(c.Request.Context(), fmt.Sprintf("Paddle API 创建交易响应解析失败 trade_no=%s sandbox=%t status_code=%d body_size=%d error=%q", tradeNo, setting.EffectivePaddleSandbox(), resp.StatusCode, len(respBody), err.Error()))
 		return nil, err
 	}
-	logger.LogInfo(c.Request.Context(), fmt.Sprintf("Paddle API 创建交易响应 trade_no=%s sandbox=%t status_code=%d transaction_id=%s checkout_url_present=%t error=%s", tradeNo, setting.PaddleSandbox, resp.StatusCode, result.Data.ID, strings.TrimSpace(result.Data.Checkout.URL) != "", formatPaddleAPIError(result.Error)))
+	logger.LogInfo(c.Request.Context(), fmt.Sprintf("Paddle API 创建交易响应 trade_no=%s sandbox=%t status_code=%d transaction_id=%s checkout_url_present=%t error=%s", tradeNo, setting.EffectivePaddleSandbox(), resp.StatusCode, result.Data.ID, strings.TrimSpace(result.Data.Checkout.URL) != "", formatPaddleAPIError(result.Error)))
 	if resp.StatusCode/100 != 2 {
 		if result.Error != nil && result.Error.Detail != "" {
 			return nil, errors.New(paddleAPIErrorDetail(result.Error))
@@ -479,7 +479,7 @@ func normalizePaddleTopUpAmount(amount int64) int64 {
 }
 
 func paddleAPIBaseURL() string {
-	if setting.PaddleSandbox {
+	if setting.EffectivePaddleSandbox() {
 		return paddleSandboxAPIBase
 	}
 	return paddleProdAPIBase
@@ -490,17 +490,17 @@ func normalizePaddleCheckoutURL(checkoutURL string) string {
 	if err != nil || parsedURL.Scheme == "" || parsedURL.Host == "" {
 		return checkoutURL
 	}
-	if setting.PaddleSandbox && parsedURL.Scheme == "https" && isLocalPaddleCheckoutHost(parsedURL.Hostname()) {
+	if setting.EffectivePaddleSandbox() && parsedURL.Scheme == "https" && isLocalPaddleCheckoutHost(parsedURL.Hostname()) {
 		parsedURL.Scheme = "http"
 	}
-	if setting.PaddleSandbox && isLocalPaddleCheckoutHost(parsedURL.Hostname()) && parsedURL.Path == "/console/topup" {
+	if setting.EffectivePaddleSandbox() && isLocalPaddleCheckoutHost(parsedURL.Hostname()) && parsedURL.Path == "/console/topup" {
 		parsedURL.Path = "/wallet"
 	}
 	return parsedURL.String()
 }
 
 func paddleCheckoutReturnURL() string {
-	if !setting.PaddleSandbox {
+	if !setting.EffectivePaddleSandbox() {
 		return ""
 	}
 

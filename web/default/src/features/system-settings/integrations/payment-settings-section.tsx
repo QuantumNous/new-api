@@ -21,7 +21,7 @@ import * as z from 'zod'
 import { useForm, type Resolver } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { CircleHelp, Code2, Eye, ShieldAlert } from 'lucide-react'
+import { AlertCircle, CircleHelp, Code2, Eye, ShieldAlert } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
@@ -117,10 +117,40 @@ const PADDLE_CURRENCY_REQUIRED_ERROR =
 const PADDLE_UNIT_PRICE_REQUIRED_ERROR =
   'Paddle unit price must be greater than 0 when Paddle payment method is enabled.'
 
+type PaddleEnvironmentFields = {
+  PaddleSandbox: boolean
+  PaddleApiKey: string
+  PaddleClientToken: string
+}
+
+function getEffectivePaddleSandboxValue(
+  values: PaddleEnvironmentFields
+): boolean {
+  const apiKey = values.PaddleApiKey.trim()
+  if (apiKey.startsWith(PADDLE_LIVE_API_KEY_PREFIX)) {
+    return false
+  }
+  if (apiKey.startsWith(PADDLE_SANDBOX_API_KEY_PREFIX)) {
+    return true
+  }
+
+  const clientToken = values.PaddleClientToken.trim()
+  if (clientToken.startsWith(PADDLE_LIVE_CLIENT_TOKEN_PREFIX)) {
+    return false
+  }
+  if (clientToken.startsWith(PADDLE_SANDBOX_CLIENT_TOKEN_PREFIX)) {
+    return true
+  }
+
+  return values.PaddleSandbox
+}
+
 type FormLabelWithHelpProps = {
   label: React.ReactNode
   help: React.ReactNode
   helpLabel: string
+  error?: React.ReactNode
+  errorLabel?: string
 }
 
 function FormLabelWithHelp(props: FormLabelWithHelpProps) {
@@ -149,6 +179,30 @@ function FormLabelWithHelp(props: FormLabelWithHelpProps) {
           </TooltipContent>
         </Tooltip>
       </TooltipProvider>
+      {props.error ? (
+        <TooltipProvider delay={100}>
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <button
+                  type='button'
+                  aria-label={props.errorLabel}
+                  className='text-destructive focus-visible:ring-ring/50 inline-flex rounded-sm transition-colors focus-visible:ring-2 focus-visible:outline-none'
+                />
+              }
+            >
+              <AlertCircle className='size-3.5' aria-hidden='true' />
+            </TooltipTrigger>
+            <TooltipContent
+              side='top'
+              align='start'
+              className='max-w-80 items-start whitespace-normal text-left leading-relaxed'
+            >
+              {props.error}
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+      ) : null}
     </div>
   )
 }
@@ -299,14 +353,15 @@ const paymentSchema = z
     WaffoPancakeReturnURL: z.string(),
   })
   .superRefine((values, ctx) => {
+    const effectivePaddleSandbox = getEffectivePaddleSandboxValue(values)
     addOptionalPatternIssue(
       ctx,
       'PaddleApiKey',
       values.PaddleApiKey,
-      values.PaddleSandbox
+      effectivePaddleSandbox
         ? PADDLE_SANDBOX_API_KEY_PATTERN
         : PADDLE_LIVE_API_KEY_PATTERN,
-      values.PaddleSandbox
+      effectivePaddleSandbox
         ? PADDLE_SANDBOX_API_KEY_ERROR
         : PADDLE_LIVE_API_KEY_ERROR
     )
@@ -314,10 +369,10 @@ const paymentSchema = z
       ctx,
       'PaddleClientToken',
       values.PaddleClientToken,
-      values.PaddleSandbox
+      effectivePaddleSandbox
         ? PADDLE_SANDBOX_CLIENT_TOKEN_PATTERN
         : PADDLE_LIVE_CLIENT_TOKEN_PATTERN,
-      values.PaddleSandbox
+      effectivePaddleSandbox
         ? PADDLE_SANDBOX_CLIENT_TOKEN_ERROR
         : PADDLE_LIVE_CLIENT_TOKEN_ERROR
     )
@@ -593,8 +648,10 @@ export function PaymentSettingsSection({
   React.useEffect(() => {
     const parsedDefaults = JSON.parse(defaultsSignature) as PaymentFormValues
     initialRef.current = parsedDefaults
+    const effectivePaddleSandbox = getEffectivePaddleSandboxValue(parsedDefaults)
     form.reset({
       ...parsedDefaults,
+      PaddleSandbox: effectivePaddleSandbox,
       PayMethods: formatJsonForEditor(parsedDefaults.PayMethods),
       AmountOptions: formatJsonForEditor(parsedDefaults.AmountOptions),
       AmountDiscount: formatJsonForEditor(parsedDefaults.AmountDiscount),
@@ -626,7 +683,7 @@ export function PaymentSettingsSection({
       PaddleApiKey: values.PaddleApiKey.trim(),
       PaddleClientToken: values.PaddleClientToken.trim(),
       PaddleWebhookSecret: values.PaddleWebhookSecret.trim(),
-      PaddleSandbox: values.PaddleSandbox,
+      PaddleSandbox: getEffectivePaddleSandboxValue(values),
       PaddleProductId: values.PaddleProductId.trim(),
       PaddleCurrency: values.PaddleCurrency.trim().toUpperCase() || 'USD',
       PaddleUnitPrice: values.PaddleUnitPrice,
@@ -1021,6 +1078,12 @@ export function PaymentSettingsSection({
     }
   }
 
+  const onInvalid = React.useCallback(() => {
+    toast.error(
+      t('Payment settings need attention. Hover the red icons beside fields for details.')
+    )
+  }, [t])
+
   const currentFormValues = form.watch()
   const waffoValues: WaffoSettingsValues = {
     WaffoEnabled: currentFormValues.WaffoEnabled,
@@ -1044,37 +1107,48 @@ export function PaymentSettingsSection({
     WaffoPancakePrivateKey: currentFormValues.WaffoPancakePrivateKey,
     WaffoPancakeReturnURL: currentFormValues.WaffoPancakeReturnURL,
   }
-  const paddleApiKeyPrefix = currentFormValues.PaddleSandbox
-    ? PADDLE_SANDBOX_API_KEY_PREFIX
-    : PADDLE_LIVE_API_KEY_PREFIX
-  const paddleClientTokenPrefix = currentFormValues.PaddleSandbox
-    ? PADDLE_SANDBOX_CLIENT_TOKEN_PREFIX
-    : PADDLE_LIVE_CLIENT_TOKEN_PREFIX
-  const paddleApiKeyDescription = currentFormValues.PaddleSandbox
+  const paddleLiveMode = !currentFormValues.PaddleSandbox
+  const paddleApiKeyPrefix = paddleLiveMode
+    ? PADDLE_LIVE_API_KEY_PREFIX
+    : PADDLE_SANDBOX_API_KEY_PREFIX
+  const paddleClientTokenPrefix = paddleLiveMode
+    ? PADDLE_LIVE_CLIENT_TOKEN_PREFIX
+    : PADDLE_SANDBOX_CLIENT_TOKEN_PREFIX
+  const paddleApiKeyDescription = paddleLiveMode
     ? t(
-        'Use the full Paddle sandbox API key matching {{prefix}}..._..._...; it is 69 characters and contains five underscores.',
-        {
-          prefix: PADDLE_SANDBOX_API_KEY_PREFIX,
-        }
-      )
-    : t(
         'Use the full Paddle live API key matching {{prefix}}..._..._...; it is 69 characters and contains five underscores. Values starting with only {{incompletePrefix}} are incomplete.',
         {
           prefix: PADDLE_LIVE_API_KEY_PREFIX,
           incompletePrefix: PADDLE_INCOMPLETE_API_KEY_PREFIX,
         }
       )
-  const paddleClientTokenDescription = currentFormValues.PaddleSandbox
-    ? t(
-        'Use the Paddle sandbox client-side token matching {{prefix}} plus 27 letters or digits.',
-        { prefix: PADDLE_SANDBOX_CLIENT_TOKEN_PREFIX }
-      )
     : t(
+        'Use the full Paddle sandbox API key matching {{prefix}}..._..._...; it is 69 characters and contains five underscores.',
+        {
+          prefix: PADDLE_SANDBOX_API_KEY_PREFIX,
+        }
+      )
+  const paddleClientTokenDescription = paddleLiveMode
+    ? t(
         'Use the Paddle live client-side token matching {{prefix}} plus 27 letters or digits.',
         {
           prefix: PADDLE_LIVE_CLIENT_TOKEN_PREFIX,
         }
       )
+    : t(
+        'Use the Paddle sandbox client-side token matching {{prefix}} plus 27 letters or digits.',
+        { prefix: PADDLE_SANDBOX_CLIENT_TOKEN_PREFIX }
+      )
+  const getFieldError = React.useCallback(
+    (name: keyof PaymentFormValues): React.ReactNode => {
+      const message = form.formState.errors[name]?.message
+      if (!message) {
+        return undefined
+      }
+      return typeof message === 'string' ? t(message) : String(message)
+    },
+    [form.formState.errors, t]
+  )
 
   return (
     <SettingsSection title={t('Payment Gateway')}>
@@ -1143,7 +1217,7 @@ export function PaymentSettingsSection({
 
       <Form {...form}>
         <SettingsForm
-          onSubmit={form.handleSubmit(onSubmit)}
+          onSubmit={form.handleSubmit(onSubmit, onInvalid)}
           className={cn(
             'gap-y-8',
             !complianceConfirmed && 'pointer-events-none opacity-40'
@@ -1151,7 +1225,7 @@ export function PaymentSettingsSection({
           data-no-autosubmit='true'
         >
           <SettingsPageFormActions
-            onSave={form.handleSubmit(onSubmit)}
+            onSave={form.handleSubmit(onSubmit, onInvalid)}
             isSaving={updateOption.isPending || isSubmitting}
             saveLabel='Save all settings'
           />
@@ -1857,7 +1931,7 @@ export function PaymentSettingsSection({
                         <div className='space-y-1'>
                           <p>
                             {t(
-                              'Turn on to use Paddle sandbox credentials and test payments. Turn off to use live credentials and production payments.'
+                              'Turn on to use Paddle live credentials and production payments. Turn off to use sandbox credentials and test payments.'
                             )}
                           </p>
                           <p>
@@ -1876,11 +1950,14 @@ export function PaymentSettingsSection({
                         </div>
                       }
                     />
+                    <FormDescription>
+                      {paddleLiveMode ? t('Live Mode') : t('Sandbox Mode')}
+                    </FormDescription>
                   </SettingsSwitchContent>
                   <FormControl>
                     <Switch
-                      checked={field.value}
-                      onCheckedChange={field.onChange}
+                      checked={!field.value}
+                      onCheckedChange={(checked) => field.onChange(!checked)}
                     />
                   </FormControl>
                 </SettingsSwitchItem>
@@ -1896,6 +1973,8 @@ export function PaymentSettingsSection({
                     <FormLabelWithHelp
                       label={t('API Key')}
                       helpLabel={t('Show help')}
+                      errorLabel={t('Error')}
+                      error={getFieldError('PaddleApiKey')}
                       help={
                         <>
                           {paddleApiKeyDescription} {t('Leave blank unless updating.')}
@@ -1911,7 +1990,7 @@ export function PaymentSettingsSection({
                         onChange={(event) => field.onChange(event.target.value)}
                       />
                     </FormControl>
-                    <FormMessage />
+                    <FormMessage className='sr-only' />
                   </FormItem>
                 )}
               />
@@ -1924,6 +2003,8 @@ export function PaymentSettingsSection({
                     <FormLabelWithHelp
                       label={t('Client-side Token')}
                       helpLabel={t('Show help')}
+                      errorLabel={t('Error')}
+                      error={getFieldError('PaddleClientToken')}
                       help={
                         <>
                           {paddleClientTokenDescription}{' '}
@@ -1942,7 +2023,7 @@ export function PaymentSettingsSection({
                         onChange={(event) => field.onChange(event.target.value)}
                       />
                     </FormControl>
-                    <FormMessage />
+                    <FormMessage className='sr-only' />
                   </FormItem>
                 )}
               />
@@ -1955,6 +2036,8 @@ export function PaymentSettingsSection({
                     <FormLabelWithHelp
                       label={t('Webhook Secret')}
                       helpLabel={t('Show help')}
+                      errorLabel={t('Error')}
+                      error={getFieldError('PaddleWebhookSecret')}
                       help={t(
                         'Use the endpoint signing secret from Paddle notifications. It matches {{secretPrefix}}..._..., not {{idPrefix}}. Leave blank unless updating.',
                         {
@@ -1972,7 +2055,7 @@ export function PaymentSettingsSection({
                         onChange={(event) => field.onChange(event.target.value)}
                       />
                     </FormControl>
-                    <FormMessage />
+                    <FormMessage className='sr-only' />
                   </FormItem>
                 )}
               />
@@ -1985,6 +2068,8 @@ export function PaymentSettingsSection({
                     <FormLabelWithHelp
                       label={t('Product ID')}
                       helpLabel={t('Show help')}
+                      errorLabel={t('Error')}
+                      error={getFieldError('PaddleProductId')}
                       help={t(
                         'Paddle product used for wallet top-ups. It matches {{prefix}} plus 26 lowercase letters or digits.',
                         {
@@ -1999,7 +2084,7 @@ export function PaymentSettingsSection({
                         onChange={(event) => field.onChange(event.target.value)}
                       />
                     </FormControl>
-                    <FormMessage />
+                    <FormMessage className='sr-only' />
                   </FormItem>
                 )}
               />
@@ -2014,6 +2099,8 @@ export function PaymentSettingsSection({
                     <FormLabelWithHelp
                       label={t('Currency')}
                       helpLabel={t('Show help')}
+                      errorLabel={t('Error')}
+                      error={getFieldError('PaddleCurrency')}
                       help={t('Paddle transaction currency code')}
                     />
                     <FormControl>
@@ -2025,7 +2112,7 @@ export function PaymentSettingsSection({
                         }
                       />
                     </FormControl>
-                    <FormMessage />
+                    <FormMessage className='sr-only' />
                   </FormItem>
                 )}
               />
@@ -2038,6 +2125,8 @@ export function PaymentSettingsSection({
                     <FormLabelWithHelp
                       label={t('Unit price (payment currency / USD)')}
                       helpLabel={t('Show help')}
+                      errorLabel={t('Error')}
+                      error={getFieldError('PaddleUnitPrice')}
                       help={t('e.g., 1 means 1 payment currency per USD')}
                     />
                     <FormControl>
@@ -2048,7 +2137,7 @@ export function PaymentSettingsSection({
                         {...safeNumberFieldProps(field)}
                       />
                     </FormControl>
-                    <FormMessage />
+                    <FormMessage className='sr-only' />
                   </FormItem>
                 )}
               />
@@ -2061,6 +2150,8 @@ export function PaymentSettingsSection({
                     <FormLabelWithHelp
                       label={t('Minimum top-up (USD)')}
                       helpLabel={t('Show help')}
+                      errorLabel={t('Error')}
+                      error={getFieldError('PaddleMinTopUp')}
                       help={t('Smallest USD amount users can recharge')}
                     />
                     <FormControl>
@@ -2071,7 +2162,7 @@ export function PaymentSettingsSection({
                         {...safeNumberFieldProps(field)}
                       />
                     </FormControl>
-                    <FormMessage />
+                    <FormMessage className='sr-only' />
                   </FormItem>
                 )}
               />

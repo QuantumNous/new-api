@@ -12,7 +12,7 @@ var (
 	PaddleApiKey        string
 	PaddleClientToken   string
 	PaddleWebhookSecret string
-	PaddleSandbox       bool = true
+	PaddleSandbox       bool
 	PaddleProductId     string
 	PaddleCurrency      string  = "USD"
 	PaddleUnitPrice     float64 = 1.0
@@ -26,6 +26,26 @@ var (
 	paddleProductIDPattern     = regexp.MustCompile(`^pro_[a-z\d]{26}$`)
 	paddleCurrencyPattern      = regexp.MustCompile(`^[A-Z]{3}$`)
 )
+
+func EffectivePaddleSandbox() bool {
+	apiKey := strings.TrimSpace(PaddleApiKey)
+	if strings.HasPrefix(apiKey, "pdl_live_apikey_") {
+		return false
+	}
+	if strings.HasPrefix(apiKey, "pdl_sdbx_apikey_") {
+		return true
+	}
+
+	clientToken := strings.TrimSpace(PaddleClientToken)
+	if strings.HasPrefix(clientToken, "live_") {
+		return false
+	}
+	if strings.HasPrefix(clientToken, "test_") {
+		return true
+	}
+
+	return PaddleSandbox
+}
 
 func ValidatePaddleOption(key, value string) error {
 	value = strings.TrimSpace(value)

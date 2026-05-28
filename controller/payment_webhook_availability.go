@@ -112,13 +112,13 @@ func paddleTopUpConfigError() string {
 		return "支付合规确认未完成"
 	}
 	if !isPaddleAPIKeyConfigured() {
-		if setting.PaddleSandbox {
+		if setting.EffectivePaddleSandbox() {
 			return "Paddle API key 与沙盒环境不匹配，应使用完整 pdl_sdbx_apikey_..._..._... 形态"
 		}
 		return "Paddle API key 与正式环境不匹配，应使用完整 pdl_live_apikey_..._..._... 形态"
 	}
 	if !isPaddleClientTokenConfigured() {
-		if setting.PaddleSandbox {
+		if setting.EffectivePaddleSandbox() {
 			return "Paddle client-side token 与沙盒环境不匹配，应使用完整 test_... 形态"
 		}
 		return "Paddle client-side token 与正式环境不匹配，应使用完整 live_... 形态"
@@ -146,7 +146,7 @@ func isPaddleAPIKeyConfigured() bool {
 	if apiKey == "" {
 		return false
 	}
-	if setting.PaddleSandbox {
+	if setting.EffectivePaddleSandbox() {
 		return paddleSandboxAPIKeyPattern.MatchString(apiKey)
 	}
 	return paddleLiveAPIKeyPattern.MatchString(apiKey)
@@ -157,7 +157,7 @@ func isPaddleClientTokenConfigured() bool {
 	if clientToken == "" {
 		return false
 	}
-	if setting.PaddleSandbox {
+	if setting.EffectivePaddleSandbox() {
 		return paddleSandboxTokenPattern.MatchString(clientToken)
 	}
 	return paddleLiveTokenPattern.MatchString(clientToken)
