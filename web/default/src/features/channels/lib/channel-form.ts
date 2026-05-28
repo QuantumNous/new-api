@@ -79,6 +79,19 @@ function isOptionalStatusCodeMapping(value: string | undefined): boolean {
   }
 }
 
+function parseSupportedEndpoints(value: unknown): string[] {
+  const values = Array.isArray(value) ? value : String(value || '').split(',')
+  const endpoints = values
+    .map((endpoint) => String(endpoint).trim())
+    .filter(Boolean)
+
+  return Array.from(new Set(endpoints))
+}
+
+function stringifySupportedEndpoints(value: string[] | undefined): string {
+  return parseSupportedEndpoints(value).join(',')
+}
+
 function isCodexCredential(value: string | undefined): boolean {
   try {
     const parsed = parseOptionalJson(value)
@@ -179,6 +192,7 @@ export const channelFormSchema = z
     force_format: z.boolean().optional(),
     thinking_to_content: z.boolean().optional(),
     proxy: z.string().optional(),
+    supported_endpoints: z.array(z.string()).optional(),
     pass_through_body_enabled: z.boolean().optional(),
     system_prompt: z.string().optional(),
     system_prompt_override: z.boolean().optional(),
@@ -297,6 +311,7 @@ export const CHANNEL_FORM_DEFAULT_VALUES: ChannelFormValues = {
   force_format: false,
   thinking_to_content: false,
   proxy: '',
+  supported_endpoints: [],
   pass_through_body_enabled: false,
   system_prompt: '',
   system_prompt_override: false,
@@ -333,6 +348,7 @@ export function transformChannelToFormDefaults(
     force_format: false,
     thinking_to_content: false,
     proxy: '',
+    supported_endpoints: [] as string[],
     pass_through_body_enabled: false,
     system_prompt: '',
     system_prompt_override: false,
@@ -345,6 +361,9 @@ export function transformChannelToFormDefaults(
         force_format: parsed.force_format || false,
         thinking_to_content: parsed.thinking_to_content || false,
         proxy: parsed.proxy || '',
+        supported_endpoints: parseSupportedEndpoints(
+          parsed.supported_endpoints
+        ),
         pass_through_body_enabled: parsed.pass_through_body_enabled || false,
         system_prompt: parsed.system_prompt || '',
         system_prompt_override: parsed.system_prompt_override || false,
@@ -450,13 +469,19 @@ export function transformChannelToFormDefaults(
  * Build the setting JSON string from form extra settings
  */
 function buildSettingJSON(formData: ChannelFormValues): string {
-  const settingObj = {
+  const settingObj: Record<string, unknown> = {
     force_format: formData.force_format || false,
     thinking_to_content: formData.thinking_to_content || false,
     proxy: formData.proxy || '',
     pass_through_body_enabled: formData.pass_through_body_enabled || false,
     system_prompt: formData.system_prompt || '',
     system_prompt_override: formData.system_prompt_override || false,
+  }
+  const supportedEndpoints = stringifySupportedEndpoints(
+    formData.supported_endpoints
+  )
+  if (supportedEndpoints) {
+    settingObj.supported_endpoints = supportedEndpoints
   }
   return JSON.stringify(settingObj)
 }
