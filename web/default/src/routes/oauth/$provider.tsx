@@ -31,6 +31,8 @@ import { api, getSelf } from '@/lib/api'
 import { OAuthCallbackScreen } from '@/features/auth/components/oauth-callback-screen'
 import { OAUTH_BIND_STORAGE_KEY } from '@/features/auth/constants'
 
+const OAUTH_ALREADY_BOUND_CODE = 'oauth.already_bound'
+
 type OAuthRequestConfig = AxiosRequestConfig & {
   skipBusinessError?: boolean
 }
@@ -205,9 +207,10 @@ function OAuthCallback() {
           return
         }
         const message = res?.data?.message || 'OAuth failed'
+        const code: string | undefined = res?.data?.code
         if (!res?.data?.success && !isBindingFlow) {
-          // When logging in with an already bound GitHub account, backend may return this message
-          if (message === '该 GitHub 账户已被绑定') {
+          // Backend returns stable i18n keys in code for OAuth business errors.
+          if (code === OAUTH_ALREADY_BOUND_CODE) {
             if (await finalizeLogin()) {
               redirectAfterLogin()
               return
