@@ -57,6 +57,7 @@ import type {
   PlanRecord,
   UserSubscriptionRecord,
 } from '@/features/subscriptions/types'
+import { PAYMENT_TYPES } from '../constants'
 import type { PaymentMethod, TopupInfo } from '../types'
 
 interface SubscriptionPlansCardProps {
@@ -68,7 +69,11 @@ interface SubscriptionPlansCardProps {
 
 function getEpayMethods(payMethods: PaymentMethod[] = []): PaymentMethod[] {
   return payMethods.filter(
-    (m) => m?.type && m.type !== 'stripe' && m.type !== 'creem'
+    (m) =>
+      m?.type &&
+      m.type !== PAYMENT_TYPES.STRIPE &&
+      m.type !== PAYMENT_TYPES.CREEM &&
+      m.type !== PAYMENT_TYPES.PADDLE
   )
 }
 

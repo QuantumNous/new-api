@@ -3,6 +3,7 @@ package model
 import (
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/logger"
@@ -16,7 +17,9 @@ type TopUp struct {
 	UserId          int     `json:"user_id" gorm:"index"`
 	Amount          int64   `json:"amount"`
 	Money           float64 `json:"money"`
+	PaymentCurrency string  `json:"payment_currency" gorm:"type:varchar(10);default:''"`
 	TradeNo         string  `json:"trade_no" gorm:"unique;type:varchar(255);index"`
+	GatewayTradeNo  string  `json:"gateway_trade_no" gorm:"type:varchar(255);index"`
 	PaymentMethod   string  `json:"payment_method" gorm:"type:varchar(50)"`
 	PaymentProvider string  `json:"payment_provider" gorm:"type:varchar(50);default:''"`
 	CreateTime      int64   `json:"create_time"`
@@ -29,6 +32,7 @@ const (
 	PaymentMethodCreem        = "creem"
 	PaymentMethodWaffo        = "waffo"
 	PaymentMethodWaffoPancake = "waffo_pancake"
+	PaymentMethodPaddle       = "paddle"
 	PaymentMethodBalance      = "balance"
 )
 
@@ -38,6 +42,7 @@ const (
 	PaymentProviderCreem        = "creem"
 	PaymentProviderWaffo        = "waffo"
 	PaymentProviderWaffoPancake = "waffo_pancake"
+	PaymentProviderPaddle       = "paddle"
 	PaymentProviderBalance      = "balance"
 )
 
@@ -79,6 +84,32 @@ func GetTopUpByTradeNo(tradeNo string) *TopUp {
 	return topUp
 }
 
+func GetUserPaddleTopUpByIdentifiers(userId int, tradeNo string, gatewayTradeNo string) (*TopUp, error) {
+	tradeNo = strings.TrimSpace(tradeNo)
+	gatewayTradeNo = strings.TrimSpace(gatewayTradeNo)
+	if tradeNo == "" && gatewayTradeNo == "" {
+		return nil, ErrTopUpNotFound
+	}
+
+	query := DB.Where("user_id = ? AND payment_provider = ?", userId, PaymentProviderPaddle)
+	if tradeNo != "" && gatewayTradeNo != "" {
+		query = query.Where("trade_no = ? AND gateway_trade_no = ?", tradeNo, gatewayTradeNo)
+	} else if tradeNo != "" {
+		query = query.Where("trade_no = ?", tradeNo)
+	} else {
+		query = query.Where("gateway_trade_no = ?", gatewayTradeNo)
+	}
+
+	topUp := &TopUp{}
+	if err := query.First(topUp).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, ErrTopUpNotFound
+		}
+		return nil, err
+	}
+	return topUp, nil
+}
+
 func UpdatePendingTopUpStatus(tradeNo string, expectedPaymentProvider string, targetStatus string) error {
 	if tradeNo == "" {
 		return errors.New("未提供支付单号")
@@ -104,6 +135,40 @@ func UpdatePendingTopUpStatus(tradeNo string, expectedPaymentProvider string, ta
 		topUp.Status = targetStatus
 		return tx.Save(topUp).Error
 	})
+}
+
+func AttachPaddleGatewayTradeNo(tradeNo string, userId int, gatewayTradeNo string) error {
+	tradeNo = strings.TrimSpace(tradeNo)
+	gatewayTradeNo = strings.TrimSpace(gatewayTradeNo)
+	if tradeNo == "" || gatewayTradeNo == "" {
+		return errors.New("未提供支付单号")
+	}
+
+	result := DB.Model(&TopUp{}).
+		Where("trade_no = ? AND user_id = ? AND payment_provider = ? AND status = ?", tradeNo, userId, PaymentProviderPaddle, common.TopUpStatusPending).
+		Where("(gateway_trade_no = ? OR gateway_trade_no = ?)", gatewayTradeNo, "").
+		Update("gateway_trade_no", gatewayTradeNo)
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected > 0 {
+		return nil
+	}
+
+	topUp := GetTopUpByTradeNo(tradeNo)
+	if topUp == nil {
+		return ErrTopUpNotFound
+	}
+	if topUp.PaymentProvider != PaymentProviderPaddle {
+		return ErrPaymentMethodMismatch
+	}
+	if topUp.UserId != userId {
+		return errors.New("充值订单用户不匹配")
+	}
+	if strings.TrimSpace(topUp.GatewayTradeNo) == gatewayTradeNo {
+		return nil
+	}
+	return ErrTopUpStatusInvalid
 }
 
 func Recharge(referenceId string, customerId string, callerIp string) (err error) {
@@ -586,4 +651,132 @@ func RechargeWaffoPancake(tradeNo string) (err error) {
 	}
 
 	return nil
+}
+
+func RechargePaddle(tradeNo string, expectedUserId int, expectedGatewayTradeNo string, callerIp string) (err error) {
+	if tradeNo == "" {
+		return errors.New("未提供支付单号")
+	}
+	expectedGatewayTradeNo = strings.TrimSpace(expectedGatewayTradeNo)
+
+	var quotaToAdd int
+	topUp := &TopUp{}
+	completeTime := common.GetTimestamp()
+
+	err = DB.Transaction(func(tx *gorm.DB) error {
+		refCol := "`trade_no`"
+		if common.UsingPostgreSQL {
+			refCol = `"trade_no"`
+		}
+
+		if err := tx.Set("gorm:query_option", "FOR UPDATE").Where(refCol+" = ?", tradeNo).First(topUp).Error; err != nil {
+			return errors.New("充值订单不存在")
+		}
+
+		if topUp.PaymentProvider != PaymentProviderPaddle {
+			return ErrPaymentMethodMismatch
+		}
+
+		if expectedUserId > 0 && topUp.UserId != expectedUserId {
+			return errors.New("充值订单用户不匹配")
+		}
+
+		storedGatewayTradeNo := strings.TrimSpace(topUp.GatewayTradeNo)
+		if expectedGatewayTradeNo != "" && storedGatewayTradeNo != "" && storedGatewayTradeNo != expectedGatewayTradeNo {
+			return errors.New("充值订单交易号不匹配")
+		}
+
+		if topUp.Status == common.TopUpStatusSuccess {
+			return nil
+		}
+
+		if topUp.Status != common.TopUpStatusPending {
+			return errors.New("充值订单状态错误")
+		}
+
+		quotaToAdd = int(decimal.NewFromInt(topUp.Amount).Mul(decimal.NewFromFloat(common.QuotaPerUnit)).IntPart())
+		if quotaToAdd <= 0 {
+			return errors.New("无效的充值额度")
+		}
+
+		updateQuery := tx.Model(&TopUp{}).
+			Where("trade_no = ? AND payment_provider = ? AND status = ?", tradeNo, PaymentProviderPaddle, common.TopUpStatusPending)
+		if expectedUserId > 0 {
+			updateQuery = updateQuery.Where("user_id = ?", expectedUserId)
+		}
+		updates := map[string]interface{}{
+			"complete_time": completeTime,
+			"status":        common.TopUpStatusSuccess,
+		}
+		if expectedGatewayTradeNo != "" {
+			if storedGatewayTradeNo != "" {
+				updateQuery = updateQuery.Where("gateway_trade_no = ?", expectedGatewayTradeNo)
+			} else {
+				updates["gateway_trade_no"] = expectedGatewayTradeNo
+			}
+		}
+		result := updateQuery.Updates(updates)
+		if result.Error != nil {
+			return result.Error
+		}
+		if result.RowsAffected == 0 {
+			if err := tx.Where("trade_no = ?", tradeNo).First(topUp).Error; err != nil {
+				return errors.New("充值订单不存在")
+			}
+			if expectedGatewayTradeNo != "" {
+				storedGatewayTradeNo = strings.TrimSpace(topUp.GatewayTradeNo)
+				if storedGatewayTradeNo != "" && storedGatewayTradeNo != expectedGatewayTradeNo {
+					return errors.New("充值订单交易号不匹配")
+				}
+			}
+			if topUp.Status == common.TopUpStatusSuccess {
+				quotaToAdd = 0
+				return nil
+			}
+			return errors.New("充值订单状态错误")
+		}
+
+		if err := tx.Model(&User{}).Where("id = ?", topUp.UserId).Update("quota", gorm.Expr("quota + ?", quotaToAdd)).Error; err != nil {
+			return err
+		}
+
+		topUp.CompleteTime = completeTime
+		topUp.Status = common.TopUpStatusSuccess
+		if expectedGatewayTradeNo != "" && storedGatewayTradeNo == "" {
+			topUp.GatewayTradeNo = expectedGatewayTradeNo
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		if isCompletedPaddleTopUp(tradeNo, expectedUserId, expectedGatewayTradeNo) {
+			return nil
+		}
+		common.SysError("paddle topup failed: " + err.Error())
+		return errors.New("充值失败，请稍后重试")
+	}
+
+	if quotaToAdd > 0 {
+		RecordTopupLog(topUp.UserId, fmt.Sprintf("Paddle充值成功，充值额度: %v，支付金额: %.2f", logger.FormatQuota(quotaToAdd), topUp.Money), callerIp, topUp.PaymentMethod, PaymentMethodPaddle)
+	}
+
+	return nil
+}
+
+func isCompletedPaddleTopUp(tradeNo string, expectedUserId int, expectedGatewayTradeNo string) bool {
+	topUp := GetTopUpByTradeNo(tradeNo)
+	if topUp == nil {
+		return false
+	}
+	if topUp.PaymentProvider != PaymentProviderPaddle {
+		return false
+	}
+	if expectedUserId > 0 && topUp.UserId != expectedUserId {
+		return false
+	}
+	if strings.TrimSpace(expectedGatewayTradeNo) != "" && strings.TrimSpace(topUp.GatewayTradeNo) != strings.TrimSpace(expectedGatewayTradeNo) {
+		return false
+	}
+	return topUp.Status == common.TopUpStatusSuccess
 }

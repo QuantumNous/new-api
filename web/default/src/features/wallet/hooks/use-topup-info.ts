@@ -18,6 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { useState, useEffect } from 'react'
 import { getTopupInfo } from '../api'
+import { PAYMENT_TYPES } from '../constants'
 import {
   generatePresetAmounts,
   mergePresetAmounts,
@@ -54,7 +55,10 @@ function parseJsonArray(data: unknown): unknown[] {
 
 function parsePaymentMethods(
   data: unknown,
-  stripeMinTopup: number
+  defaultMinTopup: number,
+  stripeMinTopup: number,
+  paddleMinTopup?: number,
+  waffoPancakeMinTopup?: number
 ): PaymentMethod[] {
   return parseJsonArray(data)
     .filter(
@@ -70,13 +74,44 @@ function parsePaymentMethods(
         name: typeof item.name === 'string' ? item.name : '',
         type,
         color: typeof item.color === 'string' ? item.color : undefined,
-        min_topup:
-          type === 'stripe' && normalizedMinTopup <= 0
-            ? stripeMinTopup
-            : normalizedMinTopup,
+        min_topup: getPaymentMethodMinTopup(
+          type,
+          normalizedMinTopup,
+          defaultMinTopup,
+          stripeMinTopup,
+          paddleMinTopup,
+          waffoPancakeMinTopup
+        ),
       }
     })
     .filter((item) => item.name && item.type && item.type !== 'waffo')
+}
+
+function getPaymentMethodMinTopup(
+  type: string,
+  value: number,
+  defaultMinTopup: number,
+  stripeMinTopup: number,
+  paddleMinTopup?: number,
+  waffoPancakeMinTopup?: number
+): number {
+  if (value > 0) {
+    return value
+  }
+
+  if (type === PAYMENT_TYPES.STRIPE) {
+    return stripeMinTopup
+  }
+
+  if (type === PAYMENT_TYPES.PADDLE) {
+    return paddleMinTopup || defaultMinTopup
+  }
+
+  if (type === PAYMENT_TYPES.WAFFO_PANCAKE) {
+    return waffoPancakeMinTopup || defaultMinTopup
+  }
+
+  return defaultMinTopup
 }
 
 function parseWaffoPayMethods(data: unknown): WaffoPayMethod[] {
@@ -182,7 +217,10 @@ export function useTopupInfo() {
         ...response.data,
         pay_methods: parsePaymentMethods(
           response.data.pay_methods,
-          response.data.stripe_min_topup
+          response.data.min_topup,
+          response.data.stripe_min_topup,
+          response.data.paddle_min_topup,
+          response.data.waffo_pancake_min_topup
         ),
         amount_options: parseAmountOptions(response.data.amount_options),
         discount: parseDiscountMap(response.data.discount),

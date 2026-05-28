@@ -136,7 +136,10 @@ function PerformanceOverviewFallback() {
   )
 }
 
-const SECTION_META: Record<DashboardSectionId, { titleKey: string }> = {
+const SECTION_META: Record<
+  DashboardSectionId,
+  { titleKey: string; descriptionKey?: string }
+> = {
   overview: {
     titleKey: 'Overview',
   },

@@ -36,7 +36,24 @@ export const PAYMENT_TYPES = {
   CREEM: 'creem',
   WAFFO: 'waffo',
   WAFFO_PANCAKE: 'waffo_pancake',
+  PADDLE: 'paddle',
 } as const
+
+/**
+ * Paddle redirects include this transaction id parameter. Keep the name in one
+ * place so /console/topup and /wallet stay in sync.
+ */
+export const PADDLE_TRANSACTION_SEARCH_PARAM = '_ptxn'
+
+/**
+ * Local wallet top-up order id paired with Paddle transaction returns.
+ */
+export const PADDLE_ORDER_SEARCH_PARAM = '_porder'
+
+/**
+ * Authenticated wallet route that can reopen Paddle Checkout from _ptxn.
+ */
+export const PADDLE_WALLET_ROUTE = '/wallet'
 
 /**
  * Default payment type
@@ -53,6 +70,7 @@ export const PAYMENT_ICON_COLORS = {
   [PAYMENT_TYPES.CREEM]: '#6366F1',
   [PAYMENT_TYPES.WAFFO]: '#2563EB',
   [PAYMENT_TYPES.WAFFO_PANCAKE]: '#F97316',
+  [PAYMENT_TYPES.PADDLE]: '#00A870',
 } as const
 
 /**
