@@ -29,7 +29,6 @@ import {
   Command,
   Radio,
   FlaskConical,
-  MessageSquare,
   CreditCard,
   ListTodo,
   Settings,
@@ -60,11 +59,6 @@ export function useSidebarData(): SidebarData {
             title: t('Playground'),
             url: '/playground',
             icon: FlaskConical,
-          },
-          {
-            title: t('Chat'),
-            icon: MessageSquare,
-            type: 'chat-presets',
           },
           {
             title: t('Model Compare'),

@@ -213,7 +213,9 @@ export function Dashboard() {
     [navigate]
   )
   const showSectionTabs =
-    activeSection !== 'overview' && visibleSections.length > 1
+    activeSection !== 'overview' &&
+    activeSection !== 'model-compare' &&
+    visibleSections.length > 1
   const modelActions =
     activeSection === 'models' ? (
       <>
@@ -236,8 +238,8 @@ export function Dashboard() {
         {t(meta.descriptionKey)}
       </SectionPageLayout.Description>
       <SectionPageLayout.Content>
-        <div className='space-y-3 sm:space-y-4'>
-          {activeSection !== 'overview' && (
+        <div className={activeSection === 'model-compare' ? 'h-full' : 'space-y-3 sm:space-y-4'}>
+          {activeSection !== 'overview' && activeSection !== 'model-compare' && (
             <div className='flex flex-wrap items-center justify-between gap-1.5 sm:gap-2'>
               {showSectionTabs ? (
                 <Tabs value={activeSection} onValueChange={handleSectionChange}>
@@ -313,7 +315,7 @@ export function Dashboard() {
             </FadeIn>
           )}
           {activeSection === 'model-compare' && (
-            <FadeIn>
+            <FadeIn className='h-full'>
               <ModelComparePanel />
             </FadeIn>
           )}
