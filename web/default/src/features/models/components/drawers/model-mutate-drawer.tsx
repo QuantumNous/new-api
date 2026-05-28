@@ -89,6 +89,10 @@ import type {
   ModelDetailModality,
 } from '../../types'
 
+// Conservative signed 32-bit ceiling for DB-backed integer metadata fields.
+const MAX_TOKEN_LIMIT = 2_147_483_647
+const TOKEN_COUNT_LIMIT_MESSAGE = `Use a whole number or K, M, B suffix up to ${MAX_TOKEN_LIMIT}.`
+
 function isTokenCountInputValid(value?: string): boolean {
   const trimmed = value?.trim() ?? ''
   if (!trimmed) return true
@@ -100,6 +104,11 @@ function isTokenCountInputLike(value: string): boolean {
   const trimmed = value.trim()
   if (!trimmed) return true
   return /^(?:\d+(?:\.\d*)?|\.\d*)\s*[kmb]?$/i.test(trimmed)
+}
+
+function isTokenCountWithinLimit(value?: string): boolean {
+  if (!isTokenCountInputValid(value)) return false
+  return parseOptionalTokenCount(value) <= MAX_TOKEN_LIMIT
 }
 
 // Extended schema for ratio configuration (internal form state only)
@@ -114,11 +123,11 @@ const extendedModelFormSchema = z.object({
   name_rule: z.number(),
   status: z.boolean(),
   sync_official: z.boolean(),
-  context_length: z.string().optional().refine(isTokenCountInputValid, {
-    message: 'Use a whole number or K, M, B suffix.',
+  context_length: z.string().optional().refine(isTokenCountWithinLimit, {
+    message: TOKEN_COUNT_LIMIT_MESSAGE,
   }),
-  max_output_tokens: z.string().optional().refine(isTokenCountInputValid, {
-    message: 'Use a whole number or K, M, B suffix.',
+  max_output_tokens: z.string().optional().refine(isTokenCountWithinLimit, {
+    message: TOKEN_COUNT_LIMIT_MESSAGE,
   }),
   knowledge_cutoff: z.string(),
   release_date: z.string(),
@@ -194,14 +203,15 @@ function parseOptionalTokenCount(value?: string): number {
     return 0
   }
 
-  const multiplier =
-    unit === 'k'
-      ? 1_000
-      : unit === 'm'
-        ? 1_000_000
-        : unit === 'b'
-          ? 1_000_000_000
-          : 1
+  let multiplier = 1
+  if (unit === 'k') {
+    multiplier = 1_000
+  } else if (unit === 'm') {
+    multiplier = 1_000_000
+  } else if (unit === 'b') {
+    multiplier = 1_000_000_000
+  }
+
   const parsed = Math.round(Number.parseFloat(numericPart) * multiplier)
   return Number.isFinite(parsed) && parsed > 0 ? parsed : 0
 }
@@ -559,14 +569,19 @@ export function ModelMutateDrawer({
     async (values: ExtendedModelFormValues): Promise<void> => {
       setIsSubmitting(true)
       try {
+        const contextLength = parseOptionalTokenCount(values.context_length)
+        const maxOutputTokens = parseOptionalTokenCount(
+          values.max_output_tokens
+        )
+
         const submitData = {
           ...values,
           id: isEditing ? currentRow!.id : undefined,
           tags: Array.isArray(values.tags) ? values.tags.join(',') : '',
           status: values.status ? 1 : 0,
           sync_official: values.sync_official ? 1 : 0,
-          context_length: parseOptionalTokenCount(values.context_length),
-          max_output_tokens: parseOptionalTokenCount(values.max_output_tokens),
+          context_length: contextLength,
+          max_output_tokens: maxOutputTokens,
           knowledge_cutoff: values.knowledge_cutoff.trim(),
           release_date: values.release_date.trim(),
           parameter_count: values.parameter_count.trim(),

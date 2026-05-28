@@ -2268,7 +2268,7 @@
     "Max Disk Cache Size (MB)": "Taille max du cache disque (Mo)",
     "Max Entries": "Entrées max",
     "Max output": "Sortie max",
-    "Max output tokens": "Jetons de sortie max.",
+    "Max output tokens": "Jetons de sortie max",
     "Max Requests (incl. failures)": "Max Requêtes (incl. échecs)",
     "Max Requests (including failures)": "Max Requêtes (incluant les échecs)",
     "Max requests per period": "Nombre max de requêtes par période",
