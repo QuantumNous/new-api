@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useCallback } from 'react'
+import { useCallback, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { sendChatCompletion } from '../api'
 import { MESSAGE_STATUS, ERROR_MESSAGES } from '../constants'
@@ -45,6 +45,9 @@ export function useChatHandler({
   onMessageUpdate,
 }: UseChatHandlerOptions) {
   const { sendStreamRequest, stopStream, isStreaming } = useStreamRequest()
+  const [isRequesting, setIsRequesting] = useState(false)
+  const abortControllerRef = useRef<AbortController | null>(null)
+  const requestIdRef = useRef(0)
 
   // Handle stream update
   const handleStreamUpdate = useCallback(
@@ -79,6 +82,7 @@ export function useChatHandler({
 
   // Handle stream complete
   const handleStreamComplete = useCallback(() => {
+    setIsRequesting(false)
     onMessageUpdate((prev) =>
       updateLastAssistantMessage(prev, (message) =>
         message.status === MESSAGE_STATUS.COMPLETE ||
@@ -92,6 +96,7 @@ export function useChatHandler({
   // Handle stream error
   const handleStreamError = useCallback(
     (error: string, errorCode?: string) => {
+      setIsRequesting(false)
       toast.error(error)
       onMessageUpdate((prev) =>
         updateAssistantMessageWithError(prev, error, errorCode)
@@ -103,6 +108,7 @@ export function useChatHandler({
   // Send streaming chat request
   const sendStreamingChat = useCallback(
     (messages: Message[]) => {
+      setIsRequesting(true)
       const payload = buildChatCompletionPayload(
         messages,
         config,
@@ -133,11 +139,25 @@ export function useChatHandler({
         config,
         parameterEnabled
       )
+      const requestId = requestIdRef.current + 1
+      const abortController = new AbortController()
+
+      requestIdRef.current = requestId
+      abortControllerRef.current = abortController
 
       try {
-        const response = await sendChatCompletion(payload)
+        setIsRequesting(true)
+        const response = await sendChatCompletion(
+          payload,
+          abortController.signal
+        )
+        if (abortController.signal.aborted) return
+
         const choice = response.choices?.[0]
-        if (!choice) return
+        if (!choice) {
+          handleStreamError(ERROR_MESSAGES.API_REQUEST_ERROR)
+          return
+        }
 
         onMessageUpdate((prev) =>
           updateLastAssistantMessage(prev, (message) => ({
@@ -157,6 +177,8 @@ export function useChatHandler({
           }))
         )
       } catch (error: unknown) {
+        if (abortController.signal.aborted) return
+
         const err = error as {
           response?: {
             data?: { message?: string; error?: { code?: string } }
@@ -169,6 +191,11 @@ export function useChatHandler({
             ERROR_MESSAGES.API_REQUEST_ERROR,
           err?.response?.data?.error?.code || undefined
         )
+      } finally {
+        if (requestIdRef.current === requestId) {
+          abortControllerRef.current = null
+          setIsRequesting(false)
+        }
       }
     },
     [config, parameterEnabled, onMessageUpdate, handleStreamError]
@@ -189,6 +216,9 @@ export function useChatHandler({
   // Stop generation
   const stopGeneration = useCallback(() => {
     stopStream()
+    abortControllerRef.current?.abort()
+    abortControllerRef.current = null
+    setIsRequesting(false)
     onMessageUpdate((prev) =>
       updateLastAssistantMessage(prev, (message) =>
         message.status === MESSAGE_STATUS.LOADING ||
@@ -202,6 +232,6 @@ export function useChatHandler({
   return {
     sendChat,
     stopGeneration,
-    isGenerating: isStreaming,
+    isGenerating: isStreaming || isRequesting,
   }
 }

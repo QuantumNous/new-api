@@ -52,6 +52,12 @@ import { Suggestion, Suggestions } from '@/components/ai-elements/suggestion'
 import { ModelGroupSelector } from '@/components/model-group-selector'
 import type { ModelOption, GroupOption } from '../types'
 
+type PlaygroundSuggestion = {
+  icon: typeof BarChartIcon | null
+  text: string
+  color?: string
+}
+
 interface PlaygroundInputProps {
   onSubmit: (text: string) => void
   onStop?: () => void
@@ -73,7 +79,7 @@ const suggestions = [
   { icon: CodeSquareIcon, text: 'Code', color: '#6c71ff' },
   { icon: GraduationCapIcon, text: 'Get advice', color: '#76d0eb' },
   { icon: null, text: 'More' },
-]
+] satisfies PlaygroundSuggestion[]
 
 export function PlaygroundInput({
   onSubmit,
@@ -220,19 +226,25 @@ export function PlaygroundInput({
       </PromptInput>
 
       <Suggestions>
-        {suggestions.map(({ icon: Icon, text, color }) => (
-          <Suggestion
-            className={`text-xs font-normal sm:text-sm ${
-              text === 'More' ? 'hidden sm:flex' : ''
-            }`}
-            key={text}
-            onClick={() => handleSuggestionClick(text)}
-            suggestion={text}
-          >
-            {Icon && <Icon size={16} style={{ color }} />}
-            {text}
-          </Suggestion>
-        ))}
+        {suggestions.map(({ icon: Icon, text, color }) => {
+          const suggestion = t(text)
+          const isMoreSuggestion = text === 'More'
+          const className = `text-xs font-normal sm:text-sm ${
+            isMoreSuggestion ? 'hidden sm:flex' : ''
+          }`
+
+          return (
+            <Suggestion
+              className={className}
+              key={text}
+              onClick={handleSuggestionClick}
+              suggestion={suggestion}
+            >
+              {Icon && <Icon aria-hidden='true' size={16} style={{ color }} />}
+              {suggestion}
+            </Suggestion>
+          )
+        })}
       </Suggestions>
     </div>
   )
