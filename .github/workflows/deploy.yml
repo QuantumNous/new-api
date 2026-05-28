@@ -1,0 +1,106 @@
+# Production deploy: push to main → build image → ECR push → ECS rolling deploy.
+#
+# Auth: GitHub OIDC into the deeprouter-github-deploy role (provisioned by
+# deeprouter-ai/infra terraform). The role's trust policy is pinned to
+# repo:deeprouter-ai/deeprouter:ref:refs/heads/main — a leaked OIDC token
+# from a different repo or branch can't assume it.
+#
+# Manual trigger via workflow_dispatch is supported for retries.
+
+name: deploy
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'controller/**'
+      - 'middleware/**'
+      - 'model/**'
+      - 'relay/**'
+      - 'router/**'
+      - 'service/**'
+      - 'internal/**'
+      - 'common/**'
+      - 'dto/**'
+      - 'constant/**'
+      - 'setting/**'
+      - 'web/**'
+      - 'main.go'
+      - 'go.mod'
+      - 'go.sum'
+      - 'Dockerfile'
+      - '.github/workflows/deploy.yml'
+  workflow_dispatch:
+
+# Concurrency: only one production deploy at a time. A new commit during a
+# rolling deploy supersedes the in-flight one rather than queueing forever.
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false # let the in-flight deploy finish to avoid half-rolled-out states
+
+permissions:
+  contents: read
+  id-token: write # required for OIDC
+
+env:
+  AWS_REGION: ap-southeast-2
+  ECR_REPOSITORY: deeprouter
+  ECS_CLUSTER: deeprouter
+  ECS_SERVICE: deeprouter
+  # IAM role provisioned by infra/iam.tf. Update the account ID if you move
+  # to a different AWS account.
+  AWS_ROLE_TO_ASSUME: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/deeprouter-github-deploy
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ env.AWS_ROLE_TO_ASSUME }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to ECR
+        id: ecr-login
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build, tag, push image
+        env:
+          REGISTRY: ${{ steps.ecr-login.outputs.registry }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          # Tag with both the commit sha (for traceability + rollback) and
+          # `latest` (default for the ECS task definition).
+          docker build \
+            -t "$REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" \
+            -t "$REGISTRY/$ECR_REPOSITORY:latest" \
+            .
+          docker push "$REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG"
+          docker push "$REGISTRY/$ECR_REPOSITORY:latest"
+          echo "image_tag=$IMAGE_TAG" >> "$GITHUB_OUTPUT"
+
+      - name: Force ECS rolling deploy
+        # The task definition pins `:latest` and we just pushed a new
+        # image to that tag — `--force-new-deployment` makes ECS pull
+        # the new digest and start a rolling update. Health-check failure
+        # → ECS rolls back to the previous task definition automatically.
+        run: |
+          aws ecs update-service \
+            --cluster "$ECS_CLUSTER" \
+            --service "$ECS_SERVICE" \
+            --force-new-deployment \
+            --region "$AWS_REGION" \
+            > /dev/null
+
+      - name: Wait for service stable
+        # 10-min timeout. If the new task fails health checks ECS keeps
+        # the old one running and this step exits non-zero, surfacing
+        # the bad deploy in the workflow.
+        run: |
+          aws ecs wait services-stable \
+            --cluster "$ECS_CLUSTER" \
+            --services "$ECS_SERVICE" \
+            --region "$AWS_REGION"
