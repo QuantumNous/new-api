@@ -140,7 +140,7 @@ func GetTopUpInfo(c *gin.Context) {
 		"waffo_min_topup":         setting.WaffoMinTopUp,
 		"waffo_pancake_min_topup": setting.WaffoPancakeMinTopUp,
 		"paddle_min_topup":        getPaddleMinTopUp(),
-		"paddle_sandbox":          setting.PaddleSandbox,
+		"paddle_sandbox":          setting.EffectivePaddleSandbox(),
 		"paddle_client_token": func() string {
 			if enablePaddle {
 				return setting.PaddleClientToken

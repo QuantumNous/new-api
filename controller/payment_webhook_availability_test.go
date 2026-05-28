@@ -330,8 +330,8 @@ func TestPaddleTopUpEnabledRequiresEnvironmentMatchedCredentials(t *testing.T) {
 	require.True(t, isPaddleTopUpEnabled())
 
 	setting.PaddleSandbox = true
-	require.False(t, isPaddleTopUpEnabled())
-	require.Contains(t, paddleTopUpConfigError(), "pdl_sdbx_apikey_")
+	require.True(t, isPaddleTopUpEnabled())
+	require.False(t, setting.EffectivePaddleSandbox())
 
 	setting.PaddleApiKey = testPaddleSandboxAPIKey
 	setting.PaddleClientToken = testPaddleLiveClientToken

@@ -85,7 +85,7 @@ const defaultBillingSettings: BillingSettings = {
   PaddleApiKey: '',
   PaddleClientToken: '',
   PaddleWebhookSecret: '',
-  PaddleSandbox: true,
+  PaddleSandbox: false,
   PaddleProductId: '',
   PaddleCurrency: 'USD',
   PaddleUnitPrice: 1,

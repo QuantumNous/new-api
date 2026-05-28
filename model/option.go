@@ -118,7 +118,7 @@ func InitOptionMap() {
 	common.OptionMap["PaddleApiKey"] = setting.PaddleApiKey
 	common.OptionMap["PaddleClientToken"] = setting.PaddleClientToken
 	common.OptionMap["PaddleWebhookSecret"] = setting.PaddleWebhookSecret
-	common.OptionMap["PaddleSandbox"] = strconv.FormatBool(setting.PaddleSandbox)
+	common.OptionMap["PaddleSandbox"] = strconv.FormatBool(setting.EffectivePaddleSandbox())
 	common.OptionMap["PaddleProductId"] = setting.PaddleProductId
 	common.OptionMap["PaddleCurrency"] = setting.PaddleCurrency
 	common.OptionMap["PaddleUnitPrice"] = strconv.FormatFloat(setting.PaddleUnitPrice, 'f', -1, 64)
@@ -493,12 +493,15 @@ func updateOptionMap(key string, value string) (err error) {
 		setting.WaffoPancakeMinTopUp, _ = strconv.Atoi(value)
 	case "PaddleApiKey":
 		setting.PaddleApiKey = value
+		common.OptionMap["PaddleSandbox"] = strconv.FormatBool(setting.EffectivePaddleSandbox())
 	case "PaddleClientToken":
 		setting.PaddleClientToken = value
+		common.OptionMap["PaddleSandbox"] = strconv.FormatBool(setting.EffectivePaddleSandbox())
 	case "PaddleWebhookSecret":
 		setting.PaddleWebhookSecret = value
 	case "PaddleSandbox":
 		setting.PaddleSandbox = value == "true"
+		common.OptionMap["PaddleSandbox"] = strconv.FormatBool(setting.EffectivePaddleSandbox())
 	case "PaddleProductId":
 		setting.PaddleProductId = value
 	case "PaddleCurrency":
