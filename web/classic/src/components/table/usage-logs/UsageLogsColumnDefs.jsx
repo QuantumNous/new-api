@@ -56,6 +56,36 @@ const colors = [
   'yellow',
 ];
 
+/** 用量日志表格中展示额度/令牌等列的类型（含管理 type=3、充值 type=1） */
+function isQuotaLedgerLogType(type) {
+  return type === 0 || type === 1 || type === 2 || type === 3 || type === 5 || type === 6;
+}
+
+function isUsageMetricLogType(type) {
+  return type === 0 || type === 2 || type === 5 || type === 6;
+}
+
+function formatManageOperator(other, t) {
+  if (!other) {
+    return null;
+  }
+  const username =
+    other.operator_username ?? other.admin_info?.admin_username ?? '';
+  const id = other.operator_id ?? other.admin_info?.admin_id;
+  const hasUsername = String(username).trim() !== '';
+  const hasId = id !== undefined && id !== null && String(id).trim() !== '';
+  if (!hasUsername && !hasId) {
+    return null;
+  }
+  if (hasUsername && hasId) {
+    return `${username} (ID: ${id})`;
+  }
+  if (hasUsername) {
+    return String(username);
+  }
+  return `ID: ${id}`;
+}
+
 function formatRatio(ratio) {
   if (ratio === undefined || ratio === null) {
     return '-';
@@ -424,6 +454,58 @@ function renderCompactDetailSummary(summarySegments) {
   );
 }
 
+function getTokenQuotaManageDetailSummary(record, t) {
+  if (record.type !== 3) {
+    return null;
+  }
+  const other = getLogOther(record.other);
+  const segments = [];
+
+  const operator = formatManageOperator(other, t);
+  if (operator) {
+    segments.push({
+      text: `${t('操作管理员')}：${operator}`,
+      tone: 'secondary',
+    });
+  }
+  if (
+    other?.old_remain_quota != null &&
+    other?.new_remain_quota != null
+  ) {
+    segments.push({
+      text: `${t('剩余额度')}：${renderQuota(other.old_remain_quota, 6)} → ${renderQuota(other.new_remain_quota, 6)}`,
+      tone: 'primary',
+    });
+  }
+  const delta = other?.remain_quota_delta;
+  if (delta != null && Number(delta) !== 0) {
+    const absDelta = Math.abs(Number(delta));
+    segments.push({
+      text:
+        Number(delta) > 0
+          ? `${t('增加额度')} ${renderQuota(absDelta, 6)}`
+          : `${t('减少')} ${renderQuota(absDelta, 6)}`,
+      tone: 'primary',
+    });
+  } else if (record.quota) {
+    segments.push({
+      text: `${t('额度变动')} ${renderQuota(record.quota, 6)}`,
+      tone: 'primary',
+    });
+  }
+  if (other?.used_quota_at_edit != null) {
+    segments.push({
+      text: `${t('当时已用额度')} ${renderQuota(other.used_quota_at_edit, 6)}`,
+      tone: 'secondary',
+    });
+  }
+  if (record.content) {
+    segments.push({ text: record.content, tone: 'secondary' });
+  }
+
+  return segments.length > 0 ? { segments } : null;
+}
+
 function getUsageLogDetailSummary(record, text, billingDisplayMode, t) {
   const other = getLogOther(record.other);
 
@@ -431,6 +513,11 @@ function getUsageLogDetailSummary(record, text, billingDisplayMode, t) {
     return {
       segments: [{ text: t('异步任务退款'), tone: 'primary' }],
     };
+  }
+
+  const manageSummary = getTokenQuotaManageDetailSummary(record, t);
+  if (manageSummary) {
+    return manageSummary;
   }
 
   if (other == null || record.type !== 2) {
@@ -518,11 +605,7 @@ export const getLogsColumns = ({
           }
         }
 
-        return isAdminUser &&
-          (record.type === 0 ||
-            record.type === 2 ||
-            record.type === 5 ||
-            record.type === 6) ? (
+        return isAdminUser && isQuotaLedgerLogType(record.type) ? (
           <Space>
             <span style={{ position: 'relative', display: 'inline-block' }}>
               <Tooltip content={record.channel_name || t('未知渠道')}>
@@ -613,10 +696,7 @@ export const getLogsColumns = ({
       title: t('令牌'),
       dataIndex: 'token_name',
       render: (text, record, index) => {
-        return record.type === 0 ||
-          record.type === 2 ||
-          record.type === 5 ||
-          record.type === 6 ? (
+        return isQuotaLedgerLogType(record.type) ? (
           <div>
             <Tag
               color='grey'
@@ -639,12 +719,7 @@ export const getLogsColumns = ({
       title: t('分组'),
       dataIndex: 'group',
       render: (text, record, index) => {
-        if (
-          record.type === 0 ||
-          record.type === 2 ||
-          record.type === 5 ||
-          record.type === 6
-        ) {
+        if (isUsageMetricLogType(record.type)) {
           if (record.group) {
             return <>{renderGroup(record.group)}</>;
           } else {
@@ -684,10 +759,7 @@ export const getLogsColumns = ({
       title: t('模型'),
       dataIndex: 'model_name',
       render: (text, record, index) => {
-        return record.type === 0 ||
-          record.type === 2 ||
-          record.type === 5 ||
-          record.type === 6 ? (
+        return isUsageMetricLogType(record.type) ? (
           <>{renderModelName(record, copyText, t)}</>
         ) : (
           <></>
@@ -754,10 +826,7 @@ export const getLogsColumns = ({
           cacheText = `${t('缓存写')} ${formatTokenCount(cacheSummary.cacheWriteTokens)}`;
         }
 
-        return record.type === 0 ||
-          record.type === 2 ||
-          record.type === 5 ||
-          record.type === 6 ? (
+        return isUsageMetricLogType(record.type) ? (
           <div
             style={{
               display: 'inline-flex',
@@ -790,11 +859,7 @@ export const getLogsColumns = ({
       title: t('输出'),
       dataIndex: 'completion_tokens',
       render: (text, record, index) => {
-        return parseInt(text) > 0 &&
-          (record.type === 0 ||
-            record.type === 2 ||
-            record.type === 5 ||
-            record.type === 6) ? (
+        return parseInt(text) > 0 && isUsageMetricLogType(record.type) ? (
           <>{<span> {text} </span>}</>
         ) : (
           <></>
@@ -806,19 +871,19 @@ export const getLogsColumns = ({
       title: t('花费'),
       dataIndex: 'quota',
       render: (text, record, index) => {
-        if (
-          !(
-            record.type === 0 ||
-            record.type === 2 ||
-            record.type === 5 ||
-            record.type === 6
-          )
-        ) {
+        if (!isQuotaLedgerLogType(record.type)) {
           return <></>;
         }
         const other = getLogOther(record.other);
         const isSubscription = other?.billing_source === 'subscription';
         const rawQuota = Number(text) || 0;
+        if (record.type === 3) {
+          const delta = other?.remain_quota_delta;
+          if (delta != null && Number(delta) !== 0) {
+            return <>{renderQuota(Number(delta), 6)}</>;
+          }
+          return <>{renderQuota(rawQuota, 6)}</>;
+        }
         const displayQuota = record.type === 6 ? -rawQuota : rawQuota;
         if (isSubscription) {
           // Subscription billed: show only tag (no $0), but keep tooltip for equivalent cost.

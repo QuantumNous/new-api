@@ -693,28 +693,58 @@ export const useLogsData = () => {
           });
         }
       }
-      if (isAdminUser && logs[i].type === 3 && other?.admin_info) {
-        const adminInfo = other.admin_info;
+      if (logs[i].type === 3) {
+        const operatorUsername =
+          other?.operator_username ?? other?.admin_info?.admin_username;
+        const operatorId = other?.operator_id ?? other?.admin_info?.admin_id;
         const hasUsername =
-          adminInfo.admin_username !== undefined &&
-          adminInfo.admin_username !== null &&
-          adminInfo.admin_username !== '';
+          operatorUsername !== undefined &&
+          operatorUsername !== null &&
+          String(operatorUsername).trim() !== '';
         const hasId =
-          adminInfo.admin_id !== undefined &&
-          adminInfo.admin_id !== null &&
-          adminInfo.admin_id !== '';
+          operatorId !== undefined &&
+          operatorId !== null &&
+          String(operatorId).trim() !== '';
         if (hasUsername || hasId) {
           let operatorValue = '';
           if (hasUsername && hasId) {
-            operatorValue = `${adminInfo.admin_username} (ID: ${adminInfo.admin_id})`;
+            operatorValue = `${operatorUsername} (ID: ${operatorId})`;
           } else if (hasUsername) {
-            operatorValue = String(adminInfo.admin_username);
+            operatorValue = String(operatorUsername);
           } else {
-            operatorValue = `ID: ${adminInfo.admin_id}`;
+            operatorValue = `ID: ${operatorId}`;
           }
           expandDataLocal.push({
             key: t('操作管理员'),
             value: operatorValue,
+          });
+        }
+        if (
+          other?.old_remain_quota != null &&
+          other?.new_remain_quota != null
+        ) {
+          expandDataLocal.push({
+            key: t('剩余额度'),
+            value: `${renderQuota(other.old_remain_quota, 6)} → ${renderQuota(other.new_remain_quota, 6)}`,
+          });
+        }
+        const quotaDelta = other?.remain_quota_delta;
+        if (quotaDelta != null && Number(quotaDelta) !== 0) {
+          expandDataLocal.push({
+            key: Number(quotaDelta) > 0 ? t('增加额度') : t('减少额度'),
+            value: renderQuota(Math.abs(Number(quotaDelta)), 6),
+          });
+        }
+        if (other?.used_quota_at_edit != null) {
+          expandDataLocal.push({
+            key: t('当时已用额度'),
+            value: renderQuota(other.used_quota_at_edit, 6),
+          });
+        }
+        if (logs[i].content) {
+          expandDataLocal.push({
+            key: t('说明'),
+            value: logs[i].content,
           });
         }
       }
