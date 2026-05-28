@@ -182,7 +182,7 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		Ctx:          c,
 		TokenGroup:   relayInfo.TokenGroup,
 		ModelName:    relayInfo.OriginModelName,
-		EndpointType: service.EndpointTypeFromRelayMode(relayInfo.RelayMode),
+		EndpointType: service.EndpointTypeFromPath(c.Request.URL.Path),
 		Retry:        common.GetPointer(0),
 	}
 	relayInfo.RetryIndex = 0

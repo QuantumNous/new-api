@@ -221,14 +221,6 @@ func TestListModelsTokenLimitIncludesTieredBillingModel(t *testing.T) {
 		"zz-token-tiered-empty-expr-model": "",
 	})
 
-	db := setupModelListControllerTestDB(t)
-	require.NoError(t, db.Create(&[]model.Ability{
-		{Group: "default", Model: "zz-token-tiered-visible-model", ChannelId: 1, Enabled: true},
-		{Group: "default", Model: "zz-token-tiered-empty-expr-model", ChannelId: 1, Enabled: true},
-		{Group: "default", Model: "zz-token-tiered-missing-expr-model", ChannelId: 1, Enabled: true},
-		{Group: "default", Model: "zz-token-unpriced-model", ChannelId: 1, Enabled: true},
-	}).Error)
-
 	recorder := httptest.NewRecorder()
 	ctx, _ := gin.CreateTestContext(recorder)
 	ctx.Request = httptest.NewRequest(http.MethodGet, "/v1/models", nil)
@@ -247,43 +239,4 @@ func TestListModelsTokenLimitIncludesTieredBillingModel(t *testing.T) {
 	require.NotContains(t, ids, "zz-token-tiered-empty-expr-model")
 	require.NotContains(t, ids, "zz-token-tiered-missing-expr-model")
 	require.NotContains(t, ids, "zz-token-unpriced-model")
-}
-
-func TestListModelsTokenLimitKeepsLegacyModelsWithoutAbilities(t *testing.T) {
-	withSelfUseModeDisabled(t)
-	withTieredBillingConfig(t, map[string]string{
-		"zz-token-legacy-visible-model": "tiered_expr",
-	}, map[string]string{
-		"zz-token-legacy-visible-model": `tier("base", p + c)`,
-	})
-	setupModelListControllerTestDB(t)
-
-	recorder := httptest.NewRecorder()
-	ctx, _ := gin.CreateTestContext(recorder)
-	ctx.Request = httptest.NewRequest(http.MethodGet, "/v1/models", nil)
-	common.SetContextKey(ctx, constant.ContextKeyTokenModelLimitEnabled, true)
-	common.SetContextKey(ctx, constant.ContextKeyTokenModelLimit, map[string]bool{
-		"zz-token-legacy-visible-model": true,
-	})
-
-	ListModels(ctx, constant.ChannelTypeOpenAI)
-
-	ids := decodeListModelsResponse(t, recorder)
-	require.Contains(t, ids, "zz-token-legacy-visible-model")
-}
-
-func TestRetrieveModelKeepsLegacyBehaviorWithoutAbilities(t *testing.T) {
-	setupModelListControllerTestDB(t)
-
-	recorder := httptest.NewRecorder()
-	ctx, _ := gin.CreateTestContext(recorder)
-	ctx.Request = httptest.NewRequest(http.MethodGet, "/v1/models/gpt-4", nil)
-	ctx.Params = gin.Params{{Key: "model", Value: "gpt-4"}}
-
-	RetrieveModel(ctx, constant.ChannelTypeOpenAI)
-
-	require.Equal(t, http.StatusOK, recorder.Code)
-	var payload dto.OpenAIModels
-	require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &payload))
-	require.Equal(t, "gpt-4", payload.Id)
 }

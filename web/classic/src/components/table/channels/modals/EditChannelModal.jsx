@@ -546,7 +546,6 @@ const EditChannelModal = (props) => {
     proxy: '',
     pass_through_body_enabled: false,
     system_prompt: '',
-    supported_endpoints: '',
   });
   const showApiConfigCard = true; // 控制是否显示 API 配置卡片
   const getInitValues = () => ({ ...originInputs });
@@ -594,36 +593,6 @@ const EditChannelModal = (props) => {
     settings[key] = value;
     const settingsJson = JSON.stringify(settings);
     handleInputChange('settings', settingsJson);
-  };
-
-  const handleSupportedEndpointsChange = (value) => {
-    const endpointList = parseSupportedEndpoints(value);
-    const endpointText = stringifySupportedEndpoints(endpointList);
-
-    setChannelSettings((prev) => ({
-      ...prev,
-      supported_endpoints: endpointText,
-    }));
-
-    if (formApiRef.current) {
-      formApiRef.current.setValue('supported_endpoints', endpointList);
-    }
-
-    setInputs((prev) => ({ ...prev, supported_endpoints: endpointList }));
-
-    let newSettings = {};
-    if (inputs.setting) {
-      try {
-        newSettings = JSON.parse(inputs.setting);
-      } catch (error) {
-        newSettings = {};
-      }
-    }
-    newSettings.supported_endpoints = endpointText;
-    if (!endpointText) {
-      delete newSettings.supported_endpoints;
-    }
-    handleInputChange('setting', JSON.stringify(newSettings));
   };
 
   const applyClipboardConfig = (config) => {
@@ -1060,9 +1029,6 @@ const EditChannelModal = (props) => {
         pass_through_body_enabled: data.pass_through_body_enabled,
         system_prompt: data.system_prompt,
         system_prompt_override: data.system_prompt_override || false,
-        supported_endpoints: stringifySupportedEndpoints(
-          data.supported_endpoints,
-        ),
       });
       initialModelsRef.current = (data.models || [])
         .map((model) => (model || '').trim())
@@ -1452,7 +1418,6 @@ const EditChannelModal = (props) => {
       pass_through_body_enabled: false,
       system_prompt: '',
       system_prompt_override: false,
-      supported_endpoints: '',
     });
     // 重置密钥模式状态
     setKeyMode('append');
@@ -2723,7 +2688,6 @@ const EditChannelModal = (props) => {
                       multiple
                       showClear
                       style={{ width: '100%' }}
-                      onChange={handleSupportedEndpointsChange}
                       extraText={t(
                         '用于限制该渠道可处理的请求端点；留空时所有端点均可使用。',
                       )}

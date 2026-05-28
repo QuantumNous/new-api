@@ -176,18 +176,13 @@ type modelListGroups struct {
 }
 
 func getModelListGroups(c *gin.Context) (modelListGroups, error) {
-	userId := c.GetInt("id")
 	tokenGroup := common.GetContextKeyString(c, constant.ContextKeyTokenGroup)
 	userGroup := common.GetContextKeyString(c, constant.ContextKeyUserGroup)
-	if userGroup == "" {
-		if userId <= 0 {
-			userGroup = "default"
-		} else {
-			var err error
-			userGroup, err = model.GetUserGroup(userId, false)
-			if err != nil {
-				return modelListGroups{}, err
-			}
+	if userGroup == "" && (tokenGroup == "" || tokenGroup == "auto") {
+		var err error
+		userGroup, err = model.GetUserGroup(c.GetInt("id"), false)
+		if err != nil {
+			return modelListGroups{}, err
 		}
 	}
 
@@ -293,15 +288,12 @@ func ListModels(c *gin.Context, modelType int) {
 				Type:        "model",
 			}
 		}
-		response := gin.H{
+		c.JSON(200, gin.H{
 			"data":     useranthropicModels,
+			"first_id": useranthropicModels[0].ID,
 			"has_more": false,
-		}
-		if len(useranthropicModels) > 0 {
-			response["first_id"] = useranthropicModels[0].ID
-			response["last_id"] = useranthropicModels[len(useranthropicModels)-1].ID
-		}
-		c.JSON(200, response)
+			"last_id":  useranthropicModels[len(useranthropicModels)-1].ID,
+		})
 	case constant.ChannelTypeGemini:
 		userGeminiModels := make([]dto.GeminiModel, len(userOpenAiModels))
 		for i, model := range userOpenAiModels {

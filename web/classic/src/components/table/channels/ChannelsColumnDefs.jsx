@@ -82,7 +82,9 @@ const parseEndpointRestrictions = (record = {}) => {
   const values = Array.isArray(endpoints)
     ? endpoints
     : String(endpoints || '').split(',');
-  return [...new Set(values.map((item) => item.trim()).filter(Boolean))];
+  return [
+    ...new Set(values.map((item) => String(item).trim()).filter(Boolean)),
+  ];
 };
 
 const renderEndpointRestrictions = (record = {}, t) => {

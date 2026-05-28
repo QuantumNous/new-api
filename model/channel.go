@@ -304,13 +304,6 @@ func (channel *Channel) GetGroups() []string {
 	return groups
 }
 
-func (channel *Channel) GetSupportedEndpointTypes() []constant.EndpointType {
-	if channel == nil {
-		return []constant.EndpointType{}
-	}
-	return channel.GetSetting().GetSupportedEndpointTypes()
-}
-
 func (channel *Channel) SupportsEndpointType(endpointType constant.EndpointType) bool {
 	if channel == nil {
 		return true
