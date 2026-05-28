@@ -89,6 +89,19 @@ import type {
   ModelDetailModality,
 } from '../../types'
 
+function isTokenCountInputValid(value?: string): boolean {
+  const trimmed = value?.trim() ?? ''
+  if (!trimmed) return true
+  if (/^\d+$/.test(trimmed)) return true
+  return /^(?:\d+(?:\.\d+)?|\.\d+)\s*[kmb]$/i.test(trimmed)
+}
+
+function isTokenCountInputLike(value: string): boolean {
+  const trimmed = value.trim()
+  if (!trimmed) return true
+  return /^(?:\d+(?:\.\d*)?|\.\d*)\s*[kmb]?$/i.test(trimmed)
+}
+
 // Extended schema for ratio configuration (internal form state only)
 const extendedModelFormSchema = z.object({
   id: z.number().optional(),
@@ -101,8 +114,12 @@ const extendedModelFormSchema = z.object({
   name_rule: z.number(),
   status: z.boolean(),
   sync_official: z.boolean(),
-  context_length: z.string().optional(),
-  max_output_tokens: z.string().optional(),
+  context_length: z.string().optional().refine(isTokenCountInputValid, {
+    message: 'Use a whole number or K, M, B suffix.',
+  }),
+  max_output_tokens: z.string().optional().refine(isTokenCountInputValid, {
+    message: 'Use a whole number or K, M, B suffix.',
+  }),
   knowledge_cutoff: z.string(),
   release_date: z.string(),
   parameter_count: z.string(),
@@ -164,10 +181,28 @@ function normalizeStringArray<T extends string>(values?: readonly T[]): T[] {
   return Array.isArray(values) ? [...values] : []
 }
 
-function parseOptionalPositiveInteger(value?: string): number {
+function parseOptionalTokenCount(value?: string): number {
   const trimmed = value?.trim() ?? ''
   if (!trimmed) return 0
-  const parsed = Number.parseInt(trimmed, 10)
+
+  const match = trimmed.match(/^(\d+(?:\.\d+)?|\.\d+)\s*([kmb])?$/i)
+  if (!match) return 0
+
+  const numericPart = match[1]
+  const unit = match[2]?.toLowerCase()
+  if (!unit && !/^\d+$/.test(numericPart)) {
+    return 0
+  }
+
+  const multiplier =
+    unit === 'k'
+      ? 1_000
+      : unit === 'm'
+        ? 1_000_000
+        : unit === 'b'
+          ? 1_000_000_000
+          : 1
+  const parsed = Math.round(Number.parseFloat(numericPart) * multiplier)
   return Number.isFinite(parsed) && parsed > 0 ? parsed : 0
 }
 
@@ -339,11 +374,6 @@ export function ModelMutateDrawer({
   const validateNumber = (value: string) => {
     if (value === '') return true
     return !isNaN(parseFloat(value))
-  }
-
-  const validateInteger = (value: string) => {
-    if (value === '') return true
-    return /^\d+$/.test(value)
   }
 
   const handlePromptPriceChange = (value: string) => {
@@ -535,10 +565,8 @@ export function ModelMutateDrawer({
           tags: Array.isArray(values.tags) ? values.tags.join(',') : '',
           status: values.status ? 1 : 0,
           sync_official: values.sync_official ? 1 : 0,
-          context_length: parseOptionalPositiveInteger(values.context_length),
-          max_output_tokens: parseOptionalPositiveInteger(
-            values.max_output_tokens
-          ),
+          context_length: parseOptionalTokenCount(values.context_length),
+          max_output_tokens: parseOptionalTokenCount(values.max_output_tokens),
           knowledge_cutoff: values.knowledge_cutoff.trim(),
           release_date: values.release_date.trim(),
           parameter_count: values.parameter_count.trim(),
@@ -1059,12 +1087,11 @@ export function ModelMutateDrawer({
                       <FormControl>
                         <Input
                           type='text'
-                          inputMode='numeric'
-                          placeholder='128000'
+                          placeholder='128K'
                           {...field}
                           onChange={(e) => {
                             const value = e.target.value
-                            if (validateInteger(value)) {
+                            if (isTokenCountInputLike(value)) {
                               field.onChange(value)
                             }
                           }}
@@ -1073,6 +1100,10 @@ export function ModelMutateDrawer({
                       <FormDescription>
                         {t('Maximum input window')}.{' '}
                         {t('Leave blank to keep automatic inference.')}
+                        <br />
+                        {t(
+                          'Supports full token counts or K/M/B suffixes, for example 128K, 1M, or 1.5M.'
+                        )}
                       </FormDescription>
                       <FormMessage />
                     </FormItem>
@@ -1088,12 +1119,11 @@ export function ModelMutateDrawer({
                       <FormControl>
                         <Input
                           type='text'
-                          inputMode='numeric'
-                          placeholder='16384'
+                          placeholder='16K'
                           {...field}
                           onChange={(e) => {
                             const value = e.target.value
-                            if (validateInteger(value)) {
+                            if (isTokenCountInputLike(value)) {
                               field.onChange(value)
                             }
                           }}
@@ -1102,6 +1132,10 @@ export function ModelMutateDrawer({
                       <FormDescription>
                         {t('Maximum tokens per response')}.{' '}
                         {t('Leave blank to keep automatic inference.')}
+                        <br />
+                        {t(
+                          'Supports full token counts or K/M/B suffixes, for example 128K, 1M, or 1.5M.'
+                        )}
                       </FormDescription>
                       <FormMessage />
                     </FormItem>
