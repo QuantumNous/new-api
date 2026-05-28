@@ -18,15 +18,29 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import z from 'zod'
 import { createFileRoute, redirect } from '@tanstack/react-router'
+import {
+  PADDLE_ORDER_SEARCH_PARAM,
+  PADDLE_TRANSACTION_SEARCH_PARAM,
+} from '@/features/wallet/constants'
 
 const topupSearchSchema = z.record(z.string(), z.unknown()).catch({})
 
 export const Route = createFileRoute('/console/topup')({
   validateSearch: topupSearchSchema,
   beforeLoad: ({ search }) => {
+    const paddleTransactionId = search[PADDLE_TRANSACTION_SEARCH_PARAM]
+    const hasPaddleTransaction =
+      typeof paddleTransactionId === 'string' &&
+      paddleTransactionId.trim().length > 0
+    const paddleOrderId = search[PADDLE_ORDER_SEARCH_PARAM]
+    const hasPaddleOrder =
+      typeof paddleOrderId === 'string' && paddleOrderId.trim().length > 0
     throw redirect({
       to: '/wallet',
-      search: { show_history: true, ...search },
+      search: {
+        ...search,
+        show_history: !hasPaddleTransaction && !hasPaddleOrder,
+      },
     })
   },
 })

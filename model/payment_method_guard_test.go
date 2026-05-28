@@ -1,6 +1,7 @@
 package model
 
 import (
+	"sync"
 	"testing"
 	"time"
 
@@ -100,6 +101,123 @@ func TestRechargeWaffoPancake_RejectsMismatchedPaymentMethod(t *testing.T) {
 	require.NotNil(t, topUp)
 	assert.Equal(t, common.TopUpStatusPending, topUp.Status)
 	assert.Equal(t, 0, getUserQuotaForPaymentGuardTest(t, 101))
+}
+
+func TestRechargePaddle_DuplicateWebhookAddsQuotaOnce(t *testing.T) {
+	truncateTables(t)
+
+	insertUserForPaymentGuardTest(t, 111, 0)
+	insertTopUpForPaymentGuardTest(t, "paddle-duplicate-guard", 111, PaymentProviderPaddle)
+
+	require.NoError(t, RechargePaddle("paddle-duplicate-guard", 111, "txn_duplicate_guard", "127.0.0.1"))
+	require.NoError(t, RechargePaddle("paddle-duplicate-guard", 111, "txn_duplicate_guard", "127.0.0.1"))
+
+	assert.Equal(t, common.TopUpStatusSuccess, getTopUpStatusForPaymentGuardTest(t, "paddle-duplicate-guard"))
+	assert.Equal(t, int(2*common.QuotaPerUnit), getUserQuotaForPaymentGuardTest(t, 111))
+	topUp := GetTopUpByTradeNo("paddle-duplicate-guard")
+	require.NotNil(t, topUp)
+	assert.Equal(t, "txn_duplicate_guard", topUp.GatewayTradeNo)
+}
+
+func TestRechargePaddle_ConcurrentWebhookAddsQuotaOnce(t *testing.T) {
+	truncateTables(t)
+
+	insertUserForPaymentGuardTest(t, 112, 0)
+	insertTopUpForPaymentGuardTest(t, "paddle-concurrent-guard", 112, PaymentProviderPaddle)
+
+	var wg sync.WaitGroup
+	errs := make(chan error, 8)
+	for i := 0; i < cap(errs); i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			errs <- RechargePaddle("paddle-concurrent-guard", 112, "txn_concurrent_guard", "127.0.0.1")
+		}()
+	}
+	wg.Wait()
+	close(errs)
+
+	for err := range errs {
+		require.NoError(t, err)
+	}
+	assert.Equal(t, common.TopUpStatusSuccess, getTopUpStatusForPaymentGuardTest(t, "paddle-concurrent-guard"))
+	assert.Equal(t, int(2*common.QuotaPerUnit), getUserQuotaForPaymentGuardTest(t, 112))
+}
+
+func TestRechargePaddle_RejectsMismatchedUser(t *testing.T) {
+	truncateTables(t)
+
+	insertUserForPaymentGuardTest(t, 113, 0)
+	insertTopUpForPaymentGuardTest(t, "paddle-user-guard", 113, PaymentProviderPaddle)
+
+	err := RechargePaddle("paddle-user-guard", 114, "txn_user_guard", "127.0.0.1")
+	require.Error(t, err)
+	assert.Equal(t, common.TopUpStatusPending, getTopUpStatusForPaymentGuardTest(t, "paddle-user-guard"))
+	assert.Equal(t, 0, getUserQuotaForPaymentGuardTest(t, 113))
+}
+
+func TestRechargePaddle_RejectsMismatchedGatewayTradeNo(t *testing.T) {
+	truncateTables(t)
+
+	insertUserForPaymentGuardTest(t, 114, 0)
+	insertTopUpForPaymentGuardTest(t, "paddle-gateway-guard", 114, PaymentProviderPaddle)
+	require.NoError(t, DB.Model(&TopUp{}).
+		Where("trade_no = ?", "paddle-gateway-guard").
+		Update("gateway_trade_no", "txn_expected_guard").Error)
+
+	err := RechargePaddle("paddle-gateway-guard", 114, "txn_other_guard", "127.0.0.1")
+	require.Error(t, err)
+
+	assert.Equal(t, common.TopUpStatusPending, getTopUpStatusForPaymentGuardTest(t, "paddle-gateway-guard"))
+	assert.Equal(t, 0, getUserQuotaForPaymentGuardTest(t, 114))
+}
+
+func TestAttachPaddleGatewayTradeNoOnlyUpdatesPendingPaddleOrder(t *testing.T) {
+	truncateTables(t)
+
+	insertUserForPaymentGuardTest(t, 117, 0)
+	insertTopUpForPaymentGuardTest(t, "paddle-attach-guard", 117, PaymentProviderPaddle)
+
+	require.NoError(t, AttachPaddleGatewayTradeNo("paddle-attach-guard", 117, "txn_attach_guard"))
+	topUp := GetTopUpByTradeNo("paddle-attach-guard")
+	require.NotNil(t, topUp)
+	assert.Equal(t, common.TopUpStatusPending, topUp.Status)
+	assert.Equal(t, "txn_attach_guard", topUp.GatewayTradeNo)
+
+	require.NoError(t, AttachPaddleGatewayTradeNo("paddle-attach-guard", 117, "txn_attach_guard"))
+	require.Error(t, AttachPaddleGatewayTradeNo("paddle-attach-guard", 117, "txn_other_guard"))
+
+	require.NoError(t, RechargePaddle("paddle-attach-guard", 117, "txn_attach_guard", "127.0.0.1"))
+	require.NoError(t, AttachPaddleGatewayTradeNo("paddle-attach-guard", 117, "txn_attach_guard"))
+	require.Error(t, AttachPaddleGatewayTradeNo("paddle-attach-guard", 117, "txn_other_guard"))
+}
+
+func TestGetUserPaddleTopUpByIdentifiers(t *testing.T) {
+	truncateTables(t)
+
+	insertUserForPaymentGuardTest(t, 115, 0)
+	insertTopUpForPaymentGuardTest(t, "paddle-lookup-guard", 115, PaymentProviderPaddle)
+	require.NoError(t, DB.Model(&TopUp{}).
+		Where("trade_no = ?", "paddle-lookup-guard").
+		Update("gateway_trade_no", "txn_lookup_guard").Error)
+
+	topUp, err := GetUserPaddleTopUpByIdentifiers(115, "", "txn_lookup_guard")
+	require.NoError(t, err)
+	assert.Equal(t, "paddle-lookup-guard", topUp.TradeNo)
+
+	topUp, err = GetUserPaddleTopUpByIdentifiers(115, "paddle-lookup-guard", "")
+	require.NoError(t, err)
+	assert.Equal(t, "txn_lookup_guard", topUp.GatewayTradeNo)
+
+	topUp, err = GetUserPaddleTopUpByIdentifiers(115, "paddle-lookup-guard", "txn_lookup_guard")
+	require.NoError(t, err)
+	assert.Equal(t, "paddle-lookup-guard", topUp.TradeNo)
+
+	_, err = GetUserPaddleTopUpByIdentifiers(115, "paddle-lookup-guard", "txn_other_guard")
+	require.ErrorIs(t, err, ErrTopUpNotFound)
+
+	_, err = GetUserPaddleTopUpByIdentifiers(116, "", "txn_lookup_guard")
+	require.ErrorIs(t, err, ErrTopUpNotFound)
 }
 
 func TestUpdatePendingTopUpStatus_RejectsMismatchedPaymentProvider(t *testing.T) {

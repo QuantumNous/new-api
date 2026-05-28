@@ -38,6 +38,9 @@ import type {
   WaffoPaymentResponse,
   WaffoPancakePaymentRequest,
   WaffoPancakePaymentResponse,
+  PaddlePaymentRequest,
+  PaddlePaymentResponse,
+  PaddleTopUpStatusResponse,
 } from './types'
 
 // ============================================================================
@@ -163,6 +166,50 @@ export async function requestWaffoPancakePayment(
   request: WaffoPancakePaymentRequest
 ): Promise<WaffoPancakePaymentResponse> {
   const res = await api.post('/api/user/waffo-pancake/pay', request, {
+    skipBusinessError: true,
+  } as Record<string, unknown>)
+  return res.data
+}
+
+/**
+ * Calculate payment amount for Paddle payment
+ */
+export async function calculatePaddleAmount(
+  request: AmountRequest
+): Promise<AmountResponse> {
+  const res = await api.post('/api/user/paddle/amount', request, {
+    skipBusinessError: true,
+  } as Record<string, unknown>)
+  return res.data
+}
+
+/**
+ * Request Paddle payment
+ */
+export async function requestPaddlePayment(
+  request: PaddlePaymentRequest
+): Promise<PaddlePaymentResponse> {
+  const res = await api.post('/api/user/paddle/pay', request, {
+    skipBusinessError: true,
+  } as Record<string, unknown>)
+  return res.data
+}
+
+/**
+ * Get Paddle wallet top-up status for a returned transaction.
+ */
+export async function getPaddleTopUpStatus(params: {
+  transactionId?: string
+  orderId?: string
+}): Promise<PaddleTopUpStatusResponse> {
+  const searchParams = new URLSearchParams()
+  if (params.transactionId) {
+    searchParams.set('transaction_id', params.transactionId)
+  }
+  if (params.orderId) {
+    searchParams.set('order_id', params.orderId)
+  }
+  const res = await api.get(`/api/user/paddle/status?${searchParams}`, {
     skipBusinessError: true,
   } as Record<string, unknown>)
   return res.data

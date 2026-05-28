@@ -17,7 +17,14 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useState } from 'react'
-import { Search, Copy, Check, ChevronLeft, ChevronRight } from 'lucide-react'
+import {
+  Search,
+  Copy,
+  Check,
+  ChevronLeft,
+  ChevronRight,
+  ExternalLink,
+} from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { formatCurrencyFromUSD } from '@/lib/currency'
 import { formatNumber } from '@/lib/format'
@@ -53,16 +60,36 @@ import {
 } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
 import { StatusBadge } from '@/components/status-badge'
+import { PAYMENT_TYPES } from '../../constants'
 import { useBillingHistory } from '../../hooks/use-billing-history'
 import {
   getStatusConfig,
   getPaymentMethodName,
   formatTimestamp,
 } from '../../lib/billing'
+import { buildPaddleWalletCheckoutUrlWithOrder } from '../../lib/payment'
+import type { TopupRecord } from '../../types'
 
 interface BillingHistoryDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
+}
+
+function isPendingPaddleRecord(record: TopupRecord): boolean {
+  if (record.status !== 'pending') {
+    return false
+  }
+
+  const paymentMethod = record.payment_method?.trim().toLowerCase()
+  const paymentProvider = record.payment_provider?.trim().toLowerCase()
+  return (
+    paymentMethod === PAYMENT_TYPES.PADDLE ||
+    paymentProvider === PAYMENT_TYPES.PADDLE
+  )
+}
+
+function getPaddleGatewayTradeNo(record: TopupRecord): string {
+  return record.gateway_trade_no?.trim() || ''
 }
 
 export function BillingHistoryDialog({
@@ -97,6 +124,17 @@ export function BillingHistoryDialog({
         setConfirmTradeNo(null)
       }
     }
+  }
+
+  const handleReopenPaddleCheckout = (record: TopupRecord): void => {
+    const gatewayTradeNo = getPaddleGatewayTradeNo(record)
+    if (!gatewayTradeNo) {
+      return
+    }
+
+    window.location.assign(
+      buildPaddleWalletCheckoutUrlWithOrder(gatewayTradeNo, record.trade_no)
+    )
   }
 
   return (
@@ -184,6 +222,12 @@ export function BillingHistoryDialog({
                 <div className='space-y-3'>
                   {records.map((record) => {
                     const statusConfig = getStatusConfig(record.status)
+                    const canReopenPaddleCheckout =
+                      isPendingPaddleRecord(record) &&
+                      getPaddleGatewayTradeNo(record) !== ''
+                    const showActions =
+                      canReopenPaddleCheckout ||
+                      (isAdmin && record.status === 'pending')
                     return (
                       <div
                         key={record.id}
@@ -222,7 +266,7 @@ export function BillingHistoryDialog({
                             </div>
                           </div>
                           <StatusBadge
-                            label={statusConfig.label}
+                            label={t(statusConfig.label)}
                             variant={statusConfig.variant}
                             showDot
                             copyable={false}
@@ -261,17 +305,33 @@ export function BillingHistoryDialog({
                           </div>
                         </div>
 
-                        {/* Admin Actions */}
-                        {isAdmin && record.status === 'pending' && (
-                          <div className='mt-4 flex justify-end'>
-                            <Button
-                              size='sm'
-                              variant='outline'
-                              onClick={() => setConfirmTradeNo(record.trade_no)}
-                              disabled={completing}
-                            >
-                              {t('Complete Order')}
-                            </Button>
+                        {/* Actions */}
+                        {showActions && (
+                          <div className='mt-4 flex flex-wrap justify-end gap-2'>
+                            {canReopenPaddleCheckout && (
+                              <Button
+                                size='sm'
+                                variant='outline'
+                                onClick={() =>
+                                  handleReopenPaddleCheckout(record)
+                                }
+                              >
+                                <ExternalLink className='mr-1.5 h-3.5 w-3.5' />
+                                {t('Reopen Checkout')}
+                              </Button>
+                            )}
+                            {isAdmin && record.status === 'pending' && (
+                              <Button
+                                size='sm'
+                                variant='outline'
+                                onClick={() =>
+                                  setConfirmTradeNo(record.trade_no)
+                                }
+                                disabled={completing}
+                              >
+                                {t('Complete Order')}
+                              </Button>
+                            )}
                           </div>
                         )}
                       </div>

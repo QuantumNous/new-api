@@ -241,6 +241,14 @@ export type BillingSettings = {
   CreemWebhookSecret: string
   CreemTestMode: boolean
   CreemProducts: string
+  PaddleApiKey: string
+  PaddleClientToken: string
+  PaddleWebhookSecret: string
+  PaddleSandbox: boolean
+  PaddleProductId: string
+  PaddleCurrency: string
+  PaddleUnitPrice: number
+  PaddleMinTopUp: number
   WaffoEnabled: boolean
   WaffoApiKey: string
   WaffoPrivateKey: string

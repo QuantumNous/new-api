@@ -151,6 +151,14 @@ const BILLING_SECTIONS = [
           CreemWebhookSecret: settings.CreemWebhookSecret,
           CreemTestMode: settings.CreemTestMode,
           CreemProducts: settings.CreemProducts,
+          PaddleApiKey: settings.PaddleApiKey,
+          PaddleClientToken: settings.PaddleClientToken,
+          PaddleWebhookSecret: settings.PaddleWebhookSecret,
+          PaddleSandbox: settings.PaddleSandbox,
+          PaddleProductId: settings.PaddleProductId,
+          PaddleCurrency: settings.PaddleCurrency,
+          PaddleUnitPrice: settings.PaddleUnitPrice,
+          PaddleMinTopUp: settings.PaddleMinTopUp,
         }}
         waffoDefaultValues={{
           WaffoEnabled: settings.WaffoEnabled ?? false,

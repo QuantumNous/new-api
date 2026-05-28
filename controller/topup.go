@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -23,9 +24,10 @@ import (
 
 func GetTopUpInfo(c *gin.Context) {
 	complianceConfirmed := operation_setting.IsPaymentComplianceConfirmed()
+	enablePaddle := isPaddleTopUpEnabled()
 
 	// 获取支付方式
-	payMethods := operation_setting.PayMethods
+	payMethods := buildTopUpPayMethods(operation_setting.PayMethods, enablePaddle)
 	if !complianceConfirmed {
 		payMethods = []map[string]string{}
 	}
@@ -73,6 +75,26 @@ func GetTopUpInfo(c *gin.Context) {
 		}
 	}
 
+	if enablePaddle {
+		paddleMinTopUp := strconv.FormatInt(getPaddleMinTopUp(), 10)
+		hasPaddle := false
+		for _, method := range payMethods {
+			if method["type"] == model.PaymentMethodPaddle {
+				hasPaddle = true
+				break
+			}
+		}
+
+		if !hasPaddle {
+			payMethods = append(payMethods, map[string]string{
+				"name":      "Paddle",
+				"type":      model.PaymentMethodPaddle,
+				"color":     "rgba(var(--semi-teal-5), 1)",
+				"min_topup": paddleMinTopUp,
+			})
+		}
+	}
+
 	// 如果启用了 Waffo 支付，添加到支付方法列表
 	enableWaffo := isWaffoTopUpEnabled()
 	if enableWaffo {
@@ -96,11 +118,12 @@ func GetTopUpInfo(c *gin.Context) {
 	}
 
 	data := gin.H{
-		"enable_online_topup":              isEpayTopUpEnabled(),
+		"enable_online_topup":              isOnlineTopUpEnabled(),
 		"enable_stripe_topup":              isStripeTopUpEnabled(),
 		"enable_creem_topup":               isCreemTopUpEnabled(),
 		"enable_waffo_topup":               enableWaffo,
 		"enable_waffo_pancake_topup":       enableWaffoPancake,
+		"enable_paddle_topup":              enablePaddle,
 		"enable_redemption":                complianceConfirmed,
 		"payment_compliance_confirmed":     complianceConfirmed,
 		"payment_compliance_terms_version": operation_setting.CurrentComplianceTermsVersion,
@@ -116,11 +139,53 @@ func GetTopUpInfo(c *gin.Context) {
 		"stripe_min_topup":        setting.StripeMinTopUp,
 		"waffo_min_topup":         setting.WaffoMinTopUp,
 		"waffo_pancake_min_topup": setting.WaffoPancakeMinTopUp,
-		"amount_options":          operation_setting.GetPaymentSetting().AmountOptions,
-		"discount":                operation_setting.GetPaymentSetting().AmountDiscount,
-		"topup_link":              common.TopUpLink,
+		"paddle_min_topup":        getPaddleMinTopUp(),
+		"paddle_sandbox":          setting.PaddleSandbox,
+		"paddle_client_token": func() string {
+			if enablePaddle {
+				return setting.PaddleClientToken
+			}
+			return ""
+		}(),
+		"amount_options": operation_setting.GetPaymentSetting().AmountOptions,
+		"discount":       operation_setting.GetPaymentSetting().AmountDiscount,
+		"topup_link":     common.TopUpLink,
 	}
 	common.ApiSuccess(c, data)
+}
+
+func buildTopUpPayMethods(payMethods []map[string]string, enablePaddle bool) []map[string]string {
+	filtered := make([]map[string]string, 0, len(payMethods))
+	for _, method := range payMethods {
+		if method == nil {
+			continue
+		}
+		methodType := strings.TrimSpace(method["type"])
+		if methodType == model.PaymentMethodPaddle && !enablePaddle {
+			continue
+		}
+
+		cloned := make(map[string]string, len(method))
+		for key, value := range method {
+			cloned[key] = value
+		}
+		filtered = append(filtered, cloned)
+	}
+	return filtered
+}
+
+func isEpayPaymentMethod(method string) bool {
+	normalized := strings.TrimSpace(method)
+	switch normalized {
+	case model.PaymentMethodStripe,
+		model.PaymentMethodCreem,
+		model.PaymentMethodWaffo,
+		model.PaymentMethodWaffoPancake,
+		model.PaymentMethodPaddle:
+		return false
+	default:
+		return operation_setting.ContainsPayMethod(normalized)
+	}
 }
 
 type EpayRequest struct {
@@ -210,7 +275,7 @@ func RequestEpay(c *gin.Context) {
 		return
 	}
 
-	if !operation_setting.ContainsPayMethod(req.PaymentMethod) {
+	if !isEpayPaymentMethod(req.PaymentMethod) {
 		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "支付方式不存在"})
 		return
 	}
