@@ -109,6 +109,20 @@ quota.exceed_max: "Quota value exceeds valid range"
 quota.insufficient: "Insufficient quota"
 quota.warning_invalid: "Invalid warning type"
 quota.threshold_gt_zero: "Warning threshold must be greater than 0"
+quota.insufficient_remaining: "Insufficient quota, remaining quota: {{.Remaining}}"
+quota.reserve_failed: "Failed to reserve quota, remaining quota: {{.Remaining}}, required quota: {{.Required}}"
+quota.subscription_insufficient: "Subscription quota is insufficient or no subscription is configured: {{.Error}}"
+quota.notify.wallet_prompt: "Your quota is running low"
+quota.notify.subscription_prompt: "Your subscription quota is running low"
+quota.notify.short_content: "{{.Prompt}}. Remaining quota: {{.Remaining}}. Please top up soon."
+quota.notify.plain_content: "{{.Prompt}}. Current remaining quota: {{.Remaining}}. Please top up soon."
+quota.notify.html_content: "{{.Prompt}}. Current remaining quota: {{.Remaining}}. To avoid service interruption, please top up soon.<br/>Top-up link: <a href='{{.TopUpLink}}'>{{.TopUpLink}}</a>"
+
+# Codex messages
+codex.authorization_parse_failed: "Failed to parse authorization information. Please check the input format."
+codex.authorization_exchange_failed: "Failed to exchange authorization code. Please try again."
+codex.credential_parse_failed: "Failed to parse credentials. Please check the channel configuration."
+codex.usage_fetch_failed: "Failed to fetch usage information. Please try again later."
 
 # Subscription messages
 subscription.not_enabled: "Subscription plan is not enabled"

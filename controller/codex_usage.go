@@ -10,6 +10,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
+	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/relay/channel/codex"
 	"github.com/QuantumNous/new-api/service"
@@ -45,7 +46,7 @@ func GetCodexChannelUsage(c *gin.Context) {
 	oauthKey, err := codex.ParseOAuthKey(strings.TrimSpace(ch.Key))
 	if err != nil {
 		common.SysError("failed to parse oauth key: " + err.Error())
-		c.JSON(http.StatusOK, gin.H{"success": false, "message": "解析凭证失败，请检查渠道配置"})
+		common.ApiErrorI18n(c, i18n.MsgCodexCredentialParseFailed)
 		return
 	}
 	accessToken := strings.TrimSpace(oauthKey.AccessToken)
@@ -71,7 +72,7 @@ func GetCodexChannelUsage(c *gin.Context) {
 	statusCode, body, err := service.FetchCodexWhamUsage(ctx, client, ch.GetBaseURL(), accessToken, accountID)
 	if err != nil {
 		common.SysError("failed to fetch codex usage: " + err.Error())
-		c.JSON(http.StatusOK, gin.H{"success": false, "message": "获取用量信息失败，请稍后重试"})
+		common.ApiErrorI18n(c, i18n.MsgCodexUsageFetchFailed)
 		return
 	}
 
@@ -101,7 +102,7 @@ func GetCodexChannelUsage(c *gin.Context) {
 			statusCode, body, err = service.FetchCodexWhamUsage(ctx2, client, ch.GetBaseURL(), oauthKey.AccessToken, accountID)
 			if err != nil {
 				common.SysError("failed to fetch codex usage after refresh: " + err.Error())
-				c.JSON(http.StatusOK, gin.H{"success": false, "message": "获取用量信息失败，请稍后重试"})
+				common.ApiErrorI18n(c, i18n.MsgCodexUsageFetchFailed)
 				return
 			}
 		}
