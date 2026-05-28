@@ -19,6 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import {
   Activity,
   Box,
+  Columns3,
   CreditCard,
   FileText,
   FlaskConical,
@@ -55,6 +56,11 @@ export function useSidebarData(): SidebarData {
             title: t('Playground'),
             url: '/playground',
             icon: FlaskConical,
+          },
+          {
+            title: t('Model Compare'),
+            url: '/dashboard/model-compare',
+            icon: Columns3,
           },
           {
             title: t('Chat'),
