@@ -20,6 +20,19 @@ For commercial licensing, please contact support@quantumnous.com
 
 @theme inline {
   --font-sans: 'Public Sans', sans-serif;
+  /* Editorial serif token — the body face used by the `serif` font axis
+   * and by presets that opt in (currently Anthropic). Lora carries only
+   * Latin glyphs, so the stack walks through CJK serifs (Noto / Source Han
+   * / Songti / SimSun) before the generic `serif` fallback. Without these
+   * explicit CJK fonts the browser's generic-serif pick on Windows is
+   * non-deterministic at small sizes and often appears sans-like. */
+  --font-serif:
+    'Lora Variable', 'Lora', 'Source Serif Pro', 'Source Serif 4',
+    'Noto Serif SC', 'Noto Serif TC', 'Noto Serif JP', 'Noto Serif KR',
+    'Source Han Serif SC', 'Source Han Serif TC', 'Source Han Serif',
+    'Songti SC', 'STSong', 'STSongti-SC-Regular', 'PingFang SC', 'SimSun',
+    'NSimSun', '宋体', 'FangSong', '仿宋', 'KaiTi', '楷体', Georgia,
+    'Times New Roman', Cambria, 'Liberation Serif', serif;
   --font-inter:
     -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu',
     'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
@@ -78,8 +91,15 @@ For commercial licensing, please contact support@quantumnous.com
 }
 
 :root {
-  --radius: 0.5rem;
+  --radius: 1rem;
   --app-header-height: 3rem;
+  /* Static build-channel fallback consumed when JS hasn't booted yet. */
+  --app-rev: '2k6e8r7p';
+  /* Currently active body font. The font axis swaps this between
+   * `--font-sans` and `--font-serif` via `[data-theme-font='...']` blocks
+   * in theme-presets.css. Default mirrors `--font-sans` so behavior is
+   * identical when no font preference is set. */
+  --font-body: var(--font-sans);
   --background: oklch(1 0 0);
   --foreground: oklch(0.145 0 0);
   --card: oklch(1 0 0);

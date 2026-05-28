@@ -240,7 +240,7 @@ export function RechargeFormCard({
                           className={cn(
                             'hover:border-foreground flex min-h-16 flex-col items-start rounded-lg px-3 py-2.5 text-left whitespace-normal sm:min-h-[72px] sm:p-4',
                             selectedPreset === preset.value
-                              ? 'border-foreground bg-foreground/5'
+                              ? 'border-foreground bg-foreground/5 dark:border-foreground dark:bg-foreground/10'
                               : 'border-muted'
                           )}
                           onClick={() => onSelectPreset(preset)}

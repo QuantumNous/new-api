@@ -51,6 +51,11 @@ import { Separator } from '@/components/ui/separator'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import {
+  SettingsForm,
+  SettingsSwitchContent,
+  SettingsSwitchItem,
+} from '../../../components/settings-form-layout'
+import {
   useCreateProvider,
   useUpdateProvider,
 } from '../hooks/use-custom-oauth-mutations'
@@ -185,7 +190,7 @@ export function ProviderFormDialog(props: ProviderFormDialogProps) {
         </DialogHeader>
 
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className='space-y-6'>
+          <SettingsForm onSubmit={form.handleSubmit(onSubmit)}>
             {/* Preset Selector (only for creating) */}
             {!isEditing && <PresetSelector form={form} />}
 
@@ -197,22 +202,20 @@ export function ProviderFormDialog(props: ProviderFormDialogProps) {
                 control={form.control}
                 name='enabled'
                 render={({ field }) => (
-                  <FormItem className='flex flex-row items-center justify-between rounded-lg border p-4'>
-                    <div className='space-y-0.5'>
-                      <FormLabel className='text-base'>
-                        {t('Enabled')}
-                      </FormLabel>
+                  <SettingsSwitchItem>
+                    <SettingsSwitchContent>
+                      <FormLabel>{t('Enabled')}</FormLabel>
                       <FormDescription>
                         {t('Allow users to sign in with this provider')}
                       </FormDescription>
-                    </div>
+                    </SettingsSwitchContent>
                     <FormControl>
                       <Switch
                         checked={field.value}
                         onCheckedChange={field.onChange}
                       />
                     </FormControl>
-                  </FormItem>
+                  </SettingsSwitchItem>
                 )}
               />
 
@@ -602,7 +605,7 @@ export function ProviderFormDialog(props: ProviderFormDialogProps) {
                     : t('Create Provider')}
               </Button>
             </DialogFooter>
-          </form>
+          </SettingsForm>
         </Form>
       </DialogContent>
     </Dialog>

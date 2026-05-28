@@ -22,6 +22,10 @@ type BillingPreferenceRequest struct {
 	BillingPreference string `json:"billing_preference"`
 }
 
+type SubscriptionBalancePayRequest struct {
+	PlanId int `json:"plan_id"`
+}
+
 // ---- User APIs ----
 
 func GetSubscriptionPlans(c *gin.Context) {
@@ -90,6 +94,25 @@ func UpdateSubscriptionPreference(c *gin.Context) {
 		return
 	}
 	common.ApiSuccess(c, gin.H{"billing_preference": pref})
+}
+
+func SubscriptionRequestBalancePay(c *gin.Context) {
+	if !requirePaymentCompliance(c) {
+		return
+	}
+
+	userId := c.GetInt("id")
+	var req SubscriptionBalancePayRequest
+	if err := c.ShouldBindJSON(&req); err != nil || req.PlanId <= 0 {
+		common.ApiErrorMsg(c, "参数错误")
+		return
+	}
+
+	if err := model.PurchaseSubscriptionWithBalance(userId, req.PlanId); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	common.ApiSuccess(c, nil)
 }
 
 // ---- Admin APIs ----
@@ -248,6 +271,7 @@ func AdminUpdateSubscriptionPlan(c *gin.Context) {
 			"sort_order":                 req.Plan.SortOrder,
 			"stripe_price_id":            req.Plan.StripePriceId,
 			"creem_product_id":           req.Plan.CreemProductId,
+			"waffo_pancake_product_id":   req.Plan.WaffoPancakeProductId,
 			"max_purchase_per_user":      req.Plan.MaxPurchasePerUser,
 			"total_amount":               req.Plan.TotalAmount,
 			"upgrade_group":              req.Plan.UpgradeGroup,
