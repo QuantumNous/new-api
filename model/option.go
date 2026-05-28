@@ -115,6 +115,14 @@ func InitOptionMap() {
 	common.OptionMap["WaffoPancakeMinTopUp"] = strconv.Itoa(setting.WaffoPancakeMinTopUp)
 	common.OptionMap["WaffoPancakeStoreID"] = setting.WaffoPancakeStoreID
 	common.OptionMap["WaffoPancakeProductID"] = setting.WaffoPancakeProductID
+	common.OptionMap["PaddleApiKey"] = setting.PaddleApiKey
+	common.OptionMap["PaddleClientToken"] = setting.PaddleClientToken
+	common.OptionMap["PaddleWebhookSecret"] = setting.PaddleWebhookSecret
+	common.OptionMap["PaddleSandbox"] = strconv.FormatBool(setting.PaddleSandbox)
+	common.OptionMap["PaddleProductId"] = setting.PaddleProductId
+	common.OptionMap["PaddleCurrency"] = setting.PaddleCurrency
+	common.OptionMap["PaddleUnitPrice"] = strconv.FormatFloat(setting.PaddleUnitPrice, 'f', -1, 64)
+	common.OptionMap["PaddleMinTopUp"] = strconv.Itoa(setting.PaddleMinTopUp)
 	common.OptionMap["TopupGroupRatio"] = common.TopupGroupRatio2JSONString()
 	common.OptionMap["Chats"] = setting.Chats2JsonString()
 	common.OptionMap["AutoGroups"] = setting.AutoGroups2JsonString()
@@ -204,6 +212,10 @@ func SyncOptions(frequency int) {
 }
 
 func UpdateOption(key string, value string) error {
+	if err := setting.ValidatePaddleOption(key, value); err != nil {
+		return err
+	}
+
 	// Save to database first
 	option := Option{
 		Key: key,
@@ -235,6 +247,11 @@ func UpdateOptionsBulk(values map[string]string) error {
 	if len(values) == 0 {
 		return nil
 	}
+	for k, v := range values {
+		if err := setting.ValidatePaddleOption(k, v); err != nil {
+			return err
+		}
+	}
 	err := DB.Transaction(func(tx *gorm.DB) error {
 		for k, v := range values {
 			option := Option{Key: k}
@@ -260,6 +277,10 @@ func UpdateOptionsBulk(values map[string]string) error {
 }
 
 func updateOptionMap(key string, value string) (err error) {
+	if err := setting.ValidatePaddleOption(key, value); err != nil {
+		return err
+	}
+
 	common.OptionMapRWMutex.Lock()
 	defer common.OptionMapRWMutex.Unlock()
 	common.OptionMap[key] = value
@@ -470,6 +491,22 @@ func updateOptionMap(key string, value string) (err error) {
 		setting.WaffoPancakeUnitPrice, _ = strconv.ParseFloat(value, 64)
 	case "WaffoPancakeMinTopUp":
 		setting.WaffoPancakeMinTopUp, _ = strconv.Atoi(value)
+	case "PaddleApiKey":
+		setting.PaddleApiKey = value
+	case "PaddleClientToken":
+		setting.PaddleClientToken = value
+	case "PaddleWebhookSecret":
+		setting.PaddleWebhookSecret = value
+	case "PaddleSandbox":
+		setting.PaddleSandbox = value == "true"
+	case "PaddleProductId":
+		setting.PaddleProductId = value
+	case "PaddleCurrency":
+		setting.PaddleCurrency = value
+	case "PaddleUnitPrice":
+		setting.PaddleUnitPrice, _ = strconv.ParseFloat(value, 64)
+	case "PaddleMinTopUp":
+		setting.PaddleMinTopUp, _ = strconv.Atoi(value)
 	case "TopupGroupRatio":
 		err = common.UpdateTopupGroupRatioByJSONString(value)
 	case "GitHubClientId":

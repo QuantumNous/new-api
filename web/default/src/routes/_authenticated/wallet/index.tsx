@@ -19,9 +19,15 @@ For commercial licensing, please contact support@quantumnous.com
 import { z } from 'zod'
 import { createFileRoute } from '@tanstack/react-router'
 import { Wallet } from '@/features/wallet'
+import {
+  PADDLE_ORDER_SEARCH_PARAM,
+  PADDLE_TRANSACTION_SEARCH_PARAM,
+} from '@/features/wallet/constants'
 
 const walletSearchSchema = z.object({
   show_history: z.boolean().optional(),
+  [PADDLE_ORDER_SEARCH_PARAM]: z.string().optional(),
+  [PADDLE_TRANSACTION_SEARCH_PARAM]: z.string().optional(),
 })
 
 export const Route = createFileRoute('/_authenticated/wallet/')({
@@ -30,6 +36,13 @@ export const Route = createFileRoute('/_authenticated/wallet/')({
 })
 
 function RouteComponent() {
-  const { show_history } = Route.useSearch()
-  return <Wallet initialShowHistory={show_history} />
+  const search = Route.useSearch()
+  const paddleTransactionId = search[PADDLE_TRANSACTION_SEARCH_PARAM]
+  return (
+    <Wallet
+      initialPaddleOrderId={search[PADDLE_ORDER_SEARCH_PARAM]}
+      initialPaddleTransactionId={paddleTransactionId}
+      initialShowHistory={search.show_history === true && !paddleTransactionId}
+    />
+  )
 }

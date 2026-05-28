@@ -59,6 +59,26 @@ export type WaffoPancakePaymentResponse = ApiResponse<
     }
   | string
 >
+export type PaddlePaymentResponse = ApiResponse<
+  | {
+      checkout_url?: string
+      transaction_id?: string
+      order_id?: string
+      sandbox?: boolean
+    }
+  | string
+>
+export type PaddleTopUpStatusResponse = ApiResponse<PaddleTopUpStatus>
+
+export interface PaddleTopUpStatus {
+  order_id: string
+  transaction_id?: string
+  status: TopupStatus
+  amount: number
+  money: number
+  create_time: number
+  complete_time?: number
+}
 
 /**
  * Creem product configuration
@@ -150,6 +170,14 @@ export interface TopupInfo {
   enable_waffo_pancake_topup?: boolean
   /** Minimum topup amount for Waffo Pancake */
   waffo_pancake_min_topup?: number
+  /** Whether Paddle topup is enabled */
+  enable_paddle_topup?: boolean
+  /** Minimum topup amount for Paddle */
+  paddle_min_topup?: number
+  /** Paddle sandbox mode */
+  paddle_sandbox?: boolean
+  /** Public Paddle.js client-side token */
+  paddle_client_token?: string
   /** Whether redemption code usage is enabled */
   enable_redemption?: boolean
   /** Whether compliance confirmation has been completed */
@@ -205,6 +233,14 @@ export interface WaffoPancakePaymentRequest {
 }
 
 /**
+ * Paddle payment request parameters
+ */
+export interface PaddlePaymentRequest {
+  /** Topup amount */
+  amount: number
+}
+
+/**
  * Amount calculation request
  */
 export interface AmountRequest {
@@ -247,7 +283,7 @@ export interface UserWalletData {
 /**
  * Topup record status
  */
-export type TopupStatus = 'success' | 'pending' | 'expired'
+export type TopupStatus = 'success' | 'pending' | 'failed' | 'expired'
 
 /**
  * Topup billing record
@@ -265,6 +301,12 @@ export interface TopupRecord {
   trade_no: string
   /** Payment method type */
   payment_method: string
+  /** Upstream payment provider */
+  payment_provider?: string
+  /** Upstream payment gateway transaction/order number */
+  gateway_trade_no?: string
+  /** Upstream payment currency */
+  payment_currency?: string
   /** Creation timestamp */
   create_time: number
   /** Completion timestamp */

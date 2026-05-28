@@ -21,6 +21,9 @@ import {
   DEFAULT_PRESET_MULTIPLIERS,
   DEFAULT_PAYMENT_TYPE,
   DEFAULT_MIN_TOPUP,
+  PADDLE_ORDER_SEARCH_PARAM,
+  PADDLE_TRANSACTION_SEARCH_PARAM,
+  PADDLE_WALLET_ROUTE,
 } from '../constants'
 import type { PresetAmount, TopupInfo } from '../types'
 
@@ -87,6 +90,38 @@ export function isWaffoPancakePayment(paymentType: string): boolean {
 }
 
 /**
+ * Check if payment method is Paddle.
+ */
+export function isPaddlePayment(paymentType: string): boolean {
+  return paymentType === PAYMENT_TYPES.PADDLE
+}
+
+/**
+ * Build an authenticated wallet URL that reopens Paddle Checkout for a
+ * transaction returned by the backend.
+ */
+export function buildPaddleWalletCheckoutUrl(transactionId: string): string {
+  const url = new URL(PADDLE_WALLET_ROUTE, window.location.origin)
+  url.searchParams.set(PADDLE_TRANSACTION_SEARCH_PARAM, transactionId.trim())
+  return `${url.pathname}${url.search}`
+}
+
+export function buildPaddleWalletCheckoutUrlWithOrder(
+  transactionId: string,
+  orderId?: string
+): string {
+  const url = new URL(
+    buildPaddleWalletCheckoutUrl(transactionId),
+    window.location.origin
+  )
+  const normalizedOrderId = orderId?.trim()
+  if (normalizedOrderId) {
+    url.searchParams.set(PADDLE_ORDER_SEARCH_PARAM, normalizedOrderId)
+  }
+  return `${url.pathname}${url.search}`
+}
+
+/**
  * Get default payment type from topup info
  */
 export function getDefaultPaymentType(topupInfo: TopupInfo | null): string {
@@ -111,6 +146,10 @@ export function getDefaultPaymentType(topupInfo: TopupInfo | null): string {
     return PAYMENT_TYPES.WAFFO_PANCAKE
   }
 
+  if (topupInfo.enable_paddle_topup) {
+    return PAYMENT_TYPES.PADDLE
+  }
+
   return DEFAULT_PAYMENT_TYPE
 }
 
@@ -122,8 +161,12 @@ export function getMinTopupAmount(topupInfo: TopupInfo | null): number {
     return DEFAULT_MIN_TOPUP
   }
 
-  if (topupInfo.enable_online_topup) {
-    return topupInfo.min_topup
+  const methodMinimums = topupInfo.pay_methods
+    ?.map((method) => Number(method.min_topup))
+    .filter((amount) => Number.isFinite(amount) && amount > 0)
+
+  if (methodMinimums?.length) {
+    return Math.min(...methodMinimums)
   }
 
   if (topupInfo.enable_stripe_topup) {
@@ -136,6 +179,14 @@ export function getMinTopupAmount(topupInfo: TopupInfo | null): number {
 
   if (topupInfo.enable_waffo_pancake_topup) {
     return topupInfo.waffo_pancake_min_topup || DEFAULT_MIN_TOPUP
+  }
+
+  if (topupInfo.enable_paddle_topup) {
+    return topupInfo.paddle_min_topup || DEFAULT_MIN_TOPUP
+  }
+
+  if (topupInfo.enable_online_topup) {
+    return topupInfo.min_topup
   }
 
   return DEFAULT_MIN_TOPUP

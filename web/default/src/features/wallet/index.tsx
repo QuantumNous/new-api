@@ -16,12 +16,15 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
+import { toast } from 'sonner'
 import { getSelf } from '@/lib/api'
 import { useStatus } from '@/hooks/use-status'
 import { useSystemConfig } from '@/hooks/use-system-config'
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { SectionPageLayout } from '@/components/layout'
+import { getPaddleTopUpStatus, isApiSuccess } from './api'
 import { AffiliateRewardsCard } from './components/affiliate-rewards-card'
 import { BillingHistoryDialog } from './components/dialogs/billing-history-dialog'
 import { CreemConfirmDialog } from './components/dialogs/creem-confirm-dialog'
@@ -30,7 +33,11 @@ import { TransferDialog } from './components/dialogs/transfer-dialog'
 import { RechargeFormCard } from './components/recharge-form-card'
 import { SubscriptionPlansCard } from './components/subscription-plans-card'
 import { WalletStatsCard } from './components/wallet-stats-card'
-import { DEFAULT_DISCOUNT_RATE } from './constants'
+import {
+  DEFAULT_DISCOUNT_RATE,
+  PADDLE_ORDER_SEARCH_PARAM,
+  PADDLE_TRANSACTION_SEARCH_PARAM,
+} from './constants'
 import {
   useTopupInfo,
   usePayment,
@@ -45,6 +52,7 @@ import {
   getMinTopupAmount,
   isWaffoPancakePayment,
 } from './lib'
+import { openPaddleCheckoutForTransaction } from './lib/paddle-checkout'
 import type {
   UserWalletData,
   PaymentMethod,
@@ -54,6 +62,28 @@ import type {
 
 interface WalletProps {
   initialShowHistory?: boolean
+  initialPaddleOrderId?: string
+  initialPaddleTransactionId?: string
+}
+
+type PaddleCheckoutNotice = {
+  variant?: 'default' | 'destructive'
+  title: string
+  description: string
+}
+
+type PaddleStatusPollParams = {
+  transactionId?: string
+  orderId?: string
+}
+
+const PADDLE_STATUS_POLL_INTERVAL_MS = 2000
+const PADDLE_STATUS_POLL_ATTEMPTS = 15
+
+function waitForPaddleStatusPollInterval(): Promise<void> {
+  return new Promise((resolve) => {
+    window.setTimeout(resolve, PADDLE_STATUS_POLL_INTERVAL_MS)
+  })
 }
 
 export function Wallet(props: WalletProps) {
@@ -73,6 +103,10 @@ export function Wallet(props: WalletProps) {
   const [selectedCreemProduct, setSelectedCreemProduct] =
     useState<CreemProduct | null>(null)
   const [showSubscriptionPanel, setShowSubscriptionPanel] = useState(true)
+  const [paddleCheckoutNotice, setPaddleCheckoutNotice] =
+    useState<PaddleCheckoutNotice | null>(null)
+  const handledPaddleTransactionRef = useRef<string | null>(null)
+  const paddleCheckoutCompletedRef = useRef(false)
 
   const { status } = useStatus()
   const { currency } = useSystemConfig()
@@ -119,6 +153,76 @@ export function Wallet(props: WalletProps) {
     }
   }, [])
 
+  const pollPaddleTopUpStatus = useCallback(
+    async (params: PaddleStatusPollParams) => {
+      const transactionId = params.transactionId?.trim()
+      const orderId = params.orderId?.trim()
+      if (!transactionId && !orderId) {
+        return false
+      }
+
+      for (
+        let attempt = 0;
+        attempt < PADDLE_STATUS_POLL_ATTEMPTS;
+        attempt += 1
+      ) {
+        try {
+          const response = await getPaddleTopUpStatus({
+            transactionId,
+            orderId,
+          })
+          if (isApiSuccess(response) && response.data) {
+            if (response.data.status === 'success') {
+              setPaddleCheckoutNotice({
+                title: t('Paddle payment completed'),
+                description: t('Your wallet balance has been refreshed.'),
+              })
+              await fetchUser()
+              return true
+            }
+
+            if (
+              response.data.status === 'failed' ||
+              response.data.status === 'expired'
+            ) {
+              setPaddleCheckoutNotice({
+                variant: 'destructive',
+                title: t('Paddle payment failed'),
+                description: t(
+                  'The Paddle top-up did not complete. Please start a new top-up if you were not charged.'
+                ),
+              })
+              return false
+            }
+          }
+        } catch (_error) {
+          // Keep polling briefly because Paddle's webhook can arrive a few
+          // seconds after the checkout completion event.
+        }
+
+        if (attempt < PADDLE_STATUS_POLL_ATTEMPTS - 1) {
+          setPaddleCheckoutNotice({
+            title: t('Waiting for Paddle payment confirmation'),
+            description: t(
+              'Paddle accepted the checkout. Waiting for the payment webhook to update your wallet.'
+            ),
+          })
+          await waitForPaddleStatusPollInterval()
+        }
+      }
+
+      setPaddleCheckoutNotice({
+        title: t('Paddle payment is still pending'),
+        description: t(
+          'Your wallet balance will update automatically after Paddle confirms the payment.'
+        ),
+      })
+      await fetchUser()
+      return false
+    },
+    [fetchUser, t]
+  )
+
   useEffect(() => {
     fetchUser()
   }, [fetchUser])
@@ -129,6 +233,192 @@ export function Wallet(props: WalletProps) {
       window.history.replaceState({}, '', window.location.pathname)
     }
   }, [props.initialShowHistory])
+
+  useEffect(() => {
+    if (!topupInfo) return
+
+    const url = new URL(window.location.href)
+    const transactionId = (
+      props.initialPaddleTransactionId ||
+      url.searchParams.get(PADDLE_TRANSACTION_SEARCH_PARAM) ||
+      ''
+    ).trim()
+    const orderId = (
+      props.initialPaddleOrderId ||
+      url.searchParams.get(PADDLE_ORDER_SEARCH_PARAM) ||
+      ''
+    ).trim()
+    const handledKey = `${transactionId}:${orderId}`
+    if (
+      (!transactionId && !orderId) ||
+      handledPaddleTransactionRef.current === handledKey
+    ) {
+      return
+    }
+
+    handledPaddleTransactionRef.current = handledKey
+    paddleCheckoutCompletedRef.current = false
+    url.searchParams.delete(PADDLE_ORDER_SEARCH_PARAM)
+    url.searchParams.delete(PADDLE_TRANSACTION_SEARCH_PARAM)
+    window.history.replaceState(
+      {},
+      '',
+      `${url.pathname}${url.search}${url.hash}`
+    )
+
+    setPaddleCheckoutNotice({
+      title: t('Checking Paddle payment status'),
+      description: t('Looking up the wallet top-up result from Paddle.'),
+    })
+
+    const openCheckout = (checkoutTransactionId: string) => {
+      setPaddleCheckoutNotice({
+        title: t('Opening Paddle checkout'),
+        description: t(
+          'Transaction {{transactionId}} is being opened in Paddle Checkout.',
+          { transactionId: checkoutTransactionId }
+        ),
+      })
+
+      const clientToken = topupInfo.paddle_client_token?.trim()
+      if (!clientToken) {
+        const message = t(
+          'Paddle client-side token is missing. Please configure it in System Settings.'
+        )
+        setPaddleCheckoutNotice({
+          variant: 'destructive',
+          title: t('Unable to open Paddle checkout'),
+          description: message,
+        })
+        toast.error(message)
+        return
+      }
+
+      openPaddleCheckoutForTransaction({
+        transactionId: checkoutTransactionId,
+        clientToken,
+        sandbox: topupInfo.paddle_sandbox !== false,
+        onLoaded: () => {
+          if (paddleCheckoutCompletedRef.current) {
+            return
+          }
+
+          setPaddleCheckoutNotice({
+            title: t('Paddle checkout is open'),
+            description: t(
+              'Complete the payment in the Paddle checkout window to finish the top-up.'
+            ),
+          })
+        },
+        onCompleted: async () => {
+          if (paddleCheckoutCompletedRef.current) {
+            return
+          }
+
+          paddleCheckoutCompletedRef.current = true
+          setPaddleCheckoutNotice({
+            title: t('Paddle payment completed'),
+            description: t('Your wallet balance is being refreshed.'),
+          })
+          await pollPaddleTopUpStatus({
+            transactionId: checkoutTransactionId,
+            orderId,
+          })
+        },
+        onClosed: () => {
+          if (paddleCheckoutCompletedRef.current) {
+            return
+          }
+
+          setPaddleCheckoutNotice({
+            title: t('Paddle checkout was closed'),
+            description: t(
+              'No Paddle payment was confirmed. You can reopen checkout from the pending order if needed.'
+            ),
+          })
+          void pollPaddleTopUpStatus({
+            transactionId: checkoutTransactionId,
+            orderId,
+          })
+        },
+      }).catch((error) => {
+        const message =
+          error instanceof Error && error.message
+            ? error.message
+            : t('Failed to open Paddle checkout')
+        setPaddleCheckoutNotice({
+          variant: 'destructive',
+          title: t('Unable to open Paddle checkout'),
+          description: message,
+        })
+        toast.error(message)
+      })
+    }
+
+    const handlePaddleReturn = async () => {
+      try {
+        const response = await getPaddleTopUpStatus({
+          transactionId,
+          orderId,
+        })
+        if (isApiSuccess(response) && response.data) {
+          if (response.data.status === 'success') {
+            paddleCheckoutCompletedRef.current = true
+            setPaddleCheckoutNotice({
+              title: t('Paddle payment completed'),
+              description: t('Your wallet balance is being refreshed.'),
+            })
+            await fetchUser()
+            return
+          }
+
+          if (
+            response.data.status === 'failed' ||
+            response.data.status === 'expired'
+          ) {
+            setPaddleCheckoutNotice({
+              variant: 'destructive',
+              title: t('Paddle payment failed'),
+              description: t(
+                'The Paddle top-up did not complete. Please start a new top-up if you were not charged.'
+              ),
+            })
+            return
+          }
+
+          const checkoutTransactionId =
+            response.data.transaction_id || transactionId
+          if (checkoutTransactionId) {
+            openCheckout(checkoutTransactionId)
+            return
+          }
+        }
+      } catch (_error) {
+        // If local status is temporarily unavailable, still try to resume the
+        // checkout when we have Paddle's transaction id from the return URL.
+      }
+
+      if (transactionId) {
+        openCheckout(transactionId)
+        return
+      }
+
+      setPaddleCheckoutNotice({
+        variant: 'destructive',
+        title: t('Unable to open Paddle checkout'),
+        description: t('Paddle transaction ID is missing from the return URL.'),
+      })
+    }
+
+    void handlePaddleReturn()
+  }, [
+    fetchUser,
+    pollPaddleTopUpStatus,
+    props.initialPaddleOrderId,
+    props.initialPaddleTransactionId,
+    t,
+    topupInfo,
+  ])
 
   // Initialize topup amount when topup info is loaded
   useEffect(() => {
@@ -263,6 +553,15 @@ export function Wallet(props: WalletProps) {
         <SectionPageLayout.Title>{t('Wallet')}</SectionPageLayout.Title>
         <SectionPageLayout.Content>
           <div className='mx-auto flex w-full max-w-7xl flex-col gap-4 sm:gap-5'>
+            {paddleCheckoutNotice ? (
+              <Alert variant={paddleCheckoutNotice.variant}>
+                <AlertTitle>{paddleCheckoutNotice.title}</AlertTitle>
+                <AlertDescription>
+                  {paddleCheckoutNotice.description}
+                </AlertDescription>
+              </Alert>
+            ) : null}
+
             <WalletStatsCard user={user} loading={userLoading} />
 
             <div

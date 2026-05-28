@@ -21,7 +21,7 @@ import * as z from 'zod'
 import { useForm, type Resolver } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { Code2, Eye, ShieldAlert } from 'lucide-react'
+import { CircleHelp, Code2, Eye, ShieldAlert } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
@@ -45,6 +45,12 @@ import { Input } from '@/components/ui/input'
 import { Separator } from '@/components/ui/separator'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip'
 import { RiskAcknowledgementDialog } from '@/components/risk-acknowledgement-dialog'
 import { confirmPaymentCompliance } from '../api'
 import {
@@ -78,88 +84,286 @@ import {
   type WaffoSettingsValues,
 } from './waffo-settings-section'
 
-const paymentSchema = z.object({
-  PayAddress: z.string().refine((value) => {
-    const trimmed = value.trim()
-    if (!trimmed) return true
-    return /^https?:\/\//.test(trimmed)
-  }, 'Provide a valid callback URL starting with http:// or https://'),
-  EpayId: z.string(),
-  EpayKey: z.string(),
-  Price: z.coerce.number().min(0),
-  MinTopUp: z.coerce.number().min(0),
-  CustomCallbackAddress: z.string().refine((value) => {
-    const trimmed = value.trim()
-    if (!trimmed) return true
-    return /^https?:\/\//.test(trimmed)
-  }, 'Provide a valid URL starting with http:// or https://'),
-  PayMethods: z.string().superRefine((value, ctx) => {
-    const error = getJsonError(value)
-    if (error) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: error,
+const PADDLE_SANDBOX_API_KEY_PREFIX = 'pdl_sdbx_apikey_'
+const PADDLE_LIVE_API_KEY_PREFIX = 'pdl_live_apikey_'
+const PADDLE_INCOMPLETE_API_KEY_PREFIX = 'apikey_'
+const PADDLE_SANDBOX_CLIENT_TOKEN_PREFIX = 'test_'
+const PADDLE_LIVE_CLIENT_TOKEN_PREFIX = 'live_'
+const PADDLE_WEBHOOK_SECRET_PREFIX = 'pdl_ntfset_'
+const PADDLE_NOTIFICATION_ID_PREFIX = 'ntfset_'
+const PADDLE_PRODUCT_ID_PREFIX = 'pro_'
+const PADDLE_SANDBOX_API_KEY_PATTERN =
+  /^pdl_sdbx_apikey_[a-z\d]{26}_[a-zA-Z\d]{22}_[a-zA-Z\d]{3}$/
+const PADDLE_LIVE_API_KEY_PATTERN =
+  /^pdl_live_apikey_[a-z\d]{26}_[a-zA-Z\d]{22}_[a-zA-Z\d]{3}$/
+const PADDLE_SANDBOX_CLIENT_TOKEN_PATTERN = /^test_[a-zA-Z\d]{27}$/
+const PADDLE_LIVE_CLIENT_TOKEN_PATTERN = /^live_[a-zA-Z\d]{27}$/
+const PADDLE_WEBHOOK_SECRET_PATTERN =
+  /^pdl_ntfset_[a-zA-Z\d]{26}_[a-zA-Z\d]{32}$/
+const PADDLE_PRODUCT_ID_PATTERN = /^pro_[a-z\d]{26}$/
+const PADDLE_CURRENCY_PATTERN = /^[A-Z]{3}$/
+const PADDLE_SANDBOX_API_KEY_ERROR = `Paddle sandbox API key must be the full 69-character key matching ${PADDLE_SANDBOX_API_KEY_PREFIX}..._..._...`
+const PADDLE_LIVE_API_KEY_ERROR = `Paddle live API key must be the full 69-character key matching ${PADDLE_LIVE_API_KEY_PREFIX}..._..._...; ${PADDLE_INCOMPLETE_API_KEY_PREFIX} or ${PADDLE_LIVE_API_KEY_PREFIX} without the secret suffix is incomplete.`
+const PADDLE_SANDBOX_CLIENT_TOKEN_ERROR = `Paddle sandbox client-side token must match ${PADDLE_SANDBOX_CLIENT_TOKEN_PREFIX} plus 27 letters or digits.`
+const PADDLE_LIVE_CLIENT_TOKEN_ERROR = `Paddle live client-side token must match ${PADDLE_LIVE_CLIENT_TOKEN_PREFIX} plus 27 letters or digits.`
+const PADDLE_WEBHOOK_SECRET_ERROR = `Paddle endpoint signing secret must match ${PADDLE_WEBHOOK_SECRET_PREFIX}..._...; ${PADDLE_NOTIFICATION_ID_PREFIX} is only the notification destination ID.`
+const PADDLE_PRODUCT_ID_ERROR = `Paddle product ID must match ${PADDLE_PRODUCT_ID_PREFIX} plus 26 lowercase letters or digits.`
+const PADDLE_CURRENCY_ERROR =
+  'Paddle currency must be a three-letter ISO 4217 currency code.'
+const PADDLE_PRODUCT_ID_REQUIRED_ERROR =
+  'Paddle product ID is required when Paddle payment method is enabled.'
+const PADDLE_CURRENCY_REQUIRED_ERROR =
+  'Paddle currency is required when Paddle payment method is enabled.'
+const PADDLE_UNIT_PRICE_REQUIRED_ERROR =
+  'Paddle unit price must be greater than 0 when Paddle payment method is enabled.'
+
+type FormLabelWithHelpProps = {
+  label: React.ReactNode
+  help: React.ReactNode
+  helpLabel: string
+}
+
+function FormLabelWithHelp(props: FormLabelWithHelpProps) {
+  return (
+    <div className='flex items-center gap-1.5'>
+      <FormLabel>{props.label}</FormLabel>
+      <TooltipProvider delay={100}>
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <button
+                type='button'
+                aria-label={props.helpLabel}
+                className='text-muted-foreground hover:text-foreground focus-visible:ring-ring/50 inline-flex rounded-sm transition-colors focus-visible:ring-2 focus-visible:outline-none'
+              />
+            }
+          >
+            <CircleHelp className='size-3.5' aria-hidden='true' />
+          </TooltipTrigger>
+          <TooltipContent
+            side='top'
+            align='start'
+            className='max-w-80 items-start whitespace-normal text-left leading-relaxed'
+          >
+            {props.help}
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
+    </div>
+  )
+}
+
+function addOptionalPatternIssue(
+  ctx: z.RefinementCtx,
+  path: string,
+  value: string,
+  pattern: RegExp,
+  message: string
+): void {
+  const normalized = value.trim()
+  if (!normalized || pattern.test(normalized)) {
+    return
+  }
+
+  ctx.addIssue({
+    code: z.ZodIssueCode.custom,
+    path: [path],
+    message,
+  })
+}
+
+function addRequiredStringIssue(
+  ctx: z.RefinementCtx,
+  path: string,
+  value: string,
+  message: string
+): void {
+  if (value.trim()) {
+    return
+  }
+
+  ctx.addIssue({
+    code: z.ZodIssueCode.custom,
+    path: [path],
+    message,
+  })
+}
+
+function paymentMethodsIncludeType(value: string, type: string): boolean {
+  try {
+    const parsed = JSON.parse(value)
+    return (
+      Array.isArray(parsed) &&
+      parsed.some((method) => {
+        if (!method || typeof method !== 'object') {
+          return false
+        }
+        const candidate = (method as { type?: unknown }).type
+        return typeof candidate === 'string' && candidate.trim() === type
       })
-    }
-  }),
-  AmountOptions: z.string().superRefine((value, ctx) => {
-    const error = getJsonError(value, (parsed) => Array.isArray(parsed))
-    if (error) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: error,
-      })
-    }
-  }),
-  AmountDiscount: z.string().superRefine((value, ctx) => {
-    const error = getJsonError(
-      value,
-      (parsed) =>
-        !!parsed && typeof parsed === 'object' && !Array.isArray(parsed)
     )
-    if (error) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: error,
-      })
+  } catch (_error) {
+    return false
+  }
+}
+
+const paymentSchema = z
+  .object({
+    PayAddress: z.string().refine((value) => {
+      const trimmed = value.trim()
+      if (!trimmed) return true
+      return /^https?:\/\//.test(trimmed)
+    }, 'Provide a valid callback URL starting with http:// or https://'),
+    EpayId: z.string(),
+    EpayKey: z.string(),
+    Price: z.coerce.number().min(0),
+    MinTopUp: z.coerce.number().min(0),
+    CustomCallbackAddress: z.string().refine((value) => {
+      const trimmed = value.trim()
+      if (!trimmed) return true
+      return /^https?:\/\//.test(trimmed)
+    }, 'Provide a valid URL starting with http:// or https://'),
+    PayMethods: z.string().superRefine((value, ctx) => {
+      const error = getJsonError(value)
+      if (error) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: error,
+        })
+      }
+    }),
+    AmountOptions: z.string().superRefine((value, ctx) => {
+      const error = getJsonError(value, (parsed) => Array.isArray(parsed))
+      if (error) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: error,
+        })
+      }
+    }),
+    AmountDiscount: z.string().superRefine((value, ctx) => {
+      const error = getJsonError(
+        value,
+        (parsed) =>
+          !!parsed && typeof parsed === 'object' && !Array.isArray(parsed)
+      )
+      if (error) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: error,
+        })
+      }
+    }),
+    StripeApiSecret: z.string(),
+    StripeWebhookSecret: z.string(),
+    StripePriceId: z.string(),
+    StripeUnitPrice: z.coerce.number().min(0),
+    StripeMinTopUp: z.coerce.number().min(0),
+    StripePromotionCodesEnabled: z.boolean(),
+    CreemApiKey: z.string(),
+    CreemWebhookSecret: z.string(),
+    CreemTestMode: z.boolean(),
+    CreemProducts: z.string().superRefine((value, ctx) => {
+      const error = getJsonError(value, (parsed) => Array.isArray(parsed))
+      if (error) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: error,
+        })
+      }
+    }),
+    PaddleApiKey: z.string(),
+    PaddleClientToken: z.string(),
+    PaddleWebhookSecret: z.string(),
+    PaddleSandbox: z.boolean(),
+    PaddleProductId: z.string(),
+    PaddleCurrency: z.string(),
+    PaddleUnitPrice: z.coerce.number().min(0),
+    PaddleMinTopUp: z.coerce.number().min(1),
+    WaffoEnabled: z.boolean(),
+    WaffoApiKey: z.string(),
+    WaffoPrivateKey: z.string(),
+    WaffoPublicCert: z.string(),
+    WaffoSandboxPublicCert: z.string(),
+    WaffoSandboxApiKey: z.string(),
+    WaffoSandboxPrivateKey: z.string(),
+    WaffoSandbox: z.boolean(),
+    WaffoMerchantId: z.string(),
+    WaffoCurrency: z.string(),
+    WaffoUnitPrice: z.coerce.number().min(0),
+    WaffoMinTopUp: z.coerce.number().min(1),
+    WaffoNotifyUrl: z.string(),
+    WaffoReturnUrl: z.string(),
+    WaffoPancakeMerchantID: z.string(),
+    WaffoPancakePrivateKey: z.string(),
+    WaffoPancakeReturnURL: z.string(),
+  })
+  .superRefine((values, ctx) => {
+    addOptionalPatternIssue(
+      ctx,
+      'PaddleApiKey',
+      values.PaddleApiKey,
+      values.PaddleSandbox
+        ? PADDLE_SANDBOX_API_KEY_PATTERN
+        : PADDLE_LIVE_API_KEY_PATTERN,
+      values.PaddleSandbox
+        ? PADDLE_SANDBOX_API_KEY_ERROR
+        : PADDLE_LIVE_API_KEY_ERROR
+    )
+    addOptionalPatternIssue(
+      ctx,
+      'PaddleClientToken',
+      values.PaddleClientToken,
+      values.PaddleSandbox
+        ? PADDLE_SANDBOX_CLIENT_TOKEN_PATTERN
+        : PADDLE_LIVE_CLIENT_TOKEN_PATTERN,
+      values.PaddleSandbox
+        ? PADDLE_SANDBOX_CLIENT_TOKEN_ERROR
+        : PADDLE_LIVE_CLIENT_TOKEN_ERROR
+    )
+    addOptionalPatternIssue(
+      ctx,
+      'PaddleWebhookSecret',
+      values.PaddleWebhookSecret,
+      PADDLE_WEBHOOK_SECRET_PATTERN,
+      PADDLE_WEBHOOK_SECRET_ERROR
+    )
+    addOptionalPatternIssue(
+      ctx,
+      'PaddleProductId',
+      values.PaddleProductId,
+      PADDLE_PRODUCT_ID_PATTERN,
+      PADDLE_PRODUCT_ID_ERROR
+    )
+    addOptionalPatternIssue(
+      ctx,
+      'PaddleCurrency',
+      values.PaddleCurrency.toUpperCase(),
+      PADDLE_CURRENCY_PATTERN,
+      PADDLE_CURRENCY_ERROR
+    )
+    if (paymentMethodsIncludeType(values.PayMethods, 'paddle')) {
+      addRequiredStringIssue(
+        ctx,
+        'PaddleProductId',
+        values.PaddleProductId,
+        PADDLE_PRODUCT_ID_REQUIRED_ERROR
+      )
+      addRequiredStringIssue(
+        ctx,
+        'PaddleCurrency',
+        values.PaddleCurrency,
+        PADDLE_CURRENCY_REQUIRED_ERROR
+      )
+      if (values.PaddleUnitPrice <= 0) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['PaddleUnitPrice'],
+          message: PADDLE_UNIT_PRICE_REQUIRED_ERROR,
+        })
+      }
     }
-  }),
-  StripeApiSecret: z.string(),
-  StripeWebhookSecret: z.string(),
-  StripePriceId: z.string(),
-  StripeUnitPrice: z.coerce.number().min(0),
-  StripeMinTopUp: z.coerce.number().min(0),
-  StripePromotionCodesEnabled: z.boolean(),
-  CreemApiKey: z.string(),
-  CreemWebhookSecret: z.string(),
-  CreemTestMode: z.boolean(),
-  CreemProducts: z.string().superRefine((value, ctx) => {
-    const error = getJsonError(value, (parsed) => Array.isArray(parsed))
-    if (error) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: error,
-      })
-    }
-  }),
-  WaffoEnabled: z.boolean(),
-  WaffoApiKey: z.string(),
-  WaffoPrivateKey: z.string(),
-  WaffoPublicCert: z.string(),
-  WaffoSandboxPublicCert: z.string(),
-  WaffoSandboxApiKey: z.string(),
-  WaffoSandboxPrivateKey: z.string(),
-  WaffoSandbox: z.boolean(),
-  WaffoMerchantId: z.string(),
-  WaffoCurrency: z.string(),
-  WaffoUnitPrice: z.coerce.number().min(0),
-  WaffoMinTopUp: z.coerce.number().min(1),
-  WaffoNotifyUrl: z.string(),
-  WaffoReturnUrl: z.string(),
-  WaffoPancakeMerchantID: z.string(),
-  WaffoPancakePrivateKey: z.string(),
-  WaffoPancakeReturnURL: z.string(),
-})
+  })
 
 type PaymentFormValues = z.infer<typeof paymentSchema>
 type WaffoFormFieldValues = Omit<WaffoSettingsValues, 'WaffoPayMethods'>
@@ -419,6 +623,14 @@ export function PaymentSettingsSection({
       CreemWebhookSecret: values.CreemWebhookSecret.trim(),
       CreemTestMode: values.CreemTestMode,
       CreemProducts: values.CreemProducts.trim(),
+      PaddleApiKey: values.PaddleApiKey.trim(),
+      PaddleClientToken: values.PaddleClientToken.trim(),
+      PaddleWebhookSecret: values.PaddleWebhookSecret.trim(),
+      PaddleSandbox: values.PaddleSandbox,
+      PaddleProductId: values.PaddleProductId.trim(),
+      PaddleCurrency: values.PaddleCurrency.trim().toUpperCase() || 'USD',
+      PaddleUnitPrice: values.PaddleUnitPrice,
+      PaddleMinTopUp: values.PaddleMinTopUp,
       WaffoEnabled: values.WaffoEnabled,
       WaffoSandbox: values.WaffoSandbox,
       WaffoMerchantId: values.WaffoMerchantId.trim(),
@@ -464,6 +676,14 @@ export function PaymentSettingsSection({
       CreemWebhookSecret: initialRef.current.CreemWebhookSecret.trim(),
       CreemTestMode: initialRef.current.CreemTestMode,
       CreemProducts: initialRef.current.CreemProducts.trim(),
+      PaddleApiKey: initialRef.current.PaddleApiKey.trim(),
+      PaddleClientToken: initialRef.current.PaddleClientToken.trim(),
+      PaddleWebhookSecret: initialRef.current.PaddleWebhookSecret.trim(),
+      PaddleSandbox: initialRef.current.PaddleSandbox,
+      PaddleProductId: initialRef.current.PaddleProductId.trim(),
+      PaddleCurrency: initialRef.current.PaddleCurrency.trim() || 'USD',
+      PaddleUnitPrice: initialRef.current.PaddleUnitPrice,
+      PaddleMinTopUp: initialRef.current.PaddleMinTopUp,
       WaffoEnabled: initialRef.current.WaffoEnabled,
       WaffoSandbox: initialRef.current.WaffoSandbox,
       WaffoMerchantId: initialRef.current.WaffoMerchantId.trim(),
@@ -609,6 +829,53 @@ export function PaymentSettingsSection({
       normalizeJsonForComparison(initial.CreemProducts)
     ) {
       updates.push({ key: 'CreemProducts', value: sanitized.CreemProducts })
+    }
+
+    if (
+      sanitized.PaddleApiKey &&
+      sanitized.PaddleApiKey !== initial.PaddleApiKey
+    ) {
+      updates.push({ key: 'PaddleApiKey', value: sanitized.PaddleApiKey })
+    }
+
+    if (
+      sanitized.PaddleClientToken &&
+      sanitized.PaddleClientToken !== initial.PaddleClientToken
+    ) {
+      updates.push({
+        key: 'PaddleClientToken',
+        value: sanitized.PaddleClientToken,
+      })
+    }
+
+    if (
+      sanitized.PaddleWebhookSecret &&
+      sanitized.PaddleWebhookSecret !== initial.PaddleWebhookSecret
+    ) {
+      updates.push({
+        key: 'PaddleWebhookSecret',
+        value: sanitized.PaddleWebhookSecret,
+      })
+    }
+
+    if (sanitized.PaddleSandbox !== initial.PaddleSandbox) {
+      updates.push({ key: 'PaddleSandbox', value: sanitized.PaddleSandbox })
+    }
+
+    if (sanitized.PaddleProductId !== initial.PaddleProductId) {
+      updates.push({ key: 'PaddleProductId', value: sanitized.PaddleProductId })
+    }
+
+    if (sanitized.PaddleCurrency !== initial.PaddleCurrency) {
+      updates.push({ key: 'PaddleCurrency', value: sanitized.PaddleCurrency })
+    }
+
+    if (sanitized.PaddleUnitPrice !== initial.PaddleUnitPrice) {
+      updates.push({ key: 'PaddleUnitPrice', value: sanitized.PaddleUnitPrice })
+    }
+
+    if (sanitized.PaddleMinTopUp !== initial.PaddleMinTopUp) {
+      updates.push({ key: 'PaddleMinTopUp', value: sanitized.PaddleMinTopUp })
     }
 
     if (sanitized.WaffoEnabled !== initial.WaffoEnabled) {
@@ -777,6 +1044,37 @@ export function PaymentSettingsSection({
     WaffoPancakePrivateKey: currentFormValues.WaffoPancakePrivateKey,
     WaffoPancakeReturnURL: currentFormValues.WaffoPancakeReturnURL,
   }
+  const paddleApiKeyPrefix = currentFormValues.PaddleSandbox
+    ? PADDLE_SANDBOX_API_KEY_PREFIX
+    : PADDLE_LIVE_API_KEY_PREFIX
+  const paddleClientTokenPrefix = currentFormValues.PaddleSandbox
+    ? PADDLE_SANDBOX_CLIENT_TOKEN_PREFIX
+    : PADDLE_LIVE_CLIENT_TOKEN_PREFIX
+  const paddleApiKeyDescription = currentFormValues.PaddleSandbox
+    ? t(
+        'Use the full Paddle sandbox API key matching {{prefix}}..._..._...; it is 69 characters and contains five underscores.',
+        {
+          prefix: PADDLE_SANDBOX_API_KEY_PREFIX,
+        }
+      )
+    : t(
+        'Use the full Paddle live API key matching {{prefix}}..._..._...; it is 69 characters and contains five underscores. Values starting with only {{incompletePrefix}} are incomplete.',
+        {
+          prefix: PADDLE_LIVE_API_KEY_PREFIX,
+          incompletePrefix: PADDLE_INCOMPLETE_API_KEY_PREFIX,
+        }
+      )
+  const paddleClientTokenDescription = currentFormValues.PaddleSandbox
+    ? t(
+        'Use the Paddle sandbox client-side token matching {{prefix}} plus 27 letters or digits.',
+        { prefix: PADDLE_SANDBOX_CLIENT_TOKEN_PREFIX }
+      )
+    : t(
+        'Use the Paddle live client-side token matching {{prefix}} plus 27 letters or digits.',
+        {
+          prefix: PADDLE_LIVE_CLIENT_TOKEN_PREFIX,
+        }
+      )
 
   return (
     <SettingsSection title={t('Payment Gateway')}>
@@ -1510,6 +1808,274 @@ export function PaymentSettingsSection({
                 </FormItem>
               )}
             />
+          </div>
+
+          <Separator />
+
+          <div className='space-y-4'>
+            <div>
+              <h3 className='text-lg font-medium'>{t('Paddle Gateway')}</h3>
+              <p className='text-muted-foreground text-sm'>
+                {t('Configuration for Paddle Billing hosted checkout')}
+              </p>
+            </div>
+
+            <div className='rounded-md bg-blue-50 p-4 text-sm text-blue-900 dark:bg-blue-950 dark:text-blue-100'>
+              <p className='mb-2 font-medium'>{t('Webhook Configuration:')}</p>
+              <ul className='list-inside list-disc space-y-1'>
+                <li>
+                  {t('Webhook URL:')}{' '}
+                  <code className='rounded bg-blue-100 px-1 py-0.5 text-xs dark:bg-blue-900'>
+                    {'<ServerAddress>/api/paddle/webhook'}
+                  </code>
+                </li>
+                <li>
+                  {t('Checkout return URL:')}{' '}
+                  <code className='rounded bg-blue-100 px-1 py-0.5 text-xs dark:bg-blue-900'>
+                    {'<ServerAddress>/console/topup'}
+                  </code>
+                </li>
+                <li>
+                  {t('Required events:')}{' '}
+                  <code className='rounded bg-blue-100 px-1 py-0.5 text-xs dark:bg-blue-900'>
+                    {'transaction.paid'}
+                  </code>
+                </li>
+              </ul>
+            </div>
+
+            <FormField
+              control={form.control}
+              name='PaddleSandbox'
+              render={({ field }) => (
+                <SettingsSwitchItem>
+                  <SettingsSwitchContent>
+                    <FormLabelWithHelp
+                      label={t('Paddle Environment')}
+                      helpLabel={t('Show help')}
+                      help={
+                        <div className='space-y-1'>
+                          <p>
+                            {t(
+                              'Turn on to use Paddle sandbox credentials and test payments. Turn off to use live credentials and production payments.'
+                            )}
+                          </p>
+                          <p>
+                            {t(
+                              'Live checkout requires a Default Payment Link in Paddle Dashboard > Checkout settings. Set it to an approved website URL, such as {{url}}.',
+                              {
+                                url: '<ServerAddress>/console/topup',
+                              }
+                            )}
+                          </p>
+                          <p>
+                            {t(
+                              'After switching sandbox or live mode, save settings and reload the wallet page before testing checkout.'
+                            )}
+                          </p>
+                        </div>
+                      }
+                    />
+                  </SettingsSwitchContent>
+                  <FormControl>
+                    <Switch
+                      checked={field.value}
+                      onCheckedChange={field.onChange}
+                    />
+                  </FormControl>
+                </SettingsSwitchItem>
+              )}
+            />
+
+            <div className='grid gap-6 md:grid-cols-2 xl:grid-cols-4'>
+              <FormField
+                control={form.control}
+                name='PaddleApiKey'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabelWithHelp
+                      label={t('API Key')}
+                      helpLabel={t('Show help')}
+                      help={
+                        <>
+                          {paddleApiKeyDescription} {t('Leave blank unless updating.')}
+                        </>
+                      }
+                    />
+                    <FormControl>
+                      <Input
+                        type='password'
+                        placeholder={paddleApiKeyPrefix}
+                        autoComplete='new-password'
+                        {...field}
+                        onChange={(event) => field.onChange(event.target.value)}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name='PaddleClientToken'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabelWithHelp
+                      label={t('Client-side Token')}
+                      helpLabel={t('Show help')}
+                      help={
+                        <>
+                          {paddleClientTokenDescription}{' '}
+                          {t(
+                            'Required by Paddle.js checkout. Leave blank unless updating.'
+                          )}
+                        </>
+                      }
+                    />
+                    <FormControl>
+                      <Input
+                        type='password'
+                        placeholder={paddleClientTokenPrefix}
+                        autoComplete='new-password'
+                        {...field}
+                        onChange={(event) => field.onChange(event.target.value)}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name='PaddleWebhookSecret'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabelWithHelp
+                      label={t('Webhook Secret')}
+                      helpLabel={t('Show help')}
+                      help={t(
+                        'Use the endpoint signing secret from Paddle notifications. It matches {{secretPrefix}}..._..., not {{idPrefix}}. Leave blank unless updating.',
+                        {
+                          secretPrefix: PADDLE_WEBHOOK_SECRET_PREFIX,
+                          idPrefix: PADDLE_NOTIFICATION_ID_PREFIX,
+                        }
+                      )}
+                    />
+                    <FormControl>
+                      <Input
+                        type='password'
+                        placeholder={PADDLE_WEBHOOK_SECRET_PREFIX}
+                        autoComplete='new-password'
+                        {...field}
+                        onChange={(event) => field.onChange(event.target.value)}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name='PaddleProductId'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabelWithHelp
+                      label={t('Product ID')}
+                      helpLabel={t('Show help')}
+                      help={t(
+                        'Paddle product used for wallet top-ups. It matches {{prefix}} plus 26 lowercase letters or digits.',
+                        {
+                          prefix: PADDLE_PRODUCT_ID_PREFIX,
+                        }
+                      )}
+                    />
+                    <FormControl>
+                      <Input
+                        placeholder='pro_xxx'
+                        {...field}
+                        onChange={(event) => field.onChange(event.target.value)}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+
+            <div className='grid gap-6 md:grid-cols-3'>
+              <FormField
+                control={form.control}
+                name='PaddleCurrency'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabelWithHelp
+                      label={t('Currency')}
+                      helpLabel={t('Show help')}
+                      help={t('Paddle transaction currency code')}
+                    />
+                    <FormControl>
+                      <Input
+                        placeholder='USD'
+                        {...field}
+                        onChange={(event) =>
+                          field.onChange(event.target.value.toUpperCase())
+                        }
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name='PaddleUnitPrice'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabelWithHelp
+                      label={t('Unit price (payment currency / USD)')}
+                      helpLabel={t('Show help')}
+                      help={t('e.g., 1 means 1 payment currency per USD')}
+                    />
+                    <FormControl>
+                      <Input
+                        type='number'
+                        step='0.01'
+                        min={0}
+                        {...safeNumberFieldProps(field)}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name='PaddleMinTopUp'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabelWithHelp
+                      label={t('Minimum top-up (USD)')}
+                      helpLabel={t('Show help')}
+                      help={t('Smallest USD amount users can recharge')}
+                    />
+                    <FormControl>
+                      <Input
+                        type='number'
+                        step='1'
+                        min={1}
+                        {...safeNumberFieldProps(field)}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
           </div>
 
           <Separator />

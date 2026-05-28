@@ -21,21 +21,79 @@ import i18next from 'i18next'
 import { toast } from 'sonner'
 import {
   calculateAmount,
+  calculatePaddleAmount,
   calculateStripeAmount,
   calculateWaffoPancakeAmount,
   requestPayment,
+  requestPaddlePayment,
   requestStripePayment,
   isApiSuccess,
 } from '../api'
 import {
   isStripePayment,
+  isPaddlePayment,
   isWaffoPancakePayment,
   submitPaymentForm,
+  buildPaddleWalletCheckoutUrlWithOrder,
 } from '../lib'
+import type { ApiResponse, PaddlePaymentResponse } from '../types'
 
 // ============================================================================
 // Payment Hook
 // ============================================================================
+
+function getPaymentErrorMessage(response: ApiResponse): string {
+  if (typeof response.data === 'string' && response.data.trim()) {
+    return response.data
+  }
+
+  if (response.message && response.message !== 'error') {
+    return response.message
+  }
+
+  return i18next.t('Payment request failed')
+}
+
+function getObjectData(data: unknown): Record<string, unknown> | null {
+  return data && typeof data === 'object'
+    ? (data as Record<string, unknown>)
+    : null
+}
+
+function getStringField(
+  data: Record<string, unknown> | null,
+  key: string
+): string | undefined {
+  const value = data?.[key]
+  return typeof value === 'string' && value.trim() ? value.trim() : undefined
+}
+
+function navigateToPaymentPage(url: string): void {
+  window.location.assign(url)
+  toast.success(i18next.t('Redirecting to payment page...'))
+}
+
+function getPaddleCheckoutUrl(response: PaddlePaymentResponse): string | null {
+  if (typeof response.data === 'string' && response.data.trim()) {
+    return response.data.trim()
+  }
+
+  const paddleData = getObjectData(response.data)
+  const transactionId = getStringField(paddleData, 'transaction_id')
+  if (transactionId) {
+    return buildPaddleWalletCheckoutUrlWithOrder(
+      transactionId,
+      getStringField(paddleData, 'order_id')
+    )
+  }
+
+  const checkoutUrl = getStringField(paddleData, 'checkout_url')
+  if (checkoutUrl) {
+    return checkoutUrl
+  }
+
+  return null
+}
 
 export function usePayment() {
   const [amount, setAmount] = useState<number>(0)
@@ -48,13 +106,16 @@ export function usePayment() {
       try {
         setCalculating(true)
 
-        const isStripe = isStripePayment(paymentType)
-        const isPancake = isWaffoPancakePayment(paymentType)
-        const response = isStripe
-          ? await calculateStripeAmount({ amount: topupAmount })
-          : isPancake
-            ? await calculateWaffoPancakeAmount({ amount: topupAmount })
-            : await calculateAmount({ amount: topupAmount })
+        let response: ApiResponse<string>
+        if (isStripePayment(paymentType)) {
+          response = await calculateStripeAmount({ amount: topupAmount })
+        } else if (isWaffoPancakePayment(paymentType)) {
+          response = await calculateWaffoPancakeAmount({ amount: topupAmount })
+        } else if (isPaddlePayment(paymentType)) {
+          response = await calculatePaddleAmount({ amount: topupAmount })
+        } else {
+          response = await calculateAmount({ amount: topupAmount })
+        }
 
         if (isApiSuccess(response) && response.data) {
           const calculatedAmount = parseFloat(response.data)
@@ -82,6 +143,7 @@ export function usePayment() {
         setProcessing(true)
 
         const isStripe = isStripePayment(paymentType)
+        const isPaddle = isPaddlePayment(paymentType)
         const amount = Math.floor(topupAmount)
 
         const response = isStripe
@@ -89,28 +151,52 @@ export function usePayment() {
               amount,
               payment_method: 'stripe',
             })
-          : await requestPayment({
-              amount,
-              payment_method: paymentType,
-            })
+          : isPaddle
+            ? await requestPaddlePayment({ amount })
+            : await requestPayment({
+                amount,
+                payment_method: paymentType,
+              })
 
         if (!isApiSuccess(response)) {
-          toast.error(response.message || i18next.t('Payment request failed'))
+          toast.error(getPaymentErrorMessage(response))
           return false
         }
 
         // Handle Stripe payment
-        if (isStripe && response.data?.pay_link) {
-          window.open(response.data.pay_link as string, '_blank')
-          toast.success(i18next.t('Redirecting to payment page...'))
-          return true
+        if (isStripe) {
+          const stripeData = response.data as { pay_link?: string } | undefined
+          if (stripeData?.pay_link) {
+            window.open(stripeData.pay_link, '_blank')
+            toast.success(i18next.t('Redirecting to payment page...'))
+            return true
+          }
         }
 
-        // Handle non-Stripe payment
-        if (!isStripe && response.data) {
+        if (isPaddle) {
+          const paddleCheckoutUrl = getPaddleCheckoutUrl(
+            response as PaddlePaymentResponse
+          )
+          if (paddleCheckoutUrl) {
+            navigateToPaymentPage(paddleCheckoutUrl)
+            return true
+          }
+
+          toast.error(
+            i18next.t(
+              'Paddle checkout response is missing a checkout URL or transaction ID'
+            )
+          )
+          return false
+        }
+
+        const genericData = getObjectData(response.data)
+
+        // Handle non-hosted payment form
+        if (!isStripe && !isPaddle && genericData) {
           const url = (response as unknown as { url?: string }).url
           if (url) {
-            submitPaymentForm(url, response.data)
+            submitPaymentForm(url, genericData)
             toast.success(i18next.t('Redirecting to payment page...'))
             return true
           }
