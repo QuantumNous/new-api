@@ -132,7 +132,7 @@ func testChannel(channel *model.Channel, testModel string, endpointType string, 
 			requestPath = "/v1/responses/compact"
 		}
 	}
-	if strings.HasPrefix(requestPath, "/v1/responses/compact") {
+	if strings.HasPrefix(requestPath, "/v1/responses/compact") && !ratio_setting.CompactUseBaseModel() {
 		testModel = ratio_setting.WithCompactModelSuffix(testModel)
 	}
 

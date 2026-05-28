@@ -3,6 +3,7 @@ package service
 import (
 	"encoding/base64"
 	"strings"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
@@ -94,21 +95,41 @@ func appendStreamStatus(relayInfo *relaycommon.RelayInfo, other map[string]inter
 		return
 	}
 	ss := relayInfo.StreamStatus
+	snapshot := ss.Snapshot()
 	status := "ok"
-	if !ss.IsNormalEnd() || ss.HasErrors() {
+	if !ss.IsNormalEnd() || snapshot.ErrorCount > 0 {
 		status = "error"
 	}
 	streamInfo := map[string]interface{}{
 		"status":     status,
-		"end_reason": string(ss.EndReason),
+		"end_reason": string(snapshot.EndReason),
 	}
-	if ss.EndError != nil {
-		streamInfo["end_error"] = ss.EndError.Error()
+	if snapshot.EndSource != "" {
+		streamInfo["source"] = snapshot.EndSource
 	}
-	if ss.ErrorCount > 0 {
-		streamInfo["error_count"] = ss.ErrorCount
-		messages := make([]string, 0, len(ss.Errors))
-		for _, e := range ss.Errors {
+	if snapshot.EndError != nil {
+		streamInfo["end_error"] = snapshot.EndError.Error()
+	}
+	if !snapshot.StartedAt.IsZero() {
+		endAt := snapshot.EndedAt
+		if endAt.IsZero() {
+			endAt = time.Now()
+		}
+		streamInfo["elapsed_ms"] = endAt.Sub(snapshot.StartedAt).Milliseconds()
+	}
+	if snapshot.UpstreamStatusCode != 0 {
+		streamInfo["upstream_status"] = snapshot.UpstreamStatusCode
+	}
+	if !snapshot.FirstDataAt.IsZero() && !snapshot.StartedAt.IsZero() {
+		streamInfo["first_data_ms"] = snapshot.FirstDataAt.Sub(snapshot.StartedAt).Milliseconds()
+	}
+	if !snapshot.LastDataAt.IsZero() && !snapshot.StartedAt.IsZero() {
+		streamInfo["last_data_ms"] = snapshot.LastDataAt.Sub(snapshot.StartedAt).Milliseconds()
+	}
+	if snapshot.ErrorCount > 0 {
+		streamInfo["error_count"] = snapshot.ErrorCount
+		messages := make([]string, 0, len(snapshot.Errors))
+		for _, e := range snapshot.Errors {
 			messages = append(messages, e.Message)
 		}
 		streamInfo["errors"] = messages

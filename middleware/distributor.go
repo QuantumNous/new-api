@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"os"
 	"slices"
 	"strconv"
 	"strings"
@@ -400,7 +399,7 @@ func getModelRequest(c *gin.Context) (*ModelRequest, bool, error) {
 		// regular Responses calls (e.g. xtokenmirror, hostcentral), removing
 		// the need to declare `*-openai-compact` in every channel's model
 		// list and price table.
-		if os.Getenv("COMPACT_USE_BASE_MODEL") != "true" {
+		if !ratio_setting.CompactUseBaseModel() {
 			modelRequest.Model = ratio_setting.WithCompactModelSuffix(modelRequest.Model)
 		}
 	}

@@ -1,6 +1,7 @@
 package helper
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"net/http"
@@ -543,6 +544,131 @@ func TestStreamScannerHandler_StreamStatus_Timeout(t *testing.T) {
 	require.NotNil(t, info.StreamStatus)
 	assert.Equal(t, relaycommon.StreamEndReasonTimeout, info.StreamStatus.EndReason)
 	assert.False(t, info.StreamStatus.IsNormalEnd())
+}
+
+func TestStreamScannerHandler_StreamStatus_ClientGoneBeforeUpstreamData(t *testing.T) {
+	oldTimeout := constant.StreamingTimeout
+	constant.StreamingTimeout = 30
+	t.Cleanup(func() { constant.StreamingTimeout = oldTimeout })
+
+	pr, pw := io.Pipe()
+	defer pw.Close()
+	defer pr.Close()
+	ctx, cancel := context.WithCancel(context.Background())
+
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil).WithContext(ctx)
+	resp := &http.Response{Body: pr, StatusCode: http.StatusOK}
+	info := &relaycommon.RelayInfo{ChannelMeta: &relaycommon.ChannelMeta{}}
+
+	done := make(chan struct{})
+	go func() {
+		StreamScannerHandler(c, resp, info, func(data string, sr *StreamResult) {})
+		close(done)
+	}()
+	time.Sleep(10 * time.Millisecond)
+	cancel()
+
+	select {
+	case <-done:
+	case <-time.After(7 * time.Second):
+		t.Fatal("timed out waiting for client_gone")
+	}
+
+	require.NotNil(t, info.StreamStatus)
+	assert.Equal(t, relaycommon.StreamEndReasonClientGone, info.StreamStatus.EndReason)
+	assert.Equal(t, 0, info.ReceivedResponseCount)
+	assert.NotEmpty(t, info.StreamStatus.EndSource)
+}
+
+func TestStreamScannerHandler_StreamStatus_EmptyBodyEOFWithoutData(t *testing.T) {
+	c, resp, info := setupStreamTest(t, strings.NewReader(""))
+
+	StreamScannerHandler(c, resp, info, func(data string, sr *StreamResult) {})
+
+	require.NotNil(t, info.StreamStatus)
+	assert.Equal(t, relaycommon.StreamEndReasonEOF, info.StreamStatus.EndReason)
+	assert.Equal(t, "scanner_eof", info.StreamStatus.EndSource)
+	assert.Equal(t, 0, info.ReceivedResponseCount)
+}
+
+func TestStreamScannerHandler_StreamStatus_TimeoutWithoutClientCancel(t *testing.T) {
+	oldTimeout := constant.StreamingTimeout
+	constant.StreamingTimeout = 1
+	t.Cleanup(func() { constant.StreamingTimeout = oldTimeout })
+
+	pr, pw := io.Pipe()
+	defer pw.Close()
+	defer pr.Close()
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
+	resp := &http.Response{Body: pr, StatusCode: http.StatusOK}
+	info := &relaycommon.RelayInfo{ChannelMeta: &relaycommon.ChannelMeta{}}
+
+	done := make(chan struct{})
+	go func() {
+		StreamScannerHandler(c, resp, info, func(data string, sr *StreamResult) {})
+		close(done)
+	}()
+
+	select {
+	case <-done:
+	case <-time.After(7 * time.Second):
+		t.Fatal("timed out waiting for stream timeout")
+	}
+
+	require.NotNil(t, info.StreamStatus)
+	assert.Equal(t, relaycommon.StreamEndReasonTimeout, info.StreamStatus.EndReason)
+	assert.Equal(t, "timeout", info.StreamStatus.EndSource)
+	assert.Equal(t, 0, info.ReceivedResponseCount)
+}
+
+func TestStreamScannerHandler_StreamStatus_ClientGoneAfterUpstreamData(t *testing.T) {
+	oldTimeout := constant.StreamingTimeout
+	constant.StreamingTimeout = 30
+	t.Cleanup(func() { constant.StreamingTimeout = oldTimeout })
+
+	ctx, cancel := context.WithCancel(context.Background())
+	pr, pw := io.Pipe()
+	defer pw.Close()
+	defer pr.Close()
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil).WithContext(ctx)
+	resp := &http.Response{Body: pr, StatusCode: http.StatusOK}
+	info := &relaycommon.RelayInfo{ChannelMeta: &relaycommon.ChannelMeta{}}
+
+	dataHandled := make(chan struct{})
+	done := make(chan struct{})
+	go func() {
+		StreamScannerHandler(c, resp, info, func(data string, sr *StreamResult) {
+			close(dataHandled)
+		})
+		close(done)
+	}()
+
+	_, err := fmt.Fprint(pw, "data: {\"id\":1}\n")
+	require.NoError(t, err)
+	select {
+	case <-dataHandled:
+	case <-time.After(5 * time.Second):
+		t.Fatal("timed out waiting for first data")
+	}
+	time.Sleep(10 * time.Millisecond)
+	cancel()
+
+	select {
+	case <-done:
+	case <-time.After(7 * time.Second):
+		t.Fatal("timed out waiting for client_gone after data")
+	}
+
+	require.NotNil(t, info.StreamStatus)
+	assert.Equal(t, relaycommon.StreamEndReasonClientGone, info.StreamStatus.EndReason)
+	assert.Equal(t, 1, info.ReceivedResponseCount)
+	assert.Contains(t, info.StreamStatus.Summary(), "first_data_ms=")
 }
 
 func TestStreamScannerHandler_StreamStatus_SoftErrors(t *testing.T) {

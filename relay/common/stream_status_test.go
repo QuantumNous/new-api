@@ -157,6 +157,30 @@ func TestStreamStatus_IsNormalEnd_NilSafe(t *testing.T) {
 	assert.True(t, s.IsNormalEnd())
 }
 
+func TestStreamStatus_SetEndReasonWithSource(t *testing.T) {
+	t.Parallel()
+	s := NewStreamStatus()
+
+	s.SetEndReasonWithSource(StreamEndReasonClientGone, fmt.Errorf("context canceled"), "main_context_done")
+
+	assert.Equal(t, StreamEndReasonClientGone, s.EndReason)
+	assert.Equal(t, "main_context_done", s.EndSource)
+	assert.False(t, s.EndedAt.IsZero())
+}
+
+func TestStreamStatus_RecordDataReceived(t *testing.T) {
+	t.Parallel()
+	s := NewStreamStatus()
+
+	s.RecordDataReceived()
+	firstDataAt := s.FirstDataAt
+	s.RecordDataReceived()
+
+	assert.False(t, firstDataAt.IsZero())
+	assert.Equal(t, firstDataAt, s.FirstDataAt)
+	assert.False(t, s.LastDataAt.IsZero())
+}
+
 func TestStreamStatus_Summary(t *testing.T) {
 	t.Parallel()
 
@@ -167,11 +191,15 @@ func TestStreamStatus_Summary(t *testing.T) {
 	assert.NotContains(t, summary, "soft_errors")
 
 	s2 := NewStreamStatus()
-	s2.SetEndReason(StreamEndReasonTimeout, nil)
+	s2.SetEndReasonWithSource(StreamEndReasonTimeout, nil, "timeout")
+	s2.RecordDataReceived()
 	s2.RecordError("bad json")
 	s2.RecordError("write failed")
 	summary2 := s2.Summary()
 	assert.Contains(t, summary2, "reason=timeout")
+	assert.Contains(t, summary2, "source=timeout")
+	assert.Contains(t, summary2, "elapsed_ms=")
+	assert.Contains(t, summary2, "first_data_ms=")
 	assert.Contains(t, summary2, "soft_errors=2")
 }
 

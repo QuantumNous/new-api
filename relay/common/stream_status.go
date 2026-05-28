@@ -28,10 +28,29 @@ type StreamErrorEntry struct {
 	Timestamp time.Time
 }
 
+type StreamSnapshot struct {
+	EndReason          StreamEndReason
+	EndError           error
+	EndSource          string
+	StartedAt          time.Time
+	EndedAt            time.Time
+	FirstDataAt        time.Time
+	LastDataAt         time.Time
+	UpstreamStatusCode int
+	Errors             []StreamErrorEntry
+	ErrorCount         int
+}
+
 type StreamStatus struct {
-	EndReason  StreamEndReason
-	EndError   error
-	endOnce    sync.Once
+	EndReason          StreamEndReason
+	EndError           error
+	EndSource          string
+	StartedAt          time.Time
+	EndedAt            time.Time
+	FirstDataAt        time.Time
+	LastDataAt         time.Time
+	UpstreamStatusCode int
+	endOnce            sync.Once
 
 	mu         sync.Mutex
 	Errors     []StreamErrorEntry
@@ -39,17 +58,38 @@ type StreamStatus struct {
 }
 
 func NewStreamStatus() *StreamStatus {
-	return &StreamStatus{}
+	return &StreamStatus{StartedAt: time.Now()}
 }
 
 func (s *StreamStatus) SetEndReason(reason StreamEndReason, err error) {
+	s.SetEndReasonWithSource(reason, err, "")
+}
+
+func (s *StreamStatus) SetEndReasonWithSource(reason StreamEndReason, err error, source string) {
 	if s == nil {
 		return
 	}
 	s.endOnce.Do(func() {
+		s.mu.Lock()
+		defer s.mu.Unlock()
 		s.EndReason = reason
 		s.EndError = err
+		s.EndSource = source
+		s.EndedAt = time.Now()
 	})
+}
+
+func (s *StreamStatus) RecordDataReceived() {
+	if s == nil {
+		return
+	}
+	now := time.Now()
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.FirstDataAt.IsZero() {
+		s.FirstDataAt = now
+	}
+	s.LastDataAt = now
 }
 
 func (s *StreamStatus) RecordError(msg string) {
@@ -85,10 +125,34 @@ func (s *StreamStatus) TotalErrorCount() int {
 	return s.ErrorCount
 }
 
+func (s *StreamStatus) Snapshot() StreamSnapshot {
+	if s == nil {
+		return StreamSnapshot{}
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	errors := make([]StreamErrorEntry, len(s.Errors))
+	copy(errors, s.Errors)
+	return StreamSnapshot{
+		EndReason:          s.EndReason,
+		EndError:           s.EndError,
+		EndSource:          s.EndSource,
+		StartedAt:          s.StartedAt,
+		EndedAt:            s.EndedAt,
+		FirstDataAt:        s.FirstDataAt,
+		LastDataAt:         s.LastDataAt,
+		UpstreamStatusCode: s.UpstreamStatusCode,
+		Errors:             errors,
+		ErrorCount:         s.ErrorCount,
+	}
+}
+
 func (s *StreamStatus) IsNormalEnd() bool {
 	if s == nil {
 		return true
 	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	return s.EndReason == StreamEndReasonDone ||
 		s.EndReason == StreamEndReasonEOF ||
 		s.EndReason == StreamEndReasonHandlerStop
@@ -99,11 +163,30 @@ func (s *StreamStatus) Summary() string {
 		return "StreamStatus<nil>"
 	}
 	b := &strings.Builder{}
+	s.mu.Lock()
 	fmt.Fprintf(b, "reason=%s", s.EndReason)
+	if s.EndSource != "" {
+		fmt.Fprintf(b, " source=%s", s.EndSource)
+	}
 	if s.EndError != nil {
 		fmt.Fprintf(b, " end_error=%q", s.EndError.Error())
 	}
-	s.mu.Lock()
+	if !s.StartedAt.IsZero() {
+		endAt := s.EndedAt
+		if endAt.IsZero() {
+			endAt = time.Now()
+		}
+		fmt.Fprintf(b, " elapsed_ms=%d", endAt.Sub(s.StartedAt).Milliseconds())
+	}
+	if s.UpstreamStatusCode != 0 {
+		fmt.Fprintf(b, " upstream_status=%d", s.UpstreamStatusCode)
+	}
+	if !s.FirstDataAt.IsZero() && !s.StartedAt.IsZero() {
+		fmt.Fprintf(b, " first_data_ms=%d", s.FirstDataAt.Sub(s.StartedAt).Milliseconds())
+	}
+	if !s.LastDataAt.IsZero() && !s.StartedAt.IsZero() {
+		fmt.Fprintf(b, " last_data_ms=%d", s.LastDataAt.Sub(s.StartedAt).Milliseconds())
+	}
 	if s.ErrorCount > 0 {
 		fmt.Fprintf(b, " soft_errors=%d", s.ErrorCount)
 	}
