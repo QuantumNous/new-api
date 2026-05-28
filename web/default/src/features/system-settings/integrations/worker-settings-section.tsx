@@ -20,6 +20,7 @@ import * as z from 'zod'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useTranslation } from 'react-i18next'
+import { Button } from '@/components/ui/button'
 import {
   Form,
   FormControl,
@@ -31,12 +32,6 @@ import {
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
-import {
-  SettingsForm,
-  SettingsSwitchContent,
-  SettingsSwitchItem,
-} from '../components/settings-form-layout'
-import { SettingsPageFormActions } from '../components/settings-page-context'
 import { SettingsSection } from '../components/settings-section'
 import { useResetForm } from '../hooks/use-reset-form'
 import { useUpdateOption } from '../hooks/use-update-option'
@@ -105,14 +100,18 @@ export function WorkerSettingsSection({
   }
 
   return (
-    <SettingsSection title={t('Worker Proxy')}>
+    <SettingsSection
+      title={t('Worker Proxy')}
+      description={t(
+        'Configure upstream worker or proxy service for outbound requests'
+      )}
+    >
       <Form {...form}>
-        <SettingsForm onSubmit={form.handleSubmit(onSubmit)} autoComplete='off'>
-          <SettingsPageFormActions
-            onSave={form.handleSubmit(onSubmit)}
-            isSaving={updateOption.isPending}
-            saveLabel='Save Worker settings'
-          />
+        <form
+          onSubmit={form.handleSubmit(onSubmit)}
+          autoComplete='off'
+          className='space-y-6'
+        >
           <FormField
             control={form.control}
             name='WorkerUrl'
@@ -168,25 +167,33 @@ export function WorkerSettingsSection({
             control={form.control}
             name='WorkerAllowHttpImageRequestEnabled'
             render={({ field }) => (
-              <SettingsSwitchItem>
-                <SettingsSwitchContent>
-                  <FormLabel>{t('Allow HTTP image requests')}</FormLabel>
+              <FormItem className='flex flex-row items-center justify-between rounded-lg border p-4'>
+                <div className='space-y-0.5'>
+                  <FormLabel className='text-base'>
+                    {t('Allow HTTP image requests')}
+                  </FormLabel>
                   <FormDescription>
                     {t(
                       'Enable when proxying workers that fetch images over HTTP.'
                     )}
                   </FormDescription>
-                </SettingsSwitchContent>
+                </div>
                 <FormControl>
                   <Switch
                     checked={field.value}
                     onCheckedChange={field.onChange}
                   />
                 </FormControl>
-              </SettingsSwitchItem>
+              </FormItem>
             )}
           />
-        </SettingsForm>
+
+          <Button type='submit' disabled={updateOption.isPending}>
+            {updateOption.isPending
+              ? t('Saving...')
+              : t('Save Worker settings')}
+          </Button>
+        </form>
       </Form>
     </SettingsSection>
   )

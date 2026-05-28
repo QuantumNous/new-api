@@ -41,6 +41,7 @@ const CONTENT_SECTIONS = [
   {
     id: 'dashboard',
     titleKey: 'Data Dashboard',
+    descriptionKey: 'Configure data export settings for dashboard',
     build: (settings: ContentSettings) => (
       <DashboardSection
         defaultValues={{
@@ -56,6 +57,7 @@ const CONTENT_SECTIONS = [
   {
     id: 'announcements',
     titleKey: 'Announcements',
+    descriptionKey: 'Configure system announcements',
     build: (settings: ContentSettings) => (
       <AnnouncementsSection
         enabled={settings['console_setting.announcements_enabled']}
@@ -66,6 +68,7 @@ const CONTENT_SECTIONS = [
   {
     id: 'api-info',
     titleKey: 'API Addresses',
+    descriptionKey: 'Configure API information display',
     build: (settings: ContentSettings) => (
       <ApiInfoSection
         enabled={settings['console_setting.api_info_enabled']}
@@ -76,6 +79,7 @@ const CONTENT_SECTIONS = [
   {
     id: 'faq',
     titleKey: 'FAQ',
+    descriptionKey: 'Configure frequently asked questions',
     build: (settings: ContentSettings) => (
       <FAQSection
         enabled={settings['console_setting.faq_enabled']}
@@ -86,6 +90,7 @@ const CONTENT_SECTIONS = [
   {
     id: 'uptime-kuma',
     titleKey: 'Uptime Kuma',
+    descriptionKey: 'Configure Uptime Kuma monitoring integration',
     build: (settings: ContentSettings) => (
       <UptimeKumaSection
         enabled={settings['console_setting.uptime_kuma_enabled']}
@@ -96,6 +101,7 @@ const CONTENT_SECTIONS = [
   {
     id: 'chat',
     titleKey: 'Chat Presets',
+    descriptionKey: 'Configure chat-related settings',
     build: (settings: ContentSettings) => (
       <ChatSettingsSection defaultValue={settings.Chats} />
     ),
@@ -103,6 +109,7 @@ const CONTENT_SECTIONS = [
   {
     id: 'drawing',
     titleKey: 'Drawing',
+    descriptionKey: 'Configure drawing and Midjourney settings',
     build: (settings: ContentSettings) => (
       <DrawingSettingsSection
         defaultValues={{
@@ -134,4 +141,3 @@ export const CONTENT_SECTION_IDS = contentRegistry.sectionIds
 export const CONTENT_DEFAULT_SECTION = contentRegistry.defaultSection
 export const getContentSectionNavItems = contentRegistry.getSectionNavItems
 export const getContentSectionContent = contentRegistry.getSectionContent
-export const getContentSectionMeta = contentRegistry.getSectionMeta

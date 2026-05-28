@@ -62,6 +62,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { Switch } from '@/components/ui/switch'
 import {
   Table,
   TableBody,
@@ -73,7 +74,6 @@ import {
 import { Textarea } from '@/components/ui/textarea'
 import { DateTimePicker } from '@/components/datetime-picker'
 import { StatusBadge } from '@/components/status-badge'
-import { SettingsSwitchField } from '../components/settings-form-layout'
 import { SettingsSection } from '../components/settings-section'
 import { useUpdateOption } from '../hooks/use-update-option'
 
@@ -319,7 +319,10 @@ export function AnnouncementsSection({
   }
 
   return (
-    <SettingsSection title={t('Announcements')}>
+    <SettingsSection
+      title={t('Announcements')}
+      description={t('Broadcast short system notices on the dashboard')}
+    >
       <div className='space-y-4'>
         <div className='flex flex-wrap items-center justify-between gap-2'>
           <div className='flex flex-wrap items-center gap-2'>
@@ -347,12 +350,12 @@ export function AnnouncementsSection({
               {updateOption.isPending ? t('Saving...') : t('Save Settings')}
             </Button>
           </div>
-          <SettingsSwitchField
-            checked={isEnabled}
-            onCheckedChange={handleToggleEnabled}
-            label={t('Enabled')}
-            className='border-b-0 py-0'
-          />
+          <div className='flex items-center gap-2'>
+            <span className='text-muted-foreground text-sm'>
+              {t('Enabled')}
+            </span>
+            <Switch checked={isEnabled} onCheckedChange={handleToggleEnabled} />
+          </div>
         </div>
 
         <div className='rounded-md border'>

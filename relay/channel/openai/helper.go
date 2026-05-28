@@ -1,6 +1,7 @@
 package openai
 
 import (
+	"encoding/json"
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
@@ -91,28 +92,78 @@ func ProcessStreamResponse(streamResponse dto.ChatCompletionsStreamResponse, res
 	return nil
 }
 
-func processTokenData(relayMode int, data string, responseTextBuilder *strings.Builder, toolCount *int) error {
+func processTokens(relayMode int, streamItems []string, responseTextBuilder *strings.Builder, toolCount *int) error {
+	streamResp := "[" + strings.Join(streamItems, ",") + "]"
+
 	switch relayMode {
 	case relayconstant.RelayModeChatCompletions:
-		var streamResponse dto.ChatCompletionsStreamResponse
-		if err := common.UnmarshalJsonStr(data, &streamResponse); err != nil {
-			return err
-		}
-		return ProcessStreamResponse(streamResponse, responseTextBuilder, toolCount)
+		return processChatCompletions(streamResp, streamItems, responseTextBuilder, toolCount)
 	case relayconstant.RelayModeCompletions:
-		var streamResponse dto.CompletionsStreamResponse
-		if err := common.UnmarshalJsonStr(data, &streamResponse); err != nil {
-			return err
-		}
-		processCompletionsStreamResponse(streamResponse, responseTextBuilder)
+		return processCompletions(streamResp, streamItems, responseTextBuilder)
 	}
 	return nil
 }
 
-func processCompletionsStreamResponse(streamResponse dto.CompletionsStreamResponse, responseTextBuilder *strings.Builder) {
-	for _, choice := range streamResponse.Choices {
-		responseTextBuilder.WriteString(choice.Text)
+func processChatCompletions(streamResp string, streamItems []string, responseTextBuilder *strings.Builder, toolCount *int) error {
+	var streamResponses []dto.ChatCompletionsStreamResponse
+	if err := json.Unmarshal(common.StringToByteSlice(streamResp), &streamResponses); err != nil {
+		// 一次性解析失败，逐个解析
+		common.SysLog("error unmarshalling stream response: " + err.Error())
+		for _, item := range streamItems {
+			var streamResponse dto.ChatCompletionsStreamResponse
+			if err := json.Unmarshal(common.StringToByteSlice(item), &streamResponse); err != nil {
+				return err
+			}
+			if err := ProcessStreamResponse(streamResponse, responseTextBuilder, toolCount); err != nil {
+				common.SysLog("error processing stream response: " + err.Error())
+			}
+		}
+		return nil
 	}
+
+	// 批量处理所有响应
+	for _, streamResponse := range streamResponses {
+		for _, choice := range streamResponse.Choices {
+			responseTextBuilder.WriteString(choice.Delta.GetContentString())
+			responseTextBuilder.WriteString(choice.Delta.GetReasoningContent())
+			if choice.Delta.ToolCalls != nil {
+				if len(choice.Delta.ToolCalls) > *toolCount {
+					*toolCount = len(choice.Delta.ToolCalls)
+				}
+				for _, tool := range choice.Delta.ToolCalls {
+					responseTextBuilder.WriteString(tool.Function.Name)
+					responseTextBuilder.WriteString(tool.Function.Arguments)
+				}
+			}
+		}
+	}
+	return nil
+}
+
+func processCompletions(streamResp string, streamItems []string, responseTextBuilder *strings.Builder) error {
+	var streamResponses []dto.CompletionsStreamResponse
+	if err := json.Unmarshal(common.StringToByteSlice(streamResp), &streamResponses); err != nil {
+		// 一次性解析失败，逐个解析
+		common.SysLog("error unmarshalling stream response: " + err.Error())
+		for _, item := range streamItems {
+			var streamResponse dto.CompletionsStreamResponse
+			if err := json.Unmarshal(common.StringToByteSlice(item), &streamResponse); err != nil {
+				continue
+			}
+			for _, choice := range streamResponse.Choices {
+				responseTextBuilder.WriteString(choice.Text)
+			}
+		}
+		return nil
+	}
+
+	// 批量处理所有响应
+	for _, streamResponse := range streamResponses {
+		for _, choice := range streamResponse.Choices {
+			responseTextBuilder.WriteString(choice.Text)
+		}
+	}
+	return nil
 }
 
 func handleLastResponse(lastStreamData string, responseId *string, createAt *int64,

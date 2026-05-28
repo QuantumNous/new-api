@@ -1079,47 +1079,17 @@ func responseGeminiChat2OpenAI(c *gin.Context, response *dto.GeminiChatResponse)
 			FinishReason: constant.FinishReasonStop,
 		}
 		if len(candidate.Content.Parts) > 0 {
-			// 使用 strings.Builder 直接累积最终 content，避免:
-			//   1) 每张 inline image 生成一次中间 "![image](...)" 字符串
-			//   2) 末尾 strings.Join 再分配一份等大缓冲
-			// Gemini 图片返回时 InlineData.Data 可能是数 MB 的 base64，
-			// 上述两份临时分配在高并发下会显著放大堆驻留。
-			var content strings.Builder
-			var inlineGrow int
-			for _, part := range candidate.Content.Parts {
-				if part.InlineData != nil {
-					inlineGrow += len(part.InlineData.MimeType) + len(part.InlineData.Data) + 32
-				}
-			}
-			if inlineGrow > 0 {
-				content.Grow(inlineGrow)
-			}
-			appended := 0
-			writeSep := func() {
-				if appended > 0 {
-					content.WriteByte('\n')
-				}
-				appended++
-			}
+			var texts []string
 			var toolCalls []dto.ToolCallResponse
 			for _, part := range candidate.Content.Parts {
 				if part.InlineData != nil {
 					// 媒体内容
 					if strings.HasPrefix(part.InlineData.MimeType, "image") {
-						writeSep()
-						content.WriteString("![image](data:")
-						content.WriteString(part.InlineData.MimeType)
-						content.WriteString(";base64,")
-						content.WriteString(part.InlineData.Data)
-						content.WriteByte(')')
+						imgText := "![image](data:" + part.InlineData.MimeType + ";base64," + part.InlineData.Data + ")"
+						texts = append(texts, imgText)
 					} else {
 						// 其他媒体类型，直接显示链接
-						writeSep()
-						content.WriteString("[media](data:")
-						content.WriteString(part.InlineData.MimeType)
-						content.WriteString(";base64,")
-						content.WriteString(part.InlineData.Data)
-						content.WriteByte(')')
+						texts = append(texts, fmt.Sprintf("[media](data:%s;base64,%s)", part.InlineData.MimeType, part.InlineData.Data))
 					}
 				} else if part.FunctionCall != nil {
 					choice.FinishReason = constant.FinishReasonToolCalls
@@ -1130,22 +1100,13 @@ func responseGeminiChat2OpenAI(c *gin.Context, response *dto.GeminiChatResponse)
 					choice.Message.ReasoningContent = &part.Text
 				} else {
 					if part.ExecutableCode != nil {
-						writeSep()
-						content.WriteString("```")
-						content.WriteString(part.ExecutableCode.Language)
-						content.WriteByte('\n')
-						content.WriteString(part.ExecutableCode.Code)
-						content.WriteString("\n```")
+						texts = append(texts, "```"+part.ExecutableCode.Language+"\n"+part.ExecutableCode.Code+"\n```")
 					} else if part.CodeExecutionResult != nil {
-						writeSep()
-						content.WriteString("```output\n")
-						content.WriteString(part.CodeExecutionResult.Output)
-						content.WriteString("\n```")
+						texts = append(texts, "```output\n"+part.CodeExecutionResult.Output+"\n```")
 					} else {
 						// 过滤掉空行
 						if part.Text != "\n" {
-							writeSep()
-							content.WriteString(part.Text)
+							texts = append(texts, part.Text)
 						}
 					}
 				}
@@ -1154,7 +1115,7 @@ func responseGeminiChat2OpenAI(c *gin.Context, response *dto.GeminiChatResponse)
 				choice.Message.SetToolCalls(toolCalls)
 				isToolCall = true
 			}
-			choice.Message.SetStringContent(content.String())
+			choice.Message.SetStringContent(strings.Join(texts, "\n"))
 
 		}
 		if candidate.FinishReason != nil {
@@ -1208,25 +1169,7 @@ func streamResponseGeminiChat2OpenAI(geminiResponse *dto.GeminiChatResponse) (*d
 				//Role: "assistant",
 			},
 		}
-		// 使用 strings.Builder 直接累积 delta content，避免每张 image / 每个
-		// 文本片段都先 `+` 拼出一份临时 string，再 strings.Join 再拷贝一遍。
-		var content strings.Builder
-		var inlineGrow int
-		for _, part := range candidate.Content.Parts {
-			if part.InlineData != nil {
-				inlineGrow += len(part.InlineData.MimeType) + len(part.InlineData.Data) + 32
-			}
-		}
-		if inlineGrow > 0 {
-			content.Grow(inlineGrow)
-		}
-		appended := 0
-		writeSep := func() {
-			if appended > 0 {
-				content.WriteByte('\n')
-			}
-			appended++
-		}
+		var texts []string
 		isTools := false
 		isThought := false
 		if candidate.FinishReason != nil {
@@ -1264,12 +1207,8 @@ func streamResponseGeminiChat2OpenAI(geminiResponse *dto.GeminiChatResponse) (*d
 		for _, part := range candidate.Content.Parts {
 			if part.InlineData != nil {
 				if strings.HasPrefix(part.InlineData.MimeType, "image") {
-					writeSep()
-					content.WriteString("![image](data:")
-					content.WriteString(part.InlineData.MimeType)
-					content.WriteString(";base64,")
-					content.WriteString(part.InlineData.Data)
-					content.WriteByte(')')
+					imgText := "![image](data:" + part.InlineData.MimeType + ";base64," + part.InlineData.Data + ")"
+					texts = append(texts, imgText)
 				}
 			} else if part.FunctionCall != nil {
 				isTools = true
@@ -1280,33 +1219,23 @@ func streamResponseGeminiChat2OpenAI(geminiResponse *dto.GeminiChatResponse) (*d
 
 			} else if part.Thought {
 				isThought = true
-				writeSep()
-				content.WriteString(part.Text)
+				texts = append(texts, part.Text)
 			} else {
 				if part.ExecutableCode != nil {
-					writeSep()
-					content.WriteString("```")
-					content.WriteString(part.ExecutableCode.Language)
-					content.WriteByte('\n')
-					content.WriteString(part.ExecutableCode.Code)
-					content.WriteString("\n```\n")
+					texts = append(texts, "```"+part.ExecutableCode.Language+"\n"+part.ExecutableCode.Code+"\n```\n")
 				} else if part.CodeExecutionResult != nil {
-					writeSep()
-					content.WriteString("```output\n")
-					content.WriteString(part.CodeExecutionResult.Output)
-					content.WriteString("\n```\n")
+					texts = append(texts, "```output\n"+part.CodeExecutionResult.Output+"\n```\n")
 				} else {
 					if part.Text != "\n" {
-						writeSep()
-						content.WriteString(part.Text)
+						texts = append(texts, part.Text)
 					}
 				}
 			}
 		}
 		if isThought {
-			choice.Delta.SetReasoningContent(content.String())
+			choice.Delta.SetReasoningContent(strings.Join(texts, "\n"))
 		} else {
-			choice.Delta.SetContentString(content.String())
+			choice.Delta.SetContentString(strings.Join(texts, "\n"))
 		}
 		if isTools {
 			choice.FinishReason = &constant.FinishReasonToolCalls
@@ -1410,14 +1339,6 @@ func GeminiChatStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *
 		response.Id = id
 		response.Created = createAt
 		response.Model = info.UpstreamModelName
-		if response.IsToolCall() {
-			finishReason = constant.FinishReasonToolCalls
-			if info.RelayFormat == types.RelayFormatClaude {
-				for choiceIdx := range response.Choices {
-					response.Choices[choiceIdx].FinishReason = nil
-				}
-			}
-		}
 		for choiceIdx := range response.Choices {
 			choiceKey := response.Choices[choiceIdx].Index
 			for toolIdx := range response.Choices[choiceIdx].Delta.ToolCalls {
@@ -1441,7 +1362,7 @@ func GeminiChatStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *
 			}
 		}
 
-		logger.LogDebug(c, "info.SendResponseCount = %d", info.SendResponseCount)
+		logger.LogDebug(c, fmt.Sprintf("info.SendResponseCount = %d", info.SendResponseCount))
 		if info.SendResponseCount == 0 {
 			// send first response
 			emptyResponse := helper.GenerateStartEmptyResponse(id, createAt, info.UpstreamModelName, nil)
@@ -1478,9 +1399,7 @@ func GeminiChatStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *
 			logger.LogError(c, err.Error())
 		}
 		if isStop {
-			if info.RelayFormat != types.RelayFormatClaude {
-				_ = handleStream(c, info, helper.GenerateStopResponse(id, createAt, info.UpstreamModelName, finishReason))
-			}
+			_ = handleStream(c, info, helper.GenerateStopResponse(id, createAt, info.UpstreamModelName, finishReason))
 		}
 		return true
 	})
@@ -1490,10 +1409,6 @@ func GeminiChatStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *
 	}
 
 	response := helper.GenerateFinalUsageResponse(id, createAt, info.UpstreamModelName, *usage)
-	if info.RelayFormat == types.RelayFormatClaude && info.ClaudeConvertInfo != nil && !info.ClaudeConvertInfo.Done {
-		response = helper.GenerateStopResponse(id, createAt, info.UpstreamModelName, finishReason)
-		response.Usage = usage
-	}
 	handleErr := handleFinalStream(c, info, response)
 	if handleErr != nil {
 		common.SysLog("send final response failed: " + handleErr.Error())
@@ -1507,7 +1422,9 @@ func GeminiChatHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.R
 		return nil, types.NewOpenAIError(err, types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
 	}
 	service.CloseResponseBodyGracefully(resp)
-	logger.LogDebug(c, "Gemini response body: %s", responseBody)
+	if common.DebugEnabled {
+		println(string(responseBody))
+	}
 	var geminiResponse dto.GeminiChatResponse
 	err = common.Unmarshal(responseBody, &geminiResponse)
 	if err != nil {

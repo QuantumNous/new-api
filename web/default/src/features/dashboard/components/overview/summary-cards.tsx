@@ -19,7 +19,12 @@ For commercial licensing, please contact support@quantumnous.com
 import { useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
-import { ArrowRight, Flame, ShieldCheck, TrendingDown } from 'lucide-react'
+import {
+  ArrowRight,
+  Flame,
+  ShieldCheck,
+  TrendingDown,
+} from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { useAuthStore } from '@/stores/auth-store'
 import { getCurrencyLabel, isCurrencyDisplayEnabled } from '@/lib/currency'
@@ -97,10 +102,7 @@ function getSummarySparkline(
   return undefined
 }
 
-function getRunwayDays(
-  remainQuota: number,
-  recentUsage: number
-): number | null {
+function getRunwayDays(remainQuota: number, recentUsage: number): number | null {
   if (remainQuota <= 0 || recentUsage <= 0) return null
   const days = remainQuota / recentUsage
   if (!Number.isFinite(days)) return null
@@ -109,7 +111,10 @@ function getRunwayDays(
 
 type HealthLevel = 'healthy' | 'caution' | 'critical'
 
-function getHealthLevel(remainQuota: number, recentUsage: number): HealthLevel {
+function getHealthLevel(
+  remainQuota: number,
+  recentUsage: number
+): HealthLevel {
   if (remainQuota <= 0) return 'critical'
   const days = getRunwayDays(remainQuota, recentUsage)
   if (days !== null && days < 3) return 'caution'
@@ -133,6 +138,7 @@ const HEALTH_CONFIG: Record<
     labelKey: 'Balance depleted',
   },
 }
+
 
 export function SummaryCards() {
   const { t } = useTranslation()
@@ -335,7 +341,10 @@ export function SummaryCards() {
             </div>
           </div>
 
-          <Button className='justify-between' render={<Link to='/wallet' />}>
+          <Button
+            className='justify-between'
+            render={<Link to='/wallet' />}
+          >
             <span>{t('Wallet')}</span>
             <ArrowRight data-icon='inline-end' />
           </Button>

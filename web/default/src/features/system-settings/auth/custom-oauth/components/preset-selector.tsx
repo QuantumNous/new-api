@@ -29,7 +29,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { SettingsControlGroup } from '../../../components/settings-form-layout'
 import { OAUTH_PRESETS, type CustomOAuthFormValues } from '../types'
 
 type PresetSelectorProps = {
@@ -103,7 +102,7 @@ export function PresetSelector(props: PresetSelectorProps) {
   }
 
   return (
-    <SettingsControlGroup className='space-y-3 border-dashed'>
+    <div className='space-y-3 rounded-lg border border-dashed p-4'>
       <p className='text-sm font-medium'>{t('Quick Setup from Preset')}</p>
       <div className='grid grid-cols-1 gap-3 sm:grid-cols-2'>
         <div className='space-y-1.5'>
@@ -141,6 +140,6 @@ export function PresetSelector(props: PresetSelectorProps) {
           />
         </div>
       </div>
-    </SettingsControlGroup>
+    </div>
   )
 }

@@ -60,12 +60,6 @@ export const LOG_TYPE_ENUM = {
   REFUND: 6,
 } as const
 
-/**
- * The log list/stat backend uses type=0 as the "all types" sentinel.
- * Row rendering still displays records with type=0 as "Unknown".
- */
-export const LOG_TYPE_ALL_VALUE = '0' as const
-
 // ============================================================================
 // Time Range Presets
 // ============================================================================
@@ -99,18 +93,11 @@ export const LOG_TYPES = [
 
 /**
  * Log types for DataTableToolbar filters (single select mode)
- * Backend treats type=0 as "all logs" in list/stat endpoints, so the filter
- * must not expose the display-only "Unknown" label for that value.
  */
-export const LOG_TYPE_FILTERS = [
-  { label: 'All Types', value: LOG_TYPE_ALL_VALUE },
-  ...LOG_TYPES.filter((type) => type.value !== LOG_TYPE_ENUM.UNKNOWN).map(
-    (type) => ({
-      label: type.label,
-      value: String(type.value),
-    })
-  ),
-] as const
+export const LOG_TYPE_FILTERS = LOG_TYPES.map((type) => ({
+  label: type.label,
+  value: String(type.value),
+}))
 
 // ============================================================================
 // Drawing Logs (Midjourney) Constants

@@ -8,7 +8,6 @@ import (
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 
 	"github.com/gin-gonic/gin"
-	"github.com/samber/lo"
 )
 
 func GetPerfMetricsSummary(c *gin.Context) {
@@ -19,8 +18,7 @@ func GetPerfMetricsSummary(c *gin.Context) {
 		}
 	}
 
-	activeGroups := append(lo.Keys(ratio_setting.GetGroupRatioCopy()), "auto")
-	result, err := perfmetrics.QuerySummaryAll(hours, activeGroups)
+	result, err := perfmetrics.QuerySummaryAll(hours)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"success": false,
@@ -74,9 +72,12 @@ func GetPerfMetrics(c *gin.Context) {
 }
 
 func filterActiveGroups(groups []perfmetrics.GroupResult) []perfmetrics.GroupResult {
-	activeRatios := ratio_setting.GetGroupRatioCopy()
-	return lo.Filter(groups, func(g perfmetrics.GroupResult, _ int) bool {
-		_, ok := activeRatios[g.Group]
-		return ok || g.Group == "auto"
-	})
+	activeGroups := ratio_setting.GetGroupRatioCopy()
+	filtered := make([]perfmetrics.GroupResult, 0, len(groups))
+	for _, g := range groups {
+		if _, ok := activeGroups[g.Group]; ok || g.Group == "auto" {
+			filtered = append(filtered, g)
+		}
+	}
+	return filtered
 }

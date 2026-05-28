@@ -53,6 +53,7 @@ import {
   FormMessage,
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
+import { Switch } from '@/components/ui/switch'
 import {
   Table,
   TableBody,
@@ -62,7 +63,6 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { Textarea } from '@/components/ui/textarea'
-import { SettingsSwitchField } from '../components/settings-form-layout'
 import { SettingsSection } from '../components/settings-section'
 import { useUpdateOption } from '../hooks/use-update-option'
 
@@ -238,7 +238,12 @@ export function FAQSection({ enabled, data }: FAQSectionProps) {
   }
 
   return (
-    <SettingsSection title={t('FAQ')}>
+    <SettingsSection
+      title={t('FAQ')}
+      description={t(
+        'Maintain a list of common questions for the dashboard help panel'
+      )}
+    >
       <div className='space-y-4'>
         <div className='flex flex-wrap items-center justify-between gap-2'>
           <div className='flex flex-wrap items-center gap-2'>
@@ -266,12 +271,12 @@ export function FAQSection({ enabled, data }: FAQSectionProps) {
               {updateOption.isPending ? t('Saving...') : t('Save Settings')}
             </Button>
           </div>
-          <SettingsSwitchField
-            checked={isEnabled}
-            onCheckedChange={handleToggleEnabled}
-            label={t('Enabled')}
-            className='border-b-0 py-0'
-          />
+          <div className='flex items-center gap-2'>
+            <span className='text-muted-foreground text-sm'>
+              {t('Enabled')}
+            </span>
+            <Switch checked={isEnabled} onCheckedChange={handleToggleEnabled} />
+          </div>
         </div>
 
         <div className='rounded-md border'>

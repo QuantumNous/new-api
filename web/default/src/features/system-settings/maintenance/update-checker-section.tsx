@@ -110,7 +110,10 @@ export function UpdateCheckerSection({
 
   return (
     <>
-      <SettingsSection title={t('System maintenance')}>
+      <SettingsSection
+        title={t('System maintenance')}
+        description={t('Review current version and fetch release notes.')}
+      >
         <div className='space-y-6'>
           <div className='grid gap-4 md:grid-cols-2'>
             <div className='rounded-lg border p-4'>

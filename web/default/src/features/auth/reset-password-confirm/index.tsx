@@ -112,8 +112,8 @@ export function ResetPasswordConfirm({
           </h2>
           <p className='text-muted-foreground text-left text-sm sm:text-base'>
             {newPassword
-              ? t('auth.resetPasswordConfirm.success')
-              : t('auth.resetPasswordConfirm.description')}
+              ? 'Your password has been reset successfully'
+              : 'Confirm the reset request to generate a new password.'}
           </p>
         </div>
 
@@ -178,12 +178,10 @@ export function ResetPasswordConfirm({
             }
           >
             {newPassword
-              ? t('auth.resetPasswordConfirm.backToLogin')
+              ? 'Return to login'
               : isActive
-                ? t('auth.resetPasswordConfirm.retry', {
-                    seconds: secondsLeft,
-                  })
-                : t('auth.resetPasswordConfirm.confirm')}
+                ? `Retry (${secondsLeft}s)`
+                : 'Confirm reset password'}
           </Button>
 
           {!newPassword && (

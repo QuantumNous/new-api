@@ -65,9 +65,6 @@ type FetchModelsDialogProps = {
   onModelsSelected?: (models: string[]) => void
   redirectModels?: string[]
   redirectSourceModels?: string[]
-  customFetcher?: () => Promise<string[]>
-  existingModelsOverride?: string[]
-  channelName?: string | null
 }
 
 export function FetchModelsDialog({
@@ -76,13 +73,9 @@ export function FetchModelsDialog({
   onModelsSelected,
   redirectModels = [],
   redirectSourceModels = [],
-  customFetcher,
-  existingModelsOverride,
-  channelName,
 }: FetchModelsDialogProps) {
   const { t } = useTranslation()
   const { currentRow } = useChannels()
-  const activeChannel = customFetcher ? null : currentRow
   const queryClient = useQueryClient()
   const [isFetching, setIsFetching] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
@@ -92,9 +85,8 @@ export function FetchModelsDialog({
 
   // Parse existing models
   const existingModels = useMemo(
-    () =>
-      existingModelsOverride ?? parseModelsString(activeChannel?.models || ''),
-    [existingModelsOverride, activeChannel?.models]
+    () => parseModelsString(currentRow?.models || ''),
+    [currentRow?.models]
   )
 
   // Categorize models with redirect models
@@ -129,33 +121,26 @@ export function FetchModelsDialog({
   }, [fetchedModelSet, redirectSourceKeysSet, searchKeyword, selectedModels])
 
   useEffect(() => {
-    if (open && (activeChannel || customFetcher)) {
+    if (open && currentRow) {
       handleFetchModels()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, activeChannel?.id, customFetcher])
+  }, [open, currentRow?.id])
 
   const handleFetchModels = async () => {
-    if (!activeChannel && !customFetcher) return
+    if (!currentRow) return
 
     setIsFetching(true)
     try {
-      if (customFetcher) {
-        const list = await customFetcher()
+      const response = await fetchUpstreamModels(currentRow.id)
+      if (response.success) {
+        const list = Array.isArray(response.data) ? response.data : []
         setFetchedModels(list)
         setSelectedModels(existingModels)
         toast.success(t('Fetched {{count}} models', { count: list.length }))
       } else {
-        const response = await fetchUpstreamModels(activeChannel!.id)
-        if (response.success) {
-          const list = Array.isArray(response.data) ? response.data : []
-          setFetchedModels(list)
-          setSelectedModels(existingModels)
-          toast.success(t('Fetched {{count}} models', { count: list.length }))
-        } else {
-          toast.error(response.message || t('Failed to fetch models'))
-          setFetchedModels([])
-        }
+        toast.error(response.message || t('Failed to fetch models'))
+        setFetchedModels([])
       }
     } catch (error: unknown) {
       toast.error(
@@ -168,6 +153,8 @@ export function FetchModelsDialog({
   }
 
   const handleSave = async () => {
+    if (!currentRow) return
+
     // If onModelsSelected callback is provided, use it (form filling mode)
     if (onModelsSelected) {
       onModelsSelected(selectedModels)
@@ -177,11 +164,10 @@ export function FetchModelsDialog({
     }
 
     // Otherwise, directly save to API (standalone mode)
-    if (!activeChannel) return
     setIsSaving(true)
     try {
       const modelsString = selectedModels.join(',')
-      const response = await updateChannel(activeChannel.id, {
+      const response = await updateChannel(currentRow.id, {
         models: modelsString,
       })
       if (response.success) {
@@ -371,23 +357,12 @@ export function FetchModelsDialog({
         <DialogHeader>
           <DialogTitle>{t('Fetch Models')}</DialogTitle>
           <DialogDescription>
-            {activeChannel ? (
-              <>
-                {t('Fetch available models for:')}{' '}
-                <strong>{activeChannel.name}</strong>
-              </>
-            ) : channelName ? (
-              <>
-                {t('Fetch available models for:')}{' '}
-                <strong>{channelName}</strong>
-              </>
-            ) : (
-              t('Fetch available models from upstream')
-            )}
+            {t('Fetch available models for:')}{' '}
+            <strong>{currentRow?.name}</strong>
           </DialogDescription>
         </DialogHeader>
 
-        {!activeChannel && !customFetcher ? (
+        {!currentRow ? (
           <div className='text-muted-foreground py-8 text-center'>
             {t('No channel selected')}
           </div>
@@ -422,7 +397,7 @@ export function FetchModelsDialog({
 
               {/* Tabs for New vs Existing vs Removed */}
               <Tabs
-                key={`${activeChannel?.id ?? 'custom'}-${fetchedModels.length}-${removedModels.length}`}
+                key={`${currentRow?.id}-${fetchedModels.length}-${removedModels.length}`}
                 defaultValue={
                   newModels.length > 0
                     ? 'new'

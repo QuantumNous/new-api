@@ -17,10 +17,10 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 /**
- * Public surface of the Layout module.
+ * Layout 组件统一导出
  */
 
-// Core components
+// 核心组件
 export { AppHeader } from './components/app-header'
 export { AppSidebar } from './components/app-sidebar'
 export { AuthenticatedLayout } from './components/authenticated-layout'
@@ -34,34 +34,41 @@ export { Main } from './components/main'
 export { PageFooterPortal } from './components/page-footer'
 export { NavGroup } from './components/nav-group'
 export { SectionPageLayout } from './components/section-page-layout'
-export { SidebarViewHeader } from './components/sidebar-view-header'
 export { SystemBrand } from './components/system-brand'
 export { TopNav } from './components/top-nav'
 export { MobileDrawer } from './components/mobile-drawer'
 
-// Configuration
-export { SYSTEM_SETTINGS_VIEW } from './config/system-settings.config'
+// 上下文
+export { WorkspaceProvider, useWorkspace } from './context/workspace-context'
+
+// 配置
+export {
+  getSystemSettingsNavGroups,
+  WORKSPACE_SYSTEM_SETTINGS_ID,
+} from './config/system-settings.config'
 export { defaultTopNavLinks } from './config/top-nav.config'
 
-// Constants
+// 常量
 export { MOBILE_DRAWER_ANIMATION, MOBILE_DRAWER_CONFIG } from './constants'
 
-// Sidebar view registry
+// 工具函数 - 工作区注册表
 export {
+  getWorkspaceByPath,
   getNavGroupsForPath,
-  resolveSidebarView,
-} from './lib/sidebar-view-registry'
+  isInWorkspace,
+  getAllWorkspaces,
+  WORKSPACE_IDS,
+} from './lib/workspace-registry'
 
-// Type exports (type-only to avoid conflicts with components above)
+// 类型导出（使用 type-only 导出避免与组件冲突）
 export type {
-  NavCollapsible,
-  NavGroup as NavGroupType,
-  NavItem,
+  Workspace,
   NavLink,
-  ResolvedSidebarView,
+  NavCollapsible,
+  NavItem,
+  NavGroup as NavGroupType,
   SidebarData,
-  SidebarView,
-  SidebarViewParent,
   TopNavLink,
 } from './types'
+export type { WorkspaceConfig, WorkspaceId } from './lib/workspace-registry'
 export type { SectionPageLayoutProps } from './components/section-page-layout'

@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import * as z from 'zod'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -44,7 +44,6 @@ import {
   FormField,
   FormItem,
   FormLabel,
-  FormMessage,
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -60,109 +59,32 @@ import {
 import { Separator } from '@/components/ui/separator'
 import { Switch } from '@/components/ui/switch'
 import { StatusBadge } from '@/components/status-badge'
-import {
-  SettingsForm,
-  SettingsSwitchContent,
-  SettingsSwitchItem,
-} from '../components/settings-form-layout'
-import { SettingsPageFormActions } from '../components/settings-page-context'
 import { SettingsSection } from '../components/settings-section'
+import { useResetForm } from '../hooks/use-reset-form'
 import { useUpdateOption } from '../hooks/use-update-option'
-import { safeNumberFieldProps } from '../utils/numeric-field'
 
-/**
- * IMPORTANT: react-hook-form 7 interprets dotted `name` strings as nested
- * paths. If we declare the schema with literal flat keys like
- * `'performance_setting.disk_cache_enabled'`, the form state diverges from
- * what zod validates and saves silently turn into no-ops. So we model the
- * form internally with proper nested objects and only flatten back to the
- * server-side key format right before persisting.
- */
 const perfSchema = z.object({
-  performance_setting: z.object({
-    disk_cache_enabled: z.boolean(),
-    disk_cache_threshold_mb: z.coerce.number().min(1),
-    disk_cache_max_size_mb: z.coerce.number().min(100),
-    disk_cache_path: z.string(),
-    monitor_enabled: z.boolean(),
-    monitor_cpu_threshold: z.coerce.number().min(0),
-    monitor_memory_threshold: z.coerce.number().min(0).max(100),
-    monitor_disk_threshold: z.coerce.number().min(0).max(100),
-  }),
-  perf_metrics_setting: z.object({
-    enabled: z.boolean(),
-    flush_interval: z.coerce.number().min(1),
-    bucket_time: z.enum(['minute', '5min', 'hour']),
-    retention_days: z.coerce.number().min(0),
-  }),
+  'performance_setting.disk_cache_enabled': z.boolean(),
+  'performance_setting.disk_cache_threshold_mb': z.coerce.number().min(1),
+  'performance_setting.disk_cache_max_size_mb': z.coerce.number().min(100),
+  'performance_setting.disk_cache_path': z.string().optional(),
+  'performance_setting.monitor_enabled': z.boolean(),
+  'performance_setting.monitor_cpu_threshold': z.coerce.number().min(0),
+  'performance_setting.monitor_memory_threshold': z.coerce
+    .number()
+    .min(0)
+    .max(100),
+  'performance_setting.monitor_disk_threshold': z.coerce
+    .number()
+    .min(0)
+    .max(100),
+  'perf_metrics_setting.enabled': z.boolean(),
+  'perf_metrics_setting.flush_interval': z.coerce.number().min(1),
+  'perf_metrics_setting.bucket_time': z.enum(['minute', '5min', 'hour']),
+  'perf_metrics_setting.retention_days': z.coerce.number().min(0),
 })
 
-type PerfFormInput = z.input<typeof perfSchema>
-type PerfFormValues = z.output<typeof perfSchema>
-
-type FlatPerfDefaults = {
-  'performance_setting.disk_cache_enabled': boolean
-  'performance_setting.disk_cache_threshold_mb': number
-  'performance_setting.disk_cache_max_size_mb': number
-  'performance_setting.disk_cache_path': string
-  'performance_setting.monitor_enabled': boolean
-  'performance_setting.monitor_cpu_threshold': number
-  'performance_setting.monitor_memory_threshold': number
-  'performance_setting.monitor_disk_threshold': number
-  'perf_metrics_setting.enabled': boolean
-  'perf_metrics_setting.flush_interval': number
-  'perf_metrics_setting.bucket_time': 'minute' | '5min' | 'hour'
-  'perf_metrics_setting.retention_days': number
-}
-
-const buildFormDefaults = (defaults: FlatPerfDefaults): PerfFormInput => ({
-  performance_setting: {
-    disk_cache_enabled: defaults['performance_setting.disk_cache_enabled'],
-    disk_cache_threshold_mb:
-      defaults['performance_setting.disk_cache_threshold_mb'],
-    disk_cache_max_size_mb:
-      defaults['performance_setting.disk_cache_max_size_mb'],
-    disk_cache_path: defaults['performance_setting.disk_cache_path'] ?? '',
-    monitor_enabled: defaults['performance_setting.monitor_enabled'],
-    monitor_cpu_threshold:
-      defaults['performance_setting.monitor_cpu_threshold'],
-    monitor_memory_threshold:
-      defaults['performance_setting.monitor_memory_threshold'],
-    monitor_disk_threshold:
-      defaults['performance_setting.monitor_disk_threshold'],
-  },
-  perf_metrics_setting: {
-    enabled: defaults['perf_metrics_setting.enabled'],
-    flush_interval: defaults['perf_metrics_setting.flush_interval'],
-    bucket_time: defaults['perf_metrics_setting.bucket_time'],
-    retention_days: defaults['perf_metrics_setting.retention_days'],
-  },
-})
-
-const normalizeFormValues = (values: PerfFormValues): FlatPerfDefaults => ({
-  'performance_setting.disk_cache_enabled':
-    values.performance_setting.disk_cache_enabled,
-  'performance_setting.disk_cache_threshold_mb':
-    values.performance_setting.disk_cache_threshold_mb,
-  'performance_setting.disk_cache_max_size_mb':
-    values.performance_setting.disk_cache_max_size_mb,
-  'performance_setting.disk_cache_path':
-    values.performance_setting.disk_cache_path ?? '',
-  'performance_setting.monitor_enabled':
-    values.performance_setting.monitor_enabled,
-  'performance_setting.monitor_cpu_threshold':
-    values.performance_setting.monitor_cpu_threshold,
-  'performance_setting.monitor_memory_threshold':
-    values.performance_setting.monitor_memory_threshold,
-  'performance_setting.monitor_disk_threshold':
-    values.performance_setting.monitor_disk_threshold,
-  'perf_metrics_setting.enabled': values.perf_metrics_setting.enabled,
-  'perf_metrics_setting.flush_interval':
-    values.perf_metrics_setting.flush_interval,
-  'perf_metrics_setting.bucket_time': values.perf_metrics_setting.bucket_time,
-  'perf_metrics_setting.retention_days':
-    values.perf_metrics_setting.retention_days,
-})
+type PerfFormValues = z.infer<typeof perfSchema>
 
 function formatBytes(bytes: number, decimals = 2): string {
   if (!bytes || isNaN(bytes)) return '0 Bytes'
@@ -176,7 +98,7 @@ function formatBytes(bytes: number, decimals = 2): string {
 }
 
 interface Props {
-  defaultValues: FlatPerfDefaults
+  defaultValues: PerfFormValues
 }
 
 type LogInfo = {
@@ -230,28 +152,14 @@ export function PerformanceSection(props: Props) {
   const [logCleanupValue, setLogCleanupValue] = useState(10)
   const [logCleanupLoading, setLogCleanupLoading] = useState(false)
 
-  const formDefaults = useMemo(
-    () => buildFormDefaults(props.defaultValues),
-    [props.defaultValues]
-  )
-
-  const form = useForm<PerfFormInput, unknown, PerfFormValues>({
-    resolver: zodResolver(perfSchema),
-    defaultValues: formDefaults,
+  const form = useForm<PerfFormValues>({
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    resolver: zodResolver(perfSchema) as any,
+    defaultValues: props.defaultValues,
   })
 
-  const baselineRef = useRef<FlatPerfDefaults>(props.defaultValues)
-  const baselineSerializedRef = useRef<string>(
-    JSON.stringify(props.defaultValues)
-  )
-
-  useEffect(() => {
-    const serialized = JSON.stringify(props.defaultValues)
-    if (serialized === baselineSerializedRef.current) return
-    baselineRef.current = props.defaultValues
-    baselineSerializedRef.current = serialized
-    form.reset(buildFormDefaults(props.defaultValues))
-  }, [props.defaultValues, form])
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  useResetForm(form as any, props.defaultValues)
 
   const fetchStats = useCallback(async () => {
     try {
@@ -276,27 +184,23 @@ export function PerformanceSection(props: Props) {
     fetchLogInfo()
   }, [fetchStats, fetchLogInfo])
 
-  const onSubmit = async (values: PerfFormValues) => {
-    const normalized = normalizeFormValues(values)
-    const changedKeys = (
-      Object.keys(normalized) as Array<keyof FlatPerfDefaults>
-    ).filter((key) => normalized[key] !== baselineRef.current[key])
-
-    if (changedKeys.length === 0) {
+  const onSubmit = async (data: PerfFormValues) => {
+    const entries = Object.entries(data) as [string, unknown][]
+    const updates = entries.filter(
+      ([key, value]) =>
+        value !== (props.defaultValues[key as keyof PerfFormValues] as unknown)
+    )
+    if (updates.length === 0) {
       toast.info(t('No changes to save'))
       return
     }
-
-    for (const key of changedKeys) {
+    for (const [key, value] of updates) {
       await updateOption.mutateAsync({
         key,
-        value: normalized[key],
+        value: value as string | number | boolean,
       })
     }
-
-    baselineRef.current = normalized
-    baselineSerializedRef.current = JSON.stringify(normalized)
-    form.reset(buildFormDefaults(normalized))
+    toast.success(t('Saved successfully'))
     fetchStats()
   }
 
@@ -368,13 +272,9 @@ export function PerformanceSection(props: Props) {
   const diskEnabled = form.watch('performance_setting.disk_cache_enabled')
   const monitorEnabled = form.watch('performance_setting.monitor_enabled')
   const perfMetricsEnabled = form.watch('perf_metrics_setting.enabled')
-  const maxCacheSizeRaw = form.watch(
+  const maxCacheSizeMb = form.watch(
     'performance_setting.disk_cache_max_size_mb'
   )
-  const maxCacheSizeMb =
-    typeof maxCacheSizeRaw === 'number'
-      ? maxCacheSizeRaw
-      : Number(maxCacheSizeRaw) || 0
 
   const lowDiskSpace =
     diskEnabled &&
@@ -394,13 +294,14 @@ export function PerformanceSection(props: Props) {
       : 0
 
   return (
-    <SettingsSection title={t('Performance Settings')}>
+    <SettingsSection
+      title={t('Performance Settings')}
+      description={t(
+        'Disk cache, system performance monitoring, and operation statistics'
+      )}
+    >
       <Form {...form}>
-        <SettingsForm onSubmit={form.handleSubmit(onSubmit)}>
-          <SettingsPageFormActions
-            onSave={form.handleSubmit(onSubmit)}
-            isSaving={updateOption.isPending}
-          />
+        <form onSubmit={form.handleSubmit(onSubmit)} className='space-y-6'>
           {/* Disk Cache Settings */}
           <div>
             <h4 className='font-medium'>{t('Disk Cache Settings')}</h4>
@@ -416,17 +317,15 @@ export function PerformanceSection(props: Props) {
               control={form.control}
               name='performance_setting.disk_cache_enabled'
               render={({ field }) => (
-                <SettingsSwitchItem>
-                  <SettingsSwitchContent>
-                    <FormLabel>{t('Enable Disk Cache')}</FormLabel>
-                  </SettingsSwitchContent>
+                <FormItem className='flex items-center gap-2'>
                   <FormControl>
                     <Switch
                       checked={field.value}
                       onCheckedChange={field.onChange}
                     />
                   </FormControl>
-                </SettingsSwitchItem>
+                  <FormLabel>{t('Enable Disk Cache')}</FormLabel>
+                </FormItem>
               )}
             />
             <FormField
@@ -436,18 +335,11 @@ export function PerformanceSection(props: Props) {
                 <FormItem>
                   <FormLabel>{t('Disk Cache Threshold (MB)')}</FormLabel>
                   <FormControl>
-                    <Input
-                      type='number'
-                      min={1}
-                      step={1}
-                      {...safeNumberFieldProps(field)}
-                      disabled={!diskEnabled}
-                    />
+                    <Input type='number' {...field} disabled={!diskEnabled} />
                   </FormControl>
                   <FormDescription>
                     {t('Use disk cache when request body exceeds this size')}
                   </FormDescription>
-                  <FormMessage />
                 </FormItem>
               )}
             />
@@ -458,13 +350,7 @@ export function PerformanceSection(props: Props) {
                 <FormItem>
                   <FormLabel>{t('Max Disk Cache Size (MB)')}</FormLabel>
                   <FormControl>
-                    <Input
-                      type='number'
-                      min={100}
-                      step={1}
-                      {...safeNumberFieldProps(field)}
-                      disabled={!diskEnabled}
-                    />
+                    <Input type='number' {...field} disabled={!diskEnabled} />
                   </FormControl>
                   {stats?.disk_space_info &&
                     stats.disk_space_info.total > 0 && (
@@ -475,7 +361,6 @@ export function PerformanceSection(props: Props) {
                         })}
                       </FormDescription>
                     )}
-                  <FormMessage />
                 </FormItem>
               )}
             />
@@ -501,15 +386,11 @@ export function PerformanceSection(props: Props) {
                       placeholder={t(
                         'Leave empty to use system temp directory'
                       )}
+                      {...field}
                       value={field.value ?? ''}
-                      onChange={(event) => field.onChange(event.target.value)}
-                      name={field.name}
-                      onBlur={field.onBlur}
-                      ref={field.ref}
                       disabled={!diskEnabled}
                     />
                   </FormControl>
-                  <FormMessage />
                 </FormItem>
               )}
             />
@@ -534,17 +415,15 @@ export function PerformanceSection(props: Props) {
               control={form.control}
               name='performance_setting.monitor_enabled'
               render={({ field }) => (
-                <SettingsSwitchItem>
-                  <SettingsSwitchContent>
-                    <FormLabel>{t('Enable Performance Monitoring')}</FormLabel>
-                  </SettingsSwitchContent>
+                <FormItem className='flex items-center gap-2'>
                   <FormControl>
                     <Switch
                       checked={field.value}
                       onCheckedChange={field.onChange}
                     />
                   </FormControl>
-                </SettingsSwitchItem>
+                  <FormLabel>{t('Enable Performance Monitoring')}</FormLabel>
+                </FormItem>
               )}
             />
             <FormField
@@ -556,13 +435,10 @@ export function PerformanceSection(props: Props) {
                   <FormControl>
                     <Input
                       type='number'
-                      min={0}
-                      step={1}
-                      {...safeNumberFieldProps(field)}
+                      {...field}
                       disabled={!monitorEnabled}
                     />
                   </FormControl>
-                  <FormMessage />
                 </FormItem>
               )}
             />
@@ -575,14 +451,10 @@ export function PerformanceSection(props: Props) {
                   <FormControl>
                     <Input
                       type='number'
-                      min={0}
-                      max={100}
-                      step={1}
-                      {...safeNumberFieldProps(field)}
+                      {...field}
                       disabled={!monitorEnabled}
                     />
                   </FormControl>
-                  <FormMessage />
                 </FormItem>
               )}
             />
@@ -595,14 +467,10 @@ export function PerformanceSection(props: Props) {
                   <FormControl>
                     <Input
                       type='number'
-                      min={0}
-                      max={100}
-                      step={1}
-                      {...safeNumberFieldProps(field)}
+                      {...field}
                       disabled={!monitorEnabled}
                     />
                   </FormControl>
-                  <FormMessage />
                 </FormItem>
               )}
             />
@@ -624,19 +492,15 @@ export function PerformanceSection(props: Props) {
               control={form.control}
               name='perf_metrics_setting.enabled'
               render={({ field }) => (
-                <SettingsSwitchItem>
-                  <SettingsSwitchContent>
-                    <FormLabel>
-                      {t('Enable model performance metrics')}
-                    </FormLabel>
-                  </SettingsSwitchContent>
+                <FormItem className='flex items-center gap-2'>
                   <FormControl>
                     <Switch
                       checked={field.value}
                       onCheckedChange={field.onChange}
                     />
                   </FormControl>
-                </SettingsSwitchItem>
+                  <FormLabel>{t('Enable model performance metrics')}</FormLabel>
+                </FormItem>
               )}
             />
             <FormField
@@ -649,12 +513,10 @@ export function PerformanceSection(props: Props) {
                     <Input
                       type='number'
                       min={1}
-                      step={1}
-                      {...safeNumberFieldProps(field)}
+                      {...field}
                       disabled={!perfMetricsEnabled}
                     />
                   </FormControl>
-                  <FormMessage />
                 </FormItem>
               )}
             />
@@ -687,7 +549,6 @@ export function PerformanceSection(props: Props) {
                       </SelectGroup>
                     </SelectContent>
                   </Select>
-                  <FormMessage />
                 </FormItem>
               )}
             />
@@ -701,20 +562,22 @@ export function PerformanceSection(props: Props) {
                     <Input
                       type='number'
                       min={0}
-                      step={1}
-                      {...safeNumberFieldProps(field)}
+                      {...field}
                       disabled={!perfMetricsEnabled}
                     />
                   </FormControl>
                   <FormDescription>
                     {t('0 means data is kept permanently')}
                   </FormDescription>
-                  <FormMessage />
                 </FormItem>
               )}
             />
           </div>
-        </SettingsForm>
+
+          <Button type='submit' disabled={updateOption.isPending}>
+            {updateOption.isPending ? t('Saving...') : t('Save Changes')}
+          </Button>
+        </form>
       </Form>
 
       <Separator />
