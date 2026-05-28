@@ -3,6 +3,7 @@ package controller
 import (
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
@@ -109,8 +110,107 @@ func init() {
 	})
 }
 
+func channelOwnerName(channelType int) string {
+	apiType, success := common.ChannelType2APIType(channelType)
+	if !success {
+		return strings.ToLower(constant.GetChannelTypeName(channelType))
+	}
+	adaptor := relay.GetAdaptor(apiType)
+	if adaptor == nil {
+		return strings.ToLower(constant.GetChannelTypeName(channelType))
+	}
+	adaptor.Init(&relaycommon.RelayInfo{ChannelMeta: &relaycommon.ChannelMeta{
+		ChannelType: channelType,
+	}})
+	if name := strings.TrimSpace(adaptor.GetChannelName()); name != "" {
+		return name
+	}
+	return strings.ToLower(constant.GetChannelTypeName(channelType))
+}
+
+func getPreferredModelOwners(modelNames []string, groups []string) map[string]string {
+	channelTypes, err := model.GetPreferredModelOwnerChannelTypes(modelNames, groups)
+	if err != nil {
+		common.SysLog(fmt.Sprintf("GetPreferredModelOwnerChannelTypes error: %v", err))
+		return map[string]string{}
+	}
+
+	ownerByChannelType := make(map[int]string)
+	owners := make(map[string]string, len(channelTypes))
+	for modelName, channelType := range channelTypes {
+		owner, ok := ownerByChannelType[channelType]
+		if !ok {
+			owner = channelOwnerName(channelType)
+			ownerByChannelType[channelType] = owner
+		}
+		if owner != "" {
+			owners[modelName] = owner
+		}
+	}
+	return owners
+}
+
+func buildOpenAIModel(modelName string, ownerByModel map[string]string) dto.OpenAIModels {
+	var oaiModel dto.OpenAIModels
+	if staticModel, ok := openAIModelsMap[modelName]; ok {
+		oaiModel = staticModel
+	} else {
+		oaiModel = dto.OpenAIModels{
+			Id:      modelName,
+			Object:  "model",
+			Created: 1626777600,
+			OwnedBy: "custom",
+		}
+	}
+	if owner, ok := ownerByModel[modelName]; ok && owner != "" {
+		oaiModel.OwnedBy = owner
+	}
+	oaiModel.SupportedEndpointTypes = model.GetModelSupportEndpointTypes(modelName)
+	return oaiModel
+}
+
+type modelListGroups struct {
+	userGroup   string
+	tokenGroup  string
+	ownerGroups []string
+}
+
+func getModelListGroups(c *gin.Context) (modelListGroups, error) {
+	userId := c.GetInt("id")
+	tokenGroup := common.GetContextKeyString(c, constant.ContextKeyTokenGroup)
+	userGroup := common.GetContextKeyString(c, constant.ContextKeyUserGroup)
+	if userGroup == "" {
+		if userId <= 0 {
+			userGroup = "default"
+		} else {
+			var err error
+			userGroup, err = model.GetUserGroup(userId, false)
+			if err != nil {
+				return modelListGroups{}, err
+			}
+		}
+	}
+
+	if tokenGroup == "auto" {
+		return modelListGroups{
+			userGroup:   userGroup,
+			tokenGroup:  tokenGroup,
+			ownerGroups: service.GetUserAutoGroup(userGroup),
+		}, nil
+	}
+
+	group := userGroup
+	if tokenGroup != "" {
+		group = tokenGroup
+	}
+	return modelListGroups{
+		userGroup:   userGroup,
+		tokenGroup:  tokenGroup,
+		ownerGroups: []string{group},
+	}, nil
+}
+
 func ListModels(c *gin.Context, modelType int) {
-	userOpenAiModels := make([]dto.OpenAIModels, 0)
 	endpointType := endpointTypeForModelList(modelType)
 
 	acceptUnsetRatioModel := operation_setting.SelfUseModeEnabled
@@ -124,7 +224,8 @@ func ListModels(c *gin.Context, modelType int) {
 		}
 	}
 
-	groups, err := modelListGroups(c)
+	userModelNames := make([]string, 0)
+	groups, err := getModelListGroups(c)
 	if err != nil {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
@@ -132,7 +233,7 @@ func ListModels(c *gin.Context, modelType int) {
 		})
 		return
 	}
-
+	ownerGroups := groups.ownerGroups
 	modelLimitEnable := common.GetContextKeyBool(c, constant.ContextKeyTokenModelLimitEnabled)
 	if modelLimitEnable {
 		s, ok := common.GetContextKey(c, constant.ContextKeyTokenModelLimit)
@@ -142,10 +243,10 @@ func ListModels(c *gin.Context, modelType int) {
 		} else {
 			tokenModelLimit = map[string]bool{}
 		}
-		enabledModelSet := lo.SliceToMap(enabledModelsForGroups(groups), func(modelName string) (string, struct{}) {
+		enabledModelSet := lo.SliceToMap(enabledModelsForGroups(ownerGroups), func(modelName string) (string, struct{}) {
 			return modelName, struct{}{}
 		})
-		visibleModelSet := lo.SliceToMap(visibleModelsForEndpoint(groups, endpointType), func(modelName string) (string, struct{}) {
+		visibleModelSet := lo.SliceToMap(visibleModelsForEndpoint(ownerGroups, endpointType), func(modelName string) (string, struct{}) {
 			return modelName, struct{}{}
 		})
 		for allowModel, _ := range tokenModelLimit {
@@ -159,40 +260,27 @@ func ListModels(c *gin.Context, modelType int) {
 					continue
 				}
 			}
-			if oaiModel, ok := openAIModelsMap[allowModel]; ok {
-				oaiModel.SupportedEndpointTypes = model.GetModelSupportEndpointTypes(allowModel)
-				userOpenAiModels = append(userOpenAiModels, oaiModel)
-			} else {
-				userOpenAiModels = append(userOpenAiModels, dto.OpenAIModels{
-					Id:                     allowModel,
-					Object:                 "model",
-					Created:                1626777600,
-					OwnedBy:                "custom",
-					SupportedEndpointTypes: model.GetModelSupportEndpointTypes(allowModel),
-				})
-			}
+			userModelNames = append(userModelNames, allowModel)
 		}
 	} else {
-		models := visibleModelsForEndpoint(groups, endpointType)
+		models := visibleModelsForEndpoint(ownerGroups, endpointType)
 		for _, modelName := range models {
 			if !acceptUnsetRatioModel {
 				if !helper.HasModelBillingConfig(modelName) {
 					continue
 				}
 			}
-			if oaiModel, ok := openAIModelsMap[modelName]; ok {
-				oaiModel.SupportedEndpointTypes = model.GetModelSupportEndpointTypes(modelName)
-				userOpenAiModels = append(userOpenAiModels, oaiModel)
-			} else {
-				userOpenAiModels = append(userOpenAiModels, dto.OpenAIModels{
-					Id:                     modelName,
-					Object:                 "model",
-					Created:                1626777600,
-					OwnedBy:                "custom",
-					SupportedEndpointTypes: model.GetModelSupportEndpointTypes(modelName),
-				})
-			}
+			userModelNames = append(userModelNames, modelName)
 		}
+	}
+
+	ownerByModel := map[string]string{}
+	if len(ownerGroups) > 0 {
+		ownerByModel = getPreferredModelOwners(userModelNames, ownerGroups)
+	}
+	userOpenAiModels := make([]dto.OpenAIModels, 0, len(userModelNames))
+	for _, modelName := range userModelNames {
+		userOpenAiModels = append(userOpenAiModels, buildOpenAIModel(modelName, ownerByModel))
 	}
 
 	switch modelType {
@@ -245,28 +333,6 @@ func endpointTypeForModelList(modelType int) constant.EndpointType {
 	default:
 		return constant.EndpointTypeOpenAI
 	}
-}
-
-func modelListGroups(c *gin.Context) ([]string, error) {
-	userId := c.GetInt("id")
-	tokenGroup := common.GetContextKeyString(c, constant.ContextKeyTokenGroup)
-	if userId <= 0 {
-		if tokenGroup != "" && tokenGroup != "auto" {
-			return []string{tokenGroup}, nil
-		}
-		return []string{"default"}, nil
-	}
-	userGroup, err := model.GetUserGroup(userId, false)
-	if err != nil {
-		return nil, err
-	}
-	if tokenGroup == "auto" {
-		return service.GetUserAutoGroup(userGroup), nil
-	}
-	if tokenGroup != "" {
-		return []string{tokenGroup}, nil
-	}
-	return []string{userGroup}, nil
 }
 
 func visibleModelsForEndpoint(groups []string, endpointType constant.EndpointType) []string {
@@ -330,12 +396,13 @@ func RetrieveModel(c *gin.Context, modelType int) {
 }
 
 func modelVisibleForEndpoint(c *gin.Context, modelName string, endpointType constant.EndpointType) bool {
-	groups, err := modelListGroups(c)
+	groups, err := getModelListGroups(c)
 	if err != nil {
 		return false
 	}
-	if !lo.Contains(enabledModelsForGroups(groups), modelName) {
+	ownerGroups := groups.ownerGroups
+	if !lo.Contains(enabledModelsForGroups(ownerGroups), modelName) {
 		return true
 	}
-	return lo.Contains(visibleModelsForEndpoint(groups, endpointType), modelName)
+	return lo.Contains(visibleModelsForEndpoint(ownerGroups, endpointType), modelName)
 }

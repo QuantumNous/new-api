@@ -81,6 +81,10 @@ func TestCollectPendingApplyUpstreamModelChanges(t *testing.T) {
 	require.Equal(t, []string{"old-model"}, pendingRemoveModels)
 }
 
+func TestChannelUpstreamModelUpdateSelectFieldsIncludeModelMapping(t *testing.T) {
+	require.Contains(t, channelUpstreamModelUpdateSelectFields, "model_mapping")
+}
+
 func TestNormalizeChannelModelMapping(t *testing.T) {
 	modelMapping := `{
 		" alias-model ": " upstream-model ",

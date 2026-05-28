@@ -29,14 +29,22 @@ jobs:
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         with:
           bun-version: latest
-      - name: Build Frontend
+      - name: Build Frontend (default)
         env:
           CI: ""
         run: |
-          cd web
+          cd web/default
           bun install
           DISABLE_ESLINT_PLUGIN='true' VITE_REACT_APP_VERSION=$VERSION bun run build
-          cd ..
+          cd ../..
+      - name: Build Frontend (classic)
+        env:
+          CI: ""
+        run: |
+          cd web/classic
+          bun install
+          VITE_REACT_APP_VERSION=$VERSION bun run build
+          cd ../..
       - name: Set up Go
         uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
         with:
@@ -78,15 +86,23 @@ jobs:
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         with:
           bun-version: latest
-      - name: Build Frontend
+      - name: Build Frontend (default)
         env:
           CI: ""
           NODE_OPTIONS: "--max-old-space-size=4096"
         run: |
-          cd web
+          cd web/default
           bun install
           DISABLE_ESLINT_PLUGIN='true' VITE_REACT_APP_VERSION=$VERSION bun run build
-          cd ..
+          cd ../..
+      - name: Build Frontend (classic)
+        env:
+          CI: ""
+        run: |
+          cd web/classic
+          bun install
+          VITE_REACT_APP_VERSION=$VERSION bun run build
+          cd ../..
       - name: Set up Go
         uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
         with:
@@ -126,14 +142,22 @@ jobs:
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         with:
           bun-version: latest
-      - name: Build Frontend
+      - name: Build Frontend (default)
         env:
           CI: ""
         run: |
-          cd web
+          cd web/default
           bun install
           DISABLE_ESLINT_PLUGIN='true' VITE_REACT_APP_VERSION=$VERSION bun run build
-          cd ..
+          cd ../..
+      - name: Build Frontend (classic)
+        env:
+          CI: ""
+        run: |
+          cd web/classic
+          bun install
+          VITE_REACT_APP_VERSION=$VERSION bun run build
+          cd ../..
       - name: Set up Go
         uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
         with:
