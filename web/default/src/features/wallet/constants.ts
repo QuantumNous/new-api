@@ -56,6 +56,12 @@ export const PADDLE_ORDER_SEARCH_PARAM = '_porder'
 export const PADDLE_WALLET_ROUTE = '/wallet'
 
 /**
+ * Public return route used by Paddle default payment links before redirecting
+ * authenticated users back to the wallet.
+ */
+export const PADDLE_CONSOLE_TOPUP_ROUTE = '/console/topup'
+
+/**
  * Default payment type
  */
 export const DEFAULT_PAYMENT_TYPE = PAYMENT_TYPES.ALIPAY

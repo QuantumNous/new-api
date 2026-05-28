@@ -21,6 +21,7 @@ import {
   DEFAULT_PRESET_MULTIPLIERS,
   DEFAULT_PAYMENT_TYPE,
   DEFAULT_MIN_TOPUP,
+  PADDLE_CONSOLE_TOPUP_ROUTE,
   PADDLE_ORDER_SEARCH_PARAM,
   PADDLE_TRANSACTION_SEARCH_PARAM,
   PADDLE_WALLET_ROUTE,
@@ -153,12 +154,57 @@ function normalizePaymentRedirectUrl(url: string): string | null {
   return null
 }
 
+function isCurrentAppPaddleReopenUrl(
+  checkoutUrl: string,
+  transactionId: string
+): boolean {
+  try {
+    const parsedUrl = new URL(checkoutUrl, window.location.origin)
+    if (parsedUrl.origin !== window.location.origin) {
+      return false
+    }
+
+    const normalizedPath = parsedUrl.pathname.replace(/\/+$/, '') || '/'
+    if (
+      normalizedPath !== PADDLE_WALLET_ROUTE &&
+      normalizedPath !== PADDLE_CONSOLE_TOPUP_ROUTE
+    ) {
+      return false
+    }
+
+    const reopenTransactionId =
+      parsedUrl.searchParams.get(PADDLE_TRANSACTION_SEARCH_PARAM)?.trim() || ''
+    return !reopenTransactionId || reopenTransactionId === transactionId
+  } catch (_error) {
+    return false
+  }
+}
+
+function normalizeHostedCheckoutUrl(
+  transactionId: string,
+  checkoutUrl: string
+): string | null {
+  const normalizedCheckoutUrl = normalizePaymentRedirectUrl(checkoutUrl)
+  if (!normalizedCheckoutUrl) {
+    return null
+  }
+
+  if (isCurrentAppPaddleReopenUrl(normalizedCheckoutUrl, transactionId)) {
+    return null
+  }
+
+  return normalizedCheckoutUrl
+}
+
 export function rememberPaddleCheckoutUrlFallback(
   transactionId: string,
   checkoutUrl: string
 ): void {
   const normalizedTransactionId = transactionId.trim()
-  const normalizedCheckoutUrl = normalizePaymentRedirectUrl(checkoutUrl)
+  const normalizedCheckoutUrl = normalizeHostedCheckoutUrl(
+    normalizedTransactionId,
+    checkoutUrl
+  )
   if (!normalizedTransactionId || !normalizedCheckoutUrl) {
     return
   }
@@ -189,7 +235,10 @@ export function getPaddleCheckoutUrlFallback(
       return undefined
     }
 
-    const normalizedCheckoutUrl = normalizePaymentRedirectUrl(storedUrl)
+    const normalizedCheckoutUrl = normalizeHostedCheckoutUrl(
+      normalizedTransactionId,
+      storedUrl
+    )
     if (normalizedCheckoutUrl) {
       return normalizedCheckoutUrl
     }
