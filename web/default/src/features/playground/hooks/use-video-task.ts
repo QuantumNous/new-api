@@ -18,6 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
+import { t } from 'i18next'
 import {
   submitVideoGeneration,
   fetchVideoTaskStatus,
@@ -77,8 +78,11 @@ export function useVideoTask() {
     (id: string, apiKey: string) => {
       // Avoid duplicate intervals
       if (pollingTimers.current[id]) return
+      let inFlight = false
 
       const poll = async () => {
+        if (inFlight) return
+        inFlight = true
         try {
           const res = await fetchVideoTaskStatus(id, apiKey)
           const status = res.status
@@ -87,7 +91,7 @@ export function useVideoTask() {
               ? (res.metadata?.url as string | undefined)
               : undefined
           const errorMsg =
-            status === 'failed' ? (res.error?.message ?? 'Generation failed') : undefined
+            status === 'failed' ? (res.error?.message ?? t('Generation failed')) : undefined
 
           updateTask(id, {
             status,
@@ -100,13 +104,15 @@ export function useVideoTask() {
           if (status === 'completed' || status === 'failed') {
             stopPolling(id)
             if (status === 'completed') {
-              toast.success('Video generation completed')
+              toast.success(t('Video generation completed'))
             } else {
-              toast.error(errorMsg ?? 'Video generation failed')
+              toast.error(errorMsg ?? t('Video generation failed'))
             }
           }
         } catch {
           // polling errors are transient; keep retrying
+        } finally {
+          inFlight = false
         }
       }
 
@@ -134,16 +140,16 @@ export function useVideoTask() {
           } else {
             updateTask(task.id, {
               status: 'failed',
-              error: 'API Key no longer valid',
+              error: t('API Key no longer valid'),
             })
-            toast.error(`Task "${task.prompt.slice(0, 30)}..." failed: API Key invalid`)
+            toast.error(t('Task failed: API Key invalid', { prompt: task.prompt.slice(0, 30) }))
           }
         } catch {
           updateTask(task.id, {
             status: 'failed',
-            error: 'Failed to restore API Key',
+            error: t('Failed to restore API Key'),
           })
-          toast.error(`Task "${task.prompt.slice(0, 30)}..." failed: cannot restore key`)
+          toast.error(t('Task failed: cannot restore key', { prompt: task.prompt.slice(0, 30) }))
         }
       }
     }
@@ -170,7 +176,7 @@ export function useVideoTask() {
         const res = await submitVideoGeneration(req, apiKey)
         const taskId = res.id ?? res.task_id
         if (!taskId) {
-          const errMsg = res.error?.message ?? 'No task ID returned from server'
+          const errMsg = res.error?.message ?? t('No task ID returned from server')
           throw new Error(errMsg)
         }
         taskApiKeys.current[taskId] = apiKey
@@ -190,7 +196,7 @@ export function useVideoTask() {
         startPolling(taskId, apiKey)
         return newTask
       } catch (err) {
-        const msg = err instanceof Error ? err.message : 'Submission failed'
+        const msg = err instanceof Error ? err.message : t('Submission failed')
         setSubmitError(msg)
         throw err
       } finally {

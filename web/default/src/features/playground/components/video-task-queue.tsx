@@ -148,6 +148,7 @@ export function VideoTaskQueue({
                 type='button'
                 variant='ghost'
                 title={t('Clear finished tasks')}
+                aria-label={t('Clear finished tasks')}
                 onClick={(e) => {
                   e.stopPropagation()
                   onClearFinished()

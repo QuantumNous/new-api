@@ -68,6 +68,7 @@ export function VideoPlayer({ task, onClose }: VideoPlayerProps) {
             )}
             size='icon'
             title={t('Copy URL')}
+            aria-label={t('Copy URL')}
             type='button'
             variant='ghost'
             onClick={handleCopy}
@@ -82,6 +83,7 @@ export function VideoPlayer({ task, onClose }: VideoPlayerProps) {
             className='size-7'
             size='icon'
             title={t('Fullscreen')}
+            aria-label={t('Fullscreen')}
             type='button'
             variant='ghost'
             onClick={handleFullscreen}
@@ -92,6 +94,7 @@ export function VideoPlayer({ task, onClose }: VideoPlayerProps) {
             className='size-7'
             size='icon'
             title={t('Close')}
+            aria-label={t('Close')}
             type='button'
             variant='ghost'
             onClick={onClose}

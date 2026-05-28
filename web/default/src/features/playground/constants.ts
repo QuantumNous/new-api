@@ -110,7 +110,7 @@ import type { VideoModelConfig, VideoModelType } from './types'
 export const HAPPYHORSE_MODELS: VideoModelConfig[] = [
   {
     model: 'happyhorse-1.0-t2v',
-    label: '文生视频 (Text-to-Video)',
+    label: 'Text-to-Video',
     type: 'text-to-video',
     requiresImage: false,
     requiresVideo: false,
@@ -119,7 +119,7 @@ export const HAPPYHORSE_MODELS: VideoModelConfig[] = [
   },
   {
     model: 'happyhorse-1.0-i2v',
-    label: '图生视频 (Image-to-Video)',
+    label: 'Image-to-Video',
     type: 'image-to-video',
     requiresImage: true,
     requiresVideo: false,
@@ -128,7 +128,7 @@ export const HAPPYHORSE_MODELS: VideoModelConfig[] = [
   },
   {
     model: 'happyhorse-1.0-r2v',
-    label: '首尾帧生视频 (Reference-to-Video)',
+    label: 'Reference-to-Video',
     type: 'reference-to-video',
     requiresImage: true,
     requiresVideo: false,
@@ -137,7 +137,7 @@ export const HAPPYHORSE_MODELS: VideoModelConfig[] = [
   },
   {
     model: 'happyhorse-1.0-video-edit',
-    label: '视频编辑 (Video Edit)',
+    label: 'Video Edit',
     type: 'video-edit',
     requiresImage: false,
     requiresVideo: true,

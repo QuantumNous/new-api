@@ -126,6 +126,45 @@ func (a *TaskAdaptor) ValidateRequestAndSetAction(c *gin.Context, info *relaycom
 	model := taskReq.Model
 	hasImage := taskReq.InputReference != "" || len(taskReq.Images) > 0
 
+	// Validate duration and resolution locally before forwarding to upstream
+	if taskReq.Duration > 0 && (taskReq.Duration < 2 || taskReq.Duration > 15) {
+		return &dto.TaskError{
+			Code:       "invalid_duration",
+			Message:    "duration must be between 2 and 15 seconds",
+			StatusCode: http.StatusBadRequest,
+			LocalError: true,
+		}
+	}
+	if taskReq.Size != "" {
+		resolution := strings.ToUpper(strings.TrimSpace(taskReq.Size))
+		if !strings.HasSuffix(resolution, "P") {
+			resolution += "P"
+		}
+		if resolution != "720P" && resolution != "1080P" {
+			return &dto.TaskError{
+				Code:       "invalid_resolution",
+				Message:    "resolution must be 720P or 1080P",
+				StatusCode: http.StatusBadRequest,
+				LocalError: true,
+			}
+		}
+		taskReq.Size = resolution // normalize for downstream consumers
+	}
+	// Validate metadata duration (same override path as EstimateBilling / request assembly)
+	if taskReq.Metadata != nil {
+		var meta HappyHorseMetadata
+		if err := taskcommon.UnmarshalMetadata(taskReq.Metadata, &meta); err == nil {
+			if meta.Duration != nil && *meta.Duration > 0 && (*meta.Duration < 2 || *meta.Duration > 15) {
+				return &dto.TaskError{
+					Code:       "invalid_duration",
+					Message:    "metadata duration must be between 2 and 15 seconds",
+					StatusCode: http.StatusBadRequest,
+					LocalError: true,
+				}
+			}
+		}
+	}
+
 	switch {
 	case strings.Contains(model, "i2v"), strings.Contains(model, "r2v"):
 		if !hasImage {
@@ -307,6 +346,15 @@ func (a *TaskAdaptor) EstimateBilling(c *gin.Context, info *relaycommon.RelayInf
 	duration := 5
 	if taskReq.Duration > 0 {
 		duration = taskReq.Duration
+	}
+	// Apply metadata override (same precedence as request assembly)
+	if taskReq.Metadata != nil {
+		var meta HappyHorseMetadata
+		if err := taskcommon.UnmarshalMetadata(taskReq.Metadata, &meta); err == nil {
+			if meta.Duration != nil && *meta.Duration > 0 {
+				duration = *meta.Duration
+			}
+		}
 	}
 	return map[string]float64{
 		"seconds": float64(duration),

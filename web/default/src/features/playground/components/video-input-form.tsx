@@ -111,6 +111,30 @@ export function VideoInputForm({
     [selectedModel]
   )
 
+  // Keep selectedModel in sync with async model availability
+  useEffect(() => {
+    if (availableModels.length === 0) return
+    const exists = availableModels.some((m) => m.model === selectedModel)
+    if (!exists) {
+      setSelectedModel(availableModels[0].model)
+    }
+  }, [availableModels, selectedModel])
+
+  // Helper for API key selector placeholder (avoids nested ternary)
+  const getKeyPlaceholder = () => {
+    if (isLoadingTokens) return t('Loading...')
+    if (tokens.length === 0) return t('No API keys available')
+    return t('Select API key')
+  }
+
+  // Submit validation: block when required media is missing
+  const hasRequiredMedia = (() => {
+    if (modelConfig.requiresVideo && !videoUrl.trim()) return false
+    if (modelConfig.requiresImage && imageUrls.filter((u) => u.trim() !== '').length === 0) return false
+    return true
+  })()
+  const canSubmit = !isSubmitting && !!prompt.trim() && !!selectedTokenId && hasRequiredMedia
+
   const modelsToShow = useMemo(
     () => (availableModels.length > 0 ? availableModels : HAPPYHORSE_MODELS),
     [availableModels]
@@ -132,8 +156,10 @@ export function VideoInputForm({
   )
 
   const handleSubmit = async () => {
+    if (isSubmitting) return
     if (!prompt.trim()) return
     if (!selectedTokenId) return
+    if (!hasRequiredMedia) return
 
     const selectedToken = tokens.find((t) => String(t.id) === selectedTokenId)
     if (!selectedToken) return
@@ -197,15 +223,7 @@ export function VideoInputForm({
                 {selectedTokenName}
               </span>
             ) : (
-              <SelectValue
-                placeholder={
-                  isLoadingTokens
-                    ? t('Loading...')
-                    : tokens.length === 0
-                      ? t('No API keys available')
-                      : t('Select API key')
-                }
-              />
+            <SelectValue placeholder={getKeyPlaceholder()} />
             )}
           </SelectTrigger>
           <SelectContent>
@@ -262,7 +280,7 @@ export function VideoInputForm({
           </Select>
         )}
         <p className='text-muted-foreground text-xs'>
-          {modelConfig.label}
+          {t(modelConfig.label)}
         </p>
       </div>
 
@@ -413,7 +431,7 @@ export function VideoInputForm({
       {/* Submit */}
       <Button
         className='w-full'
-        disabled={isSubmitting || !prompt.trim() || !selectedTokenId}
+        disabled={!canSubmit}
         type='button'
         onClick={handleSubmit}
       >

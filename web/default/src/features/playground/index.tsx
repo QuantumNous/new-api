@@ -307,8 +307,16 @@ export function Playground() {
               <VideoTaskQueue
                 tasks={tasks}
                 onPreview={setPreviewTask}
-                onRemove={removeTask}
-                onClearFinished={clearFinishedTasks}
+                onRemove={(id) => {
+                  if (previewTask?.id === id) setPreviewTask(null)
+                  removeTask(id)
+                }}
+                onClearFinished={() => {
+                  if (previewTask && (previewTask.status === 'completed' || previewTask.status === 'failed')) {
+                    setPreviewTask(null)
+                  }
+                  clearFinishedTasks()
+                }}
               />
             </div>
           </TabsContent>
