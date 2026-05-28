@@ -26,25 +26,16 @@ const DASHBOARD_SECTIONS = [
   {
     id: 'overview',
     titleKey: 'Overview',
-    descriptionKey: 'View dashboard overview and statistics',
     build: () => null,
   },
   {
     id: 'models',
     titleKey: 'Model Call Analytics',
-    descriptionKey: 'View model call count analytics and charts',
-    build: () => null,
-  },
-  {
-    id: 'model-compare',
-    titleKey: 'Model Compare',
-    descriptionKey: 'Compare outputs and costs across selected AI models',
     build: () => null,
   },
   {
     id: 'users',
     titleKey: 'User Analytics',
-    descriptionKey: 'View user consumption statistics and charts',
     adminOnly: true,
     build: () => null,
   },

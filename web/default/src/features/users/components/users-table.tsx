@@ -85,6 +85,17 @@ export function UsersTable() {
       { columnId: 'group', searchKey: 'group', type: 'string' },
     ],
   })
+  const statusFilter =
+    (columnFilters.find((filter) => filter.id === 'status')?.value as
+      | string[]
+      | undefined) ?? []
+  const roleFilter =
+    (columnFilters.find((filter) => filter.id === 'role')?.value as
+      | string[]
+      | undefined) ?? []
+  const groupFilter =
+    (columnFilters.find((filter) => filter.id === 'group')?.value as string) ??
+    ''
 
   // Fetch data with React Query
   const { data, isLoading, isFetching } = useQuery({
@@ -93,18 +104,30 @@ export function UsersTable() {
       pagination.pageIndex + 1,
       pagination.pageSize,
       globalFilter,
+      statusFilter,
+      roleFilter,
+      groupFilter,
       refreshTrigger,
     ],
     queryFn: async () => {
       const hasFilter = globalFilter?.trim()
+      const hasColumnFilter =
+        statusFilter.length > 0 || roleFilter.length > 0 || Boolean(groupFilter)
       const params = {
         p: pagination.pageIndex + 1,
         page_size: pagination.pageSize,
       }
 
-      const result = hasFilter
-        ? await searchUsers({ ...params, keyword: globalFilter })
-        : await getUsers(params)
+      const result =
+        hasFilter || hasColumnFilter
+          ? await searchUsers({
+              ...params,
+              keyword: globalFilter,
+              status: statusFilter[0] ?? '',
+              role: roleFilter[0] ?? '',
+              group: groupFilter,
+            })
+          : await getUsers(params)
 
       if (!result.success) {
         toast.error(
@@ -160,7 +183,7 @@ export function UsersTable() {
     onPaginationChange,
     onGlobalFilterChange,
     onColumnFiltersChange,
-    manualPagination: !globalFilter,
+    manualPagination: true,
     pageCount: Math.ceil((data?.total || 0) / pagination.pageSize),
   })
 
@@ -187,11 +210,13 @@ export function UsersTable() {
             columnId: 'status',
             title: t('Status'),
             options: getUserStatusOptions(t),
+            singleSelect: true,
           },
           {
             columnId: 'role',
             title: t('Role'),
             options: getUserRoleOptions(t),
+            singleSelect: true,
           },
         ],
       }}
