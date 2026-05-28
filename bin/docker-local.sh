@@ -40,6 +40,9 @@ SESSION_SECRET="${SESSION_SECRET:-}"
 CRYPTO_SECRET="${CRYPTO_SECRET:-}"
 NODE_NAME="${NODE_NAME:-${PROJECT_NAME}-node-1}"
 BUILD_ON_UP="${BUILD_ON_UP:-1}"
+if [[ -z "${FRONTEND_THEME+x}" ]]; then
+  FRONTEND_THEME="default"
+fi
 
 usage() {
   cat <<'USAGE'
@@ -63,6 +66,7 @@ Common environment overrides:
   PLATFORM=linux/amd64              Optional docker build --platform value
   FOLLOW_LOGS=1                     Follow app logs after starting
   ENV_FILE=.env.local               Optional extra env file for the app
+  FRONTEND_THEME=default             Frontend theme for local deployment (default|classic; empty to skip)
 
 Advanced overrides:
   POSTGRES_PASSWORD=...             Override generated PostgreSQL password
@@ -264,6 +268,37 @@ wait_for_redis() {
   exit 1
 }
 
+wait_for_options_table() {
+  local i
+  for i in {1..60}; do
+    if docker exec "${POSTGRES_CONTAINER_NAME}" psql -U "${POSTGRES_USER}" -d "${POSTGRES_DB}" -tAc "SELECT to_regclass('public.options') IS NOT NULL" 2>/dev/null | grep -q "t"; then
+      return
+    fi
+    sleep 1
+  done
+  echo "options table did not become ready in time" >&2
+  docker logs "${CONTAINER_NAME}" >&2 || true
+  exit 1
+}
+
+apply_frontend_theme() {
+  if [[ -z "${FRONTEND_THEME}" ]]; then
+    return
+  fi
+  if [[ "${FRONTEND_THEME}" != "default" && "${FRONTEND_THEME}" != "classic" ]]; then
+    echo "Invalid FRONTEND_THEME: ${FRONTEND_THEME} (use default|classic, or empty to skip)" >&2
+    exit 1
+  fi
+
+  log "Setting frontend theme to ${FRONTEND_THEME}"
+  wait_for_options_table
+  docker exec "${POSTGRES_CONTAINER_NAME}" psql -U "${POSTGRES_USER}" -d "${POSTGRES_DB}" -v ON_ERROR_STOP=1 -c \
+    "INSERT INTO options (\"key\", \"value\") VALUES ('theme.frontend','${FRONTEND_THEME}') ON CONFLICT (\"key\") DO UPDATE SET \"value\" = EXCLUDED.\"value\";" >/dev/null
+
+  log "Restarting app to apply frontend theme"
+  docker restart "${CONTAINER_NAME}" >/dev/null
+}
+
 run_container() {
   require_cmd docker
   ensure_network
@@ -327,6 +362,8 @@ run_container() {
     "${env_args[@]}" \
     "${IMAGE_NAME}" \
     --log-dir /app/logs >/dev/null
+
+  apply_frontend_theme
 
   log "Secrets file: ${SECRETS_FILE}"
   log "PostgreSQL volume: ${POSTGRES_VOLUME}"
