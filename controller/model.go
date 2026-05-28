@@ -211,8 +211,6 @@ func getModelListGroups(c *gin.Context) (modelListGroups, error) {
 }
 
 func ListModels(c *gin.Context, modelType int) {
-	endpointType := endpointTypeForModelList(modelType)
-
 	acceptUnsetRatioModel := operation_setting.SelfUseModeEnabled
 	if !acceptUnsetRatioModel {
 		userId := c.GetInt("id")
@@ -243,18 +241,7 @@ func ListModels(c *gin.Context, modelType int) {
 		} else {
 			tokenModelLimit = map[string]bool{}
 		}
-		enabledModelSet := lo.SliceToMap(enabledModelsForGroups(ownerGroups), func(modelName string) (string, struct{}) {
-			return modelName, struct{}{}
-		})
-		visibleModelSet := lo.SliceToMap(visibleModelsForEndpoint(ownerGroups, endpointType), func(modelName string) (string, struct{}) {
-			return modelName, struct{}{}
-		})
 		for allowModel, _ := range tokenModelLimit {
-			if _, enabled := enabledModelSet[allowModel]; enabled {
-				if _, visible := visibleModelSet[allowModel]; !visible {
-					continue
-				}
-			}
 			if !acceptUnsetRatioModel {
 				if !helper.HasModelBillingConfig(allowModel) {
 					continue
@@ -263,7 +250,19 @@ func ListModels(c *gin.Context, modelType int) {
 			userModelNames = append(userModelNames, allowModel)
 		}
 	} else {
-		models := visibleModelsForEndpoint(ownerGroups, endpointType)
+		var models []string
+		if groups.tokenGroup == "auto" {
+			for _, autoGroup := range ownerGroups {
+				groupModels := model.GetGroupEnabledModels(autoGroup)
+				for _, g := range groupModels {
+					if !common.StringsContains(models, g) {
+						models = append(models, g)
+					}
+				}
+			}
+		} else {
+			models = model.GetGroupEnabledModels(ownerGroups[0])
+		}
 		for _, modelName := range models {
 			if !acceptUnsetRatioModel {
 				if !helper.HasModelBillingConfig(modelName) {
@@ -324,29 +323,6 @@ func ListModels(c *gin.Context, modelType int) {
 	}
 }
 
-func endpointTypeForModelList(modelType int) constant.EndpointType {
-	switch modelType {
-	case constant.ChannelTypeAnthropic:
-		return constant.EndpointTypeAnthropic
-	case constant.ChannelTypeGemini:
-		return constant.EndpointTypeGemini
-	default:
-		return constant.EndpointTypeOpenAI
-	}
-}
-
-func visibleModelsForEndpoint(groups []string, endpointType constant.EndpointType) []string {
-	return lo.Uniq(lo.FlatMap(groups, func(group string, _ int) []string {
-		return model.GetGroupEnabledModelsByEndpoint(group, endpointType)
-	}))
-}
-
-func enabledModelsForGroups(groups []string) []string {
-	return lo.Uniq(lo.FlatMap(groups, func(group string, _ int) []string {
-		return model.GetGroupEnabledModels(group)
-	}))
-}
-
 func ChannelListModels(c *gin.Context) {
 	c.JSON(200, gin.H{
 		"success": true,
@@ -370,7 +346,7 @@ func EnabledListModels(c *gin.Context) {
 
 func RetrieveModel(c *gin.Context, modelType int) {
 	modelId := c.Param("model")
-	if aiModel, ok := openAIModelsMap[modelId]; ok && modelVisibleForEndpoint(c, modelId, endpointTypeForModelList(modelType)) {
+	if aiModel, ok := openAIModelsMap[modelId]; ok {
 		switch modelType {
 		case constant.ChannelTypeAnthropic:
 			c.JSON(200, dto.AnthropicModel{
@@ -393,16 +369,4 @@ func RetrieveModel(c *gin.Context, modelType int) {
 			"error": openAIError,
 		})
 	}
-}
-
-func modelVisibleForEndpoint(c *gin.Context, modelName string, endpointType constant.EndpointType) bool {
-	groups, err := getModelListGroups(c)
-	if err != nil {
-		return false
-	}
-	ownerGroups := groups.ownerGroups
-	if !lo.Contains(enabledModelsForGroups(ownerGroups), modelName) {
-		return true
-	}
-	return lo.Contains(visibleModelsForEndpoint(ownerGroups, endpointType), modelName)
 }
