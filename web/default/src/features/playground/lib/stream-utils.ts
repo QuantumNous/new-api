@@ -81,3 +81,21 @@ export function parseStreamMessageUpdates(data: string): StreamMessageUpdate[] {
 
   return updates
 }
+
+export function getStreamReadyStateError(
+  eventReadyState: number | undefined,
+  source: unknown
+): string | null {
+  const status = (source as { status?: number }).status
+
+  if (
+    eventReadyState !== undefined &&
+    eventReadyState >= 2 &&
+    status !== undefined &&
+    status !== 200
+  ) {
+    return `HTTP ${status}: ${ERROR_MESSAGES.CONNECTION_CLOSED}`
+  }
+
+  return null
+}
