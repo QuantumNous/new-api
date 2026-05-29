@@ -37,6 +37,8 @@ import {
 import {
   stringToColor,
   calculateModelPrice,
+  getDynamicDisplayGroupRatio,
+  getDynamicPricingSummary,
   getLobeHubIcon,
   getModelPriceItems,
 } from '../../../../../helpers';
@@ -216,6 +218,12 @@ const PricingCardView = ({
       <div className='pricing-model-card-footbar flex items-center justify-between gap-3'>
         <div className='pricing-model-card-foot-main flex items-center gap-2'>
           {renderBillingTag(record.quota_type)}
+
+          {record.billing_mode === 'tiered_expr' && (
+            <Tag key='tiered_expr' shape='circle' color='yellow' size='small'>
+              {t('动态计费')}
+            </Tag>
+          )}
         </div>
         <div className='pricing-model-card-foot-tags flex items-center gap-1'>
           {customTags.length > 0 &&
@@ -262,16 +270,42 @@ const PricingCardView = ({
         {paginatedModels.map((model, index) => {
           const modelKey = getModelKey(model);
           const isSelected = selectedRowKeys.includes(modelKey);
-          const priceData = calculateModelPrice({
-            record: model,
-            selectedGroup,
-            groupRatio,
-            tokenUnit,
+          const dynamicSummary = getDynamicPricingSummary(model, {
             displayPrice,
-            currency,
-            quotaDisplayType: siteDisplayType,
+            tokenUnit,
+            groupRatioMultiplier: getDynamicDisplayGroupRatio(
+              model,
+              groupRatio || {},
+            ),
           });
-          const priceItems = getModelPriceItems(priceData, t, siteDisplayType);
+          const priceData = dynamicSummary
+            ? null
+            : calculateModelPrice({
+                record: model,
+                selectedGroup,
+                groupRatio,
+                tokenUnit,
+                displayPrice,
+                currency,
+                quotaDisplayType: siteDisplayType,
+              });
+          const priceItems = dynamicSummary
+            ? dynamicSummary.isSpecialExpression
+              ? [
+                  {
+                    key: 'dynamic-special',
+                    label: t('特殊计费表达式'),
+                    value: t('无法解析结构化定价'),
+                    suffix: '',
+                  },
+                ]
+              : dynamicSummary.entries.map((entry) => ({
+                  key: entry.key,
+                  label: t(entry.label),
+                  value: entry.formatted,
+                  suffix: ` / 1${tokenUnit}`,
+                }))
+            : getModelPriceItems(priceData, t, siteDisplayType);
           const primaryPriceItems = priceItems.slice(0, 3);
           const extraPriceItemsCount = Math.max(priceItems.length - 3, 0);
 

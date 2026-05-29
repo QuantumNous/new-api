@@ -24,6 +24,8 @@ import {
   renderModelTag,
   stringToColor,
   calculateModelPrice,
+  getDynamicDisplayGroupRatio,
+  getDynamicPricingSummary,
   getModelPriceItems,
   getLobeHubIcon,
 } from '../../../../../helpers';
@@ -248,8 +250,32 @@ export const getPricingTableColumns = ({
     dataIndex: 'model_price',
     ...(isMobile ? {} : { fixed: 'right' }),
     render: (text, record, index) => {
-      const priceData = getPriceData(record);
-      const priceItems = getModelPriceItems(priceData, t, siteDisplayType);
+      const dynamicSummary = getDynamicPricingSummary(record, {
+        displayPrice,
+        tokenUnit,
+        groupRatioMultiplier: getDynamicDisplayGroupRatio(
+          record,
+          groupRatio || {},
+        ),
+      });
+      const priceData = dynamicSummary ? null : getPriceData(record);
+      const priceItems = dynamicSummary
+        ? dynamicSummary.isSpecialExpression
+          ? [
+              {
+                key: 'dynamic-special',
+                label: t('特殊计费表达式'),
+                value: t('无法解析结构化定价'),
+                suffix: '',
+              },
+            ]
+          : dynamicSummary.entries.map((entry) => ({
+              key: entry.key,
+              label: t(entry.label),
+              value: entry.formatted,
+              suffix: ` / 1${tokenUnit}`,
+            }))
+        : getModelPriceItems(priceData, t, siteDisplayType);
 
       return (
         <div className='pricing-table-price-stack space-y-1'>

@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import { Typography, Toast, Avatar } from '@douyinfe/semi-ui';
+import { Typography, Toast, Avatar, Tag } from '@douyinfe/semi-ui';
 import { getLobeHubIcon } from '../../../../../helpers';
 
 const { Paragraph } = Typography;
@@ -29,6 +29,11 @@ const CARD_STYLES = {
 };
 
 const ModelHeader = ({ modelData, t }) => {
+  const isSpecialExpression =
+    modelData?.billing_mode === 'tiered_expr' &&
+    Boolean(modelData?.billing_expr) &&
+    Boolean(modelData?.billing_expr?.trim());
+
   // 获取模型图标（优先模型图标，其次供应商图标）
   const getModelIcon = () => {
     // 1) 优先使用模型自定义图标
@@ -89,15 +94,33 @@ const ModelHeader = ({ modelData, t }) => {
         </Paragraph>
         <div className='model-detail-header-meta'>
           {modelData?.vendor_name && (
-            <span className='model-detail-header-pill'>
+            <span className='model-detail-header-meta-text'>
               {modelData.vendor_name}
             </span>
           )}
           {modelData?.quota_type !== undefined && (
-            <span className='model-detail-header-pill model-detail-header-pill-muted'>
-              {modelData.quota_type === 0 ? t('按量计费') : t('按次计费')}
-            </span>
+            <>
+              {modelData?.vendor_name ? (
+                <span className='model-detail-header-meta-separator'>·</span>
+              ) : null}
+              <span className='model-detail-header-meta-text model-detail-header-meta-text-muted'>
+                {modelData.quota_type === 0 ? t('按量计费') : t('按次计费')}
+              </span>
+            </>
           )}
+          {isSpecialExpression ? (
+            <>
+              {modelData?.vendor_name || modelData?.quota_type !== undefined ? (
+                <span className='model-detail-header-meta-separator'>·</span>
+              ) : null}
+              <Tag
+                size='small'
+                className='model-detail-header-pill model-detail-header-pill-muted'
+              >
+                {t('动态计费')}
+              </Tag>
+            </>
+          ) : null}
         </div>
       </div>
     </div>

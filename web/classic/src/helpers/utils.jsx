@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import { Toast, Pagination } from '@douyinfe/semi-ui';
-import { toastConstants } from '../constants';
+import { toastConstants, BILLING_PRICING_VARS } from '../constants';
 import React from 'react';
 import { toast } from 'react-toastify';
 import {
@@ -28,6 +28,7 @@ import {
 import { TABLE_COMPACT_MODES_KEY } from '../constants';
 import { MOBILE_BREAKPOINT } from '../hooks/common/useIsMobile';
 import i18n from '../i18n/i18n';
+import { splitBillingExprAndRequestRules } from '../pages/Setting/Ratio/components/requestRuleExpr';
 
 const HTMLToastContent = ({ htmlContent }) => {
   return <div dangerouslySetInnerHTML={{ __html: htmlContent }} />;
@@ -617,6 +618,194 @@ export const selectFilter = (input, option) => {
   return valueText.includes(keyword) || labelText.includes(keyword);
 };
 
+export const parseTiersFromExpr = (exprStr) => {
+  if (!exprStr) return [];
+  try {
+    const tierConditionOperator = '(?:<=|>=|<|>)';
+    const versionMatch = exprStr.match(/^v(\d+):([\s\S]*)$/);
+    const body = versionMatch ? versionMatch[2] : exprStr;
+    const conditionGroup = `((?:(?:p|c|len)\\s*${tierConditionOperator}\\s*[\\d.eE+]+)(?:\\s*&&\\s*(?:p|c|len)\\s*${tierConditionOperator}\\s*[\\d.eE+]+)*)`;
+    const tierRegex = new RegExp(
+      `(?:${conditionGroup}\\s*\\?\\s*)?tier\\("([^"]*)",\\s*([^)]+)\\)`,
+      'g',
+    );
+    const varFieldMap = Object.fromEntries(
+      BILLING_PRICING_VARS.map((item) => [item.key, item.field]),
+    );
+    const variableRegex = new RegExp(
+      `\\b(${BILLING_PRICING_VARS.map((item) => item.key).join('|')})\\s*\\*\\s*([\\d.eE+-]+)`,
+      'g',
+    );
+
+    const parseTierBody = (bodyText) => {
+      const coeffs = {};
+      const regex = new RegExp(variableRegex.source, 'g');
+      let match;
+      while ((match = regex.exec(bodyText)) !== null) {
+        if (!(match[1] in coeffs)) {
+          coeffs[match[1]] = Number(match[2]);
+        }
+      }
+      const tier = {};
+      Object.entries(varFieldMap).forEach(([key, field]) => {
+        tier[field] = coeffs[key] || 0;
+      });
+      return tier;
+    };
+
+    const tiers = [];
+    let match;
+    while ((match = tierRegex.exec(body)) !== null) {
+      const conditionText = match[1] || '';
+      const conditions = [];
+      if (conditionText) {
+        conditionText.split(/\s*&&\s*/).forEach((part) => {
+          const conditionMatch = part
+            .trim()
+            .match(/^(p|c|len)\s*(<=|>=|<|>)\s*([\d.eE+]+)$/);
+          if (conditionMatch) {
+            conditions.push({
+              var: conditionMatch[1],
+              op: conditionMatch[2],
+              value: Number(conditionMatch[3]),
+            });
+          }
+        });
+      }
+      tiers.push({
+        ...parseTierBody(match[3]),
+        label: match[2] || '',
+        conditions,
+      });
+    }
+    return tiers;
+  } catch {
+    return [];
+  }
+};
+
+export const formatDisplayedTokenPrice = ({
+  priceUSD,
+  displayPrice,
+  tokenUnit = 'M',
+  precision = 6,
+}) => {
+  const rawDisplayPrice = displayPrice(priceUSD, precision);
+  const symbol = (rawDisplayPrice.match(/^[^\d.-]*/) || [''])[0];
+  const numericValue = parseFloat(rawDisplayPrice.replace(/[^0-9.-]/g, ''));
+
+  if (!Number.isFinite(numericValue)) {
+    return rawDisplayPrice;
+  }
+
+  const unitDivisor = tokenUnit === 'K' ? 1000 : 1;
+  const formattedPrice = (numericValue / unitDivisor)
+    .toFixed(precision)
+    .replace(/\.?0+$/, '');
+
+  return `${symbol}${formattedPrice}`;
+};
+
+const PRIMARY_DYNAMIC_FIELDS = new Set(['inputPrice', 'outputPrice']);
+
+export const isDynamicPricingModel = (model) =>
+  model?.billing_mode === 'tiered_expr' && Boolean(model?.billing_expr);
+
+export const getDynamicDisplayGroupRatio = (model, groupRatio = {}) => {
+  const groups = Array.isArray(model?.enable_groups) ? model.enable_groups : [];
+  const ratioMap =
+    groupRatio && Object.keys(groupRatio).length > 0
+      ? groupRatio
+      : model?.group_ratio || {};
+  if (groups.length === 0) return 1;
+
+  let minRatio = Number.POSITIVE_INFINITY;
+  groups.forEach((group) => {
+    const ratio = ratioMap?.[group];
+    if (ratio !== undefined && ratio < minRatio) {
+      minRatio = ratio;
+    }
+  });
+
+  return minRatio === Number.POSITIVE_INFINITY ? 1 : minRatio;
+};
+
+export const getDynamicPricingTiers = (model) => {
+  if (!isDynamicPricingModel(model)) return [];
+  const { billingExpr } = splitBillingExprAndRequestRules(
+    model?.billing_expr || '',
+  );
+  return parseTiersFromExpr(billingExpr);
+};
+
+export const getDynamicPriceEntries = (
+  tier,
+  { displayPrice, tokenUnit = 'M', groupRatioMultiplier = 1, precision = 6 },
+) => {
+  if (!tier) return [];
+
+  return BILLING_PRICING_VARS.flatMap((variable) => {
+    if (!variable.field) return [];
+
+    const value = Number(tier?.[variable.field]);
+    if (!Number.isFinite(value) || value <= 0) return [];
+
+    return [
+      {
+        key: variable.key,
+        field: variable.field,
+        label: variable.label,
+        shortLabel: variable.shortLabel,
+        value,
+        formatted: formatDisplayedTokenPrice({
+          priceUSD: value * groupRatioMultiplier,
+          displayPrice,
+          tokenUnit,
+          precision,
+        }),
+        variable,
+      },
+    ];
+  }).sort((a, b) => {
+    const aPrimary = PRIMARY_DYNAMIC_FIELDS.has(a.field);
+    const bPrimary = PRIMARY_DYNAMIC_FIELDS.has(b.field);
+    if (aPrimary !== bPrimary) return aPrimary ? -1 : 1;
+    return 0;
+  });
+};
+
+export const getDynamicPricingSummary = (
+  model,
+  { displayPrice, tokenUnit = 'M', groupRatioMultiplier = 1, precision = 6 },
+) => {
+  if (!isDynamicPricingModel(model)) return null;
+
+  const tiers = getDynamicPricingTiers(model);
+  const tier = tiers[0] || null;
+  const rawExpression = model?.billing_expr || '';
+  const entries = getDynamicPriceEntries(tier, {
+    displayPrice,
+    tokenUnit,
+    groupRatioMultiplier,
+    precision,
+  });
+
+  return {
+    tiers,
+    tier,
+    tierCount: tiers.length,
+    isSpecialExpression: rawExpression.trim().length > 0 && tiers.length === 0,
+    rawExpression,
+    entries,
+    primaryEntries: entries.filter((entry) =>
+      PRIMARY_DYNAMIC_FIELDS.has(entry.field),
+    ),
+    secondaryEntries: entries.filter(
+      (entry) => !PRIMARY_DYNAMIC_FIELDS.has(entry.field),
+    ),
+  };
+};
+
 // -------------------------------
 // 模型定价计算工具函数
 export const calculateModelPrice = ({
@@ -627,7 +816,7 @@ export const calculateModelPrice = ({
   displayPrice,
   currency,
   quotaDisplayType = 'USD',
-  precision = 4,
+  precision = 6,
 }) => {
   // 1. 选择实际使用的分组
   let usedGroup = selectedGroup;
@@ -661,7 +850,6 @@ export const calculateModelPrice = ({
     // 按量计费
     const isTokensDisplay = quotaDisplayType === 'TOKENS';
     const inputRatioPriceUSD = record.model_ratio * 2 * usedGroupRatio;
-    const unitDivisor = tokenUnit === 'K' ? 1000 : 1;
     const unitLabel = tokenUnit === 'K' ? 'K' : 'M';
     const hasRatioValue = (value) =>
       value !== undefined &&
@@ -688,29 +876,13 @@ export const calculateModelPrice = ({
       };
     }
 
-    let symbol = '$';
-    if (currency === 'CNY') {
-      symbol = '¥';
-    } else if (currency === 'CUSTOM') {
-      try {
-        const statusStr = localStorage.getItem('status');
-        if (statusStr) {
-          const s = JSON.parse(statusStr);
-          symbol = s?.custom_currency_symbol || '¤';
-        } else {
-          symbol = '¤';
-        }
-      } catch (e) {
-        symbol = '¤';
-      }
-    }
-
-    const formatTokenPrice = (priceUSD) => {
-      const rawDisplayPrice = displayPrice(priceUSD);
-      const numericPrice =
-        parseFloat(rawDisplayPrice.replace(/[^0-9.]/g, '')) / unitDivisor;
-      return `${symbol}${numericPrice.toFixed(precision)}`;
-    };
+    const formatTokenPrice = (priceUSD) =>
+      formatDisplayedTokenPrice({
+        priceUSD,
+        displayPrice,
+        tokenUnit,
+        precision,
+      });
 
     if (
       quotaDisplayType !== 'TOKENS' &&
