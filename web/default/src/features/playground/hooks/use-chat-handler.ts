@@ -26,8 +26,8 @@ import {
   updateAssistantMessageWithError,
   updateLastAssistantMessage,
   finalizeMessage,
-  updateCurrentVersionContent,
   parseRequestErrorDetails,
+  applyChatCompletionChoice,
 } from '../lib'
 import type { Message, PlaygroundConfig, ParameterEnabled } from '../types'
 import { useStreamRequest } from './use-stream-request'
@@ -143,16 +143,9 @@ export function useChatHandler({
         }
 
         onMessageUpdate((prev) =>
-          updateLastAssistantMessage(prev, (message) => ({
-            ...finalizeMessage(
-              updateCurrentVersionContent(
-                message,
-                choice.message?.content || ''
-              ),
-              choice.message?.reasoning_content
-            ),
-            status: MESSAGE_STATUS.COMPLETE,
-          }))
+          updateLastAssistantMessage(prev, (message) =>
+            applyChatCompletionChoice(message, choice)
+          )
         )
       } catch (error: unknown) {
         if (abortController.signal.aborted) return
