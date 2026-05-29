@@ -57,6 +57,11 @@ type Channel struct {
 
 	// cache info
 	Keys []string `json:"-" gorm:"-"`
+
+	// transient cooldown status (in-memory, per instance), populated for list/detail responses only
+	CoolingDown     bool   `json:"cooling_down" gorm:"-"`
+	CooldownReason  string `json:"cooldown_reason,omitempty" gorm:"-"`
+	CooldownExpires int64  `json:"cooldown_expires,omitempty" gorm:"-"` // unix seconds
 }
 
 type ChannelInfo struct {

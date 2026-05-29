@@ -71,6 +71,10 @@ export const channelSchema = z.object({
     multi_key_mode: 'random',
   }),
   settings: z.string().default('{}'), // other_settings JSON
+  // transient cooldown status (in-memory, per instance)
+  cooling_down: z.boolean().default(false),
+  cooldown_reason: z.string().nullish(),
+  cooldown_expires: z.number().nullish(), // unix seconds
 })
 
 export type Channel = z.infer<typeof channelSchema>

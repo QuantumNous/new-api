@@ -831,7 +831,7 @@ export function useChannelsColumns(): ColumnDef<Channel>[] {
           }
         }
 
-        return (
+        const statusBadge = (
           <StatusBadge
             label={label}
             variant={config.variant}
@@ -840,6 +840,51 @@ export function useChannelsColumns(): ColumnDef<Channel>[] {
             copyable={false}
           />
         )
+
+        // Cooling down: orthogonal to enable/disable status. Show a warning
+        // badge with the reason and remaining time so admins can see why a
+        // channel was temporarily skipped during selection.
+        if (channel.cooling_down) {
+          const expires = channel.cooldown_expires ?? 0
+          const remainingMin = Math.max(
+            0,
+            Math.ceil((expires * 1000 - Date.now()) / 60000),
+          )
+          return (
+            <TooltipProvider delay={100}>
+              <Tooltip>
+                <TooltipTrigger render={<span />}>
+                  <span className='inline-flex items-center gap-1'>
+                    {statusBadge}
+                    <StatusBadge
+                      label={`${t('Cooling down')} ${remainingMin}m`}
+                      variant='warning'
+                      showDot
+                      size='sm'
+                      copyable={false}
+                    />
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent side='top' className='max-w-xs'>
+                  <div className='space-y-1 text-xs'>
+                    {channel.cooldown_reason && (
+                      <div>
+                        {t('Reason:')} {channel.cooldown_reason}
+                      </div>
+                    )}
+                    {expires > 0 && (
+                      <div>
+                        {t('Recovers at:')} {formatTimestampToDate(expires)}
+                      </div>
+                    )}
+                  </div>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          )
+        }
+
+        return statusBadge
       },
       filterFn: (row, id, value) => {
         if (!value || value.length === 0 || value.includes('all')) return true

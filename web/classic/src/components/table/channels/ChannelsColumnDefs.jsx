@@ -493,6 +493,7 @@ export const getChannelsColumns = ({
       title: t('状态'),
       dataIndex: 'status',
       render: (text, record, index) => {
+        let statusNode;
         if (text === 3) {
           if (record.other_info === '') {
             record.other_info = '{}';
@@ -500,7 +501,7 @@ export const getChannelsColumns = ({
           let otherInfo = JSON.parse(record.other_info);
           let reason = otherInfo['status_reason'];
           let time = otherInfo['status_time'];
-          return (
+          statusNode = (
             <div>
               <Tooltip
                 content={
@@ -512,8 +513,43 @@ export const getChannelsColumns = ({
             </div>
           );
         } else {
-          return renderStatus(text, record.channel_info, t);
+          statusNode = renderStatus(text, record.channel_info, t);
         }
+
+        // 冷却中：与启用/禁用状态正交，额外显示原因和恢复时间
+        if (record.cooling_down) {
+          const expires = record.cooldown_expires || 0;
+          const remainingMin = Math.max(
+            0,
+            Math.ceil((expires * 1000 - Date.now()) / 60000),
+          );
+          return (
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 4,
+                flexWrap: 'wrap',
+              }}
+            >
+              {statusNode}
+              <Tooltip
+                content={
+                  (record.cooldown_reason
+                    ? t('原因：') + record.cooldown_reason
+                    : '') +
+                  (expires ? t('，恢复时间：') + timestamp2string(expires) : '')
+                }
+              >
+                <Tag color='orange' shape='circle'>
+                  {t('冷却中')} {remainingMin}m
+                </Tag>
+              </Tooltip>
+            </div>
+          );
+        }
+
+        return statusNode;
       },
     },
     {

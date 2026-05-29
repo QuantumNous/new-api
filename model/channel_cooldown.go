@@ -25,6 +25,19 @@ func CooldownChannel(channelId int, reason string, duration time.Duration) {
 	}
 }
 
+// GetChannelCooldown returns the active cooldown reason and expiry (unix seconds)
+// for a channel. cooling is false when the channel is not currently cooling down
+// (no record, or the record has already expired).
+func GetChannelCooldown(channelId int) (reason string, expiresUnix int64, cooling bool) {
+	channelCooldowns.RLock()
+	cd, ok := channelCooldowns.items[channelId]
+	channelCooldowns.RUnlock()
+	if !ok || !time.Now().Before(cd.expires) {
+		return "", 0, false
+	}
+	return cd.reason, cd.expires.Unix(), true
+}
+
 func IsChannelCoolingDown(channelId int) bool {
 	channelCooldowns.RLock()
 	cooldown, ok := channelCooldowns.items[channelId]
