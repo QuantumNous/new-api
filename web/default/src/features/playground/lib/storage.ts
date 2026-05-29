@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { STORAGE_KEYS } from '../constants'
 import type { PlaygroundConfig, ParameterEnabled, Message } from '../types'
-import { sanitizeMessagesOnLoad } from './message-utils'
+import { sanitizeMessagesOnLoad } from './message-streaming-utils'
 import {
   MAX_STORED_MESSAGES,
   STORAGE_VERSION,
