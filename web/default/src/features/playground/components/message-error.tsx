@@ -22,6 +22,7 @@ import { useAuthStore } from '@/stores/auth-store'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { MESSAGE_STATUS } from '../constants'
+import { getMessageContent } from '../lib'
 import type { Message } from '../types'
 
 interface MessageErrorProps {
@@ -42,8 +43,7 @@ export function MessageError({ message, className = '' }: MessageErrorProps) {
     return null
   }
 
-  const errorContent =
-    message.versions[0]?.content || 'An unknown error occurred'
+  const errorContent = getMessageContent(message) || 'An unknown error occurred'
 
   if (message.errorCode === 'model_price_error') {
     return (

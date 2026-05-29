@@ -43,6 +43,20 @@ export function getCurrentVersion(message: Message): MessageVersion {
 }
 
 /**
+ * Get displayable content from the current message version.
+ */
+export function getMessageContent(message: Message): string {
+  return getCurrentVersion(message).content
+}
+
+/**
+ * Check whether a message has non-empty content in its current version.
+ */
+export function hasMessageContent(message: Message): boolean {
+  return getMessageContent(message).trim() !== ''
+}
+
+/**
  * Update current version content in message
  */
 export function updateCurrentVersionContent(
@@ -144,11 +158,8 @@ export function formatMessageForAPI(message: Message): ChatCompletionMessage {
 export function isValidMessage(message: Message): boolean {
   if (!message || !message.from || !message.versions.length) return false
 
-  const content = message.versions[0]?.content
-  if (content === undefined) return false
-
   // Exclude empty assistant messages (loading/streaming placeholders)
-  if (message.from === 'assistant' && !content.trim()) return false
+  if (message.from === 'assistant' && !hasMessageContent(message)) return false
 
   return true
 }
@@ -330,7 +341,7 @@ export function sanitizeMessagesOnLoad(messages: Message[]): Message[] {
   if (targetIndex === -1) return messages
 
   const finalized = finalizeMessage(messages[targetIndex])
-  const hasContent = finalized.versions?.[0]?.content?.trim()
+  const hasContent = hasMessageContent(finalized)
   const hasReasoning = finalized.reasoning?.content?.trim()
 
   const sanitized: Message =

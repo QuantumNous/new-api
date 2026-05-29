@@ -43,7 +43,7 @@ import {
 } from '@/components/ai-elements/sources'
 import { MESSAGE_ROLES } from '../constants'
 import { getMessageContentStyles } from '../lib/message-styles'
-import { parseThinkTags } from '../lib/message-utils'
+import { getMessageContent, parseThinkTags } from '../lib/message-utils'
 import type { Message as MessageType } from '../types'
 import { MessageActions } from './message-actions'
 import { MessageError } from './message-error'
@@ -167,7 +167,7 @@ export function PlaygroundChat({
   useEffect(() => {
     if (!editingKey) return
     const message = messages.find((m) => m.key === editingKey)
-    const content = message?.versions?.[0]?.content || ''
+    const content = message ? getMessageContent(message) : ''
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setEditText(content)
 
@@ -186,11 +186,10 @@ export function PlaygroundChat({
       <ConversationContent className='p-0'>
         <div className='mx-auto w-full max-w-4xl px-4 py-4'>
           {messages.map((message, messageIndex) => {
-            const currentVersion = message.versions[0]
+            const currentContent = getMessageContent(message)
             const isLastAssistantMessage =
               messageIndex === messages.length - 1 &&
               message.from === MESSAGE_ROLES.ASSISTANT
-            if (!currentVersion) return null
 
             return (
               <Message
@@ -248,7 +247,7 @@ export function PlaygroundChat({
                         />
                       }
                       message={message}
-                      versionContent={currentVersion.content}
+                      versionContent={currentContent}
                     />
                   )}
                 </div>

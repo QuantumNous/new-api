@@ -26,6 +26,7 @@ import {
   updateLastAssistantMessage,
   processStreamingContent,
   finalizeMessage,
+  updateCurrentVersionContent,
 } from '../lib'
 import type { Message, PlaygroundConfig, ParameterEnabled } from '../types'
 import { useStreamRequest } from './use-stream-request'
@@ -162,15 +163,10 @@ export function useChatHandler({
         onMessageUpdate((prev) =>
           updateLastAssistantMessage(prev, (message) => ({
             ...finalizeMessage(
-              {
-                ...message,
-                versions: [
-                  {
-                    ...message.versions[0],
-                    content: choice.message?.content || '',
-                  },
-                ],
-              },
+              updateCurrentVersionContent(
+                message,
+                choice.message?.content || ''
+              ),
               choice.message?.reasoning_content
             ),
             status: MESSAGE_STATUS.COMPLETE,
