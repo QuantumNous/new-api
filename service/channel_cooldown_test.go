@@ -11,7 +11,7 @@ import (
 	"github.com/QuantumNous/new-api/types"
 )
 
-func TestCooldownChannelForRetryCoolsFullDuration(t *testing.T) {
+func TestCooldownChannelForRetryUsesShortDurationFor5xx(t *testing.T) {
 	model.ClearChannelCooldownsForTest()
 	chErr := types.NewChannelError(9001, 1, "test", false, "", true)
 	err := types.NewErrorWithStatusCode(errors.New("bad response status code 500"), types.ErrorCodeBadResponseStatusCode, http.StatusInternalServerError)
@@ -20,10 +20,29 @@ func TestCooldownChannelForRetryCoolsFullDuration(t *testing.T) {
 
 	reason, expires, cooling := model.GetChannelCooldown(9001)
 	if !cooling {
-		t.Fatalf("expected retryable error to cool the channel")
+		t.Fatalf("expected retryable 5xx error to cool the channel")
 	}
-	if !strings.Contains(reason, "retryable_error") {
-		t.Fatalf("expected retryable_error reason, got %q", reason)
+	if !strings.Contains(reason, "retryable_transient") {
+		t.Fatalf("expected retryable_transient reason, got %q", reason)
+	}
+	if remaining := time.Until(time.Unix(expires, 0)); remaining < 4*time.Minute || remaining > 6*time.Minute {
+		t.Fatalf("expected ~5m short cooldown, got %s", remaining)
+	}
+}
+
+func TestCooldownChannelForRetryUsesFullDurationForCapabilityGap(t *testing.T) {
+	model.ClearChannelCooldownsForTest()
+	chErr := types.NewChannelError(9003, 1, "test", false, "", true)
+	err := types.NewErrorWithStatusCode(errors.New("Image generation is not enabled for this group"), types.ErrorCodeBadResponseStatusCode, http.StatusForbidden)
+
+	CooldownChannelForRetry(*chErr, err)
+
+	reason, expires, cooling := model.GetChannelCooldown(9003)
+	if !cooling {
+		t.Fatalf("expected capability gap to cool the channel")
+	}
+	if !strings.Contains(reason, "capability_gap") {
+		t.Fatalf("expected capability_gap reason, got %q", reason)
 	}
 	if remaining := time.Until(time.Unix(expires, 0)); remaining < 29*time.Minute || remaining > 31*time.Minute {
 		t.Fatalf("expected ~30m cooldown, got %s", remaining)

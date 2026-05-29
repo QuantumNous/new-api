@@ -13,6 +13,10 @@ import (
 const (
 	ChannelCooldownDuration       = 30 * time.Minute
 	UpstreamErrorCooldownDuration = 15 * time.Minute
+	// ShortChannelCooldownDuration is used for transient retryable failures
+	// (mostly upstream 5xx). Kept short so a channel that only blipped returns
+	// to rotation quickly instead of being sidelined for the full duration.
+	ShortChannelCooldownDuration = 5 * time.Minute
 	// SlowChannelFRTThreshold is the first-response-time (time to first token)
 	// above which an otherwise-successful request is treated as an unstably-slow
 	// upstream and the channel is cooled down. FRT (not total elapsed) is used so
@@ -65,6 +69,22 @@ var upstreamErrorCooldownKeywords = []string{
 	"read/write",
 }
 
+// isCapabilityError reports whether the error is a per-channel capability gap
+// (e.g. the upstream group has image generation disabled). These won't recover
+// on a quick retry, so they warrant a full-duration cooldown.
+func isCapabilityError(err *types.NewAPIError) bool {
+	if err == nil {
+		return false
+	}
+	message := strings.ToLower(err.Error() + " " + string(err.GetErrorCode()) + " " + string(err.GetErrorType()))
+	for _, keyword := range capabilityCooldownKeywords {
+		if strings.Contains(message, keyword) {
+			return true
+		}
+	}
+	return false
+}
+
 func ShouldCooldownChannel(err *types.NewAPIError) bool {
 	if err == nil {
 		return false
@@ -87,10 +107,8 @@ func ShouldCooldownChannelForUpstreamError(err *types.NewAPIError) bool {
 	// limitation for this request type, not the client's. Cool them so retries
 	// and later requests skip the channel instead of thrashing it. Checked
 	// before the 4xx gate below, which would otherwise skip them.
-	for _, keyword := range capabilityCooldownKeywords {
-		if strings.Contains(message, keyword) {
-			return true
-		}
+	if isCapabilityError(err) {
+		return true
 	}
 	if err.StatusCode >= 400 && err.StatusCode < 500 {
 		return false
@@ -135,9 +153,18 @@ func CooldownChannelForUpstreamError(channelError types.ChannelError, err *types
 // misbehaving channel is taken out of selection quickly instead of being
 // re-picked on subsequent requests.
 func CooldownChannelForRetry(channelError types.ChannelError, err *types.NewAPIError) {
-	reason := fmt.Sprintf("retryable_error status=%d code=%s type=%s error=%s", err.StatusCode, err.GetErrorCode(), err.GetErrorType(), err.Error())
-	common.SysLog(fmt.Sprintf("通道冷却：#%d，持续 %s，原因：%s", channelError.ChannelId, ChannelCooldownDuration, reason))
-	model.CooldownChannel(channelError.ChannelId, reason, ChannelCooldownDuration)
+	// Transient retryable failures (mostly upstream 5xx) cool briefly so a
+	// recovered channel rejoins rotation fast; structural capability gaps cool
+	// for the full duration since a quick retry won't fix them.
+	duration := ShortChannelCooldownDuration
+	class := "retryable_transient"
+	if isCapabilityError(err) {
+		duration = ChannelCooldownDuration
+		class = "capability_gap"
+	}
+	reason := fmt.Sprintf("%s status=%d code=%s type=%s error=%s", class, err.StatusCode, err.GetErrorCode(), err.GetErrorType(), err.Error())
+	common.SysLog(fmt.Sprintf("通道冷却：#%d，持续 %s，原因：%s", channelError.ChannelId, duration, reason))
+	model.CooldownChannel(channelError.ChannelId, reason, duration)
 }
 
 // CooldownSlowChannel cools a channel for the full ChannelCooldownDuration when
