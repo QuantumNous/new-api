@@ -18,9 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { SystemInfoSection } from '../general/system-info-section'
 import {
-  parseHeaderNavModules,
   parseSidebarModulesAdmin,
-  serializeHeaderNavModules,
   serializeSidebarModulesAdmin,
 } from '../maintenance/config'
 import { HeaderNavigationSection } from '../maintenance/header-navigation-section'
@@ -63,14 +61,9 @@ const SITE_SECTIONS = [
   {
     id: 'header-navigation',
     titleKey: 'Header navigation',
-    build: (settings: SiteSettings) => {
-      const headerNavConfig = parseHeaderNavModules(settings.HeaderNavModules)
-      const headerNavSerialized = serializeHeaderNavModules(headerNavConfig)
+    build: () => {
       return (
-        <HeaderNavigationSection
-          config={headerNavConfig}
-          initialSerialized={headerNavSerialized}
-        />
+        <HeaderNavigationSection />
       )
     },
   },

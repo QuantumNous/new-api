@@ -53,6 +53,25 @@ func SetApiRouter(router *gin.Engine) {
 		apiRouter.GET("/oauth/:provider", middleware.CriticalRateLimit(), controller.HandleOAuth)
 		apiRouter.GET("/ratio_config", middleware.CriticalRateLimit(), controller.GetRatioConfig)
 
+		// 动态菜单树接口
+		apiRouter.GET("/navigation/tree", middleware.TryUserAuth(), controller.GetNavigationTree)
+
+		// 菜单管理后台路由（必须管理员及以上权限）
+		navigationAdminRoute := apiRouter.Group("/navigation/admin")
+		navigationAdminRoute.Use(middleware.AdminAuth())
+		{
+			navigationAdminRoute.GET("/menus", controller.AdminGetMenus)
+			navigationAdminRoute.POST("/menus", controller.AdminCreateMenu)
+			navigationAdminRoute.PUT("/menus/:id", controller.AdminUpdateMenu)
+			navigationAdminRoute.DELETE("/menus/:id", controller.AdminDeleteMenu)
+
+			navigationAdminRoute.GET("/items", controller.AdminGetItems)
+			navigationAdminRoute.POST("/items", controller.AdminCreateItem)
+			navigationAdminRoute.PUT("/items/:id", controller.AdminUpdateItem)
+			navigationAdminRoute.DELETE("/items/:id", controller.AdminDeleteItem)
+			navigationAdminRoute.POST("/items/reorder", controller.AdminReorderItems)
+		}
+
 		apiRouter.POST("/stripe/webhook", controller.StripeWebhook)
 		apiRouter.POST("/creem/webhook", controller.CreemWebhook)
 		apiRouter.POST("/waffo/webhook", controller.WaffoWebhook)

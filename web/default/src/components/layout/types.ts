@@ -91,6 +91,8 @@ export type TopNavLink = {
   disabled?: boolean
   requiresAuth?: boolean
   external?: boolean
+  openInNewTab?: boolean
+  children?: TopNavLink[]
 }
 
 /**

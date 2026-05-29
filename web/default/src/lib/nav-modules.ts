@@ -16,7 +16,30 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+
 import { getStatus } from '@/lib/api'
+
+// ================= 前端内置模块注册表 (Registry) =================
+
+export interface BuiltinModuleMeta {
+  moduleKey: string
+  defaultLabelKey: string // i18n 对应的多语言翻译键值
+  to: string              // SPA 路由跳转路径
+  iconKey: string         // 图标键名
+  activeMatch?: 'exact' | 'prefix' // 路由高亮匹配模式
+}
+
+// BuiltinModulesRegistry 声明了系统内所有支持注册为内置导航的页面元数据
+export const BuiltinModulesRegistry: Record<string, BuiltinModuleMeta> = {
+  home: { moduleKey: 'home', defaultLabelKey: 'Home', to: '/', iconKey: 'home', activeMatch: 'exact' },
+  console: { moduleKey: 'console', defaultLabelKey: 'Console', to: '/dashboard', iconKey: 'layout-dashboard', activeMatch: 'prefix' },
+  pricing: { moduleKey: 'pricing', defaultLabelKey: 'Model Square', to: '/pricing', iconKey: 'credit-card', activeMatch: 'prefix' },
+  rankings: { moduleKey: 'rankings', defaultLabelKey: 'Rankings', to: '/rankings', iconKey: 'trophy', activeMatch: 'prefix' },
+  docs: { moduleKey: 'docs', defaultLabelKey: 'Docs', to: '/docs', iconKey: 'book-open', activeMatch: 'prefix' },
+  about: { moduleKey: 'about', defaultLabelKey: 'About', to: '/about', iconKey: 'info', activeMatch: 'prefix' }
+}
+
+// ================= 向下兼容的历史解析逻辑 =================
 
 export type ModuleAccess = { enabled: boolean; requireAuth: boolean }
 

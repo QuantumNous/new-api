@@ -16,9 +16,10 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+
 import { useMemo } from 'react'
 import { Link } from '@tanstack/react-router'
-import { Menu } from 'lucide-react'
+import { ChevronDown, Menu } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import {
@@ -26,29 +27,171 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
+  DropdownMenuSub,
+  DropdownMenuSubTrigger,
+  DropdownMenuSubContent,
 } from '@/components/ui/dropdown-menu'
 import { type TopNavLink } from '../types'
 
-type TopNavProps = React.HTMLAttributes<HTMLElement> & {
+interface TopNavComponentProps extends React.HTMLAttributes<HTMLElement> {
   links: TopNavLink[]
 }
 
 /**
  * 顶部导航栏组件
- * 在大屏幕显示水平导航，在小屏幕显示下拉菜单
+ * 在大屏幕显示水平导航，支持二级下拉菜单；在小屏幕显示整合的移动端折叠下拉
  */
-export function TopNav({ className, links, ...props }: TopNavProps) {
-  // 规范化链接，确保所有可选属性都有默认值
-  const normalizedLinks = useMemo(
-    () =>
-      links.map((link) => ({
-        isActive: false,
-        disabled: false,
-        external: false,
-        ...link,
-      })),
-    [links]
-  )
+export function TopNav({ className, links, ...props }: TopNavComponentProps) {
+  // 规范化链接属性
+  const normalizedLinks = useMemo(() => {
+    return links.map((link) => ({
+      disabled: false,
+      external: false,
+      openInNewTab: false,
+      ...link,
+    }))
+  }, [links])
+
+  // 递归渲染移动端侧边菜单项
+  const renderMobileMenuItem = (link: TopNavLink, index: number) => {
+    const hasChildren = link.children && link.children.length > 0
+
+    if (hasChildren) {
+      return (
+        <DropdownMenuSub key={index}>
+          <DropdownMenuSubTrigger className='cursor-default select-none'>
+            {link.title}
+          </DropdownMenuSubTrigger>
+          <DropdownMenuSubContent className='min-w-40'>
+            {link.children!.map((child, childIdx) => renderMobileMenuItem(child, childIdx))}
+          </DropdownMenuSubContent>
+        </DropdownMenuSub>
+      )
+    }
+
+    return (
+      <DropdownMenuItem
+        key={index}
+        render={
+          link.external ? (
+            <a
+              href={link.href}
+              target={link.openInNewTab ? '_blank' : '_self'}
+              rel='noopener noreferrer'
+              className={cn(
+                'w-full cursor-pointer',
+                link.disabled && 'pointer-events-none opacity-50'
+              )}
+            >
+              {link.title}
+            </a>
+          ) : (
+            <Link
+              to={link.href}
+              className={cn(
+                'w-full cursor-pointer',
+                link.disabled && 'pointer-events-none opacity-50'
+              )}
+            >
+              {link.title}
+            </Link>
+          )
+        }
+      />
+    )
+  }
+
+  // 递归渲染桌面端水平项
+  const renderDesktopNavLink = (link: TopNavLink, index: number) => {
+    const hasChildren = link.children && link.children.length > 0
+
+    if (hasChildren) {
+      return (
+        <DropdownMenu key={index} modal={false}>
+          <DropdownMenuTrigger className='hover:text-primary inline-flex items-center gap-1 text-sm font-medium transition-colors text-muted-foreground outline-none select-none'>
+            {link.title}
+            <ChevronDown className='size-3 opacity-60' />
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align='start' className='min-w-40'>
+            {link.children!.map((child, childIdx) => renderDesktopDropdownItem(child, childIdx))}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      )
+    }
+
+    if (link.external) {
+      return (
+        <a
+          key={index}
+          href={link.href}
+          target={link.openInNewTab ? '_blank' : '_self'}
+          rel='noopener noreferrer'
+          className='hover:text-primary text-sm font-medium transition-colors text-muted-foreground'
+        >
+          {link.title}
+        </a>
+      )
+    }
+
+    return (
+      <Link
+        key={index}
+        to={link.href}
+        className='hover:text-primary text-sm font-medium transition-colors text-muted-foreground'
+      >
+        {link.title}
+      </Link>
+    )
+  }
+
+  // 渲染桌面端下拉内部项
+  const renderDesktopDropdownItem = (child: TopNavLink, childIdx: number) => {
+    const hasSubChildren = child.children && child.children.length > 0
+
+    if (hasSubChildren) {
+      return (
+        <DropdownMenuSub key={childIdx}>
+          <DropdownMenuSubTrigger className='cursor-default select-none'>
+            {child.title}
+          </DropdownMenuSubTrigger>
+          <DropdownMenuSubContent className='min-w-40'>
+            {child.children!.map((subChild, subIdx) => renderDesktopDropdownItem(subChild, subIdx))}
+          </DropdownMenuSubContent>
+        </DropdownMenuSub>
+      )
+    }
+
+    return (
+      <DropdownMenuItem
+        key={childIdx}
+        render={
+          child.external ? (
+            <a
+              href={child.href}
+              target={child.openInNewTab ? '_blank' : '_self'}
+              rel='noopener noreferrer'
+              className={cn(
+                'w-full cursor-pointer',
+                child.disabled && 'pointer-events-none opacity-50'
+              )}
+            >
+              {child.title}
+            </a>
+          ) : (
+            <Link
+              to={child.href}
+              className={cn(
+                'w-full cursor-pointer',
+                child.disabled && 'pointer-events-none opacity-50'
+              )}
+            >
+              {child.title}
+            </Link>
+          )
+        }
+      />
+    )
+  }
 
   return (
     <>
@@ -60,34 +203,8 @@ export function TopNav({ className, links, ...props }: TopNavProps) {
           >
             <Menu />
           </DropdownMenuTrigger>
-          <DropdownMenuContent side='bottom' align='start'>
-            {normalizedLinks.map(
-              ({ title, href, isActive, disabled, external }) => (
-                <DropdownMenuItem
-                  key={`${title}-${href}`}
-                  render={
-                    external ? (
-                      <a
-                        href={href}
-                        target='_blank'
-                        rel='noopener noreferrer'
-                        className={!isActive ? 'text-muted-foreground' : ''}
-                      >
-                        {title}
-                      </a>
-                    ) : (
-                      <Link
-                        to={href}
-                        className={!isActive ? 'text-muted-foreground' : ''}
-                        disabled={disabled}
-                      >
-                        {title}
-                      </Link>
-                    )
-                  }
-                ></DropdownMenuItem>
-              )
-            )}
+          <DropdownMenuContent side='bottom' align='start' className='min-w-44'>
+            {normalizedLinks.map((link, index) => renderMobileMenuItem(link, index))}
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
@@ -100,28 +217,7 @@ export function TopNav({ className, links, ...props }: TopNavProps) {
         )}
         {...props}
       >
-        {normalizedLinks.map(({ title, href, isActive, disabled, external }) =>
-          external ? (
-            <a
-              key={`${title}-${href}`}
-              href={href}
-              target='_blank'
-              rel='noopener noreferrer'
-              className={`hover:text-primary text-sm font-medium transition-colors ${isActive ? '' : 'text-muted-foreground'}`}
-            >
-              {title}
-            </a>
-          ) : (
-            <Link
-              key={`${title}-${href}`}
-              to={href}
-              disabled={disabled}
-              className={`hover:text-primary text-sm font-medium transition-colors ${isActive ? '' : 'text-muted-foreground'}`}
-            >
-              {title}
-            </Link>
-          )
-        )}
+        {normalizedLinks.map((link, index) => renderDesktopNavLink(link, index))}
       </nav>
     </>
   )

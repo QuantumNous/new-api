@@ -200,8 +200,8 @@ function CommonLogsCard<TData>({
             {t('Time')}
           </div>
           <MobileLogTimeStatus
-            createdAt={cells.get('created_at')?.row.original?.created_at}
-            type={cells.get('created_at')?.row.original?.type}
+            createdAt={(cells.get('created_at')?.row.original as any)?.created_at}
+            type={(cells.get('created_at')?.row.original as any)?.type}
           />
         </div>
         <SummaryField

@@ -16,284 +16,559 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useEffect, useMemo } from 'react'
-import * as z from 'zod'
-import { useForm } from 'react-hook-form'
-import { zodResolver } from '@hookform/resolvers/zod'
+
+import { useState, useMemo } from 'react'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
+import { toast } from 'sonner'
 import {
-  Form,
-  FormControl,
-  FormDescription,
-  FormField,
-  FormLabel,
-  FormMessage,
-} from '@/components/ui/form'
+  Plus,
+  Edit2,
+  Trash2,
+  ArrowUp,
+  ArrowDown,
+  Globe,
+  Lock,
+  ExternalLink,
+  FolderPlus,
+} from 'lucide-react'
+import { api } from '@/lib/api'
+import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
 import {
-  SettingsControlChildren,
-  SettingsForm,
-  SettingsSwitchContent,
-  SettingsControlGroup,
-  SettingsSwitchItem,
-} from '../components/settings-form-layout'
-import { SettingsPageFormActions } from '../components/settings-page-context'
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from '@/components/ui/dialog'
+import { Input } from '@/components/ui/input'
 import { SettingsSection } from '../components/settings-section'
-import { useUpdateOption } from '../hooks/use-update-option'
-import {
-  HEADER_NAV_DEFAULT,
-  type HeaderNavModulesConfig,
-  serializeHeaderNavModules,
-} from './config'
 
-const headerNavSchema = z.object({
-  home: z.boolean(),
-  console: z.boolean(),
-  pricingEnabled: z.boolean(),
-  pricingRequireAuth: z.boolean(),
-  rankingsEnabled: z.boolean(),
-  rankingsRequireAuth: z.boolean(),
-  docs: z.boolean(),
-  about: z.boolean(),
-})
-
-type HeaderNavFormValues = z.infer<typeof headerNavSchema>
-
-type HeaderNavigationSectionProps = {
-  config: HeaderNavModulesConfig
-  initialSerialized: string
+type NavigationItemTranslation = {
+  id?: number
+  locale: string
+  label: string
 }
 
-const toFormValues = (config: HeaderNavModulesConfig): HeaderNavFormValues => ({
-  home:
-    config.home === undefined ? HEADER_NAV_DEFAULT.home : Boolean(config.home),
-  console:
-    config.console === undefined
-      ? HEADER_NAV_DEFAULT.console
-      : Boolean(config.console),
-  pricingEnabled:
-    config.pricing?.enabled === undefined
-      ? HEADER_NAV_DEFAULT.pricing.enabled
-      : Boolean(config.pricing.enabled),
-  pricingRequireAuth:
-    config.pricing?.requireAuth === undefined
-      ? HEADER_NAV_DEFAULT.pricing.requireAuth
-      : Boolean(config.pricing.requireAuth),
-  rankingsEnabled:
-    config.rankings?.enabled === undefined
-      ? HEADER_NAV_DEFAULT.rankings.enabled
-      : Boolean(config.rankings.enabled),
-  rankingsRequireAuth:
-    config.rankings?.requireAuth === undefined
-      ? HEADER_NAV_DEFAULT.rankings.requireAuth
-      : Boolean(config.rankings.requireAuth),
-  docs:
-    config.docs === undefined ? HEADER_NAV_DEFAULT.docs : Boolean(config.docs),
-  about:
-    config.about === undefined
-      ? HEADER_NAV_DEFAULT.about
-      : Boolean(config.about),
-})
+type NavigationVisibilityRule = {
+  id?: number
+  effect: 'allow' | 'deny'
+  subject_type: 'everyone' | 'anonymous' | 'authenticated' | 'role' | 'user_group'
+  subject_value: string
+}
 
-export function HeaderNavigationSection({
-  config,
-  initialSerialized,
-}: HeaderNavigationSectionProps) {
+type NavigationItem = {
+  id: number
+  menu_id: number
+  parent_id?: number
+  type: 'builtin_module' | 'internal_path' | 'external_url' | 'group' | 'divider'
+  module_key?: string
+  path?: string
+  url?: string
+  icon_key?: string
+  sort_order: number
+  enabled: boolean
+  open_in_new_tab: boolean
+  exact_active: boolean
+  translations: NavigationItemTranslation[]
+  rules: NavigationVisibilityRule[]
+}
+
+export function HeaderNavigationSection() {
   const { t } = useTranslation()
-  const updateOption = useUpdateOption()
-  const formDefaults = useMemo(() => toFormValues(config), [config])
-
-  const form = useForm<HeaderNavFormValues>({
-    resolver: zodResolver(headerNavSchema),
-    defaultValues: formDefaults,
+  const queryClient = useQueryClient()
+  
+  // 编辑弹窗状态
+  const [editDialogOpen, setEditDialogOpen] = useState(false)
+  const [editingItem, setEditingItem] = useState<Partial<NavigationItem> | null>(null)
+  
+  // 1. 获取菜单容器列表，定位顶级 web top 菜单
+  const { data: menus = [] } = useQuery({
+    queryKey: ['admin-navigation-menus'],
+    queryFn: async () => {
+      const res = await api.get('/api/navigation/admin/menus')
+      return res.data?.data || []
+    },
   })
 
-  useEffect(() => {
-    form.reset(formDefaults)
-  }, [formDefaults, form])
+  // 派生出 activeMenuID，避免在异步 queryFn 中调用 setState 造成的缓存及 React 状态异步更新不一致问题
+  const activeMenuID = useMemo(() => {
+    const defaultMenu = menus.find((m: any) => m.key === 'default_web_top')
+    return defaultMenu ? defaultMenu.id : null
+  }, [menus])
 
-  const onSubmit = async (values: HeaderNavFormValues) => {
-    const payload: HeaderNavModulesConfig = {
-      ...config,
-      home: values.home,
-      console: values.console,
-      docs: values.docs,
-      about: values.about,
-      pricing: {
-        ...(config.pricing ?? HEADER_NAV_DEFAULT.pricing),
-        enabled: values.pricingEnabled,
-        requireAuth: values.pricingRequireAuth,
-      },
-      rankings: {
-        ...(config.rankings ?? HEADER_NAV_DEFAULT.rankings),
-        enabled: values.rankingsEnabled,
-        requireAuth: values.rankingsRequireAuth,
-      },
+  // 2. 获取该菜单下所有节点列表
+  const { data: flatItems = [], refetch: refetchItems } = useQuery<NavigationItem[]>({
+    queryKey: ['admin-navigation-items', activeMenuID],
+    queryFn: async () => {
+      if (!activeMenuID) return []
+      const res = await api.get('/api/navigation/admin/items', {
+        params: { menu_id: activeMenuID },
+      })
+      return res.data?.data || []
+    },
+    enabled: !!activeMenuID,
+  })
+
+  // 3. 构建多级缩进排序好的展示列表
+  const displayItems = useMemo(() => {
+    const list: Array<{ item: NavigationItem; depth: number }> = []
+    
+    const recurse = (parentID: number | undefined, depth: number) => {
+      const children = flatItems.filter((it) => {
+        if (!parentID) return !it.parent_id
+        return it.parent_id === parentID
+      })
+      
+      children.forEach((child) => {
+        list.push({ item: child, depth })
+        recurse(child.id, depth + 1)
+      })
     }
 
-    const serialized = serializeHeaderNavModules(payload)
-    if (serialized === initialSerialized) {
+    recurse(undefined, 0)
+    return list
+  }, [flatItems])
+
+  // ================= 级联 CRUD 修改的 Mutations =================
+
+  // 创建/更新节点
+  const saveMutation = useMutation({
+    mutationFn: async (item: Partial<NavigationItem>) => {
+      if (item.id) {
+        return api.put(`/api/navigation/admin/items/${item.id}`, item)
+      } else {
+        return api.post('/api/navigation/admin/items', item)
+      }
+    },
+    onSuccess: (res) => {
+      if (res.data?.success) {
+        toast.success(t('Navigation settings saved successfully'))
+        setEditDialogOpen(false)
+        refetchItems()
+        // 同步刷新用户侧导航栏缓存
+        queryClient.invalidateQueries({ queryKey: ['navigation-tree'] })
+      }
+    },
+  })
+
+  // 删除节点
+  const deleteMutation = useMutation({
+    mutationFn: async (id: number) => {
+      return api.delete(`/api/navigation/admin/items/${id}`)
+    },
+    onSuccess: (res) => {
+      if (res.data?.success) {
+        toast.success(t('Menu item deleted'))
+        refetchItems()
+        queryClient.invalidateQueries({ queryKey: ['navigation-tree'] })
+      }
+    },
+  })
+
+  // 重新排序
+  const reorderMutation = useMutation({
+    mutationFn: async (reorderList: Array<{ item_id: number; sort_order: number }>) => {
+      return api.post('/api/navigation/admin/items/reorder', reorderList)
+    },
+    onSuccess: () => {
+      refetchItems()
+      queryClient.invalidateQueries({ queryKey: ['navigation-tree'] })
+    },
+  })
+
+  // ================= 辅助操作 =================
+
+  const handleOpenCreate = (parentID?: number) => {
+    setEditingItem({
+      menu_id: activeMenuID || 1,
+      parent_id: parentID,
+      type: 'builtin_module',
+      module_key: 'home',
+      enabled: true,
+      open_in_new_tab: false,
+      exact_active: false,
+      sort_order: flatItems.length + 1,
+      translations: [
+        { locale: 'zh-CN', label: '' },
+        { locale: 'en', label: '' },
+        { locale: 'zh-TW', label: '' },
+      ],
+      rules: [],
+    })
+    setEditDialogOpen(true)
+  }
+
+  const handleOpenEdit = (item: NavigationItem) => {
+    // 拷贝多语言配置，防修改污染
+    const translations = ['zh-CN', 'en', 'zh-TW'].map((locale) => {
+      const found = (item.translations || []).find((t) => t.locale === locale)
+      return { locale, label: found ? found.label : '' }
+    })
+
+    setEditingItem({
+      ...item,
+      translations,
+    })
+    setEditDialogOpen(true)
+  }
+
+  // 排序上移/下移
+  const handleMove = (index: number, direction: 'up' | 'down') => {
+    const siblingItems = displayItems.filter(
+      (it) => it.item.parent_id === displayItems[index].item.parent_id
+    )
+    const currentSiblingIdx = siblingItems.findIndex(
+      (it) => it.item.id === displayItems[index].item.id
+    )
+
+    let targetSiblingIdx = direction === 'up' ? currentSiblingIdx - 1 : currentSiblingIdx + 1
+    if (targetSiblingIdx < 0 || targetSiblingIdx >= siblingItems.length) return
+
+    const currentItem = siblingItems[currentSiblingIdx].item
+    const targetItem = siblingItems[targetSiblingIdx].item
+
+    // 互换权重并保存
+    reorderMutation.mutate([
+      { item_id: currentItem.id, sort_order: targetItem.sort_order },
+      { item_id: targetItem.id, sort_order: currentItem.sort_order },
+    ])
+  }
+
+  const handleSaveItem = () => {
+    if (!editingItem) return
+    const cnTrans = editingItem.translations?.find((t) => t.locale === 'zh-CN')
+    if (!cnTrans || !cnTrans.label.trim()) {
+      toast.error(t('Chinese label is required'))
       return
     }
 
-    await updateOption.mutateAsync({
-      key: 'HeaderNavModules',
-      value: serialized,
+    saveMutation.mutate(editingItem)
+  }
+
+  const updateTranslation = (locale: string, val: string) => {
+    if (!editingItem || !editingItem.translations) return
+    const updated = editingItem.translations.map((t) => {
+      if (t.locale === locale) return { ...t, label: val }
+      return t
     })
+    setEditingItem({ ...editingItem, translations: updated })
   }
-
-  const resetToDefault = () => {
-    form.reset(toFormValues(HEADER_NAV_DEFAULT))
-  }
-
-  const simpleModules: Array<{
-    key: keyof HeaderNavFormValues
-    title: string
-    description: string
-  }> = [
-    {
-      key: 'home',
-      title: t('Home'),
-      description: t('Landing page with system overview.'),
-    },
-    {
-      key: 'console',
-      title: t('Console'),
-      description: t('User dashboard and quota controls.'),
-    },
-    {
-      key: 'docs',
-      title: t('Docs'),
-      description: t('Documentation or external knowledge base.'),
-    },
-    {
-      key: 'about',
-      title: t('About'),
-      description: t('Static page describing the platform.'),
-    },
-  ]
-
-  const accessModules: Array<{
-    enabledKey: keyof HeaderNavFormValues
-    requireAuthKey: keyof HeaderNavFormValues
-    requireAuthDependsOn: 'pricingEnabled' | 'rankingsEnabled'
-    title: string
-    description: string
-    requireAuthTitle: string
-    requireAuthDescription: string
-  }> = [
-    {
-      enabledKey: 'pricingEnabled',
-      requireAuthKey: 'pricingRequireAuth',
-      requireAuthDependsOn: 'pricingEnabled',
-      title: t('Model Square'),
-      description: t('Public model catalog and pricing page.'),
-      requireAuthTitle: t('Require login to view models'),
-      requireAuthDescription: t(
-        'Visitors must authenticate before accessing the pricing directory.'
-      ),
-    },
-    {
-      enabledKey: 'rankingsEnabled',
-      requireAuthKey: 'rankingsRequireAuth',
-      requireAuthDependsOn: 'rankingsEnabled',
-      title: t('Rankings'),
-      description: t('Public rankings page based on live usage data.'),
-      requireAuthTitle: t('Require login to view rankings'),
-      requireAuthDescription: t(
-        'Visitors must authenticate before accessing the rankings page.'
-      ),
-    },
-  ]
 
   return (
     <SettingsSection title={t('Header navigation')}>
-      <Form {...form}>
-        <SettingsForm onSubmit={form.handleSubmit(onSubmit)}>
-          <SettingsPageFormActions
-            onSave={form.handleSubmit(onSubmit)}
-            onReset={resetToDefault}
-            isSaving={updateOption.isPending}
-            resetLabel='Reset to default'
-            saveLabel='Save navigation'
-          />
-          <div className='grid gap-4 md:grid-cols-2'>
-            {simpleModules.map((module) => (
-              <FormField
-                key={module.key}
-                control={form.control}
-                name={module.key}
-                render={({ field }) => (
-                  <SettingsSwitchItem>
-                    <SettingsSwitchContent>
-                      <FormLabel>{module.title}</FormLabel>
-                      <FormDescription>{module.description}</FormDescription>
-                    </SettingsSwitchContent>
-                    <FormControl>
-                      <Switch
-                        checked={field.value}
-                        onCheckedChange={field.onChange}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </SettingsSwitchItem>
-                )}
-              />
-            ))}
-          </div>
+      <div className='flex flex-col gap-4'>
+        <div className='flex items-center justify-between border-b pb-2'>
+          <p className='text-muted-foreground text-sm'>
+            自定义顶部导航菜单管理。支持树形自关联与二级子触发器，允许外链/内置组合。
+          </p>
+          <Button size='sm' onClick={() => handleOpenCreate()}>
+            <Plus className='mr-1.5 size-4' />
+            {t('Add link')}
+          </Button>
+        </div>
 
-          <div className='grid gap-4 lg:grid-cols-2'>
-            {accessModules.map((module) => (
-              <SettingsControlGroup key={module.enabledKey}>
-                <FormField
-                  control={form.control}
-                  name={module.enabledKey}
-                  render={({ field }) => (
-                    <SettingsSwitchItem>
-                      <SettingsSwitchContent>
-                        <FormLabel>{module.title}</FormLabel>
-                        <FormDescription>{module.description}</FormDescription>
-                      </SettingsSwitchContent>
-                      <FormControl>
-                        <Switch
-                          checked={field.value}
-                          onCheckedChange={field.onChange}
+        {/* 动态链接列表 */}
+        <div className='flex flex-col gap-1.5 rounded-md border p-1 bg-muted/20'>
+          {displayItems.length === 0 ? (
+            <div className='py-8 text-center text-muted-foreground text-sm'>
+              暂无配置节点，点击右上角添加。
+            </div>
+          ) : (
+            displayItems.map(({ item, depth }, index) => {
+              const cnLabel =
+                (item.translations || []).find((t) => t.locale === 'zh-CN')?.label || item.module_key
+              const enLabel =
+                (item.translations || []).find((t) => t.locale === 'en')?.label || item.module_key
+
+              return (
+                <div
+                  key={item.id}
+                  className='group flex items-center justify-between rounded-lg border bg-background p-3.5 hover:shadow-xs transition-shadow'
+                  style={{ marginLeft: `${depth * 24}px` }}
+                >
+                  <div className='flex items-center gap-3.5'>
+                    {/* 图标与阶梯指示 */}
+                    <div className='flex items-center gap-1.5'>
+                      {depth > 0 && <span className='text-muted-foreground/30 text-xs'>└─</span>}
+                      <span className='font-mono text-xs text-muted-foreground bg-muted px-1.5 py-0.5 rounded'>
+                        {item.type}
+                      </span>
+                    </div>
+
+                    <div className='flex flex-col'>
+                      <span className='font-medium text-sm flex items-center gap-1.5'>
+                        {cnLabel}
+                        <span className='text-xs text-muted-foreground/60 font-normal'>
+                          ({enLabel})
+                        </span>
+                      </span>
+                      <span className='text-xs text-muted-foreground truncate max-w-xs md:max-w-md lg:max-w-xl'>
+                        {item.type === 'builtin_module'
+                          ? `模块键: ${item.module_key}`
+                          : item.type === 'internal_path'
+                            ? `内部路径: ${item.path}`
+                            : `链接: ${item.url}`}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className='flex items-center gap-1.5 opacity-80 group-hover:opacity-100 transition-opacity'>
+                    {/* 权限及外链指示 */}
+                    {(item.rules || []).length > 0 && <Lock className='size-3.5 text-amber-500' />}
+                    {item.open_in_new_tab && <ExternalLink className='size-3.5 text-primary' />}
+
+                    {/* 排序微调 */}
+                    <Button
+                      variant='ghost'
+                      size='icon'
+                      className='size-7'
+                      onClick={() => handleMove(index, 'up')}
+                    >
+                      <ArrowUp className='size-3.5' />
+                    </Button>
+                    <Button
+                      variant='ghost'
+                      size='icon'
+                      className='size-7'
+                      onClick={() => handleMove(index, 'down')}
+                    >
+                      <ArrowDown className='size-3.5' />
+                    </Button>
+
+                    {/* 增加子节点 (只允许二级，限制 depth = 0 时) */}
+                    {depth === 0 && item.type !== 'divider' && (
+                      <Button
+                        variant='ghost'
+                        size='icon'
+                        className='size-7 text-primary hover:text-primary'
+                        onClick={() => handleOpenCreate(item.id)}
+                      >
+                        <FolderPlus className='size-3.5' />
+                      </Button>
+                    )}
+
+                    {/* 编辑与删除 */}
+                    <Button
+                      variant='ghost'
+                      size='icon'
+                      className='size-7'
+                      onClick={() => handleOpenEdit(item)}
+                    >
+                      <Edit2 className='size-3.5' />
+                    </Button>
+                    <Button
+                      variant='ghost'
+                      size='icon'
+                      className='size-7 text-destructive hover:text-destructive'
+                      onClick={() => {
+                        if (confirm('确认删除此节点吗？子节点会被解除父子绑定关系。')) {
+                          deleteMutation.mutate(item.id)
+                        }
+                      }}
+                    >
+                      <Trash2 className='size-3.5' />
+                    </Button>
+                  </div>
+                </div>
+              )
+            })
+          )}
+        </div>
+      </div>
+
+      {/* 属性编辑 Dialog */}
+      <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
+        <DialogContent className='max-w-lg'>
+          <DialogHeader>
+            <DialogTitle>
+              {editingItem?.id ? '编辑导航项' : '新增导航链接'}
+            </DialogTitle>
+          </DialogHeader>
+
+          {editingItem && (
+            <div className='flex flex-col gap-4 py-4 text-sm'>
+              {/* 类型选择 */}
+              <div className='grid grid-cols-4 items-center gap-4'>
+                <span className='font-medium text-right'>类型</span>
+                <select
+                  value={editingItem.type}
+                  onChange={(e) =>
+                    setEditingItem({
+                      ...editingItem,
+                      type: e.target.value as any,
+                    })
+                  }
+                  className='col-span-3 rounded-md border p-2 bg-background'
+                >
+                  <option value='builtin_module'>内置模块 (Builtin)</option>
+                  <option value='internal_path'>站内自定义路径</option>
+                  <option value='external_url'>外部 URL 链接</option>
+                  <option value='group'>分类分组标题 (不可点击)</option>
+                  <option value='divider'>分割线 (Divider)</option>
+                </select>
+              </div>
+
+              {/* 针对不同类型的附加输入框 */}
+              {editingItem.type === 'builtin_module' && (
+                <div className='grid grid-cols-4 items-center gap-4'>
+                  <span className='font-medium text-right'>内置模块</span>
+                  <select
+                    value={editingItem.module_key}
+                    onChange={(e) =>
+                      setEditingItem({
+                        ...editingItem,
+                        module_key: e.target.value,
+                      })
+                    }
+                    className='col-span-3 rounded-md border p-2 bg-background'
+                  >
+                    <option value='home'>首页 (Home)</option>
+                    <option value='console'>控制台 (Console)</option>
+                    <option value='pricing'>模型广场 (Model Square)</option>
+                    <option value='rankings'>排行榜 (Rankings)</option>
+                    <option value='docs'>文档 (Docs)</option>
+                    <option value='about'>关于 (About)</option>
+                  </select>
+                </div>
+              )}
+
+              {editingItem.type === 'internal_path' && (
+                <div className='grid grid-cols-4 items-center gap-4'>
+                  <span className='font-medium text-right'>站内路径</span>
+                  <Input
+                    value={editingItem.path || ''}
+                    onChange={(e) =>
+                      setEditingItem({ ...editingItem, path: e.target.value })
+                    }
+                    placeholder='例如: /dashboard/billing'
+                    className='col-span-3'
+                  />
+                </div>
+              )}
+
+              {editingItem.type === 'external_url' && (
+                <div className='grid grid-cols-4 items-center gap-4'>
+                  <span className='font-medium text-right'>外部链接</span>
+                  <Input
+                    value={editingItem.url || ''}
+                    onChange={(e) =>
+                      setEditingItem({ ...editingItem, url: e.target.value })
+                    }
+                    placeholder='例如: https://github.com'
+                    className='col-span-3'
+                  />
+                </div>
+              )}
+
+              {editingItem.type !== 'divider' && (
+                <>
+                  {/* 多语言标签输入 */}
+                  <div className='border-t pt-3'>
+                    <span className='font-medium block mb-2 text-primary flex items-center gap-1.5'>
+                      <Globe className='size-4' />
+                      国际化多语言翻译 (Labels)
+                    </span>
+                    <div className='flex flex-col gap-3 pl-4'>
+                      <div className='grid grid-cols-4 items-center gap-4'>
+                        <span className='text-right text-xs text-muted-foreground'>
+                          简体中文
+                        </span>
+                        <Input
+                          value={
+                            editingItem.translations?.find((t) => t.locale === 'zh-CN')?.label || ''
+                          }
+                          onChange={(e) => updateTranslation('zh-CN', e.target.value)}
+                          className='col-span-3'
                         />
-                      </FormControl>
-                      <FormMessage />
-                    </SettingsSwitchItem>
-                  )}
-                />
+                      </div>
+                      <div className='grid grid-cols-4 items-center gap-4'>
+                        <span className='text-right text-xs text-muted-foreground'>
+                          English
+                        </span>
+                        <Input
+                          value={
+                            editingItem.translations?.find((t) => t.locale === 'en')?.label || ''
+                          }
+                          onChange={(e) => updateTranslation('en', e.target.value)}
+                          className='col-span-3'
+                        />
+                      </div>
+                      <div className='grid grid-cols-4 items-center gap-4'>
+                        <span className='text-right text-xs text-muted-foreground'>
+                          繁體中文
+                        </span>
+                        <Input
+                          value={
+                            editingItem.translations?.find((t) => t.locale === 'zh-TW')?.label || ''
+                          }
+                          onChange={(e) => updateTranslation('zh-TW', e.target.value)}
+                          className='col-span-3'
+                        />
+                      </div>
+                    </div>
+                  </div>
 
-                <FormField
-                  control={form.control}
-                  name={module.requireAuthKey}
-                  render={({ field }) => (
-                    <SettingsControlChildren>
-                      <SettingsSwitchItem className='border-b-0 py-2'>
-                        <SettingsSwitchContent>
-                          <FormLabel>{module.requireAuthTitle}</FormLabel>
-                          <FormDescription>
-                            {module.requireAuthDescription}
-                          </FormDescription>
-                        </SettingsSwitchContent>
-                        <FormControl>
-                          <Switch
-                            checked={field.value}
-                            onCheckedChange={field.onChange}
-                            disabled={!form.watch(module.requireAuthDependsOn)}
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </SettingsSwitchItem>
-                    </SettingsControlChildren>
-                  )}
-                />
-              </SettingsControlGroup>
-            ))}
-          </div>
-        </SettingsForm>
-      </Form>
+                  {/* 图标与行为开关 */}
+                  <div className='border-t pt-3 flex flex-col gap-3.5'>
+                    <div className='grid grid-cols-4 items-center gap-4'>
+                      <span className='font-medium text-right'>图标标识</span>
+                      <Input
+                        value={editingItem.icon_key || ''}
+                        onChange={(e) =>
+                          setEditingItem({ ...editingItem, icon_key: e.target.value })
+                        }
+                        placeholder='例如: star'
+                        className='col-span-3'
+                      />
+                    </div>
+
+                    <div className='grid grid-cols-4 items-center gap-4'>
+                      <span className='font-medium text-right'>新标签页打开</span>
+                      <div className='col-span-3'>
+                        <Switch
+                          checked={editingItem.open_in_new_tab}
+                          onCheckedChange={(checked) =>
+                            setEditingItem({
+                              ...editingItem,
+                              open_in_new_tab: checked,
+                            })
+                          }
+                        />
+                      </div>
+                    </div>
+
+                    <div className='grid grid-cols-4 items-center gap-4'>
+                      <span className='font-medium text-right'>路由精确激活</span>
+                      <div className='col-span-3'>
+                        <Switch
+                          checked={editingItem.exact_active}
+                          onCheckedChange={(checked) =>
+                            setEditingItem({
+                              ...editingItem,
+                              exact_active: checked,
+                            })
+                          }
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button variant='outline' onClick={() => setEditDialogOpen(false)}>
+              {t('Cancel')}
+            </Button>
+            <Button onClick={handleSaveItem} disabled={saveMutation.isPending}>
+              {saveMutation.isPending ? t('Saving...') : t('Confirm')}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </SettingsSection>
   )
 }

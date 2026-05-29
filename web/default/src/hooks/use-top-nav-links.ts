@@ -16,88 +16,83 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useMemo } from 'react'
-import { useTranslation } from 'react-i18next'
-import { useAuthStore } from '@/stores/auth-store'
-import { parseHeaderNavModulesFromStatus } from '@/lib/nav-modules'
-import { useStatus } from '@/hooks/use-status'
 
-export type TopNavLink = {
-  title: string
-  href: string
-  disabled?: boolean
-  requiresAuth?: boolean
-  external?: boolean
+import { useQuery } from '@tanstack/react-query'
+import { useTranslation } from 'react-i18next'
+import { api } from '@/lib/api'
+import { BuiltinModulesRegistry } from '@/lib/nav-modules'
+import { useAuthStore } from '@/stores/auth-store'
+import { type TopNavLink } from '@/components/layout/types'
+
+/**
+ * 动态加载并拼装顶部导航树 Hook
+ */
+export function useTopNavLinks(): TopNavLink[] {
+  const { i18n } = useTranslation()
+  const { auth } = useAuthStore()
+
+  // 区分 i18n 语言环境
+  const currentLang = i18n.language || 'zh-CN'
+
+  // 利用 React Query 获取可见的菜单树
+  const { data: rawTree } = useQuery<any[]>({
+    queryKey: ['navigation-tree', 'default_web_top', currentLang, auth?.user?.id],
+    queryFn: async () => {
+      const res = await api.get('/api/navigation/tree', {
+        params: {
+          menu_key: 'default_web_top',
+          lang: currentLang,
+        },
+        skipErrorHandler: true, // 避免加载失败弹窗影响全局交互，实施静默重试/加载
+      })
+      return res.data?.data || []
+    },
+  })
+
+  // 将后端动态返回的菜单节点转换为前端标准的顶级及多级嵌套路由格式
+  const links: TopNavLink[] = (rawTree || []).map(mapNavigationItemToLink)
+
+  return links
 }
 
 /**
- * Generate top navigation links based on HeaderNavModules configuration from backend /api/status
- * Backend format example (stringified JSON):
- * {
- *   home: true,
- *   console: true,
- *   pricing: { enabled: true, requireAuth: false },
- *   rankings: { enabled: true, requireAuth: false },
- *   docs: true,
- *   about: true
- * }
+ * 映射后端 DTO 格式节点到前端导航项
  */
-export function useTopNavLinks(): TopNavLink[] {
-  const { t } = useTranslation()
-  const { status } = useStatus()
-  const { auth } = useAuthStore()
+function mapNavigationItemToLink(item: any): TopNavLink {
+  let href = ''
+  let isExternal = false
 
-  // Parse HeaderNavModules
-  const modules = useMemo(() => {
-    return parseHeaderNavModulesFromStatus(
-      status as Record<string, unknown> | null
-    )
-  }, [status])
-
-  // Documentation link (may be external)
-  const docsLink: string | undefined = status?.docs_link as string | undefined
-
-  const isAuthed = !!auth?.user
-
-  const links: TopNavLink[] = []
-
-  // Home
-  if (modules?.home !== false) {
-    links.push({ title: t('Home'), href: '/' })
+  switch (item.type) {
+    case 'builtin_module':
+      // 引用内置注册表的 SPA 路径
+      const meta = BuiltinModulesRegistry[item.module_key]
+      href = meta ? meta.to : '/'
+      break
+    case 'internal_path':
+      href = item.path || '/'
+      break
+    case 'external_url':
+      href = item.url || ''
+      isExternal = true
+      break
+    case 'group':
+      href = '#'
+      break
+    default:
+      href = '#'
   }
 
-  // Console -> /dashboard (new console path)
-  if (modules?.console !== false) {
-    links.push({ title: t('Console'), href: '/dashboard' })
-  }
+  // 递归转换子菜单节点
+  const children =
+    item.children && item.children.length > 0
+      ? item.children.map(mapNavigationItemToLink)
+      : undefined
 
-  // Pricing
-  const pricing = modules?.pricing
-  if (pricing && typeof pricing === 'object' && pricing.enabled) {
-    const requiresAuth = pricing.requireAuth && !isAuthed
-    links.push({ title: t('Model Square'), href: '/pricing', requiresAuth })
+  return {
+    title: item.label,
+    href,
+    external: isExternal,
+    openInNewTab: item.open_in_new_tab,
+    children,
   }
-
-  // Rankings
-  const rankings = modules?.rankings
-  if (rankings && typeof rankings === 'object' && rankings.enabled) {
-    const requiresAuth = rankings.requireAuth && !isAuthed
-    links.push({ title: t('Rankings'), href: '/rankings', requiresAuth })
-  }
-
-  // Docs (supports external links)
-  if (modules?.docs !== false) {
-    if (docsLink) {
-      links.push({ title: t('Docs'), href: docsLink, external: true })
-    } else {
-      links.push({ title: t('Docs'), href: '/docs' })
-    }
-  }
-
-  // About
-  if (modules?.about !== false) {
-    links.push({ title: t('About'), href: '/about' })
-  }
-
-  return links
 }

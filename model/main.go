@@ -281,10 +281,15 @@ func migrateDB() error {
 		&CustomOAuthProvider{},
 		&UserOAuthBinding{},
 		&PerfMetric{},
+		&NavigationMenu{},
+		&NavigationItem{},
+		&NavigationItemTranslation{},
+		&NavigationVisibilityRule{},
 	)
 	if err != nil {
 		return err
 	}
+	go seedDefaultNavigation()
 	if common.UsingSQLite {
 		if err := ensureSubscriptionPlanTableSQLite(); err != nil {
 			return err
@@ -330,6 +335,10 @@ func migrateDBFast() error {
 		{&CustomOAuthProvider{}, "CustomOAuthProvider"},
 		{&UserOAuthBinding{}, "UserOAuthBinding"},
 		{&PerfMetric{}, "PerfMetric"},
+		{&NavigationMenu{}, "NavigationMenu"},
+		{&NavigationItem{}, "NavigationItem"},
+		{&NavigationItemTranslation{}, "NavigationItemTranslation"},
+		{&NavigationVisibilityRule{}, "NavigationVisibilityRule"},
 	}
 	// 动态计算migration数量，确保errChan缓冲区足够大
 	errChan := make(chan error, len(migrations))
@@ -705,4 +714,138 @@ func PingDB() error {
 	lastPingTime = time.Now()
 	common.SysLog("Database pinged successfully")
 	return nil
+}
+
+func seedDefaultNavigation() {
+	var count int64
+	err := DB.Model(&NavigationMenu{}).Where("key = ?", "default_web_top").Count(&count).Error
+	if err != nil {
+		common.SysError("failed to query default_web_top menu: " + err.Error())
+		return
+	}
+	if count > 0 {
+		return // 已经初始化过了，无需重复初始化
+	}
+
+	common.SysLog("Initializing default top navigation menu database records...")
+
+	// 1. 创建默认顶部导航菜单
+	menu := NavigationMenu{
+		Key:      "default_web_top",
+		Name:     "默认顶部导航栏",
+		Client:   "web_default",
+		Surface:  "top",
+		Enabled:  true,
+		IsSystem: true,
+	}
+	// 2. 初始内置模块定义
+	type itemDef struct {
+		ModuleKey string
+		SortOrder int
+		IconKey   string
+		Locales   map[string]string
+	}
+
+	defaultItems := []itemDef{
+		{
+			ModuleKey: "home",
+			SortOrder: 1,
+			IconKey:   "home",
+			Locales: map[string]string{
+				"en":    "Home",
+				"zh-CN": "首页",
+				"zh-TW": "首頁",
+			},
+		},
+		{
+			ModuleKey: "console",
+			SortOrder: 2,
+			IconKey:   "layout-dashboard",
+			Locales: map[string]string{
+				"en":    "Console",
+				"zh-CN": "控制台",
+				"zh-TW": "控制台",
+			},
+		},
+		{
+			ModuleKey: "pricing",
+			SortOrder: 3,
+			IconKey:   "credit-card",
+			Locales: map[string]string{
+				"en":    "Model Square",
+				"zh-CN": "模型广场",
+				"zh-TW": "模型廣場",
+			},
+		},
+		{
+			ModuleKey: "rankings",
+			SortOrder: 4,
+			IconKey:   "trophy",
+			Locales: map[string]string{
+				"en":    "Rankings",
+				"zh-CN": "排行榜",
+				"zh-TW": "排行榜",
+			},
+		},
+		{
+			ModuleKey: "docs",
+			SortOrder: 5,
+			IconKey:   "book-open",
+			Locales: map[string]string{
+				"en":    "Docs",
+				"zh-CN": "文档",
+				"zh-TW": "文檔",
+			},
+		},
+		{
+			ModuleKey: "about",
+			SortOrder: 6,
+			IconKey:   "info",
+			Locales: map[string]string{
+				"en":    "About",
+				"zh-CN": "关于",
+				"zh-TW": "关于",
+			},
+		},
+	}
+
+	// 开启事务进行菜单和菜单项的原子化创建
+	err = DB.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Create(&menu).Error; err != nil {
+			return err
+		}
+
+		for _, def := range defaultItems {
+			item := NavigationItem{
+				MenuID:    menu.ID,
+				Type:      "builtin_module",
+				ModuleKey: def.ModuleKey,
+				IconKey:   def.IconKey,
+				SortOrder: def.SortOrder,
+				Enabled:   true,
+			}
+			if err := tx.Create(&item).Error; err != nil {
+				return err
+			}
+
+			// 插入多语言翻译
+			for locale, label := range def.Locales {
+				trans := NavigationItemTranslation{
+					ItemID: item.ID,
+					Locale: locale,
+					Label:  label,
+				}
+				if err := tx.Create(&trans).Error; err != nil {
+					return err
+				}
+			}
+		}
+		return nil
+	})
+
+	if err != nil {
+		common.SysError("failed to seed default navigation items: " + err.Error())
+	} else {
+		common.SysLog("Default top navigation menu initialized successfully")
+	}
 }
