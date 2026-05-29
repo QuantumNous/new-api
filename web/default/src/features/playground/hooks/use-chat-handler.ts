@@ -27,6 +27,7 @@ import {
   processStreamingContent,
   finalizeMessage,
   updateCurrentVersionContent,
+  parseRequestErrorDetails,
 } from '../lib'
 import type { Message, PlaygroundConfig, ParameterEnabled } from '../types'
 import { useStreamRequest } from './use-stream-request'
@@ -175,18 +176,8 @@ export function useChatHandler({
       } catch (error: unknown) {
         if (abortController.signal.aborted) return
 
-        const err = error as {
-          response?: {
-            data?: { message?: string; error?: { code?: string } }
-          }
-          message?: string
-        }
-        handleStreamError(
-          err?.response?.data?.message ||
-            err?.message ||
-            ERROR_MESSAGES.API_REQUEST_ERROR,
-          err?.response?.data?.error?.code || undefined
-        )
+        const { errorCode, errorMessage } = parseRequestErrorDetails(error)
+        handleStreamError(errorMessage, errorCode)
       } finally {
         if (requestIdRef.current === requestId) {
           abortControllerRef.current = null
