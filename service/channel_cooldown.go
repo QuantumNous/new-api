@@ -13,6 +13,12 @@ import (
 const (
 	ChannelCooldownDuration       = 30 * time.Minute
 	UpstreamErrorCooldownDuration = 15 * time.Minute
+	// SlowChannelFRTThreshold is the first-response-time (time to first token)
+	// above which an otherwise-successful request is treated as an unstably-slow
+	// upstream and the channel is cooled down. FRT (not total elapsed) is used so
+	// that large prompts / high-reasoning requests, which are legitimately slow to
+	// finish but still start streaming promptly, are not punished.
+	SlowChannelFRTThreshold = 30 * time.Second
 )
 
 var channelCooldownKeywords = []string{
@@ -121,4 +127,24 @@ func CooldownChannelForUpstreamError(channelError types.ChannelError, err *types
 	reason := fmt.Sprintf("upstream_unstable status=%d code=%s type=%s error=%s", err.StatusCode, err.GetErrorCode(), err.GetErrorType(), err.Error())
 	common.SysLog(fmt.Sprintf("通道冷却：#%d，持续 %s，原因：%s", channelError.ChannelId, UpstreamErrorCooldownDuration, reason))
 	model.CooldownChannel(channelError.ChannelId, reason, UpstreamErrorCooldownDuration)
+}
+
+// CooldownChannelForRetry cools a channel for the full ChannelCooldownDuration
+// whenever it failed in a way that triggered a retry to another channel. The
+// caller (relay loop) decides retryability; this just records the cooldown so a
+// misbehaving channel is taken out of selection quickly instead of being
+// re-picked on subsequent requests.
+func CooldownChannelForRetry(channelError types.ChannelError, err *types.NewAPIError) {
+	reason := fmt.Sprintf("retryable_error status=%d code=%s type=%s error=%s", err.StatusCode, err.GetErrorCode(), err.GetErrorType(), err.Error())
+	common.SysLog(fmt.Sprintf("通道冷却：#%d，持续 %s，原因：%s", channelError.ChannelId, ChannelCooldownDuration, reason))
+	model.CooldownChannel(channelError.ChannelId, reason, ChannelCooldownDuration)
+}
+
+// CooldownSlowChannel cools a channel for the full ChannelCooldownDuration when
+// an otherwise-successful request had a first-response-time above
+// SlowChannelFRTThreshold, i.e. the upstream is up but unstably slow.
+func CooldownSlowChannel(channelError types.ChannelError, frt time.Duration) {
+	reason := fmt.Sprintf("slow_upstream first_token=%s threshold=%s", frt.Round(time.Millisecond), SlowChannelFRTThreshold)
+	common.SysLog(fmt.Sprintf("通道冷却：#%d，持续 %s，原因：%s", channelError.ChannelId, ChannelCooldownDuration, reason))
+	model.CooldownChannel(channelError.ChannelId, reason, ChannelCooldownDuration)
 }

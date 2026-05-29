@@ -1,0 +1,80 @@
+package controller
+
+import (
+	"errors"
+	"net/http"
+	"net/http/httptest"
+	"testing"
+
+	"github.com/QuantumNous/new-api/types"
+	"github.com/gin-gonic/gin"
+)
+
+func newTestContext() *gin.Context {
+	gin.SetMode(gin.TestMode)
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", nil)
+	return c
+}
+
+func TestIsRetryableChannelError(t *testing.T) {
+	cases := []struct {
+		name string
+		err  *types.NewAPIError
+		want bool
+	}{
+		{
+			name: "upstream 503 retryable",
+			err:  types.NewErrorWithStatusCode(errors.New("no available accounts"), types.ErrorCodeBadResponseStatusCode, http.StatusServiceUnavailable),
+			want: true,
+		},
+		{
+			name: "upstream 502 retryable",
+			err:  types.NewErrorWithStatusCode(errors.New("bad gateway"), types.ErrorCodeBadResponseStatusCode, http.StatusBadGateway),
+			want: true,
+		},
+		{
+			name: "capability 403 retryable",
+			err:  types.NewErrorWithStatusCode(errors.New("Image generation is not enabled for this group"), types.ErrorCodeBadResponseStatusCode, http.StatusForbidden),
+			want: true,
+		},
+		{
+			name: "internal 500 retryable",
+			err:  types.NewErrorWithStatusCode(errors.New("boom"), types.ErrorCodeBadResponseStatusCode, http.StatusInternalServerError),
+			want: true,
+		},
+		{
+			name: "client 400 not retryable",
+			err:  types.NewErrorWithStatusCode(errors.New("invalid request"), types.ErrorCodeInvalidRequest, http.StatusBadRequest, types.ErrOptionWithSkipRetry()),
+			want: false,
+		},
+		{
+			name: "success 200 not retryable",
+			err:  types.NewErrorWithStatusCode(errors.New("ok"), types.ErrorCodeBadResponseStatusCode, http.StatusOK),
+			want: false,
+		},
+		{
+			name: "nil error not retryable",
+			err:  nil,
+			want: false,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			c := newTestContext()
+			if got := isRetryableChannelError(c, tc.err); got != tc.want {
+				t.Fatalf("isRetryableChannelError(%s) = %v, want %v", tc.name, got, tc.want)
+			}
+		})
+	}
+}
+
+func TestIsRetryableChannelErrorSkipsSpecificChannel(t *testing.T) {
+	c := newTestContext()
+	c.Set("specific_channel_id", 5)
+	err := types.NewErrorWithStatusCode(errors.New("bad gateway"), types.ErrorCodeBadResponseStatusCode, http.StatusBadGateway)
+	if isRetryableChannelError(c, err) {
+		t.Fatalf("expected pinned specific channel to skip retry classification")
+	}
+}

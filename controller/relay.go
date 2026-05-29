@@ -222,6 +222,7 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 
 		if newAPIError == nil {
 			relayInfo.LastError = nil
+			cooldownSlowChannelIfNeeded(c, relayInfo, channel)
 			return
 		}
 
@@ -353,12 +354,72 @@ func shouldRetry(c *gin.Context, openaiErr *types.NewAPIError, retryTimes int) b
 	return operation_setting.ShouldRetryByStatusCode(code)
 }
 
+// cooldownSlowChannelIfNeeded cools a channel after a successful request whose
+// first-response-time exceeded SlowChannelFRTThreshold. FRT is only meaningful
+// when the handler actually recorded a first response; pinned (specific) channel
+// requests are skipped since they bypass selection anyway.
+func cooldownSlowChannelIfNeeded(c *gin.Context, info *relaycommon.RelayInfo, channel *model.Channel) {
+	if info == nil || channel == nil {
+		return
+	}
+	if _, ok := c.Get("specific_channel_id"); ok {
+		return
+	}
+	if !info.HasSendResponse() {
+		return
+	}
+	frt := info.FirstResponseTime.Sub(info.StartTime)
+	if frt < service.SlowChannelFRTThreshold {
+		return
+	}
+	channelError := types.NewChannelError(channel.Id, channel.Type, channel.Name, channel.ChannelInfo.IsMultiKey, common.GetContextKeyString(c, constant.ContextKeyChannelKey), channel.GetAutoBan())
+	service.CooldownSlowChannel(*channelError, frt)
+}
+
+// isRetryableChannelError reports whether the error would cause the relay loop
+// to retry on another channel. It mirrors shouldRetry's error classification
+// but omits the remaining-retry-count gate, so a channel is still recognized as
+// "caused a retry" even on the final attempt. Used to decide cooldown.
+func isRetryableChannelError(c *gin.Context, openaiErr *types.NewAPIError) bool {
+	if openaiErr == nil {
+		return false
+	}
+	if service.ShouldSkipRetryAfterChannelAffinityFailure(c) {
+		return false
+	}
+	if types.IsChannelError(openaiErr) {
+		return true
+	}
+	if types.IsSkipRetryError(openaiErr) {
+		return false
+	}
+	if _, ok := c.Get("specific_channel_id"); ok {
+		return false
+	}
+	code := openaiErr.StatusCode
+	if code >= 200 && code < 300 {
+		return false
+	}
+	if code < 100 || code > 599 {
+		return true
+	}
+	if operation_setting.IsAlwaysSkipRetryCode(openaiErr.GetErrorCode()) {
+		return false
+	}
+	return operation_setting.ShouldRetryByStatusCode(code)
+}
+
 func processChannelError(c *gin.Context, channelError types.ChannelError, err *types.NewAPIError) {
 	logger.LogError(c, fmt.Sprintf("channel error (channel #%d, status code: %d): %s", channelError.ChannelId, err.StatusCode, err.Error()))
 	// 不要使用context获取渠道信息，异步处理时可能会出现渠道信息不一致的情况
 	// do not use context to get channel info, there may be inconsistent channel info when processing asynchronously
 	if service.ShouldCooldownChannel(err) {
 		service.CooldownChannel(channelError, err)
+	} else if isRetryableChannelError(c, err) {
+		// Any error that would send the request to retry another channel means
+		// this channel misbehaved; cool it for the full duration so it stops
+		// being re-picked. This subsumes upstream 5xx / capability 4xx.
+		service.CooldownChannelForRetry(channelError, err)
 	} else if service.ShouldCooldownChannelForUpstreamError(err) {
 		service.CooldownChannelForUpstreamError(channelError, err)
 	}
