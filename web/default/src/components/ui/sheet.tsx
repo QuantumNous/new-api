@@ -76,7 +76,7 @@ function SheetContent({
         data-slot='sheet-content'
         data-side={side}
         className={cn(
-          'bg-popover text-popover-foreground fixed z-50 flex flex-col gap-4 bg-clip-padding text-sm shadow-lg transition duration-200 ease-in-out data-ending-style:opacity-0 data-starting-style:opacity-0',
+          'bg-background text-foreground fixed z-50 flex flex-col gap-4 overflow-hidden bg-clip-padding text-sm shadow-none transition duration-200 ease-in-out data-ending-style:opacity-0 data-starting-style:opacity-0',
           side === 'right' &&
             'inset-y-0 right-0 h-full w-3/4 border-l data-ending-style:translate-x-[2.5rem] data-starting-style:translate-x-[2.5rem] sm:max-w-sm',
           side === 'left' &&
