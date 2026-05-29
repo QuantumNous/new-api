@@ -694,6 +694,8 @@
     "Checking name...": "正在检查名称...",
     "Checking updates...": "检查更新中...",
     "checkout.session.completed": "checkout.session.completed",
+    "checkout.session.async_payment_failed": "checkout.session.async_payment_failed",
+    "checkout.session.async_payment_succeeded": "checkout.session.async_payment_succeeded",
     "checkout.session.expired": "checkout.session.expired",
     "Chinese": "中文",
     "Choose a username": "选择一个用户名",
