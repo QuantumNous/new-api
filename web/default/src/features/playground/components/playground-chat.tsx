@@ -16,9 +16,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { type ReactNode, useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import {
@@ -26,27 +25,12 @@ import {
   ConversationContent,
   ConversationScrollButton,
 } from '@/components/ai-elements/conversation'
-import { Loader } from '@/components/ai-elements/loader'
-import { Message, MessageContent } from '@/components/ai-elements/message'
-import {
-  Reasoning,
-  ReasoningContent,
-  ReasoningTrigger,
-} from '@/components/ai-elements/reasoning'
-import { Response } from '@/components/ai-elements/response'
-import { Shimmer } from '@/components/ai-elements/shimmer'
-import {
-  Source,
-  Sources,
-  SourcesContent,
-  SourcesTrigger,
-} from '@/components/ai-elements/sources'
+import { Message } from '@/components/ai-elements/message'
 import { MESSAGE_ROLES } from '../constants'
-import { getMessageContentStyles } from '../lib/message-styles'
-import { getMessageContent, parseThinkTags } from '../lib/message-utils'
+import { getMessageContent } from '../lib/message-utils'
 import type { Message as MessageType } from '../types'
 import { MessageActions } from './message-actions'
-import { MessageError } from './message-error'
+import { PlaygroundMessageContent } from './playground-message-content'
 
 interface PlaygroundChatProps {
   messages: MessageType[]
@@ -59,93 +43,6 @@ interface PlaygroundChatProps {
   onSaveEdit?: (newContent: string) => void
   onCancelEdit?: (open: boolean) => void
   onSaveEditAndSubmit?: (newContent: string) => void
-}
-
-type MessageContentDisplayProps = {
-  actions: ReactNode
-  message: MessageType
-  versionContent: string
-}
-
-function MessageContentDisplay({
-  actions,
-  message,
-  versionContent,
-}: MessageContentDisplayProps) {
-  const { t } = useTranslation()
-  const isAssistant = message.from === MESSAGE_ROLES.ASSISTANT
-  const sources = message.sources ?? []
-  const reasoningContent = isAssistant ? message.reasoning?.content : undefined
-  const hasSources = sources.length > 0
-  const hasReasoning = !!reasoningContent
-  const showLoader =
-    isAssistant &&
-    !message.isReasoningStreaming &&
-    (message.status === 'loading' ||
-      (message.status === 'streaming' && !versionContent))
-  const showMessageContent =
-    (message.from === MESSAGE_ROLES.USER || !message.isReasoningStreaming) &&
-    !!versionContent
-  const displayContent = isAssistant
-    ? parseThinkTags(versionContent).visibleContent
-    : versionContent
-
-  return (
-    <>
-      {hasSources && (
-        <Sources>
-          <SourcesTrigger count={sources.length} />
-          <SourcesContent>
-            {sources.map((source) => (
-              <Source
-                href={source.href}
-                key={`${source.href}-${source.title}`}
-                title={source.title}
-              />
-            ))}
-          </SourcesContent>
-        </Sources>
-      )}
-
-      {hasReasoning && (
-        <Reasoning
-          defaultOpen={true}
-          isStreaming={message.isReasoningStreaming}
-        >
-          <ReasoningTrigger />
-          <ReasoningContent>{reasoningContent}</ReasoningContent>
-        </Reasoning>
-      )}
-
-      {showLoader && (
-        <div className='flex items-center gap-2 py-2'>
-          <Loader />
-          <Shimmer className='text-sm' duration={1}>
-            {t('Responding...')}
-          </Shimmer>
-        </div>
-      )}
-
-      {message.status === 'error' && (
-        <>
-          <MessageError message={message} className='mb-2' />
-          {actions}
-        </>
-      )}
-
-      {message.status !== 'error' && showMessageContent && (
-        <>
-          <MessageContent
-            variant='flat'
-            className={cn(getMessageContentStyles())}
-          >
-            <Response>{displayContent}</Response>
-          </MessageContent>
-          {actions}
-        </>
-      )}
-    </>
-  )
 }
 
 export function PlaygroundChat({
@@ -233,7 +130,7 @@ export function PlaygroundChat({
                       </div>
                     </div>
                   ) : (
-                    <MessageContentDisplay
+                    <PlaygroundMessageContent
                       actions={
                         <MessageActions
                           message={message}
