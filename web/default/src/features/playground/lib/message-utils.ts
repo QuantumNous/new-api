@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { nanoid } from 'nanoid'
-import { MESSAGE_ROLES, MESSAGE_STATUS, ERROR_MESSAGES } from '../constants'
+import { MESSAGE_ROLES, MESSAGE_STATUS } from '../constants'
 import type {
   Message,
   MessageVersion,
@@ -162,48 +162,4 @@ export function isValidMessage(message: Message): boolean {
   if (message.from === 'assistant' && !hasMessageContent(message)) return false
 
   return true
-}
-
-/**
- * Update the last assistant message with an error
- * @param messages - Current messages array
- * @param errorMessage - Error message to display
- * @returns Updated messages array
- */
-export function updateAssistantMessageWithError(
-  messages: Message[],
-  errorMessage: string,
-  errorCode?: string
-): Message[] {
-  return updateLastAssistantMessage(messages, (message) => {
-    const updatedMessage = updateCurrentVersionContent(
-      message,
-      `${ERROR_MESSAGES.API_REQUEST_ERROR}: ${errorMessage}`
-    )
-    return {
-      ...updatedMessage,
-      status: MESSAGE_STATUS.ERROR,
-      isReasoningStreaming: false,
-      errorCode: errorCode || null,
-    }
-  })
-}
-
-/**
- * Helper function to update the last assistant message
- * @param messages - Current messages array
- * @param updater - Function to update the message
- * @returns Updated messages array or original if no assistant message found
- */
-export function updateLastAssistantMessage(
-  messages: Message[],
-  updater: (message: Message) => Message
-): Message[] {
-  if (messages.length === 0) return messages
-  const last = messages[messages.length - 1]
-  if (!last || last.from !== MESSAGE_ROLES.ASSISTANT) return messages
-
-  const updated = [...messages]
-  updated[updated.length - 1] = updater(last)
-  return updated
 }
