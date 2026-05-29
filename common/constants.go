@@ -173,6 +173,7 @@ var RelayTimeout int // unit is second
 
 var RelayMaxIdleConns int
 var RelayMaxIdleConnsPerHost int
+var RelayResponseHeaderTimeout int
 
 var GeminiSafetySetting string
 
