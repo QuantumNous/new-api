@@ -20,8 +20,8 @@ import { useCallback, useRef, useState } from 'react'
 import { SSE } from 'sse.js'
 import { getCommonHeaders } from '@/lib/api'
 import { API_ENDPOINTS, ERROR_MESSAGES } from '../constants'
-import { parseStreamErrorDetails } from '../lib'
-import type { ChatCompletionRequest, ChatCompletionChunk } from '../types'
+import { parseStreamErrorDetails, parseStreamMessageUpdates } from '../lib'
+import type { ChatCompletionRequest } from '../types'
 
 /**
  * Hook for handling streaming chat completion requests
@@ -74,16 +74,10 @@ export function useStreamRequest() {
         }
 
         try {
-          const chunk: ChatCompletionChunk = JSON.parse(e.data)
-          const delta = chunk.choices?.[0]?.delta
+          const updates = parseStreamMessageUpdates(e.data)
 
-          if (delta) {
-            if (delta.reasoning_content) {
-              onUpdate('reasoning', delta.reasoning_content)
-            }
-            if (delta.content) {
-              onUpdate('content', delta.content)
-            }
+          for (const update of updates) {
+            onUpdate(update.type, update.chunk)
           }
         } catch (error) {
           // eslint-disable-next-line no-console

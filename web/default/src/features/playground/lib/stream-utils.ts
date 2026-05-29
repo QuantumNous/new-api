@@ -17,6 +17,14 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { ERROR_MESSAGES } from '../constants'
+import type { ChatCompletionChunk } from '../types'
+
+export type StreamUpdateType = 'reasoning' | 'content'
+
+export type StreamMessageUpdate = {
+  type: StreamUpdateType
+  chunk: string
+}
 
 type StreamErrorPayload = {
   error?: {
@@ -51,4 +59,25 @@ export function parseStreamErrorDetails(data?: string): StreamErrorDetails {
   } catch {
     return { errorMessage: fallbackMessage }
   }
+}
+
+export function parseStreamMessageUpdates(data: string): StreamMessageUpdate[] {
+  const chunk = JSON.parse(data) as ChatCompletionChunk
+  const delta = chunk.choices?.[0]?.delta
+
+  if (!delta) {
+    return []
+  }
+
+  const updates: StreamMessageUpdate[] = []
+
+  if (delta.reasoning_content) {
+    updates.push({ type: 'reasoning', chunk: delta.reasoning_content })
+  }
+
+  if (delta.content) {
+    updates.push({ type: 'content', chunk: delta.content })
+  }
+
+  return updates
 }
