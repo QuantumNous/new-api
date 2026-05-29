@@ -193,6 +193,7 @@ const EditChannelModal = (props) => {
     thinking_to_content: false,
     proxy: '',
     pass_through_body_enabled: false,
+    force_upstream_stream: false,
     system_prompt: '',
     system_prompt_override: false,
     settings: '',
@@ -516,6 +517,7 @@ const EditChannelModal = (props) => {
     thinking_to_content: false,
     proxy: '',
     pass_through_body_enabled: false,
+    force_upstream_stream: false,
     system_prompt: '',
   });
   const showApiConfigCard = true; // 控制是否显示 API 配置卡片
@@ -523,20 +525,33 @@ const EditChannelModal = (props) => {
 
   // 处理渠道额外设置的更新
   const handleChannelSettingsChange = (key, value) => {
+    const nextSettings = { ...channelSettings, [key]: value };
+    if (key === 'pass_through_body_enabled' && value) {
+      nextSettings.force_upstream_stream = false;
+    }
+    if (
+      key === 'force_upstream_stream' &&
+      nextSettings.pass_through_body_enabled
+    ) {
+      nextSettings.force_upstream_stream = false;
+    }
+
     // 更新内部状态
-    setChannelSettings((prev) => ({ ...prev, [key]: value }));
+    setChannelSettings(nextSettings);
 
     // 同步更新到表单字段
     if (formApiRef.current) {
-      formApiRef.current.setValue(key, value);
+      formApiRef.current.setValue(key, nextSettings[key]);
+      if (key === 'pass_through_body_enabled' && value) {
+        formApiRef.current.setValue('force_upstream_stream', false);
+      }
     }
 
     // 同步更新inputs状态
-    setInputs((prev) => ({ ...prev, [key]: value }));
+    setInputs((prev) => ({ ...prev, ...nextSettings }));
 
     // 生成setting JSON并更新
-    const newSettings = { ...channelSettings, [key]: value };
-    const settingsJson = JSON.stringify(newSettings);
+    const settingsJson = JSON.stringify(nextSettings);
     handleInputChange('setting', settingsJson);
   };
 
@@ -867,6 +882,11 @@ const EditChannelModal = (props) => {
           data.proxy = parsedSettings.proxy || '';
           data.pass_through_body_enabled =
             parsedSettings.pass_through_body_enabled || false;
+          data.force_upstream_stream =
+            parsedSettings.force_upstream_stream || false;
+          if (data.pass_through_body_enabled) {
+            data.force_upstream_stream = false;
+          }
           data.system_prompt = parsedSettings.system_prompt || '';
           data.system_prompt_override =
             parsedSettings.system_prompt_override || false;
@@ -876,6 +896,7 @@ const EditChannelModal = (props) => {
           data.thinking_to_content = false;
           data.proxy = '';
           data.pass_through_body_enabled = false;
+          data.force_upstream_stream = false;
           data.system_prompt = '';
           data.system_prompt_override = false;
         }
@@ -884,6 +905,7 @@ const EditChannelModal = (props) => {
         data.thinking_to_content = false;
         data.proxy = '';
         data.pass_through_body_enabled = false;
+        data.force_upstream_stream = false;
         data.system_prompt = '';
         data.system_prompt_override = false;
       }
@@ -993,6 +1015,7 @@ const EditChannelModal = (props) => {
         thinking_to_content: data.thinking_to_content,
         proxy: data.proxy,
         pass_through_body_enabled: data.pass_through_body_enabled,
+        force_upstream_stream: data.force_upstream_stream,
         system_prompt: data.system_prompt,
         system_prompt_override: data.system_prompt_override || false,
       });
@@ -1035,6 +1058,7 @@ const EditChannelModal = (props) => {
         (data.system_prompt && data.system_prompt.trim()) ||
         data.thinking_to_content ||
         data.pass_through_body_enabled ||
+        data.force_upstream_stream ||
         data.force_format ||
         data.claude_beta_query ||
         data.system_prompt_override;
@@ -1382,6 +1406,7 @@ const EditChannelModal = (props) => {
       thinking_to_content: false,
       proxy: '',
       pass_through_body_enabled: false,
+      force_upstream_stream: false,
       system_prompt: '',
       system_prompt_override: false,
     });
@@ -1752,6 +1777,9 @@ const EditChannelModal = (props) => {
       thinking_to_content: localInputs.thinking_to_content || false,
       proxy: localInputs.proxy || '',
       pass_through_body_enabled: localInputs.pass_through_body_enabled || false,
+      force_upstream_stream: localInputs.pass_through_body_enabled
+        ? false
+        : localInputs.force_upstream_stream || false,
       system_prompt: localInputs.system_prompt || '',
       system_prompt_override: localInputs.system_prompt_override || false,
     };
@@ -1833,6 +1861,7 @@ const EditChannelModal = (props) => {
     delete localInputs.thinking_to_content;
     delete localInputs.proxy;
     delete localInputs.pass_through_body_enabled;
+    delete localInputs.force_upstream_stream;
     delete localInputs.system_prompt;
     delete localInputs.system_prompt_override;
     delete localInputs.is_enterprise_account;
@@ -2517,6 +2546,29 @@ const EditChannelModal = (props) => {
 
                   {inputs.type === 14 && (
                     <Form.Switch field='claude_beta_query' label={t('Claude 强制 beta=true')} checkedText={t('开')} uncheckedText={t('关')} onChange={(value) => handleChannelOtherSettingsChange('claude_beta_query', value)} extraText={t('开启后，该渠道请求 Claude 时将强制追加 ?beta=true（无需客户端手动传参）')} />
+                  )}
+
+                  {inputs.type === 14 && (
+                    <Form.Switch
+                      field='force_upstream_stream'
+                      label={t('强制上游流式')}
+                      checkedText={t('开')}
+                      uncheckedText={t('关')}
+                      disabled={inputs.pass_through_body_enabled}
+                      onChange={(value) =>
+                        handleChannelSettingsChange(
+                          'force_upstream_stream',
+                          value,
+                        )
+                      }
+                      extraText={
+                        inputs.pass_through_body_enabled
+                          ? t('请求体透传开启时，此开关会失效')
+                          : t(
+                              '当下游请求为非流式时，此 Claude 渠道与上游之间使用流式通信',
+                            )
+                      }
+                    />
                   )}
 
                   {inputs.type === 1 && (

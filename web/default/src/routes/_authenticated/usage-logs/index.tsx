@@ -24,6 +24,7 @@ export const Route = createFileRoute('/_authenticated/usage-logs/')({
     throw redirect({
       to: '/usage-logs/$section',
       params: { section: USAGE_LOGS_DEFAULT_SECTION },
+      search: {},
     })
   },
 })

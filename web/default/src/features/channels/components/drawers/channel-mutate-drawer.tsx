@@ -217,6 +217,7 @@ function hasAdvancedSettingsValues(values: ChannelFormValues): boolean {
     values.force_format ||
     values.thinking_to_content ||
     values.pass_through_body_enabled ||
+    values.force_upstream_stream ||
     values.system_prompt_override ||
     values.claude_beta_query ||
     values.upstream_model_update_check_enabled ||
@@ -376,6 +377,7 @@ export function ChannelMutateDrawer({
   const upstreamModelUpdateCheckEnabled = form.watch(
     'upstream_model_update_check_enabled'
   )
+  const passThroughBodyEnabled = form.watch('pass_through_body_enabled')
   const currentSettings = form.watch('settings')
   const {
     unlocked: doubaoApiEditUnlocked,
@@ -394,6 +396,18 @@ export function ChannelMutateDrawer({
       resetDoubaoApiUnlock()
     }
   }, [open, resetDoubaoApiUnlock])
+
+  useEffect(() => {
+    if (
+      (currentType !== 14 || passThroughBodyEnabled) &&
+      form.getValues('force_upstream_stream')
+    ) {
+      form.setValue('force_upstream_stream', false, {
+        shouldDirty: true,
+        shouldTouch: true,
+      })
+    }
+  }, [currentType, form, passThroughBodyEnabled])
 
   // Helper computed values
   const isBatchMode =
@@ -3179,6 +3193,39 @@ export function ChannelMutateDrawer({
                             </FormItem>
                           )}
                         />
+
+                        {currentType === 14 && (
+                          <FormField
+                            control={form.control}
+                            name='force_upstream_stream'
+                            render={({ field }) => (
+                              <FormItem className='flex items-center justify-between px-4 py-3'>
+                                <div className='space-y-0.5'>
+                                  <FormLabel>
+                                    {t('Force Upstream Streaming')}
+                                  </FormLabel>
+                                  <FormDescription>
+                                    {t(
+                                      passThroughBodyEnabled
+                                        ? 'Disabled while request body pass-through is enabled'
+                                        : 'Use streaming between this Claude channel and upstream for non-streaming downstream requests'
+                                    )}
+                                  </FormDescription>
+                                </div>
+                                <FormControl>
+                                  <Switch
+                                    checked={
+                                      !passThroughBodyEnabled &&
+                                      field.value === true
+                                    }
+                                    onCheckedChange={field.onChange}
+                                    disabled={passThroughBodyEnabled}
+                                  />
+                                </FormControl>
+                              </FormItem>
+                            )}
+                          />
+                        )}
                       </div>
 
                       <FormField

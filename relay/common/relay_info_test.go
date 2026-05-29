@@ -5,6 +5,7 @@ import (
 
 	"github.com/QuantumNous/new-api/types"
 	"github.com/stretchr/testify/require"
+	"github.com/tidwall/gjson"
 )
 
 func TestRelayInfoGetFinalRequestRelayFormatPrefersExplicitFinal(t *testing.T) {
@@ -37,4 +38,24 @@ func TestRelayInfoGetFinalRequestRelayFormatFallsBackToRelayFormat(t *testing.T)
 func TestRelayInfoGetFinalRequestRelayFormatNilReceiver(t *testing.T) {
 	var info *RelayInfo
 	require.Equal(t, types.RelayFormat(""), info.GetFinalRequestRelayFormat())
+}
+
+func TestEnsureUpstreamStreamFieldSetsOnlyStream(t *testing.T) {
+	input := []byte(`{"model":"claude","large":9007199254740993,"stream":false,"messages":[{"role":"user","content":"hi"}]}`)
+
+	result, err := EnsureUpstreamStreamField(input, &RelayInfo{UpstreamStream: true})
+	require.NoError(t, err)
+
+	require.True(t, gjson.GetBytes(result, "stream").Bool())
+	require.Equal(t, "9007199254740993", gjson.GetBytes(result, "large").Raw)
+	require.Contains(t, string(result), `"large":9007199254740993`)
+	require.Contains(t, string(result), `"messages":[{"role":"user","content":"hi"}]`)
+}
+
+func TestEnsureUpstreamStreamFieldSkipsWhenUpstreamStreamDisabled(t *testing.T) {
+	input := []byte(`{"model":"claude","stream":false}`)
+
+	result, err := EnsureUpstreamStreamField(input, &RelayInfo{})
+	require.NoError(t, err)
+	require.Equal(t, input, result)
 }

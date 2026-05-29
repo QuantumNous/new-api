@@ -57,6 +57,7 @@ export const Route = createFileRoute('/_authenticated/usage-logs/$section')({
       throw redirect({
         to: '/usage-logs/$section',
         params: { section: USAGE_LOGS_DEFAULT_SECTION },
+        search,
       })
     }
     // type 仅 common 使用，非 common 时清掉 URL 里的 type

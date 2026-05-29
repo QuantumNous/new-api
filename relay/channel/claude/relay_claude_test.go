@@ -2,10 +2,18 @@ package claude
 
 import (
 	"encoding/base64"
+	"io"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 
+	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
+	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	relayconstant "github.com/QuantumNous/new-api/relay/constant"
+	"github.com/QuantumNous/new-api/types"
+	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 )
 
@@ -379,4 +387,325 @@ func TestRequestOpenAI2ClaudeMessage_ConvertsTextFileContentToText(t *testing.T)
 	require.Equal(t, "text", content[0].Type)
 	require.NotNil(t, content[0].Text)
 	require.Equal(t, "alpha\nbeta", *content[0].Text)
+}
+
+func TestShouldUseUpstreamStreamForNonStreamClaude(t *testing.T) {
+	info := &relaycommon.RelayInfo{
+		IsStream:    false,
+		RelayMode:   relayconstant.RelayModeUnknown,
+		RelayFormat: types.RelayFormatClaude,
+		ChannelMeta: &relaycommon.ChannelMeta{
+			ChannelType: constant.ChannelTypeAnthropic,
+			ChannelSetting: dto.ChannelSettings{
+				ForceUpstreamStream: true,
+			},
+		},
+	}
+
+	require.True(t, info.ShouldUseUpstreamStream())
+
+	claudeReq := &dto.ClaudeRequest{Model: "claude-3-5-sonnet"}
+	enableClaudeUpstreamStreamIfNeeded(info, claudeReq)
+	require.NotNil(t, claudeReq.Stream)
+	require.True(t, *claudeReq.Stream)
+}
+
+func TestShouldUseUpstreamStreamSkipsDownstreamStream(t *testing.T) {
+	info := &relaycommon.RelayInfo{
+		IsStream:    true,
+		RelayMode:   relayconstant.RelayModeUnknown,
+		RelayFormat: types.RelayFormatClaude,
+		ChannelMeta: &relaycommon.ChannelMeta{
+			ChannelType: constant.ChannelTypeAnthropic,
+			ChannelSetting: dto.ChannelSettings{
+				ForceUpstreamStream: true,
+			},
+		},
+	}
+
+	require.False(t, info.ShouldUseUpstreamStream())
+}
+
+func TestShouldUseUpstreamStreamSkipsPassThroughBody(t *testing.T) {
+	info := &relaycommon.RelayInfo{
+		IsStream:    false,
+		RelayMode:   relayconstant.RelayModeUnknown,
+		RelayFormat: types.RelayFormatClaude,
+		ChannelMeta: &relaycommon.ChannelMeta{
+			ChannelType: constant.ChannelTypeAnthropic,
+			ChannelSetting: dto.ChannelSettings{
+				ForceUpstreamStream:    true,
+				PassThroughBodyEnabled: true,
+			},
+		},
+	}
+
+	require.False(t, info.ShouldUseUpstreamStream())
+}
+
+func TestEnsureUpstreamStreamFieldRestoresStreamAfterOverride(t *testing.T) {
+	info := &relaycommon.RelayInfo{UpstreamStream: true}
+
+	result, err := relaycommon.EnsureUpstreamStreamField([]byte(`{"model":"claude","stream":false}`), info)
+	require.NoError(t, err)
+	require.JSONEq(t, `{"model":"claude","stream":true}`, string(result))
+}
+
+func TestEnsureUpstreamStreamFieldKeepsExistingStreamTrue(t *testing.T) {
+	info := &relaycommon.RelayInfo{UpstreamStream: true}
+
+	result, err := relaycommon.EnsureUpstreamStreamField([]byte(`{"model":"claude","stream":true}`), info)
+	require.NoError(t, err)
+	require.JSONEq(t, `{"model":"claude","stream":true}`, string(result))
+}
+
+func TestAggregateClaudeStreamWithNilInfoFallsBackToOpenAIResponse(t *testing.T) {
+	resp := &http.Response{
+		Body: io.NopCloser(strings.NewReader(strings.Join([]string{
+			`data: {"type":"message_start","message":{"id":"msg_nil","model":"claude-3-5-sonnet","usage":{"input_tokens":5}}}`,
+			`data: {"type":"content_block_start","index":0,"content_block":{"type":"text","text":"Hello"}}`,
+			`data: {"type":"message_delta","delta":{"stop_reason":"end_turn"},"usage":{"input_tokens":5,"output_tokens":1}}`,
+			`data: [DONE]`,
+		}, "\n"))),
+	}
+
+	result, usage, err := AggregateClaudeStreamResponse(nil, resp, nil)
+	require.Nil(t, err)
+	require.NotNil(t, usage)
+	require.Equal(t, 5, usage.PromptTokens)
+	require.Equal(t, 1, usage.CompletionTokens)
+
+	openAIResp, ok := result.(*dto.OpenAITextResponse)
+	require.True(t, ok)
+	require.Equal(t, "msg_nil", openAIResp.Id)
+	require.Equal(t, "claude-3-5-sonnet", openAIResp.Model)
+	require.Equal(t, "Hello", openAIResp.Choices[0].Message.StringContent())
+}
+
+func TestAggregateClaudeStreamToOpenAIResponse(t *testing.T) {
+	info := &relaycommon.RelayInfo{
+		RelayFormat: types.RelayFormatOpenAI,
+		ChannelMeta: &relaycommon.ChannelMeta{
+			UpstreamModelName: "claude-3-5-sonnet",
+		},
+	}
+	info.SetEstimatePromptTokens(7)
+
+	resp := &http.Response{
+		Body: io.NopCloser(strings.NewReader(strings.Join([]string{
+			`data: {"type":"message_start","message":{"id":"msg_123","model":"claude-3-5-sonnet","usage":{"input_tokens":10}}}`,
+			`data: {"type":"content_block_start","index":0,"content_block":{"type":"text","text":"Hello"}}`,
+			`data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" world"}}`,
+			`data: {"type":"message_delta","delta":{"stop_reason":"end_turn"},"usage":{"input_tokens":10,"output_tokens":3}}`,
+			`data: [DONE]`,
+		}, "\n"))),
+	}
+
+	result, usage, err := AggregateClaudeStreamResponse(nil, resp, info)
+	require.Nil(t, err)
+	require.NotNil(t, usage)
+	require.Equal(t, 10, usage.PromptTokens)
+	require.Equal(t, 3, usage.CompletionTokens)
+
+	openAIResp, ok := result.(*dto.OpenAITextResponse)
+	require.True(t, ok)
+	require.Equal(t, "msg_123", openAIResp.Id)
+	require.Equal(t, "chat.completion", openAIResp.Object)
+	require.Equal(t, "claude-3-5-sonnet", openAIResp.Model)
+	require.Len(t, openAIResp.Choices, 1)
+	require.Equal(t, "assistant", openAIResp.Choices[0].Message.Role)
+	require.Equal(t, "Hello world", openAIResp.Choices[0].Message.StringContent())
+	require.Equal(t, "stop", openAIResp.Choices[0].FinishReason)
+	require.Equal(t, 13, openAIResp.Usage.TotalTokens)
+}
+
+func TestAggregateClaudeStreamToClaudeResponse(t *testing.T) {
+	info := &relaycommon.RelayInfo{
+		RelayFormat: types.RelayFormatClaude,
+		ChannelMeta: &relaycommon.ChannelMeta{
+			UpstreamModelName: "claude-3-5-sonnet",
+		},
+	}
+
+	resp := &http.Response{
+		Body: io.NopCloser(strings.NewReader(strings.Join([]string{
+			`data: {"type":"message_start","message":{"id":"msg_456","model":"claude-3-5-sonnet","usage":{"input_tokens":11}}}`,
+			`data: {"type":"content_block_start","index":0,"content_block":{"type":"text","text":"Bonjour"}}`,
+			`data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"!"}}`,
+			`data: {"type":"message_delta","delta":{"stop_reason":"end_turn"},"usage":{"input_tokens":11,"output_tokens":2}}`,
+			`data: [DONE]`,
+		}, "\n"))),
+	}
+
+	result, usage, err := AggregateClaudeStreamResponse(nil, resp, info)
+	require.Nil(t, err)
+	require.NotNil(t, usage)
+
+	claudeResp, ok := result.(*dto.ClaudeResponse)
+	require.True(t, ok)
+	require.Equal(t, "msg_456", claudeResp.Id)
+	require.Equal(t, "message", claudeResp.Type)
+	require.Equal(t, "assistant", claudeResp.Role)
+	require.Equal(t, "claude-3-5-sonnet", claudeResp.Model)
+	require.Equal(t, "end_turn", claudeResp.StopReason)
+	require.Len(t, claudeResp.Content, 1)
+	require.Equal(t, "text", claudeResp.Content[0].Type)
+	require.Equal(t, "Bonjour!", claudeResp.Content[0].GetText())
+	require.NotNil(t, claudeResp.Usage)
+	require.Equal(t, 11, claudeResp.Usage.InputTokens)
+	require.Equal(t, 2, claudeResp.Usage.OutputTokens)
+}
+
+func TestAggregateClaudeStreamToClaudeResponsePreservesCacheUsage(t *testing.T) {
+	info := &relaycommon.RelayInfo{
+		RelayFormat: types.RelayFormatClaude,
+		ChannelMeta: &relaycommon.ChannelMeta{
+			UpstreamModelName: "claude-3-5-sonnet",
+		},
+	}
+
+	resp := &http.Response{
+		Body: io.NopCloser(strings.NewReader(strings.Join([]string{
+			`data: {"type":"message_start","message":{"id":"msg_cache","model":"claude-3-5-sonnet","usage":{"input_tokens":11,"cache_read_input_tokens":3,"cache_creation_input_tokens":7,"cache_creation":{"ephemeral_5m_input_tokens":2,"ephemeral_1h_input_tokens":5}}}}`,
+			`data: {"type":"content_block_start","index":0,"content_block":{"type":"text","text":"Cached"}}`,
+			`data: {"type":"message_delta","delta":{"stop_reason":"end_turn"},"usage":{"input_tokens":11,"output_tokens":2,"cache_read_input_tokens":3,"cache_creation_input_tokens":7,"cache_creation":{"ephemeral_5m_input_tokens":2,"ephemeral_1h_input_tokens":5}}}`,
+			`data: [DONE]`,
+		}, "\n"))),
+	}
+
+	result, usage, err := AggregateClaudeStreamResponse(nil, resp, info)
+	require.Nil(t, err)
+	require.NotNil(t, usage)
+	require.Equal(t, 3, usage.PromptTokensDetails.CachedTokens)
+	require.Equal(t, 7, usage.PromptTokensDetails.CachedCreationTokens)
+	require.Equal(t, 2, usage.ClaudeCacheCreation5mTokens)
+	require.Equal(t, 5, usage.ClaudeCacheCreation1hTokens)
+
+	claudeResp, ok := result.(*dto.ClaudeResponse)
+	require.True(t, ok)
+	require.NotNil(t, claudeResp.Usage)
+	require.Equal(t, 3, claudeResp.Usage.CacheReadInputTokens)
+	require.Equal(t, 7, claudeResp.Usage.CacheCreationInputTokens)
+	require.NotNil(t, claudeResp.Usage.CacheCreation)
+	require.Equal(t, 2, claudeResp.Usage.CacheCreation.Ephemeral5mInputTokens)
+	require.Equal(t, 5, claudeResp.Usage.CacheCreation.Ephemeral1hInputTokens)
+}
+
+func TestAggregateClaudeStreamToClaudeResponseJoinsTextBlocksByIndex(t *testing.T) {
+	info := &relaycommon.RelayInfo{
+		RelayFormat: types.RelayFormatClaude,
+		ChannelMeta: &relaycommon.ChannelMeta{
+			UpstreamModelName: "claude-3-5-sonnet",
+		},
+	}
+
+	resp := &http.Response{
+		Body: io.NopCloser(strings.NewReader(strings.Join([]string{
+			`data: {"type":"message_start","message":{"id":"msg_blocks","model":"claude-3-5-sonnet","usage":{"input_tokens":8}}}`,
+			`data: {"type":"content_block_start","index":1,"content_block":{"type":"text","text":"second"}}`,
+			`data: {"type":"content_block_start","index":0,"content_block":{"type":"text","text":"first "}}`,
+			`data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" block"}}`,
+			`data: {"type":"message_delta","delta":{"stop_reason":"end_turn"},"usage":{"input_tokens":8,"output_tokens":3}}`,
+			`data: [DONE]`,
+		}, "\n"))),
+	}
+
+	result, _, err := AggregateClaudeStreamResponse(nil, resp, info)
+	require.Nil(t, err)
+
+	claudeResp, ok := result.(*dto.ClaudeResponse)
+	require.True(t, ok)
+	require.Len(t, claudeResp.Content, 1)
+	require.Equal(t, "first second block", claudeResp.Content[0].GetText())
+}
+
+func TestAggregateClaudeStreamToClaudeResponsePreservesStopSequence(t *testing.T) {
+	info := &relaycommon.RelayInfo{
+		RelayFormat: types.RelayFormatClaude,
+		ChannelMeta: &relaycommon.ChannelMeta{
+			UpstreamModelName: "claude-3-5-sonnet",
+		},
+	}
+
+	resp := &http.Response{
+		Body: io.NopCloser(strings.NewReader(strings.Join([]string{
+			`data: {"type":"message_start","message":{"id":"msg_stop","model":"claude-3-5-sonnet","usage":{"input_tokens":9}}}`,
+			`data: {"type":"content_block_start","index":0,"content_block":{"type":"text","text":"Done"}}`,
+			`data: {"type":"message_delta","delta":{"stop_reason":"stop_sequence","stop_sequence":"END"},"usage":{"input_tokens":9,"output_tokens":1}}`,
+			`data: [DONE]`,
+		}, "\n"))),
+	}
+
+	result, _, err := AggregateClaudeStreamResponse(nil, resp, info)
+	require.Nil(t, err)
+
+	claudeResp, ok := result.(*dto.ClaudeResponse)
+	require.True(t, ok)
+	require.Equal(t, "stop_sequence", claudeResp.StopReason)
+	require.NotNil(t, claudeResp.StopSequence)
+	require.Equal(t, "END", *claudeResp.StopSequence)
+}
+
+func TestAggregateClaudeStreamToOpenAIResponseWithToolUse(t *testing.T) {
+	info := &relaycommon.RelayInfo{
+		RelayFormat: types.RelayFormatOpenAI,
+		ChannelMeta: &relaycommon.ChannelMeta{
+			UpstreamModelName: "claude-3-5-sonnet",
+		},
+	}
+
+	resp := &http.Response{
+		Body: io.NopCloser(strings.NewReader(strings.Join([]string{
+			`data: {"type":"message_start","message":{"id":"msg_tool","model":"claude-3-5-sonnet","usage":{"input_tokens":20}}}`,
+			`data: {"type":"content_block_start","index":0,"content_block":{"type":"tool_use","id":"toolu_1","name":"get_weather","input":{}}}`,
+			`data: {"type":"content_block_delta","index":0,"delta":{"type":"input_json_delta","partial_json":"{\"city\""}}`,
+			`data: {"type":"content_block_delta","index":0,"delta":{"type":"input_json_delta","partial_json":":\"Paris\"}"}}`,
+			`data: {"type":"message_delta","delta":{"stop_reason":"tool_use"},"usage":{"input_tokens":20,"output_tokens":4}}`,
+			`data: [DONE]`,
+		}, "\n"))),
+	}
+
+	result, _, err := AggregateClaudeStreamResponse(nil, resp, info)
+	require.Nil(t, err)
+
+	openAIResp, ok := result.(*dto.OpenAITextResponse)
+	require.True(t, ok)
+	require.Equal(t, "tool_calls", openAIResp.Choices[0].FinishReason)
+
+	toolCalls := openAIResp.Choices[0].Message.ParseToolCalls()
+	require.Len(t, toolCalls, 1)
+	require.Equal(t, "toolu_1", toolCalls[0].ID)
+	require.Equal(t, "function", toolCalls[0].Type)
+	require.Equal(t, "get_weather", toolCalls[0].Function.Name)
+	require.Equal(t, `{"city":"Paris"}`, toolCalls[0].Function.Arguments)
+}
+
+func TestAggregateClaudeStreamRecordsWebSearchUsage(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+	info := &relaycommon.RelayInfo{
+		RelayFormat: types.RelayFormatClaude,
+		ChannelMeta: &relaycommon.ChannelMeta{
+			UpstreamModelName: "claude-3-5-sonnet",
+		},
+	}
+
+	resp := &http.Response{
+		Body: io.NopCloser(strings.NewReader(strings.Join([]string{
+			`data: {"type":"message_start","message":{"id":"msg_search","model":"claude-3-5-sonnet","usage":{"input_tokens":15}}}`,
+			`data: {"type":"content_block_start","index":0,"content_block":{"type":"text","text":"Done"}}`,
+			`data: {"type":"message_delta","delta":{"stop_reason":"end_turn"},"usage":{"input_tokens":15,"output_tokens":2,"server_tool_use":{"web_search_requests":2}}}`,
+			`data: [DONE]`,
+		}, "\n"))),
+	}
+
+	result, _, err := AggregateClaudeStreamResponse(ctx, resp, info)
+	require.Nil(t, err)
+	require.Equal(t, 2, ctx.GetInt("claude_web_search_requests"))
+
+	claudeResp, ok := result.(*dto.ClaudeResponse)
+	require.True(t, ok)
+	require.NotNil(t, claudeResp.Usage)
+	require.NotNil(t, claudeResp.Usage.ServerToolUse)
+	require.Equal(t, 2, claudeResp.Usage.ServerToolUse.WebSearchRequests)
 }
