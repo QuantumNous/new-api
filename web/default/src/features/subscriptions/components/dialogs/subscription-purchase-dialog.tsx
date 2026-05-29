@@ -111,6 +111,7 @@ export function SubscriptionPurchaseDialog(props: Props) {
     Math.ceil(Number(plan.price_amount || 0) * quotaPerUnit)
   )
   const userQuota = Math.max(0, Number(props.userQuota || 0))
+  const allowBalancePay = plan.allow_balance_pay !== false
   const insufficientBalance = userQuota < balanceCost
   const limitReached =
     (props.purchaseLimit || 0) > 0 &&
@@ -232,6 +233,10 @@ export function SubscriptionPurchaseDialog(props: Props) {
   }
 
   const handlePayBalance = async () => {
+    if (!allowBalancePay) {
+      toast.error(t('This plan does not allow balance redemption'))
+      return
+    }
     setPaying(true)
     try {
       const res = await paySubscriptionBalance({ plan_id: plan.id })
@@ -332,15 +337,27 @@ export function SubscriptionPurchaseDialog(props: Props) {
               <span className='text-muted-foreground'>{t('Available')}</span>
               <span>{formatQuota(userQuota)}</span>
             </div>
-            {insufficientBalance && (
+            {!allowBalancePay ? (
               <Alert variant='destructive'>
-                <AlertDescription>{t('Insufficient balance')}</AlertDescription>
+                <AlertDescription>
+                  {t('This plan does not allow balance redemption')}
+                </AlertDescription>
               </Alert>
+            ) : (
+              insufficientBalance && (
+                <Alert variant='destructive'>
+                  <AlertDescription>
+                    {t('Insufficient balance')}
+                  </AlertDescription>
+                </Alert>
+              )
             )}
             <Button
               variant='outline'
               onClick={handlePayBalance}
-              disabled={paying || limitReached || insufficientBalance}
+              disabled={
+                paying || limitReached || !allowBalancePay || insufficientBalance
+              }
             >
               {t('Pay with Balance')}
             </Button>
