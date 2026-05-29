@@ -444,20 +444,6 @@ func GetOpenAIError(errorField any) *types.OpenAIError {
 		if generationID, ok := err["generation_id"].(string); ok {
 			openaiErr.GenerationID = generationID
 		}
-		if creditsConsumed, ok := err["credits_consumed"]; ok {
-			switch credits := creditsConsumed.(type) {
-			case int:
-				openaiErr.CreditsConsumed = &credits
-			case float64:
-				value := int(credits)
-				openaiErr.CreditsConsumed = &value
-			case json.Number:
-				if value, parseErr := credits.Int64(); parseErr == nil {
-					consumed := int(value)
-					openaiErr.CreditsConsumed = &consumed
-				}
-			}
-		}
 		return openaiErr
 	case string:
 		// 处理简单字符串错误
