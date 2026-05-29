@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/model"
 	passkeysvc "github.com/QuantumNous/new-api/service/passkey"
 	"github.com/QuantumNous/new-api/setting/system_setting"
@@ -18,21 +19,59 @@ import (
 	webauthnlib "github.com/go-webauthn/webauthn/webauthn"
 )
 
+var (
+	errPasskeySessionNotLoggedIn  = errors.New("passkey session not logged in")
+	errPasskeySessionInvalid      = errors.New("passkey session invalid")
+	errPasskeySessionUserDisabled = errors.New("passkey session user disabled")
+)
+
+func apiPasskeyError(c *gin.Context, err error) {
+	if err == nil {
+		return
+	}
+	switch {
+	case errors.Is(err, model.ErrFriendlyPasskeyNotFound):
+		common.ApiErrorI18n(c, i18n.MsgPasskeyVerifyFailed)
+	case errors.Is(err, model.ErrPasskeySaveFailed):
+		common.ApiErrorI18n(c, i18n.MsgPasskeySaveFailed)
+	case errors.Is(err, model.ErrPasskeyDeleteFailed):
+		common.ApiErrorI18n(c, i18n.MsgPasskeyDeleteFailed)
+	case errors.Is(err, errPasskeySessionNotLoggedIn):
+		common.ApiErrorI18n(c, i18n.MsgSecureNotLoggedIn)
+	case errors.Is(err, errPasskeySessionInvalid):
+		common.ApiErrorI18n(c, i18n.MsgAuthUserInfoInvalid)
+	case errors.Is(err, errPasskeySessionUserDisabled):
+		common.ApiErrorI18n(c, i18n.MsgUserDisabled)
+	default:
+		common.ApiError(c, err)
+	}
+}
+
+func unauthorizedPasskeyError(c *gin.Context, err error) {
+	message := i18n.T(c, i18n.MsgUnauthorized)
+	switch {
+	case errors.Is(err, errPasskeySessionNotLoggedIn):
+		message = i18n.T(c, i18n.MsgSecureNotLoggedIn)
+	case errors.Is(err, errPasskeySessionInvalid):
+		message = i18n.T(c, i18n.MsgAuthUserInfoInvalid)
+	case errors.Is(err, errPasskeySessionUserDisabled):
+		message = i18n.T(c, i18n.MsgUserDisabled)
+	}
+	c.JSON(http.StatusUnauthorized, gin.H{
+		"success": false,
+		"message": message,
+	})
+}
+
 func PasskeyRegisterBegin(c *gin.Context) {
 	if !system_setting.GetPasskeySettings().Enabled {
-		c.JSON(http.StatusOK, gin.H{
-			"success": false,
-			"message": "管理员未启用 Passkey 登录",
-		})
+		common.ApiErrorI18n(c, i18n.MsgPasskeyLoginDisabled)
 		return
 	}
 
 	user, err := getSessionUser(c)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{
-			"success": false,
-			"message": err.Error(),
-		})
+		unauthorizedPasskeyError(c, err)
 		return
 	}
 
@@ -42,7 +81,7 @@ func PasskeyRegisterBegin(c *gin.Context) {
 
 	credential, err := model.GetPasskeyByUserID(user.Id)
 	if err != nil && !errors.Is(err, model.ErrPasskeyNotFound) {
-		common.ApiError(c, err)
+		apiPasskeyError(c, err)
 		return
 	}
 	if errors.Is(err, model.ErrPasskeyNotFound) {
@@ -84,19 +123,13 @@ func PasskeyRegisterBegin(c *gin.Context) {
 
 func PasskeyRegisterFinish(c *gin.Context) {
 	if !system_setting.GetPasskeySettings().Enabled {
-		c.JSON(http.StatusOK, gin.H{
-			"success": false,
-			"message": "管理员未启用 Passkey 登录",
-		})
+		common.ApiErrorI18n(c, i18n.MsgPasskeyLoginDisabled)
 		return
 	}
 
 	user, err := getSessionUser(c)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{
-			"success": false,
-			"message": err.Error(),
-		})
+		unauthorizedPasskeyError(c, err)
 		return
 	}
 
@@ -112,7 +145,7 @@ func PasskeyRegisterFinish(c *gin.Context) {
 
 	credentialRecord, err := model.GetPasskeyByUserID(user.Id)
 	if err != nil && !errors.Is(err, model.ErrPasskeyNotFound) {
-		common.ApiError(c, err)
+		apiPasskeyError(c, err)
 		return
 	}
 	if errors.Is(err, model.ErrPasskeyNotFound) {
@@ -134,28 +167,25 @@ func PasskeyRegisterFinish(c *gin.Context) {
 
 	passkeyCredential := model.NewPasskeyCredentialFromWebAuthn(user.Id, credential)
 	if passkeyCredential == nil {
-		common.ApiErrorMsg(c, "无法创建 Passkey 凭证")
+		common.ApiErrorI18n(c, i18n.MsgPasskeyCreateFailed)
 		return
 	}
 
 	if err := model.UpsertPasskeyCredential(passkeyCredential); err != nil {
-		common.ApiError(c, err)
+		apiPasskeyError(c, err)
 		return
 	}
 
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
-		"message": "Passkey 注册成功",
+		"message": i18n.T(c, i18n.MsgPasskeyRegisterSuccess),
 	})
 }
 
 func PasskeyDelete(c *gin.Context) {
 	user, err := getSessionUser(c)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{
-			"success": false,
-			"message": err.Error(),
-		})
+		unauthorizedPasskeyError(c, err)
 		return
 	}
 
@@ -164,23 +194,20 @@ func PasskeyDelete(c *gin.Context) {
 	}
 
 	if err := model.DeletePasskeyByUserID(user.Id); err != nil {
-		common.ApiError(c, err)
+		apiPasskeyError(c, err)
 		return
 	}
 
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
-		"message": "Passkey 已解绑",
+		"message": i18n.T(c, i18n.MsgPasskeyUnbound),
 	})
 }
 
 func PasskeyStatus(c *gin.Context) {
 	user, err := getSessionUser(c)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{
-			"success": false,
-			"message": err.Error(),
-		})
+		unauthorizedPasskeyError(c, err)
 		return
 	}
 
@@ -214,10 +241,7 @@ func PasskeyStatus(c *gin.Context) {
 
 func PasskeyLoginBegin(c *gin.Context) {
 	if !system_setting.GetPasskeySettings().Enabled {
-		c.JSON(http.StatusOK, gin.H{
-			"success": false,
-			"message": "管理员未启用 Passkey 登录",
-		})
+		common.ApiErrorI18n(c, i18n.MsgPasskeyLoginDisabled)
 		return
 	}
 
@@ -249,10 +273,7 @@ func PasskeyLoginBegin(c *gin.Context) {
 
 func PasskeyLoginFinish(c *gin.Context) {
 	if !system_setting.GetPasskeySettings().Enabled {
-		c.JSON(http.StatusOK, gin.H{
-			"success": false,
-			"message": "管理员未启用 Passkey 登录",
-		})
+		common.ApiErrorI18n(c, i18n.MsgPasskeyLoginDisabled)
 		return
 	}
 
@@ -272,17 +293,17 @@ func PasskeyLoginFinish(c *gin.Context) {
 		// 首先通过凭证ID查找用户
 		credential, err := model.GetPasskeyByCredentialID(rawID)
 		if err != nil {
-			return nil, fmt.Errorf("未找到 Passkey 凭证: %w", err)
+			return nil, fmt.Errorf("%s: %w", i18n.T(c, i18n.MsgPasskeyCredentialNotFound), err)
 		}
 
 		// 通过凭证获取用户
 		user := &model.User{Id: credential.UserID}
 		if err := user.FillUserById(); err != nil {
-			return nil, fmt.Errorf("用户信息获取失败: %w", err)
+			return nil, errors.New(i18n.T(c, i18n.MsgPasskeyUserInfoFailed, map[string]any{"Error": err.Error()}))
 		}
 
 		if user.Status != common.UserStatusEnabled {
-			return nil, errors.New("该用户已被禁用")
+			return nil, errors.New(i18n.T(c, i18n.MsgUserDisabled))
 		}
 
 		if len(userHandle) > 0 {
@@ -291,7 +312,7 @@ func PasskeyLoginFinish(c *gin.Context) {
 				// 记录异常但继续验证，因为某些客户端可能使用非数字格式
 				common.SysLog(fmt.Sprintf("PasskeyLogin: userHandle parse error for credential, length: %d", len(userHandle)))
 			} else if userID != user.Id {
-				return nil, errors.New("用户句柄与凭证不匹配")
+				return nil, errors.New(i18n.T(c, i18n.MsgPasskeyUserHandleMismatch))
 			}
 		}
 
@@ -306,31 +327,31 @@ func PasskeyLoginFinish(c *gin.Context) {
 
 	userWrapper, ok := waUser.(*passkeysvc.WebAuthnUser)
 	if !ok {
-		common.ApiErrorMsg(c, "Passkey 登录状态异常")
+		common.ApiErrorI18n(c, i18n.MsgPasskeyLoginAbnormal)
 		return
 	}
 
 	modelUser := userWrapper.ModelUser()
 	if modelUser == nil {
-		common.ApiErrorMsg(c, "Passkey 登录状态异常")
+		common.ApiErrorI18n(c, i18n.MsgPasskeyLoginAbnormal)
 		return
 	}
 
 	if modelUser.Status != common.UserStatusEnabled {
-		common.ApiErrorMsg(c, "该用户已被禁用")
+		common.ApiErrorI18n(c, i18n.MsgUserDisabled)
 		return
 	}
 
 	// 更新凭证信息
 	updatedCredential := model.NewPasskeyCredentialFromWebAuthn(modelUser.Id, credential)
 	if updatedCredential == nil {
-		common.ApiErrorMsg(c, "Passkey 凭证更新失败")
+		common.ApiErrorI18n(c, i18n.MsgPasskeyUpdateFailed)
 		return
 	}
 	now := time.Now()
 	updatedCredential.LastUsedAt = &now
 	if err := model.UpsertPasskeyCredential(updatedCredential); err != nil {
-		common.ApiError(c, err)
+		apiPasskeyError(c, err)
 		return
 	}
 
@@ -341,7 +362,7 @@ func PasskeyLoginFinish(c *gin.Context) {
 func AdminResetPasskey(c *gin.Context) {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
-		common.ApiErrorMsg(c, "无效的用户 ID")
+		common.ApiErrorI18n(c, i18n.MsgPasskeyInvalidUserId)
 		return
 	}
 
@@ -358,51 +379,39 @@ func AdminResetPasskey(c *gin.Context) {
 
 	if _, err := model.GetPasskeyByUserID(user.Id); err != nil {
 		if errors.Is(err, model.ErrPasskeyNotFound) {
-			c.JSON(http.StatusOK, gin.H{
-				"success": false,
-				"message": "该用户尚未绑定 Passkey",
-			})
+			common.ApiErrorI18n(c, i18n.MsgPasskeyNotBound)
 			return
 		}
-		common.ApiError(c, err)
+		apiPasskeyError(c, err)
 		return
 	}
 
 	if err := model.DeletePasskeyByUserID(user.Id); err != nil {
-		common.ApiError(c, err)
+		apiPasskeyError(c, err)
 		return
 	}
 
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
-		"message": "Passkey 已重置",
+		"message": i18n.T(c, i18n.MsgPasskeyReset),
 	})
 }
 
 func PasskeyVerifyBegin(c *gin.Context) {
 	if !system_setting.GetPasskeySettings().Enabled {
-		c.JSON(http.StatusOK, gin.H{
-			"success": false,
-			"message": "管理员未启用 Passkey 登录",
-		})
+		common.ApiErrorI18n(c, i18n.MsgPasskeyLoginDisabled)
 		return
 	}
 
 	user, err := getSessionUser(c)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{
-			"success": false,
-			"message": err.Error(),
-		})
+		unauthorizedPasskeyError(c, err)
 		return
 	}
 
 	credential, err := model.GetPasskeyByUserID(user.Id)
 	if err != nil {
-		c.JSON(http.StatusOK, gin.H{
-			"success": false,
-			"message": "该用户尚未绑定 Passkey",
-		})
+		common.ApiErrorI18n(c, i18n.MsgPasskeyNotBound)
 		return
 	}
 
@@ -435,19 +444,13 @@ func PasskeyVerifyBegin(c *gin.Context) {
 
 func PasskeyVerifyFinish(c *gin.Context) {
 	if !system_setting.GetPasskeySettings().Enabled {
-		c.JSON(http.StatusOK, gin.H{
-			"success": false,
-			"message": "管理员未启用 Passkey 登录",
-		})
+		common.ApiErrorI18n(c, i18n.MsgPasskeyLoginDisabled)
 		return
 	}
 
 	user, err := getSessionUser(c)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{
-			"success": false,
-			"message": err.Error(),
-		})
+		unauthorizedPasskeyError(c, err)
 		return
 	}
 
@@ -459,10 +462,7 @@ func PasskeyVerifyFinish(c *gin.Context) {
 
 	credential, err := model.GetPasskeyByUserID(user.Id)
 	if err != nil {
-		c.JSON(http.StatusOK, gin.H{
-			"success": false,
-			"message": "该用户尚未绑定 Passkey",
-		})
+		common.ApiErrorI18n(c, i18n.MsgPasskeyNotBound)
 		return
 	}
 
@@ -493,13 +493,13 @@ func PasskeyVerifyFinish(c *gin.Context) {
 	session.Delete(SecureVerificationSessionKey)
 	session.Delete(secureVerificationMethodSessionKey)
 	if err := session.Save(); err != nil {
-		common.ApiError(c, fmt.Errorf("保存验证状态失败: %v", err))
+		common.ApiErrorI18n(c, i18n.MsgSecureSaveFailed, map[string]any{"Error": err.Error()})
 		return
 	}
 
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
-		"message": "Passkey 验证成功",
+		"message": i18n.T(c, i18n.MsgPasskeyVerified),
 	})
 }
 
@@ -507,18 +507,18 @@ func getSessionUser(c *gin.Context) (*model.User, error) {
 	session := sessions.Default(c)
 	idRaw := session.Get("id")
 	if idRaw == nil {
-		return nil, errors.New("未登录")
+		return nil, errPasskeySessionNotLoggedIn
 	}
 	id, ok := idRaw.(int)
 	if !ok {
-		return nil, errors.New("无效的会话信息")
+		return nil, errPasskeySessionInvalid
 	}
 	user := &model.User{Id: id}
 	if err := user.FillUserById(); err != nil {
 		return nil, err
 	}
 	if user.Status != common.UserStatusEnabled {
-		return nil, errors.New("该用户已被禁用")
+		return nil, errPasskeySessionUserDisabled
 	}
 	return user, nil
 }
@@ -526,7 +526,7 @@ func getSessionUser(c *gin.Context) (*model.User, error) {
 func requirePasskeyRegistrationVerification(c *gin.Context, userID int) bool {
 	twoFA, err := model.GetTwoFAByUserId(userID)
 	if err != nil {
-		common.ApiError(c, err)
+		apiTwoFAError(c, err)
 		return false
 	}
 	if twoFA == nil || !twoFA.IsEnabled {
@@ -538,7 +538,7 @@ func requirePasskeyRegistrationVerification(c *gin.Context, userID int) bool {
 func requirePasskeyDeleteVerification(c *gin.Context, userID int) bool {
 	twoFA, err := model.GetTwoFAByUserId(userID)
 	if err != nil {
-		common.ApiError(c, err)
+		apiTwoFAError(c, err)
 		return false
 	}
 	if twoFA != nil && twoFA.IsEnabled {
@@ -548,13 +548,10 @@ func requirePasskeyDeleteVerification(c *gin.Context, userID int) bool {
 	_, err = model.GetPasskeyByUserID(userID)
 	if err != nil {
 		if errors.Is(err, model.ErrPasskeyNotFound) {
-			c.JSON(http.StatusOK, gin.H{
-				"success": false,
-				"message": "该用户尚未绑定 Passkey",
-			})
+			common.ApiErrorI18n(c, i18n.MsgPasskeyNotBound)
 			return false
 		}
-		common.ApiError(c, err)
+		apiPasskeyError(c, err)
 		return false
 	}
 
@@ -568,12 +565,12 @@ func requireSecureVerificationMethod(c *gin.Context, method string) bool {
 		session.Delete(SecureVerificationSessionKey)
 		session.Delete(secureVerificationMethodSessionKey)
 		_ = session.Save()
-		common.ApiErrorMsg(c, "请先完成安全验证")
+		common.ApiErrorI18n(c, i18n.MsgPasskeyVerificationRequired)
 		return false
 	}
 
 	if verifiedMethod, ok := session.Get(secureVerificationMethodSessionKey).(string); !ok || verifiedMethod != method {
-		common.ApiErrorMsg(c, "请先完成对应的安全验证")
+		common.ApiErrorI18n(c, i18n.MsgPasskeyMethodVerificationRequired)
 		return false
 	}
 
