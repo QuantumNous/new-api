@@ -441,9 +441,6 @@ func GetOpenAIError(errorField any) *types.OpenAIError {
 				}
 			}
 		}
-		if generationID, ok := err["generation_id"].(string); ok {
-			openaiErr.GenerationID = generationID
-		}
 		return openaiErr
 	case string:
 		// 处理简单字符串错误

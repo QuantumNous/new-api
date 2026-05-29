@@ -134,7 +134,7 @@ func TestOpenaiHandlerWithUsageReturnsImageJSONError(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	t.Cleanup(func() { gin.SetMode(oldMode) })
 
-	body := `{"error":{"message":"content moderation failed","type":"upstream_error","code":"content_moderation_failed","status":502,"generation_id":"gen_123"}}`
+	body := `{"error":{"message":"content moderation failed","type":"upstream_error","code":"content_moderation_failed","status":502}}`
 
 	recorder := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(recorder)
@@ -159,7 +159,6 @@ func TestOpenaiHandlerWithUsageReturnsImageJSONError(t *testing.T) {
 	require.Equal(t, "upstream_error", oaiError.Type)
 	require.Equal(t, "content_moderation_failed", oaiError.Code)
 	require.Equal(t, 502, oaiError.Status)
-	require.Equal(t, "gen_123", oaiError.GenerationID)
 	require.Empty(t, recorder.Body.String())
 }
 
@@ -168,7 +167,7 @@ func TestOpenaiImageStreamHandlerReturnsJSONErrorFallback(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	t.Cleanup(func() { gin.SetMode(oldMode) })
 
-	body := `{"error":{"message":"image edit failed","type":"upstream_error","code":"content_moderation_failed","status":502,"generation_id":"gen_stream"}}`
+	body := `{"error":{"message":"image edit failed","type":"upstream_error","code":"content_moderation_failed","status":502}}`
 
 	recorder := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(recorder)
@@ -190,7 +189,6 @@ func TestOpenaiImageStreamHandlerReturnsJSONErrorFallback(t *testing.T) {
 	require.Equal(t, http.StatusBadGateway, err.StatusCode)
 	oaiError := err.ToOpenAIError()
 	require.Equal(t, "image edit failed", oaiError.Message)
-	require.Equal(t, "gen_stream", oaiError.GenerationID)
 	require.Empty(t, recorder.Body.String())
 }
 
