@@ -19,6 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { getSelf } from '@/lib/api'
+import { useAuthStore, type AuthUser } from '@/stores/auth-store'
 import { useStatus } from '@/hooks/use-status'
 import { useSystemConfig } from '@/hooks/use-system-config'
 import { SectionPageLayout } from '@/components/layout'
@@ -75,6 +76,7 @@ export function Wallet(props: WalletProps) {
   const [selectedCreemProduct, setSelectedCreemProduct] =
     useState<CreemProduct | null>(null)
   const [showSubscriptionPanel, setShowSubscriptionPanel] = useState(true)
+  const setAuthUser = useAuthStore((state) => state.auth.setUser)
 
   const { status } = useStatus()
   const { currency } = useSystemConfig()
@@ -124,7 +126,9 @@ export function Wallet(props: WalletProps) {
       setUserLoading(true)
       const response = await getSelf()
       if (response.success && response.data) {
-        setUser(response.data as UserWalletData)
+        const userData = response.data as UserWalletData
+        setUser(userData)
+        setAuthUser(userData as AuthUser)
       }
     } catch (error) {
       // eslint-disable-next-line no-console
@@ -132,7 +136,7 @@ export function Wallet(props: WalletProps) {
     } finally {
       setUserLoading(false)
     }
-  }, [])
+  }, [setAuthUser])
 
   useEffect(() => {
     fetchUser()
