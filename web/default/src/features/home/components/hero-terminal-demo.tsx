@@ -17,6 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useState, useEffect, useRef, type ReactNode } from 'react'
+import { useTranslation } from 'react-i18next'
 import { cn } from '@/lib/utils'
 
 type AccentTone = 'emerald' | 'amber' | 'blue' | 'violet'
@@ -168,6 +169,7 @@ interface HeroTerminalDemoProps {
 }
 
 export function HeroTerminalDemo(props: HeroTerminalDemoProps) {
+  const { t } = useTranslation()
   const [activeIndex, setActiveIndex] = useState(0)
   const [transitioning, setTransitioning] = useState(false)
   const intervalRef = useRef<ReturnType<typeof setInterval>>(undefined)
@@ -291,16 +293,16 @@ export function HeroTerminalDemo(props: HeroTerminalDemoProps) {
           <div className='text-foreground/40 flex items-center gap-3 text-[10px] tabular-nums'>
             <span className='flex items-center gap-1'>
               <span className='font-mono'>{demo.latency}</span>
-              <span className='tracking-wider uppercase'>ms</span>
+              <span className='tracking-wider uppercase'>{t('ms')}</span>
             </span>
             <span className='bg-foreground/15 size-1 rounded-full' />
             <span className='flex items-center gap-1'>
               <span className='font-mono'>{demo.tokens}</span>
-              <span className='tracking-wider uppercase'>tokens</span>
+              <span className='tracking-wider uppercase'>{t('tokens')}</span>
             </span>
             <span className='bg-foreground/15 size-1 rounded-full' />
             <span className='flex items-center gap-1'>
-              <span className='tracking-wider uppercase'>cost</span>
+              <span className='tracking-wider uppercase'>{t('Cost')}</span>
               <span className='font-mono'>
                 ${(demo.tokens * 0.00003).toFixed(5)}
               </span>
@@ -316,11 +318,12 @@ export function HeroTerminalDemo(props: HeroTerminalDemoProps) {
 }
 
 function RequestBlock(props: { demo: ApiDemoConfig; transitioning: boolean }) {
+  const { t } = useTranslation()
   const { demo, transitioning } = props
 
   return (
     <div className='relative px-5 py-4'>
-      <SectionLabel>Request</SectionLabel>
+      <SectionLabel>{t('Request')}</SectionLabel>
       <div
         className={cn(
           'mt-2 transition-opacity duration-200',
@@ -355,6 +358,7 @@ function RequestBlock(props: { demo: ApiDemoConfig; transitioning: boolean }) {
 }
 
 function ResponseBlock(props: { demo: ApiDemoConfig; transitioning: boolean }) {
+  const { t } = useTranslation()
   const { demo, transitioning } = props
 
   return (
@@ -364,7 +368,7 @@ function ResponseBlock(props: { demo: ApiDemoConfig; transitioning: boolean }) {
         'border-violet-500/10 bg-violet-500/[0.025] dark:border-violet-300/10 dark:bg-violet-300/[0.025]'
       )}
     >
-      <SectionLabel>Response</SectionLabel>
+      <SectionLabel>{t('Response')}</SectionLabel>
       <div
         className={cn(
           'mt-2 transition-opacity duration-200',
@@ -510,18 +514,26 @@ function Command(props: { children: ReactNode }) {
 }
 
 function Flag(props: { children: ReactNode }) {
-  return <span className='text-indigo-600 dark:text-indigo-300'>{props.children}</span>
+  return (
+    <span className='text-indigo-600 dark:text-indigo-300'>
+      {props.children}
+    </span>
+  )
 }
 
 function Key(props: { children: ReactNode }) {
   return (
-    <span className='text-violet-700 dark:text-violet-200'>{props.children}</span>
+    <span className='text-violet-700 dark:text-violet-200'>
+      {props.children}
+    </span>
   )
 }
 
 function StringText(props: { children: ReactNode }) {
   return (
-    <span className='text-fuchsia-700 dark:text-fuchsia-200'>{props.children}</span>
+    <span className='text-fuchsia-700 dark:text-fuchsia-200'>
+      {props.children}
+    </span>
   )
 }
 

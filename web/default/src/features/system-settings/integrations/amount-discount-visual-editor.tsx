@@ -271,12 +271,14 @@ export function AmountDiscountVisualEditor({
         </div>
       )}
 
-      <AmountDiscountDialog
-        open={dialogOpen}
-        onOpenChange={setDialogOpen}
-        onSave={handleSave}
-        editData={editData}
-      />
+      {dialogOpen && (
+        <AmountDiscountDialog
+          open={dialogOpen}
+          onOpenChange={setDialogOpen}
+          onSave={handleSave}
+          editData={editData}
+        />
+      )}
     </div>
   )
 }

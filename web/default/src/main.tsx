@@ -117,12 +117,17 @@ const rootElement = document.getElementById('root')!
 ;(function initSystemBranding() {
   try {
     if (typeof window === 'undefined' || typeof document === 'undefined') return
+    const normalizePublicTitle = (name: string) => {
+      const trimmedName = name.trim()
+      return trimmedName === 'New API' ? 'Flatkey AI' : trimmedName
+    }
     const apply = (name: string) => {
-      document.title = name
+      const title = normalizePublicTitle(name)
+      document.title = title
       const metaTitle = document.querySelector(
         'meta[name="title"]'
       ) as HTMLMetaElement | null
-      if (metaTitle) metaTitle.setAttribute('content', name)
+      if (metaTitle) metaTitle.setAttribute('content', title)
     }
     // Cache-first
     try {

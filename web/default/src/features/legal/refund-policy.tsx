@@ -17,21 +17,21 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useTranslation } from 'react-i18next'
-import { getPrivacyPolicy } from './api'
+import { getRefundPolicy } from './api'
 import { getDefaultLegalDocument } from './default-documents'
 import { LegalDocument } from './legal-document'
 
-export function PrivacyPolicy() {
+export function RefundPolicy() {
   const { i18n, t } = useTranslation()
   return (
     <LegalDocument
-      title={t('Privacy Policy')}
-      queryKey='privacy-policy'
-      fetchDocument={getPrivacyPolicy}
+      title={t('Refund Policy')}
+      queryKey='refund-policy'
+      fetchDocument={getRefundPolicy}
       emptyMessage={t(
-        'The administrator has not configured a privacy policy yet.'
+        'The administrator has not configured a refund policy yet.'
       )}
-      defaultContent={getDefaultLegalDocument('privacy', i18n.resolvedLanguage)}
+      defaultContent={getDefaultLegalDocument('refund', i18n.resolvedLanguage)}
     />
   )
 }
