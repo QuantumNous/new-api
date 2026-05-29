@@ -25,9 +25,9 @@ import {
   buildChatCompletionPayload,
   updateAssistantMessageWithError,
   updateLastAssistantMessage,
-  finalizeMessage,
   parseRequestErrorDetails,
   applyChatCompletionChoice,
+  completeAssistantMessage,
 } from '../lib'
 import type { Message, PlaygroundConfig, ParameterEnabled } from '../types'
 import { useStreamRequest } from './use-stream-request'
@@ -71,7 +71,7 @@ export function useChatHandler({
         message.status === MESSAGE_STATUS.COMPLETE ||
         message.status === MESSAGE_STATUS.ERROR
           ? message
-          : { ...finalizeMessage(message), status: MESSAGE_STATUS.COMPLETE }
+          : completeAssistantMessage(message)
       )
     )
   }, [onMessageUpdate])
@@ -184,7 +184,7 @@ export function useChatHandler({
       updateLastAssistantMessage(prev, (message) =>
         message.status === MESSAGE_STATUS.LOADING ||
         message.status === MESSAGE_STATUS.STREAMING
-          ? { ...finalizeMessage(message), status: MESSAGE_STATUS.COMPLETE }
+          ? completeAssistantMessage(message)
           : message
       )
     )

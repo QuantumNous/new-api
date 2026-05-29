@@ -102,6 +102,13 @@ export function finalizeMessage(
   }
 }
 
+export function completeAssistantMessage(message: Message): Message {
+  return {
+    ...finalizeMessage(message),
+    status: MESSAGE_STATUS.COMPLETE,
+  }
+}
+
 type ChatCompletionChoice = ChatCompletionResponse['choices'][number]
 
 export function applyChatCompletionChoice(
