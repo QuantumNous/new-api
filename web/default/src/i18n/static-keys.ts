@@ -22,7 +22,7 @@ export const STATIC_I18N_KEYS = [
   // Header navigation
   'Home',
   'Console',
-  'Model Square',
+  'Model Pricing',
   'Rankings',
   'Docs',
   'About',
@@ -286,6 +286,10 @@ export const STATIC_I18N_KEYS = [
   'Received',
   'Payment initiated',
   'Payment page opened',
+
+  // Paddle review website footer links
+  'footer.newapi.projectAttributionSuffix',
+  'Support: support@flatkey.ai',
 
   // Upstream model updates
   'Upstream Model Updates',

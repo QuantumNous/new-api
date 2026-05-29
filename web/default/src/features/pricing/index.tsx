@@ -23,12 +23,13 @@ import { PageTransition } from '@/components/page-transition'
 import {
   LoadingSkeleton,
   EmptyState,
-  SearchBar,
   PricingTable,
   PricingSidebar,
   PricingToolbar,
   ModelCardGrid,
   ModelDetailsDrawer,
+  PricingPackages,
+  ModelUsageHeader,
 } from './components'
 import { EXCLUDED_GROUPS, VIEW_MODES } from './constants'
 import { useFilters } from './hooks/use-filters'
@@ -189,28 +190,23 @@ export function Pricing() {
               {t('Models Directory')}
             </p>
             <h1 className='bg-[linear-gradient(90deg,#171321_0%,#7c3aed_46%,#2563eb_100%)] bg-clip-text text-[clamp(2.6rem,7vw,5rem)] leading-[0.98] font-black tracking-tight text-transparent dark:bg-[linear-gradient(90deg,#ffffff_0%,#f0abfc_50%,#93c5fd_100%)]'>
-              {t('Model Square')}
+              {t('Model Pricing Page Title')}
             </h1>
-            <p className='mt-5 text-sm font-semibold text-violet-700/80 sm:text-base dark:text-violet-100/75'>
-              {t('This site currently has {{count}} models enabled', {
-                count: models?.length || 0,
-              })}
-            </p>
-            <p className='mx-auto mt-2 max-w-2xl text-sm leading-relaxed text-slate-600 sm:text-base dark:text-white/55'>
+            <p className='mx-auto mt-5 max-w-2xl text-sm leading-relaxed text-slate-600 sm:text-base dark:text-white/55'>
               {t(
                 'Discover curated AI models, compare pricing and capabilities, and choose the right model for every scenario.'
               )}
             </p>
-            <SearchBar
-              value={searchInput}
-              onChange={setSearchInput}
-              onClear={clearSearch}
-              placeholder={t(
-                'Search model name, provider, endpoint, or tag...'
-              )}
-              className='mx-auto mt-4 max-w-2xl sm:mt-6'
-            />
           </header>
+
+          <PricingPackages />
+
+          <ModelUsageHeader
+            searchInput={searchInput}
+            onSearchInputChange={setSearchInput}
+            onClearSearch={clearSearch}
+            modelCount={models?.length || 0}
+          />
 
           <div className='grid gap-4 xl:grid-cols-[330px_minmax(0,1fr)]'>
             <PricingSidebar

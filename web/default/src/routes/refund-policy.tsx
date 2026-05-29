@@ -16,22 +16,9 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useTranslation } from 'react-i18next'
-import { getPrivacyPolicy } from './api'
-import { getDefaultLegalDocument } from './default-documents'
-import { LegalDocument } from './legal-document'
+import { createFileRoute } from '@tanstack/react-router'
+import { RefundPolicy } from '@/features/legal'
 
-export function PrivacyPolicy() {
-  const { i18n, t } = useTranslation()
-  return (
-    <LegalDocument
-      title={t('Privacy Policy')}
-      queryKey='privacy-policy'
-      fetchDocument={getPrivacyPolicy}
-      emptyMessage={t(
-        'The administrator has not configured a privacy policy yet.'
-      )}
-      defaultContent={getDefaultLegalDocument('privacy', i18n.resolvedLanguage)}
-    />
-  )
-}
+export const Route = createFileRoute('/refund-policy')({
+  component: RefundPolicy,
+})

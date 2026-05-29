@@ -26,6 +26,7 @@ import {
   Features,
   Hero,
   HowItWorks,
+  PaddleReviewInfo,
   ProductHighlights,
   Stats,
 } from './components'
@@ -77,6 +78,7 @@ export function Home() {
         <Hero isAuthenticated={isAuthenticated} />
         <Stats />
         <Features />
+        <PaddleReviewInfo />
         <ProductHighlights />
         <HowItWorks />
         <CTA isAuthenticated={isAuthenticated} />

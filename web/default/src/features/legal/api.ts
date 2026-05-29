@@ -20,11 +20,25 @@ import { api } from '@/lib/api'
 import type { LegalDocumentResponse } from './types'
 
 export async function getUserAgreement() {
-  const res = await api.get<LegalDocumentResponse>('/api/user-agreement')
+  const res = await api.get<LegalDocumentResponse>('/api/user-agreement', {
+    skipBusinessError: true,
+    skipErrorHandler: true,
+  })
   return res.data
 }
 
 export async function getPrivacyPolicy() {
-  const res = await api.get<LegalDocumentResponse>('/api/privacy-policy')
+  const res = await api.get<LegalDocumentResponse>('/api/privacy-policy', {
+    skipBusinessError: true,
+    skipErrorHandler: true,
+  })
+  return res.data
+}
+
+export async function getRefundPolicy() {
+  const res = await api.get<LegalDocumentResponse>('/api/refund-policy', {
+    skipBusinessError: true,
+    skipErrorHandler: true,
+  })
   return res.data
 }
