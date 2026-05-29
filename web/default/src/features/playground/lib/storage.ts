@@ -16,19 +16,123 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { z } from 'zod'
 import { STORAGE_KEYS } from '../constants'
 import type { PlaygroundConfig, ParameterEnabled, Message } from '../types'
 import { sanitizeMessagesOnLoad } from './message-utils'
+
+const STORAGE_VERSION = 1
+const MAX_STORED_MESSAGES = 100
+
+const playgroundConfigSchema = z.object({
+  model: z.string().optional(),
+  group: z.string().optional(),
+  temperature: z.number().finite().optional(),
+  top_p: z.number().finite().optional(),
+  max_tokens: z.number().finite().optional(),
+  frequency_penalty: z.number().finite().optional(),
+  presence_penalty: z.number().finite().optional(),
+  seed: z.number().finite().nullable().optional(),
+  stream: z.boolean().optional(),
+})
+
+const parameterEnabledSchema = z.object({
+  temperature: z.boolean().optional(),
+  top_p: z.boolean().optional(),
+  max_tokens: z.boolean().optional(),
+  frequency_penalty: z.boolean().optional(),
+  presence_penalty: z.boolean().optional(),
+  seed: z.boolean().optional(),
+})
+
+const messageRoleSchema = z.enum(['user', 'assistant', 'system'])
+const messageStatusSchema = z.enum([
+  'loading',
+  'streaming',
+  'complete',
+  'error',
+])
+
+const messageVersionSchema = z.object({
+  id: z.string(),
+  content: z.string(),
+})
+
+const sourceSchema = z.object({
+  href: z.string(),
+  title: z.string(),
+})
+
+const reasoningSchema = z.object({
+  content: z.string(),
+  duration: z.number().finite(),
+})
+
+const messageSchema = z.object({
+  key: z.string(),
+  from: messageRoleSchema,
+  versions: z.array(messageVersionSchema).min(1),
+  sources: z.array(sourceSchema).optional(),
+  reasoning: reasoningSchema.optional(),
+  isReasoningStreaming: z.boolean().optional(),
+  isReasoningComplete: z.boolean().optional(),
+  isContentComplete: z.boolean().optional(),
+  status: messageStatusSchema.optional(),
+  errorCode: z.string().nullable().optional(),
+})
+
+const messagesSchema = z.array(messageSchema)
+
+type StoredEnvelope<T> = {
+  version: number
+  data: T
+}
+
+function readStoredValue(key: string): unknown | null {
+  const saved = localStorage.getItem(key)
+  if (!saved) return null
+
+  return JSON.parse(saved) as unknown
+}
+
+function unwrapStoredValue(value: unknown): unknown {
+  if (!value || typeof value !== 'object') {
+    return value
+  }
+
+  if ('version' in value && 'data' in value) {
+    return (value as StoredEnvelope<unknown>).data
+  }
+
+  return value
+}
+
+function writeStoredValue<T>(key: string, data: T): void {
+  const payload: StoredEnvelope<T> = {
+    version: STORAGE_VERSION,
+    data,
+  }
+
+  localStorage.setItem(key, JSON.stringify(payload))
+}
+
+function trimMessages(messages: Message[]): Message[] {
+  if (messages.length <= MAX_STORED_MESSAGES) {
+    return messages
+  }
+
+  return messages.slice(-MAX_STORED_MESSAGES)
+}
 
 /**
  * Load playground config from localStorage
  */
 export function loadConfig(): Partial<PlaygroundConfig> {
   try {
-    const saved = localStorage.getItem(STORAGE_KEYS.CONFIG)
-    if (saved) {
-      return JSON.parse(saved)
-    }
+    const saved = readStoredValue(STORAGE_KEYS.CONFIG)
+    if (!saved) return {}
+
+    return playgroundConfigSchema.parse(unwrapStoredValue(saved))
   } catch (error) {
     // eslint-disable-next-line no-console
     console.error('Failed to load config:', error)
@@ -41,7 +145,8 @@ export function loadConfig(): Partial<PlaygroundConfig> {
  */
 export function saveConfig(config: Partial<PlaygroundConfig>): void {
   try {
-    localStorage.setItem(STORAGE_KEYS.CONFIG, JSON.stringify(config))
+    const parsed = playgroundConfigSchema.parse(config)
+    writeStoredValue(STORAGE_KEYS.CONFIG, parsed)
   } catch (error) {
     // eslint-disable-next-line no-console
     console.error('Failed to save config:', error)
@@ -53,10 +158,10 @@ export function saveConfig(config: Partial<PlaygroundConfig>): void {
  */
 export function loadParameterEnabled(): Partial<ParameterEnabled> {
   try {
-    const saved = localStorage.getItem(STORAGE_KEYS.PARAMETER_ENABLED)
-    if (saved) {
-      return JSON.parse(saved)
-    }
+    const saved = readStoredValue(STORAGE_KEYS.PARAMETER_ENABLED)
+    if (!saved) return {}
+
+    return parameterEnabledSchema.parse(unwrapStoredValue(saved))
   } catch (error) {
     // eslint-disable-next-line no-console
     console.error('Failed to load parameter enabled:', error)
@@ -71,10 +176,8 @@ export function saveParameterEnabled(
   parameterEnabled: Partial<ParameterEnabled>
 ): void {
   try {
-    localStorage.setItem(
-      STORAGE_KEYS.PARAMETER_ENABLED,
-      JSON.stringify(parameterEnabled)
-    )
+    const parsed = parameterEnabledSchema.parse(parameterEnabled)
+    writeStoredValue(STORAGE_KEYS.PARAMETER_ENABLED, parsed)
   } catch (error) {
     // eslint-disable-next-line no-console
     console.error('Failed to save parameter enabled:', error)
@@ -86,19 +189,18 @@ export function saveParameterEnabled(
  */
 export function loadMessages(): Message[] | null {
   try {
-    const saved = localStorage.getItem(STORAGE_KEYS.MESSAGES)
-    if (saved) {
-      const parsed: unknown = JSON.parse(saved)
-      if (!Array.isArray(parsed)) {
-        return null
-      }
-      const sanitized = sanitizeMessagesOnLoad(parsed as Message[])
-      // Persist sanitized result to avoid re-sanitizing on subsequent loads
-      if (sanitized !== parsed) {
-        saveMessages(sanitized)
-      }
-      return sanitized
+    const saved = readStoredValue(STORAGE_KEYS.MESSAGES)
+    if (!saved) return null
+
+    const parsed = messagesSchema.parse(unwrapStoredValue(saved)) as Message[]
+    const trimmed = trimMessages(parsed)
+    const sanitized = sanitizeMessagesOnLoad(trimmed)
+
+    if (sanitized !== parsed || trimmed !== parsed) {
+      saveMessages(sanitized)
     }
+
+    return sanitized
   } catch (error) {
     // eslint-disable-next-line no-console
     console.error('Failed to load messages:', error)
@@ -111,7 +213,9 @@ export function loadMessages(): Message[] | null {
  */
 export function saveMessages(messages: Message[]): void {
   try {
-    localStorage.setItem(STORAGE_KEYS.MESSAGES, JSON.stringify(messages))
+    const trimmed = trimMessages(messages)
+    const parsed = messagesSchema.parse(trimmed) as Message[]
+    writeStoredValue(STORAGE_KEYS.MESSAGES, parsed)
   } catch (error) {
     // eslint-disable-next-line no-console
     console.error('Failed to save messages:', error)
