@@ -20,7 +20,11 @@ import { useCallback, useRef, useState } from 'react'
 import { SSE } from 'sse.js'
 import { getCommonHeaders } from '@/lib/api'
 import { API_ENDPOINTS, ERROR_MESSAGES } from '../constants'
-import { parseStreamErrorDetails, parseStreamMessageUpdates } from '../lib'
+import {
+  getStreamReadyStateError,
+  parseStreamErrorDetails,
+  parseStreamMessageUpdates,
+} from '../lib'
 import type { ChatCompletionRequest } from '../types'
 
 /**
@@ -99,14 +103,10 @@ export function useStreamRequest() {
       source.addEventListener(
         'readystatechange',
         (e: Event & { readyState?: number }) => {
-          const status = (source as unknown as { status?: number }).status
-          if (
-            e.readyState !== undefined &&
-            e.readyState >= 2 &&
-            status !== undefined &&
-            status !== 200
-          ) {
-            handleError(`HTTP ${status}: ${ERROR_MESSAGES.CONNECTION_CLOSED}`)
+          const errorMessage = getStreamReadyStateError(e.readyState, source)
+
+          if (errorMessage) {
+            handleError(errorMessage)
           }
         }
       )
