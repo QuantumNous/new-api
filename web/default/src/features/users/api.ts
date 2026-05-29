@@ -27,10 +27,22 @@ import type {
   ManageUserQuotaPayload,
   ApiResponse,
 } from './types'
+import { userSchema, userListSchema } from './types'
 
 // ============================================================================
 // User Management APIs
 // ============================================================================
+
+function parseUsersResponse(response: GetUsersResponse): GetUsersResponse {
+  if (!response.data) return response
+  return {
+    ...response,
+    data: {
+      ...response.data,
+      items: userListSchema.parse(response.data.items || []),
+    },
+  }
+}
 
 /**
  * Get paginated users list
@@ -40,7 +52,7 @@ export async function getUsers(
 ): Promise<GetUsersResponse> {
   const { p = 1, page_size = 10 } = params
   const res = await api.get(`/api/user/?p=${p}&page_size=${page_size}`)
-  return res.data
+  return parseUsersResponse(res.data)
 }
 
 /**
@@ -65,7 +77,7 @@ export async function searchUsers(
   queryParams.set('p', String(p))
   queryParams.set('page_size', String(page_size))
   const res = await api.get(`/api/user/search?${queryParams.toString()}`)
-  return res.data
+  return parseUsersResponse(res.data)
 }
 
 /**
@@ -73,7 +85,10 @@ export async function searchUsers(
  */
 export async function getUser(id: number): Promise<ApiResponse<User>> {
   const res = await api.get(`/api/user/${id}`)
-  return res.data
+  return {
+    ...res.data,
+    data: res.data?.data ? userSchema.parse(res.data.data) : res.data?.data,
+  }
 }
 
 /**

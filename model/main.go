@@ -1,6 +1,7 @@
 package model
 
 import (
+	"database/sql"
 	"fmt"
 	"log"
 	"os"
@@ -356,9 +357,14 @@ func migrateColumnToBigint(db *gorm.DB, databaseType string, tableName string, c
 			tableName, columnName, columnName)
 	case databaseType == common.DatabaseTypeMySQL:
 		var columnType string
-		if err := db.Raw(`SELECT COLUMN_TYPE FROM information_schema.columns
+		var isNullable string
+		var columnDefault sql.NullString
+		if err := db.Raw(`SELECT COLUMN_TYPE, IS_NULLABLE, COLUMN_DEFAULT FROM information_schema.columns
 			WHERE table_schema = DATABASE() AND table_name = ? AND column_name = ?`,
-			tableName, columnName).Scan(&columnType).Error; err != nil {
+			tableName, columnName).Row().Scan(&columnType, &isNullable, &columnDefault); err != nil {
+			if err == sql.ErrNoRows {
+				return nil
+			}
 			return fmt.Errorf("query metadata for %s.%s: %w", tableName, columnName, err)
 		}
 		switch strings.ToLower(columnType) {
@@ -367,7 +373,12 @@ func migrateColumnToBigint(db *gorm.DB, databaseType string, tableName string, c
 		case "":
 			return nil
 		}
-		alterSQL = fmt.Sprintf("ALTER TABLE %s MODIFY COLUMN %s bigint", tableName, columnName)
+		alterSQL = fmt.Sprintf("ALTER TABLE %s MODIFY COLUMN %s bigint%s%s",
+			tableName,
+			columnName,
+			mysqlNullableClause(isNullable),
+			mysqlDefaultClause(columnDefault),
+		)
 	default:
 		// SQLite is handled by GORM's table rebuild during AutoMigrate.
 		return nil
@@ -382,6 +393,27 @@ func migrateColumnToBigint(db *gorm.DB, databaseType string, tableName string, c
 	}
 	common.SysLog(fmt.Sprintf("Successfully migrated %s.%s to bigint", tableName, columnName))
 	return nil
+}
+
+func mysqlNullableClause(isNullable string) string {
+	if strings.EqualFold(isNullable, "NO") {
+		return " NOT NULL"
+	}
+	return " NULL"
+}
+
+func mysqlDefaultClause(columnDefault sql.NullString) string {
+	if !columnDefault.Valid {
+		return ""
+	}
+	defaultValue := strings.TrimSpace(columnDefault.String)
+	if defaultValue == "" {
+		return " DEFAULT ''"
+	}
+	if strings.EqualFold(defaultValue, "NULL") {
+		return " DEFAULT NULL"
+	}
+	return " DEFAULT " + defaultValue
 }
 
 func currentDatabaseType() string {

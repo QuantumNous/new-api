@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { quotaToNumber } from '@/lib/format'
 
 // ============================================================================
 // User Schema & Types
@@ -12,6 +13,12 @@ export type UserStatus = z.infer<typeof userStatusSchema>
 export const userRoleSchema = z.number()
 export type UserRole = z.infer<typeof userRoleSchema>
 
+const quotaTransportSchema = z
+  .union([z.string(), z.number()])
+  .transform((value) =>
+    typeof value === 'number' ? String(Math.trunc(value)) : value
+  )
+
 export const userSchema = z.object({
   id: z.number(),
   username: z.string(),
@@ -22,14 +29,14 @@ export const userSchema = z.object({
   wechat_id: z.string().optional(),
   telegram_id: z.string().optional(),
   email: z.string().optional(),
-  quota: z.number(),
-  used_quota: z.number(),
+  quota: quotaTransportSchema,
+  used_quota: quotaTransportSchema,
   request_count: z.number(),
   group: z.string(),
   aff_code: z.string().optional(),
   aff_count: z.number().optional(),
-  aff_quota: z.number().optional(),
-  aff_history_quota: z.number().optional(),
+  aff_quota: quotaTransportSchema.optional(),
+  aff_history_quota: quotaTransportSchema.optional(),
   inviter_id: z.number().optional(),
   linux_do_id: z.string().optional(),
   status: userStatusSchema,
@@ -43,6 +50,8 @@ export const userSchema = z.object({
 export type User = z.infer<typeof userSchema>
 
 export const userListSchema = z.array(userSchema)
+
+export { quotaToNumber }
 
 // ============================================================================
 // API Request/Response Types
@@ -74,6 +83,8 @@ export interface GetUsersResponse {
 export interface SearchUsersParams {
   keyword?: string
   group?: string
+  role?: string
+  status?: string
   p?: number
   page_size?: number
 }

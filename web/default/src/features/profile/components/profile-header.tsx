@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { Activity, BarChart3, WalletCards } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { formatCompactNumber, formatQuota } from '@/lib/format'
+import { formatCompactNumber, formatQuota, quotaToNumber } from '@/lib/format'
 import { getRoleLabel } from '@/lib/roles'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -80,13 +80,13 @@ export function ProfileHeader({ profile, loading }: ProfileHeaderProps) {
   const stats = [
     {
       label: t('Current Balance'),
-      value: formatQuota(profile.quota),
+      value: formatQuota(quotaToNumber(profile.quota)),
       description: t('Remaining quota'),
       icon: WalletCards,
     },
     {
       label: t('Total Usage'),
-      value: formatQuota(profile.used_quota),
+      value: formatQuota(quotaToNumber(profile.used_quota)),
       description: t('Total consumed quota'),
       icon: BarChart3,
     },

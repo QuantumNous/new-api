@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { Share2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { formatQuota } from '@/lib/format'
+import { formatQuota, quotaToNumber } from '@/lib/format'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -57,7 +57,9 @@ export function AffiliateRewardsCard({
     )
   }
 
-  const hasRewards = (user?.aff_quota ?? 0) > 0
+  const affQuota = quotaToNumber(user?.aff_quota)
+  const affHistoryQuota = quotaToNumber(user?.aff_history_quota)
+  const hasRewards = affQuota > 0
 
   return (
     <Card className='bg-muted/20 py-0'>
@@ -80,8 +82,8 @@ export function AffiliateRewardsCard({
 
         <div className='grid grid-cols-3 gap-1.5 text-center'>
           {[
-            [t('Pending'), formatQuota(user?.aff_quota ?? 0)],
-            [t('Total Earned'), formatQuota(user?.aff_history_quota ?? 0)],
+            [t('Pending'), formatQuota(affQuota)],
+            [t('Total Earned'), formatQuota(affHistoryQuota)],
             [t('Invites'), String(user?.aff_count ?? 0)],
           ].map(([label, value]) => (
             <div key={label}>

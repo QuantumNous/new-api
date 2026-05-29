@@ -36,6 +36,14 @@ export function formatCurrencyUSD(value: number | null | undefined): string {
   return formatCurrencyFromUSD(value == null ? null : (value as number))
 }
 
+export function quotaToNumber(
+  value: string | number | null | undefined
+): number {
+  if (value == null) return 0
+  const numericValue = typeof value === 'number' ? value : Number(value)
+  return Number.isFinite(numericValue) ? numericValue : 0
+}
+
 // ============================================================================
 // Quota Formatting (500,000 units = $1)
 // ============================================================================

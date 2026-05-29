@@ -36,7 +36,7 @@ import { QUOTA_PER_DOLLAR } from '../../constants'
 interface TransferDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
-  onConfirm: (amount: number) => Promise<boolean>
+  onConfirm: (amount: string) => Promise<boolean>
   availableQuota: number
   transferring: boolean
 }
@@ -49,12 +49,12 @@ export function TransferDialog({
   transferring,
 }: TransferDialogProps) {
   const { t } = useTranslation()
-  const [amount, setAmount] = useState(QUOTA_PER_DOLLAR)
+  const [amount, setAmount] = useState(String(QUOTA_PER_DOLLAR))
 
   useEffect(() => {
     if (open) {
       // eslint-disable-next-line react-hooks/set-state-in-effect
-      setAmount(QUOTA_PER_DOLLAR)
+      setAmount(String(QUOTA_PER_DOLLAR))
     }
   }, [open])
 
@@ -98,7 +98,7 @@ export function TransferDialog({
               id='transfer-amount'
               type='number'
               value={amount}
-              onChange={(e) => setAmount(Number(e.target.value))}
+              onChange={(e) => setAmount(e.target.value)}
               min={QUOTA_PER_DOLLAR}
               max={availableQuota}
               step={QUOTA_PER_DOLLAR}

@@ -19,6 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { getSelf } from '@/lib/api'
+import { quotaToNumber } from '@/lib/format'
 import { useStatus } from '@/hooks/use-status'
 import { useSystemConfig } from '@/hooks/use-system-config'
 import { SectionPageLayout } from '@/components/layout'
@@ -208,7 +209,7 @@ export function Wallet(props: WalletProps) {
   }
 
   // Handle transfer
-  const handleTransfer = async (amount: number) => {
+  const handleTransfer = async (amount: string) => {
     const success = await transferQuota(amount)
     if (success) {
       await fetchUser()
@@ -309,7 +310,7 @@ export function Wallet(props: WalletProps) {
               <SubscriptionPlansCard
                 topupInfo={topupInfo}
                 onAvailabilityChange={handleSubscriptionAvailabilityChange}
-                userQuota={user?.quota}
+                userQuota={quotaToNumber(user?.quota)}
                 onPurchaseSuccess={fetchUser}
               />
             </div>
@@ -344,7 +345,7 @@ export function Wallet(props: WalletProps) {
         open={transferDialogOpen}
         onOpenChange={setTransferDialogOpen}
         onConfirm={handleTransfer}
-        availableQuota={user?.aff_quota ?? 0}
+        availableQuota={quotaToNumber(user?.aff_quota)}
         transferring={transferring}
       />
 

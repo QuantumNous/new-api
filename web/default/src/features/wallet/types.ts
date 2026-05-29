@@ -217,7 +217,7 @@ export interface AmountRequest {
  */
 export interface AffiliateTransferRequest {
   /** Quota amount to transfer */
-  quota: number
+  quota: number | string
 }
 
 /**
@@ -229,15 +229,15 @@ export interface UserWalletData {
   /** Username */
   username: string
   /** Current quota balance */
-  quota: number
+  quota: number | string
   /** Total used quota */
-  used_quota: number
+  used_quota: number | string
   /** Total request count */
   request_count: number
   /** Affiliate quota (pending rewards) */
-  aff_quota: number
+  aff_quota: number | string
   /** Total affiliate quota earned (historical) */
-  aff_history_quota: number
+  aff_history_quota: number | string
   /** Number of successful affiliate invites */
   aff_count: number
   /** User group */

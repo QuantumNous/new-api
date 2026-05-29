@@ -30,6 +30,35 @@ type LoginRequest struct {
 	Password string `json:"password"`
 }
 
+type userQuotaResponse struct {
+	model.User
+	Quota           string `json:"quota"`
+	UsedQuota       string `json:"used_quota"`
+	AffQuota        string `json:"aff_quota"`
+	AffHistoryQuota string `json:"aff_history_quota"`
+}
+
+func newUserQuotaResponse(user *model.User) userQuotaResponse {
+	return userQuotaResponse{
+		User:            *user,
+		Quota:           strconv.FormatInt(user.Quota, 10),
+		UsedQuota:       strconv.FormatInt(user.UsedQuota, 10),
+		AffQuota:        strconv.FormatInt(user.AffQuota, 10),
+		AffHistoryQuota: strconv.FormatInt(user.AffHistoryQuota, 10),
+	}
+}
+
+func newUserQuotaResponses(users []*model.User) []userQuotaResponse {
+	responses := make([]userQuotaResponse, 0, len(users))
+	for _, user := range users {
+		if user == nil {
+			continue
+		}
+		responses = append(responses, newUserQuotaResponse(user))
+	}
+	return responses
+}
+
 type flexibleInt64 int64
 
 func (v *flexibleInt64) UnmarshalJSON(data []byte) error {
@@ -40,7 +69,7 @@ func (v *flexibleInt64) UnmarshalJSON(data []byte) error {
 	}
 	if strings.HasPrefix(raw, "\"") {
 		var s string
-		if err := json.Unmarshal(data, &s); err != nil {
+		if err := common.Unmarshal(data, &s); err != nil {
 			return err
 		}
 		s = strings.TrimSpace(s)
@@ -56,7 +85,7 @@ func (v *flexibleInt64) UnmarshalJSON(data []byte) error {
 		return nil
 	}
 	var n int64
-	if err := json.Unmarshal(data, &n); err != nil {
+	if err := common.Unmarshal(data, &n); err != nil {
 		return err
 	}
 	*v = flexibleInt64(n)
@@ -279,7 +308,7 @@ func GetAllUsers(c *gin.Context) {
 	}
 
 	pageInfo.SetTotal(int(total))
-	pageInfo.SetItems(users)
+	pageInfo.SetItems(newUserQuotaResponses(users))
 
 	common.ApiSuccess(c, pageInfo)
 	return
@@ -308,7 +337,7 @@ func SearchUsers(c *gin.Context) {
 	}
 
 	pageInfo.SetTotal(int(total))
-	pageInfo.SetItems(users)
+	pageInfo.SetItems(newUserQuotaResponses(users))
 	common.ApiSuccess(c, pageInfo)
 	return
 }
@@ -336,7 +365,7 @@ func GetUser(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",
-		"data":    user,
+		"data":    newUserQuotaResponse(user),
 	})
 	return
 }
@@ -460,13 +489,13 @@ func GetSelf(c *gin.Context) {
 		"wechat_id":         user.WeChatId,
 		"telegram_id":       user.TelegramId,
 		"group":             user.Group,
-		"quota":             user.Quota,
-		"used_quota":        user.UsedQuota,
+		"quota":             strconv.FormatInt(user.Quota, 10),
+		"used_quota":        strconv.FormatInt(user.UsedQuota, 10),
 		"request_count":     user.RequestCount,
 		"aff_code":          user.AffCode,
 		"aff_count":         user.AffCount,
-		"aff_quota":         user.AffQuota,
-		"aff_history_quota": user.AffHistoryQuota,
+		"aff_quota":         strconv.FormatInt(user.AffQuota, 10),
+		"aff_history_quota": strconv.FormatInt(user.AffHistoryQuota, 10),
 		"inviter_id":        user.InviterId,
 		"linux_do_id":       user.LinuxDOId,
 		"setting":           user.Setting,
