@@ -119,6 +119,23 @@ func TestRechargePaddle_DuplicateWebhookAddsQuotaOnce(t *testing.T) {
 	assert.Equal(t, "txn_duplicate_guard", topUp.GatewayTradeNo)
 }
 
+func TestRechargeStripeCreditsPurchasedAmountAndIsIdempotent(t *testing.T) {
+	truncateTables(t)
+
+	insertUserForPaymentGuardTest(t, 113, 0)
+	insertTopUpForPaymentGuardTest(t, "stripe-amount-guard", 113, PaymentProviderStripe)
+
+	require.NoError(t, Recharge("stripe-amount-guard", "cus_guard", "127.0.0.1"))
+	require.NoError(t, Recharge("stripe-amount-guard", "cus_guard", "127.0.0.1"))
+
+	assert.Equal(t, common.TopUpStatusSuccess, getTopUpStatusForPaymentGuardTest(t, "stripe-amount-guard"))
+	assert.Equal(t, int(2*common.QuotaPerUnit), getUserQuotaForPaymentGuardTest(t, 113))
+
+	var user User
+	require.NoError(t, DB.Select("stripe_customer").Where("id = ?", 113).First(&user).Error)
+	assert.Equal(t, "cus_guard", user.StripeCustomer)
+}
+
 func TestRechargePaddle_ConcurrentWebhookAddsQuotaOnce(t *testing.T) {
 	truncateTables(t)
 

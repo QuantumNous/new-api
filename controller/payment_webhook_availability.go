@@ -36,7 +36,10 @@ func isStripeWebhookConfigured() bool {
 }
 
 func isStripeWebhookEnabled() bool {
-	return isStripeTopUpEnabled()
+	if !isPaymentComplianceConfirmed() {
+		return false
+	}
+	return isStripeWebhookConfigured()
 }
 
 func isCreemTopUpEnabled() bool {
