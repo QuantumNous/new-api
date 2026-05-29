@@ -20,6 +20,7 @@ import { useCallback, useRef, useState } from 'react'
 import { SSE } from 'sse.js'
 import { getCommonHeaders } from '@/lib/api'
 import { API_ENDPOINTS, ERROR_MESSAGES } from '../constants'
+import { parseStreamErrorDetails } from '../lib'
 import type { ChatCompletionRequest, ChatCompletionChunk } from '../types'
 
 /**
@@ -96,21 +97,7 @@ export function useStreamRequest() {
         if (source.readyState !== 2) {
           // eslint-disable-next-line no-console
           console.error('SSE Error:', e)
-          let errorMessage = e.data || ERROR_MESSAGES.API_REQUEST_ERROR
-          let errorCode: string | undefined
-          if (e.data) {
-            try {
-              const parsed = JSON.parse(e.data) as {
-                error?: { message?: string; code?: string }
-              }
-              if (parsed?.error) {
-                errorMessage = parsed.error.message || errorMessage
-                errorCode = parsed.error.code || undefined
-              }
-            } catch {
-              // not JSON, use raw string
-            }
-          }
+          const { errorCode, errorMessage } = parseStreamErrorDetails(e.data)
           handleError(errorMessage, errorCode)
         }
       })
