@@ -47,6 +47,14 @@ func TestShouldCooldownChannelForUpstreamErrorCoolsBadGateway(t *testing.T) {
 	}
 }
 
+func TestShouldCooldownChannelForUpstreamErrorCoolsImageGenerationCapabilityGap(t *testing.T) {
+	err := types.NewErrorWithStatusCode(errors.New("Image generation is not enabled for this group"), types.ErrorCodeBadResponseStatusCode, http.StatusForbidden)
+
+	if !ShouldCooldownChannelForUpstreamError(err) {
+		t.Fatalf("expected per-channel capability gap (image generation disabled) to cooldown despite being 4xx")
+	}
+}
+
 func TestShouldCooldownChannelForUpstreamErrorIgnoresClientErrors(t *testing.T) {
 	err := types.NewErrorWithStatusCode(errors.New("invalid request"), types.ErrorCodeInvalidRequest, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
 
