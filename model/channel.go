@@ -75,6 +75,30 @@ type ChannelSortOptions struct {
 	IDSort    bool
 }
 
+func (channel *Channel) encryptKeyForStorage() error {
+	if channel == nil || channel.Key == "" {
+		return nil
+	}
+	encrypted, err := common.EncryptSecureText(channel.Key)
+	if err != nil {
+		return fmt.Errorf("encrypt channel key: %w", err)
+	}
+	channel.Key = encrypted
+	return nil
+}
+
+func (channel *Channel) decryptKeyForUse() {
+	if channel == nil || channel.Key == "" || !common.IsSecureText(channel.Key) {
+		return
+	}
+	decrypted, err := common.DecryptSecureText(channel.Key)
+	if err != nil {
+		common.SysLog(fmt.Sprintf("failed to decrypt channel key: channel_id=%d, error=%v", channel.Id, err))
+		return
+	}
+	channel.Key = decrypted
+}
+
 var channelSortColumns = map[string]string{
 	"id":            "id",
 	"name":          "name",
@@ -173,6 +197,7 @@ func (c *ChannelInfo) Scan(value interface{}) error {
 }
 
 func (channel *Channel) GetKeys() []string {
+	channel.decryptKeyForUse()
 	if channel.Key == "" {
 		return []string{}
 	}
@@ -197,6 +222,7 @@ func (channel *Channel) GetKeys() []string {
 }
 
 func (channel *Channel) GetNextEnabledKey() (string, int, *types.NewAPIError) {
+	channel.decryptKeyForUse()
 	// If not in multi-key mode, return the original key string directly.
 	if !channel.ChannelInfo.IsMultiKey {
 		return channel.Key, 0, nil
@@ -343,7 +369,11 @@ func (channel *Channel) GetAutoBan() bool {
 }
 
 func (channel *Channel) Save() error {
-	return DB.Save(channel).Error
+	stored := *channel
+	if err := stored.encryptKeyForStorage(); err != nil {
+		return err
+	}
+	return DB.Save(&stored).Error
 }
 
 func (channel *Channel) SaveWithoutKey() error {
@@ -362,6 +392,11 @@ func GetAllChannels(startIdx int, num int, selectAll bool, idSort bool, sortOpti
 	} else {
 		err = order.Apply(DB).Limit(num).Offset(startIdx).Omit("key").Find(&channels).Error
 	}
+	if err == nil && selectAll {
+		for _, channel := range channels {
+			channel.decryptKeyForUse()
+		}
+	}
 	return channels, err
 }
 
@@ -373,6 +408,11 @@ func GetChannelsByTag(tag string, idSort bool, selectAll bool, sortOptions ...Ch
 		query = query.Omit("key")
 	}
 	err := query.Find(&channels).Error
+	if err == nil && selectAll {
+		for _, channel := range channels {
+			channel.decryptKeyForUse()
+		}
+	}
 	return channels, err
 }
 
@@ -420,6 +460,7 @@ func GetChannelById(id int, selectAll bool) (*Channel, error) {
 	if err != nil {
 		return nil, err
 	}
+	channel.decryptKeyForUse()
 	return channel, nil
 }
 
@@ -438,6 +479,12 @@ func BatchInsertChannels(channels []Channel) error {
 	}()
 
 	for _, chunk := range lo.Chunk(channels, 50) {
+		for i := range chunk {
+			if err := chunk[i].encryptKeyForStorage(); err != nil {
+				tx.Rollback()
+				return err
+			}
+		}
 		if err := tx.Create(&chunk).Error; err != nil {
 			tx.Rollback()
 			return err
@@ -514,11 +561,17 @@ func (channel *Channel) GetStatusCodeMapping() string {
 }
 
 func (channel *Channel) Insert() error {
+	stored := *channel
+	if err := stored.encryptKeyForStorage(); err != nil {
+		return err
+	}
 	var err error
-	err = DB.Create(channel).Error
+	err = DB.Create(&stored).Error
 	if err != nil {
 		return err
 	}
+	*channel = stored
+	channel.decryptKeyForUse()
 	err = channel.AddAbilities(nil)
 	return err
 }
@@ -563,11 +616,16 @@ func (channel *Channel) Update() error {
 		}
 	}
 	var err error
-	err = DB.Model(channel).Updates(channel).Error
+	stored := *channel
+	if err := stored.encryptKeyForStorage(); err != nil {
+		return err
+	}
+	err = DB.Model(channel).Updates(&stored).Error
 	if err != nil {
 		return err
 	}
 	DB.Model(channel).First(channel, "id = ?", channel.Id)
+	channel.decryptKeyForUse()
 	err = channel.UpdateAbilities(nil)
 	return err
 }

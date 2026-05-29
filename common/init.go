@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -61,6 +62,8 @@ func InitEnv() {
 	} else {
 		CryptoSecret = SessionSecret
 	}
+	SessionCookieSecure = GetEnvOrDefaultBool("SESSION_COOKIE_SECURE", false)
+	initCorsEnv()
 	if os.Getenv("SQLITE_PATH") != "" {
 		SQLitePath = os.Getenv("SQLITE_PATH")
 	}
@@ -126,6 +129,73 @@ func InitEnv() {
 	SearchRateLimitNum = GetEnvOrDefault("SEARCH_RATE_LIMIT", 10)
 	SearchRateLimitDuration = int64(GetEnvOrDefault("SEARCH_RATE_LIMIT_DURATION", 60))
 	initConstantEnv()
+}
+
+func initCorsEnv() {
+	CorsAllowAllOrigins = GetEnvOrDefaultBool("CORS_ALLOW_ALL_ORIGINS", false)
+	originsStr := GetEnvOrDefaultString("CORS_ALLOW_ORIGINS", "")
+	if strings.TrimSpace(originsStr) == "*" {
+		CorsAllowAllOrigins = true
+		CorsAllowedOrigins = nil
+		return
+	}
+
+	origins := strings.Split(originsStr, ",")
+	allowedOrigins := make([]string, 0, len(origins))
+	seenOrigins := make(map[string]struct{}, len(origins))
+	for _, origin := range origins {
+		normalizedOrigin, ok := normalizeCorsOrigin(origin, true)
+		if !ok {
+			continue
+		}
+		if _, exists := seenOrigins[normalizedOrigin]; exists {
+			continue
+		}
+		seenOrigins[normalizedOrigin] = struct{}{}
+		allowedOrigins = append(allowedOrigins, normalizedOrigin)
+	}
+	CorsAllowedOrigins = allowedOrigins
+}
+
+func normalizeCorsOrigin(origin string, logInvalid bool) (string, bool) {
+	origin = strings.TrimSpace(origin)
+	if origin == "" {
+		return "", false
+	}
+	parsedOrigin, err := url.Parse(origin)
+	if err != nil || parsedOrigin.Scheme == "" || parsedOrigin.Host == "" {
+		if logInvalid {
+			SysError(fmt.Sprintf("invalid CORS origin %q, expected scheme://host", origin))
+		}
+		return "", false
+	}
+	if parsedOrigin.RawQuery != "" || parsedOrigin.Fragment != "" || (parsedOrigin.Path != "" && parsedOrigin.Path != "/") {
+		if logInvalid {
+			SysError(fmt.Sprintf("invalid CORS origin %q, paths, queries, and fragments are not allowed", origin))
+		}
+		return "", false
+	}
+	scheme := strings.ToLower(parsedOrigin.Scheme)
+	if scheme != "http" && scheme != "https" {
+		if logInvalid {
+			SysError(fmt.Sprintf("invalid CORS origin %q, only http and https are allowed", origin))
+		}
+		return "", false
+	}
+	return scheme + "://" + strings.ToLower(parsedOrigin.Host), true
+}
+
+func IsCorsOriginAllowed(origin string) bool {
+	normalizedOrigin, ok := normalizeCorsOrigin(origin, false)
+	if !ok {
+		return false
+	}
+	for _, allowedOrigin := range CorsAllowedOrigins {
+		if normalizedOrigin == allowedOrigin {
+			return true
+		}
+	}
+	return false
 }
 
 func initConstantEnv() {

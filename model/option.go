@@ -187,7 +187,12 @@ func InitOptionMap() {
 func loadOptionsFromDatabase() {
 	options, _ := AllOption()
 	for _, option := range options {
-		err := updateOptionMap(option.Key, option.Value)
+		value, decryptErr := decryptOptionValue(option.Key, option.Value)
+		if decryptErr != nil {
+			common.SysLog("failed to decrypt option value: key=" + option.Key + ", error=" + decryptErr.Error())
+			continue
+		}
+		err := updateOptionMap(option.Key, value)
 		if err != nil {
 			common.SysLog("failed to update option map: " + err.Error())
 		}
@@ -209,11 +214,17 @@ func UpdateOption(key string, value string) error {
 	}
 	// https://gorm.io/docs/update.html#Save-All-Fields
 	DB.FirstOrCreate(&option, Option{Key: key})
-	option.Value = value
+	storedValue, err := encryptOptionValue(key, value)
+	if err != nil {
+		return err
+	}
+	option.Value = storedValue
 	// Save is a combination function.
 	// If save value does not contain primary key, it will execute Create,
 	// otherwise it will execute Update (with all fields).
-	DB.Save(&option)
+	if err := DB.Save(&option).Error; err != nil {
+		return err
+	}
 	// Update OptionMap
 	return updateOptionMap(key, value)
 }
@@ -233,7 +244,11 @@ func UpdateOptionsBulk(values map[string]string) error {
 			if err := tx.FirstOrCreate(&option, Option{Key: k}).Error; err != nil {
 				return err
 			}
-			option.Value = v
+			storedValue, err := encryptOptionValue(k, v)
+			if err != nil {
+				return err
+			}
+			option.Value = storedValue
 			if err := tx.Save(&option).Error; err != nil {
 				return err
 			}
@@ -249,6 +264,49 @@ func UpdateOptionsBulk(values map[string]string) error {
 		}
 	}
 	return nil
+}
+
+func encryptOptionValue(key string, value string) (string, error) {
+	if !isSensitiveOptionKey(key) || value == "" {
+		return value, nil
+	}
+	encrypted, err := common.EncryptSecureText(value)
+	if err != nil {
+		return "", err
+	}
+	return encrypted, nil
+}
+
+func decryptOptionValue(key string, value string) (string, error) {
+	if !isSensitiveOptionKey(key) || value == "" {
+		return value, nil
+	}
+	return common.DecryptSecureText(value)
+}
+
+func isSensitiveOptionKey(key string) bool {
+	switch key {
+	case "SMTPToken",
+		"WorkerValidKey",
+		"EpayKey",
+		"StripeApiSecret",
+		"StripeWebhookSecret",
+		"CreemApiKey",
+		"CreemWebhookSecret",
+		"WaffoApiKey",
+		"WaffoPrivateKey",
+		"WaffoSandboxApiKey",
+		"WaffoSandboxPrivateKey",
+		"WaffoPancakePrivateKey",
+		"GitHubClientSecret",
+		"LinuxDOClientSecret",
+		"WeChatServerToken",
+		"TelegramBotToken",
+		"TurnstileSecretKey":
+		return true
+	default:
+		return false
+	}
 }
 
 func updateOptionMap(key string, value string) (err error) {
