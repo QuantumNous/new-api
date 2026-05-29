@@ -114,11 +114,15 @@ export function UsersMutateDrawer({
       const userId = currentRowId
 
       // For update, fetch fresh data
-      getUser(userId).then((result) => {
-        if (!cancelled && result.success && result.data?.id === userId) {
-          form.reset(transformUserToFormDefaults(result.data))
-        }
-      })
+      getUser(userId)
+        .then((result) => {
+          if (!cancelled && result.success && result.data?.id === userId) {
+            form.reset(transformUserToFormDefaults(result.data))
+          }
+        })
+        .catch(() => {
+          // Request failures are already reported by the global API interceptor.
+        })
 
       return () => {
         cancelled = true
