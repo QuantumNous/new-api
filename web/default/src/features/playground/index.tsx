@@ -16,21 +16,16 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useEffect } from 'react'
-import { useQuery } from '@tanstack/react-query'
-import { useTranslation } from 'react-i18next'
-import { toast } from 'sonner'
-import { getUserModels, getUserGroups } from './api'
 import { PlaygroundChat } from './components/playground-chat'
 import { PlaygroundInput } from './components/playground-input'
 import {
   useChatHandler,
   usePlaygroundConversation,
+  usePlaygroundOptions,
   usePlaygroundState,
 } from './hooks'
 
 export function Playground() {
-  const { t } = useTranslation()
   const {
     config,
     parameterEnabled,
@@ -63,74 +58,13 @@ export function Playground() {
     sendChat,
   })
 
-  // Load models
-  const {
-    data: modelsData,
-    error: modelsError,
-    isError: isModelsError,
-    isLoading: isLoadingModels,
-  } = useQuery({
-    queryKey: ['playground-models'],
-    queryFn: getUserModels,
+  const { isLoadingModels } = usePlaygroundOptions({
+    currentGroup: config.group,
+    currentModel: config.model,
+    setGroups,
+    setModels,
+    updateConfig,
   })
-
-  // Load groups
-  const {
-    data: groupsData,
-    error: groupsError,
-    isError: isGroupsError,
-  } = useQuery({
-    queryKey: ['playground-groups'],
-    queryFn: getUserGroups,
-  })
-
-  useEffect(() => {
-    if (!isModelsError) return
-
-    toast.error(
-      modelsError instanceof Error
-        ? modelsError.message
-        : t('Failed to load playground models')
-    )
-  }, [isModelsError, modelsError, t])
-
-  useEffect(() => {
-    if (!isGroupsError) return
-
-    toast.error(
-      groupsError instanceof Error
-        ? groupsError.message
-        : t('Failed to load playground groups')
-    )
-  }, [isGroupsError, groupsError, t])
-
-  // Update models when data changes
-  useEffect(() => {
-    if (!modelsData) return
-
-    setModels(modelsData)
-
-    // Set default model if current model is not available
-    const isCurrentModelValid = modelsData.some((m) => m.value === config.model)
-    if (modelsData.length > 0 && !isCurrentModelValid) {
-      updateConfig('model', modelsData[0].value)
-    }
-  }, [modelsData, config.model, setModels, updateConfig])
-
-  // Update groups when data changes
-  useEffect(() => {
-    if (!groupsData) return
-
-    setGroups(groupsData)
-
-    const hasCurrentGroup = groupsData.some((g) => g.value === config.group)
-    if (!hasCurrentGroup && groupsData.length > 0) {
-      const fallback =
-        groupsData.find((g) => g.value === 'default')?.value ??
-        groupsData[0].value
-      updateConfig('group', fallback)
-    }
-  }, [groupsData, setGroups, config.group, updateConfig])
 
   return (
     <div className='relative flex size-full flex-col overflow-hidden'>
