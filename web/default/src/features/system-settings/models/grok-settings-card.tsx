@@ -16,11 +16,12 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { useEffect, useMemo, useRef } from 'react'
 import * as z from 'zod'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useTranslation } from 'react-i18next'
-import { Button } from '@/components/ui/button'
+import { toast } from 'sonner'
 import {
   Form,
   FormControl,
@@ -28,75 +29,126 @@ import {
   FormField,
   FormItem,
   FormLabel,
+  FormMessage,
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
+import {
+  SettingsForm,
+  SettingsSwitchContent,
+  SettingsSwitchItem,
+} from '../components/settings-form-layout'
+import { SettingsPageFormActions } from '../components/settings-page-context'
 import { SettingsSection } from '../components/settings-section'
-import { useResetForm } from '../hooks/use-reset-form'
 import { useUpdateOption } from '../hooks/use-update-option'
+import { safeNumberFieldProps } from '../utils/numeric-field'
 
 const XAI_VIOLATION_FEE_DOC_URL =
   'https://docs.x.ai/docs/models#usage-guidelines-violation-fee'
 
+/**
+ * The schema uses a nested object so the dotted FormField `name` props line
+ * up with react-hook-form's path semantics. Using flat keys like
+ * `'grok.violation_deduction_enabled'` causes RHF to silently maintain two
+ * parallel value trees and saves never see the user input.
+ */
 const grokSchema = z.object({
-  'grok.violation_deduction_enabled': z.boolean(),
-  'grok.violation_deduction_amount': z.coerce.number().min(0),
+  grok: z.object({
+    violation_deduction_enabled: z.boolean(),
+    violation_deduction_amount: z.coerce.number().min(0),
+  }),
 })
 
-type GrokFormValues = z.infer<typeof grokSchema>
+type GrokFormInput = z.input<typeof grokSchema>
+type GrokFormValues = z.output<typeof grokSchema>
+
+type FlatGrokDefaults = {
+  'grok.violation_deduction_enabled': boolean
+  'grok.violation_deduction_amount': number
+}
+
+const buildFormDefaults = (defaults: FlatGrokDefaults): GrokFormInput => ({
+  grok: {
+    violation_deduction_enabled: defaults['grok.violation_deduction_enabled'],
+    violation_deduction_amount: defaults['grok.violation_deduction_amount'],
+  },
+})
+
+const normalizeFormValues = (values: GrokFormValues): FlatGrokDefaults => ({
+  'grok.violation_deduction_enabled': values.grok.violation_deduction_enabled,
+  'grok.violation_deduction_amount': values.grok.violation_deduction_amount,
+})
 
 interface Props {
-  defaultValues: GrokFormValues
+  defaultValues: FlatGrokDefaults
 }
 
 export function GrokSettingsCard(props: Props) {
   const { t } = useTranslation()
   const updateOption = useUpdateOption()
 
-  const form = useForm<GrokFormValues>({
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    resolver: zodResolver(grokSchema) as any,
-    defaultValues: props.defaultValues,
+  const formDefaults = useMemo(
+    () => buildFormDefaults(props.defaultValues),
+    [props.defaultValues]
+  )
+
+  const form = useForm<GrokFormInput, unknown, GrokFormValues>({
+    resolver: zodResolver(grokSchema),
+    defaultValues: formDefaults,
   })
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  useResetForm(form as any, props.defaultValues)
+  const baselineRef = useRef<FlatGrokDefaults>(props.defaultValues)
+  const baselineSerializedRef = useRef<string>(
+    JSON.stringify(props.defaultValues)
+  )
 
-  const onSubmit = async (data: GrokFormValues) => {
-    const entries = Object.entries(data) as [string, unknown][]
-    const updates = entries.filter(
-      ([key, value]) =>
-        value !== (props.defaultValues[key as keyof GrokFormValues] as unknown)
-    )
-    for (const [key, value] of updates) {
+  useEffect(() => {
+    const serialized = JSON.stringify(props.defaultValues)
+    if (serialized === baselineSerializedRef.current) return
+    baselineRef.current = props.defaultValues
+    baselineSerializedRef.current = serialized
+    form.reset(buildFormDefaults(props.defaultValues))
+  }, [props.defaultValues, form])
+
+  const onSubmit = async (values: GrokFormValues) => {
+    const normalized = normalizeFormValues(values)
+    const changedKeys = (
+      Object.keys(normalized) as Array<keyof FlatGrokDefaults>
+    ).filter((key) => normalized[key] !== baselineRef.current[key])
+
+    if (changedKeys.length === 0) {
+      toast.info(t('No changes to save'))
+      return
+    }
+
+    for (const key of changedKeys) {
       await updateOption.mutateAsync({
         key,
-        value: value as string | number | boolean,
+        value: normalized[key],
       })
     }
+
+    baselineRef.current = normalized
+    baselineSerializedRef.current = JSON.stringify(normalized)
+    form.reset(buildFormDefaults(normalized))
   }
 
   const enabled = form.watch('grok.violation_deduction_enabled')
 
   return (
-    <SettingsSection
-      title={t('Grok Settings')}
-      description={t('Configure xAI Grok model specific settings')}
-    >
+    <SettingsSection title={t('Grok Settings')}>
       <Form {...form}>
-        <form onSubmit={form.handleSubmit(onSubmit)} className='space-y-6'>
+        <SettingsForm onSubmit={form.handleSubmit(onSubmit)}>
+          <SettingsPageFormActions
+            onSave={form.handleSubmit(onSubmit)}
+            isSaving={updateOption.isPending}
+          />
           <FormField
             control={form.control}
             name='grok.violation_deduction_enabled'
             render={({ field }) => (
-              <FormItem className='flex items-center gap-2'>
-                <FormControl>
-                  <Switch
-                    checked={field.value}
-                    onCheckedChange={field.onChange}
-                  />
-                </FormControl>
-                <div>
+              <SettingsSwitchItem>
+                <SettingsSwitchContent>
                   <FormLabel>{t('Enable violation deduction')}</FormLabel>
                   <FormDescription>
                     {t(
@@ -111,8 +163,14 @@ export function GrokSettingsCard(props: Props) {
                       {t('Official documentation')}
                     </a>
                   </FormDescription>
-                </div>
-              </FormItem>
+                </SettingsSwitchContent>
+                <FormControl>
+                  <Switch
+                    checked={field.value}
+                    onCheckedChange={field.onChange}
+                  />
+                </FormControl>
+              </SettingsSwitchItem>
             )}
           />
 
@@ -127,7 +185,7 @@ export function GrokSettingsCard(props: Props) {
                     type='number'
                     step={0.01}
                     min={0}
-                    {...field}
+                    {...safeNumberFieldProps(field)}
                     disabled={!enabled}
                   />
                 </FormControl>
@@ -136,14 +194,11 @@ export function GrokSettingsCard(props: Props) {
                     'Base amount. Actual deduction = base amount × system group rate.'
                   )}
                 </FormDescription>
+                <FormMessage />
               </FormItem>
             )}
           />
-
-          <Button type='submit' disabled={updateOption.isPending}>
-            {updateOption.isPending ? t('Saving...') : t('Save Changes')}
-          </Button>
-        </form>
+        </SettingsForm>
       </Form>
     </SettingsSection>
   )

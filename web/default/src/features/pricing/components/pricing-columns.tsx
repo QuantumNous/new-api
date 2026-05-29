@@ -27,6 +27,7 @@ import {
 } from '@/components/ui/tooltip'
 import { DataTableColumnHeader } from '@/components/data-table/column-header'
 import { GroupBadge } from '@/components/group-badge'
+import { StatusBadge, StatusBadgeList } from '@/components/status-badge'
 import { DEFAULT_TOKEN_UNIT, QUOTA_TYPE_VALUES } from '../constants'
 import {
   getDynamicDisplayGroupRatio,
@@ -56,19 +57,15 @@ function renderLimitedTags(
   items: string[],
   maxDisplay: number = 3
 ): React.ReactNode {
-  if (items.length === 0)
-    return <span className='text-muted-foreground/50 text-xs'>—</span>
-
-  const displayed = items.slice(0, maxDisplay)
-  const remaining = items.length - maxDisplay
-
   return (
-    <span className='text-muted-foreground text-xs'>
-      {displayed.join(', ')}
-      {remaining > 0 && (
-        <span className='text-muted-foreground/50'> +{remaining}</span>
+    <StatusBadgeList
+      items={items}
+      max={maxDisplay}
+      getKey={(item) => item}
+      renderItem={(item) => (
+        <StatusBadge label={item} autoColor={item} size='sm' copyable={false} />
       )}
-    </span>
+    />
   )
 }
 
@@ -76,21 +73,13 @@ function renderLimitedGroupBadges(
   groups: string[],
   maxDisplay: number = 2
 ): React.ReactNode {
-  if (groups.length === 0)
-    return <span className='text-muted-foreground/50 text-xs'>—</span>
-
-  const displayed = groups.slice(0, maxDisplay)
-  const remaining = groups.length - maxDisplay
-
   return (
-    <div className='flex max-w-full items-center gap-1 overflow-hidden'>
-      {displayed.map((group) => (
-        <GroupBadge key={group} group={group} size='sm' />
-      ))}
-      {remaining > 0 && (
-        <span className='text-muted-foreground/50 text-xs'>+{remaining}</span>
-      )}
-    </div>
+    <StatusBadgeList
+      items={groups}
+      max={maxDisplay}
+      getKey={(group) => group}
+      renderItem={(group) => <GroupBadge group={group} size='sm' />}
+    />
   )
 }
 
@@ -141,9 +130,11 @@ export function usePricingColumns(
       cell: ({ row }) => {
         const isTokenBased = row.original.quota_type === QUOTA_TYPE_VALUES.TOKEN
         return (
-          <span className='text-muted-foreground text-xs font-medium tracking-wider uppercase'>
-            {isTokenBased ? t('Token') : t('Request')}
-          </span>
+          <StatusBadge
+            label={isTokenBased ? t('Token') : t('Request')}
+            variant={isTokenBased ? 'info' : 'neutral'}
+            copyable={false}
+          />
         )
       },
       size: 80,
@@ -365,9 +356,14 @@ export function usePricingColumns(
           ? getLobeIcon(model.vendor_icon, 12)
           : null
         return (
-          <span className='text-muted-foreground flex items-center gap-1.5 text-xs'>
+          <span className='flex items-center gap-1.5'>
             {vendorIcon}
-            {model.vendor_name}
+            <StatusBadge
+              label={model.vendor_name}
+              autoColor={model.vendor_name}
+              size='sm'
+              copyable={false}
+            />
           </span>
         )
       },

@@ -16,9 +16,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { Info } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { Alert, AlertDescription } from '@/components/ui/alert'
+import { SettingsPageTitleStatusPortal } from './settings-page-context'
 
 type FormDirtyIndicatorProps = {
   isDirty: boolean
@@ -26,7 +25,7 @@ type FormDirtyIndicatorProps = {
 }
 
 /**
- * Visual indicator that the form has unsaved changes
+ * Compact page-title status indicator for unsaved form changes.
  *
  * @example
  * ```tsx
@@ -41,14 +40,11 @@ export function FormDirtyIndicator({
   if (!isDirty) return null
 
   return (
-    <Alert
-      variant='default'
-      className='border-orange-500/50 bg-orange-50 dark:bg-orange-950/20'
-    >
-      <Info className='h-4 w-4 text-orange-600 dark:text-orange-500' />
-      <AlertDescription className='text-orange-800 dark:text-orange-400'>
-        {message ?? t('You have unsaved changes')}
-      </AlertDescription>
-    </Alert>
+    <SettingsPageTitleStatusPortal>
+      <span className='inline-flex h-5 items-center gap-1.5 rounded-full bg-amber-500/10 px-2 text-[11px] font-medium whitespace-nowrap text-amber-700 ring-1 ring-amber-500/20 ring-inset dark:bg-amber-400/10 dark:text-amber-300 dark:ring-amber-400/20'>
+        <span className='size-1.5 rounded-full bg-amber-500 dark:bg-amber-300' />
+        {message ? t(message) : t('Unsaved changes')}
+      </span>
+    </SettingsPageTitleStatusPortal>
   )
 }
