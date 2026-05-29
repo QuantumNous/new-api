@@ -16,10 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useEffect, useMemo, useState } from 'react'
-import { useTranslation } from 'react-i18next'
-import { Button } from '@/components/ui/button'
-import { Textarea } from '@/components/ui/textarea'
+import { useEffect, useState } from 'react'
 import {
   Conversation,
   ConversationContent,
@@ -31,6 +28,7 @@ import { getMessageContent } from '../lib/message-utils'
 import type { Message as MessageType } from '../types'
 import { MessageActions } from './message-actions'
 import { PlaygroundMessageContent } from './playground-message-content'
+import { PlaygroundMessageEditor } from './playground-message-editor'
 
 interface PlaygroundChatProps {
   messages: MessageType[]
@@ -57,7 +55,6 @@ export function PlaygroundChat({
   onCancelEdit,
   onSaveEditAndSubmit,
 }: PlaygroundChatProps) {
-  const { t } = useTranslation()
   const [editText, setEditText] = useState('')
   const [originalText, setOriginalText] = useState('')
 
@@ -72,11 +69,7 @@ export function PlaygroundChat({
   }, [editingKey, messages])
 
   const isEditing = (key: string) => editingKey === key
-  const isEmpty = useMemo(() => !editText.trim(), [editText])
-  const isChanged = useMemo(
-    () => editText !== originalText,
-    [editText, originalText]
-  )
+
   return (
     <Conversation>
       {/* Remove outer padding; apply padding to inner centered container to align with input */}
@@ -96,39 +89,15 @@ export function PlaygroundChat({
               >
                 <div className='w-full min-w-0 flex-1 basis-full py-1'>
                   {isEditing(message.key) ? (
-                    <div className='space-y-2'>
-                      <Textarea
-                        value={editText}
-                        onChange={(event) => setEditText(event.target.value)}
-                        className='font-mono text-sm'
-                        rows={8}
-                      />
-                      <div className='flex gap-2'>
-                        {message.from === MESSAGE_ROLES.USER && (
-                          <Button
-                            size='sm'
-                            onClick={() => onSaveEditAndSubmit?.(editText)}
-                            disabled={isEmpty || !isChanged}
-                          >
-                            {t('Save & Submit')}
-                          </Button>
-                        )}
-                        <Button
-                          size='sm'
-                          onClick={() => onSaveEdit?.(editText)}
-                          disabled={isEmpty || !isChanged}
-                        >
-                          {t('Save')}
-                        </Button>
-                        <Button
-                          size='sm'
-                          variant='outline'
-                          onClick={() => onCancelEdit?.(false)}
-                        >
-                          {t('Cancel')}
-                        </Button>
-                      </div>
-                    </div>
+                    <PlaygroundMessageEditor
+                      editText={editText}
+                      message={message}
+                      onCancelEdit={onCancelEdit}
+                      onEditTextChange={setEditText}
+                      onSaveEdit={onSaveEdit}
+                      onSaveEditAndSubmit={onSaveEditAndSubmit}
+                      originalText={originalText}
+                    />
                   ) : (
                     <PlaygroundMessageContent
                       actions={
