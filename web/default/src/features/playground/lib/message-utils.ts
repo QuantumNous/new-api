@@ -24,6 +24,7 @@ import type {
   ChatCompletionMessage,
   ContentPart,
 } from '../types'
+import { parseThinkTags } from './message-reasoning-utils'
 
 /**
  * Create a new message version
@@ -162,63 +163,6 @@ export function isValidMessage(message: Message): boolean {
   if (message.from === 'assistant' && !hasMessageContent(message)) return false
 
   return true
-}
-
-/**
- * Parse content to separate thinking from visible text
- * Handles both complete and incomplete <think> tags
- */
-export function parseThinkTags(content: string): {
-  visibleContent: string
-  reasoning: string
-  hasUnclosedTag: boolean
-} {
-  if (!content.includes('<think>')) {
-    return { visibleContent: content, reasoning: '', hasUnclosedTag: false }
-  }
-
-  const visibleParts: string[] = []
-  const reasoningParts: string[] = []
-  let currentPos = 0
-  let hasUnclosed = false
-
-  while (true) {
-    // Find next <think> tag
-    const openPos = content.indexOf('<think>', currentPos)
-
-    if (openPos === -1) {
-      // No more think tags, add remaining content
-      if (currentPos < content.length) {
-        visibleParts.push(content.substring(currentPos))
-      }
-      break
-    }
-
-    // Add visible content before this tag
-    if (openPos > currentPos) {
-      visibleParts.push(content.substring(currentPos, openPos))
-    }
-
-    // Look for matching </think> tag
-    const closePos = content.indexOf('</think>', openPos + 7)
-
-    if (closePos === -1) {
-      // Unclosed tag: rest is reasoning buffer
-      reasoningParts.push(content.substring(openPos + 7))
-      hasUnclosed = true
-      break
-    }
-
-    // Extract reasoning content between tags
-    reasoningParts.push(content.substring(openPos + 7, closePos))
-    currentPos = closePos + 8
-  }
-
-  return {
-    visibleContent: visibleParts.join('').trim(),
-    reasoning: reasoningParts.join('\n\n').trim(),
-    hasUnclosedTag: hasUnclosed,
-  }
 }
 
 /**

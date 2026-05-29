@@ -36,7 +36,7 @@ import {
 } from '@/components/ai-elements/sources'
 import { MESSAGE_ROLES } from '../constants'
 import { getMessageContentStyles } from '../lib/message-styles'
-import { parseThinkTags } from '../lib/message-utils'
+import { parseThinkTags } from '../lib'
 import type { Message } from '../types'
 import { MessageError } from './message-error'
 
