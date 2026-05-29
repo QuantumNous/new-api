@@ -17,17 +17,15 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useState } from 'react'
-import { SendIcon, SquareIcon } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import {
   PromptInput,
-  PromptInputButton,
   PromptInputFooter,
   PromptInputTextarea,
   type PromptInputMessage,
 } from '@/components/ai-elements/prompt-input'
-import { ModelGroupSelector } from '@/components/model-group-selector'
 import type { ModelOption, GroupOption } from '../types'
+import { PlaygroundInputControls } from './playground-input-controls'
 import { PlaygroundInputTools } from './playground-input-tools'
 import { PlaygroundSuggestions } from './playground-suggestions'
 
@@ -61,10 +59,6 @@ export function PlaygroundInput({
   const { t } = useTranslation()
   const [text, setText] = useState('')
 
-  const isModelSelectDisabled =
-    disabled || isModelLoading || models.length === 0
-  const isGroupSelectDisabled = disabled || groups.length === 0
-
   const handleSubmit = (message: PromptInputMessage) => {
     if (!message.text?.trim() || disabled) return
     onSubmit(message.text)
@@ -89,40 +83,19 @@ export function PlaygroundInput({
         <PromptInputFooter className='p-2.5'>
           <PlaygroundInputTools disabled={disabled} />
 
-          <div className='flex items-center gap-1.5 md:gap-2'>
-            <ModelGroupSelector
-              selectedModel={modelValue}
-              models={models}
-              onModelChange={onModelChange}
-              selectedGroup={groupValue}
-              groups={groups}
-              onGroupChange={onGroupChange}
-              disabled={isModelSelectDisabled || isGroupSelectDisabled}
-            />
-
-            {isGenerating && onStop ? (
-              <PromptInputButton
-                className='text-foreground font-medium'
-                onClick={onStop}
-                variant='secondary'
-              >
-                <SquareIcon className='fill-current' size={16} />
-                <span className='hidden sm:inline'>{t('Stop')}</span>
-                <span className='sr-only sm:hidden'>{t('Stop')}</span>
-              </PromptInputButton>
-            ) : (
-              <PromptInputButton
-                className='text-foreground font-medium'
-                disabled={disabled || !text.trim()}
-                type='submit'
-                variant='secondary'
-              >
-                <SendIcon size={16} />
-                <span className='hidden sm:inline'>{t('Send')}</span>
-                <span className='sr-only sm:hidden'>{t('Send')}</span>
-              </PromptInputButton>
-            )}
-          </div>
+          <PlaygroundInputControls
+            disabled={disabled}
+            groups={groups}
+            groupValue={groupValue}
+            isGenerating={isGenerating}
+            isModelLoading={isModelLoading}
+            models={models}
+            modelValue={modelValue}
+            onGroupChange={onGroupChange}
+            onModelChange={onModelChange}
+            onStop={onStop}
+            text={text}
+          />
         </PromptInputFooter>
       </PromptInput>
 
