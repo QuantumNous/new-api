@@ -16,72 +16,16 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { z } from 'zod'
 import { STORAGE_KEYS } from '../constants'
 import type { PlaygroundConfig, ParameterEnabled, Message } from '../types'
 import { sanitizeMessagesOnLoad } from './message-utils'
-
-const STORAGE_VERSION = 1
-const MAX_STORED_MESSAGES = 100
-
-const playgroundConfigSchema = z.object({
-  model: z.string().optional(),
-  group: z.string().optional(),
-  temperature: z.number().finite().optional(),
-  top_p: z.number().finite().optional(),
-  max_tokens: z.number().finite().optional(),
-  frequency_penalty: z.number().finite().optional(),
-  presence_penalty: z.number().finite().optional(),
-  seed: z.number().finite().nullable().optional(),
-  stream: z.boolean().optional(),
-})
-
-const parameterEnabledSchema = z.object({
-  temperature: z.boolean().optional(),
-  top_p: z.boolean().optional(),
-  max_tokens: z.boolean().optional(),
-  frequency_penalty: z.boolean().optional(),
-  presence_penalty: z.boolean().optional(),
-  seed: z.boolean().optional(),
-})
-
-const messageRoleSchema = z.enum(['user', 'assistant', 'system'])
-const messageStatusSchema = z.enum([
-  'loading',
-  'streaming',
-  'complete',
-  'error',
-])
-
-const messageVersionSchema = z.object({
-  id: z.string(),
-  content: z.string(),
-})
-
-const sourceSchema = z.object({
-  href: z.string(),
-  title: z.string(),
-})
-
-const reasoningSchema = z.object({
-  content: z.string(),
-  duration: z.number().finite(),
-})
-
-const messageSchema = z.object({
-  key: z.string(),
-  from: messageRoleSchema,
-  versions: z.array(messageVersionSchema).min(1),
-  sources: z.array(sourceSchema).optional(),
-  reasoning: reasoningSchema.optional(),
-  isReasoningStreaming: z.boolean().optional(),
-  isReasoningComplete: z.boolean().optional(),
-  isContentComplete: z.boolean().optional(),
-  status: messageStatusSchema.optional(),
-  errorCode: z.string().nullable().optional(),
-})
-
-const messagesSchema = z.array(messageSchema)
+import {
+  MAX_STORED_MESSAGES,
+  STORAGE_VERSION,
+  messagesSchema,
+  parameterEnabledSchema,
+  playgroundConfigSchema,
+} from './storage-schema'
 
 type StoredEnvelope<T> = {
   version: number
