@@ -172,10 +172,13 @@ func MultimodalEmbeddingHandler(c *gin.Context, resp *http.Response, info *relay
 		})
 	}
 
+	u := aliResponse.Usage
 	usage := dto.Usage{
-		PromptTokens: aliResponse.Usage.InputTokens,
-		TotalTokens:  aliResponse.Usage.TotalTokens,
+		PromptTokens: u.InputTokens + u.ImageTokens,
+		TotalTokens:  u.TotalTokens,
 	}
+	usage.PromptTokensDetails.TextTokens = u.InputTokens
+	usage.PromptTokensDetails.ImageTokens = u.ImageTokens
 	if usage.TotalTokens == 0 {
 		usage.TotalTokens = usage.PromptTokens
 	}
