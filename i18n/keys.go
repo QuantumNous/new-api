@@ -40,6 +40,28 @@ const (
 	MsgAuthInsufficientPrivilege = "auth.insufficient_privilege"
 )
 
+// Public auth and verification messages
+const (
+	MsgAuthEmailInvalid             = "auth.email_invalid"
+	MsgAuthEmailDomainRestricted    = "auth.email_domain_restricted"
+	MsgAuthEmailAliasRestricted     = "auth.email_alias_restricted"
+	MsgAuthEmailTaken               = "auth.email_taken"
+	MsgAuthEmailVerificationSubject = "auth.email_verification_subject"
+	MsgAuthEmailVerificationIntro   = "auth.email_verification_intro"
+	MsgAuthEmailVerificationCode    = "auth.email_verification_code"
+	MsgAuthEmailVerificationExpiry  = "auth.email_verification_expiry"
+	MsgAuthPasswordResetSubject     = "auth.password_reset_subject"
+	MsgAuthPasswordResetIntro       = "auth.password_reset_intro"
+	MsgAuthPasswordResetClick       = "auth.password_reset_click"
+	MsgAuthPasswordResetCopy        = "auth.password_reset_copy"
+	MsgAuthPasswordResetExpiry      = "auth.password_reset_expiry"
+	MsgAuthPasswordResetInvalid     = "auth.password_reset_invalid"
+	MsgAuthEmailRateLimitWait       = "auth.email_rate_limit_wait"
+	MsgAuthEmailRateLimitRetry      = "auth.email_rate_limit_retry"
+	MsgAuthTurnstileTokenEmpty      = "auth.turnstile_token_empty"
+	MsgAuthTurnstileFailed          = "auth.turnstile_failed"
+)
+
 // Token related messages
 const (
 	MsgTokenNameTooLong          = "token.name_too_long"
