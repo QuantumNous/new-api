@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { ERROR_MESSAGES, MESSAGE_ROLES, MESSAGE_STATUS } from '../constants'
-import type { Message } from '../types'
+import type { ChatCompletionResponse, Message } from '../types'
 import {
   getCurrentVersion,
   hasMessageContent,
@@ -99,6 +99,21 @@ export function finalizeMessage(
       ? { content: finalReasoning, duration: message.reasoning?.duration || 0 }
       : undefined,
     isReasoningStreaming: false,
+  }
+}
+
+type ChatCompletionChoice = ChatCompletionResponse['choices'][number]
+
+export function applyChatCompletionChoice(
+  message: Message,
+  choice: ChatCompletionChoice
+): Message {
+  return {
+    ...finalizeMessage(
+      updateCurrentVersionContent(message, choice.message?.content || ''),
+      choice.message?.reasoning_content
+    ),
+    status: MESSAGE_STATUS.COMPLETE,
   }
 }
 
