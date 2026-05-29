@@ -78,7 +78,35 @@ func TestGetChannelSkipsCoolingChannelWithoutMemoryCache(t *testing.T) {
 	}
 }
 
-func TestGetChannelReturnsNilWhenAllCandidatesCoolingWithoutMemoryCache(t *testing.T) {
+func TestGetRandomSatisfiedChannelReturnsCoolingChannelWhenAllCandidatesCoolingWithMemoryCache(t *testing.T) {
+	oldMemoryCacheEnabled := common.MemoryCacheEnabled
+	common.MemoryCacheEnabled = true
+	ClearChannelCacheForTest()
+	clearChannelCooldownsForTest()
+	t.Cleanup(func() {
+		clearChannelCooldownsForTest()
+		ClearChannelCacheForTest()
+		common.MemoryCacheEnabled = oldMemoryCacheEnabled
+	})
+
+	priority := int64(10)
+	weight := uint(0)
+	channel := &Channel{Id: 17, Type: 1, Key: "key-17", Status: common.ChannelStatusEnabled, Name: "cooling", Weight: &weight, Priority: &priority, Models: "gpt-5.5", Group: "default"}
+	SetChannelCacheForTest(map[int]*Channel{17: channel}, map[string]map[string][]int{
+		"default": {"gpt-5.5": {17}},
+	})
+	CooldownChannel(17, "Insufficient account balance", time.Minute)
+
+	selected, err := GetRandomSatisfiedChannel("default", "gpt-5.5", 0)
+	if err != nil {
+		t.Fatalf("GetRandomSatisfiedChannel returned error: %v", err)
+	}
+	if selected == nil || selected.Id != 17 {
+		t.Fatalf("expected cooling fallback channel 17, got %#v", selected)
+	}
+}
+
+func TestGetChannelReturnsCoolingChannelWhenAllCandidatesCoolingWithoutMemoryCache(t *testing.T) {
 	setupChannelSelectionTestDB(t)
 
 	priority := int64(10)
@@ -98,7 +126,7 @@ func TestGetChannelReturnsNilWhenAllCandidatesCoolingWithoutMemoryCache(t *testi
 	if err != nil {
 		t.Fatalf("GetChannel returned error: %v", err)
 	}
-	if selected != nil {
-		t.Fatalf("expected no channel, got %#v", selected)
+	if selected == nil || selected.Id != 17 {
+		t.Fatalf("expected cooling fallback channel 17, got %#v", selected)
 	}
 }

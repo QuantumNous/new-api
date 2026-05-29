@@ -116,20 +116,28 @@ func GetChannel(group string, model string, retry int) (*Channel, error) {
 	}
 
 	availableAbilities := make([]Ability, 0, len(abilities))
-	uniquePriorities := make(map[int]bool)
+	coolingAbilities := make([]Ability, 0, len(abilities))
 	for _, ability := range abilities {
 		if IsChannelCoolingDown(ability.ChannelId) {
+			coolingAbilities = append(coolingAbilities, ability)
 			continue
 		}
 		availableAbilities = append(availableAbilities, ability)
+	}
+	if len(availableAbilities) == 0 {
+		availableAbilities = coolingAbilities
+	}
+	if len(availableAbilities) == 0 {
+		return nil, nil
+	}
+
+	uniquePriorities := make(map[int]bool)
+	for _, ability := range availableAbilities {
 		priority := int(0)
 		if ability.Priority != nil {
 			priority = int(*ability.Priority)
 		}
 		uniquePriorities[priority] = true
-	}
-	if len(availableAbilities) == 0 {
-		return nil, nil
 	}
 
 	var sortedUniquePriorities []int

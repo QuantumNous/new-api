@@ -118,24 +118,31 @@ func GetRandomSatisfiedChannel(group string, model string, retry int) (*Channel,
 
 	if len(channels) == 1 {
 		if channel, ok := channelsIDM[channels[0]]; ok {
-			if IsChannelCoolingDown(channel.Id) {
-				return nil, nil
-			}
 			return channel, nil
 		}
 		return nil, fmt.Errorf("数据库一致性错误，渠道# %d 不存在，请联系管理员修复", channels[0])
 	}
 
-	uniquePriorities := make(map[int]bool)
+	availableChannels := make([]*Channel, 0, len(channels))
+	coolingChannels := make([]*Channel, 0, len(channels))
 	for _, channelId := range channels {
-		if channel, ok := channelsIDM[channelId]; ok {
-			if IsChannelCoolingDown(channel.Id) {
-				continue
-			}
-			uniquePriorities[int(channel.GetPriority())] = true
-		} else {
+		channel, ok := channelsIDM[channelId]
+		if !ok {
 			return nil, fmt.Errorf("数据库一致性错误，渠道# %d 不存在，请联系管理员修复", channelId)
 		}
+		if IsChannelCoolingDown(channel.Id) {
+			coolingChannels = append(coolingChannels, channel)
+			continue
+		}
+		availableChannels = append(availableChannels, channel)
+	}
+	if len(availableChannels) == 0 {
+		availableChannels = coolingChannels
+	}
+
+	uniquePriorities := make(map[int]bool)
+	for _, channel := range availableChannels {
+		uniquePriorities[int(channel.GetPriority())] = true
 	}
 	if len(uniquePriorities) == 0 {
 		return nil, nil
@@ -155,17 +162,10 @@ func GetRandomSatisfiedChannel(group string, model string, retry int) (*Channel,
 	// get the priority for the given retry number
 	var sumWeight = 0
 	var targetChannels []*Channel
-	for _, channelId := range channels {
-		if channel, ok := channelsIDM[channelId]; ok {
-			if IsChannelCoolingDown(channel.Id) {
-				continue
-			}
-			if channel.GetPriority() == targetPriority {
-				sumWeight += channel.GetWeight()
-				targetChannels = append(targetChannels, channel)
-			}
-		} else {
-			return nil, fmt.Errorf("数据库一致性错误，渠道# %d 不存在，请联系管理员修复", channelId)
+	for _, channel := range availableChannels {
+		if channel.GetPriority() == targetPriority {
+			sumWeight += channel.GetWeight()
+			targetChannels = append(targetChannels, channel)
 		}
 	}
 
