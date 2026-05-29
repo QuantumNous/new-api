@@ -19,6 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import { useState, useEffect } from 'react'
 import { Loader2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import { toast } from 'sonner'
 import { formatQuota } from '@/lib/format'
 import { Button } from '@/components/ui/button'
 import {
@@ -59,6 +60,17 @@ export function TransferDialog({
   }, [open])
 
   const handleConfirm = async () => {
+    const rawAmount = amount.trim()
+    const parsedAmount = Number(rawAmount)
+    if (
+      !rawAmount ||
+      !Number.isFinite(parsedAmount) ||
+      parsedAmount <= 0 ||
+      !/^\d+$/.test(rawAmount)
+    ) {
+      toast.error(t('Please enter a valid transfer amount'))
+      return
+    }
     const success = await onConfirm(amount)
     if (success) {
       onOpenChange(false)

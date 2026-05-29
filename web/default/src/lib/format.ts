@@ -90,7 +90,12 @@ export function parseQuotaInputToString(amountText: string): string {
     return raw
   }
 
-  return String(parseQuotaFromDollars(Number(raw)))
+  const parsedAmount = Number(raw)
+  if (!Number.isFinite(parsedAmount)) {
+    throw new Error('Invalid quota amount')
+  }
+
+  return String(parseQuotaFromDollars(parsedAmount))
 }
 
 /**
