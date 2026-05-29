@@ -293,6 +293,35 @@ export function processStreamingContent(
   }
 }
 
+export type StreamChunkType = 'reasoning' | 'content'
+
+export function applyStreamingChunk(
+  message: Message,
+  type: StreamChunkType,
+  chunk: string
+): Message {
+  if (message.status === MESSAGE_STATUS.ERROR) {
+    return message
+  }
+
+  if (type === 'reasoning') {
+    return {
+      ...message,
+      reasoning: {
+        content: (message.reasoning?.content || '') + chunk,
+        duration: 0,
+      },
+      isReasoningStreaming: true,
+      status: MESSAGE_STATUS.STREAMING,
+    }
+  }
+
+  return {
+    ...processStreamingContent(message, chunk),
+    status: MESSAGE_STATUS.STREAMING,
+  }
+}
+
 /**
  * Finalize message after streaming completes
  * Cleans content and consolidates reasoning from all sources

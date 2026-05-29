@@ -21,10 +21,10 @@ import { toast } from 'sonner'
 import { sendChatCompletion } from '../api'
 import { MESSAGE_STATUS, ERROR_MESSAGES } from '../constants'
 import {
+  applyStreamingChunk,
   buildChatCompletionPayload,
   updateAssistantMessageWithError,
   updateLastAssistantMessage,
-  processStreamingContent,
   finalizeMessage,
   updateCurrentVersionContent,
   parseRequestErrorDetails,
@@ -55,28 +55,9 @@ export function useChatHandler({
   const handleStreamUpdate = useCallback(
     (type: 'reasoning' | 'content', chunk: string) => {
       onMessageUpdate((prev) =>
-        updateLastAssistantMessage(prev, (message) => {
-          if (message.status === MESSAGE_STATUS.ERROR) return message
-
-          if (type === 'reasoning') {
-            // Direct API reasoning_content
-            return {
-              ...message,
-              reasoning: {
-                content: (message.reasoning?.content || '') + chunk,
-                duration: 0,
-              },
-              isReasoningStreaming: true,
-              status: MESSAGE_STATUS.STREAMING,
-            }
-          }
-
-          // Content streaming: handle <think> tags
-          return {
-            ...processStreamingContent(message, chunk),
-            status: MESSAGE_STATUS.STREAMING,
-          }
-        })
+        updateLastAssistantMessage(prev, (message) =>
+          applyStreamingChunk(message, type, chunk)
+        )
       )
     },
     [onMessageUpdate]
