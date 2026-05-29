@@ -1650,9 +1650,22 @@ export const TieredPricingEditor = memo(function TieredPricingEditor({
     RequestRuleGroup[]
   >(() => tryParseRequestRuleExpr(currentRequestRuleExpr) || [])
   const initRef = useRef(false)
+  // Track the modelName the local editor state was last initialised for.
+  // When the parent switches models, `modelName`, `currentExpr` and
+  // `currentRequestRuleExpr` all change in the same render. The previous
+  // reset-after-init split caused the init effect to bail out on its own
+  // guard before the modelName-reset effect could clear it (#5141), so the
+  // editor kept showing the previous model's expression and a subsequent
+  // save would clobber the new model with the old expression. Tracking the
+  // last initialised modelName here lets us force a re-init on every model
+  // switch while still ignoring our own `onBillingExprChange` echoes within
+  // the same model.
+  const prevModelNameRef = useRef<string | undefined>(modelName)
 
   useEffect(() => {
-    if (initRef.current) return
+    const modelChanged = prevModelNameRef.current !== modelName
+    if (initRef.current && !modelChanged) return
+    prevModelNameRef.current = modelName
     initRef.current = true
     const parsedConfig = tryParseVisualConfig(currentExpr)
     if (parsedConfig) {
@@ -1669,11 +1682,7 @@ export const TieredPricingEditor = memo(function TieredPricingEditor({
       combineBillingExpr(currentExpr || '', currentRequestRuleExpr || '')
     )
     setRequestRuleGroups(tryParseRequestRuleExpr(currentRequestRuleExpr) || [])
-  }, [currentExpr, currentRequestRuleExpr])
-
-  useEffect(() => {
-    initRef.current = false
-  }, [modelName])
+  }, [modelName, currentExpr, currentRequestRuleExpr])
 
   const canUseVisualRules = useMemo(() => {
     if (!currentRequestRuleExpr) return true
