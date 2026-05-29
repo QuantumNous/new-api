@@ -708,6 +708,8 @@
     "Checking updates...": "检查更新中...",
     "Checkout return URL:": "结账返回 URL：",
     "checkout.session.completed": "checkout.session.completed",
+    "checkout.session.async_payment_failed": "checkout.session.async_payment_failed",
+    "checkout.session.async_payment_succeeded": "checkout.session.async_payment_succeeded",
     "checkout.session.expired": "checkout.session.expired",
     "Chinese": "中文",
     "Choose a top-up package, then pay only for metered model usage. Charges draw down prepaid balance based on input, output, and cache-hit token prices.": "选择充值套餐后，仅按实际模型用量付费。费用会根据输入、输出和缓存命中 token 价格从预付余额中扣减。",
