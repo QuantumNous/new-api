@@ -36,11 +36,15 @@ export function isAdminRole(role?: number | null): boolean {
   return role != null && role >= 10
 }
 
+export function isErrorMessage(message: Message): boolean {
+  return message.status === MESSAGE_STATUS.ERROR
+}
+
 export function getMessageErrorState(
   message: Message,
   isAdmin: boolean
 ): MessageErrorState | null {
-  if (message.status !== MESSAGE_STATUS.ERROR) {
+  if (!isErrorMessage(message)) {
     return null
   }
 
