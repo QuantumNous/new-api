@@ -67,12 +67,15 @@ const responseComponents: Components = {
 
     const code = getCodeText(children)
     const language = getCodeLanguage(className)
+    const lineCount = code.split('\n').length
 
     return (
       <CodeBlock
+        collapsedLines={14}
         code={code}
-        defaultCollapsed={code.split('\n').length > 80}
+        defaultCollapsed={lineCount > 14}
         language={language}
+        maxExpandedLines={44}
         showLineNumbers={true}
         showToolbar={true}
         title={language}
