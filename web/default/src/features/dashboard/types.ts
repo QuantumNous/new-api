@@ -120,12 +120,9 @@ export interface ProcessedUserChartData {
 }
 
 export interface ProcessedCacheChartData {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  spec_cache_trend: Record<string, any>
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  spec_cache_rank: Record<string, any>
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  spec_non_cache: Record<string, any>
+  spec_cache_trend: VChartSpec
+  spec_cache_rank: VChartSpec
+  spec_non_cache: VChartSpec
   totalCacheDisplay: string
   totalNonCacheDisplay: string
 }

@@ -855,7 +855,7 @@ export function processCacheChartData(
       (Number(item.cache_creation_tokens) || 0) +
       (Number(item.cache_creation_tokens_5m) || 0) +
       (Number(item.cache_creation_tokens_1h) || 0)
-    const nonCache = Math.max(0, tokens - cacheRead)
+    const nonCache = Math.max(0, tokens - cacheRead - cacheCreation)
 
     // Cache trend aggregation
     const timeType = timeTypeMap.get(timeKey) || { cacheRead: 0, cacheCreation: 0 }
@@ -921,11 +921,12 @@ export function processCacheChartData(
   sortedTimes.forEach((time) => {
     const buckets = new Map<string, number>()
     const modelMap = timeModelNonCacheMap.get(time)
-    modelNonCacheTotals.forEach((_, model) => {
-      const tokens = modelMap?.get(model) || 0
-      const key = topNonCacheModels.has(model) ? model : otherLabel
-      buckets.set(key, (buckets.get(key) || 0) + tokens)
-    })
+    if (modelMap) {
+      for (const [model, tokens] of modelMap) {
+        const key = topNonCacheModels.has(model) ? model : otherLabel
+        buckets.set(key, (buckets.get(key) || 0) + tokens)
+      }
+    }
     for (const [model, tokens] of buckets) {
       nonCacheValues.push({ Time: time, Model: model, Tokens: tokens })
     }

@@ -14,14 +14,14 @@ func MigrateCacheTokens() {
 	common.SysLog("开始回填 quota_data 缓存 token 数据...")
 
 	batchSize := 1000
-	offset := 0
+	lastID := 0
 	totalUpdated := 0
 
 	for {
 		var records []QuotaData
 		err := DB.Table("quota_data").
-			Where("cache_tokens = 0 AND cache_creation_tokens = 0 AND cache_creation_tokens_5m = 0 AND cache_creation_tokens_1h = 0").
-			Offset(offset).Limit(batchSize).
+			Where("id > ? AND cache_tokens = 0 AND cache_creation_tokens = 0 AND cache_creation_tokens_5m = 0 AND cache_creation_tokens_1h = 0", lastID).
+			Order("id ASC").Limit(batchSize).
 			Find(&records).Error
 		if err != nil {
 			common.SysLog(fmt.Sprintf("回填缓存 token 数据查询失败: %s", err))
@@ -49,7 +49,7 @@ func MigrateCacheTokens() {
 			}
 		}
 
-		offset += batchSize
+		lastID = records[len(records)-1].Id
 		time.Sleep(100 * time.Millisecond)
 	}
 
