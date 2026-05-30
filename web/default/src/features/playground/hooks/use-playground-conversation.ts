@@ -18,9 +18,9 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { useCallback, useState } from 'react'
 import {
-  createLoadingAssistantMessage,
-  createUserMessage,
-  updateCurrentVersionContent,
+  appendUserMessagePair,
+  applyMessageEdit,
+  createRegeneratedMessages,
 } from '../lib'
 import type { Message } from '../types'
 
@@ -43,10 +43,7 @@ export function usePlaygroundConversation({
 
   const handleSendMessage = useCallback(
     (text: string) => {
-      const userMessage = createUserMessage(text)
-      const assistantMessage = createLoadingAssistantMessage()
-      const nextMessages = [...messages, userMessage, assistantMessage]
-
+      const nextMessages = appendUserMessagePair(messages, text)
       updateMessages(nextMessages)
       sendChat(nextMessages)
     },
@@ -55,13 +52,8 @@ export function usePlaygroundConversation({
 
   const handleRegenerateMessage = useCallback(
     (message: Message) => {
-      const messageIndex = messages.findIndex((m) => m.key === message.key)
-      if (messageIndex === -1) return
-
-      const nextMessages = [
-        ...messages.slice(0, messageIndex),
-        createLoadingAssistantMessage(),
-      ]
+      const nextMessages = createRegeneratedMessages(messages, message.key)
+      if (!nextMessages) return
 
       updateMessages(nextMessages)
       sendChat(nextMessages)
@@ -83,33 +75,20 @@ export function usePlaygroundConversation({
     (newContent: string, shouldSubmit: boolean) => {
       if (!editingMessageKey) return
 
-      const messageIndex = messages.findIndex(
-        (message) => message.key === editingMessageKey
+      const editResult = applyMessageEdit(
+        messages,
+        editingMessageKey,
+        newContent,
+        shouldSubmit
       )
-      if (messageIndex === -1) return
-
-      const updatedMessages = messages.map((message) => {
-        if (message.key !== editingMessageKey) {
-          return message
-        }
-
-        return updateCurrentVersionContent(message, newContent)
-      })
+      if (!editResult) return
 
       setEditingMessageKey(null)
+      updateMessages(editResult.messages)
 
-      if (!shouldSubmit || updatedMessages[messageIndex].from !== 'user') {
-        updateMessages(updatedMessages)
-        return
+      if (editResult.shouldSend) {
+        sendChat(editResult.messages)
       }
-
-      const nextMessages = [
-        ...updatedMessages.slice(0, messageIndex + 1),
-        createLoadingAssistantMessage(),
-      ]
-
-      updateMessages(nextMessages)
-      sendChat(nextMessages)
     },
     [editingMessageKey, messages, updateMessages, sendChat]
   )
