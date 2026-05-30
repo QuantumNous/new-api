@@ -45,3 +45,10 @@ export function getGroupFallback(
     groups.find((group) => group.value === 'default')?.value ?? groups[0].value
   )
 }
+
+export function getOptionLoadErrorMessage(
+  error: unknown,
+  fallbackMessage: string
+): string {
+  return error instanceof Error ? error.message : fallbackMessage
+}

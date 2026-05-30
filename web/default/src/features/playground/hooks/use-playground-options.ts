@@ -21,7 +21,11 @@ import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { getUserGroups, getUserModels } from '../api'
-import { getGroupFallback, getModelFallback } from '../lib'
+import {
+  getGroupFallback,
+  getModelFallback,
+  getOptionLoadErrorMessage,
+} from '../lib'
 import type { GroupOption, ModelOption, PlaygroundConfig } from '../types'
 
 type UsePlaygroundOptionsParams = {
@@ -67,9 +71,10 @@ export function usePlaygroundOptions({
     if (!isModelsError) return
 
     toast.error(
-      modelsError instanceof Error
-        ? modelsError.message
-        : t('Failed to load playground models')
+      getOptionLoadErrorMessage(
+        modelsError,
+        t('Failed to load playground models')
+      )
     )
   }, [isModelsError, modelsError, t])
 
@@ -77,9 +82,10 @@ export function usePlaygroundOptions({
     if (!isGroupsError) return
 
     toast.error(
-      groupsError instanceof Error
-        ? groupsError.message
-        : t('Failed to load playground groups')
+      getOptionLoadErrorMessage(
+        groupsError,
+        t('Failed to load playground groups')
+      )
     )
   }, [isGroupsError, groupsError, t])
 
