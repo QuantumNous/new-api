@@ -16,6 +16,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { useEffect, useRef, type KeyboardEvent } from 'react'
+import { Check, RotateCcw, Send, X } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
@@ -42,44 +44,112 @@ export function PlaygroundMessageEditor({
   originalText,
 }: PlaygroundMessageEditorProps) {
   const { t } = useTranslation()
-  const { canSave, showSaveAndSubmit } = getMessageEditorState(
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const { canSave, hasChanged, showSaveAndSubmit } = getMessageEditorState(
     message,
     editText,
     originalText
   )
 
+  useEffect(() => {
+    textareaRef.current?.focus()
+  }, [])
+
+  const handleCancel = () => {
+    if (
+      hasChanged &&
+      !window.confirm(
+        t('You have unsaved changes. Are you sure you want to leave?')
+      )
+    ) {
+      return
+    }
+
+    onCancelEdit?.(false)
+  }
+
+  const handleKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
+    if (event.key === 'Escape') {
+      event.preventDefault()
+      handleCancel()
+      return
+    }
+
+    if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') {
+      event.preventDefault()
+      if (!canSave) return
+
+      if (showSaveAndSubmit) {
+        onSaveEditAndSubmit?.(editText)
+      } else {
+        onSaveEdit?.(editText)
+      }
+    }
+  }
+
   return (
-    <div className='space-y-2'>
+    <div className='rounded-lg border bg-background/80 p-2 shadow-sm'>
       <Textarea
-        value={editText}
+        aria-label={t('Edit')}
+        className='min-h-36 resize-y font-mono text-sm leading-6 md:min-h-48'
         onChange={(event) => onEditTextChange(event.target.value)}
-        className='font-mono text-sm'
+        onKeyDown={handleKeyDown}
+        ref={textareaRef}
         rows={8}
+        value={editText}
       />
-      <div className='flex gap-2'>
-        {showSaveAndSubmit && (
+
+      <div className='mt-2 flex flex-col gap-2 md:flex-row md:items-center md:justify-between'>
+        <p className='text-xs text-muted-foreground'>
+          {hasChanged ? t('Unsaved changes') : t('No changes')}
+        </p>
+
+        <div className='grid gap-2 sm:flex sm:justify-end'>
+          {showSaveAndSubmit && (
+            <Button
+              className='max-md:min-h-11'
+              disabled={!canSave}
+              onClick={() => onSaveEditAndSubmit?.(editText)}
+              size='sm'
+            >
+              <Send className='size-3.5' />
+              {t('Save & Submit')}
+            </Button>
+          )}
+
           <Button
-            size='sm'
-            onClick={() => onSaveEditAndSubmit?.(editText)}
+            className='max-md:min-h-11'
             disabled={!canSave}
+            onClick={() => onSaveEdit?.(editText)}
+            size='sm'
+            variant={showSaveAndSubmit ? 'outline' : 'default'}
           >
-            {t('Save & Submit')}
+            <Check className='size-3.5' />
+            {t('Save')}
           </Button>
-        )}
-        <Button
-          size='sm'
-          onClick={() => onSaveEdit?.(editText)}
-          disabled={!canSave}
-        >
-          {t('Save')}
-        </Button>
-        <Button
-          size='sm'
-          variant='outline'
-          onClick={() => onCancelEdit?.(false)}
-        >
-          {t('Cancel')}
-        </Button>
+
+          {hasChanged && (
+            <Button
+              className='max-md:min-h-11'
+              onClick={() => onEditTextChange(originalText)}
+              size='sm'
+              variant='outline'
+            >
+              <RotateCcw className='size-3.5' />
+              {t('Reset')}
+            </Button>
+          )}
+
+          <Button
+            className='max-md:min-h-11'
+            onClick={handleCancel}
+            size='sm'
+            variant='outline'
+          >
+            <X className='size-3.5' />
+            {t('Cancel')}
+          </Button>
+        </div>
       </div>
     </div>
   )
