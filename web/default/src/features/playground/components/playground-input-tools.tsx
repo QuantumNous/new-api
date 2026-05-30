@@ -16,14 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import {
-  CameraIcon,
-  FileIcon,
-  GlobeIcon,
-  ImageIcon,
-  PaperclipIcon,
-  ScreenShareIcon,
-} from 'lucide-react'
+import { GlobeIcon, PaperclipIcon } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import {
@@ -36,29 +29,29 @@ import {
   PromptInputButton,
   PromptInputTools,
 } from '@/components/ai-elements/prompt-input'
+import {
+  ATTACHMENT_ACTIONS,
+  getAttachmentActionNotice,
+  getSearchActionNotice,
+} from '../lib'
 
 type PlaygroundInputToolsProps = {
   disabled?: boolean
 }
 
-const attachmentActions = [
-  { action: 'upload-file', icon: FileIcon, label: 'Upload file' },
-  { action: 'upload-photo', icon: ImageIcon, label: 'Upload photo' },
-  {
-    action: 'take-screenshot',
-    icon: ScreenShareIcon,
-    label: 'Take screenshot',
-  },
-  { action: 'take-photo', icon: CameraIcon, label: 'Take photo' },
-] as const
-
 export function PlaygroundInputTools({ disabled }: PlaygroundInputToolsProps) {
   const { t } = useTranslation()
 
   const handleFileAction = (action: string) => {
-    toast.info(t('Feature in development'), {
-      description: action,
+    const notice = getAttachmentActionNotice(action)
+    toast.info(t(notice.title), {
+      description: notice.description,
     })
+  }
+
+  const handleSearchAction = () => {
+    const notice = getSearchActionNotice()
+    toast.info(t(notice.title))
   }
 
   return (
@@ -78,7 +71,7 @@ export function PlaygroundInputTools({ disabled }: PlaygroundInputToolsProps) {
           <span className='sr-only sm:hidden'>{t('Attach')}</span>
         </DropdownMenuTrigger>
         <DropdownMenuContent align='start'>
-          {attachmentActions.map(({ action, icon: Icon, label }) => (
+          {ATTACHMENT_ACTIONS.map(({ action, icon: Icon, label }) => (
             <DropdownMenuItem
               key={action}
               onClick={() => handleFileAction(action)}
@@ -93,7 +86,7 @@ export function PlaygroundInputTools({ disabled }: PlaygroundInputToolsProps) {
       <PromptInputButton
         className='border font-medium'
         disabled={disabled}
-        onClick={() => toast.info(t('Search feature in development'))}
+        onClick={handleSearchAction}
         variant='outline'
       >
         <GlobeIcon size={16} />
