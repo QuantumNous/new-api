@@ -50,6 +50,7 @@ type ModelFormValues = {
   AudioRatio: string
   AudioCompletionRatio: string
   VoiceCloneUnlockRatio: string
+  VideoResolutionRatio: string
   ExposeRatioEnabled: boolean
   BillingMode: string
   BillingExpr: string
@@ -137,6 +138,7 @@ export const ModelRatioForm = memo(function ModelRatioForm({
               audioRatio={form.watch('AudioRatio')}
               audioCompletionRatio={form.watch('AudioCompletionRatio')}
               voiceCloneUnlockRatio={form.watch('VoiceCloneUnlockRatio')}
+              videoResolutionRatio={form.watch('VideoResolutionRatio')}
               billingMode={form.watch('BillingMode')}
               billingExpr={form.watch('BillingExpr')}
               onChange={(field, value) => {

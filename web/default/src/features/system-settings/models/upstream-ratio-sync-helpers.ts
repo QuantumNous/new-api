@@ -43,6 +43,7 @@ export const RATIO_SYNC_FIELDS: RatioType[] = [
   'audio_ratio',
   'audio_completion_ratio',
   'voice_clone_unlock_ratio',
+  'video_resolution_ratio',
 ]
 
 export const SYNC_FIELD_ORDER: RatioType[] = [
