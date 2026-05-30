@@ -41,12 +41,14 @@ import { MessageError } from './message-error'
 
 type PlaygroundMessageContentProps = {
   actions: ReactNode
+  errorActions?: ReactNode
   message: Message
   versionContent: string
 }
 
 export function PlaygroundMessageContent({
   actions,
+  errorActions,
   message,
   versionContent,
 }: PlaygroundMessageContentProps) {
@@ -100,8 +102,11 @@ export function PlaygroundMessageContent({
 
       {isError && (
         <>
-          <MessageError message={message} className='mb-2' />
-          {actions}
+          <MessageError
+            actions={errorActions}
+            message={message}
+            className='mb-2'
+          />
         </>
       )}
 

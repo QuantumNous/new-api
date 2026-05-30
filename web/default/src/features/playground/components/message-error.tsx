@@ -16,6 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import type { ReactNode } from 'react'
 import { AlertCircle, AlertTriangle, Settings } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { useAuthStore } from '@/stores/auth-store'
@@ -31,13 +32,18 @@ import type { Message } from '../types'
 interface MessageErrorProps {
   message: Message
   className?: string
+  actions?: ReactNode
 }
 
 /**
  * Display error messages using Alert component
  * Following ai-elements pattern for error handling
  */
-export function MessageError({ message, className = '' }: MessageErrorProps) {
+export function MessageError({
+  message,
+  className = '',
+  actions,
+}: MessageErrorProps) {
   const { t } = useTranslation()
   const user = useAuthStore((s) => s.auth.user)
   const errorState = getMessageErrorState(message, isAdminRole(user?.role))
@@ -65,6 +71,7 @@ export function MessageError({ message, className = '' }: MessageErrorProps) {
               {t('Go to Settings')}
             </Button>
           )}
+          {actions}
         </AlertDescription>
       </Alert>
     )
@@ -74,7 +81,10 @@ export function MessageError({ message, className = '' }: MessageErrorProps) {
     <Alert variant='destructive' className={className}>
       <AlertCircle />
       <AlertTitle>{t('Error')}</AlertTitle>
-      <AlertDescription>{errorState.content}</AlertDescription>
+      <AlertDescription className='space-y-2'>
+        <p>{errorState.content}</p>
+        {actions}
+      </AlertDescription>
     </Alert>
   )
 }

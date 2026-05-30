@@ -26,9 +26,12 @@ import { Message } from '@/components/ai-elements/message'
 import {
   getChatMessageRenderState,
   getEditingMessageContent,
+  getPreviousUserMessage,
+  isErrorMessage,
 } from '../lib'
 import type { Message as MessageType } from '../types'
 import { MessageActions } from './message-actions'
+import { MessageErrorActions } from './message-error-actions'
 import { PlaygroundEmptyState } from './playground-empty-state'
 import { PlaygroundMessageContent } from './playground-message-content'
 import { PlaygroundMessageEditor } from './playground-message-editor'
@@ -88,6 +91,10 @@ export function PlaygroundChat({
                   messageIndex,
                   editingKey
                 )
+              const isError = isErrorMessage(message)
+              const previousUserMessage = isError
+                ? getPreviousUserMessage(messages, messageIndex)
+                : null
 
               return (
                 <Message
@@ -121,6 +128,28 @@ export function PlaygroundChat({
                           />
                         }
                         message={message}
+                        errorActions={
+                          isError ? (
+                            <MessageErrorActions
+                              disabled={isGenerating}
+                              onRetry={
+                                onRegenerateMessage
+                                  ? () => onRegenerateMessage(message)
+                                  : undefined
+                              }
+                              onEditPrompt={
+                                onEditMessage && previousUserMessage
+                                  ? () => onEditMessage(previousUserMessage)
+                                  : undefined
+                              }
+                              onDelete={
+                                onDeleteMessage
+                                  ? () => onDeleteMessage(message)
+                                  : undefined
+                              }
+                            />
+                          ) : undefined
+                        }
                         versionContent={content}
                       />
                     )}

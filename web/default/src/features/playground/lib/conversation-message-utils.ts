@@ -67,6 +67,19 @@ export function removeMessageByKey(
   return messages.filter((message) => message.key !== messageKey)
 }
 
+export function getPreviousUserMessage(
+  messages: Message[],
+  beforeIndex: number
+): Message | null {
+  for (let index = beforeIndex - 1; index >= 0; index--) {
+    if (messages[index].from === MESSAGE_ROLES.USER) {
+      return messages[index]
+    }
+  }
+
+  return null
+}
+
 export function applyMessageEdit(
   messages: Message[],
   messageKey: string,
