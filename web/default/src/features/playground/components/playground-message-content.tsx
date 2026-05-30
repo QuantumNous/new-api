@@ -34,9 +34,8 @@ import {
   SourcesContent,
   SourcesTrigger,
 } from '@/components/ai-elements/sources'
-import { MESSAGE_ROLES } from '../constants'
 import { getMessageContentStyles } from '../lib/message-styles'
-import { parseThinkTags } from '../lib'
+import { getMessageContentState } from '../lib'
 import type { Message } from '../types'
 import { MessageError } from './message-error'
 
@@ -52,22 +51,15 @@ export function PlaygroundMessageContent({
   versionContent,
 }: PlaygroundMessageContentProps) {
   const { t } = useTranslation()
-  const isAssistant = message.from === MESSAGE_ROLES.ASSISTANT
-  const sources = message.sources ?? []
-  const reasoningContent = isAssistant ? message.reasoning?.content : undefined
-  const hasSources = sources.length > 0
-  const hasReasoning = !!reasoningContent
-  const showLoader =
-    isAssistant &&
-    !message.isReasoningStreaming &&
-    (message.status === 'loading' ||
-      (message.status === 'streaming' && !versionContent))
-  const showMessageContent =
-    (message.from === MESSAGE_ROLES.USER || !message.isReasoningStreaming) &&
-    !!versionContent
-  const displayContent = isAssistant
-    ? parseThinkTags(versionContent).visibleContent
-    : versionContent
+  const {
+    displayContent,
+    hasReasoning,
+    hasSources,
+    reasoningContent,
+    showLoader,
+    showMessageContent,
+    sources,
+  } = getMessageContentState(message, versionContent)
 
   return (
     <>

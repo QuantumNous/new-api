@@ -19,6 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 export * from './message-utils'
 export * from './input-control-utils'
 export * from './message-action-utils'
+export * from './message-content-utils'
 export * from './message-reasoning-utils'
 export * from './message-streaming-utils'
 export * from './message-update-utils'
