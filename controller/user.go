@@ -366,7 +366,7 @@ func TransferAffQuota(c *gin.Context) {
 	}
 	tran := TransferAffQuotaRequest{}
 	if err := c.ShouldBindJSON(&tran); err != nil {
-		common.ApiError(c, err)
+		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
 		return
 	}
 	err = user.TransferAffQuotaToQuota(tran.Quota)

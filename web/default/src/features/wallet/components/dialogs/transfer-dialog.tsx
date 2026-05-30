@@ -19,7 +19,12 @@ For commercial licensing, please contact support@quantumnous.com
 import { useState, useEffect } from 'react'
 import { Loader2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { formatQuota } from '@/lib/format'
+import {
+  formatQuota,
+  parseQuotaFromDollars,
+  quotaUnitsToDollars,
+} from '@/lib/format'
+import { getCurrencyDisplay, getCurrencyLabel } from '@/lib/currency'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -31,7 +36,6 @@ import {
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { QUOTA_PER_DOLLAR } from '../../constants'
 
 interface TransferDialogProps {
   open: boolean
@@ -39,6 +43,13 @@ interface TransferDialogProps {
   onConfirm: (amount: number) => Promise<boolean>
   availableQuota: number
   transferring: boolean
+}
+
+function formatInputAmount(value: number): string {
+  if (!Number.isFinite(value)) return ''
+
+  const normalized = Number(value.toFixed(6))
+  return String(normalized)
 }
 
 export function TransferDialog({
@@ -49,17 +60,37 @@ export function TransferDialog({
   transferring,
 }: TransferDialogProps) {
   const { t } = useTranslation()
-  const [amount, setAmount] = useState(QUOTA_PER_DOLLAR)
+  const [amount, setAmount] = useState('')
+  const { config, meta: currencyMeta } = getCurrencyDisplay()
+  const currencyLabel = getCurrencyLabel()
+  const tokensOnly = currencyMeta.kind === 'tokens'
+  const minTransferQuota = Math.round(config.quotaPerUnit)
+  const minAmount = quotaUnitsToDollars(minTransferQuota)
+  const availableAmount = quotaUnitsToDollars(availableQuota)
+  const amountValue = Number(amount)
+  const quotaToTransfer =
+    Number.isFinite(amountValue) && amountValue > 0
+      ? parseQuotaFromDollars(amountValue)
+      : 0
+  const canTransfer =
+    quotaToTransfer >= minTransferQuota && quotaToTransfer <= availableQuota
+  const placeholder = tokensOnly
+    ? t('Enter amount in tokens')
+    : t('Enter amount in {{currency}}', { currency: currencyLabel })
 
   useEffect(() => {
     if (open) {
+      const initialAmount =
+        availableQuota >= minTransferQuota ? minAmount : availableAmount
       // eslint-disable-next-line react-hooks/set-state-in-effect
-      setAmount(QUOTA_PER_DOLLAR)
+      setAmount(availableQuota > 0 ? formatInputAmount(initialAmount) : '')
     }
-  }, [open])
+  }, [open, availableQuota, availableAmount, minAmount, minTransferQuota])
 
   const handleConfirm = async () => {
-    const success = await onConfirm(amount)
+    if (!canTransfer || transferring) return
+
+    const success = await onConfirm(quotaToTransfer)
     if (success) {
       onOpenChange(false)
     }
@@ -94,18 +125,32 @@ export function TransferDialog({
             >
               {t('Transfer Amount')}
             </Label>
-            <Input
-              id='transfer-amount'
-              type='number'
-              value={amount}
-              onChange={(e) => setAmount(Number(e.target.value))}
-              min={QUOTA_PER_DOLLAR}
-              max={availableQuota}
-              step={QUOTA_PER_DOLLAR}
-              className='font-mono text-lg'
-            />
+            <div className='flex gap-2'>
+              <Input
+                id='transfer-amount'
+                type='number'
+                inputMode='decimal'
+                value={amount}
+                onChange={(e) => setAmount(e.target.value)}
+                min={minAmount}
+                max={availableAmount}
+                step={tokensOnly ? 1 : 0.01}
+                placeholder={placeholder}
+                aria-invalid={amount !== '' && !canTransfer}
+                className='font-mono text-lg'
+              />
+              <Button
+                type='button'
+                variant='outline'
+                size='sm'
+                onClick={() => setAmount(formatInputAmount(availableAmount))}
+                disabled={transferring || availableQuota < minTransferQuota}
+              >
+                {t('All')}
+              </Button>
+            </div>
             <p className='text-muted-foreground text-xs'>
-              {t('Minimum:')} {formatQuota(QUOTA_PER_DOLLAR)}
+              {t('Minimum:')} {formatQuota(minTransferQuota)}
             </p>
           </div>
         </div>
@@ -118,7 +163,10 @@ export function TransferDialog({
           >
             {t('Cancel')}
           </Button>
-          <Button onClick={handleConfirm} disabled={transferring}>
+          <Button
+            onClick={handleConfirm}
+            disabled={transferring || !canTransfer}
+          >
             {transferring && <Loader2 className='mr-2 h-4 w-4 animate-spin' />}
             {t('Transfer')}
           </Button>
