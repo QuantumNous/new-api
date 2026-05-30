@@ -19,7 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import { useCallback, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { sendChatCompletion } from '../api'
-import { MESSAGE_STATUS, ERROR_MESSAGES } from '../constants'
+import { ERROR_MESSAGES } from '../constants'
 import {
   applyStreamingChunk,
   buildChatCompletionPayload,
@@ -28,6 +28,8 @@ import {
   parseRequestErrorDetails,
   applyChatCompletionChoice,
   completeAssistantMessage,
+  isAssistantMessageFinal,
+  isAssistantMessagePending,
 } from '../lib'
 import type { Message, PlaygroundConfig, ParameterEnabled } from '../types'
 import { useStreamRequest } from './use-stream-request'
@@ -68,8 +70,7 @@ export function useChatHandler({
     setIsRequesting(false)
     onMessageUpdate((prev) =>
       updateLastAssistantMessage(prev, (message) =>
-        message.status === MESSAGE_STATUS.COMPLETE ||
-        message.status === MESSAGE_STATUS.ERROR
+        isAssistantMessageFinal(message)
           ? message
           : completeAssistantMessage(message)
       )
@@ -182,8 +183,7 @@ export function useChatHandler({
     setIsRequesting(false)
     onMessageUpdate((prev) =>
       updateLastAssistantMessage(prev, (message) =>
-        message.status === MESSAGE_STATUS.LOADING ||
-        message.status === MESSAGE_STATUS.STREAMING
+        isAssistantMessagePending(message)
           ? completeAssistantMessage(message)
           : message
       )

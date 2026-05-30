@@ -109,6 +109,20 @@ export function completeAssistantMessage(message: Message): Message {
   }
 }
 
+export function isAssistantMessageFinal(message: Message): boolean {
+  return (
+    message.status === MESSAGE_STATUS.COMPLETE ||
+    message.status === MESSAGE_STATUS.ERROR
+  )
+}
+
+export function isAssistantMessagePending(message: Message): boolean {
+  return (
+    message.status === MESSAGE_STATUS.LOADING ||
+    message.status === MESSAGE_STATUS.STREAMING
+  )
+}
+
 type ChatCompletionChoice = ChatCompletionResponse['choices'][number]
 
 export function applyChatCompletionChoice(
