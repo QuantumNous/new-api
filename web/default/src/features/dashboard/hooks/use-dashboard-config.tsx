@@ -39,7 +39,7 @@ interface StatCardConfig {
   getValue: (stat: Record<string, number>, days?: number) => number
 }
 
-export function useModelStatCardsConfig(): StatCardConfig[] {
+export function useCoreStatCards(): StatCardConfig[] {
   const { t } = useTranslation()
 
   return [
@@ -64,6 +64,13 @@ export function useModelStatCardsConfig(): StatCardConfig[] {
       icon: Layers,
       getValue: (stat) => stat?.tpm ?? 0,
     },
+  ]
+}
+
+export function useDerivedStatCards(): StatCardConfig[] {
+  const { t } = useTranslation()
+
+  return [
     {
       key: 'cacheTokens',
       title: t('Cache Tokens'),
