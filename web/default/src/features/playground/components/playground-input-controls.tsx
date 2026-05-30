@@ -17,6 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { SendIcon, SquareIcon } from 'lucide-react'
+import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { PromptInputButton } from '@/components/ai-elements/prompt-input'
 import { ModelGroupSelector } from '@/components/model-group-selector'
@@ -35,6 +36,7 @@ type PlaygroundInputControlsProps = {
   onModelChange: (value: string) => void
   onStop?: () => void
   text: string
+  tools: ReactNode
 }
 
 export function PlaygroundInputControls({
@@ -49,6 +51,7 @@ export function PlaygroundInputControls({
   onModelChange,
   onStop,
   text,
+  tools,
 }: PlaygroundInputControlsProps) {
   const { t } = useTranslation()
   const { canSubmit, isSelectorDisabled, shouldShowStop } =
@@ -62,18 +65,21 @@ export function PlaygroundInputControls({
       text,
     })
 
-  return (
-    <div className='flex items-center gap-1.5 md:gap-2'>
-      <ModelGroupSelector
-        selectedModel={modelValue}
-        models={models}
-        onModelChange={onModelChange}
-        selectedGroup={groupValue}
-        groups={groups}
-        onGroupChange={onGroupChange}
-        disabled={isSelectorDisabled}
-      />
+  const renderSelector = () => (
+    <ModelGroupSelector
+      className='gap-1.5 md:gap-2'
+      selectedModel={modelValue}
+      models={models}
+      onModelChange={onModelChange}
+      selectedGroup={groupValue}
+      groups={groups}
+      onGroupChange={onGroupChange}
+      disabled={isSelectorDisabled}
+    />
+  )
 
+  const renderSubmitButton = () => (
+    <>
       {shouldShowStop ? (
         <PromptInputButton
           className='text-foreground font-medium'
@@ -96,6 +102,26 @@ export function PlaygroundInputControls({
           <span className='sr-only sm:hidden'>{t('Send')}</span>
         </PromptInputButton>
       )}
+    </>
+  )
+
+  return (
+    <div className='flex w-full flex-col gap-2 md:flex-row md:items-center md:justify-between'>
+      <div className='flex min-w-0 items-center justify-end md:hidden'>
+        {renderSelector()}
+      </div>
+
+      <div className='flex items-center justify-between gap-2 md:justify-start'>
+        {tools}
+        <div className='flex items-center gap-1.5 md:hidden'>
+          {renderSubmitButton()}
+        </div>
+      </div>
+
+      <div className='hidden items-center gap-2 md:flex'>
+        {renderSelector()}
+        {renderSubmitButton()}
+      </div>
     </div>
   )
 }

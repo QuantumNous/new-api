@@ -84,8 +84,6 @@ export function PlaygroundInput({
         />
 
         <PromptInputFooter className='p-2.5'>
-          <PlaygroundInputTools disabled={disabled} />
-
           <PlaygroundInputControls
             disabled={disabled}
             groups={groups}
@@ -98,6 +96,7 @@ export function PlaygroundInput({
             onModelChange={onModelChange}
             onStop={onStop}
             text={text}
+            tools={<PlaygroundInputTools disabled={disabled} />}
           />
         </PromptInputFooter>
       </PromptInput>
