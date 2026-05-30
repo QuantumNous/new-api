@@ -20,6 +20,7 @@ import { SendIcon, SquareIcon } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { PromptInputButton } from '@/components/ai-elements/prompt-input'
 import { ModelGroupSelector } from '@/components/model-group-selector'
+import { getInputControlState } from '../lib'
 import type { GroupOption, ModelOption } from '../types'
 
 type PlaygroundInputControlsProps = {
@@ -50,9 +51,16 @@ export function PlaygroundInputControls({
   text,
 }: PlaygroundInputControlsProps) {
   const { t } = useTranslation()
-  const isModelSelectDisabled =
-    disabled || isModelLoading || models.length === 0
-  const isGroupSelectDisabled = disabled || groups.length === 0
+  const { canSubmit, isSelectorDisabled, shouldShowStop } =
+    getInputControlState({
+      disabled,
+      groups,
+      hasStopHandler: Boolean(onStop),
+      isGenerating,
+      isModelLoading,
+      models,
+      text,
+    })
 
   return (
     <div className='flex items-center gap-1.5 md:gap-2'>
@@ -63,10 +71,10 @@ export function PlaygroundInputControls({
         selectedGroup={groupValue}
         groups={groups}
         onGroupChange={onGroupChange}
-        disabled={isModelSelectDisabled || isGroupSelectDisabled}
+        disabled={isSelectorDisabled}
       />
 
-      {isGenerating && onStop ? (
+      {shouldShowStop ? (
         <PromptInputButton
           className='text-foreground font-medium'
           onClick={onStop}
@@ -79,7 +87,7 @@ export function PlaygroundInputControls({
       ) : (
         <PromptInputButton
           className='text-foreground font-medium'
-          disabled={disabled || !text.trim()}
+          disabled={!canSubmit}
           type='submit'
           variant='secondary'
         >
