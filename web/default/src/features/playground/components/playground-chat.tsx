@@ -23,8 +23,10 @@ import {
   ConversationScrollButton,
 } from '@/components/ai-elements/conversation'
 import { Message } from '@/components/ai-elements/message'
-import { MESSAGE_ROLES } from '../constants'
-import { getMessageContent } from '../lib/message-utils'
+import {
+  getChatMessageRenderState,
+  getEditingMessageContent,
+} from '../lib'
 import type { Message as MessageType } from '../types'
 import { MessageActions } from './message-actions'
 import { PlaygroundMessageContent } from './playground-message-content'
@@ -60,15 +62,12 @@ export function PlaygroundChat({
 
   useEffect(() => {
     if (!editingKey) return
-    const message = messages.find((m) => m.key === editingKey)
-    const content = message ? getMessageContent(message) : ''
+    const content = getEditingMessageContent(messages, editingKey)
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setEditText(content)
 
     setOriginalText(content)
   }, [editingKey, messages])
-
-  const isEditing = (key: string) => editingKey === key
 
   return (
     <Conversation>
@@ -76,10 +75,13 @@ export function PlaygroundChat({
       <ConversationContent className='p-0'>
         <div className='mx-auto w-full max-w-4xl px-4 py-4'>
           {messages.map((message, messageIndex) => {
-            const currentContent = getMessageContent(message)
-            const isLastAssistantMessage =
-              messageIndex === messages.length - 1 &&
-              message.from === MESSAGE_ROLES.ASSISTANT
+            const { alwaysShowActions, content, isEditing } =
+              getChatMessageRenderState(
+                messages,
+                message,
+                messageIndex,
+                editingKey
+              )
 
             return (
               <Message
@@ -88,7 +90,7 @@ export function PlaygroundChat({
                 key={message.key}
               >
                 <div className='w-full min-w-0 flex-1 basis-full py-1'>
-                  {isEditing(message.key) ? (
+                  {isEditing ? (
                     <PlaygroundMessageEditor
                       editText={editText}
                       message={message}
@@ -108,12 +110,12 @@ export function PlaygroundChat({
                           onEdit={onEditMessage}
                           onDelete={onDeleteMessage}
                           isGenerating={isGenerating}
-                          alwaysVisible={isLastAssistantMessage}
+                          alwaysVisible={alwaysShowActions}
                           className='mt-1'
                         />
                       }
                       message={message}
-                      versionContent={currentContent}
+                      versionContent={content}
                     />
                   )}
                 </div>
