@@ -212,6 +212,10 @@ export interface PaymentRequest {
   amount: number
   /** Payment method identifier */
   payment_method: string
+  /** Optional redirect URL after successful hosted checkout */
+  success_url?: string
+  /** Optional redirect URL after cancelled hosted checkout */
+  cancel_url?: string
 }
 
 /**

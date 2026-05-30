@@ -25,7 +25,10 @@ import {
 } from '@/features/wallet/constants'
 
 const walletSearchSchema = z.object({
-  show_history: z.boolean().optional(),
+  show_history: z
+    .union([z.boolean(), z.string()])
+    .optional()
+    .transform((value) => value === true || value === 'true'),
   [PADDLE_ORDER_SEARCH_PARAM]: z.string().optional(),
   [PADDLE_TRANSACTION_SEARCH_PARAM]: z.string().optional(),
 })
@@ -42,7 +45,7 @@ function RouteComponent() {
     <Wallet
       initialPaddleOrderId={search[PADDLE_ORDER_SEARCH_PARAM]}
       initialPaddleTransactionId={paddleTransactionId}
-      initialShowHistory={search.show_history === true && !paddleTransactionId}
+      initialShowHistory={search.show_history && !paddleTransactionId}
     />
   )
 }

@@ -111,6 +111,9 @@ export function RechargeFormCard({
 }: RechargeFormCardProps) {
   const { t } = useTranslation()
   const [localAmount, setLocalAmount] = useState(topupAmount.toString())
+  const showLocalCurrencyBreakdown = false
+  const formatUsdAmount = (amount: number) => `$${formatNumber(amount)} USD`
+  const showUsdPaymentBreakdown = true
 
   useEffect(() => {
     setLocalAmount(topupAmount.toString())
@@ -215,7 +218,7 @@ export function RechargeFormCard({
               {presetAmounts.length > 0 && (
                 <div className='space-y-2.5 sm:space-y-3'>
                   <Label className='text-muted-foreground text-xs font-medium tracking-wider uppercase'>
-                    {t('Amount')}
+                    {t('Amount')} USD
                   </Label>
                   <div className='grid grid-cols-2 gap-1.5 sm:gap-3 md:grid-cols-4'>
                     {presetAmounts.map((preset, index) => {
@@ -248,7 +251,7 @@ export function RechargeFormCard({
                         >
                           <div className='flex w-full items-center justify-between'>
                             <div className='text-base font-semibold sm:text-lg'>
-                              {formatNumber(displayValue)}
+                              {formatUsdAmount(preset.value)}
                             </div>
                             {hasDiscount && (
                               <div className='text-xs font-medium text-green-600'>
@@ -256,20 +259,43 @@ export function RechargeFormCard({
                               </div>
                             )}
                           </div>
-                          <div className='text-muted-foreground mt-1.5 w-full text-xs sm:mt-2'>
-                            {t('Pay {{amount}}', {
-                              amount: formatCurrency(actualPrice),
-                            })}
-                            {hasDiscount && savedAmount > 0 && (
-                              <span className='text-green-600'>
-                                {' '}
-                                •{' '}
-                                {t('Save {{amount}}', {
-                                  amount: formatCurrency(savedAmount),
+                          {showLocalCurrencyBreakdown && (
+                            <div
+                              className='text-muted-foreground mt-1.5 w-full text-xs sm:mt-2'
+                              data-display-value={displayValue}
+                            >
+                              {t('Pay {{amount}}', {
+                                amount: formatCurrency(actualPrice),
+                              })}
+                              {hasDiscount && savedAmount > 0 && (
+                                <span className='text-green-600'>
+                                  {' '}
+                                  •{' '}
+                                  {t('Save {{amount}}', {
+                                    amount: formatCurrency(savedAmount),
+                                  })}
+                                </span>
+                              )}
+                            </div>
+                          )}
+                          {!showLocalCurrencyBreakdown &&
+                            showUsdPaymentBreakdown &&
+                            hasDiscount && (
+                              <div className='text-muted-foreground mt-1.5 w-full text-xs sm:mt-2'>
+                                {t('Pay {{amount}}', {
+                                  amount: formatUsdAmount(actualPrice),
                                 })}
-                              </span>
+                                {savedAmount > 0 && (
+                                  <span className='text-green-600'>
+                                    {' '}
+                                    •{' '}
+                                    {t('Save {{amount}}', {
+                                      amount: formatUsdAmount(savedAmount),
+                                    })}
+                                  </span>
+                                )}
+                              </div>
                             )}
-                          </div>
                         </Button>
                       )
                     })}
@@ -282,7 +308,7 @@ export function RechargeFormCard({
                   htmlFor='topup-amount'
                   className='text-muted-foreground text-xs font-medium tracking-wider uppercase'
                 >
-                  {t('Custom Amount')}
+                  {t('Custom Amount')} USD
                 </Label>
                 <div className='grid grid-cols-[minmax(0,1fr)_minmax(110px,0.55fr)] gap-2 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center'>
                   <Input
@@ -292,7 +318,7 @@ export function RechargeFormCard({
                     onChange={(e) => handleAmountChange(e.target.value)}
                     min={minTopup}
                     placeholder={t('Minimum {{amount}}', {
-                      amount: formatNumber(minTopup),
+                      amount: formatUsdAmount(minTopup),
                     })}
                     className='h-9 text-base sm:h-10 sm:text-lg'
                   />
@@ -304,8 +330,11 @@ export function RechargeFormCard({
                       <Skeleton className='h-5 w-16' />
                     ) : (
                       <span className='text-sm font-semibold'>
-                        {formatCurrency(paymentAmount)}
+                        {formatUsdAmount(paymentAmount)}
                       </span>
+                    )}
+                    {!calculating && showLocalCurrencyBreakdown && (
+                      <span hidden>{formatCurrency(paymentAmount)}</span>
                     )}
                   </div>
                 </div>
