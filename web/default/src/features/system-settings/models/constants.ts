@@ -66,6 +66,7 @@ export const RATIO_TYPE_OPTIONS = [
   { label: 'Image ratio', value: 'image_ratio' },
   { label: 'Audio ratio', value: 'audio_ratio' },
   { label: 'Audio completion ratio', value: 'audio_completion_ratio' },
+  { label: 'Voice clone unlock ratio', value: 'voice_clone_unlock_ratio' },
   { label: 'Fixed price', value: 'model_price' },
   { label: 'Expression billing', value: 'billing_expr' },
 ] as const

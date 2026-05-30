@@ -1,0 +1,4 @@
+[ERR] 2026/05/30 - 16:40:43 | 20260530084042226876100UEMM006lNI6952C7 | channel error (channel #1, status code: 400): Invalid message type:  
+[ERR] 2026/05/30 - 16:40:43 | 20260530084042226876100UEMM006lNI6952C7 | relay error: Invalid message type:  
+[ERR] 2026/05/30 - 16:41:18 | 2026053008411781286800UEMM006lxERGDVum | channel error (channel #1, status code: 400): Invalid voice specified, the requested voice does not exist or is not licensed for use—please select a supported voice. 
+[ERR] 2026/05/30 - 16:41:18 | 2026053008411781286800UEMM006lxERGDVum | relay error: Invalid voice specified, the requested voice does not exist or is not licensed for use—please select a supported voice. 

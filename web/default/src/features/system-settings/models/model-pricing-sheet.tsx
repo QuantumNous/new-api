@@ -84,6 +84,7 @@ const createModelPricingSchema = (t: (key: string) => string) =>
     imageRatio: z.string().optional(),
     audioRatio: z.string().optional(),
     audioCompletionRatio: z.string().optional(),
+    voiceCloneUnlockRatio: z.string().optional(),
   })
 
 type ModelPricingFormValues = z.infer<
@@ -98,6 +99,7 @@ type LaneKey =
   | 'image'
   | 'audioInput'
   | 'audioOutput'
+  | 'voiceCloneUnlock'
 
 export type ModelRatioData = {
   name: string
@@ -109,6 +111,7 @@ export type ModelRatioData = {
   imageRatio?: string
   audioRatio?: string
   audioCompletionRatio?: string
+  voiceCloneUnlockRatio?: string
   billingMode?: PricingMode
   billingExpr?: string
   requestRuleExpr?: string
@@ -146,6 +149,7 @@ const EMPTY_LANE_PRICES: Record<LaneKey, string> = {
   image: '',
   audioInput: '',
   audioOutput: '',
+  voiceCloneUnlock: '',
 }
 
 const EMPTY_LANE_ENABLED: Record<LaneKey, boolean> = {
@@ -155,6 +159,7 @@ const EMPTY_LANE_ENABLED: Record<LaneKey, boolean> = {
   image: false,
   audioInput: false,
   audioOutput: false,
+  voiceCloneUnlock: false,
 }
 
 const ratioFieldByLane: Record<LaneKey, keyof ModelPricingFormValues> = {
@@ -164,6 +169,7 @@ const ratioFieldByLane: Record<LaneKey, keyof ModelPricingFormValues> = {
   image: 'imageRatio',
   audioInput: 'audioRatio',
   audioOutput: 'audioCompletionRatio',
+  voiceCloneUnlock: 'voiceCloneUnlockRatio',
 }
 
 const laneConfigs: Array<{
@@ -207,6 +213,12 @@ const laneConfigs: Array<{
     titleKey: 'Audio output price',
     descriptionKey: 'Token price for audio output.',
     placeholder: '15.11',
+  },
+  {
+    key: 'voiceCloneUnlock',
+    titleKey: 'Voice clone unlock price',
+    descriptionKey: 'One-time fee for first use of cloned voice (e.g., MiniMax charges 9.9 yuan).',
+    placeholder: '9.9',
   },
 ]
 
@@ -257,6 +269,7 @@ function createInitialLaneState(data?: ModelRatioData | null) {
     image: deriveLanePrice(data.imageRatio, promptPrice),
     audioInput: audioInputPrice,
     audioOutput: deriveLanePrice(data.audioCompletionRatio, audioInputPrice),
+    voiceCloneUnlock: data.voiceCloneUnlockRatio || '',
   }
 
   return {
@@ -269,6 +282,7 @@ function createInitialLaneState(data?: ModelRatioData | null) {
       image: hasValue(data.imageRatio),
       audioInput: hasValue(data.audioRatio),
       audioOutput: hasValue(data.audioCompletionRatio),
+      voiceCloneUnlock: hasValue(data.voiceCloneUnlockRatio),
     },
   }
 }
@@ -447,6 +461,7 @@ export function ModelPricingEditorPanel({
       imageRatio: '',
       audioRatio: '',
       audioCompletionRatio: '',
+      voiceCloneUnlockRatio: '',
     },
   })
 
@@ -464,6 +479,7 @@ export function ModelPricingEditorPanel({
         imageRatio: editData.imageRatio || '',
         audioRatio: editData.audioRatio || '',
         audioCompletionRatio: editData.audioCompletionRatio || '',
+        voiceCloneUnlockRatio: editData.voiceCloneUnlockRatio || '',
       })
       setPricingMode(
         editData.billingMode === 'tiered_expr'
@@ -485,6 +501,7 @@ export function ModelPricingEditorPanel({
         imageRatio: '',
         audioRatio: '',
         audioCompletionRatio: '',
+        voiceCloneUnlockRatio: '',
       })
       setPricingMode('per-token')
       setBillingExpr('')
@@ -723,6 +740,7 @@ export function ModelPricingEditorPanel({
       imageRatio: values.imageRatio || '',
       audioRatio: values.audioRatio || '',
       audioCompletionRatio: values.audioCompletionRatio || '',
+      voiceCloneUnlockRatio: values.voiceCloneUnlockRatio || '',
     }
 
     if (pricingMode === 'tiered_expr') {

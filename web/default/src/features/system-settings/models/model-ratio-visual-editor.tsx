@@ -76,6 +76,7 @@ type ModelRatioVisualEditorProps = {
   imageRatio: string
   audioRatio: string
   audioCompletionRatio: string
+  voiceCloneUnlockRatio: string
   billingMode: string
   billingExpr: string
   onChange: (field: string, value: string) => void
@@ -91,6 +92,7 @@ type ModelRow = {
   imageRatio?: string
   audioRatio?: string
   audioCompletionRatio?: string
+  voiceCloneUnlockRatio?: string
   billingMode?: string
   billingExpr?: string
   requestRuleExpr?: string
@@ -202,6 +204,7 @@ export const ModelRatioVisualEditor = memo(
     imageRatio,
     audioRatio,
     audioCompletionRatio,
+    voiceCloneUnlockRatio,
     billingMode,
     billingExpr,
     onChange,
@@ -291,6 +294,10 @@ export const ModelRatioVisualEditor = memo(
         audioCompletionRatio,
         { fallback: {}, context: 'audio completion ratios' }
       )
+      const voiceCloneUnlockMap = safeJsonParse<Record<string, number>>(
+        voiceCloneUnlockRatio,
+        { fallback: {}, context: 'voice clone unlock ratios' }
+      )
       const billingModeMap = safeJsonParse<Record<string, string>>(
         billingMode,
         {
@@ -315,6 +322,7 @@ export const ModelRatioVisualEditor = memo(
         ...Object.keys(imageMap),
         ...Object.keys(audioMap),
         ...Object.keys(audioCompletionMap),
+        ...Object.keys(voiceCloneUnlockMap),
         ...Object.keys(billingModeMap),
         ...Object.keys(billingExprMap),
       ])
@@ -328,6 +336,7 @@ export const ModelRatioVisualEditor = memo(
         const image = imageMap[name]?.toString() || ''
         const audio = audioMap[name]?.toString() || ''
         const audioCompletion = audioCompletionMap[name]?.toString() || ''
+        const voiceCloneUnlock = voiceCloneUnlockMap[name]?.toString() || ''
 
         const modeForModel = billingModeMap[name]
         if (modeForModel === 'tiered_expr') {
@@ -350,6 +359,7 @@ export const ModelRatioVisualEditor = memo(
             imageRatio: image,
             audioRatio: audio,
             audioCompletionRatio: audioCompletion,
+            voiceCloneUnlockRatio: voiceCloneUnlock,
             hasConflict: false,
           }
         }
@@ -364,6 +374,7 @@ export const ModelRatioVisualEditor = memo(
           imageRatio: image,
           audioRatio: audio,
           audioCompletionRatio: audioCompletion,
+          voiceCloneUnlockRatio: voiceCloneUnlock,
           billingMode: price !== '' ? 'per-request' : 'per-token',
           hasConflict:
             price !== '' &&
@@ -373,7 +384,8 @@ export const ModelRatioVisualEditor = memo(
               createCache !== '' ||
               image !== '' ||
               audio !== '' ||
-              audioCompletion !== ''),
+              audioCompletion !== '' ||
+              voiceCloneUnlock !== ''),
         }
       })
 
@@ -387,6 +399,7 @@ export const ModelRatioVisualEditor = memo(
       imageRatio,
       audioRatio,
       audioCompletionRatio,
+      voiceCloneUnlockRatio,
       billingMode,
       billingExpr,
     ])
@@ -424,6 +437,7 @@ export const ModelRatioVisualEditor = memo(
           imageRatio: model.imageRatio,
           audioRatio: model.audioRatio,
           audioCompletionRatio: model.audioCompletionRatio,
+          voiceCloneUnlockRatio: model.voiceCloneUnlockRatio,
           billingMode:
             model.billingMode === 'tiered_expr'
               ? 'tiered_expr'
@@ -501,6 +515,10 @@ export const ModelRatioVisualEditor = memo(
           audioCompletionRatio,
           { fallback: {}, silent: true }
         )
+        const voiceCloneUnlockMap = safeJsonParse<Record<string, number>>(
+          voiceCloneUnlockRatio,
+          { fallback: {}, silent: true }
+        )
         const billingModeMap = safeJsonParse<Record<string, string>>(
           billingMode,
           { fallback: {}, silent: true }
@@ -518,6 +536,7 @@ export const ModelRatioVisualEditor = memo(
         delete imageMap[name]
         delete audioMap[name]
         delete audioCompletionMap[name]
+        delete voiceCloneUnlockMap[name]
         delete billingModeMap[name]
         delete billingExprMap[name]
 
@@ -531,6 +550,10 @@ export const ModelRatioVisualEditor = memo(
         onChange(
           'AudioCompletionRatio',
           JSON.stringify(audioCompletionMap, null, 2)
+        )
+        onChange(
+          'VoiceCloneUnlockRatio',
+          JSON.stringify(voiceCloneUnlockMap, null, 2)
         )
         onChange(
           'billing_setting.billing_mode',
@@ -550,6 +573,7 @@ export const ModelRatioVisualEditor = memo(
         imageRatio,
         audioRatio,
         audioCompletionRatio,
+        voiceCloneUnlockRatio,
         billingMode,
         billingExpr,
         onChange,
@@ -736,6 +760,10 @@ export const ModelRatioVisualEditor = memo(
           audioCompletionRatio,
           { fallback: {}, silent: true }
         )
+        const voiceCloneUnlockMap = safeJsonParse<Record<string, number>>(
+          voiceCloneUnlockRatio,
+          { fallback: {}, silent: true }
+        )
         const billingModeMap = safeJsonParse<Record<string, string>>(
           billingMode,
           { fallback: {}, silent: true }
@@ -764,6 +792,7 @@ export const ModelRatioVisualEditor = memo(
           delete imageMap[name]
           delete audioMap[name]
           delete audioCompletionMap[name]
+          delete voiceCloneUnlockMap[name]
           delete billingModeMap[name]
           delete billingExprMap[name]
 
@@ -788,6 +817,7 @@ export const ModelRatioVisualEditor = memo(
             setIfPresent(imageMap, name, data.imageRatio)
             setIfPresent(audioMap, name, data.audioRatio)
             setIfPresent(audioCompletionMap, name, data.audioCompletionRatio)
+            setIfPresent(voiceCloneUnlockMap, name, data.voiceCloneUnlockRatio)
           } else if (data.price && data.price !== '') {
             setIfPresent(priceMap, name, data.price)
           } else {
@@ -798,6 +828,7 @@ export const ModelRatioVisualEditor = memo(
             setIfPresent(imageMap, name, data.imageRatio)
             setIfPresent(audioMap, name, data.audioRatio)
             setIfPresent(audioCompletionMap, name, data.audioCompletionRatio)
+            setIfPresent(voiceCloneUnlockMap, name, data.voiceCloneUnlockRatio)
           }
         })
 
@@ -811,6 +842,10 @@ export const ModelRatioVisualEditor = memo(
         onChange(
           'AudioCompletionRatio',
           JSON.stringify(audioCompletionMap, null, 2)
+        )
+        onChange(
+          'VoiceCloneUnlockRatio',
+          JSON.stringify(voiceCloneUnlockMap, null, 2)
         )
         onChange(
           'billing_setting.billing_mode',
@@ -830,6 +865,7 @@ export const ModelRatioVisualEditor = memo(
         imageRatio,
         audioRatio,
         audioCompletionRatio,
+        voiceCloneUnlockRatio,
         billingMode,
         billingExpr,
         onChange,

@@ -49,6 +49,7 @@ type ModelFormValues = {
   ImageRatio: string
   AudioRatio: string
   AudioCompletionRatio: string
+  VoiceCloneUnlockRatio: string
   ExposeRatioEnabled: boolean
   BillingMode: string
   BillingExpr: string
