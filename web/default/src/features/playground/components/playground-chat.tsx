@@ -29,6 +29,7 @@ import {
 } from '../lib'
 import type { Message as MessageType } from '../types'
 import { MessageActions } from './message-actions'
+import { PlaygroundEmptyState } from './playground-empty-state'
 import { PlaygroundMessageContent } from './playground-message-content'
 import { PlaygroundMessageEditor } from './playground-message-editor'
 
@@ -38,6 +39,7 @@ interface PlaygroundChatProps {
   onRegenerateMessage?: (message: MessageType) => void
   onEditMessage?: (message: MessageType) => void
   onDeleteMessage?: (message: MessageType) => void
+  onSelectPrompt?: (prompt: string) => void
   isGenerating?: boolean
   editingKey?: string | null
   onSaveEdit?: (newContent: string) => void
@@ -51,6 +53,7 @@ export function PlaygroundChat({
   onRegenerateMessage,
   onEditMessage,
   onDeleteMessage,
+  onSelectPrompt,
   isGenerating = false,
   editingKey,
   onSaveEdit,
@@ -74,54 +77,58 @@ export function PlaygroundChat({
       {/* Remove outer padding; apply padding to inner centered container to align with input */}
       <ConversationContent className='p-0'>
         <div className='mx-auto w-full max-w-4xl px-4 py-4'>
-          {messages.map((message, messageIndex) => {
-            const { alwaysShowActions, content, isEditing } =
-              getChatMessageRenderState(
-                messages,
-                message,
-                messageIndex,
-                editingKey
-              )
+          {messages.length === 0 && onSelectPrompt ? (
+            <PlaygroundEmptyState onSelectPrompt={onSelectPrompt} />
+          ) : (
+            messages.map((message, messageIndex) => {
+              const { alwaysShowActions, content, isEditing } =
+                getChatMessageRenderState(
+                  messages,
+                  message,
+                  messageIndex,
+                  editingKey
+                )
 
-            return (
-              <Message
-                className='group flex-row-reverse'
-                from={message.from}
-                key={message.key}
-              >
-                <div className='w-full min-w-0 flex-1 basis-full py-1'>
-                  {isEditing ? (
-                    <PlaygroundMessageEditor
-                      editText={editText}
-                      message={message}
-                      onCancelEdit={onCancelEdit}
-                      onEditTextChange={setEditText}
-                      onSaveEdit={onSaveEdit}
-                      onSaveEditAndSubmit={onSaveEditAndSubmit}
-                      originalText={originalText}
-                    />
-                  ) : (
-                    <PlaygroundMessageContent
-                      actions={
-                        <MessageActions
-                          message={message}
-                          onCopy={onCopyMessage}
-                          onRegenerate={onRegenerateMessage}
-                          onEdit={onEditMessage}
-                          onDelete={onDeleteMessage}
-                          isGenerating={isGenerating}
-                          alwaysVisible={alwaysShowActions}
-                          className='mt-1'
-                        />
-                      }
-                      message={message}
-                      versionContent={content}
-                    />
-                  )}
-                </div>
-              </Message>
-            )
-          })}
+              return (
+                <Message
+                  className='group flex-row-reverse'
+                  from={message.from}
+                  key={message.key}
+                >
+                  <div className='w-full min-w-0 flex-1 basis-full py-1'>
+                    {isEditing ? (
+                      <PlaygroundMessageEditor
+                        editText={editText}
+                        message={message}
+                        onCancelEdit={onCancelEdit}
+                        onEditTextChange={setEditText}
+                        onSaveEdit={onSaveEdit}
+                        onSaveEditAndSubmit={onSaveEditAndSubmit}
+                        originalText={originalText}
+                      />
+                    ) : (
+                      <PlaygroundMessageContent
+                        actions={
+                          <MessageActions
+                            message={message}
+                            onCopy={onCopyMessage}
+                            onRegenerate={onRegenerateMessage}
+                            onEdit={onEditMessage}
+                            onDelete={onDeleteMessage}
+                            isGenerating={isGenerating}
+                            alwaysVisible={alwaysShowActions}
+                            className='mt-1'
+                          />
+                        }
+                        message={message}
+                        versionContent={content}
+                      />
+                    )}
+                  </div>
+                </Message>
+              )
+            })
+          )}
         </div>
       </ConversationContent>
       <ConversationScrollButton />
