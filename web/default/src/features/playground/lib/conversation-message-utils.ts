@@ -60,6 +60,13 @@ export function createRegeneratedMessages(
   return [...messages.slice(0, messageIndex), createLoadingAssistantMessage()]
 }
 
+export function removeMessageByKey(
+  messages: Message[],
+  messageKey: string
+): Message[] {
+  return messages.filter((message) => message.key !== messageKey)
+}
+
 export function applyMessageEdit(
   messages: Message[],
   messageKey: string,
