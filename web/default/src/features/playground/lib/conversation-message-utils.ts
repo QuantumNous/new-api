@@ -85,7 +85,10 @@ export function applyMessageEdit(
       : message
   )
 
-  if (!shouldSubmit || updatedMessages[messageIndex].from !== 'user') {
+  if (
+    !shouldSubmit ||
+    updatedMessages[messageIndex].from !== MESSAGE_ROLES.USER
+  ) {
     return { messages: updatedMessages, shouldSend: false }
   }
 

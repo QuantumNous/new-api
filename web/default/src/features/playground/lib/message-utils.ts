@@ -159,7 +159,9 @@ export function isValidMessage(message: Message): boolean {
   if (!message || !message.from || !message.versions.length) return false
 
   // Exclude empty assistant messages (loading/streaming placeholders)
-  if (message.from === 'assistant' && !hasMessageContent(message)) return false
+  if (message.from === MESSAGE_ROLES.ASSISTANT && !hasMessageContent(message)) {
+    return false
+  }
 
   return true
 }
