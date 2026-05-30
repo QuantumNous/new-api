@@ -35,7 +35,7 @@ import {
   SourcesTrigger,
 } from '@/components/ai-elements/sources'
 import { getMessageContentStyles } from '../lib/message-styles'
-import { getMessageContentState } from '../lib'
+import { getMessageContentState, isErrorMessage } from '../lib'
 import type { Message } from '../types'
 import { MessageError } from './message-error'
 
@@ -60,6 +60,7 @@ export function PlaygroundMessageContent({
     showMessageContent,
     sources,
   } = getMessageContentState(message, versionContent)
+  const isError = isErrorMessage(message)
 
   return (
     <>
@@ -97,14 +98,14 @@ export function PlaygroundMessageContent({
         </div>
       )}
 
-      {message.status === 'error' && (
+      {isError && (
         <>
           <MessageError message={message} className='mb-2' />
           {actions}
         </>
       )}
 
-      {message.status !== 'error' && showMessageContent && (
+      {!isError && showMessageContent && (
         <>
           <MessageContent
             variant='flat'
