@@ -16,21 +16,21 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-export * from './message-utils'
-export * from './input-control-utils'
-export * from './message-action-utils'
-export * from './message-content-utils'
-export * from './message-editor-utils'
-export * from './message-error-utils'
-export * from './message-reasoning-utils'
-export * from './message-streaming-utils'
-export * from './message-update-utils'
-export * from './payload-builder'
-export * from './storage'
-export * from './message-styles'
-export * from './stream-utils'
-export * from './request-error-utils'
-export * from './conversation-message-utils'
-export * from './playground-state-utils'
-export * from './playground-option-utils'
-export * from './suggestion-utils'
+const MORE_SUGGESTION_TEXT = 'More'
+const SUGGESTION_CLASS_NAME = 'text-xs font-normal sm:text-sm'
+const MOBILE_HIDDEN_SUGGESTION_CLASS_NAME = `${SUGGESTION_CLASS_NAME} hidden sm:flex`
+
+type SuggestionDisplayState = {
+  className: string
+}
+
+export function getSuggestionDisplayState(
+  text: string
+): SuggestionDisplayState {
+  return {
+    className:
+      text === MORE_SUGGESTION_TEXT
+        ? MOBILE_HIDDEN_SUGGESTION_CLASS_NAME
+        : SUGGESTION_CLASS_NAME,
+  }
+}
