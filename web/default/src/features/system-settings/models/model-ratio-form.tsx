@@ -136,6 +136,7 @@ export const ModelRatioForm = memo(function ModelRatioForm({
               imageRatio={form.watch('ImageRatio')}
               audioRatio={form.watch('AudioRatio')}
               audioCompletionRatio={form.watch('AudioCompletionRatio')}
+              voiceCloneUnlockRatio={form.watch('VoiceCloneUnlockRatio')}
               billingMode={form.watch('BillingMode')}
               billingExpr={form.watch('BillingExpr')}
               onChange={(field, value) => {
