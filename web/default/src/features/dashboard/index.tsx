@@ -59,6 +59,12 @@ const LazyModelCharts = lazy(() =>
   }))
 )
 
+const LazyCacheTokenCharts = lazy(() =>
+  import('./components/models/cache-token-charts').then((m) => ({
+    default: m.CacheTokenCharts,
+  }))
+)
+
 const LazyConsumptionDistributionChart = lazy(() =>
   import('./components/models/consumption-distribution-chart').then((m) => ({
     default: m.ConsumptionDistributionChart,
@@ -301,6 +307,18 @@ export function Dashboard() {
                     data={modelData}
                     loading={dataLoading}
                     defaultChartTab={chartPreferences.modelAnalyticsChart}
+                    timeGranularity={
+                      modelFilters.time_granularity || DEFAULT_TIME_GRANULARITY
+                    }
+                  />
+                </Suspense>
+              </FadeIn>
+              <FadeIn delay={0.2}>
+                <Suspense fallback={<ModelChartsFallback />}>
+                  <LazyCacheTokenCharts
+                    data={modelData}
+                    loading={dataLoading}
+                    defaultTab={chartPreferences.cacheAnalyticsChart}
                     timeGranularity={
                       modelFilters.time_granularity || DEFAULT_TIME_GRANULARITY
                     }
