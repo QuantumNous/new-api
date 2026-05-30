@@ -30,6 +30,17 @@ type AudioRequest struct {
 	//Stream                  json.RawMessage `json:"stream,omitempty"`
 }
 
+type AudioVoiceCloneRequest struct {
+	Model    string          `json:"model"`
+	Input    json.RawMessage `json:"input,omitempty"`
+	Text     string          `json:"text,omitempty"`
+	VoiceID  string          `json:"voice_id,omitempty"`
+	FileID   int64           `json:"file_id,omitempty"`
+	AudioURL string          `json:"audio_url,omitempty"`
+	Metadata json.RawMessage `json:"metadata,omitempty"`
+	rawText  string
+}
+
 func (r *AudioRequest) GetTokenCountMeta() *types.TokenCountMeta {
 	meta := &types.TokenCountMeta{
 		CombineText: r.Input,
@@ -39,6 +50,32 @@ func (r *AudioRequest) GetTokenCountMeta() *types.TokenCountMeta {
 		meta.TokenType = types.TokenTypeTokenizer
 	}
 	return meta
+}
+
+func (r *AudioVoiceCloneRequest) GetTokenCountMeta() *types.TokenCountMeta {
+	text := r.Text
+	if text == "" && len(r.Input) > 0 {
+		var input struct {
+			Text string `json:"text"`
+		}
+		if json.Unmarshal(r.Input, &input) == nil {
+			text = input.Text
+		}
+	}
+	return &types.TokenCountMeta{
+		CombineText: text,
+		TokenType:   types.TokenTypeTextNumber,
+	}
+}
+
+func (r *AudioVoiceCloneRequest) IsStream(c *gin.Context) bool {
+	return false
+}
+
+func (r *AudioVoiceCloneRequest) SetModelName(modelName string) {
+	if modelName != "" {
+		r.Model = modelName
+	}
 }
 
 func (r *AudioRequest) IsStream(c *gin.Context) bool {

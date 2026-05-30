@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 
+	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/relay/channel"
 	"github.com/QuantumNous/new-api/relay/channel/claude"
@@ -33,6 +34,26 @@ func (a *Adaptor) ConvertClaudeRequest(c *gin.Context, info *relaycommon.RelayIn
 }
 
 func (a *Adaptor) ConvertAudioRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.AudioRequest) (io.Reader, error) {
+	if info.RelayMode == constant.RelayModeAudioVoiceClone {
+		storage, err := common.GetBodyStorage(c)
+		if err != nil {
+			return nil, err
+		}
+		body, err := storage.Bytes()
+		if err != nil {
+			return nil, err
+		}
+		var payload map[string]interface{}
+		if err := json.Unmarshal(body, &payload); err != nil {
+			return nil, err
+		}
+		delete(payload, "model")
+		jsonData, err := json.Marshal(payload)
+		if err != nil {
+			return nil, err
+		}
+		return bytes.NewReader(jsonData), nil
+	}
 	if info.RelayMode != constant.RelayModeAudioSpeech {
 		return nil, errors.New("unsupported audio relay mode")
 	}
@@ -42,7 +63,7 @@ func (a *Adaptor) ConvertAudioRequest(c *gin.Context, info *relaycommon.RelayInf
 	outputFormat := request.ResponseFormat
 
 	minimaxRequest := MiniMaxTTSRequest{
-		Model: info.OriginModelName,
+		Model: request.Model,
 		Text:  request.Input,
 		VoiceSetting: VoiceSetting{
 			VoiceID: voiceID,
@@ -123,6 +144,9 @@ func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, request
 func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (usage any, err *types.NewAPIError) {
 	if info.RelayMode == constant.RelayModeAudioSpeech {
 		return handleTTSResponse(c, resp, info)
+	}
+	if info.RelayMode == constant.RelayModeAudioVoiceClone {
+		return handleVoiceCloneResponse(c, resp, info)
 	}
 	if info.RelayMode == constant.RelayModeImagesGenerations {
 		return miniMaxImageHandler(c, resp, info)

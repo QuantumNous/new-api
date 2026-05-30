@@ -91,6 +91,13 @@ type MiniMaxBaseResp struct {
 	StatusMsg  string `json:"status_msg"`
 }
 
+type MiniMaxVoiceCloneResponse struct {
+	InputSensitive     bool            `json:"input_sensitive"`
+	InputSensitiveType int             `json:"input_sensitive_type"`
+	DemoAudio          string          `json:"demo_audio"`
+	BaseResp           MiniMaxBaseResp `json:"base_resp"`
+}
+
 func getContentTypeByFormat(format string) string {
 	contentTypeMap := map[string]string{
 		"mp3":  "audio/mpeg",
@@ -163,13 +170,53 @@ func handleTTSResponse(c *gin.Context, resp *http.Response, info *relaycommon.Re
 		c.Data(http.StatusOK, contentType, audioData)
 	}
 
+	promptTokens := info.GetEstimatePromptTokens()
+	audioTokens := int(minimaxResp.ExtraInfo.UsageCharacters)
 	usage = &dto.Usage{
-		PromptTokens:     info.GetEstimatePromptTokens(),
-		CompletionTokens: 0,
-		TotalTokens:      int(minimaxResp.ExtraInfo.UsageCharacters),
+		PromptTokens:     promptTokens,
+		CompletionTokens: audioTokens,
+		TotalTokens:      promptTokens + audioTokens,
+		PromptTokensDetails: dto.InputTokenDetails{
+			TextTokens: promptTokens,
+		},
+		CompletionTokenDetails: dto.OutputTokenDetails{
+			AudioTokens: audioTokens,
+		},
 	}
 
 	return usage, nil
+}
+
+func handleVoiceCloneResponse(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (usage any, err *types.NewAPIError) {
+	body, readErr := io.ReadAll(resp.Body)
+	if readErr != nil {
+		return nil, types.NewErrorWithStatusCode(
+			fmt.Errorf("failed to read minimax voice clone response: %w", readErr),
+			types.ErrorCodeReadResponseBodyFailed,
+			http.StatusInternalServerError,
+		)
+	}
+	defer resp.Body.Close()
+
+	var cloneResp MiniMaxVoiceCloneResponse
+	if unmarshalErr := json.Unmarshal(body, &cloneResp); unmarshalErr == nil && cloneResp.BaseResp.StatusCode != 0 {
+		return nil, types.NewErrorWithStatusCode(
+			fmt.Errorf("minimax voice clone error: %d - %s", cloneResp.BaseResp.StatusCode, cloneResp.BaseResp.StatusMsg),
+			types.ErrorCodeBadResponse,
+			http.StatusBadRequest,
+		)
+	}
+
+	c.Data(resp.StatusCode, "application/json", body)
+
+	totalTokens := info.GetEstimatePromptTokens()
+	if totalTokens == 0 {
+		totalTokens = 1
+	}
+	return &dto.Usage{
+		PromptTokens: totalTokens,
+		TotalTokens:  totalTokens,
+	}, nil
 }
 
 func handleChatCompletionResponse(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (usage any, err *types.NewAPIError) {

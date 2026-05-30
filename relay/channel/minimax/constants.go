@@ -16,6 +16,8 @@ var ModelList = []string{
 	"speech-02-turbo",
 	"speech-01-hd",
 	"speech-01-turbo",
+	"minimax-tts",
+	"minimax-voice-clone",
 	"MiniMax-M2.1",
 	"MiniMax-M2.1-highspeed",
 	"MiniMax-M2",

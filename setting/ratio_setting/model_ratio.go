@@ -209,6 +209,16 @@ var defaultModelRatio = map[string]float64{
 	"glm-4v-plus":                               0.01 * RMB,
 	"qwen-turbo":                                0.8572, // ￥0.012 / 1k tokens
 	"qwen-plus":                                 10,     // ￥0.14 / 1k tokens
+	"qwen-tts":                                  0.05,   // audio synthesis, per 1k characters
+	"qwen-tts-latest":                           0.05,   // audio synthesis, per 1k characters
+	"qwen3-tts-flash":                           0.05,   // audio synthesis, per 1k characters
+	"minimax-tts":                               0.5,    // audio synthesis, per 1k characters
+	"speech-2.5-hd-preview":                     0.5,
+	"speech-2.5-turbo-preview":                  0.5,
+	"speech-02-hd":                              0.5,
+	"speech-02-turbo":                           0.5,
+	"speech-01-hd":                              0.5,
+	"speech-01-turbo":                           0.5,
 	"text-embedding-v1":                         0.05,   // ￥0.0007 / 1k tokens
 	"SparkDesk-v1.1":                            1.2858, // ￥0.018 / 1k tokens
 	"SparkDesk-v2.1":                            1.2858, // ￥0.018 / 1k tokens
@@ -304,6 +314,9 @@ var defaultModelPrice = map[string]float64{
 	"sora-2":                         0.3,
 	"sora-2-pro":                     0.5,
 	"gpt-4o-mini-tts":                0.3,
+	"qwen-voice-clone":               0.1,
+	"qwen-voice-enrollment":          0.1,
+	"minimax-voice-clone":            0.1,
 	"veo-3.0-generate-001":           0.4,
 	"veo-3.0-fast-generate-001":      0.15,
 	"veo-3.1-generate-preview":       0.4,
@@ -316,16 +329,36 @@ var defaultAudioRatio = map[string]float64{
 	"gpt-4o-realtime-preview":      8,
 	"gpt-4o-mini-realtime-preview": 16.67,
 	"gpt-4o-mini-tts":              25,
+	"qwen-tts":                     1,
+	"qwen-tts-latest":              1,
+	"qwen3-tts-flash":              1,
+	"minimax-tts":                  1,
+	"speech-2.5-hd-preview":        1,
+	"speech-2.5-turbo-preview":     1,
+	"speech-02-hd":                 1,
+	"speech-02-turbo":              1,
+	"speech-01-hd":                 1,
+	"speech-01-turbo":              1,
 }
 
 var defaultAudioCompletionRatio = map[string]float64{
-	"gpt-4o-realtime":      2,
-	"gpt-4o-mini-realtime": 2,
-	"gpt-4o-mini-tts":      1,
-	"tts-1":                0,
-	"tts-1-hd":             0,
-	"tts-1-1106":           0,
-	"tts-1-hd-1106":        0,
+	"gpt-4o-realtime":          2,
+	"gpt-4o-mini-realtime":     2,
+	"gpt-4o-mini-tts":          1,
+	"tts-1":                    0,
+	"tts-1-hd":                 0,
+	"tts-1-1106":               0,
+	"tts-1-hd-1106":            0,
+	"qwen-tts":                 0,
+	"qwen-tts-latest":          0,
+	"qwen3-tts-flash":          0,
+	"minimax-tts":              0,
+	"speech-2.5-hd-preview":    0,
+	"speech-2.5-turbo-preview": 0,
+	"speech-02-hd":             0,
+	"speech-02-turbo":          0,
+	"speech-01-hd":             0,
+	"speech-01-turbo":          0,
 }
 
 var modelPriceMap = types.NewRWMap[string, float64]()

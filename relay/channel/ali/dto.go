@@ -73,6 +73,7 @@ type AliUsage struct {
 	OutputTokens int `json:"output_tokens"`
 	TotalTokens  int `json:"total_tokens"`
 	ImageCount   int `json:"image_count,omitempty"`
+	Count        int `json:"count,omitempty"`
 }
 
 type TaskResult struct {
