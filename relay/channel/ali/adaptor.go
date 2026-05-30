@@ -122,7 +122,11 @@ func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 		case constant.RelayModeAudioSpeech:
 			fullRequestURL = fmt.Sprintf("%s/api/v1/services/aigc/multimodal-generation/generation", info.ChannelBaseUrl)
 		case constant.RelayModeAudioVoiceClone:
-			fullRequestURL = fmt.Sprintf("%s/api/v1/services/audio/tts/customization", info.ChannelBaseUrl)
+			if isAliMiniMaxSpeechModel(info.UpstreamModelName) || isAliMiniMaxSpeechModel(info.OriginModelName) {
+				fullRequestURL = fmt.Sprintf("%s/api/v1/services/aigc/multimodal-generation/generation", info.ChannelBaseUrl)
+			} else {
+				fullRequestURL = fmt.Sprintf("%s/api/v1/services/audio/tts/customization", info.ChannelBaseUrl)
+			}
 		case constant.RelayModeCompletions:
 			fullRequestURL = fmt.Sprintf("%s/compatible-mode/v1/completions", info.ChannelBaseUrl)
 		default:
