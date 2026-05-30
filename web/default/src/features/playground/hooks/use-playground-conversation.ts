@@ -21,6 +21,7 @@ import {
   appendUserMessagePair,
   applyMessageEdit,
   createRegeneratedMessages,
+  removeMessageByKey,
 } from '../lib'
 import type { Message } from '../types'
 
@@ -96,9 +97,7 @@ export function usePlaygroundConversation({
   const handleDeleteMessage = useCallback(
     (message: Message) => {
       updateMessages((previousMessages) =>
-        previousMessages.filter(
-          (previousMessage) => previousMessage.key !== message.key
-        )
+        removeMessageByKey(previousMessages, message.key)
       )
     },
     [updateMessages]
