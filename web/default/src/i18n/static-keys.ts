@@ -263,6 +263,8 @@ export const STATIC_I18N_KEYS = [
   // Subscription plans
   'Subscription Plans',
   'Subscribe Now',
+  'Subscribed',
+  'You already have an active subscription for this plan.',
   'Purchase Subscription',
   'My Subscriptions',
   'Plan Name',

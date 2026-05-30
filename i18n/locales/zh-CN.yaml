@@ -126,6 +126,7 @@ subscription.reset_cycle_gt_zero: "自定义重置周期需大于0秒"
 subscription.purchase_max: "已达到该套餐购买上限"
 subscription.invalid_id: "无效的订阅ID"
 subscription.invalid_user_id: "无效的用户ID"
+subscription.already_active: "你已订阅该套餐，请勿重复购买"
 
 # Payment messages
 payment.not_configured: "当前管理员未配置支付信息"

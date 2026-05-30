@@ -64,8 +64,7 @@ func SubscriptionRequestStripePay(c *gin.Context) {
 		return
 	}
 
-	if err := model.CheckSubscriptionPurchaseLimitTx(nil, userId, plan); err != nil {
-		common.ApiError(c, err)
+	if !ensureSubscriptionPayEligible(c, userId, plan) {
 		return
 	}
 

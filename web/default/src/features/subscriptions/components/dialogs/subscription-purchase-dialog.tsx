@@ -64,6 +64,7 @@ interface Props {
   epayMethods?: PaymentMethod[]
   purchaseLimit?: number
   purchaseCount?: number
+  alreadySubscribed?: boolean
 }
 
 export function SubscriptionPurchaseDialog(props: Props) {
@@ -99,8 +100,17 @@ export function SubscriptionPurchaseDialog(props: Props) {
   const limitReached =
     (props.purchaseLimit || 0) > 0 &&
     (props.purchaseCount || 0) >= (props.purchaseLimit || 0)
+  const alreadySubscribed = !!props.alreadySubscribed
+  const purchaseBlocked = limitReached || alreadySubscribed
+
+  const stopIfAlreadySubscribed = () => {
+    if (!alreadySubscribed) return false
+    toast.error(t('You already have an active subscription for this plan.'))
+    return true
+  }
 
   const handlePayStripe = async () => {
+    if (stopIfAlreadySubscribed()) return
     setPaying(true)
     try {
       const res = await paySubscriptionStripe({ plan_id: plan.id })
@@ -123,6 +133,7 @@ export function SubscriptionPurchaseDialog(props: Props) {
   }
 
   const handlePayCreem = async () => {
+    if (stopIfAlreadySubscribed()) return
     setPaying(true)
     try {
       const res = await paySubscriptionCreem({ plan_id: plan.id })
@@ -147,6 +158,7 @@ export function SubscriptionPurchaseDialog(props: Props) {
   // In-tab redirect (not window.open) — user-gesture context is lost
   // across the await, so a popup would be blocked. Same as the wallet hook.
   const handlePayWaffoPancake = async () => {
+    if (stopIfAlreadySubscribed()) return
     setPaying(true)
     try {
       const res = await paySubscriptionWaffoPancake({ plan_id: plan.id })
@@ -172,6 +184,7 @@ export function SubscriptionPurchaseDialog(props: Props) {
     /^((?!chrome|android).)*safari/i.test(navigator.userAgent)
 
   const handlePayEpay = async () => {
+    if (stopIfAlreadySubscribed()) return
     if (!selectedEpayMethod) {
       toast.error(t('Please select a payment method'))
       return
@@ -276,6 +289,14 @@ export function SubscriptionPurchaseDialog(props: Props) {
             </div>
           </div>
 
+          {alreadySubscribed && (
+            <Alert>
+              <AlertDescription>
+                {t('You already have an active subscription for this plan.')}
+              </AlertDescription>
+            </Alert>
+          )}
+
           {limitReached && (
             <Alert variant='destructive'>
               <AlertDescription>
@@ -297,7 +318,7 @@ export function SubscriptionPurchaseDialog(props: Props) {
                       variant='outline'
                       className='flex-1'
                       onClick={handlePayStripe}
-                      disabled={paying || limitReached}
+                      disabled={paying || purchaseBlocked}
                     >
                       Stripe
                     </Button>
@@ -307,7 +328,7 @@ export function SubscriptionPurchaseDialog(props: Props) {
                       variant='outline'
                       className='flex-1'
                       onClick={handlePayCreem}
-                      disabled={paying || limitReached}
+                      disabled={paying || purchaseBlocked}
                     >
                       Creem
                     </Button>
@@ -317,7 +338,7 @@ export function SubscriptionPurchaseDialog(props: Props) {
                       variant='outline'
                       className='flex-1'
                       onClick={handlePayWaffoPancake}
-                      disabled={paying || limitReached}
+                      disabled={paying || purchaseBlocked}
                     >
                       Waffo Pancake
                     </Button>
@@ -337,7 +358,7 @@ export function SubscriptionPurchaseDialog(props: Props) {
                     onValueChange={(v) =>
                       v !== null && setSelectedEpayMethod(v)
                     }
-                    disabled={limitReached}
+                    disabled={purchaseBlocked}
                   >
                     <SelectTrigger className='flex-1'>
                       <SelectValue>{selectedEpayMethodLabel}</SelectValue>
@@ -354,7 +375,7 @@ export function SubscriptionPurchaseDialog(props: Props) {
                   </Select>
                   <Button
                     onClick={handlePayEpay}
-                    disabled={paying || !selectedEpayMethod || limitReached}
+                    disabled={paying || !selectedEpayMethod || purchaseBlocked}
                   >
                     {t('Pay')}
                   </Button>

@@ -218,6 +218,23 @@ export function SubscriptionPlansCard({
     return map
   }, [allSubscriptions])
 
+  const activePlanIdSet = useMemo(() => {
+    const set = new Set<number>()
+    const now = Date.now() / 1000
+    for (const sub of activeSubscriptions) {
+      const subscription = sub?.subscription
+      const planId = subscription?.plan_id
+      if (
+        planId &&
+        subscription?.status === 'active' &&
+        (subscription?.end_time || 0) > now
+      ) {
+        set.add(planId)
+      }
+    }
+    return set
+  }, [activeSubscriptions])
+
   useEffect(() => {
     onAvailabilityChange?.(isAvailable)
   }, [isAvailable, onAvailabilityChange])
@@ -535,6 +552,7 @@ export function SubscriptionPlansCard({
               const periodLimit = Number(plan.period_purchase_limit || 0)
               const count = planPurchaseCountMap.get(plan.id) || 0
               const reached = limit > 0 && count >= limit
+              const alreadySubscribed = activePlanIdSet.has(plan.id)
 
               const benefits = [
                 `${t('Validity Period')}: ${formatDuration(plan, t)}`,
@@ -605,7 +623,11 @@ export function SubscriptionPlansCard({
 
                     <Separator className='mb-3' />
 
-                    {reached ? (
+                    {alreadySubscribed ? (
+                      <Button variant='secondary' className='w-full' disabled>
+                        {t('Subscribed')}
+                      </Button>
+                    ) : reached ? (
                       <Tooltip>
                         <TooltipTrigger render={<div />}>
                           <Button variant='outline' className='w-full' disabled>
@@ -663,6 +685,11 @@ export function SubscriptionPlansCard({
           selectedPlan?.plan?.id
             ? planPurchaseCountMap.get(selectedPlan.plan.id)
             : undefined
+        }
+        alreadySubscribed={
+          selectedPlan?.plan?.id
+            ? activePlanIdSet.has(selectedPlan.plan.id)
+            : false
         }
       />
     </>

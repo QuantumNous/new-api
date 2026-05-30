@@ -58,3 +58,61 @@ func TestCheckSubscriptionPurchaseLimitTx_PeriodLimit(t *testing.T) {
 
 	require.ErrorContains(t, CheckSubscriptionPurchaseLimitTx(DB, user.Id, plan), "已达到该套餐周期购买上限")
 }
+
+func TestCheckSubscriptionPayEligibilityTx_RejectsActiveSamePlan(t *testing.T) {
+	truncateTables(t)
+
+	user := &User{
+		Id:       911,
+		Username: "active-same-plan-user",
+		Role:     common.RoleCommonUser,
+		Status:   common.UserStatusEnabled,
+		Group:    "default",
+	}
+	require.NoError(t, DB.Create(user).Error)
+
+	plan := &SubscriptionPlan{
+		Id:            912,
+		Title:         "Active Same Plan",
+		PriceAmount:   1,
+		Currency:      "USD",
+		DurationUnit:  SubscriptionDurationMonth,
+		DurationValue: 1,
+		Enabled:       true,
+		TotalAmount:   100,
+	}
+	require.NoError(t, DB.Create(plan).Error)
+
+	otherPlan := &SubscriptionPlan{
+		Id:            913,
+		Title:         "Other Plan",
+		PriceAmount:   1,
+		Currency:      "USD",
+		DurationUnit:  SubscriptionDurationMonth,
+		DurationValue: 1,
+		Enabled:       true,
+		TotalAmount:   100,
+	}
+	require.NoError(t, DB.Create(otherPlan).Error)
+
+	now := GetDBTimestamp()
+	require.NoError(t, DB.Create(&UserSubscription{
+		UserId:    user.Id,
+		PlanId:    plan.Id,
+		StartTime: now - 60,
+		EndTime:   now + 3600,
+		Status:    "active",
+		Source:    "order",
+	}).Error)
+	require.NoError(t, DB.Create(&UserSubscription{
+		UserId:    user.Id,
+		PlanId:    otherPlan.Id,
+		StartTime: now - 7200,
+		EndTime:   now - 3600,
+		Status:    "expired",
+		Source:    "order",
+	}).Error)
+
+	require.ErrorIs(t, CheckSubscriptionPayEligibilityTx(DB, user.Id, plan), ErrSubscriptionAlreadyActive)
+	require.NoError(t, CheckSubscriptionPayEligibilityTx(DB, user.Id, otherPlan))
+}

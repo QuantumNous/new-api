@@ -35,6 +35,7 @@ const (
 var (
 	ErrSubscriptionOrderNotFound      = errors.New("subscription order not found")
 	ErrSubscriptionOrderStatusInvalid = errors.New("subscription order status invalid")
+	ErrSubscriptionAlreadyActive      = errors.New("该套餐已订阅")
 )
 
 const (
@@ -393,6 +394,27 @@ func CountUserSubscriptionsByPlan(userId int, planId int) (int64, error) {
 	return count, nil
 }
 
+func HasActiveUserSubscriptionForPlanTx(tx *gorm.DB, userId int, planId int) (bool, error) {
+	if userId <= 0 || planId <= 0 {
+		return false, errors.New("invalid userId or planId")
+	}
+	if tx == nil {
+		tx = DB
+	}
+	now := getDBTimestampTx(tx)
+	var count int64
+	if err := tx.Model(&UserSubscription{}).
+		Where("user_id = ? AND plan_id = ? AND status = ? AND end_time > ?", userId, planId, "active", now).
+		Count(&count).Error; err != nil {
+		return false, err
+	}
+	return count > 0, nil
+}
+
+func HasActiveUserSubscriptionForPlan(userId int, planId int) (bool, error) {
+	return HasActiveUserSubscriptionForPlanTx(nil, userId, planId)
+}
+
 func calcPeriodPurchaseSince(now time.Time, plan *SubscriptionPlan) (int64, error) {
 	if plan == nil {
 		return 0, errors.New("plan is nil")
@@ -454,6 +476,23 @@ func CheckSubscriptionPurchaseLimitTx(tx *gorm.DB, userId int, plan *Subscriptio
 		}
 	}
 	return nil
+}
+
+func CheckSubscriptionPayEligibilityTx(tx *gorm.DB, userId int, plan *SubscriptionPlan) error {
+	if tx == nil {
+		tx = DB
+	}
+	if userId <= 0 || plan == nil || plan.Id <= 0 {
+		return errors.New("invalid subscription pay eligibility args")
+	}
+	active, err := HasActiveUserSubscriptionForPlanTx(tx, userId, plan.Id)
+	if err != nil {
+		return err
+	}
+	if active {
+		return ErrSubscriptionAlreadyActive
+	}
+	return CheckSubscriptionPurchaseLimitTx(tx, userId, plan)
 }
 
 func getUserGroupByIdTx(tx *gorm.DB, userId int) (string, error) {

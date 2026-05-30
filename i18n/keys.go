@@ -141,6 +141,7 @@ const (
 	MsgSubscriptionPurchaseMax      = "subscription.purchase_max"
 	MsgSubscriptionInvalidId        = "subscription.invalid_id"
 	MsgSubscriptionInvalidUserId    = "subscription.invalid_user_id"
+	MsgSubscriptionAlreadyActive    = "subscription.already_active"
 )
 
 // Payment related messages
