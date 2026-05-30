@@ -17,6 +17,7 @@ import (
 	"github.com/QuantumNous/new-api/relay/channel/task/taskcommon"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	"github.com/samber/lo"
 
 	"github.com/gin-gonic/gin"
@@ -245,7 +246,12 @@ func ProcessAliOtherRatios(aliReq *AliVideoRequest) (map[string]float64, error) 
 			resolution = resolution + "P"
 		}
 	}
-	if otherRatio, ok := aliRatios[aliReq.Model]; ok {
+	// 优先使用管理员配置的分辨率倍率，未配置时回退到内置硬编码
+	if configRatios, ok := ratio_setting.GetVideoResolutionRatio(aliReq.Model); ok {
+		if ratio, ok := configRatios[resolution]; ok {
+			otherRatios[fmt.Sprintf("resolution-%s", resolution)] = ratio
+		}
+	} else if otherRatio, ok := aliRatios[aliReq.Model]; ok {
 		if ratio, ok := otherRatio[resolution]; ok {
 			otherRatios[fmt.Sprintf("resolution-%s", resolution)] = ratio
 		}
