@@ -21,8 +21,11 @@ import { useTranslation } from 'react-i18next'
 import { useAuthStore } from '@/stores/auth-store'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
-import { MESSAGE_STATUS } from '../constants'
-import { getMessageContent } from '../lib'
+import {
+  getMessageErrorState,
+  isAdminRole,
+  MODEL_PRICING_SETTINGS_PATH,
+} from '../lib'
 import type { Message } from '../types'
 
 interface MessageErrorProps {
@@ -37,27 +40,25 @@ interface MessageErrorProps {
 export function MessageError({ message, className = '' }: MessageErrorProps) {
   const { t } = useTranslation()
   const user = useAuthStore((s) => s.auth.user)
-  const isAdmin = user?.role != null && user.role >= 10
+  const errorState = getMessageErrorState(message, isAdminRole(user?.role))
 
-  if (message.status !== MESSAGE_STATUS.ERROR) {
+  if (!errorState) {
     return null
   }
 
-  const errorContent = getMessageContent(message) || 'An unknown error occurred'
-
-  if (message.errorCode === 'model_price_error') {
+  if (errorState.kind === 'model-price') {
     return (
       <Alert variant='default' className={className}>
         <AlertTriangle className='text-orange-500' />
         <AlertTitle>{t('Model Price Not Configured')}</AlertTitle>
         <AlertDescription className='space-y-2'>
-          <p>{errorContent}</p>
-          {isAdmin && (
+          <p>{errorState.content}</p>
+          {errorState.showSettingsLink && (
             <Button
               variant='outline'
               size='sm'
               onClick={() =>
-                window.open('/system-settings/billing/model-pricing', '_blank')
+                window.open(MODEL_PRICING_SETTINGS_PATH, '_blank')
               }
             >
               <Settings className='mr-1 h-3.5 w-3.5' />
@@ -73,7 +74,7 @@ export function MessageError({ message, className = '' }: MessageErrorProps) {
     <Alert variant='destructive' className={className}>
       <AlertCircle />
       <AlertTitle>{t('Error')}</AlertTitle>
-      <AlertDescription>{errorContent}</AlertDescription>
+      <AlertDescription>{errorState.content}</AlertDescription>
     </Alert>
   )
 }
