@@ -12,11 +12,12 @@ import (
 )
 
 type RetryParam struct {
-	Ctx          *gin.Context
-	TokenGroup   string
-	ModelName    string
-	Retry        *int
-	resetNextTry bool
+	Ctx                 *gin.Context
+	TokenGroup          string
+	ModelName           string
+	Retry               *int
+	AllowedChannelTypes []int
+	resetNextTry        bool
 }
 
 func (p *RetryParam) GetRetry() int {
@@ -43,6 +44,29 @@ func (p *RetryParam) IncreaseRetry() {
 
 func (p *RetryParam) ResetRetryNextTry() {
 	p.resetNextTry = true
+}
+
+func GetAllowedChannelTypes(c *gin.Context) []int {
+	if c == nil {
+		return nil
+	}
+	channelTypes, ok := common.GetContextKeyType[[]int](c, constant.ContextKeyAllowedChannelTypes)
+	if !ok {
+		return nil
+	}
+	return channelTypes
+}
+
+func IsChannelTypeAllowed(channelType int, allowedChannelTypes []int) bool {
+	if len(allowedChannelTypes) == 0 {
+		return true
+	}
+	for _, allowed := range allowedChannelTypes {
+		if channelType == allowed {
+			return true
+		}
+	}
+	return false
 }
 
 // CacheGetRandomSatisfiedChannel tries to get a random channel that satisfies the requirements.
@@ -85,6 +109,10 @@ func CacheGetRandomSatisfiedChannel(param *RetryParam) (*model.Channel, string, 
 	var err error
 	selectGroup := param.TokenGroup
 	userGroup := common.GetContextKeyString(param.Ctx, constant.ContextKeyUserGroup)
+	allowedChannelTypes := param.AllowedChannelTypes
+	if len(allowedChannelTypes) == 0 {
+		allowedChannelTypes = GetAllowedChannelTypes(param.Ctx)
+	}
 
 	if param.TokenGroup == "auto" {
 		if len(setting.GetAutoGroups()) == 0 {
@@ -115,7 +143,7 @@ func CacheGetRandomSatisfiedChannel(param *RetryParam) (*model.Channel, string, 
 			}
 			logger.LogDebug(param.Ctx, "Auto selecting group: %s, priorityRetry: %d", autoGroup, priorityRetry)
 
-			channel, _ = model.GetRandomSatisfiedChannel(autoGroup, param.ModelName, priorityRetry)
+			channel, _ = model.GetRandomSatisfiedChannelWithTypes(autoGroup, param.ModelName, priorityRetry, allowedChannelTypes)
 			if channel == nil {
 				// Current group has no available channel for this model, try next group
 				// 当前分组没有该模型的可用渠道，尝试下一个分组
@@ -153,7 +181,7 @@ func CacheGetRandomSatisfiedChannel(param *RetryParam) (*model.Channel, string, 
 			break
 		}
 	} else {
-		channel, err = model.GetRandomSatisfiedChannel(param.TokenGroup, param.ModelName, param.GetRetry())
+		channel, err = model.GetRandomSatisfiedChannelWithTypes(param.TokenGroup, param.ModelName, param.GetRetry(), allowedChannelTypes)
 		if err != nil {
 			return nil, param.TokenGroup, err
 		}

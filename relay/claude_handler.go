@@ -31,14 +31,9 @@ func ClaudeHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *typ
 		return types.NewErrorWithStatusCode(fmt.Errorf("invalid request type, expected *dto.ClaudeRequest, got %T", info.Request), types.ErrorCodeInvalidRequest, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
 	}
 
-	request, err := common.DeepCopy(claudeReq)
-	if err != nil {
-		return types.NewError(fmt.Errorf("failed to copy request to ClaudeRequest: %w", err), types.ErrorCodeInvalidRequest, types.ErrOptionWithSkipRetry())
-	}
-
-	err = helper.ModelMappedHelper(c, info, request)
-	if err != nil {
-		return types.NewError(err, types.ErrorCodeChannelModelMappedError, types.ErrOptionWithSkipRetry())
+	request, prepareErr := prepareClaudeRequestForUpstream(c, info, claudeReq, true)
+	if prepareErr != nil {
+		return prepareErr
 	}
 
 	adaptor := GetAdaptor(info.ApiType)
@@ -46,87 +41,6 @@ func ClaudeHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *typ
 		return types.NewError(fmt.Errorf("invalid api type: %d", info.ApiType), types.ErrorCodeInvalidApiType, types.ErrOptionWithSkipRetry())
 	}
 	adaptor.Init(info)
-
-	if request.MaxTokens == nil || *request.MaxTokens == 0 {
-		defaultMaxTokens := uint(model_setting.GetClaudeSettings().GetDefaultMaxTokens(request.Model))
-		request.MaxTokens = &defaultMaxTokens
-	}
-
-	if baseModel, effortLevel, ok := reasoning.TrimEffortSuffix(request.Model); ok && effortLevel != "" &&
-		(strings.HasPrefix(request.Model, "claude-opus-4-6") || strings.HasPrefix(request.Model, "claude-opus-4-7")) {
-		request.Model = baseModel
-		request.Thinking = &dto.Thinking{
-			Type: "adaptive",
-		}
-		request.OutputConfig = json.RawMessage(fmt.Sprintf(`{"effort":"%s"}`, effortLevel))
-		if strings.HasPrefix(request.Model, "claude-opus-4-7") {
-			// Opus 4.7 rejects non-default temperature/top_p/top_k with 400
-			// and defaults display to "omitted"; restore the 4.6 visible summary.
-			request.Thinking.Display = "summarized"
-			request.Temperature = nil
-			request.TopP = nil
-			request.TopK = nil
-		} else {
-			request.Temperature = common.GetPointer[float64](1.0)
-		}
-		info.UpstreamModelName = request.Model
-	} else if model_setting.GetClaudeSettings().ThinkingAdapterEnabled &&
-		strings.HasSuffix(request.Model, "-thinking") {
-		if request.Thinking == nil {
-			baseModel := strings.TrimSuffix(request.Model, "-thinking")
-			if strings.HasPrefix(baseModel, "claude-opus-4-7") {
-				// Opus 4.7 rejects thinking.type="enabled"; use adaptive at high effort.
-				request.Thinking = &dto.Thinking{Type: "adaptive", Display: "summarized"}
-				request.OutputConfig = json.RawMessage(`{"effort":"high"}`)
-				request.Temperature = nil
-				request.TopP = nil
-				request.TopK = nil
-			} else {
-				// 因为BudgetTokens 必须大于1024
-				if request.MaxTokens == nil || *request.MaxTokens < 1280 {
-					request.MaxTokens = common.GetPointer[uint](1280)
-				}
-
-				// BudgetTokens 为 max_tokens 的 80%
-				request.Thinking = &dto.Thinking{
-					Type:         "enabled",
-					BudgetTokens: common.GetPointer[int](int(float64(*request.MaxTokens) * model_setting.GetClaudeSettings().ThinkingAdapterBudgetTokensPercentage)),
-				}
-				// TODO: 临时处理
-				// https://docs.anthropic.com/en/docs/build-with-claude/extended-thinking#important-considerations-when-using-extended-thinking
-				request.Temperature = common.GetPointer[float64](1.0)
-			}
-		}
-		if !model_setting.ShouldPreserveThinkingSuffix(info.OriginModelName) {
-			request.Model = strings.TrimSuffix(request.Model, "-thinking")
-		}
-		info.UpstreamModelName = request.Model
-	}
-
-	if info.ChannelSetting.SystemPrompt != "" {
-		if request.System == nil {
-			request.SetStringSystem(info.ChannelSetting.SystemPrompt)
-		} else if info.ChannelSetting.SystemPromptOverride {
-			common.SetContextKey(c, constant.ContextKeySystemPromptOverride, true)
-			if request.IsStringSystem() {
-				existing := strings.TrimSpace(request.GetStringSystem())
-				if existing == "" {
-					request.SetStringSystem(info.ChannelSetting.SystemPrompt)
-				} else {
-					request.SetStringSystem(info.ChannelSetting.SystemPrompt + "\n" + existing)
-				}
-			} else {
-				systemContents := request.ParseSystem()
-				newSystem := dto.ClaudeMediaMessage{Type: dto.ContentTypeText}
-				newSystem.SetText(info.ChannelSetting.SystemPrompt)
-				if len(systemContents) == 0 {
-					request.System = []dto.ClaudeMediaMessage{newSystem}
-				} else {
-					request.System = append([]dto.ClaudeMediaMessage{newSystem}, systemContents...)
-				}
-			}
-		}
-	}
 
 	if !model_setting.GetGlobalSettings().PassThroughRequestEnabled &&
 		!info.ChannelSetting.PassThroughBodyEnabled &&
@@ -215,4 +129,100 @@ func ClaudeHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *typ
 
 	service.PostTextConsumeQuota(c, info, usage.(*dto.Usage), nil)
 	return nil
+}
+
+func prepareClaudeRequestForUpstream(c *gin.Context, info *relaycommon.RelayInfo, claudeReq *dto.ClaudeRequest, setDefaultMaxTokens bool) (*dto.ClaudeRequest, *types.NewAPIError) {
+	request, err := common.DeepCopy(claudeReq)
+	if err != nil {
+		return nil, types.NewError(fmt.Errorf("failed to copy request to ClaudeRequest: %w", err), types.ErrorCodeInvalidRequest, types.ErrOptionWithSkipRetry())
+	}
+
+	err = helper.ModelMappedHelper(c, info, request)
+	if err != nil {
+		return nil, types.NewError(err, types.ErrorCodeChannelModelMappedError, types.ErrOptionWithSkipRetry())
+	}
+
+	if request.MaxTokens == nil || *request.MaxTokens == 0 {
+		if setDefaultMaxTokens {
+			defaultMaxTokens := uint(model_setting.GetClaudeSettings().GetDefaultMaxTokens(request.Model))
+			request.MaxTokens = &defaultMaxTokens
+		}
+	}
+
+	if baseModel, effortLevel, ok := reasoning.TrimEffortSuffix(request.Model); ok && effortLevel != "" &&
+		(strings.HasPrefix(request.Model, "claude-opus-4-6") || strings.HasPrefix(request.Model, "claude-opus-4-7")) {
+		request.Model = baseModel
+		request.Thinking = &dto.Thinking{
+			Type: "adaptive",
+		}
+		request.OutputConfig = json.RawMessage(fmt.Sprintf(`{"effort":"%s"}`, effortLevel))
+		if strings.HasPrefix(request.Model, "claude-opus-4-7") {
+			// Opus 4.7 rejects non-default temperature/top_p/top_k with 400
+			// and defaults display to "omitted"; restore the 4.6 visible summary.
+			request.Thinking.Display = "summarized"
+			request.Temperature = nil
+			request.TopP = nil
+			request.TopK = nil
+		} else {
+			request.Temperature = common.GetPointer[float64](1.0)
+		}
+		info.UpstreamModelName = request.Model
+	} else if model_setting.GetClaudeSettings().ThinkingAdapterEnabled &&
+		strings.HasSuffix(request.Model, "-thinking") {
+		if request.Thinking == nil {
+			baseModel := strings.TrimSuffix(request.Model, "-thinking")
+			if strings.HasPrefix(baseModel, "claude-opus-4-7") {
+				// Opus 4.7 rejects thinking.type="enabled"; use adaptive at high effort.
+				request.Thinking = &dto.Thinking{Type: "adaptive", Display: "summarized"}
+				request.OutputConfig = json.RawMessage(`{"effort":"high"}`)
+				request.Temperature = nil
+				request.TopP = nil
+				request.TopK = nil
+			} else {
+				// 因为BudgetTokens 必须大于1024
+				if request.MaxTokens == nil || *request.MaxTokens < 1280 {
+					request.MaxTokens = common.GetPointer[uint](1280)
+				}
+
+				// BudgetTokens 为 max_tokens 的 80%
+				request.Thinking = &dto.Thinking{
+					Type:         "enabled",
+					BudgetTokens: common.GetPointer[int](int(float64(*request.MaxTokens) * model_setting.GetClaudeSettings().ThinkingAdapterBudgetTokensPercentage)),
+				}
+				// TODO: 临时处理
+				// https://docs.anthropic.com/en/docs/build-with-claude/extended-thinking#important-considerations-when-using-extended-thinking
+				request.Temperature = common.GetPointer[float64](1.0)
+			}
+		}
+		if !model_setting.ShouldPreserveThinkingSuffix(info.OriginModelName) {
+			request.Model = strings.TrimSuffix(request.Model, "-thinking")
+		}
+		info.UpstreamModelName = request.Model
+	}
+
+	if info.ChannelSetting.SystemPrompt != "" {
+		if request.System == nil {
+			request.SetStringSystem(info.ChannelSetting.SystemPrompt)
+		} else if info.ChannelSetting.SystemPromptOverride {
+			common.SetContextKey(c, constant.ContextKeySystemPromptOverride, true)
+			if request.IsStringSystem() {
+				existing := strings.TrimSpace(request.GetStringSystem())
+				if existing == "" {
+					request.SetStringSystem(info.ChannelSetting.SystemPrompt)
+				} else {
+					request.SetStringSystem(info.ChannelSetting.SystemPrompt + "\n" + existing)
+				}
+			} else {
+				systemContents := request.ParseSystem()
+				newSystem := dto.ClaudeMediaMessage{Type: dto.ContentTypeText}
+				newSystem.SetText(info.ChannelSetting.SystemPrompt)
+				if len(systemContents) == 0 {
+					request.System = []dto.ClaudeMediaMessage{newSystem}
+				} else {
+					request.System = append([]dto.ClaudeMediaMessage{newSystem}, systemContents...)
+				}
+			}
+		}
+	}
+	return request, nil
 }

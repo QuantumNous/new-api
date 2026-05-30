@@ -29,10 +29,18 @@ type ModelRequest struct {
 	Group string `json:"group,omitempty"`
 }
 
+func LimitChannelTypes(channelTypes ...int) func(c *gin.Context) {
+	return func(c *gin.Context) {
+		common.SetContextKey(c, constant.ContextKeyAllowedChannelTypes, channelTypes)
+		c.Next()
+	}
+}
+
 func Distribute() func(c *gin.Context) {
 	return func(c *gin.Context) {
 		var channel *model.Channel
 		channelId, ok := common.GetContextKey(c, constant.ContextKeyTokenSpecificChannelId)
+		allowedChannelTypes := service.GetAllowedChannelTypes(c)
 		modelRequest, shouldSelectChannel, err := getModelRequest(c)
 		if err != nil {
 			abortWithOpenAiMessage(c, http.StatusBadRequest, i18n.T(c, i18n.MsgDistributorInvalidRequest, map[string]any{"Error": err.Error()}))
@@ -51,6 +59,10 @@ func Distribute() func(c *gin.Context) {
 			}
 			if channel.Status != common.ChannelStatusEnabled {
 				abortWithOpenAiMessage(c, http.StatusForbidden, i18n.T(c, i18n.MsgDistributorChannelDisabled))
+				return
+			}
+			if !service.IsChannelTypeAllowed(channel.Type, allowedChannelTypes) {
+				abortWithOpenAiMessage(c, http.StatusForbidden, i18n.T(c, i18n.MsgDistributorChannelTypeNotAllowed))
 				return
 			}
 		} else {
@@ -109,6 +121,9 @@ func Distribute() func(c *gin.Context) {
 								abortWithOpenAiMessage(c, http.StatusForbidden, i18n.T(c, i18n.MsgDistributorAffinityChannelDisabled))
 								return
 							}
+						} else if !service.IsChannelTypeAllowed(preferred.Type, allowedChannelTypes) {
+							// Affinity is only a preference. If it points to a disallowed channel type,
+							// keep selecting from the normal candidate pool.
 						} else if usingGroup == "auto" {
 							userGroup := common.GetContextKeyString(c, constant.ContextKeyUserGroup)
 							autoGroups := service.GetUserAutoGroup(userGroup)
@@ -131,10 +146,11 @@ func Distribute() func(c *gin.Context) {
 
 				if channel == nil {
 					channel, selectGroup, err = service.CacheGetRandomSatisfiedChannel(&service.RetryParam{
-						Ctx:        c,
-						ModelName:  modelRequest.Model,
-						TokenGroup: usingGroup,
-						Retry:      common.GetPointer(0),
+						Ctx:                 c,
+						ModelName:           modelRequest.Model,
+						TokenGroup:          usingGroup,
+						Retry:               common.GetPointer(0),
+						AllowedChannelTypes: allowedChannelTypes,
 					})
 					if err != nil {
 						showGroup := usingGroup
