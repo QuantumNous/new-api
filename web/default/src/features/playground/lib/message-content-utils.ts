@@ -41,6 +41,29 @@ type MessageContentState = MessageContentStateBase &
       }
   )
 
+function shouldShowMessageLoader(
+  message: Message,
+  isAssistant: boolean,
+  versionContent: string
+): boolean {
+  return (
+    isAssistant &&
+    !message.isReasoningStreaming &&
+    (message.status === MESSAGE_STATUS.LOADING ||
+      (message.status === MESSAGE_STATUS.STREAMING && !versionContent))
+  )
+}
+
+function shouldShowMessageContent(
+  message: Message,
+  versionContent: string
+): boolean {
+  return (
+    (message.from === MESSAGE_ROLES.USER || !message.isReasoningStreaming) &&
+    versionContent.length > 0
+  )
+}
+
 export function getMessageContentState(
   message: Message,
   versionContent: string
@@ -48,14 +71,12 @@ export function getMessageContentState(
   const isAssistant = message.from === MESSAGE_ROLES.ASSISTANT
   const sources = message.sources ?? []
   const reasoningContent = isAssistant ? message.reasoning?.content : undefined
-  const showLoader =
-    isAssistant &&
-    !message.isReasoningStreaming &&
-    (message.status === MESSAGE_STATUS.LOADING ||
-      (message.status === MESSAGE_STATUS.STREAMING && !versionContent))
-  const showMessageContent =
-    (message.from === MESSAGE_ROLES.USER || !message.isReasoningStreaming) &&
-    versionContent.length > 0
+  const showLoader = shouldShowMessageLoader(
+    message,
+    isAssistant,
+    versionContent
+  )
+  const showMessageContent = shouldShowMessageContent(message, versionContent)
 
   const baseState: MessageContentStateBase = {
     displayContent: isAssistant
