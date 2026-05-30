@@ -125,6 +125,12 @@ export function isAssistantMessagePending(message: Message): boolean {
 
 type ChatCompletionChoice = ChatCompletionResponse['choices'][number]
 
+export function hasChatCompletionChoice(
+  response: ChatCompletionResponse
+): boolean {
+  return Boolean(response.choices?.[0])
+}
+
 export function applyChatCompletionChoice(
   message: Message,
   choice: ChatCompletionChoice
@@ -136,6 +142,19 @@ export function applyChatCompletionChoice(
     ),
     status: MESSAGE_STATUS.COMPLETE,
   }
+}
+
+export function applyChatCompletionResponse(
+  message: Message,
+  response: ChatCompletionResponse
+): Message | null {
+  const choice = response.choices?.[0]
+
+  if (!choice) {
+    return null
+  }
+
+  return applyChatCompletionChoice(message, choice)
 }
 
 /**

@@ -26,8 +26,9 @@ import {
   updateAssistantMessageWithError,
   updateLastAssistantMessage,
   parseRequestErrorDetails,
-  applyChatCompletionChoice,
+  applyChatCompletionResponse,
   completeAssistantMessage,
+  hasChatCompletionChoice,
   isAssistantMessageFinal,
   isAssistantMessagePending,
 } from '../lib'
@@ -137,16 +138,20 @@ export function useChatHandler({
         )
         if (abortController.signal.aborted) return
 
-        const choice = response.choices?.[0]
-        if (!choice) {
+        if (!hasChatCompletionChoice(response)) {
           handleStreamError(ERROR_MESSAGES.API_REQUEST_ERROR)
           return
         }
 
         onMessageUpdate((prev) =>
-          updateLastAssistantMessage(prev, (message) =>
-            applyChatCompletionChoice(message, choice)
-          )
+          updateLastAssistantMessage(prev, (message) => {
+            const updatedMessage = applyChatCompletionResponse(
+              message,
+              response
+            )
+
+            return updatedMessage ?? message
+          })
         )
       } catch (error: unknown) {
         if (abortController.signal.aborted) return
