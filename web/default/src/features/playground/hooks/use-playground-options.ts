@@ -21,6 +21,7 @@ import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { getUserGroups, getUserModels } from '../api'
+import { getGroupFallback, getModelFallback } from '../lib'
 import type { GroupOption, ModelOption, PlaygroundConfig } from '../types'
 
 type UsePlaygroundOptionsParams = {
@@ -86,13 +87,10 @@ export function usePlaygroundOptions({
     if (!modelsData) return
 
     setModels(modelsData)
+    const fallback = getModelFallback(modelsData, currentModel)
 
-    const hasCurrentModel = modelsData.some(
-      (model) => model.value === currentModel
-    )
-
-    if (modelsData.length > 0 && !hasCurrentModel) {
-      updateConfig('model', modelsData[0].value)
+    if (fallback) {
+      updateConfig('model', fallback)
     }
   }, [modelsData, currentModel, setModels, updateConfig])
 
@@ -100,16 +98,9 @@ export function usePlaygroundOptions({
     if (!groupsData) return
 
     setGroups(groupsData)
+    const fallback = getGroupFallback(groupsData, currentGroup)
 
-    const hasCurrentGroup = groupsData.some(
-      (group) => group.value === currentGroup
-    )
-
-    if (!hasCurrentGroup && groupsData.length > 0) {
-      const fallback =
-        groupsData.find((group) => group.value === 'default')?.value ??
-        groupsData[0].value
-
+    if (fallback) {
       updateConfig('group', fallback)
     }
   }, [groupsData, currentGroup, setGroups, updateConfig])
