@@ -80,12 +80,21 @@ const LazyUserCharts = lazy(() =>
 function LogStatCardsFallback() {
   return (
     <div className='overflow-hidden rounded-lg border'>
-      <div className='divide-border/60 grid grid-cols-2 divide-x sm:grid-cols-3 lg:grid-cols-5'>
-        {Array.from({ length: 5 }).map((_, i) => (
-          <div key={i} className='px-4 py-3.5 sm:px-5 sm:py-4'>
+      <div className='grid grid-cols-1 divide-x divide-border/60 sm:grid-cols-2 lg:grid-cols-3'>
+        {Array.from({ length: 3 }).map((_, i) => (
+          <div key={i} className='px-5 py-4'>
             <Skeleton className='h-3.5 w-16' />
             <Skeleton className='mt-2 h-7 w-20' />
             <Skeleton className='mt-1.5 h-3.5 w-28' />
+          </div>
+        ))}
+      </div>
+      <div className='border-t border-border/60 flex divide-x divide-border/60'>
+        {Array.from({ length: 3 }).map((_, i) => (
+          <div key={i} className='flex flex-1 items-center gap-1.5 px-4 py-2'>
+            <Skeleton className='h-3.5 w-3.5' />
+            <Skeleton className='h-3 w-16' />
+            <Skeleton className='h-4 w-14' />
           </div>
         ))}
       </div>
