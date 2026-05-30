@@ -34,6 +34,21 @@ type InputControlState = {
   shouldShowStop: boolean
 }
 
+type SubmittableInputMessage = {
+  text?: string | null
+}
+
+export function getSubmittableInputText(
+  message: SubmittableInputMessage,
+  disabled?: boolean
+): string | null {
+  if (disabled || !message.text?.trim()) {
+    return null
+  }
+
+  return message.text
+}
+
 export function getInputControlState({
   disabled,
   groups,
