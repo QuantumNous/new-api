@@ -74,6 +74,14 @@ function navigateToPaymentPage(url: string): void {
   toast.success(i18next.t('Redirecting to payment page...'))
 }
 
+function getStripeRedirectUrls(): { success_url: string; cancel_url: string } {
+  return {
+    success_url: new URL('/wallet?show_history=true', window.location.origin)
+      .href,
+    cancel_url: new URL('/wallet', window.location.origin).href,
+  }
+}
+
 function normalizeCheckoutUrl(url: string | undefined): string | undefined {
   if (!url) {
     return undefined
@@ -174,6 +182,8 @@ export function usePayment() {
   // Process payment
   const processPayment = useCallback(
     async (topupAmount: number, paymentType: string) => {
+      let keepProcessing = false
+
       try {
         setProcessing(true)
 
@@ -185,6 +195,7 @@ export function usePayment() {
           ? await requestStripePayment({
               amount,
               payment_method: 'stripe',
+              ...getStripeRedirectUrls(),
             })
           : isPaddle
             ? await requestPaddlePayment({ amount })
@@ -202,8 +213,8 @@ export function usePayment() {
         if (isStripe) {
           const stripeData = response.data as { pay_link?: string } | undefined
           if (stripeData?.pay_link) {
-            window.open(stripeData.pay_link, '_blank')
-            toast.success(i18next.t('Redirecting to payment page...'))
+            keepProcessing = true
+            navigateToPaymentPage(stripeData.pay_link)
             return true
           }
         }
@@ -242,7 +253,9 @@ export function usePayment() {
         toast.error(i18next.t('Payment request failed'))
         return false
       } finally {
-        setProcessing(false)
+        if (!keepProcessing) {
+          setProcessing(false)
+        }
       }
     },
     []
