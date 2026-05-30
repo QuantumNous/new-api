@@ -47,6 +47,10 @@ export function calculateDashboardStats(data: QuotaDataItem[]) {
         (Number(item.cache_creation_tokens) || 0) +
         (Number(item.cache_creation_tokens_5m) || 0) +
         (Number(item.cache_creation_tokens_1h) || 0),
+      totalCacheCreation5m:
+        acc.totalCacheCreation5m + (Number(item.cache_creation_tokens_5m) || 0),
+      totalCacheCreation1h:
+        acc.totalCacheCreation1h + (Number(item.cache_creation_tokens_1h) || 0),
     }),
     {
       totalQuota: 0,
@@ -54,6 +58,8 @@ export function calculateDashboardStats(data: QuotaDataItem[]) {
       totalTokens: 0,
       totalCacheRead: 0,
       totalCacheCreation: 0,
+      totalCacheCreation5m: 0,
+      totalCacheCreation1h: 0,
     }
   )
 }

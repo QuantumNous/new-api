@@ -52,6 +52,8 @@ export function LogStatCards(props: LogStatCardsProps) {
     totalTokens: number
     totalCacheRead: number
     totalCacheCreation: number
+    totalCacheCreation5m: number
+    totalCacheCreation1h: number
   } | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(false)
@@ -103,6 +105,8 @@ export function LogStatCards(props: LogStatCardsProps) {
     tpm: stats?.totalTokens ?? 0,
     cacheRead: stats?.totalCacheRead ?? 0,
     cacheCreation: stats?.totalCacheCreation ?? 0,
+    cacheCreation5m: stats?.totalCacheCreation5m ?? 0,
+    cacheCreation1h: stats?.totalCacheCreation1h ?? 0,
   }
 
   const formatValue = (key: string, value: number) =>
@@ -170,9 +174,16 @@ export function LogStatCards(props: LogStatCardsProps) {
               {loading ? (
                 <Skeleton className='h-4 w-14' />
               ) : (
-                <div className='text-foreground font-mono text-sm font-bold tabular-nums'>
-                  {formatValue(config.key, value)}
-                </div>
+                <>
+                  <div className='text-foreground font-mono text-sm font-bold tabular-nums'>
+                    {formatValue(config.key, value)}
+                  </div>
+                  {config.getDetail && (
+                    <div className='text-muted-foreground/50 hidden truncate text-[10px] font-medium lg:block'>
+                      {config.getDetail(adaptedStats, timeRangeMinutes)}
+                    </div>
+                  )}
+                </>
               )}
             </div>
           )

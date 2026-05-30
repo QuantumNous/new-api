@@ -29,6 +29,7 @@ import {
   type LucideIcon,
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import { formatNumber } from '@/lib/format'
 import { safeDivide } from '@/features/dashboard/lib'
 
 interface StatCardConfig {
@@ -37,6 +38,7 @@ interface StatCardConfig {
   description: string
   icon: LucideIcon
   getValue: (stat: Record<string, number>, days?: number) => number
+  getDetail?: (stat: Record<string, number>, days?: number) => string
 }
 
 export function useCoreStatCards(): StatCardConfig[] {
@@ -77,6 +79,12 @@ export function useDerivedStatCards(): StatCardConfig[] {
       description: t('Cache read + creation tokens'),
       icon: Database,
       getValue: (stat) => (stat?.cacheRead ?? 0) + (stat?.cacheCreation ?? 0),
+      getDetail: (stat) => {
+        const read = stat?.cacheRead ?? 0
+        const creation5m = stat?.cacheCreation5m ?? 0
+        const creation1h = stat?.cacheCreation1h ?? 0
+        return `${t('Read')} ${formatNumber(read)} · 5m ${formatNumber(creation5m)} · 1h ${formatNumber(creation1h)}`
+      },
     },
     {
       key: 'avgRpm',
@@ -93,6 +101,10 @@ export function useDerivedStatCards(): StatCardConfig[] {
       icon: Zap,
       getValue: (stat, timeRangeMinutes = 1) =>
         safeDivide(stat?.tpm ?? 0, timeRangeMinutes),
+      getDetail: (stat, timeRangeMinutes = 1) => {
+        const nonCacheTokens = (stat?.tpm ?? 0) - (stat?.cacheRead ?? 0)
+        return `${t('Excl. cache')} ${formatNumber(safeDivide(nonCacheTokens, timeRangeMinutes))}`
+      },
     },
   ]
 }
