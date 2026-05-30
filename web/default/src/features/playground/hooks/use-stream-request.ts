@@ -22,6 +22,8 @@ import { getCommonHeaders } from '@/lib/api'
 import { API_ENDPOINTS, ERROR_MESSAGES } from '../constants'
 import {
   getStreamReadyStateError,
+  isStreamClosedReadyState,
+  isStreamDoneMessage,
   parseStreamErrorDetails,
   parseStreamMessageUpdates,
 } from '../lib'
@@ -70,7 +72,7 @@ export function useStreamRequest() {
       }
 
       source.addEventListener('message', (e: MessageEvent) => {
-        if (e.data === '[DONE]') {
+        if (isStreamDoneMessage(e.data)) {
           isStreamCompleteRef.current = true
           closeSource()
           onComplete()
@@ -92,7 +94,7 @@ export function useStreamRequest() {
 
       source.addEventListener('error', (e: Event & { data?: string }) => {
         // Only handle errors if stream didn't complete normally
-        if (source.readyState !== 2) {
+        if (!isStreamClosedReadyState(source.readyState)) {
           // eslint-disable-next-line no-console
           console.error('SSE Error:', e)
           const { errorCode, errorMessage } = parseStreamErrorDetails(e.data)

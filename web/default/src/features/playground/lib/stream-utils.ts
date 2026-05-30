@@ -19,6 +19,9 @@ For commercial licensing, please contact support@quantumnous.com
 import { ERROR_MESSAGES } from '../constants'
 import type { ChatCompletionChunk } from '../types'
 
+const STREAM_DONE_MESSAGE = '[DONE]'
+const STREAM_CLOSED_READY_STATE = 2
+
 export type StreamUpdateType = 'reasoning' | 'content'
 
 export type StreamMessageUpdate = {
@@ -82,6 +85,14 @@ export function parseStreamMessageUpdates(data: string): StreamMessageUpdate[] {
   return updates
 }
 
+export function isStreamDoneMessage(data: string): boolean {
+  return data === STREAM_DONE_MESSAGE
+}
+
+export function isStreamClosedReadyState(readyState?: number): boolean {
+  return readyState === STREAM_CLOSED_READY_STATE
+}
+
 export function getStreamReadyStateError(
   eventReadyState: number | undefined,
   source: unknown
@@ -90,7 +101,7 @@ export function getStreamReadyStateError(
 
   if (
     eventReadyState !== undefined &&
-    eventReadyState >= 2 &&
+    eventReadyState >= STREAM_CLOSED_READY_STATE &&
     status !== undefined &&
     status !== 200
   ) {
