@@ -50,6 +50,7 @@ func GetExposedData() gin.H {
 		"audio_ratio":               GetAudioRatioCopy(),
 		"audio_completion_ratio":    GetAudioCompletionRatioCopy(),
 		"voice_clone_unlock_ratio":  GetVoiceCloneUnlockRatioCopy(),
+		"video_resolution_ratio":    GetVideoResolutionRatioCopy(),
 		"model_price":               GetModelPriceCopy(),
 	}
 	exposedData.Store(&exposedCache{

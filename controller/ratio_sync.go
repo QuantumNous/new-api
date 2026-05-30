@@ -70,6 +70,7 @@ var pricingSyncFields = []string{
 	"audio_ratio",
 	"audio_completion_ratio",
 	"voice_clone_unlock_ratio",
+	"video_resolution_ratio",
 	"model_price",
 	billing_setting.BillingModeField,
 	billing_setting.BillingExprField,
@@ -84,6 +85,7 @@ var numericPricingSyncFields = map[string]bool{
 	"audio_ratio":              true,
 	"audio_completion_ratio":   true,
 	"voice_clone_unlock_ratio": true,
+	"video_resolution_ratio":   true,
 	"model_price":              true,
 }
 
@@ -139,6 +141,7 @@ func getLocalPricingSyncData() map[string]any {
 	data["audio_ratio"] = ratio_setting.GetAudioRatioCopy()
 	data["audio_completion_ratio"] = ratio_setting.GetAudioCompletionRatioCopy()
 	data["voice_clone_unlock_ratio"] = ratio_setting.GetVoiceCloneUnlockRatioCopy()
+	data["video_resolution_ratio"] = ratio_setting.GetVideoResolutionRatioCopy()
 	return data
 }
 

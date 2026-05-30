@@ -412,6 +412,7 @@ func InitRatioSettings() {
 	audioRatioMap.AddAll(defaultAudioRatio)
 	audioCompletionRatioMap.AddAll(defaultAudioCompletionRatio)
 	voiceCloneUnlockRatioMap.AddAll(defaultVoiceCloneUnlockRatio)
+	videoResolutionRatioMap.AddAll(defaultVideoResolutionRatio)
 }
 
 func GetModelPriceMap() map[string]float64 {
@@ -742,6 +743,47 @@ var audioRatioMap = types.NewRWMap[string, float64]()
 var audioCompletionRatioMap = types.NewRWMap[string, float64]()
 var voiceCloneUnlockRatioMap = types.NewRWMap[string, float64]()
 
+// VideoResolutionRatio 视频分辨率倍率（阿里百炼视频生成模型按分辨率计费）
+// 格式：model_name -> resolution -> ratio
+var defaultVideoResolutionRatio = map[string]map[string]float64{
+	"wan2.6-i2v": {
+		"720P":  1,
+		"1080P": 1 / 0.6,
+	},
+	"wan2.5-t2v-preview": {
+		"480P":  1,
+		"720P":  2,
+		"1080P": 1 / 0.3,
+	},
+	"wan2.2-t2v-plus": {
+		"480P":  1,
+		"1080P": 0.7 / 0.14,
+	},
+	"wan2.5-i2v-preview": {
+		"480P":  1,
+		"720P":  2,
+		"1080P": 1 / 0.3,
+	},
+	"wan2.2-i2v-plus": {
+		"480P":  1,
+		"1080P": 0.7 / 0.14,
+	},
+	"wan2.2-kf2v-flash": {
+		"480P":  1,
+		"720P":  2,
+		"1080P": 4.8,
+	},
+	"wan2.2-i2v-flash": {
+		"480P": 1,
+		"720P": 2,
+	},
+	"wan2.2-s2v": {
+		"480P": 1,
+		"720P": 0.9 / 0.5,
+	},
+}
+var videoResolutionRatioMap = types.NewRWMap[string, map[string]float64]()
+
 func ImageRatio2JSONString() string {
 	return imageRatioMap.MarshalJSONString()
 }
@@ -816,6 +858,26 @@ func GetVoiceCloneUnlockRatio(name string) (float64, bool) {
 
 func GetVoiceCloneUnlockRatioCopy() map[string]float64 {
 	return voiceCloneUnlockRatioMap.ReadAll()
+}
+
+func VideoResolutionRatio2JSONString() string {
+	return videoResolutionRatioMap.MarshalJSONString()
+}
+
+func UpdateVideoResolutionRatioByJSONString(jsonStr string) error {
+	return types.LoadFromJsonStringWithCallback(videoResolutionRatioMap, jsonStr, InvalidateExposedDataCache)
+}
+
+func GetVideoResolutionRatio(modelName string) (map[string]float64, bool) {
+	ratio, ok := videoResolutionRatioMap.Get(modelName)
+	if !ok {
+		return nil, false
+	}
+	return ratio, true
+}
+
+func GetVideoResolutionRatioCopy() map[string]map[string]float64 {
+	return videoResolutionRatioMap.ReadAll()
 }
 
 // 转换模型名，减少渠道必须配置各种带参数模型
