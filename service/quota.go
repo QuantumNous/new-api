@@ -39,6 +39,8 @@ type QuotaInfo struct {
 	GroupRatio    float64
 }
 
+const ContextKeyVoiceCloneFixedPrice = "voice_clone_fixed_price"
+
 func hasCustomModelRatio(modelName string, currentRatio float64) bool {
 	defaultRatio, exists := ratio_setting.GetDefaultModelRatioMap()[modelName]
 	if !exists {
@@ -321,6 +323,13 @@ func PostAudioConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, u
 	}
 
 	quota := calculateAudioQuota(quotaInfo)
+	voiceCloneFixedPrice := ctx.GetFloat64(ContextKeyVoiceCloneFixedPrice)
+	if voiceCloneFixedPrice > 0 {
+		voiceCloneFixedQuota := decimal.NewFromFloat(voiceCloneFixedPrice).
+			Mul(decimal.NewFromFloat(common.QuotaPerUnit)).
+			Mul(decimal.NewFromFloat(groupRatio))
+		quota += int(voiceCloneFixedQuota.Round(0).IntPart())
+	}
 	if tieredOk {
 		quota = tieredQuota
 	}
@@ -332,6 +341,9 @@ func PostAudioConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, u
 			modelRatio, completionRatio.InexactFloat64(), audioRatio.InexactFloat64(), audioCompletionRatio.InexactFloat64(), groupRatio)
 	} else {
 		logContent = fmt.Sprintf("模型价格 %.2f，分组倍率 %.2f", modelPrice, groupRatio)
+	}
+	if voiceCloneFixedPrice > 0 {
+		logContent += fmt.Sprintf("，音色克隆解锁价格 %.2f", voiceCloneFixedPrice)
 	}
 
 	// record all the consume log even if quota is 0
@@ -357,6 +369,9 @@ func PostAudioConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, u
 	}
 	other := GenerateAudioOtherInfo(ctx, relayInfo, usage, modelRatio, groupRatio,
 		completionRatio.InexactFloat64(), audioRatio.InexactFloat64(), audioCompletionRatio.InexactFloat64(), modelPrice, relayInfo.PriceData.GroupRatioInfo.GroupSpecialRatio)
+	if voiceCloneFixedPrice > 0 {
+		other["voice_clone_unlock_price"] = voiceCloneFixedPrice
+	}
 	if tieredResult != nil {
 		InjectTieredBillingInfo(other, relayInfo, tieredResult)
 	}

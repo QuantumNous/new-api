@@ -694,6 +694,44 @@ export default function ModelPricingEditor({
                               : ''
                         }
                       />
+                      <PriceInput
+                        label={t('音色克隆解锁价格')}
+                        value={selectedModel.voiceCloneUnlockPrice}
+                        placeholder={t('输入每次解锁价格')}
+                        suffix={t('$/次')}
+                        onChange={(value) =>
+                          handleNumericFieldChange('voiceCloneUnlockPrice', value)
+                        }
+                        headerAction={
+                          <Switch
+                            size='small'
+                            checked={isOptionalFieldEnabled(
+                              selectedModel,
+                              'voiceCloneUnlockPrice',
+                            )}
+                            onChange={(checked) =>
+                              handleOptionalFieldToggle(
+                                'voiceCloneUnlockPrice',
+                                checked,
+                              )
+                            }
+                          />
+                        }
+                        hidden={
+                          !isOptionalFieldEnabled(
+                            selectedModel,
+                            'voiceCloneUnlockPrice',
+                          )
+                        }
+                        extraText={
+                          !isOptionalFieldEnabled(
+                            selectedModel,
+                            'voiceCloneUnlockPrice',
+                          )
+                            ? t('当前未启用，需要时再打开即可。')
+                            : t('复刻音色首次使用或解锁时收取的固定费用。')
+                        }
+                      />
                     </Card>
                   </>
                 )}

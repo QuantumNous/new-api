@@ -43,6 +43,7 @@ const RatioSetting = () => {
     ImageRatio: '',
     AudioRatio: '',
     AudioCompletionRatio: '',
+    VoiceCloneUnlockRatio: '',
     AutoGroups: '',
     DefaultUseAutoGroup: false,
     ExposeRatioEnabled: false,

@@ -48,6 +48,7 @@ export default function ModelRatioSettings(props) {
     ImageRatio: '',
     AudioRatio: '',
     AudioCompletionRatio: '',
+    VoiceCloneUnlockRatio: '',
     ExposeRatioEnabled: false,
   });
   const refForm = useRef();
@@ -315,6 +316,32 @@ export default function ModelRatioSettings(props) {
               ]}
               onChange={(value) =>
                 setInputs({ ...inputs, AudioCompletionRatio: value })
+              }
+            />
+          </Col>
+        </Row>
+        <Row gutter={16}>
+          <Col xs={24} sm={16}>
+            <Form.TextArea
+              label={t('音色克隆解锁价格（仅部分模型支持该计费）')}
+              extraText={t(
+                '复刻音色首次使用或解锁相关的固定价格，键为模型名称，值为价格',
+              )}
+              placeholder={t(
+                '为一个 JSON 文本，键为模型名称，值为价格，例如：{"minimax-tts": 9.9}',
+              )}
+              field={'VoiceCloneUnlockRatio'}
+              autosize={{ minRows: 6, maxRows: 12 }}
+              trigger='blur'
+              stopValidateWithError
+              rules={[
+                {
+                  validator: (rule, value) => verifyJSON(value),
+                  message: '不是合法的 JSON 字符串',
+                },
+              ]}
+              onChange={(value) =>
+                setInputs({ ...inputs, VoiceCloneUnlockRatio: value })
               }
             />
           </Col>

@@ -40,6 +40,7 @@ const EMPTY_MODEL = {
   imagePrice: '',
   audioInputPrice: '',
   audioOutputPrice: '',
+  voiceCloneUnlockPrice: '',
   billingExpr: '',
   requestRuleExpr: '',
   rawRatios: {
@@ -50,6 +51,7 @@ const EMPTY_MODEL = {
     imageRatio: '',
     audioRatio: '',
     audioCompletionRatio: '',
+    voiceCloneUnlockRatio: '',
   },
   hasConflict: false,
 };
@@ -150,6 +152,9 @@ const buildModelState = (name, sourceMaps) => {
   const audioCompletionRatio = toNumericString(
     sourceMaps.AudioCompletionRatio[name],
   );
+  const voiceCloneUnlockRatio = toNumericString(
+    sourceMaps.VoiceCloneUnlockRatio[name],
+  );
   const fixedPrice = toNumericString(sourceMaps.ModelPrice[name]);
   const inputPrice = ratioToBasePrice(modelRatio);
   const inputPriceNumber = toNumberOrNull(inputPrice);
@@ -199,6 +204,7 @@ const buildModelState = (name, sourceMaps) => {
       toNumberOrNull(audioInputPrice) !== null && hasValue(audioCompletionRatio)
         ? formatNumber(Number(audioInputPrice) * Number(audioCompletionRatio))
         : '',
+    voiceCloneUnlockPrice: voiceCloneUnlockRatio,
     requestRuleExpr: '',
     rawRatios: {
       modelRatio,
@@ -208,6 +214,7 @@ const buildModelState = (name, sourceMaps) => {
       imageRatio,
       audioRatio,
       audioCompletionRatio,
+      voiceCloneUnlockRatio,
     },
     hasConflict:
       hasValue(fixedPrice) &&
@@ -219,6 +226,7 @@ const buildModelState = (name, sourceMaps) => {
         imageRatio,
         audioRatio,
         audioCompletionRatio,
+        voiceCloneUnlockRatio,
       ].some(hasValue),
   };
 };
@@ -243,6 +251,7 @@ export const getModelWarnings = (model, t) => {
     model.imagePrice,
     model.audioInputPrice,
     model.audioOutputPrice,
+    model.voiceCloneUnlockPrice,
   ].some(hasValue);
 
   if (model.hasConflict) {
@@ -260,6 +269,7 @@ export const getModelWarnings = (model, t) => {
       model.rawRatios.imageRatio,
       model.rawRatios.audioRatio,
       model.rawRatios.audioCompletionRatio,
+      model.rawRatios.voiceCloneUnlockRatio,
     ].some(hasValue)
   ) {
     warnings.push(
@@ -315,6 +325,7 @@ export const buildSummaryText = (model, t) => {
       model.imagePrice,
       model.audioInputPrice,
       model.audioOutputPrice,
+      model.voiceCloneUnlockPrice,
     ].filter(hasValue).length;
     const extraLabel =
       extraCount > 0 ? `，${t('额外价格项')} ${extraCount}` : '';
@@ -332,6 +343,7 @@ export const buildOptionalFieldToggles = (model) => ({
   imagePrice: hasValue(model.imagePrice),
   audioInputPrice: hasValue(model.audioInputPrice),
   audioOutputPrice: hasValue(model.audioOutputPrice),
+  voiceCloneUnlockPrice: hasValue(model.voiceCloneUnlockPrice),
 });
 
 const serializeModel = (model, t) => {
@@ -344,6 +356,7 @@ const serializeModel = (model, t) => {
     ImageRatio: null,
     AudioRatio: null,
     AudioCompletionRatio: null,
+    VoiceCloneUnlockRatio: null,
   };
 
   if (model.billingMode === 'per-request') {
@@ -360,6 +373,7 @@ const serializeModel = (model, t) => {
   const imagePrice = toNumberOrNull(model.imagePrice);
   const audioInputPrice = toNumberOrNull(model.audioInputPrice);
   const audioOutputPrice = toNumberOrNull(model.audioOutputPrice);
+  const voiceCloneUnlockPrice = toNumberOrNull(model.voiceCloneUnlockPrice);
 
   const hasDependentPrice = [
     completionPrice,
@@ -409,6 +423,13 @@ const serializeModel = (model, t) => {
         model.rawRatios.audioCompletionRatio,
       );
     }
+    if (hasValue(model.rawRatios.voiceCloneUnlockRatio)) {
+      result.VoiceCloneUnlockRatio = toNormalizedNumber(
+        model.rawRatios.voiceCloneUnlockRatio,
+      );
+    } else if (voiceCloneUnlockPrice !== null) {
+      result.VoiceCloneUnlockRatio = toNormalizedNumber(voiceCloneUnlockPrice);
+    }
     return result;
   }
 
@@ -447,6 +468,9 @@ const serializeModel = (model, t) => {
     result.AudioCompletionRatio = toNormalizedNumber(
       audioOutputPrice / audioInputPrice,
     );
+  }
+  if (voiceCloneUnlockPrice !== null) {
+    result.VoiceCloneUnlockRatio = toNormalizedNumber(voiceCloneUnlockPrice);
   }
 
   return result;
@@ -550,6 +574,13 @@ export const buildPreviewRows = (model, t) => {
           ? model.rawRatios.audioCompletionRatio
           : t('空'),
       },
+      {
+        key: 'VoiceCloneUnlockRatio',
+        label: 'VoiceCloneUnlockRatio',
+        value: hasValue(model.rawRatios.voiceCloneUnlockRatio)
+          ? model.rawRatios.voiceCloneUnlockRatio
+          : t('空'),
+      },
     ];
     return rows;
   }
@@ -560,6 +591,7 @@ export const buildPreviewRows = (model, t) => {
   const imagePrice = toNumberOrNull(model.imagePrice);
   const audioInputPrice = toNumberOrNull(model.audioInputPrice);
   const audioOutputPrice = toNumberOrNull(model.audioOutputPrice);
+  const voiceCloneUnlockPrice = toNumberOrNull(model.voiceCloneUnlockPrice);
 
   const rows = [
     {
@@ -614,6 +646,14 @@ export const buildPreviewRows = (model, t) => {
           ? formatNumber(audioOutputPrice / audioInputPrice)
           : t('空'),
     },
+    {
+      key: 'VoiceCloneUnlockRatio',
+      label: 'VoiceCloneUnlockRatio',
+      value:
+        voiceCloneUnlockPrice !== null
+          ? formatNumber(voiceCloneUnlockPrice)
+          : t('空'),
+    },
   ];
   return rows;
 };
@@ -646,6 +686,7 @@ export function useModelPricingEditorState({
       ImageRatio: parseOptionJSON(options.ImageRatio),
       AudioRatio: parseOptionJSON(options.AudioRatio),
       AudioCompletionRatio: parseOptionJSON(options.AudioCompletionRatio),
+      VoiceCloneUnlockRatio: parseOptionJSON(options.VoiceCloneUnlockRatio),
       ModelBillingMode: parseOptionJSON(options['billing_setting.billing_mode']),
       ModelBillingExpr: parseOptionJSON(options['billing_setting.billing_expr']),
     };
@@ -661,6 +702,7 @@ export function useModelPricingEditorState({
       ...Object.keys(sourceMaps.ImageRatio),
       ...Object.keys(sourceMaps.AudioRatio),
       ...Object.keys(sourceMaps.AudioCompletionRatio),
+      ...Object.keys(sourceMaps.VoiceCloneUnlockRatio),
       ...Object.keys(sourceMaps.ModelBillingMode),
       ...Object.keys(sourceMaps.ModelBillingExpr),
     ]);
@@ -971,6 +1013,7 @@ export function useModelPricingEditorState({
           imagePrice: selectedModel.imagePrice,
           audioInputPrice: selectedModel.audioInputPrice,
           audioOutputPrice: selectedModel.audioOutputPrice,
+          voiceCloneUnlockPrice: selectedModel.voiceCloneUnlockPrice,
           billingExpr: selectedModel.billingExpr || '',
           requestRuleExpr: selectedModel.requestRuleExpr || '',
         };
@@ -1006,6 +1049,7 @@ export function useModelPricingEditorState({
           audioOutputPrice:
             Boolean(sourceToggles.audioInputPrice) &&
             Boolean(sourceToggles.audioOutputPrice),
+          voiceCloneUnlockPrice: Boolean(sourceToggles.voiceCloneUnlockPrice),
         };
       });
       return next;
@@ -1032,6 +1076,7 @@ export function useModelPricingEditorState({
         ImageRatio: {},
         AudioRatio: {},
         AudioCompletionRatio: {},
+        VoiceCloneUnlockRatio: {},
       };
 
       const tieredOutput = {

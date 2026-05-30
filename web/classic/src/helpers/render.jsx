@@ -34,7 +34,7 @@ import {
   Gemini,
   Moonshot,
   Zhipu,
-  Qwen,
+  Tongyi,
   DeepSeek,
   Minimax,
   Wenxin,
@@ -43,22 +43,11 @@ import {
   Hunyuan,
   Cohere,
   Cloudflare,
-  Ai360,
   Yi,
-  Jina,
   Mistral,
-  XAI,
   Ollama,
-  Doubao,
   Suno,
-  Xinference,
   OpenRouter,
-  Dify,
-  Coze,
-  SiliconCloud,
-  FastGPT,
-  Kling,
-  Jimeng,
   Perplexity,
   Replicate,
 } from '@lobehub/icons';
@@ -94,7 +83,6 @@ import {
   SiGitlab,
   SiGoogle,
   SiKeycloak,
-  SiLinkedin,
   SiNextcloud,
   SiNotion,
   SiOkta,
@@ -106,6 +94,32 @@ import {
   SiWechat,
   SiX,
 } from 'react-icons/si';
+
+function createFallbackLobeIcon(label) {
+  const FallbackIcon = ({ size = 14 }) => (
+    <Avatar
+      size={typeof size === 'number' && size <= 16 ? 'extra-extra-small' : 'small'}
+      style={{ backgroundColor: 'var(--semi-color-fill-1)', color: 'var(--semi-color-text-0)' }}
+    >
+      {label}
+    </Avatar>
+  );
+  FallbackIcon.Color = FallbackIcon;
+  return FallbackIcon;
+}
+
+const Ai360 = createFallbackLobeIcon('360');
+const Jina = createFallbackLobeIcon('J');
+const XAI = LobeIcons.Grok || createFallbackLobeIcon('X');
+const Doubao = createFallbackLobeIcon('D');
+const Xinference = createFallbackLobeIcon('X');
+const Dify = createFallbackLobeIcon('D');
+const Coze = createFallbackLobeIcon('C');
+const SiliconCloud = createFallbackLobeIcon('S');
+const FastGPT = createFallbackLobeIcon('F');
+const Kling = createFallbackLobeIcon('K');
+const Jimeng = createFallbackLobeIcon('J');
+const SiLinkedin = SiOpenid;
 
 // 获取侧边栏Lucide图标组件
 export function getLucideIcon(key, selected = false) {
@@ -228,7 +242,7 @@ export const getModelCategories = (() => {
       },
       qwen: {
         label: t('通义千问'),
-        icon: <Qwen.Color />,
+        icon: <Tongyi.Color />,
         filter: (model) => model.model_name.toLowerCase().includes('qwen'),
       },
       deepseek: {
@@ -358,7 +372,7 @@ export function getChannelIcon(channelType) {
     case 46: // 百度文心千帆V2
       return <Wenxin.Color size={iconSize} />;
     case 17: // 阿里通义千问
-      return <Qwen.Color size={iconSize} />;
+      return <Tongyi.Color size={iconSize} />;
     case 18: // 讯飞星火认知
       return <Spark.Color size={iconSize} />;
     case 16: // 智谱 ChatGLM

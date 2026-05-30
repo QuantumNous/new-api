@@ -40,12 +40,11 @@ import {
 } from '@douyinfe/semi-icons';
 import { Link } from 'react-router-dom';
 import NoticeModal from '../../components/layout/NoticeModal';
+import * as LobeIcons from '@lobehub/icons';
 import {
   Moonshot,
   OpenAI,
-  XAI,
   Zhipu,
-  Volcengine,
   Cohere,
   Claude,
   Gemini,
@@ -55,13 +54,40 @@ import {
   Spark,
   Qingyan,
   DeepSeek,
-  Qwen,
   Midjourney,
   Grok,
-  AzureAI,
   Hunyuan,
-  Xinference,
+  Tongyi,
 } from '@lobehub/icons';
+
+const createFallbackLobeIcon = (label) => {
+  const FallbackIcon = ({ size = 40 }) => (
+    <Typography.Text
+      style={{
+        width: size,
+        height: size,
+        display: 'inline-flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        borderRadius: 9999,
+        background: 'var(--semi-color-fill-1)',
+        color: 'var(--semi-color-text-0)',
+        fontWeight: 600,
+        fontSize: Math.max(12, Math.floor(size * 0.36)),
+      }}
+    >
+      {label}
+    </Typography.Text>
+  );
+  FallbackIcon.Color = FallbackIcon;
+  return FallbackIcon;
+};
+
+const XAI = LobeIcons.Grok || createFallbackLobeIcon('X');
+const Volcengine = LobeIcons.ByteDance || createFallbackLobeIcon('V');
+const AzureAI = LobeIcons.Azure || createFallbackLobeIcon('A');
+const Xinference = createFallbackLobeIcon('X');
+const Qwen = Tongyi;
 
 const { Text } = Typography;
 

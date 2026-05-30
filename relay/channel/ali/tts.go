@@ -14,6 +14,7 @@ import (
 	"github.com/QuantumNous/new-api/dto"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	"github.com/QuantumNous/new-api/types"
 	"github.com/gin-gonic/gin"
 )
@@ -292,7 +293,14 @@ func aliVoiceCloneHandler(c *gin.Context, resp *http.Response, info *relaycommon
 	defer service.CloseResponseBodyGracefully(resp)
 
 	var cloneResp AliVoiceCloneResponse
-	if err := common.Unmarshal(body, &cloneResp); err == nil && cloneResp.Code != "" {
+	if err := common.Unmarshal(body, &cloneResp); err != nil {
+		return types.NewErrorWithStatusCode(
+			fmt.Errorf("failed to unmarshal ali voice clone response: %w", err),
+			types.ErrorCodeBadResponseBody,
+			http.StatusInternalServerError,
+		), nil
+	}
+	if cloneResp.Code != "" {
 		return types.NewErrorWithStatusCode(
 			fmt.Errorf("ali voice clone error: %s - %s", cloneResp.Code, cloneResp.Message),
 			types.ErrorCodeBadResponse,
@@ -305,9 +313,11 @@ func aliVoiceCloneHandler(c *gin.Context, resp *http.Response, info *relaycommon
 	// 计算使用量
 	// 1. 基础创建费用（按次）- 通过 model_price 配置
 	// 2. 样例音频字符数（当传入 text 时）- 通过 usage.characters 计费
-	promptTokens := info.GetEstimatePromptTokens()
-	if promptTokens == 0 {
-		promptTokens = 1 // 至少计费1个token（创建操作）
+	promptTokens := cloneResp.Usage.Count
+	if isAliMiniMaxSpeechModel(info.OriginModelName) || isAliMiniMaxSpeechModel(info.UpstreamModelName) {
+		if unlockPrice, ok := ratio_setting.GetVoiceCloneUnlockRatio(info.OriginModelName); ok {
+			c.Set(service.ContextKeyVoiceCloneFixedPrice, unlockPrice)
+		}
 	}
 
 	// 如果有样例音频字符数（Qwen传入text时），计入completion tokens
