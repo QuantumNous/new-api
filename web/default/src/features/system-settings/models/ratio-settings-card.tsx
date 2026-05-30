@@ -111,6 +111,15 @@ const modelSchema = z.object({
       })
     }
   }),
+  VoiceCloneUnlockRatio: z.string().superRefine((value, ctx) => {
+    const result = validateJsonString(value)
+    if (!result.valid) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: result.message || 'Invalid JSON',
+      })
+    }
+  }),
   ExposeRatioEnabled: z.boolean(),
   BillingMode: z.string().superRefine((value, ctx) => {
     const result = validateJsonString(value)
@@ -246,6 +255,9 @@ export function RatioSettingsCard({
     AudioCompletionRatio: normalizeJsonString(
       modelDefaults.AudioCompletionRatio
     ),
+    VoiceCloneUnlockRatio: normalizeJsonString(
+      modelDefaults.VoiceCloneUnlockRatio
+    ),
     ExposeRatioEnabled: modelDefaults.ExposeRatioEnabled,
     BillingMode: normalizeJsonString(modelDefaults.BillingMode),
     BillingExpr: normalizeJsonString(modelDefaults.BillingExpr),
@@ -277,6 +289,9 @@ export function RatioSettingsCard({
       AudioRatio: formatJsonForTextarea(modelDefaults.AudioRatio),
       AudioCompletionRatio: formatJsonForTextarea(
         modelDefaults.AudioCompletionRatio
+      ),
+      VoiceCloneUnlockRatio: formatJsonForTextarea(
+        modelDefaults.VoiceCloneUnlockRatio
       ),
       BillingMode: formatJsonForTextarea(modelDefaults.BillingMode),
       BillingExpr: formatJsonForTextarea(modelDefaults.BillingExpr),
@@ -311,6 +326,9 @@ export function RatioSettingsCard({
       AudioCompletionRatio: normalizeJsonString(
         modelDefaults.AudioCompletionRatio
       ),
+      VoiceCloneUnlockRatio: normalizeJsonString(
+        modelDefaults.VoiceCloneUnlockRatio
+      ),
       ExposeRatioEnabled: modelDefaults.ExposeRatioEnabled,
       BillingMode: normalizeJsonString(modelDefaults.BillingMode),
       BillingExpr: normalizeJsonString(modelDefaults.BillingExpr),
@@ -327,6 +345,9 @@ export function RatioSettingsCard({
       AudioRatio: formatJsonForTextarea(modelDefaults.AudioRatio),
       AudioCompletionRatio: formatJsonForTextarea(
         modelDefaults.AudioCompletionRatio
+      ),
+      VoiceCloneUnlockRatio: formatJsonForTextarea(
+        modelDefaults.VoiceCloneUnlockRatio
       ),
       BillingMode: formatJsonForTextarea(modelDefaults.BillingMode),
       BillingExpr: formatJsonForTextarea(modelDefaults.BillingExpr),
@@ -370,6 +391,7 @@ export function RatioSettingsCard({
         ImageRatio: normalizeJsonString(values.ImageRatio),
         AudioRatio: normalizeJsonString(values.AudioRatio),
         AudioCompletionRatio: normalizeJsonString(values.AudioCompletionRatio),
+        VoiceCloneUnlockRatio: normalizeJsonString(values.VoiceCloneUnlockRatio),
         ExposeRatioEnabled: values.ExposeRatioEnabled,
         BillingMode: normalizeJsonString(values.BillingMode),
         BillingExpr: normalizeJsonString(values.BillingExpr),
@@ -492,6 +514,7 @@ export function RatioSettingsCard({
           ImageRatio: modelDefaults.ImageRatio,
           AudioRatio: modelDefaults.AudioRatio,
           AudioCompletionRatio: modelDefaults.AudioCompletionRatio,
+          VoiceCloneUnlockRatio: modelDefaults.VoiceCloneUnlockRatio,
           'billing_setting.billing_mode': modelDefaults.BillingMode,
           'billing_setting.billing_expr': modelDefaults.BillingExpr,
         }}

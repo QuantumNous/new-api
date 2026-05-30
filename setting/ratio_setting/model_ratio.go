@@ -212,6 +212,7 @@ var defaultModelRatio = map[string]float64{
 	"qwen-tts":                                  0.05,   // audio synthesis, per 1k characters
 	"qwen-tts-latest":                           0.05,   // audio synthesis, per 1k characters
 	"qwen3-tts-flash":                           0.05,   // audio synthesis, per 1k characters
+	"qwen3-tts-vc-realtime-2026-01-15":          0.05,   // audio synthesis, per 1k characters
 	"minimax-tts":                               0.5,    // audio synthesis, per 1k characters
 	"MiniMax/speech-2.5-hd-preview":             0.5,
 	"MiniMax/speech-2.5-turbo-preview":          0.5,
@@ -322,7 +323,7 @@ var defaultModelPrice = map[string]float64{
 	"gpt-4o-mini-tts":                0.3,
 	"qwen-voice-clone":               0.1,
 	"qwen-voice-enrollment":          0.1,
-	"minimax-voice-clone":            0.1,
+	"minimax-voice-clone":            9.9, // MiniMax 第一次创建自定义音频收费 9.9元/次
 	"veo-3.0-generate-001":           0.4,
 	"veo-3.0-fast-generate-001":      0.15,
 	"veo-3.1-generate-preview":       0.4,
@@ -338,6 +339,7 @@ var defaultAudioRatio = map[string]float64{
 	"qwen-tts":                         1,
 	"qwen-tts-latest":                  1,
 	"qwen3-tts-flash":                  1,
+	"qwen3-tts-vc-realtime-2026-01-15": 1,
 	"minimax-tts":                      1,
 	"MiniMax/speech-2.5-hd-preview":    1,
 	"MiniMax/speech-2.5-turbo-preview": 1,
@@ -351,6 +353,10 @@ var defaultAudioRatio = map[string]float64{
 	"speech-02-turbo":                  1,
 	"speech-01-hd":                     1,
 	"speech-01-turbo":                  1,
+	// Voice clone - 创建操作按次计费，样例音频按字符计费
+	"qwen-voice-clone":      1, // 创建操作基础计费
+	"qwen-voice-enrollment": 1, // 创建操作基础计费
+	"minimax-voice-clone":   1, // MiniMax创建操作基础计费
 }
 
 var defaultAudioCompletionRatio = map[string]float64{
@@ -364,6 +370,7 @@ var defaultAudioCompletionRatio = map[string]float64{
 	"qwen-tts":                         0,
 	"qwen-tts-latest":                  0,
 	"qwen3-tts-flash":                  0,
+	"qwen3-tts-vc-realtime-2026-01-15": 0,
 	"minimax-tts":                      0,
 	"MiniMax/speech-2.5-hd-preview":    0,
 	"MiniMax/speech-2.5-turbo-preview": 0,
@@ -377,6 +384,10 @@ var defaultAudioCompletionRatio = map[string]float64{
 	"speech-02-turbo":                  0,
 	"speech-01-hd":                     0,
 	"speech-01-turbo":                  0,
+	// Voice clone - 样例音频字符数计费倍率
+	"qwen-voice-clone":        0, // 样例音频按字符计费
+	"qwen-voice-enrollment":   0, // 样例音频按字符计费
+	"minimax-voice-clone":     0, // MiniMax样例音频按字符计费
 }
 
 var modelPriceMap = types.NewRWMap[string, float64]()
@@ -400,6 +411,7 @@ func InitRatioSettings() {
 	imageRatioMap.AddAll(defaultImageRatio)
 	audioRatioMap.AddAll(defaultAudioRatio)
 	audioCompletionRatioMap.AddAll(defaultAudioCompletionRatio)
+	voiceCloneUnlockRatioMap.AddAll(defaultVoiceCloneUnlockRatio)
 }
 
 func GetModelPriceMap() map[string]float64 {
@@ -712,9 +724,23 @@ func ModelRatio2JSONString() string {
 var defaultImageRatio = map[string]float64{
 	"gpt-image-1": 2,
 }
+
+// VoiceCloneUnlockRatio 音色解锁费（首次使用复刻音色时收取）
+// 例如：MiniMax 首次使用复刻音色进行语音合成时收取 9.9 元
+var defaultVoiceCloneUnlockRatio = map[string]float64{
+	"minimax-tts":                    9.9, // MiniMax 首次使用复刻音色解锁费 9.9元
+	"MiniMax/speech-2.5-hd-preview":  9.9,
+	"MiniMax/speech-2.5-turbo-preview": 9.9,
+	"MiniMax/speech-02-hd":           9.9,
+	"MiniMax/speech-02-turbo":        9.9,
+	"MiniMax/speech-01-hd":           9.9,
+	"MiniMax/speech-01-turbo":        9.9,
+}
+
 var imageRatioMap = types.NewRWMap[string, float64]()
 var audioRatioMap = types.NewRWMap[string, float64]()
 var audioCompletionRatioMap = types.NewRWMap[string, float64]()
+var voiceCloneUnlockRatioMap = types.NewRWMap[string, float64]()
 
 func ImageRatio2JSONString() string {
 	return imageRatioMap.MarshalJSONString()
@@ -770,6 +796,26 @@ func GetAudioRatioCopy() map[string]float64 {
 
 func GetAudioCompletionRatioCopy() map[string]float64 {
 	return audioCompletionRatioMap.ReadAll()
+}
+
+func VoiceCloneUnlockRatio2JSONString() string {
+	return voiceCloneUnlockRatioMap.MarshalJSONString()
+}
+
+func UpdateVoiceCloneUnlockRatioByJSONString(jsonStr string) error {
+	return types.LoadFromJsonStringWithCallback(voiceCloneUnlockRatioMap, jsonStr, InvalidateExposedDataCache)
+}
+
+func GetVoiceCloneUnlockRatio(name string) (float64, bool) {
+	ratio, ok := voiceCloneUnlockRatioMap.Get(name)
+	if !ok {
+		return 0, false
+	}
+	return ratio, true
+}
+
+func GetVoiceCloneUnlockRatioCopy() map[string]float64 {
+	return voiceCloneUnlockRatioMap.ReadAll()
 }
 
 // 转换模型名，减少渠道必须配置各种带参数模型

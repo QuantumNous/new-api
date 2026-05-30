@@ -95,7 +95,15 @@ type MiniMaxVoiceCloneResponse struct {
 	InputSensitive     bool            `json:"input_sensitive"`
 	InputSensitiveType int             `json:"input_sensitive_type"`
 	DemoAudio          string          `json:"demo_audio"`
-	BaseResp           MiniMaxBaseResp `json:"base_resp"`
+	ExtraInfo          struct {
+		AudioLength     int `json:"audio_length"`
+		AudioSampleRate int `json:"audio_sample_rate"`
+		AudioSize       int `json:"audio_size"`
+		Bitrate         int `json:"bitrate"`
+		WordCount       int `json:"word_count"`
+		UsageCharacters int `json:"usage_characters"` // 试听音频字符数
+	} `json:"extra_info"`
+	BaseResp MiniMaxBaseResp `json:"base_resp"`
 }
 
 func getContentTypeByFormat(format string) string {
@@ -209,13 +217,30 @@ func handleVoiceCloneResponse(c *gin.Context, resp *http.Response, info *relayco
 
 	c.Data(resp.StatusCode, "application/json", body)
 
-	totalTokens := info.GetEstimatePromptTokens()
-	if totalTokens == 0 {
-		totalTokens = 1
+	// 计算使用量
+	// 1. 基础创建费用（按次）- 通过 model_price 配置
+	// 2. 试听音频字符数（当传入 text 时）- 通过 extra_info.usage_characters 计费
+	promptTokens := info.GetEstimatePromptTokens()
+	if promptTokens == 0 {
+		promptTokens = 1 // 至少计费1个token（创建操作）
 	}
+
+	// 如果有试听音频字符数（传入text时），计入completion tokens
+	completionTokens := 0
+	if cloneResp.ExtraInfo.UsageCharacters > 0 {
+		completionTokens = cloneResp.ExtraInfo.UsageCharacters
+	}
+
 	return &dto.Usage{
-		PromptTokens: totalTokens,
-		TotalTokens:  totalTokens,
+		PromptTokens:     promptTokens,
+		CompletionTokens: completionTokens,
+		TotalTokens:      promptTokens + completionTokens,
+		PromptTokensDetails: dto.InputTokenDetails{
+			TextTokens: promptTokens,
+		},
+		CompletionTokenDetails: dto.OutputTokenDetails{
+			AudioTokens: completionTokens,
+		},
 	}, nil
 }
 

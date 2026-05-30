@@ -266,6 +266,20 @@ func aliTTSHandler(c *gin.Context, resp *http.Response, info *relaycommon.RelayI
 	}
 }
 
+// AliVoiceCloneResponse 阿里语音克隆响应结构
+type AliVoiceCloneResponse struct {
+	Output struct {
+		Voice   string `json:"voice,omitempty"`
+		VoiceID string `json:"voice_id,omitempty"`
+	} `json:"output"`
+	Usage struct {
+		Count      int `json:"count,omitempty"`      // CosyVoice: 按次计费
+		Characters int `json:"characters,omitempty"` // Qwen: 按字符计费（当传入text时）
+	} `json:"usage"`
+	RequestID string `json:"request_id"`
+	AliError
+}
+
 func aliVoiceCloneHandler(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (*types.NewAPIError, *dto.Usage) {
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -277,22 +291,40 @@ func aliVoiceCloneHandler(c *gin.Context, resp *http.Response, info *relaycommon
 	}
 	defer service.CloseResponseBodyGracefully(resp)
 
-	var aliResp AliResponse
-	if err := common.Unmarshal(body, &aliResp); err == nil && aliResp.Code != "" {
+	var cloneResp AliVoiceCloneResponse
+	if err := common.Unmarshal(body, &cloneResp); err == nil && cloneResp.Code != "" {
 		return types.NewErrorWithStatusCode(
-			fmt.Errorf("ali voice clone error: %s - %s", aliResp.Code, aliResp.Message),
+			fmt.Errorf("ali voice clone error: %s - %s", cloneResp.Code, cloneResp.Message),
 			types.ErrorCodeBadResponse,
 			http.StatusBadRequest,
 		), nil
 	}
 
 	c.Data(resp.StatusCode, "application/json", body)
-	totalTokens := info.GetEstimatePromptTokens()
-	if totalTokens == 0 {
-		totalTokens = 1
+
+	// 计算使用量
+	// 1. 基础创建费用（按次）- 通过 model_price 配置
+	// 2. 样例音频字符数（当传入 text 时）- 通过 usage.characters 计费
+	promptTokens := info.GetEstimatePromptTokens()
+	if promptTokens == 0 {
+		promptTokens = 1 // 至少计费1个token（创建操作）
 	}
+
+	// 如果有样例音频字符数（Qwen传入text时），计入completion tokens
+	completionTokens := 0
+	if cloneResp.Usage.Characters > 0 {
+		completionTokens = cloneResp.Usage.Characters
+	}
+
 	return nil, &dto.Usage{
-		PromptTokens: totalTokens,
-		TotalTokens:  totalTokens,
+		PromptTokens:     promptTokens,
+		CompletionTokens: completionTokens,
+		TotalTokens:      promptTokens + completionTokens,
+		PromptTokensDetails: dto.InputTokenDetails{
+			TextTokens: promptTokens,
+		},
+		CompletionTokenDetails: dto.OutputTokenDetails{
+			AudioTokens: completionTokens,
+		},
 	}
 }

@@ -42,6 +42,7 @@ export const RATIO_SYNC_FIELDS: RatioType[] = [
   'image_ratio',
   'audio_ratio',
   'audio_completion_ratio',
+  'voice_clone_unlock_ratio',
 ]
 
 export const SYNC_FIELD_ORDER: RatioType[] = [
