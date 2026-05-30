@@ -17,15 +17,23 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import type { Message } from '../types'
+import { MESSAGE_ROLES } from '../constants'
 import {
   createLoadingAssistantMessage,
   createUserMessage,
+  getMessageContent,
   updateCurrentVersionContent,
 } from './message-utils'
 
 type ApplyMessageEditResult = {
   messages: Message[]
   shouldSend: boolean
+}
+
+type ChatMessageRenderState = {
+  alwaysShowActions: boolean
+  content: string
+  isEditing: boolean
 }
 
 export function appendUserMessagePair(
@@ -80,5 +88,32 @@ export function applyMessageEdit(
       createLoadingAssistantMessage(),
     ],
     shouldSend: true,
+  }
+}
+
+export function getEditingMessageContent(
+  messages: Message[],
+  editingKey?: string | null
+): string {
+  if (!editingKey) {
+    return ''
+  }
+
+  const message = messages.find((item) => item.key === editingKey)
+  return message ? getMessageContent(message) : ''
+}
+
+export function getChatMessageRenderState(
+  messages: Message[],
+  message: Message,
+  messageIndex: number,
+  editingKey?: string | null
+): ChatMessageRenderState {
+  return {
+    alwaysShowActions:
+      messageIndex === messages.length - 1 &&
+      message.from === MESSAGE_ROLES.ASSISTANT,
+    content: getMessageContent(message),
+    isEditing: editingKey === message.key,
   }
 }
