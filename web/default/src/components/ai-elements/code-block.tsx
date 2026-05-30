@@ -49,10 +49,13 @@ import {
 
 type CodeBlockProps = HTMLAttributes<HTMLDivElement> & {
   code: string
+  collapsedLines?: number
   defaultCollapsed?: boolean
   enableCollapse?: boolean
   filename?: string
   language: BundledLanguage | string
+  maxExpandedLines?: number
+  /** @deprecated use collapsedLines for collapsed preview height. */
   maxCollapsedLines?: number
   showLineNumbers?: boolean
   showToolbar?: boolean
@@ -196,13 +199,19 @@ function getDownloadFilename(language: string, filename?: string) {
   return `code.${extension}`
 }
 
+function getCodeBlockHeight(lines: number) {
+  return `${Math.max(4, lines) * 1.5 + 2}rem`
+}
+
 export const CodeBlock = ({
   code,
+  collapsedLines = 12,
   defaultCollapsed,
   enableCollapse = true,
   filename,
   language,
-  maxCollapsedLines = 24,
+  maxExpandedLines,
+  maxCollapsedLines,
   showLineNumbers = false,
   showToolbar = false,
   title,
@@ -215,12 +224,15 @@ export const CodeBlock = ({
   const [isCollapsed, setIsCollapsed] = useState(Boolean(defaultCollapsed))
   const displayLanguage = getRequestedCodeLanguage(language)
   const lineCount = useMemo(() => getCodeLineCount(code), [code])
-  const canCollapse = enableCollapse && lineCount > maxCollapsedLines
+  const previewLines = maxCollapsedLines ?? collapsedLines
+  const canCollapse = enableCollapse && lineCount > previewLines
   const isCodeCollapsed = canCollapse && isCollapsed
   const displayTitle = title ?? displayLanguage
   const bodyMaxHeight = isCodeCollapsed
-    ? `${Math.max(10, maxCollapsedLines) * 1.5 + 2}rem`
-    : undefined
+    ? getCodeBlockHeight(previewLines)
+    : maxExpandedLines
+      ? getCodeBlockHeight(maxExpandedLines)
+      : undefined
 
   useEffect(() => {
     let cancelled = false
