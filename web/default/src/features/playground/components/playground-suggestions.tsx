@@ -26,6 +26,7 @@ import {
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { Suggestion, Suggestions } from '@/components/ai-elements/suggestion'
+import { getSuggestionDisplayState } from '../lib'
 
 type PlaygroundSuggestion = {
   icon: LucideIcon | null
@@ -55,10 +56,7 @@ export function PlaygroundSuggestions({
     <Suggestions>
       {suggestions.map(({ icon: Icon, text, color }) => {
         const suggestion = t(text)
-        const isMoreSuggestion = text === 'More'
-        const className = `text-xs font-normal sm:text-sm ${
-          isMoreSuggestion ? 'hidden sm:flex' : ''
-        }`
+        const { className } = getSuggestionDisplayState(text)
 
         return (
           <Suggestion
