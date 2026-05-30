@@ -49,6 +49,7 @@ export default function ModelRatioSettings(props) {
     AudioRatio: '',
     AudioCompletionRatio: '',
     VoiceCloneUnlockRatio: '',
+    VideoResolutionRatio: '',
     ExposeRatioEnabled: false,
   });
   const refForm = useRef();
@@ -342,6 +343,32 @@ export default function ModelRatioSettings(props) {
               ]}
               onChange={(value) =>
                 setInputs({ ...inputs, VoiceCloneUnlockRatio: value })
+              }
+            />
+          </Col>
+        </Row>
+        <Row gutter={16}>
+          <Col xs={24} sm={16}>
+            <Form.TextArea
+              label={t('视频分辨率倍率（仅部分模型支持该计费）')}
+              extraText={t(
+                '不同视频分辨率的倍率设置，键为模型名称，值为分辨率到倍率的映射',
+              )}
+              placeholder={t(
+                '为一个 JSON 文本，键为模型名称，值为 JSON 对象，例如：{"gpt-video-1": {"480P": 1, "720P": 2}}',
+              )}
+              field={'VideoResolutionRatio'}
+              autosize={{ minRows: 6, maxRows: 12 }}
+              trigger='blur'
+              stopValidateWithError
+              rules={[
+                {
+                  validator: (rule, value) => verifyJSON(value),
+                  message: '不是合法的 JSON 字符串',
+                },
+              ]}
+              onChange={(value) =>
+                setInputs({ ...inputs, VideoResolutionRatio: value })
               }
             />
           </Col>

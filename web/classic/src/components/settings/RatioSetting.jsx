@@ -44,6 +44,7 @@ const RatioSetting = () => {
     AudioRatio: '',
     AudioCompletionRatio: '',
     VoiceCloneUnlockRatio: '',
+    VideoResolutionRatio: '',
     AutoGroups: '',
     DefaultUseAutoGroup: false,
     ExposeRatioEnabled: false,

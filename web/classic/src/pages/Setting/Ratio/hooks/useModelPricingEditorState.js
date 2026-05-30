@@ -41,6 +41,7 @@ const EMPTY_MODEL = {
   audioInputPrice: '',
   audioOutputPrice: '',
   voiceCloneUnlockPrice: '',
+  videoResolutionRatio: '',
   billingExpr: '',
   requestRuleExpr: '',
   rawRatios: {
@@ -52,6 +53,7 @@ const EMPTY_MODEL = {
     audioRatio: '',
     audioCompletionRatio: '',
     voiceCloneUnlockRatio: '',
+    videoResolutionRatio: '',
   },
   hasConflict: false,
 };
@@ -155,6 +157,12 @@ const buildModelState = (name, sourceMaps) => {
   const voiceCloneUnlockRatio = toNumericString(
     sourceMaps.VoiceCloneUnlockRatio[name],
   );
+  const videoResolutionRatioRaw = sourceMaps.VideoResolutionRatio[name];
+  const videoResolutionRatio = videoResolutionRatioRaw !== undefined
+    ? (typeof videoResolutionRatioRaw === 'object'
+        ? JSON.stringify(videoResolutionRatioRaw, null, 2)
+        : String(videoResolutionRatioRaw))
+    : '';
   const fixedPrice = toNumericString(sourceMaps.ModelPrice[name]);
   const inputPrice = ratioToBasePrice(modelRatio);
   const inputPriceNumber = toNumberOrNull(inputPrice);
@@ -205,6 +213,7 @@ const buildModelState = (name, sourceMaps) => {
         ? formatNumber(Number(audioInputPrice) * Number(audioCompletionRatio))
         : '',
     voiceCloneUnlockPrice: voiceCloneUnlockRatio,
+    videoResolutionRatio,
     requestRuleExpr: '',
     rawRatios: {
       modelRatio,
@@ -215,6 +224,7 @@ const buildModelState = (name, sourceMaps) => {
       audioRatio,
       audioCompletionRatio,
       voiceCloneUnlockRatio,
+      videoResolutionRatio,
     },
     hasConflict:
       hasValue(fixedPrice) &&
@@ -227,6 +237,7 @@ const buildModelState = (name, sourceMaps) => {
         audioRatio,
         audioCompletionRatio,
         voiceCloneUnlockRatio,
+        videoResolutionRatio,
       ].some(hasValue),
   };
 };
@@ -252,6 +263,7 @@ export const getModelWarnings = (model, t) => {
     model.audioInputPrice,
     model.audioOutputPrice,
     model.voiceCloneUnlockPrice,
+    model.videoResolutionRatio,
   ].some(hasValue);
 
   if (model.hasConflict) {
@@ -270,6 +282,7 @@ export const getModelWarnings = (model, t) => {
       model.rawRatios.audioRatio,
       model.rawRatios.audioCompletionRatio,
       model.rawRatios.voiceCloneUnlockRatio,
+      model.rawRatios.videoResolutionRatio,
     ].some(hasValue)
   ) {
     warnings.push(
@@ -326,6 +339,7 @@ export const buildSummaryText = (model, t) => {
       model.audioInputPrice,
       model.audioOutputPrice,
       model.voiceCloneUnlockPrice,
+      model.videoResolutionRatio,
     ].filter(hasValue).length;
     const extraLabel =
       extraCount > 0 ? `，${t('额外价格项')} ${extraCount}` : '';
@@ -344,6 +358,7 @@ export const buildOptionalFieldToggles = (model) => ({
   audioInputPrice: hasValue(model.audioInputPrice),
   audioOutputPrice: hasValue(model.audioOutputPrice),
   voiceCloneUnlockPrice: hasValue(model.voiceCloneUnlockPrice),
+  videoResolutionRatio: hasValue(model.videoResolutionRatio),
 });
 
 const serializeModel = (model, t) => {
@@ -357,6 +372,7 @@ const serializeModel = (model, t) => {
     AudioRatio: null,
     AudioCompletionRatio: null,
     VoiceCloneUnlockRatio: null,
+    VideoResolutionRatio: null,
   };
 
   if (model.billingMode === 'per-request') {
@@ -430,6 +446,21 @@ const serializeModel = (model, t) => {
     } else if (voiceCloneUnlockPrice !== null) {
       result.VoiceCloneUnlockRatio = toNormalizedNumber(voiceCloneUnlockPrice);
     }
+    if (hasValue(model.rawRatios.videoResolutionRatio)) {
+      try {
+        result.VideoResolutionRatio = JSON.parse(
+          model.rawRatios.videoResolutionRatio,
+        );
+      } catch (e) {
+        // skip invalid JSON for video resolution ratio
+      }
+    } else if (hasValue(model.videoResolutionRatio)) {
+      try {
+        result.VideoResolutionRatio = JSON.parse(model.videoResolutionRatio);
+      } catch (e) {
+        // skip invalid JSON for video resolution ratio
+      }
+    }
     return result;
   }
 
@@ -471,6 +502,13 @@ const serializeModel = (model, t) => {
   }
   if (voiceCloneUnlockPrice !== null) {
     result.VoiceCloneUnlockRatio = toNormalizedNumber(voiceCloneUnlockPrice);
+  }
+  if (hasValue(model.videoResolutionRatio)) {
+    try {
+      result.VideoResolutionRatio = JSON.parse(model.videoResolutionRatio);
+    } catch (e) {
+      // skip invalid JSON for video resolution ratio
+    }
   }
 
   return result;
@@ -581,6 +619,13 @@ export const buildPreviewRows = (model, t) => {
           ? model.rawRatios.voiceCloneUnlockRatio
           : t('空'),
       },
+      {
+        key: 'VideoResolutionRatio',
+        label: 'VideoResolutionRatio',
+        value: hasValue(model.rawRatios.videoResolutionRatio)
+          ? model.rawRatios.videoResolutionRatio
+          : t('空'),
+      },
     ];
     return rows;
   }
@@ -654,6 +699,13 @@ export const buildPreviewRows = (model, t) => {
           ? formatNumber(voiceCloneUnlockPrice)
           : t('空'),
     },
+    {
+      key: 'VideoResolutionRatio',
+      label: 'VideoResolutionRatio',
+      value: hasValue(model.videoResolutionRatio)
+        ? model.videoResolutionRatio
+        : t('空'),
+    },
   ];
   return rows;
 };
@@ -687,6 +739,7 @@ export function useModelPricingEditorState({
       AudioRatio: parseOptionJSON(options.AudioRatio),
       AudioCompletionRatio: parseOptionJSON(options.AudioCompletionRatio),
       VoiceCloneUnlockRatio: parseOptionJSON(options.VoiceCloneUnlockRatio),
+      VideoResolutionRatio: parseOptionJSON(options.VideoResolutionRatio),
       ModelBillingMode: parseOptionJSON(options['billing_setting.billing_mode']),
       ModelBillingExpr: parseOptionJSON(options['billing_setting.billing_expr']),
     };
@@ -703,6 +756,7 @@ export function useModelPricingEditorState({
       ...Object.keys(sourceMaps.AudioRatio),
       ...Object.keys(sourceMaps.AudioCompletionRatio),
       ...Object.keys(sourceMaps.VoiceCloneUnlockRatio),
+      ...Object.keys(sourceMaps.VideoResolutionRatio),
       ...Object.keys(sourceMaps.ModelBillingMode),
       ...Object.keys(sourceMaps.ModelBillingExpr),
     ]);
@@ -914,6 +968,14 @@ export function useModelPricingEditorState({
     });
   };
 
+  const handleJsonFieldChange = (field, value) => {
+    if (!selectedModel) return;
+    upsertModel(selectedModel.name, (model) => ({
+      ...model,
+      [field]: value,
+    }));
+  };
+
   const handleBillingModeChange = (value) => {
     if (!selectedModel) return;
     upsertModel(selectedModel.name, (model) => {
@@ -1014,6 +1076,7 @@ export function useModelPricingEditorState({
           audioInputPrice: selectedModel.audioInputPrice,
           audioOutputPrice: selectedModel.audioOutputPrice,
           voiceCloneUnlockPrice: selectedModel.voiceCloneUnlockPrice,
+          videoResolutionRatio: selectedModel.videoResolutionRatio,
           billingExpr: selectedModel.billingExpr || '',
           requestRuleExpr: selectedModel.requestRuleExpr || '',
         };
@@ -1050,6 +1113,7 @@ export function useModelPricingEditorState({
             Boolean(sourceToggles.audioInputPrice) &&
             Boolean(sourceToggles.audioOutputPrice),
           voiceCloneUnlockPrice: Boolean(sourceToggles.voiceCloneUnlockPrice),
+          videoResolutionRatio: Boolean(sourceToggles.videoResolutionRatio),
         };
       });
       return next;
@@ -1077,6 +1141,7 @@ export function useModelPricingEditorState({
         AudioRatio: {},
         AudioCompletionRatio: {},
         VoiceCloneUnlockRatio: {},
+        VideoResolutionRatio: {},
       };
 
       const tieredOutput = {
@@ -1167,6 +1232,7 @@ export function useModelPricingEditorState({
     isOptionalFieldEnabled,
     handleOptionalFieldToggle,
     handleNumericFieldChange,
+    handleJsonFieldChange,
     handleBillingModeChange,
     handleBillingExprChange,
     handleRequestRuleExprChange,
