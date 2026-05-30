@@ -24,6 +24,7 @@ import {
   PromptInputTextarea,
   type PromptInputMessage,
 } from '@/components/ai-elements/prompt-input'
+import { getSubmittableInputText } from '../lib'
 import type { ModelOption, GroupOption } from '../types'
 import { PlaygroundInputControls } from './playground-input-controls'
 import { PlaygroundInputTools } from './playground-input-tools'
@@ -60,8 +61,10 @@ export function PlaygroundInput({
   const [text, setText] = useState('')
 
   const handleSubmit = (message: PromptInputMessage) => {
-    if (!message.text?.trim() || disabled) return
-    onSubmit(message.text)
+    const submittableText = getSubmittableInputText(message, disabled)
+
+    if (!submittableText) return
+    onSubmit(submittableText)
     setText('')
   }
 
