@@ -16,7 +16,12 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-export { formatDuration, formatResetPeriod, formatTimestamp } from './format'
+export {
+  formatDuration,
+  formatPurchaseLimitPeriod,
+  formatResetPeriod,
+  formatTimestamp,
+} from './format'
 export {
   getPlanFormSchema,
   PLAN_FORM_DEFAULTS,

@@ -36,6 +36,12 @@ export const subscriptionPlanSchema = z.object({
   enabled: z.boolean(),
   sort_order: z.number(),
   max_purchase_per_user: z.number(),
+  period_purchase_limit: z.number().optional(),
+  period_purchase_unit: z
+    .enum(['year', 'month', 'day', 'hour', 'custom'])
+    .optional(),
+  period_purchase_value: z.number().optional(),
+  period_purchase_custom_seconds: z.number().optional(),
   total_amount: z.number(),
   upgrade_group: z.string().optional(),
   stripe_price_id: z.string().optional(),

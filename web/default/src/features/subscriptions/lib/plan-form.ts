@@ -40,6 +40,10 @@ export function getPlanFormSchema(t: TFunction) {
     enabled: z.boolean(),
     sort_order: z.coerce.number(),
     max_purchase_per_user: z.coerce.number().min(0),
+    period_purchase_limit: z.coerce.number().min(0),
+    period_purchase_unit: z.enum(['year', 'month', 'day', 'hour', 'custom']),
+    period_purchase_value: z.coerce.number().min(1),
+    period_purchase_custom_seconds: z.coerce.number().min(0).optional(),
     total_amount: z.coerce.number().min(0),
     upgrade_group: z.string().optional(),
     stripe_price_id: z.string().optional(),
@@ -62,6 +66,10 @@ export const PLAN_FORM_DEFAULTS: PlanFormValues = {
   enabled: true,
   sort_order: 0,
   max_purchase_per_user: 0,
+  period_purchase_limit: 0,
+  period_purchase_unit: 'month',
+  period_purchase_value: 1,
+  period_purchase_custom_seconds: 0,
   total_amount: 0,
   upgrade_group: '',
   stripe_price_id: '',
@@ -82,6 +90,12 @@ export function planToFormValues(plan: SubscriptionPlan): PlanFormValues {
     enabled: plan.enabled !== false,
     sort_order: Number(plan.sort_order || 0),
     max_purchase_per_user: Number(plan.max_purchase_per_user || 0),
+    period_purchase_limit: Number(plan.period_purchase_limit || 0),
+    period_purchase_unit: plan.period_purchase_unit || 'month',
+    period_purchase_value: Number(plan.period_purchase_value || 1),
+    period_purchase_custom_seconds: Number(
+      plan.period_purchase_custom_seconds || 0
+    ),
     total_amount: quotaUnitsToDollars(Number(plan.total_amount || 0)),
     upgrade_group: plan.upgrade_group || '',
     stripe_price_id: plan.stripe_price_id || '',
@@ -105,6 +119,13 @@ export function formValuesToPlanPayload(values: PlanFormValues): PlanPayload {
           : 0,
       sort_order: Number(values.sort_order || 0),
       max_purchase_per_user: Number(values.max_purchase_per_user || 0),
+      period_purchase_limit: Number(values.period_purchase_limit || 0),
+      period_purchase_unit: values.period_purchase_unit || 'month',
+      period_purchase_value: Number(values.period_purchase_value || 1),
+      period_purchase_custom_seconds:
+        values.period_purchase_unit === 'custom'
+          ? Number(values.period_purchase_custom_seconds || 0)
+          : 0,
       total_amount: parseQuotaFromDollars(Number(values.total_amount || 0)),
       upgrade_group: values.upgrade_group || '',
     },

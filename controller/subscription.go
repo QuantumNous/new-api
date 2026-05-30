@@ -150,6 +150,20 @@ func AdminCreateSubscriptionPlan(c *gin.Context) {
 		common.ApiErrorMsg(c, "购买上限不能为负数")
 		return
 	}
+	if req.Plan.PeriodPurchaseLimit < 0 {
+		common.ApiErrorMsg(c, "周期购买上限不能为负数")
+		return
+	}
+	if req.Plan.PeriodPurchaseUnit == "" {
+		req.Plan.PeriodPurchaseUnit = model.SubscriptionDurationMonth
+	}
+	if req.Plan.PeriodPurchaseValue <= 0 && req.Plan.PeriodPurchaseUnit != model.SubscriptionDurationCustom {
+		req.Plan.PeriodPurchaseValue = 1
+	}
+	if req.Plan.PeriodPurchaseLimit > 0 && req.Plan.PeriodPurchaseUnit == model.SubscriptionDurationCustom && req.Plan.PeriodPurchaseCustomSeconds <= 0 {
+		common.ApiErrorMsg(c, "周期限购自定义秒数需大于0秒")
+		return
+	}
 	if req.Plan.TotalAmount < 0 {
 		common.ApiErrorMsg(c, "总额度不能为负数")
 		return
@@ -217,6 +231,20 @@ func AdminUpdateSubscriptionPlan(c *gin.Context) {
 		common.ApiErrorMsg(c, "购买上限不能为负数")
 		return
 	}
+	if req.Plan.PeriodPurchaseLimit < 0 {
+		common.ApiErrorMsg(c, "周期购买上限不能为负数")
+		return
+	}
+	if req.Plan.PeriodPurchaseUnit == "" {
+		req.Plan.PeriodPurchaseUnit = model.SubscriptionDurationMonth
+	}
+	if req.Plan.PeriodPurchaseValue <= 0 && req.Plan.PeriodPurchaseUnit != model.SubscriptionDurationCustom {
+		req.Plan.PeriodPurchaseValue = 1
+	}
+	if req.Plan.PeriodPurchaseLimit > 0 && req.Plan.PeriodPurchaseUnit == model.SubscriptionDurationCustom && req.Plan.PeriodPurchaseCustomSeconds <= 0 {
+		common.ApiErrorMsg(c, "周期限购自定义秒数需大于0秒")
+		return
+	}
 	if req.Plan.TotalAmount < 0 {
 		common.ApiErrorMsg(c, "总额度不能为负数")
 		return
@@ -237,24 +265,28 @@ func AdminUpdateSubscriptionPlan(c *gin.Context) {
 	err := model.DB.Transaction(func(tx *gorm.DB) error {
 		// update plan (allow zero values updates with map)
 		updateMap := map[string]interface{}{
-			"title":                      req.Plan.Title,
-			"subtitle":                   req.Plan.Subtitle,
-			"price_amount":               req.Plan.PriceAmount,
-			"currency":                   req.Plan.Currency,
-			"duration_unit":              req.Plan.DurationUnit,
-			"duration_value":             req.Plan.DurationValue,
-			"custom_seconds":             req.Plan.CustomSeconds,
-			"enabled":                    req.Plan.Enabled,
-			"sort_order":                 req.Plan.SortOrder,
-			"stripe_price_id":            req.Plan.StripePriceId,
-			"creem_product_id":           req.Plan.CreemProductId,
-			"waffo_pancake_product_id":   req.Plan.WaffoPancakeProductId,
-			"max_purchase_per_user":      req.Plan.MaxPurchasePerUser,
-			"total_amount":               req.Plan.TotalAmount,
-			"upgrade_group":              req.Plan.UpgradeGroup,
-			"quota_reset_period":         req.Plan.QuotaResetPeriod,
-			"quota_reset_custom_seconds": req.Plan.QuotaResetCustomSeconds,
-			"updated_at":                 common.GetTimestamp(),
+			"title":                          req.Plan.Title,
+			"subtitle":                       req.Plan.Subtitle,
+			"price_amount":                   req.Plan.PriceAmount,
+			"currency":                       req.Plan.Currency,
+			"duration_unit":                  req.Plan.DurationUnit,
+			"duration_value":                 req.Plan.DurationValue,
+			"custom_seconds":                 req.Plan.CustomSeconds,
+			"enabled":                        req.Plan.Enabled,
+			"sort_order":                     req.Plan.SortOrder,
+			"stripe_price_id":                req.Plan.StripePriceId,
+			"creem_product_id":               req.Plan.CreemProductId,
+			"waffo_pancake_product_id":       req.Plan.WaffoPancakeProductId,
+			"max_purchase_per_user":          req.Plan.MaxPurchasePerUser,
+			"period_purchase_limit":          req.Plan.PeriodPurchaseLimit,
+			"period_purchase_unit":           req.Plan.PeriodPurchaseUnit,
+			"period_purchase_value":          req.Plan.PeriodPurchaseValue,
+			"period_purchase_custom_seconds": req.Plan.PeriodPurchaseCustomSeconds,
+			"total_amount":                   req.Plan.TotalAmount,
+			"upgrade_group":                  req.Plan.UpgradeGroup,
+			"quota_reset_period":             req.Plan.QuotaResetPeriod,
+			"quota_reset_custom_seconds":     req.Plan.QuotaResetCustomSeconds,
+			"updated_at":                     common.GetTimestamp(),
 		}
 		if err := tx.Model(&model.SubscriptionPlan{}).Where("id = ?", id).Updates(updateMap).Error; err != nil {
 			return err

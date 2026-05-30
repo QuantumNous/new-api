@@ -166,6 +166,12 @@ type SubscriptionPlan struct {
 	// Max purchases per user (0 = unlimited)
 	MaxPurchasePerUser int `json:"max_purchase_per_user" gorm:"type:int;default:0"`
 
+	// Max purchases per user in a rolling period (0 = unlimited)
+	PeriodPurchaseLimit         int    `json:"period_purchase_limit" gorm:"type:int;default:0"`
+	PeriodPurchaseUnit          string `json:"period_purchase_unit" gorm:"type:varchar(16);not null;default:'month'"`
+	PeriodPurchaseValue         int    `json:"period_purchase_value" gorm:"type:int;not null;default:1"`
+	PeriodPurchaseCustomSeconds int64  `json:"period_purchase_custom_seconds" gorm:"type:bigint;not null;default:0"`
+
 	// Upgrade user group after purchase (empty = no change)
 	UpgradeGroup string `json:"upgrade_group" gorm:"type:varchar(64);default:''"`
 
@@ -387,6 +393,69 @@ func CountUserSubscriptionsByPlan(userId int, planId int) (int64, error) {
 	return count, nil
 }
 
+func calcPeriodPurchaseSince(now time.Time, plan *SubscriptionPlan) (int64, error) {
+	if plan == nil {
+		return 0, errors.New("plan is nil")
+	}
+	if plan.PeriodPurchaseValue <= 0 && plan.PeriodPurchaseUnit != SubscriptionDurationCustom {
+		return 0, errors.New("period_purchase_value must be > 0")
+	}
+	switch plan.PeriodPurchaseUnit {
+	case SubscriptionDurationYear:
+		return now.AddDate(-plan.PeriodPurchaseValue, 0, 0).Unix(), nil
+	case SubscriptionDurationMonth:
+		return now.AddDate(0, -plan.PeriodPurchaseValue, 0).Unix(), nil
+	case SubscriptionDurationDay:
+		return now.Add(-time.Duration(plan.PeriodPurchaseValue) * 24 * time.Hour).Unix(), nil
+	case SubscriptionDurationHour:
+		return now.Add(-time.Duration(plan.PeriodPurchaseValue) * time.Hour).Unix(), nil
+	case SubscriptionDurationCustom:
+		if plan.PeriodPurchaseCustomSeconds <= 0 {
+			return 0, errors.New("period_purchase_custom_seconds must be > 0")
+		}
+		return now.Add(-time.Duration(plan.PeriodPurchaseCustomSeconds) * time.Second).Unix(), nil
+	default:
+		return 0, fmt.Errorf("invalid period_purchase_unit: %s", plan.PeriodPurchaseUnit)
+	}
+}
+
+func CheckSubscriptionPurchaseLimitTx(tx *gorm.DB, userId int, plan *SubscriptionPlan) error {
+	if tx == nil {
+		tx = DB
+	}
+	if userId <= 0 || plan == nil || plan.Id <= 0 {
+		return errors.New("invalid subscription purchase limit args")
+	}
+	if plan.MaxPurchasePerUser > 0 {
+		var count int64
+		if err := tx.Model(&UserSubscription{}).
+			Where("user_id = ? AND plan_id = ?", userId, plan.Id).
+			Count(&count).Error; err != nil {
+			return err
+		}
+		if count >= int64(plan.MaxPurchasePerUser) {
+			return errors.New("已达到该套餐购买上限")
+		}
+	}
+	if plan.PeriodPurchaseLimit > 0 {
+		nowUnix := getDBTimestampTx(tx)
+		since, err := calcPeriodPurchaseSince(time.Unix(nowUnix, 0), plan)
+		if err != nil {
+			return err
+		}
+		var count int64
+		if err := tx.Model(&UserSubscription{}).
+			Where("user_id = ? AND plan_id = ? AND start_time >= ?", userId, plan.Id, since).
+			Count(&count).Error; err != nil {
+			return err
+		}
+		if count >= int64(plan.PeriodPurchaseLimit) {
+			return errors.New("已达到该套餐周期购买上限")
+		}
+	}
+	return nil
+}
+
 func getUserGroupByIdTx(tx *gorm.DB, userId int) (string, error) {
 	if userId <= 0 {
 		return "", errors.New("invalid userId")
@@ -446,16 +515,8 @@ func CreateUserSubscriptionFromPlanTx(tx *gorm.DB, userId int, plan *Subscriptio
 	if userId <= 0 {
 		return nil, errors.New("invalid user id")
 	}
-	if plan.MaxPurchasePerUser > 0 {
-		var count int64
-		if err := tx.Model(&UserSubscription{}).
-			Where("user_id = ? AND plan_id = ?", userId, plan.Id).
-			Count(&count).Error; err != nil {
-			return nil, err
-		}
-		if count >= int64(plan.MaxPurchasePerUser) {
-			return nil, errors.New("已达到该套餐购买上限")
-		}
+	if err := CheckSubscriptionPurchaseLimitTx(tx, userId, plan); err != nil {
+		return nil, err
 	}
 	nowUnix := getDBTimestampTx(tx)
 	now := time.Unix(nowUnix, 0)

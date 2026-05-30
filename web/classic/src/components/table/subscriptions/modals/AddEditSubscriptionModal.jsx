@@ -93,6 +93,10 @@ const AddEditSubscriptionModal = ({
     enabled: true,
     sort_order: 0,
     max_purchase_per_user: 0,
+    period_purchase_limit: 0,
+    period_purchase_unit: 'month',
+    period_purchase_value: 1,
+    period_purchase_custom_seconds: 0,
     total_amount: 0,
     upgrade_group: '',
     stripe_price_id: '',
@@ -117,6 +121,12 @@ const AddEditSubscriptionModal = ({
       enabled: p.enabled !== false,
       sort_order: Number(p.sort_order || 0),
       max_purchase_per_user: Number(p.max_purchase_per_user || 0),
+      period_purchase_limit: Number(p.period_purchase_limit || 0),
+      period_purchase_unit: p.period_purchase_unit || 'month',
+      period_purchase_value: Number(p.period_purchase_value || 1),
+      period_purchase_custom_seconds: Number(
+        p.period_purchase_custom_seconds || 0,
+      ),
       total_amount: Number(
         quotaToDisplayAmount(p.total_amount || 0).toFixed(2),
       ),
@@ -162,6 +172,13 @@ const AddEditSubscriptionModal = ({
               : 0,
           sort_order: Number(values.sort_order || 0),
           max_purchase_per_user: Number(values.max_purchase_per_user || 0),
+          period_purchase_limit: Number(values.period_purchase_limit || 0),
+          period_purchase_unit: values.period_purchase_unit || 'month',
+          period_purchase_value: Number(values.period_purchase_value || 1),
+          period_purchase_custom_seconds:
+            values.period_purchase_unit === 'custom'
+              ? Number(values.period_purchase_custom_seconds || 0)
+              : 0,
           total_amount: displayAmountToQuota(values.total_amount),
           upgrade_group: values.upgrade_group || '',
         },
@@ -369,6 +386,50 @@ const AddEditSubscriptionModal = ({
                         extraText={t('0 表示不限')}
                         style={{ width: '100%' }}
                       />
+                    </Col>
+
+                    <Col span={12}>
+                      <Form.InputNumber
+                        field='period_purchase_limit'
+                        label={t('周期购买上限')}
+                        min={0}
+                        precision={0}
+                        extraText={t('0 表示不限')}
+                        style={{ width: '100%' }}
+                      />
+                    </Col>
+
+                    <Col span={12}>
+                      <Form.Select
+                        field='period_purchase_unit'
+                        label={t('周期单位')}
+                      >
+                        {durationUnitOptions.map((o) => (
+                          <Select.Option key={o.value} value={o.value}>
+                            {o.label}
+                          </Select.Option>
+                        ))}
+                      </Form.Select>
+                    </Col>
+
+                    <Col span={12}>
+                      {values.period_purchase_unit === 'custom' ? (
+                        <Form.InputNumber
+                          field='period_purchase_custom_seconds'
+                          label={t('自定义秒数')}
+                          min={1}
+                          precision={0}
+                          style={{ width: '100%' }}
+                        />
+                      ) : (
+                        <Form.InputNumber
+                          field='period_purchase_value'
+                          label={t('周期数值')}
+                          min={1}
+                          precision={0}
+                          style={{ width: '100%' }}
+                        />
+                      )}
                     </Col>
 
                     <Col span={12}>
