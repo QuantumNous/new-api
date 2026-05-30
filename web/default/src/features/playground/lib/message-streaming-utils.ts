@@ -123,6 +123,13 @@ export function isAssistantMessagePending(message: Message): boolean {
   )
 }
 
+export function isPendingAssistantMessage(message?: Message): boolean {
+  return Boolean(
+    message?.from === MESSAGE_ROLES.ASSISTANT &&
+      isAssistantMessagePending(message)
+  )
+}
+
 type ChatCompletionChoice = ChatCompletionResponse['choices'][number]
 
 export function hasChatCompletionChoice(
@@ -166,12 +173,8 @@ export function sanitizeMessagesOnLoad(messages: Message[]): Message[] {
 
   for (let i = messages.length - 1; i >= 0; i--) {
     const message = messages[i]
-    const isPendingAssistant =
-      message?.from === MESSAGE_ROLES.ASSISTANT &&
-      (message?.status === MESSAGE_STATUS.LOADING ||
-        message?.status === MESSAGE_STATUS.STREAMING)
 
-    if (isPendingAssistant) {
+    if (isPendingAssistantMessage(message)) {
       targetIndex = i
       break
     }
