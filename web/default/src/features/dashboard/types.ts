@@ -68,9 +68,12 @@ export type ConsumptionDistributionChartType = 'bar' | 'area'
 
 export type ModelAnalyticsChartTab = 'trend' | 'proportion' | 'top'
 
+export type CacheAnalyticsTab = 'trend' | 'ranking' | 'nonCache'
+
 export interface DashboardChartPreferences {
   consumptionDistributionChart: ConsumptionDistributionChartType
   modelAnalyticsChart: ModelAnalyticsChartTab
+  cacheAnalyticsChart: CacheAnalyticsTab
   defaultTimeRangeDays: number
   defaultTimeGranularity: TimeGranularity
 }
@@ -114,6 +117,17 @@ export interface ProcessedChartData {
 export interface ProcessedUserChartData {
   spec_user_rank: VChartSpec
   spec_user_trend: VChartSpec
+}
+
+export interface ProcessedCacheChartData {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  spec_cache_trend: Record<string, any>
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  spec_cache_rank: Record<string, any>
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  spec_non_cache: Record<string, any>
+  totalCacheDisplay: string
+  totalNonCacheDisplay: string
 }
 
 // ============================================================================
