@@ -302,7 +302,11 @@ func InitResources() error {
 	}
 
 	// Backfill cache tokens in quota_data from usage logs (requires both DBs)
-	go model.MigrateCacheTokens()
+	if common.IsMasterNode {
+		gopool.Go(func() {
+			model.MigrateCacheTokens()
+		})
+	}
 
 	// Initialize Redis
 	err = common.InitRedisClient()
