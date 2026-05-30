@@ -16,11 +16,10 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
-import { MESSAGE_ROLES } from '../constants'
+import { getMessageEditorState } from '../lib'
 import type { Message } from '../types'
 
 type PlaygroundMessageEditorProps = {
@@ -43,10 +42,10 @@ export function PlaygroundMessageEditor({
   originalText,
 }: PlaygroundMessageEditorProps) {
   const { t } = useTranslation()
-  const isEmpty = useMemo(() => !editText.trim(), [editText])
-  const isChanged = useMemo(
-    () => editText !== originalText,
-    [editText, originalText]
+  const { canSave, showSaveAndSubmit } = getMessageEditorState(
+    message,
+    editText,
+    originalText
   )
 
   return (
@@ -58,11 +57,11 @@ export function PlaygroundMessageEditor({
         rows={8}
       />
       <div className='flex gap-2'>
-        {message.from === MESSAGE_ROLES.USER && (
+        {showSaveAndSubmit && (
           <Button
             size='sm'
             onClick={() => onSaveEditAndSubmit?.(editText)}
-            disabled={isEmpty || !isChanged}
+            disabled={!canSave}
           >
             {t('Save & Submit')}
           </Button>
@@ -70,7 +69,7 @@ export function PlaygroundMessageEditor({
         <Button
           size='sm'
           onClick={() => onSaveEdit?.(editText)}
-          disabled={isEmpty || !isChanged}
+          disabled={!canSave}
         >
           {t('Save')}
         </Button>
