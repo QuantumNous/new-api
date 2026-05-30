@@ -37,6 +37,16 @@ export function useStreamRequest() {
   const isStreamCompleteRef = useRef(false)
   const [isStreaming, setIsStreaming] = useState(false)
 
+  const closeActiveStream = useCallback((source?: SSE) => {
+    const streamSource = source ?? sseSourceRef.current
+    streamSource?.close()
+
+    if (!source || sseSourceRef.current === source) {
+      sseSourceRef.current = null
+      setIsStreaming(false)
+    }
+  }, [])
+
   const sendStreamRequest = useCallback(
     (
       payload: ChatCompletionRequest,
@@ -56,25 +66,17 @@ export function useStreamRequest() {
       isStreamCompleteRef.current = false
       setIsStreaming(true)
 
-      const closeSource = () => {
-        source.close()
-        if (sseSourceRef.current === source) {
-          sseSourceRef.current = null
-          setIsStreaming(false)
-        }
-      }
-
       const handleError = (errorMessage: string, errorCode?: string) => {
         if (!isStreamCompleteRef.current) {
           onError(errorMessage, errorCode)
-          closeSource()
+          closeActiveStream(source)
         }
       }
 
       source.addEventListener('message', (e: MessageEvent) => {
         if (isStreamDoneMessage(e.data)) {
           isStreamCompleteRef.current = true
-          closeSource()
+          closeActiveStream(source)
           onComplete()
           return
         }
@@ -119,20 +121,15 @@ export function useStreamRequest() {
         // eslint-disable-next-line no-console
         console.error('Failed to start SSE stream:', error)
         onError(ERROR_MESSAGES.STREAM_START_ERROR)
-        sseSourceRef.current = null
-        setIsStreaming(false)
+        closeActiveStream(source)
       }
     },
-    []
+    [closeActiveStream]
   )
 
   const stopStream = useCallback(() => {
-    if (sseSourceRef.current) {
-      sseSourceRef.current.close()
-      sseSourceRef.current = null
-    }
-    setIsStreaming(false)
-  }, [])
+    closeActiveStream()
+  }, [closeActiveStream])
 
   return {
     sendStreamRequest,
