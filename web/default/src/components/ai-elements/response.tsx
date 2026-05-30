@@ -18,14 +18,73 @@ For commercial licensing, please contact support@quantumnous.com
 */
 'use client'
 
-import { type ComponentProps, memo } from 'react'
-import { Streamdown } from 'streamdown'
+import { type ComponentProps, memo, type ReactNode } from 'react'
+import { Streamdown, type Components } from 'streamdown'
 import { cn } from '@/lib/utils'
+import {
+  CodeBlock,
+  CodeBlockCopyButton,
+} from '@/components/ai-elements/code-block'
 
 type ResponseProps = ComponentProps<typeof Streamdown>
 
+type CodeComponentProps = ComponentProps<'code'> & {
+  node?: unknown
+  'data-block'?: boolean
+}
+
+function getCodeText(children: ReactNode) {
+  if (typeof children === 'string') {
+    return children.replace(/\n$/, '')
+  }
+
+  if (Array.isArray(children)) {
+    return children.join('').replace(/\n$/, '')
+  }
+
+  return String(children ?? '')
+}
+
+function getCodeLanguage(className?: string) {
+  return className?.match(/language-([\w#+.-]+)/)?.[1] ?? 'plaintext'
+}
+
+const responseComponents: Components = {
+  code({ children, className, ...props }: CodeComponentProps) {
+    if (!props['data-block']) {
+      return (
+        <code
+          className={cn(
+            'bg-muted/70 text-foreground rounded px-1 py-0.5 font-mono text-[0.9em]',
+            className
+          )}
+          {...props}
+        >
+          {children}
+        </code>
+      )
+    }
+
+    const code = getCodeText(children)
+    const language = getCodeLanguage(className)
+
+    return (
+      <CodeBlock
+        code={code}
+        defaultCollapsed={code.split('\n').length > 80}
+        language={language}
+        showLineNumbers={true}
+        showToolbar={true}
+        title={language}
+      >
+        <CodeBlockCopyButton />
+      </CodeBlock>
+    )
+  },
+}
+
 export const Response = memo(
-  ({ className, children, ...props }: ResponseProps) => {
+  ({ className, children, components, ...props }: ResponseProps) => {
     const stripCustomTags = (input: unknown): unknown => {
       if (typeof input !== 'string') return input
       return (
@@ -45,9 +104,10 @@ export const Response = memo(
     return (
       <Streamdown
         className={cn(
-          'size-full [&>*:first-child]:mt-0 [&>*:last-child]:mb-0',
+          'size-full min-w-0 [&>*:first-child]:mt-0 [&>*:last-child]:mb-0',
           className
         )}
+        components={{ ...responseComponents, ...components }}
         {...props}
       >
         {safeChildren}
