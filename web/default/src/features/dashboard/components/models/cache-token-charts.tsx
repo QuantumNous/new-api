@@ -133,7 +133,7 @@ export function CacheTokenCharts(props: CacheTokenChartsProps) {
     <div className='overflow-hidden rounded-lg border'>
       <div className='flex w-full flex-col gap-1.5 border-b px-3 py-2 sm:gap-3 sm:px-5 sm:py-3 lg:flex-row lg:items-center lg:justify-between'>
         <div className='flex items-center gap-2'>
-          <Database className='text-muted-foreground/60 size-4' />
+          <Database className='text-muted-foreground/60 size-4' aria-hidden='true' />
           <div className='text-sm font-semibold'>
             {t('Cache Token Analytics')}
           </div>

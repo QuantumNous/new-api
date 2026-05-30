@@ -278,9 +278,11 @@ export function processChartData(
     const tokens = Number(item.token_used) || 0
     const cacheRead = Number(item.cache_tokens) || 0
     const cacheCreation =
-      (Number(item.cache_creation_tokens) || 0) +
-      (Number(item.cache_creation_tokens_5m) || 0) +
-      (Number(item.cache_creation_tokens_1h) || 0)
+      (Number(item.cache_creation_tokens_5m) || 0) > 0 ||
+      (Number(item.cache_creation_tokens_1h) || 0) > 0
+        ? (Number(item.cache_creation_tokens_5m) || 0) +
+          (Number(item.cache_creation_tokens_1h) || 0)
+        : Number(item.cache_creation_tokens) || 0
 
     // Aggregate by time and model
     if (!timeModelMap.has(timeKey)) {
@@ -852,9 +854,11 @@ export function processCacheChartData(
     const tokens = Number(item.token_used) || 0
     const cacheRead = Number(item.cache_tokens) || 0
     const cacheCreation =
-      (Number(item.cache_creation_tokens) || 0) +
-      (Number(item.cache_creation_tokens_5m) || 0) +
-      (Number(item.cache_creation_tokens_1h) || 0)
+      (Number(item.cache_creation_tokens_5m) || 0) > 0 ||
+      (Number(item.cache_creation_tokens_1h) || 0) > 0
+        ? (Number(item.cache_creation_tokens_5m) || 0) +
+          (Number(item.cache_creation_tokens_1h) || 0)
+        : Number(item.cache_creation_tokens) || 0
     const nonCache = Math.max(0, tokens - cacheRead - cacheCreation)
 
     // Cache trend aggregation

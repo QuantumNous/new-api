@@ -44,9 +44,11 @@ export function calculateDashboardStats(data: QuotaDataItem[]) {
       totalCacheRead: acc.totalCacheRead + (Number(item.cache_tokens) || 0),
       totalCacheCreation:
         acc.totalCacheCreation +
-        (Number(item.cache_creation_tokens) || 0) +
-        (Number(item.cache_creation_tokens_5m) || 0) +
-        (Number(item.cache_creation_tokens_1h) || 0),
+        ((Number(item.cache_creation_tokens_5m) || 0) > 0 ||
+        (Number(item.cache_creation_tokens_1h) || 0) > 0
+          ? (Number(item.cache_creation_tokens_5m) || 0) +
+            (Number(item.cache_creation_tokens_1h) || 0)
+          : Number(item.cache_creation_tokens) || 0),
       totalCacheCreation5m:
         acc.totalCacheCreation5m + (Number(item.cache_creation_tokens_5m) || 0),
       totalCacheCreation1h:
