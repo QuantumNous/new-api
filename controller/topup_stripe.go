@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -77,12 +78,12 @@ func (*StripeAdaptor) RequestPay(c *gin.Context, req *StripePayRequest) {
 		return
 	}
 
-	if req.SuccessURL != "" && common.ValidateRedirectURL(req.SuccessURL) != nil {
+	if err := validateStripeRedirectURL(c, req.SuccessURL); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"message": "支付成功重定向URL不在可信任域名列表中", "data": ""})
 		return
 	}
 
-	if req.CancelURL != "" && common.ValidateRedirectURL(req.CancelURL) != nil {
+	if err := validateStripeRedirectURL(c, req.CancelURL); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"message": "支付取消重定向URL不在可信任域名列表中", "data": ""})
 		return
 	}
@@ -415,6 +416,45 @@ func genStripeLink(referenceId string, customerId string, email string, amount i
 	}
 
 	return result.URL, nil
+}
+
+func validateStripeRedirectURL(c *gin.Context, rawURL string) error {
+	if rawURL == "" {
+		return nil
+	}
+
+	err := common.ValidateRedirectURL(rawURL)
+	if err == nil {
+		return nil
+	}
+
+	if isSameRequestHostRedirect(c, rawURL) {
+		return nil
+	}
+
+	return err
+}
+
+func isSameRequestHostRedirect(c *gin.Context, rawURL string) bool {
+	parsedURL, err := url.Parse(rawURL)
+	if err != nil {
+		return false
+	}
+	if parsedURL.Scheme != "http" && parsedURL.Scheme != "https" {
+		return false
+	}
+
+	redirectHost := canonicalRedirectHostname(parsedURL.Host)
+	requestHost := canonicalRedirectHostname(c.Request.Host)
+	return redirectHost != "" && requestHost != "" && redirectHost == requestHost
+}
+
+func canonicalRedirectHostname(host string) string {
+	parsedHost, err := url.Parse("//" + strings.TrimSpace(host))
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSuffix(strings.ToLower(parsedHost.Hostname()), ".")
 }
 
 func buildStripeTopUpPriceData(templatePrice *stripe.Price, minorAmount int64, amount int64) *stripe.CheckoutSessionLineItemPriceDataParams {

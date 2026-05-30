@@ -1,11 +1,15 @@
 package controller
 
 import (
+	"net/http"
+	"net/http/httptest"
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/setting"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
+	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 )
 
@@ -29,6 +33,21 @@ func TestStripeMinorUnitAmount(t *testing.T) {
 	amount, err = stripeMinorUnitAmount(1234.56, "JPY")
 	require.NoError(t, err)
 	require.Equal(t, int64(1235), amount)
+}
+
+func TestValidateStripeRedirectURLAllowsSameRequestHost(t *testing.T) {
+	originalDomains := constant.TrustedRedirectDomains
+	t.Cleanup(func() {
+		constant.TrustedRedirectDomains = originalDomains
+	})
+	constant.TrustedRedirectDomains = nil
+
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = httptest.NewRequest(http.MethodPost, "https://flatkey.ai/api/user/stripe/pay", nil)
+
+	require.NoError(t, validateStripeRedirectURL(ctx, "https://flatkey.ai/wallet?show_history=true"))
+	require.Error(t, validateStripeRedirectURL(ctx, "https://evil.example/wallet"))
 }
 
 func TestGetStripePayMoneyAppliesDisplayGroupAndDiscount(t *testing.T) {
