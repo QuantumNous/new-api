@@ -70,7 +70,7 @@ type SimpleGroup = {
 type GroupPricingRow = {
   _id: string
   name: string
-  ratio: number
+  ratio: string
   selectable: boolean
   description: string
 }
@@ -95,6 +95,14 @@ function normalizeRatio(value: unknown): number {
   return Number.isFinite(parsed) ? parsed : 1
 }
 
+function formatEditableRatio(value: unknown): string {
+  return String(normalizeRatio(value))
+}
+
+function isEditableRatioInput(value: string): boolean {
+  return value === '' || /^(?:\d+|\d*[.]\d*)$/.test(value)
+}
+
 function buildGroupPricingRows(
   groupRatio: string,
   userUsableGroups: string
@@ -112,7 +120,7 @@ function buildGroupPricingRows(
   return Array.from(names).map((name) => ({
     _id: createGroupPricingId(),
     name,
-    ratio: normalizeRatio(ratioMap[name]),
+    ratio: formatEditableRatio(ratioMap[name]),
     selectable: Object.prototype.hasOwnProperty.call(usableMap, name),
     description: String(usableMap[name] ?? ''),
   }))
@@ -793,7 +801,7 @@ function GroupPricingTable({
     (
       id: string,
       field: Exclude<keyof GroupPricingRow, '_id'>,
-      value: string | number | boolean
+      value: string | boolean
     ) => {
       emitRows(
         rows.map((row) => (row._id === id ? { ...row, [field]: value } : row))
@@ -815,7 +823,7 @@ function GroupPricingTable({
       {
         _id: createGroupPricingId(),
         name,
-        ratio: 1,
+        ratio: '1',
         selectable: true,
         description: '',
       },
@@ -902,17 +910,15 @@ function GroupPricingTable({
                       </TableCell>
                       <TableCell>
                         <Input
-                          type='number'
-                          min={0}
-                          step={0.1}
-                          value={String(row.ratio)}
-                          onChange={(event) =>
-                            updateRow(
-                              row._id,
-                              'ratio',
-                              normalizeRatio(event.target.value)
-                            )
-                          }
+                          inputMode='decimal'
+                          pattern='[0-9]*[.]?[0-9]*'
+                          value={row.ratio}
+                          onChange={(event) => {
+                            const nextRatio = event.target.value
+                            if (isEditableRatioInput(nextRatio)) {
+                              updateRow(row._id, 'ratio', nextRatio)
+                            }
+                          }}
                         />
                       </TableCell>
                       <TableCell>
