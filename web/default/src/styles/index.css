@@ -17,6 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 @import 'tailwindcss';
+@source "../../node_modules/streamdown/dist/*.js";
 @import 'tw-animate-css';
 @import 'shadcn/tailwind.css';
 @import '@fontsource-variable/public-sans';
@@ -32,6 +33,13 @@ For commercial licensing, please contact support@quantumnous.com
 
 /* Shiki dual themes: token colors follow dark theme (pre background stays `bg-background` on the block) */
 @layer components {
+  .shiki span {
+    color: var(--shiki-light) !important;
+    font-style: var(--shiki-light-font-style) !important;
+    font-weight: var(--shiki-light-font-weight) !important;
+    text-decoration: var(--shiki-light-text-decoration) !important;
+  }
+
   .dark .shiki span {
     color: var(--shiki-dark) !important;
     font-style: var(--shiki-dark-font-style) !important;
