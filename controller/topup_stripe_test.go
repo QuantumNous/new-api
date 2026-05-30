@@ -50,6 +50,24 @@ func TestValidateStripeRedirectURLAllowsSameRequestHost(t *testing.T) {
 	require.Error(t, validateStripeRedirectURL(ctx, "https://evil.example/wallet"))
 }
 
+func TestValidateStripeRedirectURLAllowsForwardedAndOriginHosts(t *testing.T) {
+	originalDomains := constant.TrustedRedirectDomains
+	t.Cleanup(func() {
+		constant.TrustedRedirectDomains = originalDomains
+	})
+	constant.TrustedRedirectDomains = nil
+
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = httptest.NewRequest(http.MethodPost, "https://router.flatkey.ai/api/user/stripe/pay", nil)
+	ctx.Request.Header.Set("Origin", "https://flatkey.ai")
+	ctx.Request.Header.Set("X-Forwarded-Host", "flatkey.ai")
+
+	require.NoError(t, validateStripeRedirectURL(ctx, "https://flatkey.ai/wallet?show_history=true"))
+	require.NoError(t, validateStripeRedirectURL(ctx, "https://router.flatkey.ai/wallet"))
+	require.Error(t, validateStripeRedirectURL(ctx, "https://evil.example/wallet"))
+}
+
 func TestGetStripePayMoneyAppliesDisplayGroupAndDiscount(t *testing.T) {
 	originalDisplayType := operation_setting.GetQuotaDisplayType()
 	originalUnitPrice := setting.StripeUnitPrice

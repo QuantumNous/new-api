@@ -445,8 +445,49 @@ func isSameRequestHostRedirect(c *gin.Context, rawURL string) bool {
 	}
 
 	redirectHost := canonicalRedirectHostname(parsedURL.Host)
-	requestHost := canonicalRedirectHostname(c.Request.Host)
-	return redirectHost != "" && requestHost != "" && redirectHost == requestHost
+	if redirectHost == "" {
+		return false
+	}
+
+	for _, requestHost := range stripeRedirectTrustedHostsFromRequest(c) {
+		if redirectHost == requestHost {
+			return true
+		}
+	}
+	return false
+}
+
+func stripeRedirectTrustedHostsFromRequest(c *gin.Context) []string {
+	hostSet := make(map[string]struct{})
+	addHost := func(host string) {
+		normalizedHost := canonicalRedirectHostname(host)
+		if normalizedHost != "" {
+			hostSet[normalizedHost] = struct{}{}
+		}
+	}
+	addURLHost := func(rawURL string) {
+		parsedURL, err := url.Parse(strings.TrimSpace(rawURL))
+		if err != nil {
+			return
+		}
+		if parsedURL.Scheme != "http" && parsedURL.Scheme != "https" {
+			return
+		}
+		addHost(parsedURL.Host)
+	}
+
+	addHost(c.Request.Host)
+	for _, forwardedHost := range strings.Split(c.GetHeader("X-Forwarded-Host"), ",") {
+		addHost(forwardedHost)
+	}
+	addURLHost(c.GetHeader("Origin"))
+	addURLHost(c.GetHeader("Referer"))
+
+	hosts := make([]string, 0, len(hostSet))
+	for host := range hostSet {
+		hosts = append(hosts, host)
+	}
+	return hosts
 }
 
 func canonicalRedirectHostname(host string) string {
