@@ -19,12 +19,14 @@ For commercial licensing, please contact support@quantumnous.com
 import { useState, useCallback } from 'react'
 import { DEFAULT_CONFIG, DEFAULT_PARAMETER_ENABLED } from '../constants'
 import {
-  loadConfig,
   saveConfig,
-  loadParameterEnabled,
   saveParameterEnabled,
-  loadMessages,
   saveMessages,
+  applyMessageStateUpdate,
+  getInitialMessages,
+  getInitialParameterEnabled,
+  getInitialPlaygroundConfig,
+  type MessageStateUpdater,
 } from '../lib'
 import type {
   Message,
@@ -39,21 +41,15 @@ import type {
  */
 export function usePlaygroundState() {
   // Load initial state from localStorage
-  const [config, setConfig] = useState<PlaygroundConfig>(() => {
-    const savedConfig = loadConfig()
-    return { ...DEFAULT_CONFIG, ...savedConfig }
-  })
-
-  const [parameterEnabled, setParameterEnabled] = useState<ParameterEnabled>(
-    () => {
-      const saved = loadParameterEnabled()
-      return { ...DEFAULT_PARAMETER_ENABLED, ...saved }
-    }
+  const [config, setConfig] = useState<PlaygroundConfig>(
+    getInitialPlaygroundConfig
   )
 
-  const [messages, setMessages] = useState<Message[]>(() => {
-    return loadMessages() || []
-  })
+  const [parameterEnabled, setParameterEnabled] = useState<ParameterEnabled>(
+    getInitialParameterEnabled
+  )
+
+  const [messages, setMessages] = useState<Message[]>(getInitialMessages)
 
   const [models, setModels] = useState<ModelOption[]>([])
   const [groups, setGroups] = useState<GroupOption[]>([])
@@ -84,10 +80,9 @@ export function usePlaygroundState() {
 
   // Update messages with automatic save
   const updateMessages = useCallback(
-    (updater: Message[] | ((prev: Message[]) => Message[])) => {
+    (updater: MessageStateUpdater) => {
       setMessages((prev) => {
-        const newMessages =
-          typeof updater === 'function' ? updater(prev) : updater
+        const newMessages = applyMessageStateUpdate(prev, updater)
         saveMessages(newMessages)
         return newMessages
       })
