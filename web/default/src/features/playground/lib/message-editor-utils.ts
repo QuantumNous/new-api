@@ -21,6 +21,7 @@ import type { Message } from '../types'
 
 type MessageEditorState = {
   canSave: boolean
+  hasChanged: boolean
   showSaveAndSubmit: boolean
 }
 
@@ -34,6 +35,7 @@ export function getMessageEditorState(
 
   return {
     canSave: hasText && hasChanged,
+    hasChanged,
     showSaveAndSubmit: message.from === MESSAGE_ROLES.USER,
   }
 }
