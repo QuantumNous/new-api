@@ -290,7 +290,6 @@ func SetApiRouter(router *gin.Engine) {
 				tokenUsageRoute.GET("/", controller.GetTokenUsage)
 			}
 		}
-
 		redemptionRoute := apiRouter.Group("/redemption")
 		redemptionRoute.Use(middleware.AdminAuth())
 		{

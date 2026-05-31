@@ -398,7 +398,7 @@ func GenRelayInfoResponses(c *gin.Context, request *dto.OpenAIResponsesRequest) 
 				CallCount: 0,
 			}
 			switch toolType {
-			case dto.BuildInToolWebSearchPreview:
+			case dto.BuildInToolWebSearch, dto.BuildInToolWebSearchPreview:
 				searchContextSize := common.Interface2String(tool["search_context_size"])
 				if searchContextSize == "" {
 					searchContextSize = "medium"

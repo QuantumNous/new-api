@@ -55,6 +55,7 @@ const KEY_SOURCE_TYPES = [
   'context_string',
   'request_header',
   'gjson',
+  'claude_prompt_cache_key',
 ] as const
 
 const CONTEXT_KEY_PRESETS = [
@@ -90,10 +91,44 @@ function normalizeStringList(text: string): string[] {
     .filter((s) => s.length > 0)
 }
 
+// normalizeKeySource 标准化渠道亲和 key source 的参数承载字段。
+//
+// 编写时间：2026-05-17
+// 作者：苍朮
+// 用途：根据 key source 类型保留对应参数，确保无参数的 Claude prompt cache key 来源不会被写成无效规则。
+// 参数说明：src 为待标准化的局部 key source 配置。
+// 返回值说明：返回前端编辑器可保存的完整 KeySource。
 function normalizeKeySource(src: Partial<KeySource>): KeySource {
   const type = (src?.type || 'gjson') as KeySource['type']
+  if (type === 'claude_prompt_cache_key') return { type, key: '', path: '' }
   if (type === 'gjson') return { type, key: '', path: src?.path || '' }
   return { type, key: src?.key || '', path: '' }
+}
+
+// getKeySourceInputPlaceholder 返回 key source 参数输入框的占位提示。
+//
+// 编写时间：2026-05-17
+// 作者：苍朮
+// 用途：为不同 key source 类型选择对应的参数提示，避免 JSX 中出现嵌套条件表达式。
+// 参数说明：src 为当前编辑中的 key source 配置。
+// 返回值说明：返回输入框 placeholder 文本。
+function getKeySourceInputPlaceholder(src: KeySource): string {
+  if (src.type === 'claude_prompt_cache_key') return 'No parameter required'
+  if (src.type === 'gjson') return 'metadata.conversation_id'
+  return 'user_id'
+}
+
+// getKeySourceInputValue 返回 key source 参数输入框当前展示值。
+//
+// 编写时间：2026-05-17
+// 作者：苍朮
+// 用途：根据 key source 类型读取 path 或 key 字段，无参数类型固定展示为空。
+// 参数说明：src 为当前编辑中的 key source 配置。
+// 返回值说明：返回输入框 value 文本。
+function getKeySourceInputValue(src: KeySource): string {
+  if (src.type === 'claude_prompt_cache_key') return ''
+  if (src.type === 'gjson') return src.path || ''
+  return src.key || ''
 }
 
 interface Props {
@@ -184,7 +219,11 @@ export function RuleEditorDialog(props: Props) {
 
     const validKeySources = keySources
       .map(normalizeKeySource)
-      .filter((s) => s.type && (s.type === 'gjson' ? s.path : s.key))
+      .filter(
+        (s) =>
+          s.type === 'claude_prompt_cache_key' ||
+          (s.type === 'gjson' ? s.path : s.key)
+      )
     if (validKeySources.length === 0) {
       toast.error(t('At least one valid key source is required'))
       return
@@ -327,15 +366,11 @@ export function RuleEditorDialog(props: Props) {
                   </Select>
                   <Input
                     className='flex-1'
-                    placeholder={
-                      src.type === 'gjson'
-                        ? 'metadata.conversation_id'
-                        : 'user_id'
-                    }
-                    value={
-                      src.type === 'gjson' ? src.path || '' : src.key || ''
-                    }
+                    placeholder={getKeySourceInputPlaceholder(src)}
+                    value={getKeySourceInputValue(src)}
+                    disabled={src.type === 'claude_prompt_cache_key'}
                     onChange={(e) => {
+                      if (src.type === 'claude_prompt_cache_key') return
                       const next = [...keySources]
                       if (src.type === 'gjson') {
                         next[idx] = { ...src, path: e.target.value }

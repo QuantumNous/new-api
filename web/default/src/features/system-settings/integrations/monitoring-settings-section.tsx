@@ -52,6 +52,15 @@ const numericString = z.string().refine((value) => {
   return !Number.isNaN(Number(trimmed)) && Number(trimmed) >= 0
 }, 'Enter a non-negative number or leave empty')
 
+const channelIdListString = z.string().refine((value) => {
+  const trimmed = value.trim()
+  if (!trimmed) return true
+  return trimmed
+    .split(/[,\s;]+/)
+    .filter(Boolean)
+    .every((item) => /^[1-9]\d*$/.test(item))
+}, 'Enter positive channel IDs separated by commas or line breaks')
+
 const monitoringSchema = z
   .object({
     ChannelDisableThreshold: numericString,
@@ -67,6 +76,7 @@ const monitoringSchema = z
         .number()
         .int()
         .min(1, 'Interval must be at least 1 minute'),
+      auto_test_channel_excluded_ids: channelIdListString,
     }),
   })
   .superRefine((values, ctx) => {
@@ -111,11 +121,26 @@ type MonitoringSettingsSectionProps = {
     AutomaticRetryStatusCodes: string
     'monitor_setting.auto_test_channel_enabled': boolean
     'monitor_setting.auto_test_channel_minutes': number
+    'monitor_setting.auto_test_channel_excluded_ids': string
   }
 }
 
 function normalizeLineEndings(value: string) {
   return value.replace(/\r\n/g, '\n')
+}
+
+function normalizeChannelIds(value: string) {
+  const seen = new Set<string>()
+  return value
+    .split(/[,\s;]+/)
+    .map((item) => item.trim())
+    .filter(Boolean)
+    .filter((item) => {
+      if (seen.has(item)) return false
+      seen.add(item)
+      return true
+    })
+    .join(',')
 }
 
 type NormalizedMonitoringValues = {
@@ -128,6 +153,7 @@ type NormalizedMonitoringValues = {
   AutomaticRetryStatusCodes: string
   'monitor_setting.auto_test_channel_enabled': boolean
   'monitor_setting.auto_test_channel_minutes': number
+  'monitor_setting.auto_test_channel_excluded_ids': string
 }
 
 const buildFormDefaults = (
@@ -147,6 +173,8 @@ const buildFormDefaults = (
       defaults['monitor_setting.auto_test_channel_enabled'],
     auto_test_channel_minutes:
       defaults['monitor_setting.auto_test_channel_minutes'],
+    auto_test_channel_excluded_ids:
+      defaults['monitor_setting.auto_test_channel_excluded_ids'] ?? '',
   },
 })
 
@@ -170,6 +198,9 @@ const normalizeDefaults = (
     defaults['monitor_setting.auto_test_channel_enabled'],
   'monitor_setting.auto_test_channel_minutes':
     defaults['monitor_setting.auto_test_channel_minutes'],
+  'monitor_setting.auto_test_channel_excluded_ids': normalizeChannelIds(
+    defaults['monitor_setting.auto_test_channel_excluded_ids'] ?? ''
+  ),
 })
 
 const normalizeFormValues = (
@@ -192,6 +223,9 @@ const normalizeFormValues = (
     values.monitor_setting.auto_test_channel_enabled,
   'monitor_setting.auto_test_channel_minutes':
     values.monitor_setting.auto_test_channel_minutes,
+  'monitor_setting.auto_test_channel_excluded_ids': normalizeChannelIds(
+    values.monitor_setting.auto_test_channel_excluded_ids
+  ),
 })
 
 export function MonitoringSettingsSection({
@@ -295,6 +329,33 @@ export function MonitoringSettingsSection({
                   </FormControl>
                   <FormDescription>
                     {t('How frequently the system tests all channels')}
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name='monitor_setting.auto_test_channel_excluded_ids'
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t('Excluded channel IDs')}</FormLabel>
+                  <FormControl>
+                    <Textarea
+                      rows={3}
+                      value={field.value}
+                      onChange={(event) => field.onChange(event.target.value)}
+                      placeholder='1,2,3'
+                      name={field.name}
+                      onBlur={field.onBlur}
+                      ref={field.ref}
+                    />
+                  </FormControl>
+                  <FormDescription>
+                    {t(
+                      'Scheduled tests skip these channel IDs. Leave empty to test all eligible channels.'
+                    )}
                   </FormDescription>
                   <FormMessage />
                 </FormItem>

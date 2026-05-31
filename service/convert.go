@@ -14,10 +14,20 @@ import (
 	"github.com/samber/lo"
 )
 
+// ClaudeToOpenAIRequest 将 Anthropic-compatible 请求转换为 OpenAI Chat Completions 通用请求。
+//
+// 编写时间：2026-05-17
+// 作者：苍朮
+// 用途：保持 Claude 请求语义并转换模型、采样参数、消息、工具和 prompt cache key 等 OpenAI-compatible 字段。
+// 参数说明：claudeRequest 为原始 Claude 请求；info 为当前 relay 上下文和渠道元信息。
+// 返回值说明：返回转换后的 GeneralOpenAIRequest；转换失败时返回错误。
 func ClaudeToOpenAIRequest(claudeRequest dto.ClaudeRequest, info *relaycommon.RelayInfo) (*dto.GeneralOpenAIRequest, error) {
 	openAIRequest := dto.GeneralOpenAIRequest{
 		Model:       claudeRequest.Model,
 		Temperature: claudeRequest.Temperature,
+	}
+	if cacheKey := BuildClaudePromptCacheKey(&claudeRequest); cacheKey.OK {
+		openAIRequest.PromptCacheKey = cacheKey.Key
 	}
 	if claudeRequest.MaxTokens != nil {
 		openAIRequest.MaxTokens = lo.ToPtr(lo.FromPtr(claudeRequest.MaxTokens))
@@ -36,7 +46,7 @@ func ClaudeToOpenAIRequest(claudeRequest dto.ClaudeRequest, info *relaycommon.Re
 
 	if isOpenRouter {
 		if effort := claudeRequest.GetEfforts(); effort != "" {
-			effortBytes, _ := json.Marshal(effort)
+			effortBytes, _ := common.Marshal(effort)
 			openAIRequest.Verbosity = effortBytes
 		}
 		if claudeRequest.Thinking != nil {
@@ -51,7 +61,7 @@ func ClaudeToOpenAIRequest(claudeRequest dto.ClaudeRequest, info *relaycommon.Re
 					Enabled: true,
 				}
 			}
-			reasoningJSON, err := json.Marshal(reasoning)
+			reasoningJSON, err := common.Marshal(reasoning)
 			if err != nil {
 				return nil, fmt.Errorf("failed to marshal reasoning: %w", err)
 			}
@@ -72,21 +82,7 @@ func ClaudeToOpenAIRequest(claudeRequest dto.ClaudeRequest, info *relaycommon.Re
 		openAIRequest.Stop = claudeRequest.StopSequences
 	}
 
-	// Convert tools
-	tools, _ := common.Any2Type[[]dto.Tool](claudeRequest.Tools)
-	openAITools := make([]dto.ToolCallRequest, 0)
-	for _, claudeTool := range tools {
-		openAITool := dto.ToolCallRequest{
-			Type: "function",
-			Function: dto.FunctionRequest{
-				Name:        claudeTool.Name,
-				Description: claudeTool.Description,
-				Parameters:  claudeTool.InputSchema,
-			},
-		}
-		openAITools = append(openAITools, openAITool)
-	}
-	openAIRequest.Tools = openAITools
+	openAIRequest.Tools = convertClaudeToolsToOpenAITools(claudeRequest.Tools)
 
 	// Convert messages
 	openAIMessages := make([]dto.Message, 0)
@@ -94,21 +90,24 @@ func ClaudeToOpenAIRequest(claudeRequest dto.ClaudeRequest, info *relaycommon.Re
 	// Add system message if present
 	if claudeRequest.System != nil {
 		if claudeRequest.IsStringSystem() && claudeRequest.GetStringSystem() != "" {
-			openAIMessage := dto.Message{
-				Role: "system",
-			}
-			openAIMessage.SetStringContent(claudeRequest.GetStringSystem())
-			openAIMessages = append(openAIMessages, openAIMessage)
-		} else {
-			systems := claudeRequest.ParseSystem()
-			if len(systems) > 0 {
+			systemText := claudeRequest.GetStringSystem()
+			if !isClaudeCodeBillingHeaderText(systemText) {
 				openAIMessage := dto.Message{
 					Role: "system",
 				}
+				openAIMessage.SetStringContent(systemText)
+				openAIMessages = append(openAIMessages, openAIMessage)
+			}
+		} else {
+			systems := claudeRequest.ParseSystem()
+			if len(systems) > 0 {
 				isOpenRouterClaude := isOpenRouter && strings.HasPrefix(info.UpstreamModelName, "anthropic/claude")
 				if isOpenRouterClaude {
 					systemMediaMessages := make([]dto.MediaContent, 0, len(systems))
 					for _, system := range systems {
+						if isClaudeCodeBillingHeaderBlock(system) {
+							continue
+						}
 						message := dto.MediaContent{
 							Type:         "text",
 							Text:         system.GetText(),
@@ -116,17 +115,31 @@ func ClaudeToOpenAIRequest(claudeRequest dto.ClaudeRequest, info *relaycommon.Re
 						}
 						systemMediaMessages = append(systemMediaMessages, message)
 					}
-					openAIMessage.SetMediaContent(systemMediaMessages)
+					if len(systemMediaMessages) > 0 {
+						openAIMessage := dto.Message{
+							Role: "system",
+						}
+						openAIMessage.SetMediaContent(systemMediaMessages)
+						openAIMessages = append(openAIMessages, openAIMessage)
+					}
 				} else {
 					systemStr := ""
 					for _, system := range systems {
+						if isClaudeCodeBillingHeaderBlock(system) {
+							continue
+						}
 						if system.Text != nil {
 							systemStr += *system.Text
 						}
 					}
-					openAIMessage.SetStringContent(systemStr)
+					if systemStr != "" {
+						openAIMessage := dto.Message{
+							Role: "system",
+						}
+						openAIMessage.SetStringContent(systemStr)
+						openAIMessages = append(openAIMessages, openAIMessage)
+					}
 				}
-				openAIMessages = append(openAIMessages, openAIMessage)
 			}
 		}
 	}
@@ -216,6 +229,116 @@ func ClaudeToOpenAIRequest(claudeRequest dto.ClaudeRequest, info *relaycommon.Re
 	return &openAIRequest, nil
 }
 
+// convertClaudeToolsToOpenAITools 将 Claude tools 转换为 Chat Completions 兼容工具。
+//
+// 编写时间：2026-05-18
+// 作者：苍朮
+// 用途：保留 Anthropic server-side web_search 语义，其余普通工具按 function 转换。
+// 参数说明：tools 为 ClaudeRequest.Tools 原始值，通常来自 JSON 解析后的数组。
+// 返回值说明：返回 OpenAI Chat 兼容工具列表；无法解析或无工具时返回 nil/空切片。
+func convertClaudeToolsToOpenAITools(tools any) []dto.ToolCallRequest {
+	if tools == nil {
+		return nil
+	}
+
+	toolMaps, err := common.Any2Type[[]map[string]any](tools)
+	if err != nil {
+		return nil
+	}
+
+	openAITools := make([]dto.ToolCallRequest, 0, len(toolMaps))
+	for _, toolMap := range toolMaps {
+		if isClaudeWebSearchToolMap(toolMap) {
+			openAITools = append(openAITools, dto.ToolCallRequest{
+				Type:              dto.BuildInToolWebSearch,
+				SearchContextSize: claudeWebSearchMaxUsesToContextSize(anyToInt(toolMap["max_uses"])),
+			})
+			continue
+		}
+
+		claudeTool, err := common.Any2Type[dto.Tool](toolMap)
+		if err != nil {
+			continue
+		}
+		if strings.TrimSpace(claudeTool.Name) == "" {
+			continue
+		}
+		openAITools = append(openAITools, dto.ToolCallRequest{
+			Type: "function",
+			Function: dto.FunctionRequest{
+				Name:        claudeTool.Name,
+				Description: claudeTool.Description,
+				Parameters:  claudeTool.InputSchema,
+			},
+		})
+	}
+	return openAITools
+}
+
+// isClaudeWebSearchToolMap 判断 Claude tool 是否为 Anthropic server-side web_search。
+//
+// 编写时间：2026-05-18
+// 作者：苍朮
+// 用途：识别 type/name 两种常见 web_search 声明，避免把服务端工具误转为普通 function。
+// 参数说明：tool 为单个 Claude tool 的 map 表示。
+// 返回值说明：是 web_search server tool 时返回 true。
+func isClaudeWebSearchToolMap(tool map[string]any) bool {
+	toolType := strings.TrimSpace(common.Interface2String(tool["type"]))
+	if strings.HasPrefix(toolType, "web_search") || toolType == "google_search" {
+		return true
+	}
+
+	switch strings.TrimSpace(common.Interface2String(tool["name"])) {
+	case "web_search", "google_search", "web_search_20250305":
+		return true
+	default:
+		return false
+	}
+}
+
+// claudeWebSearchMaxUsesToContextSize 将 Claude max_uses 粗略映射到 OpenAI Responses search_context_size。
+//
+// 编写时间：2026-05-18
+// 作者：苍朮
+// 用途：保留 low/medium/high 搜索预算意图，缺省时交给 Responses 使用默认值。
+// 参数说明：maxUses 为 Claude web_search.max_uses。
+// 返回值说明：返回 low、medium、high 或空字符串。
+func claudeWebSearchMaxUsesToContextSize(maxUses int) string {
+	switch {
+	case maxUses <= 0:
+		return ""
+	case maxUses <= 1:
+		return "low"
+	case maxUses <= 5:
+		return "medium"
+	default:
+		return "high"
+	}
+}
+
+// anyToInt 将 JSON/Go 常见数字值转为 int。
+//
+// 编写时间：2026-05-18
+// 作者：苍朮
+// 用途：兼容 max_uses 从 JSON 反序列化后可能出现的 int、float64 或 json.Number 形态。
+// 参数说明：value 为待转换数字。
+// 返回值说明：转换成功返回对应整数；无法转换返回 0。
+func anyToInt(value any) int {
+	switch v := value.(type) {
+	case int:
+		return v
+	case int64:
+		return int(v)
+	case float64:
+		return int(v)
+	case json.Number:
+		i, _ := v.Int64()
+		return int(i)
+	default:
+		return 0
+	}
+}
+
 func generateStopBlock(index int) *dto.ClaudeResponse {
 	return &dto.ClaudeResponse{
 		Type:  "content_block_stop",
@@ -245,6 +368,154 @@ func buildClaudeUsageFromOpenAIUsage(oaiUsage *dto.Usage) *dto.ClaudeUsage {
 		}
 	}
 	return usage
+}
+
+// ResponsesResponseToClaudeResponse 将 OpenAI Responses 响应直接转换为 Claude Messages 响应。
+//
+// 编写时间：2026-05-18
+// 作者：苍朮
+// 用途：保留 Responses 内建 web_search_call 的 server_tool_use / web_search_tool_result 语义，避免降级为普通文本或 function。
+// 参数说明：resp 为上游 Responses 响应；id 为下游响应 id，空值时使用 resp.ID。
+// 返回值说明：返回 Claude 响应、Claude usage 与错误；转换失败时错误非空。
+func ResponsesResponseToClaudeResponse(resp *dto.OpenAIResponsesResponse, id string) (*dto.ClaudeResponse, *dto.ClaudeUsage, error) {
+	if resp == nil {
+		return nil, nil, fmt.Errorf("response is nil")
+	}
+	if id == "" {
+		id = resp.ID
+	}
+
+	contents := make([]dto.ClaudeMediaMessage, 0, len(resp.Output))
+	webSearchRequests := 0
+	for _, out := range resp.Output {
+		switch out.Type {
+		case dto.BuildInCallWebSearchCall:
+			toolUseID := claudeWebSearchToolUseID(out.ID)
+			contents = append(contents,
+				dto.ClaudeMediaMessage{
+					Type:  "server_tool_use",
+					Id:    toolUseID,
+					Name:  "web_search",
+					Input: map[string]string{"query": responsesWebSearchQuery(out)},
+				},
+				dto.ClaudeMediaMessage{
+					Type:      "web_search_tool_result",
+					ToolUseId: toolUseID,
+					Content:   []any{},
+				},
+			)
+			webSearchRequests++
+		case "message":
+			for _, content := range out.Content {
+				if strings.TrimSpace(content.Text) == "" {
+					continue
+				}
+				claudeContent := dto.ClaudeMediaMessage{Type: "text"}
+				claudeContent.SetText(content.Text)
+				contents = append(contents, claudeContent)
+			}
+		}
+	}
+
+	usage := buildClaudeUsageFromOpenAIUsage(resp.Usage)
+	if usage == nil {
+		usage = &dto.ClaudeUsage{}
+	}
+	if webSearchRequests > 0 {
+		usage.ServerToolUse = &dto.ClaudeServerToolUse{WebSearchRequests: webSearchRequests}
+	}
+
+	return &dto.ClaudeResponse{
+		Id:         id,
+		Type:       "message",
+		Role:       "assistant",
+		Model:      resp.Model,
+		Content:    contents,
+		StopReason: "end_turn",
+		Usage:      usage,
+	}, usage, nil
+}
+
+// ClaudeWebSearchStreamResponses 为 Responses web_search_call 构造 Claude SSE 内容块。
+//
+// 编写时间：2026-05-18
+// 作者：苍朮
+// 用途：在流式 Responses -> Claude 转换中补齐 Claude Code 可识别的 WebSearch server tool 事件。
+// 参数说明：item 为 Responses output item；info 为 Claude 流式转换状态。
+// 返回值说明：返回需要按顺序发送的 Claude 响应事件。
+func ClaudeWebSearchStreamResponses(item *dto.ResponsesOutput, info *relaycommon.RelayInfo) []*dto.ClaudeResponse {
+	if item == nil || info == nil || info.ClaudeConvertInfo == nil {
+		return nil
+	}
+
+	responses := make([]*dto.ClaudeResponse, 0, 4)
+	if info.ClaudeConvertInfo.LastMessagesType != relaycommon.LastMessageTypeNone {
+		responses = append(responses, generateStopBlock(info.ClaudeConvertInfo.Index))
+		info.ClaudeConvertInfo.Index++
+		info.ClaudeConvertInfo.LastMessagesType = relaycommon.LastMessageTypeNone
+	}
+
+	toolUseID := claudeWebSearchToolUseID(item.ID)
+	query := responsesWebSearchQuery(*item)
+	serverIndex := info.ClaudeConvertInfo.Index
+	resultIndex := serverIndex + 1
+	responses = append(responses,
+		&dto.ClaudeResponse{
+			Type:  "content_block_start",
+			Index: common.GetPointer(serverIndex),
+			ContentBlock: &dto.ClaudeMediaMessage{
+				Type:  "server_tool_use",
+				Id:    toolUseID,
+				Name:  "web_search",
+				Input: map[string]string{"query": query},
+			},
+		},
+		generateStopBlock(serverIndex),
+		&dto.ClaudeResponse{
+			Type:  "content_block_start",
+			Index: common.GetPointer(resultIndex),
+			ContentBlock: &dto.ClaudeMediaMessage{
+				Type:      "web_search_tool_result",
+				ToolUseId: toolUseID,
+				Content:   []any{},
+			},
+		},
+		generateStopBlock(resultIndex),
+	)
+	info.ClaudeConvertInfo.Index = resultIndex + 1
+	return responses
+}
+
+// claudeWebSearchToolUseID 生成 Claude server tool use id。
+//
+// 编写时间：2026-05-18
+// 作者：苍朮
+// 用途：为 Responses web_search_call 构造稳定且符合 Claude server tool 语义的 id。
+// 参数说明：itemID 为 Responses output item id。
+// 返回值说明：返回 Claude server tool use id。
+func claudeWebSearchToolUseID(itemID string) string {
+	itemID = strings.TrimSpace(itemID)
+	if itemID == "" {
+		return "srvtoolu_web_search"
+	}
+	if strings.HasPrefix(itemID, "srvtoolu_") {
+		return itemID
+	}
+	return "srvtoolu_" + itemID
+}
+
+// responsesWebSearchQuery 提取 Responses web_search_call 的查询文本。
+//
+// 编写时间：2026-05-18
+// 作者：苍朮
+// 用途：把上游 action.query 放入 Claude server_tool_use.input，供 Claude Code 状态栏展示。
+// 参数说明：out 为 Responses output item。
+// 返回值说明：返回搜索查询；缺失时返回空字符串。
+func responsesWebSearchQuery(out dto.ResponsesOutput) string {
+	if out.Action == nil {
+		return ""
+	}
+	return strings.TrimSpace(out.Action.Query)
 }
 
 func NormalizeCacheCreationSplit(totalTokens int, tokens5m int, tokens1h int) (int, int) {

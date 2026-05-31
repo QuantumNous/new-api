@@ -17,7 +17,12 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 export interface KeySource {
-  type: 'context_int' | 'context_string' | 'request_header' | 'gjson'
+  type:
+    | 'context_int'
+    | 'context_string'
+    | 'request_header'
+    | 'gjson'
+    | 'claude_prompt_cache_key'
   key?: string
   path?: string
 }

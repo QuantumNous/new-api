@@ -321,17 +321,64 @@ func extractChannelAffinityValue(c *gin.Context, src operation_setting.ChannelAf
 		}
 		res := gjson.GetBytes(body, src.Path)
 		if !res.Exists() {
+			if strings.TrimSpace(src.Path) == "prompt_cache_key" && isOpenAIResponsesRequestPath(c) {
+				return BuildOpenAIResponsesPromptCacheKeyFromContext(c).Key
+			}
 			return ""
 		}
 		switch res.Type {
 		case gjson.String, gjson.Number, gjson.True, gjson.False:
-			return strings.TrimSpace(res.String())
+			if value := strings.TrimSpace(res.String()); value != "" {
+				return value
+			}
 		default:
-			return strings.TrimSpace(res.Raw)
+			if value := strings.TrimSpace(res.Raw); value != "" {
+				return value
+			}
 		}
+		if strings.TrimSpace(src.Path) == "prompt_cache_key" && isOpenAIResponsesRequestPath(c) {
+			return BuildOpenAIResponsesPromptCacheKeyFromContext(c).Key
+		}
+		return ""
+	case "openai_responses_prompt_cache_key":
+		return BuildOpenAIResponsesPromptCacheKeyFromContext(c).Key
+	case "claude_prompt_cache_key":
+		return extractClaudePromptCacheAffinityValue(c)
 	default:
 		return ""
 	}
+}
+
+func isOpenAIResponsesRequestPath(c *gin.Context) bool {
+	if c == nil || c.Request == nil || c.Request.URL == nil {
+		return false
+	}
+	path := strings.TrimSpace(c.Request.URL.Path)
+	return path == "/v1/responses" || strings.HasSuffix(path, "/responses")
+}
+
+func extractClaudePromptCacheAffinityValue(c *gin.Context) string {
+	if c == nil || c.Request == nil {
+		return ""
+	}
+	storage, err := common.GetBodyStorage(c)
+	if err != nil {
+		return ""
+	}
+	body, err := storage.Bytes()
+	if err != nil || len(body) == 0 {
+		return ""
+	}
+
+	var claudeRequest dto.ClaudeRequest
+	if err := common.Unmarshal(body, &claudeRequest); err != nil {
+		return ""
+	}
+	result := BuildClaudePromptCacheKey(&claudeRequest)
+	if !result.OK {
+		return ""
+	}
+	return strings.TrimSpace(result.Key)
 }
 
 func buildChannelAffinityCacheKeySuffix(rule operation_setting.ChannelAffinityRule, modelName string, usingGroup string, affinityValue string) string {
