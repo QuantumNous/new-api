@@ -114,9 +114,42 @@ func (a *TaskAdaptor) Init(info *relaycommon.RelayInfo) {
 }
 
 // ValidateRequestAndSetAction parses body, validates fields and sets default action.
+// 额外职责：对登记了二维定价的模型（seedance 2.0 系列），前置拦截上游
+// "暂不支持"的档位组合（如 pro 的 1080p+含视频、fast 的 1080p），
+// 避免预扣后还要走上游失败 + 退款流程。
 func (a *TaskAdaptor) ValidateRequestAndSetAction(c *gin.Context, info *relaycommon.RelayInfo) (taskErr *dto.TaskError) {
-	// Accept only POST /v1/video/generations as "generate" action.
-	return relaycommon.ValidateBasicTaskRequest(c, info, constant.TaskActionGenerate)
+	if err := relaycommon.ValidateBasicTaskRequest(c, info, constant.TaskActionGenerate); err != nil {
+		return err
+	}
+
+	req, err := relaycommon.GetTaskRequest(c)
+	if err != nil {
+		return nil
+	}
+	modelName := req.Model
+	if modelName == "" {
+		return nil
+	}
+	if _, supported := ResolveBillingRatios(modelName, extractResolution(req.Metadata), hasVideoInMetadata(req.Metadata)); !supported {
+		return service.TaskErrorWrapperLocal(
+			fmt.Errorf("model %s does not support the requested resolution / video-input combination", modelName),
+			"unsupported_resolution_combination",
+			http.StatusBadRequest,
+		)
+	}
+	return nil
+}
+
+// extractResolution 从请求 metadata 中读取 resolution 字段；未显式指定时返回空串，
+// 由 normalizeResolution 在定价查询时回退到豆包默认分辨率（720p）。
+func extractResolution(metadata map[string]interface{}) string {
+	if metadata == nil {
+		return ""
+	}
+	if v, ok := metadata["resolution"].(string); ok {
+		return v
+	}
+	return ""
 }
 
 // BuildRequestURL constructs the upstream URL.
@@ -132,18 +165,20 @@ func (a *TaskAdaptor) BuildRequestHeader(_ *gin.Context, req *http.Request, _ *r
 	return nil
 }
 
-// EstimateBilling 检测请求 metadata 中是否包含视频输入，返回视频折扣 OtherRatio。
+// EstimateBilling 根据请求的输出分辨率与是否包含视频输入，
+// 返回相对基线档的二维 OtherRatios（resolution / video_input）。
+// "暂不支持"的组合已经在 ValidateRequestAndSetAction 阶段被拦截，
+// 这里只会命中合法档位。
 func (a *TaskAdaptor) EstimateBilling(c *gin.Context, info *relaycommon.RelayInfo) map[string]float64 {
 	req, err := relaycommon.GetTaskRequest(c)
 	if err != nil {
 		return nil
 	}
-	if hasVideoInMetadata(req.Metadata) {
-		if ratio, ok := GetVideoInputRatio(info.OriginModelName); ok {
-			return map[string]float64{"video_input": ratio}
-		}
+	ratios, supported := ResolveBillingRatios(info.OriginModelName, extractResolution(req.Metadata), hasVideoInMetadata(req.Metadata))
+	if !supported {
+		return nil
 	}
-	return nil
+	return ratios
 }
 
 // hasVideoInMetadata 直接检查 metadata 的 content 数组是否包含 video_url 条目，
