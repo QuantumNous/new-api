@@ -261,7 +261,8 @@ export function UpstreamRatioSync({ modelRatios }: UpstreamRatioSyncProps) {
       id: ch.id,
       name: ch.name,
       base_url: ch.base_url,
-      endpoint: channelEndpoints[ch.id] || DEFAULT_ENDPOINT,
+      endpoint:
+        ch.id in channelEndpoints ? channelEndpoints[ch.id] : DEFAULT_ENDPOINT,
     }))
 
     fetchMutation.mutate({ upstreams, timeout: 10 })
