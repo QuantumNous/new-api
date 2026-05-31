@@ -4,11 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"strings"
 	"time"
 
+	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/model"
@@ -30,6 +32,8 @@ type oidcOAuthResponse struct {
 	TokenType    string `json:"token_type"`
 	ExpiresIn    int    `json:"expires_in"`
 	Scope        string `json:"scope"`
+	Error        string `json:"error"`
+	ErrorDesc    string `json:"error_description"`
 }
 
 type oidcUser struct {
@@ -56,7 +60,7 @@ func (p *OIDCProvider) ExchangeToken(ctx context.Context, code string, c *gin.Co
 	logger.LogDebug(ctx, "[OAuth-OIDC] ExchangeToken: code=%s...", code[:min(len(code), 10)])
 
 	settings := system_setting.GetOIDCSettings()
-	redirectUri := fmt.Sprintf("%s/oauth/oidc", system_setting.ServerAddress)
+	redirectUri := BuildOAuthRedirectURI(c, "oidc")
 	values := url.Values{}
 	values.Set("client_id", settings.ClientId)
 	values.Set("client_secret", settings.ClientSecret)
@@ -85,16 +89,29 @@ func (p *OIDCProvider) ExchangeToken(ctx context.Context, code string, c *gin.Co
 
 	logger.LogDebug(ctx, "[OAuth-OIDC] ExchangeToken response status: %d", res.StatusCode)
 
+	body, err := io.ReadAll(res.Body)
+	if err != nil {
+		logger.LogError(ctx, fmt.Sprintf("[OAuth-OIDC] ExchangeToken read body error: %s", err.Error()))
+		return nil, err
+	}
+	bodyStr := string(body)
+	logger.LogDebug(ctx, "[OAuth-OIDC] ExchangeToken response body: %s", bodyStr[:min(len(bodyStr), 500)])
+
 	var oidcResponse oidcOAuthResponse
-	err = json.NewDecoder(res.Body).Decode(&oidcResponse)
+	err = common.Unmarshal(body, &oidcResponse)
 	if err != nil {
 		logger.LogError(ctx, fmt.Sprintf("[OAuth-OIDC] ExchangeToken decode error: %s", err.Error()))
 		return nil, err
 	}
 
+	if oidcResponse.Error != "" {
+		logger.LogError(ctx, fmt.Sprintf("[OAuth-OIDC] ExchangeToken OAuth error: %s - %s", oidcResponse.Error, oidcResponse.ErrorDesc))
+		return nil, NewOAuthErrorWithRaw(i18n.MsgOAuthTokenFailed, map[string]any{"Provider": "OIDC"}, oidcResponse.ErrorDesc)
+	}
+
 	if oidcResponse.AccessToken == "" {
 		logger.LogError(ctx, "[OAuth-OIDC] ExchangeToken failed: empty access token")
-		return nil, NewOAuthError(i18n.MsgOAuthTokenFailed, map[string]any{"Provider": "OIDC"})
+		return nil, NewOAuthErrorWithRaw(i18n.MsgOAuthTokenFailed, map[string]any{"Provider": "OIDC"}, bodyStr)
 	}
 
 	logger.LogDebug(ctx, "[OAuth-OIDC] ExchangeToken success: scope=%s", oidcResponse.Scope)

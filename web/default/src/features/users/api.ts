@@ -154,10 +154,11 @@ export async function getGroups(): Promise<ApiResponse<string[]>> {
 // ============================================================================
 
 export interface OAuthBinding {
-  provider_id: string
+  provider_id: number
   provider_name: string
-  user_id?: number
-  external_id?: string
+  provider_slug: string
+  provider_icon: string
+  provider_user_id: string
 }
 
 /**
