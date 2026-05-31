@@ -33,6 +33,7 @@ var ModelList = []string{
 	"claude-opus-4-7-medium",
 	"claude-opus-4-7-low",
 	"claude-opus-4-7-thinking",
+	"claude-opus-4-8",
 }
 
 var ChannelName = "claude"

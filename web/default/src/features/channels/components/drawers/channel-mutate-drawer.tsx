@@ -415,6 +415,11 @@ export function ChannelMutateDrawer({
         (model) => model.startsWith('gpt-') || model.startsWith('text-')
       )
     }
+    if (currentType === 14) {
+      return allModelsList.filter((model) =>
+        model.toLowerCase().startsWith('claude-')
+      )
+    }
     return allModelsList
   }, [allModelsList, currentType])
 
