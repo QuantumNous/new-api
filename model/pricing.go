@@ -1,7 +1,6 @@
 package model
 
 import (
-	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -33,6 +32,14 @@ type Pricing struct {
 	AudioCompletionRatio   *float64                `json:"audio_completion_ratio,omitempty"`
 	EnableGroup            []string                `json:"enable_groups"`
 	SupportedEndpointTypes []constant.EndpointType `json:"supported_endpoint_types"`
+	ContextLength          int                     `json:"context_length,omitempty"`
+	MaxOutputTokens        int                     `json:"max_output_tokens,omitempty"`
+	KnowledgeCutoff        string                  `json:"knowledge_cutoff,omitempty"`
+	ReleaseDate            string                  `json:"release_date,omitempty"`
+	ParameterCount         string                  `json:"parameter_count,omitempty"`
+	InputModalities        JSONTextList            `json:"input_modalities,omitempty"`
+	OutputModalities       JSONTextList            `json:"output_modalities,omitempty"`
+	Capabilities           JSONTextList            `json:"capabilities,omitempty"`
 	BillingMode            string                  `json:"billing_mode,omitempty"`
 	BillingExpr            string                  `json:"billing_expr,omitempty"`
 	PricingVersion         string                  `json:"pricing_version,omitempty"`
@@ -220,7 +227,7 @@ func updatePricing() {
 			continue
 		}
 		var raw map[string]interface{}
-		if err := json.Unmarshal([]byte(meta.Endpoints), &raw); err == nil {
+		if err := common.Unmarshal([]byte(meta.Endpoints), &raw); err == nil {
 			endpoints := make([]string, 0, len(raw))
 			for k, v := range raw {
 				switch v.(type) {
@@ -264,7 +271,7 @@ func updatePricing() {
 			continue
 		}
 		var raw map[string]interface{}
-		if err := json.Unmarshal([]byte(meta.Endpoints), &raw); err == nil {
+		if err := common.Unmarshal([]byte(meta.Endpoints), &raw); err == nil {
 			for k, v := range raw {
 				switch val := v.(type) {
 				case string:
@@ -299,10 +306,19 @@ func updatePricing() {
 			if meta.Status != 1 {
 				continue
 			}
+			meta.NormalizeDetailMetadata()
 			pricing.Description = meta.Description
 			pricing.Icon = meta.Icon
 			pricing.Tags = meta.Tags
 			pricing.VendorID = meta.VendorID
+			pricing.ContextLength = meta.ContextLength
+			pricing.MaxOutputTokens = meta.MaxOutputTokens
+			pricing.KnowledgeCutoff = meta.KnowledgeCutoff
+			pricing.ReleaseDate = meta.ReleaseDate
+			pricing.ParameterCount = meta.ParameterCount
+			pricing.InputModalities = meta.InputModalities
+			pricing.OutputModalities = meta.OutputModalities
+			pricing.Capabilities = meta.Capabilities
 		}
 		modelPrice, findPrice := ratio_setting.GetModelPrice(model, false)
 		if findPrice {

@@ -25,6 +25,7 @@ import { ChevronDown, Loader2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
 import {
   Collapsible,
   CollapsibleContent,
@@ -82,7 +83,33 @@ import { safeJsonParse } from '@/features/system-settings/utils/json-parser'
 import { createModel, updateModel, getModel, getVendors } from '../../api'
 import { getNameRuleOptions, ENDPOINT_TEMPLATES } from '../../constants'
 import { modelsQueryKeys, vendorsQueryKeys, parseModelTags } from '../../lib'
-import type { Model } from '../../types'
+import type {
+  Model,
+  ModelDetailCapability,
+  ModelDetailModality,
+} from '../../types'
+
+// Conservative signed 32-bit ceiling for DB-backed integer metadata fields.
+const MAX_TOKEN_LIMIT = 2_147_483_647
+const TOKEN_COUNT_LIMIT_MESSAGE = `Use a whole number or K, M, B suffix up to ${MAX_TOKEN_LIMIT}.`
+
+function isTokenCountInputValid(value?: string): boolean {
+  const trimmed = value?.trim() ?? ''
+  if (!trimmed) return true
+  if (/^\d+$/.test(trimmed)) return true
+  return /^(?:\d+(?:\.\d+)?|\.\d+)\s*[kmb]$/i.test(trimmed)
+}
+
+function isTokenCountInputLike(value: string): boolean {
+  const trimmed = value.trim()
+  if (!trimmed) return true
+  return /^(?:\d+(?:\.\d*)?|\.\d*)\s*[kmb]?$/i.test(trimmed)
+}
+
+function isTokenCountWithinLimit(value?: string): boolean {
+  if (!isTokenCountInputValid(value)) return false
+  return parseOptionalTokenCount(value) <= MAX_TOKEN_LIMIT
+}
 
 // Extended schema for ratio configuration (internal form state only)
 const extendedModelFormSchema = z.object({
@@ -96,6 +123,18 @@ const extendedModelFormSchema = z.object({
   name_rule: z.number(),
   status: z.boolean(),
   sync_official: z.boolean(),
+  context_length: z.string().optional().refine(isTokenCountWithinLimit, {
+    message: TOKEN_COUNT_LIMIT_MESSAGE,
+  }),
+  max_output_tokens: z.string().optional().refine(isTokenCountWithinLimit, {
+    message: TOKEN_COUNT_LIMIT_MESSAGE,
+  }),
+  knowledge_cutoff: z.string(),
+  release_date: z.string(),
+  parameter_count: z.string(),
+  input_modalities: z.array(z.string()),
+  output_modalities: z.array(z.string()),
+  capabilities: z.array(z.string()),
   price: z.string().optional(),
   ratio: z.string().optional(),
   cacheRatio: z.string().optional(),
@@ -110,10 +149,117 @@ type ExtendedModelFormValues = z.infer<typeof extendedModelFormSchema>
 type PricingMode = 'per-token' | 'per-request'
 type PricingSubMode = 'ratio' | 'price'
 
+type MetadataOption = {
+  value: string
+  labelKey: string
+}
+
+const MODALITY_OPTIONS: Array<MetadataOption & { value: ModelDetailModality }> =
+  [
+    { value: 'text', labelKey: 'Text' },
+    { value: 'image', labelKey: 'Image' },
+    { value: 'audio', labelKey: 'Audio' },
+    { value: 'video', labelKey: 'Video' },
+    { value: 'file', labelKey: 'File' },
+  ]
+
+const CAPABILITY_OPTIONS: Array<
+  MetadataOption & { value: ModelDetailCapability }
+> = [
+  { value: 'streaming', labelKey: 'Streaming' },
+  { value: 'function_calling', labelKey: 'Function calling' },
+  { value: 'tools', labelKey: 'Tools' },
+  { value: 'json_mode', labelKey: 'JSON mode' },
+  { value: 'structured_output', labelKey: 'Structured output' },
+  { value: 'vision', labelKey: 'Vision' },
+  { value: 'reasoning', labelKey: 'Reasoning' },
+  { value: 'caching', labelKey: 'Prompt caching' },
+  { value: 'system_prompt', labelKey: 'System prompt' },
+  { value: 'web_search', labelKey: 'Web search' },
+  { value: 'code_interpreter', labelKey: 'Code interpreter' },
+  { value: 'embeddings', labelKey: 'Embeddings' },
+]
+
 type ModelMutateDrawerProps = {
   open: boolean
   onOpenChange: (open: boolean) => void
   currentRow?: Model | null
+}
+
+function normalizeStringArray<T extends string>(values?: readonly T[]): T[] {
+  return Array.isArray(values) ? [...values] : []
+}
+
+function parseOptionalTokenCount(value?: string): number {
+  const trimmed = value?.trim() ?? ''
+  if (!trimmed) return 0
+
+  const match = trimmed.match(/^(\d+(?:\.\d+)?|\.\d+)\s*([kmb])?$/i)
+  if (!match) return 0
+
+  const numericPart = match[1]
+  const unit = match[2]?.toLowerCase()
+  if (!unit && !/^\d+$/.test(numericPart)) {
+    return 0
+  }
+
+  let multiplier = 1
+  if (unit === 'k') {
+    multiplier = 1_000
+  } else if (unit === 'm') {
+    multiplier = 1_000_000
+  } else if (unit === 'b') {
+    multiplier = 1_000_000_000
+  }
+
+  const parsed = Math.round(Number.parseFloat(numericPart) * multiplier)
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 0
+}
+
+function MetadataCheckboxGrid(props: {
+  name: string
+  value: string[]
+  options: MetadataOption[]
+  onChange: (value: string[]) => void
+}) {
+  const { t } = useTranslation()
+  const selected = new Set(props.value || [])
+
+  const toggleValue = (optionValue: string, checked: boolean) => {
+    const next = new Set(selected)
+    if (checked) {
+      next.add(optionValue)
+    } else {
+      next.delete(optionValue)
+    }
+    props.onChange(
+      props.options.map((option) => option.value).filter((v) => next.has(v))
+    )
+  }
+
+  return (
+    <div className='grid grid-cols-2 gap-2 sm:grid-cols-3'>
+      {props.options.map((option) => {
+        const id = `${props.name}-${option.value}`
+        return (
+          <label
+            key={option.value}
+            htmlFor={id}
+            className='hover:bg-muted/30 flex min-w-0 cursor-pointer items-center gap-2 rounded-md border px-3 py-2 text-sm transition-colors'
+          >
+            <Checkbox
+              id={id}
+              checked={selected.has(option.value)}
+              onCheckedChange={(checked) =>
+                toggleValue(option.value, !!checked)
+              }
+            />
+            <span className='truncate'>{t(option.labelKey)}</span>
+          </label>
+        )
+      })}
+    </div>
+  )
 }
 
 export function ModelMutateDrawer({
@@ -217,6 +363,14 @@ export function ModelMutateDrawer({
       name_rule: 0,
       status: true,
       sync_official: true,
+      context_length: '',
+      max_output_tokens: '',
+      knowledge_cutoff: '',
+      release_date: '',
+      parameter_count: '',
+      input_modalities: [],
+      output_modalities: [],
+      capabilities: [],
       price: '',
       ratio: '',
       cacheRatio: '',
@@ -276,6 +430,18 @@ export function ModelMutateDrawer({
         name_rule: model.name_rule || 0,
         status: model.status === 1,
         sync_official: model.sync_official === 1,
+        context_length: model.context_length
+          ? String(model.context_length)
+          : '',
+        max_output_tokens: model.max_output_tokens
+          ? String(model.max_output_tokens)
+          : '',
+        knowledge_cutoff: model.knowledge_cutoff || '',
+        release_date: model.release_date || '',
+        parameter_count: model.parameter_count || '',
+        input_modalities: normalizeStringArray(model.input_modalities),
+        output_modalities: normalizeStringArray(model.output_modalities),
+        capabilities: normalizeStringArray(model.capabilities),
         price: '',
         ratio: '',
         cacheRatio: '',
@@ -380,6 +546,14 @@ export function ModelMutateDrawer({
         name_rule: 0,
         status: true,
         sync_official: true,
+        context_length: '',
+        max_output_tokens: '',
+        knowledge_cutoff: '',
+        release_date: '',
+        parameter_count: '',
+        input_modalities: [],
+        output_modalities: [],
+        capabilities: [],
         price: '',
         ratio: '',
         cacheRatio: '',
@@ -395,12 +569,31 @@ export function ModelMutateDrawer({
     async (values: ExtendedModelFormValues): Promise<void> => {
       setIsSubmitting(true)
       try {
+        const contextLength = parseOptionalTokenCount(values.context_length)
+        const maxOutputTokens = parseOptionalTokenCount(
+          values.max_output_tokens
+        )
+
         const submitData = {
           ...values,
           id: isEditing ? currentRow!.id : undefined,
           tags: Array.isArray(values.tags) ? values.tags.join(',') : '',
           status: values.status ? 1 : 0,
           sync_official: values.sync_official ? 1 : 0,
+          context_length: contextLength,
+          max_output_tokens: maxOutputTokens,
+          knowledge_cutoff: values.knowledge_cutoff.trim(),
+          release_date: values.release_date.trim(),
+          parameter_count: values.parameter_count.trim(),
+          input_modalities: normalizeStringArray(
+            values.input_modalities
+          ) as ModelDetailModality[],
+          output_modalities: normalizeStringArray(
+            values.output_modalities
+          ) as ModelDetailModality[],
+          capabilities: normalizeStringArray(
+            values.capabilities
+          ) as ModelDetailCapability[],
         }
 
         // Remove ratio fields from model data (they're stored in system settings)
@@ -881,6 +1074,201 @@ export function ModelMutateDrawer({
                     </FormControl>
                     <FormDescription>
                       {t('Define API endpoints for this model (JSON format)')}
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </SideDrawerSection>
+
+            {/* Detail Metadata */}
+            <SideDrawerSection>
+              <div className='space-y-1'>
+                <h3 className='text-sm font-semibold'>{t('Model Metadata')}</h3>
+                <p className='text-muted-foreground text-xs'>
+                  {t(
+                    'Override model detail values shown in the pricing directory.'
+                  )}
+                </p>
+              </div>
+
+              <div className='grid gap-4 sm:grid-cols-2'>
+                <FormField
+                  control={form.control}
+                  name='context_length'
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t('Context length')}</FormLabel>
+                      <FormControl>
+                        <Input
+                          type='text'
+                          placeholder='128K'
+                          {...field}
+                          onChange={(e) => {
+                            const value = e.target.value
+                            if (isTokenCountInputLike(value)) {
+                              field.onChange(value)
+                            }
+                          }}
+                        />
+                      </FormControl>
+                      <FormDescription>
+                        {t('Maximum input window')}.{' '}
+                        {t('Leave blank to keep automatic inference.')}
+                        <br />
+                        {t(
+                          'Supports full token counts or K/M/B suffixes, for example 128K, 1M, or 1.5M.'
+                        )}
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name='max_output_tokens'
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t('Max output tokens')}</FormLabel>
+                      <FormControl>
+                        <Input
+                          type='text'
+                          placeholder='16K'
+                          {...field}
+                          onChange={(e) => {
+                            const value = e.target.value
+                            if (isTokenCountInputLike(value)) {
+                              field.onChange(value)
+                            }
+                          }}
+                        />
+                      </FormControl>
+                      <FormDescription>
+                        {t('Maximum tokens per response')}.{' '}
+                        {t('Leave blank to keep automatic inference.')}
+                        <br />
+                        {t(
+                          'Supports full token counts or K/M/B suffixes, for example 128K, 1M, or 1.5M.'
+                        )}
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name='knowledge_cutoff'
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t('Knowledge cutoff')}</FormLabel>
+                      <FormControl>
+                        <Input type='month' {...field} />
+                      </FormControl>
+                      <FormDescription>
+                        {t('Leave blank to keep automatic inference.')}
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name='release_date'
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t('Release date')}</FormLabel>
+                      <FormControl>
+                        <Input type='month' {...field} />
+                      </FormControl>
+                      <FormDescription>
+                        {t('Leave blank to keep automatic inference.')}
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+
+              <FormField
+                control={form.control}
+                name='parameter_count'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t('Parameter count')}</FormLabel>
+                    <FormControl>
+                      <Input placeholder='70B' {...field} />
+                    </FormControl>
+                    <FormDescription>
+                      {t('Leave blank to keep automatic inference.')}
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name='input_modalities'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t('Input modalities')}</FormLabel>
+                    <FormControl>
+                      <MetadataCheckboxGrid
+                        name='input-modalities'
+                        value={field.value || []}
+                        options={MODALITY_OPTIONS}
+                        onChange={field.onChange}
+                      />
+                    </FormControl>
+                    <FormDescription>
+                      {t('Leave blank to keep automatic inference.')}
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name='output_modalities'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t('Output modalities')}</FormLabel>
+                    <FormControl>
+                      <MetadataCheckboxGrid
+                        name='output-modalities'
+                        value={field.value || []}
+                        options={MODALITY_OPTIONS}
+                        onChange={field.onChange}
+                      />
+                    </FormControl>
+                    <FormDescription>
+                      {t('Leave blank to keep automatic inference.')}
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name='capabilities'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t('Capability overrides')}</FormLabel>
+                    <FormControl>
+                      <MetadataCheckboxGrid
+                        name='capabilities'
+                        value={field.value || []}
+                        options={CAPABILITY_OPTIONS}
+                        onChange={field.onChange}
+                      />
+                    </FormControl>
+                    <FormDescription>
+                      {t('Leave blank to keep automatic inference.')}
                     </FormDescription>
                     <FormMessage />
                   </FormItem>
