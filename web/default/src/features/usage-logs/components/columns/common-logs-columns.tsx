@@ -319,6 +319,7 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
       },
       enableHiding: false,
       meta: { label: t('Time') },
+      size: 165,
     },
     {
       id: 'session',
@@ -366,7 +367,7 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
         )
       },
       meta: { label: t('Session'), mobileHidden: true },
-      size: 150,
+      size: 130,
     },
   ]
 
@@ -474,6 +475,7 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
           )
         },
         meta: { label: t('Channel'), mobileHidden: true },
+        size: 100,
       },
       {
         id: 'user',
@@ -530,6 +532,7 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
           )
         },
         meta: { label: t('User'), mobileHidden: true },
+        size: 150,
       }
     )
   }
@@ -588,7 +591,7 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
       )
     },
     meta: { label: t('Token') },
-    size: 160,
+    size: 140,
   })
 
   columns.push(
@@ -613,7 +616,7 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
         )
       },
       meta: { label: t('Model'), mobileTitle: true },
-      size: 150,
+      size: 110,
       minSize: 110,
       maxSize: 260,
     },
@@ -650,7 +653,7 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
         )
       },
       meta: { label: t('Endpoint'), mobileHidden: true },
-      size: 120,
+      size: 141,
       minSize: 90,
       maxSize: 220,
     },
@@ -704,7 +707,7 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
         )
       },
       meta: { label: t('Type'), mobileHidden: true },
-      size: 110,
+      size: 59,
     },
 
     {
@@ -731,7 +734,7 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
         )
       },
       meta: { label: t('Status Code'), mobileHidden: true },
-      size: 100,
+      size: 80,
       minSize: 80,
       maxSize: 140,
     },
@@ -762,7 +765,7 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
         )
       },
       meta: { label: t('Reasoning Effort'), mobileHidden: true },
-      size: 130,
+      size: 85,
     },
 
     {
@@ -803,7 +806,7 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
         )
       },
       meta: { label: t('First Token'), mobileHidden: true },
-      size: 110,
+      size: 89,
     },
 
     {
@@ -843,7 +846,7 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
         )
       },
       meta: { label: t('Duration'), mobileHidden: true },
-      size: 110,
+      size: 92,
     },
 
     {
@@ -868,7 +871,7 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
         )
       },
       meta: { label: t('Billing'), mobileHidden: true },
-      size: 120,
+      size: 61,
     },
 
     {
@@ -920,6 +923,7 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
         )
       },
       meta: { label: 'Tokens', mobileHidden: true },
+      size: 150,
     },
 
     {
@@ -971,6 +975,7 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
         )
       },
       meta: { label: t('Cost') },
+      size: 127,
     },
 
     {
@@ -1029,7 +1034,7 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
         )
       },
       meta: { label: t('Details') },
-      size: 180,
+      size: 200,
       maxSize: 200,
     },
 
