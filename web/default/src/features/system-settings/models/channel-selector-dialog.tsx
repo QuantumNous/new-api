@@ -229,12 +229,14 @@ export function ChannelSelectorDialog({
         cell: ({ row }) => {
           const channel = row.original
           const currentEndpoint =
-            channelEndpoints[channel.id] || DEFAULT_ENDPOINT
+            channel.id in channelEndpoints
+              ? channelEndpoints[channel.id]
+              : DEFAULT_ENDPOINT
           const endpointType = getEndpointType(currentEndpoint)
 
           const handleTypeChange = (value: string) => {
             if (value === 'custom') {
-              updateEndpoint(channel.id, '')
+              updateEndpoint(channel.id, '/pricing')
             } else {
               updateEndpoint(channel.id, value)
             }
