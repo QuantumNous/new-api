@@ -111,6 +111,12 @@ func TestSelectChannelsForAutomaticTestScheduledSkipsManualDisabled(t *testing.T
 	require.Equal(t, 2, selected[1].Id)
 }
 
+func TestIsScheduledChannelTest(t *testing.T) {
+	require.True(t, isScheduledChannelTest(""))
+	require.True(t, isScheduledChannelTest(" \t"))
+	require.False(t, isScheduledChannelTest(operation_setting.ChannelTestModeScheduledAll))
+}
+
 func TestTestAllChannelsRejectsExistingActiveTask(t *testing.T) {
 	db := setupModelListControllerTestDB(t)
 	require.NoError(t, db.AutoMigrate(&model.SystemTask{}, &model.SystemTaskLock{}))

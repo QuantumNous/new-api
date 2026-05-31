@@ -904,7 +904,7 @@ type channelTestSummary struct {
 // cancellation so a system-task runner that loses its lease stops promptly. When
 // report is non-nil it is called after each channel with (processed, total) so
 // the system task can surface progress.
-func performChannelTests(ctx context.Context, channels []*model.Channel, testUserID int, allowDisable bool, report func(processed, total int)) channelTestSummary {
+func performChannelTests(ctx context.Context, channels []*model.Channel, testUserID int, allowDisable bool, skipAutoTest bool, report func(processed, total int)) channelTestSummary {
 	summary := channelTestSummary{}
 	var disableThreshold = int64(common.ChannelDisableThreshold * 1000)
 	if disableThreshold == 0 {
@@ -920,6 +920,9 @@ func performChannelTests(ctx context.Context, channels []*model.Channel, testUse
 			report(index, total) // channels completed before this one
 		}
 		if channel.Status == common.ChannelStatusManuallyDisabled {
+			continue
+		}
+		if skipAutoTest && channel.GetSkipAutoTest() {
 			continue
 		}
 		isChannelEnabled := channel.Status == common.ChannelStatusEnabled
@@ -986,6 +989,10 @@ func performChannelTests(ctx context.Context, channels []*model.Channel, testUse
 	return summary
 }
 
+func isScheduledChannelTest(mode string) bool {
+	return strings.TrimSpace(mode) == ""
+}
+
 // runChannelTestTask runs one synchronous channel test cycle for the system task
 // runner (both the scheduled job and the manual "test all channels" trigger go
 // through here). It honors ctx cancellation so a runner that loses its lease
@@ -1003,12 +1010,13 @@ func runChannelTestTask(ctx context.Context, mode string, notify bool, report fu
 	if err != nil {
 		return channelTestSummary{}, err
 	}
-	if strings.TrimSpace(mode) == "" {
+	scheduled := isScheduledChannelTest(mode)
+	if scheduled {
 		mode = operation_setting.GetMonitorSetting().ChannelTestMode
 	}
 	selected := selectChannelsForAutomaticTest(channels, mode)
 	allowDisable := mode != operation_setting.ChannelTestModePassiveRecovery
-	summary := performChannelTests(ctx, selected, testUserID, allowDisable, report)
+	summary := performChannelTests(ctx, selected, testUserID, allowDisable, scheduled, report)
 	if notify && (ctx == nil || ctx.Err() == nil) {
 		service.NotifyRootUser(dto.NotifyTypeChannelTest, "通道测试完成", "所有通道测试已完成")
 	}
