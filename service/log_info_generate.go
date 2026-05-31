@@ -2,6 +2,7 @@ package service
 
 import (
 	"encoding/base64"
+	"net/http"
 	"strconv"
 	"strings"
 
@@ -32,6 +33,21 @@ func appendRequestPath(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, other
 		}
 		other["request_path"] = path
 	}
+}
+
+func appendResponseStatusCode(ctx *gin.Context, other map[string]interface{}) {
+	if other == nil {
+		return
+	}
+
+	statusCode := http.StatusOK
+	if ctx != nil && ctx.Writer != nil {
+		writerStatus := ctx.Writer.Status()
+		if writerStatus >= 100 && writerStatus <= 599 {
+			statusCode = writerStatus
+		}
+	}
+	other["status_code"] = statusCode
 }
 
 const (
@@ -271,6 +287,7 @@ func GenerateTextOtherInfo(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, m
 	other["admin_info"] = adminInfo
 	appendClientRequestInfo(ctx, relayInfo, other)
 	appendRequestPath(ctx, relayInfo, other)
+	appendResponseStatusCode(ctx, other)
 	appendRequestConversionChain(relayInfo, other)
 	appendFinalRequestFormat(relayInfo, other)
 	appendBillingInfo(relayInfo, other)

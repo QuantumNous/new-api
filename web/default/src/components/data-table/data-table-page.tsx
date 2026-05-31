@@ -20,6 +20,7 @@ import * as React from 'react'
 import {
   flexRender,
   type ColumnDef,
+  type Header,
   type Row,
   type Table as TanstackTable,
 } from '@tanstack/react-table'
@@ -310,8 +311,9 @@ function renderDesktop<TData>(
 
   return (
     <div
+      data-column-resize-container
       className={cn(
-        'overflow-hidden rounded-lg border transition-opacity duration-150',
+        'relative overflow-hidden rounded-lg border transition-opacity duration-150',
         isFetchingOnly && 'pointer-events-none opacity-60',
         props.tableClassName
       )}
@@ -357,14 +359,16 @@ function renderDesktop<TData>(
                         <div
                           role='separator'
                           aria-orientation='vertical'
-                          onMouseDown={header.getResizeHandler()}
-                          onTouchStart={header.getResizeHandler()}
+                          onMouseDown={(event) =>
+                            startDeferredColumnResize(event, props.table, header)
+                          }
+                          onTouchStart={(event) =>
+                            startDeferredColumnResize(event, props.table, header)
+                          }
                           onDoubleClick={() => header.column.resetSize()}
                           className={cn(
                             'absolute top-0 right-0 h-full w-2 cursor-col-resize touch-none select-none',
-                            'after:bg-border hover:after:bg-primary/60 after:absolute after:top-2 after:right-0 after:h-[calc(100%-1rem)] after:w-px after:rounded-full',
-                            header.column.getIsResizing() &&
-                              'after:bg-primary after:w-0.5'
+                            'after:bg-border hover:after:bg-primary/60 after:absolute after:top-2 after:right-0 after:h-[calc(100%-1rem)] after:w-px after:rounded-full'
                           )}
                         />
                       )}
@@ -408,6 +412,135 @@ function renderDesktop<TData>(
       </Table>
     </div>
   )
+}
+
+type ResizeStartEvent =
+  | React.MouseEvent<HTMLDivElement>
+  | React.TouchEvent<HTMLDivElement>
+
+function getResizeClientX(event: ResizeStartEvent): number | null {
+  if ('touches' in event) {
+    if (event.touches.length !== 1) return null
+    return event.touches[0]?.clientX ?? null
+  }
+  return event.clientX
+}
+
+function clampColumnSize(size: number, minSize: number, maxSize: number) {
+  return Math.min(Math.max(size, minSize), maxSize)
+}
+
+function startDeferredColumnResize<TData>(
+  event: ResizeStartEvent,
+  table: TanstackTable<TData>,
+  header: Header<TData, unknown>
+) {
+  const startClientX = getResizeClientX(event)
+  if (startClientX == null) return
+
+  event.preventDefault()
+  event.stopPropagation()
+
+  const column = header.column
+  const startSize = column.getSize()
+  const minSize = column.columnDef.minSize ?? 20
+  const maxSize = column.columnDef.maxSize ?? Number.MAX_SAFE_INTEGER
+  const direction = table.options.columnResizeDirection === 'rtl' ? -1 : 1
+  const handleElement = event.currentTarget
+  const container =
+    handleElement.closest<HTMLElement>('[data-column-resize-container]')
+  const containerRect = container?.getBoundingClientRect()
+  const handleRect = handleElement.getBoundingClientRect()
+  const indicator = document.createElement('div')
+  const previousCursor = document.body.style.cursor
+  const previousUserSelect = document.body.style.userSelect
+  let animationFrame = 0
+  let latestClientX = startClientX
+
+  indicator.className =
+    'pointer-events-none fixed z-[9999] border-r border-dashed border-primary/80'
+  indicator.style.top = `${containerRect?.top ?? handleRect.top}px`
+  indicator.style.bottom = `${
+    window.innerHeight - (containerRect?.bottom ?? handleRect.bottom)
+  }px`
+  indicator.style.left = `${handleRect.right}px`
+
+  document.body.appendChild(indicator)
+  document.body.style.cursor = 'col-resize'
+  document.body.style.userSelect = 'none'
+
+  const applyIndicatorPosition = (clientX: number) => {
+    latestClientX = clientX
+    if (animationFrame !== 0) return
+
+    animationFrame = window.requestAnimationFrame(() => {
+      animationFrame = 0
+      const rawDelta = (latestClientX - startClientX) * direction
+      const nextSize = clampColumnSize(
+        startSize + rawDelta,
+        minSize,
+        maxSize
+      )
+      const visualDelta = (nextSize - startSize) * direction
+      indicator.style.transform = `translateX(${visualDelta}px)`
+    })
+  }
+
+  const cleanup = () => {
+    if (animationFrame !== 0) {
+      window.cancelAnimationFrame(animationFrame)
+    }
+    indicator.remove()
+    document.body.style.cursor = previousCursor
+    document.body.style.userSelect = previousUserSelect
+    document.removeEventListener('mousemove', handleMouseMove)
+    document.removeEventListener('mouseup', handleMouseUp)
+    document.removeEventListener('touchmove', handleTouchMove)
+    document.removeEventListener('touchend', handleTouchEnd)
+    document.removeEventListener('touchcancel', handleTouchCancel)
+  }
+
+  const finishResize = (clientX: number | null) => {
+    cleanup()
+    if (clientX == null) return
+    const rawDelta = (clientX - startClientX) * direction
+    const nextSize = clampColumnSize(startSize + rawDelta, minSize, maxSize)
+    table.setColumnSizing((old) => ({
+      ...old,
+      [column.id]: Math.round(nextSize),
+    }))
+  }
+
+  const handleMouseMove = (moveEvent: MouseEvent) => {
+    applyIndicatorPosition(moveEvent.clientX)
+  }
+
+  const handleMouseUp = (upEvent: MouseEvent) => {
+    finishResize(upEvent.clientX)
+  }
+
+  const handleTouchMove = (moveEvent: TouchEvent) => {
+    if (moveEvent.cancelable) moveEvent.preventDefault()
+    applyIndicatorPosition(moveEvent.touches[0]?.clientX ?? latestClientX)
+  }
+
+  const handleTouchEnd = (endEvent: TouchEvent) => {
+    if (endEvent.cancelable) endEvent.preventDefault()
+    finishResize(endEvent.changedTouches[0]?.clientX ?? latestClientX)
+  }
+
+  const handleTouchCancel = (cancelEvent: TouchEvent) => {
+    if (cancelEvent.cancelable) cancelEvent.preventDefault()
+    cleanup()
+  }
+
+  document.addEventListener('mousemove', handleMouseMove)
+  document.addEventListener('mouseup', handleMouseUp)
+  document.addEventListener('touchmove', handleTouchMove, { passive: false })
+  document.addEventListener('touchend', handleTouchEnd, { passive: false })
+  document.addEventListener('touchcancel', handleTouchCancel, {
+    passive: false,
+  })
 }
 
 function DefaultRow<TData>({

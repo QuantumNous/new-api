@@ -157,7 +157,7 @@ export function UsageLogsTable({ logCategory }: UsageLogsTableProps) {
     },
     enableRowSelection: false,
     enableColumnResizing: true,
-    columnResizeMode: 'onChange',
+    columnResizeMode: 'onEnd',
     onPaginationChange,
     onColumnFiltersChange,
     getCoreRowModel: getCoreRowModel(),

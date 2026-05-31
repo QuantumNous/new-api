@@ -23,6 +23,7 @@ import {
   parseTiersFromExpr,
   type ParsedTier,
 } from '@/features/pricing/lib/billing-expr'
+import { LOG_TYPE_ENUM } from '../constants'
 import type { UsageLog } from '../data/schema'
 import type { LogOtherData } from '../types'
 
@@ -103,6 +104,44 @@ export function parseLogOther(other: string): LogOtherData | null {
     console.error('Failed to parse log other field:', error)
     return null
   }
+}
+
+export function getLogStatusCode(
+  log: Pick<UsageLog, 'type'>,
+  other: LogOtherData | null
+): number | null {
+  const statusCode = other?.status_code
+  if (typeof statusCode === 'number' && Number.isFinite(statusCode)) {
+    const normalized = Math.trunc(statusCode)
+    if (normalized >= 100 && normalized <= 599) return normalized
+  }
+
+  if (typeof statusCode === 'string') {
+    const trimmed = statusCode.trim()
+    if (/^\d{3}$/.test(trimmed)) {
+      const normalized = Number.parseInt(trimmed, 10)
+      if (
+        Number.isFinite(normalized) &&
+        normalized >= 100 &&
+        normalized <= 599
+      ) {
+        return normalized
+      }
+    }
+  }
+
+  if (log.type === LOG_TYPE_ENUM.CONSUME) return 200
+  return null
+}
+
+export function getStatusCodeVariant(
+  statusCode: number
+): StatusBadgeProps['variant'] {
+  if (statusCode >= 200 && statusCode < 300) return 'success'
+  if (statusCode >= 300 && statusCode < 400) return 'blue'
+  if (statusCode >= 400 && statusCode < 500) return 'orange'
+  if (statusCode >= 500) return 'red'
+  return 'neutral'
 }
 
 /**

@@ -57,7 +57,9 @@ import {
   hasAnyCacheTokens,
   isViolationFeeLog,
   getFirstResponseTimeColor,
+  getLogStatusCode,
   getResponseTimeColor,
+  getStatusCodeVariant,
 } from '../../lib/format'
 import {
   getLogTypeConfig,
@@ -498,6 +500,7 @@ export function DetailsDialog(props: DetailsDialogProps) {
   const channelChain =
     useChannel && useChannel.length > 0 ? useChannel.join(' → ') : undefined
   const sessionSource = formatSessionSource(other?.session_source, t)
+  const statusCode = getLogStatusCode(props.log, other)
 
   return (
     <Dialog open={props.open} onOpenChange={props.onOpenChange}>
@@ -595,6 +598,21 @@ export function DetailsDialog(props: DetailsDialogProps) {
                     </span>
                   }
                   mono
+                />
+              )}
+
+              {statusCode != null && (
+                <DetailRow
+                  label={t('Status Code')}
+                  value={
+                    <StatusBadge
+                      label={String(statusCode)}
+                      variant={getStatusCodeVariant(statusCode)}
+                      size='sm'
+                      copyable={false}
+                      className='font-mono'
+                    />
+                  }
                 />
               )}
 

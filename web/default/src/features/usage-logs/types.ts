@@ -111,6 +111,7 @@ export interface LogOtherData {
     admin_id?: number | string
   }
   request_path?: string
+  status_code?: number | string
   user_agent?: string
   session_id?: string
   session_source?: string

@@ -44,6 +44,8 @@ import {
   getFirstResponseTimeColor,
   getResponseTimeColor,
   getTieredBillingSummary,
+  getLogStatusCode,
+  getStatusCodeVariant,
   hasAnyCacheTokens,
   parseLogOther,
   isViolationFeeLog,
@@ -703,6 +705,35 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
       },
       meta: { label: t('Type'), mobileHidden: true },
       size: 110,
+    },
+
+    {
+      id: 'status_code',
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title={t('Status Code')} />
+      ),
+      cell: ({ row }) => {
+        const log = row.original
+        if (!isDisplayableLogType(log.type)) return null
+
+        const other = parseLogOther(log.other)
+        const statusCode = getLogStatusCode(log, other)
+        if (statusCode == null) return <EmptyValue />
+
+        return (
+          <StatusBadge
+            label={String(statusCode)}
+            variant={getStatusCodeVariant(statusCode)}
+            size='sm'
+            copyable={false}
+            className='font-mono'
+          />
+        )
+      },
+      meta: { label: t('Status Code'), mobileHidden: true },
+      size: 100,
+      minSize: 80,
+      maxSize: 140,
     },
 
     {
