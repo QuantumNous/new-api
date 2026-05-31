@@ -16,6 +16,20 @@ type ConfigManager struct {
 	mutex   sync.RWMutex
 }
 
+type SnapshotFunc func() interface{}
+
+func (f SnapshotFunc) Snapshot() interface{} {
+	return f()
+}
+
+type snapshotProvider interface {
+	Snapshot() interface{}
+}
+
+type updateProvider interface {
+	UpdateConfig(map[string]string) error
+}
+
 var GlobalConfig = NewConfigManager()
 
 func NewConfigManager() *ConfigManager {
@@ -93,6 +107,10 @@ func (cm *ConfigManager) SaveToDB(updateFunc func(key, value string) error) erro
 func configToMap(config interface{}) (map[string]string, error) {
 	result := make(map[string]string)
 
+	if provider, ok := config.(snapshotProvider); ok {
+		config = provider.Snapshot()
+	}
+
 	val := reflect.ValueOf(config)
 	if val.Kind() == reflect.Ptr {
 		val = val.Elem()
@@ -163,6 +181,10 @@ func configToMap(config interface{}) (map[string]string, error) {
 
 // 辅助函数：从map更新配置对象
 func updateConfigFromMap(config interface{}, configMap map[string]string) error {
+	if provider, ok := config.(updateProvider); ok {
+		return provider.UpdateConfig(configMap)
+	}
+
 	val := reflect.ValueOf(config)
 	if val.Kind() != reflect.Ptr {
 		return nil
