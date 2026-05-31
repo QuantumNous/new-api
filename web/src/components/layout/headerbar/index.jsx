@@ -26,6 +26,7 @@ import NoticeModal from '../NoticeModal';
 import MobileMenuButton from './MobileMenuButton';
 import HeaderLogo from './HeaderLogo';
 import Navigation from './Navigation';
+import MobileNavPanel from './MobileNavPanel';
 import ActionButtons from './ActionButtons';
 
 const useScrollY = () => {
@@ -96,6 +97,16 @@ const HeaderBar = ({ onMobileMenuToggle, drawerOpen }) => {
 
   const { mainNavLinks } = useNavigation(t, docsLink, headerNavModules);
 
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
+
+  const handleMobileNavToggle = useCallback(() => {
+    setMobileNavOpen((prev) => !prev);
+  }, []);
+
+  const handleMobileNavClose = useCallback(() => {
+    setMobileNavOpen(false);
+  }, []);
+
   const isDark = useActualTheme() === 'dark';
   const scrollY = useScrollY();
   const scrolled = scrollY > 12;
@@ -128,8 +139,9 @@ const HeaderBar = ({ onMobileMenuToggle, drawerOpen }) => {
               isConsoleRoute={isConsoleRoute}
               isMobile={isMobile}
               drawerOpen={drawerOpen}
+              mobileNavOpen={mobileNavOpen}
               collapsed={collapsed}
-              onToggle={handleMobileMenuToggle}
+              onToggle={isConsoleRoute ? handleMobileMenuToggle : handleMobileNavToggle}
               t={t}
             />
 
@@ -174,6 +186,16 @@ const HeaderBar = ({ onMobileMenuToggle, drawerOpen }) => {
           </div>
         </div>
       </div>
+
+      {isMobile && !isConsoleRoute && (
+        <MobileNavPanel
+          open={mobileNavOpen}
+          mainNavLinks={mainNavLinks}
+          userState={userState}
+          pricingRequireAuth={pricingRequireAuth}
+          onClose={handleMobileNavClose}
+        />
+      )}
     </header>
   );
 };

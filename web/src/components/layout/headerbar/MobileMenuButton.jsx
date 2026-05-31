@@ -25,25 +25,28 @@ const MobileMenuButton = ({
   isConsoleRoute,
   isMobile,
   drawerOpen,
+  mobileNavOpen,
   collapsed,
   onToggle,
   t,
 }) => {
-  if (!isConsoleRoute || !isMobile) {
+  if (!isMobile) {
     return null;
   }
+
+  const isOpen = isConsoleRoute ? drawerOpen : mobileNavOpen;
 
   return (
     <Button
       icon={
-        (isMobile ? drawerOpen : collapsed) ? (
+        isOpen ? (
           <IconClose className='text-lg' />
         ) : (
           <IconMenu className='text-lg' />
         )
       }
       aria-label={
-        (isMobile ? drawerOpen : collapsed) ? t('关闭侧边栏') : t('打开侧边栏')
+        isOpen ? t('关闭菜单') : t('打开菜单')
       }
       onClick={onToggle}
       theme='borderless'
