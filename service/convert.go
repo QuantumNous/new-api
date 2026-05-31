@@ -203,7 +203,31 @@ func ClaudeToOpenAIRequest(claudeRequest dto.ClaudeRequest, info *relaycommon.Re
 			}
 
 			if len(mediaMessages) > 0 && len(toolCalls) == 0 {
-				openAIMessage.SetMediaContent(mediaMessages)
+				// If all content blocks are text-only (no images), merge into a single string.
+				// Some upstream providers (e.g., NVIDIA) don't support array content in user messages.
+				allText := true
+				for _, mm := range mediaMessages {
+					if mm.Type != "text" && mm.Type != "input_text" {
+						allText = false
+						break
+					}
+				}
+				if allText {
+					var textParts []string
+					for _, mm := range mediaMessages {
+						if mm.Text != "" {
+							textParts = append(textParts, mm.Text)
+						}
+					}
+					if len(textParts) > 0 {
+						openAIMessage.SetStringContent(strings.Join(textParts, "\n"))
+					} else {
+						// All text blocks are empty; set empty string as fallback to ensure message has content.
+						openAIMessage.SetStringContent("")
+					}
+				} else {
+					openAIMessage.SetMediaContent(mediaMessages)
+				}
 			}
 		}
 		if len(openAIMessage.ParseContent()) > 0 || len(openAIMessage.ToolCalls) > 0 {
