@@ -90,6 +90,48 @@ function getGroupRatioText(other: LogOtherData | null): string | null {
   return null
 }
 
+function EmptyValue() {
+  return <span className='text-muted-foreground/40 text-xs'>—</span>
+}
+
+function formatSessionSource(
+  source: string | undefined,
+  t: (key: string, opts?: Record<string, unknown>) => string
+): string | null {
+  if (!source) return null
+  if (source === 'header') return t('Header')
+  if (source === 'prompt_cache_key') return t('Prompt Cache Key')
+  if (source === 'conversation') return t('Conversation')
+  if (source.startsWith('metadata.')) {
+    return `${t('Metadata')} · ${source.slice('metadata.'.length)}`
+  }
+  return source
+}
+
+function getReasoningVariant(
+  effort: string | undefined
+): StatusBadgeProps['variant'] {
+  const normalized = effort?.toLowerCase()
+  if (!normalized) return 'neutral'
+  if (normalized.includes('high')) return 'orange'
+  if (normalized === 'medium') return 'yellow'
+  if (normalized === 'low' || normalized === 'minimal') return 'green'
+  return 'neutral'
+}
+
+function getPricingModeLabel(
+  other: LogOtherData | null,
+  t: (key: string, opts?: Record<string, unknown>) => string
+): string | null {
+  if (!other) return null
+  if (other.billing_mode === 'tiered_expr') return t('Dynamic Pricing')
+  if (isPerCallBilling(other.model_price)) return t('Per-call')
+  if (other.model_ratio != null || other.completion_ratio != null) {
+    return t('Standard')
+  }
+  return null
+}
+
 function buildDetailSegments(
   log: UsageLog,
   other: LogOtherData | null,
@@ -537,95 +579,321 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
     },
 
     {
+      id: 'session',
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title={t('Session')} />
+      ),
+      cell: function SessionCell({ row }) {
+        const { sensitiveVisible } = useUsageLogsContext()
+        const log = row.original
+        if (!isDisplayableLogType(log.type)) return null
+
+        const other = parseLogOther(log.other)
+        const sessionId = other?.session_id?.trim()
+        if (!sessionId) return <EmptyValue />
+
+        const source = formatSessionSource(other?.session_source, t)
+        const displayText = sensitiveVisible ? sessionId : '••••'
+
+        return (
+          <div className='flex max-w-[150px] flex-col gap-0.5'>
+            <TooltipProvider delay={300}>
+              <Tooltip>
+                <TooltipTrigger render={<div className='max-w-full' />}>
+                  <StatusBadge
+                    label={displayText}
+                    copyable={sensitiveVisible}
+                    copyText={sensitiveVisible ? sessionId : undefined}
+                    size='sm'
+                    className='border-border/60 bg-muted/30 text-foreground max-w-full overflow-hidden rounded-md border px-1.5 py-0.5 font-mono'
+                  />
+                </TooltipTrigger>
+                {sensitiveVisible && (
+                  <TooltipContent side='top' className='max-w-xs break-all'>
+                    {sessionId}
+                  </TooltipContent>
+                )}
+              </Tooltip>
+            </TooltipProvider>
+            {source && (
+              <span className='text-muted-foreground/60 truncate text-[11px]'>
+                {source}
+              </span>
+            )}
+          </div>
+        )
+      },
+      meta: { label: t('Session'), mobileHidden: true },
+      size: 150,
+    },
+
+    {
+      id: 'endpoint',
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title={t('Endpoint')} />
+      ),
+      cell: ({ row }) => {
+        const log = row.original
+        if (!isDisplayableLogType(log.type)) return null
+
+        const other = parseLogOther(log.other)
+        const endpoint = other?.request_path?.trim()
+        if (!endpoint) return <EmptyValue />
+
+        return (
+          <TooltipProvider delay={300}>
+            <Tooltip>
+              <TooltipTrigger render={<div className='max-w-[160px]' />}>
+                <StatusBadge
+                  label={endpoint}
+                  copyText={endpoint}
+                  size='sm'
+                  className='border-border/60 bg-muted/30 text-foreground max-w-full overflow-hidden rounded-md border px-1.5 py-0.5 font-mono'
+                />
+              </TooltipTrigger>
+              <TooltipContent side='top' className='max-w-xs break-all'>
+                {endpoint}
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        )
+      },
+      meta: { label: t('Endpoint'), mobileHidden: true },
+      size: 150,
+    },
+
+    {
+      id: 'request_type',
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title={t('Type')} />
+      ),
+      cell: ({ row }) => {
+        const log = row.original
+        if (!isDisplayableLogType(log.type)) return null
+
+        const other = parseLogOther(log.other)
+        const hasStreamError =
+          log.is_stream &&
+          other?.stream_status &&
+          other.stream_status.status !== 'ok'
+
+        return (
+          <div className='flex items-center gap-1.5'>
+            <StatusBadge
+              label={log.is_stream ? t('Stream') : t('Non-stream')}
+              variant={log.is_stream ? 'blue' : 'neutral'}
+              size='sm'
+              copyable={false}
+            />
+            {hasStreamError && (
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger
+                    render={<CircleAlert className='size-3 text-red-500' />}
+                  ></TooltipTrigger>
+                  <TooltipContent>
+                    <div className='space-y-0.5 text-xs'>
+                      <p>
+                        {t('Stream Status')}: {t('Error')}
+                      </p>
+                      <p>{other.stream_status?.end_reason || 'unknown'}</p>
+                      {(other.stream_status?.error_count ?? 0) > 0 && (
+                        <p>
+                          {t('Soft Errors')}: {other.stream_status?.error_count}
+                        </p>
+                      )}
+                    </div>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            )}
+          </div>
+        )
+      },
+      meta: { label: t('Type'), mobileHidden: true },
+      size: 110,
+    },
+
+    {
+      id: 'reasoning_effort',
+      header: ({ column }) => (
+        <DataTableColumnHeader
+          column={column}
+          title={t('Reasoning Effort')}
+        />
+      ),
+      cell: ({ row }) => {
+        const log = row.original
+        if (!isDisplayableLogType(log.type)) return null
+
+        const other = parseLogOther(log.other)
+        const effort = other?.reasoning_effort?.trim()
+        if (!effort) return <EmptyValue />
+
+        return (
+          <StatusBadge
+            label={effort}
+            variant={getReasoningVariant(effort)}
+            size='sm'
+            copyable={false}
+          />
+        )
+      },
+      meta: { label: t('Reasoning Effort'), mobileHidden: true },
+      size: 130,
+    },
+
+    {
+      id: 'first_token',
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title={t('First Token')} />
+      ),
+      cell: ({ row }) => {
+        const log = row.original
+        if (!isTimingLogType(log.type)) return null
+        if (!log.is_stream) return <EmptyValue />
+
+        const other = parseLogOther(log.other)
+        const frt = other?.frt
+        if (frt == null || frt <= 0) {
+          return (
+            <StatusBadge
+              label='N/A'
+              variant='neutral'
+              size='sm'
+              copyable={false}
+            />
+          )
+        }
+
+        return (
+          <StatusBadge
+            label={formatUseTime(frt / 1000)}
+            variant={
+              getFirstResponseTimeColor(
+                frt / 1000
+              ) as StatusBadgeProps['variant']
+            }
+            size='sm'
+            copyable={false}
+            className='font-mono'
+          />
+        )
+      },
+      meta: { label: t('First Token'), mobileHidden: true },
+      size: 110,
+    },
+
+    {
       accessorKey: 'use_time',
       header: ({ column }) => (
-        <DataTableColumnHeader column={column} title={t('Timing')} />
+        <DataTableColumnHeader column={column} title={t('Duration')} />
       ),
       cell: ({ row }) => {
         const log = row.original
         if (!isTimingLogType(log.type)) return null
 
         const useTime = row.getValue('use_time') as number
-        const other = parseLogOther(log.other)
-        const frt = other?.frt
         const tokensPerSecond =
           useTime > 0 && log.completion_tokens > 0
             ? log.completion_tokens / useTime
             : null
         const timeVariant = getResponseTimeColor(useTime, log.completion_tokens)
-        const frtVariant = frt ? getFirstResponseTimeColor(frt / 1000) : null
 
         return (
-          <div className='flex flex-col gap-1'>
-            <div className='flex items-center gap-1.5'>
-              <StatusBadge
-                label={formatUseTime(useTime)}
-                variant={timeVariant as StatusBadgeProps['variant']}
-                size='sm'
-                copyable={false}
-                className='font-mono'
-              />
-              {log.is_stream &&
-                (frt != null && frt > 0 ? (
-                  <StatusBadge
-                    label={formatUseTime(frt / 1000)}
-                    variant={frtVariant as StatusBadgeProps['variant']}
-                    size='sm'
-                    copyable={false}
-                    className='font-mono'
-                  />
-                ) : (
-                  <StatusBadge
-                    label='N/A'
-                    variant='neutral'
-                    size='sm'
-                    copyable={false}
-                  />
-                ))}
-            </div>
-            <div className='flex items-center gap-1 text-[11px]'>
-              <span className='text-muted-foreground/60'>
-                {log.is_stream ? t('Stream') : t('Non-stream')}
-                {tokensPerSecond != null && (
-                  <>
-                    {' · '}
-                    <span className='font-mono tabular-nums'>
-                      {Math.round(tokensPerSecond)}
-                    </span>
-                    {' t/s'}
-                  </>
-                )}
+          <div className='flex flex-col gap-0.5'>
+            <StatusBadge
+              label={formatUseTime(useTime)}
+              variant={timeVariant as StatusBadgeProps['variant']}
+              size='sm'
+              copyable={false}
+              className='font-mono'
+            />
+            {tokensPerSecond != null && (
+              <span className='text-muted-foreground/60 text-[11px]'>
+                <span className='font-mono tabular-nums'>
+                  {Math.round(tokensPerSecond)}
+                </span>
+                {' t/s'}
               </span>
-              {log.is_stream &&
-                other?.stream_status &&
-                other.stream_status.status !== 'ok' && (
-                  <TooltipProvider>
-                    <Tooltip>
-                      <TooltipTrigger
-                        render={<CircleAlert className='size-3 text-red-500' />}
-                      ></TooltipTrigger>
-                      <TooltipContent>
-                        <div className='space-y-0.5 text-xs'>
-                          <p>
-                            {t('Stream Status')}: {t('Error')}
-                          </p>
-                          <p>{other.stream_status.end_reason || 'unknown'}</p>
-                          {(other.stream_status.error_count ?? 0) > 0 && (
-                            <p>
-                              {t('Soft Errors')}:{' '}
-                              {other.stream_status.error_count}
-                            </p>
-                          )}
-                        </div>
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
-                )}
-            </div>
+            )}
           </div>
         )
       },
-      meta: { label: t('Timing'), mobileHidden: true },
+      meta: { label: t('Duration'), mobileHidden: true },
+      size: 110,
+    },
+
+    {
+      id: 'billing_source',
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title={t('Billing')} />
+      ),
+      cell: ({ row }) => {
+        const log = row.original
+        if (!isDisplayableLogType(log.type)) return null
+
+        const other = parseLogOther(log.other)
+        const isSubscription = other?.billing_source === 'subscription'
+        const pricingMode = getPricingModeLabel(other, t)
+
+        return (
+          <div className='flex flex-col gap-0.5'>
+            <StatusBadge
+              label={isSubscription ? t('Subscription') : t('Usage-based')}
+              variant={isSubscription ? 'success' : 'blue'}
+              size='sm'
+              copyable={false}
+            />
+            {pricingMode && (
+              <span className='text-muted-foreground/60 truncate text-[11px]'>
+                {pricingMode}
+              </span>
+            )}
+          </div>
+        )
+      },
+      meta: { label: t('Billing'), mobileHidden: true },
+      size: 120,
+    },
+
+    {
+      id: 'user_agent',
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title={t('User-Agent')} />
+      ),
+      cell: function UserAgentCell({ row }) {
+        const { sensitiveVisible } = useUsageLogsContext()
+        const log = row.original
+        if (!isDisplayableLogType(log.type)) return null
+
+        const other = parseLogOther(log.other)
+        const userAgent = other?.user_agent?.trim()
+        if (!userAgent) return <EmptyValue />
+
+        const displayText = sensitiveVisible ? userAgent : '••••'
+
+        return (
+          <TooltipProvider delay={300}>
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <span className='text-muted-foreground max-w-[220px] truncate font-mono text-xs' />
+                }
+              >
+                {displayText}
+              </TooltipTrigger>
+              {sensitiveVisible && (
+                <TooltipContent side='top' className='max-w-sm break-all'>
+                  {userAgent}
+                </TooltipContent>
+              )}
+            </Tooltip>
+          </TooltipProvider>
+        )
+      },
+      meta: { label: t('User-Agent'), mobileHidden: true },
+      size: 220,
     },
 
     {

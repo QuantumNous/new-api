@@ -4549,6 +4549,11 @@
     "Zero retention": "Без хранения данных",
     "Zhipu": "Zhipu",
     "Zhipu V4": "Zhipu V4",
-    "Zoom": "Zoom"
+    "Zoom": "Zoom",
+    "Conversation": "Диалог",
+    "First Token": "Первый токен",
+    "Prompt Cache Key": "Ключ кеша промпта",
+    "Session": "Сессия",
+    "User-Agent": "User-Agent"
   }
 }

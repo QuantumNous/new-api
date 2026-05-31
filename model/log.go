@@ -158,12 +158,70 @@ func RecordTopupLog(userId int, content string, callerIp string, paymentMethod s
 	}
 }
 
+const (
+	maxLogUserAgentLength = 512
+	maxLogSessionLength   = 256
+)
+
+func cleanLogText(value string, maxLength int) string {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return ""
+	}
+	value = strings.Map(func(r rune) rune {
+		if r == '\n' || r == '\r' || r == '\t' {
+			return ' '
+		}
+		if r < 0x20 {
+			return -1
+		}
+		return r
+	}, value)
+	value = strings.Join(strings.Fields(value), " ")
+	if maxLength > 0 {
+		runes := []rune(value)
+		if len(runes) > maxLength {
+			return string(runes[:maxLength])
+		}
+	}
+	return value
+}
+
+func appendErrorLogClientInfo(c *gin.Context, other map[string]interface{}) {
+	if c == nil || c.Request == nil || other == nil {
+		return
+	}
+	if userAgent := cleanLogText(c.Request.UserAgent(), maxLogUserAgentLength); userAgent != "" {
+		other["user_agent"] = userAgent
+	}
+	for _, header := range []string{
+		"Session_id",
+		"Session-Id",
+		"X-Session-Id",
+		"X-Codex-Session-Id",
+		"Conversation_id",
+		"Conversation-Id",
+		"X-Conversation-Id",
+		"OpenAI-Conversation-Id",
+	} {
+		if session := cleanLogText(c.GetHeader(header), maxLogSessionLength); session != "" {
+			other["session_id"] = session
+			other["session_source"] = "header"
+			return
+		}
+	}
+}
+
 func RecordErrorLog(c *gin.Context, userId int, channelId int, modelName string, tokenName string, content string, tokenId int, useTimeSeconds int,
 	isStream bool, group string, other map[string]interface{}) {
 	logger.LogInfo(c, fmt.Sprintf("record error log: userId=%d, channelId=%d, modelName=%s, tokenName=%s, content=%s", userId, channelId, modelName, tokenName, common.LocalLogPreview(content)))
 	username := c.GetString("username")
 	requestId := c.GetString(common.RequestIdKey)
 	upstreamRequestId := c.GetString(common.UpstreamRequestIdKey)
+	if other == nil {
+		other = make(map[string]interface{})
+	}
+	appendErrorLogClientInfo(c, other)
 	otherStr := common.MapToJsonStr(other)
 	// 判断是否需要记录 IP
 	needRecordIp := false

@@ -2,6 +2,7 @@ package service
 
 import (
 	"encoding/base64"
+	"strconv"
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
@@ -30,6 +31,201 @@ func appendRequestPath(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, other
 			path = path[:idx]
 		}
 		other["request_path"] = path
+	}
+}
+
+const (
+	maxLogUserAgentLength = 512
+	maxLogSessionLength   = 256
+)
+
+type sessionCandidate struct {
+	value  string
+	source string
+}
+
+func cleanLogText(value string, maxLength int) string {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return ""
+	}
+	value = strings.Map(func(r rune) rune {
+		if r == '\n' || r == '\r' || r == '\t' {
+			return ' '
+		}
+		if r < 0x20 {
+			return -1
+		}
+		return r
+	}, value)
+	value = strings.Join(strings.Fields(value), " ")
+	if maxLength > 0 {
+		runes := []rune(value)
+		if len(runes) > maxLength {
+			return string(runes[:maxLength])
+		}
+	}
+	return value
+}
+
+func requestHeaderValue(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, names ...string) string {
+	if ctx != nil && ctx.Request != nil {
+		for _, name := range names {
+			if value := strings.TrimSpace(ctx.GetHeader(name)); value != "" {
+				return value
+			}
+		}
+	}
+	if relayInfo == nil || len(relayInfo.RequestHeaders) == 0 {
+		return ""
+	}
+	for _, name := range names {
+		for key, value := range relayInfo.RequestHeaders {
+			if strings.EqualFold(key, name) && strings.TrimSpace(value) != "" {
+				return value
+			}
+		}
+	}
+	return ""
+}
+
+func rawValueString(raw []byte) string {
+	if len(raw) == 0 {
+		return ""
+	}
+	var value string
+	if err := common.Unmarshal(raw, &value); err == nil {
+		return value
+	}
+	return ""
+}
+
+func scalarString(value interface{}) string {
+	switch v := value.(type) {
+	case string:
+		return v
+	case float64:
+		if v == float64(int64(v)) {
+			return strconv.FormatInt(int64(v), 10)
+		}
+		return strconv.FormatFloat(v, 'f', -1, 64)
+	case int:
+		return strconv.Itoa(v)
+	case int64:
+		return strconv.FormatInt(v, 10)
+	case bool:
+		return strconv.FormatBool(v)
+	default:
+		return ""
+	}
+}
+
+func metadataSessionCandidates(raw []byte, sourcePrefix string) []sessionCandidate {
+	if len(raw) == 0 {
+		return nil
+	}
+
+	var metadata map[string]interface{}
+	if err := common.Unmarshal(raw, &metadata); err != nil {
+		if nested := rawValueString(raw); nested != "" {
+			if err := common.Unmarshal([]byte(nested), &metadata); err != nil {
+				return nil
+			}
+		} else {
+			return nil
+		}
+	}
+
+	keys := []string{"session_id", "conversation_id", "thread_id", "chat_id", "user_id"}
+	candidates := make([]sessionCandidate, 0, len(keys))
+	for _, key := range keys {
+		if value := cleanLogText(scalarString(metadata[key]), maxLogSessionLength); value != "" {
+			candidates = append(candidates, sessionCandidate{
+				value:  value,
+				source: sourcePrefix + "." + key,
+			})
+		}
+	}
+	return candidates
+}
+
+func requestSessionCandidates(relayInfo *relaycommon.RelayInfo) []sessionCandidate {
+	if relayInfo == nil || relayInfo.Request == nil {
+		return nil
+	}
+
+	switch request := relayInfo.Request.(type) {
+	case *dto.GeneralOpenAIRequest:
+		candidates := make([]sessionCandidate, 0, 4)
+		if request.PromptCacheKey != "" {
+			candidates = append(candidates, sessionCandidate{
+				value:  request.PromptCacheKey,
+				source: "prompt_cache_key",
+			})
+		}
+		candidates = append(candidates, metadataSessionCandidates(request.Metadata, "metadata")...)
+		return candidates
+	case *dto.OpenAIResponsesRequest:
+		candidates := make([]sessionCandidate, 0, 5)
+		if value := rawValueString(request.PromptCacheKey); value != "" {
+			candidates = append(candidates, sessionCandidate{
+				value:  value,
+				source: "prompt_cache_key",
+			})
+		}
+		if value := rawValueString(request.Conversation); value != "" && value != "auto" {
+			candidates = append(candidates, sessionCandidate{
+				value:  value,
+				source: "conversation",
+			})
+		}
+		candidates = append(candidates, metadataSessionCandidates(request.Metadata, "metadata")...)
+		return candidates
+	case *dto.ClaudeRequest:
+		return metadataSessionCandidates(request.Metadata, "metadata")
+	default:
+		return nil
+	}
+}
+
+func appendClientRequestInfo(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, other map[string]interface{}) {
+	if other == nil {
+		return
+	}
+
+	userAgent := requestHeaderValue(ctx, relayInfo, "User-Agent")
+	if userAgent = cleanLogText(userAgent, maxLogUserAgentLength); userAgent != "" {
+		other["user_agent"] = userAgent
+	}
+
+	headerSession := requestHeaderValue(
+		ctx,
+		relayInfo,
+		"Session_id",
+		"Session-Id",
+		"X-Session-Id",
+		"X-Codex-Session-Id",
+		"Conversation_id",
+		"Conversation-Id",
+		"X-Conversation-Id",
+		"OpenAI-Conversation-Id",
+	)
+	if headerSession = cleanLogText(headerSession, maxLogSessionLength); headerSession != "" {
+		other["session_id"] = headerSession
+		other["session_source"] = "header"
+		return
+	}
+
+	for _, candidate := range requestSessionCandidates(relayInfo) {
+		value := cleanLogText(candidate.value, maxLogSessionLength)
+		if value == "" {
+			continue
+		}
+		other["session_id"] = value
+		if candidate.source != "" {
+			other["session_source"] = candidate.source
+		}
+		return
 	}
 }
 
@@ -73,6 +269,7 @@ func GenerateTextOtherInfo(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, m
 	AppendChannelAffinityAdminInfo(ctx, adminInfo)
 
 	other["admin_info"] = adminInfo
+	appendClientRequestInfo(ctx, relayInfo, other)
 	appendRequestPath(ctx, relayInfo, other)
 	appendRequestConversionChain(relayInfo, other)
 	appendFinalRequestFormat(relayInfo, other)

@@ -4549,6 +4549,11 @@
     "Zero retention": "Không lưu dữ liệu",
     "Zhipu": "Zhipu",
     "Zhipu V4": "Zhipu V4",
-    "Zoom": "Zoom"
+    "Zoom": "Zoom",
+    "Conversation": "Cuộc trò chuyện",
+    "First Token": "Token đầu tiên",
+    "Prompt Cache Key": "Khóa cache prompt",
+    "Session": "Phiên",
+    "User-Agent": "User-Agent"
   }
 }

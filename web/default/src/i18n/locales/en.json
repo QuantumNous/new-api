@@ -4555,6 +4555,11 @@
     "Zero retention": "Zero retention",
     "Zhipu": "Zhipu",
     "Zhipu V4": "Zhipu V4",
-    "Zoom": "Zoom"
+    "Zoom": "Zoom",
+    "Conversation": "Conversation",
+    "First Token": "First Token",
+    "Prompt Cache Key": "Prompt Cache Key",
+    "Session": "Session",
+    "User-Agent": "User-Agent"
   }
 }

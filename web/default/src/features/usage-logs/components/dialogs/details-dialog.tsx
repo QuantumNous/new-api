@@ -135,6 +135,20 @@ function formatRatio(ratio: number | undefined): string {
   return ratio.toFixed(4)
 }
 
+function formatSessionSource(
+  source: string | undefined,
+  t: (key: string, opts?: Record<string, unknown>) => string
+): string | null {
+  if (!source) return null
+  if (source === 'header') return t('Header')
+  if (source === 'prompt_cache_key') return t('Prompt Cache Key')
+  if (source === 'conversation') return t('Conversation')
+  if (source.startsWith('metadata.')) {
+    return `${t('Metadata')} · ${source.slice('metadata.'.length)}`
+  }
+  return source
+}
+
 function BillingBreakdown(props: {
   log: UsageLog
   other: LogOtherData
@@ -483,6 +497,7 @@ export function DetailsDialog(props: DetailsDialogProps) {
   const useChannel = other?.admin_info?.use_channel
   const channelChain =
     useChannel && useChannel.length > 0 ? useChannel.join(' → ') : undefined
+  const sessionSource = formatSessionSource(other?.session_source, t)
 
   return (
     <Dialog open={props.open} onOpenChange={props.onOpenChange}>
@@ -561,6 +576,32 @@ export function DetailsDialog(props: DetailsDialogProps) {
                 <DetailRow
                   label={t('Group')}
                   value={props.log.group || other?.group || ''}
+                  mono
+                />
+              )}
+
+              {other?.session_id && (
+                <DetailRow
+                  label={t('Session')}
+                  value={
+                    <span>
+                      {other.session_id}
+                      {sessionSource && (
+                        <span className='text-muted-foreground'>
+                          {' '}
+                          ({sessionSource})
+                        </span>
+                      )}
+                    </span>
+                  }
+                  mono
+                />
+              )}
+
+              {other?.user_agent && (
+                <DetailRow
+                  label={t('User-Agent')}
+                  value={other.user_agent}
                   mono
                 />
               )}

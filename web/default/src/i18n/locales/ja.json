@@ -4549,6 +4549,11 @@
     "Zero retention": "データ保持なし",
     "Zhipu": "Zhipu",
     "Zhipu V4": "Zhipu V 4",
-    "Zoom": "ズーム"
+    "Zoom": "ズーム",
+    "Conversation": "会話",
+    "First Token": "初回トークン",
+    "Prompt Cache Key": "プロンプトキャッシュキー",
+    "Session": "セッション",
+    "User-Agent": "User-Agent"
   }
 }

@@ -4555,6 +4555,11 @@
     "Zero retention": "零数据保留",
     "Zhipu": "智谱",
     "Zhipu V4": "智谱 V4",
-    "Zoom": "缩放"
+    "Zoom": "缩放",
+    "Conversation": "对话",
+    "First Token": "首字",
+    "Prompt Cache Key": "提示缓存键",
+    "Session": "会话",
+    "User-Agent": "User-Agent"
   }
 }
