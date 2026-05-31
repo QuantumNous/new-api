@@ -2755,6 +2755,8 @@
     "社群": "Cộng đồng",
     "视频": "Video",
     "视频Remix": "Remix video",
+    "视频分辨率倍率": "Tỷ lệ độ phân giải video",
+    "视频分辨率倍率（仅部分模型支持该计费）": "Tỷ lệ độ phân giải video (chỉ được hỗ trợ bởi một số mô hình)",
     "视频无法在当前浏览器中播放，这可能是由于：": "The video cannot be played in this browser, possibly because:",
     "禁用": "Vô hiệu hóa",
     "禁用 Passkey": "Vô hiệu hóa Passkey",

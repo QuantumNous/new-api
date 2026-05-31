@@ -44,13 +44,28 @@ func GetAndValidateRequest(c *gin.Context, format types.RelayFormat) (request dt
 	case types.RelayFormatRerank:
 		request, err = GetAndValidateRerankRequest(c)
 	case types.RelayFormatOpenAIAudio:
-		request, err = GetAndValidAudioRequest(c, relayMode)
+		if relayMode == relayconstant.RelayModeAudioVoiceClone {
+			request, err = GetAndValidAudioVoiceCloneRequest(c)
+		} else {
+			request, err = GetAndValidAudioRequest(c, relayMode)
+		}
 	case types.RelayFormatOpenAIRealtime:
 		request = &dto.BaseRequest{}
 	default:
 		return nil, fmt.Errorf("unsupported relay format: %s", format)
 	}
 	return request, err
+}
+
+func GetAndValidAudioVoiceCloneRequest(c *gin.Context) (*dto.AudioVoiceCloneRequest, error) {
+	request := &dto.AudioVoiceCloneRequest{}
+	if err := common.UnmarshalBodyReusable(c, request); err != nil {
+		return nil, err
+	}
+	if request.Model == "" {
+		return nil, errors.New("model is required")
+	}
+	return request, nil
 }
 
 func GetAndValidAudioRequest(c *gin.Context, relayMode int) (*dto.AudioRequest, error) {

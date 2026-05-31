@@ -180,6 +180,8 @@ export function ModelMutateDrawer({
       ImageRatio: '',
       AudioRatio: '',
       AudioCompletionRatio: '',
+      VoiceCloneUnlockRatio: '',
+      VideoResolutionRatio: '',
       ExposeRatioEnabled: false,
       'billing_setting.billing_mode': '{}',
       'billing_setting.billing_expr': '{}',

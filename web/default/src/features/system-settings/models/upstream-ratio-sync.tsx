@@ -69,6 +69,8 @@ type UpstreamRatioSyncProps = {
     ImageRatio: string
     AudioRatio: string
     AudioCompletionRatio: string
+    VoiceCloneUnlockRatio: string
+    VideoResolutionRatio: string
     'billing_setting.billing_mode': string
     'billing_setting.billing_expr': string
   }
@@ -343,6 +345,12 @@ export function UpstreamRatioSync({ modelRatios }: UpstreamRatioSyncProps) {
       AudioCompletionRatio: parseJsonRecord<number>(
         modelRatios.AudioCompletionRatio
       ),
+      VoiceCloneUnlockRatio: parseJsonRecord<number>(
+        modelRatios.VoiceCloneUnlockRatio
+      ),
+      VideoResolutionRatio: parseJsonRecord<Record<string, number>>(
+        modelRatios.VideoResolutionRatio
+      ),
       ModelPrice: parseJsonRecord<number>(modelRatios.ModelPrice),
       'billing_setting.billing_mode': parseJsonRecord<string>(
         modelRatios['billing_setting.billing_mode']
@@ -367,7 +375,9 @@ export function UpstreamRatioSync({ modelRatios }: UpstreamRatioSyncProps) {
       currentRatios.CreateCacheRatio[model] !== undefined ||
       currentRatios.ImageRatio[model] !== undefined ||
       currentRatios.AudioRatio[model] !== undefined ||
-      currentRatios.AudioCompletionRatio[model] !== undefined
+      currentRatios.AudioCompletionRatio[model] !== undefined ||
+      currentRatios.VoiceCloneUnlockRatio[model] !== undefined ||
+      currentRatios.VideoResolutionRatio[model] !== undefined
     )
       return 'ratio'
     return null
@@ -375,7 +385,7 @@ export function UpstreamRatioSync({ modelRatios }: UpstreamRatioSyncProps) {
 
   const performSync = useCallback(
     async (currentRatios: ParsedRatios): Promise<boolean> => {
-      const finalRatios: Record<string, Record<string, number | string>> = {
+      const finalRatios: Record<string, Record<string, number | string | Record<string, number>>> = {
         ModelRatio: { ...currentRatios.ModelRatio },
         CompletionRatio: { ...currentRatios.CompletionRatio },
         CacheRatio: { ...currentRatios.CacheRatio },
@@ -383,6 +393,8 @@ export function UpstreamRatioSync({ modelRatios }: UpstreamRatioSyncProps) {
         ImageRatio: { ...currentRatios.ImageRatio },
         AudioRatio: { ...currentRatios.AudioRatio },
         AudioCompletionRatio: { ...currentRatios.AudioCompletionRatio },
+        VoiceCloneUnlockRatio: { ...currentRatios.VoiceCloneUnlockRatio },
+        VideoResolutionRatio: { ...currentRatios.VideoResolutionRatio },
         ModelPrice: { ...currentRatios.ModelPrice },
         'billing_setting.billing_mode': {
           ...currentRatios['billing_setting.billing_mode'],
@@ -407,6 +419,8 @@ export function UpstreamRatioSync({ modelRatios }: UpstreamRatioSyncProps) {
           delete finalRatios.ImageRatio[model]
           delete finalRatios.AudioRatio[model]
           delete finalRatios.AudioCompletionRatio[model]
+          delete finalRatios.VoiceCloneUnlockRatio[model]
+          delete finalRatios.VideoResolutionRatio[model]
         }
         if (hasRatio) {
           delete finalRatios.ModelPrice[model]

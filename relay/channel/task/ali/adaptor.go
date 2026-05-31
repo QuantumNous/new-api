@@ -2,6 +2,7 @@ package ali
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"io"
 	"net/http"
@@ -16,6 +17,7 @@ import (
 	"github.com/QuantumNous/new-api/relay/channel/task/taskcommon"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	"github.com/samber/lo"
 
 	"github.com/gin-gonic/gin"
@@ -244,7 +246,12 @@ func ProcessAliOtherRatios(aliReq *AliVideoRequest) (map[string]float64, error) 
 			resolution = resolution + "P"
 		}
 	}
-	if otherRatio, ok := aliRatios[aliReq.Model]; ok {
+	// 优先使用管理员配置的分辨率倍率，未配置时回退到内置硬编码
+	if configRatios, ok := ratio_setting.GetVideoResolutionRatio(aliReq.Model); ok {
+		if ratio, ok := configRatios[resolution]; ok {
+			otherRatios[fmt.Sprintf("resolution-%s", resolution)] = ratio
+		}
+	} else if otherRatio, ok := aliRatios[aliReq.Model]; ok {
 		if ratio, ok := otherRatio[resolution]; ok {
 			otherRatios[fmt.Sprintf("resolution-%s", resolution)] = ratio
 		}
@@ -532,4 +539,69 @@ func convertAliStatus(aliStatus string) string {
 	default:
 		return dto.VideoStatusUnknown
 	}
+}
+
+// AdjustBillingOnComplete 根据阿里返回的 usage 调整计费
+// 阿里视频计费公式：费用 = 分辨率价格 × 视频时长(秒) × 分组倍率
+// 实际生成的视频时长可能与请求时长不同，需要根据 usage.duration 调整
+func (a *TaskAdaptor) AdjustBillingOnComplete(task *model.Task, taskResult *relaycommon.TaskInfo) int {
+	// 只处理成功状态的任务
+	if taskResult.Status != model.TaskStatusSuccess {
+		return 0
+	}
+
+	// 解析阿里响应获取 usage
+	var aliResp AliVideoResponse
+	if err := common.Unmarshal(task.Data, &aliResp); err != nil {
+		logger.LogError(context.TODO(), fmt.Sprintf("解析阿里视频响应失败: %v", err))
+		return 0
+	}
+
+	// 如果没有 usage 信息，保持预扣费不变
+	if aliResp.Usage == nil {
+		return 0
+	}
+
+	actualDuration := int(aliResp.Usage.Duration)
+	if actualDuration <= 0 {
+		return 0
+	}
+
+	// 获取预扣费时的请求时长
+	requestedDuration := 5 // 默认5秒
+	if task.PrivateData.BillingContext != nil && task.PrivateData.BillingContext.OtherRatios != nil {
+		if seconds, ok := task.PrivateData.BillingContext.OtherRatios["seconds"]; ok && seconds > 0 {
+			requestedDuration = int(seconds)
+		}
+	}
+
+	// 如果实际时长与请求时长相同，无需调整
+	if actualDuration == requestedDuration {
+		logger.LogInfo(context.TODO(), fmt.Sprintf(
+			"任务 %s 视频时长与预估一致: %d秒，无需调整计费",
+			task.TaskID, actualDuration,
+		))
+		return 0
+	}
+
+	// 计算实际应扣额度
+	// 公式：实际额度 = 预扣额度 × (实际时长 / 请求时长)
+	preConsumedQuota := task.Quota
+	actualQuota := int(float64(preConsumedQuota) * float64(actualDuration) / float64(requestedDuration))
+
+	if actualDuration < requestedDuration {
+		logger.LogInfo(context.TODO(), fmt.Sprintf(
+			"任务 %s 视频时长缩短: %d秒 → %d秒，应退还: %s",
+			task.TaskID, requestedDuration, actualDuration,
+			logger.FormatQuota(preConsumedQuota-actualQuota),
+		))
+	} else {
+		logger.LogInfo(context.TODO(), fmt.Sprintf(
+			"任务 %s 视频时长增加: %d秒 → %d秒，应补扣: %s",
+			task.TaskID, requestedDuration, actualDuration,
+			logger.FormatQuota(actualQuota-preConsumedQuota),
+		))
+	}
+
+	return actualQuota
 }

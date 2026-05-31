@@ -69,20 +69,24 @@ var pricingSyncFields = []string{
 	"image_ratio",
 	"audio_ratio",
 	"audio_completion_ratio",
+	"voice_clone_unlock_ratio",
+	"video_resolution_ratio",
 	"model_price",
 	billing_setting.BillingModeField,
 	billing_setting.BillingExprField,
 }
 
 var numericPricingSyncFields = map[string]bool{
-	"model_ratio":            true,
-	"completion_ratio":       true,
-	"cache_ratio":            true,
-	"create_cache_ratio":     true,
-	"image_ratio":            true,
-	"audio_ratio":            true,
-	"audio_completion_ratio": true,
-	"model_price":            true,
+	"model_ratio":              true,
+	"completion_ratio":         true,
+	"cache_ratio":              true,
+	"create_cache_ratio":       true,
+	"image_ratio":              true,
+	"audio_ratio":              true,
+	"audio_completion_ratio":   true,
+	"voice_clone_unlock_ratio": true,
+	"video_resolution_ratio":   true,
+	"model_price":              true,
 }
 
 type upstreamResult struct {
@@ -136,6 +140,8 @@ func getLocalPricingSyncData() map[string]any {
 	data["image_ratio"] = ratio_setting.GetImageRatioCopy()
 	data["audio_ratio"] = ratio_setting.GetAudioRatioCopy()
 	data["audio_completion_ratio"] = ratio_setting.GetAudioCompletionRatioCopy()
+	data["voice_clone_unlock_ratio"] = ratio_setting.GetVoiceCloneUnlockRatioCopy()
+	data["video_resolution_ratio"] = ratio_setting.GetVideoResolutionRatioCopy()
 	return data
 }
 

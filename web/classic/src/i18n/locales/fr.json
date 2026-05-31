@@ -2551,6 +2551,8 @@
     "示例：{\"default\": [200, 100], \"vip\": [0, 1000]}。": "Exemple : {\"default\": [200, 100], \"vip\": [0, 1000]}.",
     "视频": "Vidéo",
     "视频Remix": "Remix vidéo",
+    "视频分辨率倍率": "Ratio de résolution vidéo",
+    "视频分辨率倍率（仅部分模型支持该计费）": "Ratio de résolution vidéo (uniquement pris en charge par certains modèles)",
     "视频无法在当前浏览器中播放，这可能是由于：": "La vidéo ne peut pas être lue dans ce navigateur, cela peut être dû à :",
     "禁用": "Désactiver",
     "禁用 store 透传": "Désactiver le passage de store",

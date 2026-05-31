@@ -163,6 +163,8 @@ export type ModelSettings = {
   ImageRatio: string
   AudioRatio: string
   AudioCompletionRatio: string
+  VoiceCloneUnlockRatio: string
+  VideoResolutionRatio: string
   ExposeRatioEnabled: boolean
   'billing_setting.billing_mode': string
   'billing_setting.billing_expr': string
@@ -206,6 +208,8 @@ export type BillingSettings = {
   ImageRatio: string
   AudioRatio: string
   AudioCompletionRatio: string
+  VoiceCloneUnlockRatio: string
+  VideoResolutionRatio: string
   ExposeRatioEnabled: boolean
   'billing_setting.billing_mode': string
   'billing_setting.billing_expr': string
@@ -342,6 +346,8 @@ export type RatioType =
   | 'image_ratio'
   | 'audio_ratio'
   | 'audio_completion_ratio'
+  | 'voice_clone_unlock_ratio'
+  | 'video_resolution_ratio'
   | 'model_price'
   | 'billing_mode'
   | 'billing_expr'

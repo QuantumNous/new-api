@@ -19,16 +19,12 @@ func AudioHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *type
 	info.InitChannelMeta(c)
 
 	audioReq, ok := info.Request.(*dto.AudioRequest)
-	if !ok {
+	voiceCloneReq, cloneOK := info.Request.(*dto.AudioVoiceCloneRequest)
+	if !ok && !cloneOK {
 		return types.NewError(errors.New("invalid request type"), types.ErrorCodeInvalidRequest, types.ErrOptionWithSkipRetry())
 	}
 
-	request, err := common.DeepCopy(audioReq)
-	if err != nil {
-		return types.NewError(fmt.Errorf("failed to copy request to AudioRequest: %w", err), types.ErrorCodeInvalidRequest, types.ErrOptionWithSkipRetry())
-	}
-
-	err = helper.ModelMappedHelper(c, info, request)
+	err := helper.ModelMappedHelper(c, info, info.Request)
 	if err != nil {
 		return types.NewError(err, types.ErrorCodeChannelModelMappedError, types.ErrOptionWithSkipRetry())
 	}
@@ -39,7 +35,19 @@ func AudioHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *type
 	}
 	adaptor.Init(info)
 
-	ioReader, err := adaptor.ConvertAudioRequest(c, info, *request)
+	request := dto.AudioRequest{}
+	if ok {
+		copied, copyErr := common.DeepCopy(audioReq)
+		if copyErr != nil {
+			return types.NewError(fmt.Errorf("failed to copy request to AudioRequest: %w", copyErr), types.ErrorCodeInvalidRequest, types.ErrOptionWithSkipRetry())
+		}
+		request = *copied
+	} else if cloneOK {
+		request.Model = voiceCloneReq.Model
+		request.Input = voiceCloneReq.Text
+	}
+
+	ioReader, err := adaptor.ConvertAudioRequest(c, info, request)
 	if err != nil {
 		return types.NewError(err, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
 	}
