@@ -346,6 +346,19 @@ func (a *Adaptor) ConvertOpenAIRequest(c *gin.Context, info *relaycommon.RelayIn
 		}
 	}
 
+	if info.ChannelType == constant.ChannelTypeOpenAI &&
+		info.RelayMode == relayconstant.RelayModeChatCompletions &&
+		info.RelayFormat == types.RelayFormatOpenAI &&
+		!info.IsStream &&
+		strings.HasPrefix(info.UpstreamModelName, "gpt-5") {
+		request.Stream = lo.ToPtr(true)
+		if info.SupportStreamOptions {
+			request.StreamOptions = &dto.StreamOptions{
+				IncludeUsage: true,
+			}
+		}
+	}
+
 	return request, nil
 }
 

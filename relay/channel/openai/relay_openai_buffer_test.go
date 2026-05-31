@@ -152,6 +152,65 @@ data: [DONE]
 	require.Equal(t, 1, parsed.OutputTokens)
 }
 
+func TestConvertOpenAIRequestForcesGPT5NonStreamUpstreamStream(t *testing.T) {
+	stream := false
+	req := &dto.GeneralOpenAIRequest{
+		Model:  "gpt-5.4-mini",
+		Stream: &stream,
+		Messages: []dto.Message{
+			{Role: "user", Content: "ping"},
+		},
+	}
+	info := &relaycommon.RelayInfo{
+		RelayMode:       relayconstant.RelayModeChatCompletions,
+		RelayFormat:     types.RelayFormatOpenAI,
+		OriginModelName: "gpt-5.4-mini",
+		ChannelMeta: &relaycommon.ChannelMeta{
+			ChannelType:          constant.ChannelTypeOpenAI,
+			UpstreamModelName:    "gpt-5.4-mini",
+			SupportStreamOptions: true,
+		},
+	}
+
+	converted, err := (&Adaptor{}).ConvertOpenAIRequest(nil, info, req)
+
+	require.NoError(t, err)
+	convertedReq := converted.(*dto.GeneralOpenAIRequest)
+	require.False(t, info.IsStream)
+	require.NotNil(t, convertedReq.Stream)
+	require.True(t, *convertedReq.Stream)
+	require.NotNil(t, convertedReq.StreamOptions)
+	require.True(t, convertedReq.StreamOptions.IncludeUsage)
+}
+
+func TestConvertOpenAIRequestKeepsNonGPT5NonStreamRequest(t *testing.T) {
+	stream := false
+	req := &dto.GeneralOpenAIRequest{
+		Model:  "gpt-4o",
+		Stream: &stream,
+		Messages: []dto.Message{
+			{Role: "user", Content: "ping"},
+		},
+	}
+	info := &relaycommon.RelayInfo{
+		RelayMode:       relayconstant.RelayModeChatCompletions,
+		RelayFormat:     types.RelayFormatOpenAI,
+		OriginModelName: "gpt-4o",
+		ChannelMeta: &relaycommon.ChannelMeta{
+			ChannelType:       constant.ChannelTypeOpenAI,
+			UpstreamModelName: "gpt-4o",
+		},
+	}
+
+	converted, err := (&Adaptor{}).ConvertOpenAIRequest(nil, info, req)
+
+	require.NoError(t, err)
+	convertedReq := converted.(*dto.GeneralOpenAIRequest)
+	require.NotNil(t, convertedReq.Stream)
+	require.False(t, *convertedReq.Stream)
+	require.Nil(t, convertedReq.StreamOptions)
+}
+
 func newChatCompletionSSE(statusCode int, body string) *http.Response {
 	return &http.Response{
 		StatusCode: statusCode,
