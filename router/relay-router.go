@@ -41,6 +41,19 @@ func SetRelayRouter(router *gin.Engine) {
 		})
 	}
 
+	enginesRouter := router.Group("/v1/engines")
+	enginesRouter.Use(middleware.RouteTag("relay"))
+	enginesRouter.Use(middleware.TokenAuth())
+	{
+		enginesRouter.GET("", func(c *gin.Context) {
+			controller.ListModels(c, constant.ChannelTypeOpenAI)
+		})
+
+		enginesRouter.GET("/:model", func(c *gin.Context) {
+			controller.RetrieveModel(c, constant.ChannelTypeOpenAI)
+		})
+	}
+
 	geminiRouter := router.Group("/v1beta/models")
 	geminiRouter.Use(middleware.RouteTag("relay"))
 	geminiRouter.Use(middleware.TokenAuth())
