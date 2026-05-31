@@ -4552,6 +4552,7 @@
     "Zoom": "Zoom",
     "Conversation": "Диалог",
     "First Token": "Первый токен",
+    "Pay-as-you-go": "По факту использования",
     "Prompt Cache Key": "Ключ кеша промпта",
     "Session": "Сессия",
     "User-Agent": "User-Agent"

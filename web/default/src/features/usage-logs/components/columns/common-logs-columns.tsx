@@ -119,19 +119,6 @@ function getReasoningVariant(
   return 'neutral'
 }
 
-function getPricingModeLabel(
-  other: LogOtherData | null,
-  t: (key: string, opts?: Record<string, unknown>) => string
-): string | null {
-  if (!other) return null
-  if (other.billing_mode === 'tiered_expr') return t('Dynamic Pricing')
-  if (isPerCallBilling(other.model_price)) return t('Per-call')
-  if (other.model_ratio != null || other.completion_ratio != null) {
-    return t('Standard')
-  }
-  return null
-}
-
 function buildDetailSegments(
   log: UsageLog,
   other: LogOtherData | null,
@@ -330,6 +317,54 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
       },
       enableHiding: false,
       meta: { label: t('Time') },
+    },
+    {
+      id: 'session',
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title={t('Session')} />
+      ),
+      cell: function SessionCell({ row }) {
+        const { sensitiveVisible } = useUsageLogsContext()
+        const log = row.original
+        if (!isDisplayableLogType(log.type)) return null
+
+        const other = parseLogOther(log.other)
+        const sessionId = other?.session_id?.trim()
+        if (!sessionId) return <EmptyValue />
+
+        const source = formatSessionSource(other?.session_source, t)
+        const displayText = sensitiveVisible ? sessionId : '••••'
+
+        return (
+          <div className='flex max-w-[150px] flex-col gap-0.5'>
+            <TooltipProvider delay={300}>
+              <Tooltip>
+                <TooltipTrigger render={<div className='max-w-full' />}>
+                  <StatusBadge
+                    label={displayText}
+                    copyable={sensitiveVisible}
+                    copyText={sensitiveVisible ? sessionId : undefined}
+                    size='sm'
+                    className='border-border/60 bg-muted/30 text-foreground max-w-full overflow-hidden rounded-md border px-1.5 py-0.5 font-mono'
+                  />
+                </TooltipTrigger>
+                {sensitiveVisible && (
+                  <TooltipContent side='top' className='max-w-xs break-all'>
+                    {sessionId}
+                  </TooltipContent>
+                )}
+              </Tooltip>
+            </TooltipProvider>
+            {source && (
+              <span className='text-muted-foreground/60 truncate text-[11px]'>
+                {source}
+              </span>
+            )}
+          </div>
+        )
+      },
+      meta: { label: t('Session'), mobileHidden: true },
+      size: 150,
     },
   ]
 
@@ -579,55 +614,6 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
     },
 
     {
-      id: 'session',
-      header: ({ column }) => (
-        <DataTableColumnHeader column={column} title={t('Session')} />
-      ),
-      cell: function SessionCell({ row }) {
-        const { sensitiveVisible } = useUsageLogsContext()
-        const log = row.original
-        if (!isDisplayableLogType(log.type)) return null
-
-        const other = parseLogOther(log.other)
-        const sessionId = other?.session_id?.trim()
-        if (!sessionId) return <EmptyValue />
-
-        const source = formatSessionSource(other?.session_source, t)
-        const displayText = sensitiveVisible ? sessionId : '••••'
-
-        return (
-          <div className='flex max-w-[150px] flex-col gap-0.5'>
-            <TooltipProvider delay={300}>
-              <Tooltip>
-                <TooltipTrigger render={<div className='max-w-full' />}>
-                  <StatusBadge
-                    label={displayText}
-                    copyable={sensitiveVisible}
-                    copyText={sensitiveVisible ? sessionId : undefined}
-                    size='sm'
-                    className='border-border/60 bg-muted/30 text-foreground max-w-full overflow-hidden rounded-md border px-1.5 py-0.5 font-mono'
-                  />
-                </TooltipTrigger>
-                {sensitiveVisible && (
-                  <TooltipContent side='top' className='max-w-xs break-all'>
-                    {sessionId}
-                  </TooltipContent>
-                )}
-              </Tooltip>
-            </TooltipProvider>
-            {source && (
-              <span className='text-muted-foreground/60 truncate text-[11px]'>
-                {source}
-              </span>
-            )}
-          </div>
-        )
-      },
-      meta: { label: t('Session'), mobileHidden: true },
-      size: 150,
-    },
-
-    {
       id: 'endpoint',
       header: ({ column }) => (
         <DataTableColumnHeader column={column} title={t('Endpoint')} />
@@ -835,65 +821,18 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
 
         const other = parseLogOther(log.other)
         const isSubscription = other?.billing_source === 'subscription'
-        const pricingMode = getPricingModeLabel(other, t)
 
         return (
-          <div className='flex flex-col gap-0.5'>
-            <StatusBadge
-              label={isSubscription ? t('Subscription') : t('Usage-based')}
-              variant={isSubscription ? 'success' : 'blue'}
-              size='sm'
-              copyable={false}
-            />
-            {pricingMode && (
-              <span className='text-muted-foreground/60 truncate text-[11px]'>
-                {pricingMode}
-              </span>
-            )}
-          </div>
+          <StatusBadge
+            label={isSubscription ? t('Plan') : t('Pay-as-you-go')}
+            variant={isSubscription ? 'success' : 'blue'}
+            size='sm'
+            copyable={false}
+          />
         )
       },
       meta: { label: t('Billing'), mobileHidden: true },
       size: 120,
-    },
-
-    {
-      id: 'user_agent',
-      header: ({ column }) => (
-        <DataTableColumnHeader column={column} title={t('User-Agent')} />
-      ),
-      cell: function UserAgentCell({ row }) {
-        const { sensitiveVisible } = useUsageLogsContext()
-        const log = row.original
-        if (!isDisplayableLogType(log.type)) return null
-
-        const other = parseLogOther(log.other)
-        const userAgent = other?.user_agent?.trim()
-        if (!userAgent) return <EmptyValue />
-
-        const displayText = sensitiveVisible ? userAgent : '••••'
-
-        return (
-          <TooltipProvider delay={300}>
-            <Tooltip>
-              <TooltipTrigger
-                render={
-                  <span className='text-muted-foreground max-w-[220px] truncate font-mono text-xs' />
-                }
-              >
-                {displayText}
-              </TooltipTrigger>
-              {sensitiveVisible && (
-                <TooltipContent side='top' className='max-w-sm break-all'>
-                  {userAgent}
-                </TooltipContent>
-              )}
-            </Tooltip>
-          </TooltipProvider>
-        )
-      },
-      meta: { label: t('User-Agent'), mobileHidden: true },
-      size: 220,
     },
 
     {
@@ -1056,6 +995,45 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
       meta: { label: t('Details') },
       size: 180,
       maxSize: 200,
+    },
+
+    {
+      id: 'user_agent',
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title={t('User-Agent')} />
+      ),
+      cell: function UserAgentCell({ row }) {
+        const { sensitiveVisible } = useUsageLogsContext()
+        const log = row.original
+        if (!isDisplayableLogType(log.type)) return null
+
+        const other = parseLogOther(log.other)
+        const userAgent = other?.user_agent?.trim()
+        if (!userAgent) return <EmptyValue />
+
+        const displayText = sensitiveVisible ? userAgent : '••••'
+
+        return (
+          <TooltipProvider delay={300}>
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <span className='text-muted-foreground max-w-[220px] truncate font-mono text-xs' />
+                }
+              >
+                {displayText}
+              </TooltipTrigger>
+              {sensitiveVisible && (
+                <TooltipContent side='top' className='max-w-sm break-all'>
+                  {userAgent}
+                </TooltipContent>
+              )}
+            </Tooltip>
+          </TooltipProvider>
+        )
+      },
+      meta: { label: t('User-Agent'), mobileHidden: true },
+      size: 220,
     }
   )
 
