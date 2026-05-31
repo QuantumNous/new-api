@@ -62,6 +62,19 @@ func CacheGetAllGroups() ([]Group, error) {
 	return groups, nil
 }
 
+func CacheGetGroupByName(name string) (*Group, bool) {
+	groups, err := CacheGetAllGroups()
+	if err != nil {
+		return nil, false
+	}
+	for i := range groups {
+		if groups[i].Name == name {
+			return &groups[i], true
+		}
+	}
+	return nil, false
+}
+
 func CacheGetUsableGroups() (map[string]string, error) {
 	if common.RedisEnabled {
 		val, err := common.RedisGet(groupUsableKey)

@@ -133,6 +133,19 @@ func Distribute() func(c *gin.Context) {
 					}
 				}
 
+				// 检查分组的调用路径限制
+				if usingGroup != "" && usingGroup != "auto" {
+					if grp, ok := model.CacheGetGroupByName(usingGroup); ok {
+						if !grp.IsPathAllowed(c.Request.URL.Path) {
+							abortWithOpenAiMessage(c, http.StatusForbidden, i18n.T(c, i18n.MsgDistributorGroupPathDenied, map[string]any{
+								"Path":         c.Request.URL.Path,
+								"AllowedPaths": grp.AllowedPaths,
+							}))
+							return
+						}
+					}
+				}
+
 				if preferredChannelID, found := service.GetPreferredChannelByAffinity(c, modelRequest.Model, usingGroup); found {
 					preferred, err := model.CacheGetChannel(preferredChannelID)
 					if err == nil && preferred != nil {
@@ -192,6 +205,19 @@ func Distribute() func(c *gin.Context) {
 							abortWithOpenAiMessage(c, http.StatusForbidden, i18n.T(c, i18n.MsgDistributorSubscriptionGroupRestricted, map[string]any{
 								"AllowedGroups": strings.Join(allowedGroups, ", "),
 								"CurrentGroup":  selectGroup,
+							}))
+							return
+						}
+					}
+				}
+
+				// 验证自动选择分组的调用路径限制
+				if usingGroup == "auto" && selectGroup != "" {
+					if grp, ok := model.CacheGetGroupByName(selectGroup); ok {
+						if !grp.IsPathAllowed(c.Request.URL.Path) {
+							abortWithOpenAiMessage(c, http.StatusForbidden, i18n.T(c, i18n.MsgDistributorGroupPathDenied, map[string]any{
+								"Path":         c.Request.URL.Path,
+								"AllowedPaths": grp.AllowedPaths,
 							}))
 							return
 						}

@@ -1,6 +1,8 @@
 package model
 
 import (
+	"strings"
+
 	"gorm.io/gorm"
 )
 
@@ -12,8 +14,40 @@ type Group struct {
 	Category       string  `json:"category" gorm:"type:varchar(64);default:''"`
 	UserSelectable bool    `json:"user_selectable" gorm:"default:false"`
 	Description    string  `json:"description" gorm:"type:text"`
+	AllowedPaths   string  `json:"allowed_paths" gorm:"type:text;default:''"`
 	CreatedAt      int64   `json:"created_at" gorm:"bigint;autoCreateTime"`
 	UpdatedAt      int64   `json:"updated_at" gorm:"bigint;autoUpdateTime"`
+}
+
+func (g *Group) GetAllowedPathsList() []string {
+	if g.AllowedPaths == "" {
+		return nil
+	}
+	parts := strings.Split(g.AllowedPaths, ",")
+	result := make([]string, 0, len(parts))
+	for _, p := range parts {
+		p = strings.TrimSpace(p)
+		if p != "" {
+			result = append(result, p)
+		}
+	}
+	if len(result) == 0 {
+		return nil
+	}
+	return result
+}
+
+func (g *Group) IsPathAllowed(requestPath string) bool {
+	paths := g.GetAllowedPathsList()
+	if paths == nil {
+		return true
+	}
+	for _, p := range paths {
+		if strings.HasPrefix(requestPath, p) {
+			return true
+		}
+	}
+	return false
 }
 
 func (Group) TableName() string {

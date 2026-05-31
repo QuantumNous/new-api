@@ -94,7 +94,7 @@ func GetUserGroups(c *gin.Context) {
 	})
 }
 
-var validGroupNameRegex = regexp.MustCompile(`^[a-zA-Z0-9_\-\.]+$`)
+var validGroupNameRegex = regexp.MustCompile(`^[\p{L}\p{N}_\-\.]+$`)
 
 func validateGroupName(name string) string {
 	if name == "" {
@@ -175,6 +175,7 @@ func UpdateGroup(c *gin.Context) {
 	existing.Category = group.Category
 	existing.UserSelectable = group.UserSelectable
 	existing.Description = group.Description
+	existing.AllowedPaths = group.AllowedPaths
 
 	if oldName != existing.Name {
 		// Rename: save group + alias bookkeeping atomically

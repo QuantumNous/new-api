@@ -255,6 +255,7 @@ distributor.token_model_forbidden: "Ce jeton n'a pas accès au modèle {{.Model}
 distributor.model_name_required: "Nom du modèle non spécifié, le nom du modèle ne peut pas être vide"
 distributor.invalid_playground_request: "Requête playground invalide : {{.Error}}"
 distributor.group_access_denied: "Pas de permission pour accéder à ce groupe"
+distributor.group_path_denied: "Ce groupe n'autorise pas le chemin d'appel ({{.Path}}), chemins autorisés : {{.AllowedPaths}}"
 distributor.subscription_group_restricted: "Votre abonnement restreint les groupes utilisables ({{.AllowedGroups}}), le groupe actuel {{.CurrentGroup}} n'est pas autorisé"
 distributor.get_channel_failed: "Échec de la récupération du canal disponible pour le modèle {{.Model}} dans le groupe {{.Group}} (distributor) : {{.Error}}"
 distributor.no_available_channel: "Aucun canal disponible pour le modèle {{.Model}} dans le groupe {{.Group}} (distributor)"

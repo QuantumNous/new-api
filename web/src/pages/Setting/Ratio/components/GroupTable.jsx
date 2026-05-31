@@ -7,6 +7,7 @@ import {
   Typography,
   Popconfirm,
   Tag,
+  TagInput,
   Select,
   Spin,
 } from '@douyinfe/semi-ui';
@@ -210,6 +211,7 @@ export default function GroupTable({ userOverrideCounts, onGroupNamesChange }) {
               <th style={{ width: 120, padding: '8px', textAlign: 'left' }}>{t('分类')}</th>
               <th style={{ width: 70, padding: '8px', textAlign: 'center' }}>{t('用户可选')}</th>
               <th style={{ padding: '8px', textAlign: 'left' }}>{t('描述')}</th>
+              <th style={{ width: 200, padding: '8px', textAlign: 'left' }}>{t('调用路径')}</th>
               <th style={{ width: 80, padding: '8px', textAlign: 'center' }}>{t('独立倍率')}</th>
               <th style={{ width: 50, padding: '8px' }}></th>
             </tr>
@@ -273,6 +275,19 @@ export default function GroupTable({ userOverrideCounts, onGroupNamesChange }) {
                           ) : (
                             <Text type='tertiary' size='small'>-</Text>
                           )}
+                        </td>
+                        <td style={{ padding: '6px 8px' }}>
+                          <TagInput
+                            size='small'
+                            value={group.allowed_paths ? group.allowed_paths.split(',').filter(Boolean) : []}
+                            placeholder={t('留空则不限制')}
+                            onChange={(v) => {
+                              const val = v.join(',');
+                              updateLocal(group, 'allowed_paths', val);
+                              saveGroup(group.id);
+                            }}
+                            style={{ width: '100%' }}
+                          />
                         </td>
                         <td style={{ padding: '6px 8px', textAlign: 'center' }}>
                           {(userOverrideCounts?.[group.name] || 0) > 0 ? (

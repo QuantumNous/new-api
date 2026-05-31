@@ -1524,6 +1524,8 @@
   "添加分组失败": "Failed to add group",
   "添加别名": "Add Alias",
   "独立倍率": "Independent Ratio",
+  "调用路径": "Allowed Paths",
+  "留空则不限制": "Leave empty for no restriction",
   "留空使用目标倍率": "Leave empty to use target ratio",
   "目标分组不能为空": "Target group cannot be empty",
   "确认删除该别名？": "Confirm delete this alias?",
@@ -1543,5 +1545,6 @@
   "公告已添加，请及时点击\"保存设置\"进行保存": "Announcement added, please click \"Save Settings\" to save",
   "分类已删除，请及时点击\"保存设置\"进行保存": "Category deleted, please click \"Save Settings\" to save",
   "分类已更新，请及时点击\"保存设置\"进行保存": "Category updated, please click \"Save Settings\" to save",
-  "分类已添加，请及时点击\"保存设置\"进行保存": "Category added, please click \"Save Settings\" to save"
+  "分类已添加，请及时点击\"保存设置\"进行保存": "Category added, please click \"Save Settings\" to save",
+  "启用图形验证码（注册/找回密码/发送邮件验证码，与 Turnstile 互斥，Turnstile 优先）": "Enable captcha (registration / password reset / email verification; mutually exclusive with Turnstile, Turnstile takes priority)"
 }

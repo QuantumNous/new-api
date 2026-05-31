@@ -255,6 +255,7 @@ distributor.token_model_forbidden: "Token này không có quyền truy cập mô
 distributor.model_name_required: "Chưa chỉ định tên mô hình, tên mô hình không được để trống"
 distributor.invalid_playground_request: "Yêu cầu playground không hợp lệ: {{.Error}}"
 distributor.group_access_denied: "Không có quyền truy cập nhóm này"
+distributor.group_path_denied: "Nhóm này không cho phép gọi đường dẫn ({{.Path}}), đường dẫn cho phép: {{.AllowedPaths}}"
 distributor.subscription_group_restricted: "Gói đăng ký của bạn giới hạn các nhóm có thể sử dụng ({{.AllowedGroups}}), nhóm hiện tại {{.CurrentGroup}} không được phép"
 distributor.get_channel_failed: "Lấy kênh khả dụng cho mô hình {{.Model}} trong nhóm {{.Group}} thất bại (distributor): {{.Error}}"
 distributor.no_available_channel: "Không có kênh khả dụng cho mô hình {{.Model}} trong nhóm {{.Group}} (distributor)"

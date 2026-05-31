@@ -255,6 +255,7 @@ distributor.token_model_forbidden: "このトークンはモデル {{.Model}} �
 distributor.model_name_required: "モデル名が指定されていません、モデル名は空にできません"
 distributor.invalid_playground_request: "無効なplaygroundリクエスト：{{.Error}}"
 distributor.group_access_denied: "このグループにアクセスする権限がありません"
+distributor.group_path_denied: "このグループはこのパス（{{.Path}}）の呼び出しを許可していません。許可されたパス：{{.AllowedPaths}}"
 distributor.subscription_group_restricted: "サブスクリプションプランにより使用可能なグループが制限されています（{{.AllowedGroups}}）、現在のグループ{{.CurrentGroup}}は許可されていません"
 distributor.get_channel_failed: "グループ {{.Group}} のモデル {{.Model}} の利用可能なチャンネルの取得に失敗しました（distributor）：{{.Error}}"
 distributor.no_available_channel: "グループ {{.Group}} のモデル {{.Model}} に利用可能なチャンネルがありません（distributor）"

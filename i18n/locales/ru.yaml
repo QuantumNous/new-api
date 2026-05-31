@@ -255,6 +255,7 @@ distributor.token_model_forbidden: "Этот токен не имеет дост
 distributor.model_name_required: "Имя модели не указано, имя модели не может быть пустым"
 distributor.invalid_playground_request: "Недопустимый playground-запрос: {{.Error}}"
 distributor.group_access_denied: "Нет прав доступа к этой группе"
+distributor.group_path_denied: "Эта группа не разрешает вызов по пути ({{.Path}}), разрешённые пути: {{.AllowedPaths}}"
 distributor.subscription_group_restricted: "Ваша подписка ограничивает используемые группы ({{.AllowedGroups}}), текущая группа {{.CurrentGroup}} не разрешена"
 distributor.get_channel_failed: "Ошибка получения доступного канала для модели {{.Model}} в группе {{.Group}} (distributor): {{.Error}}"
 distributor.no_available_channel: "Нет доступного канала для модели {{.Model}} в группе {{.Group}} (distributor)"
