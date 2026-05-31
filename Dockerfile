@@ -38,9 +38,9 @@ RUN --mount=type=cache,target=/go/pkg/mod \
 COPY . .
 COPY --from=builder /build/dist ./web/default/dist
 COPY --from=builder-classic /build/dist ./web/classic/dist
-ENV GOCACHE=/cache/go-build GOTMPDIR=/cache/go-build/tmp
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/cache/go-build \
+    GOCACHE=/cache/go-build GOTMPDIR=/cache/go-build \
     go build -ldflags "-s -w -X 'github.com/QuantumNous/new-api/common.Version=$(cat VERSION)'" -o new-api
 
 FROM debian:bookworm-slim@sha256:f06537653ac770703bc45b4b113475bd402f451e85223f0f2837acbf89ab020a
