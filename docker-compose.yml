@@ -69,7 +69,7 @@ services:
       POSTGRES_PASSWORD: 123456  # ⚠️ IMPORTANT: Change this password in production!
       POSTGRES_DB: new-api
     volumes:
-      - pg_data:/var/lib/postgresql/data
+      - ./postgresql:/var/lib/postgresql/data
     networks:
       - new-api-network
 #    ports:
@@ -89,8 +89,7 @@ services:
 #    ports:
 #      - "3306:3306"  # Uncomment if you need to access MySQL from outside Docker
 
-volumes:
-  pg_data:
+#volumes:
 #  mysql_data:
 
 networks:
