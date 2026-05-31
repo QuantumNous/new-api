@@ -156,6 +156,11 @@ export type DataTablePageProps<TData> = {
   applyHeaderSize?: boolean
 
   /**
+   * 在桌面端表头渲染列宽拖拽柄。表格实例需要开启 TanStack 列宽调整。
+   */
+  resizableColumns?: boolean
+
+  /**
    * Optional skeleton key prefix for stable React keys across re-renders.
    */
   skeletonKeyPrefix?: string
@@ -299,6 +304,9 @@ function renderDesktop<TData>(
 
   const rows = props.table.getRowModel().rows
   const isFetchingOnly = props.isFetching && !props.isLoading
+  const visibleColumns = props.table.getVisibleLeafColumns()
+  const useColumnSizing = !!props.resizableColumns
+  const totalSize = props.table.getCenterTotalSize()
 
   return (
     <div
@@ -308,7 +316,21 @@ function renderDesktop<TData>(
         props.tableClassName
       )}
     >
-      <Table>
+      <Table
+        className={props.resizableColumns ? 'table-fixed' : undefined}
+        style={
+          useColumnSizing
+            ? { width: totalSize, minWidth: '100%' }
+            : undefined
+        }
+      >
+        {useColumnSizing && (
+          <colgroup>
+            {visibleColumns.map((column) => (
+              <col key={column.id} style={{ width: column.getSize() }} />
+            ))}
+          </colgroup>
+        )}
         <TableHeader className={props.tableHeaderClassName}>
           {props.table.getHeaderGroups().map((headerGroup) => (
             <TableRow key={headerGroup.id}>
@@ -316,18 +338,38 @@ function renderDesktop<TData>(
                 <TableHead
                   key={header.id}
                   colSpan={header.colSpan}
+                  className={
+                    props.resizableColumns ? 'relative pr-4' : undefined
+                  }
                   style={
-                    props.applyHeaderSize
+                    props.applyHeaderSize || props.resizableColumns
                       ? { width: header.getSize() }
                       : undefined
                   }
                 >
-                  {header.isPlaceholder
-                    ? null
-                    : flexRender(
+                  {header.isPlaceholder ? null : (
+                    <>
+                      {flexRender(
                         header.column.columnDef.header,
                         header.getContext()
                       )}
+                      {props.resizableColumns && header.column.getCanResize() && (
+                        <div
+                          role='separator'
+                          aria-orientation='vertical'
+                          onMouseDown={header.getResizeHandler()}
+                          onTouchStart={header.getResizeHandler()}
+                          onDoubleClick={() => header.column.resetSize()}
+                          className={cn(
+                            'absolute top-0 right-0 h-full w-2 cursor-col-resize touch-none select-none',
+                            'after:bg-border hover:after:bg-primary/60 after:absolute after:top-2 after:right-0 after:h-[calc(100%-1rem)] after:w-px after:rounded-full',
+                            header.column.getIsResizing() &&
+                              'after:bg-primary after:w-0.5'
+                          )}
+                        />
+                      )}
+                    </>
+                  )}
                 </TableHead>
               ))}
             </TableRow>

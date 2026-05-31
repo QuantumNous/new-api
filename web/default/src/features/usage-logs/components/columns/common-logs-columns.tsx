@@ -602,7 +602,7 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
         const modelInfo = formatModelName(log)
 
         return (
-          <div className='flex max-w-[220px] flex-col gap-0.5'>
+          <div className='flex max-w-[150px] flex-col gap-0.5'>
             <ModelBadge
               modelName={modelInfo.name}
               actualModel={modelInfo.actualModel}
@@ -611,6 +611,9 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
         )
       },
       meta: { label: t('Model'), mobileTitle: true },
+      size: 150,
+      minSize: 110,
+      maxSize: 260,
     },
 
     {
@@ -629,7 +632,7 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
         return (
           <TooltipProvider delay={300}>
             <Tooltip>
-              <TooltipTrigger render={<div className='max-w-[160px]' />}>
+              <TooltipTrigger render={<div className='max-w-[120px]' />}>
                 <StatusBadge
                   label={endpoint}
                   copyText={endpoint}
@@ -645,7 +648,9 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
         )
       },
       meta: { label: t('Endpoint'), mobileHidden: true },
-      size: 150,
+      size: 120,
+      minSize: 90,
+      maxSize: 220,
     },
 
     {

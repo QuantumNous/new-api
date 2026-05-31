@@ -79,7 +79,7 @@ export function UsageLogsTable({ logCategory }: UsageLogsTableProps) {
   } = useTableUrlState({
     search: route.useSearch(),
     navigate: route.useNavigate(),
-    pagination: { defaultPage: 1, defaultPageSize: isMobile ? 20 : 100 },
+    pagination: { defaultPage: 1, defaultPageSize: isMobile ? 20 : 30 },
     globalFilter: { enabled: false },
     columnFilters: [
       {
@@ -156,6 +156,8 @@ export function UsageLogsTable({ logCategory }: UsageLogsTableProps) {
       pagination,
     },
     enableRowSelection: false,
+    enableColumnResizing: true,
+    columnResizeMode: 'onChange',
     onPaginationChange,
     onColumnFiltersChange,
     getCoreRowModel: getCoreRowModel(),
@@ -188,6 +190,8 @@ export function UsageLogsTable({ logCategory }: UsageLogsTableProps) {
       skeletonKeyPrefix='usage-log-skeleton'
       tableClassName='overflow-x-auto'
       tableHeaderClassName='bg-muted/30 sticky top-0 z-10'
+      applyHeaderSize
+      resizableColumns
       toolbar={
         isCommon ? (
           <CommonLogsFilterBar table={table} />

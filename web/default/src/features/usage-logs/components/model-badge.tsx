@@ -106,7 +106,7 @@ function ModelBadgeContent(props: ModelBadgeProps) {
         props.className
       )}
     >
-      <span className='flex items-center gap-1.5'>
+      <span className='flex min-w-0 items-center gap-1.5'>
         {provider && (
           <span
             className='flex size-3.5 shrink-0 items-center justify-center'
@@ -116,7 +116,7 @@ function ModelBadgeContent(props: ModelBadgeProps) {
             {getLobeIcon(provider.icon, 14)}
           </span>
         )}
-        <span>{props.modelName}</span>
+        <span className='min-w-0 truncate'>{props.modelName}</span>
       </span>
     </StatusBadge>
   )
