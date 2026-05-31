@@ -9,6 +9,13 @@ import (
 	"github.com/QuantumNous/new-api/dto"
 )
 
+// ChatCompletionsResponseToResponsesResponse 将非流式的 Chat Completions 响应转换为 Responses API 格式。
+// 通常用于非流式请求（stream=false）的响应转换。
+// 映射：
+//   - reasoning_content → reasoning 类型 output item（summary_text）
+//   - message.content → message 类型 output item（output_text）
+//   - message.tool_calls → function_call 类型 output items
+//   - usage → input_tokens / output_tokens
 func ChatCompletionsResponseToResponsesResponse(chatResp *dto.OpenAITextResponse) (*dto.OpenAIResponsesResponse, error) {
 	if chatResp == nil {
 		return nil, fmt.Errorf("response is nil")

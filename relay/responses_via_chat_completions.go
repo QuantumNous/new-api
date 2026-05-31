@@ -16,6 +16,14 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// responsesViaChatCompletions 是 Responses→ChatCompletions 协议降级的编排函数。
+// 与 chatCompletionsViaResponses 对称，流程：
+// 1. 将 Responses 请求体转为 Chat Completions 格式
+// 2. 临时切换 RelayMode 和 RequestURLPath
+// 3. 调用 adaptor.ConvertOpenAIRequest 获取渠道特定请求
+// 4. 发送请求给上游 /v1/chat/completions
+// 5. 将上游响应（流式或非流式）转回 Responses 格式
+// 6. 恢复原始 RelayMode
 func responsesViaChatCompletions(c *gin.Context, info *relaycommon.RelayInfo, responsesReq *dto.OpenAIResponsesRequest) (*dto.Usage, *types.NewAPIError) {
 	chatReq, err := service.ResponsesRequestToChatCompletionsRequest(responsesReq)
 	if err != nil {

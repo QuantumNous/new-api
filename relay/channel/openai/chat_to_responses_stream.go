@@ -18,7 +18,8 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// OaiChatToResponsesHandler converts a non-stream ChatCompletions response to Responses format.
+// OaiChatToResponsesHandler 将非流式的 Chat Completions 上游响应转换为 Responses API 格式写回客户端。
+// 用于 stream=false 时，读取完整响应体后通过 service.ChatCompletionsResponseToResponsesResponse 转换。
 func OaiChatToResponsesHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response) (*dto.Usage, *types.NewAPIError) {
 	if resp == nil || resp.Body == nil {
 		return nil, types.NewOpenAIError(fmt.Errorf("invalid response"), types.ErrorCodeBadResponse, http.StatusInternalServerError)
@@ -66,7 +67,10 @@ func OaiChatToResponsesHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 	return usage, nil
 }
 
-// toolCallState tracks a single function_call output item being built from stream chunks.
+// toolCallState 追踪流式构建中的单个 function_call 输出项。
+// Chat Completions 流式协议中，工具调用信息可能分多个 chunk 到达：
+// 第一个 chunk 包含 id + name + 空 arguments，后续 chunk 携带 arguments 增量。
+// 通过 Chat Completions 的 index 字段（而非 callID）来跨 chunk 关联同一个工具调用。
 type toolCallState struct {
 	callID   string
 	name     string
@@ -76,7 +80,20 @@ type toolCallState struct {
 	addedEmitted bool
 }
 
-// OaiChatToResponsesStreamHandler converts a streaming ChatCompletions response to Responses SSE format.
+// OaiChatToResponsesStreamHandler 将流式 Chat Completions 上游响应（SSE 格式）转换为 Responses API SSE 事件写回客户端。
+// 用于 stream=true 时，实时转换每个 chunk。实现参考 codex-proxy 的 StreamTranslator 类：
+//
+// 事件序列（以含 reasoning + text + tool_calls 的响应为例）：
+//
+//	response.created
+//	→ output_item.added (reasoning) → summary_part.added → summary_text.delta × N → summary_part.done → output_item.done
+//	→ output_item.added (message) → content_part.added → output_text.delta × N → content_part.done → output_item.done
+//	→ output_item.added (function_call) → function_call_arguments.delta × N
+//	→ function_call_arguments.done → output_item.done
+//	→ response.completed (含完整 output 数组和 usage)
+//
+// 追踪三种并发输出类型（reasoning、text、function_call），各自维护独立的状态。
+// 当 content 或 tool_calls 到达时，自动关闭 reasoning 输出项。
 func OaiChatToResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response) (*dto.Usage, *types.NewAPIError) {
 	if resp == nil || resp.Body == nil {
 		return nil, types.NewOpenAIError(fmt.Errorf("invalid response"), types.ErrorCodeBadResponse, http.StatusInternalServerError)

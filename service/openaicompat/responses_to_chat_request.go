@@ -11,6 +11,13 @@ import (
 	"github.com/samber/lo"
 )
 
+// ResponsesRequestToChatCompletionsRequest 将 Responses API 请求体转换为 Chat Completions 请求体。
+// 这是反向转换的关键入口，映射包括：
+//   - instructions → system 消息
+//   - input 数组 → messages 数组（含 role 映射、tool_call/tool_result 配对）
+//   - tools → Chat Completions tools 格式（含 strict 透传）
+//   - max_output_tokens → max_completion_tokens
+//   - reasoning.effort → reasoning_effort
 func ResponsesRequestToChatCompletionsRequest(req *dto.OpenAIResponsesRequest) (*dto.GeneralOpenAIRequest, error) {
 	if req == nil {
 		return nil, errors.New("request is nil")
@@ -109,13 +116,21 @@ func ResponsesRequestToChatCompletionsRequest(req *dto.OpenAIResponsesRequest) (
 	return out, nil
 }
 
-// pendingCall tracks function_call items that need to be flushed.
+// pendingCall 记录尚未配对的 function_call 项，等待对应的 function_call_output 到达后一起 flush。
+// Responses API 中 function_call 和 function_call_output 是独立的 input 项，
+// 通过 call_id 关联，需要配对后合并为 Chat Completions 的 assistant tool_calls + tool 消息。
 type pendingCall struct {
 	ID   string
 	Name string
 	Args string
 }
 
+// convertResponsesInputToMessages 将 Responses API 的 input 数组转换为 Chat Completions 的 messages 数组。
+// 处理逻辑参考 codex-proxy 的 _mapInputToMessages：
+//   - reasoning 项 → 缓存为 pendingReasoning，附加到下一个 assistant 消息的 reasoning_content
+//   - function_call 项 → 加入 pendingCalls 队列，等待配对
+//   - function_call_output 项 → 标记对应 ID 已响应，触发 flushPendingCalls 刷出 assistant 消息
+//   - 其他 role 项 → 直接转换为 Message，developer → system 角色映射
 func convertResponsesInputToMessages(input json.RawMessage) ([]dto.Message, error) {
 	if input == nil {
 		return nil, nil
@@ -401,6 +416,11 @@ func convertResponsesInputToMessages(input json.RawMessage) ([]dto.Message, erro
 	return messages, nil
 }
 
+// convertResponsesToolsToChatTools 将 Responses API 的 tools 格式转为 Chat Completions 格式。
+// Responses 格式：{"type":"function","name":"X","description":"...","parameters":{...},"strict":true}
+// Chat 格式：       {"type":"function","function":{"name":"X","description":"...","parameters":{...},"strict":true}}
+// 同时过滤掉非 function 类型的工具（如 web_search_preview、file_search 等），
+// 因为 Chat Completions 只支持 function 类型工具。
 func convertResponsesToolsToChatTools(tools json.RawMessage) ([]dto.ToolCallRequest, error) {
 	if tools == nil {
 		return nil, nil
@@ -457,6 +477,9 @@ func normalizeToolParameters(params any) any {
 	return pMap
 }
 
+// convertResponsesToolChoiceToChatToolChoice 将 tool_choice 从 Responses 格式转为 Chat 格式。
+// Responses: {"type":"function","name":"X"} → Chat: {"type":"function","function":{"name":"X"}}
+// 字符串值（"auto"、"none"、"required"）直接透传。
 func convertResponsesToolChoiceToChatToolChoice(toolChoice json.RawMessage) any {
 	if toolChoice == nil {
 		return nil
