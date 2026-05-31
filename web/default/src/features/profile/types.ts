@@ -1,21 +1,3 @@
-/*
-Copyright (C) 2023-2026 QuantumNous
-
-This program is free software: you can redistribute it and/or modify
-it under the terms of the GNU Affero General Public License as
-published by the Free Software Foundation, either version 3 of the
-License, or (at your option) any later version.
-
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-GNU Affero General Public License for more details.
-
-You should have received a copy of the GNU Affero General Public License
-along with this program. If not, see <https://www.gnu.org/licenses/>.
-
-For commercial licensing, please contact support@quantumnous.com
-*/
 // ============================================================================
 // Profile Type Definitions
 // ============================================================================
@@ -46,9 +28,9 @@ export interface UserProfile {
   /** User group */
   group: string
   /** Current quota balance */
-  quota: number
+  quota: number | string
   /** Total used quota */
-  used_quota: number
+  used_quota: number | string
   /** Total request count */
   request_count: number
   /** Account status (1=启用, 2=禁用, 3=待审核, 4=已删除) */
@@ -60,9 +42,9 @@ export interface UserProfile {
   /** Number of successful affiliate invites */
   aff_count: number
   /** Affiliate quota (pending rewards) */
-  aff_quota: number
+  aff_quota: number | string
   /** Total affiliate quota earned (historical) */
-  aff_history_quota: number
+  aff_history_quota: number | string
   /** Invite user ID */
   invite_user_id?: number
   /** Account creation timestamp */
@@ -95,7 +77,7 @@ export interface UserSettings {
   /** Notification type */
   notify_type?: NotifyType
   /** Quota warning threshold */
-  quota_warning_threshold?: number
+  quota_warning_threshold?: string | number
   /** Webhook URL */
   webhook_url?: string
   /** Webhook secret */
@@ -134,7 +116,7 @@ export interface UpdateUserRequest {
  */
 export interface UpdateUserSettingsRequest {
   notify_type?: string
-  quota_warning_threshold?: number
+  quota_warning_threshold?: string | number
   webhook_url?: string
   webhook_secret?: string
   notification_email?: string

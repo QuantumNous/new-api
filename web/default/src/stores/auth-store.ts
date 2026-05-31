@@ -31,13 +31,13 @@ export interface AuthUser {
   role: number
   status?: number
   group?: string
-  quota?: number
-  used_quota?: number
+  quota?: number | string
+  used_quota?: number | string
   request_count?: number
   aff_code?: string
   aff_count?: number
-  aff_quota?: number
-  aff_history_quota?: number
+  aff_quota?: number | string
+  aff_history_quota?: number | string
   inviter_id?: number
   github_id?: string
   oidc_id?: string

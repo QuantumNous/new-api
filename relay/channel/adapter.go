@@ -58,7 +58,7 @@ type TaskAdaptor interface {
 	// Called by the polling loop after ParseTaskResult.
 	// Return a positive value to trigger delta settlement (supplement / refund).
 	// Return 0 to keep the pre-charged amount unchanged.
-	AdjustBillingOnComplete(task *model.Task, taskResult *relaycommon.TaskInfo) int
+	AdjustBillingOnComplete(task *model.Task, taskResult *relaycommon.TaskInfo) int64
 
 	// ── Request / Response ───────────────────────────────────────────
 

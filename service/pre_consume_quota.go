@@ -30,7 +30,7 @@ func ReturnPreConsumedQuota(c *gin.Context, relayInfo *relaycommon.RelayInfo) {
 
 // PreConsumeQuota checks if the user has enough quota to pre-consume.
 // It returns the pre-consumed quota if successful, or an error if not.
-func PreConsumeQuota(c *gin.Context, preConsumedQuota int, relayInfo *relaycommon.RelayInfo) *types.NewAPIError {
+func PreConsumeQuota(c *gin.Context, preConsumedQuota int64, relayInfo *relaycommon.RelayInfo) *types.NewAPIError {
 	userQuota, err := model.GetUserQuota(relayInfo.UserId, false)
 	if err != nil {
 		return types.NewError(err, types.ErrorCodeQueryDataError, types.ErrOptionWithSkipRetry())
@@ -49,7 +49,7 @@ func PreConsumeQuota(c *gin.Context, preConsumedQuota int, relayInfo *relaycommo
 		// 用户额度充足，判断令牌额度是否充足
 		if !relayInfo.TokenUnlimited {
 			// 非无限令牌，判断令牌额度是否充足
-			tokenQuota := c.GetInt("token_quota")
+			tokenQuota := c.GetInt64("token_quota")
 			if tokenQuota > trustQuota {
 				// 令牌额度充足，信任令牌
 				preConsumedQuota = 0

@@ -154,7 +154,7 @@ func Recharge(referenceId string, customerId string, callerIp string) (err error
 		return errors.New("充值失败，请稍后重试")
 	}
 
-	RecordTopupLog(topUp.UserId, fmt.Sprintf("使用在线充值成功，充值金额: %v，支付金额：%d", logger.FormatQuota(int(quota)), topUp.Amount), callerIp, topUp.PaymentMethod, PaymentMethodStripe)
+	RecordTopupLog(topUp.UserId, fmt.Sprintf("使用在线充值成功，充值金额: %v，支付金额：%d", logger.FormatQuota(int64(quota)), topUp.Amount), callerIp, topUp.PaymentMethod, PaymentMethodStripe)
 
 	return nil
 }
@@ -328,7 +328,7 @@ func ManualCompleteTopUp(tradeNo string, callerIp string) error {
 	}
 
 	var userId int
-	var quotaToAdd int
+	var quotaToAdd int64
 	var payMoney float64
 	var paymentMethod string
 
@@ -353,11 +353,11 @@ func ManualCompleteTopUp(tradeNo string, callerIp string) error {
 		// - 其他订单（如易支付）：Amount 为美元数量，* QuotaPerUnit
 		if topUp.PaymentProvider == PaymentProviderStripe {
 			dQuotaPerUnit := decimal.NewFromFloat(common.QuotaPerUnit)
-			quotaToAdd = int(decimal.NewFromFloat(topUp.Money).Mul(dQuotaPerUnit).IntPart())
+			quotaToAdd = decimal.NewFromFloat(topUp.Money).Mul(dQuotaPerUnit).IntPart()
 		} else {
 			dAmount := decimal.NewFromInt(topUp.Amount)
 			dQuotaPerUnit := decimal.NewFromFloat(common.QuotaPerUnit)
-			quotaToAdd = int(dAmount.Mul(dQuotaPerUnit).IntPart())
+			quotaToAdd = dAmount.Mul(dQuotaPerUnit).IntPart()
 		}
 		if quotaToAdd <= 0 {
 			return errors.New("无效的充值额度")
@@ -469,7 +469,7 @@ func RechargeWaffo(tradeNo string, callerIp string) (err error) {
 		return errors.New("未提供支付单号")
 	}
 
-	var quotaToAdd int
+	var quotaToAdd int64
 	topUp := &TopUp{}
 
 	refCol := "`trade_no`"
@@ -497,7 +497,7 @@ func RechargeWaffo(tradeNo string, callerIp string) (err error) {
 
 		dAmount := decimal.NewFromInt(topUp.Amount)
 		dQuotaPerUnit := decimal.NewFromFloat(common.QuotaPerUnit)
-		quotaToAdd = int(dAmount.Mul(dQuotaPerUnit).IntPart())
+		quotaToAdd = dAmount.Mul(dQuotaPerUnit).IntPart()
 		if quotaToAdd <= 0 {
 			return errors.New("无效的充值额度")
 		}
@@ -532,7 +532,7 @@ func RechargeWaffoPancake(tradeNo string) (err error) {
 		return errors.New("未提供支付单号")
 	}
 
-	var quotaToAdd int
+	var quotaToAdd int64
 	topUp := &TopUp{}
 
 	refCol := "`trade_no`"
@@ -558,7 +558,7 @@ func RechargeWaffoPancake(tradeNo string) (err error) {
 			return errors.New("充值订单状态错误")
 		}
 
-		quotaToAdd = int(decimal.NewFromInt(topUp.Amount).Mul(decimal.NewFromFloat(common.QuotaPerUnit)).IntPart())
+		quotaToAdd = decimal.NewFromInt(topUp.Amount).Mul(decimal.NewFromFloat(common.QuotaPerUnit)).IntPart()
 		if quotaToAdd <= 0 {
 			return errors.New("无效的充值额度")
 		}

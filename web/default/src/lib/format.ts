@@ -1,21 +1,3 @@
-/*
-Copyright (C) 2023-2026 QuantumNous
-
-This program is free software: you can redistribute it and/or modify
-it under the terms of the GNU Affero General Public License as
-published by the Free Software Foundation, either version 3 of the
-License, or (at your option) any later version.
-
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-GNU Affero General Public License for more details.
-
-You should have received a copy of the GNU Affero General Public License
-along with this program. If not, see <https://www.gnu.org/licenses/>.
-
-For commercial licensing, please contact support@quantumnous.com
-*/
 import dayjs from '@/lib/dayjs'
 import {
   formatCurrencyFromUSD,
@@ -54,6 +36,14 @@ export function formatCurrencyUSD(value: number | null | undefined): string {
   return formatCurrencyFromUSD(value == null ? null : (value as number))
 }
 
+export function quotaToNumber(
+  value: string | number | null | undefined
+): number {
+  if (value == null) return 0
+  const numericValue = typeof value === 'number' ? value : Number(value)
+  return Number.isFinite(numericValue) ? numericValue : 0
+}
+
 // ============================================================================
 // Quota Formatting (500,000 units = $1)
 // ============================================================================
@@ -89,6 +79,23 @@ export function parseQuotaFromDollars(amount: number): number {
   const usdAmount = exchangeRate > 0 ? amount / exchangeRate : amount
 
   return Math.round(usdAmount * config.quotaPerUnit)
+}
+
+export function parseQuotaInputToString(amountText: string): string {
+  const raw = amountText.trim()
+  if (!raw) return '0'
+
+  const { meta } = getCurrencyDisplay()
+  if (meta.kind === 'tokens' && /^-?\d+$/.test(raw)) {
+    return raw
+  }
+
+  const parsedAmount = Number(raw)
+  if (!Number.isFinite(parsedAmount)) {
+    throw new Error('Invalid quota amount')
+  }
+
+  return String(parseQuotaFromDollars(parsedAmount))
 }
 
 /**

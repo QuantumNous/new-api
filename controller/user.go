@@ -30,6 +30,72 @@ type LoginRequest struct {
 	Password string `json:"password"`
 }
 
+type userQuotaResponse struct {
+	model.User
+	Quota           string `json:"quota"`
+	UsedQuota       string `json:"used_quota"`
+	AffQuota        string `json:"aff_quota"`
+	AffHistoryQuota string `json:"aff_history_quota"`
+}
+
+func newUserQuotaResponse(user *model.User) userQuotaResponse {
+	return userQuotaResponse{
+		User:            *user,
+		Quota:           strconv.FormatInt(user.Quota, 10),
+		UsedQuota:       strconv.FormatInt(user.UsedQuota, 10),
+		AffQuota:        strconv.FormatInt(user.AffQuota, 10),
+		AffHistoryQuota: strconv.FormatInt(user.AffHistoryQuota, 10),
+	}
+}
+
+func newUserQuotaResponses(users []*model.User) []userQuotaResponse {
+	responses := make([]userQuotaResponse, 0, len(users))
+	for _, user := range users {
+		if user == nil {
+			continue
+		}
+		responses = append(responses, newUserQuotaResponse(user))
+	}
+	return responses
+}
+
+type flexibleInt64 int64
+
+func (v *flexibleInt64) UnmarshalJSON(data []byte) error {
+	raw := strings.TrimSpace(string(data))
+	if raw == "" || raw == "null" {
+		*v = 0
+		return nil
+	}
+	if strings.HasPrefix(raw, "\"") {
+		var s string
+		if err := common.Unmarshal(data, &s); err != nil {
+			return err
+		}
+		s = strings.TrimSpace(s)
+		if s == "" {
+			*v = 0
+			return nil
+		}
+		n, err := strconv.ParseInt(s, 10, 64)
+		if err != nil {
+			return err
+		}
+		*v = flexibleInt64(n)
+		return nil
+	}
+	var n int64
+	if err := common.Unmarshal(data, &n); err != nil {
+		return err
+	}
+	*v = flexibleInt64(n)
+	return nil
+}
+
+func (v flexibleInt64) Int64() int64 {
+	return int64(v)
+}
+
 func Login(c *gin.Context) {
 	if !common.PasswordLoginEnabled {
 		common.ApiErrorI18n(c, i18n.MsgUserPasswordLoginDisabled)
@@ -242,7 +308,7 @@ func GetAllUsers(c *gin.Context) {
 	}
 
 	pageInfo.SetTotal(int(total))
-	pageInfo.SetItems(users)
+	pageInfo.SetItems(newUserQuotaResponses(users))
 
 	common.ApiSuccess(c, pageInfo)
 	return
@@ -271,7 +337,7 @@ func SearchUsers(c *gin.Context) {
 	}
 
 	pageInfo.SetTotal(int(total))
-	pageInfo.SetItems(users)
+	pageInfo.SetItems(newUserQuotaResponses(users))
 	common.ApiSuccess(c, pageInfo)
 	return
 }
@@ -299,7 +365,7 @@ func GetUser(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",
-		"data":    user,
+		"data":    newUserQuotaResponse(user),
 	})
 	return
 }
@@ -340,7 +406,7 @@ func GenerateAccessToken(c *gin.Context) {
 }
 
 type TransferAffQuotaRequest struct {
-	Quota int `json:"quota" binding:"required"`
+	Quota flexibleInt64 `json:"quota" binding:"required"`
 }
 
 func TransferAffQuota(c *gin.Context) {
@@ -359,7 +425,7 @@ func TransferAffQuota(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
-	err = user.TransferAffQuotaToQuota(tran.Quota)
+	err = user.TransferAffQuotaToQuota(tran.Quota.Int64())
 	if err != nil {
 		common.ApiErrorI18n(c, i18n.MsgUserTransferFailed, map[string]any{"Error": err.Error()})
 		return
@@ -423,13 +489,13 @@ func GetSelf(c *gin.Context) {
 		"wechat_id":         user.WeChatId,
 		"telegram_id":       user.TelegramId,
 		"group":             user.Group,
-		"quota":             user.Quota,
-		"used_quota":        user.UsedQuota,
+		"quota":             strconv.FormatInt(user.Quota, 10),
+		"used_quota":        strconv.FormatInt(user.UsedQuota, 10),
 		"request_count":     user.RequestCount,
 		"aff_code":          user.AffCode,
 		"aff_count":         user.AffCount,
-		"aff_quota":         user.AffQuota,
-		"aff_history_quota": user.AffHistoryQuota,
+		"aff_quota":         strconv.FormatInt(user.AffQuota, 10),
+		"aff_history_quota": strconv.FormatInt(user.AffHistoryQuota, 10),
 		"inviter_id":        user.InviterId,
 		"linux_do_id":       user.LinuxDOId,
 		"setting":           user.Setting,
@@ -865,10 +931,10 @@ func CreateUser(c *gin.Context) {
 }
 
 type ManageRequest struct {
-	Id     int    `json:"id"`
-	Action string `json:"action"`
-	Value  int    `json:"value"`
-	Mode   string `json:"mode"`
+	Id     int           `json:"id"`
+	Action string        `json:"action"`
+	Value  flexibleInt64 `json:"value"`
+	Mode   string        `json:"mode"`
 }
 
 // ManageUser Only admin user can do this
@@ -943,41 +1009,45 @@ func ManageUser(c *gin.Context) {
 	case "add_quota":
 		adminName := c.GetString("username")
 		adminId := c.GetInt("id")
+		quotaValue := req.Value.Int64()
 		adminInfo := map[string]interface{}{
 			"admin_id":       adminId,
 			"admin_username": adminName,
 		}
 		switch req.Mode {
 		case "add":
-			if req.Value <= 0 {
+			if quotaValue <= 0 {
 				common.ApiErrorI18n(c, i18n.MsgUserQuotaChangeZero)
 				return
 			}
-			if err := model.IncreaseUserQuota(user.Id, req.Value, true); err != nil {
+			if err := model.IncreaseUserQuota(user.Id, quotaValue, true); err != nil {
 				common.ApiError(c, err)
 				return
 			}
 			model.RecordLogWithAdminInfo(user.Id, model.LogTypeManage,
-				fmt.Sprintf("管理员增加用户额度 %s", logger.LogQuota(req.Value)), adminInfo)
+				fmt.Sprintf("管理员增加用户额度 %s", logger.LogQuota(quotaValue)), adminInfo)
 		case "subtract":
-			if req.Value <= 0 {
+			if quotaValue <= 0 {
 				common.ApiErrorI18n(c, i18n.MsgUserQuotaChangeZero)
 				return
 			}
-			if err := model.DecreaseUserQuota(user.Id, req.Value, true); err != nil {
+			if err := model.DecreaseUserQuota(user.Id, quotaValue, true); err != nil {
 				common.ApiError(c, err)
 				return
 			}
 			model.RecordLogWithAdminInfo(user.Id, model.LogTypeManage,
-				fmt.Sprintf("管理员减少用户额度 %s", logger.LogQuota(req.Value)), adminInfo)
+				fmt.Sprintf("管理员减少用户额度 %s", logger.LogQuota(quotaValue)), adminInfo)
 		case "override":
 			oldQuota := user.Quota
-			if err := model.DB.Model(&model.User{}).Where("id = ?", user.Id).Update("quota", req.Value).Error; err != nil {
+			if err := model.DB.Model(&model.User{}).Where("id = ?", user.Id).Update("quota", quotaValue).Error; err != nil {
 				common.ApiError(c, err)
 				return
 			}
+			if err := model.InvalidateUserCache(user.Id); err != nil {
+				common.SysLog(fmt.Sprintf("failed to invalidate user cache for user %d: %s", user.Id, err.Error()))
+			}
 			model.RecordLogWithAdminInfo(user.Id, model.LogTypeManage,
-				fmt.Sprintf("管理员覆盖用户额度从 %s 为 %s", logger.LogQuota(oldQuota), logger.LogQuota(req.Value)), adminInfo)
+				fmt.Sprintf("管理员覆盖用户额度从 %s 为 %s", logger.LogQuota(oldQuota), logger.LogQuota(quotaValue)), adminInfo)
 		default:
 			common.ApiErrorI18n(c, i18n.MsgInvalidParams)
 			return
@@ -1139,18 +1209,18 @@ func TopUp(c *gin.Context) {
 }
 
 type UpdateUserSettingRequest struct {
-	QuotaWarningType                 string  `json:"notify_type"`
-	QuotaWarningThreshold            float64 `json:"quota_warning_threshold"`
-	WebhookUrl                       string  `json:"webhook_url,omitempty"`
-	WebhookSecret                    string  `json:"webhook_secret,omitempty"`
-	NotificationEmail                string  `json:"notification_email,omitempty"`
-	BarkUrl                          string  `json:"bark_url,omitempty"`
-	GotifyUrl                        string  `json:"gotify_url,omitempty"`
-	GotifyToken                      string  `json:"gotify_token,omitempty"`
-	GotifyPriority                   int     `json:"gotify_priority,omitempty"`
-	UpstreamModelUpdateNotifyEnabled *bool   `json:"upstream_model_update_notify_enabled,omitempty"`
-	AcceptUnsetModelRatioModel       bool    `json:"accept_unset_model_ratio_model"`
-	RecordIpLog                      bool    `json:"record_ip_log"`
+	QuotaWarningType                 string        `json:"notify_type"`
+	QuotaWarningThreshold            flexibleInt64 `json:"quota_warning_threshold"`
+	WebhookUrl                       string        `json:"webhook_url,omitempty"`
+	WebhookSecret                    string        `json:"webhook_secret,omitempty"`
+	NotificationEmail                string        `json:"notification_email,omitempty"`
+	BarkUrl                          string        `json:"bark_url,omitempty"`
+	GotifyUrl                        string        `json:"gotify_url,omitempty"`
+	GotifyToken                      string        `json:"gotify_token,omitempty"`
+	GotifyPriority                   int           `json:"gotify_priority,omitempty"`
+	UpstreamModelUpdateNotifyEnabled *bool         `json:"upstream_model_update_notify_enabled,omitempty"`
+	AcceptUnsetModelRatioModel       bool          `json:"accept_unset_model_ratio_model"`
+	RecordIpLog                      bool          `json:"record_ip_log"`
 }
 
 func UpdateUserSetting(c *gin.Context) {
@@ -1167,7 +1237,8 @@ func UpdateUserSetting(c *gin.Context) {
 	}
 
 	// 验证预警阈值
-	if req.QuotaWarningThreshold <= 0 {
+	quotaWarningThreshold := req.QuotaWarningThreshold.Int64()
+	if quotaWarningThreshold <= 0 {
 		common.ApiErrorI18n(c, i18n.MsgQuotaThresholdGtZero)
 		return
 	}
@@ -1249,7 +1320,7 @@ func UpdateUserSetting(c *gin.Context) {
 	// 构建设置
 	settings := dto.UserSetting{
 		NotifyType:                       req.QuotaWarningType,
-		QuotaWarningThreshold:            req.QuotaWarningThreshold,
+		QuotaWarningThreshold:            quotaWarningThreshold,
 		UpstreamModelUpdateNotifyEnabled: upstreamModelUpdateNotifyEnabled,
 		AcceptUnsetRatioModel:            req.AcceptUnsetModelRatioModel,
 		RecordIpLog:                      req.RecordIpLog,

@@ -20,13 +20,14 @@ import (
 	"github.com/QuantumNous/new-api/relay/helper"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/gin-gonic/gin"
+	"github.com/shopspring/decimal"
 )
 
 type TaskSubmitResult struct {
 	UpstreamTaskID string
 	TaskData       []byte
 	Platform       constant.TaskPlatform
-	Quota          int
+	Quota          int64
 	//PerCallPrice   types.PriceData
 }
 
@@ -195,11 +196,7 @@ func RelayTaskSubmit(c *gin.Context, info *relaycommon.RelayInfo) (*TaskSubmitRe
 
 	// 6. 将 OtherRatios 应用到基础额度
 	if !common.StringsContains(constant.TaskPricePatches, modelName) {
-		for _, ra := range info.PriceData.OtherRatios {
-			if ra != 1.0 {
-				info.PriceData.Quota = int(float64(info.PriceData.Quota) * ra)
-			}
-		}
+		info.PriceData.Quota = scaleQuotaByRatios(info.PriceData.Quota, info.PriceData.OtherRatios)
 	}
 
 	// 7. 预扣费（仅首次 — 重试时 info.Billing 已存在，跳过）
@@ -259,23 +256,30 @@ func RelayTaskSubmit(c *gin.Context, info *relaycommon.RelayInfo) (*TaskSubmitRe
 
 // recalcQuotaFromRatios 根据 adjustedRatios 重新计算 quota。
 // 公式: baseQuota × ∏(ratio) — 其中 baseQuota 是不含 OtherRatios 的基础额度。
-func recalcQuotaFromRatios(info *relaycommon.RelayInfo, ratios map[string]float64) int {
+func recalcQuotaFromRatios(info *relaycommon.RelayInfo, ratios map[string]float64) int64 {
 	// 从 PriceData 获取不含 OtherRatios 的基础价格
-	baseQuota := info.PriceData.Quota
-	// 先除掉原有的 OtherRatios 恢复基础额度
-	for _, ra := range info.PriceData.OtherRatios {
-		if ra != 1.0 && ra > 0 {
-			baseQuota = int(float64(baseQuota) / ra)
-		}
-	}
-	// 应用新的 ratios
-	result := float64(baseQuota)
+	baseQuota := scaleQuotaByInverseRatios(info.PriceData.Quota, info.PriceData.OtherRatios)
+	return scaleQuotaByRatios(baseQuota, ratios)
+}
+
+func scaleQuotaByRatios(quota int64, ratios map[string]float64) int64 {
+	result := decimal.NewFromInt(quota)
 	for _, ra := range ratios {
 		if ra != 1.0 {
-			result *= ra
+			result = result.Mul(decimal.NewFromFloat(ra))
 		}
 	}
-	return int(result)
+	return result.IntPart()
+}
+
+func scaleQuotaByInverseRatios(quota int64, ratios map[string]float64) int64 {
+	product := decimal.NewFromInt(1)
+	for _, ra := range ratios {
+		if ra != 1.0 && ra > 0 {
+			product = product.Mul(decimal.NewFromFloat(ra))
+		}
+	}
+	return decimal.NewFromInt(quota).Div(product).IntPart()
 }
 
 var fetchRespBuilders = map[int]func(c *gin.Context) (respBody []byte, taskResp *dto.TaskError){

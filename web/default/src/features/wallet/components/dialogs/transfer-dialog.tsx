@@ -19,6 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import { useState, useEffect } from 'react'
 import { Loader2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import { toast } from 'sonner'
 import { formatQuota } from '@/lib/format'
 import { Button } from '@/components/ui/button'
 import {
@@ -36,7 +37,7 @@ import { QUOTA_PER_DOLLAR } from '../../constants'
 interface TransferDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
-  onConfirm: (amount: number) => Promise<boolean>
+  onConfirm: (amount: string) => Promise<boolean>
   availableQuota: number
   transferring: boolean
 }
@@ -49,16 +50,27 @@ export function TransferDialog({
   transferring,
 }: TransferDialogProps) {
   const { t } = useTranslation()
-  const [amount, setAmount] = useState(QUOTA_PER_DOLLAR)
+  const [amount, setAmount] = useState(String(QUOTA_PER_DOLLAR))
 
   useEffect(() => {
     if (open) {
       // eslint-disable-next-line react-hooks/set-state-in-effect
-      setAmount(QUOTA_PER_DOLLAR)
+      setAmount(String(QUOTA_PER_DOLLAR))
     }
   }, [open])
 
   const handleConfirm = async () => {
+    const rawAmount = amount.trim()
+    const parsedAmount = Number(rawAmount)
+    if (
+      !rawAmount ||
+      !Number.isFinite(parsedAmount) ||
+      parsedAmount <= 0 ||
+      !/^\d+$/.test(rawAmount)
+    ) {
+      toast.error(t('Please enter a valid transfer amount'))
+      return
+    }
     const success = await onConfirm(amount)
     if (success) {
       onOpenChange(false)
@@ -98,7 +110,7 @@ export function TransferDialog({
               id='transfer-amount'
               type='number'
               value={amount}
-              onChange={(e) => setAmount(Number(e.target.value))}
+              onChange={(e) => setAmount(e.target.value)}
               min={QUOTA_PER_DOLLAR}
               max={availableQuota}
               step={QUOTA_PER_DOLLAR}

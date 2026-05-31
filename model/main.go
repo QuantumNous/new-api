@@ -1,6 +1,7 @@
 package model
 
 import (
+	"database/sql"
 	"fmt"
 	"log"
 	"os"
@@ -254,6 +255,10 @@ func migrateDB() error {
 	if err := migrateTokenModelLimitsToText(); err != nil {
 		return err
 	}
+	// Migrate quota-related columns from int/integer to bigint for existing tables
+	if err := migrateQuotaColumnsToBigint(DB, currentDatabaseType()); err != nil {
+		return err
+	}
 
 	err := DB.AutoMigrate(
 		&Channel{},
@@ -295,6 +300,131 @@ func migrateDB() error {
 		}
 	}
 	return nil
+}
+
+type quotaColumnMigration struct {
+	Table  string
+	Column string
+}
+
+func migrateQuotaColumnsToBigint(db *gorm.DB, databaseType string) error {
+	columns := []quotaColumnMigration{
+		{Table: "users", Column: "quota"},
+		{Table: "users", Column: "used_quota"},
+		{Table: "users", Column: "aff_quota"},
+		{Table: "users", Column: "aff_history"},
+		{Table: "tokens", Column: "remain_quota"},
+		{Table: "tokens", Column: "used_quota"},
+		{Table: "logs", Column: "quota"},
+		{Table: "redemptions", Column: "quota"},
+		{Table: "quota_data", Column: "quota"},
+		{Table: "tasks", Column: "quota"},
+		{Table: "midjourneys", Column: "quota"},
+		{Table: "checkins", Column: "quota_awarded"},
+		{Table: "channels", Column: "used_quota"},
+	}
+
+	for _, col := range columns {
+		if err := migrateColumnToBigint(db, databaseType, col.Table, col.Column); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func migrateColumnToBigint(db *gorm.DB, databaseType string, tableName string, columnName string) error {
+	if db == nil || !db.Migrator().HasTable(tableName) {
+		return nil
+	}
+
+	var alterSQL string
+	switch {
+	case databaseType == common.DatabaseTypePostgreSQL:
+		var dataType string
+		if err := db.Raw(`SELECT data_type FROM information_schema.columns
+			WHERE table_schema = current_schema() AND table_name = ? AND column_name = ?`,
+			tableName, columnName).Scan(&dataType).Error; err != nil {
+			return fmt.Errorf("query metadata for %s.%s: %w", tableName, columnName, err)
+		}
+		switch strings.ToLower(dataType) {
+		case "bigint":
+			return nil
+		case "":
+			return nil
+		}
+		alterSQL = fmt.Sprintf(`ALTER TABLE %s ALTER COLUMN %s TYPE bigint USING %s::bigint`,
+			tableName, columnName, columnName)
+	case databaseType == common.DatabaseTypeMySQL:
+		var columnType string
+		var isNullable string
+		var columnDefault sql.NullString
+		if err := db.Raw(`SELECT COLUMN_TYPE, IS_NULLABLE, COLUMN_DEFAULT FROM information_schema.columns
+			WHERE table_schema = DATABASE() AND table_name = ? AND column_name = ?`,
+			tableName, columnName).Row().Scan(&columnType, &isNullable, &columnDefault); err != nil {
+			if err == sql.ErrNoRows {
+				return nil
+			}
+			return fmt.Errorf("query metadata for %s.%s: %w", tableName, columnName, err)
+		}
+		switch strings.ToLower(columnType) {
+		case "bigint", "bigint unsigned":
+			return nil
+		case "":
+			return nil
+		}
+		alterSQL = fmt.Sprintf("ALTER TABLE %s MODIFY COLUMN %s bigint%s%s",
+			tableName,
+			columnName,
+			mysqlNullableClause(isNullable),
+			mysqlDefaultClause(columnDefault),
+		)
+	default:
+		// SQLite is handled by GORM's table rebuild during AutoMigrate.
+		return nil
+	}
+
+	if alterSQL == "" {
+		return nil
+	}
+
+	if err := db.Exec(alterSQL).Error; err != nil {
+		return fmt.Errorf("migrate %s.%s to bigint: %w", tableName, columnName, err)
+	}
+	common.SysLog(fmt.Sprintf("Successfully migrated %s.%s to bigint", tableName, columnName))
+	return nil
+}
+
+func mysqlNullableClause(isNullable string) string {
+	if strings.EqualFold(isNullable, "NO") {
+		return " NOT NULL"
+	}
+	return " NULL"
+}
+
+func mysqlDefaultClause(columnDefault sql.NullString) string {
+	if !columnDefault.Valid {
+		return ""
+	}
+	defaultValue := strings.TrimSpace(columnDefault.String)
+	if defaultValue == "" {
+		return " DEFAULT ''"
+	}
+	if strings.EqualFold(defaultValue, "NULL") {
+		return " DEFAULT NULL"
+	}
+	return " DEFAULT " + defaultValue
+}
+
+func currentDatabaseType() string {
+	switch {
+	case common.UsingPostgreSQL:
+		return common.DatabaseTypePostgreSQL
+	case common.UsingMySQL:
+		return common.DatabaseTypeMySQL
+	default:
+		return common.DatabaseTypeSQLite
+	}
 }
 
 func migrateDBFast() error {
@@ -368,6 +498,9 @@ func migrateDBFast() error {
 }
 
 func migrateLOGDB() error {
+	if err := migrateQuotaColumnsToBigint(LOG_DB, common.LogSqlType); err != nil {
+		return err
+	}
 	var err error
 	if err = LOG_DB.AutoMigrate(&Log{}); err != nil {
 		return err

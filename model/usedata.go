@@ -18,7 +18,7 @@ type QuotaData struct {
 	CreatedAt int64  `json:"created_at" gorm:"bigint;index:idx_qdt_created_at,priority:2"`
 	TokenUsed int    `json:"token_used" gorm:"default:0"`
 	Count     int    `json:"count" gorm:"default:0"`
-	Quota     int    `json:"quota" gorm:"default:0"`
+	Quota     int64  `json:"quota" gorm:"type:bigint;default:0"`
 }
 
 func UpdateQuotaData() {
@@ -34,7 +34,7 @@ func UpdateQuotaData() {
 var CacheQuotaData = make(map[string]*QuotaData)
 var CacheQuotaDataLock = sync.Mutex{}
 
-func logQuotaDataCache(userId int, username string, modelName string, quota int, createdAt int64, tokenUsed int) {
+func logQuotaDataCache(userId int, username string, modelName string, quota int64, createdAt int64, tokenUsed int) {
 	key := fmt.Sprintf("%d-%s-%s-%d", userId, username, modelName, createdAt)
 	quotaData, ok := CacheQuotaData[key]
 	if ok {
@@ -55,7 +55,7 @@ func logQuotaDataCache(userId int, username string, modelName string, quota int,
 	CacheQuotaData[key] = quotaData
 }
 
-func LogQuotaData(userId int, username string, modelName string, quota int, createdAt int64, tokenUsed int) {
+func LogQuotaData(userId int, username string, modelName string, quota int64, createdAt int64, tokenUsed int) {
 	// 只精确到小时
 	createdAt = createdAt - (createdAt % 3600)
 
@@ -89,7 +89,7 @@ func SaveQuotaDataCache() {
 	common.SysLog(fmt.Sprintf("保存数据看板数据成功，共保存%d条数据", size))
 }
 
-func increaseQuotaData(userId int, username string, modelName string, count int, quota int, createdAt int64, tokenUsed int) {
+func increaseQuotaData(userId int, username string, modelName string, count int, quota int64, createdAt int64, tokenUsed int) {
 	err := DB.Table("quota_data").Where("user_id = ? and username = ? and model_name = ? and created_at = ?",
 		userId, username, modelName, createdAt).Updates(map[string]interface{}{
 		"count":      gorm.Expr("count + ?", count),

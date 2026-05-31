@@ -170,6 +170,10 @@ func GetContextKeyInt(c *gin.Context, key constant.ContextKey) int {
 	return c.GetInt(string(key))
 }
 
+func GetContextKeyInt64(c *gin.Context, key constant.ContextKey) int64 {
+	return c.GetInt64(string(key))
+}
+
 func GetContextKeyBool(c *gin.Context, key constant.ContextKey) bool {
 	return c.GetBool(string(key))
 }

@@ -280,7 +280,7 @@ func TestZeroTokens(t *testing.T) {
 func TestQuotaRound(t *testing.T) {
 	tests := []struct {
 		in   float64
-		want int
+		want int64
 	}{
 		{0, 0},
 		{0.4, 0},

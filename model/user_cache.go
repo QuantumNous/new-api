@@ -18,7 +18,7 @@ type UserBase struct {
 	Id       int    `json:"id"`
 	Group    string `json:"group"`
 	Email    string `json:"email"`
-	Quota    int    `json:"quota"`
+	Quota    int64  `json:"quota"`
 	Status   int    `json:"status"`
 	Username string `json:"username"`
 	Setting  string `json:"setting"`
@@ -152,7 +152,7 @@ func getUserGroupCache(userId int) (string, error) {
 	return cache.Group, nil
 }
 
-func getUserQuotaCache(userId int) (int, error) {
+func getUserQuotaCache(userId int) (int64, error) {
 	cache, err := GetUserCache(userId)
 	if err != nil {
 		return 0, err
@@ -196,7 +196,7 @@ func updateUserStatusCache(userId int, status bool) error {
 	return common.RedisHSetField(getUserCacheKey(userId), "Status", fmt.Sprintf("%d", statusInt))
 }
 
-func updateUserQuotaCache(userId int, quota int) error {
+func updateUserQuotaCache(userId int, quota int64) error {
 	if !common.RedisEnabled {
 		return nil
 	}

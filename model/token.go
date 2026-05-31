@@ -20,12 +20,12 @@ type Token struct {
 	CreatedTime        int64          `json:"created_time" gorm:"bigint"`
 	AccessedTime       int64          `json:"accessed_time" gorm:"bigint"`
 	ExpiredTime        int64          `json:"expired_time" gorm:"bigint;default:-1"` // -1 means never expired
-	RemainQuota        int            `json:"remain_quota" gorm:"default:0"`
+	RemainQuota        int64          `json:"remain_quota" gorm:"type:bigint;default:0"`
 	UnlimitedQuota     bool           `json:"unlimited_quota"`
 	ModelLimitsEnabled bool           `json:"model_limits_enabled"`
 	ModelLimits        string         `json:"model_limits" gorm:"type:text"`
 	AllowIps           *string        `json:"allow_ips" gorm:"default:''"`
-	UsedQuota          int            `json:"used_quota" gorm:"default:0"` // used quota
+	UsedQuota          int64          `json:"used_quota" gorm:"type:bigint;default:0"` // used quota
 	Group              string         `json:"group" gorm:"default:''"`
 	CrossGroupRetry    bool           `json:"cross_group_retry"` // 跨分组重试，仅auto分组有效
 	DeletedAt          gorm.DeletedAt `gorm:"index"`
@@ -372,13 +372,13 @@ func DeleteTokenById(id int, userId int) (err error) {
 	return token.Delete()
 }
 
-func IncreaseTokenQuota(tokenId int, key string, quota int) (err error) {
+func IncreaseTokenQuota(tokenId int, key string, quota int64) (err error) {
 	if quota < 0 {
 		return errors.New("quota 不能为负数！")
 	}
 	if common.RedisEnabled {
 		gopool.Go(func() {
-			err := cacheIncrTokenQuota(key, int64(quota))
+			err := cacheIncrTokenQuota(key, quota)
 			if err != nil {
 				common.SysLog("failed to increase token quota: " + err.Error())
 			}
@@ -391,7 +391,7 @@ func IncreaseTokenQuota(tokenId int, key string, quota int) (err error) {
 	return increaseTokenQuota(tokenId, quota)
 }
 
-func increaseTokenQuota(id int, quota int) (err error) {
+func increaseTokenQuota(id int, quota int64) (err error) {
 	err = DB.Model(&Token{}).Where("id = ?", id).Updates(
 		map[string]interface{}{
 			"remain_quota":  gorm.Expr("remain_quota + ?", quota),
@@ -402,13 +402,13 @@ func increaseTokenQuota(id int, quota int) (err error) {
 	return err
 }
 
-func DecreaseTokenQuota(id int, key string, quota int) (err error) {
+func DecreaseTokenQuota(id int, key string, quota int64) (err error) {
 	if quota < 0 {
 		return errors.New("quota 不能为负数！")
 	}
 	if common.RedisEnabled {
 		gopool.Go(func() {
-			err := cacheDecrTokenQuota(key, int64(quota))
+			err := cacheDecrTokenQuota(key, quota)
 			if err != nil {
 				common.SysLog("failed to decrease token quota: " + err.Error())
 			}
@@ -421,7 +421,7 @@ func DecreaseTokenQuota(id int, key string, quota int) (err error) {
 	return decreaseTokenQuota(id, quota)
 }
 
-func decreaseTokenQuota(id int, quota int) (err error) {
+func decreaseTokenQuota(id int, quota int64) (err error) {
 	err = DB.Model(&Token{}).Where("id = ?", id).Updates(
 		map[string]interface{}{
 			"remain_quota":  gorm.Expr("remain_quota - ?", quota),

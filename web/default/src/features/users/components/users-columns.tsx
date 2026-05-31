@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { type ColumnDef } from '@tanstack/react-table'
+import { type ColumnDef, type SortingFn } from '@tanstack/react-table'
 import { useTranslation } from 'react-i18next'
 import { formatQuota, formatTimestamp } from '@/lib/format'
 import { cn } from '@/lib/utils'
@@ -33,7 +33,7 @@ import { LongText } from '@/components/long-text'
 import { StatusBadge } from '@/components/status-badge'
 import { TableId } from '@/components/table-id'
 import { USER_STATUSES, USER_ROLES, isUserDeleted } from '../constants'
-import { type User } from '../types'
+import { quotaToNumber, type User } from '../types'
 import { DataTableRowActions } from './data-table-row-actions'
 
 function getQuotaProgressColor(percentage: number): string {
@@ -41,6 +41,44 @@ function getQuotaProgressColor(percentage: number): string {
   if (percentage <= 30) return '[&_[data-slot=progress-indicator]]:bg-amber-500'
   return '[&_[data-slot=progress-indicator]]:bg-emerald-500'
 }
+
+function normalizeIntegerString(value: unknown) {
+  const raw =
+    typeof value === 'number'
+      ? String(Math.trunc(value))
+      : typeof value === 'string'
+        ? value.trim()
+        : ''
+  const match = raw.match(/^([+-]?)(\d+)$/)
+  if (!match) return { sign: 1, digits: '0' }
+
+  const digits = match[2].replace(/^0+/, '') || '0'
+  if (digits === '0') return { sign: 1, digits }
+
+  return {
+    sign: match[1] === '-' ? -1 : 1,
+    digits,
+  }
+}
+
+function compareIntegerValues(a: unknown, b: unknown): number {
+  const left = normalizeIntegerString(a)
+  const right = normalizeIntegerString(b)
+
+  if (left.sign !== right.sign) return left.sign - right.sign
+
+  const lengthDelta = left.digits.length - right.digits.length
+  if (lengthDelta !== 0) {
+    return left.sign > 0 ? lengthDelta : -lengthDelta
+  }
+
+  if (left.digits === right.digits) return 0
+  const lexicalResult = left.digits < right.digits ? -1 : 1
+  return left.sign > 0 ? lexicalResult : -lexicalResult
+}
+
+const quotaSortingFn: SortingFn<User> = (rowA, rowB, columnId) =>
+  compareIntegerValues(rowA.getValue(columnId), rowB.getValue(columnId))
 
 export function useUsersColumns(): ColumnDef<User>[] {
   const { t } = useTranslation()
@@ -168,8 +206,8 @@ export function useUsersColumns(): ColumnDef<User>[] {
       ),
       cell: ({ row }) => {
         const user = row.original
-        const used = user.used_quota
-        const remaining = user.quota
+        const used = quotaToNumber(user.used_quota)
+        const remaining = quotaToNumber(user.quota)
         const total = used + remaining
         const percentage = total > 0 ? (remaining / total) * 100 : 0
 
@@ -220,6 +258,7 @@ export function useUsersColumns(): ColumnDef<User>[] {
           </Tooltip>
         )
       },
+      sortingFn: quotaSortingFn,
       meta: { label: t('Quota') },
     },
     {
@@ -274,7 +313,7 @@ export function useUsersColumns(): ColumnDef<User>[] {
       cell: ({ row }) => {
         const user = row.original
         const affCount = user.aff_count || 0
-        const affHistoryQuota = user.aff_history_quota || 0
+        const affHistoryQuota = quotaToNumber(user.aff_history_quota)
         const inviterId = user.inviter_id || 0
 
         return (

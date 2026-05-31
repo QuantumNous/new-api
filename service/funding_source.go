@@ -15,9 +15,9 @@ type FundingSource interface {
 	// Source 返回资金来源标识："wallet" 或 "subscription"
 	Source() string
 	// PreConsume 从该资金来源预扣 amount 额度
-	PreConsume(amount int) error
+	PreConsume(amount int64) error
 	// Settle 根据差额调整资金来源（正数补扣，负数退还）
-	Settle(delta int) error
+	Settle(delta int64) error
 	// Refund 退还所有预扣费
 	Refund() error
 }
@@ -28,12 +28,12 @@ type FundingSource interface {
 
 type WalletFunding struct {
 	userId   int
-	consumed int // 实际预扣的用户额度
+	consumed int64 // 实际预扣的用户额度
 }
 
 func (w *WalletFunding) Source() string { return BillingSourceWallet }
 
-func (w *WalletFunding) PreConsume(amount int) error {
+func (w *WalletFunding) PreConsume(amount int64) error {
 	if amount <= 0 {
 		return nil
 	}
@@ -44,7 +44,7 @@ func (w *WalletFunding) PreConsume(amount int) error {
 	return nil
 }
 
-func (w *WalletFunding) Settle(delta int) error {
+func (w *WalletFunding) Settle(delta int64) error {
 	if delta == 0 {
 		return nil
 	}
@@ -83,7 +83,7 @@ type SubscriptionFunding struct {
 
 func (s *SubscriptionFunding) Source() string { return BillingSourceSubscription }
 
-func (s *SubscriptionFunding) PreConsume(_ int) error {
+func (s *SubscriptionFunding) PreConsume(_ int64) error {
 	// amount 参数被忽略，使用内部 s.amount（已在构造时根据 preConsumedQuota 计算）
 	res, err := model.PreConsumeUserSubscription(s.requestId, s.userId, s.modelName, 0, s.amount)
 	if err != nil {
@@ -101,11 +101,11 @@ func (s *SubscriptionFunding) PreConsume(_ int) error {
 	return nil
 }
 
-func (s *SubscriptionFunding) Settle(delta int) error {
+func (s *SubscriptionFunding) Settle(delta int64) error {
 	if delta == 0 {
 		return nil
 	}
-	return model.PostConsumeUserSubscriptionDelta(s.subscriptionId, int64(delta))
+	return model.PostConsumeUserSubscriptionDelta(s.subscriptionId, delta)
 }
 
 func (s *SubscriptionFunding) Refund() error {

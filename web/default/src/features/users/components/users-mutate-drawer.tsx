@@ -71,7 +71,7 @@ import {
   transformFormDataToPayload,
   transformUserToFormDefaults,
 } from '../lib'
-import { type User } from '../types'
+import { quotaToNumber, type User } from '../types'
 import { UserQuotaDialog } from './user-quota-dialog'
 import { useUsers } from './users-provider'
 
@@ -91,6 +91,7 @@ export function UsersMutateDrawer({
   const { triggerRefresh } = useUsers()
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [quotaDialogOpen, setQuotaDialogOpen] = useState(false)
+  const [loadedUser, setLoadedUser] = useState<User | null>(null)
 
   // Fetch groups
   const { data: groupsData } = useQuery({
@@ -112,20 +113,22 @@ export function UsersMutateDrawer({
       // For update, fetch fresh data
       getUser(currentRow.id).then((result) => {
         if (result.success && result.data) {
+          setLoadedUser(result.data)
           form.reset(transformUserToFormDefaults(result.data))
         }
       })
     } else if (open && !isUpdate) {
       // For create, reset to defaults
+      setLoadedUser(null)
       form.reset(USER_FORM_DEFAULT_VALUES)
+    } else if (!open) {
+      setLoadedUser(null)
     }
   }, [open, isUpdate, currentRow, form])
 
   const { meta: currencyMeta } = getCurrencyDisplay()
   const currencyLabel = getCurrencyLabel()
   const tokensOnly = currencyMeta.kind === 'tokens'
-
-  const currentQuotaRaw = form.watch('quota_dollars') || 0
 
   const onSubmit = async (data: UserFormValues) => {
     if (!isUpdate) {
@@ -173,6 +176,7 @@ export function UsersMutateDrawer({
     if (!currentRow) return
     const result = await getUser(currentRow.id)
     if (result.success && result.data) {
+      setLoadedUser(result.data)
       form.reset(transformUserToFormDefaults(result.data))
     }
     triggerRefresh()
@@ -466,7 +470,7 @@ export function UsersMutateDrawer({
           open={quotaDialogOpen}
           onOpenChange={setQuotaDialogOpen}
           userId={currentRow.id}
-          currentQuota={parseQuotaFromDollars(currentQuotaRaw || 0)}
+          currentQuota={quotaToNumber((loadedUser || currentRow).quota)}
           onSuccess={refreshUserData}
         />
       )}

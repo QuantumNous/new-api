@@ -79,5 +79,5 @@ type RequestMeta struct {
 	OriginalModelName string `json:"original_model_name"`
 	UserUsingGroup    string `json:"user_using_group"`
 	PromptTokens      int    `json:"prompt_tokens"`
-	PreConsumedQuota  int    `json:"pre_consumed_quota"`
+	PreConsumedQuota  int64  `json:"pre_consumed_quota"`
 }

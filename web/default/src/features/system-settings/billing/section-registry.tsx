@@ -1,29 +1,11 @@
-/*
-Copyright (C) 2023-2026 QuantumNous
-
-This program is free software: you can redistribute it and/or modify
-it under the terms of the GNU Affero General Public License as
-published by the Free Software Foundation, either version 3 of the
-License, or (at your option) any later version.
-
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-GNU Affero General Public License for more details.
-
-You should have received a copy of the GNU Affero General Public License
-along with this program. If not, see <https://www.gnu.org/licenses/>.
-
-For commercial licensing, please contact support@quantumnous.com
-*/
 import { parseCurrencyDisplayType } from '@/lib/currency'
+import type { BillingSettings } from '../types'
+import { createSectionRegistry } from '../utils/section-registry'
 import { CheckinSettingsSection } from '../general/checkin-settings-section'
 import { PricingSection } from '../general/pricing-section'
 import { QuotaSettingsSection } from '../general/quota-settings-section'
 import { PaymentSettingsSection } from '../integrations/payment-settings-section'
 import { RatioSettingsCard } from '../models/ratio-settings-card'
-import type { BillingSettings } from '../types'
-import { createSectionRegistry } from '../utils/section-registry'
 
 const getModelDefaults = (settings: BillingSettings) => ({
   ModelPrice: settings.ModelPrice,
@@ -54,13 +36,14 @@ const BILLING_SECTIONS = [
   {
     id: 'quota',
     titleKey: 'Quota Settings',
+    descriptionKey: 'Configure user quota allocation and rewards',
     build: (settings: BillingSettings) => (
       <QuotaSettingsSection
         defaultValues={{
-          QuotaForNewUser: settings.QuotaForNewUser,
-          PreConsumedQuota: settings.PreConsumedQuota,
-          QuotaForInviter: settings.QuotaForInviter,
-          QuotaForInvitee: settings.QuotaForInvitee,
+          QuotaForNewUser: String(settings.QuotaForNewUser),
+          PreConsumedQuota: String(settings.PreConsumedQuota),
+          QuotaForInviter: String(settings.QuotaForInviter),
+          QuotaForInvitee: String(settings.QuotaForInvitee),
           TopUpLink: settings.TopUpLink,
           general_setting: {
             docs_link: settings['general_setting.docs_link'],
@@ -70,16 +53,13 @@ const BILLING_SECTIONS = [
               settings['quota_setting.enable_free_model_pre_consume'],
           },
         }}
-        complianceConfirmed={
-          (settings['payment_setting.compliance_confirmed'] ?? false) &&
-          settings['payment_setting.compliance_terms_version'] === 'v1'
-        }
       />
     ),
   },
   {
     id: 'currency',
     titleKey: 'Currency & Display',
+    descriptionKey: 'Configure currency conversion and quota display options',
     build: (settings: BillingSettings) => (
       <PricingSection
         defaultValues={{
@@ -103,9 +83,11 @@ const BILLING_SECTIONS = [
   {
     id: 'model-pricing',
     titleKey: 'Model Pricing',
+    descriptionKey: 'Configure model pricing ratios and tool prices',
     build: (settings: BillingSettings) => (
       <RatioSettingsCard
         titleKey='Model Pricing'
+        descriptionKey='Configure model pricing ratios and tool prices'
         modelDefaults={getModelDefaults(settings)}
         groupDefaults={getGroupDefaults(settings)}
         toolPricesDefault={settings['tool_price_setting.prices']}
@@ -116,9 +98,11 @@ const BILLING_SECTIONS = [
   {
     id: 'group-pricing',
     titleKey: 'Group Pricing',
+    descriptionKey: 'Configure group ratios and group-specific pricing rules',
     build: (settings: BillingSettings) => (
       <RatioSettingsCard
         titleKey='Group Pricing'
+        descriptionKey='Configure group ratios and group-specific pricing rules'
         modelDefaults={getModelDefaults(settings)}
         groupDefaults={getGroupDefaults(settings)}
         toolPricesDefault={settings['tool_price_setting.prices']}
@@ -129,6 +113,7 @@ const BILLING_SECTIONS = [
   {
     id: 'payment',
     titleKey: 'Payment Gateway',
+    descriptionKey: 'Configure payment gateway integrations',
     build: (settings: BillingSettings) => (
       <PaymentSettingsSection
         defaultValues={{
@@ -170,18 +155,20 @@ const BILLING_SECTIONS = [
           WaffoPayMethods: settings.WaffoPayMethods ?? '[]',
         }}
         waffoPancakeDefaultValues={{
+          WaffoPancakeEnabled: settings.WaffoPancakeEnabled ?? false,
+          WaffoPancakeSandbox: settings.WaffoPancakeSandbox ?? false,
           WaffoPancakeMerchantID: settings.WaffoPancakeMerchantID ?? '',
           WaffoPancakePrivateKey: settings.WaffoPancakePrivateKey ?? '',
+          WaffoPancakeWebhookPublicKey:
+            settings.WaffoPancakeWebhookPublicKey ?? '',
+          WaffoPancakeWebhookTestKey:
+            settings.WaffoPancakeWebhookTestKey ?? '',
+          WaffoPancakeStoreID: settings.WaffoPancakeStoreID ?? '',
+          WaffoPancakeProductID: settings.WaffoPancakeProductID ?? '',
           WaffoPancakeReturnURL: settings.WaffoPancakeReturnURL ?? '',
-        }}
-        waffoPancakeProvisionedStoreID={settings.WaffoPancakeStoreID ?? ''}
-        waffoPancakeProvisionedProductID={settings.WaffoPancakeProductID ?? ''}
-        complianceDefaults={{
-          confirmed: settings['payment_setting.compliance_confirmed'] ?? false,
-          termsVersion:
-            settings['payment_setting.compliance_terms_version'] ?? '',
-          confirmedAt: settings['payment_setting.compliance_confirmed_at'] ?? 0,
-          confirmedBy: settings['payment_setting.compliance_confirmed_by'] ?? 0,
+          WaffoPancakeCurrency: settings.WaffoPancakeCurrency ?? 'USD',
+          WaffoPancakeUnitPrice: settings.WaffoPancakeUnitPrice ?? 1,
+          WaffoPancakeMinTopUp: settings.WaffoPancakeMinTopUp ?? 1,
         }}
       />
     ),
@@ -189,6 +176,7 @@ const BILLING_SECTIONS = [
   {
     id: 'checkin',
     titleKey: 'Check-in Rewards',
+    descriptionKey: 'Configure daily check-in rewards for users',
     build: (settings: BillingSettings) => (
       <CheckinSettingsSection
         defaultValues={{
@@ -203,18 +191,16 @@ const BILLING_SECTIONS = [
 
 export type BillingSectionId = (typeof BILLING_SECTIONS)[number]['id']
 
-const billingRegistry = createSectionRegistry<
-  BillingSectionId,
-  BillingSettings
->({
-  sections: BILLING_SECTIONS,
-  defaultSection: 'quota',
-  basePath: '/system-settings/billing',
-  urlStyle: 'path',
-})
+const billingRegistry = createSectionRegistry<BillingSectionId, BillingSettings>(
+  {
+    sections: BILLING_SECTIONS,
+    defaultSection: 'quota',
+    basePath: '/system-settings/billing',
+    urlStyle: 'path',
+  }
+)
 
 export const BILLING_SECTION_IDS = billingRegistry.sectionIds
 export const BILLING_DEFAULT_SECTION = billingRegistry.defaultSection
 export const getBillingSectionNavItems = billingRegistry.getSectionNavItems
 export const getBillingSectionContent = billingRegistry.getSectionContent
-export const getBillingSectionMeta = billingRegistry.getSectionMeta

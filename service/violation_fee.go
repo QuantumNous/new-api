@@ -81,7 +81,7 @@ func shouldChargeViolationFee(err *types.NewAPIError) bool {
 	return HasCSAMViolationMarker(err)
 }
 
-func calcViolationFeeQuota(amount, groupRatio float64) int {
+func calcViolationFeeQuota(amount, groupRatio float64) int64 {
 	if amount <= 0 {
 		return 0
 	}
@@ -96,7 +96,7 @@ func calcViolationFeeQuota(amount, groupRatio float64) int {
 	if quota <= 0 {
 		return 0
 	}
-	return int(quota)
+	return int64(quota)
 }
 
 // ChargeViolationFeeIfNeeded charges an additional fee after the normal flow finishes (including refund).

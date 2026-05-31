@@ -15,14 +15,14 @@ type Checkin struct {
 	Id           int    `json:"id" gorm:"primaryKey;autoIncrement"`
 	UserId       int    `json:"user_id" gorm:"not null;uniqueIndex:idx_user_checkin_date"`
 	CheckinDate  string `json:"checkin_date" gorm:"type:varchar(10);not null;uniqueIndex:idx_user_checkin_date"` // 格式: YYYY-MM-DD
-	QuotaAwarded int    `json:"quota_awarded" gorm:"not null"`
+	QuotaAwarded int64  `json:"quota_awarded" gorm:"type:bigint;not null"`
 	CreatedAt    int64  `json:"created_at" gorm:"bigint"`
 }
 
 // CheckinRecord 用于API返回的签到记录（不包含敏感字段）
 type CheckinRecord struct {
 	CheckinDate  string `json:"checkin_date"`
-	QuotaAwarded int    `json:"quota_awarded"`
+	QuotaAwarded int64  `json:"quota_awarded"`
 }
 
 func (Checkin) TableName() string {
@@ -68,9 +68,9 @@ func UserCheckin(userId int) (*Checkin, error) {
 	}
 
 	// 计算随机额度奖励
-	quotaAwarded := setting.MinQuota
+	quotaAwarded := int64(setting.MinQuota)
 	if setting.MaxQuota > setting.MinQuota {
-		quotaAwarded = setting.MinQuota + rand.Intn(setting.MaxQuota-setting.MinQuota+1)
+		quotaAwarded = int64(setting.MinQuota + rand.Intn(setting.MaxQuota-setting.MinQuota+1))
 	}
 
 	today := time.Now().Format("2006-01-02")
@@ -92,7 +92,7 @@ func UserCheckin(userId int) (*Checkin, error) {
 }
 
 // userCheckinWithTransaction 使用事务执行签到（适用于 MySQL 和 PostgreSQL）
-func userCheckinWithTransaction(checkin *Checkin, userId int, quotaAwarded int) (*Checkin, error) {
+func userCheckinWithTransaction(checkin *Checkin, userId int, quotaAwarded int64) (*Checkin, error) {
 	err := DB.Transaction(func(tx *gorm.DB) error {
 		// 步骤1: 创建签到记录
 		// 数据库有唯一约束 (user_id, checkin_date)，可以防止并发重复签到
@@ -115,14 +115,14 @@ func userCheckinWithTransaction(checkin *Checkin, userId int, quotaAwarded int) 
 
 	// 事务成功后，异步更新缓存
 	go func() {
-		_ = cacheIncrUserQuota(userId, int64(quotaAwarded))
+		_ = cacheIncrUserQuota(userId, quotaAwarded)
 	}()
 
 	return checkin, nil
 }
 
 // userCheckinWithoutTransaction 不使用事务执行签到（适用于 SQLite）
-func userCheckinWithoutTransaction(checkin *Checkin, userId int, quotaAwarded int) (*Checkin, error) {
+func userCheckinWithoutTransaction(checkin *Checkin, userId int, quotaAwarded int64) (*Checkin, error) {
 	// 步骤1: 创建签到记录
 	// 数据库有唯一约束 (user_id, checkin_date)，可以防止并发重复签到
 	if err := DB.Create(checkin).Error; err != nil {
