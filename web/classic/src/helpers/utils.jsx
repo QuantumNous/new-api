@@ -680,6 +680,7 @@ export const calculateModelPrice = ({
         imageRatio: formatRatio(record.image_ratio),
         audioInputRatio: formatRatio(record.audio_ratio),
         audioOutputRatio: formatRatio(record.audio_completion_ratio),
+        voiceCloneUnlockRatio: formatRatio(record.voice_clone_unlock_ratio),
         isPerToken: true,
         isTokensDisplay: true,
         usedGroup,
@@ -739,6 +740,9 @@ export const calculateModelPrice = ({
                 Number(record.audio_completion_ratio),
             )
           : null,
+      voiceCloneUnlockPrice: hasRatioValue(record.voice_clone_unlock_ratio)
+        ? `${usedGroupRatio > 0 ? symbol : ''}${usedGroupRatio > 0 ? displayPrice(Number(record.voice_clone_unlock_ratio) * usedGroupRatio) : Number(record.voice_clone_unlock_ratio).toFixed(2)}`
+        : null,
       unitLabel,
       isPerToken: true,
       isTokensDisplay: false,
@@ -833,6 +837,12 @@ export const getModelPriceItems = (
           value: priceData.audioOutputRatio,
           suffix: 'x',
         },
+        {
+          key: 'voice-clone-unlock',
+          label: t('音色克隆解锁'),
+          value: priceData.voiceCloneUnlockRatio,
+          suffix: '',
+        },
       ].filter(
         (item) =>
           item.value !== null && item.value !== undefined && item.value !== '',
@@ -882,6 +892,12 @@ export const getModelPriceItems = (
         label: t('音频补全价格'),
         value: priceData.audioOutputPrice,
         suffix: unitSuffix,
+      },
+      {
+        key: 'voice-clone-unlock',
+        label: t('音色克隆解锁'),
+        value: priceData.voiceCloneUnlockPrice,
+        suffix: '',
       },
     ].filter((item) => item.value !== null && item.value !== undefined && item.value !== '');
   }
