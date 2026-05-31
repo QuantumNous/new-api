@@ -23,33 +23,65 @@ import {
   type ComponentProps,
   createContext,
   type HTMLAttributes,
+  type ReactNode,
   useContext,
   useEffect,
+  useMemo,
   useState,
 } from 'react'
 import type { Element } from 'hast'
-import { CheckIcon, CopyIcon } from 'lucide-react'
 import {
-  type BundledLanguage,
-  codeToHtml,
-  type ShikiTransformer,
-} from 'shiki/bundle/web'
+  CheckIcon,
+  ChevronDownIcon,
+  ChevronRightIcon,
+  CopyIcon,
+  DownloadIcon,
+} from 'lucide-react'
+import { useTranslation } from 'react-i18next'
+import type { BundledLanguage, ShikiTransformer } from 'shiki'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '@/components/ui/tooltip'
 
 type CodeBlockProps = HTMLAttributes<HTMLDivElement> & {
   code: string
-  language: BundledLanguage
+  collapsedLines?: number
+  defaultCollapsed?: boolean
+  enableCollapse?: boolean
+  filename?: string
+  language: BundledLanguage | string
+  maxExpandedLines?: number
+  /** @deprecated use collapsedLines for collapsed preview height. */
+  maxCollapsedLines?: number
   showLineNumbers?: boolean
+  showToolbar?: boolean
+  title?: ReactNode
 }
 
 type CodeBlockContextType = {
   code: string
+  language: string
 }
 
 const CodeBlockContext = createContext<CodeBlockContextType>({
   code: '',
+  language: 'plaintext',
 })
+
+const highlightCache = new Map<string, string>()
+
+const LANGUAGE_ALIASES: Record<string, BundledLanguage> = {
+  csharp: 'c#',
+  golang: 'go',
+  js: 'javascript',
+  shell: 'bash',
+  shellscript: 'bash',
+  ts: 'typescript',
+}
 
 const lineNumberTransformer: ShikiTransformer = {
   name: 'line-numbers',
@@ -72,64 +104,251 @@ const lineNumberTransformer: ShikiTransformer = {
   },
 }
 
+function getRequestedCodeLanguage(language?: string) {
+  const normalized = language?.trim().toLowerCase() || 'plaintext'
+  return LANGUAGE_ALIASES[normalized] ?? normalized
+}
+
+async function normalizeCodeLanguage(language?: string) {
+  const aliased = getRequestedCodeLanguage(language)
+  const { bundledLanguages } = await import('shiki')
+  if (aliased in bundledLanguages) {
+    return aliased as BundledLanguage
+  }
+
+  return 'plaintext'
+}
+
+function escapeCodeHtml(code: string) {
+  return code
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+}
+
+function renderPlainCodeHtml(code: string, showLineNumbers: boolean) {
+  const lines = code.split('\n')
+  const renderedCode = lines
+    .map((line, index) => {
+      const escapedLine = escapeCodeHtml(line) || ' '
+      if (!showLineNumbers) {
+        return escapedLine
+      }
+
+      return `<span class="inline-block min-w-10 mr-4 text-right select-none text-muted-foreground">${index + 1}</span>${escapedLine}`
+    })
+    .join('\n')
+
+  return `<pre class="shiki"><code>${renderedCode}</code></pre>`
+}
+
 export async function highlightCode(
   code: string,
-  language: BundledLanguage,
+  language: BundledLanguage | string,
   showLineNumbers = false
 ) {
+  const resolvedLanguage = await normalizeCodeLanguage(language)
+  const cacheKey = `${resolvedLanguage}:${showLineNumbers ? 'line' : 'plain'}:${code}`
+  const cachedHtml = highlightCache.get(cacheKey)
+
+  if (cachedHtml) {
+    return cachedHtml
+  }
+
   const transformers: ShikiTransformer[] = showLineNumbers
     ? [lineNumberTransformer]
     : []
 
-  return codeToHtml(code, {
-    lang: language,
+  if (resolvedLanguage === 'plaintext') {
+    const html = renderPlainCodeHtml(code, showLineNumbers)
+    highlightCache.set(cacheKey, html)
+    return html
+  }
+
+  const { codeToHtml } = await import('shiki')
+  const html = await codeToHtml(code, {
+    lang: resolvedLanguage,
     themes: {
       light: 'one-light',
       dark: 'one-dark-pro',
     },
+    defaultColor: false,
     transformers,
   })
+
+  highlightCache.set(cacheKey, html)
+  return html
+}
+
+function getCodeLineCount(code: string) {
+  if (!code) {
+    return 1
+  }
+
+  return code.split('\n').length
+}
+
+function getDownloadFilename(language: string, filename?: string) {
+  if (filename) {
+    return filename
+  }
+
+  const extension = language === 'plaintext' ? 'txt' : language
+  return `code.${extension}`
+}
+
+function getCodeBlockHeight(lines: number) {
+  return `${Math.max(4, lines) * 1.5 + 2}rem`
 }
 
 export const CodeBlock = ({
   code,
+  collapsedLines = 12,
+  defaultCollapsed,
+  enableCollapse = true,
+  filename,
   language,
+  maxExpandedLines,
+  maxCollapsedLines,
   showLineNumbers = false,
+  showToolbar = false,
+  title,
   className,
   children,
   ...props
 }: CodeBlockProps) => {
+  const { t } = useTranslation()
   const [html, setHtml] = useState<string>('')
+  const [isCollapsed, setIsCollapsed] = useState(Boolean(defaultCollapsed))
+  const displayLanguage = getRequestedCodeLanguage(language)
+  const lineCount = useMemo(() => getCodeLineCount(code), [code])
+  const previewLines = maxCollapsedLines ?? collapsedLines
+  const canCollapse = enableCollapse && lineCount > previewLines
+  const isCodeCollapsed = canCollapse && isCollapsed
+  const displayTitle = title ?? displayLanguage
+  const bodyMaxHeight = isCodeCollapsed
+    ? getCodeBlockHeight(previewLines)
+    : maxExpandedLines
+      ? getCodeBlockHeight(maxExpandedLines)
+      : undefined
 
   useEffect(() => {
     let cancelled = false
-    highlightCode(code, language, showLineNumbers).then((next) => {
-      if (!cancelled) {
-        setHtml(next)
-      }
-    })
+    highlightCode(code, language, showLineNumbers)
+      .then((next) => {
+        if (!cancelled) {
+          setHtml(next)
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setHtml(renderPlainCodeHtml(code, showLineNumbers))
+        }
+      })
     return () => {
       cancelled = true
     }
   }, [code, language, showLineNumbers])
 
+  const downloadCode = () => {
+    if (typeof window === 'undefined') {
+      return
+    }
+
+    const blob = new Blob([code], { type: 'text/plain;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    const anchor = document.createElement('a')
+    anchor.href = url
+    anchor.download = getDownloadFilename(displayLanguage, filename)
+    anchor.click()
+    URL.revokeObjectURL(url)
+  }
+
   return (
-    <CodeBlockContext.Provider value={{ code }}>
+    <CodeBlockContext.Provider value={{ code, language: displayLanguage }}>
       <div
         className={cn(
-          'group bg-background text-foreground relative w-full overflow-hidden rounded-md border',
+          'group/code-block bg-muted/20 text-foreground my-3 w-full max-w-full overflow-hidden rounded-lg border shadow-xs',
           className
         )}
         {...props}
       >
-        <div className='relative'>
+        {showToolbar && (
+          <div className='bg-muted/35 border-border/70 flex min-h-10 items-center gap-2 border-b px-2 py-1.5'>
+            <div className='min-w-0 flex-1'>
+              <div className='text-muted-foreground truncate font-mono text-[11px] font-medium tracking-wide uppercase'>
+                {displayTitle}
+              </div>
+            </div>
+            <div className='flex shrink-0 items-center gap-1'>
+              {canCollapse && (
+                <Tooltip>
+                  <TooltipTrigger
+                    render={
+                      <Button
+                        aria-label={
+                          isCodeCollapsed ? t('Expand') : t('Collapse')
+                        }
+                        className='size-8'
+                        onClick={() => setIsCollapsed((value) => !value)}
+                        size='icon-sm'
+                        type='button'
+                        variant='ghost'
+                      >
+                        {isCodeCollapsed ? (
+                          <ChevronRightIcon className='size-4' />
+                        ) : (
+                          <ChevronDownIcon className='size-4' />
+                        )}
+                      </Button>
+                    }
+                  />
+                  <TooltipContent>
+                    <p>{isCodeCollapsed ? t('Expand') : t('Collapse')}</p>
+                  </TooltipContent>
+                </Tooltip>
+              )}
+              {children}
+              <Tooltip>
+                <TooltipTrigger
+                  render={
+                    <Button
+                      aria-label={t('Download')}
+                      className='size-8'
+                      onClick={downloadCode}
+                      size='icon-sm'
+                      type='button'
+                      variant='ghost'
+                    >
+                      <DownloadIcon className='size-4' />
+                    </Button>
+                  }
+                />
+                <TooltipContent>
+                  <p>{t('Download')}</p>
+                </TooltipContent>
+              </Tooltip>
+            </div>
+          </div>
+        )}
+        <div className='relative min-w-0'>
           <div
-            className='[&>pre]:bg-background! [&>pre]:text-foreground! overflow-hidden [&_code]:font-mono [&_code]:text-sm [&>pre]:m-0 [&>pre]:p-4 [&>pre]:text-sm'
+            className={cn(
+              'code-block-scroll max-w-full overflow-auto transition-[max-height] duration-200 ease-out',
+              '[&_.shiki]:bg-transparent! [&_.shiki]:text-foreground! [&_code]:font-mono [&_code]:text-[13px] [&_code]:leading-6',
+              '[&>pre]:m-0 [&>pre]:min-w-max [&>pre]:p-4 [&>pre]:text-[13px] [&>pre]:leading-6'
+            )}
             // biome-ignore lint/security/noDangerouslySetInnerHtml: "this is needed."
             dangerouslySetInnerHTML={{ __html: html }}
+            style={{ maxHeight: bodyMaxHeight }}
           />
-          {children && (
-            <div className='absolute top-2 right-2 flex items-center gap-2'>
+          {isCodeCollapsed && (
+            <div className='from-muted/20 pointer-events-none absolute inset-x-0 bottom-0 h-16 bg-linear-to-b to-background' />
+          )}
+          {!showToolbar && children && (
+            <div className='absolute top-2 right-2 flex items-center gap-1'>
               {children}
             </div>
           )}
@@ -153,6 +372,7 @@ export const CodeBlockCopyButton = ({
   className,
   ...props
 }: CodeBlockCopyButtonProps) => {
+  const { t } = useTranslation()
   const [isCopied, setIsCopied] = useState(false)
   const { code } = useContext(CodeBlockContext)
 
@@ -174,15 +394,26 @@ export const CodeBlockCopyButton = ({
 
   const Icon = isCopied ? CheckIcon : CopyIcon
 
-  return (
+  const button = (
     <Button
-      className={cn('shrink-0', className)}
+      aria-label={isCopied ? t('Copied!') : t('Copy code')}
+      className={cn('size-8 shrink-0', className)}
       onClick={copyToClipboard}
-      size='icon'
+      size='icon-sm'
+      type='button'
       variant='ghost'
       {...props}
     >
       {children ?? <Icon size={14} />}
     </Button>
+  )
+
+  return (
+    <Tooltip>
+      <TooltipTrigger render={button} />
+      <TooltipContent>
+        <p>{isCopied ? t('Copied!') : t('Copy code')}</p>
+      </TooltipContent>
+    </Tooltip>
   )
 }

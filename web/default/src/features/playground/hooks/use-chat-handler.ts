@@ -16,16 +16,21 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useCallback } from 'react'
+import { useCallback, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { sendChatCompletion } from '../api'
-import { MESSAGE_STATUS, ERROR_MESSAGES } from '../constants'
+import { ERROR_MESSAGES } from '../constants'
 import {
+  applyStreamingChunk,
   buildChatCompletionPayload,
   updateAssistantMessageWithError,
   updateLastAssistantMessage,
-  processStreamingContent,
-  finalizeMessage,
+  parseRequestErrorDetails,
+  applyChatCompletionResponse,
+  completeAssistantMessage,
+  hasChatCompletionChoice,
+  isAssistantMessageFinal,
+  isAssistantMessagePending,
 } from '../lib'
 import type { Message, PlaygroundConfig, ParameterEnabled } from '../types'
 import { useStreamRequest } from './use-stream-request'
@@ -45,33 +50,17 @@ export function useChatHandler({
   onMessageUpdate,
 }: UseChatHandlerOptions) {
   const { sendStreamRequest, stopStream, isStreaming } = useStreamRequest()
+  const [isRequesting, setIsRequesting] = useState(false)
+  const abortControllerRef = useRef<AbortController | null>(null)
+  const requestIdRef = useRef(0)
 
   // Handle stream update
   const handleStreamUpdate = useCallback(
     (type: 'reasoning' | 'content', chunk: string) => {
       onMessageUpdate((prev) =>
-        updateLastAssistantMessage(prev, (message) => {
-          if (message.status === MESSAGE_STATUS.ERROR) return message
-
-          if (type === 'reasoning') {
-            // Direct API reasoning_content
-            return {
-              ...message,
-              reasoning: {
-                content: (message.reasoning?.content || '') + chunk,
-                duration: 0,
-              },
-              isReasoningStreaming: true,
-              status: MESSAGE_STATUS.STREAMING,
-            }
-          }
-
-          // Content streaming: handle <think> tags
-          return {
-            ...processStreamingContent(message, chunk),
-            status: MESSAGE_STATUS.STREAMING,
-          }
-        })
+        updateLastAssistantMessage(prev, (message) =>
+          applyStreamingChunk(message, type, chunk)
+        )
       )
     },
     [onMessageUpdate]
@@ -79,12 +68,12 @@ export function useChatHandler({
 
   // Handle stream complete
   const handleStreamComplete = useCallback(() => {
+    setIsRequesting(false)
     onMessageUpdate((prev) =>
       updateLastAssistantMessage(prev, (message) =>
-        message.status === MESSAGE_STATUS.COMPLETE ||
-        message.status === MESSAGE_STATUS.ERROR
+        isAssistantMessageFinal(message)
           ? message
-          : { ...finalizeMessage(message), status: MESSAGE_STATUS.COMPLETE }
+          : completeAssistantMessage(message)
       )
     )
   }, [onMessageUpdate])
@@ -92,6 +81,7 @@ export function useChatHandler({
   // Handle stream error
   const handleStreamError = useCallback(
     (error: string, errorCode?: string) => {
+      setIsRequesting(false)
       toast.error(error)
       onMessageUpdate((prev) =>
         updateAssistantMessageWithError(prev, error, errorCode)
@@ -103,6 +93,7 @@ export function useChatHandler({
   // Send streaming chat request
   const sendStreamingChat = useCallback(
     (messages: Message[]) => {
+      setIsRequesting(true)
       const payload = buildChatCompletionPayload(
         messages,
         config,
@@ -133,42 +124,45 @@ export function useChatHandler({
         config,
         parameterEnabled
       )
+      const requestId = requestIdRef.current + 1
+      const abortController = new AbortController()
+
+      requestIdRef.current = requestId
+      abortControllerRef.current = abortController
 
       try {
-        const response = await sendChatCompletion(payload)
-        const choice = response.choices?.[0]
-        if (!choice) return
+        setIsRequesting(true)
+        const response = await sendChatCompletion(
+          payload,
+          abortController.signal
+        )
+        if (abortController.signal.aborted) return
+
+        if (!hasChatCompletionChoice(response)) {
+          handleStreamError(ERROR_MESSAGES.API_REQUEST_ERROR)
+          return
+        }
 
         onMessageUpdate((prev) =>
-          updateLastAssistantMessage(prev, (message) => ({
-            ...finalizeMessage(
-              {
-                ...message,
-                versions: [
-                  {
-                    ...message.versions[0],
-                    content: choice.message?.content || '',
-                  },
-                ],
-              },
-              choice.message?.reasoning_content
-            ),
-            status: MESSAGE_STATUS.COMPLETE,
-          }))
+          updateLastAssistantMessage(prev, (message) => {
+            const updatedMessage = applyChatCompletionResponse(
+              message,
+              response
+            )
+
+            return updatedMessage ?? message
+          })
         )
       } catch (error: unknown) {
-        const err = error as {
-          response?: {
-            data?: { message?: string; error?: { code?: string } }
-          }
-          message?: string
+        if (abortController.signal.aborted) return
+
+        const { errorCode, errorMessage } = parseRequestErrorDetails(error)
+        handleStreamError(errorMessage, errorCode)
+      } finally {
+        if (requestIdRef.current === requestId) {
+          abortControllerRef.current = null
+          setIsRequesting(false)
         }
-        handleStreamError(
-          err?.response?.data?.message ||
-            err?.message ||
-            ERROR_MESSAGES.API_REQUEST_ERROR,
-          err?.response?.data?.error?.code || undefined
-        )
       }
     },
     [config, parameterEnabled, onMessageUpdate, handleStreamError]
@@ -189,11 +183,13 @@ export function useChatHandler({
   // Stop generation
   const stopGeneration = useCallback(() => {
     stopStream()
+    abortControllerRef.current?.abort()
+    abortControllerRef.current = null
+    setIsRequesting(false)
     onMessageUpdate((prev) =>
       updateLastAssistantMessage(prev, (message) =>
-        message.status === MESSAGE_STATUS.LOADING ||
-        message.status === MESSAGE_STATUS.STREAMING
-          ? { ...finalizeMessage(message), status: MESSAGE_STATUS.COMPLETE }
+        isAssistantMessagePending(message)
+          ? completeAssistantMessage(message)
           : message
       )
     )
@@ -202,6 +198,6 @@ export function useChatHandler({
   return {
     sendChat,
     stopGeneration,
-    isGenerating: isStreaming,
+    isGenerating: isStreaming || isRequesting,
   }
 }

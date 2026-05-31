@@ -16,12 +16,33 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { Copy, Check, RefreshCw, Edit, Trash2 } from 'lucide-react'
+import {
+  Check,
+  Copy,
+  Edit,
+  MoreHorizontal,
+  RefreshCw,
+  Trash2,
+  type LucideIcon,
+} from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard'
+import { Button } from '@/components/ui/button'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuShortcut,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { MESSAGE_ACTION_LABELS } from '../constants'
 import { useMessageActionGuard } from '../hooks/use-message-action-guard'
+import {
+  getMessageActionState,
+  getMessageActionsVisibilityClass,
+} from '../lib'
 import type { Message } from '../types'
 import { MessageActionButton } from './message-action-button'
 
@@ -36,6 +57,15 @@ interface MessageActionsProps {
   className?: string
 }
 
+type MessageActionItem = {
+  className?: string
+  disabled?: boolean
+  icon: LucideIcon
+  label: string
+  onClick: () => void
+  variant?: 'default' | 'destructive'
+}
+
 export function MessageActions({
   message,
   onCopy,
@@ -46,14 +76,12 @@ export function MessageActions({
   alwaysVisible = false,
   className = '',
 }: MessageActionsProps) {
+  const { t } = useTranslation()
   const { copiedText, copyToClipboard } = useCopyToClipboard()
   const { guardAction } = useMessageActionGuard(isGenerating)
 
-  const isAssistant = message.from === 'assistant'
-  const hasContent = message.versions.some((v) => v.content)
-  const isLoading =
-    message.status === 'loading' || message.status === 'streaming'
-  const content = message.versions[0]?.content || ''
+  const { content, hasContent, isAssistant, isLoading } =
+    getMessageActionState(message)
   const isCopied = copiedText === content
 
   const handleCopy = () => {
@@ -69,60 +97,105 @@ export function MessageActions({
   const handleEdit = guardAction(() => onEdit?.(message))
   const handleDelete = guardAction(() => onDelete?.(message))
 
-  const visibilityClass = alwaysVisible
-    ? 'opacity-100'
-    : 'opacity-0 group-hover:opacity-100 max-md:opacity-100'
+  const visibilityClass = getMessageActionsVisibilityClass(alwaysVisible)
+  const actions: MessageActionItem[] = []
+
+  if (hasContent) {
+    actions.push({
+      className: isCopied ? 'text-green-600' : '',
+      icon: isCopied ? Check : Copy,
+      label: isCopied ? MESSAGE_ACTION_LABELS.COPIED : MESSAGE_ACTION_LABELS.COPY,
+      onClick: handleCopy,
+    })
+  }
+
+  if (isAssistant && !isLoading && onRegenerate) {
+    actions.push({
+      disabled: isGenerating,
+      icon: RefreshCw,
+      label: MESSAGE_ACTION_LABELS.REGENERATE,
+      onClick: handleRegenerate,
+    })
+  }
+
+  if (hasContent && onEdit) {
+    actions.push({
+      disabled: isGenerating,
+      icon: Edit,
+      label: MESSAGE_ACTION_LABELS.EDIT,
+      onClick: handleEdit,
+    })
+  }
+
+  if (onDelete) {
+    actions.push({
+      disabled: isGenerating,
+      icon: Trash2,
+      label: MESSAGE_ACTION_LABELS.DELETE,
+      onClick: handleDelete,
+      variant: 'destructive',
+    })
+  }
+
+  if (actions.length === 0) return null
 
   return (
-    <TooltipProvider delay={300}>
-      <div
-        className={`flex items-center gap-0.5 transition-opacity ${visibilityClass} ${className}`}
-      >
-        {/* Copy */}
-        {hasContent && (
-          <MessageActionButton
-            icon={isCopied ? Check : Copy}
-            label={
-              isCopied
-                ? MESSAGE_ACTION_LABELS.COPIED
-                : MESSAGE_ACTION_LABELS.COPY
+    <>
+      <TooltipProvider delay={300}>
+        <div
+          className={`hidden items-center gap-0.5 transition-opacity md:flex ${visibilityClass} ${className}`}
+        >
+          {actions.map((action) => (
+            <MessageActionButton
+              className={action.className}
+              disabled={action.disabled}
+              icon={action.icon}
+              key={action.label}
+              label={action.label}
+              onClick={action.onClick}
+              variant={action.variant}
+            />
+          ))}
+        </div>
+      </TooltipProvider>
+
+      <div className={`md:hidden ${className}`}>
+        <DropdownMenu modal={false}>
+          <DropdownMenuTrigger
+            render={
+              <Button
+                aria-label={t('Open menu')}
+                className='data-popup-open:bg-muted size-11 text-muted-foreground hover:text-foreground'
+                size='icon'
+                variant='ghost'
+              />
             }
-            onClick={handleCopy}
-            className={isCopied ? 'text-green-600' : ''}
-          />
-        )}
+          >
+            <MoreHorizontal className='size-4' />
+            <span className='sr-only'>{t('Open menu')}</span>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align='end' className='w-44'>
+            {actions.map((action) => {
+              const Icon = action.icon
 
-        {/* Regenerate - only for assistant messages */}
-        {isAssistant && !isLoading && onRegenerate && (
-          <MessageActionButton
-            icon={RefreshCw}
-            label={MESSAGE_ACTION_LABELS.REGENERATE}
-            onClick={handleRegenerate}
-            disabled={isGenerating}
-          />
-        )}
-
-        {/* Edit */}
-        {hasContent && onEdit && (
-          <MessageActionButton
-            icon={Edit}
-            label={MESSAGE_ACTION_LABELS.EDIT}
-            onClick={handleEdit}
-            disabled={isGenerating}
-          />
-        )}
-
-        {/* Delete */}
-        {onDelete && (
-          <MessageActionButton
-            icon={Trash2}
-            label={MESSAGE_ACTION_LABELS.DELETE}
-            onClick={handleDelete}
-            disabled={isGenerating}
-            variant='destructive'
-          />
-        )}
+              return (
+                <DropdownMenuItem
+                  className='min-h-11'
+                  disabled={action.disabled}
+                  key={action.label}
+                  onClick={action.onClick}
+                  variant={action.variant}
+                >
+                  {action.label}
+                  <DropdownMenuShortcut>
+                    <Icon className='size-4' />
+                  </DropdownMenuShortcut>
+                </DropdownMenuItem>
+              )
+            })}
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
-    </TooltipProvider>
+    </>
   )
 }
