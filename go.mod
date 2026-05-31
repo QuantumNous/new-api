@@ -32,6 +32,7 @@ require (
 	github.com/jinzhu/copier v0.4.0
 	github.com/joho/godotenv v1.5.1
 	github.com/mewkiz/flac v1.0.13
+	github.com/mojocn/base64Captcha v1.3.8
 	github.com/nicksnyder/go-i18n/v2 v2.6.1
 	github.com/pkg/errors v0.9.1
 	github.com/pquerna/otp v1.5.0
@@ -59,6 +60,8 @@ require (
 	gorm.io/driver/postgres v1.5.2
 	gorm.io/gorm v1.25.2
 )
+
+require github.com/golang/freetype v0.0.0-20170609003504-e2365dfdc4a0 // indirect
 
 require (
 	github.com/DmitriyVTitov/size v1.5.0 // indirect

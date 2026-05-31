@@ -80,6 +80,7 @@ const SystemSetting = () => {
     TurnstileCheckEnabled: '',
     TurnstileSiteKey: '',
     TurnstileSecretKey: '',
+    RegisterCaptchaEnabled: '',
     RegisterEnabled: '',
     'passkey.enabled': '',
     'passkey.rp_display_name': '',
@@ -180,6 +181,7 @@ const SystemSetting = () => {
           case 'TelegramOAuthEnabled':
           case 'RegisterEnabled':
           case 'TurnstileCheckEnabled':
+          case 'RegisterCaptchaEnabled':
           case 'EmailDomainRestrictionEnabled':
           case 'EmailAliasRestrictionEnabled':
           case 'SMTPSSLEnabled':
@@ -1034,6 +1036,15 @@ const SystemSetting = () => {
                         }
                       >
                         {t('允许 Turnstile 用户校验')}
+                      </Form.Checkbox>
+                      <Form.Checkbox
+                        field='RegisterCaptchaEnabled'
+                        noLabel
+                        onChange={(e) =>
+                          handleCheckboxChange('RegisterCaptchaEnabled', e)
+                        }
+                      >
+                        {t('启用图形验证码（注册/找回密码/发送邮件验证码，与 Turnstile 互斥，Turnstile 优先）')}
                       </Form.Checkbox>
                     </Col>
                     <Col xs={24} sm={24} md={12} lg={12} xl={12}>

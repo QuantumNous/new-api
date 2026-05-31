@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React, { useContext, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { UserContext } from '../../context/User';
 import { StatusContext } from '../../context/Status';
@@ -115,6 +115,13 @@ const LoginForm = () => {
 
   const logo = getLogo();
   const systemName = getSystemName();
+
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+  const handleResize = useCallback(() => setIsMobile(window.innerWidth < 768), []);
+  useEffect(() => {
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, [handleResize]);
 
   let affCode = new URLSearchParams(window.location.search).get('aff');
   if (affCode) {
@@ -544,6 +551,7 @@ const LoginForm = () => {
           </div>
         )}
         {!status.self_use_mode_enabled && <Text style={{ color: 'var(--semi-color-text-2)', fontSize: 13 }}>{t('没有账户？')} <Link to='/register' style={{ color: 'var(--semi-color-primary)', fontWeight: 600 }}>{t('注册')}</Link></Text>}
+        <div style={{ marginTop: 12 }}><Text style={{ color: 'var(--semi-color-text-2)', fontSize: 13 }}><Link to='/reset' style={{ color: 'var(--semi-color-text-2)' }}>{t('忘记密码？')}</Link></Text></div>
       </div>
     );
   };
@@ -667,7 +675,8 @@ const LoginForm = () => {
   };
 
   return (
-    <div style={{ display: 'flex', minHeight: '100vh', background: 'var(--semi-color-bg-0)' }}>
+    <div style={{ display: 'flex', minHeight: isMobile ? 'auto' : '100vh', background: 'var(--semi-color-bg-0)' }}>
+      {!isMobile && (
       <div style={{
         flex: '0 0 46%', display: 'flex', flexDirection: 'column',
         alignItems: 'center', justifyContent: 'center',
@@ -696,9 +705,10 @@ const LoginForm = () => {
           </div>
         </div>
       </div>
-      <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '48px', background: 'var(--semi-color-bg-0)' }}>
+      )}
+      <div style={{ flex: 1, display: 'flex', alignItems: isMobile ? 'flex-start' : 'center', justifyContent: 'center', padding: isMobile ? '66px 16px' : '48px', background: 'var(--semi-color-bg-0)' }}>
         <div style={{ width: '100%', maxWidth: 420 }}>
-          <div style={{ background: 'var(--semi-color-bg-1)', borderRadius: 16, padding: '40px 36px', border: '1px solid var(--semi-color-border)', boxShadow: '0 1px 3px rgba(15,23,42,0.04), 0 4px 20px rgba(15,23,42,0.03)' }}>
+          <div style={{ background: 'var(--semi-color-bg-1)', borderRadius: 16, padding: isMobile ? '32px 20px' : '40px 36px', border: '1px solid var(--semi-color-border)', boxShadow: '0 1px 3px rgba(15,23,42,0.04), 0 4px 20px rgba(15,23,42,0.03)' }}>
             {showEmailLogin || !hasOAuthLoginOptions ? renderEmailLoginForm() : renderOAuthOptions()}
           </div>
         </div>
