@@ -42,6 +42,8 @@ interface PlaygroundInputProps {
   groups: GroupOption[]
   groupValue: string
   onGroupChange: (value: string) => void
+  hasMessages?: boolean
+  onClearMessages?: () => void
 }
 
 export function PlaygroundInput({
@@ -56,6 +58,8 @@ export function PlaygroundInput({
   groups,
   groupValue,
   onGroupChange,
+  hasMessages = false,
+  onClearMessages,
 }: PlaygroundInputProps) {
   const { t } = useTranslation()
   const [text, setText] = useState('')
@@ -96,7 +100,13 @@ export function PlaygroundInput({
             onModelChange={onModelChange}
             onStop={onStop}
             text={text}
-            tools={<PlaygroundInputTools disabled={disabled} />}
+            tools={
+              <PlaygroundInputTools
+                disabled={disabled}
+                hasMessages={hasMessages}
+                onClearMessages={onClearMessages}
+              />
+            }
           />
         </PromptInputFooter>
       </PromptInput>

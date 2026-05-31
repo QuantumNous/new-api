@@ -36,6 +36,7 @@ export function Playground() {
     setModels,
     setGroups,
     updateConfig,
+    clearMessages,
   } = usePlaygroundState()
 
   const { sendChat, stopGeneration, isGenerating } = useChatHandler({
@@ -57,6 +58,11 @@ export function Playground() {
     updateMessages,
     sendChat,
   })
+
+  const handleClearMessages = () => {
+    handleEditOpenChange(false)
+    clearMessages()
+  }
 
   const { isLoadingModels } = usePlaygroundOptions({
     currentGroup: config.group,
@@ -95,9 +101,11 @@ export function Playground() {
           modelValue={config.model}
           models={models}
           onGroupChange={(value) => updateConfig('group', value)}
+          onClearMessages={handleClearMessages}
           onModelChange={(value) => updateConfig('model', value)}
           onStop={stopGeneration}
           onSubmit={handleSendMessage}
+          hasMessages={messages.length > 0}
         />
       </div>
     </div>
