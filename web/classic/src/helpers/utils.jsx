@@ -741,7 +741,7 @@ export const calculateModelPrice = ({
             )
           : null,
       voiceCloneUnlockPrice: hasRatioValue(record.voice_clone_unlock_ratio)
-        ? `${usedGroupRatio > 0 ? symbol : ''}${usedGroupRatio > 0 ? displayPrice(Number(record.voice_clone_unlock_ratio) * usedGroupRatio) : Number(record.voice_clone_unlock_ratio).toFixed(2)}`
+        ? displayPrice(Number(record.voice_clone_unlock_ratio) * usedGroupRatio)
         : null,
       unitLabel,
       isPerToken: true,
