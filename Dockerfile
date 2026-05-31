@@ -38,7 +38,7 @@ RUN --mount=type=cache,target=/go/pkg/mod \
 COPY . .
 COPY --from=builder /build/dist ./web/default/dist
 COPY --from=builder-classic /build/dist ./web/classic/dist
-ENV GOCACHE=/cache/go-build
+ENV GOCACHE=/cache/go-build GOTMPDIR=/cache/go-build/tmp
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/cache/go-build \
     go build -ldflags "-s -w -X 'github.com/QuantumNous/new-api/common.Version=$(cat VERSION)'" -o new-api
