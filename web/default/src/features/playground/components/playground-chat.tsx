@@ -98,11 +98,15 @@ export function PlaygroundChat({
 
               return (
                 <Message
-                  className='group flex-row-reverse'
+                  className={
+                    message.from === 'assistant'
+                      ? 'group flex-row-reverse py-3'
+                      : 'group flex-row-reverse py-1.5'
+                  }
                   from={message.from}
                   key={message.key}
                 >
-                  <div className='w-full min-w-0 flex-1 basis-full py-1'>
+                  <div className='w-full min-w-0 flex-1 basis-full'>
                     {isEditing ? (
                       <PlaygroundMessageEditor
                         editText={editText}
@@ -124,7 +128,7 @@ export function PlaygroundChat({
                             onDelete={onDeleteMessage}
                             isGenerating={isGenerating}
                             alwaysVisible={alwaysShowActions}
-                            className='mt-1'
+                            className='mt-2'
                           />
                         }
                         message={message}
