@@ -3,6 +3,7 @@ package controller
 import (
 	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -88,14 +89,30 @@ func init() {
 			OwnedBy: "midjourney",
 		})
 	}
-	openAIModelsMap = make(map[string]dto.OpenAIModels)
-	for _, aiModel := range openAIModels {
-		openAIModelsMap[aiModel.Id] = aiModel
-	}
 	channelId2Models = make(map[int][]string)
 	for i := 1; i <= constant.ChannelTypeDummy; i++ {
 		apiType, success := common.ChannelType2APIType(i)
 		if !success || apiType == constant.APITypeAIProxyLibrary {
+			// Try task adaptor for channels not mapped to a standard API type
+			platform := constant.TaskPlatform(strconv.Itoa(i))
+			taskAdaptor := relay.GetTaskAdaptor(platform)
+			if taskAdaptor != nil {
+				taskAdaptor.Init(&relaycommon.RelayInfo{ChannelMeta: &relaycommon.ChannelMeta{
+					ChannelType: i,
+				}})
+				models := taskAdaptor.GetModelList()
+				if len(models) > 0 {
+					channelId2Models[i] = models
+					for _, modelName := range models {
+						openAIModels = append(openAIModels, dto.OpenAIModels{
+							Id:      modelName,
+							Object:  "model",
+							Created: 1626777600,
+							OwnedBy: taskAdaptor.GetChannelName(),
+						})
+					}
+				}
+			}
 			continue
 		}
 		meta := &relaycommon.RelayInfo{ChannelMeta: &relaycommon.ChannelMeta{
@@ -108,6 +125,10 @@ func init() {
 	openAIModels = lo.UniqBy(openAIModels, func(m dto.OpenAIModels) string {
 		return m.Id
 	})
+	openAIModelsMap = make(map[string]dto.OpenAIModels, len(openAIModels))
+	for _, aiModel := range openAIModels {
+		openAIModelsMap[aiModel.Id] = aiModel
+	}
 }
 
 func channelOwnerName(channelType int) string {
