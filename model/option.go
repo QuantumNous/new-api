@@ -203,7 +203,12 @@ func SyncOptions(frequency int) {
 }
 
 func UpdateOption(key string, value string) error {
-	// Save to database first
+	// Validate in-memory first so we never persist an invalid value to the DB.
+	if err := updateOptionMap(key, value); err != nil {
+		return err
+	}
+
+	// Save to database only after successful in-memory update.
 	option := Option{
 		Key: key,
 	}
@@ -214,8 +219,8 @@ func UpdateOption(key string, value string) error {
 	// If save value does not contain primary key, it will execute Create,
 	// otherwise it will execute Update (with all fields).
 	DB.Save(&option)
-	// Update OptionMap
-	return updateOptionMap(key, value)
+
+	return nil
 }
 
 // UpdateOptionsBulk persists multiple key/value pairs in a single database
@@ -253,8 +258,12 @@ func UpdateOptionsBulk(values map[string]string) error {
 
 func updateOptionMap(key string, value string) (err error) {
 	common.OptionMapRWMutex.Lock()
-	defer common.OptionMapRWMutex.Unlock()
-	common.OptionMap[key] = value
+	defer func() {
+		if err == nil {
+			common.OptionMap[key] = value
+		}
+		common.OptionMapRWMutex.Unlock()
+	}()
 
 	// 检查是否是模型配置 - 使用更规范的方式处理
 	if handleConfigUpdate(key, value) {
