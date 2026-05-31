@@ -149,6 +149,7 @@ export function ProviderFormDialog(props: ProviderFormDialogProps) {
         email_field: '',
         well_known: '',
         auth_style: 0,
+        auto_link_policy: 'none',
         access_policy: '',
         access_denied_message: '',
       })

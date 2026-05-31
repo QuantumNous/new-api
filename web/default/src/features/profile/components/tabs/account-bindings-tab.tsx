@@ -29,7 +29,6 @@ import {
   handleLinuxDOOAuth,
   getOAuthState,
 } from '@/lib/oauth'
-import type { CustomOAuthProviderInfo } from '@/features/auth/types'
 import { useDialogs } from '@/hooks/use-dialog'
 import { useStatus } from '@/hooks/use-status'
 import { Button } from '@/components/ui/button'
@@ -37,6 +36,7 @@ import { Separator } from '@/components/ui/separator'
 import { ConfirmDialog } from '@/components/confirm-dialog'
 import { StatusBadge } from '@/components/status-badge'
 import { OAUTH_BIND_STORAGE_KEY } from '@/features/auth/constants'
+import type { CustomOAuthProviderInfo } from '@/features/auth/types'
 import {
   getSelfOAuthBindings,
   unbindCustomOAuth,
@@ -117,8 +117,11 @@ export function AccountBindingsTab({
 
   const handleBindCustomOAuth = async (provider: CustomOAuthProviderInfo) => {
     if (!provider.authorization_endpoint || !provider.client_id) return
+
+    const popup = window.open('', '_blank')
     const state = await getOAuthState()
     if (!state) {
+      popup?.close()
       toast.error(t('Failed to initialize OAuth'))
       return
     }
@@ -133,7 +136,11 @@ export function AccountBindingsTab({
       url.searchParams.set('scope', provider.scopes)
     }
 
-    window.open(url.toString(), '_blank')
+    if (popup) {
+      popup.location.href = url.toString()
+    } else {
+      window.location.href = url.toString()
+    }
   }
 
   useEffect(() => {
