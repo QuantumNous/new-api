@@ -129,7 +129,7 @@ const PasswordResetForm = () => {
   }
 
   return (
-    <div style={{ display: 'flex', minHeight: isMobile ? 'auto' : '100vh', background: 'var(--semi-color-bg-0)' }}>
+    <div style={{ display: 'flex', minHeight: isMobile ? 'auto' : 'calc(100vh - 56px)', marginTop: 56, background: 'var(--semi-color-bg-0)' }}>
       {!isMobile && (
       <div style={{
         flex: '0 0 46%', display: 'flex', flexDirection: 'column',
@@ -160,7 +160,7 @@ const PasswordResetForm = () => {
         </div>
       </div>
       )}
-      <div style={{ flex: 1, display: 'flex', alignItems: isMobile ? 'flex-start' : 'center', justifyContent: 'center', padding: isMobile ? '66px 16px' : '48px', background: 'var(--semi-color-bg-0)' }}>
+      <div style={{ flex: 1, display: 'flex', alignItems: isMobile ? 'flex-start' : 'center', justifyContent: 'center', padding: isMobile ? '24px 16px 16px' : '48px', background: 'var(--semi-color-bg-0)' }}>
         <div style={{ width: '100%', maxWidth: 420 }}>
           <div style={{ background: 'var(--semi-color-bg-1)', borderRadius: 16, padding: isMobile ? '32px 20px' : '40px 36px', border: '1px solid var(--semi-color-border)', boxShadow: '0 1px 3px rgba(15,23,42,0.04), 0 4px 20px rgba(15,23,42,0.03)' }}>
             <div style={{ marginBottom: 32 }}>
