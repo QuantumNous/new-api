@@ -16,10 +16,35 @@ import (
 )
 
 var (
-	httpClient      *http.Client
-	proxyClientLock sync.Mutex
-	proxyClients    = make(map[string]*http.Client)
+	httpClient        *http.Client
+	trustedHTTPClient *http.Client
+	proxyClientLock   sync.Mutex
+	proxyClients      = make(map[string]*http.Client)
 )
+
+type httpClientOptions struct {
+	trustedRedirects bool
+}
+
+// HTTPClientOption customizes shared HTTP client selection.
+type HTTPClientOption func(*httpClientOptions)
+
+// WithTrustedRedirects returns a client that follows redirects without fetch protection.
+func WithTrustedRedirects() HTTPClientOption {
+	return func(options *httpClientOptions) {
+		options.trustedRedirects = true
+	}
+}
+
+func getHTTPClientOptions(options []HTTPClientOption) httpClientOptions {
+	opts := httpClientOptions{}
+	for _, option := range options {
+		if option != nil {
+			option(&opts)
+		}
+	}
+	return opts
+}
 
 func checkRedirect(req *http.Request, via []*http.Request) error {
 	fetchSetting := system_setting.GetFetchSetting()
@@ -33,7 +58,7 @@ func checkRedirect(req *http.Request, via []*http.Request) error {
 	return nil
 }
 
-func InitHttpClient() {
+func newBaseHTTPTransport() *http.Transport {
 	transport := &http.Transport{
 		MaxIdleConns:        common.RelayMaxIdleConns,
 		MaxIdleConnsPerHost: common.RelayMaxIdleConnsPerHost,
@@ -43,31 +68,39 @@ func InitHttpClient() {
 	if common.TLSInsecureSkipVerify {
 		transport.TLSClientConfig = common.InsecureTLSConfig
 	}
-
-	if common.RelayTimeout == 0 {
-		httpClient = &http.Client{
-			Transport:     transport,
-			CheckRedirect: checkRedirect,
-		}
-	} else {
-		httpClient = &http.Client{
-			Transport:     transport,
-			Timeout:       time.Duration(common.RelayTimeout) * time.Second,
-			CheckRedirect: checkRedirect,
-		}
-	}
+	return transport
 }
 
-func GetHttpClient() *http.Client {
+func newHTTPClient(transport http.RoundTripper, checkRedirect func(*http.Request, []*http.Request) error) *http.Client {
+	client := &http.Client{
+		Transport:     transport,
+		CheckRedirect: checkRedirect,
+	}
+	if common.RelayTimeout != 0 {
+		client.Timeout = time.Duration(common.RelayTimeout) * time.Second
+	}
+	return client
+}
+
+func InitHttpClient() {
+	httpClient = newHTTPClient(newBaseHTTPTransport(), checkRedirect)
+	trustedHTTPClient = newHTTPClient(newBaseHTTPTransport(), nil)
+}
+
+func GetHttpClient(options ...HTTPClientOption) *http.Client {
+	opts := getHTTPClientOptions(options)
+	if opts.trustedRedirects {
+		return trustedHTTPClient
+	}
 	return httpClient
 }
 
 // GetHttpClientWithProxy returns the default client or a proxy-enabled one when proxyURL is provided.
-func GetHttpClientWithProxy(proxyURL string) (*http.Client, error) {
+func GetHttpClientWithProxy(proxyURL string, options ...HTTPClientOption) (*http.Client, error) {
 	if proxyURL == "" {
-		return GetHttpClient(), nil
+		return GetHttpClient(options...), nil
 	}
-	return NewProxyHttpClient(proxyURL)
+	return NewProxyHttpClient(proxyURL, options...)
 }
 
 // ResetProxyClientCache 清空代理客户端缓存，确保下次使用时重新初始化
@@ -83,16 +116,22 @@ func ResetProxyClientCache() {
 }
 
 // NewProxyHttpClient 创建支持代理的 HTTP 客户端
-func NewProxyHttpClient(proxyURL string) (*http.Client, error) {
+func NewProxyHttpClient(proxyURL string, options ...HTTPClientOption) (*http.Client, error) {
 	if proxyURL == "" {
-		if client := GetHttpClient(); client != nil {
+		if client := GetHttpClient(options...); client != nil {
 			return client, nil
 		}
 		return http.DefaultClient, nil
 	}
 
+	opts := getHTTPClientOptions(options)
+	cacheKey := proxyURL
+	if opts.trustedRedirects {
+		cacheKey = "trusted-redirects:" + proxyURL
+	}
+
 	proxyClientLock.Lock()
-	if client, ok := proxyClients[proxyURL]; ok {
+	if client, ok := proxyClients[cacheKey]; ok {
 		proxyClientLock.Unlock()
 		return client, nil
 	}
@@ -118,9 +157,12 @@ func NewProxyHttpClient(proxyURL string) (*http.Client, error) {
 			Transport:     transport,
 			CheckRedirect: checkRedirect,
 		}
+		if opts.trustedRedirects {
+			client.CheckRedirect = nil
+		}
 		client.Timeout = time.Duration(common.RelayTimeout) * time.Second
 		proxyClientLock.Lock()
-		proxyClients[proxyURL] = client
+		proxyClients[cacheKey] = client
 		proxyClientLock.Unlock()
 		return client, nil
 
@@ -157,9 +199,12 @@ func NewProxyHttpClient(proxyURL string) (*http.Client, error) {
 		}
 
 		client := &http.Client{Transport: transport, CheckRedirect: checkRedirect}
+		if opts.trustedRedirects {
+			client.CheckRedirect = nil
+		}
 		client.Timeout = time.Duration(common.RelayTimeout) * time.Second
 		proxyClientLock.Lock()
-		proxyClients[proxyURL] = client
+		proxyClients[cacheKey] = client
 		proxyClientLock.Unlock()
 		return client, nil
 
