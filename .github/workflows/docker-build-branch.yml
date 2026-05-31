@@ -46,6 +46,7 @@ jobs:
           tags: |
             type=ref,event=branch
             type=sha,prefix=
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
 
       - name: Build & push
         uses: docker/build-push-action@v6
