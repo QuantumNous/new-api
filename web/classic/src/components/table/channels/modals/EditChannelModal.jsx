@@ -1310,6 +1310,7 @@ const EditChannelModal = (props) => {
     fetchGroups().then();
     if (!isEdit) {
       initialBaseUrlRef.current = '';
+      setSkipAutoTest(false);
       setInputs(originInputs);
       if (formApiRef.current) {
         formApiRef.current.setValues(originInputs);
@@ -1376,6 +1377,7 @@ const EditChannelModal = (props) => {
   const resetModalState = () => {
     resolveStatusCodeRiskConfirm(false);
     formApiRef.current?.reset();
+    setSkipAutoTest(false);
     // 重置渠道设置状态
     setChannelSettings({
       force_format: false,
