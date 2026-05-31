@@ -164,23 +164,23 @@ export default function SettingsPaymentGateway(props) {
             icon={<BookOpen size={16} />}
             description={
               <>
-                Stripe 密钥、Webhook 等设置请
+                {t('Stripe 密钥、Webhook 等设置请')}
                 <a
                   href='https://dashboard.stripe.com/developers'
                   target='_blank'
                   rel='noreferrer'
                 >
-                  点击此处
+                  {t('点击此处')}
                 </a>
-                进行设置，建议先在
+                {t('进行设置，建议先在')}
                 <a
                   href='https://dashboard.stripe.com/test/developers'
                   target='_blank'
                   rel='noreferrer'
                 >
-                  测试环境
+                  {t('测试环境')}
                 </a>
-                完成联调。
+                {t('完成联调。')}
                 <br />
                 {t('回调地址')}：
                 {props.options.ServerAddress

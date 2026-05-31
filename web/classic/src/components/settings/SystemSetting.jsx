@@ -1242,7 +1242,7 @@ const SystemSetting = () => {
                           )
                         }
                       >
-                        启用邮箱域名白名单
+                        {t('启用邮箱域名白名单')}
                       </Form.Checkbox>
                     </Col>
                     <Col xs={24} sm={24} md={12} lg={12} xl={12}>
@@ -1256,7 +1256,7 @@ const SystemSetting = () => {
                           )
                         }
                       >
-                        启用邮箱别名限制
+                        {t('启用邮箱别名限制')}
                       </Form.Checkbox>
                     </Col>
                   </Row>
