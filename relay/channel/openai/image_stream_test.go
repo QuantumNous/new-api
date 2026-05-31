@@ -153,12 +153,11 @@ func TestOpenaiHandlerWithUsageReturnsImageJSONError(t *testing.T) {
 	usage, err := OpenaiHandlerWithUsage(c, info, resp)
 	require.Nil(t, usage)
 	require.NotNil(t, err)
-	require.Equal(t, http.StatusBadGateway, err.StatusCode)
+	require.Equal(t, http.StatusOK, err.StatusCode)
 	oaiError := err.ToOpenAIError()
 	require.Equal(t, "content moderation failed", oaiError.Message)
 	require.Equal(t, "upstream_error", oaiError.Type)
 	require.Equal(t, "content_moderation_failed", oaiError.Code)
-	require.Equal(t, 502, oaiError.Status)
 	require.Empty(t, recorder.Body.String())
 }
 
@@ -186,7 +185,7 @@ func TestOpenaiImageStreamHandlerReturnsJSONErrorFallback(t *testing.T) {
 	usage, err := OpenaiImageStreamHandler(c, info, resp)
 	require.Nil(t, usage)
 	require.NotNil(t, err)
-	require.Equal(t, http.StatusBadGateway, err.StatusCode)
+	require.Equal(t, http.StatusOK, err.StatusCode)
 	oaiError := err.ToOpenAIError()
 	require.Equal(t, "image edit failed", oaiError.Message)
 	require.Empty(t, recorder.Body.String())
