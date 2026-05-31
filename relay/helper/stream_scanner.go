@@ -40,8 +40,17 @@ func StreamScannerHandler(c *gin.Context, resp *http.Response, info *relaycommon
 		return
 	}
 
-	// 无条件新建 StreamStatus
-	info.StreamStatus = relaycommon.NewStreamStatus()
+	// Initialise StreamStatus with care:
+	//   nil                    → always create fresh (normal first-call path)
+	//   non-nil, EndReason set → previous scan finished; reset for retry so the
+	//                            retry's outcome is recorded (endOnce already fired
+	//                            on the old object and would swallow SetEndReason)
+	//   non-nil, EndReason ""  → caller pre-populated errors before invoking
+	//                            (e.g. test setup, pre-stream validation); reuse
+	//                            so those errors are preserved alongside this run
+	if info.StreamStatus == nil || info.StreamStatus.GetEndReason() != "" {
+		info.StreamStatus = relaycommon.NewStreamStatus()
+	}
 
 	// 确保响应体总是被关闭
 	defer func() {

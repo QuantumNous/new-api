@@ -11,6 +11,7 @@ package service
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
@@ -34,7 +35,9 @@ func dispatchAirbotixBilling(c *gin.Context, relayInfo *relaycommon.RelayInfo, u
 		return
 	}
 	user, ok := raw.(*model.User)
-	if !ok || user == nil || user.BillingWebhookURL == "" || user.WebhookSecret == "" {
+	// TrimSpace guards against whitespace-only secrets that would pass the
+	// empty-string check but produce a trivially guessable HMAC key.
+	if !ok || user == nil || user.BillingWebhookURL == "" || strings.TrimSpace(user.WebhookSecret) == "" {
 		return
 	}
 

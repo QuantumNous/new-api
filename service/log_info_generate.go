@@ -100,15 +100,15 @@ func appendStreamStatus(relayInfo *relaycommon.RelayInfo, other map[string]inter
 	}
 	streamInfo := map[string]interface{}{
 		"status":     status,
-		"end_reason": string(ss.EndReason),
+		"end_reason": string(ss.GetEndReason()),
 	}
-	if ss.EndError != nil {
-		streamInfo["end_error"] = ss.EndError.Error()
+	if err := ss.GetEndError(); err != nil {
+		streamInfo["end_error"] = err.Error()
 	}
-	if ss.ErrorCount > 0 {
-		streamInfo["error_count"] = ss.ErrorCount
-		messages := make([]string, 0, len(ss.Errors))
-		for _, e := range ss.Errors {
+	if count := ss.TotalErrorCount(); count > 0 {
+		streamInfo["error_count"] = count
+		messages := make([]string, 0, count)
+		for _, e := range ss.GetErrors() {
 			messages = append(messages, e.Message)
 		}
 		streamInfo["errors"] = messages
