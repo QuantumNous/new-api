@@ -299,20 +299,43 @@ function ModelHeader(props: { model: PricingModel }) {
           <span className='text-muted-foreground'>{model.vendor_name}</span>
         )}
         <span className='text-muted-foreground/30'>·</span>
-        <span className='text-muted-foreground/70'>
-          {model.quota_type === QUOTA_TYPE_VALUES.TOKEN
-            ? t('Token-based')
-            : t('Per Request')}
-        </span>
+        {/* Billing type badge */}
+        {model.image_billing_mode === 'per_size' ? (
+          <span className='rounded bg-blue-100 px-1.5 py-0.5 text-[10px] font-medium text-blue-700 dark:bg-blue-500/20 dark:text-blue-300'>
+            {t('Per-resolution')}
+          </span>
+        ) : model.quota_type === QUOTA_TYPE_VALUES.TOKEN ? (
+          <span className='bg-muted text-muted-foreground rounded px-1.5 py-0.5 text-[10px] font-medium'>
+            {t('Token-based')}
+          </span>
+        ) : (
+          <span className='bg-muted text-muted-foreground rounded px-1.5 py-0.5 text-[10px] font-medium'>
+            {t('Per Request')}
+          </span>
+        )}
+        {/* Dynamic pricing badge */}
         {model.billing_mode === 'tiered_expr' && model.billing_expr && (
-          <>
-            <span className='text-muted-foreground/30'>·</span>
-            <span className='rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-700 dark:bg-amber-500/20 dark:text-amber-300'>
-              {isSpecialExpression
-                ? t('Special billing expression')
-                : t('Dynamic Pricing')}
-            </span>
-          </>
+          <span className='rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-700 dark:bg-amber-500/20 dark:text-amber-300'>
+            {isSpecialExpression
+              ? t('Special billing expression')
+              : t('Dynamic Pricing')}
+          </span>
+        )}
+        {/* Capability badges */}
+        {model.cache_ratio != null && (
+          <span className='rounded bg-emerald-100 px-1.5 py-0.5 text-[10px] font-medium text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300'>
+            {t('Cached')}
+          </span>
+        )}
+        {model.audio_ratio != null && (
+          <span className='rounded bg-purple-100 px-1.5 py-0.5 text-[10px] font-medium text-purple-700 dark:bg-purple-500/20 dark:text-purple-300'>
+            {t('Audio')}
+          </span>
+        )}
+        {model.image_ratio != null && (
+          <span className='rounded bg-orange-100 px-1.5 py-0.5 text-[10px] font-medium text-orange-700 dark:bg-orange-500/20 dark:text-orange-300'>
+            {t('Image input')}
+          </span>
         )}
       </div>
       {description && (
@@ -472,6 +495,49 @@ function PriceSection(props: {
             </div>
           </div>
         )}
+      </section>
+    )
+  }
+
+  // Per-resolution image billing — must be checked before the generic
+  // !isTokenBased branch, because per_size models have quota_type=1 (per-request)
+  // and would otherwise fall into the "Per request $0" display.
+  if (props.model.image_billing_mode === 'per_size' && props.model.image_per_size_prices) {
+    const prices = props.model.image_per_size_prices
+    const tiers = [
+      { label: '1K', key: 'price_1k' as const, desc: t('≤ 1024px') },
+      { label: '2K', key: 'price_2k' as const, desc: t('≤ 2048px') },
+      { label: '4K', key: 'price_4k' as const, desc: t('> 2048px') },
+    ]
+    return (
+      <section>
+        <SectionTitle>{t('Base Price')}</SectionTitle>
+        <div className='mb-2 flex items-center gap-2'>
+          <span className='rounded bg-blue-100 px-1.5 py-0.5 text-[10px] font-medium text-blue-700 dark:bg-blue-500/20 dark:text-blue-300'>
+            {t('Per-resolution')}
+          </span>
+          <span className='text-muted-foreground text-xs'>
+            {t('Flat price per image by output resolution')}
+          </span>
+        </div>
+        <div className='grid grid-cols-3 gap-2'>
+          {tiers.map((tier) => (
+            <div key={tier.label} className='bg-muted/20 rounded-lg border p-3'>
+              <div className='text-muted-foreground text-xs font-medium'>
+                {tier.label}
+                <span className='text-muted-foreground/50 ml-1 text-[10px]'>
+                  ({tier.desc})
+                </span>
+              </div>
+              <div className='text-foreground mt-1 font-mono text-base font-semibold tabular-nums'>
+                ${prices[tier.key].toFixed(3)}
+                <span className='text-muted-foreground/40 ml-1 text-xs font-normal'>
+                  / {t('image')}
+                </span>
+              </div>
+            </div>
+          ))}
+        </div>
       </section>
     )
   }
@@ -777,7 +843,14 @@ function GroupPricingSection(props: {
             <TableRow className='hover:bg-transparent'>
               <TableHead className={thClass}>{t('Group')}</TableHead>
               <TableHead className={thClass}>{t('Ratio')}</TableHead>
-              {isTokenBased ? (
+              {props.model.image_billing_mode === 'per_size' &&
+              props.model.image_per_size_prices ? (
+                <>
+                  <TableHead className={`${thClass} text-right`}>1K</TableHead>
+                  <TableHead className={`${thClass} text-right`}>2K</TableHead>
+                  <TableHead className={`${thClass} text-right`}>4K</TableHead>
+                </>
+              ) : isTokenBased ? (
                 <>
                   <TableHead className={`${thClass} text-right`}>
                     {t('Input')}
@@ -812,7 +885,29 @@ function GroupPricingSection(props: {
                   <TableCell className='text-muted-foreground py-2.5 font-mono'>
                     {ratio}x
                   </TableCell>
-                  {isTokenBased ? (
+                  {props.model.image_billing_mode === 'per_size' &&
+                  props.model.image_per_size_prices ? (
+                    (() => {
+                      const p = props.model.image_per_size_prices
+                      const fmt = (base: number) => {
+                        const val = base * ratio * props.priceRate * props.usdExchangeRate
+                        return `$${val.toFixed(3)}`
+                      }
+                      return (
+                        <>
+                          <TableCell className='py-2.5 text-right font-mono'>
+                            {fmt(p.price_1k)}
+                          </TableCell>
+                          <TableCell className='py-2.5 text-right font-mono'>
+                            {fmt(p.price_2k)}
+                          </TableCell>
+                          <TableCell className='py-2.5 text-right font-mono'>
+                            {fmt(p.price_4k)}
+                          </TableCell>
+                        </>
+                      )
+                    })()
+                  ) : isTokenBased ? (
                     <>
                       <TableCell className='py-2.5 text-right font-mono'>
                         {formatGroupPrice(

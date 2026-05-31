@@ -54,6 +54,11 @@ type textQuotaSummary struct {
 	FileSearchCallCount      int
 	AudioInputPrice          float64
 	ImageGenerationCallPrice float64
+	// per-size image billing (Image API path)
+	ImagePerSizeBilling bool
+	ImageSizeTier       string
+	ImagePerSizeCount   int
+	ImagePerSizePrice   float64 // unit price per image (USD)
 	ToolCallSurchargeQuota   decimal.Decimal
 }
 
@@ -133,6 +138,23 @@ func calculateTextToolCallSurcharge(ctx *gin.Context, relayInfo *relaycommon.Rel
 		surcharge = surcharge.Add(decimal.NewFromFloat(summary.ImageGenerationCallPrice).
 			Mul(dGroupRatio).
 			Mul(dQuotaPerUnit))
+	}
+
+	// Per-size billing for Image API path.
+	if ctx.GetBool("image_per_size_billing") {
+		summary.ImagePerSizeBilling = true
+		summary.ImageSizeTier = ctx.GetString("image_size_tier")
+		summary.ImagePerSizeCount = ctx.GetInt("image_per_size_count")
+		if summary.ImagePerSizeCount <= 0 {
+			summary.ImagePerSizeCount = 1
+		}
+		summary.ImagePerSizePrice = operation_setting.GetImagePerSizePrice(summary.ModelName, summary.ImageSizeTier)
+		surcharge = surcharge.Add(
+			decimal.NewFromFloat(summary.ImagePerSizePrice).
+				Mul(decimal.NewFromInt(int64(summary.ImagePerSizeCount))).
+				Mul(dGroupRatio).
+				Mul(dQuotaPerUnit),
+		)
 	}
 
 	return surcharge
@@ -229,6 +251,16 @@ func calculateTextQuotaSummary(ctx *gin.Context, relayInfo *relaycommon.RelayInf
 	summary.ToolCallSurchargeQuota = calculateTextToolCallSurcharge(ctx, relayInfo, &summary)
 
 	var audioInputQuota decimal.Decimal
+	if summary.ImagePerSizeBilling {
+		summary.Quota = int(summary.ToolCallSurchargeQuota.Round(0).IntPart())
+		if summary.TotalTokens == 0 {
+			summary.Quota = 0
+		} else if summary.ImagePerSizePrice > 0 && summary.Quota == 0 {
+			summary.Quota = 1
+		}
+		return summary
+	}
+
 	if !relayInfo.PriceData.UsePrice {
 		baseTokens := dPromptTokens
 
@@ -333,7 +365,7 @@ func PostTextConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, us
 
 	var tieredResult *billingexpr.TieredResult
 	tieredBillingApplied := false
-	if originUsage != nil {
+	if originUsage != nil && !summary.ImagePerSizeBilling {
 		var tieredUsedVars map[string]bool
 		if snap := relayInfo.TieredBillingSnapshot; snap != nil {
 			tieredUsedVars = billingexpr.UsedVars(snap.ExprString)
@@ -360,6 +392,16 @@ func PostTextConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, us
 	}
 	if summary.ImageGenerationCallPrice > 0 {
 		extraContent = append(extraContent, fmt.Sprintf("Image Generation Call 花费 %s", decimal.NewFromFloat(summary.ImageGenerationCallPrice).Mul(decimal.NewFromFloat(summary.GroupRatio)).Mul(decimal.NewFromFloat(common.QuotaPerUnit)).String()))
+	}
+	if summary.ImagePerSizeBilling && summary.ImagePerSizePrice > 0 {
+		extraContent = append(extraContent, fmt.Sprintf("图片生成 %s × %d 张，花费 %s",
+			summary.ImageSizeTier,
+			summary.ImagePerSizeCount,
+			decimal.NewFromFloat(summary.ImagePerSizePrice).
+				Mul(decimal.NewFromInt(int64(summary.ImagePerSizeCount))).
+				Mul(decimal.NewFromFloat(summary.GroupRatio)).
+				Mul(decimal.NewFromFloat(common.QuotaPerUnit)).String(),
+		))
 	}
 
 	if summary.TotalTokens == 0 {
@@ -428,6 +470,12 @@ func PostTextConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, us
 	if summary.ImageGenerationCallPrice > 0 {
 		other["image_generation_call"] = true
 		other["image_generation_call_price"] = summary.ImageGenerationCallPrice
+	}
+	if summary.ImagePerSizeBilling && summary.ImagePerSizePrice > 0 {
+		other["image_per_size_billing"] = true
+		other["image_size_tier"] = summary.ImageSizeTier
+		other["image_per_size_count"] = summary.ImagePerSizeCount
+		other["image_per_size_price"] = summary.ImagePerSizePrice
 	}
 	if summary.CacheCreationTokens > 0 {
 		other["cache_creation_tokens"] = summary.CacheCreationTokens
