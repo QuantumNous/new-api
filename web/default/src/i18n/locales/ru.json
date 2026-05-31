@@ -4130,6 +4130,8 @@
     "Size:": "Размер:",
     "sk_xxx or rk_xxx": "sk_xxx или rk_xxx",
     "Skip async task polling delay": "Пропускать задержку опроса асинхронных задач",
+    "Skip Auto Test": "Пропустить автотест",
+    "Skip auto test to avoid consuming quota on limited channels": "Пропустить автотест для экономии квоты на ограниченных каналах",
     "Skip retry on failure": "Не повторять при ошибке",
     "Skip SMTP TLS certificate verification": "Пропустить проверку TLS-сертификата SMTP",
     "Skip to Main": "Перейти к основному содержимому",

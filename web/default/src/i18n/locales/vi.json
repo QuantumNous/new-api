@@ -4130,6 +4130,8 @@
     "Size:": "Kích thước:",
     "sk_xxx or rk_xxx": "sk_xxx hoặc rk_xxx",
     "Skip async task polling delay": "Bỏ qua độ trễ thăm dò tác vụ bất đồng bộ",
+    "Skip Auto Test": "Bỏ qua kiểm tra tự động",
+    "Skip auto test to avoid consuming quota on limited channels": "Bỏ qua kiểm tra tự động để tiết kiệm hạn ngạch trên các kênh giới hạn",
     "Skip retry on failure": "Không thử lại khi thất bại",
     "Skip SMTP TLS certificate verification": "Bỏ qua xác minh chứng chỉ TLS SMTP",
     "Skip to Main": "Bỏ qua đến nội dung chính",

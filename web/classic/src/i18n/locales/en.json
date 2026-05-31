@@ -1915,6 +1915,8 @@
     "是否确认充值？": "Confirm the recharge?",
     "是否自动同步上游模型更新": "",
     "是否自动禁用": "Whether to automatically disable",
+    "跳过自动测试": "Skip Auto Test",
+    "跳过定时自动测试以节省额度": "Skip auto test to save quota on limited channels",
     "是否要求指纹/面容等生物识别": "Whether to require fingerprint/face recognition",
     "显示倍率": "Show ratio",
     "显示最新20条": "Display latest 20",

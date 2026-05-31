@@ -4130,6 +4130,8 @@
     "Size:": "Size:",
     "sk_xxx or rk_xxx": "sk_xxx or rk_xxx",
     "Skip async task polling delay": "Skip async task polling delay",
+    "Skip Auto Test": "Skip Auto Test",
+    "Skip auto test to avoid consuming quota on limited channels": "Skip auto test to avoid consuming quota on limited channels",
     "Skip retry on failure": "Skip retry on failure",
     "Skip SMTP TLS certificate verification": "Skip SMTP TLS certificate verification",
     "Skip to Main": "Skip to Main",
