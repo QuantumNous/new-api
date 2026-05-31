@@ -74,6 +74,7 @@ function overallTextColour(pct: number): string {
 }
 
 export function UptimeSparkline(props: UptimeSparklineProps) {
+  const { t } = useTranslation()
   const size = props.size ?? 'md'
   const showOverall = props.showOverall ?? true
 
@@ -127,7 +128,9 @@ export function UptimeSparkline(props: UptimeSparklineProps) {
               <div>{day.uptime_pct.toFixed(2)}%</div>
               {day.outage_minutes > 0 && (
                 <div className='text-muted-foreground'>
-                  {day.outage_minutes} min outage
+                  {t('{{minutes}} min outage', {
+                    minutes: day.outage_minutes,
+                  })}
                 </div>
               )}
             </TooltipContent>

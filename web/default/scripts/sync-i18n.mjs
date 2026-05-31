@@ -39,6 +39,7 @@ const BRAND_AND_LITERAL_KEYS = new Set([
   'AccessKey / SecretAccessKey',
   'AZURE_OPENAI_ENDPOINT *',
   'Baidu V2',
+  'BlockRun',
   'ChatGPT',
   'Claude',
   'Client ID',
@@ -73,6 +74,7 @@ const BRAND_AND_LITERAL_KEYS = new Set([
   'OpenAI',
   'OpenAIMax',
   'OpenRouter',
+  'Paddle',
   'Pancake',
   'Passkey',
   'Perplexity',
@@ -92,6 +94,7 @@ const BRAND_AND_LITERAL_KEYS = new Set([
   'Uptime Kuma URL',
   'Vertex AI',
   'VolcEngine',
+  'Waffo',
   'Waffo Pancake Dashboard',
   'Waffo Pancake MoR',
   'WeChat',
@@ -316,5 +319,3 @@ main().catch((err) => {
   console.error(err)
   process.exitCode = 1
 })
-
-

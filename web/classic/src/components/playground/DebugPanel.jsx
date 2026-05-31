@@ -146,7 +146,7 @@ const DebugPanel = ({
                 {t('预览请求体')}
                 {customRequestMode && (
                   <span className='px-1.5 py-0.5 text-xs bg-orange-100 text-orange-600 rounded-full'>
-                    自定义
+                    {t('自定义')}
                   </span>
                 )}
               </div>

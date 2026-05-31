@@ -273,7 +273,7 @@ export function PrefillGroupFormDrawer({
                 name='type'
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Group Type</FormLabel>
+                    <FormLabel>{t('Group Type')}</FormLabel>
                     <Select
                       items={[
                         ...PREFILL_GROUP_TYPES.map((type) => ({

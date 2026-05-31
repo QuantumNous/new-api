@@ -928,7 +928,7 @@ const LoginForm = () => {
                 />
               </svg>
             </div>
-            两步验证
+            {t('两步验证')}
           </div>
         }
         visible={showTwoFA}
