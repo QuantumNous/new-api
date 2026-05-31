@@ -7,6 +7,8 @@ import (
 	"sync"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
+	"github.com/QuantumNous/new-api/types"
 
 	"github.com/samber/lo"
 	"gorm.io/gorm"
@@ -103,18 +105,110 @@ func getChannelQuery(group string, model string, retry int) (*gorm.DB, error) {
 	return channelQuery, nil
 }
 
-func GetChannel(group string, model string, retry int) (*Channel, error) {
-	var abilities []Ability
-
-	var err error = nil
+// getChannelQueryWithAPIType returns a query that filters channels by priority,
+// and when multiple channels share the same priority, prefers those whose
+// channel type matches the expected API type (for smart routing).
+//
+// Both abilities and channels expose a `group` column, so any reference to
+// `group` inside JOINed queries must be qualified with `abilities.` to avoid
+// "ambiguous column name" errors (notably on SQLite).
+func getChannelQueryWithAPIType(group string, model string, retry int, expectedAPIType int) (*gorm.DB, error) {
 	channelQuery, err := getChannelQuery(group, model, retry)
 	if err != nil {
 		return nil, err
 	}
-	if common.UsingSQLite || common.UsingPostgreSQL {
-		err = channelQuery.Order("weight DESC").Find(&abilities).Error
+
+	abilitiesGroupCol := "abilities." + commonGroupCol
+
+	// Resolve the priority value once, shared by the probing query and the
+	// final filtered query. Reusing the existing channelQuery here would be
+	// unsafe because its WHERE clause references the bare `group` column.
+	var priorityValue interface{}
+	if retry == 0 {
+		priorityValue = DB.Model(&Ability{}).Select("MAX(priority)").Where(commonGroupCol+" = ? and model = ? and enabled = ?", group, model, true)
 	} else {
-		err = channelQuery.Order("weight DESC").Find(&abilities).Error
+		p, err := getPriority(group, model, retry)
+		if err != nil {
+			return channelQuery, nil
+		}
+		priorityValue = p
+	}
+
+	var abilities []AbilityWithChannel
+	err = DB.Table("abilities").
+		Select("abilities.*, channels.type as channel_type").
+		Joins("left join channels on abilities.channel_id = channels.id").
+		Where(abilitiesGroupCol+" = ? and abilities.model = ? and abilities.enabled = ? and abilities.priority = (?)", group, model, true, priorityValue).
+		Scan(&abilities).Error
+	if err != nil {
+		return channelQuery, nil // fall back to original query
+	}
+
+	if len(abilities) <= 1 {
+		return channelQuery, nil
+	}
+
+	// Check if any channel matches the expected API type
+	var hasMatch bool
+	for _, ab := range abilities {
+		channelAPIType, ok := common.ChannelType2APIType(ab.ChannelType)
+		if ok && channelAPIType == expectedAPIType {
+			hasMatch = true
+			break
+		}
+	}
+
+	if hasMatch {
+		filteredQuery := DB.Table("abilities").
+			Select("abilities.*").
+			Joins("left join channels on abilities.channel_id = channels.id").
+			Where(abilitiesGroupCol+" = ? and abilities.model = ? and abilities.enabled = ? and abilities.priority = (?)", group, model, true, priorityValue).
+			Where("channels.type IN (?)", getMatchingChannelTypes(expectedAPIType))
+		return filteredQuery, nil
+	}
+
+	return channelQuery, nil
+}
+
+// getMatchingChannelTypes returns channel types that map to the given API type.
+func getMatchingChannelTypes(expectedAPIType int) []int {
+	var types []int
+	for i := 1; i < constant.ChannelTypeDummy; i++ {
+		apiType, ok := common.ChannelType2APIType(i)
+		if ok && apiType == expectedAPIType {
+			types = append(types, i)
+		}
+	}
+	return types
+}
+
+func GetChannel(group string, model string, retry int, relayFormat types.RelayFormat) (*Channel, error) {
+	var abilities []Ability
+
+	var err error = nil
+	var channelQuery *gorm.DB
+
+	// Use smart routing when relayFormat is provided and memory cache is disabled
+	if relayFormat != "" {
+		if expectedAPIType, ok := types.RelayFormatToAPIType(relayFormat); ok {
+			channelQuery, err = getChannelQueryWithAPIType(group, model, retry, expectedAPIType)
+			if err != nil {
+				return nil, err
+			}
+		}
+	}
+
+	if channelQuery == nil {
+		channelQuery, err = getChannelQuery(group, model, retry)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	if common.UsingSQLite || common.UsingPostgreSQL {
+		err = channelQuery.Order("abilities.weight DESC").Find(&abilities).Error
+	} else {
+		err = channelQuery.Order("abilities.weight DESC").Find(&abilities).Error
 	}
 	if err != nil {
 		return nil, err
