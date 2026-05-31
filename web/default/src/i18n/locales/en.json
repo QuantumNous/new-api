@@ -3916,6 +3916,8 @@
     "Site Key": "Site Key",
     "Size:": "Size:",
     "sk_xxx or rk_xxx": "sk_xxx or rk_xxx",
+    "Skip Auto Test": "Skip Auto Test",
+    "Skip auto test to avoid consuming quota on limited channels": "Skip auto test to avoid consuming quota on limited channels",
     "Skip retry on failure": "Skip retry on failure",
     "Skip to Main": "Skip to Main",
     "Slug": "Slug",

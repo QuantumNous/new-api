@@ -3916,6 +3916,8 @@
     "Site Key": "站点密钥",
     "Size:": "大小：",
     "sk_xxx or rk_xxx": "sk_xxx 或 rk_xxx",
+    "Skip Auto Test": "跳过自动测试",
+    "Skip auto test to avoid consuming quota on limited channels": "跳过自动测试以节省有限渠道的额度",
     "Skip retry on failure": "失败后不重试",
     "Skip to Main": "跳到主内容",
     "Slug": "标识符",
