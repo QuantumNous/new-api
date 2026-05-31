@@ -34,6 +34,7 @@ func Distribute() func(c *gin.Context) {
 		var channel *model.Channel
 		channelId, ok := common.GetContextKey(c, constant.ContextKeyTokenSpecificChannelId)
 		modelRequest, shouldSelectChannel, err := getModelRequest(c)
+		endpointType := service.EndpointTypeFromPath(c.Request.URL.Path)
 		if err != nil {
 			abortWithOpenAiMessage(c, http.StatusBadRequest, i18n.T(c, i18n.MsgDistributorInvalidRequest, map[string]any{"Error": err.Error()}))
 			return
@@ -51,6 +52,10 @@ func Distribute() func(c *gin.Context) {
 			}
 			if channel.Status != common.ChannelStatusEnabled {
 				abortWithOpenAiMessage(c, http.StatusForbidden, i18n.T(c, i18n.MsgDistributorChannelDisabled))
+				return
+			}
+			if !channel.SupportsEndpointType(endpointType) {
+				abortWithOpenAiMessage(c, http.StatusForbidden, fmt.Sprintf("selected channel does not support endpoint %s", endpointType))
 				return
 			}
 		} else {
@@ -109,6 +114,11 @@ func Distribute() func(c *gin.Context) {
 								abortWithOpenAiMessage(c, http.StatusForbidden, i18n.T(c, i18n.MsgDistributorAffinityChannelDisabled))
 								return
 							}
+						} else if !preferred.SupportsEndpointType(endpointType) {
+							if service.ShouldSkipRetryAfterChannelAffinityFailure(c) {
+								abortWithOpenAiMessage(c, http.StatusForbidden, fmt.Sprintf("selected channel does not support endpoint %s", endpointType))
+								return
+							}
 						} else if usingGroup == "auto" {
 							userGroup := common.GetContextKeyString(c, constant.ContextKeyUserGroup)
 							autoGroups := service.GetUserAutoGroup(userGroup)
@@ -131,10 +141,11 @@ func Distribute() func(c *gin.Context) {
 
 				if channel == nil {
 					channel, selectGroup, err = service.CacheGetRandomSatisfiedChannel(&service.RetryParam{
-						Ctx:        c,
-						ModelName:  modelRequest.Model,
-						TokenGroup: usingGroup,
-						Retry:      common.GetPointer(0),
+						Ctx:          c,
+						ModelName:    modelRequest.Model,
+						TokenGroup:   usingGroup,
+						EndpointType: endpointType,
+						Retry:        common.GetPointer(0),
 					})
 					if err != nil {
 						showGroup := usingGroup

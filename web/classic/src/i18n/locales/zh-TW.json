@@ -3672,6 +3672,17 @@
     "并确认自行承担部署": "並確認自行承擔部署",
     "运营和收费行为产生的法律责任": "營運和收費行為產生的法律責任",
     "，": "，",
-    "、": "、"
+    "、": "、",
+    "OpenAI": "OpenAI",
+    "OpenAI Responses": "OpenAI Responses",
+    "OpenAI Responses Compact": "OpenAI Responses Compact",
+    "Anthropic Messages": "Anthropic Messages",
+    "Gemini": "Gemini",
+    "Rerank": "Rerank",
+    "支持端点": "支援端點",
+    "不选择表示不限制": "不選擇表示不限制",
+    "用于限制该渠道可处理的请求端点；留空时所有端点均可使用。": "用於限制該渠道可處理的請求端點；留空時所有端點均可使用。",
+    "仅支持这些端点": "僅支援這些端點",
+    "端点受限": "端點受限"
   }
 }

@@ -195,6 +195,15 @@ export const ADD_MODE_OPTIONS = [
   },
 ] as const
 
+export const CHANNEL_ENDPOINT_OPTIONS = [
+  { value: 'openai', label: 'OpenAI' },
+  { value: 'openai-response', label: 'OpenAI Responses' },
+  { value: 'openai-response-compact', label: 'OpenAI Responses Compact' },
+  { value: 'anthropic', label: 'Anthropic Messages' },
+  { value: 'gemini', label: 'Gemini' },
+  { value: 'jina-rerank', label: 'Rerank' },
+] as const
+
 // ============================================================================
 // Multi-Key Management
 // ============================================================================

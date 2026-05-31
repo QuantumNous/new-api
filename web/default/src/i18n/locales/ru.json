@@ -1773,7 +1773,7 @@
     "footer.columns.related.links.oneApi": "Один API",
     "footer.columns.related.title": "Связанные проекты",
     "footer.defaultCopyright": "Все права защищены.",
-    "footer.new\u0061pi.projectAttributionSuffix": "Все права защищены. Разработано участниками проекта.",
+    "footer.newapi.projectAttributionSuffix": "Все права защищены. Разработано участниками проекта.",
     "For channels added after May 10, 2025, no need to remove \".\" from model names during deployment": "Для каналов, добавленных после 10 мая 2025 г., не нужно удалять \".\" из имён моделей при развёртывании",
     "For private deployments, format: https://fastgpt.run/api/openapi": "Для частных развертываний, формат: https://fastgpt.run/api/openapi",
     "Force a syntactically valid JSON response": "Принудительно возвращать синтаксически корректный JSON",
@@ -4520,6 +4520,18 @@
     "Zero retention": "Без хранения данных",
     "Zhipu": "Zhipu",
     "Zhipu V4": "Zhipu V4",
-    "Zoom": "Zoom"
+    "Zoom": "Zoom",
+    "Supported Endpoints": "Поддерживаемые эндпоинты",
+    "Leave empty to allow all endpoints.": "Оставьте пустым, чтобы разрешить все эндпоинты.",
+    "Select endpoint types": "Выберите типы эндпоинтов",
+    "OpenAI Responses": "OpenAI Responses",
+    "OpenAI Responses Compact": "OpenAI Responses Compact",
+    "Anthropic Messages": "Сообщения Anthropic",
+    "OpenAI (/v1/chat/completions)": "OpenAI (/v1/chat/completions)",
+    "OpenAI Responses (/v1/responses)": "OpenAI Responses (/v1/responses)",
+    "OpenAI Response Compaction (/v1/responses/compact)": "Сжатие OpenAI Responses (/v1/responses/compact)",
+    "Anthropic (/v1/messages)": "Anthropic (/v1/messages)",
+    "Gemini (/v1beta/models/{model}:generateContent)": "Gemini (/v1beta/models/{model}:generateContent)",
+    "Jina Rerank (/v1/rerank)": "Jina Rerank (/v1/rerank)"
   }
 }
