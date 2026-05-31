@@ -99,6 +99,59 @@ data: [DONE]
 	require.Equal(t, 12, parsed.TotalTokens)
 }
 
+func TestOpenaiHandlerBuffersResponsesStreamForNonStreamClient(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	info := &relaycommon.RelayInfo{
+		RelayMode:       relayconstant.RelayModeChatCompletions,
+		RelayFormat:     types.RelayFormatOpenAI,
+		OriginModelName: "gpt-test",
+		ChannelMeta: &relaycommon.ChannelMeta{
+			UpstreamModelName: "gpt-test",
+			ChannelType:       constant.ChannelTypeOpenAI,
+		},
+	}
+	resp := newChatCompletionSSE(http.StatusOK, `data: {"type":"response.created","response":{"id":"resp-test","created_at":123,"model":"gpt-test"}}
+
+data: {"type":"response.output_text.delta","delta":"po"}
+
+data: {"type":"response.output_text.delta","delta":"ng"}
+
+data: {"type":"response.completed","response":{"id":"resp-test","object":"response","created_at":123,"model":"gpt-test","output":[{"id":"msg-1","type":"message","status":"completed","role":"assistant","content":[{"type":"output_text","text":"pong"}]}],"usage":{"input_tokens":2,"output_tokens":1,"total_tokens":3}}}
+
+data: [DONE]
+`)
+
+	usage, newAPIError := OpenaiHandler(c, info, resp)
+
+	require.Nil(t, newAPIError)
+	require.Equal(t, http.StatusOK, recorder.Code)
+	require.Contains(t, recorder.Header().Get("Content-Type"), "application/json")
+	require.NotNil(t, usage)
+	require.Equal(t, 2, usage.PromptTokens)
+	require.Equal(t, 1, usage.CompletionTokens)
+	require.Equal(t, 3, usage.TotalTokens)
+	require.Equal(t, 2, usage.InputTokens)
+	require.Equal(t, 1, usage.OutputTokens)
+
+	var parsed dto.OpenAITextResponse
+	require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &parsed))
+	require.Equal(t, "resp-test", parsed.Id)
+	require.Equal(t, "chat.completion", parsed.Object)
+	require.Equal(t, "gpt-test", parsed.Model)
+	require.Len(t, parsed.Choices, 1)
+	require.Equal(t, "assistant", parsed.Choices[0].Message.Role)
+	require.Equal(t, "pong", parsed.Choices[0].Message.Content)
+	require.Equal(t, "stop", parsed.Choices[0].FinishReason)
+	require.Equal(t, 2, parsed.PromptTokens)
+	require.Equal(t, 1, parsed.CompletionTokens)
+	require.Equal(t, 3, parsed.TotalTokens)
+	require.Equal(t, 2, parsed.InputTokens)
+	require.Equal(t, 1, parsed.OutputTokens)
+}
+
 func newChatCompletionSSE(statusCode int, body string) *http.Response {
 	return &http.Response{
 		StatusCode: statusCode,
