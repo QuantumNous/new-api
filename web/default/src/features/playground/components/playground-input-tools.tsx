@@ -16,9 +16,11 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { GlobeIcon, PaperclipIcon } from 'lucide-react'
+import { GlobeIcon, PaperclipIcon, Trash2Icon } from 'lucide-react'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+import { ConfirmDialog } from '@/components/confirm-dialog'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -37,10 +39,17 @@ import {
 
 type PlaygroundInputToolsProps = {
   disabled?: boolean
+  hasMessages?: boolean
+  onClearMessages?: () => void
 }
 
-export function PlaygroundInputTools({ disabled }: PlaygroundInputToolsProps) {
+export function PlaygroundInputTools({
+  disabled,
+  hasMessages = false,
+  onClearMessages,
+}: PlaygroundInputToolsProps) {
   const { t } = useTranslation()
+  const [clearConfirmOpen, setClearConfirmOpen] = useState(false)
 
   const handleFileAction = (action: string) => {
     const notice = getAttachmentActionNotice(action)
@@ -54,45 +63,76 @@ export function PlaygroundInputTools({ disabled }: PlaygroundInputToolsProps) {
     toast.info(t(notice.title))
   }
 
-  return (
-    <PromptInputTools>
-      <DropdownMenu>
-        <DropdownMenuTrigger
-          render={
-            <PromptInputButton
-              className='border font-medium'
-              disabled={disabled}
-              variant='outline'
-            />
-          }
-        >
-          <PaperclipIcon size={16} />
-          <span className='hidden sm:inline'>{t('Attach')}</span>
-          <span className='sr-only sm:hidden'>{t('Attach')}</span>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align='start'>
-          {ATTACHMENT_ACTIONS.map(({ action, icon: Icon, label }) => (
-            <DropdownMenuItem
-              key={action}
-              onClick={() => handleFileAction(action)}
-            >
-              <Icon className='mr-2' size={16} />
-              {t(label)}
-            </DropdownMenuItem>
-          ))}
-        </DropdownMenuContent>
-      </DropdownMenu>
+  const handleClearMessages = () => {
+    onClearMessages?.()
+    setClearConfirmOpen(false)
+    toast.success(t('Conversation cleared'))
+  }
 
-      <PromptInputButton
-        className='border font-medium'
-        disabled={disabled}
-        onClick={handleSearchAction}
-        variant='outline'
-      >
-        <GlobeIcon size={16} />
-        <span className='hidden sm:inline'>{t('Search')}</span>
-        <span className='sr-only sm:hidden'>{t('Search')}</span>
-      </PromptInputButton>
-    </PromptInputTools>
+  return (
+    <>
+      <PromptInputTools>
+        <DropdownMenu>
+          <DropdownMenuTrigger
+            render={
+              <PromptInputButton
+                className='border font-medium'
+                disabled={disabled}
+                variant='outline'
+              />
+            }
+          >
+            <PaperclipIcon size={16} />
+            <span className='hidden sm:inline'>{t('Attach')}</span>
+            <span className='sr-only sm:hidden'>{t('Attach')}</span>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align='start'>
+            {ATTACHMENT_ACTIONS.map(({ action, icon: Icon, label }) => (
+              <DropdownMenuItem
+                key={action}
+                onClick={() => handleFileAction(action)}
+              >
+                <Icon className='mr-2' size={16} />
+                {t(label)}
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
+
+        <PromptInputButton
+          className='border font-medium'
+          disabled={disabled}
+          onClick={handleSearchAction}
+          variant='outline'
+        >
+          <GlobeIcon size={16} />
+          <span className='hidden sm:inline'>{t('Search')}</span>
+          <span className='sr-only sm:hidden'>{t('Search')}</span>
+        </PromptInputButton>
+
+        <PromptInputButton
+          className='border font-medium text-muted-foreground hover:text-destructive'
+          disabled={disabled || !hasMessages || !onClearMessages}
+          onClick={() => setClearConfirmOpen(true)}
+          variant='outline'
+        >
+          <Trash2Icon size={16} />
+          <span className='hidden sm:inline'>{t('Clear chat history')}</span>
+          <span className='sr-only sm:hidden'>{t('Clear chat history')}</span>
+        </PromptInputButton>
+      </PromptInputTools>
+
+      <ConfirmDialog
+        destructive
+        desc={t(
+          'All playground messages saved in this browser will be removed. This cannot be undone.'
+        )}
+        confirmText={t('Clear')}
+        handleConfirm={handleClearMessages}
+        open={clearConfirmOpen}
+        onOpenChange={setClearConfirmOpen}
+        title={t('Clear chat history?')}
+      />
+    </>
   )
 }
