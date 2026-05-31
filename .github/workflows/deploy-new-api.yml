@@ -57,13 +57,13 @@ jobs:
         uses: appleboy/ssh-action@v1.2.0
         env:
           IMAGE_REF: ${{ steps.image.outputs.sha }}
-          DEPLOY_DIR: ${{ secrets.NEW_API_DEPLOY_DIR || '/root/new-api' }}
+          DEPLOY_DIR: ${{ secrets.NEW_API_DEPLOY_DIR || '/home/elissias/docker-compose/new-api' }}
           GHCR_USER: ${{ github.actor }}
           GHCR_TOKEN: ${{ secrets.GHCR_TOKEN || github.token }}
         with:
           host: ${{ secrets.SSH_HOST }}
           port: ${{ secrets.SSH_PORT || '22' }}
-          username: ${{ secrets.SSH_USER || 'root' }}
+          username: ${{ secrets.SSH_USER || 'elissias' }}
           key: ${{ secrets.SSH_KEY }}
           envs: IMAGE_REF,DEPLOY_DIR,GHCR_USER,GHCR_TOKEN
           script: |

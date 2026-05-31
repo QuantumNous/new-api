@@ -5,8 +5,8 @@
 ## 首次部署
 
 ```bash
-mkdir -p /root/new-api
-cd /root/new-api
+mkdir -p /home/elissias/docker-compose/new-api
+cd /home/elissias/docker-compose/new-api
 cp /path/to/deploy/newapi/docker-compose.yml .
 cp /path/to/deploy/newapi/.env.example .env
 openssl rand -hex 32
@@ -22,7 +22,7 @@ curl -fsS http://127.0.0.1:3000/api/status
 
 ## GitHub Actions 部署
 
-`.github/workflows/deploy-new-api.yml` 会构建当前仓库镜像，推送到 GHCR，然后通过 SSH 更新远端 `/root/new-api` 的 `new-api` 容器。
+`.github/workflows/deploy-new-api.yml` 会构建当前仓库镜像，推送到 GHCR，然后通过 SSH 更新远端 `/home/elissias/docker-compose/new-api` 的 `new-api` 容器。
 
 仓库需要配置这些 GitHub Secrets：
 
@@ -30,9 +30,9 @@ curl -fsS http://127.0.0.1:3000/api/status
 | --- | --- |
 | `SSH_HOST` | 远端主机地址 |
 | `SSH_PORT` | SSH 端口，未设置时按 `22` |
-| `SSH_USER` | SSH 用户，未设置时按 `root` |
+| `SSH_USER` | SSH 用户，未设置时按 `elissias` |
 | `SSH_KEY` | SSH 私钥 |
-| `NEW_API_DEPLOY_DIR` | 部署目录，未设置时按 `/root/new-api` |
+| `NEW_API_DEPLOY_DIR` | 部署目录，未设置时按 `/home/elissias/docker-compose/new-api` |
 | `GHCR_TOKEN` | 可选。GHCR 包是私有时，填有 `read:packages` 权限的 token |
 
 如果 GHCR 镜像是公开的，`GHCR_TOKEN` 可以不填。
