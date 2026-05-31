@@ -263,6 +263,9 @@ func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 			}
 			return fmt.Sprintf("%s/api/v3/chat/completions", baseUrl), nil
 		case constant.RelayModeEmbeddings:
+			if IsMultimodalEmbeddingModel(info.UpstreamModelName) {
+				return fmt.Sprintf("%s/api/v3/embeddings/multimodal", baseUrl), nil
+			}
 			return fmt.Sprintf("%s/api/v3/embeddings", baseUrl), nil
 		//豆包的图生图也走generations接口: https://www.volcengine.com/docs/82379/1824121
 		case constant.RelayModeImagesGenerations, constant.RelayModeImagesEdits:
@@ -322,6 +325,9 @@ func (a *Adaptor) ConvertRerankRequest(c *gin.Context, relayMode int, request dt
 }
 
 func (a *Adaptor) ConvertEmbeddingRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.EmbeddingRequest) (any, error) {
+	if IsMultimodalEmbeddingModel(info.UpstreamModelName) {
+		return convertToMultimodalEmbeddingRequest(request)
+	}
 	return request, nil
 }
 
