@@ -395,6 +395,9 @@ export function RatioSettingsCard({
         const apiKey = apiKeyMap[key as string] || (key as string)
         await updateOption.mutateAsync({ key: apiKey, value: normalized[key] })
       }
+
+      // Update the baseline after successful save
+      modelNormalizedDefaults.current = normalized
     },
     [t, updateOption]
   )

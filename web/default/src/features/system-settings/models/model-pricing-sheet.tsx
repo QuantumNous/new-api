@@ -501,6 +501,7 @@ export function ModelPricingEditorPanel({
     form.setValue(field, value, {
       shouldDirty: true,
       shouldValidate: true,
+      shouldTouch: true,
     })
   }
 
