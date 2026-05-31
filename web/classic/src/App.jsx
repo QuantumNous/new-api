@@ -156,6 +156,14 @@ function App() {
           }
         />
         <Route
+          path='/playground'
+          element={
+            <PrivateRoute>
+              <Playground />
+            </PrivateRoute>
+          }
+        />
+        <Route
           path='/console/redemption'
           element={
             <AdminRoute>

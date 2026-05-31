@@ -205,7 +205,7 @@ const SiderBar = ({ onNavigate = () => {} }) => {
       {
         text: t('操练场'),
         itemKey: 'playground',
-        to: '/playground',
+        to: '/console/playground',
       },
       {
         text: t('聊天'),
