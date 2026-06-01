@@ -91,6 +91,21 @@ type MiniMaxBaseResp struct {
 	StatusMsg  string `json:"status_msg"`
 }
 
+type MiniMaxVoiceCloneResponse struct {
+	InputSensitive     bool            `json:"input_sensitive"`
+	InputSensitiveType int             `json:"input_sensitive_type"`
+	DemoAudio          string          `json:"demo_audio"`
+	ExtraInfo          struct {
+		AudioLength     int `json:"audio_length"`
+		AudioSampleRate int `json:"audio_sample_rate"`
+		AudioSize       int `json:"audio_size"`
+		Bitrate         int `json:"bitrate"`
+		WordCount       int `json:"word_count"`
+		UsageCharacters int `json:"usage_characters"` // 试听音频字符数
+	} `json:"extra_info"`
+	BaseResp MiniMaxBaseResp `json:"base_resp"`
+}
+
 func getContentTypeByFormat(format string) string {
 	contentTypeMap := map[string]string{
 		"mp3":  "audio/mpeg",
@@ -163,13 +178,70 @@ func handleTTSResponse(c *gin.Context, resp *http.Response, info *relaycommon.Re
 		c.Data(http.StatusOK, contentType, audioData)
 	}
 
+	promptTokens := info.GetEstimatePromptTokens()
+	audioTokens := int(minimaxResp.ExtraInfo.UsageCharacters)
 	usage = &dto.Usage{
-		PromptTokens:     info.GetEstimatePromptTokens(),
-		CompletionTokens: 0,
-		TotalTokens:      int(minimaxResp.ExtraInfo.UsageCharacters),
+		PromptTokens:     promptTokens,
+		CompletionTokens: audioTokens,
+		TotalTokens:      promptTokens + audioTokens,
+		PromptTokensDetails: dto.InputTokenDetails{
+			TextTokens: promptTokens,
+		},
+		CompletionTokenDetails: dto.OutputTokenDetails{
+			AudioTokens: audioTokens,
+		},
 	}
 
 	return usage, nil
+}
+
+func handleVoiceCloneResponse(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (usage any, err *types.NewAPIError) {
+	body, readErr := io.ReadAll(resp.Body)
+	if readErr != nil {
+		return nil, types.NewErrorWithStatusCode(
+			fmt.Errorf("failed to read minimax voice clone response: %w", readErr),
+			types.ErrorCodeReadResponseBodyFailed,
+			http.StatusInternalServerError,
+		)
+	}
+	defer resp.Body.Close()
+
+	var cloneResp MiniMaxVoiceCloneResponse
+	if unmarshalErr := json.Unmarshal(body, &cloneResp); unmarshalErr == nil && cloneResp.BaseResp.StatusCode != 0 {
+		return nil, types.NewErrorWithStatusCode(
+			fmt.Errorf("minimax voice clone error: %d - %s", cloneResp.BaseResp.StatusCode, cloneResp.BaseResp.StatusMsg),
+			types.ErrorCodeBadResponse,
+			http.StatusBadRequest,
+		)
+	}
+
+	c.Data(resp.StatusCode, "application/json", body)
+
+	// 计算使用量
+	// 1. 基础创建费用（按次）- 通过 model_price 配置
+	// 2. 试听音频字符数（当传入 text 时）- 通过 extra_info.usage_characters 计费
+	promptTokens := info.GetEstimatePromptTokens()
+	if promptTokens == 0 {
+		promptTokens = 1 // 至少计费1个token（创建操作）
+	}
+
+	// 如果有试听音频字符数（传入text时），计入completion tokens
+	completionTokens := 0
+	if cloneResp.ExtraInfo.UsageCharacters > 0 {
+		completionTokens = cloneResp.ExtraInfo.UsageCharacters
+	}
+
+	return &dto.Usage{
+		PromptTokens:     promptTokens,
+		CompletionTokens: completionTokens,
+		TotalTokens:      promptTokens + completionTokens,
+		PromptTokensDetails: dto.InputTokenDetails{
+			TextTokens: promptTokens,
+		},
+		CompletionTokenDetails: dto.OutputTokenDetails{
+			AudioTokens: completionTokens,
+		},
+	}, nil
 }
 
 func handleChatCompletionResponse(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (usage any, err *types.NewAPIError) {

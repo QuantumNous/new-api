@@ -269,6 +269,8 @@ export default function UpstreamRatioSync(props) {
     'image_ratio',
     'audio_ratio',
     'audio_completion_ratio',
+    'voice_clone_unlock_ratio',
+    'video_resolution_ratio',
   ];
 
   const numericSyncFields = new Set([...ratioSyncFields, 'model_price']);
@@ -288,6 +290,8 @@ export default function UpstreamRatioSync(props) {
       image_ratio: t('图片倍率'),
       audio_ratio: t('音频倍率'),
       audio_completion_ratio: t('音频补全倍率'),
+      voice_clone_unlock_ratio: t('音色克隆解锁价格'),
+      video_resolution_ratio: t('视频分辨率倍率'),
       model_price: t('固定价格'),
       billing_mode: t('计费模式'),
       billing_expr: t('表达式计费'),
@@ -433,6 +437,12 @@ export default function UpstreamRatioSync(props) {
       AudioCompletionRatio: JSON.parse(
         props.options.AudioCompletionRatio || '{}',
       ),
+      VoiceCloneUnlockRatio: JSON.parse(
+        props.options.VoiceCloneUnlockRatio || '{}',
+      ),
+      VideoResolutionRatio: JSON.parse(
+        props.options.VideoResolutionRatio || '{}',
+      ),
       ModelPrice: JSON.parse(props.options.ModelPrice || '{}'),
       'billing_setting.billing_mode': JSON.parse(
         props.options['billing_setting.billing_mode'] || '{}',
@@ -453,7 +463,9 @@ export default function UpstreamRatioSync(props) {
         currentRatios.CreateCacheRatio[model] !== undefined ||
         currentRatios.ImageRatio[model] !== undefined ||
         currentRatios.AudioRatio[model] !== undefined ||
-        currentRatios.AudioCompletionRatio[model] !== undefined
+        currentRatios.AudioCompletionRatio[model] !== undefined ||
+        currentRatios.VoiceCloneUnlockRatio[model] !== undefined ||
+        currentRatios.VideoResolutionRatio[model] !== undefined
       )
         return 'ratio';
       return null;
@@ -525,6 +537,8 @@ export default function UpstreamRatioSync(props) {
         ImageRatio: { ...currentRatios.ImageRatio },
         AudioRatio: { ...currentRatios.AudioRatio },
         AudioCompletionRatio: { ...currentRatios.AudioCompletionRatio },
+        VoiceCloneUnlockRatio: { ...currentRatios.VoiceCloneUnlockRatio },
+        VideoResolutionRatio: { ...currentRatios.VideoResolutionRatio },
         ModelPrice: { ...currentRatios.ModelPrice },
         'billing_setting.billing_mode': {
           ...currentRatios['billing_setting.billing_mode'],
@@ -549,6 +563,8 @@ export default function UpstreamRatioSync(props) {
           delete finalRatios.ImageRatio[model];
           delete finalRatios.AudioRatio[model];
           delete finalRatios.AudioCompletionRatio[model];
+          delete finalRatios.VoiceCloneUnlockRatio[model];
+          delete finalRatios.VideoResolutionRatio[model];
         }
         if (hasRatio) {
           delete finalRatios.ModelPrice[model];
@@ -687,6 +703,12 @@ export default function UpstreamRatioSync(props) {
               <Select.Option value='audio_ratio'>{t('音频倍率')}</Select.Option>
               <Select.Option value='audio_completion_ratio'>
                 {t('音频补全倍率')}
+              </Select.Option>
+              <Select.Option value='voice_clone_unlock_ratio'>
+                {t('音色克隆解锁价格')}
+              </Select.Option>
+              <Select.Option value='video_resolution_ratio'>
+                {t('视频分辨率倍率')}
               </Select.Option>
               <Select.Option value='model_price'>{t('固定价格')}</Select.Option>
               <Select.Option value='billing_expr'>
@@ -1093,6 +1115,12 @@ export default function UpstreamRatioSync(props) {
             AudioRatio: JSON.parse(props.options.AudioRatio || '{}'),
             AudioCompletionRatio: JSON.parse(
               props.options.AudioCompletionRatio || '{}',
+            ),
+            VoiceCloneUnlockRatio: JSON.parse(
+              props.options.VoiceCloneUnlockRatio || '{}',
+            ),
+            VideoResolutionRatio: JSON.parse(
+              props.options.VideoResolutionRatio || '{}',
             ),
             ModelPrice: JSON.parse(props.options.ModelPrice || '{}'),
             'billing_setting.billing_mode': JSON.parse(

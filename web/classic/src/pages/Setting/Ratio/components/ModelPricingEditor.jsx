@@ -123,6 +123,7 @@ export default function ModelPricingEditor({
     isOptionalFieldEnabled,
     handleOptionalFieldToggle,
     handleNumericFieldChange,
+    handleJsonFieldChange,
     handleBillingModeChange,
     handleBillingExprChange,
     handleRequestRuleExprChange,
@@ -694,6 +695,86 @@ export default function ModelPricingEditor({
                               : ''
                         }
                       />
+                      <PriceInput
+                        label={t('音色克隆解锁价格')}
+                        value={selectedModel.voiceCloneUnlockPrice}
+                        placeholder={t('输入每次解锁价格')}
+                        suffix={t('$/次')}
+                        onChange={(value) =>
+                          handleNumericFieldChange('voiceCloneUnlockPrice', value)
+                        }
+                        headerAction={
+                          <Switch
+                            size='small'
+                            checked={isOptionalFieldEnabled(
+                              selectedModel,
+                              'voiceCloneUnlockPrice',
+                            )}
+                            onChange={(checked) =>
+                              handleOptionalFieldToggle(
+                                'voiceCloneUnlockPrice',
+                                checked,
+                              )
+                            }
+                          />
+                        }
+                        hidden={
+                          !isOptionalFieldEnabled(
+                            selectedModel,
+                            'voiceCloneUnlockPrice',
+                          )
+                        }
+                        extraText={
+                          !isOptionalFieldEnabled(
+                            selectedModel,
+                            'voiceCloneUnlockPrice',
+                          )
+                            ? t('当前未启用，需要时再打开即可。')
+                            : t('复刻音色首次使用或解锁时收取的固定费用。')
+                        }
+                      />
+                      <div style={{ marginBottom: 16 }}>
+                        <div className='mb-1 font-medium text-gray-700 flex items-center justify-between gap-3'>
+                          <span>{t('视频分辨率倍率')}</span>
+                          <Switch
+                            size='small'
+                            checked={isOptionalFieldEnabled(
+                              selectedModel,
+                              'videoResolutionRatio',
+                            )}
+                            onChange={(checked) =>
+                              handleOptionalFieldToggle(
+                                'videoResolutionRatio',
+                                checked,
+                              )
+                            }
+                          />
+                        </div>
+                        {isOptionalFieldEnabled(
+                          selectedModel,
+                          'videoResolutionRatio',
+                        ) ? (
+                          <Input
+                            value={selectedModel.videoResolutionRatio}
+                            placeholder={t(
+                              '为一个 JSON 文本，键为分辨率名，值为倍率',
+                            )}
+                            onChange={(value) =>
+                              handleJsonFieldChange('videoResolutionRatio', value)
+                            }
+                          />
+                        ) : null}
+                        <div className='mt-1 text-xs text-gray-500'>
+                          {!isOptionalFieldEnabled(
+                            selectedModel,
+                            'videoResolutionRatio',
+                          )
+                            ? t('当前未启用，需要时再打开即可。')
+                            : t(
+                                '不同视频分辨率的倍率设置。格式如 {"480P": 1, "720P": 2}。',
+                              )}
+                        </div>
+                      </div>
                     </Card>
                   </>
                 )}
