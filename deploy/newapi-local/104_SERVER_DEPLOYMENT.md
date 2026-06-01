@@ -1,67 +1,132 @@
-# 104 机器部署与扩展手册
+# 104 机器部署与运维手册
 
-本文是针对 `104.225.153.184` 这台机器的专用部署文档。
+本文记录 `104.xx.xx.xx` 当前线上环境的真实状态，以及后续更新 `deploy-dev` 时的安全操作方式。
 
-目标：
+本文基于 `2026-06-01` 的实机检查结果整理，并作为当前 104 发版的本地唯一准入文档。
 
-- 明确这台机器当前到底是怎么部署的
-- 说明以后如何安全更新 `deploy-dev`
-- 说明如何启用 Redis
-- 说明以后如何从单机扩展到多机
+## 0. 文档与脚本入口
 
-本文基于 `2026-04-23` 的实机检查结果编写。
+这个目录现在建议分两层使用：
 
-## 1. 当前线上实际状态
+- [deploy/newapi-local/README.md](./README.md)
+  - 日常操作入口
+  - 优先告诉你下一步该跑什么命令
+- [deploy/newapi-local/104_SERVER_DEPLOYMENT.md](./104_SERVER_DEPLOYMENT.md)
+  - 完整背景手册
+  - 记录线上真实结构、风险点、验收与恢复方式
 
-### 1.1 正在运行的容器
+日常发布优先使用统一脚本入口：
 
-当前这台机器实际运行的是下面 5 个容器：
+```bash
+REMOTE_HOST='104.xx.xx.xx' ./deploy/newapi-local/release.sh help
+```
 
+使用提醒：
+
+- `REMOTE_HOST` 需要显式传入
+- 其他环境变量不要直接按本地脚本默认值假定，先上机器核对当前实际部署目录、远端用户名、临时目录和校验方式，再决定是否覆盖
+- 只有在远端用户名、部署目录、临时目录、备份目录或本地校验端口需要覆盖默认行为时，才需要额外设置
+
+推荐对应关系：
+
+- 一键半自动发版：`REMOTE_HOST='104.xx.xx.xx' ./deploy/newapi-local/release.sh release`
+- 日常发版：`./deploy/newapi-local/release.sh build` / `./deploy/newapi-local/release.sh verify-image` / `REMOTE_HOST='104.xx.xx.xx' ./deploy/newapi-local/release.sh upload` / `REMOTE_HOST='104.xx.xx.xx' ./deploy/newapi-local/release.sh deploy`
+- 备份环境变量：`REMOTE_HOST='104.xx.xx.xx' ./deploy/newapi-local/release.sh backup-env`
+- 查看线上状态：`REMOTE_HOST='104.xx.xx.xx' ./deploy/newapi-local/release.sh status`
+- 应用级回滚：`REMOTE_HOST='104.xx.xx.xx' ./deploy/newapi-local/release.sh rollback <tag>`
+
+只有在下面这些场景，才需要回到本文逐段排查：
+
+- `502`
+- Docker network / alias 异常
+- `seedance-compat` 无法转发
+- PostgreSQL 或 Redis 连通性异常
+- 需要数据库级恢复
+
+## 1. 当前线上真实状态
+
+### 1.1 当前运行中的相关容器
+
+当前机器上与这套 `new-api` 生产服务直接相关的容器是：
+
+- `new-api`
 - `new-api-gateway`
-- `new-api-local`
 - `seedance-compat-local`
 - `new-api-postgres`
-- `new-api-metadata`
+- `new-api-redis`
 
-对应职责：
+当前 `new-api-metadata` 没有在运行。
 
-- `new-api-gateway`
-  - 对外监听宿主机 `3000`
-  - 负责把普通请求转发给 `new-api`
-  - 负责把 Seedance 原生任务请求转发给 `seedance-compat`
-- `new-api-local`
+各自职责：
+
+- `new-api`
   - 真正运行 `new-api`
+  - 当前镜像：`new-api:deploy-dev-2533abdc3`
   - 只在 Docker 网络内暴露 `3000`
+- `new-api-gateway`
+  - 对外入口
+  - 监听宿主机 `3000`
+  - 普通请求转发到 `new-api:3000`
+  - Seedance 原生任务请求转发到 `seedance-compat:3001`
 - `seedance-compat-local`
   - 提供 Seedance 原生兼容层
   - 只在 Docker 网络内暴露 `3001`
 - `new-api-postgres`
-  - 当前内部 PostgreSQL
-- `new-api-metadata`
-  - 对外监听宿主机 `8088`
-  - 提供本地 metadata 静态文件
+  - 业务 PostgreSQL
+- `new-api-redis`
+  - 业务 Redis
 
-### 1.2 当前 compose 真实位置
+### 1.2 当前 compose 接管状态
 
-这台机器不是从 `/root/new-api` 直接起服务。
+当前 104 上的应用发布入口已经统一为：
 
-实际 compose 信息如下：
+- compose 工作目录：`./deploy/newapi-local/`
+- compose 文件：`./deploy/newapi-local/docker-compose.postgres.yml`
+- env 文件：`./deploy/newapi-local/.env.postgres`
+
+当前普通业务发布、回滚、验收都只认这一套入口。
+
+这里说的是 `new-api` 应用容器的发布入口，不代表 `new-api-postgres` 也已经迁移到这套 compose 标签之下。
+
+但 `new-api-postgres` 实机标签仍然显示为旧入口接管：
 
 - compose 工作目录：`/root/sub2api/deploy/newapi-local`
 - compose 文件：`/root/sub2api/deploy/newapi-local/docker-compose.postgres.yml`
-- env 文件：`/root/sub2api/deploy/newapi-local/.env.postgres`
-- `new-api` 构建上下文：`/root/sub2api/.tmp-new-api`
 
-这意味着：
+已明确废弃、不要再用：
 
-- `/root/new-api` 是 Git 仓库
-- 但线上运行服务的代码来源是 `/root/sub2api/.tmp-new-api`
-- 更新线上服务时，不能只在 `/root/new-api` 里 `git pull`
-- 还必须把代码同步到 `/root/sub2api/.tmp-new-api`
+- `/root/new-api/deploy/newapi-local/docker-compose.yml`
+- `/root/new-api/docker-compose.yml`
+- `/root/sub2api/deploy/newapi-local/docker-compose.postgres.yml`
 
-### 1.3 当前关键环境变量
+结论：
 
-当前 `new-api-local` 容器里实际有这些关键配置：
+- 当前应用侧发布应以 `/root/new-api/deploy/newapi-local` 为准
+- 当前普通发布只更新 `new-api`
+- 当前 `postgres` 仍保留旧 compose 标签，不要因为这点去重建它
+- 当前不要去重建或迁移 `postgres`
+- 当前不要把“整理部署结构”和“普通业务发布”放在同一个窗口里做
+
+### 1.3 当前关键挂载路径
+
+当前 `new-api` 容器挂载：
+
+- `/root/new-api/deploy/newapi-local/data -> /data`
+- `/root/new-api/deploy/newapi-local/logs -> /app/logs`
+
+当前 `new-api-gateway` 容器挂载：
+
+- `/root/new-api/deploy/newapi-local/gateway/nginx.conf -> /etc/nginx/nginx.conf`
+
+当前 `new-api-postgres` 容器挂载：
+
+- Docker volume：`newapi-local_newapi_pg_data`
+- 宿主机落点：`/var/lib/docker/volumes/newapi-local_newapi_pg_data/_data`
+- 容器内数据目录：`/var/lib/postgresql/data`
+
+### 1.4 当前关键环境变量
+
+当前 `new-api` 容器中已经显式配置：
 
 ```env
 TZ=Asia/Shanghai
@@ -69,19 +134,37 @@ ERROR_LOG_ENABLED=true
 MEMORY_CACHE_ENABLED=true
 SYNC_UPSTREAM_BASE=http://metadata
 SQL_DSN=postgresql://newapi:<password>@postgres:5432/newapi?sslmode=disable
+REDIS_CONN_STRING=redis://:<password>@redis:6379/0
+CRYPTO_SECRET=<configured>
+SESSION_SECRET=<configured>
+NODE_NAME=104-node-1
+GLOBAL_API_RATE_LIMIT_ENABLE=false
 ```
 
-当前没有：
+结论：
 
-- `REDIS_CONN_STRING`
-- `CRYPTO_SECRET`
-- `SESSION_SECRET`
+- Redis 已启用
+- `CRYPTO_SECRET` 已配置
+- `SESSION_SECRET` 已配置
+- `GLOBAL_API_RATE_LIMIT_ENABLE=false`
+- 当前已经具备共享缓存和会话的一致性基础
 
-所以当前状态是：
+### 1.5 当前网络与服务发现
 
-- 已启用单机内存缓存
-- 未启用 Redis
-- 当前更适合单机运行，不适合直接横向扩容
+当前相关容器都在 Docker 网络 `newapi-local_default` 中。
+
+当前关键别名：
+
+- `new-api` 容器带 alias：`new-api`
+- `seedance-compat-local` 容器带 alias：`seedance-compat`
+- `new-api-redis` 容器带 alias：`redis`
+- `new-api-postgres` 容器带 alias：`postgres`
+
+这意味着：
+
+- `gateway` 和 `seedance-compat` 依赖的是服务 DNS 名 `new-api`
+- `new-api` 依赖的是服务 DNS 名 `postgres` 和 `redis`
+- 普通发布时可以替换应用容器，但必须保留 `new-api` 这个网络可解析名字
 
 ## 2. 当前流量路径
 
@@ -89,52 +172,44 @@ SQL_DSN=postgresql://newapi:<password>@postgres:5432/newapi?sslmode=disable
 
 ```text
 client
-  -> http://104.225.153.184:3000
+  -> http://104.xx.xx.xx:3000
   -> new-api-gateway
-     -> /api/v3/contents/generations/tasks*  -> seedance-compat-local:3001
-     -> all other paths                      -> new-api-local:3000
+     -> /api/v3/contents/generations/tasks*  -> seedance-compat:3001
+     -> all other paths                      -> new-api:3000
 
-new-api-local
-  -> new-api-postgres:5432
-  -> new-api-metadata:80
+new-api
+  -> postgres:5432
+  -> redis:6379
 ```
 
-### 2.1 当前端口
+说明：
 
-- `3000/tcp`
-  - 对外入口
-  - 由 `new-api-gateway` 占用
-- `8088/tcp`
-  - metadata 对外地址
-  - 由 `new-api-metadata` 占用
+- 公网 `3000` 当前正常
+- `8088` 对应的 metadata 服务当前未运行，不要把它当作当前健康检查前提
 
-### 2.2 当前数据目录
+## 3. 当前推荐运维原则
 
-当前 `new-api-local` 实际挂载的是：
+对这台机器，当前建议遵守下面这些规则：
 
-- `/root/sub2api/deploy/newapi-local/data -> /data`
-- `/root/sub2api/deploy/newapi-local/logs -> /app/logs`
-
-所以如果你要备份业务数据，优先看这两个目录和 PostgreSQL 卷。
-
-## 3. 推荐运维原则
-
-对这台机器，建议遵守这几个原则：
-
-- 不要直接手改正在运行的容器
-- 一律以 compose 文件为准
-- 更新代码时，同时更新 `/root/new-api` 和 `/root/sub2api/.tmp-new-api`
-- 不要在本次业务更新时顺手大改部署结构
-- 如果要做多机扩展，先把 Redis 和统一会话密钥补上
+- 普通业务发布只更新 `new-api`
+- 不要在普通发布时顺手重建 `gateway`
+- 不要在普通发布时重建 `postgres`
+- 不要在普通发布时重建 `redis`
+- 不要在没有明确需要时重建 `seedance-compat`
+- 不要执行 `docker compose down -v`
+- 不要删除 PostgreSQL 卷
+- 不要把 `/root/sub2api` 那套旧结构当作当前应用发布入口
+- 不要再使用 `/root/new-api/docker-compose.yml`
+- 不要再使用 `/root/new-api/deploy/newapi-local/docker-compose.yml`
 
 ## 4. 更新前备份
 
-每次更新前建议至少做下面这些备份。
+每次更新前至少做下面这些备份。
 
 ### 4.1 备份 compose 与环境文件
 
 ```bash
-cd /root/sub2api/deploy/newapi-local
+cd /root/new-api/deploy/newapi-local
 cp docker-compose.postgres.yml docker-compose.postgres.yml.bak-$(date +%F-%H%M%S)
 cp .env.postgres .env.postgres.bak-$(date +%F-%H%M%S)
 cp gateway/nginx.conf gateway/nginx.conf.bak-$(date +%F-%H%M%S)
@@ -142,86 +217,101 @@ cp gateway/nginx.conf gateway/nginx.conf.bak-$(date +%F-%H%M%S)
 
 ### 4.2 备份 PostgreSQL
 
-推荐先导出 SQL：
-
 ```bash
 docker exec -t new-api-postgres pg_dump -U newapi -d newapi > /root/newapi-pg-backup-$(date +%F-%H%M%S).sql
 ```
 
-如果你还想备份卷：
+如需在备份前再确认当前卷没有看错，可以顺手执行：
 
 ```bash
-docker inspect new-api-postgres
-docker volume ls | grep newapi_pg_data
+docker inspect new-api-postgres --format '{{json .Mounts}}'
+docker volume inspect newapi-local_newapi_pg_data
 ```
 
 ### 4.3 备份 data / logs
 
 ```bash
-cd /root/sub2api/deploy/newapi-local
+cd /root/new-api/deploy/newapi-local
 tar -czf /root/newapi-files-backup-$(date +%F-%H%M%S).tar.gz data logs
 ```
 
-## 5. 当前单机部署的标准更新流程
+## 5. 当前标准发布流程
 
-这是以后更新 `deploy-dev` 最稳的方式。
+这是当前 104 机器最稳的 `deploy-dev` 发布方式。
 
-### 5.1 拉取最新代码
+### 5.1 本地或跳板机构建镜像
 
-```bash
-cd /root/new-api
-git fetch origin
-git checkout deploy-dev
-git pull --ff-only origin deploy-dev
-```
-
-### 5.2 同步到实际构建目录
-
-当前线上真正构建使用的是 `/root/sub2api/.tmp-new-api`。
-
-所以要把仓库同步过去：
+推荐在本地构建镜像，再上传服务器：
 
 ```bash
-rsync -a --delete \
-  --exclude '.git' \
-  --exclude 'web/node_modules' \
-  /root/new-api/ /root/sub2api/.tmp-new-api/
+docker build -t new-api:deploy-dev-<commit> .
 ```
 
-### 5.3 在部署目录重建服务
+如果这次动了前端，发布前至少验证：
+
+- `/`
+- `/logo.png`
+- `/favicon.ico`
+- `/api/status`
+
+### 5.2 上传镜像并在远端加载
 
 ```bash
-cd /root/sub2api/deploy/newapi-local
-docker compose -f docker-compose.postgres.yml up -d --build new-api seedance-compat gateway
-docker compose -f docker-compose.postgres.yml ps
+docker save -o new-api-deploy-dev-<commit>.tar new-api:deploy-dev-<commit>
+scp new-api-deploy-dev-<commit>.tar root@<masked-104-host>:/root/
+ssh root@<masked-104-host> "docker load -i /root/new-api-deploy-dev-<commit>.tar"
 ```
 
-### 5.4 查看状态
+### 5.3 只重建应用容器
+
+关键原则：
+
+- 只更新 `new-api`
+- 不动 `gateway`
+- 不动 `postgres`
+- 不动 `redis`
+- 不动 `seedance-compat`
+
+命令模板：
 
 ```bash
-docker ps --format 'table {{.Names}}\t{{.Image}}\t{{.Status}}\t{{.Ports}}'
-docker logs --tail=100 new-api-local
-docker logs --tail=100 seedance-compat-local
-docker logs --tail=100 new-api-gateway
+cd /root/new-api/deploy/newapi-local
+docker compose --env-file .env.postgres -f docker-compose.postgres.yml up -d --no-deps new-api
 ```
 
-## 6. 当前版本对应的建议更新顺序
+如需切换到某个已经加载到远端的镜像标签，先确认 `docker-compose.postgres.yml` 里的 `new-api` 服务 `image:` 指向目标标签，再执行上面的 `up -d --no-deps new-api`。
 
-对你现在这台机器，建议每次按下面顺序更新：
+这也是当前 104 的最小发布命令。
 
-1. 只更新 `new-api-local`
-2. 观察 `api/status` 与后台页面
-3. 再更新 `seedance-compat-local`
-4. 最后确认 `gateway` 路由是否需要同步
+### 5.4 发布后快速观察
 
-如果这次只是普通业务更新，而 `gateway/nginx.conf` 没变化，通常不需要重建 `metadata` 和 `postgres`。
-
-最小更新命令：
+容器起来后，先不要急着继续别的操作，至少先看一眼状态和最近日志：
 
 ```bash
-cd /root/sub2api/deploy/newapi-local
-docker compose -f docker-compose.postgres.yml up -d --build new-api seedance-compat
+docker ps --format 'table {{.Names}}\t{{.Image}}\t{{.Status}}\t{{.Ports}}' | grep -E 'new-api$|new-api-gateway|seedance-compat-local|new-api-postgres|new-api-redis'
+docker logs --tail=50 new-api
+docker logs --tail=50 new-api-gateway
 ```
+
+## 6. 当前应用容器命名约定
+
+当前应用容器名已经是：
+
+- `new-api`
+
+不是：
+
+- `new-api-local`
+
+但是 compose 服务名仍然是：
+
+- `new-api`
+
+网络 alias 也必须保留：
+
+- `new-api`
+
+这样可以保证 `gateway` 和 `seedance-compat` 的 upstream 解析不变。
 
 ## 7. 更新后验收
 
@@ -229,355 +319,70 @@ docker compose -f docker-compose.postgres.yml up -d --build new-api seedance-com
 
 ```bash
 curl -fsS http://127.0.0.1:3000/api/status
-curl -fsS http://127.0.0.1:8088/api/newapi/models.json | head
+curl -fsS http://<masked-104-host>:3000/api/status
 ```
 
-### 7.2 容器健康检查
+### 7.2 容器状态检查
 
 ```bash
-docker compose -f /root/sub2api/deploy/newapi-local/docker-compose.postgres.yml ps
+docker ps --format 'table {{.Names}}\t{{.Image}}\t{{.Status}}\t{{.Ports}}' | grep -E 'new-api$|new-api-gateway|seedance-compat-local|new-api-postgres|new-api-redis'
+docker inspect new-api --format 'STATUS={{.State.Status}} HEALTH={{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}} IMAGE={{.Config.Image}}'
 ```
 
-应看到：
+至少应确认：
 
-- `new-api-local` healthy
-- `seedance-compat-local` healthy
-- `new-api-postgres` healthy
-- `new-api-gateway` healthy
+- `new-api` 为 `Up`，并且健康检查为 `healthy` 或容器状态正常
+- `new-api-gateway` 为 `Up`
+- `seedance-compat-local` 为 `Up`
+- `new-api-postgres` 为 `Up` 且 `healthy`
+- `new-api-redis` 为 `Up`
 
-### 7.3 Seedance 原生接口检查
+### 7.3 日志检查
 
 ```bash
-cd /root/sub2api/.tmp-new-api
+docker logs --tail=100 new-api
+docker logs --tail=100 new-api-gateway
+```
+
+### 7.4 Seedance 原生接口检查
+
+```bash
+cd /root/new-api
 curl -sS http://127.0.0.1:3000/api/v3/contents/generations/tasks \
   -H "Authorization: Bearer <your-token>" \
   -H "Content-Type: application/json" \
   --data @deploy/newapi-local/seedance-compat-smoke.json
 ```
 
-### 7.4 OpenAI Video 接口检查
+### 7.5 OpenAI Video 接口检查
 
 ```bash
-cd /root/sub2api/.tmp-new-api
+cd /root/new-api
 curl -sS http://127.0.0.1:3000/v1/videos \
   -H "Authorization: Bearer <your-token>" \
   -H "Content-Type: application/json" \
   --data @deploy/newapi-local/remote-seedance-smoke.json
 ```
 
-## 8. 如果要开启 Redis
+## 8. 当前文档边界
 
-当前机器没有 Redis，但可以开启，而且建议为以后多机扩展提前铺好。
+本文只描述当前 104 机器的真实生产状态。
 
-### 8.1 为什么建议开启
+下面这些内容当前不应混在普通发布流程里：
 
-开启 Redis 后，主要收益是：
+- 把 `postgres` 从 `/root/sub2api` 迁移到 `/root/new-api`
+- 恢复或重建 metadata 服务
+- 把整套部署重新收敛成单目录统一接管
+- 多机扩容和数据库迁移
 
-- 某些热数据缓存不再只依赖单机内存
-- 多实例时可以共享缓存
-- 某些依赖 Redis 的缓存能力可以恢复
-- 以后做多机扩容时不需要再补一次大改
+如果后续要做这些结构整理，应该单独开维护窗口，并在完成后重新更新本文。
 
-### 8.2 需要增加的关键配置
+## 9. 一眼判断有没有走错入口
 
-`new-api` 至少要增加：
+如果你准备在 104 上动手，先检查下面三点：
 
-```env
-REDIS_CONN_STRING=redis://:your_password@redis:6379/0
-CRYPTO_SECRET=<very-strong-random-secret>
-SESSION_SECRET=<very-strong-random-secret>
-```
+- 当前目录是不是 `/root/new-api/deploy/newapi-local`
+- 当前 compose 文件是不是 `docker-compose.postgres.yml`
+- 当前要动的是不是只有 `new-api` 服务
 
-说明：
-
-- `REDIS_CONN_STRING`
-  - 指定 Redis 连接串
-- `CRYPTO_SECRET`
-  - 使用共享 Redis 时强烈建议显式设置
-  - 多机必须一致
-- `SESSION_SECRET`
-  - 多机必须一致
-  - 单机也建议提前设置，避免以后切多机时忘了补
-
-### 8.3 在当前 compose 中新增 Redis
-
-可以直接在 `/root/sub2api/deploy/newapi-local/docker-compose.postgres.yml` 里增加：
-
-```yaml
-  redis:
-    image: redis:7-alpine
-    container_name: new-api-redis
-    restart: unless-stopped
-    command: ["redis-server", "--requirepass", "${NEWAPI_REDIS_PASSWORD}"]
-    healthcheck:
-      test: ["CMD", "redis-cli", "-a", "${NEWAPI_REDIS_PASSWORD}", "ping"]
-      interval: 10s
-      timeout: 5s
-      retries: 10
-```
-
-然后在 `new-api` 的 `environment` 里加：
-
-```yaml
-      REDIS_CONN_STRING: "redis://:${NEWAPI_REDIS_PASSWORD}@redis:6379/0"
-      CRYPTO_SECRET: "${NEWAPI_CRYPTO_SECRET}"
-      SESSION_SECRET: "${NEWAPI_SESSION_SECRET}"
-```
-
-再把 `depends_on` 补成：
-
-```yaml
-    depends_on:
-      postgres:
-        condition: service_healthy
-      metadata:
-        condition: service_started
-      redis:
-        condition: service_healthy
-```
-
-### 8.4 `.env.postgres` 建议增加
-
-```env
-NEWAPI_POSTGRES_DB=newapi
-NEWAPI_POSTGRES_USER=newapi
-NEWAPI_POSTGRES_PASSWORD=<postgres-password>
-
-NEWAPI_REDIS_PASSWORD=<redis-password>
-NEWAPI_CRYPTO_SECRET=<long-random-secret>
-NEWAPI_SESSION_SECRET=<long-random-secret>
-```
-
-### 8.5 启用命令
-
-```bash
-cd /root/sub2api/deploy/newapi-local
-docker compose -f docker-compose.postgres.yml up -d redis new-api
-docker compose -f docker-compose.postgres.yml ps
-docker logs --tail=100 new-api-local
-```
-
-如果日志里看到 Redis connected，说明启用成功。
-
-## 9. 104 机器未来的推荐目标结构
-
-如果这台机器未来还要继续长期用，建议逐步演进成下面结构：
-
-- `gateway`
-- `new-api`
-- `seedance-compat`
-- `postgres`
-- `redis`
-- `metadata`
-
-即：
-
-```text
-client
-  -> gateway
-     -> new-api
-     -> seedance-compat
-
-new-api
-  -> postgres
-  -> redis
-  -> metadata
-```
-
-这是最适合单机继续向多机演进的结构。
-
-## 10. 多机扩展前必须先满足的条件
-
-如果以后打算扩成两台或更多台 `new-api`，先把下面这些前置项补齐：
-
-### 10.1 必须使用共享 PostgreSQL
-
-多机时，所有节点必须连同一个 PostgreSQL。
-
-### 10.2 必须使用共享 Redis
-
-多机时，不建议每台机器各用自己的本地 Redis。
-
-必须使用：
-
-- 同一个 Redis 实例
-- 同一个 `CRYPTO_SECRET`
-- 同一个 `SESSION_SECRET`
-
-### 10.3 反向代理要切成外部统一入口
-
-当前 `new-api-gateway` 是单机容器。
-
-多机时更建议：
-
-- 用外部 Nginx
-- 或云负载均衡
-- 或 Traefik / HAProxy
-
-统一把流量分到多个 `new-api` 节点。
-
-### 10.4 metadata 建议独立
-
-多机时，metadata 最好不要每台都对外暴露一个 `8088`。
-
-更推荐：
-
-- 只保留一个 metadata 服务
-- 或直接使用稳定的统一 metadata 地址
-- 所有节点统一配置 `SYNC_UPSTREAM_BASE`
-
-## 11. 多机扩展方案 A：保守方案
-
-这是最稳的多机方式。
-
-架构：
-
-- 1 个外部 Nginx / 负载均衡
-- 2 个或更多 `new-api` 节点
-- 1 个共享 PostgreSQL
-- 1 个共享 Redis
-- 可选 1 个共享 metadata
-
-示意：
-
-```text
-client
-  -> lb.example.com
-     -> new-api-node-1
-     -> new-api-node-2
-
-new-api-node-1 -> shared postgres
-new-api-node-1 -> shared redis
-new-api-node-2 -> shared postgres
-new-api-node-2 -> shared redis
-```
-
-这种方案的特点：
-
-- 稳
-- 最容易理解
-- 运维边界清晰
-- 回滚简单
-
-建议多机统一配置：
-
-```env
-SESSION_SECRET=<same-on-all-nodes>
-CRYPTO_SECRET=<same-on-all-nodes>
-SQL_DSN=postgresql://<shared-pg>
-REDIS_CONN_STRING=redis://:<password>@<shared-redis>:6379/0
-MEMORY_CACHE_ENABLED=true
-NODE_NAME=new-api-node-1
-```
-
-第二台机器只改：
-
-```env
-NODE_NAME=new-api-node-2
-```
-
-## 12. 多机扩展方案 B：保留 Seedance 兼容层
-
-如果多机后仍要支持：
-
-- `/api/v3/contents/generations/tasks`
-- `/api/v3/contents/generations/tasks/{task_id}`
-
-那兼容层也要一起纳入负载均衡设计。
-
-建议做法：
-
-- 每个应用节点各带一个本机 `seedance-compat`
-- 外部统一网关按路径转发
-
-即：
-
-```text
-client
-  -> external gateway
-     -> /api/v3/contents/generations/tasks* -> seedance-compat nodes
-     -> all other paths                     -> new-api nodes
-```
-
-这样最清晰，也最好排查问题。
-
-## 13. 多机扩展时不建议的做法
-
-下面这些做法不建议：
-
-- 每个节点各自连自己的 PostgreSQL
-- 每个节点各自连自己的 Redis
-- 多机了还不设置 `SESSION_SECRET`
-- 多机了还不设置 `CRYPTO_SECRET`
-- 继续把单机容器 `new-api-gateway` 当作唯一入口
-
-这些做法会导致：
-
-- 登录态不一致
-- 缓存行为不一致
-- 密文解密异常
-- 排障困难
-
-## 14. 推荐的多机演进顺序
-
-建议按这个顺序逐步扩展：
-
-1. 先把当前单机补上 Redis
-2. 补 `SESSION_SECRET`
-3. 补 `CRYPTO_SECRET`
-4. 把 metadata 改成统一来源
-5. 再上第二台 `new-api`
-6. 最后把入口切到外部负载均衡
-
-这个顺序最稳。
-
-## 15. 回滚方案
-
-如果更新失败，按下面顺序回滚：
-
-### 15.1 回滚代码
-
-```bash
-cd /root/new-api
-git log --oneline -n 10
-git checkout <old-commit-or-branch>
-
-rsync -a --delete \
-  --exclude '.git' \
-  --exclude 'web/node_modules' \
-  /root/new-api/ /root/sub2api/.tmp-new-api/
-```
-
-### 15.2 重建旧版本容器
-
-```bash
-cd /root/sub2api/deploy/newapi-local
-docker compose -f docker-compose.postgres.yml up -d --build new-api seedance-compat gateway
-```
-
-### 15.3 必要时恢复数据库
-
-如果只是代码问题，优先不要动数据库。
-
-只有发生明确数据损坏或迁移异常时，才考虑恢复 SQL 备份。
-
-## 16. 推荐的长期整理方向
-
-当前最大的问题不是功能，而是部署目录分裂：
-
-- Git 仓库在 `/root/new-api`
-- 实际运行构建在 `/root/sub2api/.tmp-new-api`
-- compose 在 `/root/sub2api/deploy/newapi-local`
-
-长期建议整理成一个统一结构，例如：
-
-- `/root/new-api` 既是 Git 仓库
-- 也是唯一构建上下文
-- compose 也从这个仓库目录启动
-
-这样以后更新时就不需要：
-
-- 一份代码拉 Git
-- 再额外 rsync 到另一份目录
-
-但这属于部署结构重构，不建议和业务更新在同一个维护窗口一起做。
+只要其中任意一点不满足，就先停下来，说明很可能又走到了旧入口。

@@ -44,6 +44,10 @@ services:
     command: --log-dir /app/logs
     expose:
       - "3000"
+    networks:
+      default:
+        aliases:
+          - new-api
     environment:
       TZ: Asia/Shanghai
       ERROR_LOG_ENABLED: "true"

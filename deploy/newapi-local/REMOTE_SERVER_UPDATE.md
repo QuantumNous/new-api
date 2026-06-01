@@ -86,14 +86,14 @@ new-api
 至少需要同步这部分：
 
 - 最新的 `deploy-dev` 代码
-- [deploy/newapi-local/seedance-compat](/mnt/c/Users/shaoq/go/src/new-api/deploy/newapi-local/seedance-compat)
-- [deploy/newapi-local/gateway/nginx.conf](/mnt/c/Users/shaoq/go/src/new-api/deploy/newapi-local/gateway/nginx.conf)
-- [deploy/newapi-local/seedance-compat-smoke.json](/mnt/c/Users/shaoq/go/src/new-api/deploy/newapi-local/seedance-compat-smoke.json)
-- [deploy/newapi-local/remote-seedance-smoke.json](/mnt/c/Users/shaoq/go/src/new-api/deploy/newapi-local/remote-seedance-smoke.json)
+- [deploy/newapi-local/seedance-compat](./seedance-compat)
+- [deploy/newapi-local/gateway/nginx.conf](./gateway/nginx.conf)
+- [deploy/newapi-local/seedance-compat-smoke.json](./seedance-compat-smoke.json)
+- [deploy/newapi-local/remote-seedance-smoke.json](./remote-seedance-smoke.json)
 
 如果你也想本地托管模型元数据，再额外同步：
 
-- [deploy/newapi-local/metadata](/mnt/c/Users/shaoq/go/src/new-api/deploy/newapi-local/metadata)
+- [deploy/newapi-local/metadata](./metadata)
 
 ## 5. 服务端更新步骤
 
@@ -231,7 +231,7 @@ location / {
 - `seedance-compat:3001` 改成实际内网地址
 - `new-api:3000` 改成实际内网地址
 
-参考配置来源见 [deploy/newapi-local/gateway/nginx.conf](/mnt/c/Users/shaoq/go/src/new-api/deploy/newapi-local/gateway/nginx.conf)。
+参考配置来源见 [deploy/newapi-local/gateway/nginx.conf](./gateway/nginx.conf)。
 
 ## 8. 实际更新命令示例
 
