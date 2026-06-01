@@ -46,8 +46,18 @@ func maybeMarkClaudeRefusal(c *gin.Context, stopReason string) {
 
 func RequestOpenAI2ClaudeMessage(c *gin.Context, textRequest dto.GeneralOpenAIRequest) (*dto.ClaudeRequest, error) {
 	claudeTools := make([]any, 0, len(textRequest.Tools))
+	hasWebSearchTool := false
 
 	for _, tool := range textRequest.Tools {
+		if isClaudeWebSearchTool(tool) {
+			claudeTools = append(claudeTools, &dto.ClaudeWebSearchTool{
+				Type: "web_search_20250305",
+				Name: "web_search",
+			})
+			hasWebSearchTool = true
+			continue
+		}
+
 		if params, ok := tool.Function.Parameters.(map[string]any); ok {
 			claudeTool := dto.Tool{
 				Name:        tool.Function.Name,
@@ -71,7 +81,7 @@ func RequestOpenAI2ClaudeMessage(c *gin.Context, textRequest dto.GeneralOpenAIRe
 
 	// Web search tool
 	// https://docs.anthropic.com/en/docs/agents-and-tools/tool-use/web-search-tool
-	if textRequest.WebSearchOptions != nil {
+	if textRequest.WebSearchOptions != nil && !hasWebSearchTool {
 		webSearchTool := dto.ClaudeWebSearchTool{
 			Type: "web_search_20250305",
 			Name: "web_search",
@@ -436,6 +446,15 @@ func RequestOpenAI2ClaudeMessage(c *gin.Context, textRequest dto.GeneralOpenAIRe
 	claudeRequest.Prompt = ""
 	claudeRequest.Messages = claudeMessages
 	return &claudeRequest, nil
+}
+
+func isClaudeWebSearchTool(tool dto.ToolCallRequest) bool {
+	switch strings.TrimSpace(tool.Type) {
+	case "web_search", "web_search_20250305", dto.BuildInToolWebSearchPreview:
+		return true
+	default:
+		return strings.HasPrefix(strings.TrimSpace(tool.Type), "web_search_preview")
+	}
 }
 
 func StreamResponseClaude2OpenAI(claudeResponse *dto.ClaudeResponse) *dto.ChatCompletionsStreamResponse {
