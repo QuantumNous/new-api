@@ -45,12 +45,17 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Separator } from '@/components/ui/separator'
-import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
+import { SettingsSwitchField } from '../../components/settings-form-layout'
 import { RULE_TEMPLATES } from './constants'
 import type { AffinityRule, KeySource } from './types'
 
-const KEY_SOURCE_TYPES = ['context_int', 'context_string', 'gjson'] as const
+const KEY_SOURCE_TYPES = [
+  'context_int',
+  'context_string',
+  'request_header',
+  'gjson',
+] as const
 
 const CONTEXT_KEY_PRESETS = [
   'id',
@@ -259,13 +264,11 @@ export function RuleEditorDialog(props: Props) {
             </div>
           </div>
 
-          <div className='flex items-center gap-2'>
-            <Switch
-              checked={form.watch('skip_retry_on_failure')}
-              onCheckedChange={(v) => form.setValue('skip_retry_on_failure', v)}
-            />
-            <Label>{t('Skip retry on failure')}</Label>
-          </div>
+          <SettingsSwitchField
+            checked={form.watch('skip_retry_on_failure')}
+            onCheckedChange={(v) => form.setValue('skip_retry_on_failure', v)}
+            label={t('Skip retry on failure')}
+          />
 
           <Separator />
 
@@ -410,34 +413,29 @@ export function RuleEditorDialog(props: Props) {
                 />
               </div>
 
-              <div className='grid grid-cols-3 gap-3'>
-                <div className='flex items-center gap-2'>
-                  <Switch
-                    checked={form.watch('include_using_group')}
-                    onCheckedChange={(v) =>
-                      form.setValue('include_using_group', v)
-                    }
-                  />
-                  <Label className='text-xs'>{t('Include Group')}</Label>
-                </div>
-                <div className='flex items-center gap-2'>
-                  <Switch
-                    checked={form.watch('include_model_name')}
-                    onCheckedChange={(v) =>
-                      form.setValue('include_model_name', v)
-                    }
-                  />
-                  <Label className='text-xs'>{t('Include Model')}</Label>
-                </div>
-                <div className='flex items-center gap-2'>
-                  <Switch
-                    checked={form.watch('include_rule_name')}
-                    onCheckedChange={(v) =>
-                      form.setValue('include_rule_name', v)
-                    }
-                  />
-                  <Label className='text-xs'>{t('Include Rule Name')}</Label>
-                </div>
+              <div className='grid gap-3 sm:grid-cols-3'>
+                <SettingsSwitchField
+                  checked={form.watch('include_using_group')}
+                  onCheckedChange={(v) =>
+                    form.setValue('include_using_group', v)
+                  }
+                  label={t('Include Group')}
+                  className='border-b-0 py-0'
+                />
+                <SettingsSwitchField
+                  checked={form.watch('include_model_name')}
+                  onCheckedChange={(v) =>
+                    form.setValue('include_model_name', v)
+                  }
+                  label={t('Include Model')}
+                  className='border-b-0 py-0'
+                />
+                <SettingsSwitchField
+                  checked={form.watch('include_rule_name')}
+                  onCheckedChange={(v) => form.setValue('include_rule_name', v)}
+                  label={t('Include Rule Name')}
+                  className='border-b-0 py-0'
+                />
               </div>
             </CollapsibleContent>
           </Collapsible>

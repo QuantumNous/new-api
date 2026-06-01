@@ -41,18 +41,22 @@ import {
   getStatisticsTokenOptions,
   getStatisticsModelOptions,
 } from '../../api'
-import type { ModelStatistics, TrendPoint } from '../../types'
+import type {
+  GetLogStatisticsParams,
+  ModelStatistics,
+  TrendPoint,
+} from '../../types'
 
-function useDebouncedCallback<T extends (...args: unknown[]) => void>(
-  callback: T,
+function useDebouncedCallback<TArgs extends unknown[]>(
+  callback: (...args: TArgs) => void | Promise<void>,
   delay: number
-): T {
-  const timerRef = useRef<ReturnType<typeof setTimeout>>()
+): (...args: TArgs) => void {
+  const timerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   return useCallback(
-    ((...args: unknown[]) => {
+    (...args: TArgs) => {
       clearTimeout(timerRef.current)
       timerRef.current = setTimeout(() => callback(...args), delay)
-    }) as T,
+    },
     [callback, delay]
   )
 }
@@ -164,22 +168,18 @@ export function StatisticsSheet({ open, onOpenChange }: StatisticsSheetProps) {
     return () => clearTimeout(timer)
   }, [username, tokenName])
 
-  const buildParams = useCallback(() => {
+  const buildParams = useCallback((): GetLogStatisticsParams | null => {
     if (!username.trim()) return null
-    const params: Record<string, string> = {
+    const params: GetLogStatisticsParams = {
       username: username.trim(),
     }
     if (tokenName.trim()) params.token_name = tokenName.trim()
     if (modelName.trim()) params.model_name = modelName.trim()
     if (startTime) {
-      params.start_timestamp = String(
-        Math.floor(new Date(startTime).getTime() / 1000)
-      )
+      params.start_timestamp = Math.floor(new Date(startTime).getTime() / 1000)
     }
     if (endTime) {
-      params.end_timestamp = String(
-        Math.floor(new Date(endTime).getTime() / 1000)
-      )
+      params.end_timestamp = Math.floor(new Date(endTime).getTime() / 1000)
     }
     return params
   }, [username, tokenName, modelName, startTime, endTime])

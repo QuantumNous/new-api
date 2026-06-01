@@ -61,6 +61,8 @@ require (
 	gorm.io/gorm v1.25.2
 )
 
+require github.com/waffo-com/waffo-pancake-sdk-go v0.3.1
+
 require (
 	github.com/richardlehane/mscfb v1.0.6 // indirect
 	github.com/richardlehane/msoleps v1.0.6 // indirect
