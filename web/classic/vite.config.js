@@ -31,25 +31,15 @@ export default defineConfig(({ command }) => ({
       '@': path.resolve(__dirname, './src'),
     },
   },
+  esbuild: {
+    loader: 'jsx',
+    include: /src\/.*\.[tj]sx?$/,
+    exclude: [],
+  },
   plugins: [
     command === 'serve' && codeInspectorPlugin({
       bundler: 'vite',
     }),
-    {
-      name: 'treat-js-files-as-jsx',
-      async transform(code, id) {
-        if (!/src\/.*\.js$/.test(id)) {
-          return null;
-        }
-
-        // Use the exposed transform from vite, instead of directly
-        // transforming with esbuild
-        return transformWithEsbuild(code, id, {
-          loader: 'jsx',
-          jsx: 'automatic',
-        });
-      },
-    },
     react(),
     vitePluginSemi({
       cssLayer: true,
