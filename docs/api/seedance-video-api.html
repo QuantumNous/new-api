@@ -114,9 +114,8 @@
       <li><a href="#poll">5. 查询任务状态</a></li>
       <li><a href="#download">6. 获取视频</a></li>
       <li><a href="#status">7. 状态值</a></li>
-      <li><a href="#billing">8. 计费</a></li>
-      <li><a href="#errors">9. 错误</a></li>
-      <li><a href="#example">10. 完整示例</a></li>
+      <li><a href="#errors">8. 错误</a></li>
+      <li><a href="#example">9. 完整示例</a></li>
     </ul>
   </div>
 
@@ -240,7 +239,7 @@
   "status": "failed",
   "error": { "message": "..." }
 }</code></pre>
-  <div class="callout info"><p>失败时不计费(已预扣的额度会退回)。</p></div>
+  <div class="callout info"><p>任务失败不计费。</p></div>
 
   <h2 id="download">6. 获取视频</h2>
   <p><span class="method get">GET</span><span class="path">{BASE}/v1/videos/{task_id}/content</span> · <span class="pill">匿名</span></p>
@@ -261,25 +260,17 @@ curl -L "{BASE}/v1/videos/task_3f9a...e2/content" -o output.mp4
     <tr><td><span class="pill s-fail">failed</span></td><td>失败,详情在 <code>error.message</code>;已退款</td></tr>
   </table>
 
-  <h2 id="billing">8. 计费</h2>
-  <p>按次计费:</p>
-  <ul>
-    <li>提交任务时按模型价格<strong>全额预扣</strong>额度。</li>
-    <li>任务 <code>completed</code> → 保留扣费。</li>
-    <li>任务 <code>failed</code> / 超时 / 查不到 → <strong>退还</strong>预扣额度。</li>
-  </ul>
-
-  <h2 id="errors">9. 错误</h2>
+  <h2 id="errors">8. 错误</h2>
   <p>任务级失败体现在查询响应的 <code>error</code> 字段(见第 5 节)。请求/提交阶段的错误走标准错误体:</p>
   <pre><code>{ "error": { "message": "...", "type": "...", "code": "..." } }</code></pre>
   <table>
     <tr><th>典型场景</th><th>说明</th></tr>
     <tr><td>缺少 <code>prompt</code></td><td>提交被拒,<code>prompt</code> 必填</td></tr>
-    <tr><td>额度不足</td><td>预扣失败,任务不会创建</td></tr>
+    <tr><td>额度不足</td><td>任务不会创建</td></tr>
     <tr><td>上游暂时不可用</td><td><code>code: bad_response_status_code</code> 等,通常可稍后重试</td></tr>
   </table>
 
-  <h2 id="example">10. 完整示例(创建 → 轮询 → 下载)</h2>
+  <h2 id="example">9. 完整示例(创建 → 轮询 → 下载)</h2>
   <pre><code>#!/usr/bin/env bash
 BASE="https://your-api-host"
 TOKEN="sk-xxxxxxxxxxxxxxxx"
