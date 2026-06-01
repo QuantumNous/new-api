@@ -13,7 +13,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/setting"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/text/encoding/simplifiedchinese"
@@ -154,105 +153,20 @@ func TestSignAlipayContentAcceptsRawBase64PKCS1PrivateKey(t *testing.T) {
 	require.NotEmpty(t, signature)
 }
 
-func TestBuildAlipayPayURLIncludesEncryptTypeAndEncryptedBizContent(t *testing.T) {
-	privateKeyPEM, _ := mustGenerateAlipayTestKeys(t)
-
-	urlStr, err := BuildAlipayPayURL(
-		"https://openapi-sandbox.dl.alipaydev.com/gateway.do",
-		"2026000000000000",
-		privateKeyPEM,
-		"alipay.trade.page.pay",
-		AlipayPagePayRequest{
-			OutTradeNo:     "trade_123",
-			TotalAmount:    "10.00",
-			Subject:        "Topup 10",
-			ReturnURL:      "https://example.com/return",
-			NotifyURL:      "https://example.com/notify",
-			TimeoutExpress: "30m",
-			ProductCode:    "FAST_INSTANT_TRADE_PAY",
-		},
-		"uFQhRDg6uwtoEHB1jPG1ww==",
-	)
-	require.NoError(t, err)
-
-	parsed, err := url.Parse(urlStr)
-	require.NoError(t, err)
-	values := parsed.Query()
-	require.Equal(t, "AES", values.Get("encrypt_type"))
-	require.NotEmpty(t, values.Get("biz_content"))
-	require.NotContains(t, values.Get("biz_content"), `"out_trade_no":"trade_123"`)
-
-	plainText, err := DecryptAlipayEncryptedText(values.Get("biz_content"), "uFQhRDg6uwtoEHB1jPG1ww==")
-	require.NoError(t, err)
-
-	var bizContent map[string]string
-	require.NoError(t, common.UnmarshalJsonStr(plainText, &bizContent))
-	require.Equal(t, "trade_123", bizContent["out_trade_no"])
-	require.Equal(t, "10.00", bizContent["total_amount"])
-}
-
-func TestParseAlipayTradeQueryResponseDecryptsEncryptedResponseNode(t *testing.T) {
-	privateKeyPEM, publicKeyPEM := mustGenerateAlipayTestKeys(t)
-
-	responseNode := `{"code":"10000","msg":"Success","out_trade_no":"ali_ref_123","trade_status":"TRADE_SUCCESS"}`
-	encryptedNode, err := EncryptAlipayPlainText(responseNode, "uFQhRDg6uwtoEHB1jPG1ww==")
-	require.NoError(t, err)
-
-	quotedNodeBytes, err := common.Marshal(encryptedNode)
-	require.NoError(t, err)
-	signature, err := SignAlipayContent(string(quotedNodeBytes), privateKeyPEM)
-	require.NoError(t, err)
-
-	body := []byte(`{"alipay_trade_query_response":` + string(quotedNodeBytes) + `,"sign":"` + signature + `"}`)
-	response, err := ParseAlipayTradeQueryResponse(body, signature, publicKeyPEM, "uFQhRDg6uwtoEHB1jPG1ww==")
-	require.NoError(t, err)
-	require.Equal(t, "10000", response.Code)
-	require.Equal(t, "ali_ref_123", response.OutTradeNo)
-	require.Equal(t, "TRADE_SUCCESS", response.TradeStatus)
-}
-
-func TestParseAlipayTradeQueryResponseDecodesGBKSubMsgFromEncryptedPayload(t *testing.T) {
+func TestQueryAlipayTradeIncludesSubCodeAndDecodedSubMsg(t *testing.T) {
 	privateKeyPEM, publicKeyPEM := mustGenerateAlipayTestKeys(t)
 
 	gbkSubMsg, err := simplifiedchinese.GBK.NewEncoder().String("交易还不存在")
 	require.NoError(t, err)
-	responseNode := `{"code":"40004","msg":"Business Failed","sub_code":"ACQ.TRADE_NOT_EXIST","sub_msg":"` + gbkSubMsg + `"}`
-	encryptedNode, err := EncryptAlipayPlainText(responseNode, "uFQhRDg6uwtoEHB1jPG1ww==")
-	require.NoError(t, err)
-
-	quotedNodeBytes, err := common.Marshal(encryptedNode)
-	require.NoError(t, err)
-	signature, err := SignAlipayContent(string(quotedNodeBytes), privateKeyPEM)
-	require.NoError(t, err)
-
-	body := []byte(`{"alipay_trade_query_response":` + string(quotedNodeBytes) + `,"sign":"` + signature + `"}`)
-	response, err := ParseAlipayTradeQueryResponse(body, signature, publicKeyPEM, "uFQhRDg6uwtoEHB1jPG1ww==")
-	require.NoError(t, err)
-	require.Equal(t, "40004", response.Code)
-	require.Equal(t, "ACQ.TRADE_NOT_EXIST", response.SubCode)
-	require.Equal(t, "交易还不存在", response.SubMsg)
-}
-
-func TestQueryAlipayTradeWithEncryptKeyIncludesSubCodeAndDecodedSubMsg(t *testing.T) {
-	privateKeyPEM, publicKeyPEM := mustGenerateAlipayTestKeys(t)
-
-	gbkSubMsg, err := simplifiedchinese.GBK.NewEncoder().String("交易还不存在")
-	require.NoError(t, err)
-	responseNode := `{"code":"40004","msg":"Business Failed","sub_code":"ACQ.TRADE_NOT_EXIST","sub_msg":"` + gbkSubMsg + `","out_trade_no":"ali_ref_123"}`
-	encryptedNode, err := EncryptAlipayPlainText(responseNode, "uFQhRDg6uwtoEHB1jPG1ww==")
-	require.NoError(t, err)
-
-	quotedNodeBytes, err := common.Marshal(encryptedNode)
-	require.NoError(t, err)
-	signature, err := SignAlipayContent(string(quotedNodeBytes), privateKeyPEM)
+	queryNode := `{"code":"40004","msg":"Business Failed","sub_code":"ACQ.TRADE_NOT_EXIST","sub_msg":"` + gbkSubMsg + `","out_trade_no":"ali_ref_123"}`
+	signature, err := SignAlipayContent(queryNode, privateKeyPEM)
 	require.NoError(t, err)
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		require.NoError(t, r.ParseForm())
-		require.Equal(t, "AES", r.PostForm.Get("encrypt_type"))
 		require.Equal(t, "alipay.trade.query", r.PostForm.Get("method"))
 		w.Header().Set("Content-Type", "text/html;charset=GBK")
-		_, writeErr := w.Write([]byte(`{"alipay_trade_query_response":` + string(quotedNodeBytes) + `,"sign":"` + signature + `"}`))
+		_, writeErr := w.Write([]byte(`{"alipay_trade_query_response":` + queryNode + `,"sign":"` + signature + `"}`))
 		require.NoError(t, writeErr)
 	}))
 	defer server.Close()
@@ -263,7 +177,7 @@ func TestQueryAlipayTradeWithEncryptKeyIncludesSubCodeAndDecodedSubMsg(t *testin
 		setting.AlipayPublicKey = originalPublicKey
 	}()
 
-	_, err = QueryAlipayTradeWithEncryptKey(t.Context(), server.URL, "2026000000000000", privateKeyPEM, "ali_ref_123", "uFQhRDg6uwtoEHB1jPG1ww==")
+	_, err = QueryAlipayTrade(t.Context(), server.URL, "2026000000000000", privateKeyPEM, "ali_ref_123")
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "40004")
 	require.Contains(t, err.Error(), "ACQ.TRADE_NOT_EXIST")
@@ -279,7 +193,7 @@ func TestParseAlipayTradeQueryResponseUsesBodySignWhenSignatureEmpty(t *testing.
 	require.NoError(t, err)
 
 	body := []byte(`{"alipay_trade_query_response":` + responseNode + `,"sign":"` + signature + `"}`)
-	response, err := ParseAlipayTradeQueryResponse(body, "", publicKeyPEM, "")
+	response, err := ParseAlipayTradeQueryResponse(body, "", publicKeyPEM)
 	require.NoError(t, err)
 	require.Equal(t, "10000", response.Code)
 	require.Equal(t, "ali_ref_body_sign", response.OutTradeNo)
@@ -303,7 +217,6 @@ func TestBuildAlipayPayURLDesktopIncludesExpectedFields(t *testing.T) {
 			TimeoutExpress: "30m",
 			ProductCode:    "FAST_INSTANT_TRADE_PAY",
 		},
-		"",
 	)
 	require.NoError(t, err)
 
@@ -316,35 +229,7 @@ func TestBuildAlipayPayURLDesktopIncludesExpectedFields(t *testing.T) {
 	require.Empty(t, values.Get("encrypt_type"))
 }
 
-func TestBuildAlipayPayURLWithEncryptKeySetsAESEncryption(t *testing.T) {
-	privateKeyPEM, _ := mustGenerateAlipayTestKeys(t)
-	const testAlipayEncryptKey = "uFQhRDg6uwtoEHB1jPG1ww=="
-
-	payURL, err := BuildAlipayPayURL(
-		"https://openapi-sandbox.dl.alipaydev.com/gateway.do",
-		testAlipayAppID,
-		privateKeyPEM,
-		"alipay.trade.page.pay",
-		AlipayPagePayRequest{
-			OutTradeNo:     "ali_ref_test_aes",
-			TotalAmount:    "0.01",
-			Subject:        "Topup AES",
-			ReturnURL:      "https://example.com/return",
-			NotifyURL:      "https://example.com/notify",
-			TimeoutExpress: "15m",
-			ProductCode:    "FAST_INSTANT_TRADE_PAY",
-		},
-		testAlipayEncryptKey,
-	)
-	require.NoError(t, err)
-
-	values := mustParseURLValues(t, payURL)
-	require.Equal(t, "AES", values.Get("encrypt_type"))
-	require.NotEmpty(t, values.Get("biz_content"))
-	require.NotContains(t, values.Get("biz_content"), `"out_trade_no"`)
-}
-
-func TestQueryAlipayTradeWithEncryptKeyMapsSDKResponse(t *testing.T) {
+func TestQueryAlipayTradeMapsSDKResponse(t *testing.T) {
 	privateKeyPEM, publicKeyPEM := mustGenerateAlipayTestKeys(t)
 
 	queryNode := `{"code":"10000","msg":"Success","out_trade_no":"ali_ref_test_query","trade_no":"2026052900000000","trade_status":"WAIT_BUYER_PAY"}`
@@ -365,7 +250,7 @@ func TestQueryAlipayTradeWithEncryptKeyMapsSDKResponse(t *testing.T) {
 		setting.AlipayPublicKey = originalPublicKey
 	}()
 
-	result, err := QueryAlipayTradeWithEncryptKey(t.Context(), server.URL, testAlipayAppID, privateKeyPEM, "ali_ref_test_query", "")
+	result, err := QueryAlipayTrade(t.Context(), server.URL, testAlipayAppID, privateKeyPEM, "ali_ref_test_query")
 	require.NoError(t, err)
 	require.Equal(t, "10000", result.Code)
 	require.Equal(t, "Success", result.Msg)
@@ -374,7 +259,7 @@ func TestQueryAlipayTradeWithEncryptKeyMapsSDKResponse(t *testing.T) {
 	require.Equal(t, "WAIT_BUYER_PAY", result.TradeStatus)
 }
 
-func TestQueryAlipayTradeWithEncryptKeyFormatsSDKError(t *testing.T) {
+func TestQueryAlipayTradeFormatsSDKError(t *testing.T) {
 	privateKeyPEM, publicKeyPEM := mustGenerateAlipayTestKeys(t)
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -391,7 +276,7 @@ func TestQueryAlipayTradeWithEncryptKeyFormatsSDKError(t *testing.T) {
 		setting.AlipayPublicKey = originalPublicKey
 	}()
 
-	_, err := QueryAlipayTradeWithEncryptKey(t.Context(), server.URL, testAlipayAppID, privateKeyPEM, "ali_ref_test_query", "")
+	_, err := QueryAlipayTrade(t.Context(), server.URL, testAlipayAppID, privateKeyPEM, "ali_ref_test_query")
 	require.Error(t, err)
 	require.Equal(t, "40004 | ACQ.TRADE_NOT_EXIST | 交易不存在", err.Error())
 }

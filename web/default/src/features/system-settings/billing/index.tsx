@@ -82,7 +82,6 @@ const defaultBillingSettings: BillingSettings = {
   AlipayAppID: '',
   AlipayPrivateKey: '',
   AlipayPublicKey: '',
-  AlipayEncryptKey: '',
   AlipayGateway: 'https://openapi.alipay.com/gateway.do',
   AlipayNotifyURL: '',
   AlipayReturnURL: '',

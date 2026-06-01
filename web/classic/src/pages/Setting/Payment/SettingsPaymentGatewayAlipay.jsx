@@ -29,7 +29,6 @@ import { useTranslation } from 'react-i18next';
 import { BookOpen, TriangleAlert } from 'lucide-react';
 import {
   buildAlipayPendingOrdersWarning,
-  buildClearAlipayEncryptKeyOption,
   buildClearAlipayKeyWarning,
   buildClearAlipayOption,
   shouldWarnBeforeClearingAlipayKey,
@@ -57,7 +56,6 @@ export default function SettingsPaymentGatewayAlipay(props) {
     AlipayAppID: '',
     AlipayPrivateKey: '',
     AlipayPublicKey: '',
-    AlipayEncryptKey: '',
     AlipayGateway: '',
     AlipayNotifyURL: '',
     AlipayReturnURL: '',
@@ -75,7 +73,6 @@ export default function SettingsPaymentGatewayAlipay(props) {
         AlipayAppID: props.options.AlipayAppID || '',
         AlipayPrivateKey: props.options.AlipayPrivateKey || '',
         AlipayPublicKey: props.options.AlipayPublicKey || '',
-        AlipayEncryptKey: props.options.AlipayEncryptKey || '',
         AlipayGateway: props.options.AlipayGateway || '',
         AlipayNotifyURL: props.options.AlipayNotifyURL || '',
         AlipayReturnURL: props.options.AlipayReturnURL || '',
@@ -90,29 +87,6 @@ export default function SettingsPaymentGatewayAlipay(props) {
 
   const handleFormChange = (values) => {
     setInputs(values);
-  };
-
-  const handleClearEncryptKey = async () => {
-    setLoading(true);
-    try {
-      const res = await API.put('/api/option/', buildClearAlipayEncryptKeyOption());
-      if (!res.data.success) {
-        showError(res.data.message || t('清空失败，请重试'));
-        return;
-      }
-      const nextInputs = {
-        ...inputs,
-        AlipayEncryptKey: '',
-      };
-      setInputs(nextInputs);
-      formApiRef.current?.setValue('AlipayEncryptKey', '');
-      showSuccess(t('AES 密钥已清空，当前已关闭接口内容加密'));
-      props.refresh?.();
-    } catch (error) {
-      showError(t('清空失败，请重试'));
-    } finally {
-      setLoading(false);
-    }
   };
 
   const handleClearOption = async (key, field, label) => {
@@ -174,10 +148,6 @@ export default function SettingsPaymentGatewayAlipay(props) {
       if (inputs.AlipayPublicKey && inputs.AlipayPublicKey !== '') {
         options.push({ key: 'AlipayPublicKey', value: inputs.AlipayPublicKey });
       }
-      if (inputs.AlipayEncryptKey && inputs.AlipayEncryptKey !== '') {
-        options.push({ key: 'AlipayEncryptKey', value: inputs.AlipayEncryptKey });
-      }
-
       const requestQueue = options.map((opt) =>
         API.put('/api/option/', {
           key: opt.key,
@@ -329,43 +299,6 @@ export default function SettingsPaymentGatewayAlipay(props) {
                 label={t('同步返回地址')}
                 placeholder={t('例如：https://your-domain.com/topup')}
               />
-            </Col>
-          </Row>
-          <Row
-            gutter={{ xs: 8, sm: 16, md: 24, lg: 24, xl: 24, xxl: 24 }}
-            style={{ marginTop: 16 }}
-          >
-            <Col xs={24} sm={24} md={18} lg={18} xl={18}>
-              <Form.Input
-                field='AlipayEncryptKey'
-                label={t('AES 密钥')}
-                placeholder={t('请输入支付宝接口内容加密 AES 密钥，留空表示保持当前不变')}
-              />
-            </Col>
-            <Col
-              xs={24}
-              sm={24}
-              md={6}
-              lg={6}
-              xl={6}
-              style={{ display: 'flex', alignItems: 'flex-end' }}
-            >
-              <Popconfirm
-                title={t('确认清空 AES 密钥？')}
-                content={
-                  pendingOrderCount > 0
-                    ? t(
-                        '当前仍有 {{count}} 笔支付宝待处理订单。清空 AES 密钥会影响这些历史订单的查单解密和补单，请确认后再继续。',
-                        { count: pendingOrderCount },
-                      )
-                    : t('清空后将关闭支付宝接口内容加密（AES）。')
-                }
-                onConfirm={handleClearEncryptKey}
-              >
-                <Button type='danger' theme='light'>
-                  {t('清空 AES 密钥')}
-                </Button>
-              </Popconfirm>
             </Col>
           </Row>
           <Row

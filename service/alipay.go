@@ -1,11 +1,8 @@
 package service
 
 import (
-	"bytes"
 	"context"
 	"crypto"
-	"crypto/aes"
-	"crypto/cipher"
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/sha256"
@@ -242,8 +239,6 @@ func (e *AlipayTradeQueryError) Error() string {
 	return BuildAlipayTradeQueryErrorMessage(e.Response)
 }
 
-var alipayEncryptIV = make([]byte, aes.BlockSize)
-
 func DefaultAlipayTimeoutExpress() string {
 	return "30m"
 }
@@ -278,7 +273,7 @@ func FormatAlipayAmount(amount float64) string {
 	return strconv.FormatFloat(amount, 'f', 2, 64)
 }
 
-func newAlipayClient(gateway string, appID string, privateKeyPEM string, publicKeyPEM string, encryptKey string) (*alipay.Client, error) {
+func newAlipayClient(gateway string, appID string, privateKeyPEM string, publicKeyPEM string) (*alipay.Client, error) {
 	if strings.TrimSpace(appID) == "" {
 		return nil, errors.New("missing alipay app id")
 	}
@@ -308,11 +303,6 @@ func newAlipayClient(gateway string, appID string, privateKeyPEM string, publicK
 			return nil, err
 		}
 	}
-	if strings.TrimSpace(encryptKey) != "" {
-		if err := client.SetEncryptKey(strings.TrimSpace(encryptKey)); err != nil {
-			return nil, err
-		}
-	}
 	return client, nil
 }
 
@@ -327,7 +317,7 @@ func normalizeAlipayPayMethod(method string) (string, error) {
 	}
 }
 
-func BuildAlipayPayURL(gateway string, appID string, privateKeyPEM string, method string, req AlipayPagePayRequest, encryptKey string) (string, error) {
+func BuildAlipayPayURL(gateway string, appID string, privateKeyPEM string, method string, req AlipayPagePayRequest) (string, error) {
 	method, err := normalizeAlipayPayMethod(method)
 	if err != nil {
 		return "", err
@@ -336,7 +326,7 @@ func BuildAlipayPayURL(gateway string, appID string, privateKeyPEM string, metho
 		req.ProductCode = GetAlipayProductCode(method)
 	}
 
-	client, err := newAlipayClient(gateway, appID, privateKeyPEM, setting.AlipayPublicKey, encryptKey)
+	client, err := newAlipayClient(gateway, appID, privateKeyPEM, setting.AlipayPublicKey)
 	if err != nil {
 		return "", err
 	}
@@ -394,15 +384,7 @@ func QueryAlipayTrade(ctx context.Context, gateway string, appID string, private
 	if strings.TrimSpace(outTradeNo) == "" {
 		return nil, errors.New("missing out_trade_no")
 	}
-	return QueryAlipayTradeWithEncryptKey(ctx, gateway, appID, privateKeyPEM, outTradeNo, "")
-}
-
-func QueryAlipayTradeWithEncryptKey(ctx context.Context, gateway string, appID string, privateKeyPEM string, outTradeNo string, encryptKey string) (*AlipayTradeQueryResponse, error) {
-	if strings.TrimSpace(outTradeNo) == "" {
-		return nil, errors.New("missing out_trade_no")
-	}
-
-	client, err := newAlipayClient(gateway, appID, privateKeyPEM, setting.AlipayPublicKey, encryptKey)
+	client, err := newAlipayClient(gateway, appID, privateKeyPEM, setting.AlipayPublicKey)
 	if err != nil {
 		return nil, err
 	}
@@ -552,7 +534,7 @@ func VerifyAlipayResponseSignature(body []byte, responseKey string, signature st
 	return VerifyAlipaySignature(string(responseNode), signature, publicKeyPEM)
 }
 
-func ParseAlipayTradeQueryResponse(body []byte, signature string, publicKeyPEM string, encryptKey string) (*AlipayTradeQueryResponse, error) {
+func ParseAlipayTradeQueryResponse(body []byte, signature string, publicKeyPEM string) (*AlipayTradeQueryResponse, error) {
 	var raw map[string]json.RawMessage
 	if err := common.Unmarshal(body, &raw); err != nil {
 		return nil, err
@@ -571,21 +553,8 @@ func ParseAlipayTradeQueryResponse(body []byte, signature string, publicKeyPEM s
 	}
 
 	var response AlipayTradeQueryResponse
-	if strings.TrimSpace(encryptKey) == "" || common.GetJsonType(responseNode) != "string" {
-		normalizedResponseNode := normalizeAlipayJSONPayload(responseNode)
-		if err := common.Unmarshal(normalizedResponseNode, &response); err != nil {
-			return nil, err
-		}
-		return &response, nil
-	}
-
-	encryptedValue := common.JsonRawMessageToString(responseNode)
-	plainText, err := DecryptAlipayEncryptedText(encryptedValue, encryptKey)
-	if err != nil {
-		return nil, err
-	}
-	plainText = string(normalizeAlipayJSONPayload([]byte(plainText)))
-	if err := common.UnmarshalJsonStr(plainText, &response); err != nil {
+	normalizedResponseNode := normalizeAlipayJSONPayload(responseNode)
+	if err := common.Unmarshal(normalizedResponseNode, &response); err != nil {
 		return nil, err
 	}
 	return &response, nil
@@ -610,75 +579,4 @@ func normalizeAlipayJSONPayload(payload []byte) []byte {
 		return payload
 	}
 	return decoded
-}
-
-func EncryptAlipayJSONValue(value any, encryptKey string) (string, error) {
-	plainBytes, err := common.Marshal(value)
-	if err != nil {
-		return "", err
-	}
-	return EncryptAlipayPlainText(string(plainBytes), encryptKey)
-}
-
-func EncryptAlipayPlainText(plainText string, encryptKey string) (string, error) {
-	keyBytes, err := base64.StdEncoding.DecodeString(strings.TrimSpace(encryptKey))
-	if err != nil {
-		return "", err
-	}
-	block, err := aes.NewCipher(keyBytes)
-	if err != nil {
-		return "", err
-	}
-
-	padded := pkcs7Pad([]byte(plainText), block.BlockSize())
-	encrypted := make([]byte, len(padded))
-	cipher.NewCBCEncrypter(block, alipayEncryptIV).CryptBlocks(encrypted, padded)
-	return base64.StdEncoding.EncodeToString(encrypted), nil
-}
-
-func DecryptAlipayEncryptedText(encryptedText string, encryptKey string) (string, error) {
-	keyBytes, err := base64.StdEncoding.DecodeString(strings.TrimSpace(encryptKey))
-	if err != nil {
-		return "", err
-	}
-	cipherBytes, err := base64.StdEncoding.DecodeString(strings.TrimSpace(encryptedText))
-	if err != nil {
-		return "", err
-	}
-	block, err := aes.NewCipher(keyBytes)
-	if err != nil {
-		return "", err
-	}
-	if len(cipherBytes) == 0 || len(cipherBytes)%block.BlockSize() != 0 {
-		return "", errors.New("invalid encrypted text length")
-	}
-
-	decrypted := make([]byte, len(cipherBytes))
-	cipher.NewCBCDecrypter(block, alipayEncryptIV).CryptBlocks(decrypted, cipherBytes)
-	unpadded, err := pkcs7Unpad(decrypted, block.BlockSize())
-	if err != nil {
-		return "", err
-	}
-	return string(unpadded), nil
-}
-
-func pkcs7Pad(data []byte, blockSize int) []byte {
-	padding := blockSize - len(data)%blockSize
-	return append(data, bytes.Repeat([]byte{byte(padding)}, padding)...)
-}
-
-func pkcs7Unpad(data []byte, blockSize int) ([]byte, error) {
-	if len(data) == 0 || len(data)%blockSize != 0 {
-		return nil, errors.New("invalid pkcs7 data length")
-	}
-	padding := int(data[len(data)-1])
-	if padding == 0 || padding > blockSize || padding > len(data) {
-		return nil, errors.New("invalid pkcs7 padding")
-	}
-	for _, b := range data[len(data)-padding:] {
-		if int(b) != padding {
-			return nil, errors.New("invalid pkcs7 padding")
-		}
-	}
-	return data[:len(data)-padding], nil
 }

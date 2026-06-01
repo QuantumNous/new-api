@@ -125,7 +125,6 @@ const paymentSchema = z.object({
   AlipayAppID: z.string(),
   AlipayPrivateKey: z.string(),
   AlipayPublicKey: z.string(),
-  AlipayEncryptKey: z.string(),
   AlipayGateway: z.string(),
   AlipayNotifyURL: z.string(),
   AlipayReturnURL: z.string(),
@@ -532,7 +531,6 @@ export function PaymentSettingsSection({
       AlipayAppID: values.AlipayAppID.trim(),
       AlipayPrivateKey: values.AlipayPrivateKey.trim(),
       AlipayPublicKey: values.AlipayPublicKey.trim(),
-      AlipayEncryptKey: values.AlipayEncryptKey.trim(),
       AlipayGateway: values.AlipayGateway.trim(),
       AlipayNotifyURL: values.AlipayNotifyURL.trim(),
       AlipayReturnURL: values.AlipayReturnURL.trim(),
@@ -546,7 +544,6 @@ export function PaymentSettingsSection({
       AlipayAppID: initialRef.current.AlipayAppID.trim(),
       AlipayPrivateKey: initialRef.current.AlipayPrivateKey.trim(),
       AlipayPublicKey: initialRef.current.AlipayPublicKey.trim(),
-      AlipayEncryptKey: initialRef.current.AlipayEncryptKey.trim(),
       AlipayGateway: initialRef.current.AlipayGateway.trim(),
       AlipayNotifyURL: initialRef.current.AlipayNotifyURL.trim(),
       AlipayReturnURL: initialRef.current.AlipayReturnURL.trim(),
@@ -580,15 +577,6 @@ export function PaymentSettingsSection({
       sanitized.AlipayPublicKey !== initial.AlipayPublicKey
     ) {
       updates.push({ key: 'AlipayPublicKey', value: sanitized.AlipayPublicKey })
-    }
-    if (
-      sanitized.AlipayEncryptKey &&
-      sanitized.AlipayEncryptKey !== initial.AlipayEncryptKey
-    ) {
-      updates.push({
-        key: 'AlipayEncryptKey',
-        value: sanitized.AlipayEncryptKey,
-      })
     }
     if (sanitized.AlipayGateway !== initial.AlipayGateway) {
       updates.push({ key: 'AlipayGateway', value: sanitized.AlipayGateway })
@@ -1366,25 +1354,6 @@ export function PaymentSettingsSection({
                     </FormControl>
                     <FormDescription>
                       {t('Optional override for asynchronous notify callback')}
-                    </FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name='AlipayEncryptKey'
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>{t('AES encrypt key')}</FormLabel>
-                    <FormControl>
-                      <Input {...field} />
-                    </FormControl>
-                    <FormDescription>
-                      {t(
-                        'Optional Base64 AES key from Alipay interface content encryption settings; leave blank to keep current value'
-                      )}
                     </FormDescription>
                     <FormMessage />
                   </FormItem>

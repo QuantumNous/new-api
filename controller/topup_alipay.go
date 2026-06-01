@@ -114,7 +114,6 @@ func RequestAlipayPay(c *gin.Context) {
 			TimeoutExpress: service.DefaultAlipayTimeoutExpress(),
 			ProductCode:    service.GetAlipayProductCode(method),
 		},
-		setting.AlipayEncryptKey,
 	)
 	if err != nil {
 		logger.LogError(c.Request.Context(), fmt.Sprintf("Alipay 创建支付链接失败 user_id=%d trade_no=%s amount=%d error=%q", id, tradeNo, req.Amount, err.Error()))

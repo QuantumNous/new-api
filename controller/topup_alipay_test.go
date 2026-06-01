@@ -457,12 +457,10 @@ func TestLoadEncryptedAlipayOptionsPopulatesRuntimePlaintext(t *testing.T) {
 
 	originalPrivateKey := setting.AlipayPrivateKey
 	originalPublicKey := setting.AlipayPublicKey
-	originalEncryptKey := setting.AlipayEncryptKey
 	originalOptionMap := common.OptionMap
 	t.Cleanup(func() {
 		setting.AlipayPrivateKey = originalPrivateKey
 		setting.AlipayPublicKey = originalPublicKey
-		setting.AlipayEncryptKey = originalEncryptKey
 		common.OptionMapRWMutex.Lock()
 		common.OptionMap = originalOptionMap
 		common.OptionMapRWMutex.Unlock()
@@ -483,14 +481,9 @@ func TestLoadEncryptedAlipayOptionsPopulatesRuntimePlaintext(t *testing.T) {
 		Key:   "AlipayPublicKey",
 		Value: encryptedPublicKey,
 	}).Error)
-	require.NoError(t, model.DB.Save(&model.Option{
-		Key:   "AlipayEncryptKey",
-		Value: "uFQhRDg6uwtoEHB1jPG1ww==",
-	}).Error)
 
 	model.InitOptionMap()
 
 	require.Equal(t, "private", setting.AlipayPrivateKey)
 	require.Equal(t, "public", setting.AlipayPublicKey)
-	require.Equal(t, "uFQhRDg6uwtoEHB1jPG1ww==", setting.AlipayEncryptKey)
 }

@@ -20,17 +20,9 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   buildAlipayPendingOrdersWarning,
-  buildClearAlipayEncryptKeyOption,
   buildClearAlipayKeyWarning,
   shouldWarnBeforeClearingAlipayKey,
 } from './alipaySettings.js';
-
-test('buildClearAlipayEncryptKeyOption clears AES key with empty string', () => {
-  assert.deepEqual(buildClearAlipayEncryptKeyOption(), {
-    key: 'AlipayEncryptKey',
-    value: '',
-  });
-});
 
 test('buildAlipayPendingOrdersWarning explains historical order handling', () => {
   assert.equal(

@@ -85,17 +85,15 @@ func TestAlipayOptionCryptoDecryptRejectsTamperedCiphertextAndWrongKey(t *testin
 func resetOptionStateForAlipayTests(t *testing.T) {
 	t.Helper()
 	require.NoError(t, DB.AutoMigrate(&Option{}))
-	require.NoError(t, DB.Exec("DELETE FROM options WHERE key IN ?", []string{"AlipayPrivateKey", "AlipayPublicKey", "AlipayEncryptKey"}).Error)
+	require.NoError(t, DB.Exec("DELETE FROM options WHERE key IN ?", []string{"AlipayPrivateKey", "AlipayPublicKey"}).Error)
 	setting.AlipayPrivateKey = ""
 	setting.AlipayPublicKey = ""
-	setting.AlipayEncryptKey = ""
 	common.OptionMapRWMutex.Lock()
 	if common.OptionMap == nil {
 		common.OptionMap = make(map[string]string)
 	}
 	common.OptionMap["AlipayPrivateKey"] = ""
 	common.OptionMap["AlipayPublicKey"] = ""
-	common.OptionMap["AlipayEncryptKey"] = ""
 	common.OptionMapRWMutex.Unlock()
 }
 

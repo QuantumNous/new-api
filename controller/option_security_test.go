@@ -61,7 +61,6 @@ func TestGetOptionsOmitsProtectedAlipayKeys(t *testing.T) {
 	common.OptionMap = map[string]string{
 		"AlipayPrivateKey": "private-value",
 		"AlipayPublicKey":  "public-value",
-		"AlipayEncryptKey": "encrypt-value",
 		"AlipayGateway":    "https://openapi.alipay.com/gateway.do",
 	}
 	common.OptionMapRWMutex.Unlock()
@@ -79,6 +78,5 @@ func TestGetOptionsOmitsProtectedAlipayKeys(t *testing.T) {
 	require.Equal(t, http.StatusOK, recorder.Code)
 	require.NotContains(t, recorder.Body.String(), "AlipayPrivateKey")
 	require.NotContains(t, recorder.Body.String(), "AlipayPublicKey")
-	require.NotContains(t, recorder.Body.String(), "AlipayEncryptKey")
 	require.Contains(t, recorder.Body.String(), "AlipayGateway")
 }

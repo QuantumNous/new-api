@@ -51,7 +51,6 @@ const PaymentSetting = () => {
     AlipayAppID: '',
     AlipayPrivateKey: '',
     AlipayPublicKey: '',
-    AlipayEncryptKey: '',
     AlipayGateway: '',
     AlipayNotifyURL: '',
     AlipayReturnURL: '',

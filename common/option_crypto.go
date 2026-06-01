@@ -32,7 +32,7 @@ func IsEncryptedOptionValue(value string) bool {
 }
 
 func IsAlipaySensitiveOptionKey(optionKey string) bool {
-	return optionKey == "AlipayPrivateKey" || optionKey == "AlipayPublicKey" || optionKey == "AlipayEncryptKey"
+	return optionKey == "AlipayPrivateKey" || optionKey == "AlipayPublicKey"
 }
 
 func EncryptAlipayOptionValue(optionKey string, plainText string) (string, error) {

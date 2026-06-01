@@ -64,7 +64,7 @@ func runAlipayPendingTopUpTaskOnce() {
 	}
 
 	for _, topUp := range topUps {
-		result, err := QueryAlipayTradeWithEncryptKey(ctx, setting.AlipayGateway, setting.AlipayAppID, setting.AlipayPrivateKey, topUp.TradeNo, setting.AlipayEncryptKey)
+		result, err := QueryAlipayTrade(ctx, setting.AlipayGateway, setting.AlipayAppID, setting.AlipayPrivateKey, topUp.TradeNo)
 		if err != nil {
 			if IsAlipayPermanentTradeQueryError(err) {
 				updateErr := model.UpdatePendingTopUpStatus(topUp.TradeNo, model.PaymentProviderAlipay, common.TopUpStatusExpired)

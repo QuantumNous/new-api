@@ -159,7 +159,6 @@ const BILLING_SECTIONS = [
           AlipayAppID: settings.AlipayAppID,
           AlipayPrivateKey: settings.AlipayPrivateKey,
           AlipayPublicKey: settings.AlipayPublicKey,
-          AlipayEncryptKey: settings.AlipayEncryptKey,
           AlipayGateway: settings.AlipayGateway,
           AlipayNotifyURL: settings.AlipayNotifyURL,
           AlipayReturnURL: settings.AlipayReturnURL,

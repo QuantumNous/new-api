@@ -91,7 +91,6 @@ func InitOptionMap() {
 	common.OptionMap["AlipayAppID"] = setting.AlipayAppID
 	common.OptionMap["AlipayPrivateKey"] = setting.AlipayPrivateKey
 	common.OptionMap["AlipayPublicKey"] = setting.AlipayPublicKey
-	common.OptionMap["AlipayEncryptKey"] = setting.AlipayEncryptKey
 	common.OptionMap["AlipayGateway"] = setting.AlipayGateway
 	common.OptionMap["AlipayNotifyURL"] = setting.AlipayNotifyURL
 	common.OptionMap["AlipayReturnURL"] = setting.AlipayReturnURL
@@ -203,6 +202,9 @@ func InitOptionMap() {
 func loadOptionsFromDatabase() {
 	options, _ := AllOption()
 	for _, option := range options {
+		if option.Key == "AlipayEncryptKey" {
+			continue
+		}
 		valueToApply := option.Value
 		if common.IsAlipaySensitiveOptionKey(option.Key) {
 			decryptedValue, err := common.DecryptAlipayOptionValue(option.Key, option.Value)
@@ -230,6 +232,10 @@ func SyncOptions(frequency int) {
 }
 
 func UpdateOption(key string, value string) error {
+	if key == "AlipayEncryptKey" {
+		return DB.Delete(&Option{}, "key = ?", key).Error
+	}
+
 	valueToPersist := value
 	if common.IsAlipaySensitiveOptionKey(key) {
 		encryptedValue, err := common.EncryptAlipayOptionValue(key, value)
@@ -427,8 +433,6 @@ func updateOptionMap(key string, value string) (err error) {
 		setting.AlipayPrivateKey = value
 	case "AlipayPublicKey":
 		setting.AlipayPublicKey = value
-	case "AlipayEncryptKey":
-		setting.AlipayEncryptKey = value
 	case "AlipayGateway":
 		setting.AlipayGateway = value
 	case "AlipayNotifyURL":

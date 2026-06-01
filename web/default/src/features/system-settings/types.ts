@@ -242,7 +242,6 @@ export type BillingSettings = {
   AlipayAppID: string
   AlipayPrivateKey: string
   AlipayPublicKey: string
-  AlipayEncryptKey: string
   AlipayGateway: string
   AlipayNotifyURL: string
   AlipayReturnURL: string
