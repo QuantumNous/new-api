@@ -54,6 +54,10 @@ func trimModelThinking(modelName string) string {
 func GeminiHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types.NewAPIError) {
 	info.InitChannelMeta(c)
 
+	if interactionReq, ok := info.Request.(*dto.GeminiInteractionRequest); ok {
+		return GeminiInteractionHelper(c, info, interactionReq)
+	}
+
 	geminiReq, ok := info.Request.(*dto.GeminiChatRequest)
 	if !ok {
 		return types.NewErrorWithStatusCode(fmt.Errorf("invalid request type, expected *dto.GeminiChatRequest, got %T", info.Request), types.ErrorCodeInvalidRequest, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
@@ -195,6 +199,66 @@ func GeminiHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *typ
 	}
 
 	usage, openaiErr := adaptor.DoResponse(c, resp.(*http.Response), info)
+	if openaiErr != nil {
+		service.ResetStatusCode(openaiErr, statusCodeMappingStr)
+		return openaiErr
+	}
+
+	service.PostTextConsumeQuota(c, info, usage.(*dto.Usage), nil)
+	return nil
+}
+
+// GeminiInteractionHelper relays native Gemini/Vertex interaction payloads
+// without converting them into generateContent requests.
+func GeminiInteractionHelper(c *gin.Context, info *relaycommon.RelayInfo, request *dto.GeminiInteractionRequest) (newAPIError *types.NewAPIError) {
+	if !strings.HasPrefix(info.OriginModelName, "lyria-3-") {
+		return types.NewErrorWithStatusCode(fmt.Errorf("unsupported gemini interaction model: %s", info.OriginModelName), types.ErrorCodeInvalidRequest, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
+	}
+
+	err := helper.ModelMappedHelper(c, info, request)
+	if err != nil {
+		return types.NewError(err, types.ErrorCodeChannelModelMappedError, types.ErrOptionWithSkipRetry())
+	}
+
+	adaptor := GetAdaptor(info.ApiType)
+	if adaptor == nil {
+		return types.NewError(fmt.Errorf("invalid api type: %d", info.ApiType), types.ErrorCodeInvalidApiType, types.ErrOptionWithSkipRetry())
+	}
+
+	adaptor.Init(info)
+
+	jsonData, err := common.Marshal(request)
+	if err != nil {
+		return types.NewError(err, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
+	}
+
+	if len(info.ParamOverride) > 0 {
+		jsonData, err = relaycommon.ApplyParamOverrideWithRelayInfo(jsonData, info)
+		if err != nil {
+			return newAPIErrorFromParamOverride(err)
+		}
+	}
+
+	logger.LogDebug(c, "Gemini interaction request body: "+string(jsonData))
+
+	resp, err := adaptor.DoRequest(c, info, bytes.NewReader(jsonData))
+	if err != nil {
+		logger.LogError(c, "Do gemini interaction request failed: "+err.Error())
+		return types.NewOpenAIError(err, types.ErrorCodeDoRequestFailed, http.StatusInternalServerError)
+	}
+
+	statusCodeMappingStr := c.GetString("status_code_mapping")
+	httpResp, ok := resp.(*http.Response)
+	if !ok || httpResp == nil {
+		return types.NewErrorWithStatusCode(fmt.Errorf("invalid gemini interaction response type: %T", resp), types.ErrorCodeDoRequestFailed, http.StatusInternalServerError)
+	}
+	if httpResp.StatusCode != http.StatusOK {
+		newAPIError = service.RelayErrorHandler(c.Request.Context(), httpResp, false)
+		service.ResetStatusCode(newAPIError, statusCodeMappingStr)
+		return newAPIError
+	}
+
+	usage, openaiErr := adaptor.DoResponse(c, httpResp, info)
 	if openaiErr != nil {
 		service.ResetStatusCode(openaiErr, statusCodeMappingStr)
 		return openaiErr

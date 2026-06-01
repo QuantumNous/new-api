@@ -27,6 +27,8 @@ func GetAndValidateRequest(c *gin.Context, format types.RelayFormat) (request dt
 			request, err = GetAndValidateGeminiEmbeddingRequest(c)
 		} else if strings.Contains(c.Request.URL.Path, ":batchEmbedContents") {
 			request, err = GetAndValidateGeminiBatchEmbeddingRequest(c)
+		} else if strings.Contains(c.Request.URL.Path, ":interactions") {
+			request, err = GetAndValidateGeminiInteractionRequest(c)
 		} else {
 			request, err = GetAndValidateGeminiRequest(c)
 		}
@@ -318,6 +320,28 @@ func GetAndValidateGeminiRequest(c *gin.Context) (*dto.GeminiChatRequest, error)
 	//	relayInfo.IsStream = true
 	//}
 
+	return request, nil
+}
+
+// GetAndValidateGeminiInteractionRequest validates native Vertex interaction
+// payloads used by Lyria 3 on the Gemini relay path.
+func GetAndValidateGeminiInteractionRequest(c *gin.Context) (*dto.GeminiInteractionRequest, error) {
+	request := &dto.GeminiInteractionRequest{}
+	err := common.UnmarshalBodyReusable(c, request)
+	if err != nil {
+		return nil, err
+	}
+	if request.Payload == nil {
+		return nil, errors.New("request body is required")
+	}
+	input, ok := request.Payload["input"]
+	if !ok {
+		return nil, errors.New("input is required")
+	}
+	inputItems, ok := input.([]any)
+	if !ok || len(inputItems) == 0 {
+		return nil, errors.New("input must be a non-empty array")
+	}
 	return request, nil
 }
 

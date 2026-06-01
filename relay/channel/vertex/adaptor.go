@@ -168,6 +168,22 @@ func (a *Adaptor) getRequestUrl(info *relaycommon.RelayInfo, modelName, suffix s
 }
 
 func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
+	if a.isLyriaInteractionRequest(info) {
+		if info.ChannelOtherSettings.VertexKeyType == dto.VertexKeyTypeAPIKey {
+			return fmt.Sprintf(
+				"%s?key=%s",
+				BuildGoogleModelURL(info.ChannelBaseUrl, OpenSourceAPIVersion, "", "global", info.UpstreamModelName, "interactions"),
+				info.ApiKey,
+			), nil
+		}
+		adc := &Credentials{}
+		if err := common.Unmarshal([]byte(info.ApiKey), adc); err != nil {
+			return "", fmt.Errorf("failed to decode credentials file: %w", err)
+		}
+		a.AccountCredentials = *adc
+		return fmt.Sprintf("%s/interactions", BuildAPIBaseURL(info.ChannelBaseUrl, OpenSourceAPIVersion, adc.ProjectID, "global")), nil
+	}
+
 	suffix := ""
 	if a.RequestMode == RequestModeGemini {
 		if model_setting.GetGeminiSettings().ThinkingAdapterEnabled &&
@@ -329,6 +345,9 @@ func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, request
 }
 
 func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (usage any, err *types.NewAPIError) {
+	if a.isLyriaInteractionRequest(info) {
+		return a.doInteractionResponse(c, resp, info)
+	}
 	claudeAdaptor := claude.Adaptor{}
 	if info.IsStream {
 		switch a.RequestMode {
@@ -361,6 +380,54 @@ func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycom
 		}
 	}
 	return
+}
+
+// isLyriaInteractionRequest identifies the native Vertex interactions endpoint
+// used by Lyria 3 models on the Gemini relay path.
+func (a *Adaptor) isLyriaInteractionRequest(info *relaycommon.RelayInfo) bool {
+	if info == nil {
+		return false
+	}
+	requestPath := strings.Split(info.RequestURLPath, "?")[0]
+	return info.RelayMode == constant.RelayModeGemini &&
+		strings.Contains(requestPath, ":interactions") &&
+		strings.HasPrefix(info.UpstreamModelName, "lyria-3-")
+}
+
+// doInteractionResponse preserves the native Vertex interaction JSON so callers
+// can read all text, metadata, status, and audio outputs.
+func (a *Adaptor) doInteractionResponse(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (*dto.Usage, *types.NewAPIError) {
+	defer resp.Body.Close()
+	bodyBytes, readErr := io.ReadAll(resp.Body)
+	if readErr != nil {
+		return nil, types.NewErrorWithStatusCode(readErr, types.ErrorCodeReadResponseBodyFailed, http.StatusInternalServerError)
+	}
+	bodySnippet := string(bodyBytes)
+	if len(bodySnippet) > 512 {
+		bodySnippet = bodySnippet[:512]
+	}
+	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
+		return nil, types.NewErrorWithStatusCode(
+			fmt.Errorf("vertex upstream status=%d body=%s", resp.StatusCode, bodySnippet),
+			types.ErrorCodeBadResponseBody,
+			resp.StatusCode,
+		)
+	}
+
+	modelName := strings.TrimSpace(info.UpstreamModelName)
+	if strings.HasPrefix(modelName, "lyria-3-") {
+		contentType := resp.Header.Get("Content-Type")
+		if strings.TrimSpace(contentType) == "" {
+			contentType = "application/json"
+		}
+		c.Data(http.StatusOK, contentType, bodyBytes)
+		return &dto.Usage{
+			PromptTokens: 1,
+			TotalTokens:  1,
+		}, nil
+	}
+
+	return nil, types.NewErrorWithStatusCode(fmt.Errorf("unsupported vertex interaction model: %s", modelName), types.ErrorCodeInvalidRequest, http.StatusBadRequest)
 }
 
 func (a *Adaptor) GetModelList() []string {
