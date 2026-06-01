@@ -29,6 +29,7 @@ import {
   SortAsc,
   RefreshCw,
   ArrowUpFromLine,
+  FileUp,
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
@@ -115,6 +116,16 @@ export function ChannelsPrimaryButtons() {
           <Plus className='h-4 w-4' />
           <span className='max-sm:hidden'>{t('Create Channel')}</span>
           <span className='sm:hidden'>{t('Create')}</span>
+        </Button>
+
+        {/* Batch Import */}
+        <Button
+          variant='outline'
+          onClick={() => setOpen('batch-import')}
+          size='sm'
+        >
+          <FileUp className='h-4 w-4' />
+          <span className='max-sm:hidden'>{t('Batch Import')}</span>
         </Button>
 
         {/* More Actions */}

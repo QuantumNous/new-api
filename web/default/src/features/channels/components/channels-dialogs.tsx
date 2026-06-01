@@ -26,6 +26,7 @@ import { MultiKeyManageDialog } from './dialogs/multi-key-manage-dialog'
 import { OllamaModelsDialog } from './dialogs/ollama-models-dialog'
 import { TagBatchEditDialog } from './dialogs/tag-batch-edit-dialog'
 import { UpstreamUpdateDialog } from './dialogs/upstream-update-dialog'
+import { BatchImportDialog } from './dialogs/batch-import-dialog'
 import { ChannelMutateDrawer } from './drawers/channel-mutate-drawer'
 
 export function ChannelsDialogs() {
@@ -85,6 +86,12 @@ export function ChannelsDialogs() {
       {/* Edit Tag Dialog */}
       <EditTagDialog
         open={open === 'edit-tag'}
+        onOpenChange={(v) => !v && setOpen(null)}
+      />
+
+      {/* Batch Import Dialog */}
+      <BatchImportDialog
+        open={open === 'batch-import'}
         onOpenChange={(v) => !v && setOpen(null)}
       />
 

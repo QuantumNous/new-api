@@ -171,7 +171,7 @@ const EditChannelModal = (props) => {
   };
   const originInputs = {
     name: '',
-    type: 1,
+    type: 14,
     key: '',
     openai_organization: '',
     max_input_tokens: 0,

@@ -19,7 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 
 import React from 'react';
 import { Button, Form } from '@douyinfe/semi-ui';
-import { IconSearch } from '@douyinfe/semi-icons';
+import { IconSearch, IconUpload } from '@douyinfe/semi-icons';
 
 const ChannelsFilters = ({
   setEditingChannel,
@@ -34,6 +34,7 @@ const ChannelsFilters = ({
   groupOptions,
   loading,
   searching,
+  setShowBatchImport,
   t,
 }) => {
   return (
@@ -52,6 +53,18 @@ const ChannelsFilters = ({
           }}
         >
           {t('添加渠道')}
+        </Button>
+
+        <Button
+          size='small'
+          type='tertiary'
+          className='w-full md:w-auto'
+          icon={<IconUpload />}
+          onClick={() => {
+            if (setShowBatchImport) setShowBatchImport(true);
+          }}
+        >
+          {t('批量导入')}
         </Button>
 
         <Button

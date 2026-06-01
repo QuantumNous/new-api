@@ -41,7 +41,7 @@ CRYPTO_SECRET="${CRYPTO_SECRET:-}"
 NODE_NAME="${NODE_NAME:-${PROJECT_NAME}-node-1}"
 BUILD_ON_UP="${BUILD_ON_UP:-1}"
 if [[ -z "${FRONTEND_THEME+x}" ]]; then
-  FRONTEND_THEME="default"
+  FRONTEND_THEME="classic"
 fi
 
 usage() {

@@ -65,6 +65,7 @@ export const useChannelsData = () => {
   const [showBatchSetTag, setShowBatchSetTag] = useState(false);
   const [batchSetTagValue, setBatchSetTagValue] = useState('');
   const [compactMode, setCompactMode] = useTableCompactMode('channels');
+  const [showBatchImport, setShowBatchImport] = useState(false);
 
   // Column visibility states
   const [visibleColumns, setVisibleColumns] = useState({});
@@ -1164,6 +1165,8 @@ export const useChannelsData = () => {
     setShowBatchSetTag,
     batchSetTagValue,
     setBatchSetTagValue,
+    showBatchImport,
+    setShowBatchImport,
 
     // Column states
     visibleColumns,
