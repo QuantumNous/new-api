@@ -98,6 +98,10 @@ import {
   normalizeVisualTier,
   tryParseVisualConfig,
 } from '@/features/pricing/lib/tier-expr'
+import {
+  getInitialEditorMode,
+  type EditorMode,
+} from './tiered-pricing-editor-state'
 
 const PRICE_SUFFIX = '$/1M tokens'
 const CACHE_PRICE_VARS = BILLING_EXTRA_VARS.filter(
@@ -1629,8 +1633,6 @@ export type TieredPricingEditorProps = {
   onRequestRuleExprChange: (next: string) => void
 }
 
-type EditorMode = 'visual' | 'raw'
-
 export const TieredPricingEditor = memo(function TieredPricingEditor({
   modelName,
   billingExpr: currentExpr,
@@ -1668,16 +1670,16 @@ export const TieredPricingEditor = memo(function TieredPricingEditor({
     prevModelNameRef.current = modelName
     initRef.current = true
     const parsedConfig = tryParseVisualConfig(currentExpr)
+    const nextEditorMode = getInitialEditorMode(currentExpr, parsedConfig)
     if (parsedConfig) {
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setVisualConfig(parsedConfig)
-      setEditorMode('visual')
     } else if (currentExpr) {
       setVisualConfig(null)
-      setEditorMode('raw')
     } else {
       setVisualConfig(createDefaultVisualConfig())
     }
+    setEditorMode(nextEditorMode)
     setRawExpr(
       combineBillingExpr(currentExpr || '', currentRequestRuleExpr || '')
     )
