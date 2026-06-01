@@ -179,8 +179,50 @@ type SubscriptionPlan struct {
 	QuotaResetPeriod        string `json:"quota_reset_period" gorm:"type:varchar(16);default:'never'"`
 	QuotaResetCustomSeconds int64  `json:"quota_reset_custom_seconds" gorm:"type:bigint;default:0"`
 
+	// Model limits: restrict which models can be used with this plan
+	ModelLimitsEnabled bool   `json:"model_limits_enabled" gorm:"default:false"`
+	ModelLimits        string `json:"model_limits" gorm:"type:text"`
+
 	CreatedAt int64 `json:"created_at" gorm:"bigint"`
 	UpdatedAt int64 `json:"updated_at" gorm:"bigint"`
+}
+
+// GetModelLimits returns the model limits as a slice.
+func (p *SubscriptionPlan) GetModelLimits() []string {
+	if p.ModelLimits == "" {
+		return []string{}
+	}
+	parts := strings.Split(p.ModelLimits, ",")
+	result := make([]string, 0, len(parts))
+	for _, part := range parts {
+		trimmed := strings.TrimSpace(part)
+		if trimmed != "" {
+			result = append(result, trimmed)
+		}
+	}
+	return result
+}
+
+// GetModelLimitsMap returns the model limits as a map for fast lookup.
+func (p *SubscriptionPlan) GetModelLimitsMap() map[string]bool {
+	limits := p.GetModelLimits()
+	limitsMap := make(map[string]bool, len(limits))
+	for _, limit := range limits {
+		if limit != "" {
+			limitsMap[limit] = true
+		}
+	}
+	return limitsMap
+}
+
+// IsModelAllowed checks if a model is allowed by this plan's model limits.
+// Returns true if model limits are disabled or if the model is in the allowed list.
+func (p *SubscriptionPlan) IsModelAllowed(modelName string) bool {
+	if !p.ModelLimitsEnabled || p.ModelLimits == "" {
+		return true
+	}
+	limitsMap := p.GetModelLimitsMap()
+	return limitsMap[modelName]
 }
 
 func (p *SubscriptionPlan) BeforeCreate(tx *gorm.DB) error {
@@ -1128,11 +1170,19 @@ func PreConsumeUserSubscription(requestId string, userId int, modelName string, 
 		if len(subs) == 0 {
 			return errors.New("no active subscription")
 		}
+		anyPlanAllowsModel := false
 		for _, candidate := range subs {
 			sub := candidate
 			plan, err := getSubscriptionPlanByIdTx(tx, sub.PlanId)
 			if err != nil {
 				return err
+			}
+			// Check model limits: skip subscriptions whose plan doesn't allow the requested model
+			if modelName != "" && !plan.IsModelAllowed(modelName) {
+				continue
+			}
+			if modelName != "" {
+				anyPlanAllowsModel = true
 			}
 			if err := maybeResetUserSubscriptionWithPlanTx(tx, &sub, plan, now); err != nil {
 				return err
@@ -1176,6 +1226,9 @@ func PreConsumeUserSubscription(requestId string, userId int, modelName string, 
 			returnValue.AmountUsedBefore = usedBefore
 			returnValue.AmountUsedAfter = sub.AmountUsed
 			return nil
+		}
+		if modelName != "" && !anyPlanAllowsModel {
+			return fmt.Errorf("no subscription allows model %s", modelName)
 		}
 		return fmt.Errorf("subscription quota insufficient, need=%d", amount)
 	})
