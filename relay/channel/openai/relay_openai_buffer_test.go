@@ -259,6 +259,42 @@ data: [DONE]
 	}, usage)
 }
 
+func TestOpenaiImageStreamHandlerStopsAfterFinalImageEvent(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/images/generations", nil)
+	info := &relaycommon.RelayInfo{
+		IsStream:        true,
+		RelayMode:       relayconstant.RelayModeImagesGenerations,
+		RelayFormat:     types.RelayFormatOpenAIImage,
+		OriginModelName: "gpt-image-2",
+		ChannelMeta: &relaycommon.ChannelMeta{
+			ChannelType:       constant.ChannelTypeOpenAI,
+			UpstreamModelName: "gpt-image-2",
+		},
+	}
+	resp := newChatCompletionSSE(http.StatusOK, `data: {"type":"image_generation.partial_image","partial_image_index":0,"b64_json":"preview"}
+
+data: {"type":"image_generation.completed","usage":{"input_tokens":3,"output_tokens":5,"total_tokens":8}}
+
+data: {"type":"image_generation.partial_image","partial_image_index":1,"b64_json":"late"}
+`)
+
+	usage, newAPIError := OpenaiHandlerWithUsage(c, info, resp)
+
+	require.Nil(t, newAPIError)
+	require.Equal(t, http.StatusOK, recorder.Code)
+	require.Contains(t, recorder.Body.String(), `"b64_json":"preview"`)
+	require.Contains(t, recorder.Body.String(), `"type":"image_generation.completed"`)
+	require.NotContains(t, recorder.Body.String(), `"b64_json":"late"`)
+	require.Contains(t, recorder.Body.String(), `data: [DONE]`)
+	require.Equal(t, 3, usage.PromptTokens)
+	require.Equal(t, 5, usage.CompletionTokens)
+	require.Equal(t, 8, usage.TotalTokens)
+}
+
 func TestOpenaiImageJSONToStreamHandlerWrapsFinalResponse(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
@@ -293,6 +329,51 @@ func TestOpenaiImageJSONToStreamHandlerWrapsFinalResponse(t *testing.T) {
 	require.Equal(t, 2, usage.PromptTokens)
 	require.Equal(t, 4, usage.CompletionTokens)
 	require.Equal(t, 6, usage.TotalTokens)
+}
+
+func TestIsFinalImageStreamEvent(t *testing.T) {
+	cases := []struct {
+		name string
+		data string
+		want bool
+	}{
+		{
+			name: "generation completed",
+			data: `{"type":"image_generation.completed"}`,
+			want: true,
+		},
+		{
+			name: "edit completed",
+			data: `{"type":"image_edit.completed"}`,
+			want: true,
+		},
+		{
+			name: "generation result",
+			data: `{"object":"image.generation.result"}`,
+			want: true,
+		},
+		{
+			name: "edit result",
+			data: `{"object":"image.edit.result"}`,
+			want: true,
+		},
+		{
+			name: "partial image",
+			data: `{"type":"image_generation.partial_image"}`,
+			want: false,
+		},
+		{
+			name: "invalid json",
+			data: `not-json`,
+			want: false,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			require.Equal(t, tc.want, isFinalImageStreamEvent(tc.data))
+		})
+	}
 }
 
 func newChatCompletionSSE(statusCode int, body string) *http.Response {

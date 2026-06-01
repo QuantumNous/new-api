@@ -1043,6 +1043,10 @@ func OpenaiImageStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp 
 		}
 		if err := helper.StringData(c, data); err != nil {
 			sr.Error(err)
+			return
+		}
+		if isFinalImageStreamEvent(data) {
+			sr.Done()
 		}
 	})
 
@@ -1075,6 +1079,27 @@ func OpenaiImageJSONToStreamHandler(c *gin.Context, info *relaycommon.RelayInfo,
 	helper.Done(c)
 
 	return &usageResp.Usage, nil
+}
+
+func isFinalImageStreamEvent(data string) bool {
+	var payload struct {
+		Type   string `json:"type"`
+		Object string `json:"object"`
+	}
+	if err := common.UnmarshalJsonStr(data, &payload); err != nil {
+		return false
+	}
+
+	switch payload.Type {
+	case "image_generation.completed", "image_edit.completed":
+		return true
+	}
+	switch payload.Object {
+	case "image.generation.result", "image.edit.result":
+		return true
+	default:
+		return false
+	}
 }
 
 func extractImageStreamUsage(data string) (*dto.Usage, bool) {
