@@ -38,12 +38,6 @@ type requestPayload struct {
 	ImageURL   string `json:"image_url,omitempty"`
 }
 
-// metadataFields 仅从客户端 metadata 中提取 proxy 支持的 resolution / ratio。
-type metadataFields struct {
-	Resolution string `json:"resolution,omitempty"`
-	Ratio      string `json:"ratio,omitempty"`
-}
-
 // responseTask 是创建/查询接口的响应体。
 // 注意:api2 失败时 error 是【字符串】而非对象,故此处用 string。
 type responseTask struct {
@@ -115,14 +109,14 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 
 func (a *TaskAdaptor) convertToRequestPayload(req *relaycommon.TaskSubmitReq) (*requestPayload, error) {
 	r := requestPayload{
-		Model:  req.Model,
-		Prompt: req.Prompt,
+		Model:      req.Model,
+		Prompt:     req.Prompt,
+		Resolution: req.Resolution,
+		Ratio:      req.Ratio,
 	}
 
-	// 时长:优先字符串 seconds,回退整数 duration。
-	if req.Seconds != "" {
-		r.Seconds = req.Seconds
-	} else if req.Duration > 0 {
+	// 时长(秒):取顶层 duration。
+	if req.Duration > 0 {
 		r.Seconds = strconv.Itoa(req.Duration)
 	}
 
@@ -130,15 +124,6 @@ func (a *TaskAdaptor) convertToRequestPayload(req *relaycommon.TaskSubmitReq) (*
 	if req.HasImage() {
 		r.ImageURL = req.Images[0]
 	}
-
-	// resolution / ratio:TaskSubmitReq 没有对应的顶层字段,按 new-api 约定从 metadata
-	// 读取,再以顶层字段发往 api2(api2 顶层与 metadata 两种写法都接受)。
-	var meta metadataFields
-	if err := taskcommon.UnmarshalMetadata(req.Metadata, &meta); err != nil {
-		return nil, errors.Wrap(err, "unmarshal metadata failed")
-	}
-	r.Resolution = meta.Resolution
-	r.Ratio = meta.Ratio
 
 	return &r, nil
 }

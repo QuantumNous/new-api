@@ -235,7 +235,7 @@ curl https://你的服务/v1/video/generations \
 - **上游提交**：`POST {baseURL}/v1/video/generations`；查询 `GET {baseURL}/v1/video/generations/{id}`
 - **鉴权**：`Authorization: Bearer <key>`
 - **模型**：`bytedance/seedance-2.0`、`bytedance/seedance-2.0-fast`（后台可手动增删；价格在「模型定价」设置）
-- **请求字段**（仅发上游真正读取的）：`model`、`prompt`、`seconds`(空则用 `duration`)、`resolution`(取自 metadata.resolution)、`ratio`(取自 metadata.ratio)、`image_url`(图生视频取 `images[0]`)。注意：上游代理**不转发** `watermark`/`seed`/`generateAudio`/`returnLastFrame`/`realFaceAssetId`/`budgetMs`，故不发送
+- **请求字段**（客户端入参,均为顶层字段）：`model`、`prompt`、`duration`(秒,int)、`resolution`、`ratio`、`images`(图生视频取 `images[0]` → 上游 `image_url`)。适配器映射到上游 `model`/`prompt`/`seconds`/`resolution`/`ratio`/`image_url`。注意：上游代理**不转发** `watermark`/`seed`/`generateAudio`/`returnLastFrame`/`realFaceAssetId`/`budgetMs`，故不发送
 - **响应**：`error` 为**字符串**（非对象）；上游状态 `queued`→queued，`in_progress`→in_progress，`completed`→completed（视频地址在顶层 `url`，回退 `data[0].url`），`failed`/查不到任务→failed
 - **计费**：按次（嵌 `BaseBilling`）—— 提交全额预扣，`completed` 保留、`failed`/超时退款（api2 失败时上游也 "No payment was taken"，两边一致）
 - **白标约束**：`metadata.url` 返回代理路径 `/v1/videos/{task_id}/content`，**绝不暴露 blockrun.ai 真实地址**；真实地址留在 `task.Data`，由 `controller.VideoProxy` 经 `ExtractUpstreamVideoURL` 在服务端取回；失败信息经 `ScrubBrandedText` 脱敏（品牌词含 `blockrun`/`flatkey`/`bytedance` 等）
