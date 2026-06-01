@@ -194,6 +194,11 @@ export const CHANNEL_OPTIONS = [
     color: 'green',
     label: 'OpenAI Video',
   },
+  {
+    value: 59,
+    color: 'blue',
+    label: 'ListenHub',
+  },
 ];
 
 // Channel types that support upstream model list fetching in UI.

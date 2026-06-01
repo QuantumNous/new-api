@@ -350,8 +350,10 @@ func getModelRequest(c *gin.Context) (*ModelRequest, bool, error) {
 	}
 	if strings.HasPrefix(c.Request.URL.Path, "/v1/images/generations") {
 		modelRequest.Model = common.GetStringIfEmpty(modelRequest.Model, "dall-e")
+		c.Set("relay_mode", relayconstant.RelayModeImagesGenerations)
 	} else if strings.HasPrefix(c.Request.URL.Path, "/v1/images/edits") {
 		//modelRequest.Model = common.GetStringIfEmpty(c.PostForm("model"), "gpt-image-1")
+		c.Set("relay_mode", relayconstant.RelayModeImagesEdits)
 		contentType := c.ContentType()
 		if slices.Contains([]string{gin.MIMEPOSTForm, gin.MIMEMultipartPOSTForm}, contentType) {
 			req, err := getModelFromRequest(c)
@@ -411,6 +413,8 @@ func getRequiredEndpointType(c *gin.Context) constant.EndpointType {
 	switch mode {
 	case relayconstant.RelayModeGemini:
 		return constant.EndpointTypeGemini
+	case relayconstant.RelayModeImagesGenerations, relayconstant.RelayModeImagesEdits:
+		return constant.EndpointTypeImageGeneration
 	default:
 		return ""
 	}

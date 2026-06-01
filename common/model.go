@@ -10,6 +10,7 @@ var (
 		"o4-mini-deep-research",
 	}
 	ImageGenerationModels = []string{
+		"dall-e",
 		"dall-e-3",
 		"dall-e-2",
 		"gpt-image-1",

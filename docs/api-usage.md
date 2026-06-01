@@ -16,11 +16,66 @@
 
 当前入口运行在 2026-05-26 迁移后的新服务器上，由 Coolify 资源 `new-api-video-gateway` 管理。2026-05-28 完成 upstream 合并（78 commits）后重新部署并完成全模型回归测试，所有推荐模型均通过真实创建、轮询完成和 `/content` 视频下载验证。
 
-所有请求必须在 HTTP Header 中携带 API Key：
+所有请求必须在 HTTP Header 中携带 API Key（以下为测试 Key，生产环境请使用自己的 Key）：
 
 ```
 Authorization: Bearer EW93ybOP6Zr1axAPYNEu8VpehQzdTkZBTATszAGYEDiwpCmJ
 ```
+
+---
+
+## 快速开始
+
+以下是 5 个已通过真实验证的推荐模型，可直接复制 cURL 命令提交任务。提交后返回 `task_id`，轮询 `GET /v1/videos/{task_id}` 即可获取生成结果。
+
+### veo3.1-fast — 快速视频生成（≈1.5 分钟，$0.30/次）
+
+```bash
+curl -s "http://192.129.209.36:3001/v1/videos" \
+  -H "Authorization: Bearer your-api-key-here" \
+  -H "Content-Type: application/json" \
+  -d '{"model":"veo3.1-fast","prompt":"A golden retriever running on a beach at sunset, cinematic quality"}'
+```
+
+### xb-sora2 — Sora 2 主路径（≈3.5 分钟，$0.40/次）
+
+```bash
+curl -s "http://192.129.209.36:3001/v1/videos" \
+  -H "Authorization: Bearer your-api-key-here" \
+  -H "Content-Type: application/json" \
+  -d '{"model":"xb-sora2","prompt":"A cat walking through a neon-lit cyberpunk alley at night"}'
+```
+
+### grok-imagine-1.0-video — Grok 视频（≈2 分钟，$0.025/次）
+
+```bash
+curl -s "http://192.129.209.36:3001/v1/videos" \
+  -H "Authorization: Bearer your-api-key-here" \
+  -H "Content-Type: application/json" \
+  -d '{"model":"grok-imagine-1.0-video","prompt":"A green sphere floating over a white table, clean studio lighting","seconds":"6","size":"720x1280"}'
+```
+
+> **⚠️ 尺寸约束**：Grok 仅支持 `720x1280`、`1280x720`、`1024x1024`、`1024x1792`、`1792x1024` 共 5 种尺寸，传其他值会报错。
+
+### ss-sora-2 — Sora 2 备用路径（≈3 分钟，$0.40/次）
+
+```bash
+curl -s "http://192.129.209.36:3001/v1/videos" \
+  -H "Authorization: Bearer your-api-key-here" \
+  -H "Content-Type: application/json" \
+  -d '{"model":"ss-sora-2","prompt":"A drone flying over a misty mountain landscape at sunrise"}'
+```
+
+### veo3.1-4k — 4K 高质量（≈4 分钟，$1.50/次）
+
+```bash
+curl -s "http://192.129.209.36:3001/v1/videos" \
+  -H "Authorization: Bearer your-api-key-here" \
+  -H "Content-Type: application/json" \
+  -d '{"model":"veo3.1-4k","prompt":"Aerial view of a tropical island with crystal clear water, cinematic 4K quality"}'
+```
+
+轮询查询、完整参数说明和 Python SDK 示例见下方章节。
 
 ---
 
@@ -190,7 +245,7 @@ Grok 渠道注意事项：
 | ratio | string | 否 | 兼容麒麟插件字段。Grok 渠道未传 `size` 时会按 `aspect_ratio` 同样规则映射 |
 | resolution | string | 否 | Grok 渠道未传时默认 `720p` |
 | quality | string | 否 | Qilin/Grok 原生画质字段。未传时按 `resolution` 自动补 `high` 或 `standard` |
-| size | string | 否 | 输出尺寸。Grok 横屏建议 `1280x720`，竖屏建议 `720x1280`，方形建议 `1024x1024`；新版插件还映射 `1152x864`、`864x1152`、`1680x720` |
+| size | string | 否 | 输出尺寸。Grok 横屏建议 `1280x720`，竖屏建议 `720x1280`，方形建议 `1024x1024`；新版插件还映射 `1152x864`、`864x1152`、`1680x720`。**⚠️ Grok 仅支持这 5 种尺寸，传其他值（如 `1920x1080`）会报错** |
 
 ### 1.3 可用视频模型
 
@@ -202,7 +257,7 @@ Grok 渠道注意事项：
 |----------|----------|------------------|------|------|
 | `veo3.1-fast` | Apexer / Veo | `task_kPRJVkUnFmkznGZbKaUAY8UAy5daQTaS` | ✅ 完成并可下载 | 当前推荐的 Veo 快速模型，约 1.5 分钟完成 |
 | `xb-sora2` | Hongniao / Sora | `task_AnRb9zA2TNPKnUl3WjK0ep2yvbBgdaoD` | ✅ 完成并可下载 | 当前推荐的 Sora 主路径，约 3.5 分钟完成 |
-| `grok-imagine-1.0-video` | 937qq / Qilin Grok | `task_0N4mwgTkQS8mlV8iYiTa1D385u2o2CRf` | ✅ 完成并可下载 | 推荐的 Grok Imagine 路径；注意仅支持 `720x1280`/`1280x720`/`1024x1024`/`1024x1792`/`1792x1024` 尺寸 |
+| `grok-imagine-1.0-video` | 937qq / Qilin Grok | `task_0N4mwgTkQS8mlV8iYiTa1D385u2o2CRf` | ✅ 完成并可下载 | 推荐的 Grok Imagine 路径；**⚠️ 仅支持 `720x1280` / `1280x720` / `1024x1024` / `1024x1792` / `1792x1024` 共 5 种尺寸，传其他值会报错** |
 | `ss-sora-2` | Hongniao / Sora | `task_s4H8Mwn0LwsUMviZTWviEH2GVBHvC7V4` | ✅ 完成并可下载 | Sora 2 备用路径，约 3 分钟完成 |
 | `veo3.1-4k` | Apexer / Veo 4K | `task_mDFMyYk4fXPREqIZad9ZFTSNvEhQ46Wz` | ✅ 完成并可下载 | 4K 高质量，约 4 分钟完成，$15/次 |
 
@@ -376,7 +431,7 @@ import requests
 import time
 
 BASE_URL = "http://192.129.209.36:3001/v1"
-API_KEY = "EW93ybOP6Zr1axAPYNEu8VpehQzdTkZBTATszAGYEDiwpCmJ"
+API_KEY = "your-api-key-here"
 
 headers = {
     "Authorization": f"Bearer {API_KEY}",
@@ -490,7 +545,7 @@ video_url = generate_video(
 
 ```bash
 #!/bin/bash
-API_KEY="EW93ybOP6Zr1axAPYNEu8VpehQzdTkZBTATszAGYEDiwpCmJ"
+API_KEY="your-api-key-here"
 BASE_URL="http://192.129.209.36:3001/v1"
 
 # 文生视频
@@ -545,12 +600,14 @@ curl -s "${BASE_URL}/videos" \
 
 ## 二、图片生成
 
-图片生成通过 OpenAI 兼容的 **Chat Completions** 接口调用。在用户消息中描述想要生成的图片即可，模型会返回包含图片 URL 的响应。
+图片生成推荐使用 OpenAI 兼容的 **Images** 接口调用。当前已真实验证的主路径是 `apexer-images-openai` 下游，适合直接走 `/v1/images/generations`。
+
+Chat Completions 形式仍保留兼容：部分上游会把图片 URL 放在 `choices[0].message.content` 的 Markdown 图片语法中返回。新接入和业务调用优先使用 Images 接口。
 
 ### 2.1 请求
 
 ```
-POST {Base URL}/chat/completions
+POST {Base URL}/images/generations
 Content-Type: application/json
 Authorization: Bearer <api-key>
 ```
@@ -559,14 +616,10 @@ Authorization: Bearer <api-key>
 
 ```json
 {
-  "model": "nano-banana",
-  "messages": [
-    {
-      "role": "user",
-      "content": "Generate an image of a cute cat wearing a tiny hat"
-    }
-  ],
-  "max_tokens": 4096
+  "model": "gemini_3.1_flash_image_preview",
+  "prompt": "Generate an image of a cute cat wearing a tiny hat, studio lighting",
+  "n": 1,
+  "size": "1024x1024"
 }
 ```
 
@@ -575,26 +628,121 @@ Authorization: Bearer <api-key>
 | 参数名 | 类型 | 必填 | 说明 |
 |--------|------|------|------|
 | model | string | 是 | 图片生成模型名称，见下方模型列表 |
-| messages | array | 是 | 消息数组，格式同 OpenAI Chat Completions |
-| messages[].role | string | 是 | 角色，固定为 "user" |
-| messages[].content | string | 是 | 图片描述，建议用英文，描述越详细效果越好 |
-| max_tokens | integer | 否 | 建议设为 4096，确保图片 URL 能完整返回 |
+| prompt | string | 是 | 图片描述，建议用英文，描述越详细效果越好 |
+| n | integer | 否 | 生成图片数量，默认 1 |
+| size | string | 否 | 输出尺寸，常用 `1024x1024`；4K 模型建议使用模型默认高清能力 |
+| response_format | string | 否 | OpenAI 兼容字段，支持情况取决于下游 |
+| extra_body.google.image_config.aspect_ratio | string | 否 | Apexer 兼容参数，例如 `1:1`、`16:9`、`9:16` |
+| extra_body.google.image_config.image_size | string | 否 | Apexer 兼容参数，例如 `1K`、`4K` |
 
-**可用图片模型：**
+**当前已验证可用图片模型（2026-06-01）：**
 
 | 模型名 | 说明 | 单次价格 | 建议场景 |
 |--------|------|----------|----------|
-| nano-banana | 快速生图 | $0.18 | 快速预览、简单图片 |
-| nano-banana-hd | 高清生图 | $0.22 | 需要更清晰的效果 |
-| nano-banana-pro | 专业生图 | $0.3 | 高质量需求 |
-| gemini-2.5-flash-image-preview | Gemini 2.5 Flash 生图 | $0.14 | 最便宜，适合批量 |
-| gemini-2.5-flash-image | Gemini 2.5 Flash 生图（正式版） | $0.14 | 最便宜，适合批量 |
-| gemini-3-pro-image-preview | Gemini 3 Pro 生图 | $0.3 | 最高质量 |
 | gemini_3.0_pro_image_preview | Apexer Gemini 3 Pro 生图 | $0.3 | 广告图、产品图、高精度插画 |
 | gemini_3.0_pro_image_preview_4K | Apexer Gemini 3 Pro 4K 生图 | $0.35 | 海报、印刷级素材 |
 | gemini_3.1_flash_image_preview | Apexer Gemini 3.1 Flash 生图 | $0.25 | 快速草稿、社媒配图 |
 | gemini_3.1_flash_image_preview_4K | Apexer Gemini 3.1 Flash 4K 生图 | $0.3 | 高清壁纸、快速高清输出 |
-| gpt-image-2 | Apexer GPT Image 2 | $0.5 | 高质量创意图、概念设计 |
+
+**ListenHub 图片平台：**
+
+ListenHub 已作为独立渠道类型接入，后台创建渠道时使用：
+
+| 配置项 | 值 |
+|--------|----|
+| 渠道类型 | `ListenHub` / `type=59` |
+| Base URL | `https://api.marswave.ai/openapi` |
+| 上游接口 | `/v1/images/generation` |
+| 对外入口 | `/v1/images/generations` |
+| 返回格式 | OpenAI Images 兼容，图片在 `data[0].b64_json` |
+
+支持模型：
+
+| 模型名 | ListenHub provider | 说明 |
+|--------|--------------------|------|
+| gemini-3-pro-image-preview | google | 默认高质量图片模型 |
+| gemini-3.1-flash-image-preview | google | 更快，支持额外长宽比 |
+| gpt-image-2 | openai | OpenAI 图片模型，最多 4 张参考图 |
+
+ListenHub 验证状态：
+
+| 检查项 | 状态 | 说明 |
+|--------|------|------|
+| 本项目渠道适配 | 已接入 | 新增 `type=59`，对外走 `/v1/images/generations` |
+| 远端现有渠道 | 已创建 | 渠道 ID `12`，名称 `listenhub-images`，`priority=120`，当前手动禁用，待部署 `type=59` 代码后启用 |
+| 真实上游生成 | 已直连验证 | 2026-06-01 使用 ListenHub Key 直连 Marswave 上游验证通过；relay channel test 需部署后执行 |
+
+ListenHub 上游直连验证结果（2026-06-01）：
+
+| provider | 模型 | 结果 | 耗时 | 返回 |
+|----------|------|------|------|------|
+| google | gemini-3-pro-image-preview | ✅ 成功 | 约 21 秒 | 1 张 PNG base64 |
+| google | gemini-3.1-flash-image-preview | ✅ 成功 | 约 14 秒 | 1 张 PNG base64 |
+| openai | gpt-image-2 | ✅ 成功 | 约 22 秒 | 1 张 PNG base64 |
+
+ListenHub 参数映射：
+
+| 上游 OpenAI 兼容参数 | ListenHub 参数 |
+|----------------------|----------------|
+| `prompt` | `prompt` |
+| `model=gemini-3-pro-image-preview` | `provider=google`, `model=gemini-3-pro-image-preview` |
+| `model=gemini-3.1-flash-image-preview` | `provider=google`, `model=gemini-3.1-flash-image-preview` |
+| `model=gpt-image-2` | `provider=openai`, `model=gpt-image-2` |
+| `size=1024x1024` | `imageConfig.aspectRatio=1:1` |
+| `size=1792x1024` | `imageConfig.aspectRatio=16:9` |
+| `size=1024x1792` | `imageConfig.aspectRatio=9:16` |
+| `quality=1K/2K/4K` | `imageConfig.imageSize=1K/2K/4K` |
+| `extra_body.listenhub.imageConfig` | 覆盖 `imageConfig` |
+| `image` / `images` / `referenceImages` | `referenceImages`，支持 URL 和 `data:image/...;base64,...` |
+
+真实探测结果：
+
+| 渠道 | 模型 | 端点 | 结果 | 耗时 |
+|------|------|------|------|------|
+| apexer-images-openai | gemini_3.0_pro_image_preview | `/v1/images/generations` | ✅ 成功 | 约 39 秒 |
+| apexer-images-openai | gemini_3.0_pro_image_preview_4K | `/v1/images/generations` | ✅ 成功 | 约 89 秒 |
+| apexer-images-openai | gemini_3.1_flash_image_preview | `/v1/images/generations` | ✅ 成功 | 约 26 秒 |
+| apexer-images-openai | gemini_3.1_flash_image_preview_4K | `/v1/images/generations` | ✅ 成功 | 约 63 秒 |
+
+暂不推荐模型：
+
+| 模型名 | 当前状态 |
+|--------|----------|
+| gpt-image-2 | Apexer OpenAI 兼容通道当前返回无可用渠道 |
+| nano-banana / nano-banana-hd / nano-banana-pro | BLTCY 通道当前在标准 Images 路径返回无可用渠道或路径不支持 |
+| gemini-2.5-flash-image / gemini-3-pro-image-preview | BLTCY 通道当前不支持 `/v1/images/generations` 标准路径 |
+
+ListenHub 调用示例：
+
+```bash
+curl -s "http://192.129.209.36:3001/v1/images/generations" \
+  -H "Authorization: Bearer your-api-key-here" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "gemini-3.1-flash-image-preview",
+    "prompt": "A serene mountain landscape at sunset with a reflective lake",
+    "quality": "2K",
+    "size": "1792x1024"
+  }'
+```
+
+带参考图示例：
+
+```json
+{
+  "model": "gpt-image-2",
+  "prompt": "Transform this scene into a watercolor painting style",
+  "images": ["https://example.com/my-photo.jpg"],
+  "extra_body": {
+    "listenhub": {
+      "imageConfig": {
+        "aspectRatio": "1:1",
+        "imageSize": "2K"
+      }
+    }
+  }
+}
+```
 
 **Apexer 图片接口兼容层：**
 
@@ -618,7 +766,20 @@ Authorization: Bearer <api-key>
 | `generationConfig.imageConfig.imageSize` | Gemini 原生格式原样透传 |
 | `size` / `quality` / `output_format` / `background` | GPT Image 系列在 `/v1/images/generations` 中原样透传 |
 
-**成功响应（HTTP 200）：**
+**Images 成功响应（HTTP 200）：**
+
+```json
+{
+  "created": 1770000000,
+  "data": [
+    {
+      "url": "https://example.com/generated-image.png"
+    }
+  ]
+}
+```
+
+如果使用 Chat Completions 兼容入口，成功响应通常如下：
 
 ```json
 {
@@ -643,7 +804,7 @@ Authorization: Bearer <api-key>
 }
 ```
 
-**图片 URL 提取方式：** 图片 URL 嵌入在 `choices[0].message.content` 中，格式为 Markdown 图片语法 `![image1](url)`。可通过正则表达式 `!\[.*?\]\((.*?)\)` 提取 URL。
+**图片 URL 提取方式：** Images 接口读取 `data[0].url`；Chat Completions 兼容入口中，图片 URL 通常嵌入在 `choices[0].message.content`，格式为 Markdown 图片语法 `![image1](url)`，可通过正则表达式 `!\[.*?\]\((.*?)\)` 提取。
 
 ### 2.2 完整调用示例（Python）
 
@@ -652,21 +813,22 @@ import requests
 import re
 
 BASE_URL = "http://192.129.209.36:3001/v1"
-API_KEY = "EW93ybOP6Zr1axAPYNEu8VpehQzdTkZBTATszAGYEDiwpCmJ"
+API_KEY = "your-api-key-here"
 
 headers = {
     "Authorization": f"Bearer {API_KEY}",
     "Content-Type": "application/json"
 }
 
-def generate_image(prompt, model="nano-banana"):
+def generate_image(prompt, model="gemini_3.1_flash_image_preview"):
     response = requests.post(
-        f"{BASE_URL}/chat/completions",
+        f"{BASE_URL}/images/generations",
         headers=headers,
         json={
             "model": model,
-            "messages": [{"role": "user", "content": prompt}],
-            "max_tokens": 4096
+            "prompt": prompt,
+            "n": 1,
+            "size": "1024x1024",
         }
     )
 
@@ -676,6 +838,10 @@ def generate_image(prompt, model="nano-banana"):
         print(f"生成失败: {result['error']}")
         return None
 
+    if result.get("data") and result["data"][0].get("url"):
+        return result["data"][0]["url"]
+
+    # 兼容少数下游按 Chat Completions 格式返回 Markdown 图片 URL 的情况
     content = result["choices"][0]["message"]["content"]
 
     urls = re.findall(r'!\[.*?\]\((.*?)\)', content)

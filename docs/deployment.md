@@ -435,6 +435,26 @@ Apexer 图片生成同时支持 Google 原生格式和 OpenAI 兼容格式，本
 
 `/v1/images/generations` 的 `extra_body.google.image_config` 已在后端保留并透传，用于 Apexer 的 `aspect_ratio` / `image_size` 参数控制。
 
+### ListenHub 图片渠道
+
+ListenHub 已新增为独立渠道类型，适合接入 `https://api.marswave.ai/openapi/v1/images/generation` 这类非标准 OpenAI Images 上游。后台新增渠道时配置：
+
+| 配置项 | 值 |
+|--------|----|
+| 渠道 ID | 12 |
+| 名称 | `listenhub-images` |
+| 类型 | 59 (ListenHub) |
+| 状态 | 手动禁用，待部署 `type=59` 代码后启用 |
+| 优先级 | `120`，部署并启用后优先于现有图片渠道 |
+| Base URL | `https://api.marswave.ai/openapi` |
+| 支持模型 | `gemini-3-pro-image-preview`, `gemini-3.1-flash-image-preview`, `gpt-image-2` |
+| 对外入口 | `/v1/images/generations` |
+| 返回格式 | OpenAI Images 兼容，图片在 `data[].b64_json` |
+
+字段映射：`prompt` 原样透传；`gpt-image-2` 自动使用 `provider=openai`，其他模型默认 `provider=google`；`size` 会映射为 `imageConfig.aspectRatio`；`quality=1K/2K/4K` 会映射为 `imageConfig.imageSize`；`image` / `images` / `referenceImages` 会转换为 ListenHub 的 `referenceImages`。
+
+当前部署检查：截至 2026-06-01，已创建线上渠道 `listenhub-images`（ID 12，`priority=120`），但保持手动禁用，因为当前线上运行版本尚未包含 `type=59` 适配代码。已使用 ListenHub Key 直连 Marswave 上游验证 3 个模型均成功返回 PNG base64；部署本次代码后启用渠道并执行 channel test。
+
 ### 渠道优先级策略
 
 当前视频生成的优先级策略：

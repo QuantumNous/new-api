@@ -145,6 +145,18 @@ export const CHANNEL_TYPE_CONFIGS: Record<number, ChannelTypeConfig> = {
       other: 'OpenAI-compatible video generation relay (Veo/Sora via third-party API; xb-sora2 API uses X-API-Key)',
     },
   },
+  59: {
+    id: 59,
+    name: CHANNEL_TYPES[59],
+    icon: 'openai',
+    defaultBaseUrl: 'https://api.marswave.ai/openapi',
+    hints: {
+      baseUrl: 'Default: https://api.marswave.ai/openapi',
+      key: 'ListenHub API Key',
+      models: 'gemini-3-pro-image-preview,gemini-3.1-flash-image-preview,gpt-image-2',
+      other: 'ListenHub image generation; upstream path is /v1/images/generation and this channel exposes /v1/images/generations.',
+    },
+  },
 }
 
 /**
