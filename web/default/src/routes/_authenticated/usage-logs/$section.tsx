@@ -33,7 +33,7 @@ const logTypeSearchSchema = z
     },
     z.array(z.enum(logTypeValues)).optional()
   )
-  .catch([])
+  .catch(undefined)
 
 const usageLogsSearchSchema = z.object({
   page: z.number().optional().catch(1),

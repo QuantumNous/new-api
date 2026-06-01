@@ -20,7 +20,12 @@ var (
 )
 
 // Redemption errors
-var ErrRedeemFailed = errors.New("redeem.failed")
+var (
+	ErrRedeemFailed = errors.New("redeem.failed")
+	ErrInvalidCode  = errors.New("redeem.invalid_code")
+	ErrCodeUsed     = errors.New("redeem.code_used")
+	ErrCodeExpired  = errors.New("redeem.code_expired")
+)
 
 // 2FA errors
 var ErrTwoFANotEnabled = errors.New("2fa not enabled")

@@ -279,7 +279,7 @@ func TestBuildOpenAIStyleUsageFromClaudeUsageDefaultsAggregateCacheCreationTo5m(
 	require.Equal(t, 0, openAIUsage.ClaudeCacheCreation1hTokens)
 }
 
-func TestRequestOpenAI2ClaudeMessage_IgnoresUnsupportedFileContent(t *testing.T) {
+func TestRequestOpenAI2ClaudeMessage_RejectsUnsupportedFileContent(t *testing.T) {
 	request := dto.GeneralOpenAIRequest{
 		Model: "claude-3-5-sonnet",
 		Messages: []dto.Message{
@@ -302,16 +302,33 @@ func TestRequestOpenAI2ClaudeMessage_IgnoresUnsupportedFileContent(t *testing.T)
 		},
 	}
 
-	claudeRequest, err := RequestOpenAI2ClaudeMessage(nil, request)
-	require.NoError(t, err)
-	require.Len(t, claudeRequest.Messages, 1)
+	_, err := RequestOpenAI2ClaudeMessage(nil, request)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "unsupported claude file mime type application/octet-stream for blob.bin")
+}
 
-	content, ok := claudeRequest.Messages[0].Content.([]dto.ClaudeMediaMessage)
-	require.True(t, ok)
-	require.Len(t, content, 1)
-	require.Equal(t, "text", content[0].Type)
-	require.NotNil(t, content[0].Text)
-	require.Equal(t, "see attachment", *content[0].Text)
+func TestRequestOpenAI2ClaudeMessage_RejectsEmptyFileContent(t *testing.T) {
+	request := dto.GeneralOpenAIRequest{
+		Model: "claude-3-5-sonnet",
+		Messages: []dto.Message{
+			{
+				Role: "user",
+				Content: []any{
+					dto.MediaContent{
+						Type: dto.ContentTypeFile,
+						File: &dto.MessageFile{
+							FileName: "empty.pdf",
+							FileData: "",
+						},
+					},
+				},
+			},
+		},
+	}
+
+	_, err := RequestOpenAI2ClaudeMessage(nil, request)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "claude file content is empty: empty.pdf")
 }
 
 func TestRequestOpenAI2ClaudeMessage_ClaudeOpus48HighUsesAdaptiveThinking(t *testing.T) {

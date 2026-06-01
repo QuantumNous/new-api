@@ -1,6 +1,7 @@
 package claude
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -380,6 +381,51 @@ func RequestOpenAI2ClaudeMessage(c *gin.Context, textRequest dto.GeneralOpenAIRe
 								Text: common.GetPointer[string](mediaMessage.Text),
 							})
 						}
+					case dto.ContentTypeFile:
+						file := mediaMessage.GetFile()
+						if file == nil {
+							return nil, fmt.Errorf("claude file content is missing")
+						}
+						if file.FileData == "" {
+							fileLabel := file.FileName
+							if fileLabel == "" {
+								fileLabel = file.FileId
+							}
+							if fileLabel == "" {
+								fileLabel = "unknown file"
+							}
+							return nil, fmt.Errorf("claude file content is empty: %s", fileLabel)
+						}
+						mimeType := mimeTypeFromMessageFile(file)
+						if strings.HasPrefix(mimeType, "text/") {
+							decoded, err := base64.StdEncoding.DecodeString(file.FileData)
+							if err != nil {
+								return nil, fmt.Errorf("decode text file failed: %s", err.Error())
+							}
+							claudeMediaMessages = append(claudeMediaMessages, dto.ClaudeMediaMessage{
+								Type: "text",
+								Text: common.GetPointer[string](string(decoded)),
+							})
+							continue
+						}
+						if mimeType != "application/pdf" {
+							fileLabel := file.FileName
+							if fileLabel == "" {
+								fileLabel = file.FileId
+							}
+							if fileLabel == "" {
+								fileLabel = "unknown file"
+							}
+							return nil, fmt.Errorf("unsupported claude file mime type %s for %s", mimeType, fileLabel)
+						}
+						claudeMediaMessages = append(claudeMediaMessages, dto.ClaudeMediaMessage{
+							Type: "document",
+							Source: &dto.ClaudeMessageSource{
+								Type:      "base64",
+								MediaType: mimeType,
+								Data:      file.FileData,
+							},
+						})
 					default:
 						source := mediaMessage.ToFileSource()
 						if source == nil {
@@ -436,6 +482,16 @@ func RequestOpenAI2ClaudeMessage(c *gin.Context, textRequest dto.GeneralOpenAIRe
 	claudeRequest.Prompt = ""
 	claudeRequest.Messages = claudeMessages
 	return &claudeRequest, nil
+}
+
+func mimeTypeFromMessageFile(file *dto.MessageFile) string {
+	if file == nil {
+		return "application/octet-stream"
+	}
+	if dot := strings.LastIndex(file.FileName, "."); dot != -1 && dot+1 < len(file.FileName) {
+		return service.GetMimeTypeByExtension(file.FileName[dot+1:])
+	}
+	return "application/octet-stream"
 }
 
 func StreamResponseClaude2OpenAI(claudeResponse *dto.ClaudeResponse) *dto.ChatCompletionsStreamResponse {
