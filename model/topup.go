@@ -604,6 +604,9 @@ func RechargeAlipay(tradeNo string, callerIp string) (err error) {
 	if quotaToAdd > 0 {
 		RecordTopupLog(topUp.UserId, fmt.Sprintf("Alipay top-up successful, quota added: %v, amount: %.2f", logger.FormatQuota(quotaToAdd), topUp.Money), callerIp, topUp.PaymentMethod, PaymentMethodAlipay)
 	}
+	if err := DeleteAlipayPendingTask(tradeNo); err != nil {
+		common.SysLog("failed to delete alipay pending task: " + err.Error())
+	}
 
 	return nil
 }

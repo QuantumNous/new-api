@@ -131,7 +131,7 @@ func RequestAlipayPay(c *gin.Context) {
 		CreateTime:      time.Now().Unix(),
 		Status:          common.TopUpStatusPending,
 	}
-	if err := topUp.Insert(); err != nil {
+	if err := model.CreateAlipayTopUpWithPendingTask(topUp, service.NextAlipayPendingQueryTime(time.Now())); err != nil {
 		logger.LogError(c.Request.Context(), fmt.Sprintf("Alipay 创建充值订单失败 user_id=%d trade_no=%s amount=%d error=%q", id, tradeNo, req.Amount, err.Error()))
 		c.JSON(http.StatusOK, gin.H{"message": "error", "data": i18n.T(c, i18n.MsgPaymentCreateFailed)})
 		return
@@ -208,6 +208,7 @@ func AlipayNotify(c *gin.Context) {
 			c.String(http.StatusInternalServerError, "fail")
 			return
 		}
+		_ = model.DeleteAlipayPendingTask(outTradeNo)
 	}
 
 	c.String(http.StatusOK, "success")
