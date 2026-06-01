@@ -354,26 +354,28 @@ func ensureClientGoneLocalUsage(ctx *gin.Context, relayInfo *relaycommon.RelayIn
 		}, true
 	}
 
-	changed := false
+	appliedLocalEstimate := false
 	if usage.PromptTokens <= 0 && estimatedPromptTokens > 0 {
 		usage.PromptTokens = estimatedPromptTokens
-		changed = true
+		appliedLocalEstimate = true
 	}
-	if usage.TotalTokens <= 0 || changed {
+	if usage.TotalTokens <= 0 || appliedLocalEstimate {
 		usage.TotalTokens = usage.PromptTokens + usage.CompletionTokens
 	}
 	if usage.TotalTokens <= 0 {
 		return usage, false
 	}
-	markLocal()
-	return usage, true
+	if appliedLocalEstimate {
+		markLocal()
+	}
+	return usage, appliedLocalEstimate
 }
 
 func PostTextConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, usage *dto.Usage, extraContent []string) {
 	upstreamUsageMissing := usage == nil
-	usage, _ = ensureClientGoneLocalUsage(ctx, relayInfo, usage, &extraContent)
+	usage, localUsageApplied := ensureClientGoneLocalUsage(ctx, relayInfo, usage, &extraContent)
 	originUsage := usage
-	if upstreamUsageMissing {
+	if upstreamUsageMissing && !localUsageApplied {
 		extraContent = append(extraContent, "上游无计费信息")
 	}
 	if originUsage != nil {

@@ -201,6 +201,32 @@ func TestEnsureClientGoneLocalUsageCompletesPartialUsageWithPromptEstimate(t *te
 	require.Contains(t, extra, "客户端断流，使用本地 token 估算")
 }
 
+func TestEnsureClientGoneLocalUsageKeepsReliableUsageUnmarked(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	w := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(w)
+
+	streamStatus := relaycommon.NewStreamStatus()
+	streamStatus.SetEndReason(relaycommon.StreamEndReasonClientGone, nil)
+	relayInfo := &relaycommon.RelayInfo{
+		IsStream:     true,
+		StreamStatus: streamStatus,
+	}
+	relayInfo.SetEstimatePromptTokens(42)
+
+	reliable := &dto.Usage{PromptTokens: 10, CompletionTokens: 3, TotalTokens: 13}
+	extra := []string{}
+	usage, ok := ensureClientGoneLocalUsage(ctx, relayInfo, reliable, &extra)
+
+	require.False(t, ok)
+	require.Same(t, reliable, usage)
+	require.Equal(t, 10, usage.PromptTokens)
+	require.Equal(t, 3, usage.CompletionTokens)
+	require.Equal(t, 13, usage.TotalTokens)
+	require.False(t, common.GetContextKeyBool(ctx, constant.ContextKeyLocalCountTokens))
+	require.Empty(t, extra)
+}
+
 func TestEnsureClientGoneLocalUsageSkipsNormalStream(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	w := httptest.NewRecorder()
