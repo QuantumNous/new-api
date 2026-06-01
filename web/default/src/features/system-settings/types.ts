@@ -183,6 +183,10 @@ export type ModelSettings = {
   'model_deployment.ionet.enabled': boolean
 }
 
+export type BusinessFallbackSettings = {
+  'business_fallback.config': string
+}
+
 export type BillingSettings = {
   QuotaForNewUser: number
   PreConsumedQuota: number

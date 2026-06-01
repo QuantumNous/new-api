@@ -202,6 +202,7 @@ export const STATIC_I18N_KEYS = [
 
   // Channel Affinity section
   'Channel Affinity',
+  'Business Fallback',
 
   // Models constants
   'Exact Match',

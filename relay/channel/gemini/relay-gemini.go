@@ -1652,7 +1652,7 @@ func GeminiImageHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.
 		})
 	}
 
-	jsonResponse, jsonErr := json.Marshal(openAIResponse)
+	jsonResponse, jsonErr := common.Marshal(openAIResponse)
 	if jsonErr != nil {
 		return nil, types.NewError(jsonErr, types.ErrorCodeBadResponseBody)
 	}
@@ -1673,6 +1673,86 @@ func GeminiImageHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.
 	}
 
 	return usage, nil
+}
+
+func GeminiGeneratedImageHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response) (*dto.Usage, *types.NewAPIError) {
+	responseBody, readErr := io.ReadAll(resp.Body)
+	if readErr != nil {
+		return nil, types.NewOpenAIError(readErr, types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
+	}
+	_ = resp.Body.Close()
+
+	var geminiResponse dto.GeminiChatResponse
+	if jsonErr := common.Unmarshal(responseBody, &geminiResponse); jsonErr != nil {
+		return nil, types.NewOpenAIError(jsonErr, types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
+	}
+
+	if len(geminiResponse.Candidates) == 0 {
+		usage := buildUsageFromGeminiMetadata(geminiResponse.UsageMetadata, info.GetEstimatePromptTokens())
+		if geminiResponse.PromptFeedback != nil && geminiResponse.PromptFeedback.BlockReason != nil {
+			common.SetContextKey(c, constant.ContextKeyAdminRejectReason, fmt.Sprintf("gemini_block_reason=%s", *geminiResponse.PromptFeedback.BlockReason))
+			return &usage, types.NewOpenAIError(
+				errors.New("request blocked by Gemini API: "+*geminiResponse.PromptFeedback.BlockReason),
+				types.ErrorCodePromptBlocked,
+				http.StatusBadRequest,
+			)
+		}
+		common.SetContextKey(c, constant.ContextKeyAdminRejectReason, "gemini_empty_candidates")
+		return &usage, types.NewOpenAIError(errors.New("no images generated"), types.ErrorCodeEmptyResponse, http.StatusInternalServerError)
+	}
+
+	openAIResponse := dto.ImageResponse{
+		Created: common.GetTimestamp(),
+		Data:    make([]dto.ImageData, 0),
+	}
+	var revisedPrompt string
+	for _, candidate := range geminiResponse.Candidates {
+		for _, part := range candidate.Content.Parts {
+			if part.InlineData != nil && strings.HasPrefix(part.InlineData.MimeType, "image/") && part.InlineData.Data != "" {
+				openAIResponse.Data = append(openAIResponse.Data, dto.ImageData{
+					B64Json:       part.InlineData.Data,
+					RevisedPrompt: revisedPrompt,
+				})
+				continue
+			}
+			if strings.TrimSpace(part.Text) != "" && revisedPrompt == "" {
+				revisedPrompt = part.Text
+			}
+		}
+	}
+
+	if len(openAIResponse.Data) == 0 {
+		common.SetContextKey(c, constant.ContextKeyAdminRejectReason, "gemini_no_inline_images")
+		return nil, types.NewOpenAIError(errors.New("no images generated"), types.ErrorCodeEmptyResponse, http.StatusInternalServerError)
+	}
+	for idx := range openAIResponse.Data {
+		if openAIResponse.Data[idx].RevisedPrompt == "" {
+			openAIResponse.Data[idx].RevisedPrompt = revisedPrompt
+		}
+	}
+
+	jsonResponse, jsonErr := common.Marshal(openAIResponse)
+	if jsonErr != nil {
+		return nil, types.NewError(jsonErr, types.ErrorCodeBadResponseBody)
+	}
+
+	c.Writer.Header().Set("Content-Type", "application/json")
+	c.Writer.WriteHeader(resp.StatusCode)
+	_, _ = c.Writer.Write(jsonResponse)
+
+	usage := buildUsageFromGeminiMetadata(geminiResponse.UsageMetadata, info.GetEstimatePromptTokens())
+	if usage.TotalTokens == 0 {
+		const imageTokens = 258
+		generatedImages := len(openAIResponse.Data)
+		usage.PromptTokens = info.GetEstimatePromptTokens()
+		if usage.PromptTokens <= 0 {
+			usage.PromptTokens = imageTokens * generatedImages
+		}
+		usage.CompletionTokens = imageTokens * generatedImages
+		usage.TotalTokens = usage.PromptTokens + usage.CompletionTokens
+	}
+
+	return &usage, nil
 }
 
 type GeminiModelsResponse struct {

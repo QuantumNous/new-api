@@ -130,12 +130,28 @@ func Distribute() func(c *gin.Context) {
 				}
 
 				if channel == nil {
-					channel, selectGroup, err = service.CacheGetRandomSatisfiedChannel(&service.RetryParam{
-						Ctx:        c,
-						ModelName:  modelRequest.Model,
-						TokenGroup: usingGroup,
-						Retry:      common.GetPointer(0),
-					})
+					selectionAttempts := []service.BusinessFallbackAttempt{{
+						Family:      "",
+						SelectModel: modelRequest.Model,
+					}}
+					if plan, ok := service.ResolveImageBusinessFallbackPlan(modelRequest.Model); ok && shouldUseBusinessImageFallbackSelection(c) {
+						selectionAttempts = plan.Attempts
+					}
+					for _, attempt := range selectionAttempts {
+						if !service.IsModelAllowedByTokenLimit(c, attempt.SelectModel) {
+							continue
+						}
+						channel, selectGroup, err = service.CacheGetRandomSatisfiedChannel(&service.RetryParam{
+							Ctx:         c,
+							ModelName:   attempt.SelectModel,
+							ModelFamily: attempt.Family,
+							TokenGroup:  usingGroup,
+							Retry:       common.GetPointer(0),
+						})
+						if err == nil && channel != nil {
+							break
+						}
+					}
 					if err != nil {
 						showGroup := usingGroup
 						if usingGroup == "auto" {
@@ -164,6 +180,23 @@ func Distribute() func(c *gin.Context) {
 			service.RecordChannelAffinity(c, channel.Id)
 		}
 	}
+}
+
+func shouldUseBusinessImageFallbackSelection(c *gin.Context) bool {
+	if c == nil || c.Request == nil || c.Request.URL == nil {
+		return false
+	}
+	path := c.Request.URL.Path
+	if strings.HasPrefix(path, "/v1/images/generations") {
+		return true
+	}
+	if (strings.HasPrefix(path, "/v1beta/models/") || strings.HasPrefix(path, "/v1/models/")) &&
+		strings.Contains(path, ":generateContent") &&
+		!strings.Contains(path, ":streamGenerateContent") &&
+		!strings.Contains(path, ":embedContent") {
+		return true
+	}
+	return false
 }
 
 // getModelFromRequest 从请求中读取模型信息

@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"io"
@@ -122,6 +123,18 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		newAPIError = types.NewError(err, types.ErrorCodeGenRelayInfoFailed)
 		return
 	}
+	businessImageFallbackPlan, hasBusinessImageFallback := service.ResolveImageBusinessFallbackPlan(relayInfo.OriginModelName)
+	if !isBusinessImageFallbackRelayFormat(relayFormat, relayInfo) {
+		hasBusinessImageFallback = false
+	}
+	var businessImageRequest *service.BusinessImageRequest
+	if hasBusinessImageFallback {
+		businessImageRequest, err = service.NewBusinessImageRequest(request)
+		if err != nil {
+			newAPIError = types.NewError(err, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
+			return
+		}
+	}
 
 	needSensitiveCheck := setting.ShouldCheckPromptSensitive()
 	needCountToken := constant.CountToken
@@ -150,7 +163,12 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 
 	relayInfo.SetEstimatePromptTokens(tokens)
 
-	priceData, err := helper.ModelPriceHelper(c, relayInfo, tokens, meta)
+	var priceData types.PriceData
+	if hasBusinessImageFallback {
+		priceData, err = businessImageFallbackMaxPriceData(c, relayInfo, businessImageFallbackPlan, businessImageRequest, tokens, meta)
+	} else {
+		priceData, err = helper.ModelPriceHelper(c, relayInfo, tokens, meta)
+	}
 	if err != nil {
 		newAPIError = types.NewError(err, types.ErrorCodeModelPriceError, types.ErrOptionWithStatusCode(http.StatusBadRequest))
 		return
@@ -177,6 +195,11 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 			service.ChargeViolationFeeIfNeeded(c, relayInfo, newAPIError)
 		}
 	}()
+
+	if hasBusinessImageFallback {
+		newAPIError = relayBusinessImageFallback(c, relayInfo, businessImageFallbackPlan, businessImageRequest)
+		return
+	}
 
 	retryParam := &service.RetryParam{
 		Ctx:        c,
@@ -287,6 +310,290 @@ func fastTokenCountMetaForPricing(request dto.Request) *types.TokenCountMeta {
 		// Best-effort: leave CombineText empty to avoid large allocations.
 	}
 	return meta
+}
+
+func businessImageFallbackMaxPriceData(c *gin.Context, relayInfo *relaycommon.RelayInfo, plan *service.BusinessFallbackPlan, businessImageRequest *service.BusinessImageRequest, tokens int, meta *types.TokenCountMeta) (types.PriceData, error) {
+	if plan == nil || len(plan.Attempts) == 0 {
+		return helper.ModelPriceHelper(c, relayInfo, tokens, meta)
+	}
+	originalModel := relayInfo.OriginModelName
+	var best types.PriceData
+	var bestErr error
+	hasBest := false
+	for _, attempt := range plan.Attempts {
+		if !service.IsModelAllowedByTokenLimit(c, attempt.SelectModel) {
+			continue
+		}
+		priceInfo := *relayInfo
+		priceInfo.OriginModelName = attempt.SelectModel
+		attemptMeta := meta
+		if businessImageRequest != nil {
+			if imageReq, imageErr := businessImageRequest.ToImageRequest(attempt.SelectModel, attempt.Family); imageErr == nil {
+				attemptMeta = imageReq.GetTokenCountMeta()
+			}
+		}
+		priceData, err := helper.ModelPriceHelper(c, &priceInfo, tokens, attemptMeta)
+		if err != nil {
+			bestErr = err
+			continue
+		}
+		if !hasBest || priceData.QuotaToPreConsume > best.QuotaToPreConsume {
+			best = priceData
+			hasBest = true
+		}
+	}
+	relayInfo.OriginModelName = originalModel
+	if !hasBest {
+		if bestErr != nil {
+			return types.PriceData{}, bestErr
+		}
+		return helper.ModelPriceHelper(c, relayInfo, tokens, meta)
+	}
+	relayInfo.PriceData = best
+	return best, nil
+}
+
+func isBusinessImageFallbackRelayFormat(relayFormat types.RelayFormat, relayInfo *relaycommon.RelayInfo) bool {
+	switch relayFormat {
+	case types.RelayFormatOpenAIImage:
+		return relayInfo != nil && relayInfo.RelayMode == relayconstant.RelayModeImagesGenerations
+	case types.RelayFormatGemini:
+		if relayInfo == nil || relayInfo.IsStream {
+			return false
+		}
+		path := relayInfo.RequestURLPath
+		return strings.Contains(path, ":generateContent") && !strings.Contains(path, ":embedContent")
+	default:
+		return false
+	}
+}
+
+func relayBusinessImageFallback(c *gin.Context, relayInfo *relaycommon.RelayInfo, plan *service.BusinessFallbackPlan, businessImageRequest *service.BusinessImageRequest) *types.NewAPIError {
+	if plan == nil || len(plan.Attempts) == 0 {
+		return relayHandler(c, relayInfo)
+	}
+
+	originalModel := relayInfo.OriginModelName
+	originalRequest := relayInfo.Request
+	originalRelayFormat := relayInfo.RelayFormat
+	originalRelayMode := relayInfo.RelayMode
+	originalRequestURLPath := relayInfo.RequestURLPath
+	originalContextModel := common.GetContextKeyString(c, constant.ContextKeyOriginalModel)
+	respondAsGemini := originalRelayFormat == types.RelayFormatGemini
+	useSpecificChannel := hasSpecificChannel(c)
+	var lastError *types.NewAPIError
+	defer func() {
+		common.SetContextKey(c, constant.ContextKeyOriginalModel, originalContextModel)
+		service.SetBusinessFallbackFamily(c, "")
+		service.SetBusinessFallbackActive(c, false)
+	}()
+	for _, attempt := range plan.Attempts {
+		if !service.IsModelAllowedByTokenLimit(c, attempt.SelectModel) {
+			continue
+		}
+		imageRequest, convertErr := businessImageRequest.ToImageRequest(attempt.SelectModel, attempt.Family)
+		if convertErr != nil {
+			lastError = types.NewError(convertErr, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
+			break
+		}
+		retryParam := &service.RetryParam{
+			Ctx:         c,
+			TokenGroup:  relayInfo.TokenGroup,
+			ModelName:   attempt.SelectModel,
+			ModelFamily: attempt.Family,
+			Retry:       common.GetPointer(0),
+		}
+		service.SetBusinessFallbackFamily(c, attempt.Family)
+		for ; retryParam.GetRetry() <= common.RetryTimes; retryParam.IncreaseRetry() {
+			relayInfo.RetryIndex = retryParam.GetRetry()
+			relayInfo.LastError = lastError
+			relayInfo.OriginModelName = attempt.SelectModel
+			relayInfo.Request = imageRequest
+			relayInfo.RelayFormat = types.RelayFormatOpenAIImage
+			relayInfo.RelayMode = relayconstant.RelayModeImagesGenerations
+			relayInfo.RequestURLPath = "/v1/images/generations"
+			if useSpecificChannel {
+				common.SetContextKey(c, constant.ContextKeyOriginalModel, attempt.SelectModel)
+				relayInfo.ChannelMeta = nil
+			} else {
+				relayInfo.ChannelMeta = &relaycommon.ChannelMeta{}
+			}
+
+			channel, channelErr := getChannel(c, relayInfo, retryParam)
+			if channelErr != nil {
+				logger.LogError(c, channelErr.Error())
+				lastError = channelErr
+				break
+			}
+
+			addUsedChannel(c, channel.Id)
+			bodyStorage, bodyErr := common.GetBodyStorage(c)
+			if bodyErr != nil {
+				if common.IsRequestBodyTooLargeError(bodyErr) || errors.Is(bodyErr, common.ErrRequestBodyTooLarge) {
+					lastError = types.NewErrorWithStatusCode(bodyErr, types.ErrorCodeReadRequestBodyFailed, http.StatusRequestEntityTooLarge, types.ErrOptionWithSkipRetry())
+				} else {
+					lastError = types.NewErrorWithStatusCode(bodyErr, types.ErrorCodeReadRequestBodyFailed, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
+				}
+				break
+			}
+			c.Request.Body = io.NopCloser(bodyStorage)
+
+			if _, err := helper.ModelPriceHelper(c, relayInfo, relayInfo.GetEstimatePromptTokens(), imageRequest.GetTokenCountMeta()); err != nil {
+				lastError = types.NewError(err, types.ErrorCodeModelPriceError, types.ErrOptionWithStatusCode(http.StatusBadRequest))
+				break
+			}
+
+			service.SetBusinessFallbackActive(c, true)
+			newAPIError := relayBusinessImageAttemptHandler(c, relayInfo, respondAsGemini)
+			service.SetBusinessFallbackActive(c, false)
+			if newAPIError == nil {
+				service.RecordBusinessFallbackHealth(channel.Id, attempt.Family, true)
+				relayInfo.LastError = nil
+				return nil
+			}
+
+			newAPIError = service.NormalizeViolationFeeError(newAPIError)
+			relayInfo.LastError = newAPIError
+			lastError = newAPIError
+
+			if service.ShouldRecordBusinessFallbackFailure(newAPIError) {
+				service.RecordBusinessFallbackHealth(channel.Id, attempt.Family, false)
+			}
+			processChannelError(c, *types.NewChannelError(channel.Id, channel.Type, channel.Name, channel.ChannelInfo.IsMultiKey, common.GetContextKeyString(c, constant.ContextKeyChannelKey), channel.GetAutoBan()), newAPIError)
+
+			if !shouldRetry(c, newAPIError, common.RetryTimes-retryParam.GetRetry()) {
+				break
+			}
+		}
+	}
+	relayInfo.OriginModelName = originalModel
+	relayInfo.Request = originalRequest
+	relayInfo.RelayFormat = originalRelayFormat
+	relayInfo.RelayMode = originalRelayMode
+	relayInfo.RequestURLPath = originalRequestURLPath
+	if lastError == nil {
+		lastError = types.NewError(fmt.Errorf("business image fallback has no available attempt"), types.ErrorCodeGetChannelFailed, types.ErrOptionWithSkipRetry())
+	}
+	return lastError
+}
+
+func hasSpecificChannel(c *gin.Context) bool {
+	if c == nil {
+		return false
+	}
+	_, ok := c.Get("specific_channel_id")
+	return ok
+}
+
+type businessFallbackCaptureWriter struct {
+	gin.ResponseWriter
+	body       bytes.Buffer
+	statusCode int
+	written    bool
+}
+
+func (w *businessFallbackCaptureWriter) WriteHeader(code int) {
+	if w.written {
+		return
+	}
+	w.statusCode = code
+	w.written = true
+}
+
+func (w *businessFallbackCaptureWriter) WriteHeaderNow() {
+	if !w.written {
+		w.WriteHeader(http.StatusOK)
+	}
+}
+
+func (w *businessFallbackCaptureWriter) Write(data []byte) (int, error) {
+	w.WriteHeaderNow()
+	return w.body.Write(data)
+}
+
+func (w *businessFallbackCaptureWriter) Written() bool {
+	return w.written
+}
+
+func (w *businessFallbackCaptureWriter) Status() int {
+	if w.statusCode == 0 {
+		return http.StatusOK
+	}
+	return w.statusCode
+}
+
+func (w *businessFallbackCaptureWriter) Size() int {
+	return w.body.Len()
+}
+
+func relayBusinessImageAttemptHandler(c *gin.Context, relayInfo *relaycommon.RelayInfo, respondAsGemini bool) *types.NewAPIError {
+	if !respondAsGemini {
+		return relayHandler(c, relayInfo)
+	}
+	originalWriter := c.Writer
+	capture := &businessFallbackCaptureWriter{
+		ResponseWriter: originalWriter,
+		statusCode:     http.StatusOK,
+	}
+	c.Writer = capture
+	newAPIError := relayHandler(c, relayInfo)
+	c.Writer = originalWriter
+	if newAPIError != nil {
+		return newAPIError
+	}
+	return writeBusinessFallbackGeminiImageResponse(c, capture)
+}
+
+func writeBusinessFallbackGeminiImageResponse(c *gin.Context, capture *businessFallbackCaptureWriter) *types.NewAPIError {
+	var imageResponse dto.ImageResponse
+	if err := common.Unmarshal(capture.body.Bytes(), &imageResponse); err != nil {
+		return types.NewOpenAIError(err, types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
+	}
+	if len(imageResponse.Data) == 0 {
+		return types.NewOpenAIError(errors.New("empty image response"), types.ErrorCodeEmptyResponse, http.StatusInternalServerError)
+	}
+
+	parts := make([]dto.GeminiPart, 0, len(imageResponse.Data)+1)
+	for _, image := range imageResponse.Data {
+		if image.B64Json != "" {
+			parts = append(parts, dto.GeminiPart{
+				InlineData: &dto.GeminiInlineData{
+					MimeType: "image/png",
+					Data:     image.B64Json,
+				},
+			})
+			continue
+		}
+		if image.Url != "" {
+			parts = append(parts, dto.GeminiPart{Text: image.Url})
+		}
+	}
+	if len(parts) == 0 {
+		return types.NewOpenAIError(errors.New("image response has no usable image data"), types.ErrorCodeEmptyResponse, http.StatusInternalServerError)
+	}
+
+	finishReason := "STOP"
+	geminiResponse := dto.GeminiChatResponse{
+		Candidates: []dto.GeminiChatCandidate{
+			{
+				Content: dto.GeminiChatContent{
+					Role:  "model",
+					Parts: parts,
+				},
+				FinishReason: &finishReason,
+				Index:        0,
+			},
+		},
+	}
+	responseBytes, err := common.Marshal(geminiResponse)
+	if err != nil {
+		return types.NewError(err, types.ErrorCodeBadResponseBody)
+	}
+
+	c.Writer.Header().Set("Content-Type", "application/json")
+	c.Writer.WriteHeader(capture.Status())
+	_, _ = c.Writer.Write(responseBytes)
+	return nil
 }
 
 func getChannel(c *gin.Context, info *relaycommon.RelayInfo, retryParam *service.RetryParam) (*model.Channel, *types.NewAPIError) {

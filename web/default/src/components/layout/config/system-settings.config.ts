@@ -24,10 +24,12 @@ import {
   Settings,
   Shield,
   ShieldAlert,
+  Workflow,
   Wrench,
 } from 'lucide-react'
 import { getAuthSectionNavItems } from '@/features/system-settings/auth/section-registry.tsx'
 import { getBillingSectionNavItems } from '@/features/system-settings/billing/section-registry.tsx'
+import { getBusinessFallbackSectionNavItems } from '@/features/system-settings/business-fallback/section-registry.tsx'
 import { getContentSectionNavItems } from '@/features/system-settings/content/section-registry.tsx'
 import { getModelsSectionNavItems } from '@/features/system-settings/models/section-registry.tsx'
 import { getOperationsSectionNavItems } from '@/features/system-settings/operations/section-registry.tsx'
@@ -67,6 +69,11 @@ function getSystemSettingsNavGroups(t: TFunction): NavGroup[] {
           title: t('Models & Routing'),
           icon: Box,
           items: getModelsSectionNavItems(t),
+        },
+        {
+          title: t('Business Fallback'),
+          icon: Workflow,
+          items: getBusinessFallbackSectionNavItems(t),
         },
         {
           title: t('Security & Limits'),

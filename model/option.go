@@ -7,6 +7,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/setting"
+	"github.com/QuantumNous/new-api/setting/business_fallback"
 	"github.com/QuantumNous/new-api/setting/config"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/QuantumNous/new-api/setting/performance_setting"
@@ -203,6 +204,14 @@ func SyncOptions(frequency int) {
 }
 
 func UpdateOption(key string, value string) error {
+	if key == "business_fallback.config" {
+		normalized, err := business_fallback.NormalizeConfigJSON(value)
+		if err != nil {
+			return err
+		}
+		value = normalized
+	}
+
 	// Save to database first
 	option := Option{
 		Key: key,
@@ -229,6 +238,14 @@ func UpdateOptionsBulk(values map[string]string) error {
 	}
 	err := DB.Transaction(func(tx *gorm.DB) error {
 		for k, v := range values {
+			if k == "business_fallback.config" {
+				normalized, err := business_fallback.NormalizeConfigJSON(v)
+				if err != nil {
+					return err
+				}
+				values[k] = normalized
+				v = normalized
+			}
 			option := Option{Key: k}
 			if err := tx.FirstOrCreate(&option, Option{Key: k}).Error; err != nil {
 				return err
@@ -579,6 +596,11 @@ func handleConfigUpdate(key, value string) bool {
 
 	configName := parts[0]
 	configKey := parts[1]
+
+	if configName == "business_fallback" && configKey == "config" {
+		err := business_fallback.UpdateConfig(value)
+		return err == nil
+	}
 
 	// 获取配置对象
 	cfg := config.GlobalConfig.Get(configName)

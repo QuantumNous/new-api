@@ -1,12 +1,14 @@
 package gemini
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"strings"
 
+	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/relay/channel"
 	"github.com/QuantumNous/new-api/relay/channel/openai"
@@ -58,10 +60,6 @@ func (a *Adaptor) ConvertAudioRequest(c *gin.Context, info *relaycommon.RelayInf
 }
 
 func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.ImageRequest) (any, error) {
-	if !strings.HasPrefix(info.UpstreamModelName, "imagen") {
-		return nil, errors.New("not supported model for image generation, only imagen models are supported")
-	}
-
 	// convert size to aspect ratio but allow user to specify aspect ratio
 	aspectRatio := "1:1" // default aspect ratio
 	size := strings.TrimSpace(request.Size)
@@ -82,6 +80,46 @@ func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInf
 				aspectRatio = "16:9"
 			}
 		}
+	}
+
+	if !strings.HasPrefix(info.UpstreamModelName, "imagen") {
+		geminiRequest := dto.GeminiChatRequest{
+			Contents: []dto.GeminiChatContent{
+				{
+					Role: "user",
+					Parts: []dto.GeminiPart{
+						{Text: request.Prompt},
+					},
+				},
+			},
+			GenerationConfig: dto.GeminiChatGenerationConfig{
+				ResponseModalities: []string{"TEXT", "IMAGE"},
+			},
+		}
+		if request.N != nil && *request.N > 0 {
+			candidateCount := int(*request.N)
+			geminiRequest.GenerationConfig.CandidateCount = &candidateCount
+		}
+		imageConfig := map[string]any{
+			"aspectRatio": aspectRatio,
+		}
+		if request.Quality != "" {
+			switch request.Quality {
+			case "hd", "high", "2K":
+				imageConfig["imageSize"] = "2K"
+			case "standard", "medium", "low", "auto", "1K":
+				imageConfig["imageSize"] = "1K"
+			}
+		}
+		imageConfigBytes, err := common.Marshal(imageConfig)
+		if err != nil {
+			return nil, fmt.Errorf("failed to marshal gemini image config: %w", err)
+		}
+		geminiRequest.GenerationConfig.ImageConfig = imageConfigBytes
+		if err := applyGeminiImageExtraFields(request, &geminiRequest); err != nil {
+			return nil, err
+		}
+		return geminiRequest, nil
 	}
 
 	// build gemini imagen request
@@ -121,6 +159,180 @@ func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInf
 	}
 
 	return geminiRequest, nil
+}
+
+func applyGeminiImageExtraFields(request dto.ImageRequest, geminiRequest *dto.GeminiChatRequest) error {
+	if geminiRequest == nil {
+		return nil
+	}
+	extraBodies := make([]json.RawMessage, 0, 3)
+	if len(request.ExtraFields) > 0 {
+		extraBodies = append(extraBodies, request.ExtraFields)
+	}
+	if request.Extra != nil {
+		if body, ok := request.Extra["extra_body"]; ok && len(body) > 0 {
+			extraBodies = append(extraBodies, body)
+		}
+		if google, ok := request.Extra["google"]; ok && len(google) > 0 {
+			wrapped, err := common.Marshal(map[string]json.RawMessage{"google": google})
+			if err != nil {
+				return fmt.Errorf("failed to marshal google extra fields: %w", err)
+			}
+			extraBodies = append(extraBodies, wrapped)
+		}
+	}
+	for _, body := range extraBodies {
+		if err := applyGeminiImageExtraBody(body, geminiRequest); err != nil {
+			return err
+		}
+	}
+	if len(geminiRequest.GenerationConfig.ResponseModalities) == 0 {
+		geminiRequest.GenerationConfig.ResponseModalities = []string{"TEXT", "IMAGE"}
+	}
+	return nil
+}
+
+func applyGeminiImageExtraBody(body json.RawMessage, geminiRequest *dto.GeminiChatRequest) error {
+	var extra map[string]json.RawMessage
+	if err := common.Unmarshal(body, &extra); err != nil {
+		return fmt.Errorf("invalid gemini image extra fields: %w", err)
+	}
+	if raw, ok := extra["gemini"]; ok && len(raw) > 0 {
+		if err := applyNativeGeminiImageExtra(raw, geminiRequest); err != nil {
+			return err
+		}
+	}
+	if raw, ok := extra["generationConfig"]; ok && len(raw) > 0 {
+		if err := applyGeminiGenerationConfig(raw, geminiRequest); err != nil {
+			return err
+		}
+	}
+	if raw, ok := extra["generation_config"]; ok && len(raw) > 0 {
+		if err := applyGeminiGenerationConfig(raw, geminiRequest); err != nil {
+			return err
+		}
+	}
+	if raw, ok := extra["google"]; ok && len(raw) > 0 {
+		if err := applyGoogleImageConfig(raw, geminiRequest); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func applyNativeGeminiImageExtra(raw json.RawMessage, geminiRequest *dto.GeminiChatRequest) error {
+	var extra struct {
+		Contents               []dto.GeminiChatContent         `json:"contents"`
+		SafetySettings         []dto.GeminiChatSafetySettings  `json:"safetySettings"`
+		SafetySettingsSnake    []dto.GeminiChatSafetySettings  `json:"safety_settings"`
+		GenerationConfig       *dto.GeminiChatGenerationConfig `json:"generationConfig"`
+		GenerationConfigSnake  *dto.GeminiChatGenerationConfig `json:"generation_config"`
+		Tools                  json.RawMessage                 `json:"tools"`
+		ToolConfig             *dto.ToolConfig                 `json:"toolConfig"`
+		ToolConfigSnake        *dto.ToolConfig                 `json:"tool_config"`
+		SystemInstruction      *dto.GeminiChatContent          `json:"systemInstruction"`
+		SystemInstructionSnake *dto.GeminiChatContent          `json:"system_instruction"`
+		CachedContent          string                          `json:"cachedContent"`
+		CachedContentSnake     string                          `json:"cached_content"`
+	}
+	if err := common.Unmarshal(raw, &extra); err != nil {
+		return fmt.Errorf("invalid gemini image native extra fields: %w", err)
+	}
+	if len(extra.Contents) > 0 {
+		geminiRequest.Contents = extra.Contents
+	}
+	if len(extra.SafetySettings) > 0 {
+		geminiRequest.SafetySettings = extra.SafetySettings
+	}
+	if len(extra.SafetySettingsSnake) > 0 {
+		geminiRequest.SafetySettings = extra.SafetySettingsSnake
+	}
+	if extra.GenerationConfig != nil {
+		mergeGeminiGenerationConfig(geminiRequest, *extra.GenerationConfig)
+	}
+	if extra.GenerationConfigSnake != nil {
+		mergeGeminiGenerationConfig(geminiRequest, *extra.GenerationConfigSnake)
+	}
+	if len(extra.Tools) > 0 {
+		geminiRequest.Tools = extra.Tools
+	}
+	if extra.ToolConfig != nil {
+		geminiRequest.ToolConfig = extra.ToolConfig
+	}
+	if extra.ToolConfigSnake != nil {
+		geminiRequest.ToolConfig = extra.ToolConfigSnake
+	}
+	if extra.SystemInstruction != nil {
+		geminiRequest.SystemInstructions = extra.SystemInstruction
+	}
+	if extra.SystemInstructionSnake != nil {
+		geminiRequest.SystemInstructions = extra.SystemInstructionSnake
+	}
+	if extra.CachedContent != "" {
+		geminiRequest.CachedContent = extra.CachedContent
+	}
+	if extra.CachedContentSnake != "" {
+		geminiRequest.CachedContent = extra.CachedContentSnake
+	}
+	return nil
+}
+
+func applyGeminiGenerationConfig(raw json.RawMessage, geminiRequest *dto.GeminiChatRequest) error {
+	var cfg dto.GeminiChatGenerationConfig
+	if err := common.Unmarshal(raw, &cfg); err != nil {
+		return fmt.Errorf("invalid gemini image generation config: %w", err)
+	}
+	mergeGeminiGenerationConfig(geminiRequest, cfg)
+	return nil
+}
+
+func mergeGeminiGenerationConfig(geminiRequest *dto.GeminiChatRequest, cfg dto.GeminiChatGenerationConfig) {
+	if len(cfg.ResponseModalities) == 0 {
+		cfg.ResponseModalities = geminiRequest.GenerationConfig.ResponseModalities
+	}
+	if len(cfg.ImageConfig) == 0 {
+		cfg.ImageConfig = geminiRequest.GenerationConfig.ImageConfig
+	}
+	if cfg.CandidateCount == nil {
+		cfg.CandidateCount = geminiRequest.GenerationConfig.CandidateCount
+	}
+	geminiRequest.GenerationConfig = cfg
+}
+
+func applyGoogleImageConfig(raw json.RawMessage, geminiRequest *dto.GeminiChatRequest) error {
+	var googleBody map[string]any
+	if err := common.Unmarshal(raw, &googleBody); err != nil {
+		return fmt.Errorf("invalid google image extra fields: %w", err)
+	}
+	if _, hasErrorParam := googleBody["imageConfig"]; hasErrorParam {
+		return errors.New("extra_fields.google.imageConfig is not supported, use extra_fields.google.image_config instead")
+	}
+	imageConfig, ok := googleBody["image_config"].(map[string]any)
+	if !ok {
+		return nil
+	}
+	if _, hasErrorParam := imageConfig["aspectRatio"]; hasErrorParam {
+		return errors.New("extra_fields.google.image_config.aspectRatio is not supported, use extra_fields.google.image_config.aspect_ratio instead")
+	}
+	if _, hasErrorParam := imageConfig["imageSize"]; hasErrorParam {
+		return errors.New("extra_fields.google.image_config.imageSize is not supported, use extra_fields.google.image_config.image_size instead")
+	}
+	geminiImageConfig := make(map[string]any)
+	if aspectRatio, ok := imageConfig["aspect_ratio"]; ok {
+		geminiImageConfig["aspectRatio"] = aspectRatio
+	}
+	if imageSize, ok := imageConfig["image_size"]; ok {
+		geminiImageConfig["imageSize"] = imageSize
+	}
+	if len(geminiImageConfig) == 0 {
+		return nil
+	}
+	imageConfigBytes, err := common.Marshal(geminiImageConfig)
+	if err != nil {
+		return fmt.Errorf("failed to marshal image_config: %w", err)
+	}
+	geminiRequest.GenerationConfig.ImageConfig = imageConfigBytes
+	return nil
 }
 
 func (a *Adaptor) Init(info *relaycommon.RelayInfo) {
@@ -261,6 +473,10 @@ func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycom
 
 	if strings.HasPrefix(info.UpstreamModelName, "imagen") {
 		return GeminiImageHandler(c, info, resp)
+	}
+
+	if info.RelayMode == constant.RelayModeImagesGenerations || info.RelayMode == constant.RelayModeImagesEdits {
+		return GeminiGeneratedImageHandler(c, info, resp)
 	}
 
 	// check if the model is an embedding model

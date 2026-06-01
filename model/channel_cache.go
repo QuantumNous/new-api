@@ -95,9 +95,13 @@ func SyncChannelCache(frequency int) {
 }
 
 func GetRandomSatisfiedChannel(group string, model string, retry int) (*Channel, error) {
+	return GetRandomSatisfiedChannelWithFilter(group, model, retry, nil)
+}
+
+func GetRandomSatisfiedChannelWithFilter(group string, model string, retry int, filter func(*Channel) bool) (*Channel, error) {
 	// if memory cache is disabled, get channel directly from database
 	if !common.MemoryCacheEnabled {
-		return GetChannel(group, model, retry)
+		return getRandomSatisfiedChannelFromDBWithFilter(group, model, retry, filter)
 	}
 
 	channelSyncLock.RLock()
@@ -116,11 +120,24 @@ func GetRandomSatisfiedChannel(group string, model string, retry int) (*Channel,
 		return nil, nil
 	}
 
-	if len(channels) == 1 {
-		if channel, ok := channelsIDM[channels[0]]; ok {
-			return channel, nil
+	filteredChannels := make([]int, 0, len(channels))
+	for _, channelId := range channels {
+		channel, ok := channelsIDM[channelId]
+		if !ok {
+			return nil, fmt.Errorf("数据库一致性错误，渠道# %d 不存在，请联系管理员修复", channelId)
 		}
-		return nil, fmt.Errorf("数据库一致性错误，渠道# %d 不存在，请联系管理员修复", channels[0])
+		if filter == nil || filter(channel) {
+			filteredChannels = append(filteredChannels, channelId)
+		}
+	}
+	channels = filteredChannels
+
+	if len(channels) == 0 {
+		return nil, nil
+	}
+
+	if len(channels) == 1 {
+		return channelsIDM[channels[0]], nil
 	}
 
 	uniquePriorities := make(map[int]bool)
@@ -189,6 +206,96 @@ func GetRandomSatisfiedChannel(group string, model string, retry int) (*Channel,
 	}
 	// return null if no channel is not found
 	return nil, errors.New("channel not found")
+}
+
+func getRandomSatisfiedChannelFromDBWithFilter(group string, modelName string, retry int, filter func(*Channel) bool) (*Channel, error) {
+	abilities, err := getSatisfiedAbilities(group, modelName)
+	if err != nil {
+		return nil, err
+	}
+	if len(abilities) == 0 {
+		normalizedModel := ratio_setting.FormatMatchingModelName(modelName)
+		if normalizedModel != modelName {
+			abilities, err = getSatisfiedAbilities(group, normalizedModel)
+			if err != nil {
+				return nil, err
+			}
+		}
+	}
+	if len(abilities) == 0 {
+		return nil, nil
+	}
+
+	channels := make(map[int]*Channel)
+	filteredAbilities := make([]Ability, 0, len(abilities))
+	for _, ability := range abilities {
+		channel, ok := channels[ability.ChannelId]
+		if !ok {
+			loaded := Channel{}
+			if err := DB.First(&loaded, "id = ?", ability.ChannelId).Error; err != nil {
+				return nil, err
+			}
+			channel = &loaded
+			channels[ability.ChannelId] = channel
+		}
+		if filter == nil || filter(channel) {
+			filteredAbilities = append(filteredAbilities, ability)
+		}
+	}
+	if len(filteredAbilities) == 0 {
+		return nil, nil
+	}
+
+	uniquePriorities := make(map[int]bool)
+	for _, ability := range filteredAbilities {
+		uniquePriorities[abilityPriority(ability)] = true
+	}
+	var sortedUniquePriorities []int
+	for priority := range uniquePriorities {
+		sortedUniquePriorities = append(sortedUniquePriorities, priority)
+	}
+	sort.Sort(sort.Reverse(sort.IntSlice(sortedUniquePriorities)))
+	if retry >= len(sortedUniquePriorities) {
+		retry = len(sortedUniquePriorities) - 1
+	}
+	targetPriority := sortedUniquePriorities[retry]
+
+	var targetAbilities []Ability
+	weightSum := uint(0)
+	for _, ability := range filteredAbilities {
+		if abilityPriority(ability) != targetPriority {
+			continue
+		}
+		targetAbilities = append(targetAbilities, ability)
+		weightSum += ability.Weight + 10
+	}
+	if len(targetAbilities) == 0 {
+		return nil, nil
+	}
+
+	weight := common.GetRandomInt(int(weightSum))
+	for _, ability := range targetAbilities {
+		weight -= int(ability.Weight) + 10
+		if weight <= 0 {
+			return channels[ability.ChannelId], nil
+		}
+	}
+	return nil, errors.New("channel not found")
+}
+
+func abilityPriority(ability Ability) int {
+	if ability.Priority == nil {
+		return 0
+	}
+	return int(*ability.Priority)
+}
+
+func getSatisfiedAbilities(group string, modelName string) ([]Ability, error) {
+	var abilities []Ability
+	err := DB.Where(commonGroupCol+" = ? and model = ? and enabled = ?", group, modelName, true).
+		Order("priority DESC, weight DESC").
+		Find(&abilities).Error
+	return abilities, err
 }
 
 func CacheGetChannel(id int) (*Channel, error) {
