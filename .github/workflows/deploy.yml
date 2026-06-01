@@ -1,11 +1,10 @@
-# Production deploy: push to main → build image → ECR push → ECS rolling deploy.
+# Production deploy: push to main → build image → ECR push → SSM rolls the
+# single-EC2 docker-compose stack (deeprouter-ai/infra-ec2).
 #
-# Auth: GitHub OIDC into the deeprouter-github-deploy role (provisioned by
-# deeprouter-ai/infra terraform). The role's trust policy is pinned to
-# repo:deeprouter-ai/deeprouter:ref:refs/heads/main — a leaked OIDC token
-# from a different repo or branch can't assume it.
-#
-# Manual trigger via workflow_dispatch is supported for retries.
+# Auth: GitHub OIDC → assume role/deeprouter-github-deploy (provisioned by
+# deeprouter-ai/infra terraform, infra-ec2/cicd.tf). Trust policy is pinned to
+# repo:deeprouter-ai/deeprouter:ref:refs/heads/main. No long-lived AWS keys,
+# no inbound SSH — the deploy runs on the box via SSM RunShellScript.
 
 name: deploy
 
@@ -32,24 +31,19 @@ on:
       - '.github/workflows/deploy.yml'
   workflow_dispatch:
 
-# Concurrency: only one production deploy at a time. A new commit during a
-# rolling deploy supersedes the in-flight one rather than queueing forever.
 concurrency:
   group: deploy-production
-  cancel-in-progress: false # let the in-flight deploy finish to avoid half-rolled-out states
+  cancel-in-progress: false
 
 permissions:
   contents: read
-  id-token: write # required for OIDC
+  id-token: write # OIDC
 
 env:
   AWS_REGION: ap-southeast-2
+  ROLE_ARN: arn:aws:iam::180294203030:role/deeprouter-github-deploy
   ECR_REPOSITORY: deeprouter
-  ECS_CLUSTER: deeprouter
-  ECS_SERVICE: deeprouter
-  # IAM role provisioned by infra/iam.tf. Update the account ID if you move
-  # to a different AWS account.
-  AWS_ROLE_TO_ASSUME: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/deeprouter-github-deploy
+  INSTANCE_TAG: deeprouter
 
 jobs:
   deploy:
@@ -57,50 +51,54 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Configure AWS credentials
+      - name: Configure AWS credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: ${{ env.AWS_ROLE_TO_ASSUME }}
+          role-to-assume: ${{ env.ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Login to ECR
-        id: ecr-login
+        id: ecr
         uses: aws-actions/amazon-ecr-login@v2
 
-      - name: Build, tag, push image
+      - name: Build, tag, push
         env:
-          REGISTRY: ${{ steps.ecr-login.outputs.registry }}
+          REGISTRY: ${{ steps.ecr.outputs.registry }}
           IMAGE_TAG: ${{ github.sha }}
         run: |
-          # Tag with both the commit sha (for traceability + rollback) and
-          # `latest` (default for the ECS task definition).
           docker build \
             -t "$REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" \
             -t "$REGISTRY/$ECR_REPOSITORY:latest" \
             .
           docker push "$REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG"
           docker push "$REGISTRY/$ECR_REPOSITORY:latest"
-          echo "image_tag=$IMAGE_TAG" >> "$GITHUB_OUTPUT"
 
-      - name: Force ECS rolling deploy
-        # The task definition pins `:latest` and we just pushed a new
-        # image to that tag — `--force-new-deployment` makes ECS pull
-        # the new digest and start a rolling update. Health-check failure
-        # → ECS rolls back to the previous task definition automatically.
+      - name: Roll the stack via SSM
         run: |
-          aws ecs update-service \
-            --cluster "$ECS_CLUSTER" \
-            --service "$ECS_SERVICE" \
-            --force-new-deployment \
-            --region "$AWS_REGION" \
-            > /dev/null
-
-      - name: Wait for service stable
-        # 10-min timeout. If the new task fails health checks ECS keeps
-        # the old one running and this step exits non-zero, surfacing
-        # the bad deploy in the workflow.
-        run: |
-          aws ecs wait services-stable \
-            --cluster "$ECS_CLUSTER" \
-            --services "$ECS_SERVICE" \
-            --region "$AWS_REGION"
+          set -euo pipefail
+          CMD_ID=$(aws ssm send-command \
+            --targets "Key=tag:Name,Values=$INSTANCE_TAG" \
+            --document-name "AWS-RunShellScript" \
+            --comment "deploy deeprouter ${GITHUB_SHA::7}" \
+            --parameters 'commands=["bash /opt/deeprouter/ci-deploy.sh"]' \
+            --query "Command.CommandId" --output text)
+          echo "SSM command: $CMD_ID"
+          STATUS=Pending; INSTID=
+          for i in $(seq 1 90); do
+            sleep 10
+            read STATUS INSTID < <(aws ssm list-command-invocations \
+              --command-id "$CMD_ID" --query "CommandInvocations[0].[Status,InstanceId]" \
+              --output text 2>/dev/null || echo "Pending -")
+            echo "  [$i] status=$STATUS instance=$INSTID"
+            case "$STATUS" in
+              Success) break;;
+              Failed|Cancelled|TimedOut)
+                echo "::error::deploy failed on $INSTID"
+                aws ssm get-command-invocation --command-id "$CMD_ID" --instance-id "$INSTID" \
+                  --query StandardErrorContent --output text || true
+                exit 1;;
+            esac
+          done
+          [ "$STATUS" = "Success" ] || { echo "::error::timed out"; exit 1; }
+          aws ssm get-command-invocation --command-id "$CMD_ID" --instance-id "$INSTID" \
+            --query StandardOutputContent --output text
