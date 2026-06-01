@@ -28,6 +28,28 @@ func isStripeWebhookEnabled() bool {
 	return isStripeTopUpEnabled()
 }
 
+func isAlipayTopUpEnabled() bool {
+	if !isPaymentComplianceConfirmed() {
+		return false
+	}
+	return setting.AlipayEnabled &&
+		strings.TrimSpace(setting.AlipayAppID) != "" &&
+		strings.TrimSpace(setting.AlipayPrivateKey) != "" &&
+		strings.TrimSpace(setting.AlipayPublicKey) != "" &&
+		strings.TrimSpace(setting.AlipayGateway) != ""
+}
+
+func isAlipayWebhookConfigured() bool {
+	return strings.TrimSpace(setting.AlipayAppID) != "" &&
+		strings.TrimSpace(setting.AlipayPrivateKey) != "" &&
+		strings.TrimSpace(setting.AlipayPublicKey) != "" &&
+		strings.TrimSpace(setting.AlipayGateway) != ""
+}
+
+func isAlipayWebhookEnabled() bool {
+	return isAlipayWebhookConfigured()
+}
+
 func isCreemTopUpEnabled() bool {
 	if !isPaymentComplianceConfirmed() {
 		return false

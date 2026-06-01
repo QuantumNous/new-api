@@ -51,6 +51,7 @@ services:
       TZ: Asia/Shanghai
       ERROR_LOG_ENABLED: "true"
       MEMORY_CACHE_ENABLED: "true"
+      OPTION_CRYPT_KEY: "${OPTION_CRYPT_KEY}"
       SYNC_UPSTREAM_BASE: "http://metadata"
       SQL_DSN: "postgresql://${NEWAPI_POSTGRES_USER:-newapi}:${NEWAPI_POSTGRES_PASSWORD:-newapi_change_me}@postgres:5432/${NEWAPI_POSTGRES_DB:-newapi}?sslmode=disable"
     volumes:

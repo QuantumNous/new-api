@@ -61,6 +61,9 @@ const TopUp = () => {
   const [enableStripeTopUp, setEnableStripeTopUp] = useState(
     statusState?.status?.enable_stripe_topup || false,
   );
+  const [enableAlipayTopUp, setEnableAlipayTopUp] = useState(
+    statusState?.status?.enable_alipay_topup || false,
+  );
   const [statusLoading, setStatusLoading] = useState(true);
 
   // Creem 相关状态
@@ -188,12 +191,17 @@ const TopUp = () => {
         showError(t('管理员未开启Stripe充值！'));
         return;
       }
+    } else if (payment === 'alipay') {
+      if (!enableAlipayTopUp) {
+        showError(t('管理员未开启支付宝充值！'));
+        return;
+      }
     } else if (payment === 'waffo_pancake') {
       if (!enableWaffoPancakeTopUp) {
         showError(t('管理员未开启 Waffo Pancake 充值！'));
         return;
       }
-    } else if (payment.startsWith('waffo:')) {
+    } else if (typeof payment === 'string' && payment.startsWith('waffo:')) {
       if (!enableWaffoTopUp) {
         showError(t('管理员未开启 Waffo 充值！'));
         return;
@@ -239,7 +247,7 @@ const TopUp = () => {
       return;
     }
 
-    if (payWay.startsWith('waffo:')) {
+    if (typeof payWay === 'string' && payWay.startsWith('waffo:')) {
       const payMethodIndex = Number(payWay.split(':')[1]);
       setConfirmLoading(true);
       try {
@@ -276,6 +284,11 @@ const TopUp = () => {
           amount: parseInt(topUpCount),
           payment_method: 'stripe',
         });
+      } else if (payWay === 'alipay') {
+        res = await API.post('/api/user/alipay/pay', {
+          amount: parseInt(topUpCount),
+          payment_method: 'alipay',
+        });
       } else {
         // 普通支付请求
         res = await API.post('/api/user/pay', {
@@ -290,6 +303,13 @@ const TopUp = () => {
           if (payWay === 'stripe') {
             // Stripe 支付回调处理
             redirectToPaymentUrl(data.pay_link);
+          } else if (payWay === 'alipay') {
+            const payUrl = data?.pay_url;
+            if (payUrl) {
+              redirectToPaymentUrl(payUrl);
+            } else {
+              showError(t('支付请求失败'));
+            }
           } else {
             // 普通支付表单提交
             let params = data;
@@ -614,6 +634,15 @@ const TopUp = () => {
                   method.min_topup = stripeMin;
                 }
               }
+              if (
+                method.type === 'alipay' &&
+                (!method.min_topup || method.min_topup <= 0)
+              ) {
+                const alipayMin = Number(data.alipay_min_topup);
+                if (Number.isFinite(alipayMin)) {
+                  method.min_topup = alipayMin;
+                }
+              }
 
               if (!method.color) {
                 if (method.type === 'alipay') {
@@ -637,22 +666,37 @@ const TopUp = () => {
 
           setPayMethods(payMethods);
           const enableStripeTopUp = data.enable_stripe_topup || false;
+          const enableAlipayTopUp = data.enable_alipay_topup || false;
           const enableOnlineTopUp = data.enable_online_topup || false;
           const enableCreemTopUp = data.enable_creem_topup || false;
           const enableWaffoTopUp = data.enable_waffo_topup || false;
           const enableWaffoPancakeTopUp =
             data.enable_waffo_pancake_topup || false;
+          const hasOnlyAlipayRegularMethod =
+            Array.isArray(payMethods) &&
+            payMethods.length > 0 &&
+            payMethods.every((method) => method.type === 'alipay');
+          const useAlipayAsOnlyRegularInit =
+            enableAlipayTopUp &&
+            !enableOnlineTopUp &&
+            !enableStripeTopUp &&
+            !enableWaffoTopUp &&
+            !enableWaffoPancakeTopUp &&
+            hasOnlyAlipayRegularMethod;
           const minTopUpValue = enableOnlineTopUp
             ? data.min_topup
             : enableStripeTopUp
               ? data.stripe_min_topup
-              : enableWaffoTopUp
-                ? data.waffo_min_topup
-                : enableWaffoPancakeTopUp
+              : useAlipayAsOnlyRegularInit
+                ? data.alipay_min_topup
+                : enableWaffoTopUp
+                  ? data.waffo_min_topup
+                  : enableWaffoPancakeTopUp
                   ? data.waffo_pancake_min_topup
                   : 1;
           setEnableOnlineTopUp(enableOnlineTopUp);
           setEnableStripeTopUp(enableStripeTopUp);
+          setEnableAlipayTopUp(enableAlipayTopUp);
           setEnableCreemTopUp(enableCreemTopUp);
           setEnableWaffoTopUp(enableWaffoTopUp);
           setWaffoPayMethods(data.waffo_pay_methods || []);
@@ -888,6 +932,7 @@ const TopUp = () => {
         t={t}
         enableOnlineTopUp={enableOnlineTopUp}
         enableStripeTopUp={enableStripeTopUp}
+        enableAlipayTopUp={enableAlipayTopUp}
         enableCreemTopUp={enableCreemTopUp}
         creemProducts={creemProducts}
         creemPreTopUp={creemPreTopUp}

@@ -114,6 +114,12 @@ func GetOptions(c *gin.Context) {
 		Key:   "CompletionRatioMeta",
 		Value: buildCompletionRatioMetaValue(optionValues),
 	})
+	if pendingCount, err := model.CountPendingTopUpsByProvider(model.PaymentProviderAlipay); err == nil {
+		options = append(options, &model.Option{
+			Key:   "AlipayPendingOrderCount",
+			Value: strconv.FormatInt(pendingCount, 10),
+		})
+	}
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",

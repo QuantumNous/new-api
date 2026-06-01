@@ -21,6 +21,7 @@ import React, { useEffect, useState } from 'react';
 import { Banner, Button, Card, Spin, Tabs } from '@douyinfe/semi-ui';
 import SettingsGeneralPayment from '../../pages/Setting/Payment/SettingsGeneralPayment';
 import SettingsPaymentGateway from '../../pages/Setting/Payment/SettingsPaymentGateway';
+import SettingsPaymentGatewayAlipay from '../../pages/Setting/Payment/SettingsPaymentGatewayAlipay';
 import SettingsPaymentGatewayStripe from '../../pages/Setting/Payment/SettingsPaymentGatewayStripe';
 import SettingsPaymentGatewayCreem from '../../pages/Setting/Payment/SettingsPaymentGatewayCreem';
 import SettingsPaymentGatewayWaffo from '../../pages/Setting/Payment/SettingsPaymentGatewayWaffo';
@@ -45,6 +46,17 @@ const PaymentSetting = () => {
     PayMethods: '',
     AmountOptions: '',
     AmountDiscount: '',
+    AlipayEnabled: false,
+    AlipaySandbox: false,
+    AlipayAppID: '',
+    AlipayPrivateKey: '',
+    AlipayPublicKey: '',
+    AlipayEncryptKey: '',
+    AlipayGateway: '',
+    AlipayNotifyURL: '',
+    AlipayReturnURL: '',
+    AlipaySellerID: '',
+    AlipayMinTopUp: 1,
 
     StripeApiSecret: '',
     StripeWebhookSecret: '',
@@ -173,6 +185,7 @@ const PaymentSetting = () => {
           case 'StripeMinTopUp':
           case 'WaffoPancakeUnitPrice':
           case 'WaffoPancakeMinTopUp':
+          case 'AlipayMinTopUp':
             newInputs[item.key] = parseFloat(item.value);
             break;
           case 'WaffoPancakeMerchantID':
@@ -183,7 +196,11 @@ const PaymentSetting = () => {
           case 'WaffoPancakeCurrency':
             newInputs[item.key] = item.value;
             break;
+          case 'AlipayPendingOrderCount':
+            newInputs[item.key] = parseInt(item.value, 10) || 0;
+            break;
           case 'WaffoPancakeSandbox':
+          case 'AlipaySandbox':
             newInputs[item.key] = toBoolean(item.value);
             break;
           default:
@@ -301,6 +318,13 @@ const PaymentSetting = () => {
               </Tabs.TabPane>
               <Tabs.TabPane tab={t('易支付设置')} itemKey='epay'>
                 <SettingsPaymentGateway
+                  options={inputs}
+                  refresh={onRefresh}
+                  hideSectionTitle
+                />
+              </Tabs.TabPane>
+              <Tabs.TabPane tab={t('Alipay 设置')} itemKey='alipay'>
+                <SettingsPaymentGatewayAlipay
                   options={inputs}
                   refresh={onRefresh}
                   hideSectionTitle
