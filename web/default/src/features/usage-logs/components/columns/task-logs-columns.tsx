@@ -254,9 +254,12 @@ export function useTaskLogsColumns(isAdmin: boolean): ColumnDef<TaskLog>[] {
           log.action === TASK_ACTIONS.REFERENCE_GENERATE ||
           log.action === TASK_ACTIONS.REMIX_GENERATE
         const isSuccess = status === TASK_STATUS.SUCCESS
-        const isUrl = failReason?.startsWith('http')
 
-        if (isSuccess && isVideoTask && isUrl) {
+        // 成功的视频任务统一给出预览/下载链接。结果地址走通用代理
+        // /v1/videos/{task_id}/content(适用所有视频渠道,匿名可访问);
+        // 不再依赖旧约定「fail_reason 以 http 开头」——新数据/白标渠道的
+        // 结果 URL 存在 result_url 中,fail_reason 为空。
+        if (isSuccess && isVideoTask) {
           const videoUrl = `/v1/videos/${log.task_id}/content`
           return (
             <a
