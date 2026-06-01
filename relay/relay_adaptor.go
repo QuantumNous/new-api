@@ -32,6 +32,7 @@ import (
 	"github.com/QuantumNous/new-api/relay/channel/siliconflow"
 	"github.com/QuantumNous/new-api/relay/channel/submodel"
 	taskali "github.com/QuantumNous/new-api/relay/channel/task/ali"
+	taskblockrunvideo "github.com/QuantumNous/new-api/relay/channel/task/blockrunvideo"
 	taskdoubao "github.com/QuantumNous/new-api/relay/channel/task/doubao"
 	taskGemini "github.com/QuantumNous/new-api/relay/channel/task/gemini"
 	"github.com/QuantumNous/new-api/relay/channel/task/hailuo"
@@ -165,6 +166,8 @@ func GetTaskAdaptor(platform constant.TaskPlatform) channel.TaskAdaptor {
 			return &hailuo.TaskAdaptor{}
 		case constant.ChannelTypeKuaiziLizhen:
 			return &taskkuaizi.TaskAdaptor{}
+		case constant.ChannelTypeBlockRunVideo:
+			return &taskblockrunvideo.TaskAdaptor{}
 		}
 	}
 	return nil

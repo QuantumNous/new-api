@@ -8,10 +8,16 @@ import (
 )
 
 func SetVideoRouter(router *gin.Engine) {
-	// Video proxy: accepts either session auth (dashboard) or token auth (API clients)
+	// Video content proxy: anonymous by capability — the 32-char random task_id
+	// ("task_xxxx") is itself the access token, so no auth is required and the
+	// proxy URL can be embedded directly (e.g. <video src>). Lookup is by task_id
+	// only and only completed tasks stream. If a token/session happens to set a
+	// user id, VideoProxy still scopes to that user.
 	videoProxyRouter := router.Group("/v1")
 	videoProxyRouter.Use(middleware.RouteTag("relay"))
-	videoProxyRouter.Use(middleware.TokenOrUserAuth())
+	// Per-IP throttle: this route is unauthenticated, so token-based limits don't
+	// apply — DownloadRateLimit keys on client IP to cap proxy-fetch abuse.
+	videoProxyRouter.Use(middleware.DownloadRateLimit())
 	{
 		videoProxyRouter.GET("/videos/:task_id/content", controller.VideoProxy)
 	}

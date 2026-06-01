@@ -37,8 +37,20 @@ func VideoProxy(c *gin.Context) {
 		return
 	}
 
+	// Anonymous-capable: the unguessable task_id is the capability token. When a
+	// token/session set a user id, scope to that user; otherwise look up by the
+	// task_id alone so the proxy URL works without authentication.
 	userID := c.GetInt("id")
-	task, exists, err := model.GetByTaskId(userID, taskID)
+	var (
+		task   *model.Task
+		exists bool
+		err    error
+	)
+	if userID > 0 {
+		task, exists, err = model.GetByTaskId(userID, taskID)
+	} else {
+		task, exists, err = model.GetByOnlyTaskId(taskID)
+	}
 	if err != nil {
 		logger.LogError(c.Request.Context(), fmt.Sprintf("Failed to query task %s: %s", taskID, err.Error()))
 		videoProxyError(c, http.StatusInternalServerError, "server_error", "Failed to query task")
@@ -111,6 +123,8 @@ func VideoProxy(c *gin.Context) {
 		req.Header.Set("Authorization", "Bearer "+channel.Key)
 	case constant.ChannelTypeKuaiziLizhen:
 		videoURL = extractKuaiziVideoURL(task)
+	case constant.ChannelTypeBlockRunVideo:
+		videoURL = extractBlockRunVideoURL(task)
 	default:
 		// Video URL is stored in PrivateData.ResultURL (fallback to FailReason for old data)
 		videoURL = task.GetResultURL()
@@ -161,6 +175,11 @@ func VideoProxy(c *gin.Context) {
 	}
 
 	for key, values := range resp.Header {
+		// Never forward upstream cookies to the public/anonymous client.
+		switch http.CanonicalHeaderKey(key) {
+		case "Set-Cookie", "Set-Cookie2":
+			continue
+		}
 		for _, value := range values {
 			c.Writer.Header().Add(key, value)
 		}
