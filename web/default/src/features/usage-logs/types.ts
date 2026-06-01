@@ -344,6 +344,42 @@ export interface FetchLogsConfig {
 }
 
 // ============================================================================
+// Log Statistics Types (admin)
+// ============================================================================
+
+export interface ModelStatistics {
+  model_name: string
+  quota: number
+  prompt_tokens: number
+  completion_tokens: number
+  request_count: number
+}
+
+export interface TrendPoint {
+  time: string
+  model_name: string
+  quota: number
+  request_count: number
+}
+
+export interface GetLogStatisticsParams {
+  username: string
+  token_name?: string
+  model_name?: string
+  start_timestamp?: number
+  end_timestamp?: number
+}
+
+export interface GetLogStatisticsResponse {
+  success: boolean
+  message?: string
+  data?: {
+    models: ModelStatistics[]
+    trend: TrendPoint[]
+  }
+}
+
+// ============================================================================
 // User Info Types
 // ============================================================================
 

@@ -63,9 +63,10 @@ function deserializeLogTypeFilter(value: unknown): unknown[] {
 
 interface UsageLogsTableProps {
   logCategory: LogCategory
+  onStatisticsClick?: () => void
 }
 
-export function UsageLogsTable({ logCategory }: UsageLogsTableProps) {
+export function UsageLogsTable({ logCategory, onStatisticsClick }: UsageLogsTableProps) {
   const { t } = useTranslation()
   const isAdmin = useIsAdmin()
   const isMobile = useMediaQuery('(max-width: 640px)')
@@ -201,7 +202,7 @@ export function UsageLogsTable({ logCategory }: UsageLogsTableProps) {
       }
       toolbar={
         isCommon ? (
-          <CommonLogsFilterBar table={table} />
+          <CommonLogsFilterBar table={table} onStatisticsClick={onStatisticsClick} />
         ) : (
           <TaskLogsFilterBar table={table} logCategory={logCategory} />
         )

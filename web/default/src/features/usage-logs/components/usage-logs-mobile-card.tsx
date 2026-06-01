@@ -51,6 +51,11 @@ interface UsageLogsMobileListProps<TData> {
   logCategory: LogCategory
 }
 
+interface CommonLogMobileRow {
+  created_at?: unknown
+  type?: unknown
+}
+
 function UsageLogsMobileSkeleton() {
   return (
     <div className='overflow-hidden rounded-lg border border-border/50 bg-card'>
@@ -183,6 +188,9 @@ function CommonLogsCard<TData>({
 
   const modelCell = cells.get('model_name')
   const quotaCell = cells.get('quota')
+  const row = cells.get('created_at')?.row.original as
+    | CommonLogMobileRow
+    | undefined
 
   return (
     <div className='space-y-2.5'>
@@ -200,8 +208,8 @@ function CommonLogsCard<TData>({
             {t('Time')}
           </div>
           <MobileLogTimeStatus
-            createdAt={cells.get('created_at')?.row.original?.created_at}
-            type={cells.get('created_at')?.row.original?.type}
+            createdAt={row?.created_at}
+            type={row?.type}
           />
         </div>
         <SummaryField

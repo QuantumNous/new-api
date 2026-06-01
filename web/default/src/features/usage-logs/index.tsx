@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useCallback, useMemo } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { getRouteApi, useNavigate } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
 import { useSidebarConfig } from '@/hooks/use-sidebar-config'
@@ -25,6 +25,7 @@ import { SectionPageLayout } from '@/components/layout'
 import type { NavGroup } from '@/components/layout/types'
 import { CacheStatsDialog } from '@/features/system-settings/general/channel-affinity/cache-stats-dialog'
 import { UserInfoDialog } from './components/dialogs/user-info-dialog'
+import { StatisticsSheet } from './components/dialogs/statistics-sheet'
 import {
   UsageLogsProvider,
   useUsageLogsContext,
@@ -54,6 +55,7 @@ const SECTION_META: Record<UsageLogsSectionId, { titleKey: string }> = {
 function UsageLogsContent() {
   const { t } = useTranslation()
   const navigate = useNavigate()
+  const [statsSheetOpen, setStatsSheetOpen] = useState(false)
   const params = route.useParams()
   const activeCategory: UsageLogsSectionId =
     params.section && isUsageLogsSectionId(params.section)
@@ -127,7 +129,7 @@ function UsageLogsContent() {
                 </TabsList>
               </Tabs>
             )}
-            <UsageLogsTable logCategory={activeCategory} />
+            <UsageLogsTable logCategory={activeCategory} onStatisticsClick={() => setStatsSheetOpen(true)} />
           </div>
         </SectionPageLayout.Content>
       </SectionPageLayout>
@@ -154,6 +156,11 @@ function UsageLogsContent() {
               }
             : null
         }
+      />
+
+      <StatisticsSheet
+        open={statsSheetOpen}
+        onOpenChange={setStatsSheetOpen}
       />
     </>
   )
