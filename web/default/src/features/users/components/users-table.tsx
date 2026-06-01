@@ -16,18 +16,14 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { getRouteApi } from '@tanstack/react-router'
 import {
+  type OnChangeFn,
   type SortingState,
   type VisibilityState,
   getCoreRowModel,
-  getFacetedRowModel,
-  getFacetedUniqueValues,
-  getFilteredRowModel,
-  getPaginationRowModel,
-  getSortedRowModel,
   useReactTable,
 } from '@tanstack/react-table'
 import { useMediaQuery } from '@/hooks'
@@ -46,12 +42,21 @@ import {
   getUserRoleOptions,
   isUserDeleted,
 } from '../constants'
-import type { User } from '../types'
+import type { User, UserSortBy, UserSortOrder } from '../types'
 import { DataTableBulkActions } from './data-table-bulk-actions'
 import { useUsersColumns } from './users-columns'
 import { useUsers } from './users-provider'
 
 const route = getRouteApi('/_authenticated/users/')
+
+const USER_SORTABLE_COLUMNS = new Set<UserSortBy>([
+  'id',
+  'username',
+  'quota',
+  'group',
+  'created_at',
+  'last_login_at',
+])
 
 function isDisabledUserRow(user: User) {
   return isUserDeleted(user) || user.status === USER_STATUS.DISABLED
@@ -93,9 +98,41 @@ export function UsersTable() {
     (columnFilters.find((filter) => filter.id === 'role')?.value as
       | string[]
       | undefined) ?? []
+  const selectedStatusFilter = statusFilter[0] ?? ''
+  const selectedRoleFilter = roleFilter[0] ?? ''
   const groupFilter =
     (columnFilters.find((filter) => filter.id === 'group')?.value as string) ??
     ''
+
+  const sortParams = useMemo<{
+    sort_by?: UserSortBy
+    sort_order?: UserSortOrder
+  }>(() => {
+    const activeSort = sorting[0]
+    if (
+      !activeSort ||
+      !USER_SORTABLE_COLUMNS.has(activeSort.id as UserSortBy)
+    ) {
+      return {}
+    }
+
+    return {
+      sort_by: activeSort.id as UserSortBy,
+      sort_order: activeSort.desc ? 'desc' : 'asc',
+    }
+  }, [sorting])
+  const sortBy = sortParams.sort_by
+  const sortOrder = sortParams.sort_order
+
+  const handleSortingChange: OnChangeFn<SortingState> = (updater) => {
+    setSorting((previous) => {
+      const next = typeof updater === 'function' ? updater(previous) : updater
+      if (pagination.pageIndex > 0) {
+        onPaginationChange({ ...pagination, pageIndex: 0 })
+      }
+      return next
+    })
+  }
 
   // Fetch data with React Query
   const { data, isLoading, isFetching } = useQuery({
@@ -104,18 +141,24 @@ export function UsersTable() {
       pagination.pageIndex + 1,
       pagination.pageSize,
       globalFilter,
-      statusFilter,
-      roleFilter,
+      selectedStatusFilter,
+      selectedRoleFilter,
       groupFilter,
+      sortBy,
+      sortOrder,
       refreshTrigger,
     ],
     queryFn: async () => {
       const hasFilter = globalFilter?.trim()
       const hasColumnFilter =
-        statusFilter.length > 0 || roleFilter.length > 0 || Boolean(groupFilter)
+        Boolean(selectedStatusFilter) ||
+        Boolean(selectedRoleFilter) ||
+        Boolean(groupFilter)
       const params = {
         p: pagination.pageIndex + 1,
         page_size: pagination.pageSize,
+        sort_by: sortBy,
+        sort_order: sortOrder,
       }
 
       const result =
@@ -123,8 +166,8 @@ export function UsersTable() {
           ? await searchUsers({
               ...params,
               keyword: globalFilter,
-              status: statusFilter[0] ?? '',
-              role: roleFilter[0] ?? '',
+              status: selectedStatusFilter,
+              role: selectedRoleFilter,
               group: groupFilter,
             })
           : await getUsers(params)
@@ -159,31 +202,15 @@ export function UsersTable() {
     },
     enableRowSelection: true,
     onRowSelectionChange: setRowSelection,
-    onSortingChange: setSorting,
+    onSortingChange: handleSortingChange,
     onColumnVisibilityChange: setColumnVisibility,
-    globalFilterFn: (row, _columnId, filterValue) => {
-      const searchValue = String(filterValue).toLowerCase()
-      const fields = [
-        row.getValue('username'),
-        row.original.display_name,
-        row.original.email,
-      ]
-      return fields.some((field) =>
-        String(field || '')
-          .toLowerCase()
-          .includes(searchValue)
-      )
-    },
     getCoreRowModel: getCoreRowModel(),
-    getFilteredRowModel: getFilteredRowModel(),
-    getPaginationRowModel: getPaginationRowModel(),
-    getSortedRowModel: getSortedRowModel(),
-    getFacetedRowModel: getFacetedRowModel(),
-    getFacetedUniqueValues: getFacetedUniqueValues(),
     onPaginationChange,
     onGlobalFilterChange,
     onColumnFiltersChange,
     manualPagination: true,
+    manualSorting: true,
+    manualFiltering: true,
     pageCount: Math.ceil((data?.total || 0) / pagination.pageSize),
   })
 
