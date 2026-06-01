@@ -113,6 +113,7 @@ import {
   getGroups,
   getPrefillGroups,
   refreshCodexCredential,
+  validateModels,
 } from '../../api'
 import {
   ADD_MODE_OPTIONS,
@@ -768,6 +769,17 @@ export function ChannelMutateDrawer({
     }
     throw new Error(response.message || 'No models fetched from upstream')
   }, [form])
+
+  const createModeValidator = useCallback(
+    (models: string[]) =>
+      validateModels({
+        type: form.getValues('type'),
+        key: form.getValues('key'),
+        base_url: form.getValues('base_url') || '',
+        models,
+      }),
+    [form]
+  )
 
   // Handle model operations
   const handleFillRelatedModels = useCallback(() => {
@@ -3420,6 +3432,7 @@ export function ChannelMutateDrawer({
         redirectModels={redirectModelList}
         redirectSourceModels={redirectModelKeyList}
         customFetcher={!isEditing ? createModeFetcher : undefined}
+        customValidator={!isEditing ? createModeValidator : undefined}
         channelName={!isEditing ? currentName?.trim() : undefined}
         existingModelsOverride={
           !isEditing

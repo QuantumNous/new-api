@@ -36,6 +36,7 @@ import type {
   SearchChannelsParams,
   SearchChannelsResponse,
   TagOperationParams,
+  ValidateModelsResponse,
 } from './types'
 
 const channelActionConfig = (
@@ -507,6 +508,27 @@ export async function fetchModels(data: {
 }): Promise<FetchModelsResponse> {
   const res = await api.post(
     '/api/channel/fetch_models',
+    data,
+    channelActionConfig()
+  )
+  return res.data
+}
+
+/**
+ * Validate models against a channel with real test requests. Accepts either a
+ * saved channel_id or a not-yet-saved channel (type/key/base_url). When models
+ * is omitted and a channel_id is given, the channel's full model list is used.
+ */
+export async function validateModels(data: {
+  channel_id?: number
+  type?: number
+  key?: string
+  base_url?: string
+  models?: string[]
+  endpoint_type?: string
+}): Promise<ValidateModelsResponse> {
+  const res = await api.post(
+    '/api/channel/validate_models',
     data,
     channelActionConfig()
   )

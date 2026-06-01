@@ -18,7 +18,15 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { useState, useEffect, useMemo } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
-import { Loader2, Search, Info, ChevronDown } from 'lucide-react'
+import {
+  Loader2,
+  Search,
+  Info,
+  ChevronDown,
+  CheckCircle2,
+  XCircle,
+  HelpCircle,
+} from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
@@ -44,13 +52,14 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
-import { fetchUpstreamModels, updateChannel } from '../../api'
+import { fetchUpstreamModels, updateChannel, validateModels } from '../../api'
 import {
   channelsQueryKeys,
   categorizeModelsWithRedirect,
   normalizeModelName,
   parseModelsString,
 } from '../../lib'
+import type { ModelValidationResult, ValidateModelsResponse } from '../../types'
 import { useChannels } from '../channels-provider'
 
 function normalizeModelNameList(models: readonly string[]): string[] {
@@ -66,6 +75,7 @@ type FetchModelsDialogProps = {
   redirectModels?: string[]
   redirectSourceModels?: string[]
   customFetcher?: () => Promise<string[]>
+  customValidator?: (models: string[]) => Promise<ValidateModelsResponse>
   existingModelsOverride?: string[]
   channelName?: string | null
 }
@@ -77,6 +87,7 @@ export function FetchModelsDialog({
   redirectModels = [],
   redirectSourceModels = [],
   customFetcher,
+  customValidator,
   existingModelsOverride,
   channelName,
 }: FetchModelsDialogProps) {
@@ -86,8 +97,12 @@ export function FetchModelsDialog({
   const queryClient = useQueryClient()
   const [isFetching, setIsFetching] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
+  const [isValidating, setIsValidating] = useState(false)
   const [fetchedModels, setFetchedModels] = useState<string[]>([])
   const [selectedModels, setSelectedModels] = useState<string[]>([])
+  const [validation, setValidation] = useState<
+    Record<string, ModelValidationResult>
+  >({})
   const [searchKeyword, setSearchKeyword] = useState('')
 
   // Parse existing models
@@ -139,6 +154,7 @@ export function FetchModelsDialog({
     if (!activeChannel && !customFetcher) return
 
     setIsFetching(true)
+    setValidation({})
     try {
       if (customFetcher) {
         const list = await customFetcher()
@@ -164,6 +180,66 @@ export function FetchModelsDialog({
       setFetchedModels([])
     } finally {
       setIsFetching(false)
+    }
+  }
+
+  const handleValidate = async () => {
+    if (!activeChannel && !customValidator) return
+
+    const models = Array.from(
+      new Set([...fetchedModels, ...selectedModels])
+    ).filter(Boolean)
+    if (models.length === 0) {
+      toast.info(t('No models to validate'))
+      return
+    }
+
+    setIsValidating(true)
+    try {
+      const response = customValidator
+        ? await customValidator(models)
+        : await validateModels({ channel_id: activeChannel!.id, models })
+
+      if (!response.success || !response.data) {
+        toast.error(response.message || t('Failed to validate models'))
+        return
+      }
+
+      const { results, summary } = response.data
+      const map: Record<string, ModelValidationResult> = {}
+      for (const r of results) {
+        map[normalizeModelName(r.model)] = r
+      }
+      setValidation(map)
+
+      // Auto-deselect models the upstream definitively reports as dead.
+      const deadSet = new Set(
+        results
+          .filter((r) => r.status === 'dead')
+          .map((r) => normalizeModelName(r.model))
+      )
+      if (deadSet.size > 0) {
+        setSelectedModels((prev) =>
+          prev.filter((m) => !deadSet.has(normalizeModelName(m)))
+        )
+      }
+
+      toast.success(
+        t(
+          '{{alive}} alive, {{dead}} dead removed, {{uncertain}} uncertain kept',
+          {
+            alive: summary.alive,
+            dead: summary.dead,
+            uncertain: summary.uncertain,
+          }
+        )
+      )
+    } catch (error: unknown) {
+      toast.error(
+        error instanceof Error ? error.message : t('Failed to validate models')
+      )
+    } finally {
+      setIsValidating(false)
     }
   }
 
@@ -203,6 +279,7 @@ export function FetchModelsDialog({
   const handleClose = () => {
     setFetchedModels([])
     setSelectedModels([])
+    setValidation({})
     setSearchKeyword('')
     onOpenChange(false)
   }
@@ -303,6 +380,53 @@ export function FetchModelsDialog({
     return categoryModels.every((m) => selectedModels.includes(m))
   }
 
+  const renderValidationBadge = (model: string) => {
+    const result = validation[normalizeModelName(model)]
+    if (!result) return null
+
+    const codeSuffix = result.upstream_code ? ` (${result.upstream_code})` : ''
+
+    if (result.status === 'alive') {
+      return (
+        <Tooltip>
+          <TooltipTrigger
+            render={<CheckCircle2 className='h-3.5 w-3.5 text-emerald-500' />}
+          ></TooltipTrigger>
+          <TooltipContent>{t('Validated: working')}</TooltipContent>
+        </Tooltip>
+      )
+    }
+
+    if (result.status === 'dead') {
+      return (
+        <Tooltip>
+          <TooltipTrigger
+            render={<XCircle className='text-destructive h-3.5 w-3.5' />}
+          ></TooltipTrigger>
+          <TooltipContent>
+            {t('Dead: upstream reports this model is unavailable')}
+            {codeSuffix}
+            {result.message ? `: ${result.message}` : ''}
+          </TooltipContent>
+        </Tooltip>
+      )
+    }
+
+    return (
+      <Tooltip>
+        <TooltipTrigger
+          render={<HelpCircle className='h-3.5 w-3.5 text-amber-500' />}
+        ></TooltipTrigger>
+        <TooltipContent>
+          {t(
+            'Uncertain: could not confirm (wrong endpoint / rate limit / payment). Kept.'
+          )}
+          {codeSuffix}
+        </TooltipContent>
+      </Tooltip>
+    )
+  }
+
   const renderModelCategory = (
     categoryName: string,
     categoryModels: string[]
@@ -356,6 +480,7 @@ export function FetchModelsDialog({
                       </TooltipContent>
                     </Tooltip>
                   )}
+                  {renderValidationBadge(model)}
                 </Label>
               </div>
             ))}
@@ -499,11 +624,28 @@ export function FetchModelsDialog({
               <Button
                 variant='outline'
                 onClick={handleClose}
-                disabled={isSaving}
+                disabled={isSaving || isValidating}
               >
                 {t('Cancel')}
               </Button>
-              <Button onClick={handleSave} disabled={isSaving}>
+              {(activeChannel || customValidator) && (
+                <Button
+                  variant='outline'
+                  onClick={handleValidate}
+                  disabled={
+                    isValidating ||
+                    isFetching ||
+                    isSaving ||
+                    (fetchedModels.length === 0 && selectedModels.length === 0)
+                  }
+                >
+                  {isValidating && (
+                    <Loader2 className='mr-2 h-4 w-4 animate-spin' />
+                  )}
+                  {isValidating ? t('Validating...') : t('Validate Models')}
+                </Button>
+              )}
+              <Button onClick={handleSave} disabled={isSaving || isValidating}>
                 {isSaving && <Loader2 className='mr-2 h-4 w-4 animate-spin' />}
                 {isSaving ? t('Saving...') : t('Save Models')}
               </Button>

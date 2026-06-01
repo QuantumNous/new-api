@@ -162,6 +162,33 @@ export interface FetchModelsResponse {
   data?: string[]
 }
 
+export type ModelLiveness = 'alive' | 'dead' | 'uncertain'
+
+export interface ModelValidationResult {
+  model: string
+  ok: boolean
+  status: ModelLiveness
+  upstream_code: number
+  error_code: string
+  message: string
+  latency_ms: number
+}
+
+export interface ModelValidationSummary {
+  alive: number
+  dead: number
+  uncertain: number
+}
+
+export interface ValidateModelsResponse {
+  success: boolean
+  message?: string
+  data?: {
+    results: ModelValidationResult[]
+    summary: ModelValidationSummary
+  }
+}
+
 export interface CopyChannelResponse {
   success: boolean
   message?: string
