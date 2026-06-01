@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -14,6 +15,7 @@ import (
 	"github.com/QuantumNous/new-api/setting"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/gin-gonic/gin"
+	"github.com/shopspring/decimal"
 	"github.com/thanhpk/randstr"
 )
 
@@ -185,6 +187,11 @@ func AlipayNotify(c *gin.Context) {
 
 	switch normalized["trade_status"] {
 	case "TRADE_SUCCESS", "TRADE_FINISHED":
+		if err := validateAlipaySuccessCallback(outTradeNo, normalized); err != nil {
+			logger.LogWarn(c.Request.Context(), fmt.Sprintf("Alipay 成功回调业务校验失败 trade_no=%s provider_trade_no=%s client_ip=%s error=%q", outTradeNo, normalized["trade_no"], c.ClientIP(), err.Error()))
+			c.String(http.StatusBadRequest, "fail")
+			return
+		}
 		if err := model.RechargeAlipay(outTradeNo, c.ClientIP()); err != nil {
 			if strings.Contains(err.Error(), "状态错误") {
 				c.String(http.StatusOK, "success")
@@ -205,4 +212,42 @@ func AlipayNotify(c *gin.Context) {
 	}
 
 	c.String(http.StatusOK, "success")
+}
+
+func validateAlipaySuccessCallback(outTradeNo string, normalized map[string]string) error {
+	topUp := model.GetTopUpByTradeNo(outTradeNo)
+	if topUp == nil {
+		return errors.New("充值订单不存在")
+	}
+	if topUp.PaymentProvider != model.PaymentProviderAlipay {
+		return errors.New("支付提供方不匹配")
+	}
+	if strings.TrimSpace(normalized["trade_no"]) == "" {
+		return errors.New("缺少支付宝交易号")
+	}
+
+	expectedAmount, err := decimal.NewFromString(service.FormatAlipayAmount(topUp.Money))
+	if err != nil {
+		return fmt.Errorf("本地金额格式化失败: %w", err)
+	}
+	if err := validateAlipayAmountField("total_amount", normalized["total_amount"], expectedAmount); err != nil {
+		return err
+	}
+	if receiptAmount := strings.TrimSpace(normalized["receipt_amount"]); receiptAmount != "" {
+		if err := validateAlipayAmountField("receipt_amount", receiptAmount, expectedAmount); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func validateAlipayAmountField(fieldName string, actual string, expected decimal.Decimal) error {
+	actualAmount, err := decimal.NewFromString(strings.TrimSpace(actual))
+	if err != nil {
+		return fmt.Errorf("%s 格式非法", fieldName)
+	}
+	if !actualAmount.Equal(expected) {
+		return fmt.Errorf("%s 不匹配: expected=%s actual=%s", fieldName, expected.StringFixed(2), actualAmount.StringFixed(2))
+	}
+	return nil
 }

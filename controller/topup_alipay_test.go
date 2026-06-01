@@ -23,6 +23,59 @@ import (
 	"gorm.io/gorm"
 )
 
+func setupAlipayNotifyDB(t *testing.T) {
+	t.Helper()
+
+	db, err := gorm.Open(sqlite.Open("file::memory:?cache=shared"), &gorm.Config{})
+	require.NoError(t, err)
+	require.NoError(t, db.AutoMigrate(&model.User{}, &model.TopUp{}))
+
+	sqlDB, err := db.DB()
+	require.NoError(t, err)
+	sqlDB.SetMaxOpenConns(1)
+
+	originalDB := model.DB
+	originalRedisEnabled := common.RedisEnabled
+	model.DB = db
+	common.RedisEnabled = false
+	t.Cleanup(func() {
+		model.DB = originalDB
+		common.RedisEnabled = originalRedisEnabled
+	})
+}
+
+func insertPendingAlipayTopUpForNotifyTest(t *testing.T, userID int, tradeNo string, money float64) {
+	t.Helper()
+
+	require.NoError(t, model.DB.Create(&model.User{
+		Id:       userID,
+		Username: "notify-user-" + tradeNo,
+		Password: "password123",
+		AffCode:  "aff-" + tradeNo,
+		Quota:    0,
+	}).Error)
+	require.NoError(t, model.DB.Create(&model.TopUp{
+		UserId:          userID,
+		Amount:          1,
+		Money:           money,
+		TradeNo:         tradeNo,
+		PaymentMethod:   model.PaymentMethodAlipay,
+		PaymentProvider: model.PaymentProviderAlipay,
+		Status:          common.TopUpStatusPending,
+		CreateTime:      1,
+	}).Error)
+}
+
+func fetchUserQuotaAndTopUpStatus(t *testing.T, userID int, tradeNo string) (int, string) {
+	t.Helper()
+
+	var user model.User
+	require.NoError(t, model.DB.First(&user, userID).Error)
+	topUp := model.GetTopUpByTradeNo(tradeNo)
+	require.NotNil(t, topUp)
+	return user.Quota, topUp.Status
+}
+
 func mustGenerateAlipayNotifyTestKeys(t *testing.T) (privateKeyPEM string, publicKeyPEM string, publicKeyRaw string) {
 	t.Helper()
 
@@ -240,6 +293,152 @@ func TestAlipayNotifyAcceptsRawBase64PublicKey(t *testing.T) {
 
 	require.Equal(t, http.StatusOK, recorder.Code)
 	require.Equal(t, "success", recorder.Body.String())
+}
+
+func TestAlipayNotifyRejectsAmountMismatch(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	confirmPaymentComplianceForTest(t)
+	setupAlipayNotifyDB(t)
+	privateKeyPEM, _, publicKeyRaw := mustGenerateAlipayNotifyTestKeys(t)
+	insertPendingAlipayTopUpForNotifyTest(t, 1, "ali_ref_amount_mismatch", 7.30)
+
+	originalEnabled := setting.AlipayEnabled
+	originalAppID := setting.AlipayAppID
+	originalPrivateKey := setting.AlipayPrivateKey
+	originalPublicKey := setting.AlipayPublicKey
+	originalGateway := setting.AlipayGateway
+	originalSellerID := setting.AlipaySellerID
+	setting.AlipayEnabled = true
+	setting.AlipayAppID = "2021000000000000"
+	setting.AlipayPrivateKey = privateKeyPEM
+	setting.AlipayPublicKey = publicKeyRaw
+	setting.AlipayGateway = "https://openapi.alipay.com/gateway.do"
+	setting.AlipaySellerID = ""
+	t.Cleanup(func() {
+		setting.AlipayEnabled = originalEnabled
+		setting.AlipayAppID = originalAppID
+		setting.AlipayPrivateKey = originalPrivateKey
+		setting.AlipayPublicKey = originalPublicKey
+		setting.AlipayGateway = originalGateway
+		setting.AlipaySellerID = originalSellerID
+	})
+
+	form := url.Values{}
+	form.Set("app_id", setting.AlipayAppID)
+	form.Set("out_trade_no", "ali_ref_amount_mismatch")
+	form.Set("trade_no", "202606010001")
+	form.Set("trade_status", "TRADE_SUCCESS")
+	form.Set("total_amount", "6.30")
+	form.Set("receipt_amount", "6.30")
+	signature, err := service.SignAlipayContent(service.BuildAlipaySignContent(service.NormalizeAlipayParams(form)), privateKeyPEM)
+	require.NoError(t, err)
+	form.Set("sign", signature)
+
+	c, recorder := newPOSTFormContext("/api/alipay/notify", form)
+	AlipayNotify(c)
+
+	quota, status := fetchUserQuotaAndTopUpStatus(t, 1, "ali_ref_amount_mismatch")
+	require.Equal(t, http.StatusBadRequest, recorder.Code)
+	require.Equal(t, "fail", recorder.Body.String())
+	require.Equal(t, 0, quota)
+	require.Equal(t, common.TopUpStatusPending, status)
+}
+
+func TestAlipayNotifyRejectsReceiptAmountMismatch(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	confirmPaymentComplianceForTest(t)
+	setupAlipayNotifyDB(t)
+	privateKeyPEM, _, publicKeyRaw := mustGenerateAlipayNotifyTestKeys(t)
+	insertPendingAlipayTopUpForNotifyTest(t, 2, "ali_ref_receipt_mismatch", 7.30)
+
+	originalEnabled := setting.AlipayEnabled
+	originalAppID := setting.AlipayAppID
+	originalPrivateKey := setting.AlipayPrivateKey
+	originalPublicKey := setting.AlipayPublicKey
+	originalGateway := setting.AlipayGateway
+	originalSellerID := setting.AlipaySellerID
+	setting.AlipayEnabled = true
+	setting.AlipayAppID = "2021000000000000"
+	setting.AlipayPrivateKey = privateKeyPEM
+	setting.AlipayPublicKey = publicKeyRaw
+	setting.AlipayGateway = "https://openapi.alipay.com/gateway.do"
+	setting.AlipaySellerID = ""
+	t.Cleanup(func() {
+		setting.AlipayEnabled = originalEnabled
+		setting.AlipayAppID = originalAppID
+		setting.AlipayPrivateKey = originalPrivateKey
+		setting.AlipayPublicKey = originalPublicKey
+		setting.AlipayGateway = originalGateway
+		setting.AlipaySellerID = originalSellerID
+	})
+
+	form := url.Values{}
+	form.Set("app_id", setting.AlipayAppID)
+	form.Set("out_trade_no", "ali_ref_receipt_mismatch")
+	form.Set("trade_no", "202606010002")
+	form.Set("trade_status", "TRADE_SUCCESS")
+	form.Set("total_amount", "7.30")
+	form.Set("receipt_amount", "6.30")
+	signature, err := service.SignAlipayContent(service.BuildAlipaySignContent(service.NormalizeAlipayParams(form)), privateKeyPEM)
+	require.NoError(t, err)
+	form.Set("sign", signature)
+
+	c, recorder := newPOSTFormContext("/api/alipay/notify", form)
+	AlipayNotify(c)
+
+	quota, status := fetchUserQuotaAndTopUpStatus(t, 2, "ali_ref_receipt_mismatch")
+	require.Equal(t, http.StatusBadRequest, recorder.Code)
+	require.Equal(t, "fail", recorder.Body.String())
+	require.Equal(t, 0, quota)
+	require.Equal(t, common.TopUpStatusPending, status)
+}
+
+func TestAlipayNotifyRejectsMissingProviderTradeNoOnSuccess(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	confirmPaymentComplianceForTest(t)
+	setupAlipayNotifyDB(t)
+	privateKeyPEM, _, publicKeyRaw := mustGenerateAlipayNotifyTestKeys(t)
+	insertPendingAlipayTopUpForNotifyTest(t, 3, "ali_ref_missing_provider_trade_no", 7.30)
+
+	originalEnabled := setting.AlipayEnabled
+	originalAppID := setting.AlipayAppID
+	originalPrivateKey := setting.AlipayPrivateKey
+	originalPublicKey := setting.AlipayPublicKey
+	originalGateway := setting.AlipayGateway
+	originalSellerID := setting.AlipaySellerID
+	setting.AlipayEnabled = true
+	setting.AlipayAppID = "2021000000000000"
+	setting.AlipayPrivateKey = privateKeyPEM
+	setting.AlipayPublicKey = publicKeyRaw
+	setting.AlipayGateway = "https://openapi.alipay.com/gateway.do"
+	setting.AlipaySellerID = ""
+	t.Cleanup(func() {
+		setting.AlipayEnabled = originalEnabled
+		setting.AlipayAppID = originalAppID
+		setting.AlipayPrivateKey = originalPrivateKey
+		setting.AlipayPublicKey = originalPublicKey
+		setting.AlipayGateway = originalGateway
+		setting.AlipaySellerID = originalSellerID
+	})
+
+	form := url.Values{}
+	form.Set("app_id", setting.AlipayAppID)
+	form.Set("out_trade_no", "ali_ref_missing_provider_trade_no")
+	form.Set("trade_status", "TRADE_SUCCESS")
+	form.Set("total_amount", "7.30")
+	form.Set("receipt_amount", "7.30")
+	signature, err := service.SignAlipayContent(service.BuildAlipaySignContent(service.NormalizeAlipayParams(form)), privateKeyPEM)
+	require.NoError(t, err)
+	form.Set("sign", signature)
+
+	c, recorder := newPOSTFormContext("/api/alipay/notify", form)
+	AlipayNotify(c)
+
+	quota, status := fetchUserQuotaAndTopUpStatus(t, 3, "ali_ref_missing_provider_trade_no")
+	require.Equal(t, http.StatusBadRequest, recorder.Code)
+	require.Equal(t, "fail", recorder.Body.String())
+	require.Equal(t, 0, quota)
+	require.Equal(t, common.TopUpStatusPending, status)
 }
 
 func TestLoadEncryptedAlipayOptionsPopulatesRuntimePlaintext(t *testing.T) {
