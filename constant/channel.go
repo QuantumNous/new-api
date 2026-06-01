@@ -59,8 +59,9 @@ const (
 	// IDs 59-99 are reserved for upstream (QuantumNous/new-api) future channels to
 	// avoid merge conflicts when syncing from the main repository. Downstream
 	// custom channels start at 100.
-	ChannelTypeBlockRun = 100
-	ChannelTypeDummy    // this one is only for count, do not add any channel after this
+	ChannelTypeBlockRun      = 100
+	ChannelTypeBlockRunVideo = 101
+	ChannelTypeDummy         // this one is only for count, do not add any channel after this
 
 )
 
@@ -121,16 +122,17 @@ var ChannelBaseURLs = []string{
 	"https://llm.submodel.ai",                   //53
 	"https://ark.cn-beijing.volces.com",         //54
 	"https://api.openai.com",                    //55
-	"https://api.replicate.com",                                        //56
-	"https://chatgpt.com",                                              //57
+	"https://api.replicate.com",                 //56
+	"https://chatgpt.com",                       //57
 	"https://aiopenapi.kuaizi.cn/ai-open-platform-api/v1/lz/video/task", //58
 	// IDs 59-99 reserved for upstream main repo; downstream channels start at 100.
-	"", // 59
+	"",                                     // 59
 	"", "", "", "", "", "", "", "", "", "", // 60-69
 	"", "", "", "", "", "", "", "", "", "", // 70-79
 	"", "", "", "", "", "", "", "", "", "", // 80-89
 	"", "", "", "", "", "", "", "", "", "", // 90-99
 	"https://blockrun.ai/api", // 100 BlockRun
+	"https://api2.flatkey.ai", // 101 BlockRunVideo
 }
 
 var ChannelTypeNames = map[int]string{
@@ -190,6 +192,7 @@ var ChannelTypeNames = map[int]string{
 	ChannelTypeCodex:          "Codex",
 	ChannelTypeKuaiziLizhen:   "KuaiziLizhen",
 	ChannelTypeBlockRun:       "BlockRun",
+	ChannelTypeBlockRunVideo:  "BlockRunVideo",
 }
 
 func GetChannelTypeName(channelType int) string {

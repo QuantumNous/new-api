@@ -19,7 +19,8 @@ import (
 // new-api proxy URL; the real upstream URL is preserved inside task.Data
 // and only resolved server-side by controller.VideoProxy.
 var whitelabelChannels = map[int]struct{}{
-	constant.ChannelTypeKuaiziLizhen: {},
+	constant.ChannelTypeKuaiziLizhen:  {},
+	constant.ChannelTypeBlockRunVideo: {},
 }
 
 // ShouldWhitelabelPlatform reports whether tasks on the given platform must
@@ -51,6 +52,7 @@ var brandKeywords = []string{
 	"bytedance",
 	"kz-cgt",
 	"tos-cn-beijing",
+	"blockrun", "flatkey",
 }
 
 // ScrubBrandedText returns the input unchanged when it contains none of the
