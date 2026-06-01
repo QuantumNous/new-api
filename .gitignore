@@ -36,3 +36,6 @@ data/
 token_estimator_test.go
 skills-lock.json
 new-api-linux
+
+# 编译产物备份副本,勿入 git
+*.bak
