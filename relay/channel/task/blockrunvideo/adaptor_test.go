@@ -12,13 +12,11 @@ import (
 func TestConvertToRequestPayload_Text2Video(t *testing.T) {
 	a := &TaskAdaptor{}
 	req := &relaycommon.TaskSubmitReq{
-		Model:   "bytedance/seedance-2.0",
-		Prompt:  "宇航员在月球漫步",
-		Seconds: "5",
-		Metadata: map[string]interface{}{
-			"resolution": "1080p",
-			"ratio":      "16:9",
-		},
+		Model:      "bytedance/seedance-2.0",
+		Prompt:     "宇航员在月球漫步",
+		Duration:   5,
+		Resolution: "1080p",
+		Ratio:      "16:9",
 	}
 	r, err := a.convertToRequestPayload(req)
 	if err != nil {
@@ -28,22 +26,21 @@ func TestConvertToRequestPayload_Text2Video(t *testing.T) {
 		t.Fatalf("model/prompt mismatch: %+v", r)
 	}
 	if r.Seconds != "5" {
-		t.Fatalf("seconds = %q, want 5", r.Seconds)
+		t.Fatalf("seconds (from duration) = %q, want 5", r.Seconds)
 	}
 	if r.Resolution != "1080p" || r.Ratio != "16:9" {
-		t.Fatalf("resolution/ratio from metadata mismatch: %+v", r)
+		t.Fatalf("top-level resolution/ratio mismatch: %+v", r)
 	}
 	if r.ImageURL != "" {
 		t.Fatalf("ImageURL should be empty for text2video, got %q", r.ImageURL)
 	}
 }
 
-func TestConvertToRequestPayload_DurationFallback(t *testing.T) {
+func TestConvertToRequestPayload_Duration(t *testing.T) {
 	a := &TaskAdaptor{}
 	req := &relaycommon.TaskSubmitReq{
 		Model:    "bytedance/seedance-2.0",
 		Prompt:   "x",
-		Seconds:  "",
 		Duration: 8,
 	}
 	r, err := a.convertToRequestPayload(req)
@@ -51,7 +48,7 @@ func TestConvertToRequestPayload_DurationFallback(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if r.Seconds != "8" {
-		t.Fatalf("seconds fallback = %q, want 8", r.Seconds)
+		t.Fatalf("seconds (from duration) = %q, want 8", r.Seconds)
 	}
 }
 

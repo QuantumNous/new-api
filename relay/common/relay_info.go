@@ -97,7 +97,7 @@ type RelayInfo struct {
 	FirstResponseTime time.Time
 	isFirstResponse   bool
 	//SendLastReasoningResponse bool
-	IsStream               bool
+	IsStream bool
 	// UserWantsStream 记录客户端原始请求中的 stream 意图，
 	// 与 IsStream 解耦：用于 codex 渠道在内部把上游强制设为 stream=true 时，
 	// 仍能在响应侧根据客户端意图决定是流式回写还是聚合后一次性回写。
@@ -693,6 +693,8 @@ type TaskSubmitReq struct {
 	Image          string                 `json:"image,omitempty"`
 	Images         []string               `json:"images,omitempty"`
 	Size           string                 `json:"size,omitempty"`
+	Resolution     string                 `json:"resolution,omitempty"`
+	Ratio          string                 `json:"ratio,omitempty"`
 	Duration       int                    `json:"duration,omitempty"`
 	Seconds        string                 `json:"seconds,omitempty"`
 	InputReference string                 `json:"input_reference,omitempty"`
