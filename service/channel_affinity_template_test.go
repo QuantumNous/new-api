@@ -338,3 +338,65 @@ func TestRecordChannelAffinityStoresChannelAndKeyIndex(t *testing.T) {
 	require.Equal(t, 123, selection.ChannelID)
 	require.Equal(t, 4, selection.KeyIndex)
 }
+
+func TestClearChannelAffinityAfterFailureDeletesUsedCache(t *testing.T) {
+	cacheKeySuffix := fmt.Sprintf("clear-after-failure-%d", time.Now().UnixNano())
+	ctx := buildChannelAffinityTemplateContextForTest(channelAffinityMeta{
+		CacheKey:   cacheKeySuffix,
+		TTLSeconds: 600,
+		RuleName:   "clear-after-failure",
+		SkipRetry:  false,
+	})
+	cache := getChannelAffinityCache()
+	require.NoError(t, cache.SetWithTTL(cacheKeySuffix, ChannelAffinitySelection{
+		ChannelID: 321,
+		KeyIndex:  2,
+	}, time.Minute))
+	t.Cleanup(func() {
+		_, _ = cache.DeleteMany([]string{cacheKeySuffix})
+	})
+
+	MarkChannelAffinityUsed(ctx, "default", ChannelAffinitySelection{
+		ChannelID: 321,
+		KeyIndex:  2,
+	})
+
+	require.True(t, ClearChannelAffinityAfterFailure(ctx))
+
+	_, found, err := cache.Get(cacheKeySuffix)
+	require.NoError(t, err)
+	require.False(t, found)
+	_, ok := GetChannelAffinityKeyIndex(ctx, 321)
+	require.False(t, ok)
+}
+
+func TestClearChannelAffinityAfterFailureKeepsCacheWhenSkipRetry(t *testing.T) {
+	cacheKeySuffix := fmt.Sprintf("keep-skip-retry-%d", time.Now().UnixNano())
+	ctx := buildChannelAffinityTemplateContextForTest(channelAffinityMeta{
+		CacheKey:   cacheKeySuffix,
+		TTLSeconds: 600,
+		RuleName:   "keep-skip-retry",
+		SkipRetry:  true,
+	})
+	cache := getChannelAffinityCache()
+	require.NoError(t, cache.SetWithTTL(cacheKeySuffix, ChannelAffinitySelection{
+		ChannelID: 654,
+		KeyIndex:  3,
+	}, time.Minute))
+	t.Cleanup(func() {
+		_, _ = cache.DeleteMany([]string{cacheKeySuffix})
+	})
+
+	MarkChannelAffinityUsed(ctx, "default", ChannelAffinitySelection{
+		ChannelID: 654,
+		KeyIndex:  3,
+	})
+
+	require.False(t, ClearChannelAffinityAfterFailure(ctx))
+
+	selection, found, err := cache.Get(cacheKeySuffix)
+	require.NoError(t, err)
+	require.True(t, found)
+	require.Equal(t, 654, selection.ChannelID)
+	require.Equal(t, 3, selection.KeyIndex)
+}

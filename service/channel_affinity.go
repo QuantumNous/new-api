@@ -28,6 +28,7 @@ const (
 	ginKeyChannelAffinitySkipRetry  = "channel_affinity_skip_retry_on_failure"
 	ginKeyChannelAffinityKeyIndex   = "channel_affinity_key_index"
 	ginKeyChannelAffinityChannelID  = "channel_affinity_channel_id"
+	ginKeyChannelAffinityUsed       = "channel_affinity_used"
 
 	channelAffinityCacheNamespace           = "new-api:channel_affinity:v2"
 	channelAffinityUsageCacheStatsNamespace = "new-api:channel_affinity_usage_cache_stats:v2"
@@ -661,6 +662,7 @@ func MarkChannelAffinityUsed(c *gin.Context, selectedGroup string, selection Cha
 	c.Set(ginKeyChannelAffinitySkipRetry, meta.SkipRetry)
 	c.Set(ginKeyChannelAffinityChannelID, channelID)
 	c.Set(ginKeyChannelAffinityKeyIndex, selection.KeyIndex)
+	c.Set(ginKeyChannelAffinityUsed, true)
 	info := map[string]interface{}{
 		"reason":         meta.RuleName,
 		"rule_name":      meta.RuleName,
@@ -677,6 +679,49 @@ func MarkChannelAffinityUsed(c *gin.Context, selectedGroup string, selection Cha
 		"key_fp":         meta.KeyFingerprint,
 	}
 	c.Set(ginKeyChannelAffinityLogInfo, info)
+}
+
+func clearChannelAffinitySelectedContext(c *gin.Context) {
+	c.Set(ginKeyChannelAffinityChannelID, 0)
+	c.Set(ginKeyChannelAffinityKeyIndex, -1)
+	c.Set(ginKeyChannelAffinityUsed, false)
+	if anyInfo, ok := c.Get(ginKeyChannelAffinityLogInfo); ok {
+		if info, ok := anyInfo.(map[string]interface{}); ok {
+			info["cleared_on_failure"] = true
+			c.Set(ginKeyChannelAffinityLogInfo, info)
+		}
+	}
+}
+
+func ClearChannelAffinityAfterFailure(c *gin.Context) bool {
+	if c == nil {
+		return false
+	}
+	if ShouldSkipRetryAfterChannelAffinityFailure(c) {
+		return false
+	}
+	cacheKey, _, ok := getChannelAffinityContext(c)
+	if !ok {
+		return false
+	}
+
+	usedAffinity, _ := c.Get(ginKeyChannelAffinityUsed)
+	used, _ := usedAffinity.(bool)
+	clearChannelAffinitySelectedContext(c)
+	if !used {
+		return false
+	}
+
+	cache := getChannelAffinityCache()
+	deleted, err := cache.DeleteMany([]string{cacheKey})
+	if err != nil {
+		common.SysError(fmt.Sprintf("channel affinity cache delete after failure failed: key=%s, err=%v", cacheKey, err))
+		return false
+	}
+	if deleted[cache.FullKey(cacheKey)] {
+		return true
+	}
+	return false
 }
 
 func GetChannelAffinityKeyIndex(c *gin.Context, channelID int) (int, bool) {
