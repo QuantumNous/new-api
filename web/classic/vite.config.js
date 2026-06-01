@@ -55,7 +55,9 @@ export default defineConfig(({ command }) => ({
     },
   },
   build: {
+    sourcemap: false,
     rollupOptions: {
+      cache: false,
       output: {
         manualChunks: {
           'react-core': ['react', 'react-dom', 'react-router-dom'],
