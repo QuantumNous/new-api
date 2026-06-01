@@ -1,6 +1,7 @@
 package helper
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"net/http"
@@ -224,6 +225,74 @@ func TestStreamScannerHandler_DataWithExtraSpaces(t *testing.T) {
 	})
 
 	assert.Equal(t, "{\"trimmed\":true}", got)
+}
+
+func TestStringData_SkipsAfterDownstreamGone(t *testing.T) {
+	t.Parallel()
+
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	ctx, cancel := context.WithCancel(context.Background())
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil).WithContext(ctx)
+
+	cancel()
+	err := StringData(c, "{\"delta\":\"late\"}")
+
+	require.NoError(t, err)
+	assert.True(t, IsStreamDownstreamGone(c))
+	assert.Empty(t, recorder.Body.String())
+}
+
+func TestStreamScannerHandler_ClientGoneStopsUpstream(t *testing.T) {
+	oldTimeout := constant.StreamingTimeout
+	constant.StreamingTimeout = 5
+	t.Cleanup(func() { constant.StreamingTimeout = oldTimeout })
+
+	const numChunks = 100
+	pr, pw := io.Pipe()
+	writerDone := make(chan struct{})
+	go func() {
+		defer close(writerDone)
+		defer pw.Close()
+		for i := 0; i < numChunks; i++ {
+			if _, err := fmt.Fprintf(pw, "data: {\"id\":%d}\n", i); err != nil {
+				return
+			}
+			time.Sleep(25 * time.Millisecond)
+		}
+		_, _ = fmt.Fprint(pw, "data: [DONE]\n")
+	}()
+
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	ctx, cancel := context.WithCancel(context.Background())
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil).WithContext(ctx)
+
+	resp := &http.Response{Body: pr}
+	info := &relaycommon.RelayInfo{ChannelMeta: &relaycommon.ChannelMeta{}}
+
+	var count atomic.Int64
+	start := time.Now()
+	StreamScannerHandler(c, resp, info, func(data string, sr *StreamResult) {
+		n := count.Add(1)
+		if n == 1 {
+			cancel()
+		}
+	})
+	elapsed := time.Since(start)
+
+	assert.Less(t, count.Load(), int64(numChunks))
+	assert.Less(t, info.ReceivedResponseCount, numChunks)
+	assert.Less(t, elapsed, time.Second)
+	assert.True(t, IsStreamDownstreamGone(c))
+	require.NotNil(t, info.StreamStatus)
+	assert.Equal(t, relaycommon.StreamEndReasonClientGone, info.StreamStatus.EndReason)
+
+	select {
+	case <-writerDone:
+	case <-time.After(time.Second):
+		t.Fatal("upstream writer did not stop after client gone")
+	}
 }
 
 // ---------- Decoupling ----------

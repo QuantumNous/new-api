@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/pkg/billingexpr"
@@ -146,6 +147,78 @@ func TestCalculateTextQuotaSummaryUsesAnthropicUsageSemanticFromUpstreamUsage(t 
 	require.True(t, summary.IsClaudeUsageSemantic)
 	require.Equal(t, "anthropic", summary.UsageSemantic)
 	require.Equal(t, 1488, summary.Quota)
+}
+
+func TestEnsureClientGoneLocalUsageUsesPromptEstimateWhenUsageMissing(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	w := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(w)
+
+	streamStatus := relaycommon.NewStreamStatus()
+	streamStatus.SetEndReason(relaycommon.StreamEndReasonClientGone, nil)
+	relayInfo := &relaycommon.RelayInfo{
+		IsStream:        true,
+		StreamStatus:    streamStatus,
+		OriginModelName: "gpt-test",
+	}
+	relayInfo.SetEstimatePromptTokens(42)
+
+	extra := []string{}
+	usage, ok := ensureClientGoneLocalUsage(ctx, relayInfo, nil, &extra)
+
+	require.True(t, ok)
+	require.Equal(t, 42, usage.PromptTokens)
+	require.Equal(t, 0, usage.CompletionTokens)
+	require.Equal(t, 42, usage.TotalTokens)
+	require.True(t, common.GetContextKeyBool(ctx, constant.ContextKeyLocalCountTokens))
+	require.Contains(t, extra, "客户端断流，使用本地 token 估算")
+}
+
+func TestEnsureClientGoneLocalUsageCompletesPartialUsageWithPromptEstimate(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	w := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(w)
+
+	streamStatus := relaycommon.NewStreamStatus()
+	streamStatus.SetEndReason(relaycommon.StreamEndReasonClientGone, nil)
+	relayInfo := &relaycommon.RelayInfo{
+		IsStream:        true,
+		StreamStatus:    streamStatus,
+		OriginModelName: "gpt-test",
+	}
+	relayInfo.SetEstimatePromptTokens(42)
+
+	partial := &dto.Usage{CompletionTokens: 7}
+	extra := []string{}
+	usage, ok := ensureClientGoneLocalUsage(ctx, relayInfo, partial, &extra)
+
+	require.True(t, ok)
+	require.Same(t, partial, usage)
+	require.Equal(t, 42, usage.PromptTokens)
+	require.Equal(t, 7, usage.CompletionTokens)
+	require.Equal(t, 49, usage.TotalTokens)
+	require.True(t, common.GetContextKeyBool(ctx, constant.ContextKeyLocalCountTokens))
+	require.Contains(t, extra, "客户端断流，使用本地 token 估算")
+}
+
+func TestEnsureClientGoneLocalUsageSkipsNormalStream(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	w := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(w)
+
+	streamStatus := relaycommon.NewStreamStatus()
+	streamStatus.SetEndReason(relaycommon.StreamEndReasonDone, nil)
+	relayInfo := &relaycommon.RelayInfo{
+		IsStream:     true,
+		StreamStatus: streamStatus,
+	}
+	relayInfo.SetEstimatePromptTokens(42)
+
+	usage, ok := ensureClientGoneLocalUsage(ctx, relayInfo, nil, nil)
+
+	require.False(t, ok)
+	require.Nil(t, usage)
+	require.False(t, common.GetContextKeyBool(ctx, constant.ContextKeyLocalCountTokens))
 }
 
 func TestCacheWriteTokensTotal(t *testing.T) {

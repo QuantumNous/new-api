@@ -14,6 +14,36 @@ import (
 	"github.com/gorilla/websocket"
 )
 
+const streamDownstreamGoneKey = "stream_downstream_gone"
+
+func MarkStreamDownstreamGone(c *gin.Context) {
+	if c == nil {
+		return
+	}
+	c.Set(streamDownstreamGoneKey, true)
+}
+
+func IsStreamDownstreamGone(c *gin.Context) bool {
+	if c == nil {
+		return false
+	}
+	return c.GetBool(streamDownstreamGoneKey)
+}
+
+func shouldSkipStreamWrite(c *gin.Context) bool {
+	if c == nil {
+		return false
+	}
+	if IsStreamDownstreamGone(c) {
+		return true
+	}
+	if c.Request != nil && c.Request.Context().Err() != nil {
+		MarkStreamDownstreamGone(c)
+		return true
+	}
+	return false
+}
+
 func FlushWriter(c *gin.Context) (err error) {
 	defer func() {
 		if r := recover(); r != nil {
@@ -25,8 +55,8 @@ func FlushWriter(c *gin.Context) (err error) {
 		return nil
 	}
 
-	if c.Request != nil && c.Request.Context().Err() != nil {
-		return fmt.Errorf("request context done: %w", c.Request.Context().Err())
+	if shouldSkipStreamWrite(c) {
+		return nil
 	}
 
 	flusher, ok := c.Writer.(http.Flusher)
@@ -55,6 +85,9 @@ func SetEventStreamHeaders(c *gin.Context) {
 }
 
 func ClaudeData(c *gin.Context, resp dto.ClaudeResponse) error {
+	if shouldSkipStreamWrite(c) {
+		return nil
+	}
 	jsonData, err := common.Marshal(resp)
 	if err != nil {
 		common.SysError("error marshalling stream response: " + err.Error())
@@ -67,12 +100,18 @@ func ClaudeData(c *gin.Context, resp dto.ClaudeResponse) error {
 }
 
 func ClaudeChunkData(c *gin.Context, resp dto.ClaudeResponse, data string) {
+	if shouldSkipStreamWrite(c) {
+		return
+	}
 	c.Render(-1, common.CustomEvent{Data: fmt.Sprintf("event: %s\n", resp.Type)})
 	c.Render(-1, common.CustomEvent{Data: fmt.Sprintf("data: %s\n", data)})
 	_ = FlushWriter(c)
 }
 
 func ResponseChunkData(c *gin.Context, resp dto.ResponsesStreamResponse, data string) {
+	if shouldSkipStreamWrite(c) {
+		return
+	}
 	c.Render(-1, common.CustomEvent{Data: fmt.Sprintf("event: %s\n", resp.Type)})
 	c.Render(-1, common.CustomEvent{Data: fmt.Sprintf("data: %s", data)})
 	_ = FlushWriter(c)
@@ -83,8 +122,8 @@ func StringData(c *gin.Context, str string) error {
 		return errors.New("context or writer is nil")
 	}
 
-	if c.Request != nil && c.Request.Context().Err() != nil {
-		return fmt.Errorf("request context done: %w", c.Request.Context().Err())
+	if shouldSkipStreamWrite(c) {
+		return nil
 	}
 
 	c.Render(-1, common.CustomEvent{Data: "data: " + str})
@@ -96,8 +135,8 @@ func PingData(c *gin.Context) error {
 		return errors.New("context or writer is nil")
 	}
 
-	if c.Request != nil && c.Request.Context().Err() != nil {
-		return fmt.Errorf("request context done: %w", c.Request.Context().Err())
+	if shouldSkipStreamWrite(c) {
+		return nil
 	}
 
 	if _, err := c.Writer.Write([]byte(": PING\n\n")); err != nil {

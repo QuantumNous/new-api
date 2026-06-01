@@ -319,9 +319,61 @@ func usageSemanticFromUsage(relayInfo *relaycommon.RelayInfo, usage *dto.Usage) 
 	return "openai"
 }
 
+func isClientGoneStream(relayInfo *relaycommon.RelayInfo) bool {
+	return relayInfo != nil &&
+		relayInfo.IsStream &&
+		relayInfo.StreamStatus != nil &&
+		relayInfo.StreamStatus.EndReason == relaycommon.StreamEndReasonClientGone
+}
+
+func ensureClientGoneLocalUsage(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, usage *dto.Usage, extraContent *[]string) (*dto.Usage, bool) {
+	if !isClientGoneStream(relayInfo) {
+		return usage, false
+	}
+
+	appendReason := func() {
+		if extraContent != nil {
+			*extraContent = append(*extraContent, "客户端断流，使用本地 token 估算")
+		}
+	}
+	markLocal := func() {
+		common.SetContextKey(ctx, constant.ContextKeyLocalCountTokens, true)
+		appendReason()
+	}
+
+	estimatedPromptTokens := relayInfo.GetEstimatePromptTokens()
+	if !ValidUsage(usage) {
+		if estimatedPromptTokens <= 0 {
+			return usage, false
+		}
+		markLocal()
+		return &dto.Usage{
+			PromptTokens:  estimatedPromptTokens,
+			TotalTokens:   estimatedPromptTokens,
+			UsageSemantic: usageSemanticFromUsage(relayInfo, usage),
+		}, true
+	}
+
+	changed := false
+	if usage.PromptTokens <= 0 && estimatedPromptTokens > 0 {
+		usage.PromptTokens = estimatedPromptTokens
+		changed = true
+	}
+	if usage.TotalTokens <= 0 || changed {
+		usage.TotalTokens = usage.PromptTokens + usage.CompletionTokens
+	}
+	if usage.TotalTokens <= 0 {
+		return usage, false
+	}
+	markLocal()
+	return usage, true
+}
+
 func PostTextConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, usage *dto.Usage, extraContent []string) {
+	upstreamUsageMissing := usage == nil
+	usage, _ = ensureClientGoneLocalUsage(ctx, relayInfo, usage, &extraContent)
 	originUsage := usage
-	if usage == nil {
+	if upstreamUsageMissing {
 		extraContent = append(extraContent, "上游无计费信息")
 	}
 	if originUsage != nil {
