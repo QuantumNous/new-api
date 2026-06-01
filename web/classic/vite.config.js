@@ -25,14 +25,14 @@ import { codeInspectorPlugin } from 'code-inspector-plugin';
 const { vitePluginSemi } = pkg;
 
 // https://vitejs.dev/config/
-export default defineConfig({
+export default defineConfig(({ command }) => ({
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
     },
   },
   plugins: [
-    codeInspectorPlugin({
+    command === 'serve' && codeInspectorPlugin({
       bundler: 'vite',
     }),
     {
@@ -54,7 +54,7 @@ export default defineConfig({
     vitePluginSemi({
       cssLayer: true,
     }),
-  ],
+  ].filter(Boolean),
   optimizeDeps: {
     force: true,
     esbuildOptions: {
@@ -104,4 +104,4 @@ export default defineConfig({
       },
     },
   },
-});
+}));

@@ -310,19 +310,7 @@ export function BatchImportDialog({
             </p>
           </div>
 
-          {/* Models */}
-          <div className='space-y-2'>
-            <Label htmlFor='batch-import-models'>{t('Models')}</Label>
-            <Textarea
-              id='batch-import-models'
-              placeholder={t('Comma-separated model names')}
-              value={models}
-              onChange={(e) => setModels(e.target.value)}
-              disabled={importState !== 'idle'}
-              rows={2}
-              className='font-mono text-xs'
-            />
-          </div>
+
 
           {/* Group */}
           <div className='space-y-2'>
