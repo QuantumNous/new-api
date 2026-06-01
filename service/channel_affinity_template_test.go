@@ -8,6 +8,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/gin-gonic/gin"
@@ -208,7 +210,10 @@ func TestGetPreferredChannelByAffinity_RequestHeaderKeySource(t *testing.T) {
 	cacheKeySuffix := buildChannelAffinityCacheKeySuffix(rule, "gpt-5", "default", affinityValue)
 
 	cache := getChannelAffinityCache()
-	require.NoError(t, cache.SetWithTTL(cacheKeySuffix, 9528, time.Minute))
+	require.NoError(t, cache.SetWithTTL(cacheKeySuffix, ChannelAffinitySelection{
+		ChannelID: 9528,
+		KeyIndex:  2,
+	}, time.Minute))
 	t.Cleanup(func() {
 		_, _ = cache.DeleteMany([]string{cacheKeySuffix})
 	})
@@ -225,9 +230,10 @@ func TestGetPreferredChannelByAffinity_RequestHeaderKeySource(t *testing.T) {
 	ctx.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", nil)
 	ctx.Request.Header.Set("X-Affinity-Key", affinityValue)
 
-	channelID, found := GetPreferredChannelByAffinity(ctx, "gpt-5", "default")
+	selection, found := GetPreferredChannelByAffinity(ctx, "gpt-5", "default")
 	require.True(t, found)
-	require.Equal(t, 9528, channelID)
+	require.Equal(t, 9528, selection.ChannelID)
+	require.Equal(t, 2, selection.KeyIndex)
 
 	meta, ok := getChannelAffinityMeta(ctx)
 	require.True(t, ok)
@@ -256,7 +262,10 @@ func TestChannelAffinityHitCodexTemplatePassHeadersEffective(t *testing.T) {
 	cacheKeySuffix := buildChannelAffinityCacheKeySuffix(*codexRule, "gpt-5", "default", affinityValue)
 
 	cache := getChannelAffinityCache()
-	require.NoError(t, cache.SetWithTTL(cacheKeySuffix, 9527, time.Minute))
+	require.NoError(t, cache.SetWithTTL(cacheKeySuffix, ChannelAffinitySelection{
+		ChannelID: 9527,
+		KeyIndex:  1,
+	}, time.Minute))
 	t.Cleanup(func() {
 		_, _ = cache.DeleteMany([]string{cacheKeySuffix})
 	})
@@ -266,9 +275,10 @@ func TestChannelAffinityHitCodexTemplatePassHeadersEffective(t *testing.T) {
 	ctx.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", strings.NewReader(fmt.Sprintf(`{"prompt_cache_key":"%s"}`, affinityValue)))
 	ctx.Request.Header.Set("Content-Type", "application/json")
 
-	channelID, found := GetPreferredChannelByAffinity(ctx, "gpt-5", "default")
+	selection, found := GetPreferredChannelByAffinity(ctx, "gpt-5", "default")
 	require.True(t, found)
-	require.Equal(t, 9527, channelID)
+	require.Equal(t, 9527, selection.ChannelID)
+	require.Equal(t, 1, selection.KeyIndex)
 
 	baseOverride := map[string]interface{}{
 		"temperature": 0.2,
@@ -304,4 +314,89 @@ func TestChannelAffinityHitCodexTemplatePassHeadersEffective(t *testing.T) {
 	require.False(t, exists)
 	_, exists = info.RuntimeHeadersOverride["x-codex-turn-metadata"]
 	require.False(t, exists)
+}
+
+func TestRecordChannelAffinityStoresChannelAndKeyIndex(t *testing.T) {
+	cacheKeySuffix := fmt.Sprintf("record-key-index-%d", time.Now().UnixNano())
+	ctx := buildChannelAffinityTemplateContextForTest(channelAffinityMeta{
+		CacheKey:   cacheKeySuffix,
+		TTLSeconds: 600,
+		RuleName:   "record-key-index",
+	})
+	common.SetContextKey(ctx, constant.ContextKeyChannelId, 123)
+	common.SetContextKey(ctx, constant.ContextKeyChannelMultiKeyIndex, 4)
+
+	RecordChannelAffinity(ctx, 111)
+
+	cache := getChannelAffinityCache()
+	t.Cleanup(func() {
+		_, _ = cache.DeleteMany([]string{cacheKeySuffix})
+	})
+	selection, found, err := cache.Get(cacheKeySuffix)
+	require.NoError(t, err)
+	require.True(t, found)
+	require.Equal(t, 123, selection.ChannelID)
+	require.Equal(t, 4, selection.KeyIndex)
+}
+
+func TestClearChannelAffinityAfterFailureDeletesUsedCache(t *testing.T) {
+	cacheKeySuffix := fmt.Sprintf("clear-after-failure-%d", time.Now().UnixNano())
+	ctx := buildChannelAffinityTemplateContextForTest(channelAffinityMeta{
+		CacheKey:   cacheKeySuffix,
+		TTLSeconds: 600,
+		RuleName:   "clear-after-failure",
+		SkipRetry:  false,
+	})
+	cache := getChannelAffinityCache()
+	require.NoError(t, cache.SetWithTTL(cacheKeySuffix, ChannelAffinitySelection{
+		ChannelID: 321,
+		KeyIndex:  2,
+	}, time.Minute))
+	t.Cleanup(func() {
+		_, _ = cache.DeleteMany([]string{cacheKeySuffix})
+	})
+
+	MarkChannelAffinityUsed(ctx, "default", ChannelAffinitySelection{
+		ChannelID: 321,
+		KeyIndex:  2,
+	})
+
+	require.True(t, ClearChannelAffinityAfterFailure(ctx))
+
+	_, found, err := cache.Get(cacheKeySuffix)
+	require.NoError(t, err)
+	require.False(t, found)
+	_, ok := GetChannelAffinityKeyIndex(ctx, 321)
+	require.False(t, ok)
+}
+
+func TestClearChannelAffinityAfterFailureKeepsCacheWhenSkipRetry(t *testing.T) {
+	cacheKeySuffix := fmt.Sprintf("keep-skip-retry-%d", time.Now().UnixNano())
+	ctx := buildChannelAffinityTemplateContextForTest(channelAffinityMeta{
+		CacheKey:   cacheKeySuffix,
+		TTLSeconds: 600,
+		RuleName:   "keep-skip-retry",
+		SkipRetry:  true,
+	})
+	cache := getChannelAffinityCache()
+	require.NoError(t, cache.SetWithTTL(cacheKeySuffix, ChannelAffinitySelection{
+		ChannelID: 654,
+		KeyIndex:  3,
+	}, time.Minute))
+	t.Cleanup(func() {
+		_, _ = cache.DeleteMany([]string{cacheKeySuffix})
+	})
+
+	MarkChannelAffinityUsed(ctx, "default", ChannelAffinitySelection{
+		ChannelID: 654,
+		KeyIndex:  3,
+	})
+
+	require.False(t, ClearChannelAffinityAfterFailure(ctx))
+
+	selection, found, err := cache.Get(cacheKeySuffix)
+	require.NoError(t, err)
+	require.True(t, found)
+	require.Equal(t, 654, selection.ChannelID)
+	require.Equal(t, 3, selection.KeyIndex)
 }

@@ -196,6 +196,38 @@ func (channel *Channel) GetKeys() []string {
 	return keys
 }
 
+func (channel *Channel) GetEnabledKeyByIndex(index int) (string, int, *types.NewAPIError) {
+	if !channel.ChannelInfo.IsMultiKey {
+		if index != 0 {
+			return "", 0, types.NewError(errors.New("invalid key index"), types.ErrorCodeChannelNoAvailableKey)
+		}
+		return channel.Key, 0, nil
+	}
+
+	keys := channel.GetKeys()
+	if len(keys) == 0 {
+		return "", 0, types.NewError(errors.New("no keys available"), types.ErrorCodeChannelNoAvailableKey)
+	}
+	if index < 0 || index >= len(keys) {
+		return "", 0, types.NewError(errors.New("invalid key index"), types.ErrorCodeChannelNoAvailableKey)
+	}
+
+	lock := GetChannelPollingLock(channel.Id)
+	lock.Lock()
+	defer lock.Unlock()
+
+	status := common.ChannelStatusEnabled
+	if channel.ChannelInfo.MultiKeyStatusList != nil {
+		if s, ok := channel.ChannelInfo.MultiKeyStatusList[index]; ok {
+			status = s
+		}
+	}
+	if status != common.ChannelStatusEnabled {
+		return "", 0, types.NewError(errors.New("key is disabled"), types.ErrorCodeChannelNoAvailableKey)
+	}
+	return keys[index], index, nil
+}
+
 func (channel *Channel) GetNextEnabledKey() (string, int, *types.NewAPIError) {
 	// If not in multi-key mode, return the original key string directly.
 	if !channel.ChannelInfo.IsMultiKey {

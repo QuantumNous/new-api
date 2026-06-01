@@ -43,6 +43,8 @@ interface Props {
     using_group: string
     key_hint: string
     key_fp: string
+    channel_id?: number
+    key_index?: number
   } | null
 }
 
@@ -65,7 +67,12 @@ export function CacheStatsDialog(props: Props) {
 
     setStats(null)
 
-    getAffinityUsageCache(props.target)
+    getAffinityUsageCache({
+      rule_name: props.target.rule_name,
+      using_group: props.target.using_group,
+      key_hint: props.target.key_hint,
+      key_fp: props.target.key_fp,
+    })
       .then((res) => {
         if (seq !== seqRef.current) return
         if (res.success) setStats((res.data as Record<string, unknown>) || {})
@@ -105,6 +112,25 @@ export function CacheStatsDialog(props: Props) {
         key: t('Key Fingerprint'),
         value: (s.key_fp || props.target?.key_fp || '') as string,
       })
+    const channelId = props.target?.channel_id
+    if (
+      channelId != null &&
+      Number.isFinite(channelId) &&
+      channelId >= 0
+    ) {
+      data.push({ key: t('Channel'), value: `#${channelId}` })
+    }
+    const keyIndex = props.target?.key_index
+    if (
+      keyIndex != null &&
+      Number.isFinite(keyIndex) &&
+      keyIndex >= 0
+    ) {
+      data.push({
+        key: t('Channel key'),
+        value: `#${keyIndex + 1} (index ${keyIndex})`,
+      })
+    }
     if (Number(s.window_seconds || 0) > 0)
       data.push({ key: t('TTL (seconds)'), value: s.window_seconds as number })
     if (total > 0)

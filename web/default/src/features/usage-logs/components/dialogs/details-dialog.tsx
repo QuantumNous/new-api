@@ -135,6 +135,13 @@ function formatRatio(ratio: number | undefined): string {
   return ratio.toFixed(4)
 }
 
+function formatKeyIndexLabel(keyIndex?: number): string | null {
+  if (keyIndex == null || !Number.isFinite(keyIndex) || keyIndex < 0) {
+    return null
+  }
+  return `#${keyIndex + 1} (index ${keyIndex})`
+}
+
 function BillingBreakdown(props: {
   log: UsageLog
   other: LogOtherData
@@ -483,6 +490,8 @@ export function DetailsDialog(props: DetailsDialogProps) {
   const useChannel = other?.admin_info?.use_channel
   const channelChain =
     useChannel && useChannel.length > 0 ? useChannel.join(' → ') : undefined
+  const affinity = adminInfo?.channel_affinity
+  const affinityKeyDisplay = formatKeyIndexLabel(affinity?.key_index)
 
   return (
     <Dialog open={props.open} onOpenChange={props.onOpenChange}>
@@ -547,6 +556,35 @@ export function DetailsDialog(props: DetailsDialogProps) {
 
               {channelChain && props.isAdmin && (
                 <DetailRow label={t('Retry Chain')} value={channelChain} mono />
+              )}
+
+              {props.isAdmin && affinity && (
+                <DetailSection label={t('Channel Affinity')}>
+                  {affinity.rule_name && (
+                    <DetailRow label={t('Rule')} value={affinity.rule_name} />
+                  )}
+                  {affinity.channel_id != null && (
+                    <DetailRow
+                      label={t('Channel')}
+                      value={`#${affinity.channel_id}`}
+                      mono
+                    />
+                  )}
+                  {affinityKeyDisplay && (
+                    <DetailRow
+                      label={t('Channel key')}
+                      value={affinityKeyDisplay}
+                      mono
+                    />
+                  )}
+                  {(affinity.using_group || affinity.selected_group) && (
+                    <DetailRow
+                      label={t('Group')}
+                      value={affinity.using_group || affinity.selected_group}
+                      mono
+                    />
+                  )}
+                </DetailSection>
               )}
 
               {props.log.token_name && (
