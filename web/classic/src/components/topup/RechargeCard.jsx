@@ -395,20 +395,7 @@ const RechargeCard = ({
                 enableStripeTopUp ||
                 enableWaffoTopUp) && (
                 <Form.Slot
-                  label={
-                    <div className='billing-label-row'>
-                      <span>{t('选择充值额度')}</span>
-                      {(() => {
-                        const { symbol, rate, type } = getCurrencyConfig();
-                        if (type === 'USD') return null;
-                        return (
-                          <span>
-                            1 $ = {rate.toFixed(2)} {symbol}
-                          </span>
-                        );
-                      })()}
-                    </div>
-                  }
+                  label={t('选择充值额度')}
                 >
                   <div className='billing-amount-grid'>
                     {presetAmounts.map(renderPresetCard)}
