@@ -120,6 +120,27 @@ func authHelper(c *gin.Context, minRole int) {
 		c.Abort()
 		return
 	}
+	// 用最新的用户数据覆盖会话快照，确保管理员对分组 / 角色 / 状态的修改
+	// 下一次请求即生效，而不必等用户重新登录或会话过期。
+	group := session.Get("group")
+	if idInt, ok := id.(int); ok {
+		// 直接查库（不带 password），绕过 Redis 缓存，确保权限即时生效，
+		// 不依赖各修改路径同步维护用户缓存这一隐式不变量。
+		user, dbErr := model.GetUserById(idInt, false)
+		if dbErr != nil {
+			// 用户已被删除或数据库异常，视为登录态失效
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"message": common.TranslateMessage(c, i18n.MsgAuthUserInfoInvalid),
+			})
+			c.Abort()
+			return
+		}
+		username = user.Username
+		role = user.Role
+		status = user.Status
+		group = user.Group
+	}
 	if status.(int) == common.UserStatusDisabled {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
@@ -149,8 +170,8 @@ func authHelper(c *gin.Context, minRole int) {
 	c.Set("username", username)
 	c.Set("role", role)
 	c.Set("id", id)
-	c.Set("group", session.Get("group"))
-	c.Set("user_group", session.Get("group"))
+	c.Set("group", group)
+	c.Set("user_group", group)
 	c.Set("use_access_token", useAccessToken)
 
 	c.Next()
