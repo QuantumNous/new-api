@@ -1,10 +1,12 @@
 package claude
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
+	"path/filepath"
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
@@ -376,6 +378,98 @@ func RequestOpenAI2ClaudeMessage(c *gin.Context, textRequest dto.GeneralOpenAIRe
 								Text: common.GetPointer[string](mediaMessage.Text),
 							})
 						}
+					case dto.ContentTypeFile:
+						// When a filename is present, dispatch by extension (reliable: avoids
+						// content-sniffing confusing .bin-that-is-PDF with spec.pdf).
+						// When filename is absent, fall back to content-sniffing so we don't
+						// silently drop a valid document whose client omitted the name field.
+						file := mediaMessage.GetFile()
+						if file == nil || file.FileData == "" {
+							continue
+						}
+						if file.FileName != "" {
+							ext := strings.ToLower(filepath.Ext(file.FileName))
+							switch {
+							case ext == ".pdf":
+								claudeMediaMessages = append(claudeMediaMessages, dto.ClaudeMediaMessage{
+									Type: "document",
+									Source: &dto.ClaudeMessageSource{
+										Type:      "base64",
+										MediaType: "application/pdf",
+										Data:      file.FileData,
+									},
+								})
+							case claudeIsTextExtension(ext):
+								decoded, decErr := base64.StdEncoding.DecodeString(file.FileData)
+								if decErr != nil {
+									continue
+								}
+								// Guard against files that would blow Claude's context window.
+								// 100 KB ≈ 100K tokens for ASCII source — well within the 200K
+								// limit but prevents accidental upload of minified bundles etc.
+								if len(decoded) > claudeMaxInlineTextBytes {
+									continue
+								}
+								claudeMediaMessages = append(claudeMediaMessages, dto.ClaudeMediaMessage{
+									Type: "text",
+									Text: common.GetPointer[string](string(decoded)),
+								})
+							default:
+								continue // known unsupported extension — skip silently
+							}
+							continue
+						}
+						// FileName is empty: use content-sniffing (same as the default branch).
+						// GetBase64Data calls logger.LogDebug(c,...) which panics on a nil
+						// *gin.Context when DebugEnabled=true. Skip silently when c is nil
+						// (only happens in unit tests that pass nil context).
+						if c == nil {
+							continue
+						}
+						source := mediaMessage.ToFileSource()
+						if source == nil {
+							continue
+						}
+						base64Data, mimeType, err := service.GetBase64Data(c, source, "formatting file for Claude")
+						if err != nil {
+							return nil, fmt.Errorf("get file data failed: %s", err.Error())
+						}
+						var sniffedMsg dto.ClaudeMediaMessage
+						switch {
+						case strings.HasPrefix(mimeType, "application/pdf"):
+							sniffedMsg = dto.ClaudeMediaMessage{
+								Type: "document",
+								Source: &dto.ClaudeMessageSource{
+									Type:      "base64",
+									MediaType: mimeType,
+									Data:      base64Data,
+								},
+							}
+						case strings.HasPrefix(mimeType, "text/"):
+							// Claude rejects type="image" for text MIME types.
+							// Decode and send as inline text instead.
+							decoded, decErr := base64.StdEncoding.DecodeString(base64Data)
+							if decErr != nil {
+								continue
+							}
+							if len(decoded) > claudeMaxInlineTextBytes {
+								continue
+							}
+							sniffedMsg = dto.ClaudeMediaMessage{
+								Type: "text",
+								Text: common.GetPointer[string](string(decoded)),
+							}
+						default:
+							sniffedMsg = dto.ClaudeMediaMessage{
+								Type: "image",
+								Source: &dto.ClaudeMessageSource{
+									Type:      "base64",
+									MediaType: mimeType,
+									Data:      base64Data,
+								},
+							}
+						}
+						claudeMediaMessages = append(claudeMediaMessages, sniffedMsg)
 					default:
 						source := mediaMessage.ToFileSource()
 						if source == nil {
@@ -1008,4 +1102,35 @@ func mapToolChoice(toolChoice any, parallelToolCalls *bool) *dto.ClaudeToolChoic
 	}
 
 	return claudeToolChoice
+}
+
+// claudeMaxInlineTextBytes is the maximum decoded size for a text file that
+// will be inlined into a Claude message. Files larger than this are silently
+// dropped — the caller should chunk or summarise before sending.
+// 100 KB keeps us well inside Claude's 200 K-token context window even for
+// dense source code (≈1 token per byte for ASCII).
+const claudeMaxInlineTextBytes = 100 * 1024
+
+// claudeIsTextExtension reports whether ext (lowercased, with leading dot)
+// represents a file whose content should be inlined as plain text in a Claude
+// message.
+//
+// MAINTENANCE: this list is intentionally broader than service.GetMimeTypeByExtension
+// (which covers only the 8 types that the upstream file-upload API exposes). If you
+// add a text type to GetMimeTypeByExtension, add the corresponding extension here too,
+// and vice versa. A future refactor should consolidate both into a single
+// extension→MIME table in service/file_service.go.
+func claudeIsTextExtension(ext string) bool {
+	switch ext {
+	case ".txt", ".md", ".markdown", ".csv", ".log", ".json", ".xml",
+		".yaml", ".yml", ".html", ".htm", ".css", ".js", ".ts",
+		".py", ".go", ".java", ".c", ".cpp", ".h", ".rs", ".rb",
+		".sh", ".bash", ".zsh", ".toml":
+		// .ini, .conf, and .env* are intentionally excluded: production config
+		// files (php.ini, my.ini, nginx.conf, .env) routinely contain DB
+		// passwords, TLS key paths, API keys, and internal hostnames that must
+		// never be inlined into a Claude message.
+		return true
+	}
+	return false
 }

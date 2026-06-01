@@ -30,6 +30,10 @@ func TestModelPriceHelperTieredUsesPreloadedRequestInput(t *testing.T) {
 	require.NoError(t, config.GlobalConfig.LoadFromDB(map[string]string{
 		"billing_setting.billing_mode": `{"tiered-test-model":"tiered_expr"}`,
 		"billing_setting.billing_expr": `{"tiered-test-model":"param(\"stream\") == true ? tier(\"stream\", p * 3) : tier(\"base\", p * 2)"}`,
+		// Pin group ratio to 1.0 so this test is independent of the production
+		// default (currently 1.2). The test is validating tier selection logic,
+		// not the markup ladder.
+		"group_ratio_setting.group_ratio": `{"default":1.0}`,
 	}))
 
 	recorder := httptest.NewRecorder()

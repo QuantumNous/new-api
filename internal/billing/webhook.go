@@ -40,10 +40,17 @@ type Event struct {
 	Model            string  `json:"model"`
 	PromptTokens     int     `json:"prompt_tokens"`
 	CompletionTokens int     `json:"completion_tokens"`
-	ImageCount       int     `json:"image_count"`
-	CostUSD          float64 `json:"cost_usd"`
-	Stars            int     `json:"stars"`
-	Timestamp        string  `json:"timestamp"` // RFC3339
+	// ImageCount is the number of image inputs in the request.
+	// Currently always 0 — multi-modal image counting is a V1 feature.
+	// omitempty keeps the V0 wire format clean; receivers should treat
+	// absence of this field as "not tracked yet".
+	ImageCount int `json:"image_count,omitempty"`
+	CostUSD    float64 `json:"cost_usd"`
+	// Stars is reserved for Airbotix Stars credit mapping (V1).
+	// Always 0 in V0; receivers should ignore this field until the
+	// Stars pricing table is wired in.
+	Stars     int    `json:"stars,omitempty"`
+	Timestamp string `json:"timestamp"` // RFC3339
 }
 
 // SignPayload returns the lowercase hex-encoded HMAC-SHA256 of payload.
