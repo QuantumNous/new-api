@@ -41,7 +41,27 @@ export function calculateDashboardStats(data: QuotaDataItem[]) {
       totalQuota: acc.totalQuota + (Number(item.quota) || 0),
       totalCount: acc.totalCount + (Number(item.count) || 0),
       totalTokens: acc.totalTokens + (Number(item.token_used) || 0),
+      totalCacheRead: acc.totalCacheRead + (Number(item.cache_tokens) || 0),
+      totalCacheCreation:
+        acc.totalCacheCreation +
+        ((Number(item.cache_creation_tokens_5m) || 0) > 0 ||
+        (Number(item.cache_creation_tokens_1h) || 0) > 0
+          ? (Number(item.cache_creation_tokens_5m) || 0) +
+            (Number(item.cache_creation_tokens_1h) || 0)
+          : Number(item.cache_creation_tokens) || 0),
+      totalCacheCreation5m:
+        acc.totalCacheCreation5m + (Number(item.cache_creation_tokens_5m) || 0),
+      totalCacheCreation1h:
+        acc.totalCacheCreation1h + (Number(item.cache_creation_tokens_1h) || 0),
     }),
-    { totalQuota: 0, totalCount: 0, totalTokens: 0 }
+    {
+      totalQuota: 0,
+      totalCount: 0,
+      totalTokens: 0,
+      totalCacheRead: 0,
+      totalCacheCreation: 0,
+      totalCacheCreation5m: 0,
+      totalCacheCreation1h: 0,
+    }
   )
 }

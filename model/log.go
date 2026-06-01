@@ -2,6 +2,7 @@ package model
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -267,7 +268,12 @@ func RecordConsumeLog(c *gin.Context, userId int, params RecordConsumeLogParams)
 	}
 	if common.DataExportEnabled {
 		gopool.Go(func() {
-			LogQuotaData(userId, username, params.ModelName, params.Quota, common.GetTimestamp(), params.PromptTokens+params.CompletionTokens)
+			cacheTokens := toIntOrDefault(params.Other["cache_tokens"])
+			cacheCreationTokens := toIntOrDefault(params.Other["cache_creation_tokens"])
+			cacheCreationTokens5m := toIntOrDefault(params.Other["cache_creation_tokens_5m"])
+			cacheCreationTokens1h := toIntOrDefault(params.Other["cache_creation_tokens_1h"])
+			LogQuotaData(userId, username, params.ModelName, params.Quota, common.GetTimestamp(), params.PromptTokens+params.CompletionTokens,
+				cacheTokens, cacheCreationTokens, cacheCreationTokens5m, cacheCreationTokens1h)
 		})
 	}
 }
@@ -552,4 +558,20 @@ func DeleteOldLog(ctx context.Context, targetTimestamp int64, limit int) (int64,
 	}
 
 	return total, nil
+}
+
+func toIntOrDefault(v interface{}) int {
+	switch n := v.(type) {
+	case float64:
+		return int(n)
+	case json.Number:
+		if i, err := n.Int64(); err == nil {
+			return int(i)
+		}
+	case int:
+		return n
+	case int64:
+		return int(n)
+	}
+	return 0
 }
