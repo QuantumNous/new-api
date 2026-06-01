@@ -33,6 +33,14 @@ export interface QuotaDataItem {
   quota?: number
 }
 
+export interface TopUpAnalysisItem {
+  created_at: number
+  payment_method?: string
+  payment_provider?: string
+  money?: number
+  count?: number
+}
+
 // ============================================================================
 // Uptime Monitoring Types
 // ============================================================================

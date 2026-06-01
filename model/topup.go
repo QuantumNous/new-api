@@ -25,6 +25,14 @@ type TopUp struct {
 	Status          string  `json:"status"`
 }
 
+type TopUpAnalysisData struct {
+	CreatedAt       int64   `json:"created_at"`
+	PaymentMethod   string  `json:"payment_method"`
+	PaymentProvider string  `json:"payment_provider"`
+	Money           float64 `json:"money"`
+	Count           int64   `json:"count"`
+}
+
 const (
 	PaymentMethodStripe       = "stripe"
 	PaymentMethodCreem        = "creem"
@@ -315,6 +323,23 @@ func GetAllTopUps(pageInfo *common.PageInfo) (topups []*TopUp, total int64, err 
 	}
 
 	return topups, total, nil
+}
+
+func GetTopUpAnalysisData(startTime int64, endTime int64, username string) (items []*TopUpAnalysisData, err error) {
+	hourExpr := "top_ups.complete_time - (top_ups.complete_time % 3600)"
+	query := DB.Table("top_ups").
+		Select(hourExpr+" as created_at, top_ups.payment_method, top_ups.payment_provider, sum(top_ups.money) as money, count(*) as count").
+		Where("top_ups.status = ? and top_ups.complete_time > 0 and top_ups.complete_time >= ? and top_ups.complete_time <= ?", common.TopUpStatusSuccess, startTime, endTime)
+
+	if username != "" {
+		query = query.Joins("left join users on users.id = top_ups.user_id").
+			Where("users.username = ?", username)
+	}
+
+	err = query.Group(hourExpr + ", top_ups.payment_method, top_ups.payment_provider").
+		Order("created_at asc").
+		Find(&items).Error
+	return items, err
 }
 
 // searchTopUpCountHardLimit 搜索充值记录时 COUNT 的安全上限，
