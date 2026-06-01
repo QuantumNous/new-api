@@ -37,7 +37,7 @@ export function NotFoundError() {
           <Button variant='outline' onClick={() => history.go(-1)}>
             {t('Go Back')}
           </Button>
-          <Button onClick={() => navigate({ to: '/' })}>
+          <Button onClick={() => navigate({ to: '/dashboard/overview' })}>
             {t('Back to Home')}
           </Button>
         </div>

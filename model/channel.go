@@ -492,7 +492,10 @@ func (channel *Channel) GetBaseURL() string {
 	if url == "" {
 		url = constant.ChannelBaseURLs[channel.Type]
 	}
-	return url
+	// Normalize: strip trailing slashes so callers can safely append paths like
+	// "/v1/chat/completions" without creating double-slash URLs that some upstreams
+	// (e.g. ikuncode) return as HTML instead of JSON.
+	return strings.TrimRight(url, "/")
 }
 
 func (channel *Channel) GetModelMapping() string {

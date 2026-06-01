@@ -169,10 +169,23 @@ export async function requestWaffoPancakePayment(
 }
 
 /**
- * Get affiliate code
+ * Get affiliate code (apimaster referral_code, for the /register?ref= link).
+ * Tries /api/auth/me (apimaster session) first — works for all users including admin.
+ * Falls back to /api/user/referral_code (new-api, UUID-prefix lookup) if unavailable.
  */
 export async function getAffiliateCode(): Promise<AffiliateCodeResponse> {
-  const res = await api.get('/api/user/aff')
+  try {
+    const res = await fetch('/api/auth/me', { credentials: 'include' })
+    if (res.ok) {
+      const json = await res.json()
+      if (json?.success && json?.data?.referral_code) {
+        return { success: true, message: '', data: json.data.referral_code }
+      }
+    }
+  } catch {
+    // fall through
+  }
+  const res = await api.get('/api/user/referral_code')
   return res.data
 }
 
@@ -231,5 +244,34 @@ export async function completeOrder(
   request: CompleteOrderRequest
 ): Promise<ApiResponse> {
   const res = await api.post('/api/user/topup/complete', request)
+  return res.data
+}
+
+/**
+ * Submit a crypto on-chain transaction hash for verification
+ */
+export async function submitCryptoDeposit(
+  txHash: string,
+  chain: string
+): Promise<{ success: boolean; depositId?: string; error?: string }> {
+  try {
+    const res = await api.post(
+      '/api/user/crypto/submit',
+      { tx_hash: txHash, chain },
+      { skipBusinessError: true } as Record<string, unknown>
+    )
+    return res.data
+  } catch {
+    return { success: false, error: 'Request failed' }
+  }
+}
+
+/**
+ * Poll crypto deposit status
+ */
+export async function getCryptoDepositStatus(
+  depositId: string
+): Promise<{ status: 'pending' | 'confirmed' | 'failed'; usdAdded?: number }> {
+  const res = await api.get(`/api/user/crypto/deposit/${depositId}`)
   return res.data
 }

@@ -49,17 +49,19 @@ export function TransferDialog({
   transferring,
 }: TransferDialogProps) {
   const { t } = useTranslation()
-  const [amount, setAmount] = useState(QUOTA_PER_DOLLAR)
+  const minDollar = 0.01
+  const maxDollar = availableQuota / QUOTA_PER_DOLLAR
+  const [dollars, setDollars] = useState(maxDollar)
 
   useEffect(() => {
     if (open) {
       // eslint-disable-next-line react-hooks/set-state-in-effect
-      setAmount(QUOTA_PER_DOLLAR)
+      setDollars(maxDollar)
     }
-  }, [open])
+  }, [open, maxDollar])
 
   const handleConfirm = async () => {
-    const success = await onConfirm(amount)
+    const success = await onConfirm(Math.round(dollars * QUOTA_PER_DOLLAR))
     if (success) {
       onOpenChange(false)
     }
@@ -94,18 +96,21 @@ export function TransferDialog({
             >
               {t('Transfer Amount')}
             </Label>
-            <Input
-              id='transfer-amount'
-              type='number'
-              value={amount}
-              onChange={(e) => setAmount(Number(e.target.value))}
-              min={QUOTA_PER_DOLLAR}
-              max={availableQuota}
-              step={QUOTA_PER_DOLLAR}
-              className='font-mono text-lg'
-            />
+            <div className='relative'>
+              <span className='text-muted-foreground absolute left-3 top-1/2 -translate-y-1/2 font-mono text-lg'>$</span>
+              <Input
+                id='transfer-amount'
+                type='number'
+                value={dollars}
+                onChange={(e) => setDollars(Number(e.target.value))}
+                min={minDollar}
+                max={maxDollar}
+                step={0.01}
+                className='pl-7 font-mono text-lg'
+              />
+            </div>
             <p className='text-muted-foreground text-xs'>
-              {t('Minimum:')} {formatQuota(QUOTA_PER_DOLLAR)}
+              {t('Minimum:')} $1
             </p>
           </div>
         </div>

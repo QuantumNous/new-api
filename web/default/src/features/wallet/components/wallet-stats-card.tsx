@@ -16,10 +16,11 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { Activity, BarChart3, WalletCards } from 'lucide-react'
+import { WalletCards } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { formatQuota } from '@/lib/format'
 import { Skeleton } from '@/components/ui/skeleton'
+import { GLASS_CARD_CLS } from '../constants'
 import type { UserWalletData } from '../types'
 
 interface WalletStatsCardProps {
@@ -27,65 +28,33 @@ interface WalletStatsCardProps {
   loading?: boolean
 }
 
-export function WalletStatsCard(props: WalletStatsCardProps) {
+export function WalletStatsCard({ user, loading }: WalletStatsCardProps) {
   const { t } = useTranslation()
-  if (props.loading) {
+
+  if (loading) {
     return (
-      <div className='overflow-hidden rounded-lg border'>
-        <div className='divide-border/60 grid grid-cols-3 divide-x'>
-          {Array.from({ length: 3 }).map((_, i) => (
-            <div key={i} className='px-3 py-3 sm:px-5 sm:py-4'>
-              <Skeleton className='h-3.5 w-20' />
-              <Skeleton className='mt-2 h-7 w-28' />
-              <Skeleton className='mt-1.5 h-3.5 w-24' />
-            </div>
-          ))}
+      <div className={`${GLASS_CARD_CLS} flex items-center gap-4 px-5 py-4`}>
+        <Skeleton className='size-11 shrink-0 rounded-xl' />
+        <div>
+          <Skeleton className='h-3.5 w-20' />
+          <Skeleton className='mt-2 h-8 w-32' />
         </div>
       </div>
     )
   }
 
-  const stats = [
-    {
-      label: t('Current Balance'),
-      value: formatQuota(props.user?.quota ?? 0),
-      description: t('Remaining quota'),
-      icon: WalletCards,
-    },
-    {
-      label: t('Total Usage'),
-      value: formatQuota(props.user?.used_quota ?? 0),
-      description: t('Total consumed quota'),
-      icon: BarChart3,
-    },
-    {
-      label: t('API Requests'),
-      value: (props.user?.request_count ?? 0).toLocaleString(),
-      description: t('Total requests made'),
-      icon: Activity,
-    },
-  ]
-
   return (
-    <div className='overflow-hidden rounded-lg border'>
-      <div className='divide-border/60 grid grid-cols-3 divide-x'>
-        {stats.map((item) => (
-          <div key={item.label} className='px-3 py-3 sm:px-5 sm:py-4'>
-            <div className='flex items-center gap-2'>
-              <item.icon className='text-muted-foreground/60 size-3.5 shrink-0' />
-              <div className='text-muted-foreground truncate text-xs font-medium tracking-wider uppercase'>
-                {item.label}
-              </div>
-            </div>
-
-            <div className='text-foreground mt-1.5 font-mono text-base font-bold tracking-tight break-all tabular-nums sm:mt-2 sm:text-2xl'>
-              {item.value}
-            </div>
-            <div className='text-muted-foreground/60 mt-1 hidden text-xs md:block'>
-              {item.description}
-            </div>
-          </div>
-        ))}
+    <div className={`${GLASS_CARD_CLS} flex items-center gap-4 px-5 py-4`}>
+      <div className='flex size-11 shrink-0 items-center justify-center rounded-xl bg-green-100 dark:bg-green-900/30'>
+        <WalletCards className='size-5 text-green-600' />
+      </div>
+      <div>
+        <div className='text-muted-foreground text-xs font-medium'>
+          {t('Current Balance')}
+        </div>
+        <div className='mt-0.5 font-mono text-2xl font-bold tabular-nums tracking-tight'>
+          {formatQuota(user?.quota ?? 0)}
+        </div>
       </div>
     </div>
   )

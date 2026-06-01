@@ -267,7 +267,7 @@ export function useUsersColumns(): ColumnDef<User>[] {
     {
       id: 'invite_info',
       header: ({ column }) => (
-        <DataTableColumnHeader column={column} title={t('Invite Info')} />
+        <DataTableColumnHeader column={column} title={t('Invited Count')} />
       ),
       cell: ({ row }) => {
         const user = row.original
@@ -276,65 +276,27 @@ export function useUsersColumns(): ColumnDef<User>[] {
         const inviterId = user.inviter_id || 0
 
         return (
-          <div className='flex items-center gap-1.5 text-xs font-medium'>
-            <span
-              className={cn(
-                'size-1.5 shrink-0 rounded-full',
-                dotColorMap.neutral
-              )}
-              aria-hidden='true'
-            />
-            <Tooltip>
-              <TooltipTrigger
-                render={<span className='text-muted-foreground cursor-help' />}
-              >
-                {t('Invited')}: {affCount}
-              </TooltipTrigger>
-              <TooltipContent>
-                <p className='text-xs'>{t('Number of users invited')}</p>
-              </TooltipContent>
-            </Tooltip>
-            <span className='text-muted-foreground/30'>·</span>
-            <Tooltip>
-              <TooltipTrigger
-                render={<span className='text-muted-foreground cursor-help' />}
-              >
-                {t('Revenue')}: {formatQuota(affHistoryQuota)}
-              </TooltipTrigger>
-              <TooltipContent>
-                <p className='text-xs'>{t('Total invitation revenue')}</p>
-              </TooltipContent>
-            </Tooltip>
-            {inviterId > 0 && (
-              <>
-                <span className='text-muted-foreground/30'>·</span>
-                <Tooltip>
-                  <TooltipTrigger
-                    render={
-                      <span className='text-muted-foreground cursor-help' />
-                    }
-                  >
-                    {t('Inviter')}: {inviterId}
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    <p className='text-xs'>
-                      {t('Invited by user ID')} {inviterId}
-                    </p>
-                  </TooltipContent>
-                </Tooltip>
-              </>
-            )}
-            {inviterId === 0 && (
-              <>
-                <span className='text-muted-foreground/30'>·</span>
-                <span className='text-muted-foreground'>{t('No Inviter')}</span>
-              </>
-            )}
-          </div>
+          <Tooltip>
+            <TooltipTrigger render={<div className='cursor-help' />}>
+              <div className='flex items-center gap-1.5 text-sm font-medium'>
+                <span>{affCount}</span>
+                <span className='text-muted-foreground text-xs'>{t('people')}</span>
+              </div>
+            </TooltipTrigger>
+            <TooltipContent>
+              <div className='space-y-1 text-xs'>
+                <div>{t('Number of users invited')}: {affCount}</div>
+                <div>{t('Total invitation revenue')}: {formatQuota(affHistoryQuota)}</div>
+                {inviterId > 0 && (
+                  <div>{t('Invited by user ID')} {inviterId}</div>
+                )}
+              </div>
+            </TooltipContent>
+          </Tooltip>
         )
       },
       enableSorting: false,
-      meta: { label: t('Invite Info'), mobileHidden: true },
+      meta: { label: t('Invited Count'), mobileHidden: true },
     },
     {
       accessorKey: 'created_at',

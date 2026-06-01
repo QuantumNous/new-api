@@ -331,6 +331,11 @@ func shouldRetry(c *gin.Context, openaiErr *types.NewAPIError, retryTimes int) b
 	if types.IsChannelError(openaiErr) {
 		return true
 	}
+	// model_not_found on a channel is a channel-side problem, not a client error —
+	// retry with the next channel even though the HTTP status is 400.
+	if openaiErr.GetErrorCode() == types.ErrorCodeModelNotFound {
+		return true
+	}
 	if types.IsSkipRetryError(openaiErr) {
 		return false
 	}

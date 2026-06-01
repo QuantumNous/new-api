@@ -194,6 +194,23 @@ twofa.already_exists: "使用者已存在2FA設定"
 twofa.record_id_empty: "2FA記錄ID不能為空"
 twofa.code_invalid: "驗證碼或備用碼不正確"
 
+# Secure verification messages
+secure.not_logged_in: "未登入"
+secure.verification_required: "需要安全驗證"
+secure.verification_invalid: "驗證狀態異常，請重新驗證"
+secure.verification_expired: "驗證已過期，請重新驗證"
+secure.user_info_failed: "獲取使用者資訊失敗：{{.Error}}"
+secure.not_enabled: "使用者未啟用2FA或Passkey"
+secure.twofa_not_enabled: "使用者未啟用2FA"
+secure.code_empty: "驗證碼不能為空"
+secure.passkey_not_enabled: "使用者未啟用Passkey"
+secure.passkey_state_invalid: "Passkey 驗證狀態異常：{{.Error}}"
+secure.passkey_finish_required: "請先完成 Passkey 驗證"
+secure.method_unsupported: "不支援的驗證方式：{{.Method}}"
+secure.verify_failed: "驗證失敗，請檢查驗證碼"
+secure.session_save_failed: "保存驗證狀態失敗：{{.Error}}"
+secure.verify_success: "驗證成功"
+
 # Rate limit messages
 rate_limit.reached: "您已達到請求數限制：{{.Minutes}}分鐘內最多請求{{.Max}}次"
 rate_limit.total_reached: "您已達到總請求數限制：{{.Minutes}}分鐘內最多請求{{.Max}}次，包括失敗次數"

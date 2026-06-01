@@ -561,9 +561,19 @@ export async function fetchUpstreamPricingGroups(
   const res = await api.get('/api/channel/upstream_pricing', {
     params: { base_url: baseUrl },
     timeout: 12000,
-  })
-  if (!res.data?.success) throw new Error(res.data?.message ?? 'upstream error')
-  return (res.data?.data as Record<string, number>) ?? {}
+    // no_pricing_api is expected for many relays — not a user-facing error
+    skipBusinessError: true,
+  } as Record<string, unknown>)
+  const body = res.data as {
+    success?: boolean
+    no_pricing_api?: boolean
+    message?: string
+    data?: Record<string, number>
+  }
+  if (body?.no_pricing_api || body?.success === false) {
+    return {}
+  }
+  return body?.data ?? {}
 }
 
 /**

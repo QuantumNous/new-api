@@ -20,9 +20,6 @@ import { useCallback, useState } from 'react'
 import { type Row } from '@tanstack/react-table'
 import {
   Trash2,
-  Edit,
-  Power,
-  PowerOff,
   ExternalLink,
   ArrowRightLeft,
   Copy,
@@ -45,11 +42,7 @@ import {
   DropdownMenuShortcut,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from '@/components/ui/tooltip'
+
 import { useChatPresets } from '@/features/chat/hooks/use-chat-presets'
 import { resolveChatUrl, type ChatPreset } from '@/features/chat/lib/chat-links'
 import { sendToFluent } from '@/features/chat/lib/send-to-fluent'
@@ -171,35 +164,39 @@ export function DataTableRowActions<TData>({
 
   return (
     <div className='flex items-center justify-end gap-1'>
-      <Tooltip>
-        <TooltipTrigger
-          render={
-            <Button
-              variant='ghost'
-              size='icon-sm'
-              onClick={handleToggleStatus}
-              disabled={isTogglingStatus}
-              aria-label={isEnabled ? t('Disable') : t('Enable')}
-              className={
-                isEnabled
-                  ? 'text-destructive hover:text-destructive'
-                  : 'text-emerald-600 hover:text-emerald-600 dark:text-emerald-400 dark:hover:text-emerald-400'
-              }
-            />
-          }
-        >
-          {isTogglingStatus ? (
-            <Loader2 className='size-4 animate-spin' />
-          ) : isEnabled ? (
-            <PowerOff className='size-4' />
-          ) : (
-            <Power className='size-4' />
-          )}
-        </TooltipTrigger>
-        <TooltipContent>
-          {isEnabled ? t('Disable') : t('Enable')}
-        </TooltipContent>
-      </Tooltip>
+      {/* 禁用/启用 */}
+      <Button
+        variant='ghost'
+        size='sm'
+        onClick={handleToggleStatus}
+        disabled={isTogglingStatus}
+        className={
+          isEnabled
+            ? 'text-destructive hover:text-destructive hover:bg-destructive/10 h-7 px-2 text-xs'
+            : 'h-7 px-2 text-xs text-emerald-600 hover:bg-emerald-50 hover:text-emerald-600 dark:text-emerald-400 dark:hover:text-emerald-400'
+        }
+      >
+        {isTogglingStatus ? (
+          <Loader2 className='size-3 animate-spin' />
+        ) : isEnabled ? (
+          t('Disable')
+        ) : (
+          t('Enable')
+        )}
+      </Button>
+
+      {/* 编辑 */}
+      <Button
+        variant='ghost'
+        size='sm'
+        onClick={() => {
+          setCurrentRow(apiKey)
+          setOpen('update')
+        }}
+        className='h-7 px-2 text-xs'
+      >
+        {t('Edit')}
+      </Button>
 
       <DropdownMenu modal={false}>
         <DropdownMenuTrigger
@@ -245,17 +242,6 @@ export function DataTableRowActions<TData>({
             </DropdownMenuShortcut>
           </DropdownMenuItem>
           <DropdownMenuSeparator />
-          <DropdownMenuItem
-            onClick={() => {
-              setCurrentRow(apiKey)
-              setOpen('update')
-            }}
-          >
-            {t('Edit')}
-            <DropdownMenuShortcut>
-              <Edit size={16} />
-            </DropdownMenuShortcut>
-          </DropdownMenuItem>
           <DropdownMenuItem
             onClick={async () => {
               const realKey = await resolveRealKey(apiKey.id)

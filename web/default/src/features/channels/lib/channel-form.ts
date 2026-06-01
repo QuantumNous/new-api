@@ -80,8 +80,12 @@ export const channelFormSchema = z.object({
   upstream_model_update_ignored_models: z.string().optional(),
   // KEY所在分组：该 API Key 在供应商站点属于哪个定价分组（如 aws-q、cc-sale）
   key_group: z.string().optional(),
+  // 手动 Group Ratio：上游 /api/pricing 不返回该分组 group_ratio 时的回退倍率
+  manual_group_ratio: z.number().min(0).optional(),
   // 充值汇率：USD cost per 1 USDT of upstream credit (e.g. 1.0 for USD direct, 1/7.3 for 1RMB=1USDT)
   recharge_rate: z.number().min(0).optional(),
+  // Model Price Ratio：上游无 /api/pricing 时，用 romaapi 公开价格 × 此倍率作为回退定价；0 = 不启用
+  model_price_ratio: z.number().min(0).optional(),
   // 检测接口格式：fingerprint 调用时使用的 API 格式（openai-compatible / anthropic）
   api_format: z.string().optional(),
 })
@@ -142,7 +146,9 @@ export const CHANNEL_FORM_DEFAULT_VALUES: ChannelFormValues = {
   upstream_model_update_auto_sync_enabled: false,
   upstream_model_update_ignored_models: '',
   key_group: '',
+  manual_group_ratio: undefined,
   recharge_rate: undefined,
+  model_price_ratio: undefined,
   api_format: 'openai-compatible',
 }
 
@@ -165,6 +171,8 @@ export function transformChannelToFormDefaults(
     system_prompt: '',
     system_prompt_override: false,
     key_group: '',
+    manual_group_ratio: 0,
+    model_price_ratio: 0,
   }
 
   if (channel.setting) {
@@ -178,6 +186,8 @@ export function transformChannelToFormDefaults(
         system_prompt: parsed.system_prompt || '',
         system_prompt_override: parsed.system_prompt_override || false,
         key_group: parsed.key_group || '',
+        manual_group_ratio: parsed.manual_group_ratio || 0,
+        model_price_ratio: parsed.model_price_ratio || 0,
         api_format: parsed.api_format || 'openai-compatible',
       }
     } catch (error) {
@@ -290,6 +300,8 @@ function buildSettingJSON(formData: ChannelFormValues): string {
     system_prompt: formData.system_prompt || '',
     system_prompt_override: formData.system_prompt_override || false,
     key_group: formData.key_group || '',
+    manual_group_ratio: formData.manual_group_ratio || 0,
+    model_price_ratio: formData.model_price_ratio || 0,
   }
   return JSON.stringify(settingObj)
 }

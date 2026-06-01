@@ -21,11 +21,37 @@ export const supportedLanguages = [
   'zh-CN',
   'zh-TW',
   'en',
-  'fr',
-  'ru',
   'ja',
+  'id',
+  'ko',
+  'es',
+  'ru',
   'vi',
 ];
+
+export const languageOptions = [
+  { value: 'zh-CN', label: '简体中文' },
+  { value: 'zh-TW', label: '繁體中文' },
+  { value: 'en', label: 'English' },
+  { value: 'ja', label: '日本語' },
+  { value: 'id', label: 'Bahasa' },
+  { value: 'ko', label: '한국어' },
+  { value: 'es', label: 'Español' },
+  { value: 'ru', label: 'Русский' },
+  { value: 'vi', label: 'Tiếng Việt' },
+];
+
+export const apimasterLocaleMap = {
+  zh: 'zh-CN',
+  'zh-tw': 'zh-TW',
+  en: 'en',
+  ja: 'ja',
+  id: 'id',
+  ko: 'ko',
+  es: 'es',
+  ru: 'ru',
+  vi: 'vi',
+};
 
 export const normalizeLanguage = (language) => {
   if (!language) {
@@ -34,6 +60,10 @@ export const normalizeLanguage = (language) => {
 
   const normalized = language.trim().replace(/_/g, '-');
   const lower = normalized.toLowerCase();
+
+  if (apimasterLocaleMap[lower]) {
+    return apimasterLocaleMap[lower];
+  }
 
   if (
     lower === 'zh' ||
@@ -51,6 +81,34 @@ export const normalizeLanguage = (language) => {
     lower.startsWith('zh-hant')
   ) {
     return 'zh-TW';
+  }
+
+  if (lower.startsWith('en')) {
+    return 'en';
+  }
+
+  if (lower.startsWith('ja')) {
+    return 'ja';
+  }
+
+  if (lower === 'id' || lower.startsWith('id-') || lower === 'in' || lower.startsWith('in-')) {
+    return 'id';
+  }
+
+  if (lower.startsWith('ko')) {
+    return 'ko';
+  }
+
+  if (lower.startsWith('es')) {
+    return 'es';
+  }
+
+  if (lower.startsWith('ru')) {
+    return 'ru';
+  }
+
+  if (lower.startsWith('vi')) {
+    return 'vi';
   }
 
   const matchedLanguage = supportedLanguages.find(

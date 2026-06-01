@@ -152,14 +152,6 @@ export function ApiKeysMutateDrawer({
     })
   )
 
-  // Add auto group if configured
-  if (!groups.some((g) => g.value === 'auto')) {
-    groups.unshift({
-      value: 'auto',
-      label: 'auto',
-      desc: t('Auto (Circuit Breaker)'),
-    })
-  }
 
   const form = useForm<ApiKeyFormValues>({
     resolver: zodResolver(apiKeyFormSchema),

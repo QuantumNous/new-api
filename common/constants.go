@@ -123,13 +123,14 @@ var TelegramBotName = ""
 var QuotaForNewUser = 0
 var QuotaForInviter = 0
 var QuotaForInvitee = 0
+var AffRatio = 0 // 充值返佣比例 (%)，0 = 关闭
 var ChannelDisableThreshold = 5.0
 var AutomaticDisableChannelEnabled = false
 var AutomaticEnableChannelEnabled = false
 var QuotaRemindThreshold = 1000
 var PreConsumedQuota = 500
 
-var RetryTimes = 0
+var RetryTimes = 3
 
 //var RootUserEmail = ""
 

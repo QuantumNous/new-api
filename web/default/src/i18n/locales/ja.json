@@ -3082,7 +3082,7 @@
     "QR code is not configured. Please contact support.": "QRコードが設定されていません。サポートにお問い合わせください。",
     "Quantity": "数量",
     "QuantumNous": "QuantumNous",
-    "Query Balance": "クエリ残高",
+    "Query Balance": "残高を照会",
     "Query Param": "クエリパラメータ",
     "Querying...": "クエリ中...",
     "Question": "質問",
@@ -4422,6 +4422,7 @@
     "Zero retention": "データ保持なし",
     "Zhipu": "Zhipu",
     "Zhipu V4": "Zhipu V 4",
-    "Zoom": "ズーム"
+    "Zoom": "ズーム",
+    "Updating...": "更新中..."
   }
 }

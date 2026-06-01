@@ -1,10 +1,13 @@
 package openai
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 	"strings"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
@@ -557,12 +560,160 @@ func preConsumeUsage(ctx *gin.Context, info *relaycommon.RelayInfo, usage *dto.R
 	return err
 }
 
+// cacheImageLocally downloads an image URL and stores it under /opt/imgs/, returning an apimaster.ai URL.
+// Falls back to the original URL on any error so callers always get a usable URL.
+func cacheImageLocally(imageURL string) string {
+	const imgDir = "/opt/imgs"
+	const publicBase = "https://apimaster.ai/imgs/"
+
+	resp, err := http.Get(imageURL)
+	if err != nil {
+		return imageURL
+	}
+	defer resp.Body.Close()
+
+	ext := ".png"
+	ct := resp.Header.Get("Content-Type")
+	if strings.Contains(ct, "jpeg") || strings.Contains(ct, "jpg") {
+		ext = ".jpg"
+	} else if strings.Contains(ct, "webp") {
+		ext = ".webp"
+	}
+
+	filename := fmt.Sprintf("%d%s", time.Now().UnixNano(), ext)
+	fpath := imgDir + "/" + filename
+
+	f, err := os.Create(fpath)
+	if err != nil {
+		return imageURL
+	}
+	defer f.Close()
+
+	if _, err = io.Copy(f, resp.Body); err != nil {
+		os.Remove(fpath)
+		return imageURL
+	}
+	return publicBase + filename
+}
+
+// pollAsyncImageTask polls the upstream /v1/tasks/{id} until done, then returns OpenAI-compatible image JSON.
+func pollAsyncImageTask(c *gin.Context, taskID string) []byte {
+	baseURL := strings.TrimRight(common.GetContextKeyString(c, constant.ContextKeyChannelBaseUrl), "/")
+	if baseURL == "" {
+		baseURL = "https://api.openai.com"
+	}
+	apiKey := common.GetContextKeyString(c, constant.ContextKeyChannelKey)
+	pollURL := fmt.Sprintf("%s/v1/tasks/%s", baseURL, taskID)
+
+	client := &http.Client{Timeout: 15 * time.Second}
+	deadline := time.Now().Add(180 * time.Second)
+
+	time.Sleep(8 * time.Second)
+
+	for time.Now().Before(deadline) {
+		req, err := http.NewRequest("GET", pollURL, nil)
+		if err != nil {
+			time.Sleep(4 * time.Second)
+			continue
+		}
+		req.Header.Set("Authorization", "Bearer "+apiKey)
+
+		pollResp, err := client.Do(req)
+		if err != nil {
+			logger.LogWarn(context.Background(), fmt.Sprintf("pollAsyncImageTask: request error: %v", err))
+			time.Sleep(4 * time.Second)
+			continue
+		}
+		body, _ := io.ReadAll(pollResp.Body)
+		pollResp.Body.Close()
+
+		var result struct {
+			Code int `json:"code"`
+			Data struct {
+				Status string `json:"status"`
+				Result struct {
+					Images []struct {
+						URL interface{} `json:"url"` // string or []string
+					} `json:"images"`
+				} `json:"result"`
+				// fallback flat fields
+				URL    string `json:"url"`
+				B64    string `json:"b64_json"`
+			} `json:"data"`
+		}
+		if common.Unmarshal(body, &result) != nil {
+			time.Sleep(4 * time.Second)
+			continue
+		}
+
+		d := result.Data
+		switch d.Status {
+		case "failed", "error", "cancelled":
+			logger.LogWarn(context.Background(), fmt.Sprintf("pollAsyncImageTask: task %s failed status=%s", taskID, d.Status))
+			return nil
+		case "succeeded", "success", "completed":
+			// extract URL from nested or flat format
+			imageURL := d.URL
+			if imageURL == "" && len(d.Result.Images) > 0 {
+				switch v := d.Result.Images[0].URL.(type) {
+				case string:
+					imageURL = v
+				case []interface{}:
+					if len(v) > 0 {
+						if s, ok := v[0].(string); ok {
+							imageURL = s
+						}
+					}
+				}
+			}
+			if imageURL == "" && d.B64 != "" {
+				// return as-is, caller will pick up b64_json
+				return body
+			}
+			if imageURL == "" {
+				logger.LogWarn(context.Background(), fmt.Sprintf("pollAsyncImageTask: task %s completed but no URL", taskID))
+				return nil
+			}
+			// cache on our server so callers never see the upstream provider URL
+			cachedURL := cacheImageLocally(imageURL)
+			openaiResp, _ := common.Marshal(map[string]interface{}{
+				"created": time.Now().Unix(),
+				"data":    []map[string]string{{"url": cachedURL}},
+			})
+			return openaiResp
+		}
+		time.Sleep(4 * time.Second)
+	}
+	logger.LogWarn(context.Background(), fmt.Sprintf("pollAsyncImageTask: timeout for task %s", taskID))
+	return nil
+}
+
 func OpenaiHandlerWithUsage(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response) (*dto.Usage, *types.NewAPIError) {
 	defer service.CloseResponseBodyGracefully(resp)
 
 	responseBody, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, types.NewOpenAIError(err, types.ErrorCodeReadResponseBodyFailed, http.StatusInternalServerError)
+	}
+
+	// Detect async image task response and poll upstream until done
+	{
+		var asyncCheck struct {
+			Data []struct {
+				Status string `json:"status"`
+				TaskID string `json:"task_id"`
+			} `json:"data"`
+		}
+		if common.Unmarshal(responseBody, &asyncCheck) == nil &&
+			len(asyncCheck.Data) > 0 &&
+			asyncCheck.Data[0].TaskID != "" &&
+			asyncCheck.Data[0].Status == "submitted" {
+			taskID := asyncCheck.Data[0].TaskID
+			logger.LogInfo(c.Request.Context(), fmt.Sprintf("image task async detected, polling task_id=%s", taskID))
+			if finalBody := pollAsyncImageTask(c, taskID); finalBody != nil {
+				responseBody = finalBody
+			}
+		}
 	}
 
 	var usageResp dto.SimpleResponse

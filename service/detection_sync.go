@@ -25,15 +25,16 @@ const (
 var detectionSyncOnce sync.Once
 
 type apimasterDetectionRow struct {
-	BaseURL           string  `gorm:"column:base_url"`
-	Status            string  `gorm:"column:status"`
-	ClaimedModel      string  `gorm:"column:claimed_model"`
-	PredictedTop1     string  `gorm:"column:predicted_top1"`
-	Top1Score         float64 `gorm:"column:top1_score"`
-	Top5Json          string  `gorm:"column:top5_json"` // JSON-stringified array from detections.top5
-	LatencyMeanMs     float64 `gorm:"column:latency_mean_ms"`
-	NotcompleteReason string  `gorm:"column:notcomplete_reason"`
-	DetectTime        int64   `gorm:"column:detect_time"`
+	BaseURL                 string  `gorm:"column:base_url"`
+	Status                  string  `gorm:"column:status"`
+	ClaimedModel            string  `gorm:"column:claimed_model"`
+	PredictedTop1           string  `gorm:"column:predicted_top1"`
+	Top1Score               float64 `gorm:"column:top1_score"`
+	Top5Json                string  `gorm:"column:top5_json"` // JSON-stringified array from detections.top5
+	FingerprintModelVersion string  `gorm:"column:fingerprint_model_version"`
+	LatencyMeanMs           float64 `gorm:"column:latency_mean_ms"`
+	NotcompleteReason       string  `gorm:"column:notcomplete_reason"`
+	DetectTime              int64   `gorm:"column:detect_time"`
 }
 
 // StartDetectionSyncTask periodically reads apimaster's detections PG table and
@@ -71,6 +72,7 @@ func runDetectionSyncOnce() {
 			COALESCE(predicted_top1, '')   AS predicted_top1,
 			COALESCE(top1_score, 0)        AS top1_score,
 			COALESCE(top5::text, '')       AS top5_json,
+			COALESCE(fingerprint_model_version, '') AS fingerprint_model_version,
 			COALESCE(latency_mean_ms, 0)   AS latency_mean_ms,
 			COALESCE(notcomplete_reason, '') AS notcomplete_reason,
 			EXTRACT(EPOCH FROM created_at)::bigint AS detect_time
@@ -104,17 +106,18 @@ func applyDetectionResult(ctx context.Context, d apimasterDetectionRow) {
 
 		// Write log entry
 		logEntry := model.ChannelDetectLog{
-			ChannelId:      ch.Id,
-			Source:         "sync",
-			Status:         d.Status,
-			BaseURL:        d.BaseURL,
-			ClaimedModel:   d.ClaimedModel,
-			PredictedModel: d.PredictedTop1,
-			Top1Score:      d.Top1Score,
-			Top5Json:       d.Top5Json,
-			LatencyMeanMs:  d.LatencyMeanMs,
-			Note:           d.NotcompleteReason,
-			DetectTime:     d.DetectTime,
+			ChannelId:               ch.Id,
+			Source:                  "sync",
+			Status:                  d.Status,
+			BaseURL:                 d.BaseURL,
+			ClaimedModel:            d.ClaimedModel,
+			PredictedModel:          d.PredictedTop1,
+			Top1Score:               d.Top1Score,
+			Top5Json:                d.Top5Json,
+			FingerprintModelVersion: d.FingerprintModelVersion,
+			LatencyMeanMs:           d.LatencyMeanMs,
+			Note:                    d.NotcompleteReason,
+			DetectTime:              d.DetectTime,
 		}
 		model.DB.Create(&logEntry)
 

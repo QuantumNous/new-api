@@ -79,6 +79,7 @@ func GenerateTextOtherInfo(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, m
 	appendBillingInfo(relayInfo, other)
 	appendParamOverrideInfo(relayInfo, other)
 	appendStreamStatus(relayInfo, other)
+	appendChannelActualPrice(relayInfo, other)
 	return other
 }
 
@@ -252,6 +253,36 @@ func GenerateClaudeOtherInfo(ctx *gin.Context, relayInfo *relaycommon.RelayInfo,
 		info["cache_creation_ratio_1h"] = cacheCreationRatio1h
 	}
 	return info
+}
+
+// appendChannelActualPrice looks up the channel's actual procurement price from
+// channel_model_pricings and writes it into the other map so it is permanently
+// archived in the log row — immune to future pricing changes or channel deletion.
+func appendChannelActualPrice(relayInfo *relaycommon.RelayInfo, other map[string]interface{}) {
+	if relayInfo == nil || other == nil {
+		return
+	}
+	channelId := relayInfo.ChannelId
+	modelName := relayInfo.OriginModelName
+	if channelId == 0 || modelName == "" {
+		return
+	}
+	p, err := ChannelActualPricesResolved(channelId, modelName)
+	if err != nil || p == nil {
+		return
+	}
+	if p.InputPrice > 0 {
+		other["ch_input_price"] = p.InputPrice
+	}
+	if p.OutputPrice > 0 {
+		other["ch_output_price"] = p.OutputPrice
+	}
+	if p.CachePrice > 0 {
+		other["ch_cache_price"] = p.CachePrice
+	}
+	if p.CacheCreationPrice > 0 {
+		other["ch_cache_creation_price"] = p.CacheCreationPrice
+	}
 }
 
 func GenerateMjOtherInfo(relayInfo *relaycommon.RelayInfo, priceData types.PriceData) map[string]interface{} {

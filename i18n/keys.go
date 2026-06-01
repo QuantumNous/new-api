@@ -228,6 +228,25 @@ const (
 	MsgTwoFACodeInvalid   = "twofa.code_invalid"
 )
 
+// Secure verification related messages
+const (
+	MsgSecureNotLoggedIn         = "secure.not_logged_in"
+	MsgSecureVerificationReq     = "secure.verification_required"
+	MsgSecureVerificationInvalid = "secure.verification_invalid"
+	MsgSecureVerificationExpired = "secure.verification_expired"
+	MsgSecureUserInfoFailed      = "secure.user_info_failed"
+	MsgSecureNotEnabled          = "secure.not_enabled"
+	MsgSecureTwoFANotEnabled     = "secure.twofa_not_enabled"
+	MsgSecureCodeEmpty           = "secure.code_empty"
+	MsgSecurePasskeyNotEnabled   = "secure.passkey_not_enabled"
+	MsgSecurePasskeyStateInvalid = "secure.passkey_state_invalid"
+	MsgSecurePasskeyFinishReq    = "secure.passkey_finish_required"
+	MsgSecureMethodUnsupported   = "secure.method_unsupported"
+	MsgSecureVerifyFailed        = "secure.verify_failed"
+	MsgSecureSessionSaveFailed   = "secure.session_save_failed"
+	MsgSecureVerifySuccess       = "secure.verify_success"
+)
+
 // Rate limit related messages
 const (
 	MsgRateLimitReached      = "rate_limit.reached"

@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -23,7 +24,7 @@ const (
 	uptimeTickInterval   = 1 * time.Minute
 	uptimeRequestTimeout = 30 * time.Second
 	uptimeProbePrompt    = "hi"
-	uptimeProbeMaxTokens = 5
+	uptimeProbeMaxTokens = 1500 // needs headroom for thinking models (DeepSeek, o-series)
 )
 
 // urlSuffixes mirrors Flask's _URL_SUFFIXES — these are appended to the site root
@@ -39,6 +40,7 @@ var ModelIDCandidates = map[string][]string{
 	"claude-haiku-4-5":  {"claude-haiku-4-5-20251001", "anthropic/claude-haiku-4.5"},
 	"claude-sonnet-4-6": {"anthropic/claude-sonnet-4.6"},
 	"claude-opus-4-7":   {"anthropic/claude-opus-4.7"},
+	"claude-opus-4-8":   {"anthropic/claude-opus-4.8", "claude-opus-4-8-20260528"},
 	"claude-sonnet-4-5": {"anthropic/claude-sonnet-4.5"},
 	"claude-opus-4-6":   {"anthropic/claude-opus-4.6"},
 	"claude-opus-4-5":   {"anthropic/claude-opus-4.5"},
@@ -185,6 +187,13 @@ func probeOneChannel(ctx context.Context, ch *model.Channel, targetModel string)
 					// model_not_found — try next model ID with same URL
 					lastErr = err.msg
 					continue
+				case probeErrClaudeCliOnly:
+					// CC-only relay — delegate to Flask, which spawns the real
+					// claude binary (not available in this container). Definitive
+					// signal: don't try other URL/model candidates.
+					st, lat, note := claudeCliUptimeProbe(ctx, baseURL, apiKey, m)
+					recordUptimeResult(ch, targetModel, baseURL, st, lat, note)
+					return
 				default:
 					// Auth / network / decode / etc — record and bail.
 					recordUptimeResult(ch, targetModel, baseURL, "notcomplete", result.LatencyMs, err.msg)
@@ -211,9 +220,10 @@ func probeOneChannel(ctx context.Context, ch *model.Channel, targetModel string)
 type probeErrKind int
 
 const (
-	probeErrOther probeErrKind = iota
-	probeErrURL                // 404, HTML response — try next URL candidate
-	probeErrModel              // model_not_found — try next model ID
+	probeErrOther         probeErrKind = iota
+	probeErrURL                        // 404, HTML response — try next URL candidate
+	probeErrModel                      // model_not_found — try next model ID
+	probeErrClaudeCliOnly              // 403 — relay only accepts the real Claude Code CLI
 )
 
 type probeError struct {
@@ -246,6 +256,7 @@ func sendUptimeProbe(ctx context.Context, client *http.Client, endpoint, apiKey,
 	}
 	req.Header.Set("Authorization", "Bearer "+apiKey)
 	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("User-Agent", "python-requests/2.31.0")
 
 	resp, err := client.Do(req)
 	latencyMs := float64(time.Since(start).Milliseconds())
@@ -283,6 +294,28 @@ func sendUptimeProbe(ctx context.Context, client *http.Client, endpoint, apiKey,
 			strings.Contains(msg, "invalid model") {
 			return probeResult{LatencyMs: latencyMs}, &probeError{kind: probeErrModel, msg: fmt.Sprintf("model not found: %s", modelName)}
 		}
+		// CC-only relays reject plain HTTP — mirror Flask's openai_compat detection.
+		// packy:     403 "only accessible via the official claude cli"
+		// rightcode: 400 "请选择使用正确的 Claude Code 客户端"
+		// nekocode:  200 HTML (caught separately as non-JSON below)
+		ccOnlyMarkers := []string{
+			"only accessible via the official claude cli",
+			"claude code 客户端",
+			"correct claude code client",
+		}
+		isCCOnly := false
+		for _, m := range ccOnlyMarkers {
+			if strings.Contains(msg, m) {
+				isCCOnly = true
+				break
+			}
+		}
+		if !isCCOnly && strings.Contains(code, "access_denied") && strings.Contains(msg, "访问被拒") {
+			isCCOnly = true
+		}
+		if (resp.StatusCode == 400 || resp.StatusCode == 403) && isCCOnly {
+			return probeResult{LatencyMs: latencyMs}, &probeError{kind: probeErrClaudeCliOnly, msg: "relay requires Claude Code CLI"}
+		}
 		detail := errBody.Error.Message
 		if detail == "" {
 			// Non-JSON body (e.g. HTML error page) — keep the first chunk so the operator
@@ -304,6 +337,12 @@ func sendUptimeProbe(ctx context.Context, client *http.Client, endpoint, apiKey,
 	}
 
 	// 2xx — verify content is non-empty.
+	bodyBytes2xx, _ := io.ReadAll(io.LimitReader(resp.Body, 8192))
+	// HTML on 2xx means CDN/WAF (e.g. Cloudflare) blocked the request — try next URL candidate.
+	ct2xx := strings.ToLower(resp.Header.Get("Content-Type"))
+	if strings.Contains(ct2xx, "text/html") || (len(bodyBytes2xx) > 0 && bodyBytes2xx[0] == '<') {
+		return probeResult{LatencyMs: latencyMs}, &probeError{kind: probeErrURL, msg: fmt.Sprintf("HTTP 200 returned HTML at %s (CDN block?)", endpoint)}
+	}
 	var parsed struct {
 		Choices []struct {
 			Message struct {
@@ -311,7 +350,7 @@ func sendUptimeProbe(ctx context.Context, client *http.Client, endpoint, apiKey,
 			} `json:"message"`
 		} `json:"choices"`
 	}
-	if err := common.DecodeJson(resp.Body, &parsed); err != nil {
+	if err := common.Unmarshal(bodyBytes2xx, &parsed); err != nil {
 		return probeResult{LatencyMs: latencyMs}, &probeError{kind: probeErrOther, msg: fmt.Sprintf("decode: %v", err)}
 	}
 	if len(parsed.Choices) == 0 || strings.TrimSpace(parsed.Choices[0].Message.Content) == "" {
@@ -421,6 +460,55 @@ func buildChatCompletionsURL(baseURL string) string {
 	}
 }
 
+// claudeCliUptimeProbe delegates a liveness probe to the Flask backend's
+// /internal/uptime-probe endpoint, which runs the real claude CLI. Used for
+// CC-only relays that reject plain HTTP. Returns (status, latencyMs, note).
+func claudeCliUptimeProbe(ctx context.Context, baseURL, apiKey, modelName string) (string, float64, string) {
+	flaskURL := os.Getenv("APIMASTER_FLASK_URL")
+	if flaskURL == "" {
+		flaskURL = autoDetectDefaultFlaskURL
+	}
+	reqBody, err := common.Marshal(map[string]string{
+		"base_url": baseURL,
+		"api_key":  apiKey,
+		"model":    modelName,
+	})
+	if err != nil {
+		return "notcomplete", 0, fmt.Sprintf("claude-cli probe marshal: %v", err)
+	}
+	start := time.Now()
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, flaskURL+"/internal/uptime-probe", bytes.NewReader(reqBody))
+	if err != nil {
+		return "notcomplete", 0, fmt.Sprintf("claude-cli probe build: %v", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	// claude CLI cold-start + inference runs slower than plain HTTP.
+	client := &http.Client{Timeout: 3 * time.Minute}
+	resp, err := client.Do(req)
+	if err != nil {
+		return "notcomplete", float64(time.Since(start).Milliseconds()), fmt.Sprintf("claude-cli probe: %v", err)
+	}
+	defer resp.Body.Close()
+
+	var r struct {
+		Ok        bool    `json:"ok"`
+		LatencyMs float64 `json:"latency_ms"`
+		Error     string  `json:"error"`
+	}
+	if err := common.DecodeJson(resp.Body, &r); err != nil {
+		return "notcomplete", float64(time.Since(start).Milliseconds()), fmt.Sprintf("claude-cli probe decode: %v", err)
+	}
+	lat := r.LatencyMs
+	if lat <= 0 {
+		lat = float64(time.Since(start).Milliseconds())
+	}
+	if r.Ok {
+		return "pass", lat, ""
+	}
+	return "notcomplete", lat, "claude-cli: " + r.Error
+}
+
 func recordUptimeResult(ch *model.Channel, targetModel, baseURL, status string, latencyMs float64, note string) {
 	now := time.Now().Unix()
 	logEntry := model.ChannelDetectLog{
@@ -434,4 +522,16 @@ func recordUptimeResult(ch *model.Channel, targetModel, baseURL, status string, 
 		DetectTime:    now,
 	}
 	model.DB.Create(&logEntry)
+}
+
+// RunChannelUptimeNow triggers a single uptime (运行状态) probe for the given
+// channel+model on-demand. Used by the "手动 ping" button in model-data UI.
+// Reuses probeOneChannel verbatim (source='uptime'), so the result lands in
+// channel_detect_logs identically to the scheduled uptime tick.
+// Synchronous — callers should run in a goroutine.
+func RunChannelUptimeNow(ch *model.Channel, targetModel string) {
+	if ch == nil || ch.BaseURL == nil || *ch.BaseURL == "" {
+		return
+	}
+	probeOneChannel(context.Background(), ch, targetModel)
 }

@@ -194,6 +194,23 @@ twofa.already_exists: "用户已存在2FA设置"
 twofa.record_id_empty: "2FA记录ID不能为空"
 twofa.code_invalid: "验证码或备用码不正确"
 
+# Secure verification messages
+secure.not_logged_in: "未登录"
+secure.verification_required: "需要安全验证"
+secure.verification_invalid: "验证状态异常，请重新验证"
+secure.verification_expired: "验证已过期，请重新验证"
+secure.user_info_failed: "获取用户信息失败：{{.Error}}"
+secure.not_enabled: "用户未启用2FA或Passkey"
+secure.twofa_not_enabled: "用户未启用2FA"
+secure.code_empty: "验证码不能为空"
+secure.passkey_not_enabled: "用户未启用Passkey"
+secure.passkey_state_invalid: "Passkey 验证状态异常：{{.Error}}"
+secure.passkey_finish_required: "请先完成 Passkey 验证"
+secure.method_unsupported: "不支持的验证方式：{{.Method}}"
+secure.verify_failed: "验证失败，请检查验证码"
+secure.session_save_failed: "保存验证状态失败：{{.Error}}"
+secure.verify_success: "验证成功"
+
 # Rate limit messages
 rate_limit.reached: "您已达到请求数限制：{{.Minutes}}分钟内最多请求{{.Max}}次"
 rate_limit.total_reached: "您已达到总请求数限制：{{.Minutes}}分钟内最多请求{{.Max}}次，包括失败次数"

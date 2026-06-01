@@ -21,9 +21,10 @@ For commercial licensing, please contact support@quantumnous.com
 // ============================================================================
 
 /**
- * Generate affiliate registration link
+ * Generate affiliate registration link.
+ * Points at apimaster's register page; ?ref= carries the apimaster referral_code.
  */
 export function generateAffiliateLink(affCode: string): string {
   if (typeof window === 'undefined') return ''
-  return `${window.location.origin}/register?aff=${affCode}`
+  return `${window.location.origin}/register?ref=${affCode}`
 }

@@ -22,13 +22,39 @@ import { initReactI18next } from 'react-i18next';
 import LanguageDetector from 'i18next-browser-languagedetector';
 
 import enTranslation from './locales/en.json';
-import frTranslation from './locales/fr.json';
 import zhCNTranslation from './locales/zh-CN.json';
 import zhTWTranslation from './locales/zh-TW.json';
+import idTranslation from './locales/id.json';
+import koTranslation from './locales/ko.json';
+import esTranslation from './locales/es.json';
 import ruTranslation from './locales/ru.json';
-import jaTranslation from './locales/ja.json';
 import viTranslation from './locales/vi.json';
-import { supportedLanguages } from './language';
+import { apimasterLocaleMap, normalizeLanguage, supportedLanguages } from './language';
+
+const APIMASTER_STORAGE_KEY = 'apimaster-locale';
+
+const resolveStoredApimasterLanguage = () => {
+  try {
+    const locale = localStorage.getItem(APIMASTER_STORAGE_KEY);
+    return locale ? apimasterLocaleMap[locale] : undefined;
+  } catch (e) {
+    return undefined;
+  }
+};
+
+const apimasterLanguage = resolveStoredApimasterLanguage();
+
+const applyLanguage = (language) => {
+  const normalized = normalizeLanguage(language);
+  if (!supportedLanguages.includes(normalized)) {
+    return;
+  }
+
+  localStorage.setItem('i18nextLng', normalized);
+  if (i18n.resolvedLanguage !== normalized && i18n.language !== normalized) {
+    i18n.changeLanguage(normalized);
+  }
+};
 
 i18n
   .use(LanguageDetector)
@@ -36,13 +62,15 @@ i18n
   .init({
     load: 'currentOnly',
     supportedLngs: supportedLanguages,
+    ...(apimasterLanguage ? { lng: apimasterLanguage } : {}),
     resources: {
       en: enTranslation,
       'zh-CN': zhCNTranslation,
       'zh-TW': zhTWTranslation,
-      fr: frTranslation,
+      id: idTranslation,
+      ko: koTranslation,
+      es: esTranslation,
       ru: ruTranslation,
-      ja: jaTranslation,
       vi: viTranslation,
     },
     fallbackLng: 'zh-CN',
@@ -53,5 +81,26 @@ i18n
   });
 
 window.__i18n = i18n;
+
+window.addEventListener('storage', (event) => {
+  if (event.key === APIMASTER_STORAGE_KEY && event.newValue) {
+    applyLanguage(event.newValue);
+  }
+});
+
+window.addEventListener('message', (event) => {
+  const data = event.data;
+  if (!data || typeof data !== 'object') {
+    return;
+  }
+
+  if (data.type === 'apimaster-locale') {
+    applyLanguage(data.locale);
+  }
+
+  if (data.lang) {
+    applyLanguage(data.lang);
+  }
+});
 
 export default i18n;

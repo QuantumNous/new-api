@@ -39,8 +39,8 @@ export const API_ENDPOINTS = {
   USER_GROUPS: '/api/user/self/groups',
 } as const
 
-// Default group
-export const DEFAULT_GROUP = 'auto' as const
+// Default group — empty; resolved at runtime from the first group returned by the API.
+export const DEFAULT_GROUP = '' as const
 
 // Default configuration
 export const DEFAULT_CONFIG: PlaygroundConfig = {

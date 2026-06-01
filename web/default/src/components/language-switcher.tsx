@@ -31,11 +31,12 @@ import {
 } from '@/components/ui/dropdown-menu'
 
 const languages = [
-  { code: 'en', label: 'English' },
   { code: 'zh', label: '中文' },
-  { code: 'fr', label: 'Français' },
+  { code: 'en', label: 'English' },
+  { code: 'id', label: 'Bahasa' },
+  { code: 'ko', label: '한국어' },
+  { code: 'es', label: 'Español' },
   { code: 'ru', label: 'Русский' },
-  { code: 'ja', label: '日本語' },
   { code: 'vi', label: 'Tiếng Việt' },
 ]
 

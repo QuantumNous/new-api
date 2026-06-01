@@ -432,6 +432,14 @@ func validateTwoFactorAuth(twoFA *model.TwoFA, code string) bool {
 
 // validateChannel 通用的渠道校验函数
 func validateChannel(channel *model.Channel, isAdd bool) error {
+	// Normalize base_url: trim spaces and trailing slashes so we never store
+	// "https://api.ikuncode.cc/" which causes double-slash URLs in relay calls.
+	// GetBaseURL() also trims at read time, but keeping the DB clean is better.
+	if channel.BaseURL != nil {
+		normalized := strings.TrimRight(strings.TrimSpace(*channel.BaseURL), "/")
+		channel.BaseURL = &normalized
+	}
+
 	// 校验 channel settings
 	if err := channel.ValidateSettings(); err != nil {
 		return fmt.Errorf("渠道额外设置[channel setting] 格式错误：%s", err.Error())

@@ -3082,7 +3082,7 @@
     "QR code is not configured. Please contact support.": "Le code QR n'est pas configuré. Veuillez contacter le support.",
     "Quantity": "Quantité",
     "QuantumNous": "QuantumNous",
-    "Query Balance": "Solde des requêtes",
+    "Query Balance": "Consulter le solde",
     "Query Param": "Paramètre de requête",
     "Querying...": "Recherche en cours...",
     "Question": "Question",
@@ -4422,6 +4422,7 @@
     "Zero retention": "Aucune rétention",
     "Zhipu": "Zhipu",
     "Zhipu V4": "Zhipu V4",
-    "Zoom": "Zoom"
+    "Zoom": "Zoom",
+    "Updating...": "Mise à jour..."
   }
 }

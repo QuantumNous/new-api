@@ -19,14 +19,14 @@ For commercial licensing, please contact support@quantumnous.com
 import { useEffect, useMemo, useState, useRef, useCallback } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { VChart } from '@visactor/react-vchart'
-import { Users, Loader2 } from 'lucide-react'
+import { Users, Loader2, UserPlus, CreditCard, DollarSign } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { getRollingDateRange, type TimeGranularity } from '@/lib/time'
 import { VCHART_OPTION } from '@/lib/vchart'
 import { useThemeCustomization } from '@/context/theme-customization-provider'
 import { useTheme } from '@/context/theme-provider'
 import { Skeleton } from '@/components/ui/skeleton'
-import { getUserQuotaDataByUsers } from '@/features/dashboard/api'
+import { getUserQuotaDataByUsers, getUserDashboardStats } from '@/features/dashboard/api'
 import {
   TIME_GRANULARITY_OPTIONS,
   TIME_RANGE_PRESETS,
@@ -38,6 +38,8 @@ import {
   processUserChartData,
 } from '@/features/dashboard/lib'
 import type { ProcessedUserChartData } from '@/features/dashboard/types'
+import { QUOTA_PER_DOLLAR } from '@/features/wallet/constants'
+import { StatCard } from '../ui/stat-card'
 
 let themeManagerPromise: Promise<
   (typeof import('@visactor/vchart'))['ThemeManager']
@@ -131,6 +133,53 @@ export function UserCharts() {
     staleTime: 60_000,
   })
 
+  const { data: adminStats, isLoading: adminStatsLoading } = useQuery({
+    queryKey: ['dashboard', 'admin-stats', timeRange],
+    queryFn: () => getUserDashboardStats(timeRange),
+    select: (res) => (res.success ? res.data : null),
+    staleTime: 60_000,
+  })
+
+  const adminStatCards = useMemo(() => {
+    const topup = adminStats?.topup ?? []
+    const users = adminStats?.users ?? []
+    const totalNewUsers = users.reduce((s, d) => s + (d.new_users ?? 0), 0)
+    const totalTopupCount = topup.reduce((s, d) => s + (d.count ?? 0), 0)
+    const totalTopupAmount = topup.reduce((s, d) => s + (d.total_amount ?? 0), 0)
+    const totalUsd = totalTopupAmount  // amount is stored in USD units, not quota units
+
+    const newUserSparkline = users.map((d) => d.new_users)
+    const topupCountSparkline = topup.map((d) => d.count)
+    const topupAmountSparkline = topup.map((d) => d.total_amount)
+
+    return [
+      {
+        key: 'new-users',
+        title: t('New Registrations'),
+        value: String(totalNewUsers),
+        icon: UserPlus,
+        tone: 'teal' as const,
+        sparkline: newUserSparkline,
+      },
+      {
+        key: 'topup-count',
+        title: t('Top-up Count'),
+        value: String(totalTopupCount),
+        icon: CreditCard,
+        tone: 'rose' as const,
+        sparkline: topupCountSparkline,
+      },
+      {
+        key: 'topup-amount',
+        title: t('Top-up Amount (USD)'),
+        value: `$${totalUsd.toFixed(2)}`,
+        icon: DollarSign,
+        tone: 'gray' as const,
+        sparkline: topupAmountSparkline,
+      },
+    ]
+  }, [adminStats, t])
+
   const chartData = useMemo(
     () =>
       processUserChartData(
@@ -213,6 +262,22 @@ export function UserCharts() {
         {isLoading && (
           <Loader2 className='text-muted-foreground size-4 animate-spin' />
         )}
+      </div>
+
+      <div className='grid gap-3 sm:grid-cols-3'>
+        {adminStatCards.map((card) => (
+          <div key={card.key} className='bg-background rounded-xl border p-3'>
+            <StatCard
+              title={card.title}
+              value={card.value}
+              icon={card.icon}
+              tone={card.tone}
+              sparkline={card.sparkline}
+              sparklineVariant='line'
+              loading={adminStatsLoading}
+            />
+          </div>
+        ))}
       </div>
 
       <div className='grid gap-3'>

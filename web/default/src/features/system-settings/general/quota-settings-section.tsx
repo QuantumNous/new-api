@@ -44,6 +44,7 @@ const quotaSchema = z.object({
   PreConsumedQuota: z.coerce.number().min(0),
   QuotaForInviter: z.coerce.number().min(0),
   QuotaForInvitee: z.coerce.number().min(0),
+  AffRatio: z.coerce.number().min(0).max(100),
   TopUpLink: z.string(),
   general_setting: z.object({
     docs_link: z.string(),
@@ -190,6 +191,30 @@ export function QuotaSettingsSection({
                 </FormControl>
                 <FormDescription>
                   {t('Quota given to invited users')}
+                </FormDescription>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name='AffRatio'
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>{t('返佣比例 (%)')}</FormLabel>
+                <FormControl>
+                  <Input
+                    type='number'
+                    value={field.value ?? ''}
+                    onChange={handleNumberChange(field.onChange)}
+                    name={field.name}
+                    onBlur={field.onBlur}
+                    ref={field.ref}
+                  />
+                </FormControl>
+                <FormDescription>
+                  {t('好友充值后邀请者获得充值额的对应比例（0 = 关闭，最大 100）')}
                 </FormDescription>
                 <FormMessage />
               </FormItem>

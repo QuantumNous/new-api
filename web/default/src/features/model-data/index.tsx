@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Settings2 } from 'lucide-react'
+import { Settings2, RefreshCw, AlertTriangle } from 'lucide-react'
 import { api } from '@/lib/api'
 import { SectionPageLayout } from '@/components/layout'
 import {
@@ -12,7 +12,6 @@ import {
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
-import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
 import {
   Tooltip,
@@ -20,6 +19,11 @@ import {
   TooltipTrigger,
   TooltipProvider,
 } from '@/components/ui/tooltip'
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -33,6 +37,8 @@ interface DetectPoint {
   status: string       // 'pass' / 'suspicious' / 'notcomplete'
   detect_time: number  // unix seconds
   note?: string
+  group_name?: string  // key_group at time of detection
+  fingerprint_model_version?: string  // e.g. apimaster_fingerprint_cccli_v0.1
   top5?: TopKItem[]
 }
 
@@ -40,14 +46,39 @@ interface ModelDataItem {
   channel_id: number
   channel_name: string
   key_group: string
-  input_price: number
-  actual_price: number
-  recharge_rate: number
+  // null when upstream /api/pricing returned 401/404 or cookie-only auth —
+  // we have no idea how much this channel costs. UI renders these as "—".
+  model_price: number | null       // base price before group markup
+  group_ratio: number | null       // upstream group multiplier
+  recharge_rate: number            // platform recharge multiplier
+  input_price: number | null       // model_price × group_ratio
+  actual_price: number | null           // input_price × recharge_rate
+  hub_price: number | null              // hub.romaapi.com listed price, matched by key_group
+  output_price?: number | null
+  actual_output_price?: number | null
+  cache_price?: number | null           // cache-read price before recharge
+  actual_cache_price?: number | null    // cache_price × recharge_rate
+  cache_creation_price?: number | null
+  actual_cache_creation_price?: number | null
   fingerprint_history: DetectPoint[]
   uptime_history: DetectPoint[]
   latency_median_ms: number
   status: number  // 1 enabled / 2 manual-disabled / 3 auto-disabled
   consecutive_fingerprint_pass: number  // recovery counter; meaningful when status=3
+  model_enabled: boolean  // abilities.enabled for this (channel, model) pair
+  pricing_source: string  // "api" | "manual" | ""
+  status_reason?: string  // why auto-disabled; empty when status !== 3
+  status_time?: number    // unix ts of disable event; 0 if unknown
+  base_url?: string
+}
+
+interface AnalysisState {
+  channelName: string
+  baseUrl: string
+  claimed: string | null
+  predicted: string | null
+  status: 'idle' | 'loading' | 'done' | 'error'
+  text: string
 }
 
 interface DetectConfig {
@@ -61,12 +92,23 @@ interface DetectConfig {
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
-const MODEL_TABS = [
-  { label: 'Haiku 4.5',  modelId: 'claude-haiku-4-5' },
-  { label: 'Sonnet 4.6', modelId: 'claude-sonnet-4-6' },
-  { label: 'Opus 4.7',   modelId: 'claude-opus-4-7'  },
-  { label: 'GPT 5.4',   modelId: 'gpt-5.4'           },
-  { label: 'GPT 5.5',   modelId: 'gpt-5.5'           },
+type ModelTab = {
+  label: string
+  modelId: string
+  accent: string
+}
+
+const MODEL_TABS: ModelTab[] = [
+  { label: 'MiniMax M3',        modelId: 'minimax-m3',        accent: '#f97316' },
+  { label: 'Sonnet 4.6',      modelId: 'claude-sonnet-4-6', accent: '#a855f7' },
+  { label: 'Opus 4.7',        modelId: 'claude-opus-4-7',   accent: '#a855f7' },
+  { label: 'Opus 4.8',        modelId: 'claude-opus-4-8',   accent: '#a855f7' },
+  { label: 'Haiku 4.5',       modelId: 'claude-haiku-4-5',  accent: '#a855f7' },
+  { label: 'GPT 5.4',         modelId: 'gpt-5.4',           accent: '#22d3ee' },
+  { label: 'GPT 5.5',         modelId: 'gpt-5.5',           accent: '#22d3ee' },
+  { label: 'DeepSeek Flash',  modelId: 'deepseek-v4-flash', accent: '#a78bfa' },
+  { label: 'DeepSeek Pro',    modelId: 'deepseek-v4-pro',   accent: '#a78bfa' },
+  { label: 'Image 2',         modelId: 'gpt-image-2',       accent: '#22d3ee' },
 ]
 
 const UNIT_OPTIONS = [
@@ -84,7 +126,11 @@ function minutesToUnit(minutes: number): { value: number; unit: string } {
   return { value: minutes, unit: 'minute' }
 }
 
-function fmtPrice(price: number): string {
+function fmtPrice(price: number | null | undefined): string {
+  // null/undefined → 后端没有 pricing 行（上游不暴露 /api/pricing 或 cookie-only auth）
+  // 0/负数 → 异常值，同样视为"无价格"
+  // 显示破折号而不是 "0"，避免被误认为"免费"渠道。
+  if (price == null || price <= 0) return '—'
   return parseFloat(price.toFixed(4)).toString()
 }
 
@@ -124,70 +170,97 @@ const STATUS_LABEL: Record<string, string> = {
  * 24-dot grid (2 rows × 12 cols). Newest on the left of the top row.
  * Each dot hover shows: time + status + note (if any) — instant via TooltipProvider delay=0.
  */
-function DotGrid({ history }: { history: DetectPoint[] }) {
-  // Display order: oldest (top-left) → newest (bottom-right) — reads like text.
-  // Backend returns newest-first, so position i shows history[DOT_COUNT-1-i].
-  // Slots without data stay as gray placeholders on the left.
+function DotGrid({ history, onAnalyze }: { history: DetectPoint[] | null | undefined; onAnalyze?: () => void }) {
+  const safe = history ?? []
   const items: (DetectPoint | null)[] = []
   for (let i = 0; i < DOT_COUNT; i++) {
-    items.push(history[DOT_COUNT - 1 - i] ?? null)
+    items.push(safe[DOT_COUNT - 1 - i] ?? null)
   }
 
   return (
-    <TooltipProvider delay={0}>
-      <div className='inline-flex flex-col gap-[3px]'>
-        {[0, 1].map((row) => (
-          <div key={row} className='flex gap-[3px]'>
-            {items.slice(row * DOTS_PER_ROW, (row + 1) * DOTS_PER_ROW).map((p, i) => {
-              let cls = 'bg-gray-200'
-              if (p?.status === 'pass') cls = 'bg-emerald-500'
-              else if (p?.status === 'suspicious') cls = 'bg-amber-400'
-              else if (p?.status === 'notcomplete') cls = 'bg-red-400'
-              return (
-                <Tooltip key={i}>
-                  <TooltipTrigger
-                    render={
-                      <div
-                        className={`w-[6px] h-[14px] rounded-[2px] cursor-pointer ${cls}`}
-                        style={{ opacity: p ? 1 : 0.3 }}
-                      />
-                    }
-                  />
-                  <TooltipContent>
-                    {p ? (
-                      <div className='flex flex-col gap-1 min-w-[180px] max-w-[420px]'>
-                        <div className='flex items-center justify-between gap-3'>
-                          <span className='font-mono opacity-80'>{fmtTime(p.detect_time)}</span>
-                          <span className='font-medium'>{STATUS_LABEL[p.status] ?? p.status}</span>
-                        </div>
-                        {p.top5 && p.top5.length > 0 && (
-                          <div className='border-t border-white/10 pt-1 mt-0.5 space-y-0.5'>
-                            <div className='text-[10px] uppercase opacity-50 tracking-wide'>Top 5</div>
-                            {p.top5.map((t, idx) => (
-                              <div key={idx} className='flex items-center justify-between gap-3 text-[11px] font-mono'>
-                                <span className='truncate'>{idx + 1}. {t.label}</span>
-                                <span className='opacity-80 tabular-nums'>{(t.score * 100).toFixed(1)}%</span>
-                              </div>
-                            ))}
-                          </div>
+    <div className='inline-flex flex-col gap-[3px]'>
+      {[0, 1].map((row) => (
+        <div key={row} className='flex gap-[3px]'>
+          {items.slice(row * DOTS_PER_ROW, (row + 1) * DOTS_PER_ROW).map((p, i) => {
+            let cls = 'bg-gray-200'
+            if (p?.status === 'pass') cls = 'bg-emerald-500'
+            else if (p?.status === 'suspicious') cls = 'bg-amber-400'
+            else if (p?.status === 'notcomplete') cls = 'bg-red-400'
+
+            const dotEl = (
+              <div
+                className={`w-[6px] h-[14px] rounded-[2px] ${p ? 'cursor-pointer' : 'cursor-default'} ${cls}`}
+                style={{ opacity: p ? 1 : 0.3 }}
+              />
+            )
+
+            if (!p) return <div key={i}>{dotEl}</div>
+
+            return (
+              <Popover key={i}>
+                <PopoverTrigger render={dotEl} />
+                <PopoverContent
+                  side='top'
+                  className='min-w-[180px] max-w-[420px] w-auto bg-gray-900 text-white border-gray-700 p-3 text-[12px]'
+                >
+                  <div className='flex flex-col gap-1'>
+                    <div className='flex items-center justify-between gap-3'>
+                      <span className='font-mono opacity-80'>{fmtTime(p.detect_time)}</span>
+                      <span className='font-medium'>{STATUS_LABEL[p.status] ?? p.status}</span>
+                    </div>
+                    {p.group_name && (
+                      <div className='text-[11px] opacity-70 flex items-center gap-1.5'>
+                        分组：<span className='font-mono'>{p.group_name}</span>
+                        {p.fingerprint_model_version?.includes('cccli') && (
+                          <span className='rounded bg-violet-500/30 px-1 py-0.5 text-[10px] font-medium text-violet-300'>cc cli</span>
                         )}
-                        {p.note && (
-                          <div className='text-[11px] opacity-80 whitespace-pre-wrap break-words max-h-[200px] overflow-y-auto border-t border-white/10 pt-1 mt-0.5'>
-                            {p.note}
-                          </div>
+                        {p.fingerprint_model_version?.includes('kiro') && (
+                          <span className='rounded bg-amber-500/30 px-1 py-0.5 text-[10px] font-medium text-amber-300'>kiro</span>
                         )}
                       </div>
-                    ) : (
-                      <span className='opacity-70'>暂无数据</span>
                     )}
-                  </TooltipContent>
-                </Tooltip>
-              )
-            })}
-          </div>
-        ))}
-      </div>
-    </TooltipProvider>
+                    {!p.group_name && (p.fingerprint_model_version?.includes('cccli') || p.fingerprint_model_version?.includes('kiro')) && (
+                      <div className='text-[11px] flex items-center gap-1'>
+                        {p.fingerprint_model_version?.includes('cccli') && (
+                          <span className='rounded bg-violet-500/30 px-1 py-0.5 text-[10px] font-medium text-violet-300'>cc cli</span>
+                        )}
+                        {p.fingerprint_model_version?.includes('kiro') && (
+                          <span className='rounded bg-amber-500/30 px-1 py-0.5 text-[10px] font-medium text-amber-300'>kiro</span>
+                        )}
+                      </div>
+                    )}
+                    {p.top5 && p.top5.length > 0 && (
+                      <div className='border-t border-white/10 pt-1 mt-0.5 space-y-0.5'>
+                        <div className='text-[10px] uppercase opacity-50 tracking-wide'>Top 5</div>
+                        {p.top5.map((t, idx) => (
+                          <div key={idx} className='flex items-center justify-between gap-3 text-[11px] font-mono'>
+                            <span className='truncate'>{idx + 1}. {t.label}</span>
+                            <span className='opacity-80 tabular-nums'>{(t.score * 100).toFixed(1)}%</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    {p.note && (
+                      <div className='text-[11px] opacity-80 whitespace-pre-wrap break-words max-h-[200px] overflow-y-auto border-t border-white/10 pt-1 mt-0.5'>
+                        {p.note}
+                      </div>
+                    )}
+                    {onAnalyze && (
+                      <button
+                        onClick={onAnalyze}
+                        className='mt-1.5 w-full border-t border-white/10 pt-1.5 text-left text-[11px] text-sky-400 hover:text-sky-300 transition-colors'
+                      >
+                        查看分析 →
+                      </button>
+                    )}
+                  </div>
+                </PopoverContent>
+              </Popover>
+            )
+          })}
+        </div>
+      ))}
+    </div>
   )
 }
 
@@ -272,6 +345,54 @@ function IntervalDialog({
   )
 }
 
+// ── Analysis Modal ────────────────────────────────────────────────────────────
+
+function AnalysisModal({ state, onClose }: { state: AnalysisState; onClose: () => void }) {
+  return (
+    <Dialog open onOpenChange={(v) => !v && onClose()}>
+      <DialogContent className='max-w-3xl w-full'>
+        <DialogHeader>
+          <DialogTitle className='text-lg'>渠道检测分析 — {state.channelName}</DialogTitle>
+          {(state.claimed || state.predicted) && (
+            <p className='text-xs text-gray-500 mt-1'>
+              {state.claimed && <>声称：<span className='text-gray-700'>{state.claimed}</span></>}
+              {state.claimed && state.predicted && <span className='mx-1.5 text-gray-300'>·</span>}
+              {state.predicted && <>预测：<span className='text-gray-700'>{state.predicted}</span></>}
+            </p>
+          )}
+        </DialogHeader>
+        <div className='max-h-[75vh] overflow-y-auto py-3'>
+          {state.status === 'loading' && (
+            <div className='flex items-center gap-2 text-sm text-gray-500 py-4'>
+              <RefreshCw className='w-4 h-4 animate-spin' />
+              正在分析…
+            </div>
+          )}
+          {state.status === 'error' && (
+            <p className='text-sm text-red-500 py-2'>{state.text}</p>
+          )}
+          {state.status === 'done' && (
+            <div className='space-y-1 text-sm leading-relaxed text-gray-700'>
+              {state.text.split('\n').map((line, i) => {
+                const h2 = line.match(/^##\s+(.*)/)
+                const h3 = line.match(/^###\s+(.*)/)
+                if (h2) return <p key={i} className='mt-3 text-base font-semibold text-gray-900'>{h2[1]}</p>
+                if (h3) return <p key={i} className='mt-2 font-semibold text-gray-800'>{h3[1]}</p>
+                const rendered = line
+                  .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+                  .replace(/`(.+?)`/g, "<code class='font-mono text-xs bg-gray-100 px-1 rounded'>$1</code>")
+                return line.trim() === ''
+                  ? <div key={i} className='h-1' />
+                  : <p key={i} dangerouslySetInnerHTML={{ __html: rendered }} />
+              })}
+            </div>
+          )}
+        </div>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
 // ── Main Page ─────────────────────────────────────────────────────────────────
 
 export function ModelDataPage() {
@@ -286,7 +407,20 @@ export function ModelDataPage() {
     uptime_interval_minutes: 30,
   })
   const [configLoading, setConfigLoading] = useState(false)
+  // True during the initial config fetch for the active model tab.
+  // Keeps the toggles visually disabled so users don't see a misleading "OFF" flash.
+  const [configFetching, setConfigFetching] = useState(true)
   const [intervalOpen, setIntervalOpen] = useState<'fingerprint' | 'uptime' | null>(null)
+  // refreshing pricing for the current model tab (background task, button shows spinner)
+  const [pricingRefreshing, setPricingRefreshing] = useState(false)
+  const [pricingRefreshMsg, setPricingRefreshMsg] = useState<string>('')
+  const [hubRefreshing, setHubRefreshing] = useState(false)
+  const [hubRefreshMsg, setHubRefreshMsg] = useState<string>('')
+  // Per-channel detecting state: "channelId-modelId" → true while in-flight
+  // Keyed by both channel and model so different model tabs don't share detecting state.
+  const [detectingChannels, setDetectingChannels] = useState<Record<string, boolean>>({})
+  const [pingingChannels, setPingingChannels] = useState<Record<string, boolean>>({})
+  const [analysis, setAnalysis] = useState<AnalysisState | null>(null)
 
   // Fetch table data
   useEffect(() => {
@@ -294,22 +428,141 @@ export function ModelDataPage() {
     setData([])
     api
       .get('/api/admin/model-data', { params: { model: activeModel } })
-      .then((res) => { if (res.data?.success) setData(res.data.data ?? []) })
+      .then((res) => {
+        if (res.data?.success) {
+          const raw: ModelDataItem[] = res.data.data ?? []
+          // Sort: enabled (model_enabled+status=1) by actual_price asc,
+          // then disabled by actual_price asc, then no-price last.
+          const sorted = [...raw].sort((a, b) => {
+            const aOn = a.model_enabled !== false && a.status === 1
+            const bOn = b.model_enabled !== false && b.status === 1
+            if (aOn !== bOn) return aOn ? -1 : 1
+            const aP = a.actual_price != null && a.actual_price > 0
+            const bP = b.actual_price != null && b.actual_price > 0
+            if (aP !== bP) return aP ? -1 : 1
+            return (a.actual_price ?? Infinity) - (b.actual_price ?? Infinity)
+          })
+          setData(sorted)
+        }
+      })
       .finally(() => setLoading(false))
   }, [activeModel])
 
   // Fetch detect config when model changes, then poll every 30s so the
   // "下次 HH:MM" countdown stays fresh as auto-detect ticks fire.
+  // The `cancelled` flag prevents stale in-flight responses from a previous tab
+  // from overwriting the config after the user has already switched tabs.
   useEffect(() => {
+    let cancelled = false
+    setConfigFetching(true)
+
     const fetchCfg = () => {
       api
-        .get('/api/admin/model-detect-config', { params: { model: activeModel } })
-        .then((res) => { if (res.data?.success) setConfig(res.data.data) })
+        .get('/api/admin/model-detect-config', {
+          params: { model: activeModel },
+          skipErrorHandler: true,
+        } as Parameters<typeof api.get>[1])
+        .then((res) => {
+          if (!cancelled) {
+            if (res.data?.success) setConfig(res.data.data)
+            setConfigFetching(false) // always clear loading after first response
+          }
+        })
+        .catch(() => { if (!cancelled) setConfigFetching(false) })
     }
     fetchCfg()
     const t = setInterval(fetchCfg, 30_000)
-    return () => clearInterval(t)
+    return () => { cancelled = true; clearInterval(t) }
   }, [activeModel])
+
+  // Trigger upstream /api/pricing re-fetch for every channel that serves the
+  // current model tab. Fire-and-forget on the backend — wait ~6s then reload
+  // the table so freshly upserted channel_model_pricings rows show up.
+  const refreshPricing = useCallback(() => {
+    if (pricingRefreshing) return
+    setPricingRefreshing(true)
+    setPricingRefreshMsg('')
+    api
+      .post('/api/admin/model-data/refresh-pricing', {})
+      .then((res) => {
+        const n = res.data?.count ?? 0
+        setPricingRefreshMsg(`已触发 ${n} 个渠道刷新…`)
+      })
+      .catch(() => setPricingRefreshMsg('刷新失败'))
+      .finally(() => {
+        // wait for background goroutines to land in DB, then reload table
+        setTimeout(() => {
+          api
+            .get('/api/admin/model-data', { params: { model: activeModel } })
+            .then((res) => { if (res.data?.success) setData(res.data.data ?? []) })
+            .finally(() => {
+              setPricingRefreshing(false)
+              setPricingRefreshMsg('')
+            })
+        }, 6000)
+      })
+  }, [activeModel, pricingRefreshing])
+
+  // Re-fetch hub.romaapi.com aggregator pricing (clears the backend TTL cache),
+  // then reload the table so the HUB 价格 column shows fresh values.
+  const refreshHubPrice = useCallback(() => {
+    if (hubRefreshing) return
+    setHubRefreshing(true)
+    setHubRefreshMsg('')
+    api
+      .post('/api/admin/model-data/refresh-hub-price')
+      .then((res) => {
+        const n = res.data?.count ?? 0
+        setHubRefreshMsg(`已刷新 ${n} 个站点`)
+      })
+      .catch(() => setHubRefreshMsg('刷新失败'))
+      .finally(() => {
+        api
+          .get('/api/admin/model-data', { params: { model: activeModel } })
+          .then((res) => { if (res.data?.success) setData(res.data.data ?? []) })
+          .finally(() => {
+            setHubRefreshing(false)
+            setHubRefreshMsg('')
+          })
+      })
+  }, [activeModel, hubRefreshing])
+
+
+  const detectNow = useCallback((channelId: number) => {
+    const key = `${channelId}-${activeModel}`
+    if (detectingChannels[key]) return
+    setDetectingChannels((prev) => ({ ...prev, [key]: true }))
+    api
+      .post('/api/admin/model-data/detect-now', { channel_id: channelId, model: activeModel })
+      .catch(() => {/* fire-and-forget; failure is visible in dot-grid */})
+      .finally(() => {
+        // Detection takes ~5-15s on Flask side; reload after 18s to catch result
+        setTimeout(() => {
+          api
+            .get('/api/admin/model-data', { params: { model: activeModel } })
+            .then((res) => { if (res.data?.success) setData(res.data.data ?? []) })
+            .finally(() => setDetectingChannels((prev) => ({ ...prev, [key]: false })))
+        }, 18000)
+      })
+  }, [activeModel, detectingChannels])
+
+  const pingNow = useCallback((channelId: number) => {
+    const key = `${channelId}-${activeModel}`
+    if (pingingChannels[key]) return
+    setPingingChannels((prev) => ({ ...prev, [key]: true }))
+    api
+      .post('/api/admin/model-data/ping-now', { channel_id: channelId, model: activeModel })
+      .catch(() => {/* fire-and-forget; failure is visible in uptime dot-grid */})
+      .finally(() => {
+        // Uptime probe takes a few seconds; reload after 8s to catch result
+        setTimeout(() => {
+          api
+            .get('/api/admin/model-data', { params: { model: activeModel } })
+            .then((res) => { if (res.data?.success) setData(res.data.data ?? []) })
+            .finally(() => setPingingChannels((prev) => ({ ...prev, [key]: false })))
+        }, 8000)
+      })
+  }, [activeModel, pingingChannels])
 
   const saveConfig = useCallback(
     (patch: Partial<DetectConfig>) => {
@@ -329,6 +582,36 @@ export function ModelDataPage() {
     [config, activeModel],
   )
 
+  const handleAnalyze = useCallback(async (item: ModelDataItem) => {
+    if (!item.base_url) return
+    setAnalysis({
+      channelName: item.channel_name,
+      baseUrl: item.base_url,
+      claimed: null,
+      predicted: null,
+      status: 'loading',
+      text: '',
+    })
+    try {
+      const res = await fetch(`/api/channel-analysis?base_url=${encodeURIComponent(item.base_url)}`)
+      const data = await res.json()
+      if (data.error) throw new Error(data.error)
+      setAnalysis((prev) => prev ? {
+        ...prev,
+        claimed: data.claimed_model ?? null,
+        predicted: data.predicted_top1 ?? null,
+        status: 'done',
+        text: data.analysis ?? '（无分析内容）',
+      } : null)
+    } catch (e) {
+      setAnalysis((prev) => prev ? {
+        ...prev,
+        status: 'error',
+        text: e instanceof Error ? e.message : '分析失败',
+      } : null)
+    }
+  }, [])
+
   function fmtInterval(minutes: number) {
     const { value, unit } = minutesToUnit(minutes)
     const label = UNIT_OPTIONS.find((o) => o.value === unit)?.label ?? ''
@@ -340,10 +623,10 @@ export function ModelDataPage() {
   // local state optimistically — toggling racing with auto-detect could leave
   // stale data, easier to round-trip.
   const toggleChannel = useCallback(
-    (channelId: number, currentStatus: number) => {
-      const action = currentStatus === 1 ? 'disable' : 'enable'
+    (channelId: number, modelEnabled: boolean) => {
+      const action = modelEnabled ? 'disable' : 'enable'
       api
-        .post('/api/admin/model-data/toggle', { channel_id: channelId, action })
+        .post('/api/admin/model-data/toggle', { channel_id: channelId, model: activeModel, action })
         .then(() => {
           // Refresh table
           api
@@ -362,27 +645,57 @@ export function ModelDataPage() {
       </SectionPageLayout.Description>
       <SectionPageLayout.Content>
 
-        {/* Tab bar + auto-detect controls */}
-        <div className='flex items-center justify-between mb-5'>
-          <div className='flex items-center gap-1'>
-            {MODEL_TABS.map((tab) => {
-              const active = tab.modelId === activeModel
-              return (
-                <button
-                  key={tab.modelId}
-                  onClick={() => setActiveModel(tab.modelId)}
-                  className={[
-                    'px-3.5 py-1.5 rounded-full text-sm font-medium transition-colors',
-                    active
-                      ? 'bg-gray-900 text-white shadow-sm'
-                      : 'text-gray-400 hover:text-gray-700 hover:bg-gray-100',
-                  ].join(' ')}
-                >
-                  {tab.label}
-                </button>
-              )
-            })}
+        {/* Model tabs + toolbar */}
+        <div className='mb-5 space-y-3'>
+          <div className='-mx-1 overflow-x-auto pb-1'>
+            <div className='flex min-w-max flex-wrap items-center gap-1.5 px-1'>
+              {MODEL_TABS.map((tab) => {
+                const active = tab.modelId === activeModel
+                return (
+                  <button
+                    key={tab.modelId}
+                    type='button'
+                    onClick={() => setActiveModel(tab.modelId)}
+                    className={[
+                      'inline-flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm font-medium transition-all',
+                      active
+                        ? 'border-gray-900 bg-gray-900 text-white shadow-sm'
+                        : 'border-gray-200 bg-white text-gray-500 hover:border-gray-300 hover:bg-gray-50 hover:text-gray-800',
+                    ].join(' ')}
+                    style={active ? { boxShadow: `0 0 0 2px white, 0 0 0 4px ${tab.accent}55` } : undefined}
+                  >
+                    <span
+                      className='size-1.5 shrink-0 rounded-full'
+                      style={{ backgroundColor: tab.accent, boxShadow: active ? `0 0 6px ${tab.accent}` : undefined }}
+                    />
+                    {tab.label}
+                  </button>
+                )
+              })}
+            </div>
           </div>
+
+          <div className='flex flex-wrap items-center justify-between gap-3'>
+            <div className='flex flex-wrap items-center gap-2'>
+            <button
+              onClick={refreshPricing}
+              disabled={pricingRefreshing}
+              className='inline-flex items-center gap-1.5 rounded-full border border-gray-200 px-3 py-1.5 text-sm font-medium text-gray-500 transition-colors hover:border-gray-300 hover:text-gray-800 disabled:cursor-not-allowed disabled:opacity-50'
+              title='刷新当前模型下所有渠道的上游 /api/pricing 数据'
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${pricingRefreshing ? 'animate-spin' : ''}`} />
+              {pricingRefreshing ? (pricingRefreshMsg || '刷新中…') : '刷新价格'}
+            </button>
+            <button
+              onClick={refreshHubPrice}
+              disabled={hubRefreshing}
+              className='inline-flex items-center gap-1.5 rounded-full border border-gray-200 px-3 py-1.5 text-sm font-medium text-gray-500 transition-colors hover:border-gray-300 hover:text-gray-800 disabled:cursor-not-allowed disabled:opacity-50'
+              title='重新拉取 hub.romaapi.com 的聚合价格'
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${hubRefreshing ? 'animate-spin' : ''}`} />
+              {hubRefreshing ? (hubRefreshMsg || '刷新中…') : '刷新 Hub 价格'}
+            </button>
+            </div>
 
           {/* Auto-detect controls: two rows */}
           <div className='flex flex-col gap-1.5 items-end'>
@@ -392,18 +705,19 @@ export function ModelDataPage() {
               <Switch
                 id='fp-detect'
                 checked={config.fingerprint_enabled}
-                disabled={configLoading}
+                disabled={configLoading || configFetching}
                 onCheckedChange={(v) => saveConfig({ fingerprint_enabled: v })}
               />
               <button
                 onClick={() => setIntervalOpen('fingerprint')}
-                className='flex items-center gap-1 text-xs text-gray-400 hover:text-gray-600 transition-colors border border-gray-200 rounded-md px-2 py-1'
+                disabled={configFetching}
+                className='flex items-center gap-1 text-xs text-gray-400 hover:text-gray-600 transition-colors border border-gray-200 rounded-md px-2 py-1 disabled:opacity-40 disabled:cursor-not-allowed'
               >
                 <Settings2 className='w-3 h-3' />
-                {fmtInterval(config.fingerprint_interval_minutes)}
+                {configFetching ? '…' : fmtInterval(config.fingerprint_interval_minutes)}
               </button>
               <span className='text-[11px] text-gray-400 min-w-[80px]'>
-                {config.fingerprint_enabled ? fmtNextDetect(config.next_fingerprint_at) : ''}
+                {!configFetching && config.fingerprint_enabled ? fmtNextDetect(config.next_fingerprint_at) : ''}
               </span>
             </div>
             {/* 运行状态 */}
@@ -412,90 +726,221 @@ export function ModelDataPage() {
               <Switch
                 id='uptime-detect'
                 checked={config.uptime_enabled}
-                disabled={configLoading}
+                disabled={configLoading || configFetching}
                 onCheckedChange={(v) => saveConfig({ uptime_enabled: v })}
               />
               <button
                 onClick={() => setIntervalOpen('uptime')}
-                className='flex items-center gap-1 text-xs text-gray-400 hover:text-gray-600 transition-colors border border-gray-200 rounded-md px-2 py-1'
+                disabled={configFetching}
+                className='flex items-center gap-1 text-xs text-gray-400 hover:text-gray-600 transition-colors border border-gray-200 rounded-md px-2 py-1 disabled:opacity-40 disabled:cursor-not-allowed'
               >
                 <Settings2 className='w-3 h-3' />
-                {fmtInterval(config.uptime_interval_minutes)}
+                {configFetching ? '…' : fmtInterval(config.uptime_interval_minutes)}
               </button>
               <span className='text-[11px] text-gray-400 min-w-[80px]'>
-                {config.uptime_enabled ? fmtNextDetect(config.next_uptime_at) : ''}
+                {!configFetching && config.uptime_enabled ? fmtNextDetect(config.next_uptime_at) : ''}
               </span>
             </div>
           </div>
+          </div>
         </div>
+
+        {/* Enabled count */}
+        {!loading && data.length > 0 && (() => {
+          const enabledCount = data.filter(
+            (it) => it.model_enabled !== false && it.status === 1,
+          ).length
+          return (
+            <div className='mb-3 text-sm text-gray-500'>
+              <span className='font-medium text-gray-800'>{enabledCount}</span> 个启用
+              <span className='text-gray-300 mx-1.5'>/</span>
+              {data.length} 个渠道
+            </div>
+          )
+        })()}
 
         {/* Table */}
         <div className='rounded-xl border border-gray-200/80 overflow-hidden bg-white'>
           <table className='w-full text-sm'>
             <thead>
               <tr className='border-b border-gray-100'>
-                <th className='text-left px-5 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide'>站点</th>
-                <th className='text-left px-5 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide'>站点分组</th>
-                <th className='text-right px-5 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide'>
+                <th className='text-left px-3 py-2.5 text-xs font-semibold text-gray-400 uppercase tracking-wide'>ID</th>
+                <th className='text-left px-3 py-2.5 text-xs font-semibold text-gray-400 uppercase tracking-wide'>站点</th>
+                <th className='text-left px-3 py-2.5 text-xs font-semibold text-gray-400 uppercase tracking-wide'>站点分组</th>
+                <th className='text-right px-3 py-2.5 text-xs font-semibold text-gray-400 uppercase tracking-wide'>充值汇率</th>
+                <th className='text-right px-2 py-2.5 text-xs font-semibold text-gray-400 uppercase tracking-wide'>gratio</th>
+                <th className='text-right px-3 py-2.5 text-xs font-semibold text-gray-400 uppercase tracking-wide'>
+                  模型价格&nbsp;<span className='normal-case font-normal'>$/1M</span>
+                </th>
+                <th className='text-right px-3 py-2.5 text-xs font-semibold text-gray-400 uppercase tracking-wide'>
                   实际价格&nbsp;<span className='normal-case font-normal'>$/1M</span>
                 </th>
-                <th className='text-right px-5 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide'>延迟中位数</th>
-                <th className='text-left px-5 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide'>检测结果</th>
-                <th className='text-left px-5 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide'>运行状态</th>
-                <th className='text-center px-5 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide'>操作</th>
+                <th className='text-right px-3 py-2.5 text-xs font-semibold text-gray-400 uppercase tracking-wide'>
+                  hub&nbsp;价格&nbsp;<span className='normal-case font-normal'>$/1M</span>
+                </th>
+                <th className='text-right px-3 py-2.5 text-xs font-semibold text-gray-400 uppercase tracking-wide'>延迟</th>
+                <th className='text-left px-3 py-2.5 text-xs font-semibold text-gray-400 uppercase tracking-wide'>检测结果</th>
+                <th className='text-left px-3 py-2.5 text-xs font-semibold text-gray-400 uppercase tracking-wide'>运行状态</th>
+                <th className='text-center px-3 py-2.5 text-xs font-semibold text-gray-400 uppercase tracking-wide'>操作</th>
               </tr>
             </thead>
             <tbody className='divide-y divide-gray-50'>
               {loading && (
                 <tr>
-                  <td colSpan={7} className='px-5 py-12 text-center text-sm text-gray-400'>加载中…</td>
+                  <td colSpan={12} className='px-5 py-12 text-center text-sm text-gray-400'>加载中…</td>
                 </tr>
               )}
               {!loading && data.length === 0 && (
                 <tr>
-                  <td colSpan={7} className='px-5 py-12 text-center text-sm text-gray-400'>
+                  <td colSpan={12} className='px-5 py-12 text-center text-sm text-gray-400'>
                     暂无数据 — 请在渠道管理中录入支持该模型的渠道
                   </td>
                 </tr>
               )}
               {data.map((item) => {
-                const isManualDisabled = item.status === 2
                 const isAutoDisabled = item.status === 3
-                const isEnabled = item.status === 1
-                const rowClass = isManualDisabled
-                  ? 'opacity-50 hover:bg-gray-50/60 transition-colors'
-                  : 'hover:bg-gray-50/60 transition-colors'
+                const isModelEnabled = item.model_enabled !== false  // default true if field missing
+                // Effectively enabled = model ability on AND channel not disabled/auto-disabled
+                const isEffectivelyEnabled = isModelEnabled && item.status === 1
+                // dim when this specific model is disabled on this channel
+                const dim = !isModelEnabled ? 'opacity-40' : ''
+                // Price divergence alert: actual vs hub > 10%
+                const hasBothPrices =
+                  item.actual_price != null && item.actual_price > 0 &&
+                  item.hub_price != null && item.hub_price > 0
+                const priceDivergePct = hasBothPrices
+                  ? Math.abs(item.actual_price! - item.hub_price!) / item.hub_price! * 100
+                  : 0
+                const priceDivergent = priceDivergePct > 10
                 return (
-                  <tr key={item.channel_id} className={rowClass}>
-                    <td className='px-5 py-3.5 font-medium text-gray-800'>
+                  <tr key={item.channel_id} className='hover:bg-gray-50/60 transition-colors'>
+                    <td className={`px-3 py-2.5 text-gray-400 tabular-nums text-xs ${dim}`}>{item.channel_id}</td>
+                    <td className={`px-3 py-2.5 font-medium text-gray-800 ${dim}`}>
                       {item.channel_name}
                       {isAutoDisabled && (
-                        <span className='ml-2 text-[10px] text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded'>
-                          自动禁用 {item.consecutive_fingerprint_pass}/12
-                        </span>
+                        <TooltipProvider delay={0}>
+                          <Tooltip>
+                            <TooltipTrigger render={<span />}>
+                              <span className='ml-2 inline-flex items-center gap-1 rounded bg-red-100 px-1.5 py-0.5 text-[10px] font-medium text-red-700 dark:bg-red-900/30 dark:text-red-400 cursor-help'>
+                                <AlertTriangle size={10} />
+                                已禁用 {item.consecutive_fingerprint_pass}/12
+                              </span>
+                            </TooltipTrigger>
+                            <TooltipContent className='max-w-xs'>
+                              <div className='space-y-1 text-xs'>
+                                <div className='font-medium text-red-400'>渠道已自动禁用</div>
+                                {item.status_reason && <div>原因：{item.status_reason}</div>}
+                                {item.status_time && item.status_time > 0 && (
+                                  <div>时间：{fmtTime(item.status_time)}</div>
+                                )}
+                              </div>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
                       )}
-                      {isManualDisabled && (
-                        <span className='ml-2 text-[10px] text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded'>手动禁用</span>
+                      {!isModelEnabled && (
+                        <span className='ml-2 text-[10px] text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded'>已禁用</span>
                       )}
                     </td>
-                    <td className='px-5 py-3.5 text-gray-500'>{item.key_group || <span className='text-gray-300'>—</span>}</td>
-                    <td className='px-5 py-3.5 text-right font-semibold text-gray-800 tabular-nums'>{fmtPrice(item.actual_price)}</td>
-                    <td className='px-5 py-3.5 text-right text-gray-600 tabular-nums'>
+                    <td className={`px-3 py-2.5 text-gray-500 ${dim}`}>{item.key_group || <span className='text-gray-300'>—</span>}</td>
+                    <td className={`px-3 py-2.5 text-right text-gray-500 tabular-nums text-xs ${dim}`}>
+                      {item.recharge_rate != null ? item.recharge_rate.toFixed(4) : <span className='text-gray-300'>—</span>}
+                    </td>
+                    <td className={`px-2 py-3.5 text-right text-gray-500 tabular-nums text-xs ${dim}`}>
+                      {item.group_ratio != null ? item.group_ratio.toFixed(3) : <span className='text-gray-300'>—</span>}
+                    </td>
+                    <td className={`px-3 py-2.5 text-right text-gray-600 tabular-nums ${dim}`}>{fmtPrice(item.model_price)}</td>
+                    <td className={`px-3 py-2.5 text-right font-semibold tabular-nums ${priceDivergent ? 'text-red-600' : 'text-gray-800'} ${dim}`}>
+                      <TooltipProvider delay={0}>
+                      <Tooltip>
+                        <TooltipTrigger render={
+                          <div className='inline-flex items-center gap-1.5 justify-end cursor-default'>
+                            {item.pricing_source === 'manual' && (
+                              <span className='text-[10px] font-medium px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 leading-none'>手动</span>
+                            )}
+                            {item.pricing_source === 'api' && (
+                              <span className='text-[10px] font-medium px-1.5 py-0.5 rounded bg-green-100 text-green-700 leading-none'>pricing</span>
+                            )}
+                            {priceDivergent && (
+                              <span className='text-[10px] font-bold px-1.5 py-0.5 rounded bg-red-100 text-red-600 leading-none'>
+                                !{Math.round(priceDivergePct)}%
+                              </span>
+                            )}
+                            {fmtPrice(item.actual_price)}
+                          </div>
+                        } />
+                        <TooltipContent>
+                          {item.actual_price != null && item.actual_price > 0 ? (
+                            <div className='flex flex-col gap-1 text-[12px] min-w-[160px]'>
+                              <div className='flex justify-between gap-4'>
+                                <span className='opacity-70'>输入</span>
+                                <span className='font-mono'>{fmtPrice(item.actual_price)}</span>
+                              </div>
+                              <div className='flex justify-between gap-4'>
+                                <span className='opacity-70'>输出</span>
+                                <span className='font-mono'>{fmtPrice(item.actual_output_price)}</span>
+                              </div>
+                              <div className='flex justify-between gap-4'>
+                                <span className='opacity-70'>缓存读</span>
+                                <span className='font-mono'>{fmtPrice(item.actual_cache_price)}</span>
+                              </div>
+                              <div className='flex justify-between gap-4'>
+                                <span className='opacity-70'>缓存写</span>
+                                <span className='font-mono'>{fmtPrice(item.actual_cache_creation_price)}</span>
+                              </div>
+                              {priceDivergent && (
+                                <div className='border-t border-white/10 pt-1 mt-0.5 text-red-300'>
+                                  与 Hub 偏差 {Math.round(priceDivergePct)}%（Hub 输入: {fmtPrice(item.hub_price)}）
+                                </div>
+                              )}
+                            </div>
+                          ) : (
+                            <span className='opacity-70'>暂无价格数据</span>
+                          )}
+                        </TooltipContent>
+                      </Tooltip>
+                      </TooltipProvider>
+                    </td>
+                    <td className={`px-3 py-2.5 text-right text-gray-500 tabular-nums ${dim}`}>{fmtPrice(item.hub_price)}</td>
+                    <td className={`px-3 py-2.5 text-right text-gray-600 tabular-nums ${dim}`}>
                       {item.latency_median_ms > 0 ? `${(item.latency_median_ms / 1000).toFixed(1)} s` : <span className='text-gray-300'>—</span>}
                     </td>
-                    <td className='px-5 py-3.5'><DotGrid history={item.fingerprint_history} /></td>
-                    <td className='px-5 py-3.5'><DotGrid history={item.uptime_history} /></td>
-                    <td className='px-5 py-3.5 text-center'>
-                      <button
-                        onClick={() => toggleChannel(item.channel_id, item.status)}
-                        className={
-                          isEnabled
-                            ? 'text-xs text-red-600 hover:text-red-700 hover:bg-red-50 border border-red-200 rounded-md px-2.5 py-1 transition-colors'
-                            : 'text-xs text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 border border-emerald-200 rounded-md px-2.5 py-1 transition-colors'
-                        }
-                      >
-                        {isEnabled ? '禁用' : '启用'}
-                      </button>
+                    <td className={`px-3 py-2.5 ${dim}`}>
+                      <DotGrid
+                        history={item.fingerprint_history}
+                        onAnalyze={item.base_url ? () => handleAnalyze(item) : undefined}
+                      />
+                    </td>
+                    <td className={`px-3 py-2.5 ${dim}`}><DotGrid history={item.uptime_history} /></td>
+                    <td className='px-3 py-2.5 text-center'>
+                      <div className='flex items-center justify-center gap-2'>
+                        <button
+                          onClick={() => detectNow(item.channel_id)}
+                          disabled={!!detectingChannels[`${item.channel_id}-${activeModel}`]}
+                          className='text-xs text-blue-600 hover:text-blue-700 hover:bg-blue-50 border border-blue-200 rounded-md px-2.5 py-1 transition-colors disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap'
+                          title='立即触发一次指纹检测，结果约 15–20s 后显示在检测结果列'
+                        >
+                          {detectingChannels[`${item.channel_id}-${activeModel}`] ? '检测中…' : '手动检测'}
+                        </button>
+                        <button
+                          onClick={() => pingNow(item.channel_id)}
+                          disabled={!!pingingChannels[`${item.channel_id}-${activeModel}`]}
+                          className='text-xs text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 border border-emerald-200 rounded-md px-2.5 py-1 transition-colors disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap'
+                          title='立即触发一次运行状态(uptime)检测，结果约 8s 后显示在运行状态列'
+                        >
+                          {pingingChannels[`${item.channel_id}-${activeModel}`] ? 'ping 中…' : '手动 ping'}
+                        </button>
+                        <button
+                          onClick={() => toggleChannel(item.channel_id, isEffectivelyEnabled)}
+                          className={
+                            isEffectivelyEnabled
+                              ? 'text-xs text-red-600 hover:text-red-700 hover:bg-red-50 border border-red-200 rounded-md px-2.5 py-1 transition-colors'
+                              : 'text-xs text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 border border-emerald-200 rounded-md px-2.5 py-1 transition-colors'
+                          }
+                        >
+                          {isEffectivelyEnabled ? '禁用' : '启用'}
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 )
@@ -516,6 +961,9 @@ export function ModelDataPage() {
           initialMinutes={config.uptime_interval_minutes}
           onSave={(m) => saveConfig({ uptime_interval_minutes: m })}
         />
+        {analysis && (
+          <AnalysisModal state={analysis} onClose={() => setAnalysis(null)} />
+        )}
 
       </SectionPageLayout.Content>
     </SectionPageLayout>

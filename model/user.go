@@ -25,7 +25,7 @@ type User struct {
 	Username         string         `json:"username" gorm:"unique;index" validate:"max=20"`
 	Password         string         `json:"password" gorm:"not null;" validate:"min=8,max=20"`
 	OriginalPassword string         `json:"original_password" gorm:"-:all"` // this field is only for Password change verification, don't save it to database!
-	DisplayName      string         `json:"display_name" gorm:"index" validate:"max=20"`
+	DisplayName      string         `json:"display_name" gorm:"index" validate:"max=100"`
 	Role             int            `json:"role" gorm:"type:int;default:1"`   // admin, common
 	Status           int            `json:"status" gorm:"type:int;default:1"` // enabled, disabled
 	Email            string         `json:"email" gorm:"index" validate:"max=50"`
@@ -342,9 +342,13 @@ func inviteUser(inviterId int) (err error) {
 }
 
 func (user *User) TransferAffQuotaToQuota(quota int) error {
-	// 检查quota是否小于最小额度
-	if float64(quota) < common.QuotaPerUnit {
-		return fmt.Errorf("转移额度最小为%s！", logger.LogQuota(int(common.QuotaPerUnit)))
+	// 检查quota是否小于最小额度（最低 $0.01 = QuotaPerUnit/100）
+	minTransfer := int(common.QuotaPerUnit / 100)
+	if minTransfer < 1 {
+		minTransfer = 1
+	}
+	if quota < minTransfer {
+		return fmt.Errorf("转移额度最小为%s！", logger.LogQuota(minTransfer))
 	}
 
 	// 开始数据库事务
@@ -425,10 +429,16 @@ func (user *User) Insert(inviterId int) error {
 			_ = IncreaseUserQuota(user.Id, common.QuotaForInvitee, true)
 			RecordLog(user.Id, LogTypeSystem, fmt.Sprintf("使用邀请码赠送 %s", logger.LogQuota(common.QuotaForInvitee)))
 		}
+		// Always increment inviter's aff_count regardless of QuotaForInviter
+		DB.Model(&User{}).Where("id = ?", inviterId).UpdateColumn("aff_count", gorm.Expr("aff_count + 1"))
 		if common.QuotaForInviter > 0 {
-			//_ = IncreaseUserQuota(inviterId, common.QuotaForInviter)
 			RecordLog(inviterId, LogTypeSystem, fmt.Sprintf("邀请用户赠送 %s", logger.LogQuota(common.QuotaForInviter)))
-			_ = inviteUser(inviterId)
+			user_inviter, err := GetUserById(inviterId, true)
+			if err == nil {
+				user_inviter.AffQuota += common.QuotaForInviter
+				user_inviter.AffHistoryQuota += common.QuotaForInviter
+				_ = DB.Save(user_inviter).Error
+			}
 		}
 	}
 	return nil
@@ -486,6 +496,7 @@ func (user *User) FinalizeOAuthUserCreation(inviterId int) {
 			_ = IncreaseUserQuota(user.Id, common.QuotaForInvitee, true)
 			RecordLog(user.Id, LogTypeSystem, fmt.Sprintf("使用邀请码赠送 %s", logger.LogQuota(common.QuotaForInvitee)))
 		}
+		DB.Model(&User{}).Where("id = ?", inviterId).UpdateColumn("aff_count", gorm.Expr("aff_count + 1"))
 		if common.QuotaForInviter > 0 {
 			RecordLog(inviterId, LogTypeSystem, fmt.Sprintf("邀请用户赠送 %s", logger.LogQuota(common.QuotaForInviter)))
 			_ = inviteUser(inviterId)
@@ -1053,4 +1064,20 @@ func RootUserExists() bool {
 		return false
 	}
 	return true
+}
+
+type UserDailyStat struct {
+	Day      int64 `json:"day"`       // Unix timestamp of day start (UTC)
+	NewUsers int   `json:"new_users"` // number of newly registered users
+}
+
+func GetUserDailyStats(start, end int64) ([]UserDailyStat, error) {
+	var rows []UserDailyStat
+	err := DB.Table("users").
+		Select("(created_at / 86400 * 86400) as day, count(*) as new_users").
+		Where("created_at >= ? AND created_at <= ?", start, end).
+		Group("(created_at / 86400 * 86400)").
+		Order("day asc").
+		Scan(&rows).Error
+	return rows, err
 }

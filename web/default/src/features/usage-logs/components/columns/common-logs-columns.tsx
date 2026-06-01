@@ -190,6 +190,31 @@ function buildDetailSegments(
       segments.push({
         text: `${t('Per-call')} · ${formatBillingCurrencyFromUSD(other.model_price!, priceOpts)}`,
       })
+    } else if (other.ch_input_price != null && other.ch_input_price > 0) {
+      // Actual channel procurement price archived at billing time
+      const baseEntries = [formatPriceCompact(other.ch_input_price)]
+      if (other.ch_output_price != null && other.ch_output_price > 0) {
+        baseEntries.push(formatPriceCompact(other.ch_output_price))
+      }
+      segments.push({
+        text: `采购 · ${formatPriceList(baseEntries, true)}`,
+      })
+      if (hasAnyCacheTokens(other)) {
+        const cacheEntries = [
+          other.ch_cache_price != null && other.ch_cache_price > 0
+            ? formatPriceCompact(other.ch_cache_price)
+            : null,
+          other.ch_cache_creation_price != null && other.ch_cache_creation_price > 0
+            ? formatPriceCompact(other.ch_cache_creation_price)
+            : null,
+        ].filter(Boolean) as string[]
+        if (cacheEntries.length > 0) {
+          segments.push({
+            text: `${t('Cache')} ${formatPriceList(cacheEntries, false)}`,
+            muted: true,
+          })
+        }
+      }
     } else if (other.model_ratio != null) {
       const inputPriceUSD = other.model_ratio * 2.0
       const baseEntries = [formatPriceCompact(inputPriceUSD)]
@@ -492,7 +517,7 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
       if (groupRatioText) metaParts.push(groupRatioText)
 
       return (
-        <div className='flex max-w-[150px] flex-col gap-0.5'>
+        <div className='flex max-w-[120px] flex-col gap-0.5'>
           <StatusBadge
             label={displayName}
             icon={KeyRound}
@@ -510,7 +535,7 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
       )
     },
     meta: { label: t('Token') },
-    size: 130,
+    size: 110,
   })
 
   columns.push(
@@ -526,7 +551,7 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
         const modelInfo = formatModelName(log)
 
         return (
-          <div className='flex max-w-[220px] flex-col gap-0.5'>
+          <div className='flex max-w-[160px] flex-col gap-0.5'>
             <ModelBadge
               modelName={modelInfo.name}
               actualModel={modelInfo.actualModel}
@@ -665,14 +690,33 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
         const log = row.original
         if (!isDisplayableLogType(log.type)) return null
 
-        const other = parseLogOther(log.other)
-
         const promptTokens = log.prompt_tokens || 0
         const completionTokens = log.completion_tokens || 0
         if (promptTokens === 0 && completionTokens === 0) {
           return <span className='text-muted-foreground text-xs'>-</span>
         }
 
+        return (
+          <span className='font-mono text-xs font-medium tabular-nums'>
+            {promptTokens.toLocaleString()} /{' '}
+            {completionTokens.toLocaleString()}
+          </span>
+        )
+      },
+      meta: { label: 'Tokens', mobileHidden: true },
+      size: 100,
+    },
+
+    {
+      id: 'cache_tokens',
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title={t('Cache')} />
+      ),
+      cell: ({ row }) => {
+        const log = row.original
+        if (!isDisplayableLogType(log.type)) return null
+
+        const other = parseLogOther(log.other)
         const cacheReadTokens = other?.cache_tokens || 0
         const cacheWrite5m = other?.cache_creation_tokens_5m || 0
         const cacheWrite1h = other?.cache_creation_tokens_1h || 0
@@ -681,30 +725,27 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
           ? cacheWrite5m + cacheWrite1h
           : other?.cache_creation_tokens || 0
 
+        if (cacheReadTokens === 0 && cacheWriteTokens === 0) {
+          return <span className='text-muted-foreground/40 text-xs'>—</span>
+        }
+
         return (
-          <div className='flex flex-col gap-0.5'>
-            <span className='font-mono text-xs font-medium tabular-nums'>
-              {promptTokens.toLocaleString()} /{' '}
-              {completionTokens.toLocaleString()}
-            </span>
-            {(cacheReadTokens > 0 || cacheWriteTokens > 0) && (
-              <div className='flex items-center gap-1 text-[11px]'>
-                {cacheReadTokens > 0 && (
-                  <span className='text-muted-foreground/60'>
-                    {t('Cache')}↓ {cacheReadTokens.toLocaleString()}
-                  </span>
-                )}
-                {cacheWriteTokens > 0 && (
-                  <span className='text-muted-foreground/60'>
-                    ↑ {cacheWriteTokens.toLocaleString()}
-                  </span>
-                )}
-              </div>
+          <div className='flex flex-col gap-0.5 font-mono text-xs tabular-nums'>
+            {cacheReadTokens > 0 && (
+              <span className='text-emerald-600 dark:text-emerald-400'>
+                ↓ {cacheReadTokens.toLocaleString()}
+              </span>
+            )}
+            {cacheWriteTokens > 0 && (
+              <span className='text-amber-600 dark:text-amber-400'>
+                ↑ {cacheWriteTokens.toLocaleString()}
+              </span>
             )}
           </div>
         )
       },
-      meta: { label: 'Tokens', mobileHidden: true },
+      meta: { label: t('Cache'), mobileHidden: true },
+      size: 90,
     },
 
     {

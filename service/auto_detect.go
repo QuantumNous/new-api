@@ -142,6 +142,7 @@ func detectOneChannel(ctx context.Context, flaskURL string, ch *model.Channel, t
 	}
 
 	apiFormat := extractAPIFormat(ch.Setting)
+	keyGroup := ExtractKeyGroup(ch.Setting)
 
 	// source='auto' tells Flask to flag this row in apimaster.detections so user-facing
 	// pages (history / stats / ranking) can filter background scans out.
@@ -174,6 +175,7 @@ func detectOneChannel(ctx context.Context, flaskURL string, ch *model.Channel, t
 			Source:       "auto",
 			Status:       "notcomplete",
 			BaseURL:      baseURL,
+			GroupName:    keyGroup,
 			ClaimedModel: targetModel,
 			Note:         fmt.Sprintf("Flask request failed: %v", err),
 			DetectTime:   now,
@@ -188,6 +190,7 @@ func detectOneChannel(ctx context.Context, flaskURL string, ch *model.Channel, t
 	noteText := ""
 	top1Score := 0.0
 	top5Json := ""
+	fpVersion := ""
 
 	scanner := bufio.NewScanner(resp.Body)
 	// Default scanner buf is 64KB; Flask result event includes top5 + analysis text and can exceed that.
@@ -217,6 +220,9 @@ func detectOneChannel(ctx context.Context, flaskURL string, ch *model.Channel, t
 				if score, ok := event.Data["top1_score"].(float64); ok {
 					top1Score = score
 				}
+				if v, ok := event.Data["fingerprint_model_version"].(string); ok && v != "" {
+					fpVersion = v
+				}
 				// top5 is an array of {label,score,rank,...} — keep raw JSON so frontend
 				// gets the exact same shape detection_sync delivers from apimaster PG.
 				if top5Raw, ok := event.Data["top5"]; ok && top5Raw != nil {
@@ -243,22 +249,24 @@ func detectOneChannel(ctx context.Context, flaskURL string, ch *model.Channel, t
 	now := time.Now().Unix()
 
 	logEntry := model.ChannelDetectLog{
-		ChannelId:      ch.Id,
-		Source:         "auto",
-		Status:         detectStatus,
-		BaseURL:        baseURL,
-		ClaimedModel:   targetModel,
-		PredictedModel: predictedModel,
-		Top1Score:      top1Score,
-		Top5Json:       top5Json,
-		Note:           noteText,
-		DetectTime:     now,
+		ChannelId:               ch.Id,
+		Source:                  "auto",
+		Status:                  detectStatus,
+		BaseURL:                 baseURL,
+		GroupName:               keyGroup,
+		ClaimedModel:            targetModel,
+		PredictedModel:          predictedModel,
+		Top1Score:               top1Score,
+		Top5Json:                top5Json,
+		FingerprintModelVersion: fpVersion,
+		Note:                    noteText,
+		DetectTime:              now,
 	}
 	model.DB.Create(&logEntry)
 
 	updates := map[string]interface{}{
-		"last_detected_at":    now,
-		"last_detect_result":  detectStatus,
+		"last_detected_at":   now,
+		"last_detect_result": detectStatus,
 	}
 
 	// Routing algorithm 0.1 status machine:
@@ -295,6 +303,25 @@ func detectOneChannel(ctx context.Context, flaskURL string, ch *model.Channel, t
 // at the default 1-minute tick or 12 hours at hourly tick — enough confidence
 // without keeping a confirmed-bad channel offline forever.
 const fingerprintRecoveryThreshold = 12
+
+// RunChannelDetectionNow triggers a single fingerprint detection for the given
+// channel+model on-demand. Used by the "手动检测" button in model-data UI when
+// an operator wants to verify a channel without waiting for the next scheduled
+// tick. Reuses detectOneChannel verbatim (source='auto'), so the result lands
+// in channel_detect_logs identically and the status machine reacts the same way.
+//
+// Synchronous — callers should run in a goroutine because the upstream
+// fingerprint call takes 5–15s.
+func RunChannelDetectionNow(ch *model.Channel, targetModel string) {
+	if ch == nil {
+		return
+	}
+	flaskURL := os.Getenv("APIMASTER_FLASK_URL")
+	if flaskURL == "" {
+		flaskURL = autoDetectDefaultFlaskURL
+	}
+	detectOneChannel(context.Background(), flaskURL, ch, targetModel)
+}
 
 // extractAPIFormat reads api_format from channel.Setting JSON.
 // Returns "openai-compatible" if absent or unrecognized.

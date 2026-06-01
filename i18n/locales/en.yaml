@@ -193,6 +193,23 @@ twofa.already_exists: "User already has 2FA configured"
 twofa.record_id_empty: "2FA record ID cannot be empty"
 twofa.code_invalid: "Verification code or backup code is incorrect"
 
+# Secure verification messages
+secure.not_logged_in: "Not logged in"
+secure.verification_required: "Security verification required"
+secure.verification_invalid: "Verification state is invalid, please verify again"
+secure.verification_expired: "Verification expired, please verify again"
+secure.user_info_failed: "Failed to get user information: {{.Error}}"
+secure.not_enabled: "User has not enabled 2FA or Passkey"
+secure.twofa_not_enabled: "User has not enabled 2FA"
+secure.code_empty: "Verification code cannot be empty"
+secure.passkey_not_enabled: "User has not enabled Passkey"
+secure.passkey_state_invalid: "Passkey verification state is invalid: {{.Error}}"
+secure.passkey_finish_required: "Please complete Passkey verification first"
+secure.method_unsupported: "Unsupported verification method: {{.Method}}"
+secure.verify_failed: "Verification failed, please check your code"
+secure.session_save_failed: "Failed to save verification state: {{.Error}}"
+secure.verify_success: "Verification successful"
+
 # Rate limit messages
 rate_limit.reached: "You have reached the request limit: maximum {{.Max}} requests in {{.Minutes}} minutes"
 rate_limit.total_reached: "You have reached the total request limit: maximum {{.Max}} requests in {{.Minutes}} minutes, including failed attempts"

@@ -289,6 +289,7 @@ func migrateDB() error {
 		&Channel{},
 		&ChannelDetectLog{},
 		&ChannelModelPricing{},
+		&PublicModelPrice{},
 		&Token{},
 		&User{},
 		&PasskeyCredential{},
@@ -313,6 +314,7 @@ func migrateDB() error {
 		&CustomOAuthProvider{},
 		&UserOAuthBinding{},
 		&PerfMetric{},
+		&AffLog{},
 	)
 	if err != nil {
 		return err

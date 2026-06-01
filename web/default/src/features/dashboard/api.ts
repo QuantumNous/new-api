@@ -68,3 +68,29 @@ export async function getUptimeStatus() {
   )
   return res.data
 }
+
+// ----------------------------------------------------------------------------
+// Admin User Dashboard Stats
+// ----------------------------------------------------------------------------
+
+export interface TopupDailyStat {
+  day: number
+  count: number
+  total_amount: number // quota units
+}
+
+export interface UserDailyStat {
+  day: number
+  new_users: number
+}
+
+export async function getUserDashboardStats(params: {
+  start_timestamp: number
+  end_timestamp: number
+}) {
+  const res = await api.get<{
+    success: boolean
+    data: { topup: TopupDailyStat[]; users: UserDailyStat[] }
+  }>('/api/admin/user-dashboard-stats', { params })
+  return res.data
+}

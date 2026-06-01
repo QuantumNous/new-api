@@ -371,6 +371,118 @@ func GetAffCode(c *gin.Context) {
 	return
 }
 
+// GetReferralCode 返回当前用户在 apimaster 侧的推广码，供注册页 ?ref= 使用。
+// 用户经 apimaster 注册同步到 new-api，其 new-api username 由 apimaster UUID 派生
+// （去横线后取前 20 位）。据此反查 apimaster postgres 拿真实 referral_code。
+// apimaster 未配置或查无此人时，回退到 new-api 自身的 aff_code。
+func GetReferralCode(c *gin.Context) {
+	id := c.GetInt("id")
+	user, err := model.GetUserById(id, true)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+
+	code := ""
+	if model.APIMASTER_PG_DB != nil && user.Username != "" {
+		var refCode string
+		qErr := model.APIMASTER_PG_DB.Raw(
+			`SELECT referral_code FROM users WHERE REPLACE(id::text, '-', '') LIKE ? LIMIT 1`,
+			user.Username+"%",
+		).Scan(&refCode).Error
+		if qErr == nil {
+			code = refCode
+		}
+	}
+
+	if code == "" {
+		if user.AffCode == "" {
+			user.AffCode = common.GetRandomString(4)
+			_ = user.Update(false)
+		}
+		code = user.AffCode
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "",
+		"data":    code,
+	})
+	return
+}
+
+func GetAffLogs(c *gin.Context) {
+	id := c.GetInt("id")
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
+	if page < 1 {
+		page = 1
+	}
+	if pageSize < 1 || pageSize > 100 {
+		pageSize = 20
+	}
+	logs, total, err := model.GetAffLogs(id, page, pageSize)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "",
+		"data": gin.H{
+			"records":   logs,
+			"total":     total,
+			"page":      page,
+			"page_size": pageSize,
+		},
+	})
+}
+
+func GetInviteList(c *gin.Context) {
+	id := c.GetInt("id")
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
+	if page < 1 {
+		page = 1
+	}
+	if pageSize < 1 || pageSize > 100 {
+		pageSize = 20
+	}
+	users, total, err := model.GetInviteList(id, page, pageSize)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	// 脱敏用户名
+	type inviteItem struct {
+		Username    string `json:"username"`
+		DisplayName string `json:"display_name"`
+		CreatedAt   int64  `json:"created_at"`
+	}
+	items := make([]inviteItem, 0, len(users))
+	for _, u := range users {
+		name := u.Username
+		if len(name) > 3 {
+			name = name[:3] + "***"
+		}
+		items = append(items, inviteItem{
+			Username:    name,
+			DisplayName: u.DisplayName,
+			CreatedAt:   u.CreatedAt,
+		})
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "",
+		"data": gin.H{
+			"records":   items,
+			"total":     total,
+			"page":      page,
+			"page_size": pageSize,
+		},
+	})
+}
+
 func GetSelf(c *gin.Context) {
 	id := c.GetInt("id")
 	userRole := c.GetInt("role")
@@ -818,18 +930,23 @@ func CreateUser(c *gin.Context) {
 		user.DisplayName = user.Username
 	}
 	myRole := c.GetInt("role")
-	if user.Role >= myRole {
+	if user.Role > myRole {
 		common.ApiErrorI18n(c, i18n.MsgUserCannotCreateHigherLevel)
 		return
 	}
 	// Even for admin users, we cannot fully trust them!
+	if user.Group == "" {
+		user.Group = "default"
+	}
 	cleanUser := model.User{
 		Username:    user.Username,
 		Password:    user.Password,
 		DisplayName: user.DisplayName,
 		Role:        user.Role, // 保持管理员设置的角色
+		Group:       user.Group,
+		InviterId:   user.InviterId,
 	}
-	if err := cleanUser.Insert(0); err != nil {
+	if err := cleanUser.Insert(user.InviterId); err != nil {
 		common.ApiError(c, err)
 		return
 	}

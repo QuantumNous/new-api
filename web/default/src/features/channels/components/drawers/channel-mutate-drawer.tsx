@@ -271,9 +271,12 @@ function formatUnixTime(timestamp: unknown): string {
 function KeyGroupField({
   control,
   baseUrl,
+  channelId,
 }: {
   control: ReturnType<typeof useForm<ChannelFormValues>>['control']
   baseUrl: string
+  /** When set, internal pricing-group cache resets on channel switch. */
+  channelId?: number | null
 }) {
   const { t } = useTranslation()
   const [pricingGroups, setPricingGroups] = useState<Record<string, number>>({})
@@ -281,6 +284,12 @@ function KeyGroupField({
   const [fetchError, setFetchError] = useState('')
   // Track which baseUrl we already fetched for, to avoid redundant requests.
   const fetchedForRef = useRef<string>('')
+
+  useEffect(() => {
+    setPricingGroups({})
+    setFetchError('')
+    fetchedForRef.current = ''
+  }, [channelId])
 
   async function handleFetch() {
     if (!baseUrl) return
@@ -379,6 +388,45 @@ function KeyGroupField({
   )
 }
 
+// Manual group-ratio fallback: used by FetchChannelPricing when the upstream
+// /api/pricing doesn't expose a group_ratio for this channel's key_group.
+function ManualGroupRatioField({
+  control,
+}: {
+  control: ReturnType<typeof useForm<ChannelFormValues>>['control']
+}) {
+  const { t } = useTranslation()
+  return (
+    <FormField
+      control={control}
+      name='manual_group_ratio'
+      render={({ field }) => (
+        <FormItem>
+          <FormLabel>{t('Group Ratio (manual fallback)')}</FormLabel>
+          <FormControl>
+            <Input
+              type='number'
+              step='0.0001'
+              min='0'
+              placeholder={t('e.g. 1.5')}
+              value={field.value ?? ''}
+              onChange={(e) =>
+                field.onChange(
+                  e.target.value === '' ? undefined : parseFloat(parseFloat(e.target.value).toPrecision(10)),
+                )
+              }
+            />
+          </FormControl>
+          <FormDescription>
+            {t('Used when the upstream /api/pricing does not return a group_ratio for this group. Leave blank or 0 to default to 1.0')}
+          </FormDescription>
+          <FormMessage />
+        </FormItem>
+      )}
+    />
+  )
+}
+
 const RECHARGE_PRESET_USD = '1usdt'  // 1 USDT = 1 USDT → rate 1.0
 const RECHARGE_PRESET_RMB = '1rmb'   // 1 RMB  = 1 USDT → rate 1/cny
 const RECHARGE_PRESET_CUSTOM = 'custom'
@@ -467,6 +515,31 @@ function RechargeRateField({
   )
 }
 
+function ModelPriceRatioField({ control }: { control: Control<ChannelFormValues> }) {
+  const { t } = useTranslation()
+  const { field, fieldState } = useController({ control, name: 'model_price_ratio' })
+
+  return (
+    <FormItem>
+      <FormLabel>{t('Model Price Ratio')}</FormLabel>
+      <FormControl>
+        <Input
+          type='number'
+          step='0.01'
+          min='0'
+          placeholder='e.g. 1.0'
+          value={field.value ?? ''}
+          onChange={(e) => field.onChange(e.target.value === '' ? undefined : parseFloat(parseFloat(e.target.value).toPrecision(10)))}
+        />
+      </FormControl>
+      <FormDescription>
+        {t('当上游无 /api/pricing 时，用 romaapi 公开模型价格 × 此倍率作为回退定价；留空或 0 表示不启用')}
+      </FormDescription>
+      {fieldState.error && <p className='text-destructive text-xs'>{fieldState.error.message}</p>}
+    </FormItem>
+  )
+}
+
 function CardHeading({ title, icon }: { title: string; icon?: ReactNode }) {
   return (
     <div className='flex items-center gap-2.5'>
@@ -530,11 +603,16 @@ export function ChannelMutateDrawer({
   const channelId = currentRow?.id ?? null
 
   // Fetch channel details if editing
-  const { data: channelData } = useQuery({
-    queryKey: channelsQueryKeys.detail(currentRow?.id || 0),
-    queryFn: () => getChannel(currentRow!.id),
-    enabled: isEditing && Boolean(currentRow?.id),
+  const { data: channelData, isFetching: isFetchingChannel } = useQuery({
+    queryKey: channelsQueryKeys.detail(channelId ?? 0),
+    queryFn: () => getChannel(channelId!),
+    enabled: isEditing && channelId != null,
   })
+
+  const loadedChannel =
+    channelData?.data?.id === channelId ? channelData.data : undefined
+  const isChannelDetailLoading =
+    isEditing && channelId != null && (isFetchingChannel || !loadedChannel)
 
   // Fetch available groups
   const { data: groupsData, isLoading: isLoadingGroups } = useQuery({
@@ -578,7 +656,7 @@ export function ChannelMutateDrawer({
 
   // Check if this is a multi-key channel
   const isMultiKeyChannel =
-    isEditing && channelData?.data?.channel_info?.is_multi_key === true
+    isEditing && loadedChannel?.channel_info?.is_multi_key === true
 
   // Form setup
   const form = useForm<ChannelFormValues>({
@@ -799,21 +877,21 @@ export function ChannelMutateDrawer({
     upstreamUpdateMeta.detectedModels.length -
     upstreamDetectedModelsPreview.length
 
-  // Load channel data into form when editing
+  // Load channel data into form when editing (only after detail matches currentRow)
   useEffect(() => {
-    if (isEditing && channelData?.data) {
-      const defaults = transformChannelToFormDefaults(channelData.data)
+    if (loadedChannel) {
+      const defaults = transformChannelToFormDefaults(loadedChannel)
       form.reset(defaults)
       setAdvancedSettingsOpen(
         readAdvancedSettingsPreference() || hasAdvancedSettingsValues(defaults)
       )
       // Store initial values for comparison
       initialModelsRef.current = parseModelsString(
-        channelData.data.models || ''
+        loadedChannel.models || ''
       )
-      initialModelMappingRef.current = channelData.data.model_mapping || ''
+      initialModelMappingRef.current = loadedChannel.model_mapping || ''
       initialStatusCodeMappingRef.current =
-        channelData.data.status_code_mapping || ''
+        loadedChannel.status_code_mapping || ''
     } else if (!isEditing) {
       form.reset(CHANNEL_FORM_DEFAULT_VALUES)
       setAdvancedSettingsOpen(false)
@@ -821,7 +899,7 @@ export function ChannelMutateDrawer({
       initialModelMappingRef.current = ''
       initialStatusCodeMappingRef.current = ''
     }
-  }, [isEditing, channelData, form])
+  }, [loadedChannel, isEditing, form])
 
   // Handle type change - set default values for specific types
   useEffect(() => {
@@ -1329,8 +1407,16 @@ export function ChannelMutateDrawer({
             <form
               id='channel-form'
               onSubmit={form.handleSubmit(onSubmit)}
-              className='flex-1 space-y-4 overflow-y-auto px-3 py-3 pb-4 sm:space-y-5 sm:px-4'
+              className='relative flex-1 space-y-4 overflow-y-auto px-3 py-3 pb-4 sm:space-y-5 sm:px-4'
             >
+              {isChannelDetailLoading && (
+                <div className='bg-background/80 absolute inset-0 z-10 flex items-center justify-center backdrop-blur-[1px]'>
+                  <div className='text-muted-foreground flex items-center gap-2 text-sm'>
+                    <Loader2 className='h-5 w-5 animate-spin' />
+                    {t('Loading channel details...')}
+                  </div>
+                </div>
+              )}
               {/* ── Basic Information ── */}
               <div className='bg-card space-y-4 rounded-xl border p-3 sm:p-5'>
                 <CardHeading
@@ -2640,11 +2726,17 @@ export function ChannelMutateDrawer({
                 />
 
                 <KeyGroupField
+                  key={`key-group-${channelId ?? 'create'}`}
                   control={form.control}
                   baseUrl={form.watch('base_url') || ''}
+                  channelId={channelId}
                 />
 
+                <ManualGroupRatioField control={form.control} />
+
                 <RechargeRateField control={form.control} />
+
+                <ModelPriceRatioField control={form.control} />
               </div>
 
               <Collapsible

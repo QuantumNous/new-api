@@ -93,7 +93,8 @@ interface StartStep {
 interface QuickAction {
   title: string
   description: string
-  to: DashboardActionPath
+  to?: DashboardActionPath
+  href?: string
   icon: LucideIcon
   adminOnly?: boolean
 }
@@ -386,7 +387,9 @@ function QuickActionItem(props: { action: QuickAction }) {
     <Button
       variant='outline'
       className='h-auto justify-start rounded-xl px-3 py-3 text-left'
-      render={<Link to={props.action.to} />}
+      render={props.action.href
+        ? <a href={props.action.href} target='_blank' rel='noopener noreferrer' />
+        : <Link to={props.action.to!} />}
     >
       <span className='bg-muted flex size-9 shrink-0 items-center justify-center rounded-lg'>
         <Icon className='size-4' aria-hidden='true' />
@@ -411,7 +414,9 @@ function CompactQuickAction(props: { action: QuickAction }) {
       variant='outline'
       size='sm'
       className='bg-background/70 h-8 min-w-24 gap-1.5 px-2.5'
-      render={<Link to={props.action.to} />}
+      render={props.action.href
+        ? <a href={props.action.href} target='_blank' rel='noopener noreferrer' />
+        : <Link to={props.action.to!} />}
     >
       <Icon data-icon='inline-start' />
       <span>{props.action.title}</span>
@@ -517,7 +522,7 @@ export function OverviewDashboard() {
       {
         title: t('Pricing'),
         description: t('Review model rates before scaling traffic'),
-        to: '/pricing',
+        href: 'https://apimaster.ai/marketplace',
         icon: BookOpen,
       },
     ],

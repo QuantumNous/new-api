@@ -66,3 +66,22 @@ func GetUserQuotaDates(c *gin.Context) {
 	})
 	return
 }
+
+func GetUserDashboardStats(c *gin.Context) {
+	start, _ := strconv.ParseInt(c.Query("start_timestamp"), 10, 64)
+	end, _ := strconv.ParseInt(c.Query("end_timestamp"), 10, 64)
+	topupStats, err1 := model.GetTopupDailyStats(start, end)
+	userStats, err2 := model.GetUserDailyStats(start, end)
+	if err1 != nil || err2 != nil {
+		c.JSON(http.StatusOK, gin.H{"success": false, "message": "query failed"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "",
+		"data": gin.H{
+			"topup": topupStats,
+			"users": userStats,
+		},
+	})
+}

@@ -38,6 +38,7 @@ func SetApiRouter(router *gin.Engine) {
 			perfMetricsRoute.GET("", controller.GetPerfMetrics)
 		}
 		apiRouter.GET("/rankings", controller.GetRankings)
+		apiRouter.GET("/public/marketplace", controller.GetPublicMarketplace)
 		apiRouter.GET("/verification", middleware.EmailVerificationRateLimit(), middleware.TurnstileCheck(), controller.SendEmailVerification)
 		apiRouter.GET("/reset_password", middleware.CriticalRateLimit(), middleware.TurnstileCheck(), controller.SendPasswordResetEmail)
 		apiRouter.POST("/user/reset", middleware.CriticalRateLimit(), controller.ResetPassword)
@@ -90,6 +91,9 @@ func SetApiRouter(router *gin.Engine) {
 				selfRoute.POST("/passkey/verify/finish", controller.PasskeyVerifyFinish)
 				selfRoute.DELETE("/passkey", controller.PasskeyDelete)
 				selfRoute.GET("/aff", controller.GetAffCode)
+				selfRoute.GET("/referral_code", controller.GetReferralCode)
+				selfRoute.GET("/aff_logs", controller.GetAffLogs)
+				selfRoute.GET("/invite_list", controller.GetInviteList)
 				selfRoute.GET("/topup/info", controller.GetTopUpInfo)
 				selfRoute.GET("/topup/self", controller.GetUserTopUps)
 				selfRoute.POST("/topup", middleware.CriticalRateLimit(), controller.TopUp)
@@ -102,6 +106,8 @@ func SetApiRouter(router *gin.Engine) {
 				selfRoute.POST("/waffo/pay", middleware.CriticalRateLimit(), controller.RequestWaffoPay)
 				//selfRoute.POST("/waffo-pancake/amount", controller.RequestWaffoPancakeAmount)
 				//selfRoute.POST("/waffo-pancake/pay", middleware.CriticalRateLimit(), controller.RequestWaffoPancakePay)
+				selfRoute.POST("/crypto/submit", middleware.CriticalRateLimit(), controller.SubmitCryptoDeposit)
+				selfRoute.GET("/crypto/deposit/:id", controller.GetCryptoDeposit)
 				selfRoute.POST("/aff_transfer", controller.TransferAffQuota)
 				selfRoute.PUT("/setting", controller.UpdateUserSetting)
 
@@ -220,8 +226,14 @@ func SetApiRouter(router *gin.Engine) {
 			adminRoute.GET("/exchange-rate", controller.GetExchangeRate)
 			adminRoute.GET("/model-data", controller.GetModelData)
 			adminRoute.POST("/model-data/toggle", controller.ToggleChannelStatus)
+			adminRoute.POST("/model-data/refresh-pricing", controller.RefreshModelPricing)
+			adminRoute.POST("/model-data/refresh-hub-price", controller.RefreshHubPrice)
+			adminRoute.POST("/model-data/refresh-public-prices", controller.RefreshPublicModelPrices)
+			adminRoute.POST("/model-data/detect-now", controller.DetectChannelNow)
+			adminRoute.POST("/model-data/ping-now", controller.PingChannelNow)
 			adminRoute.GET("/model-detect-config", controller.GetModelDetectConfig)
 			adminRoute.POST("/model-detect-config", controller.SaveModelDetectConfig)
+			adminRoute.GET("/user-dashboard-stats", controller.GetUserDashboardStats)
 		}
 
 		channelRoute := apiRouter.Group("/channel")

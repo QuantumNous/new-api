@@ -19,6 +19,12 @@ const (
 	LangZhCN    = "zh-CN"
 	LangZhTW    = "zh-TW"
 	LangEn      = "en"
+	LangJa      = "ja"
+	LangId      = "id"
+	LangKo      = "ko"
+	LangEs      = "es"
+	LangRu      = "ru"
+	LangVi      = "vi"
 	DefaultLang = LangEn // Fallback to English if language not supported
 )
 
@@ -53,6 +59,12 @@ func Init() error {
 		localizers[LangZhCN] = i18n.NewLocalizer(bundle, LangZhCN)
 		localizers[LangZhTW] = i18n.NewLocalizer(bundle, LangZhTW)
 		localizers[LangEn] = i18n.NewLocalizer(bundle, LangEn)
+		localizers[LangJa] = i18n.NewLocalizer(bundle, LangJa, LangEn)
+		localizers[LangId] = i18n.NewLocalizer(bundle, LangId, LangEn)
+		localizers[LangKo] = i18n.NewLocalizer(bundle, LangKo, LangEn)
+		localizers[LangEs] = i18n.NewLocalizer(bundle, LangEs, LangEn)
+		localizers[LangRu] = i18n.NewLocalizer(bundle, LangRu, LangEn)
+		localizers[LangVi] = i18n.NewLocalizer(bundle, LangVi, LangEn)
 
 		// Set the TranslateMessage function in common package
 		common.TranslateMessage = T
@@ -205,10 +217,30 @@ func normalizeLang(lang string) string {
 	switch {
 	case strings.HasPrefix(lang, "zh-tw"):
 		return LangZhTW
+	case strings.HasPrefix(lang, "zh-hk"):
+		return LangZhTW
+	case strings.HasPrefix(lang, "zh-mo"):
+		return LangZhTW
+	case strings.HasPrefix(lang, "zh-hant"):
+		return LangZhTW
 	case strings.HasPrefix(lang, "zh"):
 		return LangZhCN
 	case strings.HasPrefix(lang, "en"):
 		return LangEn
+	case strings.HasPrefix(lang, "ja"):
+		return LangJa
+	case strings.HasPrefix(lang, "id"):
+		return LangId
+	case strings.HasPrefix(lang, "in"):
+		return LangId
+	case strings.HasPrefix(lang, "ko"):
+		return LangKo
+	case strings.HasPrefix(lang, "es"):
+		return LangEs
+	case strings.HasPrefix(lang, "ru"):
+		return LangRu
+	case strings.HasPrefix(lang, "vi"):
+		return LangVi
 	default:
 		return DefaultLang
 	}
@@ -216,7 +248,7 @@ func normalizeLang(lang string) string {
 
 // SupportedLanguages returns a list of supported language codes
 func SupportedLanguages() []string {
-	return []string{LangZhCN, LangZhTW, LangEn}
+	return []string{LangZhCN, LangZhTW, LangEn, LangJa, LangId, LangKo, LangEs, LangRu, LangVi}
 }
 
 // IsSupported checks if a language code is supported

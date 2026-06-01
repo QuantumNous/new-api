@@ -34,6 +34,8 @@ import {
   ListTodo,
   Settings,
   BarChart2,
+  Gift,
+  Play,
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { WORKSPACE_IDS } from '@/components/layout/lib/workspace-registry'
@@ -88,6 +90,12 @@ export function useSidebarData(): SidebarData {
             icon: Key,
           },
           {
+            title: t('在线使用'),
+            url: '/playground',
+            configUrls: ['/dashboard/overview'],
+            icon: Play,
+          },
+          {
             title: t('Usage Logs'),
             url: '/usage-logs/common',
             icon: FileText,
@@ -109,6 +117,11 @@ export function useSidebarData(): SidebarData {
             title: t('Wallet'),
             url: '/wallet',
             icon: Wallet,
+          },
+          {
+            title: t('推广有礼'),
+            url: '/affiliate',
+            icon: Gift,
           },
           {
             title: t('Profile'),

@@ -396,7 +396,7 @@ function BalanceCell({ channel }: { channel: Channel }) {
             }
           >
             {isUpdating
-              ? 'Updating...'
+              ? t('Updating...')
               : channel.type === 57
                 ? t('Account Info')
                 : remainingDisplay}

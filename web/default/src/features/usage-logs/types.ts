@@ -188,6 +188,11 @@ export interface LogOtherData {
   subscription_consumed?: number
   subscription_remain?: number
   subscription_total?: number
+  // Actual channel procurement prices (written at billing time from channel_model_pricings)
+  ch_input_price?: number
+  ch_output_price?: number
+  ch_cache_price?: number
+  ch_cache_creation_price?: number
 }
 
 /**

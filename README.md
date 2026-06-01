@@ -778,3 +778,111 @@ curl -sS -X POST https://apimaster.ai/v1/chat/completions \
 - **缓存价格**（`cache_read` / `cache_write`）：schema 没字段，公式重调留给后续
 - **多策略路由**（fastest / balanced）：路由 0.2 再做
 - **隐藏后台「分组与模型定价」页**：保留作为应急覆盖入口
+
+---
+
+## 钱包页面改造（APIMaster 定制）
+
+> 最后更新：2026-05-16 | 开发者：MaChuang
+
+### 布局
+
+```
+[账户余额卡片 — full width]
+[充值区域 left ~60%] | [兑换码卡片 right ~40%]
+                     | [推荐计划卡片 right ~40%]
+[交易历史表格 — full width]
+```
+
+### 支付方式
+
+| 方式 | 状态 | 说明 |
+|------|------|------|
+| 支付宝 | ✅ 已接入 | 易支付 Epay，后台填 EpayId/EpayKey/PayAddress 即开启 |
+| 微信支付 | ✅ 已接入 | 同上 |
+| Crypto (USDT/USDC/ETH/BNB/POL) | ✅ 已接入 | Go 后端链上验证，MetaMask 直连 |
+| Stripe | 占位 | 显示"即将上线"，SDK 未接入 |
+
+### 涉及文件
+
+| 文件 | 变更 |
+|------|------|
+| `web/default/src/features/wallet/index.tsx` | 重写：新布局 + i18n 同步 |
+| `web/default/src/features/wallet/components/wallet-stats-card.tsx` | 重写：简洁余额卡片 |
+| `web/default/src/features/wallet/components/recharge-panel.tsx` | 重写：支付宝/微信/Crypto 卡片，动态读 topupInfo |
+| `web/default/src/features/wallet/components/transaction-history.tsx` | 重写：正式表格布局，含复制订单号、正确货币符号 |
+| `web/default/src/features/wallet/components/crypto-deposit-modal.tsx` | 新建：链上充值弹窗（chain/token chip 选择） |
+| `web/default/src/features/wallet/components/redemption-code-card.tsx` | 新建：兑换码卡片 |
+| `web/default/src/features/wallet/components/referral-card.tsx` | 新建：推荐计划卡片 |
+| `web/default/src/features/wallet/hooks/use-crypto-payment.ts` | 新建：MetaMask 连接/切链/转账/轮询 |
+| `web/default/src/features/wallet/api.ts` | 追加：`submitCryptoDeposit` / `getCryptoDepositStatus` |
+| `web/default/src/i18n/config.ts` | 修改：初始化前同步 APIMaster `localStorage["apimaster-locale"]` |
+| `web/default/src/i18n/locales/zh.json` | 追加：~45 条钱包相关翻译 |
+| `controller/topup_crypto.go` | 新建：链上验证 Go 控制器 |
+| `router/api-router.go` | 追加：`/crypto/submit` + `/crypto/deposit/:id` 路由 |
+| `/opt/newapi/docker-compose.yml` | 追加：钱包地址 + 各链 RPC 环境变量 |
+
+### 技术要点
+
+**Epay（支付宝/微信）**
+
+new-api 已内置完整 Epay 集成。前端 `recharge-panel.tsx` 挂载时调用 `getTopupInfo()`，只有当 `enable_online_topup=true` 且 `pay_methods` 中存在对应 type 时才显示卡片。点击后调用 `POST /api/user/pay`，后端返回 `url`，前端 `window.open` 跳转收银台。
+
+> **安全警告**：GitHub Issue #4279 报告了 Epay 签名验证绕过漏洞，上线前确认是否已修复。
+
+**Crypto 支付流程**
+
+1. 用户选链（ETH/BSC/Polygon/Arbitrum/Base）和 Token
+2. `eth_requestAccounts` 连接钱包
+3. `wallet_switchEthereumChain` 切链
+4. ERC-20：手动编码 `0xa9059cbb` calldata → `eth_sendTransaction`
+5. 原生币：CoinGecko 查价 → 算 wei 数量 → `eth_sendTransaction` 带 `value`
+6. txHash → `POST /api/user/crypto/submit` → 后台异步验证
+7. 每 3s 轮询 `GET /api/user/crypto/deposit/:id`
+
+**后端验证（`controller/topup_crypto.go`）**
+
+- 等 receipt（120s 超时）→ 扫 ERC-20 `Transfer` event → fallback native 转账
+- 原生币：CoinGecko 实时查价计算 USD
+- 写 `TopUp` 记录 + `IncreaseUserQuota`
+- 内存去重（txHash → depositId，2h TTL）
+
+**链/Token 配置**
+
+| 链 | chainId | Token |
+|----|---------|-------|
+| ETH | 1 | ETH / USDT / USDC |
+| BSC | 56 | BNB / USDT / USDC |
+| Polygon | 137 | POL / USDT / USDC |
+| Arbitrum | 42161 | ETH / USDT / USDC |
+| Base | 8453 | ETH / USDC |
+
+平台收款地址：`0x33de43dad6955655ec0543f32069ac331e633c9c`（`PLATFORM_WALLET_ADDRESS` 可覆盖）
+
+**交易历史金额显示（两条路径 amount 单位不同）**
+
+- `crypto`：`amount = quota 原始值` → 除以 `500000` 还原 USD
+- Epay/其他：`amount = USD 美元整数` → 直接显示
+- `money` 货币符号：alipay/wxpay → `¥`，其他 → `$`
+
+**i18n 同步**
+
+APIMaster 语言存于 `localStorage["apimaster-locale"]`，`i18n/config.ts` 初始化前同步读取防闪烁，运行期间监听 `storage` 事件跟随切换。
+
+**环境变量（`docker-compose.yml`）**
+
+```env
+PLATFORM_WALLET_ADDRESS=0x33de43dad6955655ec0543f32069ac331e633c9c
+CRYPTO_RPC_ETH=https://eth.llamarpc.com
+CRYPTO_RPC_BSC=https://bsc-dataseed.binance.org
+CRYPTO_RPC_POLYGON=https://polygon-rpc.com
+CRYPTO_RPC_ARBITRUM=https://arb1.arbitrum.io/rpc
+CRYPTO_RPC_BASE=https://mainnet.base.org
+```
+
+### 待办 / 已知问题
+
+- **Stripe**：占位，未接入 SDK
+- **Epay 安全漏洞**：Issue #4279 签名绕过，上线前核查
+- **CoinGecko 限流**：50 req/min，高并发可加 30s 内存缓存
+- **Crypto 重启丢状态**：`sync.Map` 不持久化，重启后 pending 记录丢失，用户需重新提交 txHash

@@ -77,6 +77,23 @@ func GetTopUpByTradeNo(tradeNo string) *TopUp {
 	return topUp
 }
 
+type TopupDailyStat struct {
+	Day         int64 `json:"day"`          // Unix timestamp of day start (UTC)
+	Count       int   `json:"count"`         // number of successful top-ups
+	TotalAmount int64 `json:"total_amount"`  // sum of amount (quota units)
+}
+
+func GetTopupDailyStats(start, end int64) ([]TopupDailyStat, error) {
+	var rows []TopupDailyStat
+	err := DB.Table("top_ups").
+		Select("(create_time / 86400 * 86400) as day, count(*) as count, sum(amount) as total_amount").
+		Where("create_time >= ? AND create_time <= ? AND status = ?", start, end, "success").
+		Group("(create_time / 86400 * 86400)").
+		Order("day asc").
+		Scan(&rows).Error
+	return rows, err
+}
+
 func UpdatePendingTopUpStatus(tradeNo string, expectedPaymentProvider string, targetStatus string) error {
 	if tradeNo == "" {
 		return errors.New("未提供支付单号")
@@ -153,6 +170,7 @@ func Recharge(referenceId string, customerId string, callerIp string) (err error
 	}
 
 	RecordTopupLog(topUp.UserId, fmt.Sprintf("使用在线充值成功，充值金额: %v，支付金额：%d", logger.FormatQuota(int(quota)), topUp.Amount), callerIp, topUp.PaymentMethod, PaymentMethodStripe)
+	ProcessAffCommission(topUp.UserId, int(quota))
 
 	return nil
 }
@@ -458,6 +476,7 @@ func RechargeCreem(referenceId string, customerEmail string, customerName string
 	}
 
 	RecordTopupLog(topUp.UserId, fmt.Sprintf("使用Creem充值成功，充值额度: %v，支付金额：%.2f", quota, topUp.Money), callerIp, topUp.PaymentMethod, PaymentMethodCreem)
+	ProcessAffCommission(topUp.UserId, int(quota))
 
 	return nil
 }
@@ -520,6 +539,7 @@ func RechargeWaffo(tradeNo string, callerIp string) (err error) {
 
 	if quotaToAdd > 0 {
 		RecordTopupLog(topUp.UserId, fmt.Sprintf("Waffo充值成功，充值额度: %v，支付金额: %.2f", logger.FormatQuota(quotaToAdd), topUp.Money), callerIp, topUp.PaymentMethod, PaymentMethodWaffo)
+		ProcessAffCommission(topUp.UserId, quotaToAdd)
 	}
 
 	return nil

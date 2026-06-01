@@ -28,10 +28,8 @@ func GetUserUsableGroups(userGroup string) map[string]string {
 				}
 			}
 		}
-		// 如果userGroup不在UserUsableGroups中，返回UserUsableGroups + userGroup
-		if _, ok := groupsCopy[userGroup]; !ok {
-			groupsCopy[userGroup] = "用户分组"
-		}
+		// Note: do NOT add userGroup as fallback — the usable-groups list is the
+		// authoritative set of groups users may select when creating API keys.
 	}
 	return groupsCopy
 }
