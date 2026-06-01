@@ -53,6 +53,7 @@ const RechargeCard = ({
   t,
   enableOnlineTopUp,
   enableStripeTopUp,
+  enableAlipayTopUp,
   enableCreemTopUp,
   creemProducts,
   creemPreTopUp,
@@ -109,13 +110,19 @@ const RechargeCard = ({
   const isPaymentDisabled = (payMethod) => {
     const minTopupVal = Number(payMethod.min_topup) || 0;
     const isStripe = payMethod.type === 'stripe';
+    const isAlipay = payMethod.type === 'alipay';
     const isWaffo =
       typeof payMethod.type === 'string' && payMethod.type.startsWith('waffo:');
     const isWaffoPancake = payMethod.type === 'waffo_pancake';
 
     return (
-      (!enableOnlineTopUp && !isStripe && !isWaffo && !isWaffoPancake) ||
+      (!enableOnlineTopUp &&
+        !isStripe &&
+        !isAlipay &&
+        !isWaffo &&
+        !isWaffoPancake) ||
       (!enableStripeTopUp && isStripe) ||
+      (!enableAlipayTopUp && isAlipay) ||
       (!enableWaffoTopUp && isWaffo) ||
       (!enableWaffoPancakeTopUp && isWaffoPancake) ||
       minTopupVal > Number(topUpCount || 0)
@@ -160,6 +167,7 @@ const RechargeCard = ({
     topUpCount,
     enableOnlineTopUp,
     enableStripeTopUp,
+    enableAlipayTopUp,
     enableWaffoTopUp,
     enableWaffoPancakeTopUp,
   ]);
@@ -361,6 +369,7 @@ const RechargeCard = ({
               <Spin size='large' />
             </div>
           ) : enableOnlineTopUp ||
+            enableAlipayTopUp ||
             enableStripeTopUp ||
             enableCreemTopUp ||
             enableWaffoTopUp ||
@@ -371,6 +380,7 @@ const RechargeCard = ({
               className='billing-wallet-form'
             >
               {(enableOnlineTopUp ||
+                enableAlipayTopUp ||
                 enableStripeTopUp ||
                 enableWaffoTopUp ||
                 enableWaffoPancakeTopUp) && (
@@ -381,22 +391,12 @@ const RechargeCard = ({
                 </Form.Slot>
               )}
 
-              {(enableOnlineTopUp || enableStripeTopUp || enableWaffoTopUp) && (
+              {(enableOnlineTopUp ||
+                enableAlipayTopUp ||
+                enableStripeTopUp ||
+                enableWaffoTopUp) && (
                 <Form.Slot
-                  label={
-                    <div className='billing-label-row'>
-                      <span>{t('选择充值额度')}</span>
-                      {(() => {
-                        const { symbol, rate, type } = getCurrencyConfig();
-                        if (type === 'USD') return null;
-                        return (
-                          <span>
-                            1 $ = {rate.toFixed(2)} {symbol}
-                          </span>
-                        );
-                      })()}
-                    </div>
-                  }
+                  label={t('选择充值额度')}
                 >
                   <div className='billing-amount-grid'>
                     {presetAmounts.map(renderPresetCard)}
@@ -405,6 +405,7 @@ const RechargeCard = ({
               )}
 
               {(enableOnlineTopUp ||
+                enableAlipayTopUp ||
                 enableStripeTopUp ||
                 enableWaffoTopUp ||
                 enableWaffoPancakeTopUp) && (
@@ -473,6 +474,7 @@ const RechargeCard = ({
               )}
 
               {(enableOnlineTopUp ||
+                enableAlipayTopUp ||
                 enableStripeTopUp ||
                 enableWaffoTopUp ||
                 enableWaffoPancakeTopUp) && (

@@ -29,6 +29,7 @@ const (
 	PaymentMethodCreem        = "creem"
 	PaymentMethodWaffo        = "waffo"
 	PaymentMethodWaffoPancake = "waffo_pancake"
+	PaymentMethodAlipay       = "alipay"
 )
 
 const (
@@ -37,6 +38,7 @@ const (
 	PaymentProviderCreem        = "creem"
 	PaymentProviderWaffo        = "waffo"
 	PaymentProviderWaffoPancake = "waffo_pancake"
+	PaymentProviderAlipay       = "alipay"
 )
 
 var (
@@ -75,6 +77,26 @@ func GetTopUpByTradeNo(tradeNo string) *TopUp {
 		return nil
 	}
 	return topUp
+}
+
+func GetPendingTopUpsByProvider(paymentProvider string, beforeCreateTime int64, limit int) ([]*TopUp, error) {
+	if limit <= 0 {
+		limit = 100
+	}
+	var topUps []*TopUp
+	err := DB.Where("payment_provider = ? AND status = ? AND create_time <= ?", paymentProvider, common.TopUpStatusPending, beforeCreateTime).
+		Order("id asc").
+		Limit(limit).
+		Find(&topUps).Error
+	return topUps, err
+}
+
+func CountPendingTopUpsByProvider(paymentProvider string) (int64, error) {
+	var count int64
+	err := DB.Model(&TopUp{}).
+		Where("payment_provider = ? AND status = ?", paymentProvider, common.TopUpStatusPending).
+		Count(&count).Error
+	return count, err
 }
 
 func UpdatePendingTopUpStatus(tradeNo string, expectedPaymentProvider string, targetStatus string) error {
@@ -520,6 +542,70 @@ func RechargeWaffo(tradeNo string, callerIp string) (err error) {
 
 	if quotaToAdd > 0 {
 		RecordTopupLog(topUp.UserId, fmt.Sprintf("Waffo top-up successful, quota added: %v, amount: %.2f", logger.FormatQuota(quotaToAdd), topUp.Money), callerIp, topUp.PaymentMethod, PaymentMethodWaffo)
+	}
+
+	return nil
+}
+
+func RechargeAlipay(tradeNo string, callerIp string) (err error) {
+	if tradeNo == "" {
+		return errors.New("未提供支付单号")
+	}
+
+	var quotaToAdd int
+	topUp := &TopUp{}
+
+	refCol := "`trade_no`"
+	if common.UsingPostgreSQL {
+		refCol = `"trade_no"`
+	}
+
+	err = DB.Transaction(func(tx *gorm.DB) error {
+		err := tx.Set("gorm:query_option", "FOR UPDATE").Where(refCol+" = ?", tradeNo).First(topUp).Error
+		if err != nil {
+			return errors.New("充值订单不存在")
+		}
+
+		if topUp.PaymentProvider != PaymentProviderAlipay {
+			return ErrPaymentMethodMismatch
+		}
+
+		if topUp.Status == common.TopUpStatusSuccess {
+			return nil
+		}
+
+		if topUp.Status != common.TopUpStatusPending {
+			return errors.New("充值订单状态错误")
+		}
+
+		quotaToAdd = int(decimal.NewFromInt(topUp.Amount).Mul(decimal.NewFromFloat(common.QuotaPerUnit)).IntPart())
+		if quotaToAdd <= 0 {
+			return errors.New("无效的充值额度")
+		}
+
+		topUp.CompleteTime = common.GetTimestamp()
+		topUp.Status = common.TopUpStatusSuccess
+		if err := tx.Save(topUp).Error; err != nil {
+			return err
+		}
+
+		if err := tx.Model(&User{}).Where("id = ?", topUp.UserId).Update("quota", gorm.Expr("quota + ?", quotaToAdd)).Error; err != nil {
+			return err
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		common.SysError("alipay topup failed: " + err.Error())
+		return errors.New("充值失败，请稍后重试")
+	}
+
+	if quotaToAdd > 0 {
+		RecordTopupLog(topUp.UserId, fmt.Sprintf("Alipay top-up successful, quota added: %v, amount: %.2f", logger.FormatQuota(quotaToAdd), topUp.Money), callerIp, topUp.PaymentMethod, PaymentMethodAlipay)
+	}
+	if err := DeleteAlipayPendingTask(tradeNo); err != nil {
+		common.SysLog("failed to delete alipay pending task: " + err.Error())
 	}
 
 	return nil

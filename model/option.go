@@ -86,6 +86,16 @@ func InitOptionMap() {
 	common.OptionMap["StripePriceId"] = setting.StripePriceId
 	common.OptionMap["StripeUnitPrice"] = strconv.FormatFloat(setting.StripeUnitPrice, 'f', -1, 64)
 	common.OptionMap["StripePromotionCodesEnabled"] = strconv.FormatBool(setting.StripePromotionCodesEnabled)
+	common.OptionMap["AlipayEnabled"] = strconv.FormatBool(setting.AlipayEnabled)
+	common.OptionMap["AlipaySandbox"] = strconv.FormatBool(setting.AlipaySandbox)
+	common.OptionMap["AlipayAppID"] = setting.AlipayAppID
+	common.OptionMap["AlipayPrivateKey"] = setting.AlipayPrivateKey
+	common.OptionMap["AlipayPublicKey"] = setting.AlipayPublicKey
+	common.OptionMap["AlipayGateway"] = setting.AlipayGateway
+	common.OptionMap["AlipayNotifyURL"] = setting.AlipayNotifyURL
+	common.OptionMap["AlipayReturnURL"] = setting.AlipayReturnURL
+	common.OptionMap["AlipaySellerID"] = setting.AlipaySellerID
+	common.OptionMap["AlipayMinTopUp"] = strconv.Itoa(setting.AlipayMinTopUp)
 	common.OptionMap["CreemApiKey"] = setting.CreemApiKey
 	common.OptionMap["CreemProducts"] = setting.CreemProducts
 	common.OptionMap["CreemTestMode"] = strconv.FormatBool(setting.CreemTestMode)
@@ -192,7 +202,21 @@ func InitOptionMap() {
 func loadOptionsFromDatabase() {
 	options, _ := AllOption()
 	for _, option := range options {
-		err := updateOptionMap(option.Key, option.Value)
+		if option.Key == "AlipayEncryptKey" {
+			continue
+		}
+		valueToApply := option.Value
+		if common.IsAlipaySensitiveOptionKey(option.Key) {
+			decryptedValue, err := common.DecryptAlipayOptionValue(option.Key, option.Value)
+			if err != nil {
+				common.SysLog("failed to decrypt option value: " + err.Error())
+				valueToApply = ""
+			} else {
+				valueToApply = decryptedValue
+			}
+		}
+
+		err := updateOptionMap(option.Key, valueToApply)
 		if err != nil {
 			common.SysLog("failed to update option map: " + err.Error())
 		}
@@ -208,17 +232,34 @@ func SyncOptions(frequency int) {
 }
 
 func UpdateOption(key string, value string) error {
+	if key == "AlipayEncryptKey" {
+		return DB.Delete(&Option{}, "key = ?", key).Error
+	}
+
+	valueToPersist := value
+	if common.IsAlipaySensitiveOptionKey(key) {
+		encryptedValue, err := common.EncryptAlipayOptionValue(key, value)
+		if err != nil {
+			return err
+		}
+		valueToPersist = encryptedValue
+	}
+
 	// Save to database first
 	option := Option{
 		Key: key,
 	}
 	// https://gorm.io/docs/update.html#Save-All-Fields
-	DB.FirstOrCreate(&option, Option{Key: key})
-	option.Value = value
+	if err := DB.FirstOrCreate(&option, Option{Key: key}).Error; err != nil {
+		return err
+	}
+	option.Value = valueToPersist
 	// Save is a combination function.
 	// If save value does not contain primary key, it will execute Create,
 	// otherwise it will execute Update (with all fields).
-	DB.Save(&option)
+	if err := DB.Save(&option).Error; err != nil {
+		return err
+	}
 	// Update OptionMap
 	return updateOptionMap(key, value)
 }
@@ -382,6 +423,26 @@ func updateOptionMap(key string, value string) (err error) {
 		setting.StripeMinTopUp, _ = strconv.Atoi(value)
 	case "StripePromotionCodesEnabled":
 		setting.StripePromotionCodesEnabled = value == "true"
+	case "AlipayEnabled":
+		setting.AlipayEnabled = value == "true"
+	case "AlipaySandbox":
+		setting.AlipaySandbox = value == "true"
+	case "AlipayAppID":
+		setting.AlipayAppID = value
+	case "AlipayPrivateKey":
+		setting.AlipayPrivateKey = value
+	case "AlipayPublicKey":
+		setting.AlipayPublicKey = value
+	case "AlipayGateway":
+		setting.AlipayGateway = value
+	case "AlipayNotifyURL":
+		setting.AlipayNotifyURL = value
+	case "AlipayReturnURL":
+		setting.AlipayReturnURL = value
+	case "AlipaySellerID":
+		setting.AlipaySellerID = value
+	case "AlipayMinTopUp":
+		setting.AlipayMinTopUp, _ = strconv.Atoi(value)
 	case "CreemApiKey":
 		setting.CreemApiKey = value
 	case "CreemProducts":

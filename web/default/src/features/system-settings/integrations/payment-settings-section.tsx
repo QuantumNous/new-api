@@ -120,6 +120,16 @@ const paymentSchema = z.object({
   StripeUnitPrice: z.coerce.number().min(0),
   StripeMinTopUp: z.coerce.number().min(0),
   StripePromotionCodesEnabled: z.boolean(),
+  AlipayEnabled: z.boolean(),
+  AlipaySandbox: z.boolean(),
+  AlipayAppID: z.string(),
+  AlipayPrivateKey: z.string(),
+  AlipayPublicKey: z.string(),
+  AlipayGateway: z.string(),
+  AlipayNotifyURL: z.string(),
+  AlipayReturnURL: z.string(),
+  AlipaySellerID: z.string(),
+  AlipayMinTopUp: z.coerce.number().min(0),
   CreemApiKey: z.string(),
   CreemWebhookSecret: z.string(),
   CreemTestMode: z.boolean(),
@@ -506,6 +516,82 @@ export function PaymentSettingsSection({
 
     if (updates.length === 0) {
       return
+    }
+
+    for (const update of updates) {
+      await updateOption.mutateAsync(update)
+    }
+  }
+
+  const saveAlipaySettings = async () => {
+    const values = form.getValues()
+    const sanitized = {
+      AlipayEnabled: values.AlipayEnabled as boolean,
+      AlipaySandbox: values.AlipaySandbox as boolean,
+      AlipayAppID: values.AlipayAppID.trim(),
+      AlipayPrivateKey: values.AlipayPrivateKey.trim(),
+      AlipayPublicKey: values.AlipayPublicKey.trim(),
+      AlipayGateway: values.AlipayGateway.trim(),
+      AlipayNotifyURL: values.AlipayNotifyURL.trim(),
+      AlipayReturnURL: values.AlipayReturnURL.trim(),
+      AlipaySellerID: values.AlipaySellerID.trim(),
+      AlipayMinTopUp: values.AlipayMinTopUp as number,
+    }
+
+    const initial = {
+      AlipayEnabled: initialRef.current.AlipayEnabled,
+      AlipaySandbox: initialRef.current.AlipaySandbox,
+      AlipayAppID: initialRef.current.AlipayAppID.trim(),
+      AlipayPrivateKey: initialRef.current.AlipayPrivateKey.trim(),
+      AlipayPublicKey: initialRef.current.AlipayPublicKey.trim(),
+      AlipayGateway: initialRef.current.AlipayGateway.trim(),
+      AlipayNotifyURL: initialRef.current.AlipayNotifyURL.trim(),
+      AlipayReturnURL: initialRef.current.AlipayReturnURL.trim(),
+      AlipaySellerID: initialRef.current.AlipaySellerID.trim(),
+      AlipayMinTopUp: initialRef.current.AlipayMinTopUp,
+    }
+
+    const updates: Array<{ key: string; value: string | number | boolean }> =
+      []
+
+    if (sanitized.AlipayEnabled !== initial.AlipayEnabled) {
+      updates.push({ key: 'AlipayEnabled', value: sanitized.AlipayEnabled })
+    }
+    if (sanitized.AlipaySandbox !== initial.AlipaySandbox) {
+      updates.push({ key: 'AlipaySandbox', value: sanitized.AlipaySandbox })
+    }
+    if (sanitized.AlipayAppID !== initial.AlipayAppID) {
+      updates.push({ key: 'AlipayAppID', value: sanitized.AlipayAppID })
+    }
+    if (
+      sanitized.AlipayPrivateKey &&
+      sanitized.AlipayPrivateKey !== initial.AlipayPrivateKey
+    ) {
+      updates.push({
+        key: 'AlipayPrivateKey',
+        value: sanitized.AlipayPrivateKey,
+      })
+    }
+    if (
+      sanitized.AlipayPublicKey &&
+      sanitized.AlipayPublicKey !== initial.AlipayPublicKey
+    ) {
+      updates.push({ key: 'AlipayPublicKey', value: sanitized.AlipayPublicKey })
+    }
+    if (sanitized.AlipayGateway !== initial.AlipayGateway) {
+      updates.push({ key: 'AlipayGateway', value: sanitized.AlipayGateway })
+    }
+    if (sanitized.AlipayNotifyURL !== initial.AlipayNotifyURL) {
+      updates.push({ key: 'AlipayNotifyURL', value: sanitized.AlipayNotifyURL })
+    }
+    if (sanitized.AlipayReturnURL !== initial.AlipayReturnURL) {
+      updates.push({ key: 'AlipayReturnURL', value: sanitized.AlipayReturnURL })
+    }
+    if (sanitized.AlipaySellerID !== initial.AlipaySellerID) {
+      updates.push({ key: 'AlipaySellerID', value: sanitized.AlipaySellerID })
+    }
+    if (sanitized.AlipayMinTopUp !== initial.AlipayMinTopUp) {
+      updates.push({ key: 'AlipayMinTopUp', value: sanitized.AlipayMinTopUp })
     }
 
     for (const update of updates) {
@@ -1088,6 +1174,249 @@ export function PaymentSettingsSection({
               {updateOption.isPending
                 ? t('Saving...')
                 : t('Save Epay settings')}
+            </Button>
+          </div>
+
+          <Separator />
+
+          <div className='space-y-4'>
+            <div>
+              <h3 className='text-lg font-medium'>{t('Alipay Gateway')}</h3>
+              <p className='text-muted-foreground text-sm'>
+                {t('Configuration for Alipay native payment integration')}
+              </p>
+            </div>
+
+            <div className='rounded-md bg-blue-50 p-4 text-sm text-blue-900 dark:bg-blue-950 dark:text-blue-100'>
+              <p className='mb-2 font-medium'>{t('Webhook Configuration:')}</p>
+              <ul className='list-inside list-disc space-y-1'>
+                <li>
+                  {t('Webhook URL:')}{' '}
+                  <code className='rounded bg-blue-100 px-1 py-0.5 text-xs dark:bg-blue-900'>
+                    {'<ServerAddress>/api/alipay/notify'}
+                  </code>
+                </li>
+                <li>{t('PC browsers use page.pay; mobile browsers use wap.pay')}</li>
+              </ul>
+            </div>
+
+            <div className='grid gap-6 md:grid-cols-3'>
+              <FormField
+                control={form.control}
+                name='AlipayEnabled'
+                render={({ field }) => (
+                  <FormItem className='flex flex-row items-center justify-between rounded-lg border p-4'>
+                    <div className='space-y-0.5'>
+                      <FormLabel className='text-base'>
+                        {t('Enable Alipay')}
+                      </FormLabel>
+                      <FormDescription>
+                        {t('Enable native Alipay recharge entry')}
+                      </FormDescription>
+                    </div>
+                    <FormControl>
+                      <Switch
+                        checked={field.value}
+                        onCheckedChange={field.onChange}
+                      />
+                    </FormControl>
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name='AlipaySandbox'
+                render={({ field }) => (
+                  <FormItem className='flex flex-row items-center justify-between rounded-lg border p-4'>
+                    <div className='space-y-0.5'>
+                      <FormLabel className='text-base'>
+                        {t('Sandbox mode')}
+                      </FormLabel>
+                      <FormDescription>
+                        {t('Keep this aligned with the configured gateway URL')}
+                      </FormDescription>
+                    </div>
+                    <FormControl>
+                      <Switch
+                        checked={field.value}
+                        onCheckedChange={field.onChange}
+                      />
+                    </FormControl>
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name='AlipayMinTopUp'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t('Minimum top-up (CNY / display unit)')}</FormLabel>
+                    <FormControl>
+                      <Input
+                        type='number'
+                        step='1'
+                        min={0}
+                        value={(field.value ?? 0) as number}
+                        onChange={(event) =>
+                          field.onChange(event.target.valueAsNumber)
+                        }
+                      />
+                    </FormControl>
+                    <FormDescription>
+                      {t('Minimum amount accepted by the Alipay entry')}
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+
+            <div className='grid gap-6 md:grid-cols-2'>
+              <FormField
+                control={form.control}
+                name='AlipayAppID'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t('App ID')}</FormLabel>
+                    <FormControl>
+                      <Input {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name='AlipaySellerID'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t('Seller ID')}</FormLabel>
+                    <FormControl>
+                      <Input {...field} />
+                    </FormControl>
+                    <FormDescription>
+                      {t('Optional extra check against notify seller_id')}
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+
+            <div className='grid gap-6 md:grid-cols-2'>
+              <FormField
+                control={form.control}
+                name='AlipayGateway'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t('Gateway URL')}</FormLabel>
+                    <FormControl>
+                      <Input {...field} />
+                    </FormControl>
+                    <FormDescription>
+                      {t('Example: https://openapi.alipay.com/gateway.do')}
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name='AlipayReturnURL'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t('Return URL')}</FormLabel>
+                    <FormControl>
+                      <Input {...field} />
+                    </FormControl>
+                    <FormDescription>
+                      {t('Optional UX redirect after payment page returns')}
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+
+            <div className='grid gap-6 md:grid-cols-2'>
+              <FormField
+                control={form.control}
+                name='AlipayNotifyURL'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t('Notify URL')}</FormLabel>
+                    <FormControl>
+                      <Input {...field} />
+                    </FormControl>
+                    <FormDescription>
+                      {t('Optional override for asynchronous notify callback')}
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+
+            <div className='grid gap-6 md:grid-cols-2'>
+              <FormField
+                control={form.control}
+                name='AlipayPublicKey'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t('Alipay public key')}</FormLabel>
+                    <FormControl>
+                      <Textarea
+                        rows={6}
+                        className='font-mono text-xs'
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormDescription>
+                      {t('Used to verify Alipay notify signatures')}
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+
+            <FormField
+              control={form.control}
+              name='AlipayPrivateKey'
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t('Application private key')}</FormLabel>
+                  <FormControl>
+                    <Textarea
+                      rows={8}
+                      className='font-mono text-xs'
+                      {...field}
+                    />
+                  </FormControl>
+                  <FormDescription>
+                    {t('PKCS8 RSA private key used to sign gateway requests')}
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <Button
+              type='button'
+              onClick={(e) => {
+                e.preventDefault()
+                e.stopPropagation()
+                saveAlipaySettings()
+              }}
+              disabled={updateOption.isPending}
+            >
+              {updateOption.isPending
+                ? t('Saving...')
+                : t('Save Alipay settings')}
             </Button>
           </div>
 
