@@ -15,6 +15,7 @@ import (
 	"github.com/QuantumNous/new-api/relay/helper"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting/model_setting"
+	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/QuantumNous/new-api/types"
 
 	"github.com/gin-gonic/gin"
@@ -43,6 +44,12 @@ func ImageHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *type
 		return types.NewError(fmt.Errorf("invalid api type: %d", info.ApiType), types.ErrorCodeInvalidApiType, types.ErrOptionWithSkipRetry())
 	}
 	adaptor.Init(info)
+
+	if !info.IsStream && info.ApiType == constant.APITypeOpenAI {
+		_, interval := helper.RelayPingConfig(info, operation_setting.GetGeneralSetting())
+		stopProcessingKeepAlive := helper.StartProcessingKeepAlive(c, interval)
+		defer stopProcessingKeepAlive()
+	}
 
 	var requestBody io.Reader
 
@@ -97,7 +104,10 @@ func ImageHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *type
 	var httpResp *http.Response
 	if resp != nil {
 		httpResp = resp.(*http.Response)
-		info.IsStream = info.IsStream || strings.HasPrefix(httpResp.Header.Get("Content-Type"), "text/event-stream")
+		if strings.HasPrefix(httpResp.Header.Get("Content-Type"), "text/event-stream") {
+			info.IsStream = true
+			c.Set(string(constant.ContextKeyIsStream), true)
+		}
 		if httpResp.StatusCode != http.StatusOK {
 			if httpResp.StatusCode == http.StatusCreated && info.ApiType == constant.APITypeReplicate {
 				// replicate channel returns 201 Created when using Prefer: wait, treat it as success.

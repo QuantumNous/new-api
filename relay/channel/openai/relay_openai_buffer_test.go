@@ -211,6 +211,90 @@ func TestConvertOpenAIRequestKeepsNonGPT5NonStreamRequest(t *testing.T) {
 	require.Nil(t, convertedReq.StreamOptions)
 }
 
+func TestOpenaiImageStreamHandlerForwardsSSEAndExtractsUsage(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/images/generations", nil)
+	info := &relaycommon.RelayInfo{
+		IsStream:        true,
+		RelayMode:       relayconstant.RelayModeImagesGenerations,
+		RelayFormat:     types.RelayFormatOpenAIImage,
+		OriginModelName: "gpt-image-2",
+		ChannelMeta: &relaycommon.ChannelMeta{
+			ChannelType:       constant.ChannelTypeOpenAI,
+			UpstreamModelName: "gpt-image-2",
+		},
+	}
+	resp := newChatCompletionSSE(http.StatusOK, `data: {"type":"image_generation.partial_image","partial_image_index":0,"b64_json":"abc"}
+
+data: {"type":"image_generation.completed","usage":{"input_tokens":3,"output_tokens":5,"total_tokens":8,"input_tokens_details":{"image_tokens":2,"text_tokens":1}}}
+
+data: [DONE]
+`)
+
+	usage, newAPIError := OpenaiHandlerWithUsage(c, info, resp)
+
+	require.Nil(t, newAPIError)
+	require.Equal(t, http.StatusOK, recorder.Code)
+	require.Contains(t, recorder.Header().Get("Content-Type"), "text/event-stream")
+	require.Contains(t, recorder.Body.String(), `data: {"type":"image_generation.partial_image"`)
+	require.Contains(t, recorder.Body.String(), `data: {"type":"image_generation.completed"`)
+	require.Contains(t, recorder.Body.String(), `data: [DONE]`)
+	require.Equal(t, &dto.Usage{
+		PromptTokens:     3,
+		CompletionTokens: 5,
+		TotalTokens:      8,
+		InputTokens:      3,
+		OutputTokens:     5,
+		InputTokensDetails: &dto.InputTokenDetails{
+			ImageTokens: 2,
+			TextTokens:  1,
+		},
+		PromptTokensDetails: dto.InputTokenDetails{
+			ImageTokens: 2,
+			TextTokens:  1,
+		},
+	}, usage)
+}
+
+func TestOpenaiImageJSONToStreamHandlerWrapsFinalResponse(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/images/generations", nil)
+	info := &relaycommon.RelayInfo{
+		IsStream:        true,
+		RelayMode:       relayconstant.RelayModeImagesGenerations,
+		RelayFormat:     types.RelayFormatOpenAIImage,
+		OriginModelName: "gpt-image-2",
+		ChannelMeta: &relaycommon.ChannelMeta{
+			ChannelType:       constant.ChannelTypeOpenAI,
+			UpstreamModelName: "gpt-image-2",
+		},
+	}
+	resp := &http.Response{
+		StatusCode: http.StatusOK,
+		Header: http.Header{
+			"Content-Type": []string{"application/json"},
+		},
+		Body: io.NopCloser(strings.NewReader(`{"created":123,"data":[{"b64_json":"abc"}],"usage":{"input_tokens":2,"output_tokens":4,"total_tokens":6}}`)),
+	}
+
+	usage, newAPIError := OpenaiHandlerWithUsage(c, info, resp)
+
+	require.Nil(t, newAPIError)
+	require.Equal(t, http.StatusOK, recorder.Code)
+	require.Contains(t, recorder.Header().Get("Content-Type"), "text/event-stream")
+	require.Contains(t, recorder.Body.String(), `data: {"created":123`)
+	require.Contains(t, recorder.Body.String(), `data: [DONE]`)
+	require.Equal(t, 2, usage.PromptTokens)
+	require.Equal(t, 4, usage.CompletionTokens)
+	require.Equal(t, 6, usage.TotalTokens)
+}
+
 func newChatCompletionSSE(statusCode int, body string) *http.Response {
 	return &http.Response{
 		StatusCode: statusCode,

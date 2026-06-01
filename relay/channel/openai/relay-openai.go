@@ -989,6 +989,14 @@ func preConsumeUsage(ctx *gin.Context, info *relaycommon.RelayInfo, usage *dto.R
 func OpenaiHandlerWithUsage(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response) (*dto.Usage, *types.NewAPIError) {
 	defer service.CloseResponseBodyGracefully(resp)
 
+	if info != nil && info.IsStream {
+		helper.StopProcessingKeepAlive(c)
+		if isEventStreamContentType(resp.Header.Get("Content-Type")) {
+			return OpenaiImageStreamHandler(c, info, resp)
+		}
+		return OpenaiImageJSONToStreamHandler(c, info, resp)
+	}
+
 	responseBody, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, types.NewOpenAIError(err, types.ErrorCodeReadResponseBodyFailed, http.StatusInternalServerError)
@@ -999,6 +1007,8 @@ func OpenaiHandlerWithUsage(c *gin.Context, info *relaycommon.RelayInfo, resp *h
 	if err != nil {
 		return nil, types.NewOpenAIError(err, types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
 	}
+
+	helper.StopProcessingKeepAlive(c)
 
 	// 写入新的 response body
 	service.IOCopyBytesGracefully(c, resp, responseBody)
@@ -1019,6 +1029,111 @@ func OpenaiHandlerWithUsage(c *gin.Context, info *relaycommon.RelayInfo, resp *h
 	}
 	applyUsagePostProcessing(info, &usageResp.Usage, responseBody)
 	return &usageResp.Usage, nil
+}
+
+func OpenaiImageStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response) (*dto.Usage, *types.NewAPIError) {
+	usage := &dto.Usage{}
+
+	helper.StreamScannerHandler(c, resp, info, func(data string, sr *helper.StreamResult) {
+		if data == "" {
+			return
+		}
+		if streamUsage, ok := extractImageStreamUsage(data); ok {
+			usage = streamUsage
+		}
+		if err := helper.StringData(c, data); err != nil {
+			sr.Error(err)
+		}
+	})
+
+	if (info == nil || info.StreamStatus == nil || info.StreamStatus.IsNormalEnd()) &&
+		(c.Request == nil || c.Request.Context().Err() == nil) {
+		helper.Done(c)
+	}
+
+	applyUsagePostProcessing(info, usage, nil)
+	return usage, nil
+}
+
+func OpenaiImageJSONToStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response) (*dto.Usage, *types.NewAPIError) {
+	responseBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, types.NewOpenAIError(err, types.ErrorCodeReadResponseBodyFailed, http.StatusInternalServerError)
+	}
+
+	var usageResp dto.SimpleResponse
+	if err := common.Unmarshal(responseBody, &usageResp); err != nil {
+		return nil, types.NewOpenAIError(err, types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
+	}
+	normalizeImageUsage(&usageResp.Usage)
+	applyUsagePostProcessing(info, &usageResp.Usage, responseBody)
+
+	helper.SetEventStreamHeaders(c)
+	if err := helper.StringData(c, string(responseBody)); err != nil {
+		return nil, types.NewOpenAIError(err, types.ErrorCodeBadResponse, http.StatusInternalServerError)
+	}
+	helper.Done(c)
+
+	return &usageResp.Usage, nil
+}
+
+func extractImageStreamUsage(data string) (*dto.Usage, bool) {
+	var payload struct {
+		Usage    *dto.Usage `json:"usage"`
+		Response *struct {
+			Usage *dto.Usage `json:"usage"`
+		} `json:"response"`
+	}
+	if err := common.UnmarshalJsonStr(data, &payload); err != nil {
+		return nil, false
+	}
+
+	var usage *dto.Usage
+	if payload.Usage != nil {
+		usage = payload.Usage
+	} else if payload.Response != nil && payload.Response.Usage != nil {
+		usage = payload.Response.Usage
+	}
+	if usage == nil {
+		return nil, false
+	}
+	normalizeImageUsage(usage)
+	if !hasImageUsageTokens(usage) {
+		return nil, false
+	}
+	return usage, true
+}
+
+func normalizeImageUsage(usage *dto.Usage) {
+	if usage == nil {
+		return
+	}
+	if usage.InputTokens > 0 {
+		usage.PromptTokens += usage.InputTokens
+	}
+	if usage.OutputTokens > 0 {
+		usage.CompletionTokens += usage.OutputTokens
+	}
+	if usage.InputTokensDetails != nil {
+		usage.PromptTokensDetails.ImageTokens += usage.InputTokensDetails.ImageTokens
+		usage.PromptTokensDetails.TextTokens += usage.InputTokensDetails.TextTokens
+	}
+	if usage.TotalTokens == 0 && (usage.PromptTokens != 0 || usage.CompletionTokens != 0) {
+		usage.TotalTokens = usage.PromptTokens + usage.CompletionTokens
+	}
+}
+
+func hasImageUsageTokens(usage *dto.Usage) bool {
+	if usage == nil {
+		return false
+	}
+	return usage.PromptTokens != 0 ||
+		usage.CompletionTokens != 0 ||
+		usage.TotalTokens != 0 ||
+		usage.InputTokens != 0 ||
+		usage.OutputTokens != 0 ||
+		usage.PromptTokensDetails.ImageTokens != 0 ||
+		usage.PromptTokensDetails.TextTokens != 0
 }
 
 func applyUsagePostProcessing(info *relaycommon.RelayInfo, usage *dto.Usage, responseBody []byte) {
