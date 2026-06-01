@@ -802,6 +802,17 @@ const LoginForm = () => {
                   </div>
                 )}
 
+                {turnstileEnabled && (
+                  <div className='flex justify-center mt-6'>
+                    <Turnstile
+                      sitekey={turnstileSiteKey}
+                      onVerify={(token) => {
+                        setTurnstileToken(token);
+                      }}
+                    />
+                  </div>
+                )}
+
                 <div className='space-y-2 pt-2'>
                   <Button
                     theme='solid'
@@ -905,6 +916,17 @@ const LoginForm = () => {
             }
           />
         </Form>
+
+        {turnstileEnabled && (
+          <div className='flex justify-center mt-6'>
+            <Turnstile
+              sitekey={turnstileSiteKey}
+              onVerify={(token) => {
+                setTurnstileToken(token);
+              }}
+            />
+          </div>
+        )}
       </Modal>
     );
   };
@@ -964,17 +986,6 @@ const LoginForm = () => {
           : renderOAuthOptions()}
         {renderWeChatLoginModal()}
         {render2FAModal()}
-
-        {turnstileEnabled && (
-          <div className='flex justify-center mt-6'>
-            <Turnstile
-              sitekey={turnstileSiteKey}
-              onVerify={(token) => {
-                setTurnstileToken(token);
-              }}
-            />
-          </div>
-        )}
       </div>
     </div>
   );
