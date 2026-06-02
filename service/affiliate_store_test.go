@@ -182,6 +182,76 @@ func TestEnableAffiliateProfileReactivatesProfileAndAudits(t *testing.T) {
 	}
 }
 
+func TestResolveInviteContextUsesActiveAffiliateProfile(t *testing.T) {
+	db := newAffiliateStoreTestDB(t)
+	if err := db.AutoMigrate(&model.User{}); err != nil {
+		t.Fatalf("migrate users: %v", err)
+	}
+	if err := db.Create(&model.User{Id: 501, Username: "aff501", AffCode: "AFF501"}).Error; err != nil {
+		t.Fatalf("seed inviter: %v", err)
+	}
+	if _, err := CreateAffiliateProfile(db, AffiliateProfileCreateInput{
+		UserId:      501,
+		Level:       1,
+		InviteCode:  "AFF501",
+		ActorUserId: 1,
+		Reason:      "seed",
+	}); err != nil {
+		t.Fatalf("seed profile: %v", err)
+	}
+
+	ctx, err := ResolveInviteContext(db, AffiliateInviteContextInput{
+		ModuleEnabled:  true,
+		InviteCode:     " AFF501 ",
+		RegisterMethod: AffiliateRegisterMethodPassword,
+		Provider:       "",
+	})
+	if err != nil {
+		t.Fatalf("ResolveInviteContext returned error: %v", err)
+	}
+
+	if ctx.Source != AffiliateInviteSourceAffiliate || ctx.InviterUserId != 501 || ctx.InviteCode != "AFF501" {
+		t.Fatalf("unexpected invite context: %+v", ctx)
+	}
+	if ctx.RegisterMethod != AffiliateRegisterMethodPassword {
+		t.Fatalf("unexpected register method: %+v", ctx)
+	}
+}
+
+func TestRecordAffiliateInviteEventStoresRegistrationMetadata(t *testing.T) {
+	db := newAffiliateStoreTestDB(t)
+
+	event, err := RecordAffiliateInviteEvent(db, AffiliateInviteEventInput{
+		InviteeUserId:      601,
+		InviterUserId:      501,
+		InviteCode:         "AFF501",
+		InviteSource:       AffiliateInviteSourceAffiliate,
+		RegisterMethod:     AffiliateRegisterMethodOAuth,
+		Provider:           "github",
+		InitialQuota:       1000,
+		InitialAmountCents: 99,
+		InitialQuotaRule:   "affiliate_initial",
+		Metadata:           `{"synthetic_affiliate_test":true}`,
+	})
+	if err != nil {
+		t.Fatalf("RecordAffiliateInviteEvent returned error: %v", err)
+	}
+
+	var saved model.AffiliateInviteEvent
+	if err := db.Where("invitee_user_id = ?", 601).First(&saved).Error; err != nil {
+		t.Fatalf("query invite event: %v", err)
+	}
+	if event.Id == 0 || saved.Id != event.Id {
+		t.Fatalf("expected persisted event id, got event=%+v saved=%+v", event, saved)
+	}
+	if saved.InviteSource != AffiliateInviteSourceAffiliate || saved.RegisterMethod != AffiliateRegisterMethodOAuth || saved.Provider != "github" {
+		t.Fatalf("unexpected invite event attribution: %+v", saved)
+	}
+	if saved.InitialQuota != 1000 || saved.InitialAmountCents != 99 || saved.InitialQuotaRule != "affiliate_initial" {
+		t.Fatalf("unexpected initial quota fields: %+v", saved)
+	}
+}
+
 func TestBuildAffiliateInviteRelationsCreatesTwoLevelClosure(t *testing.T) {
 	db := newAffiliateStoreTestDB(t)
 	if err := db.Create(&model.AffiliateRelation{

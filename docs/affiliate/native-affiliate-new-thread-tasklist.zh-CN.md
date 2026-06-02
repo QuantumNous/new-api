@@ -120,15 +120,15 @@
 
 ## Phase 5：邀请归因与初始额度
 
-- [ ] 梳理官方密码注册、OAuth、微信、手机号注册入口。
-- [ ] 设计统一 `ResolveInviteContext` / `RecordAffiliateInviteEvent` service。
+- [x] 梳理官方密码注册、OAuth、微信、手机号注册入口：密码注册读取请求体 `AffCode`；标准 OAuth 从 session `aff` 读取；微信首次注册当前未接邀请码；当前官方基线未发现手机号/SMS 注册入口。
+- [x] 设计统一 `ResolveInviteContext` / `RecordAffiliateInviteEvent` service。
 - [ ] 密码注册薄 hook 接入邀请归因。
 - [ ] OAuth 首次注册薄 hook 接入邀请归因。
 - [ ] 微信首次注册薄 hook 接入邀请归因。
 - [ ] 手机号注册如移植旧 fork，则接入相同归因链路。
 - [ ] 区分普通邀请码和 active 分销商邀请码初始额度。
 - [ ] 分销模块关闭时 active 分销码降级普通邀请码规则。
-- [ ] `affiliate_invite_events` 记录注册方式、provider、初始额度规则和金额。
+- [x] `affiliate_invite_events` service 支持记录注册方式、provider、初始额度规则和金额；实际注册/OAuth/微信 hook 仍待接入。
 - [ ] 补充注册/OAuth/微信/手机号归因测试。
 
 ## Phase 5A：手机号/SMS 与短信宝 provider

@@ -15,6 +15,11 @@ const (
 	AffiliateInviteSourceNormal    = "normal"
 	AffiliateInviteSourceAffiliate = "affiliate"
 
+	AffiliateRegisterMethodPassword = "password"
+	AffiliateRegisterMethodOAuth    = "oauth"
+	AffiliateRegisterMethodWeChat   = "wechat"
+	AffiliateRegisterMethodSMS      = "sms"
+
 	AffiliateScopeNone      = "none"
 	AffiliateScopeGlobal    = "global"
 	AffiliateScopeAffiliate = "affiliate"
@@ -37,6 +42,35 @@ type AffiliateInviteResolution struct {
 	Source        string
 	InviterUserId int
 	InviteCode    string
+}
+
+type AffiliateInviteContextInput struct {
+	ModuleEnabled  bool
+	InviteCode     string
+	RegisterMethod string
+	Provider       string
+}
+
+type AffiliateInviteContext struct {
+	Source         string
+	InviterUserId  int
+	InviteCode     string
+	RegisterMethod string
+	Provider       string
+}
+
+type AffiliateInviteEventInput struct {
+	InviteeUserId      int
+	InviterUserId      int
+	InviteCode         string
+	InviteSource       string
+	RegisterMethod     string
+	Provider           string
+	RuleSetId          int
+	InitialQuota       int64
+	InitialAmountCents int64
+	InitialQuotaRule   string
+	Metadata           string
 }
 
 func ResolveAffiliateInviteSource(input AffiliateInviteInput) AffiliateInviteResolution {
@@ -65,6 +99,82 @@ func ResolveAffiliateInviteSource(input AffiliateInviteInput) AffiliateInviteRes
 
 	resolution.Source = AffiliateInviteSourceAffiliate
 	return resolution
+}
+
+func ResolveInviteContext(db *gorm.DB, input AffiliateInviteContextInput) (*AffiliateInviteContext, error) {
+	ctx := &AffiliateInviteContext{
+		Source:         AffiliateInviteSourceNone,
+		InviteCode:     strings.TrimSpace(input.InviteCode),
+		RegisterMethod: strings.TrimSpace(input.RegisterMethod),
+		Provider:       strings.TrimSpace(input.Provider),
+	}
+	if db == nil {
+		return nil, errors.New("nil db")
+	}
+	if ctx.InviteCode == "" {
+		return ctx, nil
+	}
+
+	var inviter model.User
+	err := db.Select("id").Where("aff_code = ?", ctx.InviteCode).First(&inviter).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return ctx, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	var profile model.AffiliateProfile
+	err = db.
+		Where("user_id = ? AND status = ?", inviter.Id, model.AffiliateProfileStatusActive).
+		First(&profile).Error
+	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, err
+	}
+
+	resolution := ResolveAffiliateInviteSource(AffiliateInviteInput{
+		ModuleEnabled:          input.ModuleEnabled,
+		InviteCode:             ctx.InviteCode,
+		InviterUserId:          inviter.Id,
+		InviterAffiliateStatus: profile.Status,
+		InviterAffiliateLevel:  profile.Level,
+	})
+	ctx.Source = resolution.Source
+	ctx.InviterUserId = resolution.InviterUserId
+	ctx.InviteCode = resolution.InviteCode
+	return ctx, nil
+}
+
+func RecordAffiliateInviteEvent(db *gorm.DB, input AffiliateInviteEventInput) (*model.AffiliateInviteEvent, error) {
+	if db == nil {
+		return nil, errors.New("nil db")
+	}
+	if input.InviteeUserId <= 0 {
+		return nil, errors.New("invalid invitee user id")
+	}
+
+	source := strings.TrimSpace(input.InviteSource)
+	if source == "" {
+		source = AffiliateInviteSourceNone
+	}
+	event := &model.AffiliateInviteEvent{
+		InviteeUserId:      input.InviteeUserId,
+		InviterUserId:      input.InviterUserId,
+		InviteCode:         strings.TrimSpace(input.InviteCode),
+		InviteSource:       source,
+		RegisterMethod:     strings.TrimSpace(input.RegisterMethod),
+		Provider:           strings.TrimSpace(input.Provider),
+		RuleSetId:          input.RuleSetId,
+		InitialQuota:       input.InitialQuota,
+		InitialAmountCents: input.InitialAmountCents,
+		InitialQuotaRule:   strings.TrimSpace(input.InitialQuotaRule),
+		Status:             model.AffiliateEventStatusReady,
+		Metadata:           input.Metadata,
+	}
+	if err := db.Create(event).Error; err != nil {
+		return nil, err
+	}
+	return event, nil
 }
 
 type AffiliateScopeInput struct {
