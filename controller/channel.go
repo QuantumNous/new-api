@@ -454,14 +454,18 @@ func validateTwoFactorAuth(twoFA *model.TwoFA, code string) bool {
 
 // validateChannel 通用的渠道校验函数
 func validateChannel(channel *model.Channel, isAdd bool) error {
+	if channel == nil {
+		return fmt.Errorf("channel cannot be empty")
+	}
+
 	// 校验 channel settings
 	if err := channel.ValidateSettings(); err != nil {
 		return fmt.Errorf("渠道额外设置[channel setting] 格式错误：%s", err.Error())
 	}
 
-	// 如果是添加操作，检查 channel 和 key 是否为空
+	// 如果是添加操作，检查 key 是否为空
 	if isAdd {
-		if channel == nil || channel.Key == "" {
+		if channel.Key == "" {
 			return fmt.Errorf("channel cannot be empty")
 		}
 
@@ -583,83 +587,64 @@ func getVertexArrayKeys(keys string) ([]string, error) {
 	return cleanKeys, nil
 }
 
-func AddChannel(c *gin.Context) {
-	addChannelRequest := AddChannelRequest{}
-	err := c.ShouldBindJSON(&addChannelRequest)
-	if err != nil {
-		common.ApiError(c, err)
-		return
+func buildChannelsFromAddRequest(addChannelRequest *AddChannelRequest) ([]model.Channel, error) {
+	if addChannelRequest == nil {
+		return nil, fmt.Errorf("channel cannot be empty")
 	}
-
-	// 使用统一的校验函数
 	if err := validateChannel(addChannelRequest.Channel, true); err != nil {
-		c.JSON(http.StatusOK, gin.H{
-			"success": false,
-			"message": err.Error(),
-		})
-		return
+		return nil, err
 	}
 
-	addChannelRequest.Channel.CreatedTime = common.GetTimestamp()
+	baseChannel := *addChannelRequest.Channel
+	baseChannel.CreatedTime = common.GetTimestamp()
 	keys := make([]string, 0)
 	switch addChannelRequest.Mode {
 	case "multi_to_single":
-		addChannelRequest.Channel.ChannelInfo.IsMultiKey = true
-		addChannelRequest.Channel.ChannelInfo.MultiKeyMode = addChannelRequest.MultiKeyMode
-		if addChannelRequest.Channel.Type == constant.ChannelTypeVertexAi && addChannelRequest.Channel.GetOtherSettings().VertexKeyType != dto.VertexKeyTypeAPIKey {
-			array, err := getVertexArrayKeys(addChannelRequest.Channel.Key)
+		baseChannel.ChannelInfo.IsMultiKey = true
+		baseChannel.ChannelInfo.MultiKeyMode = addChannelRequest.MultiKeyMode
+		if baseChannel.Type == constant.ChannelTypeVertexAi && baseChannel.GetOtherSettings().VertexKeyType != dto.VertexKeyTypeAPIKey {
+			array, err := getVertexArrayKeys(baseChannel.Key)
 			if err != nil {
-				c.JSON(http.StatusOK, gin.H{
-					"success": false,
-					"message": err.Error(),
-				})
-				return
+				return nil, err
 			}
-			addChannelRequest.Channel.ChannelInfo.MultiKeySize = len(array)
-			addChannelRequest.Channel.Key = strings.Join(array, "\n")
+			baseChannel.ChannelInfo.MultiKeySize = len(array)
+			baseChannel.Key = strings.Join(array, "\n")
 		} else {
 			cleanKeys := make([]string, 0)
-			for _, key := range strings.Split(addChannelRequest.Channel.Key, "\n") {
+			for _, key := range strings.Split(baseChannel.Key, "\n") {
+				key = strings.TrimSpace(key)
 				if key == "" {
 					continue
 				}
-				key = strings.TrimSpace(key)
 				cleanKeys = append(cleanKeys, key)
 			}
-			addChannelRequest.Channel.ChannelInfo.MultiKeySize = len(cleanKeys)
-			addChannelRequest.Channel.Key = strings.Join(cleanKeys, "\n")
+			baseChannel.ChannelInfo.MultiKeySize = len(cleanKeys)
+			baseChannel.Key = strings.Join(cleanKeys, "\n")
 		}
-		keys = []string{addChannelRequest.Channel.Key}
+		keys = []string{baseChannel.Key}
 	case "batch":
-		if addChannelRequest.Channel.Type == constant.ChannelTypeVertexAi && addChannelRequest.Channel.GetOtherSettings().VertexKeyType != dto.VertexKeyTypeAPIKey {
-			// multi json
-			keys, err = getVertexArrayKeys(addChannelRequest.Channel.Key)
+		if baseChannel.Type == constant.ChannelTypeVertexAi && baseChannel.GetOtherSettings().VertexKeyType != dto.VertexKeyTypeAPIKey {
+			array, err := getVertexArrayKeys(baseChannel.Key)
 			if err != nil {
-				c.JSON(http.StatusOK, gin.H{
-					"success": false,
-					"message": err.Error(),
-				})
-				return
+				return nil, err
 			}
+			keys = array
 		} else {
-			keys = strings.Split(addChannelRequest.Channel.Key, "\n")
+			keys = strings.Split(baseChannel.Key, "\n")
 		}
 	case "single":
-		keys = []string{addChannelRequest.Channel.Key}
+		keys = []string{baseChannel.Key}
 	default:
-		c.JSON(http.StatusOK, gin.H{
-			"success": false,
-			"message": "不支持的添加模式",
-		})
-		return
+		return nil, fmt.Errorf("不支持的添加模式")
 	}
 
 	channels := make([]model.Channel, 0, len(keys))
 	for _, key := range keys {
+		key = strings.TrimSpace(key)
 		if key == "" {
 			continue
 		}
-		localChannel := addChannelRequest.Channel
+		localChannel := baseChannel
 		localChannel.Key = key
 		if addChannelRequest.BatchAddSetKeyPrefix2Name && len(keys) > 1 {
 			keyPrefix := localChannel.Key
@@ -668,11 +653,44 @@ func AddChannel(c *gin.Context) {
 			}
 			localChannel.Name = fmt.Sprintf("%s %s", localChannel.Name, keyPrefix)
 		}
-		channels = append(channels, *localChannel)
+		channels = append(channels, localChannel)
 	}
-	err = model.BatchInsertChannels(channels)
+	if len(channels) == 0 {
+		return nil, fmt.Errorf("channel cannot be empty")
+	}
+	return channels, nil
+}
+
+func createChannelsFromAddRequest(addChannelRequest *AddChannelRequest, tx *gorm.DB) ([]model.Channel, error) {
+	channels, err := buildChannelsFromAddRequest(addChannelRequest)
+	if err != nil {
+		return nil, err
+	}
+	if tx != nil {
+		err = model.CreateChannelsWithTx(tx, channels)
+	} else {
+		err = model.BatchInsertChannels(channels)
+	}
+	if err != nil {
+		return nil, err
+	}
+	return channels, nil
+}
+
+func AddChannel(c *gin.Context) {
+	addChannelRequest := AddChannelRequest{}
+	err := c.ShouldBindJSON(&addChannelRequest)
 	if err != nil {
 		common.ApiError(c, err)
+		return
+	}
+
+	_, err = createChannelsFromAddRequest(&addChannelRequest, nil)
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": err.Error(),
+		})
 		return
 	}
 	service.ResetProxyClientCache()

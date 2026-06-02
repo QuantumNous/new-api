@@ -423,6 +423,23 @@ func GetChannelById(id int, selectAll bool) (*Channel, error) {
 	return channel, nil
 }
 
+func CreateChannelsWithTx(tx *gorm.DB, channels []Channel) error {
+	if len(channels) == 0 {
+		return nil
+	}
+	for _, chunk := range lo.Chunk(channels, 50) {
+		if err := tx.Create(&chunk).Error; err != nil {
+			return err
+		}
+		for _, channel_ := range chunk {
+			if err := channel_.AddAbilities(tx); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
 func BatchInsertChannels(channels []Channel) error {
 	if len(channels) == 0 {
 		return nil
@@ -437,17 +454,9 @@ func BatchInsertChannels(channels []Channel) error {
 		}
 	}()
 
-	for _, chunk := range lo.Chunk(channels, 50) {
-		if err := tx.Create(&chunk).Error; err != nil {
-			tx.Rollback()
-			return err
-		}
-		for _, channel_ := range chunk {
-			if err := channel_.AddAbilities(tx); err != nil {
-				tx.Rollback()
-				return err
-			}
-		}
+	if err := CreateChannelsWithTx(tx, channels); err != nil {
+		tx.Rollback()
+		return err
 	}
 	return tx.Commit().Error
 }
