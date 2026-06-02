@@ -37,7 +37,7 @@
 - [x] 确认已下载本地最新 dump：`runtime/prod-pg-snapshots/new-api-prod-20260602-193617.dump`，后续默认不再直连生产数据库。
 - [x] TAC/安全风险复盘：本轮已确认 `.codex-local/`、`runtime/` 未被 Git 追踪，已脱敏 tasklist 中出现的具体生产数据库端点；当前 modified files 精确敏感模式扫描无命中，dump sha256 校验通过。
 - [x] 如连接信息曾在聊天、命令、日志或文档中暴露，评估是否需要更换临时数据库密码或吊销临时访问；用户已提示旧会话曾明文粘贴数据库密码，本轮建议轮换临时数据库密码或吊销临时访问，后续默认只用本地 dump。
-- [ ] 解除本地 Docker daemon 阻塞；2026-06-02 本轮提权短命令确认 `docker version`、`docker info`、`docker compose version`、`docker ps` 可用，Compose 插件为 v5.1.4/5.1.1，但 `docker ps -a` 曾再次无输出挂起，compose 启动前仍需观察稳定性。
+- [ ] 解除本地 Docker daemon 阻塞；2026-06-02 本轮提权短命令确认 `docker version`、`docker info`、`docker compose version`、`docker ps` 可用，Compose 插件为 v5.1.4/5.1.1，但 `docker ps -a`、`docker compose -f docker-compose.dev.yml build new-api` 和 `docker compose -f docker-compose.dev.yml images` 均曾再次无输出挂起，compose 启动前仍需修复稳定性。
 - [ ] 补齐或确认服务器 SSH 入口、compose 项目名、PostgreSQL 容器名；当前仓库未发现可直接使用的服务器连接 runbook。
 - [x] 确认本机 `psql`、`pg_dump`、`pg_restore` 16.14 可用，本机 PostgreSQL service 未运行，符合优先使用 Docker PostgreSQL 隔离库的路径。
 - [x] 因服务器 PostgreSQL 为 18.4，按 PostgreSQL 官方 PGDG APT 源安装 `postgresql-client-18`，使用 `/usr/lib/postgresql/18/bin/pg_dump` / `pg_restore` 18.4 作为快照工具。
@@ -66,7 +66,7 @@
 - [x] compose 内部 `SQL_DSN` 指向 `postgres` 服务，不使用生产 DSN。
 - [x] compose 内部 `REDIS_CONN_STRING` 指向 `redis` 服务，不使用生产 Redis。
 - [x] 使用隔离 volume 和 network，避免覆盖其他项目或旧 dev 数据。
-- [ ] 构建本地镜像：`docker compose -f <dev-compose> build new-api`，确认生成 `new-api:dev`。
+- [ ] 构建本地镜像：`docker compose -f docker-compose.dev.yml build new-api`，确认生成 `new-api:dev`；2026-06-02 已尝试，输出停在 `Image new-api:dev Building` 后无进展，需 Docker daemon 稳定后重试。
 - [ ] 启动容器：`docker compose -f <dev-compose> up -d`。
 - [ ] 将 `runtime/prod-pg-snapshots/new-api-prod-20260602-193617.dump` 恢复到 compose PostgreSQL 隔离库。
 - [ ] 采集核心表行数：`users`、`channels`、`abilities`、`options`、`logs`、`top_ups`、`affiliate_*`。
