@@ -313,6 +313,15 @@ func RecordTaskBillingLog(params RecordTaskBillingLogParams) {
 	if err != nil {
 		common.SysLog("failed to record task billing log: " + err.Error())
 	}
+	if common.DataExportEnabled {
+		quotaForStats := params.Quota
+		if params.LogType == LogTypeRefund {
+			quotaForStats = -quotaForStats
+		}
+		gopool.Go(func() {
+			LogQuotaData(params.UserId, username, params.ModelName, quotaForStats, common.GetTimestamp(), 0)
+		})
+	}
 }
 
 func GetAllLogs(logType int, startTimestamp int64, endTimestamp int64, modelName string, username string, tokenName string, startIdx int, num int, channel int, group string, requestId string, upstreamRequestId string) (logs []*Log, total int64, err error) {
