@@ -129,3 +129,68 @@ export interface AffiliateProfilePayload {
   invite_code: string
   reason: string
 }
+
+export type AffiliateRuleSetStatus = 'draft' | 'published' | 'archived' | string
+
+export interface AffiliateRuleSet {
+  id: number
+  version: string
+  name: string
+  status: AffiliateRuleSetStatus
+  effective_start: number
+  effective_end: number
+  published_at: number
+  config_snapshot?: string
+  created_by_user_id?: number
+  updated_by_user_id?: number
+  created_at?: number
+  updated_at?: number
+}
+
+export interface AffiliateRuleSetFilters {
+  status?: string
+}
+
+export interface AffiliateRuleSetsParams {
+  p?: number
+  page_size?: number
+  status?: string
+}
+
+export interface AffiliateRuleSetDraftFormValues {
+  id?: string
+  version?: string
+  name?: string
+  effectiveStart?: string
+  effectiveEnd?: string
+  reason?: string
+  settlementCycle?: string
+  freezeDays?: string
+  minSettlementAmountCents?: string
+  manualReviewEnabled?: boolean
+  commissionRulesJson?: string
+  commissionTiersJson?: string
+  kpiTiersJson?: string
+  headFeeRulesJson?: string
+  riskRulesJson?: string
+}
+
+export interface AffiliateRuleSetDraftPayload {
+  id?: number
+  version: string
+  name: string
+  effective_start?: number
+  effective_end?: number
+  reason?: string
+  settlement_config?: {
+    cycle?: string
+    freeze_days?: number
+    min_settlement_amount_cents?: number
+    manual_review_enabled?: boolean
+  }
+  commission_rules?: Record<string, unknown>[]
+  commission_tiers?: Record<string, unknown>[]
+  kpi_tiers?: Record<string, unknown>[]
+  head_fee_rules?: Record<string, unknown>[]
+  risk_rules?: Record<string, unknown>[]
+}

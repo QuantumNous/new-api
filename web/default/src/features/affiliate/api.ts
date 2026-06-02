@@ -17,7 +17,10 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { api } from '@/lib/api'
-import { buildAffiliateProfilesQuery } from './admin-lib'
+import {
+  buildAffiliateProfilesQuery,
+  buildAffiliateRuleSetsQuery,
+} from './admin-lib'
 import { buildAffiliateLogsQuery } from './lib'
 import type {
   AffiliateLog,
@@ -25,6 +28,9 @@ import type {
   AffiliateProfile,
   AffiliateProfilePayload,
   AffiliateProfileFilters,
+  AffiliateRuleSet,
+  AffiliateRuleSetDraftPayload,
+  AffiliateRuleSetFilters,
   AffiliateStatus,
   AffiliateSummary,
   ApiResponse,
@@ -86,6 +92,39 @@ export async function updateAffiliateProfileStatus(
   const res = await api.patch(
     `/api/affiliate/admin/profiles/${userId}/status`,
     { status, reason },
+    { skipBusinessError: true }
+  )
+  return res.data
+}
+
+export async function getAffiliateRuleSets(args: {
+  page?: number
+  pageSize?: number
+  filters?: AffiliateRuleSetFilters
+}): Promise<ApiResponse<PageResponse<AffiliateRuleSet>>> {
+  const res = await api.get(buildAffiliateRuleSetsQuery(args), {
+    skipBusinessError: true,
+  })
+  return res.data
+}
+
+export async function saveAffiliateRuleSetDraft(
+  payload: AffiliateRuleSetDraftPayload
+): Promise<ApiResponse<AffiliateRuleSet>> {
+  const res = await api.post('/api/affiliate/admin/rule-sets/draft', payload, {
+    skipBusinessError: true,
+  })
+  return res.data
+}
+
+export async function updateAffiliateRuleSetStatus(
+  ruleSetId: number,
+  action: 'publish' | 'archive',
+  reason: string
+): Promise<ApiResponse<AffiliateRuleSet>> {
+  const res = await api.patch(
+    `/api/affiliate/admin/rule-sets/${ruleSetId}/${action}`,
+    { reason },
     { skipBusinessError: true }
   )
   return res.data

@@ -47,19 +47,30 @@ import { SectionPageLayout } from '@/components/layout'
 import { StatusBadge } from '@/components/status-badge'
 import {
   buildAffiliateProfilePayload,
+  buildAffiliateRuleSetDraftFormValues,
+  buildAffiliateRuleSetDraftPayload,
+  buildAffiliateRuleSetStatusPayload,
   getAffiliateProfileLevelLabel,
   getAffiliateProfileStatusMeta,
+  getAffiliateRuleSetStatusMeta,
+  validateAffiliateRuleSetDraftPayload,
   validateAffiliateProfilePayload,
 } from './admin-lib'
 import {
   getAffiliateProfiles,
+  getAffiliateRuleSets,
+  saveAffiliateRuleSetDraft,
   setAffiliateProfile,
+  updateAffiliateRuleSetStatus,
   updateAffiliateProfileStatus,
 } from './api'
 import type {
   AffiliateProfile,
   AffiliateProfileFilters,
   AffiliateProfileFormValues,
+  AffiliateRuleSet,
+  AffiliateRuleSetDraftFormValues,
+  AffiliateRuleSetFilters,
 } from './types'
 
 const DEFAULT_PAGE_SIZE = 10
@@ -74,6 +85,9 @@ const EMPTY_FORM: AffiliateProfileFormValues = {
   parentUserId: '',
   inviteCode: '',
   reason: '',
+}
+const EMPTY_RULE_FILTERS: AffiliateRuleSetFilters = {
+  status: '',
 }
 
 function Field(props: {
@@ -418,6 +432,448 @@ function ProfilesTable(props: {
   )
 }
 
+function RuleSetFiltersForm(props: {
+  draftFilters: AffiliateRuleSetFilters
+  setDraftFilters: (filters: AffiliateRuleSetFilters) => void
+  onApply: () => void
+  onReset: () => void
+  disabled?: boolean
+}) {
+  const { t } = useTranslation()
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>{t('Affiliate Rule Sets')}</CardTitle>
+        <CardDescription>
+          {t('Filter versioned affiliate rules by lifecycle status')}
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <div className='grid gap-3 md:grid-cols-3'>
+          <Field label={t('Rule Status')} htmlFor='affiliate-rule-status'>
+            <NativeSelect
+              id='affiliate-rule-status'
+              className='w-full'
+              value={props.draftFilters.status || ''}
+              disabled={props.disabled}
+              onChange={(event) =>
+                props.setDraftFilters({
+                  ...props.draftFilters,
+                  status: event.target.value,
+                })
+              }
+            >
+              <NativeSelectOption value=''>{t('All')}</NativeSelectOption>
+              <NativeSelectOption value='draft'>
+                {t('Draft')}
+              </NativeSelectOption>
+              <NativeSelectOption value='published'>
+                {t('Published')}
+              </NativeSelectOption>
+              <NativeSelectOption value='archived'>
+                {t('Archived')}
+              </NativeSelectOption>
+            </NativeSelect>
+          </Field>
+          <div className='flex items-end gap-2 md:col-span-2'>
+            <Button disabled={props.disabled} onClick={props.onApply}>
+              {t('Apply')}
+            </Button>
+            <Button
+              variant='outline'
+              disabled={props.disabled}
+              onClick={props.onReset}
+            >
+              {t('Reset')}
+            </Button>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  )
+}
+
+function RuleSetsTable(props: {
+  ruleSets: AffiliateRuleSet[]
+  total: number
+  page: number
+  pageSize: number
+  isLoading: boolean
+  isMutating: boolean
+  onEdit: (ruleSet: AffiliateRuleSet) => void
+  onStatusChange: (
+    ruleSet: AffiliateRuleSet,
+    action: 'publish' | 'archive'
+  ) => void
+  onPageChange: (page: number) => void
+  onPageSizeChange: (pageSize: number) => void
+}) {
+  const { t } = useTranslation()
+  const hasNext = props.page * props.pageSize < props.total
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>{t('Affiliate Rule Set List')}</CardTitle>
+        <CardDescription>
+          {t(
+            'Publish a draft to activate a rule version; older published rules are archived by the backend'
+          )}
+        </CardDescription>
+      </CardHeader>
+      <CardContent className='space-y-3'>
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>{t('Rule Set ID')}</TableHead>
+              <TableHead>{t('Version')}</TableHead>
+              <TableHead>{t('Name')}</TableHead>
+              <TableHead>{t('Status')}</TableHead>
+              <TableHead>{t('Effective Window')}</TableHead>
+              <TableHead>{t('Published At')}</TableHead>
+              <TableHead className='text-right'>{t('Actions')}</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {props.isLoading ? (
+              <TableRow>
+                <TableCell
+                  colSpan={7}
+                  className='text-muted-foreground h-24 text-center'
+                >
+                  {t('Loading')}
+                </TableCell>
+              </TableRow>
+            ) : props.ruleSets.length === 0 ? (
+              <TableRow>
+                <TableCell
+                  colSpan={7}
+                  className='text-muted-foreground h-24 text-center'
+                >
+                  {t('No affiliate rule sets')}
+                </TableCell>
+              </TableRow>
+            ) : (
+              props.ruleSets.map((ruleSet) => {
+                const status = getAffiliateRuleSetStatusMeta(ruleSet.status, t)
+                const start = ruleSet.effective_start
+                  ? formatTimestampToDate(ruleSet.effective_start)
+                  : t('Immediately')
+                const end = ruleSet.effective_end
+                  ? formatTimestampToDate(ruleSet.effective_end)
+                  : t('Long term')
+                return (
+                  <TableRow key={ruleSet.id}>
+                    <TableCell>{ruleSet.id}</TableCell>
+                    <TableCell>{ruleSet.version}</TableCell>
+                    <TableCell>{ruleSet.name}</TableCell>
+                    <TableCell>
+                      <StatusBadge
+                        label={status.label}
+                        variant={status.variant}
+                        copyable={false}
+                      />
+                    </TableCell>
+                    <TableCell>
+                      {start} - {end}
+                    </TableCell>
+                    <TableCell>
+                      {ruleSet.published_at
+                        ? formatTimestampToDate(ruleSet.published_at)
+                        : '-'}
+                    </TableCell>
+                    <TableCell className='text-right'>
+                      <div className='flex justify-end gap-2'>
+                        <Button
+                          size='sm'
+                          variant='outline'
+                          disabled={props.isMutating}
+                          onClick={() => props.onEdit(ruleSet)}
+                        >
+                          {t('Edit')}
+                        </Button>
+                        {ruleSet.status === 'draft' && (
+                          <Button
+                            size='sm'
+                            disabled={props.isMutating}
+                            onClick={() =>
+                              props.onStatusChange(ruleSet, 'publish')
+                            }
+                          >
+                            {t('Publish')}
+                          </Button>
+                        )}
+                        {ruleSet.status !== 'archived' && (
+                          <Button
+                            size='sm'
+                            variant='outline'
+                            disabled={props.isMutating}
+                            onClick={() =>
+                              props.onStatusChange(ruleSet, 'archive')
+                            }
+                          >
+                            {t('Archive')}
+                          </Button>
+                        )}
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                )
+              })
+            )}
+          </TableBody>
+        </Table>
+
+        <div className='flex flex-wrap items-center justify-between gap-2'>
+          <div className='text-muted-foreground text-sm'>
+            {t('Total')}: {props.total}
+          </div>
+          <div className='flex flex-wrap items-center gap-2'>
+            <NativeSelect
+              value={String(props.pageSize)}
+              onChange={(event) =>
+                props.onPageSizeChange(Number(event.target.value))
+              }
+            >
+              <NativeSelectOption value='10'>
+                {t('10 / page')}
+              </NativeSelectOption>
+              <NativeSelectOption value='20'>
+                {t('20 / page')}
+              </NativeSelectOption>
+              <NativeSelectOption value='50'>
+                {t('50 / page')}
+              </NativeSelectOption>
+            </NativeSelect>
+            <Button
+              variant='outline'
+              disabled={props.page <= 1 || props.isLoading}
+              onClick={() => props.onPageChange(Math.max(1, props.page - 1))}
+            >
+              {t('Previous')}
+            </Button>
+            <span className='text-muted-foreground text-sm'>
+              {t('Page')} {props.page}
+            </span>
+            <Button
+              variant='outline'
+              disabled={!hasNext || props.isLoading}
+              onClick={() => props.onPageChange(props.page + 1)}
+            >
+              {t('Next')}
+            </Button>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  )
+}
+
+function RuleSetDraftForm(props: {
+  values: AffiliateRuleSetDraftFormValues
+  setValues: (values: AffiliateRuleSetDraftFormValues) => void
+  onSubmit: () => void
+  onNew: () => void
+  isSaving: boolean
+}) {
+  const { t } = useTranslation()
+  const update = (
+    key: keyof AffiliateRuleSetDraftFormValues,
+    value: string
+  ) => {
+    props.setValues({ ...props.values, [key]: value })
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>{t('Affiliate Rule Set Draft')}</CardTitle>
+        <CardDescription>
+          {t(
+            'Edit commission, KPI, head fee, risk and settlement rules as versioned JSON blocks'
+          )}
+        </CardDescription>
+      </CardHeader>
+      <CardContent className='space-y-4'>
+        <div className='grid gap-3 md:grid-cols-2 xl:grid-cols-4'>
+          <Field label={t('Rule Set ID')} htmlFor='affiliate-rule-id'>
+            <Input
+              id='affiliate-rule-id'
+              inputMode='numeric'
+              value={props.values.id || ''}
+              onChange={(event) => update('id', event.target.value)}
+            />
+          </Field>
+          <Field label={t('Version')} htmlFor='affiliate-rule-version'>
+            <Input
+              id='affiliate-rule-version'
+              value={props.values.version || ''}
+              onChange={(event) => update('version', event.target.value)}
+            />
+          </Field>
+          <Field label={t('Name')} htmlFor='affiliate-rule-name'>
+            <Input
+              id='affiliate-rule-name'
+              value={props.values.name || ''}
+              onChange={(event) => update('name', event.target.value)}
+            />
+          </Field>
+          <Field label={t('Operation Reason')} htmlFor='affiliate-rule-reason'>
+            <Input
+              id='affiliate-rule-reason'
+              value={props.values.reason || ''}
+              onChange={(event) => update('reason', event.target.value)}
+            />
+          </Field>
+          <Field
+            label={t('Effective Start Timestamp')}
+            htmlFor='affiliate-rule-start'
+          >
+            <Input
+              id='affiliate-rule-start'
+              inputMode='numeric'
+              value={props.values.effectiveStart || ''}
+              onChange={(event) => update('effectiveStart', event.target.value)}
+            />
+          </Field>
+          <Field
+            label={t('Effective End Timestamp')}
+            htmlFor='affiliate-rule-end'
+          >
+            <Input
+              id='affiliate-rule-end'
+              inputMode='numeric'
+              value={props.values.effectiveEnd || ''}
+              onChange={(event) => update('effectiveEnd', event.target.value)}
+            />
+          </Field>
+          <Field label={t('Settlement Cycle')} htmlFor='affiliate-rule-cycle'>
+            <Input
+              id='affiliate-rule-cycle'
+              value={props.values.settlementCycle || ''}
+              onChange={(event) =>
+                update('settlementCycle', event.target.value)
+              }
+            />
+          </Field>
+          <Field label={t('Freeze Days')} htmlFor='affiliate-rule-freeze-days'>
+            <Input
+              id='affiliate-rule-freeze-days'
+              inputMode='numeric'
+              value={props.values.freezeDays || ''}
+              onChange={(event) => update('freezeDays', event.target.value)}
+            />
+          </Field>
+          <Field
+            label={t('Minimum Settlement Amount (cents)')}
+            htmlFor='affiliate-rule-min-settlement'
+          >
+            <Input
+              id='affiliate-rule-min-settlement'
+              inputMode='numeric'
+              value={props.values.minSettlementAmountCents || ''}
+              onChange={(event) =>
+                update('minSettlementAmountCents', event.target.value)
+              }
+            />
+          </Field>
+          <div className='space-y-1.5'>
+            <Label htmlFor='affiliate-rule-manual-review'>
+              {t('Manual Review')}
+            </Label>
+            <label className='border-border flex h-9 items-center gap-2 rounded-lg border px-3 text-sm'>
+              <input
+                id='affiliate-rule-manual-review'
+                type='checkbox'
+                checked={props.values.manualReviewEnabled === true}
+                onChange={(event) =>
+                  props.setValues({
+                    ...props.values,
+                    manualReviewEnabled: event.target.checked,
+                  })
+                }
+              />
+              {t('Enabled')}
+            </label>
+          </div>
+        </div>
+
+        <div className='grid gap-3 xl:grid-cols-2'>
+          <Field
+            label={t('Commission Rules JSON')}
+            htmlFor='affiliate-commission-rules-json'
+          >
+            <Textarea
+              id='affiliate-commission-rules-json'
+              className='min-h-40 font-mono text-xs'
+              value={props.values.commissionRulesJson || ''}
+              onChange={(event) =>
+                update('commissionRulesJson', event.target.value)
+              }
+            />
+          </Field>
+          <Field
+            label={t('Commission Tiers JSON')}
+            htmlFor='affiliate-commission-tiers-json'
+          >
+            <Textarea
+              id='affiliate-commission-tiers-json'
+              className='min-h-40 font-mono text-xs'
+              value={props.values.commissionTiersJson || ''}
+              onChange={(event) =>
+                update('commissionTiersJson', event.target.value)
+              }
+            />
+          </Field>
+          <Field label={t('KPI Tiers JSON')} htmlFor='affiliate-kpi-json'>
+            <Textarea
+              id='affiliate-kpi-json'
+              className='min-h-40 font-mono text-xs'
+              value={props.values.kpiTiersJson || ''}
+              onChange={(event) => update('kpiTiersJson', event.target.value)}
+            />
+          </Field>
+          <Field
+            label={t('Head Fee Rules JSON')}
+            htmlFor='affiliate-head-fee-json'
+          >
+            <Textarea
+              id='affiliate-head-fee-json'
+              className='min-h-40 font-mono text-xs'
+              value={props.values.headFeeRulesJson || ''}
+              onChange={(event) =>
+                update('headFeeRulesJson', event.target.value)
+              }
+            />
+          </Field>
+          <Field label={t('Risk Rules JSON')} htmlFor='affiliate-risk-json'>
+            <Textarea
+              id='affiliate-risk-json'
+              className='min-h-40 font-mono text-xs'
+              value={props.values.riskRulesJson || ''}
+              onChange={(event) => update('riskRulesJson', event.target.value)}
+            />
+          </Field>
+        </div>
+
+        <div className='flex flex-wrap gap-2'>
+          <Button disabled={props.isSaving} onClick={props.onSubmit}>
+            {props.isSaving ? t('Saving') : t('Save Rule Draft')}
+          </Button>
+          <Button
+            variant='outline'
+            disabled={props.isSaving}
+            onClick={props.onNew}
+          >
+            {t('New Default Draft')}
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
+  )
+}
+
 export function AffiliateAdmin() {
   const { t } = useTranslation()
   const [formValues, setFormValues] =
@@ -427,6 +883,16 @@ export function AffiliateAdmin() {
     useState<AffiliateProfileFilters>(EMPTY_FILTERS)
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE)
+  const [ruleSetFormValues, setRuleSetFormValues] =
+    useState<AffiliateRuleSetDraftFormValues>(
+      buildAffiliateRuleSetDraftFormValues()
+    )
+  const [ruleSetFilters, setRuleSetFilters] =
+    useState<AffiliateRuleSetFilters>(EMPTY_RULE_FILTERS)
+  const [draftRuleSetFilters, setDraftRuleSetFilters] =
+    useState<AffiliateRuleSetFilters>(EMPTY_RULE_FILTERS)
+  const [ruleSetPage, setRuleSetPage] = useState(1)
+  const [ruleSetPageSize, setRuleSetPageSize] = useState(DEFAULT_PAGE_SIZE)
 
   const profilesQuery = useQuery({
     queryKey: ['affiliate', 'admin', 'profiles', page, pageSize, filters],
@@ -434,6 +900,33 @@ export function AffiliateAdmin() {
       const result = await getAffiliateProfiles({ page, pageSize, filters })
       if (!result.success) {
         toast.error(t('Failed to load affiliate profiles'))
+        return { items: [], total: 0 }
+      }
+      return {
+        items: result.data?.items ?? [],
+        total: result.data?.total ?? 0,
+      }
+    },
+    placeholderData: (previousData) => previousData,
+  })
+
+  const ruleSetsQuery = useQuery({
+    queryKey: [
+      'affiliate',
+      'admin',
+      'rule-sets',
+      ruleSetPage,
+      ruleSetPageSize,
+      ruleSetFilters,
+    ],
+    queryFn: async () => {
+      const result = await getAffiliateRuleSets({
+        page: ruleSetPage,
+        pageSize: ruleSetPageSize,
+        filters: ruleSetFilters,
+      })
+      if (!result.success) {
+        toast.error(t('Failed to load affiliate rule sets'))
         return { items: [], total: 0 }
       }
       return {
@@ -482,6 +975,47 @@ export function AffiliateAdmin() {
     onError: () => toast.error(t('Failed to update affiliate status')),
   })
 
+  const saveRuleSetMutation = useMutation({
+    mutationFn: saveAffiliateRuleSetDraft,
+    onSuccess: async (result) => {
+      if (!result.success) {
+        toast.error(result.message || t('Failed to save affiliate rule set'))
+        return
+      }
+      toast.success(t('Affiliate rule set draft saved'))
+      setRuleSetFormValues(buildAffiliateRuleSetDraftFormValues(result.data))
+      setRuleSetPage(1)
+      await ruleSetsQuery.refetch()
+    },
+    onError: () => toast.error(t('Failed to save affiliate rule set')),
+  })
+
+  const ruleSetStatusMutation = useMutation({
+    mutationFn: (args: {
+      ruleSet: AffiliateRuleSet
+      action: 'publish' | 'archive'
+    }) =>
+      updateAffiliateRuleSetStatus(
+        args.ruleSet.id,
+        args.action,
+        buildAffiliateRuleSetStatusPayload(
+          args.action === 'publish'
+            ? t('Admin published affiliate rule set in affiliate management')
+            : t('Admin archived affiliate rule set in affiliate management')
+        ).reason
+      ),
+    onSuccess: async (result) => {
+      if (!result.success) {
+        toast.error(result.message || t('Failed to update affiliate rule set'))
+        return
+      }
+      toast.success(t('Affiliate rule set updated'))
+      setRuleSetFormValues(buildAffiliateRuleSetDraftFormValues(result.data))
+      await ruleSetsQuery.refetch()
+    },
+    onError: () => toast.error(t('Failed to update affiliate rule set')),
+  })
+
   const handleSave = () => {
     const payload = buildAffiliateProfilePayload(formValues)
     const validationError = validateAffiliateProfilePayload(payload, t)
@@ -490,6 +1024,24 @@ export function AffiliateAdmin() {
       return
     }
     saveMutation.mutate(payload)
+  }
+
+  const handleSaveRuleSet = () => {
+    let payload
+    try {
+      payload = buildAffiliateRuleSetDraftPayload(ruleSetFormValues)
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : t('Rule JSON is invalid')
+      )
+      return
+    }
+    const validationError = validateAffiliateRuleSetDraftPayload(payload, t)
+    if (validationError) {
+      toast.error(validationError)
+      return
+    }
+    saveRuleSetMutation.mutate(payload)
   }
 
   const applyFilters = () => {
@@ -501,6 +1053,21 @@ export function AffiliateAdmin() {
     setDraftFilters(EMPTY_FILTERS)
     setFilters(EMPTY_FILTERS)
     setPage(1)
+  }
+
+  const applyRuleSetFilters = () => {
+    setRuleSetFilters({ ...draftRuleSetFilters })
+    setRuleSetPage(1)
+  }
+
+  const resetRuleSetFilters = () => {
+    setDraftRuleSetFilters(EMPTY_RULE_FILTERS)
+    setRuleSetFilters(EMPTY_RULE_FILTERS)
+    setRuleSetPage(1)
+  }
+
+  const newRuleSetDraft = () => {
+    setRuleSetFormValues(buildAffiliateRuleSetDraftFormValues())
   }
 
   return (
@@ -548,6 +1115,41 @@ export function AffiliateAdmin() {
               setPageSize(nextPageSize)
               setPage(1)
             }}
+          />
+          <RuleSetFiltersForm
+            draftFilters={draftRuleSetFilters}
+            setDraftFilters={setDraftRuleSetFilters}
+            disabled={ruleSetsQuery.isFetching}
+            onApply={applyRuleSetFilters}
+            onReset={resetRuleSetFilters}
+          />
+          <RuleSetsTable
+            ruleSets={ruleSetsQuery.data?.items ?? []}
+            total={ruleSetsQuery.data?.total ?? 0}
+            page={ruleSetPage}
+            pageSize={ruleSetPageSize}
+            isLoading={ruleSetsQuery.isLoading || ruleSetsQuery.isFetching}
+            isMutating={ruleSetStatusMutation.isPending}
+            onEdit={(ruleSet) =>
+              setRuleSetFormValues(
+                buildAffiliateRuleSetDraftFormValues(ruleSet)
+              )
+            }
+            onStatusChange={(ruleSet, action) =>
+              ruleSetStatusMutation.mutate({ ruleSet, action })
+            }
+            onPageChange={setRuleSetPage}
+            onPageSizeChange={(nextPageSize) => {
+              setRuleSetPageSize(nextPageSize)
+              setRuleSetPage(1)
+            }}
+          />
+          <RuleSetDraftForm
+            values={ruleSetFormValues}
+            setValues={setRuleSetFormValues}
+            isSaving={saveRuleSetMutation.isPending}
+            onSubmit={handleSaveRuleSet}
+            onNew={newRuleSetDraft}
           />
         </div>
       </SectionPageLayout.Content>
