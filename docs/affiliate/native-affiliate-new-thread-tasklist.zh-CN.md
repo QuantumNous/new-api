@@ -181,9 +181,9 @@
 - [x] 增加 SMS 限流完整发送链路场景测试。
 - [x] 增加签名未备案完整发送链路场景测试。
 - [x] 新增 `user_phone_bindings` sidecar 表设计和本地 AutoMigrate schema 验证，不直接修改官方 `users` 表。
-- [ ] 如 Docker 稳定，集中用本地 PostgreSQL dump 复核 `user_phone_bindings` schema impact。
+- [x] 如 Docker 稳定，集中用本地 PostgreSQL dump 复核 `user_phone_bindings` schema impact。
 - [x] 新增 `sms_send_logs` sidecar 表设计和本地 AutoMigrate schema 验证，日志只记录脱敏手机号、场景、provider、模板版本、返回码和耗时。
-- [ ] 如 Docker 稳定，集中用本地 PostgreSQL dump 复核 `sms_send_logs` schema impact。
+- [x] 如 Docker 稳定，集中用本地 PostgreSQL dump 复核 `sms_send_logs` schema impact。
 
 ### Phase 5A 审查复盘（2026-06-02 本线程）
 
@@ -239,28 +239,35 @@
 - 完成内容：新增 `user_phone_bindings` sidecar model 并纳入 `SMSSidecarModels()` 和主库 AutoMigrate；新增 `service.BindUserPhone`，绑定时只保存规范化手机号 hash、脱敏手机号、状态、provider、验证/绑定/解绑时间，不写 `users.phone`，不保存完整手机号。同一用户新绑定会把旧 active 绑定置为 `replaced`，同一手机号 active 绑定到其他用户时拒绝。
 - 验证方式：先观察 `go test ./model ./service -run 'UserPhoneBinding|BindUserPhone'` RED；实现后 `go test -count=1 ./model ./service -run 'UserPhoneBinding|BindUserPhone'` 通过；`go test -count=1 ./common ./model ./service ./controller -run 'SMS|PhoneBinding|UserPhoneBinding|BindUserPhone|SMSBao|SMSSignature|SMSTemplate|RenderSMS|AdminTestSMS|AdminGetSMSStatus|NormalizePhone|SMSSidecar|RecordSMSSendLog|CheckSMSRateLimit'` 通过；`git diff --check` 通过；关键词扫描确认未新增 `users.phone`。
 - 残留风险：本批未执行 Docker/PostgreSQL dump schema diff，已新增单独待办；手机号绑定尚未接入真实验证码校验、注册/登录入口、换绑入口、SMS Turnstile 或邀请归因。
-- 下一步：实现手机号注册入口并接入 Phase 5 邀请归因，或补管理员端短信配置页面。
+- 下一步：实现手机号注册入口并接入 Phase 5 邀请归因，或进入 Phase 6 分销 scope 与 scoped 使用日志。
 
 ### Phase 5A SMS unapproved signature chain 复盘（2026-06-03 本线程）
 
 - 完成内容：新增 `TestAdminTestSMSRejectsUnapprovedSignatureBeforeProvider`，覆盖管理员测试发送在签名状态为 `pending` 时的完整后端链路；请求会在模板渲染阶段被拒绝，不调用 SMS provider，也不写入 `sms_send_logs`。
 - 验证方式：`go test -count=1 ./controller -run TestAdminTestSMSRejectsUnapprovedSignatureBeforeProvider` 通过；`go test -count=1 ./common ./model ./service ./controller -run 'SMS|PhoneBinding|UserPhoneBinding|BindUserPhone|SMSBao|SMSSignature|SMSTemplate|RenderSMS|AdminTestSMS|AdminGetSMSStatus|NormalizePhone|SMSSidecar|RecordSMSSendLog|CheckSMSRateLimit'` 通过。本批测试直接通过，说明现有生产代码已具备该门禁；本批只补链路覆盖，没有修改生产代码。
-- 残留风险：管理员前端短信配置页面、真实手机号注册/登录入口、SMS Turnstile、Docker/PostgreSQL dump schema impact 仍未完成；controller 全量包测试仍存在既有非 SMS baseline 失败。
-- 下一步：实现手机号注册入口并接入 Phase 5 邀请归因，或补管理员端短信配置页面。
+- 残留风险：真实手机号注册/登录入口、SMS Turnstile 仍未完成；controller 全量包测试仍存在既有非 SMS baseline 失败。
+- 下一步：实现手机号注册入口并接入 Phase 5 邀请归因，或进入 Phase 6 分销 scope 与 scoped 使用日志。
 
 ### Phase 5A classic SMS settings 复盘（2026-06-03 本线程）
 
 - 完成内容：新增 classic 运营设置中的 `SettingsSMS` 卡片，支持启用状态、provider、短信宝发送/查询 endpoint、账号、凭据写入、凭据模式、专用通道产品 ID、签名审核状态、产品名、五类场景模板、验证码有效期/冷却、手机号/IP/账号/场景限流、测试发送和短信宝状态查询；凭据字段留空表示保留原值。后端 `GetOptions` 增加 `Credential` 后缀过滤，避免 `SMSBaoCredential` 从配置读接口回显。
 - 验证方式：先观察 `go test -count=1 ./controller -run TestGetOptionsHidesSMSBaoCredential` RED，修复后同命令通过；`go test -count=1 ./common ./model ./service ./controller -run 'SMS|PhoneBinding|UserPhoneBinding|BindUserPhone|SMSBao|SMSSignature|SMSTemplate|RenderSMS|AdminTestSMS|AdminGetSMSStatus|NormalizePhone|SMSSidecar|RecordSMSSendLog|CheckSMSRateLimit|GetOptionsHidesSMSBaoCredential'` 通过；`bun install --frozen-lockfile --registry https://registry.npmjs.org` 补齐前端依赖后，`bun run --cwd classic build` 通过；`git diff --check` 通过。
-- 残留风险：真实手机号注册/登录入口、SMS Turnstile、Docker/PostgreSQL dump schema impact 仍未完成；classic 页面只调用已存在后端测试发送/状态接口，未做浏览器级 smoke。
-- 下一步：实现手机号注册入口并接入 Phase 5 邀请归因，或补 Docker/PostgreSQL dump schema impact。
+- 残留风险：真实手机号注册/登录入口、SMS Turnstile 仍未完成；classic 页面只调用已存在后端测试发送/状态接口，未做浏览器级 smoke。
+- 下一步：实现手机号注册入口并接入 Phase 5 邀请归因，或进入 Phase 6 分销 scope 与 scoped 使用日志。
 
 ### Phase 5A default SMS settings parity 复盘（2026-06-03 本线程）
 
 - 完成内容：新增 default 系统设置 SMS section，按 default/shadcn 风格接入运营设置 registry；支持启用状态、provider、短信宝发送/查询 endpoint、账号、凭据写入、凭据模式、专用通道产品 ID、签名审核状态、产品名、五类场景模板、验证码有效期/冷却、手机号/IP/账号/场景限流、测试发送和短信宝状态查询；凭据字段留空表示保留原值。
 - 验证方式：`bun test default/src/features/system-settings/operations/sms-settings.test.ts` 通过，覆盖凭据空值不覆盖和新凭据提交；`bun run --cwd default build` 通过；`bun run --cwd default typecheck` 仍只命中既有 baseline：`hast` 类型缺失和 usage-logs mobile card 泛型字段错误，未指向本次 SMS 文件；`go test -count=1 ./common ./model ./service ./controller -run 'SMS|PhoneBinding|UserPhoneBinding|BindUserPhone|SMSBao|SMSSignature|SMSTemplate|RenderSMS|AdminTestSMS|AdminGetSMSStatus|NormalizePhone|SMSSidecar|RecordSMSSendLog|CheckSMSRateLimit|GetOptionsHidesSMSBaoCredential'` 通过；`git diff --check` 通过。
-- 残留风险：真实手机号注册/登录入口、SMS Turnstile、Docker/PostgreSQL dump schema impact 仍未完成；default 页面未做浏览器级 smoke。
-- 下一步：实现手机号注册入口并接入 Phase 5 邀请归因，或集中复核 Docker/PostgreSQL schema impact。
+- 残留风险：真实手机号注册/登录入口、SMS Turnstile 仍未完成；default 页面未做浏览器级 smoke。
+- 下一步：实现手机号注册入口并接入 Phase 5 邀请归因，或进入 Phase 6 分销 scope 与 scoped 使用日志。
+
+### Phase 5A SMS sidecar PostgreSQL schema impact 复盘（2026-06-03 本线程）
+
+- 完成内容：使用本地 dev compose PostgreSQL 在 AutoMigrate 前后导出 schema snapshot，复核 `SMSSidecarModels()` 对真实 PostgreSQL schema 的影响；重建并重启 `new-api:dev` 主容器触发迁移后，`sms_send_logs` 与 `user_phone_bindings` 均出现在本地库中。
+- 验证方式：`timeout 60s docker ps --filter 'name=new-api'` 确认 `new-api`、`new-api-postgres`、`new-api-redis` 运行；迁移前查询目标表为空；导出 `runtime/schema-impact/20260602T175546Z-sms-sidecar-before.sql` 并通过 sha256 校验；`timeout 600s docker compose -f docker-compose.dev.yml build new-api` 与 `timeout 600s docker compose -f docker-compose.dev.yml up -d --force-recreate new-api` 成功；迁移后查询目标表返回 `sms_send_logs`、`user_phone_bindings`；导出 `runtime/schema-impact/20260602T175809Z-sms-sidecar-after.sql` 并通过 sha256 校验；`ops/schema-impact/diff-schema.sh` 生成 `runtime/schema-impact/20260602T175809Z-sms-sidecar.diff`，结构性新增仅包含两个 SMS sidecar 表、序列、主键和索引，未出现官方核心表 ALTER 或删除 DDL。
+- 残留风险：本地 schema impact 不能替代 staging/生产发布前复核；真实手机号注册/登录入口和 SMS Turnstile 仍未实现。
+- 下一步：实现手机号注册入口并接入 Phase 5 统一邀请归因，或进入 Phase 6 分销 scope 与 scoped 使用日志。
 
 ## Phase 6：分销 scope 与 scoped 使用日志
 
