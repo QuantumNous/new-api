@@ -120,7 +120,7 @@
 - [x] 支持启用/禁用分销 profile（后端 service/controller/API；重新启用不自动恢复已 ended relation，后续需明确恢复策略）。
 - [x] 新增分销商端 middleware（普通用户需模块开启且 profile active，管理员/超级管理员默认放行并注入全局 scope）。
 - [x] 新增管理员端权限校验（`/api/affiliate/admin/*` 使用 `AdminAuth`）。
-- [ ] 普通用户访问分销页返回友好未开通状态；后端 `/api/affiliate/status` 已返回 `available`、`unavailable_reason` 和中文 `message`，classic `/console/affiliate` 已接入，default 前端仍待 parity。
+- [x] 普通用户访问分销页返回友好未开通状态；后端 `/api/affiliate/status` 已返回 `available`、`unavailable_reason` 和中文 `message`，classic `/console/affiliate` 已接入，default `/affiliate` 已优先展示后端 `message`，并保持 summary/logs 查询只在 `available=true` 时启用。
 - [x] 增加 profile 创建、启用、禁用、权限校验测试；已覆盖 profile 创建/更新/禁用/启用 happy path，以及管理员路由未登录/普通用户拒绝访问；2026-06-02 本线程复跑 `go test ./model ./service ./middleware ./controller -run 'Affiliate|AdminSetAffiliateProfile|AdminUpdateAffiliateProfileStatus|AffiliateAdminRoutes|GetAffiliateStatus'` 通过。
 - [x] 增加二级分销商 parent 校验测试；2026-06-02 本线程先观察到新增测试 RED，再实现 service 校验，`go test ./service -run 'TestSetAffiliateProfileRequiresActiveLevelOneParentForLevelTwo|TestSetAffiliateProfileAcceptsLevelTwoWithActiveLevelOneParent'` 通过。
 
@@ -136,8 +136,15 @@
 - Phase 2 下一步：如果继续后端推进，进入 Phase 5 注册/OAuth/微信邀请归因 thin hook；如果继续 Phase 4 前端，接入 `/api/affiliate/status` 友好提示。
 - Phase 3/4 完成内容：复核 affiliate sidecar 模型、profile/relation/invite/audit service、status/admin controller、管理员权限和分销商 middleware 骨架；补充二级分销商必须绑定 active 一级 parent 的 service 校验。
 - Phase 3/4 验证方式：affiliate 定向 Go 测试通过；二级 parent 校验先观察到 RED，再实现 service 最小校验并通过；大范围 `go test ./model ./service ./controller ./middleware` 中 controller 包仍因既有非 affiliate `controller/model_list_test.go` 基线问题失败，继续按 Phase 12 待办处理。
-- Phase 3/4 残留风险：普通用户友好状态目前只有后端 `/api/affiliate/status`，classic/default 页面展示仍未接入；Phase 3 sidecar 表已进入本地 PostgreSQL schema impact，但尚未覆盖 staging/生产。
-- Phase 3/4 下一步：推进 Phase 5 邀请归因 thin hook，或先接入 classic/default 分销入口的友好未开通提示。
+- Phase 3/4 残留风险：普通用户友好状态已覆盖后端 `/api/affiliate/status`、classic `/console/affiliate` 和 default `/affiliate`，但 default 尚未做真实账号截图回归；Phase 3 sidecar 表已进入本地 PostgreSQL schema impact，但尚未覆盖 staging/生产。
+- Phase 3/4 下一步：继续补 default 真实账号 browser smoke，或推进 Phase 5/Phase 9 后续缺口。
+
+### Phase 4 default 未开通状态复盘（2026-06-03 本线程）
+
+- 完成内容：default `/affiliate` 未开通状态补齐 classic parity，优先展示后端 `/api/affiliate/status` 返回的 `message`；未知或空 message 时仍回退到前端 reason 文案；summary/logs 查询继续只在 `available=true` 时启用，避免普通用户误触 scoped API。
+- 验证方式：先观察 `bun --bun test src/features/affiliate/lib.test.ts` RED，确认 `not_opened` 时后端中文 message 被前端通用文案覆盖；实现后同命令 6 项通过。
+- 残留风险：本批为 helper 与页面数据流修正，未新增浏览器截图回归；default 真实账号多角色 browser smoke 仍归入 Phase 8/12。
+- 下一步：继续补 default 真实账号 browser smoke，或推进 Phase 9 导出 RMB 主字段和 raw quota 附加字段。
 
 ## Phase 5：邀请归因与初始额度
 

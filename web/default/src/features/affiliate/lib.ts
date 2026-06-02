@@ -93,6 +93,9 @@ export function getAffiliateUnavailableMessage(
   fallback: string | undefined,
   t: (key: string) => string
 ): string {
+  const backendMessage = fallback?.trim()
+  if (backendMessage) return backendMessage
+
   switch (reason) {
     case 'module_disabled':
       return t('Affiliate module is disabled')
@@ -101,6 +104,6 @@ export function getAffiliateUnavailableMessage(
     case 'not_opened':
       return t('Affiliate feature is not enabled for this account')
     default:
-      return fallback || t('Affiliate feature is unavailable')
+      return t('Affiliate feature is unavailable')
   }
 }

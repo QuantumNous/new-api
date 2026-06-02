@@ -457,7 +457,7 @@ export function Affiliate() {
   const logsPage = logsQuery.data?.data
   const unavailableMessage = getAffiliateUnavailableMessage(
     status?.unavailable_reason,
-    undefined,
+    status?.message || statusQuery.data?.message,
     t
   )
 

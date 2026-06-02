@@ -102,4 +102,15 @@ describe('default affiliate helpers', () => {
       'Affiliate feature is unavailable'
     )
   })
+
+  test('prefers backend unavailable messages for default parity with classic', () => {
+    assert.equal(
+      getAffiliateUnavailableMessage(
+        'not_opened',
+        '分销功能未开通，请联系管理员开通。',
+        t
+      ),
+      '分销功能未开通，请联系管理员开通。'
+    )
+  })
 })
