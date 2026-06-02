@@ -418,7 +418,8 @@
 - [x] 实现 pending 佣金明细。
 - [x] 实现结算单生成、冻结、作废、标记已支付。
 - [x] 分销商只读自己的佣金/结算。
-- [ ] 管理员可全局管理规则、佣金和结算。
+- [x] 管理员可全局管理规则、佣金和结算基础流程（规则草稿/发布/归档、佣金全局列表、结算生成/冻结/作废/标记已支付）。
+- [ ] 管理员佣金事件人工调整、作废、重算 API 待按业务需要细化。
 
 ### Phase 10 阶段复盘（2026-06-03 后端规则集 API）
 
@@ -461,6 +462,13 @@
 - 验证方式：先观察 `go test -count=1 ./controller -run 'AffiliateCommissions|AffiliateSettlements'` RED；实现后同命令通过；补充 `go test -count=1 ./service` 和 `go test -count=1 ./model ./service ./controller ./router -run 'Affiliate|RuleSet|Commission|KPI|HeadFee|Settlement|Admin'` 均通过。
 - 残留风险：本批只做分销商只读 API，管理员侧全局结算管理、生成/冻结/作废/支付 HTTP API、classic/default 页面消费仍待实现；状态筛选目前按合法状态过滤，未知状态不额外收窄结果，后续前端应只传固定枚举。
 - 下一步：补管理员全局管理佣金和结算 API，再接 classic 管理端页面与分销商结算明细页面。
+
+### Phase 10 阶段复盘（2026-06-03 管理员佣金/结算管理 API）
+
+- 完成内容：新增管理员侧 `GET /api/affiliate/admin/commissions`、`GET /api/affiliate/admin/settlements`、`POST /api/affiliate/admin/settlements/generate`、`PATCH /api/affiliate/admin/settlements/:id/freeze|void|pay`；管理员可全局过滤查看佣金/结算，并执行结算生成、冻结、作废、标记已支付，状态流转复用 settlement service 并同步事件状态。
+- 验证方式：先观察 `go test -count=1 ./controller -run 'AdminListAffiliateCommissions|AdminSettlement|AdminVoidAffiliateSettlement'` RED；实现后同命令通过；补充 `go test -count=1 ./service` 和 `go test -count=1 ./model ./service ./controller ./router -run 'Affiliate|RuleSet|Commission|KPI|HeadFee|Settlement|Admin'` 均通过。
+- 残留风险：管理员佣金事件人工调整/作废/重算尚未设计；当前结算生成依赖已存在的 pending 佣金/人头费事件，尚未提供一键“生成 KPI -> 佣金 -> 人头费 -> 结算”的编排任务；前端管理页面仍待接入。
+- 下一步：设计管理员端规则配置/结算管理 UI，或先补后端编排任务和佣金事件人工调整策略。
 
 ## Phase 11：用户管理 `inviter_id`
 

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
@@ -269,6 +270,132 @@ func TestAdminListAffiliateProfiles(t *testing.T) {
 	}
 	if body.Data.Items[0].UserId != 611 || body.Data.Items[0].ParentUserId != 610 {
 		t.Fatalf("unexpected listed profile: %+v", body.Data.Items[0])
+	}
+}
+
+func TestAdminListAffiliateCommissionsCanFilterAffiliate(t *testing.T) {
+	db := newAffiliateLogsControllerTestDB(t)
+	seedAffiliateCommissionEventForList(t, db, model.AffiliateCommissionEvent{
+		AffiliateUserId:  100,
+		DownstreamUserId: 200,
+		RuleSetId:        1,
+		Status:           model.AffiliateEventStatusReady,
+		Kind:             service.AffiliateCommissionEventKindAccrual,
+		CommissionCents:  1000,
+	})
+	seedAffiliateCommissionEventForList(t, db, model.AffiliateCommissionEvent{
+		AffiliateUserId:  999,
+		DownstreamUserId: 888,
+		RuleSetId:        1,
+		Status:           model.AffiliateEventStatusReady,
+		Kind:             service.AffiliateCommissionEventKindAccrual,
+		CommissionCents:  9999,
+	})
+
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = httptest.NewRequest(http.MethodGet, "/api/affiliate/admin/commissions?affiliate_user_id=999&p=1&page_size=10", nil)
+	ctx.Set("id", 1)
+	ctx.Set("role", common.RoleAdminUser)
+
+	AdminListAffiliateCommissions(ctx)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d body=%s", recorder.Code, recorder.Body.String())
+	}
+	var body affiliateCommissionEventsTestResponse
+	if err := json.Unmarshal(recorder.Body.Bytes(), &body); err != nil {
+		t.Fatalf("unmarshal response: %v", err)
+	}
+	if !body.Success || body.Data.Total != 1 || len(body.Data.Items) != 1 || body.Data.Items[0].AffiliateUserId != 999 {
+		t.Fatalf("expected filtered global commission list, got %+v", body)
+	}
+}
+
+func TestAdminSettlementLifecycleGenerateFreezePay(t *testing.T) {
+	db := newAffiliateLogsControllerTestDB(t)
+	ruleSet := seedPublishedAffiliateRuleSetForAdminSettlement(t, db, "admin-settlement-pay")
+	seedAffiliateCommissionEventForList(t, db, model.AffiliateCommissionEvent{
+		AffiliateUserId:  100,
+		DownstreamUserId: 200,
+		RuleSetId:        ruleSet.Id,
+		Status:           model.AffiliateEventStatusPending,
+		Kind:             service.AffiliateCommissionEventKindAccrual,
+		PeriodStart:      1000,
+		PeriodEnd:        2000,
+		CommissionCents:  1500,
+	})
+
+	generated := performAdminGenerateAffiliateSettlementsRequest(t, `{
+		"rule_set_id":`+strconv.Itoa(ruleSet.Id)+`,
+		"period_start":1000,
+		"period_end":2000,
+		"freeze_days":7,
+		"reason":"monthly close"
+	}`)
+	if !generated.Success || len(generated.Data) != 1 {
+		t.Fatalf("expected one generated settlement, got %+v", generated)
+	}
+	settlement := generated.Data[0]
+	if settlement.AffiliateUserId != 100 || settlement.Status != model.AffiliateSettlementStatusDraft || settlement.PayableCents != 1500 {
+		t.Fatalf("unexpected generated settlement: %+v", settlement)
+	}
+
+	frozen := performAdminSettlementStatusRequest(t, http.MethodPatch, "/api/affiliate/admin/settlements/"+strconv.Itoa(settlement.Id)+"/freeze", settlement.Id, "freeze", `{"reason":"reviewed"}`)
+	if !frozen.Success || frozen.Data.Status != model.AffiliateSettlementStatusFrozen {
+		t.Fatalf("expected frozen settlement, got %+v", frozen)
+	}
+
+	paid := performAdminSettlementStatusRequest(t, http.MethodPatch, "/api/affiliate/admin/settlements/"+strconv.Itoa(settlement.Id)+"/pay", settlement.Id, "pay", `{
+		"paid_at":3000,
+		"payment_reference":"settlement-pay-001",
+		"reason":"bank transfer"
+	}`)
+	if !paid.Success || paid.Data.Status != model.AffiliateSettlementStatusPaid || paid.Data.PaidByUserId != 1 || paid.Data.PaymentReference != "settlement-pay-001" {
+		t.Fatalf("expected paid settlement, got %+v", paid)
+	}
+	var event model.AffiliateCommissionEvent
+	if err := db.Where("settlement_id = ?", settlement.Id).First(&event).Error; err != nil {
+		t.Fatalf("load linked event: %v", err)
+	}
+	if event.Status != model.AffiliateEventStatusSettled {
+		t.Fatalf("expected linked commission event settled, got %+v", event)
+	}
+}
+
+func TestAdminVoidAffiliateSettlement(t *testing.T) {
+	db := newAffiliateLogsControllerTestDB(t)
+	ruleSet := seedPublishedAffiliateRuleSetForAdminSettlement(t, db, "admin-settlement-void")
+	seedAffiliateCommissionEventForList(t, db, model.AffiliateCommissionEvent{
+		AffiliateUserId:  100,
+		DownstreamUserId: 200,
+		RuleSetId:        ruleSet.Id,
+		Status:           model.AffiliateEventStatusPending,
+		Kind:             service.AffiliateCommissionEventKindAccrual,
+		PeriodStart:      1000,
+		PeriodEnd:        2000,
+		CommissionCents:  1500,
+	})
+
+	generated := performAdminGenerateAffiliateSettlementsRequest(t, `{
+		"rule_set_id":`+strconv.Itoa(ruleSet.Id)+`,
+		"period_start":1000,
+		"period_end":2000
+	}`)
+	if !generated.Success || len(generated.Data) != 1 {
+		t.Fatalf("expected one generated settlement, got %+v", generated)
+	}
+
+	voided := performAdminSettlementStatusRequest(t, http.MethodPatch, "/api/affiliate/admin/settlements/"+strconv.Itoa(generated.Data[0].Id)+"/void", generated.Data[0].Id, "void", `{"reason":"invalid"}`)
+	if !voided.Success || voided.Data.Status != model.AffiliateSettlementStatusVoid {
+		t.Fatalf("expected void settlement, got %+v", voided)
+	}
+	var event model.AffiliateCommissionEvent
+	if err := db.Where("settlement_id = ?", generated.Data[0].Id).First(&event).Error; err != nil {
+		t.Fatalf("load linked event: %v", err)
+	}
+	if event.Status != model.AffiliateEventStatusVoid {
+		t.Fatalf("expected linked commission event void, got %+v", event)
 	}
 }
 
@@ -588,6 +715,16 @@ type affiliateSettlementsTestResponse struct {
 	} `json:"data"`
 }
 
+type affiliateSettlementListDirectTestResponse struct {
+	Success bool                        `json:"success"`
+	Data    []model.AffiliateSettlement `json:"data"`
+}
+
+type affiliateSettlementDirectTestResponse struct {
+	Success bool                      `json:"success"`
+	Data    model.AffiliateSettlement `json:"data"`
+}
+
 type affiliateProfilesListTestResponse struct {
 	Success bool `json:"success"`
 	Data    struct {
@@ -651,6 +788,56 @@ func performAffiliateScopedLogsRequest(t *testing.T, target string, scope servic
 		t.Fatalf("expected status 200, got %d body=%s", recorder.Code, recorder.Body.String())
 	}
 	var body affiliateLogsTestResponse
+	if err := json.Unmarshal(recorder.Body.Bytes(), &body); err != nil {
+		t.Fatalf("unmarshal response: %v body=%s", err, recorder.Body.String())
+	}
+	return body
+}
+
+func performAdminGenerateAffiliateSettlementsRequest(t *testing.T, payload string) affiliateSettlementListDirectTestResponse {
+	t.Helper()
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = httptest.NewRequest(http.MethodPost, "/api/affiliate/admin/settlements/generate", bytes.NewBufferString(payload))
+	ctx.Set("id", 1)
+	ctx.Set("role", common.RoleAdminUser)
+
+	AdminGenerateAffiliateSettlements(ctx)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d body=%s", recorder.Code, recorder.Body.String())
+	}
+	var body affiliateSettlementListDirectTestResponse
+	if err := json.Unmarshal(recorder.Body.Bytes(), &body); err != nil {
+		t.Fatalf("unmarshal response: %v body=%s", err, recorder.Body.String())
+	}
+	return body
+}
+
+func performAdminSettlementStatusRequest(t *testing.T, method string, target string, settlementId int, action string, payload string) affiliateSettlementDirectTestResponse {
+	t.Helper()
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = httptest.NewRequest(method, target, bytes.NewBufferString(payload))
+	ctx.Params = gin.Params{{Key: "id", Value: strconv.Itoa(settlementId)}}
+	ctx.Set("id", 1)
+	ctx.Set("role", common.RoleAdminUser)
+
+	switch action {
+	case "freeze":
+		AdminFreezeAffiliateSettlement(ctx)
+	case "void":
+		AdminVoidAffiliateSettlement(ctx)
+	case "pay":
+		AdminMarkAffiliateSettlementPaid(ctx)
+	default:
+		t.Fatalf("unknown settlement action %q", action)
+	}
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d body=%s", recorder.Code, recorder.Body.String())
+	}
+	var body affiliateSettlementDirectTestResponse
 	if err := json.Unmarshal(recorder.Body.Bytes(), &body); err != nil {
 		t.Fatalf("unmarshal response: %v body=%s", err, recorder.Body.String())
 	}
@@ -729,6 +916,20 @@ func seedAffiliateSettlementForList(t *testing.T, db *gorm.DB, settlement model.
 	}
 }
 
+func seedPublishedAffiliateRuleSetForAdminSettlement(t *testing.T, db *gorm.DB, version string) model.AffiliateRuleSet {
+	t.Helper()
+	ruleSet := model.AffiliateRuleSet{
+		Version:     version,
+		Name:        version,
+		Status:      model.AffiliateRuleSetStatusPublished,
+		PublishedAt: 900,
+	}
+	if err := db.Create(&ruleSet).Error; err != nil {
+		t.Fatalf("seed published rule set: %v", err)
+	}
+	return ruleSet
+}
+
 func newAffiliateAdminRouteTestRouter(t *testing.T, role int) *gin.Engine {
 	t.Helper()
 	gin.SetMode(gin.TestMode)
@@ -756,6 +957,12 @@ func newAffiliateAdminRouteTestRouter(t *testing.T, role int) *gin.Engine {
 		adminRoute.POST("/rule-sets/draft", AdminSaveAffiliateRuleSetDraft)
 		adminRoute.PATCH("/rule-sets/:id/publish", AdminPublishAffiliateRuleSet)
 		adminRoute.PATCH("/rule-sets/:id/archive", AdminArchiveAffiliateRuleSet)
+		adminRoute.GET("/commissions", AdminListAffiliateCommissions)
+		adminRoute.GET("/settlements", AdminListAffiliateSettlements)
+		adminRoute.POST("/settlements/generate", AdminGenerateAffiliateSettlements)
+		adminRoute.PATCH("/settlements/:id/freeze", AdminFreezeAffiliateSettlement)
+		adminRoute.PATCH("/settlements/:id/void", AdminVoidAffiliateSettlement)
+		adminRoute.PATCH("/settlements/:id/pay", AdminMarkAffiliateSettlementPaid)
 	}
 	return router
 }
