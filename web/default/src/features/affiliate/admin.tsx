@@ -46,31 +46,44 @@ import { Textarea } from '@/components/ui/textarea'
 import { SectionPageLayout } from '@/components/layout'
 import { StatusBadge } from '@/components/status-badge'
 import {
+  buildAffiliateCommissionAdjustmentPayload,
+  buildAffiliateCommissionRecomputePayload,
   buildAffiliateProfilePayload,
   buildAffiliateRuleSetDraftFormValues,
   buildAffiliateRuleSetDraftPayload,
   buildAffiliateRuleSetStatusPayload,
+  buildAffiliateSettlementRunPayload,
+  formatAffiliateCentsRMB,
   getAffiliateProfileLevelLabel,
   getAffiliateProfileStatusMeta,
   getAffiliateRuleSetStatusMeta,
+  validateAffiliateCommissionAdjustmentPayload,
+  validateAffiliateCommissionRecomputePayload,
   validateAffiliateRuleSetDraftPayload,
+  validateAffiliateSettlementRunPayload,
   validateAffiliateProfilePayload,
 } from './admin-lib'
 import {
+  createAffiliateCommissionAdjustment,
   getAffiliateProfiles,
   getAffiliateRuleSets,
+  recomputeAffiliateCommissions,
+  runAffiliateSettlementPipeline,
   saveAffiliateRuleSetDraft,
   setAffiliateProfile,
   updateAffiliateRuleSetStatus,
   updateAffiliateProfileStatus,
 } from './api'
 import type {
+  AffiliateCommissionAdjustmentFormValues,
+  AffiliateCommissionRecomputeFormValues,
   AffiliateProfile,
   AffiliateProfileFilters,
   AffiliateProfileFormValues,
   AffiliateRuleSet,
   AffiliateRuleSetDraftFormValues,
   AffiliateRuleSetFilters,
+  AffiliateSettlementRunFormValues,
 } from './types'
 
 const DEFAULT_PAGE_SIZE = 10
@@ -89,6 +102,35 @@ const EMPTY_FORM: AffiliateProfileFormValues = {
 const EMPTY_RULE_FILTERS: AffiliateRuleSetFilters = {
   status: '',
 }
+const EMPTY_SETTLEMENT_RUN_FORM: AffiliateSettlementRunFormValues = {
+  ruleSetId: '',
+  periodStart: '',
+  periodEnd: '',
+  freezeDays: '7',
+  now: '',
+  quotaPerUnit: '',
+  usdExchangeRate: '',
+  reason: '',
+}
+const EMPTY_COMMISSION_RECOMPUTE_FORM: AffiliateCommissionRecomputeFormValues =
+  {
+    ruleSetId: '',
+    periodStart: '',
+    periodEnd: '',
+    quotaPerUnit: '',
+    usdExchangeRate: '',
+    reason: '',
+  }
+const EMPTY_COMMISSION_ADJUSTMENT_FORM: AffiliateCommissionAdjustmentFormValues =
+  {
+    affiliateUserId: '',
+    downstreamUserId: '',
+    ruleSetId: '',
+    periodStart: '',
+    periodEnd: '',
+    commissionCents: '',
+    reason: '',
+  }
 
 function Field(props: {
   label: string
@@ -874,6 +916,448 @@ function RuleSetDraftForm(props: {
   )
 }
 
+function FinanceOperationsPanel(props: {
+  settlementRunValues: AffiliateSettlementRunFormValues
+  setSettlementRunValues: (values: AffiliateSettlementRunFormValues) => void
+  commissionRecomputeValues: AffiliateCommissionRecomputeFormValues
+  setCommissionRecomputeValues: (
+    values: AffiliateCommissionRecomputeFormValues
+  ) => void
+  commissionAdjustmentValues: AffiliateCommissionAdjustmentFormValues
+  setCommissionAdjustmentValues: (
+    values: AffiliateCommissionAdjustmentFormValues
+  ) => void
+  lastResult: string
+  onSettlementRun: () => void
+  onCommissionRecompute: () => void
+  onCommissionAdjustment: () => void
+  isSettlementRunSaving: boolean
+  isCommissionRecomputeSaving: boolean
+  isCommissionAdjustmentSaving: boolean
+}) {
+  const { t } = useTranslation()
+  const updateSettlementRun = (
+    key: keyof AffiliateSettlementRunFormValues,
+    value: string
+  ) => {
+    props.setSettlementRunValues({
+      ...props.settlementRunValues,
+      [key]: value,
+    })
+  }
+  const updateCommissionRecompute = (
+    key: keyof AffiliateCommissionRecomputeFormValues,
+    value: string
+  ) => {
+    props.setCommissionRecomputeValues({
+      ...props.commissionRecomputeValues,
+      [key]: value,
+    })
+  }
+  const updateCommissionAdjustment = (
+    key: keyof AffiliateCommissionAdjustmentFormValues,
+    value: string
+  ) => {
+    props.setCommissionAdjustmentValues({
+      ...props.commissionAdjustmentValues,
+      [key]: value,
+    })
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>{t('Affiliate Finance Operations')}</CardTitle>
+        <CardDescription>
+          {t(
+            'Run KPI, commission, head fee and settlement orchestration, recompute pending commissions, or create a manual commission adjustment'
+          )}
+        </CardDescription>
+        {props.lastResult && (
+          <div className='text-foreground text-sm font-medium'>
+            {props.lastResult}
+          </div>
+        )}
+      </CardHeader>
+      <CardContent>
+        <div className='grid gap-4 xl:grid-cols-3'>
+          <Card className='border-dashed'>
+            <CardHeader>
+              <CardTitle className='text-base'>{t('Settlement Run')}</CardTitle>
+              <CardDescription>
+                {t(
+                  'Generate KPI snapshots, pending events and draft settlements'
+                )}
+              </CardDescription>
+            </CardHeader>
+            <CardContent className='space-y-3'>
+              <Field label={t('Rule Set ID')} htmlFor='finance-run-rule-id'>
+                <Input
+                  id='finance-run-rule-id'
+                  inputMode='numeric'
+                  placeholder={t('0 selects the published rule automatically')}
+                  value={props.settlementRunValues.ruleSetId || ''}
+                  onChange={(event) =>
+                    updateSettlementRun('ruleSetId', event.target.value)
+                  }
+                />
+              </Field>
+              <div className='grid gap-3 md:grid-cols-2 xl:grid-cols-1'>
+                <Field
+                  label={t('Period Start Timestamp')}
+                  htmlFor='finance-run-period-start'
+                >
+                  <Input
+                    id='finance-run-period-start'
+                    inputMode='numeric'
+                    value={props.settlementRunValues.periodStart || ''}
+                    onChange={(event) =>
+                      updateSettlementRun('periodStart', event.target.value)
+                    }
+                  />
+                </Field>
+                <Field
+                  label={t('Period End Timestamp')}
+                  htmlFor='finance-run-period-end'
+                >
+                  <Input
+                    id='finance-run-period-end'
+                    inputMode='numeric'
+                    value={props.settlementRunValues.periodEnd || ''}
+                    onChange={(event) =>
+                      updateSettlementRun('periodEnd', event.target.value)
+                    }
+                  />
+                </Field>
+              </div>
+              <div className='grid gap-3 md:grid-cols-2 xl:grid-cols-1'>
+                <Field label={t('Freeze Days')} htmlFor='finance-run-freeze'>
+                  <Input
+                    id='finance-run-freeze'
+                    inputMode='numeric'
+                    value={props.settlementRunValues.freezeDays || ''}
+                    onChange={(event) =>
+                      updateSettlementRun('freezeDays', event.target.value)
+                    }
+                  />
+                </Field>
+                <Field label={t('Run Timestamp')} htmlFor='finance-run-now'>
+                  <Input
+                    id='finance-run-now'
+                    inputMode='numeric'
+                    placeholder={t('Empty uses current server time')}
+                    value={props.settlementRunValues.now || ''}
+                    onChange={(event) =>
+                      updateSettlementRun('now', event.target.value)
+                    }
+                  />
+                </Field>
+              </div>
+              <div className='grid gap-3 md:grid-cols-2 xl:grid-cols-1'>
+                <Field label={t('Quota Per Unit')} htmlFor='finance-run-quota'>
+                  <Input
+                    id='finance-run-quota'
+                    inputMode='decimal'
+                    placeholder={t('Empty uses system default')}
+                    value={props.settlementRunValues.quotaPerUnit || ''}
+                    onChange={(event) =>
+                      updateSettlementRun('quotaPerUnit', event.target.value)
+                    }
+                  />
+                </Field>
+                <Field
+                  label={t('USD Exchange Rate')}
+                  htmlFor='finance-run-exchange-rate'
+                >
+                  <Input
+                    id='finance-run-exchange-rate'
+                    inputMode='decimal'
+                    placeholder={t('Empty uses system default')}
+                    value={props.settlementRunValues.usdExchangeRate || ''}
+                    onChange={(event) =>
+                      updateSettlementRun('usdExchangeRate', event.target.value)
+                    }
+                  />
+                </Field>
+              </div>
+              <Field label={t('Operation Reason')} htmlFor='finance-run-reason'>
+                <Input
+                  id='finance-run-reason'
+                  value={props.settlementRunValues.reason || ''}
+                  onChange={(event) =>
+                    updateSettlementRun('reason', event.target.value)
+                  }
+                />
+              </Field>
+              <Button
+                disabled={props.isSettlementRunSaving}
+                onClick={props.onSettlementRun}
+              >
+                {props.isSettlementRunSaving
+                  ? t('Running')
+                  : t('Run Settlement Pipeline')}
+              </Button>
+            </CardContent>
+          </Card>
+
+          <Card className='border-dashed'>
+            <CardHeader>
+              <CardTitle className='text-base'>
+                {t('Commission Recompute')}
+              </CardTitle>
+              <CardDescription>
+                {t(
+                  'Void generated pending events and rebuild them for a period'
+                )}
+              </CardDescription>
+            </CardHeader>
+            <CardContent className='space-y-3'>
+              <Field
+                label={t('Rule Set ID')}
+                htmlFor='finance-recompute-rule-id'
+              >
+                <Input
+                  id='finance-recompute-rule-id'
+                  inputMode='numeric'
+                  placeholder={t('0 selects the published rule automatically')}
+                  value={props.commissionRecomputeValues.ruleSetId || ''}
+                  onChange={(event) =>
+                    updateCommissionRecompute('ruleSetId', event.target.value)
+                  }
+                />
+              </Field>
+              <div className='grid gap-3 md:grid-cols-2 xl:grid-cols-1'>
+                <Field
+                  label={t('Period Start Timestamp')}
+                  htmlFor='finance-recompute-period-start'
+                >
+                  <Input
+                    id='finance-recompute-period-start'
+                    inputMode='numeric'
+                    value={props.commissionRecomputeValues.periodStart || ''}
+                    onChange={(event) =>
+                      updateCommissionRecompute(
+                        'periodStart',
+                        event.target.value
+                      )
+                    }
+                  />
+                </Field>
+                <Field
+                  label={t('Period End Timestamp')}
+                  htmlFor='finance-recompute-period-end'
+                >
+                  <Input
+                    id='finance-recompute-period-end'
+                    inputMode='numeric'
+                    value={props.commissionRecomputeValues.periodEnd || ''}
+                    onChange={(event) =>
+                      updateCommissionRecompute('periodEnd', event.target.value)
+                    }
+                  />
+                </Field>
+              </div>
+              <div className='grid gap-3 md:grid-cols-2 xl:grid-cols-1'>
+                <Field
+                  label={t('Quota Per Unit')}
+                  htmlFor='finance-recompute-quota'
+                >
+                  <Input
+                    id='finance-recompute-quota'
+                    inputMode='decimal'
+                    placeholder={t('Empty uses system default')}
+                    value={props.commissionRecomputeValues.quotaPerUnit || ''}
+                    onChange={(event) =>
+                      updateCommissionRecompute(
+                        'quotaPerUnit',
+                        event.target.value
+                      )
+                    }
+                  />
+                </Field>
+                <Field
+                  label={t('USD Exchange Rate')}
+                  htmlFor='finance-recompute-exchange-rate'
+                >
+                  <Input
+                    id='finance-recompute-exchange-rate'
+                    inputMode='decimal'
+                    placeholder={t('Empty uses system default')}
+                    value={
+                      props.commissionRecomputeValues.usdExchangeRate || ''
+                    }
+                    onChange={(event) =>
+                      updateCommissionRecompute(
+                        'usdExchangeRate',
+                        event.target.value
+                      )
+                    }
+                  />
+                </Field>
+              </div>
+              <Field
+                label={t('Operation Reason')}
+                htmlFor='finance-recompute-reason'
+              >
+                <Input
+                  id='finance-recompute-reason'
+                  value={props.commissionRecomputeValues.reason || ''}
+                  onChange={(event) =>
+                    updateCommissionRecompute('reason', event.target.value)
+                  }
+                />
+              </Field>
+              <Button
+                variant='outline'
+                disabled={props.isCommissionRecomputeSaving}
+                onClick={props.onCommissionRecompute}
+              >
+                {props.isCommissionRecomputeSaving
+                  ? t('Recomputing')
+                  : t('Recompute Commission Events')}
+              </Button>
+            </CardContent>
+          </Card>
+
+          <Card className='border-dashed'>
+            <CardHeader>
+              <CardTitle className='text-base'>
+                {t('Manual Commission Adjustment')}
+              </CardTitle>
+              <CardDescription>
+                {t('Create a positive or negative pending manual event')}
+              </CardDescription>
+            </CardHeader>
+            <CardContent className='space-y-3'>
+              <div className='grid gap-3 md:grid-cols-2 xl:grid-cols-1'>
+                <Field
+                  label={t('Affiliate User ID')}
+                  htmlFor='finance-adjust-affiliate-user'
+                >
+                  <Input
+                    id='finance-adjust-affiliate-user'
+                    inputMode='numeric'
+                    value={
+                      props.commissionAdjustmentValues.affiliateUserId || ''
+                    }
+                    onChange={(event) =>
+                      updateCommissionAdjustment(
+                        'affiliateUserId',
+                        event.target.value
+                      )
+                    }
+                  />
+                </Field>
+                <Field
+                  label={t('Downstream User ID')}
+                  htmlFor='finance-adjust-downstream-user'
+                >
+                  <Input
+                    id='finance-adjust-downstream-user'
+                    inputMode='numeric'
+                    value={
+                      props.commissionAdjustmentValues.downstreamUserId || ''
+                    }
+                    onChange={(event) =>
+                      updateCommissionAdjustment(
+                        'downstreamUserId',
+                        event.target.value
+                      )
+                    }
+                  />
+                </Field>
+              </div>
+              <Field label={t('Rule Set ID')} htmlFor='finance-adjust-rule-id'>
+                <Input
+                  id='finance-adjust-rule-id'
+                  inputMode='numeric'
+                  placeholder={t('0 selects the published rule automatically')}
+                  value={props.commissionAdjustmentValues.ruleSetId || ''}
+                  onChange={(event) =>
+                    updateCommissionAdjustment('ruleSetId', event.target.value)
+                  }
+                />
+              </Field>
+              <div className='grid gap-3 md:grid-cols-2 xl:grid-cols-1'>
+                <Field
+                  label={t('Period Start Timestamp')}
+                  htmlFor='finance-adjust-period-start'
+                >
+                  <Input
+                    id='finance-adjust-period-start'
+                    inputMode='numeric'
+                    value={props.commissionAdjustmentValues.periodStart || ''}
+                    onChange={(event) =>
+                      updateCommissionAdjustment(
+                        'periodStart',
+                        event.target.value
+                      )
+                    }
+                  />
+                </Field>
+                <Field
+                  label={t('Period End Timestamp')}
+                  htmlFor='finance-adjust-period-end'
+                >
+                  <Input
+                    id='finance-adjust-period-end'
+                    inputMode='numeric'
+                    value={props.commissionAdjustmentValues.periodEnd || ''}
+                    onChange={(event) =>
+                      updateCommissionAdjustment(
+                        'periodEnd',
+                        event.target.value
+                      )
+                    }
+                  />
+                </Field>
+              </div>
+              <Field
+                label={t('Adjustment Amount (cents)')}
+                htmlFor='finance-adjust-cents'
+              >
+                <Input
+                  id='finance-adjust-cents'
+                  inputMode='numeric'
+                  placeholder={t('Use negative cents for clawback')}
+                  value={props.commissionAdjustmentValues.commissionCents || ''}
+                  onChange={(event) =>
+                    updateCommissionAdjustment(
+                      'commissionCents',
+                      event.target.value
+                    )
+                  }
+                />
+              </Field>
+              <Field
+                label={t('Operation Reason')}
+                htmlFor='finance-adjust-reason'
+              >
+                <Input
+                  id='finance-adjust-reason'
+                  value={props.commissionAdjustmentValues.reason || ''}
+                  onChange={(event) =>
+                    updateCommissionAdjustment('reason', event.target.value)
+                  }
+                />
+              </Field>
+              <Button
+                variant='destructive'
+                disabled={props.isCommissionAdjustmentSaving}
+                onClick={props.onCommissionAdjustment}
+              >
+                {props.isCommissionAdjustmentSaving
+                  ? t('Creating')
+                  : t('Create Manual Adjustment')}
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
+      </CardContent>
+    </Card>
+  )
+}
+
 export function AffiliateAdmin() {
   const { t } = useTranslation()
   const [formValues, setFormValues] =
@@ -893,6 +1377,17 @@ export function AffiliateAdmin() {
     useState<AffiliateRuleSetFilters>(EMPTY_RULE_FILTERS)
   const [ruleSetPage, setRuleSetPage] = useState(1)
   const [ruleSetPageSize, setRuleSetPageSize] = useState(DEFAULT_PAGE_SIZE)
+  const [settlementRunValues, setSettlementRunValues] =
+    useState<AffiliateSettlementRunFormValues>(EMPTY_SETTLEMENT_RUN_FORM)
+  const [commissionRecomputeValues, setCommissionRecomputeValues] =
+    useState<AffiliateCommissionRecomputeFormValues>(
+      EMPTY_COMMISSION_RECOMPUTE_FORM
+    )
+  const [commissionAdjustmentValues, setCommissionAdjustmentValues] =
+    useState<AffiliateCommissionAdjustmentFormValues>(
+      EMPTY_COMMISSION_ADJUSTMENT_FORM
+    )
+  const [lastFinanceResult, setLastFinanceResult] = useState('')
 
   const profilesQuery = useQuery({
     queryKey: ['affiliate', 'admin', 'profiles', page, pageSize, filters],
@@ -1016,6 +1511,68 @@ export function AffiliateAdmin() {
     onError: () => toast.error(t('Failed to update affiliate rule set')),
   })
 
+  const settlementRunMutation = useMutation({
+    mutationFn: runAffiliateSettlementPipeline,
+    onSuccess: (result) => {
+      if (!result.success) {
+        toast.error(result.message || t('Failed to run settlement pipeline'))
+        return
+      }
+      const data = result.data
+      setLastFinanceResult(
+        t(
+          'Settlement pipeline completed: KPI {{kpi}}, commission {{commission}}, head fee {{headFee}}, settlements {{settlement}}'
+        )
+          .replace('{{kpi}}', String(data?.kpi_snapshot_count || 0))
+          .replace('{{commission}}', String(data?.commission_event_count || 0))
+          .replace('{{headFee}}', String(data?.head_fee_event_count || 0))
+          .replace('{{settlement}}', String(data?.settlement_count || 0))
+      )
+      toast.success(t('Settlement pipeline completed'))
+    },
+    onError: () => toast.error(t('Failed to run settlement pipeline')),
+  })
+
+  const commissionRecomputeMutation = useMutation({
+    mutationFn: recomputeAffiliateCommissions,
+    onSuccess: (result) => {
+      if (!result.success) {
+        toast.error(result.message || t('Failed to recompute commissions'))
+        return
+      }
+      const data = result.data
+      setLastFinanceResult(
+        t(
+          'Commission recompute completed: voided {{voided}}, created {{created}}'
+        )
+          .replace('{{voided}}', String(data?.voided_event_count || 0))
+          .replace('{{created}}', String(data?.created_event_count || 0))
+      )
+      toast.success(t('Commission recompute completed'))
+    },
+    onError: () => toast.error(t('Failed to recompute commissions')),
+  })
+
+  const commissionAdjustmentMutation = useMutation({
+    mutationFn: createAffiliateCommissionAdjustment,
+    onSuccess: (result) => {
+      if (!result.success) {
+        toast.error(
+          result.message || t('Failed to create commission adjustment')
+        )
+        return
+      }
+      setLastFinanceResult(
+        t('Commission adjustment created: {{amount}}').replace(
+          '{{amount}}',
+          formatAffiliateCentsRMB(result.data?.commission_cents)
+        )
+      )
+      toast.success(t('Commission adjustment created'))
+    },
+    onError: () => toast.error(t('Failed to create commission adjustment')),
+  })
+
   const handleSave = () => {
     const payload = buildAffiliateProfilePayload(formValues)
     const validationError = validateAffiliateProfilePayload(payload, t)
@@ -1042,6 +1599,46 @@ export function AffiliateAdmin() {
       return
     }
     saveRuleSetMutation.mutate(payload)
+  }
+
+  const handleSettlementRun = () => {
+    const payload = buildAffiliateSettlementRunPayload(settlementRunValues)
+    const validationError = validateAffiliateSettlementRunPayload(payload, t)
+    if (validationError) {
+      toast.error(validationError)
+      return
+    }
+    settlementRunMutation.mutate(payload)
+  }
+
+  const handleCommissionRecompute = () => {
+    const payload = buildAffiliateCommissionRecomputePayload(
+      commissionRecomputeValues
+    )
+    const validationError = validateAffiliateCommissionRecomputePayload(
+      payload,
+      t
+    )
+    if (validationError) {
+      toast.error(validationError)
+      return
+    }
+    commissionRecomputeMutation.mutate(payload)
+  }
+
+  const handleCommissionAdjustment = () => {
+    const payload = buildAffiliateCommissionAdjustmentPayload(
+      commissionAdjustmentValues
+    )
+    const validationError = validateAffiliateCommissionAdjustmentPayload(
+      payload,
+      t
+    )
+    if (validationError) {
+      toast.error(validationError)
+      return
+    }
+    commissionAdjustmentMutation.mutate(payload)
   }
 
   const applyFilters = () => {
@@ -1150,6 +1747,23 @@ export function AffiliateAdmin() {
             isSaving={saveRuleSetMutation.isPending}
             onSubmit={handleSaveRuleSet}
             onNew={newRuleSetDraft}
+          />
+          <FinanceOperationsPanel
+            settlementRunValues={settlementRunValues}
+            setSettlementRunValues={setSettlementRunValues}
+            commissionRecomputeValues={commissionRecomputeValues}
+            setCommissionRecomputeValues={setCommissionRecomputeValues}
+            commissionAdjustmentValues={commissionAdjustmentValues}
+            setCommissionAdjustmentValues={setCommissionAdjustmentValues}
+            lastResult={lastFinanceResult}
+            onSettlementRun={handleSettlementRun}
+            onCommissionRecompute={handleCommissionRecompute}
+            onCommissionAdjustment={handleCommissionAdjustment}
+            isSettlementRunSaving={settlementRunMutation.isPending}
+            isCommissionRecomputeSaving={commissionRecomputeMutation.isPending}
+            isCommissionAdjustmentSaving={
+              commissionAdjustmentMutation.isPending
+            }
           />
         </div>
       </SectionPageLayout.Content>

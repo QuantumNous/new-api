@@ -362,6 +362,7 @@
 - [x] 使用 `.agents/skills/i18n-translate` 补齐 en、zh、fr、ja、ru、vi。
 - [x] default 管理员分销 profiles 管理页 parity（列表、指定一级/二级、启用/禁用、跳转用户管理）。
 - [x] default 管理员规则集配置页 parity（规则集列表、状态筛选、草稿保存、发布、归档、可编辑规则 JSON 区块）。
+- [x] default 管理员佣金/结算操作面板 parity（结算编排、佣金重算、人工佣金调整、最近操作结果）。
 - [ ] default 真实账号 browser smoke：管理员/一级/二级/普通用户/profile disabled/模块关闭/移动端。
 
 ### Phase 8 default 分销前端 MVP 复盘（2026-06-03 本线程）
@@ -383,8 +384,8 @@
 
 - 完成内容：default `/affiliate/admin` 管理页在 profiles 管理之外新增规则集管理区块，接入 `GET /api/affiliate/admin/rule-sets`、`POST /api/affiliate/admin/rule-sets/draft`、`PATCH /api/affiliate/admin/rule-sets/:id/publish|archive`；支持状态筛选、分页列表、草稿保存、发布、归档和从 `config_snapshot` 回填表单。新增 default `admin-lib` 规则集 helper 和 API/types，提供可编辑的飞书方案 seed JSON，覆盖分佣区间、KPI、质量门槛、人头费和结算配置。
 - 验证方式：先观察 `bun --bun test src/features/affiliate/admin-lib.test.ts` 因缺少 rule set helper RED；实现后 `bun --bun test src/features/affiliate/admin-lib.test.ts src/features/affiliate/lib.test.ts` 13 项通过；`cd web/default && bun run i18n:sync` 通过且无额外 locale diff；`cd web/default && bun run build` 通过；`git diff --check` 通过。
-- 残留风险：当前 default 与 classic 一样是 JSON 区块编辑入口，不是运营友好的动态表格；未做真实管理员账号浏览器 smoke；未实现佣金/结算操作面板 default parity。
-- 下一步：补 default 真实账号 browser smoke，或继续做 default 佣金/结算操作面板 parity。
+- 残留风险：当前 default 与 classic 一样是 JSON 区块编辑入口，不是运营友好的动态表格；未做真实管理员账号浏览器 smoke。
+- 下一步：补 default 真实账号 browser smoke，或继续扩展佣金/结算列表、冻结/支付/作废操作和批次审计展示。
 
 ## Phase 9：RMB 单位
 
@@ -432,6 +433,7 @@
 - [x] 后端提供管理员一键编排任务，按周期串联 KPI snapshot、pending 佣金事件、pending 人头费事件和 draft settlement 生成。
 - [x] 管理员佣金事件人工调整、作废、重算 API：支持手工 pending 调整事件、未结算事件作废、安全重算未入结算的自动 pending 事件。
 - [x] classic 管理端接入佣金与结算操作面板：支持结算编排、佣金重算和人工佣金调整。
+- [x] default 管理端接入佣金与结算操作面板：支持结算编排、佣金重算和人工佣金调整。
 
 ### Phase 10 阶段复盘（2026-06-03 后端规则集 API）
 
@@ -509,6 +511,13 @@
 - 验证方式：先观察 `bun test src/pages/AffiliateAdmin/affiliateAdminRules.test.mjs` 因 helper 缺失 RED；实现后 `bun test src/pages/AffiliateAdmin/affiliateAdminRules.test.mjs src/pages/AffiliateAdmin/affiliateAdminFinance.test.mjs src/pages/AffiliateAdmin/affiliateAdminProfiles.test.mjs` 15 项通过；`cd web/classic && bun run build` 通过；`git diff --check` 通过。
 - 残留风险：当前是可落地的 JSON 编辑入口，不是面向运营的动态行表格；没有二次确认弹窗、配置 diff 预览或批次运行记录；发布/归档 smoke 尚未用浏览器真实账号点击验证。
 - 下一步：继续把规则 JSON 区块拆成动态表格，或补 classic/default 浏览器 smoke。
+
+### Phase 10 阶段复盘（2026-06-03 default 管理端佣金/结算操作）
+
+- 完成内容：default `/affiliate/admin` 管理页新增“Affiliate Finance Operations”操作面板，按 default 自身 Card/Input/Button 风格接入 `POST /api/affiliate/admin/settlement-runs`、`POST /api/affiliate/admin/commissions/recompute` 和 `POST /api/affiliate/admin/commissions/adjust`；新增 default `admin-lib` finance helper、API/types，统一构造佣金/结算查询 URL、三类操作 payload、前端校验、状态标签和 RMB 分格式化。
+- 验证方式：先观察 `bun --bun test src/features/affiliate/admin-lib.test.ts` 因缺少 finance helper 导出 RED；实现后 `bun --bun test src/features/affiliate/admin-lib.test.ts src/features/affiliate/lib.test.ts` 18 项通过；`cd web/default && bun run i18n:sync` 通过且无额外 locale diff；`cd web/default && bun run build` 通过；`git diff --check` 通过；tracked 敏感目录/文件检查为空，改动范围敏感模式扫描无命中。
+- 残留风险：本批只提供操作入口，没有做佣金/结算列表表格、冻结/支付/作废按钮、批次运行记录、二次确认弹窗或真实管理员浏览器点击 smoke；人工调整金额仍以“分”为输入单位，后续可改为 RMB 输入并转换为 cents。
+- 下一步：补 default 真实账号 browser smoke，或继续扩展 classic/default 佣金/结算列表、状态操作和批次审计展示。
 
 ## Phase 11：用户管理 `inviter_id`
 

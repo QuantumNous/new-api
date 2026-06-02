@@ -18,6 +18,11 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import type { StatusBadgeProps } from '@/components/status-badge'
 import type {
+  AffiliateCommissionAdjustmentFormValues,
+  AffiliateCommissionAdjustmentPayload,
+  AffiliateCommissionFilters,
+  AffiliateCommissionRecomputeFormValues,
+  AffiliateCommissionRecomputePayload,
   AffiliateProfileFilters,
   AffiliateProfileFormValues,
   AffiliateProfilePayload,
@@ -27,6 +32,9 @@ import type {
   AffiliateRuleSetDraftPayload,
   AffiliateRuleSetFilters,
   AffiliateRuleSetsParams,
+  AffiliateSettlementFilters,
+  AffiliateSettlementRunFormValues,
+  AffiliateSettlementRunPayload,
 } from './types'
 
 type Translate = (key: string) => string
@@ -38,6 +46,18 @@ function normalizePositiveInteger(value: unknown): number {
   const number = Number(value)
   if (!Number.isFinite(number) || number <= 0) return 0
   return Math.trunc(number)
+}
+
+function normalizeSignedInteger(value: unknown): number {
+  const number = Number(value)
+  if (!Number.isFinite(number)) return 0
+  return Math.trunc(number)
+}
+
+function normalizePositiveNumber(value: unknown): number {
+  const number = Number(value)
+  if (!Number.isFinite(number) || number <= 0) return 0
+  return number
 }
 
 function stringifyPretty(value: unknown): string {
@@ -71,6 +91,20 @@ function normalizeSnapshot(
   } catch {
     return {}
   }
+}
+
+function appendPositiveInteger(
+  query: URLSearchParams,
+  key: string,
+  value: unknown
+) {
+  const normalized = normalizePositiveInteger(value)
+  if (normalized > 0) query.set(key, String(normalized))
+}
+
+function appendText(query: URLSearchParams, key: string, value: unknown) {
+  const normalized = String(value || '').trim()
+  if (normalized) query.set(key, normalized)
 }
 
 export function buildAffiliateProfilesParams(
@@ -658,4 +692,200 @@ export function getAffiliateRuleSetStatusMeta(
     default:
       return { label: status || t('Unknown'), variant: 'neutral' }
   }
+}
+
+export function buildAffiliateCommissionsQuery({
+  page = 1,
+  pageSize = 10,
+  filters = {},
+}: {
+  page?: number
+  pageSize?: number
+  filters?: AffiliateCommissionFilters
+} = {}): string {
+  const query = new URLSearchParams()
+  query.set('p', String(normalizePositiveInteger(page) || 1))
+  query.set('page_size', String(normalizePositiveInteger(pageSize) || 10))
+  appendPositiveInteger(query, 'affiliate_user_id', filters.affiliateUserId)
+  appendPositiveInteger(query, 'rule_set_id', filters.ruleSetId)
+  appendPositiveInteger(query, 'downstream_user_id', filters.downstreamUserId)
+  appendPositiveInteger(query, 'settlement_id', filters.settlementId)
+  appendText(query, 'status', filters.status)
+  appendText(query, 'kind', filters.kind)
+  appendPositiveInteger(query, 'period_start', filters.periodStart)
+  appendPositiveInteger(query, 'period_end', filters.periodEnd)
+
+  return `/api/affiliate/admin/commissions?${query.toString()}`
+}
+
+export function buildAffiliateSettlementsQuery({
+  page = 1,
+  pageSize = 10,
+  filters = {},
+}: {
+  page?: number
+  pageSize?: number
+  filters?: AffiliateSettlementFilters
+} = {}): string {
+  const query = new URLSearchParams()
+  query.set('p', String(normalizePositiveInteger(page) || 1))
+  query.set('page_size', String(normalizePositiveInteger(pageSize) || 10))
+  appendPositiveInteger(query, 'affiliate_user_id', filters.affiliateUserId)
+  appendPositiveInteger(query, 'rule_set_id', filters.ruleSetId)
+  appendText(query, 'status', filters.status)
+  appendPositiveInteger(query, 'period_start', filters.periodStart)
+  appendPositiveInteger(query, 'period_end', filters.periodEnd)
+
+  return `/api/affiliate/admin/settlements?${query.toString()}`
+}
+
+export function buildAffiliateSettlementRunPayload(
+  values: AffiliateSettlementRunFormValues = {}
+): AffiliateSettlementRunPayload {
+  return {
+    rule_set_id: normalizePositiveInteger(values.ruleSetId),
+    period_start: normalizePositiveInteger(values.periodStart),
+    period_end: normalizePositiveInteger(values.periodEnd),
+    freeze_days: normalizePositiveInteger(values.freezeDays),
+    now: normalizePositiveInteger(values.now),
+    quota_per_unit: normalizePositiveNumber(values.quotaPerUnit),
+    usd_exchange_rate: normalizePositiveNumber(values.usdExchangeRate),
+    reason: String(values.reason || '').trim(),
+  }
+}
+
+export function buildAffiliateCommissionRecomputePayload(
+  values: AffiliateCommissionRecomputeFormValues = {}
+): AffiliateCommissionRecomputePayload {
+  return {
+    rule_set_id: normalizePositiveInteger(values.ruleSetId),
+    period_start: normalizePositiveInteger(values.periodStart),
+    period_end: normalizePositiveInteger(values.periodEnd),
+    quota_per_unit: normalizePositiveNumber(values.quotaPerUnit),
+    usd_exchange_rate: normalizePositiveNumber(values.usdExchangeRate),
+    reason: String(values.reason || '').trim(),
+  }
+}
+
+export function buildAffiliateCommissionAdjustmentPayload(
+  values: AffiliateCommissionAdjustmentFormValues = {}
+): AffiliateCommissionAdjustmentPayload {
+  return {
+    affiliate_user_id: normalizePositiveInteger(values.affiliateUserId),
+    downstream_user_id: normalizePositiveInteger(values.downstreamUserId),
+    rule_set_id: normalizePositiveInteger(values.ruleSetId),
+    period_start: normalizePositiveInteger(values.periodStart),
+    period_end: normalizePositiveInteger(values.periodEnd),
+    commission_cents: normalizeSignedInteger(values.commissionCents),
+    reason: String(values.reason || '').trim(),
+  }
+}
+
+function validateFinancePeriod(
+  payload: { period_start?: number; period_end?: number },
+  t: Translate
+): string {
+  if (
+    Number(payload.period_start || 0) > 0 &&
+    Number(payload.period_end || 0) > 0 &&
+    Number(payload.period_end) < Number(payload.period_start)
+  ) {
+    return t('Settlement period end cannot be earlier than start')
+  }
+  return ''
+}
+
+function validateFinanceReason(
+  payload: { reason?: string },
+  t: Translate
+): string {
+  if (!String(payload.reason || '').trim()) {
+    return t('Operation reason is required')
+  }
+  return ''
+}
+
+export function validateAffiliateSettlementRunPayload(
+  payload: Partial<AffiliateSettlementRunPayload>,
+  t: Translate
+): string {
+  return validateFinancePeriod(payload, t) || validateFinanceReason(payload, t)
+}
+
+export function validateAffiliateCommissionRecomputePayload(
+  payload: Partial<AffiliateCommissionRecomputePayload>,
+  t: Translate
+): string {
+  return validateFinancePeriod(payload, t) || validateFinanceReason(payload, t)
+}
+
+export function validateAffiliateCommissionAdjustmentPayload(
+  payload: Partial<AffiliateCommissionAdjustmentPayload>,
+  t: Translate
+): string {
+  if (!payload.affiliate_user_id) {
+    return t('Affiliate user ID is required')
+  }
+  if (!payload.commission_cents) {
+    return t('Commission adjustment amount cannot be zero')
+  }
+  return validateFinancePeriod(payload, t) || validateFinanceReason(payload, t)
+}
+
+export function getAffiliateCommissionStatusMeta(
+  status: string,
+  t: Translate
+): { label: string; variant: StatusBadgeProps['variant'] } {
+  switch (status) {
+    case 'pending':
+      return { label: t('Pending'), variant: 'warning' }
+    case 'ready':
+      return { label: t('Ready'), variant: 'info' }
+    case 'settled':
+      return { label: t('Settled'), variant: 'success' }
+    case 'void':
+      return { label: t('Voided'), variant: 'danger' }
+    default:
+      return { label: status || t('Unknown'), variant: 'neutral' }
+  }
+}
+
+export function getAffiliateSettlementStatusMeta(
+  status: string,
+  t: Translate
+): { label: string; variant: StatusBadgeProps['variant'] } {
+  switch (status) {
+    case 'draft':
+      return { label: t('Draft'), variant: 'warning' }
+    case 'frozen':
+      return { label: t('Frozen'), variant: 'info' }
+    case 'paid':
+      return { label: t('Paid'), variant: 'success' }
+    case 'void':
+      return { label: t('Voided'), variant: 'danger' }
+    default:
+      return { label: status || t('Unknown'), variant: 'neutral' }
+  }
+}
+
+export function getAffiliateCommissionKindText(
+  kind: string,
+  t: Translate
+): string {
+  switch (kind) {
+    case 'accrual':
+      return t('Accrual')
+    case 'clawback':
+      return t('Clawback')
+    case 'manual_adjustment':
+      return t('Manual adjustment')
+    default:
+      return kind || t('Unknown')
+  }
+}
+
+export function formatAffiliateCentsRMB(cents: unknown): string {
+  const value = Number(cents || 0)
+  const sign = value < 0 ? '-' : ''
+  return `${sign}¥${(Math.abs(value) / 100).toFixed(2)}`
 }

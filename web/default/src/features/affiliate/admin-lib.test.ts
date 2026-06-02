@@ -1,16 +1,28 @@
 import assert from 'node:assert/strict'
 import { describe, test } from 'node:test'
 import {
+  buildAffiliateCommissionAdjustmentPayload,
+  buildAffiliateCommissionRecomputePayload,
+  buildAffiliateCommissionsQuery,
   buildAffiliateRuleSetDraftFormValues,
   buildAffiliateRuleSetDraftPayload,
   buildAffiliateRuleSetsQuery,
   buildAffiliateRuleSetStatusPayload,
+  buildAffiliateSettlementRunPayload,
+  buildAffiliateSettlementsQuery,
   buildAffiliateProfilePayload,
   buildAffiliateProfilesQuery,
+  formatAffiliateCentsRMB,
+  getAffiliateCommissionKindText,
+  getAffiliateCommissionStatusMeta,
   getAffiliateRuleSetStatusMeta,
+  getAffiliateSettlementStatusMeta,
   getAffiliateProfileLevelLabel,
   getAffiliateProfileStatusMeta,
+  validateAffiliateCommissionAdjustmentPayload,
+  validateAffiliateCommissionRecomputePayload,
   validateAffiliateRuleSetDraftPayload,
+  validateAffiliateSettlementRunPayload,
   validateAffiliateProfilePayload,
 } from './admin-lib'
 
@@ -360,5 +372,175 @@ describe('default affiliate admin rule set helpers', () => {
       label: 'Published',
       variant: 'success',
     })
+  })
+})
+
+describe('default affiliate admin finance helpers', () => {
+  test('builds filtered commission and settlement queries', () => {
+    assert.equal(
+      buildAffiliateCommissionsQuery({
+        page: 2,
+        pageSize: 20,
+        filters: {
+          affiliateUserId: '100',
+          downstreamUserId: '300',
+          settlementId: '9',
+          status: 'pending',
+          kind: 'manual_adjustment',
+          periodStart: '1000',
+          periodEnd: '2000',
+        },
+      }),
+      '/api/affiliate/admin/commissions?p=2&page_size=20&affiliate_user_id=100&downstream_user_id=300&settlement_id=9&status=pending&kind=manual_adjustment&period_start=1000&period_end=2000'
+    )
+
+    assert.equal(
+      buildAffiliateSettlementsQuery({
+        page: 1,
+        pageSize: 10,
+        filters: {
+          affiliateUserId: '100',
+          ruleSetId: '5',
+          status: 'draft',
+          periodStart: '1000',
+          periodEnd: '2000',
+        },
+      }),
+      '/api/affiliate/admin/settlements?p=1&page_size=10&affiliate_user_id=100&rule_set_id=5&status=draft&period_start=1000&period_end=2000'
+    )
+  })
+
+  test('normalizes settlement run and commission recompute payloads', () => {
+    assert.deepEqual(
+      buildAffiliateSettlementRunPayload({
+        ruleSetId: '5',
+        periodStart: '1000',
+        periodEnd: '2000',
+        freezeDays: '7',
+        now: '2100',
+        quotaPerUnit: '1000',
+        usdExchangeRate: '7.2',
+        reason: ' close month ',
+      }),
+      {
+        rule_set_id: 5,
+        period_start: 1000,
+        period_end: 2000,
+        freeze_days: 7,
+        now: 2100,
+        quota_per_unit: 1000,
+        usd_exchange_rate: 7.2,
+        reason: 'close month',
+      }
+    )
+
+    assert.deepEqual(
+      buildAffiliateCommissionRecomputePayload({
+        ruleSetId: '5',
+        periodStart: '1000',
+        periodEnd: '2000',
+        quotaPerUnit: '1000',
+        usdExchangeRate: '7',
+        reason: ' rerun ',
+      }),
+      {
+        rule_set_id: 5,
+        period_start: 1000,
+        period_end: 2000,
+        quota_per_unit: 1000,
+        usd_exchange_rate: 7,
+        reason: 'rerun',
+      }
+    )
+  })
+
+  test('normalizes manual commission adjustment payloads', () => {
+    assert.deepEqual(
+      buildAffiliateCommissionAdjustmentPayload({
+        affiliateUserId: '100',
+        downstreamUserId: '300',
+        ruleSetId: '5',
+        periodStart: '1000',
+        periodEnd: '2000',
+        commissionCents: '-250',
+        reason: ' support clawback ',
+      }),
+      {
+        affiliate_user_id: 100,
+        downstream_user_id: 300,
+        rule_set_id: 5,
+        period_start: 1000,
+        period_end: 2000,
+        commission_cents: -250,
+        reason: 'support clawback',
+      }
+    )
+  })
+
+  test('validates operation payloads before calling APIs', () => {
+    assert.equal(
+      validateAffiliateSettlementRunPayload(
+        {
+          period_start: 2000,
+          period_end: 1000,
+          reason: 'close',
+        },
+        t
+      ),
+      'Settlement period end cannot be earlier than start'
+    )
+
+    assert.equal(
+      validateAffiliateCommissionRecomputePayload(
+        {
+          period_start: 1000,
+          period_end: 2000,
+          reason: '',
+        },
+        t
+      ),
+      'Operation reason is required'
+    )
+
+    assert.equal(
+      validateAffiliateCommissionAdjustmentPayload(
+        {
+          affiliate_user_id: 0,
+          commission_cents: 100,
+          reason: 'ok',
+        },
+        t
+      ),
+      'Affiliate user ID is required'
+    )
+
+    assert.equal(
+      validateAffiliateCommissionAdjustmentPayload(
+        {
+          affiliate_user_id: 100,
+          commission_cents: 0,
+          reason: 'ok',
+        },
+        t
+      ),
+      'Commission adjustment amount cannot be zero'
+    )
+  })
+
+  test('maps finance labels and formats RMB cents', () => {
+    assert.deepEqual(getAffiliateCommissionStatusMeta('pending', t), {
+      label: 'Pending',
+      variant: 'warning',
+    })
+    assert.deepEqual(getAffiliateSettlementStatusMeta('paid', t), {
+      label: 'Paid',
+      variant: 'success',
+    })
+    assert.equal(
+      getAffiliateCommissionKindText('manual_adjustment', t),
+      'Manual adjustment'
+    )
+    assert.equal(formatAffiliateCentsRMB(12345), '¥123.45')
+    assert.equal(formatAffiliateCentsRMB(-250), '-¥2.50')
   })
 })

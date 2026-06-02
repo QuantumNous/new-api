@@ -194,3 +194,166 @@ export interface AffiliateRuleSetDraftPayload {
   head_fee_rules?: Record<string, unknown>[]
   risk_rules?: Record<string, unknown>[]
 }
+
+export type AffiliateCommissionStatus =
+  | 'pending'
+  | 'ready'
+  | 'settled'
+  | 'void'
+  | string
+
+export type AffiliateCommissionKind =
+  | 'accrual'
+  | 'clawback'
+  | 'manual_adjustment'
+  | string
+
+export type AffiliateSettlementStatus =
+  | 'draft'
+  | 'frozen'
+  | 'paid'
+  | 'void'
+  | string
+
+export interface AffiliateCommissionEvent {
+  id: number
+  affiliate_user_id: number
+  downstream_user_id: number
+  source_log_id?: number
+  source_top_up_id?: number
+  kind: AffiliateCommissionKind
+  status: AffiliateCommissionStatus
+  rule_set_id: number
+  kpi_snapshot_id?: number
+  settlement_id?: number
+  period_start: number
+  period_end: number
+  net_paid_consumption_cents?: number
+  raw_quota?: number
+  user_cumulative_net_paid_before_cents?: number
+  user_cumulative_net_paid_after_cents?: number
+  base_rate_bps?: number
+  cap_rate_bps?: number
+  kpi_coefficient_bps?: number
+  final_rate_bps?: number
+  commission_cents: number
+  clawback_of_event_id?: number
+  synthetic_marker?: string
+  metadata?: string
+  created_at?: number
+  updated_at?: number
+}
+
+export interface AffiliateSettlement {
+  id: number
+  affiliate_user_id: number
+  rule_set_id: number
+  period_start: number
+  period_end: number
+  status: AffiliateSettlementStatus
+  commission_cents: number
+  head_fee_cents: number
+  deduction_cents: number
+  payable_cents: number
+  frozen_until?: number
+  paid_at?: number
+  paid_by_user_id?: number
+  payment_reference?: string
+  snapshot?: string
+  created_at?: number
+  updated_at?: number
+}
+
+export interface AffiliateCommissionFilters {
+  affiliateUserId?: string
+  ruleSetId?: string
+  downstreamUserId?: string
+  settlementId?: string
+  status?: string
+  kind?: string
+  periodStart?: string
+  periodEnd?: string
+}
+
+export interface AffiliateSettlementFilters {
+  affiliateUserId?: string
+  ruleSetId?: string
+  status?: string
+  periodStart?: string
+  periodEnd?: string
+}
+
+export interface AffiliateSettlementRunFormValues {
+  ruleSetId?: string
+  periodStart?: string
+  periodEnd?: string
+  freezeDays?: string
+  now?: string
+  quotaPerUnit?: string
+  usdExchangeRate?: string
+  reason?: string
+}
+
+export interface AffiliateCommissionRecomputeFormValues {
+  ruleSetId?: string
+  periodStart?: string
+  periodEnd?: string
+  quotaPerUnit?: string
+  usdExchangeRate?: string
+  reason?: string
+}
+
+export interface AffiliateCommissionAdjustmentFormValues {
+  affiliateUserId?: string
+  downstreamUserId?: string
+  ruleSetId?: string
+  periodStart?: string
+  periodEnd?: string
+  commissionCents?: string
+  reason?: string
+}
+
+export interface AffiliateSettlementRunPayload {
+  rule_set_id: number
+  period_start: number
+  period_end: number
+  freeze_days: number
+  now: number
+  quota_per_unit: number
+  usd_exchange_rate: number
+  reason: string
+}
+
+export interface AffiliateCommissionRecomputePayload {
+  rule_set_id: number
+  period_start: number
+  period_end: number
+  quota_per_unit: number
+  usd_exchange_rate: number
+  reason: string
+}
+
+export interface AffiliateCommissionAdjustmentPayload {
+  affiliate_user_id: number
+  downstream_user_id: number
+  rule_set_id: number
+  period_start: number
+  period_end: number
+  commission_cents: number
+  reason: string
+}
+
+export interface AffiliateSettlementRunResult {
+  kpi_snapshot_count: number
+  commission_event_count: number
+  head_fee_event_count: number
+  settlement_count: number
+  settlements?: AffiliateSettlement[]
+}
+
+export interface AffiliateCommissionRecomputeResult {
+  voided_event_count: number
+  created_event_count: number
+  voided_event_ids?: number[]
+  created_events?: AffiliateCommissionEvent[]
+}

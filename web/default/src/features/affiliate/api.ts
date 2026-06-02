@@ -18,19 +18,30 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { api } from '@/lib/api'
 import {
+  buildAffiliateCommissionsQuery,
   buildAffiliateProfilesQuery,
   buildAffiliateRuleSetsQuery,
+  buildAffiliateSettlementsQuery,
 } from './admin-lib'
 import { buildAffiliateLogsQuery } from './lib'
 import type {
   AffiliateLog,
   AffiliateLogsParams,
+  AffiliateCommissionAdjustmentPayload,
+  AffiliateCommissionEvent,
+  AffiliateCommissionFilters,
+  AffiliateCommissionRecomputePayload,
+  AffiliateCommissionRecomputeResult,
   AffiliateProfile,
   AffiliateProfilePayload,
   AffiliateProfileFilters,
   AffiliateRuleSet,
   AffiliateRuleSetDraftPayload,
   AffiliateRuleSetFilters,
+  AffiliateSettlement,
+  AffiliateSettlementFilters,
+  AffiliateSettlementRunPayload,
+  AffiliateSettlementRunResult,
   AffiliateStatus,
   AffiliateSummary,
   ApiResponse,
@@ -126,6 +137,61 @@ export async function updateAffiliateRuleSetStatus(
     `/api/affiliate/admin/rule-sets/${ruleSetId}/${action}`,
     { reason },
     { skipBusinessError: true }
+  )
+  return res.data
+}
+
+export async function getAffiliateAdminCommissions(args: {
+  page?: number
+  pageSize?: number
+  filters?: AffiliateCommissionFilters
+}): Promise<ApiResponse<PageResponse<AffiliateCommissionEvent>>> {
+  const res = await api.get(buildAffiliateCommissionsQuery(args), {
+    skipBusinessError: true,
+  })
+  return res.data
+}
+
+export async function getAffiliateAdminSettlements(args: {
+  page?: number
+  pageSize?: number
+  filters?: AffiliateSettlementFilters
+}): Promise<ApiResponse<PageResponse<AffiliateSettlement>>> {
+  const res = await api.get(buildAffiliateSettlementsQuery(args), {
+    skipBusinessError: true,
+  })
+  return res.data
+}
+
+export async function runAffiliateSettlementPipeline(
+  payload: AffiliateSettlementRunPayload
+): Promise<ApiResponse<AffiliateSettlementRunResult>> {
+  const res = await api.post('/api/affiliate/admin/settlement-runs', payload, {
+    skipBusinessError: true,
+  })
+  return res.data
+}
+
+export async function recomputeAffiliateCommissions(
+  payload: AffiliateCommissionRecomputePayload
+): Promise<ApiResponse<AffiliateCommissionRecomputeResult>> {
+  const res = await api.post(
+    '/api/affiliate/admin/commissions/recompute',
+    payload,
+    { skipBusinessError: true }
+  )
+  return res.data
+}
+
+export async function createAffiliateCommissionAdjustment(
+  payload: AffiliateCommissionAdjustmentPayload
+): Promise<ApiResponse<AffiliateCommissionEvent>> {
+  const res = await api.post(
+    '/api/affiliate/admin/commissions/adjust',
+    payload,
+    {
+      skipBusinessError: true,
+    }
   )
   return res.data
 }
