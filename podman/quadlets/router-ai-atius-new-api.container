@@ -1,0 +1,59 @@
+# systemd quadlet for new-api
+#
+# Quadlets are systemd-managed Podman units. They live in one of:
+#   /etc/containers/systemd/                (rootful, system-wide)
+#   ~/.config/containers/systemd/          (rootless, per-user)
+#
+# After dropping this file in, run:
+#   systemctl --user daemon-reload
+#   systemctl --user start router-ai-atius-new-api.service
+#
+# To enable on boot:
+#   systemctl --user enable router-ai-atius-new-api.service
+#   loginctl enable-linger <username>   # so user services survive logout
+#
+# Compare to: scripts/podman-up.sh (compose-based, dev) and
+# podman-compose.yml (single-host orchestration).
+#
+# Secrets are pulled from the host's environment via EnvironmentFile
+# (see podman/systemd/router-ai-atius.env). For production, switch
+# to podman/secrets/<name>.secret (loaded via LoadCredential=).
+
+[Unit]
+Description=router-ai-atius — new-api (Go AI gateway, podman)
+After=network-online.target router-ai-atius-postgres.service
+Wants=router-ai-atius-postgres.service router-ai-atius-redis.service
+StartLimitIntervalSec=300
+StartLimitBurst=5
+
+[Container]
+Image=ghcr.io/giovannimnz/router-ai-atius:local
+AutoUpdate=registry
+ContainerName=new-api
+EnvironmentFile=%h/.config/containers/systemd/router-ai-atius.env
+# Bind ports via the host network for max throughput. The Apache
+# reverse proxy on port 443 fronts this.
+PublishPort=3301:3000
+Volume=%h/docker/Atius/router-ai-atius/data:/data
+Volume=%h/docker/Atius/router-ai-atius/logs:/app/logs
+# Run in the host's timezone so log timestamps line up with the host.
+Timezone=local
+# Drop capabilities we don't need.
+NoNewPrivileges=true
+ReadOnly=true
+Tmpfs=/tmp
+Tmpfs=/run
+# Healthcheck defined in the image's HEALTHCHECK instruction.
+HealthLogDestination= journal
+
+[Service]
+Restart=always
+RestartSec=10
+TimeoutStartSec=180
+TimeoutStopSec=30
+# Inherit user/group from the unit so rootless Podman gets the right uid/gid.
+User=%U
+Group=%U
+
+[Install]
+WantedBy=default.target

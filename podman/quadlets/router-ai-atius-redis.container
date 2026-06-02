@@ -1,0 +1,29 @@
+# systemd quadlet for Redis
+
+[Unit]
+Description=router-ai-atius — Redis 7 (cache + rate limiting)
+After=network-online.target
+
+[Container]
+Image=docker.io/library/redis:7-alpine
+ContainerName=redis-newapi
+# Password is injected via EnvironmentFile in production. Dev default below.
+Environment=REDIS_PASSWORD=123456
+Command=redis-server --requirepass ${REDIS_PASSWORD}
+Timezone=local
+NoNewPrivileges=true
+ReadOnly=true
+Tmpfs=/data
+HealthCmd=redis-cli -a ${REDIS_PASSWORD} ping
+HealthIntervalSec=30s
+HealthTimeoutSec=5s
+HealthRetries=3
+
+[Service]
+Restart=always
+RestartSec=10
+User=%U
+Group=%U
+
+[Install]
+WantedBy=default.target

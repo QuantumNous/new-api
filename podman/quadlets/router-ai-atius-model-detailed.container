@@ -1,0 +1,32 @@
+# systemd quadlet for model-detailed (Python FastAPI middleware)
+
+[Unit]
+Description=router-ai-atius — model-detailed (Python FastAPI middleware)
+After=network-online.target router-ai-atius-new-api.service
+Wants=router-ai-atius-new-api.service
+StartLimitIntervalSec=300
+StartLimitBurst=5
+
+[Container]
+Image=router-ai-atius-model-detailed:local
+AutoUpdate=local
+ContainerName=model-detailed
+EnvironmentFile=%h/.config/containers/systemd/router-ai-atius.env
+PublishPort=3300:3001
+Volume=%h/docker/Atius/router-ai-atius/integration/middleware/static:/app/static:ro
+Volume=%h/docker/Atius/router-ai-atius/integration/middleware/docs:/app/docs:ro
+Timezone=local
+NoNewPrivileges=true
+ReadOnly=true
+Tmpfs=/tmp
+
+[Service]
+Restart=always
+RestartSec=10
+TimeoutStartSec=120
+TimeoutStopSec=30
+User=%U
+Group=%U
+
+[Install]
+WantedBy=default.target

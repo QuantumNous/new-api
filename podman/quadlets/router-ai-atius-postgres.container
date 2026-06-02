@@ -1,0 +1,34 @@
+# systemd quadlet for PostgreSQL
+#
+# For production, prefer a managed PostgreSQL (e.g. Cloud SQL, RDS, or a
+# host-level install) over running the database inside a rootless
+# container. This quadlet is here for parity with the Docker compose
+# stack and for dev environments.
+
+[Unit]
+Description=router-ai-atius — PostgreSQL 15
+After=network-online.target
+
+[Container]
+Image=docker.io/library/postgres:15-alpine
+ContainerName=db-newapi
+Environment=POSTGRES_USER=admin
+Environment=POSTGRES_PASSWORD=change-me-in-production
+Environment=POSTGRES_DB=newapi
+Volume=%h/docker/Atius/router-ai-atius/data/postgres_data:/var/lib/postgresql/data
+Timezone=local
+NoNewPrivileges=true
+ReadOnly=false
+HealthCmd=pg_isready -U admin -d newapi
+HealthIntervalSec=30s
+HealthTimeoutSec=5s
+HealthRetries=3
+
+[Service]
+Restart=always
+RestartSec=10
+User=%U
+Group=%U
+
+[Install]
+WantedBy=default.target
