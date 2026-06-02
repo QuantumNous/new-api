@@ -55,6 +55,7 @@ const (
 	ChannelTypeSora           = 55
 	ChannelTypeReplicate      = 56
 	ChannelTypeCodex          = 57
+	ChannelTypeChatGPTWeb     = 58 // ChatGPT 网页逆向（/backend-api/conversation，用订阅账号 OAuth token）
 	ChannelTypeDummy          // this one is only for count, do not add any channel after this
 
 )
@@ -118,6 +119,7 @@ var ChannelBaseURLs = []string{
 	"https://api.openai.com",                    //55
 	"https://api.replicate.com",                 //56
 	"https://chatgpt.com",                       //57
+	"https://chatgpt.com",                       //58 ChatGPTWeb
 }
 
 var ChannelTypeNames = map[int]string{
@@ -175,6 +177,7 @@ var ChannelTypeNames = map[int]string{
 	ChannelTypeSora:           "Sora",
 	ChannelTypeReplicate:      "Replicate",
 	ChannelTypeCodex:          "Codex",
+	ChannelTypeChatGPTWeb:     "ChatGPTWeb",
 }
 
 func GetChannelTypeName(channelType int) string {

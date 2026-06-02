@@ -189,6 +189,11 @@ export const CHANNEL_OPTIONS = [
     color: 'blue',
     label: 'Codex (OpenAI OAuth)',
   },
+  {
+    value: 58,
+    color: 'teal',
+    label: 'ChatGPT 网页逆向 (订阅账号)',
+  },
 ];
 
 // Channel types that support upstream model list fetching in UI.
