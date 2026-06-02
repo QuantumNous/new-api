@@ -29,6 +29,12 @@ func SetApiRouter(router *gin.Engine) {
 		{
 			affiliateRoute.GET("/status", controller.GetAffiliateStatus)
 		}
+		affiliateAdminRoute := apiRouter.Group("/affiliate/admin")
+		affiliateAdminRoute.Use(middleware.AdminAuth())
+		{
+			affiliateAdminRoute.POST("/profiles", controller.AdminSetAffiliateProfile)
+			affiliateAdminRoute.PATCH("/profiles/:user_id/status", controller.AdminUpdateAffiliateProfileStatus)
+		}
 		apiRouter.GET("/notice", controller.GetNotice)
 		apiRouter.GET("/user-agreement", controller.GetUserAgreement)
 		apiRouter.GET("/privacy-policy", controller.GetPrivacyPolicy)

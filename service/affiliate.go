@@ -19,7 +19,10 @@ const (
 	AffiliateScopeGlobal    = "global"
 	AffiliateScopeAffiliate = "affiliate"
 
-	AffiliateAuditActionCreateProfile = "create_profile"
+	AffiliateAuditActionCreateProfile  = "create_profile"
+	AffiliateAuditActionUpdateProfile  = "update_profile"
+	AffiliateAuditActionEnableProfile  = "enable_profile"
+	AffiliateAuditActionDisableProfile = "disable_profile"
 )
 
 type AffiliateInviteInput struct {
@@ -118,6 +121,21 @@ type AffiliateProfileCreateInput struct {
 	Reason       string
 }
 
+type AffiliateProfileSetInput struct {
+	UserId       int
+	Level        int
+	ParentUserId int
+	InviteCode   string
+	ActorUserId  int
+	Reason       string
+}
+
+type AffiliateProfileStatusInput struct {
+	UserId      int
+	ActorUserId int
+	Reason      string
+}
+
 func CreateAffiliateProfile(db *gorm.DB, input AffiliateProfileCreateInput) (*model.AffiliateProfile, error) {
 	if db == nil {
 		return nil, errors.New("nil db")
@@ -163,6 +181,192 @@ func CreateAffiliateProfile(db *gorm.DB, input AffiliateProfileCreateInput) (*mo
 	}
 
 	return profile, nil
+}
+
+func SetAffiliateProfile(db *gorm.DB, input AffiliateProfileSetInput) (*model.AffiliateProfile, error) {
+	if db == nil {
+		return nil, errors.New("nil db")
+	}
+	if input.UserId <= 0 {
+		return nil, errors.New("invalid affiliate user id")
+	}
+	if input.Level != 1 && input.Level != 2 {
+		return nil, errors.New("invalid affiliate level")
+	}
+
+	var saved model.AffiliateProfile
+	err := db.Transaction(func(tx *gorm.DB) error {
+		var existing model.AffiliateProfile
+		err := tx.Where("user_id = ?", input.UserId).First(&existing).Error
+		if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+			return err
+		}
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			created, err := CreateAffiliateProfile(tx, AffiliateProfileCreateInput(input))
+			if err != nil {
+				return err
+			}
+			saved = *created
+			return nil
+		}
+
+		before := common.GetJsonString(map[string]interface{}{
+			"user_id":        existing.UserId,
+			"level":          existing.Level,
+			"status":         existing.Status,
+			"parent_user_id": existing.ParentUserId,
+			"invite_code":    existing.InviteCode,
+		})
+
+		now := common.GetTimestamp()
+		existing.Level = input.Level
+		existing.ParentUserId = input.ParentUserId
+		existing.InviteCode = strings.TrimSpace(input.InviteCode)
+		existing.Status = model.AffiliateProfileStatusActive
+		existing.DisabledAt = 0
+		if existing.ActivatedAt == 0 {
+			existing.ActivatedAt = now
+		}
+
+		if err := tx.Save(&existing).Error; err != nil {
+			return err
+		}
+		saved = existing
+		return RecordAffiliateAuditLog(tx, AffiliateAuditInput{
+			ActorUserId:    input.ActorUserId,
+			TargetUserId:   input.UserId,
+			TargetType:     "profile",
+			TargetId:       existing.Id,
+			Action:         AffiliateAuditActionUpdateProfile,
+			BeforeSnapshot: before,
+			AfterSnapshot: common.GetJsonString(map[string]interface{}{
+				"user_id":        existing.UserId,
+				"level":          existing.Level,
+				"status":         existing.Status,
+				"parent_user_id": existing.ParentUserId,
+				"invite_code":    existing.InviteCode,
+			}),
+			Reason: input.Reason,
+		})
+	})
+	if err != nil {
+		return nil, err
+	}
+	return &saved, nil
+}
+
+func DisableAffiliateProfile(db *gorm.DB, input AffiliateProfileStatusInput) error {
+	if db == nil {
+		return errors.New("nil db")
+	}
+	if input.UserId <= 0 {
+		return errors.New("invalid affiliate user id")
+	}
+
+	return db.Transaction(func(tx *gorm.DB) error {
+		var profile model.AffiliateProfile
+		if err := tx.Where("user_id = ?", input.UserId).First(&profile).Error; err != nil {
+			return err
+		}
+
+		before := common.GetJsonString(map[string]interface{}{
+			"user_id":        profile.UserId,
+			"level":          profile.Level,
+			"status":         profile.Status,
+			"parent_user_id": profile.ParentUserId,
+		})
+
+		now := common.GetTimestamp()
+		profile.Status = model.AffiliateProfileStatusDisabled
+		profile.DisabledAt = now
+		if err := tx.Save(&profile).Error; err != nil {
+			return err
+		}
+		if err := tx.Model(&model.AffiliateRelation{}).
+			Where(
+				"(ancestor_user_id = ? OR descendant_user_id = ?) AND status = ?",
+				input.UserId,
+				input.UserId,
+				model.AffiliateProfileStatusActive,
+			).
+			Updates(map[string]interface{}{
+				"status":     model.AffiliateProfileStatusDisabled,
+				"ended_at":   now,
+				"updated_at": now,
+			}).Error; err != nil {
+			return err
+		}
+
+		return RecordAffiliateAuditLog(tx, AffiliateAuditInput{
+			ActorUserId:    input.ActorUserId,
+			TargetUserId:   input.UserId,
+			TargetType:     "profile",
+			TargetId:       profile.Id,
+			Action:         AffiliateAuditActionDisableProfile,
+			BeforeSnapshot: before,
+			AfterSnapshot: common.GetJsonString(map[string]interface{}{
+				"user_id":        profile.UserId,
+				"level":          profile.Level,
+				"status":         profile.Status,
+				"parent_user_id": profile.ParentUserId,
+			}),
+			Reason: input.Reason,
+		})
+	})
+}
+
+func EnableAffiliateProfile(db *gorm.DB, input AffiliateProfileStatusInput) (*model.AffiliateProfile, error) {
+	if db == nil {
+		return nil, errors.New("nil db")
+	}
+	if input.UserId <= 0 {
+		return nil, errors.New("invalid affiliate user id")
+	}
+
+	var saved model.AffiliateProfile
+	err := db.Transaction(func(tx *gorm.DB) error {
+		var profile model.AffiliateProfile
+		if err := tx.Where("user_id = ?", input.UserId).First(&profile).Error; err != nil {
+			return err
+		}
+
+		before := common.GetJsonString(map[string]interface{}{
+			"user_id":        profile.UserId,
+			"level":          profile.Level,
+			"status":         profile.Status,
+			"parent_user_id": profile.ParentUserId,
+		})
+
+		now := common.GetTimestamp()
+		profile.Status = model.AffiliateProfileStatusActive
+		profile.DisabledAt = 0
+		if profile.ActivatedAt == 0 {
+			profile.ActivatedAt = now
+		}
+		if err := tx.Save(&profile).Error; err != nil {
+			return err
+		}
+		saved = profile
+		return RecordAffiliateAuditLog(tx, AffiliateAuditInput{
+			ActorUserId:    input.ActorUserId,
+			TargetUserId:   input.UserId,
+			TargetType:     "profile",
+			TargetId:       profile.Id,
+			Action:         AffiliateAuditActionEnableProfile,
+			BeforeSnapshot: before,
+			AfterSnapshot: common.GetJsonString(map[string]interface{}{
+				"user_id":        profile.UserId,
+				"level":          profile.Level,
+				"status":         profile.Status,
+				"parent_user_id": profile.ParentUserId,
+			}),
+			Reason: input.Reason,
+		})
+	})
+	if err != nil {
+		return nil, err
+	}
+	return &saved, nil
 }
 
 type AffiliateRelationCreateInput struct {

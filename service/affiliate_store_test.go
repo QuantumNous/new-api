@@ -51,6 +51,137 @@ func TestCreateAffiliateProfile(t *testing.T) {
 	}
 }
 
+func TestSetAffiliateProfileUpdatesExistingProfile(t *testing.T) {
+	db := newAffiliateStoreTestDB(t)
+	if _, err := CreateAffiliateProfile(db, AffiliateProfileCreateInput{
+		UserId:      201,
+		Level:       1,
+		InviteCode:  "first",
+		ActorUserId: 1,
+		Reason:      "initial",
+	}); err != nil {
+		t.Fatalf("CreateAffiliateProfile returned error: %v", err)
+	}
+
+	profile, err := SetAffiliateProfile(db, AffiliateProfileSetInput{
+		UserId:       201,
+		Level:        2,
+		ParentUserId: 100,
+		InviteCode:   "second",
+		ActorUserId:  1,
+		Reason:       "promote",
+	})
+	if err != nil {
+		t.Fatalf("SetAffiliateProfile returned error: %v", err)
+	}
+	if profile.Level != 2 || profile.ParentUserId != 100 || profile.InviteCode != "second" || profile.Status != model.AffiliateProfileStatusActive {
+		t.Fatalf("unexpected updated profile: %+v", profile)
+	}
+
+	var count int64
+	if err := db.Model(&model.AffiliateProfile{}).Where("user_id = ?", 201).Count(&count).Error; err != nil {
+		t.Fatalf("count profiles: %v", err)
+	}
+	if count != 1 {
+		t.Fatalf("expected one profile row, got %d", count)
+	}
+}
+
+func TestDisableAffiliateProfileDisablesRelationsAndAudits(t *testing.T) {
+	db := newAffiliateStoreTestDB(t)
+	if _, err := CreateAffiliateProfile(db, AffiliateProfileCreateInput{
+		UserId:      301,
+		Level:       1,
+		InviteCode:  "aff301",
+		ActorUserId: 1,
+		Reason:      "initial",
+	}); err != nil {
+		t.Fatalf("CreateAffiliateProfile returned error: %v", err)
+	}
+	if err := db.Create(&model.AffiliateRelation{
+		AncestorUserId:   301,
+		DescendantUserId: 302,
+		Depth:            1,
+		Status:           model.AffiliateProfileStatusActive,
+		EffectiveAt:      100,
+	}).Error; err != nil {
+		t.Fatalf("seed relation: %v", err)
+	}
+
+	if err := DisableAffiliateProfile(db, AffiliateProfileStatusInput{
+		UserId:      301,
+		ActorUserId: 1,
+		Reason:      "risk",
+	}); err != nil {
+		t.Fatalf("DisableAffiliateProfile returned error: %v", err)
+	}
+
+	var profile model.AffiliateProfile
+	if err := db.Where("user_id = ?", 301).First(&profile).Error; err != nil {
+		t.Fatalf("query profile: %v", err)
+	}
+	if profile.Status != model.AffiliateProfileStatusDisabled || profile.DisabledAt == 0 {
+		t.Fatalf("expected disabled profile with disabled_at, got %+v", profile)
+	}
+
+	var relation model.AffiliateRelation
+	if err := db.Where("ancestor_user_id = ? AND descendant_user_id = ?", 301, 302).First(&relation).Error; err != nil {
+		t.Fatalf("query relation: %v", err)
+	}
+	if relation.Status != model.AffiliateProfileStatusDisabled || relation.EndedAt == 0 {
+		t.Fatalf("expected disabled relation with ended_at, got %+v", relation)
+	}
+
+	var auditCount int64
+	if err := db.Model(&model.AffiliateAuditLog{}).Where("target_user_id = ? AND action = ?", 301, AffiliateAuditActionDisableProfile).Count(&auditCount).Error; err != nil {
+		t.Fatalf("count audit logs: %v", err)
+	}
+	if auditCount != 1 {
+		t.Fatalf("expected 1 disable audit log, got %d", auditCount)
+	}
+}
+
+func TestEnableAffiliateProfileReactivatesProfileAndAudits(t *testing.T) {
+	db := newAffiliateStoreTestDB(t)
+	profile, err := CreateAffiliateProfile(db, AffiliateProfileCreateInput{
+		UserId:      401,
+		Level:       1,
+		InviteCode:  "aff401",
+		ActorUserId: 1,
+		Reason:      "initial",
+	})
+	if err != nil {
+		t.Fatalf("CreateAffiliateProfile returned error: %v", err)
+	}
+	if err := DisableAffiliateProfile(db, AffiliateProfileStatusInput{
+		UserId:      profile.UserId,
+		ActorUserId: 1,
+		Reason:      "risk",
+	}); err != nil {
+		t.Fatalf("DisableAffiliateProfile returned error: %v", err)
+	}
+
+	enabled, err := EnableAffiliateProfile(db, AffiliateProfileStatusInput{
+		UserId:      profile.UserId,
+		ActorUserId: 1,
+		Reason:      "restore",
+	})
+	if err != nil {
+		t.Fatalf("EnableAffiliateProfile returned error: %v", err)
+	}
+	if enabled.Status != model.AffiliateProfileStatusActive || enabled.DisabledAt != 0 || enabled.ActivatedAt == 0 {
+		t.Fatalf("expected active profile, got %+v", enabled)
+	}
+
+	var auditCount int64
+	if err := db.Model(&model.AffiliateAuditLog{}).Where("target_user_id = ? AND action = ?", 401, AffiliateAuditActionEnableProfile).Count(&auditCount).Error; err != nil {
+		t.Fatalf("count audit logs: %v", err)
+	}
+	if auditCount != 1 {
+		t.Fatalf("expected 1 enable audit log, got %d", auditCount)
+	}
+}
+
 func TestBuildAffiliateInviteRelationsCreatesTwoLevelClosure(t *testing.T) {
 	db := newAffiliateStoreTestDB(t)
 	if err := db.Create(&model.AffiliateRelation{
