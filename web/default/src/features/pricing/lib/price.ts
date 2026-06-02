@@ -52,9 +52,6 @@ export function stripTrailingZeros(formatted: string): string {
   return `${symbol}${result}${suffix}`
 }
 
-/**
- * Find minimum group ratio from enabled groups
- */
 function getMinGroupRatio(
   enableGroups: string[],
   groupRatio: Record<string, number>
@@ -71,6 +68,23 @@ function getMinGroupRatio(
   }
 
   return minRatio === Number.POSITIVE_INFINITY ? 1 : minRatio
+}
+
+export function getDisplayGroupRatio(
+  model: PricingModel,
+  selectedGroup?: string
+): number {
+  const enableGroups = Array.isArray(model.enable_groups)
+    ? model.enable_groups
+    : []
+  const groupRatio = model.group_ratio || {}
+  const group = selectedGroup?.trim()
+
+  if (group && enableGroups.includes(group)) {
+    return groupRatio[group] ?? 1
+  }
+
+  return getMinGroupRatio(enableGroups, groupRatio)
 }
 
 /**
@@ -166,19 +180,18 @@ export function formatPrice(
   tokenUnit: TokenUnit,
   showWithRecharge = false,
   priceRate = 1,
-  usdExchangeRate = 1
+  usdExchangeRate = 1,
+  selectedGroup?: string
 ): string {
   if (model.quota_type === QUOTA_TYPE_VALUES.REQUEST) {
     return '-'
   }
 
-  const enableGroups = Array.isArray(model.enable_groups)
-    ? model.enable_groups
-    : []
-  const groupRatio = model.group_ratio || {}
-  const minRatio = getMinGroupRatio(enableGroups, groupRatio)
-
-  let priceInUSD = calculateTokenPrice(model, type, minRatio)
+  let priceInUSD = calculateTokenPrice(
+    model,
+    type,
+    getDisplayGroupRatio(model, selectedGroup)
+  )
   priceInUSD = applyRechargeRate(
     priceInUSD,
     showWithRecharge,
@@ -268,19 +281,15 @@ export function formatRequestPrice(
   model: PricingModel,
   showWithRecharge = false,
   priceRate = 1,
-  usdExchangeRate = 1
+  usdExchangeRate = 1,
+  selectedGroup?: string
 ): string {
   if (model.quota_type !== QUOTA_TYPE_VALUES.REQUEST) {
     return '-'
   }
 
-  const enableGroups = Array.isArray(model.enable_groups)
-    ? model.enable_groups
-    : []
-  const groupRatio = model.group_ratio || {}
-  const minRatio = getMinGroupRatio(enableGroups, groupRatio)
-
-  let priceInUSD = (model.model_price || 0) * minRatio
+  let priceInUSD =
+    (model.model_price || 0) * getDisplayGroupRatio(model, selectedGroup)
 
   priceInUSD = applyRechargeRate(
     priceInUSD,

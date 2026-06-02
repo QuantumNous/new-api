@@ -24,6 +24,7 @@ import {
   ENDPOINT_TYPES,
 } from '../constants'
 import type { PricingModel } from '../types'
+import { getDisplayGroupRatio } from './price'
 
 // ----------------------------------------------------------------------------
 // Filter Utilities
@@ -101,8 +102,11 @@ export function filterByEndpointType(
 /**
  * Get model price for sorting
  */
-function getModelPrice(model: PricingModel): number {
-  return model.quota_type === 0 ? model.model_ratio : model.model_price || 0
+function getModelPrice(model: PricingModel, selectedGroup?: string): number {
+  const ratio = getDisplayGroupRatio(model, selectedGroup)
+  return model.quota_type === 0
+    ? model.model_ratio * ratio
+    : (model.model_price || 0) * ratio
 }
 
 /**
@@ -110,7 +114,8 @@ function getModelPrice(model: PricingModel): number {
  */
 export function sortModels(
   models: PricingModel[],
-  sortBy: string
+  sortBy: string,
+  selectedGroup?: string
 ): PricingModel[] {
   const sorted = [...models]
 
@@ -121,10 +126,16 @@ export function sortModels(
       )
       break
     case SORT_OPTIONS.PRICE_LOW:
-      sorted.sort((a, b) => getModelPrice(a) - getModelPrice(b))
+      sorted.sort(
+        (a, b) =>
+          getModelPrice(a, selectedGroup) - getModelPrice(b, selectedGroup)
+      )
       break
     case SORT_OPTIONS.PRICE_HIGH:
-      sorted.sort((a, b) => getModelPrice(b) - getModelPrice(a))
+      sorted.sort(
+        (a, b) =>
+          getModelPrice(b, selectedGroup) - getModelPrice(a, selectedGroup)
+      )
       break
   }
 
@@ -152,7 +163,11 @@ export function filterAndSortModels(
   result = filterByQuotaType(result, filters.quotaType)
   result = filterByEndpointType(result, filters.endpointType)
   result = filterByTag(result, filters.tag)
-  result = sortModels(result, filters.sortBy)
+  result = sortModels(
+    result,
+    filters.sortBy,
+    filters.group === FILTER_ALL ? undefined : filters.group
+  )
 
   return result
 }
