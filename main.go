@@ -94,6 +94,12 @@ func main() {
 			model.InitChannelCache()
 		}()
 
+		// Load channel global settings cache (strip_cjk, future global toggles).
+		// Best-effort: empty table is fine, log only on hard failure.
+		if err := model.LoadChannelGlobalSettings(); err != nil {
+			common.SysLog(fmt.Sprintf("LoadChannelGlobalSettings warning: %s", err.Error()))
+		}
+
 		go model.SyncChannelCache(common.SyncFrequency)
 	}
 

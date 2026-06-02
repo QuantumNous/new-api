@@ -19,6 +19,11 @@ var (
 	maskIPPattern     = regexp.MustCompile(`\b(?:\d{1,3}\.){3}\d{1,3}\b`)
 	// maskApiKeyPattern matches patterns like 'api_key:xxx' or "api_key:xxx" to mask the API key value
 	maskApiKeyPattern = regexp.MustCompile(`(['"]?)api_key:([^\s'"]+)(['"]?)`)
+	// cjkRegex matches all CJK (Chinese/Japanese/Korean) characters via Unicode ranges.
+	// Covers: CJK Unified Ideographs, CJK Extension A, CJK Symbols/Punctuation,
+	// Halfwidth/Fullwidth Forms, Hiragana, Katakana, Hangul Syllables,
+	// and Katakana Phonetic Extensions.
+	cjkRegex = regexp.MustCompile(`[\x{4e00}-\x{9fff}\x{3400}-\x{4dbf}\x{3000}-\x{303f}\x{ff00}-\x{ffef}\x{3040}-\x{309f}\x{30a0}-\x{30ff}\x{31f0}-\x{31ff}\x{ac00}-\x{d7af}]`)
 )
 
 const LocalLogContentLimit = 2048
@@ -258,8 +263,18 @@ func MaskSensitiveInfo(str string) string {
 	// Mask IP addresses
 	str = maskIPPattern.ReplaceAllString(str, "***.***.***.***")
 
-	// Mask API keys (e.g., "api_key:AIzaSyAAAaUooTUni8AdaOkSRMda30n_Q4vrV70" -> "api_key:***")
+	// Mask API keys (e.g., "api_key:AIzaSy...rV70" -> "api_key:***")
 	str = maskApiKeyPattern.ReplaceAllString(str, "${1}api_key:***${3}")
 
 	return str
+}
+
+// StripCJK removes all CJK (Chinese/Japanese/Korean) characters from the input string.
+// Uses Unicode ranges: CJK Unified Ideographs, Extension A, Symbols/Punctuation,
+// Halfwidth/Fullwidth Forms, Hiragana, Katakana, Hangul Syllables, and
+// Katakana Phonetic Extensions.
+// This is used to prevent CJK character pollution in model responses, particularly
+// for MiniMax models that may occasionally generate CJK tokens in non-CJK contexts.
+func StripCJK(s string) string {
+	return cjkRegex.ReplaceAllString(s, "")
 }

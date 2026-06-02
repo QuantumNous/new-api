@@ -791,6 +791,14 @@ func HandleStreamResponseData(c *gin.Context, info *relaycommon.RelayInfo, claud
 		common.SysLog("error unmarshalling stream response: " + err.Error())
 		return types.NewError(err, types.ErrorCodeBadResponseBody)
 	}
+	// Strip CJK characters from streaming response if enabled for this channel
+	if info.ChannelSetting.StripCJK {
+		stripClaudeResponseCJK(&claudeResponse)
+		dataBytes, mErr := common.Marshal(&claudeResponse)
+		if mErr == nil {
+			data = string(dataBytes)
+		}
+	}
 	if claudeError := claudeResponse.GetClaudeError(); claudeError != nil && claudeError.Type != "" {
 		return types.WithClaudeError(*claudeError, http.StatusInternalServerError)
 	}
@@ -897,6 +905,10 @@ func HandleClaudeResponseData(c *gin.Context, info *relaycommon.RelayInfo, claud
 	err := common.Unmarshal(data, &claudeResponse)
 	if err != nil {
 		return types.NewError(err, types.ErrorCodeBadResponseBody)
+	}
+	// Strip CJK characters from response content if enabled for this channel
+	if info.ChannelSetting.StripCJK {
+		stripClaudeResponseCJK(&claudeResponse)
 	}
 	if claudeError := claudeResponse.GetClaudeError(); claudeError != nil && claudeError.Type != "" {
 		return types.WithClaudeError(*claudeError, http.StatusInternalServerError)
@@ -1007,4 +1019,34 @@ func mapToolChoice(toolChoice any, parallelToolCalls *bool) *dto.ClaudeToolChoic
 	}
 
 	return claudeToolChoice
+}
+
+// stripClaudeResponseCJK removes CJK characters from all text fields of a ClaudeResponse
+// (Content blocks, ContentBlock.Text, Delta.Text, Message.Text, Completion).
+// Mutates the response in place. Safe to call with nil pointers (skips them).
+func stripClaudeResponseCJK(r *dto.ClaudeResponse) {
+	if r == nil {
+		return
+	}
+	for i := range r.Content {
+		if r.Content[i].Text != nil {
+			stripped := common.StripCJK(*r.Content[i].Text)
+			r.Content[i].Text = &stripped
+		}
+	}
+	if r.ContentBlock != nil && r.ContentBlock.Text != nil {
+		stripped := common.StripCJK(*r.ContentBlock.Text)
+		r.ContentBlock.Text = &stripped
+	}
+	if r.Delta != nil && r.Delta.Text != nil {
+		stripped := common.StripCJK(*r.Delta.Text)
+		r.Delta.Text = &stripped
+	}
+	if r.Message != nil && r.Message.Text != nil {
+		stripped := common.StripCJK(*r.Message.Text)
+		r.Message.Text = &stripped
+	}
+	if r.Completion != "" {
+		r.Completion = common.StripCJK(r.Completion)
+	}
 }
