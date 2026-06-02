@@ -277,7 +277,7 @@ export async function getChannelKey(
   const res = await api.post(
     `/api/channel/${id}/key`,
     payload,
-    channelActionConfig()
+    channelActionConfig({ skipSecureVerification: true })
   )
   return res.data
 }

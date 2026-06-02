@@ -66,6 +66,7 @@ const defaultAuthSettings: AuthSettings = {
   'passkey.allow_insecure_origin': false,
   'passkey.user_verification': 'preferred',
   'passkey.attachment_preference': '',
+  'secure_verification.sensitive_operations_required': false,
 }
 
 export function AuthSettings() {

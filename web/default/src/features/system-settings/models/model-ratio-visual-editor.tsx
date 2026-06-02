@@ -17,6 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useState, useMemo, memo, useCallback, useEffect } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import {
   type ColumnDef,
   type ColumnFiltersState,
@@ -59,6 +60,7 @@ import {
   combineBillingExpr,
   splitBillingExprAndRequestRules,
 } from '@/features/pricing/lib/billing-expr'
+import { getEnabledModels } from '@/features/channels/api'
 import { safeJsonParse } from '../utils/json-parser'
 import {
   ModelPricingEditorPanel,
@@ -95,6 +97,7 @@ type ModelRow = {
   billingExpr?: string
   requestRuleExpr?: string
   hasConflict: boolean
+  hasConfiguredPricing: boolean
 }
 
 const STORAGE_KEY = 'model-ratio-column-visibility'
@@ -254,6 +257,19 @@ export const ModelRatioVisualEditor = memo(
       }
     )
 
+    const { data: enabledModelsResponse } = useQuery({
+      queryKey: ['model-pricing-enabled-channel-models'],
+      queryFn: getEnabledModels,
+    })
+
+    const enabledChannelModels = useMemo(
+      () =>
+        (enabledModelsResponse?.data ?? [])
+          .map((name) => name.trim())
+          .filter(Boolean),
+      [enabledModelsResponse?.data]
+    )
+
     useEffect(() => {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(columnVisibility))
     }, [columnVisibility])
@@ -307,6 +323,7 @@ export const ModelRatioVisualEditor = memo(
       )
 
       const modelNames = new Set([
+        ...enabledChannelModels,
         ...Object.keys(priceMap),
         ...Object.keys(ratioMap),
         ...Object.keys(cacheMap),
@@ -320,6 +337,17 @@ export const ModelRatioVisualEditor = memo(
       ])
 
       const modelData: ModelRow[] = Array.from(modelNames).map((name) => {
+        const hasConfiguredPricing =
+          Object.prototype.hasOwnProperty.call(priceMap, name) ||
+          Object.prototype.hasOwnProperty.call(ratioMap, name) ||
+          Object.prototype.hasOwnProperty.call(cacheMap, name) ||
+          Object.prototype.hasOwnProperty.call(createCacheMap, name) ||
+          Object.prototype.hasOwnProperty.call(completionMap, name) ||
+          Object.prototype.hasOwnProperty.call(imageMap, name) ||
+          Object.prototype.hasOwnProperty.call(audioMap, name) ||
+          Object.prototype.hasOwnProperty.call(audioCompletionMap, name) ||
+          Object.prototype.hasOwnProperty.call(billingModeMap, name) ||
+          Object.prototype.hasOwnProperty.call(billingExprMap, name)
         const price = priceMap[name]?.toString() || ''
         const ratio = ratioMap[name]?.toString() || ''
         const cache = cacheMap[name]?.toString() || ''
@@ -351,6 +379,7 @@ export const ModelRatioVisualEditor = memo(
             audioRatio: audio,
             audioCompletionRatio: audioCompletion,
             hasConflict: false,
+            hasConfiguredPricing,
           }
         }
 
@@ -374,6 +403,7 @@ export const ModelRatioVisualEditor = memo(
               image !== '' ||
               audio !== '' ||
               audioCompletion !== ''),
+          hasConfiguredPricing,
         }
       })
 
@@ -389,6 +419,7 @@ export const ModelRatioVisualEditor = memo(
       audioCompletionRatio,
       billingMode,
       billingExpr,
+      enabledChannelModels,
     ])
 
     const modeCounts = useMemo(
@@ -661,6 +692,7 @@ export const ModelRatioVisualEditor = memo(
                 variant='ghost'
                 size='sm'
                 onClick={() => handleDelete(row.original.name)}
+                disabled={!row.original.hasConfiguredPricing}
               >
                 <Trash2 />
               </Button>
