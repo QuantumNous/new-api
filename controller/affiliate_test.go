@@ -598,6 +598,10 @@ func newAffiliateAdminRouteTestRouter(t *testing.T, role int) *gin.Engine {
 	{
 		adminRoute.GET("/profiles", AdminListAffiliateProfiles)
 		adminRoute.POST("/profiles", AdminSetAffiliateProfile)
+		adminRoute.GET("/rule-sets", AdminListAffiliateRuleSets)
+		adminRoute.POST("/rule-sets/draft", AdminSaveAffiliateRuleSetDraft)
+		adminRoute.PATCH("/rule-sets/:id/publish", AdminPublishAffiliateRuleSet)
+		adminRoute.PATCH("/rule-sets/:id/archive", AdminArchiveAffiliateRuleSet)
 	}
 	return router
 }

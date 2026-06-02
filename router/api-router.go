@@ -37,6 +37,10 @@ func SetApiRouter(router *gin.Engine) {
 			affiliateAdminRoute.GET("/profiles", controller.AdminListAffiliateProfiles)
 			affiliateAdminRoute.POST("/profiles", controller.AdminSetAffiliateProfile)
 			affiliateAdminRoute.PATCH("/profiles/:user_id/status", controller.AdminUpdateAffiliateProfileStatus)
+			affiliateAdminRoute.GET("/rule-sets", controller.AdminListAffiliateRuleSets)
+			affiliateAdminRoute.POST("/rule-sets/draft", controller.AdminSaveAffiliateRuleSetDraft)
+			affiliateAdminRoute.PATCH("/rule-sets/:id/publish", controller.AdminPublishAffiliateRuleSet)
+			affiliateAdminRoute.PATCH("/rule-sets/:id/archive", controller.AdminArchiveAffiliateRuleSet)
 		}
 		apiRouter.GET("/notice", controller.GetNotice)
 		apiRouter.GET("/user-agreement", controller.GetUserAgreement)
