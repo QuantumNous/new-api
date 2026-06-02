@@ -421,6 +421,7 @@
 - [x] 管理员可全局管理规则、佣金和结算基础流程（规则草稿/发布/归档、佣金全局列表、结算生成/冻结/作废/标记已支付）。
 - [x] 后端提供管理员一键编排任务，按周期串联 KPI snapshot、pending 佣金事件、pending 人头费事件和 draft settlement 生成。
 - [x] 管理员佣金事件人工调整、作废、重算 API：支持手工 pending 调整事件、未结算事件作废、安全重算未入结算的自动 pending 事件。
+- [x] classic 管理端接入佣金与结算操作面板：支持结算编排、佣金重算和人工佣金调整。
 
 ### Phase 10 阶段复盘（2026-06-03 后端规则集 API）
 
@@ -485,6 +486,13 @@
 - 残留风险：作废 API 拒绝直接作废已入 settlement 的事件，避免结算单金额失配；如要支持 draft settlement 内单条事件作废，需要先设计结算单重算/重开流程；重算仍依赖日志 `Other` 中明确 paid/gift/trial 来源，尚未接入独立 quota source sidecar。
 - 下一步：补管理员规则配置/结算管理 UI，或设计 settlement 内事件重开、批次运行记录和前端操作审计展示。
 
+### Phase 10 阶段复盘（2026-06-03 classic 管理端佣金/结算操作）
+
+- 完成内容：classic `/console/affiliate/admin` 管理页新增“佣金与结算操作”卡片，接入 `POST /api/affiliate/admin/settlement-runs`、`POST /api/affiliate/admin/commissions/recompute` 和 `POST /api/affiliate/admin/commissions/adjust`；新增前端 helper 统一构造查询、操作 payload、校验错误、状态标签和 RMB 金额格式，避免在页面组件中散落接口细节。
+- 验证方式：先观察 `bun test src/pages/AffiliateAdmin/affiliateAdminFinance.test.mjs` 因 helper 缺失 RED；实现后 `bun test src/pages/AffiliateAdmin/affiliateAdminFinance.test.mjs src/pages/AffiliateAdmin/affiliateAdminProfiles.test.mjs` 9 项通过；`cd web/classic && bun run build` 通过；网络切换后重试 `make dev-web-classic`，确认依赖安装可用，失败原因仅为已有 `make dev-web` 占用 `5174`，随后 `5173` / `5174` 均 HTTP 200。
+- 残留风险：本批只提供操作入口，没有实现完整规则集可视化编辑、结算列表/佣金列表表格管理、批次运行记录或二次确认弹窗；人工调整金额仍以“分”为输入单位，后续可改为 RMB 输入并在提交前转换为 cents。
+- 下一步：补管理员规则配置 UI，或在 classic 管理页继续扩展佣金/结算列表、冻结/支付/作废操作和批次审计展示。
+
 ## Phase 11：用户管理 `inviter_id`
 
 - [x] classic 用户管理编辑页增加邀请人 ID 字段，并接入候选搜索、影响预览和保存 API。
@@ -521,7 +529,7 @@
 
 - [ ] 本地通过核心 Go 测试。
 - [ ] 复核并修复/隔离当前 `go test ./...` 基线失败：根包缺少 `web/classic/dist` embed，controller 现有 model list 测试失败，Claude relay 与 stream scanner 现有测试失败；本批 affiliate 定向测试已通过。
-- [x] classic 前端构建通过。
+- [x] classic 前端构建通过；2026-06-03 追加 classic 佣金/结算操作面板后 `cd web/classic && bun run build` 通过。
 - [x] default 前端构建或 typecheck 通过（2026-06-03 `cd web/default && bun run build` 通过；typecheck 仍有既有 baseline，见 Phase 8 复盘）。
 - [ ] Playwright 截图回归通过；classic 分销页管理员/一级/二级/移动端 2026-06-03 已通过；classic 用户管理 inviter SideSheet、预览接口和 no-op 保存 smoke 已通过；default 用户管理 inviter 编辑抽屉、预览和 no-op 保存 smoke 已通过；普通用户、profile disabled、模块关闭仍待补齐。
 - [ ] schema impact 报告无非预期官方表改动。

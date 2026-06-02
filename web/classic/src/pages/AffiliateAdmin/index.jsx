@@ -37,6 +37,15 @@ import {
   getAffiliateProfileStatusMeta,
   validateAffiliateProfilePayload,
 } from './affiliateAdminProfiles';
+import {
+  buildAffiliateCommissionAdjustmentPayload,
+  buildAffiliateCommissionRecomputePayload,
+  buildAffiliateSettlementRunPayload,
+  formatAffiliateCentsRMB,
+  validateAffiliateCommissionAdjustmentPayload,
+  validateAffiliateCommissionRecomputePayload,
+  validateAffiliateSettlementRunPayload,
+} from './affiliateAdminFinance';
 
 const { Text, Title } = Typography;
 
@@ -51,6 +60,8 @@ const AffiliateAdmin = () => {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
   const [total, setTotal] = useState(0);
+  const [financeLoading, setFinanceLoading] = useState('');
+  const [lastFinanceResult, setLastFinanceResult] = useState('');
 
   const loadProfiles = async (
     nextPage = page,
@@ -132,6 +143,114 @@ const AffiliateAdmin = () => {
       await loadProfiles(page, pageSize, filters);
     } catch (error) {
       showError(t('分销商状态更新失败'));
+    }
+  };
+
+  const handleSettlementRun = async (values) => {
+    const payload = buildAffiliateSettlementRunPayload(values);
+    const validationError = validateAffiliateSettlementRunPayload(t, payload);
+    if (validationError) {
+      showError(validationError);
+      return;
+    }
+
+    setFinanceLoading('settlement-run');
+    try {
+      const res = await API.post(
+        '/api/affiliate/admin/settlement-runs',
+        payload,
+      );
+      const { success, data, message } = res.data;
+      if (!success) {
+        showError(message || t('结算编排失败'));
+        return;
+      }
+      const settlementCount = Number(data?.settlement_count || 0);
+      setLastFinanceResult(
+        t(
+          '结算编排已完成：KPI {{kpi}}，佣金 {{commission}}，人头费 {{headFee}}，结算单 {{settlement}}',
+        )
+          .replace('{{kpi}}', String(data?.kpi_snapshot_count || 0))
+          .replace('{{commission}}', String(data?.commission_event_count || 0))
+          .replace('{{headFee}}', String(data?.head_fee_event_count || 0))
+          .replace('{{settlement}}', String(settlementCount)),
+      );
+      showSuccess(t('结算编排已完成'));
+    } catch (error) {
+      showError(t('结算编排失败'));
+    } finally {
+      setFinanceLoading('');
+    }
+  };
+
+  const handleCommissionRecompute = async (values) => {
+    const payload = buildAffiliateCommissionRecomputePayload(values);
+    const validationError = validateAffiliateCommissionRecomputePayload(
+      t,
+      payload,
+    );
+    if (validationError) {
+      showError(validationError);
+      return;
+    }
+
+    setFinanceLoading('commission-recompute');
+    try {
+      const res = await API.post(
+        '/api/affiliate/admin/commissions/recompute',
+        payload,
+      );
+      const { success, data, message } = res.data;
+      if (!success) {
+        showError(message || t('佣金重算失败'));
+        return;
+      }
+      setLastFinanceResult(
+        t('佣金重算已完成：作废 {{voided}}，新建 {{created}}')
+          .replace('{{voided}}', String(data?.voided_event_count || 0))
+          .replace('{{created}}', String(data?.created_event_count || 0)),
+      );
+      showSuccess(t('佣金重算已完成'));
+    } catch (error) {
+      showError(t('佣金重算失败'));
+    } finally {
+      setFinanceLoading('');
+    }
+  };
+
+  const handleCommissionAdjustment = async (values) => {
+    const payload = buildAffiliateCommissionAdjustmentPayload(values);
+    const validationError = validateAffiliateCommissionAdjustmentPayload(
+      t,
+      payload,
+    );
+    if (validationError) {
+      showError(validationError);
+      return;
+    }
+
+    setFinanceLoading('commission-adjustment');
+    try {
+      const res = await API.post(
+        '/api/affiliate/admin/commissions/adjust',
+        payload,
+      );
+      const { success, data, message } = res.data;
+      if (!success) {
+        showError(message || t('佣金调整失败'));
+        return;
+      }
+      setLastFinanceResult(
+        t('佣金调整已创建：{{amount}}').replace(
+          '{{amount}}',
+          formatAffiliateCentsRMB(data?.commission_cents),
+        ),
+      );
+      showSuccess(t('佣金调整已创建'));
+    } catch (error) {
+      showError(t('佣金调整失败'));
+    } finally {
+      setFinanceLoading('');
     }
   };
 
@@ -260,6 +379,160 @@ const AffiliateAdmin = () => {
             {t('保存分销商')}
           </Button>
         </Form>
+      </Card>
+
+      <Card className='!rounded-2xl mb-4'>
+        <div className='flex flex-col gap-2 mb-4'>
+          <Title heading={4}>{t('佣金与结算操作')}</Title>
+          <Text type='secondary'>
+            {t(
+              '管理员可按周期运行 KPI、佣金、人头费和结算单编排，也可重算未入结算的佣金事件或创建人工调整。',
+            )}
+          </Text>
+          {lastFinanceResult && <Text strong>{lastFinanceResult}</Text>}
+        </div>
+
+        <div className='grid grid-cols-1 xl:grid-cols-3 gap-4'>
+          <Card className='!rounded-xl' title={t('结算编排')}>
+            <Form
+              layout='vertical'
+              onSubmit={handleSettlementRun}
+              initValues={{ freeze_days: 7 }}
+            >
+              <Form.InputNumber
+                field='rule_set_id'
+                label={t('规则集 ID')}
+                min={0}
+                placeholder={t('0 表示自动选择已发布规则')}
+              />
+              <Form.InputNumber
+                field='period_start'
+                label={t('周期开始时间戳')}
+                min={0}
+              />
+              <Form.InputNumber
+                field='period_end'
+                label={t('周期结束时间戳')}
+                min={0}
+              />
+              <Form.InputNumber
+                field='freeze_days'
+                label={t('冻结天数')}
+                min={0}
+              />
+              <Form.InputNumber
+                field='now'
+                label={t('执行时间戳')}
+                min={0}
+                placeholder={t('留空使用当前时间')}
+              />
+              <Form.InputNumber
+                field='quota_per_unit'
+                label={t('Quota 单位')}
+                min={0}
+                placeholder={t('留空使用系统默认')}
+              />
+              <Form.InputNumber
+                field='usd_exchange_rate'
+                label={t('美元汇率')}
+                min={0}
+                placeholder={t('留空使用系统默认')}
+              />
+              <Form.Input field='reason' label={t('操作原因')} />
+              <Button
+                htmlType='submit'
+                type='primary'
+                loading={financeLoading === 'settlement-run'}
+              >
+                {t('运行结算编排')}
+              </Button>
+            </Form>
+          </Card>
+
+          <Card className='!rounded-xl' title={t('佣金重算')}>
+            <Form layout='vertical' onSubmit={handleCommissionRecompute}>
+              <Form.InputNumber
+                field='rule_set_id'
+                label={t('规则集 ID')}
+                min={0}
+                placeholder={t('0 表示自动选择已发布规则')}
+              />
+              <Form.InputNumber
+                field='period_start'
+                label={t('周期开始时间戳')}
+                min={0}
+              />
+              <Form.InputNumber
+                field='period_end'
+                label={t('周期结束时间戳')}
+                min={0}
+              />
+              <Form.InputNumber
+                field='quota_per_unit'
+                label={t('Quota 单位')}
+                min={0}
+                placeholder={t('留空使用系统默认')}
+              />
+              <Form.InputNumber
+                field='usd_exchange_rate'
+                label={t('美元汇率')}
+                min={0}
+                placeholder={t('留空使用系统默认')}
+              />
+              <Form.Input field='reason' label={t('操作原因')} />
+              <Button
+                htmlType='submit'
+                type='warning'
+                loading={financeLoading === 'commission-recompute'}
+              >
+                {t('重算佣金事件')}
+              </Button>
+            </Form>
+          </Card>
+
+          <Card className='!rounded-xl' title={t('人工佣金调整')}>
+            <Form layout='vertical' onSubmit={handleCommissionAdjustment}>
+              <Form.InputNumber
+                field='affiliate_user_id'
+                label={t('分销商用户 ID')}
+                min={1}
+              />
+              <Form.InputNumber
+                field='downstream_user_id'
+                label={t('下游用户 ID')}
+                min={0}
+              />
+              <Form.InputNumber
+                field='rule_set_id'
+                label={t('规则集 ID')}
+                min={0}
+                placeholder={t('0 表示自动选择已发布规则')}
+              />
+              <Form.InputNumber
+                field='period_start'
+                label={t('周期开始时间戳')}
+                min={0}
+              />
+              <Form.InputNumber
+                field='period_end'
+                label={t('周期结束时间戳')}
+                min={0}
+              />
+              <Form.InputNumber
+                field='commission_cents'
+                label={t('调整金额（分）')}
+              />
+              <Form.Input field='reason' label={t('操作原因')} />
+              <Button
+                htmlType='submit'
+                type='danger'
+                loading={financeLoading === 'commission-adjustment'}
+              >
+                {t('创建人工调整')}
+              </Button>
+            </Form>
+          </Card>
+        </div>
       </Card>
 
       <Card className='!rounded-2xl'>
