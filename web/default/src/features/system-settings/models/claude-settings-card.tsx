@@ -231,10 +231,10 @@ export function ClaudeSettingsCard({ defaultValues }: ClaudeSettingsCardProps) {
               render={({ field }) => (
                 <SettingsSwitchItem>
                   <SettingsSwitchContent>
-                    <FormLabel>{t('Thinking Adapter')}</FormLabel>
+                    <FormLabel>{t('Thinking Suffix Adapter')}</FormLabel>
                     <FormDescription>
                       {t(
-                        'Translate `-thinking` suffixes into Anthropic native thinking models while keeping pricing predictable.'
+                        'Adapt `-thinking` suffix requests to Anthropic native thinking behavior while keeping billing predictable.'
                       )}
                     </FormDescription>
                   </SettingsSwitchContent>
