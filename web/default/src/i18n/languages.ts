@@ -24,6 +24,7 @@ export const INTERFACE_LANGUAGE_OPTIONS = [
   { code: 'ru', label: 'Русский' },
   { code: 'ja', label: '日本語' },
   { code: 'vi', label: 'Tiếng Việt' },
+  { code: 'pt', label: 'Português' },
 ] as const
 
 export type InterfaceLanguageCode =
@@ -35,7 +36,11 @@ export function normalizeInterfaceLanguage(value?: string | null): string {
   const normalized = value.trim().replace(/_/g, '-').toLowerCase()
   if (normalized.startsWith('zh')) return 'zh'
 
-  return INTERFACE_LANGUAGE_OPTIONS.some((lang) => lang.code === normalized)
-    ? normalized
-    : 'en'
+  // Match case-insensitively against the option codes so users with
+  // mixed-case stored values (e.g. 'pt' from i18next) still resolve to
+  // the canonical option code.
+  const matched = INTERFACE_LANGUAGE_OPTIONS.find(
+    (lang) => lang.code.toLowerCase() === normalized,
+  )
+  return matched ? matched.code : 'en'
 }

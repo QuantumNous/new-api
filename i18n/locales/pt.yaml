@@ -1,0 +1,265 @@
+# Brazilian Portuguese translations
+
+common.invalid_params: Parâmetros inválidos
+common.database_error: Erro no banco de dados, por favor contate o administrador
+common.retry_later: Por favor, tente novamente mais tarde
+common.generate_failed: Falha na geração
+common.not_found: Não encontrado
+common.unauthorized: Não autorizado
+common.forbidden: Proibido
+common.invalid_id: ID inválido
+common.id_empty: ID está vazio!
+common.feature_disabled: Este recurso não está habilitado
+common.operation_success: Operação realizada com sucesso
+common.operation_failed: Falha na operação
+common.update_success: Atualização realizada com sucesso
+common.update_failed: Falha na atualização
+common.create_success: Criação realizada com sucesso
+common.create_failed: Falha na criação
+common.delete_success: Exclusão realizada com sucesso
+common.delete_failed: Falha na exclusão
+common.already_exists: Já existe
+common.name_cannot_be_empty: Nome não pode estar vazio
+common.batch_too_many: Muitos itens na requisição em lote, o máximo é {{.Max}}
+auth.not_logged_in: Não autorizado, não logado e nenhum token de acesso fornecido
+auth.access_token_invalid: Não autorizado, token de acesso inválido
+auth.user_info_invalid: Não autorizado, informações de usuário inválidas
+auth.user_id_not_provided: Não autorizado, cabeçalho New-Api-User não fornecido
+auth.user_id_format_error: Não autorizado, erro no formato do cabeçalho New-Api-User
+auth.user_id_mismatch: Não autorizado, New-Api-User não corresponde ao usuário logado
+auth.user_banned: Usuário foi banido
+auth.insufficient_privilege: Não autorizado, privilégios insuficientes
+token.name_too_long: Nome do token é muito longo
+token.quota_negative: Valor da cota não pode ser negativo
+token.quota_exceed_max: Valor da cota excede o intervalo válido, o máximo é {{.Max}}
+token.generate_failed: Falha ao gerar token
+token.get_info_failed: Falha ao obter informações do token, por favor tente novamente
+  mais tarde
+token.expired_cannot_enable: Token expirou e não pode ser habilitado. Por favor modifique
+  o tempo de expiração ou defina para nunca expirar
+token.exhausted_cannot_enable: Cota do token esgotada e não pode ser habilitada. Por
+  favor modifique a cota restante ou defina como ilimitado
+token.invalid: Token inválido
+token.not_provided: Token não fornecido
+token.expired: Este token expirou
+token.exhausted: 'Cota deste token está esgotada: sk-{{.Prefix}}***{{.Suffix}}'
+token.status_unavailable: Status deste token está indisponível
+token.db_error: Token inválido, erro na consulta do banco de dados, por favor contate
+  o administrador
+redemption.name_length: Comprimento do nome do código de resgate deve ser entre 1-20
+redemption.count_positive: Quantidade de códigos de resgate deve ser maior que 0
+redemption.count_max: Máximo de 100 códigos de resgate pode ser gerado de uma vez
+redemption.create_failed: Falha ao criar código de resgate, por favor tente novamente
+  mais tarde
+redemption.invalid: Código de resgate inválido
+redemption.used: Este código de resgate já foi usado
+redemption.expired: Este código de resgate expirou
+redemption.failed: Resgate falhou, por favor tente novamente mais tarde
+redemption.not_provided: Código de resgate não fornecido
+redemption.expire_time_invalid: Tempo de expiração não pode ser anterior ao tempo
+  atual
+user.password_login_disabled: Login por senha foi desabilitado pelo administrador
+user.register_disabled: Registro de novos usuários foi desabilitado pelo administrador
+user.password_register_disabled: Registro por senha foi desabilitado pelo administrador,
+  por favor use verificação de conta de terceiros
+user.username_or_password_empty: Nome de usuário ou senha está vazio
+user.username_or_password_error: Nome de usuário ou senha incorretos, ou usuário foi
+  banido
+user.email_or_password_empty: Email ou senha está vazio!
+user.exists: Nome de usuário já existe ou foi deletado
+user.not_exists: Usuário não existe
+user.disabled: Este usuário foi desabilitado
+user.session_save_failed: Falha ao salvar sessão, por favor tente novamente
+user.require_2fa: Por favor insira o código de autenticação de dois fatores
+user.email_verification_required: Verificação de email está habilitada, por favor
+  insira endereço de email e código de verificação
+user.verification_code_error: Código de verificação incorreto ou expirou
+user.input_invalid: Entrada inválida {{.Error}}
+user.no_permission_same_level: Sem permissão para acessar usuários do mesmo nível
+  ou superior
+user.no_permission_higher_level: Sem permissão para atualizar usuários do mesmo nível
+  de permissão ou superior
+user.cannot_create_higher_level: Não é possível criar usuários com nível de permissão
+  igual ou superior ao seu
+user.cannot_delete_root_user: Não é possível deletar conta de super administrador
+user.cannot_disable_root_user: Não é possível desabilitar usuário super administrador
+user.cannot_demote_root_user: Não é possível rebaixar usuário super administrador
+user.already_admin: Este usuário já é um administrador
+user.already_common: Este usuário já é um usuário comum
+user.admin_cannot_promote: Administradores regulares não podem promover outros usuários
+  a administrador
+user.original_password_error: Senha original incorreta
+user.invite_quota_insufficient: Cota de convite insuficiente!
+user.transfer_quota_minimum: Cota mínima de transferência é {{.Min}}!
+user.transfer_success: Transferência realizada com sucesso
+user.transfer_failed: Transferência falhou {{.Error}}
+user.topup_processing: Recarga está processando, por favor tente novamente mais tarde
+user.register_failed: Registro de usuário falhou ou falha ao obter ID do usuário
+user.default_token_failed: Falha ao gerar token padrão
+user.aff_code_empty: Código de afiliado está vazio!
+user.email_empty: Email está vazio!
+user.github_id_empty: ID do GitHub está vazio!
+user.discord_id_empty: ID do Discord está vazio!
+user.oidc_id_empty: ID do OIDC está vazio!
+user.wechat_id_empty: ID do WeChat está vazio!
+user.telegram_id_empty: ID do Telegram está vazio!
+user.telegram_not_bound: Esta conta do Telegram não está vinculada
+user.linux_do_id_empty: ID do Linux DO está vazio!
+user.quota_change_zero: Quantidade de mudança de cota não pode ser zero
+quota.negative: Cota não pode ser negativa!
+quota.exceed_max: Valor da cota excede o intervalo válido
+quota.insufficient: Cota insuficiente
+quota.warning_invalid: Tipo de aviso inválido
+quota.threshold_gt_zero: Limite de aviso deve ser maior que 0
+subscription.not_enabled: Plano de assinatura não está habilitado
+subscription.title_empty: Título do plano de assinatura não pode estar vazio
+subscription.price_negative: Preço não pode ser negativo
+subscription.price_max: Preço não pode exceder 9999
+subscription.purchase_limit_negative: Limite de compra não pode ser negativo
+subscription.quota_negative: Cota total não pode ser negativa
+subscription.group_not_exists: Grupo de atualização não existe
+subscription.reset_cycle_gt_zero: Ciclo de reset personalizado deve ser maior que
+  0 segundos
+subscription.purchase_max: Limite de compra para este plano foi atingido
+subscription.invalid_id: ID de assinatura inválido
+subscription.invalid_user_id: ID de usuário inválido
+payment.not_configured: Informações de pagamento não foram configuradas pelo administrador
+payment.method_not_exists: Método de pagamento não existe
+payment.callback_error: Erro na configuração da URL de callback
+payment.create_failed: Falha ao criar pedido
+payment.start_failed: Falha ao iniciar pagamento
+payment.amount_too_low: Valor do plano é muito baixo
+payment.stripe_not_configured: Stripe não está configurado ou chave é inválida
+payment.webhook_not_configured: Webhook não está configurado
+payment.price_id_not_configured: StripePriceId não está configurado para este plano
+payment.creem_not_configured: CreemProductId não está configurado para este plano
+topup.not_provided: Número do pedido de pagamento não fornecido
+topup.order_not_exists: Pedido de recarga não existe
+topup.order_status: Erro no status do pedido de recarga
+topup.failed: Recarga falhou, por favor tente novamente mais tarde
+topup.invalid_quota: Cota de recarga inválida
+channel.not_exists: Canal não existe
+channel.id_format_error: Erro no formato do ID do canal
+channel.no_available_key: Nenhuma chave de canal disponível
+channel.get_list_failed: Falha ao obter lista de canais, por favor tente novamente
+  mais tarde
+channel.get_tags_failed: Falha ao obter tags, por favor tente novamente mais tarde
+channel.get_key_failed: Falha ao obter chave do canal
+channel.get_ollama_failed: Falha ao obter modelos do Ollama
+channel.query_failed: Falha ao consultar canal
+channel.no_valid_upstream: Nenhum canal upstream válido
+channel.upstream_saturated: Carga upstream do grupo atual está saturada, por favor
+  tente novamente mais tarde
+channel.get_available_failed: Falha ao obter canais disponíveis para modelo {{.Model}}
+  no grupo {{.Group}}
+model.name_empty: Nome do modelo não pode estar vazio
+model.name_exists: Nome do modelo já existe
+model.id_missing: ID do modelo está faltando
+model.get_list_failed: Falha ao obter lista de modelos, por favor tente novamente
+  mais tarde
+model.get_failed: Falha ao obter modelos upstream
+model.reset_success: Redefinição de proporção do modelo realizada com sucesso
+vendor.name_empty: Nome do fornecedor não pode estar vazio
+vendor.name_exists: Nome do fornecedor já existe
+vendor.id_missing: ID do fornecedor está faltando
+group.name_type_empty: Nome e tipo do grupo não podem estar vazios
+group.name_exists: Nome do grupo já existe
+group.id_missing: ID do grupo está faltando
+checkin.disabled: Recurso de check-in não está habilitado
+checkin.already_today: Já fez check-in hoje
+checkin.failed: Check-in falhou, por favor tente novamente mais tarde
+checkin.quota_failed: 'Check-in falhou: erro na atualização da cota'
+passkey.create_failed: Não foi possível criar credencial Passkey
+passkey.login_abnormal: Status de login via Passkey está anormal
+passkey.update_failed: Atualização de credencial Passkey falhou
+passkey.invalid_user_id: ID de usuário inválido
+passkey.verify_failed: Verificação de Passkey falhou, por favor tente novamente ou
+  contate o administrador
+twofa.not_enabled: Usuário não habilitou 2FA
+twofa.user_id_empty: ID do usuário não pode estar vazio
+twofa.already_exists: Usuário já tem 2FA configurado
+twofa.record_id_empty: ID do registro 2FA não pode estar vazio
+twofa.code_invalid: Código de verificação ou código de backup incorreto
+rate_limit.reached: 'Você atingiu o limite de requisições: máximo de {{.Max}} requisições
+  em {{.Minutes}} minutos'
+rate_limit.total_reached: 'Você atingiu o limite total de requisições: máximo de {{.Max}}
+  requisições em {{.Minutes}} minutos, incluindo tentativas falhadas'
+setting.invalid_type: Tipo de aviso inválido
+setting.webhook_empty: URL do webhook não pode estar vazia
+setting.webhook_invalid: URL do Webhook inválida
+setting.email_invalid: Endereço de email inválido
+setting.bark_url_empty: URL de push do Bark não pode estar vazia
+setting.bark_url_invalid: URL de push do Bark inválida
+setting.gotify_url_empty: URL do servidor Gotify não pode estar vazia
+setting.gotify_token_empty: Token do Gotify não pode estar vazio
+setting.gotify_url_invalid: URL do servidor Gotify inválida
+setting.url_must_http: URL deve começar com http:// ou https://
+setting.saved: Configurações atualizadas
+deployment.not_enabled: Implantação de modelo io.net não está habilitada ou chave
+  de API está faltando
+deployment.id_required: ID de implantação é obrigatório
+deployment.container_id_required: ID do container é obrigatório
+deployment.name_empty: Nome da implantação não pode estar vazio
+deployment.name_taken: Nome da implantação não está disponível, por favor escolha
+  um nome diferente
+deployment.hardware_id_required: Parâmetro hardware_id é obrigatório
+deployment.hardware_invalid_id: Parâmetro hardware_id inválido
+deployment.api_key_required: api_key é obrigatório
+deployment.invalid_payload: Payload da requisição inválido
+deployment.not_found: Detalhes do container não encontrados
+performance.disk_cache_cleared: Cache de disco inativo foi limpo
+performance.stats_reset: Estatísticas foram resetadas
+performance.gc_executed: GC foi executado
+ability.db_corrupted: Consistência do banco de dados foi comprometida
+ability.repair_running: Uma tarefa de reparo já está em execução, por favor tente
+  novamente mais tarde
+oauth.invalid_code: Código de autorização inválido
+oauth.get_user_error: Falha ao obter informações do usuário
+oauth.account_used: Esta conta foi vinculada a outro usuário
+oauth.unknown_provider: Provedor OAuth desconhecido
+oauth.state_invalid: Parâmetro State está vazio ou não corresponde
+oauth.not_enabled: Login e registro via {{.Provider}} não foram habilitados pelo administrador
+oauth.user_deleted: Usuário foi deletado
+oauth.user_banned: Usuário foi banido
+oauth.bind_success: Vinculação realizada com sucesso
+oauth.already_bound: Esta conta {{.Provider}} já foi vinculada
+oauth.connect_failed: Não foi possível conectar ao servidor {{.Provider}}, por favor
+  tente novamente mais tarde
+oauth.token_failed: Falha ao obter token do {{.Provider}}, por favor verifique as
+  configurações
+oauth.user_info_empty: '{{.Provider}} retornou informações de usuário vazias, por
+  favor verifique as configurações'
+oauth.trust_level_low: Nível de confiança do Linux DO não atende ao mínimo exigido
+  pelo administrador
+redeem.failed: Resgate falhou, por favor tente novamente mais tarde
+user.create_default_token_error: Falha ao criar token padrão
+common.uuid_duplicate: 'Por favor, tente novamente, o sistema gerou um UUID duplicado!'
+common.invalid_input: Entrada inválida
+distributor.invalid_request: 'Requisição inválida: {{.Error}}'
+distributor.invalid_channel_id: ID de canal inválido
+distributor.channel_disabled: Este canal foi desativado
+distributor.affinity_channel_disabled: O canal selecionado por afinidade de canal
+  foi desativado, e nova tentativa foi interrompida pela regra. Por favor contate
+  o administrador
+distributor.token_no_model_access: Este token não tem acesso a nenhum modelo
+distributor.token_model_forbidden: Este token não tem acesso ao modelo {{.Model}}
+distributor.model_name_required: Nome do modelo não especificado, nome do modelo não
+  pode estar vazio
+distributor.invalid_playground_request: 'Requisição de playground inválida: {{.Error}}'
+distributor.group_access_denied: Sem permissão para acessar este grupo
+distributor.get_channel_failed: 'Falha ao obter canal disponível para modelo {{.Model}}
+  no grupo {{.Group}} (distribuidor): {{.Error}}'
+distributor.no_available_channel: Nenhum canal disponível para modelo {{.Model}} no
+  grupo {{.Group}} (distribuidor)
+distributor.invalid_midjourney_request: 'Requisição Midjourney inválida: {{.Error}}'
+distributor.invalid_request_parse_model: Requisição inválida, não foi possível analisar
+  o modelo
+custom_oauth.not_found: Provedor OAuth personalizado não encontrado
+custom_oauth.slug_empty: Slug não pode estar vazio
+custom_oauth.slug_exists: Slug já existe
+custom_oauth.name_empty: Nome do provedor não pode estar vazio
+custom_oauth.has_bindings: Não é possível deletar provedor com vinculações de usuário
+  existentes
+custom_oauth.binding_not_found: Vinculação OAuth não encontrada
+custom_oauth.provider_id_field_invalid: Não foi possível extrair ID do usuário da
+  resposta do provedor
