@@ -17,16 +17,30 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { Link } from '@tanstack/react-router'
-import { Plus, Sparkles } from 'lucide-react'
+import { BookOpen, Plus, Sparkles } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { useApiKeys } from './api-keys-provider'
 
 export function ApiKeysPrimaryButtons() {
   const { t } = useTranslation()
-  const { setOpen } = useApiKeys()
+  const { setOpen, setCurrentRow, setResolvedKey } = useApiKeys()
   return (
     <div className='flex gap-2'>
+      <Button
+        size='sm'
+        variant='outline'
+        onClick={() => {
+          // Generic guide — no specific key, so the wizard shows a
+          // placeholder the user swaps in.
+          setCurrentRow(null)
+          setResolvedKey('')
+          setOpen('integration')
+        }}
+      >
+        <BookOpen className='h-4 w-4' />
+        {t('Setup guide')}
+      </Button>
       <Button
         size='sm'
         variant='outline'

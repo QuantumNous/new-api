@@ -24,4 +24,5 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
-.tanstack/*
+.tanstack/*src/i18n/locales/_reports/
+_reports/

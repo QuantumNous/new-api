@@ -18,6 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { useEffect, useState } from 'react'
 import { savePreferredMode } from '../lib'
+import { ApiKeyIntegrationDialog } from './api-key-integration-dialog'
 import { ApiKeyModePickerDialog } from './api-key-mode-picker-dialog'
 import { ApiKeysDeleteDialog } from './api-keys-delete-dialog'
 import { ApiKeysMutateDrawer } from './api-keys-mutate-drawer'
@@ -66,6 +67,12 @@ export function ApiKeysDialogs() {
         open={open === 'cc-switch'}
         onOpenChange={(isOpen) => !isOpen && setOpen(null)}
         tokenKey={resolvedKey}
+      />
+      <ApiKeyIntegrationDialog
+        open={open === 'integration'}
+        onClose={() => setOpen(null)}
+        apiKey={resolvedKey || null}
+        purpose={currentRow?.simple_purpose || undefined}
       />
     </>
   )

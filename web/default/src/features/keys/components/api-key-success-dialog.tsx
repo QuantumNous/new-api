@@ -31,6 +31,8 @@ import {
 } from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
+import { defaultBaseUrl, modelNameForPurpose } from '../lib/integration'
+import { ApiKeyIntegrationDialog } from './api-key-integration-dialog'
 import type { SimplePurposeId } from '../types'
 
 type ApiKeySuccessDialogProps = {
@@ -38,29 +40,6 @@ type ApiKeySuccessDialogProps = {
   onClose: () => void
   apiKey: string | null
   purpose?: SimplePurposeId
-}
-
-function defaultBaseUrl(): string {
-  if (typeof window === 'undefined') return 'https://deeprouter.ai/v1'
-  const { protocol, host } = window.location
-  return `${protocol}//${host}/v1`
-}
-
-function modelNameForPurpose(purpose?: SimplePurposeId): string {
-  switch (purpose) {
-    case 'coding':
-      return 'deeprouter-coding'
-    case 'image':
-      return 'deeprouter-image'
-    case 'video':
-      return 'deeprouter-video'
-    case 'voice':
-      return 'deeprouter-voice'
-    case 'chat':
-    case 'all':
-    default:
-      return 'deeprouter'
-  }
 }
 
 /**
@@ -78,6 +57,7 @@ export function ApiKeySuccessDialog({
   const { t } = useTranslation()
   const baseUrl = defaultBaseUrl()
   const modelName = modelNameForPurpose(purpose)
+  const [showGuide, setShowGuide] = useState(false)
   return (
     <AlertDialog open={open} onOpenChange={(o) => !o && onClose()}>
       <AlertDialogContent className='!max-w-md sm:!max-w-lg'>
@@ -113,7 +93,14 @@ export function ApiKeySuccessDialog({
                 'Paste it into the AI tool you already use — find the "API Key" field in its settings.'
               )}
             </p>
-            <div className='mt-2'>
+            <div className='mt-2 flex flex-wrap gap-2'>
+              <Button
+                size='sm'
+                className='rounded-full text-xs'
+                onClick={() => setShowGuide(true)}
+              >
+                {t('View code examples →')}
+              </Button>
               <Button
                 size='sm'
                 variant='outline'
@@ -129,6 +116,13 @@ export function ApiKeySuccessDialog({
           <AlertDialogAction onClick={onClose}>{t('Done')}</AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>
+
+      <ApiKeyIntegrationDialog
+        open={showGuide}
+        onClose={() => setShowGuide(false)}
+        apiKey={apiKey}
+        purpose={purpose}
+      />
     </AlertDialog>
   )
 }

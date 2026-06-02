@@ -1,5 +1,8 @@
 {
   "translation": {
+    "360": "360",
+    "1000": "1000",
+    "10000": "10000",
     "\"default\": \"us-central1\", \"claude-3-5-sonnet-20240620\": \"europe-west1\"": "\"default\": \"us-central1\", \"claude-3-5-sonnet-20240620\": \"europe-west1\"",
     "#1 App": "#1 App",
     "#1 Model": "#1 Model",
@@ -34,8 +37,6 @@
     "1. Create an application in your Gotify server": "1. Create an application in your Gotify server",
     "10 / page": "10 / page",
     "100 / page": "100 / page",
-    "1000": "1000",
-    "10000": "10000",
     "14 Days": "14 Days",
     "192.168.1.1&#10;10.0.0.0/8": "192.168.1.1&#10;10.0.0.0/8",
     "1M": "1M",
@@ -51,7 +52,6 @@
     "30 seconds to get a key, then drop it into any AI client — no setup hassle.": "30 seconds to get a key, then drop it into any AI client — no setup hassle.",
     "30 seconds to get a key, then drop it into any AI client.": "30 seconds to get a key, then drop it into any AI client.",
     "30d change": "30d change",
-    "360": "360",
     "5 minutes": "5 minutes",
     "5-Hour Window": "5-Hour Window",
     "50 / page": "50 / page",
@@ -4460,7 +4460,7 @@
     "footer.columns.related.links.oneApi": "One API",
     "footer.columns.related.title": "Related Projects",
     "footer.defaultCopyright": "All rights reserved.",
-    "footer.newapi.projectAttributionSuffix": "All rights reserved. Designed and developed by the project contributors.",
+    "footer.new\u0061pi.projectAttributionSuffix": "All rights reserved. Designed and developed by the project contributors.",
     "gpt-3.5-turbo": "gpt-3.5-turbo",
     "gpt-3.5-turbo-0125": "gpt-3.5-turbo-0125",
     "gpt-4": "gpt-4",
@@ -4618,6 +4618,20 @@
     "≈ {{count}} chats": "≈ {{count}} chats",
     "≈ {{count}} chats free to try": "≈ {{count}} chats free to try",
     "≈ {{count}} chats remaining": "≈ {{count}} chats remaining",
-    "🎉 Your first API call worked!": "🎉 Your first API call worked!"
+    "🎉 Your first API call worked!": "🎉 Your first API call worked!",
+    "Copy your credentials. You will paste these into your code or AI client.": "Copy your credentials. You will paste these into your code or AI client.",
+    "Pick how you want to connect, then copy the snippet.": "Pick how you want to connect, then copy the snippet.",
+    "Run it and confirm you get a reply back.": "Run it and confirm you get a reply back.",
+    "Only shown once at creation. Keep it secret.": "Only shown once at creation. Keep it secret.",
+    "Open this guide from a specific key (its menu → Setup guide) to fill the key automatically, or copy it from the table.": "Open this guide from a specific key (its menu → Setup guide) to fill the key automatically, or copy it from the table.",
+    "Use this model name. We route it to the best underlying model for this key.": "Use this model name. We route it to the best underlying model for this key.",
+    "AI client": "AI client",
+    "with your real key.": "with your real key.",
+    "Prefer a ready-made app? Open its settings, find the \"API key\" and \"Base URL\" (sometimes \"Endpoint\") fields, paste both, and save.": "Prefer a ready-made app? Open its settings, find the \"API key\" and \"Base URL\" (sometimes \"Endpoint\") fields, paste both, and save.",
+    "What you should see": "What you should see",
+    "A successful call returns a JSON reply with the model's answer (e.g. choices[0].message.content). If you get a 401, the key is wrong; a 402/insufficient-balance means you need to top up.": "A successful call returns a JSON reply with the model's answer (e.g. choices[0].message.content). If you get a 401, the key is wrong; a 402/insufficient-balance means you need to top up.",
+    "Not a developer? Run a one-click test instead:": "Not a developer? Run a one-click test instead:",
+    "Lost the key value? Regenerate it from the table — your balance stays safe.": "Lost the key value? Regenerate it from the table — your balance stays safe.",
+    "View code examples →": "View code examples →"
   }
 }

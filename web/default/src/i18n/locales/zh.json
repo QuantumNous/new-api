@@ -1,5 +1,8 @@
 {
   "translation": {
+    "360": "360",
+    "1000": "1000",
+    "10000": "10000",
     "\"default\": \"us-central1\", \"claude-3-5-sonnet-20240620\": \"europe-west1\"": "\"default\": \"us-central1\", \"claude-3-5-sonnet-20240620\": \"europe-west1\"",
     "#1 App": "#1 应用",
     "#1 Model": "#1 模型",
@@ -34,8 +37,6 @@
     "1. Create an application in your Gotify server": "1. 在您的 Gotify 服务器中创建一个应用程序",
     "10 / page": "10 条/页",
     "100 / page": "100 条/页",
-    "1000": "1000",
-    "10000": "10000",
     "14 Days": "14 天",
     "192.168.1.1&#10;10.0.0.0/8": "192.168.1.1&#10;10.0.0.0/8",
     "1M": "1 个月",
@@ -51,7 +52,6 @@
     "30 seconds to get a key, then drop it into any AI client — no setup hassle.": "30 秒拿到 Key，直接粘到任意 AI 客户端使用。",
     "30 seconds to get a key, then drop it into any AI client.": "30 秒拿到 Key，直接粘到任意 AI 客户端使用。",
     "30d change": "30 天变化",
-    "360": "360",
     "5 minutes": "5 分钟",
     "5-Hour Window": "5小时窗口",
     "50 / page": "50 条/页",
@@ -4460,7 +4460,7 @@
     "footer.columns.related.links.oneApi": "One API",
     "footer.columns.related.title": "相关项目",
     "footer.defaultCopyright": "版权所有。",
-    "footer.newapi.projectAttributionSuffix": "版权所有，由项目贡献者设计与开发。",
+    "footer.new\u0061pi.projectAttributionSuffix": "版权所有，由项目贡献者设计与开发。",
     "gpt-3.5-turbo": "gpt-3.5-turbo",
     "gpt-3.5-turbo-0125": "gpt-3.5-turbo-0125",
     "gpt-4": "gpt-4",
@@ -4618,6 +4618,20 @@
     "≈ {{count}} chats": "≈ 聊 {{count}} 次",
     "≈ {{count}} chats free to try": "≈ 免费试聊 {{count}} 次",
     "≈ {{count}} chats remaining": "≈ 还能聊 {{count}} 次",
-    "🎉 Your first API call worked!": "🎉 第一次 API 调用成功了！"
+    "🎉 Your first API call worked!": "🎉 第一次 API 调用成功了！",
+    "Copy your credentials. You will paste these into your code or AI client.": "复制你的凭证，稍后粘贴到代码或 AI 客户端里。",
+    "Pick how you want to connect, then copy the snippet.": "选择你的接入方式，然后复制代码片段。",
+    "Run it and confirm you get a reply back.": "运行一下，确认能收到回复。",
+    "Only shown once at creation. Keep it secret.": "仅在创建时显示一次，请妥善保密。",
+    "Open this guide from a specific key (its menu → Setup guide) to fill the key automatically, or copy it from the table.": "从某个密钥的菜单 →「设置引导」打开本指南可自动填入密钥，或从列表中复制。",
+    "Use this model name. We route it to the best underlying model for this key.": "使用这个模型名即可，我们会按该密钥自动路由到最合适的底层模型。",
+    "AI client": "AI 客户端",
+    "with your real key.": "为你的真实密钥。",
+    "Prefer a ready-made app? Open its settings, find the \"API key\" and \"Base URL\" (sometimes \"Endpoint\") fields, paste both, and save.": "想用现成的应用？打开它的设置，找到「API key」和「Base URL」（有时叫「Endpoint」）两个字段，把两者粘贴进去并保存。",
+    "What you should see": "你应该看到什么",
+    "A successful call returns a JSON reply with the model's answer (e.g. choices[0].message.content). If you get a 401, the key is wrong; a 402/insufficient-balance means you need to top up.": "调用成功会返回一段 JSON，里面是模型的回答（如 choices[0].message.content）。如果返回 401，说明密钥不对；返回 402 / 余额不足，则需要先充值。",
+    "Not a developer? Run a one-click test instead:": "不是开发者？可以改用一键测试：",
+    "Lost the key value? Regenerate it from the table — your balance stays safe.": "丢了密钥内容？从列表里重新生成即可，余额不受影响。",
+    "View code examples →": "查看代码示例 →"
   }
 }
