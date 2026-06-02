@@ -54,6 +54,10 @@ web/             — Frontend themes container
 
 ## Rules
 
+### Rule 0: Repository For PRs, Releases, And Deployments
+
+For project PR checks, GitHub Actions, releases, and production deployments, use the `SolveaCX/new-api` repository and its remotes/URLs. Do NOT use `QuantumNous/new-api` for release or deployment decisions; it is not the deployment repository for this project.
+
 ### Rule 1: JSON Package — Use `common/json.go`
 
 All JSON marshal/unmarshal operations MUST use the wrapper functions in `common/json.go`:
