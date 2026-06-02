@@ -175,7 +175,7 @@
 - [x] 支持手机号、IP、账号、场景维度限流；后端配置项包括 `SMSRateLimitEnabled`、窗口秒数和 phone/IP/account/scene 计数阈值。
 - [ ] 手机号注册如启用，必须接入 Phase 5 的统一邀请归因和初始额度规则。
 - [x] classic 管理员端提供短信 provider、签名、模板、限流、状态查询和测试发送配置页面。
-- [ ] default 管理员端短信配置页面 parity（按 default 系统设置风格实现，不复制 Semi Design）。
+- [x] default 管理员端短信配置页面 parity（按 default 系统设置风格实现，不复制 Semi Design）。
 - [x] 增加短信宝 provider 发送成功和错误码映射单元测试。
 - [x] 增加 SMS 模板缺失、签名未备案/未审核通过场景测试。
 - [x] 增加 SMS 限流完整发送链路场景测试。
@@ -252,8 +252,15 @@
 
 - 完成内容：新增 classic 运营设置中的 `SettingsSMS` 卡片，支持启用状态、provider、短信宝发送/查询 endpoint、账号、凭据写入、凭据模式、专用通道产品 ID、签名审核状态、产品名、五类场景模板、验证码有效期/冷却、手机号/IP/账号/场景限流、测试发送和短信宝状态查询；凭据字段留空表示保留原值。后端 `GetOptions` 增加 `Credential` 后缀过滤，避免 `SMSBaoCredential` 从配置读接口回显。
 - 验证方式：先观察 `go test -count=1 ./controller -run TestGetOptionsHidesSMSBaoCredential` RED，修复后同命令通过；`go test -count=1 ./common ./model ./service ./controller -run 'SMS|PhoneBinding|UserPhoneBinding|BindUserPhone|SMSBao|SMSSignature|SMSTemplate|RenderSMS|AdminTestSMS|AdminGetSMSStatus|NormalizePhone|SMSSidecar|RecordSMSSendLog|CheckSMSRateLimit|GetOptionsHidesSMSBaoCredential'` 通过；`bun install --frozen-lockfile --registry https://registry.npmjs.org` 补齐前端依赖后，`bun run --cwd classic build` 通过；`git diff --check` 通过。
-- 残留风险：default 系统设置页尚未做短信配置 parity；真实手机号注册/登录入口、SMS Turnstile、Docker/PostgreSQL dump schema impact 仍未完成；classic 页面只调用已存在后端测试发送/状态接口，未做浏览器级 smoke。
-- 下一步：实现手机号注册入口并接入 Phase 5 邀请归因，或按 default 系统设置风格补短信配置 parity。
+- 残留风险：真实手机号注册/登录入口、SMS Turnstile、Docker/PostgreSQL dump schema impact 仍未完成；classic 页面只调用已存在后端测试发送/状态接口，未做浏览器级 smoke。
+- 下一步：实现手机号注册入口并接入 Phase 5 邀请归因，或补 Docker/PostgreSQL dump schema impact。
+
+### Phase 5A default SMS settings parity 复盘（2026-06-03 本线程）
+
+- 完成内容：新增 default 系统设置 SMS section，按 default/shadcn 风格接入运营设置 registry；支持启用状态、provider、短信宝发送/查询 endpoint、账号、凭据写入、凭据模式、专用通道产品 ID、签名审核状态、产品名、五类场景模板、验证码有效期/冷却、手机号/IP/账号/场景限流、测试发送和短信宝状态查询；凭据字段留空表示保留原值。
+- 验证方式：`bun test default/src/features/system-settings/operations/sms-settings.test.ts` 通过，覆盖凭据空值不覆盖和新凭据提交；`bun run --cwd default build` 通过；`bun run --cwd default typecheck` 仍只命中既有 baseline：`hast` 类型缺失和 usage-logs mobile card 泛型字段错误，未指向本次 SMS 文件；`go test -count=1 ./common ./model ./service ./controller -run 'SMS|PhoneBinding|UserPhoneBinding|BindUserPhone|SMSBao|SMSSignature|SMSTemplate|RenderSMS|AdminTestSMS|AdminGetSMSStatus|NormalizePhone|SMSSidecar|RecordSMSSendLog|CheckSMSRateLimit|GetOptionsHidesSMSBaoCredential'` 通过；`git diff --check` 通过。
+- 残留风险：真实手机号注册/登录入口、SMS Turnstile、Docker/PostgreSQL dump schema impact 仍未完成；default 页面未做浏览器级 smoke。
+- 下一步：实现手机号注册入口并接入 Phase 5 邀请归因，或集中复核 Docker/PostgreSQL schema impact。
 
 ## Phase 6：分销 scope 与 scoped 使用日志
 

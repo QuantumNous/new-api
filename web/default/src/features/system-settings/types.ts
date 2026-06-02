@@ -39,6 +39,34 @@ export type UpdateOptionResponse = {
   message: string
 }
 
+export type SmsTestRequest = {
+  phone: string
+  scene: string
+  code: string
+}
+
+export type SmsTestResponse = {
+  success: boolean
+  message: string
+  data?: {
+    phone_masked?: string
+    provider?: string
+    provider_code?: string
+    template_scene?: string
+  }
+}
+
+export type SmsStatusResponse = {
+  success: boolean
+  message: string
+  data?: {
+    provider?: string
+    provider_code?: string
+    sent_count?: number
+    remaining_count?: number
+  }
+}
+
 export type ConfirmPaymentComplianceResponse = {
   success: boolean
   message: string
@@ -290,6 +318,30 @@ export type OperationsSettings = {
   SMTPToken: string
   SMTPSSLEnabled: boolean
   SMTPForceAuthLogin: boolean
+  SMSEnabled: boolean
+  SMSProvider: string
+  SMSBaoEndpoint: string
+  SMSBaoQueryEndpoint: string
+  SMSBaoUsername: string
+  SMSBaoCredential: string
+  SMSBaoCredentialMode: string
+  SMSBaoProductID: string
+  SMSCodeValidMinutes: number
+  SMSCodeCooldownSeconds: number
+  SMSSignature: string
+  SMSSignatureReviewStatus: 'pending' | 'approved' | 'rejected'
+  SMSProductName: string
+  SMSRegisterTemplate: string
+  SMSLoginTemplate: string
+  SMSBindTemplate: string
+  SMSChangeTemplate: string
+  SMSResetPasswordTemplate: string
+  SMSRateLimitEnabled: boolean
+  SMSRateLimitWindowSeconds: number
+  SMSRateLimitPhoneCount: number
+  SMSRateLimitIPCount: number
+  SMSRateLimitAccountCount: number
+  SMSRateLimitSceneCount: number
   WorkerUrl: string
   WorkerValidKey: string
   WorkerAllowHttpImageRequestEnabled: boolean

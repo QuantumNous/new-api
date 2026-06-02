@@ -25,6 +25,7 @@ import { PerformanceSection } from '../maintenance/performance-section'
 import { UpdateCheckerSection } from '../maintenance/update-checker-section'
 import type { OperationsSettings } from '../types'
 import { createSectionRegistry } from '../utils/section-registry'
+import { SmsSettingsSection } from './sms-settings-section'
 
 const OPERATIONS_SECTIONS = [
   {
@@ -76,6 +77,40 @@ const OPERATIONS_SECTIONS = [
           SMTPToken: settings.SMTPToken,
           SMTPSSLEnabled: settings.SMTPSSLEnabled,
           SMTPForceAuthLogin: settings.SMTPForceAuthLogin,
+        }}
+      />
+    ),
+  },
+  {
+    id: 'sms',
+    titleKey: 'SMS Settings',
+    build: (settings: OperationsSettings) => (
+      <SmsSettingsSection
+        defaultValues={{
+          SMSEnabled: settings.SMSEnabled,
+          SMSProvider: settings.SMSProvider,
+          SMSBaoEndpoint: settings.SMSBaoEndpoint,
+          SMSBaoQueryEndpoint: settings.SMSBaoQueryEndpoint,
+          SMSBaoUsername: settings.SMSBaoUsername,
+          SMSBaoCredential: settings.SMSBaoCredential,
+          SMSBaoCredentialMode: settings.SMSBaoCredentialMode,
+          SMSBaoProductID: settings.SMSBaoProductID,
+          SMSCodeValidMinutes: settings.SMSCodeValidMinutes,
+          SMSCodeCooldownSeconds: settings.SMSCodeCooldownSeconds,
+          SMSSignature: settings.SMSSignature,
+          SMSSignatureReviewStatus: settings.SMSSignatureReviewStatus,
+          SMSProductName: settings.SMSProductName,
+          SMSRegisterTemplate: settings.SMSRegisterTemplate,
+          SMSLoginTemplate: settings.SMSLoginTemplate,
+          SMSBindTemplate: settings.SMSBindTemplate,
+          SMSChangeTemplate: settings.SMSChangeTemplate,
+          SMSResetPasswordTemplate: settings.SMSResetPasswordTemplate,
+          SMSRateLimitEnabled: settings.SMSRateLimitEnabled,
+          SMSRateLimitWindowSeconds: settings.SMSRateLimitWindowSeconds,
+          SMSRateLimitPhoneCount: settings.SMSRateLimitPhoneCount,
+          SMSRateLimitIPCount: settings.SMSRateLimitIPCount,
+          SMSRateLimitAccountCount: settings.SMSRateLimitAccountCount,
+          SMSRateLimitSceneCount: settings.SMSRateLimitSceneCount,
         }}
       />
     ),

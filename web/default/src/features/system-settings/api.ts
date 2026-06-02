@@ -21,6 +21,9 @@ import type {
   ConfirmPaymentComplianceResponse,
   DeleteLogsResponse,
   FetchUpstreamRatiosRequest,
+  SmsStatusResponse,
+  SmsTestRequest,
+  SmsTestResponse,
   SystemOptionsResponse,
   UpdateOptionRequest,
   UpdateOptionResponse,
@@ -35,6 +38,16 @@ export async function getSystemOptions() {
 
 export async function updateSystemOption(request: UpdateOptionRequest) {
   const res = await api.put<UpdateOptionResponse>('/api/option/', request)
+  return res.data
+}
+
+export async function sendSmsTest(request: SmsTestRequest) {
+  const res = await api.post<SmsTestResponse>('/api/option/sms/test', request)
+  return res.data
+}
+
+export async function getSmsStatus() {
+  const res = await api.get<SmsStatusResponse>('/api/option/sms/status')
   return res.data
 }
 
