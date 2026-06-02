@@ -12,4 +12,7 @@ docs
 /web/default/dist
 /web/classic/node_modules
 /web/classic/dist
+data/
+db-data/
+backups/
 !THIRD-PARTY-LICENSES.md
