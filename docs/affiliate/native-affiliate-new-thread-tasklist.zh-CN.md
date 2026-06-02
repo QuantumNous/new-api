@@ -33,21 +33,46 @@
 
 ## Phase 1：服务器 PostgreSQL 快照下载与本地恢复
 
-- [ ] 解除本地 Docker daemon 阻塞；当前 Docker Desktop Windows 进程和 `docker-desktop` WSL distro 均存在，但 WSL 内 `docker version` / `docker info` 访问 server 端 8-12 秒超时，Windows 侧 `docker ps/version` 也超时；用户在 `docker` 组且 socket 权限正确，`sudo docker version` 同样超时，排除普通权限问题。
+- [x] 确认 `.codex-local/sources.yml`、`.codex-local/affiliate-test-accounts.secret.json` 和 `runtime/prod-pg-snapshots/` 均被 Git 忽略。
+- [x] 确认已下载本地最新 dump：`runtime/prod-pg-snapshots/new-api-prod-20260602-193617.dump`，后续默认不再直连生产数据库。
+- [x] TAC/安全风险复盘：本轮已确认 `.codex-local/`、`runtime/` 未被 Git 追踪，已脱敏 tasklist 中出现的具体生产数据库端点；当前 modified files 精确敏感模式扫描无命中，dump sha256 校验通过。
+- [x] 如连接信息曾在聊天、命令、日志或文档中暴露，评估是否需要更换临时数据库密码或吊销临时访问；用户已提示旧会话曾明文粘贴数据库密码，本轮建议轮换临时数据库密码或吊销临时访问，后续默认只用本地 dump。
+- [ ] 解除本地 Docker daemon 阻塞；2026-06-02 本轮提权短命令确认 `docker version`、`docker info`、`docker compose version`、`docker ps` 可用，Compose 插件为 v5.1.4/5.1.1，但 `docker ps -a` 曾再次无输出挂起，compose 启动前仍需观察稳定性。
 - [ ] 补齐或确认服务器 SSH 入口、compose 项目名、PostgreSQL 容器名；当前仓库未发现可直接使用的服务器连接 runbook。
 - [x] 确认本机 `psql`、`pg_dump`、`pg_restore` 16.14 可用，本机 PostgreSQL service 未运行，符合优先使用 Docker PostgreSQL 隔离库的路径。
+- [x] 因服务器 PostgreSQL 为 18.4，按 PostgreSQL 官方 PGDG APT 源安装 `postgresql-client-18`，使用 `/usr/lib/postgresql/18/bin/pg_dump` / `pg_restore` 18.4 作为快照工具。
 - [x] 新增无密钥快照下载、Docker PostgreSQL 恢复、核心表行数采集 runbook 和脚本。
 - [ ] Docker Desktop WSL 集成修复后重跑 `docker version`、`docker info`、`docker ps`，再执行本地隔离库恢复。
 - [ ] 确认服务器 SSH 入口、compose 项目名、PostgreSQL 容器名。
 - [ ] 在服务器 compose 网络内执行 `pg_dump --format=custom --no-owner --no-privileges`。
-- [ ] dump 命令从服务器私有 env 或临时环境变量读取 DSN，避免写入 shell history。
-- [ ] 用 `rsync` / `scp` 下载到本地 runtime 目录，例如 `runtime/prod-pg-snapshots/`。
-- [ ] 计算 dump sha256。
+- [x] 在 SSH 未授权但临时生产 PostgreSQL 端点可连的情况下，通过静默 stdin 读取临时 DSN，并用本机 PGDG `pg_dump` 18.4 直连下载最新快照；未把 DSN 写入 shell history、文件、commit 或报告。
+- [x] 下载到本地 runtime 目录：`runtime/prod-pg-snapshots/new-api-prod-20260602-193617.dump`。
+- [x] 计算 dump sha256，并从仓库根目录执行 `sha256sum -c runtime/prod-pg-snapshots/new-api-prod-20260602-193617.dump.sha256` 校验通过。
+- [x] 用 `/usr/lib/postgresql/18/bin/pg_restore --list` 验证 dump 可读；archive 显示 dump 来自 PostgreSQL 18.4，TOC Entries 283。
 - [ ] 在本地 Docker PostgreSQL 恢复到隔离库。
 - [ ] 采集核心表行数：`users`、`channels`、`abilities`、`options`、`logs`、`top_ups`、`affiliate_*`。
 - [ ] 启动 new-api 指向本地恢复库。
 - [ ] 验证 `/api/status`、`channels` 查询和登录页可用。
 - [ ] 用 `Rain`、`ChengyuWang0807`、`nr_mm2z5vr` 完成本地登录 smoke，不记录密码。
+
+## Phase 1A：WSL2 Docker Compose Dev 部署
+
+- [x] 修复或确认 WSL2 Docker daemon 可用，命令包括 `docker version`、`docker info`、`docker compose version`、`docker ps`；当前在 Codex sandbox 下访问 Docker socket 需提权，提权后上述命令通过。
+- [x] 审查现有 `docker-compose.yml`、`docker-compose.dev.yml`、`Dockerfile.dev`，确定修改 dev compose。
+- [x] 本地 dev compose 主服务镜像名设为 `new-api:dev`。
+- [x] 本地 dev compose 主服务容器名设为 `new-api`。
+- [x] Redis 使用官方 `redis:latest`，容器名建议 `new-api-redis`。
+- [x] PostgreSQL 使用官方 `postgres:latest`，容器名建议 `new-api-postgres`。
+- [x] compose 内部 `SQL_DSN` 指向 `postgres` 服务，不使用生产 DSN。
+- [x] compose 内部 `REDIS_CONN_STRING` 指向 `redis` 服务，不使用生产 Redis。
+- [x] 使用隔离 volume 和 network，避免覆盖其他项目或旧 dev 数据。
+- [ ] 构建本地镜像：`docker compose -f <dev-compose> build new-api`，确认生成 `new-api:dev`。
+- [ ] 启动容器：`docker compose -f <dev-compose> up -d`。
+- [ ] 将 `runtime/prod-pg-snapshots/new-api-prod-20260602-193617.dump` 恢复到 compose PostgreSQL 隔离库。
+- [ ] 采集核心表行数：`users`、`channels`、`abilities`、`options`、`logs`、`top_ups`、`affiliate_*`。
+- [ ] 验证 `http://127.0.0.1:3000/api/status`。
+- [ ] 用本地密钥文件中的三类账号完成登录 smoke，不输出密码。
+- [ ] 记录 compose 启停、重建、恢复 dump、清理 volume 的本地 runbook。
 
 ## Phase 2：schema impact 基线
 
@@ -83,14 +108,14 @@
 
 ## Phase 4：分销身份与权限
 
-- [ ] 保持 `users.role` 不变。
-- [ ] 用 `affiliate_profiles.status=active` 派生分销身份。
-- [ ] 支持管理员指定一级/二级分销商。
-- [ ] 支持启用/禁用分销 profile。
+- [x] 保持 `users.role` 不变。
+- [x] 用 `affiliate_profiles.status=active` 派生分销身份。
+- [x] 支持管理员指定一级/二级分销商（后端 service/controller/API）。
+- [x] 支持启用/禁用分销 profile（后端 service/controller/API；重新启用不自动恢复已 ended relation，后续需明确恢复策略）。
 - [ ] 新增分销商端 middleware。
-- [ ] 新增管理员端权限校验。
+- [x] 新增管理员端权限校验（`/api/affiliate/admin/*` 使用 `AdminAuth`）。
 - [ ] 普通用户访问分销页返回友好未开通状态。
-- [ ] 增加 profile 创建、启用、禁用、权限校验测试。
+- [ ] 增加 profile 创建、启用、禁用、权限校验测试；当前已覆盖 profile 创建/更新/禁用/启用 happy path，仍缺路由权限/越权测试。
 
 ## Phase 5：邀请归因与初始额度
 
@@ -224,12 +249,13 @@
 - [ ] 不提交 dump、runtime、账号密码、生产 DSN。
 - [ ] 第 1 批：文档与基线记录。
 - [ ] 第 2 批：PG dump/restore 本地工具和 runbook。
-- [ ] 第 3 批：sidecar 表、service、thin hook。
-- [ ] 第 4 批：规则配置表、管理员配置页、seed value。
-- [ ] 第 5 批：邀请归因、手机号/SMS provider、短信宝配置。
-- [ ] 第 6 批：scope 与 scoped 使用日志。
-- [ ] 第 7 批：classic 前端。
-- [ ] 第 8 批：default parity 与 i18n。
-- [ ] 第 9 批：KPI、佣金、人头费、结算。
-- [ ] 第 10 批：用户管理 `inviter_id` 与审计。
+- [ ] 第 3 批：WSL2 docker-compose dev 部署、`new-api:dev` 镜像、PostgreSQL/Redis 本地恢复 runbook。
+- [ ] 第 4 批：sidecar 表、service、thin hook。
+- [ ] 第 5 批：规则配置表、管理员配置页、seed value。
+- [ ] 第 6 批：邀请归因、手机号/SMS provider、短信宝配置。
+- [ ] 第 7 批：scope 与 scoped 使用日志。
+- [ ] 第 8 批：classic 前端。
+- [ ] 第 9 批：default parity 与 i18n。
+- [ ] 第 10 批：KPI、佣金、人头费、结算。
+- [ ] 第 11 批：用户管理 `inviter_id` 与审计。
 - [ ] 每批提交前运行对应最小测试。

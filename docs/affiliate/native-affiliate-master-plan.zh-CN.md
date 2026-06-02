@@ -102,6 +102,23 @@
 - 本地不能直接解析服务器 compose 网络里的 `postgres:5432`。
 - 不要把生产 DSN 或数据库密码写入命令历史、文档、commit 或发布证据。
 - 当前本地旧快照不代表服务器最新数据，新线程第一步必须下载最新 PostgreSQL dump。
+- 如果最新 dump 已下载到本地 `runtime/prod-pg-snapshots/` 并校验通过，后续默认使用本地 dump，不再重复直连生产数据库。
+
+### 3.4A WSL2 本地 Docker Compose 环境
+
+后续开发需要在 WSL2 中使用 docker-compose 部署本地 dev 环境，便于构建镜像、恢复 PostgreSQL 快照、浏览器调试和真实账号 smoke。
+
+要求：
+
+- 主服务本地镜像 tag：`new-api:dev`。
+- 主服务容器名：`new-api`。
+- Redis 使用官方 `redis:latest`，建议容器名 `new-api-redis`。
+- PostgreSQL 使用官方 `postgres:latest`，建议容器名 `new-api-postgres`。
+- compose 内部 `SQL_DSN` 只指向本地 PostgreSQL 服务，不使用生产 DSN。
+- compose 内部 `REDIS_CONN_STRING` 只指向本地 Redis 服务。
+- 使用独立 volume 和 network，不覆盖其他项目数据。
+- 本地 dev 可以使用 `latest` 镜像，生产/staging 必须固定版本。
+- Docker daemon 不可用时先修复 Docker Desktop/WSL 集成，再继续数据库恢复和浏览器测试。
 
 ### 3.5 飞书分销方案口径
 

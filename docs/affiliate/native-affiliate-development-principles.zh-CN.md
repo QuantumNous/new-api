@@ -46,6 +46,7 @@
 
 - 服务器数据库已迁移到 PostgreSQL，本地不再重做迁移。
 - 新线程第一步必须下载服务器最新 PostgreSQL dump。
+- 如果最新 dump 已经下载到 `runtime/prod-pg-snapshots/` 并校验通过，后续线程默认不再直连生产数据库，除非用户明确要求重新抓取。
 - 本地恢复到隔离库，不覆盖旧 dev/staging 数据。
 - 每次新增 GORM model 前后跑 schema impact。
 - 分销业务状态优先 `affiliate_*` / sidecar 表。
@@ -63,8 +64,39 @@
 
 - 本地旧快照文件仍停在 2026-06-01，不是服务器当前最新数据。
 - 本地不能直接访问服务器 compose 网络中的 `postgres:5432`。
+- 直连生产数据库、下载生产 dump、读取 `.codex-local/sources.yml` 都属于敏感操作；如出现 TAC/安全风险提示，应停止继续外连，改用已下载的本地 dump，并先做交接复盘。
 - nmig schema+data 路线曾导致 new-api 识别不到 `channels` 表。
 - 成功路线是先由目标版本 new-api AutoMigrate 建 schema，再只迁移数据；但这已是归档路线，不是本轮本地任务。
+
+## 3A. TAC 与敏感数据治理
+
+规则：
+
+- `.codex-local/sources.yml` 只允许作为本地密钥源，不读取、不输出、不复制到文档。
+- `runtime/prod-pg-snapshots/` 只允许保存本地开发 dump 和校验文件，目录已被 Git 忽略。
+- 一旦生产 dump 已下载并校验通过，后续开发优先使用本地恢复库，不再重复访问生产数据库。
+- 如果 goal 模式触发 TAC/安全风险提示，先暂停外部数据库访问，确认 Git 忽略、日志脱敏和任务边界，再继续本地开发。
+- 如果连接信息曾在聊天、命令行、日志或文档中暴露，应视情况更换临时数据库密码或吊销临时访问。
+- 新线程交接时只描述“dump 已下载到 runtime 并校验通过”，不粘贴 DSN、密码、连接 YAML 内容或 dump 详情。
+- 脚本读取生产连接时必须使用 stdin、临时环境变量或 `.codex-local`，不能把 DSN 写入 git tracked 文件。
+- dump 文件不得上传、提交、压缩分享或作为测试报告附件。
+
+## 3B. WSL2 Docker Compose 本地部署
+
+本地开发应在 WSL2 内用 docker-compose 部署一个隔离的 new-api dev 环境，方便浏览器、接口、数据库和真实账号 smoke。
+
+规则：
+
+- dev 镜像名使用 `new-api:dev`。
+- 主服务容器名使用 `new-api`。
+- Redis 和 PostgreSQL 使用官方 `redis:latest`、`postgres:latest` 镜像，仅限本地 dev；生产和 staging 不使用 `latest`。
+- Redis/PostgreSQL 容器名建议使用 `new-api-redis`、`new-api-postgres`，避免和主服务容器重名。
+- compose 网络、volume 和端口必须与其他项目隔离，避免覆盖旧开发库或生产数据。
+- 本地 compose 环境不得使用生产 DSN，只能使用 compose 内部 PostgreSQL 或已恢复的本地隔离库。
+- 启动前先确认 WSL2 Docker daemon 可用：`docker version`、`docker info`、`docker compose version`、`docker ps`。
+- Docker daemon 阻塞时先修复 Docker Desktop/WSL 集成或本机 Docker Engine，不在业务代码中绕过。
+- 恢复生产快照后必须采集核心表行数，并用真实角色账号做 smoke。
+- dev compose 可以暴露 `127.0.0.1:3000` 和本地 PostgreSQL 调试端口，但不要监听公网地址。
 
 ## 4. 后端治理
 
