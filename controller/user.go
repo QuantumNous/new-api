@@ -18,6 +18,7 @@ import (
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
+	"github.com/QuantumNous/new-api/setting/ratio_setting"
 
 	"github.com/QuantumNous/new-api/constant"
 
@@ -591,7 +592,7 @@ func UpdateUser(c *gin.Context) {
 		common.ApiErrorI18n(c, i18n.MsgUserCannotCreateHigherLevel)
 		return
 	}
-	if updatedUser.Group != "" && !setting.IsUserUsableGroup(updatedUser.Group) {
+	if updatedUser.Group != "" && !ratio_setting.ContainsGroupRatio(updatedUser.Group) {
 		common.ApiErrorI18n(c, i18n.MsgInvalidParams, map[string]any{"Error": fmt.Sprintf("user group does not exist: %s", updatedUser.Group)})
 		return
 	}
