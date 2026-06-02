@@ -16,22 +16,26 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-export * from './message-utils'
-export * from './input-control-utils'
-export * from './input-tool-utils'
-export * from './message-action-utils'
-export * from './message-content-utils'
-export * from './message-editor-utils'
-export * from './message-error-utils'
-export * from './message-reasoning-utils'
-export * from './message-streaming-utils'
-export * from './message-update-utils'
-export * from './payload-builder'
-export * from './storage'
-export * from './message-styles'
-export * from './stream-utils'
-export * from './request-error-utils'
-export * from './conversation-message-utils'
-export * from './playground-state-utils'
-export * from './playground-option-utils'
-export * from './suggestion-utils'
+import { MESSAGE_ROLES } from '../constants'
+import type { Message } from '../types'
+
+type MessageEditorState = {
+  canSave: boolean
+  hasChanged: boolean
+  showSaveAndSubmit: boolean
+}
+
+export function getMessageEditorState(
+  message: Message,
+  editText: string,
+  originalText: string
+): MessageEditorState {
+  const hasText = editText.trim().length > 0
+  const hasChanged = editText !== originalText
+
+  return {
+    canSave: hasText && hasChanged,
+    hasChanged,
+    showSaveAndSubmit: message.from === MESSAGE_ROLES.USER,
+  }
+}
