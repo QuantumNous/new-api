@@ -93,6 +93,17 @@ curl -fs http://localhost:3300/v1/models -H "Authorization: Bearer $TOKEN" | jq 
 # expect: 5  (M3, M2.7-highspeed, M2.7, deepseek-v4-pro, deepseek-v4-flash)
 ```
 
+### Pre-flight (CI / no-runtime hosts)
+
+```bash
+./scripts/podman-validate.sh
+# runs: YAML parse → service list → spec render (with synthetic .env)
+# exit 0 if everything is in order; non-zero otherwise.
+```
+
+Use this in a pre-merge CI job to catch breakage without bringing up the
+full stack. With `--with-podman`, it actually pulls the images.
+
 After `systemctl --user start`:
 
 ```bash
@@ -123,6 +134,7 @@ The `podman-compose.yml` keeps the same service names (`new-api`, `model-detaile
 | `podman/quadlets/*.container` | systemd unit templates (production) |
 | `scripts/podman-up.sh` | Compose-based bring-up |
 | `scripts/podman-down.sh` | Compose-based teardown |
+| `scripts/podman-validate.sh` | Pre-flight check (no full stack needed) |
 | `scripts/podman-migrate-from-docker.sh` | One-shot Docker → Podman migration |
 | `scripts/podman-quadlets-install.sh` | One-shot quadlet install to `~/.config/containers/systemd/` |
 | `docs/PODMAN.md` | This file |
