@@ -361,12 +361,19 @@
 
 ## Phase 9：RMB 单位
 
-- [ ] 梳理所有分销页面字段单位。
-- [ ] classic 复用 `renderQuota` / `quota_display_type` 相关 helper。
+- [x] 梳理 classic 分销页面字段单位：统计看板金额卡、scoped 使用日志花费列；classic 管理员分销 profile 页暂无金额字段。
+- [x] classic 分销页面金额主显示 RMB：看板和 scoped 使用日志花费列均使用站内 `quota_per_unit` 与 `usd_exchange_rate` 换算 RMB，不跟随 `quota_display_type=TOKENS/CUSTOM` 改变主单位。
 - [ ] default 复用 `formatQuotaWithCurrency()`。
-- [ ] 原始 quota/token 仅保留 tooltip、调试字段或导出附加列。
+- [x] classic 原始 quota/token 仅保留 tooltip、调试字段或导出附加列；scoped 使用日志花费列 tooltip 保留原始 quota。
 - [ ] 用真实账号数据核对页面 RMB 值。
 - [ ] 导出文件同时包含 RMB 主字段和原始 quota 附加字段。
+
+### Phase 9 classic RMB 使用日志复盘（2026-06-03 本线程）
+
+- 完成内容：新增 classic affiliate quota RMB helper，按 `quota_per_unit` 与 `status.usd_exchange_rate` 将 quota 换算为 RMB；`/console/affiliate` scoped 使用日志花费列在 affiliate mode 下主显示 RMB，原始 quota 仅放入 tooltip；订阅抵扣 tooltip 同步改为 RMB 等价金额加原始 quota。
+- 验证方式：`bun test src/helpers/affiliateQuota.test.mjs src/hooks/usage-logs/usageLogsUrls.test.mjs src/pages/Affiliate/affiliateDashboardCards.test.mjs src/pages/Affiliate/affiliateViewState.test.mjs` 12/12 通过；`cd web/classic && bun run build` 通过。
+- 残留风险：本批未跑真实账号浏览器核对；default 分销前端、导出字段和真实账号 RMB 值核对仍待后续 Phase 8/9。
+- 下一步：推进 default parity，或用本地恢复库账号做 RMB 页面核对并补截图回归。
 
 ## Phase 10：KPI、佣金、人头费与结算
 

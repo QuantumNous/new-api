@@ -35,6 +35,11 @@ import {
   renderModelPriceSimple,
   renderTieredModelPriceSimple,
 } from '../../../helpers';
+import {
+  formatAffiliateRawQuota,
+  formatAffiliateRmbQuota,
+  readAffiliateRmbQuotaConfig,
+} from '../../../helpers/affiliateQuota';
 import { IconHelpCircle } from '@douyinfe/semi-icons';
 import { CircleAlert, Route, Sparkles } from 'lucide-react';
 
@@ -94,6 +99,25 @@ function buildChannelAffinityTooltip(affinity, t) {
   );
 }
 
+function renderAffiliateQuota(quota, t, digits = 6) {
+  const config = readAffiliateRmbQuotaConfig();
+  const rmb = formatAffiliateRmbQuota(quota, { ...config, digits });
+  const rawQuota = formatAffiliateRawQuota(quota);
+
+  return (
+    <Tooltip content={`${t('原始 quota')}：${rawQuota}`}>
+      <span>{rmb}</span>
+    </Tooltip>
+  );
+}
+
+function renderAffiliateQuotaText(quota, digits = 6) {
+  return formatAffiliateRmbQuota(quota, {
+    ...readAffiliateRmbQuotaConfig(),
+    digits,
+  });
+}
+
 // Render functions
 function renderType(type, t) {
   switch (type) {
@@ -144,10 +168,7 @@ function renderType(type, t) {
 
 function buildStreamStatusTooltip(ss, t) {
   if (!ss) return null;
-  const lines = [
-    t('流状态') + '：' + t('异常'),
-    (ss.end_reason || 'unknown'),
-  ];
+  const lines = [t('流状态') + '：' + t('异常'), ss.end_reason || 'unknown'];
   if (ss.error_count > 0) {
     lines.push(`${t('软错误')}: ${ss.error_count}`);
   }
@@ -185,11 +206,7 @@ function renderIsStream(bool, t, streamStatus) {
                 userSelect: 'none',
               }}
             >
-              <CircleAlert
-                size={14}
-                strokeWidth={2.5}
-                color='currentColor'
-              />
+              <CircleAlert size={14} strokeWidth={2.5} color='currentColor' />
             </span>
           </Tooltip>
         )}
@@ -461,7 +478,11 @@ function getUsageLogDetailSummary(record, text, billingDisplayMode, t) {
     };
   }
 
-  const summaryOpts = { ...other, displayMode: billingDisplayMode, outputMode: 'segments' };
+  const summaryOpts = {
+    ...other,
+    displayMode: billingDisplayMode,
+    outputMode: 'segments',
+  };
 
   if (other?.billing_mode === 'tiered_expr') {
     return { segments: renderTieredModelPriceSimple(summaryOpts) };
@@ -481,6 +502,7 @@ export const getLogsColumns = ({
   showUserInfoFunc,
   openChannelAffinityUsageCacheModal,
   isAdminUser,
+  isAffiliateScoped = false,
   billingDisplayMode = 'price',
 }) => {
   return [
@@ -820,11 +842,22 @@ export const getLogsColumns = ({
         const isSubscription = other?.billing_source === 'subscription';
         if (isSubscription) {
           // Subscription billed: show only tag (no $0), but keep tooltip for equivalent cost.
+          const equivalentCost = isAffiliateScoped
+            ? renderAffiliateQuotaText(text, 6)
+            : renderQuota(text, 6);
+          const rawQuota = isAffiliateScoped
+            ? `；${t('原始 quota')}：${formatAffiliateRawQuota(text)}`
+            : '';
           return (
-            <Tooltip content={`${t('由订阅抵扣')}：${renderQuota(text, 6)}`}>
+            <Tooltip
+              content={`${t('由订阅抵扣')}：${equivalentCost}${rawQuota}`}
+            >
               <span>{renderBillingTag(record, t)}</span>
             </Tooltip>
           );
+        }
+        if (isAffiliateScoped) {
+          return <>{renderAffiliateQuota(text, t, 6)}</>;
         }
         return <>{renderQuota(text, 6)}</>;
       },
