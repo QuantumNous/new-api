@@ -229,7 +229,7 @@ export function MultiKeyManageDialog({
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className='flex max-h-[90vh] max-w-5xl flex-col'>
+        <DialogContent className='flex max-h-[90vh] flex-col sm:max-w-5xl'>
           <DialogHeader>
             <DialogTitle className='flex items-center gap-2'>
               {t('Multi-Key Management')}
