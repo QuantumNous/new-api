@@ -112,7 +112,7 @@
 - [x] 用 `affiliate_profiles.status=active` 派生分销身份。
 - [x] 支持管理员指定一级/二级分销商（后端 service/controller/API）。
 - [x] 支持启用/禁用分销 profile（后端 service/controller/API；重新启用不自动恢复已 ended relation，后续需明确恢复策略）。
-- [ ] 新增分销商端 middleware。
+- [x] 新增分销商端 middleware（普通用户需模块开启且 profile active，管理员/超级管理员默认放行并注入全局 scope）。
 - [x] 新增管理员端权限校验（`/api/affiliate/admin/*` 使用 `AdminAuth`）。
 - [ ] 普通用户访问分销页返回友好未开通状态。
 - [x] 增加 profile 创建、启用、禁用、权限校验测试；已覆盖 profile 创建/更新/禁用/启用 happy path，以及管理员路由未登录/普通用户拒绝访问。
