@@ -101,6 +101,14 @@ var SMSBaoCredentialMode = "api_key"
 var SMSBaoProductID = ""
 var SMSCodeValidMinutes = 10
 var SMSCodeCooldownSeconds = 60
+var SMSSignature = ""
+var SMSSignatureReviewStatus = "pending"
+var SMSProductName = ""
+var SMSRegisterTemplate = "{product}注册验证码 {code}，{minutes} 分钟内有效。"
+var SMSLoginTemplate = "{product}登录验证码 {code}，{minutes} 分钟内有效。"
+var SMSBindTemplate = "{product}绑定手机号验证码 {code}，{minutes} 分钟内有效。"
+var SMSChangeTemplate = "{product}换绑手机号验证码 {code}，{minutes} 分钟内有效。"
+var SMSResetPasswordTemplate = "{product}重置密码验证码 {code}，{minutes} 分钟内有效。"
 
 var EmailDomainRestrictionEnabled = false // 是否启用邮箱域名限制
 var EmailAliasRestrictionEnabled = false  // 是否启用邮箱别名限制

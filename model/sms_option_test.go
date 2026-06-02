@@ -96,3 +96,86 @@ func TestUpdateOptionMapUpdatesSMSProviderSettings(t *testing.T) {
 		t.Fatalf("unexpected SMSBao option values: username=%q credential=%q mode=%q product=%q", common.SMSBaoUsername, common.SMSBaoCredential, common.SMSBaoCredentialMode, common.SMSBaoProductID)
 	}
 }
+
+func TestSMSOptionMapInitializesTemplateSettings(t *testing.T) {
+	originalMap := common.OptionMap
+	originalSignature := common.SMSSignature
+	originalStatus := common.SMSSignatureReviewStatus
+	originalProductName := common.SMSProductName
+	originalRegisterTemplate := common.SMSRegisterTemplate
+	t.Cleanup(func() {
+		common.OptionMap = originalMap
+		common.SMSSignature = originalSignature
+		common.SMSSignatureReviewStatus = originalStatus
+		common.SMSProductName = originalProductName
+		common.SMSRegisterTemplate = originalRegisterTemplate
+	})
+
+	common.OptionMap = map[string]string{}
+	common.SMSSignature = "NewAPI"
+	common.SMSSignatureReviewStatus = common.SMSSignatureStatusPending
+	common.SMSProductName = "分销系统"
+	common.SMSRegisterTemplate = "{product} 注册验证码 {code}"
+
+	InitOptionMap()
+
+	if common.OptionMap["SMSSignature"] != "NewAPI" {
+		t.Fatalf("expected SMSSignature option, got %q", common.OptionMap["SMSSignature"])
+	}
+	if common.OptionMap["SMSSignatureReviewStatus"] != common.SMSSignatureStatusPending {
+		t.Fatalf("expected SMSSignatureReviewStatus pending, got %q", common.OptionMap["SMSSignatureReviewStatus"])
+	}
+	if common.OptionMap["SMSProductName"] != "分销系统" {
+		t.Fatalf("expected SMSProductName option, got %q", common.OptionMap["SMSProductName"])
+	}
+	if common.OptionMap["SMSRegisterTemplate"] != "{product} 注册验证码 {code}" {
+		t.Fatalf("expected SMSRegisterTemplate option, got %q", common.OptionMap["SMSRegisterTemplate"])
+	}
+}
+
+func TestUpdateOptionMapUpdatesSMSTemplateSettings(t *testing.T) {
+	originalMap := common.OptionMap
+	originalSignature := common.SMSSignature
+	originalStatus := common.SMSSignatureReviewStatus
+	originalProductName := common.SMSProductName
+	originalRegisterTemplate := common.SMSRegisterTemplate
+	originalLoginTemplate := common.SMSLoginTemplate
+	originalBindTemplate := common.SMSBindTemplate
+	originalChangeTemplate := common.SMSChangeTemplate
+	originalResetTemplate := common.SMSResetPasswordTemplate
+	t.Cleanup(func() {
+		common.OptionMap = originalMap
+		common.SMSSignature = originalSignature
+		common.SMSSignatureReviewStatus = originalStatus
+		common.SMSProductName = originalProductName
+		common.SMSRegisterTemplate = originalRegisterTemplate
+		common.SMSLoginTemplate = originalLoginTemplate
+		common.SMSBindTemplate = originalBindTemplate
+		common.SMSChangeTemplate = originalChangeTemplate
+		common.SMSResetPasswordTemplate = originalResetTemplate
+	})
+
+	common.OptionMap = map[string]string{}
+	settings := map[string]string{
+		"SMSSignature":             "NewAPI",
+		"SMSSignatureReviewStatus": common.SMSSignatureStatusApproved,
+		"SMSProductName":           "分销系统",
+		"SMSRegisterTemplate":      "注册 {code}",
+		"SMSLoginTemplate":         "登录 {code}",
+		"SMSBindTemplate":          "绑定 {code}",
+		"SMSChangeTemplate":        "换绑 {code}",
+		"SMSResetPasswordTemplate": "重置 {code}",
+	}
+	for key, value := range settings {
+		if err := updateOptionMap(key, value); err != nil {
+			t.Fatalf("update %s: %v", key, err)
+		}
+	}
+
+	if common.SMSSignature != "NewAPI" || common.SMSSignatureReviewStatus != common.SMSSignatureStatusApproved || common.SMSProductName != "分销系统" {
+		t.Fatalf("unexpected SMS signature settings: signature=%q status=%q product=%q", common.SMSSignature, common.SMSSignatureReviewStatus, common.SMSProductName)
+	}
+	if common.SMSRegisterTemplate != "注册 {code}" || common.SMSLoginTemplate != "登录 {code}" || common.SMSBindTemplate != "绑定 {code}" || common.SMSChangeTemplate != "换绑 {code}" || common.SMSResetPasswordTemplate != "重置 {code}" {
+		t.Fatalf("unexpected SMS templates: register=%q login=%q bind=%q change=%q reset=%q", common.SMSRegisterTemplate, common.SMSLoginTemplate, common.SMSBindTemplate, common.SMSChangeTemplate, common.SMSResetPasswordTemplate)
+	}
+}

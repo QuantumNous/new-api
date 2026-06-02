@@ -167,16 +167,17 @@
 - [x] 确认官方最新基线是否已有手机号能力，避免重复移植；当前仓库未发现 `common/sms.go`、`model.User.Phone`、`PhoneLogin`、`SendSMSVerification`、`/api/sms/verification`、`/api/user/login/phone` 等手机号/SMS 登录注册能力。
 - [x] 设计并实现 SMS provider 抽象，短信宝只是一个 provider，不把参数写死进业务代码；手机号绑定使用 sidecar，不直接迁移旧 fork 的 `users.phone`。
 - [x] 新增短信配置项：provider、启用状态、账号、密钥模式、endpoint、专用通道产品 ID；`SMSBaoCredential` 不在 `InitOptionMap` 中回显既有值。
-- [ ] 支持短信签名后台配置，并标记备案/审核状态。
-- [ ] 支持按场景配置模板：注册、登录、绑定手机号、换绑、重置密码。
-- [ ] 支持模板变量：验证码、有效期、产品名、站点名。
+- [x] 支持短信签名后台配置，并标记备案/审核状态；当前发送内容渲染要求签名状态为 `approved`。
+- [x] 支持按场景配置模板：注册、登录、绑定手机号、换绑、重置密码。
+- [x] 支持模板变量：验证码、有效期、产品名、站点名。
 - [ ] 支持测试发送，不在响应或日志中暴露完整验证码、手机号、ApiKey 或密码。
 - [ ] 支持短信宝余额查询或状态检查入口。
 - [ ] 支持手机号、IP、账号、场景维度限流。
 - [ ] 手机号注册如启用，必须接入 Phase 5 的统一邀请归因和初始额度规则。
 - [ ] 管理员端提供短信 provider、签名、模板、限流和测试发送配置页面。
 - [x] 增加短信宝 provider 发送成功和错误码映射单元测试。
-- [ ] 增加 SMS 限流、模板缺失、签名未备案场景测试。
+- [x] 增加 SMS 模板缺失、签名未备案/未审核通过场景测试。
+- [ ] 增加 SMS 限流、签名未备案完整发送链路场景测试。
 - [ ] 新增 `user_phone_bindings` sidecar 表设计和 schema impact，不直接修改官方 `users` 表。
 - [ ] 新增 `sms_send_logs` sidecar 表设计和 schema impact，日志只记录脱敏手机号、场景、provider、模板版本、返回码和耗时。
 
@@ -193,6 +194,13 @@
 - 验证方式：先观察 `go test ./common ./model -run 'SMS|SMSBao|NormalizePhone'` RED；实现后同命令通过。测试使用自定义 `http.RoundTripper`，不监听本地端口、不访问真实短信宝。
 - 残留风险：尚未实现短信签名/模板配置、测试发送 API、短信发送日志、限流、SMS Turnstile、手机号绑定 sidecar、手机号注册/登录入口和注册归因接入；当前 provider 只完成后端基础发送抽象和配置同步。
 - 下一步：按 TDD 实现短信签名/模板配置，或先设计 `sms_send_logs` / `user_phone_bindings` sidecar 并跑 schema impact。
+
+### Phase 5A SMS template 复盘（2026-06-03 本线程）
+
+- 完成内容：新增短信签名、签名审核状态、产品名、注册/登录/绑定/换绑/重置密码场景模板配置；新增 `RenderSMSVerificationContent`，支持 `{code}`、`{minutes}`、`{product}`、`{site}` 变量，并在签名未 approved 或模板缺失时拒绝渲染。
+- 验证方式：先观察 `go test ./common ./model -run 'SMS|SMSSignature|SMSTemplate|RenderSMS'` RED；实现后同命令通过。覆盖签名 approved 渲染、pending 签名拒绝、模板缺失拒绝、全局配置渲染、OptionMap 初始化和更新。
+- 残留风险：尚未实现测试发送 API、短信发送日志、限流、SMS Turnstile、手机号绑定 sidecar、手机号注册/登录入口和注册归因接入；签名审核状态目前是配置标记和渲染门禁，未接入外部备案校验流程。
+- 下一步：实现测试发送 API 且响应/日志不暴露验证码和完整手机号，或先设计 `sms_send_logs` / `user_phone_bindings` sidecar 并跑 schema impact。
 
 ## Phase 6：分销 scope 与 scoped 使用日志
 

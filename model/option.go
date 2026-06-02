@@ -54,6 +54,14 @@ func InitOptionMap() {
 	common.OptionMap["SMSBaoProductID"] = common.SMSBaoProductID
 	common.OptionMap["SMSCodeValidMinutes"] = strconv.Itoa(common.SMSCodeValidMinutes)
 	common.OptionMap["SMSCodeCooldownSeconds"] = strconv.Itoa(common.SMSCodeCooldownSeconds)
+	common.OptionMap["SMSSignature"] = common.SMSSignature
+	common.OptionMap["SMSSignatureReviewStatus"] = common.SMSSignatureReviewStatus
+	common.OptionMap["SMSProductName"] = common.SMSProductName
+	common.OptionMap["SMSRegisterTemplate"] = common.SMSRegisterTemplate
+	common.OptionMap["SMSLoginTemplate"] = common.SMSLoginTemplate
+	common.OptionMap["SMSBindTemplate"] = common.SMSBindTemplate
+	common.OptionMap["SMSChangeTemplate"] = common.SMSChangeTemplate
+	common.OptionMap["SMSResetPasswordTemplate"] = common.SMSResetPasswordTemplate
 	common.OptionMap["AutomaticDisableChannelEnabled"] = strconv.FormatBool(common.AutomaticDisableChannelEnabled)
 	common.OptionMap["AutomaticEnableChannelEnabled"] = strconv.FormatBool(common.AutomaticEnableChannelEnabled)
 	common.OptionMap["LogConsumeEnabled"] = strconv.FormatBool(common.LogConsumeEnabled)
@@ -525,6 +533,22 @@ func updateOptionMap(key string, value string) (err error) {
 		common.SMSCodeValidMinutes, _ = strconv.Atoi(value)
 	case "SMSCodeCooldownSeconds":
 		common.SMSCodeCooldownSeconds, _ = strconv.Atoi(value)
+	case "SMSSignature":
+		common.SMSSignature = value
+	case "SMSSignatureReviewStatus":
+		common.SMSSignatureReviewStatus = value
+	case "SMSProductName":
+		common.SMSProductName = value
+	case "SMSRegisterTemplate":
+		common.SMSRegisterTemplate = value
+	case "SMSLoginTemplate":
+		common.SMSLoginTemplate = value
+	case "SMSBindTemplate":
+		common.SMSBindTemplate = value
+	case "SMSChangeTemplate":
+		common.SMSChangeTemplate = value
+	case "SMSResetPasswordTemplate":
+		common.SMSResetPasswordTemplate = value
 	case "QuotaForNewUser":
 		common.QuotaForNewUser, _ = strconv.Atoi(value)
 	case "QuotaForInviter":
