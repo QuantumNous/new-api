@@ -28,10 +28,7 @@ func DecompressRequestMiddleware() gin.HandlerFunc {
 			c.Next()
 			return
 		}
-		maxMB := constant.MaxRequestBodyMB
-		if maxMB <= 0 {
-			maxMB = 32
-		}
+		maxMB := constant.EffectiveMaxRequestBodyMB()
 		maxBytes := int64(maxMB) << 20
 
 		origBody := c.Request.Body
