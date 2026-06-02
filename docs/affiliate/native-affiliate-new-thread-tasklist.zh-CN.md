@@ -580,7 +580,7 @@
 - [x] classic 前端构建通过；2026-06-03 追加 classic 佣金/结算操作面板和规则集配置 UI 后 `cd web/classic && bun run build` 通过。
 - [x] default 前端构建或 typecheck 通过（2026-06-03 `cd web/default && bun run build` 通过；typecheck 仍有既有 baseline，见 Phase 8 复盘）。
 - [ ] Playwright 截图回归通过；classic 分销页管理员/一级/二级/移动端 2026-06-03 已通过；classic 用户管理 inviter SideSheet、预览接口和 no-op 保存 smoke 已通过；default 用户管理 inviter 编辑抽屉、预览和 no-op 保存 smoke 已通过；普通用户、profile disabled、模块关闭仍待补齐。
-- [ ] schema impact 报告无非预期官方表改动。
+- [x] schema impact 报告无非预期官方表改动；见 `docs/affiliate/native-affiliate-schema-impact-report.zh-CN.md`。
 - [x] 用服务器 PG 快照完成真实账号 smoke；2026-06-03 在本地恢复库中用三类测试账号完成 API smoke 和 classic browser smoke，未输出用户名、密码、cookie 或 token。
 - [x] 管理员端规则配置页面可修改分佣比例、KPI 阈值、系数、人头费、质量门槛和结算周期；当前完成范围为 classic/default JSON 规则区块，运营友好的动态表格仍待后续。
 - [ ] 如果启用手机号/SMS，短信宝签名、模板、通道、限流和测试发送通过 smoke。
@@ -594,6 +594,13 @@
 - 验证方式：`go test -count=1 ./controller ./relay/channel/claude ./relay/helper` 通过；`go test ./...` 全量通过。网络切换后重试 `make dev-web-classic`，依赖检查可用，失败原因仅为已有 `make dev-web` 占用 `5174`；随后 `http://127.0.0.1:5173/` 和 `http://127.0.0.1:5174/` 均返回 HTTP 200。
 - 残留风险：本批只修复当前 Go 基线，不扩大处理前端 typecheck 既有 baseline、截图回归缺口、SMS 真实通道 smoke 或完整结算周期双跑。
 - 下一步：提交本批测试基线修复后，继续补 Phase 12 截图回归、schema impact 复核、SMS smoke 和结算周期验证。
+
+### Phase 12 schema impact 发布复核（2026-06-03 本线程）
+
+- 完成内容：新增 `native-affiliate-schema-impact-report.zh-CN.md`，汇总 affiliate sidecar 和 SMS sidecar 两组本地 PostgreSQL schema snapshot/diff；复核 `model.AffiliateSidecarModels()` 当前 15 个 `affiliate_*` 模型，以及 `model.SMSSidecarModels()` 的 `sms_send_logs`、`user_phone_bindings` 两个 sidecar 模型。
+- 验证方式：4 个 schema snapshot sha256 校验通过；反向过滤 `runtime/schema-impact/*.diff` 中新增/ALTER/DROP DDL，未发现非 `affiliate_*`、`sms_send_logs`、`user_phone_bindings` 对象；删除 DDL 扫描无输出；`git check-ignore -v` 确认 runtime snapshot 仍被忽略；`go test -count=1 ./model -run 'AffiliateSidecarModels|SMSSidecar'` 通过。
+- 残留风险：本复核只覆盖本地 dev PostgreSQL snapshot，不能替代 staging/生产发布前现场 schema impact；后续新增 `user_quota_source_*` 或修改 sidecar 字段/索引时必须重新导出 before/after schema。
+- 下一步：继续补 Phase 12 截图回归、SMS 真实通道 smoke、完整结算周期双跑和灰度/归档流程。
 
 ## Phase 13：Git 分批提交
 
