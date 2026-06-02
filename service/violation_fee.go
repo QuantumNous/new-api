@@ -146,6 +146,10 @@ func ChargeViolationFeeIfNeeded(ctx *gin.Context, relayInfo *relaycommon.RelayIn
 		"upstream_error_code":  fmt.Sprintf("%v", oai.Code),
 		"violation_fee_marker": CSAMViolationMarker,
 	}
+	other = model.AttachLogEvent(other, model.LogEventViolationFeeCharged, map[string]interface{}{
+		"fee_quota": feeQuota,
+		"code":      string(types.ErrorCodeViolationFeeGrokCSAM),
+	})
 
 	model.RecordConsumeLog(ctx, relayInfo.UserId, model.RecordConsumeLogParams{
 		ChannelId:      relayInfo.ChannelId,

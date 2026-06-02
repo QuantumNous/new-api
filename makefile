@@ -1,8 +1,10 @@
 FRONTEND_DIR = ./web/default
 FRONTEND_CLASSIC_DIR = ./web/classic
 BACKEND_DIR = .
+WORKDIR = /work
+TEST_COMPOSE = docker compose -f docker-compose.test.yml
 
-.PHONY: all build-frontend build-frontend-classic build-all-frontends start-backend dev dev-api dev-web dev-web-classic
+.PHONY: all build-frontend build-frontend-classic build-all-frontends start-backend dev dev-api dev-web dev-web-classic docker-test-go docker-test-web docker-test
 
 all: build-all-frontends start-backend
 
@@ -33,3 +35,13 @@ dev-web-classic:
 	@cd $(FRONTEND_CLASSIC_DIR) && bun install && bun run dev
 
 dev: dev-api dev-web
+
+docker-test-go:
+	@echo "Running Go checks via docker compose..."
+	@$(TEST_COMPOSE) run --rm go-test
+
+docker-test-web:
+	@echo "Running frontend checks via docker compose..."
+	@$(TEST_COMPOSE) run --rm web-test
+
+docker-test: docker-test-go docker-test-web

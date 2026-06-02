@@ -45,6 +45,7 @@ import {
   getTieredBillingSummary,
   hasAnyCacheTokens,
   parseLogOther,
+  formatLogEvent,
   isViolationFeeLog,
 } from '../../lib/format'
 import {
@@ -94,8 +95,14 @@ function buildDetailSegments(
   other: LogOtherData | null,
   t: (key: string, opts?: Record<string, unknown>) => string
 ): DetailSegment[] {
+  const eventText = formatLogEvent(log, t)
+
+  if (log.type === 1 && eventText) {
+    return [{ text: eventText }]
+  }
+
   if (log.type === 6) {
-    return [{ text: t('Async task refund') }]
+    return [{ text: eventText || t('Async task refund') }]
   }
 
   if (log.type !== 2) return []

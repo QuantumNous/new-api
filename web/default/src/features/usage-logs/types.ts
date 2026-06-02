@@ -93,6 +93,8 @@ export interface ChannelAffinityInfo {
 }
 
 export interface LogOtherData {
+  event_code?: string
+  event_params?: Record<string, unknown>
   admin_info?: {
     is_multi_key?: boolean
     multi_key_index?: number

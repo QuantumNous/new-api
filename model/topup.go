@@ -174,7 +174,14 @@ func Recharge(referenceId string, customerId string, callerIp string) (err error
 		return errors.New("充值失败，请稍后重试")
 	}
 
-	RecordTopupLog(topUp.UserId, fmt.Sprintf("Online top-up successful, quota added: %v, amount: %d", logger.FormatQuota(int(quota)), topUp.Amount), callerIp, topUp.PaymentMethod, PaymentMethodStripe)
+	RecordTopupLog(topUp.UserId, fmt.Sprintf("Online top-up successful, quota added: %v, amount: %d", logger.FormatQuota(int(quota)), topUp.Amount), callerIp, topUp.PaymentMethod, PaymentMethodStripe, map[string]interface{}{
+		"quota":            int(quota),
+		"amount":           topUp.Amount,
+		"money":            topUp.Money,
+		"payment_method":   topUp.PaymentMethod,
+		"payment_provider": topUp.PaymentProvider,
+		"callback_method":  PaymentMethodStripe,
+	})
 
 	return nil
 }
@@ -406,7 +413,13 @@ func ManualCompleteTopUp(tradeNo string, callerIp string) error {
 	}
 
 	// 事务外记录日志，避免阻塞
-	RecordTopupLog(userId, fmt.Sprintf("Admin manual top-up successful, quota added: %v, amount: %f", logger.FormatQuota(quotaToAdd), payMoney), callerIp, paymentMethod, "admin")
+	RecordTopupLog(userId, fmt.Sprintf("Admin manual top-up successful, quota added: %v, amount: %f", logger.FormatQuota(quotaToAdd), payMoney), callerIp, paymentMethod, "admin", map[string]interface{}{
+		"quota":            quotaToAdd,
+		"money":            payMoney,
+		"payment_method":   paymentMethod,
+		"callback_method":  "admin",
+		"payment_provider": "admin",
+	})
 	return nil
 }
 func RechargeCreem(referenceId string, customerEmail string, customerName string, callerIp string) (err error) {
@@ -479,7 +492,14 @@ func RechargeCreem(referenceId string, customerEmail string, customerName string
 		return errors.New("充值失败，请稍后重试")
 	}
 
-	RecordTopupLog(topUp.UserId, fmt.Sprintf("Creem top-up successful, quota added: %v, amount: %.2f", quota, topUp.Money), callerIp, topUp.PaymentMethod, PaymentMethodCreem)
+	RecordTopupLog(topUp.UserId, fmt.Sprintf("Creem top-up successful, quota added: %v, amount: %.2f", quota, topUp.Money), callerIp, topUp.PaymentMethod, PaymentMethodCreem, map[string]interface{}{
+		"quota":            quota,
+		"amount":           topUp.Amount,
+		"money":            topUp.Money,
+		"payment_method":   topUp.PaymentMethod,
+		"payment_provider": topUp.PaymentProvider,
+		"callback_method":  PaymentMethodCreem,
+	})
 
 	return nil
 }
@@ -541,7 +561,14 @@ func RechargeWaffo(tradeNo string, callerIp string) (err error) {
 	}
 
 	if quotaToAdd > 0 {
-		RecordTopupLog(topUp.UserId, fmt.Sprintf("Waffo top-up successful, quota added: %v, amount: %.2f", logger.FormatQuota(quotaToAdd), topUp.Money), callerIp, topUp.PaymentMethod, PaymentMethodWaffo)
+		RecordTopupLog(topUp.UserId, fmt.Sprintf("Waffo top-up successful, quota added: %v, amount: %.2f", logger.FormatQuota(quotaToAdd), topUp.Money), callerIp, topUp.PaymentMethod, PaymentMethodWaffo, map[string]interface{}{
+			"quota":            quotaToAdd,
+			"amount":           topUp.Amount,
+			"money":            topUp.Money,
+			"payment_method":   topUp.PaymentMethod,
+			"payment_provider": topUp.PaymentProvider,
+			"callback_method":  PaymentMethodWaffo,
+		})
 	}
 
 	return nil
@@ -602,7 +629,14 @@ func RechargeAlipay(tradeNo string, callerIp string) (err error) {
 	}
 
 	if quotaToAdd > 0 {
-		RecordTopupLog(topUp.UserId, fmt.Sprintf("Alipay top-up successful, quota added: %v, amount: %.2f", logger.FormatQuota(quotaToAdd), topUp.Money), callerIp, topUp.PaymentMethod, PaymentMethodAlipay)
+		RecordTopupLog(topUp.UserId, fmt.Sprintf("Alipay top-up successful, quota added: %v, amount: %.2f", logger.FormatQuota(quotaToAdd), topUp.Money), callerIp, topUp.PaymentMethod, PaymentMethodAlipay, map[string]interface{}{
+			"quota":            quotaToAdd,
+			"amount":           topUp.Amount,
+			"money":            topUp.Money,
+			"payment_method":   topUp.PaymentMethod,
+			"payment_provider": topUp.PaymentProvider,
+			"callback_method":  PaymentMethodAlipay,
+		})
 	}
 	if err := DeleteAlipayPendingTask(tradeNo); err != nil {
 		common.SysLog("failed to delete alipay pending task: " + err.Error())
@@ -666,7 +700,14 @@ func RechargeWaffoPancake(tradeNo string) (err error) {
 	}
 
 	if quotaToAdd > 0 {
-		RecordLog(topUp.UserId, LogTypeTopup, fmt.Sprintf("Waffo Pancake top-up successful, quota added: %v, amount: %.2f", logger.FormatQuota(quotaToAdd), topUp.Money))
+		RecordTopupLog(topUp.UserId, fmt.Sprintf("Waffo Pancake top-up successful, quota added: %v, amount: %.2f", logger.FormatQuota(quotaToAdd), topUp.Money), "", PaymentMethodWaffoPancake, PaymentMethodWaffoPancake, map[string]interface{}{
+			"quota":            quotaToAdd,
+			"amount":           topUp.Amount,
+			"money":            topUp.Money,
+			"payment_method":   topUp.PaymentMethod,
+			"payment_provider": topUp.PaymentProvider,
+			"callback_method":  PaymentMethodWaffoPancake,
+		})
 	}
 
 	return nil

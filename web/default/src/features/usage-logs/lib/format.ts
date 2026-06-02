@@ -105,6 +105,64 @@ export function parseLogOther(other: string): LogOtherData | null {
   }
 }
 
+function stringifyParam(value: unknown): string {
+  if (value == null) return ''
+  if (typeof value === 'string') return value
+  if (typeof value === 'number' || typeof value === 'boolean') {
+    return String(value)
+  }
+  try {
+    return JSON.stringify(value)
+  } catch {
+    return String(value)
+  }
+}
+
+export function formatLogEvent(
+  log: UsageLog,
+  t: (key: string, opts?: Record<string, unknown>) => string
+): string | null {
+  const other = parseLogOther(log.other)
+  const eventCode = other?.event_code
+  const params = other?.event_params ?? {}
+
+  if (!eventCode) return null
+
+  switch (eventCode) {
+    case 'topup.success':
+      return t('Top-up successful: +{{quota}} quota, amount {{amount}}', {
+        quota: stringifyParam(params.quota ?? log.quota),
+        amount: stringifyParam(params.money ?? params.amount ?? ''),
+      })
+    case 'consume.text':
+      return t('Usage billed (text request)')
+    case 'consume.audio':
+      return t('Usage billed (audio request)')
+    case 'consume.task':
+      return t('Usage billed (task: {{action}})', {
+        action: stringifyParam(params.action ?? ''),
+      })
+    case 'violation_fee.charged':
+      return t('Violation fee charged: {{quota}} quota', {
+        quota: stringifyParam(params.fee_quota ?? log.quota),
+      })
+    case 'task.refund':
+      return t('Task refund: {{taskId}}', {
+        taskId: stringifyParam(params.task_id ?? ''),
+      })
+    case 'task.settlement.charge':
+      return t('Task settlement charged: {{delta}} quota', {
+        delta: stringifyParam(params.delta_quota ?? log.quota),
+      })
+    case 'task.settlement.refund':
+      return t('Task settlement refunded: {{delta}} quota', {
+        delta: stringifyParam(params.delta_quota ?? log.quota),
+      })
+    default:
+      return null
+  }
+}
+
 /**
  * Get time color based on duration (in seconds)
  */

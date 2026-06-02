@@ -1,0 +1,44 @@
+services:
+  go-test:
+    image: golang:1.26.1
+    working_dir: /work
+    environment:
+      GOPROXY: https://goproxy.cn,direct
+      GOSUMDB: sum.golang.google.cn
+    volumes:
+      - .:/work
+    command:
+      - sh
+      - -lc
+      - |
+        /usr/local/go/bin/gofmt -w \
+          model/log.go \
+          model/topup.go \
+          controller/topup.go \
+          service/task_billing.go \
+          service/quota.go \
+          service/text_quota.go \
+          service/violation_fee.go \
+          model/log_event_test.go && \
+        /usr/local/go/bin/go test ./model/... ./service/... ./controller/...
+
+  web-test:
+    image: oven/bun:1
+    working_dir: /work/web/default
+    environment:
+      NPM_CONFIG_REGISTRY: https://registry.npmmirror.com
+      BUN_INSTALL_CACHE_DIR: /tmp/bun-install-cache
+    volumes:
+      - .:/work
+      - web-default-node-modules:/work/web/default/node_modules
+      - bun-install-cache:/tmp/bun-install-cache
+    command:
+      - sh
+      - -lc
+      - |
+        bun install --frozen-lockfile && \
+        bun run build
+
+volumes:
+  web-default-node-modules:
+  bun-install-cache:

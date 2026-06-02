@@ -36,6 +36,11 @@ func LogTaskConsumption(c *gin.Context, info *relaycommon.RelayInfo) {
 		}
 	}
 	other := make(map[string]interface{})
+	other["event_code"] = model.LogEventConsumeTask
+	other["event_params"] = map[string]interface{}{
+		"action":   info.Action,
+		"per_call": common.StringsContains(constant.TaskPricePatches, info.OriginModelName),
+	}
 	other["is_task"] = true
 	other["request_path"] = c.Request.URL.Path
 	other["model_price"] = info.PriceData.ModelPrice
@@ -172,6 +177,10 @@ func RefundTaskQuota(ctx context.Context, task *model.Task, reason string) {
 
 	// 3. 记录日志
 	other := taskBillingOther(task)
+	other = model.AttachLogEvent(other, model.LogEventTaskRefund, map[string]interface{}{
+		"task_id": task.TaskID,
+		"reason":  reason,
+	})
 	other["task_id"] = task.TaskID
 	other["reason"] = reason
 	model.RecordTaskBillingLog(model.RecordTaskBillingLogParams{
@@ -234,6 +243,17 @@ func RecalculateTaskQuota(ctx context.Context, task *model.Task, actualQuota int
 		logQuota = -quotaDelta
 	}
 	other := taskBillingOther(task)
+	eventCode := model.LogEventTaskSettlementCharge
+	if logType == model.LogTypeRefund {
+		eventCode = model.LogEventTaskSettlementRefund
+	}
+	other = model.AttachLogEvent(other, eventCode, map[string]interface{}{
+		"task_id":            task.TaskID,
+		"reason":             reason,
+		"pre_consumed_quota": preConsumedQuota,
+		"actual_quota":       actualQuota,
+		"delta_quota":        quotaDelta,
+	})
 	other["task_id"] = task.TaskID
 	other["pre_consumed_quota"] = preConsumedQuota
 	other["actual_quota"] = actualQuota
