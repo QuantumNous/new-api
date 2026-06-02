@@ -16,7 +16,6 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useState, type FormEvent } from 'react'
 import {
   Ban,
   Boxes,
@@ -27,25 +26,10 @@ import {
   Wallet,
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { cn } from '@/lib/utils'
+import { FlatkeyTallyEmbed } from './flatkey-tally-embed'
 
 export function PricingPackages() {
   const { t } = useTranslation()
-  const [leadForm, setLeadForm] = useState({
-    username: '',
-    email: '',
-    phone: '',
-    company: '',
-    monthlyUsage: '',
-  })
-  const [submitted, setSubmitted] = useState(false)
-
-  const monthlyUsageOptions = [
-    t('Under $1,000 per month'),
-    t('$1,000 - $5,000 per month'),
-    t('$5,000 - $20,000 per month'),
-    t('Over $20,000 per month'),
-  ]
   const topModelNames = [
     'GPT-5.1',
     'Claude Opus 4.7',
@@ -80,30 +64,6 @@ export function PricingPackages() {
       label: t('fixed bundle lock-in'),
     },
   ]
-
-  const handleLeadFormChange = (
-    field: keyof typeof leadForm,
-    value: string
-  ) => {
-    setLeadForm((current) => ({ ...current, [field]: value }))
-  }
-
-  const handleLeadSubmit = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault()
-
-    const body = [
-      `${t('Username')}: ${leadForm.username}`,
-      `${t('Email')}: ${leadForm.email}`,
-      `${t('Phone')}: ${leadForm.phone}`,
-      `${t('Company name')}: ${leadForm.company}`,
-      `${t('Estimated monthly usage')}: ${leadForm.monthlyUsage}`,
-    ].join('\n')
-
-    const subject = encodeURIComponent(t('Flatkey AI sales inquiry'))
-    const encodedBody = encodeURIComponent(body)
-    window.location.href = `mailto:support@flatkey.ai?subject=${subject}&body=${encodedBody}`
-    setSubmitted(true)
-  }
 
   return (
     <section className='mb-8 rounded-3xl border border-violet-500/16 bg-white/62 p-5 shadow-[0_24px_70px_-52px_rgba(91,33,182,0.78)] backdrop-blur-sm sm:p-6 dark:border-violet-300/14 dark:bg-white/[0.035]'>
@@ -178,9 +138,6 @@ export function PricingPackages() {
               <h3 className='mt-2 text-base font-semibold tracking-tight'>
                 {t('Contact sales for higher monthly usage')}
               </h3>
-              <p className='text-muted-foreground mt-2 text-sm leading-6'>
-                {t('Tell us your expected usage and we will follow up.')}
-              </p>
             </div>
             <a
               className='inline-flex h-9 shrink-0 items-center gap-2 rounded-full border border-violet-500/16 bg-violet-500/8 px-3 text-sm font-semibold text-violet-700 transition-colors hover:border-violet-500/25 hover:bg-violet-500/12 hover:text-violet-600 dark:border-violet-300/14 dark:bg-violet-300/8 dark:text-violet-100 dark:hover:bg-violet-300/12'
@@ -191,106 +148,7 @@ export function PricingPackages() {
             </a>
           </div>
 
-          <form
-            className='mt-5 grid gap-3 sm:grid-cols-2'
-            onSubmit={handleLeadSubmit}
-          >
-            <label className='space-y-1.5 text-sm'>
-              <span className='font-medium'>{t('Username')}</span>
-              <input
-                className={cn(
-                  'border-input bg-background h-10 w-full rounded-lg border px-3 text-sm transition-colors outline-none',
-                  'focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20'
-                )}
-                required
-                value={leadForm.username}
-                onChange={(event) =>
-                  handleLeadFormChange('username', event.target.value)
-                }
-              />
-            </label>
-            <label className='space-y-1.5 text-sm'>
-              <span className='font-medium'>{t('Email')}</span>
-              <input
-                className={cn(
-                  'border-input bg-background h-10 w-full rounded-lg border px-3 text-sm transition-colors outline-none',
-                  'focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20'
-                )}
-                required
-                type='email'
-                value={leadForm.email}
-                onChange={(event) =>
-                  handleLeadFormChange('email', event.target.value)
-                }
-              />
-            </label>
-            <label className='space-y-1.5 text-sm'>
-              <span className='font-medium'>{t('Phone')}</span>
-              <input
-                className={cn(
-                  'border-input bg-background h-10 w-full rounded-lg border px-3 text-sm transition-colors outline-none',
-                  'focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20'
-                )}
-                required
-                value={leadForm.phone}
-                onChange={(event) =>
-                  handleLeadFormChange('phone', event.target.value)
-                }
-              />
-            </label>
-            <label className='space-y-1.5 text-sm'>
-              <span className='font-medium'>{t('Company name')}</span>
-              <input
-                className={cn(
-                  'border-input bg-background h-10 w-full rounded-lg border px-3 text-sm transition-colors outline-none',
-                  'focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20'
-                )}
-                required
-                value={leadForm.company}
-                onChange={(event) =>
-                  handleLeadFormChange('company', event.target.value)
-                }
-              />
-            </label>
-            <label className='space-y-1.5 text-sm sm:col-span-2'>
-              <span className='font-medium'>
-                {t('Estimated monthly usage')}
-              </span>
-              <select
-                className={cn(
-                  'border-input bg-background h-10 w-full rounded-lg border px-3 text-sm transition-colors outline-none',
-                  'focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20'
-                )}
-                required
-                value={leadForm.monthlyUsage}
-                onChange={(event) =>
-                  handleLeadFormChange('monthlyUsage', event.target.value)
-                }
-              >
-                <option value=''>
-                  {t('Select an estimated monthly tier')}
-                </option>
-                {monthlyUsageOptions.map((option) => (
-                  <option key={option} value={option}>
-                    {option}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <div className='flex flex-col gap-2 sm:col-span-2 sm:flex-row sm:items-center'>
-              <button
-                className='inline-flex h-10 items-center justify-center rounded-lg bg-violet-600 px-4 text-sm font-semibold text-white transition-colors hover:bg-violet-500 focus:ring-2 focus:ring-violet-500/30 focus:outline-none'
-                type='submit'
-              >
-                {t('Submit sales inquiry')}
-              </button>
-              {submitted && (
-                <p className='text-muted-foreground text-sm'>
-                  {t('Your email client has opened with the inquiry details.')}
-                </p>
-              )}
-            </div>
-          </form>
+          <FlatkeyTallyEmbed className='mt-5 rounded-xl border border-violet-500/12 bg-white/62 p-3 shadow-[0_18px_46px_-36px_rgba(91,33,182,0.5)] dark:border-violet-300/12 dark:bg-white/[0.035]' />
         </article>
       </div>
 
