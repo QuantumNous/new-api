@@ -313,6 +313,47 @@ func TestAdminListAffiliateCommissionsCanFilterAffiliate(t *testing.T) {
 	}
 }
 
+func TestAdminCreateVoidAndRecomputeAffiliateCommissions(t *testing.T) {
+	db := newAffiliateLogsControllerTestDB(t)
+	ruleSet := seedPublishedAffiliateRuleSetForAdminRun(t, db, "admin-commission-manage")
+	seedAffiliateInviterControllerProfile(t, db, 100, 1)
+	seedAffiliateInviterControllerRelation(t, db, 100, 300, 1)
+	seedAffiliateLog(t, db, model.Log{UserId: 300, CreatedAt: 1100, Type: model.LogTypeConsume, Quota: 1000, Other: `{"quota_source":"paid"}`})
+
+	adjustment := performAdminCreateAffiliateCommissionAdjustmentRequest(t, `{
+		"affiliate_user_id":100,
+		"downstream_user_id":300,
+		"rule_set_id":`+strconv.Itoa(ruleSet.Id)+`,
+		"period_start":1000,
+		"period_end":2000,
+		"commission_cents":-250,
+		"reason":"support approved clawback"
+	}`)
+	if !adjustment.Success || adjustment.Data.Kind != service.AffiliateCommissionEventKindManualAdjustment || adjustment.Data.CommissionCents != -250 {
+		t.Fatalf("expected manual adjustment event, got %+v", adjustment)
+	}
+
+	voided := performAdminVoidAffiliateCommissionEventRequest(t, adjustment.Data.Id, `{"reason":"entered twice"}`)
+	if !voided.Success || voided.Data.Status != model.AffiliateEventStatusVoid {
+		t.Fatalf("expected voided manual adjustment, got %+v", voided)
+	}
+
+	recomputed := performAdminRecomputeAffiliateCommissionsRequest(t, `{
+		"rule_set_id":`+strconv.Itoa(ruleSet.Id)+`,
+		"period_start":1000,
+		"period_end":2000,
+		"quota_per_unit":1000,
+		"usd_exchange_rate":7,
+		"reason":"recompute period"
+	}`)
+	if !recomputed.Success || recomputed.Data.CreatedEventCount != 1 || recomputed.Data.VoidedEventCount != 0 || len(recomputed.Data.CreatedEvents) != 1 {
+		t.Fatalf("expected one recomputed commission event, got %+v", recomputed)
+	}
+	if recomputed.Data.CreatedEvents[0].AffiliateUserId != 100 || recomputed.Data.CreatedEvents[0].CommissionCents <= 0 {
+		t.Fatalf("unexpected recomputed event: %+v", recomputed.Data.CreatedEvents[0])
+	}
+}
+
 func TestAdminSettlementLifecycleGenerateFreezePay(t *testing.T) {
 	db := newAffiliateLogsControllerTestDB(t)
 	ruleSet := seedPublishedAffiliateRuleSetForAdminSettlement(t, db, "admin-settlement-pay")
@@ -884,6 +925,16 @@ type affiliateSettlementDirectTestResponse struct {
 	Data    model.AffiliateSettlement `json:"data"`
 }
 
+type affiliateCommissionDirectTestResponse struct {
+	Success bool                           `json:"success"`
+	Data    model.AffiliateCommissionEvent `json:"data"`
+}
+
+type affiliateCommissionRecomputeDirectTestResponse struct {
+	Success bool                                       `json:"success"`
+	Data    service.AffiliateCommissionRecomputeResult `json:"data"`
+}
+
 type affiliateSettlementRunDirectTestResponse struct {
 	Success bool                                 `json:"success"`
 	Data    service.AffiliateSettlementRunResult `json:"data"`
@@ -1003,6 +1054,67 @@ func performAdminGenerateAffiliateSettlementsRequest(t *testing.T, payload strin
 		t.Fatalf("expected status 200, got %d body=%s", recorder.Code, recorder.Body.String())
 	}
 	var body affiliateSettlementListDirectTestResponse
+	if err := json.Unmarshal(recorder.Body.Bytes(), &body); err != nil {
+		t.Fatalf("unmarshal response: %v body=%s", err, recorder.Body.String())
+	}
+	return body
+}
+
+func performAdminCreateAffiliateCommissionAdjustmentRequest(t *testing.T, payload string) affiliateCommissionDirectTestResponse {
+	t.Helper()
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = httptest.NewRequest(http.MethodPost, "/api/affiliate/admin/commissions/adjust", bytes.NewBufferString(payload))
+	ctx.Set("id", 1)
+	ctx.Set("role", common.RoleAdminUser)
+
+	AdminCreateAffiliateCommissionAdjustment(ctx)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d body=%s", recorder.Code, recorder.Body.String())
+	}
+	var body affiliateCommissionDirectTestResponse
+	if err := json.Unmarshal(recorder.Body.Bytes(), &body); err != nil {
+		t.Fatalf("unmarshal response: %v body=%s", err, recorder.Body.String())
+	}
+	return body
+}
+
+func performAdminVoidAffiliateCommissionEventRequest(t *testing.T, eventId int, payload string) affiliateCommissionDirectTestResponse {
+	t.Helper()
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = httptest.NewRequest(http.MethodPatch, "/api/affiliate/admin/commissions/"+strconv.Itoa(eventId)+"/void", bytes.NewBufferString(payload))
+	ctx.Params = gin.Params{{Key: "id", Value: strconv.Itoa(eventId)}}
+	ctx.Set("id", 1)
+	ctx.Set("role", common.RoleAdminUser)
+
+	AdminVoidAffiliateCommissionEvent(ctx)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d body=%s", recorder.Code, recorder.Body.String())
+	}
+	var body affiliateCommissionDirectTestResponse
+	if err := json.Unmarshal(recorder.Body.Bytes(), &body); err != nil {
+		t.Fatalf("unmarshal response: %v body=%s", err, recorder.Body.String())
+	}
+	return body
+}
+
+func performAdminRecomputeAffiliateCommissionsRequest(t *testing.T, payload string) affiliateCommissionRecomputeDirectTestResponse {
+	t.Helper()
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = httptest.NewRequest(http.MethodPost, "/api/affiliate/admin/commissions/recompute", bytes.NewBufferString(payload))
+	ctx.Set("id", 1)
+	ctx.Set("role", common.RoleAdminUser)
+
+	AdminRecomputeAffiliateCommissions(ctx)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d body=%s", recorder.Code, recorder.Body.String())
+	}
+	var body affiliateCommissionRecomputeDirectTestResponse
 	if err := json.Unmarshal(recorder.Body.Bytes(), &body); err != nil {
 		t.Fatalf("unmarshal response: %v body=%s", err, recorder.Body.String())
 	}
@@ -1251,6 +1363,9 @@ func newAffiliateAdminRouteTestRouter(t *testing.T, role int) *gin.Engine {
 		adminRoute.PATCH("/rule-sets/:id/publish", AdminPublishAffiliateRuleSet)
 		adminRoute.PATCH("/rule-sets/:id/archive", AdminArchiveAffiliateRuleSet)
 		adminRoute.GET("/commissions", AdminListAffiliateCommissions)
+		adminRoute.POST("/commissions/adjust", AdminCreateAffiliateCommissionAdjustment)
+		adminRoute.POST("/commissions/recompute", AdminRecomputeAffiliateCommissions)
+		adminRoute.PATCH("/commissions/:id/void", AdminVoidAffiliateCommissionEvent)
 		adminRoute.GET("/settlements", AdminListAffiliateSettlements)
 		adminRoute.POST("/settlements/generate", AdminGenerateAffiliateSettlements)
 		adminRoute.POST("/settlement-runs", AdminRunAffiliateSettlementPipeline)

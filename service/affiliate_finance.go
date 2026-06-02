@@ -183,6 +183,8 @@ func normalizeAffiliateCommissionKind(kind string) string {
 		return AffiliateCommissionEventKindAccrual
 	case AffiliateCommissionEventKindClawback:
 		return AffiliateCommissionEventKindClawback
+	case AffiliateCommissionEventKindManualAdjustment:
+		return AffiliateCommissionEventKindManualAdjustment
 	default:
 		return ""
 	}

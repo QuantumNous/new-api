@@ -34,6 +34,29 @@ type affiliateSettlementPaidRequest struct {
 	Reason           string `json:"reason"`
 }
 
+type affiliateCommissionAdjustmentRequest struct {
+	AffiliateUserId  int    `json:"affiliate_user_id"`
+	DownstreamUserId int    `json:"downstream_user_id"`
+	RuleSetId        int    `json:"rule_set_id"`
+	PeriodStart      int64  `json:"period_start"`
+	PeriodEnd        int64  `json:"period_end"`
+	CommissionCents  int64  `json:"commission_cents"`
+	Reason           string `json:"reason"`
+}
+
+type affiliateCommissionVoidRequest struct {
+	Reason string `json:"reason"`
+}
+
+type affiliateCommissionRecomputeRequest struct {
+	RuleSetId       int     `json:"rule_set_id"`
+	PeriodStart     int64   `json:"period_start"`
+	PeriodEnd       int64   `json:"period_end"`
+	QuotaPerUnit    float64 `json:"quota_per_unit"`
+	USDExchangeRate float64 `json:"usd_exchange_rate"`
+	Reason          string  `json:"reason"`
+}
+
 func AdminListAffiliateCommissions(c *gin.Context) {
 	pageInfo := common.GetPageQuery(c)
 	affiliateUserId, _ := strconv.Atoi(c.Query("affiliate_user_id"))
@@ -67,6 +90,77 @@ func AdminListAffiliateCommissions(c *gin.Context) {
 	pageInfo.SetTotal(int(total))
 	pageInfo.SetItems(events)
 	common.ApiSuccess(c, pageInfo)
+}
+
+func AdminCreateAffiliateCommissionAdjustment(c *gin.Context) {
+	var req affiliateCommissionAdjustmentRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		common.ApiErrorMsg(c, "参数错误")
+		return
+	}
+
+	event, err := service.CreateAffiliateManualCommissionAdjustment(model.DB, service.AffiliateManualCommissionAdjustmentInput{
+		AffiliateUserId:  req.AffiliateUserId,
+		DownstreamUserId: req.DownstreamUserId,
+		RuleSetId:        req.RuleSetId,
+		PeriodStart:      req.PeriodStart,
+		PeriodEnd:        req.PeriodEnd,
+		CommissionCents:  req.CommissionCents,
+		ActorUserId:      c.GetInt("id"),
+		Reason:           req.Reason,
+	})
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	common.ApiSuccess(c, event)
+}
+
+func AdminVoidAffiliateCommissionEvent(c *gin.Context) {
+	eventId, ok := parseAffiliateCommissionEventId(c)
+	if !ok {
+		return
+	}
+
+	var req affiliateCommissionVoidRequest
+	if c.Request != nil && c.Request.ContentLength > 0 {
+		if err := c.ShouldBindJSON(&req); err != nil {
+			common.ApiErrorMsg(c, "参数错误")
+			return
+		}
+	}
+	event, err := service.VoidAffiliateCommissionEvent(model.DB, eventId, service.AffiliateCommissionEventVoidInput{
+		ActorUserId: c.GetInt("id"),
+		Reason:      req.Reason,
+	})
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	common.ApiSuccess(c, event)
+}
+
+func AdminRecomputeAffiliateCommissions(c *gin.Context) {
+	var req affiliateCommissionRecomputeRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		common.ApiErrorMsg(c, "参数错误")
+		return
+	}
+
+	result, err := service.RecomputeAffiliatePendingCommissionEvents(model.DB, model.LOG_DB, service.AffiliateCommissionRecomputeInput{
+		RuleSetId:       req.RuleSetId,
+		PeriodStart:     req.PeriodStart,
+		PeriodEnd:       req.PeriodEnd,
+		QuotaPerUnit:    req.QuotaPerUnit,
+		USDExchangeRate: req.USDExchangeRate,
+		ActorUserId:     c.GetInt("id"),
+		Reason:          req.Reason,
+	})
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	common.ApiSuccess(c, result)
 }
 
 func AdminListAffiliateSettlements(c *gin.Context) {
@@ -219,6 +313,15 @@ func AdminMarkAffiliateSettlementPaid(c *gin.Context) {
 		return
 	}
 	common.ApiSuccess(c, settlement)
+}
+
+func parseAffiliateCommissionEventId(c *gin.Context) (int, bool) {
+	eventId, err := strconv.Atoi(c.Param("id"))
+	if err != nil || eventId <= 0 {
+		common.ApiErrorMsg(c, "无效的佣金事件ID")
+		return 0, false
+	}
+	return eventId, true
 }
 
 func parseAffiliateSettlementId(c *gin.Context) (int, bool) {

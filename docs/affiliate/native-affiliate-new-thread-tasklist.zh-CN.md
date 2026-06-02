@@ -420,7 +420,7 @@
 - [x] 分销商只读自己的佣金/结算。
 - [x] 管理员可全局管理规则、佣金和结算基础流程（规则草稿/发布/归档、佣金全局列表、结算生成/冻结/作废/标记已支付）。
 - [x] 后端提供管理员一键编排任务，按周期串联 KPI snapshot、pending 佣金事件、pending 人头费事件和 draft settlement 生成。
-- [ ] 管理员佣金事件人工调整、作废、重算 API 待按业务需要细化。
+- [x] 管理员佣金事件人工调整、作废、重算 API：支持手工 pending 调整事件、未结算事件作废、安全重算未入结算的自动 pending 事件。
 
 ### Phase 10 阶段复盘（2026-06-03 后端规则集 API）
 
@@ -475,8 +475,15 @@
 
 - 完成内容：新增 `RunAffiliateSettlementPipeline` 后端编排 service 和管理员 API `POST /api/affiliate/admin/settlement-runs`，同一请求按周期依次生成 KPI snapshot、pending 佣金事件、pending 人头费事件和 draft settlement；返回 KPI、佣金、人头费、结算数量及生成的结算单，保留原 `/settlements/generate` 只消费已存在 pending 事件的行为。
 - 验证方式：先观察 `go test -count=1 ./service -run 'AffiliateSettlementPipeline|SettlementRun'` 因缺少 pipeline 类型和函数 RED；实现后同命令通过；新增管理员入口测试 `go test -count=1 ./controller -run 'AdminRunAffiliateSettlementPipeline'` 通过；补充 `go test -count=1 ./service -run 'AffiliateSettlementPipeline|SettlementRun|AffiliateSettlement|AffiliateKPI|KPISnapshot|AffiliatePendingCommission|CommissionEvents|Commission|AffiliateHeadFee|HeadFee'`、`go test -count=1 ./controller -run 'AdminRunAffiliateSettlementPipeline|AdminSettlement|AffiliateCommissions|AffiliateSettlements'` 和 `go test -count=1 ./model ./service ./controller ./router -run 'Affiliate|RuleSet|Commission|KPI|HeadFee|Settlement|Admin|Inviter'` 均通过。
-- 残留风险：编排任务仍依赖日志 `Other` 中明确 paid/gift/trial 来源，尚未接入独立 `user_quota_source_*` sidecar；任务未做异步队列、幂等运行记录或后台进度展示；管理员佣金事件人工调整、作废、重算和前端规则/结算管理页面仍待实现。
-- 下一步：补管理员规则配置/结算管理 UI，或先细化佣金事件人工调整和批次运行记录。
+- 残留风险：编排任务仍依赖日志 `Other` 中明确 paid/gift/trial 来源，尚未接入独立 `user_quota_source_*` sidecar；任务未做异步队列、幂等运行记录或后台进度展示；前端规则/结算管理页面仍待实现。
+- 下一步：佣金事件人工调整/作废/重算见下一节复盘；继续补管理员规则配置/结算管理 UI 或批次运行记录。
+
+### Phase 10 阶段复盘（2026-06-03 管理员佣金事件管理 API）
+
+- 完成内容：新增管理员侧佣金事件管理 service 和 API：`POST /api/affiliate/admin/commissions/adjust` 创建手工 `manual_adjustment` pending 事件；`PATCH /api/affiliate/admin/commissions/:id/void` 作废未入结算且未 settled 的佣金事件；`POST /api/affiliate/admin/commissions/recompute` 作废同周期、同规则集、未入结算的自动 pending 佣金事件并重跑 paid 日志归因，保留手工调整事件不被重算覆盖。
+- 验证方式：先观察 `go test -count=1 ./service -run 'ManualCommission|VoidAffiliateCommissionEvent|RecomputeAffiliatePendingCommissionEvents'` 因缺少 service 类型和函数 RED；实现后同命令通过；新增 controller 测试 `go test -count=1 ./controller -run 'AdminCreateVoidAndRecomputeAffiliateCommissions'` 通过；补充 `go test -count=1 ./service -run 'ManualCommission|VoidAffiliateCommissionEvent|RecomputeAffiliatePendingCommissionEvents|AffiliatePendingCommission|CommissionEvents|Commission|AffiliateSettlementPipeline|SettlementRun|AffiliateSettlement|AffiliateKPI|KPISnapshot|AffiliateHeadFee|HeadFee'`、`go test -count=1 ./controller -run 'AdminCreateVoidAndRecomputeAffiliateCommissions|AdminRunAffiliateSettlementPipeline|AdminSettlement|AffiliateCommissions|AffiliateSettlements'` 和 `go test -count=1 ./model ./service ./controller ./router -run 'Affiliate|RuleSet|Commission|KPI|HeadFee|Settlement|Admin|Inviter'` 均通过。
+- 残留风险：作废 API 拒绝直接作废已入 settlement 的事件，避免结算单金额失配；如要支持 draft settlement 内单条事件作废，需要先设计结算单重算/重开流程；重算仍依赖日志 `Other` 中明确 paid/gift/trial 来源，尚未接入独立 quota source sidecar。
+- 下一步：补管理员规则配置/结算管理 UI，或设计 settlement 内事件重开、批次运行记录和前端操作审计展示。
 
 ## Phase 11：用户管理 `inviter_id`
 

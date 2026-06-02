@@ -16,8 +16,9 @@ const (
 	AffiliateQuotaSourceGift  = "gift"
 	AffiliateQuotaSourceTrial = "trial"
 
-	AffiliateCommissionEventKindAccrual  = "accrual"
-	AffiliateCommissionEventKindClawback = "clawback"
+	AffiliateCommissionEventKindAccrual          = "accrual"
+	AffiliateCommissionEventKindClawback         = "clawback"
+	AffiliateCommissionEventKindManualAdjustment = "manual_adjustment"
 )
 
 type AffiliateCommissionBuildInput struct {
