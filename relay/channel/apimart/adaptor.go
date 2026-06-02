@@ -46,7 +46,7 @@ func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInf
 	return &SubmitRequest{
 		Model:  request.Model,
 		Prompt: request.Prompt,
-		N:      n,
+		N:      &n,
 		Size:   request.Size,
 	}, nil
 }
@@ -117,7 +117,7 @@ func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycom
 		10*time.Minute,
 	)
 	if pollErr != nil {
-		return nil, types.NewError(pollErr, types.ErrorCodeBadResponse)
+		return nil, types.NewError(pollErr, types.ErrorCodeBadResponse, types.ErrOptionWithSkipRetry())
 	}
 
 	imageResp := dto.ImageResponse{

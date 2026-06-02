@@ -2,13 +2,13 @@ package apimart
 
 import (
 	"context"
-	"encoding/json"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
 
+	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/dto"
 )
 
@@ -20,12 +20,12 @@ func TestConvertImageRequest(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected err: %v", err)
 	}
-	b, _ := json.Marshal(out)
+	b, _ := common.Marshal(out)
 	var got SubmitRequest
-	if err := json.Unmarshal(b, &got); err != nil {
+	if err := common.Unmarshal(b, &got); err != nil {
 		t.Fatalf("marshal: %v", err)
 	}
-	if got.Model != "gpt-image-2" || got.Prompt != "a blue cube" || got.Size != "1024x1024" || got.N != 1 {
+	if got.Model != "gpt-image-2" || got.Prompt != "a blue cube" || got.Size != "1024x1024" || got.N == nil || *got.N != 1 {
 		t.Fatalf("bad mapping: %+v", got)
 	}
 }

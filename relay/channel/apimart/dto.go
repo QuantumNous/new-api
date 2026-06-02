@@ -4,7 +4,7 @@ package apimart
 type SubmitRequest struct {
 	Model  string `json:"model"`
 	Prompt string `json:"prompt"`
-	N      int    `json:"n,omitempty"`
+	N      *int   `json:"n,omitempty"`
 	Size   string `json:"size,omitempty"`
 }
 
