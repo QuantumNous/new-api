@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Atius AI Router — API Reference</title>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0%25' y1='0%25' x2='100%25' y2='100%25'%3E%3Cstop offset='0%25' stop-color='%23D4AF37'/%3E%3Cstop offset='100%25' stop-color='%23AA8A26'/%3E%3C/linearGradient%3E%3ClinearGradient id='b' x1='0%25' y1='0%25' x2='0%25' y2='100%25'%3E%3Cstop offset='0%25' stop-color='%231A4D2E'/%3E%3Cstop offset='100%25' stop-color='%230F2B1A'/%3E%3C/linearGradient%3E%3C/defs%3E%3Cpath d='M256 50 L460 450 H360 L256 220 L152 450 H52 Z' fill='url(%23b)'/%3E%3Cpath d='M340 380 A 90 90 0 1 1 340 280 L 300 300 A 45 45 0 1 0 300 360 Z' fill='url(%23g)' transform='translate(-44 20)'/%3E%3Cpath d='M190 400 L320 400' stroke='%231A4D2E' stroke-width='5'/%3E%3C/svg%3E">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { height: 100%; background: #0f0f0f; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
+    .loading { position: fixed; inset: 0; background: #0f0f0f; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px; z-index: 9999; }
+    .loading .brand { font-size: 22px; font-weight: 700; color: #D4AF37; letter-spacing: -0.3px; }
+    .loading .msg { font-size: 13px; color: #666; }
+    .spinner { width: 28px; height: 28px; border: 2px solid #222; border-top-color: #D4AF37; border-radius: 50%; animation: spin 0.8s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .auth-gate { display: none; position: fixed; inset: 0; background: #0f0f0f; flex-direction: column; align-items: center; justify-content: center; gap: 14px; }
+    .auth-gate .brand { font-size: 20px; font-weight: 700; color: #D4AF37; }
+    .auth-gate .title { font-size: 18px; font-weight: 600; color: #e0e0e0; }
+    .auth-gate .msg { font-size: 13px; color: #888; max-width: 380px; text-align: center; }
+    .auth-gate .btn { display: inline-flex; padding: 10px 24px; background: linear-gradient(135deg,#1a4d2e,#0f2b1a); color: #D4AF37; border: 1px solid #D4AF37; border-radius: 8px; font-size: 14px; font-weight: 600; text-decoration: none; cursor: pointer; transition: opacity 0.2s; }
+    .auth-gate .btn:hover { opacity: 0.8; }
+    .auth-gate .btn-logout { display: inline-flex; padding: 8px 18px; background: transparent; color: #666; border: 1px solid #444; border-radius: 8px; font-size: 13px; font-weight: 500; text-decoration: none; cursor: pointer; transition: all 0.2s; margin-left: 10px; }
+    .auth-gate .btn-logout:hover { color: #ccc; border-color: #666; background: #1a1a1a; }
+    .auth-gate .btn-group { display: flex; gap: 8px; align-items: center; }
+    #scalar-app { display: none; height: 100%; }
+
+    /* API Key input bar */
+    .api-key-bar { display: none; position: fixed; top: 0; left: 0; right: 0; z-index: 1000; background: #1a1a1a; border-bottom: 1px solid #333; padding: 10px 20px; gap: 12px; align-items: center; }
+    .api-key-bar.visible { display: flex; }
+    .api-key-bar label { color: #D4AF37; font-size: 13px; font-weight: 600; white-space: nowrap; }
+    .api-key-bar input { flex: 1; max-width: 480px; background: #0f0f0f; border: 1px solid #333; border-radius: 6px; color: #e0e0e0; font-size: 13px; padding: 7px 12px; outline: none; transition: border-color 0.2s; }
+    .api-key-bar input:focus { border-color: #D4AF37; }
+    .api-key-bar input::placeholder { color: #666; }
+    .api-key-bar .hint { color: #666; font-size: 12px; }
+    .api-key-bar .status { font-size: 12px; padding: 4px 10px; border-radius: 4px; font-weight: 600; }
+    .api-key-bar .status.ok { color: #4ade80; background: #4ade801a; }
+    .api-key-bar .status.empty { color: #f59e0b; background: #f59e0b1a; }
+    .logout-btn { margin-left: auto; padding: 6px 14px; background: transparent; color: #888; border: 1px solid #444; border-radius: 6px; font-size: 12px; font-weight: 500; cursor: pointer; text-decoration: none; transition: all 0.2s; }
+    .logout-btn:hover { color: #e0e0e0; border-color: #666; background: #2a2a2a; }
+  </style>
+</head>
+<body>
+  <!-- API Key bar (shown after admin auth) -->
+  <div class="api-key-bar" id="api-key-bar">
+    <label for="api-key-input">API Key:</label>
+    <input type="password" id="api-key-input" placeholder="sk-..." autocomplete="off" spellcheck="false">
+    <span class="hint">Press Enter ou clique fora para aplicar</span>
+    <span class="status empty" id="key-status">sem chave</span>
+    <a class="logout-btn" href="/logout?redirect=/docs">Sair</a>
+  </div>
+
+  <div class="loading" id="loading">
+    <div class="brand">Atius AI Router</div>
+    <div class="msg">Loading API Reference…</div>
+    <div class="spinner"></div>
+  </div>
+  <div class="auth-gate" id="auth-gate" style="display:none">
+    <div class="brand">Atius AI Router</div>
+    <div class="title" id="auth-title"></div>
+    <div class="msg" id="auth-msg"></div>
+    <div class="btn-group">
+      <a class="btn" id="auth-btn" href="/sign-in?redirect=/docs">Sign In</a>
+      <a class="btn-logout" href="/logout?redirect=/docs">Sair</a>
+    </div>
+  </div>
+  <div id="scalar-app" style="display:none; height:100%"></div>
+
+  <link rel="stylesheet" href="/scalar/scalar-standalone.css">
+  <script src="/scalar/scalar-standalone.js"></script>
+  <script>
+    // State
+    let scalarInstance = null;
+    let currentApiKey = '';
+
+    // Elements
+    const apiKeyBar = document.getElementById('api-key-bar');
+    const apiKeyInput = document.getElementById('api-key-input');
+    const keyStatus = document.getElementById('key-status');
+
+    // Apply API key to Scalar
+    function applyApiKey(key) {
+      currentApiKey = key.trim();
+      if (!currentApiKey) {
+        keyStatus.textContent = 'sem chave';
+        keyStatus.className = 'status empty';
+      } else {
+        keyStatus.textContent = 'ativa';
+        keyStatus.className = 'status ok';
+      }
+
+      if (scalarInstance && currentApiKey) {
+        scalarInstance.updateConfiguration({
+          auth: {
+            apiKey: currentApiKey,
+          },
+        });
+      }
+    }
+
+    // API key input handlers
+    apiKeyInput.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        applyApiKey(apiKeyInput.value);
+        apiKeyInput.blur();
+      }
+    });
+
+    apiKeyInput.addEventListener('change', function() {
+      applyApiKey(apiKeyInput.value);
+    });
+
+    // Load saved key from localStorage
+    const savedKey = localStorage.getItem('docs_api_key');
+    if (savedKey) {
+      apiKeyInput.value = savedKey;
+      applyApiKey(savedKey);
+    }
+
+    async function init() {
+      const loading = document.getElementById('loading');
+      const apiKeyBar = document.getElementById('api-key-bar');
+      const app = document.getElementById('scalar-app');
+      const BASE = window.location.origin;
+
+      // Admin mode: ?key=<DOCS_PASSWORD> enables API key bar + full features
+      const params = new URLSearchParams(window.location.search);
+      const isAdmin = params.get('key') === 'atius2024';
+
+      if (isAdmin) {
+        // Admin bypass — load Scalar with API key bar
+        loadScalar(BASE, true, app, loading, apiKeyBar);
+        return;
+      }
+
+      // No ?key= — show Scalar as public read-only reference (no API key bar)
+      // Users can still browse all endpoints without logging in
+      loadScalar(BASE, false, app, loading, apiKeyBar);
+    }
+
+    function loadScalar(BASE, showAdmin, appEl, loadingEl, apiKeyBarEl) {
+      try {
+        loadingEl.style.display = 'none';
+        appEl.style.display = 'block';
+        if (showAdmin) {
+          apiKeyBarEl.classList.add('visible');
+        }
+
+        // Re-apply saved key if any
+        if (savedKey) {
+          setTimeout(() => applyApiKey(savedKey), 500);
+        }
+
+        const params = new URLSearchParams(window.location.search);
+        const docsJsonUrl = BASE + '/docs/json';
+
+        scalarInstance = window.Scalar.createApiReference(appEl, {
+          spec: { url: docsJsonUrl },
+          theme: 'deepSpace',
+          showSidebar: true,
+          pageTitle: 'Atius AI Router — API Reference',
+          forceDarkModeState: true,
+        });
+
+      } catch(e) {
+        console.error('Scalar error:', e);
+        loadingEl.innerHTML = '<div class="brand" style="color:#D4AF37;margin-bottom:12px;font-size:18px;">Atius AI Router</div><div style="color:#888;font-size:14px;">Load Error: ' + e.message + '</div><button onclick="location.reload()" style="margin-top:16px;padding:8px 20px;background:#1a4d2e;color:#D4AF37;border:1px solid #D4AF37;border-radius:6px;cursor:pointer;">Refresh</button>';
+      }
+    }
+
+    // Save key to localStorage on change
+    apiKeyInput.addEventListener('input', function() {
+      localStorage.setItem('docs_api_key', apiKeyInput.value);
+    });
+
+    function showGate(titleText, msgText, btnText, btnHref) {
+      document.getElementById('loading').style.display = 'none';
+      document.getElementById('auth-title').textContent = titleText;
+      document.getElementById('auth-msg').textContent = msgText;
+      const btn = document.getElementById('auth-btn');
+      btn.textContent = btnText;
+      btn.href = btnHref;
+      document.getElementById('auth-gate').style.display = 'flex';
+    }
+
+    init();
+  </script>
+</body>
+</html>

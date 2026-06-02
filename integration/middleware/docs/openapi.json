@@ -1,0 +1,634 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Atius AI Router API",
+    "description": "Unified AI API Gateway — aggregates MiniMax, DeepSeek, and 40+ providers behind a single OpenAI/Anthropic-compatible API.\n\n## Base URLs\n- **Production**: `https://router.atius.com.br`\n- **Local Dev**: `http://localhost:3301`\n\n## Authentication\nAll relay endpoints (`/v1/*`) authenticate via:\n- **Header**: `Authorization: Bearer <token>`  \n- **Query**: `?token=<token>`  (not recommended for production)\n\nAdmin/Dashboard endpoints (`/api/*`) require separate authentication.\n\n## SDK Integration\n\n### OpenAI SDK\n```python\nfrom openai import OpenAI\nclient = OpenAI(\n    api_key=\"your-token-here\",\n    base_url=\"https://router.atius.com.br/v1\"\n)\nresponse = client.chat.completions.create(\n    model=\"MiniMax-M2.7\",\n    messages=[{\"role\": \"user\", \"content\": \"Hello!\"}]\n)\n```\n\n### Anthropic SDK\n```python\nimport anthropic\nclient = anthropic.Anthropic(\n    api_key=\"your-token-here\",\n    base_url=\"https://router.atius.com.br/v1\"\n)\n# Note: Use /v1/messages endpoint with anthropic-version header\n# Or set base_url to https://router.atius.com.br/v1\n```\n\n## Rate Limits\n| Model | RPM | TPM |\n|-------|-----|-----|\n| MiniMax-M2.7 / M2.7-hs | 500 | 20,000,000 |\n| MiniMax-M2.5 / M2.5-hs | 500 | 20,000,000 |\n| MiniMax-M2.1 / M2.1-hs | 500 | 20,000,000 |\n\nRouter-level rate limiting: configurable per group (disabled by default).\n\n## Model Aliases\n| Alias | Maps To |\n|-------|---------|\n| `MiniMax-M2.7-hs` | `MiniMax-M2.7-highspeed` |\n| `MiniMax-M2.5-hs` | `MiniMax-M2.5-highspeed` |\n| `MiniMax-M2.1-hs` | `MiniMax-M2.1-highspeed` |",
+    "version": "1.0.0",
+    "contact": {
+      "name": "Atius Support",
+      "email": "suporte@atius.com.br"
+    }
+  },
+  "servers": [
+    {
+      "url": "https://router.atius.com.br",
+      "description": "Production"
+    },
+    {
+      "url": "http://localhost:3301",
+      "description": "Local Development"
+    }
+  ],
+  "paths": {
+    "/v1/chat/completions": {
+      "post": {
+        "operationId": "chatCompletions",
+        "summary": "Chat Completions (OpenAI Compatible)",
+        "description": "Creates a model response for a multi-turn conversation. OpenAI-compatible endpoint.",
+        "tags": ["Text Generation"],
+        "security": [{"bearerAuth": []}],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {"$ref": "#/components/schemas/ChatCompletionRequest"},
+              "example": {
+                "model": "MiniMax-M2.7",
+                "messages": [
+                  {"role": "system", "content": "You are a helpful assistant."},
+                  {"role": "user", "content": "Explain quantum computing in simple terms."}
+                ],
+                "max_tokens": 1000,
+                "temperature": 0.7
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {"$ref": "#/components/schemas/ChatCompletionResponse"}
+              }
+            }
+          },
+          "400": {"description": "Invalid request"},
+          "401": {"description": "Unauthorized"},
+          "429": {"description": "Rate limit exceeded"},
+          "500": {"description": "Internal server error"}
+        }
+      }
+    },
+    "/v1/messages": {
+      "post": {
+        "operationId": "anthropicMessages",
+        "summary": "Messages (Anthropic Compatible)",
+        "description": "Creates a model response using Anthropic Messages API format. Routes to MiniMax Anthropic-compatible endpoint. Set header `anthropic-version: 2023-06-01` and `x-api-key: <token>`.",
+        "tags": ["Text Generation"],
+        "security": [{"bearerAuth": []}],
+        "parameters": [
+          {
+            "name": "anthropic-version",
+            "in": "header",
+            "required": true,
+            "schema": {"type": "string", "default": "2023-06-01"},
+            "description": "Anthropic API version"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {"$ref": "#/components/schemas/ClaudeRequest"},
+              "example": {
+                "model": "MiniMax-M2.7",
+                "max_tokens": 1024,
+                "system": "You are a helpful assistant.",
+                "messages": [
+                  {"role": "user", "content": [{"type": "text", "text": "Hi, how are you?"}]}
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {"$ref": "#/components/schemas/ClaudeResponse"}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/completions": {
+      "post": {
+        "operationId": "completions",
+        "summary": "Text Completions (Legacy)",
+        "description": "Legacy text completion endpoint. Use `/v1/chat/completions` for new integrations.",
+        "tags": ["Text Generation"],
+        "security": [{"bearerAuth": []}],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {"$ref": "#/components/schemas/CompletionRequest"}
+            }
+          }
+        },
+        "responses": {
+          "200": {"description": "Successful response"}
+        }
+      }
+    },
+    "/v1/embeddings": {
+      "post": {
+        "operationId": "embeddings",
+        "summary": "Embeddings",
+        "description": "Generates text embeddings for use in vector similarity search.",
+        "tags": ["Embeddings"],
+        "security": [{"bearerAuth": []}],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["input", "model"],
+                "properties": {
+                  "model": {"type": "string", "example": "embo-01"},
+                  "input": {"type": "string", "description": "Text to embed"}
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {"description": "Successful response"}
+        }
+      }
+    },
+    "/v1/audio/speech": {
+      "post": {
+        "operationId": "textToSpeech",
+        "summary": "Text-to-Speech",
+        "description": "Synthesizes speech from text. Returns audio in the requested format.",
+        "tags": ["Audio"],
+        "security": [{"bearerAuth": []}],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["model", "input", "voice"],
+                "properties": {
+                  "model": {"type": "string", "example": "speech-2.8-turbo-hd"},
+                  "input": {"type": "string", "description": "Text to synthesize"},
+                  "voice": {"type": "string", "example": "male-qn-qingse"},
+                  "response_format": {"type": "string", "enum": ["mp3", "opus", "aac", "flac"]},
+                  "speed": {"type": "number", "minimum": 0, "maximum": 2}
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Audio binary",
+            "content": {"audio/mpeg": {}}
+          }
+        }
+      }
+    },
+    "/v1/audio/transcriptions": {
+      "post": {
+        "operationId": "transcriptions",
+        "summary": "Speech-to-Text (Transcription)",
+        "description": "Transcribes audio to text.",
+        "tags": ["Audio"],
+        "security": [{"bearerAuth": []}],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "required": ["file", "model"],
+                "properties": {
+                  "file": {"type": "string", "format": "binary"},
+                  "model": {"type": "string", "example": "MiniMax-M2.7"}
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {"description": "Transcription result"}
+        }
+      }
+    },
+    "/v1/models": {
+      "get": {
+        "operationId": "listModels",
+        "summary": "List Available Models",
+        "description": "Returns a list of all available models. Auto-detects OpenAI vs Anthropic based on request headers (`anthropic-version` and `x-api-key` for Anthropic, `authorization` for OpenAI).",
+        "tags": ["Models"],
+        "security": [{"bearerAuth": []}],
+        "parameters": [
+          {
+            "name": "anthropic-version",
+            "in": "header",
+            "description": "If set, returns Anthropic-compatible model list"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of models",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "object": {"type": "string", "example": "list"},
+                    "data": {
+                      "type": "array",
+                      "items": {"$ref": "#/components/schemas/Model"}
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/models/{model}": {
+      "get": {
+        "operationId": "retrieveModel",
+        "summary": "Retrieve Model",
+        "description": "Retrieves details for a specific model.",
+        "tags": ["Models"],
+        "security": [{"bearerAuth": []}],
+        "parameters": [
+          {"name": "model", "in": "path", "required": true, "schema": {"type": "string"}, "example": "MiniMax-M2.7"}
+        ],
+        "responses": {
+          "200": {
+            "description": "Model details",
+            "content": {
+              "application/json": {
+                "schema": {"$ref": "#/components/schemas/Model"}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/responses": {
+      "post": {
+        "operationId": "responses",
+        "summary": "Responses API (OpenAI)",
+        "tags": ["Text Generation"],
+        "security": [{"bearerAuth": []}],
+        "responses": {"200": {"description": "Response object"}}
+      }
+    },
+    "/v1/rerank": {
+      "post": {
+        "operationId": "rerank",
+        "summary": "Rerank",
+        "description": "Reranks documents for a given query.",
+        "tags": ["Search"],
+        "security": [{"bearerAuth": []}],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["model", "query", "documents"],
+                "properties": {
+                  "model": {"type": "string"},
+                  "query": {"type": "string"},
+                  "documents": {"type": "array", "items": {"type": "string"}}
+                }
+              }
+            }
+          }
+        },
+        "responses": {"200": {"description": "Reranking results"}}
+      }
+    },
+    "/v1/images/generations": {
+      "post": {
+        "operationId": "imageGeneration",
+        "summary": "Image Generation",
+        "description": "Generates images from text prompts using MiniMax's image models.",
+        "tags": ["Image Generation"],
+        "security": [{"bearerAuth": []}],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["prompt", "model"],
+                "properties": {
+                  "model": {"type": "string", "example": "image-01"},
+                  "prompt": {"type": "string"},
+                  "n": {"type": "integer", "minimum": 1, "maximum": 10, "default": 1},
+                  "size": {"type": "string", "enum": ["1024x1024", "512x512"]}
+                }
+              }
+            }
+          }
+        },
+        "responses": {"200": {"description": "Generated images"}}
+      }
+    },
+    "/api/models": {
+      "get": {
+        "operationId": "apiListModels",
+        "summary": "Dashboard: List Models",
+        "description": "Returns all models visible to the authenticated user.",
+        "tags": ["Dashboard API"],
+        "security": [{"bearerAuth": []}],
+        "responses": {"200": {"description": "Model list"}}
+      }
+    },
+    "/api/status": {
+      "get": {
+        "operationId": "getStatus",
+        "summary": "Dashboard: System Status",
+        "description": "Returns system status including API info panel, announcements, and configuration.",
+        "tags": ["Dashboard API"],
+        "responses": {
+          "200": {
+            "description": "Status object",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "api_info": {
+                      "type": "array",
+                      "items": {"$ref": "#/components/schemas/ApiInfoItem"}
+                    },
+                    "announcements": {"type": "array"},
+                    "announcements_enabled": {"type": "boolean"}
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/user/register": {
+      "post": {
+        "operationId": "register",
+        "summary": "User Registration",
+        "tags": ["Authentication"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["email", "password"],
+                "properties": {
+                  "email": {"type": "string", "format": "email"},
+                  "password": {"type": "string", "minLength": 6}
+                }
+              }
+            }
+          }
+        },
+        "responses": {"200": {"description": "Registration result"}}
+      }
+    },
+    "/api/user/login": {
+      "post": {
+        "operationId": "login",
+        "summary": "User Login",
+        "tags": ["Authentication"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["email", "password"],
+                "properties": {
+                  "email": {"type": "string"},
+                  "password": {"type": "string"}
+                }
+              }
+            }
+          }
+        },
+        "responses": {"200": {"description": "Login result with token"}}
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "token",
+        "description": "API token obtained from /api/user/self/tokens or dashboard"
+      }
+    },
+    "schemas": {
+      "ChatCompletionRequest": {
+        "type": "object",
+        "required": ["model", "messages"],
+        "properties": {
+          "model": {
+            "type": "string",
+            "description": "Model ID. MiniMax models: MiniMax-M2.7, MiniMax-M2.7-hs, MiniMax-M2.7-highspeed, MiniMax-M2.5, MiniMax-M2.5-hs, MiniMax-M2.5-highspeed, MiniMax-M2.1, MiniMax-M2.1-hs, MiniMax-M2.1-highspeed",
+            "example": "MiniMax-M2.7"
+          },
+          "messages": {
+            "type": "array",
+            "description": "Conversation messages",
+            "items": {
+              "type": "object",
+              "required": ["role", "content"],
+              "properties": {
+                "role": {"type": "string", "enum": ["system", "user", "assistant"]},
+                "content": {"type": "string"}
+              }
+            }
+          },
+          "max_tokens": {"type": "integer", "minimum": 1, "example": 1024},
+          "temperature": {"type": "number", "minimum": 0, "maximum": 2, "example": 0.7},
+          "top_p": {"type": "number", "minimum": 0, "maximum": 1},
+          "stream": {"type": "boolean", "default": false},
+          "stop": {"type": "array", "items": {"type": "string"}},
+          "tools": {
+            "type": "array",
+            "description": "Tool definitions (function calling)"
+          },
+          "tool_choice": {"type": "string", "enum": ["auto", "none"]}
+        }
+      },
+      "ChatCompletionResponse": {
+        "type": "object",
+        "properties": {
+          "id": {"type": "string"},
+          "object": {"type": "string", "example": "chat.completion"},
+          "created": {"type": "integer"},
+          "model": {"type": "string"},
+          "choices": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "index": {"type": "integer"},
+                "message": {
+                  "type": "object",
+                  "properties": {
+                    "role": {"type": "string"},
+                    "content": {"type": "string"}
+                  }
+                },
+                "finish_reason": {"type": "string"}
+              }
+            }
+          },
+          "usage": {
+            "type": "object",
+            "properties": {
+              "prompt_tokens": {"type": "integer"},
+              "completion_tokens": {"type": "integer"},
+              "total_tokens": {"type": "integer"}
+            }
+          }
+        }
+      },
+      "ClaudeRequest": {
+        "type": "object",
+        "required": ["model", "messages", "max_tokens"],
+        "properties": {
+          "model": {
+            "type": "string",
+            "description": "MiniMax model: MiniMax-M2.7, MiniMax-M2.7-highspeed, MiniMax-M2.5, MiniMax-M2.5-highspeed, MiniMax-M2.1, MiniMax-M2.1-highspeed, MiniMax-M2",
+            "example": "MiniMax-M2.7"
+          },
+          "messages": {
+            "type": "array",
+            "description": "Messages array with content blocks",
+            "items": {
+              "type": "object",
+              "required": ["role", "content"],
+              "properties": {
+                "role": {"type": "string", "enum": ["user", "assistant"]},
+                "content": {
+                  "oneOf": [
+                    {"type": "string"},
+                    {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "type": {"type": "string", "enum": ["text", "tool_use", "tool_result"]},
+                          "text": {"type": "string"},
+                          "id": {"type": "string"},
+                          "name": {"type": "string"},
+                          "input": {"type": "object"}
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "max_tokens": {"type": "integer", "minimum": 1, "example": 1024},
+          "system": {"type": "string", "description": "System prompt"},
+          "temperature": {"type": "number", "minimum": 0.0, "maximum": 1.0, "example": 1.0},
+          "top_p": {"type": "number", "minimum": 0, "maximum": 1},
+          "stream": {"type": "boolean", "default": false},
+          "tools": {"type": "array", "description": "Tool definitions"},
+          "tool_choice": {
+            "type": "object",
+            "properties": {
+              "type": {"type": "string", "enum": ["auto", "any", "tool"]}
+            }
+          },
+          "thinking": {
+            "type": "object",
+            "description": "Extended thinking/reasoning (MiniMax-M2.7+)",
+            "properties": {
+              "type": {"type": "string", "enum": ["adaptive", "enabled", "disabled"]},
+              "budget_tokens": {"type": "integer"}
+            }
+          }
+        }
+      },
+      "ClaudeResponse": {
+        "type": "object",
+        "properties": {
+          "id": {"type": "string"},
+          "type": {"type": "string", "example": "message"},
+          "role": {"type": "string", "example": "assistant"},
+          "content": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "type": {"type": "string"},
+                "text": {"type": "string"},
+                "thinking": {"type": "string"}
+              }
+            }
+          },
+          "model": {"type": "string"},
+          "stop_reason": {"type": "string"},
+          "stop_sequence": {"type": "string"},
+          "usage": {
+            "type": "object",
+            "properties": {
+              "input_tokens": {"type": "integer"},
+              "output_tokens": {"type": "integer"},
+              "cache_creation_input_tokens": {"type": "integer"},
+              "cache_read_input_tokens": {"type": "integer"}
+            }
+          }
+        }
+      },
+      "CompletionRequest": {
+        "type": "object",
+        "required": ["model", "prompt"],
+        "properties": {
+          "model": {"type": "string"},
+          "prompt": {"type": "string"},
+          "max_tokens": {"type": "integer"},
+          "temperature": {"type": "number"},
+          "stream": {"type": "boolean"}
+        }
+      },
+      "Model": {
+        "type": "object",
+        "properties": {
+          "id": {"type": "string", "example": "MiniMax-M2.7"},
+          "object": {"type": "string", "example": "model"},
+          "created": {"type": "integer"},
+          "owned_by": {"type": "string", "example": "minimax"},
+          "permission": {"type": "array"},
+          "root": {"type": "string"},
+          "parent": {"type": "string"},
+          "context_window": {"type": "integer", "example": 204800}
+        }
+      },
+      "ApiInfoItem": {
+        "type": "object",
+        "properties": {
+          "route": {"type": "string", "example": "OpenAI Compatible"},
+          "url": {"type": "string", "example": "https://router.atius.com.br/v1/chat/completions"},
+          "description": {"type": "string", "example": "Chat Completions API"},
+          "color": {
+            "type": "string",
+            "enum": ["blue", "green", "cyan", "purple", "pink", "red", "orange", "amber", "yellow", "lime", "light-green", "teal", "light-blue", "indigo", "violet", "grey"]
+          }
+        }
+      }
+    }
+  },
+  "tags": [
+    {"name": "Text Generation", "description": "Chat completions and text generation endpoints"},
+    {"name": "Audio", "description": "Text-to-speech and transcription endpoints"},
+    {"name": "Embeddings", "description": "Text embedding generation"},
+    {"name": "Models", "description": "Model listing and retrieval"},
+    {"name": "Image Generation", "description": "Image generation endpoints"},
+    {"name": "Search", "description": "Reranking and search endpoints"},
+    {"name": "Dashboard API", "description": "Administrative API endpoints"},
+    {"name": "Authentication", "description": "User registration and login"}
+  ]
+}

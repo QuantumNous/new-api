@@ -857,6 +857,16 @@ async def get_docs(request: Request):
     return RedirectResponse(url=target, status_code=302)
 
 
+# Catch-all for /docs/* (any subpath that isn't a known endpoint) → redirect to /docs/
+# Must be BEFORE the generic /{path:path} catch-all proxy to take precedence
+@app.get("/docs/{path:path}", include_in_schema=False)
+async def get_docs_subpath(path: str, request: Request):
+    """Redirect /docs/<anything> → /docs/ (canonical). Handles 404 cases like /docs/foo."""
+    query = str(request.query_params)
+    target = "/docs/" + (f"?{query}" if query else "")
+    return RedirectResponse(url=target, status_code=302)
+
+
 @app.get("/openapi.json", include_in_schema=False)
 async def get_openapi_json(request: Request):
     """
