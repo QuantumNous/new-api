@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/QuantumNous/new-api/model"
+	"github.com/glebarez/sqlite"
 	"gorm.io/gorm"
 )
 
@@ -169,9 +170,13 @@ func TestBuildAffiliatePendingCommissionEventsUsesCumulativeTierAndKPICoefficien
 
 func newAffiliateCommissionTestDB(t *testing.T) *gorm.DB {
 	t.Helper()
-	db := newAffiliateStoreTestDB(t)
-	if err := db.AutoMigrate(&model.Log{}); err != nil {
-		t.Fatalf("migrate log model: %v", err)
+	name := strings.NewReplacer("/", "_", " ", "_").Replace(t.Name())
+	db, err := gorm.Open(sqlite.Open("file:"+name+"?mode=memory&cache=shared"), &gorm.Config{})
+	if err != nil {
+		t.Fatalf("open sqlite: %v", err)
+	}
+	if err := db.AutoMigrate(append(model.AffiliateSidecarModels(), &model.Log{})...); err != nil {
+		t.Fatalf("migrate affiliate/log models: %v", err)
 	}
 	return db
 }
