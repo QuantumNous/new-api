@@ -26,6 +26,7 @@ import {
 import { useTranslation } from 'react-i18next';
 import UsageLogsTable from '../../components/table/usage-logs';
 import { API } from '../../helpers';
+import { buildAffiliateDashboardCards } from './affiliateDashboardCards';
 import {
   buildAffiliateSectionErrorState,
   buildAffiliateStatusLoadingState,
@@ -54,6 +55,48 @@ const AffiliateSectionFallback = ({ t, section, onRetry }) => {
         </div>
       )}
     </Card>
+  );
+};
+
+const AffiliateDashboard = ({ t, loading, summary, error, onRetry }) => {
+  if (loading) {
+    return (
+      <Card className='!rounded-2xl mb-4'>
+        <div className='flex flex-col items-center justify-center min-h-[160px] gap-3 text-center'>
+          <Spin size='large' />
+          <Text strong>{t('正在加载分销看板')}</Text>
+          <Text type='secondary'>
+            {t('正在汇总团队人数、消耗和结算指标。')}
+          </Text>
+        </div>
+      </Card>
+    );
+  }
+
+  if (error) {
+    return (
+      <AffiliateSectionFallback t={t} section='dashboard' onRetry={onRetry} />
+    );
+  }
+
+  const cards = buildAffiliateDashboardCards(t, summary);
+
+  return (
+    <div className='grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3 mb-4'>
+      {cards.map((card) => (
+        <Card key={card.key} className='!rounded-2xl'>
+          <div className='flex flex-col gap-2'>
+            <Text type='secondary'>{card.title}</Text>
+            <div className='text-2xl font-semibold text-semi-color-text-0'>
+              {card.value}
+            </div>
+            <Text type='tertiary' size='small'>
+              {card.description}
+            </Text>
+          </div>
+        </Card>
+      ))}
+    </div>
   );
 };
 
@@ -96,7 +139,30 @@ const Affiliate = () => {
   const [loading, setLoading] = useState(true);
   const [status, setStatus] = useState(null);
   const [message, setMessage] = useState('');
+  const [summary, setSummary] = useState(null);
+  const [summaryLoading, setSummaryLoading] = useState(false);
+  const [summaryError, setSummaryError] = useState(false);
   const [logsResetKey, setLogsResetKey] = useState(0);
+
+  const loadSummary = async () => {
+    setSummaryLoading(true);
+    setSummaryError(false);
+    try {
+      const res = await API.get('/api/affiliate/summary');
+      const { success, data } = res.data;
+      if (success) {
+        setSummary(data);
+      } else {
+        setSummary(null);
+        setSummaryError(true);
+      }
+    } catch (error) {
+      setSummary(null);
+      setSummaryError(true);
+    } finally {
+      setSummaryLoading(false);
+    }
+  };
 
   const loadStatus = async () => {
     setLoading(true);
@@ -106,13 +172,21 @@ const Affiliate = () => {
       if (success) {
         setStatus(data);
         setMessage(data?.message || '');
+        if (!data?.available) {
+          setSummary(null);
+          setSummaryError(false);
+        }
       } else {
         setStatus(null);
         setMessage(responseMessage || t('分销状态加载失败'));
+        setSummary(null);
+        setSummaryError(false);
       }
     } catch (error) {
       setStatus(null);
       setMessage(t('分销状态加载失败'));
+      setSummary(null);
+      setSummaryError(false);
     } finally {
       setLoading(false);
     }
@@ -121,6 +195,12 @@ const Affiliate = () => {
   useEffect(() => {
     loadStatus();
   }, []);
+
+  useEffect(() => {
+    if (status?.available) {
+      loadSummary();
+    }
+  }, [status?.available]);
 
   if (loading) {
     const loadingState = buildAffiliateStatusLoadingState(t);
@@ -163,6 +243,13 @@ const Affiliate = () => {
 
   return (
     <div className='mt-[60px] px-2'>
+      <AffiliateDashboard
+        t={t}
+        loading={summaryLoading}
+        summary={summary}
+        error={summaryError}
+        onRetry={loadSummary}
+      />
       <AffiliateSectionErrorBoundary
         t={t}
         section='logs'

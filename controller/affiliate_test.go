@@ -363,6 +363,53 @@ func TestGetAffiliateScopedLogsSupportsSecondaryAffiliateAndRequestStatusFilters
 	}
 }
 
+func TestGetAffiliateSummaryReturnsScopedDashboard(t *testing.T) {
+	db := newAffiliateLogsControllerTestDB(t)
+	seedAffiliateRelation(t, db, 100, 200, 1, model.AffiliateProfileStatusActive)
+	seedAffiliateRelation(t, db, 100, 300, 2, model.AffiliateProfileStatusActive)
+	seedAffiliateRelation(t, db, 100, 400, 3, model.AffiliateProfileStatusActive)
+	if err := db.Create(&[]model.AffiliateInviteEvent{
+		{InviteeUserId: 200, InviterUserId: 100, InviteSource: service.AffiliateInviteSourceAffiliate, CreatedAt: 20},
+		{InviteeUserId: 300, InviterUserId: 200, InviteSource: service.AffiliateInviteSourceAffiliate, CreatedAt: 30},
+		{InviteeUserId: 400, InviterUserId: 100, InviteSource: service.AffiliateInviteSourceAffiliate, CreatedAt: 40},
+	}).Error; err != nil {
+		t.Fatalf("seed invite events: %v", err)
+	}
+	seedAffiliateLog(t, db, model.Log{UserId: 200, CreatedAt: 20, Type: model.LogTypeConsume, Quota: 1000})
+	seedAffiliateLog(t, db, model.Log{UserId: 300, CreatedAt: 30, Type: model.LogTypeConsume, Quota: 2000})
+	seedAffiliateLog(t, db, model.Log{UserId: 300, CreatedAt: 35, Type: model.LogTypeRefund, Quota: 500})
+	seedAffiliateLog(t, db, model.Log{UserId: 400, CreatedAt: 40, Type: model.LogTypeConsume, Quota: 4000})
+
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = httptest.NewRequest(http.MethodGet, "/api/affiliate/summary", nil)
+	ctx.Set("affiliate_scope", service.AffiliateScope{
+		Kind:           service.AffiliateScopeAffiliate,
+		UserId:         100,
+		AffiliateLevel: 1,
+		MaxDepth:       2,
+	})
+
+	GetAffiliateSummary(ctx)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d body=%s", recorder.Code, recorder.Body.String())
+	}
+	var body affiliateSummaryTestResponse
+	if err := json.Unmarshal(recorder.Body.Bytes(), &body); err != nil {
+		t.Fatalf("unmarshal response: %v", err)
+	}
+	if !body.Success {
+		t.Fatalf("expected success response: %+v", body)
+	}
+	if body.Data.TeamUserCount != 2 || body.Data.EffectiveNewUserCount != 2 {
+		t.Fatalf("unexpected team summary: %+v", body.Data)
+	}
+	if body.Data.NetConsumptionQuota != 2500 || body.Data.RuleStatus != "pending_rules" || body.Data.KPITierName != "待配置" {
+		t.Fatalf("unexpected summary metrics: %+v", body.Data)
+	}
+}
+
 type affiliateStatusTestResponse struct {
 	Success bool `json:"success"`
 	Data    struct {
@@ -380,6 +427,17 @@ type affiliateLogsTestResponse struct {
 	Data    struct {
 		Total int         `json:"total"`
 		Items []model.Log `json:"items"`
+	} `json:"data"`
+}
+
+type affiliateSummaryTestResponse struct {
+	Success bool `json:"success"`
+	Data    struct {
+		TeamUserCount         int    `json:"team_user_count"`
+		EffectiveNewUserCount int    `json:"effective_new_user_count"`
+		NetConsumptionQuota   int64  `json:"net_consumption_quota"`
+		RuleStatus            string `json:"rule_status"`
+		KPITierName           string `json:"kpi_tier_name"`
 	} `json:"data"`
 }
 

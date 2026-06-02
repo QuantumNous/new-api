@@ -8,6 +8,7 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 )
@@ -73,6 +74,29 @@ func GetAffiliateScopedLogs(c *gin.Context) {
 	pageInfo.SetTotal(int(total))
 	pageInfo.SetItems(logs)
 	common.ApiSuccess(c, pageInfo)
+}
+
+func GetAffiliateSummary(c *gin.Context) {
+	scope, ok := getAffiliateScopeFromContext(c)
+	if !ok {
+		common.ApiErrorMsg(c, "分销 scope 未初始化")
+		return
+	}
+
+	startTimestamp, _ := strconv.ParseInt(c.Query("start_timestamp"), 10, 64)
+	endTimestamp, _ := strconv.ParseInt(c.Query("end_timestamp"), 10, 64)
+	summary, err := service.BuildAffiliateDashboardSummary(model.DB, model.LOG_DB, service.AffiliateDashboardSummaryInput{
+		Scope:           scope,
+		StartTimestamp:  startTimestamp,
+		EndTimestamp:    endTimestamp,
+		QuotaPerUnit:    common.QuotaPerUnit,
+		USDExchangeRate: operation_setting.USDExchangeRate,
+	})
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	common.ApiSuccess(c, summary)
 }
 
 func getAffiliateScopeFromContext(c *gin.Context) (service.AffiliateScope, bool) {

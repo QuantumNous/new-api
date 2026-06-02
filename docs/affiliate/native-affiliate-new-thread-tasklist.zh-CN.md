@@ -310,9 +310,9 @@
 - [x] 使用 Playwright/Chromium 复现一级分销商“数据看板页面渲染出错”；2026-06-03 在当前 `/console/affiliate` scoped logs 页面未再复现整页渲染错误，一级分销商桌面和移动端 browser smoke 均通过。
 - [x] 修复 classic 分销页整页渲染错误（新增 `/console/affiliate` 状态门禁和 scoped logs 页面，classic build 已通过；真实浏览器 smoke 已覆盖管理员/一级/二级/移动端）。
 - [x] 增加组件级错误边界和分区加载状态；2026-06-03 classic `/console/affiliate` 已为 scoped logs 分区增加局部错误边界和重试，不再依赖整页 ErrorBoundary 承接明细表渲染异常。
-- [ ] 重构分销首页为统计分析看板。
-- [ ] 看板包含团队人数、有效新用户、净付费消耗、预估佣金、人头费、待结算金额、KPI 档位。
-- [ ] 金额/额度主显示 RMB。
+- [x] 重构分销首页为统计分析看板（classic MVP 已接 `/api/affiliate/summary`，看板位于 scoped 使用日志上方）。
+- [x] 看板包含团队人数、有效新用户、净付费消耗、预估佣金、人头费、待结算金额、KPI 档位（佣金/人头费/待结算/KPI 在规则落地前以安全占位展示）。
+- [x] 金额/额度主显示 RMB（classic 看板金额卡片主显示 RMB，并保留原始 quota 作为说明；scoped logs 表格的统一 RMB 化继续归入 Phase 9）。
 - [x] 消耗明细复用 scoped 使用日志。
 - [x] 普通用户、profile 未启用、模块关闭、权限不足显示中文友好提示（classic 已接 `/api/affiliate/status`；default 待 parity）。
 - [ ] 管理员无 profile 时仍可进入管理员分销管理。
@@ -334,6 +334,13 @@
 - 验证方式：按 TDD 先观察 `bun test web/classic/src/pages/Affiliate/affiliateViewState.test.mjs` RED（helper 缺失），实现后 `bun test web/classic/src/pages/Affiliate/affiliateViewState.test.mjs web/classic/src/hooks/usage-logs/usageLogsUrls.test.mjs` 6/6 通过；`bunx prettier src/pages/Affiliate/index.jsx src/pages/Affiliate/affiliateViewState.js src/pages/Affiliate/affiliateViewState.test.mjs --check` 通过；`cd web/classic && bun run build` 通过；`git diff --check` 通过。
 - 残留风险：本批未重启 5174 dev server，因此未重新跑 Playwright browser smoke；局部错误边界覆盖 scoped logs 分区，统计看板分区需在后续看板落地时继续拆分。
 - 下一步：继续 Phase 7 统计看板/RMB 主显示，或先补普通用户/profile disabled/模块关闭 browser 回归。
+
+### Phase 7 classic 统计看板 MVP 复盘（2026-06-03 本线程）
+
+- 完成内容：新增 scoped `/api/affiliate/summary`，按后端 `affiliate_scope` 汇总团队人数、分销邀请码归因的新用户、消耗/退款净 quota，并按 `QuotaPerUnit` 与当前 USD 汇率换算 RMB；classic `/console/affiliate` 增加统计看板卡片和看板分区失败兜底，金额卡片以 RMB 为主显示并保留原始 quota 说明。
+- 验证方式：`go test -count=1 ./service -run 'TestBuildAffiliateDashboardSummary|TestListAffiliateVisibleUserIds'` 通过；`go test -count=1 ./controller -run 'TestGetAffiliateSummaryReturnsScopedDashboard|TestGetAffiliateScopedLogs|TestGetAffiliateStatus|TestAffiliateAdminRoutes|TestAdminSetAffiliateProfile|TestAdminUpdateAffiliateProfileStatus'` 通过；`go test -count=1 ./router` 通过；`bun test src/pages/Affiliate/affiliateDashboardCards.test.mjs src/pages/Affiliate/affiliateViewState.test.mjs src/hooks/usage-logs/usageLogsUrls.test.mjs` 8/8 通过；`cd web/classic && bun run build` 通过。
+- 残留风险：佣金、KPI、人头费、待结算金额尚未接入管理员可配置规则，本轮只做 `pending_rules` 安全占位；未重新跑真实浏览器截图回归；scoped logs 表格仍保留原有额度展示逻辑，统一 RMB 化继续放在 Phase 9。
+- 下一步：落地管理员分销规则配置与计算链路，再补普通用户/profile disabled/模块关闭截图回归和 default parity。
 
 ## Phase 8：default 分销前端
 

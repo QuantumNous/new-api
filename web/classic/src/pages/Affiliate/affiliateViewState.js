@@ -12,6 +12,7 @@ export function buildAffiliateSectionErrorState(t, options = {}) {
   const section = options.section || '';
   const retryable = Boolean(options.retryable);
   const sectionTitles = {
+    dashboard: '分销看板加载失败',
     logs: '分销明细加载失败',
   };
 
@@ -19,7 +20,7 @@ export function buildAffiliateSectionErrorState(t, options = {}) {
     title: translate(t, sectionTitles[section] || '分销分区加载失败'),
     description: translate(t, '当前分区渲染出错，其他分销信息不受影响。'),
     actionLabel: retryable
-      ? translate(t, section === 'logs' ? '重新加载明细' : '重试')
+      ? translate(t, section === 'logs' ? '重新加载明细' : '重新加载看板')
       : '',
   };
 }
