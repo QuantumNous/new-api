@@ -39,6 +39,7 @@
 - [x] TAC/安全风险复盘：本轮已确认 `.codex-local/`、`runtime/` 未被 Git 追踪，已脱敏 tasklist 中出现的具体生产数据库端点；当前 modified files 精确敏感模式扫描无命中，dump sha256 校验通过。
 - [x] 如连接信息曾在聊天、命令、日志或文档中暴露，评估是否需要更换临时数据库密码或吊销临时访问；用户已提示旧会话曾明文粘贴数据库密码，本轮建议轮换临时数据库密码或吊销临时访问，后续默认只用本地 dump。
 - [x] 解除本地 Docker daemon 阻塞；2026-06-02 用户提示另一线程已构建 `new-api-rain021217`，旧线程按容器名、Compose project label、`docker compose -p new-api-rain021217 ps --all` 均超时，`docker ps -a`、`docker image ls`、`docker compose -f docker-compose.dev.yml ps --all` 均在 15s 超时无输出，`curl --unix-socket /var/run/docker.sock http://localhost/_ping` 也超时；本线程先按规则执行 `timeout 15s docker version`，超时且只返回 client 信息。用户随后要求 Phase 1/1A/2 优先并允许更长等待，本线程复跑 `timeout 60s docker version` 仍超时且只返回 client 信息。用户在 Windows 侧修复 Docker 后，本线程重跑 preflight 成功：`docker version` 返回 server Docker Desktop 4.76.0 / engine 29.5.2，`docker info --format '{{.ServerVersion}} {{.Name}}'` 返回 `29.5.2 docker-desktop`，`docker compose version` 返回 v5.1.4。
+- [x] 2026-06-03 用户切换网络后重新执行一次 Docker preflight：`timeout 60s docker version`、`timeout 60s docker info --format '{{.ServerVersion}} {{.Name}}'`、`timeout 60s docker compose version`、`timeout 60s docker ps --filter 'name=new-api'` 均在 timeout 内成功；目标容器 `new-api`、`new-api-postgres`、`new-api-redis` 均为 running。
 - [x] Docker 阻塞非 Docker 诊断：`/var/run/docker.sock` 存在，权限为 `root:docker` `660`，当前用户 `rain` 已在 `docker` 组；进程列表可见 Docker Desktop WSL proxy，但 daemon/server 仍未响应 `docker version`。
 - [ ] 补齐或确认服务器 SSH 入口、compose 项目名、PostgreSQL 容器名；当前仓库未发现可直接使用的服务器连接 runbook。
 - [x] 确认本机 `psql`、`pg_dump`、`pg_restore` 16.14 可用，本机 PostgreSQL service 未运行，符合优先使用 Docker PostgreSQL 隔离库的路径。
@@ -74,6 +75,7 @@
 - [x] 将 `runtime/prod-pg-snapshots/new-api-prod-20260602-193617.dump` 恢复到 compose PostgreSQL 隔离库。
 - [x] 采集核心表行数：`users`、`channels`、`abilities`、`options`、`logs`、`top_ups`、`affiliate_*`；结果同 Phase 1 记录。
 - [x] 验证 `http://127.0.0.1:3000/api/status`；受限执行环境内直接 curl 被 sandbox 网络限制拒绝，提升后本地 curl 成功且返回 `success=true`。
+- [x] 2026-06-03 网络切换后复核 HTTP smoke：`http://127.0.0.1:3000/` 返回 dev frontend 提示，`http://127.0.0.1:3000/api/status` 返回 HTTP 200 JSON，`http://127.0.0.1:5173/` 与 `http://127.0.0.1:5174/` 均返回 HTTP 200 HTML。
 - [x] 用本地密钥文件中的三类账号完成登录 smoke，不输出密码；三类账号均 HTTP 200 / `success=true`。
 - [x] 记录 compose 启停、重建、恢复 dump、清理 volume 的本地 runbook：`docs/affiliate/native-affiliate-dev-compose-runbook.zh-CN.md`。
 
