@@ -12,7 +12,7 @@ import { initReactI18next } from 'react-i18next'
 import en from '@/i18n/locales/en.json'
 import fr from '@/i18n/locales/fr.json'
 import ja from '@/i18n/locales/ja.json'
-import ptBR from '@/i18n/locales/pt-BR.json'
+import pt from '@/i18n/locales/pt.json'
 import ru from '@/i18n/locales/ru.json'
 import vi from '@/i18n/locales/vi.json'
 import zh from '@/i18n/locales/zh.json'
@@ -51,17 +51,17 @@ export async function loadI18n(lng: string = 'en'): Promise<I18nInstance> {
       zh: zh as never,
       fr: fr as never,
       ja: ja as never,
-      'pt-BR': ptBR as never,
+      pt: pt as never,
       ru: ru as never,
       vi: vi as never,
     } as never,
     lng,
     fallbackLng: 'en',
-    // Note: 'pt' is included (alongside 'pt-BR') to exercise language
-    // normalization from 'pt' -> 'pt-BR' in tests. Production config.ts
-    // exposes only 'pt-BR'; the i18n.next fallback resolves 'pt' to 'pt-BR'
-    // through the pt-BR resources entry.
-    supportedLngs: ['en', 'zh', 'fr', 'ja', 'pt-BR', 'pt', 'ru', 'vi'] as never,
+    // supportedLngs must match src/i18n/config.ts exactly. Production
+    // exposes only 'pt-BR' (the canonical code); i18next's built-in
+    // fallback resolves 'pt' (region-less) to 'pt-BR' automatically
+    // because the 'pt-BR' resources entry exists.
+    supportedLngs: ['en', 'zh', 'fr', 'ja', 'pt-BR', 'ru', 'vi'] as never,
     nsSeparator: false,
     interpolation: { escapeValue: false },
   } as never)
