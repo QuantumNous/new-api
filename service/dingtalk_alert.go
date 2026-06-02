@@ -48,10 +48,11 @@ type dingTalkSendResponse struct {
 }
 
 var (
-	dingTalkAlertCooldown        = NewDingTalkAlertCooldown()
-	dingTalkSecretPattern        = regexp.MustCompile(`(?i)\b(access_token|refresh_token|id_token|api[_-]?key|authorization)\b\s*(?::|=)?\s*[^,\s]+`)
-	dingTalkSKPattern            = regexp.MustCompile(`sk-[A-Za-z0-9_-]+`)
-	dingTalkMaxResponseBodyBytes = int64(64 * 1024)
+	dingTalkAlertCooldown           = NewDingTalkAlertCooldown()
+	dingTalkCredentialPattern       = regexp.MustCompile(`(?i)(\b(?:access_token|refresh_token|id_token|api[_-]?key|authorization)\b\s*(?::|=)?\s*)(?:"[^"]*"|'[^']*'|bearer\s+[^\s,;}]+|[^\s,;}]+)`)
+	dingTalkQuotedCredentialPattern = regexp.MustCompile(`(?i)(["'](?:access_token|refresh_token|id_token|api[_-]?key|authorization)["']\s*:\s*)(?:"[^"]*"|'[^']*'|[^,\s}]+)`)
+	dingTalkSKPattern               = regexp.MustCompile(`sk-[A-Za-z0-9_-]+`)
+	dingTalkMaxResponseBodyBytes    = int64(64 * 1024)
 )
 
 func NewDingTalkAlertCooldown() *DingTalkAlertCooldown {
@@ -151,7 +152,8 @@ func BuildDingTalkChannelAlertContent(alert DingTalkChannelAlert) string {
 
 func sanitizeDingTalkAlertText(value string) string {
 	value = common.MaskSensitiveInfo(value)
-	value = dingTalkSecretPattern.ReplaceAllString(value, "$1:***")
+	value = dingTalkQuotedCredentialPattern.ReplaceAllString(value, `${1}"***"`)
+	value = dingTalkCredentialPattern.ReplaceAllString(value, `${1}***`)
 	value = dingTalkSKPattern.ReplaceAllString(value, "sk-***")
 	return value
 }
@@ -218,7 +220,7 @@ func SendDingTalkText(webhookURL string, secret string, content string) error {
 	}
 	resp, err := client.Do(req)
 	if err != nil {
-		return err
+		return fmt.Errorf("dingtalk request failed: %s", sanitizeDingTalkAlertText(err.Error()))
 	}
 	defer resp.Body.Close()
 

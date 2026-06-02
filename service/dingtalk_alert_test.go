@@ -3,6 +3,7 @@ package service
 import (
 	"encoding/base64"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -15,6 +16,12 @@ import (
 	"github.com/QuantumNous/new-api/types"
 	"github.com/stretchr/testify/require"
 )
+
+type roundTripFunc func(*http.Request) (*http.Response, error)
+
+func (f roundTripFunc) RoundTrip(req *http.Request) (*http.Response, error) {
+	return f(req)
+}
 
 func TestBuildDingTalkChannelAlertContentMasksSensitiveFields(t *testing.T) {
 	err := types.NewErrorWithStatusCode(
@@ -41,6 +48,16 @@ func TestBuildDingTalkChannelAlertContentMasksSensitiveFields(t *testing.T) {
 	require.Contains(t, content, "Auto Disabled: yes")
 	require.NotContains(t, content, "sk-secret")
 	require.NotContains(t, content, "refresh_token abc")
+}
+
+func TestSanitizeDingTalkAlertTextMasksBearerAndOAuthCredentials(t *testing.T) {
+	content := sanitizeDingTalkAlertText(`Authorization: Bearer ya29.secret-token {"access_token":"oauth-access","refresh_token":"oauth-refresh","id_token":"oauth-id"}`)
+
+	require.NotContains(t, content, "ya29.secret-token")
+	require.NotContains(t, content, "oauth-access")
+	require.NotContains(t, content, "oauth-refresh")
+	require.NotContains(t, content, "oauth-id")
+	require.Contains(t, content, "Authorization: ***")
 }
 
 func TestBuildDingTalkWebhookURLAddsSignature(t *testing.T) {
@@ -121,6 +138,27 @@ func TestSendDingTalkTextReturnsErrorForMissingDingTalkErrCode(t *testing.T) {
 
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "missing errcode")
+}
+
+func TestSendDingTalkTextSanitizesWebhookURLInNetworkError(t *testing.T) {
+	allowDingTalkTestServer(t)
+	originalHTTPClient := httpClient
+	t.Cleanup(func() {
+		httpClient = originalHTTPClient
+	})
+
+	httpClient = &http.Client{
+		Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+			return nil, fmt.Errorf("Post %q: connection refused", req.URL.String())
+		}),
+	}
+
+	err := SendDingTalkText("https://oapi.dingtalk.com/robot/send?access_token=leaky-token", "sign-secret", "New API test")
+
+	require.Error(t, err)
+	require.NotContains(t, err.Error(), "leaky-token")
+	require.NotContains(t, err.Error(), "sign-secret")
+	require.Contains(t, err.Error(), "dingtalk request failed")
 }
 
 func TestNotifyDingTalkFailureDoesNotConsumeCooldownOnSendFailure(t *testing.T) {
