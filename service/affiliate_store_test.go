@@ -54,6 +54,15 @@ func TestCreateAffiliateProfile(t *testing.T) {
 func TestSetAffiliateProfileUpdatesExistingProfile(t *testing.T) {
 	db := newAffiliateStoreTestDB(t)
 	if _, err := CreateAffiliateProfile(db, AffiliateProfileCreateInput{
+		UserId:      100,
+		Level:       1,
+		InviteCode:  "parent",
+		ActorUserId: 1,
+		Reason:      "parent",
+	}); err != nil {
+		t.Fatalf("CreateAffiliateProfile parent returned error: %v", err)
+	}
+	if _, err := CreateAffiliateProfile(db, AffiliateProfileCreateInput{
 		UserId:      201,
 		Level:       1,
 		InviteCode:  "first",
@@ -84,6 +93,70 @@ func TestSetAffiliateProfileUpdatesExistingProfile(t *testing.T) {
 	}
 	if count != 1 {
 		t.Fatalf("expected one profile row, got %d", count)
+	}
+}
+
+func TestSetAffiliateProfileRequiresActiveLevelOneParentForLevelTwo(t *testing.T) {
+	db := newAffiliateStoreTestDB(t)
+
+	if _, err := SetAffiliateProfile(db, AffiliateProfileSetInput{
+		UserId:      211,
+		Level:       2,
+		ActorUserId: 1,
+		Reason:      "missing parent",
+	}); err == nil {
+		t.Fatal("expected missing level two parent to be rejected")
+	}
+
+	if _, err := CreateAffiliateProfile(db, AffiliateProfileCreateInput{
+		UserId:      210,
+		Level:       1,
+		ActorUserId: 1,
+		Reason:      "seed parent",
+	}); err != nil {
+		t.Fatalf("seed parent profile: %v", err)
+	}
+	if err := DisableAffiliateProfile(db, AffiliateProfileStatusInput{
+		UserId:      210,
+		ActorUserId: 1,
+		Reason:      "disable parent",
+	}); err != nil {
+		t.Fatalf("disable parent profile: %v", err)
+	}
+	if _, err := SetAffiliateProfile(db, AffiliateProfileSetInput{
+		UserId:       211,
+		Level:        2,
+		ParentUserId: 210,
+		ActorUserId:  1,
+		Reason:       "disabled parent",
+	}); err == nil {
+		t.Fatal("expected disabled level one parent to be rejected")
+	}
+}
+
+func TestSetAffiliateProfileAcceptsLevelTwoWithActiveLevelOneParent(t *testing.T) {
+	db := newAffiliateStoreTestDB(t)
+	if _, err := CreateAffiliateProfile(db, AffiliateProfileCreateInput{
+		UserId:      220,
+		Level:       1,
+		ActorUserId: 1,
+		Reason:      "seed parent",
+	}); err != nil {
+		t.Fatalf("seed parent profile: %v", err)
+	}
+
+	profile, err := SetAffiliateProfile(db, AffiliateProfileSetInput{
+		UserId:       221,
+		Level:        2,
+		ParentUserId: 220,
+		ActorUserId:  1,
+		Reason:       "create level two",
+	})
+	if err != nil {
+		t.Fatalf("SetAffiliateProfile returned error: %v", err)
+	}
+	if profile.Level != 2 || profile.ParentUserId != 220 || profile.Status != model.AffiliateProfileStatusActive {
+		t.Fatalf("unexpected level two profile: %+v", profile)
 	}
 }
 

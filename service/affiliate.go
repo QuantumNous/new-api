@@ -256,6 +256,9 @@ func CreateAffiliateProfile(db *gorm.DB, input AffiliateProfileCreateInput) (*mo
 	if input.Level != 1 && input.Level != 2 {
 		return nil, errors.New("invalid affiliate level")
 	}
+	if err := validateAffiliateProfileHierarchy(db, input.UserId, input.Level, input.ParentUserId); err != nil {
+		return nil, err
+	}
 
 	now := common.GetTimestamp()
 	profile := &model.AffiliateProfile{
@@ -302,6 +305,9 @@ func SetAffiliateProfile(db *gorm.DB, input AffiliateProfileSetInput) (*model.Af
 	}
 	if input.Level != 1 && input.Level != 2 {
 		return nil, errors.New("invalid affiliate level")
+	}
+	if err := validateAffiliateProfileHierarchy(db, input.UserId, input.Level, input.ParentUserId); err != nil {
+		return nil, err
 	}
 
 	var saved model.AffiliateProfile
@@ -363,6 +369,30 @@ func SetAffiliateProfile(db *gorm.DB, input AffiliateProfileSetInput) (*model.Af
 		return nil, err
 	}
 	return &saved, nil
+}
+
+func validateAffiliateProfileHierarchy(db *gorm.DB, userId int, level int, parentUserId int) error {
+	if level == 1 {
+		if parentUserId != 0 {
+			return errors.New("level one affiliate cannot have parent")
+		}
+		return nil
+	}
+	if parentUserId <= 0 {
+		return errors.New("level two affiliate requires level one parent")
+	}
+	if parentUserId == userId {
+		return errors.New("affiliate parent cannot point to self")
+	}
+
+	var parent model.AffiliateProfile
+	err := db.
+		Where("user_id = ? AND level = ? AND status = ?", parentUserId, 1, model.AffiliateProfileStatusActive).
+		First(&parent).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return errors.New("level two affiliate requires active level one parent")
+	}
+	return err
 }
 
 func DisableAffiliateProfile(db *gorm.DB, input AffiliateProfileStatusInput) error {
