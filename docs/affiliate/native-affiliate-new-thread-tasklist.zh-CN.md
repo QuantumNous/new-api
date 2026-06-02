@@ -491,9 +491,9 @@
 ### Phase 11 阶段复盘（2026-06-03 classic inviter 前端）
 
 - 完成内容：classic 用户管理编辑 SideSheet 新增“邀请关系”卡片，支持当前邀请人展示、候选搜索、候选选择、手动输入/清空邀请人 ID、操作原因、影响路径预览和保存邀请人变更；新增 `affiliateInviterManagement` helper，避免在组件内硬编码接口路径和 payload 规范。
-- 验证方式：先观察 `bun test web/classic/src/components/table/users/affiliateInviterManagement.test.mjs` 因 helper 缺失 RED；实现后同命令通过；补充 classic affiliate/helper 测试 13 项通过；`cd web/classic && bun run build` 通过；Playwright 以本地测试管理员账号打开 `http://127.0.0.1:5174/console/user` 并验证用户编辑 SideSheet 中“邀请关系”“预览影响”“保存邀请人”可见，未输出账号、密码或 token。
-- 残留风险：运行中的后端进程仍返回 inviter preview `404`，代码中路由已注册，需重启后端到最新提交后再做预览/保存 smoke；Playwright 控制台仍有既有 React `icononly` 非布尔属性日志，本批未扩大修复；default parity 未做。
-- 下一步：重启本地后端后补 classic inviter 预览/保存 smoke，再推进 default parity 或 Phase 10 编排任务。
+- 验证方式：先观察 `bun test web/classic/src/components/table/users/affiliateInviterManagement.test.mjs` 因 helper 缺失 RED；实现后同命令通过；补充 classic affiliate/helper 测试 13 项通过；`cd web/classic && bun run build` 通过；Playwright 以本地测试管理员账号打开 `http://127.0.0.1:5174/console/user` 并验证用户编辑 SideSheet 中“邀请关系”“预览影响”“保存邀请人”可见，未输出账号、密码或 token。2026-06-03 追加：运行中后端旧版本曾导致 admin/profiles 和 inviter 路由 404；执行一次 `timeout 600s docker compose -f docker-compose.dev.yml up -d --build new-api` 后，按 classic API 实际 `New-API-User` 头重跑 smoke，`/api/affiliate/admin/profiles`、`/api/affiliate/admin/inviter-candidates`、`/api/affiliate/admin/users/:id/inviter/preview` 和 no-op `PATCH /api/affiliate/admin/users/:id/inviter` 均 HTTP 200 / `success=true`；Playwright 点击“预览影响”后“目标用户”摘要渲染成功。
+- 残留风险：Playwright 控制台仍有既有 React `icononly` 非布尔属性日志，本批未扩大修复；default parity 未做。
+- 下一步：推进 default parity（如保留用户管理邀请人入口），或 Phase 10 编排任务。
 
 ## Phase 12：发布与回归
 
@@ -501,7 +501,7 @@
 - [ ] 复核并修复/隔离当前 `go test ./...` 基线失败：根包缺少 `web/classic/dist` embed，controller 现有 model list 测试失败，Claude relay 与 stream scanner 现有测试失败；本批 affiliate 定向测试已通过。
 - [x] classic 前端构建通过。
 - [x] default 前端构建或 typecheck 通过（2026-06-03 `cd web/default && bun run build` 通过；typecheck 仍有既有 baseline，见 Phase 8 复盘）。
-- [ ] Playwright 截图回归通过；classic 分销页管理员/一级/二级/移动端 2026-06-03 已通过；classic 用户管理 inviter SideSheet 可见性已通过，预览接口需后端重启后复测；普通用户、profile disabled、模块关闭和 default 仍待补齐。
+- [ ] Playwright 截图回归通过；classic 分销页管理员/一级/二级/移动端 2026-06-03 已通过；classic 用户管理 inviter SideSheet、预览接口和 no-op 保存 smoke 已通过；普通用户、profile disabled、模块关闭和 default 仍待补齐。
 - [ ] schema impact 报告无非预期官方表改动。
 - [x] 用服务器 PG 快照完成真实账号 smoke；2026-06-03 在本地恢复库中用三类测试账号完成 API smoke 和 classic browser smoke，未输出用户名、密码、cookie 或 token。
 - [ ] 管理员端规则配置页面可修改分佣比例、KPI 阈值、系数、人头费、质量门槛和结算周期。
