@@ -33,7 +33,7 @@
 
 ## Phase 1：服务器 PostgreSQL 快照下载与本地恢复
 
-- [ ] 解除本地 Docker daemon 阻塞；当前 Docker Desktop Windows 进程存在，但 WSL 内 `docker version` / `docker info` 访问 server 端 12 秒超时，`desktop-linux` context 触发 Linux Docker CLI panic，`docker.service` 在 WSL 内不存在。
+- [ ] 解除本地 Docker daemon 阻塞；当前 Docker Desktop Windows 进程和 `docker-desktop` WSL distro 均存在，但 WSL 内 `docker version` / `docker info` 访问 server 端 8-12 秒超时，Windows 侧 `docker ps/version` 也超时；用户在 `docker` 组且 socket 权限正确，`sudo docker version` 同样超时，排除普通权限问题。
 - [ ] 补齐或确认服务器 SSH 入口、compose 项目名、PostgreSQL 容器名；当前仓库未发现可直接使用的服务器连接 runbook。
 - [x] 确认本机 `psql`、`pg_dump`、`pg_restore` 16.14 可用，本机 PostgreSQL service 未运行，符合优先使用 Docker PostgreSQL 隔离库的路径。
 - [x] 新增无密钥快照下载、Docker PostgreSQL 恢复、核心表行数采集 runbook 和脚本。
@@ -59,25 +59,27 @@
 
 ## Phase 3：分销 sidecar 表与服务骨架
 
-- [ ] 新增 `affiliate_profiles` 模型。
-- [ ] 新增 `affiliate_relations` 模型。
-- [ ] 新增 `affiliate_invite_events` 模型。
-- [ ] 新增 `affiliate_audit_logs` 模型。
-- [ ] 新增 `affiliate_commission_rules` 模型。
-- [ ] 新增 `affiliate_commission_events` 模型。
-- [ ] 新增 `affiliate_head_fee_events` 模型。
-- [ ] 新增 `affiliate_kpi_snapshots` 模型。
-- [ ] 新增 `affiliate_settlements` 模型。
-- [ ] 新增 `affiliate_rule_sets` 模型，用于分销规则版本、草稿、发布、生效时间。
-- [ ] 新增 `affiliate_commission_tiers` 模型，用于单用户累计净付费消耗区间、基准比例、cap。
-- [ ] 新增 `affiliate_kpi_tiers` 模型，用于一级/二级 KPI 阈值、系数和质量门槛。
-- [ ] 新增 `affiliate_head_fee_rules` 模型，用于有效用户定义和人头费金额。
-- [ ] 新增 `affiliate_risk_rules` 模型，用于纯赠金占比、异常用户占比、退款/刷量等阈值。
-- [ ] 新增 `affiliate_config_audit_logs` 模型，用于管理员规则变更审计。
+- [x] 新增 `affiliate_profiles` 模型。
+- [x] 新增 `affiliate_relations` 模型。
+- [x] 新增 `affiliate_invite_events` 模型。
+- [x] 新增 `affiliate_audit_logs` 模型。
+- [x] 新增 `affiliate_commission_rules` 模型。
+- [x] 新增 `affiliate_commission_events` 模型。
+- [x] 新增 `affiliate_head_fee_events` 模型。
+- [x] 新增 `affiliate_kpi_snapshots` 模型。
+- [x] 新增 `affiliate_settlements` 模型。
+- [x] 新增 `affiliate_rule_sets` 模型，用于分销规则版本、草稿、发布、生效时间。
+- [x] 新增 `affiliate_commission_tiers` 模型，用于单用户累计净付费消耗区间、基准比例、cap。
+- [x] 新增 `affiliate_kpi_tiers` 模型，用于一级/二级 KPI 阈值、系数和质量门槛。
+- [x] 新增 `affiliate_head_fee_rules` 模型，用于有效用户定义和人头费金额。
+- [x] 新增 `affiliate_risk_rules` 模型，用于纯赠金占比、异常用户占比、退款/刷量等阈值。
+- [x] 新增 `affiliate_config_audit_logs` 模型，用于管理员规则变更审计。
 - [ ] 如果需要 paid/gift/trial 计佣，新增 `user_quota_source_*` sidecar 表。
+- [x] `AffiliateSidecarModels()` 清单已建立，但在 Phase 2 baseline 完成前不接入 `AutoMigrate`。
 - [ ] 所有模型进入 AutoMigrate 前后跑 schema impact。
-- [ ] 新增基础 service：scope、profile、relation、audit。
-- [ ] 新增基础 controller 和 `/api/affiliate/*` 路由组。
+- [x] 新增基础 service：scope、profile、relation、audit。
+- [x] 新增 `AffiliateEnabled` 管理员配置开关，默认关闭，用于分销模块总熔断和分销码降级。
+- [x] 新增基础 controller 和 `/api/affiliate/*` 路由组。
 
 ## Phase 4：分销身份与权限
 
@@ -204,6 +206,7 @@
 ## Phase 12：发布与回归
 
 - [ ] 本地通过核心 Go 测试。
+- [ ] 复核并修复/隔离当前 `go test ./...` 基线失败：根包缺少 `web/classic/dist` embed，controller 现有 model list 测试失败，Claude relay 与 stream scanner 现有测试失败；本批 affiliate 定向测试已通过。
 - [ ] classic 前端构建通过。
 - [ ] default 前端构建或 typecheck 通过。
 - [ ] Playwright 截图回归通过。
