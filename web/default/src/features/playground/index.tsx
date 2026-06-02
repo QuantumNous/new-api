@@ -54,10 +54,10 @@ export function Playground() {
 
   // Load models
   const { data: modelsData, isLoading: isLoadingModels } = useQuery({
-    queryKey: ['playground-models'],
+    queryKey: ['playground-models', config.group],
     queryFn: async () => {
       try {
-        return await getUserModels()
+        return await getUserModels(config.group)
       } catch (error) {
         toast.error(
           error instanceof Error
@@ -94,8 +94,8 @@ export function Playground() {
 
     // Set default model if current model is not available
     const isCurrentModelValid = modelsData.some((m) => m.value === config.model)
-    if (modelsData.length > 0 && !isCurrentModelValid) {
-      updateConfig('model', modelsData[0].value)
+    if (!isCurrentModelValid) {
+      updateConfig('model', modelsData[0]?.value ?? '')
     }
   }, [modelsData, config.model, setModels, updateConfig])
 

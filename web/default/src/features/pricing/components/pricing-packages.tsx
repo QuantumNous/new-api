@@ -136,7 +136,7 @@ export function PricingPackages() {
                 {t('Enterprise teams')}
               </p>
               <h3 className='mt-2 text-base font-semibold tracking-tight'>
-                {t('Contact sales for higher monthly usage')}
+                {t('Contact sales for higher monthly usage and greater discounts.')}
               </h3>
             </div>
             <a
