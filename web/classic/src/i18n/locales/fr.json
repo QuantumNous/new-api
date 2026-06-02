@@ -4121,6 +4121,14 @@
     "默认不会用于上游训练": "Non utilisé pour l'entraînement en amont par défaut",
     "上游提供商可能会将数据用于训练": "Le fournisseur en amont peut utiliser les données pour l'entraînement",
     "model": "modèle",
-    "models": "modèles"
+    "models": "modèles",
+    "充值成功：增加 {{quota}} 配额，金额 {{amount}}": "Recharge réussie : {{quota}} de quota ajoutés, montant {{amount}}",
+    "已计费（文本请求）": "Facturé (requête texte)",
+    "已计费（音频请求）": "Facturé (requête audio)",
+    "已计费（任务：{{action}}）": "Facturé (tâche : {{action}})",
+    "违规扣费：{{quota}} 配额": "Frais de violation prélevés : {{quota}} de quota",
+    "任务退款：{{taskId}}": "Remboursement de tâche : {{taskId}}",
+    "任务补扣费：{{delta}} 配额": "Débit complémentaire de tâche : {{delta}} de quota",
+    "任务退还费用：{{delta}} 配额": "Remboursement de frais de tâche : {{delta}} de quota"
   }
 }

@@ -34,6 +34,7 @@ import {
   renderModelTag,
   renderModelPriceSimple,
   renderQuotaWithAmount,
+  formatStructuredLogEvent,
 } from '../../../helpers';
 import {
   buildTaskBillingSummaryLines,
@@ -423,10 +424,19 @@ function renderCompactDetailSummary(summarySegments) {
 
 function getUsageLogDetailSummary(record, text, billingDisplayMode, t) {
   const other = getLogOther(record.other);
+  const eventText = formatStructuredLogEvent(record, t);
+
+  if (record.type === 1 && eventText) {
+    return {
+      segments: [{ text: eventText, tone: 'primary' }],
+    };
+  }
 
   if (record.type === 6) {
     return {
-      segments: [{ text: t('异步任务退款'), tone: 'primary' }],
+      segments: [
+        { text: eventText || t('异步任务退款'), tone: 'primary' },
+      ],
     };
   }
 

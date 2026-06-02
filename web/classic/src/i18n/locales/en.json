@@ -4235,6 +4235,14 @@
     "默认不会用于上游训练": "Not used for upstream training by default",
     "上游提供商可能会将数据用于训练": "May be used for training by upstream provider",
     "model": "model",
-    "models": "models"
+    "models": "models",
+    "充值成功：增加 {{quota}} 配额，金额 {{amount}}": "Top-up successful: added {{quota}} quota, amount {{amount}}",
+    "已计费（文本请求）": "Charged (text request)",
+    "已计费（音频请求）": "Charged (audio request)",
+    "已计费（任务：{{action}}）": "Charged (task: {{action}})",
+    "违规扣费：{{quota}} 配额": "Violation fee charged: {{quota}} quota",
+    "任务退款：{{taskId}}": "Task refund: {{taskId}}",
+    "任务补扣费：{{delta}} 配额": "Task settlement charge: {{delta}} quota",
+    "任务退还费用：{{delta}} 配额": "Task settlement refund: {{delta}} quota"
   }
 }

@@ -4643,6 +4643,14 @@
     "默认不会用于上游训练": "Mặc định không dùng cho huấn luyện phía nhà cung cấp",
     "上游提供商可能会将数据用于训练": "Nhà cung cấp thượng nguồn có thể dùng dữ liệu để huấn luyện",
     "model": "mô hình",
-    "models": "mô hình"
+    "models": "mô hình",
+    "充值成功：增加 {{quota}} 配额，金额 {{amount}}": "Nạp tiền thành công: thêm {{quota}} hạn mức, số tiền {{amount}}",
+    "已计费（文本请求）": "Đã tính phí (yêu cầu văn bản)",
+    "已计费（音频请求）": "Đã tính phí (yêu cầu âm thanh)",
+    "已计费（任务：{{action}}）": "Đã tính phí (tác vụ: {{action}})",
+    "违规扣费：{{quota}} 配额": "Phí vi phạm bị trừ: {{quota}} hạn mức",
+    "任务退款：{{taskId}}": "Hoàn tiền tác vụ: {{taskId}}",
+    "任务补扣费：{{delta}} 配额": "Thu bổ sung cho tác vụ: {{delta}} hạn mức",
+    "任务退还费用：{{delta}} 配额": "Hoàn lại phí tác vụ: {{delta}} hạn mức"
   }
 }

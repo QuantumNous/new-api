@@ -40,6 +40,7 @@ import {
   isTaskLog,
   localizeTaskLogLine,
   localizeTaskLogContent,
+  formatStructuredLogEvent,
 } from '../../helpers';
 import { ITEMS_PER_PAGE } from '../../constants';
 import { useTableCompactMode } from '../common/useTableCompactMode';
@@ -47,6 +48,33 @@ import ParamOverrideEntry from '../../components/table/usage-logs/components/Par
 
 export const useLogsData = () => {
   const { t } = useTranslation();
+
+  const localizePaymentMethod = (method) => {
+    if (!method) {
+      return method;
+    }
+    const normalized = String(method).toLowerCase();
+    switch (normalized) {
+      case 'alipay':
+        return t('支付宝');
+      case 'wxpay':
+        return t('微信');
+      case 'stripe':
+        return 'Stripe';
+      case 'creem':
+        return 'Creem';
+      case 'epay':
+        return t('易支付');
+      case 'waffo':
+        return 'Waffo';
+      case 'waffo_pancake':
+        return 'Waffo Pancake';
+      case 'admin':
+        return t('管理员');
+      default:
+        return method;
+    }
+  };
 
   // Define column keys for selection
   const COLUMN_KEYS = {
@@ -596,7 +624,28 @@ export const useLogsData = () => {
           });
         }
       }
+      if (logs[i].type === 1) {
+        const structuredTopupDetail = formatStructuredLogEvent(logs[i], t);
+        if (structuredTopupDetail) {
+          expandDataLocal.push({
+            key: t('日志详情'),
+            value: structuredTopupDetail,
+          });
+        } else if (logs[i]?.content) {
+          expandDataLocal.push({
+            key: t('日志详情'),
+            value: logs[i].content,
+          });
+        }
+      }
       if (logs[i].type === 6) {
+        const structuredRefundDetail = formatStructuredLogEvent(logs[i], t);
+        if (structuredRefundDetail) {
+          expandDataLocal.unshift({
+            key: t('日志详情'),
+            value: structuredRefundDetail,
+          });
+        }
         if (other?.task_id) {
           expandDataLocal.push({
             key: t('任务ID'),
@@ -749,13 +798,13 @@ export const useLogsData = () => {
           if (adminInfo.payment_method) {
             expandDataLocal.push({
               key: t('订单支付方式'),
-              value: adminInfo.payment_method,
+              value: localizePaymentMethod(adminInfo.payment_method),
             });
           }
           if (adminInfo.callback_payment_method) {
             expandDataLocal.push({
               key: t('回调支付方式'),
-              value: adminInfo.callback_payment_method,
+              value: localizePaymentMethod(adminInfo.callback_payment_method),
             });
           }
           if (adminInfo.caller_ip) {
