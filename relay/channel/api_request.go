@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/http/httptrace"
 	"regexp"
 	"strings"
 	"sync"
@@ -310,7 +311,7 @@ func DoApiRequest(a Adaptor, c *gin.Context, info *common.RelayInfo, requestBody
 		return nil, fmt.Errorf("get request url failed: %w", err)
 	}
 	logger.LogDebug(c, "fullRequestURL: %s", fullRequestURL)
-	req, err := http.NewRequest(c.Request.Method, fullRequestURL, requestBody)
+	req, err := http.NewRequestWithContext(c.Request.Context(), c.Request.Method, fullRequestURL, requestBody)
 	if err != nil {
 		return nil, fmt.Errorf("new request failed: %w", err)
 	}
@@ -340,7 +341,7 @@ func DoFormRequest(a Adaptor, c *gin.Context, info *common.RelayInfo, requestBod
 		return nil, fmt.Errorf("get request url failed: %w", err)
 	}
 	logger.LogDebug(c, "fullRequestURL: %s", fullRequestURL)
-	req, err := http.NewRequest(c.Request.Method, fullRequestURL, requestBody)
+	req, err := http.NewRequestWithContext(c.Request.Context(), c.Request.Method, fullRequestURL, requestBody)
 	if err != nil {
 		return nil, fmt.Errorf("new request failed: %w", err)
 	}
@@ -488,12 +489,12 @@ func doRequest(c *gin.Context, req *http.Request, info *common.RelayInfo) (*http
 	var client *http.Client
 	var err error
 	if info.ChannelSetting.Proxy != "" {
-		client, err = service.NewProxyHttpClient(info.ChannelSetting.Proxy)
+		client, err = service.NewProxyHttpClientForRelay(info.ChannelSetting.Proxy, info.IsStream)
 		if err != nil {
 			return nil, fmt.Errorf("new proxy http client failed: %w", err)
 		}
 	} else {
-		client = service.GetHttpClient()
+		client = service.GetHttpClientForRelay(info.IsStream)
 	}
 
 	var stopPinger context.CancelFunc
@@ -514,22 +515,232 @@ func doRequest(c *gin.Context, req *http.Request, info *common.RelayInfo) (*http
 		}
 	}
 
+	reqCtx, cancel := service.WithRelayRequestTimeout(c.Request.Context(), info.IsStream)
+	req = req.WithContext(reqCtx)
+	firstResponseTimeout := newFirstResponseTimeoutControl(req, info)
+	if firstResponseTimeout != nil {
+		req = firstResponseTimeout.request
+	}
+	closeRequestBodies := func() {
+		if req != nil && req.Body != nil {
+			_ = req.Body.Close()
+		}
+		if c != nil && c.Request != nil && c.Request.Body != nil {
+			_ = c.Request.Body.Close()
+		}
+	}
+
+	if firstResponseTimeout != nil {
+		firstResponseTimeout.Start()
+	}
 	resp, err := client.Do(req)
+	doReturn := time.Now()
+	if firstResponseTimeout != nil {
+		firstResponseTimeout.CompleteAt(doReturn)
+	}
 	if err != nil {
+		firstResponseTimedOut := isFirstResponseTimeout(firstResponseTimeout, reqCtx, c)
+		if resp != nil && resp.Body != nil {
+			_ = resp.Body.Close()
+		}
+		closeRequestBodies()
+		if firstResponseTimeout != nil {
+			firstResponseTimeout.Cancel()
+		}
+		cancel()
+		if firstResponseTimedOut {
+			logger.LogError(c, "do request failed: response header timeout: "+err.Error())
+			return nil, types.NewError(
+				err,
+				types.ErrorCodeDoRequestFailed,
+				types.ErrOptionWithHideErrMsg("upstream error: response header timeout"),
+			)
+		}
+		if isResponseHeaderTimeout(err) {
+			logger.LogError(c, "do request failed: response header timeout: "+err.Error())
+			return nil, types.NewError(
+				err,
+				types.ErrorCodeDoRequestFailed,
+				types.ErrOptionWithHideErrMsg("upstream error: response header timeout"),
+			)
+		}
 		logger.LogError(c, "do request failed: "+err.Error())
 		return nil, types.NewError(err, types.ErrorCodeDoRequestFailed, types.ErrOptionWithHideErrMsg("upstream error: do request failed"))
 	}
+	if isFirstResponseTimeout(firstResponseTimeout, reqCtx, c) {
+		if resp != nil && resp.Body != nil {
+			_ = resp.Body.Close()
+		}
+		closeRequestBodies()
+		cancel()
+		firstResponseTimeout.Cancel()
+		logger.LogError(c, "do request failed: response header timeout")
+		return nil, types.NewError(
+			context.DeadlineExceeded,
+			types.ErrorCodeDoRequestFailed,
+			types.ErrOptionWithHideErrMsg("upstream error: response header timeout"),
+		)
+	}
 	if resp == nil {
+		closeRequestBodies()
+		cancel()
+		if firstResponseTimeout != nil {
+			firstResponseTimeout.Cancel()
+		}
 		return nil, errors.New("resp is nil")
+	}
+	if resp.Body == nil {
+		closeRequestBodies()
+		cancel()
+		if firstResponseTimeout != nil {
+			firstResponseTimeout.Cancel()
+		}
+		return nil, errors.New("resp body is nil")
+	}
+	responseBodyCancel := cancel
+	if firstResponseTimeout != nil {
+		responseBodyCancel = func() {
+			firstResponseTimeout.Cancel()
+			cancel()
+		}
+	}
+	resp.Body = &cancelOnCloseReadCloser{
+		ReadCloser: resp.Body,
+		cancel:     responseBodyCancel,
 	}
 
 	if upID := resp.Header.Get(common2.RequestIdKey); upID != "" {
 		c.Set(common2.UpstreamRequestIdKey, upID)
 	}
 
-	_ = req.Body.Close()
-	_ = c.Request.Body.Close()
+	closeRequestBodies()
 	return resp, nil
+}
+
+func isResponseHeaderTimeout(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := strings.ToLower(err.Error())
+	return strings.Contains(msg, "timeout awaiting response headers") ||
+		strings.Contains(msg, "response header timeout")
+}
+
+type firstResponseTimeoutControl struct {
+	request  *http.Request
+	timer    *time.Timer
+	cancel   context.CancelFunc
+	timeout  time.Duration
+	deadline time.Time
+	complete bool
+	timedOut bool
+	mu       sync.Mutex
+}
+
+func newFirstResponseTimeoutControl(req *http.Request, info *common.RelayInfo) *firstResponseTimeoutControl {
+	if req == nil || info == nil || !info.IsStream || common2.RelayResponseHeaderTimeout <= 0 {
+		return nil
+	}
+	timeout := time.Duration(common2.RelayResponseHeaderTimeout) * time.Second
+	ctx, cancel := context.WithCancel(req.Context())
+	control := &firstResponseTimeoutControl{
+		cancel:  cancel,
+		timeout: timeout,
+	}
+	control.request = req.WithContext(httptrace.WithClientTrace(ctx, &httptrace.ClientTrace{
+		GotFirstResponseByte: func() {
+			control.CompleteAt(time.Now())
+		},
+	}))
+	return control
+}
+
+func (c *firstResponseTimeoutControl) Start() {
+	if c == nil {
+		return
+	}
+	c.mu.Lock()
+	if c.complete || c.timedOut || c.timer != nil {
+		c.mu.Unlock()
+		return
+	}
+	c.deadline = time.Now().Add(c.timeout)
+	c.timer = time.AfterFunc(c.timeout, func() {
+		c.mu.Lock()
+		if c.complete {
+			c.mu.Unlock()
+			return
+		}
+		c.timedOut = true
+		cancel := c.cancel
+		c.mu.Unlock()
+		if cancel != nil {
+			cancel()
+		}
+	})
+	c.mu.Unlock()
+}
+
+func (c *firstResponseTimeoutControl) CompleteAt(t time.Time) {
+	if c == nil {
+		return
+	}
+	c.mu.Lock()
+	if c.deadline.IsZero() || !t.After(c.deadline) {
+		c.complete = true
+		c.timedOut = false
+	}
+	timer := c.timer
+	c.mu.Unlock()
+	if timer != nil {
+		timer.Stop()
+	}
+}
+
+func (c *firstResponseTimeoutControl) Cancel() {
+	if c == nil || c.cancel == nil {
+		return
+	}
+	c.cancel()
+}
+
+func (c *firstResponseTimeoutControl) TimedOut() bool {
+	if c == nil {
+		return false
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.timedOut || (!c.complete && !c.deadline.IsZero() && time.Now().After(c.deadline))
+}
+
+func isFirstResponseTimeout(control *firstResponseTimeoutControl, parent context.Context, c *gin.Context) bool {
+	if control == nil || !control.TimedOut() {
+		return false
+	}
+	if parent != nil && parent.Err() != nil {
+		return false
+	}
+	if c != nil && c.Request != nil && c.Request.Context().Err() != nil {
+		return false
+	}
+	return true
+}
+
+type cancelOnCloseReadCloser struct {
+	io.ReadCloser
+	cancel context.CancelFunc
+	once   sync.Once
+}
+
+func (r *cancelOnCloseReadCloser) Close() error {
+	var err error
+	if r.ReadCloser != nil {
+		err = r.ReadCloser.Close()
+	}
+	if r.cancel != nil {
+		r.once.Do(r.cancel)
+	}
+	return err
 }
 
 func DoTaskApiRequest(a TaskAdaptor, c *gin.Context, info *common.RelayInfo, requestBody io.Reader) (*http.Response, error) {
@@ -537,7 +748,7 @@ func DoTaskApiRequest(a TaskAdaptor, c *gin.Context, info *common.RelayInfo, req
 	if err != nil {
 		return nil, err
 	}
-	req, err := http.NewRequest(c.Request.Method, fullRequestURL, requestBody)
+	req, err := http.NewRequestWithContext(c.Request.Context(), c.Request.Method, fullRequestURL, requestBody)
 	if err != nil {
 		return nil, fmt.Errorf("new request failed: %w", err)
 	}
