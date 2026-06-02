@@ -23,6 +23,7 @@ import {
   FileText,
   FlaskConical,
   Handshake,
+  HandshakeIcon,
   Key,
   LayoutDashboard,
   ListTodo,
@@ -146,6 +147,11 @@ export function useSidebarData(): SidebarData {
             title: t('Subscription Management'),
             url: '/subscriptions',
             icon: CreditCard,
+          },
+          {
+            title: t('Affiliate Management'),
+            url: '/affiliate/admin',
+            icon: HandshakeIcon,
           },
           {
             title: t('System Settings'),

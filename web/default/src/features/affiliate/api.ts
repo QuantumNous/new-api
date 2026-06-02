@@ -17,10 +17,14 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { api } from '@/lib/api'
+import { buildAffiliateProfilesQuery } from './admin-lib'
 import { buildAffiliateLogsQuery } from './lib'
 import type {
   AffiliateLog,
   AffiliateLogsParams,
+  AffiliateProfile,
+  AffiliateProfilePayload,
+  AffiliateProfileFilters,
   AffiliateStatus,
   AffiliateSummary,
   ApiResponse,
@@ -51,5 +55,38 @@ export async function getAffiliateLogs(
   const res = await api.get(buildAffiliateLogsQuery(params), {
     skipBusinessError: true,
   })
+  return res.data
+}
+
+export async function getAffiliateProfiles(args: {
+  page?: number
+  pageSize?: number
+  filters?: AffiliateProfileFilters
+}): Promise<ApiResponse<PageResponse<AffiliateProfile>>> {
+  const res = await api.get(buildAffiliateProfilesQuery(args), {
+    skipBusinessError: true,
+  })
+  return res.data
+}
+
+export async function setAffiliateProfile(
+  payload: AffiliateProfilePayload
+): Promise<ApiResponse<AffiliateProfile>> {
+  const res = await api.post('/api/affiliate/admin/profiles', payload, {
+    skipBusinessError: true,
+  })
+  return res.data
+}
+
+export async function updateAffiliateProfileStatus(
+  userId: number,
+  status: 'active' | 'disabled',
+  reason: string
+): Promise<ApiResponse<AffiliateProfile | null>> {
+  const res = await api.patch(
+    `/api/affiliate/admin/profiles/${userId}/status`,
+    { status, reason },
+    { skipBusinessError: true }
+  )
   return res.data
 }

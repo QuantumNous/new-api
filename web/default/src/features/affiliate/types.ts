@@ -82,3 +82,50 @@ export interface AffiliateLogFilters {
   startTime?: string
   endTime?: string
 }
+
+export interface AffiliateProfile {
+  id: number
+  user_id: number
+  level: number
+  status: AffiliateStatusValue
+  parent_user_id: number
+  invite_code: string
+  display_name?: string
+  remark?: string
+  activated_at?: number
+  disabled_at?: number
+  created_at?: number
+  updated_at?: number
+}
+
+export type AffiliateStatusValue = 'active' | 'disabled' | string
+
+export interface AffiliateProfilesParams {
+  p?: number
+  page_size?: number
+  user_id?: number
+  level?: number
+  status?: string
+}
+
+export interface AffiliateProfileFilters {
+  userId?: string
+  level?: string
+  status?: string
+}
+
+export interface AffiliateProfileFormValues {
+  userId?: string
+  level?: string
+  parentUserId?: string
+  inviteCode?: string
+  reason?: string
+}
+
+export interface AffiliateProfilePayload {
+  user_id: number
+  level: number
+  parent_user_id: number
+  invite_code: string
+  reason: string
+}

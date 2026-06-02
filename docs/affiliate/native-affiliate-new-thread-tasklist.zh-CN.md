@@ -358,7 +358,7 @@
 - [x] 新增文案使用 i18n。
 - [x] 运行 `cd web/default && bun run i18n:sync`。
 - [x] 使用 `.agents/skills/i18n-translate` 补齐 en、zh、fr、ja、ru、vi。
-- [ ] default 管理员分销 profiles 管理页 parity（列表、指定一级/二级、启用/禁用、跳转用户管理）。
+- [x] default 管理员分销 profiles 管理页 parity（列表、指定一级/二级、启用/禁用、跳转用户管理）。
 - [ ] default 真实账号 browser smoke：管理员/一级/二级/普通用户/profile disabled/模块关闭/移动端。
 
 ### Phase 8 default 分销前端 MVP 复盘（2026-06-03 本线程）
@@ -368,6 +368,13 @@
 - 验证方式：`make dev-web` 已在运行并同时提供 default 5173 与 classic 5174，网络切换后 `timeout 30s curl -I http://127.0.0.1:5173/`、`http://127.0.0.1:5173/affiliate`、`http://127.0.0.1:5174/` 均返回 HTTP 200；`bun test src/features/affiliate/lib.test.ts` 4/4 通过；`bun run i18n:sync` 后 en/zh/fr/ja/ru/vi missing/extras/untranslated 均为 0；`cd web/default && bun run build` 通过。
 - 残留风险：`cd web/default && bun run typecheck` 仍命中既有 default baseline（`hast` 类型缺失、`usage-logs-mobile-card` 泛型字段），未指向本批 affiliate 文件；本批未跑 default 真实账号 Playwright/browser smoke；default 管理员 profiles parity、导出字段、真实账号 RMB 核对仍未完成。
 - 下一步：优先补 default 管理员 profiles 管理页或 default 真实账号 browser smoke，再推进 Phase 9/10 的通用 RMB helper、导出字段、KPI/佣金/人头费/结算规则。
+
+### Phase 8 default 管理员 profiles 管理页复盘（2026-06-03 本线程）
+
+- 完成内容：新增 default `/affiliate/admin` 管理页和管理员侧边栏入口；接入 `GET/POST/PATCH /api/affiliate/admin/profiles`，支持 profile 分页列表、用户 ID/等级/状态筛选、指定一级/二级分销商、二级上级用户 ID 校验、启用/禁用 profile、跳转用户管理；页面使用 default 自身 Base UI/Tailwind 组件，不复制 Semi Design。
+- 验证方式：按 TDD 先观察 `bun test src/features/affiliate/admin-lib.test.ts` RED（`./admin-lib` 缺失），实现后 `bun test src/features/affiliate/admin-lib.test.ts src/features/affiliate/lib.test.ts` 8/8 通过；`bun run i18n:sync` 后 en/zh/fr/ja/ru/vi missing/extras/untranslated 均为 0，额外 t() 多行扫描无缺失；`cd web/default && bun run build` 通过；`timeout 30s curl -I http://127.0.0.1:5173/affiliate/admin` 返回 HTTP 200。
+- 残留风险：`cd web/default && bun run typecheck` 仍只命中既有 default baseline（`hast` 类型缺失、`usage-logs-mobile-card` 泛型字段），未指向本批 affiliate/admin 文件；本批未用真实管理员账号做浏览器级 profile 创建/启停 smoke；管理员 profiles 仍按用户 ID 操作，用户名搜索和直接编辑 `inviter_id` 继续归入 Phase 11。
+- 下一步：补 default 真实账号 browser smoke，或推进 Phase 11 用户管理 `inviter_id` 管理链路。
 
 ## Phase 9：RMB 单位
 
