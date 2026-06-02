@@ -45,6 +45,15 @@ func InitOptionMap() {
 	common.OptionMap["WeChatAuthEnabled"] = strconv.FormatBool(common.WeChatAuthEnabled)
 	common.OptionMap["TurnstileCheckEnabled"] = strconv.FormatBool(common.TurnstileCheckEnabled)
 	common.OptionMap["RegisterEnabled"] = strconv.FormatBool(common.RegisterEnabled)
+	common.OptionMap["SMSEnabled"] = strconv.FormatBool(common.SMSEnabled)
+	common.OptionMap["SMSProvider"] = common.SMSProviderName
+	common.OptionMap["SMSBaoEndpoint"] = common.SMSBaoEndpoint
+	common.OptionMap["SMSBaoUsername"] = ""
+	common.OptionMap["SMSBaoCredential"] = ""
+	common.OptionMap["SMSBaoCredentialMode"] = common.SMSBaoCredentialMode
+	common.OptionMap["SMSBaoProductID"] = common.SMSBaoProductID
+	common.OptionMap["SMSCodeValidMinutes"] = strconv.Itoa(common.SMSCodeValidMinutes)
+	common.OptionMap["SMSCodeCooldownSeconds"] = strconv.Itoa(common.SMSCodeCooldownSeconds)
 	common.OptionMap["AutomaticDisableChannelEnabled"] = strconv.FormatBool(common.AutomaticDisableChannelEnabled)
 	common.OptionMap["AutomaticEnableChannelEnabled"] = strconv.FormatBool(common.AutomaticEnableChannelEnabled)
 	common.OptionMap["LogConsumeEnabled"] = strconv.FormatBool(common.LogConsumeEnabled)
@@ -298,6 +307,8 @@ func updateOptionMap(key string, value string) (err error) {
 			common.TurnstileCheckEnabled = boolValue
 		case "RegisterEnabled":
 			common.RegisterEnabled = boolValue
+		case "SMSEnabled":
+			common.SMSEnabled = boolValue
 		case "EmailDomainRestrictionEnabled":
 			common.EmailDomainRestrictionEnabled = boolValue
 		case "EmailAliasRestrictionEnabled":
@@ -498,6 +509,22 @@ func updateOptionMap(key string, value string) (err error) {
 		common.TurnstileSiteKey = value
 	case "TurnstileSecretKey":
 		common.TurnstileSecretKey = value
+	case "SMSProvider":
+		common.SMSProviderName = value
+	case "SMSBaoEndpoint":
+		common.SMSBaoEndpoint = value
+	case "SMSBaoUsername":
+		common.SMSBaoUsername = value
+	case "SMSBaoCredential":
+		common.SMSBaoCredential = value
+	case "SMSBaoCredentialMode":
+		common.SMSBaoCredentialMode = value
+	case "SMSBaoProductID":
+		common.SMSBaoProductID = value
+	case "SMSCodeValidMinutes":
+		common.SMSCodeValidMinutes, _ = strconv.Atoi(value)
+	case "SMSCodeCooldownSeconds":
+		common.SMSCodeCooldownSeconds, _ = strconv.Atoi(value)
 	case "QuotaForNewUser":
 		common.QuotaForNewUser, _ = strconv.Atoi(value)
 	case "QuotaForInviter":

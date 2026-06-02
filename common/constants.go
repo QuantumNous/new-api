@@ -92,6 +92,16 @@ var TelegramOAuthEnabled = false
 var TurnstileCheckEnabled = false
 var RegisterEnabled = true
 
+var SMSEnabled = false
+var SMSProviderName = "smsbao"
+var SMSBaoEndpoint = "https://api.smsbao.com/sms"
+var SMSBaoUsername = ""
+var SMSBaoCredential = ""
+var SMSBaoCredentialMode = "api_key"
+var SMSBaoProductID = ""
+var SMSCodeValidMinutes = 10
+var SMSCodeCooldownSeconds = 60
+
 var EmailDomainRestrictionEnabled = false // 是否启用邮箱域名限制
 var EmailAliasRestrictionEnabled = false  // 是否启用邮箱别名限制
 var EmailDomainWhitelist = []string{

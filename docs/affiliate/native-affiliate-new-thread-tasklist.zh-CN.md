@@ -165,8 +165,8 @@
 
 - [x] 只读审查旧 `projects/new-api-liu23zhi` 中手机号/SMS 登录注册实现；审查记录见 `docs/affiliate/native-affiliate-sms-reference-audit.zh-CN.md`。
 - [x] 确认官方最新基线是否已有手机号能力，避免重复移植；当前仓库未发现 `common/sms.go`、`model.User.Phone`、`PhoneLogin`、`SendSMSVerification`、`/api/sms/verification`、`/api/user/login/phone` 等手机号/SMS 登录注册能力。
-- [x] 设计 SMS provider 抽象，短信宝只是一个 provider，不把参数写死进业务代码；设计结论：先做 provider 抽象和短信宝实现，手机号绑定使用 sidecar，不直接迁移旧 fork 的 `users.phone`。
-- [ ] 新增短信配置模型或配置项：provider、启用状态、账号、密钥模式、endpoint、专用通道产品 ID。
+- [x] 设计并实现 SMS provider 抽象，短信宝只是一个 provider，不把参数写死进业务代码；手机号绑定使用 sidecar，不直接迁移旧 fork 的 `users.phone`。
+- [x] 新增短信配置项：provider、启用状态、账号、密钥模式、endpoint、专用通道产品 ID；`SMSBaoCredential` 不在 `InitOptionMap` 中回显既有值。
 - [ ] 支持短信签名后台配置，并标记备案/审核状态。
 - [ ] 支持按场景配置模板：注册、登录、绑定手机号、换绑、重置密码。
 - [ ] 支持模板变量：验证码、有效期、产品名、站点名。
@@ -175,7 +175,8 @@
 - [ ] 支持手机号、IP、账号、场景维度限流。
 - [ ] 手机号注册如启用，必须接入 Phase 5 的统一邀请归因和初始额度规则。
 - [ ] 管理员端提供短信 provider、签名、模板、限流和测试发送配置页面。
-- [ ] 增加短信发送成功、错误码、限流、模板缺失、签名未备案场景测试。
+- [x] 增加短信宝 provider 发送成功和错误码映射单元测试。
+- [ ] 增加 SMS 限流、模板缺失、签名未备案场景测试。
 - [ ] 新增 `user_phone_bindings` sidecar 表设计和 schema impact，不直接修改官方 `users` 表。
 - [ ] 新增 `sms_send_logs` sidecar 表设计和 schema impact，日志只记录脱敏手机号、场景、provider、模板版本、返回码和耗时。
 
@@ -185,6 +186,13 @@
 - 验证方式：使用 `rg --files` 和关键词搜索当前仓库与旧 fork；读取旧 fork 的 `common/sms.go`、`controller/misc.go`、`controller/user.go`、`model/user.go`、`router/api-router.go`、`middleware/turnstile-check.go`、SMS/phone 相关测试和旧设计文档。
 - 残留风险：本批只完成审查和设计边界，未实现 SMS provider、配置、sidecar 表、限流和手机号注册入口；旧 fork 的直接 `users.phone` 方案不符合当前最小侵入原则，后续必须走 sidecar + schema impact。
 - 下一步：按 TDD 实现 SMS provider 抽象和短信宝 provider 单元测试，再做配置项和 sidecar schema impact。
+
+### Phase 5A Provider/config 复盘（2026-06-03 本线程）
+
+- 完成内容：新增 `common/sms.go`，实现 `SMSProvider` 抽象、`SMSBaoProvider`、手机号规范化、短信宝请求构造、返回码映射和 `NewSMSProvider`；新增 SMS 配置变量和 `OptionMap` 接入，覆盖 `SMSEnabled`、`SMSProvider`、`SMSBaoEndpoint`、`SMSBaoUsername`、`SMSBaoCredential`、`SMSBaoCredentialMode`、`SMSBaoProductID`、验证码有效期和冷却时间。
+- 验证方式：先观察 `go test ./common ./model -run 'SMS|SMSBao|NormalizePhone'` RED；实现后同命令通过。测试使用自定义 `http.RoundTripper`，不监听本地端口、不访问真实短信宝。
+- 残留风险：尚未实现短信签名/模板配置、测试发送 API、短信发送日志、限流、SMS Turnstile、手机号绑定 sidecar、手机号注册/登录入口和注册归因接入；当前 provider 只完成后端基础发送抽象和配置同步。
+- 下一步：按 TDD 实现短信签名/模板配置，或先设计 `sms_send_logs` / `user_phone_bindings` sidecar 并跑 schema impact。
 
 ## Phase 6：分销 scope 与 scoped 使用日志
 

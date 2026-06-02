@@ -1,0 +1,158 @@
+package common
+
+import (
+	"context"
+	"fmt"
+	"io"
+	"net/http"
+	"net/url"
+	"strings"
+	"time"
+)
+
+const (
+	SMSProviderSMSBao = "smsbao"
+
+	DefaultSMSBaoEndpoint = "https://api.smsbao.com/sms"
+
+	SMSBaoCredentialModeAPIKey      = "api_key"
+	SMSBaoCredentialModeMD5Password = "md5_password"
+)
+
+type SMSProviderSendInput struct {
+	Phone   string
+	Content string
+}
+
+type SMSProviderSendResult struct {
+	Provider     string
+	ProviderCode string
+	Success      bool
+}
+
+type SMSProvider interface {
+	Send(ctx context.Context, input SMSProviderSendInput) (SMSProviderSendResult, error)
+}
+
+type SMSBaoProvider struct {
+	Endpoint       string
+	Username       string
+	Credential     string
+	CredentialMode string
+	ProductID      string
+	HTTPClient     *http.Client
+}
+
+func NormalizePhone(phone string) (string, error) {
+	normalized := strings.TrimSpace(phone)
+	if normalized == "" {
+		return "", fmt.Errorf("phone is empty")
+	}
+	for _, ch := range normalized {
+		if (ch < '0' || ch > '9') && ch != '+' {
+			return "", fmt.Errorf("invalid phone format")
+		}
+	}
+	return normalized, nil
+}
+
+func NewSMSProvider(providerName string) (SMSProvider, error) {
+	name := strings.TrimSpace(providerName)
+	if name == "" {
+		name = SMSProviderName
+	}
+	switch strings.ToLower(name) {
+	case SMSProviderSMSBao:
+		return &SMSBaoProvider{
+			Endpoint:       SMSBaoEndpoint,
+			Username:       SMSBaoUsername,
+			Credential:     SMSBaoCredential,
+			CredentialMode: SMSBaoCredentialMode,
+			ProductID:      SMSBaoProductID,
+			HTTPClient:     &http.Client{Timeout: 10 * time.Second},
+		}, nil
+	default:
+		return nil, fmt.Errorf("unsupported sms provider: %s", name)
+	}
+}
+
+func (provider *SMSBaoProvider) Send(ctx context.Context, input SMSProviderSendInput) (SMSProviderSendResult, error) {
+	result := SMSProviderSendResult{Provider: SMSProviderSMSBao}
+	phone, err := NormalizePhone(input.Phone)
+	if err != nil {
+		return result, err
+	}
+	rawURL, err := provider.buildSendURL(phone, input.Content)
+	if err != nil {
+		return result, err
+	}
+	client := provider.HTTPClient
+	if client == nil {
+		client = &http.Client{Timeout: 10 * time.Second}
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, rawURL, nil)
+	if err != nil {
+		return result, err
+	}
+	resp, err := client.Do(req)
+	if err != nil {
+		return result, err
+	}
+	defer resp.Body.Close()
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return result, err
+	}
+	code := strings.TrimSpace(string(body))
+	result.ProviderCode = code
+	if err := parseSMSBaoResponse(code); err != nil {
+		return result, err
+	}
+	result.Success = true
+	return result, nil
+}
+
+func (provider *SMSBaoProvider) buildSendURL(phone string, content string) (string, error) {
+	if strings.TrimSpace(provider.Username) == "" || strings.TrimSpace(provider.Credential) == "" {
+		return "", fmt.Errorf("smsbao credential is not configured")
+	}
+	endpoint := strings.TrimSpace(provider.Endpoint)
+	if endpoint == "" {
+		endpoint = DefaultSMSBaoEndpoint
+	}
+	parsed, err := url.Parse(endpoint)
+	if err != nil {
+		return "", err
+	}
+	values := parsed.Query()
+	values.Set("u", provider.Username)
+	values.Set("p", provider.Credential)
+	values.Set("m", phone)
+	values.Set("c", content)
+	if strings.TrimSpace(provider.ProductID) != "" {
+		values.Set("g", provider.ProductID)
+	}
+	parsed.RawQuery = values.Encode()
+	return parsed.String(), nil
+}
+
+func parseSMSBaoResponse(code string) error {
+	switch strings.TrimSpace(code) {
+	case "0":
+		return nil
+	case "30":
+		return fmt.Errorf("smsbao credential rejected")
+	case "40":
+		return fmt.Errorf("smsbao account does not exist")
+	case "41":
+		return fmt.Errorf("smsbao balance is insufficient")
+	case "43":
+		return fmt.Errorf("smsbao ip is restricted")
+	case "50":
+		return fmt.Errorf("smsbao rejected sensitive content")
+	case "51":
+		return fmt.Errorf("smsbao rejected phone number")
+	default:
+		return fmt.Errorf("smsbao request failed: %s", strings.TrimSpace(code))
+	}
+}
