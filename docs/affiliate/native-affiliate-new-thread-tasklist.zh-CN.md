@@ -377,7 +377,7 @@
 - [x] default 管理员分销 profiles 管理页 parity（列表、指定一级/二级、启用/禁用、跳转用户管理）。
 - [x] default 管理员规则集配置页 parity（规则集列表、状态筛选、草稿保存、发布、归档、可编辑规则 JSON 区块）。
 - [x] default 管理员佣金/结算操作面板 parity（结算编排、佣金重算、人工佣金调整、最近操作结果）。
-- [ ] default 真实账号 browser smoke：管理员/一级/二级/普通用户/profile disabled/模块关闭/移动端。
+- [x] default 真实账号 browser smoke：管理员/一级/二级/普通用户/profile disabled/模块关闭/移动端；2026-06-03 已用 default `/affiliate` Playwright smoke 覆盖 7 个场景。
 
 ### Phase 8 default 分销前端 MVP 复盘（2026-06-03 本线程）
 
@@ -400,6 +400,13 @@
 - 验证方式：先观察 `bun --bun test src/features/affiliate/admin-lib.test.ts` 因缺少 rule set helper RED；实现后 `bun --bun test src/features/affiliate/admin-lib.test.ts src/features/affiliate/lib.test.ts` 13 项通过；`cd web/default && bun run i18n:sync` 通过且无额外 locale diff；`cd web/default && bun run build` 通过；`git diff --check` 通过。
 - 残留风险：当前 default 与 classic 一样是 JSON 区块编辑入口，不是运营友好的动态表格；未做真实管理员账号浏览器 smoke。
 - 下一步：补 default 真实账号 browser smoke，或继续扩展佣金/结算列表、冻结/支付/作废操作和批次审计展示。
+
+### Phase 8 default browser smoke 复盘（2026-06-03 本线程）
+
+- 完成内容：补齐 default `/affiliate` 真实账号浏览器 smoke，覆盖管理员 global scope、一级分销桌面、一级分销移动端、二级分销桌面、普通用户未开通、二级 profile disabled、模块关闭 7 个场景；为避免 dev 登录限流，ignored Playwright smoke 改为单个串行全流程测试，保留 admin session 并用多个 browser context 复用真实登录状态。
+- 验证方式：`node --check runtime/smoke/affiliate-default-smoke.spec.cjs` 与 `node --check runtime/smoke/playwright.default.config.cjs` 通过；`timeout 30s curl http://127.0.0.1:3000/api/status` 返回 HTTP 200；`timeout 600s runtime/smoke/node_modules/.bin/playwright test --config=runtime/smoke/playwright.default.config.cjs` 1/1 通过，输出 7 个场景的 status/summary/logs 或 unavailable_reason 复核结果；运行态收尾确认 `AffiliateEnabled=true`、`afd%` 临时用户数为 0、二级 profile 为 active，并清理本地 Redis `GA/CT/SR` rateLimit key。
+- 残留风险：本轮为本地恢复库 + ignored runtime smoke 验证，截图、测试账号、runner 均不提交；default 管理端规则/佣金/结算操作仍未做逐按钮真实浏览器点击；`cd web/default && bun run typecheck` 仍有既有 baseline，未在本批扩大处理。
+- 下一步：继续 SMS 真实通道 smoke、完整结算周期双跑、灰度启用和外接控制台归档；如推进 Phase 9，可用本轮真实账号页面作为 RMB 值核对入口。
 
 ## Phase 9：RMB 单位
 
@@ -586,9 +593,9 @@
 - [x] 复核并修复/隔离当前 `go test ./...` 基线失败：2026-06-03 已修复 controller model list 测试隔离、Claude relay file content 转换和 stream scanner 预初始化状态保留；根包 `web/classic/dist` embed 在当前环境未再复现。
 - [x] classic 前端构建通过；2026-06-03 追加 classic 佣金/结算操作面板和规则集配置 UI 后 `cd web/classic && bun run build` 通过。
 - [x] default 前端构建或 typecheck 通过（2026-06-03 `cd web/default && bun run build` 通过；typecheck 仍有既有 baseline，见 Phase 8 复盘）。
-- [x] Playwright 截图回归通过；classic 分销页 2026-06-03 已覆盖 `super_admin`、一级、二级、一级移动端、普通用户未开通、profile disabled、模块关闭 7 个场景；classic 用户管理 inviter SideSheet、预览接口和 no-op 保存 smoke 已通过；default 用户管理 inviter 编辑抽屉、预览和 no-op 保存 smoke 已通过。
+- [x] Playwright 截图回归通过；classic 分销页 2026-06-03 已覆盖 `super_admin`、一级、二级、一级移动端、普通用户未开通、profile disabled、模块关闭 7 个场景；default `/affiliate` 已覆盖管理员、一级、二级、普通用户、profile disabled、模块关闭、移动端 7 个场景；classic 用户管理 inviter SideSheet、预览接口和 no-op 保存 smoke 已通过；default 用户管理 inviter 编辑抽屉、预览和 no-op 保存 smoke 已通过。
 - [x] schema impact 报告无非预期官方表改动；见 `docs/affiliate/native-affiliate-schema-impact-report.zh-CN.md`。
-- [x] 用服务器 PG 快照完成真实账号 smoke；2026-06-03 在本地恢复库中用三类测试账号完成 API smoke 和 classic browser smoke，未输出用户名、密码、cookie 或 token。
+- [x] 用服务器 PG 快照完成真实账号 smoke；2026-06-03 在本地恢复库中用三类测试账号完成 API smoke、classic browser smoke 和 default `/affiliate` browser smoke，未输出用户名、密码、cookie 或 token。
 - [x] 管理员端规则配置页面可修改分佣比例、KPI 阈值、系数、人头费、质量门槛和结算周期；当前完成范围为 classic/default JSON 规则区块，运营友好的动态表格仍待后续。
 - [ ] 如果启用手机号/SMS，短信宝签名、模板、通道、限流和测试发送通过 smoke。
 - [ ] 外接控制台与原生模块双跑一个完整结算周期。
@@ -612,8 +619,8 @@
 ### Phase 12 Playwright 截图回归复盘（2026-06-03 本线程）
 
 - 完成内容：将 Phase 12 截图回归缺口从普通用户/profile disabled/模块关闭补齐到 classic 分销页 7 场景；修复 classic 看板在 `/api/affiliate/summary` 返回失败或 null summary 时读取 `rule_status` 抛错的问题，保证管理员 global scope 无 summary 数据时也不会整页崩溃。
-- 验证方式：`bun test web/classic/src/pages/Affiliate/affiliateDashboardCards.test.mjs web/classic/src/pages/Affiliate/affiliateViewState.test.mjs web/classic/src/hooks/usage-logs/usageLogsUrls.test.mjs` 9/9 通过；`cd web/classic && bun run build` 通过；`runtime/smoke/node_modules/.bin/playwright test --config=runtime/smoke/playwright.config.cjs` 7/7 通过。
-- 残留风险：本轮为本地恢复库 + ignored runtime smoke 验证；没有提交截图或测试账号；default `/affiliate` 普通用户/profile disabled/模块关闭全量截图仍按 Phase 8 的 default smoke 待办单独推进。
+- 验证方式：`bun test web/classic/src/pages/Affiliate/affiliateDashboardCards.test.mjs web/classic/src/pages/Affiliate/affiliateViewState.test.mjs web/classic/src/hooks/usage-logs/usageLogsUrls.test.mjs` 9/9 通过；`cd web/classic && bun run build` 通过；`runtime/smoke/node_modules/.bin/playwright test --config=runtime/smoke/playwright.config.cjs` 7/7 通过；`runtime/smoke/node_modules/.bin/playwright test --config=runtime/smoke/playwright.default.config.cjs` 1/1 通过并输出 default 7 场景复核结果。
+- 残留风险：本轮为本地恢复库 + ignored runtime smoke 验证；没有提交截图或测试账号；default 管理端规则/佣金/结算逐按钮 smoke、SMS 真实通道 smoke 和完整结算周期双跑仍未覆盖。
 - 下一步：继续 SMS 真实通道 smoke、完整结算周期双跑、灰度启用和外接控制台归档。
 
 ## Phase 13：Git 分批提交
