@@ -91,12 +91,12 @@ export function PlaygroundInput({
   const { t } = useTranslation()
   const [text, setText] = useState('')
 
-  const isModelSelectDisabled =
-    disabled || isModelLoading || models.length === 0
+  const isModelSelectDisabled = disabled || isModelLoading
   const isGroupSelectDisabled = disabled || groups.length === 0
+  const isSubmitDisabled = disabled || !modelValue
 
   const handleSubmit = (message: PromptInputMessage) => {
-    if (!message.text?.trim() || disabled) return
+    if (!message.text?.trim() || isSubmitDisabled) return
     onSubmit(message.text)
     setText('')
   }
@@ -108,6 +108,7 @@ export function PlaygroundInput({
   }
 
   const handleSuggestionClick = (suggestion: string) => {
+    if (isSubmitDisabled) return
     onSubmit(suggestion)
   }
 
@@ -206,7 +207,7 @@ export function PlaygroundInput({
             ) : (
               <PromptInputButton
                 className='text-foreground font-medium'
-                disabled={disabled || !text.trim()}
+                disabled={isSubmitDisabled || !text.trim()}
                 type='submit'
                 variant='secondary'
               >

@@ -64,6 +64,10 @@ export const STATIC_I18N_KEYS = [
   'All Tags',
   'More...',
   'Less',
+  'Enterprise sales inquiry form',
+  'Loading sales inquiry form...',
+  'Sales inquiry form could not be loaded.',
+  'Open sales inquiry form',
 
   // Roles
   'Super Admin',

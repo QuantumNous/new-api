@@ -139,19 +139,15 @@ export function filterAndSortModels(
   filters: {
     search: string
     vendor: string
-    group: string
     quotaType: string
     endpointType: string
-    tag: string
     sortBy: string
   }
 ): PricingModel[] {
   let result = filterBySearch(models, filters.search)
   result = filterByVendor(result, filters.vendor)
-  result = filterByGroup(result, filters.group)
   result = filterByQuotaType(result, filters.quotaType)
   result = filterByEndpointType(result, filters.endpointType)
-  result = filterByTag(result, filters.tag)
   result = sortModels(result, filters.sortBy)
 
   return result
