@@ -52,6 +52,15 @@ const numericString = z.string().refine((value) => {
   return !Number.isNaN(Number(trimmed)) && Number(trimmed) >= 0
 }, 'Enter a non-negative number or leave empty')
 
+const isValidHttpUrl = (value: string) => {
+  try {
+    const url = new URL(value)
+    return url.protocol === 'http:' || url.protocol === 'https:'
+  } catch {
+    return false
+  }
+}
+
 const monitoringSchema = z
   .object({
     ChannelDisableThreshold: numericString,
@@ -67,6 +76,13 @@ const monitoringSchema = z
         .number()
         .int()
         .min(1, 'Interval must be at least 1 minute'),
+      dingtalk_alert_enabled: z.boolean(),
+      dingtalk_alert_webhook_url: z.string(),
+      dingtalk_alert_secret: z.string(),
+      dingtalk_alert_cooldown_minutes: z.coerce
+        .number()
+        .int()
+        .min(1, 'Cooldown must be at least 1 minute'),
     }),
   })
   .superRefine((values, ctx) => {
@@ -95,6 +111,26 @@ const monitoringSchema = z
         )}`,
       })
     }
+
+    const dingTalkWebhook =
+      values.monitor_setting.dingtalk_alert_webhook_url.trim()
+    if (
+      values.monitor_setting.dingtalk_alert_enabled &&
+      dingTalkWebhook === ''
+    ) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['monitor_setting', 'dingtalk_alert_webhook_url'],
+        message: 'DingTalk webhook URL is required when alerts are enabled',
+      })
+    }
+    if (dingTalkWebhook !== '' && !isValidHttpUrl(dingTalkWebhook)) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['monitor_setting', 'dingtalk_alert_webhook_url'],
+        message: 'Enter a valid http or https URL',
+      })
+    }
   })
 
 type MonitoringFormValues = z.output<typeof monitoringSchema>
@@ -111,6 +147,10 @@ type MonitoringSettingsSectionProps = {
     AutomaticRetryStatusCodes: string
     'monitor_setting.auto_test_channel_enabled': boolean
     'monitor_setting.auto_test_channel_minutes': number
+    'monitor_setting.dingtalk_alert_enabled': boolean
+    'monitor_setting.dingtalk_alert_webhook_url': string
+    'monitor_setting.dingtalk_alert_secret': string
+    'monitor_setting.dingtalk_alert_cooldown_minutes': number
   }
 }
 
@@ -128,6 +168,10 @@ type NormalizedMonitoringValues = {
   AutomaticRetryStatusCodes: string
   'monitor_setting.auto_test_channel_enabled': boolean
   'monitor_setting.auto_test_channel_minutes': number
+  'monitor_setting.dingtalk_alert_enabled': boolean
+  'monitor_setting.dingtalk_alert_webhook_url': string
+  'monitor_setting.dingtalk_alert_secret': string
+  'monitor_setting.dingtalk_alert_cooldown_minutes': number
 }
 
 const buildFormDefaults = (
@@ -147,6 +191,14 @@ const buildFormDefaults = (
       defaults['monitor_setting.auto_test_channel_enabled'],
     auto_test_channel_minutes:
       defaults['monitor_setting.auto_test_channel_minutes'],
+    dingtalk_alert_enabled:
+      defaults['monitor_setting.dingtalk_alert_enabled'] ?? false,
+    dingtalk_alert_webhook_url:
+      defaults['monitor_setting.dingtalk_alert_webhook_url'] ?? '',
+    dingtalk_alert_secret:
+      defaults['monitor_setting.dingtalk_alert_secret'] ?? '',
+    dingtalk_alert_cooldown_minutes:
+      defaults['monitor_setting.dingtalk_alert_cooldown_minutes'] ?? 60,
   },
 })
 
@@ -170,6 +222,16 @@ const normalizeDefaults = (
     defaults['monitor_setting.auto_test_channel_enabled'],
   'monitor_setting.auto_test_channel_minutes':
     defaults['monitor_setting.auto_test_channel_minutes'],
+  'monitor_setting.dingtalk_alert_enabled':
+    defaults['monitor_setting.dingtalk_alert_enabled'] ?? false,
+  'monitor_setting.dingtalk_alert_webhook_url': (
+    defaults['monitor_setting.dingtalk_alert_webhook_url'] ?? ''
+  ).trim(),
+  'monitor_setting.dingtalk_alert_secret': (
+    defaults['monitor_setting.dingtalk_alert_secret'] ?? ''
+  ).trim(),
+  'monitor_setting.dingtalk_alert_cooldown_minutes':
+    defaults['monitor_setting.dingtalk_alert_cooldown_minutes'] ?? 60,
 })
 
 const normalizeFormValues = (
@@ -192,6 +254,14 @@ const normalizeFormValues = (
     values.monitor_setting.auto_test_channel_enabled,
   'monitor_setting.auto_test_channel_minutes':
     values.monitor_setting.auto_test_channel_minutes,
+  'monitor_setting.dingtalk_alert_enabled':
+    values.monitor_setting.dingtalk_alert_enabled,
+  'monitor_setting.dingtalk_alert_webhook_url':
+    values.monitor_setting.dingtalk_alert_webhook_url.trim(),
+  'monitor_setting.dingtalk_alert_secret':
+    values.monitor_setting.dingtalk_alert_secret.trim(),
+  'monitor_setting.dingtalk_alert_cooldown_minutes':
+    values.monitor_setting.dingtalk_alert_cooldown_minutes,
 })
 
 export function MonitoringSettingsSection({
@@ -230,7 +300,12 @@ export function MonitoringSettingsSection({
     const normalized = normalizeFormValues(values)
     const updates = (
       Object.keys(normalized) as Array<keyof NormalizedMonitoringValues>
-    ).filter((key) => normalized[key] !== baselineRef.current[key])
+    ).filter((key) => {
+      if (key === 'monitor_setting.dingtalk_alert_secret') {
+        return normalized[key] !== ''
+      }
+      return normalized[key] !== baselineRef.current[key]
+    })
 
     if (updates.length === 0) {
       toast.info(t('No changes to save'))
@@ -245,7 +320,11 @@ export function MonitoringSettingsSection({
       })
     }
 
-    baselineRef.current = normalized
+    baselineRef.current = {
+      ...normalized,
+      'monitor_setting.dingtalk_alert_secret': '',
+    }
+    form.setValue('monitor_setting.dingtalk_alert_secret', '')
   }
 
   return (
@@ -295,6 +374,104 @@ export function MonitoringSettingsSection({
                   </FormControl>
                   <FormDescription>
                     {t('How frequently the system tests all channels')}
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </div>
+
+          <div className='grid gap-6 md:grid-cols-2'>
+            <FormField
+              control={form.control}
+              name='monitor_setting.dingtalk_alert_enabled'
+              render={({ field }) => (
+                <SettingsSwitchItem>
+                  <SettingsSwitchContent>
+                    <FormLabel>
+                      {t('DingTalk channel failure alerts')}
+                    </FormLabel>
+                    <FormDescription>
+                      {t(
+                        'Send a DingTalk group robot alert when a scheduled channel test fails'
+                      )}
+                    </FormDescription>
+                  </SettingsSwitchContent>
+                  <FormControl>
+                    <Switch
+                      checked={field.value}
+                      onCheckedChange={field.onChange}
+                    />
+                  </FormControl>
+                </SettingsSwitchItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name='monitor_setting.dingtalk_alert_cooldown_minutes'
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t('DingTalk cooldown (minutes)')}</FormLabel>
+                  <FormControl>
+                    <Input
+                      type='number'
+                      min={1}
+                      step={1}
+                      {...safeNumberFieldProps(field)}
+                    />
+                  </FormControl>
+                  <FormDescription>
+                    {t(
+                      'Suppress repeated alerts for the same channel during this window'
+                    )}
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </div>
+
+          <div className='grid gap-6 md:grid-cols-2'>
+            <FormField
+              control={form.control}
+              name='monitor_setting.dingtalk_alert_webhook_url'
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t('DingTalk robot webhook URL')}</FormLabel>
+                  <FormControl>
+                    <Input
+                      placeholder='https://oapi.dingtalk.com/robot/send?access_token=...'
+                      value={field.value}
+                      onChange={(event) => field.onChange(event.target.value)}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name='monitor_setting.dingtalk_alert_secret'
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t('DingTalk robot secret')}</FormLabel>
+                  <FormControl>
+                    <Input
+                      type='password'
+                      autoComplete='new-password'
+                      placeholder={t(
+                        'Enter a new signing secret, or leave blank to keep current'
+                      )}
+                      value={field.value}
+                      onChange={(event) => field.onChange(event.target.value)}
+                    />
+                  </FormControl>
+                  <FormDescription>
+                    {t(
+                      'Saved DingTalk secrets are not shown. Enter a new signing secret to update it, or leave blank to keep the current one.'
+                    )}
                   </FormDescription>
                   <FormMessage />
                 </FormItem>

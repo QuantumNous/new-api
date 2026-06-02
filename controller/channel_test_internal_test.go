@@ -1,13 +1,19 @@
 package controller
 
 import (
+	"errors"
+	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
+	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/pkg/billingexpr"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/types"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
@@ -79,4 +85,65 @@ func TestResolveChannelTestUserIDUsesRequestUser(t *testing.T) {
 
 	require.NoError(t, err)
 	require.Equal(t, 2, userID)
+}
+
+func TestBuildScheduledChannelTestAlertMarksAutoDisabled(t *testing.T) {
+	autoBan := 1
+	now := time.Date(2026, 6, 2, 13, 14, 15, 0, time.UTC)
+	newAPIError := types.NewErrorWithStatusCode(
+		errors.New("invalid credentials"),
+		types.ErrorCodeBadResponse,
+		http.StatusUnauthorized,
+	)
+	channel := &model.Channel{
+		Id:      42,
+		Name:    "codex-prod",
+		Type:    constant.ChannelTypeCodex,
+		Key:     "sk-controller-secret",
+		AutoBan: &autoBan,
+	}
+
+	alert := buildScheduledChannelTestDingTalkAlert(channel, newAPIError, true, now)
+
+	require.Equal(t, 42, alert.ChannelID)
+	require.Equal(t, "codex-prod", alert.ChannelName)
+	require.Equal(t, "Codex", alert.ChannelTypeName)
+	require.Equal(t, newAPIError, alert.Error)
+	require.True(t, alert.AutoDisabled)
+	require.Equal(t, now, alert.Now)
+}
+
+func TestBuildScheduledChannelTestAlertDoesNotLeakChannelKey(t *testing.T) {
+	now := time.Date(2026, 6, 2, 13, 14, 15, 0, time.UTC)
+	newAPIError := types.NewErrorWithStatusCode(
+		errors.New("upstream returned 401"),
+		types.ErrorCodeBadResponse,
+		http.StatusUnauthorized,
+	)
+	channel := &model.Channel{
+		Id:   43,
+		Name: "codex-backup",
+		Type: constant.ChannelTypeCodex,
+		Key:  "sk-controller-secret",
+	}
+
+	alert := buildScheduledChannelTestDingTalkAlert(channel, newAPIError, false, now)
+	content := service.BuildDingTalkChannelAlertContent(alert)
+
+	require.False(t, alert.AutoDisabled)
+	require.NotContains(t, content, channel.Key)
+	require.NotContains(t, content, "sk-controller-secret")
+	require.Contains(t, content, "Auto Disabled: no")
+}
+
+func TestShouldSendScheduledChannelTestDingTalkAlertOnlyForScheduledFailures(t *testing.T) {
+	newAPIError := types.NewErrorWithStatusCode(
+		errors.New("upstream returned 401"),
+		types.ErrorCodeBadResponse,
+		http.StatusUnauthorized,
+	)
+
+	require.True(t, shouldSendScheduledChannelTestDingTalkAlert(false, newAPIError))
+	require.False(t, shouldSendScheduledChannelTestDingTalkAlert(true, newAPIError))
+	require.False(t, shouldSendScheduledChannelTestDingTalkAlert(false, nil))
 }

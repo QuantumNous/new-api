@@ -19,7 +19,7 @@ Add system-level fields to `monitor_setting`:
 - `dingtalk_alert_secret`: optional robot signing secret.
 - `dingtalk_alert_cooldown_minutes`: per-channel alert cooldown. The default is 60 minutes.
 
-These settings appear under the existing Monitoring & Alerts section in both frontend themes.
+These settings appear under the existing Monitoring & Alerts section in the new default frontend (`web/default`). The classic frontend is out of scope for this change.
 
 ## Triggering Rules
 
