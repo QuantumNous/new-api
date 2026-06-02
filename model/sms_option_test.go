@@ -13,6 +13,12 @@ func TestSMSOptionMapInitializesProviderSettings(t *testing.T) {
 	originalEndpoint := common.SMSBaoEndpoint
 	originalQueryEndpoint := common.SMSBaoQueryEndpoint
 	originalCredentialMode := common.SMSBaoCredentialMode
+	originalRateLimitEnabled := common.SMSRateLimitEnabled
+	originalRateLimitWindow := common.SMSRateLimitWindowSeconds
+	originalRateLimitPhone := common.SMSRateLimitPhoneCount
+	originalRateLimitIP := common.SMSRateLimitIPCount
+	originalRateLimitAccount := common.SMSRateLimitAccountCount
+	originalRateLimitScene := common.SMSRateLimitSceneCount
 	t.Cleanup(func() {
 		common.OptionMap = originalMap
 		common.SMSEnabled = originalEnabled
@@ -20,6 +26,12 @@ func TestSMSOptionMapInitializesProviderSettings(t *testing.T) {
 		common.SMSBaoEndpoint = originalEndpoint
 		common.SMSBaoQueryEndpoint = originalQueryEndpoint
 		common.SMSBaoCredentialMode = originalCredentialMode
+		common.SMSRateLimitEnabled = originalRateLimitEnabled
+		common.SMSRateLimitWindowSeconds = originalRateLimitWindow
+		common.SMSRateLimitPhoneCount = originalRateLimitPhone
+		common.SMSRateLimitIPCount = originalRateLimitIP
+		common.SMSRateLimitAccountCount = originalRateLimitAccount
+		common.SMSRateLimitSceneCount = originalRateLimitScene
 	})
 
 	common.OptionMap = map[string]string{}
@@ -28,6 +40,12 @@ func TestSMSOptionMapInitializesProviderSettings(t *testing.T) {
 	common.SMSBaoEndpoint = common.DefaultSMSBaoEndpoint
 	common.SMSBaoQueryEndpoint = common.DefaultSMSBaoQueryEndpoint
 	common.SMSBaoCredentialMode = common.SMSBaoCredentialModeAPIKey
+	common.SMSRateLimitEnabled = true
+	common.SMSRateLimitWindowSeconds = 60
+	common.SMSRateLimitPhoneCount = 1
+	common.SMSRateLimitIPCount = 10
+	common.SMSRateLimitAccountCount = 5
+	common.SMSRateLimitSceneCount = 100
 
 	InitOptionMap()
 
@@ -49,6 +67,19 @@ func TestSMSOptionMapInitializesProviderSettings(t *testing.T) {
 	if common.OptionMap["SMSBaoCredential"] != "" {
 		t.Fatal("SMSBaoCredential should not be exposed with an existing value")
 	}
+	expectedLimits := map[string]string{
+		"SMSRateLimitEnabled":       "true",
+		"SMSRateLimitWindowSeconds": "60",
+		"SMSRateLimitPhoneCount":    "1",
+		"SMSRateLimitIPCount":       "10",
+		"SMSRateLimitAccountCount":  "5",
+		"SMSRateLimitSceneCount":    "100",
+	}
+	for key, expected := range expectedLimits {
+		if common.OptionMap[key] != expected {
+			t.Fatalf("expected %s option %q, got %q", key, expected, common.OptionMap[key])
+		}
+	}
 }
 
 func TestUpdateOptionMapUpdatesSMSProviderSettings(t *testing.T) {
@@ -61,6 +92,12 @@ func TestUpdateOptionMapUpdatesSMSProviderSettings(t *testing.T) {
 	originalCredential := common.SMSBaoCredential
 	originalCredentialMode := common.SMSBaoCredentialMode
 	originalProductID := common.SMSBaoProductID
+	originalRateLimitEnabled := common.SMSRateLimitEnabled
+	originalRateLimitWindow := common.SMSRateLimitWindowSeconds
+	originalRateLimitPhone := common.SMSRateLimitPhoneCount
+	originalRateLimitIP := common.SMSRateLimitIPCount
+	originalRateLimitAccount := common.SMSRateLimitAccountCount
+	originalRateLimitScene := common.SMSRateLimitSceneCount
 	t.Cleanup(func() {
 		common.OptionMap = originalMap
 		common.SMSEnabled = originalEnabled
@@ -71,6 +108,12 @@ func TestUpdateOptionMapUpdatesSMSProviderSettings(t *testing.T) {
 		common.SMSBaoCredential = originalCredential
 		common.SMSBaoCredentialMode = originalCredentialMode
 		common.SMSBaoProductID = originalProductID
+		common.SMSRateLimitEnabled = originalRateLimitEnabled
+		common.SMSRateLimitWindowSeconds = originalRateLimitWindow
+		common.SMSRateLimitPhoneCount = originalRateLimitPhone
+		common.SMSRateLimitIPCount = originalRateLimitIP
+		common.SMSRateLimitAccountCount = originalRateLimitAccount
+		common.SMSRateLimitSceneCount = originalRateLimitScene
 	})
 
 	common.OptionMap = map[string]string{}
@@ -99,12 +142,33 @@ func TestUpdateOptionMapUpdatesSMSProviderSettings(t *testing.T) {
 	if err := updateOptionMap("SMSBaoProductID", "vip-001"); err != nil {
 		t.Fatalf("update SMSBaoProductID: %v", err)
 	}
+	if err := updateOptionMap("SMSRateLimitEnabled", "true"); err != nil {
+		t.Fatalf("update SMSRateLimitEnabled: %v", err)
+	}
+	if err := updateOptionMap("SMSRateLimitWindowSeconds", "120"); err != nil {
+		t.Fatalf("update SMSRateLimitWindowSeconds: %v", err)
+	}
+	if err := updateOptionMap("SMSRateLimitPhoneCount", "2"); err != nil {
+		t.Fatalf("update SMSRateLimitPhoneCount: %v", err)
+	}
+	if err := updateOptionMap("SMSRateLimitIPCount", "20"); err != nil {
+		t.Fatalf("update SMSRateLimitIPCount: %v", err)
+	}
+	if err := updateOptionMap("SMSRateLimitAccountCount", "8"); err != nil {
+		t.Fatalf("update SMSRateLimitAccountCount: %v", err)
+	}
+	if err := updateOptionMap("SMSRateLimitSceneCount", "200"); err != nil {
+		t.Fatalf("update SMSRateLimitSceneCount: %v", err)
+	}
 
 	if !common.SMSEnabled || common.SMSProviderName != common.SMSProviderSMSBao || common.SMSBaoEndpoint != "https://sms.example.test/sms" || common.SMSBaoQueryEndpoint != "https://sms.example.test/query" {
 		t.Fatalf("unexpected SMS option values: enabled=%v provider=%q endpoint=%q query_endpoint=%q", common.SMSEnabled, common.SMSProviderName, common.SMSBaoEndpoint, common.SMSBaoQueryEndpoint)
 	}
 	if common.SMSBaoUsername != "demo-user" || common.SMSBaoCredential != "demo-key" || common.SMSBaoCredentialMode != common.SMSBaoCredentialModeMD5Password || common.SMSBaoProductID != "vip-001" {
 		t.Fatalf("unexpected SMSBao option values: username=%q credential=%q mode=%q product=%q", common.SMSBaoUsername, common.SMSBaoCredential, common.SMSBaoCredentialMode, common.SMSBaoProductID)
+	}
+	if !common.SMSRateLimitEnabled || common.SMSRateLimitWindowSeconds != 120 || common.SMSRateLimitPhoneCount != 2 || common.SMSRateLimitIPCount != 20 || common.SMSRateLimitAccountCount != 8 || common.SMSRateLimitSceneCount != 200 {
+		t.Fatalf("unexpected SMS rate limit values: enabled=%v window=%d phone=%d ip=%d account=%d scene=%d", common.SMSRateLimitEnabled, common.SMSRateLimitWindowSeconds, common.SMSRateLimitPhoneCount, common.SMSRateLimitIPCount, common.SMSRateLimitAccountCount, common.SMSRateLimitSceneCount)
 	}
 }
 

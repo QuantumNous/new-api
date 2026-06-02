@@ -11,6 +11,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/service"
 	"github.com/gin-gonic/gin"
 	"github.com/glebarez/sqlite"
 	"gorm.io/gorm"
@@ -154,6 +155,89 @@ func TestAdminTestSMSRecordsRedactedSendLog(t *testing.T) {
 		if strings.Contains(string(payload), forbidden) {
 			t.Fatalf("sms send log leaked %q: %s", forbidden, string(payload))
 		}
+	}
+}
+
+func TestAdminTestSMSAppliesRateLimitBeforeProvider(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	originalDB := model.DB
+	originalEnabled := common.SMSEnabled
+	originalSignature := common.SMSSignature
+	originalSignatureStatus := common.SMSSignatureReviewStatus
+	originalProductName := common.SMSProductName
+	originalTemplate := common.SMSRegisterTemplate
+	originalRateLimitEnabled := common.SMSRateLimitEnabled
+	originalRateLimitWindow := common.SMSRateLimitWindowSeconds
+	originalRateLimitPhone := common.SMSRateLimitPhoneCount
+	originalRateLimitIP := common.SMSRateLimitIPCount
+	originalRateLimitAccount := common.SMSRateLimitAccountCount
+	originalRateLimitScene := common.SMSRateLimitSceneCount
+	originalFactory := common.SMSProviderFactory
+	t.Cleanup(func() {
+		model.DB = originalDB
+		common.SMSEnabled = originalEnabled
+		common.SMSSignature = originalSignature
+		common.SMSSignatureReviewStatus = originalSignatureStatus
+		common.SMSProductName = originalProductName
+		common.SMSRegisterTemplate = originalTemplate
+		common.SMSRateLimitEnabled = originalRateLimitEnabled
+		common.SMSRateLimitWindowSeconds = originalRateLimitWindow
+		common.SMSRateLimitPhoneCount = originalRateLimitPhone
+		common.SMSRateLimitIPCount = originalRateLimitIP
+		common.SMSRateLimitAccountCount = originalRateLimitAccount
+		common.SMSRateLimitSceneCount = originalRateLimitScene
+		common.SMSProviderFactory = originalFactory
+		service.ResetSMSRateLimiterForTest()
+	})
+
+	model.DB = nil
+	common.SMSEnabled = true
+	common.SMSSignature = "NewAPI"
+	common.SMSSignatureReviewStatus = common.SMSSignatureStatusApproved
+	common.SMSProductName = "分销系统"
+	common.SMSRegisterTemplate = "{product} 注册验证码 {code}，{minutes} 分钟内有效。"
+	common.SMSRateLimitEnabled = true
+	common.SMSRateLimitWindowSeconds = 60
+	common.SMSRateLimitPhoneCount = 1
+	common.SMSRateLimitIPCount = 0
+	common.SMSRateLimitAccountCount = 0
+	common.SMSRateLimitSceneCount = 0
+	service.ResetSMSRateLimiterForTest()
+
+	providerCalls := 0
+	common.SMSProviderFactory = func(providerName string) (common.SMSProvider, error) {
+		return countingSMSProvider{calls: &providerCalls}, nil
+	}
+
+	first := httptest.NewRecorder()
+	firstCtx, _ := gin.CreateTestContext(first)
+	firstCtx.Request = httptest.NewRequest(http.MethodPost, "/api/sms/admin/test", bytes.NewBufferString(`{
+		"phone":"13800138000",
+		"scene":"register",
+		"code":"123456"
+	}`))
+	AdminTestSMS(firstCtx)
+	if first.Code != http.StatusOK || !strings.Contains(first.Body.String(), `"success":true`) {
+		t.Fatalf("first request should pass, status=%d body=%s", first.Code, first.Body.String())
+	}
+
+	second := httptest.NewRecorder()
+	secondCtx, _ := gin.CreateTestContext(second)
+	secondCtx.Request = httptest.NewRequest(http.MethodPost, "/api/sms/admin/test", bytes.NewBufferString(`{
+		"phone":"13800138000",
+		"scene":"register",
+		"code":"123456"
+	}`))
+	AdminTestSMS(secondCtx)
+
+	if second.Code != http.StatusOK {
+		t.Fatalf("unexpected status: %d body=%s", second.Code, second.Body.String())
+	}
+	if !strings.Contains(second.Body.String(), "sms rate limit exceeded: phone") {
+		t.Fatalf("expected phone rate limit message, got %s", second.Body.String())
+	}
+	if providerCalls != 1 {
+		t.Fatalf("provider should be called once before rate limit blocks, got %d", providerCalls)
 	}
 }
 
@@ -311,4 +395,17 @@ func (provider fakeSMSStatusProvider) Send(ctx context.Context, input common.SMS
 
 func (provider fakeSMSStatusProvider) CheckStatus(ctx context.Context) (common.SMSProviderStatusResult, error) {
 	return provider.result, nil
+}
+
+type countingSMSProvider struct {
+	calls *int
+}
+
+func (provider countingSMSProvider) Send(ctx context.Context, input common.SMSProviderSendInput) (common.SMSProviderSendResult, error) {
+	*provider.calls = *provider.calls + 1
+	return common.SMSProviderSendResult{
+		Provider:     common.SMSProviderSMSBao,
+		ProviderCode: "0",
+		Success:      true,
+	}, nil
 }

@@ -2,6 +2,7 @@ package controller
 
 import (
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
@@ -31,6 +32,15 @@ func AdminTestSMS(c *gin.Context) {
 	}
 	phone, err := common.NormalizePhone(req.Phone)
 	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	if err := service.CheckSMSRateLimit(service.SMSRateLimitInput{
+		Phone:     phone,
+		IP:        c.ClientIP(),
+		AccountID: smsRequestAccountID(c),
+		Scene:     req.Scene,
+	}); err != nil {
 		common.ApiError(c, err)
 		return
 	}
@@ -87,6 +97,14 @@ func recordSMSTestSendLog(phone string, scene string, result common.SMSProviderS
 	}); err != nil {
 		common.SysLog("failed to record SMS send log: " + err.Error())
 	}
+}
+
+func smsRequestAccountID(c *gin.Context) string {
+	id := c.GetInt("id")
+	if id <= 0 {
+		return ""
+	}
+	return strconv.Itoa(id)
 }
 
 func AdminGetSMSStatus(c *gin.Context) {

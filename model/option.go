@@ -55,6 +55,12 @@ func InitOptionMap() {
 	common.OptionMap["SMSBaoProductID"] = common.SMSBaoProductID
 	common.OptionMap["SMSCodeValidMinutes"] = strconv.Itoa(common.SMSCodeValidMinutes)
 	common.OptionMap["SMSCodeCooldownSeconds"] = strconv.Itoa(common.SMSCodeCooldownSeconds)
+	common.OptionMap["SMSRateLimitEnabled"] = strconv.FormatBool(common.SMSRateLimitEnabled)
+	common.OptionMap["SMSRateLimitWindowSeconds"] = strconv.Itoa(common.SMSRateLimitWindowSeconds)
+	common.OptionMap["SMSRateLimitPhoneCount"] = strconv.Itoa(common.SMSRateLimitPhoneCount)
+	common.OptionMap["SMSRateLimitIPCount"] = strconv.Itoa(common.SMSRateLimitIPCount)
+	common.OptionMap["SMSRateLimitAccountCount"] = strconv.Itoa(common.SMSRateLimitAccountCount)
+	common.OptionMap["SMSRateLimitSceneCount"] = strconv.Itoa(common.SMSRateLimitSceneCount)
 	common.OptionMap["SMSSignature"] = common.SMSSignature
 	common.OptionMap["SMSSignatureReviewStatus"] = common.SMSSignatureReviewStatus
 	common.OptionMap["SMSProductName"] = common.SMSProductName
@@ -318,6 +324,8 @@ func updateOptionMap(key string, value string) (err error) {
 			common.RegisterEnabled = boolValue
 		case "SMSEnabled":
 			common.SMSEnabled = boolValue
+		case "SMSRateLimitEnabled":
+			common.SMSRateLimitEnabled = boolValue
 		case "EmailDomainRestrictionEnabled":
 			common.EmailDomainRestrictionEnabled = boolValue
 		case "EmailAliasRestrictionEnabled":
@@ -536,6 +544,16 @@ func updateOptionMap(key string, value string) (err error) {
 		common.SMSCodeValidMinutes, _ = strconv.Atoi(value)
 	case "SMSCodeCooldownSeconds":
 		common.SMSCodeCooldownSeconds, _ = strconv.Atoi(value)
+	case "SMSRateLimitWindowSeconds":
+		common.SMSRateLimitWindowSeconds, _ = strconv.Atoi(value)
+	case "SMSRateLimitPhoneCount":
+		common.SMSRateLimitPhoneCount, _ = strconv.Atoi(value)
+	case "SMSRateLimitIPCount":
+		common.SMSRateLimitIPCount, _ = strconv.Atoi(value)
+	case "SMSRateLimitAccountCount":
+		common.SMSRateLimitAccountCount, _ = strconv.Atoi(value)
+	case "SMSRateLimitSceneCount":
+		common.SMSRateLimitSceneCount, _ = strconv.Atoi(value)
 	case "SMSSignature":
 		common.SMSSignature = value
 	case "SMSSignatureReviewStatus":

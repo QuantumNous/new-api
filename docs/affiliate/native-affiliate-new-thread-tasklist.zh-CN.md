@@ -172,12 +172,13 @@
 - [x] 支持模板变量：验证码、有效期、产品名、站点名。
 - [x] 支持测试发送，不在响应或日志中暴露完整验证码、手机号、ApiKey 或密码；后端 root 接口为 `POST /api/option/sms/test`。
 - [x] 支持短信宝余额查询或状态检查入口；后端 root 接口为 `GET /api/option/sms/status`。
-- [ ] 支持手机号、IP、账号、场景维度限流。
+- [x] 支持手机号、IP、账号、场景维度限流；后端配置项包括 `SMSRateLimitEnabled`、窗口秒数和 phone/IP/account/scene 计数阈值。
 - [ ] 手机号注册如启用，必须接入 Phase 5 的统一邀请归因和初始额度规则。
 - [ ] 管理员端提供短信 provider、签名、模板、限流和测试发送配置页面。
 - [x] 增加短信宝 provider 发送成功和错误码映射单元测试。
 - [x] 增加 SMS 模板缺失、签名未备案/未审核通过场景测试。
-- [ ] 增加 SMS 限流、签名未备案完整发送链路场景测试。
+- [x] 增加 SMS 限流完整发送链路场景测试。
+- [ ] 增加签名未备案完整发送链路场景测试。
 - [ ] 新增 `user_phone_bindings` sidecar 表设计和 schema impact，不直接修改官方 `users` 表。
 - [x] 新增 `sms_send_logs` sidecar 表设计和本地 AutoMigrate schema 验证，日志只记录脱敏手机号、场景、provider、模板版本、返回码和耗时。
 - [ ] 如 Docker 稳定，集中用本地 PostgreSQL dump 复核 `sms_send_logs` schema impact。
@@ -223,6 +224,13 @@
 - 验证方式：先观察 `go test ./model ./service ./controller -run 'SMSSidecar|RecordSMSSendLog|AdminTestSMSRecordsRedactedSendLog'` RED；实现后 `go test -count=1 ./model ./service ./controller -run 'SMSSidecar|RecordSMSSendLog|AdminTestSMSRecordsRedactedSendLog'` 通过；`go test -count=1 ./common ./model ./service ./controller -run 'SMS|SMSBao|SMSSignature|SMSTemplate|RenderSMS|AdminTestSMS|AdminGetSMSStatus|NormalizePhone|SMSSidecar|RecordSMSSendLog'` 通过；`git diff --check` 通过。
 - 残留风险：本批未再执行 Docker/PostgreSQL dump schema diff，已新增单独待办；日志当前只接入管理员测试发送，真实验证码发送入口、限流、SMS Turnstile、手机号绑定/注册/登录尚未实现；controller 全量包测试仍存在既有非 SMS baseline 失败。
 - 下一步：实现手机号、IP、账号、场景维度限流，或设计 `user_phone_bindings` sidecar。
+
+### Phase 5A SMS rate limit 复盘（2026-06-03 本线程）
+
+- 完成内容：新增 SMS 多维限流配置和 `service.CheckSMSRateLimit`；按 scene 分桶检查手机号、IP、账号和场景总量，命中任一维度会在 provider 调用前拒绝；测试发送入口已接入限流。计数阈值小于等于 0 时对应维度关闭，`SMSRateLimitEnabled=false` 时整体关闭。
+- 验证方式：先观察 `go test ./service ./model ./controller -run 'SMSRateLimit|CheckSMSRateLimit|AdminTestSMSAppliesRateLimit'` RED；实现后 `go test -count=1 ./service ./model ./controller -run 'SMSRateLimit|CheckSMSRateLimit|AdminTestSMSAppliesRateLimit'` 通过；`go test -count=1 ./common ./model ./service ./controller -run 'SMS|SMSBao|SMSSignature|SMSTemplate|RenderSMS|AdminTestSMS|AdminGetSMSStatus|NormalizePhone|SMSSidecar|RecordSMSSendLog|CheckSMSRateLimit'` 通过；`git diff --check` 通过。
+- 残留风险：当前限流为进程内内存实现，未接 Redis/多实例共享；管理员前端限流配置入口未实现；签名未备案的 controller 完整发送链路测试仍待补；真实手机号注册/登录验证码发送入口尚未实现。
+- 下一步：补签名未备案完整发送链路测试，或设计 `user_phone_bindings` sidecar。
 
 ## Phase 6：分销 scope 与 scoped 使用日志
 
