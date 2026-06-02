@@ -2,6 +2,7 @@ package service
 
 import (
 	"bytes"
+	"context"
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/base64"
@@ -52,7 +53,10 @@ var (
 	dingTalkCredentialPattern       = regexp.MustCompile(`(?i)(\b(?:access_token|refresh_token|id_token|api[_-]?key|authorization)\b\s*(?::|=)?\s*)(?:"[^"]*"|'[^']*'|bearer\s+[^\s,;}]+|[^\s,;}]+)`)
 	dingTalkQuotedCredentialPattern = regexp.MustCompile(`(?i)(["'](?:access_token|refresh_token|id_token|api[_-]?key|authorization)["']\s*:\s*)(?:"[^"]*"|'[^']*'|[^,\s}]+)`)
 	dingTalkSKPattern               = regexp.MustCompile(`sk-[A-Za-z0-9_-]+`)
+	dingTalkAWSKeyPattern           = regexp.MustCompile(`\b(?:AKIA|ASIA)[A-Z0-9]{16}\b`)
+	dingTalkGoogleAPIKeyPattern     = regexp.MustCompile(`\bAIza[0-9A-Za-z_-]{35}\b`)
 	dingTalkMaxResponseBodyBytes    = int64(64 * 1024)
+	dingTalkRequestTimeout          = 10 * time.Second
 )
 
 func NewDingTalkAlertCooldown() *DingTalkAlertCooldown {
@@ -140,8 +144,8 @@ func BuildDingTalkChannelAlertContent(alert DingTalkChannelAlert) string {
 	return strings.Join([]string{
 		"New API channel test failed",
 		fmt.Sprintf("Channel ID: %d", alert.ChannelID),
-		fmt.Sprintf("Channel Name: %s", alert.ChannelName),
-		fmt.Sprintf("Channel Type: %s", alert.ChannelTypeName),
+		fmt.Sprintf("Channel Name: %s", sanitizeDingTalkAlertText(alert.ChannelName)),
+		fmt.Sprintf("Channel Type: %s", sanitizeDingTalkAlertText(alert.ChannelTypeName)),
 		fmt.Sprintf("Error: %s", message),
 		fmt.Sprintf("Status Code: %d", statusCode),
 		fmt.Sprintf("Error Code: %s", errorCode),
@@ -155,6 +159,8 @@ func sanitizeDingTalkAlertText(value string) string {
 	value = dingTalkQuotedCredentialPattern.ReplaceAllString(value, `${1}"***"`)
 	value = dingTalkCredentialPattern.ReplaceAllString(value, `${1}***`)
 	value = dingTalkSKPattern.ReplaceAllString(value, "sk-***")
+	value = dingTalkAWSKeyPattern.ReplaceAllString(value, "aws-***")
+	value = dingTalkGoogleAPIKeyPattern.ReplaceAllString(value, "AIza***")
 	return value
 }
 
@@ -165,7 +171,7 @@ func BuildDingTalkWebhookURL(webhookURL string, secret string, now time.Time) (s
 	}
 	u, err := url.Parse(webhookURL)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("invalid dingtalk webhook url: %s", sanitizeDingTalkAlertText(err.Error()))
 	}
 	secret = strings.TrimSpace(secret)
 	if secret == "" {
@@ -188,7 +194,7 @@ func BuildDingTalkWebhookURL(webhookURL string, secret string, now time.Time) (s
 func SendDingTalkText(webhookURL string, secret string, content string) error {
 	finalURL, err := BuildDingTalkWebhookURL(webhookURL, secret, time.Now())
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to build dingtalk webhook url: %s", sanitizeDingTalkAlertText(err.Error()))
 	}
 
 	payload := map[string]any{
@@ -207,9 +213,12 @@ func SendDingTalkText(webhookURL string, secret string, content string) error {
 		return fmt.Errorf("request reject: %v", err)
 	}
 
-	req, err := http.NewRequest(http.MethodPost, finalURL, bytes.NewBuffer(payloadBytes))
+	ctx, cancel := context.WithTimeout(context.Background(), dingTalkRequestTimeout)
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, finalURL, bytes.NewBuffer(payloadBytes))
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to create dingtalk request: %s", sanitizeDingTalkAlertText(err.Error()))
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("User-Agent", "NewAPI-DingTalk-Alert/1.0")

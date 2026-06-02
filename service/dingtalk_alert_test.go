@@ -4,9 +4,11 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -50,6 +52,21 @@ func TestBuildDingTalkChannelAlertContentMasksSensitiveFields(t *testing.T) {
 	require.NotContains(t, content, "refresh_token abc")
 }
 
+func TestBuildDingTalkChannelAlertContentMasksChannelMetadata(t *testing.T) {
+	content := BuildDingTalkChannelAlertContent(DingTalkChannelAlert{
+		ChannelID:       12,
+		ChannelName:     "bedrock AKIAIOSFODNN7EXAMPLE",
+		ChannelTypeName: "gemini AIzaSyAAAaUooTUni8AdaOkSRMda30n_Q4vrV70",
+		Error:           types.NewErrorWithStatusCode(errors.New("401"), types.ErrorCodeBadResponse, 401),
+		Now:             time.Date(2026, 6, 2, 13, 14, 15, 0, time.Local),
+	})
+
+	require.Contains(t, content, "Channel Name:")
+	require.Contains(t, content, "Channel Type:")
+	require.NotContains(t, content, "AKIAIOSFODNN7EXAMPLE")
+	require.NotContains(t, content, "AIzaSyAAAaUooTUni8AdaOkSRMda30n_Q4vrV70")
+}
+
 func TestSanitizeDingTalkAlertTextMasksBearerAndOAuthCredentials(t *testing.T) {
 	content := sanitizeDingTalkAlertText(`Authorization: Bearer ya29.secret-token {"access_token":"oauth-access","refresh_token":"oauth-refresh","id_token":"oauth-id"}`)
 
@@ -58,6 +75,13 @@ func TestSanitizeDingTalkAlertTextMasksBearerAndOAuthCredentials(t *testing.T) {
 	require.NotContains(t, content, "oauth-refresh")
 	require.NotContains(t, content, "oauth-id")
 	require.Contains(t, content, "Authorization: ***")
+}
+
+func TestSanitizeDingTalkAlertTextMasksUnlabeledCloudCredentials(t *testing.T) {
+	content := sanitizeDingTalkAlertText("aws AKIAIOSFODNN7EXAMPLE google AIzaSyAAAaUooTUni8AdaOkSRMda30n_Q4vrV70")
+
+	require.NotContains(t, content, "AKIAIOSFODNN7EXAMPLE")
+	require.NotContains(t, content, "AIzaSyAAAaUooTUni8AdaOkSRMda30n_Q4vrV70")
 }
 
 func TestBuildDingTalkWebhookURLAddsSignature(t *testing.T) {
@@ -159,6 +183,40 @@ func TestSendDingTalkTextSanitizesWebhookURLInNetworkError(t *testing.T) {
 	require.NotContains(t, err.Error(), "leaky-token")
 	require.NotContains(t, err.Error(), "sign-secret")
 	require.Contains(t, err.Error(), "dingtalk request failed")
+}
+
+func TestSendDingTalkTextSanitizesWebhookURLInBuildError(t *testing.T) {
+	err := SendDingTalkText("https://oapi.dingtalk.com/robot/send?access_token=leaky-token%zz", "sign-secret", "New API test")
+
+	require.Error(t, err)
+	require.NotContains(t, err.Error(), "leaky-token")
+	require.NotContains(t, err.Error(), "sign-secret")
+}
+
+func TestSendDingTalkTextSetsRequestDeadline(t *testing.T) {
+	allowDingTalkTestServer(t)
+	originalHTTPClient := httpClient
+	t.Cleanup(func() {
+		httpClient = originalHTTPClient
+	})
+
+	httpClient = &http.Client{
+		Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+			if _, ok := req.Context().Deadline(); !ok {
+				return nil, errors.New("missing request deadline")
+			}
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Header:     make(http.Header),
+				Body:       io.NopCloser(strings.NewReader(`{"errcode":0,"errmsg":"ok"}`)),
+				Request:    req,
+			}, nil
+		}),
+	}
+
+	err := SendDingTalkText("https://oapi.dingtalk.com/robot/send?access_token=secret-token", "sign-secret", "New API test")
+
+	require.NoError(t, err)
 }
 
 func TestNotifyDingTalkFailureDoesNotConsumeCooldownOnSendFailure(t *testing.T) {
