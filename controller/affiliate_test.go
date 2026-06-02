@@ -8,8 +8,11 @@ import (
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/middleware"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/service"
+	"github.com/gin-contrib/sessions"
+	"github.com/gin-contrib/sessions/cookie"
 	"github.com/gin-gonic/gin"
 	"github.com/glebarez/sqlite"
 	"gorm.io/gorm"
@@ -143,6 +146,97 @@ func TestAdminUpdateAffiliateProfileStatusDisabled(t *testing.T) {
 	}
 }
 
+func TestAdminUpdateAffiliateProfileStatusActive(t *testing.T) {
+	db := newAffiliateControllerTestDB(t)
+	if _, err := service.CreateAffiliateProfile(db, service.AffiliateProfileCreateInput{
+		UserId:      602,
+		Level:       1,
+		InviteCode:  "aff602",
+		ActorUserId: 1,
+		Reason:      "seed",
+	}); err != nil {
+		t.Fatalf("seed profile: %v", err)
+	}
+	if err := service.DisableAffiliateProfile(db, service.AffiliateProfileStatusInput{
+		UserId:      602,
+		ActorUserId: 1,
+		Reason:      "disable seed",
+	}); err != nil {
+		t.Fatalf("disable profile: %v", err)
+	}
+
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = httptest.NewRequest(http.MethodPatch, "/api/affiliate/admin/profiles/602/status", bytes.NewBufferString(`{
+		"status":"active",
+		"reason":"restore"
+	}`))
+	ctx.Params = gin.Params{{Key: "user_id", Value: "602"}}
+	ctx.Set("id", 1)
+	ctx.Set("role", common.RoleAdminUser)
+
+	AdminUpdateAffiliateProfileStatus(ctx)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d body=%s", recorder.Code, recorder.Body.String())
+	}
+	var profile model.AffiliateProfile
+	if err := db.Where("user_id = ?", 602).First(&profile).Error; err != nil {
+		t.Fatalf("query profile: %v", err)
+	}
+	if profile.Status != model.AffiliateProfileStatusActive || profile.DisabledAt != 0 {
+		t.Fatalf("expected active profile, got %+v", profile)
+	}
+}
+
+func TestAffiliateAdminRoutesRequireLogin(t *testing.T) {
+	router := newAffiliateAdminRouteTestRouter(t, common.RoleAdminUser)
+
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/api/affiliate/admin/profiles", bytes.NewBufferString(`{
+		"user_id":701,
+		"level":1
+	}`))
+	router.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusUnauthorized {
+		t.Fatalf("expected status 401, got %d body=%s", recorder.Code, recorder.Body.String())
+	}
+}
+
+func TestAffiliateAdminRoutesRejectCommonUser(t *testing.T) {
+	router := newAffiliateAdminRouteTestRouter(t, common.RoleCommonUser)
+
+	loginRecorder := httptest.NewRecorder()
+	loginRequest := httptest.NewRequest(http.MethodGet, "/login", nil)
+	router.ServeHTTP(loginRecorder, loginRequest)
+	if loginRecorder.Code != http.StatusNoContent {
+		t.Fatalf("expected login status 204, got %d body=%s", loginRecorder.Code, loginRecorder.Body.String())
+	}
+
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/api/affiliate/admin/profiles", bytes.NewBufferString(`{
+		"user_id":702,
+		"level":1
+	}`))
+	request.Header.Set("New-Api-User", "10")
+	for _, loginCookie := range loginRecorder.Result().Cookies() {
+		request.AddCookie(loginCookie)
+	}
+	router.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d body=%s", recorder.Code, recorder.Body.String())
+	}
+	var body affiliateStatusTestResponse
+	if err := json.Unmarshal(recorder.Body.Bytes(), &body); err != nil {
+		t.Fatalf("unmarshal response: %v", err)
+	}
+	if body.Success {
+		t.Fatalf("expected insufficient privilege response, got body=%s", recorder.Body.String())
+	}
+}
+
 type affiliateStatusTestResponse struct {
 	Success bool `json:"success"`
 	Data    struct {
@@ -166,4 +260,30 @@ func newAffiliateControllerTestDB(t *testing.T) *gorm.DB {
 		model.DB = originalDB
 	})
 	return db
+}
+
+func newAffiliateAdminRouteTestRouter(t *testing.T, role int) *gin.Engine {
+	t.Helper()
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+	router.Use(sessions.Sessions("session", cookie.NewStore([]byte("affiliate-admin-test"))))
+	router.GET("/login", func(c *gin.Context) {
+		session := sessions.Default(c)
+		session.Set("username", "tester")
+		session.Set("role", role)
+		session.Set("id", 10)
+		session.Set("status", common.UserStatusEnabled)
+		session.Set("group", "default")
+		if err := session.Save(); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"success": false})
+			return
+		}
+		c.Status(http.StatusNoContent)
+	})
+	adminRoute := router.Group("/api/affiliate/admin")
+	adminRoute.Use(middleware.AdminAuth())
+	{
+		adminRoute.POST("/profiles", AdminSetAffiliateProfile)
+	}
+	return router
 }

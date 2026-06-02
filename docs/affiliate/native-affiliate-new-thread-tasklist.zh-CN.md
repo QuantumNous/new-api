@@ -115,7 +115,7 @@
 - [ ] 新增分销商端 middleware。
 - [x] 新增管理员端权限校验（`/api/affiliate/admin/*` 使用 `AdminAuth`）。
 - [ ] 普通用户访问分销页返回友好未开通状态。
-- [ ] 增加 profile 创建、启用、禁用、权限校验测试；当前已覆盖 profile 创建/更新/禁用/启用 happy path，仍缺路由权限/越权测试。
+- [x] 增加 profile 创建、启用、禁用、权限校验测试；已覆盖 profile 创建/更新/禁用/启用 happy path，以及管理员路由未登录/普通用户拒绝访问。
 
 ## Phase 5：邀请归因与初始额度
 
