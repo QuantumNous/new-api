@@ -1,0 +1,292 @@
+package service
+
+import (
+	"fmt"
+	"strings"
+	"testing"
+
+	"github.com/QuantumNous/new-api/model"
+	"gorm.io/gorm"
+)
+
+func TestGenerateAffiliateSettlementsCreatesDraftAndLinksEvents(t *testing.T) {
+	db := newAffiliateCommissionTestDB(t)
+	ruleSet := savePublishedAffiliateCommissionRuleSet(t, db, "settlement-draft-links-events")
+	seedAffiliateSettlementCommissionEvent(t, db, ruleSet.Id, 100, 1000, 1000, 2000)
+	seedAffiliateSettlementCommissionEvent(t, db, ruleSet.Id, 100, -200, 1000, 2000)
+	seedAffiliateSettlementHeadFeeEvent(t, db, ruleSet.Id, 100, 500, 1000, 2000)
+
+	settlements, err := GenerateAffiliateSettlements(db, AffiliateSettlementBuildInput{
+		RuleSetId:   ruleSet.Id,
+		PeriodStart: 1000,
+		PeriodEnd:   2000,
+		FreezeDays:  7,
+	})
+	if err != nil {
+		t.Fatalf("GenerateAffiliateSettlements returned error: %v", err)
+	}
+	if len(settlements) != 1 {
+		t.Fatalf("expected one settlement, got %+v", settlements)
+	}
+
+	settlement := settlements[0]
+	if settlement.AffiliateUserId != 100 || settlement.RuleSetId != ruleSet.Id || settlement.PeriodStart != 1000 || settlement.PeriodEnd != 2000 {
+		t.Fatalf("unexpected settlement identity: %+v", settlement)
+	}
+	if settlement.Status != model.AffiliateSettlementStatusDraft || settlement.FrozenUntil != 2000+7*affiliateSecondsPerDay {
+		t.Fatalf("unexpected settlement status/freeze window: %+v", settlement)
+	}
+	if settlement.CommissionCents != 800 || settlement.HeadFeeCents != 500 || settlement.DeductionCents != 0 || settlement.PayableCents != 1300 {
+		t.Fatalf("unexpected settlement amounts: %+v", settlement)
+	}
+	if !strings.Contains(settlement.Snapshot, `"rule_set_version":"settlement-draft-links-events"`) {
+		t.Fatalf("expected settlement snapshot to record rule set version, got %q", settlement.Snapshot)
+	}
+	if !strings.Contains(settlement.Snapshot, `"commission_event_count":2`) || !strings.Contains(settlement.Snapshot, `"head_fee_event_count":1`) {
+		t.Fatalf("expected settlement snapshot to record event counts, got %q", settlement.Snapshot)
+	}
+
+	var commissionEvents []model.AffiliateCommissionEvent
+	if err := db.Where("affiliate_user_id = ?", 100).Order("id asc").Find(&commissionEvents).Error; err != nil {
+		t.Fatalf("load commission events: %v", err)
+	}
+	for _, event := range commissionEvents {
+		if event.SettlementId != settlement.Id || event.Status != model.AffiliateEventStatusReady {
+			t.Fatalf("expected commission event to be linked and ready, got %+v", event)
+		}
+	}
+	var headFeeEvents []model.AffiliateHeadFeeEvent
+	if err := db.Where("affiliate_user_id = ?", 100).Find(&headFeeEvents).Error; err != nil {
+		t.Fatalf("load head fee events: %v", err)
+	}
+	for _, event := range headFeeEvents {
+		if event.SettlementId != settlement.Id || event.Status != model.AffiliateEventStatusReady {
+			t.Fatalf("expected head fee event to be linked and ready, got %+v", event)
+		}
+	}
+}
+
+func TestGenerateAffiliateSettlementsMergesNewPendingEventsIntoExistingDraft(t *testing.T) {
+	db := newAffiliateCommissionTestDB(t)
+	ruleSet := savePublishedAffiliateCommissionRuleSet(t, db, "settlement-merge-existing-draft")
+	seedAffiliateSettlementCommissionEvent(t, db, ruleSet.Id, 100, 1000, 1000, 2000)
+
+	first, err := GenerateAffiliateSettlements(db, AffiliateSettlementBuildInput{
+		RuleSetId:   ruleSet.Id,
+		PeriodStart: 1000,
+		PeriodEnd:   2000,
+	})
+	if err != nil || len(first) != 1 {
+		t.Fatalf("first GenerateAffiliateSettlements err=%v settlements=%+v", err, first)
+	}
+
+	seedAffiliateSettlementCommissionEvent(t, db, ruleSet.Id, 100, 500, 1000, 2000)
+	second, err := GenerateAffiliateSettlements(db, AffiliateSettlementBuildInput{
+		RuleSetId:   ruleSet.Id,
+		PeriodStart: 1000,
+		PeriodEnd:   2000,
+	})
+	if err != nil || len(second) != 1 {
+		t.Fatalf("second GenerateAffiliateSettlements err=%v settlements=%+v", err, second)
+	}
+	if second[0].Id != first[0].Id {
+		t.Fatalf("expected existing draft settlement to be updated, first=%+v second=%+v", first[0], second[0])
+	}
+	if second[0].CommissionCents != 1500 || second[0].PayableCents != 1500 {
+		t.Fatalf("expected existing ready event and new pending event to both be included, got %+v", second[0])
+	}
+
+	var readyCount int64
+	if err := db.Model(&model.AffiliateCommissionEvent{}).
+		Where("settlement_id = ? AND status = ?", second[0].Id, model.AffiliateEventStatusReady).
+		Count(&readyCount).Error; err != nil {
+		t.Fatalf("count ready commission events: %v", err)
+	}
+	if readyCount != 2 {
+		t.Fatalf("expected both commission events to be linked and ready, got %d", readyCount)
+	}
+}
+
+func TestGenerateAffiliateSettlementsReturnsExistingDraftWhenNoNewPendingEvents(t *testing.T) {
+	db := newAffiliateCommissionTestDB(t)
+	ruleSet := savePublishedAffiliateCommissionRuleSet(t, db, "settlement-existing-draft-idempotent")
+	seedAffiliateSettlementCommissionEvent(t, db, ruleSet.Id, 100, 1000, 1000, 2000)
+
+	first, err := GenerateAffiliateSettlements(db, AffiliateSettlementBuildInput{
+		RuleSetId:   ruleSet.Id,
+		PeriodStart: 1000,
+		PeriodEnd:   2000,
+	})
+	if err != nil || len(first) != 1 {
+		t.Fatalf("first GenerateAffiliateSettlements err=%v settlements=%+v", err, first)
+	}
+
+	second, err := GenerateAffiliateSettlements(db, AffiliateSettlementBuildInput{
+		RuleSetId:   ruleSet.Id,
+		PeriodStart: 1000,
+		PeriodEnd:   2000,
+	})
+	if err != nil || len(second) != 1 {
+		t.Fatalf("expected existing draft to be returned, err=%v settlements=%+v", err, second)
+	}
+	if second[0].Id != first[0].Id || second[0].CommissionCents != 1000 || second[0].PayableCents != 1000 {
+		t.Fatalf("unexpected existing draft settlement: first=%+v second=%+v", first[0], second[0])
+	}
+}
+
+func TestGenerateAffiliateSettlementsCapsNegativePayableAtZero(t *testing.T) {
+	db := newAffiliateCommissionTestDB(t)
+	ruleSet := savePublishedAffiliateCommissionRuleSet(t, db, "settlement-negative-payable")
+	seedAffiliateSettlementCommissionEvent(t, db, ruleSet.Id, 100, -1200, 1000, 2000)
+
+	settlements, err := GenerateAffiliateSettlements(db, AffiliateSettlementBuildInput{
+		RuleSetId:   ruleSet.Id,
+		PeriodStart: 1000,
+		PeriodEnd:   2000,
+	})
+	if err != nil {
+		t.Fatalf("GenerateAffiliateSettlements returned error: %v", err)
+	}
+	if len(settlements) != 1 {
+		t.Fatalf("expected one settlement, got %+v", settlements)
+	}
+
+	settlement := settlements[0]
+	if settlement.CommissionCents != -1200 || settlement.HeadFeeCents != 0 || settlement.DeductionCents != 1200 || settlement.PayableCents != 0 {
+		t.Fatalf("expected negative gross amount to become deduction and zero payable, got %+v", settlement)
+	}
+}
+
+func TestAffiliateSettlementStatusTransitions(t *testing.T) {
+	db := newAffiliateCommissionTestDB(t)
+	ruleSet := savePublishedAffiliateCommissionRuleSet(t, db, "settlement-status-transitions")
+	seedAffiliateSettlementCommissionEvent(t, db, ruleSet.Id, 100, 1000, 1000, 2000)
+	settlements, err := GenerateAffiliateSettlements(db, AffiliateSettlementBuildInput{
+		RuleSetId:   ruleSet.Id,
+		PeriodStart: 1000,
+		PeriodEnd:   2000,
+	})
+	if err != nil || len(settlements) != 1 {
+		t.Fatalf("GenerateAffiliateSettlements err=%v settlements=%+v", err, settlements)
+	}
+
+	if _, err := MarkAffiliateSettlementPaid(db, settlements[0].Id, AffiliateSettlementPaidInput{
+		ActorUserId:      9,
+		PaidAt:           3000,
+		PaymentReference: "pay-ref-draft",
+	}); err == nil {
+		t.Fatal("expected paying a draft settlement to be rejected")
+	}
+
+	frozen, err := FreezeAffiliateSettlement(db, settlements[0].Id, AffiliateSettlementStatusInput{
+		ActorUserId: 9,
+		Reason:      "freeze for audit",
+	})
+	if err != nil {
+		t.Fatalf("FreezeAffiliateSettlement returned error: %v", err)
+	}
+	if frozen.Status != model.AffiliateSettlementStatusFrozen {
+		t.Fatalf("expected frozen settlement, got %+v", frozen)
+	}
+
+	paid, err := MarkAffiliateSettlementPaid(db, frozen.Id, AffiliateSettlementPaidInput{
+		ActorUserId:      9,
+		PaidAt:           3000,
+		PaymentReference: "pay-ref-001",
+	})
+	if err != nil {
+		t.Fatalf("MarkAffiliateSettlementPaid returned error: %v", err)
+	}
+	if paid.Status != model.AffiliateSettlementStatusPaid || paid.PaidByUserId != 9 || paid.PaidAt != 3000 || paid.PaymentReference != "pay-ref-001" {
+		t.Fatalf("unexpected paid settlement: %+v", paid)
+	}
+
+	var event model.AffiliateCommissionEvent
+	if err := db.Where("settlement_id = ?", paid.Id).First(&event).Error; err != nil {
+		t.Fatalf("load paid settlement event: %v", err)
+	}
+	if event.Status != model.AffiliateEventStatusSettled {
+		t.Fatalf("expected linked commission event to be settled, got %+v", event)
+	}
+}
+
+func TestVoidAffiliateSettlementMarksLinkedEventsVoid(t *testing.T) {
+	db := newAffiliateCommissionTestDB(t)
+	ruleSet := savePublishedAffiliateCommissionRuleSet(t, db, "settlement-void-events")
+	seedAffiliateSettlementCommissionEvent(t, db, ruleSet.Id, 100, 1000, 1000, 2000)
+	seedAffiliateSettlementHeadFeeEvent(t, db, ruleSet.Id, 100, 300, 1000, 2000)
+	settlements, err := GenerateAffiliateSettlements(db, AffiliateSettlementBuildInput{
+		RuleSetId:   ruleSet.Id,
+		PeriodStart: 1000,
+		PeriodEnd:   2000,
+	})
+	if err != nil || len(settlements) != 1 {
+		t.Fatalf("GenerateAffiliateSettlements err=%v settlements=%+v", err, settlements)
+	}
+
+	voided, err := VoidAffiliateSettlement(db, settlements[0].Id, AffiliateSettlementStatusInput{
+		ActorUserId: 9,
+		Reason:      "invalid period",
+	})
+	if err != nil {
+		t.Fatalf("VoidAffiliateSettlement returned error: %v", err)
+	}
+	if voided.Status != model.AffiliateSettlementStatusVoid {
+		t.Fatalf("expected void settlement, got %+v", voided)
+	}
+
+	var commissionEvent model.AffiliateCommissionEvent
+	if err := db.Where("settlement_id = ?", voided.Id).First(&commissionEvent).Error; err != nil {
+		t.Fatalf("load void commission event: %v", err)
+	}
+	if commissionEvent.Status != model.AffiliateEventStatusVoid {
+		t.Fatalf("expected linked commission event to be void, got %+v", commissionEvent)
+	}
+	var headFeeEvent model.AffiliateHeadFeeEvent
+	if err := db.Where("settlement_id = ?", voided.Id).First(&headFeeEvent).Error; err != nil {
+		t.Fatalf("load void head fee event: %v", err)
+	}
+	if headFeeEvent.Status != model.AffiliateEventStatusVoid {
+		t.Fatalf("expected linked head fee event to be void, got %+v", headFeeEvent)
+	}
+}
+
+func seedAffiliateSettlementCommissionEvent(t *testing.T, db *gorm.DB, ruleSetId int, affiliateUserId int, commissionCents int64, periodStart int64, periodEnd int64) model.AffiliateCommissionEvent {
+	t.Helper()
+	event := model.AffiliateCommissionEvent{
+		AffiliateUserId:         affiliateUserId,
+		DownstreamUserId:        affiliateUserId + 1000,
+		Kind:                    AffiliateCommissionEventKindAccrual,
+		Status:                  model.AffiliateEventStatusPending,
+		RuleSetId:               ruleSetId,
+		PeriodStart:             periodStart,
+		PeriodEnd:               periodEnd,
+		CommissionCents:         commissionCents,
+		NetPaidConsumptionCents: commissionCents * 10,
+		SyntheticMarker:         fmt.Sprintf("commission-settlement-test:%d:%d:%d:%d", affiliateUserId, commissionCents, periodStart, periodEnd),
+	}
+	if commissionCents < 0 {
+		event.Kind = AffiliateCommissionEventKindClawback
+		event.NetPaidConsumptionCents = commissionCents * 10
+	}
+	if err := db.Create(&event).Error; err != nil {
+		t.Fatalf("seed commission event: %v", err)
+	}
+	return event
+}
+
+func seedAffiliateSettlementHeadFeeEvent(t *testing.T, db *gorm.DB, ruleSetId int, affiliateUserId int, amountCents int64, periodStart int64, periodEnd int64) model.AffiliateHeadFeeEvent {
+	t.Helper()
+	event := model.AffiliateHeadFeeEvent{
+		AffiliateUserId:  affiliateUserId,
+		DownstreamUserId: affiliateUserId + 2000,
+		RuleSetId:        ruleSetId,
+		Status:           model.AffiliateEventStatusPending,
+		AmountCents:      amountCents,
+		SyntheticMarker:  fmt.Sprintf("rule:%d:affiliate:%d:downstream:%d:period:%d-%d", ruleSetId, affiliateUserId, affiliateUserId+2000, periodStart, periodEnd),
+	}
+	if err := db.Create(&event).Error; err != nil {
+		t.Fatalf("seed head fee event: %v", err)
+	}
+	return event
+}

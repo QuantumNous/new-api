@@ -406,8 +406,8 @@
 - [x] 后端管理员 API 支持规则集草稿保存、发布、归档和生效时间配置，并写入配置审计日志。
 - [x] 发布规则前校验一级最高档不超过 30% 业务 cap。
 - [x] 发布规则前校验二级有效比例不高于一级，避免倒挂。
-- [ ] 佣金、KPI 快照、结算单必须记录规则集版本。
-- [x] pending 佣金事件、KPI snapshot 和人头费事件记录 `rule_set_id` 和 `rule_set_version` metadata；结算单的版本记录仍待实现。
+- [x] 佣金、KPI 快照、结算单必须记录规则集版本。
+- [x] pending 佣金事件、KPI snapshot、人头费事件和 settlement snapshot 记录 `rule_set_id` / `rule_set_version`。
 - [x] 实现保留单用户累计净付费消耗区间的分佣规则。
 - [x] 实现 KPI 系数，最低 1，其他档位大于 1。
 - [x] 一级分销商最高档有效分佣可达 30%，但不超过业务 cap。
@@ -416,7 +416,7 @@
 - [x] 实现人头费条件：首次付费、最低净付费、周期净付费等。
 - [x] 实现 KPI 快照。
 - [x] 实现 pending 佣金明细。
-- [ ] 实现结算单生成、冻结、作废、标记已支付。
+- [x] 实现结算单生成、冻结、作废、标记已支付。
 - [ ] 分销商只读自己的佣金/结算。
 - [ ] 管理员可全局管理规则、佣金和结算。
 
@@ -447,6 +447,13 @@
 - 验证方式：先观察 `go test -count=1 ./service -run 'AffiliateHeadFee|HeadFee'` RED；实现后同命令通过；补充 `go test -count=1 ./service` 和 `go test -count=1 ./model ./service ./controller ./router -run 'Affiliate|RuleSet|Commission|KPI|HeadFee|Admin'` 均通过。
 - 残留风险：首次付费和周期净付费仍依赖日志 `Other` 中明确 paid 来源；尚未接入真实充值 sidecar 或 paid/gift/trial quota source sidecar；人头费事件尚未进入结算单，分销商只读结算 API 仍未实现。
 - 下一步：实现结算单生成、冻结、作废和标记已支付，并把佣金事件、人头费事件合并进 settlement。
+
+### Phase 10 阶段复盘（2026-06-03 结算单）
+
+- 完成内容：新增结算单 service，按 published 规则集和周期汇总 `pending` 佣金事件、人头费事件，生成/更新 draft `affiliate_settlements`；支持已有 draft 增量合并、负向扣回归入 deduction 且 payable 不为负、事件状态从 `pending` 到 `ready`、冻结、作废、标记已支付，并在 settlement snapshot 记录 `rule_set_version` 和事件数量/ID。
+- 验证方式：先观察 `go test -count=1 ./service -run 'AffiliateSettlement|Settlement'` RED；实现后同命令通过；补充 `go test -count=1 ./service` 和 `go test -count=1 ./model ./service ./controller ./router -run 'Affiliate|RuleSet|Commission|KPI|HeadFee|Settlement|Admin'` 均通过。
+- 残留风险：结算 service 尚未暴露管理员/分销商只读 API；人头费事件缺少显式 period 字段，当前按 synthetic marker 中的 `period:start-end` 归属结算周期；最小结算金额、人工审核开关和结算周期配置仍待管理员端 UI/API 消费。
+- 下一步：补分销商只读佣金/结算 API、管理员结算管理 API，随后再接 classic 管理页面和 RMB 统一展示。
 
 ## Phase 11：用户管理 `inviter_id`
 
