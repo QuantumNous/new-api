@@ -114,7 +114,7 @@ func WeChatAuth(c *gin.Context) {
 				inviterId = inviteCtx.InviterUserId
 			}
 
-			if err := user.Insert(inviterId); err != nil {
+			if err := user.InsertWithInviteeQuota(inviterId, affiliateInviteeQuotaForContext(inviteCtx)); err != nil {
 				c.JSON(http.StatusOK, gin.H{
 					"success": false,
 					"message": err.Error(),
@@ -125,7 +125,7 @@ func WeChatAuth(c *gin.Context) {
 				InviteeUserId:  user.Id,
 				RegisterMethod: service.AffiliateRegisterMethodWeChat,
 				Provider:       "wechat",
-				InitialQuota:   affiliateInviteInitialQuota(),
+				InitialQuota:   affiliateInviteInitialQuotaForContext(inviteCtx),
 			}); err != nil {
 				c.JSON(http.StatusOK, gin.H{
 					"success": false,

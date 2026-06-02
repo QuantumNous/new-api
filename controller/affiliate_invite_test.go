@@ -178,6 +178,98 @@ func TestPasswordRegisterRecordsAffiliateAttribution(t *testing.T) {
 	}
 }
 
+func TestPasswordRegisterAppliesAffiliateInviteeQuota(t *testing.T) {
+	db := newAffiliateRegistrationAttributionTestDB(t)
+	common.RegisterEnabled = true
+	common.PasswordRegisterEnabled = true
+	common.EmailVerificationEnabled = false
+	common.AffiliateEnabled = true
+	common.QuotaForNewUser = 100
+	common.QuotaForInvitee = 111
+	common.AffiliateQuotaForInvitee = 333
+	paymentSetting := operation_setting.GetPaymentSetting()
+	paymentSetting.ComplianceConfirmed = true
+	paymentSetting.ComplianceTermsVersion = operation_setting.CurrentComplianceTermsVersion
+	seedAffiliateInviter(t, db, 105, "AFF105")
+
+	body := bytes.NewBufferString(`{
+		"username":"invitee105",
+		"password":"password105",
+		"aff_code":"AFF105"
+	}`)
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = httptest.NewRequest(http.MethodPost, "/api/user/register", body)
+
+	Register(ctx)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("unexpected status: %d body=%s", recorder.Code, recorder.Body.String())
+	}
+	var invitee model.User
+	if err := db.Where("username = ?", "invitee105").First(&invitee).Error; err != nil {
+		t.Fatalf("load invitee: %v", err)
+	}
+	if invitee.Quota != 433 {
+		t.Fatalf("expected new user quota plus affiliate invitee quota, got %d", invitee.Quota)
+	}
+
+	var event model.AffiliateInviteEvent
+	if err := db.Where("invitee_user_id = ?", invitee.Id).First(&event).Error; err != nil {
+		t.Fatalf("expected invite event: %v", err)
+	}
+	if event.InitialQuota != 333 || event.InitialQuotaRule != "affiliate_invite" {
+		t.Fatalf("unexpected affiliate quota event: %+v", event)
+	}
+}
+
+func TestPasswordRegisterKeepsNormalInviteeQuotaForNonAffiliateCode(t *testing.T) {
+	db := newAffiliateRegistrationAttributionTestDB(t)
+	common.RegisterEnabled = true
+	common.PasswordRegisterEnabled = true
+	common.EmailVerificationEnabled = false
+	common.AffiliateEnabled = true
+	common.QuotaForNewUser = 100
+	common.QuotaForInvitee = 111
+	common.AffiliateQuotaForInvitee = 333
+	paymentSetting := operation_setting.GetPaymentSetting()
+	paymentSetting.ComplianceConfirmed = true
+	paymentSetting.ComplianceTermsVersion = operation_setting.CurrentComplianceTermsVersion
+	if err := db.Create(&model.User{Id: 106, Username: "normal106", AffCode: "NORM106"}).Error; err != nil {
+		t.Fatalf("seed normal inviter: %v", err)
+	}
+
+	body := bytes.NewBufferString(`{
+		"username":"invitee106",
+		"password":"password106",
+		"aff_code":"NORM106"
+	}`)
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = httptest.NewRequest(http.MethodPost, "/api/user/register", body)
+
+	Register(ctx)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("unexpected status: %d body=%s", recorder.Code, recorder.Body.String())
+	}
+	var invitee model.User
+	if err := db.Where("username = ?", "invitee106").First(&invitee).Error; err != nil {
+		t.Fatalf("load invitee: %v", err)
+	}
+	if invitee.Quota != 211 {
+		t.Fatalf("expected new user quota plus normal invitee quota, got %d", invitee.Quota)
+	}
+
+	var event model.AffiliateInviteEvent
+	if err := db.Where("invitee_user_id = ?", invitee.Id).First(&event).Error; err != nil {
+		t.Fatalf("expected invite event: %v", err)
+	}
+	if event.InitialQuota != 111 || event.InitialQuotaRule != "normal_invite" {
+		t.Fatalf("unexpected normal quota event: %+v", event)
+	}
+}
+
 func newAffiliateRegistrationAttributionTestDB(t *testing.T) *gorm.DB {
 	t.Helper()
 	originalDB := model.DB
@@ -186,7 +278,9 @@ func newAffiliateRegistrationAttributionTestDB(t *testing.T) *gorm.DB {
 	originalRegisterEnabled := common.RegisterEnabled
 	originalPasswordRegisterEnabled := common.PasswordRegisterEnabled
 	originalEmailVerificationEnabled := common.EmailVerificationEnabled
+	originalQuotaForNewUser := common.QuotaForNewUser
 	originalQuotaForInvitee := common.QuotaForInvitee
+	originalAffiliateQuotaForInvitee := common.AffiliateQuotaForInvitee
 	originalRedisEnabled := common.RedisEnabled
 	originalPaymentSetting := *operation_setting.GetPaymentSetting()
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
@@ -207,7 +301,9 @@ func newAffiliateRegistrationAttributionTestDB(t *testing.T) *gorm.DB {
 		common.RegisterEnabled = originalRegisterEnabled
 		common.PasswordRegisterEnabled = originalPasswordRegisterEnabled
 		common.EmailVerificationEnabled = originalEmailVerificationEnabled
+		common.QuotaForNewUser = originalQuotaForNewUser
 		common.QuotaForInvitee = originalQuotaForInvitee
+		common.AffiliateQuotaForInvitee = originalAffiliateQuotaForInvitee
 		common.RedisEnabled = originalRedisEnabled
 		*operation_setting.GetPaymentSetting() = originalPaymentSetting
 	})

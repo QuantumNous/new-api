@@ -146,7 +146,7 @@
 - [x] 微信首次注册薄 hook 接入邀请归因。
 - [ ] 手机号注册如移植旧 fork，则接入相同归因链路。
 - [x] `affiliate_invite_events` 记录普通邀请码和 active 分销商邀请码的不同初始额度规则标识：`normal_invite` / `affiliate_invite`。
-- [ ] 管理员可配置普通邀请码和 active 分销商邀请码不同初始额度，并应用到实际注册赠送额度。
+- [x] 管理员可配置普通邀请码和 active 分销商邀请码不同初始额度，并应用到实际注册赠送额度；`AffiliateQuotaForInvitee=-1` 表示继承普通邀请码额度，`0` 表示不给分销邀请码注册奖励，正数表示专用分销邀请码注册奖励额度。
 - [x] 分销模块关闭时 active 分销码降级普通邀请码规则。
 - [x] `affiliate_invite_events` service 支持记录注册方式、provider、初始额度规则和金额，并已接入密码注册、OAuth 首次注册、微信首次注册 hook。
 - [x] 补充注册/OAuth/微信归因测试；密码注册有 controller 集成覆盖，OAuth/微信覆盖统一 helper 与 method/provider 事件元数据。
@@ -156,8 +156,10 @@
 
 - 完成内容：新增 controller 层统一归因 helper；密码注册、标准 OAuth 首次注册、微信首次注册创建用户时解析邀请上下文，复用 legacy inviter 奖励链路，同时写入 `affiliate_invite_events`；active 分销码在模块开启时创建 `affiliate_relations`，模块关闭时降级为普通邀请码且不进入分销关系。
 - 验证方式：先观察 `go test ./controller -run 'TestRecordAffiliateRegistrationAttribution'` RED，随后实现 helper 和 hook；`go test ./controller -run 'TestRecordAffiliateRegistrationAttribution|TestPasswordRegisterRecordsAffiliateAttribution'` 通过；`go test ./model ./service ./middleware ./controller -run 'Affiliate|AdminSetAffiliateProfile|AdminUpdateAffiliateProfileStatus|AffiliateAdminRoutes|GetAffiliateStatus|RecordAffiliateRegistrationAttribution|PasswordRegisterRecordsAffiliateAttribution'` 通过。
-- 残留风险：`go test ./controller` 全包仍会在既有 `TestListModelsTokenLimitIncludesTieredBillingModel` 中因 Redis 未初始化 panic，单独复现同样失败，已归入 Phase 12 基线修复；本批未实现手机号/SMS 注册入口，也未实现管理员可配置不同邀请码初始额度。
-- 下一步：进入 Phase 5A 只读审查旧 fork 手机号/SMS 实现，或先实现邀请码初始额度配置项和实际额度应用。
+- 第二批完成内容：新增 `AffiliateQuotaForInvitee` 后端配置、通用 settings API 接入、classic/default 管理员额度设置字段；密码注册、OAuth 首次注册、微信首次注册按 invite source 选择实际 invitee quota，并同步写入 `affiliate_invite_events.InitialQuota`。
+- 第二批验证方式：先观察 `go test ./controller -run 'TestPasswordRegisterAppliesAffiliateInviteeQuota|TestPasswordRegisterKeepsNormalInviteeQuotaForNonAffiliateCode'` RED，随后实现配置和实际额度应用；`go test ./model ./controller -run 'TestAffiliateQuotaForInviteeOptionMap|TestPasswordRegisterAppliesAffiliateInviteeQuota|TestPasswordRegisterKeepsNormalInviteeQuotaForNonAffiliateCode|TestPasswordRegisterRecordsAffiliateAttribution|TestRecordAffiliateRegistrationAttribution'` 通过；`go test ./model ./service ./middleware ./controller -run 'Affiliate|AdminSetAffiliateProfile|AdminUpdateAffiliateProfileStatus|AffiliateAdminRoutes|GetAffiliateStatus|RecordAffiliateRegistrationAttribution|PasswordRegisterRecordsAffiliateAttribution|PasswordRegisterAppliesAffiliateInviteeQuota|PasswordRegisterKeepsNormalInviteeQuotaForNonAffiliateCode'` 通过。
+- 残留风险：`go test ./controller` 全包仍会在既有 `TestListModelsTokenLimitIncludesTieredBillingModel` 中因 Redis 未初始化 panic，单独复现同样失败，已归入 Phase 12 基线修复；本批未实现手机号/SMS 注册入口。前端验证未完成：`web/default` 本地缺少 `tsc`，`web/classic` `bunx prettier` 因受限网络无法下载 prettier manifest。
+- 下一步：进入 Phase 5A 只读审查旧 fork 手机号/SMS 实现，或先修复 Phase 12 controller 测试隔离基线。
 
 ## Phase 5A：手机号/SMS 与短信宝 provider
 

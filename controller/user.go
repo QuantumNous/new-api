@@ -197,7 +197,8 @@ func Register(c *gin.Context) {
 	if common.EmailVerificationEnabled {
 		cleanUser.Email = user.Email
 	}
-	if err := cleanUser.Insert(inviterId); err != nil {
+	inviteeQuota := affiliateInviteeQuotaForContext(inviteCtx)
+	if err := cleanUser.InsertWithInviteeQuota(inviterId, inviteeQuota); err != nil {
 		common.ApiError(c, err)
 		return
 	}
@@ -211,7 +212,7 @@ func Register(c *gin.Context) {
 	if _, err := recordAffiliateInviteAttributionForRegistration(model.DB, inviteCtx, affiliateRegistrationAttributionInput{
 		InviteeUserId:  insertedUser.Id,
 		RegisterMethod: service.AffiliateRegisterMethodPassword,
-		InitialQuota:   affiliateInviteInitialQuota(),
+		InitialQuota:   affiliateInviteInitialQuotaForContext(inviteCtx),
 	}); err != nil {
 		common.ApiError(c, err)
 		return

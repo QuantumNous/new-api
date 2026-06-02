@@ -52,6 +52,7 @@ const quotaSchema = z.object({
   PreConsumedQuota: z.coerce.number().min(0),
   QuotaForInviter: z.coerce.number().min(0),
   QuotaForInvitee: z.coerce.number().min(0),
+  AffiliateQuotaForInvitee: z.coerce.number().min(-1),
   TopUpLink: z.string(),
   general_setting: z.object({
     docs_link: z.string(),
@@ -212,6 +213,32 @@ export function QuotaSettingsSection({
                   </FormControl>
                   <FormDescription>
                     {t('Quota given to invited users')}
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name='AffiliateQuotaForInvitee'
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t('Affiliate Invitee Reward')}</FormLabel>
+                  <FormControl>
+                    <Input
+                      type='number'
+                      value={field.value ?? ''}
+                      onChange={handleNumberChange(field.onChange)}
+                      name={field.name}
+                      onBlur={field.onBlur}
+                      ref={field.ref}
+                    />
+                  </FormControl>
+                  <FormDescription>
+                    {t(
+                      'Quota given to users invited by active affiliate codes. Use -1 to inherit the normal invitee reward.'
+                    )}
                   </FormDescription>
                   <FormMessage />
                 </FormItem>

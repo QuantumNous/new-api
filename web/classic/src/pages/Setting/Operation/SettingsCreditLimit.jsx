@@ -36,6 +36,7 @@ export default function SettingsCreditLimit(props) {
     PreConsumedQuota: '',
     QuotaForInviter: '',
     QuotaForInvitee: '',
+    AffiliateQuotaForInvitee: '',
     'quota_setting.enable_free_model_pre_consume': true,
   });
   const refForm = useRef();
@@ -179,6 +180,27 @@ export default function SettingsCreditLimit(props) {
                     setInputs({
                       ...inputs,
                       QuotaForInvitee: String(value),
+                    })
+                  }
+                />
+              </Col>
+              <Col xs={24} sm={12} md={8} lg={8} xl={6}>
+                <Form.InputNumber
+                  label={t('新用户使用分销邀请码奖励额度')}
+                  field={'AffiliateQuotaForInvitee'}
+                  step={1}
+                  min={-1}
+                  suffix={'Token'}
+                  extraText={
+                    !complianceConfirmed
+                      ? t('非零值需先确认合规声明')
+                      : t('-1 表示继承普通邀请码奖励额度')
+                  }
+                  placeholder={t('例如：1000，-1 表示继承')}
+                  onChange={(value) =>
+                    setInputs({
+                      ...inputs,
+                      AffiliateQuotaForInvitee: String(value),
                     })
                   }
                 />

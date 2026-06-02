@@ -89,11 +89,22 @@ func affiliateInitialQuotaRule(inviteSource string, explicitRule string) string 
 	}
 }
 
-func affiliateInviteInitialQuota() int64 {
-	if common.QuotaForInvitee <= 0 || !operation_setting.IsPaymentComplianceConfirmed() {
+func affiliateInviteInitialQuotaForContext(ctx *service.AffiliateInviteContext) int64 {
+	quota := affiliateInviteeQuotaForContext(ctx)
+	if quota <= 0 || !operation_setting.IsPaymentComplianceConfirmed() {
 		return 0
 	}
-	return int64(common.QuotaForInvitee)
+	return int64(quota)
+}
+
+func affiliateInviteeQuotaForContext(ctx *service.AffiliateInviteContext) int {
+	if ctx == nil || ctx.Source == service.AffiliateInviteSourceNone {
+		return 0
+	}
+	if ctx.Source == service.AffiliateInviteSourceAffiliate && common.AffiliateQuotaForInvitee >= 0 {
+		return common.AffiliateQuotaForInvitee
+	}
+	return common.QuotaForInvitee
 }
 
 func affiliateInviteCodeFromSessionValue(value any) string {
