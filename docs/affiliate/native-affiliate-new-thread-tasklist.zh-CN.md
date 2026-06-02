@@ -38,27 +38,28 @@
 - [x] 确认已下载本地最新 dump：`runtime/prod-pg-snapshots/new-api-prod-20260602-193617.dump`，后续默认不再直连生产数据库。
 - [x] TAC/安全风险复盘：本轮已确认 `.codex-local/`、`runtime/` 未被 Git 追踪，已脱敏 tasklist 中出现的具体生产数据库端点；当前 modified files 精确敏感模式扫描无命中，dump sha256 校验通过。
 - [x] 如连接信息曾在聊天、命令、日志或文档中暴露，评估是否需要更换临时数据库密码或吊销临时访问；用户已提示旧会话曾明文粘贴数据库密码，本轮建议轮换临时数据库密码或吊销临时访问，后续默认只用本地 dump。
-- [ ] 解除本地 Docker daemon 阻塞；2026-06-02 用户提示另一线程已构建 `new-api-rain021217`，本会话按容器名、Compose project label、`docker compose -p new-api-rain021217 ps --all` 均超时，`docker ps -a`、`docker image ls`、`docker compose -f docker-compose.dev.yml ps --all` 均在 15s 超时无输出，`curl --unix-socket /var/run/docker.sock http://localhost/_ping` 也超时，当前无法可信审查实际镜像/容器状态。
+- [x] 解除本地 Docker daemon 阻塞；2026-06-02 用户提示另一线程已构建 `new-api-rain021217`，旧线程按容器名、Compose project label、`docker compose -p new-api-rain021217 ps --all` 均超时，`docker ps -a`、`docker image ls`、`docker compose -f docker-compose.dev.yml ps --all` 均在 15s 超时无输出，`curl --unix-socket /var/run/docker.sock http://localhost/_ping` 也超时；本线程先按规则执行 `timeout 15s docker version`，超时且只返回 client 信息。用户随后要求 Phase 1/1A/2 优先并允许更长等待，本线程复跑 `timeout 60s docker version` 仍超时且只返回 client 信息。用户在 Windows 侧修复 Docker 后，本线程重跑 preflight 成功：`docker version` 返回 server Docker Desktop 4.76.0 / engine 29.5.2，`docker info --format '{{.ServerVersion}} {{.Name}}'` 返回 `29.5.2 docker-desktop`，`docker compose version` 返回 v5.1.4。
+- [x] Docker 阻塞非 Docker 诊断：`/var/run/docker.sock` 存在，权限为 `root:docker` `660`，当前用户 `rain` 已在 `docker` 组；进程列表可见 Docker Desktop WSL proxy，但 daemon/server 仍未响应 `docker version`。
 - [ ] 补齐或确认服务器 SSH 入口、compose 项目名、PostgreSQL 容器名；当前仓库未发现可直接使用的服务器连接 runbook。
 - [x] 确认本机 `psql`、`pg_dump`、`pg_restore` 16.14 可用，本机 PostgreSQL service 未运行，符合优先使用 Docker PostgreSQL 隔离库的路径。
 - [x] 因服务器 PostgreSQL 为 18.4，按 PostgreSQL 官方 PGDG APT 源安装 `postgresql-client-18`，使用 `/usr/lib/postgresql/18/bin/pg_dump` / `pg_restore` 18.4 作为快照工具。
 - [x] 新增无密钥快照下载、Docker PostgreSQL 恢复、核心表行数采集 runbook 和脚本。
-- [ ] Docker Desktop WSL 集成修复后重跑 `docker version`、`docker info`、`docker ps`，再执行本地隔离库恢复。
+- [x] Docker Desktop WSL 集成修复后重跑 `docker version`、`docker info`、`docker ps`，再执行本地隔离库恢复；2026-06-02 已确认 `new-api`、`new-api-postgres`、`new-api-redis` 运行。
 - [ ] 确认服务器 SSH 入口、compose 项目名、PostgreSQL 容器名。
 - [ ] 在服务器 compose 网络内执行 `pg_dump --format=custom --no-owner --no-privileges`。
 - [x] 在 SSH 未授权但临时生产 PostgreSQL 端点可连的情况下，通过静默 stdin 读取临时 DSN，并用本机 PGDG `pg_dump` 18.4 直连下载最新快照；未把 DSN 写入 shell history、文件、commit 或报告。
 - [x] 下载到本地 runtime 目录：`runtime/prod-pg-snapshots/new-api-prod-20260602-193617.dump`。
 - [x] 计算 dump sha256，并从仓库根目录执行 `sha256sum -c runtime/prod-pg-snapshots/new-api-prod-20260602-193617.dump.sha256` 校验通过。
 - [x] 用 `/usr/lib/postgresql/18/bin/pg_restore --list` 验证 dump 可读；archive 显示 dump 来自 PostgreSQL 18.4，TOC Entries 283。
-- [ ] 在本地 Docker PostgreSQL 恢复到隔离库。
-- [ ] 采集核心表行数：`users`、`channels`、`abilities`、`options`、`logs`、`top_ups`、`affiliate_*`。
-- [ ] 启动 new-api 指向本地恢复库。
-- [ ] 验证 `/api/status`、`channels` 查询和登录页可用。
-- [ ] 用 `Rain`、`ChengyuWang0807`、`nr_mm2z5vr` 完成本地登录 smoke，不记录密码。
+- [x] 在本地 Docker PostgreSQL 恢复到隔离库；2026-06-02 已将 `runtime/prod-pg-snapshots/new-api-prod-20260602-193617.dump` 恢复到 compose `new-api-postgres` / `new-api` 数据库。
+- [x] 采集核心表行数：`users`、`channels`、`abilities`、`options`、`logs`、`top_ups`、`affiliate_*`；2026-06-02 行数为 `users=80`、`channels=38`、`abilities=334`、`options=116`、`logs=426295`、`top_ups=84`，dump 当前无 `affiliate_*` 表。
+- [x] 启动 new-api 指向本地恢复库；2026-06-02 `new-api:dev` 主容器已重建并启动，日志显示系统已初始化并完成 channels sync。
+- [x] 验证 `/api/status`、`channels` 查询和登录页可用；2026-06-02 `/api/status` 返回 `success=true`，登录页 `GET /` 返回 HTTP 200，`channels` 表行数为 38。
+- [x] 用 `Rain`、`ChengyuWang0807`、`nr_mm2z5vr` 完成本地登录 smoke，不记录密码；2026-06-02 从 `.codex-local/affiliate-test-accounts.secret.json` 读取密码且仅输出角色标签，`super_admin`、`level_1_affiliate`、`level_2_affiliate` 均 HTTP 200 / `success=true` / `require_2fa=false`。
 
 ## Phase 1A：WSL2 Docker Compose Dev 部署
 
-- [ ] 修复或确认 WSL2 Docker daemon 可用；当前 Compose 插件和 `docker compose -f docker-compose.dev.yml config` 可用，但 daemon/socket 查询在本会话超时，需先恢复 `/var/run/docker.sock` 响应再继续恢复 dump。
+- [x] 修复或确认 WSL2 Docker daemon 可用；当前 Compose 插件和 `docker compose -f docker-compose.dev.yml config` 曾验证可用，本线程 `timeout 15s docker version` 与 `timeout 60s docker version` 曾超时且未返回 server 信息；用户在 Windows 侧修复后，Docker daemon/server 已恢复响应并完成 build/up/restore/smoke。
 - [x] 审查现有 `docker-compose.yml`、`docker-compose.dev.yml`、`Dockerfile.dev`，确定修改 dev compose。
 - [x] 本地 dev compose 主服务镜像名设为 `new-api:dev`。
 - [x] 本地 dev compose 主服务容器名设为 `new-api`。
@@ -68,21 +69,21 @@
 - [x] compose 内部 `REDIS_CONN_STRING` 指向 `redis` 服务，不使用生产 Redis。
 - [x] 使用隔离 volume 和 network，避免覆盖其他项目或旧 dev 数据。
 - [x] 复核并接收另一线程的 compose 改动：`Dockerfile.dev` builder 升到 `golang:1.26.3-alpine`，PostgreSQL 命名卷挂载到 `/var/lib/postgresql`，默认 PGDATA 子目录仍位于隔离命名卷 `new_api_dev_pg_data` 内；`docker compose -f docker-compose.dev.yml config --quiet` 通过，运行态仍待 Docker daemon 可访问后用 `docker inspect` 复核。
-- [ ] 构建本地镜像：`docker compose -f docker-compose.dev.yml build new-api`，确认生成 `new-api:dev`；2026-06-02 用户提示另一线程已完成构建，但本会话因 Docker daemon/socket 无响应暂无法确认。
-- [ ] 启动容器：`docker compose -f <dev-compose> up -d`。
-- [ ] 将 `runtime/prod-pg-snapshots/new-api-prod-20260602-193617.dump` 恢复到 compose PostgreSQL 隔离库。
-- [ ] 采集核心表行数：`users`、`channels`、`abilities`、`options`、`logs`、`top_ups`、`affiliate_*`。
-- [ ] 验证 `http://127.0.0.1:3000/api/status`。
-- [ ] 用本地密钥文件中的三类账号完成登录 smoke，不输出密码。
-- [ ] 记录 compose 启停、重建、恢复 dump、清理 volume 的本地 runbook。
+- [x] 构建本地镜像：`docker compose -f docker-compose.dev.yml build new-api`，确认生成 `new-api:dev`；2026-06-02 本线程已重建镜像，输出 `Image new-api:dev Built`。
+- [x] 启动容器：`docker compose -f docker-compose.dev.yml up -d`；2026-06-02 `new-api`、`new-api-postgres`、`new-api-redis` 均运行。
+- [x] 将 `runtime/prod-pg-snapshots/new-api-prod-20260602-193617.dump` 恢复到 compose PostgreSQL 隔离库。
+- [x] 采集核心表行数：`users`、`channels`、`abilities`、`options`、`logs`、`top_ups`、`affiliate_*`；结果同 Phase 1 记录。
+- [x] 验证 `http://127.0.0.1:3000/api/status`；受限执行环境内直接 curl 被 sandbox 网络限制拒绝，提升后本地 curl 成功且返回 `success=true`。
+- [x] 用本地密钥文件中的三类账号完成登录 smoke，不输出密码；三类账号均 HTTP 200 / `success=true`。
+- [x] 记录 compose 启停、重建、恢复 dump、清理 volume 的本地 runbook：`docs/affiliate/native-affiliate-dev-compose-runbook.zh-CN.md`。
 
 ## Phase 2：schema impact 基线
 
-- [ ] 在未开发前导出官方基线 PostgreSQL schema。
+- [x] 在未开发前导出官方基线 PostgreSQL schema；严格意义上无法回到功能分支最初未开发时间点，但当前 `AffiliateSidecarModels()` 尚未接入全局 AutoMigrate，2026-06-02 已从恢复后的 compose PostgreSQL 导出 sidecar 接入前 baseline：`runtime/schema-impact/20260602T150911Z-compose-official-baseline.sql`，sha256 校验通过且 runtime 被 Git 忽略。
 - [x] 建立 schema impact 脚本或手工流程。
 - [ ] 后续每次新增 GORM model 前后都生成 diff。
 - [ ] 确认新增内容只包括预期 `affiliate_*` / sidecar 表和索引。
-- [ ] 明确禁止改动官方核心表结构，除非有单独批准和记录。
+- [x] 明确禁止改动官方核心表结构，除非有单独批准和记录；2026-06-02 本线程非 Docker 复核：`AffiliateSidecarModels()` 未接入 `model/main.go` 的 `migrateDB` / `migrateDBFast` 全局 AutoMigrate，当前 sidecar 表只在定向测试内迁移，等待本地 PostgreSQL schema baseline 后再接入。
 
 ## Phase 3：分销 sidecar 表与服务骨架
 
@@ -113,11 +114,28 @@
 - [x] 保持 `users.role` 不变。
 - [x] 用 `affiliate_profiles.status=active` 派生分销身份。
 - [x] 支持管理员指定一级/二级分销商（后端 service/controller/API）。
+- [x] 增加管理员指定二级分销商的后端层级校验：二级 profile 必须指定 active 一级 parent，禁止缺失 parent、disabled parent 或自引用 parent。
 - [x] 支持启用/禁用分销 profile（后端 service/controller/API；重新启用不自动恢复已 ended relation，后续需明确恢复策略）。
 - [x] 新增分销商端 middleware（普通用户需模块开启且 profile active，管理员/超级管理员默认放行并注入全局 scope）。
 - [x] 新增管理员端权限校验（`/api/affiliate/admin/*` 使用 `AdminAuth`）。
 - [ ] 普通用户访问分销页返回友好未开通状态；后端 `/api/affiliate/status` 已返回 `available`、`unavailable_reason` 和中文 `message`，实际页面展示仍待 classic/default 前端接入。
-- [x] 增加 profile 创建、启用、禁用、权限校验测试；已覆盖 profile 创建/更新/禁用/启用 happy path，以及管理员路由未登录/普通用户拒绝访问。
+- [x] 增加 profile 创建、启用、禁用、权限校验测试；已覆盖 profile 创建/更新/禁用/启用 happy path，以及管理员路由未登录/普通用户拒绝访问；2026-06-02 本线程复跑 `go test ./model ./service ./middleware ./controller -run 'Affiliate|AdminSetAffiliateProfile|AdminUpdateAffiliateProfileStatus|AffiliateAdminRoutes|GetAffiliateStatus'` 通过。
+- [x] 增加二级分销商 parent 校验测试；2026-06-02 本线程先观察到新增测试 RED，再实现 service 校验，`go test ./service -run 'TestSetAffiliateProfileRequiresActiveLevelOneParentForLevelTwo|TestSetAffiliateProfileAcceptsLevelTwoWithActiveLevelOneParent'` 通过。
+
+### Phase 1-4 接手复盘（2026-06-02 本线程）
+
+- Phase 1/1A 完成内容：确认 `.codex-local/`、`runtime/`、dump、secret JSON、`sources.yml` 未被 Git 追踪；Docker 初始 15s/60s preflight 曾超时，用户在 Windows 侧修复后重跑 preflight 成功；已重建 `new-api:dev`，启动 `new-api`、`new-api-postgres`、`new-api-redis`，恢复本地 dump，采集核心表行数，完成 `/api/status`、登录页和三类真实账号登录 smoke。
+- Phase 1/1A 验证方式：`git ls-files`、`git check-ignore -v`、tracked 敏感模式脱敏扫描、`docker version`、`docker info`、`docker compose version`、`docker ps --filter 'name=new-api'`、`docker compose build/up`、`docker exec pg_restore`、容器内 `psql` 行数查询、本地 curl smoke、secret JSON 登录脚本。
+- Phase 1/1A 残留风险：HTTP smoke 的非提升 curl 受当前 sandbox 网络限制失败，提升后成功；生产/staging 证据仍未覆盖，不能把本地 smoke 冒充正式验收。
+- Phase 1/1A 下一步：进入 sidecar AutoMigrate 前需基于已导出的 baseline 做 schema diff；如继续做浏览器/前端 smoke，仍需避免输出真实账号密码和 cookie。
+- Phase 2 完成内容：复核 schema impact 脚本存在，确认 sidecar 模型仍未进入全局 AutoMigrate，核心表结构禁改约束保持有效；已从恢复后的 compose PostgreSQL 导出 sidecar 接入前 baseline schema 到 Git 忽略的 `runtime/schema-impact/`。
+- Phase 2 验证方式：读取 `ops/schema-impact/*`、`model/affiliate.go`、`model/main.go`，确认 `AffiliateSidecarModels()` 只被模型测试和定向测试使用；`pg_dump --schema-only` 导出 `runtime/schema-impact/20260602T150911Z-compose-official-baseline.sql`，`sha256sum -c` 通过，`git check-ignore -v` 确认 runtime schema 文件被忽略。
+- Phase 2 残留风险：尚未接入 sidecar AutoMigrate，因此还没有 after schema 和 diff；后续新增/迁移 sidecar 表前后必须导出 diff，确认只新增预期 `affiliate_*` / sidecar 表和索引。
+- Phase 2 下一步：接入 `AffiliateSidecarModels()` 前先保存当前 baseline 证据；接入后导出 after schema，运行 `ops/schema-impact/diff-schema.sh` 并更新 tasklist。
+- Phase 3/4 完成内容：复核 affiliate sidecar 模型、profile/relation/invite/audit service、status/admin controller、管理员权限和分销商 middleware 骨架；补充二级分销商必须绑定 active 一级 parent 的 service 校验。
+- Phase 3/4 验证方式：affiliate 定向 Go 测试通过；二级 parent 校验先观察到 RED，再实现 service 最小校验并通过；大范围 `go test ./model ./service ./controller ./middleware` 中 controller 包仍因既有非 affiliate `controller/model_list_test.go` 基线问题失败，继续按 Phase 12 待办处理。
+- Phase 3/4 残留风险：普通用户友好状态目前只有后端 `/api/affiliate/status`，classic/default 页面展示仍未接入；sidecar 表尚未进入真实 PostgreSQL schema impact。
+- Phase 3/4 下一步：优先等待 Phase 2 baseline 后接入迁移；若继续非 Docker 开发，推进 Phase 5 邀请归因 thin hook 或补充 Phase 4 管理员 profile 输入校验。
 
 ## Phase 5：邀请归因与初始额度
 
