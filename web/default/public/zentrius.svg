@@ -1,30 +1,3 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 500" width="500" height="500">
-  <defs>
-    <style>
-      .z-shape {
-        fill: none;
-        stroke: #174224; /* Dark green */
-        stroke-width: 65; /* Mid-weight between 90 and 40 */
-        stroke-linejoin: miter;
-        stroke-linecap: square;
-      }
-      .c-shape {
-        fill: none;
-        stroke: #C59B35; /* Gold */
-        stroke-width: 40; /* Mid-weight between 55 and 25 */
-        stroke-linecap: square;
-      }
-      .h-line {
-        stroke: #174224;
-        stroke-width: 6; /* Mid-weight between 8 and 4 */
-      }
-    </style>
-  </defs>
-
-  <path class="z-shape" d="M 130 140 L 370 140 L 130 360 L 370 360" />
-
-  <path class="c-shape" d="M 330 190 A 85 85 0 1 0 330 310" />
-
-  <line class="h-line" x1="260" y1="310" x2="380" y2="310" />
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 500" width="500" height="500"> <defs> <style>.z-shape { fill: none; stroke: #174224; /* Dark green */ stroke-width: 65; /* Mid-weight between 90 and 40 */ stroke-linejoin: miter; stroke-linecap: square; }.c-shape { fill: none; stroke: #C59B35; /* Gold */ stroke-width: 40; /* Mid-weight between 55 and 25 */ stroke-linecap: square; }.h-line { stroke: #174224; stroke-width: 6; /* Mid-weight between 8 and 4 */ } </style> </defs> <path class="z-shape" d="M 130 140 L 370 140 L 130 360 L 370 360" /> <path class="c-shape" d="M 330 190 A 85 85 0 1 0 330 310" /> <line class="h-line" x1="260" y1="310" x2="380" y2="310" />
 </svg>
