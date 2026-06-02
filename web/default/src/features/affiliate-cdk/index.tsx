@@ -18,20 +18,26 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { useTranslation } from 'react-i18next'
 import { SectionPageLayout } from '@/components/layout'
-import { AffiliateCommissionsCard } from '@/features/wallet/components/affiliate-commissions-card'
+import { AffiliateCdkCodesTable } from './components/affiliate-cdk-codes-table'
+import { AffiliateCdkPurchaseCard } from './components/affiliate-cdk-purchase-card'
 
-export function Affiliate() {
+export function AffiliateCdk() {
   const { t } = useTranslation()
 
   return (
     <SectionPageLayout>
-      <SectionPageLayout.Title>{t('Top-up Rewards')}</SectionPageLayout.Title>
+      <SectionPageLayout.Title>{t('CDK Procurement')}</SectionPageLayout.Title>
       <SectionPageLayout.Description>
-        {t('Invite users to top up, then redeem earned reward points.')}
+        {t('Purchase CDKs at your affiliate price and manage generated codes.')}
       </SectionPageLayout.Description>
       <SectionPageLayout.Content>
-        <div className='mx-auto w-full max-w-5xl'>
-          <AffiliateCommissionsCard />
+        <div className='grid w-full gap-4 sm:gap-5 xl:grid-cols-[minmax(320px,420px)_minmax(0,1fr)] xl:items-start'>
+          <div className='min-w-0'>
+            <AffiliateCdkPurchaseCard />
+          </div>
+          <div className='min-w-0'>
+            <AffiliateCdkCodesTable />
+          </div>
         </div>
       </SectionPageLayout.Content>
     </SectionPageLayout>

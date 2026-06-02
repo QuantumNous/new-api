@@ -84,6 +84,21 @@ export function useRedemptionsColumns(): ColumnDef<Redemption>[] {
       },
     },
     {
+      accessorKey: 'creator_username',
+      meta: { label: t('Creator') },
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title={t('Creator')} />
+      ),
+      cell: ({ row }) => {
+        const creator = row.original.creator_username?.trim()
+        return creator ? (
+          <StatusBadge label={creator} variant='neutral' copyable={false} />
+        ) : (
+          <span className='text-muted-foreground text-sm'>-</span>
+        )
+      },
+    },
+    {
       accessorKey: 'status',
       meta: { label: t('Status'), mobileBadge: true },
       header: ({ column }) => (

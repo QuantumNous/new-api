@@ -53,6 +53,7 @@ const DEFAULT_SIDEBAR_MODULES: SidebarModulesAdminConfig = {
     enabled: true,
     topup: true,
     affiliate: true,
+    affiliate_cdk: true,
     personal: true,
   },
   admin: {
@@ -108,6 +109,7 @@ const URL_TO_CONFIG_MAP: Record<string, { section: string; module: string }> = {
   '/usage-logs/task': { section: 'console', module: 'task' },
   '/wallet': { section: 'personal', module: 'topup' },
   '/affiliate': { section: 'personal', module: 'affiliate' },
+  '/affiliate-cdk': { section: 'personal', module: 'affiliate_cdk' },
   '/profile': { section: 'personal', module: 'personal' },
   '/channels': { section: 'admin', module: 'channel' },
   '/models': { section: 'admin', module: 'models' },
@@ -174,7 +176,10 @@ function isModuleEnabled(
   userConfig: SidebarModulesUserConfig,
   canAccessAffiliateModule: boolean
 ): boolean {
-  if (url === '/affiliate' && !canAccessAffiliateModule) {
+  if (
+    (url === '/affiliate' || url === '/affiliate-cdk') &&
+    !canAccessAffiliateModule
+  ) {
     return false
   }
 

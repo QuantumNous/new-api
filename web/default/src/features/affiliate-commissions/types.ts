@@ -165,8 +165,7 @@ export interface AffiliateCommissionQuery extends AffiliateCommissionFilters {
   page_size?: number
 }
 
-export interface AffiliateRewardPointSettlementQuery
-  extends AffiliateRewardPointSettlementFilters {
+export interface AffiliateRewardPointSettlementQuery extends AffiliateRewardPointSettlementFilters {
   p?: number
   page_size?: number
 }
@@ -206,4 +205,128 @@ export interface OfflineCashbackAffiliateRewardPointsRequest {
 export interface OfflineCashbackAffiliateRewardPointsResponse {
   promoter_id: number
   points: number
+}
+
+export type AffiliateCdkOrderStatus =
+  | 'pending'
+  | 'success'
+  | 'failed'
+  | 'expired'
+
+export interface AffiliateCdkPayMethod {
+  name: string
+  type: string
+  color?: string
+  icon?: string
+  min_topup?: number
+}
+
+export interface AffiliateCdkInfo {
+  amount_options: number[]
+  discount: Record<number, number>
+  pay_methods: AffiliateCdkPayMethod[]
+  enable_epay: boolean
+  min_topup: number
+  max_quantity: number
+  cdk_purchase_discount_bps: number
+  discount_configured: boolean
+  enable_cdk_purchase: boolean
+  payment_compliance_confirmed: boolean
+}
+
+export interface AffiliateCdkQuoteRequest {
+  amount: number
+  quantity: number
+}
+
+export interface AffiliateCdkQuote {
+  amount: number
+  quantity: number
+  total_amount: number
+  code_quota: number
+  total_quota: number
+  unit_wallet_pay_amount: number
+  unit_pay_amount: number
+  wallet_pay_amount: number
+  pay_amount: number
+  cdk_purchase_discount_bps: number
+  discount_configured: boolean
+}
+
+export interface AffiliateCdkPayRequest extends AffiliateCdkQuoteRequest {
+  payment_method: string
+}
+
+export type AffiliateCdkPayResponse = ApiResponse<Record<string, unknown>> & {
+  url?: string
+}
+
+export interface AffiliateCdkOrder {
+  id: number
+  user_id: number
+  trade_no: string
+  code_amount: number
+  quantity: number
+  total_amount: number
+  code_quota: number
+  total_quota: number
+  wallet_pay_amount: number
+  pay_amount: number
+  cdk_purchase_discount_bps: number
+  payment_method: string
+  payment_provider: string
+  status: AffiliateCdkOrderStatus
+  create_time: number
+  complete_time: number
+}
+
+export interface AffiliateCdkOrderQuery {
+  status?: AffiliateCdkOrderStatus | ''
+  p?: number
+  page_size?: number
+}
+
+export interface AffiliateCdkOrderListResponse {
+  page: number
+  page_size: number
+  total: number
+  items: AffiliateCdkOrder[]
+}
+
+export interface AffiliateCdkCode {
+  id: number
+  user_id: number
+  key: string
+  status: number
+  name: string
+  quota: number
+  source_type: string
+  source_order_id: number
+  created_time: number
+  redeemed_time: number
+  used_user_id: number
+  used_username: string
+  expired_time: number
+}
+
+export interface AffiliateCdkCodeRecord extends AffiliateCdkCode {
+  code_amount: number
+  order_quantity: number
+  pay_amount: number
+  unit_pay_amount: number
+  payment_method: string
+  order_complete_time: number
+}
+
+export interface AffiliateCdkCodeQuery {
+  p?: number
+  page_size?: number
+  status?: number
+}
+
+export interface AffiliateCdkCodeListResponse {
+  page: number
+  page_size: number
+  total: number
+  items: AffiliateCdkCodeRecord[]
 }

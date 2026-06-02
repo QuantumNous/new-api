@@ -289,11 +289,14 @@ func migrateDB() error {
 		return err
 	}
 	if common.UsingSQLite {
+		if err := ensureAffiliateCdkOrderTableSQLite(); err != nil {
+			return err
+		}
 		if err := ensureSubscriptionPlanTableSQLite(); err != nil {
 			return err
 		}
 	} else {
-		if err := DB.AutoMigrate(&SubscriptionPlan{}); err != nil {
+		if err := DB.AutoMigrate(&AffiliateCdkOrder{}, &SubscriptionPlan{}); err != nil {
 			return err
 		}
 	}
@@ -376,11 +379,14 @@ func migrateDBFast() error {
 		}
 	}
 	if common.UsingSQLite {
+		if err := ensureAffiliateCdkOrderTableSQLite(); err != nil {
+			return err
+		}
 		if err := ensureSubscriptionPlanTableSQLite(); err != nil {
 			return err
 		}
 	} else {
-		if err := DB.AutoMigrate(&SubscriptionPlan{}); err != nil {
+		if err := DB.AutoMigrate(&AffiliateCdkOrder{}, &SubscriptionPlan{}); err != nil {
 			return err
 		}
 	}
@@ -414,6 +420,85 @@ func migrateLOGDB() error {
 type sqliteColumnDef struct {
 	Name string
 	DDL  string
+}
+
+func ensureAffiliateCdkOrderTableSQLite() error {
+	if !common.UsingSQLite {
+		return nil
+	}
+	tableName := "affiliate_cdk_orders"
+	if !DB.Migrator().HasTable(tableName) {
+		createSQL := `CREATE TABLE ` + "`" + tableName + "`" + ` (
+` + "`id`" + ` integer,
+` + "`user_id`" + ` integer,
+` + "`trade_no`" + ` varchar(255),
+` + "`code_amount`" + ` bigint NOT NULL DEFAULT 0,
+` + "`quantity`" + ` integer NOT NULL DEFAULT 0,
+` + "`total_amount`" + ` bigint NOT NULL DEFAULT 0,
+` + "`code_quota`" + ` integer NOT NULL DEFAULT 0,
+` + "`total_quota`" + ` integer NOT NULL DEFAULT 0,
+` + "`wallet_pay_amount`" + ` real NOT NULL DEFAULT 0,
+` + "`pay_amount`" + ` real NOT NULL DEFAULT 0,
+` + "`cdk_purchase_discount_bps`" + ` integer NOT NULL DEFAULT 0,
+` + "`payment_method`" + ` varchar(50),
+` + "`payment_provider`" + ` varchar(50) DEFAULT '',
+` + "`status`" + ` varchar(20),
+` + "`create_time`" + ` integer,
+` + "`complete_time`" + ` integer,
+` + "`provider_payload`" + ` text,
+PRIMARY KEY (` + "`id`" + `)
+)`
+		if err := DB.Exec(createSQL).Error; err != nil {
+			return err
+		}
+	}
+	var cols []struct {
+		Name string `gorm:"column:name"`
+	}
+	if err := DB.Raw("PRAGMA table_info(`" + tableName + "`)").Scan(&cols).Error; err != nil {
+		return err
+	}
+	existing := make(map[string]struct{}, len(cols))
+	for _, c := range cols {
+		existing[c.Name] = struct{}{}
+	}
+	required := []sqliteColumnDef{
+		{Name: "user_id", DDL: "`user_id` integer"},
+		{Name: "trade_no", DDL: "`trade_no` varchar(255)"},
+		{Name: "code_amount", DDL: "`code_amount` bigint NOT NULL DEFAULT 0"},
+		{Name: "quantity", DDL: "`quantity` integer NOT NULL DEFAULT 0"},
+		{Name: "total_amount", DDL: "`total_amount` bigint NOT NULL DEFAULT 0"},
+		{Name: "code_quota", DDL: "`code_quota` integer NOT NULL DEFAULT 0"},
+		{Name: "total_quota", DDL: "`total_quota` integer NOT NULL DEFAULT 0"},
+		{Name: "wallet_pay_amount", DDL: "`wallet_pay_amount` real NOT NULL DEFAULT 0"},
+		{Name: "pay_amount", DDL: "`pay_amount` real NOT NULL DEFAULT 0"},
+		{Name: "cdk_purchase_discount_bps", DDL: "`cdk_purchase_discount_bps` integer NOT NULL DEFAULT 0"},
+		{Name: "payment_method", DDL: "`payment_method` varchar(50)"},
+		{Name: "payment_provider", DDL: "`payment_provider` varchar(50) DEFAULT ''"},
+		{Name: "status", DDL: "`status` varchar(20)"},
+		{Name: "create_time", DDL: "`create_time` integer"},
+		{Name: "complete_time", DDL: "`complete_time` integer"},
+		{Name: "provider_payload", DDL: "`provider_payload` text"},
+	}
+	for _, col := range required {
+		if _, ok := existing[col.Name]; ok {
+			continue
+		}
+		if err := DB.Exec("ALTER TABLE `" + tableName + "` ADD COLUMN " + col.DDL).Error; err != nil {
+			return err
+		}
+	}
+	indexes := []string{
+		"CREATE UNIQUE INDEX IF NOT EXISTS `idx_affiliate_cdk_orders_trade_no` ON `" + tableName + "` (`trade_no`)",
+		"CREATE INDEX IF NOT EXISTS `idx_affiliate_cdk_orders_user_id` ON `" + tableName + "` (`user_id`)",
+		"CREATE INDEX IF NOT EXISTS `idx_affiliate_cdk_orders_status` ON `" + tableName + "` (`status`)",
+	}
+	for _, sql := range indexes {
+		if err := DB.Exec(sql).Error; err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func ensureSubscriptionPlanTableSQLite() error {

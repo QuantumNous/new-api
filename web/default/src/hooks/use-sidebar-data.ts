@@ -111,9 +111,14 @@ export function useSidebarData(): SidebarData {
             icon: Wallet,
           },
           {
-            title: t('Affiliate'),
+            title: t('Top-up Rewards'),
             url: '/affiliate',
             icon: HandCoins,
+          },
+          {
+            title: t('CDK Procurement'),
+            url: '/affiliate-cdk',
+            icon: Ticket,
           },
           {
             title: t('Profile'),

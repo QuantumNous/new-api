@@ -45,8 +45,10 @@ func setupAffiliateCommissionControllerTestDB(t *testing.T) *gorm.DB {
 		&model.User{},
 		&model.Log{},
 		&model.AffiliatePayoutProfile{},
+		&model.AffiliateCdkOrder{},
 		&model.AffiliateCommission{},
 		&model.AffiliateCommissionSettlement{},
+		&model.Redemption{},
 	))
 
 	return db
@@ -113,6 +115,31 @@ func TestSelfAffiliateAPIsRequireDistributionPermission(t *testing.T) {
 			body:   body,
 			call:   RedeemSelfAffiliateRewardPoints,
 		},
+		{
+			name:   "cdk info",
+			method: http.MethodGet,
+			path:   "/api/affiliate/self/cdk/info",
+			call:   GetSelfAffiliateCdkInfo,
+		},
+		{
+			name:   "cdk quote",
+			method: http.MethodPost,
+			path:   "/api/affiliate/self/cdk/quote",
+			body:   body,
+			call:   QuoteSelfAffiliateCdk,
+		},
+		{
+			name:   "cdk orders",
+			method: http.MethodGet,
+			path:   "/api/affiliate/self/cdk/orders",
+			call:   GetSelfAffiliateCdkOrders,
+		},
+		{
+			name:   "cdk codes",
+			method: http.MethodGet,
+			path:   "/api/affiliate/self/cdk/codes",
+			call:   GetSelfAffiliateCdkCodes,
+		},
 	}
 
 	for _, tt := range tests {
@@ -169,6 +196,213 @@ func TestAdminExportAffiliateCommissionsUsesRewardPointFields(t *testing.T) {
 	require.True(t, strings.Contains(body, "奖励积分"))
 	require.True(t, strings.Contains(body, "50000"))
 	require.False(t, strings.Contains(body, "agent@example.com"))
+}
+
+func TestSelfAffiliateCdkAPIsRequireComplianceAndDiscount(t *testing.T) {
+	setupAffiliateCommissionControllerTestDB(t)
+	oldDistribution := *operation_setting.GetDistributionSetting()
+	oldPayment := *operation_setting.GetPaymentSetting()
+	oldPrice := operation_setting.Price
+	t.Cleanup(func() {
+		*operation_setting.GetDistributionSetting() = oldDistribution
+		*operation_setting.GetPaymentSetting() = oldPayment
+		operation_setting.Price = oldPrice
+	})
+	require.NoError(t, model.DB.Create(&model.User{
+		Id:                  1001,
+		Username:            "agent",
+		DisplayName:         "agent",
+		Status:              common.UserStatusEnabled,
+		Role:                common.RoleCommonUser,
+		AffCode:             "agent_code",
+		DistributionEnabled: true,
+	}).Error)
+
+	payment := operation_setting.GetPaymentSetting()
+	payment.ComplianceConfirmed = false
+	payment.ComplianceTermsVersion = operation_setting.CurrentComplianceTermsVersion
+	c, w := affiliateControllerTestContext(http.MethodGet, "/api/affiliate/self/cdk/info", nil)
+	c.Set("id", 1001)
+	GetSelfAffiliateCdkInfo(c)
+	require.Equal(t, http.StatusOK, w.Code)
+	require.Contains(t, w.Body.String(), `"success":false`)
+
+	payment.ComplianceConfirmed = true
+	payment.AmountOptions = []int{100}
+	payment.AmountDiscount = map[int]float64{}
+	operation_setting.Price = 1
+	distribution := operation_setting.GetDistributionSetting()
+	distribution.CdkPurchaseDiscountBps = 0
+	body, err := common.Marshal(map[string]any{"amount": 100, "quantity": 1})
+	require.NoError(t, err)
+	c, w = affiliateControllerTestContext(http.MethodPost, "/api/affiliate/self/cdk/quote", body)
+	c.Set("id", 1001)
+	QuoteSelfAffiliateCdk(c)
+	require.Equal(t, http.StatusOK, w.Code)
+	require.Contains(t, w.Body.String(), `"success":false`)
+	require.Contains(t, w.Body.String(), "管理员未配置代理 CDK 采购折扣")
+}
+
+func TestSelfAffiliateCdkCodesAPIListsOwnGeneratedCodes(t *testing.T) {
+	setupAffiliateCommissionControllerTestDB(t)
+	oldDistribution := *operation_setting.GetDistributionSetting()
+	oldPayment := *operation_setting.GetPaymentSetting()
+	oldPrice := operation_setting.Price
+	t.Cleanup(func() {
+		*operation_setting.GetDistributionSetting() = oldDistribution
+		*operation_setting.GetPaymentSetting() = oldPayment
+		operation_setting.Price = oldPrice
+	})
+	require.NoError(t, model.DB.Create(&model.User{
+		Id:                  1001,
+		Username:            "agent",
+		DisplayName:         "agent",
+		Status:              common.UserStatusEnabled,
+		Role:                common.RoleCommonUser,
+		AffCode:             "agent_code",
+		DistributionEnabled: true,
+	}).Error)
+	require.NoError(t, model.DB.Create(&model.User{
+		Id:                  1002,
+		Username:            "other_agent",
+		DisplayName:         "other_agent",
+		Status:              common.UserStatusEnabled,
+		Role:                common.RoleCommonUser,
+		AffCode:             "other_agent_code",
+		DistributionEnabled: true,
+	}).Error)
+
+	payment := operation_setting.GetPaymentSetting()
+	payment.ComplianceConfirmed = false
+	payment.ComplianceTermsVersion = operation_setting.CurrentComplianceTermsVersion
+	c, w := affiliateControllerTestContext(http.MethodGet, "/api/affiliate/self/cdk/codes", nil)
+	c.Set("id", 1001)
+	GetSelfAffiliateCdkCodes(c)
+	require.Equal(t, http.StatusOK, w.Code)
+	require.Contains(t, w.Body.String(), `"success":false`)
+
+	payment.ComplianceConfirmed = true
+	payment.AmountOptions = []int{50, 100}
+	payment.AmountDiscount = map[int]float64{}
+	operation_setting.Price = 1
+	distribution := operation_setting.GetDistributionSetting()
+	distribution.CdkPurchaseDiscountBps = 8000
+
+	codeQuota := int(100 * common.QuotaPerUnit)
+	pendingOrder := &model.AffiliateCdkOrder{
+		UserId:                 1001,
+		TradeNo:                "controller-cdk-pending",
+		CodeAmount:             50,
+		Quantity:               1,
+		TotalAmount:            50,
+		CodeQuota:              int(50 * common.QuotaPerUnit),
+		TotalQuota:             int(50 * common.QuotaPerUnit),
+		WalletPayAmount:        50,
+		PayAmount:              40,
+		CdkPurchaseDiscountBps: 8000,
+		PaymentMethod:          "alipay",
+		PaymentProvider:        model.PaymentProviderEpay,
+		Status:                 common.TopUpStatusPending,
+		CreateTime:             common.GetTimestamp(),
+	}
+	require.NoError(t, pendingOrder.Insert())
+	successOrder := &model.AffiliateCdkOrder{
+		UserId:                 1001,
+		TradeNo:                "controller-cdk-success",
+		CodeAmount:             100,
+		Quantity:               2,
+		TotalAmount:            200,
+		CodeQuota:              codeQuota,
+		TotalQuota:             codeQuota * 2,
+		WalletPayAmount:        200,
+		PayAmount:              160,
+		CdkPurchaseDiscountBps: 8000,
+		PaymentMethod:          "alipay",
+		PaymentProvider:        model.PaymentProviderEpay,
+		Status:                 common.TopUpStatusPending,
+		CreateTime:             common.GetTimestamp(),
+	}
+	require.NoError(t, successOrder.Insert())
+	require.NoError(t, model.CompleteAffiliateCdkOrder("controller-cdk-success", `{"ok":true}`, model.PaymentProviderEpay, "wechat"))
+	var generatedCodes []model.Redemption
+	require.NoError(t, model.DB.Where("source_type = ? AND source_order_id = ?", model.AffiliateCdkSourceType, successOrder.Id).Order("id asc").Find(&generatedCodes).Error)
+	require.Len(t, generatedCodes, 2)
+	_, redeemErr := model.Redeem(generatedCodes[0].Key, 1002)
+	require.NoError(t, redeemErr)
+	otherOrder := &model.AffiliateCdkOrder{
+		UserId:                 1002,
+		TradeNo:                "controller-cdk-other",
+		CodeAmount:             100,
+		Quantity:               1,
+		TotalAmount:            100,
+		CodeQuota:              codeQuota,
+		TotalQuota:             codeQuota,
+		WalletPayAmount:        100,
+		PayAmount:              80,
+		CdkPurchaseDiscountBps: 8000,
+		PaymentMethod:          "alipay",
+		PaymentProvider:        model.PaymentProviderEpay,
+		Status:                 common.TopUpStatusPending,
+		CreateTime:             common.GetTimestamp(),
+	}
+	require.NoError(t, otherOrder.Insert())
+	require.NoError(t, model.CompleteAffiliateCdkOrder("controller-cdk-other", `{"ok":true}`, model.PaymentProviderEpay, "alipay"))
+
+	c, w = affiliateControllerTestContext(http.MethodGet, "/api/affiliate/self/cdk/codes?p=1&page_size=1", nil)
+	c.Set("id", 1001)
+	GetSelfAffiliateCdkCodes(c)
+	require.Equal(t, http.StatusOK, w.Code)
+	var resp struct {
+		Success bool `json:"success"`
+		Data    struct {
+			Page     int                            `json:"page"`
+			PageSize int                            `json:"page_size"`
+			Total    int                            `json:"total"`
+			Items    []model.AffiliateCdkCodeRecord `json:"items"`
+		} `json:"data"`
+	}
+	require.NoError(t, common.Unmarshal(w.Body.Bytes(), &resp))
+	require.True(t, resp.Success)
+	require.Equal(t, 1, resp.Data.Page)
+	require.Equal(t, 1, resp.Data.PageSize)
+	require.Equal(t, 2, resp.Data.Total)
+	require.Len(t, resp.Data.Items, 1)
+	require.Equal(t, 1001, resp.Data.Items[0].UserId)
+	require.Equal(t, successOrder.Id, resp.Data.Items[0].SourceOrderId)
+	require.EqualValues(t, 100, resp.Data.Items[0].CodeAmount)
+	require.Equal(t, 160.0, resp.Data.Items[0].PayAmount)
+	require.Equal(t, "wechat", resp.Data.Items[0].PaymentMethod)
+	require.Greater(t, resp.Data.Items[0].OrderCompleteTime, int64(0))
+
+	c, w = affiliateControllerTestContext(http.MethodGet, "/api/affiliate/self/cdk/codes?p=1&page_size=20&status=1", nil)
+	c.Set("id", 1001)
+	GetSelfAffiliateCdkCodes(c)
+	require.Equal(t, http.StatusOK, w.Code)
+	require.NoError(t, common.Unmarshal(w.Body.Bytes(), &resp))
+	require.True(t, resp.Success)
+	require.Equal(t, 1, resp.Data.Total)
+	require.Len(t, resp.Data.Items, 1)
+	require.Equal(t, common.RedemptionCodeStatusEnabled, resp.Data.Items[0].Status)
+
+	c, w = affiliateControllerTestContext(http.MethodGet, "/api/affiliate/self/cdk/codes?p=1&page_size=20&status=3", nil)
+	c.Set("id", 1001)
+	GetSelfAffiliateCdkCodes(c)
+	require.Equal(t, http.StatusOK, w.Code)
+	require.NoError(t, common.Unmarshal(w.Body.Bytes(), &resp))
+	require.True(t, resp.Success)
+	require.Equal(t, 1, resp.Data.Total)
+	require.Len(t, resp.Data.Items, 1)
+	require.Equal(t, common.RedemptionCodeStatusUsed, resp.Data.Items[0].Status)
+	require.Equal(t, 1002, resp.Data.Items[0].UsedUserId)
+	require.Equal(t, "other_agent", resp.Data.Items[0].UsedUsername)
+	require.Greater(t, resp.Data.Items[0].RedeemedTime, int64(0))
+
+	c, w = affiliateControllerTestContext(http.MethodGet, "/api/affiliate/self/cdk/codes?status=expired", nil)
+	c.Set("id", 1001)
+	GetSelfAffiliateCdkCodes(c)
+	require.Equal(t, http.StatusOK, w.Code)
+	require.Contains(t, w.Body.String(), `"success":false`)
+	require.Contains(t, w.Body.String(), "无效的兑换码状态")
 }
 
 func TestSelfRedeemAffiliateRewardPointsAPI(t *testing.T) {

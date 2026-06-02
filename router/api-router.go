@@ -69,6 +69,12 @@ func SetApiRouter(router *gin.Engine) {
 			affiliateSelfRoute.GET("/redemptions", controller.GetSelfAffiliateRewardPointSettlements)
 			affiliateSelfRoute.POST("/rewards/quote", controller.QuoteSelfAffiliateRewardPoints)
 			affiliateSelfRoute.POST("/rewards/redeem", controller.RedeemSelfAffiliateRewardPoints)
+			affiliateSelfRoute.GET("/cdk/info", controller.GetSelfAffiliateCdkInfo)
+			affiliateSelfRoute.POST("/cdk/quote", controller.QuoteSelfAffiliateCdk)
+			affiliateSelfRoute.POST("/cdk/epay/pay", middleware.CriticalRateLimit(), controller.RequestSelfAffiliateCdkEpay)
+			affiliateSelfRoute.GET("/cdk/orders", controller.GetSelfAffiliateCdkOrders)
+			affiliateSelfRoute.GET("/cdk/orders/:id/codes", controller.GetSelfAffiliateCdkOrderCodes)
+			affiliateSelfRoute.GET("/cdk/codes", controller.GetSelfAffiliateCdkCodes)
 		}
 
 		affiliateAdminRoute := apiRouter.Group("/affiliate/admin")
@@ -80,6 +86,10 @@ func SetApiRouter(router *gin.Engine) {
 			affiliateAdminRoute.POST("/rewards/offline-cashback", controller.AdminOfflineCashbackAffiliateRewardPoints)
 			affiliateAdminRoute.GET("/commissions/export", controller.AdminExportAffiliateCommissions)
 		}
+		apiRouter.POST("/affiliate/cdk/epay/notify", controller.AffiliateCdkEpayNotify)
+		apiRouter.GET("/affiliate/cdk/epay/notify", controller.AffiliateCdkEpayNotify)
+		apiRouter.GET("/affiliate/cdk/epay/return", controller.AffiliateCdkEpayReturn)
+		apiRouter.POST("/affiliate/cdk/epay/return", controller.AffiliateCdkEpayReturn)
 
 		userRoute := apiRouter.Group("/user")
 		{

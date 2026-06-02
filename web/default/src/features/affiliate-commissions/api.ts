@@ -25,6 +25,16 @@ import type {
   AffiliateRewardPointSettlementListResponse,
   AffiliateRewardPointSettlementQuery,
   AffiliateCommissionSummary,
+  AffiliateCdkCode,
+  AffiliateCdkCodeListResponse,
+  AffiliateCdkCodeQuery,
+  AffiliateCdkInfo,
+  AffiliateCdkOrderListResponse,
+  AffiliateCdkOrderQuery,
+  AffiliateCdkPayRequest,
+  AffiliateCdkPayResponse,
+  AffiliateCdkQuote,
+  AffiliateCdkQuoteRequest,
   OfflineCashbackAffiliateRewardPointsRequest,
   OfflineCashbackAffiliateRewardPointsResponse,
   QuoteAffiliateRewardPointsRequest,
@@ -33,9 +43,9 @@ import type {
   RedeemAffiliateRewardPointsResponse,
 } from './types'
 
-function buildQueryString(query: AffiliateCommissionQuery = {}) {
+function buildQueryString<T extends object>(query: T = {} as T) {
   const params = new URLSearchParams()
-  Object.entries(query).forEach(([key, value]) => {
+  Object.entries(query as Record<string, unknown>).forEach(([key, value]) => {
     if (value === undefined || value === null || value === '') return
     params.set(key, String(value))
   })
@@ -132,6 +142,59 @@ export async function quoteSelfAffiliateRewardPoints(
   payload: QuoteAffiliateRewardPointsRequest
 ): Promise<ApiResponse<QuoteAffiliateRewardPointsResponse>> {
   const res = await api.post('/api/affiliate/self/rewards/quote', payload)
+  return res.data
+}
+
+export async function getSelfAffiliateCdkInfo(): Promise<
+  ApiResponse<AffiliateCdkInfo>
+> {
+  const res = await api.get('/api/affiliate/self/cdk/info')
+  return res.data
+}
+
+export async function quoteSelfAffiliateCdk(
+  payload: AffiliateCdkQuoteRequest
+): Promise<ApiResponse<AffiliateCdkQuote>> {
+  const res = await api.post('/api/affiliate/self/cdk/quote', payload)
+  return res.data
+}
+
+export async function requestSelfAffiliateCdkEpay(
+  payload: AffiliateCdkPayRequest
+): Promise<AffiliateCdkPayResponse> {
+  const res = await api.post('/api/affiliate/self/cdk/epay/pay', payload, {
+    skipBusinessError: true,
+  } as Record<string, unknown>)
+  return res.data
+}
+
+export async function getSelfAffiliateCdkOrders(
+  query: AffiliateCdkOrderQuery = {}
+): Promise<ApiResponse<AffiliateCdkOrderListResponse>> {
+  const qs = buildQueryString(query)
+  const res = await api.get(
+    `/api/affiliate/self/cdk/orders${qs ? `?${qs}` : ''}`
+  )
+  return res.data
+}
+
+export async function getSelfAffiliateCdkOrderCodes(
+  orderId: number
+): Promise<ApiResponse<AffiliateCdkCode[]>> {
+  const res = await api.get(`/api/affiliate/self/cdk/orders/${orderId}/codes`)
+  return res.data
+}
+
+export async function getSelfAffiliateCdkCodes(
+  query: AffiliateCdkCodeQuery = {}
+): Promise<ApiResponse<AffiliateCdkCodeListResponse>> {
+  const qs = buildQueryString(query)
+  const res = await api.get(
+    `/api/affiliate/self/cdk/codes${qs ? `?${qs}` : ''}`,
+    {
+      skipErrorHandler: true,
+    } as Record<string, unknown>
+  )
   return res.data
 }
 
