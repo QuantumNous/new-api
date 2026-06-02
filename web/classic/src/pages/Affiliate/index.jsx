@@ -19,18 +19,84 @@ For commercial licensing, please contact support@quantumnous.com
 
 import React, { useEffect, useState } from 'react';
 import { Button, Card, Empty, Spin, Typography } from '@douyinfe/semi-ui';
-import { IllustrationNoResult } from '@douyinfe/semi-illustrations';
+import {
+  IllustrationFailure,
+  IllustrationNoResult,
+} from '@douyinfe/semi-illustrations';
 import { useTranslation } from 'react-i18next';
 import UsageLogsTable from '../../components/table/usage-logs';
 import { API } from '../../helpers';
+import {
+  buildAffiliateSectionErrorState,
+  buildAffiliateStatusLoadingState,
+} from './affiliateViewState';
 
 const { Text } = Typography;
+
+const AffiliateSectionFallback = ({ t, section, onRetry }) => {
+  const state = buildAffiliateSectionErrorState(t, {
+    section,
+    retryable: Boolean(onRetry),
+  });
+
+  return (
+    <Card className='!rounded-2xl'>
+      <Empty
+        image={<IllustrationFailure style={{ width: 150, height: 150 }} />}
+        title={state.title}
+        description={<Text type='secondary'>{state.description}</Text>}
+      />
+      {state.actionLabel && (
+        <div className='flex justify-center mt-4'>
+          <Button type='tertiary' onClick={onRetry}>
+            {state.actionLabel}
+          </Button>
+        </div>
+      )}
+    </Card>
+  );
+};
+
+class AffiliateSectionErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false };
+  }
+
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+
+  componentDidCatch(error, errorInfo) {
+    console.error('[AffiliateSectionErrorBoundary]', error, errorInfo);
+  }
+
+  componentDidUpdate(prevProps) {
+    if (this.state.hasError && prevProps.resetKey !== this.props.resetKey) {
+      this.setState({ hasError: false });
+    }
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <AffiliateSectionFallback
+          t={this.props.t}
+          section={this.props.section}
+          onRetry={this.props.onRetry}
+        />
+      );
+    }
+    return this.props.children;
+  }
+}
 
 const Affiliate = () => {
   const { t } = useTranslation();
   const [loading, setLoading] = useState(true);
   const [status, setStatus] = useState(null);
   const [message, setMessage] = useState('');
+  const [logsResetKey, setLogsResetKey] = useState(0);
 
   const loadStatus = async () => {
     setLoading(true);
@@ -57,11 +123,15 @@ const Affiliate = () => {
   }, []);
 
   if (loading) {
+    const loadingState = buildAffiliateStatusLoadingState(t);
+
     return (
       <div className='mt-[60px] px-2'>
         <Card className='!rounded-2xl'>
-          <div className='flex items-center justify-center min-h-[240px]'>
+          <div className='flex flex-col items-center justify-center min-h-[240px] gap-3 text-center'>
             <Spin size='large' />
+            <Text strong>{loadingState.title}</Text>
+            <Text type='secondary'>{loadingState.description}</Text>
           </div>
         </Card>
       </div>
@@ -93,7 +163,14 @@ const Affiliate = () => {
 
   return (
     <div className='mt-[60px] px-2'>
-      <UsageLogsTable mode='affiliate' />
+      <AffiliateSectionErrorBoundary
+        t={t}
+        section='logs'
+        resetKey={logsResetKey}
+        onRetry={() => setLogsResetKey((key) => key + 1)}
+      >
+        <UsageLogsTable key={logsResetKey} mode='affiliate' />
+      </AffiliateSectionErrorBoundary>
     </div>
   );
 };

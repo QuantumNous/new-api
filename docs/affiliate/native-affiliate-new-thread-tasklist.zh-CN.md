@@ -309,7 +309,7 @@
 
 - [x] 使用 Playwright/Chromium 复现一级分销商“数据看板页面渲染出错”；2026-06-03 在当前 `/console/affiliate` scoped logs 页面未再复现整页渲染错误，一级分销商桌面和移动端 browser smoke 均通过。
 - [x] 修复 classic 分销页整页渲染错误（新增 `/console/affiliate` 状态门禁和 scoped logs 页面，classic build 已通过；真实浏览器 smoke 已覆盖管理员/一级/二级/移动端）。
-- [ ] 增加组件级错误边界和分区加载状态。
+- [x] 增加组件级错误边界和分区加载状态；2026-06-03 classic `/console/affiliate` 已为 scoped logs 分区增加局部错误边界和重试，不再依赖整页 ErrorBoundary 承接明细表渲染异常。
 - [ ] 重构分销首页为统计分析看板。
 - [ ] 看板包含团队人数、有效新用户、净付费消耗、预估佣金、人头费、待结算金额、KPI 档位。
 - [ ] 金额/额度主显示 RMB。
@@ -327,6 +327,13 @@
 - 验证方式：`timeout 10s curl` 验证 3000/5173/5174；API smoke 覆盖 `super_admin` global scope、一级/二级 affiliate scope 和 logs success；`runtime/smoke/node_modules/.bin/playwright test --config=runtime/smoke/playwright.config.cjs` 4/4 通过，覆盖桌面管理员、桌面一级、桌面二级和一级移动端。临时脚本、runner、截图均位于 Git 忽略的 `runtime/smoke/`。
 - 残留风险：本轮 browser smoke 为本地恢复库验证，且为跑 smoke 修改了本地库中的 `AffiliateEnabled` 和测试账号 profile；普通用户、profile disabled、模块关闭、完整管理员管理页和 default 分销前端仍未做 browser 回归。
 - 下一步：补普通用户/profile disabled/模块关闭截图回归；随后做 default parity，或继续 Phase 7 统计看板/RMB 主显示。
+
+### Phase 7 classic 分区错误边界复盘（2026-06-03 本线程）
+
+- 完成内容：`/console/affiliate` 状态加载卡片增加明确中文 loading 文案；scoped logs 明细区增加局部 `AffiliateSectionErrorBoundary`，明细表渲染异常时仅替换当前分区为中文失败提示和“重新加载明细”按钮，避免整页进入全局错误页。
+- 验证方式：按 TDD 先观察 `bun test web/classic/src/pages/Affiliate/affiliateViewState.test.mjs` RED（helper 缺失），实现后 `bun test web/classic/src/pages/Affiliate/affiliateViewState.test.mjs web/classic/src/hooks/usage-logs/usageLogsUrls.test.mjs` 6/6 通过；`bunx prettier src/pages/Affiliate/index.jsx src/pages/Affiliate/affiliateViewState.js src/pages/Affiliate/affiliateViewState.test.mjs --check` 通过；`cd web/classic && bun run build` 通过；`git diff --check` 通过。
+- 残留风险：本批未重启 5174 dev server，因此未重新跑 Playwright browser smoke；局部错误边界覆盖 scoped logs 分区，统计看板分区需在后续看板落地时继续拆分。
+- 下一步：继续 Phase 7 统计看板/RMB 主显示，或先补普通用户/profile disabled/模块关闭 browser 回归。
 
 ## Phase 8：default 分销前端
 
