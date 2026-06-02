@@ -81,9 +81,9 @@
 
 - [x] 在未开发前导出官方基线 PostgreSQL schema；严格意义上无法回到功能分支最初未开发时间点，但当前 `AffiliateSidecarModels()` 尚未接入全局 AutoMigrate，2026-06-02 已从恢复后的 compose PostgreSQL 导出 sidecar 接入前 baseline：`runtime/schema-impact/20260602T150911Z-compose-official-baseline.sql`，sha256 校验通过且 runtime 被 Git 忽略。
 - [x] 建立 schema impact 脚本或手工流程。
-- [ ] 后续每次新增 GORM model 前后都生成 diff。
-- [ ] 确认新增内容只包括预期 `affiliate_*` / sidecar 表和索引。
-- [x] 明确禁止改动官方核心表结构，除非有单独批准和记录；2026-06-02 本线程非 Docker 复核：`AffiliateSidecarModels()` 未接入 `model/main.go` 的 `migrateDB` / `migrateDBFast` 全局 AutoMigrate，当前 sidecar 表只在定向测试内迁移，等待本地 PostgreSQL schema baseline 后再接入。
+- [x] 后续每次新增 GORM model 前后都生成 diff；2026-06-02 本次 `AffiliateSidecarModels()` 接入 AutoMigrate 已生成 before/after schema 和 diff：`runtime/schema-impact/20260602T150911Z-compose-official-baseline.sql` -> `runtime/schema-impact/20260602T152044Z-affiliate-sidecar-after.sql`，diff 保存在 `runtime/schema-impact/20260602T152044Z-affiliate-sidecar.diff`，runtime 被 Git 忽略。
+- [x] 确认新增内容只包括预期 `affiliate_*` / sidecar 表和索引；2026-06-02 diff 显示新增 15 个 `affiliate_*` 表及其序列/索引/主键，反向检查未发现非 `affiliate_*` 的新增 `CREATE` / `ALTER`。
+- [x] 明确禁止改动官方核心表结构，除非有单独批准和记录；2026-06-02 已在 sidecar 接入前导出 baseline，随后仅将 `AffiliateSidecarModels()` 接入 `model/main.go` 的 `migrateDB` / `migrateDBFast`，schema diff 反向检查未发现非 `affiliate_*` 的新增 `CREATE` / `ALTER`。
 
 ## Phase 3：分销 sidecar 表与服务骨架
 
@@ -103,8 +103,8 @@
 - [x] 新增 `affiliate_risk_rules` 模型，用于纯赠金占比、异常用户占比、退款/刷量等阈值。
 - [x] 新增 `affiliate_config_audit_logs` 模型，用于管理员规则变更审计。
 - [ ] 如果需要 paid/gift/trial 计佣，新增 `user_quota_source_*` sidecar 表。
-- [x] `AffiliateSidecarModels()` 清单已建立，但在 Phase 2 baseline 完成前不接入 `AutoMigrate`。
-- [ ] 所有模型进入 AutoMigrate 前后跑 schema impact。
+- [x] `AffiliateSidecarModels()` 清单已建立；Phase 2 baseline 完成后已接入 `model/main.go` 的 `migrateDB` / `migrateDBFast` 全局 AutoMigrate。
+- [x] 所有模型进入 AutoMigrate 前后跑 schema impact；2026-06-02 已在 compose PostgreSQL 上触发迁移、导出 after schema 并确认只新增 `affiliate_*` 对象。
 - [x] 新增基础 service：scope、profile、relation、audit。
 - [x] 新增 `AffiliateEnabled` 管理员配置开关，默认关闭，用于分销模块总熔断和分销码降级。
 - [x] 新增基础 controller 和 `/api/affiliate/*` 路由组。
@@ -127,15 +127,15 @@
 - Phase 1/1A 完成内容：确认 `.codex-local/`、`runtime/`、dump、secret JSON、`sources.yml` 未被 Git 追踪；Docker 初始 15s/60s preflight 曾超时，用户在 Windows 侧修复后重跑 preflight 成功；已重建 `new-api:dev`，启动 `new-api`、`new-api-postgres`、`new-api-redis`，恢复本地 dump，采集核心表行数，完成 `/api/status`、登录页和三类真实账号登录 smoke。
 - Phase 1/1A 验证方式：`git ls-files`、`git check-ignore -v`、tracked 敏感模式脱敏扫描、`docker version`、`docker info`、`docker compose version`、`docker ps --filter 'name=new-api'`、`docker compose build/up`、`docker exec pg_restore`、容器内 `psql` 行数查询、本地 curl smoke、secret JSON 登录脚本。
 - Phase 1/1A 残留风险：HTTP smoke 的非提升 curl 受当前 sandbox 网络限制失败，提升后成功；生产/staging 证据仍未覆盖，不能把本地 smoke 冒充正式验收。
-- Phase 1/1A 下一步：进入 sidecar AutoMigrate 前需基于已导出的 baseline 做 schema diff；如继续做浏览器/前端 smoke，仍需避免输出真实账号密码和 cookie。
-- Phase 2 完成内容：复核 schema impact 脚本存在，确认 sidecar 模型仍未进入全局 AutoMigrate，核心表结构禁改约束保持有效；已从恢复后的 compose PostgreSQL 导出 sidecar 接入前 baseline schema 到 Git 忽略的 `runtime/schema-impact/`。
-- Phase 2 验证方式：读取 `ops/schema-impact/*`、`model/affiliate.go`、`model/main.go`，确认 `AffiliateSidecarModels()` 只被模型测试和定向测试使用；`pg_dump --schema-only` 导出 `runtime/schema-impact/20260602T150911Z-compose-official-baseline.sql`，`sha256sum -c` 通过，`git check-ignore -v` 确认 runtime schema 文件被忽略。
-- Phase 2 残留风险：尚未接入 sidecar AutoMigrate，因此还没有 after schema 和 diff；后续新增/迁移 sidecar 表前后必须导出 diff，确认只新增预期 `affiliate_*` / sidecar 表和索引。
-- Phase 2 下一步：接入 `AffiliateSidecarModels()` 前先保存当前 baseline 证据；接入后导出 after schema，运行 `ops/schema-impact/diff-schema.sh` 并更新 tasklist。
+- Phase 1/1A 下一步：如继续做浏览器/前端 smoke，仍需避免输出真实账号密码和 cookie；本地 smoke 不能替代 staging/生产验收。
+- Phase 2 完成内容：复核 schema impact 脚本存在，先从恢复后的 compose PostgreSQL 导出 sidecar 接入前 baseline，再将 `AffiliateSidecarModels()` 接入全局 AutoMigrate，重建镜像并触发 PostgreSQL 迁移，最后导出 after schema 和 diff。
+- Phase 2 验证方式：读取 `ops/schema-impact/*`、`model/affiliate.go`、`model/main.go`；`pg_dump --schema-only` 导出 `runtime/schema-impact/20260602T150911Z-compose-official-baseline.sql` 与 `runtime/schema-impact/20260602T152044Z-affiliate-sidecar-after.sql`，两者 sha256 校验通过且 runtime 被 Git 忽略；`ops/schema-impact/diff-schema.sh` 生成 diff；反向检查未发现非 `affiliate_*` 的新增 `CREATE` / `ALTER`。
+- Phase 2 残留风险：schema diff 已覆盖本次 sidecar AutoMigrate；后续新增 GORM model 或修改 sidecar 索引时仍必须重复 before/after diff。
+- Phase 2 下一步：如果继续后端推进，进入 Phase 5 注册/OAuth/微信邀请归因 thin hook；如果继续 Phase 4 前端，接入 `/api/affiliate/status` 友好提示。
 - Phase 3/4 完成内容：复核 affiliate sidecar 模型、profile/relation/invite/audit service、status/admin controller、管理员权限和分销商 middleware 骨架；补充二级分销商必须绑定 active 一级 parent 的 service 校验。
 - Phase 3/4 验证方式：affiliate 定向 Go 测试通过；二级 parent 校验先观察到 RED，再实现 service 最小校验并通过；大范围 `go test ./model ./service ./controller ./middleware` 中 controller 包仍因既有非 affiliate `controller/model_list_test.go` 基线问题失败，继续按 Phase 12 待办处理。
-- Phase 3/4 残留风险：普通用户友好状态目前只有后端 `/api/affiliate/status`，classic/default 页面展示仍未接入；sidecar 表尚未进入真实 PostgreSQL schema impact。
-- Phase 3/4 下一步：优先等待 Phase 2 baseline 后接入迁移；若继续非 Docker 开发，推进 Phase 5 邀请归因 thin hook 或补充 Phase 4 管理员 profile 输入校验。
+- Phase 3/4 残留风险：普通用户友好状态目前只有后端 `/api/affiliate/status`，classic/default 页面展示仍未接入；Phase 3 sidecar 表已进入本地 PostgreSQL schema impact，但尚未覆盖 staging/生产。
+- Phase 3/4 下一步：推进 Phase 5 邀请归因 thin hook，或先接入 classic/default 分销入口的友好未开通提示。
 
 ## Phase 5：邀请归因与初始额度
 

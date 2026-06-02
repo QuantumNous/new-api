@@ -1,6 +1,12 @@
 package model
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/QuantumNous/new-api/common"
+	"github.com/glebarez/sqlite"
+	"gorm.io/gorm"
+)
 
 func TestAffiliateSidecarTableNames(t *testing.T) {
 	expected := []string{
@@ -46,5 +52,30 @@ func TestAffiliateSidecarModelsMatchTableNames(t *testing.T) {
 	names := AffiliateSidecarTableNames()
 	if len(models) != len(names) {
 		t.Fatalf("model count %d does not match table name count %d", len(models), len(names))
+	}
+}
+
+func TestMigrateDBCreatesAffiliateSidecarTables(t *testing.T) {
+	originalDB := DB
+	originalUsingSQLite := common.UsingSQLite
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	if err != nil {
+		t.Fatalf("open sqlite: %v", err)
+	}
+	DB = db
+	common.UsingSQLite = true
+	t.Cleanup(func() {
+		DB = originalDB
+		common.UsingSQLite = originalUsingSQLite
+	})
+
+	if err := migrateDB(); err != nil {
+		t.Fatalf("migrateDB returned error: %v", err)
+	}
+
+	for _, table := range AffiliateSidecarTableNames() {
+		if !db.Migrator().HasTable(table) {
+			t.Fatalf("migrateDB should create affiliate sidecar table %q", table)
+		}
 	}
 }
