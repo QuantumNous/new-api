@@ -8,6 +8,7 @@ upload
 build
 *.db-journal
 logs
+runtime/
 web/default/dist
 web/classic/dist
 web/node_modules
