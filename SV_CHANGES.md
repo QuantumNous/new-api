@@ -261,3 +261,62 @@ Content-Type: application/json
 - `relay/channel/apimart/dto.go` — `SubmitRequest`, `SubmitResponse`, `TaskResponse`
 - `relay/channel/apimart/adaptor.go` — `Adaptor` + `pollTask` internal loop (3s interval, 10min timeout)
 - `relay/channel/apimart/adaptor_test.go` — unit tests: `TestConvertImageRequest`, `TestPollTaskCompletes`, `TestPollTaskFails` (all PASS)
+
+## Request content logging (Plan H) — live verification 2026-06-02
+
+### Design summary
+- **Table**: `request_logs` in the LOG_DB (falls back to main DB when `LOG_SQL_DSN` is unset; in production, route to a separate `LOG_SQL_DSN` Postgres instance to keep analytics off the OLTP DB).
+- **Key columns**: `request_id`, `user_id`, `token_name`, `group`, `model_name`, `channel_id`, `endpoint`, `status_code`, `duration_ms`, `is_stream`, `request_body` (TEXT), `response_summary` (TEXT).
+- **Middleware**: `RequestContentLog` in `middleware/` — reads from `*cappedResponseWriter` (capped tee writer on `c.Writer`), strips large bodies, and enqueues a `RequestLog` struct.
+- **Registration point**: `router/relay-router.go`, applied to the `/v1` relay group **after** `Distribute` — so `user_id` / `token_name` / `group` are already set in context.
+- **Config flag**: `REQUEST_CONTENT_LOG_ENABLED=true` (env var / system option). Feature is fully no-op when false.
+- **Caps**: request body capped at **256 KB**; response summary capped at **8 KB**.
+- **Async queue**: buffered channel size 2000, **2 background workers**, **drop-on-full** (non-blocking send) — zero latency impact on the relay path even under burst.
+- **UTF-8 safety**: request body bytes are sanitized with `strings.ToValidUTF8` before insert to avoid `invalid byte sequence for encoding "UTF8"` errors on Postgres when the client sends truncated multi-byte sequences.
+
+### Core files touched (Plan H)
+| File | Why | Task |
+|------|-----|------|
+| `model/main.go` | Add `RequestLog` GORM model + `LOG_DB` init + `migrateDBFast` hook | Plan H |
+| `router/relay-router.go` | Register `middleware.RequestContentLog()` on `/v1` group after Distribute | Plan H |
+| `common/init.go` | Init `LOG_DB` from `LOG_SQL_DSN` (falls back to main DB) | Plan H |
+| `common/constants.go` | Add `RequestContentLogEnabled` flag + queue/worker constants | Plan H |
+
+### Custom files added (Plan H)
+- `middleware/request_content_log.go` — `RequestContentLog` middleware + async worker loop
+- `middleware/capped_response_writer.go` — `cappedResponseWriter` tee-writer (cap 256 KB req / 8 KB resp)
+- `middleware/request_content_log_test.go` — edge tests (empty body, oversized body, Chinese UTF-8, concurrent enqueue)
+
+### Live verification results (2026-06-02)
+
+All three test calls returned HTTP 200; rows appeared in `request_logs` within 5s (async queue drained).
+
+**psql query:**
+```sql
+SELECT request_id, token_name, "group", model_name, endpoint, status_code, duration_ms,
+       left(request_body,300) AS req, left(response_summary,200) AS resp
+FROM request_logs ORDER BY id DESC LIMIT 5;
+```
+
+**Row 1 — image generation (sv-image-seedream-lite):**
+- `endpoint=/v1/images/generations`, `status_code=200`, `token_name=sv-monorepo-token`, `group=sv-monorepo`
+- `request_body={"model":"sv-image-seedream-lite","prompt":"a teal circle on white","size":"2560x1440"}`
+- `response_summary={"model":"seedream-5-0-260128","created":1780411814,"data":[{"url":"https://ark-acg-ap-southeast-1.tos-ap-southeast-1.volces.com/seedream-5-0/02178041179293279d39dabdd16daed9e...` (truncated)
+
+**Row 2 — Chinese text (sv-text-pro, UTF-8 fix confirmed):**
+- `endpoint=/v1/chat/completions`, `status_code=200`
+- `request_body={"model":"sv-text-pro","messages":[{"role":"user","content":"用一句话讲个关于太空猫的故事，必须包含中文标点。"}]}`
+- Chinese prompt stored INTACT — no mojibake, no `invalid byte sequence` error.
+
+**Row 3 — English text (sv-text-pro):**
+- `endpoint=/v1/chat/completions`, `status_code=200`
+- `request_body={"model":"sv-text-pro","messages":[{"role":"user","content":"log me: hello gateway"}]}`
+- Content confirmed: `log me: hello gateway`.
+
+**Confirmation checklist:**
+- [x] >= 3 rows exist
+- [x] Chinese prompt stored intact (UTF-8 fix holds live)
+- [x] English text row contains `log me: hello gateway`; `model_name=sv-text-pro`
+- [x] Image row `response_summary` contains `https://ark-acg-ap-southeast-1...` image URL; `model_name=sv-image-seedream-lite`
+- [x] All rows: `status_code=200`, `token_name=sv-monorepo-token`, `group=sv-monorepo`
+- [x] No `invalid byte sequence for encoding "UTF8"` in gateway logs
