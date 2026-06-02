@@ -1,17 +1,25 @@
 # router-ai-atius Docker Compose — rebrand v2.11.0
 #
-# Quick Start (production):
-#   1. cp .env.example .env  (or use existing .env)
+# Quick Start (produção):
+#   1. cp .env.example .env  (ou use existing .env)
 #   2. docker compose up -d
-#   3. Access at http://localhost:3000
+#   3. Acesse via domínio https://router.atius.com.br (apache proxy)
+#      OU direto: http://localhost:3030
 #
-# Database: Postgres 15 (single instance, persists in ./db-data)
+# Database: Postgres 15 (single instance, persiste em ./db-data)
 # Image:    ghcr.io/giovannimnz/router-ai-atius:v2.11.0-rebrand.20260602
-# DB name:  DBRouterAiAtius (was: newapi)
+# DB name:  DBRouterAiAtius (era: newapi)
+# Network:  atius-ai-router_internal (era: router-ai-atius-internal)
+# Port:     3030→3000 (evita conflito com pm2web em 3000)
 #
 # Replaces the legacy "new-api" container name and "newapi" database.
 # The legacy `newapi` database is preserved on the same Postgres server
-# for 7-14 days as a rollback safety net.
+# for 14 days as a rollback safety net (cron reminder: 2026-06-16 09:00).
+#
+# Ver Obsidian:
+#   - 60-LOGS/2026-06-02-rebrand-router-ai-atius.md
+#   - 21.03-Decisoes-Arquitetura/2026-06-02-router-ai-atius-port-scheme.md
+#   - 61-Incidents/2026-06-02-rebrand-v2.11-pg-hba-blocker.md
 #
 # ⚠️  IMPORTANT: Change all default passwords before deploying to production!
 
@@ -22,13 +30,13 @@ services:
     restart: always
     command: --log-dir /app/logs
     ports:
-      - "3000:3000"
+      - "3030:3000"  # era 3000:3000, mudou pra 3030 (libera 3000 pro pm2web)
     volumes:
       - ./data:/data
       - ./logs:/app/logs
     environment:
       - SQL_DSN=postgresql://admin:${POSTGRES_PASSWORD}@router-ai-atius-db:5432/DBRouterAiAtius?sslmode=disable
-      - REDIS_CONN_STRING=redis://:123456@redis:6379
+      - REDIS_CONN_STRING=redis://:${REDIS_PASSWORD}@router-ai-atius-redis:6379
       - TZ=America/Sao_Paulo
       - ERROR_LOG_ENABLED=true
       - BATCH_UPDATE_ENABLED=true
@@ -36,12 +44,12 @@ services:
       - SESSION_SECRET=${SESSION_SECRET}
       - TRUST_PROXY=true
     depends_on:
-      redis:
+      router-ai-atius-redis:
         condition: service_started
       router-ai-atius-db:
         condition: service_healthy
     networks:
-      - router-ai-atius-internal
+      - atius-ai-router_internal
     healthcheck:
       test: ["CMD-SHELL", "wget -q -O - http://localhost:3000/api/status | grep -o '\"success\":\\s*true' || exit 1"]
       interval: 30s
@@ -60,7 +68,7 @@ services:
     volumes:
       - ./db-data:/var/lib/postgresql/data
     networks:
-      - router-ai-atius-internal
+      - atius-ai-router_internal
     ports:
       - "5432:5432"  # Exposed for host-side pg_dump/pg_restore
     healthcheck:
@@ -69,23 +77,28 @@ services:
       timeout: 10s
       retries: 3
 
-  model-detailed:
+  router-ai-atius-model-detailed:
     image: ghcr.io/giovannimnz/router-ai-atius-model-detailed:latest
     container_name: router-ai-atius-model-detailed
     restart: always
     ports:
-      - "3300:3300"
+      - "3300:3000"  # host:container — FastAPI uvicorn
     networks:
-      - router-ai-atius-internal
+      - atius-ai-router_internal
 
-  redis:
+  router-ai-atius-redis:
     image: redis:latest
     container_name: router-ai-atius-redis
     restart: always
-    command: ["redis-server", "--requirepass", "123456"]
+    command: ["redis-server", "--requirepass", "${REDIS_PASSWORD}"]
     networks:
-      - router-ai-atius-internal
+      - atius-ai-router_internal
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
 
 networks:
-  router-ai-atius-internal:
+  atius-ai-router_internal:
     driver: bridge

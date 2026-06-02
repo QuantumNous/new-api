@@ -15,7 +15,7 @@
 #
 # Quick Start:
 #   1. ./scripts/podman-up.sh         (builds + starts in foreground-less mode)
-#   2. curl http://localhost:3301/api/status   (verify)
+#   2. curl http://localhost:3030/api/status   (verify)
 #
 # Migration from Docker:
 #   ./scripts/podman-migrate-from-docker.sh   (one-shot)
@@ -25,9 +25,10 @@
 #   - container db-newapi      → router-ai-atius-db
 #   - container redis-newapi   → router-ai-atius-redis
 #   - container model-detailed → router-ai-atius-model-detailed
-#   - network new-api-network  → router-ai-atius-internal
+#   - network new-api-network  → atius-ai-router_internal
 #   - DB name newapi           → DBRouterAiAtius
 #   - Image tag :local         → v2.11.0-rebrand.20260602 (GHCR)
+#   - Port 3000:3000           → 3030:3000 (libera 3000 pro pm2web)
 
 services:
   router-ai-atius:
@@ -36,7 +37,7 @@ services:
     restart: always
     command: --log-dir /app/logs
     ports:
-      - "3301:3000"  # host:container — 3301 to match the Apache ProxyPass upstream
+      - "3030:3000"  # host:container — 3030 to avoid conflict with pm2web on 3000
     volumes:
       - ./data:/data
       - ./logs:/app/logs
@@ -50,19 +51,19 @@ services:
       - SESSION_SECRET=${SESSION_SECRET:?set in .env}
       - TRUST_PROXY=true
     depends_on:
-      redis:
+      router-ai-atius-redis:
         condition: service_healthy
-      postgres:
+      router-ai-atius-db:
         condition: service_healthy
     networks:
-      - router-ai-atius-internal
+      - atius-ai-router_internal
     healthcheck:
       test: ["CMD-SHELL", "wget -q -O - http://localhost:3000/api/status | grep -o '\"success\":\\s*true' || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 3
 
-  model-detailed:
+  router-ai-atius-model-detailed:
     build:
       context: .
       dockerfile: integration/middleware/Dockerfile.fastapi
@@ -87,27 +88,27 @@ services:
       router-ai-atius:
         condition: service_healthy
     networks:
-      - router-ai-atius-internal
+      - atius-ai-router_internal
     healthcheck:
       test: ["CMD-SHELL", "wget -q -O - http://localhost:3001/health | grep -o '\"status\":\"healthy\"' || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 3
 
-  redis:
+  router-ai-atius-redis:
     image: docker.io/library/redis:7-alpine
     container_name: router-ai-atius-redis
     restart: always
     command: ["redis-server", "--requirepass", "${REDIS_PASSWORD:?set in .env}"]
     networks:
-      - router-ai-atius-internal
+      - atius-ai-router_internal
     healthcheck:
       test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:?set in .env}", "ping"]
       interval: 30s
       timeout: 5s
       retries: 3
 
-  postgres:
+  router-ai-atius-db:
     image: docker.io/library/postgres:15-alpine
     container_name: router-ai-atius-db
     restart: always
@@ -119,7 +120,7 @@ services:
     volumes:
       - ./db-data:/var/lib/postgresql/data
     networks:
-      - router-ai-atius-internal
+      - atius-ai-router_internal
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U admin -d DBRouterAiAtius"]
       interval: 30s
@@ -130,5 +131,5 @@ volumes:
   pg_data:
 
 networks:
-  router-ai-atius-internal:
+  atius-ai-router_internal:
     driver: bridge
