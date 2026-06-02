@@ -11,12 +11,14 @@ func TestSMSOptionMapInitializesProviderSettings(t *testing.T) {
 	originalEnabled := common.SMSEnabled
 	originalProvider := common.SMSProviderName
 	originalEndpoint := common.SMSBaoEndpoint
+	originalQueryEndpoint := common.SMSBaoQueryEndpoint
 	originalCredentialMode := common.SMSBaoCredentialMode
 	t.Cleanup(func() {
 		common.OptionMap = originalMap
 		common.SMSEnabled = originalEnabled
 		common.SMSProviderName = originalProvider
 		common.SMSBaoEndpoint = originalEndpoint
+		common.SMSBaoQueryEndpoint = originalQueryEndpoint
 		common.SMSBaoCredentialMode = originalCredentialMode
 	})
 
@@ -24,6 +26,7 @@ func TestSMSOptionMapInitializesProviderSettings(t *testing.T) {
 	common.SMSEnabled = false
 	common.SMSProviderName = common.SMSProviderSMSBao
 	common.SMSBaoEndpoint = common.DefaultSMSBaoEndpoint
+	common.SMSBaoQueryEndpoint = common.DefaultSMSBaoQueryEndpoint
 	common.SMSBaoCredentialMode = common.SMSBaoCredentialModeAPIKey
 
 	InitOptionMap()
@@ -36,6 +39,9 @@ func TestSMSOptionMapInitializesProviderSettings(t *testing.T) {
 	}
 	if common.OptionMap["SMSBaoEndpoint"] != common.DefaultSMSBaoEndpoint {
 		t.Fatalf("expected SMSBaoEndpoint default, got %q", common.OptionMap["SMSBaoEndpoint"])
+	}
+	if common.OptionMap["SMSBaoQueryEndpoint"] != common.DefaultSMSBaoQueryEndpoint {
+		t.Fatalf("expected SMSBaoQueryEndpoint default, got %q", common.OptionMap["SMSBaoQueryEndpoint"])
 	}
 	if common.OptionMap["SMSBaoCredentialMode"] != common.SMSBaoCredentialModeAPIKey {
 		t.Fatalf("expected SMSBaoCredentialMode api_key, got %q", common.OptionMap["SMSBaoCredentialMode"])
@@ -50,6 +56,7 @@ func TestUpdateOptionMapUpdatesSMSProviderSettings(t *testing.T) {
 	originalEnabled := common.SMSEnabled
 	originalProvider := common.SMSProviderName
 	originalEndpoint := common.SMSBaoEndpoint
+	originalQueryEndpoint := common.SMSBaoQueryEndpoint
 	originalUsername := common.SMSBaoUsername
 	originalCredential := common.SMSBaoCredential
 	originalCredentialMode := common.SMSBaoCredentialMode
@@ -59,6 +66,7 @@ func TestUpdateOptionMapUpdatesSMSProviderSettings(t *testing.T) {
 		common.SMSEnabled = originalEnabled
 		common.SMSProviderName = originalProvider
 		common.SMSBaoEndpoint = originalEndpoint
+		common.SMSBaoQueryEndpoint = originalQueryEndpoint
 		common.SMSBaoUsername = originalUsername
 		common.SMSBaoCredential = originalCredential
 		common.SMSBaoCredentialMode = originalCredentialMode
@@ -76,6 +84,9 @@ func TestUpdateOptionMapUpdatesSMSProviderSettings(t *testing.T) {
 	if err := updateOptionMap("SMSBaoEndpoint", "https://sms.example.test/sms"); err != nil {
 		t.Fatalf("update SMSBaoEndpoint: %v", err)
 	}
+	if err := updateOptionMap("SMSBaoQueryEndpoint", "https://sms.example.test/query"); err != nil {
+		t.Fatalf("update SMSBaoQueryEndpoint: %v", err)
+	}
 	if err := updateOptionMap("SMSBaoUsername", "demo-user"); err != nil {
 		t.Fatalf("update SMSBaoUsername: %v", err)
 	}
@@ -89,8 +100,8 @@ func TestUpdateOptionMapUpdatesSMSProviderSettings(t *testing.T) {
 		t.Fatalf("update SMSBaoProductID: %v", err)
 	}
 
-	if !common.SMSEnabled || common.SMSProviderName != common.SMSProviderSMSBao || common.SMSBaoEndpoint != "https://sms.example.test/sms" {
-		t.Fatalf("unexpected SMS option values: enabled=%v provider=%q endpoint=%q", common.SMSEnabled, common.SMSProviderName, common.SMSBaoEndpoint)
+	if !common.SMSEnabled || common.SMSProviderName != common.SMSProviderSMSBao || common.SMSBaoEndpoint != "https://sms.example.test/sms" || common.SMSBaoQueryEndpoint != "https://sms.example.test/query" {
+		t.Fatalf("unexpected SMS option values: enabled=%v provider=%q endpoint=%q query_endpoint=%q", common.SMSEnabled, common.SMSProviderName, common.SMSBaoEndpoint, common.SMSBaoQueryEndpoint)
 	}
 	if common.SMSBaoUsername != "demo-user" || common.SMSBaoCredential != "demo-key" || common.SMSBaoCredentialMode != common.SMSBaoCredentialModeMD5Password || common.SMSBaoProductID != "vip-001" {
 		t.Fatalf("unexpected SMSBao option values: username=%q credential=%q mode=%q product=%q", common.SMSBaoUsername, common.SMSBaoCredential, common.SMSBaoCredentialMode, common.SMSBaoProductID)

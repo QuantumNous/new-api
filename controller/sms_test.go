@@ -106,6 +106,91 @@ func TestAdminTestSMSRejectsWhenDisabled(t *testing.T) {
 	}
 }
 
+func TestAdminGetSMSStatusRedactsSensitiveResponse(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	originalEnabled := common.SMSEnabled
+	originalCredential := common.SMSBaoCredential
+	originalFactory := common.SMSProviderFactory
+	t.Cleanup(func() {
+		common.SMSEnabled = originalEnabled
+		common.SMSBaoCredential = originalCredential
+		common.SMSProviderFactory = originalFactory
+	})
+
+	common.SMSEnabled = true
+	common.SMSBaoCredential = "leak-me-token"
+	common.SMSProviderFactory = func(providerName string) (common.SMSProvider, error) {
+		return fakeSMSStatusProvider{result: common.SMSProviderStatusResult{
+			Provider:       common.SMSProviderSMSBao,
+			ProviderCode:   "0",
+			Success:        true,
+			SentCount:      12,
+			RemainingCount: 88,
+		}}, nil
+	}
+
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = httptest.NewRequest(http.MethodGet, "/api/sms/admin/status", nil)
+
+	AdminGetSMSStatus(ctx)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("unexpected status: %d body=%s", recorder.Code, recorder.Body.String())
+	}
+	var response struct {
+		Success bool           `json:"success"`
+		Message string         `json:"message"`
+		Data    map[string]any `json:"data"`
+	}
+	if err := json.Unmarshal(recorder.Body.Bytes(), &response); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if !response.Success {
+		t.Fatalf("expected success response, got %q", response.Message)
+	}
+	body := recorder.Body.String()
+	for _, forbidden := range []string{"leak-me-token", "demo-user"} {
+		if strings.Contains(body, forbidden) {
+			t.Fatalf("status response leaked %q: %s", forbidden, body)
+		}
+	}
+	if response.Data["provider"] != common.SMSProviderSMSBao || response.Data["provider_code"] != "0" {
+		t.Fatalf("unexpected provider metadata: %+v", response.Data)
+	}
+	if response.Data["sent_count"] != float64(12) || response.Data["remaining_count"] != float64(88) {
+		t.Fatalf("unexpected balance data: %+v", response.Data)
+	}
+}
+
+func TestAdminGetSMSStatusRejectsProviderWithoutStatusCheck(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	originalEnabled := common.SMSEnabled
+	originalFactory := common.SMSProviderFactory
+	t.Cleanup(func() {
+		common.SMSEnabled = originalEnabled
+		common.SMSProviderFactory = originalFactory
+	})
+
+	common.SMSEnabled = true
+	common.SMSProviderFactory = func(providerName string) (common.SMSProvider, error) {
+		return fakeSMSProvider{t: t}, nil
+	}
+
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = httptest.NewRequest(http.MethodGet, "/api/sms/admin/status", nil)
+
+	AdminGetSMSStatus(ctx)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("unexpected status: %d body=%s", recorder.Code, recorder.Body.String())
+	}
+	if !strings.Contains(recorder.Body.String(), "SMS provider does not support status check") {
+		t.Fatalf("expected unsupported provider message, got %s", recorder.Body.String())
+	}
+}
+
 type fakeSMSProvider struct {
 	t         *testing.T
 	wantPhone string
@@ -125,4 +210,16 @@ func (provider fakeSMSProvider) Send(ctx context.Context, input common.SMSProvid
 		ProviderCode: "0",
 		Success:      true,
 	}, nil
+}
+
+type fakeSMSStatusProvider struct {
+	result common.SMSProviderStatusResult
+}
+
+func (provider fakeSMSStatusProvider) Send(ctx context.Context, input common.SMSProviderSendInput) (common.SMSProviderSendResult, error) {
+	return common.SMSProviderSendResult{}, nil
+}
+
+func (provider fakeSMSStatusProvider) CheckStatus(ctx context.Context) (common.SMSProviderStatusResult, error) {
+	return provider.result, nil
 }

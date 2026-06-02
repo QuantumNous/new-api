@@ -95,6 +95,7 @@ var RegisterEnabled = true
 var SMSEnabled = false
 var SMSProviderName = "smsbao"
 var SMSBaoEndpoint = "https://api.smsbao.com/sms"
+var SMSBaoQueryEndpoint = "https://www.smsbao.com/query"
 var SMSBaoUsername = ""
 var SMSBaoCredential = ""
 var SMSBaoCredentialMode = "api_key"

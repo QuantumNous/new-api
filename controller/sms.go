@@ -63,3 +63,35 @@ func AdminTestSMS(c *gin.Context) {
 		},
 	})
 }
+
+func AdminGetSMSStatus(c *gin.Context) {
+	if !common.SMSEnabled {
+		common.ApiErrorMsg(c, "SMS is disabled")
+		return
+	}
+	provider, err := common.NewSMSProvider(common.SMSProviderName)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	statusChecker, ok := provider.(common.SMSProviderStatusChecker)
+	if !ok {
+		common.ApiErrorMsg(c, "SMS provider does not support status check")
+		return
+	}
+	result, err := statusChecker.CheckStatus(c.Request.Context())
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "",
+		"data": gin.H{
+			"provider":        result.Provider,
+			"provider_code":   result.ProviderCode,
+			"sent_count":      result.SentCount,
+			"remaining_count": result.RemainingCount,
+		},
+	})
+}

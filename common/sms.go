@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -13,7 +14,8 @@ import (
 const (
 	SMSProviderSMSBao = "smsbao"
 
-	DefaultSMSBaoEndpoint = "https://api.smsbao.com/sms"
+	DefaultSMSBaoEndpoint      = "https://api.smsbao.com/sms"
+	DefaultSMSBaoQueryEndpoint = "https://www.smsbao.com/query"
 
 	SMSBaoCredentialModeAPIKey      = "api_key"
 	SMSBaoCredentialModeMD5Password = "md5_password"
@@ -30,14 +32,27 @@ type SMSProviderSendResult struct {
 	Success      bool
 }
 
+type SMSProviderStatusResult struct {
+	Provider       string
+	ProviderCode   string
+	Success        bool
+	SentCount      int
+	RemainingCount int
+}
+
 type SMSProvider interface {
 	Send(ctx context.Context, input SMSProviderSendInput) (SMSProviderSendResult, error)
+}
+
+type SMSProviderStatusChecker interface {
+	CheckStatus(ctx context.Context) (SMSProviderStatusResult, error)
 }
 
 var SMSProviderFactory = defaultSMSProviderFactory
 
 type SMSBaoProvider struct {
 	Endpoint       string
+	QueryEndpoint  string
 	Username       string
 	Credential     string
 	CredentialMode string
@@ -71,6 +86,7 @@ func defaultSMSProviderFactory(providerName string) (SMSProvider, error) {
 	case SMSProviderSMSBao:
 		return &SMSBaoProvider{
 			Endpoint:       SMSBaoEndpoint,
+			QueryEndpoint:  SMSBaoQueryEndpoint,
 			Username:       SMSBaoUsername,
 			Credential:     SMSBaoCredential,
 			CredentialMode: SMSBaoCredentialMode,
@@ -129,6 +145,40 @@ func (provider *SMSBaoProvider) Send(ctx context.Context, input SMSProviderSendI
 	return result, nil
 }
 
+func (provider *SMSBaoProvider) CheckStatus(ctx context.Context) (SMSProviderStatusResult, error) {
+	result := SMSProviderStatusResult{Provider: SMSProviderSMSBao}
+	rawURL, err := provider.buildQueryURL()
+	if err != nil {
+		return result, err
+	}
+	client := provider.HTTPClient
+	if client == nil {
+		client = &http.Client{Timeout: 10 * time.Second}
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, rawURL, nil)
+	if err != nil {
+		return result, fmt.Errorf("smsbao query request is invalid")
+	}
+	resp, err := client.Do(req)
+	if err != nil {
+		return result, fmt.Errorf("smsbao query failed")
+	}
+	defer resp.Body.Close()
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return result, fmt.Errorf("smsbao query response read failed")
+	}
+	code, sentCount, remainingCount, err := parseSMSBaoQueryResponse(string(body))
+	result.ProviderCode = code
+	if err != nil {
+		return result, err
+	}
+	result.SentCount = sentCount
+	result.RemainingCount = remainingCount
+	result.Success = true
+	return result, nil
+}
+
 func (provider *SMSBaoProvider) buildSendURL(phone string, content string) (string, error) {
 	if strings.TrimSpace(provider.Username) == "" || strings.TrimSpace(provider.Credential) == "" {
 		return "", fmt.Errorf("smsbao credential is not configured")
@@ -153,6 +203,25 @@ func (provider *SMSBaoProvider) buildSendURL(phone string, content string) (stri
 	return parsed.String(), nil
 }
 
+func (provider *SMSBaoProvider) buildQueryURL() (string, error) {
+	if strings.TrimSpace(provider.Username) == "" || strings.TrimSpace(provider.Credential) == "" {
+		return "", fmt.Errorf("smsbao credential is not configured")
+	}
+	endpoint := strings.TrimSpace(provider.QueryEndpoint)
+	if endpoint == "" {
+		endpoint = DefaultSMSBaoQueryEndpoint
+	}
+	parsed, err := url.Parse(endpoint)
+	if err != nil {
+		return "", fmt.Errorf("smsbao query endpoint is invalid")
+	}
+	values := parsed.Query()
+	values.Set("u", provider.Username)
+	values.Set("p", provider.Credential)
+	parsed.RawQuery = values.Encode()
+	return parsed.String(), nil
+}
+
 func parseSMSBaoResponse(code string) error {
 	switch strings.TrimSpace(code) {
 	case "0":
@@ -172,4 +241,32 @@ func parseSMSBaoResponse(code string) error {
 	default:
 		return fmt.Errorf("smsbao request failed: %s", strings.TrimSpace(code))
 	}
+}
+
+func parseSMSBaoQueryResponse(response string) (string, int, int, error) {
+	normalized := strings.ReplaceAll(strings.TrimSpace(response), "\r\n", "\n")
+	lines := strings.Split(normalized, "\n")
+	if len(lines) == 0 || strings.TrimSpace(lines[0]) == "" {
+		return "", 0, 0, fmt.Errorf("smsbao query response is invalid")
+	}
+	code := strings.TrimSpace(lines[0])
+	if err := parseSMSBaoResponse(code); err != nil {
+		return code, 0, 0, err
+	}
+	if len(lines) < 2 {
+		return code, 0, 0, fmt.Errorf("smsbao balance response is invalid")
+	}
+	parts := strings.Split(strings.TrimSpace(lines[1]), ",")
+	if len(parts) != 2 {
+		return code, 0, 0, fmt.Errorf("smsbao balance response is invalid")
+	}
+	sentCount, err := strconv.Atoi(strings.TrimSpace(parts[0]))
+	if err != nil {
+		return code, 0, 0, fmt.Errorf("smsbao balance response is invalid")
+	}
+	remainingCount, err := strconv.Atoi(strings.TrimSpace(parts[1]))
+	if err != nil {
+		return code, 0, 0, fmt.Errorf("smsbao balance response is invalid")
+	}
+	return code, sentCount, remainingCount, nil
 }

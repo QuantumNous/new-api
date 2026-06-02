@@ -94,6 +94,87 @@ func TestSMSBaoProviderMapsKnownProviderErrorCode(t *testing.T) {
 	}
 }
 
+func TestSMSBaoProviderQueriesBalanceWithConfiguredEndpoint(t *testing.T) {
+	var captured url.Values
+	var capturedPath string
+	provider := SMSBaoProvider{
+		QueryEndpoint: "https://balance.example.test/query",
+		Username:      "demo-user",
+		Credential:    "demo-key",
+		HTTPClient: &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+			captured = req.URL.Query()
+			capturedPath = req.URL.Path
+			if req.Method != http.MethodGet {
+				t.Fatalf("expected GET request, got %s", req.Method)
+			}
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Body:       io.NopCloser(strings.NewReader("0\n12,88")),
+				Header:     make(http.Header),
+			}, nil
+		})},
+	}
+
+	result, err := provider.CheckStatus(context.Background())
+	if err != nil {
+		t.Fatalf("CheckStatus returned error: %v", err)
+	}
+	if !result.Success || result.Provider != SMSProviderSMSBao || result.ProviderCode != "0" {
+		t.Fatalf("unexpected status result: %+v", result)
+	}
+	if result.SentCount != 12 || result.RemainingCount != 88 {
+		t.Fatalf("unexpected balance counts: %+v", result)
+	}
+	if capturedPath != "/query" || captured.Get("u") != "demo-user" || captured.Get("p") != "demo-key" {
+		t.Fatalf("unexpected balance query: path=%q query=%s", capturedPath, captured.Encode())
+	}
+}
+
+func TestSMSBaoProviderDoesNotExposeCredentialOnBalanceTransportError(t *testing.T) {
+	provider := SMSBaoProvider{
+		QueryEndpoint: "https://balance.example.test/query",
+		Username:      "demo-user",
+		Credential:    "leak-me-token",
+		HTTPClient: &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+			return nil, fmt.Errorf("dial failed")
+		})},
+	}
+	_, err := provider.CheckStatus(context.Background())
+	if err == nil {
+		t.Fatal("expected query transport error")
+	}
+	if err.Error() != "smsbao query failed" {
+		t.Fatalf("expected sanitized error, got %v", err)
+	}
+	for _, forbidden := range []string{"leak-me-token", "demo-user", "balance.example.test"} {
+		if strings.Contains(err.Error(), forbidden) {
+			t.Fatalf("query error leaked %q: %v", forbidden, err)
+		}
+	}
+}
+
+func TestSMSBaoProviderRejectsMalformedBalanceResponse(t *testing.T) {
+	provider := SMSBaoProvider{
+		QueryEndpoint: "https://balance.example.test/query",
+		Username:      "demo-user",
+		Credential:    "demo-key",
+		HTTPClient: &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Body:       io.NopCloser(strings.NewReader("0\nnot-a-balance")),
+				Header:     make(http.Header),
+			}, nil
+		})},
+	}
+	_, err := provider.CheckStatus(context.Background())
+	if err == nil {
+		t.Fatal("expected malformed balance response error")
+	}
+	if err.Error() != "smsbao balance response is invalid" {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
 func TestSMSBaoProviderDoesNotExposeCredentialOnTransportError(t *testing.T) {
 	provider := SMSBaoProvider{
 		Endpoint:   "https://sms.example.test/sms",
@@ -123,12 +204,14 @@ func TestSMSBaoProviderDoesNotExposeCredentialOnTransportError(t *testing.T) {
 func TestNewSMSProviderUsesSMSBaoConfiguration(t *testing.T) {
 	originalProvider := SMSProviderName
 	originalEndpoint := SMSBaoEndpoint
+	originalQueryEndpoint := SMSBaoQueryEndpoint
 	originalUsername := SMSBaoUsername
 	originalCredential := SMSBaoCredential
 	originalProductID := SMSBaoProductID
 	t.Cleanup(func() {
 		SMSProviderName = originalProvider
 		SMSBaoEndpoint = originalEndpoint
+		SMSBaoQueryEndpoint = originalQueryEndpoint
 		SMSBaoUsername = originalUsername
 		SMSBaoCredential = originalCredential
 		SMSBaoProductID = originalProductID
@@ -136,6 +219,7 @@ func TestNewSMSProviderUsesSMSBaoConfiguration(t *testing.T) {
 
 	SMSProviderName = SMSProviderSMSBao
 	SMSBaoEndpoint = "https://example.invalid/sms"
+	SMSBaoQueryEndpoint = "https://example.invalid/query"
 	SMSBaoUsername = "demo-user"
 	SMSBaoCredential = "demo-key"
 	SMSBaoProductID = "vip-001"
@@ -148,7 +232,7 @@ func TestNewSMSProviderUsesSMSBaoConfiguration(t *testing.T) {
 	if !ok {
 		t.Fatalf("expected *SMSBaoProvider, got %T", provider)
 	}
-	if smsBao.Endpoint != SMSBaoEndpoint || smsBao.Username != SMSBaoUsername || smsBao.Credential != SMSBaoCredential || smsBao.ProductID != SMSBaoProductID {
+	if smsBao.Endpoint != SMSBaoEndpoint || smsBao.QueryEndpoint != SMSBaoQueryEndpoint || smsBao.Username != SMSBaoUsername || smsBao.Credential != SMSBaoCredential || smsBao.ProductID != SMSBaoProductID {
 		t.Fatalf("provider did not use global configuration: %+v", smsBao)
 	}
 }

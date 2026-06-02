@@ -48,6 +48,7 @@ func InitOptionMap() {
 	common.OptionMap["SMSEnabled"] = strconv.FormatBool(common.SMSEnabled)
 	common.OptionMap["SMSProvider"] = common.SMSProviderName
 	common.OptionMap["SMSBaoEndpoint"] = common.SMSBaoEndpoint
+	common.OptionMap["SMSBaoQueryEndpoint"] = common.SMSBaoQueryEndpoint
 	common.OptionMap["SMSBaoUsername"] = ""
 	common.OptionMap["SMSBaoCredential"] = ""
 	common.OptionMap["SMSBaoCredentialMode"] = common.SMSBaoCredentialMode
@@ -521,6 +522,8 @@ func updateOptionMap(key string, value string) (err error) {
 		common.SMSProviderName = value
 	case "SMSBaoEndpoint":
 		common.SMSBaoEndpoint = value
+	case "SMSBaoQueryEndpoint":
+		common.SMSBaoQueryEndpoint = value
 	case "SMSBaoUsername":
 		common.SMSBaoUsername = value
 	case "SMSBaoCredential":
