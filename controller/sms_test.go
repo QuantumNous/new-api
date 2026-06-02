@@ -241,6 +241,71 @@ func TestAdminTestSMSAppliesRateLimitBeforeProvider(t *testing.T) {
 	}
 }
 
+func TestAdminTestSMSRejectsUnapprovedSignatureBeforeProvider(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	originalDB := model.DB
+	originalEnabled := common.SMSEnabled
+	originalSignature := common.SMSSignature
+	originalSignatureStatus := common.SMSSignatureReviewStatus
+	originalProductName := common.SMSProductName
+	originalTemplate := common.SMSRegisterTemplate
+	originalRateLimitEnabled := common.SMSRateLimitEnabled
+	originalFactory := common.SMSProviderFactory
+	t.Cleanup(func() {
+		model.DB = originalDB
+		common.SMSEnabled = originalEnabled
+		common.SMSSignature = originalSignature
+		common.SMSSignatureReviewStatus = originalSignatureStatus
+		common.SMSProductName = originalProductName
+		common.SMSRegisterTemplate = originalTemplate
+		common.SMSRateLimitEnabled = originalRateLimitEnabled
+		common.SMSProviderFactory = originalFactory
+		service.ResetSMSRateLimiterForTest()
+	})
+
+	db := newSMSControllerTestDB(t)
+	model.DB = db
+	common.SMSEnabled = true
+	common.SMSSignature = "NewAPI"
+	common.SMSSignatureReviewStatus = common.SMSSignatureStatusPending
+	common.SMSProductName = "分销系统"
+	common.SMSRegisterTemplate = "{product} 注册验证码 {code}，{minutes} 分钟内有效。"
+	common.SMSRateLimitEnabled = false
+	service.ResetSMSRateLimiterForTest()
+
+	providerCalls := 0
+	common.SMSProviderFactory = func(providerName string) (common.SMSProvider, error) {
+		return countingSMSProvider{calls: &providerCalls}, nil
+	}
+
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = httptest.NewRequest(http.MethodPost, "/api/sms/admin/test", bytes.NewBufferString(`{
+		"phone":"13800138000",
+		"scene":"register",
+		"code":"123456"
+	}`))
+
+	AdminTestSMS(ctx)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("unexpected status: %d body=%s", recorder.Code, recorder.Body.String())
+	}
+	if !strings.Contains(recorder.Body.String(), "sms signature is not approved") {
+		t.Fatalf("expected unapproved signature message, got %s", recorder.Body.String())
+	}
+	if providerCalls != 0 {
+		t.Fatalf("provider should not be called when signature is not approved, got %d", providerCalls)
+	}
+	var logCount int64
+	if err := db.Model(&model.SMSSendLog{}).Count(&logCount).Error; err != nil {
+		t.Fatalf("count sms send logs: %v", err)
+	}
+	if logCount != 0 {
+		t.Fatalf("unapproved signature should not write sms send logs, got %d", logCount)
+	}
+}
+
 func TestAdminTestSMSRejectsWhenDisabled(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	originalEnabled := common.SMSEnabled
