@@ -575,8 +575,8 @@
 
 ## Phase 12：发布与回归
 
-- [ ] 本地通过核心 Go 测试。
-- [ ] 复核并修复/隔离当前 `go test ./...` 基线失败：根包缺少 `web/classic/dist` embed，controller 现有 model list 测试失败，Claude relay 与 stream scanner 现有测试失败；本批 affiliate 定向测试已通过。
+- [x] 本地通过核心 Go 测试；2026-06-03 `go test ./...` 通过。
+- [x] 复核并修复/隔离当前 `go test ./...` 基线失败：2026-06-03 已修复 controller model list 测试隔离、Claude relay file content 转换和 stream scanner 预初始化状态保留；根包 `web/classic/dist` embed 在当前环境未再复现。
 - [x] classic 前端构建通过；2026-06-03 追加 classic 佣金/结算操作面板和规则集配置 UI 后 `cd web/classic && bun run build` 通过。
 - [x] default 前端构建或 typecheck 通过（2026-06-03 `cd web/default && bun run build` 通过；typecheck 仍有既有 baseline，见 Phase 8 复盘）。
 - [ ] Playwright 截图回归通过；classic 分销页管理员/一级/二级/移动端 2026-06-03 已通过；classic 用户管理 inviter SideSheet、预览接口和 no-op 保存 smoke 已通过；default 用户管理 inviter 编辑抽屉、预览和 no-op 保存 smoke 已通过；普通用户、profile disabled、模块关闭仍待补齐。
@@ -587,6 +587,13 @@
 - [ ] 外接控制台与原生模块双跑一个完整结算周期。
 - [ ] 灰度启用分销入口。
 - [ ] 外接控制台只读归档。
+
+### Phase 12 Go 测试基线复盘（2026-06-03 本线程）
+
+- 完成内容：修复 `go test ./...` 当前基线失败：controller token model limit 测试补齐请求上下文 user group，避免测试走数据库查询后触发 closed DB；Claude OpenAI file content 转换按文件名扩展识别 PDF/text/image，PDF 转 document，text 解码为 Claude text，未知扩展跳过；`StreamScannerHandler` 仅在 `StreamStatus` 为 nil 时初始化，保留调用方预先记录的软错误。
+- 验证方式：`go test -count=1 ./controller ./relay/channel/claude ./relay/helper` 通过；`go test ./...` 全量通过。网络切换后重试 `make dev-web-classic`，依赖检查可用，失败原因仅为已有 `make dev-web` 占用 `5174`；随后 `http://127.0.0.1:5173/` 和 `http://127.0.0.1:5174/` 均返回 HTTP 200。
+- 残留风险：本批只修复当前 Go 基线，不扩大处理前端 typecheck 既有 baseline、截图回归缺口、SMS 真实通道 smoke 或完整结算周期双跑。
+- 下一步：提交本批测试基线修复后，继续补 Phase 12 截图回归、schema impact 复核、SMS smoke 和结算周期验证。
 
 ## Phase 13：Git 分批提交
 
