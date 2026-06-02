@@ -23,6 +23,7 @@ function pendingRuleText(t, activeText, pendingText) {
 }
 
 export function buildAffiliateDashboardCards(t, summary = {}) {
+  summary = summary || {};
   const rulePending = summary.rule_status === 'pending_rules';
 
   return [

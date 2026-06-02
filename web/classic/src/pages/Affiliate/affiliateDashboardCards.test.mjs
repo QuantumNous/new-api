@@ -50,4 +50,13 @@ describe('affiliate dashboard cards', () => {
     expect(cards[4].description).toBe('人头费规则未发布');
     expect(cards[6].description).toBe('等待管理员发布分销规则');
   });
+
+  test('uses default card values when summary failed to load', () => {
+    const cards = buildAffiliateDashboardCards(t, null);
+
+    expect(cards[0].value).toBe('0');
+    expect(cards[2].value).toBe('¥0.00');
+    expect(cards[3].value).toBe('¥0.00');
+    expect(cards[6].value).toBe('待配置');
+  });
 });
