@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useCallback, useRef } from 'react'
+import { useCallback, useEffect, useRef } from 'react'
 import { SSE } from 'sse.js'
 import { getCommonHeaders } from '@/lib/api'
 import { API_ENDPOINTS, ERROR_MESSAGES } from '../constants'
@@ -139,6 +139,19 @@ export function useStreamRequest() {
     if (sseSourceRef.current) {
       sseSourceRef.current.close()
       sseSourceRef.current = null
+    }
+  }, [])
+
+  // Close any in-flight stream on unmount (e.g. navigating away mid-stream),
+  // so the orphaned SSE connection is torn down instead of running in the
+  // background. The stuck assistant message is finalized by
+  // sanitizeMessagesOnLoad the next time the playground mounts.
+  useEffect(() => {
+    return () => {
+      if (sseSourceRef.current) {
+        sseSourceRef.current.close()
+        sseSourceRef.current = null
+      }
     }
   }, [])
 
