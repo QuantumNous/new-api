@@ -66,7 +66,7 @@ Common environment overrides:
   PLATFORM=linux/amd64              Optional docker build --platform value
   FOLLOW_LOGS=1                     Follow app logs after starting
   ENV_FILE=.env.local               Optional extra env file for the app
-  FRONTEND_THEME=default             Frontend theme for local deployment (default|classic; empty to skip)
+  FRONTEND_THEME=classic             Frontend theme for local deployment/build (default: classic; use default|classic; empty to skip build/theme)
 
 Advanced overrides:
   POSTGRES_PASSWORD=...             Override generated PostgreSQL password
@@ -173,8 +173,9 @@ build_image() {
   if [[ -n "${PLATFORM}" ]]; then
     build_args+=(--platform "${PLATFORM}")
   fi
+  build_args+=(--build-arg "FRONTEND_THEME=${FRONTEND_THEME}")
 
-  log "Building Docker image ${IMAGE_NAME}"
+  log "Building Docker image ${IMAGE_NAME} (frontend theme: ${FRONTEND_THEME:-none})"
   DOCKER_BUILDKIT="${DOCKER_BUILDKIT:-1}" docker build \
     "${build_args[@]}" \
     -f "${ROOT_DIR}/Dockerfile" \
