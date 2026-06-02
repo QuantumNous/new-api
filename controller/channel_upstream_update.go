@@ -347,9 +347,17 @@ func fetchChannelUpstreamModelIDs(channel *model.Channel) ([]string, error) {
 }
 
 func updateChannelUpstreamModelSettings(channel *model.Channel, settings dto.ChannelOtherSettings, updateModels bool) error {
+	// Capture the pre-update raw settings (may contain external keys like
+	// use_global_strip_cjk) BEFORE SetOtherSettings clobbers the field.
+	storedRaw := channel.OtherSettings
 	channel.SetOtherSettings(settings)
+	// Preserve any non-UpstreamModelUpdate keys already in channel.settings.
+	// ChannelOtherSettings is a typed struct, but the JSON column is shared —
+	// merging in only the struct fields here would silently drop keys added
+	// outside this struct (e.g. use_global_strip_cjk).
+	merged := mergeChannelSettingsKeepingOthers(storedRaw, settings)
 	updates := map[string]interface{}{
-		"settings": channel.OtherSettings,
+		"settings": merged,
 	}
 	if updateModels {
 		updates["models"] = channel.Models
@@ -996,4 +1004,37 @@ func DetectAllChannelUpstreamModelUpdates(c *gin.Context) {
 			"channel_detected_results": results,
 		},
 	})
+}
+
+// mergeChannelSettingsKeepingOthers merges new ChannelOtherSettings with
+// any pre-existing keys in the channel's settings JSON that are NOT part
+// of the canonical ChannelOtherSettings struct. Preserves external keys
+// (e.g. use_global_strip_cjk) that the upstream model update task would
+// otherwise wipe.
+func mergeChannelSettingsKeepingOthers(storedRaw string, newChannelOtherSettings dto.ChannelOtherSettings) string {
+	var storedMap map[string]interface{}
+	if storedRaw != "" {
+		if err := common.Unmarshal([]byte(storedRaw), &storedMap); err != nil {
+			common.SysLog(fmt.Sprintf("mergeChannelSettingsKeepingOthers: stored unmarshal failed: %v", err))
+		}
+	}
+	newBytes, err := common.Marshal(newChannelOtherSettings)
+	if err != nil {
+		return storedRaw
+	}
+	var newMap map[string]interface{}
+	if err := common.Unmarshal(newBytes, &newMap); err != nil {
+		return string(newBytes)
+	}
+	if storedMap == nil {
+		storedMap = map[string]interface{}{}
+	}
+	for k, v := range newMap {
+		storedMap[k] = v
+	}
+	out, err := common.Marshal(storedMap)
+	if err != nil {
+		return string(newBytes)
+	}
+	return string(out)
 }
