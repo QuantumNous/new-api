@@ -40,6 +40,7 @@ SESSION_SECRET="${SESSION_SECRET:-}"
 CRYPTO_SECRET="${CRYPTO_SECRET:-}"
 NODE_NAME="${NODE_NAME:-${PROJECT_NAME}-node-1}"
 BUILD_ON_UP="${BUILD_ON_UP:-1}"
+FRONTEND_BUILD_GC_HEAP_SIZE="${FRONTEND_BUILD_GC_HEAP_SIZE:-805306368}"
 if [[ -z "${FRONTEND_THEME+x}" ]]; then
   FRONTEND_THEME="classic"
 fi
@@ -67,6 +68,7 @@ Common environment overrides:
   FOLLOW_LOGS=1                     Follow app logs after starting
   ENV_FILE=.env.local               Optional extra env file for the app
   FRONTEND_THEME=classic             Frontend theme for local deployment/build (default: classic; use default|classic; empty to skip build/theme)
+  FRONTEND_BUILD_GC_HEAP_SIZE=805306368  Bun/JSC GC heap limit for frontend build; lower is slower but uses less memory
 
 Advanced overrides:
   POSTGRES_PASSWORD=...             Override generated PostgreSQL password
@@ -174,8 +176,9 @@ build_image() {
     build_args+=(--platform "${PLATFORM}")
   fi
   build_args+=(--build-arg "FRONTEND_THEME=${FRONTEND_THEME}")
+  build_args+=(--build-arg "FRONTEND_BUILD_GC_HEAP_SIZE=${FRONTEND_BUILD_GC_HEAP_SIZE}")
 
-  log "Building Docker image ${IMAGE_NAME} (frontend theme: ${FRONTEND_THEME:-none})"
+  log "Building Docker image ${IMAGE_NAME} (frontend theme: ${FRONTEND_THEME:-none}, heap: ${FRONTEND_BUILD_GC_HEAP_SIZE})"
   DOCKER_BUILDKIT="${DOCKER_BUILDKIT:-1}" docker build \
     "${build_args[@]}" \
     -f "${ROOT_DIR}/Dockerfile" \
