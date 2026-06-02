@@ -118,7 +118,7 @@
 - [x] 支持启用/禁用分销 profile（后端 service/controller/API；重新启用不自动恢复已 ended relation，后续需明确恢复策略）。
 - [x] 新增分销商端 middleware（普通用户需模块开启且 profile active，管理员/超级管理员默认放行并注入全局 scope）。
 - [x] 新增管理员端权限校验（`/api/affiliate/admin/*` 使用 `AdminAuth`）。
-- [ ] 普通用户访问分销页返回友好未开通状态；后端 `/api/affiliate/status` 已返回 `available`、`unavailable_reason` 和中文 `message`，实际页面展示仍待 classic/default 前端接入。
+- [ ] 普通用户访问分销页返回友好未开通状态；后端 `/api/affiliate/status` 已返回 `available`、`unavailable_reason` 和中文 `message`，classic `/console/affiliate` 已接入，default 前端仍待 parity。
 - [x] 增加 profile 创建、启用、禁用、权限校验测试；已覆盖 profile 创建/更新/禁用/启用 happy path，以及管理员路由未登录/普通用户拒绝访问；2026-06-02 本线程复跑 `go test ./model ./service ./middleware ./controller -run 'Affiliate|AdminSetAffiliateProfile|AdminUpdateAffiliateProfileStatus|AffiliateAdminRoutes|GetAffiliateStatus'` 通过。
 - [x] 增加二级分销商 parent 校验测试；2026-06-02 本线程先观察到新增测试 RED，再实现 service 校验，`go test ./service -run 'TestSetAffiliateProfileRequiresActiveLevelOneParentForLevelTwo|TestSetAffiliateProfileAcceptsLevelTwoWithActiveLevelOneParent'` 通过。
 
@@ -279,7 +279,7 @@
 - [x] 实现 scoped 使用日志 API。
 - [x] scoped 使用日志隐藏敏感字段。
 - [x] 支持按时间、用户、二级分销商、模型、分组、请求状态过滤。
-- [ ] 复用或抽取 classic 使用日志表格/筛选/分页/移动端卡片。
+- [x] 复用或抽取 classic 使用日志表格/筛选/分页/移动端卡片。
 - [x] 增加越权查询测试。
 
 ### Phase 6 scope service 复盘（2026-06-03 本线程）
@@ -297,16 +297,23 @@
 - 残留风险：本批未接 classic/default 前端；未复用 usage logs 表格筛选分页组件；全量 controller 测试仍存在既有非 affiliate baseline 风险。
 - 下一步：复用或抽取 classic 使用日志表格/筛选/分页/移动端卡片，接入 `/api/affiliate/logs`。
 
+### Phase 6 classic scoped logs 前端复盘（2026-06-03 本线程）
+
+- 完成内容：新增 classic `/console/affiliate` 分销中心页面，先调用 `/api/affiliate/status` 展示未开通/模块关闭的中文友好提示；可用时复用 classic 使用日志表格、筛选、分页、列设置和紧凑/移动端表格能力，并以 `affiliate` 模式接入 `/api/affiliate/logs`。普通日志仍使用原 `/api/log` / `/api/log/self`，分销模式隐藏 token/channel/request_id 等不适用筛选和 token/IP 空列，保留时间、模型、分组、用户 ID、二级分销商用户 ID、请求状态和日志类型筛选。侧边栏新增“分销中心”入口，并同步默认模块配置、用户/管理员侧边栏设置和新用户默认 sidebar 配置。
+- 验证方式：先观察 `bun test web/classic/src/hooks/usage-logs/usageLogsUrls.test.mjs` RED（URL builder 缺失），实现后同命令 3 项通过；`go test -count=1 ./model ./controller -run 'Sidebar|Affiliate'` 通过；提升权限启动 `make dev-web` 后 classic/default dev server 分别监听 5174/5173，热更新输出无编译错误；`cd web/classic && bun run build` 通过。
+- 残留风险：尚未做 Playwright/Chromium 真实账号浏览器截图回归；default 分销前端仍未接入；当前 classic 页面主要完成 scoped 使用日志和友好状态提示，统计看板、RMB 主显示、KPI/佣金/人头费/结算仍待后续 Phase 7/9/10。
+- 下一步：用真实一级/二级/管理员账号做 classic 浏览器 smoke，再推进分销统计看板、RMB 单位和 default parity。
+
 ## Phase 7：classic 分销前端
 
 - [ ] 使用 Playwright/Chromium 复现一级分销商“数据看板页面渲染出错”。
-- [ ] 修复 classic 分销页整页渲染错误。
+- [x] 修复 classic 分销页整页渲染错误（新增 `/console/affiliate` 状态门禁和 scoped logs 页面，classic build 已通过；真实浏览器截图回归仍待补）。
 - [ ] 增加组件级错误边界和分区加载状态。
 - [ ] 重构分销首页为统计分析看板。
 - [ ] 看板包含团队人数、有效新用户、净付费消耗、预估佣金、人头费、待结算金额、KPI 档位。
 - [ ] 金额/额度主显示 RMB。
-- [ ] 消耗明细复用 scoped 使用日志。
-- [ ] 普通用户、profile 未启用、模块关闭、权限不足显示中文友好提示。
+- [x] 消耗明细复用 scoped 使用日志。
+- [x] 普通用户、profile 未启用、模块关闭、权限不足显示中文友好提示（classic 已接 `/api/affiliate/status`；default 待 parity）。
 - [ ] 管理员无 profile 时仍可进入管理员分销管理。
 - [ ] 管理员端支持指定一级/二级分销商。
 - [ ] 管理员端支持编辑用户 `inviter_id` 或跳转用户管理。
@@ -370,7 +377,7 @@
 
 - [ ] 本地通过核心 Go 测试。
 - [ ] 复核并修复/隔离当前 `go test ./...` 基线失败：根包缺少 `web/classic/dist` embed，controller 现有 model list 测试失败，Claude relay 与 stream scanner 现有测试失败；本批 affiliate 定向测试已通过。
-- [ ] classic 前端构建通过。
+- [x] classic 前端构建通过。
 - [ ] default 前端构建或 typecheck 通过。
 - [ ] Playwright 截图回归通过。
 - [ ] schema impact 报告无非预期官方表改动。

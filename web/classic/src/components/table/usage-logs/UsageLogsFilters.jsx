@@ -32,6 +32,7 @@ const LogsFilters = ({
   setLogType,
   loading,
   isAdminUser,
+  isAffiliateScoped,
   t,
 }) => {
   return (
@@ -66,14 +67,16 @@ const LogsFilters = ({
           </div>
 
           {/* 其他搜索字段 */}
-          <Form.Input
-            field='token_name'
-            prefix={<IconSearch />}
-            placeholder={t('令牌名称')}
-            showClear
-            pure
-            size='small'
-          />
+          {!isAffiliateScoped && (
+            <Form.Input
+              field='token_name'
+              prefix={<IconSearch />}
+              placeholder={t('令牌名称')}
+              showClear
+              pure
+              size='small'
+            />
+          )}
 
           <Form.Input
             field='model_name'
@@ -93,16 +96,56 @@ const LogsFilters = ({
             size='small'
           />
 
-          <Form.Input
-            field='request_id'
-            prefix={<IconSearch />}
-            placeholder={t('Request ID')}
-            showClear
-            pure
-            size='small'
-          />
+          {!isAffiliateScoped && (
+            <Form.Input
+              field='request_id'
+              prefix={<IconSearch />}
+              placeholder={t('Request ID')}
+              showClear
+              pure
+              size='small'
+            />
+          )}
 
-          {isAdminUser && (
+          {isAffiliateScoped && (
+            <>
+              <Form.Input
+                field='user_id'
+                prefix={<IconSearch />}
+                placeholder={t('用户 ID')}
+                showClear
+                pure
+                size='small'
+              />
+              <Form.Input
+                field='second_level_user_id'
+                prefix={<IconSearch />}
+                placeholder={t('二级分销商用户 ID')}
+                showClear
+                pure
+                size='small'
+              />
+              <Form.Select
+                field='request_status'
+                placeholder={t('请求状态')}
+                showClear
+                pure
+                size='small'
+              >
+                <Form.Select.Option value='success'>
+                  {t('成功')}
+                </Form.Select.Option>
+                <Form.Select.Option value='error'>
+                  {t('失败')}
+                </Form.Select.Option>
+                <Form.Select.Option value='refund'>
+                  {t('退款')}
+                </Form.Select.Option>
+              </Form.Select>
+            </>
+          )}
+
+          {isAdminUser && !isAffiliateScoped && (
             <>
               <Form.Input
                 field='channel'

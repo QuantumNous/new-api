@@ -30,8 +30,8 @@ import { useLogsData } from '../../../hooks/usage-logs/useUsageLogsData';
 import { useIsMobile } from '../../../hooks/common/useIsMobile';
 import { createCardProPagination } from '../../../helpers/utils';
 
-const LogsPage = () => {
-  const logsData = useLogsData();
+const LogsPage = ({ mode }) => {
+  const logsData = useLogsData({ mode });
   const isMobile = useIsMobile();
 
   return (
@@ -45,7 +45,12 @@ const LogsPage = () => {
       {/* Main Content */}
       <CardPro
         type='type2'
-        statsArea={<LogsActions {...logsData} />}
+        statsArea={
+          <LogsActions
+            {...logsData}
+            showStatistics={!logsData.isAffiliateScoped}
+          />
+        }
         searchArea={<LogsFilters {...logsData} />}
         paginationArea={createCardProPagination({
           currentPage: logsData.activePage,

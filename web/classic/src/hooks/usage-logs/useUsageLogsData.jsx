@@ -42,9 +42,16 @@ import {
 import { ITEMS_PER_PAGE } from '../../constants';
 import { useTableCompactMode } from '../common/useTableCompactMode';
 import ParamOverrideEntry from '../../components/table/usage-logs/components/ParamOverrideEntry';
+import {
+  USAGE_LOGS_MODE_AFFILIATE,
+  USAGE_LOGS_MODE_DEFAULT,
+  buildUsageLogsListUrl,
+  buildUsageLogsStatUrl,
+} from './usageLogsUrls';
 
-export const useLogsData = () => {
+export const useLogsData = ({ mode = USAGE_LOGS_MODE_DEFAULT } = {}) => {
   const { t } = useTranslation();
+  const isAffiliateScoped = mode === USAGE_LOGS_MODE_AFFILIATE;
 
   // Define column keys for selection
   const COLUMN_KEYS = {
@@ -76,14 +83,16 @@ export const useLogsData = () => {
   const [logType, setLogType] = useState(0);
 
   // User and admin
-  const isAdminUser = isAdmin();
+  const actualIsAdminUser = isAdmin();
+  const isAdminUser = isAffiliateScoped ? false : actualIsAdminUser;
   // Role-specific storage key to prevent different roles from overwriting each other
-  const STORAGE_KEY = isAdminUser
-    ? 'logs-table-columns-admin'
-    : 'logs-table-columns-user';
-  const BILLING_DISPLAY_MODE_STORAGE_KEY = isAdminUser
-    ? 'logs-billing-display-mode-admin'
-    : 'logs-billing-display-mode-user';
+  const storageScope = isAffiliateScoped
+    ? 'affiliate'
+    : isAdminUser
+      ? 'admin'
+      : 'user';
+  const STORAGE_KEY = `logs-table-columns-${storageScope}`;
+  const BILLING_DISPLAY_MODE_STORAGE_KEY = `logs-billing-display-mode-${storageScope}`;
 
   // Statistics state
   const [stat, setStat] = useState({
@@ -101,6 +110,9 @@ export const useLogsData = () => {
     channel: '',
     group: '',
     request_id: '',
+    request_status: '',
+    user_id: '',
+    second_level_user_id: '',
     dateRange: [
       timestamp2string(getTodayStartTimestamp()),
       timestamp2string(now.getTime() / 1000 + 3600),
@@ -114,7 +126,7 @@ export const useLogsData = () => {
       [COLUMN_KEYS.TIME]: true,
       [COLUMN_KEYS.CHANNEL]: isAdminUser,
       [COLUMN_KEYS.USERNAME]: isAdminUser,
-      [COLUMN_KEYS.TOKEN]: true,
+      [COLUMN_KEYS.TOKEN]: !isAffiliateScoped,
       [COLUMN_KEYS.GROUP]: true,
       [COLUMN_KEYS.TYPE]: true,
       [COLUMN_KEYS.MODEL]: true,
@@ -123,7 +135,7 @@ export const useLogsData = () => {
       [COLUMN_KEYS.COMPLETION]: true,
       [COLUMN_KEYS.COST]: true,
       [COLUMN_KEYS.RETRY]: isAdminUser,
-      [COLUMN_KEYS.IP]: true,
+      [COLUMN_KEYS.IP]: !isAffiliateScoped,
       [COLUMN_KEYS.DETAILS]: true,
     };
   };
@@ -144,6 +156,10 @@ export const useLogsData = () => {
         merged[COLUMN_KEYS.CHANNEL] = false;
         merged[COLUMN_KEYS.USERNAME] = false;
         merged[COLUMN_KEYS.RETRY] = false;
+      }
+      if (isAffiliateScoped) {
+        merged[COLUMN_KEYS.TOKEN] = false;
+        merged[COLUMN_KEYS.IP] = false;
       }
 
       return merged;
@@ -171,7 +187,9 @@ export const useLogsData = () => {
   );
 
   // Compact mode
-  const [compactMode, setCompactMode] = useTableCompactMode('logs');
+  const [compactMode, setCompactMode] = useTableCompactMode(
+    isAffiliateScoped ? 'affiliate-logs' : 'logs',
+  );
 
   // User info modal state
   const [showUserInfo, setShowUserInfoModal] = useState(false);
@@ -213,6 +231,11 @@ export const useLogsData = () => {
         !isAdminUser
       ) {
         updatedColumns[key] = false;
+      } else if (
+        isAffiliateScoped &&
+        (key === COLUMN_KEYS.TOKEN || key === COLUMN_KEYS.IP)
+      ) {
+        updatedColumns[key] = false;
       } else {
         updatedColumns[key] = checked;
       }
@@ -226,7 +249,7 @@ export const useLogsData = () => {
     if (Object.keys(visibleColumns).length > 0) {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(visibleColumns));
     }
-  }, [visibleColumns]);
+  }, [STORAGE_KEY, visibleColumns]);
 
   useEffect(() => {
     localStorage.setItem(BILLING_DISPLAY_MODE_STORAGE_KEY, billingDisplayMode);
@@ -257,25 +280,27 @@ export const useLogsData = () => {
       channel: formValues.channel || '',
       group: formValues.group || '',
       request_id: formValues.request_id || '',
+      request_status: formValues.request_status || '',
+      user_id: formValues.user_id || '',
+      second_level_user_id: formValues.second_level_user_id || '',
       logType: formValues.logType ? parseInt(formValues.logType) : 0,
     };
   };
 
   // Statistics functions
   const getLogSelfStat = async () => {
-    const {
-      token_name,
-      model_name,
-      start_timestamp,
-      end_timestamp,
-      group,
-      logType: formLogType,
-    } = getFormValues();
+    const values = getFormValues();
+    const { logType: formLogType } = values;
     const currentLogType = formLogType !== undefined ? formLogType : logType;
-    let localStartTimestamp = Date.parse(start_timestamp) / 1000;
-    let localEndTimestamp = Date.parse(end_timestamp) / 1000;
-    let url = `/api/log/self/stat?type=${currentLogType}&token_name=${token_name}&model_name=${model_name}&start_timestamp=${localStartTimestamp}&end_timestamp=${localEndTimestamp}&group=${group}`;
-    url = encodeURI(url);
+    const url = buildUsageLogsStatUrl({
+      mode,
+      isAdminUser: false,
+      logType: currentLogType,
+      values,
+    });
+    if (!url) {
+      return;
+    }
     let res = await API.get(url);
     const { success, message, data } = res.data;
     if (success) {
@@ -286,21 +311,18 @@ export const useLogsData = () => {
   };
 
   const getLogStat = async () => {
-    const {
-      username,
-      token_name,
-      model_name,
-      start_timestamp,
-      end_timestamp,
-      channel,
-      group,
-      logType: formLogType,
-    } = getFormValues();
+    const values = getFormValues();
+    const { logType: formLogType } = values;
     const currentLogType = formLogType !== undefined ? formLogType : logType;
-    let localStartTimestamp = Date.parse(start_timestamp) / 1000;
-    let localEndTimestamp = Date.parse(end_timestamp) / 1000;
-    let url = `/api/log/stat?type=${currentLogType}&username=${username}&token_name=${token_name}&model_name=${model_name}&start_timestamp=${localStartTimestamp}&end_timestamp=${localEndTimestamp}&channel=${channel}&group=${group}`;
-    url = encodeURI(url);
+    const url = buildUsageLogsStatUrl({
+      mode,
+      isAdminUser: true,
+      logType: currentLogType,
+      values,
+    });
+    if (!url) {
+      return;
+    }
     let res = await API.get(url);
     const { success, message, data } = res.data;
     if (success) {
@@ -312,6 +334,10 @@ export const useLogsData = () => {
 
   const handleEyeClick = async () => {
     if (loadingStat) {
+      return;
+    }
+    if (isAffiliateScoped) {
+      setShowStat(false);
       return;
     }
     setLoadingStat(true);
@@ -729,18 +755,8 @@ export const useLogsData = () => {
   const loadLogs = async (startIdx, pageSize, customLogType = null) => {
     setLoading(true);
 
-    let url = '';
-    const {
-      username,
-      token_name,
-      model_name,
-      start_timestamp,
-      end_timestamp,
-      channel,
-      group,
-      request_id,
-      logType: formLogType,
-    } = getFormValues();
+    const values = getFormValues();
+    const { logType: formLogType } = values;
 
     const currentLogType =
       customLogType !== null
@@ -749,14 +765,14 @@ export const useLogsData = () => {
           ? formLogType
           : logType;
 
-    let localStartTimestamp = Date.parse(start_timestamp) / 1000;
-    let localEndTimestamp = Date.parse(end_timestamp) / 1000;
-    if (isAdminUser) {
-      url = `/api/log/?p=${startIdx}&page_size=${pageSize}&type=${currentLogType}&username=${username}&token_name=${token_name}&model_name=${model_name}&start_timestamp=${localStartTimestamp}&end_timestamp=${localEndTimestamp}&channel=${channel}&group=${group}&request_id=${request_id}`;
-    } else {
-      url = `/api/log/self/?p=${startIdx}&page_size=${pageSize}&type=${currentLogType}&token_name=${token_name}&model_name=${model_name}&start_timestamp=${localStartTimestamp}&end_timestamp=${localEndTimestamp}&group=${group}&request_id=${request_id}`;
-    }
-    url = encodeURI(url);
+    const url = buildUsageLogsListUrl({
+      mode,
+      isAdminUser,
+      page: startIdx,
+      pageSize,
+      logType: currentLogType,
+      values,
+    });
     const res = await API.get(url);
     const { success, message, data } = res.data;
     if (success) {
@@ -845,6 +861,7 @@ export const useLogsData = () => {
     logType,
     stat,
     isAdminUser,
+    isAffiliateScoped,
 
     // Form state
     formApi,
