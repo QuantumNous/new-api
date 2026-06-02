@@ -31,3 +31,16 @@ export {
   transformFormDataToPayload,
   transformUserToFormDefaults,
 } from './user-form'
+
+// ============================================================================
+// Affiliate Inviter Utilities
+// ============================================================================
+export {
+  buildAffiliateInviterCandidatesQuery,
+  buildAffiliateInviterPreviewQuery,
+  buildAffiliateInviterUpdatePayload,
+  buildAffiliateInviterUpdateUrl,
+  formatAffiliateInviterCandidateLabel,
+  formatAffiliateInviterPath,
+  validateAffiliateInviterChange,
+} from './affiliate-inviter'

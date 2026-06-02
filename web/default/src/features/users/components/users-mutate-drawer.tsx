@@ -72,6 +72,7 @@ import {
   transformUserToFormDefaults,
 } from '../lib'
 import { type User } from '../types'
+import { AffiliateInviterSection } from './affiliate-inviter-section'
 import { UserQuotaDialog } from './user-quota-dialog'
 import { useUsers } from './users-provider'
 
@@ -91,6 +92,7 @@ export function UsersMutateDrawer({
   const { triggerRefresh } = useUsers()
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [quotaDialogOpen, setQuotaDialogOpen] = useState(false)
+  const [loadedUser, setLoadedUser] = useState<User | null>(null)
 
   // Fetch groups
   const { data: groupsData } = useQuery({
@@ -113,11 +115,13 @@ export function UsersMutateDrawer({
       getUser(currentRow.id).then((result) => {
         if (result.success && result.data) {
           form.reset(transformUserToFormDefaults(result.data))
+          setLoadedUser(result.data)
         }
       })
     } else if (open && !isUpdate) {
       // For create, reset to defaults
       form.reset(USER_FORM_DEFAULT_VALUES)
+      setLoadedUser(null)
     }
   }, [open, isUpdate, currentRow, form])
 
@@ -174,9 +178,12 @@ export function UsersMutateDrawer({
     const result = await getUser(currentRow.id)
     if (result.success && result.data) {
       form.reset(transformUserToFormDefaults(result.data))
+      setLoadedUser(result.data)
     }
     triggerRefresh()
   }
+
+  const userForAffiliateInviter = loadedUser || currentRow
 
   return (
     <>
@@ -415,6 +422,13 @@ export function UsersMutateDrawer({
                     )}
                   />
                 </SideDrawerSection>
+              )}
+
+              {isUpdate && userForAffiliateInviter && (
+                <AffiliateInviterSection
+                  user={userForAffiliateInviter}
+                  onSuccess={refreshUserData}
+                />
               )}
 
               {/* Binding Information (Read-only) */}

@@ -473,7 +473,7 @@
 ## Phase 11：用户管理 `inviter_id`
 
 - [x] classic 用户管理编辑页增加邀请人 ID 字段，并接入候选搜索、影响预览和保存 API。
-- [ ] default 用户管理邀请人字段 parity（如 default 管理端保留该入口）。
+- [x] default 用户管理邀请人字段 parity：编辑抽屉接入候选搜索、影响预览和保存 API。
 - [x] 后端支持按用户 ID/用户名检索邀请人候选。
 - [x] 后端提供保存前原邀请人、新邀请人和影响路径预览。
 - [x] 保存时校验不能形成无效或循环关系。
@@ -485,15 +485,22 @@
 
 - 完成内容：新增 inviter 管理 service 和管理员 API，支持邀请人候选搜索、变更预览、保存 `users.inviter_id`，同步更新 `affiliate_invite_events` 与 `affiliate_relations`，旧关系置 disabled，新 affiliate 邀请人关系重新激活/生成，并写入 `affiliate_audit_logs`。
 - 验证方式：先观察 `go test -count=1 ./service -run 'AffiliateInviter|InviterChange'` RED；实现后同命令通过；补充 `go test -count=1 ./controller -run 'AffiliateInviter|InviterCandidates|PreviewAndUpdateAffiliateInviter'`、`go test -count=1 ./model ./service ./controller ./router -run 'Affiliate|RuleSet|Commission|KPI|HeadFee|Settlement|Admin|Inviter'` 和 `go test -count=1 ./service` 均通过。
-- 残留风险：classic 前端已接入这些 API；default parity 仍待确认是否需要。当前只重建目标用户自身的分销关系，若未来允许批量迁移整棵子树，需要单独设计影响范围和重算策略；官方邀请奖励额度历史不回滚。
-- 下一步：补 default 用户管理页面的邀请人字段 parity（如保留该入口），或继续补一键 KPI/佣金/人头费/结算编排任务。
+- 残留风险：classic/default 前端均已接入这些 API。当前只重建目标用户自身的分销关系，若未来允许批量迁移整棵子树，需要单独设计影响范围和重算策略；官方邀请奖励额度历史不回滚。
+- 下一步：继续补一键 KPI/佣金/人头费/结算编排任务，或推进管理员规则配置 UI。
 
 ### Phase 11 阶段复盘（2026-06-03 classic inviter 前端）
 
 - 完成内容：classic 用户管理编辑 SideSheet 新增“邀请关系”卡片，支持当前邀请人展示、候选搜索、候选选择、手动输入/清空邀请人 ID、操作原因、影响路径预览和保存邀请人变更；新增 `affiliateInviterManagement` helper，避免在组件内硬编码接口路径和 payload 规范。
 - 验证方式：先观察 `bun test web/classic/src/components/table/users/affiliateInviterManagement.test.mjs` 因 helper 缺失 RED；实现后同命令通过；补充 classic affiliate/helper 测试 13 项通过；`cd web/classic && bun run build` 通过；Playwright 以本地测试管理员账号打开 `http://127.0.0.1:5174/console/user` 并验证用户编辑 SideSheet 中“邀请关系”“预览影响”“保存邀请人”可见，未输出账号、密码或 token。2026-06-03 追加：运行中后端旧版本曾导致 admin/profiles 和 inviter 路由 404；执行一次 `timeout 600s docker compose -f docker-compose.dev.yml up -d --build new-api` 后，按 classic API 实际 `New-API-User` 头重跑 smoke，`/api/affiliate/admin/profiles`、`/api/affiliate/admin/inviter-candidates`、`/api/affiliate/admin/users/:id/inviter/preview` 和 no-op `PATCH /api/affiliate/admin/users/:id/inviter` 均 HTTP 200 / `success=true`；Playwright 点击“预览影响”后“目标用户”摘要渲染成功。
-- 残留风险：Playwright 控制台仍有既有 React `icononly` 非布尔属性日志，本批未扩大修复；default parity 未做。
-- 下一步：推进 default parity（如保留用户管理邀请人入口），或 Phase 10 编排任务。
+- 残留风险：Playwright 控制台仍有既有 React `icononly` 非布尔属性日志，本批未扩大修复。
+- 下一步：default parity 见下一节复盘；继续转向 Phase 10 编排任务或 Phase 12 更完整回归。
+
+### Phase 11 阶段复盘（2026-06-03 default inviter 前端）
+
+- 完成内容：default 用户管理编辑抽屉新增 `AffiliateInviterSection`，按 default 自身 shadcn/Radix 风格接入当前邀请人展示、候选搜索、候选选择、手动输入/清空邀请人 ID、操作原因、影响路径预览和保存邀请人变更；新增 `features/users/lib/affiliate-inviter` helper 和 API 封装。
+- 验证方式：先观察 `bun --bun test web/default/src/features/users/lib/affiliate-inviter.test.ts` 因 helper 缺失 RED；实现后同命令通过；补充 `bun --bun test web/default/src/features/users/lib/affiliate-inviter.test.ts web/default/src/features/affiliate/admin-lib.test.ts web/default/src/features/affiliate/lib.test.ts web/default/src/features/system-settings/operations/sms-settings.test.ts` 共 15 项通过；`cd web/default && bun run build` 通过；Playwright 以本地测试管理员账号打开 `http://127.0.0.1:5173/users`，通过行菜单进入编辑抽屉，验证 “Affiliate Inviter” 区块可见，点击 “Preview impact” 后 “Inviter change preview” 渲染成功，点击 no-op “Save inviter” 后 `PATCH /api/affiliate/admin/users/:id/inviter` HTTP 200 / `success=true`。
+- 残留风险：Playwright 控制台仍有既有 default 表单 `checked` 缺少 `onChange` 警告，本批未扩大修复；保存 smoke 使用当前邀请人 ID 做 no-op，未改变业务关系。
+- 下一步：Phase 11 前后端主链路已闭合，后续转向 Phase 10 编排任务、管理员规则配置 UI 或 Phase 12 更完整回归。
 
 ## Phase 12：发布与回归
 
@@ -501,7 +508,7 @@
 - [ ] 复核并修复/隔离当前 `go test ./...` 基线失败：根包缺少 `web/classic/dist` embed，controller 现有 model list 测试失败，Claude relay 与 stream scanner 现有测试失败；本批 affiliate 定向测试已通过。
 - [x] classic 前端构建通过。
 - [x] default 前端构建或 typecheck 通过（2026-06-03 `cd web/default && bun run build` 通过；typecheck 仍有既有 baseline，见 Phase 8 复盘）。
-- [ ] Playwright 截图回归通过；classic 分销页管理员/一级/二级/移动端 2026-06-03 已通过；classic 用户管理 inviter SideSheet、预览接口和 no-op 保存 smoke 已通过；普通用户、profile disabled、模块关闭和 default 仍待补齐。
+- [ ] Playwright 截图回归通过；classic 分销页管理员/一级/二级/移动端 2026-06-03 已通过；classic 用户管理 inviter SideSheet、预览接口和 no-op 保存 smoke 已通过；default 用户管理 inviter 编辑抽屉、预览和 no-op 保存 smoke 已通过；普通用户、profile disabled、模块关闭仍待补齐。
 - [ ] schema impact 报告无非预期官方表改动。
 - [x] 用服务器 PG 快照完成真实账号 smoke；2026-06-03 在本地恢复库中用三类测试账号完成 API smoke 和 classic browser smoke，未输出用户名、密码、cookie 或 token。
 - [ ] 管理员端规则配置页面可修改分佣比例、KPI 阈值、系数、人头费、质量门槛和结算周期。

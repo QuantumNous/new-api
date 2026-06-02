@@ -17,6 +17,11 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { api } from '@/lib/api'
+import {
+  buildAffiliateInviterCandidatesQuery,
+  buildAffiliateInviterPreviewQuery,
+  buildAffiliateInviterUpdateUrl,
+} from './lib/affiliate-inviter'
 import type {
   User,
   GetUsersParams,
@@ -26,6 +31,8 @@ import type {
   ManageUserAction,
   ManageUserQuotaPayload,
   ApiResponse,
+  AffiliateInviterChangePreview,
+  AffiliateInviterUpdatePayload,
 } from './types'
 
 // ============================================================================
@@ -190,6 +197,46 @@ export async function adminUnbindCustomOAuth(
 ): Promise<ApiResponse> {
   const res = await api.delete(
     `/api/user/${userId}/oauth/bindings/${providerId}`
+  )
+  return res.data
+}
+
+// ============================================================================
+// Affiliate Inviter Management APIs
+// ============================================================================
+
+export async function searchAffiliateInviterCandidates({
+  keyword = '',
+  page = 1,
+  pageSize = 10,
+}: {
+  keyword?: string
+  page?: number
+  pageSize?: number
+} = {}): Promise<GetUsersResponse> {
+  const res = await api.get(
+    buildAffiliateInviterCandidatesQuery({ keyword, page, pageSize })
+  )
+  return res.data
+}
+
+export async function previewAffiliateInviterChange(
+  targetUserId: number,
+  newInviterUserId: number
+): Promise<ApiResponse<AffiliateInviterChangePreview>> {
+  const res = await api.get(
+    buildAffiliateInviterPreviewQuery(targetUserId, newInviterUserId)
+  )
+  return res.data
+}
+
+export async function updateAffiliateInviter(
+  targetUserId: number,
+  payload: AffiliateInviterUpdatePayload
+): Promise<ApiResponse<AffiliateInviterChangePreview>> {
+  const res = await api.patch(
+    buildAffiliateInviterUpdateUrl(targetUserId),
+    payload
   )
   return res.data
 }

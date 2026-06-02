@@ -125,6 +125,23 @@ export interface ManageUserQuotaPayload {
   value: number
 }
 
+export interface AffiliateInviterChangePreview {
+  target_user_id: number
+  target_username?: string
+  current_inviter_user_id: number
+  current_inviter_username?: string
+  new_inviter_user_id: number
+  new_inviter_username?: string
+  current_path_user_ids: number[]
+  new_path_user_ids: number[]
+  affected_descendant_user_ids: number[]
+}
+
+export interface AffiliateInviterUpdatePayload {
+  new_inviter_user_id: number
+  reason: string
+}
+
 // ============================================================================
 // Dialog Types
 // ============================================================================
