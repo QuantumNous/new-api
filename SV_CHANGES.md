@@ -36,13 +36,13 @@ Keep custom code in dedicated dirs/files; touch core files minimally and list th
 
 ### Task 10 — byteplus-seedream-lite (PASS)
 - Channel type=45 (VolcEngine), base_url=`https://ark.ap-southeast.bytepluses.com`
-- Models: `ep-20260601093313-4dt9g,sv-image-seedream-lite`
+- Models: `<SEEDREAM_LITE_ENDPOINT_ID>,sv-image-seedream-lite`
 - Test: `POST /v1/images/generations` with `{"model":"sv-image-seedream-lite","prompt":"...","size":"2560x1440"}` → HTTP 200, `data[0].url` (JPEG, 2560x1440)
 - No extra fields needed (no `response_format`, no `watermark` required at gateway layer)
 
 ### Task 11 — byteplus-seedance-2 (PASS)
 - Channel type=45 (VolcEngine), base_url=`https://ark.ap-southeast.bytepluses.com`
-- Models: `ep-20260601102439-k4mdf,sv-video-seedance`
+- Models: `<SEEDANCE_20_ENDPOINT_ID>,sv-video-seedance`
 - Submit: `POST /v1/videos {"model":"sv-video-seedance","prompt":"...","metadata":{"ratio":"16:9","duration":5,"watermark":false}}`
   - **IMPORTANT**: `ratio`/`duration`/`watermark` MUST be in `metadata` field, not top-level (doubao TaskAdaptor reads via UnmarshalMetadata)
 - Poll: `GET /v1/videos/{task_id}` → status `completed`, `metadata.url` = `.mp4` URL
