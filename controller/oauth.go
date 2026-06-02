@@ -9,6 +9,7 @@ import (
 	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/oauth"
+	"github.com/QuantumNous/new-api/service"
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
@@ -263,10 +264,18 @@ func findOrCreateOAuthUser(c *gin.Context, provider oauth.Provider, oauthUser *o
 	user.Status = common.UserStatusEnabled
 
 	// Handle affiliate code
-	affCode := session.Get("aff")
+	providerKey := affiliateOAuthProviderKey(provider.GetProviderPrefix())
+	inviteCtx, err := resolveAffiliateInviteContextForRegistration(model.DB, affiliateRegistrationAttributionInput{
+		InviteCode:     affiliateInviteCodeFromSessionValue(session.Get("aff")),
+		RegisterMethod: service.AffiliateRegisterMethodOAuth,
+		Provider:       providerKey,
+	})
+	if err != nil {
+		return nil, err
+	}
 	inviterId := 0
-	if affCode != nil {
-		inviterId, _ = model.GetUserIdByAffCode(affCode.(string))
+	if inviteCtx != nil {
+		inviterId = inviteCtx.InviterUserId
 	}
 
 	// Use transaction to ensure user creation and OAuth binding are atomic
@@ -325,6 +334,14 @@ func findOrCreateOAuthUser(c *gin.Context, provider oauth.Provider, oauthUser *o
 
 		// Perform post-transaction tasks
 		user.FinalizeOAuthUserCreation(inviterId)
+	}
+	if _, err := recordAffiliateInviteAttributionForRegistration(model.DB, inviteCtx, affiliateRegistrationAttributionInput{
+		InviteeUserId:  user.Id,
+		RegisterMethod: service.AffiliateRegisterMethodOAuth,
+		Provider:       providerKey,
+		InitialQuota:   affiliateInviteInitialQuota(),
+	}); err != nil {
+		return nil, err
 	}
 
 	return user, nil

@@ -175,7 +175,18 @@ func Register(c *gin.Context) {
 		return
 	}
 	affCode := user.AffCode // this code is the inviter's code, not the user's own code
-	inviterId, _ := model.GetUserIdByAffCode(affCode)
+	inviteCtx, err := resolveAffiliateInviteContextForRegistration(model.DB, affiliateRegistrationAttributionInput{
+		InviteCode:     affCode,
+		RegisterMethod: service.AffiliateRegisterMethodPassword,
+	})
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	inviterId := 0
+	if inviteCtx != nil {
+		inviterId = inviteCtx.InviterUserId
+	}
 	cleanUser := model.User{
 		Username:    user.Username,
 		Password:    user.Password,
@@ -195,6 +206,14 @@ func Register(c *gin.Context) {
 	var insertedUser model.User
 	if err := model.DB.Where("username = ?", cleanUser.Username).First(&insertedUser).Error; err != nil {
 		common.ApiErrorI18n(c, i18n.MsgUserRegisterFailed)
+		return
+	}
+	if _, err := recordAffiliateInviteAttributionForRegistration(model.DB, inviteCtx, affiliateRegistrationAttributionInput{
+		InviteeUserId:  insertedUser.Id,
+		RegisterMethod: service.AffiliateRegisterMethodPassword,
+		InitialQuota:   affiliateInviteInitialQuota(),
+	}); err != nil {
+		common.ApiError(c, err)
 		return
 	}
 	// 生成默认令牌

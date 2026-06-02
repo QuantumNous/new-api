@@ -11,6 +11,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/service"
 
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-gonic/gin"
@@ -96,7 +97,36 @@ func WeChatAuth(c *gin.Context) {
 			user.Role = common.RoleCommonUser
 			user.Status = common.UserStatusEnabled
 
-			if err := user.Insert(0); err != nil {
+			inviteCtx, err := resolveAffiliateInviteContextForRegistration(model.DB, affiliateRegistrationAttributionInput{
+				InviteCode:     affiliateInviteCodeFromRequest(c),
+				RegisterMethod: service.AffiliateRegisterMethodWeChat,
+				Provider:       "wechat",
+			})
+			if err != nil {
+				c.JSON(http.StatusOK, gin.H{
+					"success": false,
+					"message": err.Error(),
+				})
+				return
+			}
+			inviterId := 0
+			if inviteCtx != nil {
+				inviterId = inviteCtx.InviterUserId
+			}
+
+			if err := user.Insert(inviterId); err != nil {
+				c.JSON(http.StatusOK, gin.H{
+					"success": false,
+					"message": err.Error(),
+				})
+				return
+			}
+			if _, err := recordAffiliateInviteAttributionForRegistration(model.DB, inviteCtx, affiliateRegistrationAttributionInput{
+				InviteeUserId:  user.Id,
+				RegisterMethod: service.AffiliateRegisterMethodWeChat,
+				Provider:       "wechat",
+				InitialQuota:   affiliateInviteInitialQuota(),
+			}); err != nil {
 				c.JSON(http.StatusOK, gin.H{
 					"success": false,
 					"message": err.Error(),
