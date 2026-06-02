@@ -3172,6 +3172,7 @@
     "请输入数字": "Please enter a number",
     "请输入新密码": "Please enter the new password",
     "请输入新密码！": "Please enter the new password!",
+    "密码长度需为 8-20 位！": "Password length must be 8-20 characters!",
     "请输入新建数量": "Please enter the quantity to create",
     "请输入新标签，留空则解散标签": "Please enter a new tag, leave blank to dissolve the tag",
     "请输入新的剩余额度": "Please enter the new remaining quota",

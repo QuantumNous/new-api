@@ -3157,6 +3157,7 @@
     "请输入数字": "Veuillez saisir un nombre",
     "请输入新密码": "Veuillez saisir le nouveau mot de passe",
     "请输入新密码！": "Veuillez saisir le nouveau mot de passe !",
+    "密码长度需为 8-20 位！": "La longueur du mot de passe doit être de 8 à 20 caractères !",
     "请输入新建数量": "Veuillez saisir la quantité à créer",
     "请输入新标签，留空则解散标签": "Veuillez saisir une nouvelle étiquette, laissez vide pour dissoudre l'étiquette",
     "请输入新的剩余额度": "Veuillez saisir le nouveau quota restant",

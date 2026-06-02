@@ -3544,6 +3544,7 @@
     "请输入数字": "Vui lòng nhập số",
     "请输入新密码": "Vui lòng nhập mật khẩu mới",
     "请输入新密码！": "Vui lòng nhập mật khẩu mới!",
+    "密码长度需为 8-20 位！": "Độ dài mật khẩu phải từ 8 đến 20 ký tự!",
     "请输入新建数量": "Vui lòng nhập số lượng tạo mới",
     "请输入新标签，留空则解散标签": "Vui lòng nhập thẻ mới, để trống để giải tán thẻ",
     "请输入新的剩余额度": "Vui lòng nhập hạn ngạch còn lại mới",

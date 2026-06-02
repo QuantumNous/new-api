@@ -441,6 +441,13 @@ const PersonalSetting = () => {
       showError(t('请输入新密码！'));
       return;
     }
+    if (
+      inputs.set_new_password.length < 8 ||
+      inputs.set_new_password.length > 20
+    ) {
+      showError(t('密码长度需为 8-20 位！'));
+      return;
+    }
     if (inputs.original_password === inputs.set_new_password) {
       showError(t('新密码需要和原密码不一致！'));
       return;
