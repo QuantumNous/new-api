@@ -191,6 +191,11 @@ type AffiliateScope struct {
 	MaxDepth       int
 }
 
+type AffiliateVisibleUserIds struct {
+	Global  bool
+	UserIds []int
+}
+
 func ResolveAffiliateAccessScope(input AffiliateScopeInput) AffiliateScope {
 	if input.Role == common.RoleRootUser || input.Role == common.RoleAdminUser {
 		return AffiliateScope{
@@ -220,6 +225,48 @@ func ResolveAffiliateAccessScope(input AffiliateScopeInput) AffiliateScope {
 	}
 
 	return scope
+}
+
+func ListAffiliateVisibleUserIds(db *gorm.DB, scope AffiliateScope) (AffiliateVisibleUserIds, error) {
+	if scope.Kind == AffiliateScopeGlobal {
+		return AffiliateVisibleUserIds{Global: true}, nil
+	}
+	if scope.Kind != AffiliateScopeAffiliate {
+		return AffiliateVisibleUserIds{}, errors.New("affiliate scope unavailable")
+	}
+	if db == nil {
+		return AffiliateVisibleUserIds{}, errors.New("nil db")
+	}
+	if scope.UserId <= 0 || scope.MaxDepth <= 0 {
+		return AffiliateVisibleUserIds{}, errors.New("invalid affiliate scope")
+	}
+
+	var relations []model.AffiliateRelation
+	if err := db.
+		Select("descendant_user_id").
+		Where(
+			"ancestor_user_id = ? AND status = ? AND depth >= ? AND depth <= ?",
+			scope.UserId,
+			model.AffiliateProfileStatusActive,
+			1,
+			scope.MaxDepth,
+		).
+		Order("depth asc, descendant_user_id asc").
+		Find(&relations).Error; err != nil {
+		return AffiliateVisibleUserIds{}, err
+	}
+
+	seen := make(map[int]bool, len(relations))
+	userIds := make([]int, 0, len(relations))
+	for _, relation := range relations {
+		if relation.DescendantUserId <= 0 || seen[relation.DescendantUserId] {
+			continue
+		}
+		seen[relation.DescendantUserId] = true
+		userIds = append(userIds, relation.DescendantUserId)
+	}
+
+	return AffiliateVisibleUserIds{UserIds: userIds}, nil
 }
 
 type AffiliateProfileCreateInput struct {

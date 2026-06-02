@@ -362,6 +362,63 @@ func TestBuildAffiliateInviteRelationsCreatesTwoLevelClosure(t *testing.T) {
 	assertRelationExists(t, relations, 2, 3, 1)
 }
 
+func TestListAffiliateVisibleUserIdsRespectsScopeDepth(t *testing.T) {
+	db := newAffiliateStoreTestDB(t)
+	relations := []model.AffiliateRelation{
+		{AncestorUserId: 100, DescendantUserId: 200, Depth: 1, Status: model.AffiliateProfileStatusActive},
+		{AncestorUserId: 100, DescendantUserId: 300, Depth: 2, Status: model.AffiliateProfileStatusActive},
+		{AncestorUserId: 100, DescendantUserId: 400, Depth: 3, Status: model.AffiliateProfileStatusActive},
+		{AncestorUserId: 100, DescendantUserId: 500, Depth: 1, Status: model.AffiliateProfileStatusDisabled},
+		{AncestorUserId: 200, DescendantUserId: 300, Depth: 1, Status: model.AffiliateProfileStatusActive},
+		{AncestorUserId: 200, DescendantUserId: 600, Depth: 2, Status: model.AffiliateProfileStatusActive},
+	}
+	if err := db.Create(&relations).Error; err != nil {
+		t.Fatalf("seed relations: %v", err)
+	}
+
+	levelOne, err := ListAffiliateVisibleUserIds(db, AffiliateScope{
+		Kind:           AffiliateScopeAffiliate,
+		UserId:         100,
+		AffiliateLevel: 1,
+		MaxDepth:       2,
+	})
+	if err != nil {
+		t.Fatalf("ListAffiliateVisibleUserIds level one returned error: %v", err)
+	}
+	if levelOne.Global {
+		t.Fatalf("level one scope should not be global: %+v", levelOne)
+	}
+	assertIntSliceEqual(t, levelOne.UserIds, []int{200, 300})
+
+	levelTwo, err := ListAffiliateVisibleUserIds(db, AffiliateScope{
+		Kind:           AffiliateScopeAffiliate,
+		UserId:         200,
+		AffiliateLevel: 2,
+		MaxDepth:       1,
+	})
+	if err != nil {
+		t.Fatalf("ListAffiliateVisibleUserIds level two returned error: %v", err)
+	}
+	assertIntSliceEqual(t, levelTwo.UserIds, []int{300})
+}
+
+func TestListAffiliateVisibleUserIdsRejectsNoneAndKeepsGlobalUnfiltered(t *testing.T) {
+	db := newAffiliateStoreTestDB(t)
+
+	none, err := ListAffiliateVisibleUserIds(db, AffiliateScope{Kind: AffiliateScopeNone, UserId: 9})
+	if err == nil {
+		t.Fatalf("expected none scope to be rejected, got %+v", none)
+	}
+
+	global, err := ListAffiliateVisibleUserIds(db, AffiliateScope{Kind: AffiliateScopeGlobal, UserId: 1})
+	if err != nil {
+		t.Fatalf("ListAffiliateVisibleUserIds global returned error: %v", err)
+	}
+	if !global.Global || len(global.UserIds) != 0 {
+		t.Fatalf("expected unfiltered global scope, got %+v", global)
+	}
+}
+
 func TestRecordAffiliateAuditLog(t *testing.T) {
 	db := newAffiliateStoreTestDB(t)
 
@@ -394,4 +451,16 @@ func assertRelationExists(t *testing.T, relations []model.AffiliateRelation, anc
 		}
 	}
 	t.Fatalf("missing relation ancestor=%d descendant=%d depth=%d in %+v", ancestor, descendant, depth, relations)
+}
+
+func assertIntSliceEqual(t *testing.T, got []int, want []int) {
+	t.Helper()
+	if len(got) != len(want) {
+		t.Fatalf("expected %v, got %v", want, got)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("expected %v, got %v", want, got)
+		}
+	}
 }

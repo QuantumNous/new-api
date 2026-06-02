@@ -271,16 +271,23 @@
 
 ## Phase 6：分销 scope 与 scoped 使用日志
 
-- [ ] 实现一级/二级/二级下线三层 scope。
-- [ ] 一级分销商可见二级分销商及二级下线。
-- [ ] 二级分销商只可见自己的下线。
-- [ ] 普通用户不可查分销 scope。
-- [ ] 管理员/超级管理员默认全局。
+- [x] 实现一级/二级/二级下线三层 scope。
+- [x] 一级分销商可见二级分销商及二级下线。
+- [x] 二级分销商只可见自己的下线。
+- [x] 普通用户不可查分销 scope。
+- [x] 管理员/超级管理员默认全局。
 - [ ] 实现 scoped 使用日志 API。
 - [ ] scoped 使用日志隐藏敏感字段。
 - [ ] 支持按时间、用户、二级分销商、模型、分组、请求状态过滤。
 - [ ] 复用或抽取 classic 使用日志表格/筛选/分页/移动端卡片。
 - [ ] 增加越权查询测试。
+
+### Phase 6 scope service 复盘（2026-06-03 本线程）
+
+- 完成内容：新增 `ListAffiliateVisibleUserIds` service，将 `ResolveAffiliateAccessScope` 产出的 scope 转换为可用于后续 scoped API 的用户过滤结果；管理员/超级管理员返回 global unfiltered，普通 none scope 直接拒绝，一级分销商基于 active `affiliate_relations` 可见 depth 1-2 下线，二级分销商只可见 depth 1 下线，disabled 或超深度关系不进入结果。
+- 验证方式：先观察 `go test -count=1 ./service -run 'TestListAffiliateVisibleUserIds'` RED（函数未实现编译失败），实现后同命令通过；`go test -count=1 ./model ./service ./middleware ./controller -run 'Affiliate|AdminSetAffiliateProfile|AdminUpdateAffiliateProfileStatus|AffiliateAdminRoutes|GetAffiliateStatus|RecordAffiliateRegistrationAttribution|PasswordRegisterRecordsAffiliateAttribution|PasswordRegisterAppliesAffiliateInviteeQuota|PasswordRegisterKeepsNormalInviteeQuotaForNonAffiliateCode'` 通过；`git diff --check` 通过。
+- 残留风险：本批只完成 scope service 基础，没有新增 scoped 使用日志 API，也没有浏览器/前端接入；全量 controller 测试仍存在既有非 affiliate baseline 风险。
+- 下一步：基于 `ListAffiliateVisibleUserIds` 实现 scoped 使用日志 API，并增加越权查询测试。
 
 ## Phase 7：classic 分销前端
 
