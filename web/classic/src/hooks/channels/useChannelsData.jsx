@@ -783,6 +783,23 @@ export const useChannelsData = () => {
     }
   };
 
+  const clearChannelUsedQuota = async (record) => {
+    const res = await API.post(`/api/channel/used_quota/clear/${record.id}`);
+    const { success, message } = res.data;
+    if (success) {
+      if (enableTagMode) {
+        await refresh();
+      } else {
+        updateChannelProperty(record.id, (channel) => {
+          channel.used_quota = 0;
+        });
+      }
+      showSuccess(t('已用额度已清空'));
+    } else {
+      showError(message || t('清空已用额度失败'));
+    }
+  };
+
   const fixChannelsAbilities = async () => {
     const res = await API.post(`/api/channel/fix`);
     const { success, message, data } = res.data;
@@ -1236,6 +1253,7 @@ export const useChannelsData = () => {
     deleteAllDisabledChannels,
     updateAllChannelsBalance,
     updateChannelBalance,
+    clearChannelUsedQuota,
     fixChannelsAbilities,
     checkOllamaVersion,
     testChannel,

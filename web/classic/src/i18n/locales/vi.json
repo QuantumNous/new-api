@@ -4213,6 +4213,12 @@
     "并确认自行承担部署": "confirm that I bear legal responsibility arising from deployment",
     "运营和收费行为产生的法律责任": "operation and charging behavior",
     "，": ", ",
-    "、": ", "
+    "、": ", ",
+    "清空已用额度": "Xóa hạn mức đã dùng",
+    "确定要清空该渠道已用额度？": "Xóa hạn mức đã dùng của kênh này?",
+    "此操作会将该渠道的已用额度重置为 0，不会影响剩余额度。": "Thao tác này sẽ đặt lại hạn mức đã dùng của kênh này về 0 và không ảnh hưởng đến hạn mức còn lại.",
+    "已用额度已清空": "Đã xóa hạn mức đã dùng",
+    "清空已用额度失败": "Xóa hạn mức đã dùng thất bại",
+    "已用额度已为 0": "Hạn mức đã dùng đã là 0"
   }
 }

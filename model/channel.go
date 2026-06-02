@@ -867,6 +867,10 @@ func updateChannelUsedQuota(id int, quota int) {
 	}
 }
 
+func ResetChannelUsedQuota(id int) error {
+	return DB.Model(&Channel{}).Where("id = ?", id).Update("used_quota", 0).Error
+}
+
 func DeleteChannelByStatus(status int64) (int64, error) {
 	result := DB.Where("status = ?", status).Delete(&Channel{})
 	return result.RowsAffected, result.Error

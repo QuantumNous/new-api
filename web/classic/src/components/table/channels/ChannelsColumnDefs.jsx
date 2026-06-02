@@ -308,6 +308,7 @@ export const getChannelsColumns = ({
   t,
   COLUMN_KEYS,
   updateChannelBalance,
+  clearChannelUsedQuota,
   manageChannel,
   manageTag,
   submitTagEdit,
@@ -558,6 +559,27 @@ export const getChannelsColumns = ({
                       : renderQuotaWithAmount(record.balance)}
                   </Tag>
                 </Tooltip>
+                <Button
+                  size='small'
+                  type='tertiary'
+                  theme='outline'
+                  disabled={(record.used_quota || 0) <= 0}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if ((record.used_quota || 0) <= 0) return;
+                    Modal.confirm({
+                      title: t('确定要清空该渠道已用额度？'),
+                      content: t(
+                        '此操作会将该渠道的已用额度重置为 0，不会影响剩余额度。',
+                      ),
+                      okText: t('清空'),
+                      cancelText: t('取消'),
+                      onOk: () => clearChannelUsedQuota(record),
+                    });
+                  }}
+                >
+                  {t('清空')}
+                </Button>
               </Space>
             </div>
           );

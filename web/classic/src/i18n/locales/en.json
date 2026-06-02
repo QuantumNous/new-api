@@ -3825,6 +3825,12 @@
     "并确认自行承担部署": "confirm that I bear legal responsibility arising from deployment",
     "运营和收费行为产生的法律责任": "operation and charging behavior",
     "，": ", ",
-    "、": ", "
+    "、": ", ",
+    "清空已用额度": "Clear used quota",
+    "确定要清空该渠道已用额度？": "Clear this channel used quota?",
+    "此操作会将该渠道的已用额度重置为 0，不会影响剩余额度。": "This will reset this channel's used quota to 0 and will not affect the remaining quota.",
+    "已用额度已清空": "Used quota cleared",
+    "清空已用额度失败": "Failed to clear used quota",
+    "已用额度已为 0": "Used quota is already 0"
   }
 }

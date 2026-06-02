@@ -421,6 +421,28 @@ func updateChannelBalance(channel *model.Channel) (float64, error) {
 	return balance, nil
 }
 
+func ClearChannelUsedQuota(c *gin.Context) {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	_, err = model.GetChannelById(id, false)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	if err = model.ResetChannelUsedQuota(id); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"success":    true,
+		"message":    "",
+		"used_quota": 0,
+	})
+}
+
 func UpdateChannelBalance(c *gin.Context) {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {

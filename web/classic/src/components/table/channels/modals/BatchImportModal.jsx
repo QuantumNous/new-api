@@ -17,11 +17,13 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   Modal,
   Input,
+  InputNumber,
+  Select,
   Button,
   Table,
   Typography,
@@ -32,7 +34,7 @@ import {
   TextArea,
 } from '@douyinfe/semi-ui';
 import { IconUpload } from '@douyinfe/semi-icons';
-import { API, showSuccess, showError } from '../../../../helpers';
+import { API, showSuccess, showError, selectFilter } from '../../../../helpers';
 import { getChannelModels } from '../../../../helpers';
 
 const { Text } = Typography;
@@ -114,6 +116,11 @@ const BatchImportModal = ({ visible, onCancel, onSuccess }) => {
   const [nameSuffix, setNameSuffix] = useState('');
   const [models, setModels] = useState('');
   const [group, setGroup] = useState(DEFAULT_GROUP);
+  const [priority, setPriority] = useState(0);
+  const [weight, setWeight] = useState(0);
+  const [groupOptions, setGroupOptions] = useState([
+    { label: DEFAULT_GROUP, value: DEFAULT_GROUP },
+  ]);
 
   // Import state
   const [importState, setImportState] = useState('idle'); // idle | importing | done
@@ -127,6 +134,30 @@ const BatchImportModal = ({ visible, onCancel, onSuccess }) => {
   const defaultModels = useMemo(() => {
     return getChannelModels(ANTHROPIC_CHANNEL_TYPE).join(',');
   }, []);
+
+  const fetchGroups = useCallback(async () => {
+    try {
+      const res = await API.get('/api/group/');
+      const groups = Array.isArray(res?.data?.data) ? res.data.data : [];
+      const uniqueGroups = Array.from(
+        new Set([DEFAULT_GROUP, ...groups].filter(Boolean)),
+      );
+      setGroupOptions(
+        uniqueGroups.map((item) => ({
+          label: item,
+          value: item,
+        })),
+      );
+    } catch (error) {
+      showError(error.message);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (visible) {
+      fetchGroups();
+    }
+  }, [visible, fetchGroups]);
 
   // Parse input for preview
   const parsed = useMemo(() => {
@@ -142,6 +173,8 @@ const BatchImportModal = ({ visible, onCancel, onSuccess }) => {
     setNameSuffix('');
     setModels('');
     setGroup(DEFAULT_GROUP);
+    setPriority(0);
+    setWeight(0);
     setImportState('idle');
     setResults([]);
     setProgress(0);
@@ -180,8 +213,8 @@ const BatchImportModal = ({ visible, onCancel, onSuccess }) => {
             balance: entry.balance,
             status: 1,
             auto_ban: 1,
-            weight: 0,
-            priority: 0,
+            weight: Number(weight) || 0,
+            priority: Number(priority) || 0,
           },
         });
 
@@ -212,7 +245,9 @@ const BatchImportModal = ({ visible, onCancel, onSuccess }) => {
     const failCount = importResults.filter((r) => !r.success).length;
 
     if (failCount === 0) {
-      showSuccess(t('成功导入 {{count}} 个渠道').replace('{{count}}', successCount));
+      showSuccess(
+        t('成功导入 {{count}} 个渠道').replace('{{count}}', successCount),
+      );
     } else {
       showError(
         t('导入完成：成功 {{success}} 个，失败 {{fail}} 个')
@@ -222,7 +257,16 @@ const BatchImportModal = ({ visible, onCancel, onSuccess }) => {
     }
 
     if (onSuccess) onSuccess();
-  }, [parsed.entries, models, defaultModels, group, onSuccess, t]);
+  }, [
+    parsed.entries,
+    models,
+    defaultModels,
+    group,
+    weight,
+    priority,
+    onSuccess,
+    t,
+  ]);
 
   const canImport =
     importState === 'idle' &&
@@ -245,7 +289,11 @@ const BatchImportModal = ({ visible, onCancel, onSuccess }) => {
       title: t('渠道名称'),
       dataIndex: 'name',
       width: 220,
-      render: (text) => <Text copyable style={{ fontFamily: 'monospace', fontSize: 12 }}>{text}</Text>,
+      render: (text) => (
+        <Text copyable style={{ fontFamily: 'monospace', fontSize: 12 }}>
+          {text}
+        </Text>
+      ),
     },
     {
       title: t('余额'),
@@ -258,7 +306,13 @@ const BatchImportModal = ({ visible, onCancel, onSuccess }) => {
       title: t('密钥前缀'),
       dataIndex: 'key',
       render: (text) => (
-        <Text style={{ fontFamily: 'monospace', fontSize: 12, color: 'var(--semi-color-text-2)' }}>
+        <Text
+          style={{
+            fontFamily: 'monospace',
+            fontSize: 12,
+            color: 'var(--semi-color-text-2)',
+          }}
+        >
           {text.substring(0, 20)}...
         </Text>
       ),
@@ -276,17 +330,23 @@ const BatchImportModal = ({ visible, onCancel, onSuccess }) => {
         const result = results[index];
         if (!result) {
           return index < progress ? (
-            <Tag color="blue" size="small">{t('进行中')}</Tag>
+            <Tag color='blue' size='small'>
+              {t('进行中')}
+            </Tag>
           ) : (
-            <Tag color="grey" size="small">{t('等待')}</Tag>
+            <Tag color='grey' size='small'>
+              {t('等待')}
+            </Tag>
           );
         }
         return result.success ? (
-          <Tag color="green" size="small">{t('成功')}</Tag>
+          <Tag color='green' size='small'>
+            {t('成功')}
+          </Tag>
         ) : (
           <Tag
-            color="red"
-            size="small"
+            color='red'
+            size='small'
             style={{ cursor: 'pointer' }}
             onClick={() => showError(result.error)}
           >
@@ -312,23 +372,23 @@ const BatchImportModal = ({ visible, onCancel, onSuccess }) => {
       width={700}
       footer={
         <Space>
-          <Button
-            onClick={handleCancel}
-            disabled={importState === 'importing'}
-          >
+          <Button onClick={handleCancel} disabled={importState === 'importing'}>
             {importState === 'done' ? t('关闭') : t('取消')}
           </Button>
           {importState !== 'done' && (
             <Button
-              theme="solid"
-              type="primary"
+              theme='solid'
+              type='primary'
               onClick={handleImport}
               disabled={!canImport}
               loading={importState === 'importing'}
             >
               {importState === 'importing'
                 ? t('导入中...')
-                : t('导入 ({{count}} 条)').replace('{{count}}', parsed.entries.length)}
+                : t('导入 ({{count}} 条)').replace(
+                    '{{count}}',
+                    parsed.entries.length,
+                  )}
             </Button>
           )}
         </Space>
@@ -337,14 +397,22 @@ const BatchImportModal = ({ visible, onCancel, onSuccess }) => {
       <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
         {/* Name Tag */}
         <div>
-          <div style={{ marginBottom: 4, fontWeight: 600, fontSize: 14 }}>{t('名称标签')}</div>
+          <div style={{ marginBottom: 4, fontWeight: 600, fontSize: 14 }}>
+            {t('名称标签')}
+          </div>
           <Input
             placeholder={t('例如：liz')}
             value={nameSuffix}
             onChange={setNameSuffix}
             disabled={importState !== 'idle'}
           />
-          <div style={{ fontSize: 12, color: 'var(--semi-color-text-2)', marginTop: 4 }}>
+          <div
+            style={{
+              fontSize: 12,
+              color: 'var(--semi-color-text-2)',
+              marginTop: 4,
+            }}
+          >
             {t('渠道命名格式：{{format}}').replace(
               '{{format}}',
               `${timestamp}-{余额}-{标签}`,
@@ -354,20 +422,57 @@ const BatchImportModal = ({ visible, onCancel, onSuccess }) => {
 
         {/* Group */}
         <div>
-          <div style={{ marginBottom: 4, fontWeight: 600, fontSize: 14 }}>{t('分组')}</div>
-          <Input
-            placeholder="default"
+          <div style={{ marginBottom: 4, fontWeight: 600, fontSize: 14 }}>
+            {t('分组')}
+          </div>
+          <Select
+            placeholder='default'
             value={group}
+            optionList={groupOptions}
             onChange={setGroup}
             disabled={importState !== 'idle'}
+            filter={selectFilter}
+            allowCreate
+            autoClearSearchValue={false}
+            style={{ width: '100%' }}
           />
+        </div>
+
+        {/* Priority and Weight */}
+        <div
+          style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}
+        >
+          <div>
+            <div style={{ marginBottom: 4, fontWeight: 600, fontSize: 14 }}>
+              {t('优先级')}
+            </div>
+            <InputNumber
+              value={priority}
+              onChange={(value) => setPriority(value ?? 0)}
+              disabled={importState !== 'idle'}
+              min={-999}
+              style={{ width: '100%' }}
+            />
+          </div>
+          <div>
+            <div style={{ marginBottom: 4, fontWeight: 600, fontSize: 14 }}>
+              {t('权重')}
+            </div>
+            <InputNumber
+              value={weight}
+              onChange={(value) => setWeight(value ?? 0)}
+              disabled={importState !== 'idle'}
+              min={0}
+              style={{ width: '100%' }}
+            />
+          </div>
         </div>
 
         {/* Input Data */}
         <div>
           <div style={{ marginBottom: 4, fontWeight: 600, fontSize: 14 }}>
             {t('导入数据')}{' '}
-            <Text type="tertiary" size="small">
+            <Text type='tertiary' size='small'>
               ({t('余额<Tab>密钥，每行一条')})
             </Text>
           </div>
@@ -384,7 +489,7 @@ const BatchImportModal = ({ visible, onCancel, onSuccess }) => {
         {/* Parse Errors */}
         {parsed.errors.length > 0 && (
           <Banner
-            type="danger"
+            type='danger'
             description={
               <div>
                 <div style={{ fontWeight: 600, marginBottom: 4 }}>
@@ -392,7 +497,8 @@ const BatchImportModal = ({ visible, onCancel, onSuccess }) => {
                 </div>
                 {parsed.errors.map((err, i) => (
                   <div key={i} style={{ fontSize: 12 }}>
-                    {t('第 {{line}} 行', { line: '' })}{err}
+                    {t('第 {{line}} 行', { line: '' })}
+                    {err}
                   </div>
                 ))}
               </div>
@@ -412,18 +518,21 @@ const BatchImportModal = ({ visible, onCancel, onSuccess }) => {
               }}
             >
               <Text strong>{t('预览')}</Text>
-              <Text type="tertiary" size="small">
-                {t('共 {{count}} 条').replace('{{count}}', parsed.entries.length)}
+              <Text type='tertiary' size='small'>
+                {t('共 {{count}} 条').replace(
+                  '{{count}}',
+                  parsed.entries.length,
+                )}
               </Text>
             </div>
             <Table
               columns={columns}
               dataSource={parsed.entries}
               pagination={false}
-              size="small"
+              size='small'
               bordered
               style={{ maxHeight: 250, overflow: 'auto' }}
-              rowKey="lineNumber"
+              rowKey='lineNumber'
             />
           </div>
         )}
@@ -438,10 +547,10 @@ const BatchImportModal = ({ visible, onCancel, onSuccess }) => {
                 marginBottom: 4,
               }}
             >
-              <Text size="small" type="tertiary">
+              <Text size='small' type='tertiary'>
                 {t('导入中...')} {progress}/{parsed.entries.length}
               </Text>
-              <Text size="small" type="tertiary">
+              <Text size='small' type='tertiary'>
                 {Math.round((progress / parsed.entries.length) * 100)}%
               </Text>
             </div>
@@ -459,12 +568,16 @@ const BatchImportModal = ({ visible, onCancel, onSuccess }) => {
             description={
               <Space>
                 <span>
-                  <Tag color="green" size="small" style={{ marginRight: 4 }}>{t('✓')}</Tag>
+                  <Tag color='green' size='small' style={{ marginRight: 4 }}>
+                    {t('✓')}
+                  </Tag>
                   {t('成功 {{count}} 个').replace('{{count}}', successCount)}
                 </span>
                 {failCount > 0 && (
                   <span>
-                    <Tag color="red" size="small" style={{ marginRight: 4 }}>{t('✗')}</Tag>
+                    <Tag color='red' size='small' style={{ marginRight: 4 }}>
+                      {t('✗')}
+                    </Tag>
                     {t('失败 {{count}} 个').replace('{{count}}', failCount)}
                   </span>
                 )}

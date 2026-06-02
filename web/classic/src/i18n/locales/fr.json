@@ -2300,7 +2300,7 @@
     "清理失败": "Échec du nettoyage",
     "清理方式": "Mode de nettoyage",
     "清理日志文件": "Nettoyer les fichiers journaux",
-    "清空": "Clear",
+    "清空": "Effacer",
     "清空全部缓存": "Vider tout le cache",
     "清空该规则缓存": "Vider le cache de cette règle",
     "清空重定向": "Effacer la redirection",
@@ -3679,6 +3679,12 @@
     "并确认自行承担部署": "confirm that I bear legal responsibility arising from deployment",
     "运营和收费行为产生的法律责任": "operation and charging behavior",
     "，": ", ",
-    "、": ", "
+    "、": ", ",
+    "清空已用额度": "Effacer le quota utilisé",
+    "确定要清空该渠道已用额度？": "Effacer le quota utilisé de ce canal ?",
+    "此操作会将该渠道的已用额度重置为 0，不会影响剩余额度。": "Cette opération réinitialisera le quota utilisé de ce canal à 0 sans affecter le quota restant.",
+    "已用额度已清空": "Quota utilisé effacé",
+    "清空已用额度失败": "Échec de l’effacement du quota utilisé",
+    "已用额度已为 0": "Le quota utilisé est déjà à 0"
   }
 }
