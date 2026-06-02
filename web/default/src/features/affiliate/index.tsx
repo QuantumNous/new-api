@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { RefreshCw } from 'lucide-react'
+import { Download, RefreshCw } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { useSystemConfigStore } from '@/stores/system-config-store'
 import { formatNumber, formatTimestampToDate } from '@/lib/format'
@@ -26,6 +26,7 @@ import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import {
   Card,
+  CardAction,
   CardContent,
   CardDescription,
   CardHeader,
@@ -49,6 +50,7 @@ import {
 } from './api'
 import {
   buildAffiliateLogsParams,
+  buildAffiliateLogsCsv,
   formatAffiliateRmbFromQuota,
   formatRawQuota,
   getAffiliateUnavailableMessage,
@@ -319,6 +321,17 @@ function AffiliateLogsTable(props: {
   const { t } = useTranslation()
   const currencyConfig = useSystemConfigStore((state) => state.config.currency)
   const hasNext = props.page * props.pageSize < props.total
+  const handleExport = () => {
+    if (props.logs.length === 0) return
+    const csv = buildAffiliateLogsCsv(props.logs, currencyConfig)
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    const anchor = document.createElement('a')
+    anchor.href = url
+    anchor.download = `affiliate-logs-page-${props.page}.csv`
+    anchor.click()
+    URL.revokeObjectURL(url)
+  }
 
   return (
     <Card>
@@ -327,6 +340,17 @@ function AffiliateLogsTable(props: {
         <CardDescription>
           {t('Showing only users visible to the current affiliate scope')}
         </CardDescription>
+        <CardAction>
+          <Button
+            variant='outline'
+            size='sm'
+            disabled={props.isLoading || props.logs.length === 0}
+            onClick={handleExport}
+          >
+            <Download className='size-4' />
+            {t('Download')} CSV
+          </Button>
+        </CardAction>
       </CardHeader>
       <CardContent className='space-y-3'>
         <Table>

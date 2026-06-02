@@ -3,6 +3,7 @@ import { describe, test } from 'node:test'
 import {
   buildAffiliateLogsParams,
   buildAffiliateLogsQuery,
+  buildAffiliateLogsCsv,
   formatAffiliateRmbFromQuota,
   formatRawQuota,
   getAffiliateUnavailableMessage,
@@ -112,5 +113,47 @@ describe('default affiliate helpers', () => {
       ),
       '分销功能未开通，请联系管理员开通。'
     )
+  })
+
+  test('exports affiliate logs with RMB primary amount and raw quota appendix', () => {
+    const csv = buildAffiliateLogsCsv(
+      [
+        {
+          id: 1,
+          user_id: 200,
+          created_at: 1780416000,
+          type: 2,
+          content: '',
+          username: '',
+          token_name: '',
+          model_name: 'gpt-4o,mini',
+          quota: 2500,
+          prompt_tokens: 12,
+          completion_tokens: 34,
+          use_time: 456,
+          is_stream: false,
+          channel: 0,
+          channel_name: '',
+          token_id: 0,
+          group: 'default',
+          ip: '',
+          other: '',
+          request_id: '',
+          upstream_request_id: '',
+        },
+      ],
+      {
+        quotaPerUnit: 1000,
+        usdExchangeRate: 7,
+      }
+    )
+
+    const lines = csv.split('\n')
+    assert.equal(
+      lines[0],
+      'time,user_id,type,model,group,consumption_rmb,raw_quota'
+    )
+    assert.match(lines[1], /^2026-/)
+    assert.match(lines[1], /,"gpt-4o,mini",default,¥17\.5,2500$/)
   })
 })

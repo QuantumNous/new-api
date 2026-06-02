@@ -17,7 +17,11 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { formatQuotaWithCurrency } from '@/lib/currency'
-import type { AffiliateLogFilters, AffiliateLogsParams } from './types'
+import type {
+  AffiliateLog,
+  AffiliateLogFilters,
+  AffiliateLogsParams,
+} from './types'
 
 const numberFormat = new Intl.NumberFormat('zh-CN')
 
@@ -86,6 +90,47 @@ export function formatAffiliateRmbFromQuota(
 
 export function formatRawQuota(quota: number): string {
   return numberFormat.format(Number(quota || 0))
+}
+
+function formatCsvTimestamp(timestamp: number): string {
+  if (!Number.isFinite(timestamp) || timestamp <= 0) return ''
+  return new Date(timestamp * 1000).toISOString().replace('T', ' ').slice(0, 19)
+}
+
+function csvCell(value: unknown): string {
+  const text = value == null ? '' : String(value)
+  if (!/[",\n\r]/.test(text)) return text
+  return `"${text.replaceAll('"', '""')}"`
+}
+
+export function buildAffiliateLogsCsv(
+  logs: AffiliateLog[],
+  config: { quotaPerUnit: number; usdExchangeRate: number }
+): string {
+  const rows = logs.map((log) => [
+    formatCsvTimestamp(log.created_at),
+    log.user_id,
+    log.type,
+    log.model_name || '',
+    log.group || '',
+    formatAffiliateRmbFromQuota(log.quota, config),
+    log.quota,
+  ])
+
+  return [
+    [
+      'time',
+      'user_id',
+      'type',
+      'model',
+      'group',
+      'consumption_rmb',
+      'raw_quota',
+    ],
+    ...rows,
+  ]
+    .map((row) => row.map(csvCell).join(','))
+    .join('\n')
 }
 
 export function getAffiliateUnavailableMessage(

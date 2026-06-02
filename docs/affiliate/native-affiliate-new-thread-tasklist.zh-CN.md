@@ -402,7 +402,8 @@
 - [x] default 复用 `formatQuotaWithCurrency()`；为全局 formatter 增加调用方 CNY override，default 分销 helper 不再手写 quota->RMB 换算。
 - [x] classic 原始 quota/token 仅保留 tooltip、调试字段或导出附加列；scoped 使用日志花费列 tooltip 保留原始 quota。
 - [ ] 用真实账号数据核对页面 RMB 值。
-- [ ] 导出文件同时包含 RMB 主字段和原始 quota 附加字段。
+- [x] 导出文件同时包含 RMB 主字段和原始 quota 附加字段；default `/affiliate` 当前页 CSV 导出已包含 `consumption_rmb` 和 `raw_quota`。
+- [ ] 如需全量/跨页导出，另行设计后端 scoped export 或安全分页导出，不能绕过后端 scope。
 
 ### Phase 9 classic RMB 使用日志复盘（2026-06-03 本线程）
 
@@ -415,8 +416,15 @@
 
 - 完成内容：default 分销 scoped logs RMB helper 改为复用全局 `formatQuotaWithCurrency()`，不再手写 quota->USD->RMB 公式；全局 currency formatter 新增 `currencyOverride`，允许分销场景在系统 `quotaDisplayType=TOKENS/CUSTOM/USD` 时仍强制以 CNY/RMB 主显示，同时继续使用系统 `quota_per_unit` 与 `usd_exchange_rate`。
 - 验证方式：先观察 `bun --bun test src/lib/currency.test.ts src/features/affiliate/lib.test.ts` RED，失败于 formatter override 未实现和 affiliate helper 仍输出手写 fixed RMB；实现后同命令通过；补充 `bun --bun test src/lib/currency.test.ts src/features/affiliate/lib.test.ts src/features/affiliate/admin-lib.test.ts` 20 项通过；`cd web/default && bun run i18n:sync` 通过；`cd web/default && bun run build` 通过；`git diff --check` 通过。
-- 残留风险：本批只覆盖 helper 与构建，未用真实账号核对页面 RMB 数值，也未补导出字段中的 RMB 主字段/原始 quota 附加字段。
-- 下一步：用本地恢复库真实账号做 RMB 页面核对，或实现导出文件同时包含 RMB 主字段和原始 quota 附加字段。
+- 残留风险：本批只覆盖 helper 与构建，未用真实账号核对页面 RMB 数值；default 当前页 CSV 导出已补 RMB/raw quota 字段，但全量跨页导出仍待单独设计。
+- 下一步：用本地恢复库真实账号做 RMB 页面核对，或设计后端 scoped 全量导出。
+
+### Phase 9 default scoped logs CSV 导出复盘（2026-06-03 本线程）
+
+- 完成内容：default `/affiliate` scoped logs 表格新增当前页 CSV 下载按钮；导出 helper 使用稳定字段 `time,user_id,type,model,group,consumption_rmb,raw_quota`，以 RMB 作为主金额字段并保留原始 quota 附加字段；导出仍只使用当前已由后端 scoped API 返回的数据。
+- 验证方式：先观察 `bun --bun test src/features/affiliate/lib.test.ts` RED，失败于 `buildAffiliateLogsCsv` 未导出；实现后 `bun --bun test src/features/affiliate/lib.test.ts src/features/affiliate/admin-lib.test.ts src/lib/currency.test.ts` 22 项通过；`cd web/default && bun run i18n:sync` 通过；`cd web/default && bun run build` 通过。
+- 残留风险：本批只覆盖 default 当前页导出，不是全量跨页导出；classic 官方使用日志当前未发现文件导出入口。
+- 下一步：如业务需要全量导出，设计后端 scoped export 或安全分页导出，并补浏览器下载 smoke。
 
 ## Phase 10：KPI、佣金、人头费与结算
 
