@@ -2,7 +2,10 @@ package controller
 
 import (
 	"net/http"
+	"sort"
+	"strings"
 
+	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting"
@@ -11,11 +14,43 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func GetGroups(c *gin.Context) {
-	groupNames := make([]string, 0)
-	for groupName := range ratio_setting.GetGroupRatioCopy() {
-		groupNames = append(groupNames, groupName)
+func addGroupNames(groupSet map[string]bool, groupValues []string) {
+	for _, groupValue := range groupValues {
+		for _, groupName := range strings.Split(groupValue, ",") {
+			groupName = strings.TrimSpace(groupName)
+			if groupName != "" {
+				groupSet[groupName] = true
+			}
+		}
 	}
+}
+
+func GetGroups(c *gin.Context) {
+	groupSet := map[string]bool{"default": true}
+	for groupName := range ratio_setting.GetGroupRatioCopy() {
+		addGroupNames(groupSet, []string{groupName})
+	}
+	channelGroups, err := model.GetDistinctChannelGroups()
+	if err != nil {
+		common.SysError("failed to get channel groups: " + err.Error())
+	} else {
+		addGroupNames(groupSet, channelGroups)
+	}
+	preparationGroups, err := model.GetDistinctChannelPreparationGroups()
+	if err != nil {
+		common.SysError("failed to get channel preparation groups: " + err.Error())
+	} else {
+		addGroupNames(groupSet, preparationGroups)
+	}
+
+	groupNames := make([]string, 0, len(groupSet))
+	for groupName := range groupSet {
+		if groupName != "default" {
+			groupNames = append(groupNames, groupName)
+		}
+	}
+	sort.Strings(groupNames)
+	groupNames = append([]string{"default"}, groupNames...)
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",

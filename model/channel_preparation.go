@@ -242,6 +242,15 @@ func applyChannelPreparationFilters(db *gorm.DB, opts ChannelPreparationListOpti
 	return db
 }
 
+func GetDistinctChannelPreparationGroups() ([]string, error) {
+	var groups []string
+	err := DB.Model(&ChannelPreparation{}).
+		Where(commonGroupCol+" IS NOT NULL AND "+commonGroupCol+" != ''").
+		Distinct(commonGroupCol).
+		Pluck(commonGroupCol, &groups).Error
+	return groups, err
+}
+
 func GetChannelPreparations(opts ChannelPreparationListOptions) ([]ChannelPreparation, int64, []ChannelPreparationCountRow, []ChannelPreparationCountRow, error) {
 	if opts.Page <= 0 {
 		opts.Page = 1

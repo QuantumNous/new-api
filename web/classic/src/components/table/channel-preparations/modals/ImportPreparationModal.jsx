@@ -13,6 +13,7 @@ import {
 import { useTranslation } from 'react-i18next';
 import {
   API,
+  buildGroupOptions,
   getChannelModels,
   loadChannelModels,
   showError,
@@ -86,13 +87,7 @@ const ImportPreparationModal = ({ visible, onCancel, onSubmit }) => {
     loadChannelModels().catch(() => {});
     API.get('/api/group/')
       .then((res) => {
-        const groups = Array.isArray(res?.data?.data) ? res.data.data : [];
-        const uniqueGroups = Array.from(
-          new Set([DEFAULT_GROUP, ...groups].filter(Boolean)),
-        );
-        setGroupOptions(
-          uniqueGroups.map((item) => ({ label: item, value: item })),
-        );
+        setGroupOptions(buildGroupOptions(res?.data?.data, DEFAULT_GROUP));
       })
       .catch((error) => showError(error.message));
   }, [visible]);
@@ -207,8 +202,6 @@ const ImportPreparationModal = ({ visible, onCancel, onSubmit }) => {
             <Select
               value={group}
               optionList={groupOptions}
-              allowCreate
-              filter
               onChange={(value) => setGroup(value || DEFAULT_GROUP)}
               style={{ width: '100%' }}
             />

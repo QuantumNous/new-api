@@ -1084,6 +1084,15 @@ func CountChannelTags(query *gorm.DB) (int64, error) {
 	return total, err
 }
 
+func GetDistinctChannelGroups() ([]string, error) {
+	var groups []string
+	err := DB.Model(&Channel{}).
+		Where(commonGroupCol+" IS NOT NULL AND "+commonGroupCol+" != ''").
+		Distinct(commonGroupCol).
+		Pluck(commonGroupCol, &groups).Error
+	return groups, err
+}
+
 // Get channels of specified type with pagination
 func GetChannelsByType(startIdx int, num int, idSort bool, channelType int) ([]*Channel, error) {
 	var channels []*Channel

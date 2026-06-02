@@ -13,6 +13,7 @@ import {
   getChannelModels,
   loadChannelModels,
   API,
+  buildGroupOptions,
   showError,
 } from '../../../../helpers';
 
@@ -50,16 +51,8 @@ const EditPreparationModal = ({ visible, preparation, onCancel, onSubmit }) => {
     loadChannelModels().catch(() => {});
     API.get('/api/group/')
       .then((res) => {
-        if (res.data.success && Array.isArray(res.data.data)) {
-          const options = res.data.data.map((item) => ({
-            label: item,
-            value: item,
-          }));
-          setGroupOptions(
-            options.length > 0
-              ? options
-              : [{ label: 'default', value: 'default' }],
-          );
+        if (res.data.success) {
+          setGroupOptions(buildGroupOptions(res.data.data));
         }
       })
       .catch(() => {});
@@ -188,8 +181,6 @@ const EditPreparationModal = ({ visible, preparation, onCancel, onSubmit }) => {
           <Select
             value={form.group}
             optionList={groupOptions}
-            allowCreate
-            filter
             onChange={(value) => update('group', value || 'default')}
             style={{ width: '100%' }}
           />

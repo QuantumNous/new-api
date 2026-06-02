@@ -34,7 +34,12 @@ import {
   TextArea,
 } from '@douyinfe/semi-ui';
 import { IconUpload } from '@douyinfe/semi-icons';
-import { API, showSuccess, showError, selectFilter } from '../../../../helpers';
+import {
+  API,
+  buildGroupOptions,
+  showSuccess,
+  showError,
+} from '../../../../helpers';
 import { getChannelModels } from '../../../../helpers';
 
 const { Text } = Typography;
@@ -138,16 +143,7 @@ const BatchImportModal = ({ visible, onCancel, onSuccess }) => {
   const fetchGroups = useCallback(async () => {
     try {
       const res = await API.get('/api/group/');
-      const groups = Array.isArray(res?.data?.data) ? res.data.data : [];
-      const uniqueGroups = Array.from(
-        new Set([DEFAULT_GROUP, ...groups].filter(Boolean)),
-      );
-      setGroupOptions(
-        uniqueGroups.map((item) => ({
-          label: item,
-          value: item,
-        })),
-      );
+      setGroupOptions(buildGroupOptions(res?.data?.data, DEFAULT_GROUP));
     } catch (error) {
       showError(error.message);
     }
@@ -429,11 +425,8 @@ const BatchImportModal = ({ visible, onCancel, onSuccess }) => {
             placeholder='default'
             value={group}
             optionList={groupOptions}
-            onChange={setGroup}
+            onChange={(value) => setGroup(value || DEFAULT_GROUP)}
             disabled={importState !== 'idle'}
-            filter={selectFilter}
-            allowCreate
-            autoClearSearchValue={false}
             style={{ width: '100%' }}
           />
         </div>
