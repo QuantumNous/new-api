@@ -16,6 +16,7 @@ func GetAffiliateStatus(c *gin.Context) {
 	userId := c.GetInt("id")
 	role := c.GetInt("role")
 
+	dbReady := model.DB != nil
 	input := service.AffiliateScopeInput{
 		UserId: userId,
 		Role:   role,
@@ -34,10 +35,7 @@ func GetAffiliateStatus(c *gin.Context) {
 	}
 
 	scope := service.ResolveAffiliateAccessScope(input)
-	common.ApiSuccess(c, gin.H{
-		"enabled": common.AffiliateEnabled,
-		"scope":   scope,
-	})
+	common.ApiSuccess(c, buildAffiliateStatusResponse(common.AffiliateEnabled, dbReady, role, scope))
 }
 
 func getActiveAffiliateProfile(userId int) (*model.AffiliateProfile, error) {
@@ -56,6 +54,34 @@ func getActiveAffiliateProfile(userId int) (*model.AffiliateProfile, error) {
 		return nil, nil
 	}
 	return nil, err
+}
+
+func buildAffiliateStatusResponse(enabled bool, dbReady bool, role int, scope service.AffiliateScope) gin.H {
+	available := scope.Kind == service.AffiliateScopeGlobal || scope.Kind == service.AffiliateScopeAffiliate
+	reason := ""
+	message := ""
+
+	if !available && role < common.RoleAdminUser {
+		switch {
+		case !enabled:
+			reason = "module_disabled"
+			message = "分销模块未启用"
+		case !dbReady:
+			reason = "data_uninitialized"
+			message = "分销数据未初始化"
+		default:
+			reason = "not_opened"
+			message = "分销功能未开通，请联系管理员开通。"
+		}
+	}
+
+	return gin.H{
+		"enabled":            enabled,
+		"available":          available,
+		"unavailable_reason": reason,
+		"message":            message,
+		"scope":              scope,
+	}
 }
 
 type affiliateProfileSetRequest struct {

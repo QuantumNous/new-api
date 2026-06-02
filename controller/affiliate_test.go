@@ -83,6 +83,44 @@ func TestGetAffiliateStatusAdminGlobal(t *testing.T) {
 	}
 }
 
+func TestGetAffiliateStatusCommonUserNotOpenedMessage(t *testing.T) {
+	newAffiliateControllerTestDB(t)
+	originalEnabled := common.AffiliateEnabled
+	defer func() {
+		common.AffiliateEnabled = originalEnabled
+	}()
+	common.AffiliateEnabled = true
+
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = httptest.NewRequest(http.MethodGet, "/api/affiliate/status", nil)
+	ctx.Set("id", 5)
+	ctx.Set("role", common.RoleCommonUser)
+
+	GetAffiliateStatus(ctx)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d", recorder.Code)
+	}
+
+	var body affiliateStatusTestResponse
+	if err := json.Unmarshal(recorder.Body.Bytes(), &body); err != nil {
+		t.Fatalf("unmarshal response: %v", err)
+	}
+	if !body.Success {
+		t.Fatalf("expected success response: %+v", body)
+	}
+	if body.Data.Available {
+		t.Fatalf("expected affiliate page unavailable for unopened common user: %+v", body.Data)
+	}
+	if body.Data.UnavailableReason != "not_opened" {
+		t.Fatalf("expected not_opened reason, got %+v", body.Data)
+	}
+	if body.Data.Message != "分销功能未开通，请联系管理员开通。" {
+		t.Fatalf("expected friendly unopened message, got %+v", body.Data)
+	}
+}
+
 func TestAdminSetAffiliateProfile(t *testing.T) {
 	db := newAffiliateControllerTestDB(t)
 	recorder := httptest.NewRecorder()
@@ -240,8 +278,11 @@ func TestAffiliateAdminRoutesRejectCommonUser(t *testing.T) {
 type affiliateStatusTestResponse struct {
 	Success bool `json:"success"`
 	Data    struct {
-		Enabled bool                   `json:"enabled"`
-		Scope   service.AffiliateScope `json:"scope"`
+		Enabled           bool                   `json:"enabled"`
+		Available         bool                   `json:"available"`
+		UnavailableReason string                 `json:"unavailable_reason"`
+		Message           string                 `json:"message"`
+		Scope             service.AffiliateScope `json:"scope"`
 	} `json:"data"`
 }
 
