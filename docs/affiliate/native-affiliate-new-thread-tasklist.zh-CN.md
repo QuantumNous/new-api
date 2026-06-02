@@ -1,6 +1,6 @@
 # 新线程执行 Tasklist
 
-更新日期：2026-06-02
+更新日期：2026-06-03
 
 ## 0. 启动要求
 
@@ -301,13 +301,14 @@
 
 - 完成内容：新增 classic `/console/affiliate` 分销中心页面，先调用 `/api/affiliate/status` 展示未开通/模块关闭的中文友好提示；可用时复用 classic 使用日志表格、筛选、分页、列设置和紧凑/移动端表格能力，并以 `affiliate` 模式接入 `/api/affiliate/logs`。普通日志仍使用原 `/api/log` / `/api/log/self`，分销模式隐藏 token/channel/request_id 等不适用筛选和 token/IP 空列，保留时间、模型、分组、用户 ID、二级分销商用户 ID、请求状态和日志类型筛选。侧边栏新增“分销中心”入口，并同步默认模块配置、用户/管理员侧边栏设置和新用户默认 sidebar 配置。
 - 验证方式：先观察 `bun test web/classic/src/hooks/usage-logs/usageLogsUrls.test.mjs` RED（URL builder 缺失），实现后同命令 3 项通过；`go test -count=1 ./model ./controller -run 'Sidebar|Affiliate'` 通过；提升权限启动 `make dev-web` 后 classic/default dev server 分别监听 5174/5173，热更新输出无编译错误；`cd web/classic && bun run build` 通过。
-- 残留风险：尚未做 Playwright/Chromium 真实账号浏览器截图回归；default 分销前端仍未接入；当前 classic 页面主要完成 scoped 使用日志和友好状态提示，统计看板、RMB 主显示、KPI/佣金/人头费/结算仍待后续 Phase 7/9/10。
-- 下一步：用真实一级/二级/管理员账号做 classic 浏览器 smoke，再推进分销统计看板、RMB 单位和 default parity。
+- 2026-06-03 追加验证：网络切换后确认 3000/5173/5174 均 HTTP 200；发现旧 `new-api:dev` 容器未包含 `/api/affiliate/logs`，按 Docker 规则用 `timeout 600s docker compose -f docker-compose.dev.yml up -d --build new-api` 重建主容器后，`/api/affiliate/logs` 从 404 恢复为已挂载路由；随后用本地测试账号文件完成 API smoke，不输出用户名、密码、cookie 或 token。
+- 残留风险：classic 真实账号 browser smoke 已覆盖管理员/一级/二级和移动端，但普通用户、profile disabled、模块关闭和 default parity 尚未覆盖；当前 classic 页面主要完成 scoped 使用日志和友好状态提示，统计看板、RMB 主显示、KPI/佣金/人头费/结算仍待后续 Phase 7/9/10。
+- 下一步：补普通用户/profile disabled/模块关闭截图回归，再推进分销统计看板、RMB 单位和 default parity。
 
 ## Phase 7：classic 分销前端
 
-- [ ] 使用 Playwright/Chromium 复现一级分销商“数据看板页面渲染出错”。
-- [x] 修复 classic 分销页整页渲染错误（新增 `/console/affiliate` 状态门禁和 scoped logs 页面，classic build 已通过；真实浏览器截图回归仍待补）。
+- [x] 使用 Playwright/Chromium 复现一级分销商“数据看板页面渲染出错”；2026-06-03 在当前 `/console/affiliate` scoped logs 页面未再复现整页渲染错误，一级分销商桌面和移动端 browser smoke 均通过。
+- [x] 修复 classic 分销页整页渲染错误（新增 `/console/affiliate` 状态门禁和 scoped logs 页面，classic build 已通过；真实浏览器 smoke 已覆盖管理员/一级/二级/移动端）。
 - [ ] 增加组件级错误边界和分区加载状态。
 - [ ] 重构分销首页为统计分析看板。
 - [ ] 看板包含团队人数、有效新用户、净付费消耗、预估佣金、人头费、待结算金额、KPI 档位。
@@ -318,6 +319,14 @@
 - [ ] 管理员端支持指定一级/二级分销商。
 - [ ] 管理员端支持编辑用户 `inviter_id` 或跳转用户管理。
 - [ ] 截图回归：普通用户、一级、二级、管理员、超级管理员、模块关闭、移动端。
+- [x] 2026-06-03 classic browser smoke：用本地恢复库和三类测试账号验证 `super_admin`、一级分销、二级分销桌面，以及一级分销移动端均能访问 `/console/affiliate`；`/api/affiliate/status` 与 `/api/affiliate/logs` 均 HTTP 200 / `success=true`。
+
+### Phase 7 classic browser smoke 复盘（2026-06-03 本线程）
+
+- 完成内容：网络切换后确认 5173/5174 dev server 已运行；重建 `new-api:dev` 主容器使 `/api/affiliate/logs` 路由进入运行态；通过管理员 API 在本地恢复库启用 `AffiliateEnabled` 并恢复测试账号 active profile；清理本地 dev Redis 的登录限流 `CT` 键后完成 classic 分销页真实浏览器 smoke。
+- 验证方式：`timeout 10s curl` 验证 3000/5173/5174；API smoke 覆盖 `super_admin` global scope、一级/二级 affiliate scope 和 logs success；`runtime/smoke/node_modules/.bin/playwright test --config=runtime/smoke/playwright.config.cjs` 4/4 通过，覆盖桌面管理员、桌面一级、桌面二级和一级移动端。临时脚本、runner、截图均位于 Git 忽略的 `runtime/smoke/`。
+- 残留风险：本轮 browser smoke 为本地恢复库验证，且为跑 smoke 修改了本地库中的 `AffiliateEnabled` 和测试账号 profile；普通用户、profile disabled、模块关闭、完整管理员管理页和 default 分销前端仍未做 browser 回归。
+- 下一步：补普通用户/profile disabled/模块关闭截图回归；随后做 default parity，或继续 Phase 7 统计看板/RMB 主显示。
 
 ## Phase 8：default 分销前端
 
@@ -379,9 +388,9 @@
 - [ ] 复核并修复/隔离当前 `go test ./...` 基线失败：根包缺少 `web/classic/dist` embed，controller 现有 model list 测试失败，Claude relay 与 stream scanner 现有测试失败；本批 affiliate 定向测试已通过。
 - [x] classic 前端构建通过。
 - [ ] default 前端构建或 typecheck 通过。
-- [ ] Playwright 截图回归通过。
+- [ ] Playwright 截图回归通过；classic 分销页管理员/一级/二级/移动端 2026-06-03 已通过，普通用户、profile disabled、模块关闭和 default 仍待补齐。
 - [ ] schema impact 报告无非预期官方表改动。
-- [ ] 用服务器 PG 快照完成真实账号 smoke。
+- [x] 用服务器 PG 快照完成真实账号 smoke；2026-06-03 在本地恢复库中用三类测试账号完成 API smoke 和 classic browser smoke，未输出用户名、密码、cookie 或 token。
 - [ ] 管理员端规则配置页面可修改分佣比例、KPI 阈值、系数、人头费、质量门槛和结算周期。
 - [ ] 如果启用手机号/SMS，短信宝签名、模板、通道、限流和测试发送通过 smoke。
 - [ ] 外接控制台与原生模块双跑一个完整结算周期。
