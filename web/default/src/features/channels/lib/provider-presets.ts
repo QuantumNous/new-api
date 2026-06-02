@@ -28,28 +28,29 @@ export const PROVIDER_PRESETS: ProviderPreset[] = [
     name: 'OpenAI',
     type: 1,
     // gpt-image-2 became the default image model on 2026-04-21 (replaced DALL-E on 2026-05-12).
+    // gpt-image-1.5 / chatgpt-image-latest dropped: no default price → "price not configured".
     models:
-      'gpt-4o,gpt-4o-mini,gpt-4o-audio-preview,gpt-image-2,gpt-image-1.5,chatgpt-image-latest,text-embedding-3-small,text-embedding-3-large,whisper-1,tts-1',
+      'gpt-5.5,gpt-5,gpt-5-mini,gpt-4o,gpt-4o-mini,gpt-4o-audio-preview,gpt-image-2,text-embedding-3-small,text-embedding-3-large,whisper-1,tts-1',
     docsUrl: 'https://platform.openai.com/api-keys',
-    description: 'gpt-4o · gpt-image-2 (thinking) · embeddings · whisper · tts',
+    description: 'gpt-5.5 / gpt-5 · gpt-4o · gpt-image-2 · embeddings · whisper · tts',
   },
   {
     id: 'anthropic',
     name: 'Anthropic Claude',
     type: 14,
     models:
-      'claude-opus-4-7,claude-opus-4-6,claude-sonnet-4-6,claude-3-5-haiku-latest,claude-3-5-sonnet-latest',
+      'claude-opus-4-8,claude-opus-4-7,claude-sonnet-4-6,claude-3-5-haiku-latest,claude-3-5-sonnet-latest',
     docsUrl: 'https://console.anthropic.com/settings/keys',
-    description: 'Opus 4.7 · Sonnet 4.6 · Haiku 3.5',
+    description: 'Opus 4.8 / 4.7 · Sonnet 4.6 · Haiku 3.5',
   },
   {
     id: 'gemini',
     name: 'Google Gemini',
     type: 24,
     models:
-      'gemini-2.5-pro,gemini-2.5-flash,gemini-2.0-flash,gemini-1.5-pro,text-embedding-004',
+      'gemini-3-pro,gemini-2.5-pro,gemini-2.5-flash,gemini-2.0-flash,text-embedding-004',
     docsUrl: 'https://aistudio.google.com/apikey',
-    description: 'Gemini 2.5 Pro / Flash · embeddings',
+    description: 'Gemini 3 Pro · 2.5 Pro / Flash · embeddings',
   },
   {
     id: 'deepseek',

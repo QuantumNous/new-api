@@ -93,6 +93,7 @@ var defaultModelRatio = map[string]float64{
 	"gpt-4-turbo-2024-04-09":           5, // $0.01 / 1K tokens
 	"gpt-4.5-preview":                  37.5,
 	"gpt-4.5-preview-2025-02-27":       37.5,
+	"gpt-5.5":                          0.625, // bootstrap default; refine via models.dev sync
 	"gpt-5":                            0.625,
 	"gpt-5-2025-08-07":                 0.625,
 	"gpt-5-chat-latest":                0.625,
@@ -148,6 +149,12 @@ var defaultModelRatio = map[string]float64{
 	"claude-opus-4-6-high":                      2.5,
 	"claude-opus-4-6-medium":                    2.5,
 	"claude-opus-4-6-low":                       2.5,
+	"claude-opus-4-8":                           2.5,
+	"claude-opus-4-8-max":                       2.5,
+	"claude-opus-4-8-xhigh":                     2.5,
+	"claude-opus-4-8-high":                      2.5,
+	"claude-opus-4-8-medium":                    2.5,
+	"claude-opus-4-8-low":                       2.5,
 	"claude-opus-4-7":                           2.5,
 	"claude-opus-4-7-max":                       2.5,
 	"claude-opus-4-7-xhigh":                     2.5,
@@ -179,6 +186,8 @@ var defaultModelRatio = map[string]float64{
 	"gemini-2.0-flash":                          0.05,
 	"gemini-2.5-pro-exp-03-25":                  0.625,
 	"gemini-2.5-pro-preview-03-25":              0.625,
+	"gemini-3-pro":                              0.625, // bootstrap default; refine via models.dev sync
+	"gemini-3-pro-preview":                      0.625,
 	"gemini-2.5-pro":                            0.625,
 	"gemini-2.5-flash-preview-04-17":            0.075,
 	"gemini-2.5-flash-preview-04-17-thinking":   0.075,
@@ -251,6 +260,8 @@ var defaultModelRatio = map[string]float64{
 	"deepseek-chat":          0.27 / 2,
 	"deepseek-coder":         0.27 / 2,
 	"deepseek-reasoner":      0.55 / 2, // 0.55 / 1k tokens
+	"deepseek-v3":            0.27 / 2, // alias of deepseek-chat
+	"deepseek-r1":            0.55 / 2, // alias of deepseek-reasoner
 	// Perplexity online 模型对搜索额外收费，有需要应自行调整，此处不计入搜索费用
 	"llama-3-sonar-small-32k-chat":   0.2 / 1000 * USD,
 	"llama-3-sonar-small-32k-online": 0.2 / 1000 * USD,
