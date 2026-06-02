@@ -27,6 +27,14 @@ func sendStreamData(c *gin.Context, info *relaycommon.RelayInfo, data string, fo
 		return nil
 	}
 
+	// Strip CJK characters from streaming response if enabled for this channel
+	if info.ChannelSetting.StripCJK {
+		data = common.StripCJK(data)
+		if data == "" {
+			return nil
+		}
+	}
+
 	if !forceFormat && !thinkToContent {
 		return helper.StringData(c, data)
 	}
@@ -227,6 +235,18 @@ func OpenaiHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Respo
 		if choice.FinishReason == constant.FinishReasonContentFilter {
 			common.SetContextKey(c, constant.ContextKeyAdminRejectReason, "openai_finish_reason=content_filter")
 			break
+		}
+	}
+
+	// Strip CJK characters from response content if enabled for this channel
+	if info.ChannelSetting.StripCJK {
+		for i := range simpleResponse.Choices {
+			if content := simpleResponse.Choices[i].Message.StringContent(); content != "" {
+				stripped := common.StripCJK(content)
+				if stripped != content {
+					simpleResponse.Choices[i].Message.SetStringContent(stripped)
+				}
+			}
 		}
 	}
 

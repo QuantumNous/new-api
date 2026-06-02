@@ -405,7 +405,15 @@ func SetupContextForSelectedChannel(c *gin.Context, channel *model.Channel, mode
 	common.SetContextKey(c, constant.ContextKeyChannelName, channel.Name)
 	common.SetContextKey(c, constant.ContextKeyChannelType, channel.Type)
 	common.SetContextKey(c, constant.ContextKeyChannelCreateTime, channel.CreatedTime)
-	common.SetContextKey(c, constant.ContextKeyChannelSetting, channel.GetSetting())
+	channelSetting := channel.GetSetting()
+	// Apply global overrides when the channel opts in.
+	// Currently the only global key is strip_cjk. If the channel has
+	// use_global_strip_cjk=true and the global setting is on, force the
+	// channel's strip_cjk to true.
+	if channelSetting.UseGlobalStripCJK && model.GlobalStripCJKEnabled() {
+		channelSetting.StripCJK = true
+	}
+	common.SetContextKey(c, constant.ContextKeyChannelSetting, channelSetting)
 	common.SetContextKey(c, constant.ContextKeyChannelOtherSetting, channel.GetOtherSettings())
 	paramOverride := channel.GetParamOverride()
 	headerOverride := channel.GetHeaderOverride()
