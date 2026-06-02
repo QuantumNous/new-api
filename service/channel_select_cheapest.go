@@ -76,13 +76,7 @@ func selectCheapestByPricingCandidates(modelName string, candidates []string, ba
 	if common.UsingPostgreSQL {
 		modelsCol = `c."models"`
 	}
-	modelLikeParts := make([]string, len(candidates))
-	modelLikeArgs := make([]interface{}, len(candidates))
-	for i, cand := range candidates {
-		modelLikeParts[i] = modelsCol + " LIKE ?"
-		modelLikeArgs[i] = "%" + cand + "%"
-	}
-	modelLikeClause := strings.Join(modelLikeParts, " OR ")
+	modelsMatchClause, modelsMatchArgs := ChannelsModelsCommaMatchSQL(modelsCol, candidates)
 
 	q := model.DB.Table("channels c").
 		Select("c.id AS channel_id, p.input_price, COALESCE(c.recharge_rate, 1) AS recharge_rate, COALESCE(c.priority, 0) AS priority").
@@ -90,7 +84,7 @@ func selectCheapestByPricingCandidates(modelName string, candidates []string, ba
 		Joins("LEFT JOIN abilities a ON a.channel_id = c.id AND a.model = ? AND a.group = 'default'", modelName).
 		Where("c.status = 1").
 		Where("p.model_name IN ?", candidates).
-		Where(modelLikeClause, modelLikeArgs...).
+		Where(modelsMatchClause, modelsMatchArgs...).
 		Where("COALESCE(a.enabled, true) = true").
 		Where("p.input_price > 0").
 		Order("(p.input_price * COALESCE(c.recharge_rate, 1)) ASC, c.priority DESC").
@@ -118,12 +112,13 @@ func selectCheapestByModelMapping(modelName string, bannedIDs []int) (channelID 
 		modelsCol = `c."models"`
 	}
 	var channels []chRow
+	modelsMatchClause, modelsMatchArgs := ChannelsModelsCommaMatchSQL(modelsCol, ModelNameCandidates(modelName))
 	q := model.DB.Table("channels c").
 		Select("c.id, c.model_mapping, COALESCE(c.recharge_rate, 1) AS recharge_rate, COALESCE(c.priority, 0) AS priority").
 		Joins("LEFT JOIN abilities a ON a.channel_id = c.id AND a.model = ? AND a.group = 'default'", modelName).
 		Where("c.status = 1").
 		Where("c.model_mapping IS NOT NULL AND c.model_mapping != '' AND c.model_mapping != '{}'").
-		Where(modelsCol+" LIKE ?", "%"+modelName+"%").
+		Where(modelsMatchClause, modelsMatchArgs...).
 		Where("COALESCE(a.enabled, true) = true")
 	if len(bannedIDs) > 0 {
 		q = q.Where("c.id NOT IN ?", bannedIDs)
