@@ -49,6 +49,9 @@ func SetApiRouter(router *gin.Engine) {
 			affiliateAdminRoute.PATCH("/settlements/:id/freeze", controller.AdminFreezeAffiliateSettlement)
 			affiliateAdminRoute.PATCH("/settlements/:id/void", controller.AdminVoidAffiliateSettlement)
 			affiliateAdminRoute.PATCH("/settlements/:id/pay", controller.AdminMarkAffiliateSettlementPaid)
+			affiliateAdminRoute.GET("/inviter-candidates", controller.AdminSearchAffiliateInviterCandidates)
+			affiliateAdminRoute.GET("/users/:user_id/inviter/preview", controller.AdminPreviewAffiliateInviterChange)
+			affiliateAdminRoute.PATCH("/users/:user_id/inviter", controller.AdminUpdateAffiliateInviter)
 		}
 		apiRouter.GET("/notice", controller.GetNotice)
 		apiRouter.GET("/user-agreement", controller.GetUserAgreement)

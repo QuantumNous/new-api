@@ -472,13 +472,20 @@
 
 ## Phase 11：用户管理 `inviter_id`
 
-- [ ] 在用户管理编辑页增加邀请人 ID 字段。
-- [ ] 支持按用户 ID/用户名检索邀请人。
-- [ ] 保存前显示原邀请人、新邀请人、影响路径预览。
-- [ ] 保存时校验不能形成无效或循环关系。
-- [ ] 保存后写入审计日志。
-- [ ] 变更后失效相关分销 scope 缓存。
-- [ ] 增加管理员/普通用户权限测试。
+- [ ] 在用户管理编辑页增加邀请人 ID 字段（后端 API 已完成，前端待接入）。
+- [x] 后端支持按用户 ID/用户名检索邀请人候选。
+- [x] 后端提供保存前原邀请人、新邀请人和影响路径预览。
+- [x] 保存时校验不能形成无效或循环关系。
+- [x] 保存后写入审计日志。
+- [x] 变更后重建相关分销 sidecar 关系，并安全触发用户缓存失效防护；当前未发现独立分销 scope 缓存。
+- [x] 增加管理员/普通用户权限测试。
+
+### Phase 11 阶段复盘（2026-06-03 后端 inviter 管理 API）
+
+- 完成内容：新增 inviter 管理 service 和管理员 API，支持邀请人候选搜索、变更预览、保存 `users.inviter_id`，同步更新 `affiliate_invite_events` 与 `affiliate_relations`，旧关系置 disabled，新 affiliate 邀请人关系重新激活/生成，并写入 `affiliate_audit_logs`。
+- 验证方式：先观察 `go test -count=1 ./service -run 'AffiliateInviter|InviterChange'` RED；实现后同命令通过；补充 `go test -count=1 ./controller -run 'AffiliateInviter|InviterCandidates|PreviewAndUpdateAffiliateInviter'`、`go test -count=1 ./model ./service ./controller ./router -run 'Affiliate|RuleSet|Commission|KPI|HeadFee|Settlement|Admin|Inviter'` 和 `go test -count=1 ./service` 均通过。
+- 残留风险：前端用户管理编辑页尚未接入这些 API；当前只重建目标用户自身的分销关系，若未来允许批量迁移整棵子树，需要单独设计影响范围和重算策略；官方邀请奖励额度历史不回滚。
+- 下一步：接入 classic/default 用户管理页面的邀请人字段、候选搜索和预览弹窗，或继续补一键 KPI/佣金/人头费/结算编排任务。
 
 ## Phase 12：发布与回归
 

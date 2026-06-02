@@ -51,7 +51,7 @@ func getUserCacheKey(userId int) string {
 
 // invalidateUserCache clears user cache
 func invalidateUserCache(userId int) error {
-	if !common.RedisEnabled {
+	if !common.RedisEnabled || common.RDB == nil {
 		return nil
 	}
 	return common.RedisDelKey(getUserCacheKey(userId))

@@ -399,6 +399,99 @@ func TestAdminVoidAffiliateSettlement(t *testing.T) {
 	}
 }
 
+func TestAdminSearchAffiliateInviterCandidates(t *testing.T) {
+	db := newAffiliateInviterControllerTestDB(t)
+	seedAffiliateInviterControllerUser(t, db, model.User{Id: 100, Username: "alpha"})
+	seedAffiliateInviterControllerUser(t, db, model.User{Id: 200, Username: "bravo"})
+
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = httptest.NewRequest(http.MethodGet, "/api/affiliate/admin/inviter-candidates?keyword=bra&p=1&page_size=10", nil)
+	ctx.Set("id", 1)
+	ctx.Set("role", common.RoleAdminUser)
+
+	AdminSearchAffiliateInviterCandidates(ctx)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d body=%s", recorder.Code, recorder.Body.String())
+	}
+	var body affiliateInviterCandidatesTestResponse
+	if err := json.Unmarshal(recorder.Body.Bytes(), &body); err != nil {
+		t.Fatalf("unmarshal response: %v", err)
+	}
+	if !body.Success || body.Data.Total != 1 || len(body.Data.Items) != 1 || body.Data.Items[0].Id != 200 {
+		t.Fatalf("unexpected candidates response: %+v", body)
+	}
+}
+
+func TestAdminPreviewAndUpdateAffiliateInviter(t *testing.T) {
+	db := newAffiliateInviterControllerTestDB(t)
+	seedAffiliateInviterControllerUser(t, db, model.User{Id: 100, Username: "new-affiliate", AffCode: "AFF100"})
+	seedAffiliateInviterControllerUser(t, db, model.User{Id: 200, Username: "old-affiliate", AffCode: "AFF200"})
+	seedAffiliateInviterControllerUser(t, db, model.User{Id: 300, Username: "target", InviterId: 200})
+	seedAffiliateInviterControllerProfile(t, db, 100, 1)
+	seedAffiliateInviterControllerProfile(t, db, 200, 1)
+	seedAffiliateInviterControllerRelation(t, db, 200, 300, 1)
+
+	previewRecorder := httptest.NewRecorder()
+	previewCtx, _ := gin.CreateTestContext(previewRecorder)
+	previewCtx.Request = httptest.NewRequest(http.MethodGet, "/api/affiliate/admin/users/300/inviter/preview?new_inviter_user_id=100", nil)
+	previewCtx.Params = gin.Params{{Key: "user_id", Value: "300"}}
+	previewCtx.Set("id", 1)
+	previewCtx.Set("role", common.RoleAdminUser)
+
+	AdminPreviewAffiliateInviterChange(previewCtx)
+
+	if previewRecorder.Code != http.StatusOK {
+		t.Fatalf("expected preview status 200, got %d body=%s", previewRecorder.Code, previewRecorder.Body.String())
+	}
+	var previewBody affiliateInviterChangePreviewTestResponse
+	if err := json.Unmarshal(previewRecorder.Body.Bytes(), &previewBody); err != nil {
+		t.Fatalf("unmarshal preview response: %v", err)
+	}
+	if !previewBody.Success || previewBody.Data.CurrentInviterUserId != 200 || previewBody.Data.NewInviterUserId != 100 {
+		t.Fatalf("unexpected preview response: %+v", previewBody)
+	}
+
+	updateRecorder := httptest.NewRecorder()
+	updateCtx, _ := gin.CreateTestContext(updateRecorder)
+	updateCtx.Request = httptest.NewRequest(http.MethodPatch, "/api/affiliate/admin/users/300/inviter", bytes.NewBufferString(`{
+		"new_inviter_user_id":100,
+		"reason":"manual correction"
+	}`))
+	updateCtx.Params = gin.Params{{Key: "user_id", Value: "300"}}
+	updateCtx.Set("id", 9)
+	updateCtx.Set("role", common.RoleAdminUser)
+
+	AdminUpdateAffiliateInviter(updateCtx)
+
+	if updateRecorder.Code != http.StatusOK {
+		t.Fatalf("expected update status 200, got %d body=%s", updateRecorder.Code, updateRecorder.Body.String())
+	}
+	var updateBody affiliateInviterChangePreviewTestResponse
+	if err := json.Unmarshal(updateRecorder.Body.Bytes(), &updateBody); err != nil {
+		t.Fatalf("unmarshal update response: %v", err)
+	}
+	if !updateBody.Success || updateBody.Data.CurrentInviterUserId != 200 || updateBody.Data.NewInviterUserId != 100 {
+		t.Fatalf("unexpected update response: %+v", updateBody)
+	}
+
+	var user model.User
+	if err := db.First(&user, 300).Error; err != nil {
+		t.Fatalf("load user: %v", err)
+	}
+	if user.InviterId != 100 {
+		t.Fatalf("expected inviter_id updated to 100, got %+v", user)
+	}
+	var audit model.AffiliateAuditLog
+	if err := db.Where("target_user_id = ? AND action = ?", 300, service.AffiliateAuditActionUpdateInviter).First(&audit).Error; err != nil {
+		t.Fatalf("load audit: %v", err)
+	}
+	if audit.ActorUserId != 9 || audit.Reason != "manual correction" {
+		t.Fatalf("unexpected audit: %+v", audit)
+	}
+}
+
 func TestAffiliateAdminRoutesRequireLogin(t *testing.T) {
 	router := newAffiliateAdminRouteTestRouter(t, common.RoleAdminUser)
 
@@ -428,6 +521,38 @@ func TestAffiliateAdminRoutesRejectCommonUser(t *testing.T) {
 	request := httptest.NewRequest(http.MethodPost, "/api/affiliate/admin/profiles", bytes.NewBufferString(`{
 		"user_id":702,
 		"level":1
+	}`))
+	request.Header.Set("New-Api-User", "10")
+	for _, loginCookie := range loginRecorder.Result().Cookies() {
+		request.AddCookie(loginCookie)
+	}
+	router.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d body=%s", recorder.Code, recorder.Body.String())
+	}
+	var body affiliateStatusTestResponse
+	if err := json.Unmarshal(recorder.Body.Bytes(), &body); err != nil {
+		t.Fatalf("unmarshal response: %v", err)
+	}
+	if body.Success {
+		t.Fatalf("expected insufficient privilege response, got body=%s", recorder.Body.String())
+	}
+}
+
+func TestAffiliateInviterAdminRouteRejectsCommonUser(t *testing.T) {
+	router := newAffiliateAdminRouteTestRouter(t, common.RoleCommonUser)
+
+	loginRecorder := httptest.NewRecorder()
+	loginRequest := httptest.NewRequest(http.MethodGet, "/login", nil)
+	router.ServeHTTP(loginRecorder, loginRequest)
+	if loginRecorder.Code != http.StatusNoContent {
+		t.Fatalf("expected login status 204, got %d body=%s", loginRecorder.Code, loginRecorder.Body.String())
+	}
+
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPatch, "/api/affiliate/admin/users/300/inviter", bytes.NewBufferString(`{
+		"new_inviter_user_id":100
 	}`))
 	request.Header.Set("New-Api-User", "10")
 	for _, loginCookie := range loginRecorder.Result().Cookies() {
@@ -738,6 +863,19 @@ type affiliateProfilesListTestResponse struct {
 	} `json:"data"`
 }
 
+type affiliateInviterCandidatesTestResponse struct {
+	Success bool `json:"success"`
+	Data    struct {
+		Total int          `json:"total"`
+		Items []model.User `json:"items"`
+	} `json:"data"`
+}
+
+type affiliateInviterChangePreviewTestResponse struct {
+	Success bool                                  `json:"success"`
+	Data    service.AffiliateInviterChangePreview `json:"data"`
+}
+
 func newAffiliateControllerTestDB(t *testing.T) *gorm.DB {
 	t.Helper()
 	originalDB := model.DB
@@ -747,6 +885,23 @@ func newAffiliateControllerTestDB(t *testing.T) *gorm.DB {
 	}
 	if err := db.AutoMigrate(model.AffiliateSidecarModels()...); err != nil {
 		t.Fatalf("migrate affiliate sidecar models: %v", err)
+	}
+	model.DB = db
+	t.Cleanup(func() {
+		model.DB = originalDB
+	})
+	return db
+}
+
+func newAffiliateInviterControllerTestDB(t *testing.T) *gorm.DB {
+	t.Helper()
+	originalDB := model.DB
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	if err != nil {
+		t.Fatalf("open sqlite: %v", err)
+	}
+	if err := db.AutoMigrate(append(model.AffiliateSidecarModels(), &model.User{})...); err != nil {
+		t.Fatalf("migrate affiliate inviter models: %v", err)
 	}
 	model.DB = db
 	t.Cleanup(func() {
@@ -916,6 +1071,45 @@ func seedAffiliateSettlementForList(t *testing.T, db *gorm.DB, settlement model.
 	}
 }
 
+func seedAffiliateInviterControllerUser(t *testing.T, db *gorm.DB, user model.User) {
+	t.Helper()
+	if user.Password == "" {
+		user.Password = "hashed"
+	}
+	if user.AffCode == "" {
+		user.AffCode = "AFF" + strconv.Itoa(user.Id)
+	}
+	if err := db.Create(&user).Error; err != nil {
+		t.Fatalf("seed inviter user: %v", err)
+	}
+}
+
+func seedAffiliateInviterControllerProfile(t *testing.T, db *gorm.DB, userId int, level int) {
+	t.Helper()
+	if err := db.Create(&model.AffiliateProfile{
+		UserId: userId,
+		Level:  level,
+		Status: model.AffiliateProfileStatusActive,
+	}).Error; err != nil {
+		t.Fatalf("seed inviter profile: %v", err)
+	}
+}
+
+func seedAffiliateInviterControllerRelation(t *testing.T, db *gorm.DB, ancestor int, descendant int, depth int) {
+	t.Helper()
+	if err := db.Create(&model.AffiliateRelation{
+		AncestorUserId:   ancestor,
+		DescendantUserId: descendant,
+		Depth:            depth,
+		DirectInviterId:  ancestor,
+		Status:           model.AffiliateProfileStatusActive,
+		Source:           service.AffiliateInviteSourceAffiliate,
+		EffectiveAt:      100,
+	}).Error; err != nil {
+		t.Fatalf("seed inviter relation: %v", err)
+	}
+}
+
 func seedPublishedAffiliateRuleSetForAdminSettlement(t *testing.T, db *gorm.DB, version string) model.AffiliateRuleSet {
 	t.Helper()
 	ruleSet := model.AffiliateRuleSet{
@@ -963,6 +1157,9 @@ func newAffiliateAdminRouteTestRouter(t *testing.T, role int) *gin.Engine {
 		adminRoute.PATCH("/settlements/:id/freeze", AdminFreezeAffiliateSettlement)
 		adminRoute.PATCH("/settlements/:id/void", AdminVoidAffiliateSettlement)
 		adminRoute.PATCH("/settlements/:id/pay", AdminMarkAffiliateSettlementPaid)
+		adminRoute.GET("/inviter-candidates", AdminSearchAffiliateInviterCandidates)
+		adminRoute.GET("/users/:user_id/inviter/preview", AdminPreviewAffiliateInviterChange)
+		adminRoute.PATCH("/users/:user_id/inviter", AdminUpdateAffiliateInviter)
 	}
 	return router
 }

@@ -28,6 +28,7 @@ const (
 	AffiliateAuditActionUpdateProfile  = "update_profile"
 	AffiliateAuditActionEnableProfile  = "enable_profile"
 	AffiliateAuditActionDisableProfile = "disable_profile"
+	AffiliateAuditActionUpdateInviter  = "update_inviter"
 )
 
 type AffiliateInviteInput struct {
