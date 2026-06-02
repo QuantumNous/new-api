@@ -408,6 +408,92 @@ func TestGetAffiliateScopedLogsSupportsSecondaryAffiliateAndRequestStatusFilters
 	}
 }
 
+func TestGetAffiliateCommissionsFiltersOwnScope(t *testing.T) {
+	db := newAffiliateLogsControllerTestDB(t)
+	seedAffiliateCommissionEventForList(t, db, model.AffiliateCommissionEvent{
+		AffiliateUserId:         100,
+		DownstreamUserId:        200,
+		RuleSetId:               1,
+		Status:                  model.AffiliateEventStatusReady,
+		Kind:                    service.AffiliateCommissionEventKindAccrual,
+		PeriodStart:             1000,
+		PeriodEnd:               2000,
+		CommissionCents:         1234,
+		NetPaidConsumptionCents: 10000,
+	})
+	seedAffiliateCommissionEventForList(t, db, model.AffiliateCommissionEvent{
+		AffiliateUserId:         999,
+		DownstreamUserId:        888,
+		RuleSetId:               1,
+		Status:                  model.AffiliateEventStatusReady,
+		Kind:                    service.AffiliateCommissionEventKindAccrual,
+		PeriodStart:             1000,
+		PeriodEnd:               2000,
+		CommissionCents:         9999,
+		NetPaidConsumptionCents: 99999,
+	})
+
+	body := performAffiliateCommissionsRequest(t, "/api/affiliate/commissions?status=ready&p=1&page_size=10", service.AffiliateScope{
+		Kind:           service.AffiliateScopeAffiliate,
+		UserId:         100,
+		AffiliateLevel: 1,
+		MaxDepth:       2,
+	})
+
+	if !body.Success || body.Data.Total != 1 || len(body.Data.Items) != 1 {
+		t.Fatalf("expected one scoped commission event, got %+v", body)
+	}
+	item := body.Data.Items[0]
+	if item.AffiliateUserId != 100 || item.DownstreamUserId != 200 || item.CommissionCents != 1234 {
+		t.Fatalf("unexpected commission event item: %+v", item)
+	}
+}
+
+func TestGetAffiliateSettlementsFiltersOwnScopeAndStatus(t *testing.T) {
+	db := newAffiliateLogsControllerTestDB(t)
+	seedAffiliateSettlementForList(t, db, model.AffiliateSettlement{
+		AffiliateUserId: 100,
+		RuleSetId:       1,
+		PeriodStart:     1000,
+		PeriodEnd:       2000,
+		Status:          model.AffiliateSettlementStatusPaid,
+		CommissionCents: 1000,
+		HeadFeeCents:    500,
+		PayableCents:    1500,
+	})
+	seedAffiliateSettlementForList(t, db, model.AffiliateSettlement{
+		AffiliateUserId: 100,
+		RuleSetId:       1,
+		PeriodStart:     2001,
+		PeriodEnd:       3000,
+		Status:          model.AffiliateSettlementStatusDraft,
+		PayableCents:    2000,
+	})
+	seedAffiliateSettlementForList(t, db, model.AffiliateSettlement{
+		AffiliateUserId: 999,
+		RuleSetId:       1,
+		PeriodStart:     1000,
+		PeriodEnd:       2000,
+		Status:          model.AffiliateSettlementStatusPaid,
+		PayableCents:    9999,
+	})
+
+	body := performAffiliateSettlementsRequest(t, "/api/affiliate/settlements?status=paid&p=1&page_size=10", service.AffiliateScope{
+		Kind:           service.AffiliateScopeAffiliate,
+		UserId:         100,
+		AffiliateLevel: 1,
+		MaxDepth:       2,
+	})
+
+	if !body.Success || body.Data.Total != 1 || len(body.Data.Items) != 1 {
+		t.Fatalf("expected one scoped paid settlement, got %+v", body)
+	}
+	item := body.Data.Items[0]
+	if item.AffiliateUserId != 100 || item.Status != model.AffiliateSettlementStatusPaid || item.PayableCents != 1500 {
+		t.Fatalf("unexpected settlement item: %+v", item)
+	}
+}
+
 func TestGetAffiliateSummaryReturnsScopedDashboard(t *testing.T) {
 	db := newAffiliateLogsControllerTestDB(t)
 	seedAffiliateRelation(t, db, 100, 200, 1, model.AffiliateProfileStatusActive)
@@ -486,6 +572,22 @@ type affiliateSummaryTestResponse struct {
 	} `json:"data"`
 }
 
+type affiliateCommissionEventsTestResponse struct {
+	Success bool `json:"success"`
+	Data    struct {
+		Total int                              `json:"total"`
+		Items []model.AffiliateCommissionEvent `json:"items"`
+	} `json:"data"`
+}
+
+type affiliateSettlementsTestResponse struct {
+	Success bool `json:"success"`
+	Data    struct {
+		Total int                         `json:"total"`
+		Items []model.AffiliateSettlement `json:"items"`
+	} `json:"data"`
+}
+
 type affiliateProfilesListTestResponse struct {
 	Success bool `json:"success"`
 	Data    struct {
@@ -555,6 +657,44 @@ func performAffiliateScopedLogsRequest(t *testing.T, target string, scope servic
 	return body
 }
 
+func performAffiliateCommissionsRequest(t *testing.T, target string, scope service.AffiliateScope) affiliateCommissionEventsTestResponse {
+	t.Helper()
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = httptest.NewRequest(http.MethodGet, target, nil)
+	ctx.Set("affiliate_scope", scope)
+
+	GetAffiliateCommissions(ctx)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d body=%s", recorder.Code, recorder.Body.String())
+	}
+	var body affiliateCommissionEventsTestResponse
+	if err := json.Unmarshal(recorder.Body.Bytes(), &body); err != nil {
+		t.Fatalf("unmarshal response: %v body=%s", err, recorder.Body.String())
+	}
+	return body
+}
+
+func performAffiliateSettlementsRequest(t *testing.T, target string, scope service.AffiliateScope) affiliateSettlementsTestResponse {
+	t.Helper()
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = httptest.NewRequest(http.MethodGet, target, nil)
+	ctx.Set("affiliate_scope", scope)
+
+	GetAffiliateSettlements(ctx)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d body=%s", recorder.Code, recorder.Body.String())
+	}
+	var body affiliateSettlementsTestResponse
+	if err := json.Unmarshal(recorder.Body.Bytes(), &body); err != nil {
+		t.Fatalf("unmarshal response: %v body=%s", err, recorder.Body.String())
+	}
+	return body
+}
+
 func seedAffiliateRelation(t *testing.T, db *gorm.DB, ancestor int, descendant int, depth int, status string) {
 	t.Helper()
 	if err := db.Create(&model.AffiliateRelation{
@@ -572,6 +712,20 @@ func seedAffiliateLog(t *testing.T, db *gorm.DB, log model.Log) {
 	t.Helper()
 	if err := db.Create(&log).Error; err != nil {
 		t.Fatalf("seed log: %v", err)
+	}
+}
+
+func seedAffiliateCommissionEventForList(t *testing.T, db *gorm.DB, event model.AffiliateCommissionEvent) {
+	t.Helper()
+	if err := db.Create(&event).Error; err != nil {
+		t.Fatalf("seed commission event: %v", err)
+	}
+}
+
+func seedAffiliateSettlementForList(t *testing.T, db *gorm.DB, settlement model.AffiliateSettlement) {
+	t.Helper()
+	if err := db.Create(&settlement).Error; err != nil {
+		t.Fatalf("seed settlement: %v", err)
 	}
 }
 

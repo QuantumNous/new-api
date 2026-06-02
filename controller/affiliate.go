@@ -76,6 +76,77 @@ func GetAffiliateScopedLogs(c *gin.Context) {
 	common.ApiSuccess(c, pageInfo)
 }
 
+func GetAffiliateCommissions(c *gin.Context) {
+	scope, ok := getAffiliateScopeFromContext(c)
+	if !ok {
+		common.ApiErrorMsg(c, "分销 scope 未初始化")
+		return
+	}
+
+	pageInfo := common.GetPageQuery(c)
+	affiliateUserId, _ := strconv.Atoi(c.Query("affiliate_user_id"))
+	ruleSetId, _ := strconv.Atoi(c.Query("rule_set_id"))
+	downstreamUserId, _ := strconv.Atoi(c.Query("downstream_user_id"))
+	settlementId, _ := strconv.Atoi(c.Query("settlement_id"))
+	periodStart, _ := strconv.ParseInt(c.Query("period_start"), 10, 64)
+	periodEnd, _ := strconv.ParseInt(c.Query("period_end"), 10, 64)
+
+	events, total, err := service.ListAffiliateCommissionEvents(model.DB, service.AffiliateCommissionEventListInput{
+		Scope:            scope,
+		AffiliateUserId:  affiliateUserId,
+		RuleSetId:        ruleSetId,
+		DownstreamUserId: downstreamUserId,
+		SettlementId:     settlementId,
+		Status:           c.Query("status"),
+		Kind:             c.Query("kind"),
+		PeriodStart:      periodStart,
+		PeriodEnd:        periodEnd,
+		StartIdx:         pageInfo.GetStartIdx(),
+		PageSize:         pageInfo.GetPageSize(),
+	})
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+
+	pageInfo.SetTotal(int(total))
+	pageInfo.SetItems(events)
+	common.ApiSuccess(c, pageInfo)
+}
+
+func GetAffiliateSettlements(c *gin.Context) {
+	scope, ok := getAffiliateScopeFromContext(c)
+	if !ok {
+		common.ApiErrorMsg(c, "分销 scope 未初始化")
+		return
+	}
+
+	pageInfo := common.GetPageQuery(c)
+	affiliateUserId, _ := strconv.Atoi(c.Query("affiliate_user_id"))
+	ruleSetId, _ := strconv.Atoi(c.Query("rule_set_id"))
+	periodStart, _ := strconv.ParseInt(c.Query("period_start"), 10, 64)
+	periodEnd, _ := strconv.ParseInt(c.Query("period_end"), 10, 64)
+
+	settlements, total, err := service.ListAffiliateSettlements(model.DB, service.AffiliateSettlementListInput{
+		Scope:           scope,
+		AffiliateUserId: affiliateUserId,
+		RuleSetId:       ruleSetId,
+		Status:          c.Query("status"),
+		PeriodStart:     periodStart,
+		PeriodEnd:       periodEnd,
+		StartIdx:        pageInfo.GetStartIdx(),
+		PageSize:        pageInfo.GetPageSize(),
+	})
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+
+	pageInfo.SetTotal(int(total))
+	pageInfo.SetItems(settlements)
+	common.ApiSuccess(c, pageInfo)
+}
+
 func GetAffiliateSummary(c *gin.Context) {
 	scope, ok := getAffiliateScopeFromContext(c)
 	if !ok {

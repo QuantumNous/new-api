@@ -30,6 +30,8 @@ func SetApiRouter(router *gin.Engine) {
 			affiliateRoute.GET("/status", controller.GetAffiliateStatus)
 			affiliateRoute.GET("/summary", middleware.AffiliateAuth(), controller.GetAffiliateSummary)
 			affiliateRoute.GET("/logs", middleware.AffiliateAuth(), controller.GetAffiliateScopedLogs)
+			affiliateRoute.GET("/commissions", middleware.AffiliateAuth(), controller.GetAffiliateCommissions)
+			affiliateRoute.GET("/settlements", middleware.AffiliateAuth(), controller.GetAffiliateSettlements)
 		}
 		affiliateAdminRoute := apiRouter.Group("/affiliate/admin")
 		affiliateAdminRoute.Use(middleware.AdminAuth())

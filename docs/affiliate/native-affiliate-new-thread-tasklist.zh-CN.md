@@ -417,7 +417,7 @@
 - [x] 实现 KPI 快照。
 - [x] 实现 pending 佣金明细。
 - [x] 实现结算单生成、冻结、作废、标记已支付。
-- [ ] 分销商只读自己的佣金/结算。
+- [x] 分销商只读自己的佣金/结算。
 - [ ] 管理员可全局管理规则、佣金和结算。
 
 ### Phase 10 阶段复盘（2026-06-03 后端规则集 API）
@@ -454,6 +454,13 @@
 - 验证方式：先观察 `go test -count=1 ./service -run 'AffiliateSettlement|Settlement'` RED；实现后同命令通过；补充 `go test -count=1 ./service` 和 `go test -count=1 ./model ./service ./controller ./router -run 'Affiliate|RuleSet|Commission|KPI|HeadFee|Settlement|Admin'` 均通过。
 - 残留风险：结算 service 尚未暴露管理员/分销商只读 API；人头费事件缺少显式 period 字段，当前按 synthetic marker 中的 `period:start-end` 归属结算周期；最小结算金额、人工审核开关和结算周期配置仍待管理员端 UI/API 消费。
 - 下一步：补分销商只读佣金/结算 API、管理员结算管理 API，随后再接 classic 管理页面和 RMB 统一展示。
+
+### Phase 10 阶段复盘（2026-06-03 分销商佣金/结算只读 API）
+
+- 完成内容：新增 scoped 只读查询服务和用户侧接口 `GET /api/affiliate/commissions`、`GET /api/affiliate/settlements`，复用 `AffiliateAuth` 后端 scope；普通分销商只能读取 `affiliate_user_id = scope.UserId` 的佣金事件和结算单，支持状态、规则集、周期、下游用户和 settlement 过滤，分页保持现有 `PageInfo` 响应格式。
+- 验证方式：先观察 `go test -count=1 ./controller -run 'AffiliateCommissions|AffiliateSettlements'` RED；实现后同命令通过；补充 `go test -count=1 ./service` 和 `go test -count=1 ./model ./service ./controller ./router -run 'Affiliate|RuleSet|Commission|KPI|HeadFee|Settlement|Admin'` 均通过。
+- 残留风险：本批只做分销商只读 API，管理员侧全局结算管理、生成/冻结/作废/支付 HTTP API、classic/default 页面消费仍待实现；状态筛选目前按合法状态过滤，未知状态不额外收窄结果，后续前端应只传固定枚举。
+- 下一步：补管理员全局管理佣金和结算 API，再接 classic 管理端页面与分销商结算明细页面。
 
 ## Phase 11：用户管理 `inviter_id`
 
