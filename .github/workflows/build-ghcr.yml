@@ -34,5 +34,4 @@ jobs:
           tags: |
             ghcr.io/lisaluoyf/new-api:latest
             ghcr.io/lisaluoyf/new-api:${{ github.sha }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          no-cache: true
