@@ -22,7 +22,7 @@ const PreparationTable = ({
   setSelectedPreparations,
   openEdit,
   promotePreparation,
-  archivePreparation,
+  deletePreparation,
 }) => {
   const columns = useMemo(
     () =>
@@ -30,9 +30,9 @@ const PreparationTable = ({
         t,
         openEdit,
         promotePreparation,
-        archivePreparation,
+        deletePreparation,
       }),
-    [t, openEdit, promotePreparation, archivePreparation],
+    [t, openEdit, promotePreparation, deletePreparation],
   );
 
   return (

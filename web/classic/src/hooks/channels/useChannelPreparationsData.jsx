@@ -4,14 +4,10 @@ import { API, showError, showSuccess, showInfo } from '../../helpers';
 
 export const PREPARATION_STATUS = {
   PENDING: 1,
-  PROMOTED: 2,
-  ARCHIVED: 3,
 };
 
 export const PREPARATION_STATUS_LABELS = {
   [PREPARATION_STATUS.PENDING]: '待晋升',
-  [PREPARATION_STATUS.PROMOTED]: '已晋升',
-  [PREPARATION_STATUS.ARCHIVED]: '已归档',
 };
 
 const DEFAULT_PAGE_SIZE = 20;
@@ -156,7 +152,7 @@ export function useChannelPreparationsData() {
         showError(res.data.message || t('晋升失败'));
         return false;
       }
-      showSuccess(t('候选渠道已晋升为正式渠道'));
+      showSuccess(t('候选渠道已晋升为正式渠道，并已从备货池移除'));
       refresh();
       return true;
     },
@@ -184,23 +180,23 @@ export function useChannelPreparationsData() {
     refresh();
   }, [selectedPreparations, refresh, t]);
 
-  const archivePreparation = useCallback(
+  const deletePreparation = useCallback(
     async (preparation) => {
       const res = await API.delete(
         `/api/channel/preparations/${preparation.id}`,
       );
       if (!res.data.success) {
-        showError(res.data.message || t('归档失败'));
+        showError(res.data.message || t('删除失败'));
         return false;
       }
-      showSuccess(t('候选渠道已归档'));
+      showSuccess(t('候选渠道已删除'));
       refresh();
       return true;
     },
     [refresh, t],
   );
 
-  const archiveSelected = useCallback(async () => {
+  const deleteSelected = useCallback(async () => {
     if (selectedPreparations.length === 0) {
       showInfo(t('请先选择候选渠道'));
       return;
@@ -210,7 +206,7 @@ export function useChannelPreparationsData() {
       const res = await API.delete(`/api/channel/preparations/${item.id}`);
       if (res.data.success) successCount += 1;
     }
-    showSuccess(t('批量归档完成：{{count}} 条成功', { count: successCount }));
+    showSuccess(t('批量删除完成：{{count}} 条成功', { count: successCount }));
     setSelectedPreparationKeys([]);
     setSelectedPreparations([]);
     refresh();
@@ -251,8 +247,8 @@ export function useChannelPreparationsData() {
       importPreparations,
       promotePreparation,
       promoteSelected,
-      archivePreparation,
-      archiveSelected,
+      deletePreparation,
+      deleteSelected,
     }),
     [
       t,
@@ -281,8 +277,8 @@ export function useChannelPreparationsData() {
       importPreparations,
       promotePreparation,
       promoteSelected,
-      archivePreparation,
-      archiveSelected,
+      deletePreparation,
+      deleteSelected,
     ],
   );
 }

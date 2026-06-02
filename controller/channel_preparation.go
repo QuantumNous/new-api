@@ -110,6 +110,10 @@ func GetChannelPreparations(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
+	if status == nil {
+		pendingStatus := model.ChannelPreparationStatusPending
+		status = &pendingStatus
+	}
 	opts := model.ChannelPreparationListOptions{
 		Page:     page,
 		PageSize: pageSize,
@@ -198,25 +202,19 @@ func UpdateChannelPreparation(c *gin.Context) {
 	common.ApiSuccess(c, input.ToResponse())
 }
 
-func ArchiveChannelPreparation(c *gin.Context) {
+func DeleteChannelPreparation(c *gin.Context) {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		common.ApiError(c, err)
 		return
 	}
-	updates := map[string]any{
-		"status":       model.ChannelPreparationStatusArchived,
-		"updated_time": common.GetTimestamp(),
-	}
-	result := model.DB.Model(&model.ChannelPreparation{}).
-		Where("id = ? AND status = ?", id, model.ChannelPreparationStatusPending).
-		Updates(updates)
+	result := model.DB.Delete(&model.ChannelPreparation{}, "id = ?", id)
 	if result.Error != nil {
 		common.ApiError(c, result.Error)
 		return
 	}
 	if result.RowsAffected == 0 {
-		common.ApiErrorMsg(c, "候选渠道不存在或不可归档")
+		common.ApiErrorMsg(c, "候选渠道不存在")
 		return
 	}
 	common.ApiSuccess(c, gin.H{"id": id})
@@ -292,22 +290,15 @@ func promoteChannelPreparation(id int) (int, error) {
 		return 0, fmt.Errorf("channel cannot be empty")
 	}
 	channelID := channels[0].Id
-	updates := map[string]any{
-		"status":              model.ChannelPreparationStatusPromoted,
-		"promoted_channel_id": channelID,
-		"promoted_time":       now,
-		"updated_time":        now,
-	}
-	promoteResult := tx.Model(&model.ChannelPreparation{}).
-		Where("id = ? AND status = ?", id, model.ChannelPreparationStatusPromoting).
-		Updates(updates)
-	if promoteResult.Error != nil {
+	deleteResult := tx.Where("id = ? AND status = ?", id, model.ChannelPreparationStatusPromoting).
+		Delete(&model.ChannelPreparation{})
+	if deleteResult.Error != nil {
 		tx.Rollback()
-		return 0, promoteResult.Error
+		return 0, deleteResult.Error
 	}
-	if promoteResult.RowsAffected == 0 {
+	if deleteResult.RowsAffected == 0 {
 		tx.Rollback()
-		return 0, fmt.Errorf("候选渠道晋升状态更新失败")
+		return 0, fmt.Errorf("候选渠道晋升后删除失败")
 	}
 	if err := tx.Commit().Error; err != nil {
 		return 0, err

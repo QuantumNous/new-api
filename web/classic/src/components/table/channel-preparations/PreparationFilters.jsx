@@ -1,10 +1,6 @@
 import React from 'react';
 import { Button, Input, Select } from '@douyinfe/semi-ui';
 import { CHANNEL_OPTIONS } from '../../../constants/channel.constants';
-import {
-  PREPARATION_STATUS,
-  PREPARATION_STATUS_LABELS,
-} from '../../../hooks/channels/useChannelPreparationsData';
 
 const PreparationFilters = ({
   t,
@@ -14,8 +10,6 @@ const PreparationFilters = ({
   setGroup,
   type,
   setType,
-  status,
-  setStatus,
   handleSearch,
 }) => {
   return (
@@ -47,20 +41,6 @@ const PreparationFilters = ({
         {CHANNEL_OPTIONS.map((option) => (
           <Select.Option key={option.value} value={option.value}>
             {option.label}
-          </Select.Option>
-        ))}
-      </Select>
-      <Select
-        size='small'
-        placeholder={t('状态')}
-        value={status}
-        onChange={setStatus}
-        showClear
-        className='w-full md:w-32'
-      >
-        {Object.values(PREPARATION_STATUS).map((value) => (
-          <Select.Option key={value} value={value}>
-            {t(PREPARATION_STATUS_LABELS[value])}
           </Select.Option>
         ))}
       </Select>

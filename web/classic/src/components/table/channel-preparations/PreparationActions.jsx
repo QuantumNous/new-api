@@ -7,7 +7,7 @@ const PreparationActions = ({
   refresh,
   selectedPreparations,
   promoteSelected,
-  archiveSelected,
+  deleteSelected,
 }) => {
   const hasSelection = selectedPreparations.length > 0;
 
@@ -34,13 +34,13 @@ const PreparationActions = ({
         disabled={!hasSelection}
         onClick={() => {
           Modal.confirm({
-            title: t('确认批量归档？'),
-            content: t('归档后候选渠道不会被晋升。'),
-            onOk: archiveSelected,
+            title: t('确认批量删除？'),
+            content: t('删除后候选渠道会从备货池移除。'),
+            onOk: deleteSelected,
           });
         }}
       >
-        {t('批量归档')}
+        {t('批量删除')}
       </Button>
       <Button
         size='small'

@@ -8,8 +8,6 @@ import {
 
 const statusColor = {
   [PREPARATION_STATUS.PENDING]: 'blue',
-  [PREPARATION_STATUS.PROMOTED]: 'green',
-  [PREPARATION_STATUS.ARCHIVED]: 'grey',
 };
 
 const formatTime = (timestamp) => {
@@ -36,7 +34,7 @@ export const getPreparationColumns = ({
   t,
   openEdit,
   promotePreparation,
-  archivePreparation,
+  deletePreparation,
 }) => [
   {
     title: 'ID',
@@ -114,13 +112,6 @@ export const getPreparationColumns = ({
     render: (value) => value ?? 0,
   },
   {
-    title: t('晋升渠道'),
-    dataIndex: 'promoted_channel_id',
-    key: 'promoted_channel_id',
-    width: 110,
-    render: (value) => value || '-',
-  },
-  {
     title: t('创建时间'),
     dataIndex: 'created_time',
     key: 'created_time',
@@ -165,13 +156,13 @@ export const getPreparationColumns = ({
             disabled={!pending}
             onClick={() => {
               Modal.confirm({
-                title: t('确认归档？'),
-                content: t('归档后候选渠道不会被晋升。'),
-                onOk: () => archivePreparation(record),
+                title: t('确认删除？'),
+                content: t('删除后候选渠道会从备货池移除。'),
+                onOk: () => deletePreparation(record),
               });
             }}
           >
-            {t('归档')}
+            {t('删除')}
           </Button>
         </Space>
       );

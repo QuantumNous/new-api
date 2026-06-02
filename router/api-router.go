@@ -256,7 +256,7 @@ func SetApiRouter(router *gin.Engine) {
 			channelRoute.POST("/preparations/batch/promote", controller.PromoteChannelPreparationsBatch)
 			channelRoute.GET("/preparations/:id", controller.GetChannelPreparation)
 			channelRoute.PUT("/preparations/:id", controller.UpdateChannelPreparation)
-			channelRoute.DELETE("/preparations/:id", controller.ArchiveChannelPreparation)
+			channelRoute.DELETE("/preparations/:id", controller.DeleteChannelPreparation)
 			channelRoute.POST("/preparations/:id/promote", controller.PromoteChannelPreparation)
 			channelRoute.GET("/:id", controller.GetChannel)
 			channelRoute.POST("/:id/key", middleware.RootAuth(), middleware.CriticalRateLimit(), middleware.DisableCache(), middleware.SecureVerificationRequired(), controller.GetChannelKey)
