@@ -1,11 +1,20 @@
 package model
 
+import "gorm.io/gorm"
+
+const (
+	UserPhoneBindingStatusActive   = "active"
+	UserPhoneBindingStatusReplaced = "replaced"
+	UserPhoneBindingStatusUnbound  = "unbound"
+)
+
 type smsTableNamer interface {
 	TableName() string
 }
 
 func SMSSidecarModels() []interface{} {
 	return []interface{}{
+		&UserPhoneBinding{},
 		&SMSSendLog{},
 	}
 }
@@ -34,4 +43,23 @@ type SMSSendLog struct {
 
 func (SMSSendLog) TableName() string {
 	return "sms_send_logs"
+}
+
+type UserPhoneBinding struct {
+	Id          int            `json:"id"`
+	UserId      int            `json:"user_id" gorm:"type:int;not null;index"`
+	PhoneHash   string         `json:"phone_hash" gorm:"type:varchar(128);not null;default:'';index"`
+	PhoneMasked string         `json:"phone_masked" gorm:"type:varchar(32);not null;default:''"`
+	Status      string         `json:"status" gorm:"type:varchar(32);not null;default:'active';index"`
+	Provider    string         `json:"provider" gorm:"type:varchar(32);not null;default:'';index"`
+	VerifiedAt  int64          `json:"verified_at" gorm:"bigint;not null;default:0;index"`
+	BoundAt     int64          `json:"bound_at" gorm:"bigint;not null;default:0;index"`
+	UnboundAt   int64          `json:"unbound_at" gorm:"bigint;not null;default:0;index"`
+	CreatedAt   int64          `json:"created_at" gorm:"autoCreateTime;column:created_at;index"`
+	UpdatedAt   int64          `json:"updated_at" gorm:"autoUpdateTime;column:updated_at"`
+	DeletedAt   gorm.DeletedAt `json:"-" gorm:"index"`
+}
+
+func (UserPhoneBinding) TableName() string {
+	return "user_phone_bindings"
 }

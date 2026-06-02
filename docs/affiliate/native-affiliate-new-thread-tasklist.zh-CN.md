@@ -179,7 +179,8 @@
 - [x] 增加 SMS 模板缺失、签名未备案/未审核通过场景测试。
 - [x] 增加 SMS 限流完整发送链路场景测试。
 - [ ] 增加签名未备案完整发送链路场景测试。
-- [ ] 新增 `user_phone_bindings` sidecar 表设计和 schema impact，不直接修改官方 `users` 表。
+- [x] 新增 `user_phone_bindings` sidecar 表设计和本地 AutoMigrate schema 验证，不直接修改官方 `users` 表。
+- [ ] 如 Docker 稳定，集中用本地 PostgreSQL dump 复核 `user_phone_bindings` schema impact。
 - [x] 新增 `sms_send_logs` sidecar 表设计和本地 AutoMigrate schema 验证，日志只记录脱敏手机号、场景、provider、模板版本、返回码和耗时。
 - [ ] 如 Docker 稳定，集中用本地 PostgreSQL dump 复核 `sms_send_logs` schema impact。
 
@@ -231,6 +232,13 @@
 - 验证方式：先观察 `go test ./service ./model ./controller -run 'SMSRateLimit|CheckSMSRateLimit|AdminTestSMSAppliesRateLimit'` RED；实现后 `go test -count=1 ./service ./model ./controller -run 'SMSRateLimit|CheckSMSRateLimit|AdminTestSMSAppliesRateLimit'` 通过；`go test -count=1 ./common ./model ./service ./controller -run 'SMS|SMSBao|SMSSignature|SMSTemplate|RenderSMS|AdminTestSMS|AdminGetSMSStatus|NormalizePhone|SMSSidecar|RecordSMSSendLog|CheckSMSRateLimit'` 通过；`git diff --check` 通过。
 - 残留风险：当前限流为进程内内存实现，未接 Redis/多实例共享；管理员前端限流配置入口未实现；签名未备案的 controller 完整发送链路测试仍待补；真实手机号注册/登录验证码发送入口尚未实现。
 - 下一步：补签名未备案完整发送链路测试，或设计 `user_phone_bindings` sidecar。
+
+### Phase 5A User phone bindings 复盘（2026-06-03 本线程）
+
+- 完成内容：新增 `user_phone_bindings` sidecar model 并纳入 `SMSSidecarModels()` 和主库 AutoMigrate；新增 `service.BindUserPhone`，绑定时只保存规范化手机号 hash、脱敏手机号、状态、provider、验证/绑定/解绑时间，不写 `users.phone`，不保存完整手机号。同一用户新绑定会把旧 active 绑定置为 `replaced`，同一手机号 active 绑定到其他用户时拒绝。
+- 验证方式：先观察 `go test ./model ./service -run 'UserPhoneBinding|BindUserPhone'` RED；实现后 `go test -count=1 ./model ./service -run 'UserPhoneBinding|BindUserPhone'` 通过；`go test -count=1 ./common ./model ./service ./controller -run 'SMS|PhoneBinding|UserPhoneBinding|BindUserPhone|SMSBao|SMSSignature|SMSTemplate|RenderSMS|AdminTestSMS|AdminGetSMSStatus|NormalizePhone|SMSSidecar|RecordSMSSendLog|CheckSMSRateLimit'` 通过；`git diff --check` 通过；关键词扫描确认未新增 `users.phone`。
+- 残留风险：本批未执行 Docker/PostgreSQL dump schema diff，已新增单独待办；手机号绑定尚未接入真实验证码校验、注册/登录入口、换绑入口、SMS Turnstile 或邀请归因。
+- 下一步：补签名未备案完整发送链路测试，或实现手机号注册入口并接入 Phase 5 邀请归因。
 
 ## Phase 6：分销 scope 与 scoped 使用日志
 
