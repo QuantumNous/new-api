@@ -215,6 +215,30 @@ export function buildApiParams(config: {
     ...(searchParams.upstreamRequestId
       ? { upstream_request_id: String(searchParams.upstreamRequestId) }
       : {}),
+    ...(searchParams.content ? { content: String(searchParams.content) } : {}),
+    ...(searchParams.endpoint
+      ? { endpoint: String(searchParams.endpoint) }
+      : {}),
+    ...(searchParams.statusCode
+      ? { status_code: String(searchParams.statusCode) }
+      : {}),
+    ...(searchParams.sessionId
+      ? { session_id: String(searchParams.sessionId) }
+      : {}),
+    ...(searchParams.userAgent
+      ? { user_agent: String(searchParams.userAgent) }
+      : {}),
+    ...(searchParams.requestType === 'stream'
+      ? { is_stream: true }
+      : searchParams.requestType === 'non_stream'
+        ? { is_stream: false }
+        : {}),
+    ...(searchParams.reasoningEffort
+      ? { reasoning_effort: String(searchParams.reasoningEffort) }
+      : {}),
+    ...(searchParams.billingSource
+      ? { billing_source: String(searchParams.billingSource) }
+      : {}),
     ...buildTimeRangeParams(searchParams, false),
   }
 

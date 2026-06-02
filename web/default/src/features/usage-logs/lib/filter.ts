@@ -58,6 +58,22 @@ export function buildSearchParams(
         ...(commonFilters.upstreamRequestId && {
           upstreamRequestId: commonFilters.upstreamRequestId,
         }),
+        ...(commonFilters.content && { content: commonFilters.content }),
+        ...(commonFilters.endpoint && { endpoint: commonFilters.endpoint }),
+        ...(commonFilters.statusCode && {
+          statusCode: commonFilters.statusCode,
+        }),
+        ...(commonFilters.sessionId && { sessionId: commonFilters.sessionId }),
+        ...(commonFilters.userAgent && { userAgent: commonFilters.userAgent }),
+        ...(commonFilters.requestType && {
+          requestType: commonFilters.requestType,
+        }),
+        ...(commonFilters.reasoningEffort && {
+          reasoningEffort: commonFilters.reasoningEffort,
+        }),
+        ...(commonFilters.billingSource && {
+          billingSource: commonFilters.billingSource,
+        }),
       }
     }
     case 'drawing': {
