@@ -204,7 +204,7 @@ func RequestEmailLoginCode(c *gin.Context) {
 		}
 	}
 
-	code := common.GenerateVerificationCode(6)
+	code := common.GenerateNumericVerificationCode(6)
 	common.RegisterVerificationCodeWithKey(req.Email, code, common.EmailLoginPurpose)
 	common.ResetAttempts(req.Email, common.EmailLoginPurpose)
 	emailLoginLastSent.Store(req.Email, time.Now())

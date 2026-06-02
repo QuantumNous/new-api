@@ -1,6 +1,7 @@
 package common
 
 import (
+	"crypto/rand"
 	"strings"
 	"sync"
 	"time"
@@ -37,6 +38,21 @@ func GenerateVerificationCode(length int) string {
 		return code
 	}
 	return code[:length]
+}
+
+// GenerateNumericVerificationCode returns a length-digit numeric string
+// (0-9 chars only) using crypto/rand. Used for JINN V1 sign-in codes so the
+// client's digit-only OTP input can accept them.
+func GenerateNumericVerificationCode(length int) string {
+	const digits = "0123456789"
+	b := make([]byte, length)
+	if _, err := rand.Read(b); err != nil {
+		return GenerateVerificationCode(length)
+	}
+	for i := range b {
+		b[i] = digits[int(b[i])%10]
+	}
+	return string(b)
 }
 
 func RegisterVerificationCodeWithKey(key string, code string, purpose string) {
