@@ -295,6 +295,33 @@ func UpdateOption(c *gin.Context) {
 			})
 			return
 		}
+	case "channel_preparation_auto_promotion_setting.rules":
+		err = operation_setting.ValidateChannelPreparationAutoPromotionRulesJSONString(option.Value.(string))
+		if err != nil {
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"message": "自动晋升规则配置错误: " + err.Error(),
+			})
+			return
+		}
+	case "channel_preparation_auto_promotion_setting.interval_minutes":
+		interval, parseErr := strconv.ParseFloat(option.Value.(string), 64)
+		if parseErr != nil || interval <= 0 {
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"message": "自动晋升检查间隔必须大于 0",
+			})
+			return
+		}
+	case "channel_preparation_auto_promotion_setting.max_promotions_per_run":
+		limit, parseErr := strconv.Atoi(option.Value.(string))
+		if parseErr != nil || limit <= 0 {
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"message": "自动晋升每次最大数量必须大于 0",
+			})
+			return
+		}
 	case "console_setting.api_info":
 		err = console_setting.ValidateConsoleSettings(option.Value.(string), "ApiInfo")
 		if err != nil {

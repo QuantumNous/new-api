@@ -10,6 +10,7 @@ import PreparationFilters from './PreparationFilters';
 import PreparationTable from './PreparationTable';
 import EditPreparationModal from './modals/EditPreparationModal';
 import ImportPreparationModal from './modals/ImportPreparationModal';
+import AutoPromotionPanel from './AutoPromotionPanel';
 
 const ChannelPreparationsPage = () => {
   const data = useChannelPreparationsData();
@@ -28,6 +29,7 @@ const ChannelPreparationsPage = () => {
         onCancel={() => data.setShowImport(false)}
         onSubmit={data.importPreparations}
       />
+      <AutoPromotionPanel t={data.t} refreshPreparations={data.refresh} />
       <CardPro
         type='type3'
         descriptionArea={
