@@ -59,6 +59,14 @@ const OPERATIONS_SECTIONS = [
             settings['monitor_setting.auto_test_channel_enabled'],
           'monitor_setting.auto_test_channel_minutes':
             settings['monitor_setting.auto_test_channel_minutes'],
+          'monitor_setting.dingtalk_alert_enabled':
+            settings['monitor_setting.dingtalk_alert_enabled'],
+          'monitor_setting.dingtalk_alert_webhook_url':
+            settings['monitor_setting.dingtalk_alert_webhook_url'],
+          'monitor_setting.dingtalk_alert_secret':
+            settings['monitor_setting.dingtalk_alert_secret'],
+          'monitor_setting.dingtalk_alert_cooldown_minutes':
+            settings['monitor_setting.dingtalk_alert_cooldown_minutes'],
         }}
       />
     ),

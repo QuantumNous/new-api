@@ -8,14 +8,22 @@ import (
 )
 
 type MonitorSetting struct {
-	AutoTestChannelEnabled bool    `json:"auto_test_channel_enabled"`
-	AutoTestChannelMinutes float64 `json:"auto_test_channel_minutes"`
+	AutoTestChannelEnabled       bool    `json:"auto_test_channel_enabled"`
+	AutoTestChannelMinutes       float64 `json:"auto_test_channel_minutes"`
+	DingTalkAlertEnabled         bool    `json:"dingtalk_alert_enabled"`
+	DingTalkAlertWebhookURL      string  `json:"dingtalk_alert_webhook_url"`
+	DingTalkAlertSecret          string  `json:"dingtalk_alert_secret"`
+	DingTalkAlertCooldownMinutes float64 `json:"dingtalk_alert_cooldown_minutes"`
 }
 
 // 默认配置
 var monitorSetting = MonitorSetting{
-	AutoTestChannelEnabled: false,
-	AutoTestChannelMinutes: 10,
+	AutoTestChannelEnabled:       false,
+	AutoTestChannelMinutes:       10,
+	DingTalkAlertEnabled:         false,
+	DingTalkAlertWebhookURL:      "",
+	DingTalkAlertSecret:          "",
+	DingTalkAlertCooldownMinutes: 60,
 }
 
 func init() {

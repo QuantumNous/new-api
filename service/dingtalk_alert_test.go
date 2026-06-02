@@ -1,0 +1,276 @@
+package service
+
+import (
+	"encoding/base64"
+	"errors"
+	"fmt"
+	"io"
+	"net/http"
+	"net/http/httptest"
+	"net/url"
+	"strings"
+	"sync/atomic"
+	"testing"
+	"time"
+
+	"github.com/QuantumNous/new-api/setting/operation_setting"
+	"github.com/QuantumNous/new-api/setting/system_setting"
+	"github.com/QuantumNous/new-api/types"
+	"github.com/stretchr/testify/require"
+)
+
+type roundTripFunc func(*http.Request) (*http.Response, error)
+
+func (f roundTripFunc) RoundTrip(req *http.Request) (*http.Response, error) {
+	return f(req)
+}
+
+func TestBuildDingTalkChannelAlertContentMasksSensitiveFields(t *testing.T) {
+	err := types.NewErrorWithStatusCode(
+		errors.New("invalid access_token sk-secret refresh_token abc"),
+		types.ErrorCodeBadResponse,
+		401,
+	)
+
+	content := BuildDingTalkChannelAlertContent(DingTalkChannelAlert{
+		ChannelID:       12,
+		ChannelName:     "codex-prod",
+		ChannelTypeName: "Codex",
+		Error:           err,
+		AutoDisabled:    true,
+		Now:             time.Date(2026, 6, 2, 13, 14, 15, 0, time.Local),
+	})
+
+	require.Contains(t, content, "New API channel test failed")
+	require.Contains(t, content, "Channel ID: 12")
+	require.Contains(t, content, "Channel Name: codex-prod")
+	require.Contains(t, content, "Channel Type: Codex")
+	require.Contains(t, content, "Status Code: 401")
+	require.Contains(t, content, "Error Code: bad_response")
+	require.Contains(t, content, "Auto Disabled: yes")
+	require.NotContains(t, content, "sk-secret")
+	require.NotContains(t, content, "refresh_token abc")
+}
+
+func TestBuildDingTalkChannelAlertContentMasksChannelMetadata(t *testing.T) {
+	content := BuildDingTalkChannelAlertContent(DingTalkChannelAlert{
+		ChannelID:       12,
+		ChannelName:     "bedrock AKIAIOSFODNN7EXAMPLE",
+		ChannelTypeName: "gemini AIzaSyAAAaUooTUni8AdaOkSRMda30n_Q4vrV70",
+		Error:           types.NewErrorWithStatusCode(errors.New("401"), types.ErrorCodeBadResponse, 401),
+		Now:             time.Date(2026, 6, 2, 13, 14, 15, 0, time.Local),
+	})
+
+	require.Contains(t, content, "Channel Name:")
+	require.Contains(t, content, "Channel Type:")
+	require.NotContains(t, content, "AKIAIOSFODNN7EXAMPLE")
+	require.NotContains(t, content, "AIzaSyAAAaUooTUni8AdaOkSRMda30n_Q4vrV70")
+}
+
+func TestSanitizeDingTalkAlertTextMasksBearerAndOAuthCredentials(t *testing.T) {
+	content := sanitizeDingTalkAlertText(`Authorization: Bearer ya29.secret-token {"access_token":"oauth-access","refresh_token":"oauth-refresh","id_token":"oauth-id"}`)
+
+	require.NotContains(t, content, "ya29.secret-token")
+	require.NotContains(t, content, "oauth-access")
+	require.NotContains(t, content, "oauth-refresh")
+	require.NotContains(t, content, "oauth-id")
+	require.Contains(t, content, "Authorization: ***")
+}
+
+func TestSanitizeDingTalkAlertTextMasksUnlabeledCloudCredentials(t *testing.T) {
+	content := sanitizeDingTalkAlertText("aws AKIAIOSFODNN7EXAMPLE google AIzaSyAAAaUooTUni8AdaOkSRMda30n_Q4vrV70")
+
+	require.NotContains(t, content, "AKIAIOSFODNN7EXAMPLE")
+	require.NotContains(t, content, "AIzaSyAAAaUooTUni8AdaOkSRMda30n_Q4vrV70")
+}
+
+func TestBuildDingTalkWebhookURLAddsSignature(t *testing.T) {
+	now := time.UnixMilli(1780380000123)
+
+	signedURL, err := BuildDingTalkWebhookURL(
+		"https://oapi.dingtalk.com/robot/send?access_token=abc",
+		"ding-secret",
+		now,
+	)
+
+	require.NoError(t, err)
+	parsed, err := url.Parse(signedURL)
+	require.NoError(t, err)
+	require.Equal(t, "1780380000123", parsed.Query().Get("timestamp"))
+	require.NotEmpty(t, parsed.Query().Get("sign"))
+	require.Contains(t, signedURL, "access_token=abc")
+
+	decodedSign, err := base64.StdEncoding.DecodeString(parsed.Query().Get("sign"))
+	require.NoError(t, err)
+	require.NotEmpty(t, decodedSign)
+}
+
+func TestDingTalkAlertCooldownSuppressesSameChannel(t *testing.T) {
+	cooldown := NewDingTalkAlertCooldown()
+	now := time.Date(2026, 6, 2, 13, 0, 0, 0, time.UTC)
+
+	require.True(t, cooldown.Allow(7, now, time.Hour))
+	require.False(t, cooldown.Allow(7, now.Add(10*time.Minute), time.Hour))
+	require.True(t, cooldown.Allow(7, now.Add(time.Hour+time.Second), time.Hour))
+}
+
+func TestDingTalkAlertCooldownAllowsDifferentChannels(t *testing.T) {
+	cooldown := NewDingTalkAlertCooldown()
+	now := time.Date(2026, 6, 2, 13, 0, 0, 0, time.UTC)
+
+	require.True(t, cooldown.Allow(7, now, time.Hour))
+	require.True(t, cooldown.Allow(8, now.Add(time.Minute), time.Hour))
+}
+
+func TestSendDingTalkTextReturnsErrorForDingTalkErrorCode(t *testing.T) {
+	allowDingTalkTestServer(t)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"errcode":310000,"errmsg":"keywords not in content"}`))
+	}))
+	defer server.Close()
+
+	err := SendDingTalkText(server.URL, "", "New API test")
+
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "310000")
+	require.Contains(t, err.Error(), "keywords not in content")
+}
+
+func TestSendDingTalkTextReturnsErrorForEmptyDingTalkResponse(t *testing.T) {
+	allowDingTalkTestServer(t)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+
+	err := SendDingTalkText(server.URL, "", "New API test")
+
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "empty response")
+}
+
+func TestSendDingTalkTextReturnsErrorForMissingDingTalkErrCode(t *testing.T) {
+	allowDingTalkTestServer(t)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{}`))
+	}))
+	defer server.Close()
+
+	err := SendDingTalkText(server.URL, "", "New API test")
+
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "missing errcode")
+}
+
+func TestSendDingTalkTextSanitizesWebhookURLInNetworkError(t *testing.T) {
+	allowDingTalkTestServer(t)
+	originalHTTPClient := httpClient
+	t.Cleanup(func() {
+		httpClient = originalHTTPClient
+	})
+
+	httpClient = &http.Client{
+		Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+			return nil, fmt.Errorf("Post %q: connection refused", req.URL.String())
+		}),
+	}
+
+	err := SendDingTalkText("https://oapi.dingtalk.com/robot/send?access_token=leaky-token", "sign-secret", "New API test")
+
+	require.Error(t, err)
+	require.NotContains(t, err.Error(), "leaky-token")
+	require.NotContains(t, err.Error(), "sign-secret")
+	require.Contains(t, err.Error(), "dingtalk request failed")
+}
+
+func TestSendDingTalkTextSanitizesWebhookURLInBuildError(t *testing.T) {
+	err := SendDingTalkText("https://oapi.dingtalk.com/robot/send?access_token=leaky-token%zz", "sign-secret", "New API test")
+
+	require.Error(t, err)
+	require.NotContains(t, err.Error(), "leaky-token")
+	require.NotContains(t, err.Error(), "sign-secret")
+}
+
+func TestSendDingTalkTextSetsRequestDeadline(t *testing.T) {
+	allowDingTalkTestServer(t)
+	originalHTTPClient := httpClient
+	t.Cleanup(func() {
+		httpClient = originalHTTPClient
+	})
+
+	httpClient = &http.Client{
+		Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+			if _, ok := req.Context().Deadline(); !ok {
+				return nil, errors.New("missing request deadline")
+			}
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Header:     make(http.Header),
+				Body:       io.NopCloser(strings.NewReader(`{"errcode":0,"errmsg":"ok"}`)),
+				Request:    req,
+			}, nil
+		}),
+	}
+
+	err := SendDingTalkText("https://oapi.dingtalk.com/robot/send?access_token=secret-token", "sign-secret", "New API test")
+
+	require.NoError(t, err)
+}
+
+func TestNotifyDingTalkFailureDoesNotConsumeCooldownOnSendFailure(t *testing.T) {
+	allowDingTalkTestServer(t)
+	originalSetting := *operation_setting.GetMonitorSetting()
+	originalCooldown := dingTalkAlertCooldown
+	originalHTTPClient := httpClient
+	t.Cleanup(func() {
+		*operation_setting.GetMonitorSetting() = originalSetting
+		dingTalkAlertCooldown = originalCooldown
+		httpClient = originalHTTPClient
+	})
+
+	var requests int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		count := atomic.AddInt32(&requests, 1)
+		if count == 1 {
+			http.Error(w, "temporary failure", http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"errcode":0,"errmsg":"ok"}`))
+	}))
+	defer server.Close()
+
+	httpClient = server.Client()
+	dingTalkAlertCooldown = NewDingTalkAlertCooldown()
+	setting := operation_setting.GetMonitorSetting()
+	setting.DingTalkAlertEnabled = true
+	setting.DingTalkAlertWebhookURL = server.URL
+	setting.DingTalkAlertSecret = ""
+	setting.DingTalkAlertCooldownMinutes = 60
+
+	alert := DingTalkChannelAlert{
+		ChannelID:       99,
+		ChannelName:     "codex-prod",
+		ChannelTypeName: "Codex",
+		Error:           types.NewErrorWithStatusCode(errors.New("401"), types.ErrorCodeBadResponse, http.StatusUnauthorized),
+		Now:             time.Date(2026, 6, 2, 13, 0, 0, 0, time.UTC),
+	}
+
+	require.Error(t, NotifyDingTalkChannelTestFailure(alert))
+	require.NoError(t, NotifyDingTalkChannelTestFailure(alert))
+	require.Equal(t, int32(2), atomic.LoadInt32(&requests))
+}
+
+func allowDingTalkTestServer(t *testing.T) {
+	t.Helper()
+
+	original := *system_setting.GetFetchSetting()
+	t.Cleanup(func() {
+		*system_setting.GetFetchSetting() = original
+	})
+
+	fetchSetting := system_setting.GetFetchSetting()
+	fetchSetting.EnableSSRFProtection = false
+}
