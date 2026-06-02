@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
@@ -360,6 +361,39 @@ func TestAdminSettlementLifecycleGenerateFreezePay(t *testing.T) {
 	}
 	if event.Status != model.AffiliateEventStatusSettled {
 		t.Fatalf("expected linked commission event settled, got %+v", event)
+	}
+}
+
+func TestAdminRunAffiliateSettlementPipeline(t *testing.T) {
+	db := newAffiliateLogsControllerTestDB(t)
+	ruleSet := seedPublishedAffiliateRuleSetForAdminRun(t, db, "admin-settlement-run")
+	seedAffiliateInviterControllerProfile(t, db, 100, 1)
+	seedAffiliateInviterControllerRelation(t, db, 100, 200, 1)
+	seedAffiliateInviterControllerRelation(t, db, 100, 300, 2)
+	seedAffiliateRunInviteEvent(t, db, 100, 200, 1100)
+	seedAffiliateRunInviteEvent(t, db, 100, 300, 1100)
+	seedAffiliateLog(t, db, model.Log{UserId: 200, CreatedAt: 1100, Type: model.LogTypeConsume, Quota: 1000, Other: `{"quota_source":"paid"}`})
+	seedAffiliateLog(t, db, model.Log{UserId: 200, CreatedAt: 1200, Type: model.LogTypeConsume, Quota: 1000, Other: `{"quota_source":"paid"}`})
+	seedAffiliateLog(t, db, model.Log{UserId: 300, CreatedAt: 1300, Type: model.LogTypeConsume, Quota: 3000, Other: `{"quota_source":"paid"}`})
+
+	body := performAdminRunAffiliateSettlementPipelineRequest(t, `{
+		"rule_set_id":`+strconv.Itoa(ruleSet.Id)+`,
+		"period_start":1000,
+		"period_end":2000,
+		"freeze_days":7,
+		"now":1815500,
+		"quota_per_unit":100,
+		"usd_exchange_rate":1,
+		"reason":"monthly close"
+	}`)
+	if !body.Success {
+		t.Fatalf("expected successful settlement run, got %+v", body)
+	}
+	if body.Data.KPISnapshotCount != 1 || body.Data.CommissionEventCount != 3 || body.Data.HeadFeeEventCount != 2 || len(body.Data.Settlements) != 1 {
+		t.Fatalf("unexpected settlement run counts: %+v", body.Data)
+	}
+	if body.Data.Settlements[0].PayableCents != 5900 {
+		t.Fatalf("expected settlement payable 5900 cents, got %+v", body.Data.Settlements[0])
 	}
 }
 
@@ -850,6 +884,11 @@ type affiliateSettlementDirectTestResponse struct {
 	Data    model.AffiliateSettlement `json:"data"`
 }
 
+type affiliateSettlementRunDirectTestResponse struct {
+	Success bool                                 `json:"success"`
+	Data    service.AffiliateSettlementRunResult `json:"data"`
+}
+
 type affiliateProfilesListTestResponse struct {
 	Success bool `json:"success"`
 	Data    struct {
@@ -914,7 +953,8 @@ func newAffiliateLogsControllerTestDB(t *testing.T) *gorm.DB {
 	t.Helper()
 	originalDB := model.DB
 	originalLogDB := model.LOG_DB
-	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	name := strings.NewReplacer("/", "_", " ", "_").Replace(t.Name())
+	db, err := gorm.Open(sqlite.Open("file:"+name+"?mode=memory&cache=shared"), &gorm.Config{})
 	if err != nil {
 		t.Fatalf("open sqlite: %v", err)
 	}
@@ -963,6 +1003,26 @@ func performAdminGenerateAffiliateSettlementsRequest(t *testing.T, payload strin
 		t.Fatalf("expected status 200, got %d body=%s", recorder.Code, recorder.Body.String())
 	}
 	var body affiliateSettlementListDirectTestResponse
+	if err := json.Unmarshal(recorder.Body.Bytes(), &body); err != nil {
+		t.Fatalf("unmarshal response: %v body=%s", err, recorder.Body.String())
+	}
+	return body
+}
+
+func performAdminRunAffiliateSettlementPipelineRequest(t *testing.T, payload string) affiliateSettlementRunDirectTestResponse {
+	t.Helper()
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = httptest.NewRequest(http.MethodPost, "/api/affiliate/admin/settlement-runs", bytes.NewBufferString(payload))
+	ctx.Set("id", 1)
+	ctx.Set("role", common.RoleAdminUser)
+
+	AdminRunAffiliateSettlementPipeline(ctx)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d body=%s", recorder.Code, recorder.Body.String())
+	}
+	var body affiliateSettlementRunDirectTestResponse
 	if err := json.Unmarshal(recorder.Body.Bytes(), &body); err != nil {
 		t.Fatalf("unmarshal response: %v body=%s", err, recorder.Body.String())
 	}
@@ -1124,6 +1184,45 @@ func seedPublishedAffiliateRuleSetForAdminSettlement(t *testing.T, db *gorm.DB, 
 	return ruleSet
 }
 
+func seedPublishedAffiliateRuleSetForAdminRun(t *testing.T, db *gorm.DB, version string) model.AffiliateRuleSet {
+	t.Helper()
+	input := newAffiliateRuleSetDraftRequest(version)
+	input.KPITiers = []service.AffiliateKPITierInput{
+		{AffiliateLevel: 1, Code: "base", Name: "Base", MinEffectiveNewUsers: 1, MinNetPaidAmountCents: 100, CoefficientBps: 10000, MaxGiftOnlyRatioBps: 10000, MaxAbnormalRatioBps: 10000, MinSecondPaymentRatioBps: 0, SortOrder: 1},
+		{AffiliateLevel: 1, Code: "growth", Name: "Growth", MinEffectiveNewUsers: 2, MinNetPaidAmountCents: 500, CoefficientBps: 15000, MaxGiftOnlyRatioBps: 2500, MaxAbnormalRatioBps: 2500, MinSecondPaymentRatioBps: 5000, SortOrder: 2},
+		{AffiliateLevel: 2, Code: "base", Name: "Base", MinEffectiveNewUsers: 1, MinNetPaidAmountCents: 100, CoefficientBps: 10000, MaxGiftOnlyRatioBps: 10000, MaxAbnormalRatioBps: 10000, MinSecondPaymentRatioBps: 0, SortOrder: 1},
+	}
+	input.HeadFeeRules = []service.AffiliateHeadFeeRuleInput{
+		{AffiliateLevel: 1, KPITierCode: "base", AmountCents: 1000, FirstRechargeMinCents: 100, PeriodNetPaidMinCents: 100, QualificationDays: 14, UnlockDelayDays: 7},
+		{AffiliateLevel: 1, KPITierCode: "growth", AmountCents: 2500, FirstRechargeMinCents: 1000, PeriodNetPaidMinCents: 1500, QualificationDays: 14, UnlockDelayDays: 7},
+		{AffiliateLevel: 2, KPITierCode: "base", AmountCents: 500, FirstRechargeMinCents: 100, PeriodNetPaidMinCents: 100, QualificationDays: 14, UnlockDelayDays: 7},
+	}
+	ruleSet, err := service.SaveAffiliateRuleSetDraft(db, input)
+	if err != nil {
+		t.Fatalf("save admin run rule set: %v", err)
+	}
+	published, err := service.PublishAffiliateRuleSet(db, ruleSet.Id, service.AffiliateRuleSetStatusInput{
+		ActorUserId: 1,
+		Reason:      "publish admin run rules",
+	})
+	if err != nil {
+		t.Fatalf("publish admin run rule set: %v", err)
+	}
+	return *published
+}
+
+func seedAffiliateRunInviteEvent(t *testing.T, db *gorm.DB, inviterUserId int, inviteeUserId int, createdAt int64) {
+	t.Helper()
+	if err := db.Create(&model.AffiliateInviteEvent{
+		InviterUserId: inviterUserId,
+		InviteeUserId: inviteeUserId,
+		InviteSource:  service.AffiliateInviteSourceAffiliate,
+		CreatedAt:     createdAt,
+	}).Error; err != nil {
+		t.Fatalf("seed run invite event: %v", err)
+	}
+}
+
 func newAffiliateAdminRouteTestRouter(t *testing.T, role int) *gin.Engine {
 	t.Helper()
 	gin.SetMode(gin.TestMode)
@@ -1154,6 +1253,7 @@ func newAffiliateAdminRouteTestRouter(t *testing.T, role int) *gin.Engine {
 		adminRoute.GET("/commissions", AdminListAffiliateCommissions)
 		adminRoute.GET("/settlements", AdminListAffiliateSettlements)
 		adminRoute.POST("/settlements/generate", AdminGenerateAffiliateSettlements)
+		adminRoute.POST("/settlement-runs", AdminRunAffiliateSettlementPipeline)
 		adminRoute.PATCH("/settlements/:id/freeze", AdminFreezeAffiliateSettlement)
 		adminRoute.PATCH("/settlements/:id/void", AdminVoidAffiliateSettlement)
 		adminRoute.PATCH("/settlements/:id/pay", AdminMarkAffiliateSettlementPaid)

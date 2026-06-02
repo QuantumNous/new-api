@@ -46,6 +46,7 @@ func SetApiRouter(router *gin.Engine) {
 			affiliateAdminRoute.GET("/commissions", controller.AdminListAffiliateCommissions)
 			affiliateAdminRoute.GET("/settlements", controller.AdminListAffiliateSettlements)
 			affiliateAdminRoute.POST("/settlements/generate", controller.AdminGenerateAffiliateSettlements)
+			affiliateAdminRoute.POST("/settlement-runs", controller.AdminRunAffiliateSettlementPipeline)
 			affiliateAdminRoute.PATCH("/settlements/:id/freeze", controller.AdminFreezeAffiliateSettlement)
 			affiliateAdminRoute.PATCH("/settlements/:id/void", controller.AdminVoidAffiliateSettlement)
 			affiliateAdminRoute.PATCH("/settlements/:id/pay", controller.AdminMarkAffiliateSettlementPaid)

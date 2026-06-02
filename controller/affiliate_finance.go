@@ -17,6 +17,17 @@ type affiliateSettlementGenerateRequest struct {
 	Reason      string `json:"reason"`
 }
 
+type affiliateSettlementRunRequest struct {
+	RuleSetId       int     `json:"rule_set_id"`
+	PeriodStart     int64   `json:"period_start"`
+	PeriodEnd       int64   `json:"period_end"`
+	FreezeDays      int     `json:"freeze_days"`
+	Now             int64   `json:"now"`
+	QuotaPerUnit    float64 `json:"quota_per_unit"`
+	USDExchangeRate float64 `json:"usd_exchange_rate"`
+	Reason          string  `json:"reason"`
+}
+
 type affiliateSettlementPaidRequest struct {
 	PaidAt           int64  `json:"paid_at"`
 	PaymentReference string `json:"payment_reference"`
@@ -108,6 +119,31 @@ func AdminGenerateAffiliateSettlements(c *gin.Context) {
 		return
 	}
 	common.ApiSuccess(c, settlements)
+}
+
+func AdminRunAffiliateSettlementPipeline(c *gin.Context) {
+	var req affiliateSettlementRunRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		common.ApiErrorMsg(c, "参数错误")
+		return
+	}
+
+	result, err := service.RunAffiliateSettlementPipeline(model.DB, model.LOG_DB, service.AffiliateSettlementRunInput{
+		RuleSetId:       req.RuleSetId,
+		PeriodStart:     req.PeriodStart,
+		PeriodEnd:       req.PeriodEnd,
+		FreezeDays:      req.FreezeDays,
+		Now:             req.Now,
+		QuotaPerUnit:    req.QuotaPerUnit,
+		USDExchangeRate: req.USDExchangeRate,
+		ActorUserId:     c.GetInt("id"),
+		Reason:          req.Reason,
+	})
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	common.ApiSuccess(c, result)
 }
 
 func AdminFreezeAffiliateSettlement(c *gin.Context) {
