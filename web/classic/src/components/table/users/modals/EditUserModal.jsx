@@ -44,6 +44,7 @@ import {
   Avatar,
   Row,
   Col,
+  Input,
   InputNumber,
   RadioGroup,
   Radio,
@@ -57,6 +58,15 @@ import {
   IconEdit,
 } from '@douyinfe/semi-icons';
 import UserBindingManagementModal from './UserBindingManagementModal';
+import {
+  buildAffiliateInviterCandidatesQuery,
+  buildAffiliateInviterPreviewQuery,
+  buildAffiliateInviterUpdatePayload,
+  buildAffiliateInviterUpdateUrl,
+  formatAffiliateInviterCandidateLabel,
+  formatAffiliateInviterPath,
+  validateAffiliateInviterChange,
+} from '../affiliateInviterManagement';
 
 const { Text, Title } = Typography;
 
@@ -76,6 +86,14 @@ const EditUserModal = (props) => {
   const [showAdjustQuotaRaw, setShowAdjustQuotaRaw] = useState(false);
   const [showQuotaInput, setShowQuotaInput] = useState(false);
   const [inputs, setInputs] = useState(null);
+  const [inviterKeyword, setInviterKeyword] = useState('');
+  const [inviterCandidates, setInviterCandidates] = useState([]);
+  const [inviterCandidateLoading, setInviterCandidateLoading] = useState(false);
+  const [newInviterUserId, setNewInviterUserId] = useState(0);
+  const [inviterReason, setInviterReason] = useState('');
+  const [inviterPreview, setInviterPreview] = useState(null);
+  const [inviterPreviewLoading, setInviterPreviewLoading] = useState(false);
+  const [inviterSaveLoading, setInviterSaveLoading] = useState(false);
 
   const isEdit = Boolean(userId);
 
@@ -118,10 +136,20 @@ const EditUserModal = (props) => {
         quotaToDisplayAmount(data.quota || 0).toFixed(6),
       );
       setInputs({ ...getInitValues(), ...data });
+      setNewInviterUserId(Number(data.inviter_id || 0));
+      setInviterPreview(null);
     } else {
       showError(message);
     }
     setLoading(false);
+  };
+
+  const resetInviterState = () => {
+    setInviterKeyword('');
+    setInviterCandidates([]);
+    setInviterReason('');
+    setInviterPreview(null);
+    setNewInviterUserId(0);
   };
 
   useEffect(() => {
@@ -131,6 +159,7 @@ const EditUserModal = (props) => {
   }, [inputs]);
 
   useEffect(() => {
+    resetInviterState();
     loadUser();
     if (userId) fetchGroups();
     setBindingModalVisible(false);
@@ -142,6 +171,94 @@ const EditUserModal = (props) => {
 
   const closeBindingModal = () => {
     setBindingModalVisible(false);
+  };
+
+  const searchInviterCandidates = async () => {
+    setInviterCandidateLoading(true);
+    try {
+      const res = await API.get(
+        buildAffiliateInviterCandidatesQuery({
+          keyword: inviterKeyword,
+          page: 1,
+          pageSize: 10,
+        }),
+      );
+      const { success, data, message } = res.data;
+      if (!success) {
+        showError(message || t('邀请人候选加载失败'));
+        return;
+      }
+      const items = Array.isArray(data?.items) ? data.items : [];
+      setInviterCandidates(
+        items.filter((candidate) => Number(candidate.id) !== Number(userId)),
+      );
+    } catch (e) {
+      showError(e.message || t('邀请人候选加载失败'));
+    } finally {
+      setInviterCandidateLoading(false);
+    }
+  };
+
+  const previewInviterChange = async () => {
+    const validationError = validateAffiliateInviterChange(
+      t,
+      userId,
+      newInviterUserId,
+    );
+    if (validationError) {
+      showError(validationError);
+      return;
+    }
+    setInviterPreviewLoading(true);
+    try {
+      const res = await API.get(
+        buildAffiliateInviterPreviewQuery(userId, newInviterUserId),
+      );
+      const { success, data, message } = res.data;
+      if (!success) {
+        showError(message || t('邀请关系预览失败'));
+        return;
+      }
+      setInviterPreview(data);
+    } catch (e) {
+      showError(e.message || t('邀请关系预览失败'));
+    } finally {
+      setInviterPreviewLoading(false);
+    }
+  };
+
+  const saveInviterChange = async () => {
+    const validationError = validateAffiliateInviterChange(
+      t,
+      userId,
+      newInviterUserId,
+    );
+    if (validationError) {
+      showError(validationError);
+      return;
+    }
+    setInviterSaveLoading(true);
+    try {
+      const res = await API.patch(
+        buildAffiliateInviterUpdateUrl(userId),
+        buildAffiliateInviterUpdatePayload({
+          newInviterUserId,
+          reason: inviterReason,
+        }),
+      );
+      const { success, message } = res.data;
+      if (!success) {
+        showError(message || t('邀请人保存失败'));
+        return;
+      }
+      showSuccess(t('邀请人已更新'));
+      await loadUser();
+      props.refresh();
+    } catch (e) {
+      showError(e.message || t('邀请人保存失败'));
+    } finally {
+      setInviterSaveLoading(false);
+    }
   };
 
   /* ----------------------- submit ----------------------- */
@@ -170,7 +287,11 @@ const EditUserModal = (props) => {
   const adjustQuota = async () => {
     const quotaVal = parseInt(adjustQuotaLocal) || 0;
     if (quotaVal <= 0 && adjustMode !== 'override') return;
-    if (adjustMode === 'override' && (adjustQuotaLocal === '' || adjustQuotaLocal == null)) return;
+    if (
+      adjustMode === 'override' &&
+      (adjustQuotaLocal === '' || adjustQuotaLocal == null)
+    )
+      return;
     setAdjustLoading(true);
     try {
       const res = await API.post('/api/user/manage', {
@@ -401,7 +522,10 @@ const EditUserModal = (props) => {
                             ? `▾ ${t('收起原生额度输入')}`
                             : `▸ ${t('使用原生额度输入')}`}
                         </div>
-                        <div style={{ display: showQuotaInput ? 'block' : 'none' }} className='mt-2'>
+                        <div
+                          style={{ display: showQuotaInput ? 'block' : 'none' }}
+                          className='mt-2'
+                        >
                           <Form.InputNumber
                             field='quota'
                             label={t('额度')}
@@ -412,6 +536,202 @@ const EditUserModal = (props) => {
                         </div>
                       </Col>
                     </Row>
+                  </Card>
+                )}
+
+                {/* 邀请关系 */}
+                {userId && (
+                  <Card className='!rounded-2xl shadow-sm border-0'>
+                    <div className='flex items-center mb-2'>
+                      <Avatar
+                        size='small'
+                        color='orange'
+                        className='mr-2 shadow-md'
+                      >
+                        <IconLink size={16} />
+                      </Avatar>
+                      <div>
+                        <Text className='text-lg font-medium'>
+                          {t('邀请关系')}
+                        </Text>
+                        <div className='text-xs text-gray-600'>
+                          {t('搜索候选邀请人，预览关系路径后保存变更')}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className='mb-3'>
+                      <Tag color={inputs?.inviter_id ? 'blue' : 'grey'}>
+                        {inputs?.inviter_id
+                          ? `${t('当前邀请人')}: ${inputs.inviter_id}`
+                          : t('当前无邀请人')}
+                      </Tag>
+                    </div>
+
+                    <Row gutter={12}>
+                      <Col span={24}>
+                        <div className='flex gap-2'>
+                          <Input
+                            value={inviterKeyword}
+                            onChange={setInviterKeyword}
+                            placeholder={t(
+                              '输入用户 ID、用户名、显示名称或邮箱搜索',
+                            )}
+                            showClear
+                          />
+                          <Button
+                            type='primary'
+                            theme='outline'
+                            loading={inviterCandidateLoading}
+                            onClick={searchInviterCandidates}
+                          >
+                            {t('搜索')}
+                          </Button>
+                        </div>
+                      </Col>
+
+                      <Col span={24}>
+                        <div className='mt-2'>
+                          {inviterCandidates.length > 0 ? (
+                            <Space wrap>
+                              {inviterCandidates.map((candidate) => (
+                                <Button
+                                  key={candidate.id}
+                                  size='small'
+                                  theme={
+                                    Number(newInviterUserId) ===
+                                    Number(candidate.id)
+                                      ? 'solid'
+                                      : 'light'
+                                  }
+                                  type='tertiary'
+                                  onClick={() => {
+                                    setNewInviterUserId(Number(candidate.id));
+                                    setInviterPreview(null);
+                                  }}
+                                >
+                                  {formatAffiliateInviterCandidateLabel(
+                                    candidate,
+                                  )}
+                                </Button>
+                              ))}
+                            </Space>
+                          ) : (
+                            inviterKeyword && (
+                              <Text type='secondary' size='small'>
+                                {t('暂无候选结果，请搜索后选择或直接输入 ID')}
+                              </Text>
+                            )
+                          )}
+                        </div>
+                      </Col>
+
+                      <Col span={12}>
+                        <InputNumber
+                          value={newInviterUserId}
+                          min={0}
+                          step={1}
+                          style={{ width: '100%' }}
+                          placeholder={t('新邀请人用户 ID，0 表示清空')}
+                          onChange={(value) => {
+                            setNewInviterUserId(Number(value || 0));
+                            setInviterPreview(null);
+                          }}
+                        />
+                      </Col>
+
+                      <Col span={12}>
+                        <Button
+                          type='tertiary'
+                          onClick={() => {
+                            setNewInviterUserId(0);
+                            setInviterPreview(null);
+                          }}
+                        >
+                          {t('清空邀请人')}
+                        </Button>
+                      </Col>
+
+                      <Col span={24}>
+                        <Input
+                          value={inviterReason}
+                          onChange={setInviterReason}
+                          placeholder={t('操作原因（会写入审计日志）')}
+                          showClear
+                        />
+                      </Col>
+
+                      <Col span={24}>
+                        <Space>
+                          <Button
+                            type='primary'
+                            theme='outline'
+                            loading={inviterPreviewLoading}
+                            onClick={previewInviterChange}
+                          >
+                            {t('预览影响')}
+                          </Button>
+                          <Button
+                            type='primary'
+                            loading={inviterSaveLoading}
+                            onClick={saveInviterChange}
+                          >
+                            {t('保存邀请人')}
+                          </Button>
+                        </Space>
+                      </Col>
+                    </Row>
+
+                    {inviterPreview && (
+                      <div
+                        className='mt-3 p-3 rounded-xl text-sm'
+                        style={{ background: 'var(--semi-color-fill-0)' }}
+                      >
+                        <div>
+                          <Text strong>{t('目标用户')}</Text>:{' '}
+                          {`#${inviterPreview.target_user_id || userId} ${
+                            inviterPreview.target_username || ''
+                          }`}
+                        </div>
+                        <div>
+                          <Text strong>{t('原邀请人')}</Text>:{' '}
+                          {inviterPreview.current_inviter_user_id
+                            ? `#${inviterPreview.current_inviter_user_id} ${
+                                inviterPreview.current_inviter_username || ''
+                              }`
+                            : t('无')}
+                        </div>
+                        <div>
+                          <Text strong>{t('新邀请人')}</Text>:{' '}
+                          {inviterPreview.new_inviter_user_id
+                            ? `#${inviterPreview.new_inviter_user_id} ${
+                                inviterPreview.new_inviter_username || ''
+                              }`
+                            : t('无')}
+                        </div>
+                        <div>
+                          <Text strong>{t('当前路径')}</Text>:{' '}
+                          {formatAffiliateInviterPath(
+                            t,
+                            inviterPreview.current_path_user_ids,
+                          )}
+                        </div>
+                        <div>
+                          <Text strong>{t('新路径')}</Text>:{' '}
+                          {formatAffiliateInviterPath(
+                            t,
+                            inviterPreview.new_path_user_ids,
+                          )}
+                        </div>
+                        <div>
+                          <Text strong>{t('受影响用户')}</Text>:{' '}
+                          {formatAffiliateInviterPath(
+                            t,
+                            inviterPreview.affected_descendant_user_ids,
+                          )}
+                        </div>
+                      </div>
+                    )}
                   </Card>
                 )}
 
@@ -539,7 +859,10 @@ const EditUserModal = (props) => {
             ? `▾ ${t('收起原生额度输入')}`
             : `▸ ${t('使用原生额度输入')}`}
         </div>
-        <div style={{ display: showAdjustQuotaRaw ? 'block' : 'none' }} className='mt-2'>
+        <div
+          style={{ display: showAdjustQuotaRaw ? 'block' : 'none' }}
+          className='mt-2'
+        >
           <div className='mb-1'>
             <Text size='small'>{t('额度')}</Text>
           </div>
