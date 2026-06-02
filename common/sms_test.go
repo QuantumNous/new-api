@@ -2,6 +2,7 @@ package common
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"net/http"
 	"net/url"
@@ -90,6 +91,32 @@ func TestSMSBaoProviderMapsKnownProviderErrorCode(t *testing.T) {
 	}
 	if err.Error() != "smsbao balance is insufficient" {
 		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestSMSBaoProviderDoesNotExposeCredentialOnTransportError(t *testing.T) {
+	provider := SMSBaoProvider{
+		Endpoint:   "https://sms.example.test/sms",
+		Username:   "demo-user",
+		Credential: "leak-me-token",
+		HTTPClient: &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+			return nil, fmt.Errorf("dial failed")
+		})},
+	}
+	_, err := provider.Send(context.Background(), SMSProviderSendInput{
+		Phone:   "13800138000",
+		Content: "验证码 123456",
+	})
+	if err == nil {
+		t.Fatal("expected transport error")
+	}
+	if err.Error() != "smsbao request failed" {
+		t.Fatalf("expected sanitized error, got %v", err)
+	}
+	for _, forbidden := range []string{"leak-me-token", "13800138000", "123456", "验证码"} {
+		if strings.Contains(err.Error(), forbidden) {
+			t.Fatalf("transport error leaked %q: %v", forbidden, err)
+		}
 	}
 }
 

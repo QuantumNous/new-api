@@ -170,7 +170,7 @@
 - [x] 支持短信签名后台配置，并标记备案/审核状态；当前发送内容渲染要求签名状态为 `approved`。
 - [x] 支持按场景配置模板：注册、登录、绑定手机号、换绑、重置密码。
 - [x] 支持模板变量：验证码、有效期、产品名、站点名。
-- [ ] 支持测试发送，不在响应或日志中暴露完整验证码、手机号、ApiKey 或密码。
+- [x] 支持测试发送，不在响应或日志中暴露完整验证码、手机号、ApiKey 或密码；后端 root 接口为 `POST /api/option/sms/test`。
 - [ ] 支持短信宝余额查询或状态检查入口。
 - [ ] 支持手机号、IP、账号、场景维度限流。
 - [ ] 手机号注册如启用，必须接入 Phase 5 的统一邀请归因和初始额度规则。
@@ -201,6 +201,13 @@
 - 验证方式：先观察 `go test ./common ./model -run 'SMS|SMSSignature|SMSTemplate|RenderSMS'` RED；实现后同命令通过。覆盖签名 approved 渲染、pending 签名拒绝、模板缺失拒绝、全局配置渲染、OptionMap 初始化和更新。
 - 残留风险：尚未实现测试发送 API、短信发送日志、限流、SMS Turnstile、手机号绑定 sidecar、手机号注册/登录入口和注册归因接入；签名审核状态目前是配置标记和渲染门禁，未接入外部备案校验流程。
 - 下一步：实现测试发送 API 且响应/日志不暴露验证码和完整手机号，或先设计 `sms_send_logs` / `user_phone_bindings` sidecar 并跑 schema impact。
+
+### Phase 5A SMS test send 复盘（2026-06-03 本线程）
+
+- 完成内容：新增后端测试发送接口 `POST /api/option/sms/test`，继承 `/api/option` 的 `RootAuth`；接口渲染当前场景模板并调用 SMS provider，但响应只返回脱敏手机号、provider、provider code 和场景，不返回完整手机号、验证码、凭据或短信正文。
+- 验证方式：先观察 `go test ./controller -run 'TestAdminTestSMS'` RED；实现 `common.SMSProviderFactory` 注入点、`common.MaskPhone`、`controller.AdminTestSMS` 和路由后，同命令通过；补充 `go test ./common -run TestSMSBaoProviderDoesNotExposeCredentialOnTransportError` RED/GREEN，确认网络错误不会回显带 query 的 provider URL；`go test -count=1 ./common ./model ./controller -run 'SMS|SMSBao|SMSSignature|SMSTemplate|RenderSMS|AdminTestSMS|NormalizePhone'` 通过；`go test -count=1 ./common ./model ./controller` 中 `common`、`model` 通过，`controller` 仍受既有 `TestListModelsTokenLimitIncludesTieredBillingModel` / `sql: database is closed` baseline 影响。
+- 残留风险：尚未实现管理员前端测试发送按钮、短信发送日志、限流、SMS Turnstile、手机号绑定 sidecar、手机号注册/登录入口和注册归因接入；当前测试发送失败未落库审计；controller 全量包测试存在既有非 SMS baseline 失败。
+- 下一步：实现 `sms_send_logs` sidecar 和脱敏发送日志，或补 SMS 限流/SMS Turnstile。
 
 ## Phase 6：分销 scope 与 scoped 使用日志
 

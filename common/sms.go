@@ -34,6 +34,8 @@ type SMSProvider interface {
 	Send(ctx context.Context, input SMSProviderSendInput) (SMSProviderSendResult, error)
 }
 
+var SMSProviderFactory = defaultSMSProviderFactory
+
 type SMSBaoProvider struct {
 	Endpoint       string
 	Username       string
@@ -57,6 +59,10 @@ func NormalizePhone(phone string) (string, error) {
 }
 
 func NewSMSProvider(providerName string) (SMSProvider, error) {
+	return SMSProviderFactory(providerName)
+}
+
+func defaultSMSProviderFactory(providerName string) (SMSProvider, error) {
 	name := strings.TrimSpace(providerName)
 	if name == "" {
 		name = SMSProviderName
@@ -76,6 +82,17 @@ func NewSMSProvider(providerName string) (SMSProvider, error) {
 	}
 }
 
+func MaskPhone(phone string) string {
+	normalized, err := NormalizePhone(phone)
+	if err != nil {
+		return ""
+	}
+	if len(normalized) <= 7 {
+		return normalized[:1] + "****" + normalized[len(normalized)-1:]
+	}
+	return normalized[:3] + "****" + normalized[len(normalized)-4:]
+}
+
 func (provider *SMSBaoProvider) Send(ctx context.Context, input SMSProviderSendInput) (SMSProviderSendResult, error) {
 	result := SMSProviderSendResult{Provider: SMSProviderSMSBao}
 	phone, err := NormalizePhone(input.Phone)
@@ -92,16 +109,16 @@ func (provider *SMSBaoProvider) Send(ctx context.Context, input SMSProviderSendI
 	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, rawURL, nil)
 	if err != nil {
-		return result, err
+		return result, fmt.Errorf("smsbao request is invalid")
 	}
 	resp, err := client.Do(req)
 	if err != nil {
-		return result, err
+		return result, fmt.Errorf("smsbao request failed")
 	}
 	defer resp.Body.Close()
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return result, err
+		return result, fmt.Errorf("smsbao response read failed")
 	}
 	code := strings.TrimSpace(string(body))
 	result.ProviderCode = code
@@ -122,7 +139,7 @@ func (provider *SMSBaoProvider) buildSendURL(phone string, content string) (stri
 	}
 	parsed, err := url.Parse(endpoint)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("smsbao endpoint is invalid")
 	}
 	values := parsed.Query()
 	values.Set("u", provider.Username)
