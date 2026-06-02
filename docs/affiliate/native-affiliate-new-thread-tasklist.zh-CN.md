@@ -407,14 +407,15 @@
 - [x] 发布规则前校验一级最高档不超过 30% 业务 cap。
 - [x] 发布规则前校验二级有效比例不高于一级，避免倒挂。
 - [ ] 佣金、KPI 快照、结算单必须记录规则集版本。
-- [ ] 实现保留单用户累计净付费消耗区间的分佣规则。
-- [ ] 实现 KPI 系数，最低 1，其他档位大于 1。
-- [ ] 一级分销商最高档有效分佣可达 30%，但不超过业务 cap。
-- [ ] 佣金只统计 paid 来源净消耗。
-- [ ] 支持退款/负向日志扣回。
+- [x] pending 佣金事件记录 `rule_set_id` 和 `rule_set_version` metadata；KPI 快照、结算单的版本记录仍待实现。
+- [x] 实现保留单用户累计净付费消耗区间的分佣规则。
+- [x] 实现 KPI 系数，最低 1，其他档位大于 1。
+- [x] 一级分销商最高档有效分佣可达 30%，但不超过业务 cap。
+- [x] 佣金只统计 paid 来源净消耗。
+- [x] 支持退款/负向日志扣回。
 - [ ] 实现人头费条件：首次付费、最低净付费、周期净付费等。
 - [ ] 实现 KPI 快照。
-- [ ] 实现 pending 佣金明细。
+- [x] 实现 pending 佣金明细。
 - [ ] 实现结算单生成、冻结、作废、标记已支付。
 - [ ] 分销商只读自己的佣金/结算。
 - [ ] 管理员可全局管理规则、佣金和结算。
@@ -425,6 +426,13 @@
 - 验证方式：已运行 `go test -count=1 ./service -run 'AffiliateRuleSet|RuleSet'` 和 `go test -count=1 ./controller -run 'AffiliateRuleSet|RuleSet'`，覆盖草稿持久化、发布归档、发布前持久化配置复校、列表过滤、后台权限、一级 30% cap、二级不倒挂、KPI 系数最低 1、生效时间窗口。
 - 残留风险：尚未实现管理员前端规则配置页；尚未接入真实佣金、KPI 快照、人头费事件和结算单生成；本批未跑 Docker/PostgreSQL schema smoke，仍依赖已有 sidecar schema 迁移验证。
 - 下一步：继续补规则集管理 UI 或优先实现佣金/KPI/结算计算切片，并为规则集版本贯穿事件、快照、结算单。
+
+### Phase 10 阶段复盘（2026-06-03 pending 佣金事件）
+
+- 完成内容：新增后端 pending 佣金事件生成服务，只处理明确 `quota_source=paid` 的消费/退款日志；按 published 规则集、生效时间、分销 profile level、单用户累计净付费区间和 KPI snapshot 系数计算佣金；生成 `accrual` / `clawback` 事件，记录 `rule_set_id`、`rule_set_version`、raw quota、净付费 cents、累计 before/after、base/cap/final rate。
+- 验证方式：先观察 `go test -count=1 ./service -run 'AffiliatePendingCommission|CommissionEvents|Commission'` RED；实现后同命令通过；补充 `go test -count=1 ./service` 和 `go test -count=1 ./model ./service ./controller ./router -run 'Affiliate|RuleSet|Commission|Admin'` 均通过。
+- 残留风险：当前 paid 来源依赖日志 `Other` 中明确标记，官方日志表本身没有 paid/gift/trial 列；后续如新增 `user_quota_source_*` sidecar，需要把来源判定接入 sidecar，不能把未标记日志默认当 paid；KPI 快照生成、人头费事件、结算单生成和分销商只读结算 API 尚未实现。
+- 下一步：实现 KPI snapshot 生成或 settlement draft/freeze/pay 流程，并把规则集版本继续贯穿 KPI 快照和结算单。
 
 ## Phase 11：用户管理 `inviter_id`
 

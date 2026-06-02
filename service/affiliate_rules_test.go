@@ -74,6 +74,21 @@ func TestSaveAffiliateRuleSetDraftValidatesBusinessBounds(t *testing.T) {
 			wantError: "kpi coefficient",
 		},
 		{
+			name: "rejects non base kpi coefficient equal one",
+			mutate: func(input *AffiliateRuleSetDraftInput) {
+				input.KPITiers = append(input.KPITiers, AffiliateKPITierInput{
+					AffiliateLevel:        1,
+					Code:                  "growth",
+					Name:                  "Growth",
+					MinEffectiveNewUsers:  10,
+					MinNetPaidAmountCents: 100000,
+					CoefficientBps:        10000,
+					SortOrder:             2,
+				})
+			},
+			wantError: "kpi coefficient",
+		},
+		{
 			name: "rejects invalid effective window",
 			mutate: func(input *AffiliateRuleSetDraftInput) {
 				input.EffectiveEnd = input.EffectiveStart - 1

@@ -478,6 +478,9 @@ func validateAffiliateRuleSetDraftInput(input AffiliateRuleSetDraftInput) error 
 		if tier.CoefficientBps < affiliateBpsBase {
 			return errors.New("kpi coefficient must be at least 10000 bps")
 		}
+		if tier.SortOrder > 1 && tier.CoefficientBps <= affiliateBpsBase {
+			return errors.New("kpi coefficient for non-base tier must be greater than 10000 bps")
+		}
 		if err := validateBps("kpi max gift-only ratio", tier.MaxGiftOnlyRatioBps); err != nil {
 			return err
 		}
