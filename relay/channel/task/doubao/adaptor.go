@@ -5,7 +5,9 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
@@ -65,6 +67,12 @@ type responsePayload struct {
 	ID string `json:"id"` // task_id
 }
 
+type responsePayloadEnvelope struct {
+	Code    string          `json:"code"`
+	Message string          `json:"message"`
+	Data    responsePayload `json:"data"`
+}
+
 type responseTask struct {
 	ID      string `json:"id"`
 	Model   string `json:"model"`
@@ -96,6 +104,12 @@ type responseTask struct {
 	UpdatedAt int64 `json:"updated_at"`
 }
 
+type responseTaskEnvelope struct {
+	Code    string       `json:"code"`
+	Message string       `json:"message"`
+	Data    responseTask `json:"data"`
+}
+
 // ============================
 // Adaptor implementation
 // ============================
@@ -105,9 +119,51 @@ type TaskAdaptor struct {
 	ChannelType int
 	apiKey      string
 	baseURL     string
+	createPath  string
+	queryPath   string
+	modelList   []string
+	channelName string
+}
+
+func NewTaskAdaptor() *TaskAdaptor {
+	return &TaskAdaptor{
+		createPath:  OfficialCreatePath,
+		queryPath:   OfficialQueryPath,
+		modelList:   ModelList,
+		channelName: ChannelName,
+	}
+}
+
+func NewZLHubTaskAdaptor() *TaskAdaptor {
+	return &TaskAdaptor{
+		createPath:  ZLHubCreatePath,
+		queryPath:   ZLHubQueryPath,
+		modelList:   ZLHubModelList,
+		channelName: ZLHubChannelName,
+	}
+}
+
+func (a *TaskAdaptor) setDefaults() {
+	if a.createPath == "" {
+		a.createPath = OfficialCreatePath
+	}
+	if a.queryPath == "" {
+		a.queryPath = OfficialQueryPath
+	}
+	if a.modelList == nil {
+		a.modelList = ModelList
+	}
+	if a.channelName == "" {
+		a.channelName = ChannelName
+	}
+}
+
+func buildTaskURL(baseURL, requestPath string) string {
+	return strings.TrimRight(baseURL, "/") + "/" + strings.TrimLeft(requestPath, "/")
 }
 
 func (a *TaskAdaptor) Init(info *relaycommon.RelayInfo) {
+	a.setDefaults()
 	a.ChannelType = info.ChannelType
 	a.baseURL = info.ChannelBaseUrl
 	a.apiKey = info.ApiKey
@@ -121,7 +177,8 @@ func (a *TaskAdaptor) ValidateRequestAndSetAction(c *gin.Context, info *relaycom
 
 // BuildRequestURL constructs the upstream URL.
 func (a *TaskAdaptor) BuildRequestURL(_ *relaycommon.RelayInfo) (string, error) {
-	return fmt.Sprintf("%s/api/v3/contents/generations/tasks", a.baseURL), nil
+	a.setDefaults()
+	return buildTaskURL(a.baseURL, a.createPath), nil
 }
 
 // BuildRequestHeader sets required headers.
@@ -213,8 +270,8 @@ func (a *TaskAdaptor) DoResponse(c *gin.Context, resp *http.Response, info *rela
 	_ = resp.Body.Close()
 
 	// Parse Doubao response
-	var dResp responsePayload
-	if err := common.Unmarshal(responseBody, &dResp); err != nil {
+	dResp, err := parseResponsePayload(responseBody)
+	if err != nil {
 		taskErr = service.TaskErrorWrapper(errors.Wrapf(err, "body: %s", responseBody), "unmarshal_response_body_failed", http.StatusInternalServerError)
 		return
 	}
@@ -241,7 +298,8 @@ func (a *TaskAdaptor) FetchTask(baseUrl, key string, body map[string]any, proxy 
 		return nil, fmt.Errorf("invalid task_id")
 	}
 
-	uri := fmt.Sprintf("%s/api/v3/contents/generations/tasks/%s", baseUrl, taskID)
+	a.setDefaults()
+	uri := buildTaskURL(baseUrl, fmt.Sprintf(a.queryPath, url.PathEscape(taskID)))
 
 	req, err := http.NewRequest(http.MethodGet, uri, nil)
 	if err != nil {
@@ -260,11 +318,13 @@ func (a *TaskAdaptor) FetchTask(baseUrl, key string, body map[string]any, proxy 
 }
 
 func (a *TaskAdaptor) GetModelList() []string {
-	return ModelList
+	a.setDefaults()
+	return a.modelList
 }
 
 func (a *TaskAdaptor) GetChannelName() string {
-	return ChannelName
+	a.setDefaults()
+	return a.channelName
 }
 
 func (a *TaskAdaptor) convertToRequestPayload(req *relaycommon.TaskSubmitReq) (*requestPayload, error) {
@@ -303,9 +363,38 @@ func (a *TaskAdaptor) convertToRequestPayload(req *relaycommon.TaskSubmitReq) (*
 	return &r, nil
 }
 
+func parseResponsePayload(respBody []byte) (responsePayload, error) {
+	var payload responsePayload
+	if err := common.Unmarshal(respBody, &payload); err != nil {
+		return responsePayload{}, err
+	}
+	if payload.ID != "" {
+		return payload, nil
+	}
+
+	var envelope responsePayloadEnvelope
+	if err := common.Unmarshal(respBody, &envelope); err != nil {
+		return responsePayload{}, err
+	}
+	return envelope.Data, nil
+}
+
+func parseResponseTask(respBody []byte) (responseTask, error) {
+	var envelope responseTaskEnvelope
+	if err := common.Unmarshal(respBody, &envelope); err == nil && envelope.Data.ID != "" {
+		return envelope.Data, nil
+	}
+
+	var task responseTask
+	if err := common.Unmarshal(respBody, &task); err != nil {
+		return responseTask{}, err
+	}
+	return task, nil
+}
+
 func (a *TaskAdaptor) ParseTaskResult(respBody []byte) (*relaycommon.TaskInfo, error) {
-	resTask := responseTask{}
-	if err := common.Unmarshal(respBody, &resTask); err != nil {
+	resTask, err := parseResponseTask(respBody)
+	if err != nil {
 		return nil, errors.Wrap(err, "unmarshal task result failed")
 	}
 
@@ -342,8 +431,8 @@ func (a *TaskAdaptor) ParseTaskResult(respBody []byte) (*relaycommon.TaskInfo, e
 }
 
 func (a *TaskAdaptor) ConvertToOpenAIVideo(originTask *model.Task) ([]byte, error) {
-	var dResp responseTask
-	if err := common.Unmarshal(originTask.Data, &dResp); err != nil {
+	dResp, err := parseResponseTask(originTask.Data)
+	if err != nil {
 		return nil, errors.Wrap(err, "unmarshal doubao task data failed")
 	}
 

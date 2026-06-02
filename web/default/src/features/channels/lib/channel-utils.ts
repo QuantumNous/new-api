@@ -100,6 +100,7 @@ export function getChannelTypeIcon(type: number): string {
     36: 'Suno', // SunoAPI
     55: 'OpenAI', // Sora
     54: 'Doubao', // DoubaoVideo
+    58: 'Doubao', // ZLHubVideo
     56: 'Replicate', // Replicate
 
     // Tools & Platforms

@@ -134,6 +134,17 @@ export const CHANNEL_TYPE_CONFIGS: Record<number, ChannelTypeConfig> = {
       baseUrl: 'Default: https://api.replicate.com',
     },
   },
+  58: {
+    id: 58,
+    name: CHANNEL_TYPES[58],
+    icon: 'doubao',
+    defaultBaseUrl: 'https://api.zlhub.cn',
+    hints: {
+      key: 'ZLHub API Key',
+      models: 'doubao-seedance-2.0,doubao-seedance-2.0-fast',
+      baseUrl: 'Default: https://api.zlhub.cn',
+    },
+  },
 }
 
 /**

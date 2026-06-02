@@ -102,6 +102,7 @@ const BRAND_AND_LITERAL_KEYS = new Set([
   'Worker URL',
   'Xinference',
   'Xunfei',
+  'ZLHubVideo',
   'Zhipu V4',
   '"default": "us-central1", "claude-3-5-sonnet-20240620": "europe-west1"',
   'edit_this',
