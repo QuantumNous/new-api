@@ -212,6 +212,8 @@ const BILLING_SECTIONS = [
           enabled: settings['distribution_setting.enabled'],
           level1RateBps: settings['distribution_setting.level1_rate_bps'],
           level2RateBps: settings['distribution_setting.level2_rate_bps'],
+          cdkPurchaseDiscountBps:
+            settings['distribution_setting.cdk_purchase_discount_bps'],
         }}
         complianceConfirmed={
           (settings['payment_setting.compliance_confirmed'] ?? false) &&

@@ -30,7 +30,7 @@ import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 
 const paymentResultSearchSchema = z.object({
-  kind: z.enum(['topup', 'subscription']).catch('topup'),
+  kind: z.enum(['topup', 'subscription', 'affiliate_cdk']).catch('topup'),
   status: z.enum(['success', 'pending', 'fail']).catch('pending'),
 })
 
@@ -49,12 +49,19 @@ function RouteComponent() {
 
 function PaymentResult(props: { kind: PaymentKind; status: PaymentStatus }) {
   const { t } = useTranslation()
-  const detailHref = '/wallet?show_history=true'
-  const detailText = t('View wallet')
+  const isAffiliateCdk = props.kind === 'affiliate_cdk'
+  const detailHref = isAffiliateCdk
+    ? '/affiliate-cdk'
+    : '/wallet?show_history=true'
+  const detailText = isAffiliateCdk
+    ? t('View purchased CDKs')
+    : t('View wallet')
   const kindText =
     props.kind === 'subscription'
       ? t('Subscription payment')
-      : t('Wallet top-up')
+      : props.kind === 'affiliate_cdk'
+        ? t('CDK payment')
+        : t('Wallet top-up')
   const statusConfig = getStatusConfig(props.status)
   const statusCopy = {
     success: {

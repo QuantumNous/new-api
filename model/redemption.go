@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
+	"strings"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/logger"
@@ -12,18 +13,60 @@ import (
 )
 
 type Redemption struct {
-	Id           int            `json:"id"`
-	UserId       int            `json:"user_id"`
-	Key          string         `json:"key" gorm:"type:char(32);uniqueIndex"`
-	Status       int            `json:"status" gorm:"default:1"`
-	Name         string         `json:"name" gorm:"index"`
-	Quota        int            `json:"quota" gorm:"default:100"`
-	CreatedTime  int64          `json:"created_time" gorm:"bigint"`
-	RedeemedTime int64          `json:"redeemed_time" gorm:"bigint"`
-	Count        int            `json:"count" gorm:"-:all"` // only for api request
-	UsedUserId   int            `json:"used_user_id"`
-	DeletedAt    gorm.DeletedAt `gorm:"index"`
-	ExpiredTime  int64          `json:"expired_time" gorm:"bigint"` // 过期时间，0 表示不过期
+	Id              int            `json:"id"`
+	UserId          int            `json:"user_id"`
+	CreatorUsername string         `json:"creator_username" gorm:"-:all"`
+	Key             string         `json:"key" gorm:"type:char(32);uniqueIndex"`
+	Status          int            `json:"status" gorm:"default:1"`
+	Name            string         `json:"name" gorm:"index"`
+	Quota           int            `json:"quota" gorm:"default:100"`
+	SourceType      string         `json:"source_type" gorm:"type:varchar(32);default:'';index"`
+	SourceOrderId   int            `json:"source_order_id" gorm:"default:0;index"`
+	CreatedTime     int64          `json:"created_time" gorm:"bigint"`
+	RedeemedTime    int64          `json:"redeemed_time" gorm:"bigint"`
+	Count           int            `json:"count" gorm:"-:all"` // only for api request
+	UsedUserId      int            `json:"used_user_id"`
+	DeletedAt       gorm.DeletedAt `gorm:"index"`
+	ExpiredTime     int64          `json:"expired_time" gorm:"bigint"` // 过期时间，0 表示不过期
+}
+
+func populateRedemptionCreatorNames(db *gorm.DB, redemptions []*Redemption) error {
+	if len(redemptions) == 0 {
+		return nil
+	}
+
+	userIdSet := make(map[int]struct{}, len(redemptions))
+	userIds := make([]int, 0, len(redemptions))
+	for _, redemption := range redemptions {
+		if redemption.UserId <= 0 {
+			continue
+		}
+		if _, ok := userIdSet[redemption.UserId]; ok {
+			continue
+		}
+		userIdSet[redemption.UserId] = struct{}{}
+		userIds = append(userIds, redemption.UserId)
+	}
+	if len(userIds) == 0 {
+		return nil
+	}
+
+	var users []User
+	if err := db.Select("id", "username", "display_name").Where("id IN ?", userIds).Find(&users).Error; err != nil {
+		return err
+	}
+	usernamesById := make(map[int]string, len(users))
+	for _, user := range users {
+		displayName := strings.TrimSpace(user.DisplayName)
+		if displayName == "" {
+			displayName = strings.TrimSpace(user.Username)
+		}
+		usernamesById[user.Id] = displayName
+	}
+	for _, redemption := range redemptions {
+		redemption.CreatorUsername = usernamesById[redemption.UserId]
+	}
+	return nil
 }
 
 func GetAllRedemptions(startIdx int, num int) (redemptions []*Redemption, total int64, err error) {
@@ -48,6 +91,10 @@ func GetAllRedemptions(startIdx int, num int) (redemptions []*Redemption, total 
 	// 获取分页数据
 	err = tx.Order("id desc").Limit(num).Offset(startIdx).Find(&redemptions).Error
 	if err != nil {
+		tx.Rollback()
+		return nil, 0, err
+	}
+	if err = populateRedemptionCreatorNames(tx, redemptions); err != nil {
 		tx.Rollback()
 		return nil, 0, err
 	}
@@ -91,6 +138,10 @@ func SearchRedemptions(keyword string, startIdx int, num int) (redemptions []*Re
 	// Get paginated data
 	err = query.Order("id desc").Limit(num).Offset(startIdx).Find(&redemptions).Error
 	if err != nil {
+		tx.Rollback()
+		return nil, 0, err
+	}
+	if err = populateRedemptionCreatorNames(tx, redemptions); err != nil {
 		tx.Rollback()
 		return nil, 0, err
 	}

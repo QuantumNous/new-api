@@ -26,6 +26,7 @@ func setDistributionTestConfig(t *testing.T, enabled bool, level1RateBps int, le
 	distribution.Enabled = enabled
 	distribution.Level1RateBps = level1RateBps
 	distribution.Level2RateBps = level2RateBps
+	distribution.CdkPurchaseDiscountBps = 0
 	distribution.Currency = "CNY"
 	distribution.PointsPerAmountUnit = operation_setting.DefaultDistributionPointsPerAmountUnit
 	distribution.OfflineAmountPerPointMicros = operation_setting.DefaultDistributionOfflineAmountPerPointMicros
@@ -839,9 +840,217 @@ func TestValidateDistributionOptionUpdate(t *testing.T) {
 	payment.ComplianceTermsVersion = operation_setting.CurrentComplianceTermsVersion
 
 	require.Error(t, operation_setting.ValidateDistributionOptionUpdate("distribution_setting.level2_rate_bps", "5000"))
+	require.Error(t, operation_setting.ValidateDistributionOptionUpdate("distribution_setting.cdk_purchase_discount_bps", "10000"))
 
 	payment.ComplianceConfirmed = false
 	distribution.Level1RateBps = 0
 	distribution.Level2RateBps = 0
 	require.Error(t, operation_setting.ValidateDistributionOptionUpdate("distribution_setting.enabled", "true"))
+	require.Error(t, operation_setting.ValidateDistributionOptionUpdate("distribution_setting.cdk_purchase_discount_bps", "9000"))
+}
+
+func setupAffiliateCdkPricingTest(t *testing.T, discountBps int) {
+	t.Helper()
+	oldDistribution := *operation_setting.GetDistributionSetting()
+	oldPayment := *operation_setting.GetPaymentSetting()
+	oldPrice := operation_setting.Price
+	t.Cleanup(func() {
+		*operation_setting.GetDistributionSetting() = oldDistribution
+		*operation_setting.GetPaymentSetting() = oldPayment
+		operation_setting.Price = oldPrice
+	})
+
+	distribution := operation_setting.GetDistributionSetting()
+	distribution.CdkPurchaseDiscountBps = discountBps
+	distribution.Currency = "CNY"
+	distribution.PointsPerAmountUnit = operation_setting.DefaultDistributionPointsPerAmountUnit
+	distribution.OfflineAmountPerPointMicros = operation_setting.DefaultDistributionOfflineAmountPerPointMicros
+
+	payment := operation_setting.GetPaymentSetting()
+	payment.AmountOptions = []int{50, 100, 200}
+	payment.AmountDiscount = map[int]float64{100: 0.9}
+	payment.ComplianceConfirmed = true
+	payment.ComplianceTermsVersion = operation_setting.CurrentComplianceTermsVersion
+	operation_setting.Price = 1
+}
+
+func TestQuoteAffiliateCdkOrderRequiresConfiguredDiscount(t *testing.T) {
+	truncateTables(t)
+	setupAffiliateCdkPricingTest(t, 0)
+	insertAffiliateTestUser(t, 9101, "cdk_agent", 0)
+
+	_, err := QuoteAffiliateCdkOrder(9101, 100, 2)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "管理员未配置代理 CDK 采购折扣")
+}
+
+func TestQuoteAffiliateCdkOrderAppliesDiscountOnWalletPayAmount(t *testing.T) {
+	truncateTables(t)
+	setupAffiliateCdkPricingTest(t, 8000)
+	insertAffiliateTestUser(t, 9101, "cdk_agent", 0)
+
+	quote, err := QuoteAffiliateCdkOrder(9101, 100, 2)
+	require.NoError(t, err)
+	assert.EqualValues(t, 100, quote.Amount)
+	assert.Equal(t, 2, quote.Quantity)
+	assert.EqualValues(t, 200, quote.TotalAmount)
+	assert.Equal(t, calculateQuotaFromAmount(100), quote.CodeQuota)
+	assert.Equal(t, calculateQuotaFromAmount(100)*2, quote.TotalQuota)
+	assert.Equal(t, 90.0, quote.UnitWalletPayAmount)
+	assert.Equal(t, 72.0, quote.UnitPayAmount)
+	assert.Equal(t, 180.0, quote.WalletPayAmount)
+	assert.Equal(t, 144.0, quote.PayAmount)
+	assert.True(t, quote.PayAmount < quote.WalletPayAmount)
+	assert.Equal(t, 8000, quote.CdkPurchaseDiscountBps)
+}
+
+func TestQuoteAffiliateCdkOrderPricesEachCodeBeforeQuantity(t *testing.T) {
+	truncateTables(t)
+	setupAffiliateCdkPricingTest(t, 9000)
+	payment := operation_setting.GetPaymentSetting()
+	payment.AmountOptions = []int{50, 500}
+	payment.AmountDiscount = map[int]float64{499: 0.95}
+	operation_setting.Price = 0.2
+	insertAffiliateTestUser(t, 9101, "cdk_agent", 0)
+
+	quoteOne, err := QuoteAffiliateCdkOrder(9101, 50, 1)
+	require.NoError(t, err)
+	assert.Equal(t, 10.0, quoteOne.UnitWalletPayAmount)
+	assert.Equal(t, 9.0, quoteOne.UnitPayAmount)
+	assert.Equal(t, 10.0, quoteOne.WalletPayAmount)
+	assert.Equal(t, 9.0, quoteOne.PayAmount)
+
+	quoteBulk, err := QuoteAffiliateCdkOrder(9101, 50, 20)
+	require.NoError(t, err)
+	assert.EqualValues(t, 1000, quoteBulk.TotalAmount)
+	assert.Equal(t, 10.0, quoteBulk.UnitWalletPayAmount)
+	assert.Equal(t, 9.0, quoteBulk.UnitPayAmount)
+	assert.Equal(t, 200.0, quoteBulk.WalletPayAmount)
+	assert.Equal(t, 180.0, quoteBulk.PayAmount)
+	assert.NotEqual(t, 171.0, quoteBulk.PayAmount)
+
+	quoteLargeCode, err := QuoteAffiliateCdkOrder(9101, 500, 1)
+	require.NoError(t, err)
+	assert.Equal(t, 95.0, quoteLargeCode.UnitWalletPayAmount)
+	assert.Equal(t, 85.5, quoteLargeCode.UnitPayAmount)
+	assert.Equal(t, 95.0, quoteLargeCode.WalletPayAmount)
+	assert.Equal(t, 85.5, quoteLargeCode.PayAmount)
+}
+
+func TestQuoteAffiliateCdkOrderRequiresWalletAmountOption(t *testing.T) {
+	truncateTables(t)
+	setupAffiliateCdkPricingTest(t, 8000)
+	insertAffiliateTestUser(t, 9101, "cdk_agent", 0)
+
+	_, err := QuoteAffiliateCdkOrder(9101, 150, 1)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "CDK 面额必须来自钱包金额选项")
+}
+
+func TestCompleteAffiliateCdkOrderCreatesCodesIdempotentlyAndRedeemable(t *testing.T) {
+	truncateTables(t)
+	setupAffiliateCdkPricingTest(t, 8000)
+	insertAffiliateTestUser(t, 9101, "cdk_agent", 0)
+	insertAffiliateTestUser(t, 9102, "cdk_buyer", 0)
+	order, quote, err := BuildAffiliateCdkOrder(9101, 100, 2, "cdk-order-success", "alipay")
+	require.NoError(t, err)
+	require.NoError(t, order.Insert())
+	require.Equal(t, 144.0, quote.PayAmount)
+
+	require.NoError(t, CompleteAffiliateCdkOrder("cdk-order-success", `{"ok":true}`, PaymentProviderEpay, "wechat"))
+	require.NoError(t, CompleteAffiliateCdkOrder("cdk-order-success", `{"ok":true}`, PaymentProviderEpay, "wechat"))
+
+	var codes []Redemption
+	require.NoError(t, DB.Where("source_type = ? AND source_order_id = ?", AffiliateCdkSourceType, order.Id).Order("id asc").Find(&codes).Error)
+	require.Len(t, codes, 2)
+	for _, code := range codes {
+		assert.Equal(t, 9101, code.UserId)
+		assert.Equal(t, common.RedemptionCodeStatusEnabled, code.Status)
+		assert.Equal(t, calculateQuotaFromAmount(100), code.Quota)
+		assert.Equal(t, AffiliateCdkSourceType, code.SourceType)
+		assert.Equal(t, order.Id, code.SourceOrderId)
+	}
+
+	quota, err := Redeem(codes[0].Key, 9102)
+	require.NoError(t, err)
+	assert.Equal(t, calculateQuotaFromAmount(100), quota)
+	var buyer User
+	require.NoError(t, DB.First(&buyer, 9102).Error)
+	assert.Equal(t, calculateQuotaFromAmount(100), buyer.Quota)
+}
+
+func TestListAffiliateCdkCodesShowsOnlyGeneratedOwnCodes(t *testing.T) {
+	truncateTables(t)
+	setupAffiliateCdkPricingTest(t, 8000)
+	insertAffiliateTestUser(t, 9101, "cdk_agent", 0)
+	insertAffiliateTestUser(t, 9102, "other_agent", 0)
+
+	pendingOrder, _, err := BuildAffiliateCdkOrder(9101, 50, 1, "cdk-order-pending", "alipay")
+	require.NoError(t, err)
+	require.NoError(t, pendingOrder.Insert())
+
+	successOrder, _, err := BuildAffiliateCdkOrder(9101, 100, 2, "cdk-order-codes", "alipay")
+	require.NoError(t, err)
+	require.NoError(t, successOrder.Insert())
+	require.NoError(t, CompleteAffiliateCdkOrder("cdk-order-codes", `{"ok":true}`, PaymentProviderEpay, "wechat"))
+	var generatedCodes []Redemption
+	require.NoError(t, DB.Where("source_type = ? AND source_order_id = ?", AffiliateCdkSourceType, successOrder.Id).Order("id asc").Find(&generatedCodes).Error)
+	require.Len(t, generatedCodes, 2)
+	_, err = Redeem(generatedCodes[0].Key, 9102)
+	require.NoError(t, err)
+
+	otherOrder, _, err := BuildAffiliateCdkOrder(9102, 100, 1, "cdk-order-other", "alipay")
+	require.NoError(t, err)
+	require.NoError(t, otherOrder.Insert())
+	require.NoError(t, CompleteAffiliateCdkOrder("cdk-order-other", `{"ok":true}`, PaymentProviderEpay, "alipay"))
+
+	codes, total, err := ListAffiliateCdkCodes(AffiliateCdkCodeQuery{UserId: 9101}, &common.PageInfo{Page: 1, PageSize: 10})
+	require.NoError(t, err)
+	require.EqualValues(t, 2, total)
+	require.Len(t, codes, 2)
+	for _, code := range codes {
+		assert.Equal(t, 9101, code.UserId)
+		assert.Equal(t, AffiliateCdkSourceType, code.SourceType)
+		assert.Equal(t, successOrder.Id, code.SourceOrderId)
+		assert.EqualValues(t, 100, code.CodeAmount)
+		assert.Equal(t, 2, code.OrderQuantity)
+		assert.Equal(t, 144.0, code.PayAmount)
+		assert.Equal(t, 72.0, code.UnitPayAmount)
+		assert.Equal(t, "wechat", code.PaymentMethod)
+		assert.Greater(t, code.OrderCompleteTime, int64(0))
+	}
+
+	availableCodes, availableTotal, err := ListAffiliateCdkCodes(AffiliateCdkCodeQuery{UserId: 9101, Status: common.RedemptionCodeStatusEnabled}, &common.PageInfo{Page: 1, PageSize: 10})
+	require.NoError(t, err)
+	require.EqualValues(t, 1, availableTotal)
+	require.Len(t, availableCodes, 1)
+	assert.Equal(t, common.RedemptionCodeStatusEnabled, availableCodes[0].Status)
+
+	usedCodes, usedTotal, err := ListAffiliateCdkCodes(AffiliateCdkCodeQuery{UserId: 9101, Status: common.RedemptionCodeStatusUsed}, &common.PageInfo{Page: 1, PageSize: 10})
+	require.NoError(t, err)
+	require.EqualValues(t, 1, usedTotal)
+	require.Len(t, usedCodes, 1)
+	assert.Equal(t, common.RedemptionCodeStatusUsed, usedCodes[0].Status)
+	assert.Equal(t, 9102, usedCodes[0].UsedUserId)
+	assert.Equal(t, "other_agent", usedCodes[0].UsedUsername)
+	assert.Greater(t, usedCodes[0].RedeemedTime, int64(0))
+
+	firstPageCodes, firstPageTotal, err := ListAffiliateCdkCodes(AffiliateCdkCodeQuery{UserId: 9101}, &common.PageInfo{Page: 1, PageSize: 1})
+	require.NoError(t, err)
+	require.EqualValues(t, 2, firstPageTotal)
+	require.Len(t, firstPageCodes, 1)
+}
+
+func TestCompleteAffiliateCdkOrderRejectsPaymentProviderMismatch(t *testing.T) {
+	truncateTables(t)
+	setupAffiliateCdkPricingTest(t, 8000)
+	insertAffiliateTestUser(t, 9101, "cdk_agent", 0)
+	order, _, err := BuildAffiliateCdkOrder(9101, 100, 1, "cdk-provider-mismatch", "alipay")
+	require.NoError(t, err)
+	require.NoError(t, order.Insert())
+
+	require.ErrorIs(t, CompleteAffiliateCdkOrder("cdk-provider-mismatch", "", PaymentProviderStripe, ""), ErrPaymentMethodMismatch)
+	var count int64
+	require.NoError(t, DB.Model(&Redemption{}).Where("source_order_id = ?", order.Id).Count(&count).Error)
+	assert.EqualValues(t, 0, count)
 }

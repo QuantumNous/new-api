@@ -119,9 +119,9 @@ export function SidebarModulesCard() {
             ? [
                 {
                   key: 'affiliate',
-                  title: t('Affiliate'),
+                  title: t('Top-up Rewards'),
                   description: t(
-                    'Manage top-up reward points and redemption history.'
+                    'Invite users to top up, then redeem earned reward points.'
                   ),
                 },
               ]

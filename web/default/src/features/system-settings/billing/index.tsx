@@ -74,6 +74,7 @@ const defaultBillingSettings: BillingSettings = {
   'distribution_setting.enabled': false,
   'distribution_setting.level1_rate_bps': 0,
   'distribution_setting.level2_rate_bps': 0,
+  'distribution_setting.cdk_purchase_discount_bps': 0,
   'distribution_setting.currency': 'CNY',
   'distribution_setting.points_per_amount_unit': 100,
   'distribution_setting.offline_amount_per_point_micros': 10000,

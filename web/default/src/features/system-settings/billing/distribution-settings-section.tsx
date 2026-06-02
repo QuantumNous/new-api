@@ -41,6 +41,7 @@ const schema = z
     enabled: z.boolean(),
     level1RatePercent: z.coerce.number().min(0).max(100),
     level2RatePercent: z.coerce.number().min(0).max(100),
+    cdkPurchaseDiscountPercent: z.coerce.number().min(0).max(99.99),
   })
   .refine(
     (values) => values.level1RatePercent + values.level2RatePercent <= 100,
@@ -57,6 +58,7 @@ type Props = {
     enabled: boolean
     level1RateBps: number
     level2RateBps: number
+    cdkPurchaseDiscountBps: number
   }
   complianceConfirmed: boolean
 }
@@ -74,6 +76,7 @@ function bpsToPercent(bps: number) {
 function buildRateUpdates(
   level1RateBps: number,
   level2RateBps: number,
+  cdkPurchaseDiscountBps: number,
   defaultValues: Props['defaultValues']
 ) {
   const rateUpdates = [
@@ -88,6 +91,12 @@ function buildRateUpdates(
       value: String(level2RateBps),
       current: defaultValues.level2RateBps,
       next: level2RateBps,
+    },
+    {
+      key: 'distribution_setting.cdk_purchase_discount_bps',
+      value: String(cdkPurchaseDiscountBps),
+      current: defaultValues.cdkPurchaseDiscountBps,
+      next: cdkPurchaseDiscountBps,
     },
   ].filter((update) => update.next !== update.current)
 
@@ -110,6 +119,9 @@ export function DistributionSettingsSection({
     enabled: defaultValues.enabled,
     level1RatePercent: bpsToPercent(defaultValues.level1RateBps),
     level2RatePercent: bpsToPercent(defaultValues.level2RateBps),
+    cdkPurchaseDiscountPercent: bpsToPercent(
+      defaultValues.cdkPurchaseDiscountBps
+    ),
   }
 
   const form = useForm<Values>({
@@ -123,9 +135,15 @@ export function DistributionSettingsSection({
   async function onSubmit(values: Values) {
     const level1RateBps = percentToBps(values.level1RatePercent)
     const level2RateBps = percentToBps(values.level2RatePercent)
+    const cdkPurchaseDiscountBps = percentToBps(
+      values.cdkPurchaseDiscountPercent
+    )
 
     if (
-      (values.enabled || level1RateBps > 0 || level2RateBps > 0) &&
+      (values.enabled ||
+        level1RateBps > 0 ||
+        level2RateBps > 0 ||
+        cdkPurchaseDiscountBps > 0) &&
       !complianceConfirmed
     ) {
       toast.error(
@@ -137,7 +155,12 @@ export function DistributionSettingsSection({
     }
 
     const updates: DistributionOptionUpdate[] = [
-      ...buildRateUpdates(level1RateBps, level2RateBps, defaultValues),
+      ...buildRateUpdates(
+        level1RateBps,
+        level2RateBps,
+        cdkPurchaseDiscountBps,
+        defaultValues
+      ),
     ]
     if (values.enabled !== defaultValues.enabled) {
       updates.push({
@@ -206,7 +229,7 @@ export function DistributionSettingsSection({
             </p>
           )}
 
-          <div className='grid gap-6 sm:grid-cols-2'>
+          <div className='grid gap-6 sm:grid-cols-2 lg:grid-cols-3'>
             <FormField
               control={form.control}
               name='level1RatePercent'
@@ -223,7 +246,9 @@ export function DistributionSettingsSection({
                     />
                   </FormControl>
                   <FormDescription>
-                    {t("Buyer inviter's reward point rate based on credited wallet units")}
+                    {t(
+                      "Buyer inviter's reward point rate based on credited wallet units"
+                    )}
                   </FormDescription>
                   <FormMessage />
                 </FormItem>
@@ -246,7 +271,36 @@ export function DistributionSettingsSection({
                     />
                   </FormControl>
                   <FormDescription>
-                    {t("Inviter's inviter reward point rate based on credited wallet units")}
+                    {t(
+                      "Inviter's inviter reward point rate based on credited wallet units"
+                    )}
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name='cdkPurchaseDiscountPercent'
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>
+                    {t('Affiliate CDK purchase discount (%)')}
+                  </FormLabel>
+                  <FormControl>
+                    <Input
+                      type='number'
+                      min={0}
+                      max={99.99}
+                      step={0.01}
+                      {...field}
+                    />
+                  </FormControl>
+                  <FormDescription>
+                    {t(
+                      'Set 0 to disable affiliate CDK purchases; positive values must stay below 100%.'
+                    )}
                   </FormDescription>
                   <FormMessage />
                 </FormItem>

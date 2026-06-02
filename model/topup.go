@@ -6,6 +6,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/logger"
+	"github.com/QuantumNous/new-api/setting/operation_setting"
 
 	"github.com/shopspring/decimal"
 	"gorm.io/gorm"
@@ -132,6 +133,41 @@ func calculateQuotaFromAmount(amount int64) int {
 
 func calculateQuotaFromMoney(money float64) int {
 	return int(decimal.NewFromFloat(money).Mul(decimal.NewFromFloat(common.QuotaPerUnit)).IntPart())
+}
+
+func NormalizeTopUpAmountForStorage(amount int64) int64 {
+	if operation_setting.GetQuotaDisplayType() != operation_setting.QuotaDisplayTypeTokens {
+		return amount
+	}
+	return decimal.NewFromInt(amount).Div(decimal.NewFromFloat(common.QuotaPerUnit)).IntPart()
+}
+
+func MinTopUpAmountForDisplay() int64 {
+	minTopup := operation_setting.MinTopUp
+	if operation_setting.GetQuotaDisplayType() == operation_setting.QuotaDisplayTypeTokens {
+		return decimal.NewFromInt(int64(minTopup)).Mul(decimal.NewFromFloat(common.QuotaPerUnit)).IntPart()
+	}
+	return int64(minTopup)
+}
+
+func CalculateTopUpPayMoney(amount int64, group string) float64 {
+	dAmount := decimal.NewFromInt(amount)
+	if operation_setting.GetQuotaDisplayType() == operation_setting.QuotaDisplayTypeTokens {
+		dAmount = dAmount.Div(decimal.NewFromFloat(common.QuotaPerUnit))
+	}
+
+	topupGroupRatio := common.GetTopupGroupRatio(group)
+	if topupGroupRatio == 0 {
+		topupGroupRatio = 1
+	}
+
+	discount := operation_setting.ResolveAmountDiscount(amount, operation_setting.GetPaymentSetting().AmountDiscount)
+	payMoney := dAmount.
+		Mul(decimal.NewFromFloat(operation_setting.Price)).
+		Mul(decimal.NewFromFloat(topupGroupRatio)).
+		Mul(decimal.NewFromFloat(discount))
+
+	return payMoney.InexactFloat64()
 }
 
 func creditedQuotaFromTopUp(topUp *TopUp) int {

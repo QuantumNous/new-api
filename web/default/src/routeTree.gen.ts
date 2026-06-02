@@ -50,6 +50,7 @@ import { Route as AuthenticatedDashboardIndexRouteImport } from './routes/_authe
 import { Route as AuthenticatedChannelsIndexRouteImport } from './routes/_authenticated/channels/index'
 import { Route as AuthenticatedAffiliateIndexRouteImport } from './routes/_authenticated/affiliate/index'
 import { Route as AuthenticatedAffiliateCommissionsIndexRouteImport } from './routes/_authenticated/affiliate-commissions/index'
+import { Route as AuthenticatedAffiliateCdkIndexRouteImport } from './routes/_authenticated/affiliate-cdk/index'
 import { Route as AuthenticatedUsageLogsSectionRouteImport } from './routes/_authenticated/usage-logs/$section'
 import { Route as AuthenticatedModelsSectionRouteImport } from './routes/_authenticated/models/$section'
 import { Route as AuthenticatedErrorsErrorRouteImport } from './routes/_authenticated/errors/$error'
@@ -287,6 +288,12 @@ const AuthenticatedAffiliateCommissionsIndexRoute =
     path: '/affiliate-commissions/',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedAffiliateCdkIndexRoute =
+  AuthenticatedAffiliateCdkIndexRouteImport.update({
+    id: '/affiliate-cdk/',
+    path: '/affiliate-cdk/',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedUsageLogsSectionRoute =
   AuthenticatedUsageLogsSectionRouteImport.update({
     id: '/usage-logs/$section',
@@ -437,6 +444,7 @@ export interface FileRoutesByFullPath {
   '/errors/$error': typeof AuthenticatedErrorsErrorRoute
   '/models/$section': typeof AuthenticatedModelsSectionRoute
   '/usage-logs/$section': typeof AuthenticatedUsageLogsSectionRoute
+  '/affiliate-cdk/': typeof AuthenticatedAffiliateCdkIndexRoute
   '/affiliate-commissions/': typeof AuthenticatedAffiliateCommissionsIndexRoute
   '/affiliate/': typeof AuthenticatedAffiliateIndexRoute
   '/channels/': typeof AuthenticatedChannelsIndexRoute
@@ -497,6 +505,7 @@ export interface FileRoutesByTo {
   '/errors/$error': typeof AuthenticatedErrorsErrorRoute
   '/models/$section': typeof AuthenticatedModelsSectionRoute
   '/usage-logs/$section': typeof AuthenticatedUsageLogsSectionRoute
+  '/affiliate-cdk': typeof AuthenticatedAffiliateCdkIndexRoute
   '/affiliate-commissions': typeof AuthenticatedAffiliateCommissionsIndexRoute
   '/affiliate': typeof AuthenticatedAffiliateIndexRoute
   '/channels': typeof AuthenticatedChannelsIndexRoute
@@ -561,6 +570,7 @@ export interface FileRoutesById {
   '/_authenticated/errors/$error': typeof AuthenticatedErrorsErrorRoute
   '/_authenticated/models/$section': typeof AuthenticatedModelsSectionRoute
   '/_authenticated/usage-logs/$section': typeof AuthenticatedUsageLogsSectionRoute
+  '/_authenticated/affiliate-cdk/': typeof AuthenticatedAffiliateCdkIndexRoute
   '/_authenticated/affiliate-commissions/': typeof AuthenticatedAffiliateCommissionsIndexRoute
   '/_authenticated/affiliate/': typeof AuthenticatedAffiliateIndexRoute
   '/_authenticated/channels/': typeof AuthenticatedChannelsIndexRoute
@@ -624,6 +634,7 @@ export interface FileRouteTypes {
     | '/errors/$error'
     | '/models/$section'
     | '/usage-logs/$section'
+    | '/affiliate-cdk/'
     | '/affiliate-commissions/'
     | '/affiliate/'
     | '/channels/'
@@ -684,6 +695,7 @@ export interface FileRouteTypes {
     | '/errors/$error'
     | '/models/$section'
     | '/usage-logs/$section'
+    | '/affiliate-cdk'
     | '/affiliate-commissions'
     | '/affiliate'
     | '/channels'
@@ -747,6 +759,7 @@ export interface FileRouteTypes {
     | '/_authenticated/errors/$error'
     | '/_authenticated/models/$section'
     | '/_authenticated/usage-logs/$section'
+    | '/_authenticated/affiliate-cdk/'
     | '/_authenticated/affiliate-commissions/'
     | '/_authenticated/affiliate/'
     | '/_authenticated/channels/'
@@ -1089,6 +1102,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAffiliateCommissionsIndexRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/affiliate-cdk/': {
+      id: '/_authenticated/affiliate-cdk/'
+      path: '/affiliate-cdk'
+      fullPath: '/affiliate-cdk/'
+      preLoaderRoute: typeof AuthenticatedAffiliateCdkIndexRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/usage-logs/$section': {
       id: '/_authenticated/usage-logs/$section'
       path: '/usage-logs/$section'
@@ -1321,6 +1341,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedErrorsErrorRoute: typeof AuthenticatedErrorsErrorRoute
   AuthenticatedModelsSectionRoute: typeof AuthenticatedModelsSectionRoute
   AuthenticatedUsageLogsSectionRoute: typeof AuthenticatedUsageLogsSectionRoute
+  AuthenticatedAffiliateCdkIndexRoute: typeof AuthenticatedAffiliateCdkIndexRoute
   AuthenticatedAffiliateCommissionsIndexRoute: typeof AuthenticatedAffiliateCommissionsIndexRoute
   AuthenticatedAffiliateIndexRoute: typeof AuthenticatedAffiliateIndexRoute
   AuthenticatedChannelsIndexRoute: typeof AuthenticatedChannelsIndexRoute
@@ -1345,6 +1366,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedErrorsErrorRoute: AuthenticatedErrorsErrorRoute,
   AuthenticatedModelsSectionRoute: AuthenticatedModelsSectionRoute,
   AuthenticatedUsageLogsSectionRoute: AuthenticatedUsageLogsSectionRoute,
+  AuthenticatedAffiliateCdkIndexRoute: AuthenticatedAffiliateCdkIndexRoute,
   AuthenticatedAffiliateCommissionsIndexRoute:
     AuthenticatedAffiliateCommissionsIndexRoute,
   AuthenticatedAffiliateIndexRoute: AuthenticatedAffiliateIndexRoute,
