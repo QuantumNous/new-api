@@ -16,12 +16,19 @@ type verificationValue struct {
 const (
 	EmailVerificationPurpose = "v"
 	PasswordResetPurpose     = "r"
+	// EmailLoginPurpose namespaces JINN passwordless-with-code login.
+	EmailLoginPurpose = "el"
 )
 
 var verificationMutex sync.Mutex
 var verificationMap map[string]verificationValue
 var verificationMapMaxSize = 10
 var VerificationValidMinutes = 10
+
+// verificationAttempts tracks wrong-code attempts per (purpose+key).
+// Reset to 0 on success or on a fresh code request.
+var verificationAttemptsMutex sync.Mutex
+var verificationAttempts = map[string]int{}
 
 func GenerateVerificationCode(length int) string {
 	code := uuid.New().String()
@@ -59,6 +66,29 @@ func DeleteKey(key string, purpose string) {
 	verificationMutex.Lock()
 	defer verificationMutex.Unlock()
 	delete(verificationMap, purpose+key)
+}
+
+// IncrementAttemptsAndMaybeInvalidate bumps the wrong-code counter for
+// (purpose+key). If the new count is >= max, the stored code is deleted so
+// subsequent VerifyCodeWithKey calls return false (user must request a new
+// code). Returns the new attempt count.
+func IncrementAttemptsAndMaybeInvalidate(key string, purpose string, max int) int {
+	verificationAttemptsMutex.Lock()
+	mapKey := purpose + key
+	verificationAttempts[mapKey]++
+	count := verificationAttempts[mapKey]
+	verificationAttemptsMutex.Unlock()
+	if max > 0 && count >= max {
+		DeleteKey(key, purpose)
+		ResetAttempts(key, purpose)
+	}
+	return count
+}
+
+func ResetAttempts(key string, purpose string) {
+	verificationAttemptsMutex.Lock()
+	defer verificationAttemptsMutex.Unlock()
+	delete(verificationAttempts, purpose+key)
 }
 
 // no lock inside, so the caller must lock the verificationMap before calling!

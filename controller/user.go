@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/dto"
@@ -101,7 +102,11 @@ type LoginByEmailRequest struct {
 }
 
 func LoginByEmail(c *gin.Context) {
-	if !common.EmailOnlyLoginEnabled {
+	// V0 endpoint: gated by BOTH the master switch AND a V0-specific opt-in.
+	// Default keeps V0 alive during V1 rollout. Operators flip
+	// EmailOnlyLoginAutoCreateNoVerify=false once all clients ship with the
+	// V1 code-entry flow.
+	if !common.EmailOnlyLoginEnabled || !common.EmailOnlyLoginAutoCreateNoVerify {
 		common.ApiErrorI18n(c, i18n.MsgUserEmailOnlyLoginDisabled)
 		return
 	}
@@ -154,6 +159,145 @@ func emailLocalPart(email string) string {
 		return email[:i]
 	}
 	return email
+}
+
+// JINN Auth V1: email + 6-digit code (Claude desktop parity).
+// Flow: client posts email to /api/user/login/email/request-code, server
+// generates a 6-digit code and emails it, returns success:true without
+// revealing whether the email exists. Client then posts {email, code} to
+// /api/user/login/email/verify-code which validates, looks up or auto-creates
+// the user, and issues a session via setupLogin.
+
+// emailLoginLastSent tracks the per-email last request time for enforcing
+// EmailLoginCodeResendCooldown. Per-IP cooldown is handled by the
+// EmailVerificationRateLimit middleware on the route.
+var emailLoginLastSent sync.Map
+
+type RequestEmailLoginCodeRequest struct {
+	Email string `json:"email"`
+}
+
+func RequestEmailLoginCode(c *gin.Context) {
+	if !common.EmailOnlyLoginEnabled {
+		common.ApiErrorI18n(c, i18n.MsgUserEmailOnlyLoginDisabled)
+		return
+	}
+	var req RequestEmailLoginCodeRequest
+	if err := common.DecodeJson(c.Request.Body, &req); err != nil {
+		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+		return
+	}
+	req.Email = strings.TrimSpace(strings.ToLower(req.Email))
+	if req.Email == "" || !strings.Contains(req.Email, "@") || !strings.Contains(req.Email, ".") {
+		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+		return
+	}
+
+	// Per-email cooldown (middleware enforces per-IP; this catches multi-IP abuse).
+	if last, ok := emailLoginLastSent.Load(req.Email); ok {
+		if elapsed := time.Since(last.(time.Time)); int(elapsed.Seconds()) < common.EmailLoginCodeResendCooldown {
+			c.JSON(http.StatusTooManyRequests, gin.H{
+				"success": false,
+				"message": common.TranslateMessage(c, i18n.MsgEmailLoginCodeRateLimited),
+			})
+			return
+		}
+	}
+
+	code := common.GenerateVerificationCode(6)
+	common.RegisterVerificationCodeWithKey(req.Email, code, common.EmailLoginPurpose)
+	common.ResetAttempts(req.Email, common.EmailLoginPurpose)
+	emailLoginLastSent.Store(req.Email, time.Now())
+
+	ttlMin := common.EmailLoginCodeTTL / 60
+	if ttlMin < 1 {
+		ttlMin = 1
+	}
+	subject := fmt.Sprintf("Your %s sign-in code: %s", common.SystemName, code)
+	content := fmt.Sprintf(
+		`<div style="font-family:-apple-system,system-ui,sans-serif;font-size:14px;line-height:1.5;color:#333;">`+
+			`<p>Use this code to sign in to %s:</p>`+
+			`<p style="font-size:32px;font-weight:600;letter-spacing:6px;margin:24px 0;">%s</p>`+
+			`<p style="color:#666;">This code expires in %d minutes. If you didn't request it, ignore this email.</p>`+
+			`<p style="color:#999;margin-top:32px;">— %s</p>`+
+			`</div>`,
+		common.SystemName, code, ttlMin, common.SystemName,
+	)
+	// Fire-and-forget: log failures but return success:true to avoid leaking
+	// SMTP state (and whether the email exists in our DB) to attackers.
+	if err := common.SendEmail(subject, req.Email, content); err != nil {
+		common.SysLog(fmt.Sprintf("RequestEmailLoginCode SendEmail failed for %s: %v", req.Email, err))
+	}
+	common.ApiSuccessI18n(c, i18n.MsgEmailLoginCodeSent, nil)
+}
+
+type VerifyEmailLoginCodeRequest struct {
+	Email string `json:"email"`
+	Code  string `json:"code"`
+}
+
+func VerifyEmailLoginCode(c *gin.Context) {
+	if !common.EmailOnlyLoginEnabled {
+		common.ApiErrorI18n(c, i18n.MsgUserEmailOnlyLoginDisabled)
+		return
+	}
+	var req VerifyEmailLoginCodeRequest
+	if err := common.DecodeJson(c.Request.Body, &req); err != nil {
+		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+		return
+	}
+	req.Email = strings.TrimSpace(strings.ToLower(req.Email))
+	req.Code = strings.TrimSpace(req.Code)
+	if req.Email == "" || !strings.Contains(req.Email, "@") || len(req.Code) == 0 {
+		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+		return
+	}
+
+	if !common.VerifyCodeWithKey(req.Email, req.Code, common.EmailLoginPurpose) {
+		attempts := common.IncrementAttemptsAndMaybeInvalidate(req.Email, common.EmailLoginPurpose, common.EmailLoginCodeMaxAttempts)
+		if attempts >= common.EmailLoginCodeMaxAttempts {
+			common.ApiErrorI18n(c, i18n.MsgEmailLoginCodeTooManyAttempts)
+			return
+		}
+		common.ApiErrorI18n(c, i18n.MsgEmailLoginCodeInvalid)
+		return
+	}
+	// Success: invalidate the code + attempts counter so it can't be replayed.
+	common.DeleteKey(req.Email, common.EmailLoginPurpose)
+	common.ResetAttempts(req.Email, common.EmailLoginPurpose)
+	emailLoginLastSent.Delete(req.Email)
+
+	var user model.User
+	err := model.DB.Where("email = ?", req.Email).First(&user).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		// Verified email + no existing user → auto-create with trial credits.
+		cleanUser := model.User{
+			Username:    "u_" + common.GetRandomString(8),
+			Password:    common.GetRandomString(24),
+			Email:       req.Email,
+			DisplayName: emailLocalPart(req.Email),
+			Role:        common.RoleCommonUser,
+		}
+		if err := cleanUser.Insert(0); err != nil {
+			common.ApiError(c, err)
+			return
+		}
+		if err := model.DB.Where("email = ?", req.Email).First(&user).Error; err != nil {
+			common.SysLog(fmt.Sprintf("VerifyEmailLoginCode post-insert lookup failed for %s: %v", req.Email, err))
+			common.ApiErrorI18n(c, i18n.MsgDatabaseError)
+			return
+		}
+	} else if err != nil {
+		common.SysLog(fmt.Sprintf("VerifyEmailLoginCode database error: %v", err))
+		common.ApiErrorI18n(c, i18n.MsgDatabaseError)
+		return
+	}
+	if user.Status != common.UserStatusEnabled {
+		common.ApiErrorI18n(c, i18n.MsgUserDisabled)
+		return
+	}
+
+	setupLogin(&user, c)
 }
 
 // setup session & cookies and then return user info

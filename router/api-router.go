@@ -69,6 +69,8 @@ func SetApiRouter(router *gin.Engine) {
 			userRoute.POST("/login", middleware.CriticalRateLimit(), middleware.TurnstileCheck(), controller.Login)
 			userRoute.POST("/login/2fa", middleware.CriticalRateLimit(), controller.Verify2FALogin)
 			userRoute.POST("/login/email", middleware.CriticalRateLimit(), controller.LoginByEmail)
+			userRoute.POST("/login/email/request-code", middleware.EmailVerificationRateLimit(), controller.RequestEmailLoginCode)
+			userRoute.POST("/login/email/verify-code", middleware.CriticalRateLimit(), controller.VerifyEmailLoginCode)
 			userRoute.POST("/passkey/login/begin", middleware.CriticalRateLimit(), controller.PasskeyLoginBegin)
 			userRoute.POST("/passkey/login/finish", middleware.CriticalRateLimit(), controller.PasskeyLoginFinish)
 			//userRoute.POST("/tokenlog", middleware.CriticalRateLimit(), controller.TokenLog)

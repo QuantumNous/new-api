@@ -91,10 +91,29 @@ var TelegramOAuthEnabled = false
 var TurnstileCheckEnabled = false
 var RegisterEnabled = true
 
-// EmailOnlyLoginEnabled gates POST /api/user/login/email — passwordless,
-// no-verification beta flow. Auto-creates the user on first sign-in.
-// Disable this once the desktop adopts a real verification step (code/OAuth/passkey).
+// EmailOnlyLoginEnabled is the master switch for the JINN email-based login
+// family. Disable to turn off both the V0 passwordless endpoint AND the V1
+// code-verified endpoints.
 var EmailOnlyLoginEnabled = true
+
+// EmailOnlyLoginAutoCreateNoVerify gates only the legacy V0 endpoint
+// (POST /api/user/login/email) — passwordless, no-verification, auto-create.
+// Default true preserves V0 behaviour during the V1 rollout. Flip to false
+// once all desktop clients ship with V1 code-entry support.
+var EmailOnlyLoginAutoCreateNoVerify = false
+
+// EmailLoginCodeTTL is the lifetime in seconds of a V1 sign-in code.
+var EmailLoginCodeTTL = 600
+
+// EmailLoginCodeMaxAttempts is the wrong-code attempt cap for V1 verify.
+// On the Nth wrong attempt the code is invalidated and the user must
+// request a new one.
+var EmailLoginCodeMaxAttempts = 3
+
+// EmailLoginCodeResendCooldown is the server-enforced floor in seconds
+// between successive request-code calls for the same email. Matches
+// Claude desktop's 30s cadence.
+var EmailLoginCodeResendCooldown = 30
 
 var EmailDomainRestrictionEnabled = false // 是否启用邮箱域名限制
 var EmailAliasRestrictionEnabled = false  // 是否启用邮箱别名限制

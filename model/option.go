@@ -40,6 +40,10 @@ func InitOptionMap() {
 	common.OptionMap["PasswordRegisterEnabled"] = strconv.FormatBool(common.PasswordRegisterEnabled)
 	common.OptionMap["EmailVerificationEnabled"] = strconv.FormatBool(common.EmailVerificationEnabled)
 	common.OptionMap["EmailOnlyLoginEnabled"] = strconv.FormatBool(common.EmailOnlyLoginEnabled)
+	common.OptionMap["EmailOnlyLoginAutoCreateNoVerify"] = strconv.FormatBool(common.EmailOnlyLoginAutoCreateNoVerify)
+	common.OptionMap["EmailLoginCodeTTL"] = strconv.Itoa(common.EmailLoginCodeTTL)
+	common.OptionMap["EmailLoginCodeMaxAttempts"] = strconv.Itoa(common.EmailLoginCodeMaxAttempts)
+	common.OptionMap["EmailLoginCodeResendCooldown"] = strconv.Itoa(common.EmailLoginCodeResendCooldown)
 	common.OptionMap["GitHubOAuthEnabled"] = strconv.FormatBool(common.GitHubOAuthEnabled)
 	common.OptionMap["LinuxDOOAuthEnabled"] = strconv.FormatBool(common.LinuxDOOAuthEnabled)
 	common.OptionMap["TelegramOAuthEnabled"] = strconv.FormatBool(common.TelegramOAuthEnabled)
@@ -276,7 +280,7 @@ func updateOptionMap(key string, value string) (err error) {
 			common.ImageDownloadPermission = intValue
 		}
 	}
-	if strings.HasSuffix(key, "Enabled") || key == "DefaultCollapseSidebar" || key == "DefaultUseAutoGroup" || key == "SMTPForceAuthLogin" {
+	if strings.HasSuffix(key, "Enabled") || key == "DefaultCollapseSidebar" || key == "DefaultUseAutoGroup" || key == "SMTPForceAuthLogin" || key == "EmailOnlyLoginAutoCreateNoVerify" {
 		boolValue := value == "true"
 		switch key {
 		case "PasswordRegisterEnabled":
@@ -287,6 +291,8 @@ func updateOptionMap(key string, value string) (err error) {
 			common.EmailVerificationEnabled = boolValue
 		case "EmailOnlyLoginEnabled":
 			common.EmailOnlyLoginEnabled = boolValue
+		case "EmailOnlyLoginAutoCreateNoVerify":
+			common.EmailOnlyLoginAutoCreateNoVerify = boolValue
 		case "GitHubOAuthEnabled":
 			common.GitHubOAuthEnabled = boolValue
 		case "LinuxDOOAuthEnabled":
@@ -371,6 +377,18 @@ func updateOptionMap(key string, value string) (err error) {
 	case "SMTPPort":
 		intValue, _ := strconv.Atoi(value)
 		common.SMTPPort = intValue
+	case "EmailLoginCodeTTL":
+		if v, err := strconv.Atoi(value); err == nil && v > 0 {
+			common.EmailLoginCodeTTL = v
+		}
+	case "EmailLoginCodeMaxAttempts":
+		if v, err := strconv.Atoi(value); err == nil && v > 0 {
+			common.EmailLoginCodeMaxAttempts = v
+		}
+	case "EmailLoginCodeResendCooldown":
+		if v, err := strconv.Atoi(value); err == nil && v >= 0 {
+			common.EmailLoginCodeResendCooldown = v
+		}
 	case "SMTPAccount":
 		common.SMTPAccount = value
 	case "SMTPFrom":
