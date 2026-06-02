@@ -45,25 +45,15 @@ import { StatusContext } from '../../context/Status';
 import './index.css';
 import {
   Moonshot,
-  OpenAI,
-  XAI,
   Zhipu,
   Volcengine,
-  Cohere,
-  Claude,
-  Gemini,
-  Suno,
   Minimax,
   Wenxin,
   Spark,
   Qingyan,
   DeepSeek,
   Qwen,
-  Midjourney,
-  Grok,
-  AzureAI,
   Hunyuan,
-  Xinference,
 } from '@lobehub/icons';
 
 const { Text } = Typography;
@@ -78,6 +68,8 @@ const HomePage = () => {
   const heroOpacity = useTransform(scrollY, [0, 600], [1, 0]);
   const isChinese = i18n.language.startsWith('zh');
   const docsLink = statusState?.status?.docs_link || '';
+
+  const quotaDisplayType = localStorage.getItem('quota_display_type') || 'USD';
 
   useEffect(() => {
     const scrollContainer = document.getElementById('app-scroll-shell');
@@ -464,7 +456,7 @@ response = client.chat.completions.create(
             >
               <span className='home-badge inline-flex items-center gap-2 px-4 py-2 text-sm font-medium'>
                 <Sparkles className='h-4 w-4 text-amber-500' />
-                {t('支持 GPT-5、Claude 4.5、Gemini 2.5')}
+                {t('支持 DeepSeek、Qwen、Zhipu、Moonshot')}
               </span>
             </motion.div>
 
@@ -494,7 +486,7 @@ response = client.chat.completions.create(
               transition={{ duration: 0.6, delay: 0.2 }}
               className='home-hero-kicker mx-auto mb-4 max-w-2xl text-xl'
             >
-              GPT-5 · Claude · Gemini · Sora · VEO
+              DeepSeek · Qwen · Zhipu · Moonshot
             </motion.p>
 
             <motion.p
@@ -585,7 +577,7 @@ response = client.chat.completions.create(
             </h2>
             <p className='home-section-description mx-auto max-w-2xl text-lg'>
               {t(
-                '无需管理多个 API Key，统一接口调用 GPT、Claude、Gemini 等 50+ 模型',
+                '无需管理多个 API Key，统一接口调用 DeepSeek、Qwen、Moonshot等 30+ 模型',
               )}
             </p>
           </motion.div>
@@ -610,28 +602,10 @@ response = client.chat.completions.create(
                   <Moonshot size={40} />
                 </div>
                 <div className='w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 flex items-center justify-center'>
-                  <OpenAI size={40} />
-                </div>
-                <div className='w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 flex items-center justify-center'>
-                  <XAI size={40} />
-                </div>
-                <div className='w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 flex items-center justify-center'>
                   <Zhipu.Color size={40} />
                 </div>
                 <div className='w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 flex items-center justify-center'>
                   <Volcengine.Color size={40} />
-                </div>
-                <div className='w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 flex items-center justify-center'>
-                  <Cohere.Color size={40} />
-                </div>
-                <div className='w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 flex items-center justify-center'>
-                  <Claude.Color size={40} />
-                </div>
-                <div className='w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 flex items-center justify-center'>
-                  <Gemini.Color size={40} />
-                </div>
-                <div className='w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 flex items-center justify-center'>
-                  <Suno size={40} />
                 </div>
                 <div className='w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 flex items-center justify-center'>
                   <Minimax.Color size={40} />
@@ -652,19 +626,7 @@ response = client.chat.completions.create(
                   <Qwen.Color size={40} />
                 </div>
                 <div className='w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 flex items-center justify-center'>
-                  <Midjourney size={40} />
-                </div>
-                <div className='w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 flex items-center justify-center'>
-                  <Grok size={40} />
-                </div>
-                <div className='w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 flex items-center justify-center'>
-                  <AzureAI.Color size={40} />
-                </div>
-                <div className='w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 flex items-center justify-center'>
                   <Hunyuan.Color size={40} />
-                </div>
-                <div className='w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 flex items-center justify-center'>
-                  <Xinference.Color size={40} />
                 </div>
                 <div className='w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 flex items-center justify-center'>
                   <Typography.Text className='!text-lg sm:!text-xl md:!text-2xl lg:!text-3xl font-bold'>
@@ -1115,7 +1077,7 @@ response = client.chat.completions.create(
               {t('准备好开始了吗？')}
             </h2>
             <p className='home-cta-description mb-10 text-xl'>
-              {t('免费注册，即刻获得 $1 体验额度。无需绑定信用卡。')}
+              {t('免费注册后，选择模型、创建密钥，即可快速开始 AI 开发')}
             </p>
             <div className='flex flex-wrap items-center justify-center gap-4'>
               <button

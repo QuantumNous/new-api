@@ -4181,6 +4181,9 @@
     "零数据保留": "零資料保留",
     "默认不会用于上游训练": "預設不會用於上游訓練",
     "上游提供商可能会将数据用于训练": "上游供應商可能會將資料用於訓練",
+    "支持 DeepSeek、Qwen、Zhipu、Moonshot": "支援 DeepSeek、Qwen、Zhipu、Moonshot",
+    "无需管理多个 API Key，统一接口调用 DeepSeek、Qwen、Moonshot等 30+ 模型": "無需管理多個 API Key，統一介面呼叫 DeepSeek、Qwen、Moonshot 等 30+ 模型",
+    "免费注册后，选择模型、创建密钥，即可快速开始 AI 开发": "免費註冊後，選擇模型、建立密鑰，即可快速開始 AI 開發",
     "model": "模型",
     "models": "模型"
   }

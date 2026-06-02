@@ -4223,6 +4223,9 @@
     "零数据保留": "Zero retention",
     "默认不会用于上游训练": "Not used for upstream training by default",
     "上游提供商可能会将数据用于训练": "May be used for training by upstream provider",
+    "支持 DeepSeek、Qwen、Zhipu、Moonshot": "Supports DeepSeek, Qwen, Zhipu, and Moonshot",
+    "无需管理多个 API Key，统一接口调用 DeepSeek、Qwen、Moonshot等 30+ 模型": "No need to manage multiple API keys. One unified interface for 30+ models including DeepSeek, Qwen, and Moonshot",
+    "免费注册后，选择模型、创建密钥，即可快速开始 AI 开发": "Sign up for free, choose a model, create a key, and start building AI quickly",
     "model": "model",
     "models": "models"
   }

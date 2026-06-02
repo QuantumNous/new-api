@@ -4108,6 +4108,9 @@
     "零数据保留": "Aucune conservation",
     "默认不会用于上游训练": "Non utilisé pour l'entraînement en amont par défaut",
     "上游提供商可能会将数据用于训练": "Le fournisseur en amont peut utiliser les données pour l'entraînement",
+    "支持 DeepSeek、Qwen、Zhipu、Moonshot": "Prend en charge DeepSeek, Qwen, Zhipu et Moonshot",
+    "无需管理多个 API Key，统一接口调用 DeepSeek、Qwen、Moonshot等 30+ 模型": "Inutile de gérer plusieurs clés API. Une interface unifiée pour plus de 30 modèles, dont DeepSeek, Qwen et Moonshot",
+    "免费注册后，选择模型、创建密钥，即可快速开始 AI 开发": "Inscrivez-vous gratuitement, choisissez un modèle, créez une clé et commencez rapidement à développer avec l'IA",
     "model": "modèle",
     "models": "modèles"
   }
