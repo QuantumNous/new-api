@@ -1,0 +1,525 @@
+const BPS_BASE = 10000;
+const LEVEL_ONE_CAP_BPS = 3000;
+
+const normalizeInteger = (value) => {
+  const number = Number(value);
+  if (!Number.isFinite(number)) {
+    return 0;
+  }
+  const integer = Math.trunc(number);
+  return integer > 0 ? integer : 0;
+};
+
+const normalizeBoolean = (value) => value === true || value === 'true';
+
+const translate = (t, value) => (typeof t === 'function' ? t(value) : value);
+
+const stringifyPretty = (value) => JSON.stringify(value || [], null, 2);
+
+function parseJsonArray(label, value) {
+  if (Array.isArray(value)) {
+    return value;
+  }
+  const text = String(value || '').trim();
+  if (!text) {
+    return [];
+  }
+  const parsed = JSON.parse(text);
+  if (!Array.isArray(parsed)) {
+    throw new Error(`${label} 必须是 JSON 数组`);
+  }
+  return parsed;
+}
+
+function normalizeSnapshot(ruleSet = {}) {
+  const snapshot = String(ruleSet.config_snapshot || '').trim();
+  if (!snapshot) {
+    return {};
+  }
+  try {
+    const parsed = JSON.parse(snapshot);
+    return parsed && typeof parsed === 'object' ? parsed : {};
+  } catch (error) {
+    return {};
+  }
+}
+
+function appendStatus(params, status) {
+  const normalized = String(status || '').trim();
+  if (['draft', 'published', 'archived'].includes(normalized)) {
+    params.set('status', normalized);
+  }
+}
+
+export function buildAffiliateRuleSetsQuery({
+  page = 1,
+  pageSize = 10,
+  filters = {},
+} = {}) {
+  const params = new URLSearchParams();
+  params.set('p', String(normalizeInteger(page) || 1));
+  params.set('page_size', String(normalizeInteger(pageSize) || 10));
+  appendStatus(params, filters.status);
+  return `/api/affiliate/admin/rule-sets?${params.toString()}`;
+}
+
+export function buildAffiliateRuleSetStatusPayload(values = {}) {
+  return { reason: String(values.reason || '').trim() };
+}
+
+export function buildAffiliateRuleSetDraftPayload(values = {}) {
+  return {
+    id: normalizeInteger(values.id),
+    version: String(values.version || '').trim(),
+    name: String(values.name || '').trim(),
+    effective_start: normalizeInteger(values.effective_start),
+    effective_end: normalizeInteger(values.effective_end),
+    reason: String(values.reason || '').trim(),
+    commission_rules: parseJsonArray(
+      '分佣规则',
+      values.commission_rules_json || values.commission_rules,
+    ),
+    commission_tiers: parseJsonArray(
+      '分佣区间',
+      values.commission_tiers_json || values.commission_tiers,
+    ),
+    kpi_tiers: parseJsonArray(
+      'KPI 档位',
+      values.kpi_tiers_json || values.kpi_tiers,
+    ),
+    head_fee_rules: parseJsonArray(
+      '人头费规则',
+      values.head_fee_rules_json || values.head_fee_rules,
+    ),
+    risk_rules: parseJsonArray(
+      '质量门槛',
+      values.risk_rules_json || values.risk_rules,
+    ),
+    settlement_config: {
+      cycle: String(values.settlement_cycle || '').trim(),
+      freeze_days: normalizeInteger(values.freeze_days),
+      min_settlement_amount_cents: normalizeInteger(
+        values.min_settlement_amount_cents,
+      ),
+      manual_review_enabled: normalizeBoolean(values.manual_review_enabled),
+    },
+  };
+}
+
+export function buildAffiliateRuleSetDraftFormValues(ruleSet = null) {
+  if (!ruleSet) {
+    return buildAffiliateRuleSetDefaultSeedFormValues();
+  }
+
+  const snapshot = normalizeSnapshot(ruleSet);
+  const settlementConfig =
+    snapshot.settlement_config ||
+    (snapshot.settlement_cycle ? { cycle: snapshot.settlement_cycle } : {});
+
+  return {
+    id: normalizeInteger(ruleSet.id),
+    version: String(ruleSet.version || snapshot.version || '').trim(),
+    name: String(ruleSet.name || snapshot.name || '').trim(),
+    effective_start: normalizeInteger(
+      ruleSet.effective_start || snapshot.effective_start,
+    ),
+    effective_end: normalizeInteger(
+      ruleSet.effective_end || snapshot.effective_end,
+    ),
+    reason: '',
+    settlement_cycle: String(settlementConfig.cycle || '').trim(),
+    freeze_days: normalizeInteger(settlementConfig.freeze_days),
+    min_settlement_amount_cents: normalizeInteger(
+      settlementConfig.min_settlement_amount_cents,
+    ),
+    manual_review_enabled: normalizeBoolean(
+      settlementConfig.manual_review_enabled,
+    ),
+    commission_rules_json: stringifyPretty(snapshot.commission_rules),
+    commission_tiers_json: stringifyPretty(snapshot.commission_tiers),
+    kpi_tiers_json: stringifyPretty(snapshot.kpi_tiers),
+    head_fee_rules_json: stringifyPretty(snapshot.head_fee_rules),
+    risk_rules_json: stringifyPretty(snapshot.risk_rules),
+  };
+}
+
+function buildAffiliateRuleSetDefaultSeedFormValues() {
+  return {
+    id: 0,
+    version: '',
+    name: 'Native Affiliate Rules',
+    effective_start: 0,
+    effective_end: 0,
+    reason: '',
+    settlement_cycle: 'monthly',
+    freeze_days: 7,
+    min_settlement_amount_cents: 10000,
+    manual_review_enabled: true,
+    commission_rules_json: stringifyPretty([
+      {
+        affiliate_level: 1,
+        name: 'Level 1',
+        default_rate_bps: 2000,
+        default_cap_rate_bps: 3000,
+        min_settlement_amount_cents: 10000,
+        allow_manual_approval_rate: true,
+      },
+      {
+        affiliate_level: 2,
+        name: 'Level 2',
+        default_rate_bps: 1000,
+        default_cap_rate_bps: 2000,
+        min_settlement_amount_cents: 10000,
+        allow_manual_approval_rate: true,
+      },
+    ]),
+    commission_tiers_json: stringifyPretty([
+      {
+        affiliate_level: 1,
+        min_net_paid_amount_cents: 0,
+        max_net_paid_amount_cents: 20000,
+        base_rate_bps: 2000,
+        cap_rate_bps: 3000,
+        sort_order: 1,
+      },
+      {
+        affiliate_level: 1,
+        min_net_paid_amount_cents: 20000,
+        max_net_paid_amount_cents: 80000,
+        base_rate_bps: 1333,
+        cap_rate_bps: 2000,
+        sort_order: 2,
+      },
+      {
+        affiliate_level: 1,
+        min_net_paid_amount_cents: 80000,
+        max_net_paid_amount_cents: 150000,
+        base_rate_bps: 1000,
+        cap_rate_bps: 1500,
+        sort_order: 3,
+      },
+      {
+        affiliate_level: 1,
+        min_net_paid_amount_cents: 150000,
+        max_net_paid_amount_cents: 500000,
+        base_rate_bps: 533,
+        cap_rate_bps: 800,
+        sort_order: 4,
+      },
+      {
+        affiliate_level: 1,
+        min_net_paid_amount_cents: 500000,
+        max_net_paid_amount_cents: 0,
+        base_rate_bps: 200,
+        cap_rate_bps: 500,
+        requires_manual_approval: true,
+        sort_order: 5,
+      },
+      {
+        affiliate_level: 2,
+        min_net_paid_amount_cents: 0,
+        max_net_paid_amount_cents: 20000,
+        base_rate_bps: 1000,
+        cap_rate_bps: 2000,
+        sort_order: 1,
+      },
+      {
+        affiliate_level: 2,
+        min_net_paid_amount_cents: 20000,
+        max_net_paid_amount_cents: 80000,
+        base_rate_bps: 600,
+        cap_rate_bps: 1200,
+        sort_order: 2,
+      },
+      {
+        affiliate_level: 2,
+        min_net_paid_amount_cents: 80000,
+        max_net_paid_amount_cents: 150000,
+        base_rate_bps: 450,
+        cap_rate_bps: 900,
+        sort_order: 3,
+      },
+      {
+        affiliate_level: 2,
+        min_net_paid_amount_cents: 150000,
+        max_net_paid_amount_cents: 500000,
+        base_rate_bps: 250,
+        cap_rate_bps: 500,
+        sort_order: 4,
+      },
+      {
+        affiliate_level: 2,
+        min_net_paid_amount_cents: 500000,
+        max_net_paid_amount_cents: 0,
+        base_rate_bps: 100,
+        cap_rate_bps: 200,
+        requires_manual_approval: true,
+        sort_order: 5,
+      },
+    ]),
+    kpi_tiers_json: stringifyPretty([
+      {
+        affiliate_level: 1,
+        code: 'observe',
+        name: '观察档',
+        min_effective_new_users: 0,
+        min_net_paid_amount_cents: 0,
+        coefficient_bps: 10000,
+        max_gift_only_ratio_bps: 2000,
+        max_abnormal_ratio_bps: 1000,
+        min_second_payment_ratio_bps: 0,
+        sort_order: 1,
+      },
+      {
+        affiliate_level: 1,
+        code: 'qualified',
+        name: '合格档',
+        min_effective_new_users: 30,
+        min_net_paid_amount_cents: 150000,
+        coefficient_bps: 12000,
+        max_gift_only_ratio_bps: 2000,
+        max_abnormal_ratio_bps: 1000,
+        min_second_payment_ratio_bps: 0,
+        sort_order: 2,
+      },
+      {
+        affiliate_level: 1,
+        code: 'growth',
+        name: '增长档',
+        min_effective_new_users: 45,
+        min_net_paid_amount_cents: 225000,
+        coefficient_bps: 13500,
+        max_gift_only_ratio_bps: 2000,
+        max_abnormal_ratio_bps: 1000,
+        min_second_payment_ratio_bps: 0,
+        sort_order: 3,
+      },
+      {
+        affiliate_level: 1,
+        code: 'excellent',
+        name: '卓越档',
+        min_effective_new_users: 60,
+        min_net_paid_amount_cents: 300000,
+        coefficient_bps: 15000,
+        max_gift_only_ratio_bps: 2000,
+        max_abnormal_ratio_bps: 1000,
+        min_second_payment_ratio_bps: 2000,
+        sort_order: 4,
+      },
+      {
+        affiliate_level: 2,
+        code: 'observe',
+        name: '观察档',
+        min_effective_new_users: 0,
+        min_net_paid_amount_cents: 0,
+        coefficient_bps: 10000,
+        max_gift_only_ratio_bps: 3000,
+        max_abnormal_ratio_bps: 1000,
+        min_second_payment_ratio_bps: 0,
+        sort_order: 1,
+      },
+      {
+        affiliate_level: 2,
+        code: 'base',
+        name: '基础档',
+        min_effective_new_users: 10,
+        min_net_paid_amount_cents: 20000,
+        coefficient_bps: 14000,
+        max_gift_only_ratio_bps: 3000,
+        max_abnormal_ratio_bps: 1000,
+        min_second_payment_ratio_bps: 0,
+        sort_order: 2,
+      },
+      {
+        affiliate_level: 2,
+        code: 'growth',
+        name: '增长档',
+        min_effective_new_users: 20,
+        min_net_paid_amount_cents: 50000,
+        coefficient_bps: 17000,
+        max_gift_only_ratio_bps: 3000,
+        max_abnormal_ratio_bps: 1000,
+        min_second_payment_ratio_bps: 0,
+        sort_order: 3,
+      },
+      {
+        affiliate_level: 2,
+        code: 'excellent',
+        name: '卓越档',
+        min_effective_new_users: 50,
+        min_net_paid_amount_cents: 150000,
+        coefficient_bps: 20000,
+        max_gift_only_ratio_bps: 3000,
+        max_abnormal_ratio_bps: 1000,
+        min_second_payment_ratio_bps: 0,
+        sort_order: 4,
+      },
+    ]),
+    head_fee_rules_json: stringifyPretty([
+      {
+        affiliate_level: 1,
+        kpi_tier_code: 'observe',
+        amount_cents: 0,
+        first_recharge_min_cents: 1000,
+        period_net_paid_min_cents: 1000,
+        qualification_days: 14,
+        unlock_delay_days: 7,
+      },
+      {
+        affiliate_level: 1,
+        kpi_tier_code: 'qualified',
+        amount_cents: 160,
+        first_recharge_min_cents: 1000,
+        period_net_paid_min_cents: 1000,
+        qualification_days: 14,
+        unlock_delay_days: 7,
+      },
+      {
+        affiliate_level: 1,
+        kpi_tier_code: 'growth',
+        amount_cents: 180,
+        first_recharge_min_cents: 1000,
+        period_net_paid_min_cents: 1000,
+        qualification_days: 14,
+        unlock_delay_days: 7,
+      },
+      {
+        affiliate_level: 1,
+        kpi_tier_code: 'excellent',
+        amount_cents: 200,
+        first_recharge_min_cents: 1000,
+        period_net_paid_min_cents: 1000,
+        qualification_days: 14,
+        unlock_delay_days: 7,
+      },
+      {
+        affiliate_level: 2,
+        kpi_tier_code: 'observe',
+        amount_cents: 0,
+        first_recharge_min_cents: 1000,
+        period_net_paid_min_cents: 1000,
+        qualification_days: 14,
+        unlock_delay_days: 7,
+      },
+      {
+        affiliate_level: 2,
+        kpi_tier_code: 'base',
+        amount_cents: 70,
+        first_recharge_min_cents: 1000,
+        period_net_paid_min_cents: 1000,
+        qualification_days: 14,
+        unlock_delay_days: 7,
+      },
+      {
+        affiliate_level: 2,
+        kpi_tier_code: 'growth',
+        amount_cents: 85,
+        first_recharge_min_cents: 1000,
+        period_net_paid_min_cents: 1000,
+        qualification_days: 14,
+        unlock_delay_days: 7,
+      },
+      {
+        affiliate_level: 2,
+        kpi_tier_code: 'excellent',
+        amount_cents: 100,
+        first_recharge_min_cents: 1000,
+        period_net_paid_min_cents: 1000,
+        qualification_days: 14,
+        unlock_delay_days: 7,
+      },
+    ]),
+    risk_rules_json: stringifyPretty([
+      {
+        affiliate_level: 1,
+        code: 'default',
+        max_gift_only_ratio_bps: 2000,
+        max_abnormal_ratio_bps: 1000,
+        max_refund_ratio_bps: 1000,
+        min_second_payment_ratio_bps: 0,
+      },
+      {
+        affiliate_level: 2,
+        code: 'default',
+        max_gift_only_ratio_bps: 3000,
+        max_abnormal_ratio_bps: 1000,
+        max_refund_ratio_bps: 1000,
+        min_second_payment_ratio_bps: 0,
+      },
+    ]),
+  };
+}
+
+export function validateAffiliateRuleSetDraftPayload(t, payload) {
+  if (!String(payload.version || '').trim()) {
+    return translate(t, '请填写规则集版本');
+  }
+  if (!String(payload.name || '').trim()) {
+    return translate(t, '请填写规则集名称');
+  }
+  if (
+    payload.effective_start > 0 &&
+    payload.effective_end > 0 &&
+    payload.effective_end < payload.effective_start
+  ) {
+    return translate(t, '生效结束时间不能早于开始时间');
+  }
+  if (!String(payload.settlement_config?.cycle || '').trim()) {
+    return translate(t, '请填写结算周期');
+  }
+
+  const commissionRules = Array.isArray(payload.commission_rules)
+    ? payload.commission_rules
+    : [];
+  const commissionTiers = Array.isArray(payload.commission_tiers)
+    ? payload.commission_tiers
+    : [];
+  const allCommissionCaps = [...commissionRules, ...commissionTiers];
+  const levelOneMaxCap = Math.max(
+    0,
+    ...allCommissionCaps
+      .filter((rule) => Number(rule.affiliate_level) === 1)
+      .map((rule) =>
+        Number(rule.default_cap_rate_bps ?? rule.cap_rate_bps ?? 0),
+      ),
+  );
+
+  if (levelOneMaxCap > LEVEL_ONE_CAP_BPS) {
+    return translate(t, '一级分销 cap 不能超过 30%');
+  }
+  if (
+    levelOneMaxCap > 0 &&
+    allCommissionCaps.some(
+      (rule) =>
+        Number(rule.affiliate_level) === 2 &&
+        Number(rule.default_cap_rate_bps ?? rule.cap_rate_bps ?? 0) >
+          levelOneMaxCap,
+    )
+  ) {
+    return translate(t, '二级分销 cap 不能高于一级');
+  }
+
+  const kpiTiers = Array.isArray(payload.kpi_tiers) ? payload.kpi_tiers : [];
+  if (kpiTiers.some((tier) => Number(tier.coefficient_bps || 0) < BPS_BASE)) {
+    return translate(t, 'KPI 系数不能低于 1.00');
+  }
+  return '';
+}
+
+export function getAffiliateRuleSetStatusMeta(t, status) {
+  switch (status) {
+    case 'draft':
+      return { label: translate(t, '草稿'), type: 'warning' };
+    case 'published':
+      return { label: translate(t, '已发布'), type: 'success' };
+    case 'archived':
+      return { label: translate(t, '已归档'), type: 'tertiary' };
+    default:
+      return { label: status || translate(t, '未知'), type: 'tertiary' };
+  }
+}
+
+export function formatAffiliateBpsPercent(bps) {
+  const value = Number(bps || 0);
+  return `${(value / 100).toFixed(2)}%`;
+}

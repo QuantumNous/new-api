@@ -395,14 +395,14 @@
 
 ## Phase 10：KPI、佣金、人头费与结算
 
-- [ ] 以飞书分销方案作为默认 seed value，不直接硬编码到计算逻辑。
-- [ ] 管理员端提供规则集草稿、发布、停用、生效时间配置。
-- [ ] 管理员端可配置一级/二级分销商的消耗区间、基准比例、最高 cap。
-- [ ] 管理员端可配置特殊大客户人工审批比例和启用条件。
-- [ ] 管理员端可配置 KPI 档位名称、有效新用户阈值、净付费消耗阈值、系数。
-- [ ] 管理员端可配置质量门槛：纯赠金占比、异常用户占比、二次付费率、退款/争议扣回。
-- [ ] 管理员端可配置人头费有效用户定义和各档位人头费金额。
-- [ ] 管理员端可配置结算周期、冻结时间、最小结算金额、人工审核开关。
+- [x] 以飞书分销方案作为默认 seed value，不直接硬编码到计算逻辑；classic 新建规则草稿表单提供可编辑 seed JSON，计算链路仍只读取已保存/发布规则集。
+- [x] 管理员端提供规则集草稿、发布、停用、生效时间配置；classic 管理页已接入草稿保存、发布、归档和生效时间窗口字段。
+- [x] 管理员端可配置一级/二级分销商的消耗区间、基准比例、最高 cap；classic 当前通过分佣区间 JSON 区块编辑。
+- [x] 管理员端可配置特殊大客户人工审批比例和启用条件；classic 当前通过 `requires_manual_approval` / `allow_manual_approval_rate` 与区间 cap JSON 字段编辑。
+- [x] 管理员端可配置 KPI 档位名称、有效新用户阈值、净付费消耗阈值、系数；classic 当前通过 KPI 档位 JSON 区块编辑。
+- [x] 管理员端可配置质量门槛：纯赠金占比、异常用户占比、二次付费率、退款/争议扣回；classic 当前通过 KPI/risk JSON 区块编辑。
+- [x] 管理员端可配置人头费有效用户定义和各档位人头费金额；classic 当前通过人头费规则 JSON 区块编辑。
+- [x] 管理员端可配置结算周期、冻结时间、最小结算金额、人工审核开关；classic 表单提供结算配置字段。
 - [x] 后端管理员 API 支持规则集草稿保存、发布、归档和生效时间配置，并写入配置审计日志。
 - [x] 发布规则前校验一级最高档不超过 30% 业务 cap。
 - [x] 发布规则前校验二级有效比例不高于一级，避免倒挂。
@@ -493,6 +493,13 @@
 - 残留风险：本批只提供操作入口，没有实现完整规则集可视化编辑、结算列表/佣金列表表格管理、批次运行记录或二次确认弹窗；人工调整金额仍以“分”为输入单位，后续可改为 RMB 输入并在提交前转换为 cents。
 - 下一步：补管理员规则配置 UI，或在 classic 管理页继续扩展佣金/结算列表、冻结/支付/作废操作和批次审计展示。
 
+### Phase 10 阶段复盘（2026-06-03 classic 规则集配置 UI）
+
+- 完成内容：classic `/console/affiliate/admin` 管理页新增规则集配置卡片，支持规则集列表、状态筛选、草稿保存、发布、归档和生效时间窗口；新增 `affiliateAdminRules` helper，提供规则集列表 URL、状态 payload、后端 draft payload 组装、config snapshot 回填、飞书方案默认 seed JSON、状态标签、BPS 百分比格式化和前端快速校验。当前 UI 通过 JSON 区块完整编辑 commission rules、commission tiers、KPI tiers、head fee rules、risk rules 和 settlement config，不把比例写入计算逻辑。
+- 验证方式：先观察 `bun test src/pages/AffiliateAdmin/affiliateAdminRules.test.mjs` 因 helper 缺失 RED；实现后 `bun test src/pages/AffiliateAdmin/affiliateAdminRules.test.mjs src/pages/AffiliateAdmin/affiliateAdminFinance.test.mjs src/pages/AffiliateAdmin/affiliateAdminProfiles.test.mjs` 15 项通过；`cd web/classic && bun run build` 通过；`git diff --check` 通过。
+- 残留风险：当前是可落地的 JSON 编辑入口，不是面向运营的动态行表格；没有二次确认弹窗、配置 diff 预览、批次运行记录或 default parity；发布/归档 smoke 尚未用浏览器真实账号点击验证。
+- 下一步：继续把规则 JSON 区块拆成动态表格，或补 classic 浏览器 smoke 与 default 管理端 parity。
+
 ## Phase 11：用户管理 `inviter_id`
 
 - [x] classic 用户管理编辑页增加邀请人 ID 字段，并接入候选搜索、影响预览和保存 API。
@@ -529,12 +536,12 @@
 
 - [ ] 本地通过核心 Go 测试。
 - [ ] 复核并修复/隔离当前 `go test ./...` 基线失败：根包缺少 `web/classic/dist` embed，controller 现有 model list 测试失败，Claude relay 与 stream scanner 现有测试失败；本批 affiliate 定向测试已通过。
-- [x] classic 前端构建通过；2026-06-03 追加 classic 佣金/结算操作面板后 `cd web/classic && bun run build` 通过。
+- [x] classic 前端构建通过；2026-06-03 追加 classic 佣金/结算操作面板和规则集配置 UI 后 `cd web/classic && bun run build` 通过。
 - [x] default 前端构建或 typecheck 通过（2026-06-03 `cd web/default && bun run build` 通过；typecheck 仍有既有 baseline，见 Phase 8 复盘）。
 - [ ] Playwright 截图回归通过；classic 分销页管理员/一级/二级/移动端 2026-06-03 已通过；classic 用户管理 inviter SideSheet、预览接口和 no-op 保存 smoke 已通过；default 用户管理 inviter 编辑抽屉、预览和 no-op 保存 smoke 已通过；普通用户、profile disabled、模块关闭仍待补齐。
 - [ ] schema impact 报告无非预期官方表改动。
 - [x] 用服务器 PG 快照完成真实账号 smoke；2026-06-03 在本地恢复库中用三类测试账号完成 API smoke 和 classic browser smoke，未输出用户名、密码、cookie 或 token。
-- [ ] 管理员端规则配置页面可修改分佣比例、KPI 阈值、系数、人头费、质量门槛和结算周期。
+- [x] 管理员端规则配置页面可修改分佣比例、KPI 阈值、系数、人头费、质量门槛和结算周期；当前完成范围为 classic JSON 规则区块，default parity 与运营友好的动态表格仍待后续。
 - [ ] 如果启用手机号/SMS，短信宝签名、模板、通道、限流和测试发送通过 smoke。
 - [ ] 外接控制台与原生模块双跑一个完整结算周期。
 - [ ] 灰度启用分销入口。

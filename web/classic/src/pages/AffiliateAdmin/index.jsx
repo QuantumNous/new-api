@@ -46,6 +46,14 @@ import {
   validateAffiliateCommissionRecomputePayload,
   validateAffiliateSettlementRunPayload,
 } from './affiliateAdminFinance';
+import {
+  buildAffiliateRuleSetDraftFormValues,
+  buildAffiliateRuleSetDraftPayload,
+  buildAffiliateRuleSetsQuery,
+  buildAffiliateRuleSetStatusPayload,
+  getAffiliateRuleSetStatusMeta,
+  validateAffiliateRuleSetDraftPayload,
+} from './affiliateAdminRules';
 
 const { Text, Title } = Typography;
 
@@ -62,6 +70,16 @@ const AffiliateAdmin = () => {
   const [total, setTotal] = useState(0);
   const [financeLoading, setFinanceLoading] = useState('');
   const [lastFinanceResult, setLastFinanceResult] = useState('');
+  const [ruleSets, setRuleSets] = useState([]);
+  const [ruleSetLoading, setRuleSetLoading] = useState(false);
+  const [ruleSetSubmitLoading, setRuleSetSubmitLoading] = useState(false);
+  const [ruleSetActionLoading, setRuleSetActionLoading] = useState('');
+  const [ruleSetFilters, setRuleSetFilters] = useState({});
+  const [ruleSetPage, setRuleSetPage] = useState(1);
+  const [ruleSetPageSize, setRuleSetPageSize] = useState(DEFAULT_PAGE_SIZE);
+  const [ruleSetTotal, setRuleSetTotal] = useState(0);
+  const [selectedRuleSet, setSelectedRuleSet] = useState(null);
+  const [ruleSetFormKey, setRuleSetFormKey] = useState(0);
 
   const loadProfiles = async (
     nextPage = page,
@@ -95,6 +113,7 @@ const AffiliateAdmin = () => {
 
   useEffect(() => {
     loadProfiles(1, DEFAULT_PAGE_SIZE, {});
+    loadRuleSets(1, DEFAULT_PAGE_SIZE, {});
   }, []);
 
   const handleCreateOrUpdate = async (values) => {
@@ -254,6 +273,118 @@ const AffiliateAdmin = () => {
     }
   };
 
+  const loadRuleSets = async (
+    nextPage = ruleSetPage,
+    nextPageSize = ruleSetPageSize,
+    nextFilters = ruleSetFilters,
+  ) => {
+    setRuleSetLoading(true);
+    try {
+      const res = await API.get(
+        buildAffiliateRuleSetsQuery({
+          page: nextPage,
+          pageSize: nextPageSize,
+          filters: nextFilters,
+        }),
+      );
+      const { success, data, message } = res.data;
+      if (!success) {
+        showError(message || t('规则集列表加载失败'));
+        return;
+      }
+      setRuleSets(Array.isArray(data?.items) ? data.items : []);
+      setRuleSetTotal(Number(data?.total || 0));
+      setRuleSetPage(Number(data?.page || nextPage));
+      setRuleSetPageSize(Number(data?.page_size || nextPageSize));
+    } catch (error) {
+      showError(t('规则集列表加载失败'));
+    } finally {
+      setRuleSetLoading(false);
+    }
+  };
+
+  const handleRuleSetFilterSubmit = (values) => {
+    const nextFilters = { status: values.status };
+    setRuleSetFilters(nextFilters);
+    loadRuleSets(1, ruleSetPageSize, nextFilters);
+  };
+
+  const handleRuleSetSelect = (record) => {
+    setSelectedRuleSet(record);
+    setRuleSetFormKey((value) => value + 1);
+  };
+
+  const handleRuleSetNew = () => {
+    setSelectedRuleSet(null);
+    setRuleSetFormKey((value) => value + 1);
+  };
+
+  const handleRuleSetDraftSubmit = async (values) => {
+    let payload;
+    try {
+      payload = buildAffiliateRuleSetDraftPayload(values);
+    } catch (error) {
+      showError(error.message || t('规则 JSON 格式错误'));
+      return;
+    }
+
+    const validationError = validateAffiliateRuleSetDraftPayload(t, payload);
+    if (validationError) {
+      showError(validationError);
+      return;
+    }
+
+    setRuleSetSubmitLoading(true);
+    try {
+      const res = await API.post(
+        '/api/affiliate/admin/rule-sets/draft',
+        payload,
+      );
+      const { success, data, message } = res.data;
+      if (!success) {
+        showError(message || t('规则集草稿保存失败'));
+        return;
+      }
+      showSuccess(t('规则集草稿已保存'));
+      setSelectedRuleSet(data || null);
+      setRuleSetFormKey((value) => value + 1);
+      await loadRuleSets(1, ruleSetPageSize, ruleSetFilters);
+    } catch (error) {
+      showError(t('规则集草稿保存失败'));
+    } finally {
+      setRuleSetSubmitLoading(false);
+    }
+  };
+
+  const handleRuleSetStatusChange = async (record, action) => {
+    const actionText = action === 'publish' ? t('发布') : t('归档');
+    setRuleSetActionLoading(`${action}-${record.id}`);
+    try {
+      const res = await API.patch(
+        `/api/affiliate/admin/rule-sets/${record.id}/${action}`,
+        buildAffiliateRuleSetStatusPayload({
+          reason: t('管理员在分销管理页{{action}}规则集').replace(
+            '{{action}}',
+            actionText,
+          ),
+        }),
+      );
+      const { success, data, message } = res.data;
+      if (!success) {
+        showError(message || t('规则集状态更新失败'));
+        return;
+      }
+      showSuccess(t('规则集状态已更新'));
+      setSelectedRuleSet(data || record);
+      setRuleSetFormKey((value) => value + 1);
+      await loadRuleSets(ruleSetPage, ruleSetPageSize, ruleSetFilters);
+    } catch (error) {
+      showError(t('规则集状态更新失败'));
+    } finally {
+      setRuleSetActionLoading('');
+    }
+  };
+
   const columns = useMemo(
     () => [
       {
@@ -327,6 +458,96 @@ const AffiliateAdmin = () => {
     [t, page, pageSize, filters],
   );
 
+  const ruleSetColumns = useMemo(
+    () => [
+      {
+        title: t('规则集 ID'),
+        dataIndex: 'id',
+        width: 100,
+      },
+      {
+        title: t('版本'),
+        dataIndex: 'version',
+        width: 170,
+      },
+      {
+        title: t('名称'),
+        dataIndex: 'name',
+        width: 190,
+      },
+      {
+        title: t('状态'),
+        dataIndex: 'status',
+        width: 100,
+        render: (status) => {
+          const meta = getAffiliateRuleSetStatusMeta(t, status);
+          return <Tag color={meta.type}>{meta.label}</Tag>;
+        },
+      },
+      {
+        title: t('生效窗口'),
+        dataIndex: 'effective_start',
+        width: 240,
+        render: (_, record) => {
+          const start = record.effective_start
+            ? timestamp2string(record.effective_start)
+            : t('立即');
+          const end = record.effective_end
+            ? timestamp2string(record.effective_end)
+            : t('长期');
+          return `${start} - ${end}`;
+        },
+      },
+      {
+        title: t('发布时间'),
+        dataIndex: 'published_at',
+        width: 170,
+        render: (value) => (value ? timestamp2string(value) : '-'),
+      },
+      {
+        title: t('操作'),
+        dataIndex: 'operate',
+        fixed: 'right',
+        width: 220,
+        render: (_, record) => (
+          <Space>
+            <Button
+              size='small'
+              type='tertiary'
+              theme='outline'
+              onClick={() => handleRuleSetSelect(record)}
+            >
+              {t('编辑')}
+            </Button>
+            {record.status === 'draft' && (
+              <Button
+                size='small'
+                type='primary'
+                theme='outline'
+                loading={ruleSetActionLoading === `publish-${record.id}`}
+                onClick={() => handleRuleSetStatusChange(record, 'publish')}
+              >
+                {t('发布')}
+              </Button>
+            )}
+            {record.status !== 'archived' && (
+              <Button
+                size='small'
+                type='warning'
+                theme='outline'
+                loading={ruleSetActionLoading === `archive-${record.id}`}
+                onClick={() => handleRuleSetStatusChange(record, 'archive')}
+              >
+                {t('归档')}
+              </Button>
+            )}
+          </Space>
+        ),
+      },
+    ],
+    [t, ruleSetActionLoading, ruleSetPage, ruleSetPageSize, ruleSetFilters],
+  );
+
   const handleFilterSubmit = (values) => {
     const nextFilters = {
       user_id: values.user_id,
@@ -379,6 +600,141 @@ const AffiliateAdmin = () => {
             {t('保存分销商')}
           </Button>
         </Form>
+      </Card>
+
+      <Card className='!rounded-2xl mb-4'>
+        <div className='flex flex-col gap-2 mb-4'>
+          <div className='flex flex-col md:flex-row md:items-center md:justify-between gap-3'>
+            <Title heading={4}>{t('规则集配置')}</Title>
+            <Button type='tertiary' onClick={handleRuleSetNew}>
+              {t('新建默认规则草稿')}
+            </Button>
+          </div>
+          <Text type='secondary'>
+            {t(
+              '规则集保存为版本化草稿后才能发布；发布会归档旧 published 规则。JSON 区块可完整修改分佣区间、KPI、质量门槛、人头费和结算配置。',
+            )}
+          </Text>
+        </div>
+
+        <Form layout='horizontal' onSubmit={handleRuleSetFilterSubmit}>
+          <Form.Select
+            field='status'
+            label={t('规则状态')}
+            optionList={[
+              { label: t('全部'), value: '' },
+              { label: t('草稿'), value: 'draft' },
+              { label: t('已发布'), value: 'published' },
+              { label: t('已归档'), value: 'archived' },
+            ]}
+          />
+          <Button htmlType='submit' type='primary'>
+            {t('筛选规则集')}
+          </Button>
+        </Form>
+
+        <Table
+          className='mt-4'
+          columns={ruleSetColumns}
+          dataSource={ruleSets}
+          rowKey='id'
+          loading={ruleSetLoading}
+          pagination={{
+            currentPage: ruleSetPage,
+            pageSize: ruleSetPageSize,
+            total: ruleSetTotal,
+            showSizeChanger: true,
+            onPageChange: (nextPage) =>
+              loadRuleSets(nextPage, ruleSetPageSize, ruleSetFilters),
+            onPageSizeChange: (nextPageSize) =>
+              loadRuleSets(1, nextPageSize, ruleSetFilters),
+          }}
+          scroll={{ x: 1200 }}
+        />
+
+        <div className='mt-4'>
+          <Title heading={5}>
+            {selectedRuleSet ? t('编辑规则集草稿') : t('新建规则集草稿')}
+          </Title>
+          <Form
+            key={`${selectedRuleSet?.id || 'new'}-${ruleSetFormKey}`}
+            className='mt-3'
+            layout='vertical'
+            initValues={buildAffiliateRuleSetDraftFormValues(selectedRuleSet)}
+            onSubmit={handleRuleSetDraftSubmit}
+          >
+            <div className='grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4'>
+              <Form.InputNumber field='id' label={t('规则集 ID')} min={0} />
+              <Form.Input field='version' label={t('版本')} />
+              <Form.Input field='name' label={t('名称')} />
+              <Form.Input field='reason' label={t('操作原因')} />
+              <Form.InputNumber
+                field='effective_start'
+                label={t('生效开始时间戳')}
+                min={0}
+              />
+              <Form.InputNumber
+                field='effective_end'
+                label={t('生效结束时间戳')}
+                min={0}
+              />
+              <Form.Input field='settlement_cycle' label={t('结算周期')} />
+              <Form.InputNumber
+                field='freeze_days'
+                label={t('冻结天数')}
+                min={0}
+              />
+              <Form.InputNumber
+                field='min_settlement_amount_cents'
+                label={t('最小结算金额（分）')}
+                min={0}
+              />
+              <Form.Switch
+                field='manual_review_enabled'
+                label={t('人工审核')}
+              />
+            </div>
+            <div className='grid grid-cols-1 xl:grid-cols-2 gap-4'>
+              <Form.TextArea
+                field='commission_rules_json'
+                label={t('分佣基础规则 JSON')}
+                autosize
+              />
+              <Form.TextArea
+                field='commission_tiers_json'
+                label={t('分佣区间 JSON')}
+                autosize
+              />
+              <Form.TextArea
+                field='kpi_tiers_json'
+                label={t('KPI 档位 JSON')}
+                autosize
+              />
+              <Form.TextArea
+                field='head_fee_rules_json'
+                label={t('人头费规则 JSON')}
+                autosize
+              />
+              <Form.TextArea
+                field='risk_rules_json'
+                label={t('质量门槛 JSON')}
+                autosize
+              />
+            </div>
+            <Space>
+              <Button
+                htmlType='submit'
+                type='primary'
+                loading={ruleSetSubmitLoading}
+              >
+                {t('保存规则草稿')}
+              </Button>
+              <Text type='secondary'>
+                {t('保存后可在上方列表发布或归档规则集。')}
+              </Text>
+            </Space>
+          </Form>
+        </div>
       </Card>
 
       <Card className='!rounded-2xl mb-4'>
