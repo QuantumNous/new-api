@@ -591,6 +591,10 @@ func UpdateUser(c *gin.Context) {
 		common.ApiErrorI18n(c, i18n.MsgUserCannotCreateHigherLevel)
 		return
 	}
+	if updatedUser.Group != "" && !setting.IsUserUsableGroup(updatedUser.Group) {
+		common.ApiErrorI18n(c, i18n.MsgInvalidParams, map[string]any{"Error": fmt.Sprintf("user group does not exist: %s", updatedUser.Group)})
+		return
+	}
 	if updatedUser.Password == "$I_LOVE_U" {
 		updatedUser.Password = "" // rollback to what it should be
 	}
