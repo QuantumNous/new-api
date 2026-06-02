@@ -38,6 +38,52 @@ func GetAffiliateStatus(c *gin.Context) {
 	common.ApiSuccess(c, buildAffiliateStatusResponse(common.AffiliateEnabled, dbReady, role, scope))
 }
 
+func GetAffiliateScopedLogs(c *gin.Context) {
+	scope, ok := getAffiliateScopeFromContext(c)
+	if !ok {
+		common.ApiErrorMsg(c, "分销 scope 未初始化")
+		return
+	}
+
+	pageInfo := common.GetPageQuery(c)
+	logType, _ := strconv.Atoi(c.Query("type"))
+	startTimestamp, _ := strconv.ParseInt(c.Query("start_timestamp"), 10, 64)
+	endTimestamp, _ := strconv.ParseInt(c.Query("end_timestamp"), 10, 64)
+	userId, _ := strconv.Atoi(c.Query("user_id"))
+	secondLevelUserId, _ := strconv.Atoi(c.Query("second_level_user_id"))
+
+	logs, total, err := service.ListAffiliateScopedLogs(model.DB, model.LOG_DB, service.AffiliateScopedLogsInput{
+		Scope:                  scope,
+		LogType:                logType,
+		RequestStatus:          c.Query("request_status"),
+		StartTimestamp:         startTimestamp,
+		EndTimestamp:           endTimestamp,
+		ModelName:              c.Query("model_name"),
+		Group:                  c.Query("group"),
+		UserId:                 userId,
+		SecondLevelAffiliateId: secondLevelUserId,
+		StartIdx:               pageInfo.GetStartIdx(),
+		PageSize:               pageInfo.GetPageSize(),
+	})
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+
+	pageInfo.SetTotal(int(total))
+	pageInfo.SetItems(logs)
+	common.ApiSuccess(c, pageInfo)
+}
+
+func getAffiliateScopeFromContext(c *gin.Context) (service.AffiliateScope, bool) {
+	value, ok := c.Get("affiliate_scope")
+	if !ok {
+		return service.AffiliateScope{}, false
+	}
+	scope, ok := value.(service.AffiliateScope)
+	return scope, ok
+}
+
 func getActiveAffiliateProfile(userId int) (*model.AffiliateProfile, error) {
 	if model.DB == nil {
 		return nil, nil

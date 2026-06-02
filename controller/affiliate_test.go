@@ -275,6 +275,94 @@ func TestAffiliateAdminRoutesRejectCommonUser(t *testing.T) {
 	}
 }
 
+func TestGetAffiliateScopedLogsFiltersScopeAndRedactsSensitiveFields(t *testing.T) {
+	db := newAffiliateLogsControllerTestDB(t)
+	seedAffiliateRelation(t, db, 100, 200, 1, model.AffiliateProfileStatusActive)
+	seedAffiliateRelation(t, db, 100, 300, 2, model.AffiliateProfileStatusActive)
+	seedAffiliateRelation(t, db, 100, 400, 3, model.AffiliateProfileStatusActive)
+	seedAffiliateRelation(t, db, 100, 500, 1, model.AffiliateProfileStatusDisabled)
+	seedAffiliateLog(t, db, model.Log{UserId: 200, Username: "level2", CreatedAt: 20, Type: model.LogTypeConsume, ModelName: "gpt-4", Group: "default", ChannelId: 9, ChannelName: "secret-channel", TokenId: 88, TokenName: "secret-token", Ip: "127.0.0.1", RequestId: "req-secret", UpstreamRequestId: "upstream-secret", Other: `{"admin_info":{"ip":"secret"},"stream_status":"secret","safe":"kept"}`})
+	seedAffiliateLog(t, db, model.Log{UserId: 300, Username: "downstream", CreatedAt: 30, Type: model.LogTypeConsume, ModelName: "gpt-4", Group: "default", ChannelId: 10, TokenId: 89, TokenName: "another-token", Ip: "127.0.0.2", RequestId: "req-secret-2", UpstreamRequestId: "upstream-secret-2", Other: `{"safe":"kept"}`})
+	seedAffiliateLog(t, db, model.Log{UserId: 400, Username: "too-deep", CreatedAt: 40, Type: model.LogTypeConsume, ModelName: "gpt-4", Group: "default"})
+	seedAffiliateLog(t, db, model.Log{UserId: 500, Username: "disabled", CreatedAt: 50, Type: model.LogTypeConsume, ModelName: "gpt-4", Group: "default"})
+	seedAffiliateLog(t, db, model.Log{UserId: 200, Username: "wrong-group", CreatedAt: 60, Type: model.LogTypeConsume, ModelName: "gpt-4", Group: "vip"})
+
+	body := performAffiliateScopedLogsRequest(t, "/api/affiliate/logs?type=2&model_name=gpt-4&group=default&p=1&page_size=10", service.AffiliateScope{
+		Kind:           service.AffiliateScopeAffiliate,
+		UserId:         100,
+		AffiliateLevel: 1,
+		MaxDepth:       2,
+	})
+
+	if !body.Success {
+		t.Fatalf("expected success response: %+v", body)
+	}
+	if body.Data.Total != 2 {
+		t.Fatalf("expected total 2, got %+v", body.Data)
+	}
+	if len(body.Data.Items) != 2 {
+		t.Fatalf("expected 2 logs, got %+v", body.Data.Items)
+	}
+	if body.Data.Items[0].UserId != 300 || body.Data.Items[1].UserId != 200 {
+		t.Fatalf("unexpected scoped log order/items: %+v", body.Data.Items)
+	}
+	for _, item := range body.Data.Items {
+		if item.ChannelId != 0 || item.ChannelName != "" || item.TokenId != 0 || item.TokenName != "" || item.Ip != "" || item.RequestId != "" || item.UpstreamRequestId != "" {
+			t.Fatalf("scoped log leaked sensitive fields: %+v", item)
+		}
+		if item.Other == "" || item.Other == "null" {
+			t.Fatalf("expected sanitized other to preserve safe fields: %+v", item)
+		}
+		if item.Other == `{"admin_info":{"ip":"secret"},"stream_status":"secret","safe":"kept"}` {
+			t.Fatalf("expected admin fields to be removed from other: %+v", item)
+		}
+	}
+}
+
+func TestGetAffiliateScopedLogsRejectsUserOutsideScope(t *testing.T) {
+	db := newAffiliateLogsControllerTestDB(t)
+	seedAffiliateRelation(t, db, 100, 200, 1, model.AffiliateProfileStatusActive)
+
+	body := performAffiliateScopedLogsRequest(t, "/api/affiliate/logs?user_id=999", service.AffiliateScope{
+		Kind:           service.AffiliateScopeAffiliate,
+		UserId:         100,
+		AffiliateLevel: 1,
+		MaxDepth:       2,
+	})
+
+	if body.Success {
+		t.Fatalf("expected outside user filter to be rejected, got %+v", body)
+	}
+}
+
+func TestGetAffiliateScopedLogsSupportsSecondaryAffiliateAndRequestStatusFilters(t *testing.T) {
+	db := newAffiliateLogsControllerTestDB(t)
+	seedAffiliateRelation(t, db, 100, 200, 1, model.AffiliateProfileStatusActive)
+	seedAffiliateRelation(t, db, 100, 201, 1, model.AffiliateProfileStatusActive)
+	seedAffiliateRelation(t, db, 100, 300, 2, model.AffiliateProfileStatusActive)
+	seedAffiliateRelation(t, db, 100, 400, 2, model.AffiliateProfileStatusActive)
+	seedAffiliateRelation(t, db, 200, 300, 1, model.AffiliateProfileStatusActive)
+	seedAffiliateRelation(t, db, 201, 400, 1, model.AffiliateProfileStatusActive)
+	seedAffiliateLog(t, db, model.Log{UserId: 200, Username: "second", CreatedAt: 20, Type: model.LogTypeConsume, ModelName: "gpt-4", Group: "default"})
+	seedAffiliateLog(t, db, model.Log{UserId: 300, Username: "second-downstream", CreatedAt: 30, Type: model.LogTypeError, ModelName: "gpt-4", Group: "default"})
+	seedAffiliateLog(t, db, model.Log{UserId: 400, Username: "other-second-downstream", CreatedAt: 30, Type: model.LogTypeError, ModelName: "gpt-4", Group: "default"})
+	seedAffiliateLog(t, db, model.Log{UserId: 300, Username: "old-second-downstream", CreatedAt: 10, Type: model.LogTypeError, ModelName: "gpt-4", Group: "default"})
+
+	body := performAffiliateScopedLogsRequest(t, "/api/affiliate/logs?second_level_user_id=200&request_status=error&start_timestamp=25&end_timestamp=35&p=1&page_size=10", service.AffiliateScope{
+		Kind:           service.AffiliateScopeAffiliate,
+		UserId:         100,
+		AffiliateLevel: 1,
+		MaxDepth:       2,
+	})
+
+	if !body.Success {
+		t.Fatalf("expected success response: %+v", body)
+	}
+	if body.Data.Total != 1 || len(body.Data.Items) != 1 || body.Data.Items[0].UserId != 300 {
+		t.Fatalf("expected only second-level downstream error log, got %+v", body.Data)
+	}
+}
+
 type affiliateStatusTestResponse struct {
 	Success bool `json:"success"`
 	Data    struct {
@@ -283,6 +371,15 @@ type affiliateStatusTestResponse struct {
 		UnavailableReason string                 `json:"unavailable_reason"`
 		Message           string                 `json:"message"`
 		Scope             service.AffiliateScope `json:"scope"`
+	} `json:"data"`
+}
+
+type affiliateLogsTestResponse struct {
+	Success bool   `json:"success"`
+	Message string `json:"message"`
+	Data    struct {
+		Total int         `json:"total"`
+		Items []model.Log `json:"items"`
 	} `json:"data"`
 }
 
@@ -301,6 +398,65 @@ func newAffiliateControllerTestDB(t *testing.T) *gorm.DB {
 		model.DB = originalDB
 	})
 	return db
+}
+
+func newAffiliateLogsControllerTestDB(t *testing.T) *gorm.DB {
+	t.Helper()
+	originalDB := model.DB
+	originalLogDB := model.LOG_DB
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	if err != nil {
+		t.Fatalf("open sqlite: %v", err)
+	}
+	if err := db.AutoMigrate(append(model.AffiliateSidecarModels(), &model.Log{})...); err != nil {
+		t.Fatalf("migrate affiliate log models: %v", err)
+	}
+	model.DB = db
+	model.LOG_DB = db
+	t.Cleanup(func() {
+		model.DB = originalDB
+		model.LOG_DB = originalLogDB
+	})
+	return db
+}
+
+func performAffiliateScopedLogsRequest(t *testing.T, target string, scope service.AffiliateScope) affiliateLogsTestResponse {
+	t.Helper()
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = httptest.NewRequest(http.MethodGet, target, nil)
+	ctx.Set("affiliate_scope", scope)
+
+	GetAffiliateScopedLogs(ctx)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d body=%s", recorder.Code, recorder.Body.String())
+	}
+	var body affiliateLogsTestResponse
+	if err := json.Unmarshal(recorder.Body.Bytes(), &body); err != nil {
+		t.Fatalf("unmarshal response: %v body=%s", err, recorder.Body.String())
+	}
+	return body
+}
+
+func seedAffiliateRelation(t *testing.T, db *gorm.DB, ancestor int, descendant int, depth int, status string) {
+	t.Helper()
+	if err := db.Create(&model.AffiliateRelation{
+		AncestorUserId:   ancestor,
+		DescendantUserId: descendant,
+		Depth:            depth,
+		Status:           status,
+		EffectiveAt:      100,
+	}).Error; err != nil {
+		t.Fatalf("seed relation: %v", err)
+	}
+}
+
+func seedAffiliateLog(t *testing.T, db *gorm.DB, log model.Log) {
+	t.Helper()
+	if err := db.Create(&log).Error; err != nil {
+		t.Fatalf("seed log: %v", err)
+	}
 }
 
 func newAffiliateAdminRouteTestRouter(t *testing.T, role int) *gin.Engine {
