@@ -73,9 +73,23 @@ describe('default affiliate helpers', () => {
         },
         2
       ),
-      '¥17.50'
+      '¥17.5'
     )
     assert.equal(formatRawQuota(2500), '2,500')
+  })
+
+  test('keeps tiny affiliate RMB values visible through the shared formatter', () => {
+    assert.equal(
+      formatAffiliateRmbFromQuota(
+        1,
+        {
+          quotaPerUnit: 1000,
+          usdExchangeRate: 1,
+        },
+        2
+      ),
+      '¥0.01'
+    )
   })
 
   test('maps unavailable reasons to friendly messages', () => {

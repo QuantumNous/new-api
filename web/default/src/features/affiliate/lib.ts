@@ -16,6 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { formatQuotaWithCurrency } from '@/lib/currency'
 import type { AffiliateLogFilters, AffiliateLogsParams } from './types'
 
 const numberFormat = new Intl.NumberFormat('zh-CN')
@@ -70,14 +71,17 @@ export function formatAffiliateRmbFromQuota(
   const quotaPerUnit = config.quotaPerUnit > 0 ? config.quotaPerUnit : 1
   const usdExchangeRate =
     config.usdExchangeRate > 0 ? config.usdExchangeRate : 1
-  const value = (Number(quota || 0) / quotaPerUnit) * usdExchangeRate
-  const fixedValue = value.toFixed(digits)
-
-  if (parseFloat(fixedValue) === 0 && quota > 0 && value > 0) {
-    return `¥${Math.pow(10, -digits).toFixed(digits)}`
-  }
-
-  return `¥${fixedValue}`
+  return formatQuotaWithCurrency(quota, {
+    abbreviate: false,
+    digitsLarge: digits,
+    digitsSmall: digits,
+    minimumNonZero: Math.pow(10, -digits),
+    currencyOverride: {
+      quotaDisplayType: 'CNY',
+      quotaPerUnit,
+      usdExchangeRate,
+    },
+  })
 }
 
 export function formatRawQuota(quota: number): string {

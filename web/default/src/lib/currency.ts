@@ -94,7 +94,16 @@ export interface CurrencyFormatOptions {
   abbreviate?: boolean
   /** Minimal absolute value to display when rounding would produce zero */
   minimumNonZero?: number
+  /** Override display config for contexts that require a fixed currency. */
+  currencyOverride?: Partial<CurrencyConfig>
 }
+
+type NumericCurrencyFormatOptions = Required<
+  Pick<
+    CurrencyFormatOptions,
+    'digitsLarge' | 'digitsSmall' | 'abbreviate' | 'minimumNonZero'
+  >
+>
 
 type DisplayMeta =
   | {
@@ -140,29 +149,40 @@ export function parseCurrencyDisplayType(
   return isCurrencyDisplayType(value) ? value : fallback
 }
 
-function getConfig(): CurrencyConfig {
-  const { config } = useSystemConfigStore.getState()
-  const currency = config?.currency ?? DEFAULT_CURRENCY_CONFIG
-  return {
+function normalizeCurrencyConfig(
+  currency?: Partial<CurrencyConfig>
+): CurrencyConfig {
+  const normalized = {
     ...DEFAULT_CURRENCY_CONFIG,
-    ...currency,
+    ...(currency ?? {}),
+  }
+  return {
+    ...normalized,
     quotaPerUnit:
-      currency?.quotaPerUnit && currency.quotaPerUnit > 0
-        ? currency.quotaPerUnit
+      normalized.quotaPerUnit && normalized.quotaPerUnit > 0
+        ? normalized.quotaPerUnit
         : DEFAULT_CURRENCY_CONFIG.quotaPerUnit,
     usdExchangeRate:
-      currency?.usdExchangeRate && currency.usdExchangeRate > 0
-        ? currency.usdExchangeRate
+      normalized.usdExchangeRate && normalized.usdExchangeRate > 0
+        ? normalized.usdExchangeRate
         : DEFAULT_CURRENCY_CONFIG.usdExchangeRate,
     customCurrencyExchangeRate:
-      currency?.customCurrencyExchangeRate &&
-      currency.customCurrencyExchangeRate > 0
-        ? currency.customCurrencyExchangeRate
+      normalized.customCurrencyExchangeRate &&
+      normalized.customCurrencyExchangeRate > 0
+        ? normalized.customCurrencyExchangeRate
         : DEFAULT_CURRENCY_CONFIG.customCurrencyExchangeRate,
     customCurrencySymbol:
-      currency?.customCurrencySymbol?.trim() ||
+      normalized.customCurrencySymbol?.trim() ||
       DEFAULT_CURRENCY_CONFIG.customCurrencySymbol,
   }
+}
+
+function getConfig(override?: Partial<CurrencyConfig>): CurrencyConfig {
+  const { config } = useSystemConfigStore.getState()
+  return normalizeCurrencyConfig({
+    ...(config?.currency ?? DEFAULT_CURRENCY_CONFIG),
+    ...(override ?? {}),
+  })
 }
 
 function getDisplayMeta(config: CurrencyConfig): DisplayMeta {
@@ -211,7 +231,7 @@ function getBillingDisplayMeta(config: CurrencyConfig): DisplayMeta {
 
 function mergeOptions(
   options?: CurrencyFormatOptions
-): Required<CurrencyFormatOptions> {
+): NumericCurrencyFormatOptions {
   if (!options) return DEFAULT_FORMAT_OPTIONS
   return {
     digitsLarge: options.digitsLarge ?? DEFAULT_FORMAT_OPTIONS.digitsLarge,
@@ -304,8 +324,8 @@ function formatCurrencyValue(
  * This is primarily for internal use. Most consumers should use the
  * higher-level formatting functions instead.
  */
-export function getCurrencyDisplay() {
-  const config = getConfig()
+export function getCurrencyDisplay(override?: Partial<CurrencyConfig>) {
+  const config = getConfig(override)
   const meta = getDisplayMeta(config)
   return { config, meta }
 }
@@ -353,7 +373,7 @@ export function formatCurrencyFromUSD(
 ): string {
   if (amountUSD == null || Number.isNaN(amountUSD)) return '-'
 
-  const { config, meta } = getCurrencyDisplay()
+  const { config, meta } = getCurrencyDisplay(options?.currencyOverride)
   const merged = mergeOptions(options)
 
   if (meta.kind === 'tokens') {
@@ -410,7 +430,7 @@ export function formatBillingCurrencyFromUSD(
 ): string {
   if (amountUSD == null || Number.isNaN(amountUSD)) return '-'
 
-  const { config } = getCurrencyDisplay()
+  const { config } = getCurrencyDisplay(options?.currencyOverride)
   const meta = getBillingDisplayMeta(config)
   const merged = mergeOptions(options)
   const value =
@@ -455,7 +475,7 @@ export function formatQuotaWithCurrency(
 ): string {
   if (quota == null || Number.isNaN(quota)) return '-'
 
-  const { config } = getCurrencyDisplay()
+  const { config } = getCurrencyDisplay(options?.currencyOverride)
   const amountUSD = quota / config.quotaPerUnit
   return formatCurrencyFromUSD(amountUSD, options)
 }

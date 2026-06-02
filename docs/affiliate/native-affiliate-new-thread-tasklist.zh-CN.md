@@ -392,7 +392,7 @@
 - [x] 梳理 classic 分销页面字段单位：统计看板金额卡、scoped 使用日志花费列；classic 管理员分销 profile 页暂无金额字段。
 - [x] classic 分销页面金额主显示 RMB：看板和 scoped 使用日志花费列均使用站内 `quota_per_unit` 与 `usd_exchange_rate` 换算 RMB，不跟随 `quota_display_type=TOKENS/CUSTOM` 改变主单位。
 - [x] default 分销页面金额主显示 RMB：看板和 scoped logs 花费列均以 RMB 为主单位，原始 quota 保留为 tooltip/说明。
-- [ ] default 复用 `formatQuotaWithCurrency()`。
+- [x] default 复用 `formatQuotaWithCurrency()`；为全局 formatter 增加调用方 CNY override，default 分销 helper 不再手写 quota->RMB 换算。
 - [x] classic 原始 quota/token 仅保留 tooltip、调试字段或导出附加列；scoped 使用日志花费列 tooltip 保留原始 quota。
 - [ ] 用真实账号数据核对页面 RMB 值。
 - [ ] 导出文件同时包含 RMB 主字段和原始 quota 附加字段。
@@ -403,6 +403,13 @@
 - 验证方式：`bun test src/helpers/affiliateQuota.test.mjs src/hooks/usage-logs/usageLogsUrls.test.mjs src/pages/Affiliate/affiliateDashboardCards.test.mjs src/pages/Affiliate/affiliateViewState.test.mjs` 12/12 通过；`cd web/classic && bun run build` 通过。
 - 残留风险：本批未跑真实账号浏览器核对；default 分销前端、导出字段和真实账号 RMB 值核对仍待后续 Phase 8/9。
 - 下一步：推进 default parity，或用本地恢复库账号做 RMB 页面核对并补截图回归。
+
+### Phase 9 default RMB formatter 复盘（2026-06-03 本线程）
+
+- 完成内容：default 分销 scoped logs RMB helper 改为复用全局 `formatQuotaWithCurrency()`，不再手写 quota->USD->RMB 公式；全局 currency formatter 新增 `currencyOverride`，允许分销场景在系统 `quotaDisplayType=TOKENS/CUSTOM/USD` 时仍强制以 CNY/RMB 主显示，同时继续使用系统 `quota_per_unit` 与 `usd_exchange_rate`。
+- 验证方式：先观察 `bun --bun test src/lib/currency.test.ts src/features/affiliate/lib.test.ts` RED，失败于 formatter override 未实现和 affiliate helper 仍输出手写 fixed RMB；实现后同命令通过；补充 `bun --bun test src/lib/currency.test.ts src/features/affiliate/lib.test.ts src/features/affiliate/admin-lib.test.ts` 20 项通过；`cd web/default && bun run i18n:sync` 通过；`cd web/default && bun run build` 通过；`git diff --check` 通过。
+- 残留风险：本批只覆盖 helper 与构建，未用真实账号核对页面 RMB 数值，也未补导出字段中的 RMB 主字段/原始 quota 附加字段。
+- 下一步：用本地恢复库真实账号做 RMB 页面核对，或实现导出文件同时包含 RMB 主字段和原始 quota 附加字段。
 
 ## Phase 10：KPI、佣金、人头费与结算
 
