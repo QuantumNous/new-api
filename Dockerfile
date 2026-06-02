@@ -2,7 +2,7 @@ FROM oven/bun:1@sha256:0733e50325078969732ebe3b15ce4c4be5082f18c4ac1a0f0ca4839c2
 
 WORKDIR /build
 ARG FRONTEND_THEME=all
-ARG FRONTEND_BUILD_GC_HEAP_SIZE=805306368
+ARG FRONTEND_BUILD_GC_HEAP_SIZE=536870912
 
 COPY web/default/package.json web/default/bun.lock ./web/default/
 COPY web/classic/package.json web/classic/bun.lock ./web/classic/

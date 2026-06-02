@@ -40,7 +40,7 @@ SESSION_SECRET="${SESSION_SECRET:-}"
 CRYPTO_SECRET="${CRYPTO_SECRET:-}"
 NODE_NAME="${NODE_NAME:-${PROJECT_NAME}-node-1}"
 BUILD_ON_UP="${BUILD_ON_UP:-1}"
-FRONTEND_BUILD_GC_HEAP_SIZE="${FRONTEND_BUILD_GC_HEAP_SIZE:-805306368}"
+FRONTEND_BUILD_GC_HEAP_SIZE="${FRONTEND_BUILD_GC_HEAP_SIZE:-536870912}"
 if [[ -z "${FRONTEND_THEME+x}" ]]; then
   FRONTEND_THEME="classic"
 fi
@@ -68,7 +68,7 @@ Common environment overrides:
   FOLLOW_LOGS=1                     Follow app logs after starting
   ENV_FILE=.env.local               Optional extra env file for the app
   FRONTEND_THEME=classic             Frontend theme for local deployment/build (default: classic; use default|classic; empty to skip build/theme)
-  FRONTEND_BUILD_GC_HEAP_SIZE=805306368  Bun/JSC GC heap limit for frontend build; lower is slower but uses less memory
+  FRONTEND_BUILD_GC_HEAP_SIZE=536870912  Bun/JSC GC heap limit for frontend build; lower is slower but uses less memory
 
 Advanced overrides:
   POSTGRES_PASSWORD=...             Override generated PostgreSQL password
