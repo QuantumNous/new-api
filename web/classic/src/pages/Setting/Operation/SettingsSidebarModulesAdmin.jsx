@@ -30,6 +30,7 @@ import {
 } from '@douyinfe/semi-ui';
 import { API, showSuccess, showError } from '../../../helpers';
 import { StatusContext } from '../../../context/Status';
+import { mergeAdminConfig } from '../../../hooks/common/useSidebar';
 
 const { Text } = Typography;
 
@@ -66,6 +67,7 @@ export default function SettingsSidebarModulesAdmin(props) {
       deployment: true,
       redemption: true,
       user: true,
+      affiliateAdmin: true,
       subscription: true,
       setting: true,
     },
@@ -128,6 +130,7 @@ export default function SettingsSidebarModulesAdmin(props) {
         deployment: true,
         redemption: true,
         user: true,
+        affiliateAdmin: true,
         subscription: true,
         setting: true,
       },
@@ -176,7 +179,7 @@ export default function SettingsSidebarModulesAdmin(props) {
     if (props.options && props.options.SidebarModulesAdmin) {
       try {
         const modules = JSON.parse(props.options.SidebarModulesAdmin);
-        setSidebarModulesAdmin(modules);
+        setSidebarModulesAdmin(mergeAdminConfig(modules));
       } catch (error) {
         // 使用默认配置
         const defaultModules = {
@@ -198,6 +201,7 @@ export default function SettingsSidebarModulesAdmin(props) {
             deployment: true,
             redemption: true,
             user: true,
+            affiliateAdmin: true,
             subscription: true,
             setting: true,
           },
@@ -230,7 +234,11 @@ export default function SettingsSidebarModulesAdmin(props) {
         { key: 'detail', title: t('数据看板'), description: t('系统数据统计') },
         { key: 'token', title: t('令牌管理'), description: t('API令牌管理') },
         { key: 'log', title: t('使用日志'), description: t('API使用记录') },
-        { key: 'affiliate', title: t('分销中心'), description: t('分销使用记录') },
+        {
+          key: 'affiliate',
+          title: t('分销中心'),
+          description: t('分销使用记录'),
+        },
         {
           key: 'midjourney',
           title: t('绘图日志'),
@@ -275,6 +283,11 @@ export default function SettingsSidebarModulesAdmin(props) {
           description: t('兑换码生成管理'),
         },
         { key: 'user', title: t('用户管理'), description: t('用户账户管理') },
+        {
+          key: 'affiliateAdmin',
+          title: t('分销管理'),
+          description: t('指定一级/二级分销商'),
+        },
         {
           key: 'setting',
           title: t('系统设置'),

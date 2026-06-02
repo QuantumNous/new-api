@@ -293,6 +293,59 @@ type AffiliateProfileStatusInput struct {
 	Reason      string
 }
 
+type AffiliateProfileListInput struct {
+	UserId   int
+	Level    int
+	Status   string
+	StartIdx int
+	PageSize int
+}
+
+func ListAffiliateProfiles(db *gorm.DB, input AffiliateProfileListInput) ([]model.AffiliateProfile, int64, error) {
+	if db == nil {
+		return nil, 0, errors.New("nil db")
+	}
+
+	tx := db.Model(&model.AffiliateProfile{})
+	if input.UserId > 0 {
+		tx = tx.Where("user_id = ?", input.UserId)
+	}
+	if input.Level == 1 || input.Level == 2 {
+		tx = tx.Where("level = ?", input.Level)
+	}
+	switch strings.ToLower(strings.TrimSpace(input.Status)) {
+	case model.AffiliateProfileStatusActive, model.AffiliateProfileStatusDisabled:
+		tx = tx.Where("status = ?", strings.ToLower(strings.TrimSpace(input.Status)))
+	}
+
+	var total int64
+	if err := tx.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+
+	pageSize := input.PageSize
+	if pageSize <= 0 {
+		pageSize = common.ItemsPerPage
+	}
+	if pageSize > 100 {
+		pageSize = 100
+	}
+	startIdx := input.StartIdx
+	if startIdx < 0 {
+		startIdx = 0
+	}
+
+	var profiles []model.AffiliateProfile
+	if err := tx.
+		Order("updated_at desc, id desc").
+		Offset(startIdx).
+		Limit(pageSize).
+		Find(&profiles).Error; err != nil {
+		return nil, 0, err
+	}
+	return profiles, total, nil
+}
+
 func CreateAffiliateProfile(db *gorm.DB, input AffiliateProfileCreateInput) (*model.AffiliateProfile, error) {
 	if db == nil {
 		return nil, errors.New("nil db")

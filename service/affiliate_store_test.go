@@ -160,6 +160,70 @@ func TestSetAffiliateProfileAcceptsLevelTwoWithActiveLevelOneParent(t *testing.T
 	}
 }
 
+func TestListAffiliateProfilesFiltersAndPaginates(t *testing.T) {
+	db := newAffiliateStoreTestDB(t)
+	if _, err := CreateAffiliateProfile(db, AffiliateProfileCreateInput{
+		UserId:      310,
+		Level:       1,
+		InviteCode:  "aff310",
+		ActorUserId: 1,
+		Reason:      "seed level one",
+	}); err != nil {
+		t.Fatalf("seed level one profile: %v", err)
+	}
+	if _, err := CreateAffiliateProfile(db, AffiliateProfileCreateInput{
+		UserId:       311,
+		Level:        2,
+		ParentUserId: 310,
+		InviteCode:   "aff311",
+		ActorUserId:  1,
+		Reason:       "seed level two",
+	}); err != nil {
+		t.Fatalf("seed level two profile: %v", err)
+	}
+	if _, err := CreateAffiliateProfile(db, AffiliateProfileCreateInput{
+		UserId:      312,
+		Level:       1,
+		InviteCode:  "aff312",
+		ActorUserId: 1,
+		Reason:      "seed disabled",
+	}); err != nil {
+		t.Fatalf("seed disabled profile: %v", err)
+	}
+	if err := DisableAffiliateProfile(db, AffiliateProfileStatusInput{
+		UserId:      312,
+		ActorUserId: 1,
+		Reason:      "disable seed",
+	}); err != nil {
+		t.Fatalf("disable profile: %v", err)
+	}
+
+	profiles, total, err := ListAffiliateProfiles(db, AffiliateProfileListInput{
+		Level:    1,
+		Status:   model.AffiliateProfileStatusActive,
+		StartIdx: 0,
+		PageSize: 10,
+	})
+	if err != nil {
+		t.Fatalf("ListAffiliateProfiles returned error: %v", err)
+	}
+	if total != 1 || len(profiles) != 1 || profiles[0].UserId != 310 {
+		t.Fatalf("unexpected active level one result total=%d profiles=%+v", total, profiles)
+	}
+
+	profiles, total, err = ListAffiliateProfiles(db, AffiliateProfileListInput{
+		UserId:   312,
+		StartIdx: 0,
+		PageSize: 10,
+	})
+	if err != nil {
+		t.Fatalf("ListAffiliateProfiles by user returned error: %v", err)
+	}
+	if total != 1 || len(profiles) != 1 || profiles[0].Status != model.AffiliateProfileStatusDisabled {
+		t.Fatalf("unexpected user filter result total=%d profiles=%+v", total, profiles)
+	}
+}
+
 func TestDisableAffiliateProfileDisablesRelationsAndAudits(t *testing.T) {
 	db := newAffiliateStoreTestDB(t)
 	if _, err := CreateAffiliateProfile(db, AffiliateProfileCreateInput{

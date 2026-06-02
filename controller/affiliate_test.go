@@ -227,6 +227,51 @@ func TestAdminUpdateAffiliateProfileStatusActive(t *testing.T) {
 	}
 }
 
+func TestAdminListAffiliateProfiles(t *testing.T) {
+	db := newAffiliateControllerTestDB(t)
+	if _, err := service.CreateAffiliateProfile(db, service.AffiliateProfileCreateInput{
+		UserId:      610,
+		Level:       1,
+		InviteCode:  "aff610",
+		ActorUserId: 1,
+		Reason:      "seed",
+	}); err != nil {
+		t.Fatalf("seed level one: %v", err)
+	}
+	if _, err := service.CreateAffiliateProfile(db, service.AffiliateProfileCreateInput{
+		UserId:       611,
+		Level:        2,
+		ParentUserId: 610,
+		InviteCode:   "aff611",
+		ActorUserId:  1,
+		Reason:       "seed",
+	}); err != nil {
+		t.Fatalf("seed level two: %v", err)
+	}
+
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = httptest.NewRequest(http.MethodGet, "/api/affiliate/admin/profiles?p=0&page_size=10&level=2&status=active", nil)
+	ctx.Set("id", 1)
+	ctx.Set("role", common.RoleAdminUser)
+
+	AdminListAffiliateProfiles(ctx)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d body=%s", recorder.Code, recorder.Body.String())
+	}
+	var body affiliateProfilesListTestResponse
+	if err := json.Unmarshal(recorder.Body.Bytes(), &body); err != nil {
+		t.Fatalf("unmarshal response: %v", err)
+	}
+	if !body.Success || body.Data.Total != 1 || len(body.Data.Items) != 1 {
+		t.Fatalf("unexpected list response: %+v", body)
+	}
+	if body.Data.Items[0].UserId != 611 || body.Data.Items[0].ParentUserId != 610 {
+		t.Fatalf("unexpected listed profile: %+v", body.Data.Items[0])
+	}
+}
+
 func TestAffiliateAdminRoutesRequireLogin(t *testing.T) {
 	router := newAffiliateAdminRouteTestRouter(t, common.RoleAdminUser)
 
@@ -441,6 +486,19 @@ type affiliateSummaryTestResponse struct {
 	} `json:"data"`
 }
 
+type affiliateProfilesListTestResponse struct {
+	Success bool `json:"success"`
+	Data    struct {
+		Total int `json:"total"`
+		Items []struct {
+			UserId       int    `json:"user_id"`
+			Level        int    `json:"level"`
+			Status       string `json:"status"`
+			ParentUserId int    `json:"parent_user_id"`
+		} `json:"items"`
+	} `json:"data"`
+}
+
 func newAffiliateControllerTestDB(t *testing.T) *gorm.DB {
 	t.Helper()
 	originalDB := model.DB
@@ -538,6 +596,7 @@ func newAffiliateAdminRouteTestRouter(t *testing.T, role int) *gin.Engine {
 	adminRoute := router.Group("/api/affiliate/admin")
 	adminRoute.Use(middleware.AdminAuth())
 	{
+		adminRoute.GET("/profiles", AdminListAffiliateProfiles)
 		adminRoute.POST("/profiles", AdminSetAffiliateProfile)
 	}
 	return router

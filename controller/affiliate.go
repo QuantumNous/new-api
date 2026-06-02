@@ -162,6 +162,28 @@ type affiliateProfileSetRequest struct {
 	Reason       string `json:"reason"`
 }
 
+func AdminListAffiliateProfiles(c *gin.Context) {
+	pageInfo := common.GetPageQuery(c)
+	userId, _ := strconv.Atoi(c.Query("user_id"))
+	level, _ := strconv.Atoi(c.Query("level"))
+
+	profiles, total, err := service.ListAffiliateProfiles(model.DB, service.AffiliateProfileListInput{
+		UserId:   userId,
+		Level:    level,
+		Status:   c.Query("status"),
+		StartIdx: pageInfo.GetStartIdx(),
+		PageSize: pageInfo.GetPageSize(),
+	})
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+
+	pageInfo.SetTotal(int(total))
+	pageInfo.SetItems(profiles)
+	common.ApiSuccess(c, pageInfo)
+}
+
 func AdminSetAffiliateProfile(c *gin.Context) {
 	var req affiliateProfileSetRequest
 	if err := c.ShouldBindJSON(&req); err != nil {

@@ -37,6 +37,7 @@ import Redemption from './pages/Redemption';
 import TopUp from './pages/TopUp';
 import Log from './pages/Log';
 import Affiliate from './pages/Affiliate';
+import AffiliateAdmin from './pages/AffiliateAdmin';
 import Chat from './pages/Chat';
 import Chat2Link from './pages/Chat2Link';
 import Midjourney from './pages/Midjourney';
@@ -284,6 +285,14 @@ function App() {
             <PrivateRoute>
               <Log />
             </PrivateRoute>
+          }
+        />
+        <Route
+          path='/console/affiliate/admin'
+          element={
+            <AdminRoute>
+              <AffiliateAdmin />
+            </AdminRoute>
           }
         />
         <Route

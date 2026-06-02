@@ -315,9 +315,9 @@
 - [x] 金额/额度主显示 RMB（classic 看板金额卡片主显示 RMB，并保留原始 quota 作为说明；scoped logs 表格的统一 RMB 化继续归入 Phase 9）。
 - [x] 消耗明细复用 scoped 使用日志。
 - [x] 普通用户、profile 未启用、模块关闭、权限不足显示中文友好提示（classic 已接 `/api/affiliate/status`；default 待 parity）。
-- [ ] 管理员无 profile 时仍可进入管理员分销管理。
-- [ ] 管理员端支持指定一级/二级分销商。
-- [ ] 管理员端支持编辑用户 `inviter_id` 或跳转用户管理。
+- [x] 管理员无 profile 时仍可进入管理员分销管理（classic 新增 `/console/affiliate/admin`，使用 `AdminRoute`，不依赖分销 profile）。
+- [x] 管理员端支持指定一级/二级分销商（classic 管理页接 `/api/affiliate/admin/profiles`，二级需填写 active 一级上级用户 ID）。
+- [x] 管理员端支持编辑用户 `inviter_id` 或跳转用户管理（本批按最小侵入先提供“跳转用户管理”，直接编辑 `inviter_id` 继续放在 Phase 11）。
 - [ ] 截图回归：普通用户、一级、二级、管理员、超级管理员、模块关闭、移动端。
 - [x] 2026-06-03 classic browser smoke：用本地恢复库和三类测试账号验证 `super_admin`、一级分销、二级分销桌面，以及一级分销移动端均能访问 `/console/affiliate`；`/api/affiliate/status` 与 `/api/affiliate/logs` 均 HTTP 200 / `success=true`。
 
@@ -341,6 +341,13 @@
 - 验证方式：`go test -count=1 ./service -run 'TestBuildAffiliateDashboardSummary|TestListAffiliateVisibleUserIds'` 通过；`go test -count=1 ./controller -run 'TestGetAffiliateSummaryReturnsScopedDashboard|TestGetAffiliateScopedLogs|TestGetAffiliateStatus|TestAffiliateAdminRoutes|TestAdminSetAffiliateProfile|TestAdminUpdateAffiliateProfileStatus'` 通过；`go test -count=1 ./router` 通过；`bun test src/pages/Affiliate/affiliateDashboardCards.test.mjs src/pages/Affiliate/affiliateViewState.test.mjs src/hooks/usage-logs/usageLogsUrls.test.mjs` 8/8 通过；`cd web/classic && bun run build` 通过。
 - 残留风险：佣金、KPI、人头费、待结算金额尚未接入管理员可配置规则，本轮只做 `pending_rules` 安全占位；未重新跑真实浏览器截图回归；scoped logs 表格仍保留原有额度展示逻辑，统一 RMB 化继续放在 Phase 9。
 - 下一步：落地管理员分销规则配置与计算链路，再补普通用户/profile disabled/模块关闭截图回归和 default parity。
+
+### Phase 7 classic 管理员分销管理复盘（2026-06-03 本线程）
+
+- 完成内容：新增 `GET /api/affiliate/admin/profiles` 分页列表接口，支持按用户 ID、等级、状态过滤；classic 新增 `/console/affiliate/admin` 管理页和管理员侧边栏入口，可指定一级/二级分销商、查看 profile 列表、启用/禁用 profile，并提供跳转用户管理入口；旧 `SidebarModulesAdmin` 配置加载时会合并新增分销管理模块默认值。
+- 验证方式：按 TDD 先观察 `go test -count=1 ./service -run 'TestListAffiliateProfilesFiltersAndPaginates'` 与 `go test -count=1 ./controller -run 'TestAdminListAffiliateProfiles|TestAffiliateAdminRoutes'` RED，再实现列表 service/controller/router 后转绿；`bun test src/pages/AffiliateAdmin/affiliateAdminProfiles.test.mjs` 4/4 通过；`go test -count=1 ./service -run 'TestListAffiliateProfilesFiltersAndPaginates|TestSetAffiliateProfile|TestDisableAffiliateProfile|TestEnableAffiliateProfile'` 通过；`go test -count=1 ./controller -run 'TestAdminListAffiliateProfiles|TestAdminSetAffiliateProfile|TestAdminUpdateAffiliateProfileStatus|TestAffiliateAdminRoutes'` 通过；`go test -count=1 ./router` 通过；`cd web/classic && bun run build` 通过。
+- 残留风险：本批未做真实浏览器截图回归；管理页当前按用户 ID 操作，未接用户名搜索；`inviter_id` 仅提供跳转用户管理，直接编辑、影响预览、循环校验和审计继续在 Phase 11 落地。
+- 下一步：补管理员管理页 browser smoke/截图，再推进 default parity 或 Phase 11 `inviter_id` 管理链路。
 
 ## Phase 8：default 分销前端
 
