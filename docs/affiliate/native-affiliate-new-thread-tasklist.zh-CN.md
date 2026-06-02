@@ -351,18 +351,29 @@
 
 ## Phase 8：default 分销前端
 
-- [ ] 不直接展示英文后端错误。
-- [ ] 对 classic 已完成能力做 default parity 审查。
-- [ ] 使用 `.agents/skills/classic-to-default-sync` 同步 classic 重要变化。
-- [ ] default 使用自身组件和 Tailwind/Base UI，不复制 Semi Design。
-- [ ] 新增文案使用 i18n。
-- [ ] 运行 `cd web/default && bun run i18n:sync`。
-- [ ] 使用 `.agents/skills/i18n-translate` 补齐 en、zh、fr、ja、ru、vi。
+- [x] 不直接展示英文后端错误（default `/affiliate` 通过 `/api/affiliate/status` 门禁，业务不可用原因映射为前端友好 i18n 文案；summary/logs 失败显示固定友好提示，不透传后端英文错误）。
+- [x] 对 classic 已完成能力做 default parity 审查（已审查 f96153ff 状态/兜底、a2b11419 统计看板、7565e9ee 日志 RMB、0707729c 管理员 profiles；本批实现 status/summary/scoped logs/RMB，管理员 profiles 标记为待补）。
+- [x] 使用 `.agents/skills/classic-to-default-sync` 同步 classic 重要变化（按 f96153ff、a2b11419、7565e9ee、0707729c 的 classic 变更清单做 mapping；管理员 profiles 未在本批实施，单列待办）。
+- [x] default 使用自身组件和 Tailwind/Base UI，不复制 Semi Design。
+- [x] 新增文案使用 i18n。
+- [x] 运行 `cd web/default && bun run i18n:sync`。
+- [x] 使用 `.agents/skills/i18n-translate` 补齐 en、zh、fr、ja、ru、vi。
+- [ ] default 管理员分销 profiles 管理页 parity（列表、指定一级/二级、启用/禁用、跳转用户管理）。
+- [ ] default 真实账号 browser smoke：管理员/一级/二级/普通用户/profile disabled/模块关闭/移动端。
+
+### Phase 8 default 分销前端 MVP 复盘（2026-06-03 本线程）
+
+- 完成内容：新增 default `/affiliate` 路由、侧边栏入口和分销页面；页面先请求 `/api/affiliate/status` 做后端 scope 门禁，可用时展示统计看板和 scoped logs，不可用时展示本地化友好提示；日志筛选仅包含时间、模型、分组、用户 ID、二级分销商 ID、请求状态，不暴露 channel、token、IP、request_id；日志花费列和看板金额按 RMB 主显示，并保留 raw quota tooltip/说明。
+- Classic parity 审查：f96153ff 的状态/分区兜底已在 default 页面以 status 门禁和固定错误提示实现；a2b11419 的团队人数、有效新用户、净付费消耗、佣金/人头费/待结算/KPI 占位已在 default 看板实现；7565e9ee 的分销日志 RMB 主显示已实现；0707729c 的管理员 profiles 管理页尚未实现，已新增独立待办。
+- 验证方式：`make dev-web` 已在运行并同时提供 default 5173 与 classic 5174，网络切换后 `timeout 30s curl -I http://127.0.0.1:5173/`、`http://127.0.0.1:5173/affiliate`、`http://127.0.0.1:5174/` 均返回 HTTP 200；`bun test src/features/affiliate/lib.test.ts` 4/4 通过；`bun run i18n:sync` 后 en/zh/fr/ja/ru/vi missing/extras/untranslated 均为 0；`cd web/default && bun run build` 通过。
+- 残留风险：`cd web/default && bun run typecheck` 仍命中既有 default baseline（`hast` 类型缺失、`usage-logs-mobile-card` 泛型字段），未指向本批 affiliate 文件；本批未跑 default 真实账号 Playwright/browser smoke；default 管理员 profiles parity、导出字段、真实账号 RMB 核对仍未完成。
+- 下一步：优先补 default 管理员 profiles 管理页或 default 真实账号 browser smoke，再推进 Phase 9/10 的通用 RMB helper、导出字段、KPI/佣金/人头费/结算规则。
 
 ## Phase 9：RMB 单位
 
 - [x] 梳理 classic 分销页面字段单位：统计看板金额卡、scoped 使用日志花费列；classic 管理员分销 profile 页暂无金额字段。
 - [x] classic 分销页面金额主显示 RMB：看板和 scoped 使用日志花费列均使用站内 `quota_per_unit` 与 `usd_exchange_rate` 换算 RMB，不跟随 `quota_display_type=TOKENS/CUSTOM` 改变主单位。
+- [x] default 分销页面金额主显示 RMB：看板和 scoped logs 花费列均以 RMB 为主单位，原始 quota 保留为 tooltip/说明。
 - [ ] default 复用 `formatQuotaWithCurrency()`。
 - [x] classic 原始 quota/token 仅保留 tooltip、调试字段或导出附加列；scoped 使用日志花费列 tooltip 保留原始 quota。
 - [ ] 用真实账号数据核对页面 RMB 值。
@@ -415,7 +426,7 @@
 - [ ] 本地通过核心 Go 测试。
 - [ ] 复核并修复/隔离当前 `go test ./...` 基线失败：根包缺少 `web/classic/dist` embed，controller 现有 model list 测试失败，Claude relay 与 stream scanner 现有测试失败；本批 affiliate 定向测试已通过。
 - [x] classic 前端构建通过。
-- [ ] default 前端构建或 typecheck 通过。
+- [x] default 前端构建或 typecheck 通过（2026-06-03 `cd web/default && bun run build` 通过；typecheck 仍有既有 baseline，见 Phase 8 复盘）。
 - [ ] Playwright 截图回归通过；classic 分销页管理员/一级/二级/移动端 2026-06-03 已通过，普通用户、profile disabled、模块关闭和 default 仍待补齐。
 - [ ] schema impact 报告无非预期官方表改动。
 - [x] 用服务器 PG 快照完成真实账号 smoke；2026-06-03 在本地恢复库中用三类测试账号完成 API smoke 和 classic browser smoke，未输出用户名、密码、cookie 或 token。
@@ -437,7 +448,7 @@
 - [ ] 第 6 批：邀请归因、手机号/SMS provider、短信宝配置。
 - [ ] 第 7 批：scope 与 scoped 使用日志。
 - [ ] 第 8 批：classic 前端。
-- [ ] 第 9 批：default parity 与 i18n。
+- [x] 第 9 批：default parity 与 i18n。
 - [ ] 第 10 批：KPI、佣金、人头费、结算。
 - [ ] 第 11 批：用户管理 `inviter_id` 与审计。
 - [ ] 每批提交前运行对应最小测试。

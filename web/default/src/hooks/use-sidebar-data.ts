@@ -22,6 +22,7 @@ import {
   CreditCard,
   FileText,
   FlaskConical,
+  Handshake,
   Key,
   LayoutDashboard,
   ListTodo,
@@ -86,6 +87,11 @@ export function useSidebarData(): SidebarData {
             title: t('Usage Logs'),
             url: '/usage-logs/common',
             icon: FileText,
+          },
+          {
+            title: t('Affiliate Center'),
+            url: '/affiliate',
+            icon: Handshake,
           },
           {
             title: t('Task Logs'),
