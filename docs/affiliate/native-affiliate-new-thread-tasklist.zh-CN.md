@@ -66,7 +66,7 @@
 - [x] compose 内部 `SQL_DSN` 指向 `postgres` 服务，不使用生产 DSN。
 - [x] compose 内部 `REDIS_CONN_STRING` 指向 `redis` 服务，不使用生产 Redis。
 - [x] 使用隔离 volume 和 network，避免覆盖其他项目或旧 dev 数据。
-- [ ] 复核另一线程的 compose 改动：当前工作树将 PostgreSQL 命名卷挂载目标从 `/var/lib/postgresql/data` 改为 `/var/lib/postgresql`，在无法 `docker inspect` 前需确认实际 PGDATA 是否仍落在隔离命名卷 `new_api_dev_pg_data`。
+- [x] 复核并接收另一线程的 compose 改动：`Dockerfile.dev` builder 升到 `golang:1.26.3-alpine`，PostgreSQL 命名卷挂载到 `/var/lib/postgresql`，默认 PGDATA 子目录仍位于隔离命名卷 `new_api_dev_pg_data` 内；`docker compose -f docker-compose.dev.yml config --quiet` 通过，运行态仍待 Docker daemon 可访问后用 `docker inspect` 复核。
 - [ ] 构建本地镜像：`docker compose -f docker-compose.dev.yml build new-api`，确认生成 `new-api:dev`；2026-06-02 用户提示另一线程已完成构建，但本会话因 Docker daemon/socket 无响应暂无法确认。
 - [ ] 启动容器：`docker compose -f <dev-compose> up -d`。
 - [ ] 将 `runtime/prod-pg-snapshots/new-api-prod-20260602-193617.dump` 恢复到 compose PostgreSQL 隔离库。

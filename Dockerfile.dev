@@ -1,7 +1,7 @@
 # Backend-only build for frontend development
 # Skips frontend build, uses a placeholder for //go:embed web/dist
 
-FROM golang:1.26.1-alpine AS builder
+FROM golang:1.26.3-alpine AS builder
 
 ENV GO111MODULE=on CGO_ENABLED=0
 ARG TARGETOS
