@@ -17,14 +17,15 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React, { useRef, useEffect, useCallback } from 'react';
+import React, { useRef, useEffect, useCallback, useState } from 'react';
 import { Toast } from '@douyinfe/semi-ui';
 import { useTranslation } from 'react-i18next';
 import { usePlayground } from '../../contexts/PlaygroundContext';
 
 const CustomInputRender = (props) => {
   const { t } = useTranslation();
-  const { onPasteImage, imageEnabled } = usePlayground();
+  const { onPasteImage, imageEnabled, hasMessages } = usePlayground();
+  const [clearHovered, setClearHovered] = useState(false);
   const { detailProps } = props;
   const { clearContextNode, uploadNode, inputNode, sendNode, onClick } =
     detailProps;
@@ -102,22 +103,34 @@ const CustomInputRender = (props) => {
     };
   }, [handlePaste]);
 
-  // 清空按钮
-  const styledClearNode = clearContextNode
-    ? React.cloneElement(clearContextNode, {
-        className: `!rounded-full !bg-gray-100 hover:!bg-red-500 hover:!text-white flex-shrink-0 transition-all ${clearContextNode.props.className || ''}`,
-        style: {
-          ...clearContextNode.props.style,
-          width: '32px',
-          height: '32px',
-          minWidth: '32px',
-          padding: 0,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-        },
-      })
-    : null;
+  // 清空按钮 - 图标 + 文字，仅在有消息时显示，hover 变红提示危险操作
+  const styledClearNode =
+    clearContextNode && hasMessages
+      ? React.cloneElement(
+          clearContextNode,
+          {
+            className: `flex-shrink-0 transition-colors ${clearContextNode.props.className || ''}`,
+            onMouseEnter: () => setClearHovered(true),
+            onMouseLeave: () => setClearHovered(false),
+            style: {
+              ...clearContextNode.props.style,
+              width: 'auto',
+              minWidth: 'auto',
+              height: '32px',
+              padding: '0 14px',
+              borderRadius: '16px',
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '4px',
+              whiteSpace: 'nowrap',
+              backgroundColor: clearHovered ? '#ef4444' : '#f3f4f6',
+              color: clearHovered ? '#ffffff' : '#4b5563',
+            },
+          },
+          <span className='text-sm whitespace-nowrap'>{t('清空')}</span>,
+        )
+      : null;
 
   // 发送按钮
   const styledSendNode = React.cloneElement(sendNode, {

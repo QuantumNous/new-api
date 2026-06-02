@@ -541,6 +541,7 @@ const Playground = () => {
     onPasteImage: handlePasteImage,
     imageUrls: inputs.imageUrls || [],
     imageEnabled: inputs.imageEnabled || false,
+    hasMessages: (message?.length || 0) > 0,
   };
 
   return (
