@@ -179,7 +179,8 @@
 - [x] 增加 SMS 模板缺失、签名未备案/未审核通过场景测试。
 - [ ] 增加 SMS 限流、签名未备案完整发送链路场景测试。
 - [ ] 新增 `user_phone_bindings` sidecar 表设计和 schema impact，不直接修改官方 `users` 表。
-- [ ] 新增 `sms_send_logs` sidecar 表设计和 schema impact，日志只记录脱敏手机号、场景、provider、模板版本、返回码和耗时。
+- [x] 新增 `sms_send_logs` sidecar 表设计和本地 AutoMigrate schema 验证，日志只记录脱敏手机号、场景、provider、模板版本、返回码和耗时。
+- [ ] 如 Docker 稳定，集中用本地 PostgreSQL dump 复核 `sms_send_logs` schema impact。
 
 ### Phase 5A 审查复盘（2026-06-02 本线程）
 
@@ -215,6 +216,13 @@
 - 验证方式：先观察 `go test ./common ./model ./controller -run 'SMSBaoProviderQueriesBalance|SMSBaoProviderDoesNotExposeCredentialOnBalance|SMSBaoProviderRejectsMalformedBalance|SMSOptionMapInitializesProvider|UpdateOptionMapUpdatesSMSProvider|AdminGetSMSStatus'` RED；实现后 `go test -count=1 ./common ./model ./controller -run 'SMSBaoProviderQueriesBalance|SMSBaoProviderDoesNotExposeCredentialOnBalance|SMSBaoProviderRejectsMalformedBalance|SMSOptionMapInitializesProvider|UpdateOptionMapUpdatesSMSProvider|AdminGetSMSStatus'` 通过。
 - 残留风险：状态查询未做 1 次/分钟缓存或限流，管理员前端入口未接入，provider 状态查询结果未写入审计日志；controller 全量包测试仍存在既有非 SMS baseline 失败。
 - 下一步：实现 `sms_send_logs` sidecar 和脱敏发送日志，或补 SMS 限流/SMS Turnstile。
+
+### Phase 5A SMS send logs 复盘（2026-06-03 本线程）
+
+- 完成内容：新增 `sms_send_logs` sidecar model 和 `SMSSidecarModels()`，接入主库 AutoMigrate；新增 `service.RecordSMSSendLog`，测试发送接口完成 provider 调用后 best-effort 写入日志；日志仅保存脱敏手机号、场景、provider、模板 hash 版本、provider code 和耗时，不保存完整手机号、验证码、credential、endpoint 或短信正文。
+- 验证方式：先观察 `go test ./model ./service ./controller -run 'SMSSidecar|RecordSMSSendLog|AdminTestSMSRecordsRedactedSendLog'` RED；实现后 `go test -count=1 ./model ./service ./controller -run 'SMSSidecar|RecordSMSSendLog|AdminTestSMSRecordsRedactedSendLog'` 通过；`go test -count=1 ./common ./model ./service ./controller -run 'SMS|SMSBao|SMSSignature|SMSTemplate|RenderSMS|AdminTestSMS|AdminGetSMSStatus|NormalizePhone|SMSSidecar|RecordSMSSendLog'` 通过；`git diff --check` 通过。
+- 残留风险：本批未再执行 Docker/PostgreSQL dump schema diff，已新增单独待办；日志当前只接入管理员测试发送，真实验证码发送入口、限流、SMS Turnstile、手机号绑定/注册/登录尚未实现；controller 全量包测试仍存在既有非 SMS baseline 失败。
+- 下一步：实现手机号、IP、账号、场景维度限流，或设计 `user_phone_bindings` sidecar。
 
 ## Phase 6：分销 scope 与 scoped 使用日志
 

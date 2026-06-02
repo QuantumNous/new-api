@@ -1,6 +1,9 @@
 package common
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestRenderSMSVerificationContentUsesApprovedSignatureAndTemplateVariables(t *testing.T) {
 	content, err := RenderSMSVerificationContent(SMSVerificationContentInput{
@@ -84,5 +87,23 @@ func TestDefaultSMSVerificationTemplateConfigUsesGlobals(t *testing.T) {
 	}
 	if content != "【NewAPI】分销系统 注册验证码 654321" {
 		t.Fatalf("unexpected content: %q", content)
+	}
+}
+
+func TestSMSVerificationTemplateVersionDoesNotIncludeCodeOrTemplateBody(t *testing.T) {
+	version := SMSVerificationTemplateVersionFromConfig(SMSSceneRegister, SMSVerificationTemplateConfig{
+		Signature:             "NewAPI",
+		SignatureReviewStatus: SMSSignatureStatusApproved,
+		Templates: map[string]string{
+			SMSSceneRegister: "注册验证码 {code}，{minutes} 分钟内有效。",
+		},
+	})
+	if version == "" {
+		t.Fatal("expected template version")
+	}
+	for _, forbidden := range []string{"123456", "{code}", "注册验证码"} {
+		if strings.Contains(version, forbidden) {
+			t.Fatalf("template version leaked %q: %s", forbidden, version)
+		}
 	}
 }

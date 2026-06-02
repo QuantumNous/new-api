@@ -2,8 +2,11 @@ package controller
 
 import (
 	"net/http"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/service"
 	"github.com/gin-gonic/gin"
 )
 
@@ -44,10 +47,12 @@ func AdminTestSMS(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
+	startedAt := time.Now()
 	result, err := provider.Send(c.Request.Context(), common.SMSProviderSendInput{
 		Phone:   phone,
 		Content: content,
 	})
+	recordSMSTestSendLog(phone, req.Scene, result, time.Since(startedAt).Milliseconds())
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -62,6 +67,26 @@ func AdminTestSMS(c *gin.Context) {
 			"template_scene": req.Scene,
 		},
 	})
+}
+
+func recordSMSTestSendLog(phone string, scene string, result common.SMSProviderSendResult, durationMs int64) {
+	if model.DB == nil {
+		return
+	}
+	provider := result.Provider
+	if provider == "" {
+		provider = common.SMSProviderName
+	}
+	if _, err := service.RecordSMSSendLog(model.DB, service.SMSSendLogInput{
+		Phone:           phone,
+		Scene:           scene,
+		Provider:        provider,
+		TemplateVersion: common.SMSVerificationTemplateVersion(scene),
+		ProviderCode:    result.ProviderCode,
+		DurationMs:      durationMs,
+	}); err != nil {
+		common.SysLog("failed to record SMS send log: " + err.Error())
+	}
 }
 
 func AdminGetSMSStatus(c *gin.Context) {

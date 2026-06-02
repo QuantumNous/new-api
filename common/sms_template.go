@@ -1,6 +1,7 @@
 package common
 
 import (
+	"crypto/sha256"
 	"fmt"
 	"strconv"
 	"strings"
@@ -45,6 +46,24 @@ func DefaultSMSVerificationTemplateConfig() SMSVerificationTemplateConfig {
 			SMSSceneResetPassword: SMSResetPasswordTemplate,
 		},
 	}
+}
+
+func SMSVerificationTemplateVersion(scene string) string {
+	return SMSVerificationTemplateVersionFromConfig(scene, DefaultSMSVerificationTemplateConfig())
+}
+
+func SMSVerificationTemplateVersionFromConfig(scene string, config SMSVerificationTemplateConfig) string {
+	if config.Templates == nil {
+		config = DefaultSMSVerificationTemplateConfig()
+	}
+	normalizedScene := strings.TrimSpace(scene)
+	template := strings.TrimSpace(config.Templates[normalizedScene])
+	if normalizedScene == "" || template == "" {
+		return ""
+	}
+	signature := strings.TrimSpace(config.Signature)
+	digest := sha256.Sum256([]byte(normalizedScene + "\x00" + signature + "\x00" + template))
+	return fmt.Sprintf("%s:%x", normalizedScene, digest[:6])
 }
 
 func RenderSMSVerificationContent(input SMSVerificationContentInput) (string, error) {

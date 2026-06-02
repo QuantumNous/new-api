@@ -10,11 +10,15 @@ import (
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/model"
 	"github.com/gin-gonic/gin"
+	"github.com/glebarez/sqlite"
+	"gorm.io/gorm"
 )
 
 func TestAdminTestSMSRedactsSensitiveResponse(t *testing.T) {
 	gin.SetMode(gin.TestMode)
+	originalDB := model.DB
 	originalEnabled := common.SMSEnabled
 	originalSignature := common.SMSSignature
 	originalSignatureStatus := common.SMSSignatureReviewStatus
@@ -23,6 +27,7 @@ func TestAdminTestSMSRedactsSensitiveResponse(t *testing.T) {
 	originalCredential := common.SMSBaoCredential
 	originalFactory := common.SMSProviderFactory
 	t.Cleanup(func() {
+		model.DB = originalDB
 		common.SMSEnabled = originalEnabled
 		common.SMSSignature = originalSignature
 		common.SMSSignatureReviewStatus = originalSignatureStatus
@@ -32,6 +37,7 @@ func TestAdminTestSMSRedactsSensitiveResponse(t *testing.T) {
 		common.SMSProviderFactory = originalFactory
 	})
 
+	model.DB = nil
 	common.SMSEnabled = true
 	common.SMSSignature = "NewAPI"
 	common.SMSSignatureReviewStatus = common.SMSSignatureStatusApproved
@@ -77,6 +83,77 @@ func TestAdminTestSMSRedactsSensitiveResponse(t *testing.T) {
 	}
 	if response.Data["provider"] != common.SMSProviderSMSBao || response.Data["provider_code"] != "0" {
 		t.Fatalf("unexpected provider metadata: %+v", response.Data)
+	}
+}
+
+func TestAdminTestSMSRecordsRedactedSendLog(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	originalDB := model.DB
+	originalEnabled := common.SMSEnabled
+	originalSignature := common.SMSSignature
+	originalSignatureStatus := common.SMSSignatureReviewStatus
+	originalProductName := common.SMSProductName
+	originalTemplate := common.SMSRegisterTemplate
+	originalCredential := common.SMSBaoCredential
+	originalFactory := common.SMSProviderFactory
+	t.Cleanup(func() {
+		model.DB = originalDB
+		common.SMSEnabled = originalEnabled
+		common.SMSSignature = originalSignature
+		common.SMSSignatureReviewStatus = originalSignatureStatus
+		common.SMSProductName = originalProductName
+		common.SMSRegisterTemplate = originalTemplate
+		common.SMSBaoCredential = originalCredential
+		common.SMSProviderFactory = originalFactory
+	})
+
+	db := newSMSControllerTestDB(t)
+	model.DB = db
+	common.SMSEnabled = true
+	common.SMSSignature = "NewAPI"
+	common.SMSSignatureReviewStatus = common.SMSSignatureStatusApproved
+	common.SMSProductName = "分销系统"
+	common.SMSRegisterTemplate = "{product} 注册验证码 {code}，{minutes} 分钟内有效。"
+	common.SMSBaoCredential = "leak-me-token"
+	common.SMSProviderFactory = func(providerName string) (common.SMSProvider, error) {
+		return fakeSMSProvider{t: t, wantPhone: "13800138000", wantCode: "123456"}, nil
+	}
+
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = httptest.NewRequest(http.MethodPost, "/api/sms/admin/test", bytes.NewBufferString(`{
+		"phone":"13800138000",
+		"scene":"register",
+		"code":"123456"
+	}`))
+
+	AdminTestSMS(ctx)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("unexpected status: %d body=%s", recorder.Code, recorder.Body.String())
+	}
+	var logs []model.SMSSendLog
+	if err := db.Find(&logs).Error; err != nil {
+		t.Fatalf("read sms send logs: %v", err)
+	}
+	if len(logs) != 1 {
+		t.Fatalf("expected one sms send log, got %d", len(logs))
+	}
+	log := logs[0]
+	if log.PhoneMasked != "138****8000" || log.Scene != common.SMSSceneRegister || log.Provider != common.SMSProviderSMSBao || log.ProviderCode != "0" {
+		t.Fatalf("unexpected sms send log: %+v", log)
+	}
+	if log.TemplateVersion == "" || strings.Contains(log.TemplateVersion, "123456") || strings.Contains(log.TemplateVersion, "注册验证码 123456") {
+		t.Fatalf("template version leaked code or content: %+v", log)
+	}
+	payload, err := json.Marshal(log)
+	if err != nil {
+		t.Fatalf("marshal sms send log: %v", err)
+	}
+	for _, forbidden := range []string{"13800138000", "123456", "leak-me-token", "注册验证码 123456"} {
+		if strings.Contains(string(payload), forbidden) {
+			t.Fatalf("sms send log leaked %q: %s", forbidden, string(payload))
+		}
 	}
 }
 
@@ -189,6 +266,18 @@ func TestAdminGetSMSStatusRejectsProviderWithoutStatusCheck(t *testing.T) {
 	if !strings.Contains(recorder.Body.String(), "SMS provider does not support status check") {
 		t.Fatalf("expected unsupported provider message, got %s", recorder.Body.String())
 	}
+}
+
+func newSMSControllerTestDB(t *testing.T) *gorm.DB {
+	t.Helper()
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	if err != nil {
+		t.Fatalf("open sqlite: %v", err)
+	}
+	if err := db.AutoMigrate(model.SMSSidecarModels()...); err != nil {
+		t.Fatalf("migrate sms sidecar models: %v", err)
+	}
+	return db
 }
 
 type fakeSMSProvider struct {
