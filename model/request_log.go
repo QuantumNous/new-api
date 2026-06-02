@@ -1,8 +1,31 @@
 package model
 
 import (
+	"sync"
+
 	"github.com/QuantumNous/new-api/common"
 )
+
+var (
+	requestLogQueue chan *RequestLog
+	requestLogOnce  sync.Once
+)
+
+func initRequestLogWorker() {
+	requestLogQueue = make(chan *RequestLog, 2000)
+	for i := 0; i < 2; i++ {
+		go func() {
+			for entry := range requestLogQueue {
+				if LOG_DB == nil {
+					continue
+				}
+				if err := LOG_DB.Create(entry).Error; err != nil {
+					common.SysError("failed to record request log: " + err.Error())
+				}
+			}
+		}()
+	}
+}
 
 type RequestLog struct {
 	Id              int    `json:"id" gorm:"primaryKey;autoIncrement"`
@@ -30,7 +53,10 @@ func RecordRequestLog(log *RequestLog) {
 	if log.CreatedAt == 0 {
 		log.CreatedAt = common.GetTimestamp()
 	}
-	if err := LOG_DB.Create(log).Error; err != nil {
-		common.SysError("failed to record request log: " + err.Error())
+	requestLogOnce.Do(initRequestLogWorker)
+	select {
+	case requestLogQueue <- log:
+	default:
+		common.SysError("request log queue full, dropping entry") // backpressure: drop, never block the request
 	}
 }

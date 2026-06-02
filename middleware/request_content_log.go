@@ -73,9 +73,9 @@ func RequestContentLog() gin.HandlerFunc {
 			StatusCode:      c.Writer.Status(),
 			DurationMs:      time.Since(start).Milliseconds(),
 			IsStream:        isStream,
-			RequestBody:     capString(string(reqBody), reqBodyCap),
+			RequestBody:     strings.ToValidUTF8(string(reqBody), ""),
 			ResponseSummary: capString(strings.ToValidUTF8(string(tee.Captured()), ""), respHeadCap),
 		}
-		go model.RecordRequestLog(entry) // async; entry holds copies, safe after request ends
+		model.RecordRequestLog(entry) // non-blocking: routes through bounded channel worker pool
 	}
 }
