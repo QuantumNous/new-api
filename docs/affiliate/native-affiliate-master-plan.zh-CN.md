@@ -101,6 +101,7 @@
 
 - 本地不能直接解析服务器 compose 网络里的 `postgres:5432`。
 - 不要把生产 DSN 或数据库密码写入命令历史、文档、commit 或发布证据。
+- 允许 AI/脚本读取 `.codex-local/sources.yml` 作为本地密钥源，用于安全下载服务器 PostgreSQL 快照；禁止输出、复制、提交或记录其中的 DSN、密码、端点和 YAML 内容。
 - 当前本地旧快照不代表服务器最新数据，新线程第一步必须下载最新 PostgreSQL dump。
 - 如果最新 dump 已下载到本地 `runtime/prod-pg-snapshots/` 并校验通过，后续默认使用本地 dump，不再重复直连生产数据库。
 

@@ -64,7 +64,7 @@
 
 - 本地旧快照文件仍停在 2026-06-01，不是服务器当前最新数据。
 - 本地不能直接访问服务器 compose 网络中的 `postgres:5432`。
-- 直连生产数据库、下载生产 dump、读取 `.codex-local/sources.yml` 都属于敏感操作；如出现 TAC/安全风险提示，应停止继续外连，改用已下载的本地 dump，并先做交接复盘。
+- 直连生产数据库、下载生产 dump、读取 `.codex-local/sources.yml` 都属于敏感操作；允许 AI/脚本读取 `.codex-local/sources.yml` 作为本地密钥源，但禁止输出、复制、提交或记录其中内容。如出现 TAC/安全风险提示，应停止继续外连，确认脱敏边界后再继续。
 - nmig schema+data 路线曾导致 new-api 识别不到 `channels` 表。
 - 成功路线是先由目标版本 new-api AutoMigrate 建 schema，再只迁移数据；但这已是归档路线，不是本轮本地任务。
 
@@ -72,7 +72,8 @@
 
 规则：
 
-- `.codex-local/sources.yml` 只允许作为本地密钥源，不读取、不输出、不复制到文档。
+- `.codex-local/sources.yml` 允许 AI/脚本读取作为本地密钥源，用于安全获取服务器数据库连接信息或下载快照。
+- 读取 `.codex-local/sources.yml` 时禁止 `cat` / `sed` 全文输出，禁止把 DSN、密码、端点、YAML 内容复制到聊天、文档、commit、日志或测试报告。
 - `runtime/prod-pg-snapshots/` 只允许保存本地开发 dump 和校验文件，目录已被 Git 忽略。
 - 一旦生产 dump 已下载并校验通过，后续开发优先使用本地恢复库，不再重复访问生产数据库。
 - 如果 goal 模式触发 TAC/安全风险提示，先暂停外部数据库访问，确认 Git 忽略、日志脱敏和任务边界，再继续本地开发。
@@ -290,5 +291,5 @@ default 同步：
 
 开发策略：基于当前官方最新干净基线，旧 projects/new-api-liu23zhi 只作为 reference-only；所有分销功能遵循最小侵入原则，优先新增 affiliate_* / sidecar 表，必须改官方主链路时只做薄 hook。
 
-第一步先下载服务器最新 PostgreSQL dump 到本地 Docker PostgreSQL，不再本地重做迁移；然后从 .codex-local/affiliate-test-accounts.secret.json 读取 Rain、ChengyuWang0807、nr_mm2z5vr 三类账号做本地登录 smoke，复现 classic 分销页问题。飞书分销方案及子页作为业务默认口径，分佣比例、KPI 系数、人头费、质量门槛、邀请码额度、短信宝签名和模板都要做管理员端配置入口。不要把密码、生产 DSN、dump 或 runtime 大文件写入 git。
+第一步先下载服务器最新 PostgreSQL dump 到本地 Docker PostgreSQL，不再本地重做迁移；允许 AI/脚本读取 .codex-local/sources.yml 作为本地密钥源，但不能输出、复制、提交或记录其中内容。然后从 .codex-local/affiliate-test-accounts.secret.json 读取 Rain、ChengyuWang0807、nr_mm2z5vr 三类账号做本地登录 smoke，复现 classic 分销页问题。飞书分销方案及子页作为业务默认口径，分佣比例、KPI 系数、人头费、质量门槛、邀请码额度、短信宝签名和模板都要做管理员端配置入口。不要把密码、生产 DSN、dump 或 runtime 大文件写入 git。
 ```

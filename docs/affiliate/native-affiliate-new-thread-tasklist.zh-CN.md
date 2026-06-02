@@ -34,6 +34,7 @@
 ## Phase 1：服务器 PostgreSQL 快照下载与本地恢复
 
 - [x] 确认 `.codex-local/sources.yml`、`.codex-local/affiliate-test-accounts.secret.json` 和 `runtime/prod-pg-snapshots/` 均被 Git 忽略。
+- [x] 明确 `.codex-local/sources.yml` 允许 AI/脚本读取作为本地密钥源，但禁止输出、复制、提交或记录其中的 DSN、密码、端点和 YAML 内容。
 - [x] 确认已下载本地最新 dump：`runtime/prod-pg-snapshots/new-api-prod-20260602-193617.dump`，后续默认不再直连生产数据库。
 - [x] TAC/安全风险复盘：本轮已确认 `.codex-local/`、`runtime/` 未被 Git 追踪，已脱敏 tasklist 中出现的具体生产数据库端点；当前 modified files 精确敏感模式扫描无命中，dump sha256 校验通过。
 - [x] 如连接信息曾在聊天、命令、日志或文档中暴露，评估是否需要更换临时数据库密码或吊销临时访问；用户已提示旧会话曾明文粘贴数据库密码，本轮建议轮换临时数据库密码或吊销临时访问，后续默认只用本地 dump。
