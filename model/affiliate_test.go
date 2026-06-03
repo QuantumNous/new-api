@@ -24,6 +24,7 @@ func TestAffiliateSidecarTableNames(t *testing.T) {
 		"affiliate_head_fee_events",
 		"affiliate_kpi_snapshots",
 		"affiliate_settlements",
+		"affiliate_job_runs",
 		"affiliate_config_audit_logs",
 	}
 

@@ -19,6 +19,12 @@ const (
 	AffiliateSettlementStatusFrozen = "frozen"
 	AffiliateSettlementStatusPaid   = "paid"
 	AffiliateSettlementStatusVoid   = "void"
+
+	AffiliateJobRunTypeSettlementPipeline = "settlement_pipeline"
+
+	AffiliateJobRunStatusRunning   = "running"
+	AffiliateJobRunStatusSucceeded = "succeeded"
+	AffiliateJobRunStatusFailed    = "failed"
 )
 
 type affiliateTableNamer interface {
@@ -44,6 +50,7 @@ func AffiliateSidecarModels() []interface{} {
 		&AffiliateHeadFeeEvent{},
 		&AffiliateKPISnapshot{},
 		&AffiliateSettlement{},
+		&AffiliateJobRun{},
 		&AffiliateConfigAuditLog{},
 	}
 }
@@ -361,6 +368,35 @@ type AffiliateSettlement struct {
 
 func (AffiliateSettlement) TableName() string {
 	return "affiliate_settlements"
+}
+
+type AffiliateJobRun struct {
+	Id                   int    `json:"id"`
+	JobType              string `json:"job_type" gorm:"type:varchar(64);not null;default:'';index"`
+	Status               string `json:"status" gorm:"type:varchar(32);not null;default:'running';index"`
+	IdempotencyKey       string `json:"idempotency_key" gorm:"type:varchar(96);not null;default:'';index"`
+	RuleSetId            int    `json:"rule_set_id" gorm:"type:int;not null;default:0;index"`
+	PeriodStart          int64  `json:"period_start" gorm:"bigint;not null;default:0;index"`
+	PeriodEnd            int64  `json:"period_end" gorm:"bigint;not null;default:0;index"`
+	ActorUserId          int    `json:"actor_user_id" gorm:"type:int;not null;default:0;index"`
+	CurrentStage         string `json:"current_stage" gorm:"type:varchar(64);not null;default:'';index"`
+	LastCursorCreatedAt  int64  `json:"last_cursor_created_at" gorm:"bigint;not null;default:0"`
+	LastCursorId         int    `json:"last_cursor_id" gorm:"type:int;not null;default:0"`
+	KPISnapshotCount     int    `json:"kpi_snapshot_count" gorm:"type:int;not null;default:0"`
+	CommissionEventCount int    `json:"commission_event_count" gorm:"type:int;not null;default:0"`
+	HeadFeeEventCount    int    `json:"head_fee_event_count" gorm:"type:int;not null;default:0"`
+	SettlementCount      int    `json:"settlement_count" gorm:"type:int;not null;default:0"`
+	InputSnapshot        string `json:"input_snapshot" gorm:"type:text"`
+	ResultSnapshot       string `json:"result_snapshot" gorm:"type:text"`
+	ErrorMessage         string `json:"error_message" gorm:"type:text"`
+	StartedAt            int64  `json:"started_at" gorm:"bigint;not null;default:0;index"`
+	FinishedAt           int64  `json:"finished_at" gorm:"bigint;not null;default:0;index"`
+	CreatedAt            int64  `json:"created_at" gorm:"autoCreateTime;column:created_at;index"`
+	UpdatedAt            int64  `json:"updated_at" gorm:"autoUpdateTime;column:updated_at"`
+}
+
+func (AffiliateJobRun) TableName() string {
+	return "affiliate_job_runs"
 }
 
 type AffiliateConfigAuditLog struct {

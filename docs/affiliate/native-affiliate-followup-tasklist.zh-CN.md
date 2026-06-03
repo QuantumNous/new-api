@@ -100,7 +100,7 @@
 - [x] 审计 `service/affiliate_commission.go` 中一次性 `Find(&logs)` 的无界查询风险，改成按时间窗口和 ID cursor 分批扫描。
 - [x] 审计 `service/affiliate_kpi.go` 中 KPI 计算的无界日志加载风险，改成分批聚合或数据库侧聚合。
 - [x] 审计 `service/affiliate_head_fee.go` 中人头费计算的无界日志加载风险，改成分批聚合并保留幂等记录。
-- [ ] 给佣金、KPI、人头费、结算任务增加 run record 或 job execution 记录，包含参数、窗口、执行人、开始/结束时间、状态、错误、扫描进度和幂等 key。
+- [ ] 给佣金、KPI、人头费、结算任务增加 run record 或 job execution 记录，包含参数、窗口、执行人、开始/结束时间、状态、错误、扫描进度和幂等 key。（2026-06-03 已为管理员 settlement pipeline 增加 `affiliate_job_runs` 顶层 job execution；单独 generate endpoint、可恢复 cursor 和 Docker PostgreSQL schema diff 仍待补。）
 - [ ] 完整验证重复执行同一周期不会重复计佣、重复发人头费或重复生成结算单。
 - [ ] 补充 refund、partial refund、gift-only、mixed paid/gift/trial、legacy_unknown、任务钱包扣费、异步任务退款等样本。
 - [ ] 明确历史未标记日志是否进入灰度回填、人工复核或直接排除，不得默认把未知来源计为 paid。
@@ -157,7 +157,7 @@
 - [x] P0：补 WSL 前端 dev server 一键启动脚本和 runbook，解决重启后 `5173`/`5174` 拒绝连接的问题。
 - [x] P1：明确 dev/prod 镜像切换方案，保证生产不再误用官方 latest 来发布二开功能。
 - [ ] P1：把分销管理规则配置重构为运营友好的表格/矩阵，并保留高级 JSON 导入导出。（2026-06-03 已完成 default/classic 可视编辑表格化和高级 JSON 文本保留；导入/导出按钮、diff 预览和复制上一版本仍待做。）
-- [ ] P1：佣金、KPI、人头费和结算任务改造为分批、可恢复、幂等、可审计。（2026-06-04 已完成 usage logs 的 `created_at,id` cursor 分批扫描；run record、可恢复进度、结算事件分组分批和完整双跑幂等审计仍待做。）
+- [ ] P1：佣金、KPI、人头费和结算任务改造为分批、可恢复、幂等、可审计。（2026-06-04 已完成 usage logs 的 `created_at,id` cursor 分批扫描；2026-06-03 已完成 settlement pipeline 顶层 job run 审计记录；可恢复 cursor、结算事件分组分批、单独 generate endpoint run record 和完整双跑幂等审计仍待做。）
 - [ ] P2：把飞书规则沉淀为默认 rule set seed，并增加单位转换、区间完整性和发布不可变测试。
 - [ ] P2：补齐 SMS 分布式限流、手机号注册归因和真实通道 smoke。
 - [ ] P2：完善 dashboard 统计口径、浏览器截图回归和外部验收归档。
@@ -225,3 +225,13 @@
 - 回归验证：`go test -count=1 ./service -run 'Affiliate(Commission|KPI|HeadFee|Settlement)'` 通过；`go test -count=1 ./service ./controller ./router -run Affiliate` 通过；`git diff --check` 通过。
 - 残留风险：本轮未新增 schema，因此未引入 run record 表；结算 event group 仍会一次性加载 pending commission/head fee events；commission 构建仍会把 source logs 累积成列表用于 prior cumulative 用户集合。后续需要继续做 job execution/run record、可恢复 cursor、dry-run/正式 run 双跑幂等和 settlement event group 分批。
 - 下一步：继续 P1 结算可靠性，优先设计不泄漏敏感信息的 `affiliate_job_runs` 或等价 sidecar run record，并做 schema impact 复核后再实现。
+
+## P1-4 settlement pipeline job run 复盘（2026-06-03 本线程）
+
+- 完成内容：新增 `affiliate_job_runs` sidecar model，用于记录管理员 settlement pipeline 的 job execution。记录字段包含 job type、状态、幂等 key、规则集、周期、执行人、当前阶段、cursor 占位、KPI/commission/head fee/settlement 计数、脱敏 input/result/error snapshot、开始/结束时间。
+- 完成内容：`RunAffiliateSettlementPipeline` 现在会先写 running job run，再按 `kpi`、`commission`、`head_fee`、`settlement`、`complete` 更新阶段和计数。成功时写 `succeeded`，失败时写 `failed` 和脱敏错误信息；result JSON 增加 `job_run_id`、`job_run_status`、`idempotency_key`。
+- RED/GREEN 验证：先修改 model/table list 与 service 测试，RED 阶段分别失败于缺少 `affiliate_job_runs` 和 `AffiliateJobRun`/result 字段未定义；实现后 `go test -count=1 ./model -run 'AffiliateSidecar|MigrateDBCreatesAffiliateSidecar'` 与 `go test -count=1 ./service -run 'TestRunAffiliateSettlementPipelineRecordsJobRun|TestRunAffiliateSettlementPipelineBuilds|TestRunAffiliateSettlementPipelineRejects'` 通过。
+- 回归验证：`go test -count=1 ./service -run 'Affiliate(Commission|KPI|HeadFee|Settlement)'` 通过；`go test -count=1 ./model -run 'QuotaSourceSidecar|AffiliateSidecarModels|AffiliateSidecarTableNames|MigrateDBCreatesAffiliateSidecar'` 通过。
+- schema impact 复核：已更新 `native-affiliate-schema-impact-report.zh-CN.md`，确认代码侧只新增 `affiliate_job_runs` 这一 `affiliate_*` sidecar；本线程 `timeout 30s docker ps --filter 'name=new-api'` 未返回有效容器输出，因此未强行重建容器生成 PostgreSQL before/after diff。
+- 残留风险：`affiliate_job_runs` 目前记录顶层 pipeline 阶段和计数，不支持真正从 cursor 恢复；`AdminGenerateAffiliateSettlements` 单独生成结算单的 endpoint 尚未写 job run；`GenerateAffiliateSettlements` 内部 pending/ready events 分组仍会一次性加载。
+- 下一步：Docker/compose 恢复后补 `affiliate_job_runs` PostgreSQL schema diff；继续把 settlement event grouping 改为分批，并补完整双跑幂等审计。

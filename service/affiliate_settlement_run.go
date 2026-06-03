@@ -21,6 +21,9 @@ type AffiliateSettlementRunInput struct {
 }
 
 type AffiliateSettlementRunResult struct {
+	JobRunId             int                         `json:"job_run_id"`
+	JobRunStatus         string                      `json:"job_run_status"`
+	IdempotencyKey       string                      `json:"idempotency_key"`
 	KPISnapshotCount     int                         `json:"kpi_snapshot_count"`
 	CommissionEventCount int                         `json:"commission_event_count"`
 	HeadFeeEventCount    int                         `json:"head_fee_event_count"`
@@ -42,6 +45,28 @@ func RunAffiliateSettlementPipeline(db *gorm.DB, logDB *gorm.DB, input Affiliate
 		input.Now = common.GetTimestamp()
 	}
 
+	jobRun, err := createAffiliateSettlementPipelineJobRun(db, input)
+	if err != nil {
+		return AffiliateSettlementRunResult{}, err
+	}
+	failedResult := func(stage string, cause error) (AffiliateSettlementRunResult, error) {
+		if updateErr := finishAffiliateJobRunFailure(db, jobRun, stage, cause, input.Now); updateErr != nil {
+			return AffiliateSettlementRunResult{
+				JobRunId:       jobRun.Id,
+				JobRunStatus:   model.AffiliateJobRunStatusFailed,
+				IdempotencyKey: jobRun.IdempotencyKey,
+			}, errors.Join(cause, updateErr)
+		}
+		return AffiliateSettlementRunResult{
+			JobRunId:       jobRun.Id,
+			JobRunStatus:   model.AffiliateJobRunStatusFailed,
+			IdempotencyKey: jobRun.IdempotencyKey,
+		}, cause
+	}
+
+	if err := updateAffiliateJobRunProgress(db, jobRun.Id, affiliateJobRunStageKPI, nil); err != nil {
+		return failedResult(affiliateJobRunStageKPI, err)
+	}
 	kpiSnapshots, err := BuildAffiliateKPISnapshots(db, logDB, AffiliateKPIBuildInput{
 		RuleSetId:       input.RuleSetId,
 		PeriodStart:     input.PeriodStart,
@@ -50,9 +75,14 @@ func RunAffiliateSettlementPipeline(db *gorm.DB, logDB *gorm.DB, input Affiliate
 		USDExchangeRate: input.USDExchangeRate,
 	})
 	if err != nil {
-		return AffiliateSettlementRunResult{}, err
+		return failedResult(affiliateJobRunStageKPI, err)
 	}
 
+	if err := updateAffiliateJobRunProgress(db, jobRun.Id, affiliateJobRunStageCommission, map[string]interface{}{
+		"kpi_snapshot_count": len(kpiSnapshots),
+	}); err != nil {
+		return failedResult(affiliateJobRunStageCommission, err)
+	}
 	commissionEvents, err := BuildAffiliatePendingCommissionEvents(db, logDB, AffiliateCommissionBuildInput{
 		RuleSetId:       input.RuleSetId,
 		PeriodStart:     input.PeriodStart,
@@ -61,9 +91,15 @@ func RunAffiliateSettlementPipeline(db *gorm.DB, logDB *gorm.DB, input Affiliate
 		USDExchangeRate: input.USDExchangeRate,
 	})
 	if err != nil {
-		return AffiliateSettlementRunResult{}, err
+		return failedResult(affiliateJobRunStageCommission, err)
 	}
 
+	if err := updateAffiliateJobRunProgress(db, jobRun.Id, affiliateJobRunStageHeadFee, map[string]interface{}{
+		"kpi_snapshot_count":     len(kpiSnapshots),
+		"commission_event_count": len(commissionEvents),
+	}); err != nil {
+		return failedResult(affiliateJobRunStageHeadFee, err)
+	}
 	headFeeEvents, err := BuildAffiliatePendingHeadFeeEvents(db, logDB, AffiliateHeadFeeBuildInput{
 		RuleSetId:       input.RuleSetId,
 		PeriodStart:     input.PeriodStart,
@@ -73,9 +109,16 @@ func RunAffiliateSettlementPipeline(db *gorm.DB, logDB *gorm.DB, input Affiliate
 		USDExchangeRate: input.USDExchangeRate,
 	})
 	if err != nil {
-		return AffiliateSettlementRunResult{}, err
+		return failedResult(affiliateJobRunStageHeadFee, err)
 	}
 
+	if err := updateAffiliateJobRunProgress(db, jobRun.Id, affiliateJobRunStageSettlement, map[string]interface{}{
+		"kpi_snapshot_count":     len(kpiSnapshots),
+		"commission_event_count": len(commissionEvents),
+		"head_fee_event_count":   len(headFeeEvents),
+	}); err != nil {
+		return failedResult(affiliateJobRunStageSettlement, err)
+	}
 	settlements, err := GenerateAffiliateSettlements(db, AffiliateSettlementBuildInput{
 		RuleSetId:   input.RuleSetId,
 		PeriodStart: input.PeriodStart,
@@ -86,14 +129,21 @@ func RunAffiliateSettlementPipeline(db *gorm.DB, logDB *gorm.DB, input Affiliate
 		GeneratedAt: input.Now,
 	})
 	if err != nil {
-		return AffiliateSettlementRunResult{}, err
+		return failedResult(affiliateJobRunStageSettlement, err)
 	}
 
-	return AffiliateSettlementRunResult{
+	result := AffiliateSettlementRunResult{
+		JobRunId:             jobRun.Id,
+		JobRunStatus:         model.AffiliateJobRunStatusSucceeded,
+		IdempotencyKey:       jobRun.IdempotencyKey,
 		KPISnapshotCount:     len(kpiSnapshots),
 		CommissionEventCount: len(commissionEvents),
 		HeadFeeEventCount:    len(headFeeEvents),
 		SettlementCount:      len(settlements),
 		Settlements:          settlements,
-	}, nil
+	}
+	if err := finishAffiliateJobRunSuccess(db, jobRun, result, input.Now); err != nil {
+		return result, err
+	}
+	return result, nil
 }

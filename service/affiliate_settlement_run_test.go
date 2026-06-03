@@ -1,6 +1,7 @@
 package service
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/QuantumNous/new-api/model"
@@ -70,6 +71,85 @@ func TestRunAffiliateSettlementPipelineBuildsKPICommissionHeadFeeAndSettlement(t
 	}
 	if readyHeadFeeCount != 2 {
 		t.Fatalf("expected two head fee events linked to settlement, got %d", readyHeadFeeCount)
+	}
+}
+
+func TestRunAffiliateSettlementPipelineRecordsJobRunSuccess(t *testing.T) {
+	db := newAffiliateCommissionTestDB(t)
+	ruleSet := savePublishedAffiliateCommissionRuleSetFromInput(t, db, newAffiliateHeadFeeRuleSetInput("settlement-run-job-success"))
+	seedAffiliateCommissionProfileAndRelation(t, db, 100, 200, 1)
+	seedAffiliateKPIInviteEvents(t, db, 100, []int{200})
+	seedAffiliateCommissionLog(t, db, model.Log{UserId: 200, CreatedAt: 1100, Type: model.LogTypeConsume, Quota: 1000, Other: `{"quota_source":"paid"}`})
+
+	result, err := RunAffiliateSettlementPipeline(db, db, AffiliateSettlementRunInput{
+		RuleSetId:       ruleSet.Id,
+		PeriodStart:     1000,
+		PeriodEnd:       2000,
+		FreezeDays:      7,
+		Now:             1100 + 21*affiliateSecondsPerDay,
+		QuotaPerUnit:    100,
+		USDExchangeRate: 1,
+		ActorUserId:     9,
+		Reason:          "monthly settlement run",
+	})
+	if err != nil {
+		t.Fatalf("RunAffiliateSettlementPipeline returned error: %v", err)
+	}
+	if result.JobRunId <= 0 || result.JobRunStatus != model.AffiliateJobRunStatusSucceeded || result.IdempotencyKey == "" {
+		t.Fatalf("expected result to expose succeeded job run identity, got %+v", result)
+	}
+
+	var jobRun model.AffiliateJobRun
+	if err := db.First(&jobRun, result.JobRunId).Error; err != nil {
+		t.Fatalf("load affiliate job run: %v", err)
+	}
+	if jobRun.JobType != model.AffiliateJobRunTypeSettlementPipeline || jobRun.Status != model.AffiliateJobRunStatusSucceeded {
+		t.Fatalf("unexpected job run type/status: %+v", jobRun)
+	}
+	if jobRun.IdempotencyKey != result.IdempotencyKey || jobRun.RuleSetId != ruleSet.Id || jobRun.PeriodStart != 1000 || jobRun.PeriodEnd != 2000 {
+		t.Fatalf("unexpected job run identity: %+v", jobRun)
+	}
+	if jobRun.ActorUserId != 9 || jobRun.StartedAt <= 0 || jobRun.FinishedAt <= 0 || jobRun.CurrentStage != "complete" {
+		t.Fatalf("unexpected job run execution metadata: %+v", jobRun)
+	}
+	if jobRun.KPISnapshotCount != result.KPISnapshotCount || jobRun.CommissionEventCount != result.CommissionEventCount || jobRun.HeadFeeEventCount != result.HeadFeeEventCount || jobRun.SettlementCount != result.SettlementCount {
+		t.Fatalf("job run counts do not match result: run=%+v result=%+v", jobRun, result)
+	}
+	if jobRun.InputSnapshot == "" || jobRun.ResultSnapshot == "" || jobRun.ErrorMessage != "" {
+		t.Fatalf("expected sanitized input/result snapshots and no error, got %+v", jobRun)
+	}
+}
+
+func TestRunAffiliateSettlementPipelineRecordsJobRunFailure(t *testing.T) {
+	db := newAffiliateCommissionTestDB(t)
+
+	_, err := RunAffiliateSettlementPipeline(db, db, AffiliateSettlementRunInput{
+		RuleSetId:       999,
+		PeriodStart:     1000,
+		PeriodEnd:       2000,
+		Now:             3000,
+		QuotaPerUnit:    100,
+		USDExchangeRate: 1,
+		ActorUserId:     9,
+		Reason:          "do not leak password=secret-token",
+	})
+	if err == nil {
+		t.Fatal("expected settlement pipeline to fail without a published rule set")
+	}
+
+	var jobRun model.AffiliateJobRun
+	if err := db.Where("job_type = ?", model.AffiliateJobRunTypeSettlementPipeline).First(&jobRun).Error; err != nil {
+		t.Fatalf("load failed affiliate job run: %v", err)
+	}
+	if jobRun.Status != model.AffiliateJobRunStatusFailed || jobRun.CurrentStage != "kpi" || jobRun.FinishedAt != 3000 {
+		t.Fatalf("unexpected failed job run status: %+v", jobRun)
+	}
+	if jobRun.ErrorMessage == "" || !strings.Contains(jobRun.ErrorMessage, "no published affiliate rule set") {
+		t.Fatalf("expected sanitized failure message, got %+v", jobRun)
+	}
+	serialized := jobRun.InputSnapshot + jobRun.ResultSnapshot + jobRun.ErrorMessage
+	if strings.Contains(serialized, "secret-token") || strings.Contains(serialized, "password=") {
+		t.Fatalf("job run leaked sensitive reason text: %+v", jobRun)
 	}
 }
 
