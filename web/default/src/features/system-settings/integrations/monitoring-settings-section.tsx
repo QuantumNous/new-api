@@ -245,6 +245,7 @@ type ChannelTypePickerProps = {
   title: string
   description: string
   emptySummary: string
+  showSelectAllShortcut?: boolean
   value: number[]
   onChange: (value: number[]) => void
 }
@@ -276,21 +277,34 @@ function ChannelTypePicker(props: ChannelTypePickerProps) {
 
   return (
     <div className='space-y-3'>
-      <Button
-        type='button'
-        variant='outline'
-        className='w-full justify-between'
-        onClick={() => setOpen(true)}
-      >
-        <span>{t('Select channel types')}</span>
-        <span className='text-muted-foreground text-xs'>
-          {props.value.length === 0 && t(props.emptySummary)}
-          {props.value.length > 0 &&
-            !allSelected &&
-            t('{{count}} selected', { count: props.value.length })}
-          {allSelected && t('All channel types selected')}
-        </span>
-      </Button>
+      <div className='flex flex-col gap-2 sm:flex-row'>
+        <Button
+          type='button'
+          variant='outline'
+          className='min-w-0 flex-1 justify-between'
+          onClick={() => setOpen(true)}
+        >
+          <span>{t('Select channel types')}</span>
+          <span className='text-muted-foreground text-xs'>
+            {props.value.length === 0 && t(props.emptySummary)}
+            {props.value.length > 0 &&
+              !allSelected &&
+              t('{{count}} selected', { count: props.value.length })}
+            {allSelected && t('All channel types selected')}
+          </span>
+        </Button>
+        {props.showSelectAllShortcut && (
+          <Button
+            type='button'
+            variant={allSelected ? 'secondary' : 'outline'}
+            className='shrink-0'
+            onClick={selectAllChannelTypes}
+            disabled={allSelected}
+          >
+            {t('Select all')}
+          </Button>
+        )}
+      </div>
 
       {allSelected ? (
         <Badge variant='outline'>{t('All channel types selected')}</Badge>
@@ -600,6 +614,7 @@ export function MonitoringSettingsSection({
                         'When selected, scheduled tests only include these channel types unless they are excluded.'
                       )}
                       emptySummary='All channel types'
+                      showSelectAllShortcut
                       value={field.value}
                       onChange={field.onChange}
                     />
