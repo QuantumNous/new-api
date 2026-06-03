@@ -77,7 +77,7 @@
 - [x] 佣金规则表：列包含层级、单用户累计净付费下限、单用户累计净付费上限、基准比例、最高比例 cap、是否需人工审批、排序和启停状态。（2026-06-04 审计：tier 表格字段已覆盖净付费区间、比例、cap、人工审批和排序；2026-06-04 已补 `AffiliateCommissionRuleInput.status`、默认 seed/fallback active 状态、草稿保存/发布/回滚复制和佣金生成跳过 disabled 等级；2026-06-04 已补 default/classic 规则表格 status 标签、固定列顺序、编辑值转换测试，以及旧 rule snapshot/import/copy 缺失 status 时补 `active` 的兼容展示。）
 - [x] KPI 档位表：列包含层级、档位 code、档位名称、有效新用户阈值、净付费消耗阈值、最终系数、质量门槛和排序。（2026-06-04 审计：`kpi_tiers` 已覆盖这些字段，default/classic 表格编辑器会按字段动态生成运营表格，并对百分比字段做 bps/percent 转换。）
 - [x] 人头费规则表：列包含层级、适用 KPI 档位、金额、首充门槛、14 天净付费门槛、解锁天数、是否启用。（2026-06-04 审计：金额、首充、周期净付费、资格天数和解锁天数已覆盖；2026-06-04 已补 `AffiliateHeadFeeRuleInput.status`、`affiliate_head_fee_rules.status` sidecar 字段、默认 seed/fallback active 状态、草稿保存/发布/回滚复制和人头费生成跳过 disabled 档位。）
-- [ ] 风控规则表：列包含纯赠金额占比阈值、异常用户占比阈值、退款阈值、二次付费率阈值、自刷/批量异常策略和处理动作。（2026-06-04 审计：比例阈值已覆盖；自刷/批量异常策略与处理动作尚未模型化，只能暂存在 metadata，不能视为运营友好表格完成。）
+- [x] 风控规则表：列包含纯赠金额占比阈值、异常用户占比阈值、退款阈值、二次付费率阈值、自刷/批量异常策略和处理动作。（2026-06-04 审计：比例阈值已覆盖；2026-06-04 已补 `self_brush_strategy`、`bulk_abuse_strategy`、`action` sidecar 字段、默认 seed/fallback、保存/发布/回滚复制和 default/classic 表格固定列。）
 - [x] 结算配置表单或表格：包含结算周期、冻结天数、最低结算金额、人工复核阈值、自动结算开关和备注。（2026-06-04 审计：周期、冻结天数、最低结算金额和人工复核开关已覆盖；2026-06-04 已补 `settlement_config.auto_settlement_enabled`、`settlement_config.review_note`、旧 snapshot 缺字段默认开启、自动运行保护和 default/classic 表单控件。）
 - [x] 输入单位必须面向运营：金额用元，比例用百分比，保存时再转换为 cents/bps；页面不得让运营直接填写 cents 或 bps。
 - [x] 增加规则变更 diff 预览，发布、归档、回滚和覆盖保存必须二次确认。（2026-06-04 已完成保存草稿前 diff 预览、发布/归档二次确认、已有草稿覆盖保存二次确认，以及从 published/archived 历史版本创建可审计回滚草稿的二次确认。）
@@ -360,7 +360,7 @@
 - 完成内容：复核 `service/affiliate_rules.go`、`model/affiliate.go`、default `rule-array-editor` 和 classic `RuleArrayEditor`，确认当前表格化实现是基于现有 JSON/input 字段动态生成列，不会凭空补齐后端尚未模型化的运营字段。
 - 覆盖结论：KPI 档位表已覆盖层级、code、名称、有效新用户阈值、净付费消耗阈值、最终系数、质量门槛和排序；default/classic 均会把 `_bps` 字段展示为百分比，把 `_cents` 字段展示为元。
 - 部分覆盖结论：佣金 tier 已覆盖净付费区间、基准比例、cap、人工审批和排序，但佣金规则启停状态没有进入 `AffiliateCommissionRuleInput`；人头费规则已覆盖金额、首充、周期净付费、资格天数和解锁天数，但没有启停字段。
-- 缺口结论：风控规则只覆盖纯赠、异常、退款和二次付费率阈值，尚未把自刷/批量异常策略和处理动作模型化；结算配置只覆盖周期、冻结天数、最低结算金额和人工复核开关，尚无自动结算开关与备注。
+- 缺口结论：本轮审计时风控规则只覆盖纯赠、异常、退款和二次付费率阈值，尚未把自刷/批量异常策略和处理动作模型化；结算配置只覆盖周期、冻结天数、最低结算金额和人工复核开关，尚无自动结算开关与备注。上述风控缺口已在 P1-30 收口，结算配置缺口已在 P1-29 收口。
 - 测试现状：default `rule-array-editor.test.ts` 当前覆盖稳定列顺序、隐藏分组字段和元/百分比双向转换；classic `affiliateAdminRules.test.mjs` 当前覆盖 draft payload、默认 seed 和状态 helper。两端尚未用业务列完整性测试固化上述缺口。
 - 验证命令：`rg -n "CommissionRuleInput|AffiliateCommissionRule\\{|Status|SettlementRuleConfig|ManualReviewEnabled|RiskRuleInput|Metadata" service/affiliate_rules.go web/default/src/features/affiliate web/classic/src/pages/AffiliateAdmin model/affiliate.go docs/affiliate/native-affiliate-followup-tasklist.zh-CN.md` 用于确认字段来源；`git diff --check` 通过。
 - 下一步：若继续做规则配置 P1，应优先 TDD 增加业务列完整性测试，再决定是否新增启停字段、风控动作、自动结算开关、备注、diff 预览、导入导出和复制上一版本。
@@ -506,7 +506,7 @@
 - 完成内容：default/classic `RuleArrayEditor` 都把 `status` 加入 `RULE_FIELD_LABELS` 和固定列顺序，并保持字符串值编辑转换；classic 同步导出测试 helper 以锁定 parity。default/classic admin rule helper 新增 `normalizeCommissionRulesForForm`，只在表单展示/编辑入口为缺失 status 的佣金规则补 `active`，不覆盖已有 `disabled`，也不强行给人头费、风控或结算配置新增未模型化字段。
 - 验证命令：`cd web/default && bun test src/features/affiliate/rule-array-editor.test.ts src/features/affiliate/admin-lib.test.ts` 通过，24 pass；`cd web/classic && bun test src/pages/AffiliateAdmin/ruleArrayEditor.test.mjs src/pages/AffiliateAdmin/affiliateAdminRules.test.mjs` 通过，14 pass；`cd web/default && bun run build` 通过；`cd web/classic && bun run build` 通过；`git diff --check` 通过。
 - 浏览器 smoke：in-app Browser 打开 `http://127.0.0.1:5173/affiliate/admin` 未登录正常跳转到 default sign-in；打开 `http://127.0.0.1:5174/console/affiliate/admin` 未登录正常跳转到 classic login，控制台错误为既有未登录/登录过期提示，不是本轮 RuleArrayEditor 运行时异常。
-- 残留风险：本轮只收口佣金规则已有 `status` 字段在运营表格中的显示与历史快照兼容；人头费规则启停已在 P1-28 收口，结算自动开关和备注已在 P1-29 收口。风控处理动作仍未模型化。Docker engine 当前仍不可查询，未做登录态管理员真实点击保存 smoke。
+- 残留风险：本轮只收口佣金规则已有 `status` 字段在运营表格中的显示与历史快照兼容；人头费规则启停已在 P1-28 收口，结算自动开关和备注已在 P1-29 收口，风控处理动作已在 P1-30 收口。Docker engine 当前仍不可查询，未做登录态管理员真实点击保存 smoke。
 
 ## P1-28 人头费规则启停状态复盘（2026-06-04 本线程）
 
@@ -514,7 +514,7 @@
 - 完成内容：人头费规则输入新增 `status`，保存草稿时规范化并校验 `active/disabled`，持久化到新增 sidecar 字段 `affiliate_head_fee_rules.status`；从已发布/已归档版本复制为草稿时保留原状态；默认 seed 与 default/classic 前端 fallback seed 都显式回填 active。人头费事件构建只查询 active 的人头费规则；如果某个 KPI 档位人头费规则被 disabled，则跳过该档位，不再生成 pending head fee event。
 - schema impact：本轮修改 GORM sidecar model，只新增 `affiliate_head_fee_rules.status` 字段，仍不改官方核心表。`go test -count=1 ./model ./service -run "AffiliateSidecar|MigrateDBCreatesAffiliateSidecar|AffiliateRuleSet|HeadFee|DefaultAffiliateRuleSetSeed|CommissionRuleStatus"` 已覆盖 SQLite AutoMigrate 与 service 行为；Docker engine 当前仍不可用，PostgreSQL before/after diff 需恢复后补。
 - 验证命令：`go test -count=1 ./service -run "HeadFeeRuleStatus|DisabledHeadFeeRule"` 先 RED 后 GREEN；`cd web/default && bun test src/features/affiliate/admin-lib.test.ts --test-name-pattern "hydrates|imports|copies"` 先 RED 后 GREEN；`cd web/classic && bun test src/pages/AffiliateAdmin/affiliateAdminRules.test.mjs --test-name-pattern "hydrates|imports|copies|default seed"` 先 RED 后 GREEN。完整相关验证：`go test -count=1 ./model ./service -run "AffiliateSidecar|MigrateDBCreatesAffiliateSidecar|AffiliateRuleSet|HeadFee|DefaultAffiliateRuleSetSeed|CommissionRuleStatus"` 通过；`cd web/default && bun test src/features/affiliate/admin-lib.test.ts src/features/affiliate/rule-array-editor.test.ts` 通过，24 pass；`cd web/classic && bun test src/pages/AffiliateAdmin/affiliateAdminRules.test.mjs src/pages/AffiliateAdmin/ruleArrayEditor.test.mjs` 通过，14 pass。
-- 残留风险：本轮只补人头费规则启停；结算自动开关/备注已在 P1-29 收口。风控处理动作、cursor 跳扫式 resume、Docker PostgreSQL schema diff 和登录态管理员真实点击保存 smoke 仍待做。
+- 残留风险：本轮只补人头费规则启停；结算自动开关/备注已在 P1-29 收口，风控处理动作已在 P1-30 收口。cursor 跳扫式 resume、Docker PostgreSQL schema diff 和登录态管理员真实点击保存 smoke 仍待做。
 
 ## P1-29 结算配置自动开关与审核备注复盘（2026-06-04 本线程）
 
@@ -525,7 +525,17 @@
 - 验证命令：RED 阶段 `go test -count=1 ./service -run "SettlementAuto|AutoSettlement"` 因缺字段/缺 `AutoRun` 编译失败；default/classic targeted `bun test` 因字段未映射和 diff 缺项失败。实现后 `go test -count=1 ./service -run "SettlementAuto|AutoSettlement"` 通过；`cd web/default && bun test src/features/affiliate/admin-lib.test.ts --test-name-pattern "settlement|hydrates|exports|copies|diff"` 通过；`cd web/classic && bun test src/pages/AffiliateAdmin/affiliateAdminRules.test.mjs --test-name-pattern "settlement|hydrates|exports|copies|diff|default seed"` 通过。
 - 回归验证：`go test -count=1 ./model ./service` 通过；`cd web/default && bun test src/features/affiliate/admin-lib.test.ts src/features/affiliate/rule-array-editor.test.ts` 通过，24 pass；`cd web/classic && bun test src/pages/AffiliateAdmin/affiliateAdminRules.test.mjs src/pages/AffiliateAdmin/ruleArrayEditor.test.mjs` 通过，14 pass；`cd web/default && bun run build` 通过；`cd web/classic && bun run build` 通过。
 - 浏览器 smoke：`curl -I http://127.0.0.1:5173/` 与 `curl -I http://127.0.0.1:5174/` 均返回 200；in-app Browser 打开 `http://127.0.0.1:5173/affiliate/admin` 未登录正常跳转到 default sign-in；打开 `http://127.0.0.1:5174/console/affiliate/admin` 未登录正常跳转到 classic login。classic 新增控制台消息为既有未登录 401/登录过期提示，不是本轮结算配置控件渲染异常。
-- 残留风险：本轮未实现后台自动调度器，只为未来自动调度明确 `AutoRun` 入口语义；当前管理员页面仍需登录态真实点击保存 smoke。风控自刷/批量异常策略和处理动作、cursor 跳扫式 resume、Docker PostgreSQL schema diff、外部完整结算周期双跑仍待做。
+- 残留风险：本轮未实现后台自动调度器，只为未来自动调度明确 `AutoRun` 入口语义；风控自刷/批量异常策略和处理动作已在 P1-30 收口。当前管理员页面仍需登录态真实点击保存 smoke；cursor 跳扫式 resume、Docker PostgreSQL schema diff、外部完整结算周期双跑仍待做。
+
+## P1-30 风控规则策略与处理动作复盘（2026-06-04 本线程）
+
+- RED：先补 `TestSaveAffiliateRuleSetDraftPersistsRiskStrategiesAndAction`，要求风控规则保存、snapshot、发布/回滚复制都保留 `self_brush_strategy`、`bulk_abuse_strategy`、`action`，缺字段时回填默认策略，未知动作保存时报 `invalid affiliate risk action`；旧实现因 `AffiliateRiskRuleInput` 与 `AffiliateRiskRule` 缺字段编译失败。default/classic 前端测试要求旧 snapshot/default seed 回填三列，`RuleArrayEditor` 固定列顺序中展示自刷策略、批量异常策略和处理动作。
+- 完成内容：`affiliate_risk_rules` sidecar 模型新增 `self_brush_strategy`、`bulk_abuse_strategy`、`action` 字段；服务层保存草稿时 trim 并默认回填 `exclude`、`manual_review`、`manual_review`，并校验允许值。持久化配置、已发布/已归档版本复制、回滚草稿和 JSON snapshot 均保留这些字段。default/classic 默认 seed、旧 snapshot/import 展示和表格列标签同步。
+- 允许值：自刷策略当前允许 `exclude`、`manual_review`；批量异常策略允许 `manual_review`、`hold_commission`、`exclude_from_kpi`；处理动作允许 `manual_review`、`review_only`、`hold_commission`、`hold_settlement`、`exclude_from_kpi`。本轮只模型化配置字段，不把动作直接硬编码进历史已生成事件或已结算单。
+- schema impact：本轮修改 GORM sidecar model，只新增 `affiliate_risk_rules.self_brush_strategy`、`affiliate_risk_rules.bulk_abuse_strategy`、`affiliate_risk_rules.action` 字段，仍不改官方核心表。SQLite AutoMigrate 与 service 行为已通过 `go test -count=1 ./model ./service`；Docker engine 当前仍不可用，PostgreSQL before/after diff 需恢复后补。
+- 验证命令：RED 阶段 `go test -count=1 ./service -run "RiskStrategies|AffiliateRuleSetDraft"` 因缺字段编译失败；default/classic targeted `bun test` 因旧 snapshot 缺字段和列顺序失败。实现后 `go test -count=1 ./service -run "RiskStrategies|AffiliateRuleSetDraft"` 通过；`go test -count=1 ./model ./service` 通过；`cd web/default && bun test src/features/affiliate/admin-lib.test.ts src/features/affiliate/rule-array-editor.test.ts` 通过，25 pass；`cd web/classic && bun test src/pages/AffiliateAdmin/affiliateAdminRules.test.mjs src/pages/AffiliateAdmin/ruleArrayEditor.test.mjs` 通过，15 pass；`cd web/default && bun run build` 与 `cd web/classic && bun run build` 均通过。
+- 浏览器 smoke：in-app Browser 打开 `http://127.0.0.1:5173/affiliate/admin` 未登录正常跳转到 default sign-in；打开 `http://127.0.0.1:5174/console/affiliate/admin` 未登录正常跳转到 classic login。classic 新增控制台消息为既有未登录 401/登录过期提示，不是本轮风控表格列渲染异常。
+- 残留风险：本轮没有把风控动作接入佣金/KPI/人头费/结算生成逻辑的自动处置，只完成配置模型化和运营表格化；真实业务动作是否降档、暂缓佣金、排除 KPI 或仅复核，仍需后续结合飞书风控口径和生成任务 TDD 单独实现。Docker PostgreSQL schema diff、登录态管理员真实点击保存 smoke、cursor 跳扫式 resume 和完整周期双跑仍待做。
 
 ## P2-2 SMS DB-backed 限流复盘（2026-06-04 本线程）
 

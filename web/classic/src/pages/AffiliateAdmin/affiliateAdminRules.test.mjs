@@ -101,6 +101,9 @@ describe('affiliate admin rule set helpers', () => {
           code: 'default',
           max_gift_only_ratio_bps: 2000,
           max_abnormal_ratio_bps: 1000,
+          self_brush_strategy: 'exclude',
+          bulk_abuse_strategy: 'manual_review',
+          action: 'hold_settlement',
         },
       ]),
     });
@@ -163,6 +166,9 @@ describe('affiliate admin rule set helpers', () => {
           code: 'default',
           max_gift_only_ratio_bps: 2000,
           max_abnormal_ratio_bps: 1000,
+          self_brush_strategy: 'exclude',
+          bulk_abuse_strategy: 'manual_review',
+          action: 'hold_settlement',
         },
       ],
     });
@@ -208,6 +214,15 @@ describe('affiliate admin rule set helpers', () => {
         affiliate_level: 1,
         status: 'active',
         kpi_tier_code: 'base',
+      },
+    ]);
+    expect(JSON.parse(values.risk_rules_json)).toEqual([
+      {
+        affiliate_level: 1,
+        code: 'default',
+        self_brush_strategy: 'exclude',
+        bulk_abuse_strategy: 'manual_review',
+        action: 'manual_review',
       },
     ]);
   });
@@ -426,11 +441,15 @@ describe('affiliate admin rule set helpers', () => {
     const commissionTiers = JSON.parse(values.commission_tiers_json);
     const kpiTiers = JSON.parse(values.kpi_tiers_json);
     const headFees = JSON.parse(values.head_fee_rules_json);
+    const riskRules = JSON.parse(values.risk_rules_json);
 
     expect(values.settlement_cycle).toBe('monthly');
     expect(values.manual_review_enabled).toBe(true);
     expect(values.auto_settlement_enabled).toBe(true);
     expect(values.review_note).toBe('');
+    expect(riskRules[0].self_brush_strategy).toBe('exclude');
+    expect(riskRules[0].bulk_abuse_strategy).toBe('manual_review');
+    expect(riskRules[0].action).toBe('manual_review');
     expect(commissionTiers).toHaveLength(10);
     expect(commissionTiers[0]).toMatchObject({
       affiliate_level: 1,

@@ -256,6 +256,9 @@ type AffiliateRiskRule struct {
 	MaxAbnormalRatioBps      int    `json:"max_abnormal_ratio_bps" gorm:"type:int;not null;default:0"`
 	MaxRefundRatioBps        int    `json:"max_refund_ratio_bps" gorm:"type:int;not null;default:0"`
 	MinSecondPaymentRatioBps int    `json:"min_second_payment_ratio_bps" gorm:"type:int;not null;default:0"`
+	SelfBrushStrategy        string `json:"self_brush_strategy" gorm:"type:varchar(64);not null;default:'exclude'"`
+	BulkAbuseStrategy        string `json:"bulk_abuse_strategy" gorm:"type:varchar(64);not null;default:'manual_review'"`
+	Action                   string `json:"action" gorm:"type:varchar(64);not null;default:'manual_review'"`
 	Metadata                 string `json:"metadata" gorm:"type:text"`
 	CreatedAt                int64  `json:"created_at" gorm:"autoCreateTime;column:created_at"`
 	UpdatedAt                int64  `json:"updated_at" gorm:"autoUpdateTime;column:updated_at"`

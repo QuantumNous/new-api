@@ -33,4 +33,34 @@ describe('classic affiliate rule table editor helpers', () => {
       ),
     ).toBe('active');
   });
+
+  test('keeps risk policy strategies and action as operator-facing columns', () => {
+    const columns = __ruleArrayEditorTestUtils.getRuleTableColumns(
+      [
+        {
+          affiliate_level: 1,
+          code: 'default',
+          max_gift_only_ratio_bps: 2000,
+          self_brush_strategy: 'exclude',
+          bulk_abuse_strategy: 'manual_review',
+          action: 'hold_settlement',
+        },
+      ],
+      ['affiliate_level'],
+    );
+
+    expect(columns).toEqual([
+      'code',
+      'max_gift_only_ratio_bps',
+      'self_brush_strategy',
+      'bulk_abuse_strategy',
+      'action',
+    ]);
+    expect(
+      __ruleArrayEditorTestUtils.getRuleFieldLabel('bulk_abuse_strategy'),
+    ).toBe('Bulk-Abuse Strategy');
+    expect(__ruleArrayEditorTestUtils.getRuleFieldLabel('action')).toBe(
+      'Processing Action',
+    );
+  });
 });

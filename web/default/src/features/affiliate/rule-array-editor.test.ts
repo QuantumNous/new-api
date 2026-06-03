@@ -62,6 +62,38 @@ describe('affiliate rule table editor helpers', () => {
     )
   })
 
+  test('keeps risk policy strategies and action as operator-facing columns', () => {
+    const columns = __ruleArrayEditorTestUtils.getRuleTableColumns(
+      [
+        {
+          affiliate_level: 1,
+          code: 'default',
+          max_gift_only_ratio_bps: 2000,
+          self_brush_strategy: 'exclude',
+          bulk_abuse_strategy: 'manual_review',
+          action: 'hold_settlement',
+        },
+      ],
+      ['affiliate_level']
+    )
+
+    assert.deepEqual(columns, [
+      'code',
+      'max_gift_only_ratio_bps',
+      'self_brush_strategy',
+      'bulk_abuse_strategy',
+      'action',
+    ])
+    assert.equal(
+      __ruleArrayEditorTestUtils.getRuleFieldLabel('self_brush_strategy'),
+      'Self-Brush Strategy'
+    )
+    assert.equal(
+      __ruleArrayEditorTestUtils.getRuleFieldLabel('action'),
+      'Processing Action'
+    )
+  })
+
   test('keeps operator-facing yuan and percent units reversible', () => {
     assert.equal(
       __ruleArrayEditorTestUtils.getDisplayValue('base_rate_bps', 1333),

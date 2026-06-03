@@ -138,6 +138,31 @@ function normalizeHeadFeeRulesForForm(
   })
 }
 
+function normalizeRiskRulesForForm(
+  value: unknown
+): Record<string, unknown>[] {
+  if (!Array.isArray(value)) return []
+  return value.map((rule) => {
+    if (!rule || typeof rule !== 'object' || Array.isArray(rule)) {
+      return {
+        self_brush_strategy: 'exclude',
+        bulk_abuse_strategy: 'manual_review',
+        action: 'manual_review',
+        value: rule,
+      }
+    }
+    const record = rule as Record<string, unknown>
+    return {
+      ...record,
+      self_brush_strategy:
+        String(record.self_brush_strategy || '').trim() || 'exclude',
+      bulk_abuse_strategy:
+        String(record.bulk_abuse_strategy || '').trim() || 'manual_review',
+      action: String(record.action || '').trim() || 'manual_review',
+    }
+  })
+}
+
 function stringifyStable(value: unknown): string {
   if (Array.isArray(value)) {
     return `[${value.map((item) => stringifyStable(item)).join(',')}]`
@@ -494,7 +519,9 @@ export function buildAffiliateRuleSetDraftFormValues(
     headFeeRulesJson: stringifyPretty(
       normalizeHeadFeeRulesForForm(snapshot.head_fee_rules)
     ),
-    riskRulesJson: stringifyPretty(snapshot.risk_rules),
+    riskRulesJson: stringifyPretty(
+      normalizeRiskRulesForForm(snapshot.risk_rules)
+    ),
   }
 }
 
@@ -559,7 +586,9 @@ export function parseAffiliateRuleSetImportJson(
     headFeeRulesJson: stringifyPretty(
       normalizeHeadFeeRulesForForm(imported.head_fee_rules)
     ),
-    riskRulesJson: stringifyPretty(imported.risk_rules),
+    riskRulesJson: stringifyPretty(
+      normalizeRiskRulesForForm(imported.risk_rules)
+    ),
   }
 }
 
@@ -950,6 +979,9 @@ function buildAffiliateRuleSetDefaultSeedFormValues(): AffiliateRuleSetDraftForm
         max_abnormal_ratio_bps: 1000,
         max_refund_ratio_bps: 1000,
         min_second_payment_ratio_bps: 0,
+        self_brush_strategy: 'exclude',
+        bulk_abuse_strategy: 'manual_review',
+        action: 'manual_review',
       },
       {
         affiliate_level: 2,
@@ -958,6 +990,9 @@ function buildAffiliateRuleSetDefaultSeedFormValues(): AffiliateRuleSetDraftForm
         max_abnormal_ratio_bps: 1000,
         max_refund_ratio_bps: 1000,
         min_second_payment_ratio_bps: 0,
+        self_brush_strategy: 'exclude',
+        bulk_abuse_strategy: 'manual_review',
+        action: 'manual_review',
       },
     ]),
   }

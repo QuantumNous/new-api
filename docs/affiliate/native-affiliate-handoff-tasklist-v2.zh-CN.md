@@ -189,7 +189,7 @@ cd web/classic && bun test src/pages/AffiliateAdmin/ruleArrayEditor.test.mjs src
 
 2026-06-04 实际验证：`go test -count=1 ./model ./service -run 'AffiliateSidecar|MigrateDBCreatesAffiliateSidecar|AffiliateRuleSet|HeadFee|DefaultAffiliateRuleSetSeed|CommissionRuleStatus'` 通过；default 24 pass；classic 14 pass。
 
-### Task 5.2 风控动作与自刷/批量异常策略
+### Task 5.2 风控动作与自刷/批量异常策略（2026-06-04 已完成配置模型化）
 
 **Files:**
 - Modify: `model/affiliate.go`
@@ -200,10 +200,11 @@ cd web/classic && bun test src/pages/AffiliateAdmin/ruleArrayEditor.test.mjs src
 - Test: `service/affiliate_kpi_test.go`
 - Modify/Test: default/classic admin rules files listed in Task 5.1
 
-- [ ] RED: 测试要求 risk rules 支持处理动作，例如 `review_only`、`hold_commission`、`exclude_from_kpi`，且未知动作保存时被拒绝。
-- [ ] GREEN: 风控规则只在规则模型和 service 层规范化，不把动作硬编码到前端。
-- [ ] 前端表格展示纯赠金占比、异常用户占比、退款阈值、二次付费率、自刷/批量异常策略和处理动作。
-- [ ] 复盘时说明风控动作是否只影响后续生成任务，不回写历史已结算单。
+- [x] RED: 测试要求 risk rules 支持处理动作，例如 `review_only`、`hold_commission`、`exclude_from_kpi`，且未知动作保存时被拒绝。
+- [x] GREEN: 风控规则只在规则模型和 service 层规范化，不把动作硬编码到前端。
+- [x] 前端表格展示纯赠金占比、异常用户占比、退款阈值、二次付费率、自刷/批量异常策略和处理动作。
+- [x] 复盘时说明风控动作是否只影响后续生成任务，不回写历史已结算单。
+- [x] 复盘：见 `docs/affiliate/native-affiliate-followup-tasklist.zh-CN.md` 的 P1-30；本轮只完成配置模型化和表格化，未接入生成任务自动处置。
 
 ### Task 5.3 结算配置自动开关与备注（2026-06-04 已完成）
 
@@ -265,7 +266,7 @@ go test -count=1 ./service -run 'Affiliate.*JobRun|Settlement.*Resume|Commission
 - Update: `docs/affiliate/native-affiliate-schema-impact-report.zh-CN.md`
 - Runtime only: `runtime/schema-impact/`
 
-- [ ] Docker engine 恢复后导出包含 `affiliate_job_runs` 与 `sms_rate_limit_counters` 的 before/after PostgreSQL schema。
+- [ ] Docker engine 恢复后导出包含 `affiliate_job_runs`、`sms_rate_limit_counters`、`affiliate_head_fee_rules.status` 与 `affiliate_risk_rules` 新增策略/动作字段的 before/after PostgreSQL schema。
 - [ ] 运行 diff 检查，确认只出现预期 sidecar DDL，不出现官方核心表 `ALTER` 或 `DROP`。
 - [ ] `runtime/schema-impact/` 文件必须继续保持 git ignored，不提交。
 - [ ] 更新 schema impact 报告，只写快照文件名、sha256 验证和脱敏结论。
@@ -355,9 +356,9 @@ go test -count=1 ./service -run 'Affiliate.*JobRun|Settlement.*Resume|Commission
 ## 11. 建议下一批执行顺序
 
 - [ ] 第一批：Windows 浏览器旧 404 最终取证与 Docker engine 恢复后 no-store/header 复核。
-- [ ] 第二批：Docker PostgreSQL schema diff，补 `affiliate_job_runs` 与 `sms_rate_limit_counters` 发布前证据。
-- [ ] 第三批：人头费规则 `status`，保持 default/classic 表格 parity。
-- [ ] 第四批：风控动作继续表格化；结算配置自动开关/备注已在 2026-06-04 Task 5.3 收口。
+- [ ] 第二批：Docker PostgreSQL schema diff，补 `affiliate_job_runs`、`sms_rate_limit_counters`、`affiliate_head_fee_rules.status` 和 `affiliate_risk_rules` 新增字段发布前证据。
+- [x] 第三批：人头费规则 `status`，保持 default/classic 表格 parity。
+- [x] 第四批：风控动作和结算配置自动开关/备注已在 2026-06-04 Task 5.2/5.3 收口。
 - [ ] 第五批：cursor 跳扫式 resume 与完整结算周期双跑。
 - [ ] 第六批：手机号注册/登录/绑定主链路与真实短信宝 smoke。
 - [ ] 第七批：分销商趋势图、管理端佣金/结算列表和外部灰度验收。

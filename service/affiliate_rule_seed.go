@@ -80,8 +80,8 @@ func BuildDefaultAffiliateRuleSetDraftInput(version string, actorUserId int, rea
 			affiliateSeedHeadFeeRule(2, "excellent", 1),
 		},
 		RiskRules: []AffiliateRiskRuleInput{
-			{AffiliateLevel: 1, Code: "default", MaxGiftOnlyRatioBps: affiliateSeedPercentToBps(20), MaxAbnormalRatioBps: affiliateSeedPercentToBps(10), MaxRefundRatioBps: affiliateSeedPercentToBps(10), MinSecondPaymentRatioBps: 0},
-			{AffiliateLevel: 2, Code: "default", MaxGiftOnlyRatioBps: affiliateSeedPercentToBps(30), MaxAbnormalRatioBps: affiliateSeedPercentToBps(10), MaxRefundRatioBps: affiliateSeedPercentToBps(10), MinSecondPaymentRatioBps: 0},
+			affiliateSeedRiskRule(1, affiliateSeedPercentToBps(20)),
+			affiliateSeedRiskRule(2, affiliateSeedPercentToBps(30)),
 		},
 		SettlementConfig: AffiliateSettlementRuleConfig{
 			Cycle:                    "monthly",
@@ -91,6 +91,20 @@ func BuildDefaultAffiliateRuleSetDraftInput(version string, actorUserId int, rea
 			AutoSettlementEnabled:    true,
 			ReviewNote:               "",
 		},
+	}
+}
+
+func affiliateSeedRiskRule(level int, giftOnlyRatioBps int) AffiliateRiskRuleInput {
+	return AffiliateRiskRuleInput{
+		AffiliateLevel:           level,
+		Code:                     "default",
+		MaxGiftOnlyRatioBps:      giftOnlyRatioBps,
+		MaxAbnormalRatioBps:      affiliateSeedPercentToBps(10),
+		MaxRefundRatioBps:        affiliateSeedPercentToBps(10),
+		MinSecondPaymentRatioBps: 0,
+		SelfBrushStrategy:        affiliateRiskSelfBrushStrategy,
+		BulkAbuseStrategy:        affiliateRiskBulkAbuseStrategy,
+		Action:                   affiliateRiskAction,
 	}
 }
 

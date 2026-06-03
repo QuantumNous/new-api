@@ -20,6 +20,9 @@ const (
 
 	affiliateBpsBase                  = 10000
 	affiliateLevelOneCommissionCapBps = 3000
+	affiliateRiskSelfBrushStrategy    = "exclude"
+	affiliateRiskBulkAbuseStrategy    = "manual_review"
+	affiliateRiskAction               = "manual_review"
 )
 
 type AffiliateRuleSetDraftInput struct {
@@ -90,6 +93,9 @@ type AffiliateRiskRuleInput struct {
 	MaxAbnormalRatioBps      int    `json:"max_abnormal_ratio_bps"`
 	MaxRefundRatioBps        int    `json:"max_refund_ratio_bps"`
 	MinSecondPaymentRatioBps int    `json:"min_second_payment_ratio_bps"`
+	SelfBrushStrategy        string `json:"self_brush_strategy"`
+	BulkAbuseStrategy        string `json:"bulk_abuse_strategy"`
+	Action                   string `json:"action"`
 	Metadata                 string `json:"metadata"`
 }
 
@@ -484,6 +490,9 @@ func normalizeAffiliateRuleSetDraftInput(input AffiliateRuleSetDraftInput) Affil
 	}
 	for i := range input.RiskRules {
 		input.RiskRules[i].Code = strings.TrimSpace(input.RiskRules[i].Code)
+		input.RiskRules[i].SelfBrushStrategy = normalizeAffiliateRiskPolicyField(input.RiskRules[i].SelfBrushStrategy, affiliateRiskSelfBrushStrategy)
+		input.RiskRules[i].BulkAbuseStrategy = normalizeAffiliateRiskPolicyField(input.RiskRules[i].BulkAbuseStrategy, affiliateRiskBulkAbuseStrategy)
+		input.RiskRules[i].Action = normalizeAffiliateRiskPolicyField(input.RiskRules[i].Action, affiliateRiskAction)
 		input.RiskRules[i].Metadata = strings.TrimSpace(input.RiskRules[i].Metadata)
 	}
 	return input
@@ -640,6 +649,15 @@ func validateAffiliateRuleSetDraftInput(input AffiliateRuleSetDraftInput) error 
 		if err := validateBps("risk min second payment ratio", rule.MinSecondPaymentRatioBps); err != nil {
 			return err
 		}
+		if err := validateAffiliateRiskPolicyValue("self-brush strategy", rule.SelfBrushStrategy, []string{"exclude", "manual_review"}); err != nil {
+			return err
+		}
+		if err := validateAffiliateRiskPolicyValue("bulk-abuse strategy", rule.BulkAbuseStrategy, []string{"manual_review", "hold_commission", "exclude_from_kpi"}); err != nil {
+			return err
+		}
+		if err := validateAffiliateRiskPolicyValue("action", rule.Action, []string{"manual_review", "review_only", "hold_commission", "hold_settlement", "exclude_from_kpi"}); err != nil {
+			return err
+		}
 	}
 
 	return nil
@@ -673,6 +691,23 @@ func validateAffiliateRuleStatus(status string) error {
 	default:
 		return errors.New("invalid affiliate rule status")
 	}
+}
+
+func normalizeAffiliateRiskPolicyField(value string, fallback string) string {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return fallback
+	}
+	return value
+}
+
+func validateAffiliateRiskPolicyValue(label string, value string, allowed []string) error {
+	for _, candidate := range allowed {
+		if value == candidate {
+			return nil
+		}
+	}
+	return fmt.Errorf("invalid affiliate risk %s", label)
 }
 
 func validateAffiliateLevel(level int) error {
@@ -795,6 +830,9 @@ func replaceAffiliateRuleSetChildren(tx *gorm.DB, ruleSetId int, input Affiliate
 			MaxAbnormalRatioBps:      rule.MaxAbnormalRatioBps,
 			MaxRefundRatioBps:        rule.MaxRefundRatioBps,
 			MinSecondPaymentRatioBps: rule.MinSecondPaymentRatioBps,
+			SelfBrushStrategy:        rule.SelfBrushStrategy,
+			BulkAbuseStrategy:        rule.BulkAbuseStrategy,
+			Action:                   rule.Action,
 			Metadata:                 rule.Metadata,
 		})
 	}
@@ -910,6 +948,9 @@ func buildAffiliateRuleSetDraftInputFromPersistedConfig(db *gorm.DB, ruleSet mod
 			MaxAbnormalRatioBps:      rule.MaxAbnormalRatioBps,
 			MaxRefundRatioBps:        rule.MaxRefundRatioBps,
 			MinSecondPaymentRatioBps: rule.MinSecondPaymentRatioBps,
+			SelfBrushStrategy:        normalizeAffiliateRiskPolicyField(rule.SelfBrushStrategy, affiliateRiskSelfBrushStrategy),
+			BulkAbuseStrategy:        normalizeAffiliateRiskPolicyField(rule.BulkAbuseStrategy, affiliateRiskBulkAbuseStrategy),
+			Action:                   normalizeAffiliateRiskPolicyField(rule.Action, affiliateRiskAction),
 			Metadata:                 rule.Metadata,
 		})
 	}

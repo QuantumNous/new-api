@@ -69,6 +69,30 @@ const normalizeHeadFeeRulesForForm = (value) => {
   });
 };
 
+const normalizeRiskRulesForForm = (value) => {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value.map((rule) => {
+    if (!rule || typeof rule !== 'object' || Array.isArray(rule)) {
+      return {
+        self_brush_strategy: 'exclude',
+        bulk_abuse_strategy: 'manual_review',
+        action: 'manual_review',
+        value: rule,
+      };
+    }
+    return {
+      ...rule,
+      self_brush_strategy:
+        String(rule.self_brush_strategy || '').trim() || 'exclude',
+      bulk_abuse_strategy:
+        String(rule.bulk_abuse_strategy || '').trim() || 'manual_review',
+      action: String(rule.action || '').trim() || 'manual_review',
+    };
+  });
+};
+
 const stringifyStable = (value) => {
   if (Array.isArray(value)) {
     return `[${value.map((item) => stringifyStable(item)).join(',')}]`;
@@ -288,7 +312,9 @@ export function buildAffiliateRuleSetDraftFormValues(ruleSet = null) {
     head_fee_rules_json: stringifyPretty(
       normalizeHeadFeeRulesForForm(snapshot.head_fee_rules),
     ),
-    risk_rules_json: stringifyPretty(snapshot.risk_rules),
+    risk_rules_json: stringifyPretty(
+      normalizeRiskRulesForForm(snapshot.risk_rules),
+    ),
   };
 }
 
@@ -351,7 +377,7 @@ export function parseAffiliateRuleSetImportJson(value = '') {
     head_fee_rules_json: stringifyPretty(
       normalizeHeadFeeRulesForForm(parsed.head_fee_rules),
     ),
-    risk_rules_json: stringifyPretty(parsed.risk_rules),
+    risk_rules_json: stringifyPretty(normalizeRiskRulesForForm(parsed.risk_rules)),
   };
 }
 
@@ -732,6 +758,9 @@ function buildAffiliateRuleSetDefaultSeedFormValues() {
         max_abnormal_ratio_bps: 1000,
         max_refund_ratio_bps: 1000,
         min_second_payment_ratio_bps: 0,
+        self_brush_strategy: 'exclude',
+        bulk_abuse_strategy: 'manual_review',
+        action: 'manual_review',
       },
       {
         affiliate_level: 2,
@@ -740,6 +769,9 @@ function buildAffiliateRuleSetDefaultSeedFormValues() {
         max_abnormal_ratio_bps: 1000,
         max_refund_ratio_bps: 1000,
         min_second_payment_ratio_bps: 0,
+        self_brush_strategy: 'exclude',
+        bulk_abuse_strategy: 'manual_review',
+        action: 'manual_review',
       },
     ]),
   };

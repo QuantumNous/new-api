@@ -175,6 +175,68 @@ func TestSaveAffiliateRuleSetDraftPersistsSettlementAutoSwitchAndReviewNote(t *t
 	}
 }
 
+func TestSaveAffiliateRuleSetDraftPersistsRiskStrategiesAndAction(t *testing.T) {
+	db := newAffiliateStoreTestDB(t)
+	input := newAffiliateRuleSetDraftInput("rules-risk-action")
+	input.RiskRules[0].SelfBrushStrategy = " exclude "
+	input.RiskRules[0].BulkAbuseStrategy = " manual_review "
+	input.RiskRules[0].Action = " hold_settlement "
+
+	ruleSet, err := SaveAffiliateRuleSetDraft(db, input)
+	if err != nil {
+		t.Fatalf("SaveAffiliateRuleSetDraft returned error: %v", err)
+	}
+
+	var riskRules []model.AffiliateRiskRule
+	if err := db.Where("rule_set_id = ?", ruleSet.Id).Order("affiliate_level asc").Find(&riskRules).Error; err != nil {
+		t.Fatalf("load risk rules: %v", err)
+	}
+	if len(riskRules) != 2 {
+		t.Fatalf("expected two risk rules, got %+v", riskRules)
+	}
+	if riskRules[0].SelfBrushStrategy != "exclude" ||
+		riskRules[0].BulkAbuseStrategy != "manual_review" ||
+		riskRules[0].Action != "hold_settlement" {
+		t.Fatalf("expected trimmed risk policy fields, got %+v", riskRules[0])
+	}
+	if riskRules[1].SelfBrushStrategy != "exclude" ||
+		riskRules[1].BulkAbuseStrategy != "manual_review" ||
+		riskRules[1].Action != "manual_review" {
+		t.Fatalf("expected default risk policy fields, got %+v", riskRules[1])
+	}
+	if !strings.Contains(ruleSet.ConfigSnapshot, `"self_brush_strategy":"exclude"`) ||
+		!strings.Contains(ruleSet.ConfigSnapshot, `"bulk_abuse_strategy":"manual_review"`) ||
+		!strings.Contains(ruleSet.ConfigSnapshot, `"action":"hold_settlement"`) {
+		t.Fatalf("expected risk policy fields in config snapshot, got %q", ruleSet.ConfigSnapshot)
+	}
+
+	published, err := PublishAffiliateRuleSet(db, ruleSet.Id, AffiliateRuleSetStatusInput{
+		ActorUserId: 1,
+		Reason:      "publish risk policy",
+	})
+	if err != nil {
+		t.Fatalf("publish risk policy: %v", err)
+	}
+	rollbackDraft, err := RollbackAffiliateRuleSetToDraft(db, published.Id, AffiliateRuleSetRollbackInput{
+		Version:     "rules-risk-action-rollback",
+		Name:        "Risk Action Rollback",
+		ActorUserId: 7,
+		Reason:      "verify risk policy copy",
+	})
+	if err != nil {
+		t.Fatalf("RollbackAffiliateRuleSetToDraft returned error: %v", err)
+	}
+	if !strings.Contains(rollbackDraft.ConfigSnapshot, `"action":"hold_settlement"`) {
+		t.Fatalf("expected rollback draft to preserve risk action, got %q", rollbackDraft.ConfigSnapshot)
+	}
+
+	invalidInput := newAffiliateRuleSetDraftInput("rules-risk-action-invalid")
+	invalidInput.RiskRules[0].Action = "drop_everything"
+	if _, err := SaveAffiliateRuleSetDraft(db, invalidInput); err == nil || !strings.Contains(err.Error(), "invalid affiliate risk action") {
+		t.Fatalf("expected invalid risk action error, got %v", err)
+	}
+}
+
 func TestSaveAffiliateRuleSetDraftRejectsPublishedOrArchivedOverwrite(t *testing.T) {
 	db := newAffiliateStoreTestDB(t)
 
@@ -592,8 +654,8 @@ func newAffiliateRuleSetDraftInput(version string) AffiliateRuleSetDraftInput {
 			{AffiliateLevel: 2, KPITierCode: "base", AmountCents: 500, FirstRechargeMinCents: 100, PeriodNetPaidMinCents: 500, QualificationDays: 14, UnlockDelayDays: 7},
 		},
 		RiskRules: []AffiliateRiskRuleInput{
-			{AffiliateLevel: 1, Code: "default", MaxGiftOnlyRatioBps: 5000, MaxAbnormalRatioBps: 1000, MaxRefundRatioBps: 1000, MinSecondPaymentRatioBps: 0},
-			{AffiliateLevel: 2, Code: "default", MaxGiftOnlyRatioBps: 5000, MaxAbnormalRatioBps: 1000, MaxRefundRatioBps: 1000, MinSecondPaymentRatioBps: 0},
+			{AffiliateLevel: 1, Code: "default", MaxGiftOnlyRatioBps: 5000, MaxAbnormalRatioBps: 1000, MaxRefundRatioBps: 1000, MinSecondPaymentRatioBps: 0, SelfBrushStrategy: affiliateRiskSelfBrushStrategy, BulkAbuseStrategy: affiliateRiskBulkAbuseStrategy, Action: affiliateRiskAction},
+			{AffiliateLevel: 2, Code: "default", MaxGiftOnlyRatioBps: 5000, MaxAbnormalRatioBps: 1000, MaxRefundRatioBps: 1000, MinSecondPaymentRatioBps: 0, SelfBrushStrategy: affiliateRiskSelfBrushStrategy, BulkAbuseStrategy: affiliateRiskBulkAbuseStrategy, Action: affiliateRiskAction},
 		},
 		SettlementConfig: AffiliateSettlementRuleConfig{
 			Cycle:                    "monthly",

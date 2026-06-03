@@ -207,6 +207,9 @@ describe('default affiliate admin rule set helpers', () => {
           code: 'default',
           max_gift_only_ratio_bps: 2000,
           max_abnormal_ratio_bps: 1000,
+          self_brush_strategy: 'exclude',
+          bulk_abuse_strategy: 'manual_review',
+          action: 'hold_settlement',
         },
       ]),
     })
@@ -269,6 +272,9 @@ describe('default affiliate admin rule set helpers', () => {
           code: 'default',
           max_gift_only_ratio_bps: 2000,
           max_abnormal_ratio_bps: 1000,
+          self_brush_strategy: 'exclude',
+          bulk_abuse_strategy: 'manual_review',
+          action: 'hold_settlement',
         },
       ],
     })
@@ -317,11 +323,21 @@ describe('default affiliate admin rule set helpers', () => {
         kpi_tier_code: 'base',
       },
     ])
+    assert.deepEqual(JSON.parse(values.riskRulesJson || '[]'), [
+      {
+        affiliate_level: 1,
+        code: 'default',
+        self_brush_strategy: 'exclude',
+        bulk_abuse_strategy: 'manual_review',
+        action: 'manual_review',
+      },
+    ])
 
     const seed = buildAffiliateRuleSetDraftFormValues()
     const commissionRules = JSON.parse(seed.commissionRulesJson || '[]')
     const commissionTiers = JSON.parse(seed.commissionTiersJson || '[]')
     const headFeeRules = JSON.parse(seed.headFeeRulesJson || '[]')
+    const riskRules = JSON.parse(seed.riskRulesJson || '[]')
     assert.equal(seed.settlementCycle, 'monthly')
     assert.equal(seed.manualReviewEnabled, true)
     assert.equal(seed.autoSettlementEnabled, true)
@@ -330,6 +346,9 @@ describe('default affiliate admin rule set helpers', () => {
     assert.equal(commissionRules[1]?.status, 'active')
     assert.equal(headFeeRules[0]?.status, 'active')
     assert.equal(headFeeRules[1]?.status, 'active')
+    assert.equal(riskRules[0]?.self_brush_strategy, 'exclude')
+    assert.equal(riskRules[0]?.bulk_abuse_strategy, 'manual_review')
+    assert.equal(riskRules[0]?.action, 'manual_review')
     assert.equal(commissionTiers.length, 10)
     assert.deepEqual(commissionTiers[4], {
       affiliate_level: 1,

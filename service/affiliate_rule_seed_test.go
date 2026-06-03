@@ -59,7 +59,12 @@ func TestDefaultAffiliateRuleSetSeedUsesOperationalUnitConversions(t *testing.T)
 		t.Fatalf("unexpected level one excellent head fee rule: %+v", excellentHeadFee)
 	}
 	levelTwoRisk := findSeedRiskRule(t, seed, 2, "default")
-	if levelTwoRisk.MaxGiftOnlyRatioBps != 3000 || levelTwoRisk.MaxAbnormalRatioBps != 1000 || levelTwoRisk.MaxRefundRatioBps != 1000 {
+	if levelTwoRisk.MaxGiftOnlyRatioBps != 3000 ||
+		levelTwoRisk.MaxAbnormalRatioBps != 1000 ||
+		levelTwoRisk.MaxRefundRatioBps != 1000 ||
+		levelTwoRisk.SelfBrushStrategy != affiliateRiskSelfBrushStrategy ||
+		levelTwoRisk.BulkAbuseStrategy != affiliateRiskBulkAbuseStrategy ||
+		levelTwoRisk.Action != affiliateRiskAction {
 		t.Fatalf("unexpected level two risk rule: %+v", levelTwoRisk)
 	}
 }
