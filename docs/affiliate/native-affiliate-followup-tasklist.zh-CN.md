@@ -1,6 +1,6 @@
 # 原生分销后续接手 Tasklist
 
-更新日期：2026-06-03
+更新日期：2026-06-04
 
 适用分支：`feature/native-affiliate-minimal`
 
@@ -118,7 +118,7 @@
 
 - [x] 当前 SMS 限流为内存实现，生产多实例前必须评估 Redis/数据库分布式限流，否则不同实例之间会绕过限制。（2026-06-04 已新增 `sms_rate_limit_counters` sidecar 固定窗口 DB 计数，管理员测试发送优先走 DB-backed limiter；`model.DB=nil` 时保留内存 fallback。Docker PostgreSQL schema diff 因 Docker 不可用仍待补。）
 - [ ] 如果启用手机号注册，必须复用 Phase 5 的统一邀请归因和初始额度规则。
-- [ ] 如果启用手机号登录/绑定，继续使用 sidecar `user_phone_bindings`，不要直接改官方 `users` 表。
+- [x] 如果启用手机号登录/绑定，继续使用 sidecar `user_phone_bindings`，不要直接改官方 `users` 表。（2026-06-04 审计：当前分支手机号绑定已使用 `user_phone_bindings` sidecar，`model/user.go` 未新增手机号字段；真实手机号登录/注册入口仍待按统一邀请归因规则接入。）
 - [ ] 短信宝真实通道 smoke 必须在签名审核通过、模板确认和脱敏日志策略明确后执行。
 - [ ] 测试发送、状态查询和失败错误码映射不得输出完整手机号、验证码、ApiKey、密码或签名内部资料。
 
@@ -159,7 +159,7 @@
 - [x] P1：把分销管理规则配置重构为运营友好的表格/矩阵，并保留高级 JSON 导入导出。（2026-06-03 已完成 default/classic 可视编辑表格化和高级 JSON 文本保留；2026-06-04 已补 default/classic 导入/导出按钮、diff 预览、复制上一版本、已发布/已归档版本只读查看和发布/归档二次确认。启停字段、风控动作、自动结算等后端未模型化字段仍按第 6 节单项任务保留。）
 - [ ] P1：佣金、KPI、人头费和结算任务改造为分批、可恢复、幂等、可审计。（2026-06-04 已完成 usage logs 的 `created_at,id` cursor 分批扫描、完整 pipeline 重复运行幂等审计；2026-06-03 已完成 settlement pipeline 顶层 job run 审计记录、settlement pending/ready event grouping 的 `id` cursor 分批扫描和 settlement event link 更新批量拆分；2026-06-04 已补 failed job run 同 key 原地 resume；2026-06-04 Docker probe 仍不可用，schema diff 未生成；cursor 跳扫式 resume、running zombie/stale lease、Docker schema diff 和外部完整周期 dry-run/正式 run 双跑验收仍待做。）
 - [x] P2：把飞书规则沉淀为默认 rule set seed，并增加单位转换、区间完整性和发布不可变测试。（2026-06-04 已完成当前 master plan 默认值的 service seed、admin seed API 和 Go 测试；最新飞书方案外部复核仍按第 7 节其他单项保留。）
-- [ ] P2：补齐 SMS 分布式限流、手机号注册归因和真实通道 smoke。（2026-06-04 已补 DB sidecar 固定窗口限流；手机号注册归因、真实通道 smoke 和 Docker PostgreSQL schema diff 仍待做。）
+- [ ] P2：补齐 SMS 分布式限流、手机号注册归因和真实通道 smoke。（2026-06-04 已补 DB sidecar 固定窗口限流，并确认手机号绑定继续使用 `user_phone_bindings` sidecar、不改官方 `users` 表；手机号注册归因、真实通道 smoke 和 Docker PostgreSQL schema diff 仍待做。）
 - [ ] P2：完善 dashboard 统计口径、浏览器截图回归和外部验收归档。
 
 ## 15. 文档维护规则
@@ -469,4 +469,11 @@
 - 验证命令：RED 阶段 `go test -count=1 ./model ./service -run "SMSRateLimit|SMSSidecar"` 因缺少模型和函数失败；`go test -count=1 ./controller -run "TestAdminTestSMSUsesPersistedRateLimitAcrossLimiterReset"` 因第二次请求成功失败。实现后 `go test -count=1 ./model ./service ./controller -run "SMSRateLimit|SMSSidecar|TestAdminTestSMS(AppliesRateLimitBeforeProvider|UsesPersistedRateLimitAcrossLimiterReset)"` 通过。
 - 回归验证：`go test -count=1 ./common ./model ./service ./controller -run "SMS|Phone"` 通过。
 - 残留风险：本轮是 DB 固定窗口计数，不是 Redis 滑动窗口；高并发下仍需结合数据库隔离、唯一索引和生产压测复核。Docker 当前不可用，`sms_rate_limit_counters` 的 PostgreSQL schema diff 未生成。手机号注册归因、手机号登录/绑定真实入口和短信宝真实通道 smoke 仍待做。
+
+## P2-3 手机号绑定 sidecar 审计复盘（2026-06-04 本线程）
+
+- 完成内容：复核手机号/SMS 当前分支实现，确认手机号绑定模型位于 `model/sms.go` 的 `UserPhoneBinding`，表名为 `user_phone_bindings`；绑定逻辑位于 `service/sms.go` 的 `BindUserPhone`，保存脱敏手机号和哈希手机号，不在官方 `users` 表新增手机号字段。
+- 验证命令：`git status --short --branch` 和 `git log --oneline -5` 确认工作树基线与最近 SMS 限流提交；`rg -n "Phone|phone|手机号" model/user.go model/sms.go service/sms.go controller -S` 显示手机号字段集中在 SMS sidecar、SMS 服务和 SMS controller，`model/user.go` 无手机号字段输出。
+- 策略结论：后续如启用手机号登录、绑定或找回能力，继续沿用 `user_phone_bindings` sidecar 与统一邀请归因逻辑，禁止把旧 fork 的侵入式 `users.phone` 方案直接迁入官方用户表。
+- 残留风险：当前审计只确认 sidecar 路线和不改 `users` 表；真实手机号注册入口、手机号登录入口、验证码校验闭环、邀请归因和初始额度发放仍未接入，需在后续任务中按 TDD 单独实现并做脱敏 smoke。
 - 下一步：Docker 恢复后补 SMS schema diff；如继续 SMS P2，应优先 TDD 手机号注册复用统一 invite context 和初始额度，真实短信宝 smoke 只在签名/模板审核完成后做脱敏验收。
