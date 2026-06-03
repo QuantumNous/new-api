@@ -806,7 +806,13 @@ func buildTestRequest(model string, endpointType string, channel *model.Channel,
 				},
 				MaxTokens: lo.ToPtr(maxTokens),
 			}
-			if isStream {
+			// stream_options is an OpenAI Chat Completions field. The native
+			// Anthropic (/v1/messages) and Gemini endpoints reject it with
+			// "stream_options: Extra inputs are not permitted". Only include it
+			// for the OpenAI endpoint. (Channels that convert OpenAI->native in
+			// ConvertOpenAIRequest strip it anyway, but native-passthrough
+			// channels like BlockRun forward it verbatim, so it must not be set.)
+			if isStream && constant.EndpointType(endpointType) == constant.EndpointTypeOpenAI {
 				req.StreamOptions = &dto.StreamOptions{IncludeUsage: true}
 			}
 			return req
