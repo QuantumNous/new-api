@@ -16,10 +16,12 @@ Design goals (kept deliberately beginner-proof):
   - `testModel` is a cheap, real model of the right modality so the channel
     "Test" button works out of the box.
 
-Providers intentionally omitted from Quick Import because their models have no
-default price (would error until you run a models.dev price sync): Moonshot /
-Kimi, Doubao / VolcEngine, Mistral, Groq, OpenRouter. Add those manually +
-sync prices if you need them.
+Moonshot/Kimi, Doubao/VolcEngine and Mistral ship with BOOTSTRAP default
+prices (see model_ratio.go) — approximate list prices so import doesn't error;
+run a models.dev price sync to get exact rates before charging customers.
+
+Still omitted (no clean default price / aggregator): Groq, OpenRouter. Add
+those manually + sync prices if you need them.
 
 `type` corresponds to constant/channel.go ChannelType* constants on the Go
 backend. Operators can always expand a channel's model list afterwards via the
@@ -113,6 +115,37 @@ export const PROVIDER_PRESETS: ProviderPreset[] = [
     testModel: 'grok-2',
     docsUrl: 'https://console.x.ai',
     description: '对话 / grok-3 · grok-2（xAI）',
+  },
+  {
+    id: 'moonshot',
+    name: 'Moonshot Kimi · 对话',
+    type: 25,
+    modality: 'chat',
+    models: 'moonshot-v1-8k,moonshot-v1-32k,moonshot-v1-128k,kimi-k2-0905-preview',
+    testModel: 'moonshot-v1-8k',
+    docsUrl: 'https://platform.moonshot.cn/console/api-keys',
+    description: '对话 / moonshot-v1 · kimi-k2（价格为估值，请同步核对）',
+  },
+  {
+    id: 'doubao',
+    name: 'Doubao 豆包 · 对话',
+    type: 45,
+    modality: 'chat',
+    models: 'doubao-pro-32k,doubao-pro-128k,doubao-lite-32k',
+    testModel: 'doubao-lite-32k',
+    docsUrl: 'https://console.volcengine.com/ark/region:ark+cn-beijing/apiKey',
+    description: '对话 / 豆包 pro / lite（价格为估值，请同步核对）',
+  },
+  {
+    id: 'mistral',
+    name: 'Mistral AI · 对话',
+    type: 42,
+    modality: 'chat',
+    models:
+      'mistral-large-latest,mistral-medium-latest,mistral-small-latest,codestral-latest',
+    testModel: 'mistral-small-latest',
+    docsUrl: 'https://console.mistral.ai/api-keys',
+    description: '对话 / large · medium · small · codestral（价格为估值，请同步核对）',
   },
   // ── Image ───────────────────────────────────────────────────────────────
   {

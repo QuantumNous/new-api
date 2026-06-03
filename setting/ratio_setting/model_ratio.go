@@ -262,6 +262,22 @@ var defaultModelRatio = map[string]float64{
 	"deepseek-reasoner":      0.55 / 2, // 0.55 / 1k tokens
 	"deepseek-v3":            0.27 / 2, // alias of deepseek-chat
 	"deepseek-r1":            0.55 / 2, // alias of deepseek-reasoner
+	// ── Bootstrap defaults for Quick Import providers (verify via models.dev sync
+	//    before charging customers; list prices below are approximate). ──
+	// Moonshot / Kimi (input, RMB per 1K tokens)
+	"moonshot-v1-8k":       0.012 * RMB,
+	"moonshot-v1-32k":      0.024 * RMB,
+	"moonshot-v1-128k":     0.060 * RMB,
+	"kimi-k2-0905-preview": 0.004 * RMB,
+	// Doubao / VolcEngine (input, RMB per 1K tokens)
+	"doubao-pro-32k":  0.0008 * RMB,
+	"doubao-pro-128k": 0.005 * RMB,
+	"doubao-lite-32k": 0.0003 * RMB,
+	// Mistral (input, USD per 1K tokens)
+	"mistral-large-latest":  0.002 * USD,
+	"mistral-medium-latest": 0.0004 * USD,
+	"mistral-small-latest":  0.0002 * USD,
+	"codestral-latest":      0.0003 * USD,
 	// Perplexity online 模型对搜索额外收费，有需要应自行调整，此处不计入搜索费用
 	"llama-3-sonar-small-32k-chat":   0.2 / 1000 * USD,
 	"llama-3-sonar-small-32k-online": 0.2 / 1000 * USD,
