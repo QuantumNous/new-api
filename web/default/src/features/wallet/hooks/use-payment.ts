@@ -23,11 +23,13 @@ import {
   calculateAmount,
   calculateStripeAmount,
   calculateWaffoPancakeAmount,
+  requestAlipayPayment,
   requestPayment,
   requestStripePayment,
   isApiSuccess,
 } from '../api'
 import {
+  isAlipayOfficialPayment,
   isStripePayment,
   isWaffoPancakePayment,
   submitPaymentForm,
@@ -82,6 +84,7 @@ export function usePayment() {
         setProcessing(true)
 
         const isStripe = isStripePayment(paymentType)
+        const isAlipayOfficial = isAlipayOfficialPayment(paymentType)
         const amount = Math.floor(topupAmount)
 
         const response = isStripe
@@ -89,6 +92,11 @@ export function usePayment() {
               amount,
               payment_method: 'stripe',
             })
+          : isAlipayOfficial
+            ? await requestAlipayPayment({
+                amount,
+                payment_method: paymentType,
+              })
           : await requestPayment({
               amount,
               payment_method: paymentType,

@@ -25,15 +25,17 @@ type TopUp struct {
 }
 
 const (
-	PaymentMethodStripe       = "stripe"
-	PaymentMethodCreem        = "creem"
-	PaymentMethodWaffo        = "waffo"
-	PaymentMethodWaffoPancake = "waffo_pancake"
-	PaymentMethodBalance      = "balance"
+	PaymentMethodStripe         = "stripe"
+	PaymentMethodAlipayOfficial = "alipay_official"
+	PaymentMethodCreem          = "creem"
+	PaymentMethodWaffo          = "waffo"
+	PaymentMethodWaffoPancake   = "waffo_pancake"
+	PaymentMethodBalance        = "balance"
 )
 
 const (
 	PaymentProviderEpay         = "epay"
+	PaymentProviderAlipay       = "alipay"
 	PaymentProviderStripe       = "stripe"
 	PaymentProviderCreem        = "creem"
 	PaymentProviderWaffo        = "waffo"

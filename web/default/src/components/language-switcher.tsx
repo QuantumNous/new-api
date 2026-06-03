@@ -34,9 +34,27 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 
+function parseUserSetting(setting: unknown): Record<string, unknown> {
+  if (typeof setting === 'string') {
+    try {
+      const parsed = JSON.parse(setting)
+      return parsed && typeof parsed === 'object' && !Array.isArray(parsed)
+        ? parsed
+        : {}
+    } catch {
+      return {}
+    }
+  }
+
+  return setting && typeof setting === 'object' && !Array.isArray(setting)
+    ? (setting as Record<string, unknown>)
+    : {}
+}
+
 export function LanguageSwitcher() {
   const { i18n, t } = useTranslation()
   const user = useAuthStore((s) => s.auth.user)
+  const setUser = useAuthStore((s) => s.auth.setUser)
   const currentLanguage = normalizeInterfaceLanguage(i18n.language)
 
   const handleChangeLanguage = useCallback(
@@ -45,12 +63,20 @@ export function LanguageSwitcher() {
       if (user) {
         try {
           await api.put('/api/user/self', { language: code })
+          const existingSetting = parseUserSetting(user.setting)
+          setUser({
+            ...user,
+            setting: JSON.stringify({
+              ...existingSetting,
+              language: normalizeInterfaceLanguage(code),
+            }),
+          })
         } catch {
           // Best-effort persistence; don't block the UI on failure
         }
       }
     },
-    [i18n, user]
+    [i18n, setUser, user]
   )
 
   return (

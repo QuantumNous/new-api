@@ -86,6 +86,14 @@ const paymentSchema = z.object({
   }, 'Provide a valid callback URL starting with http:// or https://'),
   EpayId: z.string(),
   EpayKey: z.string(),
+  AlipayAppId: z.string(),
+  AlipayGateway: z.string().refine((value) => {
+    const trimmed = value.trim()
+    if (!trimmed) return true
+    return /^https?:\/\//.test(trimmed)
+  }, 'Provide a valid gateway URL starting with http:// or https://'),
+  AlipayPrivateKey: z.string(),
+  AlipayPublicKey: z.string(),
   Price: z.coerce.number().min(0),
   MinTopUp: z.coerce.number().min(0),
   CustomCallbackAddress: z.string().refine((value) => {
@@ -401,11 +409,15 @@ export function PaymentSettingsSection({
   const onSubmit = async (values: PaymentFormValues) => {
     const sanitized = {
       PayAddress: removeTrailingSlash(values.PayAddress),
-      EpayId: values.EpayId.trim(),
-      EpayKey: values.EpayKey.trim(),
-      Price: values.Price,
-      MinTopUp: values.MinTopUp,
-      CustomCallbackAddress: removeTrailingSlash(values.CustomCallbackAddress),
+    EpayId: values.EpayId.trim(),
+    EpayKey: values.EpayKey.trim(),
+    AlipayAppId: values.AlipayAppId.trim(),
+    AlipayGateway: removeTrailingSlash(values.AlipayGateway.trim()),
+    AlipayPrivateKey: values.AlipayPrivateKey.trim(),
+    AlipayPublicKey: values.AlipayPublicKey.trim(),
+    Price: values.Price,
+    MinTopUp: values.MinTopUp,
+    CustomCallbackAddress: removeTrailingSlash(values.CustomCallbackAddress),
       PayMethods: values.PayMethods.trim(),
       AmountOptions: values.AmountOptions.trim(),
       AmountDiscount: values.AmountDiscount.trim(),
@@ -445,6 +457,10 @@ export function PaymentSettingsSection({
       PayAddress: removeTrailingSlash(initialRef.current.PayAddress),
       EpayId: initialRef.current.EpayId.trim(),
       EpayKey: initialRef.current.EpayKey.trim(),
+      AlipayAppId: initialRef.current.AlipayAppId.trim(),
+      AlipayGateway: removeTrailingSlash(initialRef.current.AlipayGateway.trim()),
+      AlipayPrivateKey: initialRef.current.AlipayPrivateKey.trim(),
+      AlipayPublicKey: initialRef.current.AlipayPublicKey.trim(),
       Price: initialRef.current.Price,
       MinTopUp: initialRef.current.MinTopUp,
       CustomCallbackAddress: removeTrailingSlash(
@@ -500,6 +516,34 @@ export function PaymentSettingsSection({
 
     if (sanitized.EpayKey && sanitized.EpayKey !== initial.EpayKey) {
       updates.push({ key: 'EpayKey', value: sanitized.EpayKey })
+    }
+
+    if (sanitized.AlipayAppId !== initial.AlipayAppId) {
+      updates.push({ key: 'AlipayAppId', value: sanitized.AlipayAppId })
+    }
+
+    if (sanitized.AlipayGateway !== initial.AlipayGateway) {
+      updates.push({ key: 'AlipayGateway', value: sanitized.AlipayGateway })
+    }
+
+    if (
+      sanitized.AlipayPrivateKey &&
+      sanitized.AlipayPrivateKey !== initial.AlipayPrivateKey
+    ) {
+      updates.push({
+        key: 'AlipayPrivateKey',
+        value: sanitized.AlipayPrivateKey,
+      })
+    }
+
+    if (
+      sanitized.AlipayPublicKey &&
+      sanitized.AlipayPublicKey !== initial.AlipayPublicKey
+    ) {
+      updates.push({
+        key: 'AlipayPublicKey',
+        value: sanitized.AlipayPublicKey,
+      })
     }
 
     if (sanitized.Price !== initial.Price) {
@@ -1173,6 +1217,133 @@ export function PaymentSettingsSection({
                     </FormControl>
                     <FormDescription>
                       {t('Leave blank unless rotating the secret')}
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+          </div>
+
+          <Separator />
+
+          <div className='space-y-4'>
+            <div>
+              <h3 className='text-lg font-medium'>{t('Alipay Gateway')}</h3>
+              <p className='text-muted-foreground text-sm'>
+                {t('Configuration for Alipay official payment integration')}
+              </p>
+            </div>
+
+            <div className='rounded-md bg-amber-50 p-4 text-sm text-amber-950 dark:bg-amber-950 dark:text-amber-100'>
+              <p className='mb-2 font-medium'>{t('Webhook Configuration:')}</p>
+              <ul className='list-inside list-disc space-y-1'>
+                <li>
+                  {t('Webhook URL:')}{' '}
+                  <code className='rounded bg-amber-100 px-1 py-0.5 text-xs dark:bg-amber-900'>
+                    {'<ServerAddress>/api/user/alipay/notify'}
+                  </code>
+                </li>
+                <li>
+                  {t('Configure at:')}{' '}
+                  <a
+                    href='https://open.alipay.com/'
+                    target='_blank'
+                    rel='noreferrer'
+                    className='underline hover:no-underline'
+                  >
+                    {t('Alipay Open Platform')}
+                  </a>
+                </li>
+              </ul>
+            </div>
+
+            <div className='grid gap-6 md:grid-cols-2'>
+              <FormField
+                control={form.control}
+                name='AlipayAppId'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t('Alipay App ID')}</FormLabel>
+                    <FormControl>
+                      <Input
+                        placeholder='202100xxxxxxxxxx'
+                        autoComplete='off'
+                        {...field}
+                        onChange={(event) => field.onChange(event.target.value)}
+                      />
+                    </FormControl>
+                    <FormDescription>
+                      {t('App ID assigned by Alipay Open Platform')}
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name='AlipayGateway'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t('Alipay gateway')}</FormLabel>
+                    <FormControl>
+                      <Input
+                        placeholder='https://openapi.alipay.com/gateway.do'
+                        {...field}
+                        onChange={(event) => field.onChange(event.target.value)}
+                      />
+                    </FormControl>
+                    <FormDescription>
+                      {t('Leave the default gateway unless you are using a custom endpoint')}
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+
+            <div className='grid gap-6 md:grid-cols-2'>
+              <FormField
+                control={form.control}
+                name='AlipayPrivateKey'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t('Alipay private key')}</FormLabel>
+                    <FormControl>
+                      <Textarea
+                        rows={8}
+                        placeholder={t('Paste your private key here')}
+                        autoComplete='off'
+                        {...field}
+                        onChange={(event) => field.onChange(event.target.value)}
+                      />
+                    </FormControl>
+                    <FormDescription>
+                      {t('RSA2 private key used to sign payment requests')}
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name='AlipayPublicKey'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t('Alipay public key')}</FormLabel>
+                    <FormControl>
+                      <Textarea
+                        rows={8}
+                        placeholder={t('Paste Alipay public key here')}
+                        autoComplete='off'
+                        {...field}
+                        onChange={(event) => field.onChange(event.target.value)}
+                      />
+                    </FormControl>
+                    <FormDescription>
+                      {t('Alipay public key used to verify callbacks')}
                     </FormDescription>
                     <FormMessage />
                   </FormItem>

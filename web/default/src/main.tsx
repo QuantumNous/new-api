@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { StrictMode } from 'react'
+import { StrictMode, useEffect } from 'react'
 import ReactDOM from 'react-dom/client'
 import { AxiosError } from 'axios'
 import {
@@ -28,6 +28,7 @@ import { RouterProvider, createRouter } from '@tanstack/react-router'
 import i18next from 'i18next'
 import { toast } from 'sonner'
 import { useAuthStore } from '@/stores/auth-store'
+import { normalizeInterfaceLanguage } from '@/i18n/languages'
 import { getStatus } from '@/lib/api'
 import { installBuildMetadata } from '@/lib/build-metadata'
 import '@/lib/dayjs'
@@ -111,6 +112,52 @@ declare module '@tanstack/react-router' {
   }
 }
 
+function getUserSavedLanguage(user: unknown): string | undefined {
+  const userData = user as
+    | { language?: unknown; setting?: unknown }
+    | null
+    | undefined
+  if (!userData) return undefined
+  if (typeof userData.language === 'string') return userData.language
+
+  if (typeof userData.setting === 'string') {
+    try {
+      const setting = JSON.parse(userData.setting) as { language?: unknown }
+      return typeof setting.language === 'string' ? setting.language : undefined
+    } catch {
+      return undefined
+    }
+  }
+
+  if (
+    userData.setting &&
+    typeof userData.setting === 'object' &&
+    'language' in userData.setting
+  ) {
+    const language = (userData.setting as { language?: unknown }).language
+    return typeof language === 'string' ? language : undefined
+  }
+
+  return undefined
+}
+
+function UserLanguageSync() {
+  const user = useAuthStore((s) => s.auth.user)
+
+  useEffect(() => {
+    const savedLanguage = getUserSavedLanguage(user)
+    if (!savedLanguage) return
+
+    const nextLanguage = normalizeInterfaceLanguage(savedLanguage)
+    const currentLanguage = normalizeInterfaceLanguage(i18next.language)
+    if (nextLanguage !== currentLanguage) {
+      void i18next.changeLanguage(nextLanguage)
+    }
+  }, [user])
+
+  return null
+}
+
 // Render the app
 const rootElement = document.getElementById('root')!
 // Set document.title and favicon from cached status, then refresh from network
@@ -163,6 +210,7 @@ if (!rootElement.innerHTML) {
         <ThemeProvider>
           <FontProvider>
             <DirectionProvider>
+              <UserLanguageSync />
               <RouterProvider router={router} />
             </DirectionProvider>
           </FontProvider>
