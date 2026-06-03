@@ -166,3 +166,39 @@ func TestShouldSkipScheduledChannelTestByTypeWithEmptyFilters(t *testing.T) {
 
 	require.False(t, shouldSkipScheduledChannelTestByType(false, constant.ChannelTypeOpenAI, setting))
 }
+
+func TestAppendScheduledDingTalkAlertFlushesAtBatchSize(t *testing.T) {
+	var sentBatches [][]service.DingTalkChannelAlert
+	sender := func(alerts []service.DingTalkChannelAlert) error {
+		sentBatches = append(sentBatches, append([]service.DingTalkChannelAlert(nil), alerts...))
+		return nil
+	}
+
+	queue := make([]service.DingTalkChannelAlert, 0)
+	for i := 0; i < scheduledDingTalkAlertFlushSize; i++ {
+		var err error
+		queue, err = appendScheduledDingTalkAlert(queue, service.DingTalkChannelAlert{ChannelID: i + 1}, sender)
+		require.NoError(t, err)
+	}
+
+	require.Empty(t, queue)
+	require.Len(t, sentBatches, 1)
+	require.Len(t, sentBatches[0], scheduledDingTalkAlertFlushSize)
+	require.Equal(t, 1, sentBatches[0][0].ChannelID)
+	require.Equal(t, scheduledDingTalkAlertFlushSize, sentBatches[0][scheduledDingTalkAlertFlushSize-1].ChannelID)
+}
+
+func TestFlushScheduledDingTalkAlertsSendsPartialBatch(t *testing.T) {
+	var sent []service.DingTalkChannelAlert
+	sender := func(alerts []service.DingTalkChannelAlert) error {
+		sent = append(sent, alerts...)
+		return nil
+	}
+
+	queue := []service.DingTalkChannelAlert{{ChannelID: 1}, {ChannelID: 2}}
+	queue, err := flushScheduledDingTalkAlerts(queue, sender)
+
+	require.NoError(t, err)
+	require.Empty(t, queue)
+	require.Equal(t, []service.DingTalkChannelAlert{{ChannelID: 1}, {ChannelID: 2}}, sent)
+}

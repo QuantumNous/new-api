@@ -686,6 +686,26 @@ func shouldSendScheduledChannelTestDingTalkAlert(notify bool, err *types.NewAPIE
 	return !notify && err != nil
 }
 
+const scheduledDingTalkAlertFlushSize = 5
+
+type scheduledDingTalkAlertSender func([]service.DingTalkChannelAlert) error
+
+func appendScheduledDingTalkAlert(queue []service.DingTalkChannelAlert, alert service.DingTalkChannelAlert, sender scheduledDingTalkAlertSender) ([]service.DingTalkChannelAlert, error) {
+	queue = append(queue, alert)
+	if len(queue) < scheduledDingTalkAlertFlushSize {
+		return queue, nil
+	}
+	return flushScheduledDingTalkAlerts(queue, sender)
+}
+
+func flushScheduledDingTalkAlerts(queue []service.DingTalkChannelAlert, sender scheduledDingTalkAlertSender) ([]service.DingTalkChannelAlert, error) {
+	if len(queue) == 0 {
+		return queue, nil
+	}
+	err := sender(queue)
+	return queue[:0], err
+}
+
 func shouldSkipScheduledChannelTestByType(notify bool, channelType int, setting *operation_setting.MonitorSetting) bool {
 	if notify || setting == nil {
 		return false
@@ -993,7 +1013,11 @@ func testAllChannels(notify bool) error {
 
 			if shouldSendScheduledChannelTestDingTalkAlert(notify, newAPIError) {
 				alert := buildScheduledChannelTestDingTalkAlert(channel, newAPIError, autoDisabled, time.Now())
-				dingTalkAlerts = append(dingTalkAlerts, alert)
+				var err error
+				dingTalkAlerts, err = appendScheduledDingTalkAlert(dingTalkAlerts, alert, service.NotifyDingTalkChannelTestFailures)
+				if err != nil {
+					common.SysError("failed to send dingtalk channel test alert: " + err.Error())
+				}
 			}
 
 			// enable channel
@@ -1005,10 +1029,10 @@ func testAllChannels(notify bool) error {
 			time.Sleep(common.RequestInterval)
 		}
 
-		if len(dingTalkAlerts) > 0 {
-			if err := service.NotifyDingTalkChannelTestFailures(dingTalkAlerts); err != nil {
-				common.SysError("failed to send dingtalk channel test alert: " + err.Error())
-			}
+		var err error
+		dingTalkAlerts, err = flushScheduledDingTalkAlerts(dingTalkAlerts, service.NotifyDingTalkChannelTestFailures)
+		if err != nil {
+			common.SysError("failed to send dingtalk channel test alert: " + err.Error())
 		}
 
 		if notify {

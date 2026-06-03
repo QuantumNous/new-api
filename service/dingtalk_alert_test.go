@@ -447,6 +447,37 @@ func TestNotifyDingTalkFailureSharesCooldownThroughDatabase(t *testing.T) {
 	require.Equal(t, int32(1), atomic.LoadInt32(&requests))
 }
 
+func TestReserveDingTalkAlertCooldownDBPendingReservationExpiresWithoutConsumingCooldown(t *testing.T) {
+	originalDB := model.DB
+	t.Cleanup(func() {
+		model.DB = originalDB
+	})
+
+	db, err := gorm.Open(sqlite.Open("file:dingtalk-alert-pending-expiry?mode=memory&cache=shared"), &gorm.Config{})
+	require.NoError(t, err)
+	sqlDB, err := db.DB()
+	require.NoError(t, err)
+	sqlDB.SetMaxOpenConns(1)
+	require.NoError(t, db.AutoMigrate(&model.DingTalkAlertCooldownRecord{}))
+	model.DB = db
+
+	now := time.Date(2026, 6, 2, 13, 0, 0, 0, time.UTC)
+	firstReservation, allowed, err := reserveDingTalkAlertCooldownDB(32, now, time.Hour)
+	require.NoError(t, err)
+	require.True(t, allowed)
+	require.NotNil(t, firstReservation)
+
+	secondReservation, allowed, err := reserveDingTalkAlertCooldownDB(32, now.Add(dingTalkRequestTimeout), time.Hour)
+	require.NoError(t, err)
+	require.False(t, allowed)
+	require.Nil(t, secondReservation)
+
+	retryReservation, allowed, err := reserveDingTalkAlertCooldownDB(32, now.Add(2*dingTalkRequestTimeout+time.Second), time.Hour)
+	require.NoError(t, err)
+	require.True(t, allowed)
+	require.NotNil(t, retryReservation)
+}
+
 func TestReserveDingTalkAlertCooldownFailsClosedWhenDatabaseReservationErrors(t *testing.T) {
 	originalDB := model.DB
 	originalCooldown := dingTalkAlertCooldown

@@ -54,14 +54,15 @@ type dingTalkSendResponse struct {
 }
 
 var (
-	dingTalkAlertCooldown           = NewDingTalkAlertCooldown()
-	dingTalkCredentialPattern       = regexp.MustCompile(`(?i)(\b(?:access_token|refresh_token|id_token|api[_-]?key|authorization)\b\s*(?::|=)?\s*)(?:"[^"]*"|'[^']*'|bearer\s+[^\s,;}]+|[^\s,;}]+)`)
-	dingTalkQuotedCredentialPattern = regexp.MustCompile(`(?i)(["'](?:access_token|refresh_token|id_token|api[_-]?key|authorization)["']\s*:\s*)(?:"[^"]*"|'[^']*'|[^,\s}]+)`)
-	dingTalkSKPattern               = regexp.MustCompile(`sk-[A-Za-z0-9_-]+`)
-	dingTalkAWSKeyPattern           = regexp.MustCompile(`\b(?:AKIA|ASIA)[A-Z0-9]{16}\b`)
-	dingTalkGoogleAPIKeyPattern     = regexp.MustCompile(`\bAIza[0-9A-Za-z_-]{35}\b`)
-	dingTalkMaxResponseBodyBytes    = int64(64 * 1024)
-	dingTalkRequestTimeout          = 10 * time.Second
+	dingTalkAlertCooldown              = NewDingTalkAlertCooldown()
+	dingTalkCredentialPattern          = regexp.MustCompile(`(?i)(\b(?:access_token|refresh_token|id_token|api[_-]?key|authorization)\b\s*(?::|=)?\s*)(?:"[^"]*"|'[^']*'|bearer\s+[^\s,;}]+|[^\s,;}]+)`)
+	dingTalkQuotedCredentialPattern    = regexp.MustCompile(`(?i)(["'](?:access_token|refresh_token|id_token|api[_-]?key|authorization)["']\s*:\s*)(?:"[^"]*"|'[^']*'|[^,\s}]+)`)
+	dingTalkSKPattern                  = regexp.MustCompile(`sk-[A-Za-z0-9_-]+`)
+	dingTalkAWSKeyPattern              = regexp.MustCompile(`\b(?:AKIA|ASIA)[A-Z0-9]{16}\b`)
+	dingTalkGoogleAPIKeyPattern        = regexp.MustCompile(`\bAIza[0-9A-Za-z_-]{35}\b`)
+	dingTalkMaxResponseBodyBytes       = int64(64 * 1024)
+	dingTalkRequestTimeout             = 10 * time.Second
+	dingTalkAlertPendingReservationTTL = 2 * dingTalkRequestTimeout
 )
 
 const maxDingTalkChannelAlertBatchSize = 5
@@ -131,20 +132,38 @@ func (r *dingTalkAlertCooldownReservation) Rollback() {
 	delete(r.c.lastAt, r.channelID)
 }
 
+func (r *dingTalkAlertCooldownReservation) Commit() error {
+	if r == nil || !r.dbReserved {
+		return nil
+	}
+	return r.commitDB()
+}
+
+func (r *dingTalkAlertCooldownReservation) commitDB() error {
+	if model.DB == nil {
+		return nil
+	}
+	reservedAt := r.reservedAt.UnixMilli()
+	result := model.DB.Model(&model.DingTalkAlertCooldownRecord{}).
+		Where("channel_id = ? AND pending_at = ?", r.channelID, reservedAt).
+		Updates(map[string]any{
+			"last_at":    reservedAt,
+			"pending_at": int64(0),
+		})
+	if result.Error != nil {
+		return result.Error
+	}
+	return nil
+}
+
 func (r *dingTalkAlertCooldownReservation) rollbackDB() {
 	if model.DB == nil {
 		return
 	}
 	reservedAt := r.reservedAt.UnixMilli()
-	if r.hadPrevious {
-		_ = model.DB.Model(&model.DingTalkAlertCooldownRecord{}).
-			Where("channel_id = ? AND last_at = ?", r.channelID, reservedAt).
-			Update("last_at", r.previousAt.UnixMilli()).Error
-		return
-	}
-	_ = model.DB.
-		Where("channel_id = ? AND last_at = ?", r.channelID, reservedAt).
-		Delete(&model.DingTalkAlertCooldownRecord{}).Error
+	_ = model.DB.Model(&model.DingTalkAlertCooldownRecord{}).
+		Where("channel_id = ? AND pending_at = ?", r.channelID, reservedAt).
+		Update("pending_at", int64(0)).Error
 }
 
 func reserveDingTalkAlertCooldown(channelID int, now time.Time, cooldown time.Duration) (*dingTalkAlertCooldownReservation, bool) {
@@ -173,7 +192,7 @@ func reserveDingTalkAlertCooldownDB(channelID int, now time.Time, cooldown time.
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			record = model.DingTalkAlertCooldownRecord{
 				ChannelID: channelID,
-				LastAt:    now.UnixMilli(),
+				PendingAt: now.UnixMilli(),
 			}
 			result := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&record)
 			if result.Error != nil {
@@ -194,13 +213,18 @@ func reserveDingTalkAlertCooldownDB(channelID int, now time.Time, cooldown time.
 			return err
 		}
 		last := time.UnixMilli(record.LastAt)
-		if now.Sub(last) < cooldown {
+		if record.LastAt > 0 && now.Sub(last) < cooldown {
+			allowed = false
+			return nil
+		}
+		pending := time.UnixMilli(record.PendingAt)
+		if record.PendingAt > 0 && now.Sub(pending) < dingTalkAlertPendingReservationTTL {
 			allowed = false
 			return nil
 		}
 		if err := tx.Model(&model.DingTalkAlertCooldownRecord{}).
 			Where("channel_id = ?", channelID).
-			Update("last_at", now.UnixMilli()).Error; err != nil {
+			Update("pending_at", now.UnixMilli()).Error; err != nil {
 			return err
 		}
 		reservation = &dingTalkAlertCooldownReservation{
@@ -227,13 +251,18 @@ func reserveDingTalkAlertCooldownAfterCreateConflict(tx *gorm.DB, channelID int,
 		return err
 	}
 	last := time.UnixMilli(record.LastAt)
-	if now.Sub(last) < cooldown {
+	if record.LastAt > 0 && now.Sub(last) < cooldown {
+		*allowed = false
+		return nil
+	}
+	pending := time.UnixMilli(record.PendingAt)
+	if record.PendingAt > 0 && now.Sub(pending) < dingTalkAlertPendingReservationTTL {
 		*allowed = false
 		return nil
 	}
 	if err := tx.Model(&model.DingTalkAlertCooldownRecord{}).
 		Where("channel_id = ?", channelID).
-		Update("last_at", now.UnixMilli()).Error; err != nil {
+		Update("pending_at", now.UnixMilli()).Error; err != nil {
 		return err
 	}
 	*reservation = &dingTalkAlertCooldownReservation{
@@ -463,6 +492,11 @@ func sendReservedDingTalkChannelAlertBatch(setting *operation_setting.MonitorSet
 			reservation.Rollback()
 		}
 		return err
+	}
+	for _, reservation := range reservations {
+		if err := reservation.Commit(); err != nil {
+			return err
+		}
 	}
 	return nil
 }

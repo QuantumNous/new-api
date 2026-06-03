@@ -22,7 +22,6 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { CHANNEL_TYPE_OPTIONS } from '@/features/channels/constants'
 import { parseHttpStatusCodeRules } from '@/lib/http-status-code-rules'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -47,6 +46,7 @@ import {
 import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
+import { CHANNEL_TYPE_OPTIONS } from '@/features/channels/constants'
 import {
   SettingsForm,
   SettingsSwitchContent,
@@ -57,6 +57,11 @@ import { SettingsSection } from '../components/settings-section'
 import { useResetForm } from '../hooks/use-reset-form'
 import { useUpdateOption } from '../hooks/use-update-option'
 import { safeNumberFieldProps } from '../utils/numeric-field'
+import {
+  areAllKnownChannelTypesSelected,
+  normalizeChannelTypeIds,
+  selectAllKnownChannelTypeIds,
+} from './monitoring-channel-types'
 
 const numericString = z.string().refine((value) => {
   const trimmed = value.trim()
@@ -192,28 +197,6 @@ type NormalizedMonitoringValues = {
   'monitor_setting.dingtalk_alert_cooldown_minutes': number
 }
 
-const channelTypeOrder = new Map(
-  CHANNEL_TYPE_OPTIONS.map((option, index) => [option.value, index])
-)
-
-function normalizeChannelTypeIds(value: unknown): number[] {
-  if (!Array.isArray(value)) {
-    return []
-  }
-
-  const ids = new Set<number>()
-  value.forEach((item) => {
-    const id = Number(item)
-    if (Number.isInteger(id) && channelTypeOrder.has(id)) {
-      ids.add(id)
-    }
-  })
-
-  return Array.from(ids).sort((a, b) => {
-    return (channelTypeOrder.get(a) ?? 0) - (channelTypeOrder.get(b) ?? 0)
-  })
-}
-
 function serializeOptionValue(
   key: keyof NormalizedMonitoringValues,
   value: NormalizedMonitoringValues[keyof NormalizedMonitoringValues]
@@ -254,7 +237,7 @@ function ChannelTypePicker(props: ChannelTypePickerProps) {
   const { t } = useTranslation()
   const [open, setOpen] = useState(false)
   const selected = new Set(props.value)
-  const allSelected = props.value.length === CHANNEL_TYPE_OPTIONS.length
+  const allSelected = areAllKnownChannelTypesSelected(props.value)
   const selectedLabels = props.value
     .map((id) => CHANNEL_TYPE_OPTIONS.find((option) => option.value === id))
     .filter((option): option is (typeof CHANNEL_TYPE_OPTIONS)[number] =>
@@ -272,7 +255,7 @@ function ChannelTypePicker(props: ChannelTypePickerProps) {
   }
 
   const selectAllChannelTypes = () => {
-    props.onChange(CHANNEL_TYPE_OPTIONS.map((option) => option.value))
+    props.onChange(selectAllKnownChannelTypeIds(props.value))
   }
 
   return (
@@ -309,9 +292,7 @@ function ChannelTypePicker(props: ChannelTypePickerProps) {
       {allSelected ? (
         <Badge variant='outline'>{t('All channel types selected')}</Badge>
       ) : selectedLabels.length === 0 ? (
-        <p className='text-muted-foreground text-sm'>
-          {t('No channel types selected')}
-        </p>
+        <p className='text-muted-foreground text-sm'>{t(props.emptySummary)}</p>
       ) : (
         <div className='flex flex-wrap gap-2'>
           {selectedLabels.map((option) => (
