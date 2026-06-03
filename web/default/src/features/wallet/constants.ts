@@ -30,8 +30,10 @@ export const DEFAULT_PRESET_MULTIPLIERS = [1, 5, 10, 30, 50, 100, 300, 500]
  * Payment method types
  */
 export const PAYMENT_TYPES = {
-  ALIPAY: 'alipay',
-  WECHAT: 'wxpay',
+  ALIPAY_PC: 'alipay_pc',
+  ALIPAY_H5: 'alipay_h5',
+  WECHAT_NATIVE: 'wxpay_native',
+  WECHAT_H5: 'wxpay_h5',
   STRIPE: 'stripe',
   CREEM: 'creem',
   WAFFO: 'waffo',
@@ -41,14 +43,16 @@ export const PAYMENT_TYPES = {
 /**
  * Default payment type
  */
-export const DEFAULT_PAYMENT_TYPE = PAYMENT_TYPES.ALIPAY
+export const DEFAULT_PAYMENT_TYPE = PAYMENT_TYPES.ALIPAY_PC
 
 /**
  * Payment icon colors (HEX format for react-icons)
  */
 export const PAYMENT_ICON_COLORS = {
-  [PAYMENT_TYPES.ALIPAY]: '#1677FF',
-  [PAYMENT_TYPES.WECHAT]: '#07C160',
+  [PAYMENT_TYPES.ALIPAY_PC]: '#1677FF',
+  [PAYMENT_TYPES.ALIPAY_H5]: '#1677FF',
+  [PAYMENT_TYPES.WECHAT_NATIVE]: '#07C160',
+  [PAYMENT_TYPES.WECHAT_H5]: '#07C160',
   [PAYMENT_TYPES.STRIPE]: '#635BFF',
   [PAYMENT_TYPES.CREEM]: '#6366F1',
   [PAYMENT_TYPES.WAFFO]: '#2563EB',

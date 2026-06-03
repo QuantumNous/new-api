@@ -59,6 +59,15 @@ export type WaffoPancakePaymentResponse = ApiResponse<
     }
   | string
 >
+export type AlipayPaymentResponse = ApiResponse<{
+  pay_url?: string
+  trade_no?: string
+}>
+export type WechatPaymentResponse = ApiResponse<{
+  code_url?: string
+  h5_url?: string
+  trade_no?: string
+}>
 
 /**
  * Creem product configuration
@@ -140,6 +149,10 @@ export interface TopupInfo {
   enable_creem_topup?: boolean
   /** Available Creem products */
   creem_products?: CreemProduct[]
+  /** Whether Alipay topup is enabled */
+  enable_alipay_topup?: boolean
+  /** Whether WeChat Pay topup is enabled */
+  enable_wechat_topup?: boolean
   /** Whether Waffo topup is enabled */
   enable_waffo_topup?: boolean
   /** Available Waffo payment methods */

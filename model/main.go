@@ -281,8 +281,12 @@ func migrateDB() error {
 		&CustomOAuthProvider{},
 		&UserOAuthBinding{},
 		&PerfMetric{},
+		&PaymentConfig{},
 	)
 	if err != nil {
+		return err
+	}
+	if err := ensureModelTypeColumn(); err != nil {
 		return err
 	}
 	if common.UsingSQLite {
@@ -330,6 +334,7 @@ func migrateDBFast() error {
 		{&CustomOAuthProvider{}, "CustomOAuthProvider"},
 		{&UserOAuthBinding{}, "UserOAuthBinding"},
 		{&PerfMetric{}, "PerfMetric"},
+		{&PaymentConfig{}, "PaymentConfig"},
 	}
 	// 动态计算migration数量，确保errChan缓冲区足够大
 	errChan := make(chan error, len(migrations))
@@ -354,6 +359,9 @@ func migrateDBFast() error {
 			return err
 		}
 	}
+	if err := ensureModelTypeColumn(); err != nil {
+		return err
+	}
 	if common.UsingSQLite {
 		if err := ensureSubscriptionPlanTableSQLite(); err != nil {
 			return err
@@ -373,6 +381,16 @@ func migrateLOGDB() error {
 		return err
 	}
 	return nil
+}
+
+func ensureModelTypeColumn() error {
+	if !DB.Migrator().HasTable(&Model{}) {
+		return nil
+	}
+	if DB.Migrator().HasColumn(&Model{}, "model_type") {
+		return nil
+	}
+	return DB.Migrator().AddColumn(&Model{}, "ModelType")
 }
 
 type sqliteColumnDef struct {

@@ -141,6 +141,7 @@ import {
   findMissingModelsInMapping,
   validateModelMappingJson,
   hasAdvancedSettingsErrors,
+  MODEL_TYPE_OPTIONS,
 } from '../../lib'
 import {
   collectInvalidStatusCodeEntries,
@@ -1686,6 +1687,11 @@ export function ChannelMutateDrawer({
                                   value: 'doubao-coding-plan',
                                   label: t('Doubao Coding Plan'),
                                 },
+                                {
+                                  value:
+                                    'https://ark.cn-beijing.volces.com/api/plan/v3',
+                                  label: t('Doubao Agent Plan'),
+                                },
                               ]}
                               onValueChange={field.onChange}
                               value={
@@ -1711,11 +1717,16 @@ export function ChannelMutateDrawer({
                                   <SelectItem value='doubao-coding-plan'>
                                     {t('Doubao Coding Plan')}
                                   </SelectItem>
+                                  <SelectItem value='https://ark.cn-beijing.volces.com/api/plan/v3'>
+                                    {t('Doubao Agent Plan')}
+                                  </SelectItem>
                                 </SelectGroup>
                               </SelectContent>
                             </Select>
                             <FormDescription>
-                              {t('Select the API endpoint region')}
+                              {t(
+                                'Select the API endpoint region. Doubao Agent Plan uses https://ark.cn-beijing.volces.com/api/plan/v3 for subscription-based Agent Plan keys.'
+                              )}
                             </FormDescription>
                             <FormMessage />
                           </FormItem>
@@ -2185,6 +2196,40 @@ export function ChannelMutateDrawer({
                                   maxVisibleChips={8}
                                 />
                               </FormControl>
+                              <FormField
+                                control={form.control}
+                                name='model_type'
+                                render={({ field }) => (
+                                  <FormItem>
+                                    <FormLabel>{t('Model Type')}</FormLabel>
+                                    <Select
+                                      value={field.value}
+                                      onValueChange={field.onChange}
+                                    >
+                                      <SelectTrigger>
+                                        <SelectValue />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        <SelectGroup>
+                                          {MODEL_TYPE_OPTIONS.map((option) => (
+                                            <SelectItem
+                                              key={option.value}
+                                              value={option.value}
+                                            >
+                                              {option.label}
+                                            </SelectItem>
+                                          ))}
+                                        </SelectGroup>
+                                      </SelectContent>
+                                    </Select>
+                                    <FormDescription>
+                                      {t(
+                                        'Each channel should contain one type of model so tests use the correct endpoint.'
+                                      )}
+                                    </FormDescription>
+                                  </FormItem>
+                                )}
+                              />
                               {modelMappingGuardrail.exposedTargetModels
                                 .length > 0 && (
                                 <Alert className='border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-50'>

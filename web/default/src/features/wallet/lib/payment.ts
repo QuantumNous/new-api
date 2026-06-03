@@ -86,6 +86,20 @@ export function isWaffoPancakePayment(paymentType: string): boolean {
   return paymentType === PAYMENT_TYPES.WAFFO_PANCAKE
 }
 
+export function isAlipayPayment(paymentType: string): boolean {
+  return (
+    paymentType === PAYMENT_TYPES.ALIPAY_PC ||
+    paymentType === PAYMENT_TYPES.ALIPAY_H5
+  )
+}
+
+export function isWechatPayment(paymentType: string): boolean {
+  return (
+    paymentType === PAYMENT_TYPES.WECHAT_NATIVE ||
+    paymentType === PAYMENT_TYPES.WECHAT_H5
+  )
+}
+
 /**
  * Get default payment type from topup info
  */

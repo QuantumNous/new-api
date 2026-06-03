@@ -86,18 +86,20 @@ export function getPaymentIcon(
   }
 
   switch (paymentType) {
-    case PAYMENT_TYPES.ALIPAY:
+    case PAYMENT_TYPES.ALIPAY_PC:
+    case PAYMENT_TYPES.ALIPAY_H5:
       return (
         <SiAlipay
           className={className}
-          style={{ color: PAYMENT_ICON_COLORS[PAYMENT_TYPES.ALIPAY] }}
+          style={{ color: PAYMENT_ICON_COLORS[PAYMENT_TYPES.ALIPAY_PC] }}
         />
       )
-    case PAYMENT_TYPES.WECHAT:
+    case PAYMENT_TYPES.WECHAT_NATIVE:
+    case PAYMENT_TYPES.WECHAT_H5:
       return (
         <SiWechat
           className={className}
-          style={{ color: PAYMENT_ICON_COLORS[PAYMENT_TYPES.WECHAT] }}
+          style={{ color: PAYMENT_ICON_COLORS[PAYMENT_TYPES.WECHAT_NATIVE] }}
         />
       )
     case PAYMENT_TYPES.STRIPE:

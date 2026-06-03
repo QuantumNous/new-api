@@ -22,6 +22,8 @@ import { z } from 'zod'
 // Model Types
 // ============================================================================
 
+export type ModelType = 'text' | 'embedding' | 'image' | 'file' | 'audio' | 'video'
+
 /**
  * Bound channel information
  */
@@ -39,6 +41,7 @@ export interface Model {
   description?: string
   icon?: string
   tags?: string
+  model_type: ModelType
   vendor_id?: number
   endpoints?: string
   status: number
@@ -91,6 +94,7 @@ export interface GetModelsParams {
   vendor?: string // vendor ID to filter by
   status?: string // filter by status
   sync_official?: string // filter by sync_official status
+  model_type?: string // filter by model type
 }
 
 /**
@@ -101,6 +105,7 @@ export interface SearchModelsParams {
   vendor?: string // vendor ID to filter by
   status?: string // filter by status
   sync_official?: string // filter by sync_official status
+  model_type?: string // filter by model type
   p?: number
   page_size?: number
 }

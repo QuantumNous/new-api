@@ -16,6 +16,12 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+export type ApiResponse<T = unknown> = {
+  success: boolean
+  message: string
+  data?: T
+}
+
 export type SystemOption = {
   key: string
   value: string
@@ -267,6 +273,39 @@ export type BillingSettings = {
   'checkin_setting.min_quota': number
   'checkin_setting.max_quota': number
 }
+
+export type PaymentConfigProvider = 'alipay' | 'wxpay'
+
+export interface PaymentConfig {
+  id?: number
+  provider: PaymentConfigProvider
+  name: string
+  display_name?: string
+  icon_url?: string
+  enabled: boolean
+  sort_order?: number
+  app_id?: string
+  app_private_key?: string
+  alipay_public_key?: string
+  alipay_app_public_cert?: string
+  alipay_public_cert?: string
+  alipay_root_cert?: string
+  wechat_app_id?: string
+  wechat_mch_id?: string
+  wechat_api_key?: string
+  wechat_serial_no?: string
+  wechat_private_key?: string
+  wechat_cert?: string
+  gateway_url?: string
+  notify_url?: string
+  return_url?: string
+  extra_config?: string
+  created_at?: number
+  updated_at?: number
+}
+
+export type PaymentConfigsResponse = ApiResponse<PaymentConfig[]>
+export type PaymentConfigResponse = ApiResponse<PaymentConfig | null>
 
 export type OperationsSettings = {
   RetryTimes: number

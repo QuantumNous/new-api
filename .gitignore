@@ -36,3 +36,7 @@ data/
 token_estimator_test.go
 skills-lock.json
 .playwright-mcp
+35sz-api
+.gitignore
+35sz-api.pid
+35sz-api.log

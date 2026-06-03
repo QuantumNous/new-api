@@ -73,6 +73,45 @@ func GetTopUpInfo(c *gin.Context) {
 		}
 	}
 
+	appendPaymentConfigMethod := func(provider string, methodType string, fallbackName string, fallbackColor string) {
+		for _, method := range payMethods {
+			if method["type"] == methodType {
+				return
+			}
+		}
+		name := fallbackName
+		icon := ""
+		minTopup := strconv.Itoa(operation_setting.MinTopUp)
+		if config, err := model.GetEnabledPaymentConfigByProvider(provider); err == nil {
+			if config.DisplayName != "" {
+				name = config.DisplayName
+			} else if config.Name != "" {
+				name = config.Name
+			}
+			icon = config.IconURL
+		}
+		method := map[string]string{
+			"name":      name,
+			"type":      methodType,
+			"color":     fallbackColor,
+			"min_topup": minTopup,
+		}
+		if icon != "" {
+			method["icon"] = icon
+		}
+		payMethods = append(payMethods, method)
+	}
+
+	enableAlipay := isAlipayTopUpEnabled()
+	if enableAlipay {
+		appendPaymentConfigMethod(model.PaymentProviderAlipay, model.PaymentMethodAlipayPC, "Alipay", "#1677FF")
+	}
+
+	enableWechat := isWechatTopUpEnabled()
+	if enableWechat {
+		appendPaymentConfigMethod(model.PaymentProviderWechat, model.PaymentMethodWechatNative, "WeChat Pay", "#07C160")
+	}
+
 	// 如果启用了 Waffo 支付，添加到支付方法列表
 	enableWaffo := isWaffoTopUpEnabled()
 	if enableWaffo {
@@ -99,6 +138,8 @@ func GetTopUpInfo(c *gin.Context) {
 		"enable_online_topup":              isEpayTopUpEnabled(),
 		"enable_stripe_topup":              isStripeTopUpEnabled(),
 		"enable_creem_topup":               isCreemTopUpEnabled(),
+		"enable_alipay_topup":              enableAlipay,
+		"enable_wechat_topup":              enableWechat,
 		"enable_waffo_topup":               enableWaffo,
 		"enable_waffo_pancake_topup":       enableWaffoPancake,
 		"enable_redemption":                complianceConfirmed,

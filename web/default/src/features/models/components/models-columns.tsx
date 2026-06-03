@@ -153,6 +153,19 @@ export function useModelsColumns(vendors: Vendor[] = []): ColumnDef<Model>[] {
       minSize: 200,
     },
 
+    // Model Type column
+    {
+      accessorKey: 'model_type',
+      meta: { label: t('Model Type'), mobileBadge: true },
+      header: t('Model Type'),
+      cell: ({ row }) => {
+        const modelType = row.original.model_type || 'text'
+        return <StatusBadge label={modelType} variant='info' size='sm' />
+      },
+      size: 120,
+      enableSorting: false,
+    },
+
     // Name Rule column
     {
       accessorKey: 'name_rule',

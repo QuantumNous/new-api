@@ -77,6 +77,7 @@ export function ModelsTable() {
       { columnId: 'status', searchKey: 'status', type: 'array' },
       { columnId: 'vendor_id', searchKey: 'vendor', type: 'array' },
       { columnId: 'sync_official', searchKey: 'sync', type: 'array' },
+      { columnId: 'model_type', searchKey: 'model_type', type: 'array' },
     ],
   })
 
@@ -88,6 +89,8 @@ export function ModelsTable() {
   const syncFilter =
     (columnFilters.find((f) => f.id === 'sync_official')?.value as string[]) ||
     []
+  const modelTypeFilter =
+    (columnFilters.find((f) => f.id === 'model_type')?.value as string[]) || []
 
   // Fetch vendors for filter
   const { data: vendorsData } = useQuery({
@@ -131,6 +134,10 @@ export function ModelsTable() {
         syncFilter.length > 0 && !syncFilter.includes('all')
           ? syncFilter[0]
           : undefined,
+      model_type:
+        modelTypeFilter.length > 0 && !modelTypeFilter.includes('all')
+          ? modelTypeFilter[0]
+          : undefined,
       p: pagination.pageIndex + 1,
       page_size: pagination.pageSize,
     }),
@@ -147,6 +154,10 @@ export function ModelsTable() {
             syncFilter.length > 0 && !syncFilter.includes('all')
               ? syncFilter[0]
               : undefined,
+          model_type:
+            modelTypeFilter.length > 0 && !modelTypeFilter.includes('all')
+              ? modelTypeFilter[0]
+              : undefined,
           p: pagination.pageIndex + 1,
           page_size: pagination.pageSize,
         })
@@ -159,6 +170,10 @@ export function ModelsTable() {
           sync_official:
             syncFilter.length > 0 && !syncFilter.includes('all')
               ? syncFilter[0]
+              : undefined,
+          model_type:
+            modelTypeFilter.length > 0 && !modelTypeFilter.includes('all')
+              ? modelTypeFilter[0]
               : undefined,
           p: pagination.pageIndex + 1,
           page_size: pagination.pageSize,
@@ -207,6 +222,16 @@ export function ModelsTable() {
     ensurePageInRange(pageCount)
   }, [pageCount, ensurePageInRange])
 
+  const modelTypeOptions = [
+    { label: t('All Types'), value: 'all' },
+    { label: 'Text', value: 'text' },
+    { label: 'Embedding', value: 'embedding' },
+    { label: 'Image', value: 'image' },
+    { label: 'File', value: 'file' },
+    { label: 'Audio', value: 'audio' },
+    { label: 'Video', value: 'video' },
+  ]
+
   // Prepare filter options
   const vendorFilterOptions = [
     {
@@ -250,6 +275,12 @@ export function ModelsTable() {
             columnId: 'sync_official',
             title: t('Official Sync'),
             options: [...getSyncStatusOptions(t)],
+            singleSelect: true,
+          },
+          {
+            columnId: 'model_type',
+            title: t('Model Type'),
+            options: modelTypeOptions,
             singleSelect: true,
           },
         ],

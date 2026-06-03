@@ -22,6 +22,35 @@ import (
 	"gorm.io/gorm"
 )
 
+func syncChannelModelMetadata(channel *model.Channel) {
+	if channel == nil {
+		return
+	}
+	var settings map[string]any
+	if strings.TrimSpace(channel.OtherSettings) != "" {
+		_ = common.UnmarshalJsonStr(channel.OtherSettings, &settings)
+	}
+	modelType := model.ModelTypeText
+	if settings != nil {
+		if raw, ok := settings["model_type"].(string); ok {
+			modelType = model.NormalizeModelType(raw)
+		}
+	}
+	for _, modelName := range strings.Split(channel.Models, ",") {
+		modelName = strings.TrimSpace(modelName)
+		if modelName == "" {
+			continue
+		}
+		var existing model.Model
+		if err := model.DB.Where("model_name = ?", modelName).First(&existing).Error; err == nil {
+			existing.ModelType = modelType
+			_ = existing.Update()
+			continue
+		}
+		_ = (&model.Model{ModelName: modelName, ModelType: modelType, Status: 1}).Insert()
+	}
+}
+
 type OpenAIModel struct {
 	ID         string         `json:"id"`
 	Object     string         `json:"object"`
@@ -676,6 +705,9 @@ func AddChannel(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
+	for i := range channels {
+		syncChannelModelMetadata(&channels[i])
+	}
 	service.ResetProxyClientCache()
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
@@ -979,6 +1011,7 @@ func UpdateChannel(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
+	syncChannelModelMetadata(&channel.Channel)
 	model.InitChannelCache()
 	service.ResetProxyClientCache()
 	channel.Key = ""

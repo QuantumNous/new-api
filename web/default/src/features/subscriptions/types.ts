@@ -107,6 +107,10 @@ export interface SubscriptionPayResponse {
     order_id?: string
     token?: string
     token_expires_at?: number | string
+    pay_url?: string
+    code_url?: string
+    h5_url?: string
+    trade_no?: string
   }
   url?: string
 }

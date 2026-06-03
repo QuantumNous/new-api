@@ -32,6 +32,24 @@ const (
 type Adaptor struct {
 }
 
+func normalizeVolcengineBaseURL(baseURL string) string {
+	return strings.TrimRight(strings.TrimSpace(baseURL), "/")
+}
+
+func isVolcengineAgentPlanBase(baseURL string) bool {
+	baseURL = normalizeVolcengineBaseURL(baseURL)
+	return baseURL == "https://ark.cn-beijing.volces.com/api/plan" ||
+		baseURL == "https://ark.cn-beijing.volces.com/api/plan/v3"
+}
+
+func buildVolcengineURL(baseURL string, regularPath string, agentPlanPath string) string {
+	baseURL = normalizeVolcengineBaseURL(baseURL)
+	if isVolcengineAgentPlanBase(baseURL) {
+		return baseURL + agentPlanPath
+	}
+	return baseURL + regularPath
+}
+
 func (a *Adaptor) ConvertGeminiRequest(*gin.Context, *relaycommon.RelayInfo, *dto.GeminiChatRequest) (any, error) {
 	//TODO implement me
 	return nil, errors.New("not implemented")
@@ -249,9 +267,9 @@ func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 			return fmt.Sprintf("%s/v1/messages", specialPlan.ClaudeBaseURL), nil
 		}
 		if strings.HasPrefix(info.UpstreamModelName, "bot") {
-			return fmt.Sprintf("%s/api/v3/bots/chat/completions", baseUrl), nil
+			return buildVolcengineURL(baseUrl, "/api/v3/bots/chat/completions", "/bots/chat/completions"), nil
 		}
-		return fmt.Sprintf("%s/api/v3/chat/completions", baseUrl), nil
+		return buildVolcengineURL(baseUrl, "/api/v3/chat/completions", "/chat/completions"), nil
 	default:
 		switch info.RelayMode {
 		case constant.RelayModeChatCompletions:
@@ -259,20 +277,20 @@ func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 				return fmt.Sprintf("%s/chat/completions", specialPlan.OpenAIBaseURL), nil
 			}
 			if strings.HasPrefix(info.UpstreamModelName, "bot") {
-				return fmt.Sprintf("%s/api/v3/bots/chat/completions", baseUrl), nil
+				return buildVolcengineURL(baseUrl, "/api/v3/bots/chat/completions", "/bots/chat/completions"), nil
 			}
-			return fmt.Sprintf("%s/api/v3/chat/completions", baseUrl), nil
+			return buildVolcengineURL(baseUrl, "/api/v3/chat/completions", "/chat/completions"), nil
 		case constant.RelayModeEmbeddings:
-			return fmt.Sprintf("%s/api/v3/embeddings", baseUrl), nil
+			return buildVolcengineURL(baseUrl, "/api/v3/embeddings", "/embeddings"), nil
 		//豆包的图生图也走generations接口: https://www.volcengine.com/docs/82379/1824121
 		case constant.RelayModeImagesGenerations, constant.RelayModeImagesEdits:
-			return fmt.Sprintf("%s/api/v3/images/generations", baseUrl), nil
+			return buildVolcengineURL(baseUrl, "/api/v3/images/generations", "/images/generations"), nil
 		//case constant.RelayModeImagesEdits:
 		//	return fmt.Sprintf("%s/api/v3/images/edits", baseUrl), nil
 		case constant.RelayModeRerank:
-			return fmt.Sprintf("%s/api/v3/rerank", baseUrl), nil
+			return buildVolcengineURL(baseUrl, "/api/v3/rerank", "/rerank"), nil
 		case constant.RelayModeResponses:
-			return fmt.Sprintf("%s/api/v3/responses", baseUrl), nil
+			return buildVolcengineURL(baseUrl, "/api/v3/responses", "/responses"), nil
 		case constant.RelayModeAudioSpeech:
 			if baseUrl == channelconstant.ChannelBaseURLs[channelconstant.ChannelTypeVolcEngine] {
 				return "wss://openspeech.bytedance.com/api/v1/tts/ws_binary", nil

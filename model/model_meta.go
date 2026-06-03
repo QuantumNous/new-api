@@ -16,6 +16,32 @@ const (
 	NameRuleSuffix
 )
 
+const (
+	ModelTypeText      = "text"
+	ModelTypeEmbedding = "embedding"
+	ModelTypeImage     = "image"
+	ModelTypeFile      = "file"
+	ModelTypeAudio     = "audio"
+	ModelTypeVideo     = "video"
+)
+
+func NormalizeModelType(modelType string) string {
+	switch strings.ToLower(strings.TrimSpace(modelType)) {
+	case ModelTypeEmbedding:
+		return ModelTypeEmbedding
+	case ModelTypeImage:
+		return ModelTypeImage
+	case ModelTypeFile:
+		return ModelTypeFile
+	case ModelTypeAudio:
+		return ModelTypeAudio
+	case ModelTypeVideo:
+		return ModelTypeVideo
+	default:
+		return ModelTypeText
+	}
+}
+
 type BoundChannel struct {
 	Name string `json:"name"`
 	Type int    `json:"type"`
@@ -27,6 +53,7 @@ type Model struct {
 	Description  string         `json:"description,omitempty" gorm:"type:text"`
 	Icon         string         `json:"icon,omitempty" gorm:"type:varchar(128)"`
 	Tags         string         `json:"tags,omitempty" gorm:"type:varchar(255)"`
+	ModelType    string         `json:"model_type" gorm:"type:varchar(32);not null;default:'text'"`
 	VendorID     int            `json:"vendor_id,omitempty" gorm:"index"`
 	Endpoints    string         `json:"endpoints,omitempty" gorm:"type:text"`
 	Status       int            `json:"status" gorm:"default:1"`
@@ -53,6 +80,8 @@ func (mi *Model) Insert() error {
 	originalStatus := mi.Status
 	originalSyncOfficial := mi.SyncOfficial
 
+	mi.ModelType = NormalizeModelType(mi.ModelType)
+
 	// 先创建记录（GORM 会对零值字段应用默认值）
 	if err := DB.Create(mi).Error; err != nil {
 		return err
@@ -76,9 +105,10 @@ func IsModelNameDuplicated(id int, name string) (bool, error) {
 
 func (mi *Model) Update() error {
 	mi.UpdatedTime = common.GetTimestamp()
+	mi.ModelType = NormalizeModelType(mi.ModelType)
 	// 使用 Select 强制更新所有字段，包括零值
 	return DB.Model(&Model{}).Where("id = ?", mi.Id).
-		Select("model_name", "description", "icon", "tags", "vendor_id", "endpoints", "status", "sync_official", "name_rule", "updated_time").
+		Select("model_name", "description", "icon", "tags", "model_type", "vendor_id", "endpoints", "status", "sync_official", "name_rule", "updated_time").
 		Updates(mi).Error
 }
 
@@ -192,7 +222,7 @@ func GetPreferredModelOwnerChannelTypes(modelNames []string, groups []string) (m
 	return result, nil
 }
 
-func SearchModels(keyword string, vendor string, offset int, limit int) ([]*Model, int64, error) {
+func SearchModels(keyword string, vendor string, modelType string, offset int, limit int) ([]*Model, int64, error) {
 	var models []*Model
 	db := DB.Model(&Model{})
 	if keyword != "" {
@@ -205,6 +235,9 @@ func SearchModels(keyword string, vendor string, offset int, limit int) ([]*Mode
 		} else {
 			db = db.Joins("JOIN vendors ON vendors.id = models.vendor_id").Where("vendors.name LIKE ?", "%"+vendor+"%")
 		}
+	}
+	if modelType != "" && modelType != "all" {
+		db = db.Where("models.model_type = ?", NormalizeModelType(modelType))
 	}
 	var total int64
 	if err := db.Count(&total).Error; err != nil {

@@ -121,27 +121,37 @@ func testChannel(channel *model.Channel, testUserID int, testModel string, endpo
 	} else {
 		// 如果没有指定端点类型，使用原有的自动检测逻辑
 
-		if strings.Contains(strings.ToLower(testModel), "rerank") {
-			requestPath = "/v1/rerank"
+		metadataEndpointResolved := false
+		if modelType := getModelTypeForTest(testModel); modelType != "" {
+			if endpointInfo, ok := common.GetDefaultEndpointInfo(endpointTypeFromModelType(modelType)); ok {
+				requestPath = endpointInfo.Path
+				metadataEndpointResolved = true
+			}
 		}
 
-		// 先判断是否为 Embedding 模型
-		if strings.Contains(strings.ToLower(testModel), "embedding") ||
-			strings.HasPrefix(testModel, "m3e") || // m3e 系列模型
-			strings.Contains(testModel, "bge-") || // bge 系列模型
-			strings.Contains(testModel, "embed") ||
-			channel.Type == constant.ChannelTypeMokaAI { // 其他 embedding 模型
-			requestPath = "/v1/embeddings" // 修改请求路径
-		}
+		if !metadataEndpointResolved {
+			if strings.Contains(strings.ToLower(testModel), "rerank") {
+				requestPath = "/v1/rerank"
+			}
 
-		// VolcEngine 图像生成模型
-		if channel.Type == constant.ChannelTypeVolcEngine && strings.Contains(testModel, "seedream") {
-			requestPath = "/v1/images/generations"
-		}
+			// 先判断是否为 Embedding 模型
+			if strings.Contains(strings.ToLower(testModel), "embedding") ||
+				strings.HasPrefix(testModel, "m3e") || // m3e 系列模型
+				strings.Contains(testModel, "bge-") || // bge 系列模型
+				strings.Contains(testModel, "embed") ||
+				channel.Type == constant.ChannelTypeMokaAI { // 其他 embedding 模型
+				requestPath = "/v1/embeddings" // 修改请求路径
+			}
 
-		// responses-only models
-		if strings.Contains(strings.ToLower(testModel), "codex") {
-			requestPath = "/v1/responses"
+			// VolcEngine 图像生成模型
+			if channel.Type == constant.ChannelTypeVolcEngine && strings.Contains(testModel, "seedream") {
+				requestPath = "/v1/images/generations"
+			}
+
+			// responses-only models
+			if strings.Contains(strings.ToLower(testModel), "codex") {
+				requestPath = "/v1/responses"
+			}
 		}
 
 		// responses compaction models (must use /v1/responses/compact)
@@ -696,6 +706,43 @@ func detectErrorMessageFromJSONBytes(jsonBytes []byte) string {
 	return message
 }
 
+func endpointTypeFromModelType(modelType string) constant.EndpointType {
+	switch model.NormalizeModelType(modelType) {
+	case model.ModelTypeEmbedding:
+		return constant.EndpointTypeEmbeddings
+	case model.ModelTypeImage:
+		return constant.EndpointTypeImageGeneration
+	case model.ModelTypeFile:
+		return constant.EndpointTypeOpenAIResponse
+	default:
+		return constant.EndpointTypeOpenAI
+	}
+}
+
+func getModelTypeForTest(modelName string) string {
+	if model.DB == nil {
+		return ""
+	}
+	var m model.Model
+	if err := model.DB.Where("model_name = ?", modelName).First(&m).Error; err != nil {
+		return ""
+	}
+	return m.ModelType
+}
+
+func buildImageTestRequest(modelName string, channel *model.Channel) *dto.ImageRequest {
+	size := "1024x1024"
+	if channel != nil && channel.Type == constant.ChannelTypeVolcEngine && strings.Contains(strings.ToLower(modelName), "seedream") {
+		size = "2K"
+	}
+	return &dto.ImageRequest{
+		Model:  modelName,
+		Prompt: "a cute cat",
+		N:      lo.ToPtr(uint(1)),
+		Size:   size,
+	}
+}
+
 func buildTestRequest(model string, endpointType string, channel *model.Channel, isStream bool) dto.Request {
 	testResponsesInput := json.RawMessage(`[{"role":"user","content":"hi"}]`)
 
@@ -709,13 +756,7 @@ func buildTestRequest(model string, endpointType string, channel *model.Channel,
 				Input: []any{"hello world"},
 			}
 		case constant.EndpointTypeImageGeneration:
-			// 返回 ImageRequest
-			return &dto.ImageRequest{
-				Model:  model,
-				Prompt: "a cute cat",
-				N:      lo.ToPtr(uint(1)),
-				Size:   "1024x1024",
-			}
+			return buildImageTestRequest(model, channel)
 		case constant.EndpointTypeJinaRerank:
 			// 返回 RerankRequest
 			return &dto.RerankRequest{
@@ -762,6 +803,17 @@ func buildTestRequest(model string, endpointType string, channel *model.Channel,
 	}
 
 	// 自动检测逻辑（保持原有行为）
+	if modelType := getModelTypeForTest(model); modelType != "" {
+		switch endpointTypeFromModelType(modelType) {
+		case constant.EndpointTypeEmbeddings:
+			return &dto.EmbeddingRequest{Model: model, Input: []any{"hello world"}}
+		case constant.EndpointTypeImageGeneration:
+			return buildImageTestRequest(model, channel)
+		case constant.EndpointTypeOpenAIResponse:
+			return &dto.OpenAIResponsesRequest{Model: model, Input: json.RawMessage(`[{"role":"user","content":"hi"}]`), Stream: lo.ToPtr(isStream)}
+		}
+	}
+
 	if strings.Contains(strings.ToLower(model), "rerank") {
 		return &dto.RerankRequest{
 			Model:     model,
@@ -797,6 +849,10 @@ func buildTestRequest(model string, endpointType string, channel *model.Channel,
 			Input:  json.RawMessage(`[{"role":"user","content":"hi"}]`),
 			Stream: lo.ToPtr(isStream),
 		}
+	}
+
+	if channel != nil && channel.Type == constant.ChannelTypeVolcEngine && strings.Contains(strings.ToLower(model), "seedream") {
+		return buildImageTestRequest(model, channel)
 	}
 
 	// Chat/Completion 请求 - 返回 GeneralOpenAIRequest

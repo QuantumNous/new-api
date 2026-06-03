@@ -17,15 +17,24 @@ import (
 func GetAllModelsMeta(c *gin.Context) {
 
 	pageInfo := common.GetPageQuery(c)
-	modelsMeta, err := model.GetAllModels(pageInfo.GetStartIdx(), pageInfo.GetPageSize())
+	modelType := c.Query("model_type")
+	var (
+		modelsMeta []*model.Model
+		total      int64
+		err        error
+	)
+	if modelType != "" && modelType != "all" {
+		modelsMeta, total, err = model.SearchModels("", "", modelType, pageInfo.GetStartIdx(), pageInfo.GetPageSize())
+	} else {
+		modelsMeta, err = model.GetAllModels(pageInfo.GetStartIdx(), pageInfo.GetPageSize())
+		model.DB.Model(&model.Model{}).Count(&total)
+	}
 	if err != nil {
 		common.ApiError(c, err)
 		return
 	}
 	// 批量填充附加字段，提升列表接口性能
 	enrichModels(modelsMeta)
-	var total int64
-	model.DB.Model(&model.Model{}).Count(&total)
 
 	// 统计供应商计数（全部数据，不受分页影响）
 	vendorCounts, _ := model.GetVendorModelCounts()
@@ -46,9 +55,10 @@ func SearchModelsMeta(c *gin.Context) {
 
 	keyword := c.Query("keyword")
 	vendor := c.Query("vendor")
+	modelType := c.Query("model_type")
 	pageInfo := common.GetPageQuery(c)
 
-	modelsMeta, total, err := model.SearchModels(keyword, vendor, pageInfo.GetStartIdx(), pageInfo.GetPageSize())
+	modelsMeta, total, err := model.SearchModels(keyword, vendor, modelType, pageInfo.GetStartIdx(), pageInfo.GetPageSize())
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -88,6 +98,7 @@ func CreateModelMeta(c *gin.Context) {
 		common.ApiErrorMsg(c, "模型名称不能为空")
 		return
 	}
+	m.ModelType = model.NormalizeModelType(m.ModelType)
 	// 名称冲突检查
 	if dup, err := model.IsModelNameDuplicated(0, m.ModelName); err != nil {
 		common.ApiError(c, err)
@@ -118,6 +129,7 @@ func UpdateModelMeta(c *gin.Context) {
 		common.ApiErrorMsg(c, "缺少模型 ID")
 		return
 	}
+	m.ModelType = model.NormalizeModelType(m.ModelType)
 
 	if statusOnly {
 		// 只更新状态，防止误清空其他字段

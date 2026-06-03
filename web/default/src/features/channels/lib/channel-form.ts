@@ -23,6 +23,7 @@ import {
   MODEL_FETCHABLE_TYPES,
 } from '../constants'
 import type { Channel } from '../types'
+import { inferModelType, type ModelType } from './model-types'
 
 // ============================================================================
 // Form Validation Schema
@@ -128,6 +129,7 @@ export const channelFormSchema = z
     key: z.string(),
     openai_organization: z.string().optional(),
     models: z.string().min(1, ERROR_MESSAGES.REQUIRED_MODELS),
+    model_type: z.enum(['text', 'embedding', 'image', 'file', 'audio', 'video']),
     group: z.array(z.string()).min(1, ERROR_MESSAGES.REQUIRED_GROUP),
     model_mapping: z
       .string()
@@ -274,6 +276,7 @@ export const CHANNEL_FORM_DEFAULT_VALUES: ChannelFormValues = {
   key: '',
   openai_organization: '',
   models: '',
+  model_type: 'text',
   group: ['default'],
   model_mapping: '',
   priority: 0,
@@ -370,12 +373,16 @@ export function transformChannelToFormDefaults(
   let upstreamModelUpdateCheckEnabled = false
   let upstreamModelUpdateAutoSyncEnabled = false
   let upstreamModelUpdateIgnoredModels = ''
+  let modelType: ModelType = inferModelType((channel.models || '').split(',')[0] || '')
 
   if (channel.settings) {
     try {
       const parsed = JSON.parse(channel.settings)
       vertexKeyType = parsed.vertex_key_type || 'json'
       azureResponsesVersion = parsed.azure_responses_version || ''
+      if (typeof parsed.model_type === 'string') {
+        modelType = parsed.model_type as ModelType
+      }
       isEnterpriseAccount = parsed.openrouter_enterprise === true
       awsKeyType = parsed.aws_key_type || 'ak_sk'
       allowServiceTier = parsed.allow_service_tier === true
@@ -407,6 +414,7 @@ export function transformChannelToFormDefaults(
     key: '', // Never populate key from backend for security
     openai_organization: channel.openai_organization || '',
     models: channel.models || '',
+    model_type: modelType,
     group: parseGroups(channel.group || 'default'),
     model_mapping: channel.model_mapping || '',
     priority: channel.priority || 0,
@@ -476,6 +484,8 @@ function buildSettingsJSON(formData: ChannelFormValues): string {
       console.error('Failed to parse existing settings:', error)
     }
   }
+
+  settingsObj.model_type = formData.model_type || 'text'
 
   // Add vertex_key_type for Vertex AI channels (type 41)
   if (formData.type === 41) {

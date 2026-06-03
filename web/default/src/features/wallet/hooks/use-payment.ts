@@ -21,14 +21,20 @@ import i18next from 'i18next'
 import { toast } from 'sonner'
 import {
   calculateAmount,
+  calculateAlipayAmount,
   calculateStripeAmount,
+  calculateWechatAmount,
   calculateWaffoPancakeAmount,
+  requestAlipayPayment,
   requestPayment,
   requestStripePayment,
+  requestWechatPayment,
   isApiSuccess,
 } from '../api'
 import {
+  isAlipayPayment,
   isStripePayment,
+  isWechatPayment,
   isWaffoPancakePayment,
   submitPaymentForm,
 } from '../lib'
@@ -50,11 +56,17 @@ export function usePayment() {
 
         const isStripe = isStripePayment(paymentType)
         const isPancake = isWaffoPancakePayment(paymentType)
+        const isAlipay = isAlipayPayment(paymentType)
+        const isWechat = isWechatPayment(paymentType)
         const response = isStripe
           ? await calculateStripeAmount({ amount: topupAmount })
           : isPancake
             ? await calculateWaffoPancakeAmount({ amount: topupAmount })
-            : await calculateAmount({ amount: topupAmount })
+            : isAlipay
+              ? await calculateAlipayAmount({ amount: topupAmount })
+              : isWechat
+                ? await calculateWechatAmount({ amount: topupAmount })
+                : await calculateAmount({ amount: topupAmount })
 
         if (isApiSuccess(response) && response.data) {
           const calculatedAmount = parseFloat(response.data)
@@ -82,6 +94,8 @@ export function usePayment() {
         setProcessing(true)
 
         const isStripe = isStripePayment(paymentType)
+        const isAlipay = isAlipayPayment(paymentType)
+        const isWechat = isWechatPayment(paymentType)
         const amount = Math.floor(topupAmount)
 
         const response = isStripe
@@ -89,10 +103,14 @@ export function usePayment() {
               amount,
               payment_method: 'stripe',
             })
-          : await requestPayment({
-              amount,
-              payment_method: paymentType,
-            })
+          : isAlipay
+            ? await requestAlipayPayment({ amount, payment_method: paymentType })
+            : isWechat
+              ? await requestWechatPayment({ amount, payment_method: paymentType })
+              : await requestPayment({
+                  amount,
+                  payment_method: paymentType,
+                })
 
         if (!isApiSuccess(response)) {
           toast.error(response.message || i18next.t('Payment request failed'))
@@ -100,14 +118,41 @@ export function usePayment() {
         }
 
         // Handle Stripe payment
-        if (isStripe && response.data?.pay_link) {
-          window.open(response.data.pay_link as string, '_blank')
-          toast.success(i18next.t('Redirecting to payment page...'))
-          return true
+        if (isStripe) {
+          const data = response.data as { pay_link?: string } | undefined
+          if (data?.pay_link) {
+            window.open(data.pay_link, '_blank')
+            toast.success(i18next.t('Redirecting to payment page...'))
+            return true
+          }
+        }
+
+        if (isAlipay) {
+          const data = response.data as { pay_url?: string } | undefined
+          if (data?.pay_url) {
+            window.open(data.pay_url, '_blank')
+            toast.success(i18next.t('Redirecting to payment page...'))
+            return true
+          }
+        }
+
+        if (isWechat && response.data) {
+          const h5Url = (response.data as { h5_url?: string }).h5_url
+          const codeUrl = (response.data as { code_url?: string }).code_url
+          if (h5Url) {
+            window.open(h5Url, '_blank')
+            toast.success(i18next.t('Redirecting to payment page...'))
+            return true
+          }
+          if (codeUrl) {
+            window.open(codeUrl, '_blank')
+            toast.success(i18next.t('WeChat payment QR code opened'))
+            return true
+          }
         }
 
         // Handle non-Stripe payment
-        if (!isStripe && response.data) {
+        if (!isStripe && !isAlipay && !isWechat && response.data) {
           const url = (response as unknown as { url?: string }).url
           if (url) {
             submitPaymentForm(url, response.data)

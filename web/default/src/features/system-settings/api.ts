@@ -20,6 +20,10 @@ import { api } from '@/lib/api'
 import type {
   ConfirmPaymentComplianceResponse,
   DeleteLogsResponse,
+  PaymentConfig,
+  PaymentConfigProvider,
+  PaymentConfigResponse,
+  PaymentConfigsResponse,
   FetchUpstreamRatiosRequest,
   SystemOptionsResponse,
   UpdateOptionRequest,
@@ -70,6 +74,33 @@ export async function getUpstreamChannels() {
 export async function fetchUpstreamRatios(request: FetchUpstreamRatiosRequest) {
   const res = await api.post<UpstreamRatiosResponse>(
     '/api/ratio_sync/fetch',
+    request
+  )
+  return res.data
+}
+
+export async function getPaymentConfigs() {
+  const res = await api.get<PaymentConfigsResponse>('/api/payment-config/')
+  return res.data
+}
+
+export async function getPaymentConfigByProvider(
+  provider: PaymentConfigProvider
+) {
+  const res = await api.get<PaymentConfigResponse>(
+    `/api/payment-config/provider/${provider}`
+  )
+  return res.data
+}
+
+export async function createPaymentConfig(request: PaymentConfig) {
+  const res = await api.post<PaymentConfigResponse>('/api/payment-config/', request)
+  return res.data
+}
+
+export async function updatePaymentConfig(id: number, request: PaymentConfig) {
+  const res = await api.put<PaymentConfigResponse>(
+    `/api/payment-config/${id}`,
     request
   )
   return res.data

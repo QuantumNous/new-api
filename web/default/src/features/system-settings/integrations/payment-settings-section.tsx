@@ -20,7 +20,7 @@ import * as React from 'react'
 import * as z from 'zod'
 import { useForm, type Resolver } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Code2, Eye, ShieldAlert } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -46,7 +46,13 @@ import { Separator } from '@/components/ui/separator'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import { RiskAcknowledgementDialog } from '@/components/risk-acknowledgement-dialog'
-import { confirmPaymentCompliance } from '../api'
+import {
+  confirmPaymentCompliance,
+  createPaymentConfig,
+  getPaymentConfigByProvider,
+  getPaymentConfigs,
+  updatePaymentConfig,
+} from '../api'
 import {
   SettingsForm,
   SettingsSwitchContent,
@@ -72,6 +78,11 @@ import {
   type WaffoPancakeBinding,
   type WaffoPancakeSettingsValues,
 } from './waffo-pancake-settings-section'
+import type {
+  PaymentConfig,
+  PaymentConfigProvider,
+} from '../types'
+import { PaymentConfigDialog } from './payment-config-dialog'
 import {
   type PayMethod,
   WaffoSettingsSection,
@@ -241,6 +252,43 @@ export function PaymentSettingsSection({
       storeID: waffoPancakeProvisionedStoreID ?? '',
       productID: waffoPancakeProvisionedProductID ?? '',
     })
+  const [paymentConfigDialogOpen, setPaymentConfigDialogOpen] =
+    React.useState(false)
+  const [currentPaymentProvider, setCurrentPaymentProvider] =
+    React.useState<PaymentConfigProvider>('alipay')
+  const [editingPaymentConfig, setEditingPaymentConfig] =
+    React.useState<PaymentConfig | null>(null)
+
+  const { data: paymentConfigs = [], refetch: refetchPaymentConfigs } = useQuery({
+    queryKey: ['payment-configs'],
+    queryFn: async () => {
+      const response = await getPaymentConfigs()
+      return response.success ? response.data || [] : []
+    },
+  })
+
+  const createPaymentConfigMutation = useMutation({
+    mutationFn: createPaymentConfig,
+    onSuccess: () => {
+      toast.success(t('Payment configuration saved successfully'))
+      refetchPaymentConfigs()
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || t('Failed to save payment configuration'))
+    },
+  })
+
+  const updatePaymentConfigMutation = useMutation({
+    mutationFn: ({ id, data }: { id: number; data: PaymentConfig }) =>
+      updatePaymentConfig(id, data),
+    onSuccess: () => {
+      toast.success(t('Payment configuration saved successfully'))
+      refetchPaymentConfigs()
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || t('Failed to save payment configuration'))
+    },
+  })
 
   React.useEffect(() => {
     setWaffoPayMethods(parseWaffoPayMethods(waffoDefaultValues.WaffoPayMethods))
@@ -779,6 +827,7 @@ export function PaymentSettingsSection({
   }
 
   return (
+    <>
     <SettingsSection title={t('Payment Gateway')}>
       {!complianceConfirmed ? (
         <Alert variant='destructive' className='mb-6'>
@@ -1185,6 +1234,96 @@ export function PaymentSettingsSection({
 
           <div className='space-y-4'>
             <div>
+              <h3 className='text-lg font-medium'>
+                {t('Alipay and WeChat Pay Gateways')}
+              </h3>
+              <p className='text-muted-foreground text-sm'>
+                {t(
+                  'Configure native payment gateways for wallet recharge and subscription purchase.'
+                )}
+              </p>
+            </div>
+            <div className='grid gap-3 md:grid-cols-2'>
+              {(
+                [
+                  {
+                    provider: 'alipay' as const,
+                    title: t('Alipay'),
+                    description: t('Website and mobile web payment'),
+                  },
+                  {
+                    provider: 'wxpay' as const,
+                    title: t('WeChat Pay'),
+                    description: t('Native QR code and H5 payment'),
+                  },
+                ] satisfies Array<{
+                  provider: PaymentConfigProvider
+                  title: string
+                  description: string
+                }>
+              ).map((item) => {
+                const config = paymentConfigs.find(
+                  (candidate) => candidate.provider === item.provider
+                )
+                return (
+                  <div
+                    key={item.provider}
+                    className='rounded-lg border p-4 space-y-3'
+                  >
+                    <div className='flex items-start justify-between gap-3'>
+                      <div>
+                        <div className='font-medium'>{item.title}</div>
+                        <div className='text-muted-foreground text-sm'>
+                          {item.description}
+                        </div>
+                      </div>
+                      <span
+                        className={cn(
+                          'rounded-full px-2 py-0.5 text-xs',
+                          config?.enabled
+                            ? 'bg-green-100 text-green-700 dark:bg-green-950 dark:text-green-300'
+                            : 'bg-muted text-muted-foreground'
+                        )}
+                      >
+                        {config?.enabled ? t('Enabled') : t('Disabled')}
+                      </span>
+                    </div>
+                    <div className='text-muted-foreground text-xs'>
+                      {config
+                        ? t('Configured as {{name}}', {
+                            name: config.display_name || config.name,
+                          })
+                        : t('Not configured')}
+                    </div>
+                    <Button
+                      type='button'
+                      variant='outline'
+                      size='sm'
+                      onClick={async () => {
+                        setCurrentPaymentProvider(item.provider)
+                        try {
+                          const response = await getPaymentConfigByProvider(
+                            item.provider
+                          )
+                          setEditingPaymentConfig(response.data || null)
+                        } catch {
+                          setEditingPaymentConfig(null)
+                        }
+                        setPaymentConfigDialogOpen(true)
+                      }}
+                    >
+                      {t('Configure')}
+                    </Button>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+
+          <Separator />
+
+          <div className='space-y-4'>
+            <div>
               <h3 className='text-lg font-medium'>{t('Stripe Gateway')}</h3>
               <p className='text-muted-foreground text-sm'>
                 {t('Configuration for Stripe payment integration')}
@@ -1534,5 +1673,22 @@ export function PaymentSettingsSection({
         </SettingsForm>
       </Form>
     </SettingsSection>
+    <PaymentConfigDialog
+      open={paymentConfigDialogOpen}
+      onOpenChange={setPaymentConfigDialogOpen}
+      provider={currentPaymentProvider}
+      editData={editingPaymentConfig}
+      onSave={async (config) => {
+        if (config.id) {
+          await updatePaymentConfigMutation.mutateAsync({
+            id: config.id,
+            data: config,
+          })
+        } else {
+          await createPaymentConfigMutation.mutateAsync(config)
+        }
+      }}
+    />
+    </>
   )
 }

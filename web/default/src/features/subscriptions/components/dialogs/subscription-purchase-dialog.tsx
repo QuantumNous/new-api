@@ -44,7 +44,9 @@ import { GroupBadge } from '@/components/group-badge'
 import {
   paySubscriptionStripe,
   paySubscriptionCreem,
+  paySubscriptionAlipay,
   paySubscriptionEpay,
+  paySubscriptionWechat,
   paySubscriptionWaffoPancake,
   paySubscriptionBalance,
 } from '../../api'
@@ -78,8 +80,11 @@ export function SubscriptionPurchaseDialog(props: Props) {
   const [selectedEpayMethod, setSelectedEpayMethod] = useState('')
 
   useEffect(() => {
-    if (props.open && props.epayMethods && props.epayMethods.length > 0) {
-      setSelectedEpayMethod(props.epayMethods[0].type)
+    const epayMethod = (props.epayMethods || []).find(
+      (m) => !m.type?.startsWith('alipay_') && !m.type?.startsWith('wxpay_')
+    )
+    if (props.open && epayMethod) {
+      setSelectedEpayMethod(epayMethod.type)
     } else if (!props.open) {
       setSelectedEpayMethod('')
     }
@@ -92,9 +97,21 @@ export function SubscriptionPurchaseDialog(props: Props) {
   const hasCreem = props.enableCreem && !!plan.creem_product_id
   const hasWaffoPancake =
     props.enableWaffoPancake && !!plan.waffo_pancake_product_id
+  const alipayMethod = (props.epayMethods || []).find((m) =>
+    m.type?.startsWith('alipay_')
+  )
+  const wechatMethod = (props.epayMethods || []).find((m) =>
+    m.type?.startsWith('wxpay_')
+  )
+  const hasAlipay = props.enableOnlineTopUp && !!alipayMethod
+  const hasWechat = props.enableOnlineTopUp && !!wechatMethod
   const hasEpay =
-    props.enableOnlineTopUp && (props.epayMethods || []).length > 0
-  const hasAnyPayment = hasStripe || hasCreem || hasWaffoPancake || hasEpay
+    props.enableOnlineTopUp &&
+    (props.epayMethods || []).some(
+      (m) => !m.type?.startsWith('alipay_') && !m.type?.startsWith('wxpay_')
+    )
+  const hasAnyPayment =
+    hasStripe || hasCreem || hasWaffoPancake || hasEpay || hasAlipay || hasWechat
   const selectedEpayMethodLabel =
     (props.epayMethods || []).find((m) => m.type === selectedEpayMethod)
       ?.name ||
@@ -217,6 +234,58 @@ export function SubscriptionPurchaseDialog(props: Props) {
         form.submit()
         document.body.removeChild(form)
         toast.success(t('Payment initiated'))
+        props.onOpenChange(false)
+      } else {
+        toast.error(
+          res.message && res.message !== 'success'
+            ? res.message
+            : t('Payment request failed')
+        )
+      }
+    } catch {
+      toast.error(t('Payment request failed'))
+    } finally {
+      setPaying(false)
+    }
+  }
+
+  const handlePayAlipay = async () => {
+    if (!alipayMethod) return
+    setPaying(true)
+    try {
+      const res = await paySubscriptionAlipay({
+        plan_id: plan.id,
+        payment_method: alipayMethod.type,
+      })
+      if (res.message === 'success' && res.data?.pay_url) {
+        window.open(res.data.pay_url, '_blank')
+        toast.success(t('Payment page opened'))
+        props.onOpenChange(false)
+      } else {
+        toast.error(
+          res.message && res.message !== 'success'
+            ? res.message
+            : t('Payment request failed')
+        )
+      }
+    } catch {
+      toast.error(t('Payment request failed'))
+    } finally {
+      setPaying(false)
+    }
+  }
+
+  const handlePayWechat = async () => {
+    if (!wechatMethod) return
+    setPaying(true)
+    try {
+      const res = await paySubscriptionWechat({
+        plan_id: plan.id,
+        payment_method: wechatMethod.type,
+      })
+      if (res.message === 'success' && (res.data?.h5_url || res.data?.code_url)) {
+        window.open(res.data.h5_url || res.data.code_url, '_blank')
+        toast.success(t('Payment page opened'))
         props.onOpenChange(false)
       } else {
         toast.error(
@@ -402,11 +471,35 @@ export function SubscriptionPurchaseDialog(props: Props) {
                   )}
                 </div>
               )}
+              {(hasAlipay || hasWechat) && (
+                <div className='grid grid-cols-2 gap-2 sm:flex'>
+                  {hasAlipay && (
+                    <Button
+                      variant='outline'
+                      className='flex-1'
+                      onClick={handlePayAlipay}
+                      disabled={paying || limitReached}
+                    >
+                      {alipayMethod?.name || t('Alipay')}
+                    </Button>
+                  )}
+                  {hasWechat && (
+                    <Button
+                      variant='outline'
+                      className='flex-1'
+                      onClick={handlePayWechat}
+                      disabled={paying || limitReached}
+                    >
+                      {wechatMethod?.name || t('WeChat Pay')}
+                    </Button>
+                  )}
+                </div>
+              )}
               {hasEpay && (
                 <div className='grid grid-cols-[minmax(0,1fr)_auto] gap-2'>
                   <Select
                     items={[
-                      ...(props.epayMethods || []).map((m) => ({
+                      ...(props.epayMethods || []).filter((m) => !m.type?.startsWith('alipay_') && !m.type?.startsWith('wxpay_')).map((m) => ({
                         value: m.type,
                         label: m.name || m.type,
                       })),
@@ -422,7 +515,7 @@ export function SubscriptionPurchaseDialog(props: Props) {
                     </SelectTrigger>
                     <SelectContent alignItemWithTrigger={false}>
                       <SelectGroup>
-                        {(props.epayMethods || []).map((m) => (
+                        {(props.epayMethods || []).filter((m) => !m.type?.startsWith('alipay_') && !m.type?.startsWith('wxpay_')).map((m) => (
                           <SelectItem key={m.type} value={m.type}>
                             {m.name || m.type}
                           </SelectItem>
