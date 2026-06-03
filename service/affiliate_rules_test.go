@@ -39,6 +39,96 @@ func TestSaveAffiliateRuleSetDraftPersistsConfigAndAudit(t *testing.T) {
 	}
 }
 
+func TestSaveAffiliateRuleSetDraftRejectsPublishedOrArchivedOverwrite(t *testing.T) {
+	db := newAffiliateStoreTestDB(t)
+
+	publishedDraft, err := SaveAffiliateRuleSetDraft(db, newAffiliateRuleSetDraftInput("rules-published-immutable"))
+	if err != nil {
+		t.Fatalf("save published seed draft: %v", err)
+	}
+	published, err := PublishAffiliateRuleSet(db, publishedDraft.Id, AffiliateRuleSetStatusInput{
+		ActorUserId: 1,
+		Reason:      "publish immutable seed",
+	})
+	if err != nil {
+		t.Fatalf("publish seed draft: %v", err)
+	}
+
+	archivedDraft, err := SaveAffiliateRuleSetDraft(db, newAffiliateRuleSetDraftInput("rules-archived-immutable"))
+	if err != nil {
+		t.Fatalf("save archived seed draft: %v", err)
+	}
+	archived, err := ArchiveAffiliateRuleSet(db, archivedDraft.Id, AffiliateRuleSetStatusInput{
+		ActorUserId: 1,
+		Reason:      "archive immutable seed",
+	})
+	if err != nil {
+		t.Fatalf("archive seed draft: %v", err)
+	}
+
+	tests := []struct {
+		name      string
+		input     AffiliateRuleSetDraftInput
+		wantError string
+	}{
+		{
+			name: "published id overwrite",
+			input: func() AffiliateRuleSetDraftInput {
+				input := newAffiliateRuleSetDraftInput("rules-published-immutable-id")
+				input.Id = published.Id
+				return input
+			}(),
+			wantError: "only draft affiliate rule set can be edited",
+		},
+		{
+			name:      "published version overwrite",
+			input:     newAffiliateRuleSetDraftInput(published.Version),
+			wantError: "affiliate rule set version already exists",
+		},
+		{
+			name: "archived id overwrite",
+			input: func() AffiliateRuleSetDraftInput {
+				input := newAffiliateRuleSetDraftInput("rules-archived-immutable-id")
+				input.Id = archived.Id
+				return input
+			}(),
+			wantError: "only draft affiliate rule set can be edited",
+		},
+		{
+			name:      "archived version overwrite",
+			input:     newAffiliateRuleSetDraftInput(archived.Version),
+			wantError: "affiliate rule set version already exists",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := SaveAffiliateRuleSetDraft(db, tt.input)
+			if err == nil {
+				t.Fatalf("expected immutable rule set overwrite error containing %q", tt.wantError)
+			}
+			if !strings.Contains(err.Error(), tt.wantError) {
+				t.Fatalf("expected error containing %q, got %v", tt.wantError, err)
+			}
+		})
+	}
+
+	var unchanged model.AffiliateRuleSet
+	if err := db.Where("id = ?", published.Id).First(&unchanged).Error; err != nil {
+		t.Fatalf("query published rule set: %v", err)
+	}
+	if unchanged.Status != model.AffiliateRuleSetStatusPublished || unchanged.Version != published.Version {
+		t.Fatalf("published rule set should remain immutable, got %+v", unchanged)
+	}
+	unchanged = model.AffiliateRuleSet{}
+	if err := db.Where("id = ?", archived.Id).First(&unchanged).Error; err != nil {
+		t.Fatalf("query archived rule set: %v", err)
+	}
+	if unchanged.Status != model.AffiliateRuleSetStatusArchived || unchanged.Version != archived.Version {
+		t.Fatalf("archived rule set should remain immutable, got %+v", unchanged)
+	}
+}
+
 func TestSaveAffiliateRuleSetDraftValidatesBusinessBounds(t *testing.T) {
 	tests := []struct {
 		name      string

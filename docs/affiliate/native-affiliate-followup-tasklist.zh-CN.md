@@ -399,5 +399,15 @@
 - i18n：补齐 default en/fr/ja/ru/vi/zh 6 个 locale 的覆盖保存确认文案；`cd web/default && bun run i18n:sync` 后报告显示全部 locale 的 missing/extras/untranslated 均为 0，且新增 key 在 6 个 locale 中均存在。
 - 验证命令：先观察 `cd web/default && bun test src/features/affiliate/admin-lib.test.ts` 和 `bun test web/classic/src/pages/AffiliateAdmin/affiliateAdminRules.test.mjs` RED，失败原因均为 `buildAffiliateRuleSetSaveConfirmation` 未导出；实现后 `cd web/default && bun test src/features/affiliate/admin-lib.test.ts src/features/affiliate/rule-array-editor.test.ts` 通过，22 pass；`bun test web/classic/src/pages/AffiliateAdmin/affiliateAdminRules.test.mjs` 通过，12 pass。
 - 构建验证：`cd web/default && bun run build` 通过；`cd web/classic && bun run build` 通过。
-- 残留风险：本轮未做浏览器级保存点击 smoke，覆盖确认由 helper 测试、页面保存流程接入和构建验证覆盖；规则回滚二次确认仍未实现；后端 published/archived 不可变保护当前已有基础检查但缺少专门测试。
-- 下一步：补后端 published/archived 不可变保护专门测试，或推进规则回滚能力/确认；也可转入 `affiliate_job_runs` 可恢复 cursor/progress。
+- 残留风险：本轮未做浏览器级保存点击 smoke，覆盖确认由 helper 测试、页面保存流程接入和构建验证覆盖；规则回滚二次确认仍未实现。
+- 下一步：推进规则回滚能力/确认，或转入 `affiliate_job_runs` 可恢复 cursor/progress。
+
+## P1-19 后端规则不可变保护测试复盘（2026-06-04 本线程）
+
+- 完成内容：补充 service 层专门测试 `TestSaveAffiliateRuleSetDraftRejectsPublishedOrArchivedOverwrite`，覆盖 published 与 archived 规则集不能按 `id` 覆盖保存，也不能按相同 `version` 覆盖保存。
+- 完成内容：测试同时确认拒绝覆盖后 published/archived 规则集的状态和版本仍保持不变，避免前端只读保护被绕过后污染已发布或已归档版本。
+- 实现说明：生产 service 当前已有基础不可变保护，按 `id` 保存仅允许 `draft`，按 `version` 保存遇到非 draft 会拒绝；本轮未改生产逻辑，只补专门回归测试。
+- 验证命令：`go test -count=1 ./service -run "TestSaveAffiliateRuleSetDraftRejectsPublishedOrArchivedOverwrite|TestSaveAffiliateRuleSetDraftPersistsConfigAndAudit|TestPublishAffiliateRuleSetArchivesPreviousPublished|TestArchiveAffiliateRuleSetSetsArchivedAndAudits"` 通过。
+- 回归验证：`go test -count=1 ./service -run "AffiliateRuleSet|RuleSet"` 通过；`go test -count=1 ./controller -run "AffiliateRuleSet|AdminSaveAffiliateRuleSetDraft|AdminPublishAffiliateRuleSet|AdminListAffiliateRuleSets"` 通过。
+- 残留风险：后端尚无单独“回滚”能力与二次确认链路；如果后续新增 rollback endpoint，需要同步补状态机、审计和不可变版本测试。
+- 下一步：继续规则回滚能力/确认，或推进 `affiliate_job_runs` 可恢复 cursor/progress。
