@@ -158,6 +158,29 @@ func TestCompleteSubscriptionOrder_RejectsMismatchedPaymentProvider(t *testing.T
 	assert.Nil(t, topUp)
 }
 
+func TestCompleteSubscriptionOrder_RecordsProviderAndActualPaymentMethod(t *testing.T) {
+	truncateTables(t)
+
+	insertUserForPaymentGuardTest(t, 204, 0)
+	plan := insertSubscriptionPlanForPaymentGuardTest(t, 304)
+	insertSubscriptionOrderForPaymentGuardTest(t, "sub-provider-audit", 204, plan.Id, PaymentProviderEpay)
+
+	err := CompleteSubscriptionOrder("sub-provider-audit", `{"provider":"epay"}`, PaymentProviderEpay, "alipay")
+	require.NoError(t, err)
+
+	order := GetSubscriptionOrderByTradeNo("sub-provider-audit")
+	require.NotNil(t, order)
+	assert.Equal(t, common.TopUpStatusSuccess, order.Status)
+	assert.Equal(t, "alipay", order.PaymentMethod)
+	assert.Equal(t, PaymentProviderEpay, order.PaymentProvider)
+
+	topUp := GetTopUpByTradeNo("sub-provider-audit")
+	require.NotNil(t, topUp)
+	assert.Equal(t, common.TopUpStatusSuccess, topUp.Status)
+	assert.Equal(t, "alipay", topUp.PaymentMethod)
+	assert.Equal(t, PaymentProviderEpay, topUp.PaymentProvider)
+}
+
 func TestExpireSubscriptionOrder_RejectsMismatchedPaymentProvider(t *testing.T) {
 	truncateTables(t)
 
