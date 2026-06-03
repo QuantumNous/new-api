@@ -382,6 +382,37 @@ func TestNotifyDingTalkFailureSharesCooldownThroughDatabase(t *testing.T) {
 	require.Equal(t, int32(1), atomic.LoadInt32(&requests))
 }
 
+func TestReserveDingTalkAlertCooldownAfterCreateConflictUsesExistingRecord(t *testing.T) {
+	originalDB := model.DB
+	t.Cleanup(func() {
+		model.DB = originalDB
+	})
+
+	db, err := gorm.Open(sqlite.Open("file:dingtalk-alert-create-conflict?mode=memory&cache=shared"), &gorm.Config{})
+	require.NoError(t, err)
+	sqlDB, err := db.DB()
+	require.NoError(t, err)
+	sqlDB.SetMaxOpenConns(1)
+	require.NoError(t, db.AutoMigrate(&model.DingTalkAlertCooldownRecord{}))
+	model.DB = db
+
+	now := time.Date(2026, 6, 2, 13, 0, 0, 0, time.UTC)
+	require.NoError(t, db.Create(&model.DingTalkAlertCooldownRecord{
+		ChannelID: 32,
+		LastAt:    now.UnixMilli(),
+	}).Error)
+
+	var reservation *dingTalkAlertCooldownReservation
+	allowed := true
+	err = db.Transaction(func(tx *gorm.DB) error {
+		return reserveDingTalkAlertCooldownAfterCreateConflict(tx, 32, now.Add(5*time.Second), time.Hour, &reservation, &allowed)
+	})
+
+	require.NoError(t, err)
+	require.False(t, allowed)
+	require.Nil(t, reservation)
+}
+
 func allowDingTalkTestServer(t *testing.T) {
 	t.Helper()
 

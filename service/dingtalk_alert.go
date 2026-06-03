@@ -173,7 +173,11 @@ func reserveDingTalkAlertCooldownDB(channelID int, now time.Time, cooldown time.
 				ChannelID: channelID,
 				LastAt:    now.UnixMilli(),
 			}
-			if err := tx.Create(&record).Error; err != nil {
+			result := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&record)
+			if result.Error != nil {
+				return result.Error
+			}
+			if result.RowsAffected == 0 {
 				return reserveDingTalkAlertCooldownAfterCreateConflict(tx, channelID, now, cooldown, &reservation, &allowed)
 			}
 			reservation = &dingTalkAlertCooldownReservation{
