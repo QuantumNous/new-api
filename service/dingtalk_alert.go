@@ -150,7 +150,7 @@ func reserveDingTalkAlertCooldown(channelID int, now time.Time, cooldown time.Du
 	dbReservation, allowed, err := model.ReserveDingTalkAlertCooldown(channelID, cooldown, dingTalkAlertPendingReservationTTL, reservationToken)
 	if err != nil {
 		common.SysError("failed to reserve dingtalk alert cooldown in database: " + err.Error())
-		return nil, false
+		return dingTalkAlertCooldown.reserve(channelID, now, cooldown)
 	}
 	if !allowed || dbReservation == nil {
 		return nil, allowed

@@ -4,6 +4,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/QuantumNous/new-api/common"
 	"github.com/glebarez/sqlite"
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
@@ -88,4 +89,24 @@ func TestDingTalkAlertCooldownStalePendingReservationDoesNotConsumeCooldown(t *t
 	require.NoError(t, err)
 	require.True(t, allowed)
 	require.NotNil(t, retryReservation)
+}
+
+func TestMigrateDBFastCreatesDingTalkAlertCooldownTable(t *testing.T) {
+	originalDB := DB
+	originalUsingSQLite := common.UsingSQLite
+	t.Cleanup(func() {
+		DB = originalDB
+		common.UsingSQLite = originalUsingSQLite
+	})
+
+	db, err := gorm.Open(sqlite.Open("file:dingtalk-fast-migrate?mode=memory&cache=shared"), &gorm.Config{})
+	require.NoError(t, err)
+	sqlDB, err := db.DB()
+	require.NoError(t, err)
+	sqlDB.SetMaxOpenConns(1)
+	DB = db
+	common.UsingSQLite = true
+
+	require.NoError(t, migrateDBFast())
+	require.True(t, db.Migrator().HasTable(&DingTalkAlertCooldownRecord{}))
 }

@@ -202,14 +202,14 @@ type NormalizedMonitoringValues = {
 function serializeOptionValue(
   key: keyof NormalizedMonitoringValues,
   value: NormalizedMonitoringValues[keyof NormalizedMonitoringValues]
-) {
+): string | boolean | number {
   if (
     key === 'monitor_setting.auto_test_channel_allowed_types' ||
     key === 'monitor_setting.auto_test_channel_ignored_types'
   ) {
     return JSON.stringify(value)
   }
-  return value
+  return value as string | boolean | number
 }
 
 function areMonitoringValuesEqual(

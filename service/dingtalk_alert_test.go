@@ -495,12 +495,17 @@ func TestNotifyDingTalkFailureDatabaseCooldownUsesDatabaseTime(t *testing.T) {
 	require.Less(t, record.LastAt, time.Now().Add(time.Minute).UnixMilli())
 }
 
-func TestReserveDingTalkAlertCooldownFailsClosedWhenDatabaseReservationErrors(t *testing.T) {
+func TestNotifyDingTalkFailureFallsBackToLocalCooldownWhenDatabaseReservationErrors(t *testing.T) {
+	allowDingTalkTestServer(t)
+	originalSetting := *operation_setting.GetMonitorSetting()
 	originalDB := model.DB
 	originalCooldown := dingTalkAlertCooldown
+	originalHTTPClient := httpClient
 	t.Cleanup(func() {
+		*operation_setting.GetMonitorSetting() = originalSetting
 		model.DB = originalDB
 		dingTalkAlertCooldown = originalCooldown
+		httpClient = originalHTTPClient
 	})
 
 	db, err := gorm.Open(sqlite.Open("file:dingtalk-alert-closed-db?mode=memory&cache=shared"), &gorm.Config{})
@@ -511,11 +516,33 @@ func TestReserveDingTalkAlertCooldownFailsClosedWhenDatabaseReservationErrors(t 
 	model.DB = db
 	dingTalkAlertCooldown = NewDingTalkAlertCooldown()
 
-	reservation, allowed := reserveDingTalkAlertCooldown(32, time.Date(2026, 6, 2, 13, 0, 0, 0, time.UTC), time.Hour)
+	var requests int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		atomic.AddInt32(&requests, 1)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"errcode":0,"errmsg":"ok"}`))
+	}))
+	defer server.Close()
 
-	require.False(t, allowed)
-	require.Nil(t, reservation)
-	require.True(t, dingTalkAlertCooldown.Allow(32, time.Date(2026, 6, 2, 13, 0, 0, 0, time.UTC), time.Hour))
+	httpClient = server.Client()
+	setting := operation_setting.GetMonitorSetting()
+	setting.DingTalkAlertEnabled = true
+	setting.DingTalkAlertWebhookURL = server.URL
+	setting.DingTalkAlertSecret = ""
+	setting.DingTalkAlertCooldownMinutes = 60
+
+	alert := DingTalkChannelAlert{
+		ChannelID:       32,
+		ChannelName:     "codex-prod",
+		ChannelTypeName: "Codex",
+		Error:           types.NewErrorWithStatusCode(errors.New("401"), types.ErrorCodeBadResponse, http.StatusUnauthorized),
+		Now:             time.Date(2026, 6, 2, 13, 0, 0, 0, time.UTC),
+	}
+
+	require.NoError(t, NotifyDingTalkChannelTestFailure(alert))
+	alert.Now = alert.Now.Add(5 * time.Second)
+	require.NoError(t, NotifyDingTalkChannelTestFailure(alert))
+	require.Equal(t, int32(1), atomic.LoadInt32(&requests))
 }
 
 func allowDingTalkTestServer(t *testing.T) {

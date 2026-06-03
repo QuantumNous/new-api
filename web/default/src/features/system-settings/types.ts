@@ -31,7 +31,7 @@ export type SystemOptionsResponse = {
 
 export type UpdateOptionRequest = {
   key: string
-  value: string | boolean | number | unknown[]
+  value: string | boolean | number
 }
 
 export type UpdateOptionResponse = {
