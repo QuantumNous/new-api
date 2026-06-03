@@ -315,73 +315,27 @@ function ChannelPanel(props: { row: CodexLimitReportRow }) {
   )
 }
 
-function buildPreviewRow(t: (key: string) => string): CodexLimitReportRow {
-  return {
-    channel_id: -1,
-    channel_name: t('Layout Preview'),
-    channel_status: 1,
-    range_token_used: 1284000,
-    range_quota: 48250,
-    success: true,
-    upstream_status: 200,
-    plan_type: 'team',
-    email: t('Preview Account'),
-    allowed: true,
-    limit_reached: false,
-    base_five_hour_window: {
-      used_percent: 42.5,
-      reset_after_seconds: 7200,
-      limit_window_seconds: 18000,
-    },
-    base_weekly_window: {
-      used_percent: 68.2,
-      reset_after_seconds: 172800,
-      limit_window_seconds: 604800,
-    },
-    additional_limits: [
-      {
-        name: 'gpt-5.3-codex',
-        metered_feature: 'responses',
-        five_hour_window: {
-          used_percent: 31.4,
-          reset_after_seconds: 3600,
-          limit_window_seconds: 18000,
-        },
-        weekly_window: {
-          used_percent: 74.8,
-          reset_after_seconds: 259200,
-          limit_window_seconds: 604800,
-        },
-      },
-    ],
-  }
-}
-
 function CodexChannelTabs(props: { rows: CodexLimitReportRow[] }) {
   const { t } = useTranslation()
   const [activeChannel, setActiveChannel] = useState('')
-  const tabRows = useMemo(
-    () => [...props.rows, buildPreviewRow(t)],
-    [props.rows, t]
-  )
 
   useEffect(() => {
-    if (tabRows.length === 0) {
+    if (props.rows.length === 0) {
       setActiveChannel('')
       return
     }
-    const currentExists = tabRows.some(
+    const currentExists = props.rows.some(
       (row) => String(row.channel_id) === activeChannel
     )
     if (!currentExists) {
-      setActiveChannel(String(tabRows[0].channel_id))
+      setActiveChannel(String(props.rows[0].channel_id))
     }
-  }, [tabRows, activeChannel])
+  }, [props.rows, activeChannel])
 
   return (
     <Tabs value={activeChannel} onValueChange={setActiveChannel} className='gap-3'>
       <TabsList className='max-w-full flex-wrap justify-start group-data-horizontal/tabs:h-auto'>
-        {tabRows.map((row) => (
+        {props.rows.map((row) => (
           <TabsTrigger
             key={row.channel_id}
             value={String(row.channel_id)}
@@ -404,7 +358,7 @@ function CodexChannelTabs(props: { rows: CodexLimitReportRow[] }) {
           {t('No Codex channels found')}
         </div>
       )}
-      {tabRows.map((row) => (
+      {props.rows.map((row) => (
         <TabsContent key={row.channel_id} value={String(row.channel_id)}>
           <ChannelPanel row={row} />
         </TabsContent>
