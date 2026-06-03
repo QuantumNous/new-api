@@ -110,9 +110,9 @@
 
 - [x] 复核 `service/affiliate_summary.go` 的有效新用户统计，避免只按 invite event 简单计数而没有套用飞书有效用户门槛。（2026-06-04 已修复 dashboard summary：无 published 规则时不把 invite 直接计为有效；有规则时按同层级人头费规则的首充、14 天 paid 净消耗、无退款/异常条件判定。）
 - [x] 复核 dashboard 的净消耗统计，确保只统计 paid 净付费消耗并正确扣除退款，不把赠金、试用、legacy_unknown 或异常流量算入业绩。（2026-06-04 已修复 `service/affiliate_summary.go`，dashboard 净消耗改为按 cursor 扫描日志并只累计 paid attribution，同时跳过 abnormal 流量。）
-- [ ] 分销商端 dashboard 保持卡片、趋势图、关系树和明细表组合，不建议全部表格化。
-- [ ] 管理端指标配置和结算审核更适合表格化，分销商端看板更适合“摘要卡片 + 趋势 + 表格明细”。
-- [ ] default/classic 都要显示 RMB 主单位，必要时 raw quota 只作为调试或附加列，不作为主要展示。
+- [x] 分销商端 dashboard 保持卡片、趋势图、关系树和明细表组合，不建议全部表格化。（2026-06-04 已审计 classic/default 分销商页：当前为摘要卡片 + 推广关系树 + scoped logs 明细表组合，不把看板整体表格化；趋势图仍待后续数据接口与 UI 设计补齐。）
+- [x] 管理端指标配置和结算审核更适合表格化，分销商端看板更适合“摘要卡片 + 趋势 + 表格明细”。（2026-06-04 已确认前期规则配置已表格化，default rule-array-editor 与 admin finance helper 测试覆盖表格字段和人民币/百分比单位；结算审核完整表格 UI 继续按管理端 finance 后续任务推进。）
+- [x] default/classic 都要显示 RMB 主单位，必要时 raw quota 只作为调试或附加列，不作为主要展示。（2026-06-04 已审计：classic dashboard card 使用 `net_consumption_rmb` 为主值、raw quota 为描述；default scoped logs 使用 RMB 单元格、raw quota 仅在 title/CSV 附加列。）
 
 ## 10. 手机号/SMS 后续
 
@@ -299,3 +299,15 @@
 - 回归验证：`go test -count=1 ./service -run "AffiliateDashboardSummary|Affiliate(Commission|KPI|HeadFee|Settlement)"` 通过；`go test -count=1 ./controller -run "TestGetAffiliateSummaryReturnsScopedDashboard|TestGetAffiliateScopedLogs|TestGetAffiliateStatus"` 通过；`git diff --check` 通过。
 - 残留风险：本轮只修 dashboard summary；`service/affiliate_kpi.go` 的 KPI snapshot 有效新用户仍按 invite event 去重，后续需要结合 KPI 最终档位规则单独审计，避免影响结算口径时缺少更完整验收。
 - 下一步：继续复核 KPI 有效用户、dashboard 前端 RMB 主单位和 default/classic 展示一致性。
+
+## P1-12 dashboard 前端展示与 RMB 主单位复盘（2026-06-04 本线程）
+
+- 完成内容：按项目 `.agents/skills/classic-to-default-sync`、`i18n-translate`、`shadcn-ui` 规则审计 classic/default；本轮未新增 UI 文案，故无需 i18n sync 或 shadcn 组件变更。
+- 评估结论：分销商端不应整体表格化；当前 classic `/console/affiliate` 和 default `/affiliate` 都保持摘要卡片、推广关系树和 scoped logs 明细表组合，符合“卡片 + 树 + 表格明细”方向。
+- 评估结论：管理端规则与指标配置适合表格化；现有 classic/default 规则表格和 default rule-array-editor helpers 已覆盖指标字段、人民币与百分比单位转换。结算审核完整表格 UI 仍保留为后续 finance/admin 任务。
+- RMB 结论：classic dashboard card 以 `net_consumption_rmb`、`estimated_commission_rmb`、`head_fee_rmb`、`pending_settlement_rmb` 作为主值；default scoped logs 以 RMB 为单元格主显示，raw quota 只作为 title 或 CSV 附加列。
+- 验证命令：`bun test web/classic/src/pages/Affiliate/affiliateDashboardCards.test.mjs web/classic/src/pages/Affiliate/affiliateViewState.test.mjs web/classic/src/hooks/usage-logs/usageLogsUrls.test.mjs` 通过，9 pass。
+- 验证命令：`cd web/default && bun test src/features/affiliate/lib.test.ts src/features/affiliate/admin-lib.test.ts src/features/affiliate/rule-array-editor.test.ts` 通过，25 pass。
+- 回归验证：`git diff --check` 通过。
+- 残留风险：分销商端趋势图还没有正式数据接口和 UI；管理端结算审核完整表格 UI、规则 import/export/diff/copy previous version 仍待做。
+- 下一步：继续优先处理 KPI snapshot 有效用户口径、规则 import/export/diff，或为 `AdminGenerateAffiliateSettlements` 单独入口补 job run。
