@@ -657,7 +657,7 @@
 - 完成内容：新增 `docs/affiliate/native-affiliate-external-acceptance-runbook.zh-CN.md`，把剩余外部验收拆成服务器 compose 网络内 `pg_dump`、短信宝真实通道 smoke、完整结算周期双跑、灰度启用和外接控制台只读归档五组步骤；每组都明确前置条件、不可记录的敏感字段、脱敏证据和回滚口径。
 - 验证方式：本轮为文档 runbook，不执行外部服务器、真实短信宝或生产灰度操作；通过 tasklist 剩余未完成项反向核对，runbook 已覆盖每个剩余外部验收项；`git status --short` 进入本批前为空。
 - 残留风险：runbook 不能替代真实执行；服务器 SSH/compose 容器信息、短信宝真实配置、外接控制台导出、生产灰度窗口和归档审批仍需用户/运维提供。
-- 下一步：取得外部信息后按 runbook 执行对应验收；如业务决定继续补真实 quota source 写入 hook 或超大规模 scoped export，再进入新的设计/实现批次。
+- 下一步：取得外部信息后按 runbook 执行对应验收；如业务决定继续补任务编排钱包来源 segment 或超大规模 scoped export，再进入新的设计/实现批次。
 
 ## Phase 13：Git 分批提交
 
@@ -681,4 +681,4 @@
 - 完成内容：按 `git log` 与 Phase 复盘核对原生分销本地提交批次，确认文档/基线、PG dump/runbook、dev compose、sidecar/service/thin hook、规则配置、邀请归因/SMS provider、scope/scoped logs、classic 前端、default parity、KPI/佣金/结算、用户管理 `inviter_id` 均已有对应本地 commit 和验证记录。
 - 验证方式：`git log --oneline --reverse --max-count=80` 覆盖从官方基线到 `63c28932 docs: record affiliate rmb browser check` 的本地提交链；`git status --short` 为空；`git check-ignore -v` 确认 runtime RMB smoke 和截图仍被忽略。
 - 残留风险：本收口只确认本地分批提交和本地验证记录，不代表 staging/生产验收；服务器 SSH/compose 容器信息、服务器内 pg_dump、SMS 真通道发送、外接控制台双跑、灰度启用和只读归档仍需外部信息或业务决策。
-- 下一步：等待服务器/短信/灰度/外接控制台相关信息后再做外部验收；如业务决定继续补真实 quota source 写入 hook 或全量 scoped export，再新增对应设计。
+- 下一步：等待服务器/短信/灰度/外接控制台相关信息后再做外部验收；如业务决定继续补任务编排钱包来源 segment 或全量 scoped export，再新增对应设计。
