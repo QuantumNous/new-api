@@ -52,6 +52,12 @@ web/             — Frontend themes container
 - Usage: `useTranslation()` hook, call `t('English key')` in components
 - CLI tools: `bun run i18n:sync` (from `web/default/`)
 
+### Frontend (`web/classic/src/i18n/`)
+- Library: `i18next` + `react-i18next` + `i18next-browser-languagedetector`
+- Languages: en, zh-CN (fallback), zh-TW, fr, ru, ja, vi
+- Translation files: `web/classic/src/i18n/locales/{lang}.json` (+ `locales/custom/{lang}.json`) — keys are **Chinese** source strings; usage `t('中文 key')`
+- **All translations MUST live inside the top-level `translation` object**, e.g. `{ "translation": { "对账管理": "Rapprochement" } }`. `i18n.js` builds resources via `merge(base, custom) => ({ translation: { ...base.translation, ...custom.translation } })`, so any key placed at the JSON top level (outside `translation`) is silently dropped — at runtime it is missing and falls back to `zh-CN`, showing Chinese even after switching language. When adding strings for a new feature, append them inside `translation`, not at the file root.
+
 ## Rules
 
 ### Rule 1: JSON Package — Use `common/json.go`
