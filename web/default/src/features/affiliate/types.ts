@@ -58,6 +58,23 @@ export interface AffiliateSummary {
   rule_status: string
 }
 
+export interface AffiliateTeamTreeNode {
+  user_id: number
+  username?: string
+  affiliate_level?: number
+  parent_user_id?: number
+  direct_inviter_id?: number
+  depth?: number
+  source?: string
+  effective_at?: number
+  children?: AffiliateTeamTreeNode[]
+}
+
+export interface AffiliateTeamTree {
+  items: AffiliateTeamTreeNode[]
+  total: number
+}
+
 export interface AffiliateLogsParams {
   p?: number
   page_size?: number
@@ -67,6 +84,7 @@ export interface AffiliateLogsParams {
   end_timestamp?: number
   model_name?: string
   group?: string
+  token_name?: string
   user_id?: number
   second_level_user_id?: number
 }
@@ -76,6 +94,7 @@ export type AffiliateLog = UsageLog
 export interface AffiliateLogFilters {
   model?: string
   group?: string
+  tokenName?: string
   userId?: string
   secondLevelUserId?: string
   requestStatus?: string
@@ -86,10 +105,12 @@ export interface AffiliateLogFilters {
 export interface AffiliateProfile {
   id: number
   user_id: number
+  username?: string
   level: number
   status: AffiliateStatusValue
   parent_user_id: number
   invite_code: string
+  aff_code?: string
   display_name?: string
   remark?: string
   activated_at?: number
@@ -167,6 +188,7 @@ export interface AffiliateRuleSetDraftFormValues {
   settlementCycle?: string
   freezeDays?: string
   minSettlementAmountCents?: string
+  minSettlementAmountYuan?: string
   manualReviewEnabled?: boolean
   commissionRulesJson?: string
   commissionTiersJson?: string
@@ -310,6 +332,7 @@ export interface AffiliateCommissionAdjustmentFormValues {
   periodStart?: string
   periodEnd?: string
   commissionCents?: string
+  commissionYuan?: string
   reason?: string
 }
 

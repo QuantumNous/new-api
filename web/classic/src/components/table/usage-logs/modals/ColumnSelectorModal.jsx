@@ -35,6 +35,7 @@ const ColumnSelectorModal = ({
   copyText,
   showUserInfoFunc,
   t,
+  isAffiliateScoped,
 }) => {
   const handleBillingDisplayModeChange = (eventOrValue) => {
     setBillingDisplayMode(eventOrValue?.target?.value ?? eventOrValue);
@@ -51,6 +52,7 @@ const ColumnSelectorModal = ({
     copyText,
     showUserInfoFunc,
     isAdminUser,
+    isAffiliateScoped,
     billingDisplayMode,
   });
 
@@ -73,7 +75,9 @@ const ColumnSelectorModal = ({
     >
       <div style={{ marginBottom: 20 }}>
         <div style={{ marginBottom: 16 }}>
-          <div style={{ marginBottom: 8, fontWeight: 600 }}>{t('计费显示模式')}</div>
+          <div style={{ marginBottom: 8, fontWeight: 600 }}>
+            {t('计费显示模式')}
+          </div>
           <RadioGroup
             type='button'
             value={billingDisplayMode}
@@ -106,8 +110,17 @@ const ColumnSelectorModal = ({
           // Skip admin-only columns for non-admin users
           if (
             !isAdminUser &&
+            !isAffiliateScoped &&
             (column.key === COLUMN_KEYS.CHANNEL ||
               column.key === COLUMN_KEYS.USERNAME ||
+              column.key === COLUMN_KEYS.RETRY)
+          ) {
+            return null;
+          }
+          if (
+            isAffiliateScoped &&
+            (column.key === COLUMN_KEYS.CHANNEL ||
+              column.key === COLUMN_KEYS.IP ||
               column.key === COLUMN_KEYS.RETRY)
           ) {
             return null;

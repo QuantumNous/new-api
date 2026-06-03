@@ -540,7 +540,9 @@ export const getLogsColumns = ({
           }
         }
 
-        return isAdminUser &&
+        const canShowChannel = isAdminUser || isAffiliateScoped;
+
+        return canShowChannel &&
           (record.type === 0 ||
             record.type === 2 ||
             record.type === 5 ||
@@ -610,20 +612,23 @@ export const getLogsColumns = ({
       title: t('用户'),
       dataIndex: 'username',
       render: (text, record, index) => {
-        return isAdminUser ? (
+        const displayName = text || `#${record.user_id}`;
+        return isAdminUser || isAffiliateScoped ? (
           <div>
             <Avatar
               size='extra-small'
-              color={stringToColor(text)}
+              color={stringToColor(displayName)}
               style={{ marginRight: 4 }}
               onClick={(event) => {
                 event.stopPropagation();
-                showUserInfoFunc(record.user_id);
+                if (isAdminUser) {
+                  showUserInfoFunc(record.user_id);
+                }
               }}
             >
-              {typeof text === 'string' && text.slice(0, 1)}
+              {typeof displayName === 'string' && displayName.slice(0, 1)}
             </Avatar>
-            {text}
+            {displayName}
           </div>
         ) : (
           <></>
@@ -635,20 +640,25 @@ export const getLogsColumns = ({
       title: t('令牌'),
       dataIndex: 'token_name',
       render: (text, record, index) => {
-        return record.type === 0 ||
+        const tokenLabel =
+          text || (record.token_id ? `#${record.token_id}` : '-');
+        const canShowToken =
+          isAffiliateScoped ||
+          record.type === 0 ||
           record.type === 2 ||
           record.type === 5 ||
-          record.type === 6 ? (
+          record.type === 6;
+        return canShowToken ? (
           <div>
             <Tag
               color='grey'
               shape='circle'
               onClick={(event) => {
-                copyText(event, text);
+                copyText(event, tokenLabel);
               }}
             >
               {' '}
-              {t(text)}{' '}
+              {tokenLabel}{' '}
             </Tag>
           </div>
         ) : (

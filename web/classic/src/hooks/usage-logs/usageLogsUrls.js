@@ -30,6 +30,7 @@ export const buildUsageLogsListUrl = ({
         ['start_timestamp', startTimestamp],
         ['end_timestamp', endTimestamp],
         ['group', values.group],
+        ['token_name', values.token_name],
         ['user_id', values.user_id],
         ['second_level_user_id', values.second_level_user_id],
         ['request_status', values.request_status],

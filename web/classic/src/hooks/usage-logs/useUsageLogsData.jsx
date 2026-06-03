@@ -120,13 +120,27 @@ export const useLogsData = ({ mode = USAGE_LOGS_MODE_DEFAULT } = {}) => {
     logType: '0',
   };
 
+  const enforceAffiliateColumnVisibility = (columns) => {
+    if (!isAffiliateScoped) {
+      return columns;
+    }
+    return {
+      ...columns,
+      [COLUMN_KEYS.CHANNEL]: false,
+      [COLUMN_KEYS.USERNAME]: true,
+      [COLUMN_KEYS.TOKEN]: true,
+      [COLUMN_KEYS.IP]: false,
+      [COLUMN_KEYS.RETRY]: false,
+    };
+  };
+
   // Get default column visibility based on user role
   const getDefaultColumnVisibility = () => {
-    return {
+    return enforceAffiliateColumnVisibility({
       [COLUMN_KEYS.TIME]: true,
-      [COLUMN_KEYS.CHANNEL]: isAdminUser,
-      [COLUMN_KEYS.USERNAME]: isAdminUser,
-      [COLUMN_KEYS.TOKEN]: !isAffiliateScoped,
+      [COLUMN_KEYS.CHANNEL]: isAdminUser && !isAffiliateScoped,
+      [COLUMN_KEYS.USERNAME]: isAdminUser || isAffiliateScoped,
+      [COLUMN_KEYS.TOKEN]: true,
       [COLUMN_KEYS.GROUP]: true,
       [COLUMN_KEYS.TYPE]: true,
       [COLUMN_KEYS.MODEL]: true,
@@ -137,7 +151,7 @@ export const useLogsData = ({ mode = USAGE_LOGS_MODE_DEFAULT } = {}) => {
       [COLUMN_KEYS.RETRY]: isAdminUser,
       [COLUMN_KEYS.IP]: !isAffiliateScoped,
       [COLUMN_KEYS.DETAILS]: true,
-    };
+    });
   };
 
   const getInitialVisibleColumns = () => {
@@ -152,17 +166,12 @@ export const useLogsData = ({ mode = USAGE_LOGS_MODE_DEFAULT } = {}) => {
       const parsed = JSON.parse(savedColumns);
       const merged = { ...defaults, ...parsed };
 
-      if (!isAdminUser) {
+      if (!isAdminUser && !isAffiliateScoped) {
         merged[COLUMN_KEYS.CHANNEL] = false;
         merged[COLUMN_KEYS.USERNAME] = false;
         merged[COLUMN_KEYS.RETRY] = false;
       }
-      if (isAffiliateScoped) {
-        merged[COLUMN_KEYS.TOKEN] = false;
-        merged[COLUMN_KEYS.IP] = false;
-      }
-
-      return merged;
+      return enforceAffiliateColumnVisibility(merged);
     } catch (e) {
       console.error('Failed to parse saved column preferences', e);
       return defaults;
@@ -180,7 +189,9 @@ export const useLogsData = ({ mode = USAGE_LOGS_MODE_DEFAULT } = {}) => {
   };
 
   // Column visibility state
-  const [visibleColumns, setVisibleColumns] = useState(getInitialVisibleColumns);
+  const [visibleColumns, setVisibleColumns] = useState(
+    getInitialVisibleColumns,
+  );
   const [showColumnSelector, setShowColumnSelector] = useState(false);
   const [billingDisplayMode, setBillingDisplayMode] = useState(
     getInitialBillingDisplayMode,
@@ -214,7 +225,10 @@ export const useLogsData = ({ mode = USAGE_LOGS_MODE_DEFAULT } = {}) => {
 
   // Handle column visibility change
   const handleColumnVisibilityChange = (columnKey, checked) => {
-    const updatedColumns = { ...visibleColumns, [columnKey]: checked };
+    const updatedColumns = enforceAffiliateColumnVisibility({
+      ...visibleColumns,
+      [columnKey]: checked,
+    });
     setVisibleColumns(updatedColumns);
   };
 
@@ -228,12 +242,15 @@ export const useLogsData = ({ mode = USAGE_LOGS_MODE_DEFAULT } = {}) => {
         (key === COLUMN_KEYS.CHANNEL ||
           key === COLUMN_KEYS.USERNAME ||
           key === COLUMN_KEYS.RETRY) &&
-        !isAdminUser
+        !isAdminUser &&
+        !isAffiliateScoped
       ) {
         updatedColumns[key] = false;
       } else if (
         isAffiliateScoped &&
-        (key === COLUMN_KEYS.TOKEN || key === COLUMN_KEYS.IP)
+        (key === COLUMN_KEYS.CHANNEL ||
+          key === COLUMN_KEYS.IP ||
+          key === COLUMN_KEYS.RETRY)
       ) {
         updatedColumns[key] = false;
       } else {
@@ -241,7 +258,7 @@ export const useLogsData = ({ mode = USAGE_LOGS_MODE_DEFAULT } = {}) => {
       }
     });
 
-    setVisibleColumns(updatedColumns);
+    setVisibleColumns(enforceAffiliateColumnVisibility(updatedColumns));
   };
 
   // Persist column settings to the role-specific STORAGE_KEY
@@ -409,7 +426,10 @@ export const useLogsData = ({ mode = USAGE_LOGS_MODE_DEFAULT } = {}) => {
       let other = getLogOther(logs[i].other);
       let expandDataLocal = [];
 
-      if (isAdminUser && (logs[i].type === 0 || logs[i].type === 2 || logs[i].type === 6)) {
+      if (
+        (isAdminUser || isAffiliateScoped) &&
+        (logs[i].type === 0 || logs[i].type === 2 || logs[i].type === 6)
+      ) {
         expandDataLocal.push({
           key: t('渠道信息'),
           value: `${logs[i].channel} - ${logs[i].channel_name || '[未知]'}`,
@@ -456,7 +476,10 @@ export const useLogsData = ({ mode = USAGE_LOGS_MODE_DEFAULT } = {}) => {
           expandDataLocal.push({
             key: t('日志详情'),
             value: other?.claude
-              ? renderClaudeLogContent({ ...other, displayMode: billingDisplayMode })
+              ? renderClaudeLogContent({
+                  ...other,
+                  displayMode: billingDisplayMode,
+                })
               : renderLogContent({ ...other, displayMode: billingDisplayMode }),
           });
         }
@@ -546,7 +569,14 @@ export const useLogsData = ({ mode = USAGE_LOGS_MODE_DEFAULT } = {}) => {
           expandDataLocal.push({
             key: t('失败原因'),
             value: (
-              <div style={{ maxWidth: 600, whiteSpace: 'normal', wordBreak: 'break-word', lineHeight: 1.6 }}>
+              <div
+                style={{
+                  maxWidth: 600,
+                  whiteSpace: 'normal',
+                  wordBreak: 'break-word',
+                  lineHeight: 1.6,
+                }}
+              >
                 {other.reason}
               </div>
             ),
@@ -563,7 +593,8 @@ export const useLogsData = ({ mode = USAGE_LOGS_MODE_DEFAULT } = {}) => {
         const ss = other.stream_status;
         const isOk = ss.status === 'ok';
         const statusLabel = isOk ? '✓ ' + t('正常') : '✗ ' + t('异常');
-        let streamValue = statusLabel + ' (' + (ss.end_reason || 'unknown') + ')';
+        let streamValue =
+          statusLabel + ' (' + (ss.end_reason || 'unknown') + ')';
         if (ss.error_count > 0) {
           streamValue += ` [${t('软错误')}: ${ss.error_count}]`;
         }
@@ -578,7 +609,14 @@ export const useLogsData = ({ mode = USAGE_LOGS_MODE_DEFAULT } = {}) => {
           expandDataLocal.push({
             key: t('流错误详情'),
             value: (
-              <div style={{ maxWidth: 600, whiteSpace: 'pre-line', wordBreak: 'break-word', lineHeight: 1.6 }}>
+              <div
+                style={{
+                  maxWidth: 600,
+                  whiteSpace: 'pre-line',
+                  wordBreak: 'break-word',
+                  lineHeight: 1.6,
+                }}
+              >
                 {ss.errors.join('\n')}
               </div>
             ),

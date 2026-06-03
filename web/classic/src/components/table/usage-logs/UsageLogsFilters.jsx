@@ -67,16 +67,14 @@ const LogsFilters = ({
           </div>
 
           {/* 其他搜索字段 */}
-          {!isAffiliateScoped && (
-            <Form.Input
-              field='token_name'
-              prefix={<IconSearch />}
-              placeholder={t('令牌名称')}
-              showClear
-              pure
-              size='small'
-            />
-          )}
+          <Form.Input
+            field='token_name'
+            prefix={<IconSearch />}
+            placeholder={t('令牌名称')}
+            showClear
+            pure
+            size='small'
+          />
 
           <Form.Input
             field='model_name'

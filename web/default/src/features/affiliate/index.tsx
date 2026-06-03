@@ -47,6 +47,7 @@ import {
   getAffiliateLogs,
   getAffiliateStatus,
   getAffiliateSummary,
+  getAffiliateTeamTree,
 } from './api'
 import {
   buildAffiliateLogsExportQuery,
@@ -59,6 +60,7 @@ import type {
   AffiliateLog,
   AffiliateLogFilters,
   AffiliateSummary as AffiliateSummaryData,
+  AffiliateTeamTreeNode,
 } from './types'
 
 const DEFAULT_PAGE_SIZE = 20
@@ -66,6 +68,7 @@ const DEFAULT_PAGE_SIZE = 20
 const EMPTY_FILTERS: AffiliateLogFilters = {
   model: '',
   group: '',
+  tokenName: '',
   userId: '',
   secondLevelUserId: '',
   requestStatus: '',
@@ -214,6 +217,89 @@ function SummaryCards(props: {
   )
 }
 
+function TeamTreeNode(props: { node: AffiliateTeamTreeNode }) {
+  const { t } = useTranslation()
+  const children = props.node.children ?? []
+  const displayName = props.node.username || `#${props.node.user_id}`
+
+  return (
+    <div className='border-border/70 ml-2 border-l pl-3'>
+      <div className='bg-muted/30 rounded-lg border px-3 py-2'>
+        <div className='flex flex-wrap items-center gap-2'>
+          <span className='font-medium'>{displayName}</span>
+          <span className='text-muted-foreground text-xs'>
+            ID {props.node.user_id}
+          </span>
+          {props.node.affiliate_level ? (
+            <StatusBadge
+              label={`${t('Level')} ${props.node.affiliate_level}`}
+              variant='info'
+              copyable={false}
+            />
+          ) : null}
+          <StatusBadge
+            label={`${t('Depth')} ${props.node.depth ?? '-'}`}
+            variant='neutral'
+            copyable={false}
+          />
+        </div>
+        <div className='text-muted-foreground mt-1 text-xs'>
+          {t('Direct inviter')}: {props.node.direct_inviter_id || '-'}
+          {props.node.source ? ` · ${t('Source')}: ${props.node.source}` : ''}
+        </div>
+      </div>
+      {children.length > 0 ? (
+        <div className='mt-2 space-y-2'>
+          {children.map((child) => (
+            <TeamTreeNode key={child.user_id} node={child} />
+          ))}
+        </div>
+      ) : null}
+    </div>
+  )
+}
+
+function AffiliateTeamTreePanel(props: {
+  nodes: AffiliateTeamTreeNode[]
+  total: number
+  isLoading: boolean
+}) {
+  const { t } = useTranslation()
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>{t('Promotion Relationship Tree')}</CardTitle>
+        <CardDescription>
+          {t(
+            'Level-one affiliates can see level-two affiliates and their downstream users'
+          )}
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        {props.isLoading ? (
+          <div className='text-muted-foreground py-8 text-center'>
+            {t('Loading')}
+          </div>
+        ) : props.nodes.length === 0 ? (
+          <div className='text-muted-foreground py-8 text-center'>
+            {t('No downstream users')}
+          </div>
+        ) : (
+          <div className='space-y-2'>
+            <div className='text-muted-foreground text-sm'>
+              {t('Total')}: {props.total}
+            </div>
+            {props.nodes.map((node) => (
+              <TeamTreeNode key={node.user_id} node={node} />
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  )
+}
+
 function AffiliateLogFiltersForm(props: {
   draftFilters: AffiliateLogFilters
   setDraftFilters: (filters: AffiliateLogFilters) => void
@@ -247,6 +333,12 @@ function AffiliateLogFiltersForm(props: {
             value={props.draftFilters.group}
             disabled={props.disabled}
             onChange={(event) => update('group', event.target.value)}
+          />
+          <Input
+            placeholder={t('Token')}
+            value={props.draftFilters.tokenName}
+            disabled={props.disabled}
+            onChange={(event) => update('tokenName', event.target.value)}
           />
           <Input
             placeholder={t('User ID')}
@@ -354,7 +446,8 @@ function AffiliateLogsTable(props: {
           <TableHeader>
             <TableRow>
               <TableHead>{t('Time')}</TableHead>
-              <TableHead>{t('User ID')}</TableHead>
+              <TableHead>{t('User')}</TableHead>
+              <TableHead>{t('Token')}</TableHead>
               <TableHead>{t('Type')}</TableHead>
               <TableHead>{t('Model')}</TableHead>
               <TableHead>{t('Group')}</TableHead>
@@ -366,7 +459,7 @@ function AffiliateLogsTable(props: {
             {props.isLoading ? (
               <TableRow>
                 <TableCell
-                  colSpan={7}
+                  colSpan={8}
                   className='text-muted-foreground h-24 text-center'
                 >
                   {t('Loading')}
@@ -375,7 +468,7 @@ function AffiliateLogsTable(props: {
             ) : props.logs.length === 0 ? (
               <TableRow>
                 <TableCell
-                  colSpan={7}
+                  colSpan={8}
                   className='text-muted-foreground h-24 text-center'
                 >
                   {t('No affiliate logs')}
@@ -389,7 +482,18 @@ function AffiliateLogsTable(props: {
                     <TableCell>
                       {formatTimestampToDate(log.created_at)}
                     </TableCell>
-                    <TableCell>{log.user_id}</TableCell>
+                    <TableCell>
+                      <div className='flex flex-col'>
+                        <span>{log.username || `#${log.user_id}`}</span>
+                        <span className='text-muted-foreground text-xs'>
+                          ID {log.user_id}
+                        </span>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      {log.token_name ||
+                        (log.token_id ? `#${log.token_id}` : '-')}
+                    </TableCell>
                     <TableCell>{log.type}</TableCell>
                     <TableCell>{log.model_name || '-'}</TableCell>
                     <TableCell>{log.group || '-'}</TableCell>
@@ -463,6 +567,12 @@ export function Affiliate() {
     enabled: available,
   })
 
+  const teamTreeQuery = useQuery({
+    queryKey: ['affiliate', 'team-tree'],
+    queryFn: getAffiliateTeamTree,
+    enabled: available,
+  })
+
   const logParams = useMemo(
     () => buildAffiliateLogsParams(filters, page, DEFAULT_PAGE_SIZE),
     [filters, page]
@@ -475,6 +585,7 @@ export function Affiliate() {
   })
 
   const summary = summaryQuery.data?.data
+  const teamTree = teamTreeQuery.data?.data
   const logsPage = logsQuery.data?.data
   const unavailableMessage = getAffiliateUnavailableMessage(
     status?.unavailable_reason,
@@ -551,6 +662,21 @@ export function Affiliate() {
                 isLoading={summaryQuery.isLoading || summaryQuery.isFetching}
               />
               {summaryQuery.data && !summaryQuery.data.success ? (
+                <Card className='border-warning/40'>
+                  <CardHeader>
+                    <CardTitle>{t('Failed to load affiliate data')}</CardTitle>
+                    <CardDescription>
+                      {t('Please refresh or contact an administrator')}
+                    </CardDescription>
+                  </CardHeader>
+                </Card>
+              ) : null}
+              <AffiliateTeamTreePanel
+                nodes={teamTree?.items ?? []}
+                total={teamTree?.total ?? 0}
+                isLoading={teamTreeQuery.isLoading || teamTreeQuery.isFetching}
+              />
+              {teamTreeQuery.data && !teamTreeQuery.data.success ? (
                 <Card className='border-warning/40'>
                   <CardHeader>
                     <CardTitle>{t('Failed to load affiliate data')}</CardTitle>

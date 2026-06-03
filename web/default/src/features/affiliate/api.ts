@@ -16,6 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { isAxiosError } from 'axios'
 import { api } from '@/lib/api'
 import {
   buildAffiliateCommissionsQuery,
@@ -44,6 +45,7 @@ import type {
   AffiliateSettlementRunResult,
   AffiliateStatus,
   AffiliateSummary,
+  AffiliateTeamTree,
   ApiResponse,
   PageResponse,
 } from './types'
@@ -64,6 +66,28 @@ export async function getAffiliateSummary(): Promise<
     skipBusinessError: true,
   })
   return res.data
+}
+
+export async function getAffiliateTeamTree(): Promise<
+  ApiResponse<AffiliateTeamTree>
+> {
+  try {
+    const res = await api.get('/api/affiliate/team', {
+      skipBusinessError: true,
+      skipErrorHandler: true,
+    })
+    return res.data
+  } catch (error) {
+    if (isAxiosError(error) && error.response?.status === 404) {
+      return {
+        success: false,
+        message:
+          'Affiliate team tree API returned 404. Restart or deploy the backend version containing /api/affiliate/team.',
+        data: { items: [], total: 0 },
+      }
+    }
+    throw error
+  }
 }
 
 export async function getAffiliateLogs(

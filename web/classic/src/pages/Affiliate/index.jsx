@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { useEffect, useState } from 'react';
-import { Button, Card, Empty, Spin, Typography } from '@douyinfe/semi-ui';
+import { Button, Card, Empty, Spin, Tag, Typography } from '@douyinfe/semi-ui';
 import {
   IllustrationFailure,
   IllustrationNoResult,
@@ -100,6 +100,104 @@ const AffiliateDashboard = ({ t, loading, summary, error, onRetry }) => {
   );
 };
 
+const AffiliateTeamTreeNode = ({ t, node }) => {
+  const children = Array.isArray(node?.children) ? node.children : [];
+  const displayName = node?.username || `#${node?.user_id}`;
+
+  return (
+    <div
+      className='border-l pl-3 ml-2'
+      style={{ borderColor: 'var(--semi-color-border)' }}
+    >
+      <div className='rounded-xl border px-3 py-2 bg-semi-color-fill-0'>
+        <div className='flex flex-wrap items-center gap-2'>
+          <Text strong>{displayName}</Text>
+          <Text type='tertiary' size='small'>
+            ID {node?.user_id}
+          </Text>
+          {node?.affiliate_level ? (
+            <Tag color='blue' shape='circle'>
+              {t('等级')} {node.affiliate_level}
+            </Tag>
+          ) : null}
+          <Tag color='grey' shape='circle'>
+            {t('深度')} {node?.depth ?? '-'}
+          </Tag>
+        </div>
+        <Text type='tertiary' size='small'>
+          {t('直接邀请人')}：{node?.direct_inviter_id || '-'}
+          {node?.source ? ` · ${t('来源')}：${node.source}` : ''}
+        </Text>
+      </div>
+      {children.length > 0 ? (
+        <div className='mt-2 flex flex-col gap-2'>
+          {children.map((child) => (
+            <AffiliateTeamTreeNode key={child.user_id} t={t} node={child} />
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+};
+
+const AffiliateTeamTree = ({
+  t,
+  loading,
+  tree,
+  error,
+  unavailable,
+  onRetry,
+}) => {
+  const items = Array.isArray(tree?.items) ? tree.items : [];
+
+  if (loading) {
+    return (
+      <Card className='!rounded-2xl mb-4'>
+        <div className='flex flex-col items-center justify-center min-h-[140px] gap-3 text-center'>
+          <Spin size='large' />
+          <Text strong>{t('正在加载推广关系树')}</Text>
+        </div>
+      </Card>
+    );
+  }
+
+  if (error) {
+    return <AffiliateSectionFallback t={t} section='team' onRetry={onRetry} />;
+  }
+
+  return (
+    <Card className='!rounded-2xl mb-4'>
+      <div className='flex flex-col gap-2 mb-3'>
+        <Text strong>{t('推广关系树')}</Text>
+        <Text type='secondary'>
+          {t('一级分销商可查看自己的二级分销商，以及二级分销商的下级。')}
+        </Text>
+        <Text type='tertiary' size='small'>
+          {t('总计')}：{Number(tree?.total || 0)}
+        </Text>
+        {unavailable ? (
+          <Text type='warning' size='small'>
+            {t(
+              '推广关系树接口返回 404，请重启或部署包含 /api/affiliate/team 的后端后查看。',
+            )}
+          </Text>
+        ) : null}
+      </div>
+      {items.length === 0 ? (
+        <div className='py-8 text-center'>
+          <Text type='secondary'>{t('暂无下级用户')}</Text>
+        </div>
+      ) : (
+        <div className='flex flex-col gap-2'>
+          {items.map((node) => (
+            <AffiliateTeamTreeNode key={node.user_id} t={t} node={node} />
+          ))}
+        </div>
+      )}
+    </Card>
+  );
+};
+
 class AffiliateSectionErrorBoundary extends React.Component {
   constructor(props) {
     super(props);
@@ -142,6 +240,10 @@ const Affiliate = () => {
   const [summary, setSummary] = useState(null);
   const [summaryLoading, setSummaryLoading] = useState(false);
   const [summaryError, setSummaryError] = useState(false);
+  const [teamTree, setTeamTree] = useState(null);
+  const [teamTreeLoading, setTeamTreeLoading] = useState(false);
+  const [teamTreeError, setTeamTreeError] = useState(false);
+  const [teamTreeUnavailable, setTeamTreeUnavailable] = useState(false);
   const [logsResetKey, setLogsResetKey] = useState(0);
 
   const loadSummary = async () => {
@@ -164,6 +266,34 @@ const Affiliate = () => {
     }
   };
 
+  const loadTeamTree = async () => {
+    setTeamTreeLoading(true);
+    setTeamTreeError(false);
+    setTeamTreeUnavailable(false);
+    try {
+      const res = await API.get('/api/affiliate/team', {
+        skipErrorHandler: true,
+      });
+      const { success, data } = res.data;
+      if (success) {
+        setTeamTree(data);
+      } else {
+        setTeamTree(null);
+        setTeamTreeError(true);
+      }
+    } catch (error) {
+      if (error?.response?.status === 404) {
+        setTeamTree({ items: [], total: 0 });
+        setTeamTreeUnavailable(true);
+      } else {
+        setTeamTree(null);
+        setTeamTreeError(true);
+      }
+    } finally {
+      setTeamTreeLoading(false);
+    }
+  };
+
   const loadStatus = async () => {
     setLoading(true);
     try {
@@ -175,18 +305,27 @@ const Affiliate = () => {
         if (!data?.available) {
           setSummary(null);
           setSummaryError(false);
+          setTeamTree(null);
+          setTeamTreeError(false);
+          setTeamTreeUnavailable(false);
         }
       } else {
         setStatus(null);
         setMessage(responseMessage || t('分销状态加载失败'));
         setSummary(null);
         setSummaryError(false);
+        setTeamTree(null);
+        setTeamTreeError(false);
+        setTeamTreeUnavailable(false);
       }
     } catch (error) {
       setStatus(null);
       setMessage(t('分销状态加载失败'));
       setSummary(null);
       setSummaryError(false);
+      setTeamTree(null);
+      setTeamTreeError(false);
+      setTeamTreeUnavailable(false);
     } finally {
       setLoading(false);
     }
@@ -199,6 +338,7 @@ const Affiliate = () => {
   useEffect(() => {
     if (status?.available) {
       loadSummary();
+      loadTeamTree();
     }
   }, [status?.available]);
 
@@ -249,6 +389,14 @@ const Affiliate = () => {
         summary={summary}
         error={summaryError}
         onRetry={loadSummary}
+      />
+      <AffiliateTeamTree
+        t={t}
+        loading={teamTreeLoading}
+        tree={teamTree}
+        error={teamTreeError}
+        unavailable={teamTreeUnavailable}
+        onRetry={loadTeamTree}
       />
       <AffiliateSectionErrorBoundary
         t={t}

@@ -18,6 +18,7 @@ describe('default affiliate helpers', () => {
       {
         model: 'gpt-4',
         group: ' default ',
+        tokenName: ' team-token ',
         userId: '200',
         secondLevelUserId: '100',
         requestStatus: 'success',
@@ -34,6 +35,7 @@ describe('default affiliate helpers', () => {
         page_size: params.page_size,
         model_name: params.model_name,
         group: params.group,
+        token_name: params.token_name,
         user_id: params.user_id,
         second_level_user_id: params.second_level_user_id,
         request_status: params.request_status,
@@ -43,13 +45,13 @@ describe('default affiliate helpers', () => {
         page_size: 20,
         model_name: 'gpt-4',
         group: 'default',
+        token_name: 'team-token',
         user_id: 200,
         second_level_user_id: 100,
         request_status: 'success',
       }
     )
     assert.equal(Object.keys(params).includes('channel'), false)
-    assert.equal(Object.keys(params).includes('token_name'), false)
     assert.equal(Object.keys(params).includes('request_id'), false)
   })
 
@@ -165,9 +167,9 @@ describe('default affiliate helpers', () => {
     const lines = csv.split('\n')
     assert.equal(
       lines[0],
-      'time,user_id,type,model,group,consumption_rmb,raw_quota'
+      'time,user_id,username,channel_id,channel_name,token_id,token_name,type,model,group,consumption_rmb,raw_quota'
     )
     assert.match(lines[1], /^2026-/)
-    assert.match(lines[1], /,"gpt-4o,mini",default,¥17\.5,2500$/)
+    assert.match(lines[1], /,200,,,,,,2,"gpt-4o,mini",default,¥17\.5,2500$/)
   })
 })
