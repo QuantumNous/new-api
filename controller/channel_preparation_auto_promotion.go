@@ -21,12 +21,18 @@ import (
 const channelPreparationAutoPromotionTriggerManual = "manual"
 const channelPreparationAutoPromotionTriggerScheduler = "scheduler"
 
+const (
+	channelPreparationAutoPromotionShortageCount    = "count"
+	channelPreparationAutoPromotionShortageCapacity = "capacity"
+)
+
 type channelPreparationAutoPromotionRunRequest struct {
 	RuleId string `json:"rule_id"`
 }
 
 type channelPreparationAutoPromotionCapacitySummary struct {
 	EligibleChannelCount                  int64   `json:"eligible_channel_count"`
+	UsableChannelCount                    int64   `json:"usable_channel_count"`
 	IgnoredNonPositiveBalanceChannelCount int64   `json:"ignored_non_positive_balance_channel_count"`
 	BalanceSumUSD                         float64 `json:"balance_sum_usd"`
 	UsedQuotaUSD                          float64 `json:"used_quota_usd"`
@@ -35,27 +41,41 @@ type channelPreparationAutoPromotionCapacitySummary struct {
 }
 
 type channelPreparationAutoPromotionStep struct {
-	PreparationId       int     `json:"preparation_id"`
-	ChannelId           int     `json:"channel_id"`
-	CandidateBalanceUSD float64 `json:"candidate_balance_usd"`
-	CapacityBeforeUSD   float64 `json:"capacity_before_usd"`
-	CapacityAfterUSD    float64 `json:"capacity_after_usd"`
+	PreparationId            int     `json:"preparation_id"`
+	ChannelId                int     `json:"channel_id"`
+	CandidateBalanceUSD      float64 `json:"candidate_balance_usd"`
+	CapacityBeforeUSD        float64 `json:"capacity_before_usd"`
+	CapacityAfterUSD         float64 `json:"capacity_after_usd"`
+	ShortageType             string  `json:"shortage_type"`
+	Strategy                 string  `json:"strategy"`
+	UsableCountBefore        int64   `json:"usable_count_before"`
+	UsableCountAfter         int64   `json:"usable_count_after"`
+	CountDeficitBefore       int64   `json:"count_deficit_before"`
+	CountDeficitAfter        int64   `json:"count_deficit_after"`
+	CapacityDeficitBeforeUSD float64 `json:"capacity_deficit_before_usd"`
+	CapacityDeficitAfterUSD  float64 `json:"capacity_deficit_after_usd"`
 }
 
 type channelPreparationAutoPromotionRuleSummary struct {
-	Trigger             string                                         `json:"trigger"`
-	RuleId              string                                         `json:"rule_id"`
-	Group               string                                         `json:"group"`
-	Type                int                                            `json:"type"`
-	Strategy            string                                         `json:"strategy"`
-	ThresholdUSD        float64                                        `json:"threshold_usd"`
-	InitialCapacity     channelPreparationAutoPromotionCapacitySummary `json:"initial_capacity"`
-	FinalCapacity       channelPreparationAutoPromotionCapacitySummary `json:"final_capacity"`
-	Promotions          []channelPreparationAutoPromotionStep          `json:"promotions"`
-	Failures            []string                                       `json:"failures"`
-	SkippedReason       string                                         `json:"skipped_reason,omitempty"`
-	RemainingDeficitUSD float64                                        `json:"remaining_deficit_usd"`
-	LimitReached        bool                                           `json:"limit_reached"`
+	Trigger                   string                                         `json:"trigger"`
+	RuleId                    string                                         `json:"rule_id"`
+	Group                     string                                         `json:"group"`
+	Type                      int                                            `json:"type"`
+	Strategy                  string                                         `json:"strategy"`
+	ThresholdUSD              float64                                        `json:"threshold_usd"`
+	MinimumUsableChannelCount int                                            `json:"minimum_usable_channel_count"`
+	GuaranteePriority         string                                         `json:"guarantee_priority"`
+	CountShortageStrategy     string                                         `json:"count_shortage_strategy"`
+	CapacityShortageStrategy  string                                         `json:"capacity_shortage_strategy"`
+	InitialCapacity           channelPreparationAutoPromotionCapacitySummary `json:"initial_capacity"`
+	FinalCapacity             channelPreparationAutoPromotionCapacitySummary `json:"final_capacity"`
+	Promotions                []channelPreparationAutoPromotionStep          `json:"promotions"`
+	Failures                  []string                                       `json:"failures"`
+	SkippedReason             string                                         `json:"skipped_reason,omitempty"`
+	RemainingDeficitUSD       float64                                        `json:"remaining_deficit_usd"`
+	CountDeficit              int64                                          `json:"count_deficit"`
+	CapacityDeficitUSD        float64                                        `json:"capacity_deficit_usd"`
+	LimitReached              bool                                           `json:"limit_reached"`
 }
 
 type channelPreparationAutoPromotionRunSummary struct {
@@ -136,6 +156,40 @@ func normalizeAutoPromotionDeficit(threshold float64, capacity float64) float64 
 	return deficit
 }
 
+func channelPreparationAutoPromotionCountDeficit(minimum int, usable int64) int64 {
+	if minimum <= 0 {
+		return 0
+	}
+	deficit := int64(minimum) - usable
+	if deficit < 0 {
+		return 0
+	}
+	return deficit
+}
+
+func chooseChannelPreparationAutoPromotionActiveShortage(rule operation_setting.ChannelPreparationAutoPromotionRule, countShort bool, capacityShort bool) string {
+	if countShort && capacityShort {
+		if rule.GuaranteePriority == operation_setting.ChannelPreparationAutoPromotionGuaranteePriorityCountFirst {
+			return channelPreparationAutoPromotionShortageCount
+		}
+		return channelPreparationAutoPromotionShortageCapacity
+	}
+	if countShort {
+		return channelPreparationAutoPromotionShortageCount
+	}
+	if capacityShort {
+		return channelPreparationAutoPromotionShortageCapacity
+	}
+	return ""
+}
+
+func channelPreparationAutoPromotionStrategyForShortage(rule operation_setting.ChannelPreparationAutoPromotionRule, shortageType string) string {
+	if shortageType == channelPreparationAutoPromotionShortageCount {
+		return rule.CountShortageStrategy
+	}
+	return rule.CapacityShortageStrategy
+}
+
 func safeQuotaToUSD(usedQuota int64) float64 {
 	if common.QuotaPerUnit <= 0 {
 		return 0
@@ -173,6 +227,7 @@ func computeChannelPreparationAutoPromotionCapacity(group string, channelType in
 	}
 	return channelPreparationAutoPromotionCapacitySummary{
 		EligibleChannelCount:                  aggregate.EligibleChannelCount,
+		UsableChannelCount:                    aggregate.EligibleChannelCount,
 		IgnoredNonPositiveBalanceChannelCount: ignoredCount,
 		BalanceSumUSD:                         aggregate.BalanceSumUSD,
 		UsedQuotaUSD:                          usedQuotaUSD,
@@ -217,25 +272,33 @@ func preparationWeight(preparation model.ChannelPreparation) int64 {
 	return weight + 10
 }
 
-func chooseChannelPreparationAutoPromotionCandidate(preparations []model.ChannelPreparation, rng *rand.Rand) (model.ChannelPreparation, bool) {
+func channelPreparationAutoPromotionHighestPriorityTier(preparations []model.ChannelPreparation) []model.ChannelPreparation {
 	if len(preparations) == 0 {
-		return model.ChannelPreparation{}, false
+		return nil
 	}
-	sort.SliceStable(preparations, func(i, j int) bool {
-		pi := preparationPriority(preparations[i])
-		pj := preparationPriority(preparations[j])
+	sortedPreparations := append([]model.ChannelPreparation(nil), preparations...)
+	sort.SliceStable(sortedPreparations, func(i, j int) bool {
+		pi := preparationPriority(sortedPreparations[i])
+		pj := preparationPriority(sortedPreparations[j])
 		if pi == pj {
-			return preparations[i].Id < preparations[j].Id
+			return sortedPreparations[i].Id < sortedPreparations[j].Id
 		}
 		return pi > pj
 	})
-	topPriority := preparationPriority(preparations[0])
+	topPriority := preparationPriority(sortedPreparations[0])
 	tier := make([]model.ChannelPreparation, 0)
-	for _, preparation := range preparations {
+	for _, preparation := range sortedPreparations {
 		if preparationPriority(preparation) != topPriority {
 			break
 		}
 		tier = append(tier, preparation)
+	}
+	return tier
+}
+
+func chooseChannelPreparationAutoPromotionWeightedCandidate(tier []model.ChannelPreparation, rng *rand.Rand) (model.ChannelPreparation, bool) {
+	if len(tier) == 0 {
+		return model.ChannelPreparation{}, false
 	}
 	if len(tier) == 1 {
 		return tier[0], true
@@ -250,6 +313,9 @@ func chooseChannelPreparationAutoPromotionCandidate(preparations []model.Channel
 	if totalWeight <= 0 {
 		return tier[0], true
 	}
+	if rng == nil {
+		rng = rand.New(rand.NewSource(time.Now().UnixNano()))
+	}
 	pick := rng.Int63n(totalWeight)
 	for _, preparation := range tier {
 		weight := preparationWeight(preparation)
@@ -262,6 +328,36 @@ func chooseChannelPreparationAutoPromotionCandidate(preparations []model.Channel
 		pick -= weight
 	}
 	return tier[len(tier)-1], true
+}
+
+func chooseChannelPreparationAutoPromotionCandidate(preparations []model.ChannelPreparation, strategy string, rng *rand.Rand) (model.ChannelPreparation, bool) {
+	tier := channelPreparationAutoPromotionHighestPriorityTier(preparations)
+	if len(tier) == 0 {
+		return model.ChannelPreparation{}, false
+	}
+
+	switch strategy {
+	case operation_setting.ChannelPreparationAutoPromotionStrategySmallBalanceFirst:
+		sort.SliceStable(tier, func(i, j int) bool {
+			if tier[i].Balance == tier[j].Balance {
+				return tier[i].Id < tier[j].Id
+			}
+			return tier[i].Balance < tier[j].Balance
+		})
+		return tier[0], true
+	case operation_setting.ChannelPreparationAutoPromotionStrategyLargeBalanceFirst:
+		sort.SliceStable(tier, func(i, j int) bool {
+			if tier[i].Balance == tier[j].Balance {
+				return tier[i].Id < tier[j].Id
+			}
+			return tier[i].Balance > tier[j].Balance
+		})
+		return tier[0], true
+	case operation_setting.ChannelPreparationAutoPromotionStrategyPriorityWeighted:
+		fallthrough
+	default:
+		return chooseChannelPreparationAutoPromotionWeightedCandidate(tier, rng)
+	}
 }
 
 func normalizeChannelPreparationAutoPromotionRules(rules []operation_setting.ChannelPreparationAutoPromotionRule) []operation_setting.ChannelPreparationAutoPromotionRule {
@@ -329,14 +425,18 @@ func runChannelPreparationAutoPromotionLocked(trigger string, optionalRuleId str
 		}
 
 		ruleSummary := channelPreparationAutoPromotionRuleSummary{
-			Trigger:      trigger,
-			RuleId:       rule.Id,
-			Group:        rule.Group,
-			Type:         rule.Type,
-			Strategy:     rule.Strategy,
-			ThresholdUSD: rule.ThresholdUSD,
-			Promotions:   []channelPreparationAutoPromotionStep{},
-			Failures:     []string{},
+			Trigger:                   trigger,
+			RuleId:                    rule.Id,
+			Group:                     rule.Group,
+			Type:                      rule.Type,
+			Strategy:                  rule.Strategy,
+			ThresholdUSD:              rule.ThresholdUSD,
+			MinimumUsableChannelCount: rule.MinimumUsableChannelCount,
+			GuaranteePriority:         rule.GuaranteePriority,
+			CountShortageStrategy:     rule.CountShortageStrategy,
+			CapacityShortageStrategy:  rule.CapacityShortageStrategy,
+			Promotions:                []channelPreparationAutoPromotionStep{},
+			Failures:                  []string{},
 		}
 
 		if !rule.Enabled {
@@ -359,8 +459,15 @@ func runChannelPreparationAutoPromotionLocked(trigger string, optionalRuleId str
 			summary.Rules = append(summary.Rules, ruleSummary)
 			continue
 		}
-		if !operation_setting.IsSupportedChannelPreparationAutoPromotionStrategy(rule.Strategy) {
-			ruleSummary.SkippedReason = "策略不支持"
+		if rule.MinimumUsableChannelCount < 0 {
+			ruleSummary.SkippedReason = "最低可用渠道数不能小于 0"
+			summary.Rules = append(summary.Rules, ruleSummary)
+			continue
+		}
+		if !operation_setting.IsSupportedChannelPreparationAutoPromotionGuaranteePriority(rule.GuaranteePriority) ||
+			!operation_setting.IsSupportedChannelPreparationAutoPromotionStrategy(rule.CountShortageStrategy) ||
+			!operation_setting.IsSupportedChannelPreparationAutoPromotionStrategy(rule.CapacityShortageStrategy) {
+			ruleSummary.SkippedReason = "自动晋升规则配置不支持"
 			summary.Rules = append(summary.Rules, ruleSummary)
 			continue
 		}
@@ -373,25 +480,32 @@ func runChannelPreparationAutoPromotionLocked(trigger string, optionalRuleId str
 		}
 		ruleSummary.InitialCapacity = capacity
 		ruleSummary.FinalCapacity = capacity
-		currentCapacity := capacity.EffectiveCapacityUSD
-		if currentCapacity >= rule.ThresholdUSD {
-			ruleSummary.SkippedReason = "容量已达标"
+		ruleSummary.CountDeficit = channelPreparationAutoPromotionCountDeficit(rule.MinimumUsableChannelCount, capacity.UsableChannelCount)
+		ruleSummary.CapacityDeficitUSD = normalizeAutoPromotionDeficit(rule.ThresholdUSD, capacity.EffectiveCapacityUSD)
+		if ruleSummary.CountDeficit == 0 && ruleSummary.CapacityDeficitUSD == 0 {
+			ruleSummary.SkippedReason = "容量和可用渠道数均已达标"
 			ruleSummary.RemainingDeficitUSD = 0
 			summary.Rules = append(summary.Rules, ruleSummary)
 			continue
 		}
 
 		failedCandidateIds := make(map[int]bool)
-		for currentCapacity < rule.ThresholdUSD && summary.TotalPromoted < maxPromotions {
+		for summary.TotalPromoted < maxPromotions {
 			latestCapacity, err := computeChannelPreparationAutoPromotionCapacity(rule.Group, rule.Type)
 			if err != nil {
 				ruleSummary.Failures = append(ruleSummary.Failures, err.Error())
 				break
 			}
 			ruleSummary.FinalCapacity = latestCapacity
-			currentCapacity = latestCapacity.EffectiveCapacityUSD
-			if currentCapacity >= rule.ThresholdUSD {
+			countDeficitBefore := channelPreparationAutoPromotionCountDeficit(rule.MinimumUsableChannelCount, latestCapacity.UsableChannelCount)
+			capacityDeficitBefore := normalizeAutoPromotionDeficit(rule.ThresholdUSD, latestCapacity.EffectiveCapacityUSD)
+			shortageType := chooseChannelPreparationAutoPromotionActiveShortage(rule, countDeficitBefore > 0, capacityDeficitBefore > 0)
+			if shortageType == "" {
 				break
+			}
+			strategy := channelPreparationAutoPromotionStrategyForShortage(rule, shortageType)
+			if !operation_setting.IsSupportedChannelPreparationAutoPromotionStrategy(strategy) {
+				strategy = operation_setting.ChannelPreparationAutoPromotionStrategyPriorityWeighted
 			}
 
 			candidates, err := loadChannelPreparationAutoPromotionCandidates(rule.Group, rule.Type, failedCandidateIds)
@@ -399,13 +513,12 @@ func runChannelPreparationAutoPromotionLocked(trigger string, optionalRuleId str
 				ruleSummary.Failures = append(ruleSummary.Failures, err.Error())
 				break
 			}
-			candidate, ok := chooseChannelPreparationAutoPromotionCandidate(candidates, rng)
+			candidate, ok := chooseChannelPreparationAutoPromotionCandidate(candidates, strategy, rng)
 			if !ok {
 				ruleSummary.SkippedReason = "没有余额大于 0 的待晋升候选渠道"
 				break
 			}
 
-			before := currentCapacity
 			channelId, err := promoteChannelPreparation(candidate.Id)
 			if err != nil {
 				failedCandidateIds[candidate.Id] = true
@@ -417,38 +530,61 @@ func runChannelPreparationAutoPromotionLocked(trigger string, optionalRuleId str
 			afterCapacity, capacityErr := computeChannelPreparationAutoPromotionCapacity(rule.Group, rule.Type)
 			if capacityErr != nil {
 				ruleSummary.Failures = append(ruleSummary.Failures, fmt.Sprintf("候选渠道 %d 晋升后重新计算容量失败：%s", candidate.Id, capacityErr.Error()))
-				currentCapacity = before + math.Max(candidate.Balance, 0)
-			} else {
-				ruleSummary.FinalCapacity = afterCapacity
-				currentCapacity = afterCapacity.EffectiveCapacityUSD
+				afterCapacity = latestCapacity
+				afterCapacity.EligibleChannelCount++
+				afterCapacity.UsableChannelCount++
+				afterCapacity.BalanceSumUSD += math.Max(candidate.Balance, 0)
+				afterCapacity.RawEffectiveCapacityUSD += math.Max(candidate.Balance, 0)
+				afterCapacity.EffectiveCapacityUSD = math.Max(afterCapacity.RawEffectiveCapacityUSD, 0)
 			}
+			ruleSummary.FinalCapacity = afterCapacity
+			countDeficitAfter := channelPreparationAutoPromotionCountDeficit(rule.MinimumUsableChannelCount, afterCapacity.UsableChannelCount)
+			capacityDeficitAfter := normalizeAutoPromotionDeficit(rule.ThresholdUSD, afterCapacity.EffectiveCapacityUSD)
 			ruleSummary.Promotions = append(ruleSummary.Promotions, channelPreparationAutoPromotionStep{
-				PreparationId:       candidate.Id,
-				ChannelId:           channelId,
-				CandidateBalanceUSD: candidate.Balance,
-				CapacityBeforeUSD:   before,
-				CapacityAfterUSD:    currentCapacity,
+				PreparationId:            candidate.Id,
+				ChannelId:                channelId,
+				CandidateBalanceUSD:      candidate.Balance,
+				CapacityBeforeUSD:        latestCapacity.EffectiveCapacityUSD,
+				CapacityAfterUSD:         afterCapacity.EffectiveCapacityUSD,
+				ShortageType:             shortageType,
+				Strategy:                 strategy,
+				UsableCountBefore:        latestCapacity.UsableChannelCount,
+				UsableCountAfter:         afterCapacity.UsableChannelCount,
+				CountDeficitBefore:       countDeficitBefore,
+				CountDeficitAfter:        countDeficitAfter,
+				CapacityDeficitBeforeUSD: capacityDeficitBefore,
+				CapacityDeficitAfterUSD:  capacityDeficitAfter,
 			})
-			logContent := fmt.Sprintf("自动晋升候选渠道：规则=%s 分组=%s 类型=%d 候选ID=%d 渠道ID=%d 余额=%.4f 容量 %.4f -> %.4f 触发=%s", rule.Id, rule.Group, rule.Type, candidate.Id, channelId, candidate.Balance, before, currentCapacity, trigger)
+			logContent := fmt.Sprintf("自动晋升候选渠道：规则=%s 分组=%s 类型=%d 不足=%s 策略=%s 候选ID=%d 渠道ID=%d 余额=%.4f 可用数 %d -> %d 容量 %.4f -> %.4f 缺口(count=%d->%d, capacity=%.4f->%.4f) 触发=%s", rule.Id, rule.Group, rule.Type, shortageType, strategy, candidate.Id, channelId, candidate.Balance, latestCapacity.UsableChannelCount, afterCapacity.UsableChannelCount, latestCapacity.EffectiveCapacityUSD, afterCapacity.EffectiveCapacityUSD, countDeficitBefore, countDeficitAfter, capacityDeficitBefore, capacityDeficitAfter, trigger)
 			common.SysLog(logContent)
 			recordChannelPreparationAutoPromotionManageLog(adminUserId, logContent, channelId, rule.Group, map[string]interface{}{
-				"rule_id":           rule.Id,
-				"group":             rule.Group,
-				"type":              rule.Type,
-				"preparation_id":    candidate.Id,
-				"channel_id":        channelId,
-				"candidate_balance": candidate.Balance,
-				"capacity_before":   before,
-				"capacity_after":    currentCapacity,
-				"trigger":           trigger,
+				"rule_id":                     rule.Id,
+				"group":                       rule.Group,
+				"type":                        rule.Type,
+				"preparation_id":              candidate.Id,
+				"channel_id":                  channelId,
+				"candidate_balance":           candidate.Balance,
+				"shortage_type":               shortageType,
+				"strategy":                    strategy,
+				"usable_count_before":         latestCapacity.UsableChannelCount,
+				"usable_count_after":          afterCapacity.UsableChannelCount,
+				"capacity_before":             latestCapacity.EffectiveCapacityUSD,
+				"capacity_after":              afterCapacity.EffectiveCapacityUSD,
+				"count_deficit_before":        countDeficitBefore,
+				"count_deficit_after":         countDeficitAfter,
+				"capacity_deficit_before_usd": capacityDeficitBefore,
+				"capacity_deficit_after_usd":  capacityDeficitAfter,
+				"trigger":                     trigger,
 			})
 		}
 
-		if summary.TotalPromoted >= maxPromotions && currentCapacity < rule.ThresholdUSD {
+		ruleSummary.CountDeficit = channelPreparationAutoPromotionCountDeficit(rule.MinimumUsableChannelCount, ruleSummary.FinalCapacity.UsableChannelCount)
+		ruleSummary.CapacityDeficitUSD = normalizeAutoPromotionDeficit(rule.ThresholdUSD, ruleSummary.FinalCapacity.EffectiveCapacityUSD)
+		if summary.TotalPromoted >= maxPromotions && (ruleSummary.CountDeficit > 0 || ruleSummary.CapacityDeficitUSD > 0) {
 			ruleSummary.LimitReached = true
 			summary.LimitReached = true
 		}
-		ruleSummary.RemainingDeficitUSD = normalizeAutoPromotionDeficit(rule.ThresholdUSD, currentCapacity)
+		ruleSummary.RemainingDeficitUSD = ruleSummary.CapacityDeficitUSD
 		summary.Rules = append(summary.Rules, ruleSummary)
 	}
 
