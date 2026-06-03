@@ -461,6 +461,43 @@ type Stat struct {
 	Tpm   int `json:"tpm"`
 }
 
+type CodexChannelUsageStat struct {
+	ChannelID int   `json:"channel_id" gorm:"column:channel_id"`
+	TokenUsed int64 `json:"token_used" gorm:"column:token_used"`
+	Quota     int64 `json:"quota" gorm:"column:quota"`
+}
+
+func GetCodexChannelUsageStats(
+	channelIds []int,
+	startTimestamp int64,
+	endTimestamp int64,
+) (map[int]CodexChannelUsageStat, error) {
+	result := make(map[int]CodexChannelUsageStat)
+	if len(channelIds) == 0 {
+		return result, nil
+	}
+
+	var stats []CodexChannelUsageStat
+	tx := LOG_DB.Table("logs").Select(
+		"channel_id, COALESCE(SUM(prompt_tokens), 0) + COALESCE(SUM(completion_tokens), 0) AS token_used, COALESCE(SUM(quota), 0) AS quota",
+	).Where("type = ?", LogTypeConsume).Where("channel_id IN ?", channelIds)
+	if startTimestamp > 0 {
+		tx = tx.Where("created_at >= ?", startTimestamp)
+	}
+	if endTimestamp > 0 {
+		tx = tx.Where("created_at <= ?", endTimestamp)
+	}
+
+	if err := tx.Group("channel_id").Scan(&stats).Error; err != nil {
+		common.SysError("failed to query codex channel usage stats: " + err.Error())
+		return result, errors.New("查询 Codex 渠道统计数据失败")
+	}
+	for _, stat := range stats {
+		result[stat.ChannelID] = stat
+	}
+	return result, nil
+}
+
 func SumUsedQuota(logType int, startTimestamp int64, endTimestamp int64, modelName string, username string, tokenName string, channel int, group string) (stat Stat, err error) {
 	tx := LOG_DB.Table("logs").Select("sum(quota) quota")
 
