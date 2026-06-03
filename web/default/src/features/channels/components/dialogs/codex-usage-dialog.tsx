@@ -509,11 +509,11 @@ export function CodexUsageDialog({
               <div className='space-y-4 border-t pt-4'>
                 <div>
                   <div className='text-sm font-medium'>
-                    {t('Additional Limits')}
+                    {t('Additional Restrictions')}
                   </div>
                   <p className='text-muted-foreground text-xs'>
                     {t(
-                      'Per-feature metered windows split by model or capability.'
+                      'Per-feature restriction windows split by model or capability.'
                     )}
                   </p>
                 </div>
@@ -522,7 +522,7 @@ export function CodexUsageDialog({
                     const limitName =
                       item.limit_name ||
                       item.metered_feature ||
-                      `${t('Additional Limit')} ${index + 1}`
+                      `${t('Additional Restriction')} ${index + 1}`
                     return (
                       <div
                         key={`${limitName}-${item.metered_feature ?? ''}-${index}`}
@@ -530,7 +530,7 @@ export function CodexUsageDialog({
                       >
                         <RateLimitGroupSection
                           title={limitName}
-                          description={t('Additional metered capability')}
+                          description={t('Feature-specific restriction')}
                           source={item}
                           meteredFeature={item.metered_feature}
                         />

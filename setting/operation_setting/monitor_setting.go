@@ -10,6 +10,8 @@ import (
 type MonitorSetting struct {
 	AutoTestChannelEnabled       bool    `json:"auto_test_channel_enabled"`
 	AutoTestChannelMinutes       float64 `json:"auto_test_channel_minutes"`
+	AutoTestChannelAllowedTypes  []int   `json:"auto_test_channel_allowed_types"`
+	AutoTestChannelIgnoredTypes  []int   `json:"auto_test_channel_ignored_types"`
 	DingTalkAlertEnabled         bool    `json:"dingtalk_alert_enabled"`
 	DingTalkAlertWebhookURL      string  `json:"dingtalk_alert_webhook_url"`
 	DingTalkAlertSecret          string  `json:"dingtalk_alert_secret"`
@@ -20,6 +22,8 @@ type MonitorSetting struct {
 var monitorSetting = MonitorSetting{
 	AutoTestChannelEnabled:       false,
 	AutoTestChannelMinutes:       10,
+	AutoTestChannelAllowedTypes:  []int{},
+	AutoTestChannelIgnoredTypes:  []int{},
 	DingTalkAlertEnabled:         false,
 	DingTalkAlertWebhookURL:      "",
 	DingTalkAlertSecret:          "",

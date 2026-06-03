@@ -38,6 +38,7 @@ import {
   type DashboardSectionId,
   DASHBOARD_DEFAULT_SECTION,
   DASHBOARD_SECTION_IDS,
+  isDashboardSectionAllowed,
 } from './section-registry'
 import {
   type DashboardChartPreferences,
@@ -80,6 +81,12 @@ const LazyUserCharts = lazy(() =>
 const LazyTokenCharts = lazy(() =>
   import('./components/tokens/token-charts').then((m) => ({
     default: m.TokenCharts,
+  }))
+)
+
+const LazyCodexLimitReportPanel = lazy(() =>
+  import('./components/codex/codex-limit-report').then((m) => ({
+    default: m.CodexLimitReportPanel,
   }))
 )
 
@@ -153,6 +160,10 @@ const SECTION_META: Record<
   users: {
     titleKey: 'User Analytics',
   },
+  'codex-limits': {
+    titleKey: 'Codex Limits',
+    descriptionKey: 'View upstream quota limits for Codex channels',
+  },
 }
 
 export function Dashboard() {
@@ -201,7 +212,8 @@ export function Dashboard() {
   const visibleSections = useMemo(
     () =>
       DASHBOARD_SECTION_IDS.filter(
-        (section) => section !== 'overview' && (section !== 'users' || isAdmin)
+        (section) =>
+          section !== 'overview' && isDashboardSectionAllowed(section, isAdmin)
       ),
     [isAdmin]
   )
@@ -315,6 +327,13 @@ export function Dashboard() {
             <FadeIn>
               <Suspense fallback={<ModelChartsFallback />}>
                 <LazyUserCharts />
+              </Suspense>
+            </FadeIn>
+          )}
+          {activeSection === 'codex-limits' && isAdmin && (
+            <FadeIn>
+              <Suspense fallback={<ModelChartsFallback />}>
+                <LazyCodexLimitReportPanel />
               </Suspense>
             </FadeIn>
           )}

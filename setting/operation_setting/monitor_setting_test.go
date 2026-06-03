@@ -32,3 +32,16 @@ func TestMonitorSettingLoadsDingTalkFieldsFromConfigMap(t *testing.T) {
 	require.Equal(t, "secret", setting.DingTalkAlertSecret)
 	require.Equal(t, 15.0, setting.DingTalkAlertCooldownMinutes)
 }
+
+func TestMonitorSettingLoadsChannelTypeFiltersFromConfigMap(t *testing.T) {
+	setting := &MonitorSetting{}
+
+	err := config.UpdateConfigFromMap(setting, map[string]string{
+		"auto_test_channel_allowed_types": "[57,24]",
+		"auto_test_channel_ignored_types": "[2,5]",
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, []int{57, 24}, setting.AutoTestChannelAllowedTypes)
+	require.Equal(t, []int{2, 5}, setting.AutoTestChannelIgnoredTypes)
+}

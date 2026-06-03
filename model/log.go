@@ -32,9 +32,9 @@ func applyExplicitLogTextFilter(tx *gorm.DB, column string, value string) (*gorm
 }
 
 type Log struct {
-	Id                int    `json:"id" gorm:"index:idx_created_at_id,priority:1;index:idx_user_id_id,priority:2"`
+	Id                int    `json:"id" gorm:"index:idx_created_at_id,priority:2;index:idx_user_id_id,priority:2"`
 	UserId            int    `json:"user_id" gorm:"index;index:idx_user_id_id,priority:1"`
-	CreatedAt         int64  `json:"created_at" gorm:"bigint;index:idx_created_at_id,priority:2;index:idx_created_at_type"`
+	CreatedAt         int64  `json:"created_at" gorm:"bigint;index:idx_created_at_id,priority:1;index:idx_created_at_type"`
 	Type              int    `json:"type" gorm:"index:idx_created_at_type"`
 	Content           string `json:"content"`
 	Username          string `json:"username" gorm:"index;index:index_username_model_name,priority:2;default:''"`
@@ -361,7 +361,7 @@ func GetAllLogs(logType int, startTimestamp int64, endTimestamp int64, modelName
 	if err != nil {
 		return nil, 0, err
 	}
-	err = tx.Order("logs.id desc").Limit(num).Offset(startIdx).Find(&logs).Error
+	err = tx.Order("logs.created_at desc, logs.id desc").Limit(num).Offset(startIdx).Find(&logs).Error
 	if err != nil {
 		return nil, 0, err
 	}
@@ -459,6 +459,43 @@ type Stat struct {
 	Quota int `json:"quota"`
 	Rpm   int `json:"rpm"`
 	Tpm   int `json:"tpm"`
+}
+
+type CodexChannelUsageStat struct {
+	ChannelID int   `json:"channel_id" gorm:"column:channel_id"`
+	TokenUsed int64 `json:"token_used" gorm:"column:token_used"`
+	Quota     int64 `json:"quota" gorm:"column:quota"`
+}
+
+func GetCodexChannelUsageStats(
+	channelIds []int,
+	startTimestamp int64,
+	endTimestamp int64,
+) (map[int]CodexChannelUsageStat, error) {
+	result := make(map[int]CodexChannelUsageStat)
+	if len(channelIds) == 0 {
+		return result, nil
+	}
+
+	var stats []CodexChannelUsageStat
+	tx := LOG_DB.Table("logs").Select(
+		"channel_id, COALESCE(SUM(prompt_tokens), 0) + COALESCE(SUM(completion_tokens), 0) AS token_used, COALESCE(SUM(quota), 0) AS quota",
+	).Where("type = ?", LogTypeConsume).Where("channel_id IN ?", channelIds)
+	if startTimestamp > 0 {
+		tx = tx.Where("created_at >= ?", startTimestamp)
+	}
+	if endTimestamp > 0 {
+		tx = tx.Where("created_at <= ?", endTimestamp)
+	}
+
+	if err := tx.Group("channel_id").Scan(&stats).Error; err != nil {
+		common.SysError("failed to query codex channel usage stats: " + err.Error())
+		return result, errors.New("查询 Codex 渠道统计数据失败")
+	}
+	for _, stat := range stats {
+		result[stat.ChannelID] = stat
+	}
+	return result, nil
 }
 
 func SumUsedQuota(logType int, startTimestamp int64, endTimestamp int64, modelName string, username string, tokenName string, channel int, group string) (stat Stat, err error) {

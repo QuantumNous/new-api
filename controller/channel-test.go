@@ -686,6 +686,39 @@ func shouldSendScheduledChannelTestDingTalkAlert(notify bool, err *types.NewAPIE
 	return !notify && err != nil
 }
 
+const scheduledDingTalkAlertFlushSize = 5
+
+type scheduledDingTalkAlertSender func([]service.DingTalkChannelAlert) error
+
+func appendScheduledDingTalkAlert(queue []service.DingTalkChannelAlert, alert service.DingTalkChannelAlert, sender scheduledDingTalkAlertSender) ([]service.DingTalkChannelAlert, error) {
+	queue = append(queue, alert)
+	if len(queue) < scheduledDingTalkAlertFlushSize {
+		return queue, nil
+	}
+	return flushScheduledDingTalkAlerts(queue, sender)
+}
+
+func flushScheduledDingTalkAlerts(queue []service.DingTalkChannelAlert, sender scheduledDingTalkAlertSender) ([]service.DingTalkChannelAlert, error) {
+	if len(queue) == 0 {
+		return queue, nil
+	}
+	err := sender(queue)
+	return queue[:0], err
+}
+
+func shouldSkipScheduledChannelTestByType(notify bool, channelType int, setting *operation_setting.MonitorSetting) bool {
+	if notify || setting == nil {
+		return false
+	}
+	if lo.Contains(setting.AutoTestChannelIgnoredTypes, channelType) {
+		return true
+	}
+	if len(setting.AutoTestChannelAllowedTypes) == 0 {
+		return false
+	}
+	return !lo.Contains(setting.AutoTestChannelAllowedTypes, channelType)
+}
+
 func detectErrorMessageFromJSONBytes(jsonBytes []byte) string {
 	if len(jsonBytes) == 0 {
 		return ""
@@ -941,8 +974,12 @@ func testAllChannels(notify bool) error {
 			testAllChannelsLock.Unlock()
 		}()
 
+		dingTalkAlerts := make([]service.DingTalkChannelAlert, 0)
 		for _, channel := range channels {
 			if channel.Status == common.ChannelStatusManuallyDisabled {
+				continue
+			}
+			if shouldSkipScheduledChannelTestByType(notify, channel.Type, operation_setting.GetMonitorSetting()) {
 				continue
 			}
 			isChannelEnabled := channel.Status == common.ChannelStatusEnabled
@@ -976,11 +1013,11 @@ func testAllChannels(notify bool) error {
 
 			if shouldSendScheduledChannelTestDingTalkAlert(notify, newAPIError) {
 				alert := buildScheduledChannelTestDingTalkAlert(channel, newAPIError, autoDisabled, time.Now())
-				gopool.Go(func() {
-					if err := service.NotifyDingTalkChannelTestFailure(alert); err != nil {
-						common.SysError("failed to send dingtalk channel test alert: " + err.Error())
-					}
-				})
+				var err error
+				dingTalkAlerts, err = appendScheduledDingTalkAlert(dingTalkAlerts, alert, service.NotifyDingTalkChannelTestFailures)
+				if err != nil {
+					common.SysError("failed to send dingtalk channel test alert: " + err.Error())
+				}
 			}
 
 			// enable channel
@@ -990,6 +1027,12 @@ func testAllChannels(notify bool) error {
 
 			channel.UpdateResponseTime(milliseconds)
 			time.Sleep(common.RequestInterval)
+		}
+
+		var err error
+		dingTalkAlerts, err = flushScheduledDingTalkAlerts(dingTalkAlerts, service.NotifyDingTalkChannelTestFailures)
+		if err != nil {
+			common.SysError("failed to send dingtalk channel test alert: " + err.Error())
 		}
 
 		if notify {

@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/QuantumNous/new-api/setting/system_setting"
 	"github.com/QuantumNous/new-api/types"
@@ -36,11 +37,12 @@ type DingTalkAlertCooldown struct {
 }
 
 type dingTalkAlertCooldownReservation struct {
-	c           *DingTalkAlertCooldown
-	channelID   int
-	reservedAt  time.Time
-	previousAt  time.Time
-	hadPrevious bool
+	c             *DingTalkAlertCooldown
+	channelID     int
+	reservedAt    time.Time
+	previousAt    time.Time
+	hadPrevious   bool
+	dbReservation *model.DingTalkAlertCooldownReservation
 }
 
 type dingTalkSendResponse struct {
@@ -49,15 +51,18 @@ type dingTalkSendResponse struct {
 }
 
 var (
-	dingTalkAlertCooldown           = NewDingTalkAlertCooldown()
-	dingTalkCredentialPattern       = regexp.MustCompile(`(?i)(\b(?:access_token|refresh_token|id_token|api[_-]?key|authorization)\b\s*(?::|=)?\s*)(?:"[^"]*"|'[^']*'|bearer\s+[^\s,;}]+|[^\s,;}]+)`)
-	dingTalkQuotedCredentialPattern = regexp.MustCompile(`(?i)(["'](?:access_token|refresh_token|id_token|api[_-]?key|authorization)["']\s*:\s*)(?:"[^"]*"|'[^']*'|[^,\s}]+)`)
-	dingTalkSKPattern               = regexp.MustCompile(`sk-[A-Za-z0-9_-]+`)
-	dingTalkAWSKeyPattern           = regexp.MustCompile(`\b(?:AKIA|ASIA)[A-Z0-9]{16}\b`)
-	dingTalkGoogleAPIKeyPattern     = regexp.MustCompile(`\bAIza[0-9A-Za-z_-]{35}\b`)
-	dingTalkMaxResponseBodyBytes    = int64(64 * 1024)
-	dingTalkRequestTimeout          = 10 * time.Second
+	dingTalkAlertCooldown              = NewDingTalkAlertCooldown()
+	dingTalkCredentialPattern          = regexp.MustCompile(`(?i)(\b(?:access_token|refresh_token|id_token|api[_-]?key|authorization)\b\s*(?::|=)?\s*)(?:"[^"]*"|'[^']*'|bearer\s+[^\s,;}]+|[^\s,;}]+)`)
+	dingTalkQuotedCredentialPattern    = regexp.MustCompile(`(?i)(["'](?:access_token|refresh_token|id_token|api[_-]?key|authorization)["']\s*:\s*)(?:"[^"]*"|'[^']*'|[^,\s}]+)`)
+	dingTalkSKPattern                  = regexp.MustCompile(`sk-[A-Za-z0-9_-]+`)
+	dingTalkAWSKeyPattern              = regexp.MustCompile(`\b(?:AKIA|ASIA)[A-Z0-9]{16}\b`)
+	dingTalkGoogleAPIKeyPattern        = regexp.MustCompile(`\bAIza[0-9A-Za-z_-]{35}\b`)
+	dingTalkMaxResponseBodyBytes       = int64(64 * 1024)
+	dingTalkRequestTimeout             = 10 * time.Second
+	dingTalkAlertPendingReservationTTL = 2 * dingTalkRequestTimeout
 )
+
+const maxDingTalkChannelAlertBatchSize = 5
 
 func NewDingTalkAlertCooldown() *DingTalkAlertCooldown {
 	return &DingTalkAlertCooldown{lastAt: make(map[int]time.Time)}
@@ -100,7 +105,16 @@ func (c *DingTalkAlertCooldown) reserve(channelID int, now time.Time, cooldown t
 }
 
 func (r *dingTalkAlertCooldownReservation) Rollback() {
-	if r == nil || r.c == nil {
+	if r == nil {
+		return
+	}
+	if r.dbReservation != nil {
+		if err := model.RollbackDingTalkAlertCooldown(r.dbReservation); err != nil {
+			common.SysError("failed to rollback dingtalk alert cooldown reservation: " + err.Error())
+		}
+		return
+	}
+	if r.c == nil {
 		return
 	}
 	r.c.mu.Lock()
@@ -115,6 +129,36 @@ func (r *dingTalkAlertCooldownReservation) Rollback() {
 		return
 	}
 	delete(r.c.lastAt, r.channelID)
+}
+
+func (r *dingTalkAlertCooldownReservation) Commit() error {
+	if r == nil || r.dbReservation == nil {
+		return nil
+	}
+	return model.CommitDingTalkAlertCooldown(r.dbReservation)
+}
+
+func reserveDingTalkAlertCooldown(channelID int, now time.Time, cooldown time.Duration) (*dingTalkAlertCooldownReservation, bool) {
+	if model.DB == nil {
+		return dingTalkAlertCooldown.reserve(channelID, now, cooldown)
+	}
+	reservationToken, err := common.GenerateRandomCharsKey(32)
+	if err != nil {
+		common.SysError("failed to generate dingtalk alert cooldown reservation token: " + err.Error())
+		return nil, false
+	}
+	dbReservation, allowed, err := model.ReserveDingTalkAlertCooldown(channelID, cooldown, dingTalkAlertPendingReservationTTL, reservationToken)
+	if err != nil {
+		common.SysError("failed to reserve dingtalk alert cooldown in database: " + err.Error())
+		return dingTalkAlertCooldown.reserve(channelID, now, cooldown)
+	}
+	if !allowed || dbReservation == nil {
+		return nil, allowed
+	}
+	return &dingTalkAlertCooldownReservation{
+		channelID:     channelID,
+		dbReservation: dbReservation,
+	}, true
 }
 
 func BuildDingTalkChannelAlertContent(alert DingTalkChannelAlert) string {
@@ -152,6 +196,22 @@ func BuildDingTalkChannelAlertContent(alert DingTalkChannelAlert) string {
 		fmt.Sprintf("Auto Disabled: %s", autoDisabled),
 		fmt.Sprintf("Time: %s", now.Format("2006-01-02 15:04:05")),
 	}, "\n")
+}
+
+func BuildDingTalkChannelAlertBatchContent(alerts []DingTalkChannelAlert) string {
+	if len(alerts) == 1 {
+		return BuildDingTalkChannelAlertContent(alerts[0])
+	}
+
+	blocks := []string{
+		"New API channel test failures",
+		fmt.Sprintf("Total Failures: %d", len(alerts)),
+	}
+	for index, alert := range alerts {
+		blocks = append(blocks, fmt.Sprintf("Failure #%d", index+1))
+		blocks = append(blocks, BuildDingTalkChannelAlertContent(alert))
+	}
+	return strings.Join(blocks, "\n\n")
 }
 
 func sanitizeDingTalkAlertText(value string) string {
@@ -258,6 +318,13 @@ func SendDingTalkText(webhookURL string, secret string, content string) error {
 }
 
 func NotifyDingTalkChannelTestFailure(alert DingTalkChannelAlert) error {
+	return NotifyDingTalkChannelTestFailures([]DingTalkChannelAlert{alert})
+}
+
+func NotifyDingTalkChannelTestFailures(alerts []DingTalkChannelAlert) error {
+	if len(alerts) == 0 {
+		return nil
+	}
 	setting := operation_setting.GetMonitorSetting()
 	if setting == nil || !setting.DingTalkAlertEnabled {
 		return nil
@@ -266,27 +333,60 @@ func NotifyDingTalkChannelTestFailure(alert DingTalkChannelAlert) error {
 		return fmt.Errorf("dingtalk alert webhook url is empty")
 	}
 
-	now := alert.Now
-	if now.IsZero() {
-		now = time.Now()
-		alert.Now = now
-	}
 	cooldownMinutes := setting.DingTalkAlertCooldownMinutes
 	if cooldownMinutes <= 0 {
 		cooldownMinutes = 60
 	}
-	reservation, allowed := dingTalkAlertCooldown.reserve(alert.ChannelID, now, time.Duration(cooldownMinutes)*time.Minute)
-	if !allowed {
-		return nil
+	cooldown := time.Duration(cooldownMinutes) * time.Minute
+	reservations := make([]*dingTalkAlertCooldownReservation, 0, len(alerts))
+	sendableAlerts := make([]DingTalkChannelAlert, 0, len(alerts))
+	for _, alert := range alerts {
+		now := alert.Now
+		if now.IsZero() {
+			now = time.Now()
+			alert.Now = now
+		}
+		reservation, allowed := reserveDingTalkAlertCooldown(alert.ChannelID, now, cooldown)
+		if !allowed {
+			continue
+		}
+		reservations = append(reservations, reservation)
+		sendableAlerts = append(sendableAlerts, alert)
+		if len(sendableAlerts) == maxDingTalkChannelAlertBatchSize {
+			if err := sendReservedDingTalkChannelAlertBatch(setting, reservations, sendableAlerts); err != nil {
+				return err
+			}
+			reservations = reservations[:0]
+			sendableAlerts = sendableAlerts[:0]
+		}
 	}
 
+	return sendReservedDingTalkChannelAlertBatch(setting, reservations, sendableAlerts)
+}
+
+func sendReservedDingTalkChannelAlertBatch(setting *operation_setting.MonitorSetting, reservations []*dingTalkAlertCooldownReservation, alerts []DingTalkChannelAlert) error {
+	if len(alerts) == 0 {
+		return nil
+	}
 	if err := SendDingTalkText(
 		setting.DingTalkAlertWebhookURL,
 		setting.DingTalkAlertSecret,
-		BuildDingTalkChannelAlertContent(alert),
+		BuildDingTalkChannelAlertBatchContent(alerts),
 	); err != nil {
-		reservation.Rollback()
+		for _, reservation := range reservations {
+			reservation.Rollback()
+		}
 		return err
+	}
+	// The alert has already been delivered to DingTalk. Committing the cooldown
+	// reservations only affects cooldown bookkeeping, so a Commit failure must not
+	// be surfaced as a send failure nor abort committing the remaining reservations.
+	// Reservations that fail to commit keep their pending state and are released
+	// once the pending TTL expires, allowing later alerts through.
+	for _, reservation := range reservations {
+		if err := reservation.Commit(); err != nil {
+			common.SysError("failed to commit dingtalk alert cooldown reservation: " + err.Error())
+		}
 	}
 	return nil
 }

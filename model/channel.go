@@ -622,6 +622,15 @@ func (channel *Channel) UpdateBalance(balance float64) {
 	}
 }
 
+func UpdateChannelKey(id int, key string) error {
+	err := DB.Model(&Channel{}).Where("id = ?", id).Update("key", key).Error
+	if err != nil {
+		return err
+	}
+	publishChannelsChanged()
+	return nil
+}
+
 func (channel *Channel) Delete() error {
 	var err error
 	err = DB.Delete(channel).Error
@@ -1121,6 +1130,17 @@ func GetChannelsByType(startIdx int, num int, idSort bool, channelType int) ([]*
 		order = "id desc"
 	}
 	err := DB.Where("type = ?", channelType).Order(order).Limit(num).Offset(startIdx).Omit("key").Find(&channels).Error
+	return channels, err
+}
+
+// GetAllChannelsByType returns all channels of a specific type.
+func GetAllChannelsByType(channelType int, selectAll bool) ([]*Channel, error) {
+	var channels []*Channel
+	query := DB.Where("type = ?", channelType).Order("priority desc")
+	if !selectAll {
+		query = query.Omit("key")
+	}
+	err := query.Find(&channels).Error
 	return channels, err
 }
 

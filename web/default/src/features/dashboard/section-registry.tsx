@@ -45,11 +45,18 @@ const DASHBOARD_SECTIONS = [
     adminOnly: true,
     build: () => null,
   },
+  {
+    id: 'codex-limits',
+    titleKey: 'Codex Limits',
+    descriptionKey: 'View upstream quota limits for Codex channels',
+    adminOnly: true,
+    build: () => null,
+  },
 ] as const
 
 export type DashboardSectionId = (typeof DASHBOARD_SECTIONS)[number]['id']
 
-const ADMIN_ONLY_SECTIONS = new Set<string>(['users'])
+const ADMIN_ONLY_SECTIONS = new Set<string>(['users', 'codex-limits'])
 
 const dashboardRegistry = createSectionRegistry<
   DashboardSectionId,
@@ -65,13 +72,20 @@ const dashboardRegistry = createSectionRegistry<
 export const DASHBOARD_SECTION_IDS = dashboardRegistry.sectionIds
 export const DASHBOARD_DEFAULT_SECTION = dashboardRegistry.defaultSection
 
+export function isDashboardSectionAllowed(
+  section: string,
+  isAdmin?: boolean
+): boolean {
+  return !ADMIN_ONLY_SECTIONS.has(section) || Boolean(isAdmin)
+}
+
 export function getDashboardSectionNavItems(
   t: TFunction,
   options?: { isAdmin?: boolean }
 ) {
   const all = dashboardRegistry.getSectionNavItems(t)
   if (options?.isAdmin) return all
-  return all.filter(
-    (_, idx) => !ADMIN_ONLY_SECTIONS.has(DASHBOARD_SECTIONS[idx].id)
+  return all.filter((_, idx) =>
+    isDashboardSectionAllowed(DASHBOARD_SECTIONS[idx].id, options?.isAdmin)
   )
 }
