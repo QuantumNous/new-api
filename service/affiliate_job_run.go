@@ -44,16 +44,24 @@ type affiliateSettlementGenerateIdempotencyPayload struct {
 }
 
 func createAffiliateSettlementPipelineJobRun(db *gorm.DB, input AffiliateSettlementRunInput) (model.AffiliateJobRun, error) {
+	idempotencyKey := affiliateSettlementRunIdempotencyKey(input)
+	inputSnapshot := affiliateSettlementRunInputSnapshot(input)
+	if jobRun, ok, err := resumeFailedAffiliateJobRun(db, model.AffiliateJobRunTypeSettlementPipeline, idempotencyKey, input.ActorUserId, input.Now, inputSnapshot); err != nil {
+		return model.AffiliateJobRun{}, err
+	} else if ok {
+		return jobRun, nil
+	}
+
 	jobRun := model.AffiliateJobRun{
 		JobType:        model.AffiliateJobRunTypeSettlementPipeline,
 		Status:         model.AffiliateJobRunStatusRunning,
-		IdempotencyKey: affiliateSettlementRunIdempotencyKey(input),
+		IdempotencyKey: idempotencyKey,
 		RuleSetId:      input.RuleSetId,
 		PeriodStart:    input.PeriodStart,
 		PeriodEnd:      input.PeriodEnd,
 		ActorUserId:    input.ActorUserId,
 		CurrentStage:   affiliateJobRunStageStarting,
-		InputSnapshot:  affiliateSettlementRunInputSnapshot(input),
+		InputSnapshot:  inputSnapshot,
 		StartedAt:      input.Now,
 	}
 	if err := db.Create(&jobRun).Error; err != nil {
@@ -100,22 +108,69 @@ func GenerateAffiliateSettlementsWithJobRun(db *gorm.DB, input AffiliateSettleme
 }
 
 func createAffiliateSettlementGenerateJobRun(db *gorm.DB, input AffiliateSettlementBuildInput) (model.AffiliateJobRun, error) {
+	idempotencyKey := affiliateSettlementGenerateIdempotencyKey(input)
+	inputSnapshot := affiliateSettlementGenerateInputSnapshot(input)
+	if jobRun, ok, err := resumeFailedAffiliateJobRun(db, model.AffiliateJobRunTypeSettlementGenerate, idempotencyKey, input.ActorUserId, input.GeneratedAt, inputSnapshot); err != nil {
+		return model.AffiliateJobRun{}, err
+	} else if ok {
+		return jobRun, nil
+	}
+
 	jobRun := model.AffiliateJobRun{
 		JobType:        model.AffiliateJobRunTypeSettlementGenerate,
 		Status:         model.AffiliateJobRunStatusRunning,
-		IdempotencyKey: affiliateSettlementGenerateIdempotencyKey(input),
+		IdempotencyKey: idempotencyKey,
 		RuleSetId:      input.RuleSetId,
 		PeriodStart:    input.PeriodStart,
 		PeriodEnd:      input.PeriodEnd,
 		ActorUserId:    input.ActorUserId,
 		CurrentStage:   affiliateJobRunStageStarting,
-		InputSnapshot:  affiliateSettlementGenerateInputSnapshot(input),
+		InputSnapshot:  inputSnapshot,
 		StartedAt:      input.GeneratedAt,
 	}
 	if err := db.Create(&jobRun).Error; err != nil {
 		return model.AffiliateJobRun{}, err
 	}
 	return jobRun, nil
+}
+
+func resumeFailedAffiliateJobRun(db *gorm.DB, jobType string, idempotencyKey string, actorUserId int, startedAt int64, inputSnapshot string) (model.AffiliateJobRun, bool, error) {
+	var jobRun model.AffiliateJobRun
+	err := db.Where("job_type = ? AND idempotency_key = ? AND status = ?", jobType, idempotencyKey, model.AffiliateJobRunStatusFailed).
+		Order("id desc").
+		First(&jobRun).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return model.AffiliateJobRun{}, false, nil
+	}
+	if err != nil {
+		return model.AffiliateJobRun{}, false, err
+	}
+
+	updates := map[string]interface{}{
+		"status":                 model.AffiliateJobRunStatusRunning,
+		"actor_user_id":          actorUserId,
+		"current_stage":          affiliateJobRunStageStarting,
+		"last_cursor_created_at": 0,
+		"last_cursor_id":         0,
+		"kpi_snapshot_count":     0,
+		"commission_event_count": 0,
+		"head_fee_event_count":   0,
+		"settlement_count":       0,
+		"input_snapshot":         inputSnapshot,
+		"result_snapshot":        "",
+		"error_message":          "",
+		"started_at":             startedAt,
+		"finished_at":            0,
+	}
+	if err := db.Model(&model.AffiliateJobRun{}).
+		Where("id = ? AND status = ?", jobRun.Id, model.AffiliateJobRunStatusFailed).
+		Updates(updates).Error; err != nil {
+		return model.AffiliateJobRun{}, false, err
+	}
+	if err := db.First(&jobRun, jobRun.Id).Error; err != nil {
+		return model.AffiliateJobRun{}, false, err
+	}
+	return jobRun, true, nil
 }
 
 func updateAffiliateJobRunProgress(db *gorm.DB, jobRunId int, stage string, updates map[string]interface{}) error {

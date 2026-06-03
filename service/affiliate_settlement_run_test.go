@@ -242,6 +242,63 @@ func TestRunAffiliateSettlementPipelineRecordsJobRunFailure(t *testing.T) {
 	}
 }
 
+func TestRunAffiliateSettlementPipelineResumesFailedJobRunForSameIdempotencyKey(t *testing.T) {
+	db := newAffiliateCommissionTestDB(t)
+	input := AffiliateSettlementRunInput{
+		PeriodStart:     1000,
+		PeriodEnd:       2000,
+		FreezeDays:      7,
+		Now:             3000,
+		QuotaPerUnit:    100,
+		USDExchangeRate: 1,
+		ActorUserId:     9,
+		Reason:          "first run fails before rules are published",
+	}
+
+	first, err := RunAffiliateSettlementPipeline(db, db, input)
+	if err == nil {
+		t.Fatalf("expected first run to fail without a published rule set, got %+v", first)
+	}
+	var failedRun model.AffiliateJobRun
+	if err := db.First(&failedRun, first.JobRunId).Error; err != nil {
+		t.Fatalf("load failed job run: %v", err)
+	}
+	if failedRun.Status != model.AffiliateJobRunStatusFailed || failedRun.ErrorMessage == "" {
+		t.Fatalf("expected failed job run with error context, got %+v", failedRun)
+	}
+
+	savePublishedAffiliateCommissionRuleSetFromInput(t, db, newAffiliateHeadFeeRuleSetInput("settlement-run-resume-failed"))
+	input.Now = 4000
+	input.Reason = "retry same settlement run"
+	second, err := RunAffiliateSettlementPipeline(db, db, input)
+	if err != nil {
+		t.Fatalf("retry RunAffiliateSettlementPipeline returned error: %v", err)
+	}
+	if second.JobRunId != failedRun.Id || second.IdempotencyKey != failedRun.IdempotencyKey {
+		t.Fatalf("expected retry to resume failed job run, first=%+v second=%+v", failedRun, second)
+	}
+
+	var resumedRun model.AffiliateJobRun
+	if err := db.First(&resumedRun, failedRun.Id).Error; err != nil {
+		t.Fatalf("load resumed job run: %v", err)
+	}
+	if resumedRun.Status != model.AffiliateJobRunStatusSucceeded || resumedRun.CurrentStage != affiliateJobRunStageComplete {
+		t.Fatalf("expected resumed job run to succeed, got %+v", resumedRun)
+	}
+	if resumedRun.StartedAt != 4000 || resumedRun.FinishedAt != 4000 || resumedRun.ErrorMessage != "" {
+		t.Fatalf("expected resumed job run metadata to be refreshed, got %+v", resumedRun)
+	}
+	var runCount int64
+	if err := db.Model(&model.AffiliateJobRun{}).
+		Where("idempotency_key = ?", failedRun.IdempotencyKey).
+		Count(&runCount).Error; err != nil {
+		t.Fatalf("count job runs: %v", err)
+	}
+	if runCount != 1 {
+		t.Fatalf("expected failed run to be resumed in place, got %d job runs", runCount)
+	}
+}
+
 func TestRunAffiliateSettlementPipelineRejectsInvalidPeriod(t *testing.T) {
 	db := newAffiliateCommissionTestDB(t)
 	if _, err := RunAffiliateSettlementPipeline(db, db, AffiliateSettlementRunInput{

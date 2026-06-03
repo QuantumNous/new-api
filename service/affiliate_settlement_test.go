@@ -153,6 +153,56 @@ func TestGenerateAffiliateSettlementsWithJobRunRecordsFailure(t *testing.T) {
 	}
 }
 
+func TestGenerateAffiliateSettlementsWithJobRunResumesFailedJobRunForSameIdempotencyKey(t *testing.T) {
+	db := newAffiliateCommissionTestDB(t)
+	input := AffiliateSettlementBuildInput{
+		PeriodStart: 1000,
+		PeriodEnd:   2000,
+		FreezeDays:  7,
+		ActorUserId: 9,
+		Reason:      "first generate fails before rules are published",
+		GeneratedAt: 3000,
+	}
+
+	_, failedRun, err := GenerateAffiliateSettlementsWithJobRun(db, input)
+	if err == nil {
+		t.Fatalf("expected first settlement generate to fail, got %+v", failedRun)
+	}
+	if failedRun.Id <= 0 || failedRun.Status != model.AffiliateJobRunStatusFailed {
+		t.Fatalf("expected failed generate job run, got %+v", failedRun)
+	}
+
+	savePublishedAffiliateCommissionRuleSet(t, db, "settlement-generate-resume-failed")
+	input.GeneratedAt = 4000
+	input.Reason = "retry same settlement generate"
+	settlements, resumedRun, err := GenerateAffiliateSettlementsWithJobRun(db, input)
+	if err != nil {
+		t.Fatalf("retry GenerateAffiliateSettlementsWithJobRun returned error: %v", err)
+	}
+	if len(settlements) != 0 {
+		t.Fatalf("expected retry with no pending events to produce no settlements, got %+v", settlements)
+	}
+	if resumedRun.Id != failedRun.Id || resumedRun.IdempotencyKey != failedRun.IdempotencyKey {
+		t.Fatalf("expected retry to resume failed generate job run, first=%+v second=%+v", failedRun, resumedRun)
+	}
+	if resumedRun.Status != model.AffiliateJobRunStatusSucceeded || resumedRun.CurrentStage != affiliateJobRunStageComplete {
+		t.Fatalf("expected resumed generate job run to succeed, got %+v", resumedRun)
+	}
+	if resumedRun.StartedAt != 4000 || resumedRun.FinishedAt != 4000 || resumedRun.ErrorMessage != "" {
+		t.Fatalf("expected resumed generate metadata to be refreshed, got %+v", resumedRun)
+	}
+
+	var runCount int64
+	if err := db.Model(&model.AffiliateJobRun{}).
+		Where("idempotency_key = ?", failedRun.IdempotencyKey).
+		Count(&runCount).Error; err != nil {
+		t.Fatalf("count job runs: %v", err)
+	}
+	if runCount != 1 {
+		t.Fatalf("expected failed generate run to be resumed in place, got %d job runs", runCount)
+	}
+}
+
 func TestGenerateAffiliateSettlementsMergesNewPendingEventsIntoExistingDraft(t *testing.T) {
 	db := newAffiliateCommissionTestDB(t)
 	ruleSet := savePublishedAffiliateCommissionRuleSet(t, db, "settlement-merge-existing-draft")
