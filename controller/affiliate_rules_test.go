@@ -39,6 +39,35 @@ func TestAdminSaveAffiliateRuleSetDraft(t *testing.T) {
 	assertAffiliateControllerChildCount(t, db, &model.AffiliateCommissionRule{}, body.Data.Id, 2)
 }
 
+func TestAdminGetAffiliateRuleSetDefaultSeed(t *testing.T) {
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = httptest.NewRequest(http.MethodGet, "/api/affiliate/admin/rule-sets/default-seed?version=api-default-seed", nil)
+	ctx.Set("id", 9)
+	ctx.Set("role", common.RoleAdminUser)
+
+	AdminGetAffiliateRuleSetDefaultSeed(ctx)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d body=%s", recorder.Code, recorder.Body.String())
+	}
+	var body affiliateRuleSetSeedTestResponse
+	if err := json.Unmarshal(recorder.Body.Bytes(), &body); err != nil {
+		t.Fatalf("unmarshal response: %v", err)
+	}
+	if !body.Success || body.Data.Version != "api-default-seed" || body.Data.ActorUserId != 9 {
+		t.Fatalf("unexpected default seed response: %+v", body)
+	}
+	if len(body.Data.CommissionTiers) != 10 || len(body.Data.KPITiers) != 8 || len(body.Data.HeadFeeRules) != 8 {
+		t.Fatalf("unexpected default seed child counts: %+v", body.Data)
+	}
+	if body.Data.CommissionTiers[1].MinNetPaidAmountCents != 20000 ||
+		body.Data.CommissionTiers[1].BaseRateBps != 1333 ||
+		body.Data.HeadFeeRules[3].AmountCents != 200 {
+		t.Fatalf("default seed should return converted cents and bps values: %+v", body.Data)
+	}
+}
+
 func TestAdminPublishAffiliateRuleSetArchivesPreviousPublished(t *testing.T) {
 	db := newAffiliateControllerTestDB(t)
 	first, err := service.SaveAffiliateRuleSetDraft(db, newAffiliateRuleSetDraftRequest("rules-api-2026-07"))
@@ -192,6 +221,12 @@ type affiliateRuleSetTestResponse struct {
 	Success bool                   `json:"success"`
 	Message string                 `json:"message"`
 	Data    model.AffiliateRuleSet `json:"data"`
+}
+
+type affiliateRuleSetSeedTestResponse struct {
+	Success bool                               `json:"success"`
+	Message string                             `json:"message"`
+	Data    service.AffiliateRuleSetDraftInput `json:"data"`
 }
 
 type affiliateRuleSetsListTestResponse struct {

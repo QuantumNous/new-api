@@ -92,8 +92,8 @@
 - [ ] 复核 KPI 规则：最终档位应取有效用户数档位和净付费消耗档位的较低者，质量门槛可降档或触发复核。
 - [ ] 复核人头费规则：不按注册直接发放，必须满足首充和 14 天净付费门槛。
 - [ ] 复核分销邀请注册赠送额度与普通邀请注册赠送额度差异，确保赠金不计佣、不计 KPI。
-- [ ] 把已核对的飞书规则沉淀为可导入的默认 rule set seed，避免每次手工输入运营规则。
-- [ ] 对 seed 增加 Go 测试，确保区间无重叠、无空洞、金额/比例单位转换正确、发布版本不可变。
+- [x] 把已核对的飞书规则沉淀为可导入的默认 rule set seed，避免每次手工输入运营规则。（2026-06-04 已把当前 master plan 沉淀值固化为服务层默认 seed，并新增 admin 只读 seed API；最新飞书外部变更仍需按上方单项重新核对。）
+- [x] 对 seed 增加 Go 测试，确保区间无重叠、无空洞、金额/比例单位转换正确、发布版本不可变。（2026-06-04 已补 service/controller 测试，覆盖 seed 转换、佣金区间连续性、保存发布和发布后不可覆盖。）
 
 ## 8. 佣金、KPI、人头费与结算可靠性
 
@@ -158,7 +158,7 @@
 - [x] P1：明确 dev/prod 镜像切换方案，保证生产不再误用官方 latest 来发布二开功能。
 - [x] P1：把分销管理规则配置重构为运营友好的表格/矩阵，并保留高级 JSON 导入导出。（2026-06-03 已完成 default/classic 可视编辑表格化和高级 JSON 文本保留；2026-06-04 已补 default/classic 导入/导出按钮、diff 预览、复制上一版本、已发布/已归档版本只读查看和发布/归档二次确认。启停字段、风控动作、自动结算等后端未模型化字段仍按第 6 节单项任务保留。）
 - [ ] P1：佣金、KPI、人头费和结算任务改造为分批、可恢复、幂等、可审计。（2026-06-04 已完成 usage logs 的 `created_at,id` cursor 分批扫描、完整 pipeline 重复运行幂等审计；2026-06-03 已完成 settlement pipeline 顶层 job run 审计记录、settlement pending/ready event grouping 的 `id` cursor 分批扫描和 settlement event link 更新批量拆分；可恢复 cursor、单独 generate endpoint run record 和外部完整周期 dry-run/正式 run 双跑验收仍待做。）
-- [ ] P2：把飞书规则沉淀为默认 rule set seed，并增加单位转换、区间完整性和发布不可变测试。
+- [x] P2：把飞书规则沉淀为默认 rule set seed，并增加单位转换、区间完整性和发布不可变测试。（2026-06-04 已完成当前 master plan 默认值的 service seed、admin seed API 和 Go 测试；最新飞书方案外部复核仍按第 7 节其他单项保留。）
 - [ ] P2：补齐 SMS 分布式限流、手机号注册归因和真实通道 smoke。
 - [ ] P2：完善 dashboard 统计口径、浏览器截图回归和外部验收归档。
 
@@ -433,3 +433,13 @@
 - 回归验证：`go test -count=1 ./service -run "AffiliateSettlementPipeline|SettlementRun|GenerateAffiliateSettlements|AffiliateSettlement|AffiliateKPI|KPISnapshot|AffiliatePendingCommission|CommissionEvents|Commission|AffiliateHeadFee|HeadFee"` 通过。
 - 残留风险：本轮实现的是扫描进度持久化，不是完整中断恢复。`last_cursor_id` 在 settlement stage 可能对应 commission event 或 head fee event 两类表之一，现有 schema 没有单独 cursor type 字段；真正 resume 需要设计 stage-specific cursor payload 或 result snapshot，并验证幂等重入边界。
 - 下一步：继续设计真正可恢复 resume 语义，或在 Docker/compose 恢复后补 `affiliate_job_runs` PostgreSQL schema diff。
+
+## P2-1 默认 rule set seed 复盘（2026-06-04 本线程）
+
+- RED：先新增 `TestDefaultAffiliateRuleSetSeedUsesOperationalUnitConversions`、`TestDefaultAffiliateRuleSetSeedCommissionTiersHaveNoOverlapAndNoGap`、`TestDefaultAffiliateRuleSetSeedCanBePublishedAndRemainImmutable`；旧代码因缺少 `BuildDefaultAffiliateRuleSetDraftInput` 编译失败。再新增 `TestAdminGetAffiliateRuleSetDefaultSeed`；旧代码因缺少 `AdminGetAffiliateRuleSetDefaultSeed` 编译失败。
+- 完成内容：新增服务层默认 seed helper，把当前 master plan 中沉淀的飞书默认值以运营单位“元/百分比/系数”写入，再转换为内部 `cents`、`bps` 和 KPI 系数 bps，避免散落手工输入。默认 seed 覆盖两级佣金规则、10 段佣金 tier、8 个 KPI tier、8 条人头费规则、两级风控规则和月结配置。
+- 完成内容：新增 admin 只读接口 `GET /api/affiliate/admin/rule-sets/default-seed`，返回同一份服务层 seed；可通过 `version` query 指定草稿版本，操作人使用当前 admin id，后续仍通过既有 `POST /api/affiliate/admin/rule-sets/draft` 保存为规则集版本。
+- 验证命令：RED 阶段 `go test -count=1 ./service -run "DefaultAffiliateRuleSetSeed"` 因 helper 未定义失败；`go test -count=1 ./controller -run "DefaultSeed"` 因 controller 未定义失败。实现后同两条命令均通过。
+- 回归验证：`go test -count=1 ./model ./service ./controller ./router -run "Affiliate|RuleSet|Commission|KPI|HeadFee|Settlement|Admin|Inviter"` 通过；`git diff --check` 通过。新增 admin seed route 未影响既有规则集保存、发布、归档、回滚、结算和路由测试。
+- 残留风险：本轮没有重新读取外部飞书最新资料，只把当前 `native-affiliate-master-plan.zh-CN.md` 已沉淀的默认值固化为 seed；第 7 节中“重新核对飞书方案”的 paid 口径、有效新用户、档位和赠送额度差异仍保留未完成。
+- 下一步：提交本轮 seed 变更；后续如要减少前后端默认 seed 漂移，可让 default/classic 新建草稿优先拉取 admin seed API，并保留本地 seed 作为离线 fallback。

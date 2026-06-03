@@ -30,6 +30,11 @@ func AdminListAffiliateRuleSets(c *gin.Context) {
 	common.ApiSuccess(c, pageInfo)
 }
 
+func AdminGetAffiliateRuleSetDefaultSeed(c *gin.Context) {
+	seed := service.BuildDefaultAffiliateRuleSetDraftInput(c.Query("version"), c.GetInt("id"), "")
+	common.ApiSuccess(c, seed)
+}
+
 func AdminSaveAffiliateRuleSetDraft(c *gin.Context) {
 	var req service.AffiliateRuleSetDraftInput
 	if err := c.ShouldBindJSON(&req); err != nil {
