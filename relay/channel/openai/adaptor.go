@@ -310,18 +310,25 @@ func (a *Adaptor) ConvertOpenAIRequest(c *gin.Context, info *relaycommon.RelayIn
 		}
 
 	}
-	if strings.HasPrefix(info.UpstreamModelName, "o") || strings.HasPrefix(info.UpstreamModelName, "gpt-5") {
+	upstreamModelName := info.UpstreamModelName
+	openAIProvider := true
+	if idx := strings.Index(upstreamModelName, "/"); idx >= 0 {
+		openAIProvider = strings.HasPrefix(upstreamModelName[:idx], "openai")
+		upstreamModelName = upstreamModelName[idx+1:]
+	}
+	isOModel := openAIProvider && len(upstreamModelName) > 1 && upstreamModelName[0] == 'o' && upstreamModelName[1] >= '0' && upstreamModelName[1] <= '9'
+	if isOModel || strings.HasPrefix(upstreamModelName, "gpt-5") {
 		if lo.FromPtrOr(request.MaxCompletionTokens, uint(0)) == 0 && lo.FromPtrOr(request.MaxTokens, uint(0)) != 0 {
 			request.MaxCompletionTokens = request.MaxTokens
 			request.MaxTokens = nil
 		}
 
-		if strings.HasPrefix(info.UpstreamModelName, "o") {
+		if isOModel {
 			request.Temperature = nil
 		}
 
 		// gpt-5系列模型适配 归零不再支持的参数
-		if strings.HasPrefix(info.UpstreamModelName, "gpt-5") {
+		if strings.HasPrefix(upstreamModelName, "gpt-5") {
 			request.Temperature = nil
 			request.TopP = nil
 			request.LogProbs = nil
@@ -338,7 +345,7 @@ func (a *Adaptor) ConvertOpenAIRequest(c *gin.Context, info *relaycommon.RelayIn
 		info.ReasoningEffort = request.ReasoningEffort
 
 		// o系列模型developer适配（o1-mini除外）
-		if !strings.HasPrefix(info.UpstreamModelName, "o1-mini") && !strings.HasPrefix(info.UpstreamModelName, "o1-preview") {
+		if strings.HasPrefix(upstreamModelName, "gpt-5") || !strings.HasPrefix(upstreamModelName, "o1-mini") && !strings.HasPrefix(upstreamModelName, "o1-preview") {
 			//修改第一个Message的内容，将system改为developer
 			if len(request.Messages) > 0 && request.Messages[0].Role == "system" {
 				request.Messages[0].Role = "developer"
