@@ -30,13 +30,13 @@
 
 ## 2. Dev 前端运行与重启后恢复
 
-- [ ] 明确给后续线程和用户说明：`5173`、`5174` 是临时前端 dev server 进程，不是类似 `new-api` 的 Docker 容器；电脑重启后端口拒绝连接是正常现象。
-- [ ] 所有前端端口启动命令优先在 WSL 内执行，不使用 Windows 侧 `Start-Process` 作为默认路径。
-- [ ] 保留或新增 WSL 启动脚本，例如 `scripts/dev-web-tmux.sh`，一键启动 `tmux new-session -s new-api-web` 并分别运行 default/classic dev server。
-- [ ] 在 runbook 中补齐 `tmux attach -t new-api-web`、`tmux ls`、`tmux kill-session -t new-api-web`、查看 default/classic 日志和重启单个 window 的命令。
-- [ ] 修正 `docker-compose.dev.yml` 或相关文档里旧的前端端口说明，避免继续写 `3001` 之类与当前 `5173`/`5174` 不一致的提示。
-- [ ] 前端启动后必须验证 `curl -I http://127.0.0.1:5173/` 和 `curl -I http://127.0.0.1:5174/` 返回 200。
-- [ ] 前端启动后必须验证 `curl -i http://127.0.0.1:5173/api/affiliate/team` 和 `curl -i http://127.0.0.1:5174/api/affiliate/team` 未登录返回 401 而不是 404。
+- [x] 明确给后续线程和用户说明：`5173`、`5174` 是临时前端 dev server 进程，不是类似 `new-api` 的 Docker 容器；电脑重启后端口拒绝连接是正常现象。（见 P0-3 复盘）
+- [x] 所有前端端口启动命令优先在 WSL 内执行，不使用 Windows 侧 `Start-Process` 作为默认路径。（见 P0-3 复盘）
+- [x] 保留或新增 WSL 启动脚本，例如 `scripts/dev-web-tmux.sh`，一键启动 `tmux new-session -s new-api-web` 并分别运行 default/classic dev server。（见 P0-3 复盘）
+- [x] 在 runbook 中补齐 `tmux attach -t new-api-web`、`tmux ls`、`tmux kill-session -t new-api-web`、查看 default/classic 日志和重启单个 window 的命令。（见 P0-3 复盘）
+- [x] 修正 `docker-compose.dev.yml` 或相关文档里旧的前端端口说明，避免继续写 `3001` 之类与当前 `5173`/`5174` 不一致的提示。（见 P0-3 复盘）
+- [x] 前端启动后必须验证 `curl -I http://127.0.0.1:5173/` 和 `curl -I http://127.0.0.1:5174/` 返回 200。（见 P0-3 复盘）
+- [x] 前端启动后必须验证 `curl -i http://127.0.0.1:5173/api/affiliate/team` 和 `curl -i http://127.0.0.1:5174/api/affiliate/team` 未登录返回 401 而不是 404。（见 P0-3 复盘）
 
 ## 3. Dev 与生产镜像治理
 
@@ -52,23 +52,23 @@
 
 - [ ] 在 Windows 浏览器 DevTools Network 中复核 `/api/affiliate/team` 的 Request URL、Status、是否 from disk cache/from memory cache、Response Body 和 Request Headers。
 - [ ] 如果 Response Body 仍是 `Invalid URL (GET /api/affiliate/team)`，优先判断为旧后端 404 HTTP 缓存或命中错误端口，不要先改后端路由。
-- [ ] 继续验证未登录 curl：`http://127.0.0.1:5173/api/affiliate/team`、`http://127.0.0.1:5174/api/affiliate/team`、`http://127.0.0.1:3000/api/affiliate/team` 均应返回 401，不应返回 404。
-- [ ] 登录后用浏览器控制台、DevTools request replay 或 curl 带 cookie 与 `New-Api-User` header 验证 `/api/affiliate/team` 返回 200 且 `total` 非 0。
+- [x] 继续验证未登录 curl：`http://127.0.0.1:5173/api/affiliate/team`、`http://127.0.0.1:5174/api/affiliate/team`、`http://127.0.0.1:3000/api/affiliate/team` 均应返回 401，不应返回 404。（见 P0-1 复盘）
+- [x] 登录后用浏览器控制台、DevTools request replay 或 curl 带 cookie 与 `New-Api-User` header 验证 `/api/affiliate/team` 返回 200 且 `total` 非 0。（见 P0-1 复盘）
 - [ ] 如果 Network 显示缓存，先让浏览器勾选 Disable cache 并硬刷新，必要时清站点缓存。
-- [ ] 评估当前前端 `_t` cache buster 和 `Cache-Control: no-cache` 临时修复是否保留、改成统一 API no-cache 封装，或改为后端对 `/api/*` 返回 `Cache-Control: no-store`。
-- [ ] 如果保留前端 cache buster，必须补 default/classic 对应测试或至少用浏览器 Network 证明 Request URL 已带 `_t` 且不再命中 disk cache。
+- [x] 评估当前前端 `_t` cache buster 和 `Cache-Control: no-cache` 临时修复是否保留、改成统一 API no-cache 封装，或改为后端对 `/api/*` 返回 `Cache-Control: no-store`。（见 P0-1 复盘；当前保留前端规避）
+- [x] 如果保留前端 cache buster，必须补 default/classic 对应测试或至少用浏览器 Network 证明 Request URL 已带 `_t` 且不再命中 disk cache。（见 P0-1 复盘）
 - [ ] 如果改为后端 no-store，必须覆盖 `/api/affiliate/team`、登录态 API 和通用 API 响应，避免缓存 401/404/敏感 JSON。
-- [ ] 收口后提交一个独立 commit，说明这是缓存/部署链路修复，不是后端路由实现。
+- [x] 收口后提交一个独立 commit，说明这是缓存/部署链路修复，不是后端路由实现。（已按 P0-1/P0-3 分主题提交）
 
 ## 5. Scoped 使用日志脱敏优先级
 
-- [ ] 立即复核 `service/affiliate_logs.go` 的 scoped 日志脱敏字段，当前疑点是只清理了 `Ip`、`RequestId`、`UpstreamRequestId` 和部分 `other` 字段，未清理 `ChannelId`、`ChannelName`、`TokenId`、`TokenName`。
-- [ ] 立即复核后端 CSV 导出，当前疑点是 `controller/affiliate.go` 仍导出 `channel_id`、`channel_name`、`token_id`、`token_name`。
-- [ ] 立即复核 default 前端 CSV 导出，当前疑点是 `web/default/src/features/affiliate/lib.ts` 仍导出 channel/token 字段。
-- [ ] 按治理原则修正 scoped 使用日志：分销商视角不得看到渠道成本、内部渠道源、token、IP、request id、upstream request id 和非授权字段。
-- [ ] 用 TDD 更新已有测试。先让 `controller/affiliate_test.go` 和 `web/default/src/features/affiliate/lib.test.ts` 中期待 channel/token 的断言 RED，再改实现到 GREEN。
+- [x] 立即复核 `service/affiliate_logs.go` 的 scoped 日志脱敏字段，当前疑点是只清理了 `Ip`、`RequestId`、`UpstreamRequestId` 和部分 `other` 字段，未清理 `ChannelId`、`ChannelName`、`TokenId`、`TokenName`。（见 P0-2 复盘）
+- [x] 立即复核后端 CSV 导出，当前疑点是 `controller/affiliate.go` 仍导出 `channel_id`、`channel_name`、`token_id`、`token_name`。（见 P0-2 复盘）
+- [x] 立即复核 default 前端 CSV 导出，当前疑点是 `web/default/src/features/affiliate/lib.ts` 仍导出 channel/token 字段。（见 P0-2 复盘）
+- [x] 按治理原则修正 scoped 使用日志：分销商视角不得看到渠道成本、内部渠道源、token、IP、request id、upstream request id 和非授权字段。（见 P0-2 复盘）
+- [x] 用 TDD 更新已有测试。先让 `controller/affiliate_test.go` 和 `web/default/src/features/affiliate/lib.test.ts` 中期待 channel/token 的断言 RED，再改实现到 GREEN。（见 P0-2 复盘）
 - [ ] 审核 classic/default 页面渲染，避免前端表格列继续展示已经脱敏或删除的内部字段。
-- [ ] 修复后补一条脱敏审计复盘到本 tasklist 或旧 tasklist，写清楚隐藏字段清单和测试命令。
+- [x] 修复后补一条脱敏审计复盘到本 tasklist 或旧 tasklist，写清楚隐藏字段清单和测试命令。（见 P0-2 复盘）
 
 ## 6. 分销管理指标体系表格化
 
