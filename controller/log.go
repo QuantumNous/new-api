@@ -1,11 +1,15 @@
 package controller
 
 import (
+	"fmt"
 	"net/http"
+	"net/url"
 	"strconv"
+	"strings"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
+	usagelogexport "github.com/QuantumNous/new-api/service/usage_log_export"
 
 	"github.com/gin-gonic/gin"
 )
@@ -53,6 +57,81 @@ func GetUserLogs(c *gin.Context) {
 	pageInfo.SetItems(logs)
 	common.ApiSuccess(c, pageInfo)
 	return
+}
+
+func GetLogExportFields(c *gin.Context) {
+	common.ApiSuccess(c, usagelogexport.FieldGroups(true))
+}
+
+func GetUserLogExportFields(c *gin.Context) {
+	common.ApiSuccess(c, usagelogexport.FieldGroups(false))
+}
+
+func ExportAllLogs(c *gin.Context) {
+	exportLogs(c, true)
+}
+
+func ExportUserLogs(c *gin.Context) {
+	exportLogs(c, false)
+}
+
+func exportLogs(c *gin.Context, isAdmin bool) {
+	filter := buildLogExportFilter(c, isAdmin)
+	file, filename, _, err := usagelogexport.BuildXLSX(c.Request.Context(), usagelogexport.ExportInput{
+		Filter:   filter,
+		Fields:   splitLogExportFields(c.Query("fields")),
+		Timezone: c.Query("timezone"),
+	})
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	defer func() { _ = file.Close() }()
+	c.Header("Content-Disposition", fmt.Sprintf("attachment; filename*=UTF-8''%s", url.PathEscape(filename)))
+	c.Header("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+	c.Status(http.StatusOK)
+	if err := file.Write(c.Writer); err != nil {
+		common.SysError("failed to write usage log export: " + err.Error())
+	}
+}
+
+func splitLogExportFields(value string) []string {
+	if value == "" {
+		return nil
+	}
+	parts := strings.Split(value, ",")
+	fields := make([]string, 0, len(parts))
+	for _, part := range parts {
+		part = strings.TrimSpace(part)
+		if part != "" {
+			fields = append(fields, part)
+		}
+	}
+	return fields
+}
+
+func buildLogExportFilter(c *gin.Context, isAdmin bool) model.LogExportFilter {
+	logType, _ := strconv.Atoi(c.Query("type"))
+	startTimestamp, _ := strconv.ParseInt(c.Query("start_timestamp"), 10, 64)
+	endTimestamp, _ := strconv.ParseInt(c.Query("end_timestamp"), 10, 64)
+	channel, _ := strconv.Atoi(c.Query("channel"))
+	filter := model.LogExportFilter{
+		UserId:            c.GetInt("id"),
+		IsAdmin:           isAdmin,
+		LogType:           logType,
+		StartTimestamp:    startTimestamp,
+		EndTimestamp:      endTimestamp,
+		ModelName:         c.Query("model_name"),
+		TokenName:         c.Query("token_name"),
+		Group:             c.Query("group"),
+		RequestId:         c.Query("request_id"),
+		UpstreamRequestId: c.Query("upstream_request_id"),
+	}
+	if isAdmin {
+		filter.Username = c.Query("username")
+		filter.Channel = channel
+	}
+	return filter
 }
 
 // Deprecated: SearchAllLogs 已废弃，前端未使用该接口。

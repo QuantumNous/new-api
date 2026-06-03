@@ -187,6 +187,9 @@ export const useLogsData = () => {
   const [showParamOverrideModal, setShowParamOverrideModal] = useState(false);
   const [paramOverrideTarget, setParamOverrideTarget] = useState(null);
 
+  // Excel export modal state
+  const [showExportModal, setShowExportModal] = useState(false);
+
   // Initialize default column visibility
   const initDefaultColumns = () => {
     const defaults = getDefaultColumnVisibility();
@@ -881,6 +884,10 @@ export const useLogsData = () => {
     showParamOverrideModal,
     setShowParamOverrideModal,
     paramOverrideTarget,
+
+    // Excel export modal
+    showExportModal,
+    setShowExportModal,
 
     // Functions
     loadLogs,

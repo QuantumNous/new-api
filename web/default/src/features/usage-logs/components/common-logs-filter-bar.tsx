@@ -39,10 +39,11 @@ import {
 } from '@/components/ui/tooltip'
 import { LOG_TYPE_ALL_VALUE, LOG_TYPE_FILTERS } from '../constants'
 import { buildSearchParams } from '../lib/filter'
-import { getDefaultTimeRange } from '../lib/utils'
+import { buildApiParams, getDefaultTimeRange } from '../lib/utils'
 import type { CommonLogFilters } from '../types'
 import { CommonLogsStats } from './common-logs-stats'
 import { CompactDateTimeRangePicker } from './compact-date-time-range-picker'
+import { CommonLogsExportDialog } from './dialogs/common-logs-export-dialog'
 import {
   LogsFilterField,
   LogsFilterInput,
@@ -195,6 +196,19 @@ export function CommonLogsFilterBar<TData>(
   )
   const logTypeLabel =
     logTypeItems.find((type) => type.value === logType)?.label ?? t('All Types')
+
+  const tableColumnFilters = props.table.getState().columnFilters
+  const exportParams = useMemo(
+    () =>
+      buildApiParams({
+        page: 1,
+        pageSize: 1,
+        searchParams: searchParams as Record<string, unknown>,
+        columnFilters: tableColumnFilters,
+        isAdmin,
+      }),
+    [searchParams, tableColumnFilters, isAdmin]
+  )
 
   const statsBar = (
     <div className='flex flex-wrap items-center gap-2'>
@@ -362,6 +376,9 @@ export function CommonLogsFilterBar<TData>(
       onSearch={handleApply}
       searchLoading={fetchingLogs > 0}
       onReset={handleReset}
+      postActions={
+        <CommonLogsExportDialog params={exportParams} isAdmin={isAdmin} />
+      }
     />
   )
 }

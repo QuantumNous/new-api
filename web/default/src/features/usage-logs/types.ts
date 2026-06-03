@@ -301,6 +301,26 @@ export interface GetLogStatsResponse {
   data?: LogStatistics
 }
 
+export interface LogExportField {
+  key: string
+  label: string
+  group: string
+  default: boolean
+  admin_only?: boolean
+}
+
+export interface LogExportFieldGroup {
+  key: string
+  label: string
+  fields: LogExportField[]
+}
+
+export interface GetLogExportFieldsResponse {
+  success: boolean
+  message?: string
+  data?: LogExportFieldGroup[]
+}
+
 // ============================================================================
 // Drawing Log Types
 // ============================================================================

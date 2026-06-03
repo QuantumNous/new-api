@@ -286,6 +286,11 @@ func migrateDB() error {
 		&NavigationItem{},
 		&NavigationItemTranslation{},
 		&NavigationVisibilityRule{},
+		&CostReportTemplate{},
+		&CostReportTemplateVersion{},
+		&CostReportRun{},
+		&CostReportRowSnapshot{},
+		&CostReportManualCell{},
 	)
 	if err != nil {
 		return err
@@ -341,6 +346,11 @@ func migrateDBFast() error {
 		{&NavigationItem{}, "NavigationItem"},
 		{&NavigationItemTranslation{}, "NavigationItemTranslation"},
 		{&NavigationVisibilityRule{}, "NavigationVisibilityRule"},
+		{&CostReportTemplate{}, "CostReportTemplate"},
+		{&CostReportTemplateVersion{}, "CostReportTemplateVersion"},
+		{&CostReportRun{}, "CostReportRun"},
+		{&CostReportRowSnapshot{}, "CostReportRowSnapshot"},
+		{&CostReportManualCell{}, "CostReportManualCell"},
 	}
 	// 动态计算migration数量，确保errChan缓冲区足够大
 	errChan := make(chan error, len(migrations))

@@ -19,7 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 
 import React from 'react';
 import { Button, Form } from '@douyinfe/semi-ui';
-import { IconSearch } from '@douyinfe/semi-icons';
+import { IconSearch, IconDownload } from '@douyinfe/semi-icons';
 
 import { DATE_RANGE_PRESETS } from '../../../constants/console.constants';
 
@@ -28,6 +28,7 @@ const LogsFilters = ({
   setFormApi,
   refresh,
   setShowColumnSelector,
+  setShowExportModal,
   formApi,
   setLogType,
   loading,
@@ -182,6 +183,14 @@ const LogsFilters = ({
               size='small'
             >
               {t('列设置')}
+            </Button>
+            <Button
+              type='tertiary'
+              icon={<IconDownload />}
+              onClick={() => setShowExportModal(true)}
+              size='small'
+            >
+              {t('导出')}
             </Button>
           </div>
         </div>

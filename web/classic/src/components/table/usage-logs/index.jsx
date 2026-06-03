@@ -23,6 +23,7 @@ import LogsTable from './UsageLogsTable';
 import LogsActions from './UsageLogsActions';
 import LogsFilters from './UsageLogsFilters';
 import ColumnSelectorModal from './modals/ColumnSelectorModal';
+import UsageLogExportModal from './modals/UsageLogExportModal';
 import UserInfoModal from './modals/UserInfoModal';
 import ChannelAffinityUsageCacheModal from './modals/ChannelAffinityUsageCacheModal';
 import ParamOverrideModal from './modals/ParamOverrideModal';
@@ -38,6 +39,7 @@ const LogsPage = () => {
     <>
       {/* Modals */}
       <ColumnSelectorModal {...logsData} />
+      <UsageLogExportModal {...logsData} />
       <UserInfoModal {...logsData} />
       <ChannelAffinityUsageCacheModal {...logsData} />
       <ParamOverrideModal {...logsData} />

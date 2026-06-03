@@ -21,7 +21,7 @@ import React, { lazy, Suspense, useContext, useMemo } from 'react';
 import { Route, Routes, useLocation, useParams } from 'react-router-dom';
 import Loading from './components/common/ui/Loading';
 import User from './pages/User';
-import { AuthRedirect, PrivateRoute, AdminRoute } from './helpers';
+import { AuthRedirect, PrivateRoute, AdminRoute, RootRoute } from './helpers';
 import RegisterForm from './components/auth/RegisterForm';
 import LoginForm from './components/auth/LoginForm';
 import NotFound from './pages/NotFound';
@@ -56,6 +56,7 @@ const Dashboard = lazy(() => import('./pages/Dashboard'));
 const About = lazy(() => import('./pages/About'));
 const UserAgreement = lazy(() => import('./pages/UserAgreement'));
 const PrivacyPolicy = lazy(() => import('./pages/PrivacyPolicy'));
+const CostReport = lazy(() => import('./pages/CostReport'));
 
 function DynamicOAuth2Callback() {
   const { provider } = useParams();
@@ -146,6 +147,16 @@ function App() {
             <AdminRoute>
               <ChannelPreparation />
             </AdminRoute>
+          }
+        />
+        <Route
+          path='/console/cost-reports'
+          element={
+            <RootRoute>
+              <Suspense fallback={<Loading></Loading>} key={location.pathname}>
+                <CostReport />
+              </Suspense>
+            </RootRoute>
           }
         />
         <Route

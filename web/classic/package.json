@@ -16,6 +16,7 @@
     "history": "^5.3.0",
     "i18next": "^23.16.8",
     "i18next-browser-languagedetector": "^7.2.0",
+    "jspreadsheet-ce": "^5.0.4",
     "katex": "^0.16.22",
     "lucide-react": "^0.511.0",
     "marked": "^4.1.1",
