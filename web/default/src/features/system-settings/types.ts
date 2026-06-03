@@ -31,7 +31,7 @@ export type SystemOptionsResponse = {
 
 export type UpdateOptionRequest = {
   key: string
-  value: string | boolean | number
+  value: string | boolean | number | unknown[]
 }
 
 export type UpdateOptionResponse = {
@@ -290,6 +290,8 @@ export type OperationsSettings = {
   AutomaticRetryStatusCodes: string
   'monitor_setting.auto_test_channel_enabled': boolean
   'monitor_setting.auto_test_channel_minutes': number
+  'monitor_setting.auto_test_channel_allowed_types': number[]
+  'monitor_setting.auto_test_channel_ignored_types': number[]
   'monitor_setting.dingtalk_alert_enabled': boolean
   'monitor_setting.dingtalk_alert_webhook_url': string
   'monitor_setting.dingtalk_alert_secret': string

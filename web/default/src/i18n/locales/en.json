@@ -4793,6 +4793,15 @@
     "Result": "Result",
     "Send reset email": "Send reset email",
     "Updating...": "Updating...",
+    "{{count}} selected": "{{count}} selected",
+    "Excluded channel types are skipped before required channel types are applied.": "Excluded channel types are skipped before required channel types are applied.",
+    "Excluded channel types have higher priority than required channel types.": "Excluded channel types have higher priority than required channel types.",
+    "Excluded test channel types": "Excluded test channel types",
+    "Leave empty to test all channel types.": "Leave empty to test all channel types.",
+    "No channel types selected": "No channel types selected",
+    "Required test channel types": "Required test channel types",
+    "Select channel types": "Select channel types",
+    "When selected, scheduled tests only include these channel types unless they are excluded.": "When selected, scheduled tests only include these channel types unless they are excluded.",
     "Waffo": "Waffo"
   }
 }

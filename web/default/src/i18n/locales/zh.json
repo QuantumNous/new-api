@@ -4793,6 +4793,15 @@
     "Result": "结果",
     "Send reset email": "发送重置邮件",
     "Updating...": "正在更新...",
+    "{{count}} selected": "已选择 {{count}} 个",
+    "Excluded channel types are skipped before required channel types are applied.": "不需要检测的渠道类型会先于需要检测的渠道类型生效。",
+    "Excluded channel types have higher priority than required channel types.": "不需要检测的渠道类型优先级高于需要检测的渠道类型。",
+    "Excluded test channel types": "不需要检测的渠道类型",
+    "Leave empty to test all channel types.": "留空表示检测所有渠道类型。",
+    "No channel types selected": "未选择渠道类型",
+    "Required test channel types": "需要检测的渠道类型",
+    "Select channel types": "选择渠道类型",
+    "When selected, scheduled tests only include these channel types unless they are excluded.": "选择后，定时检测只检测这些渠道类型，除非它们同时在不需要检测列表中。",
     "Waffo": "Waffo"
   }
 }

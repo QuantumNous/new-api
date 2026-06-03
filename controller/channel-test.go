@@ -686,6 +686,19 @@ func shouldSendScheduledChannelTestDingTalkAlert(notify bool, err *types.NewAPIE
 	return !notify && err != nil
 }
 
+func shouldSkipScheduledChannelTestByType(notify bool, channelType int, setting *operation_setting.MonitorSetting) bool {
+	if notify || setting == nil {
+		return false
+	}
+	if lo.Contains(setting.AutoTestChannelIgnoredTypes, channelType) {
+		return true
+	}
+	if len(setting.AutoTestChannelAllowedTypes) == 0 {
+		return false
+	}
+	return !lo.Contains(setting.AutoTestChannelAllowedTypes, channelType)
+}
+
 func detectErrorMessageFromJSONBytes(jsonBytes []byte) string {
 	if len(jsonBytes) == 0 {
 		return ""
@@ -944,6 +957,9 @@ func testAllChannels(notify bool) error {
 		dingTalkAlerts := make([]service.DingTalkChannelAlert, 0)
 		for _, channel := range channels {
 			if channel.Status == common.ChannelStatusManuallyDisabled {
+				continue
+			}
+			if shouldSkipScheduledChannelTestByType(notify, channel.Type, operation_setting.GetMonitorSetting()) {
 				continue
 			}
 			isChannelEnabled := channel.Status == common.ChannelStatusEnabled
