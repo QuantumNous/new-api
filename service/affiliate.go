@@ -2,6 +2,7 @@ package service
 
 import (
 	"errors"
+	"sort"
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
@@ -197,6 +198,32 @@ type AffiliateVisibleUserIds struct {
 	UserIds []int
 }
 
+type AffiliateTeamTree struct {
+	Items []AffiliateTeamTreeNode `json:"items"`
+	Total int                     `json:"total"`
+}
+
+type AffiliateTeamTreeNode struct {
+	UserId          int                     `json:"user_id"`
+	Username        string                  `json:"username"`
+	AffiliateLevel  int                     `json:"affiliate_level"`
+	ParentUserId    int                     `json:"parent_user_id"`
+	DirectInviterId int                     `json:"direct_inviter_id"`
+	Depth           int                     `json:"depth"`
+	Source          string                  `json:"source"`
+	EffectiveAt     int64                   `json:"effective_at"`
+	Children        []AffiliateTeamTreeNode `json:"children"`
+}
+
+type affiliateTeamEdge struct {
+	UserId          int
+	DirectInviterId int
+	Depth           int
+	Source          string
+	EffectiveAt     int64
+	Sidecar         bool
+}
+
 func ResolveAffiliateAccessScope(input AffiliateScopeInput) AffiliateScope {
 	if input.Role == common.RoleRootUser || input.Role == common.RoleAdminUser {
 		return AffiliateScope{
@@ -267,7 +294,268 @@ func ListAffiliateVisibleUserIds(db *gorm.DB, scope AffiliateScope) (AffiliateVi
 		userIds = append(userIds, relation.DescendantUserId)
 	}
 
+	legacyUserIds, err := listLegacyAffiliateVisibleUserIds(db, scope)
+	if err != nil {
+		return AffiliateVisibleUserIds{}, err
+	}
+	for _, userId := range legacyUserIds {
+		if userId <= 0 || seen[userId] {
+			continue
+		}
+		seen[userId] = true
+		userIds = append(userIds, userId)
+	}
+
 	return AffiliateVisibleUserIds{UserIds: userIds}, nil
+}
+
+func listLegacyAffiliateVisibleUserIds(db *gorm.DB, scope AffiliateScope) ([]int, error) {
+	if db == nil {
+		return nil, errors.New("nil db")
+	}
+	if scope.Kind != AffiliateScopeAffiliate || scope.UserId <= 0 || scope.MaxDepth <= 0 {
+		return []int{}, nil
+	}
+
+	seen := map[int]bool{scope.UserId: true}
+	current := []int{scope.UserId}
+	result := make([]int, 0)
+	for depth := 1; depth <= scope.MaxDepth && len(current) > 0; depth++ {
+		var users []model.User
+		if err := db.
+			Select("id").
+			Where("inviter_id IN ?", current).
+			Order("id asc").
+			Find(&users).Error; err != nil {
+			return nil, err
+		}
+
+		next := make([]int, 0, len(users))
+		for _, user := range users {
+			if user.Id <= 0 || seen[user.Id] {
+				continue
+			}
+			seen[user.Id] = true
+			result = append(result, user.Id)
+			next = append(next, user.Id)
+		}
+		current = next
+	}
+	return result, nil
+}
+
+func BuildAffiliateTeamTree(db *gorm.DB, scope AffiliateScope) (AffiliateTeamTree, error) {
+	if db == nil {
+		return AffiliateTeamTree{}, errors.New("nil db")
+	}
+	if scope.Kind == AffiliateScopeGlobal {
+		return buildGlobalAffiliateTeamTree(db)
+	}
+	if scope.Kind != AffiliateScopeAffiliate {
+		return AffiliateTeamTree{}, errors.New("affiliate scope unavailable")
+	}
+	if scope.UserId <= 0 || scope.MaxDepth <= 0 {
+		return AffiliateTeamTree{}, errors.New("invalid affiliate scope")
+	}
+
+	edges, err := collectAffiliateTeamEdges(db, scope.UserId, scope.MaxDepth)
+	if err != nil {
+		return AffiliateTeamTree{}, err
+	}
+	return buildAffiliateTeamTreeFromEdges(db, scope.UserId, edges)
+}
+
+func buildGlobalAffiliateTeamTree(db *gorm.DB) (AffiliateTeamTree, error) {
+	var profiles []model.AffiliateProfile
+	if err := db.
+		Where("level = ? AND status = ?", 1, model.AffiliateProfileStatusActive).
+		Order("user_id asc").
+		Find(&profiles).Error; err != nil {
+		return AffiliateTeamTree{}, err
+	}
+	items := make([]AffiliateTeamTreeNode, 0, len(profiles))
+	total := 0
+	for _, profile := range profiles {
+		scope := AffiliateScope{
+			Kind:           AffiliateScopeAffiliate,
+			UserId:         profile.UserId,
+			AffiliateLevel: 1,
+			MaxDepth:       2,
+		}
+		tree, err := BuildAffiliateTeamTree(db, scope)
+		if err != nil {
+			return AffiliateTeamTree{}, err
+		}
+		root := AffiliateTeamTreeNode{
+			UserId:         profile.UserId,
+			AffiliateLevel: profile.Level,
+			ParentUserId:   profile.ParentUserId,
+			Depth:          0,
+			Children:       tree.Items,
+		}
+		fillAffiliateTeamNodeUsers(db, []int{root.UserId}, map[int]*AffiliateTeamTreeNode{root.UserId: &root})
+		items = append(items, root)
+		total += 1 + tree.Total
+	}
+	sort.Slice(items, func(i, j int) bool {
+		return items[i].UserId < items[j].UserId
+	})
+	return AffiliateTeamTree{Items: items, Total: total}, nil
+}
+
+func collectAffiliateTeamEdges(db *gorm.DB, rootUserId int, maxDepth int) (map[int]affiliateTeamEdge, error) {
+	edges := make(map[int]affiliateTeamEdge)
+
+	var relations []model.AffiliateRelation
+	if err := db.
+		Where(
+			"ancestor_user_id = ? AND status = ? AND depth >= ? AND depth <= ?",
+			rootUserId,
+			model.AffiliateProfileStatusActive,
+			1,
+			maxDepth,
+		).
+		Order("depth asc, descendant_user_id asc").
+		Find(&relations).Error; err != nil {
+		return nil, err
+	}
+	for _, relation := range relations {
+		if relation.DescendantUserId <= 0 {
+			continue
+		}
+		directInviterId := relation.DirectInviterId
+		if directInviterId <= 0 {
+			if relation.Depth == 1 {
+				directInviterId = rootUserId
+			} else {
+				directInviterId = rootUserId
+			}
+		}
+		mergeAffiliateTeamEdge(edges, affiliateTeamEdge{
+			UserId:          relation.DescendantUserId,
+			DirectInviterId: directInviterId,
+			Depth:           relation.Depth,
+			Source:          relation.Source,
+			EffectiveAt:     relation.EffectiveAt,
+			Sidecar:         true,
+		})
+	}
+
+	seen := map[int]bool{rootUserId: true}
+	current := []int{rootUserId}
+	for depth := 1; depth <= maxDepth && len(current) > 0; depth++ {
+		var users []model.User
+		if err := db.
+			Select("id, inviter_id").
+			Where("inviter_id IN ?", current).
+			Order("id asc").
+			Find(&users).Error; err != nil {
+			return nil, err
+		}
+		next := make([]int, 0, len(users))
+		for _, user := range users {
+			if user.Id <= 0 || seen[user.Id] {
+				continue
+			}
+			seen[user.Id] = true
+			next = append(next, user.Id)
+			mergeAffiliateTeamEdge(edges, affiliateTeamEdge{
+				UserId:          user.Id,
+				DirectInviterId: user.InviterId,
+				Depth:           depth,
+				Source:          "legacy_inviter",
+			})
+		}
+		current = next
+	}
+
+	return edges, nil
+}
+
+func mergeAffiliateTeamEdge(edges map[int]affiliateTeamEdge, edge affiliateTeamEdge) {
+	if edge.UserId <= 0 || edge.Depth <= 0 {
+		return
+	}
+	existing, ok := edges[edge.UserId]
+	if !ok || edge.Depth < existing.Depth || (edge.Depth == existing.Depth && edge.Sidecar && !existing.Sidecar) {
+		edges[edge.UserId] = edge
+	}
+}
+
+func buildAffiliateTeamTreeFromEdges(db *gorm.DB, rootUserId int, edges map[int]affiliateTeamEdge) (AffiliateTeamTree, error) {
+	if len(edges) == 0 {
+		return AffiliateTeamTree{Items: []AffiliateTeamTreeNode{}, Total: 0}, nil
+	}
+
+	nodes := make(map[int]*AffiliateTeamTreeNode, len(edges))
+	userIds := make([]int, 0, len(edges))
+	for userId, edge := range edges {
+		edgeCopy := edge
+		nodes[userId] = &AffiliateTeamTreeNode{
+			UserId:          edgeCopy.UserId,
+			DirectInviterId: edgeCopy.DirectInviterId,
+			Depth:           edgeCopy.Depth,
+			Source:          edgeCopy.Source,
+			EffectiveAt:     edgeCopy.EffectiveAt,
+			Children:        []AffiliateTeamTreeNode{},
+		}
+		userIds = append(userIds, userId)
+	}
+	fillAffiliateTeamNodeUsers(db, userIds, nodes)
+
+	childrenByParent := make(map[int][]*AffiliateTeamTreeNode)
+	for _, node := range nodes {
+		parentId := node.DirectInviterId
+		if parentId <= 0 {
+			parentId = rootUserId
+		}
+		childrenByParent[parentId] = append(childrenByParent[parentId], node)
+	}
+
+	var buildChildren func(parentId int) []AffiliateTeamTreeNode
+	buildChildren = func(parentId int) []AffiliateTeamTreeNode {
+		children := childrenByParent[parentId]
+		sort.Slice(children, func(i, j int) bool {
+			if children[i].Depth != children[j].Depth {
+				return children[i].Depth < children[j].Depth
+			}
+			return children[i].UserId < children[j].UserId
+		})
+		result := make([]AffiliateTeamTreeNode, 0, len(children))
+		for _, child := range children {
+			childCopy := *child
+			childCopy.Children = buildChildren(child.UserId)
+			result = append(result, childCopy)
+		}
+		return result
+	}
+
+	items := buildChildren(rootUserId)
+	return AffiliateTeamTree{Items: items, Total: len(edges)}, nil
+}
+
+func fillAffiliateTeamNodeUsers(db *gorm.DB, userIds []int, nodes map[int]*AffiliateTeamTreeNode) {
+	if len(userIds) == 0 {
+		return
+	}
+	var users []model.User
+	if err := db.Select("id, username").Where("id IN ?", userIds).Find(&users).Error; err == nil {
+		for _, user := range users {
+			if node := nodes[user.Id]; node != nil {
+				node.Username = user.Username
+			}
+		}
+	}
+
+	var profiles []model.AffiliateProfile
+	if err := db.Select("user_id, level, parent_user_id").Where("user_id IN ? AND status = ?", userIds, model.AffiliateProfileStatusActive).Find(&profiles).Error; err == nil {
+		for _, profile := range profiles {
+			if node := nodes[profile.UserId]; node != nil {
+				node.AffiliateLevel = profile.Level
+				node.ParentUserId = profile.ParentUserId
+			}
+		}
+	}
 }
 
 type AffiliateProfileCreateInput struct {
@@ -344,7 +632,90 @@ func ListAffiliateProfiles(db *gorm.DB, input AffiliateProfileListInput) ([]mode
 		Find(&profiles).Error; err != nil {
 		return nil, 0, err
 	}
+	fillAffiliateProfileInviteCodes(db, profiles)
 	return profiles, total, nil
+}
+
+func fillAffiliateProfileInviteCodes(db *gorm.DB, profiles []model.AffiliateProfile) {
+	if db == nil || len(profiles) == 0 || !db.Migrator().HasTable(&model.User{}) {
+		return
+	}
+
+	userIds := make([]int, 0, len(profiles))
+	seen := make(map[int]struct{}, len(profiles))
+	for _, profile := range profiles {
+		if profile.UserId <= 0 {
+			continue
+		}
+		if _, ok := seen[profile.UserId]; ok {
+			continue
+		}
+		seen[profile.UserId] = struct{}{}
+		userIds = append(userIds, profile.UserId)
+	}
+	if len(userIds) == 0 {
+		return
+	}
+
+	var users []model.User
+	if err := db.Select("id", "username", "aff_code").Where("id IN ?", userIds).Find(&users).Error; err != nil {
+		return
+	}
+	codes := make(map[int]string, len(users))
+	usernames := make(map[int]string, len(users))
+	for _, user := range users {
+		usernames[user.Id] = user.Username
+		if code := resolveOrCreateUserAffiliateCode(db, user); code != "" {
+			codes[user.Id] = code
+		}
+	}
+	for index := range profiles {
+		profiles[index].Username = usernames[profiles[index].UserId]
+		if strings.TrimSpace(profiles[index].InviteCode) == "" {
+			profiles[index].InviteCode = codes[profiles[index].UserId]
+		}
+	}
+}
+
+func resolveAffiliateProfileInviteCode(db *gorm.DB, userId int, inputCode string) string {
+	code := strings.TrimSpace(inputCode)
+	if code != "" || db == nil || userId <= 0 || !db.Migrator().HasTable(&model.User{}) {
+		return code
+	}
+
+	var user model.User
+	if err := db.Select("id", "aff_code").Where("id = ?", userId).First(&user).Error; err != nil {
+		return ""
+	}
+	return resolveOrCreateUserAffiliateCode(db, user)
+}
+
+func resolveOrCreateUserAffiliateCode(db *gorm.DB, user model.User) string {
+	if code := strings.TrimSpace(user.AffCode); code != "" {
+		return code
+	}
+	if db == nil || user.Id <= 0 {
+		return ""
+	}
+	for attempt := 0; attempt < 8; attempt++ {
+		code := common.GetRandomString(4)
+		if strings.TrimSpace(code) == "" {
+			continue
+		}
+		result := db.Model(&model.User{}).
+			Where("id = ? AND (aff_code = '' OR aff_code IS NULL)", user.Id).
+			Update("aff_code", code)
+		if result.Error == nil && result.RowsAffected > 0 {
+			return code
+		}
+		var refreshed model.User
+		if err := db.Select("id", "aff_code").Where("id = ?", user.Id).First(&refreshed).Error; err == nil {
+			if refreshedCode := strings.TrimSpace(refreshed.AffCode); refreshedCode != "" {
+				return refreshedCode
+			}
+		}
+	}
+	return ""
 }
 
 func CreateAffiliateProfile(db *gorm.DB, input AffiliateProfileCreateInput) (*model.AffiliateProfile, error) {
@@ -366,7 +737,7 @@ func CreateAffiliateProfile(db *gorm.DB, input AffiliateProfileCreateInput) (*mo
 		UserId:       input.UserId,
 		Level:        input.Level,
 		ParentUserId: input.ParentUserId,
-		InviteCode:   strings.TrimSpace(input.InviteCode),
+		InviteCode:   resolveAffiliateProfileInviteCode(db, input.UserId, input.InviteCode),
 		Status:       model.AffiliateProfileStatusActive,
 		ActivatedAt:  now,
 	}
@@ -438,7 +809,7 @@ func SetAffiliateProfile(db *gorm.DB, input AffiliateProfileSetInput) (*model.Af
 		now := common.GetTimestamp()
 		existing.Level = input.Level
 		existing.ParentUserId = input.ParentUserId
-		existing.InviteCode = strings.TrimSpace(input.InviteCode)
+		existing.InviteCode = resolveAffiliateProfileInviteCode(tx, input.UserId, input.InviteCode)
 		existing.Status = model.AffiliateProfileStatusActive
 		existing.DisabledAt = 0
 		if existing.ActivatedAt == 0 {

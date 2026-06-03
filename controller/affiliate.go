@@ -65,6 +65,21 @@ func GetAffiliateScopedLogs(c *gin.Context) {
 	common.ApiSuccess(c, pageInfo)
 }
 
+func GetAffiliateTeamTree(c *gin.Context) {
+	scope, ok := getAffiliateScopeFromContext(c)
+	if !ok {
+		common.ApiErrorMsg(c, "分销 scope 未初始化")
+		return
+	}
+
+	tree, err := service.BuildAffiliateTeamTree(model.DB, scope)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	common.ApiSuccess(c, tree)
+}
+
 func ExportAffiliateScopedLogs(c *gin.Context) {
 	scope, ok := getAffiliateScopeFromContext(c)
 	if !ok {
@@ -109,6 +124,7 @@ func buildAffiliateScopedLogsInput(c *gin.Context, scope service.AffiliateScope,
 		EndTimestamp:           endTimestamp,
 		ModelName:              c.Query("model_name"),
 		Group:                  c.Query("group"),
+		TokenName:              c.Query("token_name"),
 		UserId:                 userId,
 		SecondLevelAffiliateId: secondLevelUserId,
 		StartIdx:               startIdx,
@@ -119,11 +135,16 @@ func buildAffiliateScopedLogsInput(c *gin.Context, scope service.AffiliateScope,
 func buildAffiliateScopedLogsCsv(logs []*model.Log, quotaPerUnit float64, usdExchangeRate float64) string {
 	var builder strings.Builder
 	writer := csv.NewWriter(&builder)
-	_ = writer.Write([]string{"time", "user_id", "type", "model", "group", "consumption_rmb", "raw_quota"})
+	_ = writer.Write([]string{"time", "user_id", "username", "channel_id", "channel_name", "token_id", "token_name", "type", "model", "group", "consumption_rmb", "raw_quota"})
 	for _, log := range logs {
 		_ = writer.Write([]string{
 			formatAffiliateCsvTimestamp(log.CreatedAt),
 			strconv.Itoa(log.UserId),
+			log.Username,
+			strconv.Itoa(log.ChannelId),
+			log.ChannelName,
+			strconv.Itoa(log.TokenId),
+			log.TokenName,
 			strconv.Itoa(log.Type),
 			log.ModelName,
 			log.Group,

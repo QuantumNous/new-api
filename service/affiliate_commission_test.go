@@ -54,6 +54,51 @@ func TestBuildAffiliatePendingCommissionEventsCreatesPaidAccrual(t *testing.T) {
 	}
 }
 
+func TestBuildAffiliatePendingCommissionEventsUsesLegacyDirectInviter(t *testing.T) {
+	db := newAffiliateCommissionTestDB(t)
+	ruleSet := savePublishedAffiliateCommissionRuleSet(t, db, "commission-legacy-direct-inviter")
+	if err := db.Create(&model.User{Id: 100, Username: "level-one", AffCode: "AFF100"}).Error; err != nil {
+		t.Fatalf("seed affiliate user: %v", err)
+	}
+	if err := db.Create(&model.User{Id: 300, Username: "normal-downstream", InviterId: 100, AffCode: "AFF300"}).Error; err != nil {
+		t.Fatalf("seed downstream user: %v", err)
+	}
+	if err := db.Create(&model.AffiliateProfile{
+		UserId: 100,
+		Level:  1,
+		Status: model.AffiliateProfileStatusActive,
+	}).Error; err != nil {
+		t.Fatalf("seed affiliate profile: %v", err)
+	}
+	log := seedAffiliateCommissionLog(t, db, model.Log{
+		UserId:    300,
+		CreatedAt: 1100,
+		Type:      model.LogTypeConsume,
+		Quota:     1000,
+		Other:     `{"quota_source":"paid"}`,
+	})
+
+	events, err := BuildAffiliatePendingCommissionEvents(db, db, AffiliateCommissionBuildInput{
+		PeriodStart:     1000,
+		PeriodEnd:       2000,
+		QuotaPerUnit:    1000,
+		USDExchangeRate: 1,
+	})
+	if err != nil {
+		t.Fatalf("BuildAffiliatePendingCommissionEvents returned error: %v", err)
+	}
+	if len(events) != 1 {
+		t.Fatalf("expected one commission event from legacy inviter chain, got %+v", events)
+	}
+	event := events[0]
+	if event.RuleSetId != ruleSet.Id || event.AffiliateUserId != 100 || event.DownstreamUserId != 300 || event.SourceLogId != log.Id {
+		t.Fatalf("unexpected legacy inviter event identity: %+v", event)
+	}
+	if event.NetPaidConsumptionCents != 100 || event.CommissionCents != 12 {
+		t.Fatalf("unexpected legacy inviter event amount: %+v", event)
+	}
+}
+
 func TestBuildAffiliatePendingCommissionEventsSkipsNonPaidAndCreatesRefundClawback(t *testing.T) {
 	db := newAffiliateCommissionTestDB(t)
 	savePublishedAffiliateCommissionRuleSet(t, db, "commission-paid-refund")
@@ -239,7 +284,7 @@ func newAffiliateCommissionTestDB(t *testing.T) *gorm.DB {
 		t.Fatalf("open sqlite: %v", err)
 	}
 	models := append(model.AffiliateSidecarModels(), model.QuotaSourceSidecarModels()...)
-	models = append(models, &model.Log{})
+	models = append(models, &model.Log{}, &model.User{})
 	if err := db.AutoMigrate(models...); err != nil {
 		t.Fatalf("migrate affiliate/log models: %v", err)
 	}

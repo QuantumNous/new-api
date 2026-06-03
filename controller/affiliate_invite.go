@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"strconv"
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
@@ -54,7 +55,7 @@ func recordAffiliateInviteAttributionForRegistration(db *gorm.DB, ctx *service.A
 		Provider:           provider,
 		InitialQuota:       input.InitialQuota,
 		InitialAmountCents: input.InitialAmountCents,
-		InitialQuotaRule:   affiliateInitialQuotaRule(ctx.Source, input.InitialQuotaRule),
+		InitialQuotaRule:   affiliateInitialQuotaRule(ctx, input.InitialQuotaRule),
 	})
 	if err != nil {
 		return nil, err
@@ -74,13 +75,19 @@ func recordAffiliateInviteAttributionForRegistration(db *gorm.DB, ctx *service.A
 	return event, nil
 }
 
-func affiliateInitialQuotaRule(inviteSource string, explicitRule string) string {
+func affiliateInitialQuotaRule(ctx *service.AffiliateInviteContext, explicitRule string) string {
 	rule := strings.TrimSpace(explicitRule)
 	if rule != "" {
 		return rule
 	}
-	switch inviteSource {
+	if ctx == nil {
+		return ""
+	}
+	switch ctx.Source {
 	case service.AffiliateInviteSourceAffiliate:
+		if level := affiliateInviterLevelForContext(ctx); level == 1 || level == 2 {
+			return "affiliate_invite_level_" + strconv.Itoa(level)
+		}
 		return "affiliate_invite"
 	case service.AffiliateInviteSourceNormal:
 		return "normal_invite"
@@ -101,10 +108,59 @@ func affiliateInviteeQuotaForContext(ctx *service.AffiliateInviteContext) int {
 	if ctx == nil || ctx.Source == service.AffiliateInviteSourceNone {
 		return 0
 	}
-	if ctx.Source == service.AffiliateInviteSourceAffiliate && common.AffiliateQuotaForInvitee >= 0 {
-		return common.AffiliateQuotaForInvitee
+	if ctx.Source == service.AffiliateInviteSourceAffiliate {
+		switch affiliateInviterLevelForContext(ctx) {
+		case 1:
+			if common.AffiliateLevelOneQuotaForInvitee >= 0 {
+				return common.AffiliateLevelOneQuotaForInvitee
+			}
+		case 2:
+			if common.AffiliateLevelTwoQuotaForInvitee >= 0 {
+				return common.AffiliateLevelTwoQuotaForInvitee
+			}
+		}
+		if common.AffiliateQuotaForInvitee >= 0 {
+			return common.AffiliateQuotaForInvitee
+		}
 	}
 	return common.QuotaForInvitee
+}
+
+func affiliateInviterQuotaForContext(ctx *service.AffiliateInviteContext) int {
+	if ctx == nil || ctx.Source == service.AffiliateInviteSourceNone {
+		return 0
+	}
+	if ctx.Source == service.AffiliateInviteSourceAffiliate {
+		switch affiliateInviterLevelForContext(ctx) {
+		case 1:
+			if common.AffiliateLevelOneQuotaForInviter >= 0 {
+				return common.AffiliateLevelOneQuotaForInviter
+			}
+		case 2:
+			if common.AffiliateLevelTwoQuotaForInviter >= 0 {
+				return common.AffiliateLevelTwoQuotaForInviter
+			}
+		}
+	}
+	return common.QuotaForInviter
+}
+
+func affiliateInviterLevelForContext(ctx *service.AffiliateInviteContext) int {
+	if ctx == nil || ctx.Source != service.AffiliateInviteSourceAffiliate || ctx.InviterUserId <= 0 || model.DB == nil {
+		return 0
+	}
+	var profile model.AffiliateProfile
+	err := model.DB.
+		Select("level").
+		Where("user_id = ? AND status = ?", ctx.InviterUserId, model.AffiliateProfileStatusActive).
+		First(&profile).Error
+	if err != nil {
+		return 0
+	}
+	if profile.Level == 1 || profile.Level == 2 {
+		return profile.Level
+	}
+	return 0
 }
 
 func affiliateInviteCodeFromSessionValue(value any) string {

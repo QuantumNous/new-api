@@ -198,7 +198,8 @@ func Register(c *gin.Context) {
 		cleanUser.Email = user.Email
 	}
 	inviteeQuota := affiliateInviteeQuotaForContext(inviteCtx)
-	if err := cleanUser.InsertWithInviteeQuota(inviterId, inviteeQuota); err != nil {
+	inviterQuota := affiliateInviterQuotaForContext(inviteCtx)
+	if err := cleanUser.InsertWithInviteQuotas(inviterId, inviteeQuota, inviterQuota); err != nil {
 		common.ApiError(c, err)
 		return
 	}

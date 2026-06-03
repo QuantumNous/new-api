@@ -17,6 +17,7 @@ type AffiliateScopedLogsInput struct {
 	EndTimestamp           int64
 	ModelName              string
 	Group                  string
+	TokenName              string
 	UserId                 int
 	SecondLevelAffiliateId int
 	StartIdx               int
@@ -51,6 +52,9 @@ func ListAffiliateScopedLogs(db *gorm.DB, logDB *gorm.DB, input AffiliateScopedL
 	}
 	if strings.TrimSpace(input.Group) != "" {
 		tx = tx.Where("logs."+model.LogGroupColumn()+" = ?", strings.TrimSpace(input.Group))
+	}
+	if strings.TrimSpace(input.TokenName) != "" {
+		tx = tx.Where("logs.token_name = ?", strings.TrimSpace(input.TokenName))
 	}
 	if input.StartTimestamp != 0 {
 		tx = tx.Where("logs.created_at >= ?", input.StartTimestamp)
@@ -159,7 +163,13 @@ func resolveSecondLevelScopedLogUsers(db *gorm.DB, scope AffiliateScope, baseUse
 		return nil, err
 	}
 	if count == 0 {
-		return nil, errors.New("second level affiliate outside scope")
+		directLegacy, err := hasLegacyDirectInviter(db, scope.UserId, secondLevelAffiliateId)
+		if err != nil {
+			return nil, err
+		}
+		if !directLegacy {
+			return nil, errors.New("second level affiliate outside scope")
+		}
 	}
 
 	visible, err := listSecondLevelScopedLogUsers(db, secondLevelAffiliateId, baseUserIds)
@@ -167,6 +177,20 @@ func resolveSecondLevelScopedLogUsers(db *gorm.DB, scope AffiliateScope, baseUse
 		return nil, err
 	}
 	return visible.UserIds, nil
+}
+
+func hasLegacyDirectInviter(db *gorm.DB, inviterUserId int, userId int) (bool, error) {
+	if db == nil {
+		return false, errors.New("nil db")
+	}
+	if inviterUserId <= 0 || userId <= 0 {
+		return false, nil
+	}
+	var count int64
+	err := db.Model(&model.User{}).
+		Where("id = ? AND inviter_id = ?", userId, inviterUserId).
+		Count(&count).Error
+	return count > 0, err
 }
 
 func listSecondLevelScopedLogUsers(db *gorm.DB, secondLevelAffiliateId int, limitTo []int) (AffiliateVisibleUserIds, error) {
@@ -199,10 +223,6 @@ func listSecondLevelScopedLogUsers(db *gorm.DB, secondLevelAffiliateId int, limi
 func sanitizeAffiliateScopedLogs(logs []*model.Log, startIdx int) {
 	for i := range logs {
 		logs[i].Id = startIdx + i + 1
-		logs[i].ChannelId = 0
-		logs[i].ChannelName = ""
-		logs[i].TokenId = 0
-		logs[i].TokenName = ""
 		logs[i].Ip = ""
 		logs[i].RequestId = ""
 		logs[i].UpstreamRequestId = ""

@@ -330,13 +330,17 @@ func HardDeleteUserById(id int) error {
 }
 
 func inviteUser(inviterId int) (err error) {
+	return inviteUserWithQuota(inviterId, common.QuotaForInviter)
+}
+
+func inviteUserWithQuota(inviterId int, inviterQuota int) (err error) {
 	user, err := GetUserById(inviterId, true)
 	if err != nil {
 		return err
 	}
 	user.AffCount++
-	user.AffQuota += common.QuotaForInviter
-	user.AffHistoryQuota += common.QuotaForInviter
+	user.AffQuota += inviterQuota
+	user.AffHistoryQuota += inviterQuota
 	return DB.Save(user).Error
 }
 
@@ -382,6 +386,10 @@ func (user *User) Insert(inviterId int) error {
 }
 
 func (user *User) InsertWithInviteeQuota(inviterId int, inviteeQuota int) error {
+	return user.InsertWithInviteQuotas(inviterId, inviteeQuota, common.QuotaForInviter)
+}
+
+func (user *User) InsertWithInviteQuotas(inviterId int, inviteeQuota int, inviterQuota int) error {
 	var err error
 	if user.Password != "" {
 		user.Password, err = common.Password2Hash(user.Password)
@@ -423,7 +431,7 @@ func (user *User) InsertWithInviteeQuota(inviterId int, inviteeQuota int) error 
 	if common.QuotaForNewUser > 0 {
 		RecordLog(user.Id, LogTypeSystem, fmt.Sprintf("新用户注册赠送 %s", logger.LogQuota(common.QuotaForNewUser)))
 	}
-	applyInviteRewards(user.Id, inviterId, inviteeQuota)
+	applyInviteRewards(user.Id, inviterId, inviteeQuota, inviterQuota)
 	return nil
 }
 
@@ -462,6 +470,10 @@ func (user *User) FinalizeOAuthUserCreation(inviterId int) {
 }
 
 func (user *User) FinalizeOAuthUserCreationWithInviteeQuota(inviterId int, inviteeQuota int) {
+	user.FinalizeOAuthUserCreationWithInviteQuotas(inviterId, inviteeQuota, common.QuotaForInviter)
+}
+
+func (user *User) FinalizeOAuthUserCreationWithInviteQuotas(inviterId int, inviteeQuota int, inviterQuota int) {
 	// 用户创建成功后，根据角色初始化边栏配置
 	var createdUser User
 	if err := DB.Where("id = ?", user.Id).First(&createdUser).Error; err == nil {
@@ -478,18 +490,18 @@ func (user *User) FinalizeOAuthUserCreationWithInviteeQuota(inviterId int, invit
 	if common.QuotaForNewUser > 0 {
 		RecordLog(user.Id, LogTypeSystem, fmt.Sprintf("新用户注册赠送 %s", logger.LogQuota(common.QuotaForNewUser)))
 	}
-	applyInviteRewards(user.Id, inviterId, inviteeQuota)
+	applyInviteRewards(user.Id, inviterId, inviteeQuota, inviterQuota)
 }
 
-func applyInviteRewards(inviteeId int, inviterId int, inviteeQuota int) {
+func applyInviteRewards(inviteeId int, inviterId int, inviteeQuota int, inviterQuota int) {
 	if inviterId != 0 && operation_setting.IsPaymentComplianceConfirmed() {
 		if inviteeQuota > 0 {
 			_ = IncreaseUserQuota(inviteeId, inviteeQuota, true)
 			RecordLog(inviteeId, LogTypeSystem, fmt.Sprintf("使用邀请码赠送 %s", logger.LogQuota(inviteeQuota)))
 		}
-		if common.QuotaForInviter > 0 {
-			RecordLog(inviterId, LogTypeSystem, fmt.Sprintf("邀请用户赠送 %s", logger.LogQuota(common.QuotaForInviter)))
-			_ = inviteUser(inviterId)
+		if inviterQuota > 0 {
+			RecordLog(inviterId, LogTypeSystem, fmt.Sprintf("邀请用户赠送 %s", logger.LogQuota(inviterQuota)))
+			_ = inviteUserWithQuota(inviterId, inviterQuota)
 		}
 	}
 }

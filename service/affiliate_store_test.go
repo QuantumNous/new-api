@@ -14,7 +14,7 @@ func newAffiliateStoreTestDB(t *testing.T) *gorm.DB {
 	if err != nil {
 		t.Fatalf("open sqlite: %v", err)
 	}
-	if err := db.AutoMigrate(model.AffiliateSidecarModels()...); err != nil {
+	if err := db.AutoMigrate(append(model.AffiliateSidecarModels(), &model.User{})...); err != nil {
 		t.Fatalf("migrate affiliate sidecar models: %v", err)
 	}
 	return db
@@ -221,6 +221,39 @@ func TestListAffiliateProfilesFiltersAndPaginates(t *testing.T) {
 	}
 	if total != 1 || len(profiles) != 1 || profiles[0].Status != model.AffiliateProfileStatusDisabled {
 		t.Fatalf("unexpected user filter result total=%d profiles=%+v", total, profiles)
+	}
+}
+
+func TestListAffiliateProfilesFallsBackToUserAffCode(t *testing.T) {
+	db := newAffiliateStoreTestDB(t)
+	if err := db.Create(&model.User{Id: 320, Username: "affiliate320", AffCode: "AFF320"}).Error; err != nil {
+		t.Fatalf("seed user: %v", err)
+	}
+	if _, err := CreateAffiliateProfile(db, AffiliateProfileCreateInput{
+		UserId:      320,
+		Level:       1,
+		ActorUserId: 1,
+		Reason:      "seed empty invite code",
+	}); err != nil {
+		t.Fatalf("seed profile: %v", err)
+	}
+
+	profiles, total, err := ListAffiliateProfiles(db, AffiliateProfileListInput{
+		UserId:   320,
+		StartIdx: 0,
+		PageSize: 10,
+	})
+	if err != nil {
+		t.Fatalf("ListAffiliateProfiles returned error: %v", err)
+	}
+	if total != 1 || len(profiles) != 1 {
+		t.Fatalf("unexpected profile result total=%d profiles=%+v", total, profiles)
+	}
+	if profiles[0].InviteCode != "AFF320" {
+		t.Fatalf("expected invite code fallback to user aff_code, got %+v", profiles[0])
+	}
+	if profiles[0].Username != "affiliate320" {
+		t.Fatalf("expected profile username to be filled from user table, got %+v", profiles[0])
 	}
 }
 

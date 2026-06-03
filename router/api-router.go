@@ -29,6 +29,7 @@ func SetApiRouter(router *gin.Engine) {
 		{
 			affiliateRoute.GET("/status", controller.GetAffiliateStatus)
 			affiliateRoute.GET("/summary", middleware.AffiliateAuth(), controller.GetAffiliateSummary)
+			affiliateRoute.GET("/team", middleware.AffiliateAuth(), controller.GetAffiliateTeamTree)
 			affiliateRoute.GET("/logs/export", middleware.AffiliateAuth(), controller.ExportAffiliateScopedLogs)
 			affiliateRoute.GET("/logs", middleware.AffiliateAuth(), controller.GetAffiliateScopedLogs)
 			affiliateRoute.GET("/commissions", middleware.AffiliateAuth(), controller.GetAffiliateCommissions)

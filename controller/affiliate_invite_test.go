@@ -43,7 +43,7 @@ func TestRecordAffiliateRegistrationAttributionStoresEventAndRelation(t *testing
 	if event == nil || event.InviteSource != service.AffiliateInviteSourceAffiliate || event.RegisterMethod != service.AffiliateRegisterMethodPassword {
 		t.Fatalf("unexpected invite event: %+v", event)
 	}
-	if event.InitialQuotaRule != "affiliate_invite" || event.InitialQuota != 500 {
+	if event.InitialQuotaRule != "affiliate_invite_level_1" || event.InitialQuota != 500 {
 		t.Fatalf("unexpected initial quota metadata: %+v", event)
 	}
 
@@ -168,7 +168,7 @@ func TestPasswordRegisterRecordsAffiliateAttribution(t *testing.T) {
 	if event.InviterUserId != 104 || event.InviteSource != service.AffiliateInviteSourceAffiliate {
 		t.Fatalf("unexpected event attribution: %+v", event)
 	}
-	if event.InitialQuota != 777 || event.InitialQuotaRule != "affiliate_invite" {
+	if event.InitialQuota != 777 || event.InitialQuotaRule != "affiliate_invite_level_1" {
 		t.Fatalf("unexpected event quota metadata: %+v", event)
 	}
 
@@ -218,8 +218,67 @@ func TestPasswordRegisterAppliesAffiliateInviteeQuota(t *testing.T) {
 	if err := db.Where("invitee_user_id = ?", invitee.Id).First(&event).Error; err != nil {
 		t.Fatalf("expected invite event: %v", err)
 	}
-	if event.InitialQuota != 333 || event.InitialQuotaRule != "affiliate_invite" {
+	if event.InitialQuota != 333 || event.InitialQuotaRule != "affiliate_invite_level_1" {
 		t.Fatalf("unexpected affiliate quota event: %+v", event)
+	}
+}
+
+func TestPasswordRegisterAppliesLevelSpecificAffiliateInviteeAndInviterQuota(t *testing.T) {
+	db := newAffiliateRegistrationAttributionTestDB(t)
+	common.RegisterEnabled = true
+	common.PasswordRegisterEnabled = true
+	common.EmailVerificationEnabled = false
+	common.AffiliateEnabled = true
+	common.QuotaForNewUser = 100
+	common.QuotaForInvitee = 111
+	common.QuotaForInviter = 222
+	common.AffiliateQuotaForInvitee = 333
+	common.AffiliateLevelOneQuotaForInvitee = 444
+	common.AffiliateLevelTwoQuotaForInvitee = 555
+	common.AffiliateLevelOneQuotaForInviter = 666
+	common.AffiliateLevelTwoQuotaForInviter = 777
+	paymentSetting := operation_setting.GetPaymentSetting()
+	paymentSetting.ComplianceConfirmed = true
+	paymentSetting.ComplianceTermsVersion = operation_setting.CurrentComplianceTermsVersion
+	seedAffiliateInviter(t, db, 107, "AFF107")
+	seedAffiliateInviterWithLevel(t, db, 108, "AFF108", 2, 107)
+
+	body := bytes.NewBufferString(`{
+		"username":"invitee108",
+		"password":"password108",
+		"aff_code":"AFF108"
+	}`)
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = httptest.NewRequest(http.MethodPost, "/api/user/register", body)
+
+	Register(ctx)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("unexpected status: %d body=%s", recorder.Code, recorder.Body.String())
+	}
+	var invitee model.User
+	if err := db.Where("username = ?", "invitee108").First(&invitee).Error; err != nil {
+		t.Fatalf("load invitee: %v", err)
+	}
+	if invitee.Quota != 655 {
+		t.Fatalf("expected new user quota plus level-two affiliate invitee quota, got %d", invitee.Quota)
+	}
+
+	var inviter model.User
+	if err := db.Where("id = ?", 108).First(&inviter).Error; err != nil {
+		t.Fatalf("load inviter: %v", err)
+	}
+	if inviter.AffQuota != 777 || inviter.AffHistoryQuota != 777 {
+		t.Fatalf("expected level-two affiliate inviter reward, got aff=%d history=%d", inviter.AffQuota, inviter.AffHistoryQuota)
+	}
+
+	var event model.AffiliateInviteEvent
+	if err := db.Where("invitee_user_id = ?", invitee.Id).First(&event).Error; err != nil {
+		t.Fatalf("expected invite event: %v", err)
+	}
+	if event.InitialQuota != 555 || event.InitialQuotaRule != "affiliate_invite_level_2" {
+		t.Fatalf("unexpected level-specific affiliate quota event: %+v", event)
 	}
 }
 
@@ -279,8 +338,13 @@ func newAffiliateRegistrationAttributionTestDB(t *testing.T) *gorm.DB {
 	originalPasswordRegisterEnabled := common.PasswordRegisterEnabled
 	originalEmailVerificationEnabled := common.EmailVerificationEnabled
 	originalQuotaForNewUser := common.QuotaForNewUser
+	originalQuotaForInviter := common.QuotaForInviter
 	originalQuotaForInvitee := common.QuotaForInvitee
 	originalAffiliateQuotaForInvitee := common.AffiliateQuotaForInvitee
+	originalAffiliateLevelOneQuotaForInvitee := common.AffiliateLevelOneQuotaForInvitee
+	originalAffiliateLevelTwoQuotaForInvitee := common.AffiliateLevelTwoQuotaForInvitee
+	originalAffiliateLevelOneQuotaForInviter := common.AffiliateLevelOneQuotaForInviter
+	originalAffiliateLevelTwoQuotaForInviter := common.AffiliateLevelTwoQuotaForInviter
 	originalRedisEnabled := common.RedisEnabled
 	originalPaymentSetting := *operation_setting.GetPaymentSetting()
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
@@ -302,8 +366,13 @@ func newAffiliateRegistrationAttributionTestDB(t *testing.T) *gorm.DB {
 		common.PasswordRegisterEnabled = originalPasswordRegisterEnabled
 		common.EmailVerificationEnabled = originalEmailVerificationEnabled
 		common.QuotaForNewUser = originalQuotaForNewUser
+		common.QuotaForInviter = originalQuotaForInviter
 		common.QuotaForInvitee = originalQuotaForInvitee
 		common.AffiliateQuotaForInvitee = originalAffiliateQuotaForInvitee
+		common.AffiliateLevelOneQuotaForInvitee = originalAffiliateLevelOneQuotaForInvitee
+		common.AffiliateLevelTwoQuotaForInvitee = originalAffiliateLevelTwoQuotaForInvitee
+		common.AffiliateLevelOneQuotaForInviter = originalAffiliateLevelOneQuotaForInviter
+		common.AffiliateLevelTwoQuotaForInviter = originalAffiliateLevelTwoQuotaForInviter
 		common.RedisEnabled = originalRedisEnabled
 		*operation_setting.GetPaymentSetting() = originalPaymentSetting
 	})
@@ -312,15 +381,21 @@ func newAffiliateRegistrationAttributionTestDB(t *testing.T) *gorm.DB {
 
 func seedAffiliateInviter(t *testing.T, db *gorm.DB, userId int, affCode string) {
 	t.Helper()
+	seedAffiliateInviterWithLevel(t, db, userId, affCode, 1, 0)
+}
+
+func seedAffiliateInviterWithLevel(t *testing.T, db *gorm.DB, userId int, affCode string, level int, parentUserId int) {
+	t.Helper()
 	if err := db.Create(&model.User{Id: userId, Username: "aff" + affCode, AffCode: affCode}).Error; err != nil {
 		t.Fatalf("seed inviter: %v", err)
 	}
 	if _, err := service.CreateAffiliateProfile(db, service.AffiliateProfileCreateInput{
-		UserId:      userId,
-		Level:       1,
-		InviteCode:  affCode,
-		ActorUserId: 1,
-		Reason:      "seed",
+		UserId:       userId,
+		Level:        level,
+		ParentUserId: parentUserId,
+		InviteCode:   affCode,
+		ActorUserId:  1,
+		Reason:       "seed",
 	}); err != nil {
 		t.Fatalf("seed affiliate profile: %v", err)
 	}

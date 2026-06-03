@@ -55,3 +55,48 @@ func TestAffiliateQuotaForInviteeOptionMap(t *testing.T) {
 		t.Fatalf("AffiliateQuotaForInvitee should be 333 after update, got %d", common.AffiliateQuotaForInvitee)
 	}
 }
+
+func TestAffiliateLevelQuotaOptionMap(t *testing.T) {
+	originalMap := common.OptionMap
+	originalLevelOneInvitee := common.AffiliateLevelOneQuotaForInvitee
+	originalLevelTwoInvitee := common.AffiliateLevelTwoQuotaForInvitee
+	originalLevelOneInviter := common.AffiliateLevelOneQuotaForInviter
+	originalLevelTwoInviter := common.AffiliateLevelTwoQuotaForInviter
+	defer func() {
+		common.OptionMap = originalMap
+		common.AffiliateLevelOneQuotaForInvitee = originalLevelOneInvitee
+		common.AffiliateLevelTwoQuotaForInvitee = originalLevelTwoInvitee
+		common.AffiliateLevelOneQuotaForInviter = originalLevelOneInviter
+		common.AffiliateLevelTwoQuotaForInviter = originalLevelTwoInviter
+	}()
+
+	common.OptionMap = map[string]string{}
+	common.AffiliateLevelOneQuotaForInvitee = -1
+	common.AffiliateLevelTwoQuotaForInvitee = -1
+	common.AffiliateLevelOneQuotaForInviter = -1
+	common.AffiliateLevelTwoQuotaForInviter = -1
+
+	InitOptionMap()
+	cases := []struct {
+		key      string
+		value    string
+		expected int
+		readBack func() int
+	}{
+		{"AffiliateLevelOneQuotaForInvitee", "111", 111, func() int { return common.AffiliateLevelOneQuotaForInvitee }},
+		{"AffiliateLevelTwoQuotaForInvitee", "222", 222, func() int { return common.AffiliateLevelTwoQuotaForInvitee }},
+		{"AffiliateLevelOneQuotaForInviter", "333", 333, func() int { return common.AffiliateLevelOneQuotaForInviter }},
+		{"AffiliateLevelTwoQuotaForInviter", "444", 444, func() int { return common.AffiliateLevelTwoQuotaForInviter }},
+	}
+	for _, tt := range cases {
+		if common.OptionMap[tt.key] != "-1" {
+			t.Fatalf("expected %s default -1, got %q", tt.key, common.OptionMap[tt.key])
+		}
+		if err := updateOptionMap(tt.key, tt.value); err != nil {
+			t.Fatalf("updateOptionMap(%s) returned error: %v", tt.key, err)
+		}
+		if got := tt.readBack(); got != tt.expected {
+			t.Fatalf("%s should be %s after update, got %d", tt.key, tt.value, got)
+		}
+	}
+}

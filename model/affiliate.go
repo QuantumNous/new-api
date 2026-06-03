@@ -62,6 +62,7 @@ func AffiliateSidecarTableNames() []string {
 type AffiliateProfile struct {
 	Id           int            `json:"id"`
 	UserId       int            `json:"user_id" gorm:"uniqueIndex;not null"`
+	Username     string         `json:"username" gorm:"-"`
 	Level        int            `json:"level" gorm:"type:int;not null;default:0;index"`
 	Status       string         `json:"status" gorm:"type:varchar(32);not null;default:'active';index"`
 	ParentUserId int            `json:"parent_user_id" gorm:"type:int;not null;default:0;index"`

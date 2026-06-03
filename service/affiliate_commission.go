@@ -345,7 +345,80 @@ func listActiveAffiliateRelationsForLog(db *gorm.DB, log model.Log) ([]model.Aff
 		).
 		Order("depth asc, ancestor_user_id asc").
 		Find(&relations).Error
-	return relations, err
+	if err != nil {
+		return nil, err
+	}
+
+	legacyRelations, err := listLegacyActiveAffiliateRelationsForLog(db, log)
+	if err != nil {
+		return nil, err
+	}
+	return mergeAffiliateCommissionRelations(relations, legacyRelations), nil
+}
+
+func listLegacyActiveAffiliateRelationsForLog(db *gorm.DB, log model.Log) ([]model.AffiliateRelation, error) {
+	if db == nil {
+		return nil, errors.New("nil db")
+	}
+	if log.UserId <= 0 {
+		return []model.AffiliateRelation{}, nil
+	}
+
+	var user model.User
+	err := db.Select("id", "inviter_id").Where("id = ?", log.UserId).First(&user).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return []model.AffiliateRelation{}, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	if user.InviterId <= 0 {
+		return []model.AffiliateRelation{}, nil
+	}
+
+	relations := make([]model.AffiliateRelation, 0, 2)
+	directInviterId := user.InviterId
+	ancestorUserId := directInviterId
+	for depth := 1; depth <= 2 && ancestorUserId > 0; depth++ {
+		profile, err := getActiveAffiliateProfileForCommission(db, ancestorUserId)
+		if err != nil {
+			return nil, err
+		}
+		if profile != nil && (profile.Level == 1 || profile.Level == 2) {
+			relations = append(relations, model.AffiliateRelation{
+				AncestorUserId:   ancestorUserId,
+				DescendantUserId: log.UserId,
+				Depth:            depth,
+				DirectInviterId:  directInviterId,
+				Status:           model.AffiliateProfileStatusActive,
+				Source:           "legacy_inviter",
+			})
+		}
+
+		var ancestor model.User
+		err = db.Select("id", "inviter_id").Where("id = ?", ancestorUserId).First(&ancestor).Error
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			break
+		}
+		if err != nil {
+			return nil, err
+		}
+		ancestorUserId = ancestor.InviterId
+	}
+	return relations, nil
+}
+
+func mergeAffiliateCommissionRelations(primary []model.AffiliateRelation, fallback []model.AffiliateRelation) []model.AffiliateRelation {
+	merged := make([]model.AffiliateRelation, 0, len(primary)+len(fallback))
+	seen := make(map[int]bool, len(primary)+len(fallback))
+	for _, relation := range append(primary, fallback...) {
+		if relation.AncestorUserId <= 0 || relation.DescendantUserId <= 0 || seen[relation.AncestorUserId] {
+			continue
+		}
+		seen[relation.AncestorUserId] = true
+		merged = append(merged, relation)
+	}
+	return merged
 }
 
 func getActiveAffiliateProfileForCommission(db *gorm.DB, userId int) (*model.AffiliateProfile, error) {
