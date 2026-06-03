@@ -378,9 +378,14 @@ func sendReservedDingTalkChannelAlertBatch(setting *operation_setting.MonitorSet
 		}
 		return err
 	}
+	// The alert has already been delivered to DingTalk. Committing the cooldown
+	// reservations only affects cooldown bookkeeping, so a Commit failure must not
+	// be surfaced as a send failure nor abort committing the remaining reservations.
+	// Reservations that fail to commit keep their pending state and are released
+	// once the pending TTL expires, allowing later alerts through.
 	for _, reservation := range reservations {
 		if err := reservation.Commit(); err != nil {
-			return err
+			common.SysError("failed to commit dingtalk alert cooldown reservation: " + err.Error())
 		}
 	}
 	return nil

@@ -4801,7 +4801,6 @@
     "Excluded test channel types": "不需要检测的渠道类型",
     "Leave empty to test all channel types.": "留空表示检测所有渠道类型。",
     "No channel types excluded": "未排除渠道类型",
-    "No channel types selected": "未选择渠道类型",
     "Required test channel types": "需要检测的渠道类型",
     "Select channel types": "选择渠道类型",
     "Unknown channel type #{{id}}": "未知渠道类型 #{{id}}",
