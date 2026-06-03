@@ -49,6 +49,24 @@ BlockRun 推出了 **VIP 能力**:对白名单钱包开放**原生透传**端点
 
 > 一句话:**用她的 VIP 能力 ✅(同端点同协议同不重塑);import 她的 vip Go 包 ❌(强类型 client 不适配 newapi 代理模型 + 引入重塑)。**
 
+### 3.1 两个官方 Go SDK 的区别(`blockrun-llm-go` vs `blockrun-llm-go-vip`)
+
+VIP 包不是普通版的替代,而是**建在普通版之上**(其 `go.mod` 直接 `require github.com/BlockRunAI/blockrun-llm-go v0.11.0`,复用其 x402 签名与视频客户端)。核对自两仓源码(2026-06-03):
+
+| 维度 | 普通版 `blockrun-llm-go`(散户) | VIP `blockrun-llm-go-vip` |
+|---|---|---|
+| chat/anthropic client | **BlockRun 自研**:`NewLLMClient`→`*LLMClient`、`NewAnthropicClient`→`*AnthropicClient` | **官方 SDK**:`NewAnthropic()`→`anthropic.Client`、`NewOpenAI()`→`openai.Client`,只换 transport + baseURL |
+| 响应解析 | 解析进 BlockRun **自定义结构体** | 上游响应 **verbatim**,由**官方 SDK** 解析 |
+| 原生信号保真 | **会丢**:自定义 `AnthropicContentBlock` **无 `Signature` 字段**(thinking 签名丢失),`AnthropicUsage` 仅 `InputTokens/OutputTokens`(**无 cache 明细**) | **完整**:真实 thinking `Signature`、原生 content blocks、cache token 用量、原生流式事件、GPT `system_fingerprint`/JSON mode |
+| 依赖 | 仅 `go-ethereum`(自包含),go 1.22 | `blockrun-llm-go` + `anthropic-sdk-go v1.46` + `openai-go v1.12`,go 1.23 |
+| 产品覆盖 | **极广**:chat / anthropic / image / video / music / voice / search / surf / market / prediction_market / phone / x_twitter / balance / realface / portrait(10+ client) | **窄**:仅 Anthropic + OpenAI 原生透传 +(re-export 普通版的)Seedance video/realface/portrait,共 5 个 .go 文件 |
+| x402 支付 | 在此实现(`CreatePaymentPayload`/`ParsePaymentRequired`/`ExtractPaymentDetails`) | **复用普通版**,自身仅加一个 transport middleware(`x402_middleware.go`,未导出) |
+| 支付链 | Base(+ Sepolia) | Base only(Solana 未移植) |
+
+**"VIP 穿透最准"的本质**:不是端点不同(普通版的 `AnthropicClient` 也打 `/v1/messages`),而是 **"官方 SDK 解析 + 不重塑" vs "自研精简结构体重新表示"** —— 普通版会丢掉 thinking 签名、cache 明细、原生流式事件类型。
+
+**对 newapi 的含义**:newapi 不消费"官方 client 对象",所以 import VIP 包无价值;我们**复刻 VIP 的网关行为**(同 `/v1/messages`、同 x402 协议、用 newapi `claude` handler **字节透传**)即可拿到与 VIP 等效的原生保真(签名/cache 都在原始字节里),**只从普通版借 x402 签名原语**。实测已验证:走 `/v1/messages` 拿回的就是原生 Anthropic 形状 + `input_tokens/output_tokens`。
+
 ---
 
 ## 4. 底层 SDK 升级
