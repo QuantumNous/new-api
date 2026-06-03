@@ -4804,6 +4804,8 @@
     "No channel types selected": "No channel types selected",
     "Required test channel types": "Required test channel types",
     "Select channel types": "Select channel types",
+    "Unknown channel type #{{id}}": "Unknown channel type #{{id}}",
+    "Unknown channel types are preserved from saved settings.": "Unknown channel types are preserved from saved settings.",
     "When selected, scheduled tests only include these channel types unless they are excluded.": "When selected, scheduled tests only include these channel types unless they are excluded.",
     "Waffo": "Waffo"
   }

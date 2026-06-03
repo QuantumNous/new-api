@@ -1,4 +1,4 @@
-import { CHANNEL_TYPE_OPTIONS } from '@/features/channels/constants'
+import { CHANNEL_TYPE_OPTIONS } from '../../channels/constants.ts'
 
 const channelTypeOrder = new Map(
   CHANNEL_TYPE_OPTIONS.map((option, index) => [option.value, index])
@@ -42,6 +42,10 @@ export function normalizeChannelTypeIds(value: unknown): number[] {
 export function areAllKnownChannelTypesSelected(value: number[]): boolean {
   const selected = new Set(value)
   return CHANNEL_TYPE_OPTIONS.every((option) => selected.has(option.value))
+}
+
+export function getUnknownChannelTypeIds(value: number[]): number[] {
+  return normalizeChannelTypeIds(value).filter((id) => !channelTypeOrder.has(id))
 }
 
 export function selectAllKnownChannelTypeIds(value: number[]): number[] {

@@ -4804,6 +4804,8 @@
     "No channel types selected": "未选择渠道类型",
     "Required test channel types": "需要检测的渠道类型",
     "Select channel types": "选择渠道类型",
+    "Unknown channel type #{{id}}": "未知渠道类型 #{{id}}",
+    "Unknown channel types are preserved from saved settings.": "未知渠道类型来自已保存设置，将会被保留。",
     "When selected, scheduled tests only include these channel types unless they are excluded.": "选择后，定时检测只检测这些渠道类型，除非它们同时在不需要检测列表中。",
     "Waffo": "Waffo"
   }

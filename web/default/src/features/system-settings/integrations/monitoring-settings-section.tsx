@@ -59,6 +59,7 @@ import { useUpdateOption } from '../hooks/use-update-option'
 import { safeNumberFieldProps } from '../utils/numeric-field'
 import {
   areAllKnownChannelTypesSelected,
+  getUnknownChannelTypeIds,
   normalizeChannelTypeIds,
   selectAllKnownChannelTypeIds,
 } from './monitoring-channel-types'
@@ -243,6 +244,8 @@ function ChannelTypePicker(props: ChannelTypePickerProps) {
     .filter((option): option is (typeof CHANNEL_TYPE_OPTIONS)[number] =>
       Boolean(option)
     )
+  const unknownIds = getUnknownChannelTypeIds(props.value)
+  const hasVisibleSelection = selectedLabels.length > 0 || unknownIds.length > 0
 
   const toggleChannelType = (id: number) => {
     const next = new Set(props.value)
@@ -289,15 +292,23 @@ function ChannelTypePicker(props: ChannelTypePickerProps) {
         )}
       </div>
 
-      {allSelected ? (
+      {allSelected && unknownIds.length === 0 ? (
         <Badge variant='outline'>{t('All channel types selected')}</Badge>
-      ) : selectedLabels.length === 0 ? (
+      ) : !hasVisibleSelection ? (
         <p className='text-muted-foreground text-sm'>{t(props.emptySummary)}</p>
       ) : (
         <div className='flex flex-wrap gap-2'>
+          {allSelected && (
+            <Badge variant='outline'>{t('All channel types selected')}</Badge>
+          )}
           {selectedLabels.map((option) => (
             <Badge key={option.value} variant='outline'>
               {t(option.label)}
+            </Badge>
+          ))}
+          {unknownIds.map((id) => (
+            <Badge key={id} variant='outline'>
+              {t('Unknown channel type #{{id}}', { id })}
             </Badge>
           ))}
         </div>
@@ -334,6 +345,20 @@ function ChannelTypePicker(props: ChannelTypePickerProps) {
               </label>
             ))}
           </div>
+          {unknownIds.length > 0 && (
+            <div className='space-y-2'>
+              <p className='text-muted-foreground text-sm'>
+                {t('Unknown channel types are preserved from saved settings.')}
+              </p>
+              <div className='flex flex-wrap gap-2'>
+                {unknownIds.map((id) => (
+                  <Badge key={id} variant='outline'>
+                    {t('Unknown channel type #{{id}}', { id })}
+                  </Badge>
+                ))}
+              </div>
+            </div>
+          )}
           <DialogFooter>
             <Button
               type='button'
