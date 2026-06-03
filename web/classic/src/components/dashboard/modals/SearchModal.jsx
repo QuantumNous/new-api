@@ -90,6 +90,7 @@ const SearchModal = ({
           createFormField(Form.Input, {
             field: 'username',
             label: t('用户名称'),
+            initValue: username,
             value: username,
             placeholder: t('可选值'),
             name: 'username',
