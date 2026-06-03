@@ -1,26 +1,37 @@
 // Package blockrun implements the BlockRun channel adaptor.
 //
-// BlockRun (https://blockrun.ai) exposes an OpenAI-compatible Chat Completions
-// endpoint that does NOT use API keys: each request is paid for on Base mainnet
-// in USDC via the x402 v2 micropayment protocol. The "API key" stored on the
-// channel is actually an EVM wallet private key (0x-prefixed hex). The flow:
+// BlockRun (https://blockrun.ai) exposes VIP NATIVE passthrough endpoints that
+// do NOT use API keys: each request is paid for on Base mainnet in USDC via the
+// x402 v2 micropayment protocol. The "API key" stored on the channel is actually
+// an EVM wallet private key (0x-prefixed hex). The flow:
 //
-//  1. Send the chat request without auth → upstream returns HTTP 402 with
-//     payment requirements (base64 JSON) in the payment-required header.
+//  1. Send the request without auth → upstream returns HTTP 402 with payment
+//     requirements (base64 JSON) in the payment-required header.
 //  2. Sign an EIP-712 / ERC-3009 TransferWithAuthorization with the wallet key.
 //  3. Resend the same request with a PAYMENT-SIGNATURE: <base64> header.
+//
+// Native passthrough: this adaptor dispatches by info.RelayFormat. Anthropic
+// inbound is forwarded to /v1/messages and handled by the native claude
+// handler (preserving thinking signatures, native content blocks, cache tokens,
+// native SSE); OpenAI inbound is forwarded to /v1/chat/completions and handled
+// by the native openai handler. There is ZERO model substitution and ZERO
+// response reshaping. Gemini inbound is not supported (VIP only covers Anthropic
+// and OpenAI).
 //
 // Trust boundary note: the same upstream that hosts the LLM also dictates the
 // amount, recipient, and validity window of every signature. A compromised
 // BlockRun (or a MITM if TLS is broken) could craft a 402 that authorises a
-// year-long drain to an attacker address. signX402Payment enforces strict
+// year-long drain to an attacker address. SignX402Payment enforces strict
 // bounds (max 5-minute window, Base USDC asset only, ≤1 USDC per call) before
 // signing. See x402.go.
 //
 // The private key never leaves the process — only the signature is transmitted.
-// We reuse the audited EIP-712 implementation from BlockRun's official Go SDK
-// (CreatePaymentPayload + ParsePaymentRequired) and write our own HTTP wrapper
-// so streaming SSE responses are passed through unbuffered.
+// SetupRequestHeader NEVER sets x-api-key or Authorization (unlike the claude /
+// openai adaptors it delegates response handling to), precisely because
+// info.ApiKey is the wallet private key. We reuse the audited EIP-712
+// implementation from BlockRun's official Go SDK (CreatePaymentPayload +
+// ParsePaymentRequired) and keep our own HTTP wrapper so streaming SSE responses
+// are passed through unbuffered.
 //
 // Both the initial 402 dance and the signed retry go through newapi's standard
 // channel.DoApiRequest path so HeaderOverride, proxy config, X-Request-Id
@@ -34,12 +45,13 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/relay/channel"
+	"github.com/QuantumNous/new-api/relay/channel/claude"
 	"github.com/QuantumNous/new-api/relay/channel/openai"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
-	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/types"
 
 	"github.com/gin-gonic/gin"
@@ -53,43 +65,100 @@ import (
 // apply identically to both legs.
 const ctxKeyPaymentSignature = "blockrun_payment_signature"
 
-// Adaptor implements the channel.Adaptor interface for BlockRun. Most of the
-// request/response shape is OpenAI-compatible, so we delegate body conversion
-// and response handling to openai.Adaptor and only override DoRequest to
-// handle the 402 → sign → 200 retry round trip.
+// defaultAnthropicVersion is sent on the Claude (Messages API) leg when the
+// client did not supply an anthropic-version header.
+const defaultAnthropicVersion = "2023-06-01"
+
+// Adaptor implements the channel.Adaptor interface for BlockRun as a VIP native
+// passthrough. It embeds BOTH the openai and claude adaptors and dispatches each
+// interface method by info.RelayFormat: Claude inbound is forwarded natively to
+// /v1/messages and handled by claudeAdaptor; everything else (OpenAI / default)
+// goes to /v1/chat/completions and is handled by openaiAdaptor. We override
+// GetRequestURL, SetupRequestHeader, the Convert* methods, and DoRequest so the
+// x402 payment dance and the wallet-key safety red line apply to both formats;
+// only DoResponse delegates to the embedded adaptors.
 type Adaptor struct {
 	openaiAdaptor openai.Adaptor
+	claudeAdaptor claude.Adaptor
 }
 
 func (a *Adaptor) Init(info *relaycommon.RelayInfo) {
 	a.openaiAdaptor.Init(info)
+	a.claudeAdaptor.Init(info)
 }
 
-// GetRequestURL builds the upstream URL. BlockRun ONLY exposes the
-// OpenAI-compatible /v1/chat/completions endpoint — for Claude (Messages API)
-// and Gemini (generateContent) inbound formats, newapi has already translated
-// the request body via ConvertClaudeRequest / ConvertGeminiRequest, so we must
-// override the inbound RequestURLPath (e.g. /v1/messages) to point at the
-// OpenAI endpoint here. Otherwise BlockRun would 404. Mirrors openai.Adaptor's
-// behaviour so Claude Code (ANTHROPIC_BASE_URL→newapi) routes correctly.
+// GetRequestURL builds the upstream URL by inbound format. VIP native passthrough
+// supports only Anthropic (/v1/messages) and OpenAI (/v1/chat/completions);
+// Gemini is rejected.
 func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
-	if info.RelayFormat == types.RelayFormatClaude || info.RelayFormat == types.RelayFormatGemini {
-		// Defensive: BlockRun has no responses-API surface, so RelayModeResponses
-		// can't actually occur for this channel — but mirror openai.Adaptor's
-		// guard to stay aligned if the upstream contract ever expands.
-		if info.RelayMode != relayconstant.RelayModeResponses && info.RelayMode != relayconstant.RelayModeResponsesCompact {
-			return fmt.Sprintf("%s/v1/chat/completions", info.ChannelBaseUrl), nil
+	switch info.RelayFormat {
+	case types.RelayFormatClaude:
+		requestURL := fmt.Sprintf("%s/v1/messages", info.ChannelBaseUrl)
+		if !shouldAppendClaudeBetaQuery(info) {
+			return requestURL, nil
 		}
+		parsedURL, err := url.Parse(requestURL)
+		if err != nil {
+			return "", err
+		}
+		query := parsedURL.Query()
+		query.Set("beta", "true")
+		parsedURL.RawQuery = query.Encode()
+		return parsedURL.String(), nil
+	case types.RelayFormatGemini:
+		return "", errors.New("blockrun: gemini format not supported (VIP native passthrough supports only Anthropic and OpenAI)")
+	default:
+		// OpenAI / default → native /v1/chat/completions.
+		return fmt.Sprintf("%s/v1/chat/completions", info.ChannelBaseUrl), nil
 	}
-	return relaycommon.GetFullRequestURL(info.ChannelBaseUrl, info.RequestURLPath, info.ChannelType), nil
 }
 
-// SetupRequestHeader sets the standard Content-Type / Accept headers and, on
-// the retry leg, the PAYMENT-SIGNATURE header that DoRequest stashed in the
-// gin.Context after parsing the 402. BlockRun does not accept Authorization —
-// authentication is the EIP-712 signature.
+// shouldAppendClaudeBetaQuery mirrors claude/adaptor.go: append ?beta=true when
+// the inbound request carried it or the channel forces it.
+func shouldAppendClaudeBetaQuery(info *relaycommon.RelayInfo) bool {
+	if info == nil {
+		return false
+	}
+	if info.IsClaudeBetaQuery {
+		return true
+	}
+	if info.ChannelOtherSettings.ClaudeBetaQuery {
+		return true
+	}
+	return false
+}
+
+// SetupRequestHeader sets content-type/accept and, on the signed retry leg, the
+// PAYMENT-SIGNATURE header that DoRequest stashed in the gin.Context after parsing
+// the 402.
+//
+// SECURITY CRITICAL: info.ApiKey is the EVM WALLET PRIVATE KEY for this channel.
+// We MUST NOT set "x-api-key" or "Authorization" — the claude/openai adaptors set
+// those by default, which is exactly why we override here and do NOT delegate.
+// Authentication is the EIP-712 x402 signature, never a transmitted secret.
 func (a *Adaptor) SetupRequestHeader(c *gin.Context, req *http.Header, info *relaycommon.RelayInfo) error {
 	channel.SetupApiRequestHeader(info, c, req)
+
+	if info.RelayFormat == types.RelayFormatClaude {
+		// Native Anthropic Messages API leg. Use the client's incoming
+		// anthropic-version (default 2023-06-01) and pass through anthropic-beta.
+		// Do NOT call ClaudeSettings.WriteHeaders: namespaced model names
+		// (anthropic/claude-*) won't match and it deviates from pure passthrough.
+		anthropicVersion := ""
+		anthropicBeta := ""
+		if c != nil && c.Request != nil {
+			anthropicVersion = c.Request.Header.Get("anthropic-version")
+			anthropicBeta = c.Request.Header.Get("anthropic-beta")
+		}
+		if anthropicVersion == "" {
+			anthropicVersion = defaultAnthropicVersion
+		}
+		req.Set("anthropic-version", anthropicVersion)
+		if anthropicBeta != "" {
+			req.Set("anthropic-beta", anthropicBeta)
+		}
+	}
+
 	if c != nil {
 		if sig := c.GetString(ctxKeyPaymentSignature); sig != "" {
 			req.Set(headerPaymentSignature, sig)
@@ -98,21 +167,27 @@ func (a *Adaptor) SetupRequestHeader(c *gin.Context, req *http.Header, info *rel
 	return nil
 }
 
+// ConvertOpenAIRequest is a pure passthrough. We are listed in
+// streamSupportedChannels, so StreamOptions is left intact and BlockRun decides
+// whether to honour stream_options.include_usage.
 func (a *Adaptor) ConvertOpenAIRequest(c *gin.Context, info *relaycommon.RelayInfo, request *dto.GeneralOpenAIRequest) (any, error) {
 	if request == nil {
 		return nil, errors.New("blockrun: request is nil")
 	}
-	// We are listed in streamSupportedChannels, so leave StreamOptions intact
-	// and let BlockRun decide whether to honour stream_options.include_usage.
 	return request, nil
 }
 
+// ConvertClaudeRequest is a NATIVE passthrough: the inbound Anthropic Messages
+// request is forwarded as-is to /v1/messages. We no longer convert to OpenAI.
 func (a *Adaptor) ConvertClaudeRequest(c *gin.Context, info *relaycommon.RelayInfo, request *dto.ClaudeRequest) (any, error) {
-	return a.openaiAdaptor.ConvertClaudeRequest(c, info, request)
+	if request == nil {
+		return nil, errors.New("blockrun: request is nil")
+	}
+	return request, nil
 }
 
 func (a *Adaptor) ConvertGeminiRequest(c *gin.Context, info *relaycommon.RelayInfo, request *dto.GeminiChatRequest) (any, error) {
-	return a.openaiAdaptor.ConvertGeminiRequest(c, info, request)
+	return nil, errors.New("blockrun: gemini format not supported (VIP native passthrough supports only Anthropic and OpenAI)")
 }
 
 func (a *Adaptor) ConvertRerankRequest(c *gin.Context, relayMode int, request dto.RerankRequest) (any, error) {
@@ -135,10 +210,11 @@ func (a *Adaptor) ConvertOpenAIResponsesRequest(c *gin.Context, info *relaycommo
 	return nil, errors.New("blockrun: responses API not supported")
 }
 
-// DoRequest performs the x402 two-trip dance:
+// DoRequest performs the x402 two-trip dance. It is FORMAT-AGNOSTIC and works
+// identically for /v1/messages and /v1/chat/completions:
 //
 //  1. First attempt without signature → upstream returns 402 with requirements
-//  2. Validate the requirements, sign with the wallet key
+//  2. Validate the requirements, sign with the wallet key (SignX402Payment)
 //  3. Stash the signature in the gin context and replay the request through
 //     the same channel.DoApiRequest path so all standard wrappers apply
 //  4. If the retry STILL returns 402 the signature was rejected — surface a
@@ -168,7 +244,7 @@ func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, request
 		return nil, fmt.Errorf("blockrun: get request url: %w", urlErr)
 	}
 
-	paymentB64, signErr := signX402Payment(firstResp, info.ApiKey, fullURL)
+	paymentB64, signErr := SignX402Payment(firstResp, info.ApiKey, fullURL)
 	if signErr != nil {
 		return nil, signErr
 	}
@@ -191,10 +267,17 @@ func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, request
 	return retryResp, nil
 }
 
-// DoResponse delegates streaming and non-streaming chat completion handling to
-// the OpenAI adaptor, since BlockRun's success response is bit-for-bit
-// OpenAI-compatible (200 + same chat.completion JSON shape, with SSE for stream).
+// DoResponse delegates to the native handler for the inbound format so the
+// upstream bytes are returned without reshaping. Claude inbound → native Claude
+// SSE/JSON (thinking signatures, native content blocks, cache tokens); OpenAI
+// inbound → native OpenAI chat.completion shape.
+//
+// Note on /v1/messages/count_tokens: there is no RelayMode for count_tokens in
+// relay/constant, so that path cannot route to this adaptor today — out of scope.
 func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (any, *types.NewAPIError) {
+	if info.RelayFormat == types.RelayFormatClaude {
+		return a.claudeAdaptor.DoResponse(c, resp, info)
+	}
 	return a.openaiAdaptor.DoResponse(c, resp, info)
 }
 

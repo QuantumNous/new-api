@@ -54,9 +54,9 @@ func TestValidatePaymentOption_Accepts_LowercaseAsset(t *testing.T) {
 
 func TestValidatePaymentOption_Rejects(t *testing.T) {
 	cases := []struct {
-		name     string
-		mutate   func(*blockrunSDK.PaymentOption)
-		wantSub  string
+		name    string
+		mutate  func(*blockrunSDK.PaymentOption)
+		wantSub string
 	}{
 		{"timeout zero", func(o *blockrunSDK.PaymentOption) { o.MaxTimeoutSeconds = 0 }, "authorization window"},
 		{"timeout negative", func(o *blockrunSDK.PaymentOption) { o.MaxTimeoutSeconds = -1 }, "authorization window"},
@@ -127,7 +127,7 @@ func TestLooksLikeEthAddress(t *testing.T) {
 		"",
 		"0x",
 		"0xshort",
-		"e9030014F5DAe217d0A152f02A043567b16c1aBf", // no 0x
+		"e9030014F5DAe217d0A152f02A043567b16c1aBf",    // no 0x
 		"0xe9030014F5DAe217d0A152f02A043567b16c1aBf0", // 41 chars after 0x
 		"0xZZ030014F5DAe217d0A152f02A043567b16c1aBf",  // non-hex
 		"0xe9030014F5DAe217d0A152f02A043567b16c1aBf ", // trailing space

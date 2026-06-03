@@ -66,9 +66,9 @@ func TestX402LiveRoundTrip(t *testing.T) {
 	_, _ = io.Copy(io.Discard, firstResp.Body)
 	_ = firstResp.Body.Close()
 
-	paymentB64, err := signX402Payment(firstResp, key, liveURL)
+	paymentB64, err := SignX402Payment(firstResp, key, liveURL)
 	if err != nil {
-		t.Fatalf("signX402Payment: %v", err)
+		t.Fatalf("SignX402Payment: %v", err)
 	}
 	if paymentB64 == "" {
 		t.Fatalf("empty payment payload")

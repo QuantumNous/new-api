@@ -42,7 +42,6 @@ const (
 	expectedAssetUSDCBase     = "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913"
 	expectedNetworkBase       = "eip155:8453"
 	expectedNetworkBaseSepoli = "eip155:84532"
-
 )
 
 // maxAmountAtomicUSDC caps the per-call charge to 1 USDC (6 decimals).
@@ -52,12 +51,15 @@ const (
 // package init so we never have to handle a parse failure at request time.
 var maxAmountAtomicUSDC = big.NewInt(1_000_000)
 
-// signX402Payment parses the 402 response's payment requirements, validates
+// SignX402Payment parses the 402 response's payment requirements, validates
 // the upstream-supplied parameters against this gateway's trust policy, signs
 // an EIP-712 / ERC-3009 TransferWithAuthorization with privateKeyHex, and
 // returns the base64 value to place in the PAYMENT-SIGNATURE header.
 // resourceURLFallback is used only if the 402 payload does not echo a URL.
-func signX402Payment(resp *http.Response, privateKeyHex, resourceURLFallback string) (string, error) {
+//
+// Exported so the (separate) BlockRun video channel session can reuse the exact
+// same trust-boundary validation + signing path without duplicating it.
+func SignX402Payment(resp *http.Response, privateKeyHex, resourceURLFallback string) (string, error) {
 	payReq, err := extractPaymentRequired(resp)
 	if err != nil {
 		return "", err
