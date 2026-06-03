@@ -31,8 +31,8 @@
                     │ Serverless NEG
                     ▼
         ┌───────────────────────┐
-        │  Cloud Run "newapi"   │   us-west1, min=2 max=10
-        │  ingress = ALL        │   timeout 3600s, concurrency 80
+        │  Cloud Run "newapi"   │   us-west1, min=4 max=10
+        │  ingress = ALL        │   timeout 3600s, concurrency 50
         └────────┬──────┬───────┘
                  │      │ Direct VPC Egress (private-ranges-only)
                  │      ▼
@@ -64,8 +64,8 @@
 | Region | `us-west1` |
 | URL（直连） | `https://newapi-5qjldqffdq-uw.a.run.app` |
 | CPU / Memory | 1 vCPU / 1 GiB |
-| Min / Max instances | 2 / 10 |
-| Concurrency | 80 |
+| Min / Max instances | 4 / 10 |
+| Concurrency | 50 |
 | Request timeout | 3600 s（兼容长流式响应） |
 | CPU 调度 | `cpu_idle=false`、`startup_cpu_boost=true` |
 | Ingress | `INGRESS_TRAFFIC_ALL`（计划后续锁到 `INTERNAL_LOAD_BALANCER`） |
@@ -266,7 +266,7 @@ state prefix：`envs/prod`，所以完整路径是 `gs://vocai-gemini-prod-newap
 
 | 项 | 月费用 |
 |---|---|
-| Cloud Run（min=2 + 流量） | $50–80 |
+| Cloud Run（min=4 + 流量） | $80–120 |
 | Cloud SQL `db-custom-2-4096` + 100GB SSD | ~$99 |
 | Memorystore Redis Basic 1GB | ~$35 |
 | HTTPS LB 转发规则 + 静态 IP | ~$22 |

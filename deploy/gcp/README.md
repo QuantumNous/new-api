@@ -2,7 +2,7 @@
 
 Terraform configuration that provisions a production environment for `new-api` on Google Cloud:
 
-- **Cloud Run** (single service, min=2, max=10) in `us-west1`
+- **Cloud Run** (single service, min=4, max=10) in `us-west1`
 - **Cloud SQL for MySQL 8.0** (`db-custom-2-4096`, single zone, backups + PITR)
 - **Memorystore for Redis** Basic 1 GB
 - **Artifact Registry** Docker repo
@@ -115,7 +115,7 @@ Then `gcloud run services update newapi --update-secrets=...` to inject them. (O
 
 | Component | Monthly |
 |---|---|
-| Cloud Run (min=2) | $50–80 |
+| Cloud Run (min=4) | $80–120 |
 | Cloud SQL MySQL `db-custom-2-4096` + 100GB SSD | ~$99 |
 | Memorystore Redis Basic 1GB | ~$35 |
 | Artifact Registry + logs + monitoring | ~$10 |
