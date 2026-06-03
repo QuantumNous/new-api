@@ -1,6 +1,7 @@
 package service
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 	"testing"
@@ -157,6 +158,35 @@ func TestGenerateAffiliateSettlementsCapsNegativePayableAtZero(t *testing.T) {
 	}
 }
 
+func TestGenerateAffiliateSettlementsScansEventsWithCursorLimit(t *testing.T) {
+	db := newAffiliateCommissionTestDB(t)
+	restoreBatchSize := setAffiliateSettlementEventScanBatchSizeForTest(2)
+	defer restoreBatchSize()
+	removeQueryGuard := rejectUnboundedAffiliateSettlementEventQueries(t, db)
+	defer removeQueryGuard()
+
+	ruleSet := savePublishedAffiliateCommissionRuleSet(t, db, "settlement-event-cursor-scan")
+	for i := 0; i < 3; i++ {
+		seedAffiliateSettlementCommissionEvent(t, db, ruleSet.Id, 100, int64(100+i), 1000, 2000)
+		seedAffiliateSettlementHeadFeeEvent(t, db, ruleSet.Id, 100, int64(200+i), 1000, 2000)
+	}
+
+	settlements, err := GenerateAffiliateSettlements(db, AffiliateSettlementBuildInput{
+		RuleSetId:   ruleSet.Id,
+		PeriodStart: 1000,
+		PeriodEnd:   2000,
+	})
+	if err != nil {
+		t.Fatalf("GenerateAffiliateSettlements returned error: %v", err)
+	}
+	if len(settlements) != 1 {
+		t.Fatalf("expected one settlement from cursor scan, got %+v", settlements)
+	}
+	if settlements[0].CommissionCents != 303 || settlements[0].HeadFeeCents != 603 || settlements[0].PayableCents != 906 {
+		t.Fatalf("unexpected settlement amounts from cursor scan: %+v", settlements[0])
+	}
+}
+
 func TestAffiliateSettlementStatusTransitions(t *testing.T) {
 	db := newAffiliateCommissionTestDB(t)
 	ruleSet := savePublishedAffiliateCommissionRuleSet(t, db, "settlement-status-transitions")
@@ -289,4 +319,34 @@ func seedAffiliateSettlementHeadFeeEvent(t *testing.T, db *gorm.DB, ruleSetId in
 		t.Fatalf("seed head fee event: %v", err)
 	}
 	return event
+}
+
+func setAffiliateSettlementEventScanBatchSizeForTest(size int) func() {
+	original := affiliateSettlementEventScanBatchSize
+	affiliateSettlementEventScanBatchSize = size
+	return func() {
+		affiliateSettlementEventScanBatchSize = original
+	}
+}
+
+func rejectUnboundedAffiliateSettlementEventQueries(t *testing.T, db *gorm.DB) func() {
+	t.Helper()
+	callbackName := "reject_unbounded_affiliate_settlement_event_queries_" + strings.NewReplacer("/", "_", " ", "_").Replace(t.Name())
+	if err := db.Callback().Query().Before("gorm:query").Register(callbackName, func(tx *gorm.DB) {
+		if tx.Statement == nil || tx.Statement.Schema == nil {
+			return
+		}
+		table := tx.Statement.Schema.Table
+		if table != "affiliate_commission_events" && table != "affiliate_head_fee_events" {
+			return
+		}
+		if _, ok := tx.Statement.Clauses["LIMIT"]; !ok {
+			tx.AddError(errors.New("unbounded affiliate settlement event query without LIMIT"))
+		}
+	}); err != nil {
+		t.Fatalf("register unbounded settlement event query guard: %v", err)
+	}
+	return func() {
+		_ = db.Callback().Query().Remove(callbackName)
+	}
 }

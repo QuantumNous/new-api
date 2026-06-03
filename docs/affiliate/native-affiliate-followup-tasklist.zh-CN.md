@@ -157,7 +157,7 @@
 - [x] P0：补 WSL 前端 dev server 一键启动脚本和 runbook，解决重启后 `5173`/`5174` 拒绝连接的问题。
 - [x] P1：明确 dev/prod 镜像切换方案，保证生产不再误用官方 latest 来发布二开功能。
 - [ ] P1：把分销管理规则配置重构为运营友好的表格/矩阵，并保留高级 JSON 导入导出。（2026-06-03 已完成 default/classic 可视编辑表格化和高级 JSON 文本保留；导入/导出按钮、diff 预览和复制上一版本仍待做。）
-- [ ] P1：佣金、KPI、人头费和结算任务改造为分批、可恢复、幂等、可审计。（2026-06-04 已完成 usage logs 的 `created_at,id` cursor 分批扫描；2026-06-03 已完成 settlement pipeline 顶层 job run 审计记录；可恢复 cursor、结算事件分组分批、单独 generate endpoint run record 和完整双跑幂等审计仍待做。）
+- [ ] P1：佣金、KPI、人头费和结算任务改造为分批、可恢复、幂等、可审计。（2026-06-04 已完成 usage logs 的 `created_at,id` cursor 分批扫描；2026-06-03 已完成 settlement pipeline 顶层 job run 审计记录和 settlement pending/ready event grouping 的 `id` cursor 分批扫描；可恢复 cursor、批量 link 更新拆分、单独 generate endpoint run record 和完整双跑幂等审计仍待做。）
 - [ ] P2：把飞书规则沉淀为默认 rule set seed，并增加单位转换、区间完整性和发布不可变测试。
 - [ ] P2：补齐 SMS 分布式限流、手机号注册归因和真实通道 smoke。
 - [ ] P2：完善 dashboard 统计口径、浏览器截图回归和外部验收归档。
@@ -235,3 +235,11 @@
 - schema impact 复核：已更新 `native-affiliate-schema-impact-report.zh-CN.md`，确认代码侧只新增 `affiliate_job_runs` 这一 `affiliate_*` sidecar；本线程 `timeout 30s docker ps --filter 'name=new-api'` 未返回有效容器输出，因此未强行重建容器生成 PostgreSQL before/after diff。
 - 残留风险：`affiliate_job_runs` 目前记录顶层 pipeline 阶段和计数，不支持真正从 cursor 恢复；`AdminGenerateAffiliateSettlements` 单独生成结算单的 endpoint 尚未写 job run；`GenerateAffiliateSettlements` 内部 pending/ready events 分组仍会一次性加载。
 - 下一步：Docker/compose 恢复后补 `affiliate_job_runs` PostgreSQL schema diff；继续把 settlement event grouping 改为分批，并补完整双跑幂等审计。
+
+## P1-5 settlement event grouping 分批扫描复盘（2026-06-03 本线程）
+
+- 完成内容：`GenerateAffiliateSettlements` 中 pending commission events、pending head fee events、existing draft ready commission events、existing draft ready head fee events 均改为按 `id` cursor 分批扫描，默认批大小 500，测试可临时调小。
+- RED/GREEN 验证：新增 `TestGenerateAffiliateSettlementsScansEventsWithCursorLimit`，先因缺少 `setAffiliateSettlementEventScanBatchSizeForTest` 失败；实现后测试注册 GORM Query callback，任何针对 `affiliate_commission_events` / `affiliate_head_fee_events` 的无 `LIMIT` 查询都会失败，目标测试通过。
+- 回归验证：`go test -count=1 ./service -run TestGenerateAffiliateSettlementsScansEventsWithCursorLimit` 通过；`go test -count=1 ./service -run 'Affiliate(Commission|KPI|HeadFee|Settlement)'` 通过；`git diff --check` 通过。
+- 残留风险：本轮解决事件表查询侧无界 `Find`，但每个 affiliate group 仍会累积 event IDs，`linkAffiliateSettlementEvents` 仍用单次 `id IN ?` 更新；超大结算周期仍需要继续把 link 更新拆成批次，并把 cursor 写入 `affiliate_job_runs` 以支持可恢复。
+- 下一步：继续拆分 settlement event link updates，并为 `AdminGenerateAffiliateSettlements` 单独入口补 job run 或统一走 pipeline run record。

@@ -42,6 +42,10 @@ type affiliateSettlementEventGroup struct {
 	HeadFeeEventIds    []int
 }
 
+const affiliateDefaultSettlementEventScanBatchSize = 500
+
+var affiliateSettlementEventScanBatchSize = affiliateDefaultSettlementEventScanBatchSize
+
 func GenerateAffiliateSettlements(db *gorm.DB, input AffiliateSettlementBuildInput) ([]model.AffiliateSettlement, error) {
 	if db == nil {
 		return nil, errors.New("nil db")
@@ -234,41 +238,41 @@ func findAffiliateSettlementRuleSet(db *gorm.DB, input AffiliateSettlementBuildI
 func buildAffiliateSettlementEventGroups(db *gorm.DB, ruleSetId int, input AffiliateSettlementBuildInput) (map[int]affiliateSettlementEventGroup, error) {
 	groups := map[int]affiliateSettlementEventGroup{}
 
-	var commissionEvents []model.AffiliateCommissionEvent
-	tx := db.Where("rule_set_id = ? AND settlement_id = ? AND status = ?", ruleSetId, 0, model.AffiliateEventStatusPending)
+	commissionEventTx := db.Where("rule_set_id = ? AND settlement_id = ? AND status = ?", ruleSetId, 0, model.AffiliateEventStatusPending)
 	if input.PeriodStart != 0 {
-		tx = tx.Where("period_start = ?", input.PeriodStart)
+		commissionEventTx = commissionEventTx.Where("period_start = ?", input.PeriodStart)
 	}
 	if input.PeriodEnd != 0 {
-		tx = tx.Where("period_end = ?", input.PeriodEnd)
+		commissionEventTx = commissionEventTx.Where("period_end = ?", input.PeriodEnd)
 	}
-	if err := tx.Order("affiliate_user_id asc, id asc").Find(&commissionEvents).Error; err != nil {
+	if err := scanAffiliateSettlementCommissionEventsByID(commissionEventTx, func(events []model.AffiliateCommissionEvent) error {
+		for _, event := range events {
+			group := groups[event.AffiliateUserId]
+			group.AffiliateUserId = event.AffiliateUserId
+			group.CommissionCents += event.CommissionCents
+			group.CommissionEventIds = append(group.CommissionEventIds, event.Id)
+			groups[event.AffiliateUserId] = group
+		}
+		return nil
+	}); err != nil {
 		return nil, err
-	}
-	for _, event := range commissionEvents {
-		group := groups[event.AffiliateUserId]
-		group.AffiliateUserId = event.AffiliateUserId
-		group.CommissionCents += event.CommissionCents
-		group.CommissionEventIds = append(group.CommissionEventIds, event.Id)
-		groups[event.AffiliateUserId] = group
 	}
 
-	var headFeeEvents []model.AffiliateHeadFeeEvent
-	if err := db.
-		Where("rule_set_id = ? AND settlement_id = ? AND status = ?", ruleSetId, 0, model.AffiliateEventStatusPending).
-		Order("affiliate_user_id asc, id asc").
-		Find(&headFeeEvents).Error; err != nil {
-		return nil, err
-	}
-	for _, event := range headFeeEvents {
-		if !affiliateHeadFeeEventMatchesSettlementPeriod(event, input) {
-			continue
+	headFeeEventTx := db.Where("rule_set_id = ? AND settlement_id = ? AND status = ?", ruleSetId, 0, model.AffiliateEventStatusPending)
+	if err := scanAffiliateSettlementHeadFeeEventsByID(headFeeEventTx, func(events []model.AffiliateHeadFeeEvent) error {
+		for _, event := range events {
+			if !affiliateHeadFeeEventMatchesSettlementPeriod(event, input) {
+				continue
+			}
+			group := groups[event.AffiliateUserId]
+			group.AffiliateUserId = event.AffiliateUserId
+			group.HeadFeeCents += event.AmountCents
+			group.HeadFeeEventIds = append(group.HeadFeeEventIds, event.Id)
+			groups[event.AffiliateUserId] = group
 		}
-		group := groups[event.AffiliateUserId]
-		group.AffiliateUserId = event.AffiliateUserId
-		group.HeadFeeCents += event.AmountCents
-		group.HeadFeeEventIds = append(group.HeadFeeEventIds, event.Id)
-		groups[event.AffiliateUserId] = group
+		return nil
+	}); err != nil {
+		return nil, err
 	}
 
 	if err := mergeExistingAffiliateSettlementDraftEvents(db, ruleSetId, input, groups); err != nil {
@@ -304,33 +308,29 @@ func mergeExistingAffiliateSettlementDraftEvents(db *gorm.DB, ruleSetId int, inp
 }
 
 func mergeExistingAffiliateSettlementCommissionEvents(db *gorm.DB, settlementId int, group *affiliateSettlementEventGroup) error {
-	var events []model.AffiliateCommissionEvent
-	if err := db.
-		Where("settlement_id = ? AND status = ?", settlementId, model.AffiliateEventStatusReady).
-		Order("id asc").
-		Find(&events).Error; err != nil {
-		return err
-	}
-	for _, event := range events {
-		group.CommissionCents += event.CommissionCents
-		group.CommissionEventIds = append(group.CommissionEventIds, event.Id)
-	}
-	return nil
+	return scanAffiliateSettlementCommissionEventsByID(
+		db.Where("settlement_id = ? AND status = ?", settlementId, model.AffiliateEventStatusReady),
+		func(events []model.AffiliateCommissionEvent) error {
+			for _, event := range events {
+				group.CommissionCents += event.CommissionCents
+				group.CommissionEventIds = append(group.CommissionEventIds, event.Id)
+			}
+			return nil
+		},
+	)
 }
 
 func mergeExistingAffiliateSettlementHeadFeeEvents(db *gorm.DB, settlementId int, group *affiliateSettlementEventGroup) error {
-	var events []model.AffiliateHeadFeeEvent
-	if err := db.
-		Where("settlement_id = ? AND status = ?", settlementId, model.AffiliateEventStatusReady).
-		Order("id asc").
-		Find(&events).Error; err != nil {
-		return err
-	}
-	for _, event := range events {
-		group.HeadFeeCents += event.AmountCents
-		group.HeadFeeEventIds = append(group.HeadFeeEventIds, event.Id)
-	}
-	return nil
+	return scanAffiliateSettlementHeadFeeEventsByID(
+		db.Where("settlement_id = ? AND status = ?", settlementId, model.AffiliateEventStatusReady),
+		func(events []model.AffiliateHeadFeeEvent) error {
+			for _, event := range events {
+				group.HeadFeeCents += event.AmountCents
+				group.HeadFeeEventIds = append(group.HeadFeeEventIds, event.Id)
+			}
+			return nil
+		},
+	)
 }
 
 func upsertAffiliateSettlementDraft(db *gorm.DB, ruleSet model.AffiliateRuleSet, input AffiliateSettlementBuildInput, group affiliateSettlementEventGroup) (model.AffiliateSettlement, error) {
@@ -486,4 +486,63 @@ func parseAffiliateHeadFeeEventPeriod(marker string) (int64, int64, bool) {
 		return 0, 0, false
 	}
 	return periodStart, periodEnd, true
+}
+
+func normalizedAffiliateSettlementEventScanBatchSize() int {
+	if affiliateSettlementEventScanBatchSize <= 0 {
+		return affiliateDefaultSettlementEventScanBatchSize
+	}
+	return affiliateSettlementEventScanBatchSize
+}
+
+func scanAffiliateSettlementCommissionEventsByID(base *gorm.DB, handle func([]model.AffiliateCommissionEvent) error) error {
+	batchSize := normalizedAffiliateSettlementEventScanBatchSize()
+	lastID := 0
+	for {
+		var events []model.AffiliateCommissionEvent
+		if err := base.
+			Session(&gorm.Session{}).
+			Where("id > ?", lastID).
+			Order("id asc").
+			Limit(batchSize).
+			Find(&events).Error; err != nil {
+			return err
+		}
+		if len(events) == 0 {
+			return nil
+		}
+		if err := handle(events); err != nil {
+			return err
+		}
+		lastID = events[len(events)-1].Id
+		if len(events) < batchSize {
+			return nil
+		}
+	}
+}
+
+func scanAffiliateSettlementHeadFeeEventsByID(base *gorm.DB, handle func([]model.AffiliateHeadFeeEvent) error) error {
+	batchSize := normalizedAffiliateSettlementEventScanBatchSize()
+	lastID := 0
+	for {
+		var events []model.AffiliateHeadFeeEvent
+		if err := base.
+			Session(&gorm.Session{}).
+			Where("id > ?", lastID).
+			Order("id asc").
+			Limit(batchSize).
+			Find(&events).Error; err != nil {
+			return err
+		}
+		if len(events) == 0 {
+			return nil
+		}
+		if err := handle(events); err != nil {
+			return err
+		}
+		lastID = events[len(events)-1].Id
+		if len(events) < batchSize {
+			return nil
+		}
+	}
 }
