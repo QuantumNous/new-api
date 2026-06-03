@@ -204,6 +204,9 @@ func TestRunAffiliateSettlementPipelineRecordsJobRunSuccess(t *testing.T) {
 	if jobRun.InputSnapshot == "" || jobRun.ResultSnapshot == "" || jobRun.ErrorMessage != "" {
 		t.Fatalf("expected sanitized input/result snapshots and no error, got %+v", jobRun)
 	}
+	if jobRun.LastCursorCreatedAt != 1100 || jobRun.LastCursorId <= 0 {
+		t.Fatalf("expected job run to retain last scanned log cursor, got %+v", jobRun)
+	}
 }
 
 func TestRunAffiliateSettlementPipelineRecordsJobRunFailure(t *testing.T) {

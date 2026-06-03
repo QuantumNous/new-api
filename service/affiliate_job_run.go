@@ -78,6 +78,7 @@ func GenerateAffiliateSettlementsWithJobRun(db *gorm.DB, input AffiliateSettleme
 		return nil, model.AffiliateJobRun{}, err
 	}
 
+	input.JobRunId = jobRun.Id
 	settlements, err := GenerateAffiliateSettlements(db, input)
 	if err != nil {
 		if updateErr := finishAffiliateJobRunFailure(db, jobRun, affiliateJobRunStageSettlement, err, input.GeneratedAt); updateErr != nil {
@@ -141,8 +142,6 @@ func finishAffiliateJobRunSuccess(db *gorm.DB, jobRun model.AffiliateJobRun, res
 		"settlement_count":       result.SettlementCount,
 		"result_snapshot":        affiliateSettlementRunResultSnapshot(result),
 		"error_message":          "",
-		"last_cursor_created_at": 0,
-		"last_cursor_id":         0,
 	})
 }
 
@@ -169,6 +168,31 @@ func finishAffiliateJobRunFailure(db *gorm.DB, jobRun model.AffiliateJobRun, sta
 		"error_message":   sanitizeAffiliateJobRunError(cause),
 		"result_snapshot": common.GetJsonString(map[string]interface{}{"status": model.AffiliateJobRunStatusFailed}),
 	})
+}
+
+func updateAffiliateJobRunLogCursor(db *gorm.DB, jobRunId int, stage string, logs []model.Log) error {
+	if len(logs) == 0 {
+		return nil
+	}
+	last := logs[len(logs)-1]
+	return updateAffiliateJobRunCursor(db, jobRunId, stage, last.CreatedAt, last.Id)
+}
+
+func updateAffiliateJobRunIDCursor(db *gorm.DB, jobRunId int, stage string, lastID int) error {
+	return updateAffiliateJobRunCursor(db, jobRunId, stage, 0, lastID)
+}
+
+func updateAffiliateJobRunCursor(db *gorm.DB, jobRunId int, stage string, lastCreatedAt int64, lastID int) error {
+	if jobRunId <= 0 || lastID <= 0 {
+		return nil
+	}
+	updates := map[string]interface{}{
+		"last_cursor_id": lastID,
+	}
+	if lastCreatedAt > 0 {
+		updates["last_cursor_created_at"] = lastCreatedAt
+	}
+	return updateAffiliateJobRunProgress(db, jobRunId, stage, updates)
 }
 
 func affiliateSettlementRunIdempotencyKey(input AffiliateSettlementRunInput) string {

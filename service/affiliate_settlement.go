@@ -19,6 +19,7 @@ type AffiliateSettlementBuildInput struct {
 	ActorUserId int
 	Reason      string
 	GeneratedAt int64
+	JobRunId    int
 }
 
 type AffiliateSettlementStatusInput struct {
@@ -253,7 +254,7 @@ func buildAffiliateSettlementEventGroups(db *gorm.DB, ruleSetId int, input Affil
 			group.CommissionEventIds = append(group.CommissionEventIds, event.Id)
 			groups[event.AffiliateUserId] = group
 		}
-		return nil
+		return updateAffiliateJobRunIDCursor(db, input.JobRunId, affiliateJobRunStageSettlement, events[len(events)-1].Id)
 	}); err != nil {
 		return nil, err
 	}
@@ -270,7 +271,7 @@ func buildAffiliateSettlementEventGroups(db *gorm.DB, ruleSetId int, input Affil
 			group.HeadFeeEventIds = append(group.HeadFeeEventIds, event.Id)
 			groups[event.AffiliateUserId] = group
 		}
-		return nil
+		return updateAffiliateJobRunIDCursor(db, input.JobRunId, affiliateJobRunStageSettlement, events[len(events)-1].Id)
 	}); err != nil {
 		return nil, err
 	}

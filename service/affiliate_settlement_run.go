@@ -73,6 +73,7 @@ func RunAffiliateSettlementPipeline(db *gorm.DB, logDB *gorm.DB, input Affiliate
 		PeriodEnd:       input.PeriodEnd,
 		QuotaPerUnit:    input.QuotaPerUnit,
 		USDExchangeRate: input.USDExchangeRate,
+		JobRunId:        jobRun.Id,
 	})
 	if err != nil {
 		return failedResult(affiliateJobRunStageKPI, err)
@@ -89,6 +90,7 @@ func RunAffiliateSettlementPipeline(db *gorm.DB, logDB *gorm.DB, input Affiliate
 		PeriodEnd:       input.PeriodEnd,
 		QuotaPerUnit:    input.QuotaPerUnit,
 		USDExchangeRate: input.USDExchangeRate,
+		JobRunId:        jobRun.Id,
 	})
 	if err != nil {
 		return failedResult(affiliateJobRunStageCommission, err)
@@ -107,6 +109,7 @@ func RunAffiliateSettlementPipeline(db *gorm.DB, logDB *gorm.DB, input Affiliate
 		Now:             input.Now,
 		QuotaPerUnit:    input.QuotaPerUnit,
 		USDExchangeRate: input.USDExchangeRate,
+		JobRunId:        jobRun.Id,
 	})
 	if err != nil {
 		return failedResult(affiliateJobRunStageHeadFee, err)
@@ -127,6 +130,7 @@ func RunAffiliateSettlementPipeline(db *gorm.DB, logDB *gorm.DB, input Affiliate
 		ActorUserId: input.ActorUserId,
 		Reason:      input.Reason,
 		GeneratedAt: input.Now,
+		JobRunId:    jobRun.Id,
 	})
 	if err != nil {
 		return failedResult(affiliateJobRunStageSettlement, err)

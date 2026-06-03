@@ -16,6 +16,7 @@ type AffiliateKPIBuildInput struct {
 	PeriodEnd       int64
 	QuotaPerUnit    float64
 	USDExchangeRate float64
+	JobRunId        int
 }
 
 type affiliateKPIMetrics struct {
@@ -190,7 +191,7 @@ func buildAffiliateKPIMetrics(db *gorm.DB, logDB *gorm.DB, visibleUserIds []int,
 				userStats.HasGiftOrTrial = true
 			}
 		}
-		return nil
+		return updateAffiliateJobRunLogCursor(db, input.JobRunId, affiliateJobRunStageKPI, logs)
 	}); err != nil {
 		return affiliateKPIMetrics{}, err
 	}

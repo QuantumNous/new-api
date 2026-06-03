@@ -100,7 +100,7 @@
 - [x] 审计 `service/affiliate_commission.go` 中一次性 `Find(&logs)` 的无界查询风险，改成按时间窗口和 ID cursor 分批扫描。
 - [x] 审计 `service/affiliate_kpi.go` 中 KPI 计算的无界日志加载风险，改成分批聚合或数据库侧聚合。
 - [x] 审计 `service/affiliate_head_fee.go` 中人头费计算的无界日志加载风险，改成分批聚合并保留幂等记录。
-- [ ] 给佣金、KPI、人头费、结算任务增加 run record 或 job execution 记录，包含参数、窗口、执行人、开始/结束时间、状态、错误、扫描进度和幂等 key。（2026-06-03 已为管理员 settlement pipeline 增加 `affiliate_job_runs` 顶层 job execution；2026-06-04 已为单独 `AdminGenerateAffiliateSettlements` endpoint 增加 `settlement_generate` job run；可恢复 cursor 和 Docker PostgreSQL schema diff 仍待补。）
+- [ ] 给佣金、KPI、人头费、结算任务增加 run record 或 job execution 记录，包含参数、窗口、执行人、开始/结束时间、状态、错误、扫描进度和幂等 key。（2026-06-03 已为管理员 settlement pipeline 增加 `affiliate_job_runs` 顶层 job execution；2026-06-04 已为单独 `AdminGenerateAffiliateSettlements` endpoint 增加 `settlement_generate` job run；2026-06-04 已把 KPI/佣金/人头费日志扫描和 settlement event id 扫描进度写入既有 cursor 字段；真正中断后 resume 语义和 Docker PostgreSQL schema diff 仍待补。）
 - [x] 完整验证重复执行同一周期不会重复计佣、重复发人头费或重复生成结算单。（2026-06-04 已补 service 级完整 pipeline 重复运行审计测试；外部完整结算周期双跑仍按 external acceptance runbook 执行。）
 - [x] 补充 refund、partial refund、gift-only、mixed paid/gift/trial、legacy_unknown、任务钱包扣费、异步任务退款等样本。（2026-06-04 已补 mixed paid/gift/trial/legacy_unknown + partial refund 分佣测试，并复跑现有 gift-only、quota sidecar、人头费、任务钱包扣费/退款 source segment 测试。）
 - [x] 明确历史未标记日志是否进入灰度回填、人工复核或直接排除，不得默认把未知来源计为 paid。（2026-06-04 已明确当前服务策略：无来源日志和 `legacy_unknown` 默认直接排除在 paid 业绩、KPI paid 统计和人头费资格外；如需纳入，只能通过灰度回填或人工复核补写可信 paid sidecar 后再计算。）
@@ -422,3 +422,14 @@
 - 回归验证：`go test -count=1 ./model ./service ./controller ./router -run "Affiliate|RuleSet|Commission|KPI|HeadFee|Settlement|Admin|Inviter"` 通过；`cd web/default && bun run i18n:sync && bun run build` 通过且 locale 报告 missing/extras/untranslated 均为 0；`cd web/classic && bun run build` 通过；`git diff --check` 通过。
 - 残留风险：本轮回滚语义是“复制历史版本为新草稿”，不会直接把历史版本重新发布；运营仍需查看 diff 后手动发布。重复点击同一历史版本会因默认 `-rollback` version 已存在而被后端拒绝，后续如需要多次回滚草稿，可在前端增加版本后缀输入或时间戳策略。
 - 下一步：继续推进 `affiliate_job_runs` 可恢复 cursor/progress 和 Docker PostgreSQL schema diff，或补规则模型未覆盖的启停/备注/风控动作/自动结算开关字段。
+
+## P1-21 affiliate_job_runs 扫描进度持久化复盘（2026-06-04 本线程）
+
+- RED：先在 `TestRunAffiliateSettlementPipelineRecordsJobRunSuccess` 断言 pipeline 成功后保留最后日志 cursor；旧实现因 `finishAffiliateJobRunSuccess` 把 `last_cursor_created_at` 与 `last_cursor_id` 清零而失败。再在 `TestGenerateAffiliateSettlementsWithJobRunRecordsSuccess` 断言 standalone `settlement_generate` job run 保留 settlement event id cursor；旧实现没有在 generate 扫描中写 cursor，断言失败。
+- 完成内容：新增内部 cursor 更新 helper，复用既有 `affiliate_job_runs.last_cursor_created_at` 与 `last_cursor_id` 字段，不修改 GORM model 和 schema。KPI、commission、head fee 的日志扫描批次完成后写入当前 stage 和最后 `created_at,id`；settlement pending event 扫描完成后写入当前 stage 和最后 event id。
+- 完成内容：pipeline run 把 `JobRunId` 传入 KPI、佣金、人头费和结算构建输入；standalone `GenerateAffiliateSettlementsWithJobRun` 在创建 job run 后把 `JobRunId` 传入 `GenerateAffiliateSettlements`，从而让 `settlement_generate` 也记录扫描进度。
+- 完成内容：成功完成 job run 时不再清零 cursor，保留最后扫描位置用于审计和后续 resume 设计参考；失败路径仍保留当前失败 stage 和脱敏 error snapshot。
+- 验证命令：RED 阶段 `go test -count=1 ./service -run "TestRunAffiliateSettlementPipelineRecordsJobRunSuccess|TestGenerateAffiliateSettlementsWithJobRunRecordsSuccess"` 因 cursor 为 0 失败；实现后同命令通过。
+- 回归验证：`go test -count=1 ./service -run "AffiliateSettlementPipeline|SettlementRun|GenerateAffiliateSettlements|AffiliateSettlement|AffiliateKPI|KPISnapshot|AffiliatePendingCommission|CommissionEvents|Commission|AffiliateHeadFee|HeadFee"` 通过。
+- 残留风险：本轮实现的是扫描进度持久化，不是完整中断恢复。`last_cursor_id` 在 settlement stage 可能对应 commission event 或 head fee event 两类表之一，现有 schema 没有单独 cursor type 字段；真正 resume 需要设计 stage-specific cursor payload 或 result snapshot，并验证幂等重入边界。
+- 下一步：继续设计真正可恢复 resume 语义，或在 Docker/compose 恢复后补 `affiliate_job_runs` PostgreSQL schema diff。

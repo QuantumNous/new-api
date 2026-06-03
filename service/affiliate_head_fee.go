@@ -18,6 +18,7 @@ type AffiliateHeadFeeBuildInput struct {
 	Now             int64
 	QuotaPerUnit    float64
 	USDExchangeRate float64
+	JobRunId        int
 }
 
 type affiliateHeadFeePaidStats struct {
@@ -252,7 +253,7 @@ func buildAffiliateHeadFeePaidStats(db *gorm.DB, logDB *gorm.DB, userId int, inv
 			}
 			stats.NetPaidCents += cents
 		}
-		return nil
+		return updateAffiliateJobRunLogCursor(db, input.JobRunId, affiliateJobRunStageHeadFee, logs)
 	}); err != nil {
 		return affiliateHeadFeePaidStats{}, err
 	}

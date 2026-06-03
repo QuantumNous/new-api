@@ -34,6 +34,7 @@ type AffiliateCommissionBuildInput struct {
 	PeriodEnd       int64
 	QuotaPerUnit    float64
 	USDExchangeRate float64
+	JobRunId        int
 }
 
 func BuildAffiliatePendingCommissionEvents(db *gorm.DB, logDB *gorm.DB, input AffiliateCommissionBuildInput) ([]model.AffiliateCommissionEvent, error) {
@@ -47,7 +48,7 @@ func BuildAffiliatePendingCommissionEvents(db *gorm.DB, logDB *gorm.DB, input Af
 		return nil, errors.New("invalid commission period")
 	}
 
-	sourceLogs, err := listAffiliateCommissionSourceLogs(logDB, input)
+	sourceLogs, err := listAffiliateCommissionSourceLogs(db, logDB, input)
 	if err != nil {
 		return nil, err
 	}
@@ -262,7 +263,7 @@ func affiliateQuotaSourceEventsToAttribution(events []model.UserQuotaSourceEvent
 	return attribution
 }
 
-func listAffiliateCommissionSourceLogs(logDB *gorm.DB, input AffiliateCommissionBuildInput) ([]model.Log, error) {
+func listAffiliateCommissionSourceLogs(db *gorm.DB, logDB *gorm.DB, input AffiliateCommissionBuildInput) ([]model.Log, error) {
 	tx := logDB.
 		Where("type IN ?", []int{model.LogTypeConsume, model.LogTypeRefund})
 	if input.PeriodStart != 0 {
@@ -275,7 +276,7 @@ func listAffiliateCommissionSourceLogs(logDB *gorm.DB, input AffiliateCommission
 	var logs []model.Log
 	if err := scanAffiliateLogsByCreatedAtCursor(tx, func(batch []model.Log) error {
 		logs = append(logs, batch...)
-		return nil
+		return updateAffiliateJobRunLogCursor(db, input.JobRunId, affiliateJobRunStageCommission, batch)
 	}); err != nil {
 		return nil, err
 	}
