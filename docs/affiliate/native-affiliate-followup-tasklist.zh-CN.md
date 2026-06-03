@@ -100,7 +100,7 @@
 - [x] 审计 `service/affiliate_commission.go` 中一次性 `Find(&logs)` 的无界查询风险，改成按时间窗口和 ID cursor 分批扫描。
 - [x] 审计 `service/affiliate_kpi.go` 中 KPI 计算的无界日志加载风险，改成分批聚合或数据库侧聚合。
 - [x] 审计 `service/affiliate_head_fee.go` 中人头费计算的无界日志加载风险，改成分批聚合并保留幂等记录。
-- [ ] 给佣金、KPI、人头费、结算任务增加 run record 或 job execution 记录，包含参数、窗口、执行人、开始/结束时间、状态、错误、扫描进度和幂等 key。（2026-06-03 已为管理员 settlement pipeline 增加 `affiliate_job_runs` 顶层 job execution；2026-06-04 已为单独 `AdminGenerateAffiliateSettlements` endpoint 增加 `settlement_generate` job run；2026-06-04 已把 KPI/佣金/人头费日志扫描和 settlement event id 扫描进度写入既有 cursor 字段；2026-06-04 已支持同 idempotency key 的 failed job run 原地恢复并幂等重跑；running zombie/stale lease、cursor 跳扫式 resume 和 Docker PostgreSQL schema diff 仍待补。）
+- [ ] 给佣金、KPI、人头费、结算任务增加 run record 或 job execution 记录，包含参数、窗口、执行人、开始/结束时间、状态、错误、扫描进度和幂等 key。（2026-06-03 已为管理员 settlement pipeline 增加 `affiliate_job_runs` 顶层 job execution；2026-06-04 已为单独 `AdminGenerateAffiliateSettlements` endpoint 增加 `settlement_generate` job run；2026-06-04 已把 KPI/佣金/人头费日志扫描和 settlement event id 扫描进度写入既有 cursor 字段；2026-06-04 已支持同 idempotency key 的 failed job run 原地恢复并幂等重跑；2026-06-04 Docker probe 仍不可用，schema diff 未生成；running zombie/stale lease、cursor 跳扫式 resume 和 Docker PostgreSQL schema diff 仍待补。）
 - [x] 完整验证重复执行同一周期不会重复计佣、重复发人头费或重复生成结算单。（2026-06-04 已补 service 级完整 pipeline 重复运行审计测试；外部完整结算周期双跑仍按 external acceptance runbook 执行。）
 - [x] 补充 refund、partial refund、gift-only、mixed paid/gift/trial、legacy_unknown、任务钱包扣费、异步任务退款等样本。（2026-06-04 已补 mixed paid/gift/trial/legacy_unknown + partial refund 分佣测试，并复跑现有 gift-only、quota sidecar、人头费、任务钱包扣费/退款 source segment 测试。）
 - [x] 明确历史未标记日志是否进入灰度回填、人工复核或直接排除，不得默认把未知来源计为 paid。（2026-06-04 已明确当前服务策略：无来源日志和 `legacy_unknown` 默认直接排除在 paid 业绩、KPI paid 统计和人头费资格外；如需纳入，只能通过灰度回填或人工复核补写可信 paid sidecar 后再计算。）
@@ -157,7 +157,7 @@
 - [x] P0：补 WSL 前端 dev server 一键启动脚本和 runbook，解决重启后 `5173`/`5174` 拒绝连接的问题。
 - [x] P1：明确 dev/prod 镜像切换方案，保证生产不再误用官方 latest 来发布二开功能。
 - [x] P1：把分销管理规则配置重构为运营友好的表格/矩阵，并保留高级 JSON 导入导出。（2026-06-03 已完成 default/classic 可视编辑表格化和高级 JSON 文本保留；2026-06-04 已补 default/classic 导入/导出按钮、diff 预览、复制上一版本、已发布/已归档版本只读查看和发布/归档二次确认。启停字段、风控动作、自动结算等后端未模型化字段仍按第 6 节单项任务保留。）
-- [ ] P1：佣金、KPI、人头费和结算任务改造为分批、可恢复、幂等、可审计。（2026-06-04 已完成 usage logs 的 `created_at,id` cursor 分批扫描、完整 pipeline 重复运行幂等审计；2026-06-03 已完成 settlement pipeline 顶层 job run 审计记录、settlement pending/ready event grouping 的 `id` cursor 分批扫描和 settlement event link 更新批量拆分；2026-06-04 已补 failed job run 同 key 原地 resume；cursor 跳扫式 resume、running zombie/stale lease、Docker schema diff 和外部完整周期 dry-run/正式 run 双跑验收仍待做。）
+- [ ] P1：佣金、KPI、人头费和结算任务改造为分批、可恢复、幂等、可审计。（2026-06-04 已完成 usage logs 的 `created_at,id` cursor 分批扫描、完整 pipeline 重复运行幂等审计；2026-06-03 已完成 settlement pipeline 顶层 job run 审计记录、settlement pending/ready event grouping 的 `id` cursor 分批扫描和 settlement event link 更新批量拆分；2026-06-04 已补 failed job run 同 key 原地 resume；2026-06-04 Docker probe 仍不可用，schema diff 未生成；cursor 跳扫式 resume、running zombie/stale lease、Docker schema diff 和外部完整周期 dry-run/正式 run 双跑验收仍待做。）
 - [x] P2：把飞书规则沉淀为默认 rule set seed，并增加单位转换、区间完整性和发布不可变测试。（2026-06-04 已完成当前 master plan 默认值的 service seed、admin seed API 和 Go 测试；最新飞书方案外部复核仍按第 7 节其他单项保留。）
 - [ ] P2：补齐 SMS 分布式限流、手机号注册归因和真实通道 smoke。
 - [ ] P2：完善 dashboard 统计口径、浏览器截图回归和外部验收归档。
@@ -453,3 +453,10 @@
 - 回归验证：`go test -count=1 ./service -run "RunAffiliateSettlementPipeline(IsIdempotent|RecordsJobRun|ResumesFailed)|GenerateAffiliateSettlementsWithJobRun(Records|ResumesFailed)|GenerateAffiliateSettlements"` 通过，确认成功重复运行审计语义和 settlement generate 既有行为未被破坏。`go test -count=1 ./model ./service ./controller ./router -run "Affiliate|RuleSet|Commission|KPI|HeadFee|Settlement|Admin|Inviter|JobRun"` 通过；`git diff --check` 通过。
 - 残留风险：这不是 cursor 跳扫式 resume，而是“失败记录原地重启 + 幂等重跑”；`running` zombie/stale lease、stage-specific cursor payload、按 cursor 跳过已完成扫描和 Docker PostgreSQL schema diff 仍需后续补。
 - 下一步：提交本轮 failed job run resume 变更；之后优先补 Docker schema diff，或设计 running stale lease 与 stage-specific cursor payload。
+
+## P1-23 Docker schema diff 阻塞记录（2026-06-04 本线程）
+
+- 取证命令：`timeout 8s docker ps --filter "name=new-api" --format "{{.Names}} {{.Status}}"` 在 WSL 内返回 code 1，8 秒内无有效容器状态输出。
+- 结论：当前 Docker 运行态仍不可用，无法基于本地 PostgreSQL 容器导出 native affiliate sidecar schema diff；本轮不继续重复 Docker probe，避免无效等待。
+- 残留风险：`affiliate_job_runs` 相关字段已经在 Go model 中使用，但 Docker PostgreSQL baseline/schema impact 仍需要在 Docker 恢复后补验，尤其要确认 sidecar 表结构和索引符合预期。
+- 下一步：Docker 恢复后优先执行 dev compose 状态检查、PostgreSQL schema 导出和 `docs/affiliate/native-affiliate-schema-impact-report.zh-CN.md` 更新。
