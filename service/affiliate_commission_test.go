@@ -310,6 +310,81 @@ func TestBuildAffiliatePendingCommissionEventsUsesQuotaSourceSidecarPaidPortion(
 	}
 }
 
+func TestBuildAffiliatePendingCommissionEventsUsesOnlyPaidFromMixedSourcesAndPartialRefund(t *testing.T) {
+	db := newAffiliateCommissionTestDB(t)
+	savePublishedAffiliateCommissionRuleSet(t, db, "commission-mixed-source-partial-refund")
+	seedAffiliateCommissionProfileAndRelation(t, db, 100, 300, 1)
+	consumeLog := seedAffiliateCommissionLog(t, db, model.Log{
+		UserId:    300,
+		CreatedAt: 1100,
+		Type:      model.LogTypeConsume,
+		Quota:     1000,
+	})
+	for _, event := range []model.UserQuotaSourceEvent{
+		{UserId: 300, Source: AffiliateQuotaSourcePaid, EventType: model.QuotaSourceEventDebit, Amount: 300, SourceLogId: consumeLog.Id},
+		{UserId: 300, Source: AffiliateQuotaSourceGift, EventType: model.QuotaSourceEventDebit, Amount: 200, SourceLogId: consumeLog.Id},
+		{UserId: 300, Source: AffiliateQuotaSourceTrial, EventType: model.QuotaSourceEventDebit, Amount: 250, SourceLogId: consumeLog.Id},
+		{UserId: 300, Source: model.QuotaSourceLegacyUnknown, EventType: model.QuotaSourceEventDebit, Amount: 250, SourceLogId: consumeLog.Id},
+	} {
+		seedAffiliateQuotaSourceEvent(t, db, event)
+	}
+	seedAffiliateCommissionLog(t, db, model.Log{
+		UserId:    300,
+		CreatedAt: 1150,
+		Type:      model.LogTypeConsume,
+		Quota:     500,
+		Other:     `{"quota_source":"trial"}`,
+	})
+	seedAffiliateCommissionLog(t, db, model.Log{
+		UserId:    300,
+		CreatedAt: 1180,
+		Type:      model.LogTypeConsume,
+		Quota:     500,
+	})
+	refundLog := seedAffiliateCommissionLog(t, db, model.Log{
+		UserId:    300,
+		CreatedAt: 1200,
+		Type:      model.LogTypeRefund,
+		Quota:     200,
+	})
+	for _, event := range []model.UserQuotaSourceEvent{
+		{UserId: 300, Source: AffiliateQuotaSourcePaid, EventType: model.QuotaSourceEventRefund, Amount: 100, SourceLogId: refundLog.Id},
+		{UserId: 300, Source: AffiliateQuotaSourceGift, EventType: model.QuotaSourceEventRefund, Amount: 100, SourceLogId: refundLog.Id},
+	} {
+		seedAffiliateQuotaSourceEvent(t, db, event)
+	}
+
+	events, err := BuildAffiliatePendingCommissionEvents(db, db, AffiliateCommissionBuildInput{
+		PeriodStart:     1000,
+		PeriodEnd:       2000,
+		QuotaPerUnit:    100,
+		USDExchangeRate: 1,
+	})
+	if err != nil {
+		t.Fatalf("BuildAffiliatePendingCommissionEvents returned error: %v", err)
+	}
+	if len(events) != 2 {
+		t.Fatalf("expected accrual and partial refund clawback only, got %+v", events)
+	}
+	accrual := events[0]
+	if accrual.SourceLogId != consumeLog.Id || accrual.Kind != AffiliateCommissionEventKindAccrual {
+		t.Fatalf("expected first event to be mixed-source paid accrual, got %+v", accrual)
+	}
+	if accrual.RawQuota != 300 || accrual.NetPaidConsumptionCents != 300 || accrual.CommissionCents != 36 {
+		t.Fatalf("expected only paid sidecar portion to accrue commission, got %+v", accrual)
+	}
+	clawback := events[1]
+	if clawback.SourceLogId != refundLog.Id || clawback.Kind != AffiliateCommissionEventKindClawback {
+		t.Fatalf("expected second event to be partial paid refund clawback, got %+v", clawback)
+	}
+	if clawback.RawQuota != -100 || clawback.NetPaidConsumptionCents != -100 || clawback.CommissionCents != -12 {
+		t.Fatalf("expected only paid refund sidecar portion to claw back commission, got %+v", clawback)
+	}
+	if clawback.UserCumulativeNetPaidBeforeCents != 300 || clawback.UserCumulativeNetPaidAfterCents != 200 {
+		t.Fatalf("unexpected cumulative cents after partial refund: %+v", clawback)
+	}
+}
+
 func newAffiliateCommissionTestDB(t *testing.T) *gorm.DB {
 	t.Helper()
 	name := strings.NewReplacer("/", "_", " ", "_").Replace(t.Name())

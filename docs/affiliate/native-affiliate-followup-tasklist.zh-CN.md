@@ -102,7 +102,7 @@
 - [x] 审计 `service/affiliate_head_fee.go` 中人头费计算的无界日志加载风险，改成分批聚合并保留幂等记录。
 - [ ] 给佣金、KPI、人头费、结算任务增加 run record 或 job execution 记录，包含参数、窗口、执行人、开始/结束时间、状态、错误、扫描进度和幂等 key。（2026-06-03 已为管理员 settlement pipeline 增加 `affiliate_job_runs` 顶层 job execution；单独 generate endpoint、可恢复 cursor 和 Docker PostgreSQL schema diff 仍待补。）
 - [x] 完整验证重复执行同一周期不会重复计佣、重复发人头费或重复生成结算单。（2026-06-04 已补 service 级完整 pipeline 重复运行审计测试；外部完整结算周期双跑仍按 external acceptance runbook 执行。）
-- [ ] 补充 refund、partial refund、gift-only、mixed paid/gift/trial、legacy_unknown、任务钱包扣费、异步任务退款等样本。
+- [x] 补充 refund、partial refund、gift-only、mixed paid/gift/trial、legacy_unknown、任务钱包扣费、异步任务退款等样本。（2026-06-04 已补 mixed paid/gift/trial/legacy_unknown + partial refund 分佣测试，并复跑现有 gift-only、quota sidecar、人头费、任务钱包扣费/退款 source segment 测试。）
 - [ ] 明确历史未标记日志是否进入灰度回填、人工复核或直接排除，不得默认把未知来源计为 paid。
 - [ ] 完整结算周期必须做双跑：dry-run 与正式 run 对比，重复正式 run 幂等，结算单金额与事件合计一致。
 
@@ -259,3 +259,13 @@
 - 回归验证：`go test -count=1 ./service -run "TestRunAffiliateSettlementPipelineIsIdempotentForSamePeriod|TestRunAffiliateSettlementPipelineRecordsJobRun|TestRunAffiliateSettlementPipelineBuilds"` 通过；`go test -count=1 ./service -run "Affiliate(Commission|KPI|HeadFee|Settlement)"` 通过；`git diff --check` 通过。
 - 残留风险：该测试是本地 service 级审计，不替代外部完整结算周期双跑；外部验收仍需按 `native-affiliate-external-acceptance-runbook.zh-CN.md` 对真实 paid 消费、退款、人头费和外接控制台汇总做 dry-run/正式 run 对比。
 - 下一步：继续补 refund、partial refund、gift-only、mixed paid/gift/trial、legacy_unknown、任务钱包扣费、异步任务退款等样本，或为 `AdminGenerateAffiliateSettlements` 单独入口补 job run。
+
+## P1-8 paid source 与退款样本覆盖复盘（2026-06-04 本线程）
+
+- 完成内容：新增 `TestBuildAffiliatePendingCommissionEventsUsesOnlyPaidFromMixedSourcesAndPartialRefund`，覆盖同一消费日志 sidecar 中 paid/gift/trial/legacy_unknown 混合时只按 paid 部分计正佣；同一退款日志 sidecar 中 paid/gift 混合时只按 paid 部分生成 clawback；显式 `quota_source=trial` 与无 sidecar 的 legacy_unknown 消费均不计佣。
+- 验证命令：`go test -count=1 ./service -run "TestBuildAffiliatePendingCommissionEventsUsesOnlyPaidFromMixedSourcesAndPartialRefund|TestBuildAffiliatePendingCommissionEventsSkipsNonPaidAndCreatesRefundClawback|TestBuildAffiliatePendingCommissionEventsUsesQuotaSourceSidecarPaidPortion"` 通过，覆盖 refund、partial refund、gift、mixed paid/gift/trial/legacy_unknown 和 sidecar paid-only 口径。
+- 验证命令：`go test -count=1 ./service -run "TestBuildAffiliateKPISnapshotsFallsBackWhenQualityGateFails|TestBuildAffiliateKPISnapshotsUsesQuotaSourceSidecar|TestBuildAffiliatePendingHeadFeeEventsSkipsUnqualifiedUsersAndDeduplicates|TestBuildAffiliatePendingHeadFeeEventsUsesQuotaSourceSidecar"` 通过，覆盖 gift-only KPI 质量门槛、quota sidecar KPI 和人头费 paid 统计。
+- 验证命令：`go test -count=1 ./service -run "TestRefundTaskQuota_WalletRestoresSourceSegments|TestRecalculate_PositiveDelta_WalletWritesQuotaSourceSidecar"` 通过，覆盖任务钱包扣费和异步任务退款 source segment 回补。
+- 回归验证：`go test -count=1 ./service -run "Affiliate(Commission|KPI|HeadFee|Settlement)"` 通过；`git diff --check` 通过。
+- 残留风险：这些是本地 service/model 级样本，不替代真实支付、真实 relay、真实异步任务 provider 和生产/staging 退款链路 smoke；外部验收仍需确认真实 sidecar 事件持续写入。
+- 下一步：继续明确历史未标记日志处理策略，不得默认把 unknown/legacy_unknown 计为 paid。
