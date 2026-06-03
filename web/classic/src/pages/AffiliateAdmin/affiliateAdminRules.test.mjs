@@ -7,9 +7,11 @@ import {
   buildAffiliateRuleSetDiffPreview,
   buildAffiliateRuleSetExportJson,
   buildAffiliateRuleSetsQuery,
+  buildAffiliateRuleSetStatusConfirmation,
   buildAffiliateRuleSetStatusPayload,
   formatAffiliateBpsPercent,
   getAffiliateRuleSetStatusMeta,
+  isAffiliateRuleSetReadOnly,
   parseAffiliateRuleSetImportJson,
   validateAffiliateRuleSetDraftPayload,
 } from './affiliateAdminRules.js';
@@ -307,6 +309,29 @@ describe('affiliate admin rule set helpers', () => {
       { section: 'Freeze Days', before: '7', after: '14' },
       { section: 'Commission Tiers', before: 'changed', after: 'changed' },
     ]);
+  });
+
+  test('marks published or archived rule sets as read-only and builds status confirmations', () => {
+    expect(isAffiliateRuleSetReadOnly({ status: 'draft' })).toBe(false);
+    expect(isAffiliateRuleSetReadOnly({ status: 'published' })).toBe(true);
+    expect(isAffiliateRuleSetReadOnly({ status: 'archived' })).toBe(true);
+
+    expect(
+      buildAffiliateRuleSetStatusConfirmation(t, 'publish', {
+        id: 5,
+        version: 'rules-2026-08',
+        name: 'August Rules',
+      }),
+    ).toBe(
+      '确认发布规则集 rules-2026-08？发布后会启用该版本并归档当前已发布规则。',
+    );
+    expect(
+      buildAffiliateRuleSetStatusConfirmation(t, 'archive', {
+        id: 5,
+        version: '',
+        name: 'August Rules',
+      }),
+    ).toBe('确认归档规则集 #5？归档后该版本不会再被自动选择。');
   });
 
   test('provides editable default seed values for new drafts', () => {

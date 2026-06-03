@@ -96,6 +96,31 @@ export function buildAffiliateRuleSetStatusPayload(values = {}) {
   return { reason: String(values.reason || '').trim() };
 }
 
+export function isAffiliateRuleSetReadOnly(ruleSet = null) {
+  const status = String(ruleSet?.status || '').trim();
+  return status === 'published' || status === 'archived';
+}
+
+export function buildAffiliateRuleSetStatusConfirmation(
+  t,
+  action,
+  ruleSet = {},
+) {
+  const identity = ruleSet.version
+    ? String(ruleSet.version)
+    : `#${normalizeInteger(ruleSet.id)}`;
+  if (action === 'publish') {
+    return translate(
+      t,
+      '确认发布规则集 {{version}}？发布后会启用该版本并归档当前已发布规则。',
+    ).replace('{{version}}', identity);
+  }
+  return translate(
+    t,
+    '确认归档规则集 {{version}}？归档后该版本不会再被自动选择。',
+  ).replace('{{version}}', identity);
+}
+
 export function buildAffiliateRuleSetDraftPayload(values = {}) {
   return {
     id: normalizeInteger(values.id),

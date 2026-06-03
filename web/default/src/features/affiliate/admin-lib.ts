@@ -288,6 +288,31 @@ export function buildAffiliateRuleSetStatusPayload(reason: string): {
   return { reason: String(reason || '').trim() }
 }
 
+export function isAffiliateRuleSetReadOnly(
+  ruleSet?: { status?: string } | null
+): boolean {
+  const status = String(ruleSet?.status || '').trim()
+  return status === 'published' || status === 'archived'
+}
+
+export function buildAffiliateRuleSetStatusConfirmation(
+  action: 'publish' | 'archive',
+  ruleSet: { id?: number; version?: string; name?: string },
+  t: Translate
+): string {
+  const identity = ruleSet.version
+    ? String(ruleSet.version)
+    : `#${normalizePositiveInteger(ruleSet.id)}`
+  if (action === 'publish') {
+    return t(
+      'Publish rule set {{version}}? This will activate it and archive the current published rule set.'
+    ).replace('{{version}}', identity)
+  }
+  return t(
+    'Archive rule set {{version}}? This will stop this version from being selected automatically.'
+  ).replace('{{version}}', identity)
+}
+
 export function buildAffiliateRuleSetDraftPayload(
   values: AffiliateRuleSetDraftFormValues = {}
 ): AffiliateRuleSetDraftPayload {

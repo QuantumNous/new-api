@@ -184,11 +184,17 @@ function getRuleCellValue(item, key) {
   return Object.prototype.hasOwnProperty.call(item, key) ? item[key] : '';
 }
 
-const RuleFieldControl = ({ fieldKey, fieldValue, onChange }) => {
+const RuleFieldControl = ({
+  fieldKey,
+  fieldValue,
+  readOnly = false,
+  onChange,
+}) => {
   if (typeof fieldValue === 'boolean') {
     return (
       <Select
         className='min-w-[112px]'
+        disabled={readOnly}
         value={String(fieldValue)}
         onChange={(nextValue) => onChange(nextValue)}
       >
@@ -208,14 +214,24 @@ const RuleFieldControl = ({ fieldKey, fieldValue, onChange }) => {
           ? 'number'
           : 'text'
       }
-      step={isPercentField(fieldKey) || isYuanField(fieldKey) ? 0.01 : undefined}
+      step={
+        isPercentField(fieldKey) || isYuanField(fieldKey) ? 0.01 : undefined
+      }
       value={getDisplayValue(fieldKey, fieldValue)}
+      disabled={readOnly}
       onChange={(nextValue) => onChange(nextValue)}
     />
   );
 };
 
-const RuleTable = ({ t, rows, hiddenKeys = [], onChange, onRemove }) => {
+const RuleTable = ({
+  t,
+  rows,
+  hiddenKeys = [],
+  readOnly = false,
+  onChange,
+  onRemove,
+}) => {
   const columns = getRuleTableColumns(
     rows.map((row) => row.item),
     hiddenKeys,
@@ -237,9 +253,11 @@ const RuleTable = ({ t, rows, hiddenKeys = [], onChange, onRemove }) => {
                 {t(getRuleFieldLabel(key))}
               </th>
             ))}
-            <th className='w-24 border-b px-3 py-2 text-left font-medium text-semi-color-text-2'>
-              {t('Actions')}
-            </th>
+            {!readOnly && (
+              <th className='w-24 border-b px-3 py-2 text-left font-medium text-semi-color-text-2'>
+                {t('Actions')}
+              </th>
+            )}
           </tr>
         </thead>
         <tbody>
@@ -255,6 +273,7 @@ const RuleTable = ({ t, rows, hiddenKeys = [], onChange, onRemove }) => {
                     <RuleFieldControl
                       fieldKey={key}
                       fieldValue={fieldValue}
+                      readOnly={readOnly}
                       onChange={(nextValue) =>
                         onChange(row.index, key, nextValue)
                       }
@@ -262,16 +281,18 @@ const RuleTable = ({ t, rows, hiddenKeys = [], onChange, onRemove }) => {
                   </td>
                 );
               })}
-              <td className='px-3 py-2 align-middle'>
-                <Button
-                  htmlType='button'
-                  type='danger'
-                  theme='borderless'
-                  onClick={() => onRemove(row.index)}
-                >
-                  {t('Remove')}
-                </Button>
-              </td>
+              {!readOnly && (
+                <td className='px-3 py-2 align-middle'>
+                  <Button
+                    htmlType='button'
+                    type='danger'
+                    theme='borderless'
+                    onClick={() => onRemove(row.index)}
+                  >
+                    {t('Remove')}
+                  </Button>
+                </td>
+              )}
             </tr>
           ))}
         </tbody>
@@ -280,23 +301,33 @@ const RuleTable = ({ t, rows, hiddenKeys = [], onChange, onRemove }) => {
   );
 };
 
-const RuleArrayEditor = ({ t, title, field, formApi, description }) => {
+const RuleArrayEditor = ({
+  t,
+  title,
+  field,
+  formApi,
+  description,
+  readOnly = false,
+}) => {
   const [revision, setRevision] = useState(0);
   const value = formApi?.getValue?.(field) || '[]';
   const parsed = useMemo(() => parseRuleArray(value), [value, revision]);
 
   const writeItems = (items) => {
+    if (readOnly) return;
     formApi?.setValue?.(field, stringifyRuleArray(items));
     setRevision((current) => current + 1);
   };
 
   const updateItem = (index, key, nextValue) => {
+    if (readOnly) return;
     const next = parsed.items.map((item) => ({ ...item }));
     next[index][key] = coerceRuleFieldValue(key, nextValue, next[index][key]);
     writeItems(next);
   };
 
   const addItem = () => {
+    if (readOnly) return;
     const template = parsed.items[0] || { affiliate_level: 1 };
     const item = Object.fromEntries(
       Object.entries(template).map(([key, fieldValue]) => [
@@ -308,6 +339,7 @@ const RuleArrayEditor = ({ t, title, field, formApi, description }) => {
   };
 
   const removeItem = (index) => {
+    if (readOnly) return;
     writeItems(parsed.items.filter((_, current) => current !== index));
   };
 
@@ -328,9 +360,11 @@ const RuleArrayEditor = ({ t, title, field, formApi, description }) => {
               )}
             </Text>
           </div>
-          <Button htmlType='button' type='tertiary' onClick={addItem}>
-            {t('Add Rule')}
-          </Button>
+          {!readOnly && (
+            <Button htmlType='button' type='tertiary' onClick={addItem}>
+              {t('Add Rule')}
+            </Button>
+          )}
         </div>
 
         {parsed.error ? (
@@ -348,6 +382,7 @@ const RuleArrayEditor = ({ t, title, field, formApi, description }) => {
           <RuleTable
             t={t}
             rows={parsed.items.map((item, index) => ({ item, index }))}
+            readOnly={readOnly}
             onChange={updateItem}
             onRemove={removeItem}
           />
@@ -359,7 +394,12 @@ const RuleArrayEditor = ({ t, title, field, formApi, description }) => {
   );
 };
 
-export const RuleLevelGroupedEditor = ({ t, sections, formApi }) => {
+export const RuleLevelGroupedEditor = ({
+  t,
+  sections,
+  formApi,
+  readOnly = false,
+}) => {
   const [, setRevision] = useState(0);
   const levels = [1, 2];
 
@@ -367,11 +407,13 @@ export const RuleLevelGroupedEditor = ({ t, sections, formApi }) => {
     parseRuleArray(formApi?.getValue?.(field) || '[]');
 
   const writeItems = (field, items) => {
+    if (readOnly) return;
     formApi?.setValue?.(field, stringifyRuleArray(items));
     setRevision((current) => current + 1);
   };
 
   const updateItem = (field, itemIndex, key, nextValue) => {
+    if (readOnly) return;
     const parsed = parseField(field);
     const next = parsed.items.map((item) => ({ ...item }));
     next[itemIndex][key] = coerceRuleFieldValue(
@@ -383,6 +425,7 @@ export const RuleLevelGroupedEditor = ({ t, sections, formApi }) => {
   };
 
   const addItem = (field, level) => {
+    if (readOnly) return;
     const parsed = parseField(field);
     const template = parsed.items.find(
       (item) => Number(item.affiliate_level) === level,
@@ -399,6 +442,7 @@ export const RuleLevelGroupedEditor = ({ t, sections, formApi }) => {
   };
 
   const removeItem = (field, itemIndex) => {
+    if (readOnly) return;
     const parsed = parseField(field);
     writeItems(
       field,
@@ -458,13 +502,15 @@ export const RuleLevelGroupedEditor = ({ t, sections, formApi }) => {
                             </div>
                           )}
                         </div>
-                        <Button
-                          htmlType='button'
-                          type='tertiary'
-                          onClick={() => addItem(section.field, level)}
-                        >
-                          {t('Add Rule')}
-                        </Button>
+                        {!readOnly && (
+                          <Button
+                            htmlType='button'
+                            type='tertiary'
+                            onClick={() => addItem(section.field, level)}
+                          >
+                            {t('Add Rule')}
+                          </Button>
+                        )}
                       </div>
 
                       {parsed.error ? (
@@ -483,12 +529,11 @@ export const RuleLevelGroupedEditor = ({ t, sections, formApi }) => {
                           t={t}
                           rows={items}
                           hiddenKeys={['affiliate_level']}
+                          readOnly={readOnly}
                           onChange={(index, key, nextValue) =>
                             updateItem(section.field, index, key, nextValue)
                           }
-                          onRemove={(index) =>
-                            removeItem(section.field, index)
-                          }
+                          onRemove={(index) => removeItem(section.field, index)}
                         />
                       )}
                     </div>

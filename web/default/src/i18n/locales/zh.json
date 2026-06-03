@@ -4688,6 +4688,12 @@
     "Rules grouped by affiliate level": "按分销等级分组的规则",
     "This level has no rules for this rule type.": "该分销等级暂无此类规则。",
     "推广关系树接口返回 404，请重启或部署包含 /api/affiliate/team 的后端后查看。": "推广关系树接口返回 404，请重启或部署包含 /api/affiliate/team 的后端后查看。",
+    "Affiliate Rule Set Read-only View": "分销规则集只读视图",
+    "Published and archived rule sets are read-only. Copy this version before editing.": "已发布和已归档规则集只读，请复制该版本后再编辑。",
+    "Published and archived rule sets are read-only": "已发布和已归档规则集只读",
+    "Read-only": "只读",
+    "Publish rule set {{version}}? This will activate it and archive the current published rule set.": "确认发布规则集 {{version}}？发布后会启用该版本并归档当前已发布规则。",
+    "Archive rule set {{version}}? This will stop this version from being selected automatically.": "确认归档规则集 {{version}}？归档后该版本不会再被自动选择。",
     "Switch between editable rule tables and raw JSON for batch edits": "在可编辑规则表格和原始 JSON 之间切换，用于批量编辑"
   }
 }

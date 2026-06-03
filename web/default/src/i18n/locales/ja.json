@@ -4688,6 +4688,12 @@
     "Rules grouped by affiliate level": "アフィリエイトレベル別にグループ化されたルール",
     "This level has no rules for this rule type.": "このレベルにはこの種類のルールがありません。",
     "推广关系树接口返回 404，请重启或部署包含 /api/affiliate/team 的后端后查看。": "プロモーション関係ツリー API が 404 を返しました。/api/affiliate/team を含むバックエンドを再起動またはデプロイしてください。",
+    "Affiliate Rule Set Read-only View": "アフィリエイトルールセットの読み取り専用表示",
+    "Published and archived rule sets are read-only. Copy this version before editing.": "公開済みおよびアーカイブ済みのルールセットは読み取り専用です。編集する前にこのバージョンをコピーしてください。",
+    "Published and archived rule sets are read-only": "公開済みおよびアーカイブ済みのルールセットは読み取り専用です",
+    "Read-only": "読み取り専用",
+    "Publish rule set {{version}}? This will activate it and archive the current published rule set.": "ルールセット {{version}} を公開しますか？このバージョンが有効になり、現在公開中のルールセットはアーカイブされます。",
+    "Archive rule set {{version}}? This will stop this version from being selected automatically.": "ルールセット {{version}} をアーカイブしますか？このバージョンは自動選択されなくなります。",
     "Switch between editable rule tables and raw JSON for batch edits": "一括編集用に、編集可能なルール表と生の JSON を切り替えます"
   }
 }

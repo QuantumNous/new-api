@@ -188,12 +188,14 @@ function getRuleCellValue(item: RuleRecord, key: string): RuleValue {
 function RuleFieldControl(props: {
   fieldKey: string
   value: RuleValue
+  readOnly?: boolean
   onChange: (value: string) => void
 }) {
   if (typeof props.value === 'boolean') {
     return (
       <NativeSelect
         className='min-w-28'
+        disabled={props.readOnly}
         value={String(props.value)}
         onChange={(event) => props.onChange(event.target.value)}
       >
@@ -219,6 +221,7 @@ function RuleFieldControl(props: {
           : undefined
       }
       value={getDisplayValue(props.fieldKey, props.value)}
+      disabled={props.readOnly}
       onChange={(event) => props.onChange(event.target.value)}
     />
   )
@@ -227,6 +230,7 @@ function RuleFieldControl(props: {
 function RuleTable(props: {
   rows: RuleTableRow[]
   hiddenKeys?: string[]
+  readOnly?: boolean
   onChange: (index: number, key: string, value: string) => void
   onRemove: (index: number) => void
 }) {
@@ -252,9 +256,11 @@ function RuleTable(props: {
                 {t(getRuleFieldLabel(key))}
               </th>
             ))}
-            <th className='text-muted-foreground w-24 border-b px-3 py-2 text-left font-medium'>
-              {t('Actions')}
-            </th>
+            {!props.readOnly && (
+              <th className='text-muted-foreground w-24 border-b px-3 py-2 text-left font-medium'>
+                {t('Actions')}
+              </th>
+            )}
           </tr>
         </thead>
         <tbody>
@@ -270,6 +276,7 @@ function RuleTable(props: {
                     <RuleFieldControl
                       fieldKey={key}
                       value={value}
+                      readOnly={props.readOnly}
                       onChange={(nextValue) =>
                         props.onChange(row.index, key, nextValue)
                       }
@@ -277,15 +284,17 @@ function RuleTable(props: {
                   </td>
                 )
               })}
-              <td className='px-3 py-2 align-middle'>
-                <Button
-                  variant='ghost'
-                  size='sm'
-                  onClick={() => props.onRemove(row.index)}
-                >
-                  {t('Remove')}
-                </Button>
-              </td>
+              {!props.readOnly && (
+                <td className='px-3 py-2 align-middle'>
+                  <Button
+                    variant='ghost'
+                    size='sm'
+                    onClick={() => props.onRemove(row.index)}
+                  >
+                    {t('Remove')}
+                  </Button>
+                </td>
+              )}
             </tr>
           ))}
         </tbody>
@@ -298,6 +307,7 @@ export function RuleArrayEditor(props: {
   title: string
   description?: string
   value?: string
+  readOnly?: boolean
   onChange: (value: string) => void
 }) {
   const { t } = useTranslation()
@@ -305,16 +315,19 @@ export function RuleArrayEditor(props: {
   const items = parsed.items
 
   const updateItem = (index: number, key: string, value: string) => {
+    if (props.readOnly) return
     const next = items.map((item) => ({ ...item }))
     next[index][key] = coerceRuleFieldValue(key, value, next[index][key])
     props.onChange(stringifyRuleArray(next))
   }
 
   const removeItem = (index: number) => {
+    if (props.readOnly) return
     props.onChange(stringifyRuleArray(items.filter((_, i) => i !== index)))
   }
 
   const addItem = () => {
+    if (props.readOnly) return
     const template = items[0] || { affiliate_level: 1 }
     const nextItem = Object.fromEntries(
       Object.entries(template).map(([key, value]) => [
@@ -345,9 +358,11 @@ export function RuleArrayEditor(props: {
             )}
           </div>
         </div>
-        <Button variant='outline' size='sm' onClick={addItem}>
-          {t('Add Rule')}
-        </Button>
+        {!props.readOnly && (
+          <Button variant='outline' size='sm' onClick={addItem}>
+            {t('Add Rule')}
+          </Button>
+        )}
       </div>
 
       {parsed.error ? (
@@ -363,6 +378,7 @@ export function RuleArrayEditor(props: {
       ) : (
         <RuleTable
           rows={items.map((item, index) => ({ item, index }))}
+          readOnly={props.readOnly}
           onChange={updateItem}
           onRemove={removeItem}
         />
@@ -377,8 +393,10 @@ export function RuleLevelGroupedEditor(props: {
     field: string
     value?: string
     description?: string
+    readOnly?: boolean
     onChange: (value: string) => void
   }[]
+  readOnly?: boolean
 }) {
   const { t } = useTranslation()
   const levels = [1, 2]
@@ -389,6 +407,7 @@ export function RuleLevelGroupedEditor(props: {
     )
 
   const writeItems = (field: string, items: RuleRecord[]) => {
+    if (props.readOnly) return
     const section = props.sections.find((item) => item.field === field)
     section?.onChange(stringifyRuleArray(items))
   }
@@ -399,6 +418,7 @@ export function RuleLevelGroupedEditor(props: {
     key: string,
     value: string
   ) => {
+    if (props.readOnly) return
     const parsed = parseSection(field)
     const next = parsed.items.map((item) => ({ ...item }))
     next[itemIndex][key] = coerceRuleFieldValue(
@@ -410,6 +430,7 @@ export function RuleLevelGroupedEditor(props: {
   }
 
   const addItem = (field: string, level: number) => {
+    if (props.readOnly) return
     const parsed = parseSection(field)
     const template = parsed.items.find(
       (item) => Number(item.affiliate_level) === level
@@ -426,6 +447,7 @@ export function RuleLevelGroupedEditor(props: {
   }
 
   const removeItem = (field: string, itemIndex: number) => {
+    if (props.readOnly) return
     const parsed = parseSection(field)
     writeItems(
       field,
@@ -482,13 +504,15 @@ export function RuleLevelGroupedEditor(props: {
                           </div>
                         ) : null}
                       </div>
-                      <Button
-                        variant='outline'
-                        size='sm'
-                        onClick={() => addItem(section.field, level)}
-                      >
-                        {t('Add Rule')}
-                      </Button>
+                      {!props.readOnly && !section.readOnly && (
+                        <Button
+                          variant='outline'
+                          size='sm'
+                          onClick={() => addItem(section.field, level)}
+                        >
+                          {t('Add Rule')}
+                        </Button>
+                      )}
                     </div>
 
                     {parsed.error ? (
@@ -503,6 +527,7 @@ export function RuleLevelGroupedEditor(props: {
                       <RuleTable
                         rows={items}
                         hiddenKeys={['affiliate_level']}
+                        readOnly={props.readOnly || section.readOnly}
                         onChange={(index, key, value) =>
                           updateItem(section.field, index, key, value)
                         }

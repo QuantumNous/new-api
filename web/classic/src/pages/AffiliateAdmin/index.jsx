@@ -54,8 +54,10 @@ import {
   buildAffiliateRuleSetDiffPreview,
   buildAffiliateRuleSetExportJson,
   buildAffiliateRuleSetsQuery,
+  buildAffiliateRuleSetStatusConfirmation,
   buildAffiliateRuleSetStatusPayload,
   getAffiliateRuleSetStatusMeta,
+  isAffiliateRuleSetReadOnly,
   parseAffiliateRuleSetImportJson,
   validateAffiliateRuleSetDraftPayload,
 } from './affiliateAdminRules';
@@ -97,6 +99,7 @@ const AffiliateAdmin = () => {
   const [ruleSetTransferText, setRuleSetTransferText] = useState('');
   const [ruleSetTransferError, setRuleSetTransferError] = useState('');
   const [ruleSetDiffPreview, setRuleSetDiffPreview] = useState([]);
+  const [ruleSetReadOnly, setRuleSetReadOnly] = useState(false);
 
   const loadProfiles = async (
     nextPage = page,
@@ -332,6 +335,7 @@ const AffiliateAdmin = () => {
     setRuleSetInitialValues(nextValues);
     setRuleSetBaselineValues(nextValues);
     setRuleSetDiffPreview([]);
+    setRuleSetReadOnly(isAffiliateRuleSetReadOnly(record));
     setRuleEditorMode('visual');
     setRuleSetFormKey((value) => value + 1);
   };
@@ -342,6 +346,7 @@ const AffiliateAdmin = () => {
     setRuleSetInitialValues(nextValues);
     setRuleSetBaselineValues(nextValues);
     setRuleSetDiffPreview([]);
+    setRuleSetReadOnly(false);
     setRuleEditorMode('visual');
     setRuleSetFormKey((value) => value + 1);
   };
@@ -351,6 +356,7 @@ const AffiliateAdmin = () => {
     setRuleSetInitialValues(buildAffiliateRuleSetCopyDraftFormValues(record));
     setRuleSetBaselineValues(buildAffiliateRuleSetDraftFormValues(record));
     setRuleSetDiffPreview([]);
+    setRuleSetReadOnly(false);
     setRuleEditorMode('visual');
     setRuleSetFormKey((value) => value + 1);
   };
@@ -373,6 +379,10 @@ const AffiliateAdmin = () => {
   };
 
   const handleRuleSetImport = () => {
+    if (ruleSetReadOnly) {
+      showError(t('已发布和已归档规则集只读，请复制为草稿后再编辑'));
+      return;
+    }
     try {
       const imported = parseAffiliateRuleSetImportJson(ruleSetTransferText);
       setSelectedRuleSet(null);
@@ -404,6 +414,10 @@ const AffiliateAdmin = () => {
   };
 
   const handleRuleSetDraftSubmit = async (values) => {
+    if (ruleSetReadOnly) {
+      showError(t('已发布和已归档规则集只读，请复制为草稿后再编辑'));
+      return;
+    }
     let payload;
     try {
       payload = buildAffiliateRuleSetDraftPayload(values);
@@ -435,6 +449,7 @@ const AffiliateAdmin = () => {
       setRuleSetInitialValues(nextValues);
       setRuleSetBaselineValues(nextValues);
       setRuleSetDiffPreview([]);
+      setRuleSetReadOnly(isAffiliateRuleSetReadOnly(data || null));
       setRuleSetFormKey((value) => value + 1);
       await loadRuleSets(1, ruleSetPageSize, ruleSetFilters);
     } catch (error) {
@@ -445,6 +460,14 @@ const AffiliateAdmin = () => {
   };
 
   const handleRuleSetStatusChange = async (record, action) => {
+    const confirmation = buildAffiliateRuleSetStatusConfirmation(
+      t,
+      action,
+      record,
+    );
+    if (typeof window !== 'undefined' && !window.confirm(confirmation)) {
+      return;
+    }
     const actionText = action === 'publish' ? t('发布') : t('归档');
     setRuleSetActionLoading(`${action}-${record.id}`);
     try {
@@ -468,6 +491,7 @@ const AffiliateAdmin = () => {
       setSelectedRuleSet(nextRuleSet);
       setRuleSetInitialValues(nextValues);
       setRuleSetBaselineValues(nextValues);
+      setRuleSetReadOnly(isAffiliateRuleSetReadOnly(nextRuleSet));
       setRuleSetDiffPreview([]);
       setRuleSetFormKey((value) => value + 1);
       await loadRuleSets(ruleSetPage, ruleSetPageSize, ruleSetFilters);
@@ -618,7 +642,7 @@ const AffiliateAdmin = () => {
               theme='outline'
               onClick={() => handleRuleSetSelect(record)}
             >
-              {t('编辑')}
+              {isAffiliateRuleSetReadOnly(record) ? t('查看') : t('编辑')}
             </Button>
             <Button
               size='small'
@@ -783,8 +807,17 @@ const AffiliateAdmin = () => {
 
         <div className='mt-4'>
           <Title heading={5}>
-            {selectedRuleSet ? t('编辑规则集草稿') : t('新建规则集草稿')}
+            {ruleSetReadOnly
+              ? t('查看规则集')
+              : selectedRuleSet
+                ? t('编辑规则集草稿')
+                : t('新建规则集草稿')}
           </Title>
+          {ruleSetReadOnly && (
+            <Text type='secondary'>
+              {t('已发布和已归档规则集只读，请复制为草稿后再编辑。')}
+            </Text>
+          )}
           <Form
             key={`${selectedRuleSet?.id || 'new'}-${ruleSetFormKey}`}
             className='mt-3'
@@ -794,35 +827,61 @@ const AffiliateAdmin = () => {
             onSubmit={handleRuleSetDraftSubmit}
           >
             <div className='grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-3'>
-              <Form.InputNumber field='id' label={t('规则集 ID')} min={0} />
-              <Form.Input field='version' label={t('版本')} />
-              <Form.Input field='name' label={t('名称')} />
-              <Form.Input field='reason' label={t('操作原因')} />
+              <Form.InputNumber
+                field='id'
+                label={t('规则集 ID')}
+                min={0}
+                disabled={ruleSetReadOnly}
+              />
+              <Form.Input
+                field='version'
+                label={t('版本')}
+                disabled={ruleSetReadOnly}
+              />
+              <Form.Input
+                field='name'
+                label={t('名称')}
+                disabled={ruleSetReadOnly}
+              />
+              <Form.Input
+                field='reason'
+                label={t('操作原因')}
+                disabled={ruleSetReadOnly}
+              />
               <Form.InputNumber
                 field='effective_start'
                 label={t('生效开始时间戳')}
                 min={0}
+                disabled={ruleSetReadOnly}
               />
               <Form.InputNumber
                 field='effective_end'
                 label={t('生效结束时间戳')}
                 min={0}
+                disabled={ruleSetReadOnly}
               />
-              <Form.Input field='settlement_cycle' label={t('结算周期')} />
+              <Form.Input
+                field='settlement_cycle'
+                label={t('结算周期')}
+                disabled={ruleSetReadOnly}
+              />
               <Form.InputNumber
                 field='freeze_days'
                 label={t('冻结天数')}
                 min={0}
+                disabled={ruleSetReadOnly}
               />
               <Form.InputNumber
                 field='min_settlement_amount_yuan'
                 label={t('Minimum Settlement Amount (yuan)')}
                 min={0}
                 step={0.01}
+                disabled={ruleSetReadOnly}
               />
               <Form.Switch
                 field='manual_review_enabled'
                 label={t('人工审核')}
+                disabled={ruleSetReadOnly}
               />
             </div>
             <div className='grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_minmax(320px,420px)] gap-3 mt-4'>
@@ -922,6 +981,7 @@ const AffiliateAdmin = () => {
                 <RuleLevelGroupedEditor
                   t={t}
                   formApi={ruleSetDraftFormApi}
+                  readOnly={ruleSetReadOnly}
                   sections={[
                     {
                       title: t('Commission Base Rules'),
@@ -966,26 +1026,31 @@ const AffiliateAdmin = () => {
                     field='commission_rules_json'
                     label={t('分佣基础规则 JSON')}
                     autosize
+                    disabled={ruleSetReadOnly}
                   />
                   <Form.TextArea
                     field='commission_tiers_json'
                     label={t('分佣区间 JSON')}
                     autosize
+                    disabled={ruleSetReadOnly}
                   />
                   <Form.TextArea
                     field='kpi_tiers_json'
                     label={t('KPI 档位 JSON')}
                     autosize
+                    disabled={ruleSetReadOnly}
                   />
                   <Form.TextArea
                     field='head_fee_rules_json'
                     label={t('人头费规则 JSON')}
                     autosize
+                    disabled={ruleSetReadOnly}
                   />
                   <Form.TextArea
                     field='risk_rules_json'
                     label={t('质量门槛 JSON')}
                     autosize
+                    disabled={ruleSetReadOnly}
                   />
                 </div>
               )}
@@ -995,8 +1060,9 @@ const AffiliateAdmin = () => {
                 htmlType='submit'
                 type='primary'
                 loading={ruleSetSubmitLoading}
+                disabled={ruleSetReadOnly}
               >
-                {t('保存规则草稿')}
+                {ruleSetReadOnly ? t('只读') : t('保存规则草稿')}
               </Button>
               <Text type='secondary'>
                 {t('保存后可在上方列表发布或归档规则集。')}
@@ -1011,7 +1077,7 @@ const AffiliateAdmin = () => {
               <Button
                 htmlType='button'
                 type='tertiary'
-                disabled={!ruleSetTransferText.trim()}
+                disabled={ruleSetReadOnly || !ruleSetTransferText.trim()}
                 onClick={handleRuleSetImport}
               >
                 {t('导入 JSON')}

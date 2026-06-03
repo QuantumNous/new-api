@@ -4688,6 +4688,12 @@
     "Rules grouped by affiliate level": "Règles regroupées par niveau d’affiliation",
     "This level has no rules for this rule type.": "Ce niveau ne comporte aucune règle pour ce type.",
     "推广关系树接口返回 404，请重启或部署包含 /api/affiliate/team 的后端后查看。": "L'API de l'arbre de promotion a renvoyé 404. Redémarrez ou déployez le backend contenant /api/affiliate/team.",
+    "Affiliate Rule Set Read-only View": "Vue en lecture seule du jeu de règles d’affiliation",
+    "Published and archived rule sets are read-only. Copy this version before editing.": "Les jeux de règles publiés et archivés sont en lecture seule. Copiez cette version avant de la modifier.",
+    "Published and archived rule sets are read-only": "Les jeux de règles publiés et archivés sont en lecture seule",
+    "Read-only": "Lecture seule",
+    "Publish rule set {{version}}? This will activate it and archive the current published rule set.": "Publier le jeu de règles {{version}} ? Cela l’activera et archivera le jeu de règles actuellement publié.",
+    "Archive rule set {{version}}? This will stop this version from being selected automatically.": "Archiver le jeu de règles {{version}} ? Cette version ne sera plus sélectionnée automatiquement.",
     "Switch between editable rule tables and raw JSON for batch edits": "Basculez entre des tableaux de règles modifiables et le JSON brut pour les modifications par lots"
   }
 }

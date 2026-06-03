@@ -54,12 +54,14 @@ import {
   buildAffiliateRuleSetDraftFormValues,
   buildAffiliateRuleSetDraftPayload,
   buildAffiliateRuleSetExportJson,
+  buildAffiliateRuleSetStatusConfirmation,
   buildAffiliateRuleSetStatusPayload,
   buildAffiliateSettlementRunPayload,
   formatAffiliateCentsRMB,
   getAffiliateProfileLevelLabel,
   getAffiliateProfileStatusMeta,
   getAffiliateRuleSetStatusMeta,
+  isAffiliateRuleSetReadOnly,
   parseAffiliateRuleSetImportJson,
   validateAffiliateCommissionAdjustmentPayload,
   validateAffiliateCommissionRecomputePayload,
@@ -649,7 +651,9 @@ function RuleSetsTable(props: {
                           disabled={props.isMutating}
                           onClick={() => props.onEdit(ruleSet)}
                         >
-                          {t('Edit')}
+                          {isAffiliateRuleSetReadOnly(ruleSet)
+                            ? t('View')
+                            : t('Edit')}
                         </Button>
                         <Button
                           size='sm'
@@ -743,6 +747,7 @@ function RuleSetDraftForm(props: {
   onSubmit: () => void
   onNew: () => void
   isSaving: boolean
+  readOnly: boolean
 }) {
   const { t } = useTranslation()
   const [editorMode, setEditorMode] = useState<'visual' | 'json'>('visual')
@@ -761,6 +766,7 @@ function RuleSetDraftForm(props: {
     key: keyof AffiliateRuleSetDraftFormValues,
     value: string
   ) => {
+    if (props.readOnly) return
     props.setValues({ ...props.values, [key]: value })
   }
   const handleExport = () => {
@@ -776,6 +782,7 @@ function RuleSetDraftForm(props: {
     }
   }
   const handleImport = () => {
+    if (props.readOnly) return
     try {
       props.setValues(parseAffiliateRuleSetImportJson(transferText))
       setTransferError('')
@@ -791,11 +798,19 @@ function RuleSetDraftForm(props: {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>{t('Affiliate Rule Set Draft')}</CardTitle>
+        <CardTitle>
+          {props.readOnly
+            ? t('Affiliate Rule Set Read-only View')
+            : t('Affiliate Rule Set Draft')}
+        </CardTitle>
         <CardDescription>
-          {t(
-            'Edit commission, KPI, head fee, risk and settlement rules as versioned JSON blocks'
-          )}
+          {props.readOnly
+            ? t(
+                'Published and archived rule sets are read-only. Copy this version before editing.'
+              )
+            : t(
+                'Edit commission, KPI, head fee, risk and settlement rules as versioned JSON blocks'
+              )}
         </CardDescription>
       </CardHeader>
       <CardContent className='space-y-4'>
@@ -804,6 +819,7 @@ function RuleSetDraftForm(props: {
             <Input
               id='affiliate-rule-id'
               inputMode='numeric'
+              disabled={props.readOnly}
               value={props.values.id || ''}
               onChange={(event) => update('id', event.target.value)}
             />
@@ -811,6 +827,7 @@ function RuleSetDraftForm(props: {
           <Field label={t('Version')} htmlFor='affiliate-rule-version'>
             <Input
               id='affiliate-rule-version'
+              disabled={props.readOnly}
               value={props.values.version || ''}
               onChange={(event) => update('version', event.target.value)}
             />
@@ -818,6 +835,7 @@ function RuleSetDraftForm(props: {
           <Field label={t('Name')} htmlFor='affiliate-rule-name'>
             <Input
               id='affiliate-rule-name'
+              disabled={props.readOnly}
               value={props.values.name || ''}
               onChange={(event) => update('name', event.target.value)}
             />
@@ -825,6 +843,7 @@ function RuleSetDraftForm(props: {
           <Field label={t('Operation Reason')} htmlFor='affiliate-rule-reason'>
             <Input
               id='affiliate-rule-reason'
+              disabled={props.readOnly}
               value={props.values.reason || ''}
               onChange={(event) => update('reason', event.target.value)}
             />
@@ -836,6 +855,7 @@ function RuleSetDraftForm(props: {
             <Input
               id='affiliate-rule-start'
               inputMode='numeric'
+              disabled={props.readOnly}
               value={props.values.effectiveStart || ''}
               onChange={(event) => update('effectiveStart', event.target.value)}
             />
@@ -847,6 +867,7 @@ function RuleSetDraftForm(props: {
             <Input
               id='affiliate-rule-end'
               inputMode='numeric'
+              disabled={props.readOnly}
               value={props.values.effectiveEnd || ''}
               onChange={(event) => update('effectiveEnd', event.target.value)}
             />
@@ -854,6 +875,7 @@ function RuleSetDraftForm(props: {
           <Field label={t('Settlement Cycle')} htmlFor='affiliate-rule-cycle'>
             <Input
               id='affiliate-rule-cycle'
+              disabled={props.readOnly}
               value={props.values.settlementCycle || ''}
               onChange={(event) =>
                 update('settlementCycle', event.target.value)
@@ -864,6 +886,7 @@ function RuleSetDraftForm(props: {
             <Input
               id='affiliate-rule-freeze-days'
               inputMode='numeric'
+              disabled={props.readOnly}
               value={props.values.freezeDays || ''}
               onChange={(event) => update('freezeDays', event.target.value)}
             />
@@ -875,6 +898,7 @@ function RuleSetDraftForm(props: {
             <Input
               id='affiliate-rule-min-settlement'
               inputMode='decimal'
+              disabled={props.readOnly}
               value={props.values.minSettlementAmountYuan || ''}
               onChange={(event) =>
                 update('minSettlementAmountYuan', event.target.value)
@@ -889,6 +913,7 @@ function RuleSetDraftForm(props: {
               <input
                 id='affiliate-rule-manual-review'
                 type='checkbox'
+                disabled={props.readOnly}
                 checked={props.values.manualReviewEnabled === true}
                 onChange={(event) =>
                   props.setValues({
@@ -932,6 +957,7 @@ function RuleSetDraftForm(props: {
 
           {editorMode === 'visual' ? (
             <RuleLevelGroupedEditor
+              readOnly={props.readOnly}
               sections={[
                 {
                   title: t('Commission Base Rules'),
@@ -989,6 +1015,7 @@ function RuleSetDraftForm(props: {
                 <Textarea
                   id='affiliate-commission-rules-json'
                   className='min-h-40 font-mono text-xs'
+                  readOnly={props.readOnly}
                   value={props.values.commissionRulesJson || ''}
                   onChange={(event) =>
                     update('commissionRulesJson', event.target.value)
@@ -1002,6 +1029,7 @@ function RuleSetDraftForm(props: {
                 <Textarea
                   id='affiliate-commission-tiers-json'
                   className='min-h-40 font-mono text-xs'
+                  readOnly={props.readOnly}
                   value={props.values.commissionTiersJson || ''}
                   onChange={(event) =>
                     update('commissionTiersJson', event.target.value)
@@ -1012,6 +1040,7 @@ function RuleSetDraftForm(props: {
                 <Textarea
                   id='affiliate-kpi-json'
                   className='min-h-40 font-mono text-xs'
+                  readOnly={props.readOnly}
                   value={props.values.kpiTiersJson || ''}
                   onChange={(event) =>
                     update('kpiTiersJson', event.target.value)
@@ -1025,6 +1054,7 @@ function RuleSetDraftForm(props: {
                 <Textarea
                   id='affiliate-head-fee-json'
                   className='min-h-40 font-mono text-xs'
+                  readOnly={props.readOnly}
                   value={props.values.headFeeRulesJson || ''}
                   onChange={(event) =>
                     update('headFeeRulesJson', event.target.value)
@@ -1035,6 +1065,7 @@ function RuleSetDraftForm(props: {
                 <Textarea
                   id='affiliate-risk-json'
                   className='min-h-40 font-mono text-xs'
+                  readOnly={props.readOnly}
                   value={props.values.riskRulesJson || ''}
                   onChange={(event) =>
                     update('riskRulesJson', event.target.value)
@@ -1106,8 +1137,15 @@ function RuleSetDraftForm(props: {
         </div>
 
         <div className='flex flex-wrap gap-2'>
-          <Button disabled={props.isSaving} onClick={props.onSubmit}>
-            {props.isSaving ? t('Saving') : t('Save Rule Draft')}
+          <Button
+            disabled={props.isSaving || props.readOnly}
+            onClick={props.onSubmit}
+          >
+            {props.readOnly
+              ? t('Read-only')
+              : props.isSaving
+                ? t('Saving')
+                : t('Save Rule Draft')}
           </Button>
           <Button
             variant='outline'
@@ -1125,7 +1163,7 @@ function RuleSetDraftForm(props: {
           </Button>
           <Button
             variant='outline'
-            disabled={props.isSaving || !transferText.trim()}
+            disabled={props.isSaving || props.readOnly || !transferText.trim()}
             onClick={handleImport}
           >
             {t('Import Draft JSON')}
@@ -1592,6 +1630,7 @@ export function AffiliateAdmin() {
     useState<AffiliateRuleSetDraftFormValues>(
       buildAffiliateRuleSetDraftFormValues()
     )
+  const [ruleSetReadOnly, setRuleSetReadOnly] = useState(false)
   const [ruleSetFilters, setRuleSetFilters] =
     useState<AffiliateRuleSetFilters>(EMPTY_RULE_FILTERS)
   const [draftRuleSetFilters, setDraftRuleSetFilters] =
@@ -1702,6 +1741,7 @@ export function AffiliateAdmin() {
       const nextValues = buildAffiliateRuleSetDraftFormValues(result.data)
       setRuleSetFormValues(nextValues)
       setRuleSetBaselineValues(nextValues)
+      setRuleSetReadOnly(isAffiliateRuleSetReadOnly(result.data))
       setRuleSetPage(1)
       await ruleSetsQuery.refetch()
     },
@@ -1731,6 +1771,7 @@ export function AffiliateAdmin() {
       const nextValues = buildAffiliateRuleSetDraftFormValues(result.data)
       setRuleSetFormValues(nextValues)
       setRuleSetBaselineValues(nextValues)
+      setRuleSetReadOnly(isAffiliateRuleSetReadOnly(result.data))
       await ruleSetsQuery.refetch()
     },
     onError: () => toast.error(t('Failed to update affiliate rule set')),
@@ -1809,6 +1850,10 @@ export function AffiliateAdmin() {
   }
 
   const handleSaveRuleSet = () => {
+    if (ruleSetReadOnly) {
+      toast.error(t('Published and archived rule sets are read-only'))
+      return
+    }
     let payload
     try {
       payload = buildAffiliateRuleSetDraftPayload(ruleSetFormValues)
@@ -1892,11 +1937,22 @@ export function AffiliateAdmin() {
     const nextValues = buildAffiliateRuleSetDraftFormValues()
     setRuleSetFormValues(nextValues)
     setRuleSetBaselineValues(nextValues)
+    setRuleSetReadOnly(false)
   }
 
   const copyRuleSetDraft = (ruleSet: AffiliateRuleSet) => {
     setRuleSetFormValues(buildAffiliateRuleSetCopyDraftFormValues(ruleSet))
     setRuleSetBaselineValues(buildAffiliateRuleSetDraftFormValues(ruleSet))
+    setRuleSetReadOnly(false)
+  }
+
+  const handleRuleSetStatusChange = (
+    ruleSet: AffiliateRuleSet,
+    action: 'publish' | 'archive'
+  ) => {
+    const message = buildAffiliateRuleSetStatusConfirmation(action, ruleSet, t)
+    if (typeof window !== 'undefined' && !window.confirm(message)) return
+    ruleSetStatusMutation.mutate({ ruleSet, action })
   }
 
   return (
@@ -1963,11 +2019,10 @@ export function AffiliateAdmin() {
               const nextValues = buildAffiliateRuleSetDraftFormValues(ruleSet)
               setRuleSetFormValues(nextValues)
               setRuleSetBaselineValues(nextValues)
+              setRuleSetReadOnly(isAffiliateRuleSetReadOnly(ruleSet))
             }}
             onCopy={copyRuleSetDraft}
-            onStatusChange={(ruleSet, action) =>
-              ruleSetStatusMutation.mutate({ ruleSet, action })
-            }
+            onStatusChange={handleRuleSetStatusChange}
             onPageChange={setRuleSetPage}
             onPageSizeChange={(nextPageSize) => {
               setRuleSetPageSize(nextPageSize)
@@ -1979,6 +2034,7 @@ export function AffiliateAdmin() {
             baselineValues={ruleSetBaselineValues}
             setValues={setRuleSetFormValues}
             isSaving={saveRuleSetMutation.isPending}
+            readOnly={ruleSetReadOnly}
             onSubmit={handleSaveRuleSet}
             onNew={newRuleSetDraft}
           />

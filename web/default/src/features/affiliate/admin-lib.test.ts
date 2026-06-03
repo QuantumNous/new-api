@@ -10,6 +10,7 @@ import {
   buildAffiliateRuleSetDiffPreview,
   buildAffiliateRuleSetExportJson,
   buildAffiliateRuleSetsQuery,
+  buildAffiliateRuleSetStatusConfirmation,
   buildAffiliateRuleSetStatusPayload,
   parseAffiliateRuleSetImportJson,
   buildAffiliateSettlementRunPayload,
@@ -23,6 +24,7 @@ import {
   getAffiliateSettlementStatusMeta,
   getAffiliateProfileLevelLabel,
   getAffiliateProfileStatusMeta,
+  isAffiliateRuleSetReadOnly,
   validateAffiliateCommissionAdjustmentPayload,
   validateAffiliateCommissionRecomputePayload,
   validateAffiliateRuleSetDraftPayload,
@@ -429,6 +431,29 @@ describe('default affiliate admin rule set helpers', () => {
       { section: 'Freeze Days', before: '7', after: '14' },
       { section: 'Commission Tiers', before: 'changed', after: 'changed' },
     ])
+  })
+
+  test('marks published or archived rule sets as read-only and builds status confirmations', () => {
+    assert.equal(isAffiliateRuleSetReadOnly({ status: 'draft' }), false)
+    assert.equal(isAffiliateRuleSetReadOnly({ status: 'published' }), true)
+    assert.equal(isAffiliateRuleSetReadOnly({ status: 'archived' }), true)
+
+    assert.equal(
+      buildAffiliateRuleSetStatusConfirmation(
+        'publish',
+        { id: 5, version: 'rules-2026-08', name: 'August Rules' },
+        t
+      ),
+      'Publish rule set rules-2026-08? This will activate it and archive the current published rule set.'
+    )
+    assert.equal(
+      buildAffiliateRuleSetStatusConfirmation(
+        'archive',
+        { id: 5, version: '', name: 'August Rules' },
+        t
+      ),
+      'Archive rule set #5? This will stop this version from being selected automatically.'
+    )
   })
 
   test('validates rule set payloads before saving drafts', () => {

@@ -4688,6 +4688,12 @@
     "Rules grouped by affiliate level": "Quy tắc được nhóm theo cấp tiếp thị liên kết",
     "This level has no rules for this rule type.": "Cấp này chưa có quy tắc cho loại này.",
     "推广关系树接口返回 404，请重启或部署包含 /api/affiliate/team 的后端后查看。": "API cây quan hệ quảng bá trả về 404. Hãy khởi động lại hoặc triển khai backend có /api/affiliate/team.",
+    "Affiliate Rule Set Read-only View": "Chế độ xem chỉ đọc bộ quy tắc tiếp thị liên kết",
+    "Published and archived rule sets are read-only. Copy this version before editing.": "Bộ quy tắc đã phát hành và đã lưu trữ chỉ đọc. Hãy sao chép phiên bản này trước khi chỉnh sửa.",
+    "Published and archived rule sets are read-only": "Bộ quy tắc đã phát hành và đã lưu trữ chỉ đọc",
+    "Read-only": "Chỉ đọc",
+    "Publish rule set {{version}}? This will activate it and archive the current published rule set.": "Phát hành bộ quy tắc {{version}}? Thao tác này sẽ kích hoạt nó và lưu trữ bộ quy tắc đang được phát hành hiện tại.",
+    "Archive rule set {{version}}? This will stop this version from being selected automatically.": "Lưu trữ bộ quy tắc {{version}}? Phiên bản này sẽ không còn được tự động chọn.",
     "Switch between editable rule tables and raw JSON for batch edits": "Chuyển giữa bảng quy tắc có thể chỉnh sửa và JSON thô để chỉnh sửa hàng loạt"
   }
 }

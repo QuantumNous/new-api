@@ -4688,6 +4688,12 @@
     "Rules grouped by affiliate level": "Правила, сгруппированные по партнёрскому уровню",
     "This level has no rules for this rule type.": "Для этого уровня нет правил данного типа.",
     "推广关系树接口返回 404，请重启或部署包含 /api/affiliate/team 的后端后查看。": "API дерева продвижения вернул 404. Перезапустите или разверните backend с /api/affiliate/team.",
+    "Affiliate Rule Set Read-only View": "Просмотр партнёрского набора правил только для чтения",
+    "Published and archived rule sets are read-only. Copy this version before editing.": "Опубликованные и архивные наборы правил доступны только для чтения. Скопируйте эту версию перед редактированием.",
+    "Published and archived rule sets are read-only": "Опубликованные и архивные наборы правил доступны только для чтения",
+    "Read-only": "Только чтение",
+    "Publish rule set {{version}}? This will activate it and archive the current published rule set.": "Опубликовать набор правил {{version}}? Он станет активным, а текущий опубликованный набор будет архивирован.",
+    "Archive rule set {{version}}? This will stop this version from being selected automatically.": "Архивировать набор правил {{version}}? Эта версия больше не будет выбираться автоматически.",
     "Switch between editable rule tables and raw JSON for batch edits": "Переключайтесь между редактируемыми таблицами правил и исходным JSON для пакетных правок"
   }
 }
