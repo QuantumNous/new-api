@@ -37,6 +37,11 @@ const OperationSetting = () => {
     PreConsumedQuota: 0,
     QuotaForInviter: 0,
     QuotaForInvitee: 0,
+    AffiliateQuotaForInvitee: -1,
+    AffiliateLevelOneQuotaForInvitee: -1,
+    AffiliateLevelTwoQuotaForInvitee: -1,
+    AffiliateLevelOneQuotaForInviter: -1,
+    AffiliateLevelTwoQuotaForInviter: -1,
     'quota_setting.enable_free_model_pre_consume': true,
 
     /* 通用设置 */

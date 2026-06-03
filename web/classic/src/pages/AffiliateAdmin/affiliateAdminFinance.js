@@ -15,10 +15,47 @@ const normalizeSignedInteger = (value) => {
   return Math.trunc(number);
 };
 
+const normalizeSignedYuanToCents = (value) => {
+  const number = Number(value);
+  if (!Number.isFinite(number)) {
+    return 0;
+  }
+  return Math.round(number * 100);
+};
+
 const normalizeNumber = (value) => {
   const number = Number(value);
   return Number.isFinite(number) && number > 0 ? number : 0;
 };
+
+const normalizeTimestamp = (value) => {
+  if (value === undefined || value === null || value === '') {
+    return 0;
+  }
+  if (value instanceof Date) {
+    const timestamp = Math.floor(value.getTime() / 1000);
+    return Number.isFinite(timestamp) && timestamp > 0 ? timestamp : 0;
+  }
+  const numeric = Number(value);
+  if (Number.isFinite(numeric) && numeric > 0) {
+    return Math.trunc(numeric > 100000000000 ? numeric / 1000 : numeric);
+  }
+  const parsed = Date.parse(String(value));
+  if (!Number.isFinite(parsed)) {
+    return 0;
+  }
+  return Math.floor(parsed / 1000);
+};
+
+const getPeriodStart = (values = {}) =>
+  Array.isArray(values.period_range) && values.period_range.length > 0
+    ? values.period_range[0]
+    : values.period_start;
+
+const getPeriodEnd = (values = {}) =>
+  Array.isArray(values.period_range) && values.period_range.length > 1
+    ? values.period_range[1]
+    : values.period_end;
 
 const translate = (t, value) => (typeof t === 'function' ? t(value) : value);
 
@@ -78,10 +115,10 @@ export function buildAffiliateSettlementsQuery({
 export function buildAffiliateSettlementRunPayload(values = {}) {
   return {
     rule_set_id: normalizeInteger(values.rule_set_id),
-    period_start: normalizeInteger(values.period_start),
-    period_end: normalizeInteger(values.period_end),
+    period_start: normalizeTimestamp(getPeriodStart(values)),
+    period_end: normalizeTimestamp(getPeriodEnd(values)),
     freeze_days: normalizeInteger(values.freeze_days),
-    now: normalizeInteger(values.now),
+    now: normalizeTimestamp(values.now_datetime || values.now),
     quota_per_unit: normalizeNumber(values.quota_per_unit),
     usd_exchange_rate: normalizeNumber(values.usd_exchange_rate),
     reason: String(values.reason || '').trim(),
@@ -91,8 +128,8 @@ export function buildAffiliateSettlementRunPayload(values = {}) {
 export function buildAffiliateCommissionRecomputePayload(values = {}) {
   return {
     rule_set_id: normalizeInteger(values.rule_set_id),
-    period_start: normalizeInteger(values.period_start),
-    period_end: normalizeInteger(values.period_end),
+    period_start: normalizeTimestamp(getPeriodStart(values)),
+    period_end: normalizeTimestamp(getPeriodEnd(values)),
     quota_per_unit: normalizeNumber(values.quota_per_unit),
     usd_exchange_rate: normalizeNumber(values.usd_exchange_rate),
     reason: String(values.reason || '').trim(),
@@ -104,9 +141,12 @@ export function buildAffiliateCommissionAdjustmentPayload(values = {}) {
     affiliate_user_id: normalizeInteger(values.affiliate_user_id),
     downstream_user_id: normalizeInteger(values.downstream_user_id),
     rule_set_id: normalizeInteger(values.rule_set_id),
-    period_start: normalizeInteger(values.period_start),
-    period_end: normalizeInteger(values.period_end),
-    commission_cents: normalizeSignedInteger(values.commission_cents),
+    period_start: normalizeTimestamp(getPeriodStart(values)),
+    period_end: normalizeTimestamp(getPeriodEnd(values)),
+    commission_cents:
+      values.commission_yuan !== undefined
+        ? normalizeSignedYuanToCents(values.commission_yuan)
+        : normalizeSignedInteger(values.commission_cents),
     reason: String(values.reason || '').trim(),
   };
 }

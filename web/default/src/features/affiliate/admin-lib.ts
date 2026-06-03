@@ -54,10 +54,42 @@ function normalizeSignedInteger(value: unknown): number {
   return Math.trunc(number)
 }
 
+function normalizeSignedYuanToCents(value: unknown): number {
+  const number = Number(value)
+  if (!Number.isFinite(number)) return 0
+  return Math.round(number * 100)
+}
+
+function normalizeYuanToCents(value: unknown): number {
+  const cents = normalizeSignedYuanToCents(value)
+  return cents > 0 ? cents : 0
+}
+
+function formatCentsAsYuan(value: unknown): string {
+  const number = Number(value || 0)
+  if (!Number.isFinite(number)) return '0.00'
+  return (number / 100).toFixed(2)
+}
+
 function normalizePositiveNumber(value: unknown): number {
   const number = Number(value)
   if (!Number.isFinite(number) || number <= 0) return 0
   return number
+}
+
+function normalizeTimestamp(value: unknown): number {
+  if (value === undefined || value === null || value === '') return 0
+  if (value instanceof Date) {
+    const timestamp = Math.floor(value.getTime() / 1000)
+    return Number.isFinite(timestamp) && timestamp > 0 ? timestamp : 0
+  }
+  const numeric = Number(value)
+  if (Number.isFinite(numeric) && numeric > 0) {
+    return Math.trunc(numeric > 100000000000 ? numeric / 1000 : numeric)
+  }
+  const parsed = Date.parse(String(value))
+  if (!Number.isFinite(parsed)) return 0
+  return Math.floor(parsed / 1000)
 }
 
 function stringifyPretty(value: unknown): string {
@@ -255,9 +287,10 @@ export function buildAffiliateRuleSetDraftPayload(
     settlement_config: {
       cycle: String(values.settlementCycle || '').trim(),
       freeze_days: normalizePositiveInteger(values.freezeDays),
-      min_settlement_amount_cents: normalizePositiveInteger(
-        values.minSettlementAmountCents
-      ),
+      min_settlement_amount_cents:
+        values.minSettlementAmountYuan !== undefined
+          ? normalizeYuanToCents(values.minSettlementAmountYuan)
+          : normalizePositiveInteger(values.minSettlementAmountCents),
       manual_review_enabled: values.manualReviewEnabled === true,
     },
     commission_rules: parseJsonArray(
@@ -281,9 +314,12 @@ export function buildAffiliateRuleSetDraftFormValues(
     return buildAffiliateRuleSetDefaultSeedFormValues()
   }
   const snapshot = normalizeSnapshot(ruleSet)
-  const settlementConfig =
-    snapshot.settlement_config ||
-    (snapshot.settlement_cycle ? { cycle: snapshot.settlement_cycle } : {})
+  const settlementConfig: Record<string, unknown> =
+    snapshot.settlement_config && typeof snapshot.settlement_config === 'object'
+      ? (snapshot.settlement_config as Record<string, unknown>)
+      : snapshot.settlement_cycle
+        ? { cycle: snapshot.settlement_cycle }
+        : {}
 
   return {
     id: String(normalizePositiveInteger(ruleSet.id)),
@@ -302,6 +338,9 @@ export function buildAffiliateRuleSetDraftFormValues(
     freezeDays: String(normalizePositiveInteger(settlementConfig.freeze_days)),
     minSettlementAmountCents: String(
       normalizePositiveInteger(settlementConfig.min_settlement_amount_cents)
+    ),
+    minSettlementAmountYuan: formatCentsAsYuan(
+      settlementConfig.min_settlement_amount_cents
     ),
     manualReviewEnabled: settlementConfig.manual_review_enabled === true,
     commissionRulesJson: stringifyPretty(snapshot.commission_rules),
@@ -323,6 +362,7 @@ function buildAffiliateRuleSetDefaultSeedFormValues(): AffiliateRuleSetDraftForm
     settlementCycle: 'monthly',
     freezeDays: '7',
     minSettlementAmountCents: '10000',
+    minSettlementAmountYuan: '100.00',
     manualReviewEnabled: true,
     commissionRulesJson: stringifyPretty([
       {
@@ -744,10 +784,10 @@ export function buildAffiliateSettlementRunPayload(
 ): AffiliateSettlementRunPayload {
   return {
     rule_set_id: normalizePositiveInteger(values.ruleSetId),
-    period_start: normalizePositiveInteger(values.periodStart),
-    period_end: normalizePositiveInteger(values.periodEnd),
+    period_start: normalizeTimestamp(values.periodStart),
+    period_end: normalizeTimestamp(values.periodEnd),
     freeze_days: normalizePositiveInteger(values.freezeDays),
-    now: normalizePositiveInteger(values.now),
+    now: normalizeTimestamp(values.now),
     quota_per_unit: normalizePositiveNumber(values.quotaPerUnit),
     usd_exchange_rate: normalizePositiveNumber(values.usdExchangeRate),
     reason: String(values.reason || '').trim(),
@@ -759,8 +799,8 @@ export function buildAffiliateCommissionRecomputePayload(
 ): AffiliateCommissionRecomputePayload {
   return {
     rule_set_id: normalizePositiveInteger(values.ruleSetId),
-    period_start: normalizePositiveInteger(values.periodStart),
-    period_end: normalizePositiveInteger(values.periodEnd),
+    period_start: normalizeTimestamp(values.periodStart),
+    period_end: normalizeTimestamp(values.periodEnd),
     quota_per_unit: normalizePositiveNumber(values.quotaPerUnit),
     usd_exchange_rate: normalizePositiveNumber(values.usdExchangeRate),
     reason: String(values.reason || '').trim(),
@@ -774,9 +814,12 @@ export function buildAffiliateCommissionAdjustmentPayload(
     affiliate_user_id: normalizePositiveInteger(values.affiliateUserId),
     downstream_user_id: normalizePositiveInteger(values.downstreamUserId),
     rule_set_id: normalizePositiveInteger(values.ruleSetId),
-    period_start: normalizePositiveInteger(values.periodStart),
-    period_end: normalizePositiveInteger(values.periodEnd),
-    commission_cents: normalizeSignedInteger(values.commissionCents),
+    period_start: normalizeTimestamp(values.periodStart),
+    period_end: normalizeTimestamp(values.periodEnd),
+    commission_cents:
+      values.commissionYuan !== undefined
+        ? normalizeSignedYuanToCents(values.commissionYuan)
+        : normalizeSignedInteger(values.commissionCents),
     reason: String(values.reason || '').trim(),
   }
 }

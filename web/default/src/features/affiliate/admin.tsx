@@ -74,6 +74,7 @@ import {
   updateAffiliateRuleSetStatus,
   updateAffiliateProfileStatus,
 } from './api'
+import { RuleLevelGroupedEditor } from './rule-array-editor'
 import type {
   AffiliateCommissionAdjustmentFormValues,
   AffiliateCommissionRecomputeFormValues,
@@ -109,7 +110,7 @@ const EMPTY_SETTLEMENT_RUN_FORM: AffiliateSettlementRunFormValues = {
   freezeDays: '7',
   now: '',
   quotaPerUnit: '',
-  usdExchangeRate: '',
+  usdExchangeRate: '1',
   reason: '',
 }
 const EMPTY_COMMISSION_RECOMPUTE_FORM: AffiliateCommissionRecomputeFormValues =
@@ -118,7 +119,7 @@ const EMPTY_COMMISSION_RECOMPUTE_FORM: AffiliateCommissionRecomputeFormValues =
     periodStart: '',
     periodEnd: '',
     quotaPerUnit: '',
-    usdExchangeRate: '',
+    usdExchangeRate: '1',
     reason: '',
   }
 const EMPTY_COMMISSION_ADJUSTMENT_FORM: AffiliateCommissionAdjustmentFormValues =
@@ -129,6 +130,7 @@ const EMPTY_COMMISSION_ADJUSTMENT_FORM: AffiliateCommissionAdjustmentFormValues 
     periodStart: '',
     periodEnd: '',
     commissionCents: '',
+    commissionYuan: '',
     reason: '',
   }
 
@@ -167,7 +169,7 @@ function ProfileForm(props: {
         </CardDescription>
       </CardHeader>
       <CardContent className='space-y-4'>
-        <div className='grid gap-3 md:grid-cols-2 xl:grid-cols-4'>
+        <div className='grid gap-3 md:grid-cols-2 xl:grid-cols-[minmax(220px,1fr)_minmax(240px,1fr)_minmax(220px,1fr)_auto]'>
           <Field label={t('User ID')} htmlFor='affiliate-profile-user-id'>
             <Input
               id='affiliate-profile-user-id'
@@ -259,7 +261,7 @@ function FiltersForm(props: {
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <div className='grid gap-3 md:grid-cols-2 xl:grid-cols-4'>
+        <div className='grid gap-3 md:grid-cols-2 xl:grid-cols-[minmax(220px,280px)_minmax(260px,320px)_minmax(240px,300px)_auto]'>
           <Field label={t('User ID')} htmlFor='affiliate-filter-user-id'>
             <Input
               id='affiliate-filter-user-id'
@@ -303,7 +305,7 @@ function FiltersForm(props: {
               </NativeSelectOption>
             </NativeSelect>
           </Field>
-          <div className='flex items-end gap-2'>
+          <div className='flex min-w-56 items-end gap-2'>
             <Button
               className='flex-1'
               disabled={props.disabled}
@@ -392,7 +394,14 @@ function ProfilesTable(props: {
                   profile.status === 'active' ? 'disabled' : 'active'
                 return (
                   <TableRow key={profile.id || profile.user_id}>
-                    <TableCell>{profile.user_id}</TableCell>
+                    <TableCell>
+                      <div className='flex flex-col'>
+                        <span>{profile.user_id}</span>
+                        <span className='text-muted-foreground text-xs'>
+                          {profile.username || '-'}
+                        </span>
+                      </div>
+                    </TableCell>
                     <TableCell>
                       {getAffiliateProfileLevelLabel(profile.level, t)}
                     </TableCell>
@@ -404,7 +413,9 @@ function ProfilesTable(props: {
                       />
                     </TableCell>
                     <TableCell>{profile.parent_user_id || '-'}</TableCell>
-                    <TableCell>{profile.invite_code || '-'}</TableCell>
+                    <TableCell>
+                      {profile.invite_code || profile.aff_code || '-'}
+                    </TableCell>
                     <TableCell>
                       {formatTimestampToDate(profile.updated_at)}
                     </TableCell>
@@ -492,7 +503,7 @@ function RuleSetFiltersForm(props: {
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <div className='grid gap-3 md:grid-cols-3'>
+        <div className='grid gap-3 md:grid-cols-[minmax(260px,360px)_auto]'>
           <Field label={t('Rule Status')} htmlFor='affiliate-rule-status'>
             <NativeSelect
               id='affiliate-rule-status'
@@ -518,7 +529,7 @@ function RuleSetFiltersForm(props: {
               </NativeSelectOption>
             </NativeSelect>
           </Field>
-          <div className='flex items-end gap-2 md:col-span-2'>
+          <div className='flex items-end gap-2'>
             <Button disabled={props.disabled} onClick={props.onApply}>
               {t('Apply')}
             </Button>
@@ -720,6 +731,7 @@ function RuleSetDraftForm(props: {
   isSaving: boolean
 }) {
   const { t } = useTranslation()
+  const [editorMode, setEditorMode] = useState<'visual' | 'json'>('visual')
   const update = (
     key: keyof AffiliateRuleSetDraftFormValues,
     value: string
@@ -808,15 +820,15 @@ function RuleSetDraftForm(props: {
             />
           </Field>
           <Field
-            label={t('Minimum Settlement Amount (cents)')}
+            label={t('Minimum Settlement Amount (yuan)')}
             htmlFor='affiliate-rule-min-settlement'
           >
             <Input
               id='affiliate-rule-min-settlement'
-              inputMode='numeric'
-              value={props.values.minSettlementAmountCents || ''}
+              inputMode='decimal'
+              value={props.values.minSettlementAmountYuan || ''}
               onChange={(event) =>
-                update('minSettlementAmountCents', event.target.value)
+                update('minSettlementAmountYuan', event.target.value)
               }
             />
           </Field>
@@ -841,62 +853,147 @@ function RuleSetDraftForm(props: {
           </div>
         </div>
 
-        <div className='grid gap-3 xl:grid-cols-2'>
-          <Field
-            label={t('Commission Rules JSON')}
-            htmlFor='affiliate-commission-rules-json'
-          >
-            <Textarea
-              id='affiliate-commission-rules-json'
-              className='min-h-40 font-mono text-xs'
-              value={props.values.commissionRulesJson || ''}
-              onChange={(event) =>
-                update('commissionRulesJson', event.target.value)
-              }
+        <div className='space-y-3'>
+          <div className='flex flex-wrap items-center justify-between gap-2'>
+            <div>
+              <div className='font-medium'>{t('Rule Details')}</div>
+              <div className='text-muted-foreground text-xs'>
+                {t(
+                  'Switch between visual rule cards and raw JSON for batch edits'
+                )}
+              </div>
+            </div>
+            <div className='flex rounded-lg border p-1'>
+              <Button
+                size='sm'
+                variant={editorMode === 'visual' ? 'default' : 'ghost'}
+                onClick={() => setEditorMode('visual')}
+              >
+                {t('Visual')}
+              </Button>
+              <Button
+                size='sm'
+                variant={editorMode === 'json' ? 'default' : 'ghost'}
+                onClick={() => setEditorMode('json')}
+              >
+                JSON
+              </Button>
+            </div>
+          </div>
+
+          {editorMode === 'visual' ? (
+            <RuleLevelGroupedEditor
+              sections={[
+                {
+                  title: t('Commission Base Rules'),
+                  field: 'commissionRulesJson',
+                  description: t(
+                    'Set default rate, cap rate, and minimum settlement amount by affiliate level.'
+                  ),
+                  value: props.values.commissionRulesJson,
+                  onChange: (value) => update('commissionRulesJson', value),
+                },
+                {
+                  title: t('Commission Tiers'),
+                  field: 'commissionTiersJson',
+                  description: t(
+                    'Set commission rate and cap by accumulated net paid ranges.'
+                  ),
+                  value: props.values.commissionTiersJson,
+                  onChange: (value) => update('commissionTiersJson', value),
+                },
+                {
+                  title: t('KPI Tiers'),
+                  field: 'kpiTiersJson',
+                  description: t(
+                    'Set KPI coefficients by effective new users, net paid amount, and quality metrics.'
+                  ),
+                  value: props.values.kpiTiersJson,
+                  onChange: (value) => update('kpiTiersJson', value),
+                },
+                {
+                  title: t('Head Fee Rules'),
+                  field: 'headFeeRulesJson',
+                  description: t(
+                    'Set head fee and unlock requirements by KPI tier.'
+                  ),
+                  value: props.values.headFeeRulesJson,
+                  onChange: (value) => update('headFeeRulesJson', value),
+                },
+                {
+                  title: t('Quality Thresholds'),
+                  field: 'riskRulesJson',
+                  description: t(
+                    'Set quality/risk thresholds for gift-only ratio, abnormal ratio, refund ratio, and second-payment ratio.'
+                  ),
+                  value: props.values.riskRulesJson,
+                  onChange: (value) => update('riskRulesJson', value),
+                },
+              ]}
             />
-          </Field>
-          <Field
-            label={t('Commission Tiers JSON')}
-            htmlFor='affiliate-commission-tiers-json'
-          >
-            <Textarea
-              id='affiliate-commission-tiers-json'
-              className='min-h-40 font-mono text-xs'
-              value={props.values.commissionTiersJson || ''}
-              onChange={(event) =>
-                update('commissionTiersJson', event.target.value)
-              }
-            />
-          </Field>
-          <Field label={t('KPI Tiers JSON')} htmlFor='affiliate-kpi-json'>
-            <Textarea
-              id='affiliate-kpi-json'
-              className='min-h-40 font-mono text-xs'
-              value={props.values.kpiTiersJson || ''}
-              onChange={(event) => update('kpiTiersJson', event.target.value)}
-            />
-          </Field>
-          <Field
-            label={t('Head Fee Rules JSON')}
-            htmlFor='affiliate-head-fee-json'
-          >
-            <Textarea
-              id='affiliate-head-fee-json'
-              className='min-h-40 font-mono text-xs'
-              value={props.values.headFeeRulesJson || ''}
-              onChange={(event) =>
-                update('headFeeRulesJson', event.target.value)
-              }
-            />
-          </Field>
-          <Field label={t('Risk Rules JSON')} htmlFor='affiliate-risk-json'>
-            <Textarea
-              id='affiliate-risk-json'
-              className='min-h-40 font-mono text-xs'
-              value={props.values.riskRulesJson || ''}
-              onChange={(event) => update('riskRulesJson', event.target.value)}
-            />
-          </Field>
+          ) : (
+            <div className='grid gap-3 xl:grid-cols-2'>
+              <Field
+                label={t('Commission Rules JSON')}
+                htmlFor='affiliate-commission-rules-json'
+              >
+                <Textarea
+                  id='affiliate-commission-rules-json'
+                  className='min-h-40 font-mono text-xs'
+                  value={props.values.commissionRulesJson || ''}
+                  onChange={(event) =>
+                    update('commissionRulesJson', event.target.value)
+                  }
+                />
+              </Field>
+              <Field
+                label={t('Commission Tiers JSON')}
+                htmlFor='affiliate-commission-tiers-json'
+              >
+                <Textarea
+                  id='affiliate-commission-tiers-json'
+                  className='min-h-40 font-mono text-xs'
+                  value={props.values.commissionTiersJson || ''}
+                  onChange={(event) =>
+                    update('commissionTiersJson', event.target.value)
+                  }
+                />
+              </Field>
+              <Field label={t('KPI Tiers JSON')} htmlFor='affiliate-kpi-json'>
+                <Textarea
+                  id='affiliate-kpi-json'
+                  className='min-h-40 font-mono text-xs'
+                  value={props.values.kpiTiersJson || ''}
+                  onChange={(event) =>
+                    update('kpiTiersJson', event.target.value)
+                  }
+                />
+              </Field>
+              <Field
+                label={t('Head Fee Rules JSON')}
+                htmlFor='affiliate-head-fee-json'
+              >
+                <Textarea
+                  id='affiliate-head-fee-json'
+                  className='min-h-40 font-mono text-xs'
+                  value={props.values.headFeeRulesJson || ''}
+                  onChange={(event) =>
+                    update('headFeeRulesJson', event.target.value)
+                  }
+                />
+              </Field>
+              <Field label={t('Risk Rules JSON')} htmlFor='affiliate-risk-json'>
+                <Textarea
+                  id='affiliate-risk-json'
+                  className='min-h-40 font-mono text-xs'
+                  value={props.values.riskRulesJson || ''}
+                  onChange={(event) =>
+                    update('riskRulesJson', event.target.value)
+                  }
+                />
+              </Field>
+            </div>
+          )}
         </div>
 
         <div className='flex flex-wrap gap-2'>
@@ -980,7 +1077,7 @@ function FinanceOperationsPanel(props: {
         )}
       </CardHeader>
       <CardContent>
-        <div className='grid gap-4 xl:grid-cols-3'>
+        <div className='grid gap-3 xl:grid-cols-3'>
           <Card className='border-dashed'>
             <CardHeader>
               <CardTitle className='text-base'>{t('Settlement Run')}</CardTitle>
@@ -990,7 +1087,7 @@ function FinanceOperationsPanel(props: {
                 )}
               </CardDescription>
             </CardHeader>
-            <CardContent className='space-y-3'>
+            <CardContent className='space-y-2'>
               <Field label={t('Rule Set ID')} htmlFor='finance-run-rule-id'>
                 <Input
                   id='finance-run-rule-id'
@@ -1002,27 +1099,24 @@ function FinanceOperationsPanel(props: {
                   }
                 />
               </Field>
-              <div className='grid gap-3 md:grid-cols-2 xl:grid-cols-1'>
+              <div className='grid gap-2 md:grid-cols-2 xl:grid-cols-2'>
                 <Field
-                  label={t('Period Start Timestamp')}
+                  label={t('Period Start')}
                   htmlFor='finance-run-period-start'
                 >
                   <Input
                     id='finance-run-period-start'
-                    inputMode='numeric'
+                    type='datetime-local'
                     value={props.settlementRunValues.periodStart || ''}
                     onChange={(event) =>
                       updateSettlementRun('periodStart', event.target.value)
                     }
                   />
                 </Field>
-                <Field
-                  label={t('Period End Timestamp')}
-                  htmlFor='finance-run-period-end'
-                >
+                <Field label={t('Period End')} htmlFor='finance-run-period-end'>
                   <Input
                     id='finance-run-period-end'
-                    inputMode='numeric'
+                    type='datetime-local'
                     value={props.settlementRunValues.periodEnd || ''}
                     onChange={(event) =>
                       updateSettlementRun('periodEnd', event.target.value)
@@ -1030,7 +1124,7 @@ function FinanceOperationsPanel(props: {
                   />
                 </Field>
               </div>
-              <div className='grid gap-3 md:grid-cols-2 xl:grid-cols-1'>
+              <div className='grid gap-2 md:grid-cols-2 xl:grid-cols-2'>
                 <Field label={t('Freeze Days')} htmlFor='finance-run-freeze'>
                   <Input
                     id='finance-run-freeze'
@@ -1044,7 +1138,7 @@ function FinanceOperationsPanel(props: {
                 <Field label={t('Run Timestamp')} htmlFor='finance-run-now'>
                   <Input
                     id='finance-run-now'
-                    inputMode='numeric'
+                    type='datetime-local'
                     placeholder={t('Empty uses current server time')}
                     value={props.settlementRunValues.now || ''}
                     onChange={(event) =>
@@ -1053,7 +1147,7 @@ function FinanceOperationsPanel(props: {
                   />
                 </Field>
               </div>
-              <div className='grid gap-3 md:grid-cols-2 xl:grid-cols-1'>
+              <div className='grid gap-2 md:grid-cols-2 xl:grid-cols-2'>
                 <Field label={t('Quota Per Unit')} htmlFor='finance-run-quota'>
                   <Input
                     id='finance-run-quota'
@@ -1066,13 +1160,13 @@ function FinanceOperationsPanel(props: {
                   />
                 </Field>
                 <Field
-                  label={t('USD Exchange Rate')}
+                  label={t('CNY Exchange Rate (1:1)')}
                   htmlFor='finance-run-exchange-rate'
                 >
                   <Input
                     id='finance-run-exchange-rate'
                     inputMode='decimal'
-                    placeholder={t('Empty uses system default')}
+                    placeholder='1'
                     value={props.settlementRunValues.usdExchangeRate || ''}
                     onChange={(event) =>
                       updateSettlementRun('usdExchangeRate', event.target.value)
@@ -1111,7 +1205,7 @@ function FinanceOperationsPanel(props: {
                 )}
               </CardDescription>
             </CardHeader>
-            <CardContent className='space-y-3'>
+            <CardContent className='space-y-2'>
               <Field
                 label={t('Rule Set ID')}
                 htmlFor='finance-recompute-rule-id'
@@ -1126,14 +1220,14 @@ function FinanceOperationsPanel(props: {
                   }
                 />
               </Field>
-              <div className='grid gap-3 md:grid-cols-2 xl:grid-cols-1'>
+              <div className='grid gap-2 md:grid-cols-2 xl:grid-cols-2'>
                 <Field
-                  label={t('Period Start Timestamp')}
+                  label={t('Period Start')}
                   htmlFor='finance-recompute-period-start'
                 >
                   <Input
                     id='finance-recompute-period-start'
-                    inputMode='numeric'
+                    type='datetime-local'
                     value={props.commissionRecomputeValues.periodStart || ''}
                     onChange={(event) =>
                       updateCommissionRecompute(
@@ -1144,12 +1238,12 @@ function FinanceOperationsPanel(props: {
                   />
                 </Field>
                 <Field
-                  label={t('Period End Timestamp')}
+                  label={t('Period End')}
                   htmlFor='finance-recompute-period-end'
                 >
                   <Input
                     id='finance-recompute-period-end'
-                    inputMode='numeric'
+                    type='datetime-local'
                     value={props.commissionRecomputeValues.periodEnd || ''}
                     onChange={(event) =>
                       updateCommissionRecompute('periodEnd', event.target.value)
@@ -1157,7 +1251,7 @@ function FinanceOperationsPanel(props: {
                   />
                 </Field>
               </div>
-              <div className='grid gap-3 md:grid-cols-2 xl:grid-cols-1'>
+              <div className='grid gap-2 md:grid-cols-2 xl:grid-cols-2'>
                 <Field
                   label={t('Quota Per Unit')}
                   htmlFor='finance-recompute-quota'
@@ -1176,13 +1270,13 @@ function FinanceOperationsPanel(props: {
                   />
                 </Field>
                 <Field
-                  label={t('USD Exchange Rate')}
+                  label={t('CNY Exchange Rate (1:1)')}
                   htmlFor='finance-recompute-exchange-rate'
                 >
                   <Input
                     id='finance-recompute-exchange-rate'
                     inputMode='decimal'
-                    placeholder={t('Empty uses system default')}
+                    placeholder='1'
                     value={
                       props.commissionRecomputeValues.usdExchangeRate || ''
                     }
@@ -1228,8 +1322,8 @@ function FinanceOperationsPanel(props: {
                 {t('Create a positive or negative pending manual event')}
               </CardDescription>
             </CardHeader>
-            <CardContent className='space-y-3'>
-              <div className='grid gap-3 md:grid-cols-2 xl:grid-cols-1'>
+            <CardContent className='space-y-2'>
+              <div className='grid gap-2 md:grid-cols-2 xl:grid-cols-2'>
                 <Field
                   label={t('Affiliate User ID')}
                   htmlFor='finance-adjust-affiliate-user'
@@ -1278,14 +1372,14 @@ function FinanceOperationsPanel(props: {
                   }
                 />
               </Field>
-              <div className='grid gap-3 md:grid-cols-2 xl:grid-cols-1'>
+              <div className='grid gap-2 md:grid-cols-2 xl:grid-cols-2'>
                 <Field
-                  label={t('Period Start Timestamp')}
+                  label={t('Period Start')}
                   htmlFor='finance-adjust-period-start'
                 >
                   <Input
                     id='finance-adjust-period-start'
-                    inputMode='numeric'
+                    type='datetime-local'
                     value={props.commissionAdjustmentValues.periodStart || ''}
                     onChange={(event) =>
                       updateCommissionAdjustment(
@@ -1296,12 +1390,12 @@ function FinanceOperationsPanel(props: {
                   />
                 </Field>
                 <Field
-                  label={t('Period End Timestamp')}
+                  label={t('Period End')}
                   htmlFor='finance-adjust-period-end'
                 >
                   <Input
                     id='finance-adjust-period-end'
-                    inputMode='numeric'
+                    type='datetime-local'
                     value={props.commissionAdjustmentValues.periodEnd || ''}
                     onChange={(event) =>
                       updateCommissionAdjustment(
@@ -1313,17 +1407,17 @@ function FinanceOperationsPanel(props: {
                 </Field>
               </div>
               <Field
-                label={t('Adjustment Amount (cents)')}
+                label={t('Adjustment Amount (yuan)')}
                 htmlFor='finance-adjust-cents'
               >
                 <Input
                   id='finance-adjust-cents'
-                  inputMode='numeric'
-                  placeholder={t('Use negative cents for clawback')}
-                  value={props.commissionAdjustmentValues.commissionCents || ''}
+                  inputMode='decimal'
+                  placeholder={t('Use negative yuan for clawback')}
+                  value={props.commissionAdjustmentValues.commissionYuan || ''}
                   onChange={(event) =>
                     updateCommissionAdjustment(
-                      'commissionCents',
+                      'commissionYuan',
                       event.target.value
                     )
                   }

@@ -54,6 +54,7 @@ import {
   getAffiliateRuleSetStatusMeta,
   validateAffiliateRuleSetDraftPayload,
 } from './affiliateAdminRules';
+import { RuleLevelGroupedEditor } from './RuleArrayEditor';
 
 const { Text, Title } = Typography;
 
@@ -80,6 +81,8 @@ const AffiliateAdmin = () => {
   const [ruleSetTotal, setRuleSetTotal] = useState(0);
   const [selectedRuleSet, setSelectedRuleSet] = useState(null);
   const [ruleSetFormKey, setRuleSetFormKey] = useState(0);
+  const [ruleSetDraftFormApi, setRuleSetDraftFormApi] = useState(null);
+  const [ruleEditorMode, setRuleEditorMode] = useState('visual');
 
   const loadProfiles = async (
     nextPage = page,
@@ -311,11 +314,13 @@ const AffiliateAdmin = () => {
 
   const handleRuleSetSelect = (record) => {
     setSelectedRuleSet(record);
+    setRuleEditorMode('visual');
     setRuleSetFormKey((value) => value + 1);
   };
 
   const handleRuleSetNew = () => {
     setSelectedRuleSet(null);
+    setRuleEditorMode('visual');
     setRuleSetFormKey((value) => value + 1);
   };
 
@@ -390,7 +395,15 @@ const AffiliateAdmin = () => {
       {
         title: t('用户 ID'),
         dataIndex: 'user_id',
-        width: 110,
+        width: 180,
+        render: (value, record) => (
+          <div className='flex flex-col'>
+            <Text>{value}</Text>
+            <Text type='secondary' size='small'>
+              {record.username || '-'}
+            </Text>
+          </div>
+        ),
       },
       {
         title: t('分销等级'),
@@ -417,7 +430,7 @@ const AffiliateAdmin = () => {
         title: t('邀请码'),
         dataIndex: 'invite_code',
         width: 140,
-        render: (value) => value || '-',
+        render: (value, record) => value || record.aff_code || '-',
       },
       {
         title: t('更新时间'),
@@ -575,30 +588,43 @@ const AffiliateAdmin = () => {
           </Text>
         </div>
         <Form
-          layout='horizontal'
+          layout='vertical'
           onSubmit={handleCreateOrUpdate}
           initValues={{ level: 1 }}
         >
-          <Form.InputNumber field='user_id' label={t('用户 ID')} min={1} />
-          <Form.Select
-            field='level'
-            label={t('分销等级')}
-            optionList={[
-              { label: t('一级分销商'), value: 1 },
-              { label: t('二级分销商'), value: 2 },
-            ]}
-          />
-          <Form.InputNumber
-            field='parent_user_id'
-            label={t('一级上级用户 ID')}
-            min={0}
-            placeholder={t('二级分销商必填')}
-          />
-          <Form.Input field='invite_code' label={t('邀请码')} />
-          <Form.Input field='reason' label={t('操作原因')} />
-          <Button htmlType='submit' type='primary' loading={submitLoading}>
-            {t('保存分销商')}
-          </Button>
+          <div className='grid grid-cols-1 md:grid-cols-2 xl:grid-cols-6 gap-3 items-end'>
+            <Form.InputNumber field='user_id' label={t('用户 ID')} min={1} />
+            <Form.Select
+              field='level'
+              label={t('分销等级')}
+              optionList={[
+                { label: t('一级分销商'), value: 1 },
+                { label: t('二级分销商'), value: 2 },
+              ]}
+            />
+            <Form.InputNumber
+              field='parent_user_id'
+              label={t('一级上级用户 ID')}
+              min={0}
+              placeholder={t('二级分销商必填')}
+            />
+            <Form.Input
+              field='invite_code'
+              label={t('邀请码')}
+              placeholder={t('留空使用用户邀请码')}
+            />
+            <Form.Input field='reason' label={t('操作原因')} />
+            <div className='flex items-end h-full'>
+              <Button
+                className='w-full'
+                htmlType='submit'
+                type='primary'
+                loading={submitLoading}
+              >
+                {t('保存分销商')}
+              </Button>
+            </div>
+          </div>
         </Form>
       </Card>
 
@@ -617,20 +643,27 @@ const AffiliateAdmin = () => {
           </Text>
         </div>
 
-        <Form layout='horizontal' onSubmit={handleRuleSetFilterSubmit}>
-          <Form.Select
-            field='status'
-            label={t('规则状态')}
-            optionList={[
-              { label: t('全部'), value: '' },
-              { label: t('草稿'), value: 'draft' },
-              { label: t('已发布'), value: 'published' },
-              { label: t('已归档'), value: 'archived' },
-            ]}
-          />
-          <Button htmlType='submit' type='primary'>
-            {t('筛选规则集')}
-          </Button>
+        <Form layout='vertical' onSubmit={handleRuleSetFilterSubmit}>
+          <div className='grid grid-cols-1 md:grid-cols-[minmax(260px,360px)_auto] gap-3 items-end'>
+            <Form.Select
+              className='w-full'
+              field='status'
+              label={t('规则状态')}
+              optionList={[
+                { label: t('全部'), value: '' },
+                { label: t('草稿'), value: 'draft' },
+                { label: t('已发布'), value: 'published' },
+                { label: t('已归档'), value: 'archived' },
+              ]}
+            />
+            <Button
+              className='w-full md:w-auto'
+              htmlType='submit'
+              type='primary'
+            >
+              {t('筛选规则集')}
+            </Button>
+          </div>
         </Form>
 
         <Table
@@ -661,9 +694,10 @@ const AffiliateAdmin = () => {
             className='mt-3'
             layout='vertical'
             initValues={buildAffiliateRuleSetDraftFormValues(selectedRuleSet)}
+            getFormApi={(api) => setRuleSetDraftFormApi(api)}
             onSubmit={handleRuleSetDraftSubmit}
           >
-            <div className='grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4'>
+            <div className='grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-3'>
               <Form.InputNumber field='id' label={t('规则集 ID')} min={0} />
               <Form.Input field='version' label={t('版本')} />
               <Form.Input field='name' label={t('名称')} />
@@ -685,41 +719,115 @@ const AffiliateAdmin = () => {
                 min={0}
               />
               <Form.InputNumber
-                field='min_settlement_amount_cents'
-                label={t('最小结算金额（分）')}
+                field='min_settlement_amount_yuan'
+                label={t('Minimum Settlement Amount (yuan)')}
                 min={0}
+                step={0.01}
               />
               <Form.Switch
                 field='manual_review_enabled'
                 label={t('人工审核')}
               />
             </div>
-            <div className='grid grid-cols-1 xl:grid-cols-2 gap-4'>
-              <Form.TextArea
-                field='commission_rules_json'
-                label={t('分佣基础规则 JSON')}
-                autosize
-              />
-              <Form.TextArea
-                field='commission_tiers_json'
-                label={t('分佣区间 JSON')}
-                autosize
-              />
-              <Form.TextArea
-                field='kpi_tiers_json'
-                label={t('KPI 档位 JSON')}
-                autosize
-              />
-              <Form.TextArea
-                field='head_fee_rules_json'
-                label={t('人头费规则 JSON')}
-                autosize
-              />
-              <Form.TextArea
-                field='risk_rules_json'
-                label={t('质量门槛 JSON')}
-                autosize
-              />
+            <div className='flex flex-col gap-3 mt-2'>
+              <div className='flex flex-col md:flex-row md:items-center md:justify-between gap-2'>
+                <div>
+                  <Text strong>{t('规则明细')}</Text>
+                  <div>
+                    <Text type='secondary'>
+                      {t('可在可视化规则卡片与原始 JSON 文本之间切换。')}
+                    </Text>
+                  </div>
+                </div>
+                <Space>
+                  <Button
+                    htmlType='button'
+                    type={ruleEditorMode === 'visual' ? 'primary' : 'tertiary'}
+                    onClick={() => setRuleEditorMode('visual')}
+                  >
+                    {t('可视化')}
+                  </Button>
+                  <Button
+                    htmlType='button'
+                    type={ruleEditorMode === 'json' ? 'primary' : 'tertiary'}
+                    onClick={() => setRuleEditorMode('json')}
+                  >
+                    JSON
+                  </Button>
+                </Space>
+              </div>
+
+              {ruleEditorMode === 'visual' ? (
+                <RuleLevelGroupedEditor
+                  t={t}
+                  formApi={ruleSetDraftFormApi}
+                  sections={[
+                    {
+                      title: t('Commission Base Rules'),
+                      field: 'commission_rules_json',
+                      description: t(
+                        'Set default rate, cap rate, and minimum settlement amount by affiliate level.',
+                      ),
+                    },
+                    {
+                      title: t('Commission Tiers'),
+                      field: 'commission_tiers_json',
+                      description: t(
+                        'Set commission rate and cap by accumulated net paid ranges.',
+                      ),
+                    },
+                    {
+                      title: t('KPI Tiers'),
+                      field: 'kpi_tiers_json',
+                      description: t(
+                        'Set KPI coefficients by effective new users, net paid amount, and quality metrics.',
+                      ),
+                    },
+                    {
+                      title: t('Head Fee Rules'),
+                      field: 'head_fee_rules_json',
+                      description: t(
+                        'Set head fee and unlock requirements by KPI tier.',
+                      ),
+                    },
+                    {
+                      title: t('Quality Thresholds'),
+                      field: 'risk_rules_json',
+                      description: t(
+                        'Set quality/risk thresholds for gift-only ratio, abnormal ratio, refund ratio, and second-payment ratio.',
+                      ),
+                    },
+                  ]}
+                />
+              ) : (
+                <div className='grid grid-cols-1 xl:grid-cols-2 gap-4'>
+                  <Form.TextArea
+                    field='commission_rules_json'
+                    label={t('分佣基础规则 JSON')}
+                    autosize
+                  />
+                  <Form.TextArea
+                    field='commission_tiers_json'
+                    label={t('分佣区间 JSON')}
+                    autosize
+                  />
+                  <Form.TextArea
+                    field='kpi_tiers_json'
+                    label={t('KPI 档位 JSON')}
+                    autosize
+                  />
+                  <Form.TextArea
+                    field='head_fee_rules_json'
+                    label={t('人头费规则 JSON')}
+                    autosize
+                  />
+                  <Form.TextArea
+                    field='risk_rules_json'
+                    label={t('质量门槛 JSON')}
+                    autosize
+                  />
+                </div>
+              )}
             </div>
             <Space>
               <Button
@@ -748,184 +856,210 @@ const AffiliateAdmin = () => {
           {lastFinanceResult && <Text strong>{lastFinanceResult}</Text>}
         </div>
 
-        <div className='grid grid-cols-1 xl:grid-cols-3 gap-4'>
+        <div className='grid grid-cols-1 xl:grid-cols-3 gap-3'>
           <Card className='!rounded-xl' title={t('结算编排')}>
             <Form
               layout='vertical'
               onSubmit={handleSettlementRun}
-              initValues={{ freeze_days: 7 }}
+              initValues={{ freeze_days: 7, usd_exchange_rate: 1 }}
             >
-              <Form.InputNumber
-                field='rule_set_id'
-                label={t('规则集 ID')}
-                min={0}
-                placeholder={t('0 表示自动选择已发布规则')}
-              />
-              <Form.InputNumber
-                field='period_start'
-                label={t('周期开始时间戳')}
-                min={0}
-              />
-              <Form.InputNumber
-                field='period_end'
-                label={t('周期结束时间戳')}
-                min={0}
-              />
-              <Form.InputNumber
-                field='freeze_days'
-                label={t('冻结天数')}
-                min={0}
-              />
-              <Form.InputNumber
-                field='now'
-                label={t('执行时间戳')}
-                min={0}
-                placeholder={t('留空使用当前时间')}
-              />
-              <Form.InputNumber
-                field='quota_per_unit'
-                label={t('Quota 单位')}
-                min={0}
-                placeholder={t('留空使用系统默认')}
-              />
-              <Form.InputNumber
-                field='usd_exchange_rate'
-                label={t('美元汇率')}
-                min={0}
-                placeholder={t('留空使用系统默认')}
-              />
-              <Form.Input field='reason' label={t('操作原因')} />
-              <Button
-                htmlType='submit'
-                type='primary'
-                loading={financeLoading === 'settlement-run'}
-              >
-                {t('运行结算编排')}
-              </Button>
+              <div className='grid grid-cols-2 gap-2 items-end'>
+                <Form.InputNumber
+                  field='rule_set_id'
+                  label={t('规则集 ID')}
+                  min={0}
+                  placeholder={t('0 表示自动选择已发布规则')}
+                />
+                <Form.InputNumber
+                  field='freeze_days'
+                  label={t('冻结天数')}
+                  min={0}
+                />
+                <div className='col-span-2'>
+                  <Form.DatePicker
+                    field='period_range'
+                    label={t('结算周期')}
+                    className='w-full'
+                    type='dateTimeRange'
+                    placeholder={[t('开始时间'), t('结束时间')]}
+                    showClear
+                  />
+                </div>
+                <Form.DatePicker
+                  field='now_datetime'
+                  label={t('执行时间')}
+                  className='w-full'
+                  type='dateTime'
+                  placeholder={t('留空使用当前时间')}
+                  showClear
+                />
+                <Form.InputNumber
+                  field='quota_per_unit'
+                  label={t('Quota 单位')}
+                  min={0}
+                  placeholder={t('留空使用系统默认')}
+                />
+                <Form.InputNumber
+                  field='usd_exchange_rate'
+                  label={t('CNY Exchange Rate (1:1)')}
+                  min={0}
+                  placeholder='1'
+                />
+                <Form.Input field='reason' label={t('操作原因')} />
+                <Button
+                  className='col-span-2'
+                  htmlType='submit'
+                  type='primary'
+                  loading={financeLoading === 'settlement-run'}
+                >
+                  {t('运行结算编排')}
+                </Button>
+              </div>
             </Form>
           </Card>
 
           <Card className='!rounded-xl' title={t('佣金重算')}>
-            <Form layout='vertical' onSubmit={handleCommissionRecompute}>
-              <Form.InputNumber
-                field='rule_set_id'
-                label={t('规则集 ID')}
-                min={0}
-                placeholder={t('0 表示自动选择已发布规则')}
-              />
-              <Form.InputNumber
-                field='period_start'
-                label={t('周期开始时间戳')}
-                min={0}
-              />
-              <Form.InputNumber
-                field='period_end'
-                label={t('周期结束时间戳')}
-                min={0}
-              />
-              <Form.InputNumber
-                field='quota_per_unit'
-                label={t('Quota 单位')}
-                min={0}
-                placeholder={t('留空使用系统默认')}
-              />
-              <Form.InputNumber
-                field='usd_exchange_rate'
-                label={t('美元汇率')}
-                min={0}
-                placeholder={t('留空使用系统默认')}
-              />
-              <Form.Input field='reason' label={t('操作原因')} />
-              <Button
-                htmlType='submit'
-                type='warning'
-                loading={financeLoading === 'commission-recompute'}
-              >
-                {t('重算佣金事件')}
-              </Button>
+            <Form
+              layout='vertical'
+              onSubmit={handleCommissionRecompute}
+              initValues={{ usd_exchange_rate: 1 }}
+            >
+              <div className='grid grid-cols-2 gap-2 items-end'>
+                <Form.InputNumber
+                  field='rule_set_id'
+                  label={t('规则集 ID')}
+                  min={0}
+                  placeholder={t('0 表示自动选择已发布规则')}
+                />
+                <Form.InputNumber
+                  field='quota_per_unit'
+                  label={t('Quota 单位')}
+                  min={0}
+                  placeholder={t('留空使用系统默认')}
+                />
+                <div className='col-span-2'>
+                  <Form.DatePicker
+                    field='period_range'
+                    label={t('重算周期')}
+                    className='w-full'
+                    type='dateTimeRange'
+                    placeholder={[t('开始时间'), t('结束时间')]}
+                    showClear
+                  />
+                </div>
+                <Form.InputNumber
+                  field='usd_exchange_rate'
+                  label={t('CNY Exchange Rate (1:1)')}
+                  min={0}
+                  placeholder='1'
+                />
+                <Form.Input field='reason' label={t('操作原因')} />
+                <Button
+                  className='col-span-2'
+                  htmlType='submit'
+                  type='warning'
+                  loading={financeLoading === 'commission-recompute'}
+                >
+                  {t('重算佣金事件')}
+                </Button>
+              </div>
             </Form>
           </Card>
 
           <Card className='!rounded-xl' title={t('人工佣金调整')}>
             <Form layout='vertical' onSubmit={handleCommissionAdjustment}>
-              <Form.InputNumber
-                field='affiliate_user_id'
-                label={t('分销商用户 ID')}
-                min={1}
-              />
-              <Form.InputNumber
-                field='downstream_user_id'
-                label={t('下游用户 ID')}
-                min={0}
-              />
-              <Form.InputNumber
-                field='rule_set_id'
-                label={t('规则集 ID')}
-                min={0}
-                placeholder={t('0 表示自动选择已发布规则')}
-              />
-              <Form.InputNumber
-                field='period_start'
-                label={t('周期开始时间戳')}
-                min={0}
-              />
-              <Form.InputNumber
-                field='period_end'
-                label={t('周期结束时间戳')}
-                min={0}
-              />
-              <Form.InputNumber
-                field='commission_cents'
-                label={t('调整金额（分）')}
-              />
-              <Form.Input field='reason' label={t('操作原因')} />
-              <Button
-                htmlType='submit'
-                type='danger'
-                loading={financeLoading === 'commission-adjustment'}
-              >
-                {t('创建人工调整')}
-              </Button>
+              <div className='grid grid-cols-2 gap-2 items-end'>
+                <Form.InputNumber
+                  field='affiliate_user_id'
+                  label={t('分销商用户 ID')}
+                  min={1}
+                />
+                <Form.InputNumber
+                  field='downstream_user_id'
+                  label={t('下游用户 ID')}
+                  min={0}
+                />
+                <Form.InputNumber
+                  field='rule_set_id'
+                  label={t('规则集 ID')}
+                  min={0}
+                  placeholder={t('0 表示自动选择已发布规则')}
+                />
+                <Form.InputNumber
+                  field='commission_yuan'
+                  label={t('Adjustment Amount (yuan)')}
+                  step={0.01}
+                  placeholder={t('Use negative yuan for clawback')}
+                />
+                <div className='col-span-2'>
+                  <Form.DatePicker
+                    field='period_range'
+                    label={t('调整周期')}
+                    className='w-full'
+                    type='dateTimeRange'
+                    placeholder={[t('开始时间'), t('结束时间')]}
+                    showClear
+                  />
+                </div>
+                <Form.Input field='reason' label={t('操作原因')} />
+                <Button
+                  className='col-span-2'
+                  htmlType='submit'
+                  type='danger'
+                  loading={financeLoading === 'commission-adjustment'}
+                >
+                  {t('创建人工调整')}
+                </Button>
+              </div>
             </Form>
           </Card>
         </div>
       </Card>
 
       <Card className='!rounded-2xl'>
-        <Form layout='horizontal' onSubmit={handleFilterSubmit}>
-          <Form.InputNumber field='user_id' label={t('用户 ID')} min={1} />
-          <Form.Select
-            field='level'
-            label={t('分销等级')}
-            optionList={[
-              { label: t('全部'), value: '' },
-              { label: t('一级分销商'), value: 1 },
-              { label: t('二级分销商'), value: 2 },
-            ]}
-          />
-          <Form.Select
-            field='status'
-            label={t('状态')}
-            optionList={[
-              { label: t('全部'), value: '' },
-              { label: t('启用'), value: 'active' },
-              { label: t('禁用'), value: 'disabled' },
-            ]}
-          />
-          <Space>
-            <Button htmlType='submit' type='primary' loading={loading}>
-              {t('查询')}
-            </Button>
-            <Button
-              type='tertiary'
-              onClick={() => {
-                setFilters({});
-                loadProfiles(1, pageSize, {});
-              }}
-            >
-              {t('重置')}
-            </Button>
-          </Space>
+        <Form layout='vertical' onSubmit={handleFilterSubmit}>
+          <div className='grid grid-cols-1 md:grid-cols-2 xl:grid-cols-[minmax(220px,260px)_minmax(240px,280px)_minmax(220px,260px)_auto] gap-3 items-end'>
+            <Form.InputNumber
+              field='user_id'
+              label={t('用户 ID')}
+              min={1}
+              style={{ width: '100%' }}
+            />
+            <Form.Select
+              field='level'
+              label={t('分销等级')}
+              style={{ width: '100%' }}
+              optionList={[
+                { label: t('全部'), value: '' },
+                { label: t('一级分销商'), value: 1 },
+                { label: t('二级分销商'), value: 2 },
+              ]}
+            />
+            <Form.Select
+              field='status'
+              label={t('状态')}
+              style={{ width: '100%' }}
+              optionList={[
+                { label: t('全部'), value: '' },
+                { label: t('启用'), value: 'active' },
+                { label: t('禁用'), value: 'disabled' },
+              ]}
+            />
+            <div className='flex items-end gap-2'>
+              <Button htmlType='submit' type='primary' loading={loading}>
+                {t('查询')}
+              </Button>
+              <Button
+                type='tertiary'
+                onClick={() => {
+                  setFilters({});
+                  loadProfiles(1, pageSize, {});
+                }}
+              >
+                {t('重置')}
+              </Button>
+            </div>
+          </div>
         </Form>
         <Table
           className='mt-3'

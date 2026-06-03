@@ -14,6 +14,22 @@ const normalizeBoolean = (value) => value === true || value === 'true';
 
 const translate = (t, value) => (typeof t === 'function' ? t(value) : value);
 
+const centsToYuan = (value) => {
+  const number = Number(value || 0);
+  if (!Number.isFinite(number)) {
+    return 0;
+  }
+  return Number((number / 100).toFixed(2));
+};
+
+const yuanToCents = (value) => {
+  const number = Number(value);
+  if (!Number.isFinite(number)) {
+    return 0;
+  }
+  return Math.max(0, Math.round(number * 100));
+};
+
 const stringifyPretty = (value) => JSON.stringify(value || [], null, 2);
 
 function parseJsonArray(label, value) {
@@ -98,9 +114,10 @@ export function buildAffiliateRuleSetDraftPayload(values = {}) {
     settlement_config: {
       cycle: String(values.settlement_cycle || '').trim(),
       freeze_days: normalizeInteger(values.freeze_days),
-      min_settlement_amount_cents: normalizeInteger(
-        values.min_settlement_amount_cents,
-      ),
+      min_settlement_amount_cents:
+        values.min_settlement_amount_yuan !== undefined
+          ? yuanToCents(values.min_settlement_amount_yuan)
+          : normalizeInteger(values.min_settlement_amount_cents),
       manual_review_enabled: normalizeBoolean(values.manual_review_enabled),
     },
   };
@@ -132,6 +149,9 @@ export function buildAffiliateRuleSetDraftFormValues(ruleSet = null) {
     min_settlement_amount_cents: normalizeInteger(
       settlementConfig.min_settlement_amount_cents,
     ),
+    min_settlement_amount_yuan: centsToYuan(
+      settlementConfig.min_settlement_amount_cents,
+    ),
     manual_review_enabled: normalizeBoolean(
       settlementConfig.manual_review_enabled,
     ),
@@ -154,6 +174,7 @@ function buildAffiliateRuleSetDefaultSeedFormValues() {
     settlement_cycle: 'monthly',
     freeze_days: 7,
     min_settlement_amount_cents: 10000,
+    min_settlement_amount_yuan: 100,
     manual_review_enabled: true,
     commission_rules_json: stringifyPretty([
       {

@@ -54,6 +54,8 @@ describe('affiliate admin finance helpers', () => {
   });
 
   test('normalizes settlement run and commission recompute payloads', () => {
+    const periodStart = Math.floor(Date.parse('2026-06-03T00:00:00Z') / 1000);
+    const periodEnd = Math.floor(Date.parse('2026-06-04T00:00:00Z') / 1000);
     expect(
       buildAffiliateSettlementRunPayload({
         rule_set_id: '5',
@@ -74,6 +76,17 @@ describe('affiliate admin finance helpers', () => {
       quota_per_unit: 1000,
       usd_exchange_rate: 7.2,
       reason: 'close month',
+    });
+
+    expect(
+      buildAffiliateSettlementRunPayload({
+        period_range: ['2026-06-03T00:00:00Z', '2026-06-04T00:00:00Z'],
+        now_datetime: '2026-06-04T01:00:00Z',
+      }),
+    ).toMatchObject({
+      period_start: periodStart,
+      period_end: periodEnd,
+      now: Math.floor(Date.parse('2026-06-04T01:00:00Z') / 1000),
     });
 
     expect(
@@ -115,6 +128,14 @@ describe('affiliate admin finance helpers', () => {
       commission_cents: -250,
       reason: 'support clawback',
     });
+
+    expect(
+      buildAffiliateCommissionAdjustmentPayload({
+        affiliate_user_id: '100',
+        commission_yuan: '-2.50',
+        reason: ' support clawback ',
+      }).commission_cents,
+    ).toBe(-250);
   });
 
   test('validates operation payloads before calling APIs', () => {

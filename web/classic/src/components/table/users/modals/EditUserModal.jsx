@@ -568,9 +568,9 @@ const EditUserModal = (props) => {
                       </Tag>
                     </div>
 
-                    <Row gutter={12}>
+                    <Row gutter={[12, 12]}>
                       <Col span={24}>
-                        <div className='flex gap-2'>
+                        <div className='flex flex-col md:flex-row gap-2'>
                           <Input
                             value={inviterKeyword}
                             onChange={setInviterKeyword}
@@ -580,6 +580,7 @@ const EditUserModal = (props) => {
                             showClear
                           />
                           <Button
+                            className='md:min-w-[96px]'
                             type='primary'
                             theme='outline'
                             loading={inviterCandidateLoading}
@@ -591,7 +592,12 @@ const EditUserModal = (props) => {
                       </Col>
 
                       <Col span={24}>
-                        <div className='mt-2'>
+                        <div
+                          className='rounded-xl p-2'
+                          style={{
+                            border: '1px solid var(--semi-color-border)',
+                          }}
+                        >
                           {inviterCandidates.length > 0 ? (
                             <Space wrap>
                               {inviterCandidates.map((candidate) => (
@@ -626,7 +632,7 @@ const EditUserModal = (props) => {
                         </div>
                       </Col>
 
-                      <Col span={12}>
+                      <Col xs={24} md={16}>
                         <InputNumber
                           value={newInviterUserId}
                           min={0}
@@ -640,8 +646,9 @@ const EditUserModal = (props) => {
                         />
                       </Col>
 
-                      <Col span={12}>
+                      <Col xs={24} md={8}>
                         <Button
+                          className='w-full'
                           type='tertiary'
                           onClick={() => {
                             setNewInviterUserId(0);
@@ -662,7 +669,7 @@ const EditUserModal = (props) => {
                       </Col>
 
                       <Col span={24}>
-                        <Space>
+                        <Space wrap>
                           <Button
                             type='primary'
                             theme='outline'
@@ -687,48 +694,50 @@ const EditUserModal = (props) => {
                         className='mt-3 p-3 rounded-xl text-sm'
                         style={{ background: 'var(--semi-color-fill-0)' }}
                       >
-                        <div>
-                          <Text strong>{t('目标用户')}</Text>:{' '}
-                          {`#${inviterPreview.target_user_id || userId} ${
-                            inviterPreview.target_username || ''
-                          }`}
-                        </div>
-                        <div>
-                          <Text strong>{t('原邀请人')}</Text>:{' '}
-                          {inviterPreview.current_inviter_user_id
-                            ? `#${inviterPreview.current_inviter_user_id} ${
-                                inviterPreview.current_inviter_username || ''
-                              }`
-                            : t('无')}
-                        </div>
-                        <div>
-                          <Text strong>{t('新邀请人')}</Text>:{' '}
-                          {inviterPreview.new_inviter_user_id
-                            ? `#${inviterPreview.new_inviter_user_id} ${
-                                inviterPreview.new_inviter_username || ''
-                              }`
-                            : t('无')}
-                        </div>
-                        <div>
-                          <Text strong>{t('当前路径')}</Text>:{' '}
-                          {formatAffiliateInviterPath(
-                            t,
-                            inviterPreview.current_path_user_ids,
-                          )}
-                        </div>
-                        <div>
-                          <Text strong>{t('新路径')}</Text>:{' '}
-                          {formatAffiliateInviterPath(
-                            t,
-                            inviterPreview.new_path_user_ids,
-                          )}
-                        </div>
-                        <div>
-                          <Text strong>{t('受影响用户')}</Text>:{' '}
-                          {formatAffiliateInviterPath(
-                            t,
-                            inviterPreview.affected_descendant_user_ids,
-                          )}
+                        <div className='grid grid-cols-1 md:grid-cols-2 gap-2'>
+                          <div className='rounded-lg bg-white/70 p-2'>
+                            <Text strong>{t('目标用户')}</Text>:{' '}
+                            {`#${inviterPreview.target_user_id || userId} ${
+                              inviterPreview.target_username || ''
+                            }`}
+                          </div>
+                          <div className='rounded-lg bg-white/70 p-2'>
+                            <Text strong>{t('原邀请人')}</Text>:{' '}
+                            {inviterPreview.current_inviter_user_id
+                              ? `#${inviterPreview.current_inviter_user_id} ${
+                                  inviterPreview.current_inviter_username || ''
+                                }`
+                              : t('无')}
+                          </div>
+                          <div className='rounded-lg bg-white/70 p-2'>
+                            <Text strong>{t('新邀请人')}</Text>:{' '}
+                            {inviterPreview.new_inviter_user_id
+                              ? `#${inviterPreview.new_inviter_user_id} ${
+                                  inviterPreview.new_inviter_username || ''
+                                }`
+                              : t('无')}
+                          </div>
+                          <div className='rounded-lg bg-white/70 p-2'>
+                            <Text strong>{t('当前路径')}</Text>:{' '}
+                            {formatAffiliateInviterPath(
+                              t,
+                              inviterPreview.current_path_user_ids,
+                            )}
+                          </div>
+                          <div className='rounded-lg bg-white/70 p-2'>
+                            <Text strong>{t('新路径')}</Text>:{' '}
+                            {formatAffiliateInviterPath(
+                              t,
+                              inviterPreview.new_path_user_ids,
+                            )}
+                          </div>
+                          <div className='rounded-lg bg-white/70 p-2'>
+                            <Text strong>{t('受影响用户')}</Text>:{' '}
+                            {formatAffiliateInviterPath(
+                              t,
+                              inviterPreview.affected_descendant_user_ids,
+                            )}
+                          </div>
                         </div>
                       </div>
                     )}

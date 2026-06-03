@@ -169,7 +169,7 @@ export function AffiliateInviterSection({
         </Badge>
       </div>
 
-      <div className='flex gap-2'>
+      <div className='grid gap-2 sm:grid-cols-[1fr_auto]'>
         <Input
           value={keyword}
           onChange={(event) => setKeyword(event.target.value)}
@@ -187,7 +187,7 @@ export function AffiliateInviterSection({
       </div>
 
       {candidates.length > 0 && (
-        <div className='flex flex-wrap gap-2'>
+        <div className='bg-muted/20 flex max-h-40 flex-wrap gap-2 overflow-y-auto rounded-xl border p-2'>
           {candidates.map((candidate) => (
             <Button
               key={candidate.id}
@@ -209,7 +209,7 @@ export function AffiliateInviterSection({
         </div>
       )}
 
-      <div className='grid gap-3 sm:grid-cols-[1fr_auto]'>
+      <div className='grid gap-3 sm:grid-cols-[1fr_minmax(140px,auto)]'>
         <div className='space-y-2'>
           <Label>{t('New inviter user ID')}</Label>
           <Input
@@ -265,12 +265,12 @@ export function AffiliateInviterSection({
         <Alert>
           <AlertTitle>{t('Inviter change preview')}</AlertTitle>
           <AlertDescription>
-            <div className='mt-2 space-y-1 text-xs'>
-              <div>
+            <div className='mt-2 grid gap-2 text-xs sm:grid-cols-2'>
+              <div className='bg-background/70 rounded-lg p-2'>
                 <span className='font-medium'>{t('Target user')}:</span>{' '}
                 {`#${preview.target_user_id} ${preview.target_username || ''}`}
               </div>
-              <div>
+              <div className='bg-background/70 rounded-lg p-2'>
                 <span className='font-medium'>{t('Current inviter')}:</span>{' '}
                 {preview.current_inviter_user_id
                   ? `#${preview.current_inviter_user_id} ${
@@ -278,7 +278,7 @@ export function AffiliateInviterSection({
                     }`
                   : t('None')}
               </div>
-              <div>
+              <div className='bg-background/70 rounded-lg p-2'>
                 <span className='font-medium'>{t('New inviter')}:</span>{' '}
                 {preview.new_inviter_user_id
                   ? `#${preview.new_inviter_user_id} ${
@@ -286,15 +286,15 @@ export function AffiliateInviterSection({
                     }`
                   : t('None')}
               </div>
-              <div>
+              <div className='bg-background/70 rounded-lg p-2'>
                 <span className='font-medium'>{t('Current path')}:</span>{' '}
                 {formatAffiliateInviterPath(preview.current_path_user_ids, t)}
               </div>
-              <div>
+              <div className='bg-background/70 rounded-lg p-2'>
                 <span className='font-medium'>{t('New path')}:</span>{' '}
                 {formatAffiliateInviterPath(preview.new_path_user_ids, t)}
               </div>
-              <div>
+              <div className='bg-background/70 rounded-lg p-2'>
                 <span className='font-medium'>{t('Affected users')}:</span>{' '}
                 {formatAffiliateInviterPath(
                   preview.affected_descendant_user_ids,

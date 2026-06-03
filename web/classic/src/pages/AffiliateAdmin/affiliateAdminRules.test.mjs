@@ -186,6 +186,17 @@ describe('affiliate admin rule set helpers', () => {
     ]);
   });
 
+  test('converts settlement amount yuan fields to backend cents', () => {
+    const payload = buildAffiliateRuleSetDraftPayload({
+      version: 'rules',
+      name: 'Rules',
+      settlement_cycle: 'monthly',
+      min_settlement_amount_yuan: '88.88',
+    });
+
+    expect(payload.settlement_config.min_settlement_amount_cents).toBe(8888);
+  });
+
   test('provides editable default seed values for new drafts', () => {
     const values = buildAffiliateRuleSetDraftFormValues();
     const commissionTiers = JSON.parse(values.commission_tiers_json);

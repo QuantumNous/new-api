@@ -288,12 +288,12 @@ describe('default affiliate admin rule set helpers', () => {
     assert.equal(values.id, '5')
     assert.equal(values.version, 'rules-2026-07')
     assert.equal(values.settlementCycle, 'monthly')
-    assert.deepEqual(JSON.parse(values.commissionRulesJson), [
+    assert.deepEqual(JSON.parse(values.commissionRulesJson || '[]'), [
       { affiliate_level: 1, default_cap_rate_bps: 3000 },
     ])
 
     const seed = buildAffiliateRuleSetDraftFormValues()
-    const commissionTiers = JSON.parse(seed.commissionTiersJson)
+    const commissionTiers = JSON.parse(seed.commissionTiersJson || '[]')
     assert.equal(seed.settlementCycle, 'monthly')
     assert.equal(seed.manualReviewEnabled, true)
     assert.equal(commissionTiers.length, 10)
@@ -306,6 +306,17 @@ describe('default affiliate admin rule set helpers', () => {
       requires_manual_approval: true,
       sort_order: 5,
     })
+  })
+
+  test('converts settlement amount yuan fields to backend cents', () => {
+    const payload = buildAffiliateRuleSetDraftPayload({
+      version: 'rules',
+      name: 'Rules',
+      settlementCycle: 'monthly',
+      minSettlementAmountYuan: '88.88',
+    })
+
+    assert.equal(payload.settlement_config?.min_settlement_amount_cents, 8888)
   })
 
   test('validates rule set payloads before saving drafts', () => {
@@ -411,6 +422,8 @@ describe('default affiliate admin finance helpers', () => {
   })
 
   test('normalizes settlement run and commission recompute payloads', () => {
+    const periodStart = Math.floor(Date.parse('2026-06-03T00:00:00Z') / 1000)
+    const periodEnd = Math.floor(Date.parse('2026-06-04T00:00:00Z') / 1000)
     assert.deepEqual(
       buildAffiliateSettlementRunPayload({
         ruleSetId: '5',
@@ -431,6 +444,31 @@ describe('default affiliate admin finance helpers', () => {
         quota_per_unit: 1000,
         usd_exchange_rate: 7.2,
         reason: 'close month',
+      }
+    )
+
+    assert.deepEqual(
+      {
+        period_start: buildAffiliateSettlementRunPayload({
+          periodStart: '2026-06-03T00:00:00Z',
+          periodEnd: '2026-06-04T00:00:00Z',
+          now: '2026-06-04T01:00:00Z',
+        }).period_start,
+        period_end: buildAffiliateSettlementRunPayload({
+          periodStart: '2026-06-03T00:00:00Z',
+          periodEnd: '2026-06-04T00:00:00Z',
+          now: '2026-06-04T01:00:00Z',
+        }).period_end,
+        now: buildAffiliateSettlementRunPayload({
+          periodStart: '2026-06-03T00:00:00Z',
+          periodEnd: '2026-06-04T00:00:00Z',
+          now: '2026-06-04T01:00:00Z',
+        }).now,
+      },
+      {
+        period_start: periodStart,
+        period_end: periodEnd,
+        now: Math.floor(Date.parse('2026-06-04T01:00:00Z') / 1000),
       }
     )
 
@@ -474,6 +512,15 @@ describe('default affiliate admin finance helpers', () => {
         commission_cents: -250,
         reason: 'support clawback',
       }
+    )
+
+    assert.equal(
+      buildAffiliateCommissionAdjustmentPayload({
+        affiliateUserId: '100',
+        commissionYuan: '-2.50',
+        reason: ' support clawback ',
+      }).commission_cents,
+      -250
     )
   })
 
