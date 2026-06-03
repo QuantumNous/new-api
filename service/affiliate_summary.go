@@ -55,7 +55,7 @@ func BuildAffiliateDashboardSummary(db *gorm.DB, logDB *gorm.DB, input Affiliate
 		return AffiliateDashboardSummary{}, err
 	}
 
-	summary.EffectiveNewUserCount, err = countAffiliateEffectiveNewUsers(db, visible, input)
+	summary.EffectiveNewUserCount, err = countAffiliateEffectiveNewUsers(db, logDB, visible, input)
 	if err != nil {
 		return AffiliateDashboardSummary{}, err
 	}
@@ -78,8 +78,16 @@ func countGlobalAffiliateTeamUsers(db *gorm.DB) (int, error) {
 	return int(count), err
 }
 
-func countAffiliateEffectiveNewUsers(db *gorm.DB, visible AffiliateVisibleUserIds, input AffiliateDashboardSummaryInput) (int, error) {
+func countAffiliateEffectiveNewUsers(db *gorm.DB, logDB *gorm.DB, visible AffiliateVisibleUserIds, input AffiliateDashboardSummaryInput) (int, error) {
 	if !visible.Global && len(visible.UserIds) == 0 {
+		return 0, nil
+	}
+
+	criteria, ok, err := loadAffiliateSummaryEffectiveUserCriteria(db, input)
+	if err != nil {
+		return 0, err
+	}
+	if !ok {
 		return 0, nil
 	}
 
@@ -90,11 +98,137 @@ func countAffiliateEffectiveNewUsers(db *gorm.DB, visible AffiliateVisibleUserId
 		tx = tx.Where("invitee_user_id IN ?", visible.UserIds)
 	}
 
-	var count int64
-	if err := tx.Distinct("invitee_user_id").Count(&count).Error; err != nil {
+	var events []model.AffiliateInviteEvent
+	if err := tx.Order("created_at asc, id asc").Find(&events).Error; err != nil {
 		return 0, err
 	}
-	return int(count), nil
+
+	count := 0
+	seen := map[int]struct{}{}
+	for _, event := range events {
+		if _, ok := seen[event.InviteeUserId]; ok {
+			continue
+		}
+		seen[event.InviteeUserId] = struct{}{}
+		qualified, err := affiliateSummaryInviteeMeetsEffectiveCriteria(db, logDB, event, criteria, input)
+		if err != nil {
+			return 0, err
+		}
+		if qualified {
+			count++
+		}
+	}
+	return count, nil
+}
+
+type affiliateSummaryEffectiveUserCriteria struct {
+	FirstRechargeMinCents int64
+	PeriodNetPaidMinCents int64
+	QualificationDays     int
+}
+
+func loadAffiliateSummaryEffectiveUserCriteria(db *gorm.DB, input AffiliateDashboardSummaryInput) (affiliateSummaryEffectiveUserCriteria, bool, error) {
+	var ruleSet model.AffiliateRuleSet
+	tx := db.Where("status = ?", model.AffiliateRuleSetStatusPublished)
+	if input.EndTimestamp > 0 {
+		tx = tx.Where("(effective_start = 0 OR effective_start <= ?) AND (effective_end = 0 OR effective_end >= ?)", input.EndTimestamp, input.StartTimestamp)
+	}
+	err := tx.Order("effective_start desc, published_at desc, id desc").First(&ruleSet).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return affiliateSummaryEffectiveUserCriteria{}, false, nil
+	}
+	if err != nil {
+		return affiliateSummaryEffectiveUserCriteria{}, false, err
+	}
+
+	ruleTx := db.Where("rule_set_id = ?", ruleSet.Id)
+	if input.Scope.AffiliateLevel > 0 {
+		ruleTx = ruleTx.Where("affiliate_level = ?", input.Scope.AffiliateLevel)
+	}
+	var rules []model.AffiliateHeadFeeRule
+	if err := ruleTx.Order("affiliate_level asc, id asc").Find(&rules).Error; err != nil {
+		return affiliateSummaryEffectiveUserCriteria{}, false, err
+	}
+	if len(rules) == 0 {
+		return affiliateSummaryEffectiveUserCriteria{}, false, nil
+	}
+
+	criteria := affiliateSummaryEffectiveUserCriteria{
+		FirstRechargeMinCents: rules[0].FirstRechargeMinCents,
+		PeriodNetPaidMinCents: rules[0].PeriodNetPaidMinCents,
+		QualificationDays:     rules[0].QualificationDays,
+	}
+	for _, rule := range rules[1:] {
+		if rule.FirstRechargeMinCents < criteria.FirstRechargeMinCents {
+			criteria.FirstRechargeMinCents = rule.FirstRechargeMinCents
+		}
+		if rule.PeriodNetPaidMinCents < criteria.PeriodNetPaidMinCents {
+			criteria.PeriodNetPaidMinCents = rule.PeriodNetPaidMinCents
+		}
+		if rule.QualificationDays < criteria.QualificationDays {
+			criteria.QualificationDays = rule.QualificationDays
+		}
+	}
+	return criteria, true, nil
+}
+
+func affiliateSummaryInviteeMeetsEffectiveCriteria(db *gorm.DB, logDB *gorm.DB, event model.AffiliateInviteEvent, criteria affiliateSummaryEffectiveUserCriteria, input AffiliateDashboardSummaryInput) (bool, error) {
+	qualificationEnd := input.EndTimestamp
+	if criteria.QualificationDays > 0 {
+		qualificationEnd = event.CreatedAt + int64(criteria.QualificationDays)*affiliateSecondsPerDay
+		if input.EndTimestamp > 0 && input.EndTimestamp < qualificationEnd {
+			qualificationEnd = input.EndTimestamp
+		}
+	}
+	tx := logDB.Where("user_id = ? AND type IN ?", event.InviteeUserId, []int{model.LogTypeConsume, model.LogTypeRefund}).
+		Where("created_at >= ?", event.CreatedAt)
+	if qualificationEnd > 0 {
+		tx = tx.Where("created_at <= ?", qualificationEnd)
+	}
+
+	stats := affiliateSummaryEffectiveUserStats{}
+	if err := scanAffiliateLogsByCreatedAtCursor(tx, func(logs []model.Log) error {
+		for _, log := range logs {
+			if affiliateLogBoolFlag(log, "affiliate_abnormal") || affiliateLogBoolFlag(log, "abnormal") {
+				stats.Abnormal = true
+				continue
+			}
+			attribution, err := resolveAffiliateLogQuotaAttribution(db, log)
+			if err != nil {
+				return err
+			}
+			if attribution.PaidRawQuota == 0 {
+				continue
+			}
+			cents := affiliateRawQuotaToCents(attribution.PaidRawQuota, AffiliateCommissionBuildInput{
+				PeriodStart:     input.StartTimestamp,
+				PeriodEnd:       input.EndTimestamp,
+				QuotaPerUnit:    input.QuotaPerUnit,
+				USDExchangeRate: input.USDExchangeRate,
+			})
+			if log.Type == model.LogTypeRefund && cents < 0 {
+				stats.HasPaidRefund = true
+			}
+			if log.Type == model.LogTypeConsume && cents > 0 && stats.FirstRechargeCents == 0 {
+				stats.FirstRechargeCents = cents
+			}
+			stats.NetPaidCents += cents
+		}
+		return nil
+	}); err != nil {
+		return false, err
+	}
+	return !stats.Abnormal &&
+		!stats.HasPaidRefund &&
+		stats.FirstRechargeCents >= criteria.FirstRechargeMinCents &&
+		stats.NetPaidCents >= criteria.PeriodNetPaidMinCents, nil
+}
+
+type affiliateSummaryEffectiveUserStats struct {
+	FirstRechargeCents int64
+	NetPaidCents       int64
+	HasPaidRefund      bool
+	Abnormal           bool
 }
 
 func sumAffiliateNetConsumptionQuota(db *gorm.DB, logDB *gorm.DB, visible AffiliateVisibleUserIds, input AffiliateDashboardSummaryInput) (int64, error) {

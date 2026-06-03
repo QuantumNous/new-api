@@ -57,8 +57,8 @@ func TestBuildAffiliateDashboardSummaryForLevelOneScope(t *testing.T) {
 	if summary.TeamUserCount != 2 {
 		t.Fatalf("expected two visible team users, got %+v", summary)
 	}
-	if summary.EffectiveNewUserCount != 2 {
-		t.Fatalf("expected two effective affiliate invitees, got %+v", summary)
+	if summary.EffectiveNewUserCount != 0 {
+		t.Fatalf("expected no effective affiliate invitees before rules are published, got %+v", summary)
 	}
 	if summary.NetConsumptionQuota != 2500 {
 		t.Fatalf("expected net quota 2500, got %+v", summary)
@@ -142,6 +142,69 @@ func TestBuildAffiliateDashboardSummaryCountsPaidNetConsumptionOnly(t *testing.T
 	}
 	if math.Abs(summary.NetConsumptionRMB-6.65) > 0.000001 {
 		t.Fatalf("expected RMB 6.65 from paid net quota only, got %+v", summary)
+	}
+}
+
+func TestBuildAffiliateDashboardSummaryDoesNotTreatInvitesAsEffectiveWithoutRules(t *testing.T) {
+	db := newAffiliateCommissionTestDB(t)
+	seedAffiliateCommissionRelation(t, db, 100, 200, 1)
+	seedAffiliateKPIInviteEvents(t, db, 100, []int{200})
+	seedAffiliateCommissionLog(t, db, model.Log{UserId: 200, Type: model.LogTypeConsume, Quota: 500, CreatedAt: 1100, Other: `{"quota_source":"paid"}`})
+
+	summary, err := BuildAffiliateDashboardSummary(db, db, AffiliateDashboardSummaryInput{
+		Scope: AffiliateScope{
+			Kind:           AffiliateScopeAffiliate,
+			UserId:         100,
+			AffiliateLevel: 1,
+			MaxDepth:       1,
+		},
+		StartTimestamp:  1000,
+		EndTimestamp:    2000,
+		QuotaPerUnit:    100,
+		USDExchangeRate: 1,
+	})
+	if err != nil {
+		t.Fatalf("BuildAffiliateDashboardSummary returned error: %v", err)
+	}
+
+	if summary.EffectiveNewUserCount != 0 {
+		t.Fatalf("expected invites not to be counted as effective without published rules, got %+v", summary)
+	}
+}
+
+func TestBuildAffiliateDashboardSummaryCountsOnlyQualifiedEffectiveNewUsers(t *testing.T) {
+	db := newAffiliateCommissionTestDB(t)
+	savePublishedAffiliateCommissionRuleSetFromInput(t, db, newAffiliateHeadFeeRuleSetInput("summary-effective-new-users"))
+	for _, userId := range []int{200, 300, 400, 500, 600, 700} {
+		seedAffiliateCommissionRelation(t, db, 100, userId, 1)
+	}
+	seedAffiliateKPIInviteEvents(t, db, 100, []int{200, 300, 400, 500, 600, 700})
+	seedAffiliateCommissionLog(t, db, model.Log{UserId: 200, Type: model.LogTypeConsume, Quota: 200, CreatedAt: 1100, Other: `{"quota_source":"paid"}`})
+	seedAffiliateCommissionLog(t, db, model.Log{UserId: 300, Type: model.LogTypeConsume, Quota: 200, CreatedAt: 1100, Other: `{"quota_source":"paid"}`})
+	seedAffiliateCommissionLog(t, db, model.Log{UserId: 300, Type: model.LogTypeRefund, Quota: 10, CreatedAt: 1200, Other: `{"quota_source":"paid"}`})
+	seedAffiliateCommissionLog(t, db, model.Log{UserId: 400, Type: model.LogTypeConsume, Quota: 200, CreatedAt: 1100, Other: `{"quota_source":"paid","affiliate_abnormal":true}`})
+	seedAffiliateCommissionLog(t, db, model.Log{UserId: 500, Type: model.LogTypeConsume, Quota: 50, CreatedAt: 1100, Other: `{"quota_source":"paid"}`})
+	seedAffiliateCommissionLog(t, db, model.Log{UserId: 600, Type: model.LogTypeConsume, Quota: 500, CreatedAt: 1100, Other: `{"quota_source":"gift"}`})
+	seedAffiliateCommissionLog(t, db, model.Log{UserId: 700, Type: model.LogTypeConsume, Quota: 200, CreatedAt: 1000 + 15*affiliateSecondsPerDay, Other: `{"quota_source":"paid"}`})
+
+	summary, err := BuildAffiliateDashboardSummary(db, db, AffiliateDashboardSummaryInput{
+		Scope: AffiliateScope{
+			Kind:           AffiliateScopeAffiliate,
+			UserId:         100,
+			AffiliateLevel: 1,
+			MaxDepth:       1,
+		},
+		StartTimestamp:  1000,
+		EndTimestamp:    1000 + 30*affiliateSecondsPerDay,
+		QuotaPerUnit:    100,
+		USDExchangeRate: 1,
+	})
+	if err != nil {
+		t.Fatalf("BuildAffiliateDashboardSummary returned error: %v", err)
+	}
+
+	if summary.EffectiveNewUserCount != 1 {
+		t.Fatalf("expected only the qualified paid invitee to count as effective, got %+v", summary)
 	}
 }
 

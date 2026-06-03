@@ -1032,7 +1032,7 @@ func TestGetAffiliateSummaryReturnsScopedDashboard(t *testing.T) {
 	if !body.Success {
 		t.Fatalf("expected success response: %+v", body)
 	}
-	if body.Data.TeamUserCount != 2 || body.Data.EffectiveNewUserCount != 2 {
+	if body.Data.TeamUserCount != 2 || body.Data.EffectiveNewUserCount != 0 {
 		t.Fatalf("unexpected team summary: %+v", body.Data)
 	}
 	if body.Data.NetConsumptionQuota != 2500 || body.Data.RuleStatus != "pending_rules" || body.Data.KPITierName != "待配置" {

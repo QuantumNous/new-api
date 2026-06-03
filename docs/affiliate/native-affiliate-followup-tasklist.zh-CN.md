@@ -108,7 +108,7 @@
 
 ## 9. Dashboard 与统计口径
 
-- [ ] 复核 `service/affiliate_summary.go` 的有效新用户统计，避免只按 invite event 简单计数而没有套用飞书有效用户门槛。
+- [x] 复核 `service/affiliate_summary.go` 的有效新用户统计，避免只按 invite event 简单计数而没有套用飞书有效用户门槛。（2026-06-04 已修复 dashboard summary：无 published 规则时不把 invite 直接计为有效；有规则时按同层级人头费规则的首充、14 天 paid 净消耗、无退款/异常条件判定。）
 - [x] 复核 dashboard 的净消耗统计，确保只统计 paid 净付费消耗并正确扣除退款，不把赠金、试用、legacy_unknown 或异常流量算入业绩。（2026-06-04 已修复 `service/affiliate_summary.go`，dashboard 净消耗改为按 cursor 扫描日志并只累计 paid attribution，同时跳过 abnormal 流量。）
 - [ ] 分销商端 dashboard 保持卡片、趋势图、关系树和明细表组合，不建议全部表格化。
 - [ ] 管理端指标配置和结算审核更适合表格化，分销商端看板更适合“摘要卡片 + 趋势 + 表格明细”。
@@ -289,3 +289,13 @@
 - 回归验证：`go test -count=1 ./service -run "AffiliateDashboardSummary|Affiliate(Commission|KPI|HeadFee|Settlement)"` 通过；`go test -count=1 ./controller -run "TestGetAffiliateSummaryReturnsScopedDashboard|TestGetAffiliateScopedLogs|TestGetAffiliateStatus"` 通过。
 - 残留风险：有效新用户仍只是 affiliate invite event 去重，尚未套用飞书“有效用户”门槛；dashboard 前端 RMB 主单位和趋势口径还需继续复核。
 - 下一步：复核有效新用户统计和 dashboard 前端展示，不要把运营口径只停留在后端 summary 层。
+
+## P1-11 dashboard 有效新用户口径复盘（2026-06-04 本线程）
+
+- RED：新增 `TestBuildAffiliateDashboardSummaryDoesNotTreatInvitesAsEffectiveWithoutRules` 与 `TestBuildAffiliateDashboardSummaryCountsOnlyQualifiedEffectiveNewUsers` 后，旧实现分别把无规则 invite 计为 1、把 mixed invitees 全部计为 6，确认 summary 只是 affiliate invite event 去重。
+- 完成内容：`countAffiliateEffectiveNewUsers` 改为读取当前 published rule set 的同层级 head fee rules，取最低首充门槛、最低周期 paid 净付费门槛和资格天数作为 dashboard effective-user 基准；无 published 规则或无同层级 head fee rule 时返回 0，不再直接把 invite 算有效。
+- 完成内容：每个 invitee 在邀请时间起的资格窗口内按 cursor 扫描 consume/refund 日志，复用 paid attribution；只有首笔 paid 消费达标、窗口 paid 净消耗达标、无 paid refund、无 `affiliate_abnormal`/`abnormal` 才计入有效新用户。
+- 验证命令：`go test -count=1 ./service -run "TestBuildAffiliateDashboardSummaryDoesNotTreatInvitesAsEffectiveWithoutRules|TestBuildAffiliateDashboardSummaryCountsOnlyQualifiedEffectiveNewUsers|TestBuildAffiliateDashboardSummaryForLevelOneScope"` 通过。
+- 回归验证：`go test -count=1 ./service -run "AffiliateDashboardSummary|Affiliate(Commission|KPI|HeadFee|Settlement)"` 通过；`go test -count=1 ./controller -run "TestGetAffiliateSummaryReturnsScopedDashboard|TestGetAffiliateScopedLogs|TestGetAffiliateStatus"` 通过；`git diff --check` 通过。
+- 残留风险：本轮只修 dashboard summary；`service/affiliate_kpi.go` 的 KPI snapshot 有效新用户仍按 invite event 去重，后续需要结合 KPI 最终档位规则单独审计，避免影响结算口径时缺少更完整验收。
+- 下一步：继续复核 KPI 有效用户、dashboard 前端 RMB 主单位和 default/classic 展示一致性。
