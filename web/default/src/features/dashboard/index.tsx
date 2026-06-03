@@ -83,6 +83,12 @@ const LazyTokenCharts = lazy(() =>
   }))
 )
 
+const LazyCodexLimitReportPanel = lazy(() =>
+  import('./components/codex/codex-limit-report').then((m) => ({
+    default: m.CodexLimitReportPanel,
+  }))
+)
+
 function LogStatCardsFallback() {
   return (
     <div className='overflow-hidden rounded-lg border'>
@@ -153,6 +159,10 @@ const SECTION_META: Record<
   users: {
     titleKey: 'User Analytics',
   },
+  'codex-limits': {
+    titleKey: 'Codex Limits',
+    descriptionKey: 'View upstream quota limits for Codex channels',
+  },
 }
 
 export function Dashboard() {
@@ -201,7 +211,9 @@ export function Dashboard() {
   const visibleSections = useMemo(
     () =>
       DASHBOARD_SECTION_IDS.filter(
-        (section) => section !== 'overview' && (section !== 'users' || isAdmin)
+        (section) =>
+          section !== 'overview' &&
+          ((section !== 'users' && section !== 'codex-limits') || isAdmin)
       ),
     [isAdmin]
   )
@@ -315,6 +327,13 @@ export function Dashboard() {
             <FadeIn>
               <Suspense fallback={<ModelChartsFallback />}>
                 <LazyUserCharts />
+              </Suspense>
+            </FadeIn>
+          )}
+          {activeSection === 'codex-limits' && isAdmin && (
+            <FadeIn>
+              <Suspense fallback={<ModelChartsFallback />}>
+                <LazyCodexLimitReportPanel />
               </Suspense>
             </FadeIn>
           )}

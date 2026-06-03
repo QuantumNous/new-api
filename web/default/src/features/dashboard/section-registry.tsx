@@ -45,11 +45,18 @@ const DASHBOARD_SECTIONS = [
     adminOnly: true,
     build: () => null,
   },
+  {
+    id: 'codex-limits',
+    titleKey: 'Codex Limits',
+    descriptionKey: 'View upstream quota limits for Codex channels',
+    adminOnly: true,
+    build: () => null,
+  },
 ] as const
 
 export type DashboardSectionId = (typeof DASHBOARD_SECTIONS)[number]['id']
 
-const ADMIN_ONLY_SECTIONS = new Set<string>(['users'])
+const ADMIN_ONLY_SECTIONS = new Set<string>(['users', 'codex-limits'])
 
 const dashboardRegistry = createSectionRegistry<
   DashboardSectionId,

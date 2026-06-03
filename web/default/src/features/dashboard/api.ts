@@ -18,6 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { api } from '@/lib/api'
 import type {
+  CodexLimitReport,
   QuotaDataItem,
   TokenQuotaDataItem,
   UptimeGroupResult,
@@ -84,6 +85,13 @@ export async function getTokenQuotaDates(
   const res = await api.get<{ success: boolean; data: TokenQuotaDataItem[] }>(
     endpoint,
     { params }
+  )
+  return res.data
+}
+
+export async function getCodexLimitReport() {
+  const res = await api.get<{ success: boolean; data: CodexLimitReport }>(
+    '/api/data/codex/limits'
   )
   return res.data
 }

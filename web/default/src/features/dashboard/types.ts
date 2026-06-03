@@ -46,6 +46,46 @@ export interface TokenQuotaDataItem {
   quota?: number
 }
 
+export interface CodexLimitWindow {
+  used_percent: number
+  reset_at?: number
+  reset_after_seconds?: number
+  limit_window_seconds?: number
+}
+
+export interface CodexAdditionalLimit {
+  name: string
+  metered_feature?: string
+  five_hour_window?: CodexLimitWindow
+  weekly_window?: CodexLimitWindow
+}
+
+export interface CodexLimitReportRow {
+  channel_id: number
+  channel_name: string
+  channel_status: number
+  success: boolean
+  message?: string
+  upstream_status?: number
+  plan_type?: string
+  email?: string
+  account_id?: string
+  user_id?: string
+  allowed: boolean
+  limit_reached: boolean
+  base_five_hour_window?: CodexLimitWindow
+  base_weekly_window?: CodexLimitWindow
+  additional_limits?: CodexAdditionalLimit[]
+}
+
+export interface CodexLimitReport {
+  generated_at: number
+  total_channels: number
+  success_count: number
+  failure_count: number
+  rows: CodexLimitReportRow[]
+}
+
 export interface ProcessedTokenChartData {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   spec_token_rank: Record<string, any>
