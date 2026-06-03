@@ -35,6 +35,7 @@ type affiliateSettlementRunIdempotencyPayload struct {
 	PeriodStart     int64   `json:"period_start"`
 	PeriodEnd       int64   `json:"period_end"`
 	FreezeDays      int     `json:"freeze_days"`
+	DryRun          bool    `json:"dry_run"`
 	QuotaPerUnit    float64 `json:"quota_per_unit"`
 	USDExchangeRate float64 `json:"usd_exchange_rate"`
 }
@@ -421,6 +422,7 @@ func affiliateSettlementRunIdempotencyKey(input AffiliateSettlementRunInput) str
 		PeriodStart:     input.PeriodStart,
 		PeriodEnd:       input.PeriodEnd,
 		FreezeDays:      input.FreezeDays,
+		DryRun:          input.DryRun,
 		QuotaPerUnit:    input.QuotaPerUnit,
 		USDExchangeRate: input.USDExchangeRate,
 	}
@@ -456,6 +458,7 @@ func affiliateSettlementRunInputSnapshot(input AffiliateSettlementRunInput) stri
 		"period_start":      input.PeriodStart,
 		"period_end":        input.PeriodEnd,
 		"freeze_days":       input.FreezeDays,
+		"dry_run":           input.DryRun,
 		"quota_per_unit":    input.QuotaPerUnit,
 		"usd_exchange_rate": input.USDExchangeRate,
 		"actor_user_id":     input.ActorUserId,

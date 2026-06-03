@@ -449,6 +449,54 @@ func TestAdminRunAffiliateSettlementPipeline(t *testing.T) {
 	}
 }
 
+func TestAdminRunAffiliateSettlementPipelineDryRun(t *testing.T) {
+	db := newAffiliateLogsControllerTestDB(t)
+	ruleSet := seedPublishedAffiliateRuleSetForAdminRun(t, db, "admin-settlement-run-dry-run")
+	seedAffiliateInviterControllerProfile(t, db, 100, 1)
+	seedAffiliateInviterControllerRelation(t, db, 100, 200, 1)
+	seedAffiliateInviterControllerRelation(t, db, 100, 300, 2)
+	seedAffiliateRunInviteEvent(t, db, 100, 200, 1100)
+	seedAffiliateRunInviteEvent(t, db, 100, 300, 1100)
+	seedAffiliateLog(t, db, model.Log{UserId: 200, CreatedAt: 1100, Type: model.LogTypeConsume, Quota: 1000, Other: `{"quota_source":"paid"}`})
+	seedAffiliateLog(t, db, model.Log{UserId: 200, CreatedAt: 1200, Type: model.LogTypeConsume, Quota: 1000, Other: `{"quota_source":"paid"}`})
+	seedAffiliateLog(t, db, model.Log{UserId: 300, CreatedAt: 1300, Type: model.LogTypeConsume, Quota: 3000, Other: `{"quota_source":"paid"}`})
+
+	body := performAdminRunAffiliateSettlementPipelineRequest(t, `{
+		"rule_set_id":`+strconv.Itoa(ruleSet.Id)+`,
+		"period_start":1000,
+		"period_end":2000,
+		"freeze_days":7,
+		"dry_run":true,
+		"now":1815500,
+		"quota_per_unit":100,
+		"usd_exchange_rate":1,
+		"reason":"monthly close dry-run"
+	}`)
+	if !body.Success {
+		t.Fatalf("expected successful settlement dry-run, got %+v", body)
+	}
+	if !body.Data.DryRun || body.Data.JobRunId != 0 || body.Data.JobRunStatus != "dry_run" {
+		t.Fatalf("expected dry-run result without persisted job run, got %+v", body.Data)
+	}
+	if body.Data.KPISnapshotCount != 1 || body.Data.CommissionEventCount != 3 || body.Data.HeadFeeEventCount != 2 || len(body.Data.Settlements) != 1 {
+		t.Fatalf("unexpected settlement dry-run counts: %+v", body.Data)
+	}
+	if body.Data.Settlements[0].PayableCents != 5900 {
+		t.Fatalf("expected dry-run payable 5900 cents, got %+v", body.Data.Settlements[0])
+	}
+	var jobRunCount int64
+	if err := db.Model(&model.AffiliateJobRun{}).Count(&jobRunCount).Error; err != nil {
+		t.Fatalf("count job runs: %v", err)
+	}
+	var settlementCount int64
+	if err := db.Model(&model.AffiliateSettlement{}).Count(&settlementCount).Error; err != nil {
+		t.Fatalf("count settlements: %v", err)
+	}
+	if jobRunCount != 0 || settlementCount != 0 {
+		t.Fatalf("expected dry-run to avoid persisted job runs and settlements, job_runs=%d settlements=%d", jobRunCount, settlementCount)
+	}
+}
+
 func TestAdminVoidAffiliateSettlement(t *testing.T) {
 	db := newAffiliateLogsControllerTestDB(t)
 	ruleSet := seedPublishedAffiliateRuleSetForAdminSettlement(t, db, "admin-settlement-void")

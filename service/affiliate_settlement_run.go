@@ -14,6 +14,7 @@ type AffiliateSettlementRunInput struct {
 	PeriodStart     int64   `json:"period_start"`
 	PeriodEnd       int64   `json:"period_end"`
 	FreezeDays      int     `json:"freeze_days"`
+	DryRun          bool    `json:"dry_run"`
 	Now             int64   `json:"now"`
 	QuotaPerUnit    float64 `json:"quota_per_unit"`
 	USDExchangeRate float64 `json:"usd_exchange_rate"`
@@ -25,12 +26,15 @@ type AffiliateSettlementRunResult struct {
 	JobRunId             int                         `json:"job_run_id"`
 	JobRunStatus         string                      `json:"job_run_status"`
 	IdempotencyKey       string                      `json:"idempotency_key"`
+	DryRun               bool                        `json:"dry_run"`
 	KPISnapshotCount     int                         `json:"kpi_snapshot_count"`
 	CommissionEventCount int                         `json:"commission_event_count"`
 	HeadFeeEventCount    int                         `json:"head_fee_event_count"`
 	SettlementCount      int                         `json:"settlement_count"`
 	Settlements          []model.AffiliateSettlement `json:"settlements"`
 }
+
+var errAffiliateSettlementDryRunRollback = errors.New("affiliate settlement dry-run rollback")
 
 func RunAffiliateSettlementPipeline(db *gorm.DB, logDB *gorm.DB, input AffiliateSettlementRunInput) (AffiliateSettlementRunResult, error) {
 	if db == nil {
@@ -45,7 +49,32 @@ func RunAffiliateSettlementPipeline(db *gorm.DB, logDB *gorm.DB, input Affiliate
 	if input.Now == 0 {
 		input.Now = common.GetTimestamp()
 	}
+	if input.DryRun {
+		return runAffiliateSettlementPipelineDryRun(db, logDB, input)
+	}
+	return runAffiliateSettlementPipeline(db, logDB, input)
+}
 
+func runAffiliateSettlementPipelineDryRun(db *gorm.DB, logDB *gorm.DB, input AffiliateSettlementRunInput) (AffiliateSettlementRunResult, error) {
+	var result AffiliateSettlementRunResult
+	err := db.Transaction(func(tx *gorm.DB) error {
+		dryRunResult, err := runAffiliateSettlementPipeline(tx, logDB, input)
+		if err != nil {
+			return err
+		}
+		result = dryRunResult
+		return errAffiliateSettlementDryRunRollback
+	})
+	if err != nil && !errors.Is(err, errAffiliateSettlementDryRunRollback) {
+		return AffiliateSettlementRunResult{}, err
+	}
+	result.JobRunId = 0
+	result.JobRunStatus = "dry_run"
+	result.DryRun = true
+	return result, nil
+}
+
+func runAffiliateSettlementPipeline(db *gorm.DB, logDB *gorm.DB, input AffiliateSettlementRunInput) (AffiliateSettlementRunResult, error) {
 	jobRun, err := createAffiliateSettlementPipelineJobRun(db, input)
 	if err != nil {
 		return AffiliateSettlementRunResult{}, err
@@ -158,6 +187,7 @@ func RunAffiliateSettlementPipeline(db *gorm.DB, logDB *gorm.DB, input Affiliate
 		JobRunId:             jobRun.Id,
 		JobRunStatus:         model.AffiliateJobRunStatusSucceeded,
 		IdempotencyKey:       jobRun.IdempotencyKey,
+		DryRun:               input.DryRun,
 		KPISnapshotCount:     kpiSnapshotCount,
 		CommissionEventCount: commissionEventCount,
 		HeadFeeEventCount:    headFeeEventCount,

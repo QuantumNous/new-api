@@ -162,6 +162,57 @@ func TestRunAffiliateSettlementPipelineIsIdempotentForSamePeriod(t *testing.T) {
 	}
 }
 
+func TestRunAffiliateSettlementPipelineDryRunBuildsPreviewWithoutPersisting(t *testing.T) {
+	db := newAffiliateCommissionTestDB(t)
+	ruleSet := savePublishedAffiliateCommissionRuleSetFromInput(t, db, newAffiliateHeadFeeRuleSetInput("settlement-run-dry-run-preview"))
+	seedAffiliateCommissionProfileAndRelation(t, db, 100, 200, 1)
+	seedAffiliateCommissionRelation(t, db, 100, 300, 2)
+	seedAffiliateKPIInviteEvents(t, db, 100, []int{200, 300})
+	seedAffiliateCommissionLog(t, db, model.Log{UserId: 200, CreatedAt: 1100, Type: model.LogTypeConsume, Quota: 1000, Other: `{"quota_source":"paid"}`})
+	seedAffiliateCommissionLog(t, db, model.Log{UserId: 200, CreatedAt: 1200, Type: model.LogTypeConsume, Quota: 1000, Other: `{"quota_source":"paid"}`})
+	seedAffiliateCommissionLog(t, db, model.Log{UserId: 300, CreatedAt: 1300, Type: model.LogTypeConsume, Quota: 3000, Other: `{"quota_source":"paid"}`})
+
+	input := AffiliateSettlementRunInput{
+		RuleSetId:       ruleSet.Id,
+		PeriodStart:     1000,
+		PeriodEnd:       2000,
+		FreezeDays:      7,
+		Now:             1100 + 21*affiliateSecondsPerDay,
+		QuotaPerUnit:    100,
+		USDExchangeRate: 1,
+		ActorUserId:     9,
+		Reason:          "dry-run monthly settlement run",
+		DryRun:          true,
+	}
+	dryRun, err := RunAffiliateSettlementPipeline(db, db, input)
+	if err != nil {
+		t.Fatalf("dry-run RunAffiliateSettlementPipeline returned error: %v", err)
+	}
+	if !dryRun.DryRun || dryRun.JobRunId != 0 || dryRun.JobRunStatus != "dry_run" {
+		t.Fatalf("expected dry-run result without persisted job run, got %+v", dryRun)
+	}
+	if dryRun.KPISnapshotCount != 1 || dryRun.CommissionEventCount != 3 || dryRun.HeadFeeEventCount != 2 || len(dryRun.Settlements) != 1 {
+		t.Fatalf("unexpected dry-run counts: %+v", dryRun)
+	}
+	if dryRun.Settlements[0].PayableCents != 5900 {
+		t.Fatalf("unexpected dry-run settlement amount: %+v", dryRun.Settlements[0])
+	}
+	assertAffiliatePipelineRows(t, db, 0, 0, 0, 0, 0)
+
+	input.DryRun = false
+	formal, err := RunAffiliateSettlementPipeline(db, db, input)
+	if err != nil {
+		t.Fatalf("formal RunAffiliateSettlementPipeline returned error: %v", err)
+	}
+	if formal.DryRun || formal.KPISnapshotCount != dryRun.KPISnapshotCount || formal.CommissionEventCount != dryRun.CommissionEventCount || formal.HeadFeeEventCount != dryRun.HeadFeeEventCount || len(formal.Settlements) != len(dryRun.Settlements) {
+		t.Fatalf("expected formal run to match dry-run counts, dry=%+v formal=%+v", dryRun, formal)
+	}
+	if formal.Settlements[0].PayableCents != dryRun.Settlements[0].PayableCents {
+		t.Fatalf("expected formal settlement amount to match dry-run, dry=%+v formal=%+v", dryRun.Settlements[0], formal.Settlements[0])
+	}
+	assertAffiliatePipelineRows(t, db, 1, 1, 3, 2, 1)
+}
+
 func TestRunAffiliateSettlementPipelineRecordsJobRunSuccess(t *testing.T) {
 	db := newAffiliateCommissionTestDB(t)
 	ruleSet := savePublishedAffiliateCommissionRuleSetFromInput(t, db, newAffiliateHeadFeeRuleSetInput("settlement-run-job-success"))
@@ -559,5 +610,38 @@ func TestRunAffiliateSettlementPipelineRejectsInvalidPeriod(t *testing.T) {
 		PeriodEnd:   1000,
 	}); err == nil {
 		t.Fatal("expected invalid period to be rejected")
+	}
+}
+
+func assertAffiliatePipelineRows(t *testing.T, db *gorm.DB, jobRuns int64, kpiSnapshots int64, commissionEvents int64, headFeeEvents int64, settlements int64) {
+	t.Helper()
+	var actualJobRuns int64
+	if err := db.Model(&model.AffiliateJobRun{}).Count(&actualJobRuns).Error; err != nil {
+		t.Fatalf("count job runs: %v", err)
+	}
+	var actualKPISnapshots int64
+	if err := db.Model(&model.AffiliateKPISnapshot{}).Count(&actualKPISnapshots).Error; err != nil {
+		t.Fatalf("count kpi snapshots: %v", err)
+	}
+	var actualCommissionEvents int64
+	if err := db.Model(&model.AffiliateCommissionEvent{}).Count(&actualCommissionEvents).Error; err != nil {
+		t.Fatalf("count commission events: %v", err)
+	}
+	var actualHeadFeeEvents int64
+	if err := db.Model(&model.AffiliateHeadFeeEvent{}).Count(&actualHeadFeeEvents).Error; err != nil {
+		t.Fatalf("count head fee events: %v", err)
+	}
+	var actualSettlements int64
+	if err := db.Model(&model.AffiliateSettlement{}).Count(&actualSettlements).Error; err != nil {
+		t.Fatalf("count settlements: %v", err)
+	}
+	if actualJobRuns != jobRuns || actualKPISnapshots != kpiSnapshots || actualCommissionEvents != commissionEvents || actualHeadFeeEvents != headFeeEvents || actualSettlements != settlements {
+		t.Fatalf("unexpected pipeline rows job_runs=%d/%d kpi=%d/%d commission=%d/%d head_fee=%d/%d settlements=%d/%d",
+			actualJobRuns, jobRuns,
+			actualKPISnapshots, kpiSnapshots,
+			actualCommissionEvents, commissionEvents,
+			actualHeadFeeEvents, headFeeEvents,
+			actualSettlements, settlements,
+		)
 	}
 }

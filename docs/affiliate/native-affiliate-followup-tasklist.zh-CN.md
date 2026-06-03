@@ -105,7 +105,7 @@
 - [x] 完整验证重复执行同一周期不会重复计佣、重复发人头费或重复生成结算单。（2026-06-04 已补 service 级完整 pipeline 重复运行审计测试；外部完整结算周期双跑仍按 external acceptance runbook 执行。）
 - [x] 补充 refund、partial refund、gift-only、mixed paid/gift/trial、legacy_unknown、任务钱包扣费、异步任务退款等样本。（2026-06-04 已补 mixed paid/gift/trial/legacy_unknown + partial refund 分佣测试，并复跑现有 gift-only、quota sidecar、人头费、任务钱包扣费/退款 source segment 测试。）
 - [x] 明确历史未标记日志是否进入灰度回填、人工复核或直接排除，不得默认把未知来源计为 paid。（2026-06-04 已明确当前服务策略：无来源日志和 `legacy_unknown` 默认直接排除在 paid 业绩、KPI paid 统计和人头费资格外；如需纳入，只能通过灰度回填或人工复核补写可信 paid sidecar 后再计算。）
-- [ ] 完整结算周期必须做双跑：dry-run 与正式 run 对比，重复正式 run 幂等，结算单金额与事件合计一致。
+- [ ] 完整结算周期必须做双跑：dry-run 与正式 run 对比，重复正式 run 幂等，结算单金额与事件合计一致。（2026-06-04 已补本地 service/API `dry_run` 预览能力，dry-run 不落库，随后正式 run 可生成相同金额；外部真实周期双跑验收仍待做。）
 
 ## 9. Dashboard 与统计口径
 
@@ -158,7 +158,7 @@
 - [x] P0：补 WSL 前端 dev server 一键启动脚本和 runbook，解决重启后 `5173`/`5174` 拒绝连接的问题。
 - [x] P1：明确 dev/prod 镜像切换方案，保证生产不再误用官方 latest 来发布二开功能。
 - [x] P1：把分销管理规则配置重构为运营友好的表格/矩阵，并保留高级 JSON 导入导出。（2026-06-03 已完成 default/classic 可视编辑表格化和高级 JSON 文本保留；2026-06-04 已补 default/classic 导入/导出按钮、diff 预览、复制上一版本、已发布/已归档版本只读查看、发布/归档二次确认、佣金/人头费启停状态、结算自动开关和备注。风控动作仍按第 6 节单项任务保留。）
-- [ ] P1：佣金、KPI、人头费和结算任务改造为分批、可恢复、幂等、可审计。（2026-06-04 已完成 usage logs 的 `created_at,id` cursor 分批扫描、完整 pipeline 重复运行幂等审计；2026-06-03 已完成 settlement pipeline 顶层 job run 审计记录、settlement pending/ready event grouping 的 `id` cursor 分批扫描和 settlement event link 更新批量拆分；2026-06-04 已补 failed job run 同 key 原地 resume，以及 active running 拦截和 stale running 原地接管；2026-06-04 已补 stage-specific cursor payload 与 settlement grouping 失败 cursor 保留；2026-06-04 已补 failed resume 初始化保留 typed cursor payload；2026-06-04 已补 settlement pipeline failed resume 跳过已完成整阶段和跳过前持久化输出校验；2026-06-04 Docker probe 仍不可用，schema diff 未生成；阶段内部 cursor 断点续扫、Docker schema diff 和外部完整周期 dry-run/正式 run 双跑验收仍待做。）
+- [ ] P1：佣金、KPI、人头费和结算任务改造为分批、可恢复、幂等、可审计。（2026-06-04 已完成 usage logs 的 `created_at,id` cursor 分批扫描、完整 pipeline 重复运行幂等审计；2026-06-03 已完成 settlement pipeline 顶层 job run 审计记录、settlement pending/ready event grouping 的 `id` cursor 分批扫描和 settlement event link 更新批量拆分；2026-06-04 已补 failed job run 同 key 原地 resume，以及 active running 拦截和 stale running 原地接管；2026-06-04 已补 stage-specific cursor payload 与 settlement grouping 失败 cursor 保留；2026-06-04 已补 failed resume 初始化保留 typed cursor payload；2026-06-04 已补 settlement pipeline failed resume 跳过已完成整阶段和跳过前持久化输出校验；2026-06-04 已补 settlement pipeline service/API dry-run 预览能力；2026-06-04 Docker probe 仍不可用，schema diff 未生成；阶段内部 cursor 断点续扫、Docker schema diff 和外部完整周期 dry-run/正式 run 双跑验收仍待做。）
 - [x] P2：把飞书规则沉淀为默认 rule set seed，并增加单位转换、区间完整性和发布不可变测试。（2026-06-04 已完成当前 master plan 默认值的 service seed、admin seed API 和 Go 测试；最新飞书方案外部复核仍按第 7 节其他单项保留。）
 - [ ] P2：补齐 SMS 分布式限流、手机号注册归因和真实通道 smoke。（2026-06-04 已补 DB sidecar 固定窗口限流，并确认手机号绑定继续使用 `user_phone_bindings` sidecar、不改官方 `users` 表；手机号注册归因、真实通道 smoke 和 Docker PostgreSQL schema diff 仍待做。）
 - [ ] P2：完善 dashboard 统计口径、浏览器截图回归和外部验收归档。
@@ -563,6 +563,15 @@
 - 验证命令：RED 阶段 `go test -count=1 ./service -run TestRunAffiliateSettlementPipelineResumeRerunsWhenCompletedStageOutputsAreMissing` 失败；实现后同命令通过。
 - 回归验证：`go test -count=1 ./service -run "TestRunAffiliateSettlementPipelineResume(RerunsWhenCompletedStageOutputsAreMissing|sFailedSettlementStageWithoutRescanningLogs)"` 通过；`go test -count=1 ./service -run "RunAffiliateSettlementPipeline(IsIdempotent|RecordsJobRun|ResumesFailed|RejectsActive|ResumesStale|Builds|RejectsInvalid)|GenerateAffiliateSettlementsWithJobRun(Records|ResumesFailed|ResumesStale|PreservesStageCursor)|ResumeFailedAffiliateJobRunPreservesCursor"` 通过。
 - 残留风险：阶段内部 cursor 断点续扫、Docker PostgreSQL schema diff、完整周期 dry-run/正式 run 双跑仍待做。
+
+## P1-34 settlement pipeline dry-run 复盘（2026-06-04 本线程）
+
+- RED：新增 `TestRunAffiliateSettlementPipelineDryRunBuildsPreviewWithoutPersisting`，要求 service 层 `DryRun=true` 返回 KPI/佣金/人头费/结算预览，但不持久化 job run、KPI snapshot、commission event、head fee event 或 settlement；旧实现因缺少 `DryRun` 输入和结果字段编译失败。新增 `TestAdminRunAffiliateSettlementPipelineDryRun`，要求 admin API payload 的 `dry_run:true` 透传到 service；旧 controller 未透传，测试失败且实际落库。
+- 完成内容：`AffiliateSettlementRunInput` 与 admin request 新增 `dry_run`，`AffiliateSettlementRunResult` 新增 `dry_run`。dry-run 在事务中执行完整 pipeline，成功构建预览后用内部 rollback sentinel 回滚所有写入，返回 `job_run_id=0`、`job_run_status=dry_run` 和可与正式 run 对比的 settlement preview。
+- 完成内容：pipeline idempotency payload 和 input snapshot 纳入 `dry_run`，避免 dry-run 与正式 run 的幂等键语义混淆；正式 run 路径保持原有 job run 审计、幂等和落库行为。
+- 验证命令：RED 阶段 `go test -count=1 ./service -run TestRunAffiliateSettlementPipelineDryRunBuildsPreviewWithoutPersisting` 因缺字段失败；实现 service 后通过。RED 阶段 `go test -count=1 ./controller -run TestAdminRunAffiliateSettlementPipelineDryRun` 因 controller 未透传 dry-run 失败；补映射后通过。
+- 回归验证：`go test -count=1 ./service ./controller -run "SettlementPipeline|AffiliateSettlement|AdminRunAffiliateSettlementPipeline|GenerateAffiliateSettlements|JobRun|DryRun"` 通过。
+- 残留风险：本轮是本地 service/API dry-run 能力，不替代外部真实周期 dry-run/正式 run 双跑验收；阶段内部 cursor 断点续扫、Docker PostgreSQL schema diff 和生产/staging 真实链路验证仍待做。
 
 ## P2-2 SMS DB-backed 限流复盘（2026-06-04 本线程）
 

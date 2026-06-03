@@ -22,6 +22,7 @@ type affiliateSettlementRunRequest struct {
 	PeriodStart     int64   `json:"period_start"`
 	PeriodEnd       int64   `json:"period_end"`
 	FreezeDays      int     `json:"freeze_days"`
+	DryRun          bool    `json:"dry_run"`
 	Now             int64   `json:"now"`
 	QuotaPerUnit    float64 `json:"quota_per_unit"`
 	USDExchangeRate float64 `json:"usd_exchange_rate"`
@@ -227,6 +228,7 @@ func AdminRunAffiliateSettlementPipeline(c *gin.Context) {
 		PeriodStart:     req.PeriodStart,
 		PeriodEnd:       req.PeriodEnd,
 		FreezeDays:      req.FreezeDays,
+		DryRun:          req.DryRun,
 		Now:             req.Now,
 		QuotaPerUnit:    req.QuotaPerUnit,
 		USDExchangeRate: req.USDExchangeRate,
