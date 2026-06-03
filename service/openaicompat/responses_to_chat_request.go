@@ -438,6 +438,13 @@ func convertResponsesToolsToChatTools(tools json.RawMessage) ([]dto.ToolCallRequ
 			continue
 		}
 		name, _ := item["name"].(string)
+
+		// 过滤空 name 的 function tool：上游（如 DeepSeek）要求 function.name 最小长度为 1，
+		// 空 name 会导致 400 错误 "Invalid 'tools[0].function.name': empty string"
+		if strings.TrimSpace(name) == "" {
+			continue
+		}
+
 		desc, _ := item["description"].(string)
 		params := item["parameters"]
 		var strict *bool
