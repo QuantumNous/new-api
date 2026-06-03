@@ -244,6 +244,7 @@ function areMonitoringValuesEqual(
 type ChannelTypePickerProps = {
   title: string
   description: string
+  emptySummary: string
   value: number[]
   onChange: (value: number[]) => void
 }
@@ -252,6 +253,7 @@ function ChannelTypePicker(props: ChannelTypePickerProps) {
   const { t } = useTranslation()
   const [open, setOpen] = useState(false)
   const selected = new Set(props.value)
+  const allSelected = props.value.length === CHANNEL_TYPE_OPTIONS.length
   const selectedLabels = props.value
     .map((id) => CHANNEL_TYPE_OPTIONS.find((option) => option.value === id))
     .filter((option): option is (typeof CHANNEL_TYPE_OPTIONS)[number] =>
@@ -268,6 +270,10 @@ function ChannelTypePicker(props: ChannelTypePickerProps) {
     props.onChange(normalizeChannelTypeIds(Array.from(next)))
   }
 
+  const selectAllChannelTypes = () => {
+    props.onChange(CHANNEL_TYPE_OPTIONS.map((option) => option.value))
+  }
+
   return (
     <div className='space-y-3'>
       <Button
@@ -278,13 +284,17 @@ function ChannelTypePicker(props: ChannelTypePickerProps) {
       >
         <span>{t('Select channel types')}</span>
         <span className='text-muted-foreground text-xs'>
-          {props.value.length === 0
-            ? t('All')
-            : t('{{count}} selected', { count: props.value.length })}
+          {props.value.length === 0 && t(props.emptySummary)}
+          {props.value.length > 0 &&
+            !allSelected &&
+            t('{{count}} selected', { count: props.value.length })}
+          {allSelected && t('All channel types selected')}
         </span>
       </Button>
 
-      {selectedLabels.length === 0 ? (
+      {allSelected ? (
+        <Badge variant='outline'>{t('All channel types selected')}</Badge>
+      ) : selectedLabels.length === 0 ? (
         <p className='text-muted-foreground text-sm'>
           {t('No channel types selected')}
         </p>
@@ -304,6 +314,17 @@ function ChannelTypePicker(props: ChannelTypePickerProps) {
             <DialogTitle>{props.title}</DialogTitle>
             <DialogDescription>{props.description}</DialogDescription>
           </DialogHeader>
+          <div className='flex flex-wrap gap-2'>
+            <Button
+              type='button'
+              variant={allSelected ? 'default' : 'outline'}
+              size='sm'
+              className='rounded-full'
+              onClick={selectAllChannelTypes}
+            >
+              {t('Select all')}
+            </Button>
+          </div>
           <div className='grid max-h-[50vh] gap-2 overflow-y-auto pr-1 sm:grid-cols-2'>
             {CHANNEL_TYPE_OPTIONS.map((option) => (
               <label
@@ -578,6 +599,7 @@ export function MonitoringSettingsSection({
                       description={t(
                         'When selected, scheduled tests only include these channel types unless they are excluded.'
                       )}
+                      emptySummary='All channel types'
                       value={field.value}
                       onChange={field.onChange}
                     />
@@ -602,6 +624,7 @@ export function MonitoringSettingsSection({
                       description={t(
                         'Excluded channel types are skipped before required channel types are applied.'
                       )}
+                      emptySummary='No channel types excluded'
                       value={field.value}
                       onChange={field.onChange}
                     />
