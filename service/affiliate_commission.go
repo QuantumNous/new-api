@@ -21,6 +21,13 @@ const (
 	AffiliateCommissionEventKindManualAdjustment = "manual_adjustment"
 )
 
+type affiliateLogQuotaAttribution struct {
+	PaidRawQuota          int64
+	GiftRawQuota          int64
+	TrialRawQuota         int64
+	LegacyUnknownRawQuota int64
+}
+
 type AffiliateCommissionBuildInput struct {
 	RuleSetId       int
 	PeriodStart     int64
@@ -48,7 +55,7 @@ func BuildAffiliatePendingCommissionEvents(db *gorm.DB, logDB *gorm.DB, input Af
 		return []model.AffiliateCommissionEvent{}, nil
 	}
 
-	cumulative, err := loadAffiliatePriorPaidCentsByUser(logDB, sourceLogs, input)
+	cumulative, err := loadAffiliatePriorPaidCentsByUser(db, logDB, sourceLogs, input)
 	if err != nil {
 		return nil, err
 	}
@@ -56,15 +63,19 @@ func BuildAffiliatePendingCommissionEvents(db *gorm.DB, logDB *gorm.DB, input Af
 	created := make([]model.AffiliateCommissionEvent, 0)
 	err = db.Transaction(func(tx *gorm.DB) error {
 		for _, sourceLog := range sourceLogs {
-			if ResolveAffiliateLogQuotaSource(sourceLog) != AffiliateQuotaSourcePaid {
+			attribution, err := resolveAffiliateLogQuotaAttribution(tx, sourceLog)
+			if err != nil {
+				return err
+			}
+			if attribution.PaidRawQuota == 0 {
 				continue
 			}
 
-			netPaidCents := affiliateLogQuotaToCents(sourceLog, input)
+			netPaidCents := affiliateRawQuotaToCents(attribution.PaidRawQuota, input)
 			if netPaidCents == 0 {
 				continue
 			}
-			rawQuota := signedAffiliateLogQuota(sourceLog)
+			rawQuota := attribution.PaidRawQuota
 			beforeCents := cumulative[sourceLog.UserId]
 			afterCents := beforeCents + netPaidCents
 			cumulative[sourceLog.UserId] = afterCents
@@ -157,6 +168,100 @@ func ResolveAffiliateLogQuotaSource(log model.Log) string {
 	return ""
 }
 
+func resolveAffiliateLogQuotaAttribution(db *gorm.DB, log model.Log) (affiliateLogQuotaAttribution, error) {
+	source := ResolveAffiliateLogQuotaSource(log)
+	if source != "" {
+		return affiliateLogQuotaAttributionForSource(source, signedAffiliateLogQuota(log)), nil
+	}
+	if db == nil {
+		return affiliateLogQuotaAttribution{}, nil
+	}
+	return loadAffiliateQuotaSourceSidecarAttribution(db, log)
+}
+
+func affiliateLogQuotaAttributionForSource(source string, rawQuota int64) affiliateLogQuotaAttribution {
+	switch source {
+	case AffiliateQuotaSourcePaid:
+		return affiliateLogQuotaAttribution{PaidRawQuota: rawQuota}
+	case AffiliateQuotaSourceGift:
+		return affiliateLogQuotaAttribution{GiftRawQuota: rawQuota}
+	case AffiliateQuotaSourceTrial:
+		return affiliateLogQuotaAttribution{TrialRawQuota: rawQuota}
+	default:
+		return affiliateLogQuotaAttribution{LegacyUnknownRawQuota: rawQuota}
+	}
+}
+
+func loadAffiliateQuotaSourceSidecarAttribution(db *gorm.DB, log model.Log) (affiliateLogQuotaAttribution, error) {
+	eventType := ""
+	switch log.Type {
+	case model.LogTypeConsume:
+		eventType = model.QuotaSourceEventDebit
+	case model.LogTypeRefund:
+		eventType = model.QuotaSourceEventRefund
+	default:
+		return affiliateLogQuotaAttribution{}, nil
+	}
+
+	if log.Id > 0 {
+		events, err := listAffiliateQuotaSourceSidecarEvents(db, log, eventType, "(source_log_id = ? OR (related_type = ? AND related_id = ?))", log.Id, "log", fmt.Sprint(log.Id))
+		if err != nil {
+			return affiliateLogQuotaAttribution{}, err
+		}
+		if len(events) > 0 {
+			return affiliateQuotaSourceEventsToAttribution(events, eventType), nil
+		}
+	}
+	requestId := strings.TrimSpace(log.RequestId)
+	if requestId == "" {
+		return affiliateLogQuotaAttribution{}, nil
+	}
+	events, err := listAffiliateQuotaSourceSidecarEvents(db, log, eventType, "request_id = ?", requestId)
+	if err != nil {
+		return affiliateLogQuotaAttribution{}, err
+	}
+	return affiliateQuotaSourceEventsToAttribution(events, eventType), nil
+}
+
+func listAffiliateQuotaSourceSidecarEvents(db *gorm.DB, log model.Log, eventType string, matchSql string, matchArgs ...interface{}) ([]model.UserQuotaSourceEvent, error) {
+	var events []model.UserQuotaSourceEvent
+	err := db.
+		Where("user_id = ? AND source IN ? AND event_type = ?", log.UserId, []string{
+			AffiliateQuotaSourcePaid,
+			AffiliateQuotaSourceGift,
+			AffiliateQuotaSourceTrial,
+			model.QuotaSourceLegacyUnknown,
+		}, eventType).
+		Where(matchSql, matchArgs...).
+		Order("id asc").
+		Find(&events).Error
+	return events, err
+}
+
+func affiliateQuotaSourceEventsToAttribution(events []model.UserQuotaSourceEvent, eventType string) affiliateLogQuotaAttribution {
+	attribution := affiliateLogQuotaAttribution{}
+	for _, event := range events {
+		rawQuota := event.Amount
+		if rawQuota < 0 {
+			rawQuota = -rawQuota
+		}
+		if eventType == model.QuotaSourceEventRefund {
+			rawQuota = -rawQuota
+		}
+		switch event.Source {
+		case AffiliateQuotaSourcePaid:
+			attribution.PaidRawQuota += rawQuota
+		case AffiliateQuotaSourceGift:
+			attribution.GiftRawQuota += rawQuota
+		case AffiliateQuotaSourceTrial:
+			attribution.TrialRawQuota += rawQuota
+		default:
+			attribution.LegacyUnknownRawQuota += rawQuota
+		}
+	}
+	return attribution
+}
+
 func listAffiliateCommissionSourceLogs(logDB *gorm.DB, input AffiliateCommissionBuildInput) ([]model.Log, error) {
 	tx := logDB.
 		Where("type IN ?", []int{model.LogTypeConsume, model.LogTypeRefund}).
@@ -175,7 +280,7 @@ func listAffiliateCommissionSourceLogs(logDB *gorm.DB, input AffiliateCommission
 	return logs, nil
 }
 
-func loadAffiliatePriorPaidCentsByUser(logDB *gorm.DB, sourceLogs []model.Log, input AffiliateCommissionBuildInput) (map[int]int64, error) {
+func loadAffiliatePriorPaidCentsByUser(db *gorm.DB, logDB *gorm.DB, sourceLogs []model.Log, input AffiliateCommissionBuildInput) (map[int]int64, error) {
 	cumulative := make(map[int]int64)
 	if input.PeriodStart == 0 {
 		return cumulative, nil
@@ -202,10 +307,14 @@ func loadAffiliatePriorPaidCentsByUser(logDB *gorm.DB, sourceLogs []model.Log, i
 		return nil, err
 	}
 	for _, log := range priorLogs {
-		if ResolveAffiliateLogQuotaSource(log) != AffiliateQuotaSourcePaid {
+		attribution, err := resolveAffiliateLogQuotaAttribution(db, log)
+		if err != nil {
+			return nil, err
+		}
+		if attribution.PaidRawQuota == 0 {
 			continue
 		}
-		cumulative[log.UserId] += affiliateLogQuotaToCents(log, input)
+		cumulative[log.UserId] += affiliateRawQuotaToCents(attribution.PaidRawQuota, input)
 	}
 	return cumulative, nil
 }
@@ -326,6 +435,10 @@ func signedAffiliateLogQuota(log model.Log) int64 {
 }
 
 func affiliateLogQuotaToCents(log model.Log, input AffiliateCommissionBuildInput) int64 {
+	return affiliateRawQuotaToCents(signedAffiliateLogQuota(log), input)
+}
+
+func affiliateRawQuotaToCents(rawQuota int64, input AffiliateCommissionBuildInput) int64 {
 	quotaPerUnit := input.QuotaPerUnit
 	if quotaPerUnit <= 0 {
 		quotaPerUnit = common.QuotaPerUnit
@@ -334,7 +447,7 @@ func affiliateLogQuotaToCents(log model.Log, input AffiliateCommissionBuildInput
 	if usdExchangeRate <= 0 {
 		usdExchangeRate = 1
 	}
-	cents := float64(signedAffiliateLogQuota(log)) / quotaPerUnit * usdExchangeRate * 100
+	cents := float64(rawQuota) / quotaPerUnit * usdExchangeRate * 100
 	return int64(math.Round(cents))
 }
 

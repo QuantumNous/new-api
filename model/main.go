@@ -288,6 +288,9 @@ func migrateDB() error {
 	if err := DB.AutoMigrate(AffiliateSidecarModels()...); err != nil {
 		return err
 	}
+	if err := DB.AutoMigrate(QuotaSourceSidecarModels()...); err != nil {
+		return err
+	}
 	if err := DB.AutoMigrate(SMSSidecarModels()...); err != nil {
 		return err
 	}
@@ -362,6 +365,9 @@ func migrateDBFast() error {
 	}
 	if err := DB.AutoMigrate(AffiliateSidecarModels()...); err != nil {
 		return fmt.Errorf("failed to migrate affiliate sidecar models: %v", err)
+	}
+	if err := DB.AutoMigrate(QuotaSourceSidecarModels()...); err != nil {
+		return fmt.Errorf("failed to migrate quota source sidecar models: %v", err)
 	}
 	if err := DB.AutoMigrate(SMSSidecarModels()...); err != nil {
 		return fmt.Errorf("failed to migrate sms sidecar models: %v", err)

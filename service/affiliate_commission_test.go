@@ -168,6 +168,69 @@ func TestBuildAffiliatePendingCommissionEventsUsesCumulativeTierAndKPICoefficien
 	}
 }
 
+func TestBuildAffiliatePendingCommissionEventsUsesQuotaSourceSidecarPaidPortion(t *testing.T) {
+	db := newAffiliateCommissionTestDB(t)
+	savePublishedAffiliateCommissionRuleSet(t, db, "commission-quota-source-sidecar")
+	seedAffiliateCommissionProfileAndRelation(t, db, 100, 300, 1)
+	log := seedAffiliateCommissionLog(t, db, model.Log{
+		UserId:    300,
+		CreatedAt: 1100,
+		Type:      model.LogTypeConsume,
+		Quota:     1000,
+	})
+	seedAffiliateQuotaSourceEvent(t, db, model.UserQuotaSourceEvent{
+		UserId:      300,
+		Source:      AffiliateQuotaSourcePaid,
+		EventType:   model.QuotaSourceEventDebit,
+		Amount:      400,
+		SourceLogId: log.Id,
+	})
+	seedAffiliateQuotaSourceEvent(t, db, model.UserQuotaSourceEvent{
+		UserId:      300,
+		Source:      AffiliateQuotaSourceGift,
+		EventType:   model.QuotaSourceEventDebit,
+		Amount:      600,
+		SourceLogId: log.Id,
+	})
+	giftTaggedLog := seedAffiliateCommissionLog(t, db, model.Log{
+		UserId:    300,
+		CreatedAt: 1150,
+		Type:      model.LogTypeConsume,
+		Quota:     500,
+		Other:     `{"quota_source":"gift"}`,
+	})
+	seedAffiliateQuotaSourceEvent(t, db, model.UserQuotaSourceEvent{
+		UserId:      300,
+		Source:      AffiliateQuotaSourcePaid,
+		EventType:   model.QuotaSourceEventDebit,
+		Amount:      500,
+		SourceLogId: giftTaggedLog.Id,
+	})
+	seedAffiliateCommissionLog(t, db, model.Log{
+		UserId:    300,
+		CreatedAt: 1200,
+		Type:      model.LogTypeConsume,
+		Quota:     500,
+	})
+
+	events, err := BuildAffiliatePendingCommissionEvents(db, db, AffiliateCommissionBuildInput{
+		PeriodStart:     1000,
+		PeriodEnd:       2000,
+		QuotaPerUnit:    100,
+		USDExchangeRate: 1,
+	})
+	if err != nil {
+		t.Fatalf("BuildAffiliatePendingCommissionEvents returned error: %v", err)
+	}
+	if len(events) != 1 {
+		t.Fatalf("expected one commission event from sidecar paid portion, got %+v", events)
+	}
+	event := events[0]
+	if event.SourceLogId != log.Id || event.RawQuota != 400 || event.NetPaidConsumptionCents != 400 || event.CommissionCents != 48 {
+		t.Fatalf("expected sidecar paid portion only to be commissioned, got %+v", event)
+	}
+}
+
 func newAffiliateCommissionTestDB(t *testing.T) *gorm.DB {
 	t.Helper()
 	name := strings.NewReplacer("/", "_", " ", "_").Replace(t.Name())
@@ -175,7 +238,9 @@ func newAffiliateCommissionTestDB(t *testing.T) *gorm.DB {
 	if err != nil {
 		t.Fatalf("open sqlite: %v", err)
 	}
-	if err := db.AutoMigrate(append(model.AffiliateSidecarModels(), &model.Log{})...); err != nil {
+	models := append(model.AffiliateSidecarModels(), model.QuotaSourceSidecarModels()...)
+	models = append(models, &model.Log{})
+	if err := db.AutoMigrate(models...); err != nil {
 		t.Fatalf("migrate affiliate/log models: %v", err)
 	}
 	return db
@@ -229,4 +294,12 @@ func seedAffiliateCommissionLog(t *testing.T, db *gorm.DB, log model.Log) model.
 		t.Fatalf("seed log: %v", err)
 	}
 	return log
+}
+
+func seedAffiliateQuotaSourceEvent(t *testing.T, db *gorm.DB, event model.UserQuotaSourceEvent) model.UserQuotaSourceEvent {
+	t.Helper()
+	if err := db.Create(&event).Error; err != nil {
+		t.Fatalf("seed quota source event: %v", err)
+	}
+	return event
 }

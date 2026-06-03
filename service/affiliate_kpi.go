@@ -178,16 +178,19 @@ func buildAffiliateKPIMetrics(db *gorm.DB, logDB *gorm.DB, visibleUserIds []int,
 			userStats.HasSecondPaymentFlag = true
 		}
 
-		source := ResolveAffiliateLogQuotaSource(log)
-		switch source {
-		case AffiliateQuotaSourcePaid:
+		attribution, err := resolveAffiliateLogQuotaAttribution(db, log)
+		if err != nil {
+			return affiliateKPIMetrics{}, err
+		}
+		if attribution.PaidRawQuota != 0 {
 			userStats.HasPaid = true
 			if log.Type == model.LogTypeConsume {
 				userStats.PaidConsumeCount++
 			}
-			metrics.PaidConsumptionRawQuota += signedAffiliateLogQuota(log)
-			metrics.NetPaidConsumptionCents += affiliateLogQuotaToCents(log, AffiliateCommissionBuildInput(input))
-		case AffiliateQuotaSourceGift, AffiliateQuotaSourceTrial:
+			metrics.PaidConsumptionRawQuota += attribution.PaidRawQuota
+			metrics.NetPaidConsumptionCents += affiliateRawQuotaToCents(attribution.PaidRawQuota, AffiliateCommissionBuildInput(input))
+		}
+		if attribution.GiftRawQuota != 0 || attribution.TrialRawQuota != 0 {
 			userStats.HasGiftOrTrial = true
 		}
 	}

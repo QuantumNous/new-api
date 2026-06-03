@@ -78,6 +78,50 @@ func TestBuildAffiliateKPISnapshotsFallsBackWhenQualityGateFails(t *testing.T) {
 	}
 }
 
+func TestBuildAffiliateKPISnapshotsUsesQuotaSourceSidecar(t *testing.T) {
+	db := newAffiliateCommissionTestDB(t)
+	savePublishedAffiliateCommissionRuleSetFromInput(t, db, newAffiliateKPIRuleSetInput("kpi-quota-source-sidecar"))
+	seedAffiliateCommissionProfileAndRelation(t, db, 100, 200, 1)
+	seedAffiliateCommissionRelation(t, db, 100, 300, 2)
+	seedAffiliateKPIInviteEvents(t, db, 100, []int{200, 300})
+	paidLog := seedAffiliateCommissionLog(t, db, model.Log{UserId: 200, CreatedAt: 1100, Type: model.LogTypeConsume, Quota: 1000})
+	giftLog := seedAffiliateCommissionLog(t, db, model.Log{UserId: 300, CreatedAt: 1200, Type: model.LogTypeConsume, Quota: 500})
+	seedAffiliateQuotaSourceEvent(t, db, model.UserQuotaSourceEvent{
+		UserId:      200,
+		Source:      AffiliateQuotaSourcePaid,
+		EventType:   model.QuotaSourceEventDebit,
+		Amount:      1000,
+		SourceLogId: paidLog.Id,
+	})
+	seedAffiliateQuotaSourceEvent(t, db, model.UserQuotaSourceEvent{
+		UserId:      300,
+		Source:      AffiliateQuotaSourceGift,
+		EventType:   model.QuotaSourceEventDebit,
+		Amount:      500,
+		SourceLogId: giftLog.Id,
+	})
+
+	snapshots, err := BuildAffiliateKPISnapshots(db, db, AffiliateKPIBuildInput{
+		PeriodStart:     1000,
+		PeriodEnd:       2000,
+		QuotaPerUnit:    1000,
+		USDExchangeRate: 1,
+	})
+	if err != nil {
+		t.Fatalf("BuildAffiliateKPISnapshots returned error: %v", err)
+	}
+	if len(snapshots) != 1 {
+		t.Fatalf("expected one KPI snapshot, got %+v", snapshots)
+	}
+	snapshot := snapshots[0]
+	if snapshot.PaidConsumptionRawQuota != 1000 || snapshot.NetPaidConsumptionCents != 100 {
+		t.Fatalf("expected sidecar paid consumption metrics, got %+v", snapshot)
+	}
+	if snapshot.GiftOnlyUserCount != 1 || snapshot.GiftOnlyRatioBps != 5000 {
+		t.Fatalf("expected sidecar gift-only quality metrics, got %+v", snapshot)
+	}
+}
+
 func newAffiliateKPIRuleSetInput(version string) AffiliateRuleSetDraftInput {
 	input := newAffiliateRuleSetDraftInput(version)
 	input.KPITiers = []AffiliateKPITierInput{

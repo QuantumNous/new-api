@@ -83,8 +83,8 @@
 
 - [x] 在未开发前导出官方基线 PostgreSQL schema；严格意义上无法回到功能分支最初未开发时间点，但当前 `AffiliateSidecarModels()` 尚未接入全局 AutoMigrate，2026-06-02 已从恢复后的 compose PostgreSQL 导出 sidecar 接入前 baseline：`runtime/schema-impact/20260602T150911Z-compose-official-baseline.sql`，sha256 校验通过且 runtime 被 Git 忽略。
 - [x] 建立 schema impact 脚本或手工流程。
-- [x] 后续每次新增 GORM model 前后都生成 diff；2026-06-02 本次 `AffiliateSidecarModels()` 接入 AutoMigrate 已生成 before/after schema 和 diff：`runtime/schema-impact/20260602T150911Z-compose-official-baseline.sql` -> `runtime/schema-impact/20260602T152044Z-affiliate-sidecar-after.sql`，diff 保存在 `runtime/schema-impact/20260602T152044Z-affiliate-sidecar.diff`，runtime 被 Git 忽略。
-- [x] 确认新增内容只包括预期 `affiliate_*` / sidecar 表和索引；2026-06-02 diff 显示新增 15 个 `affiliate_*` 表及其序列/索引/主键，反向检查未发现非 `affiliate_*` 的新增 `CREATE` / `ALTER`。
+- [x] 后续每次新增 GORM model 前后都生成 diff；2026-06-02 本次 `AffiliateSidecarModels()` 接入 AutoMigrate 已生成 before/after schema 和 diff：`runtime/schema-impact/20260602T150911Z-compose-official-baseline.sql` -> `runtime/schema-impact/20260602T152044Z-affiliate-sidecar-after.sql`，diff 保存在 `runtime/schema-impact/20260602T152044Z-affiliate-sidecar.diff`，runtime 被 Git 忽略；2026-06-03 新增 `QuotaSourceSidecarModels()` 时再次生成 `runtime/schema-impact/20260603T003059Z-quota-source-before.sql` -> `runtime/schema-impact/20260603T003059Z-quota-source-after.sql`。
+- [x] 确认新增内容只包括预期 `affiliate_*` / sidecar 表和索引；2026-06-02 diff 显示新增 15 个 `affiliate_*` 表及其序列/索引/主键，反向检查未发现非 `affiliate_*` 的新增 `CREATE` / `ALTER`；2026-06-03 quota source diff 只新增 `user_quota_source_balances`、`user_quota_source_events` 及其序列、主键和索引。
 - [x] 明确禁止改动官方核心表结构，除非有单独批准和记录；2026-06-02 已在 sidecar 接入前导出 baseline，随后仅将 `AffiliateSidecarModels()` 接入 `model/main.go` 的 `migrateDB` / `migrateDBFast`，schema diff 反向检查未发现非 `affiliate_*` 的新增 `CREATE` / `ALTER`。
 
 ## Phase 3：分销 sidecar 表与服务骨架
@@ -104,9 +104,9 @@
 - [x] 新增 `affiliate_head_fee_rules` 模型，用于有效用户定义和人头费金额。
 - [x] 新增 `affiliate_risk_rules` 模型，用于纯赠金占比、异常用户占比、退款/刷量等阈值。
 - [x] 新增 `affiliate_config_audit_logs` 模型，用于管理员规则变更审计。
-- [ ] 如果需要 paid/gift/trial 计佣，新增 `user_quota_source_*` sidecar 表。
+- [x] 如果需要 paid/gift/trial 计佣，新增 `user_quota_source_*` sidecar 表。
 - [x] `AffiliateSidecarModels()` 清单已建立；Phase 2 baseline 完成后已接入 `model/main.go` 的 `migrateDB` / `migrateDBFast` 全局 AutoMigrate。
-- [x] 所有模型进入 AutoMigrate 前后跑 schema impact；2026-06-02 已在 compose PostgreSQL 上触发迁移、导出 after schema 并确认只新增 `affiliate_*` 对象。
+- [x] 所有模型进入 AutoMigrate 前后跑 schema impact；2026-06-02 已在 compose PostgreSQL 上触发迁移、导出 after schema 并确认只新增 `affiliate_*` 对象；2026-06-03 quota source sidecar 复核只新增 `user_quota_source_*` 对象。
 - [x] 新增基础 service：scope、profile、relation、audit。
 - [x] 新增 `AffiliateEnabled` 管理员配置开关，默认关闭，用于分销模块总熔断和分销码降级。
 - [x] 新增基础 controller 和 `/api/affiliate/*` 路由组。
@@ -138,6 +138,13 @@
 - Phase 3/4 验证方式：affiliate 定向 Go 测试通过；二级 parent 校验先观察到 RED，再实现 service 最小校验并通过；大范围 `go test ./model ./service ./controller ./middleware` 中 controller 包仍因既有非 affiliate `controller/model_list_test.go` 基线问题失败，继续按 Phase 12 待办处理。
 - Phase 3/4 残留风险：普通用户友好状态已覆盖后端 `/api/affiliate/status`、classic `/console/affiliate` 和 default `/affiliate`，但 default 尚未做真实账号截图回归；Phase 3 sidecar 表已进入本地 PostgreSQL schema impact，但尚未覆盖 staging/生产。
 - Phase 3/4 下一步：继续补 default 真实账号 browser smoke，或推进 Phase 5/Phase 9 后续缺口。
+
+### Phase 3 quota source sidecar 复盘（2026-06-03 本线程）
+
+- 完成内容：新增 `model.QuotaSourceSidecarModels()`，包含 `user_quota_source_balances` 和 `user_quota_source_events`；接入 `migrateDB` / `migrateDBFast` AutoMigrate。佣金、KPI snapshot、人头费 paid stats 统一通过 quota attribution 解析：日志 `Other` 中显式 `quota_source` / `affiliate_quota_source` / `billing_source` 仍优先，缺失时按 `source_log_id` / `related_type=log` / `request_id` 查 quota source sidecar；同一日志混合 paid/gift/trial 时只按 paid 部分计佣，未标记且无 sidecar 的日志仍不默认 paid。
+- 验证方式：先观察 `go test -count=1 ./model -run 'QuotaSourceSidecar|AffiliateSidecarModels|MigrateDBCreatesAffiliateSidecar'` 与 `go test -count=1 ./service -run 'QuotaSourceSidecar'` RED；实现后目标测试通过。补充 `go test -count=1 ./service -run 'QuotaSourceSidecar|AffiliatePendingCommission|CommissionEvents|Commission|AffiliateKPI|KPISnapshot|AffiliateHeadFee|HeadFee'` 通过。Docker schema impact 使用 `timeout 600s docker compose -f docker-compose.dev.yml up -d --build new-api` 触发迁移，`20260603T003059Z-quota-source.diff` 只新增 `user_quota_source_*` 表、序列、主键和索引，runtime 文件被 `.gitignore` 忽略。
+- 残留风险：本批完成 sidecar schema 和计算读取逻辑，但真实支付成功、钱包扣费和退款 thin hook 是否持续写入 `user_quota_source_events` 仍需 staging/生产链路验证；历史未标记日志不会被默认视为 paid，双跑差异仍可能来自来源缺失。
+- 下一步：在完整结算周期双跑中重点核对真实 paid/gift/trial sidecar 事件覆盖率、退款归属和外接控制台口径差异。
 
 ### Phase 4 default 未开通状态复盘（2026-06-03 本线程）
 
@@ -626,9 +633,9 @@
 
 ### Phase 12 schema impact 发布复核（2026-06-03 本线程）
 
-- 完成内容：新增 `native-affiliate-schema-impact-report.zh-CN.md`，汇总 affiliate sidecar 和 SMS sidecar 两组本地 PostgreSQL schema snapshot/diff；复核 `model.AffiliateSidecarModels()` 当前 15 个 `affiliate_*` 模型，以及 `model.SMSSidecarModels()` 的 `sms_send_logs`、`user_phone_bindings` 两个 sidecar 模型。
-- 验证方式：4 个 schema snapshot sha256 校验通过；反向过滤 `runtime/schema-impact/*.diff` 中新增/ALTER/DROP DDL，未发现非 `affiliate_*`、`sms_send_logs`、`user_phone_bindings` 对象；删除 DDL 扫描无输出；`git check-ignore -v` 确认 runtime snapshot 仍被忽略；`go test -count=1 ./model -run 'AffiliateSidecarModels|SMSSidecar'` 通过。
-- 残留风险：本复核只覆盖本地 dev PostgreSQL snapshot，不能替代 staging/生产发布前现场 schema impact；后续新增 `user_quota_source_*` 或修改 sidecar 字段/索引时必须重新导出 before/after schema。
+- 完成内容：新增 `native-affiliate-schema-impact-report.zh-CN.md`，汇总 affiliate sidecar、SMS sidecar 和 quota source sidecar 三组本地 PostgreSQL schema snapshot/diff；复核 `model.AffiliateSidecarModels()` 当前 15 个 `affiliate_*` 模型、`model.SMSSidecarModels()` 的 `sms_send_logs` / `user_phone_bindings`，以及 `model.QuotaSourceSidecarModels()` 的 `user_quota_source_balances` / `user_quota_source_events`。
+- 验证方式：6 个 schema snapshot sha256 校验通过；反向过滤 `runtime/schema-impact/*.diff` 中新增/ALTER/DROP DDL，未发现非 `affiliate_*`、`sms_send_logs`、`user_phone_bindings`、`user_quota_source_*` 对象；删除 DDL 扫描无输出；`git check-ignore -v` 确认 runtime snapshot 仍被忽略；`go test -count=1 ./model -run 'QuotaSourceSidecar|AffiliateSidecarModels|MigrateDBCreatesAffiliateSidecar'` 通过。
+- 残留风险：本复核只覆盖本地 dev PostgreSQL snapshot，不能替代 staging/生产发布前现场 schema impact；后续修改 sidecar 字段或索引时必须重新导出 before/after schema。
 - 下一步：继续补 Phase 12 截图回归、SMS 真实通道 smoke、完整结算周期双跑和灰度/归档流程。
 
 ### Phase 12 Playwright 截图回归复盘（2026-06-03 本线程）
@@ -643,7 +650,7 @@
 - 完成内容：新增 `docs/affiliate/native-affiliate-external-acceptance-runbook.zh-CN.md`，把剩余外部验收拆成服务器 compose 网络内 `pg_dump`、短信宝真实通道 smoke、完整结算周期双跑、灰度启用和外接控制台只读归档五组步骤；每组都明确前置条件、不可记录的敏感字段、脱敏证据和回滚口径。
 - 验证方式：本轮为文档 runbook，不执行外部服务器、真实短信宝或生产灰度操作；通过 tasklist 剩余未完成项反向核对，runbook 已覆盖每个剩余外部验收项；`git status --short` 进入本批前为空。
 - 残留风险：runbook 不能替代真实执行；服务器 SSH/compose 容器信息、短信宝真实配置、外接控制台导出、生产灰度窗口和归档审批仍需用户/运维提供。
-- 下一步：取得外部信息后按 runbook 执行对应验收；如业务决定新增 `user_quota_source_*` 或全量 scoped export，再进入新的设计/实现批次。
+- 下一步：取得外部信息后按 runbook 执行对应验收；如业务决定继续补真实 quota source 写入 hook 或超大规模 scoped export，再进入新的设计/实现批次。
 
 ## Phase 13：Git 分批提交
 
@@ -667,4 +674,4 @@
 - 完成内容：按 `git log` 与 Phase 复盘核对原生分销本地提交批次，确认文档/基线、PG dump/runbook、dev compose、sidecar/service/thin hook、规则配置、邀请归因/SMS provider、scope/scoped logs、classic 前端、default parity、KPI/佣金/结算、用户管理 `inviter_id` 均已有对应本地 commit 和验证记录。
 - 验证方式：`git log --oneline --reverse --max-count=80` 覆盖从官方基线到 `63c28932 docs: record affiliate rmb browser check` 的本地提交链；`git status --short` 为空；`git check-ignore -v` 确认 runtime RMB smoke 和截图仍被忽略。
 - 残留风险：本收口只确认本地分批提交和本地验证记录，不代表 staging/生产验收；服务器 SSH/compose 容器信息、服务器内 pg_dump、SMS 真通道发送、外接控制台双跑、灰度启用和只读归档仍需外部信息或业务决策。
-- 下一步：等待服务器/短信/灰度/外接控制台相关信息后再做外部验收；如业务决定需要 paid/gift/trial 精确计佣或全量 scoped export，再新增对应 sidecar/export 设计。
+- 下一步：等待服务器/短信/灰度/外接控制台相关信息后再做外部验收；如业务决定继续补真实 quota source 写入 hook 或全量 scoped export，再新增对应设计。

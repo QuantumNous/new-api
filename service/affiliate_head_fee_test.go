@@ -97,6 +97,47 @@ func TestBuildAffiliatePendingHeadFeeEventsSkipsUnqualifiedUsersAndDeduplicates(
 	}
 }
 
+func TestBuildAffiliatePendingHeadFeeEventsUsesQuotaSourceSidecar(t *testing.T) {
+	db := newAffiliateCommissionTestDB(t)
+	ruleSet := savePublishedAffiliateCommissionRuleSetFromInput(t, db, newAffiliateHeadFeeRuleSetInput("head-fee-quota-source-sidecar"))
+	seedAffiliateCommissionProfileAndRelation(t, db, 100, 200, 1)
+	seedAffiliateHeadFeeInviteEvent(t, db, 100, 200, 1000)
+	seedAffiliateHeadFeeKPISnapshot(t, db, 100, ruleSet.Id, "growth", 1000, 2000)
+	firstPaidLog := seedAffiliateCommissionLog(t, db, model.Log{UserId: 200, CreatedAt: 1100, Type: model.LogTypeConsume, Quota: 1200})
+	secondPaidLog := seedAffiliateCommissionLog(t, db, model.Log{UserId: 200, CreatedAt: 1200, Type: model.LogTypeConsume, Quota: 800})
+	seedAffiliateQuotaSourceEvent(t, db, model.UserQuotaSourceEvent{
+		UserId:      200,
+		Source:      AffiliateQuotaSourcePaid,
+		EventType:   model.QuotaSourceEventDebit,
+		Amount:      1000,
+		SourceLogId: firstPaidLog.Id,
+	})
+	seedAffiliateQuotaSourceEvent(t, db, model.UserQuotaSourceEvent{
+		UserId:      200,
+		Source:      AffiliateQuotaSourcePaid,
+		EventType:   model.QuotaSourceEventDebit,
+		Amount:      500,
+		SourceLogId: secondPaidLog.Id,
+	})
+
+	events, err := BuildAffiliatePendingHeadFeeEvents(db, db, AffiliateHeadFeeBuildInput{
+		PeriodStart:     1000,
+		PeriodEnd:       2000,
+		Now:             1000 + 21*affiliateSecondsPerDay + 1,
+		QuotaPerUnit:    100,
+		USDExchangeRate: 1,
+	})
+	if err != nil {
+		t.Fatalf("BuildAffiliatePendingHeadFeeEvents returned error: %v", err)
+	}
+	if len(events) != 1 {
+		t.Fatalf("expected one sidecar-qualified head fee event, got %+v", events)
+	}
+	if events[0].FirstRechargeCents != 1000 || events[0].NetPaidCents != 1500 {
+		t.Fatalf("expected sidecar paid amounts to qualify head fee, got %+v", events[0])
+	}
+}
+
 func newAffiliateHeadFeeRuleSetInput(version string) AffiliateRuleSetDraftInput {
 	input := newAffiliateKPIRuleSetInput(version)
 	input.HeadFeeRules = []AffiliateHeadFeeRuleInput{

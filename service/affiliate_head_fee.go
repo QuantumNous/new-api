@@ -96,7 +96,7 @@ func BuildAffiliatePendingHeadFeeEvents(db *gorm.DB, logDB *gorm.DB, input Affil
 					continue
 				}
 
-				stats, err := buildAffiliateHeadFeePaidStats(logDB, relation.DescendantUserId, inviteEvent.CreatedAt, input)
+				stats, err := buildAffiliateHeadFeePaidStats(tx, logDB, relation.DescendantUserId, inviteEvent.CreatedAt, input)
 				if err != nil {
 					return err
 				}
@@ -217,7 +217,7 @@ func affiliateHeadFeeDelaySatisfied(inviteEvent model.AffiliateInviteEvent, rule
 	return now >= unlockAt
 }
 
-func buildAffiliateHeadFeePaidStats(logDB *gorm.DB, userId int, inviteCreatedAt int64, input AffiliateHeadFeeBuildInput) (affiliateHeadFeePaidStats, error) {
+func buildAffiliateHeadFeePaidStats(db *gorm.DB, logDB *gorm.DB, userId int, inviteCreatedAt int64, input AffiliateHeadFeeBuildInput) (affiliateHeadFeePaidStats, error) {
 	var logs []model.Log
 	tx := logDB.
 		Where("user_id = ? AND type IN ?", userId, []int{model.LogTypeConsume, model.LogTypeRefund}).
@@ -234,17 +234,21 @@ func buildAffiliateHeadFeePaidStats(logDB *gorm.DB, userId int, inviteCreatedAt 
 
 	stats := affiliateHeadFeePaidStats{}
 	for _, log := range logs {
-		if ResolveAffiliateLogQuotaSource(log) != AffiliateQuotaSourcePaid {
+		attribution, err := resolveAffiliateLogQuotaAttribution(db, log)
+		if err != nil {
+			return affiliateHeadFeePaidStats{}, err
+		}
+		if attribution.PaidRawQuota == 0 {
 			continue
 		}
-		cents := affiliateLogQuotaToCents(log, AffiliateCommissionBuildInput{
+		cents := affiliateRawQuotaToCents(attribution.PaidRawQuota, AffiliateCommissionBuildInput{
 			RuleSetId:       input.RuleSetId,
 			PeriodStart:     input.PeriodStart,
 			PeriodEnd:       input.PeriodEnd,
 			QuotaPerUnit:    input.QuotaPerUnit,
 			USDExchangeRate: input.USDExchangeRate,
 		})
-		if log.Type == model.LogTypeConsume && stats.FirstRechargeCents == 0 {
+		if log.Type == model.LogTypeConsume && cents > 0 && stats.FirstRechargeCents == 0 {
 			stats.FirstRechargeCents = cents
 		}
 		if input.PeriodStart != 0 && log.CreatedAt < input.PeriodStart {

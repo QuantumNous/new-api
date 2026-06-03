@@ -55,6 +55,23 @@ func TestAffiliateSidecarModelsMatchTableNames(t *testing.T) {
 	}
 }
 
+func TestQuotaSourceSidecarTableNames(t *testing.T) {
+	expected := []string{
+		"user_quota_source_balances",
+		"user_quota_source_events",
+	}
+
+	actual := QuotaSourceSidecarTableNames()
+	if len(actual) != len(expected) {
+		t.Fatalf("expected %d quota source tables, got %d: %v", len(expected), len(actual), actual)
+	}
+	for i, name := range actual {
+		if name != expected[i] {
+			t.Fatalf("table %d mismatch: expected %q, got %q", i, expected[i], name)
+		}
+	}
+}
+
 func TestMigrateDBCreatesAffiliateSidecarTables(t *testing.T) {
 	originalDB := DB
 	originalUsingSQLite := common.UsingSQLite
@@ -76,6 +93,11 @@ func TestMigrateDBCreatesAffiliateSidecarTables(t *testing.T) {
 	for _, table := range AffiliateSidecarTableNames() {
 		if !db.Migrator().HasTable(table) {
 			t.Fatalf("migrateDB should create affiliate sidecar table %q", table)
+		}
+	}
+	for _, table := range QuotaSourceSidecarTableNames() {
+		if !db.Migrator().HasTable(table) {
+			t.Fatalf("migrateDB should create quota source sidecar table %q", table)
 		}
 	}
 }
