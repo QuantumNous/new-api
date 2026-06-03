@@ -102,6 +102,9 @@ func BuildAffiliatePendingCommissionEvents(db *gorm.DB, logDB *gorm.DB, input Af
 				if err != nil {
 					return err
 				}
+				if rule == nil {
+					continue
+				}
 				kpiSnapshotId, coefficientBps, err := getAffiliateCommissionKPICoefficient(tx, relation.AncestorUserId, ruleSet.Id, input)
 				if err != nil {
 					return err
@@ -438,12 +441,16 @@ func getActiveAffiliateProfileForCommission(db *gorm.DB, userId int) (*model.Aff
 	return &profile, nil
 }
 
-func getAffiliateCommissionRuleAndTier(db *gorm.DB, ruleSetId int, affiliateLevel int, cumulativeCents int64) (model.AffiliateCommissionRule, *model.AffiliateCommissionTier, error) {
+func getAffiliateCommissionRuleAndTier(db *gorm.DB, ruleSetId int, affiliateLevel int, cumulativeCents int64) (*model.AffiliateCommissionRule, *model.AffiliateCommissionTier, error) {
 	var rule model.AffiliateCommissionRule
-	if err := db.
+	err := db.
 		Where("rule_set_id = ? AND affiliate_level = ? AND status = ?", ruleSetId, affiliateLevel, model.AffiliateProfileStatusActive).
-		First(&rule).Error; err != nil {
-		return model.AffiliateCommissionRule{}, nil, err
+		First(&rule).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, nil, nil
+	}
+	if err != nil {
+		return nil, nil, err
 	}
 
 	var tiers []model.AffiliateCommissionTier
@@ -451,7 +458,7 @@ func getAffiliateCommissionRuleAndTier(db *gorm.DB, ruleSetId int, affiliateLeve
 		Where("rule_set_id = ? AND affiliate_level = ?", ruleSetId, affiliateLevel).
 		Order("sort_order asc, min_net_paid_amount_cents asc, id asc").
 		Find(&tiers).Error; err != nil {
-		return model.AffiliateCommissionRule{}, nil, err
+		return nil, nil, err
 	}
 	for _, tier := range tiers {
 		if cumulativeCents < tier.MinNetPaidAmountCents {
@@ -461,9 +468,9 @@ func getAffiliateCommissionRuleAndTier(db *gorm.DB, ruleSetId int, affiliateLeve
 			continue
 		}
 		selected := tier
-		return rule, &selected, nil
+		return &rule, &selected, nil
 	}
-	return rule, nil, nil
+	return &rule, nil, nil
 }
 
 func getAffiliateCommissionKPICoefficient(db *gorm.DB, affiliateUserId int, ruleSetId int, input AffiliateCommissionBuildInput) (int, int, error) {

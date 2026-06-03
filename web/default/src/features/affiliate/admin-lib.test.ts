@@ -302,9 +302,12 @@ describe('default affiliate admin rule set helpers', () => {
     ])
 
     const seed = buildAffiliateRuleSetDraftFormValues()
+    const commissionRules = JSON.parse(seed.commissionRulesJson || '[]')
     const commissionTiers = JSON.parse(seed.commissionTiersJson || '[]')
     assert.equal(seed.settlementCycle, 'monthly')
     assert.equal(seed.manualReviewEnabled, true)
+    assert.equal(commissionRules[0]?.status, 'active')
+    assert.equal(commissionRules[1]?.status, 'active')
     assert.equal(commissionTiers.length, 10)
     assert.deepEqual(commissionTiers[4], {
       affiliate_level: 1,

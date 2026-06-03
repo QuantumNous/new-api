@@ -39,6 +39,53 @@ func TestSaveAffiliateRuleSetDraftPersistsConfigAndAudit(t *testing.T) {
 	}
 }
 
+func TestSaveAffiliateRuleSetDraftPersistsCommissionRuleStatus(t *testing.T) {
+	db := newAffiliateStoreTestDB(t)
+	input := newAffiliateRuleSetDraftInput("rules-commission-status")
+	input.CommissionRules[0].Status = model.AffiliateProfileStatusActive
+	input.CommissionRules[1].Status = model.AffiliateProfileStatusDisabled
+
+	ruleSet, err := SaveAffiliateRuleSetDraft(db, input)
+	if err != nil {
+		t.Fatalf("SaveAffiliateRuleSetDraft returned error: %v", err)
+	}
+
+	var rules []model.AffiliateCommissionRule
+	if err := db.Where("rule_set_id = ?", ruleSet.Id).Order("affiliate_level asc").Find(&rules).Error; err != nil {
+		t.Fatalf("load commission rules: %v", err)
+	}
+	if len(rules) != 2 {
+		t.Fatalf("expected two commission rules, got %+v", rules)
+	}
+	if rules[0].Status != model.AffiliateProfileStatusActive || rules[1].Status != model.AffiliateProfileStatusDisabled {
+		t.Fatalf("expected commission rule statuses to be persisted, got %+v", rules)
+	}
+
+	published, err := PublishAffiliateRuleSet(db, ruleSet.Id, AffiliateRuleSetStatusInput{
+		ActorUserId: 1,
+		Reason:      "publish status test",
+	})
+	if err != nil {
+		t.Fatalf("publish status test: %v", err)
+	}
+	rollbackDraft, err := RollbackAffiliateRuleSetToDraft(db, published.Id, AffiliateRuleSetRollbackInput{
+		Version:     "rules-commission-status-rollback",
+		Name:        "Commission Status Rollback",
+		ActorUserId: 7,
+		Reason:      "verify status copy",
+	})
+	if err != nil {
+		t.Fatalf("RollbackAffiliateRuleSetToDraft returned error: %v", err)
+	}
+	rules = nil
+	if err := db.Where("rule_set_id = ?", rollbackDraft.Id).Order("affiliate_level asc").Find(&rules).Error; err != nil {
+		t.Fatalf("load rollback commission rules: %v", err)
+	}
+	if len(rules) != 2 || rules[1].Status != model.AffiliateProfileStatusDisabled {
+		t.Fatalf("expected rollback draft to preserve disabled commission rule status, got %+v", rules)
+	}
+}
+
 func TestSaveAffiliateRuleSetDraftRejectsPublishedOrArchivedOverwrite(t *testing.T) {
 	db := newAffiliateStoreTestDB(t)
 

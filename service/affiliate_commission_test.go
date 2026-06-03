@@ -133,6 +133,31 @@ func TestBuildAffiliatePendingCommissionEventsUsesLegacyDirectInviter(t *testing
 	}
 }
 
+func TestBuildAffiliatePendingCommissionEventsSkipsDisabledCommissionRuleLevel(t *testing.T) {
+	db := newAffiliateCommissionTestDB(t)
+	input := newAffiliateRuleSetDraftInput("commission-disabled-level")
+	input.CommissionRules[0].Status = model.AffiliateProfileStatusActive
+	input.CommissionRules[1].Status = model.AffiliateProfileStatusDisabled
+	ruleSet := savePublishedAffiliateCommissionRuleSetFromInput(t, db, input)
+	seedAffiliateCommissionProfileAndRelation(t, db, 100, 200, 1)
+	seedAffiliateCommissionRelation(t, db, 300, 200, 2)
+	seedAffiliateCommissionLog(t, db, model.Log{UserId: 200, CreatedAt: 1000, Type: model.LogTypeConsume, Quota: 1000, Other: `{"quota_source":"paid"}`})
+
+	events, err := BuildAffiliatePendingCommissionEvents(db, db, AffiliateCommissionBuildInput{
+		RuleSetId:       ruleSet.Id,
+		PeriodStart:     900,
+		PeriodEnd:       1100,
+		QuotaPerUnit:    100,
+		USDExchangeRate: 1,
+	})
+	if err != nil {
+		t.Fatalf("BuildAffiliatePendingCommissionEvents returned error: %v", err)
+	}
+	if len(events) != 1 || events[0].AffiliateUserId != 100 {
+		t.Fatalf("expected only active level one commission event, got %+v", events)
+	}
+}
+
 func TestBuildAffiliatePendingCommissionEventsSkipsNonPaidAndCreatesRefundClawback(t *testing.T) {
 	db := newAffiliateCommissionTestDB(t)
 	savePublishedAffiliateCommissionRuleSet(t, db, "commission-paid-refund")

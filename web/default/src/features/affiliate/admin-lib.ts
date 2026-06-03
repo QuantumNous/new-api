@@ -597,6 +597,7 @@ function buildAffiliateRuleSetDefaultSeedFormValues(): AffiliateRuleSetDraftForm
       {
         affiliate_level: 1,
         name: 'Level 1',
+        status: 'active',
         default_rate_bps: 2000,
         default_cap_rate_bps: 3000,
         min_settlement_amount_cents: 10000,
@@ -605,6 +606,7 @@ function buildAffiliateRuleSetDefaultSeedFormValues(): AffiliateRuleSetDraftForm
       {
         affiliate_level: 2,
         name: 'Level 2',
+        status: 'active',
         default_rate_bps: 1000,
         default_cap_rate_bps: 2000,
         min_settlement_amount_cents: 10000,

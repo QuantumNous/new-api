@@ -41,6 +41,7 @@ type AffiliateRuleSetDraftInput struct {
 type AffiliateCommissionRuleInput struct {
 	AffiliateLevel           int    `json:"affiliate_level"`
 	Name                     string `json:"name"`
+	Status                   string `json:"status"`
 	DefaultRateBps           int    `json:"default_rate_bps"`
 	DefaultCapRateBps        int    `json:"default_cap_rate_bps"`
 	MinSettlementAmountCents int64  `json:"min_settlement_amount_cents"`
@@ -466,6 +467,7 @@ func normalizeAffiliateRuleSetDraftInput(input AffiliateRuleSetDraftInput) Affil
 	input.SettlementConfig.Cycle = strings.TrimSpace(input.SettlementConfig.Cycle)
 	for i := range input.CommissionRules {
 		input.CommissionRules[i].Name = strings.TrimSpace(input.CommissionRules[i].Name)
+		input.CommissionRules[i].Status = normalizeAffiliateRuleStatus(input.CommissionRules[i].Status)
 		input.CommissionRules[i].Metadata = strings.TrimSpace(input.CommissionRules[i].Metadata)
 	}
 	for i := range input.KPITiers {
@@ -506,6 +508,9 @@ func validateAffiliateRuleSetDraftInput(input AffiliateRuleSetDraftInput) error 
 	maxLevelOneCap := 0
 	for _, rule := range input.CommissionRules {
 		if err := validateAffiliateLevel(rule.AffiliateLevel); err != nil {
+			return err
+		}
+		if err := validateAffiliateRuleStatus(rule.Status); err != nil {
 			return err
 		}
 		if err := validateBps("commission rate", rule.DefaultRateBps); err != nil {
@@ -645,6 +650,23 @@ func validateAffiliateSettlementRuleConfig(config AffiliateSettlementRuleConfig)
 	return nil
 }
 
+func normalizeAffiliateRuleStatus(status string) string {
+	status = strings.ToLower(strings.TrimSpace(status))
+	if status == "" {
+		return model.AffiliateProfileStatusActive
+	}
+	return status
+}
+
+func validateAffiliateRuleStatus(status string) error {
+	switch normalizeAffiliateRuleStatus(status) {
+	case model.AffiliateProfileStatusActive, model.AffiliateProfileStatusDisabled:
+		return nil
+	default:
+		return errors.New("invalid affiliate rule status")
+	}
+}
+
 func validateAffiliateLevel(level int) error {
 	if level != 1 && level != 2 {
 		return errors.New("invalid affiliate level")
@@ -678,7 +700,7 @@ func replaceAffiliateRuleSetChildren(tx *gorm.DB, ruleSetId int, input Affiliate
 			RuleSetId:                ruleSetId,
 			AffiliateLevel:           rule.AffiliateLevel,
 			Name:                     rule.Name,
-			Status:                   model.AffiliateProfileStatusActive,
+			Status:                   rule.Status,
 			Currency:                 "CNY",
 			CalculationMode:          "single_user_net_paid_tier",
 			DefaultRateBps:           rule.DefaultRateBps,
@@ -826,6 +848,7 @@ func buildAffiliateRuleSetDraftInputFromPersistedConfig(db *gorm.DB, ruleSet mod
 		input.CommissionRules = append(input.CommissionRules, AffiliateCommissionRuleInput{
 			AffiliateLevel:           rule.AffiliateLevel,
 			Name:                     rule.Name,
+			Status:                   normalizeAffiliateRuleStatus(rule.Status),
 			DefaultRateBps:           rule.DefaultRateBps,
 			DefaultCapRateBps:        rule.DefaultCapRateBps,
 			MinSettlementAmountCents: rule.MinSettlementAmountCents,

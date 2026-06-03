@@ -3,6 +3,8 @@ package service
 import (
 	"math"
 	"strings"
+
+	"github.com/QuantumNous/new-api/model"
 )
 
 const (
@@ -29,6 +31,7 @@ func BuildDefaultAffiliateRuleSetDraftInput(version string, actorUserId int, rea
 			{
 				AffiliateLevel:           1,
 				Name:                     "Level 1",
+				Status:                   model.AffiliateProfileStatusActive,
 				DefaultRateBps:           affiliateSeedPercentToBps(20),
 				DefaultCapRateBps:        affiliateSeedPercentToBps(30),
 				MinSettlementAmountCents: affiliateSeedYuanToCents(100),
@@ -37,6 +40,7 @@ func BuildDefaultAffiliateRuleSetDraftInput(version string, actorUserId int, rea
 			{
 				AffiliateLevel:           2,
 				Name:                     "Level 2",
+				Status:                   model.AffiliateProfileStatusActive,
 				DefaultRateBps:           affiliateSeedPercentToBps(10),
 				DefaultCapRateBps:        affiliateSeedPercentToBps(20),
 				MinSettlementAmountCents: affiliateSeedYuanToCents(100),

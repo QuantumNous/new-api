@@ -22,11 +22,11 @@ func TestDefaultAffiliateRuleSetSeedUsesOperationalUnitConversions(t *testing.T)
 	}
 
 	levelOneRule := findSeedCommissionRule(t, seed, 1)
-	if levelOneRule.DefaultRateBps != 2000 || levelOneRule.DefaultCapRateBps != 3000 || levelOneRule.MinSettlementAmountCents != 10000 {
+	if levelOneRule.Status != model.AffiliateProfileStatusActive || levelOneRule.DefaultRateBps != 2000 || levelOneRule.DefaultCapRateBps != 3000 || levelOneRule.MinSettlementAmountCents != 10000 {
 		t.Fatalf("unexpected level one commission rule: %+v", levelOneRule)
 	}
 	levelTwoRule := findSeedCommissionRule(t, seed, 2)
-	if levelTwoRule.DefaultRateBps != 1000 || levelTwoRule.DefaultCapRateBps != 2000 || levelTwoRule.MinSettlementAmountCents != 10000 {
+	if levelTwoRule.Status != model.AffiliateProfileStatusActive || levelTwoRule.DefaultRateBps != 1000 || levelTwoRule.DefaultCapRateBps != 2000 || levelTwoRule.MinSettlementAmountCents != 10000 {
 		t.Fatalf("unexpected level two commission rule: %+v", levelTwoRule)
 	}
 
