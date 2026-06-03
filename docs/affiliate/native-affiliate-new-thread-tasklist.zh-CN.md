@@ -632,17 +632,24 @@
 
 ## Phase 13：Git 分批提交
 
-- [ ] 提交前确认 `git status --short`。
-- [ ] 不提交 dump、runtime、账号密码、生产 DSN。
-- [ ] 第 1 批：文档与基线记录。
-- [ ] 第 2 批：PG dump/restore 本地工具和 runbook。
-- [ ] 第 3 批：WSL2 docker-compose dev 部署、`new-api:dev` 镜像、PostgreSQL/Redis 本地恢复 runbook。
-- [ ] 第 4 批：sidecar 表、service、thin hook。
-- [ ] 第 5 批：规则配置表、管理员配置页、seed value。
-- [ ] 第 6 批：邀请归因、手机号/SMS provider、短信宝配置。
-- [ ] 第 7 批：scope 与 scoped 使用日志。
-- [ ] 第 8 批：classic 前端。
+- [x] 提交前确认 `git status --short`；2026-06-03 Phase 13 收口前工作树干净。
+- [x] 不提交 dump、runtime、账号密码、生产 DSN；2026-06-03 已确认 runtime RMB smoke、截图仍由 `.gitignore` 忽略，`.codex-local/` 未进入 Git 状态。
+- [x] 第 1 批：文档与基线记录。
+- [x] 第 2 批：PG dump/restore 本地工具和 runbook。
+- [x] 第 3 批：WSL2 docker-compose dev 部署、`new-api:dev` 镜像、PostgreSQL/Redis 本地恢复 runbook。
+- [x] 第 4 批：sidecar 表、service、thin hook。
+- [x] 第 5 批：规则配置表、管理员配置页、seed value。
+- [x] 第 6 批：邀请归因、手机号/SMS provider、短信宝配置。
+- [x] 第 7 批：scope 与 scoped 使用日志。
+- [x] 第 8 批：classic 前端。
 - [x] 第 9 批：default parity 与 i18n。
-- [ ] 第 10 批：KPI、佣金、人头费、结算。
-- [ ] 第 11 批：用户管理 `inviter_id` 与审计。
-- [ ] 每批提交前运行对应最小测试。
+- [x] 第 10 批：KPI、佣金、人头费、结算。
+- [x] 第 11 批：用户管理 `inviter_id` 与审计。
+- [x] 每批提交前运行对应最小测试；各批验证命令和残留风险已记录在对应 Phase 复盘中。
+
+### Phase 13 分批提交收口复盘（2026-06-03 本线程）
+
+- 完成内容：按 `git log` 与 Phase 复盘核对原生分销本地提交批次，确认文档/基线、PG dump/runbook、dev compose、sidecar/service/thin hook、规则配置、邀请归因/SMS provider、scope/scoped logs、classic 前端、default parity、KPI/佣金/结算、用户管理 `inviter_id` 均已有对应本地 commit 和验证记录。
+- 验证方式：`git log --oneline --reverse --max-count=80` 覆盖从官方基线到 `63c28932 docs: record affiliate rmb browser check` 的本地提交链；`git status --short` 为空；`git check-ignore -v` 确认 runtime RMB smoke 和截图仍被忽略。
+- 残留风险：本收口只确认本地分批提交和本地验证记录，不代表 staging/生产验收；服务器 SSH/compose 容器信息、服务器内 pg_dump、SMS 真通道发送、外接控制台双跑、灰度启用和只读归档仍需外部信息或业务决策。
+- 下一步：等待服务器/短信/灰度/外接控制台相关信息后再做外部验收；如业务决定需要 paid/gift/trial 精确计佣或全量 scoped export，再新增对应 sidecar/export 设计。
