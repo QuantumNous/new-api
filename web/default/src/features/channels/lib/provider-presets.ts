@@ -171,4 +171,16 @@ export const PROVIDER_PRESETS: ProviderPreset[] = [
     docsUrl: 'https://platform.openai.com/api-keys',
     description: '向量 / 语音 / embeddings · whisper · tts',
   },
+  {
+    id: 'elevenlabs',
+    name: 'ElevenLabs · 语音合成',
+    type: 58,
+    modality: 'embedding',
+    models:
+      'eleven_multilingual_v2,eleven_turbo_v2_5,eleven_flash_v2_5,eleven_multilingual_v1',
+    testModel: 'eleven_flash_v2_5',
+    docsUrl: 'https://elevenlabs.io/app/settings/api-keys',
+    description:
+      '语音 / TTS（走 /v1/audio/speech，voice=voice_id；价格为估值，请核对）',
+  },
 ]

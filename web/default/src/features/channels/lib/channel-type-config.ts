@@ -134,6 +134,17 @@ export const CHANNEL_TYPE_CONFIGS: Record<number, ChannelTypeConfig> = {
       baseUrl: 'Default: https://api.replicate.com',
     },
   },
+  58: {
+    id: 58,
+    name: CHANNEL_TYPES[58],
+    icon: 'elevenlabs',
+    defaultBaseUrl: 'https://api.elevenlabs.io',
+    hints: {
+      key: 'ElevenLabs API key (xi-api-key)',
+      models: 'eleven_multilingual_v2, eleven_flash_v2_5, …',
+      baseUrl: 'Default: https://api.elevenlabs.io',
+    },
+  },
 }
 
 /**

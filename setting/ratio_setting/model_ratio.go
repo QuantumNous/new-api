@@ -278,6 +278,13 @@ var defaultModelRatio = map[string]float64{
 	"mistral-medium-latest": 0.0004 * USD,
 	"mistral-small-latest":  0.0002 * USD,
 	"codestral-latest":      0.0003 * USD,
+	// ElevenLabs TTS — billed per INPUT CHARACTER (prompt tokens = char count).
+	// Bootstrap estimates (~$0.30 / 1K chars premium, less for turbo/flash);
+	// verify against your ElevenLabs plan before charging customers.
+	"eleven_multilingual_v2": 0.15,
+	"eleven_multilingual_v1": 0.15,
+	"eleven_turbo_v2_5":      0.075,
+	"eleven_flash_v2_5":      0.05,
 	// Perplexity online 模型对搜索额外收费，有需要应自行调整，此处不计入搜索费用
 	"llama-3-sonar-small-32k-chat":   0.2 / 1000 * USD,
 	"llama-3-sonar-small-32k-online": 0.2 / 1000 * USD,
