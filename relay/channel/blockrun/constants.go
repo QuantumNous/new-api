@@ -13,11 +13,13 @@ const ChannelName = "blockrun"
 // 用户在管理端可以覆盖此清单，这里仅提供"填充默认模型"按钮的初始集合。
 // 上游若新增/下线模型，可重新调用 /v1/models 同步。
 var ModelList = []string{
-	// Anthropic
-	"anthropic/claude-opus-4.7",
-	"anthropic/claude-opus-4.5",
-	"anthropic/claude-sonnet-4.6",
+	// Anthropic (verified against gateway GET /v1/models, 2026-06-03)
 	"anthropic/claude-haiku-4.5",
+	"anthropic/claude-sonnet-4.5",
+	"anthropic/claude-sonnet-4.6",
+	"anthropic/claude-opus-4.5",
+	"anthropic/claude-opus-4.7",
+	"anthropic/claude-opus-4.8",
 	// OpenAI
 	"openai/gpt-5.5",
 	"openai/gpt-5.4",
