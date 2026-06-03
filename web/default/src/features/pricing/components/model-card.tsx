@@ -56,8 +56,9 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
   const tags = parseTags(props.model.tags)
   const groups = props.model.enable_groups || []
   const endpoints = props.model.supported_endpoint_types || []
-  const vendorIcon = props.model.vendor_icon
-    ? getLobeIcon(props.model.vendor_icon, 28)
+  const modelIconKey = props.model.icon || props.model.vendor_icon
+  const modelIcon = modelIconKey
+    ? getLobeIcon(modelIconKey, 28)
     : null
   const initial = props.model.model_name?.charAt(0).toUpperCase() || '?'
   const isDynamicPricing =
@@ -99,7 +100,7 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
       <div className='flex items-start justify-between gap-2.5 sm:gap-3'>
         <div className='flex min-w-0 items-start gap-2.5 sm:gap-3'>
           <div className='flex size-9 shrink-0 items-center justify-center rounded-2xl border border-violet-300/25 bg-violet-500/10 shadow-[0_0_26px_rgba(168,85,247,0.12)] sm:size-10 dark:border-violet-300/15 dark:bg-violet-300/10'>
-            {vendorIcon || (
+            {modelIcon || (
               <span className='text-sm font-black text-violet-700 dark:text-violet-100'>
                 {initial}
               </span>
