@@ -74,6 +74,92 @@ func TestRunAffiliateSettlementPipelineBuildsKPICommissionHeadFeeAndSettlement(t
 	}
 }
 
+func TestRunAffiliateSettlementPipelineIsIdempotentForSamePeriod(t *testing.T) {
+	db := newAffiliateCommissionTestDB(t)
+	ruleSet := savePublishedAffiliateCommissionRuleSetFromInput(t, db, newAffiliateHeadFeeRuleSetInput("settlement-run-idempotent-period"))
+	seedAffiliateCommissionProfileAndRelation(t, db, 100, 200, 1)
+	seedAffiliateCommissionRelation(t, db, 100, 300, 2)
+	seedAffiliateKPIInviteEvents(t, db, 100, []int{200, 300})
+	seedAffiliateCommissionLog(t, db, model.Log{UserId: 200, CreatedAt: 1100, Type: model.LogTypeConsume, Quota: 1000, Other: `{"quota_source":"paid"}`})
+	seedAffiliateCommissionLog(t, db, model.Log{UserId: 200, CreatedAt: 1200, Type: model.LogTypeConsume, Quota: 1000, Other: `{"quota_source":"paid"}`})
+	seedAffiliateCommissionLog(t, db, model.Log{UserId: 300, CreatedAt: 1300, Type: model.LogTypeConsume, Quota: 3000, Other: `{"quota_source":"paid"}`})
+
+	input := AffiliateSettlementRunInput{
+		RuleSetId:       ruleSet.Id,
+		PeriodStart:     1000,
+		PeriodEnd:       2000,
+		FreezeDays:      7,
+		Now:             1100 + 21*affiliateSecondsPerDay,
+		QuotaPerUnit:    100,
+		USDExchangeRate: 1,
+		ActorUserId:     9,
+		Reason:          "monthly settlement run",
+	}
+	first, err := RunAffiliateSettlementPipeline(db, db, input)
+	if err != nil {
+		t.Fatalf("first RunAffiliateSettlementPipeline returned error: %v", err)
+	}
+	second, err := RunAffiliateSettlementPipeline(db, db, input)
+	if err != nil {
+		t.Fatalf("second RunAffiliateSettlementPipeline returned error: %v", err)
+	}
+	if len(first.Settlements) != 1 || len(second.Settlements) != 1 {
+		t.Fatalf("expected one settlement from both runs, first=%+v second=%+v", first, second)
+	}
+	if first.Settlements[0].Id != second.Settlements[0].Id || first.Settlements[0].PayableCents != second.Settlements[0].PayableCents {
+		t.Fatalf("expected repeat run to return the same draft settlement, first=%+v second=%+v", first.Settlements[0], second.Settlements[0])
+	}
+	if first.IdempotencyKey == "" || first.IdempotencyKey != second.IdempotencyKey {
+		t.Fatalf("expected repeat runs to share idempotency key, first=%q second=%q", first.IdempotencyKey, second.IdempotencyKey)
+	}
+
+	var snapshotCount int64
+	if err := db.Model(&model.AffiliateKPISnapshot{}).
+		Where("affiliate_user_id = ? AND rule_set_id = ? AND period_start = ? AND period_end = ?", 100, ruleSet.Id, 1000, 2000).
+		Count(&snapshotCount).Error; err != nil {
+		t.Fatalf("count kpi snapshots: %v", err)
+	}
+	if snapshotCount != 1 {
+		t.Fatalf("expected one KPI snapshot after repeat run, got %d", snapshotCount)
+	}
+	var commissionCount int64
+	if err := db.Model(&model.AffiliateCommissionEvent{}).
+		Where("rule_set_id = ? AND period_start = ? AND period_end = ?", ruleSet.Id, 1000, 2000).
+		Count(&commissionCount).Error; err != nil {
+		t.Fatalf("count commission events: %v", err)
+	}
+	if commissionCount != 3 {
+		t.Fatalf("expected three commission events after repeat run, got %d", commissionCount)
+	}
+	var headFeeCount int64
+	if err := db.Model(&model.AffiliateHeadFeeEvent{}).
+		Where("rule_set_id = ?", ruleSet.Id).
+		Count(&headFeeCount).Error; err != nil {
+		t.Fatalf("count head fee events: %v", err)
+	}
+	if headFeeCount != 2 {
+		t.Fatalf("expected two head fee events after repeat run, got %d", headFeeCount)
+	}
+	var settlementCount int64
+	if err := db.Model(&model.AffiliateSettlement{}).
+		Where("affiliate_user_id = ? AND rule_set_id = ? AND period_start = ? AND period_end = ?", 100, ruleSet.Id, 1000, 2000).
+		Count(&settlementCount).Error; err != nil {
+		t.Fatalf("count settlements: %v", err)
+	}
+	if settlementCount != 1 {
+		t.Fatalf("expected one settlement after repeat run, got %d", settlementCount)
+	}
+	var succeededRunCount int64
+	if err := db.Model(&model.AffiliateJobRun{}).
+		Where("idempotency_key = ? AND status = ?", first.IdempotencyKey, model.AffiliateJobRunStatusSucceeded).
+		Count(&succeededRunCount).Error; err != nil {
+		t.Fatalf("count job runs: %v", err)
+	}
+	if succeededRunCount != 2 {
+		t.Fatalf("expected both executions to be audited as successful job runs, got %d", succeededRunCount)
+	}
+}
+
 func TestRunAffiliateSettlementPipelineRecordsJobRunSuccess(t *testing.T) {
 	db := newAffiliateCommissionTestDB(t)
 	ruleSet := savePublishedAffiliateCommissionRuleSetFromInput(t, db, newAffiliateHeadFeeRuleSetInput("settlement-run-job-success"))

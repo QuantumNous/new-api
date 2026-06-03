@@ -101,7 +101,7 @@
 - [x] 审计 `service/affiliate_kpi.go` 中 KPI 计算的无界日志加载风险，改成分批聚合或数据库侧聚合。
 - [x] 审计 `service/affiliate_head_fee.go` 中人头费计算的无界日志加载风险，改成分批聚合并保留幂等记录。
 - [ ] 给佣金、KPI、人头费、结算任务增加 run record 或 job execution 记录，包含参数、窗口、执行人、开始/结束时间、状态、错误、扫描进度和幂等 key。（2026-06-03 已为管理员 settlement pipeline 增加 `affiliate_job_runs` 顶层 job execution；单独 generate endpoint、可恢复 cursor 和 Docker PostgreSQL schema diff 仍待补。）
-- [ ] 完整验证重复执行同一周期不会重复计佣、重复发人头费或重复生成结算单。
+- [x] 完整验证重复执行同一周期不会重复计佣、重复发人头费或重复生成结算单。（2026-06-04 已补 service 级完整 pipeline 重复运行审计测试；外部完整结算周期双跑仍按 external acceptance runbook 执行。）
 - [ ] 补充 refund、partial refund、gift-only、mixed paid/gift/trial、legacy_unknown、任务钱包扣费、异步任务退款等样本。
 - [ ] 明确历史未标记日志是否进入灰度回填、人工复核或直接排除，不得默认把未知来源计为 paid。
 - [ ] 完整结算周期必须做双跑：dry-run 与正式 run 对比，重复正式 run 幂等，结算单金额与事件合计一致。
@@ -157,7 +157,7 @@
 - [x] P0：补 WSL 前端 dev server 一键启动脚本和 runbook，解决重启后 `5173`/`5174` 拒绝连接的问题。
 - [x] P1：明确 dev/prod 镜像切换方案，保证生产不再误用官方 latest 来发布二开功能。
 - [ ] P1：把分销管理规则配置重构为运营友好的表格/矩阵，并保留高级 JSON 导入导出。（2026-06-03 已完成 default/classic 可视编辑表格化和高级 JSON 文本保留；导入/导出按钮、diff 预览和复制上一版本仍待做。）
-- [ ] P1：佣金、KPI、人头费和结算任务改造为分批、可恢复、幂等、可审计。（2026-06-04 已完成 usage logs 的 `created_at,id` cursor 分批扫描；2026-06-03 已完成 settlement pipeline 顶层 job run 审计记录、settlement pending/ready event grouping 的 `id` cursor 分批扫描和 settlement event link 更新批量拆分；可恢复 cursor、单独 generate endpoint run record 和完整双跑幂等审计仍待做。）
+- [ ] P1：佣金、KPI、人头费和结算任务改造为分批、可恢复、幂等、可审计。（2026-06-04 已完成 usage logs 的 `created_at,id` cursor 分批扫描、完整 pipeline 重复运行幂等审计；2026-06-03 已完成 settlement pipeline 顶层 job run 审计记录、settlement pending/ready event grouping 的 `id` cursor 分批扫描和 settlement event link 更新批量拆分；可恢复 cursor、单独 generate endpoint run record 和外部完整周期 dry-run/正式 run 双跑验收仍待做。）
 - [ ] P2：把飞书规则沉淀为默认 rule set seed，并增加单位转换、区间完整性和发布不可变测试。
 - [ ] P2：补齐 SMS 分布式限流、手机号注册归因和真实通道 smoke。
 - [ ] P2：完善 dashboard 统计口径、浏览器截图回归和外部验收归档。
@@ -251,3 +251,11 @@
 - 回归验证：`go test -count=1 ./service -run "TestGenerateAffiliateSettlementsLinksEventsInBatches|TestGenerateAffiliateSettlementsScansEventsWithCursorLimit"` 通过；`go test -count=1 ./service -run "Affiliate(Commission|KPI|HeadFee|Settlement)"` 通过；`go test -count=1 ./controller ./router -run Affiliate` 通过；`git diff --check` 通过。
 - 残留风险：本轮只拆分 link 更新，不改变每个 affiliate group 内存中累积 event IDs 的结构；真正可恢复执行还需要把 cursor/progress 写入 `affiliate_job_runs`，并为 `AdminGenerateAffiliateSettlements` 单独入口补 job run 或统一走 pipeline run record。
 - 下一步：继续做完整双跑幂等审计，验证重复执行同一周期不会重复计佣、重复发人头费或重复生成结算单。
+
+## P1-7 settlement pipeline 重复运行幂等审计复盘（2026-06-04 本线程）
+
+- 完成内容：新增 `TestRunAffiliateSettlementPipelineIsIdempotentForSamePeriod`，覆盖同一规则集、同一周期、同一输入重复运行 settlement pipeline。测试断言两次 run 返回同一个 draft settlement、payable 不变、idempotency key 一致，并且 KPI snapshot、commission events、head fee events、settlement 数据库行数不重复增长。
+- 验证命令：`go test -count=1 ./service -run TestRunAffiliateSettlementPipelineIsIdempotentForSamePeriod` 通过，说明当前实现已满足 service 级同周期重复运行不重复计佣、不重复发人头费、不重复生成结算单。
+- 回归验证：`go test -count=1 ./service -run "TestRunAffiliateSettlementPipelineIsIdempotentForSamePeriod|TestRunAffiliateSettlementPipelineRecordsJobRun|TestRunAffiliateSettlementPipelineBuilds"` 通过；`go test -count=1 ./service -run "Affiliate(Commission|KPI|HeadFee|Settlement)"` 通过；`git diff --check` 通过。
+- 残留风险：该测试是本地 service 级审计，不替代外部完整结算周期双跑；外部验收仍需按 `native-affiliate-external-acceptance-runbook.zh-CN.md` 对真实 paid 消费、退款、人头费和外接控制台汇总做 dry-run/正式 run 对比。
+- 下一步：继续补 refund、partial refund、gift-only、mixed paid/gift/trial、legacy_unknown、任务钱包扣费、异步任务退款等样本，或为 `AdminGenerateAffiliateSettlements` 单独入口补 job run。
