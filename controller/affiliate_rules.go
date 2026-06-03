@@ -97,3 +97,25 @@ func AdminArchiveAffiliateRuleSet(c *gin.Context) {
 	}
 	common.ApiSuccess(c, ruleSet)
 }
+
+func AdminRollbackAffiliateRuleSetToDraft(c *gin.Context) {
+	ruleSetId, err := strconv.Atoi(c.Param("id"))
+	if err != nil || ruleSetId <= 0 {
+		common.ApiErrorMsg(c, "无效的规则集ID")
+		return
+	}
+
+	var req service.AffiliateRuleSetRollbackInput
+	if err := c.ShouldBindJSON(&req); err != nil {
+		common.ApiErrorMsg(c, "参数错误")
+		return
+	}
+	req.ActorUserId = c.GetInt("id")
+
+	ruleSet, err := service.RollbackAffiliateRuleSetToDraft(model.DB, ruleSetId, req)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	common.ApiSuccess(c, ruleSet)
+}

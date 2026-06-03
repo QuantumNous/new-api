@@ -54,6 +54,8 @@ import {
   buildAffiliateRuleSetDraftFormValues,
   buildAffiliateRuleSetDraftPayload,
   buildAffiliateRuleSetExportJson,
+  buildAffiliateRuleSetRollbackConfirmation,
+  buildAffiliateRuleSetRollbackPayload,
   buildAffiliateRuleSetSaveConfirmation,
   buildAffiliateRuleSetStatusConfirmation,
   buildAffiliateRuleSetStatusPayload,
@@ -74,6 +76,7 @@ import {
   createAffiliateCommissionAdjustment,
   getAffiliateProfiles,
   getAffiliateRuleSets,
+  rollbackAffiliateRuleSetToDraft,
   recomputeAffiliateCommissions,
   runAffiliateSettlementPipeline,
   saveAffiliateRuleSetDraft,
@@ -563,6 +566,7 @@ function RuleSetsTable(props: {
   isMutating: boolean
   onEdit: (ruleSet: AffiliateRuleSet) => void
   onCopy: (ruleSet: AffiliateRuleSet) => void
+  onRollback: (ruleSet: AffiliateRuleSet) => void
   onStatusChange: (
     ruleSet: AffiliateRuleSet,
     action: 'publish' | 'archive'
@@ -664,6 +668,16 @@ function RuleSetsTable(props: {
                         >
                           {t('Copy Draft')}
                         </Button>
+                        {isAffiliateRuleSetReadOnly(ruleSet) && (
+                          <Button
+                            size='sm'
+                            variant='outline'
+                            disabled={props.isMutating}
+                            onClick={() => props.onRollback(ruleSet)}
+                          >
+                            {t('Rollback Draft')}
+                          </Button>
+                        )}
                         {ruleSet.status === 'draft' && (
                           <Button
                             size='sm'
@@ -1778,6 +1792,32 @@ export function AffiliateAdmin() {
     onError: () => toast.error(t('Failed to update affiliate rule set')),
   })
 
+  const rollbackRuleSetMutation = useMutation({
+    mutationFn: (ruleSet: AffiliateRuleSet) =>
+      rollbackAffiliateRuleSetToDraft(
+        ruleSet.id,
+        buildAffiliateRuleSetRollbackPayload(ruleSet, t)
+      ),
+    onSuccess: async (result) => {
+      if (!result.success) {
+        toast.error(
+          result.message ||
+            t('Failed to create affiliate rule set rollback draft')
+        )
+        return
+      }
+      toast.success(t('Affiliate rule set rollback draft created'))
+      const nextValues = buildAffiliateRuleSetDraftFormValues(result.data)
+      setRuleSetFormValues(nextValues)
+      setRuleSetBaselineValues(nextValues)
+      setRuleSetReadOnly(false)
+      setRuleSetPage(1)
+      await ruleSetsQuery.refetch()
+    },
+    onError: () =>
+      toast.error(t('Failed to create affiliate rule set rollback draft')),
+  })
+
   const settlementRunMutation = useMutation({
     mutationFn: runAffiliateSettlementPipeline,
     onSuccess: (result) => {
@@ -1963,6 +2003,12 @@ export function AffiliateAdmin() {
     ruleSetStatusMutation.mutate({ ruleSet, action })
   }
 
+  const handleRuleSetRollback = (ruleSet: AffiliateRuleSet) => {
+    const message = buildAffiliateRuleSetRollbackConfirmation(ruleSet, t)
+    if (typeof window !== 'undefined' && !window.confirm(message)) return
+    rollbackRuleSetMutation.mutate(ruleSet)
+  }
+
   return (
     <SectionPageLayout>
       <SectionPageLayout.Title>
@@ -2022,7 +2068,10 @@ export function AffiliateAdmin() {
             page={ruleSetPage}
             pageSize={ruleSetPageSize}
             isLoading={ruleSetsQuery.isLoading || ruleSetsQuery.isFetching}
-            isMutating={ruleSetStatusMutation.isPending}
+            isMutating={
+              ruleSetStatusMutation.isPending ||
+              rollbackRuleSetMutation.isPending
+            }
             onEdit={(ruleSet) => {
               const nextValues = buildAffiliateRuleSetDraftFormValues(ruleSet)
               setRuleSetFormValues(nextValues)
@@ -2030,6 +2079,7 @@ export function AffiliateAdmin() {
               setRuleSetReadOnly(isAffiliateRuleSetReadOnly(ruleSet))
             }}
             onCopy={copyRuleSetDraft}
+            onRollback={handleRuleSetRollback}
             onStatusChange={handleRuleSetStatusChange}
             onPageChange={setRuleSetPage}
             onPageSizeChange={(nextPageSize) => {

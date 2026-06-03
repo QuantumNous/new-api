@@ -4695,6 +4695,12 @@
     "Publish rule set {{version}}? This will activate it and archive the current published rule set.": "ルールセット {{version}} を公開しますか？このバージョンが有効になり、現在公開中のルールセットはアーカイブされます。",
     "Archive rule set {{version}}? This will stop this version from being selected automatically.": "ルールセット {{version}} をアーカイブしますか？このバージョンは自動選択されなくなります。",
     "Overwrite draft rule set {{version}}? This will replace the existing draft configuration.": "ルールセット {{version}} の下書きを上書きしますか？既存の下書き設定が置き換えられます。",
+    "Rollback": "ロールバック",
+    "Rollback Draft": "ロールバック下書き",
+    "Admin created affiliate rule set rollback draft from {{version}}": "管理者がルールセット {{version}} からアフィリエイトルールセットのロールバック下書きを作成しました",
+    "Create rollback draft from rule set {{version}}? This will copy the historical configuration into a new editable draft.": "ルールセット {{version}} からロールバック下書きを作成しますか？履歴設定が新しい編集可能な下書きにコピーされます。",
+    "Affiliate rule set rollback draft created": "アフィリエイトルールセットのロールバック下書きを作成しました",
+    "Failed to create affiliate rule set rollback draft": "アフィリエイトルールセットのロールバック下書き作成に失敗しました",
     "Switch between editable rule tables and raw JSON for batch edits": "一括編集用に、編集可能なルール表と生の JSON を切り替えます"
   }
 }

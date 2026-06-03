@@ -46,6 +46,7 @@ func SetApiRouter(router *gin.Engine) {
 			affiliateAdminRoute.POST("/rule-sets/draft", controller.AdminSaveAffiliateRuleSetDraft)
 			affiliateAdminRoute.PATCH("/rule-sets/:id/publish", controller.AdminPublishAffiliateRuleSet)
 			affiliateAdminRoute.PATCH("/rule-sets/:id/archive", controller.AdminArchiveAffiliateRuleSet)
+			affiliateAdminRoute.POST("/rule-sets/:id/rollback-draft", controller.AdminRollbackAffiliateRuleSetToDraft)
 			affiliateAdminRoute.GET("/commissions", controller.AdminListAffiliateCommissions)
 			affiliateAdminRoute.POST("/commissions/adjust", controller.AdminCreateAffiliateCommissionAdjustment)
 			affiliateAdminRoute.POST("/commissions/recompute", controller.AdminRecomputeAffiliateCommissions)

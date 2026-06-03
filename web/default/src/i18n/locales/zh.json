@@ -4695,6 +4695,12 @@
     "Publish rule set {{version}}? This will activate it and archive the current published rule set.": "确认发布规则集 {{version}}？发布后会启用该版本并归档当前已发布规则。",
     "Archive rule set {{version}}? This will stop this version from being selected automatically.": "确认归档规则集 {{version}}？归档后该版本不会再被自动选择。",
     "Overwrite draft rule set {{version}}? This will replace the existing draft configuration.": "确认覆盖保存规则集 {{version}}？保存后会替换现有草稿配置。",
+    "Rollback": "回滚草稿",
+    "Rollback Draft": "回滚草稿",
+    "Admin created affiliate rule set rollback draft from {{version}}": "管理员从规则集 {{version}} 创建回滚草稿",
+    "Create rollback draft from rule set {{version}}? This will copy the historical configuration into a new editable draft.": "确认从规则集 {{version}} 创建回滚草稿？该操作会把历史配置复制为新的可编辑草稿。",
+    "Affiliate rule set rollback draft created": "规则集回滚草稿已创建",
+    "Failed to create affiliate rule set rollback draft": "规则集回滚草稿创建失败",
     "Switch between editable rule tables and raw JSON for batch edits": "在可编辑规则表格和原始 JSON 之间切换，用于批量编辑"
   }
 }

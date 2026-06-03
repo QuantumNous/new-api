@@ -53,6 +53,8 @@ import {
   buildAffiliateRuleSetCopyDraftFormValues,
   buildAffiliateRuleSetDiffPreview,
   buildAffiliateRuleSetExportJson,
+  buildAffiliateRuleSetRollbackConfirmation,
+  buildAffiliateRuleSetRollbackPayload,
   buildAffiliateRuleSetsQuery,
   buildAffiliateRuleSetSaveConfirmation,
   buildAffiliateRuleSetStatusConfirmation,
@@ -512,6 +514,40 @@ const AffiliateAdmin = () => {
     }
   };
 
+  const handleRuleSetRollback = async (record) => {
+    const confirmation = buildAffiliateRuleSetRollbackConfirmation(t, record);
+    if (typeof window !== 'undefined' && !window.confirm(confirmation)) {
+      return;
+    }
+    setRuleSetActionLoading(`rollback-${record.id}`);
+    try {
+      const res = await API.post(
+        `/api/affiliate/admin/rule-sets/${record.id}/rollback-draft`,
+        buildAffiliateRuleSetRollbackPayload(t, record),
+      );
+      const { success, data, message } = res.data;
+      if (!success) {
+        showError(message || t('规则集回滚草稿创建失败'));
+        return;
+      }
+      showSuccess(t('规则集回滚草稿已创建'));
+      const nextRuleSet = data || null;
+      const nextValues = buildAffiliateRuleSetDraftFormValues(nextRuleSet);
+      setSelectedRuleSet(nextRuleSet);
+      setRuleSetInitialValues(nextValues);
+      setRuleSetBaselineValues(nextValues);
+      setRuleSetReadOnly(false);
+      setRuleSetDiffPreview([]);
+      setRuleEditorMode('visual');
+      setRuleSetFormKey((value) => value + 1);
+      await loadRuleSets(1, ruleSetPageSize, ruleSetFilters);
+    } catch (error) {
+      showError(t('规则集回滚草稿创建失败'));
+    } finally {
+      setRuleSetActionLoading('');
+    }
+  };
+
   const columns = useMemo(
     () => [
       {
@@ -662,6 +698,17 @@ const AffiliateAdmin = () => {
             >
               {t('复制草稿')}
             </Button>
+            {isAffiliateRuleSetReadOnly(record) && (
+              <Button
+                size='small'
+                type='tertiary'
+                theme='outline'
+                loading={ruleSetActionLoading === `rollback-${record.id}`}
+                onClick={() => handleRuleSetRollback(record)}
+              >
+                {t('回滚草稿')}
+              </Button>
+            )}
             {record.status === 'draft' && (
               <Button
                 size='small'

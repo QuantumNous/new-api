@@ -4695,6 +4695,12 @@
     "Publish rule set {{version}}? This will activate it and archive the current published rule set.": "Опубликовать набор правил {{version}}? Он станет активным, а текущий опубликованный набор будет архивирован.",
     "Archive rule set {{version}}? This will stop this version from being selected automatically.": "Архивировать набор правил {{version}}? Эта версия больше не будет выбираться автоматически.",
     "Overwrite draft rule set {{version}}? This will replace the existing draft configuration.": "Перезаписать черновик набора правил {{version}}? Существующая конфигурация черновика будет заменена.",
+    "Rollback": "Откат",
+    "Rollback Draft": "Черновик отката",
+    "Admin created affiliate rule set rollback draft from {{version}}": "Администратор создал черновик отката партнёрского набора правил из {{version}}",
+    "Create rollback draft from rule set {{version}}? This will copy the historical configuration into a new editable draft.": "Создать черновик отката из набора правил {{version}}? Историческая конфигурация будет скопирована в новый редактируемый черновик.",
+    "Affiliate rule set rollback draft created": "Черновик отката партнёрского набора правил создан",
+    "Failed to create affiliate rule set rollback draft": "Не удалось создать черновик отката партнёрского набора правил",
     "Switch between editable rule tables and raw JSON for batch edits": "Переключайтесь между редактируемыми таблицами правил и исходным JSON для пакетных правок"
   }
 }

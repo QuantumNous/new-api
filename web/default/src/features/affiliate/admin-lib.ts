@@ -31,6 +31,7 @@ import type {
   AffiliateRuleSetDraftFormValues,
   AffiliateRuleSetDraftPayload,
   AffiliateRuleSetFilters,
+  AffiliateRuleSetRollbackPayload,
   AffiliateRuleSetsParams,
   AffiliateSettlementFilters,
   AffiliateSettlementRunFormValues,
@@ -323,6 +324,50 @@ export function buildAffiliateRuleSetSaveConfirmation(
   return t(
     'Overwrite draft rule set {{version}}? This will replace the existing draft configuration.'
   ).replace('{{version}}', identity)
+}
+
+function getAffiliateRuleSetVersionIdentity(ruleSet: {
+  id?: number
+  version?: string
+}): string {
+  const version = String(ruleSet.version || '').trim()
+  if (version) return version
+  const id = normalizePositiveInteger(ruleSet.id)
+  return id > 0 ? `rule-set-${id}` : 'rule-set'
+}
+
+function getAffiliateRuleSetDisplayIdentity(ruleSet: {
+  id?: number
+  version?: string
+}): string {
+  const version = String(ruleSet.version || '').trim()
+  if (version) return version
+  const id = normalizePositiveInteger(ruleSet.id)
+  return id > 0 ? `#${id}` : 'rule set'
+}
+
+export function buildAffiliateRuleSetRollbackPayload(
+  ruleSet: { id?: number; version?: string; name?: string },
+  t: Translate
+): AffiliateRuleSetRollbackPayload {
+  const version = getAffiliateRuleSetVersionIdentity(ruleSet)
+  const name = String(ruleSet.name || '').trim() || version
+  return {
+    version: `${version}-rollback`,
+    name: `${name} ${t('Rollback')}`,
+    reason: t(
+      'Admin created affiliate rule set rollback draft from {{version}}'
+    ).replace('{{version}}', getAffiliateRuleSetDisplayIdentity(ruleSet)),
+  }
+}
+
+export function buildAffiliateRuleSetRollbackConfirmation(
+  ruleSet: { id?: number; version?: string; name?: string },
+  t: Translate
+): string {
+  return t(
+    'Create rollback draft from rule set {{version}}? This will copy the historical configuration into a new editable draft.'
+  ).replace('{{version}}', getAffiliateRuleSetDisplayIdentity(ruleSet))
 }
 
 export function buildAffiliateRuleSetDraftPayload(

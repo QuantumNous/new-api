@@ -83,6 +83,47 @@ func TestAdminPublishAffiliateRuleSetArchivesPreviousPublished(t *testing.T) {
 	}
 }
 
+func TestAdminRollbackAffiliateRuleSetToDraft(t *testing.T) {
+	db := newAffiliateControllerTestDB(t)
+	source, err := service.SaveAffiliateRuleSetDraft(db, newAffiliateRuleSetDraftRequest("rules-api-rollback-source"))
+	if err != nil {
+		t.Fatalf("save rollback source draft: %v", err)
+	}
+	published, err := service.PublishAffiliateRuleSet(db, source.Id, service.AffiliateRuleSetStatusInput{ActorUserId: 1, Reason: "seed rollback"})
+	if err != nil {
+		t.Fatalf("publish rollback source: %v", err)
+	}
+
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = httptest.NewRequest(http.MethodPost, "/api/affiliate/admin/rule-sets/"+strconv.Itoa(published.Id)+"/rollback-draft", jsonBody(t, service.AffiliateRuleSetRollbackInput{
+		Version: "rules-api-rollback-source-rollback",
+		Name:    "API Rollback Draft",
+		Reason:  "controller rollback",
+	}))
+	ctx.Request.Header.Set("Content-Type", "application/json")
+	ctx.Params = gin.Params{{Key: "id", Value: strconv.Itoa(published.Id)}}
+	ctx.Set("id", 11)
+	ctx.Set("role", common.RoleAdminUser)
+
+	AdminRollbackAffiliateRuleSetToDraft(ctx)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d body=%s", recorder.Code, recorder.Body.String())
+	}
+	var body affiliateRuleSetTestResponse
+	if err := json.Unmarshal(recorder.Body.Bytes(), &body); err != nil {
+		t.Fatalf("unmarshal response: %v", err)
+	}
+	if !body.Success || body.Data.Status != model.AffiliateRuleSetStatusDraft || body.Data.Version != "rules-api-rollback-source-rollback" {
+		t.Fatalf("unexpected rollback response: %+v", body)
+	}
+	if body.Data.CreatedByUserId != 11 || body.Data.UpdatedByUserId != 11 {
+		t.Fatalf("expected rollback actor from request context, got %+v", body.Data)
+	}
+	assertAffiliateControllerChildCount(t, db, &model.AffiliateCommissionRule{}, body.Data.Id, 2)
+}
+
 func TestAdminListAffiliateRuleSetsFiltersStatus(t *testing.T) {
 	db := newAffiliateControllerTestDB(t)
 	if _, err := service.SaveAffiliateRuleSetDraft(db, newAffiliateRuleSetDraftRequest("rules-api-2026-09")); err != nil {

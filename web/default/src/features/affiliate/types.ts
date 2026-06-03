@@ -217,6 +217,12 @@ export interface AffiliateRuleSetDraftPayload {
   risk_rules?: Record<string, unknown>[]
 }
 
+export interface AffiliateRuleSetRollbackPayload {
+  version: string
+  name: string
+  reason?: string
+}
+
 export type AffiliateCommissionStatus =
   | 'pending'
   | 'ready'

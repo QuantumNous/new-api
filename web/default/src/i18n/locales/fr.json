@@ -4695,6 +4695,12 @@
     "Publish rule set {{version}}? This will activate it and archive the current published rule set.": "Publier le jeu de règles {{version}} ? Cela l’activera et archivera le jeu de règles actuellement publié.",
     "Archive rule set {{version}}? This will stop this version from being selected automatically.": "Archiver le jeu de règles {{version}} ? Cette version ne sera plus sélectionnée automatiquement.",
     "Overwrite draft rule set {{version}}? This will replace the existing draft configuration.": "Écraser le brouillon du jeu de règles {{version}} ? Cela remplacera la configuration de brouillon existante.",
+    "Rollback": "Restauration",
+    "Rollback Draft": "Brouillon de restauration",
+    "Admin created affiliate rule set rollback draft from {{version}}": "L’administrateur a créé un brouillon de restauration du jeu de règles d’affiliation depuis {{version}}",
+    "Create rollback draft from rule set {{version}}? This will copy the historical configuration into a new editable draft.": "Créer un brouillon de restauration depuis le jeu de règles {{version}} ? La configuration historique sera copiée dans un nouveau brouillon modifiable.",
+    "Affiliate rule set rollback draft created": "Brouillon de restauration du jeu de règles d’affiliation créé",
+    "Failed to create affiliate rule set rollback draft": "Échec de création du brouillon de restauration du jeu de règles d’affiliation",
     "Switch between editable rule tables and raw JSON for batch edits": "Basculez entre des tableaux de règles modifiables et le JSON brut pour les modifications par lots"
   }
 }

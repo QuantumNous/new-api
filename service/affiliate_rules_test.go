@@ -129,6 +129,111 @@ func TestSaveAffiliateRuleSetDraftRejectsPublishedOrArchivedOverwrite(t *testing
 	}
 }
 
+func TestRollbackAffiliateRuleSetToDraftCopiesPublishedSnapshot(t *testing.T) {
+	db := newAffiliateStoreTestDB(t)
+
+	sourceDraft, err := SaveAffiliateRuleSetDraft(db, newAffiliateRuleSetDraftInput("rules-rollback-source"))
+	if err != nil {
+		t.Fatalf("save rollback source draft: %v", err)
+	}
+	published, err := PublishAffiliateRuleSet(db, sourceDraft.Id, AffiliateRuleSetStatusInput{
+		ActorUserId: 1,
+		Reason:      "publish rollback source",
+	})
+	if err != nil {
+		t.Fatalf("publish rollback source: %v", err)
+	}
+
+	rollbackDraft, err := RollbackAffiliateRuleSetToDraft(db, published.Id, AffiliateRuleSetRollbackInput{
+		Version:     "rules-rollback-source-rollback",
+		Name:        "Rollback Source Draft",
+		ActorUserId: 7,
+		Reason:      "operator requested rollback",
+	})
+	if err != nil {
+		t.Fatalf("RollbackAffiliateRuleSetToDraft returned error: %v", err)
+	}
+	if rollbackDraft.Id <= 0 || rollbackDraft.Id == published.Id {
+		t.Fatalf("expected a new rollback draft, got %+v", rollbackDraft)
+	}
+	if rollbackDraft.Status != model.AffiliateRuleSetStatusDraft {
+		t.Fatalf("expected rollback draft status, got %+v", rollbackDraft)
+	}
+	if rollbackDraft.Version != "rules-rollback-source-rollback" || rollbackDraft.Name != "Rollback Source Draft" {
+		t.Fatalf("expected rollback draft identity to use input, got %+v", rollbackDraft)
+	}
+	if rollbackDraft.CreatedByUserId != 7 || rollbackDraft.UpdatedByUserId != 7 {
+		t.Fatalf("expected rollback draft actor to be copied from input, got %+v", rollbackDraft)
+	}
+	if !strings.Contains(rollbackDraft.ConfigSnapshot, `"version":"rules-rollback-source-rollback"`) {
+		t.Fatalf("expected rollback draft snapshot to use new version, got %s", rollbackDraft.ConfigSnapshot)
+	}
+
+	assertAffiliateRuleSetChildCount(t, db, &model.AffiliateCommissionRule{}, rollbackDraft.Id, 2)
+	assertAffiliateRuleSetChildCount(t, db, &model.AffiliateCommissionTier{}, rollbackDraft.Id, 2)
+	assertAffiliateRuleSetChildCount(t, db, &model.AffiliateKPITier{}, rollbackDraft.Id, 2)
+	assertAffiliateRuleSetChildCount(t, db, &model.AffiliateHeadFeeRule{}, rollbackDraft.Id, 2)
+	assertAffiliateRuleSetChildCount(t, db, &model.AffiliateRiskRule{}, rollbackDraft.Id, 2)
+
+	var unchanged model.AffiliateRuleSet
+	if err := db.Where("id = ?", published.Id).First(&unchanged).Error; err != nil {
+		t.Fatalf("query source rule set: %v", err)
+	}
+	if unchanged.Status != model.AffiliateRuleSetStatusPublished || unchanged.Version != published.Version {
+		t.Fatalf("source rule set should remain published and immutable, got %+v", unchanged)
+	}
+
+	var auditCount int64
+	if err := db.Model(&model.AffiliateConfigAuditLog{}).
+		Where("rule_set_id = ? AND action = ?", rollbackDraft.Id, AffiliateConfigAuditActionRollbackRuleSet).
+		Count(&auditCount).Error; err != nil {
+		t.Fatalf("count rollback audit logs: %v", err)
+	}
+	if auditCount != 1 {
+		t.Fatalf("expected one rollback audit log, got %d", auditCount)
+	}
+}
+
+func TestRollbackAffiliateRuleSetToDraftRejectsDraftSourceAndDuplicateVersion(t *testing.T) {
+	db := newAffiliateStoreTestDB(t)
+
+	sourceDraft, err := SaveAffiliateRuleSetDraft(db, newAffiliateRuleSetDraftInput("rules-rollback-draft-source"))
+	if err != nil {
+		t.Fatalf("save rollback source draft: %v", err)
+	}
+	otherDraft, err := SaveAffiliateRuleSetDraft(db, newAffiliateRuleSetDraftInput("rules-rollback-duplicate"))
+	if err != nil {
+		t.Fatalf("save duplicate version draft: %v", err)
+	}
+
+	_, err = RollbackAffiliateRuleSetToDraft(db, sourceDraft.Id, AffiliateRuleSetRollbackInput{
+		Version:     "rules-rollback-from-draft",
+		Name:        "Draft Source Rollback",
+		ActorUserId: 7,
+		Reason:      "should reject draft source",
+	})
+	if err == nil || !strings.Contains(err.Error(), "only published or archived affiliate rule set can be rolled back") {
+		t.Fatalf("expected draft source rollback error, got %v", err)
+	}
+
+	archived, err := ArchiveAffiliateRuleSet(db, sourceDraft.Id, AffiliateRuleSetStatusInput{
+		ActorUserId: 1,
+		Reason:      "archive for duplicate test",
+	})
+	if err != nil {
+		t.Fatalf("archive source draft: %v", err)
+	}
+	_, err = RollbackAffiliateRuleSetToDraft(db, archived.Id, AffiliateRuleSetRollbackInput{
+		Version:     otherDraft.Version,
+		Name:        "Duplicate Rollback Draft",
+		ActorUserId: 7,
+		Reason:      "should reject duplicate version",
+	})
+	if err == nil || !strings.Contains(err.Error(), "affiliate rule set version already exists") {
+		t.Fatalf("expected duplicate version rollback error, got %v", err)
+	}
+}
+
 func TestSaveAffiliateRuleSetDraftValidatesBusinessBounds(t *testing.T) {
 	tests := []struct {
 		name      string

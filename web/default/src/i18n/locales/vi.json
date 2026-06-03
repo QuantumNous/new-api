@@ -4695,6 +4695,12 @@
     "Publish rule set {{version}}? This will activate it and archive the current published rule set.": "Phát hành bộ quy tắc {{version}}? Thao tác này sẽ kích hoạt nó và lưu trữ bộ quy tắc đang được phát hành hiện tại.",
     "Archive rule set {{version}}? This will stop this version from being selected automatically.": "Lưu trữ bộ quy tắc {{version}}? Phiên bản này sẽ không còn được tự động chọn.",
     "Overwrite draft rule set {{version}}? This will replace the existing draft configuration.": "Ghi đè bản nháp bộ quy tắc {{version}}? Thao tác này sẽ thay thế cấu hình bản nháp hiện có.",
+    "Rollback": "Khôi phục",
+    "Rollback Draft": "Bản nháp khôi phục",
+    "Admin created affiliate rule set rollback draft from {{version}}": "Quản trị viên đã tạo bản nháp khôi phục bộ quy tắc tiếp thị liên kết từ {{version}}",
+    "Create rollback draft from rule set {{version}}? This will copy the historical configuration into a new editable draft.": "Tạo bản nháp khôi phục từ bộ quy tắc {{version}}? Cấu hình lịch sử sẽ được sao chép vào một bản nháp mới có thể chỉnh sửa.",
+    "Affiliate rule set rollback draft created": "Đã tạo bản nháp khôi phục bộ quy tắc tiếp thị liên kết",
+    "Failed to create affiliate rule set rollback draft": "Không thể tạo bản nháp khôi phục bộ quy tắc tiếp thị liên kết",
     "Switch between editable rule tables and raw JSON for batch edits": "Chuyển giữa bảng quy tắc có thể chỉnh sửa và JSON thô để chỉnh sửa hàng loạt"
   }
 }

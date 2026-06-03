@@ -131,6 +131,40 @@ export function buildAffiliateRuleSetSaveConfirmation(t, ruleSet = {}) {
   ).replace('{{version}}', identity);
 }
 
+function getAffiliateRuleSetVersionIdentity(ruleSet = {}) {
+  const version = String(ruleSet.version || '').trim();
+  if (version) return version;
+  const id = normalizeInteger(ruleSet.id);
+  return id > 0 ? `rule-set-${id}` : 'rule-set';
+}
+
+function getAffiliateRuleSetDisplayIdentity(ruleSet = {}) {
+  const version = String(ruleSet.version || '').trim();
+  if (version) return version;
+  const id = normalizeInteger(ruleSet.id);
+  return id > 0 ? `#${id}` : '规则集';
+}
+
+export function buildAffiliateRuleSetRollbackPayload(t, ruleSet = {}) {
+  const version = getAffiliateRuleSetVersionIdentity(ruleSet);
+  const name = String(ruleSet.name || '').trim() || version;
+  return {
+    version: `${version}-rollback`,
+    name: `${name} ${translate(t, '回滚草稿')}`,
+    reason: translate(
+      t,
+      '管理员从规则集 {{version}} 创建回滚草稿',
+    ).replace('{{version}}', getAffiliateRuleSetDisplayIdentity(ruleSet)),
+  };
+}
+
+export function buildAffiliateRuleSetRollbackConfirmation(t, ruleSet = {}) {
+  return translate(
+    t,
+    '确认从规则集 {{version}} 创建回滚草稿？该操作会把历史配置复制为新的可编辑草稿。',
+  ).replace('{{version}}', getAffiliateRuleSetDisplayIdentity(ruleSet));
+}
+
 export function buildAffiliateRuleSetDraftPayload(values = {}) {
   return {
     id: normalizeInteger(values.id),

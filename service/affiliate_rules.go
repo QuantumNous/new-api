@@ -12,10 +12,11 @@ import (
 )
 
 const (
-	AffiliateConfigAuditActionCreateRuleSet  = "create_rule_set"
-	AffiliateConfigAuditActionUpdateRuleSet  = "update_rule_set"
-	AffiliateConfigAuditActionPublishRuleSet = "publish_rule_set"
-	AffiliateConfigAuditActionArchiveRuleSet = "archive_rule_set"
+	AffiliateConfigAuditActionCreateRuleSet   = "create_rule_set"
+	AffiliateConfigAuditActionUpdateRuleSet   = "update_rule_set"
+	AffiliateConfigAuditActionPublishRuleSet  = "publish_rule_set"
+	AffiliateConfigAuditActionArchiveRuleSet  = "archive_rule_set"
+	AffiliateConfigAuditActionRollbackRuleSet = "rollback_rule_set"
 
 	affiliateBpsBase                  = 10000
 	affiliateLevelOneCommissionCapBps = 3000
@@ -100,6 +101,13 @@ type AffiliateSettlementRuleConfig struct {
 type AffiliateRuleSetStatusInput struct {
 	ActorUserId int
 	Reason      string
+}
+
+type AffiliateRuleSetRollbackInput struct {
+	Version     string `json:"version"`
+	Name        string `json:"name"`
+	ActorUserId int    `json:"actor_user_id"`
+	Reason      string `json:"reason"`
 }
 
 type AffiliateRuleSetListInput struct {
@@ -297,6 +305,92 @@ func ArchiveAffiliateRuleSet(db *gorm.DB, ruleSetId int, input AffiliateRuleSetS
 	return &saved, nil
 }
 
+func RollbackAffiliateRuleSetToDraft(db *gorm.DB, ruleSetId int, input AffiliateRuleSetRollbackInput) (*model.AffiliateRuleSet, error) {
+	if db == nil {
+		return nil, errors.New("nil db")
+	}
+	if ruleSetId <= 0 {
+		return nil, errors.New("invalid affiliate rule set id")
+	}
+	input = normalizeAffiliateRuleSetRollbackInput(input)
+	if input.Version == "" {
+		return nil, errors.New("affiliate rule set version is required")
+	}
+	if input.Name == "" {
+		return nil, errors.New("affiliate rule set name is required")
+	}
+
+	var saved model.AffiliateRuleSet
+	err := db.Transaction(func(tx *gorm.DB) error {
+		var source model.AffiliateRuleSet
+		if err := tx.Where("id = ?", ruleSetId).First(&source).Error; err != nil {
+			return err
+		}
+		if source.Status != model.AffiliateRuleSetStatusPublished && source.Status != model.AffiliateRuleSetStatusArchived {
+			return errors.New("only published or archived affiliate rule set can be rolled back")
+		}
+
+		var existing model.AffiliateRuleSet
+		err := tx.Where("version = ?", input.Version).First(&existing).Error
+		if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+			return err
+		}
+		if err == nil {
+			return errors.New("affiliate rule set version already exists")
+		}
+
+		copiedInput, err := buildAffiliateRuleSetDraftInputFromPersistedConfig(tx, source)
+		if err != nil {
+			return err
+		}
+		copiedInput.Id = 0
+		copiedInput.Version = input.Version
+		copiedInput.Name = input.Name
+		copiedInput.ActorUserId = input.ActorUserId
+		copiedInput.Reason = input.Reason
+		if err := validateAffiliateRuleSetDraftInput(copiedInput); err != nil {
+			return err
+		}
+
+		snapshot := buildAffiliateRuleSetConfigSnapshot(copiedInput)
+		draft := model.AffiliateRuleSet{
+			Version:         copiedInput.Version,
+			Name:            copiedInput.Name,
+			Status:          model.AffiliateRuleSetStatusDraft,
+			EffectiveStart:  copiedInput.EffectiveStart,
+			EffectiveEnd:    copiedInput.EffectiveEnd,
+			CreatedByUserId: copiedInput.ActorUserId,
+			UpdatedByUserId: copiedInput.ActorUserId,
+			ConfigSnapshot:  snapshot,
+		}
+		if err := tx.Create(&draft).Error; err != nil {
+			return err
+		}
+		if err := replaceAffiliateRuleSetChildren(tx, draft.Id, copiedInput); err != nil {
+			return err
+		}
+		if err := validateAffiliateRuleSetPersistedConfig(tx, draft); err != nil {
+			return err
+		}
+		if err := RecordAffiliateConfigAuditLog(tx, AffiliateConfigAuditInput{
+			ActorUserId:    input.ActorUserId,
+			RuleSetId:      draft.Id,
+			Action:         AffiliateConfigAuditActionRollbackRuleSet,
+			BeforeSnapshot: snapshotAffiliateRuleSetStatus(source),
+			AfterSnapshot:  snapshotAffiliateRuleSetStatus(draft),
+			Reason:         input.Reason,
+		}); err != nil {
+			return err
+		}
+		saved = draft
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return &saved, nil
+}
+
 func ListAffiliateRuleSets(db *gorm.DB, input AffiliateRuleSetListInput) ([]model.AffiliateRuleSet, int64, error) {
 	if db == nil {
 		return nil, 0, errors.New("nil db")
@@ -385,6 +479,13 @@ func normalizeAffiliateRuleSetDraftInput(input AffiliateRuleSetDraftInput) Affil
 		input.RiskRules[i].Code = strings.TrimSpace(input.RiskRules[i].Code)
 		input.RiskRules[i].Metadata = strings.TrimSpace(input.RiskRules[i].Metadata)
 	}
+	return input
+}
+
+func normalizeAffiliateRuleSetRollbackInput(input AffiliateRuleSetRollbackInput) AffiliateRuleSetRollbackInput {
+	input.Version = strings.TrimSpace(input.Version)
+	input.Name = strings.TrimSpace(input.Name)
+	input.Reason = strings.TrimSpace(input.Reason)
 	return input
 }
 
@@ -675,29 +776,37 @@ func replaceAffiliateRuleSetChildren(tx *gorm.DB, ruleSetId int, input Affiliate
 }
 
 func validateAffiliateRuleSetPersistedConfig(db *gorm.DB, ruleSet model.AffiliateRuleSet) error {
-	var commissionRules []model.AffiliateCommissionRule
-	if err := db.Where("rule_set_id = ?", ruleSet.Id).Find(&commissionRules).Error; err != nil {
+	input, err := buildAffiliateRuleSetDraftInputFromPersistedConfig(db, ruleSet)
+	if err != nil {
 		return err
 	}
+	return validateAffiliateRuleSetDraftInput(input)
+}
+
+func buildAffiliateRuleSetDraftInputFromPersistedConfig(db *gorm.DB, ruleSet model.AffiliateRuleSet) (AffiliateRuleSetDraftInput, error) {
+	var commissionRules []model.AffiliateCommissionRule
+	if err := db.Where("rule_set_id = ?", ruleSet.Id).Find(&commissionRules).Error; err != nil {
+		return AffiliateRuleSetDraftInput{}, err
+	}
 	if len(commissionRules) == 0 {
-		return errors.New("affiliate rule set has no commission rules")
+		return AffiliateRuleSetDraftInput{}, errors.New("affiliate rule set has no commission rules")
 	}
 
 	var commissionTiers []model.AffiliateCommissionTier
 	if err := db.Where("rule_set_id = ?", ruleSet.Id).Find(&commissionTiers).Error; err != nil {
-		return err
+		return AffiliateRuleSetDraftInput{}, err
 	}
 	var kpiTiers []model.AffiliateKPITier
 	if err := db.Where("rule_set_id = ?", ruleSet.Id).Find(&kpiTiers).Error; err != nil {
-		return err
+		return AffiliateRuleSetDraftInput{}, err
 	}
 	var headFeeRules []model.AffiliateHeadFeeRule
 	if err := db.Where("rule_set_id = ?", ruleSet.Id).Find(&headFeeRules).Error; err != nil {
-		return err
+		return AffiliateRuleSetDraftInput{}, err
 	}
 	var riskRules []model.AffiliateRiskRule
 	if err := db.Where("rule_set_id = ?", ruleSet.Id).Find(&riskRules).Error; err != nil {
-		return err
+		return AffiliateRuleSetDraftInput{}, err
 	}
 
 	input := AffiliateRuleSetDraftInput{
@@ -771,7 +880,7 @@ func validateAffiliateRuleSetPersistedConfig(db *gorm.DB, ruleSet model.Affiliat
 			Metadata:                 rule.Metadata,
 		})
 	}
-	return validateAffiliateRuleSetDraftInput(input)
+	return input, nil
 }
 
 func extractAffiliateSettlementRuleConfig(snapshot string) AffiliateSettlementRuleConfig {

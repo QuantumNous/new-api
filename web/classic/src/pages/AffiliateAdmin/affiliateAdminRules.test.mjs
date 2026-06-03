@@ -6,6 +6,8 @@ import {
   buildAffiliateRuleSetCopyDraftFormValues,
   buildAffiliateRuleSetDiffPreview,
   buildAffiliateRuleSetExportJson,
+  buildAffiliateRuleSetRollbackConfirmation,
+  buildAffiliateRuleSetRollbackPayload,
   buildAffiliateRuleSetsQuery,
   buildAffiliateRuleSetSaveConfirmation,
   buildAffiliateRuleSetStatusConfirmation,
@@ -346,6 +348,29 @@ describe('affiliate admin rule set helpers', () => {
     expect(
       buildAffiliateRuleSetSaveConfirmation(t, { id: 9, version: '' }),
     ).toBe('确认覆盖保存规则集 #9？保存后会替换现有草稿配置。');
+  });
+
+  test('builds rollback draft payloads and confirmations', () => {
+    expect(
+      buildAffiliateRuleSetRollbackPayload(t, {
+        id: 5,
+        version: 'rules-2026-08',
+        name: 'August Rules',
+      }),
+    ).toEqual({
+      version: 'rules-2026-08-rollback',
+      name: 'August Rules 回滚草稿',
+      reason: '管理员从规则集 rules-2026-08 创建回滚草稿',
+    });
+    expect(
+      buildAffiliateRuleSetRollbackConfirmation(t, {
+        id: 5,
+        version: 'rules-2026-08',
+        name: 'August Rules',
+      }),
+    ).toBe(
+      '确认从规则集 rules-2026-08 创建回滚草稿？该操作会把历史配置复制为新的可编辑草稿。',
+    );
   });
 
   test('provides editable default seed values for new drafts', () => {

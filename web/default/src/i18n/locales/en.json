@@ -4695,6 +4695,12 @@
     "Publish rule set {{version}}? This will activate it and archive the current published rule set.": "Publish rule set {{version}}? This will activate it and archive the current published rule set.",
     "Archive rule set {{version}}? This will stop this version from being selected automatically.": "Archive rule set {{version}}? This will stop this version from being selected automatically.",
     "Overwrite draft rule set {{version}}? This will replace the existing draft configuration.": "Overwrite draft rule set {{version}}? This will replace the existing draft configuration.",
+    "Rollback": "Rollback",
+    "Rollback Draft": "Rollback Draft",
+    "Admin created affiliate rule set rollback draft from {{version}}": "Admin created affiliate rule set rollback draft from {{version}}",
+    "Create rollback draft from rule set {{version}}? This will copy the historical configuration into a new editable draft.": "Create rollback draft from rule set {{version}}? This will copy the historical configuration into a new editable draft.",
+    "Affiliate rule set rollback draft created": "Affiliate rule set rollback draft created",
+    "Failed to create affiliate rule set rollback draft": "Failed to create affiliate rule set rollback draft",
     "Switch between editable rule tables and raw JSON for batch edits": "Switch between editable rule tables and raw JSON for batch edits"
   }
 }

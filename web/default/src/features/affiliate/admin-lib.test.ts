@@ -9,6 +9,8 @@ import {
   buildAffiliateRuleSetCopyDraftFormValues,
   buildAffiliateRuleSetDiffPreview,
   buildAffiliateRuleSetExportJson,
+  buildAffiliateRuleSetRollbackConfirmation,
+  buildAffiliateRuleSetRollbackPayload,
   buildAffiliateRuleSetsQuery,
   buildAffiliateRuleSetSaveConfirmation,
   buildAffiliateRuleSetStatusConfirmation,
@@ -468,6 +470,28 @@ describe('default affiliate admin rule set helpers', () => {
     assert.equal(
       buildAffiliateRuleSetSaveConfirmation({ id: 9, version: '' }, t),
       'Overwrite draft rule set #9? This will replace the existing draft configuration.'
+    )
+  })
+
+  test('builds rollback draft payloads and confirmations', () => {
+    assert.deepEqual(
+      buildAffiliateRuleSetRollbackPayload(
+        { id: 5, version: 'rules-2026-08', name: 'August Rules' },
+        t
+      ),
+      {
+        version: 'rules-2026-08-rollback',
+        name: 'August Rules Rollback',
+        reason:
+          'Admin created affiliate rule set rollback draft from rules-2026-08',
+      }
+    )
+    assert.equal(
+      buildAffiliateRuleSetRollbackConfirmation(
+        { id: 5, version: 'rules-2026-08', name: 'August Rules' },
+        t
+      ),
+      'Create rollback draft from rule set rules-2026-08? This will copy the historical configuration into a new editable draft.'
     )
   })
 

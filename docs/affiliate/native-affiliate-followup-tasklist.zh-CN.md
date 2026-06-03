@@ -79,7 +79,7 @@
 - [ ] 风控规则表：列包含纯赠金额占比阈值、异常用户占比阈值、退款阈值、二次付费率阈值、自刷/批量异常策略和处理动作。（2026-06-04 审计：比例阈值已覆盖；自刷/批量异常策略与处理动作尚未模型化，只能暂存在 metadata，不能视为运营友好表格完成。）
 - [ ] 结算配置表单或表格：包含结算周期、冻结天数、最低结算金额、人工复核阈值、自动结算开关和备注。（2026-06-04 审计：周期、冻结天数、最低结算金额和人工复核开关已覆盖；自动结算开关与备注尚未模型化。）
 - [x] 输入单位必须面向运营：金额用元，比例用百分比，保存时再转换为 cents/bps；页面不得让运营直接填写 cents 或 bps。
-- [ ] 增加规则变更 diff 预览，发布、归档、回滚和覆盖保存必须二次确认。（2026-06-04 已完成保存草稿前 diff 预览、发布/归档二次确认和已有草稿覆盖保存二次确认；回滚二次确认仍待做。）
+- [x] 增加规则变更 diff 预览，发布、归档、回滚和覆盖保存必须二次确认。（2026-06-04 已完成保存草稿前 diff 预览、发布/归档二次确认、已有草稿覆盖保存二次确认，以及从 published/archived 历史版本创建可审计回滚草稿的二次确认。）
 - [x] 增加复制上一版本、导入导出 JSON、只读查看已发布版本和高级 JSON 模式，但高级 JSON 不能作为默认入口。（2026-06-04 已完成 default/classic 复制上一版本、导入/导出 JSON、diff 面板、只读查看已发布/已归档版本，并保留高级 JSON 但不作为默认入口。）
 - [x] default 与 classic 需要保持功能 parity，但视觉可以遵循各自设计系统。
 
@@ -411,3 +411,14 @@
 - 回归验证：`go test -count=1 ./service -run "AffiliateRuleSet|RuleSet"` 通过；`go test -count=1 ./controller -run "AffiliateRuleSet|AdminSaveAffiliateRuleSetDraft|AdminPublishAffiliateRuleSet|AdminListAffiliateRuleSets"` 通过。
 - 残留风险：后端尚无单独“回滚”能力与二次确认链路；如果后续新增 rollback endpoint，需要同步补状态机、审计和不可变版本测试。
 - 下一步：继续规则回滚能力/确认，或推进 `affiliate_job_runs` 可恢复 cursor/progress。
+
+## P1-20 规则回滚草稿与二次确认复盘（2026-06-04 本线程）
+
+- RED：先在 service 层新增 `TestRollbackAffiliateRuleSetToDraftCopiesPublishedSnapshot` 和 `TestRollbackAffiliateRuleSetToDraftRejectsDraftSourceAndDuplicateVersion`；旧代码因缺少 `RollbackAffiliateRuleSetToDraft`、`AffiliateRuleSetRollbackInput` 和 `rollback_rule_set` 审计动作编译失败。controller 测试同样先因缺少 `AdminRollbackAffiliateRuleSetToDraft` 失败；default/classic helper 测试先因缺少 rollback payload/confirmation helper 失败。
+- 完成内容：新增后端 `POST /api/affiliate/admin/rule-sets/:id/rollback-draft`，只允许从 `published` 或 `archived` 规则集创建新的 `draft`；源规则集保持不可变，新草稿复制持久化子配置，使用新的 `version`、`name` 和操作人，并写入 `rollback_rule_set` 配置审计。
+- 完成内容：default 与 classic 规则集列表对 published/archived 行增加“回滚草稿”动作；点击前必须二次确认，确认后调用后端创建新 draft，并把新草稿回填到当前规则表单基线以便继续编辑或发布。
+- 完成内容：default 新增 `AffiliateRuleSetRollbackPayload`、API wrapper、helper 和 en/fr/ja/ru/vi/zh locale；classic 同步新增 Semi 页面 helper 和 API 调用，保持功能 parity。
+- 验证命令：RED 阶段 `go test -count=1 ./service -run "RollbackAffiliateRuleSet|RuleSet"`、`go test -count=1 ./controller -run "AdminRollbackAffiliateRuleSet|AffiliateRuleSet"`、`cd web/default && bun test src/features/affiliate/admin-lib.test.ts`、`bun test web/classic/src/pages/AffiliateAdmin/affiliateAdminRules.test.mjs` 均按预期失败；实现后同组测试通过，default admin helper 21 pass，classic rule helper 13 pass。
+- 回归验证：`go test -count=1 ./model ./service ./controller ./router -run "Affiliate|RuleSet|Commission|KPI|HeadFee|Settlement|Admin|Inviter"` 通过；`cd web/default && bun run i18n:sync && bun run build` 通过且 locale 报告 missing/extras/untranslated 均为 0；`cd web/classic && bun run build` 通过；`git diff --check` 通过。
+- 残留风险：本轮回滚语义是“复制历史版本为新草稿”，不会直接把历史版本重新发布；运营仍需查看 diff 后手动发布。重复点击同一历史版本会因默认 `-rollback` version 已存在而被后端拒绝，后续如需要多次回滚草稿，可在前端增加版本后缀输入或时间戳策略。
+- 下一步：继续推进 `affiliate_job_runs` 可恢复 cursor/progress 和 Docker PostgreSQL schema diff，或补规则模型未覆盖的启停/备注/风控动作/自动结算开关字段。

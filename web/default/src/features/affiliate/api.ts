@@ -39,6 +39,7 @@ import type {
   AffiliateRuleSet,
   AffiliateRuleSetDraftPayload,
   AffiliateRuleSetFilters,
+  AffiliateRuleSetRollbackPayload,
   AffiliateSettlement,
   AffiliateSettlementFilters,
   AffiliateSettlementRunPayload,
@@ -165,6 +166,18 @@ export async function updateAffiliateRuleSetStatus(
   const res = await api.patch(
     `/api/affiliate/admin/rule-sets/${ruleSetId}/${action}`,
     { reason },
+    { skipBusinessError: true }
+  )
+  return res.data
+}
+
+export async function rollbackAffiliateRuleSetToDraft(
+  ruleSetId: number,
+  payload: AffiliateRuleSetRollbackPayload
+): Promise<ApiResponse<AffiliateRuleSet>> {
+  const res = await api.post(
+    `/api/affiliate/admin/rule-sets/${ruleSetId}/rollback-draft`,
+    payload,
     { skipBusinessError: true }
   )
   return res.data
