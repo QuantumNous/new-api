@@ -10,6 +10,8 @@ import (
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/pkg/billingexpr"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	relayconstant "github.com/QuantumNous/new-api/relay/constant"
+	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/QuantumNous/new-api/types"
 
 	"github.com/gin-gonic/gin"
@@ -245,6 +247,121 @@ func TestEnsureClientGoneLocalUsageSkipsNormalStream(t *testing.T) {
 	require.False(t, ok)
 	require.Nil(t, usage)
 	require.False(t, common.GetContextKeyBool(ctx, constant.ContextKeyLocalCountTokens))
+}
+
+func withZeroOutputQuotaExemptionSetting(t *testing.T, enabled bool, userList string) {
+	t.Helper()
+	quotaSetting := operation_setting.GetQuotaSetting()
+	old := *quotaSetting
+	t.Cleanup(func() {
+		*quotaSetting = old
+	})
+	quotaSetting.ZeroOutputQuotaExemptionEnabled = enabled
+	quotaSetting.ZeroOutputQuotaExemptionUserList = userList
+}
+
+func TestShouldApplyZeroOutputQuotaExemptionByUsername(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	w := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(w)
+	common.SetContextKey(ctx, constant.ContextKeyUserName, "MiaoWoo")
+	withZeroOutputQuotaExemptionSetting(t, true, "miaowoo")
+
+	relayInfo := &relaycommon.RelayInfo{
+		UserId:    1001,
+		RelayMode: relayconstant.RelayModeChatCompletions,
+	}
+	summary := textQuotaSummary{
+		PromptTokens:     120,
+		CompletionTokens: 0,
+		TotalTokens:      120,
+		Quota:            120,
+	}
+
+	require.True(t, shouldApplyZeroOutputQuotaExemption(ctx, relayInfo, summary))
+}
+
+func TestShouldApplyZeroOutputQuotaExemptionByUserId(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	w := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(w)
+	withZeroOutputQuotaExemptionSetting(t, true, "1001")
+
+	relayInfo := &relaycommon.RelayInfo{
+		UserId:    1001,
+		RelayMode: relayconstant.RelayModeResponses,
+	}
+	summary := textQuotaSummary{
+		PromptTokens:     120,
+		CompletionTokens: 0,
+		TotalTokens:      120,
+		Quota:            120,
+	}
+
+	require.True(t, shouldApplyZeroOutputQuotaExemption(ctx, relayInfo, summary))
+}
+
+func TestShouldApplyZeroOutputQuotaExemptionGlobally(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	w := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(w)
+	withZeroOutputQuotaExemptionSetting(t, true, "")
+	operation_setting.GetQuotaSetting().ZeroOutputQuotaExemptionGlobal = true
+
+	relayInfo := &relaycommon.RelayInfo{
+		UserId:    1001,
+		RelayMode: relayconstant.RelayModeChatCompletions,
+	}
+	summary := textQuotaSummary{
+		PromptTokens:     120,
+		CompletionTokens: 0,
+		TotalTokens:      120,
+		Quota:            120,
+	}
+
+	require.True(t, shouldApplyZeroOutputQuotaExemption(ctx, relayInfo, summary))
+}
+
+func TestShouldApplyZeroOutputQuotaExemptionRequiresListedUser(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	w := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(w)
+	common.SetContextKey(ctx, constant.ContextKeyUserName, "MiaoWoo")
+	withZeroOutputQuotaExemptionSetting(t, true, "other-user")
+
+	relayInfo := &relaycommon.RelayInfo{
+		UserId:    1001,
+		RelayMode: relayconstant.RelayModeChatCompletions,
+	}
+	summary := textQuotaSummary{
+		PromptTokens:     120,
+		CompletionTokens: 0,
+		TotalTokens:      120,
+		Quota:            120,
+	}
+
+	require.False(t, shouldApplyZeroOutputQuotaExemption(ctx, relayInfo, summary))
+}
+
+func TestShouldApplyZeroOutputQuotaExemptionSkipsEmbedding(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	w := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(w)
+	common.SetContextKey(ctx, constant.ContextKeyUserName, "MiaoWoo")
+	withZeroOutputQuotaExemptionSetting(t, true, "MiaoWoo")
+
+	relayInfo := &relaycommon.RelayInfo{
+		UserId:    1001,
+		RelayMode: relayconstant.RelayModeEmbeddings,
+	}
+	summary := textQuotaSummary{
+		PromptTokens:     120,
+		CompletionTokens: 0,
+		TotalTokens:      120,
+		Quota:            120,
+	}
+
+	require.False(t, shouldApplyZeroOutputQuotaExemption(ctx, relayInfo, summary))
 }
 
 func TestCacheWriteTokensTotal(t *testing.T) {
