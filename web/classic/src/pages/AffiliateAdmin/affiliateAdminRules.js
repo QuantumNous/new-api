@@ -12,6 +12,13 @@ const normalizeInteger = (value) => {
 
 const normalizeBoolean = (value) => value === true || value === 'true';
 
+const normalizeDefaultTrueBoolean = (value) => {
+  if (value === undefined || value === null || value === '') {
+    return true;
+  }
+  return normalizeBoolean(value);
+};
+
 const translate = (t, value) => (typeof t === 'function' ? t(value) : value);
 
 const centsToYuan = (value) => {
@@ -231,6 +238,8 @@ export function buildAffiliateRuleSetDraftPayload(values = {}) {
           ? yuanToCents(values.min_settlement_amount_yuan)
           : normalizeInteger(values.min_settlement_amount_cents),
       manual_review_enabled: normalizeBoolean(values.manual_review_enabled),
+      auto_settlement_enabled: values.auto_settlement_enabled !== false,
+      review_note: String(values.review_note || '').trim(),
     },
   };
 }
@@ -267,6 +276,10 @@ export function buildAffiliateRuleSetDraftFormValues(ruleSet = null) {
     manual_review_enabled: normalizeBoolean(
       settlementConfig.manual_review_enabled,
     ),
+    auto_settlement_enabled: normalizeDefaultTrueBoolean(
+      settlementConfig.auto_settlement_enabled,
+    ),
+    review_note: String(settlementConfig.review_note || '').trim(),
     commission_rules_json: stringifyPretty(
       normalizeCommissionRulesForForm(snapshot.commission_rules),
     ),
@@ -326,6 +339,10 @@ export function parseAffiliateRuleSetImportJson(value = '') {
     manual_review_enabled: normalizeBoolean(
       settlementConfig.manual_review_enabled,
     ),
+    auto_settlement_enabled: normalizeDefaultTrueBoolean(
+      settlementConfig.auto_settlement_enabled,
+    ),
+    review_note: String(settlementConfig.review_note || '').trim(),
     commission_rules_json: stringifyPretty(
       normalizeCommissionRulesForForm(parsed.commission_rules),
     ),
@@ -389,6 +406,16 @@ export function buildAffiliateRuleSetDiffPreview(
     before.settlement_config?.manual_review_enabled,
     after.settlement_config?.manual_review_enabled,
   );
+  appendScalar(
+    'Automatic Settlement',
+    before.settlement_config?.auto_settlement_enabled,
+    after.settlement_config?.auto_settlement_enabled,
+  );
+  appendScalar(
+    'Review Note',
+    before.settlement_config?.review_note,
+    after.settlement_config?.review_note,
+  );
   appendJson(
     'Commission Base Rules',
     before.commission_rules,
@@ -419,6 +446,8 @@ function buildAffiliateRuleSetDefaultSeedFormValues() {
     min_settlement_amount_cents: 10000,
     min_settlement_amount_yuan: 100,
     manual_review_enabled: true,
+    auto_settlement_enabled: true,
+    review_note: '',
     commission_rules_json: stringifyPretty([
       {
         affiliate_level: 1,

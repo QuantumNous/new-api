@@ -940,6 +940,34 @@ function RuleSetDraftForm(props: {
               {t('Enabled')}
             </label>
           </div>
+          <div className='space-y-1.5'>
+            <Label htmlFor='affiliate-rule-auto-settlement'>
+              {t('Automatic Settlement')}
+            </Label>
+            <label className='border-border flex h-9 items-center gap-2 rounded-lg border px-3 text-sm'>
+              <input
+                id='affiliate-rule-auto-settlement'
+                type='checkbox'
+                disabled={props.readOnly}
+                checked={props.values.autoSettlementEnabled !== false}
+                onChange={(event) =>
+                  props.setValues({
+                    ...props.values,
+                    autoSettlementEnabled: event.target.checked,
+                  })
+                }
+              />
+              {t('Enabled')}
+            </label>
+          </div>
+          <Field label={t('Review Note')} htmlFor='affiliate-rule-review-note'>
+            <Textarea
+              id='affiliate-rule-review-note'
+              disabled={props.readOnly}
+              value={props.values.reviewNote || ''}
+              onChange={(event) => update('reviewNote', event.target.value)}
+            />
+          </Field>
         </div>
 
         <div className='space-y-3'>

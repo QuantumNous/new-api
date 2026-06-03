@@ -162,6 +162,8 @@ describe('default affiliate admin rule set helpers', () => {
       freezeDays: '7',
       minSettlementAmountCents: '10000',
       manualReviewEnabled: true,
+      autoSettlementEnabled: false,
+      reviewNote: ' finance approval before payout ',
       commissionRulesJson: JSON.stringify([
         {
           affiliate_level: 1,
@@ -221,6 +223,8 @@ describe('default affiliate admin rule set helpers', () => {
         freeze_days: 7,
         min_settlement_amount_cents: 10000,
         manual_review_enabled: true,
+        auto_settlement_enabled: false,
+        review_note: 'finance approval before payout',
       },
       commission_rules: [
         {
@@ -297,6 +301,8 @@ describe('default affiliate admin rule set helpers', () => {
     assert.equal(values.id, '5')
     assert.equal(values.version, 'rules-2026-07')
     assert.equal(values.settlementCycle, 'monthly')
+    assert.equal(values.autoSettlementEnabled, true)
+    assert.equal(values.reviewNote, '')
     assert.deepEqual(JSON.parse(values.commissionRulesJson || '[]'), [
       {
         affiliate_level: 1,
@@ -318,6 +324,8 @@ describe('default affiliate admin rule set helpers', () => {
     const headFeeRules = JSON.parse(seed.headFeeRulesJson || '[]')
     assert.equal(seed.settlementCycle, 'monthly')
     assert.equal(seed.manualReviewEnabled, true)
+    assert.equal(seed.autoSettlementEnabled, true)
+    assert.equal(seed.reviewNote, '')
     assert.equal(commissionRules[0]?.status, 'active')
     assert.equal(commissionRules[1]?.status, 'active')
     assert.equal(headFeeRules[0]?.status, 'active')
@@ -355,6 +363,8 @@ describe('default affiliate admin rule set helpers', () => {
       freezeDays: '7',
       minSettlementAmountYuan: '88.88',
       manualReviewEnabled: true,
+      autoSettlementEnabled: false,
+      reviewNote: 'monthly finance review',
       commissionRulesJson: JSON.stringify([{ affiliate_level: 1 }]),
       commissionTiersJson: JSON.stringify([{ affiliate_level: 1 }]),
       kpiTiersJson: JSON.stringify([{ code: 'base' }]),
@@ -367,6 +377,8 @@ describe('default affiliate admin rule set helpers', () => {
     assert.equal(exported.reason, undefined)
     assert.equal(exported.version, 'rules-2026-08')
     assert.equal(exported.settlement_config.min_settlement_amount_cents, 8888)
+    assert.equal(exported.settlement_config.auto_settlement_enabled, false)
+    assert.equal(exported.settlement_config.review_note, 'monthly finance review')
     assert.deepEqual(exported.commission_rules, [{ affiliate_level: 1 }])
 
     const imported = parseAffiliateRuleSetImportJson(
@@ -381,6 +393,8 @@ describe('default affiliate admin rule set helpers', () => {
     assert.equal(imported.reason, '')
     assert.equal(imported.version, 'rules-2026-08')
     assert.equal(imported.minSettlementAmountYuan, '88.88')
+    assert.equal(imported.autoSettlementEnabled, false)
+    assert.equal(imported.reviewNote, 'monthly finance review')
     assert.deepEqual(JSON.parse(imported.commissionRulesJson || '[]'), [
       { affiliate_level: 1, status: 'active' },
     ])
@@ -404,6 +418,8 @@ describe('default affiliate admin rule set helpers', () => {
           freeze_days: 7,
           min_settlement_amount_cents: 10000,
           manual_review_enabled: true,
+          auto_settlement_enabled: false,
+          review_note: 'copied review note',
         },
         commission_rules: [{ affiliate_level: 1, default_cap_rate_bps: 3000 }],
         head_fee_rules: [{ affiliate_level: 1, kpi_tier_code: 'base' }],
@@ -413,6 +429,8 @@ describe('default affiliate admin rule set helpers', () => {
     assert.equal(copied.id, '')
     assert.equal(copied.version, 'rules-2026-07-copy')
     assert.equal(copied.reason, '')
+    assert.equal(copied.autoSettlementEnabled, false)
+    assert.equal(copied.reviewNote, 'copied review note')
     assert.deepEqual(JSON.parse(copied.commissionRulesJson || '[]'), [
       {
         affiliate_level: 1,
@@ -452,6 +470,8 @@ describe('default affiliate admin rule set helpers', () => {
       ...before,
       version: 'rules-2026-08',
       freezeDays: '14',
+      autoSettlementEnabled: false,
+      reviewNote: 'payout approval',
       commissionTiersJson: JSON.stringify([
         { affiliate_level: 1, base_rate_bps: 1800 },
       ]),
@@ -464,6 +484,8 @@ describe('default affiliate admin rule set helpers', () => {
         after: 'rules-2026-08',
       },
       { section: 'Freeze Days', before: '7', after: '14' },
+      { section: 'Automatic Settlement', before: 'true', after: 'false' },
+      { section: 'Review Note', before: '', after: 'payout approval' },
       { section: 'Commission Tiers', before: 'changed', after: 'changed' },
     ])
   })

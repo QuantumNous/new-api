@@ -133,6 +133,48 @@ func TestSaveAffiliateRuleSetDraftPersistsHeadFeeRuleStatus(t *testing.T) {
 	}
 }
 
+func TestSaveAffiliateRuleSetDraftPersistsSettlementAutoSwitchAndReviewNote(t *testing.T) {
+	db := newAffiliateStoreTestDB(t)
+	input := newAffiliateRuleSetDraftInput("rules-settlement-auto")
+	input.SettlementConfig.AutoSettlementEnabled = false
+	input.SettlementConfig.ReviewNote = " monthly close requires finance review "
+
+	ruleSet, err := SaveAffiliateRuleSetDraft(db, input)
+	if err != nil {
+		t.Fatalf("SaveAffiliateRuleSetDraft returned error: %v", err)
+	}
+	if !strings.Contains(ruleSet.ConfigSnapshot, `"auto_settlement_enabled":false`) {
+		t.Fatalf("expected config snapshot to include disabled auto settlement, got %q", ruleSet.ConfigSnapshot)
+	}
+	if !strings.Contains(ruleSet.ConfigSnapshot, `"review_note":"monthly close requires finance review"`) {
+		t.Fatalf("expected config snapshot to include trimmed review note, got %q", ruleSet.ConfigSnapshot)
+	}
+	if strings.Contains(ruleSet.ConfigSnapshot, " monthly close") {
+		t.Fatalf("expected review note to be trimmed, got %q", ruleSet.ConfigSnapshot)
+	}
+
+	published, err := PublishAffiliateRuleSet(db, ruleSet.Id, AffiliateRuleSetStatusInput{
+		ActorUserId: 1,
+		Reason:      "publish settlement config",
+	})
+	if err != nil {
+		t.Fatalf("publish settlement config: %v", err)
+	}
+	rollbackDraft, err := RollbackAffiliateRuleSetToDraft(db, published.Id, AffiliateRuleSetRollbackInput{
+		Version:     "rules-settlement-auto-rollback",
+		Name:        "Settlement Auto Rollback",
+		ActorUserId: 7,
+		Reason:      "verify settlement config copy",
+	})
+	if err != nil {
+		t.Fatalf("RollbackAffiliateRuleSetToDraft returned error: %v", err)
+	}
+	if !strings.Contains(rollbackDraft.ConfigSnapshot, `"auto_settlement_enabled":false`) ||
+		!strings.Contains(rollbackDraft.ConfigSnapshot, `"review_note":"monthly close requires finance review"`) {
+		t.Fatalf("expected rollback draft to preserve settlement config fields, got %q", rollbackDraft.ConfigSnapshot)
+	}
+}
+
 func TestSaveAffiliateRuleSetDraftRejectsPublishedOrArchivedOverwrite(t *testing.T) {
 	db := newAffiliateStoreTestDB(t)
 
@@ -558,6 +600,8 @@ func newAffiliateRuleSetDraftInput(version string) AffiliateRuleSetDraftInput {
 			FreezeDays:               7,
 			MinSettlementAmountCents: 10000,
 			ManualReviewEnabled:      true,
+			AutoSettlementEnabled:    true,
+			ReviewNote:               "",
 		},
 	}
 }

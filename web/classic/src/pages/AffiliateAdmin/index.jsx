@@ -940,6 +940,17 @@ const AffiliateAdmin = () => {
                 label={t('人工审核')}
                 disabled={ruleSetReadOnly}
               />
+              <Form.Switch
+                field='auto_settlement_enabled'
+                label={t('自动结算')}
+                disabled={ruleSetReadOnly}
+              />
+              <Form.TextArea
+                field='review_note'
+                label={t('审核备注')}
+                autosize={{ minRows: 2, maxRows: 4 }}
+                disabled={ruleSetReadOnly}
+              />
             </div>
             <div className='grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_minmax(320px,420px)] gap-3 mt-4'>
               <div>

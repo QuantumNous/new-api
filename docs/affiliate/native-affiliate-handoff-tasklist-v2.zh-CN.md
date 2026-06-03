@@ -205,20 +205,21 @@ cd web/classic && bun test src/pages/AffiliateAdmin/ruleArrayEditor.test.mjs src
 - [ ] 前端表格展示纯赠金占比、异常用户占比、退款阈值、二次付费率、自刷/批量异常策略和处理动作。
 - [ ] 复盘时说明风控动作是否只影响后续生成任务，不回写历史已结算单。
 
-### Task 5.3 结算配置自动开关与备注
+### Task 5.3 结算配置自动开关与备注（2026-06-04 已完成）
 
 **Files:**
-- Modify: `model/affiliate.go`
 - Modify: `service/affiliate_rules.go`
-- Modify: `service/affiliate_settlement_run.go`
+- Modify: `service/affiliate_settlement.go`
+- Modify: `service/affiliate_job_run.go`
 - Test: `service/affiliate_rules_test.go`
-- Test: `service/affiliate_settlement_run_test.go`
+- Test: `service/affiliate_settlement_test.go`
 - Modify/Test: default/classic admin rules files listed in Task 5.1
 
-- [ ] RED: 测试要求 settlement config 支持 `auto_settlement_enabled` 与 `review_note`，旧 snapshot 缺字段时安全回填默认值。
-- [ ] GREEN: 保存草稿、发布、回滚、复制和导入 JSON 均保留这些字段。
-- [ ] 生成结算任务读取自动开关；若关闭自动结算，只允许管理员显式手动生成。
-- [ ] 前端用表单或小矩阵展示周期、冻结天数、最低结算金额、人工复核阈值、自动结算开关和备注。
+- [x] RED: 测试要求 settlement config 支持 `auto_settlement_enabled` 与 `review_note`，旧 snapshot 缺字段时安全回填默认值。
+- [x] GREEN: 保存草稿、发布、回滚、复制和导入 JSON 均保留这些字段。
+- [x] 生成结算任务读取自动开关；若关闭自动结算，只允许管理员显式手动生成。
+- [x] 前端用表单或小矩阵展示周期、冻结天数、最低结算金额、人工复核阈值、自动结算开关和备注。
+- [x] 复盘：见 `docs/affiliate/native-affiliate-followup-tasklist.zh-CN.md` 的 P1-29；本轮无 GORM schema 变更，仅修改规则 JSON snapshot 和 service input。
 
 ## 6. P1 结算任务可靠性
 
@@ -356,7 +357,7 @@ go test -count=1 ./service -run 'Affiliate.*JobRun|Settlement.*Resume|Commission
 - [ ] 第一批：Windows 浏览器旧 404 最终取证与 Docker engine 恢复后 no-store/header 复核。
 - [ ] 第二批：Docker PostgreSQL schema diff，补 `affiliate_job_runs` 与 `sms_rate_limit_counters` 发布前证据。
 - [ ] 第三批：人头费规则 `status`，保持 default/classic 表格 parity。
-- [ ] 第四批：风控动作与结算配置自动开关/备注，继续表格化。
+- [ ] 第四批：风控动作继续表格化；结算配置自动开关/备注已在 2026-06-04 Task 5.3 收口。
 - [ ] 第五批：cursor 跳扫式 resume 与完整结算周期双跑。
 - [ ] 第六批：手机号注册/登录/绑定主链路与真实短信宝 smoke。
 - [ ] 第七批：分销商趋势图、管理端佣金/结算列表和外部灰度验收。

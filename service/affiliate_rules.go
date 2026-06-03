@@ -98,6 +98,8 @@ type AffiliateSettlementRuleConfig struct {
 	FreezeDays               int    `json:"freeze_days"`
 	MinSettlementAmountCents int64  `json:"min_settlement_amount_cents"`
 	ManualReviewEnabled      bool   `json:"manual_review_enabled"`
+	AutoSettlementEnabled    bool   `json:"auto_settlement_enabled"`
+	ReviewNote               string `json:"review_note"`
 }
 
 type AffiliateRuleSetStatusInput struct {
@@ -466,6 +468,7 @@ func normalizeAffiliateRuleSetDraftInput(input AffiliateRuleSetDraftInput) Affil
 	input.Name = strings.TrimSpace(input.Name)
 	input.Reason = strings.TrimSpace(input.Reason)
 	input.SettlementConfig.Cycle = strings.TrimSpace(input.SettlementConfig.Cycle)
+	input.SettlementConfig.ReviewNote = strings.TrimSpace(input.SettlementConfig.ReviewNote)
 	for i := range input.CommissionRules {
 		input.CommissionRules[i].Name = strings.TrimSpace(input.CommissionRules[i].Name)
 		input.CommissionRules[i].Status = normalizeAffiliateRuleStatus(input.CommissionRules[i].Status)
@@ -915,8 +918,15 @@ func buildAffiliateRuleSetDraftInputFromPersistedConfig(db *gorm.DB, ruleSet mod
 
 func extractAffiliateSettlementRuleConfig(snapshot string) AffiliateSettlementRuleConfig {
 	var parsed struct {
-		SettlementCycle  string                        `json:"settlement_cycle"`
-		SettlementConfig AffiliateSettlementRuleConfig `json:"settlement_config"`
+		SettlementCycle  string `json:"settlement_cycle"`
+		SettlementConfig struct {
+			Cycle                    string `json:"cycle"`
+			FreezeDays               int    `json:"freeze_days"`
+			MinSettlementAmountCents int64  `json:"min_settlement_amount_cents"`
+			ManualReviewEnabled      bool   `json:"manual_review_enabled"`
+			AutoSettlementEnabled    *bool  `json:"auto_settlement_enabled"`
+			ReviewNote               string `json:"review_note"`
+		} `json:"settlement_config"`
 	}
 	if strings.TrimSpace(snapshot) == "" {
 		return AffiliateSettlementRuleConfig{}
@@ -924,9 +934,19 @@ func extractAffiliateSettlementRuleConfig(snapshot string) AffiliateSettlementRu
 	if err := json.Unmarshal([]byte(snapshot), &parsed); err != nil {
 		return AffiliateSettlementRuleConfig{}
 	}
-	config := parsed.SettlementConfig
+	config := AffiliateSettlementRuleConfig{
+		Cycle:                    strings.TrimSpace(parsed.SettlementConfig.Cycle),
+		FreezeDays:               parsed.SettlementConfig.FreezeDays,
+		MinSettlementAmountCents: parsed.SettlementConfig.MinSettlementAmountCents,
+		ManualReviewEnabled:      parsed.SettlementConfig.ManualReviewEnabled,
+		AutoSettlementEnabled:    true,
+		ReviewNote:               strings.TrimSpace(parsed.SettlementConfig.ReviewNote),
+	}
+	if parsed.SettlementConfig.AutoSettlementEnabled != nil {
+		config.AutoSettlementEnabled = *parsed.SettlementConfig.AutoSettlementEnabled
+	}
 	if config.Cycle == "" {
-		config.Cycle = parsed.SettlementCycle
+		config.Cycle = strings.TrimSpace(parsed.SettlementCycle)
 	}
 	return config
 }

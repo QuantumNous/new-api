@@ -16,6 +16,7 @@ type AffiliateSettlementBuildInput struct {
 	PeriodStart int64
 	PeriodEnd   int64
 	FreezeDays  int
+	AutoRun     bool
 	ActorUserId int
 	Reason      string
 	GeneratedAt int64
@@ -61,6 +62,9 @@ func GenerateAffiliateSettlements(db *gorm.DB, input AffiliateSettlementBuildInp
 	ruleSet, err := findAffiliateSettlementRuleSet(db, input)
 	if err != nil {
 		return nil, err
+	}
+	if input.AutoRun && !affiliateRuleSetAutoSettlementEnabled(ruleSet) {
+		return nil, errors.New("automatic affiliate settlement is disabled")
 	}
 	groups, err := buildAffiliateSettlementEventGroups(db, ruleSet.Id, input)
 	if err != nil {
@@ -232,6 +236,10 @@ func findAffiliateSettlementRuleSet(db *gorm.DB, input AffiliateSettlementBuildI
 		return model.AffiliateRuleSet{}, errors.New("no published affiliate rule set for settlement")
 	}
 	return ruleSet, err
+}
+
+func affiliateRuleSetAutoSettlementEnabled(ruleSet model.AffiliateRuleSet) bool {
+	return extractAffiliateSettlementRuleConfig(ruleSet.ConfigSnapshot).AutoSettlementEnabled
 }
 
 func buildAffiliateSettlementEventGroups(db *gorm.DB, ruleSetId int, input AffiliateSettlementBuildInput) (map[int]affiliateSettlementEventGroup, error) {

@@ -17,7 +17,9 @@ func TestDefaultAffiliateRuleSetSeedUsesOperationalUnitConversions(t *testing.T)
 	if seed.SettlementConfig.Cycle != "monthly" ||
 		seed.SettlementConfig.FreezeDays != 7 ||
 		seed.SettlementConfig.MinSettlementAmountCents != 10000 ||
-		!seed.SettlementConfig.ManualReviewEnabled {
+		!seed.SettlementConfig.ManualReviewEnabled ||
+		!seed.SettlementConfig.AutoSettlementEnabled ||
+		seed.SettlementConfig.ReviewNote != "" {
 		t.Fatalf("unexpected settlement config: %+v", seed.SettlementConfig)
 	}
 

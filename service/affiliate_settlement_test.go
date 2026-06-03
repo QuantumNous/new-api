@@ -69,6 +69,48 @@ func TestGenerateAffiliateSettlementsCreatesDraftAndLinksEvents(t *testing.T) {
 	}
 }
 
+func TestGenerateAffiliateSettlementsRespectsDisabledAutoSettlement(t *testing.T) {
+	db := newAffiliateCommissionTestDB(t)
+	input := newAffiliateRuleSetDraftInput("settlement-auto-disabled")
+	input.SettlementConfig.AutoSettlementEnabled = false
+	ruleSet, err := SaveAffiliateRuleSetDraft(db, input)
+	if err != nil {
+		t.Fatalf("save disabled auto settlement rule set: %v", err)
+	}
+	published, err := PublishAffiliateRuleSet(db, ruleSet.Id, AffiliateRuleSetStatusInput{
+		ActorUserId: 1,
+		Reason:      "publish disabled auto settlement",
+	})
+	if err != nil {
+		t.Fatalf("publish disabled auto settlement rule set: %v", err)
+	}
+	seedAffiliateSettlementCommissionEvent(t, db, published.Id, 100, 1000, 1000, 2000)
+
+	automatic, err := GenerateAffiliateSettlements(db, AffiliateSettlementBuildInput{
+		RuleSetId:   published.Id,
+		PeriodStart: 1000,
+		PeriodEnd:   2000,
+		FreezeDays:  7,
+		AutoRun:     true,
+	})
+	if err == nil || !strings.Contains(err.Error(), "automatic affiliate settlement is disabled") {
+		t.Fatalf("expected disabled auto settlement error, settlements=%+v err=%v", automatic, err)
+	}
+
+	manual, err := GenerateAffiliateSettlements(db, AffiliateSettlementBuildInput{
+		RuleSetId:   published.Id,
+		PeriodStart: 1000,
+		PeriodEnd:   2000,
+		FreezeDays:  7,
+	})
+	if err != nil {
+		t.Fatalf("manual GenerateAffiliateSettlements should still be allowed: %v", err)
+	}
+	if len(manual) != 1 {
+		t.Fatalf("expected one manual settlement, got %+v", manual)
+	}
+}
+
 func TestGenerateAffiliateSettlementsWithJobRunRecordsSuccess(t *testing.T) {
 	db := newAffiliateCommissionTestDB(t)
 	ruleSet := savePublishedAffiliateCommissionRuleSet(t, db, "settlement-generate-job-success")

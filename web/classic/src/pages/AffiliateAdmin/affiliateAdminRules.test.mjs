@@ -56,6 +56,8 @@ describe('affiliate admin rule set helpers', () => {
       freeze_days: '7',
       min_settlement_amount_cents: '10000',
       manual_review_enabled: true,
+      auto_settlement_enabled: false,
+      review_note: ' finance approval before payout ',
       commission_rules_json: JSON.stringify([
         {
           affiliate_level: 1,
@@ -115,6 +117,8 @@ describe('affiliate admin rule set helpers', () => {
         freeze_days: 7,
         min_settlement_amount_cents: 10000,
         manual_review_enabled: true,
+        auto_settlement_enabled: false,
+        review_note: 'finance approval before payout',
       },
       commission_rules: [
         {
@@ -190,6 +194,8 @@ describe('affiliate admin rule set helpers', () => {
     expect(values.version).toBe('rules-2026-07');
     expect(values.settlement_cycle).toBe('monthly');
     expect(values.freeze_days).toBe(7);
+    expect(values.auto_settlement_enabled).toBe(true);
+    expect(values.review_note).toBe('');
     expect(JSON.parse(values.commission_rules_json)).toEqual([
       {
         affiliate_level: 1,
@@ -227,6 +233,8 @@ describe('affiliate admin rule set helpers', () => {
       freeze_days: 7,
       min_settlement_amount_yuan: 88.88,
       manual_review_enabled: true,
+      auto_settlement_enabled: false,
+      review_note: 'monthly finance review',
       commission_rules_json: JSON.stringify([{ affiliate_level: 1 }]),
       commission_tiers_json: JSON.stringify([{ affiliate_level: 1 }]),
       kpi_tiers_json: JSON.stringify([{ code: 'base' }]),
@@ -239,6 +247,10 @@ describe('affiliate admin rule set helpers', () => {
     expect(exported.reason).toBeUndefined();
     expect(exported.version).toBe('rules-2026-08');
     expect(exported.settlement_config.min_settlement_amount_cents).toBe(8888);
+    expect(exported.settlement_config.auto_settlement_enabled).toBe(false);
+    expect(exported.settlement_config.review_note).toBe(
+      'monthly finance review',
+    );
     expect(exported.commission_rules).toEqual([{ affiliate_level: 1 }]);
 
     const imported = parseAffiliateRuleSetImportJson(
@@ -253,6 +265,8 @@ describe('affiliate admin rule set helpers', () => {
     expect(imported.reason).toBe('');
     expect(imported.version).toBe('rules-2026-08');
     expect(imported.min_settlement_amount_yuan).toBe(88.88);
+    expect(imported.auto_settlement_enabled).toBe(false);
+    expect(imported.review_note).toBe('monthly finance review');
     expect(JSON.parse(imported.commission_rules_json)).toEqual([
       { affiliate_level: 1, status: 'active' },
     ]);
@@ -276,6 +290,8 @@ describe('affiliate admin rule set helpers', () => {
           freeze_days: 7,
           min_settlement_amount_cents: 10000,
           manual_review_enabled: true,
+          auto_settlement_enabled: false,
+          review_note: 'copied review note',
         },
         commission_rules: [{ affiliate_level: 1, default_cap_rate_bps: 3000 }],
         head_fee_rules: [{ affiliate_level: 1, kpi_tier_code: 'base' }],
@@ -285,6 +301,8 @@ describe('affiliate admin rule set helpers', () => {
     expect(copied.id).toBe(0);
     expect(copied.version).toBe('rules-2026-07-copy');
     expect(copied.reason).toBe('');
+    expect(copied.auto_settlement_enabled).toBe(false);
+    expect(copied.review_note).toBe('copied review note');
     expect(JSON.parse(copied.commission_rules_json)).toEqual([
       {
         affiliate_level: 1,
@@ -324,6 +342,8 @@ describe('affiliate admin rule set helpers', () => {
       ...before,
       version: 'rules-2026-08',
       freeze_days: 14,
+      auto_settlement_enabled: false,
+      review_note: 'payout approval',
       commission_tiers_json: JSON.stringify([
         { affiliate_level: 1, base_rate_bps: 1800 },
       ]),
@@ -336,6 +356,8 @@ describe('affiliate admin rule set helpers', () => {
         after: 'rules-2026-08',
       },
       { section: 'Freeze Days', before: '7', after: '14' },
+      { section: 'Automatic Settlement', before: 'true', after: 'false' },
+      { section: 'Review Note', before: '', after: 'payout approval' },
       { section: 'Commission Tiers', before: 'changed', after: 'changed' },
     ]);
   });
@@ -407,6 +429,8 @@ describe('affiliate admin rule set helpers', () => {
 
     expect(values.settlement_cycle).toBe('monthly');
     expect(values.manual_review_enabled).toBe(true);
+    expect(values.auto_settlement_enabled).toBe(true);
+    expect(values.review_note).toBe('');
     expect(commissionTiers).toHaveLength(10);
     expect(commissionTiers[0]).toMatchObject({
       affiliate_level: 1,

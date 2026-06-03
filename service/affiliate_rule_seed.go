@@ -88,6 +88,8 @@ func BuildDefaultAffiliateRuleSetDraftInput(version string, actorUserId int, rea
 			FreezeDays:               7,
 			MinSettlementAmountCents: affiliateSeedYuanToCents(100),
 			ManualReviewEnabled:      true,
+			AutoSettlementEnabled:    true,
+			ReviewNote:               "",
 		},
 	}
 }

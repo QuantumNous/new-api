@@ -45,6 +45,7 @@ type affiliateSettlementGenerateIdempotencyPayload struct {
 	PeriodStart int64  `json:"period_start"`
 	PeriodEnd   int64  `json:"period_end"`
 	FreezeDays  int    `json:"freeze_days"`
+	AutoRun     bool   `json:"auto_run"`
 }
 
 func createAffiliateSettlementPipelineJobRun(db *gorm.DB, input AffiliateSettlementRunInput) (model.AffiliateJobRun, error) {
@@ -390,6 +391,7 @@ func affiliateSettlementGenerateIdempotencyKey(input AffiliateSettlementBuildInp
 		PeriodStart: input.PeriodStart,
 		PeriodEnd:   input.PeriodEnd,
 		FreezeDays:  input.FreezeDays,
+		AutoRun:     input.AutoRun,
 	}
 	encoded, err := json.Marshal(payload)
 	if err != nil {
@@ -420,6 +422,7 @@ func affiliateSettlementGenerateInputSnapshot(input AffiliateSettlementBuildInpu
 		"period_start":  input.PeriodStart,
 		"period_end":    input.PeriodEnd,
 		"freeze_days":   input.FreezeDays,
+		"auto_run":      input.AutoRun,
 		"actor_user_id": input.ActorUserId,
 		"has_reason":    strings.TrimSpace(input.Reason) != "",
 	})

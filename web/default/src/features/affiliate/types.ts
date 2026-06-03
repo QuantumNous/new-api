@@ -190,6 +190,8 @@ export interface AffiliateRuleSetDraftFormValues {
   minSettlementAmountCents?: string
   minSettlementAmountYuan?: string
   manualReviewEnabled?: boolean
+  autoSettlementEnabled?: boolean
+  reviewNote?: string
   commissionRulesJson?: string
   commissionTiersJson?: string
   kpiTiersJson?: string
@@ -209,6 +211,8 @@ export interface AffiliateRuleSetDraftPayload {
     freeze_days?: number
     min_settlement_amount_cents?: number
     manual_review_enabled?: boolean
+    auto_settlement_enabled?: boolean
+    review_note?: string
   }
   commission_rules?: Record<string, unknown>[]
   commission_tiers?: Record<string, unknown>[]
