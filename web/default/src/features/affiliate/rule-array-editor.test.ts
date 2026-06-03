@@ -28,6 +28,40 @@ describe('affiliate rule table editor helpers', () => {
     ])
   })
 
+  test('keeps commission rule status as an operator-facing column', () => {
+    const columns = __ruleArrayEditorTestUtils.getRuleTableColumns(
+      [
+        {
+          affiliate_level: 1,
+          name: 'Level 1',
+          status: 'disabled',
+          default_rate_bps: 2000,
+          min_net_paid_amount_cents: 0,
+        },
+      ],
+      ['affiliate_level']
+    )
+
+    assert.deepEqual(columns, [
+      'name',
+      'status',
+      'default_rate_bps',
+      'min_net_paid_amount_cents',
+    ])
+    assert.equal(
+      __ruleArrayEditorTestUtils.getRuleFieldLabel('status'),
+      'Status'
+    )
+    assert.equal(
+      __ruleArrayEditorTestUtils.coerceRuleFieldValue(
+        'status',
+        'active',
+        'disabled'
+      ),
+      'active'
+    )
+  })
+
   test('keeps operator-facing yuan and percent units reversible', () => {
     assert.equal(
       __ruleArrayEditorTestUtils.getDisplayValue('base_rate_bps', 1333),

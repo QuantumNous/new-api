@@ -32,6 +32,21 @@ const yuanToCents = (value) => {
 
 const stringifyPretty = (value) => JSON.stringify(value || [], null, 2);
 
+const normalizeCommissionRulesForForm = (value) => {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value.map((rule) => {
+    if (!rule || typeof rule !== 'object' || Array.isArray(rule)) {
+      return { status: 'active', value: rule };
+    }
+    return {
+      ...rule,
+      status: String(rule.status || '').trim() || 'active',
+    };
+  });
+};
+
 const stringifyStable = (value) => {
   if (Array.isArray(value)) {
     return `[${value.map((item) => stringifyStable(item)).join(',')}]`;
@@ -237,7 +252,9 @@ export function buildAffiliateRuleSetDraftFormValues(ruleSet = null) {
     manual_review_enabled: normalizeBoolean(
       settlementConfig.manual_review_enabled,
     ),
-    commission_rules_json: stringifyPretty(snapshot.commission_rules),
+    commission_rules_json: stringifyPretty(
+      normalizeCommissionRulesForForm(snapshot.commission_rules),
+    ),
     commission_tiers_json: stringifyPretty(snapshot.commission_tiers),
     kpi_tiers_json: stringifyPretty(snapshot.kpi_tiers),
     head_fee_rules_json: stringifyPretty(snapshot.head_fee_rules),
@@ -292,7 +309,9 @@ export function parseAffiliateRuleSetImportJson(value = '') {
     manual_review_enabled: normalizeBoolean(
       settlementConfig.manual_review_enabled,
     ),
-    commission_rules_json: stringifyPretty(parsed.commission_rules),
+    commission_rules_json: stringifyPretty(
+      normalizeCommissionRulesForForm(parsed.commission_rules),
+    ),
     commission_tiers_json: stringifyPretty(parsed.commission_tiers),
     kpi_tiers_json: stringifyPretty(parsed.kpi_tiers),
     head_fee_rules_json: stringifyPretty(parsed.head_fee_rules),

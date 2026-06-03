@@ -191,7 +191,11 @@ describe('affiliate admin rule set helpers', () => {
     expect(values.settlement_cycle).toBe('monthly');
     expect(values.freeze_days).toBe(7);
     expect(JSON.parse(values.commission_rules_json)).toEqual([
-      { affiliate_level: 1, default_cap_rate_bps: 3000 },
+      {
+        affiliate_level: 1,
+        status: 'active',
+        default_cap_rate_bps: 3000,
+      },
     ]);
   });
 
@@ -243,7 +247,7 @@ describe('affiliate admin rule set helpers', () => {
     expect(imported.version).toBe('rules-2026-08');
     expect(imported.min_settlement_amount_yuan).toBe(88.88);
     expect(JSON.parse(imported.commission_rules_json)).toEqual([
-      { affiliate_level: 1 },
+      { affiliate_level: 1, status: 'active' },
     ]);
   });
 
@@ -271,7 +275,11 @@ describe('affiliate admin rule set helpers', () => {
     expect(copied.version).toBe('rules-2026-07-copy');
     expect(copied.reason).toBe('');
     expect(JSON.parse(copied.commission_rules_json)).toEqual([
-      { affiliate_level: 1, default_cap_rate_bps: 3000 },
+      {
+        affiliate_level: 1,
+        status: 'active',
+        default_cap_rate_bps: 3000,
+      },
     ]);
   });
 

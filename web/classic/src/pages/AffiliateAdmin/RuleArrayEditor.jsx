@@ -33,6 +33,7 @@ const { Text } = Typography;
 const RULE_FIELD_LABELS = {
   affiliate_level: 'Affiliate Level',
   name: 'Name',
+  status: 'Status',
   code: 'Code',
   default_rate_bps: 'Default Rate (%)',
   default_cap_rate_bps: 'Default Cap Rate (%)',
@@ -554,6 +555,13 @@ export const RuleLevelGroupedEditor = ({
       </div>
     </Card>
   );
+};
+
+export const __ruleArrayEditorTestUtils = {
+  coerceRuleFieldValue,
+  getDisplayValue,
+  getRuleFieldLabel,
+  getRuleTableColumns,
 };
 
 export default RuleArrayEditor;

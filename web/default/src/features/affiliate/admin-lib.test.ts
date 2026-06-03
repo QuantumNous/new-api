@@ -298,7 +298,11 @@ describe('default affiliate admin rule set helpers', () => {
     assert.equal(values.version, 'rules-2026-07')
     assert.equal(values.settlementCycle, 'monthly')
     assert.deepEqual(JSON.parse(values.commissionRulesJson || '[]'), [
-      { affiliate_level: 1, default_cap_rate_bps: 3000 },
+      {
+        affiliate_level: 1,
+        status: 'active',
+        default_cap_rate_bps: 3000,
+      },
     ])
 
     const seed = buildAffiliateRuleSetDraftFormValues()
@@ -368,7 +372,7 @@ describe('default affiliate admin rule set helpers', () => {
     assert.equal(imported.version, 'rules-2026-08')
     assert.equal(imported.minSettlementAmountYuan, '88.88')
     assert.deepEqual(JSON.parse(imported.commissionRulesJson || '[]'), [
-      { affiliate_level: 1 },
+      { affiliate_level: 1, status: 'active' },
     ])
   })
 
@@ -396,7 +400,11 @@ describe('default affiliate admin rule set helpers', () => {
     assert.equal(copied.version, 'rules-2026-07-copy')
     assert.equal(copied.reason, '')
     assert.deepEqual(JSON.parse(copied.commissionRulesJson || '[]'), [
-      { affiliate_level: 1, default_cap_rate_bps: 3000 },
+      {
+        affiliate_level: 1,
+        status: 'active',
+        default_cap_rate_bps: 3000,
+      },
     ])
   })
 

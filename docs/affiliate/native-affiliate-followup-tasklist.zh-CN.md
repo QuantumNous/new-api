@@ -74,7 +74,7 @@
 ## 6. 分销管理指标体系表格化
 
 - [x] 分销管理里的规则、指标、KPI、人头费、风控和结算配置建议做成表格或矩阵，而不是继续以 JSON textarea 或散卡片为主。
-- [ ] 佣金规则表：列包含层级、单用户累计净付费下限、单用户累计净付费上限、基准比例、最高比例 cap、是否需人工审批、排序和启停状态。（2026-06-04 审计：tier 表格字段已覆盖净付费区间、比例、cap、人工审批和排序；2026-06-04 已补 `AffiliateCommissionRuleInput.status`、默认 seed/fallback active 状态、草稿保存/发布/回滚复制和佣金生成跳过 disabled 等级。剩余待验证：default/classic 运营表格中 status 列编辑体验、与历史 rule snapshot 的兼容展示。）
+- [x] 佣金规则表：列包含层级、单用户累计净付费下限、单用户累计净付费上限、基准比例、最高比例 cap、是否需人工审批、排序和启停状态。（2026-06-04 审计：tier 表格字段已覆盖净付费区间、比例、cap、人工审批和排序；2026-06-04 已补 `AffiliateCommissionRuleInput.status`、默认 seed/fallback active 状态、草稿保存/发布/回滚复制和佣金生成跳过 disabled 等级；2026-06-04 已补 default/classic 规则表格 status 标签、固定列顺序、编辑值转换测试，以及旧 rule snapshot/import/copy 缺失 status 时补 `active` 的兼容展示。）
 - [x] KPI 档位表：列包含层级、档位 code、档位名称、有效新用户阈值、净付费消耗阈值、最终系数、质量门槛和排序。（2026-06-04 审计：`kpi_tiers` 已覆盖这些字段，default/classic 表格编辑器会按字段动态生成运营表格，并对百分比字段做 bps/percent 转换。）
 - [ ] 人头费规则表：列包含层级、适用 KPI 档位、金额、首充门槛、14 天净付费门槛、解锁天数、是否启用。（2026-06-04 审计：金额、首充、周期净付费、资格天数和解锁天数已覆盖；人头费 rule model/input 尚无启停字段。）
 - [ ] 风控规则表：列包含纯赠金额占比阈值、异常用户占比阈值、退款阈值、二次付费率阈值、自刷/批量异常策略和处理动作。（2026-06-04 审计：比例阈值已覆盖；自刷/批量异常策略与处理动作尚未模型化，只能暂存在 metadata，不能视为运营友好表格完成。）
@@ -499,6 +499,14 @@
 - 完成内容：佣金事件构建只查询 active 的佣金规则；如果某一层级佣金规则被 disabled，则跳过该层级关系，不再因为找不到 active rule 而让整次佣金构建失败。
 - 验证命令：`go test -count=1 ./service -run "DefaultAffiliateRuleSetSeedUsesOperationalUnitConversions|CommissionRuleStatus|SkipsDisabledCommissionRuleLevel"` 通过；`cd web/default && bun test src/features/affiliate/admin-lib.test.ts --test-name-pattern "default seed"` 通过；`go test -count=1 ./model ./service ./controller ./router -run "Affiliate|RuleSet|Commission|KPI|HeadFee|Settlement|Admin|Inviter|JobRun"` 通过；`cd web/default && bun test src/features/affiliate/admin-lib.test.ts` 通过。
 - 残留风险：本轮只补佣金规则已有 schema 能承载的状态字段，不给人头费规则、风控规则或结算配置强行新增 status/动作字段；default/classic 的动态表格应能从 snapshot 字段生成 status 列，但仍需浏览器 smoke 确认历史规则、默认 seed 和编辑保存的完整运营体验。
+
+## P1-27 佣金规则状态表格 parity 复盘（2026-06-04 本线程）
+
+- RED：先补 default `rule-array-editor.test.ts`，要求 `status` 在佣金规则表中作为固定运营列展示在 `name` 后、费率字段前；旧实现把未知 `status` 排到末尾。再补 classic `ruleArrayEditor.test.mjs`，旧实现没有导出表格 helper。随后补 default/classic admin rules 测试，要求旧 snapshot、导入 JSON 和复制历史规则集时，缺失 `commission_rules.status` 的规则自动在表单中显示为 `active`；旧实现三处均缺 status。
+- 完成内容：default/classic `RuleArrayEditor` 都把 `status` 加入 `RULE_FIELD_LABELS` 和固定列顺序，并保持字符串值编辑转换；classic 同步导出测试 helper 以锁定 parity。default/classic admin rule helper 新增 `normalizeCommissionRulesForForm`，只在表单展示/编辑入口为缺失 status 的佣金规则补 `active`，不覆盖已有 `disabled`，也不强行给人头费、风控或结算配置新增未模型化字段。
+- 验证命令：`cd web/default && bun test src/features/affiliate/rule-array-editor.test.ts src/features/affiliate/admin-lib.test.ts` 通过，24 pass；`cd web/classic && bun test src/pages/AffiliateAdmin/ruleArrayEditor.test.mjs src/pages/AffiliateAdmin/affiliateAdminRules.test.mjs` 通过，14 pass；`cd web/default && bun run build` 通过；`cd web/classic && bun run build` 通过；`git diff --check` 通过。
+- 浏览器 smoke：in-app Browser 打开 `http://127.0.0.1:5173/affiliate/admin` 未登录正常跳转到 default sign-in；打开 `http://127.0.0.1:5174/console/affiliate/admin` 未登录正常跳转到 classic login，控制台错误为既有未登录/登录过期提示，不是本轮 RuleArrayEditor 运行时异常。
+- 残留风险：本轮只收口佣金规则已有 `status` 字段在运营表格中的显示与历史快照兼容；人头费规则启停、风控处理动作、结算自动开关和备注仍未模型化。Docker engine 当前仍不可查询，未做登录态管理员真实点击保存 smoke。
 
 ## P2-2 SMS DB-backed 限流复盘（2026-06-04 本线程）
 

@@ -97,6 +97,22 @@ function stringifyPretty(value: unknown): string {
   return JSON.stringify(Array.isArray(value) ? value : [], null, 2)
 }
 
+function normalizeCommissionRulesForForm(
+  value: unknown
+): Record<string, unknown>[] {
+  if (!Array.isArray(value)) return []
+  return value.map((rule) => {
+    if (!rule || typeof rule !== 'object' || Array.isArray(rule)) {
+      return { status: 'active', value: rule }
+    }
+    const record = rule as Record<string, unknown>
+    return {
+      ...record,
+      status: String(record.status || '').trim() || 'active',
+    }
+  })
+}
+
 function stringifyStable(value: unknown): string {
   if (Array.isArray(value)) {
     return `[${value.map((item) => stringifyStable(item)).join(',')}]`
@@ -439,7 +455,9 @@ export function buildAffiliateRuleSetDraftFormValues(
       settlementConfig.min_settlement_amount_cents
     ),
     manualReviewEnabled: settlementConfig.manual_review_enabled === true,
-    commissionRulesJson: stringifyPretty(snapshot.commission_rules),
+    commissionRulesJson: stringifyPretty(
+      normalizeCommissionRulesForForm(snapshot.commission_rules)
+    ),
     commissionTiersJson: stringifyPretty(snapshot.commission_tiers),
     kpiTiersJson: stringifyPretty(snapshot.kpi_tiers),
     headFeeRulesJson: stringifyPretty(snapshot.head_fee_rules),
@@ -496,7 +514,9 @@ export function parseAffiliateRuleSetImportJson(
       settlementConfig.min_settlement_amount_cents
     ),
     manualReviewEnabled: settlementConfig.manual_review_enabled === true,
-    commissionRulesJson: stringifyPretty(imported.commission_rules),
+    commissionRulesJson: stringifyPretty(
+      normalizeCommissionRulesForForm(imported.commission_rules)
+    ),
     commissionTiersJson: stringifyPretty(imported.commission_tiers),
     kpiTiersJson: stringifyPretty(imported.kpi_tiers),
     headFeeRulesJson: stringifyPretty(imported.head_fee_rules),

@@ -31,6 +31,7 @@ type RuleTableRow = {
 const RULE_FIELD_LABELS: Record<string, string> = {
   affiliate_level: 'Affiliate Level',
   name: 'Name',
+  status: 'Status',
   code: 'Code',
   default_rate_bps: 'Default Rate (%)',
   default_cap_rate_bps: 'Default Cap Rate (%)',
@@ -548,5 +549,6 @@ export function RuleLevelGroupedEditor(props: {
 export const __ruleArrayEditorTestUtils = {
   coerceRuleFieldValue,
   getDisplayValue,
+  getRuleFieldLabel,
   getRuleTableColumns,
 }
