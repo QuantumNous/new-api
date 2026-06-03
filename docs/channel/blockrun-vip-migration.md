@@ -149,11 +149,33 @@ VIP 包不是普通版的替代,而是**建在普通版之上**(其 `go.mod` 直
 
 > ⚠️ 安全:测试时私钥曾出现在协作对话中,建议**轮换该钱包**(转走余额 → 换新私钥 → 重新配渠道)。
 
-### 待实现后的验证
+### 全链路 E2E 实测矩阵(2026-06-03,直连 type-100 → blockrun.ai,真实钱包/USDC)
 
-- `go test ./relay/channel/blockrun/...`(单测,无 build tag)
-- 本机端到端:OpenAI 非流式/流式 + Claude Messages API(`/v1/messages`),确认原生透传与计费
-- 渠道"测试"按钮(会真实扣 sub-cent USDC)
+通过临时 new-api 服务(SQLite,type-100 渠道直连 `blockrun.ai/api`,无 api2 中转)对真实网关发起带计费的请求验证:
+
+| 维度 | 路径 / 模型 | 结果 | 关键证据 |
+|---|---|---|---|
+| OpenAI 原生 | `/v1/chat/completions` `openai/gpt-5.4-nano` | ✅ | OpenAI `chat.completion` 形状,usage 正常 |
+| OpenAI 调 Claude 模型 | `/v1/chat/completions` `anthropic/claude-haiku-4.5` | ✅ | 仍 OpenAI 形状(决策 #2) |
+| **Claude 原生** | `/v1/messages` `anthropic/claude-haiku-4.5` | ✅ | 原生 Anthropic 形状(`type:message`、content blocks、`usage.input_tokens/output_tokens`) |
+| **thinking(扩展思考)** | `/v1/messages` `anthropic/claude-sonnet-4.5` | ✅ | `type:thinking` 块 + **完整 1040 字符 `signature`**、`thinking_tokens=272` |
+| **web_search(服务端工具)** | `/v1/messages` `anthropic/claude-sonnet-4.5` | ✅ | HTTP **200(非 400)**,`server_tool_use` + `web_search_tool_result`(含引用 URL) |
+| **长输出(流式)** | `/v1/messages` `claude-sonnet-4.5` `max_tokens:2000` | ✅ | 流完整到 `message_stop`,`output_tokens=1647`、`stop_reason=end_turn`、无截断 |
+| **prompt caching** | `/v1/messages` `claude-sonnet-4.5`(cache_control) | ✅ | call1 `cache_creation_input_tokens=1407`、call2 `cache_read_input_tokens=1407`,一致透出 |
+| **错误透传 / 防泄露** | `/v1/messages` 非法 thinking budget | ✅ | 原生 Anthropic 错误形状;**无敏感泄露**(无钱包私钥/内部路径);文档 URL 被脱敏 |
+
+**意义**:此前生产 QA 报告(链路 `new-api → api2(flatkey proxy.mjs / @blockrun/llm JS SDK)→ blockrun`)中标红的 **thinking 缺失 / web_search 失败 / 长输出截断 / cache token 不一致 / usage 缺失 / 错误信息泄露**,经实测在**本 PR 的直连原生透传**下全部通过——根因是被绕掉的 api2 那层 JS Zod 校验(网关侧已由渠道方修复),与 Go SDK 无关。
+
+> 钱包私钥全程未出现在服务日志中(已 grep 校验 `0x`/去前缀/尾段三种形态均 0 命中)。
+
+### 单测 / CI
+
+- `go test ./relay/channel/blockrun/...`(无 build tag,含分派路由 + 钱包私钥不泄漏红线 + PAYMENT-SIGNATURE 注入,全绿)
+- `gofmt` / `go vet` / `go build ./relay/...` 全清
+
+### 已知问题(独立跟踪,不在本 PR 范围)
+
+- Claude 格式错误透传时上游 `error.type` 被透出为字面量 `"<nil>"`(保真度小瑕疵,非安全问题,属共享 `relay/channel/claude/` 错误处理,影响所有 claude 渠道)。详见 [`claude-error-type-nil-followup.md`](./claude-error-type-nil-followup.md)。
 
 ---
 
