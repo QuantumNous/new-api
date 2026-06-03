@@ -89,9 +89,17 @@ export async function getTokenQuotaDates(
   return res.data
 }
 
-export async function getCodexLimitReport() {
-  const res = await api.get<{ success: boolean; data: CodexLimitReport }>(
-    '/api/data/codex/limits'
+export async function getCodexLimitReport(params?: {
+  start_timestamp: number
+  end_timestamp: number
+}) {
+  const res = await api.get<{
+    success: boolean
+    message?: string
+    data: CodexLimitReport
+  }>(
+    '/api/data/codex/limits',
+    { params }
   )
   return res.data
 }

@@ -66,17 +66,56 @@ func GetCodexChannelLimitReport(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
+	startTimestamp, endTimestamp := getCodexLimitReportRange(c)
+	if ok, msg := validateTokenQuotaRange(startTimestamp, endTimestamp, tokenQuotaAdminMaxRangeSec); !ok {
+		c.JSON(http.StatusOK, gin.H{"success": false, "message": msg})
+		return
+	}
+
+	channelIds := make([]int, 0, len(channels))
+	for _, channel := range channels {
+		if channel != nil {
+			channelIds = append(channelIds, channel.Id)
+		}
+	}
+	usageStats, err := model.GetCodexChannelUsageStats(
+		channelIds,
+		startTimestamp,
+		endTimestamp,
+	)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
 
 	fetcher := service.CodexUsageFetcherFunc(func(ctx context.Context, channel *model.Channel) (int, []byte, error) {
 		return fetchCodexChannelUsage(ctx, channel)
 	})
-	report := service.BuildCodexLimitReport(c.Request.Context(), channels, fetcher)
+	report := service.BuildCodexLimitReportWithUsage(
+		c.Request.Context(),
+		channels,
+		fetcher,
+		usageStats,
+		startTimestamp,
+		endTimestamp,
+	)
 
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",
 		"data":    report,
 	})
+}
+
+func getCodexLimitReportRange(c *gin.Context) (int64, int64) {
+	startTimestamp, _ := strconv.ParseInt(c.Query("start_timestamp"), 10, 64)
+	endTimestamp, _ := strconv.ParseInt(c.Query("end_timestamp"), 10, 64)
+	if startTimestamp > 0 && endTimestamp > 0 {
+		return startTimestamp, endTimestamp
+	}
+	endTimestamp = common.GetTimestamp()
+	startTimestamp = endTimestamp - 7*24*3600
+	return startTimestamp, endTimestamp
 }
 
 func fetchCodexChannelUsage(ctx context.Context, ch *model.Channel) (int, []byte, error) {

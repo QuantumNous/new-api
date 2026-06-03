@@ -16,17 +16,34 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useMemo } from 'react'
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  type ComponentType,
+} from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { AlertTriangle, Gauge, RefreshCw, ShieldCheck } from 'lucide-react'
+import {
+  AlertTriangle,
+  CircleDollarSign,
+  Gauge,
+  Hash,
+  LineChart,
+  RefreshCw,
+} from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import dayjs from '@/lib/dayjs'
+import { formatCompactNumber, formatNumber, formatQuota } from '@/lib/format'
+import { getRollingDateRange } from '@/lib/time'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Progress } from '@/components/ui/progress'
 import { Skeleton } from '@/components/ui/skeleton'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { StatusBadge } from '@/components/status-badge'
 import { getCodexLimitReport } from '@/features/dashboard/api'
+import { TIME_RANGE_PRESETS } from '@/features/dashboard/constants'
 import { CHANNEL_STATUS_CONFIG } from '@/features/channels/constants'
 import type {
   CodexAdditionalLimit,
@@ -74,7 +91,7 @@ function WindowMeter(props: { label: string; window?: CodexLimitWindow }) {
   const percent = clampPercent(props.window?.used_percent)
 
   return (
-    <div className='min-w-36 space-y-1.5'>
+    <div className='min-w-0 space-y-1.5'>
       <div className='flex items-center justify-between gap-2'>
         <span className='text-muted-foreground text-[11px]'>
           {props.label}
@@ -100,7 +117,7 @@ function WindowMeter(props: { label: string; window?: CodexLimitWindow }) {
 }
 
 function SummaryMetric(props: {
-  icon: React.ComponentType<{ className?: string }>
+  icon: ComponentType<{ className?: string }>
   label: string
   value: string | number
   detail: string
@@ -128,6 +145,32 @@ function SummaryMetric(props: {
   )
 }
 
+function RangeStat(props: {
+  label: string
+  value: string
+  detail?: string
+  icon: ComponentType<{ className?: string }>
+}) {
+  const Icon = props.icon
+
+  return (
+    <div className='rounded-md border px-3 py-2.5'>
+      <div className='text-muted-foreground flex items-center gap-2 text-xs'>
+        <Icon className='size-3.5 shrink-0' aria-hidden='true' />
+        <span>{props.label}</span>
+      </div>
+      <div className='mt-1.5 font-mono text-xl font-semibold tabular-nums'>
+        {props.value}
+      </div>
+      {props.detail && (
+        <div className='text-muted-foreground mt-1 text-[11px]'>
+          {props.detail}
+        </div>
+      )}
+    </div>
+  )
+}
+
 function maxWindowPercent(
   rows: CodexLimitReportRow[],
   getWindow: (row: CodexLimitReportRow) => CodexLimitWindow | undefined
@@ -144,7 +187,8 @@ function buildReportSummary(report?: CodexLimitReport) {
     total: report?.total_channels ?? 0,
     success: report?.success_count ?? 0,
     failure: report?.failure_count ?? 0,
-    maxFiveHour: maxWindowPercent(rows, (row) => row.base_five_hour_window),
+    totalTokens: report?.total_token_used ?? 0,
+    totalQuota: report?.total_quota ?? 0,
     maxWeekly: maxWindowPercent(rows, (row) => row.base_weekly_window),
   }
 }
@@ -157,11 +201,11 @@ function AdditionalLimits(props: { items?: CodexAdditionalLimit[] }) {
   }
 
   return (
-    <div className='space-y-2'>
+    <div className='grid gap-2 lg:grid-cols-2'>
       {items.map((item, index) => (
         <div
           key={`${item.name}-${item.metered_feature ?? ''}-${index}`}
-          className='bg-muted/30 rounded-md px-2.5 py-2'
+          className='bg-muted/30 rounded-md px-3 py-2.5'
         >
           <div className='mb-2 flex min-w-0 flex-wrap items-center gap-1.5'>
             <span className='min-w-0 truncate text-xs font-medium'>
@@ -225,102 +269,193 @@ function ChannelStatus(props: { status: number }) {
   )
 }
 
-function CodexLimitRows(props: { rows: CodexLimitReportRow[] }) {
+function ChannelPanel(props: { row: CodexLimitReportRow }) {
   const { t } = useTranslation()
-
-  if (props.rows.length === 0) {
-    return (
-      <div className='text-muted-foreground rounded-lg border px-4 py-8 text-center text-sm'>
-        {t('No Codex channels found')}
-      </div>
-    )
-  }
+  const weeklyPercent = clampPercent(props.row.base_weekly_window?.used_percent)
 
   return (
-    <div className='overflow-hidden rounded-lg border'>
-      <div className='overflow-x-auto'>
-        <table className='w-full min-w-[980px] text-left text-sm'>
-          <thead className='bg-muted/40 text-muted-foreground text-xs'>
-            <tr>
-              <th className='px-4 py-3 font-medium'>{t('Channel')}</th>
-              <th className='px-4 py-3 font-medium'>{t('Account')}</th>
-              <th className='px-4 py-3 font-medium'>{t('Status')}</th>
-              <th className='px-4 py-3 font-medium'>{t('Base Limits')}</th>
-              <th className='px-4 py-3 font-medium'>
-                {t('Additional Limits')}
-              </th>
-            </tr>
-          </thead>
-          <tbody className='divide-y'>
-            {props.rows.map((row) => (
-              <tr key={row.channel_id} className='align-top'>
-                <td className='px-4 py-3'>
-                  <div className='max-w-56 space-y-1'>
-                    <div className='truncate font-medium'>
-                      {row.channel_name || `#${row.channel_id}`}
-                    </div>
-                    <div className='text-muted-foreground flex flex-wrap items-center gap-1.5 text-xs'>
-                      <span>#{row.channel_id}</span>
-                      <ChannelStatus status={row.channel_status} />
-                    </div>
-                  </div>
-                </td>
-                <td className='px-4 py-3'>
-                  <div className='max-w-64 space-y-1.5'>
-                    <div className='flex flex-wrap items-center gap-1.5'>
-                      <StatusBadge
-                        label={row.plan_type || t('Unknown')}
-                        variant='blue'
-                        copyable={false}
-                      />
-                      {typeof row.upstream_status === 'number' && (
-                        <StatusBadge
-                          label={`${row.upstream_status}`}
-                          variant={row.success ? 'neutral' : 'danger'}
-                          copyable={false}
-                        />
-                      )}
-                    </div>
-                    <div className='text-muted-foreground truncate text-xs'>
-                      {row.email || row.account_id || '-'}
-                    </div>
-                    {row.message && (
-                      <div className='text-destructive text-xs'>
-                        {row.message}
-                      </div>
-                    )}
-                  </div>
-                </td>
-                <td className='px-4 py-3'>
-                  <RowStatus row={row} />
-                </td>
-                <td className='px-4 py-3'>
-                  <div className='grid gap-3 md:grid-cols-2'>
-                    <WindowMeter
-                      label={t('5-Hour Window')}
-                      window={row.base_five_hour_window}
-                    />
-                    <WindowMeter
-                      label={t('Weekly Window')}
-                      window={row.base_weekly_window}
-                    />
-                  </div>
-                </td>
-                <td className='px-4 py-3'>
-                  <AdditionalLimits items={row.additional_limits} />
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+    <div className='space-y-4 rounded-lg border p-4'>
+      <div className='flex min-w-0 flex-wrap items-start justify-between gap-3'>
+        <div className='min-w-0 space-y-1'>
+          <div className='flex min-w-0 flex-wrap items-center gap-2'>
+            <h3 className='min-w-0 truncate text-base font-semibold'>
+              {props.row.channel_name || `#${props.row.channel_id}`}
+            </h3>
+            <RowStatus row={props.row} />
+            <ChannelStatus status={props.row.channel_status} />
+          </div>
+          <div className='text-muted-foreground flex min-w-0 flex-wrap gap-x-3 gap-y-1 text-xs'>
+            <span>#{props.row.channel_id}</span>
+            <span>{props.row.email || props.row.account_id || '-'}</span>
+            {props.row.plan_type && <span>{props.row.plan_type}</span>}
+            {typeof props.row.upstream_status === 'number' && (
+              <span>{props.row.upstream_status}</span>
+            )}
+          </div>
+        </div>
+        {props.row.message && (
+          <div className='border-destructive/30 bg-destructive/5 text-destructive max-w-full rounded-md border px-3 py-2 text-xs'>
+            {props.row.message}
+          </div>
+        )}
+      </div>
+
+      <div className='grid gap-3 md:grid-cols-3'>
+        <RangeStat
+          icon={LineChart}
+          label={t('Range Tokens')}
+          value={formatCompactNumber(props.row.range_token_used)}
+          detail={t('Selected range usage')}
+        />
+        <RangeStat
+          icon={CircleDollarSign}
+          label={t('Range Amount')}
+          value={formatQuota(props.row.range_quota)}
+          detail={formatNumber(props.row.range_quota)}
+        />
+        <div className='rounded-md border px-3 py-2.5'>
+          <div className='text-muted-foreground flex items-center justify-between gap-2 text-xs'>
+            <span>{t('Weekly Limit Progress')}</span>
+            <StatusBadge
+              label={formatPercent(weeklyPercent)}
+              variant={windowTone(props.row.base_weekly_window)}
+              copyable={false}
+            />
+          </div>
+          <Progress
+            value={weeklyPercent}
+            aria-label={`${t('Weekly Limit Progress')}: ${weeklyPercent}%`}
+            className='mt-3'
+          />
+          <div className='text-muted-foreground mt-2 text-[11px]'>
+            {t('Reset at:')} {formatUnixSeconds(props.row.base_weekly_window?.reset_at)}
+          </div>
+        </div>
+      </div>
+
+      <div className='grid gap-3 md:grid-cols-2'>
+        <WindowMeter
+          label={t('5-Hour Window')}
+          window={props.row.base_five_hour_window}
+        />
+        <WindowMeter
+          label={t('Weekly Window')}
+          window={props.row.base_weekly_window}
+        />
+      </div>
+
+      <div className='space-y-2'>
+        <div className='text-sm font-medium'>{t('Additional Limits')}</div>
+        <AdditionalLimits items={props.row.additional_limits} />
       </div>
     </div>
+  )
+}
+
+function buildPreviewRow(t: (key: string) => string): CodexLimitReportRow {
+  return {
+    channel_id: -1,
+    channel_name: t('Layout Preview'),
+    channel_status: 1,
+    range_token_used: 1284000,
+    range_quota: 48250,
+    success: true,
+    upstream_status: 200,
+    plan_type: 'team',
+    email: t('Preview Account'),
+    allowed: true,
+    limit_reached: false,
+    base_five_hour_window: {
+      used_percent: 42.5,
+      reset_after_seconds: 7200,
+      limit_window_seconds: 18000,
+    },
+    base_weekly_window: {
+      used_percent: 68.2,
+      reset_after_seconds: 172800,
+      limit_window_seconds: 604800,
+    },
+    additional_limits: [
+      {
+        name: 'gpt-5.3-codex',
+        metered_feature: 'responses',
+        five_hour_window: {
+          used_percent: 31.4,
+          reset_after_seconds: 3600,
+          limit_window_seconds: 18000,
+        },
+        weekly_window: {
+          used_percent: 74.8,
+          reset_after_seconds: 259200,
+          limit_window_seconds: 604800,
+        },
+      },
+    ],
+  }
+}
+
+function CodexChannelTabs(props: { rows: CodexLimitReportRow[] }) {
+  const { t } = useTranslation()
+  const [activeChannel, setActiveChannel] = useState('')
+  const tabRows = useMemo(
+    () => [...props.rows, buildPreviewRow(t)],
+    [props.rows, t]
+  )
+
+  useEffect(() => {
+    if (tabRows.length === 0) {
+      setActiveChannel('')
+      return
+    }
+    const currentExists = tabRows.some(
+      (row) => String(row.channel_id) === activeChannel
+    )
+    if (!currentExists) {
+      setActiveChannel(String(tabRows[0].channel_id))
+    }
+  }, [tabRows, activeChannel])
+
+  return (
+    <Tabs value={activeChannel} onValueChange={setActiveChannel} className='gap-3'>
+      <TabsList className='max-w-full flex-wrap justify-start group-data-horizontal/tabs:h-auto'>
+        {tabRows.map((row) => (
+          <TabsTrigger
+            key={row.channel_id}
+            value={String(row.channel_id)}
+            className='h-auto min-h-8 max-w-52 gap-1.5'
+          >
+            <span className='min-w-0 truncate'>
+              {row.channel_name || `#${row.channel_id}`}
+            </span>
+            {!row.success && (
+              <AlertTriangle
+                className='text-destructive size-3.5 shrink-0'
+                aria-hidden='true'
+              />
+            )}
+          </TabsTrigger>
+        ))}
+      </TabsList>
+      {props.rows.length === 0 && (
+        <div className='text-muted-foreground text-xs'>
+          {t('No Codex channels found')}
+        </div>
+      )}
+      {tabRows.map((row) => (
+        <TabsContent key={row.channel_id} value={String(row.channel_id)}>
+          <ChannelPanel row={row} />
+        </TabsContent>
+      ))}
+    </Tabs>
   )
 }
 
 function CodexReportSkeleton() {
   return (
     <div className='space-y-4'>
+      <div className='flex items-center gap-1.5'>
+        <Skeleton className='h-8 w-64' />
+      </div>
       <div className='grid gap-3 md:grid-cols-4'>
         {Array.from({ length: 4 }).map((_, index) => (
           <div key={index} className='rounded-lg border px-4 py-3'>
@@ -339,15 +474,34 @@ function CodexReportSkeleton() {
 
 export function CodexLimitReportPanel() {
   const { t } = useTranslation()
+  const [selectedRange, setSelectedRange] = useState(7)
+  const [timeRange, setTimeRange] = useState(() => {
+    const { start, end } = getRollingDateRange(7)
+    return {
+      start_timestamp: Math.floor(start.getTime() / 1000),
+      end_timestamp: Math.floor(end.getTime() / 1000),
+    }
+  })
+
+  const handleRangeChange = useCallback((days: number) => {
+    setSelectedRange(days)
+    const { start, end } = getRollingDateRange(days)
+    setTimeRange({
+      start_timestamp: Math.floor(start.getTime() / 1000),
+      end_timestamp: Math.floor(end.getTime() / 1000),
+    })
+  }, [])
+
   const reportQuery = useQuery({
-    queryKey: ['dashboard', 'codex-limit-report'],
-    queryFn: getCodexLimitReport,
+    queryKey: ['dashboard', 'codex-limit-report', timeRange],
+    queryFn: () => getCodexLimitReport(timeRange),
     staleTime: 30 * 1000,
     retry: false,
   })
 
-  const report = reportQuery.data?.data
+  const report = reportQuery.data?.success ? reportQuery.data.data : undefined
   const summary = useMemo(() => buildReportSummary(report), [report])
+  const rangeLabel = `${formatUnixSeconds(report?.start_timestamp ?? timeRange.start_timestamp)} - ${formatUnixSeconds(report?.end_timestamp ?? timeRange.end_timestamp)}`
 
   if (reportQuery.isLoading) {
     return <CodexReportSkeleton />
@@ -356,10 +510,26 @@ export function CodexLimitReportPanel() {
   return (
     <div className='space-y-4'>
       <div className='flex flex-wrap items-center justify-between gap-2'>
-        <div className='text-muted-foreground text-xs'>
-          {report?.generated_at
-            ? `${t('Updated at')} ${formatUnixSeconds(report.generated_at)}`
-            : t('Codex upstream quota report')}
+        <div className='flex min-w-0 flex-wrap items-center gap-2'>
+          <div className='flex shrink-0 items-center gap-1.5 rounded-lg border p-0.5'>
+            {TIME_RANGE_PRESETS.map((preset) => (
+              <button
+                key={preset.days}
+                type='button'
+                onClick={() => handleRangeChange(preset.days)}
+                className={`rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${
+                  selectedRange === preset.days
+                    ? 'bg-primary text-primary-foreground shadow-sm'
+                    : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+                }`}
+              >
+                {t(preset.label)}
+              </button>
+            ))}
+          </div>
+          <div className='text-muted-foreground truncate text-xs'>
+            {rangeLabel}
+          </div>
         </div>
         <Button
           type='button'
@@ -375,42 +545,43 @@ export function CodexLimitReportPanel() {
         </Button>
       </div>
 
-      {reportQuery.isError && (
+      {(reportQuery.isError || reportQuery.data?.success === false) && (
         <div className='border-destructive/30 bg-destructive/5 text-destructive rounded-lg border px-4 py-3 text-sm'>
-          {t('Failed to fetch Codex limits')}
+          {reportQuery.data?.success === false
+            ? reportQuery.data.message
+            : t('Failed to fetch Codex limits')}
         </div>
       )}
 
       <div className='grid gap-3 md:grid-cols-4'>
         <SummaryMetric
-          icon={Gauge}
+          icon={Hash}
           label={t('Codex Channels')}
           value={summary.total}
           detail={`${summary.success} ${t('Available')}, ${summary.failure} ${t('Failed')}`}
         />
         <SummaryMetric
-          icon={ShieldCheck}
-          label={t('Successful Channels')}
-          value={summary.success}
-          detail={t('Channels with live upstream quota data')}
+          icon={LineChart}
+          label={t('Total Tokens')}
+          value={formatCompactNumber(summary.totalTokens)}
+          detail={t('Selected range usage')}
         />
         <SummaryMetric
-          icon={AlertTriangle}
-          label={t('Max 5-hour Usage')}
-          value={formatPercent(summary.maxFiveHour)}
-          detail={t('Highest base window usage')}
-          tone={summary.maxFiveHour >= 80 ? 'warning' : 'default'}
+          icon={CircleDollarSign}
+          label={t('Amount')}
+          value={formatQuota(summary.totalQuota)}
+          detail={formatNumber(summary.totalQuota)}
         />
         <SummaryMetric
-          icon={AlertTriangle}
-          label={t('Max Weekly Usage')}
+          icon={Gauge}
+          label={t('Peak Weekly Progress')}
           value={formatPercent(summary.maxWeekly)}
-          detail={t('Highest weekly window usage')}
+          detail={t('Highest channel weekly usage')}
           tone={summary.maxWeekly >= 80 ? 'warning' : 'default'}
         />
       </div>
 
-      <CodexLimitRows rows={report?.rows ?? []} />
+      <CodexChannelTabs rows={report?.rows ?? []} />
     </div>
   )
 }

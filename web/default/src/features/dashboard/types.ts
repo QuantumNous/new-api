@@ -64,6 +64,8 @@ export interface CodexLimitReportRow {
   channel_id: number
   channel_name: string
   channel_status: number
+  range_token_used: number
+  range_quota: number
   success: boolean
   message?: string
   upstream_status?: number
@@ -80,9 +82,13 @@ export interface CodexLimitReportRow {
 
 export interface CodexLimitReport {
   generated_at: number
+  start_timestamp: number
+  end_timestamp: number
   total_channels: number
   success_count: number
   failure_count: number
+  total_token_used: number
+  total_quota: number
   rows: CodexLimitReportRow[]
 }
 

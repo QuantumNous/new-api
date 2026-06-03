@@ -40,6 +40,8 @@ type CodexLimitReportRow struct {
 	ChannelID          int                    `json:"channel_id"`
 	ChannelName        string                 `json:"channel_name"`
 	ChannelStatus      int                    `json:"channel_status"`
+	RangeTokenUsed     int64                  `json:"range_token_used"`
+	RangeQuota         int64                  `json:"range_quota"`
 	Success            bool                   `json:"success"`
 	Message            string                 `json:"message,omitempty"`
 	UpstreamStatus     int                    `json:"upstream_status,omitempty"`
@@ -55,11 +57,15 @@ type CodexLimitReportRow struct {
 }
 
 type CodexLimitReport struct {
-	GeneratedAt   int64                 `json:"generated_at"`
-	TotalChannels int                   `json:"total_channels"`
-	SuccessCount  int                   `json:"success_count"`
-	FailureCount  int                   `json:"failure_count"`
-	Rows          []CodexLimitReportRow `json:"rows"`
+	GeneratedAt     int64                 `json:"generated_at"`
+	StartTimestamp  int64                 `json:"start_timestamp"`
+	EndTimestamp    int64                 `json:"end_timestamp"`
+	TotalChannels   int                   `json:"total_channels"`
+	SuccessCount    int                   `json:"success_count"`
+	FailureCount    int                   `json:"failure_count"`
+	TotalTokenUsed  int64                 `json:"total_token_used"`
+	TotalQuota      int64                 `json:"total_quota"`
+	Rows            []CodexLimitReportRow `json:"rows"`
 }
 
 type codexUsagePayload struct {
@@ -89,10 +95,23 @@ type codexRateLimitPayload struct {
 }
 
 func BuildCodexLimitReport(ctx context.Context, channels []*model.Channel, fetcher CodexUsageFetcher) CodexLimitReport {
+	return BuildCodexLimitReportWithUsage(ctx, channels, fetcher, nil, 0, 0)
+}
+
+func BuildCodexLimitReportWithUsage(
+	ctx context.Context,
+	channels []*model.Channel,
+	fetcher CodexUsageFetcher,
+	usageStats map[int]model.CodexChannelUsageStat,
+	startTimestamp int64,
+	endTimestamp int64,
+) CodexLimitReport {
 	report := CodexLimitReport{
-		GeneratedAt:   common.GetTimestamp(),
-		TotalChannels: len(channels),
-		Rows:          make([]CodexLimitReportRow, 0, len(channels)),
+		GeneratedAt:    common.GetTimestamp(),
+		StartTimestamp: startTimestamp,
+		EndTimestamp:   endTimestamp,
+		TotalChannels:  len(channels),
+		Rows:           make([]CodexLimitReportRow, 0, len(channels)),
 	}
 
 	rows := make([]CodexLimitReportRow, len(channels))
@@ -113,11 +132,17 @@ func BuildCodexLimitReport(ctx context.Context, channels []*model.Channel, fetch
 	wg.Wait()
 
 	for _, row := range rows {
+		if stat, ok := usageStats[row.ChannelID]; ok {
+			row.RangeTokenUsed = stat.TokenUsed
+			row.RangeQuota = stat.Quota
+		}
 		if row.Success {
 			report.SuccessCount++
 		} else {
 			report.FailureCount++
 		}
+		report.TotalTokenUsed += row.RangeTokenUsed
+		report.TotalQuota += row.RangeQuota
 		report.Rows = append(report.Rows, row)
 	}
 

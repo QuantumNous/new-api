@@ -79,6 +79,42 @@ func TestBuildCodexLimitReportSummarizesSuccessfulUsage(t *testing.T) {
 	}
 }
 
+func TestBuildCodexLimitReportMergesRangeUsageStats(t *testing.T) {
+	channels := []*model.Channel{
+		{Id: 11, Name: "Codex Pro", Type: constant.ChannelTypeCodex, Status: common.ChannelStatusEnabled},
+		{Id: 12, Name: "Codex Team", Type: constant.ChannelTypeCodex, Status: common.ChannelStatusEnabled},
+	}
+	fetcher := CodexUsageFetcherFunc(func(ctx context.Context, channel *model.Channel) (int, []byte, error) {
+		return 200, []byte(`{"rate_limit":{"allowed":true}}`), nil
+	})
+	usageStats := map[int]model.CodexChannelUsageStat{
+		11: {ChannelID: 11, TokenUsed: 1000, Quota: 2500},
+		12: {ChannelID: 12, TokenUsed: 3000, Quota: 7500},
+	}
+
+	report := BuildCodexLimitReportWithUsage(
+		context.Background(),
+		channels,
+		fetcher,
+		usageStats,
+		1700000000,
+		1700600000,
+	)
+
+	if report.StartTimestamp != 1700000000 || report.EndTimestamp != 1700600000 {
+		t.Fatalf("unexpected range: %#v", report)
+	}
+	if report.TotalTokenUsed != 4000 || report.TotalQuota != 10000 {
+		t.Fatalf("unexpected totals: %#v", report)
+	}
+	if report.Rows[0].RangeTokenUsed != 1000 || report.Rows[0].RangeQuota != 2500 {
+		t.Fatalf("unexpected row 0 usage: %#v", report.Rows[0])
+	}
+	if report.Rows[1].RangeTokenUsed != 3000 || report.Rows[1].RangeQuota != 7500 {
+		t.Fatalf("unexpected row 1 usage: %#v", report.Rows[1])
+	}
+}
+
 func TestBuildCodexLimitReportKeepsFailureRows(t *testing.T) {
 	channels := []*model.Channel{
 		{Id: 12, Name: "Expired Codex", Type: constant.ChannelTypeCodex, Status: common.ChannelStatusEnabled},
