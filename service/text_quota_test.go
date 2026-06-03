@@ -236,6 +236,7 @@ func TestCalculateTextQuotaSummaryRefundsAbortedStreamWithNoResponse(t *testing.
 
 func TestCalculateTextQuotaSummaryDoesNotKeepPreConsumedQuotaForNormalMissingUsageStream(t *testing.T) {
 	ctx := newTextQuotaTestContext()
+	common.SetContextKey(ctx, constant.ContextKeyResponsesBillableStreamOutput, true)
 
 	streamStatus := relaycommon.NewStreamStatus()
 	streamStatus.SetEndReason(relaycommon.StreamEndReasonDone, nil)

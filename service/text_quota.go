@@ -411,11 +411,11 @@ func PostTextConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, us
 
 	if summary.TotalTokens == 0 && !summary.MissingUsagePreConsumed {
 		extraContent = append(extraContent, "上游没有返回计费信息，无法扣费（可能是上游超时）")
-		logger.LogError(ctx, fmt.Sprintf("total tokens is 0, cannot consume quota, userId %d, channelId %d, tokenId %d, model %s， pre-consumed quota %d", relayInfo.UserId, relayInfo.ChannelId, relayInfo.TokenId, summary.ModelName, relayInfo.FinalPreConsumedQuota))
+		logger.LogWarn(ctx, fmt.Sprintf("total tokens is 0, cannot consume quota, userId %d, channelId %d, tokenId %d, model %s， pre-consumed quota %d", relayInfo.UserId, relayInfo.ChannelId, relayInfo.TokenId, summary.ModelName, relayInfo.FinalPreConsumedQuota))
 	} else {
 		if summary.MissingUsagePreConsumed {
 			extraContent = append(extraContent, "流式响应已开始但缺少最终计费信息，按预扣额度结算")
-			logger.LogError(ctx, fmt.Sprintf("stream usage missing after response chunks, settling pre-consumed quota, userId %d, channelId %d, tokenId %d, model %s, pre-consumed quota %d, received %d, sent %d", relayInfo.UserId, relayInfo.ChannelId, relayInfo.TokenId, summary.ModelName, summary.Quota, relayInfo.ReceivedResponseCount, relayInfo.SendResponseCount))
+			logger.LogWarn(ctx, fmt.Sprintf("stream usage missing after response chunks, settling pre-consumed quota, userId %d, channelId %d, tokenId %d, model %s, pre-consumed quota %d, received %d, sent %d", relayInfo.UserId, relayInfo.ChannelId, relayInfo.TokenId, summary.ModelName, summary.Quota, relayInfo.ReceivedResponseCount, relayInfo.SendResponseCount))
 		}
 		model.UpdateUserUsedQuotaAndRequestCount(relayInfo.UserId, summary.Quota)
 		model.UpdateChannelUsedQuota(relayInfo.ChannelId, summary.Quota)
