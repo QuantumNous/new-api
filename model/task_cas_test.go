@@ -8,6 +8,8 @@ import (
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
+	commonRelay "github.com/QuantumNous/new-api/relay/common"
 	"github.com/glebarez/sqlite"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -75,6 +77,20 @@ func insertTask(t *testing.T, task *Task) {
 	task.CreatedAt = time.Now().Unix()
 	task.UpdatedAt = time.Now().Unix()
 	require.NoError(t, DB.Create(task).Error)
+}
+
+func TestInitTaskPersistsUpstreamRequestKey(t *testing.T) {
+	task := InitTask(constant.TaskPlatform("jimeng"), &commonRelay.RelayInfo{
+		ChannelMeta: &commonRelay.ChannelMeta{
+			UpstreamModelName: "jimeng_v30",
+		},
+		TaskRelayInfo: &commonRelay.TaskRelayInfo{
+			UpstreamRequestKey: "jimeng_ti2v_v30_pro",
+		},
+	})
+
+	require.Equal(t, "jimeng_v30", task.Properties.UpstreamModelName)
+	require.Equal(t, "jimeng_ti2v_v30_pro", task.Properties.UpstreamRequestKey)
 }
 
 // ---------------------------------------------------------------------------
