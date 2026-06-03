@@ -30,9 +30,20 @@ import {
 } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
 import { createChannel } from '../../api'
-import { PROVIDER_PRESETS, type ProviderPreset } from '../../lib/provider-presets'
+import {
+  PROVIDER_PRESETS,
+  type ProviderModality,
+  type ProviderPreset,
+} from '../../lib/provider-presets'
 
 const PLACEHOLDER_KEY = 'REPLACE_WITH_YOUR_KEY'
+
+// Section order + labels (i18n keys) for the modality-grouped preset list.
+const MODALITY_GROUPS: Array<{ modality: ProviderModality; label: string }> = [
+  { modality: 'chat', label: 'Chat / 对话' },
+  { modality: 'image', label: 'Image / 画图' },
+  { modality: 'embedding', label: 'Embeddings & Audio / 向量·语音' },
+]
 
 export interface QuickImportProvidersDialogProps {
   open: boolean
@@ -77,6 +88,10 @@ export function QuickImportProvidersDialog({
         key: PLACEHOLDER_KEY,
         base_url: preset.baseUrl ?? '',
         models: preset.models,
+        // Pre-set a cheap, right-modality test model so the channel "Test"
+        // button works without the operator picking one (chat models can't
+        // test image channels and vice versa).
+        test_model: preset.testModel ?? '',
         group: 'default',
         status: 2, // disabled until operator fills real key
       },
@@ -174,49 +189,62 @@ export function QuickImportProvidersDialog({
           </div>
         </div>
 
-        <div className='max-h-[55vh] space-y-2 overflow-y-auto pr-1'>
-          {PROVIDER_PRESETS.map((p) => {
-            const checked = !!selected[p.id]
+        <div className='max-h-[55vh] space-y-3 overflow-y-auto pr-1'>
+          {MODALITY_GROUPS.map((group) => {
+            const items = PROVIDER_PRESETS.filter(
+              (p) => p.modality === group.modality
+            )
+            if (items.length === 0) return null
             return (
-              <Label
-                key={p.id}
-                htmlFor={`qip-${p.id}`}
-                className='hover:bg-accent/40 flex cursor-pointer items-start gap-3 rounded-md border p-3'
-              >
-                <Checkbox
-                  id={`qip-${p.id}`}
-                  checked={checked}
-                  onCheckedChange={() => toggle(p.id)}
-                  disabled={submitting}
-                  className='mt-0.5'
-                />
-                <div className='flex-1 space-y-1'>
-                  <div className='flex items-center gap-2'>
-                    <span className='font-medium'>{p.name}</span>
-                    <span className='text-muted-foreground text-xs'>
-                      type={p.type}
-                    </span>
-                    {p.docsUrl && (
-                      <a
-                        href={p.docsUrl}
-                        target='_blank'
-                        rel='noopener noreferrer'
-                        onClick={(e) => e.stopPropagation()}
-                        className='text-muted-foreground hover:text-foreground inline-flex items-center gap-0.5 text-xs underline'
-                      >
-                        {t('Get key')}
-                        <ExternalLink className='size-3' />
-                      </a>
-                    )}
-                  </div>
-                  <p className='text-muted-foreground text-xs'>
-                    {p.description}
-                  </p>
-                  <p className='text-muted-foreground/80 font-mono text-[11px] break-all'>
-                    {p.models}
-                  </p>
-                </div>
-              </Label>
+              <div key={group.modality} className='space-y-2'>
+                <p className='text-muted-foreground px-1 text-xs font-semibold'>
+                  {t(group.label)}
+                </p>
+                {items.map((p) => {
+                  const checked = !!selected[p.id]
+                  return (
+                    <Label
+                      key={p.id}
+                      htmlFor={`qip-${p.id}`}
+                      className='hover:bg-accent/40 flex cursor-pointer items-start gap-3 rounded-md border p-3'
+                    >
+                      <Checkbox
+                        id={`qip-${p.id}`}
+                        checked={checked}
+                        onCheckedChange={() => toggle(p.id)}
+                        disabled={submitting}
+                        className='mt-0.5'
+                      />
+                      <div className='flex-1 space-y-1'>
+                        <div className='flex items-center gap-2'>
+                          <span className='font-medium'>{p.name}</span>
+                          <span className='text-muted-foreground text-xs'>
+                            type={p.type}
+                          </span>
+                          {p.docsUrl && (
+                            <a
+                              href={p.docsUrl}
+                              target='_blank'
+                              rel='noopener noreferrer'
+                              onClick={(e) => e.stopPropagation()}
+                              className='text-muted-foreground hover:text-foreground inline-flex items-center gap-0.5 text-xs underline'
+                            >
+                              {t('Get key')}
+                              <ExternalLink className='size-3' />
+                            </a>
+                          )}
+                        </div>
+                        <p className='text-muted-foreground text-xs'>
+                          {p.description}
+                        </p>
+                        <p className='text-muted-foreground/80 font-mono text-[11px] break-all'>
+                          {p.models}
+                        </p>
+                      </div>
+                    </Label>
+                  )
+                })}
+              </div>
             )
           })}
         </div>
