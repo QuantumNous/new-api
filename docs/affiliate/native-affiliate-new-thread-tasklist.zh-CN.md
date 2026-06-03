@@ -415,7 +415,7 @@
 - [x] default 分销页面金额主显示 RMB：看板和 scoped logs 花费列均以 RMB 为主单位，原始 quota 保留为 tooltip/说明。
 - [x] default 复用 `formatQuotaWithCurrency()`；为全局 formatter 增加调用方 CNY override，default 分销 helper 不再手写 quota->RMB 换算。
 - [x] classic 原始 quota/token 仅保留 tooltip、调试字段或导出附加列；scoped 使用日志花费列 tooltip 保留原始 quota。
-- [ ] 用真实账号数据核对页面 RMB 值。
+- [x] 用真实账号数据核对页面 RMB 值；2026-06-03 用本地恢复库管理员真实账号完成 default `/affiliate` quota 换算核对和 classic `/console/affiliate` 当前筛选页 RMB 明细核对。
 - [x] 导出文件同时包含 RMB 主字段和原始 quota 附加字段；default `/affiliate` 当前页 CSV 导出已包含 `consumption_rmb` 和 `raw_quota`。
 - [ ] 如需全量/跨页导出，另行设计后端 scoped export 或安全分页导出，不能绕过后端 scope。
 
@@ -439,6 +439,13 @@
 - 验证方式：先观察 `bun --bun test src/features/affiliate/lib.test.ts` RED，失败于 `buildAffiliateLogsCsv` 未导出；实现后 `bun --bun test src/features/affiliate/lib.test.ts src/features/affiliate/admin-lib.test.ts src/lib/currency.test.ts` 22 项通过；`cd web/default && bun run i18n:sync` 通过；`cd web/default && bun run build` 通过。
 - 残留风险：本批只覆盖 default 当前页导出，不是全量跨页导出；classic 官方使用日志当前未发现文件导出入口。
 - 下一步：如业务需要全量导出，设计后端 scoped export 或安全分页导出，并补浏览器下载 smoke。
+
+### Phase 9 真实账号 RMB 页面核对复盘（2026-06-03 本线程）
+
+- 完成内容：新增 Git 忽略的 runtime Playwright RMB smoke，用本地恢复库管理员真实账号分别打开 default `/affiliate` 与 classic `/console/affiliate`，捕获页面自身发出的 `/api/affiliate/logs` 响应，并核对页面表格可见 RMB 文本。
+- 验证方式：`node --check runtime/smoke/affiliate-rmb-smoke.spec.cjs` 与 `node --check runtime/smoke/playwright.rmb.config.cjs` 通过；`timeout 600s runtime/smoke/node_modules/.bin/playwright test --config=runtime/smoke/playwright.rmb.config.cjs` 1/1 通过。default 当前页用真实日志 `quota`、`quota_per_unit`、`usd_exchange_rate` 计算并核对 `¥0.006102`；classic 当前默认“今天”筛选页没有可见消费花费列，改核对 API 内容明细中已渲染的 `¥1.000000`。
+- 残留风险：本轮 classic RMB 核对覆盖当前可见页面明细，不等同于强制筛选到消费日志花费列；如需更强回归，需要在 smoke 中驱动 classic 筛选到历史消费日志或构造安全本地消费数据。runner、截图和测试账号仍位于 Git 忽略路径，不提交。
+- 下一步：继续 Phase 12 SMS 真实通道 smoke、完整结算周期双跑、灰度启用和外接控制台归档。
 
 ## Phase 10：KPI、佣金、人头费与结算
 
@@ -595,7 +602,7 @@
 - [x] default 前端构建或 typecheck 通过（2026-06-03 `cd web/default && bun run build` 通过；typecheck 仍有既有 baseline，见 Phase 8 复盘）。
 - [x] Playwright 截图回归通过；classic 分销页 2026-06-03 已覆盖 `super_admin`、一级、二级、一级移动端、普通用户未开通、profile disabled、模块关闭 7 个场景；default `/affiliate` 已覆盖管理员、一级、二级、普通用户、profile disabled、模块关闭、移动端 7 个场景；classic 用户管理 inviter SideSheet、预览接口和 no-op 保存 smoke 已通过；default 用户管理 inviter 编辑抽屉、预览和 no-op 保存 smoke 已通过。
 - [x] schema impact 报告无非预期官方表改动；见 `docs/affiliate/native-affiliate-schema-impact-report.zh-CN.md`。
-- [x] 用服务器 PG 快照完成真实账号 smoke；2026-06-03 在本地恢复库中用三类测试账号完成 API smoke、classic browser smoke 和 default `/affiliate` browser smoke，未输出用户名、密码、cookie 或 token。
+- [x] 用服务器 PG 快照完成真实账号 smoke；2026-06-03 在本地恢复库中用三类测试账号完成 API smoke、classic browser smoke、default `/affiliate` browser smoke 和 Phase 9 RMB 页面核对，未输出用户名、密码、cookie 或 token。
 - [x] 管理员端规则配置页面可修改分佣比例、KPI 阈值、系数、人头费、质量门槛和结算周期；当前完成范围为 classic/default JSON 规则区块，运营友好的动态表格仍待后续。
 - [ ] 如果启用手机号/SMS，短信宝签名、模板、通道、限流和测试发送通过 smoke。
 - [ ] 外接控制台与原生模块双跑一个完整结算周期。
