@@ -64,6 +64,52 @@ timeout 30s curl -sS -I http://127.0.0.1:3000/
 
 真实账号登录 smoke 必须从 `.codex-local/affiliate-test-accounts.secret.json` 读取密码，输出只保留角色标签、HTTP code 和 success 状态，不输出用户名、密码、cookie 或响应体。
 
+## 前端 dev server
+
+`5173` 和 `5174` 是 WSL 内的 Rsbuild dev server 进程，不是 Docker 容器。电脑重启、WSL 重启或 tmux session 被关闭后，这两个端口会消失，需要重新启动。
+
+一键启动 default 与 classic：
+
+```bash
+./scripts/dev-web-tmux.sh
+```
+
+默认启动结果：
+
+- default 前端：`http://127.0.0.1:5173/`，工作目录 `web/default`。
+- classic 前端：`http://127.0.0.1:5174/`，工作目录 `web/classic`。
+- API proxy：`http://localhost:3000`，即本地 dev compose 的 `new-api` 后端。
+
+常用 tmux 操作：
+
+```bash
+tmux attach -t new-api-web
+tmux list-windows -t new-api-web
+tmux select-window -t new-api-web:default
+tmux select-window -t new-api-web:classic
+tmux capture-pane -p -t new-api-web:default -S -80
+tmux capture-pane -p -t new-api-web:classic -S -80
+tmux kill-session -t new-api-web
+```
+
+前端端口 smoke：
+
+```bash
+timeout 15s curl -I http://127.0.0.1:5173/
+timeout 15s curl -I http://127.0.0.1:5174/
+timeout 15s curl -i http://127.0.0.1:5173/api/affiliate/team
+timeout 15s curl -i http://127.0.0.1:5174/api/affiliate/team
+```
+
+未登录访问 `5173` / `5174` 的 `/api/affiliate/team` 应返回 401，不应返回 `Invalid URL` 404。登录态验证必须从本地 secret 文件读取测试账号密码，不得输出密码、cookie 或响应体。
+
+如果脚本提示缺少 `rsbuild`，先分别安装前端依赖：
+
+```bash
+cd web/default && bun install
+cd web/classic && bun install
+```
+
 ## Phase 2 schema baseline
 
 导出 baseline 到 Git 忽略的 `runtime/schema-impact/`：

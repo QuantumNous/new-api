@@ -272,6 +272,11 @@ const Affiliate = () => {
     setTeamTreeUnavailable(false);
     try {
       const res = await API.get('/api/affiliate/team', {
+        params: { _t: Date.now() },
+        headers: {
+          'Cache-Control': 'no-cache, no-store, max-age=0',
+          Pragma: 'no-cache',
+        },
         skipErrorHandler: true,
       });
       const { success, data } = res.data;

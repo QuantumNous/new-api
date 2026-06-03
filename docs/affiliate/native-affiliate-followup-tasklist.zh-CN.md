@@ -1,0 +1,196 @@
+# 原生分销后续接手 Tasklist
+
+更新日期：2026-06-03
+
+适用分支：`feature/native-affiliate-minimal`
+
+目标：接手已提交的原生分销 MVP 后，优先收口本线程暴露的环境、缓存、安全脱敏、规则管理可用性、结算可靠性和发布治理问题，避免重复实现已经存在的后端路由。
+
+## 0. 接手前必须读取
+
+- [ ] 先读取 `docs/affiliate/native-affiliate-master-plan.zh-CN.md`，确认业务口径、分销层级、Feishu 方案和验收目标。
+- [ ] 先读取 `docs/affiliate/native-affiliate-development-principles.zh-CN.md`，严格遵守最小侵入、sidecar、TDD、脱敏、RMB 单位、权限和发布证据原则。
+- [ ] 先读取 `docs/affiliate/native-affiliate-new-thread-tasklist.zh-CN.md`，理解 Phase 1 到 Phase 13 的已完成项、残留风险和历史复盘。
+- [ ] 先读取 `docs/affiliate/native-affiliate-dev-compose-runbook.zh-CN.md`，确认 WSL2 Docker Compose dev 的启停、重建、dump 恢复和清理方式。
+- [ ] 先读取 `docs/affiliate/native-affiliate-external-acceptance-runbook.zh-CN.md`，外部验收不得用本地 smoke 冒充 staging/生产验收。
+- [ ] 先读取 `docs/affiliate/native-affiliate-schema-impact-report.zh-CN.md`，新增或修改 GORM model 前后必须重新做 schema impact。
+- [ ] 先读取 `docs/affiliate/native-affiliate-sms-reference-audit.zh-CN.md`，手机号/SMS 只走 provider/sidecar 路线，不能直接迁移旧 fork 的侵入式实现。
+- [ ] 继续按 `.agents/skills` 和可用 MCP/plugin/CLI 工作。当前项目相关技能至少包括 `classic-to-default-sync`、`i18n-translate`、`shadcn-ui`、`vercel-react-best-practices`、`superpowers:systematic-debugging` 和飞书文档相关 skill。
+- [ ] 飞书资料作为业务口径来源继续复核，但不得把内部账号、密码、DSN、cookie、完整手机号、生产地址或敏感截图写入仓库、tasklist、commit message 或测试日志。
+
+## 1. 当前运行态基线
+
+- [x] 后端路由 `/api/affiliate/team` 已存在，不要重复实现。源码位置包括 `router/api-router.go`、`controller/affiliate.go`、`service/affiliate.go`。
+- [x] WSL 内未登录访问 `http://127.0.0.1:3000/api/affiliate/team` 已返回 401，不再是旧 `Invalid URL` 404。
+- [x] 使用 `ChengyuWang0807` 登录并带 `New-Api-User` header 后，`3000`、`5173`、`5174` 的 `/api/affiliate/team` 均已返回 200 且 `total=9`。
+- [x] 当前前端 dev server 已在 WSL 内用 `tmux` 启动，session 为 `new-api-web`，window 为 `default` 和 `classic`。
+- [x] 当前端口约定：`5173` 是 default 前端，`5174` 是 classic 前端，`3000` 是 new-api 后端容器 HTTP 入口。
+- [x] 当前工作区已有两处未提交的前端缓存规避改动：`web/default/src/features/affiliate/api.ts` 和 `web/classic/src/pages/Affiliate/index.jsx`。
+- [ ] 后续开始任何代码改动前先运行 `git status --short --branch`，明确区分用户已有改动、上一轮缓存规避改动和本轮新增改动。
+
+## 2. Dev 前端运行与重启后恢复
+
+- [ ] 明确给后续线程和用户说明：`5173`、`5174` 是临时前端 dev server 进程，不是类似 `new-api` 的 Docker 容器；电脑重启后端口拒绝连接是正常现象。
+- [ ] 所有前端端口启动命令优先在 WSL 内执行，不使用 Windows 侧 `Start-Process` 作为默认路径。
+- [ ] 保留或新增 WSL 启动脚本，例如 `scripts/dev-web-tmux.sh`，一键启动 `tmux new-session -s new-api-web` 并分别运行 default/classic dev server。
+- [ ] 在 runbook 中补齐 `tmux attach -t new-api-web`、`tmux ls`、`tmux kill-session -t new-api-web`、查看 default/classic 日志和重启单个 window 的命令。
+- [ ] 修正 `docker-compose.dev.yml` 或相关文档里旧的前端端口说明，避免继续写 `3001` 之类与当前 `5173`/`5174` 不一致的提示。
+- [ ] 前端启动后必须验证 `curl -I http://127.0.0.1:5173/` 和 `curl -I http://127.0.0.1:5174/` 返回 200。
+- [ ] 前端启动后必须验证 `curl -i http://127.0.0.1:5173/api/affiliate/team` 和 `curl -i http://127.0.0.1:5174/api/affiliate/team` 未登录返回 401 而不是 404。
+
+## 3. Dev 与生产镜像治理
+
+- [ ] 明确 dev compose 的 `new-api` 服务当前应从仓库本地源码构建 `new-api:dev`，不是直接跑官方 `calciumion/new-api:latest` 应用镜像。
+- [ ] 明确 dev compose 中 Redis/PostgreSQL 使用官方 `latest` 只代表基础设施镜像是最新，不代表应用代码来自官方 latest。
+- [ ] 明确生产 `docker-compose.yml` 如果仍使用 `calciumion/new-api:latest`，则不会包含当前仓库的二开代码，分销路由和前端改动都会丢失。
+- [ ] 给生产切换准备独立 compose override 或发布文档，把生产应用镜像改为本仓库 `Dockerfile` 构建出的带 tag 镜像，例如 `new-api-rain:YYYYMMDD-HHMM`，不要依赖浮动 latest。
+- [ ] 发布前确认生产 `Dockerfile` 同时构建并嵌入 default/classic 前端 dist，避免只发布后端而页面仍是旧 bundle。
+- [ ] 发布前确认生产环境变量、PostgreSQL、Redis、日志、反代、HTTPS、备份和回滚策略，不把 dev volume 或本地 dump 带到生产。
+- [ ] 提供从 dev 切回生产模式的 checklist：停止 dev compose，备份生产库，构建本地生产镜像，切 compose image，`docker compose up -d`，验证 `/api/status`、登录、分销中心、管理端规则页和结算任务。
+
+## 4. `/api/affiliate/team` 旧 404 缓存收口
+
+- [ ] 在 Windows 浏览器 DevTools Network 中复核 `/api/affiliate/team` 的 Request URL、Status、是否 from disk cache/from memory cache、Response Body 和 Request Headers。
+- [ ] 如果 Response Body 仍是 `Invalid URL (GET /api/affiliate/team)`，优先判断为旧后端 404 HTTP 缓存或命中错误端口，不要先改后端路由。
+- [ ] 继续验证未登录 curl：`http://127.0.0.1:5173/api/affiliate/team`、`http://127.0.0.1:5174/api/affiliate/team`、`http://127.0.0.1:3000/api/affiliate/team` 均应返回 401，不应返回 404。
+- [ ] 登录后用浏览器控制台、DevTools request replay 或 curl 带 cookie 与 `New-Api-User` header 验证 `/api/affiliate/team` 返回 200 且 `total` 非 0。
+- [ ] 如果 Network 显示缓存，先让浏览器勾选 Disable cache 并硬刷新，必要时清站点缓存。
+- [ ] 评估当前前端 `_t` cache buster 和 `Cache-Control: no-cache` 临时修复是否保留、改成统一 API no-cache 封装，或改为后端对 `/api/*` 返回 `Cache-Control: no-store`。
+- [ ] 如果保留前端 cache buster，必须补 default/classic 对应测试或至少用浏览器 Network 证明 Request URL 已带 `_t` 且不再命中 disk cache。
+- [ ] 如果改为后端 no-store，必须覆盖 `/api/affiliate/team`、登录态 API 和通用 API 响应，避免缓存 401/404/敏感 JSON。
+- [ ] 收口后提交一个独立 commit，说明这是缓存/部署链路修复，不是后端路由实现。
+
+## 5. Scoped 使用日志脱敏优先级
+
+- [ ] 立即复核 `service/affiliate_logs.go` 的 scoped 日志脱敏字段，当前疑点是只清理了 `Ip`、`RequestId`、`UpstreamRequestId` 和部分 `other` 字段，未清理 `ChannelId`、`ChannelName`、`TokenId`、`TokenName`。
+- [ ] 立即复核后端 CSV 导出，当前疑点是 `controller/affiliate.go` 仍导出 `channel_id`、`channel_name`、`token_id`、`token_name`。
+- [ ] 立即复核 default 前端 CSV 导出，当前疑点是 `web/default/src/features/affiliate/lib.ts` 仍导出 channel/token 字段。
+- [ ] 按治理原则修正 scoped 使用日志：分销商视角不得看到渠道成本、内部渠道源、token、IP、request id、upstream request id 和非授权字段。
+- [ ] 用 TDD 更新已有测试。先让 `controller/affiliate_test.go` 和 `web/default/src/features/affiliate/lib.test.ts` 中期待 channel/token 的断言 RED，再改实现到 GREEN。
+- [ ] 审核 classic/default 页面渲染，避免前端表格列继续展示已经脱敏或删除的内部字段。
+- [ ] 修复后补一条脱敏审计复盘到本 tasklist 或旧 tasklist，写清楚隐藏字段清单和测试命令。
+
+## 6. 分销管理指标体系表格化
+
+- [ ] 分销管理里的规则、指标、KPI、人头费、风控和结算配置建议做成表格或矩阵，而不是继续以 JSON textarea 或散卡片为主。
+- [ ] 佣金规则表：列包含层级、单用户累计净付费下限、单用户累计净付费上限、基准比例、最高比例 cap、是否需人工审批、排序和启停状态。
+- [ ] KPI 档位表：列包含层级、档位 code、档位名称、有效新用户阈值、净付费消耗阈值、最终系数、质量门槛和排序。
+- [ ] 人头费规则表：列包含层级、适用 KPI 档位、金额、首充门槛、14 天净付费门槛、解锁天数、是否启用。
+- [ ] 风控规则表：列包含纯赠金额占比阈值、异常用户占比阈值、退款阈值、二次付费率阈值、自刷/批量异常策略和处理动作。
+- [ ] 结算配置表单或表格：包含结算周期、冻结天数、最低结算金额、人工复核阈值、自动结算开关和备注。
+- [ ] 输入单位必须面向运营：金额用元，比例用百分比，保存时再转换为 cents/bps；页面不得让运营直接填写 cents 或 bps。
+- [ ] 增加规则变更 diff 预览，发布、归档、回滚和覆盖保存必须二次确认。
+- [ ] 增加复制上一版本、导入导出 JSON、只读查看已发布版本和高级 JSON 模式，但高级 JSON 不能作为默认入口。
+- [ ] default 与 classic 需要保持功能 parity，但视觉可以遵循各自设计系统。
+
+## 7. Feishu 业务口径复核与种子规则
+
+- [ ] 重新核对飞书分销方案的净付费口径：只计算 paid 净付费消耗，不计算赠金、试用、退款、异常、自刷和内部测试。
+- [ ] 重新核对有效新用户口径：邀请归因有效、首充达标、14 天净付费达标、无退款/自刷/批量异常。
+- [ ] 复核一级佣金档位：0-200、200-800、800-1500、1500-5000、5000+ 等区间的基准比例和 cap。
+- [ ] 复核二级佣金档位：0-200、200-800、800-1500、1500-5000、5000+ 等区间的基准比例和 cap。
+- [ ] 复核 KPI 规则：最终档位应取有效用户数档位和净付费消耗档位的较低者，质量门槛可降档或触发复核。
+- [ ] 复核人头费规则：不按注册直接发放，必须满足首充和 14 天净付费门槛。
+- [ ] 复核分销邀请注册赠送额度与普通邀请注册赠送额度差异，确保赠金不计佣、不计 KPI。
+- [ ] 把已核对的飞书规则沉淀为可导入的默认 rule set seed，避免每次手工输入运营规则。
+- [ ] 对 seed 增加 Go 测试，确保区间无重叠、无空洞、金额/比例单位转换正确、发布版本不可变。
+
+## 8. 佣金、KPI、人头费与结算可靠性
+
+- [ ] 审计 `service/affiliate_commission.go` 中一次性 `Find(&logs)` 的无界查询风险，改成按时间窗口和 ID cursor 分批扫描。
+- [ ] 审计 `service/affiliate_kpi.go` 中 KPI 计算的无界日志加载风险，改成分批聚合或数据库侧聚合。
+- [ ] 审计 `service/affiliate_head_fee.go` 中人头费计算的无界日志加载风险，改成分批聚合并保留幂等记录。
+- [ ] 给佣金、KPI、人头费、结算任务增加 run record 或 job execution 记录，包含参数、窗口、执行人、开始/结束时间、状态、错误、扫描进度和幂等 key。
+- [ ] 完整验证重复执行同一周期不会重复计佣、重复发人头费或重复生成结算单。
+- [ ] 补充 refund、partial refund、gift-only、mixed paid/gift/trial、legacy_unknown、任务钱包扣费、异步任务退款等样本。
+- [ ] 明确历史未标记日志是否进入灰度回填、人工复核或直接排除，不得默认把未知来源计为 paid。
+- [ ] 完整结算周期必须做双跑：dry-run 与正式 run 对比，重复正式 run 幂等，结算单金额与事件合计一致。
+
+## 9. Dashboard 与统计口径
+
+- [ ] 复核 `service/affiliate_summary.go` 的有效新用户统计，避免只按 invite event 简单计数而没有套用飞书有效用户门槛。
+- [ ] 复核 dashboard 的净消耗统计，确保只统计 paid 净付费消耗并正确扣除退款，不把赠金、试用、legacy_unknown 或异常流量算入业绩。
+- [ ] 分销商端 dashboard 保持卡片、趋势图、关系树和明细表组合，不建议全部表格化。
+- [ ] 管理端指标配置和结算审核更适合表格化，分销商端看板更适合“摘要卡片 + 趋势 + 表格明细”。
+- [ ] default/classic 都要显示 RMB 主单位，必要时 raw quota 只作为调试或附加列，不作为主要展示。
+
+## 10. 手机号/SMS 后续
+
+- [ ] 当前 SMS 限流为内存实现，生产多实例前必须评估 Redis/数据库分布式限流，否则不同实例之间会绕过限制。
+- [ ] 如果启用手机号注册，必须复用 Phase 5 的统一邀请归因和初始额度规则。
+- [ ] 如果启用手机号登录/绑定，继续使用 sidecar `user_phone_bindings`，不要直接改官方 `users` 表。
+- [ ] 短信宝真实通道 smoke 必须在签名审核通过、模板确认和脱敏日志策略明确后执行。
+- [ ] 测试发送、状态查询和失败错误码映射不得输出完整手机号、验证码、ApiKey、密码或签名内部资料。
+
+## 11. 前端质量与 parity
+
+- [ ] classic 与 default 的分销商中心、分销管理、用户 inviter 管理、规则集、佣金和结算操作必须保持功能 parity。
+- [ ] 新增前端功能时先确认适用 skill：classic 同步 default 用 `classic-to-default-sync`，文案用 `i18n-translate`，default 组件优先遵守 shadcn/default 现有模式。
+- [ ] 所有新增前端 API 要统一处理登录态、错误提示、no-cache 策略和 RMB 单位，不要每个页面散写。
+- [ ] 浏览器 smoke 至少覆盖未开通用户、一级分销商、二级分销商、管理员和超级管理员视角。
+- [ ] 对当前 `5173` default 页面已有的 React checked/onChange console warning 做基线记录，确认是否与分销页面无关；后续可以作为前端质量债单独修。
+- [ ] 前端变更后使用 in-app Browser 或 Playwright 打开 `http://127.0.0.1:5173/` 与 `http://127.0.0.1:5174/`，必要时截图留证。
+
+## 12. 外部验收与灰度
+
+- [ ] 本地 WSL smoke 只能证明开发环境可用，不能证明生产或 staging 可用。
+- [ ] 拿到外部环境入口后，按 external acceptance runbook 验证真实充值、真实 relay 消耗、退款、任务扣费、周期结算和分销商只读页面。
+- [ ] 灰度发布前必须确认 `AffiliateEnabled` 默认状态、管理员账号权限、灰度分销商名单和回滚开关。
+- [ ] 灰度时先只开放管理员查看和少量分销商查看，再开放规则发布和结算任务。
+- [ ] 外接控制台如需要只读归档，必须限定字段、限定 scope，并验证不会泄漏 channel/token/IP/request_id/内部成本。
+
+## 13. 生产切换 Checklist
+
+- [ ] 发布前确认当前分支所有目标改动已分批提交，`git status --short` 干净或只剩明确不提交文件。
+- [ ] 发布前从本仓库构建生产镜像，不能继续使用官方 `calciumion/new-api:latest` 作为包含二开功能的应用镜像。
+- [ ] 发布前备份生产 PostgreSQL，并记录可回滚镜像 tag 和 compose 文件。
+- [ ] 发布前验证生产镜像内前端 bundle 包含最新分销页面、缓存修复和翻译。
+- [ ] 发布后验证 `GET /api/status`、登录、`GET /api/affiliate/status`、`GET /api/affiliate/team`、管理员规则页、佣金页、结算页。
+- [ ] 发布后检查 HTTP cache header，避免浏览器继续缓存旧 404、401 或敏感 JSON。
+- [ ] 发布后检查容器日志、数据库迁移日志和 schema impact，确认只新增或修改预期 sidecar 对象。
+- [ ] 发布后保留脱敏验收记录，不记录 cookie、token、密码、DSN 或完整手机号。
+
+## 14. 建议执行顺序
+
+- [ ] P0：确认并收口 Windows 浏览器 `/api/affiliate/team` 旧 404，是缓存、错误端口、错误后端还是旧 bundle。
+- [ ] P0：修复 scoped 使用日志和 CSV 导出的 channel/token 泄漏风险，先 TDD，再实现。
+- [ ] P0：补 WSL 前端 dev server 一键启动脚本和 runbook，解决重启后 `5173`/`5174` 拒绝连接的问题。
+- [ ] P1：明确 dev/prod 镜像切换方案，保证生产不再误用官方 latest 来发布二开功能。
+- [ ] P1：把分销管理规则配置重构为运营友好的表格/矩阵，并保留高级 JSON 导入导出。
+- [ ] P1：佣金、KPI、人头费和结算任务改造为分批、可恢复、幂等、可审计。
+- [ ] P2：把飞书规则沉淀为默认 rule set seed，并增加单位转换、区间完整性和发布不可变测试。
+- [ ] P2：补齐 SMS 分布式限流、手机号注册归因和真实通道 smoke。
+- [ ] P2：完善 dashboard 统计口径、浏览器截图回归和外部验收归档。
+
+## 15. 文档维护规则
+
+- [ ] 每完成一个 P0/P1 任务，在本文件追加复盘：完成内容、验证命令、残留风险、下一步。
+- [ ] 每次发现与旧 tasklist 冲突的新事实，优先在本文件记录，并在必要时回写旧 tasklist 或 runbook。
+- [ ] 每次涉及飞书业务口径变化，必须注明来源和核对日期，但不得粘贴敏感内部资料。
+- [ ] 每次涉及生产、账号、密钥、短信、支付或真实用户数据，复盘只写脱敏证据。
+
+## P0-1 `/api/affiliate/team` 旧 404 缓存收口复盘（2026-06-03 本线程）
+
+- 完成内容：按 systematic-debugging 先取证，不重复实现后端路由。当前 WSL 和 Windows localhost 侧都无法复现 `/api/affiliate/team` 旧 `Invalid URL` 404；当前 classic/default bundle 的真实页面请求已带 `_t` cache buster、`Cache-Control: no-cache, no-store, max-age=0`、`Pragma: no-cache` 和 `New-Api-User: 32`。
+- 验证命令：`git status --short --branch` 显示上一轮未提交前端缓存规避改动仍为 `web/classic/src/pages/Affiliate/index.jsx` 与 `web/default/src/features/affiliate/api.ts`；`git log --oneline -8` 确认最近提交停在 `5ae0da58 chore: sync affiliate frontend translations`；`ss -ltnp` 显示 `3000`、`5173`、`5174` 均监听；`tmux ls` 显示 `new-api-web` 包含 default/classic 两个 window。
+- 验证命令：WSL 内 `curl -i http://127.0.0.1:3000/api/affiliate/team`、`5173`、`5174` 未登录均返回 401；Windows 侧 `curl.exe -i` 访问同三个 URL 也均返回 401；这证明当前端口映射和 dev server proxy 未命中旧 404。
+- 验证命令：Node 登录 smoke 从 `.codex-local/affiliate-test-accounts.secret.json` 读取一级分销商账号但不输出密码/cookie，登录成功后带 `New-Api-User: 32` 请求 `3000`、`5173`、`5174` 的 `/api/affiliate/team?_t=probe`，三者均 HTTP 200、`success=true`、`total=9`。
+- 验证命令：临时 Git 忽略 Playwright probe 通过真实表单登录 classic `5174` 与 default `5173` 后捕获页面级 Network；classic 请求 `http://127.0.0.1:5174/api/affiliate/team?_t=<timestamp>`，default 请求 `http://127.0.0.1:5173/api/affiliate/team?_t=<timestamp>`，两者均 `status=200`、`bodyKind=success-json`、`total=9`、`fromDiskCache=false`、`fromServiceWorker=false`，且请求头包含 `New-Api-User: 32` 和 no-cache headers。
+- 残留风险：Docker CLI 在本线程短超时 `docker ps` / compose 查询中未返回可用状态输出，仍需后续按 dev compose runbook 单独排查 Docker Desktop/WSL 响应性；但 HTTP 证据已证明当前 `3000` 服务对 team 路由不是旧 404。当前 Playwright 证据只能代表 headless Chromium 新上下文，不能直接读取用户手动 Windows Chrome 的 disk cache。
+- 下一步：如 Windows 手动浏览器仍显示 404，优先在该浏览器 DevTools 勾选 Disable cache 后硬刷新，或清理站点缓存/关闭旧标签页重新打开。当前已有 `_t` 和 no-cache 前端规避，可作为本轮 cache/dev-server commit 的一部分保留；若后续希望系统化治理，再评估后端统一对 `/api/*` 设置 `Cache-Control: no-store`。
+
+## P0-2 scoped 使用日志与 CSV 脱敏复盘（2026-06-03 本线程）
+
+- 完成内容：按 test-driven-development 先修改测试到安全口径并确认 RED，再修复实现。`ListAffiliateScopedLogs` 返回前现在清空 `channel`、`channel_name`、`token_id`、`token_name`、`ip`、`request_id`、`upstream_request_id`，并继续移除 `other.admin_info` 与 `other.stream_status`。后端 `/api/affiliate/logs/export` CSV 与 default 前端 CSV 均删除 channel/token 列，只保留 `time,user_id,username,type,model,group,consumption_rmb,raw_quota`。
+- RED 验证：`go test -count=1 ./controller -run 'TestGetAffiliateScopedLogsFiltersScopeAndRedactsSensitiveFields|TestExportAffiliateScopedLogsReturnsScopedRmbCsv'` 先失败，失败点分别为 scoped log 泄漏 channel/token 字段和 CSV header 仍包含 `channel_id,channel_name,token_id,token_name`；`cd web/default && bun --bun test src/features/affiliate/lib.test.ts` 先失败，失败点为 default CSV header 仍包含 channel/token 列。
+- GREEN 验证：同一 Go 目标测试修复后通过；`cd web/default && bun --bun test src/features/affiliate/lib.test.ts` 8 项通过；扩展验证 `go test -count=1 ./service ./controller ./router -run 'Affiliate'` 通过；`cd web/default && bun run build` 通过；`git diff --check` 通过。
+- 残留风险：classic 分销 scoped logs 页面依赖后端脱敏作为安全边界，当前后端已过滤敏感字段；classic UI 仍可在 affiliate mode 下尝试渲染“渠道信息”，但拿到的是后端清空后的空值，不构成敏感泄漏。后续可单独做 UI 清理，避免显示 `0 - [未知]` 这类无意义信息。
+- 下一步：进入 P0-3，补 WSL 前端 dev server 一键启动脚本和 runbook；如要更强运行时验证，可在重建后端容器后用真实页面再捕获 `/api/affiliate/logs` 响应，确认 channel/token 字段为空。
+
+## P0-3 WSL 前端 dev server 脚本与 runbook 复盘（2026-06-03 本线程）
+
+- 完成内容：新增 `scripts/dev-web-tmux.sh`，在 WSL 内一键启动 default/classic 两个 Rsbuild dev server。默认 tmux session 为 `new-api-web`，default 监听 `5173`，classic 监听 `5174`，API proxy 指向 `http://localhost:3000`。如果 session 已存在，脚本只提示 attach 和 list-windows，不重复启动端口。
+- 完成内容：更新 `docker-compose.dev.yml` 顶部注释，移除旧 `cd web && bun run dev` 和 `3001` 说明，改为 `./scripts/dev-web-tmux.sh`、`5173` default、`5174` classic。更新 `native-affiliate-dev-compose-runbook.zh-CN.md`，补充前端 dev server 不是 Docker 容器、电脑/WSL 重启后需重启脚本、tmux attach/list/capture/kill 命令、端口 smoke 和依赖缺失处理。
+- 验证命令：`bash -n scripts/dev-web-tmux.sh` 通过；当前已有 `new-api-web` session 时运行 `./scripts/dev-web-tmux.sh` 输出 existing-session 提示并退出 0；`curl -I http://127.0.0.1:5173/` 与 `curl -I http://127.0.0.1:5174/` 均返回 200；`curl -i http://127.0.0.1:5173/api/affiliate/team` 与 `5174` 未登录均返回 401；`git diff --check` 通过。
+- 残留风险：本轮没有 kill 当前运行中的 `new-api-web` session 做冷启动演练，避免打断正在使用的 5173/5174；脚本冷启动路径由语法检查、当前 tmux 命令读取和依赖路径检查覆盖，后续如电脑重启可直接执行脚本验证。
+- 下一步：P0 已完成本地收口，后续建议先按主题提交 `cache/dev-server runbook` 与 `scoped logs redaction` 两个 commit，或继续进入 P1 dev/prod 镜像治理。

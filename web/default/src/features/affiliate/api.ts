@@ -73,6 +73,11 @@ export async function getAffiliateTeamTree(): Promise<
 > {
   try {
     const res = await api.get('/api/affiliate/team', {
+      params: { _t: Date.now() },
+      headers: {
+        'Cache-Control': 'no-cache, no-store, max-age=0',
+        Pragma: 'no-cache',
+      },
       skipBusinessError: true,
       skipErrorHandler: true,
     })
