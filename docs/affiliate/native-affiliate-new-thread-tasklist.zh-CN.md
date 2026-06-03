@@ -139,6 +139,13 @@
 - Phase 3/4 残留风险：普通用户友好状态已覆盖后端 `/api/affiliate/status`、classic `/console/affiliate` 和 default `/affiliate`，但 default 尚未做真实账号截图回归；Phase 3 sidecar 表已进入本地 PostgreSQL schema impact，但尚未覆盖 staging/生产。
 - Phase 3/4 下一步：继续补 default 真实账号 browser smoke，或推进 Phase 5/Phase 9 后续缺口。
 
+### 当前剩余 gate 审计（2026-06-03 本线程）
+
+- 当前状态：`feature/native-affiliate-minimal` 工作树干净；Phase 1-4 本地可落地项、quota source sidecar/写入 hook、任务钱包 source segment、classic/default 本地 smoke、RMB 核对、KPI/佣金/人头费/结算和用户管理主链路均已有本地提交与复盘记录。
+- 剩余未打勾项：服务器 SSH/compose/PostgreSQL 容器信息和服务器内 `pg_dump` 需要用户/运维提供入口；手机号注册归因只在业务决定启用手机号/SMS 注册入口时才落地；短信宝真实通道 smoke、完整结算周期双跑、灰度启用和外接控制台只读归档均属于外部验收，执行步骤见 external acceptance runbook。
+- 本地约束：后续如无新增 GORM model 或 sidecar 字段，不需要重复 Docker schema impact；如需要 Docker，仍必须单条 `timeout` 且不并发。不得读取输出 `.codex-local/sources.yml`，不得提交 `.codex-local/`、`runtime/`、dump、账号、密码、DSN 或截图。
+- 下一步：拿到外部信息后按 runbook 执行对应验收；如业务决定启用手机号注册，再先补手机号注册归因 TDD，再执行真实短信通道 smoke。
+
 ### Phase 3 quota source sidecar 复盘（2026-06-03 本线程）
 
 - 完成内容：新增 `model.QuotaSourceSidecarModels()`，包含 `user_quota_source_balances` 和 `user_quota_source_events`；接入 `migrateDB` / `migrateDBFast` AutoMigrate。佣金、KPI snapshot、人头费 paid stats 统一通过 quota attribution 解析：日志 `Other` 中显式 `quota_source` / `affiliate_quota_source` / `billing_source` 仍优先，缺失时按 `source_log_id` / `related_type=log` / `request_id` 查 quota source sidecar；同一日志混合 paid/gift/trial 时只按 paid 部分计佣，未标记且无 sidecar 的日志仍不默认 paid。
