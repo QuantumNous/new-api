@@ -59,21 +59,58 @@ function shouldSubmitPaymentInCurrentTab(): boolean {
   return isSafariBrowser() || isWeChatBrowser() || isMobileBrowser()
 }
 
+export function isSafePaymentRedirectUrl(value: string): boolean {
+  const trimmed = value.trim()
+  if (!trimmed) {
+    return false
+  }
+
+  try {
+    const url = new URL(trimmed)
+    return url.protocol === 'http:' || url.protocol === 'https:'
+  } catch {
+    return false
+  }
+}
+
+export function openPaymentUrl(url: string): boolean {
+  if (!isSafePaymentRedirectUrl(url)) {
+    return false
+  }
+
+  window.open(url.trim(), '_blank', 'noopener,noreferrer')
+  return true
+}
+
+export function redirectToPaymentUrl(url: string): boolean {
+  if (!isSafePaymentRedirectUrl(url)) {
+    return false
+  }
+
+  window.location.href = url.trim()
+  return true
+}
+
 /**
  * Submit payment form (for non-Stripe payments)
  */
 export function submitPaymentForm(
   url: string,
   params: Record<string, unknown>
-): void {
+): boolean {
+  if (!isSafePaymentRedirectUrl(url)) {
+    return false
+  }
+
   const form = document.createElement('form')
-  form.action = url
+  form.action = url.trim()
   form.method = 'POST'
   form.acceptCharset = 'UTF-8'
 
   // 移动端和微信 WebView 对异步创建的 _blank 表单兼容性较差，当前页提交更稳。
   if (!shouldSubmitPaymentInCurrentTab()) {
     form.target = '_blank'
+    form.setAttribute('rel', 'noopener noreferrer')
   }
 
   // Add form parameters
@@ -92,6 +129,8 @@ export function submitPaymentForm(
   window.setTimeout(() => {
     form.remove()
   }, 10_000)
+
+  return true
 }
 
 /**

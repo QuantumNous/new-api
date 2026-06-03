@@ -20,6 +20,7 @@ import { useState, useCallback } from 'react'
 import i18next from 'i18next'
 import { toast } from 'sonner'
 import { requestWaffoPayment, isApiSuccess } from '../api'
+import { openPaymentUrl } from '../lib/payment'
 
 function getPaymentUrl(data: unknown): string | null {
   if (!data || typeof data !== 'object') {
@@ -61,7 +62,10 @@ export function useWaffoPayment() {
           const paymentUrl = getPaymentUrl(response.data)
 
           if (paymentUrl) {
-            window.open(paymentUrl, '_blank')
+            if (!openPaymentUrl(paymentUrl)) {
+              toast.error(i18next.t('Invalid payment redirect URL'))
+              return false
+            }
             toast.success(i18next.t('Redirecting to payment page...'))
             return true
           }

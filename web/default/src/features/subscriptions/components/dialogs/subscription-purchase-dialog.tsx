@@ -21,7 +21,12 @@ import { Crown, CalendarClock, Package } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { formatQuota } from '@/lib/format'
-import { submitPaymentForm } from '@/features/wallet/lib/payment'
+import {
+  isSafePaymentRedirectUrl,
+  openPaymentUrl,
+  redirectToPaymentUrl,
+  submitPaymentForm,
+} from '@/features/wallet/lib/payment'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import {
@@ -116,7 +121,10 @@ export function SubscriptionPurchaseDialog(props: Props) {
     try {
       const res = await paySubscriptionStripe({ plan_id: plan.id })
       if (res.message === 'success' && res.data?.pay_link) {
-        window.open(res.data.pay_link, '_blank')
+        if (!openPaymentUrl(res.data.pay_link)) {
+          toast.error(t('Invalid payment redirect URL'))
+          return
+        }
         toast.success(t('Payment page opened'))
         props.onOpenChange(false)
       } else {
@@ -139,7 +147,10 @@ export function SubscriptionPurchaseDialog(props: Props) {
     try {
       const res = await paySubscriptionCreem({ plan_id: plan.id })
       if (res.message === 'success' && res.data?.checkout_url) {
-        window.open(res.data.checkout_url, '_blank')
+        if (!openPaymentUrl(res.data.checkout_url)) {
+          toast.error(t('Invalid payment redirect URL'))
+          return
+        }
         toast.success(t('Payment page opened'))
         props.onOpenChange(false)
       } else {
@@ -164,8 +175,12 @@ export function SubscriptionPurchaseDialog(props: Props) {
     try {
       const res = await paySubscriptionWaffoPancake({ plan_id: plan.id })
       if (res.message === 'success' && res.data?.checkout_url) {
+        if (!isSafePaymentRedirectUrl(res.data.checkout_url)) {
+          toast.error(t('Invalid payment redirect URL'))
+          return
+        }
         toast.success(t('Redirecting to payment page...'))
-        window.location.href = res.data.checkout_url
+        redirectToPaymentUrl(res.data.checkout_url)
       } else {
         toast.error(
           res.message && res.message !== 'success'
@@ -193,7 +208,10 @@ export function SubscriptionPurchaseDialog(props: Props) {
         payment_method: selectedEpayMethod,
       })
       if (res.message === 'success' && res.url) {
-        submitPaymentForm(res.url, res.data || {})
+        if (!submitPaymentForm(res.url, res.data || {})) {
+          toast.error(t('Invalid payment redirect URL'))
+          return
+        }
         toast.success(t('Payment initiated'))
         props.onOpenChange(false)
       } else {
