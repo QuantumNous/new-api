@@ -4,11 +4,60 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/model"
 )
+
+func TestCodexLimitReportFetchConcurrencyIsTen(t *testing.T) {
+	if codexLimitReportFetchConcurrency != 10 {
+		t.Fatalf("codexLimitReportFetchConcurrency = %d, want 10", codexLimitReportFetchConcurrency)
+	}
+}
+
+func TestBuildCodexLimitReportLimitsConcurrentFetches(t *testing.T) {
+	channels := make([]*model.Channel, codexLimitReportFetchConcurrency+3)
+	for i := range channels {
+		channels[i] = &model.Channel{Id: i + 1, Name: "Codex", Type: constant.ChannelTypeCodex, Status: common.ChannelStatusEnabled}
+	}
+	release := make(chan struct{})
+	started := make(chan struct{}, len(channels))
+	fetcher := CodexUsageFetcherFunc(func(ctx context.Context, channel *model.Channel) (int, []byte, error) {
+		started <- struct{}{}
+		select {
+		case <-release:
+			return 200, []byte(`{"rate_limit":{"allowed":true}}`), nil
+		case <-ctx.Done():
+			return 0, nil, ctx.Err()
+		}
+	})
+
+	done := make(chan struct{})
+	go func() {
+		BuildCodexLimitReport(context.Background(), channels, fetcher)
+		close(done)
+	}()
+	defer func() {
+		close(release)
+		<-done
+	}()
+
+	for i := 0; i < codexLimitReportFetchConcurrency; i++ {
+		select {
+		case <-started:
+		case <-time.After(time.Second):
+			t.Fatalf("timed out waiting for fetch %d", i+1)
+		}
+	}
+
+	select {
+	case <-started:
+		t.Fatalf("more than %d fetches started concurrently", codexLimitReportFetchConcurrency)
+	case <-time.After(25 * time.Millisecond):
+	}
+}
 
 func TestBuildCodexLimitReportSummarizesSuccessfulUsage(t *testing.T) {
 	channels := []*model.Channel{
@@ -45,6 +94,14 @@ func TestBuildCodexLimitReportSummarizesSuccessfulUsage(t *testing.T) {
 							"limit_window_seconds": 18000
 						}
 					}
+				},
+				{
+					"rate_limit": {
+						"primary_window": {
+							"used_percent": 12,
+							"limit_window_seconds": 18000
+						}
+					}
 				}
 			]
 		}`), nil
@@ -68,7 +125,7 @@ func TestBuildCodexLimitReportSummarizesSuccessfulUsage(t *testing.T) {
 	if row.BaseWeeklyWindow == nil || row.BaseWeeklyWindow.UsedPercent != 51 {
 		t.Fatalf("unexpected weekly window: %#v", row.BaseWeeklyWindow)
 	}
-	if len(row.AdditionalLimits) != 1 {
+	if len(row.AdditionalLimits) != 2 {
 		t.Fatalf("additional limits len = %d", len(row.AdditionalLimits))
 	}
 	if row.AdditionalLimits[0].Name != "gpt-5.3-codex" {
@@ -76,6 +133,9 @@ func TestBuildCodexLimitReportSummarizesSuccessfulUsage(t *testing.T) {
 	}
 	if row.AdditionalLimits[0].FiveHourWindow == nil || row.AdditionalLimits[0].FiveHourWindow.UsedPercent != 77 {
 		t.Fatalf("unexpected additional five-hour window: %#v", row.AdditionalLimits[0])
+	}
+	if row.AdditionalLimits[1].Name != "Additional Restriction" {
+		t.Fatalf("unexpected fallback additional limit name: %#v", row.AdditionalLimits[1])
 	}
 }
 
@@ -112,6 +172,41 @@ func TestBuildCodexLimitReportMergesRangeUsageStats(t *testing.T) {
 	}
 	if report.Rows[1].RangeTokenUsed != 3000 || report.Rows[1].RangeQuota != 7500 {
 		t.Fatalf("unexpected row 1 usage: %#v", report.Rows[1])
+	}
+}
+
+func TestBuildCodexLimitReportClassifiesFreePlanFromRateLimitPlanType(t *testing.T) {
+	channels := []*model.Channel{
+		{Id: 12, Name: "Codex Free", Type: constant.ChannelTypeCodex, Status: common.ChannelStatusEnabled},
+	}
+	fetcher := CodexUsageFetcherFunc(func(ctx context.Context, channel *model.Channel) (int, []byte, error) {
+		return 200, []byte(`{
+			"rate_limit": {
+				"plan_type": "free",
+				"allowed": true,
+				"primary_window": {
+					"used_percent": 64,
+					"limit_window_seconds": 18000
+				},
+				"secondary_window": {
+					"used_percent": 92,
+					"limit_window_seconds": 18000
+				}
+			}
+		}`), nil
+	})
+
+	report := BuildCodexLimitReport(context.Background(), channels, fetcher)
+
+	row := report.Rows[0]
+	if row.PlanType != "free" {
+		t.Fatalf("expected rate_limit.plan_type fallback, got %#v", row.PlanType)
+	}
+	if row.BaseFiveHourWindow != nil {
+		t.Fatalf("free plan should not expose five-hour window: %#v", row.BaseFiveHourWindow)
+	}
+	if row.BaseWeeklyWindow == nil || row.BaseWeeklyWindow.UsedPercent != 64 {
+		t.Fatalf("free plan should classify primary as weekly fallback: %#v", row.BaseWeeklyWindow)
 	}
 }
 

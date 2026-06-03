@@ -10,7 +10,7 @@ import (
 	"github.com/QuantumNous/new-api/model"
 )
 
-const codexLimitReportFetchConcurrency = 5
+const codexLimitReportFetchConcurrency = 10
 
 type CodexUsageFetcher interface {
 	FetchCodexUsage(ctx context.Context, channel *model.Channel) (statusCode int, body []byte, err error)
@@ -26,14 +26,14 @@ type CodexLimitWindow struct {
 	UsedPercent        float64 `json:"used_percent"`
 	ResetAt            int64   `json:"reset_at,omitempty"`
 	ResetAfterSeconds  int64   `json:"reset_after_seconds,omitempty"`
-	LimitWindowSeconds int64  `json:"limit_window_seconds,omitempty"`
+	LimitWindowSeconds int64   `json:"limit_window_seconds,omitempty"`
 }
 
 type CodexAdditionalLimit struct {
-	Name           string             `json:"name"`
-	MeteredFeature string             `json:"metered_feature,omitempty"`
-	FiveHourWindow *CodexLimitWindow  `json:"five_hour_window,omitempty"`
-	WeeklyWindow   *CodexLimitWindow  `json:"weekly_window,omitempty"`
+	Name           string            `json:"name"`
+	MeteredFeature string            `json:"metered_feature,omitempty"`
+	FiveHourWindow *CodexLimitWindow `json:"five_hour_window,omitempty"`
+	WeeklyWindow   *CodexLimitWindow `json:"weekly_window,omitempty"`
 }
 
 type CodexLimitReportRow struct {
@@ -57,15 +57,15 @@ type CodexLimitReportRow struct {
 }
 
 type CodexLimitReport struct {
-	GeneratedAt     int64                 `json:"generated_at"`
-	StartTimestamp  int64                 `json:"start_timestamp"`
-	EndTimestamp    int64                 `json:"end_timestamp"`
-	TotalChannels   int                   `json:"total_channels"`
-	SuccessCount    int                   `json:"success_count"`
-	FailureCount    int                   `json:"failure_count"`
-	TotalTokenUsed  int64                 `json:"total_token_used"`
-	TotalQuota      int64                 `json:"total_quota"`
-	Rows            []CodexLimitReportRow `json:"rows"`
+	GeneratedAt    int64                 `json:"generated_at"`
+	StartTimestamp int64                 `json:"start_timestamp"`
+	EndTimestamp   int64                 `json:"end_timestamp"`
+	TotalChannels  int                   `json:"total_channels"`
+	SuccessCount   int                   `json:"success_count"`
+	FailureCount   int                   `json:"failure_count"`
+	TotalTokenUsed int64                 `json:"total_token_used"`
+	TotalQuota     int64                 `json:"total_quota"`
+	Rows           []CodexLimitReportRow `json:"rows"`
 }
 
 type codexUsagePayload struct {
@@ -82,7 +82,7 @@ type codexAdditionalLimitPayload struct {
 	MeteredFeature  string                `json:"metered_feature"`
 	RateLimit       codexRateLimitPayload `json:"rate_limit"`
 	PrimaryWindow   *CodexLimitWindow     `json:"primary_window"`
-	SecondaryWindow *CodexLimitWindow    `json:"secondary_window"`
+	SecondaryWindow *CodexLimitWindow     `json:"secondary_window"`
 	PlanType        string                `json:"plan_type"`
 }
 
@@ -195,7 +195,7 @@ func applyCodexUsagePayload(row *CodexLimitReportRow, payload codexUsagePayload)
 	row.Allowed = payload.RateLimit.Allowed
 	row.LimitReached = payload.RateLimit.LimitReached
 	row.BaseFiveHourWindow, row.BaseWeeklyWindow = resolveCodexLimitWindows(
-		payload.PlanType,
+		row.PlanType,
 		payload.RateLimit.PrimaryWindow,
 		payload.RateLimit.SecondaryWindow,
 	)
@@ -214,7 +214,7 @@ func applyCodexUsagePayload(row *CodexLimitReportRow, payload codexUsagePayload)
 			primary,
 			secondary,
 		)
-		name := firstNonEmpty(item.LimitName, item.MeteredFeature, "Additional Limit")
+		name := firstNonEmpty(item.LimitName, item.MeteredFeature, "Additional Restriction")
 		row.AdditionalLimits = append(row.AdditionalLimits, CodexAdditionalLimit{
 			Name:           name,
 			MeteredFeature: strings.TrimSpace(item.MeteredFeature),

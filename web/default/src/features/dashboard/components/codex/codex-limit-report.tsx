@@ -34,7 +34,6 @@ import {
 import { useTranslation } from 'react-i18next'
 import dayjs from '@/lib/dayjs'
 import { formatCompactNumber, formatNumber, formatQuota } from '@/lib/format'
-import { getRollingDateRange } from '@/lib/time'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Progress } from '@/components/ui/progress'
@@ -50,6 +49,10 @@ import type {
   CodexLimitReportRow,
   CodexLimitWindow,
 } from '@/features/dashboard/types'
+import {
+  buildCodexLimitReportTimeRange,
+  isSameCodexLimitReportTimeRange,
+} from './codex-limit-report-range'
 
 function clampPercent(value: unknown): number {
   const numericValue = Number(value)
@@ -191,7 +194,7 @@ function AdditionalLimits(props: { items?: CodexAdditionalLimit[] }) {
         >
           <div className='mb-2 flex min-w-0 flex-wrap items-center gap-1.5'>
             <span className='min-w-0 truncate text-xs font-medium'>
-              {item.name || t('Additional Limit')}
+              {item.name || t('Additional Restriction')}
             </span>
             {item.metered_feature && (
               <StatusBadge
@@ -308,7 +311,9 @@ function ChannelPanel(props: { row: CodexLimitReportRow }) {
       </div>
 
       <div className='space-y-2'>
-        <div className='text-sm font-medium'>{t('Additional Limits')}</div>
+        <div className='text-sm font-medium'>
+          {t('Additional Restrictions')}
+        </div>
         <AdditionalLimits items={props.row.additional_limits} />
       </div>
     </div>
@@ -392,21 +397,13 @@ function CodexReportSkeleton() {
 export function CodexLimitReportPanel() {
   const { t } = useTranslation()
   const [selectedRange, setSelectedRange] = useState(7)
-  const [timeRange, setTimeRange] = useState(() => {
-    const { start, end } = getRollingDateRange(7)
-    return {
-      start_timestamp: Math.floor(start.getTime() / 1000),
-      end_timestamp: Math.floor(end.getTime() / 1000),
-    }
-  })
+  const [timeRange, setTimeRange] = useState(() =>
+    buildCodexLimitReportTimeRange(7)
+  )
 
   const handleRangeChange = useCallback((days: number) => {
     setSelectedRange(days)
-    const { start, end } = getRollingDateRange(days)
-    setTimeRange({
-      start_timestamp: Math.floor(start.getTime() / 1000),
-      end_timestamp: Math.floor(end.getTime() / 1000),
-    })
+    setTimeRange(buildCodexLimitReportTimeRange(days))
   }, [])
 
   const reportQuery = useQuery({
@@ -415,6 +412,15 @@ export function CodexLimitReportPanel() {
     staleTime: 30 * 1000,
     retry: false,
   })
+
+  const handleRefresh = useCallback(() => {
+    const nextRange = buildCodexLimitReportTimeRange(selectedRange)
+    if (isSameCodexLimitReportTimeRange(timeRange, nextRange)) {
+      void reportQuery.refetch()
+      return
+    }
+    setTimeRange(nextRange)
+  }, [reportQuery, selectedRange, timeRange])
 
   const report = reportQuery.data?.success ? reportQuery.data.data : undefined
   const summary = useMemo(() => buildReportSummary(report), [report])
@@ -452,7 +458,7 @@ export function CodexLimitReportPanel() {
           type='button'
           variant='outline'
           size='sm'
-          onClick={() => void reportQuery.refetch()}
+          onClick={handleRefresh}
           disabled={reportQuery.isFetching}
         >
           <RefreshCw

@@ -38,6 +38,7 @@ import {
   type DashboardSectionId,
   DASHBOARD_DEFAULT_SECTION,
   DASHBOARD_SECTION_IDS,
+  isDashboardSectionAllowed,
 } from './section-registry'
 import {
   type DashboardChartPreferences,
@@ -212,8 +213,7 @@ export function Dashboard() {
     () =>
       DASHBOARD_SECTION_IDS.filter(
         (section) =>
-          section !== 'overview' &&
-          ((section !== 'users' && section !== 'codex-limits') || isAdmin)
+          section !== 'overview' && isDashboardSectionAllowed(section, isAdmin)
       ),
     [isAdmin]
   )

@@ -18,6 +18,8 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+const codexLimitReportRequestTimeout = 60 * time.Second
+
 func GetCodexChannelUsage(c *gin.Context) {
 	channelId, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
@@ -91,8 +93,10 @@ func GetCodexChannelLimitReport(c *gin.Context) {
 	fetcher := service.CodexUsageFetcherFunc(func(ctx context.Context, channel *model.Channel) (int, []byte, error) {
 		return fetchCodexChannelUsage(ctx, channel)
 	})
+	reportCtx, cancel := newCodexLimitReportContext(c.Request.Context())
+	defer cancel()
 	report := service.BuildCodexLimitReportWithUsage(
-		c.Request.Context(),
+		reportCtx,
 		channels,
 		fetcher,
 		usageStats,
@@ -105,6 +109,10 @@ func GetCodexChannelLimitReport(c *gin.Context) {
 		"message": "",
 		"data":    report,
 	})
+}
+
+func newCodexLimitReportContext(parent context.Context) (context.Context, context.CancelFunc) {
+	return context.WithTimeout(parent, codexLimitReportRequestTimeout)
 }
 
 func getCodexLimitReportRange(c *gin.Context) (int64, int64) {
