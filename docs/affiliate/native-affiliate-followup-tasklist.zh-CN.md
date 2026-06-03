@@ -589,3 +589,13 @@
 - 策略结论：后续如启用手机号登录、绑定或找回能力，继续沿用 `user_phone_bindings` sidecar 与统一邀请归因逻辑，禁止把旧 fork 的侵入式 `users.phone` 方案直接迁入官方用户表。
 - 残留风险：当前审计只确认 sidecar 路线和不改 `users` 表；真实手机号注册入口、手机号登录入口、验证码校验闭环、邀请归因和初始额度发放仍未接入，需在后续任务中按 TDD 单独实现并做脱敏 smoke。
 - 下一步：Docker 恢复后补 SMS schema diff；如继续 SMS P2，应优先 TDD 手机号注册复用统一 invite context 和初始额度，真实短信宝 smoke 只在签名/模板审核完成后做脱敏验收。
+
+## P0-7 前端 dev server、Windows 端口与 Docker server 复核（2026-06-04 本线程）
+
+- 完成内容：按 systematic-debugging 继续从运行态取证，不重复实现 `/api/affiliate/team` 后端路由。本轮确认 `new-api-web` tmux session 仍存在，`5173` 与 `5174` 均由 WSL 内 node/Rsbuild 监听，`3000` 也处于监听状态；无需重新启动前端 dev server。
+- WSL 验证命令：`timeout 15s tmux ls` 返回 `new-api-web`；`timeout 15s ss -ltnp | rg ':3000|:5173|:5174'` 显示 `5173`、`5174` 与 `3000` 均监听；`timeout 15s curl -i http://127.0.0.1:5173/api/affiliate/team`、`5174`、`3000` 未登录均返回 401 JSON，不返回 404，也不返回旧 `Invalid URL`。
+- Windows 端口验证：Windows 侧 `curl.exe -i http://127.0.0.1:5173/api/affiliate/team`、`5174`、`3000` 未登录均返回 401；`curl.exe -I http://127.0.0.1:5173/` 与 `curl.exe -I http://127.0.0.1:5174/` 均返回 200。该证据证明 Windows 到 WSL 的当前端口映射可达，不能复现旧 404。
+- 浏览器验证：in-app Browser 打开 `http://127.0.0.1:5173/` 与 `http://127.0.0.1:5174/` 均显示页面标题 `NovaRouteAI`；打开 `5173/affiliate` 未登录跳转到 default sign-in；打开 `5174/console/affiliate` 未登录跳转到 classic login；新浏览器上下文未观察到 `/api/affiliate/team` 404。
+- Docker 取证：`timeout 15s docker version` 与 `docker --context default version` 仍只返回 client 信息并以非 0 退出；`docker context ls` 显示 default 指向 `/var/run/docker.sock`，`desktop-linux` 指向 Docker Desktop pipe；WSL 内 `docker --context desktop-linux version` 触发 Docker CLI panic；`curl --unix-socket /var/run/docker.sock http://localhost/_ping` 在 15s 内没有返回 `OK`。
+- 结论：当前 Windows/WSL 端口和 dev server 已可用，`/api/affiliate/team` 运行态不是旧 404；若用户手动 Windows 浏览器仍显示旧 404，优先检查该浏览器的 disk/memory cache、Disable cache 硬刷新、旧标签页和实际 Request URL。当前 Docker server 仍不可用，不能安全执行 `docker compose -f docker-compose.dev.yml up -d --build new-api`，也不能补 Docker PostgreSQL schema diff。
+- 残留风险：本轮未读取用户实际 Windows Chrome DevTools disk cache 状态；fresh in-app Browser 不能替代用户原浏览器 tab。由于 Docker server 不响应，运行态后端仍可能不是包含 `/api/*` no-store 提交的最新构建；待 Docker 恢复后必须重建 `new-api:dev` 并复测缓存头和 schema diff。
