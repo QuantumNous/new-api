@@ -6,6 +6,7 @@ import {
   getUnknownChannelTypeIds,
   normalizeChannelTypeIds,
   selectAllKnownChannelTypeIds,
+  shouldShowChannelTypeSelectAllShortcut,
 } from './monitoring-channel-types.ts'
 
 describe('monitoring channel type normalization', () => {
@@ -33,5 +34,11 @@ describe('monitoring channel type normalization', () => {
       999,
       1000,
     ])
+  })
+
+  test('only shows select all shortcut when explicitly enabled', () => {
+    assert.equal(shouldShowChannelTypeSelectAllShortcut(true), true)
+    assert.equal(shouldShowChannelTypeSelectAllShortcut(false), false)
+    assert.equal(shouldShowChannelTypeSelectAllShortcut(undefined), false)
   })
 })

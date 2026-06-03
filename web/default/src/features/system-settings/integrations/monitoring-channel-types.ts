@@ -54,3 +54,9 @@ export function selectAllKnownChannelTypeIds(value: number[]): number[] {
     ...CHANNEL_TYPE_OPTIONS.map((option) => option.value),
   ])
 }
+
+export function shouldShowChannelTypeSelectAllShortcut(
+  enabled?: boolean
+): boolean {
+  return enabled === true
+}

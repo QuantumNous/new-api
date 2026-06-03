@@ -62,6 +62,7 @@ import {
   getUnknownChannelTypeIds,
   normalizeChannelTypeIds,
   selectAllKnownChannelTypeIds,
+  shouldShowChannelTypeSelectAllShortcut,
 } from './monitoring-channel-types'
 
 const numericString = z.string().refine((value) => {
@@ -239,6 +240,9 @@ function ChannelTypePicker(props: ChannelTypePickerProps) {
   const [open, setOpen] = useState(false)
   const selected = new Set(props.value)
   const allSelected = areAllKnownChannelTypesSelected(props.value)
+  const showSelectAll = shouldShowChannelTypeSelectAllShortcut(
+    props.showSelectAllShortcut
+  )
   const selectedLabels = props.value
     .map((id) => CHANNEL_TYPE_OPTIONS.find((option) => option.value === id))
     .filter((option): option is (typeof CHANNEL_TYPE_OPTIONS)[number] =>
@@ -279,7 +283,7 @@ function ChannelTypePicker(props: ChannelTypePickerProps) {
             {allSelected && t('All channel types selected')}
           </span>
         </Button>
-        {props.showSelectAllShortcut && (
+        {showSelectAll && (
           <Button
             type='button'
             variant={allSelected ? 'secondary' : 'outline'}
@@ -320,17 +324,19 @@ function ChannelTypePicker(props: ChannelTypePickerProps) {
             <DialogTitle>{props.title}</DialogTitle>
             <DialogDescription>{props.description}</DialogDescription>
           </DialogHeader>
-          <div className='flex flex-wrap gap-2'>
-            <Button
-              type='button'
-              variant={allSelected ? 'default' : 'outline'}
-              size='sm'
-              className='rounded-full'
-              onClick={selectAllChannelTypes}
-            >
-              {t('Select all')}
-            </Button>
-          </div>
+          {showSelectAll && (
+            <div className='flex flex-wrap gap-2'>
+              <Button
+                type='button'
+                variant={allSelected ? 'default' : 'outline'}
+                size='sm'
+                className='rounded-full'
+                onClick={selectAllChannelTypes}
+              >
+                {t('Select all')}
+              </Button>
+            </div>
+          )}
           <div className='grid max-h-[50vh] gap-2 overflow-y-auto pr-1 sm:grid-cols-2'>
             {CHANNEL_TYPE_OPTIONS.map((option) => (
               <label
