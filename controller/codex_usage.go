@@ -91,15 +91,46 @@ func GetCodexChannelLimitReport(c *gin.Context) {
 		return
 	}
 
-	// Channels are fetched concurrently. Each refreshed key would otherwise
-	// trigger its own full channel-cache rebuild; collect the refresh signal
-	// instead and rebuild the cache once after the batch completes.
+	reportCtx, cancel := newCodexLimitReportContext(c.Request.Context())
+	defer cancel()
+	report := runCodexLimitReport(
+		reportCtx,
+		channels,
+		fetchCodexChannelUsageRefresh,
+		usageStats,
+		startTimestamp,
+		endTimestamp,
+	)
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "",
+		"data":    report,
+	})
+}
+
+// codexUsageRefreshFetcher fetches a channel's usage and reports whether its key
+// was refreshed, without rebuilding the global channel cache itself.
+type codexUsageRefreshFetcher func(ctx context.Context, channel *model.Channel) (int, []byte, bool, error)
+
+// runCodexLimitReport builds the limit report while coalescing channel-cache
+// rebuilds. Channels are fetched concurrently and each refreshed key would
+// otherwise trigger its own full cache rebuild; instead the refresh signals are
+// collected and the cache is rebuilt at most once after all fetches complete.
+func runCodexLimitReport(
+	ctx context.Context,
+	channels []*model.Channel,
+	refreshFetcher codexUsageRefreshFetcher,
+	usageStats map[int]model.CodexChannelUsageStat,
+	startTimestamp int64,
+	endTimestamp int64,
+) service.CodexLimitReport {
 	var (
 		refreshMu    sync.Mutex
 		cacheRefresh bool
 	)
 	fetcher := service.CodexUsageFetcherFunc(func(ctx context.Context, channel *model.Channel) (int, []byte, error) {
-		statusCode, body, refreshed, err := fetchCodexChannelUsageRefresh(ctx, channel)
+		statusCode, body, refreshed, err := refreshFetcher(ctx, channel)
 		if refreshed {
 			refreshMu.Lock()
 			cacheRefresh = true
@@ -107,10 +138,8 @@ func GetCodexChannelLimitReport(c *gin.Context) {
 		}
 		return statusCode, body, err
 	})
-	reportCtx, cancel := newCodexLimitReportContext(c.Request.Context())
-	defer cancel()
 	report := service.BuildCodexLimitReportWithUsage(
-		reportCtx,
+		ctx,
 		channels,
 		fetcher,
 		usageStats,
@@ -120,12 +149,7 @@ func GetCodexChannelLimitReport(c *gin.Context) {
 	if cacheRefresh {
 		rebuildCodexChannelCache()
 	}
-
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"message": "",
-		"data":    report,
-	})
+	return report
 }
 
 func newCodexLimitReportContext(parent context.Context) (context.Context, context.CancelFunc) {
@@ -233,7 +257,8 @@ func fetchCodexChannelUsageRefresh(ctx context.Context, ch *model.Channel) (int,
 
 // rebuildCodexChannelCache reloads the global channel cache and resets cached
 // proxy clients so refreshed channel keys take effect on other request paths.
-func rebuildCodexChannelCache() {
+// It is a variable so tests can observe how often the cache is rebuilt.
+var rebuildCodexChannelCache = func() {
 	model.InitChannelCache()
 	service.ResetProxyClientCache()
 }
