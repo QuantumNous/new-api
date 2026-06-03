@@ -8,11 +8,18 @@ Design goals (kept deliberately beginner-proof):
   - One preset = one provider + ONE modality (chat / image / embedding-audio).
     Mixing image + chat in one channel is the #1 source of confusion: image
     models can't be tested with a chat request and behave differently.
-  - Every model listed here has a DEFAULT PRICE in setting/ratio_setting, so a
-    fresh import never throws "price not configured". (That's why gpt-image-1.5
-    is intentionally absent — it has no default price.)
+  - Every model listed here is an EXACT key in setting/ratio_setting (chat:
+    defaultModelRatio, image: defaultModelPrice) so a fresh import never throws
+    "price not configured". Input pricing has NO prefix/alias fallback, so we
+    use exact, dated model names where the provider has no stable alias
+    (e.g. claude-sonnet-4-5-20250929, not claude-sonnet-4-6).
   - `testModel` is a cheap, real model of the right modality so the channel
     "Test" button works out of the box.
+
+Providers intentionally omitted from Quick Import because their models have no
+default price (would error until you run a models.dev price sync): Moonshot /
+Kimi, Doubao / VolcEngine, Mistral, Groq, OpenRouter. Add those manually +
+sync prices if you need them.
 
 `type` corresponds to constant/channel.go ChannelType* constants on the Go
 backend. Operators can always expand a channel's model list afterwards via the
@@ -52,10 +59,10 @@ export const PROVIDER_PRESETS: ProviderPreset[] = [
     type: 14,
     modality: 'chat',
     models:
-      'claude-opus-4-8,claude-opus-4-7,claude-sonnet-4-6,claude-3-5-haiku-latest',
-    testModel: 'claude-3-5-haiku-latest',
+      'claude-opus-4-8,claude-sonnet-4-5-20250929,claude-haiku-4-5-20251001',
+    testModel: 'claude-haiku-4-5-20251001',
     docsUrl: 'https://console.anthropic.com/settings/keys',
-    description: '对话 / Opus 4.8 · Sonnet 4.6 · Haiku',
+    description: '对话 / Opus 4.8 · Sonnet 4.5 · Haiku 4.5',
   },
   {
     id: 'gemini',
@@ -82,31 +89,30 @@ export const PROVIDER_PRESETS: ProviderPreset[] = [
     name: 'Qwen 通义千问 · 对话',
     type: 17,
     modality: 'chat',
-    models: 'qwen-max,qwen-plus,qwen-turbo',
+    models: 'qwen-plus,qwen-turbo',
     testModel: 'qwen-turbo',
     docsUrl: 'https://bailian.console.aliyun.com/?apiKey=1',
-    description: '对话 / qwen-max · plus · turbo（阿里）',
+    description: '对话 / qwen-plus · qwen-turbo（阿里）',
   },
   {
-    id: 'moonshot',
-    name: 'Moonshot Kimi · 对话',
-    type: 25,
+    id: 'zhipu-glm',
+    name: '智谱 GLM · 对话',
+    type: 26,
     modality: 'chat',
-    models: 'moonshot-v1-8k,moonshot-v1-32k,moonshot-v1-128k,kimi-k2-0905-preview',
-    testModel: 'moonshot-v1-8k',
-    docsUrl: 'https://platform.moonshot.cn/console/api-keys',
-    description: '对话 / moonshot-v1 · kimi-k2',
+    models: 'glm-4-plus,glm-4-air,glm-4-flash',
+    testModel: 'glm-4-flash',
+    docsUrl: 'https://open.bigmodel.cn/usercenter/apikeys',
+    description: '对话 / glm-4-plus · air · flash（智谱）',
   },
   {
-    id: 'openrouter',
-    name: 'OpenRouter · 对话（聚合）',
-    type: 20,
+    id: 'xai-grok',
+    name: 'xAI Grok · 对话',
+    type: 48,
     modality: 'chat',
-    models:
-      'anthropic/claude-opus-4-7,openai/gpt-4o,google/gemini-2.5-pro',
-    testModel: 'openai/gpt-4o',
-    docsUrl: 'https://openrouter.ai/keys',
-    description: '对话 / 聚合多家，按调用付费',
+    models: 'grok-3-beta,grok-3-mini-beta,grok-2',
+    testModel: 'grok-2',
+    docsUrl: 'https://console.x.ai',
+    description: '对话 / grok-3 · grok-2（xAI）',
   },
   // ── Image ───────────────────────────────────────────────────────────────
   {
