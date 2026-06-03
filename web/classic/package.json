@@ -45,7 +45,10 @@
   },
   "scripts": {
     "dev": "vite",
+    "dev:cn": "cross-env VITE_HOME_ENTRY=cn vite",
     "build": "vite build",
+    "build:cn": "cross-env VITE_HOME_ENTRY=cn vite build",
+    "build:en": "cross-env VITE_HOME_ENTRY=en vite build",
     "lint": "prettier . --check",
     "lint:fix": "prettier . --write",
     "eslint": "bunx eslint \"**/*.{js,jsx}\" --cache",
@@ -80,6 +83,7 @@
     "@vitejs/plugin-react": "^4.2.1",
     "autoprefixer": "^10.4.21",
     "code-inspector-plugin": "^1.3.3",
+    "cross-env": "^7.0.3",
     "eslint": "8.57.0",
     "eslint-plugin-header": "^3.1.1",
     "eslint-plugin-react-hooks": "^5.2.0",

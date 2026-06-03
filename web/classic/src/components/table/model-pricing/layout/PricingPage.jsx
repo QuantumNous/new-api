@@ -97,6 +97,40 @@ const PricingPage = () => {
         : pricingData.showWithRecharge
           ? pricingData.currency
           : pricingData.t('基础价格');
+  const overviewChips = [
+    {
+      key: 'results',
+      label: pricingData.t('结果'),
+      value: `${filteredModelCount}/${totalModelCount}`,
+    },
+    {
+      key: 'vendors',
+      label: pricingData.t('供应商'),
+      value: vendorCount,
+    },
+    {
+      key: 'groups',
+      label: pricingData.t('分组'),
+      value: groupCount,
+    },
+    {
+      key: 'view',
+      label: pricingData.t('视图'),
+      value: displayModeLabel,
+    },
+    {
+      key: 'unit',
+      label: pricingData.t('单位'),
+      value: billingUnitLabel,
+    },
+    {
+      key: 'status',
+      label: pricingData.t('状态'),
+      value: pricingData.loading
+        ? pricingData.t('同步中')
+        : pricingData.t('已就绪'),
+    },
+  ];
   const allProps = {
     ...pricingData,
     showRatio,
@@ -120,36 +154,12 @@ const PricingPage = () => {
             </div>
 
             <div className='pricing-overview-inline-meta'>
-              <span className='pricing-overview-inline-chip'>
-                <em>{pricingData.t('结果')}</em>
-                <strong>
-                  {filteredModelCount}/{totalModelCount}
-                </strong>
-              </span>
-              <span className='pricing-overview-inline-chip'>
-                <em>{pricingData.t('供应商')}</em>
-                <strong>{vendorCount}</strong>
-              </span>
-              <span className='pricing-overview-inline-chip'>
-                <em>{pricingData.t('分组')}</em>
-                <strong>{groupCount}</strong>
-              </span>
-              <span className='pricing-overview-inline-chip'>
-                <em>{pricingData.t('视图')}</em>
-                <strong>{displayModeLabel}</strong>
-              </span>
-              <span className='pricing-overview-inline-chip'>
-                <em>{pricingData.t('单位')}</em>
-                <strong>{billingUnitLabel}</strong>
-              </span>
-              <span className='pricing-overview-inline-chip'>
-                <em>{pricingData.t('状态')}</em>
-                <strong>
-                  {pricingData.loading
-                    ? pricingData.t('同步中')
-                    : pricingData.t('已就绪')}
-                </strong>
-              </span>
+              {overviewChips.map((item) => (
+                <span key={item.key} className='pricing-overview-inline-chip'>
+                  <em>{item.label}</em>
+                  <strong>{item.value}</strong>
+                </span>
+              ))}
             </div>
 
             {(activeFilters.length > 0 || pricingData.searchValue) && (
