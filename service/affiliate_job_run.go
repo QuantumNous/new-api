@@ -15,12 +15,14 @@ import (
 )
 
 const (
-	affiliateJobRunStageStarting   = "starting"
-	affiliateJobRunStageKPI        = "kpi"
-	affiliateJobRunStageCommission = "commission"
-	affiliateJobRunStageHeadFee    = "head_fee"
-	affiliateJobRunStageSettlement = "settlement"
-	affiliateJobRunStageComplete   = "complete"
+	affiliateJobRunStageStarting                   = "starting"
+	affiliateJobRunStageKPI                        = "kpi"
+	affiliateJobRunStageCommission                 = "commission"
+	affiliateJobRunStageHeadFee                    = "head_fee"
+	affiliateJobRunStageSettlement                 = "settlement"
+	affiliateJobRunStageSettlementCommissionEvents = "settlement_commission_events"
+	affiliateJobRunStageSettlementHeadFeeEvents    = "settlement_head_fee_events"
+	affiliateJobRunStageComplete                   = "complete"
 
 	affiliateJobRunStaleAfterSeconds = 6 * 60 * 60
 )
@@ -270,7 +272,7 @@ func finishAffiliateJobRunFailure(db *gorm.DB, jobRun model.AffiliateJobRun, sta
 		"status":          model.AffiliateJobRunStatusFailed,
 		"finished_at":     finishedAt,
 		"error_message":   sanitizeAffiliateJobRunError(cause),
-		"result_snapshot": common.GetJsonString(map[string]interface{}{"status": model.AffiliateJobRunStatusFailed}),
+		"result_snapshot": affiliateJobRunFailureSnapshot(db, jobRun.Id),
 	})
 }
 
@@ -291,12 +293,76 @@ func updateAffiliateJobRunCursor(db *gorm.DB, jobRunId int, stage string, lastCr
 		return nil
 	}
 	updates := map[string]interface{}{
-		"last_cursor_id": lastID,
+		"last_cursor_id":  lastID,
+		"result_snapshot": affiliateJobRunCursorSnapshot(db, jobRunId, stage, lastCreatedAt, lastID),
 	}
 	if lastCreatedAt > 0 {
 		updates["last_cursor_created_at"] = lastCreatedAt
 	}
 	return updateAffiliateJobRunProgress(db, jobRunId, stage, updates)
+}
+
+func affiliateJobRunFailureSnapshot(db *gorm.DB, jobRunId int) string {
+	snapshot := loadAffiliateJobRunResultSnapshot(db, jobRunId)
+	snapshot["status"] = model.AffiliateJobRunStatusFailed
+	return common.GetJsonString(snapshot)
+}
+
+func affiliateJobRunCursorSnapshot(db *gorm.DB, jobRunId int, stage string, lastCreatedAt int64, lastID int) string {
+	snapshot := loadAffiliateJobRunResultSnapshot(db, jobRunId)
+	for key, value := range affiliateJobRunCursorSnapshotFields(stage, lastCreatedAt, lastID) {
+		snapshot[key] = value
+	}
+	return common.GetJsonString(snapshot)
+}
+
+func loadAffiliateJobRunResultSnapshot(db *gorm.DB, jobRunId int) map[string]interface{} {
+	snapshot := map[string]interface{}{}
+	if db == nil || jobRunId <= 0 {
+		return snapshot
+	}
+	var jobRun model.AffiliateJobRun
+	if err := db.Select("result_snapshot").First(&jobRun, jobRunId).Error; err != nil {
+		return snapshot
+	}
+	if strings.TrimSpace(jobRun.ResultSnapshot) == "" {
+		return snapshot
+	}
+	if err := json.Unmarshal([]byte(jobRun.ResultSnapshot), &snapshot); err != nil {
+		return map[string]interface{}{}
+	}
+	return snapshot
+}
+
+func affiliateJobRunCursorSnapshotFields(stage string, lastCreatedAt int64, lastID int) map[string]interface{} {
+	fields := map[string]interface{}{}
+	switch stage {
+	case affiliateJobRunStageKPI:
+		fields["kpi_log_id"] = lastID
+		if lastCreatedAt > 0 {
+			fields["kpi_log_created_at"] = lastCreatedAt
+		}
+	case affiliateJobRunStageCommission:
+		fields["commission_log_id"] = lastID
+		if lastCreatedAt > 0 {
+			fields["commission_log_created_at"] = lastCreatedAt
+		}
+	case affiliateJobRunStageHeadFee:
+		fields["head_fee_log_id"] = lastID
+		if lastCreatedAt > 0 {
+			fields["head_fee_log_created_at"] = lastCreatedAt
+		}
+	case affiliateJobRunStageSettlementCommissionEvents:
+		fields["settlement_commission_event_id"] = lastID
+	case affiliateJobRunStageSettlementHeadFeeEvents:
+		fields["settlement_head_fee_event_id"] = lastID
+	default:
+		fields["last_cursor_id"] = lastID
+		if lastCreatedAt > 0 {
+			fields["last_cursor_created_at"] = lastCreatedAt
+		}
+	}
+	return fields
 }
 
 func affiliateSettlementRunIdempotencyKey(input AffiliateSettlementRunInput) string {

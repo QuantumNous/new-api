@@ -58,28 +58,26 @@ func GenerateAffiliateSettlements(db *gorm.DB, input AffiliateSettlementBuildInp
 		input.GeneratedAt = common.GetTimestamp()
 	}
 
+	ruleSet, err := findAffiliateSettlementRuleSet(db, input)
+	if err != nil {
+		return nil, err
+	}
+	groups, err := buildAffiliateSettlementEventGroups(db, ruleSet.Id, input)
+	if err != nil {
+		return nil, err
+	}
+	if len(groups) == 0 {
+		return []model.AffiliateSettlement{}, nil
+	}
+
+	userIds := make([]int, 0, len(groups))
+	for userId := range groups {
+		userIds = append(userIds, userId)
+	}
+	sort.Ints(userIds)
+
 	var settlements []model.AffiliateSettlement
-	err := db.Transaction(func(tx *gorm.DB) error {
-		ruleSet, err := findAffiliateSettlementRuleSet(tx, input)
-		if err != nil {
-			return err
-		}
-
-		groups, err := buildAffiliateSettlementEventGroups(tx, ruleSet.Id, input)
-		if err != nil {
-			return err
-		}
-		if len(groups) == 0 {
-			settlements = []model.AffiliateSettlement{}
-			return nil
-		}
-
-		userIds := make([]int, 0, len(groups))
-		for userId := range groups {
-			userIds = append(userIds, userId)
-		}
-		sort.Ints(userIds)
-
+	err = db.Transaction(func(tx *gorm.DB) error {
 		for _, userId := range userIds {
 			group := groups[userId]
 			settlement, err := upsertAffiliateSettlementDraft(tx, ruleSet, input, group)
@@ -254,7 +252,7 @@ func buildAffiliateSettlementEventGroups(db *gorm.DB, ruleSetId int, input Affil
 			group.CommissionEventIds = append(group.CommissionEventIds, event.Id)
 			groups[event.AffiliateUserId] = group
 		}
-		return updateAffiliateJobRunIDCursor(db, input.JobRunId, affiliateJobRunStageSettlement, events[len(events)-1].Id)
+		return updateAffiliateJobRunIDCursor(db, input.JobRunId, affiliateJobRunStageSettlementCommissionEvents, events[len(events)-1].Id)
 	}); err != nil {
 		return nil, err
 	}
@@ -271,7 +269,7 @@ func buildAffiliateSettlementEventGroups(db *gorm.DB, ruleSetId int, input Affil
 			group.HeadFeeEventIds = append(group.HeadFeeEventIds, event.Id)
 			groups[event.AffiliateUserId] = group
 		}
-		return updateAffiliateJobRunIDCursor(db, input.JobRunId, affiliateJobRunStageSettlement, events[len(events)-1].Id)
+		return updateAffiliateJobRunIDCursor(db, input.JobRunId, affiliateJobRunStageSettlementHeadFeeEvents, events[len(events)-1].Id)
 	}); err != nil {
 		return nil, err
 	}

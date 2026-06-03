@@ -153,6 +153,52 @@ func TestGenerateAffiliateSettlementsWithJobRunRecordsFailure(t *testing.T) {
 	}
 }
 
+func TestGenerateAffiliateSettlementsWithJobRunPreservesStageCursorOnFailure(t *testing.T) {
+	db := newAffiliateCommissionTestDB(t)
+	restoreBatchSize := setAffiliateSettlementEventScanBatchSizeForTest(1)
+	defer restoreBatchSize()
+	ruleSet := savePublishedAffiliateCommissionRuleSet(t, db, "settlement-generate-stage-cursor-failure")
+	seedAffiliateSettlementCommissionEvent(t, db, ruleSet.Id, 100, 1000, 1000, 2000)
+	secondEvent := seedAffiliateSettlementCommissionEvent(t, db, ruleSet.Id, 100, 500, 1000, 2000)
+
+	callbackName := "fail_head_fee_event_scan_after_commission_cursor_" + strings.NewReplacer("/", "_", " ", "_").Replace(t.Name())
+	if err := db.Callback().Query().Before("gorm:query").Register(callbackName, func(tx *gorm.DB) {
+		if tx.Statement == nil || tx.Statement.Schema == nil || tx.Statement.Schema.Table != "affiliate_head_fee_events" {
+			return
+		}
+		tx.AddError(errors.New("forced head fee event scan failure"))
+	}); err != nil {
+		t.Fatalf("register failing head fee scan callback: %v", err)
+	}
+	defer func() {
+		_ = db.Callback().Query().Remove(callbackName)
+	}()
+
+	settlements, jobRun, err := GenerateAffiliateSettlementsWithJobRun(db, AffiliateSettlementBuildInput{
+		RuleSetId:   ruleSet.Id,
+		PeriodStart: 1000,
+		PeriodEnd:   2000,
+		FreezeDays:  7,
+		ActorUserId: 9,
+		Reason:      "force cursor snapshot failure",
+		GeneratedAt: 3000,
+	})
+	if err == nil {
+		t.Fatalf("expected forced head fee event scan failure, settlements=%+v jobRun=%+v", settlements, jobRun)
+	}
+
+	var saved model.AffiliateJobRun
+	if err := db.First(&saved, jobRun.Id).Error; err != nil {
+		t.Fatalf("load failed cursor job run: %v", err)
+	}
+	if saved.Status != model.AffiliateJobRunStatusFailed || saved.LastCursorId != secondEvent.Id {
+		t.Fatalf("expected failed job run to retain the last completed commission cursor, got %+v", saved)
+	}
+	if !strings.Contains(saved.ResultSnapshot, `"settlement_commission_event_id":`+fmt.Sprint(secondEvent.Id)) {
+		t.Fatalf("expected failed result snapshot to preserve typed settlement commission cursor, got %q", saved.ResultSnapshot)
+	}
+}
+
 func TestGenerateAffiliateSettlementsWithJobRunResumesFailedJobRunForSameIdempotencyKey(t *testing.T) {
 	db := newAffiliateCommissionTestDB(t)
 	input := AffiliateSettlementBuildInput{
