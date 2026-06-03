@@ -4,6 +4,12 @@
 
 本文基于 `2026-06-01` 的实机检查结果整理，并作为当前 104 发版的本地唯一准入文档。
 
+环境定位：
+
+- `104` 为海外环境
+- classic 首页入口固定使用 `VITE_HOME_ENTRY=en`
+- 这里按部署环境固定切换，不做运行时环境变量覆盖
+
 ## 0. 文档与脚本入口
 
 这个目录现在建议分两层使用：
@@ -244,8 +250,15 @@ tar -czf /root/newapi-files-backup-$(date +%F-%H%M%S).tar.gz data logs
 推荐在本地构建镜像，再上传服务器：
 
 ```bash
-docker build -t new-api:deploy-dev-<commit> .
+docker build \
+  --build-arg VITE_HOME_ENTRY=en \
+  -t new-api:deploy-dev-<commit> .
 ```
+
+说明：
+
+- `VITE_HOME_ENTRY=en` 是 104 的固定构建参数
+- 如果漏传该参数，当前 Dockerfile 默认值也是 `en`，但发布时仍建议显式写出来，避免和 120 的国内环境混淆
 
 如果这次动了前端，发布前至少验证：
 

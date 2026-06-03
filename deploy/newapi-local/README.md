@@ -3,7 +3,26 @@
 这个目录同时服务两类场景：
 
 - 本地开发 / 本地联调
-- `104.xx.xx.xx` 生产环境运维
+- `104.xx.xx.xx` 海外生产环境运维
+- `120.xx.xx.xx` 国内生产环境运维
+
+## 0. 环境约定
+
+当前部署约定如下：
+
+- `104` 为海外环境
+- `120` 为国内环境
+- `web/classic` 首页入口使用构建时参数 `VITE_HOME_ENTRY` 固定切换
+
+当前推荐值：
+
+- `104` 使用 `VITE_HOME_ENTRY=en`
+- `120` 使用 `VITE_HOME_ENTRY=cn`
+
+说明：
+
+- 这里使用的是 Docker build 阶段的 `ARG VITE_HOME_ENTRY`
+- 不建议把它当作容器运行时环境变量来切换，因为 `web/classic` 是 Vite 静态构建产物，运行时改环境变量不会重新生成前端代码
 
 这个目录现在建议分两层使用：
 
@@ -100,6 +119,7 @@ REMOTE_HOST='104.xx.xx.xx' REMOTE_PASS='your-password' ./deploy/newapi-local/rel
 如果你要看 104 机器当前真实状态、当前线上容器名、以及当前最安全的发布方式，优先看：
 
 - [deploy/newapi-local/104_SERVER_DEPLOYMENT.md](./104_SERVER_DEPLOYMENT.md)
+- [deploy/newapi-local/120_SERVER_DEPLOYMENT.local.md](./120_SERVER_DEPLOYMENT.local.md)
 
 ## 3. 本地开发模式
 
