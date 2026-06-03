@@ -941,6 +941,7 @@ func testAllChannels(notify bool) error {
 			testAllChannelsLock.Unlock()
 		}()
 
+		dingTalkAlerts := make([]service.DingTalkChannelAlert, 0)
 		for _, channel := range channels {
 			if channel.Status == common.ChannelStatusManuallyDisabled {
 				continue
@@ -976,11 +977,7 @@ func testAllChannels(notify bool) error {
 
 			if shouldSendScheduledChannelTestDingTalkAlert(notify, newAPIError) {
 				alert := buildScheduledChannelTestDingTalkAlert(channel, newAPIError, autoDisabled, time.Now())
-				gopool.Go(func() {
-					if err := service.NotifyDingTalkChannelTestFailure(alert); err != nil {
-						common.SysError("failed to send dingtalk channel test alert: " + err.Error())
-					}
-				})
+				dingTalkAlerts = append(dingTalkAlerts, alert)
 			}
 
 			// enable channel
@@ -990,6 +987,12 @@ func testAllChannels(notify bool) error {
 
 			channel.UpdateResponseTime(milliseconds)
 			time.Sleep(common.RequestInterval)
+		}
+
+		if len(dingTalkAlerts) > 0 {
+			if err := service.NotifyDingTalkChannelTestFailures(dingTalkAlerts); err != nil {
+				common.SysError("failed to send dingtalk channel test alert: " + err.Error())
+			}
 		}
 
 		if notify {

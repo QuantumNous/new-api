@@ -2,6 +2,7 @@ package service
 
 import (
 	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -13,10 +14,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/QuantumNous/new-api/setting/system_setting"
 	"github.com/QuantumNous/new-api/types"
+	"github.com/glebarez/sqlite"
 	"github.com/stretchr/testify/require"
+	"gorm.io/gorm"
 )
 
 type roundTripFunc func(*http.Request) (*http.Response, error)
@@ -261,6 +265,121 @@ func TestNotifyDingTalkFailureDoesNotConsumeCooldownOnSendFailure(t *testing.T) 
 	require.Error(t, NotifyDingTalkChannelTestFailure(alert))
 	require.NoError(t, NotifyDingTalkChannelTestFailure(alert))
 	require.Equal(t, int32(2), atomic.LoadInt32(&requests))
+}
+
+func TestNotifyDingTalkFailuresSendsOneBatchForMultipleChannels(t *testing.T) {
+	allowDingTalkTestServer(t)
+	originalSetting := *operation_setting.GetMonitorSetting()
+	originalCooldown := dingTalkAlertCooldown
+	originalHTTPClient := httpClient
+	t.Cleanup(func() {
+		*operation_setting.GetMonitorSetting() = originalSetting
+		dingTalkAlertCooldown = originalCooldown
+		httpClient = originalHTTPClient
+	})
+
+	var requests int32
+	contents := make(chan string, 1)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		atomic.AddInt32(&requests, 1)
+		var payload struct {
+			Text struct {
+				Content string `json:"content"`
+			} `json:"text"`
+		}
+		require.NoError(t, json.NewDecoder(r.Body).Decode(&payload))
+		contents <- payload.Text.Content
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"errcode":0,"errmsg":"ok"}`))
+	}))
+	defer server.Close()
+
+	httpClient = server.Client()
+	dingTalkAlertCooldown = NewDingTalkAlertCooldown()
+	setting := operation_setting.GetMonitorSetting()
+	setting.DingTalkAlertEnabled = true
+	setting.DingTalkAlertWebhookURL = server.URL
+	setting.DingTalkAlertSecret = ""
+	setting.DingTalkAlertCooldownMinutes = 60
+
+	alerts := []DingTalkChannelAlert{
+		{
+			ChannelID:       99,
+			ChannelName:     "codex-prod",
+			ChannelTypeName: "Codex",
+			Error:           types.NewErrorWithStatusCode(errors.New("401"), types.ErrorCodeBadResponse, http.StatusUnauthorized),
+			Now:             time.Date(2026, 6, 2, 13, 0, 0, 0, time.UTC),
+		},
+		{
+			ChannelID:       100,
+			ChannelName:     "gemini-backup",
+			ChannelTypeName: "Gemini",
+			Error:           types.NewErrorWithStatusCode(errors.New("429"), types.ErrorCodeBadResponse, http.StatusTooManyRequests),
+			Now:             time.Date(2026, 6, 2, 13, 0, 5, 0, time.UTC),
+		},
+	}
+
+	require.NoError(t, NotifyDingTalkChannelTestFailures(alerts))
+
+	require.Equal(t, int32(1), atomic.LoadInt32(&requests))
+	content := <-contents
+	require.Contains(t, content, "New API channel test failures")
+	require.Contains(t, content, "Total Failures: 2")
+	require.Contains(t, content, "Channel ID: 99")
+	require.Contains(t, content, "Channel ID: 100")
+}
+
+func TestNotifyDingTalkFailureSharesCooldownThroughDatabase(t *testing.T) {
+	allowDingTalkTestServer(t)
+	originalSetting := *operation_setting.GetMonitorSetting()
+	originalCooldown := dingTalkAlertCooldown
+	originalHTTPClient := httpClient
+	originalDB := model.DB
+	t.Cleanup(func() {
+		*operation_setting.GetMonitorSetting() = originalSetting
+		dingTalkAlertCooldown = originalCooldown
+		httpClient = originalHTTPClient
+		model.DB = originalDB
+	})
+
+	db, err := gorm.Open(sqlite.Open("file:dingtalk-alert-cooldown?mode=memory&cache=shared"), &gorm.Config{})
+	require.NoError(t, err)
+	sqlDB, err := db.DB()
+	require.NoError(t, err)
+	sqlDB.SetMaxOpenConns(1)
+	require.NoError(t, db.AutoMigrate(&model.DingTalkAlertCooldownRecord{}))
+	model.DB = db
+
+	var requests int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		atomic.AddInt32(&requests, 1)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"errcode":0,"errmsg":"ok"}`))
+	}))
+	defer server.Close()
+
+	httpClient = server.Client()
+	dingTalkAlertCooldown = NewDingTalkAlertCooldown()
+	setting := operation_setting.GetMonitorSetting()
+	setting.DingTalkAlertEnabled = true
+	setting.DingTalkAlertWebhookURL = server.URL
+	setting.DingTalkAlertSecret = ""
+	setting.DingTalkAlertCooldownMinutes = 60
+
+	alert := DingTalkChannelAlert{
+		ChannelID:       32,
+		ChannelName:     "codex-prod",
+		ChannelTypeName: "Codex",
+		Error:           types.NewErrorWithStatusCode(errors.New("401"), types.ErrorCodeBadResponse, http.StatusUnauthorized),
+		Now:             time.Date(2026, 6, 2, 13, 0, 0, 0, time.UTC),
+	}
+
+	require.NoError(t, NotifyDingTalkChannelTestFailure(alert))
+	dingTalkAlertCooldown = NewDingTalkAlertCooldown()
+	alert.Now = alert.Now.Add(5 * time.Second)
+	require.NoError(t, NotifyDingTalkChannelTestFailure(alert))
+
+	require.Equal(t, int32(1), atomic.LoadInt32(&requests))
 }
 
 func allowDingTalkTestServer(t *testing.T) {

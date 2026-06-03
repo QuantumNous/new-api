@@ -6,6 +6,7 @@ import (
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -16,9 +17,12 @@ import (
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/QuantumNous/new-api/setting/system_setting"
 	"github.com/QuantumNous/new-api/types"
+	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 type DingTalkChannelAlert struct {
@@ -41,6 +45,7 @@ type dingTalkAlertCooldownReservation struct {
 	reservedAt  time.Time
 	previousAt  time.Time
 	hadPrevious bool
+	dbReserved  bool
 }
 
 type dingTalkSendResponse struct {
@@ -100,7 +105,14 @@ func (c *DingTalkAlertCooldown) reserve(channelID int, now time.Time, cooldown t
 }
 
 func (r *dingTalkAlertCooldownReservation) Rollback() {
-	if r == nil || r.c == nil {
+	if r == nil {
+		return
+	}
+	if r.dbReserved {
+		r.rollbackDB()
+		return
+	}
+	if r.c == nil {
 		return
 	}
 	r.c.mu.Lock()
@@ -115,6 +127,118 @@ func (r *dingTalkAlertCooldownReservation) Rollback() {
 		return
 	}
 	delete(r.c.lastAt, r.channelID)
+}
+
+func (r *dingTalkAlertCooldownReservation) rollbackDB() {
+	if model.DB == nil {
+		return
+	}
+	reservedAt := r.reservedAt.UnixMilli()
+	if r.hadPrevious {
+		_ = model.DB.Model(&model.DingTalkAlertCooldownRecord{}).
+			Where("channel_id = ? AND last_at = ?", r.channelID, reservedAt).
+			Update("last_at", r.previousAt.UnixMilli()).Error
+		return
+	}
+	_ = model.DB.
+		Where("channel_id = ? AND last_at = ?", r.channelID, reservedAt).
+		Delete(&model.DingTalkAlertCooldownRecord{}).Error
+}
+
+func reserveDingTalkAlertCooldown(channelID int, now time.Time, cooldown time.Duration) (*dingTalkAlertCooldownReservation, bool) {
+	if model.DB == nil {
+		return dingTalkAlertCooldown.reserve(channelID, now, cooldown)
+	}
+	reservation, allowed, err := reserveDingTalkAlertCooldownDB(channelID, now, cooldown)
+	if err != nil {
+		common.SysError("failed to reserve dingtalk alert cooldown in database: " + err.Error())
+		return dingTalkAlertCooldown.reserve(channelID, now, cooldown)
+	}
+	return reservation, allowed
+}
+
+func reserveDingTalkAlertCooldownDB(channelID int, now time.Time, cooldown time.Duration) (*dingTalkAlertCooldownReservation, bool, error) {
+	if cooldown <= 0 {
+		return nil, true, nil
+	}
+	var reservation *dingTalkAlertCooldownReservation
+	allowed := false
+	err := model.DB.Transaction(func(tx *gorm.DB) error {
+		var record model.DingTalkAlertCooldownRecord
+		err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+			Where("channel_id = ?", channelID).
+			First(&record).Error
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			record = model.DingTalkAlertCooldownRecord{
+				ChannelID: channelID,
+				LastAt:    now.UnixMilli(),
+			}
+			if err := tx.Create(&record).Error; err != nil {
+				return reserveDingTalkAlertCooldownAfterCreateConflict(tx, channelID, now, cooldown, &reservation, &allowed)
+			}
+			reservation = &dingTalkAlertCooldownReservation{
+				channelID:  channelID,
+				reservedAt: now,
+				dbReserved: true,
+			}
+			allowed = true
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+		last := time.UnixMilli(record.LastAt)
+		if now.Sub(last) < cooldown {
+			allowed = false
+			return nil
+		}
+		if err := tx.Model(&model.DingTalkAlertCooldownRecord{}).
+			Where("channel_id = ?", channelID).
+			Update("last_at", now.UnixMilli()).Error; err != nil {
+			return err
+		}
+		reservation = &dingTalkAlertCooldownReservation{
+			channelID:   channelID,
+			reservedAt:  now,
+			previousAt:  last,
+			hadPrevious: true,
+			dbReserved:  true,
+		}
+		allowed = true
+		return nil
+	})
+	if err != nil {
+		return nil, false, err
+	}
+	return reservation, allowed, nil
+}
+
+func reserveDingTalkAlertCooldownAfterCreateConflict(tx *gorm.DB, channelID int, now time.Time, cooldown time.Duration, reservation **dingTalkAlertCooldownReservation, allowed *bool) error {
+	var record model.DingTalkAlertCooldownRecord
+	if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+		Where("channel_id = ?", channelID).
+		First(&record).Error; err != nil {
+		return err
+	}
+	last := time.UnixMilli(record.LastAt)
+	if now.Sub(last) < cooldown {
+		*allowed = false
+		return nil
+	}
+	if err := tx.Model(&model.DingTalkAlertCooldownRecord{}).
+		Where("channel_id = ?", channelID).
+		Update("last_at", now.UnixMilli()).Error; err != nil {
+		return err
+	}
+	*reservation = &dingTalkAlertCooldownReservation{
+		channelID:   channelID,
+		reservedAt:  now,
+		previousAt:  last,
+		hadPrevious: true,
+		dbReserved:  true,
+	}
+	*allowed = true
+	return nil
 }
 
 func BuildDingTalkChannelAlertContent(alert DingTalkChannelAlert) string {
@@ -152,6 +276,22 @@ func BuildDingTalkChannelAlertContent(alert DingTalkChannelAlert) string {
 		fmt.Sprintf("Auto Disabled: %s", autoDisabled),
 		fmt.Sprintf("Time: %s", now.Format("2006-01-02 15:04:05")),
 	}, "\n")
+}
+
+func BuildDingTalkChannelAlertBatchContent(alerts []DingTalkChannelAlert) string {
+	if len(alerts) == 1 {
+		return BuildDingTalkChannelAlertContent(alerts[0])
+	}
+
+	blocks := []string{
+		"New API channel test failures",
+		fmt.Sprintf("Total Failures: %d", len(alerts)),
+	}
+	for index, alert := range alerts {
+		blocks = append(blocks, fmt.Sprintf("Failure #%d", index+1))
+		blocks = append(blocks, BuildDingTalkChannelAlertContent(alert))
+	}
+	return strings.Join(blocks, "\n\n")
 }
 
 func sanitizeDingTalkAlertText(value string) string {
@@ -258,6 +398,13 @@ func SendDingTalkText(webhookURL string, secret string, content string) error {
 }
 
 func NotifyDingTalkChannelTestFailure(alert DingTalkChannelAlert) error {
+	return NotifyDingTalkChannelTestFailures([]DingTalkChannelAlert{alert})
+}
+
+func NotifyDingTalkChannelTestFailures(alerts []DingTalkChannelAlert) error {
+	if len(alerts) == 0 {
+		return nil
+	}
 	setting := operation_setting.GetMonitorSetting()
 	if setting == nil || !setting.DingTalkAlertEnabled {
 		return nil
@@ -266,26 +413,38 @@ func NotifyDingTalkChannelTestFailure(alert DingTalkChannelAlert) error {
 		return fmt.Errorf("dingtalk alert webhook url is empty")
 	}
 
-	now := alert.Now
-	if now.IsZero() {
-		now = time.Now()
-		alert.Now = now
-	}
 	cooldownMinutes := setting.DingTalkAlertCooldownMinutes
 	if cooldownMinutes <= 0 {
 		cooldownMinutes = 60
 	}
-	reservation, allowed := dingTalkAlertCooldown.reserve(alert.ChannelID, now, time.Duration(cooldownMinutes)*time.Minute)
-	if !allowed {
+	cooldown := time.Duration(cooldownMinutes) * time.Minute
+	reservations := make([]*dingTalkAlertCooldownReservation, 0, len(alerts))
+	sendableAlerts := make([]DingTalkChannelAlert, 0, len(alerts))
+	for _, alert := range alerts {
+		now := alert.Now
+		if now.IsZero() {
+			now = time.Now()
+			alert.Now = now
+		}
+		reservation, allowed := reserveDingTalkAlertCooldown(alert.ChannelID, now, cooldown)
+		if !allowed {
+			continue
+		}
+		reservations = append(reservations, reservation)
+		sendableAlerts = append(sendableAlerts, alert)
+	}
+	if len(sendableAlerts) == 0 {
 		return nil
 	}
 
 	if err := SendDingTalkText(
 		setting.DingTalkAlertWebhookURL,
 		setting.DingTalkAlertSecret,
-		BuildDingTalkChannelAlertContent(alert),
+		BuildDingTalkChannelAlertBatchContent(sendableAlerts),
 	); err != nil {
-		reservation.Rollback()
+		for _, reservation := range reservations {
+			reservation.Rollback()
+		}
 		return err
 	}
 	return nil

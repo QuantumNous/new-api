@@ -275,6 +275,7 @@ func migrateDB() error {
 		&CustomOAuthProvider{},
 		&UserOAuthBinding{},
 		&PerfMetric{},
+		&DingTalkAlertCooldownRecord{},
 	)
 	if err != nil {
 		return err
